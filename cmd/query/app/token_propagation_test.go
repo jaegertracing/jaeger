@@ -46,8 +46,12 @@ type elasticsearchHandlerMock struct {
 	test *testing.T
 }
 
-func (*elasticsearchHandlerMock) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if token, ok := bearertoken.GetBearerToken(r.Context()); ok && token == bearerToken {
+func (*elasticsearchHandlerMock) ServeHTTP(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+	if token, ok := bearertoken.GetBearerToken(r.Context()); ok &&
+		token == bearerToken {
 		// Return empty results, we don't care about the result here.
 		// we just need to make sure the token was propagated to the storage and the query-service returns 200
 		ret := new(elastic.SearchResult)
@@ -58,7 +62,11 @@ func (*elasticsearchHandlerMock) ServeHTTP(w http.ResponseWriter, r *http.Reques
 	}
 
 	// No token, return error!
-	http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
+	http.Error(
+		w,
+		http.StatusText(http.StatusUnauthorized),
+		http.StatusUnauthorized,
+	)
 }
 
 func runMockElasticsearchServer(t *testing.T) *httptest.Server {
@@ -90,7 +98,11 @@ func runQueryService(t *testing.T, esURL string) *Server {
 	spanReader, err := f.CreateSpanReader()
 	require.NoError(t, err)
 
-	querySvc := querysvc.NewQueryService(spanReader, nil, querysvc.QueryServiceOptions{})
+	querySvc := querysvc.NewQueryService(
+		spanReader,
+		nil,
+		querysvc.QueryServiceOptions{},
+	)
 	server, err := NewServer(flagsSvc.Logger, flagsSvc.HC(), querySvc, nil,
 		&QueryOptions{
 			GRPCHostPort: ":0",
@@ -113,9 +125,21 @@ func TestBearerTokenPropagation(t *testing.T) {
 		headerValue string
 		headerName  string
 	}{
-		{name: "Bearer token", headerName: "Authorization", headerValue: bearerHeader},
-		{name: "Raw Bearer token", headerName: "Authorization", headerValue: bearerToken},
-		{name: "X-Forwarded-Access-Token", headerName: "X-Forwarded-Access-Token", headerValue: bearerHeader},
+		{
+			name:        "Bearer token",
+			headerName:  "Authorization",
+			headerValue: bearerHeader,
+		},
+		{
+			name:        "Raw Bearer token",
+			headerName:  "Authorization",
+			headerValue: bearerToken,
+		},
+		{
+			name:        "X-Forwarded-Access-Token",
+			headerName:  "X-Forwarded-Access-Token",
+			headerValue: bearerHeader,
+		},
 	}
 
 	esSrv := runMockElasticsearchServer(t)

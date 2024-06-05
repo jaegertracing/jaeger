@@ -30,7 +30,12 @@ import (
 )
 
 // CreateConsumer creates a new span consumer for the ingester
-func CreateConsumer(logger *zap.Logger, metricsFactory metrics.Factory, spanWriter spanstore.Writer, options app.Options) (*consumer.Consumer, error) {
+func CreateConsumer(
+	logger *zap.Logger,
+	metricsFactory metrics.Factory,
+	spanWriter spanstore.Writer,
+	options app.Options,
+) (*consumer.Consumer, error) {
 	var unmarshaller kafka.Unmarshaller
 	switch options.Encoding {
 	case kafka.EncodingJSON:
@@ -40,8 +45,11 @@ func CreateConsumer(logger *zap.Logger, metricsFactory metrics.Factory, spanWrit
 	case kafka.EncodingZipkinThrift:
 		unmarshaller = kafka.NewZipkinThriftUnmarshaller()
 	default:
-		return nil, fmt.Errorf(`encoding '%s' not recognised, use one of ("%s")`,
-			options.Encoding, strings.Join(kafka.AllEncodings, "\", \""))
+		return nil, fmt.Errorf(
+			`encoding '%s' not recognised, use one of ("%s")`,
+			options.Encoding,
+			strings.Join(kafka.AllEncodings, "\", \""),
+		)
 	}
 
 	spParams := processor.SpanProcessorParams{

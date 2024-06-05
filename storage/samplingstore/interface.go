@@ -27,7 +27,11 @@ type Store interface {
 	InsertThroughput(throughput []*model.Throughput) error
 
 	// InsertProbabilitiesAndQPS inserts calculated sampling probabilities and measured qps into storage.
-	InsertProbabilitiesAndQPS(hostname string, probabilities model.ServiceOperationProbabilities, qps model.ServiceOperationQPS) error
+	InsertProbabilitiesAndQPS(
+		hostname string,
+		probabilities model.ServiceOperationProbabilities,
+		qps model.ServiceOperationQPS,
+	) error
 
 	// GetThroughput retrieves aggregated throughput for operations within a time range.
 	GetThroughput(start, end time.Time) ([]*model.Throughput, error)

@@ -42,7 +42,12 @@ func TestTBufferedServerSendReceive(t *testing.T) {
 	require.NoError(t, err)
 
 	maxPacketSize := 65000
-	server, err := NewTBufferedServer(transport, 100, maxPacketSize, metricsFactory)
+	server, err := NewTBufferedServer(
+		transport,
+		100,
+		maxPacketSize,
+		metricsFactory,
+	)
 	require.NoError(t, err)
 	go server.Serve()
 	defer server.Stop()
@@ -56,7 +61,10 @@ func TestTBufferedServerSendReceive(t *testing.T) {
 	span.Name = "span1"
 
 	for i := 0; i < 1000; i++ {
-		err := client.EmitZipkinBatch(context.Background(), []*zipkincore.Span{span})
+		err := client.EmitZipkinBatch(
+			context.Background(),
+			[]*zipkincore.Span{span},
+		)
 		require.NoError(t, err)
 
 		select {
@@ -64,7 +72,9 @@ func TestTBufferedServerSendReceive(t *testing.T) {
 			assert.NotEmpty(t, readBuf.GetBytes())
 
 			inMemReporter := testutils.NewInMemoryReporter()
-			protoFact := thrift.NewTCompactProtocolFactoryConf(&thrift.TConfiguration{})
+			protoFact := thrift.NewTCompactProtocolFactoryConf(
+				&thrift.TConfiguration{},
+			)
 			trans := &customtransport.TBufferedReadTransport{}
 			protocol := protoFact.GetProtocol(trans)
 
@@ -129,7 +139,12 @@ func TestTBufferedServerMetrics(t *testing.T) {
 	defer transport.wg.Done()
 
 	maxPacketSize := 65000
-	server, err := NewTBufferedServer(transport, 1, maxPacketSize, metricsFactory)
+	server, err := NewTBufferedServer(
+		transport,
+		1,
+		maxPacketSize,
+		metricsFactory,
+	)
 	require.NoError(t, err)
 	go server.Serve()
 	defer server.Stop()
@@ -159,18 +174,39 @@ func TestTBufferedServerMetrics(t *testing.T) {
 		t.Fatal("expecting a packet in the channel")
 	}
 
-	metricsFactory.AssertCounterMetrics(t,
-		metricstest.ExpectedMetric{Name: "thrift.udp.server.packets.processed", Value: 1},
-		metricstest.ExpectedMetric{Name: "thrift.udp.server.packets.dropped", Value: 1},
-		metricstest.ExpectedMetric{Name: "thrift.udp.server.read.errors", Value: 1},
+	metricsFactory.AssertCounterMetrics(
+		t,
+		metricstest.ExpectedMetric{
+			Name:  "thrift.udp.server.packets.processed",
+			Value: 1,
+		},
+		metricstest.ExpectedMetric{
+			Name:  "thrift.udp.server.packets.dropped",
+			Value: 1,
+		},
+		metricstest.ExpectedMetric{
+			Name:  "thrift.udp.server.read.errors",
+			Value: 1,
+		},
 	)
-	metricsFactory.AssertGaugeMetrics(t,
-		metricstest.ExpectedMetric{Name: "thrift.udp.server.packet_size", Value: 65000},
-		metricstest.ExpectedMetric{Name: "thrift.udp.server.queue_size", Value: 1},
+	metricsFactory.AssertGaugeMetrics(
+		t,
+		metricstest.ExpectedMetric{
+			Name:  "thrift.udp.server.packet_size",
+			Value: 65000,
+		},
+		metricstest.ExpectedMetric{
+			Name:  "thrift.udp.server.queue_size",
+			Value: 1,
+		},
 	)
 
 	server.DataRecd(readBuf)
-	metricsFactory.AssertGaugeMetrics(t,
-		metricstest.ExpectedMetric{Name: "thrift.udp.server.queue_size", Value: 0},
+	metricsFactory.AssertGaugeMetrics(
+		t,
+		metricstest.ExpectedMetric{
+			Name:  "thrift.udp.server.queue_size",
+			Value: 0,
+		},
 	)
 }

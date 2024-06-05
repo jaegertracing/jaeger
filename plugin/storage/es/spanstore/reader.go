@@ -69,10 +69,14 @@ var (
 	ErrServiceNameNotSet = errors.New("service Name must be set")
 
 	// ErrStartTimeMinGreaterThanMax occurs when start time min is above start time max
-	ErrStartTimeMinGreaterThanMax = errors.New("start Time Minimum is above Maximum")
+	ErrStartTimeMinGreaterThanMax = errors.New(
+		"start Time Minimum is above Maximum",
+	)
 
 	// ErrDurationMinGreaterThanMax occurs when duration min is above duration max
-	ErrDurationMinGreaterThanMax = errors.New("duration Minimum is above Maximum")
+	ErrDurationMinGreaterThanMax = errors.New(
+		"duration Minimum is above Maximum",
+	)
 
 	// ErrMalformedRequestObject occurs when a request object is nil
 	ErrMalformedRequestObject = errors.New("malformed request object")
@@ -81,13 +85,19 @@ var (
 	ErrStartAndEndTimeNotSet = errors.New("start and End Time must be set")
 
 	// ErrUnableToFindTraceIDAggregation occurs when an aggregation query for TraceIDs fail.
-	ErrUnableToFindTraceIDAggregation = errors.New("could not find aggregation of traceIDs")
+	ErrUnableToFindTraceIDAggregation = errors.New(
+		"could not find aggregation of traceIDs",
+	)
 
 	defaultMaxDuration = model.DurationAsMicroseconds(time.Hour * 24)
 
 	objectTagFieldList = []string{objectTagsField, objectProcessTagsField}
 
-	nestedTagFieldList = []string{nestedTagsField, nestedProcessTagsField, nestedLogFieldsField}
+	nestedTagFieldList = []string{
+		nestedTagsField,
+		nestedProcessTagsField,
+		nestedLogFieldsField,
+	}
 )
 
 // SpanReader can query for and load traces from ElasticSearch
@@ -140,9 +150,13 @@ func NewSpanReader(p SpanReaderParams) *SpanReader {
 		maxSpanAge = rolloverMaxSpanAge
 	}
 	return &SpanReader{
-		client:                        p.Client,
-		maxSpanAge:                    maxSpanAge,
-		serviceOperationStorage:       NewServiceOperationStorage(p.Client, p.Logger, 0), // the decorator takes care of metrics
+		client:     p.Client,
+		maxSpanAge: maxSpanAge,
+		serviceOperationStorage: NewServiceOperationStorage(
+			p.Client,
+			p.Logger,
+			0,
+		), // the decorator takes care of metrics
 		spanIndexPrefix:               indexNames(p.IndexPrefix, spanIndex),
 		serviceIndexPrefix:            indexNames(p.IndexPrefix, serviceIndex),
 		spanIndexDateLayout:           p.SpanIndexDateLayout,
@@ -150,12 +164,16 @@ func NewSpanReader(p SpanReaderParams) *SpanReader {
 		spanIndexRolloverFrequency:    p.SpanIndexRolloverFrequency,
 		serviceIndexRolloverFrequency: p.SpanIndexRolloverFrequency,
 		spanConverter:                 dbmodel.NewToDomain(p.TagDotReplacement),
-		timeRangeIndices:              getTimeRangeIndexFn(p.Archive, p.UseReadWriteAliases, p.RemoteReadClusters),
-		sourceFn:                      getSourceFn(p.Archive, p.MaxDocCount),
-		maxDocCount:                   p.MaxDocCount,
-		useReadWriteAliases:           p.UseReadWriteAliases,
-		logger:                        p.Logger,
-		tracer:                        p.Tracer,
+		timeRangeIndices: getTimeRangeIndexFn(
+			p.Archive,
+			p.UseReadWriteAliases,
+			p.RemoteReadClusters,
+		),
+		sourceFn:            getSourceFn(p.Archive, p.MaxDocCount),
+		maxDocCount:         p.MaxDocCount,
+		useReadWriteAliases: p.UseReadWriteAliases,
+		logger:              p.Logger,
+		tracer:              p.Tracer,
 	}
 }
 
@@ -163,7 +181,10 @@ type timeRangeIndexFn func(indexName string, indexDateLayout string, startTime t
 
 type sourceFn func(query elastic.Query, nextTime uint64) *elastic.SearchSource
 
-func getTimeRangeIndexFn(archive, useReadWriteAliases bool, remoteReadClusters []string) timeRangeIndexFn {
+func getTimeRangeIndexFn(
+	archive, useReadWriteAliases bool,
+	remoteReadClusters []string,
+) timeRangeIndexFn {
 	if archive {
 		var archiveSuffix string
 		if useReadWriteAliases {
@@ -171,23 +192,38 @@ func getTimeRangeIndexFn(archive, useReadWriteAliases bool, remoteReadClusters [
 		} else {
 			archiveSuffix = archiveIndexSuffix
 		}
-		return addRemoteReadClusters(func(indexPrefix, indexDateLayout string, startTime time.Time, endTime time.Time, reduceDuration time.Duration) []string {
-			return []string{archiveIndex(indexPrefix, archiveSuffix)}
-		}, remoteReadClusters)
+		return addRemoteReadClusters(
+			func(indexPrefix, indexDateLayout string, startTime time.Time, endTime time.Time, reduceDuration time.Duration) []string {
+				return []string{archiveIndex(indexPrefix, archiveSuffix)}
+			},
+			remoteReadClusters,
+		)
 	}
 	if useReadWriteAliases {
-		return addRemoteReadClusters(func(indexPrefix string, indexDateLayout string, startTime time.Time, endTime time.Time, reduceDuration time.Duration) []string {
-			return []string{indexPrefix + "read"}
-		}, remoteReadClusters)
+		return addRemoteReadClusters(
+			func(indexPrefix string, indexDateLayout string, startTime time.Time, endTime time.Time, reduceDuration time.Duration) []string {
+				return []string{indexPrefix + "read"}
+			},
+			remoteReadClusters,
+		)
 	}
 	return addRemoteReadClusters(timeRangeIndices, remoteReadClusters)
 }
 
 // Add a remote cluster prefix for each cluster and for each index and add it to the list of original indices.
 // Elasticsearch cross cluster api example GET /twitter,cluster_one:twitter,cluster_two:twitter/_search.
-func addRemoteReadClusters(fn timeRangeIndexFn, remoteReadClusters []string) timeRangeIndexFn {
+func addRemoteReadClusters(
+	fn timeRangeIndexFn,
+	remoteReadClusters []string,
+) timeRangeIndexFn {
 	return func(indexPrefix string, indexDateLayout string, startTime time.Time, endTime time.Time, reduceDuration time.Duration) []string {
-		jaegerIndices := fn(indexPrefix, indexDateLayout, startTime, endTime, reduceDuration)
+		jaegerIndices := fn(
+			indexPrefix,
+			indexDateLayout,
+			startTime,
+			endTime,
+			reduceDuration,
+		)
 		if len(remoteReadClusters) == 0 {
 			return jaegerIndices
 		}
@@ -217,7 +253,12 @@ func getSourceFn(archive bool, maxDocCount int) sourceFn {
 }
 
 // timeRangeIndices returns the array of indices that we need to query, based on query params
-func timeRangeIndices(indexName, indexDateLayout string, startTime time.Time, endTime time.Time, reduceDuration time.Duration) []string {
+func timeRangeIndices(
+	indexName, indexDateLayout string,
+	startTime time.Time,
+	endTime time.Time,
+	reduceDuration time.Duration,
+) []string {
 	var indices []string
 	firstIndex := indexWithDate(indexName, indexDateLayout, startTime)
 	currentIndex := indexWithDate(indexName, indexDateLayout, endTime)
@@ -240,11 +281,19 @@ func indexNames(prefix, index string) string {
 }
 
 // GetTrace takes a traceID and returns a Trace associated with that traceID
-func (s *SpanReader) GetTrace(ctx context.Context, traceID model.TraceID) (*model.Trace, error) {
+func (s *SpanReader) GetTrace(
+	ctx context.Context,
+	traceID model.TraceID,
+) (*model.Trace, error) {
 	ctx, span := s.tracer.Start(ctx, "GetTrace")
 	defer span.End()
 	currentTime := time.Now()
-	traces, err := s.multiRead(ctx, []model.TraceID{traceID}, currentTime.Add(-s.maxSpanAge), currentTime)
+	traces, err := s.multiRead(
+		ctx,
+		[]model.TraceID{traceID},
+		currentTime.Add(-s.maxSpanAge),
+		currentTime,
+	)
 	if err != nil {
 		return nil, es.DetailedError(err)
 	}
@@ -254,24 +303,34 @@ func (s *SpanReader) GetTrace(ctx context.Context, traceID model.TraceID) (*mode
 	return traces[0], nil
 }
 
-func (s *SpanReader) collectSpans(esSpansRaw []*elastic.SearchHit) ([]*model.Span, error) {
+func (s *SpanReader) collectSpans(
+	esSpansRaw []*elastic.SearchHit,
+) ([]*model.Span, error) {
 	spans := make([]*model.Span, len(esSpansRaw))
 
 	for i, esSpanRaw := range esSpansRaw {
 		jsonSpan, err := s.unmarshalJSONSpan(esSpanRaw)
 		if err != nil {
-			return nil, fmt.Errorf("marshalling JSON to span object failed: %w", err)
+			return nil, fmt.Errorf(
+				"marshalling JSON to span object failed: %w",
+				err,
+			)
 		}
 		span, err := s.spanConverter.SpanToDomain(jsonSpan)
 		if err != nil {
-			return nil, fmt.Errorf("converting JSONSpan to domain Span failed: %w", err)
+			return nil, fmt.Errorf(
+				"converting JSONSpan to domain Span failed: %w",
+				err,
+			)
 		}
 		spans[i] = span
 	}
 	return spans, nil
 }
 
-func (*SpanReader) unmarshalJSONSpan(esSpanRaw *elastic.SearchHit) (*dbmodel.Span, error) {
+func (*SpanReader) unmarshalJSONSpan(
+	esSpanRaw *elastic.SearchHit,
+) (*dbmodel.Span, error) {
 	esSpanInByteArray := esSpanRaw.Source
 
 	var jsonSpan dbmodel.Span
@@ -289,8 +348,18 @@ func (s *SpanReader) GetServices(ctx context.Context) ([]string, error) {
 	ctx, span := s.tracer.Start(ctx, "GetService")
 	defer span.End()
 	currentTime := time.Now()
-	jaegerIndices := s.timeRangeIndices(s.serviceIndexPrefix, s.serviceIndexDateLayout, currentTime.Add(-s.maxSpanAge), currentTime, s.serviceIndexRolloverFrequency)
-	return s.serviceOperationStorage.getServices(ctx, jaegerIndices, s.maxDocCount)
+	jaegerIndices := s.timeRangeIndices(
+		s.serviceIndexPrefix,
+		s.serviceIndexDateLayout,
+		currentTime.Add(-s.maxSpanAge),
+		currentTime,
+		s.serviceIndexRolloverFrequency,
+	)
+	return s.serviceOperationStorage.getServices(
+		ctx,
+		jaegerIndices,
+		s.maxDocCount,
+	)
 }
 
 // GetOperations returns all operations for a specific service traced by Jaeger
@@ -301,8 +370,19 @@ func (s *SpanReader) GetOperations(
 	ctx, span := s.tracer.Start(ctx, "GetOperations")
 	defer span.End()
 	currentTime := time.Now()
-	jaegerIndices := s.timeRangeIndices(s.serviceIndexPrefix, s.serviceIndexDateLayout, currentTime.Add(-s.maxSpanAge), currentTime, s.serviceIndexRolloverFrequency)
-	operations, err := s.serviceOperationStorage.getOperations(ctx, jaegerIndices, query.ServiceName, s.maxDocCount)
+	jaegerIndices := s.timeRangeIndices(
+		s.serviceIndexPrefix,
+		s.serviceIndexDateLayout,
+		currentTime.Add(-s.maxSpanAge),
+		currentTime,
+		s.serviceIndexRolloverFrequency,
+	)
+	operations, err := s.serviceOperationStorage.getOperations(
+		ctx,
+		jaegerIndices,
+		query.ServiceName,
+		s.maxDocCount,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -318,7 +398,9 @@ func (s *SpanReader) GetOperations(
 	return result, err
 }
 
-func bucketToStringArray(buckets []*elastic.AggregationBucketKeyItem) ([]string, error) {
+func bucketToStringArray(
+	buckets []*elastic.AggregationBucketKeyItem,
+) ([]string, error) {
 	strings := make([]string, len(buckets))
 	for i, keyitem := range buckets {
 		str, ok := keyitem.Key.(string)
@@ -331,7 +413,10 @@ func bucketToStringArray(buckets []*elastic.AggregationBucketKeyItem) ([]string,
 }
 
 // FindTraces retrieves traces that match the traceQuery
-func (s *SpanReader) FindTraces(ctx context.Context, traceQuery *spanstore.TraceQueryParameters) ([]*model.Trace, error) {
+func (s *SpanReader) FindTraces(
+	ctx context.Context,
+	traceQuery *spanstore.TraceQueryParameters,
+) ([]*model.Trace, error) {
 	ctx, span := s.tracer.Start(ctx, "FindTraces")
 	defer span.End()
 
@@ -339,11 +424,19 @@ func (s *SpanReader) FindTraces(ctx context.Context, traceQuery *spanstore.Trace
 	if err != nil {
 		return nil, es.DetailedError(err)
 	}
-	return s.multiRead(ctx, uniqueTraceIDs, traceQuery.StartTimeMin, traceQuery.StartTimeMax)
+	return s.multiRead(
+		ctx,
+		uniqueTraceIDs,
+		traceQuery.StartTimeMin,
+		traceQuery.StartTimeMax,
+	)
 }
 
 // FindTraceIDs retrieves traces IDs that match the traceQuery
-func (s *SpanReader) FindTraceIDs(ctx context.Context, traceQuery *spanstore.TraceQueryParameters) ([]model.TraceID, error) {
+func (s *SpanReader) FindTraceIDs(
+	ctx context.Context,
+	traceQuery *spanstore.TraceQueryParameters,
+) ([]model.TraceID, error) {
 	ctx, span := s.tracer.Start(ctx, "FindTraceIDs")
 	defer span.End()
 
@@ -362,7 +455,11 @@ func (s *SpanReader) FindTraceIDs(ctx context.Context, traceQuery *spanstore.Tra
 	return convertTraceIDsStringsToModels(esTraceIDs)
 }
 
-func (s *SpanReader) multiRead(ctx context.Context, traceIDs []model.TraceID, startTime, endTime time.Time) ([]*model.Trace, error) {
+func (s *SpanReader) multiRead(
+	ctx context.Context,
+	traceIDs []model.TraceID,
+	startTime, endTime time.Time,
+) ([]*model.Trace, error) {
 	ctx, childSpan := s.tracer.Start(ctx, "multiRead")
 	defer childSpan.End()
 
@@ -371,7 +468,9 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []model.TraceID, st
 		for i, traceID := range traceIDs {
 			tracesIDs[i] = traceID.String()
 		}
-		childSpan.SetAttributes(attribute.Key("trace_ids").StringSlice(tracesIDs))
+		childSpan.SetAttributes(
+			attribute.Key("trace_ids").StringSlice(tracesIDs),
+		)
 	}
 
 	if len(traceIDs) == 0 {
@@ -380,7 +479,13 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []model.TraceID, st
 
 	// Add an hour in both directions so that traces that straddle two indexes are retrieved.
 	// i.e starts in one and ends in another.
-	indices := s.timeRangeIndices(s.spanIndexPrefix, s.spanIndexDateLayout, startTime.Add(-time.Hour), endTime.Add(time.Hour), s.spanIndexRolloverFrequency)
+	indices := s.timeRangeIndices(
+		s.spanIndexPrefix,
+		s.spanIndexDateLayout,
+		startTime.Add(-time.Hour),
+		endTime.Add(time.Hour),
+		s.spanIndexRolloverFrequency,
+	)
 	nextTime := model.TimeAsEpochMicroseconds(startTime.Add(-time.Hour))
 	searchAfterTime := make(map[model.TraceID]uint64)
 	totalDocumentsFetched := make(map[model.TraceID]int)
@@ -395,7 +500,10 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []model.TraceID, st
 			query := elastic.NewBoolQuery().
 				Must(traceQuery)
 			if s.useReadWriteAliases {
-				startTimeRangeQuery := s.buildStartTimeQuery(startTime.Add(-time.Hour*24), endTime.Add(time.Hour*24))
+				startTimeRangeQuery := s.buildStartTimeQuery(
+					startTime.Add(-time.Hour*24),
+					endTime.Add(time.Hour*24),
+				)
 				query = query.Must(startTimeRangeQuery)
 			}
 
@@ -410,7 +518,11 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []model.TraceID, st
 		}
 		// set traceIDs to empty
 		traceIDs = nil
-		results, err := s.client().MultiSearch().Add(searchRequests...).Index(indices...).Do(ctx)
+		results, err := s.client().
+			MultiSearch().
+			Add(searchRequests...).
+			Index(indices...).
+			Do(ctx)
 		if err != nil {
 			err = es.DetailedError(err)
 			logErrorToSpan(childSpan, err)
@@ -440,9 +552,13 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []model.TraceID, st
 			}
 
 			totalDocumentsFetched[lastSpan.TraceID] += len(result.Hits.Hits)
-			if totalDocumentsFetched[lastSpan.TraceID] < int(result.TotalHits()) {
+			if totalDocumentsFetched[lastSpan.TraceID] < int(
+				result.TotalHits(),
+			) {
 				traceIDs = append(traceIDs, lastSpan.TraceID)
-				searchAfterTime[lastSpan.TraceID] = model.TimeAsEpochMicroseconds(lastSpan.StartTime)
+				searchAfterTime[lastSpan.TraceID] = model.TimeAsEpochMicroseconds(
+					lastSpan.StartTime,
+				)
 			}
 		}
 	}
@@ -473,7 +589,9 @@ func buildTraceByIDQuery(traceID model.TraceID) elastic.Query {
 		elastic.NewTermQuery(traceIDField, legacyTraceID))
 }
 
-func convertTraceIDsStringsToModels(traceIDs []string) ([]model.TraceID, error) {
+func convertTraceIDsStringsToModels(
+	traceIDs []string,
+) ([]model.TraceID, error) {
 	traceIDsMap := map[model.TraceID]bool{}
 	// https://github.com/jaegertracing/jaeger/pull/1956 added leading zeros to IDs
 	// So we need to also read IDs without leading zeros for compatibility with previously saved data.
@@ -484,7 +602,11 @@ func convertTraceIDsStringsToModels(traceIDs []string) ([]model.TraceID, error) 
 	for _, ID := range traceIDs {
 		traceID, err := model.TraceIDFromString(ID)
 		if err != nil {
-			return nil, fmt.Errorf("making traceID from string '%s' failed: %w", ID, err)
+			return nil, fmt.Errorf(
+				"making traceID from string '%s' failed: %w",
+				ID,
+				err,
+			)
 		}
 		if _, ok := traceIDsMap[traceID]; !ok {
 			traceIDsMap[traceID] = true
@@ -508,13 +630,17 @@ func validateQuery(p *spanstore.TraceQueryParameters) error {
 	if p.StartTimeMax.Before(p.StartTimeMin) {
 		return ErrStartTimeMinGreaterThanMax
 	}
-	if p.DurationMin != 0 && p.DurationMax != 0 && p.DurationMin > p.DurationMax {
+	if p.DurationMin != 0 && p.DurationMax != 0 &&
+		p.DurationMin > p.DurationMax {
 		return ErrDurationMinGreaterThanMax
 	}
 	return nil
 }
 
-func (s *SpanReader) findTraceIDs(ctx context.Context, traceQuery *spanstore.TraceQueryParameters) ([]string, error) {
+func (s *SpanReader) findTraceIDs(
+	ctx context.Context,
+	traceQuery *spanstore.TraceQueryParameters,
+) ([]string, error) {
 	ctx, childSpan := s.tracer.Start(ctx, "findTraceIDs")
 	defer childSpan.End()
 	//  Below is the JSON body to our HTTP GET request to ElasticSearch. This function creates this.
@@ -572,7 +698,13 @@ func (s *SpanReader) findTraceIDs(ctx context.Context, traceQuery *spanstore.Tra
 	//  }
 	aggregation := s.buildTraceIDAggregation(traceQuery.NumTraces)
 	boolQuery := s.buildFindTraceIDsQuery(traceQuery)
-	jaegerIndices := s.timeRangeIndices(s.spanIndexPrefix, s.spanIndexDateLayout, traceQuery.StartTimeMin, traceQuery.StartTimeMax, s.spanIndexRolloverFrequency)
+	jaegerIndices := s.timeRangeIndices(
+		s.spanIndexPrefix,
+		s.spanIndexDateLayout,
+		traceQuery.StartTimeMin,
+		traceQuery.StartTimeMax,
+		s.spanIndexRolloverFrequency,
+	)
 
 	searchService := s.client().Search(jaegerIndices...).
 		Size(0). // set to 0 because we don't want actual documents.
@@ -583,7 +715,11 @@ func (s *SpanReader) findTraceIDs(ctx context.Context, traceQuery *spanstore.Tra
 	searchResult, err := searchService.Do(ctx)
 	if err != nil {
 		err = es.DetailedError(err)
-		s.logger.Info("es search services failed", zap.Any("traceQuery", traceQuery), zap.Error(err))
+		s.logger.Info(
+			"es search services failed",
+			zap.Any("traceQuery", traceQuery),
+			zap.Error(err),
+		)
 		return nil, fmt.Errorf("search services failed: %w", err)
 	}
 	if searchResult.Aggregations == nil {
@@ -598,7 +734,9 @@ func (s *SpanReader) findTraceIDs(ctx context.Context, traceQuery *spanstore.Tra
 	return bucketToStringArray(traceIDBuckets)
 }
 
-func (s *SpanReader) buildTraceIDAggregation(numOfTraces int) elastic.Aggregation {
+func (s *SpanReader) buildTraceIDAggregation(
+	numOfTraces int,
+) elastic.Aggregation {
 	return elastic.NewTermsAggregation().
 		Size(numOfTraces).
 		Field(traceIDField).
@@ -611,17 +749,25 @@ func (*SpanReader) buildTraceIDSubAggregation() elastic.Aggregation {
 		Field(startTimeField)
 }
 
-func (s *SpanReader) buildFindTraceIDsQuery(traceQuery *spanstore.TraceQueryParameters) elastic.Query {
+func (s *SpanReader) buildFindTraceIDsQuery(
+	traceQuery *spanstore.TraceQueryParameters,
+) elastic.Query {
 	boolQuery := elastic.NewBoolQuery()
 
 	// add duration query
 	if traceQuery.DurationMax != 0 || traceQuery.DurationMin != 0 {
-		durationQuery := s.buildDurationQuery(traceQuery.DurationMin, traceQuery.DurationMax)
+		durationQuery := s.buildDurationQuery(
+			traceQuery.DurationMin,
+			traceQuery.DurationMax,
+		)
 		boolQuery.Must(durationQuery)
 	}
 
 	// add startTime query
-	startTimeQuery := s.buildStartTimeQuery(traceQuery.StartTimeMin, traceQuery.StartTimeMax)
+	startTimeQuery := s.buildStartTimeQuery(
+		traceQuery.StartTimeMin,
+		traceQuery.StartTimeMax,
+	)
 	boolQuery.Must(startTimeQuery)
 
 	// add process.serviceName query
@@ -632,7 +778,9 @@ func (s *SpanReader) buildFindTraceIDsQuery(traceQuery *spanstore.TraceQueryPara
 
 	// add operationName query
 	if traceQuery.OperationName != "" {
-		operationNameQuery := s.buildOperationNameQuery(traceQuery.OperationName)
+		operationNameQuery := s.buildOperationNameQuery(
+			traceQuery.OperationName,
+		)
 		boolQuery.Must(operationNameQuery)
 	}
 
@@ -643,22 +791,32 @@ func (s *SpanReader) buildFindTraceIDsQuery(traceQuery *spanstore.TraceQueryPara
 	return boolQuery
 }
 
-func (*SpanReader) buildDurationQuery(durationMin time.Duration, durationMax time.Duration) elastic.Query {
+func (*SpanReader) buildDurationQuery(
+	durationMin time.Duration,
+	durationMax time.Duration,
+) elastic.Query {
 	minDurationMicros := model.DurationAsMicroseconds(durationMin)
 	maxDurationMicros := defaultMaxDuration
 	if durationMax != 0 {
 		maxDurationMicros = model.DurationAsMicroseconds(durationMax)
 	}
-	return elastic.NewRangeQuery(durationField).Gte(minDurationMicros).Lte(maxDurationMicros)
+	return elastic.NewRangeQuery(durationField).
+		Gte(minDurationMicros).
+		Lte(maxDurationMicros)
 }
 
-func (*SpanReader) buildStartTimeQuery(startTimeMin time.Time, startTimeMax time.Time) elastic.Query {
+func (*SpanReader) buildStartTimeQuery(
+	startTimeMin time.Time,
+	startTimeMax time.Time,
+) elastic.Query {
 	minStartTimeMicros := model.TimeAsEpochMicroseconds(startTimeMin)
 	maxStartTimeMicros := model.TimeAsEpochMicroseconds(startTimeMax)
 	// startTimeMillisField is date field in ES mapping.
 	// Using date field in range queries helps to skip search on unnecessary shards at Elasticsearch side.
 	// https://discuss.elastic.co/t/timeline-query-on-timestamped-indices/129328/2
-	return elastic.NewRangeQuery(startTimeMillisField).Gte(minStartTimeMicros / 1000).Lte(maxStartTimeMicros / 1000)
+	return elastic.NewRangeQuery(startTimeMillisField).
+		Gte(minStartTimeMicros / 1000).
+		Lte(maxStartTimeMicros / 1000)
 }
 
 func (*SpanReader) buildServiceNameQuery(serviceName string) elastic.Query {
@@ -677,14 +835,22 @@ func (s *SpanReader) buildTagQuery(k string, v string) elastic.Query {
 		queries[i] = s.buildObjectQuery(objectTagFieldList[i], kd, v)
 	}
 	for i := range nestedTagFieldList {
-		queries[i+objectTagListLen] = s.buildNestedQuery(nestedTagFieldList[i], k, v)
+		queries[i+objectTagListLen] = s.buildNestedQuery(
+			nestedTagFieldList[i],
+			k,
+			v,
+		)
 	}
 
 	// but configuration can change over time
 	return elastic.NewBoolQuery().Should(queries...)
 }
 
-func (*SpanReader) buildNestedQuery(field string, k string, v string) elastic.Query {
+func (*SpanReader) buildNestedQuery(
+	field string,
+	k string,
+	v string,
+) elastic.Query {
 	keyField := fmt.Sprintf("%s.%s", field, tagKeyField)
 	valueField := fmt.Sprintf("%s.%s", field, tagValueField)
 	keyQuery := elastic.NewMatchQuery(keyField, k)
@@ -693,7 +859,11 @@ func (*SpanReader) buildNestedQuery(field string, k string, v string) elastic.Qu
 	return elastic.NewNestedQuery(field, tagBoolQuery)
 }
 
-func (*SpanReader) buildObjectQuery(field string, k string, v string) elastic.Query {
+func (*SpanReader) buildObjectQuery(
+	field string,
+	k string,
+	v string,
+) elastic.Query {
 	keyField := fmt.Sprintf("%s.%s", field, k)
 	keyQuery := elastic.NewRegexpQuery(keyField, v)
 	return elastic.NewBoolQuery().Must(keyQuery)

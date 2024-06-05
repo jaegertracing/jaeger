@@ -55,7 +55,7 @@ func (x *scramClient) Done() bool {
 // PlainTextConfig describes the configuration properties needed for SASL/PLAIN with kafka
 type PlainTextConfig struct {
 	Username  string `mapstructure:"username"`
-	Password  string `mapstructure:"password" json:"-"`
+	Password  string `mapstructure:"password"  json:"-"`
 	Mechanism string `mapstructure:"mechanism"`
 }
 
@@ -67,22 +67,32 @@ func clientGenFunc(hashFn scram.HashGeneratorFcn) func() sarama.SCRAMClient {
 	}
 }
 
-func setPlainTextConfiguration(config *PlainTextConfig, saramaConfig *sarama.Config) error {
+func setPlainTextConfiguration(
+	config *PlainTextConfig,
+	saramaConfig *sarama.Config,
+) error {
 	saramaConfig.Net.SASL.Enable = true
 	saramaConfig.Net.SASL.User = config.Username
 	saramaConfig.Net.SASL.Password = config.Password
 	switch strings.ToUpper(config.Mechanism) {
 	case "SCRAM-SHA-256":
-		saramaConfig.Net.SASL.SCRAMClientGeneratorFunc = clientGenFunc(scram.SHA256)
+		saramaConfig.Net.SASL.SCRAMClientGeneratorFunc = clientGenFunc(
+			scram.SHA256,
+		)
 		saramaConfig.Net.SASL.Mechanism = sarama.SASLTypeSCRAMSHA256
 	case "SCRAM-SHA-512":
-		saramaConfig.Net.SASL.SCRAMClientGeneratorFunc = clientGenFunc(scram.SHA512)
+		saramaConfig.Net.SASL.SCRAMClientGeneratorFunc = clientGenFunc(
+			scram.SHA512,
+		)
 		saramaConfig.Net.SASL.Mechanism = sarama.SASLTypeSCRAMSHA512
 	case "PLAIN":
 		saramaConfig.Net.SASL.Mechanism = sarama.SASLTypePlaintext
 
 	default:
-		return fmt.Errorf("config plaintext.mechanism error: %s, only support 'SCRAM-SHA-256' or 'SCRAM-SHA-512' or 'PLAIN'", config.Mechanism)
+		return fmt.Errorf(
+			"config plaintext.mechanism error: %s, only support 'SCRAM-SHA-256' or 'SCRAM-SHA-512' or 'PLAIN'",
+			config.Mechanism,
+		)
 	}
 	return nil
 }

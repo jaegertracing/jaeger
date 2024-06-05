@@ -26,14 +26,22 @@ import (
 )
 
 func TestProtobufMarshallerAndUnmarshaller(t *testing.T) {
-	testMarshallerAndUnmarshaller(t, newProtobufMarshaller(), NewProtobufUnmarshaller())
+	testMarshallerAndUnmarshaller(
+		t,
+		newProtobufMarshaller(),
+		NewProtobufUnmarshaller(),
+	)
 }
 
 func TestJSONMarshallerAndUnmarshaller(t *testing.T) {
 	testMarshallerAndUnmarshaller(t, newJSONMarshaller(), NewJSONUnmarshaller())
 }
 
-func testMarshallerAndUnmarshaller(t *testing.T, marshaller Marshaller, unmarshaller Unmarshaller) {
+func testMarshallerAndUnmarshaller(
+	t *testing.T,
+	marshaller Marshaller,
+	unmarshaller Unmarshaller,
+) {
 	bytes, err := marshaller.Marshal(sampleSpan)
 
 	require.NoError(t, err)

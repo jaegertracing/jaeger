@@ -41,7 +41,9 @@ import (
 
 func main() {
 	zc := zap.NewDevelopmentConfig()
-	zc.Level = zap.NewAtomicLevelAt(zapcore.Level(-8)) // level used by OTEL's Debug()
+	zc.Level = zap.NewAtomicLevelAt(
+		zapcore.Level(-8),
+	) // level used by OTEL's Debug()
 	logger, err := zc.Build()
 	if err != nil {
 		panic(err)
@@ -64,7 +66,10 @@ func main() {
 	tracegen.Run(cfg, tracers, logger)
 }
 
-func createTracers(cfg *tracegen.Config, logger *zap.Logger) ([]trace.Tracer, func(context.Context) error) {
+func createTracers(
+	cfg *tracegen.Config,
+	logger *zap.Logger,
+) ([]trace.Tracer, func(context.Context) error) {
 	if cfg.Services < 1 {
 		cfg.Services = 1
 	}
@@ -78,9 +83,11 @@ func createTracers(cfg *tracegen.Config, logger *zap.Logger) ([]trace.Tracer, fu
 
 		exp, err := createOtelExporter(cfg.TraceExporter)
 		if err != nil {
-			logger.Sugar().Fatalf("cannot create trace exporter %s: %s", cfg.TraceExporter, err)
+			logger.Sugar().
+				Fatalf("cannot create trace exporter %s: %s", cfg.TraceExporter, err)
 		}
-		logger.Sugar().Infof("using %s trace exporter for service %s", cfg.TraceExporter, svc)
+		logger.Sugar().
+			Infof("using %s trace exporter for service %s", cfg.TraceExporter, svc)
 
 		res, err := resource.New(
 			context.Background(),
@@ -115,7 +122,9 @@ func createOtelExporter(exporterType string) (sdktrace.SpanExporter, error) {
 	var err error
 	switch exporterType {
 	case "jaeger":
-		return nil, errors.New("jaeger exporter is no longer supported, please use otlp")
+		return nil, errors.New(
+			"jaeger exporter is no longer supported, please use otlp",
+		)
 	case "otlp", "otlp-http":
 		client := otlptracehttp.NewClient(
 			otlptracehttp.WithInsecure(),

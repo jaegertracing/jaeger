@@ -31,7 +31,11 @@ type Reader struct {
 }
 
 // GetDependencies provides a mock function with given fields: endTs, lookback
-func (_m *Reader) GetDependencies(ctx context.Context, endTs time.Time, lookback time.Duration) ([]model.DependencyLink, error) {
+func (_m *Reader) GetDependencies(
+	ctx context.Context,
+	endTs time.Time,
+	lookback time.Duration,
+) ([]model.DependencyLink, error) {
 	ret := _m.Called(endTs, lookback)
 
 	var r0 []model.DependencyLink

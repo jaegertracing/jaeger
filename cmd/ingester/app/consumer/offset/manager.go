@@ -63,12 +63,16 @@ func NewManager(
 		"partition": strconv.Itoa(int(partition)),
 	}
 	return &Manager{
-		markOffsetFunction:  markOffset,
-		close:               make(chan struct{}),
-		offsetCommitCount:   factory.Counter(metrics.Options{Name: "offset-commits-total", Tags: tags}),
-		lastCommittedOffset: factory.Gauge(metrics.Options{Name: "last-committed-offset", Tags: tags}),
-		list:                newConcurrentList(minOffset),
-		minOffset:           minOffset,
+		markOffsetFunction: markOffset,
+		close:              make(chan struct{}),
+		offsetCommitCount: factory.Counter(
+			metrics.Options{Name: "offset-commits-total", Tags: tags},
+		),
+		lastCommittedOffset: factory.Gauge(
+			metrics.Options{Name: "last-committed-offset", Tags: tags},
+		),
+		list:      newConcurrentList(minOffset),
+		minOffset: minOffset,
 	}
 }
 

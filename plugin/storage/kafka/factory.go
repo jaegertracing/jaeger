@@ -72,7 +72,10 @@ func (f *Factory) configureFromOptions(o Options) {
 }
 
 // Initialize implements storage.Factory
-func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
+func (f *Factory) Initialize(
+	metricsFactory metrics.Factory,
+	logger *zap.Logger,
+) error {
 	f.metricsFactory, f.logger = metricsFactory, logger
 	logger.Info("Kafka factory",
 		zap.Any("producer builder", f.Builder),
@@ -83,7 +86,9 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 	case EncodingJSON:
 		f.marshaller = newJSONMarshaller()
 	default:
-		return errors.New("kafka encoding is not one of '" + EncodingJSON + "' or '" + EncodingProto + "'")
+		return errors.New(
+			"kafka encoding is not one of '" + EncodingJSON + "' or '" + EncodingProto + "'",
+		)
 	}
 	p, err := f.NewProducer(logger)
 	if err != nil {
@@ -100,7 +105,13 @@ func (*Factory) CreateSpanReader() (spanstore.Reader, error) {
 
 // CreateSpanWriter implements storage.Factory
 func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
-	return NewSpanWriter(f.producer, f.marshaller, f.options.Topic, f.metricsFactory, f.logger), nil
+	return NewSpanWriter(
+		f.producer,
+		f.marshaller,
+		f.options.Topic,
+		f.metricsFactory,
+		f.logger,
+	), nil
 }
 
 // CreateDependencyReader implements storage.Factory

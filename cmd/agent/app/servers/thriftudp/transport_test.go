@@ -45,7 +45,11 @@ func TestNewTUDPClientTransport(t *testing.T) {
 		require.NotNil(t, trans.Addr())
 
 		// Check address
-		assert.True(t, strings.HasPrefix(trans.Addr().String(), "127.0.0.1:"), "address check")
+		assert.True(
+			t,
+			strings.HasPrefix(trans.Addr().String(), "127.0.0.1:"),
+			"address check",
+		)
 		require.Equal(t, "udp", trans.Addr().Network())
 
 		err = trans.Open()
@@ -160,9 +164,18 @@ func TestDoubleCloseError(t *testing.T) {
 	conn.Close()
 
 	err = trans.Close()
-	require.Error(t, err, "must return error when underlying connection is closed")
+	require.Error(
+		t,
+		err,
+		"must return error when underlying connection is closed",
+	)
 
-	assert.Equal(t, errConnAlreadyClosed, trans.Close(), "second Close() returns an error")
+	assert.Equal(
+		t,
+		errConnAlreadyClosed,
+		trans.Close(),
+		"second Close() returns an error",
+	)
 }
 
 func TestConnClosedReadWrite(t *testing.T) {

@@ -9,7 +9,7 @@ import (
 
 type Config struct {
 	TraceStorage string `valid:"required" mapstructure:"trace_storage"`
-	Port         string `mapstructure:"port"`
+	Port         string `                 mapstructure:"port"`
 }
 
 func (cfg *Config) Validate() error {

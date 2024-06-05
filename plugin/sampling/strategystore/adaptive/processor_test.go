@@ -37,10 +37,30 @@ import (
 
 func testThroughputs() []*model.Throughput {
 	return []*model.Throughput{
-		{Service: "svcA", Operation: "GET", Count: 4, Probabilities: map[string]struct{}{"0.1": {}}},
-		{Service: "svcA", Operation: "GET", Count: 4, Probabilities: map[string]struct{}{"0.2": {}}},
-		{Service: "svcA", Operation: "PUT", Count: 5, Probabilities: map[string]struct{}{"0.1": {}}},
-		{Service: "svcB", Operation: "GET", Count: 3, Probabilities: map[string]struct{}{"0.1": {}}},
+		{
+			Service:       "svcA",
+			Operation:     "GET",
+			Count:         4,
+			Probabilities: map[string]struct{}{"0.1": {}},
+		},
+		{
+			Service:       "svcA",
+			Operation:     "GET",
+			Count:         4,
+			Probabilities: map[string]struct{}{"0.2": {}},
+		},
+		{
+			Service:       "svcA",
+			Operation:     "PUT",
+			Count:         5,
+			Probabilities: map[string]struct{}{"0.1": {}},
+		},
+		{
+			Service:       "svcB",
+			Operation:     "GET",
+			Count:         3,
+			Probabilities: map[string]struct{}{"0.1": {}},
+		},
 	}
 }
 
@@ -78,10 +98,12 @@ func errTestStorage() error {
 }
 
 func testCalculator() calculationstrategy.ProbabilityCalculator {
-	return calculationstrategy.CalculateFunc(func(targetQPS, qps, oldProbability float64) float64 {
-		factor := targetQPS / qps
-		return oldProbability * factor
-	})
+	return calculationstrategy.CalculateFunc(
+		func(targetQPS, qps, oldProbability float64) float64 {
+			factor := targetQPS / qps
+			return oldProbability * factor
+		},
+	)
 }
 
 func TestAggregateThroughputInputsImmutability(t *testing.T) {
@@ -103,7 +125,11 @@ func TestAggregateThroughput(t *testing.T) {
 	opThroughput, ok := throughput["GET"]
 	require.True(t, ok)
 	assert.Equal(t, int64(8), opThroughput.Count)
-	assert.Equal(t, map[string]struct{}{"0.1": {}, "0.2": {}}, opThroughput.Probabilities)
+	assert.Equal(
+		t,
+		map[string]struct{}{"0.1": {}, "0.2": {}},
+		opThroughput.Probabilities,
+	)
 
 	opThroughput, ok = throughput["PUT"]
 	require.True(t, ok)
@@ -128,7 +154,13 @@ func TestInitializeThroughput(t *testing.T) {
 		Return([]*model.Throughput{{Service: "svcA", Operation: "GET", Count: 7}}, nil)
 	mockStorage.On("GetThroughput", time.Time{}.Add(time.Minute*17), time.Time{}.Add(time.Minute*18)).
 		Return([]*model.Throughput{}, nil)
-	p := &PostAggregator{storage: mockStorage, Options: Options{CalculationInterval: time.Minute, AggregationBuckets: 3}}
+	p := &PostAggregator{
+		storage: mockStorage,
+		Options: Options{
+			CalculationInterval: time.Minute,
+			AggregationBuckets:  3,
+		},
+	}
 	p.initializeThroughput(time.Time{}.Add(time.Minute * 20))
 
 	require.Len(t, p.throughputs, 2)
@@ -144,7 +176,13 @@ func TestInitializeThroughputFailure(t *testing.T) {
 	mockStorage := &smocks.Store{}
 	mockStorage.On("GetThroughput", time.Time{}.Add(time.Minute*19), time.Time{}.Add(time.Minute*20)).
 		Return(nil, errTestStorage())
-	p := &PostAggregator{storage: mockStorage, Options: Options{CalculationInterval: time.Minute, AggregationBuckets: 1}}
+	p := &PostAggregator{
+		storage: mockStorage,
+		Options: Options{
+			CalculationInterval: time.Minute,
+			AggregationBuckets:  1,
+		},
+	}
 	p.initializeThroughput(time.Time{}.Add(time.Minute * 20))
 
 	assert.Empty(t, p.throughputs)
@@ -159,7 +197,10 @@ func TestCalculateQPS(t *testing.T) {
 }
 
 func TestGenerateOperationQPS(t *testing.T) {
-	p := &PostAggregator{throughputs: testThroughputBuckets(), Options: Options{BucketsForCalculation: 10, AggregationBuckets: 10}}
+	p := &PostAggregator{
+		throughputs: testThroughputBuckets(),
+		Options:     Options{BucketsForCalculation: 10, AggregationBuckets: 10},
+	}
 	svcOpQPS := p.throughputToQPS()
 	assert.Len(t, svcOpQPS, 2)
 
@@ -207,7 +248,10 @@ func TestGenerateOperationQPS(t *testing.T) {
 }
 
 func TestGenerateOperationQPS_UseMostRecentBucketOnly(t *testing.T) {
-	p := &PostAggregator{throughputs: testThroughputBuckets(), Options: Options{BucketsForCalculation: 1, AggregationBuckets: 10}}
+	p := &PostAggregator{
+		throughputs: testThroughputBuckets(),
+		Options:     Options{BucketsForCalculation: 1, AggregationBuckets: 10},
+	}
 	svcOpQPS := p.throughputToQPS()
 	assert.Len(t, svcOpQPS, 2)
 
@@ -242,8 +286,18 @@ func TestGenerateOperationQPS_UseMostRecentBucketOnly(t *testing.T) {
 
 func TestCalculateWeightedQPS(t *testing.T) {
 	p := PostAggregator{weightVectorCache: NewWeightVectorCache()}
-	assert.InDelta(t, 0.86735, p.calculateWeightedQPS([]float64{0.8, 1.2, 1.0}), 0.001)
-	assert.InDelta(t, 0.95197, p.calculateWeightedQPS([]float64{1.0, 1.0, 0.0, 0.0}), 0.001)
+	assert.InDelta(
+		t,
+		0.86735,
+		p.calculateWeightedQPS([]float64{0.8, 1.2, 1.0}),
+		0.001,
+	)
+	assert.InDelta(
+		t,
+		0.95197,
+		p.calculateWeightedQPS([]float64{1.0, 1.0, 0.0, 0.0}),
+		0.001,
+	)
 	assert.Equal(t, 0.0, p.calculateWeightedQPS([]float64{}))
 }
 
@@ -290,7 +344,11 @@ func TestCalculateProbability(t *testing.T) {
 		{"svcB", "DELETE", 0.0, 0.002, "test 0 qps"},
 	}
 	for _, test := range tests {
-		probability := p.calculateProbability(test.service, test.operation, test.qps)
+		probability := p.calculateProbability(
+			test.service,
+			test.operation,
+			test.qps,
+		)
 		assert.Equal(t, test.expectedProbability, probability, test.errMsg)
 	}
 }
@@ -322,12 +380,28 @@ func TestCalculateProbabilitiesAndQPS(t *testing.T) {
 	probabilities, qps := p.calculateProbabilitiesAndQPS()
 
 	require.Len(t, probabilities, 2)
-	assert.Equal(t, map[string]float64{"GET": 0.00136, "PUT": 0.001}, probabilities["svcA"])
-	assert.Equal(t, map[string]float64{"GET": 0.16, "PUT": 0.03}, probabilities["svcB"])
+	assert.Equal(
+		t,
+		map[string]float64{"GET": 0.00136, "PUT": 0.001},
+		probabilities["svcA"],
+	)
+	assert.Equal(
+		t,
+		map[string]float64{"GET": 0.16, "PUT": 0.03},
+		probabilities["svcB"],
+	)
 
 	require.Len(t, qps, 2)
-	assert.Equal(t, map[string]float64{"GET": 0.7352941176470588, "PUT": 1}, qps["svcA"])
-	assert.Equal(t, map[string]float64{"GET": 0.5147058823529411, "PUT": 0.25}, qps["svcB"])
+	assert.Equal(
+		t,
+		map[string]float64{"GET": 0.7352941176470588, "PUT": 1},
+		qps["svcA"],
+	)
+	assert.Equal(
+		t,
+		map[string]float64{"GET": 0.5147058823529411, "PUT": 0.25},
+		qps["svcB"],
+	)
 
 	_, gauges := mets.Backend.Snapshot()
 	assert.EqualValues(t, 4, gauges["test"])
@@ -338,10 +412,14 @@ func TestRunCalculationLoop(t *testing.T) {
 	mockStorage := &smocks.Store{}
 	mockStorage.On("GetThroughput", mock.AnythingOfType("time.Time"), mock.AnythingOfType("time.Time")).
 		Return(testThroughputs(), nil)
-	mockStorage.On("GetLatestProbabilities").Return(model.ServiceOperationProbabilities{}, errTestStorage())
+	mockStorage.On("GetLatestProbabilities").
+		Return(model.ServiceOperationProbabilities{}, errTestStorage())
 	mockStorage.On("InsertProbabilitiesAndQPS", mock.AnythingOfType("string"), mock.AnythingOfType("model.ServiceOperationProbabilities"),
-		mock.AnythingOfType("model.ServiceOperationQPS")).Return(errTestStorage())
-	mockStorage.On("InsertThroughput", mock.AnythingOfType("[]*model.Throughput")).Return(errTestStorage())
+		mock.AnythingOfType("model.ServiceOperationQPS"),
+	).
+		Return(errTestStorage())
+	mockStorage.On("InsertThroughput", mock.AnythingOfType("[]*model.Throughput")).
+		Return(errTestStorage())
 	mockEP := &epmocks.ElectionParticipant{}
 	mockEP.On("Start").Return(nil)
 	mockEP.On("Close").Return(nil)
@@ -358,7 +436,13 @@ func TestRunCalculationLoop(t *testing.T) {
 		FollowerLeaseRefreshInterval: time.Second,
 		BucketsForCalculation:        10,
 	}
-	agg, err := NewAggregator(cfg, logger, metrics.NullFactory, mockEP, mockStorage)
+	agg, err := NewAggregator(
+		cfg,
+		logger,
+		metrics.NullFactory,
+		mockEP,
+		mockStorage,
+	)
 	require.NoError(t, err)
 	agg.Start()
 	defer agg.Close()
@@ -385,10 +469,14 @@ func TestRunCalculationLoop_GetThroughputError(t *testing.T) {
 	mockStorage := &smocks.Store{}
 	mockStorage.On("GetThroughput", mock.AnythingOfType("time.Time"), mock.AnythingOfType("time.Time")).
 		Return(nil, errTestStorage())
-	mockStorage.On("GetLatestProbabilities").Return(model.ServiceOperationProbabilities{}, errTestStorage())
+	mockStorage.On("GetLatestProbabilities").
+		Return(model.ServiceOperationProbabilities{}, errTestStorage())
 	mockStorage.On("InsertProbabilitiesAndQPS", mock.AnythingOfType("string"), mock.AnythingOfType("model.ServiceOperationProbabilities"),
-		mock.AnythingOfType("model.ServiceOperationQPS")).Return(errTestStorage())
-	mockStorage.On("InsertThroughput", mock.AnythingOfType("[]*model.Throughput")).Return(errTestStorage())
+		mock.AnythingOfType("model.ServiceOperationQPS"),
+	).
+		Return(errTestStorage())
+	mockStorage.On("InsertThroughput", mock.AnythingOfType("[]*model.Throughput")).
+		Return(errTestStorage())
 
 	mockEP := &epmocks.ElectionParticipant{}
 	mockEP.On("Start").Return(nil)
@@ -400,7 +488,13 @@ func TestRunCalculationLoop_GetThroughputError(t *testing.T) {
 		AggregationBuckets:    2,
 		BucketsForCalculation: 10,
 	}
-	agg, err := NewAggregator(cfg, logger, metrics.NullFactory, mockEP, mockStorage)
+	agg, err := NewAggregator(
+		cfg,
+		logger,
+		metrics.NullFactory,
+		mockEP,
+		mockStorage,
+	)
 	require.NoError(t, err)
 	agg.Start()
 	for i := 0; i < 1000; i++ {
@@ -411,14 +505,19 @@ func TestRunCalculationLoop_GetThroughputError(t *testing.T) {
 		}
 		time.Sleep(time.Millisecond)
 	}
-	match, errMsg := testutils.LogMatcher(2, getThroughputErrMsg, logBuffer.Lines())
+	match, errMsg := testutils.LogMatcher(
+		2,
+		getThroughputErrMsg,
+		logBuffer.Lines(),
+	)
 	assert.True(t, match, errMsg)
 	require.NoError(t, agg.Close())
 }
 
 func TestLoadProbabilities(t *testing.T) {
 	mockStorage := &smocks.Store{}
-	mockStorage.On("GetLatestProbabilities").Return(make(model.ServiceOperationProbabilities), nil)
+	mockStorage.On("GetLatestProbabilities").
+		Return(make(model.ServiceOperationProbabilities), nil)
 
 	p := &StrategyStore{storage: mockStorage}
 	require.Nil(t, p.probabilities)
@@ -428,7 +527,8 @@ func TestLoadProbabilities(t *testing.T) {
 
 func TestRunUpdateProbabilitiesLoop(t *testing.T) {
 	mockStorage := &smocks.Store{}
-	mockStorage.On("GetLatestProbabilities").Return(make(model.ServiceOperationProbabilities), nil)
+	mockStorage.On("GetLatestProbabilities").
+		Return(make(model.ServiceOperationProbabilities), nil)
 	mockEP := &epmocks.ElectionParticipant{}
 	mockEP.On("Start").Return(nil)
 	mockEP.On("Close").Return(nil)
@@ -473,9 +573,11 @@ func TestRealisticRunCalculationLoop(t *testing.T) {
 	mockStorage := &smocks.Store{}
 	mockStorage.On("GetThroughput", mock.AnythingOfType("time.Time"), mock.AnythingOfType("time.Time")).
 		Return(testThroughputs, nil)
-	mockStorage.On("GetLatestProbabilities").Return(make(model.ServiceOperationProbabilities), nil)
+	mockStorage.On("GetLatestProbabilities").
+		Return(make(model.ServiceOperationProbabilities), nil)
 	mockStorage.On("InsertProbabilitiesAndQPS", "host", mock.AnythingOfType("model.ServiceOperationProbabilities"),
-		mock.AnythingOfType("model.ServiceOperationQPS")).Return(nil)
+		mock.AnythingOfType("model.ServiceOperationQPS")).
+		Return(nil)
 	mockEP := &epmocks.ElectionParticipant{}
 	mockEP.On("Start").Return(nil)
 	mockEP.On("Close").Return(nil)
@@ -514,11 +616,21 @@ func TestRealisticRunCalculationLoop(t *testing.T) {
 			assert.Equal(t, 0.001, s.ProbabilisticSampling.SamplingRate,
 				"Within epsilon of 1QPS, no probability change")
 		case "PUT":
-			assert.InEpsilon(t, 0.002, s.ProbabilisticSampling.SamplingRate, 0.025,
-				"Under sampled, double probability")
+			assert.InEpsilon(
+				t,
+				0.002,
+				s.ProbabilisticSampling.SamplingRate,
+				0.025,
+				"Under sampled, double probability",
+			)
 		case "DELETE":
-			assert.InEpsilon(t, 0.0005, s.ProbabilisticSampling.SamplingRate, 0.025,
-				"Over sampled, halve probability")
+			assert.InEpsilon(
+				t,
+				0.0005,
+				s.ProbabilisticSampling.SamplingRate,
+				0.025,
+				"Over sampled, halve probability",
+			)
 		}
 	}
 }
@@ -544,17 +656,46 @@ func TestConstructorFailure(t *testing.T) {
 		CalculationInterval:        time.Second * 5,
 		AggregationBuckets:         0,
 	}
-	_, err := newPostAggregator(cfg, "host", nil, nil, metrics.NullFactory, logger)
-	require.EqualError(t, err, "CalculationInterval and AggregationBuckets must be greater than 0")
+	_, err := newPostAggregator(
+		cfg,
+		"host",
+		nil,
+		nil,
+		metrics.NullFactory,
+		logger,
+	)
+	require.EqualError(
+		t,
+		err,
+		"CalculationInterval and AggregationBuckets must be greater than 0",
+	)
 
 	cfg.CalculationInterval = 0
-	_, err = newPostAggregator(cfg, "host", nil, nil, metrics.NullFactory, logger)
-	require.EqualError(t, err, "CalculationInterval and AggregationBuckets must be greater than 0")
+	_, err = newPostAggregator(
+		cfg,
+		"host",
+		nil,
+		nil,
+		metrics.NullFactory,
+		logger,
+	)
+	require.EqualError(
+		t,
+		err,
+		"CalculationInterval and AggregationBuckets must be greater than 0",
+	)
 
 	cfg.CalculationInterval = time.Millisecond
 	cfg.AggregationBuckets = 1
 	cfg.BucketsForCalculation = -1
-	_, err = newPostAggregator(cfg, "host", nil, nil, metrics.NullFactory, logger)
+	_, err = newPostAggregator(
+		cfg,
+		"host",
+		nil,
+		nil,
+		metrics.NullFactory,
+		logger,
+	)
 	require.EqualError(t, err, "BucketsForCalculation cannot be less than 1")
 }
 
@@ -607,15 +748,44 @@ func TestUsingAdaptiveSampling(t *testing.T) {
 		operation   string
 	}{
 		{expected: true, probability: 0.01, service: "svc", operation: "op"},
-		{expected: true, probability: 0.0099999384, service: "svc", operation: "op"},
+		{
+			expected:    true,
+			probability: 0.0099999384,
+			service:     "svc",
+			operation:   "op",
+		},
 		{expected: false, probability: 0.01, service: "non-svc"},
-		{expected: false, probability: 0.01, service: "svc", operation: "non-op"},
-		{expected: false, probability: 0.01, service: "svc", operation: "non-op"},
+		{
+			expected:    false,
+			probability: 0.01,
+			service:     "svc",
+			operation:   "non-op",
+		},
+		{
+			expected:    false,
+			probability: 0.01,
+			service:     "svc",
+			operation:   "non-op",
+		},
 		{expected: false, probability: 0.02, service: "svc", operation: "op"},
-		{expected: false, probability: 0.0100009384, service: "svc", operation: "op"},
+		{
+			expected:    false,
+			probability: 0.0100009384,
+			service:     "svc",
+			operation:   "op",
+		},
 	}
 	for _, test := range tests {
-		assert.Equal(t, test.expected, p.isUsingAdaptiveSampling(test.probability, test.service, test.operation, throughput))
+		assert.Equal(
+			t,
+			test.expected,
+			p.isUsingAdaptiveSampling(
+				test.probability,
+				test.service,
+				test.operation,
+				throughput,
+			),
+		)
 	}
 }
 
@@ -632,11 +802,20 @@ func TestCalculateProbabilitiesAndQPSMultiple(t *testing.T) {
 		{
 			throughput: serviceOperationThroughput{
 				"svcA": map[string]*model.Throughput{
-					"GET": {Count: 3, Probabilities: map[string]struct{}{"0.001000": {}}},
-					"PUT": {Count: 60, Probabilities: map[string]struct{}{"0.001000": {}}},
+					"GET": {
+						Count:         3,
+						Probabilities: map[string]struct{}{"0.001000": {}},
+					},
+					"PUT": {
+						Count:         60,
+						Probabilities: map[string]struct{}{"0.001000": {}},
+					},
 				},
 				"svcB": map[string]*model.Throughput{
-					"PUT": {Count: 15, Probabilities: map[string]struct{}{"0.001000": {}}},
+					"PUT": {
+						Count:         15,
+						Probabilities: map[string]struct{}{"0.001000": {}},
+					},
 				},
 			},
 			interval: 60 * time.Second,
@@ -652,8 +831,12 @@ func TestCalculateProbabilitiesAndQPSMultiple(t *testing.T) {
 			AggregationBuckets:         10,
 		},
 		throughputs: buckets, probabilities: make(model.ServiceOperationProbabilities),
-		qps: make(model.ServiceOperationQPS), weightVectorCache: NewWeightVectorCache(),
-		probabilityCalculator:     calculationstrategy.NewPercentageIncreaseCappedCalculator(1.0),
+		qps: make(
+			model.ServiceOperationQPS,
+		), weightVectorCache: NewWeightVectorCache(),
+		probabilityCalculator: calculationstrategy.NewPercentageIncreaseCappedCalculator(
+			1.0,
+		),
 		serviceCache:              []SamplingCache{},
 		operationsCalculatedGauge: metrics.NullFactory.Gauge(metrics.Options{}),
 	}
@@ -661,7 +844,11 @@ func TestCalculateProbabilitiesAndQPSMultiple(t *testing.T) {
 	probabilities, qps := p.calculateProbabilitiesAndQPS()
 
 	require.Len(t, probabilities, 2)
-	assert.Equal(t, map[string]float64{"GET": 0.002, "PUT": 0.001}, probabilities["svcA"])
+	assert.Equal(
+		t,
+		map[string]float64{"GET": 0.002, "PUT": 0.001},
+		probabilities["svcA"],
+	)
 	assert.Equal(t, map[string]float64{"PUT": 0.002}, probabilities["svcB"])
 
 	p.probabilities = probabilities
@@ -673,11 +860,20 @@ func TestCalculateProbabilitiesAndQPSMultiple(t *testing.T) {
 	p.prependThroughputBucket(&throughputBucket{
 		throughput: serviceOperationThroughput{
 			"svcA": map[string]*model.Throughput{
-				"PUT": {Count: 60, Probabilities: map[string]struct{}{"0.001000": {}}},
+				"PUT": {
+					Count:         60,
+					Probabilities: map[string]struct{}{"0.001000": {}},
+				},
 			},
 			"svcB": map[string]*model.Throughput{
-				"GET": {Count: 30, Probabilities: map[string]struct{}{"0.001000": {}}},
-				"PUT": {Count: 0, Probabilities: map[string]struct{}{"0.002000": {}}},
+				"GET": {
+					Count:         30,
+					Probabilities: map[string]struct{}{"0.001000": {}},
+				},
+				"PUT": {
+					Count:         0,
+					Probabilities: map[string]struct{}{"0.002000": {}},
+				},
 			},
 		},
 		interval: 60 * time.Second,
@@ -686,8 +882,16 @@ func TestCalculateProbabilitiesAndQPSMultiple(t *testing.T) {
 	probabilities, qps = p.calculateProbabilitiesAndQPS()
 
 	require.Len(t, probabilities, 2)
-	assert.Equal(t, map[string]float64{"GET": 0.002, "PUT": 0.001}, probabilities["svcA"])
-	assert.Equal(t, map[string]float64{"PUT": 0.004, "GET": 0.002}, probabilities["svcB"])
+	assert.Equal(
+		t,
+		map[string]float64{"GET": 0.002, "PUT": 0.001},
+		probabilities["svcA"],
+	)
+	assert.Equal(
+		t,
+		map[string]float64{"PUT": 0.004, "GET": 0.002},
+		probabilities["svcB"],
+	)
 
 	p.probabilities = probabilities
 	p.qps = qps
@@ -698,11 +902,20 @@ func TestCalculateProbabilitiesAndQPSMultiple(t *testing.T) {
 	p.prependThroughputBucket(&throughputBucket{
 		throughput: serviceOperationThroughput{
 			"svcA": map[string]*model.Throughput{
-				"GET": {Count: 0, Probabilities: map[string]struct{}{"0.002000": {}}},
-				"PUT": {Count: 60, Probabilities: map[string]struct{}{"0.001000": {}}},
+				"GET": {
+					Count:         0,
+					Probabilities: map[string]struct{}{"0.002000": {}},
+				},
+				"PUT": {
+					Count:         60,
+					Probabilities: map[string]struct{}{"0.001000": {}},
+				},
 			},
 			"svcB": map[string]*model.Throughput{
-				"GET": {Count: 30, Probabilities: map[string]struct{}{"0.001000": {}}},
+				"GET": {
+					Count:         30,
+					Probabilities: map[string]struct{}{"0.001000": {}},
+				},
 			},
 		},
 		interval: 60 * time.Second,
@@ -711,8 +924,16 @@ func TestCalculateProbabilitiesAndQPSMultiple(t *testing.T) {
 	probabilities, qps = p.calculateProbabilitiesAndQPS()
 
 	require.Len(t, probabilities, 2)
-	assert.Equal(t, map[string]float64{"GET": 0.004, "PUT": 0.001}, probabilities["svcA"])
-	assert.Equal(t, map[string]float64{"PUT": 0.008, "GET": 0.002}, probabilities["svcB"])
+	assert.Equal(
+		t,
+		map[string]float64{"GET": 0.004, "PUT": 0.001},
+		probabilities["svcA"],
+	)
+	assert.Equal(
+		t,
+		map[string]float64{"PUT": 0.008, "GET": 0.002},
+		probabilities["svcB"],
+	)
 
 	p.probabilities = probabilities
 	p.qps = qps
@@ -722,12 +943,24 @@ func TestCalculateProbabilitiesAndQPSMultiple(t *testing.T) {
 	p.prependThroughputBucket(&throughputBucket{
 		throughput: serviceOperationThroughput{
 			"svcA": map[string]*model.Throughput{
-				"GET": {Count: 1, Probabilities: map[string]struct{}{"0.004000": {}}},
-				"PUT": {Count: 60, Probabilities: map[string]struct{}{"0.001000": {}}},
+				"GET": {
+					Count:         1,
+					Probabilities: map[string]struct{}{"0.004000": {}},
+				},
+				"PUT": {
+					Count:         60,
+					Probabilities: map[string]struct{}{"0.001000": {}},
+				},
 			},
 			"svcB": map[string]*model.Throughput{
-				"GET": {Count: 30, Probabilities: map[string]struct{}{"0.001000": {}}},
-				"PUT": {Count: 15, Probabilities: map[string]struct{}{"0.001000": {}}},
+				"GET": {
+					Count:         30,
+					Probabilities: map[string]struct{}{"0.001000": {}},
+				},
+				"PUT": {
+					Count:         15,
+					Probabilities: map[string]struct{}{"0.001000": {}},
+				},
 			},
 		},
 		interval: 60 * time.Second,
@@ -736,8 +969,16 @@ func TestCalculateProbabilitiesAndQPSMultiple(t *testing.T) {
 	probabilities, qps = p.calculateProbabilitiesAndQPS()
 
 	require.Len(t, probabilities, 2)
-	assert.Equal(t, map[string]float64{"GET": 0.008, "PUT": 0.001}, probabilities["svcA"])
-	assert.Equal(t, map[string]float64{"PUT": 0.008, "GET": 0.002}, probabilities["svcB"])
+	assert.Equal(
+		t,
+		map[string]float64{"GET": 0.008, "PUT": 0.001},
+		probabilities["svcA"],
+	)
+	assert.Equal(
+		t,
+		map[string]float64{"PUT": 0.008, "GET": 0.002},
+		probabilities["svcB"],
+	)
 
 	p.probabilities = probabilities
 	p.qps = qps
@@ -746,11 +987,20 @@ func TestCalculateProbabilitiesAndQPSMultiple(t *testing.T) {
 	p.prependThroughputBucket(&throughputBucket{
 		throughput: serviceOperationThroughput{
 			"svcA": map[string]*model.Throughput{
-				"PUT": {Count: 30, Probabilities: map[string]struct{}{"0.001000": {}}},
+				"PUT": {
+					Count:         30,
+					Probabilities: map[string]struct{}{"0.001000": {}},
+				},
 			},
 			"svcB": map[string]*model.Throughput{
-				"GET": {Count: 30, Probabilities: map[string]struct{}{"0.001000": {}}},
-				"PUT": {Count: 15, Probabilities: map[string]struct{}{"0.001000": {}}},
+				"GET": {
+					Count:         30,
+					Probabilities: map[string]struct{}{"0.001000": {}},
+				},
+				"PUT": {
+					Count:         15,
+					Probabilities: map[string]struct{}{"0.001000": {}},
+				},
 			},
 		},
 		interval: 60 * time.Second,
@@ -759,8 +1009,16 @@ func TestCalculateProbabilitiesAndQPSMultiple(t *testing.T) {
 	probabilities, qps = p.calculateProbabilitiesAndQPS()
 
 	require.Len(t, probabilities, 2)
-	assert.Equal(t, map[string]float64{"GET": 0.016, "PUT": 0.001468867216804201}, probabilities["svcA"])
-	assert.Equal(t, map[string]float64{"PUT": 0.008, "GET": 0.002}, probabilities["svcB"])
+	assert.Equal(
+		t,
+		map[string]float64{"GET": 0.016, "PUT": 0.001468867216804201},
+		probabilities["svcA"],
+	)
+	assert.Equal(
+		t,
+		map[string]float64{"PUT": 0.008, "GET": 0.002},
+		probabilities["svcB"],
+	)
 
 	p.probabilities = probabilities
 	p.qps = qps
@@ -770,11 +1028,20 @@ func TestCalculateProbabilitiesAndQPSMultiple(t *testing.T) {
 	p.prependThroughputBucket(&throughputBucket{
 		throughput: serviceOperationThroughput{
 			"svcA": map[string]*model.Throughput{
-				"PUT": {Count: 30, Probabilities: map[string]struct{}{"0.001000": {}}},
+				"PUT": {
+					Count:         30,
+					Probabilities: map[string]struct{}{"0.001000": {}},
+				},
 			},
 			"svcB": map[string]*model.Throughput{
-				"GET": {Count: 30, Probabilities: map[string]struct{}{"0.001000": {}}},
-				"PUT": {Count: 1, Probabilities: map[string]struct{}{"0.008000": {}}},
+				"GET": {
+					Count:         30,
+					Probabilities: map[string]struct{}{"0.001000": {}},
+				},
+				"PUT": {
+					Count:         1,
+					Probabilities: map[string]struct{}{"0.008000": {}},
+				},
 			},
 		},
 		interval: 60 * time.Second,
@@ -783,8 +1050,16 @@ func TestCalculateProbabilitiesAndQPSMultiple(t *testing.T) {
 	probabilities, qps = p.calculateProbabilitiesAndQPS()
 
 	require.Len(t, probabilities, 2)
-	assert.Equal(t, map[string]float64{"GET": 0.032, "PUT": 0.001468867216804201}, probabilities["svcA"])
-	assert.Equal(t, map[string]float64{"PUT": 0.016, "GET": 0.002}, probabilities["svcB"])
+	assert.Equal(
+		t,
+		map[string]float64{"GET": 0.032, "PUT": 0.001468867216804201},
+		probabilities["svcA"],
+	)
+	assert.Equal(
+		t,
+		map[string]float64{"PUT": 0.016, "GET": 0.002},
+		probabilities["svcB"],
+	)
 
 	p.probabilities = probabilities
 	p.qps = qps
@@ -794,10 +1069,16 @@ func TestCalculateProbabilitiesAndQPSMultiple(t *testing.T) {
 	p.prependThroughputBucket(&throughputBucket{
 		throughput: serviceOperationThroughput{
 			"svcA": map[string]*model.Throughput{
-				"PUT": {Count: 30, Probabilities: map[string]struct{}{"0.001000": {}}},
+				"PUT": {
+					Count:         30,
+					Probabilities: map[string]struct{}{"0.001000": {}},
+				},
 			},
 			"svcB": map[string]*model.Throughput{
-				"GET": {Count: 15, Probabilities: map[string]struct{}{"0.001000": {}}},
+				"GET": {
+					Count:         15,
+					Probabilities: map[string]struct{}{"0.001000": {}},
+				},
 			},
 		},
 		interval: 60 * time.Second,
@@ -806,8 +1087,16 @@ func TestCalculateProbabilitiesAndQPSMultiple(t *testing.T) {
 	probabilities, qps = p.calculateProbabilitiesAndQPS()
 
 	require.Len(t, probabilities, 2)
-	assert.Equal(t, map[string]float64{"GET": 0.064, "PUT": 0.001468867216804201}, probabilities["svcA"])
-	assert.Equal(t, map[string]float64{"PUT": 0.032, "GET": 0.002}, probabilities["svcB"])
+	assert.Equal(
+		t,
+		map[string]float64{"GET": 0.064, "PUT": 0.001468867216804201},
+		probabilities["svcA"],
+	)
+	assert.Equal(
+		t,
+		map[string]float64{"PUT": 0.032, "GET": 0.002},
+		probabilities["svcB"],
+	)
 
 	p.probabilities = probabilities
 	p.qps = qps
@@ -817,10 +1106,16 @@ func TestCalculateProbabilitiesAndQPSMultiple(t *testing.T) {
 	p.prependThroughputBucket(&throughputBucket{
 		throughput: serviceOperationThroughput{
 			"svcA": map[string]*model.Throughput{
-				"PUT": {Count: 20, Probabilities: map[string]struct{}{"0.001000": {}}},
+				"PUT": {
+					Count:         20,
+					Probabilities: map[string]struct{}{"0.001000": {}},
+				},
 			},
 			"svcB": map[string]*model.Throughput{
-				"GET": {Count: 10, Probabilities: map[string]struct{}{"0.001000": {}}},
+				"GET": {
+					Count:         10,
+					Probabilities: map[string]struct{}{"0.001000": {}},
+				},
 			},
 		},
 		interval: 60 * time.Second,
@@ -829,8 +1124,16 @@ func TestCalculateProbabilitiesAndQPSMultiple(t *testing.T) {
 	probabilities, qps = p.calculateProbabilitiesAndQPS()
 
 	require.Len(t, probabilities, 2)
-	assert.Equal(t, map[string]float64{"GET": 0.128, "PUT": 0.001468867216804201}, probabilities["svcA"])
-	assert.Equal(t, map[string]float64{"PUT": 0.064, "GET": 0.002}, probabilities["svcB"])
+	assert.Equal(
+		t,
+		map[string]float64{"GET": 0.128, "PUT": 0.001468867216804201},
+		probabilities["svcA"],
+	)
+	assert.Equal(
+		t,
+		map[string]float64{"PUT": 0.064, "GET": 0.002},
+		probabilities["svcB"],
+	)
 
 	p.probabilities = probabilities
 	p.qps = qps
@@ -840,12 +1143,24 @@ func TestCalculateProbabilitiesAndQPSMultiple(t *testing.T) {
 	p.prependThroughputBucket(&throughputBucket{
 		throughput: serviceOperationThroughput{
 			"svcA": map[string]*model.Throughput{
-				"PUT": {Count: 20, Probabilities: map[string]struct{}{"0.001000": {}}},
-				"GET": {Count: 120, Probabilities: map[string]struct{}{"0.128000": {}}},
+				"PUT": {
+					Count:         20,
+					Probabilities: map[string]struct{}{"0.001000": {}},
+				},
+				"GET": {
+					Count:         120,
+					Probabilities: map[string]struct{}{"0.128000": {}},
+				},
 			},
 			"svcB": map[string]*model.Throughput{
-				"PUT": {Count: 60, Probabilities: map[string]struct{}{"0.064000": {}}},
-				"GET": {Count: 10, Probabilities: map[string]struct{}{"0.001000": {}}},
+				"PUT": {
+					Count:         60,
+					Probabilities: map[string]struct{}{"0.064000": {}},
+				},
+				"GET": {
+					Count:         10,
+					Probabilities: map[string]struct{}{"0.001000": {}},
+				},
 			},
 		},
 		interval: 60 * time.Second,
@@ -854,8 +1169,19 @@ func TestCalculateProbabilitiesAndQPSMultiple(t *testing.T) {
 	probabilities, qps = p.calculateProbabilitiesAndQPS()
 
 	require.Len(t, probabilities, 2)
-	assert.Equal(t, map[string]float64{"GET": 0.0882586677054928, "PUT": 0.001468867216804201}, probabilities["svcA"])
-	assert.Equal(t, map[string]float64{"PUT": 0.09587513707888091, "GET": 0.002}, probabilities["svcB"])
+	assert.Equal(
+		t,
+		map[string]float64{
+			"GET": 0.0882586677054928,
+			"PUT": 0.001468867216804201,
+		},
+		probabilities["svcA"],
+	)
+	assert.Equal(
+		t,
+		map[string]float64{"PUT": 0.09587513707888091, "GET": 0.002},
+		probabilities["svcB"],
+	)
 
 	p.probabilities = probabilities
 	p.qps = qps

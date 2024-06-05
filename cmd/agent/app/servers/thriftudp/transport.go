@@ -48,7 +48,10 @@ var _ thrift.TTransport = (*TUDPTransport)(nil)
 // Example:
 //
 //	trans, err := thriftudp.NewTUDPClientTransport("192.168.1.1:9090", "")
-func NewTUDPClientTransport(destHostPort string, locHostPort string) (*TUDPTransport, error) {
+func NewTUDPClientTransport(
+	destHostPort string,
+	locHostPort string,
+) (*TUDPTransport, error) {
 	destAddr, err := net.ResolveUDPAddr("udp", destHostPort)
 	if err != nil {
 		return nil, thrift.NewTTransportException(thrift.NOT_OPEN, err.Error())
@@ -58,7 +61,10 @@ func NewTUDPClientTransport(destHostPort string, locHostPort string) (*TUDPTrans
 	if locHostPort != "" {
 		locAddr, err = net.ResolveUDPAddr("udp", locHostPort)
 		if err != nil {
-			return nil, thrift.NewTTransportException(thrift.NOT_OPEN, err.Error())
+			return nil, thrift.NewTTransportException(
+				thrift.NOT_OPEN,
+				err.Error(),
+			)
 		}
 	}
 
@@ -123,7 +129,10 @@ func (p *TUDPTransport) Addr() net.Addr {
 // Read reads one UDP packet and puts it in the specified buf
 func (p *TUDPTransport) Read(buf []byte) (int, error) {
 	if !p.IsOpen() {
-		return 0, thrift.NewTTransportException(thrift.NOT_OPEN, "Connection not open")
+		return 0, thrift.NewTTransportException(
+			thrift.NOT_OPEN,
+			"Connection not open",
+		)
 	}
 	n, err := p.conn.Read(buf)
 	return n, thrift.NewTTransportExceptionFromError(err)
@@ -139,10 +148,16 @@ func (*TUDPTransport) RemainingBytes() uint64 {
 // Write writes specified buf to the write buffer
 func (p *TUDPTransport) Write(buf []byte) (int, error) {
 	if !p.IsOpen() {
-		return 0, thrift.NewTTransportException(thrift.NOT_OPEN, "Connection not open")
+		return 0, thrift.NewTTransportException(
+			thrift.NOT_OPEN,
+			"Connection not open",
+		)
 	}
 	if len(p.writeBuf.Bytes())+len(buf) > MaxLength {
-		return 0, thrift.NewTTransportException(thrift.INVALID_DATA, "Data does not fit within one UDP packet")
+		return 0, thrift.NewTTransportException(
+			thrift.INVALID_DATA,
+			"Data does not fit within one UDP packet",
+		)
 	}
 	n, err := p.writeBuf.Write(buf)
 	return n, thrift.NewTTransportExceptionFromError(err)
@@ -151,7 +166,10 @@ func (p *TUDPTransport) Write(buf []byte) (int, error) {
 // Flush flushes the write buffer as one udp packet
 func (p *TUDPTransport) Flush(_ context.Context) error {
 	if !p.IsOpen() {
-		return thrift.NewTTransportException(thrift.NOT_OPEN, "Connection not open")
+		return thrift.NewTTransportException(
+			thrift.NOT_OPEN,
+			"Connection not open",
+		)
 	}
 
 	_, err := p.conn.Write(p.writeBuf.Bytes())

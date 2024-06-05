@@ -31,7 +31,11 @@ type Options struct {
 
 // AddFlags from this storage to the CLI
 func AddFlags(flagSet *flag.FlagSet) {
-	flagSet.Int(limit, 0, "The maximum amount of traces to store in memory. The default number of traces is unbounded.")
+	flagSet.Int(
+		limit,
+		0,
+		"The maximum amount of traces to store in memory. The default number of traces is unbounded.",
+	)
 }
 
 // InitFromViper initializes the options struct with values from Viper

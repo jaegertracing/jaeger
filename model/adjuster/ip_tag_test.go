@@ -66,5 +66,9 @@ func TestIPTagAdjuster(t *testing.T) {
 		model.String("ip", "1.2.3.4"), // sorted
 		model.String("ip", "not integer"),
 	}
-	assert.Equal(t, expectedProcessTags, model.KeyValues(trace.Spans[0].Process.Tags))
+	assert.Equal(
+		t,
+		expectedProcessTags,
+		model.KeyValues(trace.Spans[0].Process.Tags),
+	)
 }

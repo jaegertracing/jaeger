@@ -80,9 +80,17 @@ func (s *SamplingStore) InsertThroughput(throughput []*model.Throughput) error {
 	return nil
 }
 
-func (s *SamplingStore) GetThroughput(start, end time.Time) ([]*model.Throughput, error) {
+func (s *SamplingStore) GetThroughput(
+	start, end time.Time,
+) ([]*model.Throughput, error) {
 	ctx := context.Background()
-	indices := getReadIndices(s.samplingIndexPrefix, s.indexDateLayout, start, end, s.indexRolloverFrequency)
+	indices := getReadIndices(
+		s.samplingIndexPrefix,
+		s.indexDateLayout,
+		start,
+		end,
+		s.indexRolloverFrequency,
+	)
 	searchResult, err := s.client().Search(indices...).
 		Size(s.maxDocCount).
 		Query(buildTSQuery(start, end)).
@@ -109,7 +117,11 @@ func (s *SamplingStore) InsertProbabilitiesAndQPS(hostname string,
 	qps model.ServiceOperationQPS,
 ) error {
 	ts := time.Now()
-	writeIndexName := indexWithDate(s.samplingIndexPrefix, s.indexDateLayout, ts)
+	writeIndexName := indexWithDate(
+		s.samplingIndexPrefix,
+		s.indexDateLayout,
+		ts,
+	)
 	val := dbmodel.ProbabilitiesAndQPS{
 		Hostname:      hostname,
 		Probabilities: probabilities,
@@ -122,7 +134,13 @@ func (s *SamplingStore) InsertProbabilitiesAndQPS(hostname string,
 func (s *SamplingStore) GetLatestProbabilities() (model.ServiceOperationProbabilities, error) {
 	ctx := context.Background()
 	clientFn := s.client()
-	indices, err := getLatestIndices(s.samplingIndexPrefix, s.indexDateLayout, clientFn, s.indexRolloverFrequency, s.lookback)
+	indices, err := getLatestIndices(
+		s.samplingIndexPrefix,
+		s.indexDateLayout,
+		clientFn,
+		s.indexRolloverFrequency,
+		s.lookback,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get latest indices: %w", err)
 	}
@@ -131,7 +149,10 @@ func (s *SamplingStore) GetLatestProbabilities() (model.ServiceOperationProbabil
 		IgnoreUnavailable(true).
 		Do(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to search for Latest Probabilities: %w", err)
+		return nil, fmt.Errorf(
+			"failed to search for Latest Probabilities: %w",
+			err,
+		)
 	}
 	lengthOfSearchResult := len(searchResult.Hits.Hits)
 	if lengthOfSearchResult == 0 {
@@ -153,7 +174,11 @@ func (s *SamplingStore) GetLatestProbabilities() (model.ServiceOperationProbabil
 	return latestProbabilities.ProbabilitiesAndQPS.Probabilities, nil
 }
 
-func (s *SamplingStore) writeProbabilitiesAndQPS(indexName string, ts time.Time, pandqps dbmodel.ProbabilitiesAndQPS) {
+func (s *SamplingStore) writeProbabilitiesAndQPS(
+	indexName string,
+	ts time.Time,
+	pandqps dbmodel.ProbabilitiesAndQPS,
+) {
 	s.client().Index().Index(indexName).Type(probabilitiesType).
 		BodyJson(&dbmodel.TimeProbabilitiesAndQPS{
 			Timestamp:           ts,
@@ -161,7 +186,12 @@ func (s *SamplingStore) writeProbabilitiesAndQPS(indexName string, ts time.Time,
 		}).Add()
 }
 
-func getLatestIndices(indexPrefix, indexDateLayout string, clientFn es.Client, rollover time.Duration, maxDuration time.Duration) ([]string, error) {
+func getLatestIndices(
+	indexPrefix, indexDateLayout string,
+	clientFn es.Client,
+	rollover time.Duration,
+	maxDuration time.Duration,
+) ([]string, error) {
 	ctx := context.Background()
 	now := time.Now().UTC()
 	earliest := now.Add(-maxDuration)
@@ -182,7 +212,12 @@ func getLatestIndices(indexPrefix, indexDateLayout string, clientFn es.Client, r
 	}
 }
 
-func getReadIndices(indexName, indexDateLayout string, startTime time.Time, endTime time.Time, rollover time.Duration) []string {
+func getReadIndices(
+	indexName, indexDateLayout string,
+	startTime time.Time,
+	endTime time.Time,
+	rollover time.Duration,
+) []string {
 	var indices []string
 	firstIndex := indexWithDate(indexName, indexDateLayout, startTime)
 	currentIndex := indexWithDate(indexName, indexDateLayout, endTime)
@@ -206,6 +241,9 @@ func buildTSQuery(start, end time.Time) elastic.Query {
 	return elastic.NewRangeQuery("timestamp").Gte(start).Lte(end)
 }
 
-func indexWithDate(indexNamePrefix, indexDateLayout string, date time.Time) string {
+func indexWithDate(
+	indexNamePrefix, indexDateLayout string,
+	date time.Time,
+) string {
 	return indexNamePrefix + date.UTC().Format(indexDateLayout)
 }

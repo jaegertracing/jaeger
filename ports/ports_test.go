@@ -42,7 +42,11 @@ func TestGetAddressFromCLIOptionsLegacy(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(fmt.Sprintf("%+v", test), func(t *testing.T) {
-			assert.Equal(t, test.out, GetAddressFromCLIOptions(test.port, test.hostPort))
+			assert.Equal(
+				t,
+				test.out,
+				GetAddressFromCLIOptions(test.port, test.hostPort),
+			)
 		})
 	}
 }

@@ -60,7 +60,11 @@ func TestNewFactory(t *testing.T) {
 	assert.Equal(t, cassandraStorageType, f.DependenciesStorageType)
 
 	f, err = NewFactory(FactoryConfig{
-		SpanWriterTypes:         []string{cassandraStorageType, kafkaStorageType, badgerStorageType},
+		SpanWriterTypes: []string{
+			cassandraStorageType,
+			kafkaStorageType,
+			badgerStorageType,
+		},
 		SpanReaderType:          elasticsearchStorageType,
 		DependenciesStorageType: memoryStorageType,
 	})
@@ -70,11 +74,21 @@ func TestNewFactory(t *testing.T) {
 	assert.NotNil(t, f.factories[kafkaStorageType])
 	assert.NotEmpty(t, f.factories[elasticsearchStorageType])
 	assert.NotNil(t, f.factories[memoryStorageType])
-	assert.Equal(t, []string{cassandraStorageType, kafkaStorageType, badgerStorageType}, f.SpanWriterTypes)
+	assert.Equal(
+		t,
+		[]string{cassandraStorageType, kafkaStorageType, badgerStorageType},
+		f.SpanWriterTypes,
+	)
 	assert.Equal(t, elasticsearchStorageType, f.SpanReaderType)
 	assert.Equal(t, memoryStorageType, f.DependenciesStorageType)
 
-	_, err = NewFactory(FactoryConfig{SpanWriterTypes: []string{"x"}, DependenciesStorageType: "y", SpanReaderType: "z"})
+	_, err = NewFactory(
+		FactoryConfig{
+			SpanWriterTypes:         []string{"x"},
+			DependenciesStorageType: "y",
+			SpanReaderType:          "z",
+		},
+	)
 	require.Error(t, err)
 	expected := "unknown storage type" // could be 'x' or 'y' since code iterates through map.
 	assert.Equal(t, expected, err.Error()[0:len(expected)])
@@ -127,9 +141,13 @@ func TestCreate(t *testing.T) {
 	spanWriter := new(spanStoreMocks.Writer)
 	depReader := new(depStoreMocks.Reader)
 
-	mock.On("CreateSpanReader").Return(spanReader, errors.New("span-reader-error"))
-	mock.On("CreateSpanWriter").Once().Return(spanWriter, errors.New("span-writer-error"))
-	mock.On("CreateDependencyReader").Return(depReader, errors.New("dep-reader-error"))
+	mock.On("CreateSpanReader").
+		Return(spanReader, errors.New("span-reader-error"))
+	mock.On("CreateSpanWriter").
+		Once().
+		Return(spanWriter, errors.New("span-writer-error"))
+	mock.On("CreateDependencyReader").
+		Return(depReader, errors.New("dep-reader-error"))
 
 	r, err := f.CreateSpanReader()
 	assert.Equal(t, spanReader, r)
@@ -188,7 +206,13 @@ func TestCreateDownsamplingWriter(t *testing.T) {
 			require.NoError(t, err)
 			// Currently directly assertEqual doesn't work since DownsamplingWriter initializes with different
 			// address for hashPool. The following workaround checks writer type instead
-			assert.True(t, strings.HasPrefix(reflect.TypeOf(newWriter).String(), param.writerType))
+			assert.True(
+				t,
+				strings.HasPrefix(
+					reflect.TypeOf(newWriter).String(),
+					param.writerType,
+				),
+			)
 		})
 	}
 }
@@ -207,7 +231,9 @@ func TestCreateMulti(t *testing.T) {
 	spanWriter := new(spanStoreMocks.Writer)
 	spanWriter2 := new(spanStoreMocks.Writer)
 
-	mock.On("CreateSpanWriter").Once().Return(spanWriter, errors.New("span-writer-error"))
+	mock.On("CreateSpanWriter").
+		Once().
+		Return(spanWriter, errors.New("span-writer-error"))
 
 	w, err := f.CreateSpanWriter()
 	assert.Nil(t, w)
@@ -239,8 +265,10 @@ func TestCreateArchive(t *testing.T) {
 	archiveSpanReader := new(spanStoreMocks.Reader)
 	archiveSpanWriter := new(spanStoreMocks.Writer)
 
-	mock.ArchiveFactory.On("CreateArchiveSpanReader").Return(archiveSpanReader, errors.New("archive-span-reader-error"))
-	mock.ArchiveFactory.On("CreateArchiveSpanWriter").Return(archiveSpanWriter, errors.New("archive-span-writer-error"))
+	mock.ArchiveFactory.On("CreateArchiveSpanReader").
+		Return(archiveSpanReader, errors.New("archive-span-reader-error"))
+	mock.ArchiveFactory.On("CreateArchiveSpanWriter").
+		Return(archiveSpanWriter, errors.New("archive-span-writer-error"))
 
 	ar, err := f.CreateArchiveSpanReader()
 	assert.Equal(t, archiveSpanReader, ar)
@@ -292,7 +320,11 @@ func TestCreateError(t *testing.T) {
 }
 
 func TestAllSamplingStorageTypes(t *testing.T) {
-	assert.Equal(t, []string{"cassandra", "memory", "badger"}, AllSamplingStorageTypes())
+	assert.Equal(
+		t,
+		[]string{"cassandra", "memory", "badger"},
+		AllSamplingStorageTypes(),
+	)
 }
 
 func TestCreateSamplingStoreFactory(t *testing.T) {
@@ -319,7 +351,11 @@ func TestCreateSamplingStoreFactory(t *testing.T) {
 	require.NoError(t, err)
 	ssFactory, err = f.CreateSamplingStoreFactory()
 	assert.Nil(t, ssFactory)
-	require.EqualError(t, err, "storage factory of type elasticsearch does not support sampling store")
+	require.EqualError(
+		t,
+		err,
+		"storage factory of type elasticsearch does not support sampling store",
+	)
 
 	// if a compatible factory is specified then return it
 	cfg.SamplingStorageType = "cassandra"
@@ -396,7 +432,11 @@ func TestDefaultDownsamplingWithAddFlags(t *testing.T) {
 	f.InitFromViper(v, zap.NewNop())
 
 	assert.Equal(t, defaultDownsamplingRatio, f.FactoryConfig.DownsamplingRatio)
-	assert.Equal(t, defaultDownsamplingHashSalt, f.FactoryConfig.DownsamplingHashSalt)
+	assert.Equal(
+		t,
+		defaultDownsamplingHashSalt,
+		f.FactoryConfig.DownsamplingHashSalt,
+	)
 
 	err = command.ParseFlags([]string{
 		"--downsampling.ratio=0.5",
@@ -409,8 +449,16 @@ func TestPublishOpts(t *testing.T) {
 	require.NoError(t, err)
 	f.publishOpts()
 
-	assert.EqualValues(t, 1, expvar.Get(downsamplingRatio).(*expvar.Int).Value())
-	assert.EqualValues(t, 1, expvar.Get(spanStorageType+"-"+f.SpanReaderType).(*expvar.Int).Value())
+	assert.EqualValues(
+		t,
+		1,
+		expvar.Get(downsamplingRatio).(*expvar.Int).Value(),
+	)
+	assert.EqualValues(
+		t,
+		1,
+		expvar.Get(spanStorageType+"-"+f.SpanReaderType).(*expvar.Int).Value(),
+	)
 }
 
 type errorFactory struct {
@@ -422,7 +470,10 @@ var (
 	_ io.Closer       = (*errorFactory)(nil)
 )
 
-func (errorFactory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
+func (errorFactory) Initialize(
+	metricsFactory metrics.Factory,
+	logger *zap.Logger,
+) error {
 	panic("implement me")
 }
 

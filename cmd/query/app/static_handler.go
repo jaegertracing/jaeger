@@ -38,22 +38,38 @@ import (
 
 var (
 	// The following patterns are searched and replaced in the index.html as a way of customizing the UI.
-	configPattern      = regexp.MustCompile("JAEGER_CONFIG *= *DEFAULT_CONFIG;")
-	configJsPattern    = regexp.MustCompile(`(?im)^\s*\/\/\s*JAEGER_CONFIG_JS.*\n.*`)
-	versionPattern     = regexp.MustCompile("JAEGER_VERSION *= *DEFAULT_VERSION;")
-	compabilityPattern = regexp.MustCompile("JAEGER_STORAGE_CAPABILITIES *= *DEFAULT_STORAGE_CAPABILITIES;")
-	basePathPattern    = regexp.MustCompile(`<base href="/"`) // Note: tag is not closed
+	configPattern   = regexp.MustCompile("JAEGER_CONFIG *= *DEFAULT_CONFIG;")
+	configJsPattern = regexp.MustCompile(
+		`(?im)^\s*\/\/\s*JAEGER_CONFIG_JS.*\n.*`,
+	)
+	versionPattern = regexp.MustCompile(
+		"JAEGER_VERSION *= *DEFAULT_VERSION;",
+	)
+	compabilityPattern = regexp.MustCompile(
+		"JAEGER_STORAGE_CAPABILITIES *= *DEFAULT_STORAGE_CAPABILITIES;",
+	)
+	basePathPattern = regexp.MustCompile(
+		`<base href="/"`,
+	) // Note: tag is not closed
 )
 
 // RegisterStaticHandler adds handler for static assets to the router.
-func RegisterStaticHandler(r *mux.Router, logger *zap.Logger, qOpts *QueryOptions, qCapabilities querysvc.StorageCapabilities) io.Closer {
-	staticHandler, err := NewStaticAssetsHandler(qOpts.StaticAssets.Path, StaticAssetsHandlerOptions{
-		BasePath:            qOpts.BasePath,
-		UIConfigPath:        qOpts.UIConfig,
-		StorageCapabilities: qCapabilities,
-		Logger:              logger,
-		LogAccess:           qOpts.StaticAssets.LogAccess,
-	})
+func RegisterStaticHandler(
+	r *mux.Router,
+	logger *zap.Logger,
+	qOpts *QueryOptions,
+	qCapabilities querysvc.StorageCapabilities,
+) io.Closer {
+	staticHandler, err := NewStaticAssetsHandler(
+		qOpts.StaticAssets.Path,
+		StaticAssetsHandlerOptions{
+			BasePath:            qOpts.BasePath,
+			UIConfigPath:        qOpts.UIConfig,
+			StorageCapabilities: qCapabilities,
+			Logger:              logger,
+			LogAccess:           qOpts.StaticAssets.LogAccess,
+		},
+	)
 	if err != nil {
 		logger.Panic("Could not create static assets handler", zap.Error(err))
 	}
@@ -86,7 +102,10 @@ type loadedConfig struct {
 }
 
 // NewStaticAssetsHandler returns a StaticAssetsHandler
-func NewStaticAssetsHandler(staticAssetsRoot string, options StaticAssetsHandlerOptions) (*StaticAssetsHandler, error) {
+func NewStaticAssetsHandler(
+	staticAssetsRoot string,
+	options StaticAssetsHandlerOptions,
+) (*StaticAssetsHandler, error) {
 	assetsFS := ui.StaticFiles
 	if staticAssetsRoot != "" {
 		assetsFS = http.Dir(staticAssetsRoot)
@@ -106,8 +125,15 @@ func NewStaticAssetsHandler(staticAssetsRoot string, options StaticAssetsHandler
 		return nil, err
 	}
 
-	options.Logger.Info("Using UI configuration", zap.String("path", options.UIConfigPath))
-	watcher, err := fswatcher.New([]string{options.UIConfigPath}, h.reloadUIConfig, h.options.Logger)
+	options.Logger.Info(
+		"Using UI configuration",
+		zap.String("path", options.UIConfigPath),
+	)
+	watcher, err := fswatcher.New(
+		[]string{options.UIConfigPath},
+		h.reloadUIConfig,
+		h.options.Logger,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -118,7 +144,9 @@ func NewStaticAssetsHandler(staticAssetsRoot string, options StaticAssetsHandler
 	return h, nil
 }
 
-func (sH *StaticAssetsHandler) loadAndEnrichIndexHTML(open func(string) (http.File, error)) ([]byte, error) {
+func (sH *StaticAssetsHandler) loadAndEnrichIndexHTML(
+	open func(string) (http.File, error),
+) ([]byte, error) {
 	indexBytes, err := loadIndexHTML(open)
 	if err != nil {
 		return nil, fmt.Errorf("cannot load index.html: %w", err)
@@ -131,8 +159,14 @@ func (sH *StaticAssetsHandler) loadAndEnrichIndexHTML(open func(string) (http.Fi
 	}
 	// replace storage capabilities
 	capabilitiesJSON, _ := json.Marshal(sH.options.StorageCapabilities)
-	capabilitiesString := fmt.Sprintf("JAEGER_STORAGE_CAPABILITIES = %s;", string(capabilitiesJSON))
-	indexBytes = compabilityPattern.ReplaceAll(indexBytes, []byte(capabilitiesString))
+	capabilitiesString := fmt.Sprintf(
+		"JAEGER_STORAGE_CAPABILITIES = %s;",
+		string(capabilitiesJSON),
+	)
+	indexBytes = compabilityPattern.ReplaceAll(
+		indexBytes,
+		[]byte(capabilitiesString),
+	)
 	// replace Jaeger version
 	versionJSON, _ := json.Marshal(version.Get())
 	versionString := fmt.Sprintf("JAEGER_VERSION = %s;", string(versionJSON))
@@ -142,23 +176,39 @@ func (sH *StaticAssetsHandler) loadAndEnrichIndexHTML(open func(string) (http.Fi
 		sH.options.BasePath = "/"
 	}
 	if sH.options.BasePath != "/" {
-		if !strings.HasPrefix(sH.options.BasePath, "/") || strings.HasSuffix(sH.options.BasePath, "/") {
-			return nil, fmt.Errorf("invalid base path '%s'. Must start but not end with a slash '/', e.g. '/jaeger/ui'", sH.options.BasePath)
+		if !strings.HasPrefix(sH.options.BasePath, "/") ||
+			strings.HasSuffix(sH.options.BasePath, "/") {
+			return nil, fmt.Errorf(
+				"invalid base path '%s'. Must start but not end with a slash '/', e.g. '/jaeger/ui'",
+				sH.options.BasePath,
+			)
 		}
-		indexBytes = basePathPattern.ReplaceAll(indexBytes, []byte(fmt.Sprintf(`<base href="%s/"`, sH.options.BasePath)))
+		indexBytes = basePathPattern.ReplaceAll(
+			indexBytes,
+			[]byte(fmt.Sprintf(`<base href="%s/"`, sH.options.BasePath)),
+		)
 	}
 
 	return indexBytes, nil
 }
 
 func (sH *StaticAssetsHandler) reloadUIConfig() {
-	sH.options.Logger.Info("reloading UI config", zap.String("filename", sH.options.UIConfigPath))
+	sH.options.Logger.Info(
+		"reloading UI config",
+		zap.String("filename", sH.options.UIConfigPath),
+	)
 	content, err := sH.loadAndEnrichIndexHTML(sH.assetsFS.Open)
 	if err != nil {
-		sH.options.Logger.Error("error while reloading the UI config", zap.Error(err))
+		sH.options.Logger.Error(
+			"error while reloading the UI config",
+			zap.Error(err),
+		)
 	}
 	sH.indexHTML.Store(content)
-	sH.options.Logger.Info("reloaded UI config", zap.String("filename", sH.options.UIConfigPath))
+	sH.options.Logger.Info(
+		"reloaded UI config",
+		zap.String("filename", sH.options.UIConfigPath),
+	)
 }
 
 func loadIndexHTML(open func(string) (http.File, error)) ([]byte, error) {
@@ -180,7 +230,11 @@ func loadUIConfig(uiConfig string) (*loadedConfig, error) {
 	}
 	bytesConfig, err := os.ReadFile(filepath.Clean(uiConfig))
 	if err != nil {
-		return nil, fmt.Errorf("cannot read UI config file %v: %w", uiConfig, err)
+		return nil, fmt.Errorf(
+			"cannot read UI config file %v: %w",
+			uiConfig,
+			err,
+		)
 	}
 	var r []byte
 
@@ -190,7 +244,11 @@ func loadUIConfig(uiConfig string) (*loadedConfig, error) {
 		var c map[string]any
 
 		if err := json.Unmarshal(bytesConfig, &c); err != nil {
-			return nil, fmt.Errorf("cannot parse UI config file %v: %w", uiConfig, err)
+			return nil, fmt.Errorf(
+				"cannot parse UI config file %v: %w",
+				uiConfig,
+				err,
+			)
 		}
 		r, _ = json.Marshal(c)
 
@@ -202,7 +260,10 @@ func loadUIConfig(uiConfig string) (*loadedConfig, error) {
 		r = bytes.TrimSpace(bytesConfig)
 		re := regexp.MustCompile(`function\s+UIConfig(\s)?\(\s?\)(\s)?{`)
 		if !re.Match(r) {
-			return nil, fmt.Errorf("UI config file must define function UIConfig(): %v", uiConfig)
+			return nil, fmt.Errorf(
+				"UI config file must define function UIConfig(): %v",
+				uiConfig,
+			)
 		}
 
 		return &loadedConfig{
@@ -210,16 +271,24 @@ func loadUIConfig(uiConfig string) (*loadedConfig, error) {
 			config: r,
 		}, nil
 	default:
-		return nil, fmt.Errorf("unrecognized UI config file format, expecting .js or .json file: %v", uiConfig)
+		return nil, fmt.Errorf(
+			"unrecognized UI config file format, expecting .js or .json file: %v",
+			uiConfig,
+		)
 	}
 }
 
-func (sH *StaticAssetsHandler) loggingHandler(handler http.Handler) http.Handler {
+func (sH *StaticAssetsHandler) loggingHandler(
+	handler http.Handler,
+) http.Handler {
 	if !sH.options.LogAccess {
 		return handler
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		sH.options.Logger.Info("serving static asset", zap.Stringer("url", r.URL))
+		sH.options.Logger.Info(
+			"serving static asset",
+			zap.Stringer("url", r.URL),
+		)
 		handler.ServeHTTP(w, r)
 	})
 }
@@ -235,7 +304,10 @@ func (sH *StaticAssetsHandler) RegisterRoutes(router *mux.Router) {
 	router.NotFoundHandler = sH.loggingHandler(http.HandlerFunc(sH.notFound))
 }
 
-func (sH *StaticAssetsHandler) notFound(w http.ResponseWriter, r *http.Request) {
+func (sH *StaticAssetsHandler) notFound(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Write(sH.indexHTML.Load().([]byte))
 }

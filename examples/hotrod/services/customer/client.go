@@ -34,7 +34,11 @@ type Client struct {
 }
 
 // NewClient creates a new customer.Client
-func NewClient(tracer trace.TracerProvider, logger log.Factory, hostPort string) *Client {
+func NewClient(
+	tracer trace.TracerProvider,
+	logger log.Factory,
+	hostPort string,
+) *Client {
 	return &Client{
 		logger:   logger,
 		client:   tracing.NewHTTPClient(tracer),
@@ -44,7 +48,8 @@ func NewClient(tracer trace.TracerProvider, logger log.Factory, hostPort string)
 
 // Get implements customer.Interface#Get as an RPC
 func (c *Client) Get(ctx context.Context, customerID int) (*Customer, error) {
-	c.logger.For(ctx).Info("Getting customer", zap.Int("customer_id", customerID))
+	c.logger.For(ctx).
+		Info("Getting customer", zap.Int("customer_id", customerID))
 
 	url := fmt.Sprintf("http://"+c.hostPort+"/customer?customer=%d", customerID)
 	var customer Customer

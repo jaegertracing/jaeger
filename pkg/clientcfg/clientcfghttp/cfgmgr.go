@@ -30,12 +30,18 @@ type ConfigManager struct {
 }
 
 // GetSamplingStrategy implements ClientConfigManager.GetSamplingStrategy.
-func (c *ConfigManager) GetSamplingStrategy(ctx context.Context, serviceName string) (*api_v2.SamplingStrategyResponse, error) {
+func (c *ConfigManager) GetSamplingStrategy(
+	ctx context.Context,
+	serviceName string,
+) (*api_v2.SamplingStrategyResponse, error) {
 	return c.SamplingStrategyStore.GetSamplingStrategy(ctx, serviceName)
 }
 
 // GetBaggageRestrictions implements ClientConfigManager.GetBaggageRestrictions.
-func (c *ConfigManager) GetBaggageRestrictions(ctx context.Context, serviceName string) ([]*baggage.BaggageRestriction, error) {
+func (c *ConfigManager) GetBaggageRestrictions(
+	ctx context.Context,
+	serviceName string,
+) ([]*baggage.BaggageRestriction, error) {
 	if c.BaggageManager == nil {
 		return nil, errors.New("baggage restrictions not implemented")
 	}

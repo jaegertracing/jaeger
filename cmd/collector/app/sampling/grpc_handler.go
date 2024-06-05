@@ -34,6 +34,9 @@ func NewGRPCHandler(store strategystore.StrategyStore) GRPCHandler {
 }
 
 // GetSamplingStrategy returns sampling decision from store.
-func (s GRPCHandler) GetSamplingStrategy(ctx context.Context, param *api_v2.SamplingStrategyParameters) (*api_v2.SamplingStrategyResponse, error) {
+func (s GRPCHandler) GetSamplingStrategy(
+	ctx context.Context,
+	param *api_v2.SamplingStrategyParameters,
+) (*api_v2.SamplingStrategyResponse, error) {
 	return s.store.GetSamplingStrategy(ctx, param.GetServiceName())
 }

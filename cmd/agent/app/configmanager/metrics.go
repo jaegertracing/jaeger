@@ -44,14 +44,20 @@ type ManagerWithMetrics struct {
 }
 
 // WrapWithMetrics wraps ClientConfigManager and creates metrics for its invocations.
-func WrapWithMetrics(manager ClientConfigManager, mFactory metrics.Factory) *ManagerWithMetrics {
+func WrapWithMetrics(
+	manager ClientConfigManager,
+	mFactory metrics.Factory,
+) *ManagerWithMetrics {
 	m := configManagerMetrics{}
 	metrics.Init(&m, mFactory, nil)
 	return &ManagerWithMetrics{wrapped: manager, metrics: m}
 }
 
 // GetSamplingStrategy returns sampling strategy from server.
-func (m *ManagerWithMetrics) GetSamplingStrategy(ctx context.Context, serviceName string) (*api_v2.SamplingStrategyResponse, error) {
+func (m *ManagerWithMetrics) GetSamplingStrategy(
+	ctx context.Context,
+	serviceName string,
+) (*api_v2.SamplingStrategyResponse, error) {
 	r, err := m.wrapped.GetSamplingStrategy(ctx, serviceName)
 	if err != nil {
 		m.metrics.SamplingFailures.Inc(1)
@@ -62,7 +68,10 @@ func (m *ManagerWithMetrics) GetSamplingStrategy(ctx context.Context, serviceNam
 }
 
 // GetBaggageRestrictions returns baggage restrictions from server.
-func (m *ManagerWithMetrics) GetBaggageRestrictions(ctx context.Context, serviceName string) ([]*baggage.BaggageRestriction, error) {
+func (m *ManagerWithMetrics) GetBaggageRestrictions(
+	ctx context.Context,
+	serviceName string,
+) ([]*baggage.BaggageRestriction, error) {
 	r, err := m.wrapped.GetBaggageRestrictions(ctx, serviceName)
 	if err != nil {
 		m.metrics.BaggageFailures.Inc(1)

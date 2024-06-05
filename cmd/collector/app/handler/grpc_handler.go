@@ -37,7 +37,11 @@ type GRPCHandler struct {
 }
 
 // NewGRPCHandler registers routes for this handler on the given router.
-func NewGRPCHandler(logger *zap.Logger, spanProcessor processor.SpanProcessor, tenancyMgr *tenancy.Manager) *GRPCHandler {
+func NewGRPCHandler(
+	logger *zap.Logger,
+	spanProcessor processor.SpanProcessor,
+	tenancyMgr *tenancy.Manager,
+) *GRPCHandler {
 	return &GRPCHandler{
 		logger: logger,
 		batchConsumer: newBatchConsumer(logger,
@@ -49,7 +53,10 @@ func NewGRPCHandler(logger *zap.Logger, spanProcessor processor.SpanProcessor, t
 }
 
 // PostSpans implements gRPC CollectorService.
-func (g *GRPCHandler) PostSpans(ctx context.Context, r *api_v2.PostSpansRequest) (*api_v2.PostSpansResponse, error) {
+func (g *GRPCHandler) PostSpans(
+	ctx context.Context,
+	r *api_v2.PostSpansRequest,
+) (*api_v2.PostSpansResponse, error) {
 	batch := &r.Batch
 	err := g.batchConsumer.consume(ctx, batch)
 	return &api_v2.PostSpansResponse{}, err
@@ -62,7 +69,13 @@ type batchConsumer struct {
 	tenancyMgr    *tenancy.Manager
 }
 
-func newBatchConsumer(logger *zap.Logger, spanProcessor processor.SpanProcessor, transport processor.InboundTransport, spanFormat processor.SpanFormat, tenancyMgr *tenancy.Manager) batchConsumer {
+func newBatchConsumer(
+	logger *zap.Logger,
+	spanProcessor processor.SpanProcessor,
+	transport processor.InboundTransport,
+	spanFormat processor.SpanFormat,
+	tenancyMgr *tenancy.Manager,
+) batchConsumer {
 	return batchConsumer{
 		logger:        logger,
 		spanProcessor: spanProcessor,
@@ -108,12 +121,18 @@ func (c *batchConsumer) validateTenant(ctx context.Context) (string, error) {
 
 	md, ok := metadata.FromIncomingContext(ctx)
 	if !ok {
-		return "", status.Errorf(codes.PermissionDenied, "missing tenant header")
+		return "", status.Errorf(
+			codes.PermissionDenied,
+			"missing tenant header",
+		)
 	}
 
 	tenants := md.Get(c.tenancyMgr.Header)
 	if len(tenants) < 1 {
-		return "", status.Errorf(codes.PermissionDenied, "missing tenant header")
+		return "", status.Errorf(
+			codes.PermissionDenied,
+			"missing tenant header",
+		)
 	} else if len(tenants) > 1 {
 		return "", status.Errorf(codes.PermissionDenied, "extra tenant header")
 	}

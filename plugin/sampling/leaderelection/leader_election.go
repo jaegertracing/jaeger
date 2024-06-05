@@ -55,7 +55,11 @@ type ElectionParticipantOptions struct {
 }
 
 // NewElectionParticipant returns a ElectionParticipant which attempts to become leader.
-func NewElectionParticipant(lock dl.Lock, resourceName string, options ElectionParticipantOptions) *DistributedElectionParticipant {
+func NewElectionParticipant(
+	lock dl.Lock,
+	resourceName string,
+	options ElectionParticipantOptions,
+) *DistributedElectionParticipant {
 	return &DistributedElectionParticipant{
 		ElectionParticipantOptions: options,
 		lock:                       lock,

@@ -27,7 +27,10 @@ type ExactMatchTagFilter struct {
 // newExactMatchTagFilter creates a ExactMatchTagFilter with the provided tags.  Passing
 // dropMatches true will exhibit blacklist behavior.  Passing dropMatches false
 // will exhibit whitelist behavior.
-func newExactMatchTagFilter(tags []string, dropMatches bool) ExactMatchTagFilter {
+func newExactMatchTagFilter(
+	tags []string,
+	dropMatches bool,
+) ExactMatchTagFilter {
 	mapTags := make(map[string]struct{})
 	for _, t := range tags {
 		mapTags[t] = struct{}{}
@@ -49,17 +52,26 @@ func NewWhitelistFilter(tags []string) ExactMatchTagFilter {
 }
 
 // FilterProcessTags implements TagFilter
-func (tf ExactMatchTagFilter) FilterProcessTags(span *model.Span, processTags model.KeyValues) model.KeyValues {
+func (tf ExactMatchTagFilter) FilterProcessTags(
+	span *model.Span,
+	processTags model.KeyValues,
+) model.KeyValues {
 	return tf.filter(processTags)
 }
 
 // FilterTags implements TagFilter
-func (tf ExactMatchTagFilter) FilterTags(span *model.Span, tags model.KeyValues) model.KeyValues {
+func (tf ExactMatchTagFilter) FilterTags(
+	span *model.Span,
+	tags model.KeyValues,
+) model.KeyValues {
 	return tf.filter(tags)
 }
 
 // FilterLogFields implements TagFilter
-func (tf ExactMatchTagFilter) FilterLogFields(span *model.Span, logFields model.KeyValues) model.KeyValues {
+func (tf ExactMatchTagFilter) FilterLogFields(
+	span *model.Span,
+	logFields model.KeyValues,
+) model.KeyValues {
 	return tf.filter(logFields)
 }
 

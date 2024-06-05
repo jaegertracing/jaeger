@@ -45,7 +45,11 @@ type depStorageTest struct {
 	storage   *DependencyStore
 }
 
-func withDepStorage(indexPrefix, indexDateLayout string, maxDocCount int, fn func(r *depStorageTest)) {
+func withDepStorage(
+	indexPrefix, indexDateLayout string,
+	maxDocCount int,
+	fn func(r *depStorageTest),
+) {
 	client := &mocks.Client{}
 	logger, logBuffer := testutils.NewLogger()
 	r := &depStorageTest{
@@ -87,7 +91,11 @@ func TestNewSpanReaderIndexPrefix(t *testing.T) {
 			MaxDocCount:     defaultMaxDocCount,
 		})
 
-		assert.Equal(t, testCase.expected+dependencyIndex, r.dependencyIndexPrefix)
+		assert.Equal(
+			t,
+			testCase.expected+dependencyIndex,
+			r.dependencyIndexPrefix,
+		)
 	}
 }
 
@@ -103,25 +111,45 @@ func TestWriteDependencies(t *testing.T) {
 		},
 	}
 	for _, testCase := range testCases {
-		withDepStorage("", "2006-01-02", defaultMaxDocCount, func(r *depStorageTest) {
-			fixedTime := time.Date(1995, time.April, 21, 4, 21, 19, 95, time.UTC)
-			indexName := indexWithDate("", "2006-01-02", fixedTime)
-			writeService := &mocks.IndexService{}
+		withDepStorage(
+			"",
+			"2006-01-02",
+			defaultMaxDocCount,
+			func(r *depStorageTest) {
+				fixedTime := time.Date(
+					1995,
+					time.April,
+					21,
+					4,
+					21,
+					19,
+					95,
+					time.UTC,
+				)
+				indexName := indexWithDate("", "2006-01-02", fixedTime)
+				writeService := &mocks.IndexService{}
 
-			r.client.On("Index").Return(writeService)
-			r.client.On("GetVersion").Return(testCase.esVersion)
+				r.client.On("Index").Return(writeService)
+				r.client.On("GetVersion").Return(testCase.esVersion)
 
-			writeService.On("Index", stringMatcher(indexName)).Return(writeService)
-			writeService.On("Type", stringMatcher(dependencyType)).Return(writeService)
-			writeService.On("BodyJson", mock.Anything).Return(writeService)
-			writeService.On("Add", mock.Anything).Return(nil, testCase.writeError)
-			err := r.storage.WriteDependencies(fixedTime, []model.DependencyLink{})
-			if testCase.expectedError != "" {
-				require.EqualError(t, err, testCase.expectedError)
-			} else {
-				require.NoError(t, err)
-			}
-		})
+				writeService.On("Index", stringMatcher(indexName)).
+					Return(writeService)
+				writeService.On("Type", stringMatcher(dependencyType)).
+					Return(writeService)
+				writeService.On("BodyJson", mock.Anything).Return(writeService)
+				writeService.On("Add", mock.Anything).
+					Return(nil, testCase.writeError)
+				err := r.storage.WriteDependencies(
+					fixedTime,
+					[]model.DependencyLink{},
+				)
+				if testCase.expectedError != "" {
+					require.EqualError(t, err, testCase.expectedError)
+				} else {
+					require.NoError(t, err)
+				}
+			},
+		)
 	}
 }
 
@@ -155,49 +183,81 @@ func TestGetDependencies(t *testing.T) {
 					CallCount: 12,
 				},
 			},
-			indices:     []any{"jaeger-dependencies-1995-04-21", "jaeger-dependencies-1995-04-20"},
+			indices: []any{
+				"jaeger-dependencies-1995-04-21",
+				"jaeger-dependencies-1995-04-20",
+			},
 			maxDocCount: 1000, // can be anything, assertion will check this value is used in search query.
 		},
 		{
 			searchResult:  createSearchResult(badDependencies),
 			expectedError: "unmarshalling ElasticSearch documents failed",
-			indices:       []any{"jaeger-dependencies-1995-04-21", "jaeger-dependencies-1995-04-20"},
+			indices: []any{
+				"jaeger-dependencies-1995-04-21",
+				"jaeger-dependencies-1995-04-20",
+			},
 		},
 		{
 			searchError:   errors.New("search failure"),
 			expectedError: "failed to search for dependencies: search failure",
-			indices:       []any{"jaeger-dependencies-1995-04-21", "jaeger-dependencies-1995-04-20"},
+			indices: []any{
+				"jaeger-dependencies-1995-04-21",
+				"jaeger-dependencies-1995-04-20",
+			},
 		},
 		{
 			searchError:   errors.New("search failure"),
 			expectedError: "failed to search for dependencies: search failure",
 			indexPrefix:   "foo",
-			indices:       []any{"foo-jaeger-dependencies-1995-04-21", "foo-jaeger-dependencies-1995-04-20"},
+			indices: []any{
+				"foo-jaeger-dependencies-1995-04-21",
+				"foo-jaeger-dependencies-1995-04-20",
+			},
 		},
 	}
 	for _, testCase := range testCases {
-		withDepStorage(testCase.indexPrefix, "2006-01-02", testCase.maxDocCount, func(r *depStorageTest) {
-			fixedTime := time.Date(1995, time.April, 21, 4, 21, 19, 95, time.UTC)
+		withDepStorage(
+			testCase.indexPrefix,
+			"2006-01-02",
+			testCase.maxDocCount,
+			func(r *depStorageTest) {
+				fixedTime := time.Date(
+					1995,
+					time.April,
+					21,
+					4,
+					21,
+					19,
+					95,
+					time.UTC,
+				)
 
-			searchService := &mocks.SearchService{}
-			r.client.On("Search", testCase.indices...).Return(searchService)
+				searchService := &mocks.SearchService{}
+				r.client.On("Search", testCase.indices...).Return(searchService)
 
-			searchService.On("Size", mock.MatchedBy(func(size int) bool {
-				return size == testCase.maxDocCount
-			})).Return(searchService)
-			searchService.On("Query", mock.Anything).Return(searchService)
-			searchService.On("IgnoreUnavailable", mock.AnythingOfType("bool")).Return(searchService)
-			searchService.On("Do", mock.Anything).Return(testCase.searchResult, testCase.searchError)
+				searchService.On("Size", mock.MatchedBy(func(size int) bool {
+					return size == testCase.maxDocCount
+				})).Return(searchService)
+				searchService.On("Query", mock.Anything).Return(searchService)
+				searchService.On("IgnoreUnavailable", mock.AnythingOfType("bool")).
+					Return(searchService)
+				searchService.On("Do", mock.Anything).
+					Return(testCase.searchResult, testCase.searchError)
 
-			actual, err := r.storage.GetDependencies(context.Background(), fixedTime, 24*time.Hour)
-			if testCase.expectedError != "" {
-				require.EqualError(t, err, testCase.expectedError)
-				assert.Nil(t, actual)
-			} else {
-				require.NoError(t, err)
-				assert.EqualValues(t, testCase.expectedOutput, actual)
-			}
-		})
+				actual, err := r.storage.GetDependencies(
+					context.Background(),
+					fixedTime,
+					24*time.Hour,
+				)
+				if testCase.expectedError != "" {
+					require.EqualError(t, err, testCase.expectedError)
+					assert.Nil(t, actual)
+				} else {
+					require.NoError(t, err)
+					assert.EqualValues(t, testCase.expectedOutput, actual)
+				}
+			},
+		)
 	}
 }
 
@@ -219,7 +279,11 @@ func TestGetReadIndices(t *testing.T) {
 		params   Params
 	}{
 		{
-			params:   Params{IndexPrefix: "", IndexDateLayout: "2006-01-02", UseReadWriteAliases: true},
+			params: Params{
+				IndexPrefix:         "",
+				IndexDateLayout:     "2006-01-02",
+				UseReadWriteAliases: true,
+			},
 			lookback: 23 * time.Hour,
 			indices: []string{
 				dependencyIndex + "read",
@@ -230,7 +294,8 @@ func TestGetReadIndices(t *testing.T) {
 			lookback: 23 * time.Hour,
 			indices: []string{
 				dependencyIndex + fixedTime.Format("2006-01-02"),
-				dependencyIndex + fixedTime.Add(-23*time.Hour).Format("2006-01-02"),
+				dependencyIndex + fixedTime.Add(-23*time.Hour).
+					Format("2006-01-02"),
 			},
 		},
 		{
@@ -238,27 +303,42 @@ func TestGetReadIndices(t *testing.T) {
 			lookback: 13 * time.Hour,
 			indices: []string{
 				dependencyIndex + fixedTime.UTC().Format("2006-01-02"),
-				dependencyIndex + fixedTime.Add(-13*time.Hour).Format("2006-01-02"),
+				dependencyIndex + fixedTime.Add(-13*time.Hour).
+					Format("2006-01-02"),
 			},
 		},
 		{
-			params:   Params{IndexPrefix: "foo:", IndexDateLayout: "2006-01-02"},
+			params: Params{
+				IndexPrefix:     "foo:",
+				IndexDateLayout: "2006-01-02",
+			},
 			lookback: 1 * time.Hour,
 			indices: []string{
-				"foo:" + indexPrefixSeparator + dependencyIndex + fixedTime.Format("2006-01-02"),
+				"foo:" + indexPrefixSeparator + dependencyIndex + fixedTime.Format(
+					"2006-01-02",
+				),
 			},
 		},
 		{
-			params:   Params{IndexPrefix: "foo-", IndexDateLayout: "2006-01-02"},
+			params: Params{
+				IndexPrefix:     "foo-",
+				IndexDateLayout: "2006-01-02",
+			},
 			lookback: 0,
 			indices: []string{
-				"foo-" + indexPrefixSeparator + dependencyIndex + fixedTime.Format("2006-01-02"),
+				"foo-" + indexPrefixSeparator + dependencyIndex + fixedTime.Format(
+					"2006-01-02",
+				),
 			},
 		},
 	}
 	for _, testCase := range testCases {
 		s := NewDependencyStore(testCase.params)
-		assert.EqualValues(t, testCase.indices, s.getReadIndices(fixedTime, testCase.lookback))
+		assert.EqualValues(
+			t,
+			testCase.indices,
+			s.getReadIndices(fixedTime, testCase.lookback),
+		)
 	}
 }
 
@@ -270,11 +350,19 @@ func TestGetWriteIndex(t *testing.T) {
 		params     Params
 	}{
 		{
-			params:     Params{IndexPrefix: "", IndexDateLayout: "2006-01-02", UseReadWriteAliases: true},
+			params: Params{
+				IndexPrefix:         "",
+				IndexDateLayout:     "2006-01-02",
+				UseReadWriteAliases: true,
+			},
 			writeIndex: dependencyIndex + "write",
 		},
 		{
-			params:     Params{IndexPrefix: "", IndexDateLayout: "2006-01-02", UseReadWriteAliases: false},
+			params: Params{
+				IndexPrefix:         "",
+				IndexDateLayout:     "2006-01-02",
+				UseReadWriteAliases: false,
+			},
 			writeIndex: dependencyIndex + fixedTime.Format("2006-01-02"),
 		},
 	}

@@ -24,13 +24,16 @@ type KerberosConfig struct {
 	Realm           string `mapstructure:"realm"`
 	UseKeyTab       bool   `mapstructure:"use_keytab"`
 	Username        string `mapstructure:"username"`
-	Password        string `mapstructure:"password" json:"-"`
+	Password        string `mapstructure:"password"           json:"-"`
 	ConfigPath      string `mapstructure:"config_file"`
 	KeyTabPath      string `mapstructure:"keytab_file"`
 	DisablePAFXFast bool   `mapstructure:"disable_pa_fx_fast"`
 }
 
-func setKerberosConfiguration(config *KerberosConfig, saramaConfig *sarama.Config) {
+func setKerberosConfiguration(
+	config *KerberosConfig,
+	saramaConfig *sarama.Config,
+) {
 	saramaConfig.Net.SASL.Mechanism = sarama.SASLTypeGSSAPI
 	saramaConfig.Net.SASL.Enable = true
 	if config.UseKeyTab {

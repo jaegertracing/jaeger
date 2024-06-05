@@ -59,31 +59,68 @@ func TestOptionsWithFlags(t *testing.T) {
 }
 
 func TestTLSFlags(t *testing.T) {
-	kerb := auth.KerberosConfig{ServiceName: "kafka", ConfigPath: "/etc/krb5.conf", KeyTabPath: "/etc/security/kafka.keytab"}
-	plain := auth.PlainTextConfig{Username: "", Password: "", Mechanism: "PLAIN"}
+	kerb := auth.KerberosConfig{
+		ServiceName: "kafka",
+		ConfigPath:  "/etc/krb5.conf",
+		KeyTabPath:  "/etc/security/kafka.keytab",
+	}
+	plain := auth.PlainTextConfig{
+		Username:  "",
+		Password:  "",
+		Mechanism: "PLAIN",
+	}
 	tests := []struct {
 		flags    []string
 		expected auth.AuthenticationConfig
 	}{
 		{
-			flags:    []string{},
-			expected: auth.AuthenticationConfig{Authentication: "none", Kerberos: kerb, PlainText: plain},
+			flags: []string{},
+			expected: auth.AuthenticationConfig{
+				Authentication: "none",
+				Kerberos:       kerb,
+				PlainText:      plain,
+			},
 		},
 		{
-			flags:    []string{"--kafka.consumer.authentication=foo"},
-			expected: auth.AuthenticationConfig{Authentication: "foo", Kerberos: kerb, PlainText: plain},
+			flags: []string{"--kafka.consumer.authentication=foo"},
+			expected: auth.AuthenticationConfig{
+				Authentication: "foo",
+				Kerberos:       kerb,
+				PlainText:      plain,
+			},
 		},
 		{
-			flags:    []string{"--kafka.consumer.authentication=kerberos", "--kafka.consumer.tls.enabled=true"},
-			expected: auth.AuthenticationConfig{Authentication: "kerberos", Kerberos: kerb, TLS: tlscfg.Options{Enabled: true}, PlainText: plain},
+			flags: []string{
+				"--kafka.consumer.authentication=kerberos",
+				"--kafka.consumer.tls.enabled=true",
+			},
+			expected: auth.AuthenticationConfig{
+				Authentication: "kerberos",
+				Kerberos:       kerb,
+				TLS:            tlscfg.Options{Enabled: true},
+				PlainText:      plain,
+			},
 		},
 		{
-			flags:    []string{"--kafka.consumer.authentication=tls"},
-			expected: auth.AuthenticationConfig{Authentication: "tls", Kerberos: kerb, TLS: tlscfg.Options{Enabled: true}, PlainText: plain},
+			flags: []string{"--kafka.consumer.authentication=tls"},
+			expected: auth.AuthenticationConfig{
+				Authentication: "tls",
+				Kerberos:       kerb,
+				TLS:            tlscfg.Options{Enabled: true},
+				PlainText:      plain,
+			},
 		},
 		{
-			flags:    []string{"--kafka.consumer.authentication=tls", "--kafka.consumer.tls.enabled=false"},
-			expected: auth.AuthenticationConfig{Authentication: "tls", Kerberos: kerb, TLS: tlscfg.Options{Enabled: true}, PlainText: plain},
+			flags: []string{
+				"--kafka.consumer.authentication=tls",
+				"--kafka.consumer.tls.enabled=false",
+			},
+			expected: auth.AuthenticationConfig{
+				Authentication: "tls",
+				Kerberos:       kerb,
+				TLS:            tlscfg.Options{Enabled: true},
+				PlainText:      plain,
+			},
 		},
 	}
 

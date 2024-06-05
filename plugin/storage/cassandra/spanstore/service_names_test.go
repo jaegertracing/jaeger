@@ -40,7 +40,10 @@ type serviceNameStorageTest struct {
 	storage        *ServiceNamesStorage
 }
 
-func withServiceNamesStorage(writeCacheTTL time.Duration, fn func(s *serviceNameStorageTest)) {
+func withServiceNamesStorage(
+	writeCacheTTL time.Duration,
+	fn func(s *serviceNameStorageTest),
+) {
 	session := &mocks.Session{}
 	logger, logBuffer := testutils.NewLogger()
 	metricsFactory := metricstest.NewFactory(time.Second)
@@ -51,7 +54,12 @@ func withServiceNamesStorage(writeCacheTTL time.Duration, fn func(s *serviceName
 		metricsFactory: metricsFactory,
 		logger:         logger,
 		logBuffer:      logBuffer,
-		storage:        NewServiceNamesStorage(session, writeCacheTTL, metricsFactory, logger),
+		storage: NewServiceNamesStorage(
+			session,
+			writeCacheTTL,
+			metricsFactory,
+			logger,
+		),
 	}
 	fn(s)
 }
@@ -59,51 +67,62 @@ func withServiceNamesStorage(writeCacheTTL time.Duration, fn func(s *serviceName
 func TestServiceNamesStorageWrite(t *testing.T) {
 	for _, ttl := range []time.Duration{0, time.Minute} {
 		writeCacheTTL := ttl // capture loop var
-		t.Run(fmt.Sprintf("writeCacheTTL=%v", writeCacheTTL), func(t *testing.T) {
-			withServiceNamesStorage(writeCacheTTL, func(s *serviceNameStorageTest) {
-				execError := errors.New("exec error")
-				query := &mocks.Query{}
-				query1 := &mocks.Query{}
-				query2 := &mocks.Query{}
-				query.On("Bind", []any{"service-a"}).Return(query1)
-				query.On("Bind", []any{"service-b"}).Return(query2)
-				query1.On("Exec").Return(nil)
-				query2.On("Exec").Return(execError)
-				query2.On("String").Return("select from service_names")
+		t.Run(
+			fmt.Sprintf("writeCacheTTL=%v", writeCacheTTL),
+			func(t *testing.T) {
+				withServiceNamesStorage(
+					writeCacheTTL,
+					func(s *serviceNameStorageTest) {
+						execError := errors.New("exec error")
+						query := &mocks.Query{}
+						query1 := &mocks.Query{}
+						query2 := &mocks.Query{}
+						query.On("Bind", []any{"service-a"}).Return(query1)
+						query.On("Bind", []any{"service-b"}).Return(query2)
+						query1.On("Exec").Return(nil)
+						query2.On("Exec").Return(execError)
+						query2.On("String").Return("select from service_names")
 
-				var emptyArgs []any
-				s.session.On("Query", mock.AnythingOfType("string"), emptyArgs).Return(query)
+						var emptyArgs []any
+						s.session.On("Query", mock.AnythingOfType("string"), emptyArgs).
+							Return(query)
 
-				err := s.storage.Write("service-a")
-				require.NoError(t, err)
-				err = s.storage.Write("service-b")
-				require.EqualError(t, err, "failed to Exec query 'select from service_names': exec error")
-				assert.Equal(t, map[string]string{
-					"level": "error",
-					"msg":   "Failed to exec query",
-					"query": "select from service_names",
-					"error": "exec error",
-				}, s.logBuffer.JSONLine(0))
+						err := s.storage.Write("service-a")
+						require.NoError(t, err)
+						err = s.storage.Write("service-b")
+						require.EqualError(
+							t,
+							err,
+							"failed to Exec query 'select from service_names': exec error",
+						)
+						assert.Equal(t, map[string]string{
+							"level": "error",
+							"msg":   "Failed to exec query",
+							"query": "select from service_names",
+							"error": "exec error",
+						}, s.logBuffer.JSONLine(0))
 
-				counts, _ := s.metricsFactory.Snapshot()
-				assert.Equal(t, map[string]int64{
-					"attempts|table=service_names": 2, "inserts|table=service_names": 1, "errors|table=service_names": 1,
-				}, counts)
+						counts, _ := s.metricsFactory.Snapshot()
+						assert.Equal(t, map[string]int64{
+							"attempts|table=service_names": 2, "inserts|table=service_names": 1, "errors|table=service_names": 1,
+						}, counts)
 
-				// write again
-				err = s.storage.Write("service-a")
-				require.NoError(t, err)
+						// write again
+						err = s.storage.Write("service-a")
+						require.NoError(t, err)
 
-				counts2, _ := s.metricsFactory.Snapshot()
-				expCounts := counts
-				if writeCacheTTL == 0 {
-					// without write cache, the second write must succeed
-					expCounts["attempts|table=service_names"]++
-					expCounts["inserts|table=service_names"]++
-				}
-				assert.Equal(t, expCounts, counts2)
-			})
-		})
+						counts2, _ := s.metricsFactory.Snapshot()
+						expCounts := counts
+						if writeCacheTTL == 0 {
+							// without write cache, the second write must succeed
+							expCounts["attempts|table=service_names"]++
+							expCounts["inserts|table=service_names"]++
+						}
+						assert.Equal(t, expCounts, counts2)
+					},
+				)
+			},
+		)
 	}
 }
 
@@ -123,14 +142,17 @@ func TestServiceNamesStorageGetServices(t *testing.T) {
 		withServiceNamesStorage(writeCacheTTL, func(s *serviceNameStorageTest) {
 			iter := &mocks.Iterator{}
 			iter.On("Scan", matchOnce).Return(true)
-			iter.On("Scan", matchEverything).Return(false) // false to stop the loop
+			iter.On("Scan", matchEverything).
+				Return(false)
+				// false to stop the loop
 			iter.On("Close").Return(expErr)
 
 			query := &mocks.Query{}
 			query.On("Iter").Return(iter)
 
 			var emptyArgs []any
-			s.session.On("Query", mock.AnythingOfType("string"), emptyArgs).Return(query)
+			s.session.On("Query", mock.AnythingOfType("string"), emptyArgs).
+				Return(query)
 
 			services, err := s.storage.GetServices()
 			if expErr == nil {

@@ -75,20 +75,30 @@ type spanWriterTest struct {
 // Checks that Kafka SpanWriter conforms to spanstore.Writer API
 var _ spanstore.Writer = &SpanWriter{}
 
-func withSpanWriter(t *testing.T, fn func(span *model.Span, w *spanWriterTest)) {
+func withSpanWriter(
+	t *testing.T,
+	fn func(span *model.Span, w *spanWriterTest),
+) {
 	serviceMetrics := metricstest.NewFactory(100 * time.Millisecond)
 	defer serviceMetrics.Stop()
 	saramaConfig := sarama.NewConfig()
 	saramaConfig.Producer.Return.Successes = true
 	producer := saramaMocks.NewAsyncProducer(t, saramaConfig)
 	marshaller := &mocks.Marshaller{}
-	marshaller.On("Marshal", mock.AnythingOfType("*model.Span")).Return([]byte{}, nil)
+	marshaller.On("Marshal", mock.AnythingOfType("*model.Span")).
+		Return([]byte{}, nil)
 
 	writerTest := &spanWriterTest{
 		producer:       producer,
 		marshaller:     marshaller,
 		metricsFactory: serviceMetrics,
-		writer:         NewSpanWriter(producer, marshaller, "someTopic", serviceMetrics, zap.NewNop()),
+		writer: NewSpanWriter(
+			producer,
+			marshaller,
+			"someTopic",
+			serviceMetrics,
+			zap.NewNop(),
+		),
 	}
 
 	fn(sampleSpan, writerTest)
@@ -160,7 +170,8 @@ func TestKafkaWriterErr(t *testing.T) {
 func TestMarshallerErr(t *testing.T) {
 	withSpanWriter(t, func(span *model.Span, w *spanWriterTest) {
 		marshaller := &mocks.Marshaller{}
-		marshaller.On("Marshal", mock.AnythingOfType("*model.Span")).Return([]byte{}, errors.New(""))
+		marshaller.On("Marshal", mock.AnythingOfType("*model.Span")).
+			Return([]byte{}, errors.New(""))
 		w.writer.marshaller = marshaller
 
 		err := w.writer.WriteSpan(context.Background(), span)

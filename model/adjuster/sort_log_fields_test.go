@@ -31,7 +31,10 @@ func TestSortLogFields(t *testing.T) {
 	}{
 		{
 			fields: model.KeyValues{
-				model.String("event", "some event"), // event already in the first position, and no other fields
+				model.String(
+					"event",
+					"some event",
+				), // event already in the first position, and no other fields
 			},
 			expected: model.KeyValues{
 				model.String("event", "some event"),
@@ -92,6 +95,10 @@ func TestSortLogFields(t *testing.T) {
 		}
 		trace, err := SortLogFields().Adjust(trace)
 		require.NoError(t, err)
-		assert.Equal(t, testCase.expected, model.KeyValues(trace.Spans[0].Logs[0].Fields))
+		assert.Equal(
+			t,
+			testCase.expected,
+			model.KeyValues(trace.Spans[0].Logs[0].Fields),
+		)
 	}
 }

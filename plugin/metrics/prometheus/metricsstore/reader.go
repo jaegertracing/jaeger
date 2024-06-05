@@ -75,7 +75,11 @@ type (
 )
 
 // NewMetricsReader returns a new MetricsReader.
-func NewMetricsReader(cfg config.Configuration, logger *zap.Logger, tracer trace.TracerProvider) (*MetricsReader, error) {
+func NewMetricsReader(
+	cfg config.Configuration,
+	logger *zap.Logger,
+	tracer trace.TracerProvider,
+) (*MetricsReader, error) {
 	logger.Info("Creating metrics reader", zap.Any("configuration", cfg))
 
 	roundTripper, err := getHTTPRoundTripper(&cfg, logger)
@@ -87,7 +91,10 @@ func NewMetricsReader(cfg config.Configuration, logger *zap.Logger, tracer trace
 		RoundTripper: roundTripper,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to initialize prometheus client: %w", err)
+		return nil, fmt.Errorf(
+			"failed to initialize prometheus client: %w",
+			err,
+		)
 	}
 
 	operationLabel := "operation"
@@ -106,17 +113,26 @@ func NewMetricsReader(cfg config.Configuration, logger *zap.Logger, tracer trace
 		operationLabel:    operationLabel,
 	}
 
-	logger.Info("Prometheus reader initialized", zap.String("addr", cfg.ServerURL))
+	logger.Info(
+		"Prometheus reader initialized",
+		zap.String("addr", cfg.ServerURL),
+	)
 	return mr, nil
 }
 
 // GetLatencies gets the latency metrics for the given set of latency query parameters.
-func (m MetricsReader) GetLatencies(ctx context.Context, requestParams *metricsstore.LatenciesQueryParameters) (*metrics.MetricFamily, error) {
+func (m MetricsReader) GetLatencies(
+	ctx context.Context,
+	requestParams *metricsstore.LatenciesQueryParameters,
+) (*metrics.MetricFamily, error) {
 	metricsParams := metricsQueryParams{
 		BaseQueryParameters: requestParams.BaseQueryParameters,
 		groupByHistBucket:   true,
 		metricName:          "service_latencies",
-		metricDesc:          fmt.Sprintf("%.2fth quantile latency, grouped by service", requestParams.Quantile),
+		metricDesc: fmt.Sprintf(
+			"%.2fth quantile latency, grouped by service",
+			requestParams.Quantile,
+		),
 		buildPromQuery: func(p promQueryParams) string {
 			return fmt.Sprintf(
 				// Note: p.spanKindFilter can be ""; trailing commas are okay within a timeseries selection.
@@ -159,7 +175,10 @@ func buildFullLatencyMetricName(cfg config.Configuration) string {
 }
 
 // GetCallRates gets the call rate metrics for the given set of call rate query parameters.
-func (m MetricsReader) GetCallRates(ctx context.Context, requestParams *metricsstore.CallRateQueryParameters) (*metrics.MetricFamily, error) {
+func (m MetricsReader) GetCallRates(
+	ctx context.Context,
+	requestParams *metricsstore.CallRateQueryParameters,
+) (*metrics.MetricFamily, error) {
 	metricsParams := metricsQueryParams{
 		BaseQueryParameters: requestParams.BaseQueryParameters,
 		metricName:          "service_call_rate",
@@ -197,7 +216,10 @@ func buildFullCallsMetricName(cfg config.Configuration) string {
 }
 
 // GetErrorRates gets the error rate metrics for the given set of error rate query parameters.
-func (m MetricsReader) GetErrorRates(ctx context.Context, requestParams *metricsstore.ErrorRateQueryParameters) (*metrics.MetricFamily, error) {
+func (m MetricsReader) GetErrorRates(
+	ctx context.Context,
+	requestParams *metricsstore.ErrorRateQueryParameters,
+) (*metrics.MetricFamily, error) {
 	metricsParams := metricsQueryParams{
 		BaseQueryParameters: requestParams.BaseQueryParameters,
 		metricName:          "service_error_rate",
@@ -206,8 +228,16 @@ func (m MetricsReader) GetErrorRates(ctx context.Context, requestParams *metrics
 			return fmt.Sprintf(
 				// Note: p.spanKindFilter can be ""; trailing commas are okay within a timeseries selection.
 				`sum(rate(%s{service_name =~ "%s", status_code = "STATUS_CODE_ERROR", %s}[%s])) by (%s) / sum(rate(%s{service_name =~ "%s", %s}[%s])) by (%s)`,
-				m.callsMetricName, p.serviceFilter, p.spanKindFilter, p.rate, p.groupBy,
-				m.callsMetricName, p.serviceFilter, p.spanKindFilter, p.rate, p.groupBy,
+				m.callsMetricName,
+				p.serviceFilter,
+				p.spanKindFilter,
+				p.rate,
+				p.groupBy,
+				m.callsMetricName,
+				p.serviceFilter,
+				p.spanKindFilter,
+				p.rate,
+				p.groupBy,
 			)
 		},
 	}
@@ -222,7 +252,12 @@ func (m MetricsReader) GetErrorRates(ctx context.Context, requestParams *metrics
 
 	// Check for the presence of call rate metrics to differentiate the absence of error rate from
 	// the absence of call rate metrics altogether.
-	callMetrics, err := m.GetCallRates(ctx, &metricsstore.CallRateQueryParameters{BaseQueryParameters: requestParams.BaseQueryParameters})
+	callMetrics, err := m.GetCallRates(
+		ctx,
+		&metricsstore.CallRateQueryParameters{
+			BaseQueryParameters: requestParams.BaseQueryParameters,
+		},
+	)
 	if err != nil {
 		return nil, fmt.Errorf("failed getting call metrics: %w", err)
 	}
@@ -236,7 +271,11 @@ func (m MetricsReader) GetErrorRates(ctx context.Context, requestParams *metrics
 	for _, cm := range callMetrics.Metrics {
 		zm := *cm
 		for i := 0; i < len(zm.MetricPoints); i++ {
-			zm.MetricPoints[i].Value = &metrics.MetricPoint_GaugeValue{GaugeValue: &metrics.GaugeValue{Value: &metrics.GaugeValue_DoubleValue{DoubleValue: 0.0}}}
+			zm.MetricPoints[i].Value = &metrics.MetricPoint_GaugeValue{
+				GaugeValue: &metrics.GaugeValue{
+					Value: &metrics.GaugeValue_DoubleValue{DoubleValue: 0.0},
+				},
+			}
 		}
 		zeroErrorMetrics = append(zeroErrorMetrics, &zm)
 	}
@@ -246,14 +285,25 @@ func (m MetricsReader) GetErrorRates(ctx context.Context, requestParams *metrics
 }
 
 // GetMinStepDuration gets the minimum step duration (the smallest possible duration between two data points in a time series) supported.
-func (MetricsReader) GetMinStepDuration(_ context.Context, _ *metricsstore.MinStepDurationQueryParameters) (time.Duration, error) {
+func (MetricsReader) GetMinStepDuration(
+	_ context.Context,
+	_ *metricsstore.MinStepDurationQueryParameters,
+) (time.Duration, error) {
 	return minStep, nil
 }
 
 // executeQuery executes a query against a Prometheus-compliant metrics backend.
-func (m MetricsReader) executeQuery(ctx context.Context, p metricsQueryParams) (*metrics.MetricFamily, error) {
+func (m MetricsReader) executeQuery(
+	ctx context.Context,
+	p metricsQueryParams,
+) (*metrics.MetricFamily, error) {
 	if p.GroupByOperation {
-		p.metricName = strings.Replace(p.metricName, "service", "service_operation", 1)
+		p.metricName = strings.Replace(
+			p.metricName,
+			"service",
+			"service_operation",
+			1,
+		)
 		p.metricDesc += " & operation"
 	}
 	promQuery := m.buildPromQuery(p)
@@ -274,10 +324,20 @@ func (m MetricsReader) executeQuery(ctx context.Context, p metricsQueryParams) (
 		return &metrics.MetricFamily{}, err
 	}
 	if len(warnings) > 0 {
-		m.logger.Warn("Warnings detected on Prometheus query", zap.Any("warnings", warnings), zap.String("query", promQuery), zap.Any("range", queryRange))
+		m.logger.Warn(
+			"Warnings detected on Prometheus query",
+			zap.Any("warnings", warnings),
+			zap.String("query", promQuery),
+			zap.Any("range", queryRange),
+		)
 	}
 
-	m.logger.Debug("Prometheus query results", zap.String("results", mv.String()), zap.String("query", promQuery), zap.Any("range", queryRange))
+	m.logger.Debug(
+		"Prometheus query results",
+		zap.String("results", mv.String()),
+		zap.String("query", promQuery),
+		zap.Any("range", queryRange),
+	)
 
 	return m.metricsTranslator.ToDomainMetricsFamily(
 		p.metricName,
@@ -298,7 +358,10 @@ func (m MetricsReader) buildPromQuery(metricsParams metricsQueryParams) string {
 
 	spanKindFilter := ""
 	if len(metricsParams.SpanKinds) > 0 {
-		spanKindFilter = fmt.Sprintf(`span_kind =~ "%s"`, strings.Join(metricsParams.SpanKinds, "|"))
+		spanKindFilter = fmt.Sprintf(
+			`span_kind =~ "%s"`,
+			strings.Join(metricsParams.SpanKinds, "|"),
+		)
 	}
 	promParams := promQueryParams{
 		serviceFilter:  strings.Join(metricsParams.ServiceNames, "|"),
@@ -322,7 +385,11 @@ func promqlDurationString(d *time.Duration) string {
 	return string(b)
 }
 
-func startSpanForQuery(ctx context.Context, metricName, query string, tp trace.Tracer) (context.Context, trace.Span) {
+func startSpanForQuery(
+	ctx context.Context,
+	metricName, query string,
+	tp trace.Tracer,
+) (context.Context, trace.Span) {
 	ctx, span := tp.Start(ctx, metricName)
 	span.SetAttributes(
 		attribute.Key(semconv.DBStatementKey).String(query),
@@ -337,7 +404,10 @@ func logErrorToSpan(span trace.Span, err error) {
 	span.SetStatus(codes.Error, err.Error())
 }
 
-func getHTTPRoundTripper(c *config.Configuration, logger *zap.Logger) (rt http.RoundTripper, err error) {
+func getHTTPRoundTripper(
+	c *config.Configuration,
+	logger *zap.Logger,
+) (rt http.RoundTripper, err error) {
 	var ctlsConfig *tls.Config
 	if c.TLS.Enabled {
 		if ctlsConfig, err = c.TLS.Config(logger); err != nil {

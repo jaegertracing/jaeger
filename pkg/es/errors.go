@@ -25,7 +25,12 @@ func DetailedError(err error) error {
 		if esErr.Details != nil && len(esErr.Details.RootCause) > 0 {
 			rc := esErr.Details.RootCause[0]
 			if rc != nil {
-				return fmt.Errorf("%w: RootCause[%s [type=%s]]", err, rc.Reason, rc.Type)
+				return fmt.Errorf(
+					"%w: RootCause[%s [type=%s]]",
+					err,
+					rc.Reason,
+					rc.Type,
+				)
 			}
 		}
 	}

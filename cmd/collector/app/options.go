@@ -145,7 +145,9 @@ func (options) ReportBusy(reportBusy bool) Option {
 }
 
 // ExtraFormatTypes creates an Option that initializes the extra list of format types
-func (options) ExtraFormatTypes(extraFormatTypes []processor.SpanFormat) Option {
+func (options) ExtraFormatTypes(
+	extraFormatTypes []processor.SpanFormat,
+) Option {
 	return func(b *options) {
 		b.extraFormatTypes = extraFormatTypes
 	}

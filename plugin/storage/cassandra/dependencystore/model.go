@@ -30,7 +30,10 @@ type Dependency struct {
 }
 
 // MarshalUDT handles marshalling a Dependency.
-func (d *Dependency) MarshalUDT(name string, info gocql.TypeInfo) ([]byte, error) {
+func (d *Dependency) MarshalUDT(
+	name string,
+	info gocql.TypeInfo,
+) ([]byte, error) {
 	switch name {
 	case "parent":
 		return gocql.Marshal(info, d.Parent)
@@ -46,7 +49,11 @@ func (d *Dependency) MarshalUDT(name string, info gocql.TypeInfo) ([]byte, error
 }
 
 // UnmarshalUDT handles unmarshalling a Dependency.
-func (d *Dependency) UnmarshalUDT(name string, info gocql.TypeInfo, data []byte) error {
+func (d *Dependency) UnmarshalUDT(
+	name string,
+	info gocql.TypeInfo,
+	data []byte,
+) error {
 	switch name {
 	case "parent":
 		return gocql.Unmarshal(info, data, &d.Parent)

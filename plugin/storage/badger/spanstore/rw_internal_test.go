@@ -41,7 +41,10 @@ func TestEncodingTypes(t *testing.T) {
 		err := sw.WriteSpan(context.Background(), &testSpan)
 		require.NoError(t, err)
 
-		tr, err := rw.GetTrace(context.Background(), model.TraceID{Low: 0, High: 1})
+		tr, err := rw.GetTrace(
+			context.Background(),
+			model.TraceID{Low: 0, High: 1},
+		)
 		require.NoError(t, err)
 		assert.Len(t, tr.Spans, 1)
 	})
@@ -84,7 +87,10 @@ func TestEncodingTypes(t *testing.T) {
 			return nil
 		})
 
-		_, err = rw.GetTrace(context.Background(), model.TraceID{Low: 0, High: 1})
+		_, err = rw.GetTrace(
+			context.Background(),
+			model.TraceID{Low: 0, High: 1},
+		)
 		require.EqualError(t, err, "unknown encoding type: 0x04")
 	})
 }
@@ -112,18 +118,23 @@ func TestDuplicateTraceIDDetection(t *testing.T) {
 			testSpan.TraceID.Low = rand.Uint64()
 			for i := 0; i < 32; i++ {
 				testSpan.SpanID = model.SpanID(rand.Uint64())
-				testSpan.StartTime = origStartTime.Add(time.Duration(rand.Int31n(8000)) * time.Millisecond)
+				testSpan.StartTime = origStartTime.Add(
+					time.Duration(rand.Int31n(8000)) * time.Millisecond,
+				)
 				err := sw.WriteSpan(context.Background(), &testSpan)
 				require.NoError(t, err)
 			}
 		}
 
-		traces, err := rw.FindTraceIDs(context.Background(), &spanstore.TraceQueryParameters{
-			ServiceName:  "service",
-			NumTraces:    256, // Default is 100, we want to fetch more than there should be
-			StartTimeMax: time.Now().Add(time.Hour),
-			StartTimeMin: testSpan.StartTime.Add(-1 * time.Hour),
-		})
+		traces, err := rw.FindTraceIDs(
+			context.Background(),
+			&spanstore.TraceQueryParameters{
+				ServiceName:  "service",
+				NumTraces:    256, // Default is 100, we want to fetch more than there should be
+				StartTimeMax: time.Now().Add(time.Hour),
+				StartTimeMin: testSpan.StartTime.Add(-1 * time.Hour),
+			},
+		)
 
 		require.NoError(t, err)
 		assert.Len(t, traces, 128)

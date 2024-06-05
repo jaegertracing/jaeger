@@ -82,7 +82,10 @@ func (fd fromDomain) convertSpanInternal(span *model.Span) json.Span {
 	}
 }
 
-func (fd fromDomain) convertSpan(span *model.Span, processID json.ProcessID) json.Span {
+func (fd fromDomain) convertSpan(
+	span *model.Span,
+	processID json.ProcessID,
+) json.Span {
 	s := fd.convertSpanInternal(span)
 	s.ProcessID = processID
 	s.Warnings = span.Warnings
@@ -146,7 +149,9 @@ func (fromDomain) convertKeyValues(keyValues model.KeyValues) []json.KeyValue {
 	return out
 }
 
-func (fromDomain) convertKeyValuesString(keyValues model.KeyValues) []json.KeyValue {
+func (fromDomain) convertKeyValuesString(
+	keyValues model.KeyValues,
+) []json.KeyValue {
 	out := make([]json.KeyValue, len(keyValues))
 	for i, kv := range keyValues {
 		out[i] = json.KeyValue{
@@ -169,7 +174,9 @@ func (fd fromDomain) convertLogs(logs []model.Log) []json.Log {
 	return out
 }
 
-func (fd fromDomain) convertProcesses(processes map[string]*model.Process) map[json.ProcessID]json.Process {
+func (fd fromDomain) convertProcesses(
+	processes map[string]*model.Process,
+) map[json.ProcessID]json.Process {
 	out := make(map[json.ProcessID]json.Process)
 	for key, process := range processes {
 		out[json.ProcessID(key)] = fd.convertProcess(process)
@@ -185,7 +192,9 @@ func (fd fromDomain) convertProcess(process *model.Process) json.Process {
 }
 
 // DependenciesFromDomain converts []model.DependencyLink into []json.DependencyLink format.
-func DependenciesFromDomain(dependencyLinks []model.DependencyLink) []json.DependencyLink {
+func DependenciesFromDomain(
+	dependencyLinks []model.DependencyLink,
+) []json.DependencyLink {
 	retMe := make([]json.DependencyLink, 0, len(dependencyLinks))
 	for _, dependencyLink := range dependencyLinks {
 		retMe = append(

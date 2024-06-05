@@ -65,8 +65,17 @@ func TestByDate(t *testing.T) {
 			},
 		},
 		{
-			Index:        "jaeger-span-0001",
-			CreationTime: time.Date(2021, 10, 10, 12, 0o0, 0o0, 0o0, time.Local),
+			Index: "jaeger-span-0001",
+			CreationTime: time.Date(
+				2021,
+				10,
+				10,
+				12,
+				0o0,
+				0o0,
+				0o0,
+				time.Local,
+			),
 			Aliases: map[string]bool{
 				"jaeger-span-write": true,
 				"jaeger-span-read":  true,

@@ -113,14 +113,18 @@ func (c converter) toDomain(dbSpan *Span) (*model.Span, error) {
 		TraceID:       traceID,
 		SpanID:        model.NewSpanID(uint64(dbSpan.SpanID)),
 		OperationName: dbSpan.OperationName,
-		References:    model.MaybeAddParentSpanID(traceID, model.NewSpanID(uint64(dbSpan.ParentID)), refs),
-		Flags:         model.Flags(uint32(dbSpan.Flags)),
-		StartTime:     model.EpochMicrosecondsAsTime(uint64(dbSpan.StartTime)),
-		Duration:      model.MicrosecondsAsDuration(uint64(dbSpan.Duration)),
-		Tags:          tags,
-		Warnings:      warnings,
-		Logs:          logs,
-		Process:       process,
+		References: model.MaybeAddParentSpanID(
+			traceID,
+			model.NewSpanID(uint64(dbSpan.ParentID)),
+			refs,
+		),
+		Flags:     model.Flags(uint32(dbSpan.Flags)),
+		StartTime: model.EpochMicrosecondsAsTime(uint64(dbSpan.StartTime)),
+		Duration:  model.MicrosecondsAsDuration(uint64(dbSpan.Duration)),
+		Tags:      tags,
+		Warnings:  warnings,
+		Logs:      logs,
+		Process:   process,
 	}
 	return span, nil
 }

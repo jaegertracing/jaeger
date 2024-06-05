@@ -34,7 +34,10 @@ type storageCleaner struct {
 	settings component.TelemetrySettings
 }
 
-func newStorageCleaner(config *Config, telemetrySettings component.TelemetrySettings) *storageCleaner {
+func newStorageCleaner(
+	config *Config,
+	telemetrySettings component.TelemetrySettings,
+) *storageCleaner {
 	return &storageCleaner{
 		config:   config,
 		settings: telemetrySettings,
@@ -42,15 +45,25 @@ func newStorageCleaner(config *Config, telemetrySettings component.TelemetrySett
 }
 
 func (c *storageCleaner) Start(ctx context.Context, host component.Host) error {
-	storageFactory, err := jaegerstorage.GetStorageFactory(c.config.TraceStorage, host)
+	storageFactory, err := jaegerstorage.GetStorageFactory(
+		c.config.TraceStorage,
+		host,
+	)
 	if err != nil {
-		return fmt.Errorf("cannot find storage factory '%s': %w", c.config.TraceStorage, err)
+		return fmt.Errorf(
+			"cannot find storage factory '%s': %w",
+			c.config.TraceStorage,
+			err,
+		)
 	}
 
 	purgeStorage := func(httpContext context.Context) error {
 		purger, ok := storageFactory.(storage.Purger)
 		if !ok {
-			return fmt.Errorf("storage %s does not implement Purger interface", c.config.TraceStorage)
+			return fmt.Errorf(
+				"storage %s does not implement Purger interface",
+				c.config.TraceStorage,
+			)
 		}
 		if err := purger.Purge(httpContext); err != nil {
 			return fmt.Errorf("error purging storage: %w", err)
@@ -75,7 +88,8 @@ func (c *storageCleaner) Start(ctx context.Context, host component.Host) error {
 		ReadHeaderTimeout: 3 * time.Second,
 	}
 	go func() {
-		if err := c.server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		if err := c.server.ListenAndServe(); err != nil &&
+			!errors.Is(err, http.ErrServerClosed) {
 			err = fmt.Errorf("error starting cleaner server: %w", err)
 			c.settings.ReportStatus(component.NewFatalErrorEvent(err))
 		}

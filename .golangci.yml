@@ -155,10 +155,6 @@ linters-settings:
       enable-all-rules: true
       # See https://github.com/mgechev/revive/blob/master/RULES_DESCRIPTIONS.md
       rules:
-        # not a completely bad linter, but needs clean-up and sensible width (80 is too small)
-        - name: line-length-limit
-          disabled: true
-          arguments: [80]
         # would be ok if we could exclude the test files, but otherwise too noisy
         - name: add-constant
           disabled: true

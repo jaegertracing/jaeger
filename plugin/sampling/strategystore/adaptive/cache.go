@@ -25,7 +25,10 @@ type SamplingCacheEntry struct {
 type SamplingCache map[string]map[string]*SamplingCacheEntry
 
 // Set adds a new entry for given service/operation.
-func (s SamplingCache) Set(service, operation string, entry *SamplingCacheEntry) {
+func (s SamplingCache) Set(
+	service, operation string,
+	entry *SamplingCacheEntry,
+) {
 	if _, ok := s[service]; !ok {
 		s[service] = make(map[string]*SamplingCacheEntry)
 	}

@@ -44,7 +44,10 @@ func (td *TracesData) MarshalJSONPB(*jsonpb.Marshaler) ([]byte, error) {
 }
 
 // UnmarshalJSONPB implements gogocodec.CustomType.
-func (td *TracesData) UnmarshalJSONPB(_ *jsonpb.Unmarshaler, data []byte) error {
+func (td *TracesData) UnmarshalJSONPB(
+	_ *jsonpb.Unmarshaler,
+	data []byte,
+) error {
 	t, err := new(ptrace.JSONUnmarshaler).UnmarshalTraces(data)
 	if err != nil {
 		return err

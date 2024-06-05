@@ -75,5 +75,9 @@ func TestPublishOpts(t *testing.T) {
 	f.InitFromViper(v, zap.NewNop())
 
 	require.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
-	assert.EqualValues(t, 100, expvar.Get("jaeger_storage_memory_max_traces").(*expvar.Int).Value())
+	assert.EqualValues(
+		t,
+		100,
+		expvar.Get("jaeger_storage_memory_max_traces").(*expvar.Int).Value(),
+	)
 }

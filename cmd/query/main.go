@@ -49,7 +49,9 @@ import (
 func main() {
 	svc := flags.NewService(ports.QueryAdminHTTP)
 
-	storageFactory, err := storage.NewFactory(storage.FactoryConfigFromEnvAndCLI(os.Args, os.Stderr))
+	storageFactory, err := storage.NewFactory(
+		storage.FactoryConfigFromEnvAndCLI(os.Args, os.Stderr),
+	)
 	if err != nil {
 		log.Fatalf("Cannot initialize storage factory: %v", err)
 	}
@@ -70,13 +72,20 @@ func main() {
 				return err
 			}
 			logger := svc.Logger // shortcut
-			baseFactory := svc.MetricsFactory.Namespace(metrics.NSOptions{Name: "jaeger"})
-			metricsFactory := baseFactory.Namespace(metrics.NSOptions{Name: "query"})
+			baseFactory := svc.MetricsFactory.Namespace(
+				metrics.NSOptions{Name: "jaeger"},
+			)
+			metricsFactory := baseFactory.Namespace(
+				metrics.NSOptions{Name: "query"},
+			)
 			version.NewInfoMetrics(metricsFactory)
 
 			queryOpts, err := new(app.QueryOptions).InitFromViper(v, logger)
 			if err != nil {
-				logger.Fatal("Failed to configure query service", zap.Error(err))
+				logger.Fatal(
+					"Failed to configure query service",
+					zap.Error(err),
+				)
 			}
 
 			jt := jtracer.NoOp()
@@ -88,7 +97,10 @@ func main() {
 			}
 
 			// TODO: Need to figure out set enable/disable propagation on storage plugins.
-			v.Set(bearertoken.StoragePropagationKey, queryOpts.BearerTokenPropagation)
+			v.Set(
+				bearertoken.StoragePropagationKey,
+				queryOpts.BearerTokenPropagation,
+			)
 			storageFactory.InitFromViper(v, logger)
 			if err := storageFactory.Initialize(baseFactory, logger); err != nil {
 				logger.Fatal("Failed to init storage factory", zap.Error(err))
@@ -97,23 +109,48 @@ func main() {
 			if err != nil {
 				logger.Fatal("Failed to create span reader", zap.Error(err))
 			}
-			spanReader = spanstoreMetrics.NewReadMetricsDecorator(spanReader, metricsFactory)
+			spanReader = spanstoreMetrics.NewReadMetricsDecorator(
+				spanReader,
+				metricsFactory,
+			)
 			dependencyReader, err := storageFactory.CreateDependencyReader()
 			if err != nil {
-				logger.Fatal("Failed to create dependency reader", zap.Error(err))
+				logger.Fatal(
+					"Failed to create dependency reader",
+					zap.Error(err),
+				)
 			}
 
-			metricsQueryService, err := createMetricsQueryService(metricsReaderFactory, v, logger, metricsFactory)
+			metricsQueryService, err := createMetricsQueryService(
+				metricsReaderFactory,
+				v,
+				logger,
+				metricsFactory,
+			)
 			if err != nil {
-				logger.Fatal("Failed to create metrics query service", zap.Error(err))
+				logger.Fatal(
+					"Failed to create metrics query service",
+					zap.Error(err),
+				)
 			}
-			queryServiceOptions := queryOpts.BuildQueryServiceOptions(storageFactory, logger)
+			queryServiceOptions := queryOpts.BuildQueryServiceOptions(
+				storageFactory,
+				logger,
+			)
 			queryService := querysvc.NewQueryService(
 				spanReader,
 				dependencyReader,
 				*queryServiceOptions)
 			tm := tenancy.NewManager(&queryOpts.Tenancy)
-			server, err := app.NewServer(svc.Logger, svc.HC(), queryService, metricsQueryService, queryOpts, tm, jt)
+			server, err := app.NewServer(
+				svc.Logger,
+				svc.HC(),
+				queryService,
+				metricsQueryService,
+				queryOpts,
+				tm,
+				jt,
+			)
 			if err != nil {
 				logger.Fatal("Failed to create server", zap.Error(err))
 			}
@@ -125,10 +162,16 @@ func main() {
 			svc.RunAndThen(func() {
 				server.Close()
 				if err := storageFactory.Close(); err != nil {
-					logger.Error("Failed to close storage factory", zap.Error(err))
+					logger.Error(
+						"Failed to close storage factory",
+						zap.Error(err),
+					)
 				}
 				if err = jt.Close(context.Background()); err != nil {
-					logger.Fatal("Error shutting down tracer provider", zap.Error(err))
+					logger.Fatal(
+						"Error shutting down tracer provider",
+						zap.Error(err),
+					)
 				}
 			})
 			return nil
@@ -176,5 +219,8 @@ func createMetricsQueryService(
 	}
 
 	// Decorate the metrics reader with metrics instrumentation.
-	return metricsstoreMetrics.NewReadMetricsDecorator(reader, metricsReaderMetricsFactory), nil
+	return metricsstoreMetrics.NewReadMetricsDecorator(
+		reader,
+		metricsReaderMetricsFactory,
+	), nil
 }

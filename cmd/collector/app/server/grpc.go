@@ -56,7 +56,10 @@ func StartGRPCServer(params *GRPCServerParams) (*grpc.Server, error) {
 	var grpcOpts []grpc.ServerOption
 
 	if params.MaxReceiveMessageLength > 0 {
-		grpcOpts = append(grpcOpts, grpc.MaxRecvMsgSize(params.MaxReceiveMessageLength))
+		grpcOpts = append(
+			grpcOpts,
+			grpc.MaxRecvMsgSize(params.MaxReceiveMessageLength),
+		)
 	}
 	grpcOpts = append(grpcOpts, grpc.KeepaliveParams(keepalive.ServerParameters{
 		MaxConnectionAge:      params.MaxConnectionAge,
@@ -90,18 +93,34 @@ func StartGRPCServer(params *GRPCServerParams) (*grpc.Server, error) {
 	return server, nil
 }
 
-func serveGRPC(server *grpc.Server, listener net.Listener, params *GRPCServerParams) error {
+func serveGRPC(
+	server *grpc.Server,
+	listener net.Listener,
+	params *GRPCServerParams,
+) error {
 	healthServer := health.NewServer()
 
 	api_v2.RegisterCollectorServiceServer(server, params.Handler)
-	api_v2.RegisterSamplingManagerServer(server, sampling.NewGRPCHandler(params.SamplingStore))
+	api_v2.RegisterSamplingManagerServer(
+		server,
+		sampling.NewGRPCHandler(params.SamplingStore),
+	)
 
-	healthServer.SetServingStatus("jaeger.api_v2.CollectorService", grpc_health_v1.HealthCheckResponse_SERVING)
-	healthServer.SetServingStatus("jaeger.api_v2.SamplingManager", grpc_health_v1.HealthCheckResponse_SERVING)
+	healthServer.SetServingStatus(
+		"jaeger.api_v2.CollectorService",
+		grpc_health_v1.HealthCheckResponse_SERVING,
+	)
+	healthServer.SetServingStatus(
+		"jaeger.api_v2.SamplingManager",
+		grpc_health_v1.HealthCheckResponse_SERVING,
+	)
 
 	grpc_health_v1.RegisterHealthServer(server, healthServer)
 
-	params.Logger.Info("Starting jaeger-collector gRPC server", zap.String("grpc.host-port", params.HostPortActual))
+	params.Logger.Info(
+		"Starting jaeger-collector gRPC server",
+		zap.String("grpc.host-port", params.HostPortActual),
+	)
 	go func() {
 		if err := server.Serve(listener); err != nil {
 			params.Logger.Error("Could not launch gRPC service", zap.Error(err))

@@ -44,19 +44,56 @@ func TestAcquireLock(t *testing.T) {
 		expectedInterval time.Duration
 		expectedError    bool
 	}{
-		{isLeader: true, acquiredLock: true, err: nil, expectedInterval: leaderInterval, expectedError: false},
-		{isLeader: true, acquiredLock: false, err: errTestLock, expectedInterval: leaderInterval, expectedError: true},
-		{isLeader: true, acquiredLock: false, err: nil, expectedInterval: followerInterval, expectedError: false},
-		{isLeader: false, acquiredLock: false, err: nil, expectedInterval: followerInterval, expectedError: false},
-		{isLeader: false, acquiredLock: false, err: errTestLock, expectedInterval: followerInterval, expectedError: true},
-		{isLeader: false, acquiredLock: true, err: nil, expectedInterval: leaderInterval, expectedError: false},
+		{
+			isLeader:         true,
+			acquiredLock:     true,
+			err:              nil,
+			expectedInterval: leaderInterval,
+			expectedError:    false,
+		},
+		{
+			isLeader:         true,
+			acquiredLock:     false,
+			err:              errTestLock,
+			expectedInterval: leaderInterval,
+			expectedError:    true,
+		},
+		{
+			isLeader:         true,
+			acquiredLock:     false,
+			err:              nil,
+			expectedInterval: followerInterval,
+			expectedError:    false,
+		},
+		{
+			isLeader:         false,
+			acquiredLock:     false,
+			err:              nil,
+			expectedInterval: followerInterval,
+			expectedError:    false,
+		},
+		{
+			isLeader:         false,
+			acquiredLock:     false,
+			err:              errTestLock,
+			expectedInterval: followerInterval,
+			expectedError:    true,
+		},
+		{
+			isLeader:         false,
+			acquiredLock:     true,
+			err:              nil,
+			expectedInterval: leaderInterval,
+			expectedError:    false,
+		},
 	}
 
 	for i, test := range tests {
 		t.Run(fmt.Sprintf("%v", i), func(t *testing.T) {
 			logger, logBuffer := testutils.NewLogger()
 			mockLock := &lmocks.Lock{}
-			mockLock.On("Acquire", "sampling_lock", followerInterval).Return(test.acquiredLock, test.err)
+			mockLock.On("Acquire", "sampling_lock", followerInterval).
+				Return(test.acquiredLock, test.err)
 
 			p := &DistributedElectionParticipant{
 				ElectionParticipantOptions: ElectionParticipantOptions{
@@ -70,7 +107,11 @@ func TestAcquireLock(t *testing.T) {
 
 			p.setLeader(test.isLeader)
 			assert.Equal(t, test.expectedInterval, p.acquireLock())
-			match, errMsg := testutils.LogMatcher(1, acquireLockErrMsg, logBuffer.Lines())
+			match, errMsg := testutils.LogMatcher(
+				1,
+				acquireLockErrMsg,
+				logBuffer.Lines(),
+			)
 			assert.Equal(t, test.expectedError, match, errMsg)
 		})
 	}
@@ -79,13 +120,17 @@ func TestAcquireLock(t *testing.T) {
 func TestRunAcquireLockLoopFollowerOnly(t *testing.T) {
 	logger, logBuffer := testutils.NewLogger()
 	mockLock := &lmocks.Lock{}
-	mockLock.On("Acquire", "sampling_lock", time.Duration(5*time.Millisecond)).Return(false, errTestLock)
+	mockLock.On("Acquire", "sampling_lock", time.Duration(5*time.Millisecond)).
+		Return(false, errTestLock)
 
-	p := NewElectionParticipant(mockLock, "sampling_lock", ElectionParticipantOptions{
-		LeaderLeaseRefreshInterval:   time.Millisecond,
-		FollowerLeaseRefreshInterval: 5 * time.Millisecond,
-		Logger:                       logger,
-	},
+	p := NewElectionParticipant(
+		mockLock,
+		"sampling_lock",
+		ElectionParticipantOptions{
+			LeaderLeaseRefreshInterval:   time.Millisecond,
+			FollowerLeaseRefreshInterval: 5 * time.Millisecond,
+			Logger:                       logger,
+		},
 	)
 
 	defer func() {
@@ -101,7 +146,11 @@ func TestRunAcquireLockLoopFollowerOnly(t *testing.T) {
 		}
 		time.Sleep(time.Millisecond)
 	}
-	match, errMsg := testutils.LogMatcher(2, expectedErrorMsg, logBuffer.Lines())
+	match, errMsg := testutils.LogMatcher(
+		2,
+		expectedErrorMsg,
+		logBuffer.Lines(),
+	)
 	assert.True(t, match, errMsg)
 	assert.False(t, p.IsLeader())
 }

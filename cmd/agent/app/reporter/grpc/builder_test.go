@@ -83,9 +83,13 @@ func TestBuilderWithCollectors(t *testing.T) {
 		expectedError   string
 	}{
 		{
-			target:          "///round_robin",
-			name:            "with roundrobin schema",
-			hostPorts:       []string{"127.0.0.1:9876", "127.0.0.1:9877", "127.0.0.1:9878"},
+			target: "///round_robin",
+			name:   "with roundrobin schema",
+			hostPorts: []string{
+				"127.0.0.1:9876",
+				"127.0.0.1:9877",
+				"127.0.0.1:9878",
+			},
 			checkSuffixOnly: true,
 			notifier:        nil,
 			discoverer:      nil,
@@ -127,13 +131,20 @@ func TestBuilderWithCollectors(t *testing.T) {
 
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
-			conn, err := cfg.CreateConnection(ctx, zap.NewNop(), metrics.NullFactory)
+			conn, err := cfg.CreateConnection(
+				ctx,
+				zap.NewNop(),
+				metrics.NullFactory,
+			)
 			if test.expectedError == "" {
 				require.NoError(t, err)
 				defer conn.Close()
 				require.NotNil(t, conn)
 				if test.checkSuffixOnly {
-					assert.True(t, strings.HasSuffix(conn.Target(), test.target))
+					assert.True(
+						t,
+						strings.HasSuffix(conn.Target(), test.target),
+					)
 				} else {
 					assert.Equal(t, conn.Target(), test.target)
 				}
@@ -187,7 +198,13 @@ func TestProxyBuilder(t *testing.T) {
 	defer cancel()
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			proxy, err := NewCollectorProxy(ctx, test.grpcBuilder, nil, metrics.NullFactory, zap.NewNop())
+			proxy, err := NewCollectorProxy(
+				ctx,
+				test.grpcBuilder,
+				nil,
+				metrics.NullFactory,
+				zap.NewNop(),
+			)
 
 			if test.expectError {
 				require.Error(t, err)
@@ -319,7 +336,9 @@ func TestProxyClientTLS(t *testing.T) {
 			if test.serverTLS.Enabled {
 				tlsCfg, err := test.serverTLS.Config(zap.NewNop())
 				require.NoError(t, err)
-				opts = []grpc.ServerOption{grpc.Creds(credentials.NewTLS(tlsCfg))}
+				opts = []grpc.ServerOption{
+					grpc.Creds(credentials.NewTLS(tlsCfg)),
+				}
 			}
 
 			defer test.serverTLS.Close()
@@ -334,8 +353,10 @@ func TestProxyClientTLS(t *testing.T) {
 			_, port, _ := net.SplitHostPort(addr.String())
 
 			grpcBuilder := &ConnBuilder{
-				CollectorHostPorts: []string{net.JoinHostPort("localhost", port)},
-				TLS:                test.clientTLS,
+				CollectorHostPorts: []string{
+					net.JoinHostPort("localhost", port),
+				},
+				TLS: test.clientTLS,
 			}
 			proxy, err := NewCollectorProxy(
 				ctx,
@@ -352,7 +373,13 @@ func TestProxyClientTLS(t *testing.T) {
 
 			r := proxy.GetReporter()
 
-			err = r.EmitBatch(ctx, &jaeger.Batch{Spans: []*jaeger.Span{{OperationName: "op"}}, Process: &jaeger.Process{ServiceName: "service"}})
+			err = r.EmitBatch(
+				ctx,
+				&jaeger.Batch{
+					Spans:   []*jaeger.Span{{OperationName: "op"}},
+					Process: &jaeger.Process{ServiceName: "service"},
+				},
+			)
 
 			if test.expectError {
 				require.Error(t, err)
@@ -369,7 +396,14 @@ type fakeInterceptor struct {
 	isCalled bool
 }
 
-func (f *fakeInterceptor) intercept(ctx context.Context, method string, req, reply any, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
+func (f *fakeInterceptor) intercept(
+	ctx context.Context,
+	method string,
+	req, reply any,
+	cc *grpc.ClientConn,
+	invoker grpc.UnaryInvoker,
+	opts ...grpc.CallOption,
+) error {
 	f.isCalled = true
 	return invoker(ctx, method, req, reply, cc, opts...)
 }
@@ -383,8 +417,10 @@ func TestBuilderWithAdditionalDialOptions(t *testing.T) {
 	defer fi.assertCalled(t)
 
 	cb := ConnBuilder{
-		CollectorHostPorts:    []string{"127.0.0.1:14268"},
-		AdditionalDialOptions: []grpc.DialOption{grpc.WithUnaryInterceptor(fi.intercept)},
+		CollectorHostPorts: []string{"127.0.0.1:14268"},
+		AdditionalDialOptions: []grpc.DialOption{
+			grpc.WithUnaryInterceptor(fi.intercept),
+		},
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -394,6 +430,11 @@ func TestBuilderWithAdditionalDialOptions(t *testing.T) {
 	defer r.Close()
 	assert.NotNil(t, r)
 
-	err = r.Invoke(context.Background(), "test", map[string]string{}, map[string]string{}, []grpc.CallOption{}...)
+	err = r.Invoke(
+		context.Background(),
+		"test",
+		map[string]string{},
+		map[string]string{},
+		[]grpc.CallOption{}...)
 	require.Error(t, err, "should error because no server is running")
 }

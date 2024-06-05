@@ -37,7 +37,8 @@ func Test_NewFactory(t *testing.T) {
 
 func Test_new(t *testing.T) {
 	mockConsumer := &kmocks.Consumer{}
-	mockConsumer.On("MarkPartitionOffset", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	mockConsumer.On("MarkPartitionOffset", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+		Return(nil)
 
 	topic := "coelacanth"
 	partition := int32(21)
@@ -63,7 +64,14 @@ func Test_new(t *testing.T) {
 	// This sleep is greater than offset manager's resetInterval to allow it a chance to
 	// call MarkPartitionOffset.
 	time.Sleep(150 * time.Millisecond)
-	mockConsumer.AssertCalled(t, "MarkPartitionOffset", topic, partition, offset+1, "")
+	mockConsumer.AssertCalled(
+		t,
+		"MarkPartitionOffset",
+		topic,
+		partition,
+		offset+1,
+		"",
+	)
 }
 
 type fakeService struct {

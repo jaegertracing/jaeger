@@ -56,7 +56,8 @@ func NewSpanProcessor(params SpanProcessorParams) *KafkaSpanProcessor {
 	return &KafkaSpanProcessor{
 		unmarshaller: params.Unmarshaller,
 		writer:       params.Writer,
-		sanitizer:    sanitizer.NewChainedSanitizer(sanitizer.NewStandardSanitizers()...),
+		sanitizer: sanitizer.NewChainedSanitizer(
+			sanitizer.NewStandardSanitizers()...),
 	}
 }
 

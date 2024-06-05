@@ -60,8 +60,12 @@ const (
 	suffixMetricsInterval     = ".metrics-update-interval" // Intended only for testing purposes
 	suffixReadOnly            = ".read-only"
 	defaultDataDir            = string(os.PathSeparator) + "data"
-	defaultValueDir           = defaultDataDir + string(os.PathSeparator) + "values"
-	defaultKeysDir            = defaultDataDir + string(os.PathSeparator) + "keys"
+	defaultValueDir           = defaultDataDir + string(
+		os.PathSeparator,
+	) + "values"
+	defaultKeysDir = defaultDataDir + string(
+		os.PathSeparator,
+	) + "keys"
 )
 
 // NewOptions creates a new Options struct.
@@ -149,8 +153,12 @@ func initFromViper(cfg *NamespaceConfig, v *viper.Viper, logger *zap.Logger) {
 	cfg.ValueDirectory = v.GetString(cfg.namespace + suffixValueDirectory)
 	cfg.SyncWrites = v.GetBool(cfg.namespace + suffixSyncWrite)
 	cfg.SpanStoreTTL = v.GetDuration(cfg.namespace + suffixSpanstoreTTL)
-	cfg.MaintenanceInterval = v.GetDuration(cfg.namespace + suffixMaintenanceInterval)
-	cfg.MetricsUpdateInterval = v.GetDuration(cfg.namespace + suffixMetricsInterval)
+	cfg.MaintenanceInterval = v.GetDuration(
+		cfg.namespace + suffixMaintenanceInterval,
+	)
+	cfg.MetricsUpdateInterval = v.GetDuration(
+		cfg.namespace + suffixMetricsInterval,
+	)
 	cfg.ReadOnly = v.GetBool(cfg.namespace + suffixReadOnly)
 }
 

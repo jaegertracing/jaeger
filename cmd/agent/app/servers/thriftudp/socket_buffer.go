@@ -31,7 +31,12 @@ func setSocketBuffer(conn *net.UDPConn, bufferSize int) error {
 
 	var syscallErr error
 	controlErr := rawConn.Control(func(fd uintptr) {
-		syscallErr = syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, syscall.SO_RCVBUF, bufferSize)
+		syscallErr = syscall.SetsockoptInt(
+			int(fd),
+			syscall.SOL_SOCKET,
+			syscall.SO_RCVBUF,
+			bufferSize,
+		)
 	})
 	if controlErr != nil {
 		return fmt.Errorf("rawconn control failed: %w", controlErr)

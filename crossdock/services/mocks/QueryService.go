@@ -27,7 +27,11 @@ type QueryService struct {
 }
 
 // GetTraces provides a mock function with given fields: serviceName, operation, tags
-func (_m *QueryService) GetTraces(serviceName string, operation string, tags map[string]string) ([]*ui.Trace, error) {
+func (_m *QueryService) GetTraces(
+	serviceName string,
+	operation string,
+	tags map[string]string,
+) ([]*ui.Trace, error) {
 	ret := _m.Called(serviceName, operation, tags)
 
 	var r0 []*ui.Trace

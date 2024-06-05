@@ -40,7 +40,10 @@ import (
 //go:generate mockery -all -dir ../../../pkg/fswatcher
 
 func TestNotExistingUiConfig(t *testing.T) {
-	handler, err := NewStaticAssetsHandler("/foo/bar", StaticAssetsHandlerOptions{})
+	handler, err := NewStaticAssetsHandler(
+		"/foo/bar",
+		StaticAssetsHandlerOptions{},
+	)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "no such file or directory")
 	assert.Nil(t, handler)
@@ -119,17 +122,22 @@ func TestRegisterStaticHandler(t *testing.T) {
 			if testCase.subroute {
 				r = r.PathPrefix(testCase.basePath).Subrouter()
 			}
-			closer := RegisterStaticHandler(r, logger, &QueryOptions{
-				QueryOptionsBase: QueryOptionsBase{
-					StaticAssets: QueryOptionsStaticAssets{
-						Path:      "fixture",
-						LogAccess: testCase.logAccess,
+			closer := RegisterStaticHandler(
+				r,
+				logger,
+				&QueryOptions{
+					QueryOptionsBase: QueryOptionsBase{
+						StaticAssets: QueryOptionsStaticAssets{
+							Path:      "fixture",
+							LogAccess: testCase.logAccess,
+						},
+						BasePath: testCase.basePath,
+						UIConfig: testCase.UIConfigPath,
 					},
-					BasePath: testCase.basePath,
-					UIConfig: testCase.UIConfigPath,
 				},
-			},
-				querysvc.StorageCapabilities{ArchiveStorage: testCase.archiveStorage},
+				querysvc.StorageCapabilities{
+					ArchiveStorage: testCase.archiveStorage,
+				},
 			)
 			defer closer.Close()
 
@@ -144,15 +152,46 @@ func TestRegisterStaticHandler(t *testing.T) {
 
 				respByteArray, err := io.ReadAll(resp.Body)
 				require.NoError(t, err)
-				require.Equal(t, http.StatusOK, resp.StatusCode, "url: %s, response: %v", url, string(respByteArray))
+				require.Equal(
+					t,
+					http.StatusOK,
+					resp.StatusCode,
+					"url: %s, response: %v",
+					url,
+					string(respByteArray),
+				)
 				return string(respByteArray)
 			}
 
 			html := httpGet("") // get home page
-			assert.Contains(t, html, testCase.expectedUIConfig, "actual: %v", html)
-			assert.Contains(t, html, testCase.expectedStorageCapabilities, "actual: %v", html)
-			assert.Contains(t, html, `JAEGER_VERSION = {"gitCommit":"","gitVersion":"","buildDate":""};`, "actual: %v", html)
-			assert.Contains(t, html, testCase.expectedBaseHTML, "actual: %v", html)
+			assert.Contains(
+				t,
+				html,
+				testCase.expectedUIConfig,
+				"actual: %v",
+				html,
+			)
+			assert.Contains(
+				t,
+				html,
+				testCase.expectedStorageCapabilities,
+				"actual: %v",
+				html,
+			)
+			assert.Contains(
+				t,
+				html,
+				`JAEGER_VERSION = {"gitCommit":"","gitVersion":"","buildDate":""};`,
+				"actual: %v",
+				html,
+			)
+			assert.Contains(
+				t,
+				html,
+				testCase.expectedBaseHTML,
+				"actual: %v",
+				html,
+			)
 
 			asset := httpGet("static/asset.txt")
 			assert.Contains(t, asset, "some asset", "actual: %v", asset)
@@ -166,11 +205,20 @@ func TestRegisterStaticHandler(t *testing.T) {
 }
 
 func TestNewStaticAssetsHandlerErrors(t *testing.T) {
-	_, err := NewStaticAssetsHandler("fixture", StaticAssetsHandlerOptions{UIConfigPath: "fixture/invalid-config"})
+	_, err := NewStaticAssetsHandler(
+		"fixture",
+		StaticAssetsHandlerOptions{UIConfigPath: "fixture/invalid-config"},
+	)
 	require.Error(t, err)
 
 	for _, base := range []string{"x", "x/", "/x/"} {
-		_, err := NewStaticAssetsHandler("fixture", StaticAssetsHandlerOptions{UIConfigPath: "fixture/ui-config.json", BasePath: base})
+		_, err := NewStaticAssetsHandler(
+			"fixture",
+			StaticAssetsHandlerOptions{
+				UIConfigPath: "fixture/ui-config.json",
+				BasePath:     base,
+			},
+		)
 		require.Errorf(t, err, "basePath=%s", base)
 		assert.Contains(t, err.Error(), "invalid base path")
 	}
@@ -206,7 +254,12 @@ func TestHotReloadUIConfig(t *testing.T) {
 	c := string(h.indexHTML.Load().([]byte))
 	assert.Contains(t, c, "About Jaeger")
 
-	newContent := strings.Replace(string(content), "About Jaeger", "About a new Jaeger", 1)
+	newContent := strings.Replace(
+		string(content),
+		"About Jaeger",
+		"About a new Jaeger",
+		1,
+	)
 	err = syncWrite(cfgFile, tmpFile, []byte(newContent))
 	require.NoError(t, err)
 
@@ -322,7 +375,13 @@ func TestLoadIndexHTMLReadError(t *testing.T) {
 	require.Error(t, err)
 }
 
-func waitUntil(t *testing.T, f func() bool, iterations int, sleepInterval time.Duration, timeoutErrMsg string) {
+func waitUntil(
+	t *testing.T,
+	f func() bool,
+	iterations int,
+	sleepInterval time.Duration,
+	timeoutErrMsg string,
+) {
 	for i := 0; i < iterations; i++ {
 		if f() {
 			return
@@ -335,7 +394,11 @@ func waitUntil(t *testing.T, f func() bool, iterations int, sleepInterval time.D
 // syncWrite ensures data is written to the given filename and flushed to disk.
 // This ensures that any watchers looking for file system changes can be reliably alerted.
 func syncWrite(target *os.File, temp *os.File, data []byte) error {
-	f, err := os.OpenFile(temp.Name(), os.O_WRONLY|os.O_CREATE|os.O_TRUNC|os.O_SYNC, 0o644)
+	f, err := os.OpenFile(
+		temp.Name(),
+		os.O_WRONLY|os.O_CREATE|os.O_TRUNC|os.O_SYNC,
+		0o644,
+	)
 	if err != nil {
 		return err
 	}

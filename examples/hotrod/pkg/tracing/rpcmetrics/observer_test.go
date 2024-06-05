@@ -68,7 +68,11 @@ func TestObserver(t *testing.T) {
 		}{
 			{name: "local-span", spanKind: trace.SpanKindInternal},
 			{name: "get-user", spanKind: trace.SpanKindServer},
-			{name: "get-user", spanKind: trace.SpanKindServer, opNameOverride: "get-user-override"},
+			{
+				name:           "get-user",
+				spanKind:       trace.SpanKindServer,
+				opNameOverride: "get-user-override",
+			},
 			{name: "get-user", spanKind: trace.SpanKindServer, err: true},
 			{name: "get-user-client", spanKind: trace.SpanKindClient},
 		}
@@ -88,18 +92,47 @@ func TestObserver(t *testing.T) {
 			span.End(finishOptions)
 		}
 
-		testTracer.metrics.AssertCounterMetrics(t,
-			u.ExpectedMetric{Name: "requests", Tags: endpointTags("local_span", "error", "false"), Value: 0},
-			u.ExpectedMetric{Name: "requests", Tags: endpointTags("get_user", "error", "false"), Value: 1},
-			u.ExpectedMetric{Name: "requests", Tags: endpointTags("get_user", "error", "true"), Value: 1},
-			u.ExpectedMetric{Name: "requests", Tags: endpointTags("get_user_override", "error", "false"), Value: 1},
-			u.ExpectedMetric{Name: "requests", Tags: endpointTags("get_user_client", "error", "false"), Value: 0},
+		testTracer.metrics.AssertCounterMetrics(
+			t,
+			u.ExpectedMetric{
+				Name:  "requests",
+				Tags:  endpointTags("local_span", "error", "false"),
+				Value: 0,
+			},
+			u.ExpectedMetric{
+				Name:  "requests",
+				Tags:  endpointTags("get_user", "error", "false"),
+				Value: 1,
+			},
+			u.ExpectedMetric{
+				Name:  "requests",
+				Tags:  endpointTags("get_user", "error", "true"),
+				Value: 1,
+			},
+			u.ExpectedMetric{
+				Name:  "requests",
+				Tags:  endpointTags("get_user_override", "error", "false"),
+				Value: 1,
+			},
+			u.ExpectedMetric{
+				Name:  "requests",
+				Tags:  endpointTags("get_user_client", "error", "false"),
+				Value: 0,
+			},
 		)
 		// TODO something wrong with string generation, .P99 should not be appended to the tag
 		// as a result we cannot use u.AssertGaugeMetrics
 		_, g := testTracer.metrics.Snapshot()
-		assert.EqualValues(t, 51, g["request_latency|endpoint=get_user|error=false.P99"])
-		assert.EqualValues(t, 51, g["request_latency|endpoint=get_user|error=true.P99"])
+		assert.EqualValues(
+			t,
+			51,
+			g["request_latency|endpoint=get_user|error=false.P99"],
+		)
+		assert.EqualValues(
+			t,
+			51,
+			g["request_latency|endpoint=get_user|error=true.P99"],
+		)
 	})
 }
 
@@ -122,7 +155,11 @@ func TestTags(t *testing.T) {
 		testCases = append(testCases, tagTestCase{
 			attr: semconv.HTTPResponseStatusCode(i),
 			metrics: []u.ExpectedMetric{
-				{Name: "http_requests", Value: 1, Tags: tags("status_code", fmt.Sprintf("%dxx", i/100))},
+				{
+					Name:  "http_requests",
+					Value: 1,
+					Tags:  tags("status_code", fmt.Sprintf("%dxx", i/100)),
+				},
 			},
 		})
 	}
@@ -131,19 +168,24 @@ func TestTags(t *testing.T) {
 		for i := range testCase.metrics {
 			testCase.metrics[i].Tags["endpoint"] = "span"
 		}
-		t.Run(fmt.Sprintf("%s-%v", testCase.attr.Key, testCase.attr.Value), func(t *testing.T) {
-			withTestTracer(func(testTracer *testTracer) {
-				_, span := testTracer.tracer.Start(
-					context.Background(),
-					"span", trace.WithSpanKind(trace.SpanKindServer),
-				)
-				span.SetAttributes(testCase.attr)
-				if testCase.err {
-					span.SetStatus(codes.Error, "An error occurred")
-				}
-				span.End()
-				testTracer.metrics.AssertCounterMetrics(t, testCase.metrics...)
-			})
-		})
+		t.Run(
+			fmt.Sprintf("%s-%v", testCase.attr.Key, testCase.attr.Value),
+			func(t *testing.T) {
+				withTestTracer(func(testTracer *testTracer) {
+					_, span := testTracer.tracer.Start(
+						context.Background(),
+						"span", trace.WithSpanKind(trace.SpanKindServer),
+					)
+					span.SetAttributes(testCase.attr)
+					if testCase.err {
+						span.SetStatus(codes.Error, "An error occurred")
+					}
+					span.End()
+					testTracer.metrics.AssertCounterMetrics(
+						t,
+						testCase.metrics...)
+				})
+			},
+		)
 	}
 }

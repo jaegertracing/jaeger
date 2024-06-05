@@ -48,7 +48,10 @@ func (s *KafkaIntegrationTestSuite) initialize(t *testing.T) {
 	const groupID = "kafka-integration-test"
 	const clientID = "kafka-integration-test"
 	// A new topic is generated per execution to avoid data overlap
-	topic := "jaeger-kafka-integration-test-" + strconv.FormatInt(time.Now().UnixNano(), 10)
+	topic := "jaeger-kafka-integration-test-" + strconv.FormatInt(
+		time.Now().UnixNano(),
+		10,
+	)
 
 	f := kafka.NewFactory()
 	v, command := config.Viperize(f.AddFlags)
@@ -91,7 +94,12 @@ func (s *KafkaIntegrationTestSuite) initialize(t *testing.T) {
 	}
 	options.InitFromViper(v)
 	traceStore := memory.NewStore()
-	spanConsumer, err := builder.CreateConsumer(logger, metrics.NullFactory, traceStore, options)
+	spanConsumer, err := builder.CreateConsumer(
+		logger,
+		metrics.NullFactory,
+		traceStore,
+		options,
+	)
 	require.NoError(t, err)
 	spanConsumer.Start()
 
@@ -106,7 +114,10 @@ type ingester struct {
 	traceStore *memory.Store
 }
 
-func (r *ingester) GetTrace(ctx context.Context, traceID model.TraceID) (*model.Trace, error) {
+func (r *ingester) GetTrace(
+	ctx context.Context,
+	traceID model.TraceID,
+) (*model.Trace, error) {
 	return r.traceStore.GetTrace(ctx, traceID)
 }
 
@@ -121,11 +132,17 @@ func (*ingester) GetOperations(
 	return nil, nil
 }
 
-func (*ingester) FindTraces(ctx context.Context, query *spanstore.TraceQueryParameters) ([]*model.Trace, error) {
+func (*ingester) FindTraces(
+	ctx context.Context,
+	query *spanstore.TraceQueryParameters,
+) ([]*model.Trace, error) {
 	return nil, nil
 }
 
-func (*ingester) FindTraceIDs(ctx context.Context, query *spanstore.TraceQueryParameters) ([]model.TraceID, error) {
+func (*ingester) FindTraceIDs(
+	ctx context.Context,
+	query *spanstore.TraceQueryParameters,
+) ([]model.TraceID, error) {
 	return nil, nil
 }
 

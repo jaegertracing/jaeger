@@ -37,7 +37,10 @@ type mockHashWwiter struct {
 
 func (w *mockHashWwiter) Write(data []byte) (int, error) {
 	if len(w.answers) == 0 {
-		return 0, fmt.Errorf("no answer registered for call with data=%+v", data)
+		return 0, fmt.Errorf(
+			"no answer registered for call with data=%+v",
+			data,
+		)
 	}
 	answer := w.answers[0]
 	w.answers = w.answers[1:]

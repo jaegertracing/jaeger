@@ -43,7 +43,10 @@ func ToDomainProcess(jProcess *jaeger.Process) *model.Process {
 
 type toDomain struct{}
 
-func (td toDomain) ToDomain(jSpans []*jaeger.Span, jProcess *jaeger.Process) []*model.Span {
+func (td toDomain) ToDomain(
+	jSpans []*jaeger.Span,
+	jProcess *jaeger.Process,
+) []*model.Span {
 	spans := make([]*model.Span, len(jSpans))
 	mProcess := td.getProcess(jProcess)
 	for i, jSpan := range jSpans {
@@ -52,13 +55,22 @@ func (td toDomain) ToDomain(jSpans []*jaeger.Span, jProcess *jaeger.Process) []*
 	return spans
 }
 
-func (td toDomain) ToDomainSpan(jSpan *jaeger.Span, jProcess *jaeger.Process) *model.Span {
+func (td toDomain) ToDomainSpan(
+	jSpan *jaeger.Span,
+	jProcess *jaeger.Process,
+) *model.Span {
 	mProcess := td.getProcess(jProcess)
 	return td.transformSpan(jSpan, mProcess)
 }
 
-func (td toDomain) transformSpan(jSpan *jaeger.Span, mProcess *model.Process) *model.Span {
-	traceID := model.NewTraceID(uint64(jSpan.TraceIdHigh), uint64(jSpan.TraceIdLow))
+func (td toDomain) transformSpan(
+	jSpan *jaeger.Span,
+	mProcess *model.Process,
+) *model.Span {
+	traceID := model.NewTraceID(
+		uint64(jSpan.TraceIdHigh),
+		uint64(jSpan.TraceIdLow),
+	)
 	// allocate extra space for future append operation
 	tags := td.getTags(jSpan.Tags, 1)
 	refs := td.getReferences(jSpan.References)
@@ -92,8 +104,11 @@ func (toDomain) getReferences(jRefs []*jaeger.SpanRef) []model.SpanRef {
 	for idx, jRef := range jRefs {
 		mRefs[idx] = model.SpanRef{
 			RefType: model.SpanRefType(int(jRef.RefType)),
-			TraceID: model.NewTraceID(uint64(jRef.TraceIdHigh), uint64(jRef.TraceIdLow)),
-			SpanID:  model.NewSpanID(uint64(jRef.SpanId)),
+			TraceID: model.NewTraceID(
+				uint64(jRef.TraceIdHigh),
+				uint64(jRef.TraceIdLow),
+			),
+			SpanID: model.NewSpanID(uint64(jRef.SpanId)),
 		}
 	}
 

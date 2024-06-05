@@ -40,9 +40,11 @@ var (
 )
 
 var childSpan1 = &model.Span{
-	TraceID:    traceID,
-	SpanID:     model.NewSpanID(2),
-	References: []model.SpanRef{model.NewChildOfRef(traceID, model.NewSpanID(1))},
+	TraceID: traceID,
+	SpanID:  model.NewSpanID(2),
+	References: []model.SpanRef{
+		model.NewChildOfRef(traceID, model.NewSpanID(1)),
+	},
 	Process: &model.Process{
 		ServiceName: "childService",
 		Tags:        model.KeyValues{},
@@ -65,9 +67,11 @@ var childSpan1 = &model.Span{
 }
 
 var childSpan2 = &model.Span{
-	TraceID:    traceID,
-	SpanID:     model.NewSpanID(3),
-	References: []model.SpanRef{model.NewChildOfRef(traceID, model.NewSpanID(1))},
+	TraceID: traceID,
+	SpanID:  model.NewSpanID(3),
+	References: []model.SpanRef{
+		model.NewChildOfRef(traceID, model.NewSpanID(1)),
+	},
 	Process: &model.Process{
 		ServiceName: "childService",
 		Tags:        model.KeyValues{},
@@ -93,7 +97,9 @@ var childSpan2_1 = &model.Span{
 	TraceID: traceID,
 	SpanID:  model.NewSpanID(4),
 	// child of childSpan2, but with the same service name
-	References: []model.SpanRef{model.NewChildOfRef(traceID, model.NewSpanID(3))},
+	References: []model.SpanRef{
+		model.NewChildOfRef(traceID, model.NewSpanID(3)),
+	},
 	Process: &model.Process{
 		ServiceName: "childService",
 		Tags:        model.KeyValues{},
@@ -135,7 +141,11 @@ func withMemoryStore(f func(store *Store)) {
 func TestStoreGetEmptyDependencies(t *testing.T) {
 	// assert.Equal(t, testingSpan, testingSpan1B) // @@@
 	withMemoryStore(func(store *Store) {
-		links, err := store.GetDependencies(context.Background(), time.Now(), time.Hour)
+		links, err := store.GetDependencies(
+			context.Background(),
+			time.Now(),
+			time.Hour,
+		)
 		require.NoError(t, err)
 		assert.Empty(t, links)
 	})
@@ -147,11 +157,19 @@ func TestStoreGetDependencies(t *testing.T) {
 		require.NoError(t, store.WriteSpan(context.Background(), childSpan1))
 		require.NoError(t, store.WriteSpan(context.Background(), childSpan2))
 		require.NoError(t, store.WriteSpan(context.Background(), childSpan2_1))
-		links, err := store.GetDependencies(context.Background(), time.Now(), time.Hour)
+		links, err := store.GetDependencies(
+			context.Background(),
+			time.Now(),
+			time.Hour,
+		)
 		require.NoError(t, err)
 		assert.Empty(t, links)
 
-		links, err = store.GetDependencies(context.Background(), time.Unix(0, 0).Add(time.Hour), time.Hour)
+		links, err = store.GetDependencies(
+			context.Background(),
+			time.Unix(0, 0).Add(time.Hour),
+			time.Hour,
+		)
 		require.NoError(t, err)
 		assert.Equal(t, []model.DependencyLink{{
 			Parent:    "serviceName",
@@ -214,7 +232,10 @@ func TestStoreGetAndMutateTrace(t *testing.T) {
 		assert.Equal(t, testingSpan, trace.Spans[0])
 		assert.Empty(t, trace.Spans[0].Warnings)
 
-		trace.Spans[0].Warnings = append(trace.Spans[0].Warnings, "the end is near")
+		trace.Spans[0].Warnings = append(
+			trace.Spans[0].Warnings,
+			"the end is near",
+		)
 
 		trace, err = store.GetTrace(context.Background(), testingSpan.TraceID)
 		require.NoError(t, err)
@@ -259,7 +280,9 @@ func TestStoreGetAllOperationsFound(t *testing.T) {
 		require.NoError(t, store.WriteSpan(context.Background(), childSpan2_1))
 		operations, err := store.GetOperations(
 			context.Background(),
-			spanstore.OperationQueryParameters{ServiceName: childSpan1.Process.ServiceName},
+			spanstore.OperationQueryParameters{
+				ServiceName: childSpan1.Process.ServiceName,
+			},
 		)
 		require.NoError(t, err)
 		assert.Len(t, operations, 3)
@@ -300,7 +323,10 @@ func TestStoreGetOperationsNotFound(t *testing.T) {
 
 func TestStoreGetEmptyTraceSet(t *testing.T) {
 	withPopulatedMemoryStore(func(store *Store) {
-		traces, err := store.FindTraces(context.Background(), &spanstore.TraceQueryParameters{})
+		traces, err := store.FindTraces(
+			context.Background(),
+			&spanstore.TraceQueryParameters{},
+		)
 		require.NoError(t, err)
 		assert.Empty(t, traces)
 	})
@@ -310,7 +336,10 @@ func TestStoreFindTracesError(t *testing.T) {
 	withPopulatedMemoryStore(func(store *Store) {
 		err := store.WriteSpan(context.Background(), nonSerializableSpan)
 		require.NoError(t, err)
-		_, err = store.FindTraces(context.Background(), &spanstore.TraceQueryParameters{ServiceName: "naughtyService"})
+		_, err = store.FindTraces(
+			context.Background(),
+			&spanstore.TraceQueryParameters{ServiceName: "naughtyService"},
+		)
 		require.Error(t, err)
 	})
 }
@@ -351,15 +380,22 @@ func TestStoreFindTracesLimitGetsMostRecent(t *testing.T) {
 		memStore.WriteSpan(context.Background(), span)
 	}
 
-	gotTraces, err := memStore.FindTraces(context.Background(), &spanstore.TraceQueryParameters{
-		ServiceName: "serviceName",
-		NumTraces:   querySize,
-	})
+	gotTraces, err := memStore.FindTraces(
+		context.Background(),
+		&spanstore.TraceQueryParameters{
+			ServiceName: "serviceName",
+			NumTraces:   querySize,
+		},
+	)
 
 	require.NoError(t, err)
 	if assert.Len(t, gotTraces, len(expectedTraces)) {
 		for i := range gotTraces {
-			assert.EqualValues(t, expectedTraces[i].Spans[0].StartTime.Unix(), gotTraces[i].Spans[0].StartTime.Unix())
+			assert.EqualValues(
+				t,
+				expectedTraces[i].Spans[0].StartTime.Unix(),
+				gotTraces[i].Spans[0].StartTime.Unix(),
+			)
 		}
 	}
 }
@@ -471,17 +507,23 @@ func TestTenantStore(t *testing.T) {
 		assert.Equal(t, testingSpan2, trace2.Spans[0])
 
 		// Can we query the spans with correct tenancy
-		traces1, err := store.FindTraces(ctxAcme, &spanstore.TraceQueryParameters{
-			ServiceName: "serviceName",
-		})
+		traces1, err := store.FindTraces(
+			ctxAcme,
+			&spanstore.TraceQueryParameters{
+				ServiceName: "serviceName",
+			},
+		)
 		require.NoError(t, err)
 		assert.Len(t, traces1, 1)
 		assert.Len(t, traces1[0].Spans, 1)
 		assert.Equal(t, testingSpan, traces1[0].Spans[0])
 
-		traces2, err := store.FindTraces(ctxWonka, &spanstore.TraceQueryParameters{
-			ServiceName: "serviceName2",
-		})
+		traces2, err := store.FindTraces(
+			ctxWonka,
+			&spanstore.TraceQueryParameters{
+				ServiceName: "serviceName2",
+			},
+		)
 		require.NoError(t, err)
 		assert.Len(t, traces2, 1)
 		assert.Len(t, traces2[0].Spans, 1)

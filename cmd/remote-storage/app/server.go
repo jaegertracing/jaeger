@@ -46,7 +46,13 @@ type Server struct {
 }
 
 // NewServer creates and initializes Server.
-func NewServer(options *Options, storageFactory storage.Factory, tm *tenancy.Manager, logger *zap.Logger, healthcheck *healthcheck.HealthCheck) (*Server, error) {
+func NewServer(
+	options *Options,
+	storageFactory storage.Factory,
+	tm *tenancy.Manager,
+	logger *zap.Logger,
+	healthcheck *healthcheck.HealthCheck,
+) (*Server, error) {
 	handler, err := createGRPCHandler(storageFactory, logger)
 	if err != nil {
 		return nil, err
@@ -65,7 +71,10 @@ func NewServer(options *Options, storageFactory storage.Factory, tm *tenancy.Man
 	}, nil
 }
 
-func createGRPCHandler(f storage.Factory, logger *zap.Logger) (*shared.GRPCHandler, error) {
+func createGRPCHandler(
+	f storage.Factory,
+	logger *zap.Logger,
+) (*shared.GRPCHandler, error) {
 	reader, err := f.CreateSpanReader()
 	if err != nil {
 		return nil, err
@@ -97,7 +106,12 @@ func createGRPCHandler(f storage.Factory, logger *zap.Logger) (*shared.GRPCHandl
 	return handler, nil
 }
 
-func createGRPCServer(opts *Options, tm *tenancy.Manager, handler *shared.GRPCHandler, logger *zap.Logger) (*grpc.Server, error) {
+func createGRPCServer(
+	opts *Options,
+	tm *tenancy.Manager,
+	handler *shared.GRPCHandler,
+	logger *zap.Logger,
+) (*grpc.Server, error) {
 	var grpcOpts []grpc.ServerOption
 
 	if opts.TLSGRPC.Enabled {

@@ -45,7 +45,9 @@ func PropagationHandler(logger *zap.Logger, h http.Handler) http.Handler {
 				// Treat the entire value as a token.
 				token = authHeaderValue
 			default:
-				logger.Warn("Invalid authorization header value, skipping token propagation")
+				logger.Warn(
+					"Invalid authorization header value, skipping token propagation",
+				)
 			}
 			h.ServeHTTP(w, r.WithContext(ContextWithBearerToken(ctx, token)))
 		} else {

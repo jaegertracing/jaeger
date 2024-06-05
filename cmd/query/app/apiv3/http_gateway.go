@@ -57,7 +57,8 @@ func (h *HTTPGateway) RegisterRoutes(router *mux.Router) {
 	h.addRoute(router, h.getTrace, routeGetTrace).Methods(http.MethodGet)
 	h.addRoute(router, h.findTraces, routeFindTraces).Methods(http.MethodGet)
 	h.addRoute(router, h.getServices, routeGetServices).Methods(http.MethodGet)
-	h.addRoute(router, h.getOperations, routeGetOperations).Methods(http.MethodGet)
+	h.addRoute(router, h.getOperations, routeGetOperations).
+		Methods(http.MethodGet)
 }
 
 // addRoute adds a new endpoint to the router with given path and handler function.
@@ -81,7 +82,11 @@ func (h *HTTPGateway) addRoute(
 
 // tryHandleError checks if the passed error is not nil and handles it by writing
 // an error response to the client. Otherwise it returns false.
-func (h *HTTPGateway) tryHandleError(w http.ResponseWriter, err error, statusCode int) bool {
+func (h *HTTPGateway) tryHandleError(
+	w http.ResponseWriter,
+	err error,
+	statusCode int,
+) bool {
 	if err == nil {
 		return false
 	}
@@ -103,11 +108,19 @@ func (h *HTTPGateway) tryHandleError(w http.ResponseWriter, err error, statusCod
 }
 
 // tryParamError is similar to tryHandleError but specifically for reporting malformed params.
-func (h *HTTPGateway) tryParamError(w http.ResponseWriter, err error, paramName string) bool {
+func (h *HTTPGateway) tryParamError(
+	w http.ResponseWriter,
+	err error,
+	paramName string,
+) bool {
 	if err == nil {
 		return false
 	}
-	return h.tryHandleError(w, fmt.Errorf("malformed parameter %s: %w", paramName, err), http.StatusBadRequest)
+	return h.tryHandleError(
+		w,
+		fmt.Errorf("malformed parameter %s: %w", paramName, err),
+		http.StatusBadRequest,
+	)
 }
 
 func (h *HTTPGateway) returnSpans(spans []*model.Span, w http.ResponseWriter) {
@@ -131,7 +144,10 @@ func (h *HTTPGateway) returnSpansTestable(
 	h.marshalResponse(response, w)
 }
 
-func (*HTTPGateway) marshalResponse(response proto.Message, w http.ResponseWriter) {
+func (*HTTPGateway) marshalResponse(
+	response proto.Message,
+	w http.ResponseWriter,
+) {
 	_ = new(jsonpb.Marshaler).Marshal(w, response)
 }
 
@@ -167,7 +183,10 @@ func (h *HTTPGateway) findTraces(w http.ResponseWriter, r *http.Request) {
 	h.returnSpans(spans, w)
 }
 
-func (h *HTTPGateway) parseFindTracesQuery(q url.Values, w http.ResponseWriter) (*spanstore.TraceQueryParameters, bool) {
+func (h *HTTPGateway) parseFindTracesQuery(
+	q url.Values,
+	w http.ResponseWriter,
+) (*spanstore.TraceQueryParameters, bool) {
 	queryParams := &spanstore.TraceQueryParameters{
 		ServiceName:   q.Get(paramServiceName),
 		OperationName: q.Get(paramOperationName),
@@ -244,5 +263,8 @@ func (h *HTTPGateway) getOperations(w http.ResponseWriter, r *http.Request) {
 			SpanKind: operations[i].SpanKind,
 		}
 	}
-	h.marshalResponse(&api_v3.GetOperationsResponse{Operations: apiOperations}, w)
+	h.marshalResponse(
+		&api_v3.GetOperationsResponse{Operations: apiOperations},
+		w,
+	)
 }

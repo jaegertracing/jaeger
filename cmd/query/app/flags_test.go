@@ -78,8 +78,16 @@ func TestStringSliceAsHeader(t *testing.T) {
 
 	parsedHeaders, err := stringSliceAsHeader(headers)
 
-	assert.Equal(t, []string{"https://mozilla.org"}, parsedHeaders["Access-Control-Allow-Origin"])
-	assert.Equal(t, []string{"X-My-Custom-Header", "X-Another-Custom-Header"}, parsedHeaders["Access-Control-Expose-Headers"])
+	assert.Equal(
+		t,
+		[]string{"https://mozilla.org"},
+		parsedHeaders["Access-Control-Allow-Origin"],
+	)
+	assert.Equal(
+		t,
+		[]string{"X-My-Custom-Header", "X-Another-Custom-Header"},
+		parsedHeaders["Access-Control-Expose-Headers"],
+	)
 	require.NoError(t, err)
 
 	malformedHeaders := append(headers, "this is not a valid header")
@@ -116,8 +124,10 @@ func TestBuildQueryServiceOptions(t *testing.T) {
 		&mocks.ArchiveFactory{},
 	}
 
-	comboFactory.ArchiveFactory.On("CreateArchiveSpanReader").Return(&spanstore_mocks.Reader{}, nil)
-	comboFactory.ArchiveFactory.On("CreateArchiveSpanWriter").Return(&spanstore_mocks.Writer{}, nil)
+	comboFactory.ArchiveFactory.On("CreateArchiveSpanReader").
+		Return(&spanstore_mocks.Reader{}, nil)
+	comboFactory.ArchiveFactory.On("CreateArchiveSpanWriter").
+		Return(&spanstore_mocks.Writer{}, nil)
 
 	qSvcOpts = qOpts.BuildQueryServiceOptions(comboFactory, zap.NewNop())
 	assert.NotNil(t, qSvcOpts)
@@ -137,10 +147,14 @@ func TestQueryOptionsPortAllocationFromFlags(t *testing.T) {
 	}{
 		{
 			// Default behavior. Dedicated host-port is used for both HTTP and GRPC endpoints
-			name:                 "No host-port flags specified, both GRPC and HTTP TLS disabled",
-			flagsArray:           []string{},
-			expectedHTTPHostPort: ports.PortToHostPort(ports.QueryHTTP), // fallback in viper
-			expectedGRPCHostPort: ports.PortToHostPort(ports.QueryGRPC), // fallback in viper
+			name:       "No host-port flags specified, both GRPC and HTTP TLS disabled",
+			flagsArray: []string{},
+			expectedHTTPHostPort: ports.PortToHostPort(
+				ports.QueryHTTP,
+			), // fallback in viper
+			expectedGRPCHostPort: ports.PortToHostPort(
+				ports.QueryGRPC,
+			), // fallback in viper
 		},
 		{
 			// If any one host-port is specified, and TLS is disabled, fallback to ports defined in viper
@@ -149,7 +163,9 @@ func TestQueryOptionsPortAllocationFromFlags(t *testing.T) {
 				"--query.http-server.host-port=127.0.0.1:8081",
 			},
 			expectedHTTPHostPort: "127.0.0.1:8081",
-			expectedGRPCHostPort: ports.PortToHostPort(ports.QueryGRPC), // fallback in viper
+			expectedGRPCHostPort: ports.PortToHostPort(
+				ports.QueryGRPC,
+			), // fallback in viper
 		},
 		{
 			// Allows usage of common host-ports.  Flags allow this irrespective of TLS status
@@ -190,7 +206,11 @@ func TestQueryOptions_FailedTLSFlags(t *testing.T) {
 			require.NoError(t, err)
 			_, err = new(QueryOptions).InitFromViper(v, zap.NewNop())
 			require.Error(t, err)
-			assert.Contains(t, err.Error(), "failed to process "+test+" TLS options")
+			assert.Contains(
+				t,
+				err.Error(),
+				"failed to process "+test+" TLS options",
+			)
 		})
 	}
 }

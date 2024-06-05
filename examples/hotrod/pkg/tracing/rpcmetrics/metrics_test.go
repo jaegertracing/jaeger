@@ -54,9 +54,22 @@ func TestMetricsByEndpoint(t *testing.T) {
 		m.RequestCountSuccess.Inc(1)
 	}
 
-	met.AssertCounterMetrics(t,
-		metricstest.ExpectedMetric{Name: "requests", Tags: endpointTags("abc1", "error", "false"), Value: 3},
-		metricstest.ExpectedMetric{Name: "requests", Tags: endpointTags("abc3", "error", "false"), Value: 1},
-		metricstest.ExpectedMetric{Name: "requests", Tags: endpointTags("other", "error", "false"), Value: 2},
+	met.AssertCounterMetrics(
+		t,
+		metricstest.ExpectedMetric{
+			Name:  "requests",
+			Tags:  endpointTags("abc1", "error", "false"),
+			Value: 3,
+		},
+		metricstest.ExpectedMetric{
+			Name:  "requests",
+			Tags:  endpointTags("abc3", "error", "false"),
+			Value: 1,
+		},
+		metricstest.ExpectedMetric{
+			Name:  "requests",
+			Tags:  endpointTags("other", "error", "false"),
+			Value: 2,
+		},
 	)
 }

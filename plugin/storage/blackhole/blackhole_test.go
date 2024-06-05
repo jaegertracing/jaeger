@@ -33,7 +33,11 @@ func withBlackhole(f func(store *Store)) {
 
 func TestStoreGetDependencies(t *testing.T) {
 	withBlackhole(func(store *Store) {
-		links, err := store.GetDependencies(context.Background(), time.Now(), time.Hour)
+		links, err := store.GetDependencies(
+			context.Background(),
+			time.Now(),
+			time.Hour,
+		)
 		require.NoError(t, err)
 		assert.Empty(t, links)
 	})
@@ -48,7 +52,10 @@ func TestStoreWriteSpan(t *testing.T) {
 
 func TestStoreGetTrace(t *testing.T) {
 	withBlackhole(func(store *Store) {
-		trace, err := store.GetTrace(context.Background(), model.NewTraceID(1, 2))
+		trace, err := store.GetTrace(
+			context.Background(),
+			model.NewTraceID(1, 2),
+		)
 		require.Error(t, err)
 		assert.Nil(t, trace)
 	})

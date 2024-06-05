@@ -48,7 +48,10 @@ func newStructJSONMarshaler(prettyPrint bool) jsonMarshaler {
 	return func(w io.Writer, response any) error {
 		resp, err := marshaler(response)
 		if err != nil {
-			return fmt.Errorf("failed marshalling HTTP response to JSON: %w", err)
+			return fmt.Errorf(
+				"failed marshalling HTTP response to JSON: %w",
+				err,
+			)
 		}
 		_, err = w.Write(resp)
 		return err

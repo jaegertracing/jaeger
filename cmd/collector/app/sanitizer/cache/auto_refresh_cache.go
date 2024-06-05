@@ -79,7 +79,10 @@ func (c *autoRefreshCache) IsEmpty() bool {
 // Initialize warm the cache and start up the auto cache refreshes
 func (c *autoRefreshCache) Initialize() error {
 	if err := c.warmCache(); err != nil {
-		c.logger.Error("Cannot warm cache from storage or external source", zap.Error(err))
+		c.logger.Error(
+			"Cannot warm cache from storage or external source",
+			zap.Error(err),
+		)
 	}
 	c.initializeCacheRefresh()
 	return nil
@@ -97,7 +100,9 @@ func (c *autoRefreshCache) initializeCacheRefresh() {
 }
 
 // refreshFromExternalSource regularly retrieves data from an external source and saves it to storage
-func (c *autoRefreshCache) refreshFromExternalSource(refreshInterval time.Duration) {
+func (c *autoRefreshCache) refreshFromExternalSource(
+	refreshInterval time.Duration,
+) {
 	time.Sleep(getRandomSleepTime(refreshInterval))
 	c.updateAndSaveToStorage()
 	ticker := time.NewTicker(refreshInterval)
@@ -116,7 +121,10 @@ func (c *autoRefreshCache) refreshFromExternalSource(refreshInterval time.Durati
 func (c *autoRefreshCache) updateAndSaveToStorage() {
 	cache, err := c.extSource.Load()
 	if err != nil {
-		c.logger.Error("Failed to retrieve cache from external source", zap.Error(err))
+		c.logger.Error(
+			"Failed to retrieve cache from external source",
+			zap.Error(err),
+		)
 		return
 	}
 	// Get read lock so that the cache isn't modified while the cache is dumped to storage

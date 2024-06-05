@@ -108,7 +108,11 @@ func TestFSWatcherWithMultipleFiles(t *testing.T) {
 		logger.Info("Change happens")
 	}
 
-	w, err := New([]string{testFile1.Name(), testFile2.Name()}, onChange, logger)
+	w, err := New(
+		[]string{testFile1.Name(), testFile2.Name()},
+		onChange,
+		logger,
+	)
 	require.NoError(t, err)
 	require.IsType(t, &FSWatcher{}, w)
 	defer w.Close()
@@ -143,16 +147,28 @@ func TestFSWatcherWithMultipleFiles(t *testing.T) {
 			return logObserver.FilterMessage("Received event").Len() > 0
 		},
 		"Unable to locate 'Received event' in log. All logs: %v", logObserver)
-	assertLogs(t,
+	assertLogs(
+		t,
 		func() bool {
-			return logObserver.FilterMessage("Unable to read the file").FilterField(zap.String("file", testFile1.Name())).Len() > 0
+			return logObserver.FilterMessage("Unable to read the file").
+				FilterField(zap.String("file", testFile1.Name())).
+				Len() >
+				0
 		},
-		"Unable to locate 'Unable to read the file' in log. All logs: %v", logObserver)
-	assertLogs(t,
+		"Unable to locate 'Unable to read the file' in log. All logs: %v",
+		logObserver,
+	)
+	assertLogs(
+		t,
 		func() bool {
-			return logObserver.FilterMessage("Unable to read the file").FilterField(zap.String("file", testFile2.Name())).Len() > 0
+			return logObserver.FilterMessage("Unable to read the file").
+				FilterField(zap.String("file", testFile2.Name())).
+				Len() >
+				0
 		},
-		"Unable to locate 'Unable to read the file' in log. All logs: %v", logObserver)
+		"Unable to locate 'Unable to read the file' in log. All logs: %v",
+		logObserver,
+	)
 }
 
 func TestFSWatcherWithSymlinkAndRepoChanges(t *testing.T) {
@@ -160,7 +176,10 @@ func TestFSWatcherWithSymlinkAndRepoChanges(t *testing.T) {
 
 	err := os.Symlink("..timestamp-1", filepath.Join(testDir, "..data"))
 	require.NoError(t, err)
-	err = os.Symlink(filepath.Join("..data", "test.doc"), filepath.Join(testDir, "test.doc"))
+	err = os.Symlink(
+		filepath.Join("..data", "test.doc"),
+		filepath.Join(testDir, "test.doc"),
+	)
 	require.NoError(t, err)
 
 	timestamp1Dir := filepath.Join(testDir, "..timestamp-1")
@@ -171,7 +190,11 @@ func TestFSWatcherWithSymlinkAndRepoChanges(t *testing.T) {
 
 	onChange := func() {}
 
-	w, err := New([]string{filepath.Join(testDir, "test.doc")}, onChange, logger)
+	w, err := New(
+		[]string{filepath.Join(testDir, "test.doc")},
+		onChange,
+		logger,
+	)
 	require.NoError(t, err)
 	require.IsType(t, &FSWatcher{}, w)
 	defer w.Close()
@@ -182,7 +205,10 @@ func TestFSWatcherWithSymlinkAndRepoChanges(t *testing.T) {
 	err = os.Symlink("..timestamp-2", filepath.Join(testDir, "..data_tmp"))
 	require.NoError(t, err)
 
-	os.Rename(filepath.Join(testDir, "..data_tmp"), filepath.Join(testDir, "..data"))
+	os.Rename(
+		filepath.Join(testDir, "..data_tmp"),
+		filepath.Join(testDir, "..data"),
+	)
 	require.NoError(t, err)
 	err = os.RemoveAll(timestamp1Dir)
 	require.NoError(t, err)
@@ -200,7 +226,10 @@ func TestFSWatcherWithSymlinkAndRepoChanges(t *testing.T) {
 	createTimestampDir(t, timestamp3Dir)
 	err = os.Symlink("..timestamp-3", filepath.Join(testDir, "..data_tmp"))
 	require.NoError(t, err)
-	os.Rename(filepath.Join(testDir, "..data_tmp"), filepath.Join(testDir, "..data"))
+	os.Rename(
+		filepath.Join(testDir, "..data_tmp"),
+		filepath.Join(testDir, "..data"),
+	)
 	require.NoError(t, err)
 	err = os.RemoveAll(timestamp2Dir)
 	require.NoError(t, err)
@@ -220,7 +249,11 @@ func createTimestampDir(t *testing.T, dir string) {
 	err := os.MkdirAll(dir, 0o700)
 	require.NoError(t, err)
 
-	err = os.WriteFile(filepath.Join(dir, "test.doc"), []byte("test data"), 0o600)
+	err = os.WriteFile(
+		filepath.Join(dir, "test.doc"),
+		[]byte("test data"),
+		0o600,
+	)
 	require.NoError(t, err)
 }
 
@@ -232,7 +265,12 @@ func (df delayedFormat) String() string {
 	return fmt.Sprintf("%v", df.fn())
 }
 
-func assertLogs(t *testing.T, f func() bool, errorMsg string, logObserver *observer.ObservedLogs) {
+func assertLogs(
+	t *testing.T,
+	f func() bool,
+	errorMsg string,
+	logObserver *observer.ObservedLogs,
+) {
 	assert.Eventuallyf(t, f,
 		10*time.Second, 10*time.Millisecond,
 		errorMsg,

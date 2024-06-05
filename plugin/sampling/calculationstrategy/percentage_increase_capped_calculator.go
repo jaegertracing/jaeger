@@ -33,7 +33,9 @@ type PercentageIncreaseCappedCalculator struct {
 }
 
 // NewPercentageIncreaseCappedCalculator returns a new percentage increase capped calculator.
-func NewPercentageIncreaseCappedCalculator(percentageIncreaseCap float64) PercentageIncreaseCappedCalculator {
+func NewPercentageIncreaseCappedCalculator(
+	percentageIncreaseCap float64,
+) PercentageIncreaseCappedCalculator {
 	if percentageIncreaseCap == 0 {
 		percentageIncreaseCap = defaultPercentageIncreaseCap
 	}
@@ -43,7 +45,9 @@ func NewPercentageIncreaseCappedCalculator(percentageIncreaseCap float64) Percen
 }
 
 // Calculate calculates the new probability.
-func (c PercentageIncreaseCappedCalculator) Calculate(targetQPS, curQPS, prevProbability float64) float64 {
+func (c PercentageIncreaseCappedCalculator) Calculate(
+	targetQPS, curQPS, prevProbability float64,
+) float64 {
 	factor := targetQPS / curQPS
 	newProbability := prevProbability * factor
 	// If curQPS is lower than the targetQPS, we need to increase the probability slowly to

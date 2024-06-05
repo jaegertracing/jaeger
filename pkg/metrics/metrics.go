@@ -71,7 +71,10 @@ func Init(m any, factory Factory, globalTags map[string]string) error {
 				if len(tag) != 2 {
 					return fmt.Errorf(
 						"Field [%s]: Tag [%s] is not of the form key=value in 'tags' string [%s]",
-						field.Name, tagPair, tagString)
+						field.Name,
+						tagPair,
+						tagString,
+					)
 				}
 				tags[tag[0]] = tag[1]
 			}
@@ -82,7 +85,8 @@ func Init(m any, factory Factory, globalTags map[string]string) error {
 				// TODO: Parse timer duration buckets
 				return fmt.Errorf(
 					"Field [%s]: Buckets are not currently initialized for timer metrics",
-					field.Name)
+					field.Name,
+				)
 			case field.Type.AssignableTo(histogramPtrType):
 				bucketValues := strings.Split(bucketString, ",")
 				for _, bucket := range bucketValues {
@@ -90,14 +94,18 @@ func Init(m any, factory Factory, globalTags map[string]string) error {
 					if err != nil {
 						return fmt.Errorf(
 							"Field [%s]: Bucket [%s] could not be converted to float64 in 'buckets' string [%s]",
-							field.Name, bucket, bucketString)
+							field.Name,
+							bucket,
+							bucketString,
+						)
 					}
 					buckets = append(buckets, b)
 				}
 			default:
 				return fmt.Errorf(
 					"Field [%s]: Buckets should only be defined for Timer and Histogram metric types",
-					field.Name)
+					field.Name,
+				)
 			}
 		}
 		help := field.Tag.Get("help")

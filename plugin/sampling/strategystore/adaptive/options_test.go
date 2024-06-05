@@ -41,5 +41,9 @@ func TestOptionsWithFlags(t *testing.T) {
 	assert.Equal(t, 1e-4, opts.MinSamplingProbability)
 	assert.Equal(t, 0.016666666666666666, opts.MinSamplesPerSecond)
 	assert.Equal(t, time.Duration(5000000000), opts.LeaderLeaseRefreshInterval)
-	assert.Equal(t, time.Duration(60000000000), opts.FollowerLeaseRefreshInterval)
+	assert.Equal(
+		t,
+		time.Duration(60000000000),
+		opts.FollowerLeaseRefreshInterval,
+	)
 }

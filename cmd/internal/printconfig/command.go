@@ -16,11 +16,19 @@ func printDivider(cmd *cobra.Command, n int) {
 	fmt.Fprint(cmd.OutOrStdout(), strings.Repeat("-", n), "\n")
 }
 
-func printConfigurations(cmd *cobra.Command, v *viper.Viper, includeEmpty bool) {
+func printConfigurations(
+	cmd *cobra.Command,
+	v *viper.Viper,
+	includeEmpty bool,
+) {
 	keys := v.AllKeys()
 	sort.Strings(keys)
 
-	maxKeyLength, maxValueLength := len("Configuration Option Name"), len("Value")
+	maxKeyLength, maxValueLength := len(
+		"Configuration Option Name",
+	), len(
+		"Value",
+	)
 	maxSourceLength := len("user-assigned")
 	for _, key := range keys {
 		value := v.GetString(key)
@@ -70,7 +78,8 @@ func Command(v *viper.Viper) *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().BoolVarP(&allFlag, "all", "a", false, "Print all configuration options including those with empty values")
+	cmd.Flags().
+		BoolVarP(&allFlag, "all", "a", false, "Print all configuration options including those with empty values")
 
 	return cmd
 }

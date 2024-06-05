@@ -64,7 +64,10 @@ func TestTraceSpanIDMarshalProto(t *testing.T) {
 	}
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			ref1 := model.SpanRef{TraceID: model.NewTraceID(2, 3), SpanID: model.NewSpanID(11)}
+			ref1 := model.SpanRef{
+				TraceID: model.NewTraceID(2, 3),
+				SpanID:  model.NewSpanID(11),
+			}
 			ref2 := prototest.SpanRef{
 				// TODO: would be cool to fuzz that test
 				TraceId: []byte{0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 3},
@@ -119,8 +122,14 @@ func TestTraceIDFromBytes(t *testing.T) {
 		data     []byte
 		expected model.TraceID
 	}{
-		{data: []byte{0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 3}, expected: model.NewTraceID(2, 3)},
-		{data: []byte{0, 0, 0, 0, 0, 0, 0, 2}, expected: model.NewTraceID(0, 2)},
+		{
+			data:     []byte{0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 3},
+			expected: model.NewTraceID(2, 3),
+		},
+		{
+			data:     []byte{0, 0, 0, 0, 0, 0, 0, 2},
+			expected: model.NewTraceID(0, 2),
+		},
 	}
 	for _, test := range tests {
 		traceID, err := model.TraceIDFromBytes(test.data)

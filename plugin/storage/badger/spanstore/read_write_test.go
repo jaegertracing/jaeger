@@ -37,342 +37,382 @@ import (
 )
 
 func TestWriteReadBack(t *testing.T) {
-	runFactoryTest(t, func(tb testing.TB, sw spanstore.Writer, sr spanstore.Reader) {
-		tid := time.Now()
-		traces := 40
-		spans := 3
+	runFactoryTest(
+		t,
+		func(tb testing.TB, sw spanstore.Writer, sr spanstore.Reader) {
+			tid := time.Now()
+			traces := 40
+			spans := 3
 
-		dummyKv := []model.KeyValue{
-			{
-				Key:   "key",
-				VType: model.StringType,
-				VStr:  "value",
-			},
-		}
-
-		for i := 0; i < traces; i++ {
-			for j := 0; j < spans; j++ {
-				s := model.Span{
-					TraceID: model.TraceID{
-						Low:  uint64(i),
-						High: 1,
-					},
-					SpanID:        model.SpanID(j),
-					OperationName: "operation",
-					Process: &model.Process{
-						ServiceName: "service",
-						Tags:        dummyKv,
-					},
-					StartTime: tid.Add(time.Duration(i)),
-					Duration:  time.Duration(i + j),
-					Tags:      dummyKv,
-					Logs: []model.Log{
-						{
-							Timestamp: tid,
-							Fields:    dummyKv,
-						},
-					},
-				}
-				err := sw.WriteSpan(context.Background(), &s)
-				require.NoError(t, err)
+			dummyKv := []model.KeyValue{
+				{
+					Key:   "key",
+					VType: model.StringType,
+					VStr:  "value",
+				},
 			}
-		}
 
-		for i := 0; i < traces; i++ {
-			tr, err := sr.GetTrace(context.Background(), model.TraceID{
-				Low:  uint64(i),
-				High: 1,
-			})
-			require.NoError(t, err)
+			for i := 0; i < traces; i++ {
+				for j := 0; j < spans; j++ {
+					s := model.Span{
+						TraceID: model.TraceID{
+							Low:  uint64(i),
+							High: 1,
+						},
+						SpanID:        model.SpanID(j),
+						OperationName: "operation",
+						Process: &model.Process{
+							ServiceName: "service",
+							Tags:        dummyKv,
+						},
+						StartTime: tid.Add(time.Duration(i)),
+						Duration:  time.Duration(i + j),
+						Tags:      dummyKv,
+						Logs: []model.Log{
+							{
+								Timestamp: tid,
+								Fields:    dummyKv,
+							},
+						},
+					}
+					err := sw.WriteSpan(context.Background(), &s)
+					require.NoError(t, err)
+				}
+			}
 
-			assert.Len(t, tr.Spans, spans)
-		}
-	})
+			for i := 0; i < traces; i++ {
+				tr, err := sr.GetTrace(context.Background(), model.TraceID{
+					Low:  uint64(i),
+					High: 1,
+				})
+				require.NoError(t, err)
+
+				assert.Len(t, tr.Spans, spans)
+			}
+		},
+	)
 }
 
 func TestValidation(t *testing.T) {
-	runFactoryTest(t, func(tb testing.TB, sw spanstore.Writer, sr spanstore.Reader) {
-		tid := time.Now()
-		params := &spanstore.TraceQueryParameters{
-			StartTimeMin: tid,
-			StartTimeMax: tid.Add(time.Duration(10)),
-		}
+	runFactoryTest(
+		t,
+		func(tb testing.TB, sw spanstore.Writer, sr spanstore.Reader) {
+			tid := time.Now()
+			params := &spanstore.TraceQueryParameters{
+				StartTimeMin: tid,
+				StartTimeMax: tid.Add(time.Duration(10)),
+			}
 
-		params.OperationName = "no-service"
-		_, err := sr.FindTraces(context.Background(), params)
-		require.EqualError(t, err, "service name must be set")
-		params.ServiceName = "find-service"
+			params.OperationName = "no-service"
+			_, err := sr.FindTraces(context.Background(), params)
+			require.EqualError(t, err, "service name must be set")
+			params.ServiceName = "find-service"
 
-		_, err = sr.FindTraces(context.Background(), nil)
-		require.EqualError(t, err, "malformed request object")
+			_, err = sr.FindTraces(context.Background(), nil)
+			require.EqualError(t, err, "malformed request object")
 
-		params.StartTimeMin = params.StartTimeMax.Add(1 * time.Hour)
-		_, err = sr.FindTraces(context.Background(), params)
-		require.EqualError(t, err, "min start time is above max")
-		params.StartTimeMin = tid
+			params.StartTimeMin = params.StartTimeMax.Add(1 * time.Hour)
+			_, err = sr.FindTraces(context.Background(), params)
+			require.EqualError(t, err, "min start time is above max")
+			params.StartTimeMin = tid
 
-		params.DurationMax = time.Duration(1 * time.Millisecond)
-		params.DurationMin = time.Duration(1 * time.Minute)
-		_, err = sr.FindTraces(context.Background(), params)
-		require.EqualError(t, err, "min duration is above max")
+			params.DurationMax = time.Duration(1 * time.Millisecond)
+			params.DurationMin = time.Duration(1 * time.Minute)
+			_, err = sr.FindTraces(context.Background(), params)
+			require.EqualError(t, err, "min duration is above max")
 
-		params = &spanstore.TraceQueryParameters{
-			StartTimeMin: tid,
-		}
-		_, err = sr.FindTraces(context.Background(), params)
-		require.EqualError(t, err, "start and end time must be set")
+			params = &spanstore.TraceQueryParameters{
+				StartTimeMin: tid,
+			}
+			_, err = sr.FindTraces(context.Background(), params)
+			require.EqualError(t, err, "start and end time must be set")
 
-		params.StartTimeMax = tid.Add(1 * time.Minute)
-		params.Tags = map[string]string{"A": "B"}
-		_, err = sr.FindTraces(context.Background(), params)
-		require.EqualError(t, err, "service name must be set")
-	})
+			params.StartTimeMax = tid.Add(1 * time.Minute)
+			params.Tags = map[string]string{"A": "B"}
+			_, err = sr.FindTraces(context.Background(), params)
+			require.EqualError(t, err, "service name must be set")
+		},
+	)
 }
 
 func TestIndexSeeks(t *testing.T) {
-	runFactoryTest(t, func(tb testing.TB, sw spanstore.Writer, sr spanstore.Reader) {
-		startT := time.Now()
-		traces := 60
-		spans := 3
-		tid := startT
+	runFactoryTest(
+		t,
+		func(tb testing.TB, sw spanstore.Writer, sr spanstore.Reader) {
+			startT := time.Now()
+			traces := 60
+			spans := 3
+			tid := startT
 
-		traceOrder := make([]uint64, traces)
+			traceOrder := make([]uint64, traces)
 
-		for i := 0; i < traces; i++ {
-			lowId := rand.Uint64()
-			traceOrder[i] = lowId
-			tid = tid.Add(time.Duration(time.Millisecond * time.Duration(i)))
+			for i := 0; i < traces; i++ {
+				lowId := rand.Uint64()
+				traceOrder[i] = lowId
+				tid = tid.Add(
+					time.Duration(time.Millisecond * time.Duration(i)),
+				)
 
-			for j := 0; j < spans; j++ {
-				s := model.Span{
-					TraceID: model.TraceID{
-						Low:  lowId,
-						High: 1,
-					},
-					SpanID:        model.SpanID(rand.Uint64()),
-					OperationName: fmt.Sprintf("operation-%d", j),
-					Process: &model.Process{
-						ServiceName: fmt.Sprintf("service-%d", i%4),
-					},
-					StartTime: tid,
-					Duration:  time.Duration(time.Duration(i+j) * time.Millisecond),
-					Tags: model.KeyValues{
-						model.KeyValue{
-							Key:   fmt.Sprintf("k%d", i),
-							VStr:  fmt.Sprintf("val%d", j),
-							VType: model.StringType,
+				for j := 0; j < spans; j++ {
+					s := model.Span{
+						TraceID: model.TraceID{
+							Low:  lowId,
+							High: 1,
 						},
-						{
-							Key:   "error",
-							VType: model.BoolType,
-							VBool: true,
+						SpanID:        model.SpanID(rand.Uint64()),
+						OperationName: fmt.Sprintf("operation-%d", j),
+						Process: &model.Process{
+							ServiceName: fmt.Sprintf("service-%d", i%4),
 						},
-					},
+						StartTime: tid,
+						Duration: time.Duration(
+							time.Duration(i+j) * time.Millisecond,
+						),
+						Tags: model.KeyValues{
+							model.KeyValue{
+								Key:   fmt.Sprintf("k%d", i),
+								VStr:  fmt.Sprintf("val%d", j),
+								VType: model.StringType,
+							},
+							{
+								Key:   "error",
+								VType: model.BoolType,
+								VBool: true,
+							},
+						},
+					}
+
+					err := sw.WriteSpan(context.Background(), &s)
+					require.NoError(t, err)
 				}
-
-				err := sw.WriteSpan(context.Background(), &s)
-				require.NoError(t, err)
 			}
-		}
 
-		testOrder := func(trs []*model.Trace) {
-			// Assert that we returned correctly in DESC time order
-			for l := 1; l < len(trs); l++ {
-				assert.True(t, trs[l].Spans[spans-1].StartTime.Before(trs[l-1].Spans[spans-1].StartTime))
+			testOrder := func(trs []*model.Trace) {
+				// Assert that we returned correctly in DESC time order
+				for l := 1; l < len(trs); l++ {
+					assert.True(
+						t,
+						trs[l].Spans[spans-1].StartTime.Before(
+							trs[l-1].Spans[spans-1].StartTime,
+						),
+					)
+				}
 			}
-		}
 
-		params := &spanstore.TraceQueryParameters{
-			StartTimeMin: startT,
-			StartTimeMax: startT.Add(time.Duration(time.Millisecond * 10)),
-			ServiceName:  "service-1",
-		}
+			params := &spanstore.TraceQueryParameters{
+				StartTimeMin: startT,
+				StartTimeMax: startT.Add(time.Duration(time.Millisecond * 10)),
+				ServiceName:  "service-1",
+			}
 
-		trs, err := sr.FindTraces(context.Background(), params)
-		require.NoError(t, err)
-		assert.Len(t, trs, 1)
-		assert.Len(t, trs[0].Spans, spans)
+			trs, err := sr.FindTraces(context.Background(), params)
+			require.NoError(t, err)
+			assert.Len(t, trs, 1)
+			assert.Len(t, trs[0].Spans, spans)
 
-		params.OperationName = "operation-1"
-		trs, err = sr.FindTraces(context.Background(), params)
-		require.NoError(t, err)
-		assert.Len(t, trs, 1)
+			params.OperationName = "operation-1"
+			trs, err = sr.FindTraces(context.Background(), params)
+			require.NoError(t, err)
+			assert.Len(t, trs, 1)
 
-		params.ServiceName = "service-10" // this should not match
-		trs, err = sr.FindTraces(context.Background(), params)
-		require.NoError(t, err)
-		assert.Empty(t, trs)
+			params.ServiceName = "service-10" // this should not match
+			trs, err = sr.FindTraces(context.Background(), params)
+			require.NoError(t, err)
+			assert.Empty(t, trs)
 
-		params.OperationName = "operation-4"
-		trs, err = sr.FindTraces(context.Background(), params)
-		require.NoError(t, err)
-		assert.Empty(t, trs)
+			params.OperationName = "operation-4"
+			trs, err = sr.FindTraces(context.Background(), params)
+			require.NoError(t, err)
+			assert.Empty(t, trs)
 
-		// Multi-index hits
+			// Multi-index hits
 
-		params.StartTimeMax = startT.Add(time.Duration(time.Millisecond * 666))
-		params.ServiceName = "service-3"
-		params.OperationName = "operation-1"
-		tags := make(map[string]string)
-		tags["k11"] = "val0"
-		tags["error"] = "true"
-		params.Tags = tags
-		params.DurationMin = time.Duration(1 * time.Millisecond)
-		trs, err = sr.FindTraces(context.Background(), params)
-		require.NoError(t, err)
-		assert.Len(t, trs, 1)
-		assert.Len(t, trs[0].Spans, spans)
+			params.StartTimeMax = startT.Add(
+				time.Duration(time.Millisecond * 666),
+			)
+			params.ServiceName = "service-3"
+			params.OperationName = "operation-1"
+			tags := make(map[string]string)
+			tags["k11"] = "val0"
+			tags["error"] = "true"
+			params.Tags = tags
+			params.DurationMin = time.Duration(1 * time.Millisecond)
+			trs, err = sr.FindTraces(context.Background(), params)
+			require.NoError(t, err)
+			assert.Len(t, trs, 1)
+			assert.Len(t, trs[0].Spans, spans)
 
-		// Query limited amount of hits
+			// Query limited amount of hits
 
-		params.StartTimeMax = startT.Add(time.Duration(time.Hour * 1))
-		delete(params.Tags, "k11")
-		params.NumTraces = 2
-		trs, err = sr.FindTraces(context.Background(), params)
-		require.NoError(t, err)
-		assert.Len(t, trs, 2)
-		assert.Equal(t, traceOrder[59], trs[0].Spans[0].TraceID.Low)
-		assert.Equal(t, traceOrder[55], trs[1].Spans[0].TraceID.Low)
-		testOrder(trs)
+			params.StartTimeMax = startT.Add(time.Duration(time.Hour * 1))
+			delete(params.Tags, "k11")
+			params.NumTraces = 2
+			trs, err = sr.FindTraces(context.Background(), params)
+			require.NoError(t, err)
+			assert.Len(t, trs, 2)
+			assert.Equal(t, traceOrder[59], trs[0].Spans[0].TraceID.Low)
+			assert.Equal(t, traceOrder[55], trs[1].Spans[0].TraceID.Low)
+			testOrder(trs)
 
-		// Check for DESC return order with duration index
-		params = &spanstore.TraceQueryParameters{
-			StartTimeMin: startT,
-			StartTimeMax: startT.Add(time.Duration(time.Hour * 1)),
-			DurationMin:  time.Duration(30 * time.Millisecond), // Filters one
-			DurationMax:  time.Duration(50 * time.Millisecond), // Filters three
-			NumTraces:    9,
-		}
-		trs, err = sr.FindTraces(context.Background(), params)
-		require.NoError(t, err)
-		assert.Len(t, trs, 9) // Returns 23, we limited to 9
+			// Check for DESC return order with duration index
+			params = &spanstore.TraceQueryParameters{
+				StartTimeMin: startT,
+				StartTimeMax: startT.Add(time.Duration(time.Hour * 1)),
+				DurationMin: time.Duration(
+					30 * time.Millisecond,
+				), // Filters one
+				DurationMax: time.Duration(
+					50 * time.Millisecond,
+				), // Filters three
+				NumTraces: 9,
+			}
+			trs, err = sr.FindTraces(context.Background(), params)
+			require.NoError(t, err)
+			assert.Len(t, trs, 9) // Returns 23, we limited to 9
 
-		// Check the newest items are returned
-		assert.Equal(t, traceOrder[50], trs[0].Spans[0].TraceID.Low)
-		assert.Equal(t, traceOrder[42], trs[8].Spans[0].TraceID.Low)
-		testOrder(trs)
+			// Check the newest items are returned
+			assert.Equal(t, traceOrder[50], trs[0].Spans[0].TraceID.Low)
+			assert.Equal(t, traceOrder[42], trs[8].Spans[0].TraceID.Low)
+			testOrder(trs)
 
-		// Check for DESC return order without duration index, but still with limit
-		params.DurationMin = 0
-		params.DurationMax = 0
-		params.NumTraces = 7
-		trs, err = sr.FindTraces(context.Background(), params)
-		require.NoError(t, err)
-		assert.Len(t, trs, 7)
-		assert.Equal(t, traceOrder[59], trs[0].Spans[0].TraceID.Low)
-		assert.Equal(t, traceOrder[53], trs[6].Spans[0].TraceID.Low)
-		testOrder(trs)
+			// Check for DESC return order without duration index, but still with limit
+			params.DurationMin = 0
+			params.DurationMax = 0
+			params.NumTraces = 7
+			trs, err = sr.FindTraces(context.Background(), params)
+			require.NoError(t, err)
+			assert.Len(t, trs, 7)
+			assert.Equal(t, traceOrder[59], trs[0].Spans[0].TraceID.Low)
+			assert.Equal(t, traceOrder[53], trs[6].Spans[0].TraceID.Low)
+			testOrder(trs)
 
-		// StartTime, endTime scan - full table scan (so technically no index seek)
-		params = &spanstore.TraceQueryParameters{
-			StartTimeMin: startT,
-			StartTimeMax: startT.Add(time.Duration(time.Millisecond * 10)),
-		}
+			// StartTime, endTime scan - full table scan (so technically no index seek)
+			params = &spanstore.TraceQueryParameters{
+				StartTimeMin: startT,
+				StartTimeMax: startT.Add(time.Duration(time.Millisecond * 10)),
+			}
 
-		trs, err = sr.FindTraces(context.Background(), params)
-		require.NoError(t, err)
-		assert.Len(t, trs, 5)
-		assert.Len(t, trs[0].Spans, spans)
-		testOrder(trs)
+			trs, err = sr.FindTraces(context.Background(), params)
+			require.NoError(t, err)
+			assert.Len(t, trs, 5)
+			assert.Len(t, trs[0].Spans, spans)
+			testOrder(trs)
 
-		// StartTime and Duration queries
-		params.StartTimeMax = startT.Add(time.Duration(time.Hour * 10))
-		params.DurationMin = time.Duration(53 * time.Millisecond) // trace 51 (min)
-		params.DurationMax = time.Duration(56 * time.Millisecond) // trace 56 (max)
+			// StartTime and Duration queries
+			params.StartTimeMax = startT.Add(time.Duration(time.Hour * 10))
+			params.DurationMin = time.Duration(
+				53 * time.Millisecond,
+			) // trace 51 (min)
+			params.DurationMax = time.Duration(
+				56 * time.Millisecond,
+			) // trace 56 (max)
 
-		trs, err = sr.FindTraces(context.Background(), params)
-		require.NoError(t, err)
-		assert.Len(t, trs, 6)
-		assert.Equal(t, traceOrder[56], trs[0].Spans[0].TraceID.Low)
-		assert.Equal(t, traceOrder[51], trs[5].Spans[0].TraceID.Low)
-		testOrder(trs)
-	})
+			trs, err = sr.FindTraces(context.Background(), params)
+			require.NoError(t, err)
+			assert.Len(t, trs, 6)
+			assert.Equal(t, traceOrder[56], trs[0].Spans[0].TraceID.Low)
+			assert.Equal(t, traceOrder[51], trs[5].Spans[0].TraceID.Low)
+			testOrder(trs)
+		},
+	)
 }
 
 func TestFindNothing(t *testing.T) {
-	runFactoryTest(t, func(tb testing.TB, sw spanstore.Writer, sr spanstore.Reader) {
-		startT := time.Now()
-		params := &spanstore.TraceQueryParameters{
-			StartTimeMin: startT,
-			StartTimeMax: startT.Add(time.Duration(time.Millisecond * 10)),
-			ServiceName:  "service-1",
-		}
+	runFactoryTest(
+		t,
+		func(tb testing.TB, sw spanstore.Writer, sr spanstore.Reader) {
+			startT := time.Now()
+			params := &spanstore.TraceQueryParameters{
+				StartTimeMin: startT,
+				StartTimeMax: startT.Add(time.Duration(time.Millisecond * 10)),
+				ServiceName:  "service-1",
+			}
 
-		trs, err := sr.FindTraces(context.Background(), params)
-		require.NoError(t, err)
-		assert.Empty(t, trs)
+			trs, err := sr.FindTraces(context.Background(), params)
+			require.NoError(t, err)
+			assert.Empty(t, trs)
 
-		tr, err := sr.GetTrace(context.Background(), model.TraceID{High: 0, Low: 0})
-		assert.Equal(t, spanstore.ErrTraceNotFound, err)
-		assert.Nil(t, tr)
-	})
+			tr, err := sr.GetTrace(
+				context.Background(),
+				model.TraceID{High: 0, Low: 0},
+			)
+			assert.Equal(t, spanstore.ErrTraceNotFound, err)
+			assert.Nil(t, tr)
+		},
+	)
 }
 
 func TestWriteDuplicates(t *testing.T) {
-	runFactoryTest(t, func(tb testing.TB, sw spanstore.Writer, sr spanstore.Reader) {
-		tid := time.Now()
-		times := 40
-		spans := 3
-		for i := 0; i < times; i++ {
-			for j := 0; j < spans; j++ {
-				s := model.Span{
-					TraceID: model.TraceID{
-						Low:  uint64(0),
-						High: 1,
-					},
-					SpanID:        model.SpanID(j),
-					OperationName: "operation",
-					Process: &model.Process{
-						ServiceName: "service",
-					},
-					StartTime: tid.Add(time.Duration(10)),
-					Duration:  time.Duration(i + j),
+	runFactoryTest(
+		t,
+		func(tb testing.TB, sw spanstore.Writer, sr spanstore.Reader) {
+			tid := time.Now()
+			times := 40
+			spans := 3
+			for i := 0; i < times; i++ {
+				for j := 0; j < spans; j++ {
+					s := model.Span{
+						TraceID: model.TraceID{
+							Low:  uint64(0),
+							High: 1,
+						},
+						SpanID:        model.SpanID(j),
+						OperationName: "operation",
+						Process: &model.Process{
+							ServiceName: "service",
+						},
+						StartTime: tid.Add(time.Duration(10)),
+						Duration:  time.Duration(i + j),
+					}
+					err := sw.WriteSpan(context.Background(), &s)
+					require.NoError(t, err)
 				}
-				err := sw.WriteSpan(context.Background(), &s)
-				require.NoError(t, err)
 			}
-		}
-	})
+		},
+	)
 }
 
 func TestMenuSeeks(t *testing.T) {
-	runFactoryTest(t, func(tb testing.TB, sw spanstore.Writer, sr spanstore.Reader) {
-		tid := time.Now()
-		traces := 40
-		services := 4
-		spans := 3
-		for i := 0; i < traces; i++ {
-			for j := 0; j < spans; j++ {
-				s := model.Span{
-					TraceID: model.TraceID{
-						Low:  uint64(i),
-						High: 1,
-					},
-					SpanID:        model.SpanID(j),
-					OperationName: fmt.Sprintf("operation-%d", j),
-					Process: &model.Process{
-						ServiceName: fmt.Sprintf("service-%d", i%services),
-					},
-					StartTime: tid.Add(time.Duration(i)),
-					Duration:  time.Duration(i + j),
+	runFactoryTest(
+		t,
+		func(tb testing.TB, sw spanstore.Writer, sr spanstore.Reader) {
+			tid := time.Now()
+			traces := 40
+			services := 4
+			spans := 3
+			for i := 0; i < traces; i++ {
+				for j := 0; j < spans; j++ {
+					s := model.Span{
+						TraceID: model.TraceID{
+							Low:  uint64(i),
+							High: 1,
+						},
+						SpanID:        model.SpanID(j),
+						OperationName: fmt.Sprintf("operation-%d", j),
+						Process: &model.Process{
+							ServiceName: fmt.Sprintf("service-%d", i%services),
+						},
+						StartTime: tid.Add(time.Duration(i)),
+						Duration:  time.Duration(i + j),
+					}
+					err := sw.WriteSpan(context.Background(), &s)
+					require.NoError(t, err)
 				}
-				err := sw.WriteSpan(context.Background(), &s)
-				require.NoError(t, err)
 			}
-		}
 
-		operations, err := sr.GetOperations(
-			context.Background(),
-			spanstore.OperationQueryParameters{ServiceName: "service-1"},
-		)
-		require.NoError(t, err)
+			operations, err := sr.GetOperations(
+				context.Background(),
+				spanstore.OperationQueryParameters{ServiceName: "service-1"},
+			)
+			require.NoError(t, err)
 
-		serviceList, err := sr.GetServices(context.Background())
-		require.NoError(t, err)
+			serviceList, err := sr.GetServices(context.Background())
+			require.NoError(t, err)
 
-		assert.Len(t, operations, spans)
-		assert.Len(t, serviceList, services)
-	})
+			assert.Len(t, operations, spans)
+			assert.Len(t, serviceList, services)
+		},
+	)
 }
 
 func TestPersist(t *testing.T) {
@@ -443,7 +483,10 @@ func TestPersist(t *testing.T) {
 }
 
 // Opens a badger db and runs a test on it.
-func runFactoryTest(tb testing.TB, test func(tb testing.TB, sw spanstore.Writer, sr spanstore.Reader)) {
+func runFactoryTest(
+	tb testing.TB,
+	test func(tb testing.TB, sw spanstore.Writer, sr spanstore.Reader),
+) {
 	f := badger.NewFactory()
 	defer func() {
 		require.NoError(tb, f.Close())
@@ -471,7 +514,14 @@ func runFactoryTest(tb testing.TB, test func(tb testing.TB, sw spanstore.Writer,
 
 // Benchmarks intended for profiling
 
-func writeSpans(sw spanstore.Writer, tags []model.KeyValue, services, operations []string, traces, spans int, high uint64, tid time.Time) {
+func writeSpans(
+	sw spanstore.Writer,
+	tags []model.KeyValue,
+	services, operations []string,
+	traces, spans int,
+	high uint64,
+	tid time.Time,
+) {
 	for i := 0; i < traces; i++ {
 		for j := 0; j < spans; j++ {
 			s := model.Span{
@@ -494,31 +544,45 @@ func writeSpans(sw spanstore.Writer, tags []model.KeyValue, services, operations
 }
 
 func BenchmarkWrites(b *testing.B) {
-	runFactoryTest(b, func(tb testing.TB, sw spanstore.Writer, sr spanstore.Reader) {
-		tid := time.Now()
-		traces := 1000
-		spans := 32
-		tagsCount := 64
-		tags, services, operations := makeWriteSupports(tagsCount, spans)
+	runFactoryTest(
+		b,
+		func(tb testing.TB, sw spanstore.Writer, sr spanstore.Reader) {
+			tid := time.Now()
+			traces := 1000
+			spans := 32
+			tagsCount := 64
+			tags, services, operations := makeWriteSupports(tagsCount, spans)
 
-		f, err := os.Create("writes.out")
-		if err != nil {
-			log.Fatal("could not create CPU profile: ", err)
-		}
-		if err := pprof.StartCPUProfile(f); err != nil {
-			log.Fatal("could not start CPU profile: ", err)
-		}
-		defer pprof.StopCPUProfile()
+			f, err := os.Create("writes.out")
+			if err != nil {
+				log.Fatal("could not create CPU profile: ", err)
+			}
+			if err := pprof.StartCPUProfile(f); err != nil {
+				log.Fatal("could not start CPU profile: ", err)
+			}
+			defer pprof.StopCPUProfile()
 
-		b.ResetTimer()
-		for a := 0; a < b.N; a++ {
-			writeSpans(sw, tags, services, operations, traces, spans, uint64(0), tid)
-		}
-		b.StopTimer()
-	})
+			b.ResetTimer()
+			for a := 0; a < b.N; a++ {
+				writeSpans(
+					sw,
+					tags,
+					services,
+					operations,
+					traces,
+					spans,
+					uint64(0),
+					tid,
+				)
+			}
+			b.StopTimer()
+		},
+	)
 }
 
-func makeWriteSupports(tagsCount, spans int) ([]model.KeyValue, []string, []string) {
+func makeWriteSupports(
+	tagsCount, spans int,
+) ([]model.KeyValue, []string, []string) {
 	tags := make([]model.KeyValue, tagsCount)
 	for i := 0; i < tagsCount; i++ {
 		tags[i] = model.KeyValue{
@@ -538,41 +602,58 @@ func makeWriteSupports(tagsCount, spans int) ([]model.KeyValue, []string, []stri
 	return tags, services, operations
 }
 
-func makeReadBenchmark(b *testing.B, tid time.Time, params *spanstore.TraceQueryParameters, outputFile string) {
-	runLargeFactoryTest(b, func(tb testing.TB, sw spanstore.Writer, sr spanstore.Reader) {
-		tid := time.Now()
+func makeReadBenchmark(
+	b *testing.B,
+	tid time.Time,
+	params *spanstore.TraceQueryParameters,
+	outputFile string,
+) {
+	runLargeFactoryTest(
+		b,
+		func(tb testing.TB, sw spanstore.Writer, sr spanstore.Reader) {
+			tid := time.Now()
 
-		// Total amount of traces is traces * tracesTimes
-		traces := 1000
-		tracesTimes := 1
+			// Total amount of traces is traces * tracesTimes
+			traces := 1000
+			tracesTimes := 1
 
-		// Total amount of spans written is traces * tracesTimes * spans
-		spans := 32
+			// Total amount of spans written is traces * tracesTimes * spans
+			spans := 32
 
-		// Default is 160k
+			// Default is 160k
 
-		tagsCount := 64
-		tags, services, operations := makeWriteSupports(tagsCount, spans)
+			tagsCount := 64
+			tags, services, operations := makeWriteSupports(tagsCount, spans)
 
-		for h := 0; h < tracesTimes; h++ {
-			writeSpans(sw, tags, services, operations, traces, spans, uint64(h), tid)
-		}
+			for h := 0; h < tracesTimes; h++ {
+				writeSpans(
+					sw,
+					tags,
+					services,
+					operations,
+					traces,
+					spans,
+					uint64(h),
+					tid,
+				)
+			}
 
-		f, err := os.Create(outputFile)
-		if err != nil {
-			log.Fatal("could not create CPU profile: ", err)
-		}
-		if err := pprof.StartCPUProfile(f); err != nil {
-			log.Fatal("could not start CPU profile: ", err)
-		}
-		defer pprof.StopCPUProfile()
+			f, err := os.Create(outputFile)
+			if err != nil {
+				log.Fatal("could not create CPU profile: ", err)
+			}
+			if err := pprof.StartCPUProfile(f); err != nil {
+				log.Fatal("could not start CPU profile: ", err)
+			}
+			defer pprof.StopCPUProfile()
 
-		b.ResetTimer()
-		for a := 0; a < b.N; a++ {
-			sr.FindTraces(context.Background(), params)
-		}
-		b.StopTimer()
-	})
+			b.ResetTimer()
+			for a := 0; a < b.N; a++ {
+				sr.FindTraces(context.Background(), params)
+			}
+			b.StopTimer()
+		},
+	)
 }
 
 func BenchmarkServiceTagsRangeQueryLimitIndexFetch(b *testing.B) {
@@ -586,7 +667,9 @@ func BenchmarkServiceTagsRangeQueryLimitIndexFetch(b *testing.B) {
 		},
 	}
 
-	params.DurationMin = time.Duration(1 * time.Millisecond) // durationQuery takes 53% of total execution time..
+	params.DurationMin = time.Duration(
+		1 * time.Millisecond,
+	) // durationQuery takes 53% of total execution time..
 	params.NumTraces = 50
 
 	makeReadBenchmark(b, tid, params, "scanrangeandindexlimit.out")
@@ -606,7 +689,10 @@ func BenchmarkServiceIndexLimitFetch(b *testing.B) {
 }
 
 // Opens a badger db and runs a test on it.
-func runLargeFactoryTest(tb testing.TB, test func(tb testing.TB, sw spanstore.Writer, sr spanstore.Reader)) {
+func runLargeFactoryTest(
+	tb testing.TB,
+	test func(tb testing.TB, sw spanstore.Writer, sr spanstore.Reader),
+) {
 	assertion := require.New(tb)
 	f := badger.NewFactory()
 	opts := badger.NewOptions("badger")
@@ -646,63 +732,66 @@ func runLargeFactoryTest(tb testing.TB, test func(tb testing.TB, sw spanstore.Wr
 
 // TestRandomTraceID from issue #1808
 func TestRandomTraceID(t *testing.T) {
-	runFactoryTest(t, func(tb testing.TB, sw spanstore.Writer, sr spanstore.Reader) {
-		s1 := model.Span{
-			TraceID: model.TraceID{
-				Low:  uint64(14767110704788176287),
-				High: 0,
-			},
-			SpanID:        model.SpanID(14976775253976086374),
-			OperationName: "/",
-			Process: &model.Process{
-				ServiceName: "nginx",
-			},
-			Tags: model.KeyValues{
-				model.KeyValue{
-					Key:   "http.request_id",
-					VStr:  "first",
-					VType: model.StringType,
+	runFactoryTest(
+		t,
+		func(tb testing.TB, sw spanstore.Writer, sr spanstore.Reader) {
+			s1 := model.Span{
+				TraceID: model.TraceID{
+					Low:  uint64(14767110704788176287),
+					High: 0,
 				},
-			},
-			StartTime: time.Now(),
-			Duration:  1 * time.Second,
-		}
-		err := sw.WriteSpan(context.Background(), &s1)
-		require.NoError(t, err)
-
-		s2 := model.Span{
-			TraceID: model.TraceID{
-				Low:  uint64(4775132888371984950),
-				High: 0,
-			},
-			SpanID:        model.SpanID(13576481569227028654),
-			OperationName: "/",
-			Process: &model.Process{
-				ServiceName: "nginx",
-			},
-			Tags: model.KeyValues{
-				model.KeyValue{
-					Key:   "http.request_id",
-					VStr:  "second",
-					VType: model.StringType,
+				SpanID:        model.SpanID(14976775253976086374),
+				OperationName: "/",
+				Process: &model.Process{
+					ServiceName: "nginx",
 				},
-			},
-			StartTime: time.Now(),
-			Duration:  1 * time.Second,
-		}
-		err = sw.WriteSpan(context.Background(), &s2)
-		require.NoError(t, err)
+				Tags: model.KeyValues{
+					model.KeyValue{
+						Key:   "http.request_id",
+						VStr:  "first",
+						VType: model.StringType,
+					},
+				},
+				StartTime: time.Now(),
+				Duration:  1 * time.Second,
+			}
+			err := sw.WriteSpan(context.Background(), &s1)
+			require.NoError(t, err)
 
-		params := &spanstore.TraceQueryParameters{
-			StartTimeMin: time.Now().Add(-1 * time.Minute),
-			StartTimeMax: time.Now(),
-			ServiceName:  "nginx",
-			Tags: map[string]string{
-				"http.request_id": "second",
-			},
-		}
-		traces, err := sr.FindTraces(context.Background(), params)
-		require.NoError(t, err)
-		assert.Len(t, traces, 1)
-	})
+			s2 := model.Span{
+				TraceID: model.TraceID{
+					Low:  uint64(4775132888371984950),
+					High: 0,
+				},
+				SpanID:        model.SpanID(13576481569227028654),
+				OperationName: "/",
+				Process: &model.Process{
+					ServiceName: "nginx",
+				},
+				Tags: model.KeyValues{
+					model.KeyValue{
+						Key:   "http.request_id",
+						VStr:  "second",
+						VType: model.StringType,
+					},
+				},
+				StartTime: time.Now(),
+				Duration:  1 * time.Second,
+			}
+			err = sw.WriteSpan(context.Background(), &s2)
+			require.NoError(t, err)
+
+			params := &spanstore.TraceQueryParameters{
+				StartTimeMin: time.Now().Add(-1 * time.Minute),
+				StartTimeMax: time.Now(),
+				ServiceName:  "nginx",
+				Tags: map[string]string{
+					"http.request_id": "second",
+				},
+			}
+			traces, err := sr.FindTraces(context.Background(), params)
+			require.NoError(t, err)
+			assert.Len(t, traces, 1)
+		},
+	)
 }

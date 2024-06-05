@@ -37,7 +37,11 @@ type ConnectMetrics struct {
 // NewConnectMetrics will be initialize ConnectMetrics
 func NewConnectMetrics(mf metrics.Factory) *ConnectMetrics {
 	cm := &ConnectMetrics{}
-	metrics.MustInit(&cm.metrics, mf.Namespace(metrics.NSOptions{Name: "connection_status"}), nil)
+	metrics.MustInit(
+		&cm.metrics,
+		mf.Namespace(metrics.NSOptions{Name: "connection_status"}),
+		nil,
+	)
 
 	if r := expvar.Get("gRPCTarget"); r == nil {
 		cm.target = expvar.NewString("gRPCTarget")

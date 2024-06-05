@@ -99,7 +99,10 @@ func (_m *Factory) CreateSpanWriter() (spanstore.Writer, error) {
 }
 
 // Initialize provides a mock function with given fields: metricsFactory, logger
-func (_m *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
+func (_m *Factory) Initialize(
+	metricsFactory metrics.Factory,
+	logger *zap.Logger,
+) error {
 	ret := _m.Called(metricsFactory, logger)
 
 	var r0 error

@@ -52,7 +52,10 @@ func TestGetThroughput(t *testing.T) {
 		err := store.InsertThroughput(expected)
 		require.NoError(t, err)
 
-		actual, err := store.GetThroughput(start.Add(-time.Millisecond), start.Add(time.Second*time.Duration(10)))
+		actual, err := store.GetThroughput(
+			start.Add(-time.Millisecond),
+			start.Add(time.Second*time.Duration(10)),
+		)
 		require.NoError(t, err)
 		assert.Equal(t, expected, actual)
 	})
@@ -79,12 +82,16 @@ func TestGetLatestProbabilities(t *testing.T) {
 		require.NoError(t, err)
 		err = store.InsertProbabilitiesAndQPS(
 			"newhostname",
-			samplemodel.ServiceOperationProbabilities{"new-srv2": {"op": 0.123}},
+			samplemodel.ServiceOperationProbabilities{
+				"new-srv2": {"op": 0.123},
+			},
 			samplemodel.ServiceOperationQPS{"new-srv2": {"op": 1}},
 		)
 		require.NoError(t, err)
 
-		expected := samplemodel.ServiceOperationProbabilities{"new-srv2": {"op": 0.123}}
+		expected := samplemodel.ServiceOperationProbabilities{
+			"new-srv2": {"op": 0.123},
+		}
 		actual, err := store.GetLatestProbabilities()
 		require.NoError(t, err)
 		assert.Equal(t, expected, actual)
@@ -93,9 +100,11 @@ func TestGetLatestProbabilities(t *testing.T) {
 
 func TestDecodeProbabilitiesValue(t *testing.T) {
 	expected := ProbabilitiesAndQPS{
-		Hostname:      "dell11eg843d",
-		Probabilities: samplemodel.ServiceOperationProbabilities{"new-srv": {"op": 0.1}},
-		QPS:           samplemodel.ServiceOperationQPS{"new-srv": {"op": 4}},
+		Hostname: "dell11eg843d",
+		Probabilities: samplemodel.ServiceOperationProbabilities{
+			"new-srv": {"op": 0.1},
+		},
+		QPS: samplemodel.ServiceOperationQPS{"new-srv": {"op": 4}},
 	}
 
 	marshalBytes, err := json.Marshal(expected)
@@ -124,7 +133,10 @@ func TestDecodeThroughtputValue(t *testing.T) {
 	assert.Equal(t, expected, acrual)
 }
 
-func runWithBadger(t *testing.T, test func(t *testing.T, store *SamplingStore)) {
+func runWithBadger(
+	t *testing.T,
+	test func(t *testing.T, store *SamplingStore),
+) {
 	opts := badger.DefaultOptions("")
 
 	opts.SyncWrites = false

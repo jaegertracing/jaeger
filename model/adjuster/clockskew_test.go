@@ -51,17 +51,24 @@ func TestClockSkewAdjuster(t *testing.T) {
 			for _, log := range spanProto.logs {
 				logs = append(logs, model.Log{
 					Timestamp: toTime(log),
-					Fields:    []model.KeyValue{model.String("event", "some event")},
+					Fields: []model.KeyValue{
+						model.String("event", "some event"),
+					},
 				})
 			}
 			traceID := model.NewTraceID(0, 1)
 			span := &model.Span{
-				TraceID:    traceID,
-				SpanID:     model.NewSpanID(uint64(spanProto.id)),
-				References: []model.SpanRef{model.NewChildOfRef(traceID, model.NewSpanID(uint64(spanProto.parent)))},
-				StartTime:  toTime(spanProto.startTime),
-				Duration:   toDuration(spanProto.duration),
-				Logs:       logs,
+				TraceID: traceID,
+				SpanID:  model.NewSpanID(uint64(spanProto.id)),
+				References: []model.SpanRef{
+					model.NewChildOfRef(
+						traceID,
+						model.NewSpanID(uint64(spanProto.parent)),
+					),
+				},
+				StartTime: toTime(spanProto.startTime),
+				Duration:  toDuration(spanProto.duration),
+				Logs:      logs,
 				Process: &model.Process{
 					ServiceName: spanProto.host,
 					Tags: []model.KeyValue{
@@ -83,7 +90,14 @@ func TestClockSkewAdjuster(t *testing.T) {
 		{
 			description: "single span with bad parent",
 			trace: []spanProto{
-				{id: 1, parent: 99, startTime: 0, duration: 100, host: "a", adjusted: 0},
+				{
+					id:        1,
+					parent:    99,
+					startTime: 0,
+					duration:  100,
+					host:      "a",
+					adjusted:  0,
+				},
 			},
 			err: "invalid parent span IDs=0000000000000063; skipping clock skew adjustment", // 99 == 0x63
 		},
@@ -96,44 +110,128 @@ func TestClockSkewAdjuster(t *testing.T) {
 		{
 			description: "two spans with the same ID",
 			trace: []spanProto{
-				{id: 1, parent: 0, startTime: 0, duration: 100, host: "a", adjusted: 0},
-				{id: 1, parent: 0, startTime: 0, duration: 100, host: "a", adjusted: 0},
+				{
+					id:        1,
+					parent:    0,
+					startTime: 0,
+					duration:  100,
+					host:      "a",
+					adjusted:  0,
+				},
+				{
+					id:        1,
+					parent:    0,
+					startTime: 0,
+					duration:  100,
+					host:      "a",
+					adjusted:  0,
+				},
 			},
 			err: "duplicate span IDs; skipping clock skew adjustment",
 		},
 		{
 			description: "parent-child on the same host",
 			trace: []spanProto{
-				{id: 1, parent: 0, startTime: 0, duration: 100, host: "a", adjusted: 0},
-				{id: 2, parent: 1, startTime: 10, duration: 50, host: "a", adjusted: 10},
+				{
+					id:        1,
+					parent:    0,
+					startTime: 0,
+					duration:  100,
+					host:      "a",
+					adjusted:  0,
+				},
+				{
+					id:        2,
+					parent:    1,
+					startTime: 10,
+					duration:  50,
+					host:      "a",
+					adjusted:  10,
+				},
 			},
 		},
 		{
 			description: "do not adjust parent-child on the same host",
 			trace: []spanProto{
-				{id: 1, parent: 0, startTime: 10, duration: 100, host: "a", adjusted: 10},
-				{id: 2, parent: 1, startTime: 0, duration: 50, host: "a", adjusted: 0},
+				{
+					id:        1,
+					parent:    0,
+					startTime: 10,
+					duration:  100,
+					host:      "a",
+					adjusted:  10,
+				},
+				{
+					id:        2,
+					parent:    1,
+					startTime: 0,
+					duration:  50,
+					host:      "a",
+					adjusted:  0,
+				},
 			},
 		},
 		{
 			description: "do not adjust child that fits inside parent",
 			trace: []spanProto{
-				{id: 1, parent: 0, startTime: 10, duration: 100, host: "a", adjusted: 10},
-				{id: 2, parent: 1, startTime: 20, duration: 50, host: "b", adjusted: 20},
+				{
+					id:        1,
+					parent:    0,
+					startTime: 10,
+					duration:  100,
+					host:      "a",
+					adjusted:  10,
+				},
+				{
+					id:        2,
+					parent:    1,
+					startTime: 20,
+					duration:  50,
+					host:      "b",
+					adjusted:  20,
+				},
 			},
 		},
 		{
 			description: "do not adjust child that is longer than parent",
 			trace: []spanProto{
-				{id: 1, parent: 0, startTime: 10, duration: 100, host: "a", adjusted: 10},
-				{id: 2, parent: 1, startTime: 20, duration: 150, host: "b", adjusted: 20},
+				{
+					id:        1,
+					parent:    0,
+					startTime: 10,
+					duration:  100,
+					host:      "a",
+					adjusted:  10,
+				},
+				{
+					id:        2,
+					parent:    1,
+					startTime: 20,
+					duration:  150,
+					host:      "b",
+					adjusted:  20,
+				},
 			},
 		},
 		{
 			description: "do not apply positive adjustment due to max skew adjustment",
 			trace: []spanProto{
-				{id: 1, parent: 0, startTime: 10, duration: 100, host: "a", adjusted: 10},
-				{id: 2, parent: 1, startTime: 0, duration: 50, host: "b", adjusted: 0},
+				{
+					id:        1,
+					parent:    0,
+					startTime: 10,
+					duration:  100,
+					host:      "a",
+					adjusted:  10,
+				},
+				{
+					id:        2,
+					parent:    1,
+					startTime: 0,
+					duration:  50,
+					host:      "b",
+					adjusted:  0,
+				},
 			},
 			maxAdjust: 10 * time.Millisecond,
 			err:       "max clock skew adjustment delta of 10ms exceeded; not applying calculated delta of 35ms",
@@ -141,8 +239,22 @@ func TestClockSkewAdjuster(t *testing.T) {
 		{
 			description: "do not apply negative adjustment due to max skew adjustment",
 			trace: []spanProto{
-				{id: 1, parent: 0, startTime: 10, duration: 100, host: "a", adjusted: 10},
-				{id: 2, parent: 1, startTime: 80, duration: 50, host: "b", adjusted: 80},
+				{
+					id:        1,
+					parent:    0,
+					startTime: 10,
+					duration:  100,
+					host:      "a",
+					adjusted:  10,
+				},
+				{
+					id:        2,
+					parent:    1,
+					startTime: 80,
+					duration:  50,
+					host:      "b",
+					adjusted:  80,
+				},
 			},
 			maxAdjust: 10 * time.Millisecond,
 			err:       "max clock skew adjustment delta of 10ms exceeded; not applying calculated delta of -45ms",
@@ -150,15 +262,36 @@ func TestClockSkewAdjuster(t *testing.T) {
 		{
 			description: "do not apply adjustment due to disabled adjustment",
 			trace: []spanProto{
-				{id: 1, parent: 0, startTime: 10, duration: 100, host: "a", adjusted: 10},
-				{id: 2, parent: 1, startTime: 0, duration: 50, host: "b", adjusted: 0},
+				{
+					id:        1,
+					parent:    0,
+					startTime: 10,
+					duration:  100,
+					host:      "a",
+					adjusted:  10,
+				},
+				{
+					id:        2,
+					parent:    1,
+					startTime: 0,
+					duration:  50,
+					host:      "b",
+					adjusted:  0,
+				},
 			},
 			err: "clock skew adjustment disabled; not applying calculated delta of 35ms",
 		},
 		{
 			description: "adjust child starting before parent",
 			trace: []spanProto{
-				{id: 1, parent: 0, startTime: 10, duration: 100, host: "a", adjusted: 10},
+				{
+					id:        1,
+					parent:    0,
+					startTime: 10,
+					duration:  100,
+					host:      "a",
+					adjusted:  10,
+				},
 				// latency = (100-50) / 2 = 25
 				// delta = (10 - 0) + latency = 35
 				{
@@ -171,18 +304,46 @@ func TestClockSkewAdjuster(t *testing.T) {
 		{
 			description: "adjust child starting before parent even if it is longer",
 			trace: []spanProto{
-				{id: 1, parent: 0, startTime: 10, duration: 100, host: "a", adjusted: 10},
-				{id: 2, parent: 1, startTime: 0, duration: 150, host: "b", adjusted: 10},
+				{
+					id:        1,
+					parent:    0,
+					startTime: 10,
+					duration:  100,
+					host:      "a",
+					adjusted:  10,
+				},
+				{
+					id:        2,
+					parent:    1,
+					startTime: 0,
+					duration:  150,
+					host:      "b",
+					adjusted:  10,
+				},
 			},
 			maxAdjust: time.Second,
 		},
 		{
 			description: "adjust child ending after parent but being shorter",
 			trace: []spanProto{
-				{id: 1, parent: 0, startTime: 10, duration: 100, host: "a", adjusted: 10},
+				{
+					id:        1,
+					parent:    0,
+					startTime: 10,
+					duration:  100,
+					host:      "a",
+					adjusted:  10,
+				},
 				// latency: (100 - 70) / 2 = 15
 				// new child start time: 10 + latency = 25, delta = -25
-				{id: 2, parent: 1, startTime: 50, duration: 70, host: "b", adjusted: 25},
+				{
+					id:        2,
+					parent:    1,
+					startTime: 50,
+					duration:  70,
+					host:      "b",
+					adjusted:  25,
+				},
 				// same host 'b', so same delta = -25
 				// new start time: 60 + delta = 35
 				{
@@ -227,8 +388,13 @@ func TestClockSkewAdjuster(t *testing.T) {
 					"adjusted start time of span[ID = %d]", id)
 				for i, logTs := range proto.adjustedLogs {
 					assert.Equal(
-						t, toTime(logTs), span.Logs[i].Timestamp,
-						"adjusted log timestamp of span[ID = %d], log[%d]", id, i)
+						t,
+						toTime(logTs),
+						span.Logs[i].Timestamp,
+						"adjusted log timestamp of span[ID = %d], log[%d]",
+						id,
+						i,
+					)
 				}
 			}
 		})
@@ -244,8 +410,20 @@ func TestHostKey(t *testing.T) {
 		{tag: model.String("ipv4", "1.2.3.4"), hostKey: ""},
 		{tag: model.Int64("ip", int64(1<<24|2<<16|3<<8|4)), hostKey: "1.2.3.4"},
 		{tag: model.Binary("ip", []byte{1, 2, 3, 4}), hostKey: "1.2.3.4"},
-		{tag: model.Binary("ip", []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xff, 0xff, 1, 2, 3, 4}), hostKey: "1.2.3.4"},
-		{tag: model.Binary("ip", []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 4}), hostKey: "::102:304"},
+		{
+			tag: model.Binary(
+				"ip",
+				[]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xff, 0xff, 1, 2, 3, 4},
+			),
+			hostKey: "1.2.3.4",
+		},
+		{
+			tag: model.Binary(
+				"ip",
+				[]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 4},
+			),
+			hostKey: "::102:304",
+		},
 		{tag: model.Binary("ip", []byte{1, 2, 3, 4, 5}), hostKey: ""},
 		{tag: model.Float64("ip", 123.4), hostKey: ""},
 	}

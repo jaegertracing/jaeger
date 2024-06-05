@@ -28,7 +28,9 @@ import (
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
-var errNoArchiveSpanStorage = errors.New("archive span storage was not configured")
+var errNoArchiveSpanStorage = errors.New(
+	"archive span storage was not configured",
+)
 
 const (
 	defaultMaxClockSkewAdjust = time.Second
@@ -56,7 +58,11 @@ type QueryService struct {
 }
 
 // NewQueryService returns a new QueryService.
-func NewQueryService(spanReader spanstore.Reader, dependencyReader dependencystore.Reader, options QueryServiceOptions) *QueryService {
+func NewQueryService(
+	spanReader spanstore.Reader,
+	dependencyReader dependencystore.Reader,
+	options QueryServiceOptions,
+) *QueryService {
 	qsvc := &QueryService{
 		spanReader:       spanReader,
 		dependencyReader: dependencyReader,
@@ -64,13 +70,17 @@ func NewQueryService(spanReader spanstore.Reader, dependencyReader dependencysto
 	}
 
 	if qsvc.options.Adjuster == nil {
-		qsvc.options.Adjuster = adjuster.Sequence(StandardAdjusters(defaultMaxClockSkewAdjust)...)
+		qsvc.options.Adjuster = adjuster.Sequence(
+			StandardAdjusters(defaultMaxClockSkewAdjust)...)
 	}
 	return qsvc
 }
 
 // GetTrace is the queryService implementation of spanstore.Reader.GetTrace
-func (qs QueryService) GetTrace(ctx context.Context, traceID model.TraceID) (*model.Trace, error) {
+func (qs QueryService) GetTrace(
+	ctx context.Context,
+	traceID model.TraceID,
+) (*model.Trace, error) {
 	trace, err := qs.spanReader.GetTrace(ctx, traceID)
 	if errors.Is(err, spanstore.ErrTraceNotFound) {
 		if qs.options.ArchiveSpanReader == nil {
@@ -95,12 +105,18 @@ func (qs QueryService) GetOperations(
 }
 
 // FindTraces is the queryService implementation of spanstore.Reader.FindTraces
-func (qs QueryService) FindTraces(ctx context.Context, query *spanstore.TraceQueryParameters) ([]*model.Trace, error) {
+func (qs QueryService) FindTraces(
+	ctx context.Context,
+	query *spanstore.TraceQueryParameters,
+) ([]*model.Trace, error) {
 	return qs.spanReader.FindTraces(ctx, query)
 }
 
 // ArchiveTrace is the queryService utility to archive traces.
-func (qs QueryService) ArchiveTrace(ctx context.Context, traceID model.TraceID) error {
+func (qs QueryService) ArchiveTrace(
+	ctx context.Context,
+	traceID model.TraceID,
+) error {
 	if qs.options.ArchiveSpanWriter == nil {
 		return errNoArchiveSpanStorage
 	}
@@ -125,7 +141,11 @@ func (qs QueryService) Adjust(trace *model.Trace) (*model.Trace, error) {
 }
 
 // GetDependencies implements dependencystore.Reader.GetDependencies
-func (qs QueryService) GetDependencies(ctx context.Context, endTs time.Time, lookback time.Duration) ([]model.DependencyLink, error) {
+func (qs QueryService) GetDependencies(
+	ctx context.Context,
+	endTs time.Time,
+	lookback time.Duration,
+) ([]model.DependencyLink, error) {
 	return qs.dependencyReader.GetDependencies(ctx, endTs, lookback)
 }
 
@@ -137,15 +157,22 @@ func (qs QueryService) GetCapabilities() StorageCapabilities {
 }
 
 // InitArchiveStorage tries to initialize archive storage reader/writer if storage factory supports them.
-func (opts *QueryServiceOptions) InitArchiveStorage(storageFactory storage.Factory, logger *zap.Logger) bool {
+func (opts *QueryServiceOptions) InitArchiveStorage(
+	storageFactory storage.Factory,
+	logger *zap.Logger,
+) bool {
 	archiveFactory, ok := storageFactory.(storage.ArchiveFactory)
 	if !ok {
 		logger.Info("Archive storage not supported by the factory")
 		return false
 	}
 	reader, err := archiveFactory.CreateArchiveSpanReader()
-	if errors.Is(err, storage.ErrArchiveStorageNotConfigured) || errors.Is(err, storage.ErrArchiveStorageNotSupported) {
-		logger.Info("Archive storage not created", zap.String("reason", err.Error()))
+	if errors.Is(err, storage.ErrArchiveStorageNotConfigured) ||
+		errors.Is(err, storage.ErrArchiveStorageNotSupported) {
+		logger.Info(
+			"Archive storage not created",
+			zap.String("reason", err.Error()),
+		)
 		return false
 	}
 	if err != nil {
@@ -153,8 +180,12 @@ func (opts *QueryServiceOptions) InitArchiveStorage(storageFactory storage.Facto
 		return false
 	}
 	writer, err := archiveFactory.CreateArchiveSpanWriter()
-	if errors.Is(err, storage.ErrArchiveStorageNotConfigured) || errors.Is(err, storage.ErrArchiveStorageNotSupported) {
-		logger.Info("Archive storage not created", zap.String("reason", err.Error()))
+	if errors.Is(err, storage.ErrArchiveStorageNotConfigured) ||
+		errors.Is(err, storage.ErrArchiveStorageNotSupported) {
+		logger.Info(
+			"Archive storage not created",
+			zap.String("reason", err.Error()),
+		)
 		return false
 	}
 	if err != nil {

@@ -35,7 +35,11 @@ func NewDependencyStore(store spanstore.Reader) *DependencyStore {
 }
 
 // GetDependencies returns all interservice dependencies, implements DependencyReader
-func (s *DependencyStore) GetDependencies(ctx context.Context, endTs time.Time, lookback time.Duration) ([]model.DependencyLink, error) {
+func (s *DependencyStore) GetDependencies(
+	ctx context.Context,
+	endTs time.Time,
+	lookback time.Duration,
+) ([]model.DependencyLink, error) {
 	deps := map[string]*model.DependencyLink{}
 
 	params := &spanstore.TraceQueryParameters{
@@ -59,7 +63,9 @@ func (s *DependencyStore) GetDependencies(ctx context.Context, endTs time.Time, 
 }
 
 // depMapToSlice modifies the spans to DependencyLink in the same way as the memory storage plugin
-func depMapToSlice(deps map[string]*model.DependencyLink) []model.DependencyLink {
+func depMapToSlice(
+	deps map[string]*model.DependencyLink,
+) []model.DependencyLink {
 	retMe := make([]model.DependencyLink, 0, len(deps))
 	for _, dep := range deps {
 		retMe = append(retMe, *dep)

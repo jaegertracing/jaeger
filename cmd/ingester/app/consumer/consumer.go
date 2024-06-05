@@ -60,7 +60,11 @@ type consumerState struct {
 
 // New is a constructor for a Consumer
 func New(params Params) (*Consumer, error) {
-	deadlockDetector := newDeadlockDetector(params.MetricsFactory, params.Logger, params.DeadlockCheckInterval)
+	deadlockDetector := newDeadlockDetector(
+		params.MetricsFactory,
+		params.Logger,
+		params.DeadlockCheckInterval,
+	)
 	return &Consumer{
 		metricsFactory:      params.MetricsFactory,
 		logger:              params.Logger,
@@ -81,7 +85,9 @@ func (c *Consumer) Start() {
 		c.logger.Info("Starting main loop")
 		for pc := range c.internalConsumer.Partitions() {
 			c.partitionMapLock.Lock()
-			c.partitionIDToState[pc.Partition()] = &consumerState{partitionConsumer: pc}
+			c.partitionIDToState[pc.Partition()] = &consumerState{
+				partitionConsumer: pc,
+			}
 			c.partitionMapLock.Unlock()
 			c.partitionMetrics(pc.Topic(), pc.Partition()).startCounter.Inc(1)
 
@@ -109,7 +115,10 @@ func (c *Consumer) Close() error {
 
 // handleMessages handles incoming Kafka messages on a channel
 func (c *Consumer) handleMessages(pc sc.PartitionConsumer) {
-	c.logger.Info("Starting message handler", zap.Int32("partition", pc.Partition()))
+	c.logger.Info(
+		"Starting message handler",
+		zap.Int32("partition", pc.Partition()),
+	)
 	c.partitionMapLock.Lock()
 	c.partitionsHeld++
 	c.partitionsHeldGauge.Update(c.partitionsHeld)
@@ -127,49 +136,83 @@ func (c *Consumer) handleMessages(pc sc.PartitionConsumer) {
 
 	var msgProcessor processor.SpanProcessor
 
-	deadlockDetector := c.deadlockDetector.startMonitoringForPartition(pc.Partition())
+	deadlockDetector := c.deadlockDetector.startMonitoringForPartition(
+		pc.Partition(),
+	)
 	defer deadlockDetector.close()
 
 	for {
 		select {
 		case msg, ok := <-pc.Messages():
 			if !ok {
-				c.logger.Info("Message channel closed. ", zap.Int32("partition", pc.Partition()))
+				c.logger.Info(
+					"Message channel closed. ",
+					zap.Int32("partition", pc.Partition()),
+				)
 				return
 			}
 			c.logger.Debug("Got msg", zap.Any("msg", msg))
 			msgMetrics.counter.Inc(1)
 			msgMetrics.offsetGauge.Update(msg.Offset)
-			msgMetrics.lagGauge.Update(pc.HighWaterMarkOffset() - msg.Offset - 1)
+			msgMetrics.lagGauge.Update(
+				pc.HighWaterMarkOffset() - msg.Offset - 1,
+			)
 			deadlockDetector.incrementMsgCount()
 
 			if msgProcessor == nil {
-				msgProcessor = c.processorFactory.new(pc.Topic(), pc.Partition(), msg.Offset-1)
+				msgProcessor = c.processorFactory.new(
+					pc.Topic(),
+					pc.Partition(),
+					msg.Offset-1,
+				)
 				// revive:disable-next-line defer
 				defer msgProcessor.Close()
 			}
 
 			err := msgProcessor.Process(saramaMessageWrapper{msg})
 			if err != nil {
-				c.logger.Error("Failed to process a Kafka message", zap.Error(err), zap.Int32("partition", msg.Partition), zap.Int64("offset", msg.Offset))
+				c.logger.Error(
+					"Failed to process a Kafka message",
+					zap.Error(err),
+					zap.Int32("partition", msg.Partition),
+					zap.Int64("offset", msg.Offset),
+				)
 			}
 
 		case <-deadlockDetector.closePartitionChannel():
-			c.logger.Info("Closing partition due to inactivity", zap.Int32("partition", pc.Partition()))
+			c.logger.Info(
+				"Closing partition due to inactivity",
+				zap.Int32("partition", pc.Partition()),
+			)
 			return
 		}
 	}
 }
 
 func (c *Consumer) closePartition(partitionConsumer sc.PartitionConsumer) {
-	c.logger.Info("Closing partition consumer", zap.Int32("partition", partitionConsumer.Partition()))
+	c.logger.Info(
+		"Closing partition consumer",
+		zap.Int32("partition", partitionConsumer.Partition()),
+	)
 	partitionConsumer.Close() // blocks until messages channel is drained
-	c.partitionMetrics(partitionConsumer.Topic(), partitionConsumer.Partition()).closeCounter.Inc(1)
-	c.logger.Info("Closed partition consumer", zap.Int32("partition", partitionConsumer.Partition()))
+	c.partitionMetrics(
+		partitionConsumer.Topic(),
+		partitionConsumer.Partition(),
+	).closeCounter.Inc(
+		1,
+	)
+	c.logger.Info(
+		"Closed partition consumer",
+		zap.Int32("partition", partitionConsumer.Partition()),
+	)
 }
 
 // handleErrors handles incoming Kafka consumer errors on a channel
-func (c *Consumer) handleErrors(topic string, partition int32, errChan <-chan *sarama.ConsumerError) {
+func (c *Consumer) handleErrors(
+	topic string,
+	partition int32,
+	errChan <-chan *sarama.ConsumerError,
+) {
 	c.logger.Info("Starting error handler", zap.Int32("partition", partition))
 	defer c.doneWg.Done()
 

@@ -51,7 +51,12 @@ func TestStartOtlpReceiver(t *testing.T) {
 	spanProcessor := &mockSpanProcessor{}
 	logger, _ := testutils.NewLogger()
 	tm := &tenancy.Manager{}
-	rec, err := StartOTLPReceiver(optionsWithPorts(":0"), logger, spanProcessor, tm)
+	rec, err := StartOTLPReceiver(
+		optionsWithPorts(":0"),
+		logger,
+		spanProcessor,
+		tm,
+	)
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, rec.Shutdown(context.Background()))
@@ -82,7 +87,11 @@ func TestConsumerDelegate(t *testing.T) {
 		t.Run(test.expectLog, func(t *testing.T) {
 			logger, logBuf := testutils.NewLogger()
 			spanProcessor := &mockSpanProcessor{expectedError: test.expectErr}
-			consumer := newConsumerDelegate(logger, spanProcessor, &tenancy.Manager{})
+			consumer := newConsumerDelegate(
+				logger,
+				spanProcessor,
+				&tenancy.Manager{},
+			)
 
 			err := consumer.consume(context.Background(), makeTracesOneSpan())
 
@@ -110,7 +119,15 @@ func TestStartOtlpReceiver_Error(t *testing.T) {
 		return nil, errors.New("mock error")
 	}
 	f := otlpreceiver.NewFactory()
-	_, err = startOTLPReceiver(opts, logger, spanProcessor, &tenancy.Manager{}, f, newTraces, f.CreateTracesReceiver)
+	_, err = startOTLPReceiver(
+		opts,
+		logger,
+		spanProcessor,
+		&tenancy.Manager{},
+		f,
+		newTraces,
+		f.CreateTracesReceiver,
+	)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "could not create the OTLP consumer")
 
@@ -119,7 +136,15 @@ func TestStartOtlpReceiver_Error(t *testing.T) {
 	) (receiver.Traces, error) {
 		return nil, errors.New("mock error")
 	}
-	_, err = startOTLPReceiver(opts, logger, spanProcessor, &tenancy.Manager{}, f, consumer.NewTraces, createTracesReceiver)
+	_, err = startOTLPReceiver(
+		opts,
+		logger,
+		spanProcessor,
+		&tenancy.Manager{},
+		f,
+		consumer.NewTraces,
+		createTracesReceiver,
+	)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "could not create the OTLP receiver")
 }
@@ -149,7 +174,10 @@ func TestOtelHost_ReportFatalError(t *testing.T) {
 
 func TestOtelHost(t *testing.T) {
 	host := &otelHost{}
-	assert.Nil(t, host.GetFactory(component.KindReceiver, component.DataTypeTraces))
+	assert.Nil(
+		t,
+		host.GetFactory(component.KindReceiver, component.DataTypeTraces),
+	)
 	assert.Nil(t, host.GetExtensions())
 	assert.Nil(t, host.GetExporters())
 }
@@ -180,8 +208,16 @@ func TestApplyOTLPGRPCServerSettings(t *testing.T) {
 	assert.EqualValues(t, 42, out.MaxRecvMsgSizeMiB)
 	require.NotNil(t, out.Keepalive)
 	require.NotNil(t, out.Keepalive.ServerParameters)
-	assert.Equal(t, 33*time.Second, out.Keepalive.ServerParameters.MaxConnectionAge)
-	assert.Equal(t, 37*time.Second, out.Keepalive.ServerParameters.MaxConnectionAgeGrace)
+	assert.Equal(
+		t,
+		33*time.Second,
+		out.Keepalive.ServerParameters.MaxConnectionAge,
+	)
+	assert.Equal(
+		t,
+		37*time.Second,
+		out.Keepalive.ServerParameters.MaxConnectionAgeGrace,
+	)
 	require.NotNil(t, out.TLSSetting)
 	assert.Equal(t, "ca", out.TLSSetting.CAFile)
 	assert.Equal(t, "cert", out.TLSSetting.CertFile)
@@ -209,8 +245,15 @@ func TestApplyOTLPHTTPServerSettings(t *testing.T) {
 			ReloadInterval: 24 * time.Hour,
 		},
 		CORS: corscfg.Options{
-			AllowedOrigins: []string{"http://example.domain.com", "http://*.domain.com"},
-			AllowedHeaders: []string{"Content-Type", "Accept", "X-Requested-With"},
+			AllowedOrigins: []string{
+				"http://example.domain.com",
+				"http://*.domain.com",
+			},
+			AllowedHeaders: []string{
+				"Content-Type",
+				"Accept",
+				"X-Requested-With",
+			},
 		},
 	}
 
@@ -227,6 +270,14 @@ func TestApplyOTLPHTTPServerSettings(t *testing.T) {
 	assert.Equal(t, "1.1", out.TLSSetting.MinVersion)
 	assert.Equal(t, "1.3", out.TLSSetting.MaxVersion)
 	assert.Equal(t, 24*time.Hour, out.TLSSetting.ReloadInterval)
-	assert.Equal(t, []string{"Content-Type", "Accept", "X-Requested-With"}, out.CORS.AllowedHeaders)
-	assert.Equal(t, []string{"http://example.domain.com", "http://*.domain.com"}, out.CORS.AllowedOrigins)
+	assert.Equal(
+		t,
+		[]string{"Content-Type", "Accept", "X-Requested-With"},
+		out.CORS.AllowedHeaders,
+	)
+	assert.Equal(
+		t,
+		[]string{"http://example.domain.com", "http://*.domain.com"},
+		out.CORS.AllowedOrigins,
+	)
 }

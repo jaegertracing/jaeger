@@ -53,7 +53,11 @@ type mockAggregator struct {
 	closeCount atomic.Int32
 }
 
-func (t *mockAggregator) RecordThroughput(service, operation string, samplerType model.SamplerType, probability float64) {
+func (t *mockAggregator) RecordThroughput(
+	service, operation string,
+	samplerType model.SamplerType,
+	probability float64,
+) {
 	t.callCount.Add(1)
 }
 
@@ -146,7 +150,10 @@ func TestCollector_StartErrors(t *testing.T) {
 
 type mockStrategyStore struct{}
 
-func (*mockStrategyStore) GetSamplingStrategy(_ context.Context, serviceName string) (*api_v2.SamplingStrategyResponse, error) {
+func (*mockStrategyStore) GetSamplingStrategy(
+	_ context.Context,
+	serviceName string,
+) (*api_v2.SamplingStrategyResponse, error) {
 	return &api_v2.SamplingStrategyResponse{}, nil
 }
 
@@ -180,7 +187,11 @@ func TestCollector_PublishOpts(t *testing.T) {
 	require.NoError(t, c.Start(collectorOpts))
 	defer c.Close()
 	c.publishOpts(collectorOpts)
-	assert.EqualValues(t, 24, expvar.Get(metricNumWorkers).(*expvar.Int).Value())
+	assert.EqualValues(
+		t,
+		24,
+		expvar.Get(metricNumWorkers).(*expvar.Int).Value(),
+	)
 	assert.EqualValues(t, 42, expvar.Get(metricQueueSize).(*expvar.Int).Value())
 }
 
@@ -229,7 +240,10 @@ func TestAggregator(t *testing.T) {
 			},
 		},
 	}
-	_, err := c.spanProcessor.ProcessSpans(spans, processor.SpansOptions{SpanFormat: processor.JaegerSpanFormat})
+	_, err := c.spanProcessor.ProcessSpans(
+		spans,
+		processor.SpansOptions{SpanFormat: processor.JaegerSpanFormat},
+	)
 	require.NoError(t, err)
 	require.NoError(t, c.Close())
 
@@ -241,5 +255,10 @@ func TestAggregator(t *testing.T) {
 		time.Sleep(10 * time.Millisecond)
 	}
 	assert.EqualValues(t, 1, agg.callCount.Load(), "aggregator was used")
-	assert.EqualValues(t, 1, agg.closeCount.Load(), "aggregator close was called")
+	assert.EqualValues(
+		t,
+		1,
+		agg.closeCount.Load(),
+		"aggregator close was called",
+	)
 }

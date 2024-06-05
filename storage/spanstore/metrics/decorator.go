@@ -35,11 +35,11 @@ type ReadMetricsDecorator struct {
 }
 
 type queryMetrics struct {
-	Errors     metrics.Counter `metric:"requests" tags:"result=err"`
-	Successes  metrics.Counter `metric:"requests" tags:"result=ok"`
+	Errors     metrics.Counter `metric:"requests"  tags:"result=err"`
+	Successes  metrics.Counter `metric:"requests"  tags:"result=ok"`
 	Responses  metrics.Timer   `metric:"responses"` // used as a histogram, not necessary for GetTrace
-	ErrLatency metrics.Timer   `metric:"latency" tags:"result=err"`
-	OKLatency  metrics.Timer   `metric:"latency" tags:"result=ok"`
+	ErrLatency metrics.Timer   `metric:"latency"   tags:"result=err"`
+	OKLatency  metrics.Timer   `metric:"latency"   tags:"result=ok"`
 }
 
 func (q *queryMetrics) emit(err error, latency time.Duration, responses int) {
@@ -54,26 +54,46 @@ func (q *queryMetrics) emit(err error, latency time.Duration, responses int) {
 }
 
 // NewReadMetricsDecorator returns a new ReadMetricsDecorator.
-func NewReadMetricsDecorator(spanReader spanstore.Reader, metricsFactory metrics.Factory) *ReadMetricsDecorator {
+func NewReadMetricsDecorator(
+	spanReader spanstore.Reader,
+	metricsFactory metrics.Factory,
+) *ReadMetricsDecorator {
 	return &ReadMetricsDecorator{
-		spanReader:           spanReader,
-		findTracesMetrics:    buildQueryMetrics("find_traces", metricsFactory),
-		findTraceIDsMetrics:  buildQueryMetrics("find_trace_ids", metricsFactory),
-		getTraceMetrics:      buildQueryMetrics("get_trace", metricsFactory),
-		getServicesMetrics:   buildQueryMetrics("get_services", metricsFactory),
-		getOperationsMetrics: buildQueryMetrics("get_operations", metricsFactory),
+		spanReader:        spanReader,
+		findTracesMetrics: buildQueryMetrics("find_traces", metricsFactory),
+		findTraceIDsMetrics: buildQueryMetrics(
+			"find_trace_ids",
+			metricsFactory,
+		),
+		getTraceMetrics:    buildQueryMetrics("get_trace", metricsFactory),
+		getServicesMetrics: buildQueryMetrics("get_services", metricsFactory),
+		getOperationsMetrics: buildQueryMetrics(
+			"get_operations",
+			metricsFactory,
+		),
 	}
 }
 
-func buildQueryMetrics(operation string, metricsFactory metrics.Factory) *queryMetrics {
+func buildQueryMetrics(
+	operation string,
+	metricsFactory metrics.Factory,
+) *queryMetrics {
 	qMetrics := &queryMetrics{}
-	scoped := metricsFactory.Namespace(metrics.NSOptions{Name: "", Tags: map[string]string{"operation": operation}})
+	scoped := metricsFactory.Namespace(
+		metrics.NSOptions{
+			Name: "",
+			Tags: map[string]string{"operation": operation},
+		},
+	)
 	metrics.Init(qMetrics, scoped, nil)
 	return qMetrics
 }
 
 // FindTraces implements spanstore.Reader#FindTraces
-func (m *ReadMetricsDecorator) FindTraces(ctx context.Context, traceQuery *spanstore.TraceQueryParameters) ([]*model.Trace, error) {
+func (m *ReadMetricsDecorator) FindTraces(
+	ctx context.Context,
+	traceQuery *spanstore.TraceQueryParameters,
+) ([]*model.Trace, error) {
 	start := time.Now()
 	retMe, err := m.spanReader.FindTraces(ctx, traceQuery)
 	m.findTracesMetrics.emit(err, time.Since(start), len(retMe))
@@ -81,7 +101,10 @@ func (m *ReadMetricsDecorator) FindTraces(ctx context.Context, traceQuery *spans
 }
 
 // FindTraceIDs implements spanstore.Reader#FindTraceIDs
-func (m *ReadMetricsDecorator) FindTraceIDs(ctx context.Context, traceQuery *spanstore.TraceQueryParameters) ([]model.TraceID, error) {
+func (m *ReadMetricsDecorator) FindTraceIDs(
+	ctx context.Context,
+	traceQuery *spanstore.TraceQueryParameters,
+) ([]model.TraceID, error) {
 	start := time.Now()
 	retMe, err := m.spanReader.FindTraceIDs(ctx, traceQuery)
 	m.findTraceIDsMetrics.emit(err, time.Since(start), len(retMe))
@@ -89,7 +112,10 @@ func (m *ReadMetricsDecorator) FindTraceIDs(ctx context.Context, traceQuery *spa
 }
 
 // GetTrace implements spanstore.Reader#GetTrace
-func (m *ReadMetricsDecorator) GetTrace(ctx context.Context, traceID model.TraceID) (*model.Trace, error) {
+func (m *ReadMetricsDecorator) GetTrace(
+	ctx context.Context,
+	traceID model.TraceID,
+) (*model.Trace, error) {
 	start := time.Now()
 	retMe, err := m.spanReader.GetTrace(ctx, traceID)
 	m.getTraceMetrics.emit(err, time.Since(start), 1)
@@ -97,7 +123,9 @@ func (m *ReadMetricsDecorator) GetTrace(ctx context.Context, traceID model.Trace
 }
 
 // GetServices implements spanstore.Reader#GetServices
-func (m *ReadMetricsDecorator) GetServices(ctx context.Context) ([]string, error) {
+func (m *ReadMetricsDecorator) GetServices(
+	ctx context.Context,
+) ([]string, error) {
 	start := time.Now()
 	retMe, err := m.spanReader.GetServices(ctx)
 	m.getServicesMetrics.emit(err, time.Since(start), len(retMe))

@@ -55,7 +55,11 @@ func (sl spanLogger) Fatal(msg string, fields ...zapcore.Field) {
 
 // With creates a child logger, and optionally adds some context fields to that logger.
 func (sl spanLogger) With(fields ...zapcore.Field) Logger {
-	return spanLogger{logger: sl.logger.With(fields...), span: sl.span, spanFields: sl.spanFields}
+	return spanLogger{
+		logger:     sl.logger.With(fields...),
+		span:       sl.span,
+		spanFields: sl.spanFields,
+	}
 }
 
 func (sl spanLogger) logToSpan(level, msg string, fields ...zapcore.Field) {
@@ -78,12 +82,18 @@ type bridgeFieldEncoder struct {
 	pairs []attribute.KeyValue
 }
 
-func (e *bridgeFieldEncoder) AddArray(key string, marshaler zapcore.ArrayMarshaler) error {
+func (e *bridgeFieldEncoder) AddArray(
+	key string,
+	marshaler zapcore.ArrayMarshaler,
+) error {
 	e.pairs = append(e.pairs, attribute.String(key, fmt.Sprint(marshaler)))
 	return nil
 }
 
-func (e *bridgeFieldEncoder) AddObject(key string, marshaler zapcore.ObjectMarshaler) error {
+func (e *bridgeFieldEncoder) AddObject(
+	key string,
+	marshaler zapcore.ObjectMarshaler,
+) error {
 	e.pairs = append(e.pairs, attribute.String(key, fmt.Sprint(marshaler)))
 	return nil
 }
@@ -172,5 +182,10 @@ func (e *bridgeFieldEncoder) AddUintptr(key string, value uintptr) {
 	e.pairs = append(e.pairs, attribute.String(key, fmt.Sprint(value)))
 }
 
-func (*bridgeFieldEncoder) AddReflected(key string, value any) error { return nil }
-func (*bridgeFieldEncoder) OpenNamespace(key string)                 {}
+func (*bridgeFieldEncoder) AddReflected(
+	key string,
+	value any,
+) error {
+	return nil
+}
+func (*bridgeFieldEncoder) OpenNamespace(key string) {}

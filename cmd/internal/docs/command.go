@@ -54,7 +54,11 @@ func Command(v *viper.Viper) *cobra.Command {
 			case "yaml":
 				return doc.GenYamlTree(cmd, dir)
 			default:
-				return fmt.Errorf("undefined value of %v, possible values are: %v", formatFlag, formats)
+				return fmt.Errorf(
+					"undefined value of %v, possible values are: %v",
+					formatFlag,
+					formats,
+				)
 			}
 		},
 	}

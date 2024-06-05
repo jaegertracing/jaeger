@@ -76,8 +76,16 @@ func TestOptionsWithFlags(t *testing.T) {
 	assert.Equal(t, "mojave", primary.LocalDC)
 	assert.Equal(t, []string{"1.1.1.1", "2.2.2.2"}, primary.Servers)
 	assert.Equal(t, "ONE", primary.Consistency)
-	assert.Equal(t, []string{"blerg", "blarg", "blorg"}, opts.TagIndexBlacklist())
-	assert.Equal(t, []string{"flerg", "flarg", "florg"}, opts.TagIndexWhitelist())
+	assert.Equal(
+		t,
+		[]string{"blerg", "blarg", "blorg"},
+		opts.TagIndexBlacklist(),
+	)
+	assert.Equal(
+		t,
+		[]string{"flerg", "flarg", "florg"},
+		opts.TagIndexWhitelist(),
+	)
 	assert.True(t, opts.Index.Tags)
 	assert.False(t, opts.Index.ProcessTags)
 	assert.True(t, opts.Index.Logs)
@@ -91,7 +99,12 @@ func TestOptionsWithFlags(t *testing.T) {
 	assert.Equal(t, 42*time.Second, aux.Timeout)
 	assert.Equal(t, 42*time.Second, aux.ReconnectInterval)
 	assert.Equal(t, 4242, aux.Port)
-	assert.Equal(t, "", aux.Consistency, "aux storage does not inherit consistency from primary")
+	assert.Equal(
+		t,
+		"",
+		aux.Consistency,
+		"aux storage does not inherit consistency from primary",
+	)
 	assert.Equal(t, 3, aux.ProtoVersion)
 	assert.Equal(t, 42*time.Second, aux.SocketKeepAlive)
 }

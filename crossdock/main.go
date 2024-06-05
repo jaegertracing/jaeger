@@ -57,8 +57,14 @@ type clientHandler struct {
 func main() {
 	agentHostPort = getEnv(envAgentHostPort, "jaeger-agent:5778")
 	queryHostPort = getEnv(envQueryHostPort, "jaeger-query:16686")
-	queryHealthcheckHostPort = getEnv(envQueryHealthcheckHostPort, "jaeger-query:16687")
-	collectorHealthcheckHostPort = getEnv(envCollectorHealthcheckHostPort, "jaeger-collector:14269")
+	queryHealthcheckHostPort = getEnv(
+		envQueryHealthcheckHostPort,
+		"jaeger-query:16687",
+	)
+	collectorHealthcheckHostPort = getEnv(
+		envCollectorHealthcheckHostPort,
+		"jaeger-collector:14269",
+	)
 
 	handler := &clientHandler{}
 	go handler.initialize()
@@ -67,7 +73,11 @@ func main() {
 		// when method is HEAD, report back with a 200 when ready to run tests
 		if r.Method == "HEAD" {
 			if !handler.isInitialized() {
-				http.Error(w, "Components not ready", http.StatusServiceUnavailable)
+				http.Error(
+					w,
+					"Components not ready",
+					http.StatusServiceUnavailable,
+				)
 			}
 			return
 		}
@@ -86,7 +96,11 @@ func getEnv(key string, defaultValue string) string {
 
 func (h *clientHandler) initialize() {
 	httpHealthCheck(logger, "jaeger-query", "http://"+queryHealthcheckHostPort)
-	httpHealthCheck(logger, "jaeger-collector", "http://"+collectorHealthcheckHostPort)
+	httpHealthCheck(
+		logger,
+		"jaeger-collector",
+		"http://"+collectorHealthcheckHostPort,
+	)
 
 	queryService := services.NewQueryService("http://"+queryHostPort, logger)
 	agentService := services.NewAgentService("http://"+agentHostPort, logger)
@@ -113,10 +127,17 @@ func httpHealthCheck(logger *zap.Logger, service, healthURL string) {
 		res, err := http.Get(healthURL)
 		res.Body.Close()
 		if err == nil && is2xxStatusCode(res.StatusCode) {
-			logger.Info("Health check successful", zap.String("service", service))
+			logger.Info(
+				"Health check successful",
+				zap.String("service", service),
+			)
 			return
 		}
-		logger.Info("Health check failed", zap.String("service", service), zap.Error(err))
+		logger.Info(
+			"Health check failed",
+			zap.String("service", service),
+			zap.Error(err),
+		)
 		time.Sleep(time.Second)
 	}
 	logger.Fatal("All health checks failed", zap.String("service", service))

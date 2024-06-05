@@ -31,11 +31,15 @@ import (
 )
 
 func TestNewMetricsHandler(t *testing.T) {
-	dummyHandlerFunc := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		time.Sleep(time.Millisecond)
-		w.WriteHeader(http.StatusAccepted)
-		w.WriteHeader(http.StatusTeapot) // any subsequent statuses should be ignored
-	})
+	dummyHandlerFunc := http.HandlerFunc(
+		func(w http.ResponseWriter, req *http.Request) {
+			time.Sleep(time.Millisecond)
+			w.WriteHeader(http.StatusAccepted)
+			w.WriteHeader(
+				http.StatusTeapot,
+			) // any subsequent statuses should be ignored
+		},
+	)
 
 	mb := metricstest.NewFactory(time.Hour)
 	defer mb.Stop()
@@ -53,7 +57,10 @@ func TestNewMetricsHandler(t *testing.T) {
 		time.Sleep(15 * time.Millisecond)
 	}
 
-	assert.Fail(t, "gauge hasn't been updated within a reasonable amount of time")
+	assert.Fail(
+		t,
+		"gauge hasn't been updated within a reasonable amount of time",
+	)
 }
 
 func TestMaxEntries(t *testing.T) {
@@ -74,11 +81,15 @@ func TestMaxEntries(t *testing.T) {
 }
 
 func TestIllegalPrometheusLabel(t *testing.T) {
-	dummyHandlerFunc := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		time.Sleep(time.Millisecond)
-		w.WriteHeader(http.StatusAccepted)
-		w.WriteHeader(http.StatusTeapot) // any subsequent statuses should be ignored
-	})
+	dummyHandlerFunc := http.HandlerFunc(
+		func(w http.ResponseWriter, req *http.Request) {
+			time.Sleep(time.Millisecond)
+			w.WriteHeader(http.StatusAccepted)
+			w.WriteHeader(
+				http.StatusTeapot,
+			) // any subsequent statuses should be ignored
+		},
+	)
 
 	mf := prometheus.New().Namespace(metrics.NSOptions{})
 	handler := Wrap(dummyHandlerFunc, mf, zap.NewNop())

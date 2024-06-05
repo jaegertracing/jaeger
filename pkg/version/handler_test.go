@@ -29,7 +29,9 @@ func TestRegisterHandler(t *testing.T) {
 	commitSHA = "foobar"
 	latestVersion = "v1.2.3"
 	date = "2024-01-04"
-	expectedJSON := []byte(`{"gitCommit":"foobar","gitVersion":"v1.2.3","buildDate":"2024-01-04"}`)
+	expectedJSON := []byte(
+		`{"gitCommit":"foobar","gitVersion":"v1.2.3","buildDate":"2024-01-04"}`,
+	)
 
 	mockLogger := zap.NewNop()
 	mux := http.NewServeMux()

@@ -87,7 +87,11 @@ func NewSpanProcessor(
 	return sp
 }
 
-func newSpanProcessor(spanWriter spanstore.Writer, additional []ProcessSpan, opts ...Option) *spanProcessor {
+func newSpanProcessor(
+	spanWriter spanstore.Writer,
+	additional []ProcessSpan,
+	opts ...Option,
+) *spanProcessor {
 	options := Options.apply(opts...)
 	handlerMetrics := NewSpanProcessorMetrics(
 		options.serviceMetrics,
@@ -174,7 +178,10 @@ func (sp *spanProcessor) countSpan(span *model.Span, tenant string) {
 	sp.spansProcessed.Add(1)
 }
 
-func (sp *spanProcessor) ProcessSpans(mSpans []*model.Span, options processor.SpansOptions) ([]bool, error) {
+func (sp *spanProcessor) ProcessSpans(
+	mSpans []*model.Span,
+	options processor.SpansOptions,
+) ([]bool, error) {
 	sp.preProcessSpans(mSpans, options.Tenant)
 	sp.metrics.BatchSize.Update(int64(len(mSpans)))
 	retMe := make([]bool, len(mSpans))
@@ -189,7 +196,12 @@ func (sp *spanProcessor) ProcessSpans(mSpans []*model.Span, options processor.Sp
 	}
 
 	for i, mSpan := range mSpans {
-		ok := sp.enqueueSpan(mSpan, options.SpanFormat, options.InboundTransport, options.Tenant)
+		ok := sp.enqueueSpan(
+			mSpan,
+			options.SpanFormat,
+			options.InboundTransport,
+			options.Tenant,
+		)
 		if !ok && sp.reportBusy {
 			return nil, processor.ErrBusy
 		}
@@ -209,8 +221,13 @@ func (sp *spanProcessor) addCollectorTags(span *model.Span) {
 	}
 	dedupKey := make(map[string]struct{})
 	for _, tag := range span.Process.Tags {
-		if value, ok := sp.collectorTags[tag.Key]; ok && value == tag.AsString() {
-			sp.logger.Debug("ignore collector process tags", zap.String("key", tag.Key), zap.String("value", value))
+		if value, ok := sp.collectorTags[tag.Key]; ok &&
+			value == tag.AsString() {
+			sp.logger.Debug(
+				"ignore collector process tags",
+				zap.String("key", tag.Key),
+				zap.String("value", value),
+			)
 			dedupKey[tag.Key] = struct{}{}
 		}
 	}
@@ -226,7 +243,12 @@ func (sp *spanProcessor) addCollectorTags(span *model.Span) {
 
 // Note: spans may share the Process object, so no changes should be made to Process
 // in this function as it may cause race conditions.
-func (sp *spanProcessor) enqueueSpan(span *model.Span, originalFormat processor.SpanFormat, transport processor.InboundTransport, tenant string) bool {
+func (sp *spanProcessor) enqueueSpan(
+	span *model.Span,
+	originalFormat processor.SpanFormat,
+	transport processor.InboundTransport,
+	tenant string,
+) bool {
 	spanCounts := sp.metrics.GetCountsForFormat(originalFormat, transport)
 	spanCounts.ReceivedBySvc.ReportServiceNameForSpan(span)
 
@@ -236,7 +258,10 @@ func (sp *spanProcessor) enqueueSpan(span *model.Span, originalFormat processor.
 	}
 
 	// add format tag
-	span.Tags = append(span.Tags, model.String("internal.span.format", string(originalFormat)))
+	span.Tags = append(
+		span.Tags,
+		model.String("internal.span.format", string(originalFormat)),
+	)
 
 	item := &queueItem{
 		queuedTime: time.Now(),
@@ -246,7 +271,10 @@ func (sp *spanProcessor) enqueueSpan(span *model.Span, originalFormat processor.
 	return sp.queue.Produce(item)
 }
 
-func (sp *spanProcessor) background(reportPeriod time.Duration, callback func()) {
+func (sp *spanProcessor) background(
+	reportPeriod time.Duration,
+	callback func(),
+) {
 	go func() {
 		ticker := time.NewTicker(reportPeriod)
 		defer ticker.Stop()
@@ -299,7 +327,11 @@ func (sp *spanProcessor) updateQueueSize() {
 	// resizing is a costly operation, we only perform it if we are at least n% apart from the desired value
 	if diff > minRequiredChange {
 		s := int(idealQueueSize)
-		sp.logger.Info("Resizing the internal span queue", zap.Int("new-size", s), zap.Uint64("average-span-size-bytes", average))
+		sp.logger.Info(
+			"Resizing the internal span queue",
+			zap.Int("new-size", s),
+			zap.Uint64("average-span-size-bytes", average),
+		)
 		sp.queue.Resize(s)
 	}
 }

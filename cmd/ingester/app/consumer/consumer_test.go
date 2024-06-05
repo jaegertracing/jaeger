@@ -68,7 +68,10 @@ func (s partitionConsumerWrapper) Topic() string {
 	return s.topic
 }
 
-func newSaramaClusterConsumer(saramaPartitionConsumer sarama.PartitionConsumer, mc *smocks.PartitionConsumer) *kmocks.Consumer {
+func newSaramaClusterConsumer(
+	saramaPartitionConsumer sarama.PartitionConsumer,
+	mc *smocks.PartitionConsumer,
+) *kmocks.Consumer {
 	pcha := make(chan cluster.PartitionConsumer, 1)
 	pcha <- &partitionConsumerWrapper{
 		topic:             topic,
@@ -76,12 +79,16 @@ func newSaramaClusterConsumer(saramaPartitionConsumer sarama.PartitionConsumer, 
 		PartitionConsumer: saramaPartitionConsumer,
 	}
 	saramaClusterConsumer := &kmocks.Consumer{}
-	saramaClusterConsumer.On("Partitions").Return((<-chan cluster.PartitionConsumer)(pcha))
-	saramaClusterConsumer.On("Close").Return(nil).Run(func(args mock.Arguments) {
-		mc.Close()
-		close(pcha)
-	})
-	saramaClusterConsumer.On("MarkPartitionOffset", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	saramaClusterConsumer.On("Partitions").
+		Return((<-chan cluster.PartitionConsumer)(pcha))
+	saramaClusterConsumer.On("Close").
+		Return(nil).
+		Run(func(args mock.Arguments) {
+			mc.Close()
+			close(pcha)
+		})
+	saramaClusterConsumer.On("MarkPartitionOffset", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+		Return(nil)
 	return saramaClusterConsumer
 }
 
@@ -116,7 +123,14 @@ func TestSaramaConsumerWrapper_MarkPartitionOffset(t *testing.T) {
 	metadata := "meatbag"
 	sc.On("MarkPartitionOffset", topic, partition, msgOffset, metadata).Return()
 	sc.MarkPartitionOffset(topic, partition, msgOffset, metadata)
-	sc.AssertCalled(t, "MarkPartitionOffset", topic, partition, msgOffset, metadata)
+	sc.AssertCalled(
+		t,
+		"MarkPartitionOffset",
+		topic,
+		partition,
+		msgOffset,
+		metadata,
+	)
 }
 
 func TestSaramaConsumerWrapper_start_Messages(t *testing.T) {
@@ -127,19 +141,30 @@ func TestSaramaConsumerWrapper_start_Messages(t *testing.T) {
 	isProcessed := sync.WaitGroup{}
 	isProcessed.Add(1)
 	mp := &pmocks.SpanProcessor{}
-	mp.On("Process", saramaMessageWrapper{msg}).Return(func(msg processor.Message) error {
-		isProcessed.Done()
-		return nil
-	})
+	mp.On("Process", saramaMessageWrapper{msg}).
+		Return(func(msg processor.Message) error {
+			isProcessed.Done()
+			return nil
+		})
 
 	saramaConsumer := smocks.NewConsumer(t, &sarama.Config{})
 	mc := saramaConsumer.ExpectConsumePartition(topic, partition, msgOffset)
 	mc.ExpectMessagesDrainedOnClose()
 
-	saramaPartitionConsumer, e := saramaConsumer.ConsumePartition(topic, partition, msgOffset)
+	saramaPartitionConsumer, e := saramaConsumer.ConsumePartition(
+		topic,
+		partition,
+		msgOffset,
+	)
 	require.NoError(t, e)
 
-	undertest := newConsumer(t, localFactory, topic, mp, newSaramaClusterConsumer(saramaPartitionConsumer, mc))
+	undertest := newConsumer(
+		t,
+		localFactory,
+		topic,
+		mp,
+		newSaramaClusterConsumer(saramaPartitionConsumer, mc),
+	)
 
 	undertest.partitionIDToState = map[int32]*consumerState{
 		partition: {
@@ -163,8 +188,11 @@ func TestSaramaConsumerWrapper_start_Messages(t *testing.T) {
 
 	mp.AssertExpectations(t)
 	// Ensure that the partition consumer was updated in the map
-	assert.Equal(t, saramaPartitionConsumer.HighWaterMarkOffset(),
-		undertest.partitionIDToState[partition].partitionConsumer.HighWaterMarkOffset())
+	assert.Equal(
+		t,
+		saramaPartitionConsumer.HighWaterMarkOffset(),
+		undertest.partitionIDToState[partition].partitionConsumer.HighWaterMarkOffset(),
+	)
 	undertest.Close()
 
 	localFactory.AssertCounterMetrics(t, metricstest.ExpectedMetric{
@@ -210,10 +238,20 @@ func TestSaramaConsumerWrapper_start_Errors(t *testing.T) {
 	mc := saramaConsumer.ExpectConsumePartition(topic, partition, msgOffset)
 	mc.ExpectErrorsDrainedOnClose()
 
-	saramaPartitionConsumer, e := saramaConsumer.ConsumePartition(topic, partition, msgOffset)
+	saramaPartitionConsumer, e := saramaConsumer.ConsumePartition(
+		topic,
+		partition,
+		msgOffset,
+	)
 	require.NoError(t, e)
 
-	undertest := newConsumer(t, localFactory, topic, &pmocks.SpanProcessor{}, newSaramaClusterConsumer(saramaPartitionConsumer, mc))
+	undertest := newConsumer(
+		t,
+		localFactory,
+		topic,
+		&pmocks.SpanProcessor{},
+		newSaramaClusterConsumer(saramaPartitionConsumer, mc),
+	)
 
 	undertest.Start()
 	mc.YieldError(errors.New("Daisy, Daisy"))
@@ -249,11 +287,25 @@ func TestHandleClosePartition(t *testing.T) {
 	saramaConsumer := smocks.NewConsumer(t, &sarama.Config{})
 	mc := saramaConsumer.ExpectConsumePartition(topic, partition, msgOffset)
 	mc.ExpectErrorsDrainedOnClose()
-	saramaPartitionConsumer, e := saramaConsumer.ConsumePartition(topic, partition, msgOffset)
+	saramaPartitionConsumer, e := saramaConsumer.ConsumePartition(
+		topic,
+		partition,
+		msgOffset,
+	)
 	require.NoError(t, e)
 
-	undertest := newConsumer(t, metricsFactory, topic, mp, newSaramaClusterConsumer(saramaPartitionConsumer, mc))
-	undertest.deadlockDetector = newDeadlockDetector(metricsFactory, undertest.logger, 200*time.Millisecond)
+	undertest := newConsumer(
+		t,
+		metricsFactory,
+		topic,
+		mp,
+		newSaramaClusterConsumer(saramaPartitionConsumer, mc),
+	)
+	undertest.deadlockDetector = newDeadlockDetector(
+		metricsFactory,
+		undertest.logger,
+		200*time.Millisecond,
+	)
 	undertest.Start()
 	defer undertest.Close()
 

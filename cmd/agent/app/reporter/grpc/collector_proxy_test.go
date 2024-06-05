@@ -48,7 +48,15 @@ func TestMultipleCollectors(t *testing.T) {
 	defer mFactory.Stop()
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	proxy, err := NewCollectorProxy(ctx, &ConnBuilder{CollectorHostPorts: []string{addr1.String(), addr2.String()}}, nil, mFactory, zap.NewNop())
+	proxy, err := NewCollectorProxy(
+		ctx,
+		&ConnBuilder{
+			CollectorHostPorts: []string{addr1.String(), addr2.String()},
+		},
+		nil,
+		mFactory,
+		zap.NewNop(),
+	)
 	require.NoError(t, err)
 	require.NotNil(t, proxy)
 	assert.NotNil(t, proxy.GetReporter())
@@ -59,9 +67,16 @@ func TestMultipleCollectors(t *testing.T) {
 	r := proxy.GetReporter()
 	// TODO do not iterate, just create two batches
 	for i := 0; i < 100; i++ {
-		err := r.EmitBatch(context.Background(), &jaeger.Batch{Spans: []*jaeger.Span{{OperationName: "op"}}, Process: &jaeger.Process{ServiceName: "service"}})
+		err := r.EmitBatch(
+			context.Background(),
+			&jaeger.Batch{
+				Spans:   []*jaeger.Span{{OperationName: "op"}},
+				Process: &jaeger.Process{ServiceName: "service"},
+			},
+		)
 		require.NoError(t, err)
-		if len(spanHandler1.getRequests()) > 0 && len(spanHandler2.getRequests()) > 0 {
+		if len(spanHandler1.getRequests()) > 0 &&
+			len(spanHandler2.getRequests()) > 0 {
 			bothServers = true
 			break
 		}
@@ -73,7 +88,11 @@ func TestMultipleCollectors(t *testing.T) {
 	require.NoError(t, proxy.Close())
 }
 
-func initializeGRPCTestServer(t *testing.T, beforeServe func(server *grpc.Server), opts ...grpc.ServerOption) (*grpc.Server, net.Addr) {
+func initializeGRPCTestServer(
+	t *testing.T,
+	beforeServe func(server *grpc.Server),
+	opts ...grpc.ServerOption,
+) (*grpc.Server, net.Addr) {
 	server := grpc.NewServer(opts...)
 	lis, err := net.Listen("tcp", "localhost:0")
 	require.NoError(t, err)

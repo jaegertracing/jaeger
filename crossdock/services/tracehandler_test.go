@@ -38,7 +38,9 @@ import (
 
 var testTrace = ui.Trace{
 	TraceID: ui.TraceID("0"),
-	Spans:   []ui.Span{{Tags: []ui.KeyValue{{Key: "k", Value: "v", Type: ui.StringType}}}},
+	Spans: []ui.Span{
+		{Tags: []ui.KeyValue{{Key: "k", Value: "v", Type: ui.StringType}}},
+	},
 }
 
 func TestCreateTraceRequest(t *testing.T) {
@@ -53,8 +55,14 @@ func TestCreateTraceRequest(t *testing.T) {
 func TestExpectedTagsExist(t *testing.T) {
 	actual := map[string]string{"key": "value"}
 	assert.True(t, expectedTagsExist(actual, actual))
-	assert.False(t, expectedTagsExist(map[string]string{"key": "value1"}, actual))
-	assert.False(t, expectedTagsExist(map[string]string{"key1": "value1"}, actual))
+	assert.False(
+		t,
+		expectedTagsExist(map[string]string{"key": "value1"}, actual),
+	)
+	assert.False(
+		t,
+		expectedTagsExist(map[string]string{"key1": "value1"}, actual),
+	)
 }
 
 func TestConvertTagsIntoMap(t *testing.T) {
@@ -103,7 +111,12 @@ func TestRunTest(t *testing.T) {
 	}
 	handler := &TraceHandler{}
 	for _, test := range tests {
-		err := handler.runTest("service", &test.request, test.f, validateTracesWithCount)
+		err := handler.runTest(
+			"service",
+			&test.request,
+			test.f,
+			validateTracesWithCount,
+		)
 		if test.shouldErr {
 			require.Error(t, err)
 		} else {
@@ -148,7 +161,11 @@ func TestValidateTracesWithCount(t *testing.T) {
 					Spans: []ui.Span{
 						{
 							Tags: []ui.KeyValue{
-								{Key: "key", Type: ui.StringType, Value: "value"},
+								{
+									Key:   "key",
+									Type:  ui.StringType,
+									Value: "value",
+								},
 							},
 						},
 					},
@@ -157,13 +174,20 @@ func TestValidateTracesWithCount(t *testing.T) {
 			errMsg: "expected tags not found",
 		},
 		{
-			expected: traceRequest{Tags: map[string]string{"key": "value"}, Count: 1},
+			expected: traceRequest{
+				Tags:  map[string]string{"key": "value"},
+				Count: 1,
+			},
 			actual: []*ui.Trace{
 				{
 					Spans: []ui.Span{
 						{
 							Tags: []ui.KeyValue{
-								{Key: "key", Type: ui.StringType, Value: "value"},
+								{
+									Key:   "key",
+									Type:  ui.StringType,
+									Value: "value",
+								},
 							},
 						},
 					},
@@ -244,11 +268,14 @@ func TestTraceHandlerGetTraces(t *testing.T) {
 	handler := NewTraceHandler(query, nil, zap.NewNop())
 	handler.getTracesSleepDuration = time.Millisecond
 
-	query.On("GetTraces", "crossdock-go", "op", mock.Anything).Return(nil, errors.New("queryError")).Times(10)
+	query.On("GetTraces", "crossdock-go", "op", mock.Anything).
+		Return(nil, errors.New("queryError")).
+		Times(10)
 	traces := handler.getTraces("go", "op", nil)
 	assert.Nil(t, traces)
 
-	query.On("GetTraces", "crossdock-go", "op", mock.Anything).Return([]*ui.Trace{{TraceID: ui.TraceID("0")}}, nil)
+	query.On("GetTraces", "crossdock-go", "op", mock.Anything).
+		Return([]*ui.Trace{{TraceID: ui.TraceID("0")}}, nil)
 	traces = handler.getTraces("go", "op", nil)
 	assert.Len(t, traces, 1)
 }
@@ -312,7 +339,11 @@ func TestValidateAdaptiveSamplingTraces(t *testing.T) {
 					Spans: []ui.Span{
 						{
 							Tags: []ui.KeyValue{
-								{Key: "sampler.param", Type: ui.StringType, Value: "0.0203"},
+								{
+									Key:   "sampler.param",
+									Type:  ui.StringType,
+									Value: "0.0203",
+								},
 							},
 						},
 					},
@@ -327,8 +358,16 @@ func TestValidateAdaptiveSamplingTraces(t *testing.T) {
 					Spans: []ui.Span{
 						{
 							Tags: []ui.KeyValue{
-								{Key: "sampler.param", Type: ui.StringType, Value: "not_float"},
-								{Key: "sampler.type", Type: ui.StringType, Value: "probabilistic"},
+								{
+									Key:   "sampler.param",
+									Type:  ui.StringType,
+									Value: "not_float",
+								},
+								{
+									Key:   "sampler.type",
+									Type:  ui.StringType,
+									Value: "probabilistic",
+								},
 							},
 						},
 					},
@@ -343,8 +382,16 @@ func TestValidateAdaptiveSamplingTraces(t *testing.T) {
 					Spans: []ui.Span{
 						{
 							Tags: []ui.KeyValue{
-								{Key: "sampler.param", Type: ui.StringType, Value: "0.003"},
-								{Key: "sampler.type", Type: ui.StringType, Value: "const"},
+								{
+									Key:   "sampler.param",
+									Type:  ui.StringType,
+									Value: "0.003",
+								},
+								{
+									Key:   "sampler.type",
+									Type:  ui.StringType,
+									Value: "const",
+								},
 							},
 						},
 					},
@@ -359,8 +406,16 @@ func TestValidateAdaptiveSamplingTraces(t *testing.T) {
 					Spans: []ui.Span{
 						{
 							Tags: []ui.KeyValue{
-								{Key: "sampler.param", Type: ui.StringType, Value: "0.001"},
-								{Key: "sampler.type", Type: ui.StringType, Value: "probabilistic"},
+								{
+									Key:   "sampler.param",
+									Type:  ui.StringType,
+									Value: "0.001",
+								},
+								{
+									Key:   "sampler.type",
+									Type:  ui.StringType,
+									Value: "probabilistic",
+								},
 							},
 						},
 					},
@@ -375,8 +430,16 @@ func TestValidateAdaptiveSamplingTraces(t *testing.T) {
 					Spans: []ui.Span{
 						{
 							Tags: []ui.KeyValue{
-								{Key: "sampler.param", Type: ui.StringType, Value: "0.02314"},
-								{Key: "sampler.type", Type: ui.StringType, Value: "probabilistic"},
+								{
+									Key:   "sampler.param",
+									Type:  ui.StringType,
+									Value: "0.02314",
+								},
+								{
+									Key:   "sampler.type",
+									Type:  ui.StringType,
+									Value: "probabilistic",
+								},
 							},
 						},
 					},
@@ -442,14 +505,20 @@ func TestAdaptiveSamplingTestInternal(t *testing.T) {
 				getTracesSleepDuration:                time.Millisecond,
 			}
 
-			agent.On("GetSamplingRate", "svc", "op").Return(test.samplingRate, test.getSamplingRateErr)
+			agent.On("GetSamplingRate", "svc", "op").
+				Return(test.samplingRate, test.getSamplingRateErr)
 			if test.shouldGetTracesErr {
-				query.On("GetTraces", "crossdock-svc", "op", mock.Anything).Return(nil, errors.New("queryError")).Times(10)
+				query.On("GetTraces", "crossdock-svc", "op", mock.Anything).
+					Return(nil, errors.New("queryError")).
+					Times(10)
 			} else {
 				query.On("GetTraces", "crossdock-svc", "op", mock.Anything).Return([]*ui.Trace{&testTrace}, nil)
 			}
 
-			_, err := handler.adaptiveSamplingTest("svc", &traceRequest{Operation: "op"})
+			_, err := handler.adaptiveSamplingTest(
+				"svc",
+				&traceRequest{Operation: "op"},
+			)
 			if test.errMsg != "" {
 				require.EqualError(t, err, test.errMsg)
 			} else {
@@ -481,13 +550,16 @@ func TestEndToEndTest(t *testing.T) {
 	}
 
 	// The query service fails to fetch traces
-	query.On("GetTraces", "crossdock-go", mock.AnythingOfType("string"), mock.Anything).Return(nil, errors.New("queryError")).Times(10)
+	query.On("GetTraces", "crossdock-go", mock.AnythingOfType("string"), mock.Anything).
+		Return(nil, errors.New("queryError")).
+		Times(10)
 
 	handler.EndToEndTest(cT)
 	cT.AssertNumberOfCalls(t, "Errorf", 2)
 
 	// The query service returns a trace
-	query.On("GetTraces", "crossdock-go", mock.AnythingOfType("string"), mock.Anything).Return([]*ui.Trace{&testTrace}, nil)
+	query.On("GetTraces", "crossdock-go", mock.AnythingOfType("string"), mock.Anything).
+		Return([]*ui.Trace{&testTrace}, nil)
 	handler.getTags = func() map[string]string {
 		return map[string]string{"k": "v"}
 	}
@@ -523,7 +595,8 @@ func TestAdaptiveSamplingTest(t *testing.T) {
 	cT.On("Successf", mock.AnythingOfType("string"), mock.Anything)
 
 	// Test with Agent only returning defaultProbabilities
-	agent.On("GetSamplingRate", "go", mock.AnythingOfType("string")).Return(defaultProbabilities[0], nil)
+	agent.On("GetSamplingRate", "go", mock.AnythingOfType("string")).
+		Return(defaultProbabilities[0], nil)
 	handler.AdaptiveSamplingTest(cT)
 	cT.AssertNumberOfCalls(t, "Errorf", 1)
 
@@ -531,8 +604,16 @@ func TestAdaptiveSamplingTest(t *testing.T) {
 		Spans: []ui.Span{
 			{
 				Tags: []ui.KeyValue{
-					{Key: "sampler.param", Type: ui.StringType, Value: "0.02314"},
-					{Key: "sampler.type", Type: ui.StringType, Value: "probabilistic"},
+					{
+						Key:   "sampler.param",
+						Type:  ui.StringType,
+						Value: "0.02314",
+					},
+					{
+						Key:   "sampler.type",
+						Type:  ui.StringType,
+						Value: "probabilistic",
+					},
 					{Key: "adaptive", Type: ui.StringType, Value: "sampling"},
 				},
 			},
@@ -541,9 +622,11 @@ func TestAdaptiveSamplingTest(t *testing.T) {
 
 	agent = &mocks.AgentService{}
 	handler.agent = agent
-	agent.On("GetSamplingRate", "go", mock.AnythingOfType("string")).Return(0.222, nil)
+	agent.On("GetSamplingRate", "go", mock.AnythingOfType("string")).
+		Return(0.222, nil)
 	// The query service returns an adaptive sampled trace
-	query.On("GetTraces", "crossdock-go", mock.AnythingOfType("string"), mock.Anything).Return([]*ui.Trace{&adaptiveSamplingTrace}, nil)
+	query.On("GetTraces", "crossdock-go", mock.AnythingOfType("string"), mock.Anything).
+		Return([]*ui.Trace{&adaptiveSamplingTrace}, nil)
 	handler.AdaptiveSamplingTest(cT)
 	cT.AssertNumberOfCalls(t, "Successf", 1)
 }

@@ -50,7 +50,11 @@ func TestAllOptionSet(t *testing.T) {
 	)
 	assert.EqualValues(t, 5, opts.numWorkers)
 	assert.EqualValues(t, 10, opts.queueSize)
-	assert.EqualValues(t, map[string]string{"extra": "tags"}, opts.collectorTags)
+	assert.EqualValues(
+		t,
+		map[string]string{"extra": "tags"},
+		opts.collectorTags,
+	)
 	assert.EqualValues(t, 1000, opts.dynQueueSizeWarmup)
 	assert.EqualValues(t, 1024, opts.dynQueueSizeMemory)
 	assert.True(t, opts.spanSizeMetricsEnabled)

@@ -57,7 +57,11 @@ type FSWatcher struct {
 // indicate that the files were replaced, even if event.Name is not any of the
 // files we are monitoring. We check the hashes of the files to detect if they
 // were really changed.
-func New(filepaths []string, onChange func(), logger *zap.Logger) (*FSWatcher, error) {
+func New(
+	filepaths []string,
+	onChange func(),
+	logger *zap.Logger,
+) (*FSWatcher, error) {
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		return nil, err
@@ -143,10 +147,17 @@ func (w *FSWatcher) Close() error {
 }
 
 // isModified returns true if the file has been modified since the last check.
-func (w *FSWatcher) isModified(filepath string, previousHash string) (bool, string) {
+func (w *FSWatcher) isModified(
+	filepath string,
+	previousHash string,
+) (bool, string) {
 	hash, err := hashFile(filepath)
 	if err != nil {
-		w.logger.Warn("Unable to read the file", zap.String("file", filepath), zap.Error(err))
+		w.logger.Warn(
+			"Unable to read the file",
+			zap.String("file", filepath),
+			zap.Error(err),
+		)
 		return true, ""
 	}
 	return previousHash != hash, hash

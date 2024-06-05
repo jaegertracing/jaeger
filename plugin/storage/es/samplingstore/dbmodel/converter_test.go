@@ -29,7 +29,14 @@ func TestConvertDependencies(t *testing.T) {
 		throughputs []*model.Throughput
 	}{
 		{
-			throughputs: []*model.Throughput{{Service: "service1", Operation: "operation1", Count: 10, Probabilities: map[string]struct{}{"new-srv": {}}}},
+			throughputs: []*model.Throughput{
+				{
+					Service:       "service1",
+					Operation:     "operation1",
+					Count:         10,
+					Probabilities: map[string]struct{}{"new-srv": {}},
+				},
+			},
 		},
 		{
 			throughputs: []*model.Throughput{},

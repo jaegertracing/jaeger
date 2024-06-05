@@ -50,8 +50,14 @@ func withOperationNamesStorage(writeCacheTTL time.Duration,
 	logger, logBuffer := testutils.NewLogger()
 	metricsFactory := metricstest.NewFactory(0)
 	query := &mocks.Query{}
-	session.On("Query",
-		fmt.Sprintf(tableCheckStmt, schemas[latestVersion].tableName), mock.Anything).Return(query)
+	session.On(
+		"Query",
+		fmt.Sprintf(
+			tableCheckStmt,
+			schemas[latestVersion].tableName,
+		),
+		mock.Anything,
+	).Return(query)
 	if schemaVersion != latestVersion {
 		query.On("Exec").Return(errors.New("new table does not exist"))
 	} else {
@@ -64,7 +70,12 @@ func withOperationNamesStorage(writeCacheTTL time.Duration,
 		metricsFactory: metricsFactory,
 		logger:         logger,
 		logBuffer:      logBuffer,
-		storage:        NewOperationNamesStorage(session, writeCacheTTL, metricsFactory, logger),
+		storage: NewOperationNamesStorage(
+			session,
+			writeCacheTTL,
+			metricsFactory,
+			logger,
+		),
 	}
 	fn(s)
 }
@@ -81,70 +92,78 @@ func TestOperationNamesStorageWrite(t *testing.T) {
 		{name: "test new schema with 1min ttl", ttl: time.Minute, schemaVersion: latestVersion},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			withOperationNamesStorage(test.ttl, test.schemaVersion, func(s *operationNameStorageTest) {
-				execError := errors.New("exec error")
-				query := &mocks.Query{}
-				query1 := &mocks.Query{}
-				query2 := &mocks.Query{}
+			withOperationNamesStorage(
+				test.ttl,
+				test.schemaVersion,
+				func(s *operationNameStorageTest) {
+					execError := errors.New("exec error")
+					query := &mocks.Query{}
+					query1 := &mocks.Query{}
+					query2 := &mocks.Query{}
 
-				if test.schemaVersion == previousVersion {
-					query.On("Bind", []any{"service-a", "Operation-b"}).Return(query1)
-					query.On("Bind", []any{"service-c", "operation-d"}).Return(query2)
-				} else {
-					query.On("Bind", []any{"service-a", "", "Operation-b"}).Return(query1)
-					query.On("Bind", []any{"service-c", "", "operation-d"}).Return(query2)
-				}
+					if test.schemaVersion == previousVersion {
+						query.On("Bind", []any{"service-a", "Operation-b"}).
+							Return(query1)
+						query.On("Bind", []any{"service-c", "operation-d"}).
+							Return(query2)
+					} else {
+						query.On("Bind", []any{"service-a", "", "Operation-b"}).Return(query1)
+						query.On("Bind", []any{"service-c", "", "operation-d"}).Return(query2)
+					}
 
-				query1.On("Exec").Return(nil)
-				query2.On("Exec").Return(execError)
-				query2.On("String").Return("select from " + schemas[test.schemaVersion].tableName)
+					query1.On("Exec").Return(nil)
+					query2.On("Exec").Return(execError)
+					query2.On("String").
+						Return("select from " + schemas[test.schemaVersion].tableName)
 
-				s.session.On("Query", mock.AnythingOfType("string"), mock.Anything).Return(query)
+					s.session.On("Query", mock.AnythingOfType("string"), mock.Anything).
+						Return(query)
 
-				err := s.storage.Write(dbmodel.Operation{
-					ServiceName:   "service-a",
-					OperationName: "Operation-b",
-				})
-				require.NoError(t, err)
+					err := s.storage.Write(dbmodel.Operation{
+						ServiceName:   "service-a",
+						OperationName: "Operation-b",
+					})
+					require.NoError(t, err)
 
-				err = s.storage.Write(dbmodel.Operation{
-					ServiceName:   "service-c",
-					OperationName: "operation-d",
-				})
-				require.EqualError(t, err,
-					"failed to Exec query 'select from "+
-						schemas[test.schemaVersion].tableName+
-						"': exec error")
-				assert.Equal(t, map[string]string{
-					"level": "error",
-					"msg":   "Failed to exec query",
-					"query": "select from " + schemas[test.schemaVersion].tableName,
-					"error": "exec error",
-				}, s.logBuffer.JSONLine(0))
+					err = s.storage.Write(dbmodel.Operation{
+						ServiceName:   "service-c",
+						OperationName: "operation-d",
+					})
+					require.EqualError(t, err,
+						"failed to Exec query 'select from "+
+							schemas[test.schemaVersion].tableName+
+							"': exec error")
+					assert.Equal(t, map[string]string{
+						"level": "error",
+						"msg":   "Failed to exec query",
+						"query": "select from " + schemas[test.schemaVersion].tableName,
+						"error": "exec error",
+					}, s.logBuffer.JSONLine(0))
 
-				counts, _ := s.metricsFactory.Snapshot()
-				assert.Equal(t, map[string]int64{
-					"attempts|table=" + schemas[test.schemaVersion].tableName: 2,
-					"inserts|table=" + schemas[test.schemaVersion].tableName:  1,
-					"errors|table=" + schemas[test.schemaVersion].tableName:   1,
-				}, counts, "after first two writes")
+					counts, _ := s.metricsFactory.Snapshot()
+					assert.Equal(t, map[string]int64{
+						"attempts|table=" + schemas[test.schemaVersion].tableName: 2,
+						"inserts|table=" + schemas[test.schemaVersion].tableName:  1,
+						"errors|table=" + schemas[test.schemaVersion].tableName:   1,
+					}, counts, "after first two writes")
 
-				// write again
-				err = s.storage.Write(dbmodel.Operation{
-					ServiceName:   "service-a",
-					OperationName: "Operation-b",
-				})
-				require.NoError(t, err)
+					// write again
+					err = s.storage.Write(dbmodel.Operation{
+						ServiceName:   "service-a",
+						OperationName: "Operation-b",
+					})
+					require.NoError(t, err)
 
-				counts2, _ := s.metricsFactory.Snapshot()
-				expCounts := counts
-				if test.ttl == 0 {
-					// without write cache, the second write must succeed
-					expCounts["attempts|table="+schemas[test.schemaVersion].tableName]++
-					expCounts["inserts|table="+schemas[test.schemaVersion].tableName]++
-				}
-				assert.Equal(t, expCounts, counts2)
-			})
+					counts2, _ := s.metricsFactory.Snapshot()
+					expCounts := counts
+					if test.ttl == 0 {
+						// without write cache, the second write must succeed
+						expCounts["attempts|table="+schemas[test.schemaVersion].tableName]++
+						expCounts["inserts|table="+schemas[test.schemaVersion].tableName]++
+					}
+					assert.Equal(t, expCounts, counts2)
+				},
+			)
 		})
 	}
 }
@@ -162,44 +181,55 @@ func TestOperationNamesStorageGetServices(t *testing.T) {
 		{name: "test new schema with scan error", schemaVersion: latestVersion, expErr: scanError},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			withOperationNamesStorage(0, test.schemaVersion, func(s *operationNameStorageTest) {
-				var matched bool
-				matchOnce := mock.MatchedBy(func(v []any) bool {
-					if matched {
-						return false
-					}
-					matched = true
-					return true
-				})
-				matchEverything := mock.MatchedBy(func(v []any) bool { return true })
-
-				iter := &mocks.Iterator{}
-				iter.On("Scan", matchOnce).Return(true)
-				iter.On("Scan", matchEverything).Return(false) // false to stop the loop
-				iter.On("Close").Return(test.expErr)
-
-				query := &mocks.Query{}
-				query.On("Iter").Return(iter)
-
-				s.session.On("Query", mock.AnythingOfType("string"), mock.Anything).Return(query)
-				services, err := s.storage.GetOperations(spanstore.OperationQueryParameters{
-					ServiceName: "service-a",
-				})
-				if test.expErr == nil {
-					require.NoError(t, err)
-					// expect one empty operation result
-					// because mock iter.Scan(&placeholder) does not write to `placeholder`
-					assert.Equal(t, []spanstore.Operation{{}}, services)
-				} else {
-					require.EqualError(
-						t,
-						err,
-						fmt.Sprintf("error reading %s from storage: %s",
-							schemas[test.schemaVersion].tableName,
-							test.expErr.Error()),
+			withOperationNamesStorage(
+				0,
+				test.schemaVersion,
+				func(s *operationNameStorageTest) {
+					var matched bool
+					matchOnce := mock.MatchedBy(func(v []any) bool {
+						if matched {
+							return false
+						}
+						matched = true
+						return true
+					})
+					matchEverything := mock.MatchedBy(
+						func(v []any) bool { return true },
 					)
-				}
-			})
+
+					iter := &mocks.Iterator{}
+					iter.On("Scan", matchOnce).Return(true)
+					iter.On("Scan", matchEverything).
+						Return(false)
+						// false to stop the loop
+					iter.On("Close").Return(test.expErr)
+
+					query := &mocks.Query{}
+					query.On("Iter").Return(iter)
+
+					s.session.On("Query", mock.AnythingOfType("string"), mock.Anything).
+						Return(query)
+					services, err := s.storage.GetOperations(
+						spanstore.OperationQueryParameters{
+							ServiceName: "service-a",
+						},
+					)
+					if test.expErr == nil {
+						require.NoError(t, err)
+						// expect one empty operation result
+						// because mock iter.Scan(&placeholder) does not write to `placeholder`
+						assert.Equal(t, []spanstore.Operation{{}}, services)
+					} else {
+						require.EqualError(
+							t,
+							err,
+							fmt.Sprintf("error reading %s from storage: %s",
+								schemas[test.schemaVersion].tableName,
+								test.expErr.Error()),
+						)
+					}
+				},
+			)
 		})
 	}
 }

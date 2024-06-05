@@ -77,9 +77,17 @@ func TestParentReference(t *testing.T) {
 			expected: []model.SpanRef{childOf(a), followsFrom(b)},
 		},
 		{
-			name:     "remote, local, local follows - keep order",
-			incoming: []model.SpanRef{followsFrom(b), followsFrom2(a), followsFrom(a)},
-			expected: []model.SpanRef{followsFrom2(a), followsFrom(b), followsFrom(a)},
+			name: "remote, local, local follows - keep order",
+			incoming: []model.SpanRef{
+				followsFrom(b),
+				followsFrom2(a),
+				followsFrom(a),
+			},
+			expected: []model.SpanRef{
+				followsFrom2(a),
+				followsFrom(b),
+				followsFrom(a),
+			},
 		},
 		{
 			name:     "remote child, local follows",
@@ -92,9 +100,17 @@ func TestParentReference(t *testing.T) {
 			expected: []model.SpanRef{childOf(a), followsFrom(a), childOf(b)},
 		},
 		{
-			name:     "remote follows, local follows, local child",
-			incoming: []model.SpanRef{followsFrom(b), followsFrom(a), childOf(a)},
-			expected: []model.SpanRef{childOf(a), followsFrom(a), followsFrom(b)},
+			name: "remote follows, local follows, local child",
+			incoming: []model.SpanRef{
+				followsFrom(b),
+				followsFrom(a),
+				childOf(a),
+			},
+			expected: []model.SpanRef{
+				childOf(a),
+				followsFrom(a),
+				followsFrom(b),
+			},
 		},
 	}
 	for _, testCase := range testCases {

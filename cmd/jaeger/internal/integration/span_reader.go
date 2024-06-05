@@ -66,7 +66,10 @@ func unwrapNotFoundErr(err error) error {
 	return err
 }
 
-func (r *spanReader) GetTrace(ctx context.Context, traceID model.TraceID) (*model.Trace, error) {
+func (r *spanReader) GetTrace(
+	ctx context.Context,
+	traceID model.TraceID,
+) (*model.Trace, error) {
 	stream, err := r.client.GetTrace(ctx, &api_v2.GetTraceRequest{
 		TraceID: traceID,
 	})
@@ -84,7 +87,9 @@ func (r *spanReader) GetTrace(ctx context.Context, traceID model.TraceID) (*mode
 		}
 		// r.logger.Info(fmt.Sprintf("GetTrace received %d spans (total %d)", len(received.Spans), len(spans)))
 	}
-	r.logger.Info(fmt.Sprintf("GetTraces received a total of %d spans", len(spans)))
+	r.logger.Info(
+		fmt.Sprintf("GetTraces received a total of %d spans", len(spans)),
+	)
 
 	return &model.Trace{
 		Spans: spans,
@@ -100,7 +105,10 @@ func (r *spanReader) GetServices(ctx context.Context) ([]string, error) {
 	return res.Services, nil
 }
 
-func (r *spanReader) GetOperations(ctx context.Context, query spanstore.OperationQueryParameters) ([]spanstore.Operation, error) {
+func (r *spanReader) GetOperations(
+	ctx context.Context,
+	query spanstore.OperationQueryParameters,
+) ([]spanstore.Operation, error) {
 	var operations []spanstore.Operation
 	res, err := r.client.GetOperations(ctx, &api_v2.GetOperationsRequest{
 		Service:  query.ServiceName,
@@ -120,11 +128,17 @@ func (r *spanReader) GetOperations(ctx context.Context, query spanstore.Operatio
 	return operations, nil
 }
 
-func (r *spanReader) FindTraces(ctx context.Context, query *spanstore.TraceQueryParameters) ([]*model.Trace, error) {
+func (r *spanReader) FindTraces(
+	ctx context.Context,
+	query *spanstore.TraceQueryParameters,
+) ([]*model.Trace, error) {
 	var traces []*model.Trace
 
 	if query.NumTraces > math.MaxInt32 {
-		return traces, fmt.Errorf("NumTraces must not greater than %d", math.MaxInt32)
+		return traces, fmt.Errorf(
+			"NumTraces must not greater than %d",
+			math.MaxInt32,
+		)
 	}
 	stream, err := r.client.FindTraces(ctx, &api_v2.FindTracesRequest{
 		Query: &api_v2.TraceQueryParameters{
@@ -156,9 +170,17 @@ func (r *spanReader) FindTraces(ctx context.Context, query *spanstore.TraceQuery
 			spanMaps[traceID] = append(spanMaps[traceID], &received.Spans[i])
 		}
 		totalSpans += len(received.Spans)
-		r.logger.Info(fmt.Sprintf("FindTraces received %d spans (total %d)", len(received.Spans), totalSpans))
+		r.logger.Info(
+			fmt.Sprintf(
+				"FindTraces received %d spans (total %d)",
+				len(received.Spans),
+				totalSpans,
+			),
+		)
 	}
-	r.logger.Info(fmt.Sprintf("FindTraces received a total of %d spans", totalSpans))
+	r.logger.Info(
+		fmt.Sprintf("FindTraces received a total of %d spans", totalSpans),
+	)
 
 	for _, spans := range spanMaps {
 		traces = append(traces, &model.Trace{
@@ -168,6 +190,9 @@ func (r *spanReader) FindTraces(ctx context.Context, query *spanstore.TraceQuery
 	return traces, nil
 }
 
-func (*spanReader) FindTraceIDs(ctx context.Context, query *spanstore.TraceQueryParameters) ([]model.TraceID, error) {
+func (*spanReader) FindTraceIDs(
+	ctx context.Context,
+	query *spanstore.TraceQueryParameters,
+) ([]model.TraceID, error) {
 	panic("not implemented")
 }

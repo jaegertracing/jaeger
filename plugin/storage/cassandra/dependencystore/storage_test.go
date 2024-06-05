@@ -70,7 +70,12 @@ func TestVersionIsValid(t *testing.T) {
 }
 
 func TestInvalidVersion(t *testing.T) {
-	_, err := NewDependencyStore(&mocks.Session{}, metrics.NullFactory, zap.NewNop(), versionEnumEnd)
+	_, err := NewDependencyStore(
+		&mocks.Session{},
+		metrics.NullFactory,
+		zap.NewNop(),
+		versionEnumEnd,
+	)
 	require.Error(t, err)
 }
 
@@ -101,9 +106,19 @@ func TestDependencyStoreWrite(t *testing.T) {
 					return true
 				})
 
-				s.session.On("Query", mock.AnythingOfType("string"), captureArgs).Return(query)
+				s.session.On("Query", mock.AnythingOfType("string"), captureArgs).
+					Return(query)
 
-				ts := time.Date(2017, time.January, 24, 11, 15, 17, 12345, time.UTC)
+				ts := time.Date(
+					2017,
+					time.January,
+					24,
+					11,
+					15,
+					17,
+					12345,
+					time.UTC,
+				)
 				dependencies := []model.DependencyLink{
 					{
 						Parent:    "a",
@@ -123,7 +138,20 @@ func TestDependencyStoreWrite(t *testing.T) {
 				}
 				if testCase.version == V2 {
 					if d, ok := args[1].(time.Time); ok {
-						assert.Equal(t, time.Date(2017, time.January, 24, 0, 0, 0, 0, time.UTC), d)
+						assert.Equal(
+							t,
+							time.Date(
+								2017,
+								time.January,
+								24,
+								0,
+								0,
+								0,
+								0,
+								time.UTC,
+							),
+							d,
+						)
 					} else {
 						assert.Fail(t, "expecting second arg as time", "received: %+v", args)
 					}
@@ -227,24 +255,55 @@ func TestDependencyStoreGetDependencies(t *testing.T) {
 				query.On("Consistency", cassandra.One).Return(query)
 				query.On("Iter").Return(iter)
 
-				s.session.On("Query", mock.AnythingOfType("string"), matchEverything()).Return(query)
+				s.session.On("Query", mock.AnythingOfType("string"), matchEverything()).
+					Return(query)
 
-				deps, err := s.storage.GetDependencies(context.Background(), time.Now(), 48*time.Hour)
+				deps, err := s.storage.GetDependencies(
+					context.Background(),
+					time.Now(),
+					48*time.Hour,
+				)
 
 				if testCase.expectedError == "" {
 					require.NoError(t, err)
 					expected := []model.DependencyLink{
-						{Parent: "a", Child: "b", CallCount: 1, Source: model.JaegerDependencyLinkSource},
-						{Parent: "b", Child: "c", CallCount: 1, Source: model.JaegerDependencyLinkSource},
-						{Parent: "a", Child: "b", CallCount: 1, Source: model.JaegerDependencyLinkSource},
-						{Parent: "b", Child: "c", CallCount: 1, Source: model.JaegerDependencyLinkSource},
+						{
+							Parent:    "a",
+							Child:     "b",
+							CallCount: 1,
+							Source:    model.JaegerDependencyLinkSource,
+						},
+						{
+							Parent:    "b",
+							Child:     "c",
+							CallCount: 1,
+							Source:    model.JaegerDependencyLinkSource,
+						},
+						{
+							Parent:    "a",
+							Child:     "b",
+							CallCount: 1,
+							Source:    model.JaegerDependencyLinkSource,
+						},
+						{
+							Parent:    "b",
+							Child:     "c",
+							CallCount: 1,
+							Source:    model.JaegerDependencyLinkSource,
+						},
 					}
 					assert.Equal(t, expected, deps)
 				} else {
 					require.EqualError(t, err, testCase.expectedError)
 				}
 				for _, expectedLog := range testCase.expectedLogs {
-					assert.True(t, strings.Contains(s.logBuffer.String(), expectedLog), "Log must contain %s, but was %s", expectedLog, s.logBuffer.String())
+					assert.True(
+						t,
+						strings.Contains(s.logBuffer.String(), expectedLog),
+						"Log must contain %s, but was %s",
+						expectedLog,
+						s.logBuffer.String(),
+					)
 				}
 				if len(testCase.expectedLogs) == 0 {
 					assert.Equal(t, "", s.logBuffer.String())
@@ -256,8 +315,26 @@ func TestDependencyStoreGetDependencies(t *testing.T) {
 
 func TestGetBuckets(t *testing.T) {
 	var (
-		start    = time.Date(2017, time.January, 24, 11, 15, 17, 12345, time.UTC)
-		end      = time.Date(2017, time.January, 26, 11, 15, 17, 12345, time.UTC)
+		start = time.Date(
+			2017,
+			time.January,
+			24,
+			11,
+			15,
+			17,
+			12345,
+			time.UTC,
+		)
+		end = time.Date(
+			2017,
+			time.January,
+			26,
+			11,
+			15,
+			17,
+			12345,
+			time.UTC,
+		)
 		expected = []time.Time{
 			time.Date(2017, time.January, 24, 0, 0, 0, 0, time.UTC),
 			time.Date(2017, time.January, 25, 0, 0, 0, 0, time.UTC),

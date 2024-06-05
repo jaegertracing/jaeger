@@ -24,7 +24,10 @@ import (
 )
 
 func TestWriterOptions(t *testing.T) {
-	opts := applyOptions(TagFilter(dbmodel.DefaultTagFilter), IndexFilter(dbmodel.DefaultIndexFilter))
+	opts := applyOptions(
+		TagFilter(dbmodel.DefaultTagFilter),
+		IndexFilter(dbmodel.DefaultIndexFilter),
+	)
 	assert.Equal(t, dbmodel.DefaultTagFilter, opts.tagFilter)
 	assert.ObjectsAreEqual(dbmodel.DefaultIndexFilter, opts.indexFilter)
 }

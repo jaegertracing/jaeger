@@ -35,10 +35,19 @@ type Client struct {
 }
 
 // NewClient creates a new driver.Client
-func NewClient(tracerProvider trace.TracerProvider, logger log.Factory, hostPort string) *Client {
-	conn, err := grpc.NewClient(hostPort,
+func NewClient(
+	tracerProvider trace.TracerProvider,
+	logger log.Factory,
+	hostPort string,
+) *Client {
+	conn, err := grpc.NewClient(
+		hostPort,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithStatsHandler(otelgrpc.NewClientHandler(otelgrpc.WithTracerProvider(tracerProvider))),
+		grpc.WithStatsHandler(
+			otelgrpc.NewClientHandler(
+				otelgrpc.WithTracerProvider(tracerProvider),
+			),
+		),
 	)
 	if err != nil {
 		logger.Bg().Fatal("Cannot create gRPC connection", zap.Error(err))
@@ -52,11 +61,18 @@ func NewClient(tracerProvider trace.TracerProvider, logger log.Factory, hostPort
 }
 
 // FindNearest implements driver.Interface#FindNearest as an RPC
-func (c *Client) FindNearest(ctx context.Context, location string) ([]Driver, error) {
-	c.logger.For(ctx).Info("Finding nearest drivers", zap.String("location", location))
+func (c *Client) FindNearest(
+	ctx context.Context,
+	location string,
+) ([]Driver, error) {
+	c.logger.For(ctx).
+		Info("Finding nearest drivers", zap.String("location", location))
 	ctx, cancel := context.WithTimeout(ctx, 1*time.Second)
 	defer cancel()
-	response, err := c.client.FindNearest(ctx, &DriverLocationRequest{Location: location})
+	response, err := c.client.FindNearest(
+		ctx,
+		&DriverLocationRequest{Location: location},
+	)
 	if err != nil {
 		return nil, err
 	}

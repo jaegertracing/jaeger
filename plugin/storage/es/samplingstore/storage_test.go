@@ -43,7 +43,11 @@ type samplingStorageTest struct {
 	storage   *SamplingStore
 }
 
-func withEsSampling(indexPrefix, indexDateLayout string, maxDocCount int, fn func(w *samplingStorageTest)) {
+func withEsSampling(
+	indexPrefix, indexDateLayout string,
+	maxDocCount int,
+	fn func(w *samplingStorageTest),
+) {
 	client := &mocks.Client{}
 	logger, logBuffer := testutils.NewLogger()
 	w := &samplingStorageTest{
@@ -88,7 +92,11 @@ func TestNewIndexPrefix(t *testing.T) {
 				IndexDateLayout: "2006-01-02",
 				MaxDocCount:     defaultMaxDocCount,
 			})
-			assert.Equal(t, test.expected+samplingIndex+indexPrefixSeparator, r.samplingIndexPrefix)
+			assert.Equal(
+				t,
+				test.expected+samplingIndex+indexPrefixSeparator,
+				r.samplingIndexPrefix,
+			)
 		})
 	}
 }
@@ -110,7 +118,13 @@ func TestGetReadIndices(t *testing.T) {
 			"prefix-jaeger-sampling-2024-02-10",
 		}
 		rollover := -time.Hour * 24
-		indices := getReadIndices("prefix-jaeger-sampling-", "2006-01-02", test.start, test.end, rollover)
+		indices := getReadIndices(
+			"prefix-jaeger-sampling-",
+			"2006-01-02",
+			test.start,
+			test.end,
+			rollover,
+		)
 		assert.Equal(t, expectedIndices, indices)
 	})
 }
@@ -129,9 +143,11 @@ func TestGetLatestIndices(t *testing.T) {
 			name:            "with index",
 			indexDateLayout: "2006-01-02",
 			maxDuration:     24 * time.Hour,
-			expectedIndices: []string{indexWithDate("", "2006-01-02", time.Now().UTC())},
-			expectedError:   "",
-			indexExist:      true,
+			expectedIndices: []string{
+				indexWithDate("", "2006-01-02", time.Now().UTC()),
+			},
+			expectedError: "",
+			indexExist:    true,
 		},
 		{
 			name:            "without index",
@@ -152,20 +168,33 @@ func TestGetLatestIndices(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			withEsSampling("", test.indexDateLayout, defaultMaxDocCount, func(w *samplingStorageTest) {
-				indexService := &mocks.IndicesExistsService{}
-				w.client.On("IndexExists", mock.Anything).Return(indexService)
-				indexService.On("Do", mock.Anything).Return(test.indexExist, test.IndexExistError)
-				clientFnMock := w.storage.client()
-				actualIndices, err := getLatestIndices("", test.indexDateLayout, clientFnMock, -24*time.Hour, test.maxDuration)
-				if test.expectedError != "" {
-					require.EqualError(t, err, test.expectedError)
-					assert.Nil(t, actualIndices)
-				} else {
-					require.NoError(t, err)
-					require.Equal(t, test.expectedIndices, actualIndices)
-				}
-			})
+			withEsSampling(
+				"",
+				test.indexDateLayout,
+				defaultMaxDocCount,
+				func(w *samplingStorageTest) {
+					indexService := &mocks.IndicesExistsService{}
+					w.client.On("IndexExists", mock.Anything).
+						Return(indexService)
+					indexService.On("Do", mock.Anything).
+						Return(test.indexExist, test.IndexExistError)
+					clientFnMock := w.storage.client()
+					actualIndices, err := getLatestIndices(
+						"",
+						test.indexDateLayout,
+						clientFnMock,
+						-24*time.Hour,
+						test.maxDuration,
+					)
+					if test.expectedError != "" {
+						require.EqualError(t, err, test.expectedError)
+						assert.Nil(t, actualIndices)
+					} else {
+						require.NoError(t, err)
+						require.Equal(t, test.expectedIndices, actualIndices)
+					}
+				},
+			)
 		})
 	}
 }
@@ -180,26 +209,33 @@ func TestInsertThroughput(t *testing.T) {
 	}
 
 	t.Run(test.name, func(t *testing.T) {
-		withEsSampling("", "2006-01-02", defaultMaxDocCount, func(w *samplingStorageTest) {
-			throughputs := []*samplemodel.Throughput{
-				{Service: "my-svc", Operation: "op"},
-				{Service: "our-svc", Operation: "op2"},
-			}
-			fixedTime := time.Now()
-			indexName := indexWithDate("", "2006-01-02", fixedTime)
-			writeService := &mocks.IndexService{}
-			w.client.On("Index").Return(writeService)
-			writeService.On("Index", stringMatcher(indexName)).Return(writeService)
-			writeService.On("Type", stringMatcher(throughputType)).Return(writeService)
-			writeService.On("BodyJson", mock.Anything).Return(writeService)
-			writeService.On("Add", mock.Anything)
-			err := w.storage.InsertThroughput(throughputs)
-			if test.expectedError != "" {
-				require.EqualError(t, err, test.expectedError)
-			} else {
-				require.NoError(t, err)
-			}
-		})
+		withEsSampling(
+			"",
+			"2006-01-02",
+			defaultMaxDocCount,
+			func(w *samplingStorageTest) {
+				throughputs := []*samplemodel.Throughput{
+					{Service: "my-svc", Operation: "op"},
+					{Service: "our-svc", Operation: "op2"},
+				}
+				fixedTime := time.Now()
+				indexName := indexWithDate("", "2006-01-02", fixedTime)
+				writeService := &mocks.IndexService{}
+				w.client.On("Index").Return(writeService)
+				writeService.On("Index", stringMatcher(indexName)).
+					Return(writeService)
+				writeService.On("Type", stringMatcher(throughputType)).
+					Return(writeService)
+				writeService.On("BodyJson", mock.Anything).Return(writeService)
+				writeService.On("Add", mock.Anything)
+				err := w.storage.InsertThroughput(throughputs)
+				if test.expectedError != "" {
+					require.EqualError(t, err, test.expectedError)
+				} else {
+					require.NoError(t, err)
+				}
+			},
+		)
 	})
 }
 
@@ -213,27 +249,42 @@ func TestInsertProbabilitiesAndQPS(t *testing.T) {
 	}
 
 	t.Run(test.name, func(t *testing.T) {
-		withEsSampling("", "2006-01-02", defaultMaxDocCount, func(w *samplingStorageTest) {
-			pAQ := dbmodel.ProbabilitiesAndQPS{
-				Hostname:      "dell11eg843d",
-				Probabilities: samplemodel.ServiceOperationProbabilities{"new-srv": {"op": 0.1}},
-				QPS:           samplemodel.ServiceOperationQPS{"new-srv": {"op": 4}},
-			}
-			fixedTime := time.Now()
-			indexName := indexWithDate("", "2006-01-02", fixedTime)
-			writeService := &mocks.IndexService{}
-			w.client.On("Index").Return(writeService)
-			writeService.On("Index", stringMatcher(indexName)).Return(writeService)
-			writeService.On("Type", stringMatcher(probabilitiesType)).Return(writeService)
-			writeService.On("BodyJson", mock.Anything).Return(writeService)
-			writeService.On("Add", mock.Anything)
-			err := w.storage.InsertProbabilitiesAndQPS(pAQ.Hostname, pAQ.Probabilities, pAQ.QPS)
-			if test.expectedError != "" {
-				require.EqualError(t, err, test.expectedError)
-			} else {
-				require.NoError(t, err)
-			}
-		})
+		withEsSampling(
+			"",
+			"2006-01-02",
+			defaultMaxDocCount,
+			func(w *samplingStorageTest) {
+				pAQ := dbmodel.ProbabilitiesAndQPS{
+					Hostname: "dell11eg843d",
+					Probabilities: samplemodel.ServiceOperationProbabilities{
+						"new-srv": {"op": 0.1},
+					},
+					QPS: samplemodel.ServiceOperationQPS{
+						"new-srv": {"op": 4},
+					},
+				}
+				fixedTime := time.Now()
+				indexName := indexWithDate("", "2006-01-02", fixedTime)
+				writeService := &mocks.IndexService{}
+				w.client.On("Index").Return(writeService)
+				writeService.On("Index", stringMatcher(indexName)).
+					Return(writeService)
+				writeService.On("Type", stringMatcher(probabilitiesType)).
+					Return(writeService)
+				writeService.On("BodyJson", mock.Anything).Return(writeService)
+				writeService.On("Add", mock.Anything)
+				err := w.storage.InsertProbabilitiesAndQPS(
+					pAQ.Hostname,
+					pAQ.Probabilities,
+					pAQ.QPS,
+				)
+				if test.expectedError != "" {
+					require.EqualError(t, err, test.expectedError)
+				} else {
+					require.NoError(t, err)
+				}
+			},
+		)
 	})
 }
 
@@ -312,27 +363,39 @@ func TestGetThroughput(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			withEsSampling(test.indexPrefix, "2006-01-02", defaultMaxDocCount, func(w *samplingStorageTest) {
-				searchService := &mocks.SearchService{}
-				if test.indexPrefix != "" {
-					test.indexPrefix += "-"
-				}
-				index := test.indexPrefix + test.index
-				w.client.On("Search", index).Return(searchService)
-				searchService.On("Size", mock.Anything).Return(searchService)
-				searchService.On("Query", mock.Anything).Return(searchService)
-				searchService.On("IgnoreUnavailable", true).Return(searchService)
-				searchService.On("Do", mock.Anything).Return(test.searchResult, test.searchError)
+			withEsSampling(
+				test.indexPrefix,
+				"2006-01-02",
+				defaultMaxDocCount,
+				func(w *samplingStorageTest) {
+					searchService := &mocks.SearchService{}
+					if test.indexPrefix != "" {
+						test.indexPrefix += "-"
+					}
+					index := test.indexPrefix + test.index
+					w.client.On("Search", index).Return(searchService)
+					searchService.On("Size", mock.Anything).
+						Return(searchService)
+					searchService.On("Query", mock.Anything).
+						Return(searchService)
+					searchService.On("IgnoreUnavailable", true).
+						Return(searchService)
+					searchService.On("Do", mock.Anything).
+						Return(test.searchResult, test.searchError)
 
-				actual, err := w.storage.GetThroughput(time.Now().Add(-time.Minute), time.Now())
-				if test.expectedError != "" {
-					require.EqualError(t, err, test.expectedError)
-					assert.Nil(t, actual)
-				} else {
-					require.NoError(t, err)
-					assert.EqualValues(t, test.expectedOutput, actual)
-				}
-			})
+					actual, err := w.storage.GetThroughput(
+						time.Now().Add(-time.Minute),
+						time.Now(),
+					)
+					if test.expectedError != "" {
+						require.EqualError(t, err, test.expectedError)
+						assert.Nil(t, actual)
+					} else {
+						require.NoError(t, err)
+						assert.EqualValues(t, test.expectedOutput, actual)
+					}
+				},
+			)
 		})
 	}
 }
@@ -411,30 +474,40 @@ func TestGetLatestProbabilities(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			withEsSampling(test.indexPrefix, "2006-01-02", defaultMaxDocCount, func(w *samplingStorageTest) {
-				searchService := &mocks.SearchService{}
-				if test.indexPrefix != "" {
-					test.indexPrefix += "-"
-				}
-				index := test.indexPrefix + test.index
-				w.client.On("Search", index).Return(searchService)
-				searchService.On("Size", mock.Anything).Return(searchService)
-				searchService.On("IgnoreUnavailable", true).Return(searchService)
-				searchService.On("Do", mock.Anything).Return(test.searchResult, test.searchError)
+			withEsSampling(
+				test.indexPrefix,
+				"2006-01-02",
+				defaultMaxDocCount,
+				func(w *samplingStorageTest) {
+					searchService := &mocks.SearchService{}
+					if test.indexPrefix != "" {
+						test.indexPrefix += "-"
+					}
+					index := test.indexPrefix + test.index
+					w.client.On("Search", index).Return(searchService)
+					searchService.On("Size", mock.Anything).
+						Return(searchService)
+					searchService.On("IgnoreUnavailable", true).
+						Return(searchService)
+					searchService.On("Do", mock.Anything).
+						Return(test.searchResult, test.searchError)
 
-				indicesexistsservice := &mocks.IndicesExistsService{}
-				w.client.On("IndexExists", index).Return(indicesexistsservice)
-				indicesexistsservice.On("Do", mock.Anything).Return(test.indexPresent, test.indexError)
+					indicesexistsservice := &mocks.IndicesExistsService{}
+					w.client.On("IndexExists", index).
+						Return(indicesexistsservice)
+					indicesexistsservice.On("Do", mock.Anything).
+						Return(test.indexPresent, test.indexError)
 
-				actual, err := w.storage.GetLatestProbabilities()
-				if test.expectedError != "" {
-					require.EqualError(t, err, test.expectedError)
-					assert.Nil(t, actual)
-				} else {
-					require.NoError(t, err)
-					assert.EqualValues(t, test.expectedOutput, actual)
-				}
-			})
+					actual, err := w.storage.GetLatestProbabilities()
+					if test.expectedError != "" {
+						require.EqualError(t, err, test.expectedError)
+						assert.Nil(t, actual)
+					} else {
+						require.NoError(t, err)
+						assert.EqualValues(t, test.expectedOutput, actual)
+					}
+				},
+			)
 		})
 	}
 }

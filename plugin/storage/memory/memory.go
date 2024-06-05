@@ -94,7 +94,11 @@ func (st *Store) getTenant(tenantID string) *Tenant {
 }
 
 // GetDependencies returns dependencies between services
-func (st *Store) GetDependencies(ctx context.Context, endTs time.Time, lookback time.Duration) ([]model.DependencyLink, error) {
+func (st *Store) GetDependencies(
+	ctx context.Context,
+	endTs time.Time,
+	lookback time.Duration,
+) ([]model.DependencyLink, error) {
 	m := st.getTenant(tenancy.GetTenant(ctx))
 	// deduper used below can modify the spans, so we take an exclusive lock
 	m.Lock()
@@ -141,7 +145,10 @@ func findSpan(trace *model.Trace, spanID model.SpanID) *model.Span {
 	return nil
 }
 
-func traceIsBetweenStartAndEnd(startTs, endTs time.Time, trace *model.Trace) bool {
+func traceIsBetweenStartAndEnd(
+	startTs, endTs time.Time,
+	trace *model.Trace,
+) bool {
 	for _, s := range trace.Spans {
 		if s.StartTime.After(startTs) && endTs.After(s.StartTime) {
 			return true
@@ -194,7 +201,10 @@ func (st *Store) WriteSpan(ctx context.Context, span *model.Span) error {
 }
 
 // GetTrace gets a trace
-func (st *Store) GetTrace(ctx context.Context, traceID model.TraceID) (*model.Trace, error) {
+func (st *Store) GetTrace(
+	ctx context.Context,
+	traceID model.TraceID,
+) (*model.Trace, error) {
 	m := st.getTenant(tenancy.GetTenant(ctx))
 	m.RLock()
 	defer m.RUnlock()
@@ -249,7 +259,10 @@ func (st *Store) GetOperations(
 }
 
 // FindTraces returns all traces in the query parameters are satisfied by a trace's span
-func (st *Store) FindTraces(ctx context.Context, query *spanstore.TraceQueryParameters) ([]*model.Trace, error) {
+func (st *Store) FindTraces(
+	ctx context.Context,
+	query *spanstore.TraceQueryParameters,
+) ([]*model.Trace, error) {
 	m := st.getTenant(tenancy.GetTenant(ctx))
 	m.RLock()
 	defer m.RUnlock()
@@ -269,7 +282,9 @@ func (st *Store) FindTraces(ctx context.Context, query *spanstore.TraceQueryPara
 	// However, if query.NumTraces < results, then we should return the newest traces.
 	if query.NumTraces > 0 && len(retMe) > query.NumTraces {
 		sort.Slice(retMe, func(i, j int) bool {
-			return retMe[i].Spans[0].StartTime.Before(retMe[j].Spans[0].StartTime)
+			return retMe[i].Spans[0].StartTime.Before(
+				retMe[j].Spans[0].StartTime,
+			)
 		})
 		retMe = retMe[len(retMe)-query.NumTraces:]
 	}
@@ -278,11 +293,17 @@ func (st *Store) FindTraces(ctx context.Context, query *spanstore.TraceQueryPara
 }
 
 // FindTraceIDs is not implemented.
-func (*Store) FindTraceIDs(ctx context.Context, query *spanstore.TraceQueryParameters) ([]model.TraceID, error) {
+func (*Store) FindTraceIDs(
+	ctx context.Context,
+	query *spanstore.TraceQueryParameters,
+) ([]model.TraceID, error) {
 	return nil, errors.New("not implemented")
 }
 
-func validTrace(trace *model.Trace, query *spanstore.TraceQueryParameters) bool {
+func validTrace(
+	trace *model.Trace,
+	query *spanstore.TraceQueryParameters,
+) bool {
 	for _, span := range trace.Spans {
 		if validSpan(span, query) {
 			return true
@@ -291,7 +312,10 @@ func validTrace(trace *model.Trace, query *spanstore.TraceQueryParameters) bool 
 	return false
 }
 
-func findKeyValueMatch(kvs model.KeyValues, key, value string) (model.KeyValue, bool) {
+func findKeyValueMatch(
+	kvs model.KeyValues,
+	key, value string,
+) (model.KeyValue, bool) {
 	for _, kv := range kvs {
 		if kv.Key == key && kv.AsString() == value {
 			return kv, true
@@ -313,10 +337,12 @@ func validSpan(span *model.Span, query *spanstore.TraceQueryParameters) bool {
 	if query.DurationMax != 0 && span.Duration > query.DurationMax {
 		return false
 	}
-	if !query.StartTimeMin.IsZero() && span.StartTime.Before(query.StartTimeMin) {
+	if !query.StartTimeMin.IsZero() &&
+		span.StartTime.Before(query.StartTimeMin) {
 		return false
 	}
-	if !query.StartTimeMax.IsZero() && span.StartTime.After(query.StartTimeMax) {
+	if !query.StartTimeMax.IsZero() &&
+		span.StartTime.After(query.StartTimeMax) {
 		return false
 	}
 	spanKVs := flattenTags(span)

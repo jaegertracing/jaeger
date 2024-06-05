@@ -47,10 +47,17 @@ const (
 )
 
 var (
-	errMaxDurationGreaterThanMin = fmt.Errorf("'%s' should be greater than '%s'", maxDurationParam, minDurationParam)
+	errMaxDurationGreaterThanMin = fmt.Errorf(
+		"'%s' should be greater than '%s'",
+		maxDurationParam,
+		minDurationParam,
+	)
 
 	// errServiceParameterRequired occurs when no service name is defined.
-	errServiceParameterRequired = fmt.Errorf("parameter '%s' is required", serviceParam)
+	errServiceParameterRequired = fmt.Errorf(
+		"parameter '%s' is required",
+		serviceParam,
+	)
 
 	jaegerToOtelSpanKind = map[string]string{
 		"unspecified": metrics.SpanKind_SPAN_KIND_UNSPECIFIED.String(),
@@ -124,7 +131,9 @@ func newDurationUnitsParser(units time.Duration) durationParser {
 //	key := strValue
 //	keyValue := strValue ':' strValue
 //	tags :== 'tags=' jsonMap
-func (p *queryParser) parseTraceQueryParams(r *http.Request) (*traceQueryParameters, error) {
+func (p *queryParser) parseTraceQueryParams(
+	r *http.Request,
+) (*traceQueryParameters, error) {
 	service := r.FormValue(serviceParam)
 	operation := r.FormValue(operationParam)
 
@@ -197,13 +206,20 @@ func (p *queryParser) parseTraceQueryParams(r *http.Request) (*traceQueryParamet
 // The dependencies API does not operate on the latency space, instead its timestamps are just time range selections,
 // and the typical backend granularity of those is on the order of 15min or more. As such, microseconds aren't
 // useful in this domain and milliseconds are sufficient for both times and durations.
-func (p *queryParser) parseDependenciesQueryParams(r *http.Request) (dqp dependenciesQueryParameters, err error) {
+func (p *queryParser) parseDependenciesQueryParams(
+	r *http.Request,
+) (dqp dependenciesQueryParameters, err error) {
 	dqp.endTs, err = p.parseTime(r, endTsParam, time.Millisecond)
 	if err != nil {
 		return dqp, err
 	}
 
-	dqp.lookback, err = parseDuration(r, lookbackParam, newDurationUnitsParser(time.Millisecond), defaultDependencyLookbackDuration)
+	dqp.lookback, err = parseDuration(
+		r,
+		lookbackParam,
+		newDurationUnitsParser(time.Millisecond),
+		defaultDependencyLookbackDuration,
+	)
 	return dqp, err
 }
 
@@ -243,11 +259,16 @@ func (p *queryParser) parseDependenciesQueryParams(r *http.Request) (dqp depende
 //	spanKinds ::= spanKind | spanKind '&' spanKinds
 //	spanKind ::= 'spanKind=' spanKindType
 //	spanKindType ::= "unspecified" | "internal" | "server" | "client" | "producer" | "consumer"
-func (p *queryParser) parseMetricsQueryParams(r *http.Request) (bqp metricsstore.BaseQueryParameters, err error) {
+func (p *queryParser) parseMetricsQueryParams(
+	r *http.Request,
+) (bqp metricsstore.BaseQueryParameters, err error) {
 	query := r.URL.Query()
 	services, ok := query[serviceParam]
 	if !ok {
-		return bqp, newParseError(errors.New("please provide at least one service name"), serviceParam)
+		return bqp, newParseError(
+			errors.New("please provide at least one service name"),
+			serviceParam,
+		)
 	}
 	bqp.ServiceNames = services
 
@@ -255,7 +276,11 @@ func (p *queryParser) parseMetricsQueryParams(r *http.Request) (bqp metricsstore
 	if err != nil {
 		return bqp, err
 	}
-	bqp.SpanKinds, err = parseSpanKinds(r, spanKindParam, defaultMetricsSpanKinds)
+	bqp.SpanKinds, err = parseSpanKinds(
+		r,
+		spanKindParam,
+		defaultMetricsSpanKinds,
+	)
 	if err != nil {
 		return bqp, err
 	}
@@ -264,15 +289,30 @@ func (p *queryParser) parseMetricsQueryParams(r *http.Request) (bqp metricsstore
 		return bqp, err
 	}
 	parser := newDurationUnitsParser(time.Millisecond)
-	lookback, err := parseDuration(r, lookbackParam, parser, defaultMetricsQueryLookbackDuration)
+	lookback, err := parseDuration(
+		r,
+		lookbackParam,
+		parser,
+		defaultMetricsQueryLookbackDuration,
+	)
 	if err != nil {
 		return bqp, err
 	}
-	step, err := parseDuration(r, stepParam, parser, defaultMetricsQueryStepDuration)
+	step, err := parseDuration(
+		r,
+		stepParam,
+		parser,
+		defaultMetricsQueryStepDuration,
+	)
 	if err != nil {
 		return bqp, err
 	}
-	ratePer, err := parseDuration(r, rateParam, parser, defaultMetricsQueryRateDuration)
+	ratePer, err := parseDuration(
+		r,
+		rateParam,
+		parser,
+		defaultMetricsQueryRateDuration,
+	)
 	if err != nil {
 		return bqp, err
 	}
@@ -285,7 +325,11 @@ func (p *queryParser) parseMetricsQueryParams(r *http.Request) (bqp metricsstore
 
 // parseTime parses the time parameter of an HTTP request that is represented the number of "units" since epoch.
 // If the time parameter is empty, the current time will be returned.
-func (p *queryParser) parseTime(r *http.Request, paramName string, units time.Duration) (time.Time, error) {
+func (p *queryParser) parseTime(
+	r *http.Request,
+	paramName string,
+	units time.Duration,
+) (time.Time, error) {
 	formValue := r.FormValue(paramName)
 	if formValue == "" {
 		if paramName == startTimeParam {
@@ -302,7 +346,12 @@ func (p *queryParser) parseTime(r *http.Request, paramName string, units time.Du
 
 // parseDuration parses the duration parameter of an HTTP request using the provided durationParser.
 // If the duration parameter is empty, the given defaultDuration will be returned.
-func parseDuration(r *http.Request, paramName string, parse durationParser, defaultDuration time.Duration) (time.Duration, error) {
+func parseDuration(
+	r *http.Request,
+	paramName string,
+	parse durationParser,
+	defaultDuration time.Duration,
+) (time.Duration, error) {
 	formValue := r.FormValue(paramName)
 	if formValue == "" {
 		return defaultDuration, nil
@@ -344,7 +393,11 @@ func parseBool(r *http.Request, paramName string) (b bool, err error) {
 // - "SPAN_KIND_CLIENT"
 // - "SPAN_KIND_PRODUCER"
 // - "SPAN_KIND_CONSUMER"
-func parseSpanKinds(r *http.Request, paramName string, defaultSpanKinds []string) ([]string, error) {
+func parseSpanKinds(
+	r *http.Request,
+	paramName string,
+	defaultSpanKinds []string,
+) ([]string, error) {
 	query := r.URL.Query()
 	jaegerSpanKinds, ok := query[paramName]
 	if !ok {
@@ -362,7 +415,10 @@ func mapSpanKindsToOpenTelemetry(spanKinds []string) ([]string, error) {
 	for i, spanKind := range spanKinds {
 		v, ok := jaegerToOtelSpanKind[spanKind]
 		if !ok {
-			return otelSpanKinds, fmt.Errorf("unsupported span kind: '%s'", spanKind)
+			return otelSpanKinds, fmt.Errorf(
+				"unsupported span kind: '%s'",
+				spanKind,
+			)
 		}
 		otelSpanKinds[i] = v
 	}
@@ -381,19 +437,28 @@ func (*queryParser) validateQuery(traceQuery *traceQueryParameters) error {
 	return nil
 }
 
-func (*queryParser) parseTags(simpleTags []string, jsonTags []string) (map[string]string, error) {
+func (*queryParser) parseTags(
+	simpleTags []string,
+	jsonTags []string,
+) (map[string]string, error) {
 	retMe := make(map[string]string)
 	for _, tag := range simpleTags {
 		keyAndValue := strings.Split(tag, ":")
 		if l := len(keyAndValue); l <= 1 {
-			return nil, fmt.Errorf("malformed 'tag' parameter, expecting key:value, received: %s", tag)
+			return nil, fmt.Errorf(
+				"malformed 'tag' parameter, expecting key:value, received: %s",
+				tag,
+			)
 		}
 		retMe[keyAndValue[0]] = strings.Join(keyAndValue[1:], ":")
 	}
 	for _, tags := range jsonTags {
 		var fromJSON map[string]string
 		if err := json.Unmarshal([]byte(tags), &fromJSON); err != nil {
-			return nil, fmt.Errorf("malformed 'tags' parameter, cannot unmarshal JSON: %w", err)
+			return nil, fmt.Errorf(
+				"malformed 'tags' parameter, cannot unmarshal JSON: %w",
+				err,
+			)
 		}
 		for k, v := range fromJSON {
 			retMe[k] = v

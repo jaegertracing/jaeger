@@ -182,14 +182,31 @@ func TestRolloverIndices(t *testing.T) {
 			if test.prefix != "" {
 				test.prefix += "-"
 			}
-			result := RolloverIndices(test.archive, test.skipDependencies, test.adaptiveSampling, test.prefix)
+			result := RolloverIndices(
+				test.archive,
+				test.skipDependencies,
+				test.adaptiveSampling,
+				test.prefix,
+			)
 			assert.Equal(t, len(test.expected), len(result))
 			for i, r := range result {
 				assert.Equal(t, test.expected[i].templateName, r.TemplateName())
 				assert.Equal(t, test.expected[i].mapping, r.Mapping)
-				assert.Equal(t, test.expected[i].readAliasName, r.ReadAliasName())
-				assert.Equal(t, test.expected[i].writeAliasName, r.WriteAliasName())
-				assert.Equal(t, test.expected[i].initialRolloverIndex, r.InitialRolloverIndex())
+				assert.Equal(
+					t,
+					test.expected[i].readAliasName,
+					r.ReadAliasName(),
+				)
+				assert.Equal(
+					t,
+					test.expected[i].writeAliasName,
+					r.WriteAliasName(),
+				)
+				assert.Equal(
+					t,
+					test.expected[i].initialRolloverIndex,
+					r.InitialRolloverIndex(),
+				)
 			}
 		})
 	}

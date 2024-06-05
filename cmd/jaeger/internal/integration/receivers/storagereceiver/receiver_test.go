@@ -152,7 +152,8 @@ func TestReceiver_GetServiceError(t *testing.T) {
 		receiveName: "external-storage",
 	}
 	withReceiver(r, func(r *receiverTest) {
-		r.reader.On("GetServices", mock.AnythingOfType("*context.cancelCtx")).Return([]string{}, errors.New("mocked error"))
+		r.reader.On("GetServices", mock.AnythingOfType("*context.cancelCtx")).
+			Return([]string{}, errors.New("mocked error"))
 		r.factory.On("CreateSpanReader").Return(r.reader, nil)
 		r.receiver.spanReader = r.reader
 		r.reportStatus = func(se *component.StatusEvent) {
@@ -176,7 +177,8 @@ func TestReceiver_Start(t *testing.T) {
 		receiveInterval: 50 * time.Millisecond,
 	}
 	withReceiver(r, func(r *receiverTest) {
-		r.reader.On("GetServices", mock.AnythingOfType("*context.cancelCtx")).Return([]string{}, nil)
+		r.reader.On("GetServices", mock.AnythingOfType("*context.cancelCtx")).
+			Return([]string{}, nil)
 		r.factory.On("CreateSpanReader").Return(r.reader, nil)
 
 		require.NoError(t, r.receiver.Start(context.Background(), r.host))
@@ -252,7 +254,8 @@ func TestReceiver_StartConsume(t *testing.T) {
 		for _, test := range tests {
 			t.Run(test.name, func(t *testing.T) {
 				reader := new(spanStoreMocks.Reader)
-				reader.On("GetServices", mock.AnythingOfType("*context.cancelCtx")).Return(test.services, nil)
+				reader.On("GetServices", mock.AnythingOfType("*context.cancelCtx")).
+					Return(test.services, nil)
 				reader.On(
 					"FindTraces",
 					mock.AnythingOfType("*context.cancelCtx"),

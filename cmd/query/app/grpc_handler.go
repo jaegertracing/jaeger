@@ -41,11 +41,26 @@ const (
 )
 
 var (
-	errGRPCMetricsQueryDisabled = status.Error(codes.Unimplemented, "metrics querying is currently disabled")
-	errNilRequest               = status.Error(codes.InvalidArgument, "a nil argument is not allowed")
-	errUninitializedTraceID     = status.Error(codes.InvalidArgument, "uninitialized TraceID is not allowed")
-	errMissingServiceNames      = status.Error(codes.InvalidArgument, "please provide at least one service name")
-	errMissingQuantile          = status.Error(codes.InvalidArgument, "please provide a quantile between (0, 1]")
+	errGRPCMetricsQueryDisabled = status.Error(
+		codes.Unimplemented,
+		"metrics querying is currently disabled",
+	)
+	errNilRequest = status.Error(
+		codes.InvalidArgument,
+		"a nil argument is not allowed",
+	)
+	errUninitializedTraceID = status.Error(
+		codes.InvalidArgument,
+		"uninitialized TraceID is not allowed",
+	)
+	errMissingServiceNames = status.Error(
+		codes.InvalidArgument,
+		"please provide at least one service name",
+	)
+	errMissingQuantile = status.Error(
+		codes.InvalidArgument,
+		"please provide a quantile between (0, 1]",
+	)
 )
 
 // GRPCHandler implements the gRPC endpoint of the query service.
@@ -93,7 +108,10 @@ func NewGRPCHandler(queryService *querysvc.QueryService,
 var _ api_v2.QueryServiceServer = (*GRPCHandler)(nil)
 
 // GetTrace is the gRPC handler to fetch traces based on trace-id.
-func (g *GRPCHandler) GetTrace(r *api_v2.GetTraceRequest, stream api_v2.QueryService_GetTraceServer) error {
+func (g *GRPCHandler) GetTrace(
+	r *api_v2.GetTraceRequest,
+	stream api_v2.QueryService_GetTraceServer,
+) error {
 	if r == nil {
 		return errNilRequest
 	}
@@ -102,18 +120,29 @@ func (g *GRPCHandler) GetTrace(r *api_v2.GetTraceRequest, stream api_v2.QuerySer
 	}
 	trace, err := g.queryService.GetTrace(stream.Context(), r.TraceID)
 	if errors.Is(err, spanstore.ErrTraceNotFound) {
-		g.logger.Warn(msgTraceNotFound, zap.Stringer("id", r.TraceID), zap.Error(err))
+		g.logger.Warn(
+			msgTraceNotFound,
+			zap.Stringer("id", r.TraceID),
+			zap.Error(err),
+		)
 		return status.Errorf(codes.NotFound, "%s: %v", msgTraceNotFound, err)
 	}
 	if err != nil {
 		g.logger.Error("failed to fetch spans from the backend", zap.Error(err))
-		return status.Errorf(codes.Internal, "failed to fetch spans from the backend: %v", err)
+		return status.Errorf(
+			codes.Internal,
+			"failed to fetch spans from the backend: %v",
+			err,
+		)
 	}
 	return g.sendSpanChunks(trace.Spans, stream.Send)
 }
 
 // ArchiveTrace is the gRPC handler to archive traces.
-func (g *GRPCHandler) ArchiveTrace(ctx context.Context, r *api_v2.ArchiveTraceRequest) (*api_v2.ArchiveTraceResponse, error) {
+func (g *GRPCHandler) ArchiveTrace(
+	ctx context.Context,
+	r *api_v2.ArchiveTraceRequest,
+) (*api_v2.ArchiveTraceResponse, error) {
 	if r == nil {
 		return nil, errNilRequest
 	}
@@ -122,19 +151,35 @@ func (g *GRPCHandler) ArchiveTrace(ctx context.Context, r *api_v2.ArchiveTraceRe
 	}
 	err := g.queryService.ArchiveTrace(ctx, r.TraceID)
 	if errors.Is(err, spanstore.ErrTraceNotFound) {
-		g.logger.Warn(msgTraceNotFound, zap.Stringer("id", r.TraceID), zap.Error(err))
-		return nil, status.Errorf(codes.NotFound, "%s: %v", msgTraceNotFound, err)
+		g.logger.Warn(
+			msgTraceNotFound,
+			zap.Stringer("id", r.TraceID),
+			zap.Error(err),
+		)
+		return nil, status.Errorf(
+			codes.NotFound,
+			"%s: %v",
+			msgTraceNotFound,
+			err,
+		)
 	}
 	if err != nil {
 		g.logger.Error("failed to archive trace", zap.Error(err))
-		return nil, status.Errorf(codes.Internal, "failed to archive trace: %v", err)
+		return nil, status.Errorf(
+			codes.Internal,
+			"failed to archive trace: %v",
+			err,
+		)
 	}
 
 	return &api_v2.ArchiveTraceResponse{}, nil
 }
 
 // FindTraces is the gRPC handler to fetch traces based on TraceQueryParameters.
-func (g *GRPCHandler) FindTraces(r *api_v2.FindTracesRequest, stream api_v2.QueryService_FindTracesServer) error {
+func (g *GRPCHandler) FindTraces(
+	r *api_v2.FindTracesRequest,
+	stream api_v2.QueryService_FindTracesServer,
+) error {
 	if r == nil {
 		return errNilRequest
 	}
@@ -155,7 +200,11 @@ func (g *GRPCHandler) FindTraces(r *api_v2.FindTracesRequest, stream api_v2.Quer
 	traces, err := g.queryService.FindTraces(stream.Context(), &queryParams)
 	if err != nil {
 		g.logger.Error("failed when searching for traces", zap.Error(err))
-		return status.Errorf(codes.Internal, "failed when searching for traces: %v", err)
+		return status.Errorf(
+			codes.Internal,
+			"failed when searching for traces: %v",
+			err,
+		)
 	}
 	for _, trace := range traces {
 		if err := g.sendSpanChunks(trace.Spans, stream.Send); err != nil {
@@ -165,7 +214,10 @@ func (g *GRPCHandler) FindTraces(r *api_v2.FindTracesRequest, stream api_v2.Quer
 	return nil
 }
 
-func (g *GRPCHandler) sendSpanChunks(spans []*model.Span, sendFn func(*api_v2.SpansResponseChunk) error) error {
+func (g *GRPCHandler) sendSpanChunks(
+	spans []*model.Span,
+	sendFn func(*api_v2.SpansResponseChunk) error,
+) error {
 	chunk := make([]model.Span, 0, len(spans))
 	for i := 0; i < len(spans); i += maxSpanCountInChunk {
 		chunk = chunk[:0]
@@ -181,11 +233,18 @@ func (g *GRPCHandler) sendSpanChunks(spans []*model.Span, sendFn func(*api_v2.Sp
 }
 
 // GetServices is the gRPC handler to fetch services.
-func (g *GRPCHandler) GetServices(ctx context.Context, r *api_v2.GetServicesRequest) (*api_v2.GetServicesResponse, error) {
+func (g *GRPCHandler) GetServices(
+	ctx context.Context,
+	r *api_v2.GetServicesRequest,
+) (*api_v2.GetServicesResponse, error) {
 	services, err := g.queryService.GetServices(ctx)
 	if err != nil {
 		g.logger.Error("failed to fetch services", zap.Error(err))
-		return nil, status.Errorf(codes.Internal, "failed to fetch services: %v", err)
+		return nil, status.Errorf(
+			codes.Internal,
+			"failed to fetch services: %v",
+			err,
+		)
 	}
 
 	return &api_v2.GetServicesResponse{Services: services}, nil
@@ -199,13 +258,20 @@ func (g *GRPCHandler) GetOperations(
 	if r == nil {
 		return nil, errNilRequest
 	}
-	operations, err := g.queryService.GetOperations(ctx, spanstore.OperationQueryParameters{
-		ServiceName: r.Service,
-		SpanKind:    r.SpanKind,
-	})
+	operations, err := g.queryService.GetOperations(
+		ctx,
+		spanstore.OperationQueryParameters{
+			ServiceName: r.Service,
+			SpanKind:    r.SpanKind,
+		},
+	)
 	if err != nil {
 		g.logger.Error("failed to fetch operations", zap.Error(err))
-		return nil, status.Errorf(codes.Internal, "failed to fetch operations: %v", err)
+		return nil, status.Errorf(
+			codes.Internal,
+			"failed to fetch operations: %v",
+			err,
+		)
 	}
 
 	result := make([]*api_v2.Operation, len(operations))
@@ -223,7 +289,10 @@ func (g *GRPCHandler) GetOperations(
 }
 
 // GetDependencies is the gRPC handler to fetch dependencies.
-func (g *GRPCHandler) GetDependencies(ctx context.Context, r *api_v2.GetDependenciesRequest) (*api_v2.GetDependenciesResponse, error) {
+func (g *GRPCHandler) GetDependencies(
+	ctx context.Context,
+	r *api_v2.GetDependenciesRequest,
+) (*api_v2.GetDependenciesResponse, error) {
 	if r == nil {
 		return nil, errNilRequest
 	}
@@ -231,20 +300,34 @@ func (g *GRPCHandler) GetDependencies(ctx context.Context, r *api_v2.GetDependen
 	startTime := r.StartTime
 	endTime := r.EndTime
 	if startTime == (time.Time{}) || endTime == (time.Time{}) {
-		return nil, status.Errorf(codes.InvalidArgument, "StartTime and EndTime must be initialized.")
+		return nil, status.Errorf(
+			codes.InvalidArgument,
+			"StartTime and EndTime must be initialized.",
+		)
 	}
 
-	dependencies, err := g.queryService.GetDependencies(ctx, startTime, endTime.Sub(startTime))
+	dependencies, err := g.queryService.GetDependencies(
+		ctx,
+		startTime,
+		endTime.Sub(startTime),
+	)
 	if err != nil {
 		g.logger.Error("failed to fetch dependencies", zap.Error(err))
-		return nil, status.Errorf(codes.Internal, "failed to fetch dependencies: %v", err)
+		return nil, status.Errorf(
+			codes.Internal,
+			"failed to fetch dependencies: %v",
+			err,
+		)
 	}
 
 	return &api_v2.GetDependenciesResponse{Dependencies: dependencies}, nil
 }
 
 // GetLatencies is the gRPC handler to fetch latency metrics.
-func (g *GRPCHandler) GetLatencies(ctx context.Context, r *metrics.GetLatenciesRequest) (*metrics.GetMetricsResponse, error) {
+func (g *GRPCHandler) GetLatencies(
+	ctx context.Context,
+	r *metrics.GetLatenciesRequest,
+) (*metrics.GetMetricsResponse, error) {
 	bqp, err := g.newBaseQueryParameters(r)
 	if err := g.handleErr("failed to build parameters", err); err != nil {
 		return nil, err
@@ -265,7 +348,10 @@ func (g *GRPCHandler) GetLatencies(ctx context.Context, r *metrics.GetLatenciesR
 }
 
 // GetCallRates is the gRPC handler to fetch call rate metrics.
-func (g *GRPCHandler) GetCallRates(ctx context.Context, r *metrics.GetCallRatesRequest) (*metrics.GetMetricsResponse, error) {
+func (g *GRPCHandler) GetCallRates(
+	ctx context.Context,
+	r *metrics.GetCallRatesRequest,
+) (*metrics.GetMetricsResponse, error) {
 	bqp, err := g.newBaseQueryParameters(r)
 	if err := g.handleErr("failed to build parameters", err); err != nil {
 		return nil, err
@@ -281,7 +367,10 @@ func (g *GRPCHandler) GetCallRates(ctx context.Context, r *metrics.GetCallRatesR
 }
 
 // GetErrorRates is the gRPC handler to fetch error rate metrics.
-func (g *GRPCHandler) GetErrorRates(ctx context.Context, r *metrics.GetErrorRatesRequest) (*metrics.GetMetricsResponse, error) {
+func (g *GRPCHandler) GetErrorRates(
+	ctx context.Context,
+	r *metrics.GetErrorRatesRequest,
+) (*metrics.GetMetricsResponse, error) {
 	bqp, err := g.newBaseQueryParameters(r)
 	if err := g.handleErr("failed to build parameters", err); err != nil {
 		return nil, err
@@ -297,8 +386,14 @@ func (g *GRPCHandler) GetErrorRates(ctx context.Context, r *metrics.GetErrorRate
 }
 
 // GetMinStepDuration is the gRPC handler to fetch the minimum step duration supported by the underlying metrics store.
-func (g *GRPCHandler) GetMinStepDuration(ctx context.Context, _ *metrics.GetMinStepDurationRequest) (*metrics.GetMinStepDurationResponse, error) {
-	minStep, err := g.metricsQueryService.GetMinStepDuration(ctx, &metricsstore.MinStepDurationQueryParameters{})
+func (g *GRPCHandler) GetMinStepDuration(
+	ctx context.Context,
+	_ *metrics.GetMinStepDurationRequest,
+) (*metrics.GetMinStepDurationResponse, error) {
+	minStep, err := g.metricsQueryService.GetMinStepDuration(
+		ctx,
+		&metricsstore.MinStepDurationQueryParameters{},
+	)
 	if err := g.handleErr("failed to fetch min step duration", err); err != nil {
 		return nil, err
 	}
@@ -323,7 +418,9 @@ func (g *GRPCHandler) handleErr(msg string, err error) error {
 	return status.Errorf(codes.Internal, "%s: %v", msg, err)
 }
 
-func (g *GRPCHandler) newBaseQueryParameters(r any) (bqp metricsstore.BaseQueryParameters, err error) {
+func (g *GRPCHandler) newBaseQueryParameters(
+	r any,
+) (bqp metricsstore.BaseQueryParameters, err error) {
 	if r == nil {
 		return bqp, errNilRequest
 	}

@@ -35,7 +35,10 @@ func NewCompositeWriter(spanWriters ...Writer) *CompositeWriter {
 }
 
 // WriteSpan calls WriteSpan on each span writer. It will sum up failures, it is not transactional
-func (c *CompositeWriter) WriteSpan(ctx context.Context, span *model.Span) error {
+func (c *CompositeWriter) WriteSpan(
+	ctx context.Context,
+	span *model.Span,
+) error {
 	var errs []error
 	for _, writer := range c.spanWriters {
 		if err := writer.WriteSpan(ctx, span); err != nil {

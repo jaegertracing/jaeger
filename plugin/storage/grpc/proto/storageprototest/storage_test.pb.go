@@ -101,7 +101,9 @@ var (
 
 func file_storage_test_proto_rawDescGZIP() []byte {
 	file_storage_test_proto_rawDescOnce.Do(func() {
-		file_storage_test_proto_rawDescData = protoimpl.X.CompressGZIP(file_storage_test_proto_rawDescData)
+		file_storage_test_proto_rawDescData = protoimpl.X.CompressGZIP(
+			file_storage_test_proto_rawDescData,
+		)
 	})
 	return file_storage_test_proto_rawDescData
 }

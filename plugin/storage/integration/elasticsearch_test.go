@@ -75,14 +75,18 @@ func (s *ESStorageIntegration) getVersion() (uint, error) {
 	}
 	// OpenSearch is based on ES 7.x
 	if strings.Contains(pingResult.TagLine, "OpenSearch") {
-		if pingResult.Version.Number[0] == '1' || pingResult.Version.Number[0] == '2' {
+		if pingResult.Version.Number[0] == '1' ||
+			pingResult.Version.Number[0] == '2' {
 			esVersion = 7
 		}
 	}
 	return uint(esVersion), nil
 }
 
-func (s *ESStorageIntegration) initializeES(t *testing.T, allTagsAsFields bool) {
+func (s *ESStorageIntegration) initializeES(
+	t *testing.T,
+	allTagsAsFields bool,
+) {
 	rawClient, err := elastic.NewClient(
 		elastic.SetURL(queryURL),
 		elastic.SetSniff(false))
@@ -107,7 +111,10 @@ func (s *ESStorageIntegration) esCleanUp(t *testing.T) {
 	require.NoError(t, s.factory.Purge(context.Background()))
 }
 
-func (*ESStorageIntegration) initializeESFactory(t *testing.T, allTagsAsFields bool) *es.Factory {
+func (*ESStorageIntegration) initializeESFactory(
+	t *testing.T,
+	allTagsAsFields bool,
+) *es.Factory {
 	logger := zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller()))
 	f := es.NewFactory()
 	v, command := config.Viperize(f.AddFlags)
@@ -134,7 +141,10 @@ func (*ESStorageIntegration) initializeESFactory(t *testing.T, allTagsAsFields b
 	return f
 }
 
-func (s *ESStorageIntegration) initSpanstore(t *testing.T, allTagsAsFields bool) {
+func (s *ESStorageIntegration) initSpanstore(
+	t *testing.T,
+	allTagsAsFields bool,
+) {
 	f := s.initializeESFactory(t, allTagsAsFields)
 	s.factory = f
 	var err error
@@ -172,7 +182,10 @@ func testElasticsearchStorage(t *testing.T, allTagsAsFields bool) {
 	}
 	s := &ESStorageIntegration{
 		StorageIntegration: StorageIntegration{
-			Fixtures:        LoadAndParseQueryTestCases(t, "fixtures/queries_es.json"),
+			Fixtures: LoadAndParseQueryTestCases(
+				t,
+				"fixtures/queries_es.json",
+			),
 			SkipArchiveTest: false,
 			// TODO: remove this flag after ES supports returning spanKind
 			//  Issue https://github.com/jaegertracing/jaeger/issues/1923
@@ -202,10 +215,12 @@ func TestElasticsearchStorage_IndexTemplates(t *testing.T) {
 	require.NoError(t, err)
 	// TODO abstract this into pkg/es/client.IndexManagementLifecycleAPI
 	if esVersion == 7 {
-		serviceTemplateExists, err := s.client.IndexTemplateExists(indexPrefix + "-jaeger-service").Do(context.Background())
+		serviceTemplateExists, err := s.client.IndexTemplateExists(indexPrefix + "-jaeger-service").
+			Do(context.Background())
 		require.NoError(t, err)
 		assert.True(t, serviceTemplateExists)
-		spanTemplateExists, err := s.client.IndexTemplateExists(indexPrefix + "-jaeger-span").Do(context.Background())
+		spanTemplateExists, err := s.client.IndexTemplateExists(indexPrefix + "-jaeger-span").
+			Do(context.Background())
 		require.NoError(t, err)
 		assert.True(t, spanTemplateExists)
 	} else {
@@ -219,7 +234,10 @@ func TestElasticsearchStorage_IndexTemplates(t *testing.T) {
 	s.cleanESIndexTemplates(t, indexPrefix)
 }
 
-func (s *ESStorageIntegration) cleanESIndexTemplates(t *testing.T, prefix string) error {
+func (s *ESStorageIntegration) cleanESIndexTemplates(
+	t *testing.T,
+	prefix string,
+) error {
 	version, err := s.getVersion()
 	require.NoError(t, err)
 	if version > 7 {
@@ -227,11 +245,17 @@ func (s *ESStorageIntegration) cleanESIndexTemplates(t *testing.T, prefix string
 		if prefix != "" {
 			prefixWithSeparator += "-"
 		}
-		_, err := s.v8Client.Indices.DeleteIndexTemplate(prefixWithSeparator + spanTemplateName)
+		_, err := s.v8Client.Indices.DeleteIndexTemplate(
+			prefixWithSeparator + spanTemplateName,
+		)
 		require.NoError(t, err)
-		_, err = s.v8Client.Indices.DeleteIndexTemplate(prefixWithSeparator + serviceTemplateName)
+		_, err = s.v8Client.Indices.DeleteIndexTemplate(
+			prefixWithSeparator + serviceTemplateName,
+		)
 		require.NoError(t, err)
-		_, err = s.v8Client.Indices.DeleteIndexTemplate(prefixWithSeparator + dependenciesTemplateName)
+		_, err = s.v8Client.Indices.DeleteIndexTemplate(
+			prefixWithSeparator + dependenciesTemplateName,
+		)
 		require.NoError(t, err)
 	} else {
 		_, err := s.client.IndexDeleteTemplate("*").Do(context.Background())

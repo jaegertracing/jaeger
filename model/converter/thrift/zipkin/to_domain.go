@@ -107,7 +107,9 @@ func (td toDomain) ToDomain(zSpans []*zipkincore.Span) (*model.Trace, error) {
 	return trace, errors.Join(errs...)
 }
 
-func (td toDomain) ToDomainSpans(zSpan *zipkincore.Span) ([]*model.Span, error) {
+func (td toDomain) ToDomainSpans(
+	zSpan *zipkincore.Span,
+) ([]*model.Span, error) {
 	jSpans := td.transformSpan(zSpan)
 	jProcess, err := td.generateProcess(zSpan)
 	for _, jSpan := range jSpans {
@@ -116,7 +118,10 @@ func (td toDomain) ToDomainSpans(zSpan *zipkincore.Span) ([]*model.Span, error) 
 	return jSpans, err
 }
 
-func (toDomain) findAnnotation(zSpan *zipkincore.Span, value string) *zipkincore.Annotation {
+func (toDomain) findAnnotation(
+	zSpan *zipkincore.Span,
+	value string,
+) *zipkincore.Annotation {
 	for _, ann := range zSpan.Annotations {
 		if ann.Value == value {
 			return ann
@@ -171,10 +176,14 @@ func (td toDomain) transformSpan(zSpan *zipkincore.Span) []*model.Span {
 		}
 		// if the first span is a client span we create server span and vice-versa.
 		if result[0].IsRPCClient() {
-			s.Tags = []model.KeyValue{model.String(keySpanKind, trace.SpanKindServer.String())}
+			s.Tags = []model.KeyValue{
+				model.String(keySpanKind, trace.SpanKindServer.String()),
+			}
 			s.StartTime = model.EpochMicrosecondsAsTime(uint64(sr.Timestamp))
 			if ss := td.findAnnotation(zSpan, zipkincore.SERVER_SEND); ss != nil {
-				s.Duration = model.MicrosecondsAsDuration(uint64(ss.Timestamp - sr.Timestamp))
+				s.Duration = model.MicrosecondsAsDuration(
+					uint64(ss.Timestamp - sr.Timestamp),
+				)
 			}
 		} else {
 			s.Tags = []model.KeyValue{model.String(keySpanKind, trace.SpanKindClient.String())}
@@ -198,7 +207,9 @@ func (toDomain) getFlags(zSpan *zipkincore.Span) model.Flags {
 }
 
 // Get a correct start time to use for the span if it's not set directly
-func (td toDomain) getStartTimeAndDuration(zSpan *zipkincore.Span) (timestamp, duration int64) {
+func (td toDomain) getStartTimeAndDuration(
+	zSpan *zipkincore.Span,
+) (timestamp, duration int64) {
 	timestamp = zSpan.GetTimestamp()
 	duration = zSpan.GetDuration()
 	if timestamp == 0 {
@@ -223,7 +234,9 @@ func (td toDomain) getStartTimeAndDuration(zSpan *zipkincore.Span) (timestamp, d
 
 // generateProcess takes a Zipkin Span and produces a model.Process.
 // An optional error may also be returned, but it is not fatal.
-func (td toDomain) generateProcess(zSpan *zipkincore.Span) (*model.Process, error) {
+func (td toDomain) generateProcess(
+	zSpan *zipkincore.Span,
+) (*model.Process, error) {
 	tags := td.getTags(zSpan.BinaryAnnotations, td.isProcessTag)
 	for i, tag := range tags {
 		tags[i].Key = processTagAnnotations[tag.Key]
@@ -236,14 +249,17 @@ func (td toDomain) generateProcess(zSpan *zipkincore.Span) (*model.Process, erro
 	return model.NewProcess(serviceName, tags), err
 }
 
-func (td toDomain) findServiceNameAndIP(zSpan *zipkincore.Span) (string, int32, error) {
+func (td toDomain) findServiceNameAndIP(
+	zSpan *zipkincore.Span,
+) (string, int32, error) {
 	for _, a := range zSpan.Annotations {
 		if td.isCoreAnnotation(a) && a.Host != nil && a.Host.ServiceName != "" {
 			return a.Host.ServiceName, a.Host.Ipv4, nil
 		}
 	}
 	for _, a := range zSpan.BinaryAnnotations {
-		if a.Key == zipkincore.LOCAL_COMPONENT && a.Host != nil && a.Host.ServiceName != "" {
+		if a.Key == zipkincore.LOCAL_COMPONENT && a.Host != nil &&
+			a.Host.ServiceName != "" {
 			return a.Host.ServiceName, a.Host.Ipv4, nil
 		}
 	}
@@ -270,18 +286,25 @@ func (toDomain) isCoreAnnotation(annotation *zipkincore.Annotation) bool {
 	return ok
 }
 
-func (toDomain) isProcessTag(binaryAnnotation *zipkincore.BinaryAnnotation) bool {
+func (toDomain) isProcessTag(
+	binaryAnnotation *zipkincore.BinaryAnnotation,
+) bool {
 	_, ok := processTagAnnotations[binaryAnnotation.Key]
 	return ok
 }
 
-func (td toDomain) isSpanTag(binaryAnnotation *zipkincore.BinaryAnnotation) bool {
+func (td toDomain) isSpanTag(
+	binaryAnnotation *zipkincore.BinaryAnnotation,
+) bool {
 	return !td.isProcessTag(binaryAnnotation)
 }
 
 type tagPredicate func(*zipkincore.BinaryAnnotation) bool
 
-func (td toDomain) getTags(binAnnotations []*zipkincore.BinaryAnnotation, tagInclude tagPredicate) []model.KeyValue {
+func (td toDomain) getTags(
+	binAnnotations []*zipkincore.BinaryAnnotation,
+	tagInclude tagPredicate,
+) []model.KeyValue {
 	// this will be memory intensive due to how slices work, and it's specifically because we have to filter out
 	// some binary annotations. improvement here would be just collecting the indices in binAnnotations we want.
 	var retMe []model.KeyValue
@@ -294,13 +317,19 @@ func (td toDomain) getTags(binAnnotations []*zipkincore.BinaryAnnotation, tagInc
 			value := string(annotation.Value)
 			tag := model.String(component, value)
 			retMe = append(retMe, tag)
-		case zipkincore.SERVER_ADDR, zipkincore.CLIENT_ADDR, zipkincore.MESSAGE_ADDR:
+		case zipkincore.SERVER_ADDR,
+			zipkincore.CLIENT_ADDR,
+			zipkincore.MESSAGE_ADDR:
 			retMe = td.getPeerTags(annotation.Host, retMe)
 		default:
 			tag, err := td.transformBinaryAnnotation(annotation)
 			if err != nil {
 				encoded := base64.StdEncoding.EncodeToString(annotation.Value)
-				errMsg := fmt.Sprintf("Cannot parse Zipkin value %s: %v", encoded, err)
+				errMsg := fmt.Sprintf(
+					"Cannot parse Zipkin value %s: %v",
+					encoded,
+					err,
+				)
 				tag = model.String(annotation.Key, errMsg)
 			}
 			retMe = append(retMe, tag)
@@ -309,7 +338,9 @@ func (td toDomain) getTags(binAnnotations []*zipkincore.BinaryAnnotation, tagInc
 	return retMe
 }
 
-func (toDomain) transformBinaryAnnotation(binaryAnnotation *zipkincore.BinaryAnnotation) (model.KeyValue, error) {
+func (toDomain) transformBinaryAnnotation(
+	binaryAnnotation *zipkincore.BinaryAnnotation,
+) (model.KeyValue, error) {
 	switch binaryAnnotation.AnnotationType {
 	case zipkincore.AnnotationType_BOOL:
 		vBool := bytes.Equal(binaryAnnotation.Value, trueByteSlice)
@@ -341,9 +372,15 @@ func (toDomain) transformBinaryAnnotation(binaryAnnotation *zipkincore.BinaryAnn
 		}
 		return model.Int64(binaryAnnotation.Key, int64(i)), nil
 	case zipkincore.AnnotationType_STRING:
-		return model.String(binaryAnnotation.Key, string(binaryAnnotation.Value)), nil
+		return model.String(
+			binaryAnnotation.Key,
+			string(binaryAnnotation.Value),
+		), nil
 	}
-	return model.KeyValue{}, fmt.Errorf("unknown zipkin annotation type: %d", binaryAnnotation.AnnotationType)
+	return model.KeyValue{}, fmt.Errorf(
+		"unknown zipkin annotation type: %d",
+		binaryAnnotation.AnnotationType,
+	)
 }
 
 func bytesToNumber(b []byte, number any) error {
@@ -372,7 +409,9 @@ func (td toDomain) getLogs(annotations []*zipkincore.Annotation) []model.Log {
 	return retMe
 }
 
-func (toDomain) getLogFields(annotation *zipkincore.Annotation) []model.KeyValue {
+func (toDomain) getLogFields(
+	annotation *zipkincore.Annotation,
+) []model.KeyValue {
 	var logFields map[string]string
 	// Since Zipkin format does not support kv-logging, some clients encode those Logs
 	// as annotations with JSON value. Therefore, we try JSON decoding first.
@@ -388,7 +427,9 @@ func (toDomain) getLogFields(annotation *zipkincore.Annotation) []model.KeyValue
 	return []model.KeyValue{model.String(DefaultLogFieldKey, annotation.Value)}
 }
 
-func (toDomain) getSpanKindTag(annotations []*zipkincore.Annotation) (model.KeyValue, bool) {
+func (toDomain) getSpanKindTag(
+	annotations []*zipkincore.Annotation,
+) (model.KeyValue, bool) {
 	for _, a := range annotations {
 		if spanKind, ok := coreAnnotations[a.Value]; ok {
 			return model.String(keySpanKind, spanKind), true
@@ -397,7 +438,10 @@ func (toDomain) getSpanKindTag(annotations []*zipkincore.Annotation) (model.KeyV
 	return model.KeyValue{}, false
 }
 
-func (toDomain) getPeerTags(endpoint *zipkincore.Endpoint, tags []model.KeyValue) []model.KeyValue {
+func (toDomain) getPeerTags(
+	endpoint *zipkincore.Endpoint,
+	tags []model.KeyValue,
+) []model.KeyValue {
 	if endpoint == nil {
 		return tags
 	}

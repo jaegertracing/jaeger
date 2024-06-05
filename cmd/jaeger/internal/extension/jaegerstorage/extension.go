@@ -38,7 +38,10 @@ type storageExt struct {
 }
 
 // GetStorageFactory locates the extension in Host and retrieves a storage factory from it with the given name.
-func GetStorageFactory(name string, host component.Host) (storage.Factory, error) {
+func GetStorageFactory(
+	name string,
+	host component.Host,
+) (storage.Factory, error) {
 	var comp component.Component
 	for id, ext := range host.GetExtensions() {
 		if id.Type() == componentType {
@@ -62,7 +65,10 @@ func GetStorageFactory(name string, host component.Host) (storage.Factory, error
 	return f, nil
 }
 
-func newStorageExt(config *Config, otel component.TelemetrySettings) *storageExt {
+func newStorageExt(
+	config *Config,
+	otel component.TelemetrySettings,
+) *storageExt {
 	return &storageExt{
 		config:    config,
 		logger:    otel.Logger,
@@ -77,10 +83,17 @@ type starter[Config any, Factory storage.Factory] struct {
 	builder     func(Config, metrics.Factory, *zap.Logger) (Factory, error)
 }
 
-func (s *starter[Config, Factory]) build(_ context.Context, _ component.Host) error {
+func (s *starter[Config, Factory]) build(
+	_ context.Context,
+	_ component.Host,
+) error {
 	for name, cfg := range s.cfg {
 		if _, ok := s.ext.factories[name]; ok {
-			return fmt.Errorf("duplicate %s storage name %s", s.storageKind, name)
+			return fmt.Errorf(
+				"duplicate %s storage name %s",
+				s.storageKind,
+				name,
+			)
 		}
 		factory, err := s.builder(
 			cfg,
@@ -88,7 +101,12 @@ func (s *starter[Config, Factory]) build(_ context.Context, _ component.Host) er
 			s.ext.logger.With(zap.String("storage_name", name)),
 		)
 		if err != nil {
-			return fmt.Errorf("failed to initialize %s storage %s: %w", s.storageKind, name, err)
+			return fmt.Errorf(
+				"failed to initialize %s storage %s: %w",
+				s.storageKind,
+				name,
+				err,
+			)
 		}
 		s.ext.factories[name] = factory
 	}

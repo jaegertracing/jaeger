@@ -20,7 +20,12 @@ var componentType = component.MustNewType("jaeger_query")
 var ID = component.NewID(componentType)
 
 func NewFactory() extension.Factory {
-	return extension.NewFactory(componentType, createDefaultConfig, createExtension, component.StabilityLevelBeta)
+	return extension.NewFactory(
+		componentType,
+		createDefaultConfig,
+		createExtension,
+		component.StabilityLevelBeta,
+	)
 }
 
 func createDefaultConfig() component.Config {
@@ -32,6 +37,10 @@ func createDefaultConfig() component.Config {
 }
 
 // createExtension creates the extension based on this config.
-func createExtension(_ context.Context, set extension.CreateSettings, cfg component.Config) (extension.Extension, error) {
+func createExtension(
+	_ context.Context,
+	set extension.CreateSettings,
+	cfg component.Config,
+) (extension.Extension, error) {
 	return newServer(cfg.(*Config), set.TelemetrySettings), nil
 }

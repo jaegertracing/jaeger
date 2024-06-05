@@ -34,7 +34,17 @@ func TestPercentageIncreaseCappedCalculator(t *testing.T) {
 		{1.0, 0.8, 0.1, 0.125, "test3"},
 	}
 	for _, tt := range tests {
-		probability := calculator.Calculate(tt.targetQPS, tt.curQPS, tt.oldProbability)
-		assert.InDelta(t, tt.expectedProbability, probability, 0.0001, tt.testName)
+		probability := calculator.Calculate(
+			tt.targetQPS,
+			tt.curQPS,
+			tt.oldProbability,
+		)
+		assert.InDelta(
+			t,
+			tt.expectedProbability,
+			probability,
+			0.0001,
+			tt.testName,
+		)
 	}
 }

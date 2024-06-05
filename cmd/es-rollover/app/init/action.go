@@ -40,17 +40,19 @@ type Action struct {
 
 func (c Action) getMapping(version uint, templateName string) (string, error) {
 	mappingBuilder := mappings.MappingBuilder{
-		TemplateBuilder:              es.TextTemplateBuilder{},
-		PrioritySpanTemplate:         int64(c.Config.PrioritySpanTemplate),
-		PriorityServiceTemplate:      int64(c.Config.PriorityServiceTemplate),
-		PriorityDependenciesTemplate: int64(c.Config.PriorityDependenciesTemplate),
-		PrioritySamplingTemplate:     int64(c.Config.PrioritySamplingTemplate),
-		Shards:                       int64(c.Config.Shards),
-		Replicas:                     int64(c.Config.Replicas),
-		IndexPrefix:                  c.Config.IndexPrefix,
-		UseILM:                       c.Config.UseILM,
-		ILMPolicyName:                c.Config.ILMPolicyName,
-		EsVersion:                    version,
+		TemplateBuilder:         es.TextTemplateBuilder{},
+		PrioritySpanTemplate:    int64(c.Config.PrioritySpanTemplate),
+		PriorityServiceTemplate: int64(c.Config.PriorityServiceTemplate),
+		PriorityDependenciesTemplate: int64(
+			c.Config.PriorityDependenciesTemplate,
+		),
+		PrioritySamplingTemplate: int64(c.Config.PrioritySamplingTemplate),
+		Shards:                   int64(c.Config.Shards),
+		Replicas:                 int64(c.Config.Replicas),
+		IndexPrefix:              c.Config.IndexPrefix,
+		UseILM:                   c.Config.UseILM,
+		ILMPolicyName:            c.Config.ILMPolicyName,
+		EsVersion:                version,
 	}
 	return mappingBuilder.GetMapping(templateName)
 }
@@ -70,10 +72,18 @@ func (c Action) Do() error {
 			return err
 		}
 		if !policyExist {
-			return fmt.Errorf("ILM policy %s doesn't exist in Elasticsearch. Please create it and re-run init", c.Config.ILMPolicyName)
+			return fmt.Errorf(
+				"ILM policy %s doesn't exist in Elasticsearch. Please create it and re-run init",
+				c.Config.ILMPolicyName,
+			)
 		}
 	}
-	rolloverIndices := app.RolloverIndices(c.Config.Archive, c.Config.SkipDependencies, c.Config.AdaptiveSampling, c.Config.IndexPrefix)
+	rolloverIndices := app.RolloverIndices(
+		c.Config.Archive,
+		c.Config.SkipDependencies,
+		c.Config.AdaptiveSampling,
+		c.Config.IndexPrefix,
+	)
 	for _, indexName := range rolloverIndices {
 		if err := c.init(version, indexName); err != nil {
 			return err
@@ -99,7 +109,10 @@ func createIndexIfNotExist(c client.IndexAPI, index string) error {
 			}
 			errorMap := jsonError["error"].(map[string]any)
 			// check for reason, ignore already exist error
-			if strings.Contains(errorMap["type"].(string), "resource_already_exists_exception") {
+			if strings.Contains(
+				errorMap["type"].(string),
+				"resource_already_exists_exception",
+			) {
 				return nil
 			}
 		}

@@ -48,21 +48,41 @@ type aggregator struct {
 
 // NewAggregator creates a throughput aggregator that simply emits metrics
 // about the number of operations seen over the aggregationInterval.
-func NewAggregator(options Options, logger *zap.Logger, metricsFactory metrics.Factory, participant leaderelection.ElectionParticipant, store samplingstore.Store) (strategystore.Aggregator, error) {
+func NewAggregator(
+	options Options,
+	logger *zap.Logger,
+	metricsFactory metrics.Factory,
+	participant leaderelection.ElectionParticipant,
+	store samplingstore.Store,
+) (strategystore.Aggregator, error) {
 	hostname, err := hostname.AsIdentifier()
 	if err != nil {
 		return nil, err
 	}
-	logger.Info("Using unique participantName in adaptive sampling", zap.String("participantName", hostname))
+	logger.Info(
+		"Using unique participantName in adaptive sampling",
+		zap.String("participantName", hostname),
+	)
 
-	postAggregator, err := newPostAggregator(options, hostname, store, participant, metricsFactory, logger)
+	postAggregator, err := newPostAggregator(
+		options,
+		hostname,
+		store,
+		participant,
+		metricsFactory,
+		logger,
+	)
 	if err != nil {
 		return nil, err
 	}
 
 	return &aggregator{
-		operationsCounter:   metricsFactory.Counter(metrics.Options{Name: "sampling_operations"}),
-		servicesCounter:     metricsFactory.Counter(metrics.Options{Name: "sampling_services"}),
+		operationsCounter: metricsFactory.Counter(
+			metrics.Options{Name: "sampling_operations"},
+		),
+		servicesCounter: metricsFactory.Counter(
+			metrics.Options{Name: "sampling_services"},
+		),
 		currentThroughput:   make(serviceOperationThroughput),
 		aggregationInterval: options.CalculationInterval,
 		postAggregator:      postAggregator,
@@ -102,7 +122,11 @@ func (a *aggregator) saveThroughput() {
 	a.storage.InsertThroughput(throughputSlice)
 }
 
-func (a *aggregator) RecordThroughput(service, operation string, samplerType span_model.SamplerType, probability float64) {
+func (a *aggregator) RecordThroughput(
+	service, operation string,
+	samplerType span_model.SamplerType,
+	probability float64,
+) {
 	a.Lock()
 	defer a.Unlock()
 	if _, ok := a.currentThroughput[service]; !ok {

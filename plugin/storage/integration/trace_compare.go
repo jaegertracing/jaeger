@@ -26,8 +26,17 @@ import (
 )
 
 // CompareSliceOfTraces compares two trace slices
-func CompareSliceOfTraces(t *testing.T, expected []*model.Trace, actual []*model.Trace) {
-	require.Equal(t, len(expected), len(actual), "Unequal number of expected vs. actual traces")
+func CompareSliceOfTraces(
+	t *testing.T,
+	expected []*model.Trace,
+	actual []*model.Trace,
+) {
+	require.Equal(
+		t,
+		len(expected),
+		len(actual),
+		"Unequal number of expected vs. actual traces",
+	)
 	model.SortTraces(expected)
 	model.SortTraces(actual)
 	for i := range expected {
@@ -74,7 +83,11 @@ func CompareTraces(t *testing.T, expected *model.Trace, actual *model.Trace) {
 	countBefore := len(actual.Spans)
 	dedupeSpans(actual)
 	if countAfter := len(actual.Spans); countAfter != countBefore {
-		t.Logf("Removed spans with duplicate span IDs; before=%d, after=%d", countBefore, countAfter)
+		t.Logf(
+			"Removed spans with duplicate span IDs; before=%d, after=%d",
+			countBefore,
+			countAfter,
+		)
 	}
 
 	model.SortTrace(expected)
@@ -100,7 +113,11 @@ func checkSize(t *testing.T, expected *model.Trace, actual *model.Trace) {
 		require.Equal(t, len(expectedSpan.Tags), len(actualSpan.Tags))
 		require.Equal(t, len(expectedSpan.Logs), len(actualSpan.Logs))
 		if expectedSpan.Process != nil && actualSpan.Process != nil {
-			require.Equal(t, len(expectedSpan.Process.Tags), len(actualSpan.Process.Tags))
+			require.Equal(
+				t,
+				len(expectedSpan.Process.Tags),
+				len(actualSpan.Process.Tags),
+			)
 		}
 	}
 }

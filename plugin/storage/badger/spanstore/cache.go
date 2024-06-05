@@ -71,8 +71,12 @@ func (c *CacheStore) loadServices() {
 
 		// Seek all the services first
 		for it.Seek(serviceKey); it.ValidForPrefix(serviceKey); it.Next() {
-			timestampStartIndex := len(it.Item().Key()) - (sizeOfTraceID + 8) // 8 = sizeof(uint64)
-			serviceName := string(it.Item().Key()[len(serviceKey):timestampStartIndex])
+			timestampStartIndex := len(
+				it.Item().Key(),
+			) - (sizeOfTraceID + 8) // 8 = sizeof(uint64)
+			serviceName := string(
+				it.Item().Key()[len(serviceKey):timestampStartIndex],
+			)
 			keyTTL := it.Item().ExpiresAt()
 			if v, found := c.services[serviceName]; found {
 				if v > keyTTL {
@@ -97,8 +101,12 @@ func (c *CacheStore) loadOperations(service string) {
 
 		// Seek all the services first
 		for it.Seek(serviceKey); it.ValidForPrefix(serviceKey); it.Next() {
-			timestampStartIndex := len(it.Item().Key()) - (sizeOfTraceID + 8) // 8 = sizeof(uint64)
-			operationName := string(it.Item().Key()[len(serviceKey):timestampStartIndex])
+			timestampStartIndex := len(
+				it.Item().Key(),
+			) - (sizeOfTraceID + 8) // 8 = sizeof(uint64)
+			operationName := string(
+				it.Item().Key()[len(serviceKey):timestampStartIndex],
+			)
 			keyTTL := it.Item().ExpiresAt()
 			if _, found := c.operations[service]; !found {
 				c.operations[service] = make(map[string]uint64)
@@ -128,7 +136,9 @@ func (c *CacheStore) Update(service, operation string, expireTime uint64) {
 }
 
 // GetOperations returns all operations for a specific service & spanKind traced by Jaeger
-func (c *CacheStore) GetOperations(service string) ([]spanstore.Operation, error) {
+func (c *CacheStore) GetOperations(
+	service string,
+) ([]spanstore.Operation, error) {
 	operations := make([]string, 0, len(c.services))
 	t := uint64(time.Now().Unix())
 	c.cacheLock.Lock()

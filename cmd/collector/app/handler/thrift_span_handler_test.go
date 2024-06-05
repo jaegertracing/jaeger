@@ -45,7 +45,10 @@ func TestJaegerSpanHandler(t *testing.T) {
 	}
 	for _, tc := range testChunks {
 		logger := zap.NewNop()
-		h := NewJaegerSpanHandler(logger, &shouldIErrorProcessor{tc.expectedErr != nil})
+		h := NewJaegerSpanHandler(
+			logger,
+			&shouldIErrorProcessor{tc.expectedErr != nil},
+		)
 		res, err := h.SubmitBatches([]*jaeger.Batch{
 			{
 				Process: &jaeger.Process{ServiceName: "someServiceName"},
@@ -69,7 +72,10 @@ type shouldIErrorProcessor struct {
 
 var errTestError = errors.New("Whoops")
 
-func (s *shouldIErrorProcessor) ProcessSpans(mSpans []*model.Span, _ processor.SpansOptions) ([]bool, error) {
+func (s *shouldIErrorProcessor) ProcessSpans(
+	mSpans []*model.Span,
+	_ processor.SpansOptions,
+) ([]bool, error) {
 	if s.shouldError {
 		return nil, errTestError
 	}
@@ -110,7 +116,8 @@ func TestZipkinSpanHandler(t *testing.T) {
 			h := NewZipkinSpanHandler(
 				logger,
 				&shouldIErrorProcessor{tc.expectedErr != nil},
-				zipkinsanitizer.NewChainedSanitizer(zipkinsanitizer.NewStandardSanitizers()...),
+				zipkinsanitizer.NewChainedSanitizer(
+					zipkinsanitizer.NewStandardSanitizers()...),
 			)
 			var spans []*zipkincore.Span
 			if tc.filename != "" {

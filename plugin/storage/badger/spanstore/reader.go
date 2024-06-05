@@ -49,7 +49,9 @@ var (
 	ErrStartAndEndTimeNotSet = errors.New("start and end time must be set")
 
 	// ErrUnableToFindTraceIDAggregation occurs when an aggregation query for TraceIDs fail.
-	ErrUnableToFindTraceIDAggregation = errors.New("could not find aggregation of traceIDs")
+	ErrUnableToFindTraceIDAggregation = errors.New(
+		"could not find aggregation of traceIDs",
+	)
 
 	// ErrNotSupported during development, don't support every option - yet
 	ErrNotSupported = errors.New("this query parameter is not supported yet")
@@ -110,7 +112,9 @@ func decodeValue(val []byte, encodeType byte) (*model.Span, error) {
 }
 
 // getTraces enriches TraceIDs to Traces
-func (r *TraceReader) getTraces(traceIDs []model.TraceID) ([]*model.Trace, error) {
+func (r *TraceReader) getTraces(
+	traceIDs []model.TraceID,
+) ([]*model.Trace, error) {
 	// Get by PK
 	traces := make([]*model.Trace, 0, len(traceIDs))
 	prefixes := make([][]byte, 0, len(traceIDs))
@@ -126,7 +130,11 @@ func (r *TraceReader) getTraces(traceIDs []model.TraceID) ([]*model.Trace, error
 
 		val := []byte{}
 		for _, prefix := range prefixes {
-			spans := make([]*model.Span, 0, 32) // reduce reallocation requirements by defining some initial length
+			spans := make(
+				[]*model.Span,
+				0,
+				32,
+			) // reduce reallocation requirements by defining some initial length
 
 			for it.Seek(prefix); it.ValidForPrefix(prefix); it.Next() {
 				// Add value to the span store (decode from JSON / defined encoding first)
@@ -157,7 +165,10 @@ func (r *TraceReader) getTraces(traceIDs []model.TraceID) ([]*model.Trace, error
 }
 
 // GetTrace takes a traceID and returns a Trace associated with that traceID
-func (r *TraceReader) GetTrace(ctx context.Context, traceID model.TraceID) (*model.Trace, error) {
+func (r *TraceReader) GetTrace(
+	ctx context.Context,
+	traceID model.TraceID,
+) (*model.Trace, error) {
 	traces, err := r.getTraces([]model.TraceID{traceID})
 	if err != nil {
 		return nil, err
@@ -173,7 +184,9 @@ func (r *TraceReader) GetTrace(ctx context.Context, traceID model.TraceID) (*mod
 }
 
 // scanTimeRange returns all the Traces found between startTs and endTs
-func (r *TraceReader) scanTimeRange(plan *executionPlan) ([]model.TraceID, error) {
+func (r *TraceReader) scanTimeRange(
+	plan *executionPlan,
+) ([]model.TraceID, error) {
 	// We need to do a full table scan
 	traceKeys := make([][]byte, 0)
 	err := r.store.View(func(txn *badger.Txn) error {
@@ -193,7 +206,8 @@ func (r *TraceReader) scanTimeRange(plan *executionPlan) ([]model.TraceID, error
 			timestamp := key[sizeOfTraceID+1 : sizeOfTraceID+1+8]
 			traceID := key[1 : sizeOfTraceID+1]
 
-			if bytes.Compare(timestamp, plan.startTimeMin) >= 0 && bytes.Compare(timestamp, plan.startTimeMax) <= 0 {
+			if bytes.Compare(timestamp, plan.startTimeMin) >= 0 &&
+				bytes.Compare(timestamp, plan.startTimeMax) <= 0 {
 				if !bytes.Equal(traceID, prevTraceID) {
 					if plan.hashOuter != nil {
 						trID := bytesToTraceID(traceID)
@@ -213,7 +227,10 @@ func (r *TraceReader) scanTimeRange(plan *executionPlan) ([]model.TraceID, error
 
 	sort.Slice(traceKeys, func(k, h int) bool {
 		// This sorts by timestamp to descending order
-		return bytes.Compare(traceKeys[k][sizeOfTraceID+1:sizeOfTraceID+1+8], traceKeys[h][sizeOfTraceID+1:sizeOfTraceID+1+8]) > 0
+		return bytes.Compare(
+			traceKeys[k][sizeOfTraceID+1:sizeOfTraceID+1+8],
+			traceKeys[h][sizeOfTraceID+1:sizeOfTraceID+1+8],
+		) > 0
 	})
 
 	sizeCount := len(traceKeys)
@@ -261,7 +278,10 @@ func setQueryDefaults(query *spanstore.TraceQueryParameters) {
 }
 
 // serviceQueries parses the query to index seeks which are unique index seeks
-func serviceQueries(query *spanstore.TraceQueryParameters, indexSeeks [][]byte) [][]byte {
+func serviceQueries(
+	query *spanstore.TraceQueryParameters,
+	indexSeeks [][]byte,
+) [][]byte {
 	if query.ServiceName != "" {
 		indexSearchKey := make([]byte, 0, 64) // 64 is a magic guess
 		tagQueryUsed := false
@@ -276,7 +296,9 @@ func serviceQueries(query *spanstore.TraceQueryParameters, indexSeeks [][]byte) 
 
 		if query.OperationName != "" {
 			indexSearchKey = append(indexSearchKey, operationNameIndexKey)
-			indexSearchKey = append(indexSearchKey, []byte(query.ServiceName+query.OperationName)...)
+			indexSearchKey = append(
+				indexSearchKey,
+				[]byte(query.ServiceName+query.OperationName)...)
 		} else if !tagQueryUsed { // Tag query already reduces the search set with a serviceName
 			indexSearchKey = append(indexSearchKey, serviceNameIndexKey)
 			indexSearchKey = append(indexSearchKey, []byte(query.ServiceName)...)
@@ -290,7 +312,10 @@ func serviceQueries(query *spanstore.TraceQueryParameters, indexSeeks [][]byte) 
 }
 
 // indexSeeksToTraceIDs does the index scanning against badger based on the parsed index queries
-func (r *TraceReader) indexSeeksToTraceIDs(plan *executionPlan, indexSeeks [][]byte) ([]model.TraceID, error) {
+func (r *TraceReader) indexSeeksToTraceIDs(
+	plan *executionPlan,
+	indexSeeks [][]byte,
+) ([]model.TraceID, error) {
 	for i := len(indexSeeks) - 1; i > 0; i-- {
 		indexResults, err := r.scanIndexKeys(indexSeeks[i], plan)
 		if err != nil {
@@ -367,7 +392,10 @@ func bytesToTraceID(key []byte) model.TraceID {
 	}
 }
 
-func buildHash(plan *executionPlan, outerIDs [][]byte) map[model.TraceID]struct{} {
+func buildHash(
+	plan *executionPlan,
+	outerIDs [][]byte,
+) map[model.TraceID]struct{} {
 	var empty struct{}
 
 	hashed := make(map[model.TraceID]struct{})
@@ -388,7 +416,10 @@ func buildHash(plan *executionPlan, outerIDs [][]byte) map[model.TraceID]struct{
 }
 
 // durationQueries checks non unique index of durations and returns a map for further filtering purposes
-func (r *TraceReader) durationQueries(plan *executionPlan, query *spanstore.TraceQueryParameters) map[model.TraceID]struct{} {
+func (r *TraceReader) durationQueries(
+	plan *executionPlan,
+	query *spanstore.TraceQueryParameters,
+) map[model.TraceID]struct{} {
 	durMax := uint64(model.DurationAsMicroseconds(query.DurationMax))
 	durMin := uint64(model.DurationAsMicroseconds(query.DurationMin))
 
@@ -454,7 +485,10 @@ func mergeJoinIds(left, right [][]byte) [][]byte {
 }
 
 // FindTraces retrieves traces that match the traceQuery
-func (r *TraceReader) FindTraces(ctx context.Context, query *spanstore.TraceQueryParameters) ([]*model.Trace, error) {
+func (r *TraceReader) FindTraces(
+	ctx context.Context,
+	query *spanstore.TraceQueryParameters,
+) ([]*model.Trace, error) {
 	keys, err := r.FindTraceIDs(ctx, query)
 	if err != nil {
 		return nil, err
@@ -464,7 +498,10 @@ func (r *TraceReader) FindTraces(ctx context.Context, query *spanstore.TraceQuer
 }
 
 // FindTraceIDs retrieves only the TraceIDs that match the traceQuery, but not the trace data
-func (r *TraceReader) FindTraceIDs(ctx context.Context, query *spanstore.TraceQueryParameters) ([]model.TraceID, error) {
+func (r *TraceReader) FindTraceIDs(
+	ctx context.Context,
+	query *spanstore.TraceQueryParameters,
+) ([]model.TraceID, error) {
 	// Validate and set query defaults which were not defined
 	if err := validateQuery(query); err != nil {
 		return nil, err
@@ -477,10 +514,16 @@ func (r *TraceReader) FindTraceIDs(ctx context.Context, query *spanstore.TraceQu
 	indexSeeks = serviceQueries(query, indexSeeks)
 
 	startStampBytes := make([]byte, 8)
-	binary.BigEndian.PutUint64(startStampBytes, model.TimeAsEpochMicroseconds(query.StartTimeMin))
+	binary.BigEndian.PutUint64(
+		startStampBytes,
+		model.TimeAsEpochMicroseconds(query.StartTimeMin),
+	)
 
 	endStampBytes := make([]byte, 8)
-	binary.BigEndian.PutUint64(endStampBytes, model.TimeAsEpochMicroseconds(query.StartTimeMax))
+	binary.BigEndian.PutUint64(
+		endStampBytes,
+		model.TimeAsEpochMicroseconds(query.StartTimeMax),
+	)
 
 	plan := &executionPlan{
 		startTimeMin: startStampBytes,
@@ -521,14 +564,18 @@ func validateQuery(p *spanstore.TraceQueryParameters) error {
 	if !p.StartTimeMax.IsZero() && p.StartTimeMax.Before(p.StartTimeMin) {
 		return ErrStartTimeMinGreaterThanMax
 	}
-	if p.DurationMin != 0 && p.DurationMax != 0 && p.DurationMin > p.DurationMax {
+	if p.DurationMin != 0 && p.DurationMax != 0 &&
+		p.DurationMin > p.DurationMax {
 		return ErrDurationMinGreaterThanMax
 	}
 	return nil
 }
 
 // scanIndexKeys scans the time range for index keys matching the given prefix.
-func (r *TraceReader) scanIndexKeys(indexKeyValue []byte, plan *executionPlan) ([][]byte, error) {
+func (r *TraceReader) scanIndexKeys(
+	indexKeyValue []byte,
+	plan *executionPlan,
+) ([][]byte, error) {
 	indexResults := make([][]byte, 0)
 
 	err := r.store.View(func(txn *badger.Txn) error {
@@ -549,8 +596,13 @@ func (r *TraceReader) scanIndexKeys(indexKeyValue []byte, plan *executionPlan) (
 
 			// ScanFunction is a prefix scanning (since we could have for example service1 & service12)
 			// Now we need to match only the exact key if we want to add it
-			timestampStartIndex := len(it.Item().Key()) - (sizeOfTraceID + 8) // timestamp is stored with 8 bytes
-			if bytes.Equal(indexKeyValue, it.Item().Key()[:timestampStartIndex]) {
+			timestampStartIndex := len(
+				it.Item().Key(),
+			) - (sizeOfTraceID + 8) // timestamp is stored with 8 bytes
+			if bytes.Equal(
+				indexKeyValue,
+				it.Item().Key()[:timestampStartIndex],
+			) {
 				traceIDBytes := item.Key()[len(item.Key())-sizeOfTraceID:]
 
 				traceIDCopy := make([]byte, sizeOfTraceID)
@@ -565,10 +617,16 @@ func (r *TraceReader) scanIndexKeys(indexKeyValue []byte, plan *executionPlan) (
 }
 
 // scanFunction compares the index name as well as the time range in the index key
-func scanFunction(it *badger.Iterator, indexPrefix []byte, timeBytesEnd []byte) bool {
+func scanFunction(
+	it *badger.Iterator,
+	indexPrefix []byte,
+	timeBytesEnd []byte,
+) bool {
 	if it.Valid() {
 		// We can't use the indexPrefix length, because we might have the same prefixValue for non-matching cases also
-		timestampStartIndex := len(it.Item().Key()) - (sizeOfTraceID + 8) // timestamp is stored with 8 bytes
+		timestampStartIndex := len(
+			it.Item().Key(),
+		) - (sizeOfTraceID + 8) // timestamp is stored with 8 bytes
 		timestamp := it.Item().Key()[timestampStartIndex : timestampStartIndex+8]
 		timestampInRange := bytes.Compare(timeBytesEnd, timestamp) <= 0
 
@@ -577,13 +635,21 @@ func scanFunction(it *badger.Iterator, indexPrefix []byte, timeBytesEnd []byte) 
 			return false
 		}
 
-		return bytes.HasPrefix(it.Item().Key()[:timestampStartIndex], indexPrefix) && timestampInRange
+		return bytes.HasPrefix(
+			it.Item().Key()[:timestampStartIndex],
+			indexPrefix,
+		) &&
+			timestampInRange
 	}
 	return false
 }
 
 // scanRangeIndex scans the time range for index keys matching the given prefix.
-func (r *TraceReader) scanRangeIndex(plan *executionPlan, indexStartValue []byte, indexEndValue []byte) ([][]byte, error) {
+func (r *TraceReader) scanRangeIndex(
+	plan *executionPlan,
+	indexStartValue []byte,
+	indexEndValue []byte,
+) ([][]byte, error) {
 	indexResults := make([][]byte, 0)
 
 	err := r.store.View(func(txn *badger.Txn) error {
@@ -602,7 +668,9 @@ func (r *TraceReader) scanRangeIndex(plan *executionPlan, indexStartValue []byte
 
 			// ScanFunction is a prefix scanning (since we could have for example service1 & service12)
 			// Now we need to match only the exact key if we want to add it
-			timestampStartIndex := len(it.Item().Key()) - (sizeOfTraceID + 8) // timestamp is stored with 8 bytes
+			timestampStartIndex := len(
+				it.Item().Key(),
+			) - (sizeOfTraceID + 8) // timestamp is stored with 8 bytes
 			timestamp := it.Item().Key()[timestampStartIndex : timestampStartIndex+8]
 			if bytes.Compare(timestamp, plan.startTimeMax) <= 0 {
 				key := make([]byte, len(item.Key()))

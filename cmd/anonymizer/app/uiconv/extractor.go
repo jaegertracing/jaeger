@@ -34,7 +34,12 @@ type extractor struct {
 }
 
 // newExtractor creates extractor.
-func newExtractor(uiFile string, traceID string, reader *spanReader, logger *zap.Logger) (*extractor, error) {
+func newExtractor(
+	uiFile string,
+	traceID string,
+	reader *spanReader,
+	logger *zap.Logger,
+) (*extractor, error) {
 	f, err := os.OpenFile(uiFile, os.O_CREATE|os.O_WRONLY, os.ModePerm)
 	if err != nil {
 		return nil, fmt.Errorf("cannot create output file: %w", err)
@@ -51,7 +56,10 @@ func newExtractor(uiFile string, traceID string, reader *spanReader, logger *zap
 
 // Run executes the extraction.
 func (e *extractor) Run() error {
-	e.logger.Info("Parsing captured file for trace", zap.String("trace_id", e.traceID))
+	e.logger.Info(
+		"Parsing captured file for trace",
+		zap.String("trace_id", e.traceID),
+	)
 
 	var (
 		spans []uimodel.Span

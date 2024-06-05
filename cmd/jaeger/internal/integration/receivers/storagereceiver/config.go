@@ -11,7 +11,7 @@ import (
 
 type Config struct {
 	TraceStorage string        `valid:"required" mapstructure:"trace_storage"`
-	PullInterval time.Duration `mapstructure:"pull_interval"`
+	PullInterval time.Duration `                 mapstructure:"pull_interval"`
 }
 
 func (cfg *Config) Validate() error {

@@ -35,7 +35,11 @@ import (
 
 func TestAgentStartError(t *testing.T) {
 	cfg := &Builder{}
-	agent, err := cfg.CreateAgent(fakeCollectorProxy{}, zap.NewNop(), metrics.NullFactory)
+	agent, err := cfg.CreateAgent(
+		fakeCollectorProxy{},
+		zap.NewNop(),
+		metrics.NullFactory,
+	)
 	require.NoError(t, err)
 	agent.httpServer.Addr = "bad-address"
 	require.Error(t, agent.Run())
@@ -100,13 +104,19 @@ func withRunningAgent(t *testing.T, testcase func(string, chan error)) {
 	}
 
 	logger, logBuf := testutils.NewLogger()
-	mBldr := &metricsbuilder.Builder{HTTPRoute: "/metrics", Backend: "prometheus"}
+	mBldr := &metricsbuilder.Builder{
+		HTTPRoute: "/metrics",
+		Backend:   "prometheus",
+	}
 	metricsFactory, err := mBldr.CreateMetricsFactory("jaeger")
 	require.NoError(t, err)
 	agent, err := cfg.CreateAgent(fakeCollectorProxy{}, logger, metricsFactory)
 	require.NoError(t, err)
 	if h := mBldr.Handler(); metricsFactory != nil && h != nil {
-		logger.Info("Registering metrics handler with HTTP server", zap.String("route", mBldr.HTTPRoute))
+		logger.Info(
+			"Registering metrics handler with HTTP server",
+			zap.String("route", mBldr.HTTPRoute),
+		)
 		agent.GetHTTPRouter().Handle(mBldr.HTTPRoute, h).Methods(http.MethodGet)
 	}
 	ch := make(chan error, 2)
@@ -154,7 +164,10 @@ func TestStartStopRace(t *testing.T) {
 		},
 	}
 	logger, logBuf := testutils.NewEchoLogger(t)
-	mBldr := &metricsbuilder.Builder{HTTPRoute: "/metrics", Backend: "prometheus"}
+	mBldr := &metricsbuilder.Builder{
+		HTTPRoute: "/metrics",
+		Backend:   "prometheus",
+	}
 	metricsFactory, err := mBldr.CreateMetricsFactory("jaeger")
 	require.NoError(t, err)
 	agent, err := cfg.CreateAgent(fakeCollectorProxy{}, logger, metricsFactory)
@@ -197,10 +210,17 @@ func TestStartStopWithSocketBufferSet(t *testing.T) {
 			},
 		},
 	}
-	mBldr := &metricsbuilder.Builder{HTTPRoute: "/metrics", Backend: "prometheus"}
+	mBldr := &metricsbuilder.Builder{
+		HTTPRoute: "/metrics",
+		Backend:   "prometheus",
+	}
 	metricsFactory, err := mBldr.CreateMetricsFactory("jaeger")
 	require.NoError(t, err)
-	agent, err := cfg.CreateAgent(fakeCollectorProxy{}, zap.NewNop(), metricsFactory)
+	agent, err := cfg.CreateAgent(
+		fakeCollectorProxy{},
+		zap.NewNop(),
+		metricsFactory,
+	)
 	require.NoError(t, err)
 
 	if err := agent.Run(); err != nil {

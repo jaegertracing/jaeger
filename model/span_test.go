@@ -41,8 +41,18 @@ var testCasesTraceID = []struct {
 	{lo: 15, hex: "000000000000000f", b64: "AAAAAAAAAAAAAAAAAAAADw=="},
 	{lo: 31, hex: "000000000000001f", b64: "AAAAAAAAAAAAAAAAAAAAHw=="},
 	{lo: 257, hex: "0000000000000101", b64: "AAAAAAAAAAAAAAAAAAABAQ=="},
-	{hi: 1, lo: 1, hex: "00000000000000010000000000000001", b64: "AAAAAAAAAAEAAAAAAAAAAQ=="},
-	{hi: 257, lo: 1, hex: "00000000000001010000000000000001", b64: "AAAAAAAAAQEAAAAAAAAAAQ=="},
+	{
+		hi:  1,
+		lo:  1,
+		hex: "00000000000000010000000000000001",
+		b64: "AAAAAAAAAAEAAAAAAAAAAQ==",
+	},
+	{
+		hi:  257,
+		lo:  1,
+		hex: "00000000000001010000000000000001",
+		b64: "AAAAAAAAAQEAAAAAAAAAAQ==",
+	},
 }
 
 func TestTraceIDMarshalJSONPB(t *testing.T) {
@@ -50,7 +60,9 @@ func TestTraceIDMarshalJSONPB(t *testing.T) {
 		t.Run(testCase.hex, func(t *testing.T) {
 			expected := fmt.Sprintf(`{"traceId":"%s"}`, testCase.b64)
 
-			ref := model.SpanRef{TraceID: model.NewTraceID(testCase.hi, testCase.lo)}
+			ref := model.SpanRef{
+				TraceID: model.NewTraceID(testCase.hi, testCase.lo),
+			}
 			out := new(bytes.Buffer)
 			err := new(jsonpb.Marshaler).Marshal(out, &ref)
 			require.NoError(t, err)
@@ -123,7 +135,10 @@ const keySpanKind = "span.kind"
 
 func TestSpanIDMarshalJSON(t *testing.T) {
 	for _, testCase := range testCasesSpanID {
-		expected := fmt.Sprintf(`{"traceId":"AAAAAAAAAAAAAAAAAAAAAA==","spanId":"%s"}`, testCase.b64)
+		expected := fmt.Sprintf(
+			`{"traceId":"AAAAAAAAAAAAAAAAAAAAAA==","spanId":"%s"}`,
+			testCase.b64,
+		)
 		t.Run(testCase.hex, func(t *testing.T) {
 			ref := model.SpanRef{SpanID: model.SpanID(testCase.id)}
 			out := new(bytes.Buffer)
@@ -312,10 +327,12 @@ func makeSpan(someKV model.KeyValue) *model.Span {
 		TraceID:       traceID,
 		SpanID:        model.NewSpanID(567),
 		OperationName: "hi",
-		References:    []model.SpanRef{model.NewChildOfRef(traceID, model.NewSpanID(123))},
-		StartTime:     time.Unix(0, 1000),
-		Duration:      5000,
-		Tags:          model.KeyValues{someKV},
+		References: []model.SpanRef{
+			model.NewChildOfRef(traceID, model.NewSpanID(123)),
+		},
+		StartTime: time.Unix(0, 1000),
+		Duration:  5000,
+		Tags:      model.KeyValues{someKV},
 		Logs: []model.Log{
 			{
 				Timestamp: time.Unix(0, 1000),
@@ -367,7 +384,10 @@ func BenchmarkBatchSerialization(b *testing.B) {
 						},
 					},
 				},
-				Process:   model.NewProcess("process1", []model.KeyValue{model.String("aaa", "bbb")}),
+				Process: model.NewProcess(
+					"process1",
+					[]model.KeyValue{model.String("aaa", "bbb")},
+				),
 				ProcessID: "156",
 			},
 		},

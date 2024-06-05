@@ -46,8 +46,18 @@ func NewSpanWriter(
 	logger *zap.Logger,
 ) *SpanWriter {
 	writeMetrics := spanWriterMetrics{
-		SpansWrittenSuccess: factory.Counter(metrics.Options{Name: "kafka_spans_written", Tags: map[string]string{"status": "success"}}),
-		SpansWrittenFailure: factory.Counter(metrics.Options{Name: "kafka_spans_written", Tags: map[string]string{"status": "failure"}}),
+		SpansWrittenSuccess: factory.Counter(
+			metrics.Options{
+				Name: "kafka_spans_written",
+				Tags: map[string]string{"status": "success"},
+			},
+		),
+		SpansWrittenFailure: factory.Counter(
+			metrics.Options{
+				Name: "kafka_spans_written",
+				Tags: map[string]string{"status": "failure"},
+			},
+		),
 	}
 
 	go func() {

@@ -60,7 +60,10 @@ var indices = []client.Index{
 }
 
 func TestByAlias(t *testing.T) {
-	filtered := ByAlias(indices, []string{"jaeger-span-read", "jaeger-span-other"})
+	filtered := ByAlias(
+		indices,
+		[]string{"jaeger-span-read", "jaeger-span-other"},
+	)
 	expected := []client.Index{
 		{
 			Index: "jaeger-span-0001",
@@ -92,7 +95,10 @@ func TestByAlias(t *testing.T) {
 }
 
 func TestByAliasExclude(t *testing.T) {
-	filtered := ByAliasExclude(indices, []string{"jaeger-span-read", "jaeger-span-other"})
+	filtered := ByAliasExclude(
+		indices,
+		[]string{"jaeger-span-read", "jaeger-span-other"},
+	)
 	expected := []client.Index{
 		{
 			Index: "jaeger-span-0005",

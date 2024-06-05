@@ -51,25 +51,77 @@ type ServerFlagsConfig struct {
 
 // AddFlags adds flags for TLS to the FlagSet.
 func (c ClientFlagsConfig) AddFlags(flags *flag.FlagSet) {
-	flags.Bool(c.Prefix+tlsEnabled, false, "Enable TLS when talking to the remote server(s)")
-	flags.String(c.Prefix+tlsCA, "", "Path to a TLS CA (Certification Authority) file used to verify the remote server(s) (by default will use the system truststore)")
-	flags.String(c.Prefix+tlsCert, "", "Path to a TLS Certificate file, used to identify this process to the remote server(s)")
-	flags.String(c.Prefix+tlsKey, "", "Path to a TLS Private Key file, used to identify this process to the remote server(s)")
-	flags.String(c.Prefix+tlsServerName, "", "Override the TLS server name we expect in the certificate of the remote server(s)")
-	flags.Bool(c.Prefix+tlsSkipHostVerify, false, "(insecure) Skip server's certificate chain and host name verification")
+	flags.Bool(
+		c.Prefix+tlsEnabled,
+		false,
+		"Enable TLS when talking to the remote server(s)",
+	)
+	flags.String(
+		c.Prefix+tlsCA,
+		"",
+		"Path to a TLS CA (Certification Authority) file used to verify the remote server(s) (by default will use the system truststore)",
+	)
+	flags.String(
+		c.Prefix+tlsCert,
+		"",
+		"Path to a TLS Certificate file, used to identify this process to the remote server(s)",
+	)
+	flags.String(
+		c.Prefix+tlsKey,
+		"",
+		"Path to a TLS Private Key file, used to identify this process to the remote server(s)",
+	)
+	flags.String(
+		c.Prefix+tlsServerName,
+		"",
+		"Override the TLS server name we expect in the certificate of the remote server(s)",
+	)
+	flags.Bool(
+		c.Prefix+tlsSkipHostVerify,
+		false,
+		"(insecure) Skip server's certificate chain and host name verification",
+	)
 }
 
 // AddFlags adds flags for TLS to the FlagSet.
 func (c ServerFlagsConfig) AddFlags(flags *flag.FlagSet) {
 	flags.Bool(c.Prefix+tlsEnabled, false, "Enable TLS on the server")
-	flags.String(c.Prefix+tlsCert, "", "Path to a TLS Certificate file, used to identify this server to clients")
-	flags.String(c.Prefix+tlsKey, "", "Path to a TLS Private Key file, used to identify this server to clients")
-	flags.String(c.Prefix+tlsClientCA, "", "Path to a TLS CA (Certification Authority) file used to verify certificates presented by clients (if unset, all clients are permitted)")
-	flags.String(c.Prefix+tlsCipherSuites, "", "Comma-separated list of cipher suites for the server, values are from tls package constants (https://golang.org/pkg/crypto/tls/#pkg-constants).")
-	flags.String(c.Prefix+tlsMinVersion, "", "Minimum TLS version supported (Possible values: 1.0, 1.1, 1.2, 1.3)")
-	flags.String(c.Prefix+tlsMaxVersion, "", "Maximum TLS version supported (Possible values: 1.0, 1.1, 1.2, 1.3)")
+	flags.String(
+		c.Prefix+tlsCert,
+		"",
+		"Path to a TLS Certificate file, used to identify this server to clients",
+	)
+	flags.String(
+		c.Prefix+tlsKey,
+		"",
+		"Path to a TLS Private Key file, used to identify this server to clients",
+	)
+	flags.String(
+		c.Prefix+tlsClientCA,
+		"",
+		"Path to a TLS CA (Certification Authority) file used to verify certificates presented by clients (if unset, all clients are permitted)",
+	)
+	flags.String(
+		c.Prefix+tlsCipherSuites,
+		"",
+		"Comma-separated list of cipher suites for the server, values are from tls package constants (https://golang.org/pkg/crypto/tls/#pkg-constants).",
+	)
+	flags.String(
+		c.Prefix+tlsMinVersion,
+		"",
+		"Minimum TLS version supported (Possible values: 1.0, 1.1, 1.2, 1.3)",
+	)
+	flags.String(
+		c.Prefix+tlsMaxVersion,
+		"",
+		"Maximum TLS version supported (Possible values: 1.0, 1.1, 1.2, 1.3)",
+	)
 	if c.EnableCertReloadInterval {
-		flags.Duration(c.Prefix+tlsReloadInterval, 0, "The duration after which the certificate will be reloaded (0s means will not be reloaded)")
+		flags.Duration(
+			c.Prefix+tlsReloadInterval,
+			0,
+			"The duration after which the certificate will be reloaded (0s means will not be reloaded)",
+		)
 	}
 }
 
@@ -86,7 +138,11 @@ func (c ClientFlagsConfig) InitFromViper(v *viper.Viper) (Options, error) {
 	if !p.Enabled {
 		var empty Options
 		if !reflect.DeepEqual(&p, &empty) {
-			return p, fmt.Errorf("%s.tls.* options cannot be used when %s is false", c.Prefix, c.Prefix+tlsEnabled)
+			return p, fmt.Errorf(
+				"%s.tls.* options cannot be used when %s is false",
+				c.Prefix,
+				c.Prefix+tlsEnabled,
+			)
 		}
 	}
 
@@ -101,7 +157,10 @@ func (c ServerFlagsConfig) InitFromViper(v *viper.Viper) (Options, error) {
 	p.KeyPath = v.GetString(c.Prefix + tlsKey)
 	p.ClientCAPath = v.GetString(c.Prefix + tlsClientCA)
 	if s := v.GetString(c.Prefix + tlsCipherSuites); s != "" {
-		p.CipherSuites = strings.Split(stripWhiteSpace(v.GetString(c.Prefix+tlsCipherSuites)), ",")
+		p.CipherSuites = strings.Split(
+			stripWhiteSpace(v.GetString(c.Prefix+tlsCipherSuites)),
+			",",
+		)
 	}
 	p.MinVersion = v.GetString(c.Prefix + tlsMinVersion)
 	p.MaxVersion = v.GetString(c.Prefix + tlsMaxVersion)
@@ -110,7 +169,11 @@ func (c ServerFlagsConfig) InitFromViper(v *viper.Viper) (Options, error) {
 	if !p.Enabled {
 		var empty Options
 		if !reflect.DeepEqual(&p, &empty) {
-			return p, fmt.Errorf("%s.tls.* options cannot be used when %s is false", c.Prefix, c.Prefix+tlsEnabled)
+			return p, fmt.Errorf(
+				"%s.tls.* options cannot be used when %s is false",
+				c.Prefix,
+				c.Prefix+tlsEnabled,
+			)
 		}
 	}
 

@@ -24,9 +24,11 @@ func Test_Run(t *testing.T) {
 		expectedErr error
 	}{
 		{
-			name:        "Empty config",
-			config:      &Config{},
-			expectedErr: errors.New("either `traces` or `duration` must be greater than 0"),
+			name:   "Empty config",
+			config: &Config{},
+			expectedErr: errors.New(
+				"either `traces` or `duration` must be greater than 0",
+			),
 		},
 		{
 			name: "Non-empty config",

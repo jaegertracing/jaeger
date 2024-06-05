@@ -107,7 +107,11 @@ func TestSpanParentIDSanitizer(t *testing.T) {
 		if test.tag {
 			if assert.Len(t, actual.BinaryAnnotations, 1) {
 				assert.Equal(t, "0", string(actual.BinaryAnnotations[0].Value))
-				assert.Equal(t, zeroParentIDTag, string(actual.BinaryAnnotations[0].Key))
+				assert.Equal(
+					t,
+					zeroParentIDTag,
+					string(actual.BinaryAnnotations[0].Key),
+				)
 			}
 		} else {
 			assert.Empty(t, actual.BinaryAnnotations)
@@ -126,19 +130,34 @@ func TestSpanErrorSanitizer(t *testing.T) {
 	}{
 		// value is string
 		{
-			&zipkincore.BinaryAnnotation{Key: "error", AnnotationType: zipkincore.AnnotationType_STRING},
+			&zipkincore.BinaryAnnotation{
+				Key:            "error",
+				AnnotationType: zipkincore.AnnotationType_STRING,
+			},
 			true, true, false,
 		},
 		{
-			&zipkincore.BinaryAnnotation{Key: "error", Value: []byte("true"), AnnotationType: zipkincore.AnnotationType_STRING},
+			&zipkincore.BinaryAnnotation{
+				Key:            "error",
+				Value:          []byte("true"),
+				AnnotationType: zipkincore.AnnotationType_STRING,
+			},
 			true, true, false,
 		},
 		{
-			&zipkincore.BinaryAnnotation{Key: "error", Value: []byte("message"), AnnotationType: zipkincore.AnnotationType_STRING},
+			&zipkincore.BinaryAnnotation{
+				Key:            "error",
+				Value:          []byte("message"),
+				AnnotationType: zipkincore.AnnotationType_STRING,
+			},
 			true, true, true,
 		},
 		{
-			&zipkincore.BinaryAnnotation{Key: "error", Value: []byte("false"), AnnotationType: zipkincore.AnnotationType_STRING},
+			&zipkincore.BinaryAnnotation{
+				Key:            "error",
+				Value:          []byte("false"),
+				AnnotationType: zipkincore.AnnotationType_STRING,
+			},
 			true, false, false,
 		},
 	}
@@ -155,14 +174,35 @@ func TestSpanErrorSanitizer(t *testing.T) {
 				expectedVal = []byte{1}
 			}
 
-			assert.Equal(t, expectedVal, sanitized.BinaryAnnotations[0].Value, test.binAnn.Key)
-			assert.Equal(t, zipkincore.AnnotationType_BOOL, sanitized.BinaryAnnotations[0].AnnotationType)
+			assert.Equal(
+				t,
+				expectedVal,
+				sanitized.BinaryAnnotations[0].Value,
+				test.binAnn.Key,
+			)
+			assert.Equal(
+				t,
+				zipkincore.AnnotationType_BOOL,
+				sanitized.BinaryAnnotations[0].AnnotationType,
+			)
 
 			if test.addErrMsgAnno {
 				assert.Len(t, sanitized.BinaryAnnotations, 2)
-				assert.Equal(t, "error.message", sanitized.BinaryAnnotations[1].Key)
-				assert.Equal(t, "message", string(sanitized.BinaryAnnotations[1].Value))
-				assert.Equal(t, zipkincore.AnnotationType_STRING, sanitized.BinaryAnnotations[1].AnnotationType)
+				assert.Equal(
+					t,
+					"error.message",
+					sanitized.BinaryAnnotations[1].Key,
+				)
+				assert.Equal(
+					t,
+					"message",
+					string(sanitized.BinaryAnnotations[1].Value),
+				)
+				assert.Equal(
+					t,
+					zipkincore.AnnotationType_STRING,
+					sanitized.BinaryAnnotations[1].AnnotationType,
+				)
 			} else {
 				assert.Len(t, sanitized.BinaryAnnotations, 1)
 			}

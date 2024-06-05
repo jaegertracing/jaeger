@@ -37,7 +37,10 @@ type spanReader struct {
 }
 
 // newSpanReader creates a spanReader.
-func newSpanReader(capturedFile string, logger *zap.Logger) (*spanReader, error) {
+func newSpanReader(
+	capturedFile string,
+	logger *zap.Logger,
+) (*spanReader, error) {
 	cf, err := os.OpenFile(capturedFile, os.O_RDONLY, os.ModePerm)
 	if err != nil {
 		return nil, fmt.Errorf("cannot open captured file: %w", err)

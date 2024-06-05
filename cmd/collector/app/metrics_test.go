@@ -30,15 +30,32 @@ import (
 func TestProcessorMetrics(t *testing.T) {
 	baseMetrics := metricstest.NewFactory(time.Hour)
 	defer baseMetrics.Backend.Stop()
-	serviceMetrics := baseMetrics.Namespace(jaegerM.NSOptions{Name: "service", Tags: nil})
-	hostMetrics := baseMetrics.Namespace(jaegerM.NSOptions{Name: "host", Tags: nil})
-	spm := NewSpanProcessorMetrics(serviceMetrics, hostMetrics, []processor.SpanFormat{processor.SpanFormat("scruffy")})
-	benderFormatHTTPMetrics := spm.GetCountsForFormat("bender", processor.HTTPTransport)
+	serviceMetrics := baseMetrics.Namespace(
+		jaegerM.NSOptions{Name: "service", Tags: nil},
+	)
+	hostMetrics := baseMetrics.Namespace(
+		jaegerM.NSOptions{Name: "host", Tags: nil},
+	)
+	spm := NewSpanProcessorMetrics(
+		serviceMetrics,
+		hostMetrics,
+		[]processor.SpanFormat{processor.SpanFormat("scruffy")},
+	)
+	benderFormatHTTPMetrics := spm.GetCountsForFormat(
+		"bender",
+		processor.HTTPTransport,
+	)
 	assert.NotNil(t, benderFormatHTTPMetrics)
-	benderFormatGRPCMetrics := spm.GetCountsForFormat("bender", processor.GRPCTransport)
+	benderFormatGRPCMetrics := spm.GetCountsForFormat(
+		"bender",
+		processor.GRPCTransport,
+	)
 	assert.NotNil(t, benderFormatGRPCMetrics)
 
-	grpcChannelFormat := spm.GetCountsForFormat(processor.JaegerSpanFormat, processor.GRPCTransport)
+	grpcChannelFormat := spm.GetCountsForFormat(
+		processor.JaegerSpanFormat,
+		processor.GRPCTransport,
+	)
 	assert.NotNil(t, grpcChannelFormat)
 	grpcChannelFormat.ReceivedBySvc.ReportServiceNameForSpan(&model.Span{
 		Process: &model.Process{},
@@ -55,10 +72,26 @@ func TestProcessorMetrics(t *testing.T) {
 	grpcChannelFormat.ReceivedBySvc.ReportServiceNameForSpan(&mSpan)
 	counters, gauges := baseMetrics.Backend.Snapshot()
 
-	assert.EqualValues(t, 1, counters["service.spans.received|debug=false|format=jaeger|svc=fry|transport=grpc"])
-	assert.EqualValues(t, 2, counters["service.spans.received|debug=true|format=jaeger|svc=fry|transport=grpc"])
-	assert.EqualValues(t, 1, counters["service.traces.received|debug=false|format=jaeger|sampler_type=unrecognized|svc=fry|transport=grpc"])
-	assert.EqualValues(t, 1, counters["service.traces.received|debug=true|format=jaeger|sampler_type=unrecognized|svc=fry|transport=grpc"])
+	assert.EqualValues(
+		t,
+		1,
+		counters["service.spans.received|debug=false|format=jaeger|svc=fry|transport=grpc"],
+	)
+	assert.EqualValues(
+		t,
+		2,
+		counters["service.spans.received|debug=true|format=jaeger|svc=fry|transport=grpc"],
+	)
+	assert.EqualValues(
+		t,
+		1,
+		counters["service.traces.received|debug=false|format=jaeger|sampler_type=unrecognized|svc=fry|transport=grpc"],
+	)
+	assert.EqualValues(
+		t,
+		1,
+		counters["service.traces.received|debug=true|format=jaeger|sampler_type=unrecognized|svc=fry|transport=grpc"],
+	)
 	assert.Empty(t, gauges)
 }
 
@@ -73,9 +106,22 @@ func TestNewTraceCountsBySvc(t *testing.T) {
 	metrics.countByServiceName("zoidberg", false, model.SamplerTypeUnrecognized)
 
 	counters, _ := baseMetrics.Backend.Snapshot()
-	assert.EqualValues(t, 1, counters["not_on_my_level|debug=false|sampler_type=unrecognized|svc=fry"])
-	assert.EqualValues(t, 1, counters["not_on_my_level|debug=false|sampler_type=unrecognized|svc=leela"])
-	assert.EqualValues(t, 2, counters["not_on_my_level|debug=false|sampler_type=unrecognized|svc=other-services"], counters)
+	assert.EqualValues(
+		t,
+		1,
+		counters["not_on_my_level|debug=false|sampler_type=unrecognized|svc=fry"],
+	)
+	assert.EqualValues(
+		t,
+		1,
+		counters["not_on_my_level|debug=false|sampler_type=unrecognized|svc=leela"],
+	)
+	assert.EqualValues(
+		t,
+		2,
+		counters["not_on_my_level|debug=false|sampler_type=unrecognized|svc=other-services"],
+		counters,
+	)
 
 	metrics.countByServiceName("bender", true, model.SamplerTypeConst)
 	metrics.countByServiceName("bender", true, model.SamplerTypeProbabilistic)
@@ -86,13 +132,42 @@ func TestNewTraceCountsBySvc(t *testing.T) {
 	metrics.countByServiceName("url", true, model.SamplerTypeUnrecognized)
 
 	counters, _ = baseMetrics.Backend.Snapshot()
-	assert.EqualValues(t, 1, counters["not_on_my_level|debug=true|sampler_type=const|svc=bender"])
-	assert.EqualValues(t, 1, counters["not_on_my_level|debug=true|sampler_type=probabilistic|svc=bender"])
-	assert.EqualValues(t, 1, counters["not_on_my_level|debug=true|sampler_type=probabilistic|svc=other-services"], counters)
-	assert.EqualValues(t, 1, counters["not_on_my_level|debug=true|sampler_type=ratelimiting|svc=other-services"])
-	assert.EqualValues(t, 1, counters["not_on_my_level|debug=true|sampler_type=const|svc=other-services"])
-	assert.EqualValues(t, 1, counters["not_on_my_level|debug=true|sampler_type=lowerbound|svc=other-services"])
-	assert.EqualValues(t, 1, counters["not_on_my_level|debug=true|sampler_type=unrecognized|svc=other-services"])
+	assert.EqualValues(
+		t,
+		1,
+		counters["not_on_my_level|debug=true|sampler_type=const|svc=bender"],
+	)
+	assert.EqualValues(
+		t,
+		1,
+		counters["not_on_my_level|debug=true|sampler_type=probabilistic|svc=bender"],
+	)
+	assert.EqualValues(
+		t,
+		1,
+		counters["not_on_my_level|debug=true|sampler_type=probabilistic|svc=other-services"],
+		counters,
+	)
+	assert.EqualValues(
+		t,
+		1,
+		counters["not_on_my_level|debug=true|sampler_type=ratelimiting|svc=other-services"],
+	)
+	assert.EqualValues(
+		t,
+		1,
+		counters["not_on_my_level|debug=true|sampler_type=const|svc=other-services"],
+	)
+	assert.EqualValues(
+		t,
+		1,
+		counters["not_on_my_level|debug=true|sampler_type=lowerbound|svc=other-services"],
+	)
+	assert.EqualValues(
+		t,
+		1,
+		counters["not_on_my_level|debug=true|sampler_type=unrecognized|svc=other-services"],
+	)
 }
 
 func TestNewSpanCountsBySvc(t *testing.T) {
@@ -107,7 +182,11 @@ func TestNewSpanCountsBySvc(t *testing.T) {
 	counters, _ := baseMetrics.Backend.Snapshot()
 	assert.EqualValues(t, 1, counters["not_on_my_level|debug=false|svc=fry"])
 	assert.EqualValues(t, 1, counters["not_on_my_level|debug=false|svc=leela"])
-	assert.EqualValues(t, 2, counters["not_on_my_level|debug=false|svc=other-services"])
+	assert.EqualValues(
+		t,
+		2,
+		counters["not_on_my_level|debug=false|svc=other-services"],
+	)
 
 	metrics.countByServiceName("zoidberg", true)
 	metrics.countByServiceName("bender", true)
@@ -115,9 +194,17 @@ func TestNewSpanCountsBySvc(t *testing.T) {
 	metrics.countByServiceName("fry", true)
 
 	counters, _ = baseMetrics.Backend.Snapshot()
-	assert.EqualValues(t, 1, counters["not_on_my_level|debug=true|svc=zoidberg"])
+	assert.EqualValues(
+		t,
+		1,
+		counters["not_on_my_level|debug=true|svc=zoidberg"],
+	)
 	assert.EqualValues(t, 1, counters["not_on_my_level|debug=true|svc=bender"])
-	assert.EqualValues(t, 2, counters["not_on_my_level|debug=true|svc=other-services"])
+	assert.EqualValues(
+		t,
+		2,
+		counters["not_on_my_level|debug=true|svc=other-services"],
+	)
 }
 
 func TestBuildKey(t *testing.T) {

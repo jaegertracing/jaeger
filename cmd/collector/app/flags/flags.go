@@ -184,41 +184,106 @@ type GRPCOptions struct {
 
 // AddFlags adds flags for CollectorOptions
 func AddFlags(flags *flag.FlagSet) {
-	flags.Int(flagNumWorkers, DefaultNumWorkers, "The number of workers pulling items from the queue")
-	flags.Int(flagQueueSize, DefaultQueueSize, "The queue size of the collector")
-	flags.Uint(flagDynQueueSizeMemory, 0, "(experimental) The max memory size in MiB to use for the dynamic queue.")
-	flags.String(flagCollectorTags, "", "One or more tags to be added to the Process tags of all spans passing through this collector. Ex: key1=value1,key2=${envVar:defaultValue}")
-	flags.Bool(flagSpanSizeMetricsEnabled, false, "Enables metrics based on processed span size, which are more expensive to calculate.")
+	flags.Int(
+		flagNumWorkers,
+		DefaultNumWorkers,
+		"The number of workers pulling items from the queue",
+	)
+	flags.Int(
+		flagQueueSize,
+		DefaultQueueSize,
+		"The queue size of the collector",
+	)
+	flags.Uint(
+		flagDynQueueSizeMemory,
+		0,
+		"(experimental) The max memory size in MiB to use for the dynamic queue.",
+	)
+	flags.String(
+		flagCollectorTags,
+		"",
+		"One or more tags to be added to the Process tags of all spans passing through this collector. Ex: key1=value1,key2=${envVar:defaultValue}",
+	)
+	flags.Bool(
+		flagSpanSizeMetricsEnabled,
+		false,
+		"Enables metrics based on processed span size, which are more expensive to calculate.",
+	)
 
-	addHTTPFlags(flags, httpServerFlagsCfg, ports.PortToHostPort(ports.CollectorHTTP))
-	addGRPCFlags(flags, grpcServerFlagsCfg, ports.PortToHostPort(ports.CollectorGRPC))
+	addHTTPFlags(
+		flags,
+		httpServerFlagsCfg,
+		ports.PortToHostPort(ports.CollectorHTTP),
+	)
+	addGRPCFlags(
+		flags,
+		grpcServerFlagsCfg,
+		ports.PortToHostPort(ports.CollectorGRPC),
+	)
 
-	flags.Bool(flagCollectorOTLPEnabled, true, "Enables OpenTelemetry OTLP receiver on dedicated HTTP and gRPC ports")
+	flags.Bool(
+		flagCollectorOTLPEnabled,
+		true,
+		"Enables OpenTelemetry OTLP receiver on dedicated HTTP and gRPC ports",
+	)
 	addHTTPFlags(flags, otlpServerFlagsCfg.HTTP, "")
 	corsOTLPFlags.AddFlags(flags)
 	addGRPCFlags(flags, otlpServerFlagsCfg.GRPC, "")
 
-	flags.String(flagZipkinHTTPHostPort, "", "The host:port (e.g. 127.0.0.1:9411 or :9411) of the collector's Zipkin server (disabled by default)")
-	flags.Bool(flagZipkinKeepAliveEnabled, true, "KeepAlive configures allow Keep-Alive for Zipkin HTTP server (enabled by default)")
+	flags.String(
+		flagZipkinHTTPHostPort,
+		"",
+		"The host:port (e.g. 127.0.0.1:9411 or :9411) of the collector's Zipkin server (disabled by default)",
+	)
+	flags.Bool(
+		flagZipkinKeepAliveEnabled,
+		true,
+		"KeepAlive configures allow Keep-Alive for Zipkin HTTP server (enabled by default)",
+	)
 	tlsZipkinFlagsConfig.AddFlags(flags)
 	corsZipkinFlags.AddFlags(flags)
 
 	tenancy.AddFlags(flags)
 }
 
-func addHTTPFlags(flags *flag.FlagSet, cfg serverFlagsConfig, defaultHostPort string) {
-	flags.String(cfg.prefix+"."+flagSuffixHostPort, defaultHostPort, "The host:port (e.g. 127.0.0.1:12345 or :12345) of the collector's HTTP server")
-	flags.Duration(cfg.prefix+"."+flagSuffixHTTPIdleTimeout, 0, "See https://pkg.go.dev/net/http#Server")
-	flags.Duration(cfg.prefix+"."+flagSuffixHTTPReadTimeout, 0, "See https://pkg.go.dev/net/http#Server")
-	flags.Duration(cfg.prefix+"."+flagSuffixHTTPReadHeaderTimeout, 2*time.Second, "See https://pkg.go.dev/net/http#Server")
-	cfg.tls.AddFlags(flags)
-}
-
-func addGRPCFlags(flags *flag.FlagSet, cfg serverFlagsConfig, defaultHostPort string) {
+func addHTTPFlags(
+	flags *flag.FlagSet,
+	cfg serverFlagsConfig,
+	defaultHostPort string,
+) {
 	flags.String(
 		cfg.prefix+"."+flagSuffixHostPort,
 		defaultHostPort,
-		"The host:port (e.g. 127.0.0.1:12345 or :12345) of the collector's gRPC server")
+		"The host:port (e.g. 127.0.0.1:12345 or :12345) of the collector's HTTP server",
+	)
+	flags.Duration(
+		cfg.prefix+"."+flagSuffixHTTPIdleTimeout,
+		0,
+		"See https://pkg.go.dev/net/http#Server",
+	)
+	flags.Duration(
+		cfg.prefix+"."+flagSuffixHTTPReadTimeout,
+		0,
+		"See https://pkg.go.dev/net/http#Server",
+	)
+	flags.Duration(
+		cfg.prefix+"."+flagSuffixHTTPReadHeaderTimeout,
+		2*time.Second,
+		"See https://pkg.go.dev/net/http#Server",
+	)
+	cfg.tls.AddFlags(flags)
+}
+
+func addGRPCFlags(
+	flags *flag.FlagSet,
+	cfg serverFlagsConfig,
+	defaultHostPort string,
+) {
+	flags.String(
+		cfg.prefix+"."+flagSuffixHostPort,
+		defaultHostPort,
+		"The host:port (e.g. 127.0.0.1:12345 or :12345) of the collector's gRPC server",
+	)
 	flags.Int(
 		cfg.prefix+"."+flagSuffixGRPCMaxReceiveMessageLength,
 		DefaultGRPCMaxReceiveMessageLength,
@@ -226,19 +291,33 @@ func addGRPCFlags(flags *flag.FlagSet, cfg serverFlagsConfig, defaultHostPort st
 	flags.Duration(
 		cfg.prefix+"."+flagSuffixGRPCMaxConnectionAge,
 		0,
-		"The maximum amount of time a connection may exist. Set this value to a few seconds or minutes on highly elastic environments, so that clients discover new collector nodes frequently. See https://pkg.go.dev/google.golang.org/grpc/keepalive#ServerParameters")
+		"The maximum amount of time a connection may exist. Set this value to a few seconds or minutes on highly elastic environments, so that clients discover new collector nodes frequently. See https://pkg.go.dev/google.golang.org/grpc/keepalive#ServerParameters",
+	)
 	flags.Duration(
 		cfg.prefix+"."+flagSuffixGRPCMaxConnectionAgeGrace,
 		0,
-		"The additive period after MaxConnectionAge after which the connection will be forcibly closed. See https://pkg.go.dev/google.golang.org/grpc/keepalive#ServerParameters")
+		"The additive period after MaxConnectionAge after which the connection will be forcibly closed. See https://pkg.go.dev/google.golang.org/grpc/keepalive#ServerParameters",
+	)
 	cfg.tls.AddFlags(flags)
 }
 
-func (opts *HTTPOptions) initFromViper(v *viper.Viper, logger *zap.Logger, cfg serverFlagsConfig) error {
-	opts.HostPort = ports.FormatHostPort(v.GetString(cfg.prefix + "." + flagSuffixHostPort))
-	opts.IdleTimeout = v.GetDuration(cfg.prefix + "." + flagSuffixHTTPIdleTimeout)
-	opts.ReadTimeout = v.GetDuration(cfg.prefix + "." + flagSuffixHTTPReadTimeout)
-	opts.ReadHeaderTimeout = v.GetDuration(cfg.prefix + "." + flagSuffixHTTPReadHeaderTimeout)
+func (opts *HTTPOptions) initFromViper(
+	v *viper.Viper,
+	logger *zap.Logger,
+	cfg serverFlagsConfig,
+) error {
+	opts.HostPort = ports.FormatHostPort(
+		v.GetString(cfg.prefix + "." + flagSuffixHostPort),
+	)
+	opts.IdleTimeout = v.GetDuration(
+		cfg.prefix + "." + flagSuffixHTTPIdleTimeout,
+	)
+	opts.ReadTimeout = v.GetDuration(
+		cfg.prefix + "." + flagSuffixHTTPReadTimeout,
+	)
+	opts.ReadHeaderTimeout = v.GetDuration(
+		cfg.prefix + "." + flagSuffixHTTPReadHeaderTimeout,
+	)
 	tlsOpts, err := cfg.tls.InitFromViper(v)
 	if err != nil {
 		return fmt.Errorf("failed to parse HTTP TLS options: %w", err)
@@ -247,11 +326,23 @@ func (opts *HTTPOptions) initFromViper(v *viper.Viper, logger *zap.Logger, cfg s
 	return nil
 }
 
-func (opts *GRPCOptions) initFromViper(v *viper.Viper, logger *zap.Logger, cfg serverFlagsConfig) error {
-	opts.HostPort = ports.FormatHostPort(v.GetString(cfg.prefix + "." + flagSuffixHostPort))
-	opts.MaxReceiveMessageLength = v.GetInt(cfg.prefix + "." + flagSuffixGRPCMaxReceiveMessageLength)
-	opts.MaxConnectionAge = v.GetDuration(cfg.prefix + "." + flagSuffixGRPCMaxConnectionAge)
-	opts.MaxConnectionAgeGrace = v.GetDuration(cfg.prefix + "." + flagSuffixGRPCMaxConnectionAgeGrace)
+func (opts *GRPCOptions) initFromViper(
+	v *viper.Viper,
+	logger *zap.Logger,
+	cfg serverFlagsConfig,
+) error {
+	opts.HostPort = ports.FormatHostPort(
+		v.GetString(cfg.prefix + "." + flagSuffixHostPort),
+	)
+	opts.MaxReceiveMessageLength = v.GetInt(
+		cfg.prefix + "." + flagSuffixGRPCMaxReceiveMessageLength,
+	)
+	opts.MaxConnectionAge = v.GetDuration(
+		cfg.prefix + "." + flagSuffixGRPCMaxConnectionAge,
+	)
+	opts.MaxConnectionAgeGrace = v.GetDuration(
+		cfg.prefix + "." + flagSuffixGRPCMaxConnectionAgeGrace,
+	)
 	tlsOpts, err := cfg.tls.InitFromViper(v)
 	if err != nil {
 		return fmt.Errorf("failed to parse gRPC TLS options: %w", err)
@@ -263,11 +354,16 @@ func (opts *GRPCOptions) initFromViper(v *viper.Viper, logger *zap.Logger, cfg s
 }
 
 // InitFromViper initializes CollectorOptions with properties from viper
-func (cOpts *CollectorOptions) InitFromViper(v *viper.Viper, logger *zap.Logger) (*CollectorOptions, error) {
+func (cOpts *CollectorOptions) InitFromViper(
+	v *viper.Viper,
+	logger *zap.Logger,
+) (*CollectorOptions, error) {
 	cOpts.CollectorTags = flags.ParseJaegerTags(v.GetString(flagCollectorTags))
 	cOpts.NumWorkers = v.GetInt(flagNumWorkers)
 	cOpts.QueueSize = v.GetInt(flagQueueSize)
-	cOpts.DynQueueSizeMemory = v.GetUint(flagDynQueueSizeMemory) * 1024 * 1024 // we receive in MiB and store in bytes
+	cOpts.DynQueueSizeMemory = v.GetUint(
+		flagDynQueueSizeMemory,
+	) * 1024 * 1024 // we receive in MiB and store in bytes
 	cOpts.SpanSizeMetricsEnabled = v.GetBool(flagSpanSizeMetricsEnabled)
 
 	if err := cOpts.HTTP.initFromViper(v, logger, httpServerFlagsCfg); err != nil {
@@ -280,15 +376,23 @@ func (cOpts *CollectorOptions) InitFromViper(v *viper.Viper, logger *zap.Logger)
 
 	cOpts.OTLP.Enabled = v.GetBool(flagCollectorOTLPEnabled)
 	if err := cOpts.OTLP.HTTP.initFromViper(v, logger, otlpServerFlagsCfg.HTTP); err != nil {
-		return cOpts, fmt.Errorf("failed to parse OTLP/HTTP server options: %w", err)
+		return cOpts, fmt.Errorf(
+			"failed to parse OTLP/HTTP server options: %w",
+			err,
+		)
 	}
 	cOpts.OTLP.HTTP.CORS = corsOTLPFlags.InitFromViper(v)
 	if err := cOpts.OTLP.GRPC.initFromViper(v, logger, otlpServerFlagsCfg.GRPC); err != nil {
-		return cOpts, fmt.Errorf("failed to parse OTLP/gRPC server options: %w", err)
+		return cOpts, fmt.Errorf(
+			"failed to parse OTLP/gRPC server options: %w",
+			err,
+		)
 	}
 
 	cOpts.Zipkin.KeepAlive = v.GetBool(flagZipkinKeepAliveEnabled)
-	cOpts.Zipkin.HTTPHostPort = ports.FormatHostPort(v.GetString(flagZipkinHTTPHostPort))
+	cOpts.Zipkin.HTTPHostPort = ports.FormatHostPort(
+		v.GetString(flagZipkinHTTPHostPort),
+	)
 	tlsZipkin, err := tlsZipkinFlagsConfig.InitFromViper(v)
 	if err != nil {
 		return cOpts, fmt.Errorf("failed to parse Zipkin TLS options: %w", err)

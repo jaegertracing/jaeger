@@ -54,7 +54,11 @@ func TestSpanProcessor_Process(t *testing.T) {
 		Return(nil).
 		Run(func(args mock.Arguments) {
 			span := args[1].(*model.Span)
-			assert.NotNil(t, span.Process, "sanitizer must fix Process=nil data issue")
+			assert.NotNil(
+				t,
+				span.Process,
+				"sanitizer must fix Process=nil data issue",
+			)
 		})
 
 	require.NoError(t, processor.Process(message))

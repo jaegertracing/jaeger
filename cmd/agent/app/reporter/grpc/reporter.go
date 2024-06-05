@@ -42,22 +42,34 @@ type Reporter struct {
 }
 
 // NewReporter creates gRPC reporter.
-func NewReporter(conn *grpc.ClientConn, agentTags map[string]string, logger *zap.Logger) *Reporter {
+func NewReporter(
+	conn *grpc.ClientConn,
+	agentTags map[string]string,
+	logger *zap.Logger,
+) *Reporter {
 	return &Reporter{
 		collector: api_v2.NewCollectorServiceClient(conn),
 		agentTags: makeModelKeyValue(agentTags),
 		logger:    logger,
-		sanitizer: zipkin2.NewChainedSanitizer(zipkin2.NewStandardSanitizers()...),
+		sanitizer: zipkin2.NewChainedSanitizer(
+			zipkin2.NewStandardSanitizers()...),
 	}
 }
 
 // EmitBatch implements EmitBatch() of Reporter
 func (r *Reporter) EmitBatch(ctx context.Context, b *thrift.Batch) error {
-	return r.send(ctx, jConverter.ToDomain(b.Spans, nil), jConverter.ToDomainProcess(b.Process))
+	return r.send(
+		ctx,
+		jConverter.ToDomain(b.Spans, nil),
+		jConverter.ToDomainProcess(b.Process),
+	)
 }
 
 // EmitZipkinBatch implements EmitZipkinBatch() of Reporter
-func (r *Reporter) EmitZipkinBatch(ctx context.Context, zSpans []*zipkincore.Span) error {
+func (r *Reporter) EmitZipkinBatch(
+	ctx context.Context,
+	zSpans []*zipkincore.Span,
+) error {
 	for i := range zSpans {
 		zSpans[i] = r.sanitizer.Sanitize(zSpans[i])
 	}
@@ -68,15 +80,23 @@ func (r *Reporter) EmitZipkinBatch(ctx context.Context, zSpans []*zipkincore.Spa
 	return r.send(ctx, trace.Spans, nil)
 }
 
-func (r *Reporter) send(ctx context.Context, spans []*model.Span, process *model.Process) error {
+func (r *Reporter) send(
+	ctx context.Context,
+	spans []*model.Span,
+	process *model.Process,
+) error {
 	spans, process = addProcessTags(spans, process, r.agentTags)
 	batch := model.Batch{Spans: spans, Process: process}
 	req := &api_v2.PostSpansRequest{Batch: batch}
 	_, err := r.collector.PostSpans(ctx, req)
 	if err != nil {
 		stat, ok := status.FromError(err)
-		if ok && stat.Code() == codes.PermissionDenied && stat.Message() == "missing tenant header" {
-			r.logger.Debug("Could not report untenanted spans over gRPC", zap.Error(err))
+		if ok && stat.Code() == codes.PermissionDenied &&
+			stat.Message() == "missing tenant header" {
+			r.logger.Debug(
+				"Could not report untenanted spans over gRPC",
+				zap.Error(err),
+			)
 		} else {
 			r.logger.Error("Could not send spans over gRPC", zap.Error(err))
 		}
@@ -86,7 +106,11 @@ func (r *Reporter) send(ctx context.Context, spans []*model.Span, process *model
 }
 
 // addProcessTags appends jaeger tags for the agent to every span it sends to the collector.
-func addProcessTags(spans []*model.Span, process *model.Process, agentTags []model.KeyValue) ([]*model.Span, *model.Process) {
+func addProcessTags(
+	spans []*model.Span,
+	process *model.Process,
+	agentTags []model.KeyValue,
+) ([]*model.Span, *model.Process) {
 	if len(agentTags) == 0 {
 		return spans, process
 	}

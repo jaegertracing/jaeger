@@ -40,7 +40,11 @@ const (
 	badCaCert   = "./testdata/bad-CA-cert.txt"
 )
 
-func copyToTempFile(t *testing.T, pattern string, filename string) (file *os.File, closeFn func()) {
+func copyToTempFile(
+	t *testing.T,
+	pattern string,
+	filename string,
+) (file *os.File, closeFn func()) {
 	tempFile, err := os.CreateTemp("", pattern+"_")
 	require.NoError(t, err)
 
@@ -94,14 +98,24 @@ func TestReloadKeyPair(t *testing.T) {
 	// Replace certificate part of the pair with client's cert, which should fail to load.
 	copyFile(t, certFile.Name(), clientCert)
 
-	assertLogs(t, logObserver, logMsgPairNotReloaded, [][2]string{{"key", keyFile.Name()}, {"cert", certFile.Name()}})
+	assertLogs(
+		t,
+		logObserver,
+		logMsgPairNotReloaded,
+		[][2]string{{"key", keyFile.Name()}, {"cert", certFile.Name()}},
+	)
 	assert.Equal(t, &cert, watcher.certificate(), "key pair unchanged")
 	logObserver.TakeAll() // clean up logs
 
 	// Replace key part with client's private key. Valid pair, should reload.
 	copyFile(t, keyFile.Name(), clientKey)
 
-	assertLogs(t, logObserver, logMsgPairReloaded, [][2]string{{"key", keyFile.Name()}, {"cert", certFile.Name()}})
+	assertLogs(
+		t,
+		logObserver,
+		logMsgPairReloaded,
+		[][2]string{{"key", keyFile.Name()}, {"cert", certFile.Name()}},
+	)
 	logObserver.TakeAll() // clean up logs
 
 	cert, err = tls.LoadX509KeyPair(filepath.Clean(clientCert), clientKey)
@@ -113,7 +127,11 @@ func TestReload_ca_certs(t *testing.T) {
 	// copy certs to temp so we can modify them
 	caFile, caFileCloseFn := copyToTempFile(t, "ca.crt", caCert)
 	defer caFileCloseFn()
-	clientCaFile, clientCaFileClostFn := copyToTempFile(t, "client-ca.crt", caCert)
+	clientCaFile, clientCaFileClostFn := copyToTempFile(
+		t,
+		"client-ca.crt",
+		caCert,
+	)
 	defer clientCaFileClostFn()
 
 	zcore, logObserver := observer.New(zapcore.InfoLevel)
@@ -133,16 +151,36 @@ func TestReload_ca_certs(t *testing.T) {
 	copyFile(t, caFile.Name(), wrongCaCert)
 	copyFile(t, clientCaFile.Name(), wrongCaCert)
 
-	assertLogs(t, logObserver, logMsgCertReloaded, [][2]string{{"cert", caFile.Name()}})
-	assertLogs(t, logObserver, logMsgCertReloaded, [][2]string{{"cert", clientCaFile.Name()}})
+	assertLogs(
+		t,
+		logObserver,
+		logMsgCertReloaded,
+		[][2]string{{"cert", caFile.Name()}},
+	)
+	assertLogs(
+		t,
+		logObserver,
+		logMsgCertReloaded,
+		[][2]string{{"cert", clientCaFile.Name()}},
+	)
 	logObserver.TakeAll() // clean up logs
 
 	// update the content with invalid certs to trigger failed reload.
 	copyFile(t, caFile.Name(), badCaCert)
 	copyFile(t, clientCaFile.Name(), badCaCert)
 
-	assertLogs(t, logObserver, logMsgCertNotReloaded, [][2]string{{"cert", caFile.Name()}})
-	assertLogs(t, logObserver, logMsgCertNotReloaded, [][2]string{{"cert", clientCaFile.Name()}})
+	assertLogs(
+		t,
+		logObserver,
+		logMsgCertNotReloaded,
+		[][2]string{{"cert", caFile.Name()}},
+	)
+	assertLogs(
+		t,
+		logObserver,
+		logMsgCertNotReloaded,
+		[][2]string{{"cert", clientCaFile.Name()}},
+	)
 }
 
 func TestReload_err_cert_update(t *testing.T) {
@@ -167,7 +205,10 @@ func TestReload_err_cert_update(t *testing.T) {
 	defer watcher.Close()
 
 	require.NoError(t, err)
-	serverCert, err := tls.LoadX509KeyPair(filepath.Clean(serverCert), filepath.Clean(serverKey))
+	serverCert, err := tls.LoadX509KeyPair(
+		filepath.Clean(serverCert),
+		filepath.Clean(serverKey),
+	)
 	require.NoError(t, err)
 	assert.Equal(t, &serverCert, watcher.certificate())
 
@@ -175,7 +216,12 @@ func TestReload_err_cert_update(t *testing.T) {
 	copyFile(t, certFile.Name(), badCaCert)
 	copyFile(t, keyFile.Name(), clientKey)
 
-	assertLogs(t, logObserver, logMsgPairNotReloaded, [][2]string{{"key", opts.KeyPath}, {"cert", opts.CertPath}})
+	assertLogs(
+		t,
+		logObserver,
+		logMsgPairNotReloaded,
+		[][2]string{{"key", opts.KeyPath}, {"cert", opts.CertPath}},
+	)
 	assert.Equal(t, &serverCert, watcher.certificate(), "values unchanged")
 }
 
@@ -195,11 +241,20 @@ func TestReload_kubernetes_secret_update(t *testing.T) {
 
 	err := os.Symlink("..timestamp-1", filepath.Join(mountDir, "..data"))
 	require.NoError(t, err)
-	err = os.Symlink(filepath.Join("..data", "ca.crt"), filepath.Join(mountDir, "ca.crt"))
+	err = os.Symlink(
+		filepath.Join("..data", "ca.crt"),
+		filepath.Join(mountDir, "ca.crt"),
+	)
 	require.NoError(t, err)
-	err = os.Symlink(filepath.Join("..data", "tls.crt"), filepath.Join(mountDir, "tls.crt"))
+	err = os.Symlink(
+		filepath.Join("..data", "tls.crt"),
+		filepath.Join(mountDir, "tls.crt"),
+	)
 	require.NoError(t, err)
-	err = os.Symlink(filepath.Join("..data", "tls.key"), filepath.Join(mountDir, "tls.key"))
+	err = os.Symlink(
+		filepath.Join("..data", "tls.key"),
+		filepath.Join(mountDir, "tls.key"),
+	)
 	require.NoError(t, err)
 
 	timestamp1Dir := filepath.Join(mountDir, "..timestamp-1")
@@ -252,13 +307,26 @@ func TestReload_kubernetes_secret_update(t *testing.T) {
 	err = os.Symlink("..timestamp-2", filepath.Join(mountDir, "..data_tmp"))
 	require.NoError(t, err)
 
-	os.Rename(filepath.Join(mountDir, "..data_tmp"), filepath.Join(mountDir, "..data"))
+	os.Rename(
+		filepath.Join(mountDir, "..data_tmp"),
+		filepath.Join(mountDir, "..data"),
+	)
 	require.NoError(t, err)
 	err = os.RemoveAll(timestamp1Dir)
 	require.NoError(t, err)
 
-	assertLogs(t, logObserver, logMsgPairReloaded, [][2]string{{"key", opts.KeyPath}, {"cert", opts.CertPath}})
-	assertLogs(t, logObserver, logMsgCertReloaded, [][2]string{{"cert", opts.CAPath}})
+	assertLogs(
+		t,
+		logObserver,
+		logMsgPairReloaded,
+		[][2]string{{"key", opts.KeyPath}, {"cert", opts.CertPath}},
+	)
+	assertLogs(
+		t,
+		logObserver,
+		logMsgCertReloaded,
+		[][2]string{{"cert", opts.CAPath}},
+	)
 
 	expectedCert, err = tls.LoadX509KeyPair(clientCert, clientKey)
 	require.NoError(t, err)
@@ -272,13 +340,26 @@ func TestReload_kubernetes_secret_update(t *testing.T) {
 	createTimestampDir(t, timestamp3Dir, caCert, serverCert, serverKey)
 	err = os.Symlink("..timestamp-3", filepath.Join(mountDir, "..data_tmp"))
 	require.NoError(t, err)
-	os.Rename(filepath.Join(mountDir, "..data_tmp"), filepath.Join(mountDir, "..data"))
+	os.Rename(
+		filepath.Join(mountDir, "..data_tmp"),
+		filepath.Join(mountDir, "..data"),
+	)
 	require.NoError(t, err)
 	err = os.RemoveAll(timestamp2Dir)
 	require.NoError(t, err)
 
-	assertLogs(t, logObserver, logMsgPairReloaded, [][2]string{{"key", opts.KeyPath}, {"cert", opts.CertPath}})
-	assertLogs(t, logObserver, logMsgCertReloaded, [][2]string{{"cert", opts.CAPath}})
+	assertLogs(
+		t,
+		logObserver,
+		logMsgPairReloaded,
+		[][2]string{{"key", opts.KeyPath}, {"cert", opts.CertPath}},
+	)
+	assertLogs(
+		t,
+		logObserver,
+		logMsgCertReloaded,
+		[][2]string{{"cert", opts.CAPath}},
+	)
 
 	expectedCert, err = tls.LoadX509KeyPair(serverCert, serverKey)
 	require.NoError(t, err)
@@ -377,7 +458,11 @@ func assertLogs(t *testing.T,
 // syncWrite ensures data is written to the given filename and flushed to disk.
 // This ensures that any watchers looking for file system changes can be reliably alerted.
 func syncWrite(filename string, data []byte, perm os.FileMode) error {
-	f, err := os.OpenFile(filename, os.O_WRONLY|os.O_CREATE|os.O_TRUNC|os.O_SYNC, perm)
+	f, err := os.OpenFile(
+		filename,
+		os.O_WRONLY|os.O_CREATE|os.O_TRUNC|os.O_SYNC,
+		perm,
+	)
 	if err != nil {
 		return err
 	}

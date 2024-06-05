@@ -41,17 +41,33 @@ func TestConnectMetrics(t *testing.T) {
 
 	// no connection
 	cm.OnConnectionStatusChange(false)
-	assert.EqualValues(t, 0, getGauge()["connection_status.collector_connected"])
+	assert.EqualValues(
+		t,
+		0,
+		getGauge()["connection_status.collector_connected"],
+	)
 
 	// first connection
 	cm.OnConnectionStatusChange(true)
-	assert.EqualValues(t, 1, getGauge()["connection_status.collector_connected"])
-	assert.EqualValues(t, 1, getCount()["connection_status.collector_reconnects"])
+	assert.EqualValues(
+		t,
+		1,
+		getGauge()["connection_status.collector_connected"],
+	)
+	assert.EqualValues(
+		t,
+		1,
+		getCount()["connection_status.collector_reconnects"],
+	)
 
 	// reconnect
 	cm.OnConnectionStatusChange(false)
 	cm.OnConnectionStatusChange(true)
-	assert.EqualValues(t, 2, getCount()["connection_status.collector_reconnects"])
+	assert.EqualValues(
+		t,
+		2,
+		getCount()["connection_status.collector_reconnects"],
+	)
 
 	cm.RecordTarget("collector-host")
 	assert.Equal(t, `"collector-host"`, expvar.Get("gRPCTarget").String())

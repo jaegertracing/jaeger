@@ -25,7 +25,9 @@ import (
 
 // SamplingStrategyResponseToJSON defines the official way to generate
 // a JSON response from /sampling endpoints.
-func SamplingStrategyResponseToJSON(protoObj *api_v2.SamplingStrategyResponse) (string, error) {
+func SamplingStrategyResponseToJSON(
+	protoObj *api_v2.SamplingStrategyResponse,
+) (string, error) {
 	// For backwards compatibility with Thrift-to-JSON encoding,
 	// we want the output to include "strategyType":"PROBABILISTIC" when appropriate.
 	// However, due to design oversight, the enum value for PROBABILISTIC is 0, so
@@ -49,7 +51,9 @@ func SamplingStrategyResponseToJSON(protoObj *api_v2.SamplingStrategyResponse) (
 }
 
 // SamplingStrategyResponseFromJSON is the official way to parse strategy in JSON.
-func SamplingStrategyResponseFromJSON(json []byte) (*api_v2.SamplingStrategyResponse, error) {
+func SamplingStrategyResponseFromJSON(
+	json []byte,
+) (*api_v2.SamplingStrategyResponse, error) {
 	var obj api_v2.SamplingStrategyResponse
 	if err := jsonpb.Unmarshal(bytes.NewReader(json), &obj); err != nil {
 		return nil, err

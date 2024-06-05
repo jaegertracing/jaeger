@@ -150,7 +150,11 @@ func main() {
 	}
 }
 
-func addSubCommand(v *viper.Viper, rootCmd, cmd *cobra.Command, addFlags func(*flag.FlagSet)) {
+func addSubCommand(
+	v *viper.Viper,
+	rootCmd, cmd *cobra.Command,
+	addFlags func(*flag.FlagSet),
+) {
 	rootCmd.AddCommand(cmd)
 	config.AddFlags(
 		v,
@@ -159,7 +163,11 @@ func addSubCommand(v *viper.Viper, rootCmd, cmd *cobra.Command, addFlags func(*f
 	)
 }
 
-func addPersistentFlags(v *viper.Viper, rootCmd *cobra.Command, inits ...func(*flag.FlagSet)) {
+func addPersistentFlags(
+	v *viper.Viper,
+	rootCmd *cobra.Command,
+	inits ...func(*flag.FlagSet),
+) {
 	flagSet := new(flag.FlagSet)
 	for i := range inits {
 		inits[i](flagSet)

@@ -166,7 +166,12 @@ func getTestSpan() *Span {
 	return span
 }
 
-func getCustomSpan(dbTags []KeyValue, dbProcess Process, dbLogs []Log, dbRefs []SpanRef) *Span {
+func getCustomSpan(
+	dbTags []KeyValue,
+	dbProcess Process,
+	dbLogs []Log,
+	dbRefs []SpanRef,
+) *Span {
 	span := getTestSpan()
 	span.Tags = dbTags
 	span.Logs = dbLogs
@@ -177,10 +182,26 @@ func getCustomSpan(dbTags []KeyValue, dbProcess Process, dbLogs []Log, dbRefs []
 
 func getTestUniqueTags() []TagInsertion {
 	return []TagInsertion{
-		{ServiceName: "someServiceName", TagKey: "someBoolTag", TagValue: "true"},
-		{ServiceName: "someServiceName", TagKey: "someDoubleTag", TagValue: "1.4"},
-		{ServiceName: "someServiceName", TagKey: "someLongTag", TagValue: "123"},
-		{ServiceName: "someServiceName", TagKey: "someStringTag", TagValue: "someTagValue"},
+		{
+			ServiceName: "someServiceName",
+			TagKey:      "someBoolTag",
+			TagValue:    "true",
+		},
+		{
+			ServiceName: "someServiceName",
+			TagKey:      "someDoubleTag",
+			TagValue:    "1.4",
+		},
+		{
+			ServiceName: "someServiceName",
+			TagKey:      "someLongTag",
+			TagValue:    "123",
+		},
+		{
+			ServiceName: "someServiceName",
+			TagKey:      "someStringTag",
+			TagValue:    "someTagValue",
+		},
 	}
 }
 
@@ -213,7 +234,12 @@ func TestFromSpan(t *testing.T) {
 }
 
 func TestFailingFromDBSpanBadTags(t *testing.T) {
-	faultyDBTags := getCustomSpan(badDBTags, someDBProcess, someDBLogs, someDBRefs)
+	faultyDBTags := getCustomSpan(
+		badDBTags,
+		someDBProcess,
+		someDBLogs,
+		someDBRefs,
+	)
 	failingDBSpanTransform(t, faultyDBTags, notValidTagTypeErrStr)
 }
 
@@ -236,12 +262,17 @@ func TestFailingFromDBSpanBadProcess(t *testing.T) {
 }
 
 func TestFailingFromDBSpanBadRefs(t *testing.T) {
-	faultyDBRefs := getCustomSpan(someDBTags, someDBProcess, someDBLogs, []SpanRef{
-		{
-			RefType: "makeOurOwnCasino",
-			TraceID: someDBTraceID,
+	faultyDBRefs := getCustomSpan(
+		someDBTags,
+		someDBProcess,
+		someDBLogs,
+		[]SpanRef{
+			{
+				RefType: "makeOurOwnCasino",
+				TraceID: someDBTraceID,
+			},
 		},
-	})
+	)
 	failingDBSpanTransform(t, faultyDBRefs, "invalid SpanRefType in")
 }
 
@@ -340,7 +371,14 @@ func TestFromDBWarnings(t *testing.T) {
 }
 
 func TestFailingFromDBWarnings(t *testing.T) {
-	badDBWarningTags := []KeyValue{{Key: warningStringPrefix + "1", ValueType: "invalidValueType"}}
-	span := getCustomSpan(badDBWarningTags, someDBProcess, someDBLogs, someDBRefs)
+	badDBWarningTags := []KeyValue{
+		{Key: warningStringPrefix + "1", ValueType: "invalidValueType"},
+	}
+	span := getCustomSpan(
+		badDBWarningTags,
+		someDBProcess,
+		someDBLogs,
+		someDBRefs,
+	)
 	failingDBSpanTransform(t, span, notValidTagTypeErrStr)
 }

@@ -49,7 +49,10 @@ func (host storageHost) ReportFatalError(err error) {
 	host.t.Fatal(err)
 }
 
-func (storageHost) GetFactory(_ component.Kind, _ component.Type) component.Factory {
+func (storageHost) GetFactory(
+	_ component.Kind,
+	_ component.Type,
+) component.Factory {
 	return nil
 }
 
@@ -92,11 +95,15 @@ func TestExporter(t *testing.T) {
 	err := config.Validate()
 	require.NoError(t, err)
 
-	tracesExporter, err := exporterFactory.CreateTracesExporter(ctx, exporter.CreateSettings{
-		ID:                ID,
-		TelemetrySettings: telemetrySettings,
-		BuildInfo:         component.NewDefaultBuildInfo(),
-	}, config)
+	tracesExporter, err := exporterFactory.CreateTracesExporter(
+		ctx,
+		exporter.CreateSettings{
+			ID:                ID,
+			TelemetrySettings: telemetrySettings,
+			BuildInfo:         component.NewDefaultBuildInfo(),
+		},
+		config,
+	)
 	require.NoError(t, err)
 
 	host := makeStorageExtension(t, memstoreName)
@@ -127,7 +134,10 @@ func TestExporter(t *testing.T) {
 	require.NoError(t, err)
 	spanReader, err := storageFactory.CreateSpanReader()
 	require.NoError(t, err)
-	requiredTraceID := model.NewTraceID(0, 1) // 00000000000000000000000000000001
+	requiredTraceID := model.NewTraceID(
+		0,
+		1,
+	) // 00000000000000000000000000000001
 	requiredTrace, err := spanReader.GetTrace(ctx, requiredTraceID)
 	require.NoError(t, err)
 	assert.Equal(t, spanID.String(), requiredTrace.Spans[0].SpanID.String())
@@ -151,6 +161,8 @@ func makeStorageExtension(t *testing.T, memstoreName string) storageHost {
 
 	err = storageExtension.Start(context.Background(), host)
 	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, storageExtension.Shutdown(context.Background())) })
+	t.Cleanup(
+		func() { require.NoError(t, storageExtension.Shutdown(context.Background())) },
+	)
 	return host
 }

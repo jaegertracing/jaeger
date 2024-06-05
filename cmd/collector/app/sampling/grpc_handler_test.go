@@ -28,13 +28,18 @@ import (
 
 type mockSamplingStore struct{}
 
-func (mockSamplingStore) GetSamplingStrategy(ctx context.Context, serviceName string) (*api_v2.SamplingStrategyResponse, error) {
+func (mockSamplingStore) GetSamplingStrategy(
+	ctx context.Context,
+	serviceName string,
+) (*api_v2.SamplingStrategyResponse, error) {
 	if serviceName == "error" {
 		return nil, errors.New("some error")
 	} else if serviceName == "nil" {
 		return nil, nil
 	}
-	return &api_v2.SamplingStrategyResponse{StrategyType: api_v2.SamplingStrategyType_PROBABILISTIC}, nil
+	return &api_v2.SamplingStrategyResponse{
+		StrategyType: api_v2.SamplingStrategyType_PROBABILISTIC,
+	}, nil
 }
 
 func (mockSamplingStore) Close() error {
@@ -47,9 +52,20 @@ func TestNewGRPCHandler(t *testing.T) {
 		resp *api_v2.SamplingStrategyResponse
 		err  string
 	}{
-		{req: &api_v2.SamplingStrategyParameters{ServiceName: "error"}, err: "some error"},
-		{req: &api_v2.SamplingStrategyParameters{ServiceName: "nil"}, resp: nil},
-		{req: &api_v2.SamplingStrategyParameters{ServiceName: "foo"}, resp: &api_v2.SamplingStrategyResponse{StrategyType: api_v2.SamplingStrategyType_PROBABILISTIC}},
+		{
+			req: &api_v2.SamplingStrategyParameters{ServiceName: "error"},
+			err: "some error",
+		},
+		{
+			req:  &api_v2.SamplingStrategyParameters{ServiceName: "nil"},
+			resp: nil,
+		},
+		{
+			req: &api_v2.SamplingStrategyParameters{ServiceName: "foo"},
+			resp: &api_v2.SamplingStrategyResponse{
+				StrategyType: api_v2.SamplingStrategyType_PROBABILISTIC,
+			},
+		},
 	}
 	h := NewGRPCHandler(mockSamplingStore{})
 	for _, test := range tests {

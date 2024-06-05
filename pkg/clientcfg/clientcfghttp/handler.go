@@ -106,14 +106,22 @@ func (h *HTTPHandler) RegisterRoutes(router *mux.Router) {
 
 	router.HandleFunc(prefix+"/baggageRestrictions", func(w http.ResponseWriter, r *http.Request) {
 		h.serveBaggageHTTP(w, r)
-	}).Methods(http.MethodGet)
+	}).
+		Methods(http.MethodGet)
 }
 
-func (h *HTTPHandler) serviceFromRequest(w http.ResponseWriter, r *http.Request) (string, error) {
+func (h *HTTPHandler) serviceFromRequest(
+	w http.ResponseWriter,
+	r *http.Request,
+) (string, error) {
 	services := r.URL.Query()["service"]
 	if len(services) != 1 {
 		h.metrics.BadRequest.Inc(1)
-		http.Error(w, "'service' parameter must be provided once", http.StatusBadRequest)
+		http.Error(
+			w,
+			"'service' parameter must be provided once",
+			http.StatusBadRequest,
+		)
 		return "", errBadRequest
 	}
 	return services[0], nil
@@ -137,10 +145,17 @@ func (h *HTTPHandler) serveSamplingHTTP(
 	if err != nil {
 		return
 	}
-	resp, err := h.params.ConfigManager.GetSamplingStrategy(r.Context(), service)
+	resp, err := h.params.ConfigManager.GetSamplingStrategy(
+		r.Context(),
+		service,
+	)
 	if err != nil {
 		h.metrics.CollectorProxyFailures.Inc(1)
-		http.Error(w, fmt.Sprintf("collector error: %+v", err), http.StatusInternalServerError)
+		http.Error(
+			w,
+			fmt.Sprintf("collector error: %+v", err),
+			http.StatusInternalServerError,
+		)
 		return
 	}
 	jsonBytes, err := encoder(resp)
@@ -153,11 +168,16 @@ func (h *HTTPHandler) serveSamplingHTTP(
 	}
 }
 
-func (h *HTTPHandler) encodeThriftLegacy(strategy *api_v2.SamplingStrategyResponse) ([]byte, error) {
+func (h *HTTPHandler) encodeThriftLegacy(
+	strategy *api_v2.SamplingStrategyResponse,
+) ([]byte, error) {
 	tStrategy, err := t2p.ConvertSamplingResponseFromDomain(strategy)
 	if err != nil {
 		h.metrics.BadThriftFailures.Inc(1)
-		return nil, fmt.Errorf("ConvertSamplingResponseFromDomain failed: %w", err)
+		return nil, fmt.Errorf(
+			"ConvertSamplingResponseFromDomain failed: %w",
+			err,
+		)
 	}
 	jsonBytes, err := json.Marshal(tStrategy)
 	if err != nil {
@@ -169,7 +189,9 @@ func (h *HTTPHandler) encodeThriftLegacy(strategy *api_v2.SamplingStrategyRespon
 	return jsonBytes, nil
 }
 
-func (h *HTTPHandler) encodeProto(strategy *api_v2.SamplingStrategyResponse) ([]byte, error) {
+func (h *HTTPHandler) encodeProto(
+	strategy *api_v2.SamplingStrategyResponse,
+) ([]byte, error) {
 	str, err := p2json.SamplingStrategyResponseToJSON(strategy)
 	if err != nil {
 		h.metrics.BadProtoFailures.Inc(1)
@@ -184,10 +206,17 @@ func (h *HTTPHandler) serveBaggageHTTP(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		return
 	}
-	resp, err := h.params.ConfigManager.GetBaggageRestrictions(r.Context(), service)
+	resp, err := h.params.ConfigManager.GetBaggageRestrictions(
+		r.Context(),
+		service,
+	)
 	if err != nil {
 		h.metrics.CollectorProxyFailures.Inc(1)
-		http.Error(w, fmt.Sprintf("collector error: %+v", err), http.StatusInternalServerError)
+		http.Error(
+			w,
+			fmt.Sprintf("collector error: %+v", err),
+			http.StatusInternalServerError,
+		)
 		return
 	}
 	// NB. it's literally impossible for this Marshal to fail

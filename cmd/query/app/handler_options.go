@@ -55,7 +55,9 @@ func (handlerOptions) Prefix(prefix string) HandlerOption {
 }
 
 // QueryLookbackDuration creates a HandlerOption that initializes lookback duration
-func (handlerOptions) QueryLookbackDuration(queryLookbackDuration time.Duration) HandlerOption {
+func (handlerOptions) QueryLookbackDuration(
+	queryLookbackDuration time.Duration,
+) HandlerOption {
 	return func(apiHandler *APIHandler) {
 		apiHandler.queryParser.traceQueryLookbackDuration = queryLookbackDuration
 	}
@@ -69,7 +71,9 @@ func (handlerOptions) Tracer(tracer *jtracer.JTracer) HandlerOption {
 }
 
 // MetricsQueryService creates a HandlerOption that initializes MetricsQueryService.
-func (handlerOptions) MetricsQueryService(mqs querysvc.MetricsQueryService) HandlerOption {
+func (handlerOptions) MetricsQueryService(
+	mqs querysvc.MetricsQueryService,
+) HandlerOption {
 	return func(apiHandler *APIHandler) {
 		apiHandler.metricsQueryService = mqs
 	}

@@ -23,14 +23,20 @@ type storageExporter struct {
 	spanWriter spanstore.Writer
 }
 
-func newExporter(config *Config, otel component.TelemetrySettings) *storageExporter {
+func newExporter(
+	config *Config,
+	otel component.TelemetrySettings,
+) *storageExporter {
 	return &storageExporter{
 		config: config,
 		logger: otel.Logger,
 	}
 }
 
-func (exp *storageExporter) start(_ context.Context, host component.Host) error {
+func (exp *storageExporter) start(
+	_ context.Context,
+	host component.Host,
+) error {
 	f, err := jaegerstorage.GetStorageFactory(exp.config.TraceStorage, host)
 	if err != nil {
 		return fmt.Errorf("cannot find storage factory: %w", err)
@@ -48,10 +54,16 @@ func (*storageExporter) close(_ context.Context) error {
 	return nil
 }
 
-func (exp *storageExporter) pushTraces(ctx context.Context, td ptrace.Traces) error {
+func (exp *storageExporter) pushTraces(
+	ctx context.Context,
+	td ptrace.Traces,
+) error {
 	batches, err := otlp2jaeger.ProtoFromTraces(td)
 	if err != nil {
-		return fmt.Errorf("cannot transform OTLP traces to Jaeger format: %w", err)
+		return fmt.Errorf(
+			"cannot transform OTLP traces to Jaeger format: %w",
+			err,
+		)
 	}
 	var errs []error
 	for _, batch := range batches {

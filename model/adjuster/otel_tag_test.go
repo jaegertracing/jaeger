@@ -35,8 +35,14 @@ func TestOTelTagAdjuster(t *testing.T) {
 			span: &model.Span{
 				Tags: model.KeyValues{
 					model.String("random_key", "random_value"),
-					model.String(string(semconv.OTelLibraryNameKey), "go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"),
-					model.String(string(semconv.OTelLibraryVersionKey), "0.45.0"),
+					model.String(
+						string(semconv.OTelLibraryNameKey),
+						"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp",
+					),
+					model.String(
+						string(semconv.OTelLibraryVersionKey),
+						"0.45.0",
+					),
 					model.String("another_key", "another_value"),
 				},
 				Process: &model.Process{
@@ -50,8 +56,14 @@ func TestOTelTagAdjuster(t *testing.T) {
 				},
 				Process: &model.Process{
 					Tags: model.KeyValues{
-						model.String(string(semconv.OTelLibraryNameKey), "go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"),
-						model.String(string(semconv.OTelLibraryVersionKey), "0.45.0"),
+						model.String(
+							string(semconv.OTelLibraryNameKey),
+							"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp",
+						),
+						model.String(
+							string(semconv.OTelLibraryVersionKey),
+							"0.45.0",
+						),
 					},
 				},
 			},
@@ -86,11 +98,20 @@ func TestOTelTagAdjuster(t *testing.T) {
 			trace, err := OTelTagAdjuster().Adjust(trace)
 			require.NoError(t, err)
 			assert.Equal(t, testCase.expected.Tags, trace.Spans[0].Tags)
-			assert.Equal(t, testCase.expected.Process.Tags, trace.Spans[0].Process.Tags)
+			assert.Equal(
+				t,
+				testCase.expected.Process.Tags,
+				trace.Spans[0].Process.Tags,
+			)
 
 			newTag := model.String("new_key", "new_value")
 			beforeTags[0] = newTag
-			assert.Equal(t, newTag, testCase.span.Tags[0], "span.Tags still points to the same underlying array")
+			assert.Equal(
+				t,
+				newTag,
+				testCase.span.Tags[0],
+				"span.Tags still points to the same underlying array",
+			)
 		})
 	}
 }

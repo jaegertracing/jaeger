@@ -57,9 +57,14 @@ func sortJSONTags(tags []KeyValue) {
 
 type JSONLogByTimestamp []Log
 
-func (t JSONLogByTimestamp) Len() int           { return len(t) }
-func (t JSONLogByTimestamp) Swap(i, j int)      { t[i], t[j] = t[j], t[i] }
-func (t JSONLogByTimestamp) Less(i, j int) bool { return t[i].Timestamp < t[j].Timestamp }
+func (t JSONLogByTimestamp) Len() int      { return len(t) }
+func (t JSONLogByTimestamp) Swap(i, j int) { t[i], t[j] = t[j], t[i] }
+
+func (t JSONLogByTimestamp) Less(
+	i, j int,
+) bool {
+	return t[i].Timestamp < t[j].Timestamp
+}
 
 func sortJSONLogs(logs []Log) {
 	sort.Sort(JSONLogByTimestamp(logs))

@@ -81,7 +81,7 @@ type IndexConfig struct {
 // This struct adds a plain string field that can be bound to flags and is then parsed when
 // preparing the actual config.Configuration.
 type namespaceConfig struct {
-	config.Configuration `mapstructure:",squash"`
+	config.Configuration `       mapstructure:",squash"`
 	namespace            string
 	Enabled              bool `mapstructure:"-"`
 }
@@ -102,7 +102,10 @@ func NewOptions(primaryNamespace string, otherNamespaces ...string) *Options {
 			namespace: primaryNamespace,
 			Enabled:   true,
 		},
-		others:                 make(map[string]*namespaceConfig, len(otherNamespaces)),
+		others: make(
+			map[string]*namespaceConfig,
+			len(otherNamespaces),
+		),
 		SpanStoreWriteCacheTTL: time.Hour * 12,
 	}
 
@@ -119,17 +122,21 @@ func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
 	for _, cfg := range opt.others {
 		addFlags(flagSet, *cfg)
 	}
-	flagSet.Duration(opt.Primary.namespace+suffixSpanStoreWriteCacheTTL,
+	flagSet.Duration(
+		opt.Primary.namespace+suffixSpanStoreWriteCacheTTL,
 		opt.SpanStoreWriteCacheTTL,
-		"The duration to wait before rewriting an existing service or operation name")
+		"The duration to wait before rewriting an existing service or operation name",
+	)
 	flagSet.String(
 		opt.Primary.namespace+suffixIndexTagsBlacklist,
 		opt.Index.TagBlackList,
-		"The comma-separated list of span tags to blacklist from being indexed. All other tags will be indexed. Mutually exclusive with the whitelist option.")
+		"The comma-separated list of span tags to blacklist from being indexed. All other tags will be indexed. Mutually exclusive with the whitelist option.",
+	)
 	flagSet.String(
 		opt.Primary.namespace+suffixIndexTagsWhitelist,
 		opt.Index.TagWhiteList,
-		"The comma-separated list of span tags to whitelist for being indexed. All other tags will not be indexed. Mutually exclusive with the blacklist option.")
+		"The comma-separated list of span tags to whitelist for being indexed. All other tags will not be indexed. Mutually exclusive with the blacklist option.",
+	)
 	flagSet.Bool(
 		opt.Primary.namespace+suffixIndexLogs,
 		!opt.Index.Logs,
@@ -189,15 +196,18 @@ func addFlags(flagSet *flag.FlagSet, nsConfig namespaceConfig) {
 	flagSet.String(
 		nsConfig.namespace+suffixDC,
 		nsConfig.LocalDC,
-		"The name of the Cassandra local data center for DC Aware host selection")
+		"The name of the Cassandra local data center for DC Aware host selection",
+	)
 	flagSet.String(
 		nsConfig.namespace+suffixConsistency,
 		nsConfig.Consistency,
-		"The Cassandra consistency level, e.g. ANY, ONE, TWO, THREE, QUORUM, ALL, LOCAL_QUORUM, EACH_QUORUM, LOCAL_ONE (default LOCAL_ONE)")
+		"The Cassandra consistency level, e.g. ANY, ONE, TWO, THREE, QUORUM, ALL, LOCAL_QUORUM, EACH_QUORUM, LOCAL_ONE (default LOCAL_ONE)",
+	)
 	flagSet.Bool(
 		nsConfig.namespace+suffixDisableCompression,
 		false,
-		"Disables the use of the default Snappy Compression while connecting to the Cassandra Cluster if set to true. This is useful for connecting to Cassandra Clusters(like Azure Cosmos Db with Cassandra API) that do not support SnappyCompression")
+		"Disables the use of the default Snappy Compression while connecting to the Cassandra Cluster if set to true. This is useful for connecting to Cassandra Clusters(like Azure Cosmos Db with Cassandra API) that do not support SnappyCompression",
+	)
 	flagSet.Int(
 		nsConfig.namespace+suffixProtoVer,
 		nsConfig.ProtoVersion,
@@ -222,12 +232,20 @@ func (opt *Options) InitFromViper(v *viper.Viper) {
 	for _, cfg := range opt.others {
 		cfg.initFromViper(v)
 	}
-	opt.SpanStoreWriteCacheTTL = v.GetDuration(opt.Primary.namespace + suffixSpanStoreWriteCacheTTL)
-	opt.Index.TagBlackList = stripWhiteSpace(v.GetString(opt.Primary.namespace + suffixIndexTagsBlacklist))
-	opt.Index.TagWhiteList = stripWhiteSpace(v.GetString(opt.Primary.namespace + suffixIndexTagsWhitelist))
+	opt.SpanStoreWriteCacheTTL = v.GetDuration(
+		opt.Primary.namespace + suffixSpanStoreWriteCacheTTL,
+	)
+	opt.Index.TagBlackList = stripWhiteSpace(
+		v.GetString(opt.Primary.namespace + suffixIndexTagsBlacklist),
+	)
+	opt.Index.TagWhiteList = stripWhiteSpace(
+		v.GetString(opt.Primary.namespace + suffixIndexTagsWhitelist),
+	)
 	opt.Index.Tags = v.GetBool(opt.Primary.namespace + suffixIndexTags)
 	opt.Index.Logs = v.GetBool(opt.Primary.namespace + suffixIndexLogs)
-	opt.Index.ProcessTags = v.GetBool(opt.Primary.namespace + suffixIndexProcessTags)
+	opt.Index.ProcessTags = v.GetBool(
+		opt.Primary.namespace + suffixIndexProcessTags,
+	)
 }
 
 func tlsFlagsConfig(namespace string) tlscfg.ClientFlagsConfig {
@@ -245,7 +263,9 @@ func (cfg *namespaceConfig) initFromViper(v *viper.Viper) {
 	cfg.MaxRetryAttempts = v.GetInt(cfg.namespace + suffixMaxRetryAttempts)
 	cfg.Timeout = v.GetDuration(cfg.namespace + suffixTimeout)
 	cfg.ConnectTimeout = v.GetDuration(cfg.namespace + suffixConnectTimeout)
-	cfg.ReconnectInterval = v.GetDuration(cfg.namespace + suffixReconnectInterval)
+	cfg.ReconnectInterval = v.GetDuration(
+		cfg.namespace + suffixReconnectInterval,
+	)
 	servers := stripWhiteSpace(v.GetString(cfg.namespace + suffixServers))
 	cfg.Servers = strings.Split(servers, ",")
 	cfg.Port = v.GetInt(cfg.namespace + suffixPort)
@@ -254,8 +274,12 @@ func (cfg *namespaceConfig) initFromViper(v *viper.Viper) {
 	cfg.Consistency = v.GetString(cfg.namespace + suffixConsistency)
 	cfg.ProtoVersion = v.GetInt(cfg.namespace + suffixProtoVer)
 	cfg.SocketKeepAlive = v.GetDuration(cfg.namespace + suffixSocketKeepAlive)
-	cfg.Authenticator.Basic.Username = v.GetString(cfg.namespace + suffixUsername)
-	cfg.Authenticator.Basic.Password = v.GetString(cfg.namespace + suffixPassword)
+	cfg.Authenticator.Basic.Username = v.GetString(
+		cfg.namespace + suffixUsername,
+	)
+	cfg.Authenticator.Basic.Password = v.GetString(
+		cfg.namespace + suffixPassword,
+	)
 	cfg.DisableCompression = v.GetBool(cfg.namespace + suffixDisableCompression)
 	var err error
 	cfg.TLS, err = tlsFlagsConfig.InitFromViper(v)

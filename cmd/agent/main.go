@@ -38,9 +38,15 @@ import (
 )
 
 func main() {
-	println("***************************************************************************************************")
-	println("*** WARNING jaeger-agent is deprecated. See https://github.com/jaegertracing/jaeger/issues/4739 ***")
-	println("***************************************************************************************************")
+	println(
+		"***************************************************************************************************",
+	)
+	println(
+		"*** WARNING jaeger-agent is deprecated. See https://github.com/jaegertracing/jaeger/issues/4739 ***",
+	)
+	println(
+		"***************************************************************************************************",
+	)
 
 	svc := flags.NewService(ports.AgentAdminHTTP)
 	svc.NoStorage = true
@@ -64,7 +70,10 @@ func main() {
 			rOpts := new(reporter.Options).InitFromViper(v, logger)
 			grpcBuilder, err := grpc.NewConnBuilder().InitFromViper(v)
 			if err != nil {
-				logger.Fatal("Failed to configure gRPC connection", zap.Error(err))
+				logger.Fatal(
+					"Failed to configure gRPC connection",
+					zap.Error(err),
+				)
 			}
 			builders := map[reporter.Type]app.CollectorProxyBuilder{
 				reporter.GRPC: app.GRPCCollectorProxyBuilder(grpcBuilder),

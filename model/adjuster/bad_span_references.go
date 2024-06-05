@@ -48,7 +48,13 @@ func (s spanReferenceAdjuster) adjust(span *model.Span) *model.Span {
 	references := make([]model.SpanRef, 0, len(span.References)-1)
 	for i := range span.References {
 		if !s.valid(&span.References[i]) {
-			span.Warnings = append(span.Warnings, fmt.Sprintf("Invalid span reference removed %+v", span.References[i]))
+			span.Warnings = append(
+				span.Warnings,
+				fmt.Sprintf(
+					"Invalid span reference removed %+v",
+					span.References[i],
+				),
+			)
 			continue
 		}
 		references = append(references, span.References[i])

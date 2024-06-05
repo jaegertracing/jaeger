@@ -48,8 +48,10 @@ func TestOptionsToConfig(t *testing.T) {
 			expectError: "fake system pool",
 		},
 		{
-			name:    "should load custom CA",
-			options: Options{CAPath: testCertKeyLocation + "/example-CA-cert.pem"},
+			name: "should load custom CA",
+			options: Options{
+				CAPath: testCertKeyLocation + "/example-CA-cert.pem",
+			},
 		},
 		{
 			name:        "should fail with invalid CA file path",
@@ -57,8 +59,10 @@ func TestOptionsToConfig(t *testing.T) {
 			expectError: "failed to load CA",
 		},
 		{
-			name:        "should fail with invalid CA file content",
-			options:     Options{CAPath: testCertKeyLocation + "/bad-CA-cert.txt"},
+			name: "should fail with invalid CA file content",
+			options: Options{
+				CAPath: testCertKeyLocation + "/bad-CA-cert.txt",
+			},
 			expectError: "failed to parse CA",
 		},
 		{

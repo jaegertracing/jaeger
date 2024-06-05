@@ -44,7 +44,10 @@ type mockSpanProcessor struct {
 	spanFormat    processor.SpanFormat
 }
 
-func (p *mockSpanProcessor) ProcessSpans(spans []*model.Span, opts processor.SpansOptions) ([]bool, error) {
+func (p *mockSpanProcessor) ProcessSpans(
+	spans []*model.Span,
+	opts processor.SpansOptions,
+) ([]bool, error) {
 	p.mux.Lock()
 	defer p.mux.Unlock()
 	p.spans = append(p.spans, spans...)
@@ -95,7 +98,10 @@ func (*mockSpanProcessor) Close() error {
 	return nil
 }
 
-func initializeGRPCTestServer(t *testing.T, beforeServe func(s *grpc.Server)) (*grpc.Server, net.Addr) {
+func initializeGRPCTestServer(
+	t *testing.T,
+	beforeServe func(s *grpc.Server),
+) (*grpc.Server, net.Addr) {
 	server := grpc.NewServer()
 	beforeServe(server)
 	lis, err := net.Listen("tcp", "localhost:0")
@@ -107,8 +113,14 @@ func initializeGRPCTestServer(t *testing.T, beforeServe func(s *grpc.Server)) (*
 	return server, lis.Addr()
 }
 
-func newClient(t *testing.T, addr net.Addr) (api_v2.CollectorServiceClient, *grpc.ClientConn) {
-	conn, err := grpc.NewClient(addr.String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
+func newClient(
+	t *testing.T,
+	addr net.Addr,
+) (api_v2.CollectorServiceClient, *grpc.ClientConn) {
+	conn, err := grpc.NewClient(
+		addr.String(),
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
 	require.NoError(t, err)
 	return api_v2.NewCollectorServiceClient(conn), conn
 }
@@ -128,18 +140,42 @@ func TestPostSpans(t *testing.T) {
 		expected []*model.Span
 	}{
 		{
-			batch:    model.Batch{Process: &model.Process{ServiceName: "batch-process"}, Spans: []*model.Span{{OperationName: "test-op", Process: &model.Process{ServiceName: "bar"}}}},
-			expected: []*model.Span{{OperationName: "test-op", Process: &model.Process{ServiceName: "bar"}}},
+			batch: model.Batch{
+				Process: &model.Process{ServiceName: "batch-process"},
+				Spans: []*model.Span{
+					{
+						OperationName: "test-op",
+						Process:       &model.Process{ServiceName: "bar"},
+					},
+				},
+			},
+			expected: []*model.Span{
+				{
+					OperationName: "test-op",
+					Process:       &model.Process{ServiceName: "bar"},
+				},
+			},
 		},
 		{
-			batch:    model.Batch{Process: &model.Process{ServiceName: "batch-process"}, Spans: []*model.Span{{OperationName: "test-op"}}},
-			expected: []*model.Span{{OperationName: "test-op", Process: &model.Process{ServiceName: "batch-process"}}},
+			batch: model.Batch{
+				Process: &model.Process{ServiceName: "batch-process"},
+				Spans:   []*model.Span{{OperationName: "test-op"}},
+			},
+			expected: []*model.Span{
+				{
+					OperationName: "test-op",
+					Process:       &model.Process{ServiceName: "batch-process"},
+				},
+			},
 		},
 	}
 	for _, test := range tests {
-		_, err := client.PostSpans(context.Background(), &api_v2.PostSpansRequest{
-			Batch: test.batch,
-		})
+		_, err := client.PostSpans(
+			context.Background(),
+			&api_v2.PostSpansRequest{
+				Batch: test.batch,
+			},
+		)
 		require.NoError(t, err)
 		got := processor.getSpans()
 		require.Equal(t, len(test.batch.GetSpans()), len(got))
@@ -195,15 +231,18 @@ func TestPostSpansWithError(t *testing.T) {
 			defer server.Stop()
 			client, conn := newClient(t, addr)
 			defer conn.Close()
-			r, err := client.PostSpans(context.Background(), &api_v2.PostSpansRequest{
-				Batch: model.Batch{
-					Spans: []*model.Span{
-						{
-							OperationName: "fake-operation",
+			r, err := client.PostSpans(
+				context.Background(),
+				&api_v2.PostSpansRequest{
+					Batch: model.Batch{
+						Spans: []*model.Span{
+							{
+								OperationName: "fake-operation",
+							},
 						},
 					},
 				},
-			})
+			)
 			require.Error(t, err)
 			require.Nil(t, r)
 			assert.Contains(t, err.Error(), test.expectedError)
@@ -214,7 +253,11 @@ func TestPostSpansWithError(t *testing.T) {
 }
 
 // withMetadata returns a Context with metadata for outbound (client) calls
-func withMetadata(ctx context.Context, headerName, headerValue string, t *testing.T) context.Context {
+func withMetadata(
+	ctx context.Context,
+	headerName, headerValue string,
+	t *testing.T,
+) context.Context {
 	t.Helper()
 
 	md := metadata.New(map[string]string{headerName: headerValue})
@@ -239,12 +282,25 @@ func TestPostTenantedSpans(t *testing.T) {
 	client, conn := newClient(t, addr)
 	defer conn.Close()
 
-	ctxWithTenant := withMetadata(context.Background(), tenantHeader, dummyTenant, t)
+	ctxWithTenant := withMetadata(
+		context.Background(),
+		tenantHeader,
+		dummyTenant,
+		t,
+	)
 	ctxNoTenant := context.Background()
 	mdTwoTenants := metadata.Pairs()
 	mdTwoTenants.Set(tenantHeader, "a", "b")
-	ctxTwoTenants := metadata.NewOutgoingContext(context.Background(), mdTwoTenants)
-	ctxBadTenant := withMetadata(context.Background(), tenantHeader, "invalid-tenant", t)
+	ctxTwoTenants := metadata.NewOutgoingContext(
+		context.Background(),
+		mdTwoTenants,
+	)
+	ctxBadTenant := withMetadata(
+		context.Background(),
+		tenantHeader,
+		"invalid-tenant",
+		t,
+	)
 
 	withMetadata(context.Background(),
 		tenantHeader, dummyTenant, t)
@@ -258,18 +314,39 @@ func TestPostTenantedSpans(t *testing.T) {
 		expectedTenants map[string]bool
 	}{
 		{
-			name:  "valid tenant",
-			ctx:   ctxWithTenant,
-			batch: model.Batch{Process: &model.Process{ServiceName: "batch-process"}, Spans: []*model.Span{{OperationName: "test-op", Process: &model.Process{ServiceName: "bar"}}}},
+			name: "valid tenant",
+			ctx:  ctxWithTenant,
+			batch: model.Batch{
+				Process: &model.Process{ServiceName: "batch-process"},
+				Spans: []*model.Span{
+					{
+						OperationName: "test-op",
+						Process:       &model.Process{ServiceName: "bar"},
+					},
+				},
+			},
 
-			mustFail:        false,
-			expected:        []*model.Span{{OperationName: "test-op", Process: &model.Process{ServiceName: "bar"}}},
+			mustFail: false,
+			expected: []*model.Span{
+				{
+					OperationName: "test-op",
+					Process:       &model.Process{ServiceName: "bar"},
+				},
+			},
 			expectedTenants: map[string]bool{dummyTenant: true},
 		},
 		{
-			name:  "no tenant",
-			ctx:   ctxNoTenant,
-			batch: model.Batch{Process: &model.Process{ServiceName: "batch-process"}, Spans: []*model.Span{{OperationName: "test-op", Process: &model.Process{ServiceName: "bar"}}}},
+			name: "no tenant",
+			ctx:  ctxNoTenant,
+			batch: model.Batch{
+				Process: &model.Process{ServiceName: "batch-process"},
+				Spans: []*model.Span{
+					{
+						OperationName: "test-op",
+						Process:       &model.Process{ServiceName: "bar"},
+					},
+				},
+			},
 
 			// Because NewGRPCHandler expects a tenant header, it will reject spans without one
 			mustFail:        true,
@@ -277,9 +354,17 @@ func TestPostTenantedSpans(t *testing.T) {
 			expectedTenants: nil,
 		},
 		{
-			name:  "two tenants",
-			ctx:   ctxTwoTenants,
-			batch: model.Batch{Process: &model.Process{ServiceName: "batch-process"}, Spans: []*model.Span{{OperationName: "test-op", Process: &model.Process{ServiceName: "bar"}}}},
+			name: "two tenants",
+			ctx:  ctxTwoTenants,
+			batch: model.Batch{
+				Process: &model.Process{ServiceName: "batch-process"},
+				Spans: []*model.Span{
+					{
+						OperationName: "test-op",
+						Process:       &model.Process{ServiceName: "bar"},
+					},
+				},
+			},
 
 			// NewGRPCHandler rejects spans with multiple values for tenant header
 			mustFail:        true,
@@ -287,9 +372,17 @@ func TestPostTenantedSpans(t *testing.T) {
 			expectedTenants: nil,
 		},
 		{
-			name:  "invalid tenant",
-			ctx:   ctxBadTenant,
-			batch: model.Batch{Process: &model.Process{ServiceName: "batch-process"}, Spans: []*model.Span{{OperationName: "test-op", Process: &model.Process{ServiceName: "bar"}}}},
+			name: "invalid tenant",
+			ctx:  ctxBadTenant,
+			batch: model.Batch{
+				Process: &model.Process{ServiceName: "batch-process"},
+				Spans: []*model.Span{
+					{
+						OperationName: "test-op",
+						Process:       &model.Process{ServiceName: "bar"},
+					},
+				},
+			},
 
 			// NewGRPCHandler rejects spans with multiple values for tenant header
 			mustFail:        true,
@@ -315,7 +408,11 @@ func TestPostTenantedSpans(t *testing.T) {
 }
 
 // withIncomingMetadata returns a Context with metadata for a server to receive
-func withIncomingMetadata(ctx context.Context, headerName, headerValue string, t *testing.T) context.Context {
+func withIncomingMetadata(
+	ctx context.Context,
+	headerName, headerValue string,
+	t *testing.T,
+) context.Context {
 	t.Helper()
 
 	md := metadata.New(map[string]string{headerName: headerValue})
@@ -328,7 +425,10 @@ func TestGetTenant(t *testing.T) {
 
 	mdTwoTenants := metadata.Pairs()
 	mdTwoTenants.Set(tenantHeader, "a", "b")
-	ctxTwoTenants := metadata.NewOutgoingContext(context.Background(), mdTwoTenants)
+	ctxTwoTenants := metadata.NewOutgoingContext(
+		context.Background(),
+		mdTwoTenants,
+	)
 
 	tests := []struct {
 		name     string
@@ -337,8 +437,13 @@ func TestGetTenant(t *testing.T) {
 		mustFail bool
 	}{
 		{
-			name:     "valid tenant",
-			ctx:      withIncomingMetadata(context.TODO(), tenantHeader, "acme", t),
+			name: "valid tenant",
+			ctx: withIncomingMetadata(
+				context.TODO(),
+				tenantHeader,
+				"acme",
+				t,
+			),
 			mustFail: false,
 			tenant:   "acme",
 		},
@@ -355,8 +460,13 @@ func TestGetTenant(t *testing.T) {
 			tenant:   "",
 		},
 		{
-			name:     "invalid tenant",
-			ctx:      withIncomingMetadata(context.TODO(), tenantHeader, "an-invalid-tenant", t),
+			name: "invalid tenant",
+			ctx: withIncomingMetadata(
+				context.TODO(),
+				tenantHeader,
+				"an-invalid-tenant",
+				t,
+			),
 			mustFail: true,
 			tenant:   "",
 		},
@@ -396,7 +506,10 @@ func TestBatchConsumer(t *testing.T) {
 			batch: model.Batch{
 				Process: &model.Process{ServiceName: "testservice"},
 				Spans: []*model.Span{
-					{OperationName: "test-op", Process: &model.Process{ServiceName: "foo"}},
+					{
+						OperationName: "test-op",
+						Process:       &model.Process{ServiceName: "foo"},
+					},
 				},
 			},
 			transport:          processor.GRPCTransport,
@@ -412,11 +525,20 @@ func TestBatchConsumer(t *testing.T) {
 		t.Parallel()
 		t.Run(tc.name, func(t *testing.T) {
 			processor := mockSpanProcessor{}
-			batchConsumer := newBatchConsumer(logger, &processor, tc.transport, tc.spanFormat, tenancy.NewManager(&tenancy.Options{}))
+			batchConsumer := newBatchConsumer(
+				logger,
+				&processor,
+				tc.transport,
+				tc.spanFormat,
+				tenancy.NewManager(&tenancy.Options{}),
+			)
 			err := batchConsumer.consume(context.Background(), &model.Batch{
 				Process: &model.Process{ServiceName: "testservice"},
 				Spans: []*model.Span{
-					{OperationName: "test-op", Process: &model.Process{ServiceName: "foo"}},
+					{
+						OperationName: "test-op",
+						Process:       &model.Process{ServiceName: "foo"},
+					},
 				},
 			})
 			require.NoError(t, err)

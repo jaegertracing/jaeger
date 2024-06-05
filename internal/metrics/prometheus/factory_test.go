@@ -35,7 +35,10 @@ func TestOptions(t *testing.T) {
 
 func TestSeparator(t *testing.T) {
 	registry := prometheus.NewPedanticRegistry()
-	f1 := promMetrics.New(promMetrics.WithRegisterer(registry), promMetrics.WithSeparator(promMetrics.SeparatorColon))
+	f1 := promMetrics.New(
+		promMetrics.WithRegisterer(registry),
+		promMetrics.WithSeparator(promMetrics.SeparatorColon),
+	)
 	c1 := f1.Namespace(metrics.NSOptions{
 		Name: "bender",
 	}).Counter(metrics.Options{
@@ -46,7 +49,12 @@ func TestSeparator(t *testing.T) {
 	c1.Inc(1)
 	snapshot, err := registry.Gather()
 	require.NoError(t, err)
-	m1 := findMetric(t, snapshot, "bender:rodriguez_total", map[string]string{"a": "b"})
+	m1 := findMetric(
+		t,
+		snapshot,
+		"bender:rodriguez_total",
+		map[string]string{"a": "b"},
+	)
 	assert.EqualValues(t, 1, m1.GetCounter().GetValue(), "%+v", m1)
 }
 
@@ -85,10 +93,20 @@ func TestCounter(t *testing.T) {
 
 	assert.EqualValues(t, "Help message", snapshot[0].GetHelp())
 
-	m1 := findMetric(t, snapshot, "bender_rodriguez_total", map[string]string{"a": "b", "x": "y"})
+	m1 := findMetric(
+		t,
+		snapshot,
+		"bender_rodriguez_total",
+		map[string]string{"a": "b", "x": "y"},
+	)
 	assert.EqualValues(t, 3, m1.GetCounter().GetValue(), "%+v", m1)
 
-	m2 := findMetric(t, snapshot, "bender_rodriguez_total", map[string]string{"a": "b", "x": "z"})
+	m2 := findMetric(
+		t,
+		snapshot,
+		"bender_rodriguez_total",
+		map[string]string{"a": "b", "x": "z"},
+	)
 	assert.EqualValues(t, 7, m2.GetCounter().GetValue(), "%+v", m2)
 }
 
@@ -142,10 +160,20 @@ func TestGauge(t *testing.T) {
 
 	assert.EqualValues(t, "Help message", snapshot[0].GetHelp())
 
-	m1 := findMetric(t, snapshot, "bender_rodriguez", map[string]string{"a": "b", "x": "y"})
+	m1 := findMetric(
+		t,
+		snapshot,
+		"bender_rodriguez",
+		map[string]string{"a": "b", "x": "y"},
+	)
 	assert.EqualValues(t, 2, m1.GetGauge().GetValue(), "%+v", m1)
 
-	m2 := findMetric(t, snapshot, "bender_rodriguez", map[string]string{"a": "b", "x": "z"})
+	m2 := findMetric(
+		t,
+		snapshot,
+		"bender_rodriguez",
+		map[string]string{"a": "b", "x": "z"},
+	)
 	assert.EqualValues(t, 4, m2.GetGauge().GetValue(), "%+v", m2)
 }
 
@@ -199,7 +227,12 @@ func TestTimer(t *testing.T) {
 
 	assert.EqualValues(t, "Help message", snapshot[0].GetHelp())
 
-	m1 := findMetric(t, snapshot, "bender_rodriguez", map[string]string{"a": "b", "x": "y"})
+	m1 := findMetric(
+		t,
+		snapshot,
+		"bender_rodriguez",
+		map[string]string{"a": "b", "x": "y"},
+	)
 	assert.EqualValues(t, 2, m1.GetHistogram().GetSampleCount(), "%+v", m1)
 	assert.EqualValues(t, 3, m1.GetHistogram().GetSampleSum(), "%+v", m1)
 	for _, bucket := range m1.GetHistogram().GetBucket() {
@@ -213,7 +246,12 @@ func TestTimer(t *testing.T) {
 		}
 	}
 
-	m2 := findMetric(t, snapshot, "bender_rodriguez", map[string]string{"a": "b", "x": "z"})
+	m2 := findMetric(
+		t,
+		snapshot,
+		"bender_rodriguez",
+		map[string]string{"a": "b", "x": "z"},
+	)
 	assert.EqualValues(t, 2, m2.GetHistogram().GetSampleCount(), "%+v", m2)
 	assert.EqualValues(t, 7, m2.GetHistogram().GetSampleSum(), "%+v", m2)
 	for _, bucket := range m2.GetHistogram().GetBucket() {
@@ -245,7 +283,10 @@ func TestTimerDefaultHelp(t *testing.T) {
 
 func TestTimerCustomBuckets(t *testing.T) {
 	registry := prometheus.NewPedanticRegistry()
-	f1 := promMetrics.New(promMetrics.WithRegisterer(registry), promMetrics.WithBuckets([]float64{1.5}))
+	f1 := promMetrics.New(
+		promMetrics.WithRegisterer(registry),
+		promMetrics.WithBuckets([]float64{1.5}),
+	)
 	// dot and dash in the metric name will be replaced with underscore
 	t1 := f1.Timer(metrics.TimerOptions{
 		Name:    "bender.bending-rodriguez",
@@ -258,7 +299,12 @@ func TestTimerCustomBuckets(t *testing.T) {
 	snapshot, err := registry.Gather()
 	require.NoError(t, err)
 
-	m1 := findMetric(t, snapshot, "bender_bending_rodriguez", map[string]string{"x": "y"})
+	m1 := findMetric(
+		t,
+		snapshot,
+		"bender_bending_rodriguez",
+		map[string]string{"x": "y"},
+	)
 	assert.EqualValues(t, 2, m1.GetHistogram().GetSampleCount(), "%+v", m1)
 	assert.EqualValues(t, 3, m1.GetHistogram().GetSampleSum(), "%+v", m1)
 	assert.Len(t, m1.GetHistogram().GetBucket(), 2)
@@ -266,7 +312,10 @@ func TestTimerCustomBuckets(t *testing.T) {
 
 func TestTimerDefaultBuckets(t *testing.T) {
 	registry := prometheus.NewPedanticRegistry()
-	f1 := promMetrics.New(promMetrics.WithRegisterer(registry), promMetrics.WithBuckets([]float64{1.5, 2}))
+	f1 := promMetrics.New(
+		promMetrics.WithRegisterer(registry),
+		promMetrics.WithBuckets([]float64{1.5, 2}),
+	)
 	// dot and dash in the metric name will be replaced with underscore
 	t1 := f1.Timer(metrics.TimerOptions{
 		Name:    "bender.bending-rodriguez",
@@ -279,7 +328,12 @@ func TestTimerDefaultBuckets(t *testing.T) {
 	snapshot, err := registry.Gather()
 	require.NoError(t, err)
 
-	m1 := findMetric(t, snapshot, "bender_bending_rodriguez", map[string]string{"x": "y"})
+	m1 := findMetric(
+		t,
+		snapshot,
+		"bender_bending_rodriguez",
+		map[string]string{"x": "y"},
+	)
 	assert.EqualValues(t, 2, m1.GetHistogram().GetSampleCount(), "%+v", m1)
 	assert.EqualValues(t, 3, m1.GetHistogram().GetSampleSum(), "%+v", m1)
 	assert.Len(t, m1.GetHistogram().GetBucket(), 2)
@@ -320,7 +374,12 @@ func TestHistogram(t *testing.T) {
 
 	assert.EqualValues(t, "Help message", snapshot[0].GetHelp())
 
-	m1 := findMetric(t, snapshot, "bender_rodriguez", map[string]string{"a": "b", "x": "y"})
+	m1 := findMetric(
+		t,
+		snapshot,
+		"bender_rodriguez",
+		map[string]string{"a": "b", "x": "y"},
+	)
 	assert.EqualValues(t, 2, m1.GetHistogram().GetSampleCount(), "%+v", m1)
 	assert.EqualValues(t, 3, m1.GetHistogram().GetSampleSum(), "%+v", m1)
 	for _, bucket := range m1.GetHistogram().GetBucket() {
@@ -334,7 +393,12 @@ func TestHistogram(t *testing.T) {
 		}
 	}
 
-	m2 := findMetric(t, snapshot, "bender_rodriguez", map[string]string{"a": "b", "x": "z"})
+	m2 := findMetric(
+		t,
+		snapshot,
+		"bender_rodriguez",
+		map[string]string{"a": "b", "x": "z"},
+	)
 	assert.EqualValues(t, 2, m2.GetHistogram().GetSampleCount(), "%+v", m2)
 	assert.EqualValues(t, 7, m2.GetHistogram().GetSampleSum(), "%+v", m2)
 	for _, bucket := range m2.GetHistogram().GetBucket() {
@@ -379,7 +443,12 @@ func TestHistogramCustomBuckets(t *testing.T) {
 	snapshot, err := registry.Gather()
 	require.NoError(t, err)
 
-	m1 := findMetric(t, snapshot, "bender_bending_rodriguez", map[string]string{"x": "y"})
+	m1 := findMetric(
+		t,
+		snapshot,
+		"bender_bending_rodriguez",
+		map[string]string{"x": "y"},
+	)
 	assert.EqualValues(t, 2, m1.GetHistogram().GetSampleCount(), "%+v", m1)
 	assert.EqualValues(t, 3, m1.GetHistogram().GetSampleSum(), "%+v", m1)
 	assert.Len(t, m1.GetHistogram().GetBucket(), 1)
@@ -387,7 +456,10 @@ func TestHistogramCustomBuckets(t *testing.T) {
 
 func TestHistogramDefaultBuckets(t *testing.T) {
 	registry := prometheus.NewPedanticRegistry()
-	f1 := promMetrics.New(promMetrics.WithRegisterer(registry), promMetrics.WithBuckets([]float64{1.5}))
+	f1 := promMetrics.New(
+		promMetrics.WithRegisterer(registry),
+		promMetrics.WithBuckets([]float64{1.5}),
+	)
 	// dot and dash in the metric name will be replaced with underscore
 	t1 := f1.Histogram(metrics.HistogramOptions{
 		Name:    "bender.bending-rodriguez",
@@ -400,20 +472,35 @@ func TestHistogramDefaultBuckets(t *testing.T) {
 	snapshot, err := registry.Gather()
 	require.NoError(t, err)
 
-	m1 := findMetric(t, snapshot, "bender_bending_rodriguez", map[string]string{"x": "y"})
+	m1 := findMetric(
+		t,
+		snapshot,
+		"bender_bending_rodriguez",
+		map[string]string{"x": "y"},
+	)
 	assert.EqualValues(t, 2, m1.GetHistogram().GetSampleCount(), "%+v", m1)
 	assert.EqualValues(t, 3, m1.GetHistogram().GetSampleSum(), "%+v", m1)
 	assert.Len(t, m1.GetHistogram().GetBucket(), 1)
 }
 
-func findMetric(t *testing.T, snapshot []*promModel.MetricFamily, name string, tags map[string]string) *promModel.Metric {
+func findMetric(
+	t *testing.T,
+	snapshot []*promModel.MetricFamily,
+	name string,
+	tags map[string]string,
+) *promModel.Metric {
 	for _, mf := range snapshot {
 		if mf.GetName() != name {
 			continue
 		}
 		for _, m := range mf.GetMetric() {
 			if len(m.GetLabel()) != len(tags) {
-				t.Fatalf("Mismatching labels for metric %v: want %v, have %v", name, tags, m.GetLabel())
+				t.Fatalf(
+					"Mismatching labels for metric %v: want %v, have %v",
+					name,
+					tags,
+					m.GetLabel(),
+				)
 			}
 			match := true
 			for _, l := range m.GetLabel() {

@@ -25,7 +25,10 @@ type AgentService struct {
 }
 
 // GetSamplingRate provides a mock function with given fields: service, operation
-func (_m *AgentService) GetSamplingRate(service string, operation string) (float64, error) {
+func (_m *AgentService) GetSamplingRate(
+	service string,
+	operation string,
+) (float64, error) {
 	ret := _m.Called(service, operation)
 
 	var r0 float64

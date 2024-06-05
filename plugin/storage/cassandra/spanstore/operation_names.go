@@ -115,7 +115,10 @@ func NewOperationNamesStorage(
 		session:       session,
 		schemaVersion: schemaVersion,
 		table:         table,
-		metrics:       casMetrics.NewTable(metricsFactory, schemas[schemaVersion].tableName),
+		metrics: casMetrics.NewTable(
+			metricsFactory,
+			schemas[schemaVersion].tableName,
+		),
 		writeCacheTTL: writeCacheTTL,
 		logger:        logger,
 		operationNames: cache.NewLRUWithOptions(
@@ -207,7 +210,11 @@ func getOperationsV2(
 		})
 	}
 	if err := iter.Close(); err != nil {
-		err = fmt.Errorf("error reading %s from storage: %w", s.table.tableName, err)
+		err = fmt.Errorf(
+			"error reading %s from storage: %w",
+			s.table.tableName,
+			err,
+		)
 		return nil, err
 	}
 	return operations, nil

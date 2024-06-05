@@ -22,12 +22,20 @@ import (
 )
 
 // NewFromDomain creates FromDomain used to convert model span to db span
-func NewFromDomain(allTagsAsObject bool, tagKeysAsFields []string, tagDotReplacement string) FromDomain {
+func NewFromDomain(
+	allTagsAsObject bool,
+	tagKeysAsFields []string,
+	tagDotReplacement string,
+) FromDomain {
 	tags := map[string]bool{}
 	for _, k := range tagKeysAsFields {
 		tags[k] = true
 	}
-	return FromDomain{allTagsAsFields: allTagsAsObject, tagKeysAsFields: tags, tagDotReplacement: tagDotReplacement}
+	return FromDomain{
+		allTagsAsFields:   allTagsAsObject,
+		tagKeysAsFields:   tags,
+		tagDotReplacement: tagDotReplacement,
+	}
 }
 
 // FromDomain is used to convert model span to db span
@@ -85,11 +93,14 @@ func (FromDomain) convertRefType(refType model.SpanRefType) ReferenceType {
 	return ChildOf
 }
 
-func (fd FromDomain) convertKeyValuesString(keyValues model.KeyValues) ([]KeyValue, map[string]any) {
+func (fd FromDomain) convertKeyValuesString(
+	keyValues model.KeyValues,
+) ([]KeyValue, map[string]any) {
 	var tagsMap map[string]any
 	var kvs []KeyValue
 	for _, kv := range keyValues {
-		if kv.GetVType() != model.BinaryType && (fd.allTagsAsFields || fd.tagKeysAsFields[kv.Key]) {
+		if kv.GetVType() != model.BinaryType &&
+			(fd.allTagsAsFields || fd.tagKeysAsFields[kv.Key]) {
 			if tagsMap == nil {
 				tagsMap = map[string]any{}
 			}

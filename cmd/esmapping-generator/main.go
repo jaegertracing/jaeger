@@ -36,10 +36,15 @@ func main() {
 		Long:  `Jaeger esmapping-generator renders passed templates with provided values and prints rendered output to stdout`,
 		Run: func(cmd *cobra.Command, args []string) {
 			if !renderer.IsValidOption(options.Mapping) {
-				logger.Fatal("please pass either 'jaeger-service' or 'jaeger-span' as argument")
+				logger.Fatal(
+					"please pass either 'jaeger-service' or 'jaeger-span' as argument",
+				)
 			}
 
-			parsedMapping, err := renderer.GetMappingAsString(es.TextTemplateBuilder{}, &options)
+			parsedMapping, err := renderer.GetMappingAsString(
+				es.TextTemplateBuilder{},
+				&options,
+			)
 			if err != nil {
 				logger.Fatal(err.Error())
 			}

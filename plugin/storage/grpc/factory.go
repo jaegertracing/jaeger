@@ -78,12 +78,18 @@ func (*Factory) AddFlags(flagSet *flag.FlagSet) {
 // InitFromViper implements plugin.Configurable
 func (f *Factory) InitFromViper(v *viper.Viper, logger *zap.Logger) {
 	if err := v1InitFromViper(&f.configV1, v); err != nil {
-		logger.Fatal("unable to initialize gRPC storage factory", zap.Error(err))
+		logger.Fatal(
+			"unable to initialize gRPC storage factory",
+			zap.Error(err),
+		)
 	}
 }
 
 // Initialize implements storage.Factory
-func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
+func (f *Factory) Initialize(
+	metricsFactory metrics.Factory,
+	logger *zap.Logger,
+) error {
 	f.metricsFactory, f.logger = metricsFactory, logger
 	f.tracerProvider = otel.GetTracerProvider()
 
@@ -94,9 +100,15 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 	var err error
 	f.services, err = f.configV2.Build(logger, f.tracerProvider)
 	if err != nil {
-		return fmt.Errorf("grpc storage builder failed to create a store: %w", err)
+		return fmt.Errorf(
+			"grpc storage builder failed to create a store: %w",
+			err,
+		)
 	}
-	logger.Info("Remote storage configuration", zap.Any("configuration", f.configV2))
+	logger.Info(
+		"Remote storage configuration",
+		zap.Any("configuration", f.configV2),
+	)
 	return nil
 }
 
@@ -108,7 +120,8 @@ func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
 // CreateSpanWriter implements storage.Factory
 func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
 	if f.services.Capabilities != nil && f.services.StreamingSpanWriter != nil {
-		if capabilities, err := f.services.Capabilities.Capabilities(); err == nil && capabilities.StreamingSpanWriter {
+		if capabilities, err := f.services.Capabilities.Capabilities(); err == nil &&
+			capabilities.StreamingSpanWriter {
 			return f.services.StreamingSpanWriter.StreamingSpanWriter(), nil
 		}
 	}

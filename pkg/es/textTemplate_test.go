@@ -35,5 +35,9 @@ func TestParse(t *testing.T) {
 	require.NoError(t, err)
 	err = parsedStr.Execute(writer, values)
 	require.NoError(t, err)
-	assert.Equal(t, "Parse is a wrapper for text/template parse function.", writer.String())
+	assert.Equal(
+		t,
+		"Parse is a wrapper for text/template parse function.",
+		writer.String(),
+	)
 }

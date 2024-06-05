@@ -149,7 +149,10 @@ func (a *clockSkewAdjuster) adjustNode(n *node, parent *node, skew clockSkew) {
 	}
 }
 
-func (*clockSkewAdjuster) calculateSkew(child *node, parent *node) time.Duration {
+func (*clockSkewAdjuster) calculateSkew(
+	child *node,
+	parent *node,
+) time.Duration {
 	parentDuration := parent.span.Duration
 	childDuration := child.span.Duration
 	parentEndTime := parent.span.StartTime.Add(parent.span.Duration)
@@ -165,7 +168,8 @@ func (*clockSkewAdjuster) calculateSkew(child *node, parent *node) time.Duration
 		}
 		return 0
 	}
-	if !child.span.StartTime.Before(parent.span.StartTime) && !childEndTime.After(parentEndTime) {
+	if !child.span.StartTime.Before(parent.span.StartTime) &&
+		!childEndTime.After(parentEndTime) {
 		// child already fits within the parent span, do not adjust
 		return 0
 	}
@@ -182,16 +186,25 @@ func (a *clockSkewAdjuster) adjustTimestamps(n *node, skew clockSkew) {
 
 	if absDuration(skew.delta) > a.maxDelta {
 		if a.maxDelta == 0 {
-			n.span.Warnings = append(n.span.Warnings, fmt.Sprintf(warningSkewAdjustDisabled, skew.delta))
+			n.span.Warnings = append(
+				n.span.Warnings,
+				fmt.Sprintf(warningSkewAdjustDisabled, skew.delta),
+			)
 			return
 		}
 
-		n.span.Warnings = append(n.span.Warnings, fmt.Sprintf(warningMaxDeltaExceeded, a.maxDelta, skew.delta))
+		n.span.Warnings = append(
+			n.span.Warnings,
+			fmt.Sprintf(warningMaxDeltaExceeded, a.maxDelta, skew.delta),
+		)
 		return
 	}
 
 	n.span.StartTime = n.span.StartTime.Add(skew.delta)
-	n.span.Warnings = append(n.span.Warnings, fmt.Sprintf("This span's timestamps were adjusted by %v", skew.delta))
+	n.span.Warnings = append(
+		n.span.Warnings,
+		fmt.Sprintf("This span's timestamps were adjusted by %v", skew.delta),
+	)
 
 	for i := range n.span.Logs {
 		n.span.Logs[i].Timestamp = n.span.Logs[i].Timestamp.Add(skew.delta)

@@ -61,7 +61,10 @@ func NewBoundedQueue(capacity int, onDroppedItem func(item any)) *BoundedQueue {
 
 // StartConsumersWithFactory creates a given number of consumers consuming items
 // from the queue in separate goroutines.
-func (q *BoundedQueue) StartConsumersWithFactory(num int, factory func() Consumer) {
+func (q *BoundedQueue) StartConsumersWithFactory(
+	num int,
+	factory func() Consumer,
+) {
 	q.workers = num
 	q.factory = factory
 	var startWG sync.WaitGroup
@@ -161,7 +164,10 @@ func (q *BoundedQueue) Capacity() int {
 
 // StartLengthReporting starts a timer-based goroutine that periodically reports
 // current queue length to a given metrics gauge.
-func (q *BoundedQueue) StartLengthReporting(reportPeriod time.Duration, gauge metrics.Gauge) {
+func (q *BoundedQueue) StartLengthReporting(
+	reportPeriod time.Duration,
+	gauge metrics.Gauge,
+) {
 	ticker := time.NewTicker(reportPeriod)
 	go func() {
 		defer ticker.Stop()
@@ -189,7 +195,11 @@ func (q *BoundedQueue) Resize(capacity int) bool {
 
 	// swap queues
 	// #nosec
-	swapped := atomic.CompareAndSwapPointer((*unsafe.Pointer)(unsafe.Pointer(&q.items)), unsafe.Pointer(q.items), unsafe.Pointer(&queue))
+	swapped := atomic.CompareAndSwapPointer(
+		(*unsafe.Pointer)(unsafe.Pointer(&q.items)),
+		unsafe.Pointer(q.items),
+		unsafe.Pointer(&queue),
+	)
 	if swapped {
 		// start a new set of consumers, based on the information given previously
 		q.StartConsumersWithFactory(q.workers, q.factory)

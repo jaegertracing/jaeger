@@ -59,32 +59,46 @@ func TestWithDefaultConfiguration(t *testing.T) {
 }
 
 func TestWithConfiguration(t *testing.T) {
-	t.Run("still supports the deprecated spanmetrics processor", func(t *testing.T) {
-		f := NewFactory()
-		v, command := config.Viperize(f.AddFlags)
-		err := command.ParseFlags([]string{
-			"--prometheus.query.support-spanmetrics-connector=false",
-		})
-		require.NoError(t, err)
-		f.InitFromViper(v, zap.NewNop())
-		assert.False(t, f.options.Primary.SupportSpanmetricsConnector)
-	})
-	t.Run("with custom configuration and no space in token file path", func(t *testing.T) {
-		f := NewFactory()
-		v, command := config.Viperize(f.AddFlags)
-		err := command.ParseFlags([]string{
-			"--prometheus.server-url=http://localhost:1234",
-			"--prometheus.connect-timeout=5s",
-			"--prometheus.token-file=test/test_file.txt",
-			"--prometheus.token-override-from-context=false",
-		})
-		require.NoError(t, err)
-		f.InitFromViper(v, zap.NewNop())
-		assert.Equal(t, "http://localhost:1234", f.options.Primary.ServerURL)
-		assert.Equal(t, 5*time.Second, f.options.Primary.ConnectTimeout)
-		assert.Equal(t, "test/test_file.txt", f.options.Primary.TokenFilePath)
-		assert.False(t, f.options.Primary.TokenOverrideFromContext)
-	})
+	t.Run(
+		"still supports the deprecated spanmetrics processor",
+		func(t *testing.T) {
+			f := NewFactory()
+			v, command := config.Viperize(f.AddFlags)
+			err := command.ParseFlags([]string{
+				"--prometheus.query.support-spanmetrics-connector=false",
+			})
+			require.NoError(t, err)
+			f.InitFromViper(v, zap.NewNop())
+			assert.False(t, f.options.Primary.SupportSpanmetricsConnector)
+		},
+	)
+	t.Run(
+		"with custom configuration and no space in token file path",
+		func(t *testing.T) {
+			f := NewFactory()
+			v, command := config.Viperize(f.AddFlags)
+			err := command.ParseFlags([]string{
+				"--prometheus.server-url=http://localhost:1234",
+				"--prometheus.connect-timeout=5s",
+				"--prometheus.token-file=test/test_file.txt",
+				"--prometheus.token-override-from-context=false",
+			})
+			require.NoError(t, err)
+			f.InitFromViper(v, zap.NewNop())
+			assert.Equal(
+				t,
+				"http://localhost:1234",
+				f.options.Primary.ServerURL,
+			)
+			assert.Equal(t, 5*time.Second, f.options.Primary.ConnectTimeout)
+			assert.Equal(
+				t,
+				"test/test_file.txt",
+				f.options.Primary.TokenFilePath,
+			)
+			assert.False(t, f.options.Primary.TokenOverrideFromContext)
+		},
+	)
 	t.Run("with space in token file path", func(t *testing.T) {
 		f := NewFactory()
 		v, command := config.Viperize(f.AddFlags)
@@ -141,7 +155,11 @@ func TestFailedTLSOptions(t *testing.T) {
 	defer func() {
 		r := recover()
 		t.Logf("%v", r)
-		assert.Contains(t, logOut.Lines()[0], "failed to process Prometheus TLS options")
+		assert.Contains(
+			t,
+			logOut.Lines()[0],
+			"failed to process Prometheus TLS options",
+		)
 	}()
 
 	f.InitFromViper(v, logger)

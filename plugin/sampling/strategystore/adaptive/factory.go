@@ -64,9 +64,15 @@ func (f *Factory) InitFromViper(v *viper.Viper, logger *zap.Logger) {
 }
 
 // Initialize implements strategystore.Factory
-func (f *Factory) Initialize(metricsFactory metrics.Factory, ssFactory storage.SamplingStoreFactory, logger *zap.Logger) error {
+func (f *Factory) Initialize(
+	metricsFactory metrics.Factory,
+	ssFactory storage.SamplingStoreFactory,
+	logger *zap.Logger,
+) error {
 	if ssFactory == nil {
-		return errors.New("sampling store factory is nil. Please configure a backend that supports adaptive sampling")
+		return errors.New(
+			"sampling store factory is nil. Please configure a backend that supports adaptive sampling",
+		)
 	}
 	var err error
 	f.logger = logger
@@ -79,11 +85,15 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, ssFactory storage.S
 	if err != nil {
 		return err
 	}
-	f.participant = leaderelection.NewElectionParticipant(f.lock, defaultResourceName, leaderelection.ElectionParticipantOptions{
-		FollowerLeaseRefreshInterval: f.options.FollowerLeaseRefreshInterval,
-		LeaderLeaseRefreshInterval:   f.options.LeaderLeaseRefreshInterval,
-		Logger:                       f.logger,
-	})
+	f.participant = leaderelection.NewElectionParticipant(
+		f.lock,
+		defaultResourceName,
+		leaderelection.ElectionParticipantOptions{
+			FollowerLeaseRefreshInterval: f.options.FollowerLeaseRefreshInterval,
+			LeaderLeaseRefreshInterval:   f.options.LeaderLeaseRefreshInterval,
+			Logger:                       f.logger,
+		},
+	)
 	f.participant.Start()
 
 	return nil
@@ -92,7 +102,13 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, ssFactory storage.S
 // CreateStrategyStore implements strategystore.Factory
 func (f *Factory) CreateStrategyStore() (strategystore.StrategyStore, strategystore.Aggregator, error) {
 	s := NewStrategyStore(*f.options, f.logger, f.participant, f.store)
-	a, err := NewAggregator(*f.options, f.logger, f.metricsFactory, f.participant, f.store)
+	a, err := NewAggregator(
+		*f.options,
+		f.logger,
+		f.metricsFactory,
+		f.participant,
+		f.store,
+	)
 	if err != nil {
 		return nil, nil, err
 	}

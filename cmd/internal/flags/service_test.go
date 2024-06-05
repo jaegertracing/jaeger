@@ -58,8 +58,11 @@ func TestStartErrors(t *testing.T) {
 			expErr: "cannot create metrics factory",
 		},
 		{
-			name:   "bad admin TLS",
-			flags:  []string{"--admin.http.tls.enabled=true", "--admin.http.tls.cert=invalid-cert"},
+			name: "bad admin TLS",
+			flags: []string{
+				"--admin.http.tls.enabled=true",
+				"--admin.http.tls.cert=invalid-cert",
+			},
 			expErr: "cannot initialize admin server",
 		},
 		{
@@ -92,9 +95,17 @@ func TestStartErrors(t *testing.T) {
 			}
 			go s.RunAndThen(shutdown)
 
-			waitForEqual(t, healthcheck.Ready, func() any { return s.HC().Get() })
+			waitForEqual(
+				t,
+				healthcheck.Ready,
+				func() any { return s.HC().Get() },
+			)
 			s.HC().Set(healthcheck.Unavailable)
-			waitForEqual(t, healthcheck.Unavailable, func() any { return s.HC().Get() })
+			waitForEqual(
+				t,
+				healthcheck.Unavailable,
+				func() any { return s.HC().Get() },
+			)
 
 			s.signalsChannel <- os.Interrupt
 			waitForEqual(t, true, func() any { return stopped.Load() })

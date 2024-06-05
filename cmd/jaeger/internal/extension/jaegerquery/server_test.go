@@ -90,7 +90,10 @@ func (host storageHost) GetExtensions() map[component.ID]component.Component {
 	}
 }
 
-func (storageHost) GetFactory(_ component.Kind, _ component.Type) component.Factory {
+func (storageHost) GetFactory(
+	_ component.Kind,
+	_ component.Type,
+) component.Factory {
 	return nil
 }
 
@@ -160,7 +163,10 @@ func TestServerStart(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			telemetrySettings := component.TelemetrySettings{
-				Logger: zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller())),
+				Logger: zaptest.NewLogger(
+					t,
+					zaptest.WrapOptions(zap.AddCaller()),
+				),
 			}
 			server := newServer(tt.config, telemetrySettings)
 			err := server.Start(context.Background(), host)

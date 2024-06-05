@@ -58,7 +58,10 @@ func TestBySvcMetrics(t *testing.T) {
 		debug       bool
 	}
 
-	spanFormat := [2]processor.SpanFormat{processor.ZipkinSpanFormat, processor.JaegerSpanFormat}
+	spanFormat := [2]processor.SpanFormat{
+		processor.ZipkinSpanFormat,
+		processor.JaegerSpanFormat,
+	}
 	serviceNames := [2]string{allowedService, blackListedService}
 	rootSpanEnabled := [2]bool{true, false}
 	debugEnabled := [2]bool{true, false}
@@ -85,7 +88,9 @@ func TestBySvcMetrics(t *testing.T) {
 		mb := metricstest.NewFactory(time.Hour)
 		defer mb.Backend.Stop()
 		logger := zap.NewNop()
-		serviceMetrics := mb.Namespace(metrics.NSOptions{Name: "service", Tags: nil})
+		serviceMetrics := mb.Namespace(
+			metrics.NSOptions{Name: "service", Tags: nil},
+		)
 		hostMetrics := mb.Namespace(metrics.NSOptions{Name: "host", Tags: nil})
 		sp := newSpanProcessor(
 			&fakeSpanWriter{},
@@ -102,13 +107,21 @@ func TestBySvcMetrics(t *testing.T) {
 		switch test.format {
 		case processor.ZipkinSpanFormat:
 			span := makeZipkinSpan(test.serviceName, test.rootSpan, test.debug)
-			sanitizer := zipkinsanitizer.NewChainedSanitizer(zipkinsanitizer.NewStandardSanitizers()...)
+			sanitizer := zipkinsanitizer.NewChainedSanitizer(
+				zipkinsanitizer.NewStandardSanitizers()...)
 			zHandler := handler.NewZipkinSpanHandler(logger, sp, sanitizer)
-			zHandler.SubmitZipkinBatch([]*zc.Span{span, span}, handler.SubmitBatchOptions{})
+			zHandler.SubmitZipkinBatch(
+				[]*zc.Span{span, span},
+				handler.SubmitBatchOptions{},
+			)
 			metricPrefix = "service"
 			format = "zipkin"
 		case processor.JaegerSpanFormat:
-			span, process := makeJaegerSpan(test.serviceName, test.rootSpan, test.debug)
+			span, process := makeJaegerSpan(
+				test.serviceName,
+				test.rootSpan,
+				test.debug,
+			)
 			jHandler := handler.NewJaegerSpanHandler(logger, sp)
 			jHandler.SubmitBatches([]*jaeger.Batch{
 				{
@@ -182,7 +195,10 @@ type fakeSpanWriter struct {
 	tenants   map[string]bool
 }
 
-func (n *fakeSpanWriter) WriteSpan(ctx context.Context, span *model.Span) error {
+func (n *fakeSpanWriter) WriteSpan(
+	ctx context.Context,
+	span *model.Span,
+) error {
 	n.spansLock.Lock()
 	defer n.spansLock.Unlock()
 	n.spans = append(n.spans, span)
@@ -224,7 +240,11 @@ func makeZipkinSpan(service string, rootSpan bool, debugEnabled bool) *zc.Span {
 	return span
 }
 
-func makeJaegerSpan(service string, rootSpan bool, debugEnabled bool) (*jaeger.Span, *jaeger.Process) {
+func makeJaegerSpan(
+	service string,
+	rootSpan bool,
+	debugEnabled bool,
+) (*jaeger.Span, *jaeger.Process) {
 	flags := int32(0)
 	if debugEnabled {
 		flags = 2
@@ -265,7 +285,9 @@ func TestSpanProcessorErrors(t *testing.T) {
 	}
 	mb := metricstest.NewFactory(time.Hour)
 	defer mb.Backend.Stop()
-	serviceMetrics := mb.Namespace(metrics.NSOptions{Name: "service", Tags: nil})
+	serviceMetrics := mb.Namespace(
+		metrics.NSOptions{Name: "service", Tags: nil},
+	)
 	p := NewSpanProcessor(w,
 		nil,
 		Options.Logger(logger),
@@ -302,7 +324,10 @@ type blockingWriter struct {
 	inWriteSpan atomic.Int32
 }
 
-func (w *blockingWriter) WriteSpan(ctx context.Context, span *model.Span) error {
+func (w *blockingWriter) WriteSpan(
+	ctx context.Context,
+	span *model.Span,
+) error {
 	w.inWriteSpan.Add(1)
 	w.Lock()
 	defer w.Unlock()
@@ -350,7 +375,9 @@ func TestSpanProcessorBusy(t *testing.T) {
 func TestSpanProcessorWithNilProcess(t *testing.T) {
 	mb := metricstest.NewFactory(time.Hour)
 	defer mb.Backend.Stop()
-	serviceMetrics := mb.Namespace(metrics.NSOptions{Name: "service", Tags: nil})
+	serviceMetrics := mb.Namespace(
+		metrics.NSOptions{Name: "service", Tags: nil},
+	)
 
 	w := &fakeSpanWriter{}
 	p := NewSpanProcessor(w, nil, Options.ServiceMetrics(serviceMetrics)).(*spanProcessor)
@@ -483,14 +510,21 @@ func TestSpanProcessorCountSpan(t *testing.T) {
 					if !tt.expectedUpdateGauge {
 						assert.Fail(t, "gauge has been updated unexpectedly")
 					}
-					assert.Equal(t, p.bytesProcessed.Load(), uint64(g["spans.bytes"]))
+					assert.Equal(
+						t,
+						p.bytesProcessed.Load(),
+						uint64(g["spans.bytes"]),
+					)
 					return
 				}
 				time.Sleep(time.Millisecond)
 			}
 
 			if tt.expectedUpdateGauge {
-				assert.Fail(t, "gauge hasn't been updated within a reasonable amount of time")
+				assert.Fail(
+					t,
+					"gauge hasn't been updated within a reasonable amount of time",
+				)
 			}
 		})
 	}
@@ -574,7 +608,13 @@ func TestUpdateDynQueueSize(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			w := &fakeSpanWriter{}
-			p := newSpanProcessor(w, nil, Options.QueueSize(tt.initialCapacity), Options.DynQueueSizeWarmup(tt.warmup), Options.DynQueueSizeMemory(tt.sizeInBytes))
+			p := newSpanProcessor(
+				w,
+				nil,
+				Options.QueueSize(tt.initialCapacity),
+				Options.DynQueueSizeWarmup(tt.warmup),
+				Options.DynQueueSizeMemory(tt.sizeInBytes),
+			)
 			assert.EqualValues(t, tt.initialCapacity, p.queue.Capacity())
 
 			p.spansProcessed.Store(tt.spansProcessed)
@@ -588,18 +628,32 @@ func TestUpdateDynQueueSize(t *testing.T) {
 
 func TestUpdateQueueSizeNoActivityYet(t *testing.T) {
 	w := &fakeSpanWriter{}
-	p := newSpanProcessor(w, nil, Options.QueueSize(1), Options.DynQueueSizeWarmup(1), Options.DynQueueSizeMemory(1))
+	p := newSpanProcessor(
+		w,
+		nil,
+		Options.QueueSize(1),
+		Options.DynQueueSizeWarmup(1),
+		Options.DynQueueSizeMemory(1),
+	)
 	assert.NotPanics(t, p.updateQueueSize)
 }
 
 func TestStartDynQueueSizeUpdater(t *testing.T) {
 	w := &fakeSpanWriter{}
 	oneGiB := uint(1024 * 1024 * 1024)
-	p := newSpanProcessor(w, nil, Options.QueueSize(100), Options.DynQueueSizeWarmup(1000), Options.DynQueueSizeMemory(oneGiB))
+	p := newSpanProcessor(
+		w,
+		nil,
+		Options.QueueSize(100),
+		Options.DynQueueSizeWarmup(1000),
+		Options.DynQueueSizeMemory(oneGiB),
+	)
 	assert.EqualValues(t, 100, p.queue.Capacity())
 
 	p.spansProcessed.Store(1000)
-	p.bytesProcessed.Store(10 * 1024 * p.spansProcessed.Load()) // 10KiB per span
+	p.bytesProcessed.Store(
+		10 * 1024 * p.spansProcessed.Load(),
+	) // 10KiB per span
 
 	// 1024 ^ 3 / (10 * 1024) = 104857,6
 	// ideal queue size = 104857
@@ -674,7 +728,10 @@ func TestSpanProcessorContextPropagation(t *testing.T) {
 	// Verify that the dummy tenant from SpansOptions context made it to writer
 	assert.True(t, w.tenants[dummyTenant])
 	// Verify no other tenantKey context values made it to writer
-	assert.True(t, reflect.DeepEqual(w.tenants, map[string]bool{dummyTenant: true}))
+	assert.True(
+		t,
+		reflect.DeepEqual(w.tenants, map[string]bool{dummyTenant: true}),
+	)
 }
 
 func TestSpanProcessorWithOnDroppedSpanOption(t *testing.T) {

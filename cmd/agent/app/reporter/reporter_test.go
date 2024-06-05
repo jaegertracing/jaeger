@@ -69,7 +69,10 @@ type mockReporter struct {
 	err error
 }
 
-func (r mockReporter) EmitZipkinBatch(_ context.Context, _ []*zipkincore.Span) error {
+func (r mockReporter) EmitZipkinBatch(
+	_ context.Context,
+	_ []*zipkincore.Span,
+) error {
 	return r.err
 }
 

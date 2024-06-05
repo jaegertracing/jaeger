@@ -35,7 +35,7 @@ import (
 
 // Configuration describes the options to customize the storage behavior.
 type Configuration struct {
-	RemoteServerAddr     string `yaml:"server" mapstructure:"server"`
+	RemoteServerAddr     string `yaml:"server"             mapstructure:"server"`
 	RemoteTLS            tlscfg.Options
 	RemoteConnectTimeout time.Duration `yaml:"connection-timeout" mapstructure:"connection-timeout"`
 	TenancyOpts          tenancy.Options
@@ -67,22 +67,37 @@ type ClientPluginServices struct {
 }
 
 // TODO move this to factory.go
-func (c *ConfigV2) Build(logger *zap.Logger, tracerProvider trace.TracerProvider) (*ClientPluginServices, error) {
+func (c *ConfigV2) Build(
+	logger *zap.Logger,
+	tracerProvider trace.TracerProvider,
+) (*ClientPluginServices, error) {
 	telset := component.TelemetrySettings{
 		Logger:         logger,
 		TracerProvider: tracerProvider,
 	}
 	newClientFn := func(opts ...grpc.DialOption) (conn *grpc.ClientConn, err error) {
-		return c.ToClientConn(context.Background(), componenttest.NewNopHost(), telset, opts...)
+		return c.ToClientConn(
+			context.Background(),
+			componenttest.NewNopHost(),
+			telset,
+			opts...)
 	}
 	return newRemoteStorage(c, telset, newClientFn)
 }
 
 type newClientFn func(opts ...grpc.DialOption) (*grpc.ClientConn, error)
 
-func newRemoteStorage(c *ConfigV2, telset component.TelemetrySettings, newClient newClientFn) (*ClientPluginServices, error) {
+func newRemoteStorage(
+	c *ConfigV2,
+	telset component.TelemetrySettings,
+	newClient newClientFn,
+) (*ClientPluginServices, error) {
 	opts := []grpc.DialOption{
-		grpc.WithStatsHandler(otelgrpc.NewClientHandler(otelgrpc.WithTracerProvider(telset.TracerProvider))),
+		grpc.WithStatsHandler(
+			otelgrpc.NewClientHandler(
+				otelgrpc.WithTracerProvider(telset.TracerProvider),
+			),
+		),
 	}
 	if c.Auth != nil {
 		return nil, fmt.Errorf("authenticator is not supported")
@@ -90,8 +105,18 @@ func newRemoteStorage(c *ConfigV2, telset component.TelemetrySettings, newClient
 
 	tenancyMgr := tenancy.NewManager(&c.Tenancy)
 	if tenancyMgr.Enabled {
-		opts = append(opts, grpc.WithUnaryInterceptor(tenancy.NewClientUnaryInterceptor(tenancyMgr)))
-		opts = append(opts, grpc.WithStreamInterceptor(tenancy.NewClientStreamInterceptor(tenancyMgr)))
+		opts = append(
+			opts,
+			grpc.WithUnaryInterceptor(
+				tenancy.NewClientUnaryInterceptor(tenancyMgr),
+			),
+		)
+		opts = append(
+			opts,
+			grpc.WithStreamInterceptor(
+				tenancy.NewClientStreamInterceptor(tenancyMgr),
+			),
+		)
 	}
 
 	remoteConn, err := newClient(opts...)

@@ -75,15 +75,21 @@ func NewDependencyStore(
 		return nil, errInvalidVersion
 	}
 	return &DependencyStore{
-		session:                  session,
-		dependenciesTableMetrics: casMetrics.NewTable(metricsFactory, "dependencies"),
-		logger:                   logger,
-		version:                  version,
+		session: session,
+		dependenciesTableMetrics: casMetrics.NewTable(
+			metricsFactory,
+			"dependencies",
+		),
+		logger:  logger,
+		version: version,
 	}, nil
 }
 
 // WriteDependencies implements dependencystore.Writer#WriteDependencies.
-func (s *DependencyStore) WriteDependencies(ts time.Time, dependencies []model.DependencyLink) error {
+func (s *DependencyStore) WriteDependencies(
+	ts time.Time,
+	dependencies []model.DependencyLink,
+) error {
 	deps := make([]Dependency, len(dependencies))
 	for i, d := range dependencies {
 		deps[i] = Dependency{
@@ -99,20 +105,34 @@ func (s *DependencyStore) WriteDependencies(ts time.Time, dependencies []model.D
 	case V1:
 		query = s.session.Query(depsInsertStmtV1, ts, ts, deps)
 	case V2:
-		query = s.session.Query(depsInsertStmtV2, ts, ts.Truncate(tsBucket), deps)
+		query = s.session.Query(
+			depsInsertStmtV2,
+			ts,
+			ts.Truncate(tsBucket),
+			deps,
+		)
 	}
 	return s.dependenciesTableMetrics.Exec(query, s.logger)
 }
 
 // GetDependencies returns all interservice dependencies
-func (s *DependencyStore) GetDependencies(ctx context.Context, endTs time.Time, lookback time.Duration) ([]model.DependencyLink, error) {
+func (s *DependencyStore) GetDependencies(
+	ctx context.Context,
+	endTs time.Time,
+	lookback time.Duration,
+) ([]model.DependencyLink, error) {
 	startTs := endTs.Add(-1 * lookback)
 	var query cassandra.Query
 	switch s.version {
 	case V1:
 		query = s.session.Query(depsSelectStmtV1, startTs, endTs)
 	case V2:
-		query = s.session.Query(depsSelectStmtV2, getBuckets(startTs, endTs), startTs, endTs)
+		query = s.session.Query(
+			depsSelectStmtV2,
+			getBuckets(startTs, endTs),
+			startTs,
+			endTs,
+		)
 	}
 	iter := query.Consistency(cassandra.One).Iter()
 
@@ -132,8 +152,16 @@ func (s *DependencyStore) GetDependencies(ctx context.Context, endTs time.Time, 
 	}
 
 	if err := iter.Close(); err != nil {
-		s.logger.Error("Failure to read Dependencies", zap.Time("endTs", endTs), zap.Duration("lookback", lookback), zap.Error(err))
-		return nil, fmt.Errorf("error reading dependencies from storage: %w", err)
+		s.logger.Error(
+			"Failure to read Dependencies",
+			zap.Time("endTs", endTs),
+			zap.Duration("lookback", lookback),
+			zap.Error(err),
+		)
+		return nil, fmt.Errorf(
+			"error reading dependencies from storage: %w",
+			err,
+		)
 	}
 	return mDependency, nil
 }

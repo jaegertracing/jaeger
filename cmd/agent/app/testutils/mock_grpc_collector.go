@@ -81,7 +81,10 @@ func (h *mockSpanHandler) GetJaegerBatches() []model.Batch {
 	return batches
 }
 
-func (h *mockSpanHandler) PostSpans(_ context.Context, r *api_v2.PostSpansRequest) (*api_v2.PostSpansResponse, error) {
+func (h *mockSpanHandler) PostSpans(
+	_ context.Context,
+	r *api_v2.PostSpansRequest,
+) (*api_v2.PostSpansResponse, error) {
 	h.t.Logf("mockSpanHandler received %d spans", len(r.Batch.Spans))
 	h.mux.Lock()
 	defer h.mux.Unlock()

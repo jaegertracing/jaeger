@@ -47,7 +47,9 @@ type ProcessorFactory struct {
 }
 
 // NewProcessorFactory constructs a new ProcessorFactory
-func NewProcessorFactory(params ProcessorFactoryParams) (*ProcessorFactory, error) {
+func NewProcessorFactory(
+	params ProcessorFactoryParams,
+) (*ProcessorFactory, error) {
 	return &ProcessorFactory{
 		consumer:       params.SaramaConsumer,
 		metricsFactory: params.Factory,
@@ -58,16 +60,29 @@ func NewProcessorFactory(params ProcessorFactoryParams) (*ProcessorFactory, erro
 	}, nil
 }
 
-func (c *ProcessorFactory) new(topic string, partition int32, minOffset int64) processor.SpanProcessor {
+func (c *ProcessorFactory) new(
+	topic string,
+	partition int32,
+	minOffset int64,
+) processor.SpanProcessor {
 	c.logger.Info("Creating new processors", zap.Int32("partition", partition))
 
 	markOffset := func(offset int64) {
 		c.consumer.MarkPartitionOffset(topic, partition, offset, "")
 	}
 
-	om := offset.NewManager(minOffset, markOffset, topic, partition, c.metricsFactory)
+	om := offset.NewManager(
+		minOffset,
+		markOffset,
+		topic,
+		partition,
+		c.metricsFactory,
+	)
 
-	retryProcessor := decorator.NewRetryingProcessor(c.metricsFactory, c.baseProcessor, c.retryOptions...)
+	retryProcessor := decorator.NewRetryingProcessor(
+		c.metricsFactory,
+		c.baseProcessor,
+		c.retryOptions...)
 	cp := NewCommittingProcessor(retryProcessor, om)
 	spanProcessor := processor.NewDecoratedProcessor(c.metricsFactory, cp)
 	pp := processor.NewParallelProcessor(spanProcessor, c.parallelism, c.logger)
@@ -90,7 +105,10 @@ type startedProcessor struct {
 	processor startProcessor
 }
 
-func newStartedProcessor(parallelProcessor startProcessor, services ...service) processor.SpanProcessor {
+func newStartedProcessor(
+	parallelProcessor startProcessor,
+	services ...service,
+) processor.SpanProcessor {
 	s := &startedProcessor{
 		services:  services,
 		processor: parallelProcessor,

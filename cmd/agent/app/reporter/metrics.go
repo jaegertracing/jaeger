@@ -53,7 +53,10 @@ type MetricsReporter struct {
 }
 
 // WrapWithMetrics wraps Reporter and creates metrics for its invocations.
-func WrapWithMetrics(reporter Reporter, mFactory metrics.Factory) *MetricsReporter {
+func WrapWithMetrics(
+	reporter Reporter,
+	mFactory metrics.Factory,
+) *MetricsReporter {
 	batchesMetrics := map[string]batchMetrics{}
 	for _, s := range []string{zipkinBatches, jaegerBatches} {
 		bm := batchMetrics{}
@@ -69,14 +72,20 @@ func WrapWithMetrics(reporter Reporter, mFactory metrics.Factory) *MetricsReport
 }
 
 // EmitZipkinBatch emits batch to collector.
-func (r *MetricsReporter) EmitZipkinBatch(ctx context.Context, spans []*zipkincore.Span) error {
+func (r *MetricsReporter) EmitZipkinBatch(
+	ctx context.Context,
+	spans []*zipkincore.Span,
+) error {
 	err := r.wrapped.EmitZipkinBatch(ctx, spans)
 	updateMetrics(r.metrics[zipkinBatches], int64(len(spans)), err)
 	return err
 }
 
 // EmitBatch emits batch to collector.
-func (r *MetricsReporter) EmitBatch(ctx context.Context, batch *jaeger.Batch) error {
+func (r *MetricsReporter) EmitBatch(
+	ctx context.Context,
+	batch *jaeger.Batch,
+) error {
 	size := int64(0)
 	if batch != nil {
 		size = int64(len(batch.GetSpans()))

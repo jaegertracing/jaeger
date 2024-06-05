@@ -75,7 +75,10 @@ func TestUTF8Sanitizer_SanitizeKV(t *testing.T) {
 				model.String(invalidUTF8(), invalidUTF8()),
 			},
 			expected: model.KeyValues{
-				model.Binary(invalidTagKey, []byte(invalidUTF8()+":"+invalidUTF8())),
+				model.Binary(
+					invalidTagKey,
+					[]byte(invalidUTF8()+":"+invalidUTF8()),
+				),
 			},
 		},
 		{
@@ -101,7 +104,11 @@ func TestUTF8Sanitizer_SanitizeServiceName(t *testing.T) {
 			},
 		})
 	assert.Equal(t, invalidService, actual.Process.ServiceName)
-	assert.Equal(t, model.Binary(invalidService, []byte(invalidUTF8())), actual.Tags[0])
+	assert.Equal(
+		t,
+		model.Binary(invalidService, []byte(invalidUTF8())),
+		actual.Tags[0],
+	)
 }
 
 func TestUTF8Sanitizer_SanitizeOperationName(t *testing.T) {
@@ -110,7 +117,11 @@ func TestUTF8Sanitizer_SanitizeOperationName(t *testing.T) {
 		Process:       &model.Process{},
 	})
 	assert.Equal(t, invalidOperation, actual.OperationName)
-	assert.Equal(t, model.Binary(invalidOperation, []byte(invalidUTF8())), actual.Tags[0])
+	assert.Equal(
+		t,
+		model.Binary(invalidOperation, []byte(invalidUTF8())),
+		actual.Tags[0],
+	)
 }
 
 func TestUTF8Sanitizer_SanitizeProcessTags(t *testing.T) {

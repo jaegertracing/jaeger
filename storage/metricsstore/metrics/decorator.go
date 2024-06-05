@@ -35,8 +35,8 @@ type ReadMetricsDecorator struct {
 type queryMetrics struct {
 	Errors     metrics.Counter `metric:"requests" tags:"result=err"`
 	Successes  metrics.Counter `metric:"requests" tags:"result=ok"`
-	ErrLatency metrics.Timer   `metric:"latency" tags:"result=err"`
-	OKLatency  metrics.Timer   `metric:"latency" tags:"result=ok"`
+	ErrLatency metrics.Timer   `metric:"latency"  tags:"result=err"`
+	OKLatency  metrics.Timer   `metric:"latency"  tags:"result=ok"`
 }
 
 func (q *queryMetrics) emit(err error, latency time.Duration) {
@@ -50,25 +50,51 @@ func (q *queryMetrics) emit(err error, latency time.Duration) {
 }
 
 // NewReadMetricsDecorator returns a new ReadMetricsDecorator.
-func NewReadMetricsDecorator(reader metricsstore.Reader, metricsFactory metrics.Factory) *ReadMetricsDecorator {
+func NewReadMetricsDecorator(
+	reader metricsstore.Reader,
+	metricsFactory metrics.Factory,
+) *ReadMetricsDecorator {
 	return &ReadMetricsDecorator{
-		reader:                    reader,
-		getLatenciesMetrics:       buildQueryMetrics("get_latencies", metricsFactory),
-		getCallRatesMetrics:       buildQueryMetrics("get_call_rates", metricsFactory),
-		getErrorRatesMetrics:      buildQueryMetrics("get_error_rates", metricsFactory),
-		getMinStepDurationMetrics: buildQueryMetrics("get_min_step_duration", metricsFactory),
+		reader: reader,
+		getLatenciesMetrics: buildQueryMetrics(
+			"get_latencies",
+			metricsFactory,
+		),
+		getCallRatesMetrics: buildQueryMetrics(
+			"get_call_rates",
+			metricsFactory,
+		),
+		getErrorRatesMetrics: buildQueryMetrics(
+			"get_error_rates",
+			metricsFactory,
+		),
+		getMinStepDurationMetrics: buildQueryMetrics(
+			"get_min_step_duration",
+			metricsFactory,
+		),
 	}
 }
 
-func buildQueryMetrics(operation string, metricsFactory metrics.Factory) *queryMetrics {
+func buildQueryMetrics(
+	operation string,
+	metricsFactory metrics.Factory,
+) *queryMetrics {
 	qMetrics := &queryMetrics{}
-	scoped := metricsFactory.Namespace(metrics.NSOptions{Name: "", Tags: map[string]string{"operation": operation}})
+	scoped := metricsFactory.Namespace(
+		metrics.NSOptions{
+			Name: "",
+			Tags: map[string]string{"operation": operation},
+		},
+	)
 	metrics.Init(qMetrics, scoped, nil)
 	return qMetrics
 }
 
 // GetLatencies implements metricsstore.Reader#GetLatencies
-func (m *ReadMetricsDecorator) GetLatencies(ctx context.Context, params *metricsstore.LatenciesQueryParameters) (*protometrics.MetricFamily, error) {
+func (m *ReadMetricsDecorator) GetLatencies(
+	ctx context.Context,
+	params *metricsstore.LatenciesQueryParameters,
+) (*protometrics.MetricFamily, error) {
 	start := time.Now()
 	retMe, err := m.reader.GetLatencies(ctx, params)
 	m.getLatenciesMetrics.emit(err, time.Since(start))
@@ -76,7 +102,10 @@ func (m *ReadMetricsDecorator) GetLatencies(ctx context.Context, params *metrics
 }
 
 // GetCallRates implements metricsstore.Reader#GetCallRates
-func (m *ReadMetricsDecorator) GetCallRates(ctx context.Context, params *metricsstore.CallRateQueryParameters) (*protometrics.MetricFamily, error) {
+func (m *ReadMetricsDecorator) GetCallRates(
+	ctx context.Context,
+	params *metricsstore.CallRateQueryParameters,
+) (*protometrics.MetricFamily, error) {
 	start := time.Now()
 	retMe, err := m.reader.GetCallRates(ctx, params)
 	m.getCallRatesMetrics.emit(err, time.Since(start))
@@ -84,7 +113,10 @@ func (m *ReadMetricsDecorator) GetCallRates(ctx context.Context, params *metrics
 }
 
 // GetErrorRates implements metricsstore.Reader#GetErrorRates
-func (m *ReadMetricsDecorator) GetErrorRates(ctx context.Context, params *metricsstore.ErrorRateQueryParameters) (*protometrics.MetricFamily, error) {
+func (m *ReadMetricsDecorator) GetErrorRates(
+	ctx context.Context,
+	params *metricsstore.ErrorRateQueryParameters,
+) (*protometrics.MetricFamily, error) {
 	start := time.Now()
 	retMe, err := m.reader.GetErrorRates(ctx, params)
 	m.getErrorRatesMetrics.emit(err, time.Since(start))
@@ -92,7 +124,10 @@ func (m *ReadMetricsDecorator) GetErrorRates(ctx context.Context, params *metric
 }
 
 // GetMinStepDuration implements metricsstore.Reader#GetMinStepDuration
-func (m *ReadMetricsDecorator) GetMinStepDuration(ctx context.Context, params *metricsstore.MinStepDurationQueryParameters) (time.Duration, error) {
+func (m *ReadMetricsDecorator) GetMinStepDuration(
+	ctx context.Context,
+	params *metricsstore.MinStepDurationQueryParameters,
+) (time.Duration, error) {
 	start := time.Now()
 	retMe, err := m.reader.GetMinStepDuration(ctx, params)
 	m.getMinStepDurationMetrics.emit(err, time.Since(start))

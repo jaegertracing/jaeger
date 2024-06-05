@@ -32,7 +32,9 @@ func TestNewZipkinThriftUDPClient(t *testing.T) {
 }
 
 func TestNewJaegerThriftUDPClient(t *testing.T) {
-	compactFactory := thrift.NewTCompactProtocolFactoryConf(&thrift.TConfiguration{})
+	compactFactory := thrift.NewTCompactProtocolFactoryConf(
+		&thrift.TConfiguration{},
+	)
 
 	_, _, err := NewJaegerThriftUDPClient("256.2.3:0", compactFactory)
 	require.Error(t, err)

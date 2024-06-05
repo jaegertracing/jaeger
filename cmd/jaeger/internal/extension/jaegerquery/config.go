@@ -20,8 +20,8 @@ type Config struct {
 
 	TraceStoragePrimary     string `valid:"required" mapstructure:"trace_storage"`
 	TraceStorageArchive     string `valid:"optional" mapstructure:"trace_storage_archive"`
-	confighttp.ServerConfig `mapstructure:",squash"`
-	Tenancy                 tenancy.Options `mapstructure:"multi_tenancy"`
+	confighttp.ServerConfig ` mapstructure:",squash"`
+	Tenancy                 tenancy.Options `                 mapstructure:"multi_tenancy"`
 }
 
 func (cfg *Config) Validate() error {

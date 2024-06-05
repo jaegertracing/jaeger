@@ -29,7 +29,9 @@ func TestConvertDependencies(t *testing.T) {
 		dLinks []model.DependencyLink
 	}{
 		{
-			dLinks: []model.DependencyLink{{CallCount: 1, Parent: "foo", Child: "bar"}},
+			dLinks: []model.DependencyLink{
+				{CallCount: 1, Parent: "foo", Child: "bar"},
+			},
 		},
 		{
 			dLinks: []model.DependencyLink{{CallCount: 3, Parent: "foo"}},

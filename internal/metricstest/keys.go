@@ -22,7 +22,12 @@ import (
 // GetKey converts name+tags into a single string of the form
 // "name|tag1=value1|...|tagN=valueN", where tag names are
 // sorted alphabetically.
-func GetKey(name string, tags map[string]string, tagsSep string, tagKVSep string) string {
+func GetKey(
+	name string,
+	tags map[string]string,
+	tagsSep string,
+	tagKVSep string,
+) string {
 	keys := make([]string, 0, len(tags))
 	for k := range tags {
 		keys = append(keys, k)

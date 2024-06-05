@@ -77,7 +77,9 @@ func AllSamplingStorageTypes() []string {
 	f := &Factory{}
 	var backends []string
 	for _, st := range AllStorageTypes {
-		f, _ := f.getFactoryOfType(st) // no errors since we're looping through supported types
+		f, _ := f.getFactoryOfType(
+			st,
+		) // no errors since we're looping through supported types
 		if _, ok := f.(storage.SamplingStoreFactory); ok {
 			backends = append(backends, st)
 		}
@@ -142,12 +144,19 @@ func (*Factory) getFactoryOfType(factoryType string) (storage.Factory, error) {
 	case blackholeStorageType:
 		return blackhole.NewFactory(), nil
 	default:
-		return nil, fmt.Errorf("unknown storage type %s. Valid types are %v", factoryType, AllStorageTypes)
+		return nil, fmt.Errorf(
+			"unknown storage type %s. Valid types are %v",
+			factoryType,
+			AllStorageTypes,
+		)
 	}
 }
 
 // Initialize implements storage.Factory.
-func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
+func (f *Factory) Initialize(
+	metricsFactory metrics.Factory,
+	logger *zap.Logger,
+) error {
 	f.metricsFactory = metricsFactory
 	for _, factory := range f.factories {
 		if err := factory.Initialize(metricsFactory, logger); err != nil {
@@ -163,7 +172,10 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
 	factory, ok := f.factories[f.SpanReaderType]
 	if !ok {
-		return nil, fmt.Errorf("no %s backend registered for span store", f.SpanReaderType)
+		return nil, fmt.Errorf(
+			"no %s backend registered for span store",
+			f.SpanReaderType,
+		)
 	}
 	return factory.CreateSpanReader()
 }
@@ -174,7 +186,10 @@ func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
 	for _, storageType := range f.SpanWriterTypes {
 		factory, ok := f.factories[storageType]
 		if !ok {
-			return nil, fmt.Errorf("no %s backend registered for span store", storageType)
+			return nil, fmt.Errorf(
+				"no %s backend registered for span store",
+				storageType,
+			)
 		}
 		writer, err := factory.CreateSpanWriter()
 		if err != nil {
@@ -192,11 +207,16 @@ func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
 	if f.DownsamplingRatio == defaultDownsamplingRatio {
 		return spanWriter, nil
 	}
-	return spanstore.NewDownsamplingWriter(spanWriter, spanstore.DownsamplingOptions{
-		Ratio:          f.DownsamplingRatio,
-		HashSalt:       f.DownsamplingHashSalt,
-		MetricsFactory: f.metricsFactory.Namespace(metrics.NSOptions{Name: "downsampling_writer"}),
-	}), nil
+	return spanstore.NewDownsamplingWriter(
+		spanWriter,
+		spanstore.DownsamplingOptions{
+			Ratio:    f.DownsamplingRatio,
+			HashSalt: f.DownsamplingHashSalt,
+			MetricsFactory: f.metricsFactory.Namespace(
+				metrics.NSOptions{Name: "downsampling_writer"},
+			),
+		},
+	), nil
 }
 
 // CreateSamplingStoreFactory creates a distributedlock.Lock and samplingstore.Store for use with adaptive sampling
@@ -206,11 +226,17 @@ func (f *Factory) CreateSamplingStoreFactory() (storage.SamplingStoreFactory, er
 	if f.SamplingStorageType != "" {
 		factory, ok := f.factories[f.SamplingStorageType]
 		if !ok {
-			return nil, fmt.Errorf("no %s backend registered for sampling store", f.SamplingStorageType)
+			return nil, fmt.Errorf(
+				"no %s backend registered for sampling store",
+				f.SamplingStorageType,
+			)
 		}
 		ss, ok := factory.(storage.SamplingStoreFactory)
 		if !ok {
-			return nil, fmt.Errorf("storage factory of type %s does not support sampling store", f.SamplingStorageType)
+			return nil, fmt.Errorf(
+				"storage factory of type %s does not support sampling store",
+				f.SamplingStorageType,
+			)
 		}
 		return ss, nil
 	}
@@ -231,7 +257,10 @@ func (f *Factory) CreateSamplingStoreFactory() (storage.SamplingStoreFactory, er
 func (f *Factory) CreateDependencyReader() (dependencystore.Reader, error) {
 	factory, ok := f.factories[f.DependenciesStorageType]
 	if !ok {
-		return nil, fmt.Errorf("no %s backend registered for span store", f.DependenciesStorageType)
+		return nil, fmt.Errorf(
+			"no %s backend registered for span store",
+			f.DependenciesStorageType,
+		)
 	}
 	return factory.CreateDependencyReader()
 }
@@ -288,7 +317,8 @@ func (f *Factory) initDownsamplingFromViper(v *viper.Viper) {
 	}
 
 	f.FactoryConfig.DownsamplingRatio = v.GetFloat64(downsamplingRatio)
-	if f.FactoryConfig.DownsamplingRatio < 0 || f.FactoryConfig.DownsamplingRatio > 1 {
+	if f.FactoryConfig.DownsamplingRatio < 0 ||
+		f.FactoryConfig.DownsamplingRatio > 1 {
 		// Values not in the range of 0 ~ 1.0 will be set to default.
 		f.FactoryConfig.DownsamplingRatio = 1.0
 	}
@@ -299,7 +329,10 @@ func (f *Factory) initDownsamplingFromViper(v *viper.Viper) {
 func (f *Factory) CreateArchiveSpanReader() (spanstore.Reader, error) {
 	factory, ok := f.factories[f.SpanReaderType]
 	if !ok {
-		return nil, fmt.Errorf("no %s backend registered for span store", f.SpanReaderType)
+		return nil, fmt.Errorf(
+			"no %s backend registered for span store",
+			f.SpanReaderType,
+		)
 	}
 	archive, ok := factory.(storage.ArchiveFactory)
 	if !ok {
@@ -312,7 +345,10 @@ func (f *Factory) CreateArchiveSpanReader() (spanstore.Reader, error) {
 func (f *Factory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
 	factory, ok := f.factories[f.SpanWriterTypes[0]]
 	if !ok {
-		return nil, fmt.Errorf("no %s backend registered for span store", f.SpanWriterTypes[0])
+		return nil, fmt.Errorf(
+			"no %s backend registered for span store",
+			f.SpanWriterTypes[0],
+		)
 	}
 	archive, ok := factory.(storage.ArchiveFactory)
 	if !ok {
@@ -340,6 +376,9 @@ func (f *Factory) Close() error {
 }
 
 func (f *Factory) publishOpts() {
-	safeexpvar.SetInt(downsamplingRatio, int64(f.FactoryConfig.DownsamplingRatio))
+	safeexpvar.SetInt(
+		downsamplingRatio,
+		int64(f.FactoryConfig.DownsamplingRatio),
+	)
 	safeexpvar.SetInt(spanStorageType+"-"+f.FactoryConfig.SpanReaderType, 1)
 }

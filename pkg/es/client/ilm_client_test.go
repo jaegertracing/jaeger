@@ -51,13 +51,27 @@ func TestExists(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
-				assert.True(t, strings.HasSuffix(req.URL.String(), "_ilm/policy/jaeger-ilm-policy"))
-				assert.Equal(t, http.MethodGet, req.Method)
-				assert.Equal(t, "Basic foobar", req.Header.Get("Authorization"))
-				res.WriteHeader(test.responseCode)
-				res.Write([]byte(test.response))
-			}))
+			testServer := httptest.NewServer(
+				http.HandlerFunc(
+					func(res http.ResponseWriter, req *http.Request) {
+						assert.True(
+							t,
+							strings.HasSuffix(
+								req.URL.String(),
+								"_ilm/policy/jaeger-ilm-policy",
+							),
+						)
+						assert.Equal(t, http.MethodGet, req.Method)
+						assert.Equal(
+							t,
+							"Basic foobar",
+							req.Header.Get("Authorization"),
+						)
+						res.WriteHeader(test.responseCode)
+						res.Write([]byte(test.response))
+					},
+				),
+			)
 			defer testServer.Close()
 
 			c := &ILMClient{

@@ -90,13 +90,15 @@ func AddFlags(flagSet *flag.FlagSet) {
 	flagSet.Duration(
 		ConfigPrefix+SuffixDeadlockInterval,
 		DefaultDeadlockInterval,
-		"Interval to check for deadlocks. If no messages gets processed in given time, ingester app will exit. Value of 0 disables deadlock check.")
+		"Interval to check for deadlocks. If no messages gets processed in given time, ingester app will exit. Value of 0 disables deadlock check.",
+	)
 
 	// Authentication flags
 	flagSet.String(
 		KafkaConsumerConfigPrefix+SuffixBrokers,
 		DefaultBroker,
-		"The comma-separated list of kafka brokers. i.e. '127.0.0.1:9092,0.0.0:1234'")
+		"The comma-separated list of kafka brokers. i.e. '127.0.0.1:9092,0.0.0:1234'",
+	)
 	flagSet.String(
 		KafkaConsumerConfigPrefix+SuffixTopic,
 		DefaultTopic,
@@ -116,29 +118,42 @@ func AddFlags(flagSet *flag.FlagSet) {
 	flagSet.String(
 		KafkaConsumerConfigPrefix+SuffixEncoding,
 		DefaultEncoding,
-		fmt.Sprintf(`The encoding of spans ("%s") consumed from kafka`, strings.Join(kafka.AllEncodings, "\", \"")))
+		fmt.Sprintf(
+			`The encoding of spans ("%s") consumed from kafka`,
+			strings.Join(kafka.AllEncodings, "\", \""),
+		),
+	)
 	flagSet.String(
 		KafkaConsumerConfigPrefix+SuffixRackID,
 		"",
-		"Rack identifier for this client. This can be any string value which indicates where this client is located. It corresponds with the broker config `broker.rack`")
+		"Rack identifier for this client. This can be any string value which indicates where this client is located. It corresponds with the broker config `broker.rack`",
+	)
 	flagSet.Int(
 		KafkaConsumerConfigPrefix+SuffixFetchMaxMessageBytes,
 		DefaultFetchMaxMessageBytes,
-		"The maximum number of message bytes to fetch from the broker in a single request. So you must be sure this is at least as large as your largest message.")
+		"The maximum number of message bytes to fetch from the broker in a single request. So you must be sure this is at least as large as your largest message.",
+	)
 
 	auth.AddFlags(KafkaConsumerConfigPrefix, flagSet)
 }
 
 // InitFromViper initializes Builder with properties from viper
 func (o *Options) InitFromViper(v *viper.Viper) {
-	o.Brokers = strings.Split(stripWhiteSpace(v.GetString(KafkaConsumerConfigPrefix+SuffixBrokers)), ",")
+	o.Brokers = strings.Split(
+		stripWhiteSpace(v.GetString(KafkaConsumerConfigPrefix+SuffixBrokers)),
+		",",
+	)
 	o.Topic = v.GetString(KafkaConsumerConfigPrefix + SuffixTopic)
 	o.GroupID = v.GetString(KafkaConsumerConfigPrefix + SuffixGroupID)
 	o.ClientID = v.GetString(KafkaConsumerConfigPrefix + SuffixClientID)
-	o.ProtocolVersion = v.GetString(KafkaConsumerConfigPrefix + SuffixProtocolVersion)
+	o.ProtocolVersion = v.GetString(
+		KafkaConsumerConfigPrefix + SuffixProtocolVersion,
+	)
 	o.Encoding = v.GetString(KafkaConsumerConfigPrefix + SuffixEncoding)
 	o.RackID = v.GetString(KafkaConsumerConfigPrefix + SuffixRackID)
-	o.FetchMaxMessageBytes = v.GetInt32(KafkaConsumerConfigPrefix + SuffixFetchMaxMessageBytes)
+	o.FetchMaxMessageBytes = v.GetInt32(
+		KafkaConsumerConfigPrefix + SuffixFetchMaxMessageBytes,
+	)
 
 	o.Parallelism = v.GetInt(ConfigPrefix + SuffixParallelism)
 	o.DeadlockInterval = v.GetDuration(ConfigPrefix + SuffixDeadlockInterval)

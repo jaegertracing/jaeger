@@ -91,7 +91,11 @@ func (w *worker) simulateOneTrace(tracer trace.Tracer) {
 	}
 }
 
-func (w *worker) simulateChildSpans(ctx context.Context, start time.Time, tracer trace.Tracer) {
+func (w *worker) simulateChildSpans(
+	ctx context.Context,
+	start time.Time,
+	tracer trace.Tracer,
+) {
 	for c := 0; c < w.ChildSpans; c++ {
 		var attrs []attribute.KeyValue
 		for a := 0; a < w.Attributes; a++ {

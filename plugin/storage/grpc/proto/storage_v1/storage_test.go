@@ -101,10 +101,12 @@ func makeSpan(someKV model.KeyValue) model.Span {
 		TraceID:       traceID,
 		SpanID:        model.NewSpanID(567),
 		OperationName: "hi",
-		References:    []model.SpanRef{model.NewChildOfRef(traceID, model.NewSpanID(123))},
-		StartTime:     time.Unix(0, 1000),
-		Duration:      5000,
-		Tags:          model.KeyValues{someKV},
+		References: []model.SpanRef{
+			model.NewChildOfRef(traceID, model.NewSpanID(123)),
+		},
+		StartTime: time.Unix(0, 1000),
+		Duration:  5000,
+		Tags:      model.KeyValues{someKV},
 		Logs: []model.Log{
 			{
 				Timestamp: time.Unix(0, 1000),

@@ -28,8 +28,18 @@ func TestCipherSuiteNamesToIDs(t *testing.T) {
 	}{
 		{
 			// Happy case
-			flag:          []string{"TLS_AES_128_GCM_SHA256", "TLS_AES_256_GCM_SHA384", "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA", "TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384"},
-			expected:      []uint16{tls.TLS_AES_128_GCM_SHA256, tls.TLS_AES_256_GCM_SHA384, tls.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA, tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384},
+			flag: []string{
+				"TLS_AES_128_GCM_SHA256",
+				"TLS_AES_256_GCM_SHA384",
+				"TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA",
+				"TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384",
+			},
+			expected: []uint16{
+				tls.TLS_AES_128_GCM_SHA256,
+				tls.TLS_AES_256_GCM_SHA384,
+				tls.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+				tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+			},
 			expectedError: false,
 		},
 		{
@@ -46,8 +56,16 @@ func TestCipherSuiteNamesToIDs(t *testing.T) {
 		},
 		{
 			// Duplicated flag
-			flag:          []string{"TLS_AES_128_GCM_SHA256", "TLS_AES_256_GCM_SHA384", "TLS_AES_128_GCM_SHA256"},
-			expected:      []uint16{tls.TLS_AES_128_GCM_SHA256, tls.TLS_AES_256_GCM_SHA384, tls.TLS_AES_128_GCM_SHA256},
+			flag: []string{
+				"TLS_AES_128_GCM_SHA256",
+				"TLS_AES_256_GCM_SHA384",
+				"TLS_AES_128_GCM_SHA256",
+			},
+			expected: []uint16{
+				tls.TLS_AES_128_GCM_SHA256,
+				tls.TLS_AES_256_GCM_SHA384,
+				tls.TLS_AES_128_GCM_SHA256,
+			},
 			expectedError: false,
 		},
 		{

@@ -107,13 +107,19 @@ func (s *Service) Start(v *viper.Viper) error {
 	}
 	if h := metricsBuilder.Handler(); h != nil {
 		route := metricsBuilder.HTTPRoute
-		s.Logger.Info("Mounting metrics handler on admin server", zap.String("route", route))
+		s.Logger.Info(
+			"Mounting metrics handler on admin server",
+			zap.String("route", route),
+		)
 		s.Admin.Handle(route, h)
 	}
 
 	// Mount expvar routes on different backends
 	if metricsBuilder.Backend != "expvar" {
-		s.Logger.Info("Mounting expvar handler on admin server", zap.String("route", "/debug/vars"))
+		s.Logger.Info(
+			"Mounting expvar handler on admin server",
+			zap.String("route", "/debug/vars"),
+		)
 		s.Admin.Handle("/debug/vars", expvar.Handler())
 	}
 

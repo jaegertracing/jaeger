@@ -47,7 +47,9 @@ func NewSamplingStore(maxBuckets int) *SamplingStore {
 }
 
 // InsertThroughput implements samplingstore.Store#InsertThroughput.
-func (ss *SamplingStore) InsertThroughput(throughput []*model.Throughput) error {
+func (ss *SamplingStore) InsertThroughput(
+	throughput []*model.Throughput,
+) error {
 	ss.Lock()
 	defer ss.Unlock()
 	now := time.Now()
@@ -56,7 +58,9 @@ func (ss *SamplingStore) InsertThroughput(throughput []*model.Throughput) error 
 }
 
 // GetThroughput implements samplingstore.Store#GetThroughput.
-func (ss *SamplingStore) GetThroughput(start, end time.Time) ([]*model.Throughput, error) {
+func (ss *SamplingStore) GetThroughput(
+	start, end time.Time,
+) ([]*model.Throughput, error) {
 	ss.Lock()
 	defer ss.Unlock()
 	var retSlice []*model.Throughput
@@ -76,7 +80,12 @@ func (ss *SamplingStore) InsertProbabilitiesAndQPS(
 ) error {
 	ss.Lock()
 	defer ss.Unlock()
-	ss.probabilitiesAndQPS = &storedServiceOperationProbabilitiesAndQPS{hostname, probabilities, qps, time.Now()}
+	ss.probabilitiesAndQPS = &storedServiceOperationProbabilitiesAndQPS{
+		hostname,
+		probabilities,
+		qps,
+		time.Now(),
+	}
 	return nil
 }
 

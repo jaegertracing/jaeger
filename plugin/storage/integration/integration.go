@@ -106,7 +106,10 @@ func SkipUnlessEnv(t *testing.T, storage ...string) {
 			return
 		}
 	}
-	t.Skipf("This test requires environment variable STORAGE=%s", strings.Join(storage, "|"))
+	t.Skipf(
+		"This test requires environment variable STORAGE=%s",
+		strings.Join(storage, "|"),
+	)
 }
 
 var CassandraSkippedTests = []string{
@@ -132,13 +135,20 @@ func (s *StorageIntegration) skipIfNeeded(t *testing.T) {
 	}
 }
 
-func (*StorageIntegration) waitForCondition(t *testing.T, predicate func(t *testing.T) bool) bool {
+func (*StorageIntegration) waitForCondition(
+	t *testing.T,
+	predicate func(t *testing.T) bool,
+) bool {
 	const iterations = 100 // Will wait at most 100 seconds.
 	for i := 0; i < iterations; i++ {
 		if predicate(t) {
 			return true
 		}
-		t.Logf("Waiting for storage backend to update documents, iteration %d out of %d", i+1, iterations)
+		t.Logf(
+			"Waiting for storage backend to update documents, iteration %d out of %d",
+			i+1,
+			iterations,
+		)
 		time.Sleep(time.Second)
 	}
 	return predicate(t)
@@ -148,7 +158,11 @@ func (s *StorageIntegration) testGetServices(t *testing.T) {
 	s.skipIfNeeded(t)
 	defer s.cleanUp(t)
 
-	expected := []string{"example-service-1", "example-service-2", "example-service-3"}
+	expected := []string{
+		"example-service-1",
+		"example-service-2",
+		"example-service-3",
+	}
 	s.loadParseAndWriteExampleTrace(t)
 
 	var actual []string
@@ -169,20 +183,27 @@ func (s *StorageIntegration) testGetServices(t *testing.T) {
 func (s *StorageIntegration) testArchiveTrace(t *testing.T) {
 	s.skipIfNeeded(t)
 	if s.SkipArchiveTest {
-		t.Skip("Skipping ArchiveTrace test because archive reader or writer is nil")
+		t.Skip(
+			"Skipping ArchiveTrace test because archive reader or writer is nil",
+		)
 	}
 	defer s.cleanUp(t)
 	tID := model.NewTraceID(uint64(11), uint64(22))
 	expected := &model.Span{
 		OperationName: "archive_span",
-		StartTime:     time.Now().Add(-time.Hour * 72 * 5).Truncate(time.Microsecond),
-		TraceID:       tID,
-		SpanID:        model.NewSpanID(55),
-		References:    []model.SpanRef{},
-		Process:       model.NewProcess("archived_service", model.KeyValues{}),
+		StartTime: time.Now().
+			Add(-time.Hour * 72 * 5).
+			Truncate(time.Microsecond),
+		TraceID:    tID,
+		SpanID:     model.NewSpanID(55),
+		References: []model.SpanRef{},
+		Process:    model.NewProcess("archived_service", model.KeyValues{}),
 	}
 
-	require.NoError(t, s.ArchiveSpanWriter.WriteSpan(context.Background(), expected))
+	require.NoError(
+		t,
+		s.ArchiveSpanWriter.WriteSpan(context.Background(), expected),
+	)
 
 	var actual *model.Trace
 	found := s.waitForCondition(t, func(t *testing.T) bool {
@@ -205,7 +226,10 @@ func (s *StorageIntegration) testGetLargeSpan(t *testing.T) {
 	var actual *model.Trace
 	found := s.waitForCondition(t, func(t *testing.T) bool {
 		var err error
-		actual, err = s.SpanReader.GetTrace(context.Background(), expectedTraceID)
+		actual, err = s.SpanReader.GetTrace(
+			context.Background(),
+			expectedTraceID,
+		)
 		return err == nil && len(actual.Spans) >= len(expected.Spans)
 	})
 	if !assert.True(t, found) {
@@ -236,8 +260,12 @@ func (s *StorageIntegration) testGetOperations(t *testing.T) {
 	var actual []spanstore.Operation
 	found := s.waitForCondition(t, func(t *testing.T) bool {
 		var err error
-		actual, err = s.SpanReader.GetOperations(context.Background(),
-			spanstore.OperationQueryParameters{ServiceName: "example-service-1"})
+		actual, err = s.SpanReader.GetOperations(
+			context.Background(),
+			spanstore.OperationQueryParameters{
+				ServiceName: "example-service-1",
+			},
+		)
 		require.NoError(t, err)
 		sort.Slice(actual, func(i, j int) bool {
 			return actual[i].Name < actual[j].Name
@@ -261,7 +289,10 @@ func (s *StorageIntegration) testGetTrace(t *testing.T) {
 	var actual *model.Trace
 	found := s.waitForCondition(t, func(t *testing.T) bool {
 		var err error
-		actual, err = s.SpanReader.GetTrace(context.Background(), expectedTraceID)
+		actual, err = s.SpanReader.GetTrace(
+			context.Background(),
+			expectedTraceID,
+		)
 		if err != nil {
 			t.Log(err)
 		}
@@ -284,7 +315,9 @@ func (s *StorageIntegration) testFindTraces(t *testing.T) {
 	defer s.cleanUp(t)
 
 	// Note: all cases include ServiceName + StartTime range
-	s.Fixtures = append(s.Fixtures, LoadAndParseQueryTestCases(t, "fixtures/queries.json")...)
+	s.Fixtures = append(
+		s.Fixtures,
+		LoadAndParseQueryTestCases(t, "fixtures/queries.json")...)
 
 	// Each query test case only specifies matching traces, but does not provide counterexamples.
 	// To improve coverage we get all possible traces and store all of them before running queries.
@@ -313,18 +346,30 @@ func (s *StorageIntegration) testFindTraces(t *testing.T) {
 	}
 }
 
-func (s *StorageIntegration) findTracesByQuery(t *testing.T, query *spanstore.TraceQueryParameters, expected []*model.Trace) []*model.Trace {
+func (s *StorageIntegration) findTracesByQuery(
+	t *testing.T,
+	query *spanstore.TraceQueryParameters,
+	expected []*model.Trace,
+) []*model.Trace {
 	var traces []*model.Trace
 	found := s.waitForCondition(t, func(t *testing.T) bool {
 		var err error
 		traces, err = s.SpanReader.FindTraces(context.Background(), query)
 		require.NoError(t, err)
 		if len(expected) != len(traces) {
-			t.Logf("Expecting certain number of traces: expected: %d, actual: %d", len(expected), len(traces))
+			t.Logf(
+				"Expecting certain number of traces: expected: %d, actual: %d",
+				len(expected),
+				len(traces),
+			)
 			return false
 		}
 		if spanCount(expected) != spanCount(traces) {
-			t.Logf("Excepting certain number of spans: expected: %d, actual: %d", spanCount(expected), spanCount(traces))
+			t.Logf(
+				"Excepting certain number of spans: expected: %d, actual: %d",
+				spanCount(expected),
+				spanCount(traces),
+			)
 			return false
 		}
 		return true
@@ -334,20 +379,32 @@ func (s *StorageIntegration) findTracesByQuery(t *testing.T, query *spanstore.Tr
 }
 
 func (s *StorageIntegration) writeTrace(t *testing.T, trace *model.Trace) {
-	t.Logf("%-23s Writing trace with %d spans", time.Now().Format("2006-01-02 15:04:05.999"), len(trace.Spans))
+	t.Logf(
+		"%-23s Writing trace with %d spans",
+		time.Now().Format("2006-01-02 15:04:05.999"),
+		len(trace.Spans),
+	)
 	for _, span := range trace.Spans {
 		err := s.SpanWriter.WriteSpan(context.Background(), span)
-		require.NoError(t, err, "Not expecting error when writing trace to storage")
+		require.NoError(
+			t,
+			err,
+			"Not expecting error when writing trace to storage",
+		)
 	}
 }
 
-func (s *StorageIntegration) loadParseAndWriteExampleTrace(t *testing.T) *model.Trace {
+func (s *StorageIntegration) loadParseAndWriteExampleTrace(
+	t *testing.T,
+) *model.Trace {
 	trace := s.getTraceFixture(t, "example_trace")
 	s.writeTrace(t, trace)
 	return trace
 }
 
-func (s *StorageIntegration) loadParseAndWriteLargeTrace(t *testing.T) *model.Trace {
+func (s *StorageIntegration) loadParseAndWriteLargeTrace(
+	t *testing.T,
+) *model.Trace {
 	trace := s.getTraceFixture(t, "example_trace")
 	span := trace.Spans[0]
 	spns := make([]*model.Span, 1, 10008)
@@ -364,7 +421,10 @@ func (s *StorageIntegration) loadParseAndWriteLargeTrace(t *testing.T) *model.Tr
 	return trace
 }
 
-func (*StorageIntegration) getTraceFixture(t *testing.T, fixture string) *model.Trace {
+func (*StorageIntegration) getTraceFixture(
+	t *testing.T,
+	fixture string,
+) *model.Trace {
 	fileName := fmt.Sprintf("fixtures/traces/%s.json", fixture)
 	return getTraceFixtureExact(t, fileName)
 }
@@ -380,11 +440,19 @@ func loadAndParseJSONPB(t *testing.T, path string, object proto.Message) {
 	inStr, err := fixtures.ReadFile(path)
 	require.NoError(t, err, "Not expecting error when loading fixture %s", path)
 	err = jsonpb.Unmarshal(bytes.NewReader(correctTime(inStr)), object)
-	require.NoError(t, err, "Not expecting error when unmarshaling fixture %s", path)
+	require.NoError(
+		t,
+		err,
+		"Not expecting error when unmarshaling fixture %s",
+		path,
+	)
 }
 
 // LoadAndParseQueryTestCases loads and parses query test cases
-func LoadAndParseQueryTestCases(t *testing.T, queriesFile string) []*QueryFixtures {
+func LoadAndParseQueryTestCases(
+	t *testing.T,
+	queriesFile string,
+) []*QueryFixtures {
 	var queries []*QueryFixtures
 	loadAndParseJSON(t, queriesFile, &queries)
 	return queries
@@ -395,7 +463,12 @@ func loadAndParseJSON(t *testing.T, path string, object any) {
 	inStr, err := fixtures.ReadFile(path)
 	require.NoError(t, err, "Not expecting error when loading fixture %s", path)
 	err = json.Unmarshal(correctTime(inStr), object)
-	require.NoError(t, err, "Not expecting error when unmarshaling fixture %s", path)
+	require.NoError(
+		t,
+		err,
+		"Not expecting error when unmarshaling fixture %s",
+		path,
+	)
 }
 
 // required, because we want to only query on recent traces, so we replace all the dates with recent dates.
@@ -421,7 +494,9 @@ func spanCount(traces []*model.Trace) int {
 
 func (s *StorageIntegration) testGetDependencies(t *testing.T) {
 	if s.DependencyReader == nil || s.DependencyWriter == nil {
-		t.Skipf("Skipping GetDependencies test because dependency reader or writer is nil")
+		t.Skipf(
+			"Skipping GetDependencies test because dependency reader or writer is nil",
+		)
 		return
 	}
 
@@ -448,12 +523,19 @@ func (s *StorageIntegration) testGetDependencies(t *testing.T) {
 		},
 	}
 
-	require.NoError(t, s.DependencyWriter.WriteDependencies(time.Now(), expected))
+	require.NoError(
+		t,
+		s.DependencyWriter.WriteDependencies(time.Now(), expected),
+	)
 
 	var actual []model.DependencyLink
 	found := s.waitForCondition(t, func(t *testing.T) bool {
 		var err error
-		actual, err = s.DependencyReader.GetDependencies(context.Background(), time.Now(), 5*time.Minute)
+		actual, err = s.DependencyReader.GetDependencies(
+			context.Background(),
+			time.Now(),
+			5*time.Minute,
+		)
 		require.NoError(t, err)
 		sort.Slice(actual, func(i, j int) bool {
 			return actual[i].Parent < actual[j].Parent
@@ -484,7 +566,10 @@ func (s *StorageIntegration) testGetThroughput(t *testing.T) {
 	var actual []*samplemodel.Throughput
 	_ = s.waitForCondition(t, func(t *testing.T) bool {
 		var err error
-		actual, err = s.SamplingStore.GetThroughput(start, start.Add(time.Second*time.Duration(10)))
+		actual, err = s.SamplingStore.GetThroughput(
+			start,
+			start.Add(time.Second*time.Duration(10)),
+		)
 		require.NoError(t, err)
 		return assert.ObjectsAreEqualValues(expected, len(actual))
 	})
@@ -494,15 +579,27 @@ func (s *StorageIntegration) testGetThroughput(t *testing.T) {
 func (s *StorageIntegration) testGetLatestProbability(t *testing.T) {
 	s.skipIfNeeded(t)
 	if s.SamplingStore == nil {
-		t.Skip("Skipping GetLatestProbability test because sampling store is nil")
+		t.Skip(
+			"Skipping GetLatestProbability test because sampling store is nil",
+		)
 		return
 	}
 	defer s.cleanUp(t)
 
-	s.SamplingStore.InsertProbabilitiesAndQPS("newhostname1", samplemodel.ServiceOperationProbabilities{"new-srv3": {"op": 0.123}}, samplemodel.ServiceOperationQPS{"new-srv2": {"op": 11}})
-	s.SamplingStore.InsertProbabilitiesAndQPS("dell11eg843d", samplemodel.ServiceOperationProbabilities{"new-srv": {"op": 0.1}}, samplemodel.ServiceOperationQPS{"new-srv": {"op": 4}})
+	s.SamplingStore.InsertProbabilitiesAndQPS(
+		"newhostname1",
+		samplemodel.ServiceOperationProbabilities{"new-srv3": {"op": 0.123}},
+		samplemodel.ServiceOperationQPS{"new-srv2": {"op": 11}},
+	)
+	s.SamplingStore.InsertProbabilitiesAndQPS(
+		"dell11eg843d",
+		samplemodel.ServiceOperationProbabilities{"new-srv": {"op": 0.1}},
+		samplemodel.ServiceOperationQPS{"new-srv": {"op": 4}},
+	)
 
-	expected := samplemodel.ServiceOperationProbabilities{"new-srv": {"op": 0.1}}
+	expected := samplemodel.ServiceOperationProbabilities{
+		"new-srv": {"op": 0.1},
+	}
 	var actual samplemodel.ServiceOperationProbabilities
 	found := s.waitForCondition(t, func(t *testing.T) bool {
 		var err error

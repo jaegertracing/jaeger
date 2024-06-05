@@ -81,7 +81,11 @@ func (s *ServiceNamesStorage) Write(serviceName string) error {
 }
 
 // checks if the key is in cache; returns true if it is, otherwise puts it there and returns false
-func checkWriteCache(key string, c cache.Cache, writeCacheTTL time.Duration) bool {
+func checkWriteCache(
+	key string,
+	c cache.Cache,
+	writeCacheTTL time.Duration,
+) bool {
 	if writeCacheTTL == 0 {
 		return false
 	}

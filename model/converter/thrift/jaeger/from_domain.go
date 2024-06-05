@@ -100,7 +100,9 @@ func (domainToJaegerTransformer) keyValueToTag(kv *model.KeyValue) *jaeger.Tag {
 	return errTag
 }
 
-func (d domainToJaegerTransformer) convertKeyValuesToTags(kvs model.KeyValues) []*jaeger.Tag {
+func (d domainToJaegerTransformer) convertKeyValuesToTags(
+	kvs model.KeyValues,
+) []*jaeger.Tag {
 	jaegerTags := make([]*jaeger.Tag, len(kvs))
 	for idx, kv := range kvs {
 		jaegerTags[idx] = d.keyValueToTag(&kv)
@@ -119,7 +121,9 @@ func (d domainToJaegerTransformer) convertLogs(logs []model.Log) []*jaeger.Log {
 	return jaegerLogs
 }
 
-func (domainToJaegerTransformer) convertSpanRefs(refs []model.SpanRef) []*jaeger.SpanRef {
+func (domainToJaegerTransformer) convertSpanRefs(
+	refs []model.SpanRef,
+) []*jaeger.SpanRef {
 	jaegerSpanRefs := make([]*jaeger.SpanRef, len(refs))
 	for idx, ref := range refs {
 		jaegerSpanRefs[idx] = &jaeger.SpanRef{
@@ -132,7 +136,9 @@ func (domainToJaegerTransformer) convertSpanRefs(refs []model.SpanRef) []*jaeger
 	return jaegerSpanRefs
 }
 
-func (d domainToJaegerTransformer) transformSpan(span *model.Span) *jaeger.Span {
+func (d domainToJaegerTransformer) transformSpan(
+	span *model.Span,
+) *jaeger.Span {
 	tags := d.convertKeyValuesToTags(span.Tags)
 	logs := d.convertLogs(span.Logs)
 	refs := d.convertSpanRefs(span.References)

@@ -36,12 +36,17 @@ func SerializeThrift(ctx context.Context, spans []*zipkincore.Span) []byte {
 }
 
 // DeserializeThrift decodes Thrift bytes to a list of spans.
-func DeserializeThrift(ctx context.Context, b []byte) ([]*zipkincore.Span, error) {
+func DeserializeThrift(
+	ctx context.Context,
+	b []byte,
+) ([]*zipkincore.Span, error) {
 	buffer := thrift.NewTMemoryBuffer()
 	buffer.Write(b)
 
 	transport := thrift.NewTBinaryProtocolConf(buffer, &thrift.TConfiguration{})
-	_, size, err := transport.ReadListBegin(ctx) // Ignore the returned element type
+	_, size, err := transport.ReadListBegin(
+		ctx,
+	) // Ignore the returned element type
 	if err != nil {
 		return nil, err
 	}

@@ -85,8 +85,8 @@ type SpanRef struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	TraceId []byte      `protobuf:"bytes,1,opt,name=trace_id,json=traceId,proto3" json:"trace_id,omitempty"`
-	SpanId  []byte      `protobuf:"bytes,2,opt,name=span_id,json=spanId,proto3" json:"span_id,omitempty"`
+	TraceId []byte      `protobuf:"bytes,1,opt,name=trace_id,json=traceId,proto3"                             json:"trace_id,omitempty"`
+	SpanId  []byte      `protobuf:"bytes,2,opt,name=span_id,json=spanId,proto3"                               json:"span_id,omitempty"`
 	RefType SpanRefType `protobuf:"varint,3,opt,name=ref_type,json=refType,proto3,enum=prototest.SpanRefType" json:"ref_type,omitempty"`
 }
 
@@ -169,7 +169,9 @@ var (
 
 func file_model_test_proto_rawDescGZIP() []byte {
 	file_model_test_proto_rawDescOnce.Do(func() {
-		file_model_test_proto_rawDescData = protoimpl.X.CompressGZIP(file_model_test_proto_rawDescData)
+		file_model_test_proto_rawDescData = protoimpl.X.CompressGZIP(
+			file_model_test_proto_rawDescData,
+		)
 	})
 	return file_model_test_proto_rawDescData
 }

@@ -71,16 +71,58 @@ func TestKeyValueIsLessAndEqual(t *testing.T) {
 		kv2   model.KeyValue
 		equal bool
 	}{
-		{name: "different keys", kv1: model.String("x", "123"), kv2: model.String("y", "123")},
-		{name: "same key different types", kv1: model.String("x", "123"), kv2: model.Int64("x", 123)},
-		{name: "different string values", kv1: model.String("x", "123"), kv2: model.String("x", "567")},
-		{name: "different bool values", kv1: model.Bool("x", false), kv2: model.Bool("x", true)},
-		{name: "different int64 values", kv1: model.Int64("x", 123), kv2: model.Int64("x", 567)},
-		{name: "different float64 values", kv1: model.Float64("x", 123), kv2: model.Float64("x", 567)},
-		{name: "different blob length", kv1: model.Binary("x", []byte{1, 2}), kv2: model.Binary("x", []byte{1, 2, 3})},
-		{name: "different blob values", kv1: model.Binary("x", []byte{1, 2, 3}), kv2: model.Binary("x", []byte{1, 2, 4})},
-		{name: "empty blob", kv1: model.Binary("x", nil), kv2: model.Binary("x", nil), equal: true},
-		{name: "identical blob", kv1: model.Binary("x", []byte{1, 2, 3}), kv2: model.Binary("x", []byte{1, 2, 3}), equal: true},
+		{
+			name: "different keys",
+			kv1:  model.String("x", "123"),
+			kv2:  model.String("y", "123"),
+		},
+		{
+			name: "same key different types",
+			kv1:  model.String("x", "123"),
+			kv2:  model.Int64("x", 123),
+		},
+		{
+			name: "different string values",
+			kv1:  model.String("x", "123"),
+			kv2:  model.String("x", "567"),
+		},
+		{
+			name: "different bool values",
+			kv1:  model.Bool("x", false),
+			kv2:  model.Bool("x", true),
+		},
+		{
+			name: "different int64 values",
+			kv1:  model.Int64("x", 123),
+			kv2:  model.Int64("x", 567),
+		},
+		{
+			name: "different float64 values",
+			kv1:  model.Float64("x", 123),
+			kv2:  model.Float64("x", 567),
+		},
+		{
+			name: "different blob length",
+			kv1:  model.Binary("x", []byte{1, 2}),
+			kv2:  model.Binary("x", []byte{1, 2, 3}),
+		},
+		{
+			name: "different blob values",
+			kv1:  model.Binary("x", []byte{1, 2, 3}),
+			kv2:  model.Binary("x", []byte{1, 2, 4}),
+		},
+		{
+			name:  "empty blob",
+			kv1:   model.Binary("x", nil),
+			kv2:   model.Binary("x", nil),
+			equal: true,
+		},
+		{
+			name:  "identical blob",
+			kv1:   model.Binary("x", []byte{1, 2, 3}),
+			kv2:   model.Binary("x", []byte{1, 2, 3}),
+			equal: true,
+		},
 	}
 	for _, tt := range testCases {
 		testCase := tt // capture loop var
@@ -122,15 +164,50 @@ func TestKeyValueAsStringAndValue(t *testing.T) {
 		strLossy string
 		val      any
 	}{
-		{name: "Bender is great!", kv: model.String("x", "Bender is great!"), str: "Bender is great!", val: "Bender is great!"},
+		{
+			name: "Bender is great!",
+			kv:   model.String("x", "Bender is great!"),
+			str:  "Bender is great!",
+			val:  "Bender is great!",
+		},
 		{name: "false", kv: model.Bool("x", false), str: "false", val: false},
 		{name: "true", kv: model.Bool("x", true), str: "true", val: true},
-		{name: "3000", kv: model.Int64("x", 3000), str: "3000", val: int64(3000)},
-		{name: "-1947", kv: model.Int64("x", -1947), str: "-1947", val: int64(-1947)},
-		{name: "3.141592654", kv: model.Float64("x", 3.14159265359), str: "3.141592654", val: float64(3.14159265359)},
-		{name: "42656e646572", kv: model.Binary("x", []byte("Bender")), str: "42656e646572", val: []byte("Bender")},
-		{name: "binary string", kv: model.Binary("x", []byte(longString)), str: expectedBinaryStr, val: []byte(longString)},
-		{name: "binary string (lossy)", kv: model.Binary("x", []byte(longString)), strLossy: expectedBinaryStrLossy, val: []byte(longString)},
+		{
+			name: "3000",
+			kv:   model.Int64("x", 3000),
+			str:  "3000",
+			val:  int64(3000),
+		},
+		{
+			name: "-1947",
+			kv:   model.Int64("x", -1947),
+			str:  "-1947",
+			val:  int64(-1947),
+		},
+		{
+			name: "3.141592654",
+			kv:   model.Float64("x", 3.14159265359),
+			str:  "3.141592654",
+			val:  float64(3.14159265359),
+		},
+		{
+			name: "42656e646572",
+			kv:   model.Binary("x", []byte("Bender")),
+			str:  "42656e646572",
+			val:  []byte("Bender"),
+		},
+		{
+			name: "binary string",
+			kv:   model.Binary("x", []byte(longString)),
+			str:  expectedBinaryStr,
+			val:  []byte(longString),
+		},
+		{
+			name:     "binary string (lossy)",
+			kv:       model.Binary("x", []byte(longString)),
+			strLossy: expectedBinaryStrLossy,
+			val:      []byte(longString),
+		},
 	}
 	for _, tt := range testCases {
 		testCase := tt // capture loop var

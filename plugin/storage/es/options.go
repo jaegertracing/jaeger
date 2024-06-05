@@ -92,7 +92,7 @@ type Options struct {
 }
 
 type namespaceConfig struct {
-	config.Configuration `mapstructure:",squash"`
+	config.Configuration `       mapstructure:",squash"`
 	namespace            string
 }
 
@@ -138,7 +138,8 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 	flagSet.String(
 		nsConfig.namespace+suffixUsername,
 		nsConfig.Username,
-		"The username required by Elasticsearch. The basic authentication also loads CA if it is specified.")
+		"The username required by Elasticsearch. The basic authentication also loads CA if it is specified.",
+	)
 	flagSet.String(
 		nsConfig.namespace+suffixPassword,
 		nsConfig.Password,
@@ -146,7 +147,8 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 	flagSet.String(
 		nsConfig.namespace+suffixTokenPath,
 		nsConfig.TokenFilePath,
-		"Path to a file containing bearer token. This flag also loads CA if it is specified.")
+		"Path to a file containing bearer token. This flag also loads CA if it is specified.",
+	)
 	flagSet.String(
 		nsConfig.namespace+suffixPasswordPath,
 		nsConfig.PasswordFilePath,
@@ -154,16 +156,19 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 	flagSet.Bool(
 		nsConfig.namespace+suffixSniffer,
 		nsConfig.Sniffer,
-		"The sniffer config for Elasticsearch; client uses sniffing process to find all nodes automatically, disable if not required")
+		"The sniffer config for Elasticsearch; client uses sniffing process to find all nodes automatically, disable if not required",
+	)
 	flagSet.String(
 		nsConfig.namespace+suffixServerURLs,
 		defaultServerURL,
-		"The comma-separated list of Elasticsearch servers, must be full url i.e. http://localhost:9200")
+		"The comma-separated list of Elasticsearch servers, must be full url i.e. http://localhost:9200",
+	)
 	flagSet.String(
 		nsConfig.namespace+suffixRemoteReadClusters,
 		defaultRemoteReadClusters,
 		"Comma-separated list of Elasticsearch remote cluster names for cross-cluster querying."+
-			"See Elasticsearch remote clusters and cross-cluster query api.")
+			"See Elasticsearch remote clusters and cross-cluster query api.",
+	)
 	flagSet.Duration(
 		nsConfig.namespace+suffixTimeout,
 		nsConfig.Timeout,
@@ -196,90 +201,110 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 	flagSet.Int(
 		nsConfig.namespace+suffixBulkSize,
 		nsConfig.BulkSize,
-		"The number of bytes that the bulk requests can take up before the bulk processor decides to commit")
+		"The number of bytes that the bulk requests can take up before the bulk processor decides to commit",
+	)
 	flagSet.Int(
 		nsConfig.namespace+suffixBulkWorkers,
 		nsConfig.BulkWorkers,
-		"The number of workers that are able to receive bulk requests and eventually commit them to Elasticsearch")
+		"The number of workers that are able to receive bulk requests and eventually commit them to Elasticsearch",
+	)
 	flagSet.Int(
 		nsConfig.namespace+suffixBulkActions,
 		nsConfig.BulkActions,
-		"The number of requests that can be enqueued before the bulk processor decides to commit")
+		"The number of requests that can be enqueued before the bulk processor decides to commit",
+	)
 	flagSet.Duration(
 		nsConfig.namespace+suffixBulkFlushInterval,
 		nsConfig.BulkFlushInterval,
-		"A time.Duration after which bulk requests are committed, regardless of other thresholds. Set to zero to disable. By default, this is disabled.")
+		"A time.Duration after which bulk requests are committed, regardless of other thresholds. Set to zero to disable. By default, this is disabled.",
+	)
 	flagSet.String(
 		nsConfig.namespace+suffixIndexPrefix,
 		nsConfig.IndexPrefix,
-		"Optional prefix of Jaeger indices. For example \"production\" creates \"production-jaeger-*\".")
+		"Optional prefix of Jaeger indices. For example \"production\" creates \"production-jaeger-*\".",
+	)
 	flagSet.String(
 		nsConfig.namespace+suffixIndexDateSeparator,
 		defaultIndexDateSeparator,
-		"Optional date separator of Jaeger indices. For example \".\" creates \"jaeger-span-2020.11.20\".")
+		"Optional date separator of Jaeger indices. For example \".\" creates \"jaeger-span-2020.11.20\".",
+	)
 	flagSet.String(
 		nsConfig.namespace+suffixIndexRolloverFrequencySpans,
 		defaultIndexRolloverFrequency,
 		"Rotates jaeger-span indices over the given period. For example \"day\" creates \"jaeger-span-yyyy-MM-dd\" every day after UTC 12AM. Valid options: [hour, day]. "+
-			"This does not delete old indices. For details on complete index management solutions supported by Jaeger, refer to: https://www.jaegertracing.io/docs/deployment/#elasticsearch-rollover")
+			"This does not delete old indices. For details on complete index management solutions supported by Jaeger, refer to: https://www.jaegertracing.io/docs/deployment/#elasticsearch-rollover",
+	)
 	flagSet.String(
 		nsConfig.namespace+suffixIndexRolloverFrequencyServices,
 		defaultIndexRolloverFrequency,
 		"Rotates jaeger-service indices over the given period. For example \"day\" creates \"jaeger-service-yyyy-MM-dd\" every day after UTC 12AM. Valid options: [hour, day]. "+
-			"This does not delete old indices. For details on complete index management solutions supported by Jaeger, refer to: https://www.jaegertracing.io/docs/deployment/#elasticsearch-rollover")
+			"This does not delete old indices. For details on complete index management solutions supported by Jaeger, refer to: https://www.jaegertracing.io/docs/deployment/#elasticsearch-rollover",
+	)
 	flagSet.String(
 		nsConfig.namespace+suffixIndexRolloverFrequencySampling,
 		defaultIndexRolloverFrequency,
 		"Rotates jaeger-sampling indices over the given period. For example \"day\" creates \"jaeger-sampling-yyyy-MM-dd\" every day after UTC 12AM. Valid options: [hour, day]. "+
-			"This does not delete old indices. For details on complete index management solutions supported by Jaeger, refer to: https://www.jaegertracing.io/docs/deployment/#elasticsearch-rollover")
+			"This does not delete old indices. For details on complete index management solutions supported by Jaeger, refer to: https://www.jaegertracing.io/docs/deployment/#elasticsearch-rollover",
+	)
 	flagSet.Bool(
 		nsConfig.namespace+suffixTagsAsFieldsAll,
 		nsConfig.Tags.AllAsFields,
-		"(experimental) Store all span and process tags as object fields. If true "+suffixTagsFile+" and "+suffixTagsAsFieldsInclude+" is ignored. Binary tags are always stored as nested objects.")
+		"(experimental) Store all span and process tags as object fields. If true "+suffixTagsFile+" and "+suffixTagsAsFieldsInclude+" is ignored. Binary tags are always stored as nested objects.",
+	)
 	flagSet.String(
 		nsConfig.namespace+suffixTagsAsFieldsInclude,
 		nsConfig.Tags.Include,
-		"(experimental) Comma delimited list of tag keys which will be stored as object fields. Merged with the contents of "+suffixTagsFile)
+		"(experimental) Comma delimited list of tag keys which will be stored as object fields. Merged with the contents of "+suffixTagsFile,
+	)
 	flagSet.String(
 		nsConfig.namespace+suffixTagsFile,
 		nsConfig.Tags.File,
-		"(experimental) Optional path to a file containing tag keys which will be stored as object fields. Each key should be on a separate line.  Merged with "+suffixTagsAsFieldsInclude)
+		"(experimental) Optional path to a file containing tag keys which will be stored as object fields. Each key should be on a separate line.  Merged with "+suffixTagsAsFieldsInclude,
+	)
 	flagSet.String(
 		nsConfig.namespace+suffixTagDeDotChar,
 		nsConfig.Tags.DotReplacement,
-		"(experimental) The character used to replace dots (\".\") in tag keys stored as object fields.")
+		"(experimental) The character used to replace dots (\".\") in tag keys stored as object fields.",
+	)
 	flagSet.Bool(
 		nsConfig.namespace+suffixReadAlias,
 		nsConfig.UseReadWriteAliases,
 		"Use read and write aliases for indices. Use this option with Elasticsearch rollover "+
 			"API. It requires an external component to create aliases before startup and then performing its management. "+
-			"Note that es"+suffixMaxSpanAge+" will influence trace search window start times.")
+			"Note that es"+suffixMaxSpanAge+" will influence trace search window start times.",
+	)
 	flagSet.Bool(
 		nsConfig.namespace+suffixUseILM,
 		nsConfig.UseILM,
 		"(experimental) Option to enable ILM for jaeger span & service indices. Use this option with  "+nsConfig.namespace+suffixReadAlias+". "+
 			"It requires an external component to create aliases before startup and then performing its management. "+
-			"ILM policy must be manually created in ES before startup. Supported only for elasticsearch version 7+.")
+			"ILM policy must be manually created in ES before startup. Supported only for elasticsearch version 7+.",
+	)
 	flagSet.Bool(
 		nsConfig.namespace+suffixCreateIndexTemplate,
 		nsConfig.CreateIndexTemplates,
-		"Create index templates at application startup. Set to false when templates are installed manually.")
+		"Create index templates at application startup. Set to false when templates are installed manually.",
+	)
 	flagSet.Uint(
 		nsConfig.namespace+suffixVersion,
 		0,
-		"The major Elasticsearch version. If not specified, the value will be auto-detected from Elasticsearch.")
+		"The major Elasticsearch version. If not specified, the value will be auto-detected from Elasticsearch.",
+	)
 	flagSet.Bool(
 		nsConfig.namespace+suffixSnifferTLSEnabled,
 		nsConfig.SnifferTLSEnabled,
-		"Option to enable TLS when sniffing an Elasticsearch Cluster ; client uses sniffing process to find all nodes automatically, disabled by default")
+		"Option to enable TLS when sniffing an Elasticsearch Cluster ; client uses sniffing process to find all nodes automatically, disabled by default",
+	)
 	flagSet.Int(
 		nsConfig.namespace+suffixMaxDocCount,
 		nsConfig.MaxDocCount,
-		"The maximum document count to return from an Elasticsearch query. This will also apply to aggregations.")
+		"The maximum document count to return from an Elasticsearch query. This will also apply to aggregations.",
+	)
 	flagSet.String(
 		nsConfig.namespace+suffixLogLevel,
 		nsConfig.LogLevel,
-		"The Elasticsearch client log-level. Valid levels: [debug, info, error]")
+		"The Elasticsearch client log-level. Valid levels: [debug, info, error]",
+	)
 	flagSet.String(
 		nsConfig.namespace+suffixSendGetBodyAs,
 		nsConfig.SendGetBodyAs,
@@ -319,18 +344,31 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	cfg.PasswordFilePath = v.GetString(cfg.namespace + suffixPasswordPath)
 	cfg.Sniffer = v.GetBool(cfg.namespace + suffixSniffer)
 	cfg.SnifferTLSEnabled = v.GetBool(cfg.namespace + suffixSnifferTLSEnabled)
-	cfg.Servers = strings.Split(stripWhiteSpace(v.GetString(cfg.namespace+suffixServerURLs)), ",")
+	cfg.Servers = strings.Split(
+		stripWhiteSpace(v.GetString(cfg.namespace+suffixServerURLs)),
+		",",
+	)
 	cfg.MaxSpanAge = v.GetDuration(cfg.namespace + suffixMaxSpanAge)
-	cfg.AdaptiveSamplingLookback = v.GetDuration(cfg.namespace + suffixAdaptiveSamplingLookback)
+	cfg.AdaptiveSamplingLookback = v.GetDuration(
+		cfg.namespace + suffixAdaptiveSamplingLookback,
+	)
 	cfg.NumShards = v.GetInt64(cfg.namespace + suffixNumShards)
 	cfg.NumReplicas = v.GetInt64(cfg.namespace + suffixNumReplicas)
-	cfg.PrioritySpanTemplate = v.GetInt64(cfg.namespace + suffixPrioritySpanTemplate)
-	cfg.PriorityServiceTemplate = v.GetInt64(cfg.namespace + suffixPriorityServiceTemplate)
-	cfg.PriorityDependenciesTemplate = v.GetInt64(cfg.namespace + suffixPriorityDependenciesTemplate)
+	cfg.PrioritySpanTemplate = v.GetInt64(
+		cfg.namespace + suffixPrioritySpanTemplate,
+	)
+	cfg.PriorityServiceTemplate = v.GetInt64(
+		cfg.namespace + suffixPriorityServiceTemplate,
+	)
+	cfg.PriorityDependenciesTemplate = v.GetInt64(
+		cfg.namespace + suffixPriorityDependenciesTemplate,
+	)
 	cfg.BulkSize = v.GetInt(cfg.namespace + suffixBulkSize)
 	cfg.BulkWorkers = v.GetInt(cfg.namespace + suffixBulkWorkers)
 	cfg.BulkActions = v.GetInt(cfg.namespace + suffixBulkActions)
-	cfg.BulkFlushInterval = v.GetDuration(cfg.namespace + suffixBulkFlushInterval)
+	cfg.BulkFlushInterval = v.GetDuration(
+		cfg.namespace + suffixBulkFlushInterval,
+	)
 	cfg.Timeout = v.GetDuration(cfg.namespace + suffixTimeout)
 	cfg.ServiceCacheTTL = v.GetDuration(cfg.namespace + suffixServiceCacheTTL)
 	cfg.IndexPrefix = v.GetString(cfg.namespace + suffixIndexPrefix)
@@ -340,7 +378,9 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	cfg.Tags.DotReplacement = v.GetString(cfg.namespace + suffixTagDeDotChar)
 	cfg.UseReadWriteAliases = v.GetBool(cfg.namespace + suffixReadAlias)
 	cfg.Enabled = v.GetBool(cfg.namespace + suffixEnabled)
-	cfg.CreateIndexTemplates = v.GetBool(cfg.namespace + suffixCreateIndexTemplate)
+	cfg.CreateIndexTemplates = v.GetBool(
+		cfg.namespace + suffixCreateIndexTemplate,
+	)
 	cfg.Version = uint(v.GetInt(cfg.namespace + suffixVersion))
 	cfg.LogLevel = v.GetString(cfg.namespace + suffixLogLevel)
 	cfg.SendGetBodyAs = v.GetString(cfg.namespace + suffixSendGetBodyAs)
@@ -351,22 +391,42 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	// TODO: Need to figure out a better way for do this.
 	cfg.AllowTokenFromContext = v.GetBool(bearertoken.StoragePropagationKey)
 
-	remoteReadClusters := stripWhiteSpace(v.GetString(cfg.namespace + suffixRemoteReadClusters))
+	remoteReadClusters := stripWhiteSpace(
+		v.GetString(cfg.namespace + suffixRemoteReadClusters),
+	)
 	if len(remoteReadClusters) > 0 {
 		cfg.RemoteReadClusters = strings.Split(remoteReadClusters, ",")
 	}
 
-	cfg.IndexRolloverFrequencySpans = strings.ToLower(v.GetString(cfg.namespace + suffixIndexRolloverFrequencySpans))
-	cfg.IndexRolloverFrequencyServices = strings.ToLower(v.GetString(cfg.namespace + suffixIndexRolloverFrequencyServices))
-	cfg.IndexRolloverFrequencySampling = strings.ToLower(v.GetString(cfg.namespace + suffixIndexRolloverFrequencySampling))
+	cfg.IndexRolloverFrequencySpans = strings.ToLower(
+		v.GetString(cfg.namespace + suffixIndexRolloverFrequencySpans),
+	)
+	cfg.IndexRolloverFrequencyServices = strings.ToLower(
+		v.GetString(cfg.namespace + suffixIndexRolloverFrequencyServices),
+	)
+	cfg.IndexRolloverFrequencySampling = strings.ToLower(
+		v.GetString(cfg.namespace + suffixIndexRolloverFrequencySampling),
+	)
 
 	separator := v.GetString(cfg.namespace + suffixIndexDateSeparator)
-	cfg.IndexDateLayoutSpans = initDateLayout(cfg.IndexRolloverFrequencySpans, separator)
-	cfg.IndexDateLayoutServices = initDateLayout(cfg.IndexRolloverFrequencyServices, separator)
-	cfg.IndexDateLayoutSampling = initDateLayout(cfg.IndexRolloverFrequencySampling, separator)
+	cfg.IndexDateLayoutSpans = initDateLayout(
+		cfg.IndexRolloverFrequencySpans,
+		separator,
+	)
+	cfg.IndexDateLayoutServices = initDateLayout(
+		cfg.IndexRolloverFrequencyServices,
+		separator,
+	)
+	cfg.IndexDateLayoutSampling = initDateLayout(
+		cfg.IndexRolloverFrequencySampling,
+		separator,
+	)
 
 	// Dependencies calculation should be daily, and this index size is very small
-	cfg.IndexDateLayoutDependencies = initDateLayout(defaultIndexRolloverFrequency, separator)
+	cfg.IndexDateLayoutDependencies = initDateLayout(
+		defaultIndexRolloverFrequency,
+		separator,
+	)
 	var err error
 	cfg.TLS, err = cfg.getTLSFlagsConfig().InitFromViper(v)
 	if err != nil {

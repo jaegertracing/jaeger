@@ -79,7 +79,10 @@ func TestSamplingStrategyResponseToJSON(t *testing.T) {
 	})
 }
 
-func compareProtoAndThriftJSON(t *testing.T, thriftObj *api_v1.SamplingStrategyResponse) {
+func compareProtoAndThriftJSON(
+	t *testing.T,
+	thriftObj *api_v1.SamplingStrategyResponse,
+) {
 	protoObj, err := thriftconv.ConvertSamplingResponseToDomain(thriftObj)
 	require.NoError(t, err)
 
@@ -108,5 +111,9 @@ func TestSamplingStrategyResponseFromJSON(t *testing.T) {
 	s2, err := SamplingStrategyResponseFromJSON([]byte(json))
 	require.NoError(t, err)
 	assert.Equal(t, s1.GetStrategyType(), s2.GetStrategyType())
-	assert.EqualValues(t, s1.GetProbabilisticSampling(), s2.GetProbabilisticSampling())
+	assert.EqualValues(
+		t,
+		s1.GetProbabilisticSampling(),
+		s2.GetProbabilisticSampling(),
+	)
 }

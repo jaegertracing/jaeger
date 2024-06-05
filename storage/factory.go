@@ -68,7 +68,9 @@ type SamplingStoreFactory interface {
 
 var (
 	// ErrArchiveStorageNotConfigured can be returned by the ArchiveFactory when the archive storage is not configured.
-	ErrArchiveStorageNotConfigured = errors.New("archive storage not configured")
+	ErrArchiveStorageNotConfigured = errors.New(
+		"archive storage not configured",
+	)
 
 	// ErrArchiveStorageNotSupported can be returned by the ArchiveFactory when the archive storage is not supported by the backend.
 	ErrArchiveStorageNotSupported = errors.New("archive storage not supported")

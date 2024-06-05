@@ -55,9 +55,13 @@ func (l *Lock) Acquire(resource string, ttl time.Duration) (bool, error) {
 	}
 	ttlSec := int(ttl.Seconds())
 	var name, owner string
-	applied, err := l.session.Query(cqlInsertLock, resource, l.tenantID, ttlSec).ScanCAS(&name, &owner)
+	applied, err := l.session.Query(cqlInsertLock, resource, l.tenantID, ttlSec).
+		ScanCAS(&name, &owner)
 	if err != nil {
-		return false, fmt.Errorf("failed to acquire resource lock due to cassandra error: %w", err)
+		return false, fmt.Errorf(
+			"failed to acquire resource lock due to cassandra error: %w",
+			err,
+		)
 	}
 	if applied {
 		// The lock was successfully created
@@ -66,7 +70,10 @@ func (l *Lock) Acquire(resource string, ttl time.Duration) (bool, error) {
 	if owner == l.tenantID {
 		// This host already owns the lock, extend the lease
 		if err = l.extendLease(resource, ttl); err != nil {
-			return false, fmt.Errorf("failed to extend lease on resource lock: %w", err)
+			return false, fmt.Errorf(
+				"failed to extend lease on resource lock: %w",
+				err,
+			)
 		}
 		return true, nil
 	}
@@ -76,22 +83,30 @@ func (l *Lock) Acquire(resource string, ttl time.Duration) (bool, error) {
 // Forfeit forfeits an existing lease around a given resource.
 func (l *Lock) Forfeit(resource string) (bool, error) {
 	var name, owner string
-	applied, err := l.session.Query(cqlDeleteLock, resource, l.tenantID).ScanCAS(&name, &owner)
+	applied, err := l.session.Query(cqlDeleteLock, resource, l.tenantID).
+		ScanCAS(&name, &owner)
 	if err != nil {
-		return false, fmt.Errorf("failed to forfeit resource lock due to cassandra error: %w", err)
+		return false, fmt.Errorf(
+			"failed to forfeit resource lock due to cassandra error: %w",
+			err,
+		)
 	}
 	if applied {
 		// The lock was successfully deleted
 		return true, nil
 	}
-	return false, fmt.Errorf("failed to forfeit resource lock: %w", errLockOwnership)
+	return false, fmt.Errorf(
+		"failed to forfeit resource lock: %w",
+		errLockOwnership,
+	)
 }
 
 // extendLease will attempt to extend the lease of an existing lock on a given resource.
 func (l *Lock) extendLease(resource string, ttl time.Duration) error {
 	ttlSec := int(ttl.Seconds())
 	var owner string
-	applied, err := l.session.Query(cqlUpdateLock, ttlSec, l.tenantID, resource, l.tenantID).ScanCAS(&owner)
+	applied, err := l.session.Query(cqlUpdateLock, ttlSec, l.tenantID, resource, l.tenantID).
+		ScanCAS(&owner)
 	if err != nil {
 		return err
 	}

@@ -31,7 +31,10 @@ import (
 
 // QueryService is the service used to query cassandra tables for traces
 type QueryService interface {
-	GetTraces(serviceName, operation string, tags map[string]string) ([]*ui.Trace, error)
+	GetTraces(
+		serviceName, operation string,
+		tags map[string]string,
+	) ([]*ui.Trace, error)
 }
 
 type queryService struct {
@@ -56,7 +59,10 @@ type response struct {
 }
 
 // GetTraces retrieves traces from the query service
-func (s *queryService) GetTraces(serviceName, operation string, tags map[string]string) ([]*ui.Trace, error) {
+func (s *queryService) GetTraces(
+	serviceName, operation string,
+	tags map[string]string,
+) ([]*ui.Trace, error) {
 	endTimeMicros := time.Now().Unix() * int64(time.Second/time.Microsecond)
 	values := url.Values{}
 	values.Add("service", serviceName)
@@ -75,7 +81,11 @@ func (s *queryService) GetTraces(serviceName, operation string, tags map[string]
 	if err != nil {
 		return nil, err
 	}
-	s.logger.Info("GetTraces: received response from query", zap.String("body", string(body)), zap.String("url", url))
+	s.logger.Info(
+		"GetTraces: received response from query",
+		zap.String("body", string(body)),
+		zap.String("url", url),
+	)
 
 	var queryResponse response
 	if err = json.Unmarshal(body, &queryResponse); err != nil {

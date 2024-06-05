@@ -37,7 +37,9 @@ type mockProducerBuilder struct {
 	t   *testing.T
 }
 
-func (m *mockProducerBuilder) NewProducer(*zap.Logger) (sarama.AsyncProducer, error) {
+func (m *mockProducerBuilder) NewProducer(
+	*zap.Logger,
+) (sarama.AsyncProducer, error) {
 	if m.err == nil {
 		return mocks.NewAsyncProducer(m.t, nil), nil
 	}
@@ -54,7 +56,11 @@ func TestKafkaFactory(t *testing.T) {
 		err: errors.New("made-up error"),
 		t:   t,
 	}
-	require.EqualError(t, f.Initialize(metrics.NullFactory, zap.NewNop()), "made-up error")
+	require.EqualError(
+		t,
+		f.Initialize(metrics.NullFactory, zap.NewNop()),
+		"made-up error",
+	)
 
 	f.Builder = &mockProducerBuilder{t: t}
 	require.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
@@ -84,7 +90,9 @@ func TestKafkaFactoryEncoding(t *testing.T) {
 		t.Run(test.encoding, func(t *testing.T) {
 			f := NewFactory()
 			v, command := config.Viperize(f.AddFlags)
-			err := command.ParseFlags([]string{"--kafka.producer.encoding=" + test.encoding})
+			err := command.ParseFlags(
+				[]string{"--kafka.producer.encoding=" + test.encoding},
+			)
 			require.NoError(t, err)
 			f.InitFromViper(v, zap.NewNop())
 
@@ -152,7 +160,12 @@ func TestKafkaFactoryDoesNotLogPassword(t *testing.T) {
 			require.NoError(t, err)
 			logger.Sync()
 
-			assert.NotContains(t, logbuf.String(), "SECRET", "log output must not contain password in clear text")
+			assert.NotContains(
+				t,
+				logbuf.String(),
+				"SECRET",
+				"log output must not contain password in clear text",
+			)
 			require.NoError(t, f.Close())
 		})
 	}
@@ -160,7 +173,10 @@ func TestKafkaFactoryDoesNotLogPassword(t *testing.T) {
 
 func TestConfigureFromOptions(t *testing.T) {
 	f := NewFactory()
-	o := Options{Topic: "testTopic", Config: kafkaConfig.Configuration{Brokers: []string{"host"}}}
+	o := Options{
+		Topic:  "testTopic",
+		Config: kafkaConfig.Configuration{Brokers: []string{"host"}},
+	}
 	f.configureFromOptions(o)
 	assert.Equal(t, o, f.options)
 	assert.Equal(t, &o.Config, f.Builder)

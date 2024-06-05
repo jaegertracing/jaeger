@@ -104,7 +104,8 @@ func TestLookBackAction(t *testing.T) {
 		{
 			name: "get indices error",
 			setupCallExpectations: func(indexClient *mocks.MockIndexAPI) {
-				indexClient.On("GetJaegerIndices", "").Return(indices, errors.New("get indices error"))
+				indexClient.On("GetJaegerIndices", "").
+					Return(indices, errors.New("get indices error"))
 			},
 			config: Config{
 				Unit:      "days",
@@ -119,7 +120,8 @@ func TestLookBackAction(t *testing.T) {
 		{
 			name: "empty indices",
 			setupCallExpectations: func(indexClient *mocks.MockIndexAPI) {
-				indexClient.On("GetJaegerIndices", "").Return([]client.Index{}, nil)
+				indexClient.On("GetJaegerIndices", "").
+					Return([]client.Index{}, nil)
 			},
 			config: Config{
 				Unit:      "days",

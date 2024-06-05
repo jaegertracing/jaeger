@@ -46,10 +46,10 @@ import (
 
 // Configuration describes the configuration properties needed to connect to an ElasticSearch cluster
 type Configuration struct {
-	Servers                        []string       `mapstructure:"server_urls" valid:"required,url"`
+	Servers                        []string       `mapstructure:"server_urls"                    valid:"required,url"`
 	RemoteReadClusters             []string       `mapstructure:"remote_read_clusters"`
 	Username                       string         `mapstructure:"username"`
-	Password                       string         `mapstructure:"password" json:"-"`
+	Password                       string         `mapstructure:"password"                                            json:"-"`
 	TokenFilePath                  string         `mapstructure:"token_file"`
 	PasswordFilePath               string         `mapstructure:"password_file"`
 	AllowTokenFromContext          bool           `mapstructure:"-"`
@@ -103,7 +103,11 @@ type TagsAsFields struct {
 }
 
 // NewClient creates a new ElasticSearch client
-func NewClient(c *Configuration, logger *zap.Logger, metricsFactory metrics.Factory) (es.Client, error) {
+func NewClient(
+	c *Configuration,
+	logger *zap.Logger,
+	metricsFactory metrics.Factory,
+) (es.Client, error) {
 	if len(c.Servers) < 1 {
 		return nil, errors.New("no servers specified")
 	}
@@ -136,8 +140,11 @@ func NewClient(c *Configuration, logger *zap.Logger, metricsFactory metrics.Fact
 				for _, it := range response.Items {
 					for key, val := range it {
 						if val.Error != nil {
-							logger.Error("Elasticsearch part of bulk request failed", zap.String("map-key", key),
-								zap.Reflect("response", val))
+							logger.Error(
+								"Elasticsearch part of bulk request failed",
+								zap.String("map-key", key),
+								zap.Reflect("response", val),
+							)
 						}
 					}
 				}
@@ -170,7 +177,8 @@ func NewClient(c *Configuration, logger *zap.Logger, metricsFactory metrics.Fact
 
 	if c.Version == 0 {
 		// Determine ElasticSearch Version
-		pingResult, _, err := rawClient.Ping(c.Servers[0]).Do(context.Background())
+		pingResult, _, err := rawClient.Ping(c.Servers[0]).
+			Do(context.Background())
 		if err != nil {
 			return nil, err
 		}
@@ -181,11 +189,15 @@ func NewClient(c *Configuration, logger *zap.Logger, metricsFactory metrics.Fact
 		// OpenSearch is based on ES 7.x
 		if strings.Contains(pingResult.TagLine, "OpenSearch") {
 			if pingResult.Version.Number[0] == '1' {
-				logger.Info("OpenSearch 1.x detected, using ES 7.x index mappings")
+				logger.Info(
+					"OpenSearch 1.x detected, using ES 7.x index mappings",
+				)
 				esVersion = 7
 			}
 			if pingResult.Version.Number[0] == '2' {
-				logger.Info("OpenSearch 2.x detected, using ES 7.x index mappings")
+				logger.Info(
+					"OpenSearch 2.x detected, using ES 7.x index mappings",
+				)
 				esVersion = 7
 			}
 		}
@@ -201,10 +213,18 @@ func NewClient(c *Configuration, logger *zap.Logger, metricsFactory metrics.Fact
 		}
 	}
 
-	return eswrapper.WrapESClient(rawClient, bulkProc, c.Version, rawClientV8), nil
+	return eswrapper.WrapESClient(
+		rawClient,
+		bulkProc,
+		c.Version,
+		rawClientV8,
+	), nil
 }
 
-func newElasticsearchV8(c *Configuration, logger *zap.Logger) (*esV8.Client, error) {
+func newElasticsearchV8(
+	c *Configuration,
+	logger *zap.Logger,
+) (*esV8.Client, error) {
 	var options esV8.Config
 	options.Addresses = c.Servers
 	options.Username = c.Username
@@ -346,7 +366,9 @@ func (c *Configuration) TagKeysAsFields() ([]string, error) {
 }
 
 // getConfigOptions wraps the configs to feed to the ElasticSearch client init
-func (c *Configuration) getConfigOptions(logger *zap.Logger) ([]elastic.ClientOptionFunc, error) {
+func (c *Configuration) getConfigOptions(
+	logger *zap.Logger,
+) ([]elastic.ClientOptionFunc, error) {
 	options := []elastic.ClientOptionFunc{
 		elastic.SetURL(c.Servers...), elastic.SetSniff(c.Sniffer),
 		// Disable health check when token from context is allowed, this is because at this time
@@ -391,7 +413,10 @@ func (c *Configuration) getConfigOptions(logger *zap.Logger) ([]elastic.ClientOp
 	return options, nil
 }
 
-func addLoggerOptions(options []elastic.ClientOptionFunc, logLevel string) ([]elastic.ClientOptionFunc, error) {
+func addLoggerOptions(
+	options []elastic.ClientOptionFunc,
+	logLevel string,
+) ([]elastic.ClientOptionFunc, error) {
 	// Decouple ES logger from the log-level assigned to the parent application's log-level; otherwise, the least
 	// permissive log-level will dominate.
 	// e.g. --log-level=info and --es.log-level=debug would mute ES's debug logging and would require --log-level=debug
@@ -428,7 +453,10 @@ func addLoggerOptions(options []elastic.ClientOptionFunc, logLevel string) ([]el
 }
 
 // GetHTTPRoundTripper returns configured http.RoundTripper
-func GetHTTPRoundTripper(c *Configuration, logger *zap.Logger) (http.RoundTripper, error) {
+func GetHTTPRoundTripper(
+	c *Configuration,
+	logger *zap.Logger,
+) (http.RoundTripper, error) {
 	if c.TLS.Enabled {
 		ctlsConfig, err := c.TLS.Config(logger)
 		if err != nil {
@@ -457,7 +485,9 @@ func GetHTTPRoundTripper(c *Configuration, logger *zap.Logger) (http.RoundTrippe
 	token := ""
 	if c.TokenFilePath != "" {
 		if c.AllowTokenFromContext {
-			logger.Warn("Token file and token propagation are both enabled, token from file won't be used")
+			logger.Warn(
+				"Token file and token propagation are both enabled, token from file won't be used",
+			)
 		}
 		tokenFromFile, err := loadTokenFromFile(c.TokenFilePath)
 		if err != nil {

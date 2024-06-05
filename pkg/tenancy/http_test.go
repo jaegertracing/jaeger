@@ -29,7 +29,10 @@ type testHttpHandler struct {
 	reached bool
 }
 
-func (thh *testHttpHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
+func (thh *testHttpHandler) ServeHTTP(
+	res http.ResponseWriter,
+	req *http.Request,
+) {
 	thh.reached = true
 }
 
@@ -59,8 +62,10 @@ func TestProgationHandler(t *testing.T) {
 			shouldReach:    true,
 		},
 		{
-			name:           "unauthorized tenant",
-			tenancyMgr:     NewManager(&Options{Enabled: true, Tenants: []string{"megacorp"}}),
+			name: "unauthorized tenant",
+			tenancyMgr: NewManager(
+				&Options{Enabled: true, Tenants: []string{"megacorp"}},
+			),
 			requestHeaders: map[string][]string{"x-tenant": {"acme"}},
 			shouldReach:    false,
 		},
@@ -70,7 +75,11 @@ func TestProgationHandler(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			handler := &testHttpHandler{}
 			propH := ExtractTenantHTTPHandler(test.tenancyMgr, handler)
-			req, err := http.NewRequest(http.MethodGet, "/", strings.NewReader(""))
+			req, err := http.NewRequest(
+				http.MethodGet,
+				"/",
+				strings.NewReader(""),
+			)
 			for k, vs := range test.requestHeaders {
 				for _, v := range vs {
 					req.Header.Add(k, v)
@@ -104,7 +113,11 @@ func TestMetadataAnnotator(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			req, err := http.NewRequest(http.MethodGet, "/", strings.NewReader(""))
+			req, err := http.NewRequest(
+				http.MethodGet,
+				"/",
+				strings.NewReader(""),
+			)
 			for k, vs := range test.requestHeaders {
 				for _, v := range vs {
 					req.Header.Add(k, v)

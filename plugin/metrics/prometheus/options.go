@@ -53,7 +53,7 @@ const (
 )
 
 type namespaceConfig struct {
-	config.Configuration `mapstructure:",squash"`
+	config.Configuration `       mapstructure:",squash"`
 	namespace            string
 }
 
@@ -86,36 +86,58 @@ func NewOptions(primaryNamespace string) *Options {
 // AddFlags from this storage to the CLI.
 func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
 	nsConfig := &opt.Primary
-	flagSet.String(nsConfig.namespace+suffixServerURL, defaultServerURL,
-		"The Prometheus server's URL, must include the protocol scheme e.g. http://localhost:9090")
-	flagSet.Duration(nsConfig.namespace+suffixConnectTimeout, defaultConnectTimeout,
-		"The period to wait for a connection to Prometheus when executing queries.")
-	flagSet.String(nsConfig.namespace+suffixTokenFilePath, defaultTokenFilePath,
-		"The path to a file containing the bearer token which will be included when executing queries against the Prometheus API.")
-	flagSet.Bool(nsConfig.namespace+suffixOverrideFromContext, true,
-		"Whether the bearer token should be overridden from context (incoming request)")
+	flagSet.String(
+		nsConfig.namespace+suffixServerURL,
+		defaultServerURL,
+		"The Prometheus server's URL, must include the protocol scheme e.g. http://localhost:9090",
+	)
+	flagSet.Duration(
+		nsConfig.namespace+suffixConnectTimeout,
+		defaultConnectTimeout,
+		"The period to wait for a connection to Prometheus when executing queries.",
+	)
+	flagSet.String(
+		nsConfig.namespace+suffixTokenFilePath,
+		defaultTokenFilePath,
+		"The path to a file containing the bearer token which will be included when executing queries against the Prometheus API.",
+	)
+	flagSet.Bool(
+		nsConfig.namespace+suffixOverrideFromContext,
+		true,
+		"Whether the bearer token should be overridden from context (incoming request)",
+	)
 	flagSet.Bool(
 		nsConfig.namespace+suffixSupportSpanmetricsConnector,
 		defaultSupportSpanmetricsConnector,
-		deprecatedSpanMetricsProcessor+" Controls whether the metrics queries should match the OpenTelemetry Collector's spanmetrics connector naming (when true) or spanmetrics processor naming (when false).")
-	flagSet.String(nsConfig.namespace+suffixMetricNamespace, defaultMetricNamespace,
+		deprecatedSpanMetricsProcessor+" Controls whether the metrics queries should match the OpenTelemetry Collector's spanmetrics connector naming (when true) or spanmetrics processor naming (when false).",
+	)
+	flagSet.String(
+		nsConfig.namespace+suffixMetricNamespace,
+		defaultMetricNamespace,
 		`The metric namespace that is prefixed to the metric name. A '.' separator will be added between `+
-			`the namespace and the metric name.`)
-	flagSet.String(nsConfig.namespace+suffixLatencyUnit, defaultLatencyUnit,
+			`the namespace and the metric name.`,
+	)
+	flagSet.String(
+		nsConfig.namespace+suffixLatencyUnit,
+		defaultLatencyUnit,
 		`The units used for the "latency" histogram. It can be either "ms" or "s" and should be consistent with the `+
 			`histogram unit value set in the spanmetrics connector (see: `+
 			`https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/connector/spanmetricsconnector#configurations). `+
-			`This also helps jaeger-query determine the metric name when querying for "latency" metrics.`)
+			`This also helps jaeger-query determine the metric name when querying for "latency" metrics.`,
+	)
 	flagSet.Bool(nsConfig.namespace+suffixNormalizeCalls, defaultNormalizeCalls,
 		`Whether to normalize the "calls" metric name according to `+
 			`https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/pkg/translator/prometheus/README.md. `+
 			`For example: `+
 			`"calls" (not normalized) -> "calls_total" (normalized), `)
-	flagSet.Bool(nsConfig.namespace+suffixNormalizeDuration, defaultNormalizeDuration,
+	flagSet.Bool(
+		nsConfig.namespace+suffixNormalizeDuration,
+		defaultNormalizeDuration,
 		`Whether to normalize the "duration" metric name according to `+
 			`https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/pkg/translator/prometheus/README.md. `+
 			`For example: `+
-			`"duration_bucket" (not normalized) -> "duration_milliseconds_bucket (normalized)"`)
+			`"duration_bucket" (not normalized) -> "duration_milliseconds_bucket (normalized)"`,
+	)
 
 	nsConfig.getTLSFlagsConfig().AddFlags(flagSet)
 }
@@ -123,23 +145,34 @@ func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
 // InitFromViper initializes the options struct with values from Viper.
 func (opt *Options) InitFromViper(v *viper.Viper) error {
 	cfg := &opt.Primary
-	cfg.ServerURL = stripWhiteSpace(v.GetString(cfg.namespace + suffixServerURL))
+	cfg.ServerURL = stripWhiteSpace(
+		v.GetString(cfg.namespace + suffixServerURL),
+	)
 	cfg.ConnectTimeout = v.GetDuration(cfg.namespace + suffixConnectTimeout)
 	cfg.TokenFilePath = v.GetString(cfg.namespace + suffixTokenFilePath)
 
-	cfg.SupportSpanmetricsConnector = v.GetBool(cfg.namespace + suffixSupportSpanmetricsConnector)
+	cfg.SupportSpanmetricsConnector = v.GetBool(
+		cfg.namespace + suffixSupportSpanmetricsConnector,
+	)
 	if !cfg.SupportSpanmetricsConnector {
-		log.Printf("using Spanmetrics Processor's metrics naming conventions " + deprecatedSpanMetricsProcessor)
+		log.Printf(
+			"using Spanmetrics Processor's metrics naming conventions " + deprecatedSpanMetricsProcessor,
+		)
 	}
 	cfg.MetricNamespace = v.GetString(cfg.namespace + suffixMetricNamespace)
 	cfg.LatencyUnit = v.GetString(cfg.namespace + suffixLatencyUnit)
 	cfg.NormalizeCalls = v.GetBool(cfg.namespace + suffixNormalizeCalls)
 	cfg.NormalizeDuration = v.GetBool(cfg.namespace + suffixNormalizeDuration)
-	cfg.TokenOverrideFromContext = v.GetBool(cfg.namespace + suffixOverrideFromContext)
+	cfg.TokenOverrideFromContext = v.GetBool(
+		cfg.namespace + suffixOverrideFromContext,
+	)
 
 	isValidUnit := map[string]bool{"ms": true, "s": true}
 	if _, ok := isValidUnit[cfg.LatencyUnit]; !ok {
-		return fmt.Errorf(`duration-unit must be one of "ms" or "s", not %q`, cfg.LatencyUnit)
+		return fmt.Errorf(
+			`duration-unit must be one of "ms" or "s", not %q`,
+			cfg.LatencyUnit,
+		)
 	}
 
 	var err error

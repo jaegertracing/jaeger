@@ -27,7 +27,11 @@ import (
 	esJson "github.com/jaegertracing/jaeger/model/json"
 )
 
-func CompareJSONSpans(t *testing.T, expected *esJson.Span, actual *esJson.Span) {
+func CompareJSONSpans(
+	t *testing.T,
+	expected *esJson.Span,
+	actual *esJson.Span,
+) {
 	sortJSONSpan(expected)
 	sortJSONSpan(actual)
 
@@ -59,9 +63,14 @@ func sortJSONTags(tags []esJson.KeyValue) {
 
 type JSONLogByTimestamp []esJson.Log
 
-func (t JSONLogByTimestamp) Len() int           { return len(t) }
-func (t JSONLogByTimestamp) Swap(i, j int)      { t[i], t[j] = t[j], t[i] }
-func (t JSONLogByTimestamp) Less(i, j int) bool { return t[i].Timestamp < t[j].Timestamp }
+func (t JSONLogByTimestamp) Len() int      { return len(t) }
+func (t JSONLogByTimestamp) Swap(i, j int) { t[i], t[j] = t[j], t[i] }
+
+func (t JSONLogByTimestamp) Less(
+	i, j int,
+) bool {
+	return t[i].Timestamp < t[j].Timestamp
+}
 
 func sortJSONLogs(logs []esJson.Log) {
 	sort.Sort(JSONLogByTimestamp(logs))

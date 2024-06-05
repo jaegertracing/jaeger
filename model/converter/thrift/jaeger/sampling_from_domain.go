@@ -23,7 +23,9 @@ import (
 )
 
 // ConvertSamplingResponseFromDomain converts proto sampling response to its thrift representation.
-func ConvertSamplingResponseFromDomain(r *api_v2.SamplingStrategyResponse) (*sampling.SamplingStrategyResponse, error) {
+func ConvertSamplingResponseFromDomain(
+	r *api_v2.SamplingStrategyResponse,
+) (*sampling.SamplingStrategyResponse, error) {
 	typ, err := convertStrategyTypeFromDomain(r.GetStrategyType())
 	if err != nil {
 		return nil, err
@@ -33,32 +35,46 @@ func ConvertSamplingResponseFromDomain(r *api_v2.SamplingStrategyResponse) (*sam
 		return nil, err
 	}
 	thriftResp := &sampling.SamplingStrategyResponse{
-		StrategyType:          typ,
-		ProbabilisticSampling: convertProbabilisticFromDomain(r.GetProbabilisticSampling()),
-		RateLimitingSampling:  rl,
-		OperationSampling:     convertPerOperationFromDomain(r.GetOperationSampling()),
+		StrategyType: typ,
+		ProbabilisticSampling: convertProbabilisticFromDomain(
+			r.GetProbabilisticSampling(),
+		),
+		RateLimitingSampling: rl,
+		OperationSampling: convertPerOperationFromDomain(
+			r.GetOperationSampling(),
+		),
 	}
 	return thriftResp, nil
 }
 
-func convertProbabilisticFromDomain(s *api_v2.ProbabilisticSamplingStrategy) *sampling.ProbabilisticSamplingStrategy {
+func convertProbabilisticFromDomain(
+	s *api_v2.ProbabilisticSamplingStrategy,
+) *sampling.ProbabilisticSamplingStrategy {
 	if s == nil {
 		return nil
 	}
-	return &sampling.ProbabilisticSamplingStrategy{SamplingRate: s.GetSamplingRate()}
+	return &sampling.ProbabilisticSamplingStrategy{
+		SamplingRate: s.GetSamplingRate(),
+	}
 }
 
-func convertRateLimitingFromDomain(s *api_v2.RateLimitingSamplingStrategy) (*sampling.RateLimitingSamplingStrategy, error) {
+func convertRateLimitingFromDomain(
+	s *api_v2.RateLimitingSamplingStrategy,
+) (*sampling.RateLimitingSamplingStrategy, error) {
 	if s == nil {
 		return nil, nil
 	}
 	if s.MaxTracesPerSecond > math.MaxInt16 {
 		return nil, errors.New("maxTracesPerSecond is higher than int16")
 	}
-	return &sampling.RateLimitingSamplingStrategy{MaxTracesPerSecond: int16(s.GetMaxTracesPerSecond())}, nil
+	return &sampling.RateLimitingSamplingStrategy{
+		MaxTracesPerSecond: int16(s.GetMaxTracesPerSecond()),
+	}, nil
 }
 
-func convertPerOperationFromDomain(s *api_v2.PerOperationSamplingStrategies) *sampling.PerOperationSamplingStrategies {
+func convertPerOperationFromDomain(
+	s *api_v2.PerOperationSamplingStrategies,
+) *sampling.PerOperationSamplingStrategies {
 	if s == nil {
 		return nil
 	}
@@ -70,30 +86,41 @@ func convertPerOperationFromDomain(s *api_v2.PerOperationSamplingStrategies) *sa
 
 	perOp := s.GetPerOperationStrategies()
 	// Default to empty array so that json.Marshal returns [] instead of null (Issue #3891).
-	r.PerOperationStrategies = make([]*sampling.OperationSamplingStrategy, len(perOp))
+	r.PerOperationStrategies = make(
+		[]*sampling.OperationSamplingStrategy,
+		len(perOp),
+	)
 	for i, k := range perOp {
 		r.PerOperationStrategies[i] = convertOperationFromDomain(k)
 	}
 	return r
 }
 
-func convertOperationFromDomain(s *api_v2.OperationSamplingStrategy) *sampling.OperationSamplingStrategy {
+func convertOperationFromDomain(
+	s *api_v2.OperationSamplingStrategy,
+) *sampling.OperationSamplingStrategy {
 	if s == nil {
 		return nil
 	}
 	return &sampling.OperationSamplingStrategy{
-		Operation:             s.GetOperation(),
-		ProbabilisticSampling: convertProbabilisticFromDomain(s.GetProbabilisticSampling()),
+		Operation: s.GetOperation(),
+		ProbabilisticSampling: convertProbabilisticFromDomain(
+			s.GetProbabilisticSampling(),
+		),
 	}
 }
 
-func convertStrategyTypeFromDomain(s api_v2.SamplingStrategyType) (sampling.SamplingStrategyType, error) {
+func convertStrategyTypeFromDomain(
+	s api_v2.SamplingStrategyType,
+) (sampling.SamplingStrategyType, error) {
 	switch s {
 	case api_v2.SamplingStrategyType_PROBABILISTIC:
 		return sampling.SamplingStrategyType_PROBABILISTIC, nil
 	case api_v2.SamplingStrategyType_RATE_LIMITING:
 		return sampling.SamplingStrategyType_RATE_LIMITING, nil
 	default:
-		return sampling.SamplingStrategyType_PROBABILISTIC, errors.New("could not convert sampling strategy type")
+		return sampling.SamplingStrategyType_PROBABILISTIC, errors.New(
+			"could not convert sampling strategy type",
+		)
 	}
 }

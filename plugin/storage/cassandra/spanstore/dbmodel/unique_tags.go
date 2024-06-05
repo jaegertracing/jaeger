@@ -21,10 +21,14 @@ import (
 
 // GetAllUniqueTags creates a list of all unique tags from a set of filtered tags.
 func GetAllUniqueTags(span *model.Span, tagFilter TagFilter) []TagInsertion {
-	allTags := append(model.KeyValues{}, tagFilter.FilterProcessTags(span, span.Process.Tags)...)
+	allTags := append(
+		model.KeyValues{},
+		tagFilter.FilterProcessTags(span, span.Process.Tags)...)
 	allTags = append(allTags, tagFilter.FilterTags(span, span.Tags)...)
 	for _, log := range span.Logs {
-		allTags = append(allTags, tagFilter.FilterLogFields(span, log.Fields)...)
+		allTags = append(
+			allTags,
+			tagFilter.FilterLogFields(span, log.Fields)...)
 	}
 	allTags.Sort()
 	uniqueTags := make([]TagInsertion, 0, len(allTags))

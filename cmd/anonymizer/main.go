@@ -56,12 +56,18 @@ func main() {
 
 			w, err := writer.New(conf, logger)
 			if err != nil {
-				logger.Fatal("error while creating writer object", zap.Error(err))
+				logger.Fatal(
+					"error while creating writer object",
+					zap.Error(err),
+				)
 			}
 
 			query, err := query.New(options.QueryGRPCHostPort)
 			if err != nil {
-				logger.Fatal("error while creating query object", zap.Error(err))
+				logger.Fatal(
+					"error while creating query object",
+					zap.Error(err),
+				)
 			}
 
 			spans, err := query.QueryTrace(options.TraceID)
@@ -88,7 +94,8 @@ func main() {
 			if err := uiconv.Extract(uiCfg, logger); err != nil {
 				logger.Fatal("error while extracing UI trace", zap.Error(err))
 			}
-			logger.Sugar().Infof("Wrote UI-compatible anonymized file to %s", uiCfg.UIFile)
+			logger.Sugar().
+				Infof("Wrote UI-compatible anonymized file to %s", uiCfg.UIFile)
 		},
 	}
 

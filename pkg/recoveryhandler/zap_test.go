@@ -29,9 +29,11 @@ import (
 func TestNewRecoveryHandler(t *testing.T) {
 	logger, log := testutils.NewLogger()
 
-	handlerFunc := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		panic("Unexpected error!")
-	})
+	handlerFunc := http.HandlerFunc(
+		func(w http.ResponseWriter, req *http.Request) {
+			panic("Unexpected error!")
+		},
+	)
 
 	recovery := NewRecoveryHandler(logger, false)(handlerFunc)
 	req, err := http.NewRequest(http.MethodGet, "/subdir/asdf", nil)

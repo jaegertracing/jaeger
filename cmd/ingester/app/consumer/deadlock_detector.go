@@ -61,14 +61,21 @@ type allPartitionsDeadlockDetector struct {
 	disabled    bool
 }
 
-func newDeadlockDetector(metricsFactory metrics.Factory, logger *zap.Logger, interval time.Duration) deadlockDetector {
+func newDeadlockDetector(
+	metricsFactory metrics.Factory,
+	logger *zap.Logger,
+	interval time.Duration,
+) deadlockDetector {
 	panicFunc := func(partition int32) {
-		metricsFactory.Counter(metrics.Options{Name: "deadlockdetector.panic-issued", Tags: map[string]string{"partition": strconv.Itoa(int(partition))}}).Inc(1)
+		metricsFactory.Counter(metrics.Options{Name: "deadlockdetector.panic-issued", Tags: map[string]string{"partition": strconv.Itoa(int(partition))}}).
+			Inc(1)
 		time.Sleep(time.Second) // Allow time to flush metric
 
-		logger.Panic("No messages processed in the last check interval, possible deadlock, exiting. "+
-			"This behavior can be disabled with --ingester.deadlockInterval=0 flag.",
-			zap.Int32("partition", partition))
+		logger.Panic(
+			"No messages processed in the last check interval, possible deadlock, exiting. "+
+				"This behavior can be disabled with --ingester.deadlockInterval=0 flag.",
+			zap.Int32("partition", partition),
+		)
 	}
 
 	return deadlockDetector{
@@ -79,7 +86,9 @@ func newDeadlockDetector(metricsFactory metrics.Factory, logger *zap.Logger, int
 	}
 }
 
-func (s *deadlockDetector) startMonitoringForPartition(partition int32) *partitionDeadlockDetector {
+func (s *deadlockDetector) startMonitoringForPartition(
+	partition int32,
+) *partitionDeadlockDetector {
 	var msgConsumed uint64
 	w := &partitionDeadlockDetector{
 		msgConsumed:    &msgConsumed,
@@ -103,21 +112,31 @@ func (s *deadlockDetector) startMonitoringForPartition(partition int32) *partiti
 	return w
 }
 
-func (s *deadlockDetector) monitorForPartition(w *partitionDeadlockDetector, partition int32) {
+func (s *deadlockDetector) monitorForPartition(
+	w *partitionDeadlockDetector,
+	partition int32,
+) {
 	ticker := time.NewTicker(s.interval)
 	defer ticker.Stop()
 
 	for {
 		select {
 		case <-w.done:
-			s.logger.Info("Closing ticker routine", zap.Int32("partition", partition))
+			s.logger.Info(
+				"Closing ticker routine",
+				zap.Int32("partition", partition),
+			)
 			return
 		case <-ticker.C:
 			if atomic.LoadUint64(w.msgConsumed) == 0 {
 				select {
 				case w.closePartition <- struct{}{}:
-					s.metricsFactory.Counter(metrics.Options{Name: "deadlockdetector.close-signalled", Tags: map[string]string{"partition": strconv.Itoa(int(partition))}}).Inc(1)
-					s.logger.Warn("Signalling partition close due to inactivity", zap.Int32("partition", partition))
+					s.metricsFactory.Counter(metrics.Options{Name: "deadlockdetector.close-signalled", Tags: map[string]string{"partition": strconv.Itoa(int(partition))}}).
+						Inc(1)
+					s.logger.Warn(
+						"Signalling partition close due to inactivity",
+						zap.Int32("partition", partition),
+					)
 				default:
 					// If closePartition is blocked, the consumer might have deadlocked - kill the process
 					s.panicFunc(partition)
@@ -190,7 +209,10 @@ func (w *partitionDeadlockDetector) close() {
 	if w.disabled {
 		return
 	}
-	w.logger.Debug("Closing deadlock detector", zap.Int32("partition", w.partition))
+	w.logger.Debug(
+		"Closing deadlock detector",
+		zap.Int32("partition", w.partition),
+	)
 	w.done <- struct{}{}
 }
 

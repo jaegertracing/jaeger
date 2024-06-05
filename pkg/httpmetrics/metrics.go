@@ -49,7 +49,11 @@ func (r *statusRecorder) WriteHeader(status int) {
 //
 // Do not use with HTTP endpoints that take parameters from URL path, such as `/user/{user_id}`,
 // because they will result in high cardinality metrics.
-func Wrap(h http.Handler, metricsFactory metrics.Factory, logger *zap.Logger) http.Handler {
+func Wrap(
+	h http.Handler,
+	metricsFactory metrics.Factory,
+	logger *zap.Logger,
+) http.Handler {
 	timers := newRequestDurations(metricsFactory, logger)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
@@ -91,7 +95,10 @@ type requestDurations struct {
 	fallback metrics.Timer
 }
 
-func newRequestDurations(metricsFactory metrics.Factory, logger *zap.Logger) *requestDurations {
+func newRequestDurations(
+	metricsFactory metrics.Factory,
+	logger *zap.Logger,
+) *requestDurations {
 	r := &requestDurations{
 		timers:     make(map[recordedRequestKey]metrics.Timer),
 		metrics:    metricsFactory,
@@ -131,11 +138,17 @@ func (r *requestDurations) getTimer(cacheKey recordedRequestKey) metrics.Timer {
 	return timer
 }
 
-func (r *requestDurations) buildTimer(metricsFactory metrics.Factory, key recordedRequestKey) (out metrics.Timer) {
+func (r *requestDurations) buildTimer(
+	metricsFactory metrics.Factory,
+	key recordedRequestKey,
+) (out metrics.Timer) {
 	// deal with https://github.com/jaegertracing/jaeger/issues/2944
 	defer func() {
 		if err := recover(); err != nil {
-			r.logger.Error("panic in metrics factory trying to create a timer", zap.Any("error", err))
+			r.logger.Error(
+				"panic in metrics factory trying to create a timer",
+				zap.Any("error", err),
+			)
 			out = metrics.NullTimer
 		}
 	}()

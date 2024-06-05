@@ -50,7 +50,10 @@ type ThriftProcessor struct {
 // code, e.g. jaegerThrift.NewAgentProcessor(handler), where handler implements the Agent
 // Thrift service interface, which is invoked with the deserialized struct.
 type AgentProcessor interface {
-	Process(ctx context.Context, iprot, oprot thrift.TProtocol) (success bool, err thrift.TException)
+	Process(
+		ctx context.Context,
+		iprot, oprot thrift.TProtocol,
+	) (success bool, err thrift.TException)
 }
 
 // NewThriftProcessor creates a TBufferedServer backed ThriftProcessor
@@ -64,7 +67,9 @@ func NewThriftProcessor(
 ) (*ThriftProcessor, error) {
 	if numProcessors <= 0 {
 		return nil, fmt.Errorf(
-			"number of processors must be greater than 0, called with %d", numProcessors)
+			"number of processors must be greater than 0, called with %d",
+			numProcessors,
+		)
 	}
 	protocolPool := &sync.Pool{
 		New: func() any {
@@ -117,11 +122,15 @@ func (s *ThriftProcessor) processBuffer() {
 		protocol := s.protocolPool.Get().(thrift.TProtocol)
 		payload := readBuf.GetBytes()
 		protocol.Transport().Write(payload)
-		s.logger.Debug("Span(s) received by the agent", zap.Int("bytes-received", len(payload)))
+		s.logger.Debug(
+			"Span(s) received by the agent",
+			zap.Int("bytes-received", len(payload)),
+		)
 
 		// NB: oddly, thrift-gen/agent/agent.go:L156 does this: `return true, thrift.WrapTException(err2)`
 		// So we check for both OK and error.
-		if ok, err := s.handler.Process(context.Background(), protocol, protocol); !ok || err != nil {
+		if ok, err := s.handler.Process(context.Background(), protocol, protocol); !ok ||
+			err != nil {
 			s.logger.Error("Processor failed", zap.Error(err))
 			s.metrics.HandlerProcessError.Inc(1)
 		}

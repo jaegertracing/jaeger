@@ -25,19 +25,26 @@ import (
 )
 
 // NewZipkinThriftUDPClient creates a new zipking agent client that works like Jaeger client
-func NewZipkinThriftUDPClient(hostPort string) (*agent.AgentClient, io.Closer, error) {
+func NewZipkinThriftUDPClient(
+	hostPort string,
+) (*agent.AgentClient, io.Closer, error) {
 	clientTransport, err := thriftudp.NewTUDPClientTransport(hostPort, "")
 	if err != nil {
 		return nil, nil, err
 	}
 
-	protocolFactory := thrift.NewTCompactProtocolFactoryConf(&thrift.TConfiguration{})
+	protocolFactory := thrift.NewTCompactProtocolFactoryConf(
+		&thrift.TConfiguration{},
+	)
 	client := agent.NewAgentClientFactory(clientTransport, protocolFactory)
 	return client, clientTransport, nil
 }
 
 // NewJaegerThriftUDPClient creates a new jaeger agent client that works like Jaeger client
-func NewJaegerThriftUDPClient(hostPort string, protocolFactory thrift.TProtocolFactory) (*agent.AgentClient, io.Closer, error) {
+func NewJaegerThriftUDPClient(
+	hostPort string,
+	protocolFactory thrift.TProtocolFactory,
+) (*agent.AgentClient, io.Closer, error) {
 	clientTransport, err := thriftudp.NewTUDPClientTransport(hostPort, "")
 	if err != nil {
 		return nil, nil, err

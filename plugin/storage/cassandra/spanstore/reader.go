@@ -76,16 +76,22 @@ var (
 	ErrServiceNameNotSet = errors.New("service Name must be set")
 
 	// ErrStartTimeMinGreaterThanMax occurs when start time min is above start time max
-	ErrStartTimeMinGreaterThanMax = errors.New("start Time Minimum is above Maximum")
+	ErrStartTimeMinGreaterThanMax = errors.New(
+		"start Time Minimum is above Maximum",
+	)
 
 	// ErrDurationMinGreaterThanMax occurs when duration min is above duration max
-	ErrDurationMinGreaterThanMax = errors.New("duration Minimum is above Maximum")
+	ErrDurationMinGreaterThanMax = errors.New(
+		"duration Minimum is above Maximum",
+	)
 
 	// ErrMalformedRequestObject occurs when a request object is nil
 	ErrMalformedRequestObject = errors.New("malformed request object")
 
 	// ErrDurationAndTagQueryNotSupported occurs when duration and tags are both set
-	ErrDurationAndTagQueryNotSupported = errors.New("cannot query for duration and tags simultaneously")
+	ErrDurationAndTagQueryNotSupported = errors.New(
+		"cannot query for duration and tags simultaneously",
+	)
 
 	// ErrStartAndEndTimeNotSet occurs when start time and end time are not set
 	ErrStartAndEndTimeNotSet = errors.New("start and End Time must be set")
@@ -121,20 +127,50 @@ func NewSpanReader(
 	logger *zap.Logger,
 	tracer trace.Tracer,
 ) *SpanReader {
-	readFactory := metricsFactory.Namespace(metrics.NSOptions{Name: "read", Tags: nil})
-	serviceNamesStorage := NewServiceNamesStorage(session, 0, metricsFactory, logger)
-	operationNamesStorage := NewOperationNamesStorage(session, 0, metricsFactory, logger)
+	readFactory := metricsFactory.Namespace(
+		metrics.NSOptions{Name: "read", Tags: nil},
+	)
+	serviceNamesStorage := NewServiceNamesStorage(
+		session,
+		0,
+		metricsFactory,
+		logger,
+	)
+	operationNamesStorage := NewOperationNamesStorage(
+		session,
+		0,
+		metricsFactory,
+		logger,
+	)
 	return &SpanReader{
 		session:              session,
 		serviceNamesReader:   serviceNamesStorage.GetServices,
 		operationNamesReader: operationNamesStorage.GetOperations,
 		metrics: spanReaderMetrics{
-			readTraces:                 casMetrics.NewTable(readFactory, "read_traces"),
-			queryTrace:                 casMetrics.NewTable(readFactory, "query_traces"),
-			queryTagIndex:              casMetrics.NewTable(readFactory, "tag_index"),
-			queryDurationIndex:         casMetrics.NewTable(readFactory, "duration_index"),
-			queryServiceOperationIndex: casMetrics.NewTable(readFactory, "service_operation_index"),
-			queryServiceNameIndex:      casMetrics.NewTable(readFactory, "service_name_index"),
+			readTraces: casMetrics.NewTable(
+				readFactory,
+				"read_traces",
+			),
+			queryTrace: casMetrics.NewTable(
+				readFactory,
+				"query_traces",
+			),
+			queryTagIndex: casMetrics.NewTable(
+				readFactory,
+				"tag_index",
+			),
+			queryDurationIndex: casMetrics.NewTable(
+				readFactory,
+				"duration_index",
+			),
+			queryServiceOperationIndex: casMetrics.NewTable(
+				readFactory,
+				"service_operation_index",
+			),
+			queryServiceNameIndex: casMetrics.NewTable(
+				readFactory,
+				"service_name_index",
+			),
 		},
 		logger: logger,
 		tracer: tracer,
@@ -154,7 +190,10 @@ func (s *SpanReader) GetOperations(
 	return s.operationNamesReader(query)
 }
 
-func (s *SpanReader) readTrace(ctx context.Context, traceID dbmodel.TraceID) (*model.Trace, error) {
+func (s *SpanReader) readTrace(
+	ctx context.Context,
+	traceID dbmodel.TraceID,
+) (*model.Trace, error) {
 	ctx, span := s.startSpanForQuery(ctx, "readTrace", querySpanByTraceID)
 	defer span.End()
 	span.SetAttributes(attribute.Key("trace_id").String(traceID.String()))
@@ -164,7 +203,10 @@ func (s *SpanReader) readTrace(ctx context.Context, traceID dbmodel.TraceID) (*m
 	return trace, err
 }
 
-func (s *SpanReader) readTraceInSpan(ctx context.Context, traceID dbmodel.TraceID) (*model.Trace, error) {
+func (s *SpanReader) readTraceInSpan(
+	ctx context.Context,
+	traceID dbmodel.TraceID,
+) (*model.Trace, error) {
 	start := time.Now()
 	q := s.session.Query(querySpanByTraceID, traceID)
 	i := q.Iter()
@@ -212,7 +254,10 @@ func (s *SpanReader) readTraceInSpan(ctx context.Context, traceID dbmodel.TraceI
 }
 
 // GetTrace takes a traceID and returns a Trace associated with that traceID
-func (s *SpanReader) GetTrace(ctx context.Context, traceID model.TraceID) (*model.Trace, error) {
+func (s *SpanReader) GetTrace(
+	ctx context.Context,
+	traceID model.TraceID,
+) (*model.Trace, error) {
 	return s.readTrace(ctx, dbmodel.TraceIDFromDomain(traceID))
 }
 
@@ -226,10 +271,12 @@ func validateQuery(p *spanstore.TraceQueryParameters) error {
 	if p.StartTimeMin.IsZero() || p.StartTimeMax.IsZero() {
 		return ErrStartAndEndTimeNotSet
 	}
-	if !p.StartTimeMin.IsZero() && !p.StartTimeMax.IsZero() && p.StartTimeMax.Before(p.StartTimeMin) {
+	if !p.StartTimeMin.IsZero() && !p.StartTimeMax.IsZero() &&
+		p.StartTimeMax.Before(p.StartTimeMin) {
 		return ErrStartTimeMinGreaterThanMax
 	}
-	if p.DurationMin != 0 && p.DurationMax != 0 && p.DurationMin > p.DurationMax {
+	if p.DurationMin != 0 && p.DurationMax != 0 &&
+		p.DurationMin > p.DurationMax {
 		return ErrDurationMinGreaterThanMax
 	}
 	if (p.DurationMin != 0 || p.DurationMax != 0) && len(p.Tags) > 0 {
@@ -239,7 +286,10 @@ func validateQuery(p *spanstore.TraceQueryParameters) error {
 }
 
 // FindTraces retrieves traces that match the traceQuery
-func (s *SpanReader) FindTraces(ctx context.Context, traceQuery *spanstore.TraceQueryParameters) ([]*model.Trace, error) {
+func (s *SpanReader) FindTraces(
+	ctx context.Context,
+	traceQuery *spanstore.TraceQueryParameters,
+) ([]*model.Trace, error) {
 	uniqueTraceIDs, err := s.FindTraceIDs(ctx, traceQuery)
 	if err != nil {
 		return nil, err
@@ -248,7 +298,11 @@ func (s *SpanReader) FindTraces(ctx context.Context, traceQuery *spanstore.Trace
 	for _, traceID := range uniqueTraceIDs {
 		jTrace, err := s.GetTrace(ctx, traceID)
 		if err != nil {
-			s.logger.Error("Failure to read trace", zap.String("trace_id", traceID.String()), zap.Error(err))
+			s.logger.Error(
+				"Failure to read trace",
+				zap.String("trace_id", traceID.String()),
+				zap.Error(err),
+			)
 			continue
 		}
 		retMe = append(retMe, jTrace)
@@ -257,7 +311,10 @@ func (s *SpanReader) FindTraces(ctx context.Context, traceQuery *spanstore.Trace
 }
 
 // FindTraceIDs retrieve traceIDs that match the traceQuery
-func (s *SpanReader) FindTraceIDs(ctx context.Context, traceQuery *spanstore.TraceQueryParameters) ([]model.TraceID, error) {
+func (s *SpanReader) FindTraceIDs(
+	ctx context.Context,
+	traceQuery *spanstore.TraceQueryParameters,
+) ([]model.TraceID, error) {
 	if err := validateQuery(traceQuery); err != nil {
 		return nil, err
 	}
@@ -280,7 +337,10 @@ func (s *SpanReader) FindTraceIDs(ctx context.Context, traceQuery *spanstore.Tra
 	return traceIDs, nil
 }
 
-func (s *SpanReader) findTraceIDs(ctx context.Context, traceQuery *spanstore.TraceQueryParameters) (dbmodel.UniqueTraceIDs, error) {
+func (s *SpanReader) findTraceIDs(
+	ctx context.Context,
+	traceQuery *spanstore.TraceQueryParameters,
+) (dbmodel.UniqueTraceIDs, error) {
 	if traceQuery.DurationMin != 0 || traceQuery.DurationMax != 0 {
 		return s.queryByDuration(ctx, traceQuery)
 	}
@@ -308,7 +368,10 @@ func (s *SpanReader) findTraceIDs(ctx context.Context, traceQuery *spanstore.Tra
 	return s.queryByService(ctx, traceQuery)
 }
 
-func (s *SpanReader) queryByTagsAndLogs(ctx context.Context, tq *spanstore.TraceQueryParameters) (dbmodel.UniqueTraceIDs, error) {
+func (s *SpanReader) queryByTagsAndLogs(
+	ctx context.Context,
+	tq *spanstore.TraceQueryParameters,
+) (dbmodel.UniqueTraceIDs, error) {
 	ctx, span := s.startSpanForQuery(ctx, "queryByTagsAndLogs", queryByTag)
 	defer span.End()
 
@@ -338,16 +401,25 @@ func (s *SpanReader) queryByTagsAndLogs(ctx context.Context, tq *spanstore.Trace
 	return dbmodel.IntersectTraceIDs(results), nil
 }
 
-func (s *SpanReader) queryByDuration(ctx context.Context, traceQuery *spanstore.TraceQueryParameters) (dbmodel.UniqueTraceIDs, error) {
+func (s *SpanReader) queryByDuration(
+	ctx context.Context,
+	traceQuery *spanstore.TraceQueryParameters,
+) (dbmodel.UniqueTraceIDs, error) {
 	ctx, span := s.startSpanForQuery(ctx, "queryByDuration", queryByDuration)
 	defer span.End()
 
 	results := dbmodel.UniqueTraceIDs{}
 
-	minDurationMicros := traceQuery.DurationMin.Nanoseconds() / int64(time.Microsecond/time.Nanosecond)
-	maxDurationMicros := (time.Hour * 24).Nanoseconds() / int64(time.Microsecond/time.Nanosecond)
+	minDurationMicros := traceQuery.DurationMin.Nanoseconds() / int64(
+		time.Microsecond/time.Nanosecond,
+	)
+	maxDurationMicros := (time.Hour * 24).Nanoseconds() / int64(
+		time.Microsecond/time.Nanosecond,
+	)
 	if traceQuery.DurationMax != 0 {
-		maxDurationMicros = traceQuery.DurationMax.Nanoseconds() / int64(time.Microsecond/time.Nanosecond)
+		maxDurationMicros = traceQuery.DurationMax.Nanoseconds() / int64(
+			time.Microsecond/time.Nanosecond,
+		)
 	}
 
 	// See writer.go:indexByDuration  for how this is indexed
@@ -357,7 +429,9 @@ func (s *SpanReader) queryByDuration(ctx context.Context, traceQuery *spanstore.
 
 	for timeBucket := endTimeByHour; timeBucket.After(startTimeByHour) || timeBucket.Equal(startTimeByHour); timeBucket = timeBucket.Add(-1 * durationBucketSize) {
 		_, childSpan := s.tracer.Start(ctx, "queryForTimeBucket")
-		childSpan.SetAttributes(attribute.Key("timeBucket").String(timeBucket.String()))
+		childSpan.SetAttributes(
+			attribute.Key("timeBucket").String(timeBucket.String()),
+		)
 		query := s.session.Query(
 			queryByDuration,
 			timeBucket,
@@ -382,8 +456,15 @@ func (s *SpanReader) queryByDuration(ctx context.Context, traceQuery *spanstore.
 	return results, nil
 }
 
-func (s *SpanReader) queryByServiceNameAndOperation(ctx context.Context, tq *spanstore.TraceQueryParameters) (dbmodel.UniqueTraceIDs, error) {
-	_, span := s.startSpanForQuery(ctx, "queryByServiceNameAndOperation", queryByServiceAndOperationName)
+func (s *SpanReader) queryByServiceNameAndOperation(
+	ctx context.Context,
+	tq *spanstore.TraceQueryParameters,
+) (dbmodel.UniqueTraceIDs, error) {
+	_, span := s.startSpanForQuery(
+		ctx,
+		"queryByServiceNameAndOperation",
+		queryByServiceAndOperationName,
+	)
 	defer span.End()
 	query := s.session.Query(
 		queryByServiceAndOperationName,
@@ -396,8 +477,15 @@ func (s *SpanReader) queryByServiceNameAndOperation(ctx context.Context, tq *spa
 	return s.executeQuery(span, query, s.metrics.queryServiceOperationIndex)
 }
 
-func (s *SpanReader) queryByService(ctx context.Context, tq *spanstore.TraceQueryParameters) (dbmodel.UniqueTraceIDs, error) {
-	_, span := s.startSpanForQuery(ctx, "queryByService", queryByServiceAndOperationName)
+func (s *SpanReader) queryByService(
+	ctx context.Context,
+	tq *spanstore.TraceQueryParameters,
+) (dbmodel.UniqueTraceIDs, error) {
+	_, span := s.startSpanForQuery(
+		ctx,
+		"queryByService",
+		queryByServiceAndOperationName,
+	)
 	defer span.End()
 	query := s.session.Query(
 		queryByServiceName,
@@ -409,7 +497,11 @@ func (s *SpanReader) queryByService(ctx context.Context, tq *spanstore.TraceQuer
 	return s.executeQuery(span, query, s.metrics.queryServiceNameIndex)
 }
 
-func (s *SpanReader) executeQuery(span trace.Span, query cassandra.Query, tableMetrics *casMetrics.Table) (dbmodel.UniqueTraceIDs, error) {
+func (s *SpanReader) executeQuery(
+	span trace.Span,
+	query cassandra.Query,
+	tableMetrics *casMetrics.Table,
+) (dbmodel.UniqueTraceIDs, error) {
 	start := time.Now()
 	i := query.Iter()
 	retMe := dbmodel.UniqueTraceIDs{}
@@ -421,13 +513,20 @@ func (s *SpanReader) executeQuery(span trace.Span, query cassandra.Query, tableM
 	tableMetrics.Emit(err, time.Since(start))
 	if err != nil {
 		logErrorToSpan(span, err)
-		s.logger.Error("Failed to exec query", zap.Error(err), zap.String("query", query.String()))
+		s.logger.Error(
+			"Failed to exec query",
+			zap.Error(err),
+			zap.String("query", query.String()),
+		)
 		return nil, err
 	}
 	return retMe, nil
 }
 
-func (s *SpanReader) startSpanForQuery(ctx context.Context, name, query string) (context.Context, trace.Span) {
+func (s *SpanReader) startSpanForQuery(
+	ctx context.Context,
+	name, query string,
+) (context.Context, trace.Span) {
 	ctx, span := s.tracer.Start(ctx, name)
 	span.SetAttributes(
 		attribute.Key(semconv.DBStatementKey).String(query),

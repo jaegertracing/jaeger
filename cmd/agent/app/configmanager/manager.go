@@ -29,6 +29,12 @@ import (
 // 1) which sampling strategy a given service should be using
 // 2) which baggage restrictions a given service should be using.
 type ClientConfigManager interface {
-	GetSamplingStrategy(ctx context.Context, serviceName string) (*api_v2.SamplingStrategyResponse, error)
-	GetBaggageRestrictions(ctx context.Context, serviceName string) ([]*baggage.BaggageRestriction, error)
+	GetSamplingStrategy(
+		ctx context.Context,
+		serviceName string,
+	) (*api_v2.SamplingStrategyResponse, error)
+	GetBaggageRestrictions(
+		ctx context.Context,
+		serviceName string,
+	) ([]*baggage.BaggageRestriction, error)
 }

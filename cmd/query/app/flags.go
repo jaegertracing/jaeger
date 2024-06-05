@@ -104,22 +104,65 @@ type QueryOptions struct {
 
 // AddFlags adds flags for QueryOptions
 func AddFlags(flagSet *flag.FlagSet) {
-	flagSet.Var(&config.StringSlice{}, queryAdditionalHeaders, `Additional HTTP response headers.  Can be specified multiple times.  Format: "Key: Value"`)
-	flagSet.String(queryHTTPHostPort, ports.PortToHostPort(ports.QueryHTTP), "The host:port (e.g. 127.0.0.1:14268 or :14268) of the query's HTTP server")
-	flagSet.String(queryGRPCHostPort, ports.PortToHostPort(ports.QueryGRPC), "The host:port (e.g. 127.0.0.1:14250 or :14250) of the query's gRPC server")
-	flagSet.String(queryBasePath, "/", "The base path for all HTTP routes, e.g. /jaeger; useful when running behind a reverse proxy. See https://github.com/jaegertracing/jaeger/blob/main/examples/reverse-proxy/README.md")
-	flagSet.String(queryStaticFiles, "", "The directory path override for the static assets for the UI")
-	flagSet.Bool(queryLogStaticAssetsAccess, false, "Log when static assets are accessed (for debugging)")
-	flagSet.String(queryUIConfig, "", "The path to the UI configuration file in JSON format")
-	flagSet.Bool(queryTokenPropagation, false, "Allow propagation of bearer token to be used by storage plugins")
-	flagSet.Duration(queryMaxClockSkewAdjust, 0, "The maximum delta by which span timestamps may be adjusted in the UI due to clock skew; set to 0s to disable clock skew adjustments")
-	flagSet.Bool(queryEnableTracing, false, "Enables emitting jaeger-query traces")
+	flagSet.Var(
+		&config.StringSlice{},
+		queryAdditionalHeaders,
+		`Additional HTTP response headers.  Can be specified multiple times.  Format: "Key: Value"`,
+	)
+	flagSet.String(
+		queryHTTPHostPort,
+		ports.PortToHostPort(ports.QueryHTTP),
+		"The host:port (e.g. 127.0.0.1:14268 or :14268) of the query's HTTP server",
+	)
+	flagSet.String(
+		queryGRPCHostPort,
+		ports.PortToHostPort(ports.QueryGRPC),
+		"The host:port (e.g. 127.0.0.1:14250 or :14250) of the query's gRPC server",
+	)
+	flagSet.String(
+		queryBasePath,
+		"/",
+		"The base path for all HTTP routes, e.g. /jaeger; useful when running behind a reverse proxy. See https://github.com/jaegertracing/jaeger/blob/main/examples/reverse-proxy/README.md",
+	)
+	flagSet.String(
+		queryStaticFiles,
+		"",
+		"The directory path override for the static assets for the UI",
+	)
+	flagSet.Bool(
+		queryLogStaticAssetsAccess,
+		false,
+		"Log when static assets are accessed (for debugging)",
+	)
+	flagSet.String(
+		queryUIConfig,
+		"",
+		"The path to the UI configuration file in JSON format",
+	)
+	flagSet.Bool(
+		queryTokenPropagation,
+		false,
+		"Allow propagation of bearer token to be used by storage plugins",
+	)
+	flagSet.Duration(
+		queryMaxClockSkewAdjust,
+		0,
+		"The maximum delta by which span timestamps may be adjusted in the UI due to clock skew; set to 0s to disable clock skew adjustments",
+	)
+	flagSet.Bool(
+		queryEnableTracing,
+		false,
+		"Enables emitting jaeger-query traces",
+	)
 	tlsGRPCFlagsConfig.AddFlags(flagSet)
 	tlsHTTPFlagsConfig.AddFlags(flagSet)
 }
 
 // InitFromViper initializes QueryOptions with properties from viper
-func (qOpts *QueryOptions) InitFromViper(v *viper.Viper, logger *zap.Logger) (*QueryOptions, error) {
+func (qOpts *QueryOptions) InitFromViper(
+	v *viper.Viper,
+	logger *zap.Logger,
+) (*QueryOptions, error) {
 	qOpts.HTTPHostPort = v.GetString(queryHTTPHostPort)
 	qOpts.GRPCHostPort = v.GetString(queryGRPCHostPort)
 	tlsGrpc, err := tlsGRPCFlagsConfig.InitFromViper(v)
@@ -142,7 +185,11 @@ func (qOpts *QueryOptions) InitFromViper(v *viper.Viper, logger *zap.Logger) (*Q
 	stringSlice := v.GetStringSlice(queryAdditionalHeaders)
 	headers, err := stringSliceAsHeader(stringSlice)
 	if err != nil {
-		logger.Error("Failed to parse headers", zap.Strings("slice", stringSlice), zap.Error(err))
+		logger.Error(
+			"Failed to parse headers",
+			zap.Strings("slice", stringSlice),
+			zap.Error(err),
+		)
 	} else {
 		qOpts.AdditionalHeaders = headers
 	}
@@ -152,13 +199,17 @@ func (qOpts *QueryOptions) InitFromViper(v *viper.Viper, logger *zap.Logger) (*Q
 }
 
 // BuildQueryServiceOptions creates a QueryServiceOptions struct with appropriate adjusters and archive config
-func (qOpts *QueryOptions) BuildQueryServiceOptions(storageFactory storage.Factory, logger *zap.Logger) *querysvc.QueryServiceOptions {
+func (qOpts *QueryOptions) BuildQueryServiceOptions(
+	storageFactory storage.Factory,
+	logger *zap.Logger,
+) *querysvc.QueryServiceOptions {
 	opts := &querysvc.QueryServiceOptions{}
 	if !opts.InitArchiveStorage(storageFactory, logger) {
 		logger.Info("Archive storage not initialized")
 	}
 
-	opts.Adjuster = adjuster.Sequence(querysvc.StandardAdjusters(qOpts.MaxClockSkewAdjust)...)
+	opts.Adjuster = adjuster.Sequence(
+		querysvc.StandardAdjusters(qOpts.MaxClockSkewAdjust)...)
 
 	return opts
 }

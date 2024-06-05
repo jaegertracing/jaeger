@@ -42,7 +42,10 @@ func CipherSuiteNamesToIDs(cipherNames []string) ([]uint16, error) {
 	for _, cipher := range cipherNames {
 		intValue, ok := possibleCiphers[cipher]
 		if !ok {
-			return nil, fmt.Errorf("cipher suite %s not supported or doesn't exist", cipher)
+			return nil, fmt.Errorf(
+				"cipher suite %s not supported or doesn't exist",
+				cipher,
+			)
 		}
 		ciphersIDs = append(ciphersIDs, intValue)
 	}

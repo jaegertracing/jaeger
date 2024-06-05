@@ -45,10 +45,26 @@ func TestParseTraceQuery(t *testing.T) {
 		{"x?service=service&start=string", errParseInt, nil},
 		{"x?service=service&end=string", errParseInt, nil},
 		{"x?service=service&limit=string", errParseInt, nil},
-		{"x?service=service&start=0&end=0&operation=operation&limit=200&minDuration=20", `unable to parse param 'minDuration': time: missing unit in duration "?20"?$`, nil},
-		{"x?service=service&start=0&end=0&operation=operation&limit=200&minDuration=20s&maxDuration=30", `unable to parse param 'maxDuration': time: missing unit in duration "?30"?$`, nil},
-		{"x?service=service&start=0&end=0&operation=operation&limit=200&tag=k:v&tag=x:y&tag=k&log=k:v&log=k", `malformed 'tag' parameter, expecting key:value, received: k`, nil},
-		{"x?service=service&start=0&end=0&operation=operation&limit=200&minDuration=25s&maxDuration=1s", `'maxDuration' should be greater than 'minDuration'`, nil},
+		{
+			"x?service=service&start=0&end=0&operation=operation&limit=200&minDuration=20",
+			`unable to parse param 'minDuration': time: missing unit in duration "?20"?$`,
+			nil,
+		},
+		{
+			"x?service=service&start=0&end=0&operation=operation&limit=200&minDuration=20s&maxDuration=30",
+			`unable to parse param 'maxDuration': time: missing unit in duration "?30"?$`,
+			nil,
+		},
+		{
+			"x?service=service&start=0&end=0&operation=operation&limit=200&tag=k:v&tag=x:y&tag=k&log=k:v&log=k",
+			`malformed 'tag' parameter, expecting key:value, received: k`,
+			nil,
+		},
+		{
+			"x?service=service&start=0&end=0&operation=operation&limit=200&minDuration=25s&maxDuration=1s",
+			`'maxDuration' should be greater than 'minDuration'`,
+			nil,
+		},
 		{
 			"x?service=service&start=0&end=0&operation=operation&limit=200&tag=k:v&tag=x:y", noErr,
 			&traceQueryParameters{
@@ -63,7 +79,11 @@ func TestParseTraceQuery(t *testing.T) {
 			},
 		},
 		// tags=JSON with a non-string value 123
-		{`x?service=service&start=0&end=0&operation=operation&limit=200&tag=k:v&tags={"x":123}`, "malformed 'tags' parameter, cannot unmarshal JSON: json: cannot unmarshal number into Go value of type string", nil},
+		{
+			`x?service=service&start=0&end=0&operation=operation&limit=200&tag=k:v&tags={"x":123}`,
+			"malformed 'tags' parameter, cannot unmarshal JSON: json: cannot unmarshal number into Go value of type string",
+			nil,
+		},
 		// tags=JSON
 		{
 			`x?service=service&start=0&end=0&operation=operation&limit=200&tag=k:v&tags={"x":"y"}`, noErr,
@@ -199,7 +219,11 @@ func TestParseBool(t *testing.T) {
 		{"0", false},
 	} {
 		t.Run(tc.input, func(t *testing.T) {
-			request, err := http.NewRequest(http.MethodGet, "x?service=foo&groupByOperation="+tc.input, nil)
+			request, err := http.NewRequest(
+				http.MethodGet,
+				"x?service=foo&groupByOperation="+tc.input,
+				nil,
+			)
 			require.NoError(t, err)
 			timeNow := time.Now()
 			parser := &queryParser{
@@ -215,7 +239,11 @@ func TestParseBool(t *testing.T) {
 }
 
 func TestParseDuration(t *testing.T) {
-	request, err := http.NewRequest(http.MethodGet, "x?service=foo&step=1000", nil)
+	request, err := http.NewRequest(
+		http.MethodGet,
+		"x?service=foo&step=1000",
+		nil,
+	)
 	require.NoError(t, err)
 	parser := &queryParser{
 		timeNow: time.Now,
@@ -226,7 +254,11 @@ func TestParseDuration(t *testing.T) {
 }
 
 func TestParseRepeatedServices(t *testing.T) {
-	request, err := http.NewRequest(http.MethodGet, "x?service=foo&service=bar", nil)
+	request, err := http.NewRequest(
+		http.MethodGet,
+		"x?service=foo&service=bar",
+		nil,
+	)
 	require.NoError(t, err)
 	parser := &queryParser{
 		timeNow: time.Now,

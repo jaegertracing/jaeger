@@ -43,7 +43,12 @@ import (
 var once sync.Once
 
 // InitOTEL initializes OpenTelemetry SDK.
-func InitOTEL(serviceName string, exporterType string, metricsFactory metrics.Factory, logger log.Factory) trace.TracerProvider {
+func InitOTEL(
+	serviceName string,
+	exporterType string,
+	metricsFactory metrics.Factory,
+	logger log.Factory,
+) trace.TracerProvider {
 	once.Do(func() {
 		otel.SetTextMapPropagator(
 			propagation.NewCompositeTextMapPropagator(
@@ -54,11 +59,15 @@ func InitOTEL(serviceName string, exporterType string, metricsFactory metrics.Fa
 
 	exp, err := createOtelExporter(exporterType)
 	if err != nil {
-		logger.Bg().Fatal("cannot create exporter", zap.String("exporterType", exporterType), zap.Error(err))
+		logger.Bg().
+			Fatal("cannot create exporter", zap.String("exporterType", exporterType), zap.Error(err))
 	}
 	logger.Bg().Debug("using " + exporterType + " trace exporter")
 
-	rpcmetricsObserver := rpcmetrics.NewObserver(metricsFactory, rpcmetrics.DefaultNameNormalizer)
+	rpcmetricsObserver := rpcmetrics.NewObserver(
+		metricsFactory,
+		rpcmetrics.DefaultNameNormalizer,
+	)
 
 	res, err := resource.New(
 		context.Background(),
@@ -73,17 +82,24 @@ func InitOTEL(serviceName string, exporterType string, metricsFactory metrics.Fa
 	}
 
 	tp := sdktrace.NewTracerProvider(
-		sdktrace.WithBatcher(exp, sdktrace.WithBatchTimeout(1000*time.Millisecond)),
+		sdktrace.WithBatcher(
+			exp,
+			sdktrace.WithBatchTimeout(1000*time.Millisecond),
+		),
 		sdktrace.WithSpanProcessor(rpcmetricsObserver),
 		sdktrace.WithResource(res),
 	)
-	logger.Bg().Debug("Created OTEL tracer", zap.String("service-name", serviceName))
+	logger.Bg().
+		Debug("Created OTEL tracer", zap.String("service-name", serviceName))
 	return tp
 }
 
 // withSecure instructs the client to use HTTPS scheme, instead of hotrod's desired default HTTP
 func withSecure() bool {
-	return strings.HasPrefix(os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT"), "https://") ||
+	return strings.HasPrefix(
+		os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT"),
+		"https://",
+	) ||
 		strings.ToLower(os.Getenv("OTEL_EXPORTER_OTLP_INSECURE")) == "false"
 }
 
@@ -92,7 +108,9 @@ func createOtelExporter(exporterType string) (sdktrace.SpanExporter, error) {
 	var err error
 	switch exporterType {
 	case "jaeger":
-		return nil, errors.New("jaeger exporter is no longer supported, please use otlp")
+		return nil, errors.New(
+			"jaeger exporter is no longer supported, please use otlp",
+		)
 	case "otlp":
 		var opts []otlptracehttp.Option
 		if !withSecure() {

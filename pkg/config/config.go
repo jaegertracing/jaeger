@@ -31,7 +31,11 @@ func Viperize(inits ...func(*flag.FlagSet)) (*viper.Viper, *cobra.Command) {
 }
 
 // AddFlags adds flags to command and viper and configures
-func AddFlags(v *viper.Viper, command *cobra.Command, inits ...func(*flag.FlagSet)) (*viper.Viper, *cobra.Command) {
+func AddFlags(
+	v *viper.Viper,
+	command *cobra.Command,
+	inits ...func(*flag.FlagSet),
+) (*viper.Viper, *cobra.Command) {
 	flagSet := new(flag.FlagSet)
 	for i := range inits {
 		inits[i](flagSet)

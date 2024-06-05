@@ -72,8 +72,13 @@ func New(
 		discoCh:           make(chan []string, 100),
 		logger:            logger,
 		discoveryMinPeers: discoveryMinPeers,
-		salt:              []byte(strconv.FormatInt(random.Int63(), 10)), // random salt for rendezvousHash
-		scheme:            strconv.FormatInt(seed, 36),                   // make random scheme which will be used when registering
+		salt: []byte(
+			strconv.FormatInt(random.Int63(), 10),
+		), // random salt for rendezvousHash
+		scheme: strconv.FormatInt(
+			seed,
+			36,
+		), // make random scheme which will be used when registering
 	}
 
 	// Register the resolver with grpc so it's available for grpc.Dial
@@ -85,7 +90,11 @@ func New(
 }
 
 // Build returns itself for Resolver, because it's both a builder and a resolver.
-func (r *Resolver) Build(target resolver.Target, cc resolver.ClientConn, opts resolver.BuildOptions) (resolver.Resolver, error) {
+func (r *Resolver) Build(
+	target resolver.Target,
+	cc resolver.ClientConn,
+	opts resolver.BuildOptions,
+) (resolver.Resolver, error) {
 	r.cc = cc
 
 	// Update conn states if proactively updates already work
@@ -111,7 +120,10 @@ func (*Resolver) ResolveNow(o resolver.ResolveNowOptions) {}
 func (r *Resolver) watcher() {
 	defer r.closing.Done()
 	for latestHostPorts := range r.discoCh {
-		r.logger.Info("Received updates from notifier", zap.Strings("hostPorts", latestHostPorts))
+		r.logger.Info(
+			"Received updates from notifier",
+			zap.Strings("hostPorts", latestHostPorts),
+		)
 		r.updateAddresses(latestHostPorts)
 	}
 }

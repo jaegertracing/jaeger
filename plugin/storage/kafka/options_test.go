@@ -47,7 +47,11 @@ func TestOptionsWithFlags(t *testing.T) {
 	opts.InitFromViper(v)
 
 	assert.Equal(t, "topic1", opts.Topic)
-	assert.Equal(t, []string{"127.0.0.1:9092", "0.0.0:1234"}, opts.Config.Brokers)
+	assert.Equal(
+		t,
+		[]string{"127.0.0.1:9092", "0.0.0:1234"},
+		opts.Config.Brokers,
+	)
 	assert.Equal(t, "protobuf", opts.Encoding)
 	assert.Equal(t, sarama.WaitForLocal, opts.Config.RequiredAcks)
 	assert.Equal(t, sarama.CompressionGZIP, opts.Config.Compression)
@@ -80,31 +84,61 @@ func TestFlagDefaults(t *testing.T) {
 }
 
 func TestCompressionLevelDefaults(t *testing.T) {
-	compressionLevel, err := getCompressionLevel("none", defaultCompressionLevel)
+	compressionLevel, err := getCompressionLevel(
+		"none",
+		defaultCompressionLevel,
+	)
 	require.NoError(t, err)
-	assert.Equal(t, compressionModes["none"].defaultCompressionLevel, compressionLevel)
+	assert.Equal(
+		t,
+		compressionModes["none"].defaultCompressionLevel,
+		compressionLevel,
+	)
 
 	compressionLevel, err = getCompressionLevel("gzip", defaultCompressionLevel)
 	require.NoError(t, err)
-	assert.Equal(t, compressionModes["gzip"].defaultCompressionLevel, compressionLevel)
+	assert.Equal(
+		t,
+		compressionModes["gzip"].defaultCompressionLevel,
+		compressionLevel,
+	)
 
-	compressionLevel, err = getCompressionLevel("snappy", defaultCompressionLevel)
+	compressionLevel, err = getCompressionLevel(
+		"snappy",
+		defaultCompressionLevel,
+	)
 	require.NoError(t, err)
-	assert.Equal(t, compressionModes["snappy"].defaultCompressionLevel, compressionLevel)
+	assert.Equal(
+		t,
+		compressionModes["snappy"].defaultCompressionLevel,
+		compressionLevel,
+	)
 
 	compressionLevel, err = getCompressionLevel("lz4", defaultCompressionLevel)
 	require.NoError(t, err)
-	assert.Equal(t, compressionModes["lz4"].defaultCompressionLevel, compressionLevel)
+	assert.Equal(
+		t,
+		compressionModes["lz4"].defaultCompressionLevel,
+		compressionLevel,
+	)
 
 	compressionLevel, err = getCompressionLevel("zstd", defaultCompressionLevel)
 	require.NoError(t, err)
-	assert.Equal(t, compressionModes["zstd"].defaultCompressionLevel, compressionLevel)
+	assert.Equal(
+		t,
+		compressionModes["zstd"].defaultCompressionLevel,
+		compressionLevel,
+	)
 }
 
 func TestCompressionLevel(t *testing.T) {
 	compressionLevel, err := getCompressionLevel("none", 0)
 	require.NoError(t, err)
-	assert.Equal(t, compressionModes["none"].defaultCompressionLevel, compressionLevel)
+	assert.Equal(
+		t,
+		compressionModes["none"].defaultCompressionLevel,
+		compressionLevel,
+	)
 
 	compressionLevel, err = getCompressionLevel("gzip", 4)
 	require.NoError(t, err)
@@ -112,7 +146,11 @@ func TestCompressionLevel(t *testing.T) {
 
 	compressionLevel, err = getCompressionLevel("snappy", 0)
 	require.NoError(t, err)
-	assert.Equal(t, compressionModes["snappy"].defaultCompressionLevel, compressionLevel)
+	assert.Equal(
+		t,
+		compressionModes["snappy"].defaultCompressionLevel,
+		compressionLevel,
+	)
 
 	compressionLevel, err = getCompressionLevel("lz4", 10)
 	require.NoError(t, err)
@@ -176,31 +214,68 @@ func TestRequiredAcksFailures(t *testing.T) {
 }
 
 func TestTLSFlags(t *testing.T) {
-	kerb := auth.KerberosConfig{ServiceName: "kafka", ConfigPath: "/etc/krb5.conf", KeyTabPath: "/etc/security/kafka.keytab"}
-	plain := auth.PlainTextConfig{Username: "", Password: "", Mechanism: "PLAIN"}
+	kerb := auth.KerberosConfig{
+		ServiceName: "kafka",
+		ConfigPath:  "/etc/krb5.conf",
+		KeyTabPath:  "/etc/security/kafka.keytab",
+	}
+	plain := auth.PlainTextConfig{
+		Username:  "",
+		Password:  "",
+		Mechanism: "PLAIN",
+	}
 	tests := []struct {
 		flags    []string
 		expected auth.AuthenticationConfig
 	}{
 		{
-			flags:    []string{},
-			expected: auth.AuthenticationConfig{Authentication: "none", Kerberos: kerb, PlainText: plain},
+			flags: []string{},
+			expected: auth.AuthenticationConfig{
+				Authentication: "none",
+				Kerberos:       kerb,
+				PlainText:      plain,
+			},
 		},
 		{
-			flags:    []string{"--kafka.producer.authentication=foo"},
-			expected: auth.AuthenticationConfig{Authentication: "foo", Kerberos: kerb, PlainText: plain},
+			flags: []string{"--kafka.producer.authentication=foo"},
+			expected: auth.AuthenticationConfig{
+				Authentication: "foo",
+				Kerberos:       kerb,
+				PlainText:      plain,
+			},
 		},
 		{
-			flags:    []string{"--kafka.producer.authentication=kerberos", "--kafka.producer.tls.enabled=true"},
-			expected: auth.AuthenticationConfig{Authentication: "kerberos", Kerberos: kerb, TLS: tlscfg.Options{Enabled: true}, PlainText: plain},
+			flags: []string{
+				"--kafka.producer.authentication=kerberos",
+				"--kafka.producer.tls.enabled=true",
+			},
+			expected: auth.AuthenticationConfig{
+				Authentication: "kerberos",
+				Kerberos:       kerb,
+				TLS:            tlscfg.Options{Enabled: true},
+				PlainText:      plain,
+			},
 		},
 		{
-			flags:    []string{"--kafka.producer.authentication=tls"},
-			expected: auth.AuthenticationConfig{Authentication: "tls", Kerberos: kerb, TLS: tlscfg.Options{Enabled: true}, PlainText: plain},
+			flags: []string{"--kafka.producer.authentication=tls"},
+			expected: auth.AuthenticationConfig{
+				Authentication: "tls",
+				Kerberos:       kerb,
+				TLS:            tlscfg.Options{Enabled: true},
+				PlainText:      plain,
+			},
 		},
 		{
-			flags:    []string{"--kafka.producer.authentication=tls", "--kafka.producer.tls.enabled=false"},
-			expected: auth.AuthenticationConfig{Authentication: "tls", Kerberos: kerb, TLS: tlscfg.Options{Enabled: true}, PlainText: plain},
+			flags: []string{
+				"--kafka.producer.authentication=tls",
+				"--kafka.producer.tls.enabled=false",
+			},
+			expected: auth.AuthenticationConfig{
+				Authentication: "tls",
+				Kerberos:       kerb,
+				TLS:            tlscfg.Options{Enabled: true},
+				PlainText:      plain,
+			},
 		},
 	}
 

@@ -63,14 +63,20 @@ func NewFactory(config FactoryConfig) (*Factory, error) {
 	return f, nil
 }
 
-func (*Factory) getFactoryOfType(factoryType string) (storage.MetricsFactory, error) {
+func (*Factory) getFactoryOfType(
+	factoryType string,
+) (storage.MetricsFactory, error) {
 	switch factoryType {
 	case prometheusStorageType:
 		return prometheus.NewFactory(), nil
 	case disabledStorageType:
 		return disabled.NewFactory(), nil
 	}
-	return nil, fmt.Errorf("unknown metrics type %q. Valid types are %v", factoryType, AllStorageTypes)
+	return nil, fmt.Errorf(
+		"unknown metrics type %q. Valid types are %v",
+		factoryType,
+		AllStorageTypes,
+	)
 }
 
 // Initialize implements storage.MetricsFactory.
@@ -85,7 +91,10 @@ func (f *Factory) Initialize(logger *zap.Logger) error {
 func (f *Factory) CreateMetricsReader() (metricsstore.Reader, error) {
 	factory, ok := f.factories[f.MetricsStorageType]
 	if !ok {
-		return nil, fmt.Errorf("no %q backend registered for metrics store", f.MetricsStorageType)
+		return nil, fmt.Errorf(
+			"no %q backend registered for metrics store",
+			f.MetricsStorageType,
+		)
 	}
 	return factory.CreateMetricsReader()
 }

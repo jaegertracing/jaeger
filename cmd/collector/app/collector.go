@@ -105,9 +105,12 @@ func (c *Collector) Start(options *flags.CollectorOptions) error {
 
 	var additionalProcessors []ProcessSpan
 	if c.aggregator != nil {
-		additionalProcessors = append(additionalProcessors, func(span *model.Span, tenant string) {
-			c.aggregator.HandleRootSpan(span, c.logger)
-		})
+		additionalProcessors = append(
+			additionalProcessors,
+			func(span *model.Span, tenant string) {
+				c.aggregator.HandleRootSpan(span, c.logger)
+			},
+		)
 	}
 
 	c.spanProcessor = handlerBuilder.BuildSpanProcessor(additionalProcessors...)
@@ -147,7 +150,9 @@ func (c *Collector) Start(options *flags.CollectorOptions) error {
 	c.tlsZipkinCertWatcherCloser = &options.Zipkin.TLS
 
 	if options.Zipkin.HTTPHostPort == "" {
-		c.logger.Info("Not listening for Zipkin HTTP traffic, port not configured")
+		c.logger.Info(
+			"Not listening for Zipkin HTTP traffic, port not configured",
+		)
 	} else {
 		zipkinReceiver, err := handler.StartZipkinReceiver(options, c.logger, c.spanProcessor, c.tenancyMgr)
 		if err != nil {
@@ -157,7 +162,12 @@ func (c *Collector) Start(options *flags.CollectorOptions) error {
 	}
 
 	if options.OTLP.Enabled {
-		otlpReceiver, err := handler.StartOTLPReceiver(options, c.logger, c.spanProcessor, c.tenancyMgr)
+		otlpReceiver, err := handler.StartOTLPReceiver(
+			options,
+			c.logger,
+			c.spanProcessor,
+			c.tenancyMgr,
+		)
 		if err != nil {
 			return fmt.Errorf("could not start OTLP receiver: %w", err)
 		}
@@ -183,16 +193,25 @@ func (c *Collector) Close() error {
 
 	// Stop HTTP server
 	if c.hServer != nil {
-		timeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		timeout, cancel := context.WithTimeout(
+			context.Background(),
+			5*time.Second,
+		)
 		if err := c.hServer.Shutdown(timeout); err != nil {
-			c.logger.Fatal("failed to stop the main HTTP server", zap.Error(err))
+			c.logger.Fatal(
+				"failed to stop the main HTTP server",
+				zap.Error(err),
+			)
 		}
 		defer cancel()
 	}
 
 	// Stop Zipkin receiver
 	if c.zipkinReceiver != nil {
-		timeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		timeout, cancel := context.WithTimeout(
+			context.Background(),
+			5*time.Second,
+		)
 		if err := c.zipkinReceiver.Shutdown(timeout); err != nil {
 			c.logger.Fatal("failed to stop the Zipkin receiver", zap.Error(err))
 		}
@@ -201,7 +220,10 @@ func (c *Collector) Close() error {
 
 	// Stop OpenTelemetry OTLP receiver
 	if c.otlpReceiver != nil {
-		timeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		timeout, cancel := context.WithTimeout(
+			context.Background(),
+			5*time.Second,
+		)
 		if err := c.otlpReceiver.Shutdown(timeout); err != nil {
 			c.logger.Fatal("failed to stop the OTLP receiver", zap.Error(err))
 		}

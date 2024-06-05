@@ -27,12 +27,17 @@ func TestAdditionalHeadersHandler(t *testing.T) {
 	additionalHeaders := http.Header{}
 	additionalHeaders.Add("Access-Control-Allow-Origin", "https://mozilla.org")
 	additionalHeaders.Add("Access-Control-Expose-Headers", "X-My-Custom-Header")
-	additionalHeaders.Add("Access-Control-Expose-Headers", "X-Another-Custom-Header")
+	additionalHeaders.Add(
+		"Access-Control-Expose-Headers",
+		"X-Another-Custom-Header",
+	)
 	additionalHeaders.Add("Access-Control-Request-Headers", "field1, field2")
 
-	emptyHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte{})
-	})
+	emptyHandler := http.HandlerFunc(
+		func(w http.ResponseWriter, r *http.Request) {
+			w.Write([]byte{})
+		},
+	)
 
 	handler := additionalHeadersHandler(emptyHandler, additionalHeaders)
 	server := httptest.NewServer(handler)

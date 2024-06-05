@@ -47,8 +47,16 @@ func TestHandleReset(t *testing.T) {
 
 	assert.Equal(t, offset, captureOffset)
 	cnt, g := m.Snapshot()
-	assert.Equal(t, int64(1), cnt["offset-commits-total|partition=1|topic=test_topic"])
-	assert.Equal(t, int64(offset), g["last-committed-offset|partition=1|topic=test_topic"])
+	assert.Equal(
+		t,
+		int64(1),
+		cnt["offset-commits-total|partition=1|topic=test_topic"],
+	)
+	assert.Equal(
+		t,
+		int64(offset),
+		g["last-committed-offset|partition=1|topic=test_topic"],
+	)
 }
 
 func TestCache(t *testing.T) {
@@ -57,7 +65,13 @@ func TestCache(t *testing.T) {
 	fakeMarker := func(offset int64) {
 		assert.Fail(t, "Shouldn't mark cached offset")
 	}
-	manager := NewManager(offset, fakeMarker, "test_topic", 1, metrics.NullFactory)
+	manager := NewManager(
+		offset,
+		fakeMarker,
+		"test_topic",
+		1,
+		metrics.NullFactory,
+	)
 	manager.Start()
 	time.Sleep(resetInterval + 50)
 	manager.MarkOffset(offset)

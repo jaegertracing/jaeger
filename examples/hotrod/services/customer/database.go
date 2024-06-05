@@ -73,9 +73,14 @@ func newDatabase(tracer trace.Tracer, logger log.Factory) *database {
 }
 
 func (d *database) Get(ctx context.Context, customerID int) (*Customer, error) {
-	d.logger.For(ctx).Info("Loading customer", zap.Int("customer_id", customerID))
+	d.logger.For(ctx).
+		Info("Loading customer", zap.Int("customer_id", customerID))
 
-	ctx, span := d.tracer.Start(ctx, "SQL SELECT", trace.WithSpanKind(trace.SpanKindClient))
+	ctx, span := d.tracer.Start(
+		ctx,
+		"SQL SELECT",
+		trace.WithSpanKind(trace.SpanKindClient),
+	)
 	span.SetAttributes(
 		semconv.PeerServiceKey.String("mysql"),
 		attribute.

@@ -77,7 +77,11 @@ func TestToDomain(t *testing.T) {
 func TestToDomainNoServiceNameError(t *testing.T) {
 	zSpans := getZipkinSpans(t, `[{ "trace_id": -1, "id": 31 }]`)
 	trace, err := ToDomain(zSpans)
-	require.EqualError(t, err, "cannot find service name in Zipkin span [traceID=ffffffffffffffff, spanID=1f]")
+	require.EqualError(
+		t,
+		err,
+		"cannot find service name in Zipkin span [traceID=ffffffffffffffff, spanID=1f]",
+	)
 	assert.Len(t, trace.Spans, 1)
 	assert.Equal(t, "unknown-service-name", trace.Spans[0].Process.ServiceName)
 }
@@ -181,8 +185,17 @@ func TestValidateBase64Values(t *testing.T) {
 	assert.Equal(t, "MDk=", numberToBase64(int16(12345)))
 	assert.Equal(t, "AAAwOQ==", numberToBase64(int32(12345)))
 	assert.Equal(t, "AAAAAAAAMDk=", numberToBase64(int64(12345)))
-	assert.Equal(t, "QMgcgAAAAAA=", numberToBase64(int64(math.Float64bits(12345))))
-	assert.Equal(t, int64(4668012349850910720), int64(math.Float64bits(12345)), "sanity check")
+	assert.Equal(
+		t,
+		"QMgcgAAAAAA=",
+		numberToBase64(int64(math.Float64bits(12345))),
+	)
+	assert.Equal(
+		t,
+		int64(4668012349850910720),
+		int64(math.Float64bits(12345)),
+		"sanity check",
+	)
 }
 
 func loadZipkinSpans(t *testing.T, file string) []*z.Span {

@@ -114,9 +114,12 @@ func TestServerFlags(t *testing.T) {
 				CertPath:     "cert-file",
 				KeyPath:      "key-file",
 				ClientCAPath: test.file,
-				CipherSuites: []string{"TLS_AES_256_GCM_SHA384", "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA"},
-				MinVersion:   "1.2",
-				MaxVersion:   "1.3",
+				CipherSuites: []string{
+					"TLS_AES_256_GCM_SHA384",
+					"TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA",
+				},
+				MinVersion: "1.2",
+				MaxVersion: "1.3",
 			}, tlsOpts)
 		})
 	}
@@ -215,7 +218,11 @@ func TestFailedTLSFlags(t *testing.T) {
 					require.NoError(t, err)
 					_, err = underTest.InitFromViper(v)
 					require.Error(t, err)
-					require.EqualError(t, err, "prefix.tls.* options cannot be used when prefix.tls.enabled is false")
+					require.EqualError(
+						t,
+						err,
+						"prefix.tls.* options cannot be used when prefix.tls.enabled is false",
+					)
 				})
 			}
 		})

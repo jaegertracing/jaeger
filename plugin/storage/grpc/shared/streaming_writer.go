@@ -38,16 +38,24 @@ type streamingSpanWriter struct {
 	closed     atomic.Bool
 }
 
-func newStreamingSpanWriter(client storage_v1.StreamingSpanWriterPluginClient) *streamingSpanWriter {
+func newStreamingSpanWriter(
+	client storage_v1.StreamingSpanWriterPluginClient,
+) *streamingSpanWriter {
 	s := &streamingSpanWriter{
-		client:     client,
-		streamPool: make(chan storage_v1.StreamingSpanWriterPlugin_WriteSpanStreamClient, defaultMaxPoolSize),
+		client: client,
+		streamPool: make(
+			chan storage_v1.StreamingSpanWriterPlugin_WriteSpanStreamClient,
+			defaultMaxPoolSize,
+		),
 	}
 	return s
 }
 
 // WriteSpan write span into stream
-func (s *streamingSpanWriter) WriteSpan(ctx context.Context, span *model.Span) error {
+func (s *streamingSpanWriter) WriteSpan(
+	ctx context.Context,
+	span *model.Span,
+) error {
 	stream, err := s.getStream(ctx)
 	if err != nil {
 		return fmt.Errorf("plugin getStream error: %w", err)
@@ -72,7 +80,9 @@ func (s *streamingSpanWriter) Close() error {
 	return nil
 }
 
-func (s *streamingSpanWriter) getStream(ctx context.Context) (storage_v1.StreamingSpanWriterPlugin_WriteSpanStreamClient, error) {
+func (s *streamingSpanWriter) getStream(
+	ctx context.Context,
+) (storage_v1.StreamingSpanWriterPlugin_WriteSpanStreamClient, error) {
 	select {
 	case st, ok := <-s.streamPool:
 		if ok {
@@ -84,7 +94,9 @@ func (s *streamingSpanWriter) getStream(ctx context.Context) (storage_v1.Streami
 	}
 }
 
-func (s *streamingSpanWriter) putStream(stream storage_v1.StreamingSpanWriterPlugin_WriteSpanStreamClient) error {
+func (s *streamingSpanWriter) putStream(
+	stream storage_v1.StreamingSpanWriterPlugin_WriteSpanStreamClient,
+) error {
 	if s.closed.Load() {
 		_, err := stream.CloseAndRecv()
 		return err

@@ -94,7 +94,10 @@ func BenchmarkDownsamplingWriter_RandomHash(b *testing.B) {
 				countSmallerThanRatio++
 			}
 		}
-		fmt.Printf("Random hash ratio %f should be close to 0.5, inspect the implementation of hashBytes if not\n", math.Abs(float64(countSmallerThanRatio)/float64(numberActions)))
+		fmt.Printf(
+			"Random hash ratio %f should be close to 0.5, inspect the implementation of hashBytes if not\n",
+			math.Abs(float64(countSmallerThanRatio)/float64(numberActions)),
+		)
 	}
 	c.sampler.hasherPool.Put(h)
 }

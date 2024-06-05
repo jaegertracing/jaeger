@@ -44,7 +44,10 @@ type spanWriterTest struct {
 	writer    *SpanWriter
 }
 
-func withSpanWriter(writeCacheTTL time.Duration, fn func(w *spanWriterTest), options ...Option,
+func withSpanWriter(
+	writeCacheTTL time.Duration,
+	fn func(w *spanWriterTest),
+	options ...Option,
 ) {
 	session := &mocks.Session{}
 	query := &mocks.Query{}
@@ -58,7 +61,12 @@ func withSpanWriter(writeCacheTTL time.Duration, fn func(w *spanWriterTest), opt
 		session:   session,
 		logger:    logger,
 		logBuffer: logBuffer,
-		writer:    NewSpanWriter(session, writeCacheTTL, metricsFactory, logger, options...),
+		writer: NewSpanWriter(
+			session,
+			writeCacheTTL,
+			metricsFactory,
+			logger,
+			options...),
 	}
 	fn(w)
 }
@@ -138,9 +146,11 @@ func TestSpanWriter(t *testing.T) {
 			},
 		},
 		{
-			caption:                        "add span to operation name index",
-			serviceOperationNameQueryError: errors.New("serviceOperationNameQueryError"),
-			expectedError:                  "Failed to index operation name: failed to Exec query 'select from service_operation_index': serviceOperationNameQueryError",
+			caption: "add span to operation name index",
+			serviceOperationNameQueryError: errors.New(
+				"serviceOperationNameQueryError",
+			),
+			expectedError: "Failed to index operation name: failed to Exec query 'select from service_operation_index': serviceOperationNameQueryError",
 			expectedLogs: []string{
 				`"msg":"Failed to exec query"`,
 				`"query":"select from service_operation_index"`,
@@ -148,9 +158,11 @@ func TestSpanWriter(t *testing.T) {
 			},
 		},
 		{
-			caption:                       "add duration with no operation name",
-			durationNoOperationQueryError: errors.New("durationNoOperationError"),
-			expectedError:                 "Failed to index duration: failed to Exec query 'select from duration_index': durationNoOperationError",
+			caption: "add duration with no operation name",
+			durationNoOperationQueryError: errors.New(
+				"durationNoOperationError",
+			),
+			expectedError: "Failed to index duration: failed to Exec query 'select from duration_index': durationNoOperationError",
 			expectedLogs: []string{
 				`"msg":"Failed to exec query"`,
 				`"query":"select from duration_index"`,
@@ -167,7 +179,10 @@ func TestSpanWriter(t *testing.T) {
 					OperationName: "operation-a",
 					Tags: model.KeyValues{
 						model.String("x", "y"),
-						model.String("json", `{"x":"y"}`), // string tag with json value will not be inserted
+						model.String(
+							"json",
+							`{"x":"y"}`,
+						), // string tag with json value will not be inserted
 					},
 					Process: &model.Process{
 						ServiceName: "service-a",
@@ -183,31 +198,45 @@ func TestSpanWriter(t *testing.T) {
 				spanQuery.On("String").Return("select from traces")
 
 				serviceNameQuery := &mocks.Query{}
-				serviceNameQuery.On("Bind", matchEverything()).Return(serviceNameQuery)
-				serviceNameQuery.On("Exec").Return(testCase.serviceNameQueryError)
-				serviceNameQuery.On("String").Return("select from service_name_index")
+				serviceNameQuery.On("Bind", matchEverything()).
+					Return(serviceNameQuery)
+				serviceNameQuery.On("Exec").
+					Return(testCase.serviceNameQueryError)
+				serviceNameQuery.On("String").
+					Return("select from service_name_index")
 
 				serviceOperationNameQuery := &mocks.Query{}
-				serviceOperationNameQuery.On("Bind", matchEverything()).Return(serviceOperationNameQuery)
-				serviceOperationNameQuery.On("Exec").Return(testCase.serviceOperationNameQueryError)
-				serviceOperationNameQuery.On("String").Return("select from service_operation_index")
+				serviceOperationNameQuery.On("Bind", matchEverything()).
+					Return(serviceOperationNameQuery)
+				serviceOperationNameQuery.On("Exec").
+					Return(testCase.serviceOperationNameQueryError)
+				serviceOperationNameQuery.On("String").
+					Return("select from service_operation_index")
 
 				tagsQuery := &mocks.Query{}
 				tagsQuery.On("Exec").Return(testCase.tagsQueryError)
 				tagsQuery.On("String").Return("select from tags")
 
 				durationNoOperationQuery := &mocks.Query{}
-				durationNoOperationQuery.On("Bind", matchEverything()).Return(durationNoOperationQuery)
-				durationNoOperationQuery.On("Exec").Return(testCase.durationNoOperationQueryError)
-				durationNoOperationQuery.On("String").Return("select from duration_index")
+				durationNoOperationQuery.On("Bind", matchEverything()).
+					Return(durationNoOperationQuery)
+				durationNoOperationQuery.On("Exec").
+					Return(testCase.durationNoOperationQueryError)
+				durationNoOperationQuery.On("String").
+					Return("select from duration_index")
 
 				// Define expected queries
-				w.session.On("Query", stringMatcher(insertSpan), matchEverything()).Return(spanQuery)
-				w.session.On("Query", stringMatcher(serviceNameIndex), matchEverything()).Return(serviceNameQuery)
-				w.session.On("Query", stringMatcher(serviceOperationIndex), matchEverything()).Return(serviceOperationNameQuery)
+				w.session.On("Query", stringMatcher(insertSpan), matchEverything()).
+					Return(spanQuery)
+				w.session.On("Query", stringMatcher(serviceNameIndex), matchEverything()).
+					Return(serviceNameQuery)
+				w.session.On("Query", stringMatcher(serviceOperationIndex), matchEverything()).
+					Return(serviceOperationNameQuery)
 				// note: using matchOnce below because we only want one tag to be inserted
-				w.session.On("Query", stringMatcher(tagIndex), matchOnce()).Return(tagsQuery)
-				w.session.On("Query", stringMatcher(durationIndex), matchOnce()).Return(durationNoOperationQuery)
+				w.session.On("Query", stringMatcher(tagIndex), matchOnce()).
+					Return(tagsQuery)
+				w.session.On("Query", stringMatcher(durationIndex), matchOnce()).
+					Return(durationNoOperationQuery)
 
 				w.writer.serviceNamesWriter = func(serviceName string) error { return testCase.serviceNameError }
 				w.writer.operationNamesWriter = func(operation dbmodel.Operation) error { return testCase.serviceNameError }
@@ -313,16 +342,21 @@ func TestStorageMode_IndexOnly(t *testing.T) {
 		serviceNameQuery.On("Exec").Return(nil)
 
 		serviceOperationNameQuery := &mocks.Query{}
-		serviceOperationNameQuery.On("Bind", matchEverything()).Return(serviceOperationNameQuery)
+		serviceOperationNameQuery.On("Bind", matchEverything()).
+			Return(serviceOperationNameQuery)
 		serviceOperationNameQuery.On("Exec").Return(nil)
 
 		durationNoOperationQuery := &mocks.Query{}
-		durationNoOperationQuery.On("Bind", matchEverything()).Return(durationNoOperationQuery)
+		durationNoOperationQuery.On("Bind", matchEverything()).
+			Return(durationNoOperationQuery)
 		durationNoOperationQuery.On("Exec").Return(nil)
 
-		w.session.On("Query", stringMatcher(serviceNameIndex), matchEverything()).Return(serviceNameQuery)
-		w.session.On("Query", stringMatcher(serviceOperationIndex), matchEverything()).Return(serviceOperationNameQuery)
-		w.session.On("Query", stringMatcher(durationIndex), matchOnce()).Return(durationNoOperationQuery)
+		w.session.On("Query", stringMatcher(serviceNameIndex), matchEverything()).
+			Return(serviceNameQuery)
+		w.session.On("Query", stringMatcher(serviceOperationIndex), matchEverything()).
+			Return(serviceOperationNameQuery)
+		w.session.On("Query", stringMatcher(durationIndex), matchOnce()).
+			Return(durationNoOperationQuery)
 
 		err := w.writer.WriteSpan(context.Background(), span)
 
@@ -331,7 +365,12 @@ func TestStorageMode_IndexOnly(t *testing.T) {
 		serviceOperationNameQuery.AssertExpectations(t)
 		durationNoOperationQuery.AssertExpectations(t)
 		w.session.AssertExpectations(t)
-		w.session.AssertNotCalled(t, "Query", stringMatcher(insertSpan), matchEverything())
+		w.session.AssertNotCalled(
+			t,
+			"Query",
+			stringMatcher(insertSpan),
+			matchEverything(),
+		)
 	}, StoreIndexesOnly())
 }
 
@@ -353,9 +392,24 @@ func TestStorageMode_IndexOnly_WithFilter(t *testing.T) {
 		err := w.writer.WriteSpan(context.Background(), span)
 		require.NoError(t, err)
 		w.session.AssertExpectations(t)
-		w.session.AssertNotCalled(t, "Query", stringMatcher(serviceOperationIndex), matchEverything())
-		w.session.AssertNotCalled(t, "Query", stringMatcher(serviceNameIndex), matchEverything())
-		w.session.AssertNotCalled(t, "Query", stringMatcher(durationIndex), matchEverything())
+		w.session.AssertNotCalled(
+			t,
+			"Query",
+			stringMatcher(serviceOperationIndex),
+			matchEverything(),
+		)
+		w.session.AssertNotCalled(
+			t,
+			"Query",
+			stringMatcher(serviceNameIndex),
+			matchEverything(),
+		)
+		w.session.AssertNotCalled(
+			t,
+			"Query",
+			stringMatcher(durationIndex),
+			matchEverything(),
+		)
 	}, StoreIndexesOnly())
 }
 
@@ -389,19 +443,33 @@ func TestStorageMode_IndexOnly_FirehoseSpan(t *testing.T) {
 		serviceNameQuery.On("String").Return("select from service_name_index")
 
 		serviceOperationNameQuery := &mocks.Query{}
-		serviceOperationNameQuery.On("Bind", matchEverything()).Return(serviceOperationNameQuery)
+		serviceOperationNameQuery.On("Bind", matchEverything()).
+			Return(serviceOperationNameQuery)
 		serviceOperationNameQuery.On("Exec").Return(nil)
-		serviceOperationNameQuery.On("String").Return("select from service_operation_index")
+		serviceOperationNameQuery.On("String").
+			Return("select from service_operation_index")
 
 		// Define expected queries
-		w.session.On("Query", stringMatcher(serviceNameIndex), matchEverything()).Return(serviceNameQuery)
-		w.session.On("Query", stringMatcher(serviceOperationIndex), matchEverything()).Return(serviceOperationNameQuery)
+		w.session.On("Query", stringMatcher(serviceNameIndex), matchEverything()).
+			Return(serviceNameQuery)
+		w.session.On("Query", stringMatcher(serviceOperationIndex), matchEverything()).
+			Return(serviceOperationNameQuery)
 
 		err := w.writer.WriteSpan(context.Background(), span)
 		require.NoError(t, err)
 		w.session.AssertExpectations(t)
-		w.session.AssertNotCalled(t, "Query", stringMatcher(tagIndex), matchEverything())
-		w.session.AssertNotCalled(t, "Query", stringMatcher(durationIndex), matchEverything())
+		w.session.AssertNotCalled(
+			t,
+			"Query",
+			stringMatcher(tagIndex),
+			matchEverything(),
+		)
+		w.session.AssertNotCalled(
+			t,
+			"Query",
+			stringMatcher(durationIndex),
+			matchEverything(),
+		)
 		assert.Equal(t, "planet-express", *serviceWritten.Load())
 		assert.Equal(t, dbmodel.Operation{
 			ServiceName:   "planet-express",
@@ -425,13 +493,19 @@ func TestStorageMode_StoreWithoutIndexing(t *testing.T) {
 		}
 		spanQuery := &mocks.Query{}
 		spanQuery.On("Exec").Return(nil)
-		w.session.On("Query", stringMatcher(insertSpan), matchEverything()).Return(spanQuery)
+		w.session.On("Query", stringMatcher(insertSpan), matchEverything()).
+			Return(spanQuery)
 
 		err := w.writer.WriteSpan(context.Background(), span)
 
 		require.NoError(t, err)
 		spanQuery.AssertExpectations(t)
 		w.session.AssertExpectations(t)
-		w.session.AssertNotCalled(t, "Query", stringMatcher(serviceNameIndex), matchEverything())
+		w.session.AssertNotCalled(
+			t,
+			"Query",
+			stringMatcher(serviceNameIndex),
+			matchEverything(),
+		)
 	}, StoreWithoutIndexing())
 }

@@ -56,7 +56,11 @@ func TestLoadConfig(t *testing.T) {
 			require.NoError(t, component.UnmarshalConfig(sub, cfg))
 
 			if tt.expectedErr != nil {
-				require.ErrorContains(t, component.ValidateConfig(cfg), tt.expectedErr.Error())
+				require.ErrorContains(
+					t,
+					component.ValidateConfig(cfg),
+					tt.expectedErr.Error(),
+				)
 			} else {
 				require.NoError(t, component.ValidateConfig(cfg))
 				assert.Equal(t, tt.expected, cfg)

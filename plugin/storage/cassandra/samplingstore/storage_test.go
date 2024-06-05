@@ -68,7 +68,8 @@ func TestInsertThroughput(t *testing.T) {
 			return true
 		})
 
-		s.session.On("Query", mock.AnythingOfType("string"), captureArgs).Return(query)
+		s.session.On("Query", mock.AnythingOfType("string"), captureArgs).
+			Return(query)
 
 		throughput := []*model.Throughput{
 			{
@@ -82,10 +83,20 @@ func TestInsertThroughput(t *testing.T) {
 
 		assert.Len(t, args, 3)
 		if _, ok := args[0].(int64); !ok {
-			assert.Fail(t, "expecting first arg as int64", "received: %+v", args)
+			assert.Fail(
+				t,
+				"expecting first arg as int64",
+				"received: %+v",
+				args,
+			)
 		}
 		if _, ok := args[1].(gocql.UUID); !ok {
-			assert.Fail(t, "expecting second arg as gocql.UUID", "received: %+v", args)
+			assert.Fail(
+				t,
+				"expecting second arg as gocql.UUID",
+				"received: %+v",
+				args,
+			)
 		}
 		if d, ok := args[2].(string); ok {
 			assert.Equal(t, "\"svc,withcomma\",\"op,withcomma\",40,\n", d)
@@ -106,7 +117,8 @@ func TestInsertProbabilitiesAndQPS(t *testing.T) {
 			return true
 		})
 
-		s.session.On("Query", mock.AnythingOfType("string"), captureArgs).Return(query)
+		s.session.On("Query", mock.AnythingOfType("string"), captureArgs).
+			Return(query)
 
 		hostname := "hostname"
 		probabilities := model.ServiceOperationProbabilities{
@@ -130,7 +142,12 @@ func TestInsertProbabilitiesAndQPS(t *testing.T) {
 			assert.Fail(t, "expecting first arg as int", "received: %+v", args)
 		}
 		if _, ok := args[1].(gocql.UUID); !ok {
-			assert.Fail(t, "expecting second arg as gocql.UUID", "received: %+v", args)
+			assert.Fail(
+				t,
+				"expecting second arg as gocql.UUID",
+				"received: %+v",
+				args,
+			)
 		}
 		if d, ok := args[2].(string); ok {
 			assert.Equal(t, hostname, d)
@@ -193,7 +210,8 @@ func TestGetThroughput(t *testing.T) {
 				query := &mocks.Query{}
 				query.On("Iter").Return(iter)
 
-				s.session.On("Query", mock.AnythingOfType("string"), matchEverything()).Return(query)
+				s.session.On("Query", mock.AnythingOfType("string"), matchEverything()).
+					Return(query)
 
 				throughput, err := s.store.GetThroughput(testTime, testTime)
 
@@ -273,7 +291,8 @@ func TestGetLatestProbabilities(t *testing.T) {
 				query := &mocks.Query{}
 				query.On("Iter").Return(iter)
 
-				s.session.On("Query", mock.AnythingOfType("string"), matchEverything()).Return(query)
+				s.session.On("Query", mock.AnythingOfType("string"), matchEverything()).
+					Return(query)
 
 				probabilities, err := s.store.GetLatestProbabilities()
 
@@ -293,22 +312,49 @@ func matchEverything() any {
 }
 
 func TestGenerateRandomBucket(t *testing.T) {
-	assert.Contains(t, []int64{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}, generateRandomBucket())
+	assert.Contains(
+		t,
+		[]int64{0, 1, 2, 3, 4, 5, 6, 7, 8, 9},
+		generateRandomBucket(),
+	)
 }
 
 func TestThroughputToString(t *testing.T) {
 	throughput := []*model.Throughput{
-		{Service: "svc1", Operation: "op,1", Count: 1, Probabilities: map[string]struct{}{"1": {}}},
-		{Service: "svc2", Operation: "op2", Count: 2, Probabilities: map[string]struct{}{}},
+		{
+			Service:       "svc1",
+			Operation:     "op,1",
+			Count:         1,
+			Probabilities: map[string]struct{}{"1": {}},
+		},
+		{
+			Service:       "svc2",
+			Operation:     "op2",
+			Count:         2,
+			Probabilities: map[string]struct{}{},
+		},
 	}
 	str := throughputToString(throughput)
-	assert.True(t, str == "svc1,\"op,1\",1,1\nsvc2,op2,2,\n" || str == "svc2,op2,2,\nsvc1,1\"op,1\",1,1\n")
+	assert.True(
+		t,
+		str == "svc1,\"op,1\",1,1\nsvc2,op2,2,\n" ||
+			str == "svc2,op2,2,\nsvc1,1\"op,1\",1,1\n",
+	)
 
 	throughput = []*model.Throughput{
-		{Service: "svc1", Operation: "op,1", Count: 1, Probabilities: map[string]struct{}{"1": {}, "2": {}}},
+		{
+			Service:       "svc1",
+			Operation:     "op,1",
+			Count:         1,
+			Probabilities: map[string]struct{}{"1": {}, "2": {}},
+		},
 	}
 	str = throughputToString(throughput)
-	assert.True(t, str == "svc1,\"op,1\",1,\"1,2\"\n" || str == "svc1,\"op,1\",1,\"2,1\"\n")
+	assert.True(
+		t,
+		str == "svc1,\"op,1\",1,\"1,2\"\n" ||
+			str == "svc1,\"op,1\",1,\"2,1\"\n",
+	)
 }
 
 func TestStringToThroughput(t *testing.T) {
@@ -382,12 +428,18 @@ func TestStringToProbabilities(t *testing.T) {
 	probabilities := s.stringToProbabilities(testStr)
 
 	assert.Len(t, probabilities, 2)
-	assert.Equal(t, map[string]float64{"GET": 0.001, "PUT": 0.002}, probabilities["svc1"])
+	assert.Equal(
+		t,
+		map[string]float64{"GET": 0.001, "PUT": 0.002},
+		probabilities["svc1"],
+	)
 	assert.Equal(t, map[string]float64{"GET": 0.5}, probabilities["svc2"])
 }
 
 func TestProbabilitiesSetToString(t *testing.T) {
-	s := probabilitiesSetToString(map[string]struct{}{"0.000001": {}, "0.000002": {}})
+	s := probabilitiesSetToString(
+		map[string]struct{}{"0.000001": {}, "0.000002": {}},
+	)
 	assert.True(t, s == "0.000001,0.000002" || s == "0.000002,0.000001")
 	assert.Equal(t, "", probabilitiesSetToString(nil))
 }

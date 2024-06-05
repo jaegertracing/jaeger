@@ -43,7 +43,13 @@ func (host storageHost) ReportFatalError(err error) {
 	host.t.Fatal(err)
 }
 
-func (storageHost) GetFactory(_ component.Kind, _ component.Type) component.Factory { return nil }
+func (storageHost) GetFactory(
+	_ component.Kind,
+	_ component.Type,
+) component.Factory {
+	return nil
+}
+
 func (storageHost) GetExporters() map[component.DataType]map[component.ID]component.Component {
 	return nil
 }
@@ -52,7 +58,10 @@ type errorFactory struct {
 	closeErr error
 }
 
-func (errorFactory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
+func (errorFactory) Initialize(
+	metricsFactory metrics.Factory,
+	logger *zap.Logger,
+) error {
 	panic("not implemented")
 }
 
@@ -87,7 +96,10 @@ func TestStorageExtensionNameConflict(t *testing.T) {
 			"foo": {},
 		},
 	})
-	err := storageExtension.Start(context.Background(), componenttest.NewNopHost())
+	err := storageExtension.Start(
+		context.Background(),
+		componenttest.NewNopHost(),
+	)
 	require.ErrorContains(t, err, "duplicate")
 }
 
@@ -160,9 +172,11 @@ func TestESStorageExtension(t *testing.T) {
 		}
 	}
 	`)
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write(mockEsServerResponse)
-	}))
+	server := httptest.NewServer(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Write(mockEsServerResponse)
+		}),
+	)
 	defer server.Close()
 	storageExtension := makeStorageExtenion(t, &Config{
 		Elasticsearch: map[string]esCfg.Configuration{
@@ -217,7 +231,10 @@ func makeStorageExtenion(t *testing.T, config *Config) component.Component {
 	return storageExtension
 }
 
-func startStorageExtension(t *testing.T, memstoreName string) component.Component {
+func startStorageExtension(
+	t *testing.T,
+	memstoreName string,
+) component.Component {
 	config := &Config{
 		Memory: map[string]memoryCfg.Configuration{
 			memstoreName: {MaxTraces: 10000},
@@ -226,7 +243,10 @@ func startStorageExtension(t *testing.T, memstoreName string) component.Componen
 	require.NoError(t, config.Validate())
 
 	storageExtension := makeStorageExtenion(t, config)
-	err := storageExtension.Start(context.Background(), componenttest.NewNopHost())
+	err := storageExtension.Start(
+		context.Background(),
+		componenttest.NewNopHost(),
+	)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		require.NoError(t, storageExtension.Shutdown(context.Background()))

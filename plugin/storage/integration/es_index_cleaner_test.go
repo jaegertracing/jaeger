@@ -134,16 +134,45 @@ func TestIndexCleaner(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
-		t.Run(fmt.Sprintf("%s_no_prefix, %s", test.name, test.envVars), func(t *testing.T) {
-			runIndexCleanerTest(t, client, v8Client, "", test.expectedIndices, test.envVars, test.adaptiveSampling)
-		})
-		t.Run(fmt.Sprintf("%s_prefix, %s", test.name, test.envVars), func(t *testing.T) {
-			runIndexCleanerTest(t, client, v8Client, indexPrefix, test.expectedIndices, append(test.envVars, "INDEX_PREFIX="+indexPrefix), test.adaptiveSampling)
-		})
+		t.Run(
+			fmt.Sprintf("%s_no_prefix, %s", test.name, test.envVars),
+			func(t *testing.T) {
+				runIndexCleanerTest(
+					t,
+					client,
+					v8Client,
+					"",
+					test.expectedIndices,
+					test.envVars,
+					test.adaptiveSampling,
+				)
+			},
+		)
+		t.Run(
+			fmt.Sprintf("%s_prefix, %s", test.name, test.envVars),
+			func(t *testing.T) {
+				runIndexCleanerTest(
+					t,
+					client,
+					v8Client,
+					indexPrefix,
+					test.expectedIndices,
+					append(test.envVars, "INDEX_PREFIX="+indexPrefix),
+					test.adaptiveSampling,
+				)
+			},
+		)
 	}
 }
 
-func runIndexCleanerTest(t *testing.T, client *elastic.Client, v8Client *elasticsearch8.Client, prefix string, expectedIndices, envVars []string, adaptiveSampling bool) {
+func runIndexCleanerTest(
+	t *testing.T,
+	client *elastic.Client,
+	v8Client *elasticsearch8.Client,
+	prefix string,
+	expectedIndices, envVars []string,
+	adaptiveSampling bool,
+) {
 	// make sure ES is clean
 	_, err := client.DeleteIndex("*").Do(context.Background())
 	require.NoError(t, err)
@@ -161,10 +190,19 @@ func runIndexCleanerTest(t *testing.T, client *elastic.Client, v8Client *elastic
 	for _, index := range expectedIndices {
 		expected = append(expected, prefix+index)
 	}
-	assert.ElementsMatch(t, indices, expected, fmt.Sprintf("indices found: %v, expected: %v", indices, expected))
+	assert.ElementsMatch(
+		t,
+		indices,
+		expected,
+		fmt.Sprintf("indices found: %v, expected: %v", indices, expected),
+	)
 }
 
-func createAllIndices(client *elastic.Client, prefix string, adaptiveSampling bool) error {
+func createAllIndices(
+	client *elastic.Client,
+	prefix string,
+	adaptiveSampling bool,
+) error {
 	prefixWithSeparator := prefix
 	if prefix != "" {
 		prefixWithSeparator += "-"
@@ -181,20 +219,36 @@ func createAllIndices(client *elastic.Client, prefix string, adaptiveSampling bo
 		return err
 	}
 	// create rollover archive index and roll alias to the new index
-	err = runEsRollover("init", []string{"ARCHIVE=true", "INDEX_PREFIX=" + prefix}, adaptiveSampling)
+	err = runEsRollover(
+		"init",
+		[]string{"ARCHIVE=true", "INDEX_PREFIX=" + prefix},
+		adaptiveSampling,
+	)
 	if err != nil {
 		return err
 	}
-	err = runEsRollover("rollover", []string{"ARCHIVE=true", "INDEX_PREFIX=" + prefix, rolloverNowEnvVar}, adaptiveSampling)
+	err = runEsRollover(
+		"rollover",
+		[]string{"ARCHIVE=true", "INDEX_PREFIX=" + prefix, rolloverNowEnvVar},
+		adaptiveSampling,
+	)
 	if err != nil {
 		return err
 	}
 	// create rollover main indices and roll over to the new index
-	err = runEsRollover("init", []string{"ARCHIVE=false", "INDEX_PREFIX=" + prefix}, adaptiveSampling)
+	err = runEsRollover(
+		"init",
+		[]string{"ARCHIVE=false", "INDEX_PREFIX=" + prefix},
+		adaptiveSampling,
+	)
 	if err != nil {
 		return err
 	}
-	err = runEsRollover("rollover", []string{"ARCHIVE=false", "INDEX_PREFIX=" + prefix, rolloverNowEnvVar}, adaptiveSampling)
+	err = runEsRollover(
+		"rollover",
+		[]string{"ARCHIVE=false", "INDEX_PREFIX=" + prefix, rolloverNowEnvVar},
+		adaptiveSampling,
+	)
 	if err != nil {
 		return err
 	}
@@ -215,7 +269,13 @@ func runEsCleaner(days int, envs []string) error {
 	for _, e := range envs {
 		dockerEnv += fmt.Sprintf(" -e %s", e)
 	}
-	args := fmt.Sprintf("docker run %s --rm --net=host %s %d http://%s", dockerEnv, indexCleanerImage, days, queryHostPort)
+	args := fmt.Sprintf(
+		"docker run %s --rm --net=host %s %d http://%s",
+		dockerEnv,
+		indexCleanerImage,
+		days,
+		queryHostPort,
+	)
 	cmd := exec.Command("/bin/sh", "-c", args)
 	out, err := cmd.CombinedOutput()
 	fmt.Println(string(out))
@@ -227,7 +287,14 @@ func runEsRollover(action string, envs []string, adaptiveSampling bool) error {
 	for _, e := range envs {
 		dockerEnv += fmt.Sprintf(" -e %s", e)
 	}
-	args := fmt.Sprintf("docker run %s --rm --net=host %s %s --adaptive-sampling=%t http://%s", dockerEnv, rolloverImage, action, adaptiveSampling, queryHostPort)
+	args := fmt.Sprintf(
+		"docker run %s --rm --net=host %s %s --adaptive-sampling=%t http://%s",
+		dockerEnv,
+		rolloverImage,
+		action,
+		adaptiveSampling,
+		queryHostPort,
+	)
 	cmd := exec.Command("/bin/sh", "-c", args)
 	out, err := cmd.CombinedOutput()
 	fmt.Println(string(out))
@@ -247,7 +314,12 @@ func createESV8Client() (*elasticsearch8.Client, error) {
 	})
 }
 
-func cleanESIndexTemplates(t *testing.T, client *elastic.Client, v8Client *elasticsearch8.Client, prefix string) {
+func cleanESIndexTemplates(
+	t *testing.T,
+	client *elastic.Client,
+	v8Client *elasticsearch8.Client,
+	prefix string,
+) {
 	s := &ESStorageIntegration{
 		client:   client,
 		v8Client: v8Client,

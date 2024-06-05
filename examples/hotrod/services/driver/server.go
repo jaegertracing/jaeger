@@ -40,10 +40,24 @@ type Server struct {
 var _ DriverServiceServer = (*Server)(nil)
 
 // NewServer creates a new driver.Server
-func NewServer(hostPort string, otelExporter string, metricsFactory metrics.Factory, logger log.Factory) *Server {
-	tracerProvider := tracing.InitOTEL("driver", otelExporter, metricsFactory, logger)
+func NewServer(
+	hostPort string,
+	otelExporter string,
+	metricsFactory metrics.Factory,
+	logger log.Factory,
+) *Server {
+	tracerProvider := tracing.InitOTEL(
+		"driver",
+		otelExporter,
+		metricsFactory,
+		logger,
+	)
 	server := grpc.NewServer(
-		grpc.StatsHandler(otelgrpc.NewServerHandler(otelgrpc.WithTracerProvider(tracerProvider))),
+		grpc.StatsHandler(
+			otelgrpc.NewServerHandler(
+				otelgrpc.WithTracerProvider(tracerProvider),
+			),
+		),
 	)
 	return &Server{
 		hostPort: hostPort,
@@ -60,7 +74,8 @@ func (s *Server) Run() error {
 		s.logger.Bg().Fatal("Unable to create http listener", zap.Error(err))
 	}
 	RegisterDriverServiceServer(s.server, s)
-	s.logger.Bg().Info("Starting", zap.String("address", s.hostPort), zap.String("type", "gRPC"))
+	s.logger.Bg().
+		Info("Starting", zap.String("address", s.hostPort), zap.String("type", "gRPC"))
 	err = s.server.Serve(lis)
 	if err != nil {
 		s.logger.Bg().Fatal("Unable to start gRPC server", zap.Error(err))
@@ -69,8 +84,12 @@ func (s *Server) Run() error {
 }
 
 // FindNearest implements gRPC driver interface
-func (s *Server) FindNearest(ctx context.Context, location *DriverLocationRequest) (*DriverLocationResponse, error) {
-	s.logger.For(ctx).Info("Searching for nearby drivers", zap.String("location", location.Location))
+func (s *Server) FindNearest(
+	ctx context.Context,
+	location *DriverLocationRequest,
+) (*DriverLocationResponse, error) {
+	s.logger.For(ctx).
+		Info("Searching for nearby drivers", zap.String("location", location.Location))
 	driverIDs := s.redis.FindDriverIDs(ctx, location.Location)
 
 	locations := make([]*DriverLocation, len(driverIDs))
@@ -82,10 +101,12 @@ func (s *Server) FindNearest(ctx context.Context, location *DriverLocationReques
 			if err == nil {
 				break
 			}
-			s.logger.For(ctx).Error("Retrying GetDriver after error", zap.Int("retry_no", i+1), zap.Error(err))
+			s.logger.For(ctx).
+				Error("Retrying GetDriver after error", zap.Int("retry_no", i+1), zap.Error(err))
 		}
 		if err != nil {
-			s.logger.For(ctx).Error("Failed to get driver after 3 attempts", zap.Error(err))
+			s.logger.For(ctx).
+				Error("Failed to get driver after 3 attempts", zap.Error(err))
 			return nil, err
 		}
 		locations[i] = &DriverLocation{

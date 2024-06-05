@@ -34,7 +34,8 @@ func TestAggregator(t *testing.T) {
 	metricsFactory := metricstest.NewFactory(0)
 
 	mockStorage := &mocks.Store{}
-	mockStorage.On("InsertThroughput", mock.AnythingOfType("[]*model.Throughput")).Return(nil)
+	mockStorage.On("InsertThroughput", mock.AnythingOfType("[]*model.Throughput")).
+		Return(nil)
 	mockEP := &epmocks.ElectionParticipant{}
 	mockEP.On("Start").Return(nil)
 	mockEP.On("Close").Return(nil)
@@ -46,7 +47,13 @@ func TestAggregator(t *testing.T) {
 	}
 	logger := zap.NewNop()
 
-	a, err := NewAggregator(testOpts, logger, metricsFactory, mockEP, mockStorage)
+	a, err := NewAggregator(
+		testOpts,
+		logger,
+		metricsFactory,
+		mockEP,
+		mockStorage,
+	)
 	require.NoError(t, err)
 	a.RecordThroughput("A", "GET", model.SamplerTypeProbabilistic, 0.001)
 	a.RecordThroughput("B", "POST", model.SamplerTypeProbabilistic, 0.001)
@@ -81,21 +88,46 @@ func TestIncrementThroughput(t *testing.T) {
 		BucketsForCalculation: 1,
 	}
 	logger := zap.NewNop()
-	a, err := NewAggregator(testOpts, logger, metricsFactory, mockEP, mockStorage)
+	a, err := NewAggregator(
+		testOpts,
+		logger,
+		metricsFactory,
+		mockEP,
+		mockStorage,
+	)
 	require.NoError(t, err)
 	// 20 different probabilities
 	for i := 0; i < 20; i++ {
-		a.RecordThroughput("A", "GET", model.SamplerTypeProbabilistic, 0.001*float64(i))
+		a.RecordThroughput(
+			"A",
+			"GET",
+			model.SamplerTypeProbabilistic,
+			0.001*float64(i),
+		)
 	}
-	assert.Len(t, a.(*aggregator).currentThroughput["A"]["GET"].Probabilities, 10)
+	assert.Len(
+		t,
+		a.(*aggregator).currentThroughput["A"]["GET"].Probabilities,
+		10,
+	)
 
-	a, err = NewAggregator(testOpts, logger, metricsFactory, mockEP, mockStorage)
+	a, err = NewAggregator(
+		testOpts,
+		logger,
+		metricsFactory,
+		mockEP,
+		mockStorage,
+	)
 	require.NoError(t, err)
 	// 20 of the same probabilities
 	for i := 0; i < 20; i++ {
 		a.RecordThroughput("A", "GET", model.SamplerTypeProbabilistic, 0.001)
 	}
-	assert.Len(t, a.(*aggregator).currentThroughput["A"]["GET"].Probabilities, 1)
+	assert.Len(
+		t,
+		a.(*aggregator).currentThroughput["A"]["GET"].Probabilities,
+		1,
+	)
 }
 
 func TestLowerboundThroughput(t *testing.T) {
@@ -109,11 +141,24 @@ func TestLowerboundThroughput(t *testing.T) {
 	}
 	logger := zap.NewNop()
 
-	a, err := NewAggregator(testOpts, logger, metricsFactory, mockEP, mockStorage)
+	a, err := NewAggregator(
+		testOpts,
+		logger,
+		metricsFactory,
+		mockEP,
+		mockStorage,
+	)
 	require.NoError(t, err)
 	a.RecordThroughput("A", "GET", model.SamplerTypeLowerBound, 0.001)
-	assert.EqualValues(t, 0, a.(*aggregator).currentThroughput["A"]["GET"].Count)
-	assert.Empty(t, a.(*aggregator).currentThroughput["A"]["GET"].Probabilities["0.001000"])
+	assert.EqualValues(
+		t,
+		0,
+		a.(*aggregator).currentThroughput["A"]["GET"].Count,
+	)
+	assert.Empty(
+		t,
+		a.(*aggregator).currentThroughput["A"]["GET"].Probabilities["0.001000"],
+	)
 }
 
 func TestRecordThroughput(t *testing.T) {
@@ -126,11 +171,21 @@ func TestRecordThroughput(t *testing.T) {
 		BucketsForCalculation: 1,
 	}
 	logger := zap.NewNop()
-	a, err := NewAggregator(testOpts, logger, metricsFactory, mockEP, mockStorage)
+	a, err := NewAggregator(
+		testOpts,
+		logger,
+		metricsFactory,
+		mockEP,
+		mockStorage,
+	)
 	require.NoError(t, err)
 
 	// Testing non-root span
-	span := &model.Span{References: []model.SpanRef{{SpanID: model.NewSpanID(1), RefType: model.ChildOf}}}
+	span := &model.Span{
+		References: []model.SpanRef{
+			{SpanID: model.NewSpanID(1), RefType: model.ChildOf},
+		},
+	}
 	a.HandleRootSpan(span, logger)
 	require.Empty(t, a.(*aggregator).currentThroughput)
 
@@ -153,5 +208,9 @@ func TestRecordThroughput(t *testing.T) {
 		model.String("sampler.param", "0.001"),
 	}
 	a.HandleRootSpan(span, logger)
-	assert.EqualValues(t, 1, a.(*aggregator).currentThroughput["A"]["GET"].Count)
+	assert.EqualValues(
+		t,
+		1,
+		a.(*aggregator).currentThroughput["A"]["GET"].Count,
+	)
 }

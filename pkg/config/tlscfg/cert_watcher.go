@@ -49,13 +49,23 @@ type certWatcher struct {
 
 var _ io.Closer = (*certWatcher)(nil)
 
-func newCertWatcher(opts Options, logger *zap.Logger, rootCAs, clientCAs *x509.CertPool) (*certWatcher, error) {
+func newCertWatcher(
+	opts Options,
+	logger *zap.Logger,
+	rootCAs, clientCAs *x509.CertPool,
+) (*certWatcher, error) {
 	var cert *tls.Certificate
 	if opts.CertPath != "" && opts.KeyPath != "" {
 		// load certs at startup to catch missing certs error early
-		c, err := tls.LoadX509KeyPair(filepath.Clean(opts.CertPath), filepath.Clean(opts.KeyPath))
+		c, err := tls.LoadX509KeyPair(
+			filepath.Clean(opts.CertPath),
+			filepath.Clean(opts.KeyPath),
+		)
 		if err != nil {
-			return nil, fmt.Errorf("failed to load server TLS cert and key: %w", err)
+			return nil, fmt.Errorf(
+				"failed to load server TLS cert and key: %w",
+				err,
+			)
 		}
 		cert = &c
 	}
@@ -104,10 +114,18 @@ func (w *certWatcher) watchCertPair() error {
 		return nil
 	}
 	w.Close()
-	return fmt.Errorf("failed to watch key pair %s and %s: %w", w.opts.KeyPath, w.opts.CertPath, err)
+	return fmt.Errorf(
+		"failed to watch key pair %s and %s: %w",
+		w.opts.KeyPath,
+		w.opts.CertPath,
+		err,
+	)
 }
 
-func (w *certWatcher) watchCert(certPath string, certPool *x509.CertPool) error {
+func (w *certWatcher) watchCert(
+	certPath string,
+	certPool *x509.CertPool,
+) error {
 	onCertChange := func() { w.onCertChange(certPath, certPool) }
 
 	watcher, err := fswatcher.New([]string{certPath}, onCertChange, w.logger)
@@ -120,7 +138,10 @@ func (w *certWatcher) watchCert(certPath string, certPool *x509.CertPool) error 
 }
 
 func (w *certWatcher) onCertPairChange() {
-	cert, err := tls.LoadX509KeyPair(filepath.Clean(w.opts.CertPath), filepath.Clean(w.opts.KeyPath))
+	cert, err := tls.LoadX509KeyPair(
+		filepath.Clean(w.opts.CertPath),
+		filepath.Clean(w.opts.KeyPath),
+	)
 	if err == nil {
 		w.mu.Lock()
 		w.cert = &cert

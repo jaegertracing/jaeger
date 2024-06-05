@@ -57,18 +57,27 @@ type DownsamplingOptions struct {
 }
 
 // NewDownsamplingWriter creates a DownsamplingWriter.
-func NewDownsamplingWriter(spanWriter Writer, downsamplingOptions DownsamplingOptions) *DownsamplingWriter {
+func NewDownsamplingWriter(
+	spanWriter Writer,
+	downsamplingOptions DownsamplingOptions,
+) *DownsamplingWriter {
 	writeMetrics := &downsamplingWriterMetrics{}
 	metrics.Init(writeMetrics, downsamplingOptions.MetricsFactory, nil)
 	return &DownsamplingWriter{
-		sampler:    NewSampler(downsamplingOptions.Ratio, downsamplingOptions.HashSalt),
+		sampler: NewSampler(
+			downsamplingOptions.Ratio,
+			downsamplingOptions.HashSalt,
+		),
 		spanWriter: spanWriter,
 		metrics:    *writeMetrics,
 	}
 }
 
 // WriteSpan calls WriteSpan on wrapped span writer.
-func (ds *DownsamplingWriter) WriteSpan(ctx context.Context, span *model.Span) error {
+func (ds *DownsamplingWriter) WriteSpan(
+	ctx context.Context,
+	span *model.Span,
+) error {
 	if !ds.sampler.ShouldSample(span) {
 		// Drops spans when hashVal falls beyond computed threshold.
 		ds.metrics.SpansDropped.Inc(1)

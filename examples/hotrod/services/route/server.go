@@ -41,7 +41,11 @@ type Server struct {
 }
 
 // NewServer creates a new route.Server
-func NewServer(hostPort string, tracer trace.TracerProvider, logger log.Factory) *Server {
+func NewServer(
+	hostPort string,
+	tracer trace.TracerProvider,
+	logger log.Factory,
+) *Server {
 	return &Server{
 		hostPort: hostPort,
 		tracer:   tracer,
@@ -75,21 +79,34 @@ func movedToFrontend(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) route(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	s.logger.For(ctx).Info("HTTP request received", zap.String("method", r.Method), zap.Stringer("url", r.URL))
-	if err := r.ParseForm(); httperr.HandleError(w, err, http.StatusBadRequest) {
+	s.logger.For(ctx).
+		Info("HTTP request received", zap.String("method", r.Method), zap.Stringer("url", r.URL))
+	if err := r.ParseForm(); httperr.HandleError(
+		w,
+		err,
+		http.StatusBadRequest,
+	) {
 		s.logger.For(ctx).Error("bad request", zap.Error(err))
 		return
 	}
 
 	pickup := r.Form.Get("pickup")
 	if pickup == "" {
-		http.Error(w, "Missing required 'pickup' parameter", http.StatusBadRequest)
+		http.Error(
+			w,
+			"Missing required 'pickup' parameter",
+			http.StatusBadRequest,
+		)
 		return
 	}
 
 	dropoff := r.Form.Get("dropoff")
 	if dropoff == "" {
-		http.Error(w, "Missing required 'dropoff' parameter", http.StatusBadRequest)
+		http.Error(
+			w,
+			"Missing required 'dropoff' parameter",
+			http.StatusBadRequest,
+		)
 		return
 	}
 

@@ -67,14 +67,20 @@ func NewFactory(config FactoryConfig) (*Factory, error) {
 	return f, nil
 }
 
-func (*Factory) getFactoryOfType(factoryType Kind) (strategystore.Factory, error) {
+func (*Factory) getFactoryOfType(
+	factoryType Kind,
+) (strategystore.Factory, error) {
 	switch factoryType {
 	case samplingTypeFile:
 		return static.NewFactory(), nil
 	case samplingTypeAdaptive:
 		return adaptive.NewFactory(), nil
 	default:
-		return nil, fmt.Errorf("unknown sampling strategy store type %s. Valid types are %v", factoryType, AllSamplingTypes)
+		return nil, fmt.Errorf(
+			"unknown sampling strategy store type %s. Valid types are %v",
+			factoryType,
+			AllSamplingTypes,
+		)
 	}
 }
 
@@ -97,7 +103,11 @@ func (f *Factory) InitFromViper(v *viper.Viper, logger *zap.Logger) {
 }
 
 // Initialize implements strategystore.Factory
-func (f *Factory) Initialize(metricsFactory metrics.Factory, ssFactory storage.SamplingStoreFactory, logger *zap.Logger) error {
+func (f *Factory) Initialize(
+	metricsFactory metrics.Factory,
+	ssFactory storage.SamplingStoreFactory,
+	logger *zap.Logger,
+) error {
 	for _, factory := range f.factories {
 		if err := factory.Initialize(metricsFactory, ssFactory, logger); err != nil {
 			return err
@@ -110,7 +120,10 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, ssFactory storage.S
 func (f *Factory) CreateStrategyStore() (strategystore.StrategyStore, strategystore.Aggregator, error) {
 	factory, ok := f.factories[f.StrategyStoreType]
 	if !ok {
-		return nil, nil, fmt.Errorf("no %s strategy store registered", f.StrategyStoreType)
+		return nil, nil, fmt.Errorf(
+			"no %s strategy store registered",
+			f.StrategyStoreType,
+		)
 	}
 	return factory.CreateStrategyStore()
 }

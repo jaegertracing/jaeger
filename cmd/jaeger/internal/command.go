@@ -57,11 +57,18 @@ func checkConfigAndRun(
 ) error {
 	configFlag := cmd.Flag("config")
 	if !configFlag.Changed {
-		log.Print("No '--config' flags detected, using default All-in-One configuration with memory storage.")
-		log.Print("To customize All-in-One behavior, pass a proper configuration.")
+		log.Print(
+			"No '--config' flags detected, using default All-in-One configuration with memory storage.",
+		)
+		log.Print(
+			"To customize All-in-One behavior, pass a proper configuration.",
+		)
 		data, err := getCfg("all-in-one.yaml")
 		if err != nil {
-			return fmt.Errorf("cannot read embedded all-in-one configuration: %w", err)
+			return fmt.Errorf(
+				"cannot read embedded all-in-one configuration: %w",
+				err,
+			)
 		}
 		configFlag.Value.Set("yaml:" + string(data))
 	}

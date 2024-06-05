@@ -269,9 +269,11 @@ func TestStreamingSpanWriterFactory_CapabilitiesNil(t *testing.T) {
 
 	f.services.Capabilities = nil
 	mockWriter := f.services.Store.SpanWriter().(*spanStoreMocks.Writer)
-	mockWriter.On("WriteSpan", mock.Anything, mock.Anything).Return(errors.New("not streaming writer"))
+	mockWriter.On("WriteSpan", mock.Anything, mock.Anything).
+		Return(errors.New("not streaming writer"))
 	mockWriter2 := f.services.StreamingSpanWriter.StreamingSpanWriter().(*spanStoreMocks.Writer)
-	mockWriter2.On("WriteSpan", mock.Anything, mock.Anything).Return(errors.New("I am streaming writer"))
+	mockWriter2.On("WriteSpan", mock.Anything, mock.Anything).
+		Return(errors.New("I am streaming writer"))
 
 	writer, err := f.CreateSpanWriter()
 	require.NoError(t, err)
@@ -291,28 +293,46 @@ func TestStreamingSpanWriterFactory_Capabilities(t *testing.T) {
 		// then return false on the second call
 		On("Capabilities").Return(&shared.Capabilities{}, nil).Once().
 		// then return true on the second call
-		On("Capabilities").Return(&shared.Capabilities{StreamingSpanWriter: true}, nil).Once()
+		On("Capabilities").
+		Return(&shared.Capabilities{StreamingSpanWriter: true}, nil).Once()
 
 	mockWriter := f.services.Store.SpanWriter().(*spanStoreMocks.Writer)
-	mockWriter.On("WriteSpan", mock.Anything, mock.Anything).Return(errors.New("not streaming writer"))
+	mockWriter.On("WriteSpan", mock.Anything, mock.Anything).
+		Return(errors.New("not streaming writer"))
 	mockWriter2 := f.services.StreamingSpanWriter.StreamingSpanWriter().(*spanStoreMocks.Writer)
-	mockWriter2.On("WriteSpan", mock.Anything, mock.Anything).Return(errors.New("I am streaming writer"))
+	mockWriter2.On("WriteSpan", mock.Anything, mock.Anything).
+		Return(errors.New("I am streaming writer"))
 
 	writer, err := f.CreateSpanWriter()
 	require.NoError(t, err)
 	err = writer.WriteSpan(context.Background(), nil)
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "not streaming writer", "unary writer when Capabilities return error")
+	require.Contains(
+		t,
+		err.Error(),
+		"not streaming writer",
+		"unary writer when Capabilities return error",
+	)
 
 	writer, err = f.CreateSpanWriter()
 	require.NoError(t, err)
 	err = writer.WriteSpan(context.Background(), nil)
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "not streaming writer", "unary writer when Capabilities return false")
+	require.Contains(
+		t,
+		err.Error(),
+		"not streaming writer",
+		"unary writer when Capabilities return false",
+	)
 
 	writer, err = f.CreateSpanWriter()
 	require.NoError(t, err)
 	err = writer.WriteSpan(context.Background(), nil)
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "I am streaming writer", "streaming writer when Capabilities return true")
+	require.Contains(
+		t,
+		err.Error(),
+		"I am streaming writer",
+		"streaming writer when Capabilities return true",
+	)
 }

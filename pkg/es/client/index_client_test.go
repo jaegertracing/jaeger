@@ -86,19 +86,31 @@ func TestClientGetIndices(t *testing.T) {
 			response:     esIndexResponse,
 			indices: []Index{
 				{
-					Index:        "jaeger-service-2021-08-06",
-					CreationTime: time.Unix(0, int64(time.Millisecond)*1628259381266),
-					Aliases:      map[string]bool{},
+					Index: "jaeger-service-2021-08-06",
+					CreationTime: time.Unix(
+						0,
+						int64(time.Millisecond)*1628259381266,
+					),
+					Aliases: map[string]bool{},
 				},
 				{
-					Index:        "jaeger-span-000001",
-					CreationTime: time.Unix(0, int64(time.Millisecond)*1628259381326),
-					Aliases:      map[string]bool{"jaeger-span-read": true, "jaeger-span-write": true},
+					Index: "jaeger-span-000001",
+					CreationTime: time.Unix(
+						0,
+						int64(time.Millisecond)*1628259381326,
+					),
+					Aliases: map[string]bool{
+						"jaeger-span-read":  true,
+						"jaeger-span-write": true,
+					},
 				},
 				{
-					Index:        "jaeger-span-2021-08-06",
-					CreationTime: time.Unix(0, int64(time.Millisecond)*1628259381326),
-					Aliases:      map[string]bool{},
+					Index: "jaeger-span-2021-08-06",
+					CreationTime: time.Unix(
+						0,
+						int64(time.Millisecond)*1628259381326,
+					),
+					Aliases: map[string]bool{},
 				},
 			},
 		},
@@ -109,19 +121,31 @@ func TestClientGetIndices(t *testing.T) {
 			response:     esIndexResponse,
 			indices: []Index{
 				{
-					Index:        "foo-jaeger-service-2021-08-06",
-					CreationTime: time.Unix(0, int64(time.Millisecond)*1628259381266),
-					Aliases:      map[string]bool{},
+					Index: "foo-jaeger-service-2021-08-06",
+					CreationTime: time.Unix(
+						0,
+						int64(time.Millisecond)*1628259381266,
+					),
+					Aliases: map[string]bool{},
 				},
 				{
-					Index:        "foo-jaeger-span-000001",
-					CreationTime: time.Unix(0, int64(time.Millisecond)*1628259381326),
-					Aliases:      map[string]bool{"jaeger-span-read": true, "jaeger-span-write": true},
+					Index: "foo-jaeger-span-000001",
+					CreationTime: time.Unix(
+						0,
+						int64(time.Millisecond)*1628259381326,
+					),
+					Aliases: map[string]bool{
+						"jaeger-span-read":  true,
+						"jaeger-span-write": true,
+					},
 				},
 				{
-					Index:        "foo-jaeger-span-2021-08-06",
-					CreationTime: time.Unix(0, int64(time.Millisecond)*1628259381326),
-					Aliases:      map[string]bool{},
+					Index: "foo-jaeger-span-2021-08-06",
+					CreationTime: time.Unix(
+						0,
+						int64(time.Millisecond)*1628259381326,
+					),
+					Aliases: map[string]bool{},
 				},
 			},
 		},
@@ -140,16 +164,25 @@ func TestClientGetIndices(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
-				res.WriteHeader(test.responseCode)
+			testServer := httptest.NewServer(
+				http.HandlerFunc(
+					func(res http.ResponseWriter, req *http.Request) {
+						res.WriteHeader(test.responseCode)
 
-				response := test.response
-				if test.errContains == "" {
-					// Formatted string only applies to "success" response bodies.
-					response = fmt.Sprintf(test.response, test.prefix, test.prefix, test.prefix)
-				}
-				res.Write([]byte(response))
-			}))
+						response := test.response
+						if test.errContains == "" {
+							// Formatted string only applies to "success" response bodies.
+							response = fmt.Sprintf(
+								test.response,
+								test.prefix,
+								test.prefix,
+								test.prefix,
+							)
+						}
+						res.Write([]byte(response))
+					},
+				),
+			)
 			defer testServer.Close()
 
 			c := &IndicesClient{
@@ -178,8 +211,14 @@ func TestClientGetIndices(t *testing.T) {
 func getIndicesList(size int) []Index {
 	indicesList := []Index{}
 	for count := 1; count <= size/2; count++ {
-		indicesList = append(indicesList, Index{Index: fmt.Sprintf("jaeger-span-%06d", count)})
-		indicesList = append(indicesList, Index{Index: fmt.Sprintf("jaeger-service-%06d", count)})
+		indicesList = append(
+			indicesList,
+			Index{Index: fmt.Sprintf("jaeger-span-%06d", count)},
+		)
+		indicesList = append(
+			indicesList,
+			Index{Index: fmt.Sprintf("jaeger-service-%06d", count)},
+		)
 	}
 	return indicesList
 }
@@ -243,28 +282,44 @@ func TestClientDeleteIndices(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			deletedIndicesCount := 0
 			apiTriggered := false
-			testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
-				apiTriggered = true
-				assert.Equal(t, http.MethodDelete, req.Method)
-				assert.Equal(t, "Basic foobar", req.Header.Get("Authorization"))
-				assert.Equal(t, fmt.Sprintf("%ds", masterTimeoutSeconds), req.URL.Query().Get("master_timeout"))
-				assert.LessOrEqual(t, len(req.URL.Path), maxURLPathLength)
+			testServer := httptest.NewServer(
+				http.HandlerFunc(
+					func(res http.ResponseWriter, req *http.Request) {
+						apiTriggered = true
+						assert.Equal(t, http.MethodDelete, req.Method)
+						assert.Equal(
+							t,
+							"Basic foobar",
+							req.Header.Get("Authorization"),
+						)
+						assert.Equal(
+							t,
+							fmt.Sprintf("%ds", masterTimeoutSeconds),
+							req.URL.Query().Get("master_timeout"),
+						)
+						assert.LessOrEqual(
+							t,
+							len(req.URL.Path),
+							maxURLPathLength,
+						)
 
-				// removes leading '/' and trailing ','
-				// example: /jaeger-span-000001,  =>  jaeger-span-000001
-				rawIndices := strings.TrimPrefix(req.URL.Path, "/")
-				rawIndices = strings.TrimSuffix(rawIndices, ",")
+						// removes leading '/' and trailing ','
+						// example: /jaeger-span-000001,  =>  jaeger-span-000001
+						rawIndices := strings.TrimPrefix(req.URL.Path, "/")
+						rawIndices = strings.TrimSuffix(rawIndices, ",")
 
-				if len(test.indices) == 1 {
-					assert.Equal(t, test.indices[0].Index, rawIndices)
-				}
+						if len(test.indices) == 1 {
+							assert.Equal(t, test.indices[0].Index, rawIndices)
+						}
 
-				deletedIndices := strings.Split(rawIndices, ",")
-				deletedIndicesCount += len(deletedIndices)
+						deletedIndices := strings.Split(rawIndices, ",")
+						deletedIndicesCount += len(deletedIndices)
 
-				res.WriteHeader(test.responseCode)
-				res.Write([]byte(test.response))
-			}))
+						res.WriteHeader(test.responseCode)
+						res.Write([]byte(test.response))
+					},
+				),
+			)
 			defer testServer.Close()
 
 			c := &IndicesClient{
@@ -334,13 +389,24 @@ func TestClientCreateIndex(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
-				assert.True(t, strings.HasSuffix(req.URL.String(), "jaeger-span"))
-				assert.Equal(t, http.MethodPut, req.Method)
-				assert.Equal(t, "Basic foobar", req.Header.Get("Authorization"))
-				res.WriteHeader(test.responseCode)
-				res.Write([]byte(test.response))
-			}))
+			testServer := httptest.NewServer(
+				http.HandlerFunc(
+					func(res http.ResponseWriter, req *http.Request) {
+						assert.True(
+							t,
+							strings.HasSuffix(req.URL.String(), "jaeger-span"),
+						)
+						assert.Equal(t, http.MethodPut, req.Method)
+						assert.Equal(
+							t,
+							"Basic foobar",
+							req.Header.Get("Authorization"),
+						)
+						res.WriteHeader(test.responseCode)
+						res.Write([]byte(test.response))
+					},
+				),
+			)
 			defer testServer.Close()
 
 			c := &IndicesClient{
@@ -391,16 +457,27 @@ func TestClientCreateAliases(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
-				assert.True(t, strings.HasSuffix(req.URL.String(), "_aliases"))
-				assert.Equal(t, http.MethodPost, req.Method)
-				assert.Equal(t, "Basic foobar", req.Header.Get("Authorization"))
-				body, err := io.ReadAll(req.Body)
-				require.NoError(t, err)
-				assert.Equal(t, expectedRequestBody, string(body))
-				res.WriteHeader(test.responseCode)
-				res.Write([]byte(test.response))
-			}))
+			testServer := httptest.NewServer(
+				http.HandlerFunc(
+					func(res http.ResponseWriter, req *http.Request) {
+						assert.True(
+							t,
+							strings.HasSuffix(req.URL.String(), "_aliases"),
+						)
+						assert.Equal(t, http.MethodPost, req.Method)
+						assert.Equal(
+							t,
+							"Basic foobar",
+							req.Header.Get("Authorization"),
+						)
+						body, err := io.ReadAll(req.Body)
+						require.NoError(t, err)
+						assert.Equal(t, expectedRequestBody, string(body))
+						res.WriteHeader(test.responseCode)
+						res.Write([]byte(test.response))
+					},
+				),
+			)
 			defer testServer.Close()
 
 			c := &IndicesClient{
@@ -451,16 +528,27 @@ func TestClientDeleteAliases(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
-				assert.True(t, strings.HasSuffix(req.URL.String(), "_aliases"))
-				assert.Equal(t, http.MethodPost, req.Method)
-				assert.Equal(t, "Basic foobar", req.Header.Get("Authorization"))
-				body, err := io.ReadAll(req.Body)
-				require.NoError(t, err)
-				assert.Equal(t, expectedRequestBody, string(body))
-				res.WriteHeader(test.responseCode)
-				res.Write([]byte(test.response))
-			}))
+			testServer := httptest.NewServer(
+				http.HandlerFunc(
+					func(res http.ResponseWriter, req *http.Request) {
+						assert.True(
+							t,
+							strings.HasSuffix(req.URL.String(), "_aliases"),
+						)
+						assert.Equal(t, http.MethodPost, req.Method)
+						assert.Equal(
+							t,
+							"Basic foobar",
+							req.Header.Get("Authorization"),
+						)
+						body, err := io.ReadAll(req.Body)
+						require.NoError(t, err)
+						assert.Equal(t, expectedRequestBody, string(body))
+						res.WriteHeader(test.responseCode)
+						res.Write([]byte(test.response))
+					},
+				),
+			)
 			defer testServer.Close()
 
 			c := &IndicesClient{
@@ -509,22 +597,36 @@ func TestClientCreateTemplate(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
-				if req.URL.String() == "/" { // ES version check
-					res.WriteHeader(http.StatusOK)
-					res.Write([]byte(test.versionResp))
-					return
-				}
-				assert.True(t, strings.HasSuffix(req.URL.String(), "_template/jaeger-template"))
-				assert.Equal(t, http.MethodPut, req.Method)
-				assert.Equal(t, "Basic foobar", req.Header.Get("Authorization"))
-				body, err := io.ReadAll(req.Body)
-				require.NoError(t, err)
-				assert.Equal(t, templateContent, string(body))
+			testServer := httptest.NewServer(
+				http.HandlerFunc(
+					func(res http.ResponseWriter, req *http.Request) {
+						if req.URL.String() == "/" { // ES version check
+							res.WriteHeader(http.StatusOK)
+							res.Write([]byte(test.versionResp))
+							return
+						}
+						assert.True(
+							t,
+							strings.HasSuffix(
+								req.URL.String(),
+								"_template/jaeger-template",
+							),
+						)
+						assert.Equal(t, http.MethodPut, req.Method)
+						assert.Equal(
+							t,
+							"Basic foobar",
+							req.Header.Get("Authorization"),
+						)
+						body, err := io.ReadAll(req.Body)
+						require.NoError(t, err)
+						assert.Equal(t, templateContent, string(body))
 
-				res.WriteHeader(test.responseCode)
-				res.Write([]byte(test.response))
-			}))
+						res.WriteHeader(test.responseCode)
+						res.Write([]byte(test.response))
+					},
+				),
+			)
 			defer testServer.Close()
 
 			c := &IndicesClient{
@@ -568,17 +670,31 @@ func TestRollover(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
-				assert.True(t, strings.HasSuffix(req.URL.String(), "jaeger-span/_rollover/"))
-				assert.Equal(t, http.MethodPost, req.Method)
-				assert.Equal(t, "Basic foobar", req.Header.Get("Authorization"))
-				body, err := io.ReadAll(req.Body)
-				require.NoError(t, err)
-				assert.Equal(t, expectedRequestBody, string(body))
+			testServer := httptest.NewServer(
+				http.HandlerFunc(
+					func(res http.ResponseWriter, req *http.Request) {
+						assert.True(
+							t,
+							strings.HasSuffix(
+								req.URL.String(),
+								"jaeger-span/_rollover/",
+							),
+						)
+						assert.Equal(t, http.MethodPost, req.Method)
+						assert.Equal(
+							t,
+							"Basic foobar",
+							req.Header.Get("Authorization"),
+						)
+						body, err := io.ReadAll(req.Body)
+						require.NoError(t, err)
+						assert.Equal(t, expectedRequestBody, string(body))
 
-				res.WriteHeader(test.responseCode)
-				res.Write([]byte(test.response))
-			}))
+						res.WriteHeader(test.responseCode)
+						res.Write([]byte(test.response))
+					},
+				),
+			)
 			defer testServer.Close()
 
 			c := &IndicesClient{

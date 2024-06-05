@@ -123,7 +123,11 @@ func (b *Backend) IncCounter(name string, tags map[string]string, delta int64) {
 }
 
 // UpdateGauge updates the value of a gauge
-func (b *Backend) UpdateGauge(name string, tags map[string]string, value int64) {
+func (b *Backend) UpdateGauge(
+	name string,
+	tags map[string]string,
+	value int64,
+) {
 	name = GetKey(name, tags, b.TagsSep, b.TagKVSep)
 	b.gm.Lock()
 	defer b.gm.Unlock()
@@ -137,7 +141,11 @@ func (b *Backend) UpdateGauge(name string, tags map[string]string, value int64) 
 }
 
 // RecordHistogram records a timing duration
-func (b *Backend) RecordHistogram(name string, tags map[string]string, v float64) {
+func (b *Backend) RecordHistogram(
+	name string,
+	tags map[string]string,
+	v float64,
+) {
 	name = GetKey(name, tags, b.TagsSep, b.TagKVSep)
 	histogram := b.findOrCreateHistogram(name)
 	histogram.Lock()
@@ -153,7 +161,12 @@ func (b *Backend) findOrCreateHistogram(name string) *localBackendHistogram {
 	}
 
 	t := &localBackendHistogram{
-		hist: hdrhistogram.NewWindowed(5, 0, int64((5*time.Minute)/time.Millisecond), 1),
+		hist: hdrhistogram.NewWindowed(
+			5,
+			0,
+			int64((5*time.Minute)/time.Millisecond),
+			1,
+		),
 	}
 	b.histograms[name] = t
 	return t
@@ -165,7 +178,11 @@ type localBackendHistogram struct {
 }
 
 // RecordTimer records a timing duration
-func (b *Backend) RecordTimer(name string, tags map[string]string, d time.Duration) {
+func (b *Backend) RecordTimer(
+	name string,
+	tags map[string]string,
+	d time.Duration,
+) {
 	name = GetKey(name, tags, b.TagsSep, b.TagKVSep)
 	timer := b.findOrCreateTimer(name)
 	timer.Lock()
@@ -181,7 +198,12 @@ func (b *Backend) findOrCreateTimer(name string) *localBackendTimer {
 	}
 
 	t := &localBackendTimer{
-		hist: hdrhistogram.NewWindowed(5, 0, int64((5*time.Minute)/time.Millisecond), 1),
+		hist: hdrhistogram.NewWindowed(
+			5,
+			0,
+			int64((5*time.Minute)/time.Millisecond),
+			1,
+		),
 	}
 	b.timers[name] = t
 	return t
@@ -373,7 +395,9 @@ func (l *Factory) Gauge(options metrics.Options) metrics.Gauge {
 }
 
 // Histogram returns a local stats histogram.
-func (l *Factory) Histogram(options metrics.HistogramOptions) metrics.Histogram {
+func (l *Factory) Histogram(
+	options metrics.HistogramOptions,
+) metrics.Histogram {
 	return &localHistogram{
 		stats{
 			name:         l.newNamespace(options.Name),

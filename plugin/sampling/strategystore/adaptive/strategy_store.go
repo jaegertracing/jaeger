@@ -52,12 +52,19 @@ type StrategyStore struct {
 }
 
 // NewStrategyStore creates a strategy store that holds adaptive sampling strategies.
-func NewStrategyStore(options Options, logger *zap.Logger, participant leaderelection.ElectionParticipant, store samplingstore.Store) *StrategyStore {
+func NewStrategyStore(
+	options Options,
+	logger *zap.Logger,
+	participant leaderelection.ElectionParticipant,
+	store samplingstore.Store,
+) *StrategyStore {
 	return &StrategyStore{
-		Options:                 options,
-		storage:                 store,
-		probabilities:           make(model.ServiceOperationProbabilities),
-		strategyResponses:       make(map[string]*api_v2.SamplingStrategyResponse),
+		Options:       options,
+		storage:       store,
+		probabilities: make(model.ServiceOperationProbabilities),
+		strategyResponses: make(
+			map[string]*api_v2.SamplingStrategyResponse,
+		),
 		logger:                  logger,
 		electionParticipant:     participant,
 		followerRefreshInterval: defaultFollowerProbabilityInterval,

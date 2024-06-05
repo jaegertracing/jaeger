@@ -67,7 +67,8 @@ func TestArchiveReader_GetTrace(t *testing.T) {
 	archiveSpanReader := new(mocks.ArchiveSpanReaderPluginClient)
 	archiveSpanReader.On("GetArchiveTrace", mock.Anything, &storage_v1.GetTraceRequest{
 		TraceID: mockTraceID,
-	}).Return(traceClient, nil)
+	}).
+		Return(traceClient, nil)
 	reader := &archiveReader{client: archiveSpanReader}
 
 	trace, err := reader.GetTrace(context.Background(), mockTraceID)
@@ -81,7 +82,8 @@ func TestArchiveReaderGetTrace_NoTrace(t *testing.T) {
 	archiveSpanReader := new(mocks.ArchiveSpanReaderPluginClient)
 	archiveSpanReader.On("GetArchiveTrace", mock.Anything, &storage_v1.GetTraceRequest{
 		TraceID: mockTraceID,
-	}).Return(nil, status.Errorf(codes.NotFound, ""))
+	}).
+		Return(nil, status.Errorf(codes.NotFound, ""))
 	reader := &archiveReader{client: archiveSpanReader}
 
 	_, err := reader.GetTrace(context.Background(), mockTraceID)
@@ -102,7 +104,10 @@ func TestArchiveReader_FindTraces(t *testing.T) {
 
 func TestArchiveReader_GetOperations(t *testing.T) {
 	reader := archiveReader{client: &mocks.ArchiveSpanReaderPluginClient{}}
-	_, err := reader.GetOperations(context.Background(), spanstore.OperationQueryParameters{})
+	_, err := reader.GetOperations(
+		context.Background(),
+		spanstore.OperationQueryParameters{},
+	)
 	require.Error(t, err)
 }
 

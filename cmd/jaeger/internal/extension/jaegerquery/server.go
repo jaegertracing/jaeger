@@ -47,9 +47,16 @@ func (*server) Dependencies() []component.ID {
 }
 
 func (s *server) Start(ctx context.Context, host component.Host) error {
-	f, err := jaegerstorage.GetStorageFactory(s.config.TraceStoragePrimary, host)
+	f, err := jaegerstorage.GetStorageFactory(
+		s.config.TraceStoragePrimary,
+		host,
+	)
 	if err != nil {
-		return fmt.Errorf("cannot find primary storage %s: %w", s.config.TraceStoragePrimary, err)
+		return fmt.Errorf(
+			"cannot find primary storage %s: %w",
+			s.config.TraceStoragePrimary,
+			err,
+		)
 	}
 
 	spanReader, err := f.CreateSpanReader()
@@ -103,13 +110,19 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 	return nil
 }
 
-func (s *server) addArchiveStorage(opts *querysvc.QueryServiceOptions, host component.Host) error {
+func (s *server) addArchiveStorage(
+	opts *querysvc.QueryServiceOptions,
+	host component.Host,
+) error {
 	if s.config.TraceStorageArchive == "" {
 		s.logger.Info("Archive storage not configured")
 		return nil
 	}
 
-	f, err := jaegerstorage.GetStorageFactory(s.config.TraceStorageArchive, host)
+	f, err := jaegerstorage.GetStorageFactory(
+		s.config.TraceStorageArchive,
+		host,
+	)
 	if err != nil {
 		return fmt.Errorf("cannot find archive storage factory: %w", err)
 	}

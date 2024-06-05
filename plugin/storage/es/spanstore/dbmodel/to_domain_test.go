@@ -53,7 +53,10 @@ func testToDomain(t *testing.T, testParentSpanID bool) {
 		outStr, err := os.ReadFile(out)
 		require.NoError(t, err)
 		var expectedSpan model.Span
-		require.NoError(t, gogojsonpb.Unmarshal(bytes.NewReader(outStr), &expectedSpan))
+		require.NoError(
+			t,
+			gogojsonpb.Unmarshal(bytes.NewReader(outStr), &expectedSpan),
+		)
 
 		CompareModelSpans(t, &expectedSpan, actualSpan)
 	}
@@ -167,7 +170,11 @@ func TestFailureBadLogs(t *testing.T) {
 			},
 		},
 	}
-	failingSpanTransform(t, &badLogsESSpan, "not a valid ValueType string badType")
+	failingSpanTransform(
+		t,
+		&badLogsESSpan,
+		"not a valid ValueType string badType",
+	)
 }
 
 func TestRevertKeyValueOfType(t *testing.T) {
@@ -214,7 +221,11 @@ func TestFailureBadRefs(t *testing.T) {
 			TraceID: "1",
 		},
 	}
-	failingSpanTransform(t, &badRefsESSpan, "not a valid SpanRefType string makeOurOwnCasino")
+	failingSpanTransform(
+		t,
+		&badRefsESSpan,
+		"not a valid SpanRefType string makeOurOwnCasino",
+	)
 }
 
 func TestFailureBadTraceIDRefs(t *testing.T) {
@@ -258,7 +269,11 @@ func TestFailureBadProcess(t *testing.T) {
 		ServiceName: "hello",
 		Tags:        badTags,
 	}
-	failingSpanTransform(t, &badProcessESSpan, "not a valid ValueType string badType")
+	failingSpanTransform(
+		t,
+		&badProcessESSpan,
+		"not a valid ValueType string badType",
+	)
 }
 
 func TestFailureBadTraceID(t *testing.T) {
@@ -316,21 +331,76 @@ func TestTagsMap(t *testing.T) {
 		expected  []model.KeyValue
 		err       error
 	}{
-		{fieldTags: map[string]any{"bool:bool": true}, expected: []model.KeyValue{model.Bool("bool.bool", true)}},
-		{fieldTags: map[string]any{"int.int": int64(1)}, expected: []model.KeyValue{model.Int64("int.int", 1)}},
-		{fieldTags: map[string]any{"int:int": int64(2)}, expected: []model.KeyValue{model.Int64("int.int", 2)}},
-		{fieldTags: map[string]any{"float": float64(1.1)}, expected: []model.KeyValue{model.Float64("float", 1.1)}},
-		{fieldTags: map[string]any{"float": float64(123)}, expected: []model.KeyValue{model.Float64("float", float64(123))}},
-		{fieldTags: map[string]any{"float": float64(123.0)}, expected: []model.KeyValue{model.Float64("float", float64(123.0))}},
-		{fieldTags: map[string]any{"float:float": float64(123)}, expected: []model.KeyValue{model.Float64("float.float", float64(123))}},
-		{fieldTags: map[string]any{"json_number:int": json.Number("123")}, expected: []model.KeyValue{model.Int64("json_number.int", 123)}},
-		{fieldTags: map[string]any{"json_number:float": json.Number("123.0")}, expected: []model.KeyValue{model.Float64("json_number.float", float64(123.0))}},
-		{fieldTags: map[string]any{"json_number:err": json.Number("foo")}, err: fmt.Errorf("invalid tag type in foo: strconv.ParseFloat: parsing \"foo\": invalid syntax")},
-		{fieldTags: map[string]any{"str": "foo"}, expected: []model.KeyValue{model.String("str", "foo")}},
-		{fieldTags: map[string]any{"str:str": "foo"}, expected: []model.KeyValue{model.String("str.str", "foo")}},
-		{fieldTags: map[string]any{"binary": []byte("foo")}, expected: []model.KeyValue{model.Binary("binary", []byte("foo"))}},
-		{fieldTags: map[string]any{"binary:binary": []byte("foo")}, expected: []model.KeyValue{model.Binary("binary.binary", []byte("foo"))}},
-		{fieldTags: map[string]any{"unsupported": struct{}{}}, err: fmt.Errorf("invalid tag type in %+v", struct{}{})},
+		{
+			fieldTags: map[string]any{"bool:bool": true},
+			expected:  []model.KeyValue{model.Bool("bool.bool", true)},
+		},
+		{
+			fieldTags: map[string]any{"int.int": int64(1)},
+			expected:  []model.KeyValue{model.Int64("int.int", 1)},
+		},
+		{
+			fieldTags: map[string]any{"int:int": int64(2)},
+			expected:  []model.KeyValue{model.Int64("int.int", 2)},
+		},
+		{
+			fieldTags: map[string]any{"float": float64(1.1)},
+			expected:  []model.KeyValue{model.Float64("float", 1.1)},
+		},
+		{
+			fieldTags: map[string]any{"float": float64(123)},
+			expected:  []model.KeyValue{model.Float64("float", float64(123))},
+		},
+		{
+			fieldTags: map[string]any{"float": float64(123.0)},
+			expected:  []model.KeyValue{model.Float64("float", float64(123.0))},
+		},
+		{
+			fieldTags: map[string]any{"float:float": float64(123)},
+			expected: []model.KeyValue{
+				model.Float64("float.float", float64(123)),
+			},
+		},
+		{
+			fieldTags: map[string]any{"json_number:int": json.Number("123")},
+			expected:  []model.KeyValue{model.Int64("json_number.int", 123)},
+		},
+		{
+			fieldTags: map[string]any{
+				"json_number:float": json.Number("123.0"),
+			},
+			expected: []model.KeyValue{
+				model.Float64("json_number.float", float64(123.0)),
+			},
+		},
+		{
+			fieldTags: map[string]any{"json_number:err": json.Number("foo")},
+			err: fmt.Errorf(
+				"invalid tag type in foo: strconv.ParseFloat: parsing \"foo\": invalid syntax",
+			),
+		},
+		{
+			fieldTags: map[string]any{"str": "foo"},
+			expected:  []model.KeyValue{model.String("str", "foo")},
+		},
+		{
+			fieldTags: map[string]any{"str:str": "foo"},
+			expected:  []model.KeyValue{model.String("str.str", "foo")},
+		},
+		{
+			fieldTags: map[string]any{"binary": []byte("foo")},
+			expected:  []model.KeyValue{model.Binary("binary", []byte("foo"))},
+		},
+		{
+			fieldTags: map[string]any{"binary:binary": []byte("foo")},
+			expected: []model.KeyValue{
+				model.Binary("binary.binary", []byte("foo")),
+			},
+		},
+		{
+			fieldTags: map[string]any{"unsupported": struct{}{}},
+			err:       fmt.Errorf("invalid tag type in %+v", struct{}{}),
+		},
 	}
 	converter := NewToDomain(":")
 	for i, test := range tests {

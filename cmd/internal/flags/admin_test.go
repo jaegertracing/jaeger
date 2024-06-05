@@ -51,7 +51,12 @@ func TestAdminServerHandlesPortZero(t *testing.T) {
 	defer adminServer.Close()
 
 	message := logs.FilterMessage("Admin server started")
-	assert.Equal(t, 1, message.Len(), "Expected Admin server started log message.")
+	assert.Equal(
+		t,
+		1,
+		message.Len(),
+		"Expected Admin server started log message.",
+	)
 
 	onlyEntry := message.All()[0]
 	hostPort := onlyEntry.ContextMap()["http.host-port"].(string)
@@ -81,7 +86,11 @@ func TestAdminFailToServe(t *testing.T) {
 	adminServer.serveWithListener(l)
 	defer adminServer.Close()
 
-	waitForEqual(t, healthcheck.Broken, func() any { return adminServer.HC().Get() })
+	waitForEqual(
+		t,
+		healthcheck.Broken,
+		func() any { return adminServer.HC().Get() },
+	)
 
 	logEntries := logs.TakeAll()
 	var matchedEntry string
@@ -132,7 +141,9 @@ func TestAdminServerTLS(t *testing.T) {
 
 	for _, test := range testCases {
 		t.Run(test.name, func(t *testing.T) {
-			adminServer := NewAdminServer(fmt.Sprintf(":%d", ports.CollectorAdminHTTP))
+			adminServer := NewAdminServer(
+				fmt.Sprintf(":%d", ports.CollectorAdminHTTP),
+			)
 
 			v, command := config.Viperize(adminServer.AddFlags)
 			err := command.ParseFlags(test.serverTLSFlags)
@@ -149,7 +160,12 @@ func TestAdminServerTLS(t *testing.T) {
 			clientTLSCfg, err0 := test.clientTLS.Config(zap.NewNop())
 			require.NoError(t, err0)
 			dialer := &net.Dialer{Timeout: 2 * time.Second}
-			conn, clientError := tls.DialWithDialer(dialer, "tcp", fmt.Sprintf("localhost:%d", ports.CollectorAdminHTTP), clientTLSCfg)
+			conn, clientError := tls.DialWithDialer(
+				dialer,
+				"tcp",
+				fmt.Sprintf("localhost:%d", ports.CollectorAdminHTTP),
+				clientTLSCfg,
+			)
 			require.NoError(t, clientError)
 			require.NoError(t, conn.Close())
 
@@ -159,7 +175,9 @@ func TestAdminServerTLS(t *testing.T) {
 				},
 			}
 
-			response, requestError := client.Get(fmt.Sprintf("https://localhost:%d", ports.CollectorAdminHTTP))
+			response, requestError := client.Get(
+				fmt.Sprintf("https://localhost:%d", ports.CollectorAdminHTTP),
+			)
 			require.NoError(t, requestError)
 			require.NotNil(t, response)
 		})

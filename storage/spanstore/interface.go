@@ -44,7 +44,10 @@ type Reader interface {
 
 	// GetOperations returns all operation names for a given service
 	// known to the backend from spans within its retention period.
-	GetOperations(ctx context.Context, query OperationQueryParameters) ([]Operation, error)
+	GetOperations(
+		ctx context.Context,
+		query OperationQueryParameters,
+	) ([]Operation, error)
 
 	// FindTraces returns all traces matching query parameters. There's currently
 	// an implementation-dependent abiguity whether all query filters (such as
@@ -52,13 +55,19 @@ type Reader interface {
 	// by different spans.
 	//
 	// If no matching traces are found, the function returns (nil, nil).
-	FindTraces(ctx context.Context, query *TraceQueryParameters) ([]*model.Trace, error)
+	FindTraces(
+		ctx context.Context,
+		query *TraceQueryParameters,
+	) ([]*model.Trace, error)
 
 	// FindTraceIDs does the same search as FindTraces, but returns only the list
 	// of matching trace IDs.
 	//
 	// If no matching traces are found, the function returns (nil, nil).
-	FindTraceIDs(ctx context.Context, query *TraceQueryParameters) ([]model.TraceID, error)
+	FindTraceIDs(
+		ctx context.Context,
+		query *TraceQueryParameters,
+	) ([]model.TraceID, error)
 }
 
 // TraceQueryParameters contains parameters of a trace query.

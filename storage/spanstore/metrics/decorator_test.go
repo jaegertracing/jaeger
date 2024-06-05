@@ -36,11 +36,14 @@ func TestSuccessfulUnderlyingCalls(t *testing.T) {
 	mrs := metrics.NewReadMetricsDecorator(&mockReader, mf)
 	mockReader.On("GetServices", context.Background()).Return([]string{}, nil)
 	mrs.GetServices(context.Background())
-	operationQuery := spanstore.OperationQueryParameters{ServiceName: "something"}
+	operationQuery := spanstore.OperationQueryParameters{
+		ServiceName: "something",
+	}
 	mockReader.On("GetOperations", context.Background(), operationQuery).
 		Return([]spanstore.Operation{}, nil)
 	mrs.GetOperations(context.Background(), operationQuery)
-	mockReader.On("GetTrace", context.Background(), model.TraceID{}).Return(&model.Trace{}, nil)
+	mockReader.On("GetTrace", context.Background(), model.TraceID{}).
+		Return(&model.Trace{}, nil)
 	mrs.GetTrace(context.Background(), model.TraceID{})
 	mockReader.On("FindTraces", context.Background(), &spanstore.TraceQueryParameters{}).
 		Return([]*model.Trace{}, nil)
@@ -71,7 +74,14 @@ func TestSuccessfulUnderlyingCalls(t *testing.T) {
 		"latency|operation=get_operations|result=err.P50",
 	}
 
-	checkExpectedExistingAndNonExistentCounters(t, counters, expecteds, gauges, existingKeys, nonExistentKeys)
+	checkExpectedExistingAndNonExistentCounters(
+		t,
+		counters,
+		expecteds,
+		gauges,
+		existingKeys,
+		nonExistentKeys,
+	)
 }
 
 func checkExpectedExistingAndNonExistentCounters(t *testing.T,
@@ -104,7 +114,9 @@ func TestFailingUnderlyingCalls(t *testing.T) {
 	mockReader.On("GetServices", context.Background()).
 		Return(nil, errors.New("Failure"))
 	mrs.GetServices(context.Background())
-	operationQuery := spanstore.OperationQueryParameters{ServiceName: "something"}
+	operationQuery := spanstore.OperationQueryParameters{
+		ServiceName: "something",
+	}
 	mockReader.On("GetOperations", context.Background(), operationQuery).
 		Return(nil, errors.New("Failure"))
 	mrs.GetOperations(context.Background(), operationQuery)
@@ -141,5 +153,12 @@ func TestFailingUnderlyingCalls(t *testing.T) {
 		"latency|operation=query|result=ok.P50", // this is not exhaustive
 	}
 
-	checkExpectedExistingAndNonExistentCounters(t, counters, expecteds, gauges, existingKeys, nonExistentKeys)
+	checkExpectedExistingAndNonExistentCounters(
+		t,
+		counters,
+		expecteds,
+		gauges,
+		existingKeys,
+		nonExistentKeys,
+	)
 }

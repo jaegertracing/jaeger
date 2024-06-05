@@ -47,13 +47,18 @@ const serviceName = "jaeger-collector"
 func main() {
 	svc := cmdFlags.NewService(ports.CollectorAdminHTTP)
 
-	storageFactory, err := storage.NewFactory(storage.FactoryConfigFromEnvAndCLI(os.Args, os.Stderr))
+	storageFactory, err := storage.NewFactory(
+		storage.FactoryConfigFromEnvAndCLI(os.Args, os.Stderr),
+	)
 	if err != nil {
 		log.Fatalf("Cannot initialize storage factory: %v", err)
 	}
 	strategyStoreFactoryConfig, err := ss.FactoryConfigFromEnv()
 	if err != nil {
-		log.Fatalf("Cannot initialize sampling strategy store factory config: %v", err)
+		log.Fatalf(
+			"Cannot initialize sampling strategy store factory config: %v",
+			err,
+		)
 	}
 	strategyStoreFactory, err := ss.NewFactory(*strategyStoreFactoryConfig)
 	if err != nil {
@@ -70,8 +75,12 @@ func main() {
 				return err
 			}
 			logger := svc.Logger // shortcut
-			baseFactory := svc.MetricsFactory.Namespace(metrics.NSOptions{Name: "jaeger"})
-			metricsFactory := baseFactory.Namespace(metrics.NSOptions{Name: "collector"})
+			baseFactory := svc.MetricsFactory.Namespace(
+				metrics.NSOptions{Name: "jaeger"},
+			)
+			metricsFactory := baseFactory.Namespace(
+				metrics.NSOptions{Name: "collector"},
+			)
 			version.NewInfoMetrics(metricsFactory)
 
 			storageFactory.InitFromViper(v, logger)
@@ -85,18 +94,29 @@ func main() {
 
 			ssFactory, err := storageFactory.CreateSamplingStoreFactory()
 			if err != nil {
-				logger.Fatal("Failed to create sampling store factory", zap.Error(err))
+				logger.Fatal(
+					"Failed to create sampling store factory",
+					zap.Error(err),
+				)
 			}
 
 			strategyStoreFactory.InitFromViper(v, logger)
 			if err := strategyStoreFactory.Initialize(metricsFactory, ssFactory, logger); err != nil {
-				logger.Fatal("Failed to init sampling strategy store factory", zap.Error(err))
+				logger.Fatal(
+					"Failed to init sampling strategy store factory",
+					zap.Error(err),
+				)
 			}
 			strategyStore, aggregator, err := strategyStoreFactory.CreateStrategyStore()
 			if err != nil {
-				logger.Fatal("Failed to create sampling strategy store", zap.Error(err))
+				logger.Fatal(
+					"Failed to create sampling strategy store",
+					zap.Error(err),
+				)
 			}
-			collectorOpts, err := new(flags.CollectorOptions).InitFromViper(v, logger)
+			collectorOpts, err := new(
+				flags.CollectorOptions,
+			).InitFromViper(v, logger)
 			if err != nil {
 				logger.Fatal("Failed to initialize collector", zap.Error(err))
 			}
@@ -119,19 +139,31 @@ func main() {
 			// Wait for shutdown
 			svc.RunAndThen(func() {
 				if err := collector.Close(); err != nil {
-					logger.Error("failed to cleanly close the collector", zap.Error(err))
+					logger.Error(
+						"failed to cleanly close the collector",
+						zap.Error(err),
+					)
 				}
 				if closer, ok := spanWriter.(io.Closer); ok {
 					err := closer.Close()
 					if err != nil {
-						logger.Error("failed to close span writer", zap.Error(err))
+						logger.Error(
+							"failed to close span writer",
+							zap.Error(err),
+						)
 					}
 				}
 				if err := storageFactory.Close(); err != nil {
-					logger.Error("Failed to close storage factory", zap.Error(err))
+					logger.Error(
+						"Failed to close storage factory",
+						zap.Error(err),
+					)
 				}
 				if err := strategyStoreFactory.Close(); err != nil {
-					logger.Error("Failed to close sampling strategy store factory", zap.Error(err))
+					logger.Error(
+						"Failed to close sampling strategy store factory",
+						zap.Error(err),
+					)
 				}
 			})
 			return nil

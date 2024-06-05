@@ -143,9 +143,16 @@ func (f *Factory) configureFromOptions(o *Options) {
 }
 
 // Initialize implements storage.Factory
-func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
-	f.primaryMetricsFactory = metricsFactory.Namespace(metrics.NSOptions{Name: "cassandra", Tags: nil})
-	f.archiveMetricsFactory = metricsFactory.Namespace(metrics.NSOptions{Name: "cassandra-archive", Tags: nil})
+func (f *Factory) Initialize(
+	metricsFactory metrics.Factory,
+	logger *zap.Logger,
+) error {
+	f.primaryMetricsFactory = metricsFactory.Namespace(
+		metrics.NSOptions{Name: "cassandra", Tags: nil},
+	)
+	f.archiveMetricsFactory = metricsFactory.Namespace(
+		metrics.NSOptions{Name: "cassandra-archive", Tags: nil},
+	)
 	f.logger = logger
 
 	primarySession, err := f.primaryConfig.NewSession(logger)
@@ -168,7 +175,12 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 
 // CreateSpanReader implements storage.Factory
 func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
-	return cSpanStore.NewSpanReader(f.primarySession, f.primaryMetricsFactory, f.logger, f.tracer.Tracer("cSpanStore.SpanReader")), nil
+	return cSpanStore.NewSpanReader(
+		f.primarySession,
+		f.primaryMetricsFactory,
+		f.logger,
+		f.tracer.Tracer("cSpanStore.SpanReader"),
+	), nil
 }
 
 // CreateSpanWriter implements storage.Factory
@@ -177,13 +189,23 @@ func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
 	if err != nil {
 		return nil, err
 	}
-	return cSpanStore.NewSpanWriter(f.primarySession, f.Options.SpanStoreWriteCacheTTL, f.primaryMetricsFactory, f.logger, options...), nil
+	return cSpanStore.NewSpanWriter(
+		f.primarySession,
+		f.Options.SpanStoreWriteCacheTTL,
+		f.primaryMetricsFactory,
+		f.logger,
+		options...), nil
 }
 
 // CreateDependencyReader implements storage.Factory
 func (f *Factory) CreateDependencyReader() (dependencystore.Reader, error) {
 	version := cDepStore.GetDependencyVersion(f.primarySession)
-	return cDepStore.NewDependencyStore(f.primarySession, f.primaryMetricsFactory, f.logger, version)
+	return cDepStore.NewDependencyStore(
+		f.primarySession,
+		f.primaryMetricsFactory,
+		f.logger,
+		version,
+	)
 }
 
 // CreateArchiveSpanReader implements storage.ArchiveFactory
@@ -191,7 +213,12 @@ func (f *Factory) CreateArchiveSpanReader() (spanstore.Reader, error) {
 	if f.archiveSession == nil {
 		return nil, storage.ErrArchiveStorageNotConfigured
 	}
-	return cSpanStore.NewSpanReader(f.archiveSession, f.archiveMetricsFactory, f.logger, f.tracer.Tracer("cSpanStore.SpanReader")), nil
+	return cSpanStore.NewSpanReader(
+		f.archiveSession,
+		f.archiveMetricsFactory,
+		f.logger,
+		f.tracer.Tracer("cSpanStore.SpanReader"),
+	), nil
 }
 
 // CreateArchiveSpanWriter implements storage.ArchiveFactory
@@ -203,7 +230,12 @@ func (f *Factory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
 	if err != nil {
 		return nil, err
 	}
-	return cSpanStore.NewSpanWriter(f.archiveSession, f.Options.SpanStoreWriteCacheTTL, f.archiveMetricsFactory, f.logger, options...), nil
+	return cSpanStore.NewSpanWriter(
+		f.archiveSession,
+		f.Options.SpanStoreWriteCacheTTL,
+		f.archiveMetricsFactory,
+		f.logger,
+		options...), nil
 }
 
 // CreateLock implements storage.SamplingStoreFactory
@@ -212,14 +244,23 @@ func (f *Factory) CreateLock() (distributedlock.Lock, error) {
 	if err != nil {
 		return nil, err
 	}
-	f.logger.Info("Using unique participantName in the distributed lock", zap.String("participantName", hostname))
+	f.logger.Info(
+		"Using unique participantName in the distributed lock",
+		zap.String("participantName", hostname),
+	)
 
 	return cLock.NewLock(f.primarySession, hostname), nil
 }
 
 // CreateSamplingStore implements storage.SamplingStoreFactory
-func (f *Factory) CreateSamplingStore(maxBuckets int) (samplingstore.Store, error) {
-	return cSamplingStore.New(f.primarySession, f.primaryMetricsFactory, f.logger), nil
+func (f *Factory) CreateSamplingStore(
+	maxBuckets int,
+) (samplingstore.Store, error) {
+	return cSamplingStore.New(
+		f.primarySession,
+		f.primaryMetricsFactory,
+		f.logger,
+	), nil
 }
 
 func writerOptions(opts *Options) ([]cSpanStore.Option, error) {
@@ -227,17 +268,29 @@ func writerOptions(opts *Options) ([]cSpanStore.Option, error) {
 
 	// drop all tag filters
 	if !opts.Index.Tags || !opts.Index.ProcessTags || !opts.Index.Logs {
-		tagFilters = append(tagFilters, dbmodel.NewTagFilterDropAll(!opts.Index.Tags, !opts.Index.ProcessTags, !opts.Index.Logs))
+		tagFilters = append(
+			tagFilters,
+			dbmodel.NewTagFilterDropAll(
+				!opts.Index.Tags,
+				!opts.Index.ProcessTags,
+				!opts.Index.Logs,
+			),
+		)
 	}
 
 	// black/white list tag filters
 	tagIndexBlacklist := opts.TagIndexBlacklist()
 	tagIndexWhitelist := opts.TagIndexWhitelist()
 	if len(tagIndexBlacklist) > 0 && len(tagIndexWhitelist) > 0 {
-		return nil, errors.New("only one of TagIndexBlacklist and TagIndexWhitelist can be specified")
+		return nil, errors.New(
+			"only one of TagIndexBlacklist and TagIndexWhitelist can be specified",
+		)
 	}
 	if len(tagIndexBlacklist) > 0 {
-		tagFilters = append(tagFilters, dbmodel.NewBlacklistFilter(tagIndexBlacklist))
+		tagFilters = append(
+			tagFilters,
+			dbmodel.NewBlacklistFilter(tagIndexBlacklist),
+		)
 	} else if len(tagIndexWhitelist) > 0 {
 		tagFilters = append(tagFilters, dbmodel.NewWhitelistFilter(tagIndexWhitelist))
 	}
@@ -248,7 +301,9 @@ func writerOptions(opts *Options) ([]cSpanStore.Option, error) {
 		return []cSpanStore.Option{cSpanStore.TagFilter(tagFilters[0])}, nil
 	}
 
-	return []cSpanStore.Option{cSpanStore.TagFilter(dbmodel.NewChainedTagFilter(tagFilters...))}, nil
+	return []cSpanStore.Option{
+		cSpanStore.TagFilter(dbmodel.NewChainedTagFilter(tagFilters...)),
+	}, nil
 }
 
 var _ io.Closer = (*Factory)(nil)

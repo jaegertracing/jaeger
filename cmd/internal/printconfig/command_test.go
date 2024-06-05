@@ -50,7 +50,11 @@ func addFlags(flagSet *flag.FlagSet) {
 	flagSet.String(testPluginConfigurationFile, "", "")
 	flagSet.String(testPluginLogLevel, defaultTestPluginLogLevel, "")
 	flagSet.String(testRemoteServer, "", "")
-	flagSet.Duration(testRemoteConnectionTimeout, defaultTestConnectionTimeout, "")
+	flagSet.Duration(
+		testRemoteConnectionTimeout,
+		defaultTestConnectionTimeout,
+		"",
+	)
 }
 
 func setConfig(t *testing.T) *viper.Viper {

@@ -79,7 +79,8 @@ func TestExtendLease(t *testing.T) {
 		t.Run(testCase.caption, func(t *testing.T) {
 			withCQLLock(func(s *cqlLockTest) {
 				query := &mocks.Query{}
-				query.On("ScanCAS", matchEverything()).Return(testCase.applied, testCase.errScan)
+				query.On("ScanCAS", matchEverything()).
+					Return(testCase.applied, testCase.errScan)
 
 				var args []any
 				captureArgs := mock.MatchedBy(func(v []any) bool {
@@ -87,7 +88,8 @@ func TestExtendLease(t *testing.T) {
 					return true
 				})
 
-				s.session.On("Query", mock.AnythingOfType("string"), captureArgs).Return(query)
+				s.session.On("Query", mock.AnythingOfType("string"), captureArgs).
+					Return(query)
 				err := s.lock.extendLease(samplingLock, time.Second*60)
 				if testCase.expectedErrMsg == "" {
 					require.NoError(t, err)
@@ -173,11 +175,15 @@ func TestAcquire(t *testing.T) {
 					}
 					return mock.MatchedBy(scanFunc)
 				}
-				firstQuery.On("ScanCAS", scanMatcher()).Return(testCase.insertLockApplied, testCase.errScan)
-				secondQuery.On("ScanCAS", matchEverything()).Return(testCase.updateLockApplied, nil)
+				firstQuery.On("ScanCAS", scanMatcher()).
+					Return(testCase.insertLockApplied, testCase.errScan)
+				secondQuery.On("ScanCAS", matchEverything()).
+					Return(testCase.updateLockApplied, nil)
 
-				s.session.On("Query", stringMatcher("INSERT INTO leases"), matchEverything()).Return(firstQuery)
-				s.session.On("Query", stringMatcher("UPDATE leases"), matchEverything()).Return(secondQuery)
+				s.session.On("Query", stringMatcher("INSERT INTO leases"), matchEverything()).
+					Return(firstQuery)
+				s.session.On("Query", stringMatcher("UPDATE leases"), matchEverything()).
+					Return(secondQuery)
 				acquired, err := s.lock.Acquire(samplingLock, 0)
 				if testCase.expectedErrMsg == "" {
 					require.NoError(t, err)
@@ -226,7 +232,8 @@ func TestForfeit(t *testing.T) {
 		t.Run(testCase.caption, func(t *testing.T) {
 			withCQLLock(func(s *cqlLockTest) {
 				query := &mocks.Query{}
-				query.On("ScanCAS", matchEverything()).Return(testCase.applied, testCase.errScan)
+				query.On("ScanCAS", matchEverything()).
+					Return(testCase.applied, testCase.errScan)
 
 				var args []any
 				captureArgs := mock.MatchedBy(func(v []any) bool {
@@ -234,7 +241,8 @@ func TestForfeit(t *testing.T) {
 					return true
 				})
 
-				s.session.On("Query", mock.AnythingOfType("string"), captureArgs).Return(query)
+				s.session.On("Query", mock.AnythingOfType("string"), captureArgs).
+					Return(query)
 				applied, err := s.lock.Forfeit(samplingLock)
 				if testCase.expectedErrMsg == "" {
 					require.NoError(t, err)

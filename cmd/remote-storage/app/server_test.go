@@ -49,7 +49,9 @@ func TestNewServer_CreateStorageErrors(t *testing.T) {
 	factory.On("CreateSpanReader").Return(nil, nil)
 	factory.On("CreateSpanWriter").Return(nil, errors.New("no writer")).Once()
 	factory.On("CreateSpanWriter").Return(nil, nil)
-	factory.On("CreateDependencyReader").Return(nil, errors.New("no deps")).Once()
+	factory.On("CreateDependencyReader").
+		Return(nil, errors.New("no deps")).
+		Once()
 	factory.On("CreateDependencyReader").Return(nil, nil)
 
 	f := func() (*Server, error) {
@@ -140,13 +142,18 @@ func TestCreateGRPCHandler(t *testing.T) {
 	h, err := createGRPCHandler(storageMocks.factory, zap.NewNop())
 	require.NoError(t, err)
 
-	storageMocks.writer.On("WriteSpan", mock.Anything, mock.Anything).Return(errors.New("writer error"))
+	storageMocks.writer.On("WriteSpan", mock.Anything, mock.Anything).
+		Return(errors.New("writer error"))
 	_, err = h.WriteSpan(context.Background(), &storage_v1.WriteSpanRequest{})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "writer error")
 
-	storageMocks.depReader.On("GetDependencies", mock.Anything, mock.Anything).Return(nil, errors.New("deps error"))
-	_, err = h.GetDependencies(context.Background(), &storage_v1.GetDependenciesRequest{})
+	storageMocks.depReader.On("GetDependencies", mock.Anything, mock.Anything).
+		Return(nil, errors.New("deps error"))
+	_, err = h.GetDependencies(
+		context.Background(),
+		&storage_v1.GetDependenciesRequest{},
+	)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "deps error")
 
@@ -293,7 +300,12 @@ type grpcClient struct {
 	conn *grpc.ClientConn
 }
 
-func newGRPCClient(t *testing.T, addr string, creds credentials.TransportCredentials, tm *tenancy.Manager) *grpcClient {
+func newGRPCClient(
+	t *testing.T,
+	addr string,
+	creds credentials.TransportCredentials,
+	tm *tenancy.Manager,
+) *grpcClient {
 	dialOpts := []grpc.DialOption{
 		grpc.WithUnaryInterceptor(tenancy.NewClientUnaryInterceptor(tm)),
 	}
@@ -326,7 +338,8 @@ func TestServerGRPCTLS(t *testing.T) {
 
 			storageMocks := newStorageMocks()
 			expectedServices := []string{"test"}
-			storageMocks.reader.On("GetServices", mock.AnythingOfType("*context.valueCtx")).Return(expectedServices, nil)
+			storageMocks.reader.On("GetServices", mock.AnythingOfType("*context.valueCtx")).
+				Return(expectedServices, nil)
 
 			tm := tenancy.NewManager(&tenancy.Options{Enabled: true})
 			server, err := NewServer(
@@ -346,16 +359,27 @@ func TestServerGRPCTLS(t *testing.T) {
 				clientTLSCfg, err0 := test.clientTLS.Config(zap.NewNop())
 				require.NoError(t, err0)
 				creds := credentials.NewTLS(clientTLSCfg)
-				client = newGRPCClient(t, server.grpcConn.Addr().String(), creds, tm)
+				client = newGRPCClient(
+					t,
+					server.grpcConn.Addr().String(),
+					creds,
+					tm,
+				)
 			} else {
 				client = newGRPCClient(t, server.grpcConn.Addr().String(), nil, tm)
 			}
 
-			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			ctx, cancel := context.WithTimeout(
+				context.Background(),
+				2*time.Second,
+			)
 			defer cancel()
 
 			ctx = tenancy.WithTenant(ctx, "foo")
-			res, clientError := client.GetServices(ctx, &storage_v1.GetServicesRequest{})
+			res, clientError := client.GetServices(
+				ctx,
+				&storage_v1.GetServicesRequest{},
+			)
 
 			if test.expectClientError {
 				require.Error(t, clientError)
@@ -389,7 +413,14 @@ func TestServerHandlesPortZero(t *testing.T) {
 
 	const line = "Starting GRPC server"
 	message := logs.FilterMessage(line)
-	require.Equal(t, 1, message.Len(), "Expected '%s' log message, actual logs: %+v", line, logs)
+	require.Equal(
+		t,
+		1,
+		message.Len(),
+		"Expected '%s' log message, actual logs: %+v",
+		line,
+		logs,
+	)
 
 	onlyEntry := message.All()[0]
 	hostPort := onlyEntry.ContextMap()["addr"].(string)

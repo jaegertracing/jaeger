@@ -47,7 +47,9 @@ func main() {
 		os.Setenv(storage.SpanStorageTypeEnvVar, "memory")
 		// other storage types default to the same type as SpanStorage
 	}
-	storageFactory, err := storage.NewFactory(storage.FactoryConfigFromEnvAndCLI(os.Args, os.Stderr))
+	storageFactory, err := storage.NewFactory(
+		storage.FactoryConfigFromEnvAndCLI(os.Args, os.Stderr),
+	)
 	if err != nil {
 		log.Fatalf("Cannot initialize storage factory: %v", err)
 	}
@@ -62,8 +64,12 @@ func main() {
 				return err
 			}
 			logger := svc.Logger // shortcut
-			baseFactory := svc.MetricsFactory.Namespace(metrics.NSOptions{Name: "jaeger"})
-			metricsFactory := baseFactory.Namespace(metrics.NSOptions{Name: "remote-storage"})
+			baseFactory := svc.MetricsFactory.Namespace(
+				metrics.NSOptions{Name: "jaeger"},
+			)
+			metricsFactory := baseFactory.Namespace(
+				metrics.NSOptions{Name: "remote-storage"},
+			)
 			version.NewInfoMetrics(metricsFactory)
 
 			opts, err := new(app.Options).InitFromViper(v, logger)
@@ -77,7 +83,13 @@ func main() {
 			}
 
 			tm := tenancy.NewManager(&opts.Tenancy)
-			server, err := app.NewServer(opts, storageFactory, tm, svc.Logger, svc.HC())
+			server, err := app.NewServer(
+				opts,
+				storageFactory,
+				tm,
+				svc.Logger,
+				svc.HC(),
+			)
 			if err != nil {
 				logger.Fatal("Failed to create server", zap.Error(err))
 			}
@@ -89,7 +101,10 @@ func main() {
 			svc.RunAndThen(func() {
 				server.Close()
 				if err := storageFactory.Close(); err != nil {
-					logger.Error("Failed to close storage factory", zap.Error(err))
+					logger.Error(
+						"Failed to close storage factory",
+						zap.Error(err),
+					)
 				}
 			})
 			return nil

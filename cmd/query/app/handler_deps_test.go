@@ -303,7 +303,10 @@ func TestFilterDependencies(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		actual := handler.filterDependenciesByService(test.dependencies, test.service)
+		actual := handler.filterDependenciesByService(
+			test.dependencies,
+			test.service,
+		)
 		assert.Equal(t, test.expected, actual, test.description, test.service)
 	}
 }
@@ -311,12 +314,19 @@ func TestFilterDependencies(t *testing.T) {
 func TestGetDependenciesSuccess(t *testing.T) {
 	ts := initializeTestServer()
 	defer ts.server.Close()
-	expectedDependencies := []model.DependencyLink{{Parent: "killer", Child: "queen", CallCount: 12}}
+	expectedDependencies := []model.DependencyLink{
+		{Parent: "killer", Child: "queen", CallCount: 12},
+	}
 	endTs := time.Unix(0, 1476374248550*millisToNanosMultiplier)
-	ts.dependencyReader.On("GetDependencies", endTs, defaultDependencyLookbackDuration).Return(expectedDependencies, nil).Times(1)
+	ts.dependencyReader.On("GetDependencies", endTs, defaultDependencyLookbackDuration).
+		Return(expectedDependencies, nil).
+		Times(1)
 
 	var response structuredResponse
-	err := getJSON(ts.server.URL+"/api/dependencies?endTs=1476374248550&service=queen", &response)
+	err := getJSON(
+		ts.server.URL+"/api/dependencies?endTs=1476374248550&service=queen",
+		&response,
+	)
 	assert.NotEmpty(t, response.Data)
 	data := response.Data.([]any)[0]
 	actual := data.(map[string]any)
@@ -330,10 +340,15 @@ func TestGetDependenciesCassandraFailure(t *testing.T) {
 	ts := initializeTestServer()
 	defer ts.server.Close()
 	endTs := time.Unix(0, 1476374248550*millisToNanosMultiplier)
-	ts.dependencyReader.On("GetDependencies", endTs, defaultDependencyLookbackDuration).Return(nil, errStorage).Times(1)
+	ts.dependencyReader.On("GetDependencies", endTs, defaultDependencyLookbackDuration).
+		Return(nil, errStorage).
+		Times(1)
 
 	var response structuredResponse
-	err := getJSON(ts.server.URL+"/api/dependencies?endTs=1476374248550&service=testing", &response)
+	err := getJSON(
+		ts.server.URL+"/api/dependencies?endTs=1476374248550&service=testing",
+		&response,
+	)
 	require.Error(t, err)
 }
 
@@ -342,7 +357,10 @@ func TestGetDependenciesEndTimeParsingFailure(t *testing.T) {
 	defer ts.server.Close()
 
 	var response structuredResponse
-	err := getJSON(ts.server.URL+"/api/dependencies?endTs=shazbot&service=testing", &response)
+	err := getJSON(
+		ts.server.URL+"/api/dependencies?endTs=shazbot&service=testing",
+		&response,
+	)
 	require.Error(t, err)
 }
 
@@ -351,6 +369,9 @@ func TestGetDependenciesLookbackParsingFailure(t *testing.T) {
 	defer ts.server.Close()
 
 	var response structuredResponse
-	err := getJSON(ts.server.URL+"/api/dependencies?endTs=1476374248550&service=testing&lookback=shazbot", &response)
+	err := getJSON(
+		ts.server.URL+"/api/dependencies?endTs=1476374248550&service=testing&lookback=shazbot",
+		&response,
+	)
 	require.Error(t, err)
 }

@@ -30,7 +30,8 @@ func TestGetDependencyVersionV1(t *testing.T) {
 		session = &mocks.Session{}
 		query   = &mocks.Query{}
 	)
-	session.On("Query", mock.AnythingOfType("string"), mock.Anything).Return(query)
+	session.On("Query", mock.AnythingOfType("string"), mock.Anything).
+		Return(query)
 	query.On("Exec").Return(errors.New("error"))
 
 	assert.Equal(t, V1, GetDependencyVersion(session))
@@ -41,7 +42,8 @@ func TestGetDependencyVersionV2(t *testing.T) {
 		session = &mocks.Session{}
 		query   = &mocks.Query{}
 	)
-	session.On("Query", mock.AnythingOfType("string"), mock.Anything).Return(query)
+	session.On("Query", mock.AnythingOfType("string"), mock.Anything).
+		Return(query)
 	query.On("Exec").Return(nil)
 	assert.Equal(t, V2, GetDependencyVersion(session))
 }

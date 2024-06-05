@@ -94,9 +94,14 @@ func sortTags(tags []KeyValue) {
 
 type logByTimestamp []Log
 
-func (t logByTimestamp) Len() int           { return len(t) }
-func (t logByTimestamp) Swap(i, j int)      { t[i], t[j] = t[j], t[i] }
-func (t logByTimestamp) Less(i, j int) bool { return t[i].Timestamp.Before(t[j].Timestamp) }
+func (t logByTimestamp) Len() int      { return len(t) }
+func (t logByTimestamp) Swap(i, j int) { t[i], t[j] = t[j], t[i] }
+
+func (t logByTimestamp) Less(
+	i, j int,
+) bool {
+	return t[i].Timestamp.Before(t[j].Timestamp)
+}
 
 func sortLogs(logs []Log) {
 	sort.Sort(logByTimestamp(logs))

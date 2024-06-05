@@ -36,7 +36,11 @@ func TestIsValidOption(t *testing.T) {
 	}{
 		{name: "span mapping", arg: "jaeger-span", expectedValue: true},
 		{name: "service mapping", arg: "jaeger-service", expectedValue: true},
-		{name: "Invalid mapping", arg: "dependency-service", expectedValue: false},
+		{
+			name:          "Invalid mapping",
+			arg:           "dependency-service",
+			expectedValue: false,
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -62,21 +66,25 @@ func Test_getMappingAsString(t *testing.T) {
 		},
 		{
 			name: "Parse bool error", args: app.Options{Mapping: "jaeger-span", EsVersion: 7, Shards: 5, Replicas: 1, IndexPrefix: "test", UseILM: "foo", ILMPolicyName: "jaeger-test-policy"},
-			wantErr: errors.New("strconv.ParseBool: parsing \"foo\": invalid syntax"),
+			wantErr: errors.New(
+				"strconv.ParseBool: parsing \"foo\": invalid syntax",
+			),
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Prepare
 			mockTemplateApplier := &mocks.TemplateApplier{}
-			mockTemplateApplier.On("Execute", mock.Anything, mock.Anything).Return(
-				func(wr io.Writer, data any) error {
-					wr.Write([]byte(tt.want))
-					return nil
-				},
-			)
+			mockTemplateApplier.On("Execute", mock.Anything, mock.Anything).
+				Return(
+					func(wr io.Writer, data any) error {
+						wr.Write([]byte(tt.want))
+						return nil
+					},
+				)
 			mockTemplateBuilder := &mocks.TemplateBuilder{}
-			mockTemplateBuilder.On("Parse", mock.Anything).Return(mockTemplateApplier, tt.wantErr)
+			mockTemplateBuilder.On("Parse", mock.Anything).
+				Return(mockTemplateApplier, tt.wantErr)
 
 			// Test
 			got, err := GetMappingAsString(mockTemplateBuilder, &tt.args)

@@ -42,7 +42,12 @@ import (
 var _ component.Host = (*otelHost)(nil) // API check
 
 // StartOTLPReceiver starts OpenTelemetry OTLP receiver listening on gRPC and HTTP ports.
-func StartOTLPReceiver(options *flags.CollectorOptions, logger *zap.Logger, spanProcessor processor.SpanProcessor, tm *tenancy.Manager) (receiver.Traces, error) {
+func StartOTLPReceiver(
+	options *flags.CollectorOptions,
+	logger *zap.Logger,
+	spanProcessor processor.SpanProcessor,
+	tm *tenancy.Manager,
+) (receiver.Traces, error) {
 	otlpFactory := otlpreceiver.NewFactory()
 	return startOTLPReceiver(
 		options,
@@ -74,7 +79,10 @@ func startOTLPReceiver(
 	applyHTTPSettings(otlpReceiverConfig.HTTP.ServerConfig, &options.OTLP.HTTP)
 	statusReporter := func(ev *component.StatusEvent) {
 		// TODO this could be wired into changing healthcheck.HealthCheck
-		logger.Info("OTLP receiver status change", zap.Stringer("status", ev.Status()))
+		logger.Info(
+			"OTLP receiver status change",
+			zap.Stringer("status", ev.Status()),
+		)
 	}
 	otlpReceiverSettings := receiver.CreateSettings{
 		TelemetrySettings: component.TelemetrySettings{
@@ -114,7 +122,9 @@ func applyGRPCSettings(cfg *configgrpc.ServerConfig, opts *flags.GRPCOptions) {
 		cfg.TLSSetting = applyTLSSettings(&opts.TLS)
 	}
 	if opts.MaxReceiveMessageLength > 0 {
-		cfg.MaxRecvMsgSizeMiB = uint64(opts.MaxReceiveMessageLength / (1024 * 1024))
+		cfg.MaxRecvMsgSizeMiB = uint64(
+			opts.MaxReceiveMessageLength / (1024 * 1024),
+		)
 	}
 	if opts.MaxConnectionAge != 0 || opts.MaxConnectionAgeGrace != 0 {
 		cfg.Keepalive = &configgrpc.KeepaliveServerConfig{
@@ -154,7 +164,11 @@ func applyTLSSettings(opts *tlscfg.Options) *configtls.ServerConfig {
 	}
 }
 
-func newConsumerDelegate(logger *zap.Logger, spanProcessor processor.SpanProcessor, tm *tenancy.Manager) *consumerDelegate {
+func newConsumerDelegate(
+	logger *zap.Logger,
+	spanProcessor processor.SpanProcessor,
+	tm *tenancy.Manager,
+) *consumerDelegate {
 	return &consumerDelegate{
 		batchConsumer: newBatchConsumer(logger,
 			spanProcessor,
@@ -170,7 +184,10 @@ type consumerDelegate struct {
 	protoFromTraces func(td ptrace.Traces) ([]*model.Batch, error)
 }
 
-func (c *consumerDelegate) consume(ctx context.Context, td ptrace.Traces) error {
+func (c *consumerDelegate) consume(
+	ctx context.Context,
+	td ptrace.Traces,
+) error {
 	batches, err := c.protoFromTraces(td)
 	if err != nil {
 		return err
@@ -193,7 +210,10 @@ func (h *otelHost) ReportFatalError(err error) {
 	h.logger.Fatal("OTLP receiver error", zap.Error(err))
 }
 
-func (*otelHost) GetFactory(_ component.Kind, _ component.Type) component.Factory {
+func (*otelHost) GetFactory(
+	_ component.Kind,
+	_ component.Type,
+) component.Factory {
 	return nil
 }
 

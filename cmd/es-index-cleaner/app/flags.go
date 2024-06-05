@@ -45,9 +45,17 @@ type Config struct {
 // AddFlags adds flags for TLS to the FlagSet.
 func (*Config) AddFlags(flags *flag.FlagSet) {
 	flags.String(indexPrefix, "", "Index prefix")
-	flags.Bool(archive, false, "Whether to remove archive indices. It works only for rollover")
+	flags.Bool(
+		archive,
+		false,
+		"Whether to remove archive indices. It works only for rollover",
+	)
 	flags.Bool(rollover, false, "Whether to remove indices created by rollover")
-	flags.Int(timeout, 120, "Number of seconds to wait for master node response")
+	flags.Int(
+		timeout,
+		120,
+		"Number of seconds to wait for master node response",
+	)
 	flags.String(indexDateSeparator, "-", "Index date separator")
 	flags.String(username, "", "The username required by storage")
 	flags.String(password, "", "The password required by storage")

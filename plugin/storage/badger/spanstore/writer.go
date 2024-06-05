@@ -55,7 +55,11 @@ type SpanWriter struct {
 }
 
 // NewSpanWriter returns a SpawnWriter with cache
-func NewSpanWriter(db *badger.DB, c *CacheStore, ttl time.Duration) *SpanWriter {
+func NewSpanWriter(
+	db *badger.DB,
+	c *CacheStore,
+	ttl time.Duration,
+) *SpanWriter {
 	return &SpanWriter{
 		store:        db,
 		ttl:          ttl,
@@ -70,7 +74,11 @@ func (w *SpanWriter) WriteSpan(ctx context.Context, span *model.Span) error {
 	startTime := model.TimeAsEpochMicroseconds(span.StartTime)
 
 	// Avoid doing as much as possible inside the transaction boundary, create entries here
-	entriesToStore := make([]*badger.Entry, 0, len(span.Tags)+4+len(span.Process.Tags)+len(span.Logs)*4)
+	entriesToStore := make(
+		[]*badger.Entry,
+		0,
+		len(span.Tags)+4+len(span.Process.Tags)+len(span.Logs)*4,
+	)
 
 	trace, err := w.createTraceEntry(span, startTime, expireTime)
 	if err != nil {
@@ -78,27 +86,102 @@ func (w *SpanWriter) WriteSpan(ctx context.Context, span *model.Span) error {
 	}
 
 	entriesToStore = append(entriesToStore, trace)
-	entriesToStore = append(entriesToStore, w.createBadgerEntry(createIndexKey(serviceNameIndexKey, []byte(span.Process.ServiceName), startTime, span.TraceID), nil, expireTime))
-	entriesToStore = append(entriesToStore, w.createBadgerEntry(createIndexKey(operationNameIndexKey, []byte(span.Process.ServiceName+span.OperationName), startTime, span.TraceID), nil, expireTime))
+	entriesToStore = append(
+		entriesToStore,
+		w.createBadgerEntry(
+			createIndexKey(
+				serviceNameIndexKey,
+				[]byte(span.Process.ServiceName),
+				startTime,
+				span.TraceID,
+			),
+			nil,
+			expireTime,
+		),
+	)
+	entriesToStore = append(
+		entriesToStore,
+		w.createBadgerEntry(
+			createIndexKey(
+				operationNameIndexKey,
+				[]byte(span.Process.ServiceName+span.OperationName),
+				startTime,
+				span.TraceID,
+			),
+			nil,
+			expireTime,
+		),
+	)
 
 	// It doesn't matter if we overwrite Duration index keys, everything is read at Trace level in any case
 	durationValue := make([]byte, 8)
-	binary.BigEndian.PutUint64(durationValue, uint64(model.DurationAsMicroseconds(span.Duration)))
-	entriesToStore = append(entriesToStore, w.createBadgerEntry(createIndexKey(durationIndexKey, durationValue, startTime, span.TraceID), nil, expireTime))
+	binary.BigEndian.PutUint64(
+		durationValue,
+		uint64(model.DurationAsMicroseconds(span.Duration)),
+	)
+	entriesToStore = append(
+		entriesToStore,
+		w.createBadgerEntry(
+			createIndexKey(
+				durationIndexKey,
+				durationValue,
+				startTime,
+				span.TraceID,
+			),
+			nil,
+			expireTime,
+		),
+	)
 
 	for _, kv := range span.Tags {
 		// Convert everything to string since queries are done that way also
 		// KEY: it<serviceName><tagsKey><traceId> VALUE: <tagsValue>
-		entriesToStore = append(entriesToStore, w.createBadgerEntry(createIndexKey(tagIndexKey, []byte(span.Process.ServiceName+kv.Key+kv.AsString()), startTime, span.TraceID), nil, expireTime))
+		entriesToStore = append(
+			entriesToStore,
+			w.createBadgerEntry(
+				createIndexKey(
+					tagIndexKey,
+					[]byte(span.Process.ServiceName+kv.Key+kv.AsString()),
+					startTime,
+					span.TraceID,
+				),
+				nil,
+				expireTime,
+			),
+		)
 	}
 
 	for _, kv := range span.Process.Tags {
-		entriesToStore = append(entriesToStore, w.createBadgerEntry(createIndexKey(tagIndexKey, []byte(span.Process.ServiceName+kv.Key+kv.AsString()), startTime, span.TraceID), nil, expireTime))
+		entriesToStore = append(
+			entriesToStore,
+			w.createBadgerEntry(
+				createIndexKey(
+					tagIndexKey,
+					[]byte(span.Process.ServiceName+kv.Key+kv.AsString()),
+					startTime,
+					span.TraceID,
+				),
+				nil,
+				expireTime,
+			),
+		)
 	}
 
 	for _, log := range span.Logs {
 		for _, kv := range log.Fields {
-			entriesToStore = append(entriesToStore, w.createBadgerEntry(createIndexKey(tagIndexKey, []byte(span.Process.ServiceName+kv.Key+kv.AsString()), startTime, span.TraceID), nil, expireTime))
+			entriesToStore = append(
+				entriesToStore,
+				w.createBadgerEntry(
+					createIndexKey(
+						tagIndexKey,
+						[]byte(span.Process.ServiceName+kv.Key+kv.AsString()),
+						startTime,
+						span.TraceID,
+					),
+					nil,
+					expireTime,
+				),
+			)
 		}
 	}
 
@@ -124,7 +207,12 @@ func (w *SpanWriter) WriteSpan(ctx context.Context, span *model.Span) error {
 	return err
 }
 
-func createIndexKey(indexPrefixKey byte, value []byte, startTime uint64, traceID model.TraceID) []byte {
+func createIndexKey(
+	indexPrefixKey byte,
+	value []byte,
+	startTime uint64,
+	traceID model.TraceID,
+) []byte {
 	// KEY: indexKey<indexValue><startTime><traceId> (traceId is last 16 bytes of the key)
 	key := make([]byte, 1+len(value)+8+sizeOfTraceID)
 	key[0] = (indexPrefixKey & indexKeyRange) | spanKeyPrefix
@@ -138,7 +226,11 @@ func createIndexKey(indexPrefixKey byte, value []byte, startTime uint64, traceID
 	return key
 }
 
-func (*SpanWriter) createBadgerEntry(key []byte, value []byte, expireTime uint64) *badger.Entry {
+func (*SpanWriter) createBadgerEntry(
+	key []byte,
+	value []byte,
+	expireTime uint64,
+) *badger.Entry {
 	return &badger.Entry{
 		Key:       key,
 		Value:     value,
@@ -146,7 +238,10 @@ func (*SpanWriter) createBadgerEntry(key []byte, value []byte, expireTime uint64
 	}
 }
 
-func (w *SpanWriter) createTraceEntry(span *model.Span, startTime, expireTime uint64) (*badger.Entry, error) {
+func (w *SpanWriter) createTraceEntry(
+	span *model.Span,
+	startTime, expireTime uint64,
+) (*badger.Entry, error) {
 	pK, pV, err := createTraceKV(span, w.encodingType, startTime)
 	if err != nil {
 		return nil, err
@@ -158,7 +253,11 @@ func (w *SpanWriter) createTraceEntry(span *model.Span, startTime, expireTime ui
 	return e, nil
 }
 
-func createTraceKV(span *model.Span, encodingType byte, startTime uint64) ([]byte, []byte, error) {
+func createTraceKV(
+	span *model.Span,
+	encodingType byte,
+	startTime uint64,
+) ([]byte, []byte, error) {
 	// TODO Add Hash for Zipkin compatibility?
 
 	// Note, KEY must include startTime for proper sorting order for span-ids
@@ -184,7 +283,10 @@ func createTraceKV(span *model.Span, encodingType byte, startTime uint64) ([]byt
 	case jsonEncoding:
 		bb, err = json.Marshal(span)
 	default:
-		return nil, nil, fmt.Errorf("unknown encoding type: %#02x", encodingType)
+		return nil, nil, fmt.Errorf(
+			"unknown encoding type: %#02x",
+			encodingType,
+		)
 	}
 
 	return key, bb, err

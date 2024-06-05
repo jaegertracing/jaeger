@@ -43,8 +43,15 @@ func TestCORSFlags(t *testing.T) {
 		fmt.Println(corsOpts)
 
 		assert.Equal(t, Options{
-			AllowedHeaders: []string{"Content-Type", "Accept", "X-Requested-With"},
-			AllowedOrigins: []string{"http://example.domain.com", "http://*.domain.com"},
+			AllowedHeaders: []string{
+				"Content-Type",
+				"Accept",
+				"X-Requested-With",
+			},
+			AllowedOrigins: []string{
+				"http://example.domain.com",
+				"http://*.domain.com",
+			},
 		}, corsOpts)
 	})
 }

@@ -55,7 +55,10 @@ type storedStrategies struct {
 type strategyLoader func() ([]byte, error)
 
 // NewStrategyStore creates a strategy store that holds static sampling strategies.
-func NewStrategyStore(options Options, logger *zap.Logger) (ss.StrategyStore, error) {
+func NewStrategyStore(
+	options Options,
+	logger *zap.Logger,
+) (ss.StrategyStore, error) {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	h := &strategyStore{
 		logger:     logger,
@@ -79,9 +82,11 @@ func NewStrategyStore(options Options, logger *zap.Logger) (ss.StrategyStore, er
 	}
 
 	if !h.options.IncludeDefaultOpStrategies {
-		h.logger.Warn("Default operations level strategies will not be included for Ratelimiting service strategies." +
-			"This behavior will be changed in future releases. " +
-			"Cf. https://github.com/jaegertracing/jaeger/issues/5270")
+		h.logger.Warn(
+			"Default operations level strategies will not be included for Ratelimiting service strategies." +
+				"This behavior will be changed in future releases. " +
+				"Cf. https://github.com/jaegertracing/jaeger/issues/5270",
+		)
 		h.parseStrategies_deprecated(strategies)
 	} else {
 		h.parseStrategies(strategies)
@@ -94,13 +99,19 @@ func NewStrategyStore(options Options, logger *zap.Logger) (ss.StrategyStore, er
 }
 
 // GetSamplingStrategy implements StrategyStore#GetSamplingStrategy.
-func (h *strategyStore) GetSamplingStrategy(_ context.Context, serviceName string) (*api_v2.SamplingStrategyResponse, error) {
+func (h *strategyStore) GetSamplingStrategy(
+	_ context.Context,
+	serviceName string,
+) (*api_v2.SamplingStrategyResponse, error) {
 	ss := h.storedStrategies.Load().(*storedStrategies)
 	serviceStrategies := ss.serviceStrategies
 	if strategy, ok := serviceStrategies[serviceName]; ok {
 		return strategy, nil
 	}
-	h.logger.Debug("sampling strategy not found, using default", zap.String("service", serviceName))
+	h.logger.Debug(
+		"sampling strategy not found, using default",
+		zap.String("service", serviceName),
+	)
 	return ss.defaultStrategy, nil
 }
 
@@ -121,13 +132,19 @@ func (h *strategyStore) downloadSamplingStrategies(url string) ([]byte, error) {
 	}
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("failed to download sampling strategies: %w", err)
+		return nil, fmt.Errorf(
+			"failed to download sampling strategies: %w",
+			err,
+		)
 	}
 	defer resp.Body.Close()
 
 	buf := new(bytes.Buffer)
 	if _, err = buf.ReadFrom(resp.Body); err != nil {
-		return nil, fmt.Errorf("failed to read sampling strategies HTTP response body: %w", err)
+		return nil, fmt.Errorf(
+			"failed to read sampling strategies HTTP response body: %w",
+			err,
+		)
 	}
 
 	if resp.StatusCode == http.StatusServiceUnavailable {
@@ -149,7 +166,9 @@ func isURL(str string) bool {
 	return err == nil && u.Scheme != "" && u.Host != ""
 }
 
-func (h *strategyStore) samplingStrategyLoader(strategiesFile string) strategyLoader {
+func (h *strategyStore) samplingStrategyLoader(
+	strategiesFile string,
+) strategyLoader {
 	if isURL(strategiesFile) {
 		return func() ([]byte, error) {
 			return h.downloadSamplingStrategies(strategiesFile)
@@ -157,16 +176,27 @@ func (h *strategyStore) samplingStrategyLoader(strategiesFile string) strategyLo
 	}
 
 	return func() ([]byte, error) {
-		h.logger.Info("Loading sampling strategies", zap.String("filename", strategiesFile))
+		h.logger.Info(
+			"Loading sampling strategies",
+			zap.String("filename", strategiesFile),
+		)
 		currBytes, err := os.ReadFile(filepath.Clean(strategiesFile))
 		if err != nil {
-			return nil, fmt.Errorf("failed to read strategies file %s: %w", strategiesFile, err)
+			return nil, fmt.Errorf(
+				"failed to read strategies file %s: %w",
+				strategiesFile,
+				err,
+			)
 		}
 		return currBytes, nil
 	}
 }
 
-func (h *strategyStore) autoUpdateStrategies(ctx context.Context, interval time.Duration, loader strategyLoader) {
+func (h *strategyStore) autoUpdateStrategies(
+	ctx context.Context,
+	interval time.Duration,
+	loader strategyLoader,
+) {
 	lastValue := string(nullJSON)
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
@@ -180,7 +210,10 @@ func (h *strategyStore) autoUpdateStrategies(ctx context.Context, interval time.
 	}
 }
 
-func (h *strategyStore) reloadSamplingStrategy(loadFn strategyLoader, lastValue string) string {
+func (h *strategyStore) reloadSamplingStrategy(
+	loadFn strategyLoader,
+	lastValue string,
+) string {
 	newValue, err := loadFn()
 	if err != nil {
 		h.logger.Error("failed to re-load sampling strategies", zap.Error(err))
@@ -223,7 +256,9 @@ func loadStrategies(loadFn strategyLoader) (*strategies, error) {
 func (h *strategyStore) parseStrategies_deprecated(strategies *strategies) {
 	newStore := defaultStrategies()
 	if strategies.DefaultStrategy != nil {
-		newStore.defaultStrategy = h.parseServiceStrategies(strategies.DefaultStrategy)
+		newStore.defaultStrategy = h.parseServiceStrategies(
+			strategies.DefaultStrategy,
+		)
 	}
 
 	merge := true
@@ -253,7 +288,8 @@ func (h *strategyStore) parseStrategies_deprecated(strategies *strategies) {
 		if merge {
 			opS.PerOperationStrategies = mergePerOperationSamplingStrategies(
 				opS.PerOperationStrategies,
-				newStore.defaultStrategy.OperationSampling.PerOperationStrategies)
+				newStore.defaultStrategy.OperationSampling.PerOperationStrategies,
+			)
 		}
 	}
 	h.storedStrategies.Store(newStore)
@@ -262,7 +298,9 @@ func (h *strategyStore) parseStrategies_deprecated(strategies *strategies) {
 func (h *strategyStore) parseStrategies(strategies *strategies) {
 	newStore := defaultStrategies()
 	if strategies.DefaultStrategy != nil {
-		newStore.defaultStrategy = h.parseServiceStrategies(strategies.DefaultStrategy)
+		newStore.defaultStrategy = h.parseServiceStrategies(
+			strategies.DefaultStrategy,
+		)
 	}
 
 	for _, s := range strategies.ServiceStrategies {
@@ -314,7 +352,9 @@ func mergePerOperationSamplingStrategies(
 	return a
 }
 
-func (h *strategyStore) parseServiceStrategies(strategy *serviceStrategy) *api_v2.SamplingStrategyResponse {
+func (h *strategyStore) parseServiceStrategies(
+	strategy *serviceStrategy,
+) *api_v2.SamplingStrategyResponse {
 	resp := h.parseStrategy(&strategy.strategy)
 	if len(strategy.OperationStrategies) == 0 {
 		return resp
@@ -352,14 +392,18 @@ func (h *strategyStore) parseOperationStrategy(
 			fmt.Sprintf(
 				"Operation strategies only supports probabilistic sampling at the moment,"+
 					"'%s' defaulting to probabilistic sampling with probability %f",
-				strategy.Operation, parent.DefaultSamplingProbability),
+				strategy.Operation,
+				parent.DefaultSamplingProbability,
+			),
 			zap.Any("strategy", strategy))
 		return nil, false
 	}
 	return s, true
 }
 
-func (h *strategyStore) parseStrategy(strategy *strategy) *api_v2.SamplingStrategyResponse {
+func (h *strategyStore) parseStrategy(
+	strategy *strategy,
+) *api_v2.SamplingStrategyResponse {
 	switch strategy.Type {
 	case samplerTypeProbabilistic:
 		return &api_v2.SamplingStrategyResponse{
@@ -376,12 +420,17 @@ func (h *strategyStore) parseStrategy(strategy *strategy) *api_v2.SamplingStrate
 			},
 		}
 	default:
-		h.logger.Warn("Failed to parse sampling strategy", zap.Any("strategy", strategy))
+		h.logger.Warn(
+			"Failed to parse sampling strategy",
+			zap.Any("strategy", strategy),
+		)
 		return defaultStrategyResponse()
 	}
 }
 
-func deepCopy(s *api_v2.SamplingStrategyResponse) *api_v2.SamplingStrategyResponse {
+func deepCopy(
+	s *api_v2.SamplingStrategyResponse,
+) *api_v2.SamplingStrategyResponse {
 	var buf bytes.Buffer
 	enc := gob.NewEncoder(&buf)
 	dec := gob.NewDecoder(&buf)

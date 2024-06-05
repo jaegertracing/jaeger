@@ -35,7 +35,11 @@ type Config struct {
 
 // AddFlags adds flags for TLS to the FlagSet.
 func (*Config) AddFlags(flags *flag.FlagSet) {
-	flags.String(conditions, defaultRollbackCondition, "conditions used to rollover to a new write index")
+	flags.String(
+		conditions,
+		defaultRollbackCondition,
+		"conditions used to rollover to a new write index",
+	)
 }
 
 // InitFromViper initializes config from viper.Viper.

@@ -113,7 +113,10 @@ func (ToDomain) convertRefs(refs []Reference) ([]model.SpanRef, error) {
 		case FollowsFrom:
 			refType = model.FollowsFrom
 		default:
-			return nil, fmt.Errorf("not a valid SpanRefType string %s", string(r.RefType))
+			return nil, fmt.Errorf(
+				"not a valid SpanRefType string %s",
+				string(r.RefType),
+			)
 		}
 
 		traceID, err := model.TraceIDFromString(string(r.TraceID))
@@ -147,7 +150,9 @@ func (td ToDomain) convertKeyValues(tags []KeyValue) ([]model.KeyValue, error) {
 	return retMe, nil
 }
 
-func (td ToDomain) convertTagFields(tagsMap map[string]any) ([]model.KeyValue, error) {
+func (td ToDomain) convertTagFields(
+	tagsMap map[string]any,
+) ([]model.KeyValue, error) {
 	kvs := make([]model.KeyValue, len(tagsMap))
 	i := 0
 	for k, v := range tagsMap {
@@ -200,7 +205,11 @@ func (ToDomain) convertKeyValue(tag *KeyValue) (model.KeyValue, error) {
 	}
 	tagValue, ok := tag.Value.(string)
 	if !ok {
-		return model.KeyValue{}, fmt.Errorf("non-string Value of type %t in %v", tag.Value, tag)
+		return model.KeyValue{}, fmt.Errorf(
+			"non-string Value of type %t in %v",
+			tag.Value,
+			tag,
+		)
 	}
 	switch tag.Type {
 	case StringType:
@@ -230,7 +239,10 @@ func (ToDomain) convertKeyValue(tag *KeyValue) (model.KeyValue, error) {
 		}
 		return model.Binary(tag.Key, value), nil
 	}
-	return model.KeyValue{}, fmt.Errorf("not a valid ValueType string %s", string(tag.Type))
+	return model.KeyValue{}, fmt.Errorf(
+		"not a valid ValueType string %s",
+		string(tag.Type),
+	)
 }
 
 func (td ToDomain) convertLogs(logs []Log) ([]model.Log, error) {

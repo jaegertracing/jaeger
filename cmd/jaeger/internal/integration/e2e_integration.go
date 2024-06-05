@@ -47,7 +47,10 @@ type E2EStorageIntegration struct {
 func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
 	logger := zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller()))
 	configFile := createStorageCleanerConfig(t, s.ConfigFile, storage)
-	t.Logf("Starting Jaeger-v2 in the background with config file %s", configFile)
+	t.Logf(
+		"Starting Jaeger-v2 in the background with config file %s",
+		configFile,
+	)
 
 	outFile, err := os.OpenFile(
 		filepath.Join(t.TempDir(), "jaeger_output_logs.txt"),
@@ -124,7 +127,11 @@ func (s *E2EStorageIntegration) e2eCleanUp(t *testing.T) {
 	require.NoError(t, s.SpanWriter.(io.Closer).Close())
 }
 
-func createStorageCleanerConfig(t *testing.T, configFile string, storage string) string {
+func createStorageCleanerConfig(
+	t *testing.T,
+	configFile string,
+	storage string,
+) string {
 	data, err := os.ReadFile(configFile)
 	require.NoError(t, err)
 	var config map[string]any
@@ -133,14 +140,19 @@ func createStorageCleanerConfig(t *testing.T, configFile string, storage string)
 
 	service, ok := config["service"].(map[string]any)
 	require.True(t, ok)
-	service["extensions"] = append(service["extensions"].([]any), "storage_cleaner")
+	service["extensions"] = append(
+		service["extensions"].([]any),
+		"storage_cleaner",
+	)
 
 	extensions, ok := config["extensions"].(map[string]any)
 	require.True(t, ok)
 	query, ok := extensions["jaeger_query"].(map[string]any)
 	require.True(t, ok)
 	trace_storage := query["trace_storage"].(string)
-	extensions["storage_cleaner"] = map[string]string{"trace_storage": trace_storage}
+	extensions["storage_cleaner"] = map[string]string{
+		"trace_storage": trace_storage,
+	}
 
 	jaegerStorage, ok := extensions["jaeger_storage"].(map[string]any)
 	require.True(t, ok)
@@ -174,8 +186,17 @@ func createStorageCleanerConfig(t *testing.T, configFile string, storage string)
 }
 
 func purge(t *testing.T) {
-	addr := fmt.Sprintf("http://0.0.0.0:%s%s", storagecleaner.Port, storagecleaner.URL)
-	r, err := http.NewRequestWithContext(context.Background(), http.MethodPost, addr, nil)
+	addr := fmt.Sprintf(
+		"http://0.0.0.0:%s%s",
+		storagecleaner.Port,
+		storagecleaner.URL,
+	)
+	r, err := http.NewRequestWithContext(
+		context.Background(),
+		http.MethodPost,
+		addr,
+		nil,
+	)
 	require.NoError(t, err)
 
 	client := &http.Client{}

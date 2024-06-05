@@ -66,7 +66,8 @@ func (c *LRU) Get(key string) any {
 	}
 
 	cacheEntry := elt.Value.(*cacheEntry)
-	if !cacheEntry.expiration.IsZero() && c.TimeNow().After(cacheEntry.expiration) {
+	if !cacheEntry.expiration.IsZero() &&
+		c.TimeNow().After(cacheEntry.expiration) {
 		// Entry has expired
 		if c.onEvict != nil {
 			c.onEvict(cacheEntry.key, cacheEntry.value)
@@ -90,7 +91,10 @@ func (c *LRU) Put(key string, value any) any {
 
 // CompareAndSwap puts a new value associated with a given key if existing value matches oldValue.
 // It returns itemInCache as the element in cache after the function is executed and replaced as true if value is replaced, false otherwise.
-func (c *LRU) CompareAndSwap(key string, oldValue, newValue any) (itemInCache any, replaced bool) {
+func (c *LRU) CompareAndSwap(
+	key string,
+	oldValue, newValue any,
+) (itemInCache any, replaced bool) {
 	c.mux.Lock()
 	defer c.mux.Unlock()
 

@@ -101,7 +101,10 @@ func Command() *cobra.Command {
 			strings.Join(metrics.AllStorageTypes, ", "),
 		),
 	)
-	long := fmt.Sprintf(longTemplate, strings.ReplaceAll(fs.FlagUsagesWrapped(0), "      --", "\n"))
+	long := fmt.Sprintf(
+		longTemplate,
+		strings.ReplaceAll(fs.FlagUsagesWrapped(0), "      --", "\n"),
+	)
 	return &cobra.Command{
 		Use:   "env",
 		Short: "Help about environment variables.",

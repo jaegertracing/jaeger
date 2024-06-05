@@ -32,8 +32,16 @@ type Flags struct {
 }
 
 func (c Flags) AddFlags(flags *flag.FlagSet) {
-	flags.String(c.Prefix+corsAllowedHeaders, "", "Comma-separated CORS allowed headers. See https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Allow-Headers")
-	flags.String(c.Prefix+corsAllowedOrigins, "", "Comma-separated CORS allowed origins. See https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Allow-Origin")
+	flags.String(
+		c.Prefix+corsAllowedHeaders,
+		"",
+		"Comma-separated CORS allowed headers. See https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Allow-Headers",
+	)
+	flags.String(
+		c.Prefix+corsAllowedOrigins,
+		"",
+		"Comma-separated CORS allowed origins. See https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Allow-Origin",
+	)
 }
 
 func (c Flags) InitFromViper(v *viper.Viper) Options {
@@ -42,8 +50,14 @@ func (c Flags) InitFromViper(v *viper.Viper) Options {
 	allowedHeaders := v.GetString(c.Prefix + corsAllowedHeaders)
 	allowedOrigins := v.GetString(c.Prefix + corsAllowedOrigins)
 
-	p.AllowedOrigins = strings.Split(strings.ReplaceAll(allowedOrigins, " ", ""), ",")
-	p.AllowedHeaders = strings.Split(strings.ReplaceAll(allowedHeaders, " ", ""), ",")
+	p.AllowedOrigins = strings.Split(
+		strings.ReplaceAll(allowedOrigins, " ", ""),
+		",",
+	)
+	p.AllowedHeaders = strings.Split(
+		strings.ReplaceAll(allowedHeaders, " ", ""),
+		",",
+	)
 
 	return p
 }

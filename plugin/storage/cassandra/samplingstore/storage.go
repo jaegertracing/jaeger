@@ -58,12 +58,19 @@ type SamplingStore struct {
 }
 
 // New creates a new cassandra sampling store.
-func New(session cassandra.Session, factory metrics.Factory, logger *zap.Logger) *SamplingStore {
+func New(
+	session cassandra.Session,
+	factory metrics.Factory,
+	logger *zap.Logger,
+) *SamplingStore {
 	return &SamplingStore{
 		session: session,
 		metrics: samplingStoreMetrics{
-			operationThroughput: casMetrics.NewTable(factory, "operation_throughput"),
-			probabilities:       casMetrics.NewTable(factory, "probabilities"),
+			operationThroughput: casMetrics.NewTable(
+				factory,
+				"operation_throughput",
+			),
+			probabilities: casMetrics.NewTable(factory, "probabilities"),
 		},
 		logger: logger,
 	}
@@ -72,13 +79,21 @@ func New(session cassandra.Session, factory metrics.Factory, logger *zap.Logger)
 // InsertThroughput implements samplingstore.Writer#InsertThroughput.
 func (s *SamplingStore) InsertThroughput(throughput []*model.Throughput) error {
 	throughputStr := throughputToString(throughput)
-	query := s.session.Query(insertThroughput, generateRandomBucket(), gocql.TimeUUID(), throughputStr)
+	query := s.session.Query(
+		insertThroughput,
+		generateRandomBucket(),
+		gocql.TimeUUID(),
+		throughputStr,
+	)
 	return s.metrics.operationThroughput.Exec(query, s.logger)
 }
 
 // GetThroughput implements samplingstore.Reader#GetThroughput.
-func (s *SamplingStore) GetThroughput(start, end time.Time) ([]*model.Throughput, error) {
-	iter := s.session.Query(getThroughput, gocql.UUIDFromTime(start), gocql.UUIDFromTime(end)).Iter()
+func (s *SamplingStore) GetThroughput(
+	start, end time.Time,
+) ([]*model.Throughput, error) {
+	iter := s.session.Query(getThroughput, gocql.UUIDFromTime(start), gocql.UUIDFromTime(end)).
+		Iter()
 	var throughput []*model.Throughput
 	var throughputStr string
 	for iter.Scan(&throughputStr) {
@@ -98,7 +113,13 @@ func (s *SamplingStore) InsertProbabilitiesAndQPS(
 	qps model.ServiceOperationQPS,
 ) error {
 	probabilitiesAndQPSStr := probabilitiesAndQPSToString(probabilities, qps)
-	query := s.session.Query(insertProbabilities, constBucket, gocql.TimeUUID(), hostname, probabilitiesAndQPSStr)
+	query := s.session.Query(
+		insertProbabilities,
+		constBucket,
+		gocql.TimeUUID(),
+		hostname,
+		probabilitiesAndQPSStr,
+	)
 	return s.metrics.probabilities.Exec(query, s.logger)
 }
 
@@ -119,7 +140,10 @@ func generateRandomBucket() int64 {
 	return time.Now().UnixNano() % 10
 }
 
-func probabilitiesAndQPSToString(probabilities model.ServiceOperationProbabilities, qps model.ServiceOperationQPS) string {
+func probabilitiesAndQPSToString(
+	probabilities model.ServiceOperationProbabilities,
+	qps model.ServiceOperationQPS,
+) string {
 	var buf bytes.Buffer
 	writer := csv.NewWriter(&buf)
 	for svc, opProbabilities := range probabilities {
@@ -138,14 +162,18 @@ func probabilitiesAndQPSToString(probabilities model.ServiceOperationProbabiliti
 	return buf.String()
 }
 
-func (s *SamplingStore) stringToProbabilitiesAndQPS(probabilitiesAndQPSStr string) model.ServiceOperationData {
+func (s *SamplingStore) stringToProbabilitiesAndQPS(
+	probabilitiesAndQPSStr string,
+) model.ServiceOperationData {
 	probabilitiesAndQPS := make(model.ServiceOperationData)
 	appendFunc := s.appendProbabilityAndQPS(probabilitiesAndQPS)
 	s.parseString(probabilitiesAndQPSStr, 4, appendFunc)
 	return probabilitiesAndQPS
 }
 
-func (s *SamplingStore) stringToProbabilities(probabilitiesStr string) model.ServiceOperationProbabilities {
+func (s *SamplingStore) stringToProbabilities(
+	probabilitiesStr string,
+) model.ServiceOperationProbabilities {
 	probabilities := make(model.ServiceOperationProbabilities)
 	appendFunc := s.appendProbability(probabilities)
 	s.parseString(probabilitiesStr, 4, appendFunc)
@@ -156,7 +184,14 @@ func throughputToString(throughput []*model.Throughput) string {
 	var buf bytes.Buffer
 	writer := csv.NewWriter(&buf)
 	for _, t := range throughput {
-		writer.Write([]string{t.Service, t.Operation, strconv.Itoa(int(t.Count)), probabilitiesSetToString(t.Probabilities)})
+		writer.Write(
+			[]string{
+				t.Service,
+				t.Operation,
+				strconv.Itoa(int(t.Count)),
+				probabilitiesSetToString(t.Probabilities),
+			},
+		)
 	}
 	writer.Flush()
 	return buf.String()
@@ -171,23 +206,35 @@ func probabilitiesSetToString(probabilities map[string]struct{}) string {
 	return strings.TrimSuffix(buf.String(), ",")
 }
 
-func (s *SamplingStore) stringToThroughput(throughputStr string) []*model.Throughput {
+func (s *SamplingStore) stringToThroughput(
+	throughputStr string,
+) []*model.Throughput {
 	var throughput []*model.Throughput
 	appendFunc := s.appendThroughput(&throughput)
 	s.parseString(throughputStr, 4, appendFunc)
 	return throughput
 }
 
-func (s *SamplingStore) appendProbabilityAndQPS(svcOpData model.ServiceOperationData) func(csvFields []string) {
+func (s *SamplingStore) appendProbabilityAndQPS(
+	svcOpData model.ServiceOperationData,
+) func(csvFields []string) {
 	return func(csvFields []string) {
 		probability, err := strconv.ParseFloat(csvFields[2], 64)
 		if err != nil {
-			s.logger.Warn("probability cannot be parsed", zap.Any("entries", csvFields), zap.Error(err))
+			s.logger.Warn(
+				"probability cannot be parsed",
+				zap.Any("entries", csvFields),
+				zap.Error(err),
+			)
 			return
 		}
 		qps, err := strconv.ParseFloat(csvFields[3], 64)
 		if err != nil {
-			s.logger.Warn("qps cannot be parsed", zap.Any("entries", csvFields), zap.Error(err))
+			s.logger.Warn(
+				"qps cannot be parsed",
+				zap.Any("entries", csvFields),
+				zap.Error(err),
+			)
 			return
 		}
 		service := csvFields[0]
@@ -202,11 +249,17 @@ func (s *SamplingStore) appendProbabilityAndQPS(svcOpData model.ServiceOperation
 	}
 }
 
-func (s *SamplingStore) appendProbability(probabilities model.ServiceOperationProbabilities) func(csvFields []string) {
+func (s *SamplingStore) appendProbability(
+	probabilities model.ServiceOperationProbabilities,
+) func(csvFields []string) {
 	return func(csvFields []string) {
 		probability, err := strconv.ParseFloat(csvFields[2], 64)
 		if err != nil {
-			s.logger.Warn("probability cannot be parsed", zap.Any("entries", csvFields), zap.Error(err))
+			s.logger.Warn(
+				"probability cannot be parsed",
+				zap.Any("entries", csvFields),
+				zap.Error(err),
+			)
 			return
 		}
 		service := csvFields[0]
@@ -218,11 +271,17 @@ func (s *SamplingStore) appendProbability(probabilities model.ServiceOperationPr
 	}
 }
 
-func (s *SamplingStore) appendThroughput(throughput *[]*model.Throughput) func(csvFields []string) {
+func (s *SamplingStore) appendThroughput(
+	throughput *[]*model.Throughput,
+) func(csvFields []string) {
 	return func(csvFields []string) {
 		count, err := strconv.Atoi(csvFields[2])
 		if err != nil {
-			s.logger.Warn("throughput count cannot be parsed", zap.Any("entries", csvFields), zap.Error(err))
+			s.logger.Warn(
+				"throughput count cannot be parsed",
+				zap.Any("entries", csvFields),
+				zap.Error(err),
+			)
 			return
 		}
 		*throughput = append(*throughput, &model.Throughput{
@@ -244,7 +303,11 @@ func parseProbabilitiesSet(probabilitiesStr string) map[string]struct{} {
 	return ret
 }
 
-func (s *SamplingStore) parseString(str string, numColumns int, appendFunc func(csvFields []string)) {
+func (s *SamplingStore) parseString(
+	str string,
+	numColumns int,
+	appendFunc func(csvFields []string),
+) {
 	reader := csv.NewReader(strings.NewReader(str))
 	for {
 		csvFields, err := reader.Read()
@@ -255,7 +318,11 @@ func (s *SamplingStore) parseString(str string, numColumns int, appendFunc func(
 			s.logger.Error("failed to read csv", zap.Error(err))
 		}
 		if len(csvFields) != numColumns {
-			s.logger.Warn("incomplete throughput data", zap.Int("expected_columns", numColumns), zap.Any("entries", csvFields))
+			s.logger.Warn(
+				"incomplete throughput data",
+				zap.Int("expected_columns", numColumns),
+				zap.Any("entries", csvFields),
+			)
 			continue
 		}
 		appendFunc(csvFields)

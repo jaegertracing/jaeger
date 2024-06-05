@@ -31,21 +31,21 @@ import (
 // Configuration describes the configuration properties needed to connect to a Cassandra cluster
 type Configuration struct {
 	Servers              []string       `valid:"required,url" mapstructure:"servers"`
-	Keyspace             string         `mapstructure:"keyspace"`
-	LocalDC              string         `mapstructure:"local_dc"`
-	ConnectionsPerHost   int            `mapstructure:"connections_per_host"`
-	Timeout              time.Duration  `mapstructure:"-"`
-	ConnectTimeout       time.Duration  `mapstructure:"connection_timeout"`
-	ReconnectInterval    time.Duration  `mapstructure:"reconnect_interval"`
-	SocketKeepAlive      time.Duration  `mapstructure:"socket_keep_alive"`
-	MaxRetryAttempts     int            `mapstructure:"max_retry_attempts"`
-	ProtoVersion         int            `mapstructure:"proto_version"`
-	Consistency          string         `mapstructure:"consistency"`
-	DisableCompression   bool           `mapstructure:"disable_compression"`
-	Port                 int            `mapstructure:"port"`
-	Authenticator        Authenticator  `mapstructure:",squash"`
-	DisableAutoDiscovery bool           `mapstructure:"-"`
-	TLS                  tlscfg.Options `mapstructure:"tls"`
+	Keyspace             string         `                     mapstructure:"keyspace"`
+	LocalDC              string         `                     mapstructure:"local_dc"`
+	ConnectionsPerHost   int            `                     mapstructure:"connections_per_host"`
+	Timeout              time.Duration  `                     mapstructure:"-"`
+	ConnectTimeout       time.Duration  `                     mapstructure:"connection_timeout"`
+	ReconnectInterval    time.Duration  `                     mapstructure:"reconnect_interval"`
+	SocketKeepAlive      time.Duration  `                     mapstructure:"socket_keep_alive"`
+	MaxRetryAttempts     int            `                     mapstructure:"max_retry_attempts"`
+	ProtoVersion         int            `                     mapstructure:"proto_version"`
+	Consistency          string         `                     mapstructure:"consistency"`
+	DisableCompression   bool           `                     mapstructure:"disable_compression"`
+	Port                 int            `                     mapstructure:"port"`
+	Authenticator        Authenticator  `                     mapstructure:",squash"`
+	DisableAutoDiscovery bool           `                     mapstructure:"-"`
+	TLS                  tlscfg.Options `                     mapstructure:"tls"`
 }
 
 // Authenticator holds the authentication properties needed to connect to a Cassandra cluster
@@ -94,7 +94,9 @@ type SessionBuilder interface {
 }
 
 // NewSession creates a new Cassandra session
-func (c *Configuration) NewSession(logger *zap.Logger) (cassandra.Session, error) {
+func (c *Configuration) NewSession(
+	logger *zap.Logger,
+) (cassandra.Session, error) {
 	cluster, err := c.NewCluster(logger)
 	if err != nil {
 		return nil, err
@@ -107,7 +109,9 @@ func (c *Configuration) NewSession(logger *zap.Logger) (cassandra.Session, error
 }
 
 // NewCluster creates a new gocql cluster from the configuration
-func (c *Configuration) NewCluster(logger *zap.Logger) (*gocql.ClusterConfig, error) {
+func (c *Configuration) NewCluster(
+	logger *zap.Logger,
+) (*gocql.ClusterConfig, error) {
 	cluster := gocql.NewCluster(c.Servers...)
 	cluster.Keyspace = c.Keyspace
 	cluster.NumConns = c.ConnectionsPerHost
@@ -119,7 +123,9 @@ func (c *Configuration) NewCluster(logger *zap.Logger) (*gocql.ClusterConfig, er
 		cluster.ProtoVersion = c.ProtoVersion
 	}
 	if c.MaxRetryAttempts > 1 {
-		cluster.RetryPolicy = &gocql.SimpleRetryPolicy{NumRetries: c.MaxRetryAttempts - 1}
+		cluster.RetryPolicy = &gocql.SimpleRetryPolicy{
+			NumRetries: c.MaxRetryAttempts - 1,
+		}
 	}
 	if c.Port != 0 {
 		cluster.Port = c.Port
@@ -139,9 +145,13 @@ func (c *Configuration) NewCluster(logger *zap.Logger) (*gocql.ClusterConfig, er
 	if c.LocalDC != "" {
 		fallbackHostSelectionPolicy = gocql.DCAwareRoundRobinPolicy(c.LocalDC)
 	}
-	cluster.PoolConfig.HostSelectionPolicy = gocql.TokenAwareHostPolicy(fallbackHostSelectionPolicy, gocql.ShuffleReplicas())
+	cluster.PoolConfig.HostSelectionPolicy = gocql.TokenAwareHostPolicy(
+		fallbackHostSelectionPolicy,
+		gocql.ShuffleReplicas(),
+	)
 
-	if c.Authenticator.Basic.Username != "" && c.Authenticator.Basic.Password != "" {
+	if c.Authenticator.Basic.Username != "" &&
+		c.Authenticator.Basic.Password != "" {
 		cluster.Authenticator = gocql.PasswordAuthenticator{
 			Username: c.Authenticator.Basic.Username,
 			Password: c.Authenticator.Basic.Password,

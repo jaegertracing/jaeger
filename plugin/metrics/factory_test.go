@@ -48,7 +48,11 @@ func TestUnsupportedMetricsStorageType(t *testing.T) {
 	f, err := NewFactory(withConfig("foo"))
 	require.Error(t, err)
 	assert.Nil(t, f)
-	require.EqualError(t, err, `unknown metrics type "foo". Valid types are [prometheus]`)
+	require.EqualError(
+		t,
+		err,
+		`unknown metrics type "foo". Valid types are [prometheus]`,
+	)
 }
 
 func TestDisabledMetricsStorageType(t *testing.T) {

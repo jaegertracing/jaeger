@@ -14,8 +14,11 @@ func TestOSStorage(t *testing.T) {
 	s := &E2EStorageIntegration{
 		ConfigFile: "../../config-opensearch.yaml",
 		StorageIntegration: integration.StorageIntegration{
-			CleanUp:                      purge,
-			Fixtures:                     integration.LoadAndParseQueryTestCases(t, "fixtures/queries_es.json"),
+			CleanUp: purge,
+			Fixtures: integration.LoadAndParseQueryTestCases(
+				t,
+				"fixtures/queries_es.json",
+			),
 			GetOperationsMissingSpanKind: true,
 		},
 	}

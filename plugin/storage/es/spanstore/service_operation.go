@@ -63,7 +63,10 @@ func NewServiceOperationStorage(
 }
 
 // Write saves a service to operation pair.
-func (s *ServiceOperationStorage) Write(indexName string, jsonSpan *dbmodel.Span) {
+func (s *ServiceOperationStorage) Write(
+	indexName string,
+	jsonSpan *dbmodel.Span,
+) {
 	// Insert serviceName:operationName document
 	service := dbmodel.Service{
 		ServiceName:   jsonSpan.Process.ServiceName,
@@ -72,12 +75,22 @@ func (s *ServiceOperationStorage) Write(indexName string, jsonSpan *dbmodel.Span
 
 	cacheKey := hashCode(service)
 	if !keyInCache(cacheKey, s.serviceCache) {
-		s.client().Index().Index(indexName).Type(serviceType).Id(cacheKey).BodyJson(service).Add()
+		s.client().
+			Index().
+			Index(indexName).
+			Type(serviceType).
+			Id(cacheKey).
+			BodyJson(service).
+			Add()
 		writeCache(cacheKey, s.serviceCache)
 	}
 }
 
-func (s *ServiceOperationStorage) getServices(context context.Context, indices []string, maxDocCount int) ([]string, error) {
+func (s *ServiceOperationStorage) getServices(
+	context context.Context,
+	indices []string,
+	maxDocCount int,
+) ([]string, error) {
 	serviceAggregation := getServicesAggregation(maxDocCount)
 
 	searchService := s.client().Search(indices...).
@@ -87,14 +100,19 @@ func (s *ServiceOperationStorage) getServices(context context.Context, indices [
 
 	searchResult, err := searchService.Do(context)
 	if err != nil {
-		return nil, fmt.Errorf("search services failed: %w", es.DetailedError(err))
+		return nil, fmt.Errorf(
+			"search services failed: %w",
+			es.DetailedError(err),
+		)
 	}
 	if searchResult.Aggregations == nil {
 		return []string{}, nil
 	}
 	bucket, found := searchResult.Aggregations.Terms(servicesAggregation)
 	if !found {
-		return nil, errors.New("could not find aggregation of " + servicesAggregation)
+		return nil, errors.New(
+			"could not find aggregation of " + servicesAggregation,
+		)
 	}
 	serviceNamesBucket := bucket.Buckets
 	return bucketToStringArray(serviceNamesBucket)
@@ -103,10 +121,16 @@ func (s *ServiceOperationStorage) getServices(context context.Context, indices [
 func getServicesAggregation(maxDocCount int) elastic.Query {
 	return elastic.NewTermsAggregation().
 		Field(serviceName).
-		Size(maxDocCount) // ES deprecated size omission for aggregating all. https://github.com/elastic/elasticsearch/issues/18838
+		Size(maxDocCount)
+	// ES deprecated size omission for aggregating all. https://github.com/elastic/elasticsearch/issues/18838
 }
 
-func (s *ServiceOperationStorage) getOperations(context context.Context, indices []string, service string, maxDocCount int) ([]string, error) {
+func (s *ServiceOperationStorage) getOperations(
+	context context.Context,
+	indices []string,
+	service string,
+	maxDocCount int,
+) ([]string, error) {
 	serviceQuery := elastic.NewTermQuery(serviceName, service)
 	serviceFilter := getOperationsAggregation(maxDocCount)
 
@@ -118,14 +142,19 @@ func (s *ServiceOperationStorage) getOperations(context context.Context, indices
 
 	searchResult, err := searchService.Do(context)
 	if err != nil {
-		return nil, fmt.Errorf("search operations failed: %w", es.DetailedError(err))
+		return nil, fmt.Errorf(
+			"search operations failed: %w",
+			es.DetailedError(err),
+		)
 	}
 	if searchResult.Aggregations == nil {
 		return []string{}, nil
 	}
 	bucket, found := searchResult.Aggregations.Terms(operationsAggregation)
 	if !found {
-		return nil, errors.New("could not find aggregation of " + operationsAggregation)
+		return nil, errors.New(
+			"could not find aggregation of " + operationsAggregation,
+		)
 	}
 	operationNamesBucket := bucket.Buckets
 	return bucketToStringArray(operationNamesBucket)
@@ -134,7 +163,8 @@ func (s *ServiceOperationStorage) getOperations(context context.Context, indices
 func getOperationsAggregation(maxDocCount int) elastic.Query {
 	return elastic.NewTermsAggregation().
 		Field(operationNameField).
-		Size(maxDocCount) // ES deprecated size omission for aggregating all. https://github.com/elastic/elasticsearch/issues/18838
+		Size(maxDocCount)
+	// ES deprecated size omission for aggregating all. https://github.com/elastic/elasticsearch/issues/18838
 }
 
 func hashCode(s dbmodel.Service) string {

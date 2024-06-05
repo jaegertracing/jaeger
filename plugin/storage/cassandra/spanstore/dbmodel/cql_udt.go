@@ -40,7 +40,10 @@ func (t *TraceID) UnmarshalCQL(info gocql.TypeInfo, data []byte) error {
 }
 
 // MarshalUDT handles marshalling a Tag.
-func (t *KeyValue) MarshalUDT(name string, info gocql.TypeInfo) ([]byte, error) {
+func (t *KeyValue) MarshalUDT(
+	name string,
+	info gocql.TypeInfo,
+) ([]byte, error) {
 	switch name {
 	case "key":
 		return gocql.Marshal(info, t.Key)
@@ -62,7 +65,11 @@ func (t *KeyValue) MarshalUDT(name string, info gocql.TypeInfo) ([]byte, error) 
 }
 
 // UnmarshalUDT handles unmarshalling a Tag.
-func (t *KeyValue) UnmarshalUDT(name string, info gocql.TypeInfo, data []byte) error {
+func (t *KeyValue) UnmarshalUDT(
+	name string,
+	info gocql.TypeInfo,
+	data []byte,
+) error {
 	switch name {
 	case "key":
 		return gocql.Unmarshal(info, data, &t.Key)
@@ -96,7 +103,11 @@ func (l *Log) MarshalUDT(name string, info gocql.TypeInfo) ([]byte, error) {
 }
 
 // UnmarshalUDT handles unmarshalling a Log.
-func (l *Log) UnmarshalUDT(name string, info gocql.TypeInfo, data []byte) error {
+func (l *Log) UnmarshalUDT(
+	name string,
+	info gocql.TypeInfo,
+	data []byte,
+) error {
 	switch name {
 	case "ts":
 		return gocql.Unmarshal(info, data, &l.Timestamp)
@@ -122,7 +133,11 @@ func (s *SpanRef) MarshalUDT(name string, info gocql.TypeInfo) ([]byte, error) {
 }
 
 // UnmarshalUDT handles unmarshalling a SpanRef.
-func (s *SpanRef) UnmarshalUDT(name string, info gocql.TypeInfo, data []byte) error {
+func (s *SpanRef) UnmarshalUDT(
+	name string,
+	info gocql.TypeInfo,
+	data []byte,
+) error {
 	switch name {
 	case "ref_type":
 		return gocql.Unmarshal(info, data, &s.RefType)
@@ -148,7 +163,11 @@ func (p *Process) MarshalUDT(name string, info gocql.TypeInfo) ([]byte, error) {
 }
 
 // UnmarshalUDT handles unmarshalling a Process.
-func (p *Process) UnmarshalUDT(name string, info gocql.TypeInfo, data []byte) error {
+func (p *Process) UnmarshalUDT(
+	name string,
+	info gocql.TypeInfo,
+	data []byte,
+) error {
 	switch name {
 	case "service_name":
 		return gocql.Unmarshal(info, data, &p.ServiceName)

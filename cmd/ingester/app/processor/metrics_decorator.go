@@ -29,7 +29,10 @@ type metricsDecorator struct {
 }
 
 // NewDecoratedProcessor returns a processor with metrics
-func NewDecoratedProcessor(f metrics.Factory, processor SpanProcessor) SpanProcessor {
+func NewDecoratedProcessor(
+	f metrics.Factory,
+	processor SpanProcessor,
+) SpanProcessor {
 	m := f.Namespace(metrics.NSOptions{Name: "span-processor", Tags: nil})
 	return &metricsDecorator{
 		errors:    m.Counter(metrics.Options{Name: "errors", Tags: nil}),

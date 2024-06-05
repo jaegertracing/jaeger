@@ -47,10 +47,14 @@ type SpanHandlers struct {
 }
 
 // BuildSpanProcessor builds the span processor to be used with the handlers
-func (b *SpanHandlerBuilder) BuildSpanProcessor(additional ...ProcessSpan) processor.SpanProcessor {
+func (b *SpanHandlerBuilder) BuildSpanProcessor(
+	additional ...ProcessSpan,
+) processor.SpanProcessor {
 	hostname, _ := os.Hostname()
 	svcMetrics := b.metricsFactory()
-	hostMetrics := svcMetrics.Namespace(metrics.NSOptions{Tags: map[string]string{"host": hostname}})
+	hostMetrics := svcMetrics.Namespace(
+		metrics.NSOptions{Tags: map[string]string{"host": hostname}},
+	)
 
 	return NewSpanProcessor(
 		b.SpanWriter,
@@ -62,14 +66,18 @@ func (b *SpanHandlerBuilder) BuildSpanProcessor(additional ...ProcessSpan) proce
 		Options.NumWorkers(b.CollectorOpts.NumWorkers),
 		Options.QueueSize(b.CollectorOpts.QueueSize),
 		Options.CollectorTags(b.CollectorOpts.CollectorTags),
-		Options.DynQueueSizeWarmup(uint(b.CollectorOpts.QueueSize)), // same as queue size for now
+		Options.DynQueueSizeWarmup(
+			uint(b.CollectorOpts.QueueSize),
+		), // same as queue size for now
 		Options.DynQueueSizeMemory(b.CollectorOpts.DynQueueSizeMemory),
 		Options.SpanSizeMetricsEnabled(b.CollectorOpts.SpanSizeMetricsEnabled),
 	)
 }
 
 // BuildHandlers builds span handlers (Zipkin, Jaeger)
-func (b *SpanHandlerBuilder) BuildHandlers(spanProcessor processor.SpanProcessor) *SpanHandlers {
+func (b *SpanHandlerBuilder) BuildHandlers(
+	spanProcessor processor.SpanProcessor,
+) *SpanHandlers {
 	return &SpanHandlers{
 		handler.NewZipkinSpanHandler(
 			b.Logger,

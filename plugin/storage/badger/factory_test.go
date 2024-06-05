@@ -110,7 +110,9 @@ func TestMaintenanceRun(t *testing.T) {
 		return gs[lastMaintenanceRunName]
 	}
 
-	runtime := waiter(0) // First run, check that it was ran and caches previous size
+	runtime := waiter(
+		0,
+	) // First run, check that it was ran and caches previous size
 
 	// This is to for codecov only. Can break without anything else breaking as it does test badger's
 	// internal implementation
@@ -185,7 +187,11 @@ func TestBadgerMetrics(t *testing.T) {
 	vlogSize := waiter(0)
 	_, gs := mFactory.Snapshot()
 	assert.EqualValues(t, 0, vlogSize)
-	assert.EqualValues(t, int64(0), gs["badger_v3_memtable_gets_total"]) // IntVal metric
+	assert.EqualValues(
+		t,
+		int64(0),
+		gs["badger_v3_memtable_gets_total"],
+	) // IntVal metric
 
 	_, found = gs["badger_v3_lsm_size_bytes"] // Map metric
 	assert.True(t, found)

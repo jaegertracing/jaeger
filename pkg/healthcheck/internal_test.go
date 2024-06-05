@@ -44,7 +44,10 @@ func TestHttpCall(t *testing.T) {
 	assert.Equal(t, "Server available", hr.StatusMsg)
 	// de-serialized timestamp loses monotonic clock value, so assert.Equals() doesn't work.
 	// https://github.com/stretchr/testify/issues/502
-	if want, have := hc.getState().upSince, hr.UpSince; !assert.True(t, want.Equal(have)) {
+	if want, have := hc.getState().upSince, hr.UpSince; !assert.True(
+		t,
+		want.Equal(have),
+	) {
 		t.Logf("want='%v', have='%v'", want, have)
 	}
 	assert.NotZero(t, hr.Uptime)
@@ -62,7 +65,10 @@ func TestHttpCall(t *testing.T) {
 	assert.Zero(t, hrNew.UpSince)
 }
 
-func parseHealthCheckResponse(t *testing.T, resp *http.Response) healthCheckResponse {
+func parseHealthCheckResponse(
+	t *testing.T,
+	resp *http.Response,
+) healthCheckResponse {
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 	var hr healthCheckResponse

@@ -64,7 +64,9 @@ func TestNewFactory(t *testing.T) {
 	mockSSFactory := &mockSamplingStoreFactory{}
 
 	for _, tc := range tests {
-		f, err := NewFactory(FactoryConfig{StrategyStoreType: Kind(tc.strategyStoreType)})
+		f, err := NewFactory(
+			FactoryConfig{StrategyStoreType: Kind(tc.strategyStoreType)},
+		)
 		if tc.expectError {
 			require.Error(t, err)
 			continue
@@ -76,14 +78,21 @@ func TestNewFactory(t *testing.T) {
 		mock := new(mockFactory)
 		f.factories[Kind(tc.strategyStoreType)] = mock
 
-		require.NoError(t, f.Initialize(metrics.NullFactory, mockSSFactory, zap.NewNop()))
+		require.NoError(
+			t,
+			f.Initialize(metrics.NullFactory, mockSSFactory, zap.NewNop()),
+		)
 		_, _, err = f.CreateStrategyStore()
 		require.NoError(t, err)
 		require.NoError(t, f.Close())
 
 		// force the mock to return errors
 		mock.retError = true
-		require.EqualError(t, f.Initialize(metrics.NullFactory, mockSSFactory, zap.NewNop()), "error initializing store")
+		require.EqualError(
+			t,
+			f.Initialize(metrics.NullFactory, mockSSFactory, zap.NewNop()),
+			"error initializing store",
+		)
 		_, _, err = f.CreateStrategyStore()
 		require.EqualError(t, err, "error creating store")
 		require.EqualError(t, f.Close(), "error closing store")
@@ -139,7 +148,11 @@ func (f *mockFactory) CreateStrategyStore() (ss.StrategyStore, ss.Aggregator, er
 	return nil, nil, nil
 }
 
-func (f *mockFactory) Initialize(metricsFactory metrics.Factory, ssFactory storage.SamplingStoreFactory, logger *zap.Logger) error {
+func (f *mockFactory) Initialize(
+	metricsFactory metrics.Factory,
+	ssFactory storage.SamplingStoreFactory,
+	logger *zap.Logger,
+) error {
 	if f.retError {
 		return errors.New("error initializing store")
 	}
@@ -159,6 +172,8 @@ func (*mockSamplingStoreFactory) CreateLock() (distributedlock.Lock, error) {
 	return nil, nil
 }
 
-func (*mockSamplingStoreFactory) CreateSamplingStore(maxBuckets int) (samplingstore.Store, error) {
+func (*mockSamplingStoreFactory) CreateSamplingStore(
+	maxBuckets int,
+) (samplingstore.Store, error) {
 	return nil, nil
 }

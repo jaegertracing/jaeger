@@ -31,27 +31,50 @@ var errIWillAlwaysFail = errors.New("ErrProneWriteSpanStore will always fail")
 
 type errProneWriteSpanStore struct{}
 
-func (*errProneWriteSpanStore) WriteSpan(ctx context.Context, span *model.Span) error {
+func (*errProneWriteSpanStore) WriteSpan(
+	ctx context.Context,
+	span *model.Span,
+) error {
 	return errIWillAlwaysFail
 }
 
 type noopWriteSpanStore struct{}
 
-func (*noopWriteSpanStore) WriteSpan(ctx context.Context, span *model.Span) error {
+func (*noopWriteSpanStore) WriteSpan(
+	ctx context.Context,
+	span *model.Span,
+) error {
 	return nil
 }
 
 func TestCompositeWriteSpanStoreSuccess(t *testing.T) {
-	c := spanstore.NewCompositeWriter(&noopWriteSpanStore{}, &noopWriteSpanStore{})
+	c := spanstore.NewCompositeWriter(
+		&noopWriteSpanStore{},
+		&noopWriteSpanStore{},
+	)
 	require.NoError(t, c.WriteSpan(context.Background(), nil))
 }
 
 func TestCompositeWriteSpanStoreSecondFailure(t *testing.T) {
-	c := spanstore.NewCompositeWriter(&errProneWriteSpanStore{}, &errProneWriteSpanStore{})
-	require.EqualError(t, c.WriteSpan(context.Background(), nil), fmt.Sprintf("%s\n%s", errIWillAlwaysFail, errIWillAlwaysFail))
+	c := spanstore.NewCompositeWriter(
+		&errProneWriteSpanStore{},
+		&errProneWriteSpanStore{},
+	)
+	require.EqualError(
+		t,
+		c.WriteSpan(context.Background(), nil),
+		fmt.Sprintf("%s\n%s", errIWillAlwaysFail, errIWillAlwaysFail),
+	)
 }
 
 func TestCompositeWriteSpanStoreFirstFailure(t *testing.T) {
-	c := spanstore.NewCompositeWriter(&errProneWriteSpanStore{}, &noopWriteSpanStore{})
-	require.EqualError(t, c.WriteSpan(context.Background(), nil), errIWillAlwaysFail.Error())
+	c := spanstore.NewCompositeWriter(
+		&errProneWriteSpanStore{},
+		&noopWriteSpanStore{},
+	)
+	require.EqualError(
+		t,
+		c.WriteSpan(context.Background(), nil),
+		errIWillAlwaysFail.Error(),
+	)
 }

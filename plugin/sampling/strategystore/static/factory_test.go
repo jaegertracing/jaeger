@@ -34,7 +34,9 @@ var (
 func TestFactory(t *testing.T) {
 	f := NewFactory()
 	v, command := config.Viperize(f.AddFlags)
-	command.ParseFlags([]string{"--sampling.strategies-file=fixtures/strategies.json"})
+	command.ParseFlags(
+		[]string{"--sampling.strategies-file=fixtures/strategies.json"},
+	)
 	f.InitFromViper(v, zap.NewNop())
 
 	require.NoError(t, f.Initialize(metrics.NullFactory, nil, zap.NewNop()))

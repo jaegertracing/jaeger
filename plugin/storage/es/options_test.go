@@ -88,7 +88,11 @@ func TestOptionsWithFlags(t *testing.T) {
 	assert.Equal(t, "/foo/bar", primary.TokenFilePath)
 	assert.Equal(t, "/foo/bar/baz", primary.PasswordFilePath)
 	assert.Equal(t, []string{"1.1.1.1", "2.2.2.2"}, primary.Servers)
-	assert.Equal(t, []string{"cluster_one", "cluster_two"}, primary.RemoteReadClusters)
+	assert.Equal(
+		t,
+		[]string{"cluster_one", "cluster_two"},
+		primary.RemoteReadClusters,
+	)
 	assert.Equal(t, 48*time.Hour, primary.MaxSpanAge)
 	assert.True(t, primary.Sniffer)
 	assert.True(t, primary.SnifferTLSEnabled)
@@ -169,10 +173,26 @@ func TestIndexDateSeparator(t *testing.T) {
 	}{
 		{"not defined (default)", []string{}, "2006-01-02"},
 		{"empty separator", []string{"--es.index-date-separator="}, "20060102"},
-		{"dot separator", []string{"--es.index-date-separator=."}, "2006.01.02"},
-		{"crossbar separator", []string{"--es.index-date-separator=-"}, "2006-01-02"},
-		{"slash separator", []string{"--es.index-date-separator=/"}, "2006/01/02"},
-		{"empty string with single quotes", []string{"--es.index-date-separator=''"}, "2006''01''02"},
+		{
+			"dot separator",
+			[]string{"--es.index-date-separator=."},
+			"2006.01.02",
+		},
+		{
+			"crossbar separator",
+			[]string{"--es.index-date-separator=-"},
+			"2006-01-02",
+		},
+		{
+			"slash separator",
+			[]string{"--es.index-date-separator=/"},
+			"2006/01/02",
+		},
+		{
+			"empty string with single quotes",
+			[]string{"--es.index-date-separator=''"},
+			"2006''01''02",
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -205,24 +225,33 @@ func TestIndexRollover(t *testing.T) {
 			wantServiceIndexRolloverFrequency: -24 * time.Hour,
 		},
 		{
-			name:                              "index day rollover",
-			flags:                             []string{"--es.index-rollover-frequency-services=day", "--es.index-rollover-frequency-spans=hour"},
+			name: "index day rollover",
+			flags: []string{
+				"--es.index-rollover-frequency-services=day",
+				"--es.index-rollover-frequency-spans=hour",
+			},
 			wantSpanDateLayout:                "2006-01-02-15",
 			wantServiceDateLayout:             "2006-01-02",
 			wantSpanIndexRolloverFrequency:    -1 * time.Hour,
 			wantServiceIndexRolloverFrequency: -24 * time.Hour,
 		},
 		{
-			name:                              "index hour rollover",
-			flags:                             []string{"--es.index-rollover-frequency-services=hour", "--es.index-rollover-frequency-spans=day"},
+			name: "index hour rollover",
+			flags: []string{
+				"--es.index-rollover-frequency-services=hour",
+				"--es.index-rollover-frequency-spans=day",
+			},
 			wantSpanDateLayout:                "2006-01-02",
 			wantServiceDateLayout:             "2006-01-02-15",
 			wantSpanIndexRolloverFrequency:    -24 * time.Hour,
 			wantServiceIndexRolloverFrequency: -1 * time.Hour,
 		},
 		{
-			name:                              "invalid index rollover frequency falls back to default 'day'",
-			flags:                             []string{"--es.index-rollover-frequency-services=hours", "--es.index-rollover-frequency-spans=hours"},
+			name: "invalid index rollover frequency falls back to default 'day'",
+			flags: []string{
+				"--es.index-rollover-frequency-services=hours",
+				"--es.index-rollover-frequency-spans=hours",
+			},
 			wantSpanDateLayout:                "2006-01-02",
 			wantServiceDateLayout:             "2006-01-02",
 			wantSpanIndexRolloverFrequency:    -24 * time.Hour,
@@ -237,9 +266,21 @@ func TestIndexRollover(t *testing.T) {
 			opts.InitFromViper(v)
 			primary := opts.GetPrimary()
 			assert.Equal(t, tc.wantSpanDateLayout, primary.IndexDateLayoutSpans)
-			assert.Equal(t, tc.wantServiceDateLayout, primary.IndexDateLayoutServices)
-			assert.Equal(t, tc.wantSpanIndexRolloverFrequency, primary.GetIndexRolloverFrequencySpansDuration())
-			assert.Equal(t, tc.wantServiceIndexRolloverFrequency, primary.GetIndexRolloverFrequencyServicesDuration())
+			assert.Equal(
+				t,
+				tc.wantServiceDateLayout,
+				primary.IndexDateLayoutServices,
+			)
+			assert.Equal(
+				t,
+				tc.wantSpanIndexRolloverFrequency,
+				primary.GetIndexRolloverFrequencySpansDuration(),
+			)
+			assert.Equal(
+				t,
+				tc.wantServiceIndexRolloverFrequency,
+				primary.GetIndexRolloverFrequencyServicesDuration(),
+			)
 		})
 	}
 }

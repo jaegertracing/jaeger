@@ -60,7 +60,11 @@ type ConfigOptions struct {
 }
 
 // NewServer creates a new frontend.Server
-func NewServer(options ConfigOptions, tracer trace.TracerProvider, logger log.Factory) *Server {
+func NewServer(
+	options ConfigOptions,
+	tracer trace.TracerProvider,
+	logger log.Factory,
+) *Server {
 	return &Server{
 		hostPort: options.FrontendHostPort,
 		tracer:   tracer,
@@ -75,7 +79,8 @@ func NewServer(options ConfigOptions, tracer trace.TracerProvider, logger log.Fa
 // Run starts the frontend server
 func (s *Server) Run() error {
 	mux := s.createServeMux()
-	s.logger.Bg().Info("Starting", zap.String("address", "http://"+path.Join(s.hostPort, s.basepath)))
+	s.logger.Bg().
+		Info("Starting", zap.String("address", "http://"+path.Join(s.hostPort, s.basepath)))
 	server := &http.Server{
 		Addr:              s.hostPort,
 		Handler:           mux,
@@ -104,20 +109,33 @@ func (s *Server) config(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) dispatch(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	s.logger.For(ctx).Info("HTTP request received", zap.String("method", r.Method), zap.Stringer("url", r.URL))
-	if err := r.ParseForm(); httperr.HandleError(w, err, http.StatusBadRequest) {
+	s.logger.For(ctx).
+		Info("HTTP request received", zap.String("method", r.Method), zap.Stringer("url", r.URL))
+	if err := r.ParseForm(); httperr.HandleError(
+		w,
+		err,
+		http.StatusBadRequest,
+	) {
 		s.logger.For(ctx).Error("bad request", zap.Error(err))
 		return
 	}
 
 	customer := r.Form.Get("customer")
 	if customer == "" {
-		http.Error(w, "Missing required 'customer' parameter", http.StatusBadRequest)
+		http.Error(
+			w,
+			"Missing required 'customer' parameter",
+			http.StatusBadRequest,
+		)
 		return
 	}
 	customerID, err := strconv.Atoi(customer)
 	if err != nil {
-		http.Error(w, "Parameter 'customer' is not an integer", http.StatusBadRequest)
+		http.Error(
+			w,
+			"Parameter 'customer' is not an integer",
+			http.StatusBadRequest,
+		)
 		return
 	}
 
@@ -131,10 +149,15 @@ func (s *Server) dispatch(w http.ResponseWriter, r *http.Request) {
 	s.writeResponse(response, w, r)
 }
 
-func (s *Server) writeResponse(response any, w http.ResponseWriter, r *http.Request) {
+func (s *Server) writeResponse(
+	response any,
+	w http.ResponseWriter,
+	r *http.Request,
+) {
 	data, err := json.Marshal(response)
 	if httperr.HandleError(w, err, http.StatusInternalServerError) {
-		s.logger.For(r.Context()).Error("cannot marshal response", zap.Error(err))
+		s.logger.For(r.Context()).
+			Error("cannot marshal response", zap.Error(err))
 		return
 	}
 

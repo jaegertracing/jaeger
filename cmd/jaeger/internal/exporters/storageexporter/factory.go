@@ -24,7 +24,10 @@ func NewFactory() exporter.Factory {
 	return exporter.NewFactory(
 		componentType,
 		createDefaultConfig,
-		exporter.WithTraces(createTracesExporter, component.StabilityLevelDevelopment),
+		exporter.WithTraces(
+			createTracesExporter,
+			component.StabilityLevelDevelopment,
+		),
 	)
 }
 
@@ -32,12 +35,21 @@ func createDefaultConfig() component.Config {
 	return &Config{}
 }
 
-func createTracesExporter(ctx context.Context, set exporter.CreateSettings, config component.Config) (exporter.Traces, error) {
+func createTracesExporter(
+	ctx context.Context,
+	set exporter.CreateSettings,
+	config component.Config,
+) (exporter.Traces, error) {
 	cfg := config.(*Config)
 	ex := newExporter(cfg, set.TelemetrySettings)
-	return exporterhelper.NewTracesExporter(ctx, set, cfg,
+	return exporterhelper.NewTracesExporter(
+		ctx,
+		set,
+		cfg,
 		ex.pushTraces,
-		exporterhelper.WithCapabilities(consumer.Capabilities{MutatesData: false}),
+		exporterhelper.WithCapabilities(
+			consumer.Capabilities{MutatesData: false},
+		),
 		// Disable Timeout/RetryOnFailure and SendingQueue
 		exporterhelper.WithTimeout(exporterhelper.TimeoutSettings{Timeout: 0}),
 		exporterhelper.WithRetry(configretry.BackOffConfig{Enabled: false}),

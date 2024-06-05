@@ -165,7 +165,8 @@ func (s *Span) ParentSpanID() SpanID {
 func (s *Span) ReplaceParentID(newParentID SpanID) {
 	oldParentID := s.ParentSpanID()
 	for i := range s.References {
-		if s.References[i].SpanID == oldParentID && s.References[i].TraceID == s.TraceID {
+		if s.References[i].SpanID == oldParentID &&
+			s.References[i].TraceID == s.TraceID {
 			s.References[i].SpanID = newParentID
 			return
 		}

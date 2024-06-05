@@ -34,7 +34,11 @@ func ByAliasExclude(indices []client.Index, aliases []string) []client.Index {
 	return filterByAliasWithOptions(indices, aliases, true)
 }
 
-func filterByAliasWithOptions(indices []client.Index, aliases []string, exclude bool) []client.Index {
+func filterByAliasWithOptions(
+	indices []client.Index,
+	aliases []string,
+	exclude bool,
+) []client.Index {
 	var results []client.Index
 	for _, alias := range aliases {
 		for _, index := range indices {
@@ -50,7 +54,10 @@ func filterByAliasWithOptions(indices []client.Index, aliases []string, exclude 
 	return results
 }
 
-func exlude(indices []client.Index, exclusionList []client.Index) []client.Index {
+func exlude(
+	indices []client.Index,
+	exclusionList []client.Index,
+) []client.Index {
 	excludedIndices := make([]client.Index, 0, len(indices))
 	for _, idx := range indices {
 		if !contains(idx, exclusionList) {

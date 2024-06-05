@@ -45,10 +45,17 @@ func withStreamingWriterGRPCClient(fn func(r *streamingSpanWriterTest)) {
 func TestStreamClientWriteSpan(t *testing.T) {
 	withStreamingWriterGRPCClient(func(r *streamingSpanWriterTest) {
 		stream := new(grpcMocks.StreamingSpanWriterPlugin_WriteSpanStreamClient)
-		stream.On("Send", &storage_v1.WriteSpanRequest{Span: &mockTraceSpans[0]}).Return(io.EOF).Once().
-			On("Send", &storage_v1.WriteSpanRequest{Span: &mockTraceSpans[0]}).Return(nil).Twice()
-		r.streamingSpanWriter.On("WriteSpanStream", mock.Anything).Return(nil, status.Error(codes.DeadlineExceeded, "timeout")).Once().
-			On("WriteSpanStream", mock.Anything).Return(stream, nil)
+		stream.On("Send", &storage_v1.WriteSpanRequest{Span: &mockTraceSpans[0]}).
+			Return(io.EOF).
+			Once().
+			On("Send", &storage_v1.WriteSpanRequest{Span: &mockTraceSpans[0]}).
+			Return(nil).
+			Twice()
+		r.streamingSpanWriter.On("WriteSpanStream", mock.Anything).
+			Return(nil, status.Error(codes.DeadlineExceeded, "timeout")).
+			Once().
+			On("WriteSpanStream", mock.Anything).
+			Return(stream, nil)
 
 		err := r.client.WriteSpan(context.Background(), &mockTraceSpans[0])
 		require.ErrorContains(t, err, "timeout")
@@ -56,10 +63,14 @@ func TestStreamClientWriteSpan(t *testing.T) {
 		require.ErrorContains(t, err, "EOF")
 		err = r.client.WriteSpan(context.Background(), &mockTraceSpans[0])
 		require.NoError(t, err)
-		err = r.client.WriteSpan(context.Background(), &mockTraceSpans[0]) // get stream from pool should succeed
+		err = r.client.WriteSpan(
+			context.Background(),
+			&mockTraceSpans[0],
+		) // get stream from pool should succeed
 		require.NoError(t, err)
 
-		stream.On("CloseAndRecv").Return(nil, status.Error(codes.DeadlineExceeded, "timeout"))
+		stream.On("CloseAndRecv").
+			Return(nil, status.Error(codes.DeadlineExceeded, "timeout"))
 		for i := 0; i < defaultMaxPoolSize; i++ { // putStream when pool is full should call CloseAndRecv
 			err = r.client.putStream(stream)
 			if i == defaultMaxPoolSize-1 {
@@ -74,7 +85,9 @@ func TestStreamClientWriteSpan(t *testing.T) {
 func TestStreamClientClose(t *testing.T) {
 	withStreamingWriterGRPCClient(func(r *streamingSpanWriterTest) {
 		stream := new(grpcMocks.StreamingSpanWriterPlugin_WriteSpanStreamClient)
-		stream.On("CloseAndRecv").Return(&storage_v1.WriteSpanResponse{}, nil).Once()
+		stream.On("CloseAndRecv").
+			Return(&storage_v1.WriteSpanResponse{}, nil).
+			Once()
 		r.client.streamPool <- stream
 
 		err := r.client.Close()
@@ -82,7 +95,10 @@ func TestStreamClientClose(t *testing.T) {
 		err = r.client.Close()
 		require.ErrorContains(t, err, "already closed")
 
-		err = r.client.WriteSpan(context.Background(), &mockTraceSpans[0]) // getStream from pool should fail when closed
+		err = r.client.WriteSpan(
+			context.Background(),
+			&mockTraceSpans[0],
+		) // getStream from pool should fail when closed
 		require.ErrorContains(t, err, "closed")
 	})
 }
@@ -90,12 +106,18 @@ func TestStreamClientClose(t *testing.T) {
 func TestStreamClientCloseFail(t *testing.T) {
 	withStreamingWriterGRPCClient(func(r *streamingSpanWriterTest) {
 		stream := new(grpcMocks.StreamingSpanWriterPlugin_WriteSpanStreamClient)
-		stream.On("CloseAndRecv").Return(nil, status.Error(codes.DeadlineExceeded, "timeout")).Twice()
+		stream.On("CloseAndRecv").
+			Return(nil, status.Error(codes.DeadlineExceeded, "timeout")).
+			Twice()
 		r.client.streamPool <- stream
 
 		err := r.client.Close()
 		require.ErrorContains(t, err, "timeout")
 		err = r.client.putStream(stream)
-		require.ErrorContains(t, err, "timeout") // putStream after closed should call CloseAndRecv
+		require.ErrorContains(
+			t,
+			err,
+			"timeout",
+		) // putStream after closed should call CloseAndRecv
 	})
 }

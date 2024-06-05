@@ -33,7 +33,12 @@ type IndexOption struct {
 }
 
 // RolloverIndices return an array of indices to rollover
-func RolloverIndices(archive bool, skipDependencies bool, adaptiveSampling bool, prefix string) []IndexOption {
+func RolloverIndices(
+	archive bool,
+	skipDependencies bool,
+	adaptiveSampling bool,
+	prefix string,
+) []IndexOption {
 	if archive {
 		return []IndexOption{
 			{

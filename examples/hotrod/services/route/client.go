@@ -34,7 +34,11 @@ type Client struct {
 }
 
 // NewClient creates a new route.Client
-func NewClient(tracer trace.TracerProvider, logger log.Factory, hostPort string) *Client {
+func NewClient(
+	tracer trace.TracerProvider,
+	logger log.Factory,
+	hostPort string,
+) *Client {
 	return &Client{
 		logger:   logger,
 		client:   tracing.NewHTTPClient(tracer),
@@ -43,8 +47,12 @@ func NewClient(tracer trace.TracerProvider, logger log.Factory, hostPort string)
 }
 
 // FindRoute implements route.Interface#FindRoute as an RPC
-func (c *Client) FindRoute(ctx context.Context, pickup, dropoff string) (*Route, error) {
-	c.logger.For(ctx).Info("Finding route", zap.String("pickup", pickup), zap.String("dropoff", dropoff))
+func (c *Client) FindRoute(
+	ctx context.Context,
+	pickup, dropoff string,
+) (*Route, error) {
+	c.logger.For(ctx).
+		Info("Finding route", zap.String("pickup", pickup), zap.String("dropoff", dropoff))
 
 	v := url.Values{}
 	v.Set("pickup", pickup)

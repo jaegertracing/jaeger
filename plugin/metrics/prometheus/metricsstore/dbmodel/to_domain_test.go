@@ -31,13 +31,20 @@ func TestToDomainMetricsFamily(t *testing.T) {
 	promMetrics := model.Matrix{}
 	nowSec := time.Now().Unix()
 	promMetrics = append(promMetrics, &model.SampleStream{
-		Metric: map[model.LabelName]model.LabelValue{"label_key": "label_value", "span_name": "span_name_value"},
+		Metric: map[model.LabelName]model.LabelValue{
+			"label_key": "label_value",
+			"span_name": "span_name_value",
+		},
 		Values: []model.SamplePair{
 			{Timestamp: model.Time(nowSec * 1000), Value: 1234},
 		},
 	})
 	translator := New("span_name")
-	mf, err := translator.ToDomainMetricsFamily("the_metric_name", "the_metric_description", promMetrics)
+	mf, err := translator.ToDomainMetricsFamily(
+		"the_metric_name",
+		"the_metric_description",
+		promMetrics,
+	)
 	require.NoError(t, err)
 
 	assert.NotEmpty(t, mf)
@@ -66,13 +73,23 @@ func TestToDomainMetricsFamily(t *testing.T) {
 			},
 		},
 	}
-	assert.Equal(t, []*metrics.MetricPoint{{Timestamp: &types.Timestamp{Seconds: nowSec}, Value: wantMpValue}}, mf.Metrics[0].MetricPoints)
+	assert.Equal(
+		t,
+		[]*metrics.MetricPoint{
+			{Timestamp: &types.Timestamp{Seconds: nowSec}, Value: wantMpValue},
+		},
+		mf.Metrics[0].MetricPoints,
+	)
 }
 
 func TestUnexpectedMetricsFamilyType(t *testing.T) {
 	promMetrics := model.Vector{}
 	translator := New("span_name")
-	mf, err := translator.ToDomainMetricsFamily("the_metric_name", "the_metric_description", promMetrics)
+	mf, err := translator.ToDomainMetricsFamily(
+		"the_metric_name",
+		"the_metric_description",
+		promMetrics,
+	)
 
 	assert.NotNil(t, mf)
 	assert.Empty(t, mf)

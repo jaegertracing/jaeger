@@ -50,7 +50,10 @@ func Command(v *viper.Viper, adminPort int) *cobra.Command {
 			body, _ := io.ReadAll(resp.Body)
 			fmt.Println(string(body))
 			if resp.StatusCode != http.StatusOK {
-				return fmt.Errorf("abnormal value of http status code: %v", resp.StatusCode)
+				return fmt.Errorf(
+					"abnormal value of http status code: %v",
+					resp.StatusCode,
+				)
 			}
 			return nil
 		},
@@ -63,7 +66,10 @@ func Command(v *viper.Viper, adminPort int) *cobra.Command {
 func flags(flagSet *flag.FlagSet, adminPort int) *flag.FlagSet {
 	adminPortStr := ports.PortToHostPort(adminPort)
 	flagSet.String(statusHTTPHostPort, adminPortStr, fmt.Sprintf(
-		"The host:port (e.g. 127.0.0.1%s or %s) for the health check", adminPortStr, adminPortStr))
+		"The host:port (e.g. 127.0.0.1%s or %s) for the health check",
+		adminPortStr,
+		adminPortStr,
+	))
 	return flagSet
 }
 

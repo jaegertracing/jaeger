@@ -69,7 +69,9 @@ func (s *SamplingStore) InsertThroughput(throughput []*model.Throughput) error {
 	return nil
 }
 
-func (s *SamplingStore) GetThroughput(start, end time.Time) ([]*model.Throughput, error) {
+func (s *SamplingStore) GetThroughput(
+	start, end time.Time,
+) ([]*model.Throughput, error) {
 	var retSlice []*model.Throughput
 	prefix := []byte{throughputKeyPrefix}
 
@@ -115,7 +117,12 @@ func (s *SamplingStore) InsertProbabilitiesAndQPS(hostname string,
 ) error {
 	startTime := jaegermodel.TimeAsEpochMicroseconds(time.Now())
 	entriesToStore := make([]*badger.Entry, 0)
-	entries, err := s.createProbabilitiesEntry(hostname, probabilities, qps, startTime)
+	entries, err := s.createProbabilitiesEntry(
+		hostname,
+		probabilities,
+		qps,
+		startTime,
+	)
 	if err != nil {
 		return err
 	}
@@ -167,8 +174,18 @@ func (s *SamplingStore) GetLatestProbabilities() (model.ServiceOperationProbabil
 	return retVal, nil
 }
 
-func (s *SamplingStore) createProbabilitiesEntry(hostname string, probabilities model.ServiceOperationProbabilities, qps model.ServiceOperationQPS, startTime uint64) (*badger.Entry, error) {
-	pK, pV, err := s.createProbabilitiesKV(hostname, probabilities, qps, startTime)
+func (s *SamplingStore) createProbabilitiesEntry(
+	hostname string,
+	probabilities model.ServiceOperationProbabilities,
+	qps model.ServiceOperationQPS,
+	startTime uint64,
+) (*badger.Entry, error) {
+	pK, pV, err := s.createProbabilitiesKV(
+		hostname,
+		probabilities,
+		qps,
+		startTime,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -178,7 +195,12 @@ func (s *SamplingStore) createProbabilitiesEntry(hostname string, probabilities 
 	return e, nil
 }
 
-func (*SamplingStore) createProbabilitiesKV(hostname string, probabilities model.ServiceOperationProbabilities, qps model.ServiceOperationQPS, startTime uint64) ([]byte, []byte, error) {
+func (*SamplingStore) createProbabilitiesKV(
+	hostname string,
+	probabilities model.ServiceOperationProbabilities,
+	qps model.ServiceOperationQPS,
+	startTime uint64,
+) ([]byte, []byte, error) {
 	key := make([]byte, 16)
 	key[0] = probabilitiesKeyPrefix
 	pos := 1
@@ -195,7 +217,10 @@ func (*SamplingStore) createProbabilitiesKV(hostname string, probabilities model
 	return key, bb, err
 }
 
-func (s *SamplingStore) createThroughputEntry(throughput []*model.Throughput, startTime uint64) (*badger.Entry, error) {
+func (s *SamplingStore) createThroughputEntry(
+	throughput []*model.Throughput,
+	startTime uint64,
+) (*badger.Entry, error) {
 	pK, pV, err := s.createThroughputKV(throughput, startTime)
 	if err != nil {
 		return nil, err
@@ -206,14 +231,20 @@ func (s *SamplingStore) createThroughputEntry(throughput []*model.Throughput, st
 	return e, nil
 }
 
-func (*SamplingStore) createBadgerEntry(key []byte, value []byte) *badger.Entry {
+func (*SamplingStore) createBadgerEntry(
+	key []byte,
+	value []byte,
+) *badger.Entry {
 	return &badger.Entry{
 		Key:   key,
 		Value: value,
 	}
 }
 
-func (*SamplingStore) createThroughputKV(throughput []*model.Throughput, startTime uint64) ([]byte, []byte, error) {
+func (*SamplingStore) createThroughputKV(
+	throughput []*model.Throughput,
+	startTime uint64,
+) ([]byte, []byte, error) {
 	key := make([]byte, 16)
 	key[0] = throughputKeyPrefix
 	pos := 1

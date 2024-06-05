@@ -44,7 +44,9 @@ type Configuration struct {
 }
 
 // NewProducer creates a new asynchronous kafka producer
-func (c *Configuration) NewProducer(logger *zap.Logger) (sarama.AsyncProducer, error) {
+func (c *Configuration) NewProducer(
+	logger *zap.Logger,
+) (sarama.AsyncProducer, error) {
 	saramaConfig := sarama.NewConfig()
 	saramaConfig.Producer.RequiredAcks = c.RequiredAcks
 	saramaConfig.Producer.Compression = c.Compression

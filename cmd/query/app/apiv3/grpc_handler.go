@@ -37,7 +37,10 @@ type Handler struct {
 var _ api_v3.QueryServiceServer = (*Handler)(nil)
 
 // GetTrace implements api_v3.QueryServiceServer's GetTrace
-func (h *Handler) GetTrace(request *api_v3.GetTraceRequest, stream api_v3.QueryService_GetTraceServer) error {
+func (h *Handler) GetTrace(
+	request *api_v3.GetTraceRequest,
+	stream api_v3.QueryService_GetTraceServer,
+) error {
 	traceID, err := model.TraceIDFromString(request.GetTraceId())
 	if err != nil {
 		return fmt.Errorf("malform trace ID: %w", err)
@@ -56,7 +59,10 @@ func (h *Handler) GetTrace(request *api_v3.GetTraceRequest, stream api_v3.QueryS
 }
 
 // FindTraces implements api_v3.QueryServiceServer's FindTraces
-func (h *Handler) FindTraces(request *api_v3.FindTracesRequest, stream api_v3.QueryService_FindTracesServer) error {
+func (h *Handler) FindTraces(
+	request *api_v3.FindTracesRequest,
+	stream api_v3.QueryService_FindTracesServer,
+) error {
 	query := request.GetQuery()
 	if query == nil {
 		return status.Errorf(codes.InvalidArgument, "missing query")
@@ -117,7 +123,10 @@ func (h *Handler) FindTraces(request *api_v3.FindTracesRequest, stream api_v3.Qu
 }
 
 // GetServices implements api_v3.QueryServiceServer's GetServices
-func (h *Handler) GetServices(ctx context.Context, _ *api_v3.GetServicesRequest) (*api_v3.GetServicesResponse, error) {
+func (h *Handler) GetServices(
+	ctx context.Context,
+	_ *api_v3.GetServicesRequest,
+) (*api_v3.GetServicesResponse, error) {
 	services, err := h.QueryService.GetServices(ctx)
 	if err != nil {
 		return nil, err
@@ -128,11 +137,17 @@ func (h *Handler) GetServices(ctx context.Context, _ *api_v3.GetServicesRequest)
 }
 
 // GetOperations implements api_v3.QueryService's GetOperations
-func (h *Handler) GetOperations(ctx context.Context, request *api_v3.GetOperationsRequest) (*api_v3.GetOperationsResponse, error) {
-	operations, err := h.QueryService.GetOperations(ctx, spanstore.OperationQueryParameters{
-		ServiceName: request.GetService(),
-		SpanKind:    request.GetSpanKind(),
-	})
+func (h *Handler) GetOperations(
+	ctx context.Context,
+	request *api_v3.GetOperationsRequest,
+) (*api_v3.GetOperationsResponse, error) {
+	operations, err := h.QueryService.GetOperations(
+		ctx,
+		spanstore.OperationQueryParameters{
+			ServiceName: request.GetService(),
+			SpanKind:    request.GetSpanKind(),
+		},
+	)
 	if err != nil {
 		return nil, err
 	}

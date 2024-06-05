@@ -37,9 +37,15 @@ func New(spanNameLabel string) Translator {
 }
 
 // ToDomainMetricsFamily converts Prometheus' representation of metrics query results to Jaeger's.
-func (d Translator) ToDomainMetricsFamily(name, description string, mv model.Value) (*metrics.MetricFamily, error) {
+func (d Translator) ToDomainMetricsFamily(
+	name, description string,
+	mv model.Value,
+) (*metrics.MetricFamily, error) {
 	if mv.Type() != model.ValMatrix {
-		return &metrics.MetricFamily{}, fmt.Errorf("unexpected metrics ValueType: %s", mv.Type())
+		return &metrics.MetricFamily{}, fmt.Errorf(
+			"unexpected metrics ValueType: %s",
+			mv.Type(),
+		)
 	}
 	return &metrics.MetricFamily{
 		Name:    name,
@@ -101,10 +107,14 @@ func toDomainTimestamp(timeMs model.Time) *types.Timestamp {
 // The gauge metric type is used because latency, call and error rates metrics do not consist of monotonically
 // increasing values; rather, they are a series of any positive floating number which can fluctuate in any
 // direction over time.
-func toDomainMetricPointValue(promVal model.SampleValue) *metrics.MetricPoint_GaugeValue {
+func toDomainMetricPointValue(
+	promVal model.SampleValue,
+) *metrics.MetricPoint_GaugeValue {
 	return &metrics.MetricPoint_GaugeValue{
 		GaugeValue: &metrics.GaugeValue{
-			Value: &metrics.GaugeValue_DoubleValue{DoubleValue: float64(promVal)},
+			Value: &metrics.GaugeValue_DoubleValue{
+				DoubleValue: float64(promVal),
+			},
 		},
 	}
 }

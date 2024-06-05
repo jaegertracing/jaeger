@@ -38,7 +38,11 @@ func TestSpanRefTypeToFromJSON(t *testing.T) {
 	out := new(bytes.Buffer)
 	err := new(jsonpb.Marshaler).Marshal(out, &sr)
 	require.NoError(t, err)
-	assert.Equal(t, `{"traceId":"AAAAAAAAAAAAAAAAAAAAQg==","spanId":"AAAAAAAAAEM=","refType":"FOLLOWS_FROM"}`, out.String())
+	assert.Equal(
+		t,
+		`{"traceId":"AAAAAAAAAAAAAAAAAAAAQg==","spanId":"AAAAAAAAAEM=","refType":"FOLLOWS_FROM"}`,
+		out.String(),
+	)
 	var sr2 model.SpanRef
 	require.NoError(t, jsonpb.Unmarshal(out, &sr2))
 	assert.Equal(t, sr, sr2)
@@ -52,16 +56,39 @@ func TestMaybeAddParentSpanID(t *testing.T) {
 	span := makeSpan(model.String("k", "v"))
 	assert.Equal(t, model.NewSpanID(123), span.ParentSpanID())
 
-	span.References = model.MaybeAddParentSpanID(span.TraceID, model.NewSpanID(0), span.References)
+	span.References = model.MaybeAddParentSpanID(
+		span.TraceID,
+		model.NewSpanID(0),
+		span.References,
+	)
 	assert.Equal(t, model.NewSpanID(123), span.ParentSpanID())
 
-	span.References = model.MaybeAddParentSpanID(span.TraceID, model.NewSpanID(123), span.References)
+	span.References = model.MaybeAddParentSpanID(
+		span.TraceID,
+		model.NewSpanID(123),
+		span.References,
+	)
 	assert.Equal(t, model.NewSpanID(123), span.ParentSpanID())
 
-	span.References = model.MaybeAddParentSpanID(span.TraceID, model.NewSpanID(123), []model.SpanRef{})
+	span.References = model.MaybeAddParentSpanID(
+		span.TraceID,
+		model.NewSpanID(123),
+		[]model.SpanRef{},
+	)
 	assert.Equal(t, model.NewSpanID(123), span.ParentSpanID())
 
-	span.References = []model.SpanRef{model.NewChildOfRef(model.NewTraceID(42, 0), model.NewSpanID(789))}
-	span.References = model.MaybeAddParentSpanID(span.TraceID, model.NewSpanID(123), span.References)
-	assert.Equal(t, model.NewSpanID(123), span.References[0].SpanID, "parent added as first reference")
+	span.References = []model.SpanRef{
+		model.NewChildOfRef(model.NewTraceID(42, 0), model.NewSpanID(789)),
+	}
+	span.References = model.MaybeAddParentSpanID(
+		span.TraceID,
+		model.NewSpanID(123),
+		span.References,
+	)
+	assert.Equal(
+		t,
+		model.NewSpanID(123),
+		span.References[0].SpanID,
+		"parent added as first reference",
+	)
 }

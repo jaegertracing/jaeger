@@ -24,6 +24,12 @@ func TestAssertMetrics(t *testing.T) {
 	f.IncCounter("counter", tags, 1)
 	f.UpdateGauge("gauge", tags, 11)
 
-	f.AssertCounterMetrics(t, ExpectedMetric{Name: "counter", Tags: tags, Value: 1})
-	f.AssertGaugeMetrics(t, ExpectedMetric{Name: "gauge", Tags: tags, Value: 11})
+	f.AssertCounterMetrics(
+		t,
+		ExpectedMetric{Name: "counter", Tags: tags, Value: 1},
+	)
+	f.AssertGaugeMetrics(
+		t,
+		ExpectedMetric{Name: "gauge", Tags: tags, Value: 11},
+	)
 }

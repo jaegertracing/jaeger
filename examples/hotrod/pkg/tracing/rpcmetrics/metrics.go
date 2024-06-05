@@ -83,9 +83,15 @@ func newMetricsByEndpoint(
 	maxNumberOfEndpoints int,
 ) *MetricsByEndpoint {
 	return &MetricsByEndpoint{
-		metricsFactory:    metricsFactory,
-		endpoints:         newNormalizedEndpoints(maxNumberOfEndpoints, normalizer),
-		metricsByEndpoint: make(map[string]*Metrics, maxNumberOfEndpoints+1), // +1 for "other"
+		metricsFactory: metricsFactory,
+		endpoints: newNormalizedEndpoints(
+			maxNumberOfEndpoints,
+			normalizer,
+		),
+		metricsByEndpoint: make(
+			map[string]*Metrics,
+			maxNumberOfEndpoints+1,
+		), // +1 for "other"
 	}
 }
 

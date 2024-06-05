@@ -48,7 +48,10 @@ func NewParallelProcessor(
 
 // Start begins processing queued messages
 func (k *ParallelProcessor) Start() {
-	k.logger.Debug("Spawning goroutines to process messages", zap.Int("num_routines", k.numRoutines))
+	k.logger.Debug(
+		"Spawning goroutines to process messages",
+		zap.Int("num_routines", k.numRoutines),
+	)
 	for i := 0; i < k.numRoutines; i++ {
 		k.wg.Add(1)
 		go func() {

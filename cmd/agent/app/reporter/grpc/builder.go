@@ -58,7 +58,11 @@ func NewConnBuilder() *ConnBuilder {
 }
 
 // CreateConnection creates the gRPC connection
-func (b *ConnBuilder) CreateConnection(ctx context.Context, logger *zap.Logger, mFactory metrics.Factory) (*grpc.ClientConn, error) {
+func (b *ConnBuilder) CreateConnection(
+	ctx context.Context,
+	logger *zap.Logger,
+	mFactory metrics.Factory,
+) (*grpc.ClientConn, error) {
 	var dialOptions []grpc.DialOption
 	var dialTarget string
 	if b.TLS.Enabled { // user requested a secure connection
@@ -76,8 +80,15 @@ func (b *ConnBuilder) CreateConnection(ctx context.Context, logger *zap.Logger, 
 	}
 
 	if b.Notifier != nil && b.Discoverer != nil {
-		logger.Info("Using external discovery service with roundrobin load balancer")
-		grpcResolver := grpcresolver.New(b.Notifier, b.Discoverer, logger, b.DiscoveryMinPeers)
+		logger.Info(
+			"Using external discovery service with roundrobin load balancer",
+		)
+		grpcResolver := grpcresolver.New(
+			b.Notifier,
+			b.Discoverer,
+			logger,
+			b.DiscoveryMinPeers,
+		)
 		dialTarget = grpcResolver.Scheme() + ":///round_robin"
 	} else {
 		if b.CollectorHostPorts == nil {
@@ -98,8 +109,16 @@ func (b *ConnBuilder) CreateConnection(ctx context.Context, logger *zap.Logger, 
 			dialTarget = b.CollectorHostPorts[0]
 		}
 	}
-	dialOptions = append(dialOptions, grpc.WithDefaultServiceConfig(grpcresolver.GRPCServiceConfig))
-	dialOptions = append(dialOptions, grpc.WithUnaryInterceptor(grpc_retry.UnaryClientInterceptor(grpc_retry.WithMax(b.MaxRetry))))
+	dialOptions = append(
+		dialOptions,
+		grpc.WithDefaultServiceConfig(grpcresolver.GRPCServiceConfig),
+	)
+	dialOptions = append(
+		dialOptions,
+		grpc.WithUnaryInterceptor(
+			grpc_retry.UnaryClientInterceptor(grpc_retry.WithMax(b.MaxRetry)),
+		),
+	)
 	dialOptions = append(dialOptions, b.AdditionalDialOptions...)
 
 	conn, err := grpc.NewClient(dialTarget, dialOptions...)
@@ -108,7 +127,9 @@ func (b *ConnBuilder) CreateConnection(ctx context.Context, logger *zap.Logger, 
 	}
 
 	connectMetrics := reporter.NewConnectMetrics(
-		mFactory.Namespace(metrics.NSOptions{Tags: map[string]string{"protocol": "grpc"}}),
+		mFactory.Namespace(
+			metrics.NSOptions{Tags: map[string]string{"protocol": "grpc"}},
+		),
 	)
 
 	go func(cc *grpc.ClientConn, cm *reporter.ConnectMetrics) {
@@ -128,7 +149,11 @@ func (b *ConnBuilder) CreateConnection(ctx context.Context, logger *zap.Logger, 
 					cm.OnConnectionStatusChange(false)
 				}
 
-				logger.Info("Agent collector connection state change", zap.String("dialTarget", dialTarget), zap.Stringer("status", s))
+				logger.Info(
+					"Agent collector connection state change",
+					zap.String("dialTarget", dialTarget),
+					zap.Stringer("status", s),
+				)
 				cc.WaitForStateChange(ctx, s)
 			}
 		}

@@ -19,7 +19,10 @@ type CustomUDT struct {
 }
 
 // MarshalUDT implements the gocql.UDTMarshaler interface.
-func (c *CustomUDT) MarshalUDT(name string, info gocql.TypeInfo) ([]byte, error) {
+func (c *CustomUDT) MarshalUDT(
+	name string,
+	info gocql.TypeInfo,
+) ([]byte, error) {
 	switch name {
 	case "Field1":
 		return gocql.Marshal(info, c.Field1)
@@ -31,7 +34,11 @@ func (c *CustomUDT) MarshalUDT(name string, info gocql.TypeInfo) ([]byte, error)
 }
 
 // UnmarshalUDT implements the gocql.UDTUnmarshaler interface.
-func (c *CustomUDT) UnmarshalUDT(name string, info gocql.TypeInfo, data []byte) error {
+func (c *CustomUDT) UnmarshalUDT(
+	name string,
+	info gocql.TypeInfo,
+	data []byte,
+) error {
 	switch name {
 	case "Field1":
 		return gocql.Unmarshal(info, data, &c.Field1)

@@ -73,7 +73,12 @@ func (gw *testGateway) execRequest(t *testing.T, url string) ([]byte, int) {
 func (*testGateway) verifySnapshot(t *testing.T, body []byte) []byte {
 	// reformat JSON body with indentation, to make diffing easier
 	var data any
-	require.NoError(t, json.Unmarshal(body, &data), "response: %s", string(body))
+	require.NoError(
+		t,
+		json.Unmarshal(body, &data),
+		"response: %s",
+		string(body),
+	)
 	body, err := json.MarshalIndent(data, "", "  ")
 	require.NoError(t, err)
 
@@ -84,7 +89,12 @@ func (*testGateway) verifySnapshot(t *testing.T, body []byte) []byte {
 	}
 	snapshot, err := os.ReadFile(snapshotFile)
 	require.NoError(t, err)
-	assert.Equal(t, string(snapshot), string(body), "comparing against stored snapshot. Use REGENERATE_SNAPSHOTS=true to rebuild snapshots.")
+	assert.Equal(
+		t,
+		string(snapshot),
+		string(body),
+		"comparing against stored snapshot. Use REGENERATE_SNAPSHOTS=true to rebuild snapshots.",
+	)
 	return body
 }
 
@@ -124,7 +134,9 @@ func runGatewayTests(
 }
 
 func (gw *testGateway) runGatewayGetServices(t *testing.T) {
-	gw.reader.On("GetServices", matchContext).Return([]string{"foo"}, nil).Once()
+	gw.reader.On("GetServices", matchContext).
+		Return([]string{"foo"}, nil).
+		Once()
 
 	body, statusCode := gw.execRequest(t, "/api/v3/services")
 	require.Equal(t, http.StatusOK, statusCode)
@@ -136,12 +148,19 @@ func (gw *testGateway) runGatewayGetServices(t *testing.T) {
 }
 
 func (gw *testGateway) runGatewayGetOperations(t *testing.T) {
-	qp := spanstore.OperationQueryParameters{ServiceName: "foo", SpanKind: "server"}
+	qp := spanstore.OperationQueryParameters{
+		ServiceName: "foo",
+		SpanKind:    "server",
+	}
 	gw.reader.
 		On("GetOperations", matchContext, qp).
-		Return([]spanstore.Operation{{Name: "get_users", SpanKind: "server"}}, nil).Once()
+		Return([]spanstore.Operation{{Name: "get_users", SpanKind: "server"}}, nil).
+		Once()
 
-	body, statusCode := gw.execRequest(t, "/api/v3/operations?service=foo&span_kind=server")
+	body, statusCode := gw.execRequest(
+		t,
+		"/api/v3/operations?service=foo&span_kind=server",
+	)
 	require.Equal(t, http.StatusOK, statusCode)
 	body = gw.verifySnapshot(t, body)
 
@@ -167,7 +186,11 @@ func (gw *testGateway) runGatewayFindTraces(t *testing.T) {
 	gw.getTracesAndVerify(t, "/api/v3/traces?"+q.Encode(), traceID)
 }
 
-func (gw *testGateway) getTracesAndVerify(t *testing.T, url string, expectedTraceID model.TraceID) {
+func (gw *testGateway) getTracesAndVerify(
+	t *testing.T,
+	url string,
+	expectedTraceID model.TraceID,
+) {
 	body, statusCode := gw.execRequest(t, url)
 	require.Equal(t, http.StatusOK, statusCode, "response=%s", string(body))
 	body = gw.verifySnapshot(t, body)
@@ -176,6 +199,12 @@ func (gw *testGateway) getTracesAndVerify(t *testing.T, url string, expectedTrac
 	parseResponse(t, body, &response)
 	td := response.Result.ToTraces()
 	assert.EqualValues(t, 1, td.SpanCount())
-	traceID := td.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).TraceID()
+	traceID := td.ResourceSpans().
+		At(0).
+		ScopeSpans().
+		At(0).
+		Spans().
+		At(0).
+		TraceID()
 	assert.Equal(t, expectedTraceID.String(), traceID.String())
 }

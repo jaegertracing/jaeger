@@ -78,7 +78,15 @@ func (s *AdminServer) setLogger(logger *zap.Logger) {
 
 // AddFlags registers CLI flags.
 func (s *AdminServer) AddFlags(flagSet *flag.FlagSet) {
-	flagSet.String(adminHTTPHostPort, s.adminHostPort, fmt.Sprintf("The host:port (e.g. 127.0.0.1%s or %s) for the admin server, including health check, /metrics, etc.", s.adminHostPort, s.adminHostPort))
+	flagSet.String(
+		adminHTTPHostPort,
+		s.adminHostPort,
+		fmt.Sprintf(
+			"The host:port (e.g. 127.0.0.1%s or %s) for the admin server, including health check, /metrics, etc.",
+			s.adminHostPort,
+			s.adminHostPort,
+		),
+	)
 	tlsAdminHTTPFlagsConfig.AddFlags(flagSet)
 }
 
@@ -93,7 +101,9 @@ func (s *AdminServer) initFromViper(v *viper.Viper, logger *zap.Logger) error {
 		return fmt.Errorf("failed to parse admin server TLS options: %w", err)
 	}
 	if tlsAdminHTTP.Enabled {
-		tlsCfg, err := tlsAdminHTTP.Config(s.logger) // This checks if the certificates are correctly provided
+		tlsCfg, err := tlsAdminHTTP.Config(
+			s.logger,
+		) // This checks if the certificates are correctly provided
 		if err != nil {
 			return err
 		}
@@ -127,7 +137,10 @@ func (s *AdminServer) Serve() error {
 }
 
 func (s *AdminServer) serveWithListener(l net.Listener) {
-	s.logger.Info("Mounting health check on admin server", zap.String("route", "/"))
+	s.logger.Info(
+		"Mounting health check on admin server",
+		zap.String("route", "/"),
+	)
 	s.mux.Handle("/", s.hc.Handler())
 	version.RegisterHandler(s.mux, s.logger)
 	s.registerPprofHandlers()
@@ -141,7 +154,10 @@ func (s *AdminServer) serveWithListener(l net.Listener) {
 	if s.tlsCfg != nil {
 		s.server.TLSConfig = s.tlsCfg
 	}
-	s.logger.Info("Starting admin HTTP server", zap.String("http-addr", s.adminHostPort))
+	s.logger.Info(
+		"Starting admin HTTP server",
+		zap.String("http-addr", s.adminHostPort),
+	)
 	go func() {
 		var err error
 		if s.tlsCfg != nil {

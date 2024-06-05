@@ -50,7 +50,12 @@ func TestSequences(t *testing.T) {
 			lastSpanID: 2,
 		},
 		{
-			adjuster:   adjuster.FailFastSequence(adj, failingAdj, adj, failingAdj),
+			adjuster: adjuster.FailFastSequence(
+				adj,
+				failingAdj,
+				adj,
+				failingAdj,
+			),
 			err:        adjErr.Error(),
 			lastSpanID: 1,
 		},
@@ -63,7 +68,12 @@ func TestSequences(t *testing.T) {
 		adjTrace, err := testCase.adjuster.Adjust(&trace)
 
 		assert.Equal(t, span, adjTrace.Spans[0], "same trace & span returned")
-		assert.EqualValues(t, testCase.lastSpanID, span.SpanID, "expect span ID to be incremented")
+		assert.EqualValues(
+			t,
+			testCase.lastSpanID,
+			span.SpanID,
+			"expect span ID to be incremented",
+		)
 		require.EqualError(t, err, testCase.err)
 	}
 }

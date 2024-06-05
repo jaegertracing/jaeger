@@ -60,7 +60,10 @@ func TraceIDFromString(s string) (TraceID, error) {
 	var err error
 	switch {
 	case len(s) > 32:
-		return TraceID{}, fmt.Errorf("TraceID cannot be longer than 32 hex characters: %s", s)
+		return TraceID{}, fmt.Errorf(
+			"TraceID cannot be longer than 32 hex characters: %s",
+			s,
+		)
 	case len(s) > 16:
 		hiLen := len(s) - 16
 		if hi, err = strconv.ParseUint(s[0:hiLen], 16, 64); err != nil {
@@ -94,12 +97,16 @@ func TraceIDFromBytes(data []byte) (TraceID, error) {
 
 // MarshalText is called by encoding/json, which we do not want people to use.
 func (TraceID) MarshalText() ([]byte, error) {
-	return nil, fmt.Errorf("unsupported method TraceID.MarshalText; please use github.com/gogo/protobuf/jsonpb for marshalling")
+	return nil, fmt.Errorf(
+		"unsupported method TraceID.MarshalText; please use github.com/gogo/protobuf/jsonpb for marshalling",
+	)
 }
 
 // UnmarshalText is called by encoding/json, which we do not want people to use.
 func (*TraceID) UnmarshalText(text []byte) error {
-	return fmt.Errorf("unsupported method TraceID.UnmarshalText; please use github.com/gogo/protobuf/jsonpb for marshalling")
+	return fmt.Errorf(
+		"unsupported method TraceID.UnmarshalText; please use github.com/gogo/protobuf/jsonpb for marshalling",
+	)
 }
 
 // Size returns the size of this datum in protobuf. It is always 16 bytes.
@@ -150,7 +157,11 @@ func (t *TraceID) UnmarshalJSON(data []byte) error {
 	}
 	b, err := base64.StdEncoding.DecodeString(s)
 	if err != nil {
-		return fmt.Errorf("cannot unmarshal TraceID from string '%s': %w", string(data), err)
+		return fmt.Errorf(
+			"cannot unmarshal TraceID from string '%s': %w",
+			string(data),
+			err,
+		)
 	}
 	return t.Unmarshal(b)
 }
@@ -169,7 +180,12 @@ func (s SpanID) String() string {
 // SpanIDFromString creates a SpanID from a hexadecimal string
 func SpanIDFromString(s string) (SpanID, error) {
 	if len(s) > 16 {
-		return SpanID(0), fmt.Errorf("SpanID cannot be longer than 16 hex characters: %s", s)
+		return SpanID(
+				0,
+			), fmt.Errorf(
+				"SpanID cannot be longer than 16 hex characters: %s",
+				s,
+			)
 	}
 	id, err := strconv.ParseUint(s, 16, 64)
 	if err != nil {
@@ -188,12 +204,16 @@ func SpanIDFromBytes(data []byte) (SpanID, error) {
 
 // MarshalText is called by encoding/json, which we do not want people to use.
 func (SpanID) MarshalText() ([]byte, error) {
-	return nil, fmt.Errorf("unsupported method SpanID.MarshalText; please use github.com/gogo/protobuf/jsonpb for marshalling")
+	return nil, fmt.Errorf(
+		"unsupported method SpanID.MarshalText; please use github.com/gogo/protobuf/jsonpb for marshalling",
+	)
 }
 
 // UnmarshalText is called by encoding/json, which we do not want people to use.
 func (*SpanID) UnmarshalText(text []byte) error {
-	return fmt.Errorf("unsupported method SpanID.UnmarshalText; please use github.com/gogo/protobuf/jsonpb for marshalling")
+	return fmt.Errorf(
+		"unsupported method SpanID.UnmarshalText; please use github.com/gogo/protobuf/jsonpb for marshalling",
+	)
 }
 
 // Size returns the size of this datum in protobuf. It is always 8 bytes.
@@ -239,7 +259,11 @@ func (s *SpanID) UnmarshalJSON(data []byte) error {
 	}
 	b, err := base64.StdEncoding.DecodeString(str)
 	if err != nil {
-		return fmt.Errorf("cannot unmarshal SpanID from string '%s': %w", string(data), err)
+		return fmt.Errorf(
+			"cannot unmarshal SpanID from string '%s': %w",
+			string(data),
+			err,
+		)
 	}
 	return s.Unmarshal(b)
 }

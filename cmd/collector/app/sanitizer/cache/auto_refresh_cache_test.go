@@ -38,7 +38,9 @@ var (
 // dont_go:generate mockery -name=ServiceAliasMappingStorage
 // dont_go:generate mockery -name=ServiceAliasMappingExternalSource
 
-func getCache(t *testing.T) (*autoRefreshCache, *mocks.ServiceAliasMappingExternalSource, *mocks.ServiceAliasMappingStorage) {
+func getCache(
+	t *testing.T,
+) (*autoRefreshCache, *mocks.ServiceAliasMappingExternalSource, *mocks.ServiceAliasMappingStorage) {
 	mockExtSource := &mocks.ServiceAliasMappingExternalSource{}
 	mockStorage := &mocks.ServiceAliasMappingStorage{}
 	logger := zap.NewNop()
@@ -121,7 +123,12 @@ func TestWarmCache(t *testing.T) {
 	mE.On("Load").Return(testCache2, nil).Times(1)
 	err = c.warmCache()
 	require.NoError(t, err)
-	assert.Equal(t, "rt-demand", c.Get("demand"), "External load should've succeeded")
+	assert.Equal(
+		t,
+		"rt-demand",
+		c.Get("demand"),
+		"External load should've succeeded",
+	)
 
 	mS.On("Load").Return(nil, errDefault).Times(1)
 	mE.On("Load").Return(nil, errDefault).Times(1)

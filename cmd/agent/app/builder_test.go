@@ -127,7 +127,11 @@ func TestBuilderFromConfig(t *testing.T) {
 
 func TestBuilderWithExtraReporter(t *testing.T) {
 	cfg := &Builder{}
-	agent, err := cfg.CreateAgent(fakeCollectorProxy{}, zap.NewNop(), metrics.NullFactory)
+	agent, err := cfg.CreateAgent(
+		fakeCollectorProxy{},
+		zap.NewNop(),
+		metrics.NullFactory,
+	)
 	require.NoError(t, err)
 	assert.NotNil(t, agent)
 }
@@ -140,10 +144,26 @@ func TestBuilderWithProcessorErrors(t *testing.T) {
 		err         string
 		errContains string
 	}{
-		{protocol: Protocol("bad"), err: "cannot find protocol factory for protocol bad"},
-		{protocol: compactProtocol, model: Model("bad"), err: "cannot find agent processor for data model bad"},
-		{protocol: compactProtocol, model: jaegerModel, err: "no host:port provided for udp server: {QueueSize:1000 MaxPacketSize:65000 SocketBufferSize:0 HostPort:}"},
-		{protocol: compactProtocol, model: zipkinModel, hostPort: "bad-host-port", errContains: "bad-host-port"},
+		{
+			protocol: Protocol("bad"),
+			err:      "cannot find protocol factory for protocol bad",
+		},
+		{
+			protocol: compactProtocol,
+			model:    Model("bad"),
+			err:      "cannot find agent processor for data model bad",
+		},
+		{
+			protocol: compactProtocol,
+			model:    jaegerModel,
+			err:      "no host:port provided for udp server: {QueueSize:1000 MaxPacketSize:65000 SocketBufferSize:0 HostPort:}",
+		},
+		{
+			protocol:    compactProtocol,
+			model:       zipkinModel,
+			hostPort:    "bad-host-port",
+			errContains: "bad-host-port",
+		},
 	}
 	for _, tc := range testCases {
 		testCase := tc // capture loop var
@@ -158,7 +178,11 @@ func TestBuilderWithProcessorErrors(t *testing.T) {
 				},
 			},
 		}
-		_, err := cfg.CreateAgent(&fakeCollectorProxy{}, zap.NewNop(), metrics.NullFactory)
+		_, err := cfg.CreateAgent(
+			&fakeCollectorProxy{},
+			zap.NewNop(),
+			metrics.NullFactory,
+		)
 		require.Error(t, err)
 		if testCase.err != "" {
 			assert.Contains(t, err.Error(), testCase.err)
@@ -190,11 +214,17 @@ func (fakeCollectorProxy) GetManager() configmanager.ClientConfigManager {
 	return fakeCollectorProxy{}
 }
 
-func (fakeCollectorProxy) EmitZipkinBatch(_ context.Context, _ []*zipkincore.Span) (err error) {
+func (fakeCollectorProxy) EmitZipkinBatch(
+	_ context.Context,
+	_ []*zipkincore.Span,
+) (err error) {
 	return nil
 }
 
-func (fakeCollectorProxy) EmitBatch(_ context.Context, _ *jaeger.Batch) (err error) {
+func (fakeCollectorProxy) EmitBatch(
+	_ context.Context,
+	_ *jaeger.Batch,
+) (err error) {
 	return nil
 }
 
@@ -202,11 +232,17 @@ func (fakeCollectorProxy) Close() error {
 	return nil
 }
 
-func (fakeCollectorProxy) GetSamplingStrategy(_ context.Context, _ string) (*api_v2.SamplingStrategyResponse, error) {
+func (fakeCollectorProxy) GetSamplingStrategy(
+	_ context.Context,
+	_ string,
+) (*api_v2.SamplingStrategyResponse, error) {
 	return nil, errors.New("no peers available")
 }
 
-func (fakeCollectorProxy) GetBaggageRestrictions(_ context.Context, _ string) ([]*baggage.BaggageRestriction, error) {
+func (fakeCollectorProxy) GetBaggageRestrictions(
+	_ context.Context,
+	_ string,
+) ([]*baggage.BaggageRestriction, error) {
 	return nil, nil
 }
 
@@ -224,12 +260,32 @@ func TestCreateCollectorProxy(t *testing.T) {
 			err:   "at least one collector hostPort address is required when resolver is not available",
 		},
 		{
-			flags:  []string{"--reporter.type=grpc", "--reporter.grpc.host-port=foo"},
-			metric: metricstest.ExpectedMetric{Name: "reporter.batches.failures", Tags: map[string]string{"protocol": "grpc", "format": "jaeger"}, Value: 1},
+			flags: []string{
+				"--reporter.type=grpc",
+				"--reporter.grpc.host-port=foo",
+			},
+			metric: metricstest.ExpectedMetric{
+				Name: "reporter.batches.failures",
+				Tags: map[string]string{
+					"protocol": "grpc",
+					"format":   "jaeger",
+				},
+				Value: 1,
+			},
 		},
 		{
-			flags:  []string{"--reporter.type=grpc", "--reporter.grpc.host-port=foo"},
-			metric: metricstest.ExpectedMetric{Name: "reporter.batches.failures", Tags: map[string]string{"protocol": "grpc", "format": "jaeger"}, Value: 1},
+			flags: []string{
+				"--reporter.type=grpc",
+				"--reporter.grpc.host-port=foo",
+			},
+			metric: metricstest.ExpectedMetric{
+				Name: "reporter.batches.failures",
+				Tags: map[string]string{
+					"protocol": "grpc",
+					"format":   "jaeger",
+				},
+				Value: 1,
+			},
 		},
 	}
 
@@ -309,7 +365,11 @@ func TestPublishOpts(t *testing.T) {
 
 	baseMetrics := metricstest.NewFactory(time.Second)
 	defer baseMetrics.Stop()
-	agent, err := cfg.CreateAgent(fakeCollectorProxy{}, zap.NewNop(), baseMetrics)
+	agent, err := cfg.CreateAgent(
+		fakeCollectorProxy{},
+		zap.NewNop(),
+		baseMetrics,
+	)
 	require.NoError(t, err)
 	assert.NotNil(t, agent)
 	require.NoError(t, agent.Run())
@@ -317,7 +377,19 @@ func TestPublishOpts(t *testing.T) {
 
 	p := cfg.Processors[2]
 	prefix := fmt.Sprintf(processorPrefixFmt, p.Model, p.Protocol)
-	assert.EqualValues(t, 4242, expvar.Get(prefix+suffixServerMaxPacketSize).(*expvar.Int).Value())
-	assert.EqualValues(t, 24, expvar.Get(prefix+suffixServerQueueSize).(*expvar.Int).Value())
-	assert.EqualValues(t, 42, expvar.Get(prefix+suffixWorkers).(*expvar.Int).Value())
+	assert.EqualValues(
+		t,
+		4242,
+		expvar.Get(prefix+suffixServerMaxPacketSize).(*expvar.Int).Value(),
+	)
+	assert.EqualValues(
+		t,
+		24,
+		expvar.Get(prefix+suffixServerQueueSize).(*expvar.Int).Value(),
+	)
+	assert.EqualValues(
+		t,
+		42,
+		expvar.Get(prefix+suffixWorkers).(*expvar.Int).Value(),
+	)
 }

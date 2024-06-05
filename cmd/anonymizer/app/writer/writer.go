@@ -34,10 +34,10 @@ var ErrMaxSpansCountReached = errors.New("max spans count reached")
 // Config contains parameters to NewWriter.
 type Config struct {
 	MaxSpansCount  int                `yaml:"max_spans_count" name:"max_spans_count"`
-	CapturedFile   string             `yaml:"captured_file" name:"captured_file"`
+	CapturedFile   string             `yaml:"captured_file"   name:"captured_file"`
 	AnonymizedFile string             `yaml:"anonymized_file" name:"anonymized_file"`
-	MappingFile    string             `yaml:"mapping_file" name:"mapping_file"`
-	AnonymizerOpts anonymizer.Options `yaml:"anonymizer" name:"anonymizer"`
+	MappingFile    string             `yaml:"mapping_file"    name:"mapping_file"`
+	AnonymizerOpts anonymizer.Options `yaml:"anonymizer"      name:"anonymizer"`
 }
 
 // Writer is a span Writer that obfuscates the span and writes it to a JSON file.
@@ -59,17 +59,27 @@ func New(config Config, logger *zap.Logger) (*Writer, error) {
 	}
 	logger.Sugar().Infof("Current working dir is %s", wd)
 
-	cf, err := os.OpenFile(config.CapturedFile, os.O_CREATE|os.O_WRONLY, os.ModePerm)
+	cf, err := os.OpenFile(
+		config.CapturedFile,
+		os.O_CREATE|os.O_WRONLY,
+		os.ModePerm,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("cannot create output file: %w", err)
 	}
-	logger.Sugar().Infof("Writing captured spans to file %s", config.CapturedFile)
+	logger.Sugar().
+		Infof("Writing captured spans to file %s", config.CapturedFile)
 
-	af, err := os.OpenFile(config.AnonymizedFile, os.O_CREATE|os.O_WRONLY, os.ModePerm)
+	af, err := os.OpenFile(
+		config.AnonymizedFile,
+		os.O_CREATE|os.O_WRONLY,
+		os.ModePerm,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("cannot create output file: %w", err)
 	}
-	logger.Sugar().Infof("Writing anonymized spans to file %s", config.AnonymizedFile)
+	logger.Sugar().
+		Infof("Writing anonymized spans to file %s", config.AnonymizedFile)
 
 	_, err = cf.WriteString("[")
 	if err != nil {

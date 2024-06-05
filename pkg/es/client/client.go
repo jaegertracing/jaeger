@@ -75,7 +75,11 @@ func (c *Client) request(esRequest elasticRequest) ([]byte, error) {
 	var err error
 	if len(esRequest.body) > 0 {
 		reader = bytes.NewBuffer(esRequest.body)
-		r, err = http.NewRequest(esRequest.method, fmt.Sprintf("%s/%s", c.Endpoint, esRequest.endpoint), reader)
+		r, err = http.NewRequest(
+			esRequest.method,
+			fmt.Sprintf("%s/%s", c.Endpoint, esRequest.endpoint),
+			reader,
+		)
 	} else {
 		r, err = http.NewRequest(esRequest.method, fmt.Sprintf("%s/%s", c.Endpoint, esRequest.endpoint), nil)
 	}
@@ -111,10 +115,30 @@ func (*Client) handleFailedRequest(res *http.Response) error {
 	if res.Body != nil {
 		bodyBytes, err := io.ReadAll(res.Body)
 		if err != nil {
-			return newResponseError(fmt.Errorf("request failed and failed to read response body, status code: %d, %w", res.StatusCode, err), res.StatusCode, nil)
+			return newResponseError(
+				fmt.Errorf(
+					"request failed and failed to read response body, status code: %d, %w",
+					res.StatusCode,
+					err,
+				),
+				res.StatusCode,
+				nil,
+			)
 		}
 		body := string(bodyBytes)
-		return newResponseError(fmt.Errorf("request failed, status code: %d, body: %s", res.StatusCode, body), res.StatusCode, bodyBytes)
+		return newResponseError(
+			fmt.Errorf(
+				"request failed, status code: %d, body: %s",
+				res.StatusCode,
+				body,
+			),
+			res.StatusCode,
+			bodyBytes,
+		)
 	}
-	return newResponseError(fmt.Errorf("request failed, status code: %d", res.StatusCode), res.StatusCode, nil)
+	return newResponseError(
+		fmt.Errorf("request failed, status code: %d", res.StatusCode),
+		res.StatusCode,
+		nil,
+	)
 }

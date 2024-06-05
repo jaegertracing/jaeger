@@ -162,7 +162,8 @@ func (*Options) AddFlags(flagSet *flag.FlagSet) {
 	flagSet.String(
 		configPrefix+suffixBrokers,
 		defaultBroker,
-		"The comma-separated list of kafka brokers. i.e. '127.0.0.1:9092,0.0.0:1234'")
+		"The comma-separated list of kafka brokers. i.e. '127.0.0.1:9092,0.0.0:1234'",
+	)
 	flagSet.String(
 		configPrefix+suffixTopic,
 		defaultTopic,
@@ -174,7 +175,11 @@ func (*Options) AddFlags(flagSet *flag.FlagSet) {
 	flagSet.String(
 		configPrefix+suffixEncoding,
 		defaultEncoding,
-		fmt.Sprintf(`Encoding of spans ("%s" or "%s") sent to kafka.`, EncodingJSON, EncodingProto),
+		fmt.Sprintf(
+			`Encoding of spans ("%s" or "%s") sent to kafka.`,
+			EncodingJSON,
+			EncodingProto,
+		),
 	)
 
 	auth.AddFlags(configPrefix, flagSet)
@@ -187,24 +192,34 @@ func (opt *Options) InitFromViper(v *viper.Viper) {
 		log.Fatal(err)
 	}
 
-	requiredAcks, err := getRequiredAcks(v.GetString(configPrefix + suffixRequiredAcks))
+	requiredAcks, err := getRequiredAcks(
+		v.GetString(configPrefix + suffixRequiredAcks),
+	)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	compressionMode := strings.ToLower(v.GetString(configPrefix + suffixCompression))
+	compressionMode := strings.ToLower(
+		v.GetString(configPrefix + suffixCompression),
+	)
 	compressionModeCodec, err := getCompressionMode(compressionMode)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	compressionLevel, err := getCompressionLevel(compressionMode, v.GetInt(configPrefix+suffixCompressionLevel))
+	compressionLevel, err := getCompressionLevel(
+		compressionMode,
+		v.GetInt(configPrefix+suffixCompressionLevel),
+	)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	opt.Config = producer.Configuration{
-		Brokers:              strings.Split(stripWhiteSpace(v.GetString(configPrefix+suffixBrokers)), ","),
+		Brokers: strings.Split(
+			stripWhiteSpace(v.GetString(configPrefix+suffixBrokers)),
+			",",
+		),
 		RequiredAcks:         requiredAcks,
 		Compression:          compressionModeCodec,
 		CompressionLevel:     compressionLevel,
@@ -229,15 +244,25 @@ func stripWhiteSpace(str string) string {
 func getCompressionLevel(mode string, compressionLevel int) (int, error) {
 	compressionModeData, ok := compressionModes[mode]
 	if !ok {
-		return 0, fmt.Errorf("cannot find compression mode for compressionMode %v", mode)
+		return 0, fmt.Errorf(
+			"cannot find compression mode for compressionMode %v",
+			mode,
+		)
 	}
 
 	if compressionLevel == defaultCompressionLevel {
 		return compressionModeData.defaultCompressionLevel, nil
 	}
 
-	if compressionModeData.minCompressionLevel > compressionLevel || compressionModeData.maxCompressionLevel < compressionLevel {
-		return 0, fmt.Errorf("compression level %d for '%s' is not within valid range [%d, %d]", compressionLevel, mode, compressionModeData.minCompressionLevel, compressionModeData.maxCompressionLevel)
+	if compressionModeData.minCompressionLevel > compressionLevel ||
+		compressionModeData.maxCompressionLevel < compressionLevel {
+		return 0, fmt.Errorf(
+			"compression level %d for '%s' is not within valid range [%d, %d]",
+			compressionLevel,
+			mode,
+			compressionModeData.minCompressionLevel,
+			compressionModeData.maxCompressionLevel,
+		)
 	}
 
 	return compressionLevel, nil

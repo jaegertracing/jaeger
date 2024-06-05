@@ -29,7 +29,11 @@ import (
 // plugin.Configurable
 type Factory interface {
 	// Initialize performs internal initialization of the factory.
-	Initialize(metricsFactory metrics.Factory, ssFactory storage.SamplingStoreFactory, logger *zap.Logger) error
+	Initialize(
+		metricsFactory metrics.Factory,
+		ssFactory storage.SamplingStoreFactory,
+		logger *zap.Logger,
+	) error
 
 	// CreateStrategyStore initializes the StrategyStore and returns it.
 	CreateStrategyStore() (StrategyStore, Aggregator, error)

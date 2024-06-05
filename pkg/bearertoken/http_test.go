@@ -60,12 +60,47 @@ func Test_PropagationHandler(t *testing.T) {
 		headerName  string
 		handler     func(stop *sync.WaitGroup) http.HandlerFunc
 	}{
-		{name: "Bearer token", sendHeader: true, headerName: "Authorization", headerValue: "Bearer " + bearerToken, handler: validTokenHandler},
-		{name: "Raw bearer token", sendHeader: true, headerName: "Authorization", headerValue: bearerToken, handler: validTokenHandler},
-		{name: "No headerValue", sendHeader: false, headerName: "Authorization", handler: emptyHandler},
-		{name: "Basic Auth", sendHeader: true, headerName: "Authorization", headerValue: "Basic " + bearerToken, handler: emptyHandler},
-		{name: "X-Forwarded-Access-Token", headerName: "X-Forwarded-Access-Token", sendHeader: true, headerValue: "Bearer " + bearerToken, handler: validTokenHandler},
-		{name: "Invalid header", headerName: "X-Forwarded-Access-Token", sendHeader: true, headerValue: "Bearer " + bearerToken + " another stuff", handler: emptyHandler},
+		{
+			name:        "Bearer token",
+			sendHeader:  true,
+			headerName:  "Authorization",
+			headerValue: "Bearer " + bearerToken,
+			handler:     validTokenHandler,
+		},
+		{
+			name:        "Raw bearer token",
+			sendHeader:  true,
+			headerName:  "Authorization",
+			headerValue: bearerToken,
+			handler:     validTokenHandler,
+		},
+		{
+			name:       "No headerValue",
+			sendHeader: false,
+			headerName: "Authorization",
+			handler:    emptyHandler,
+		},
+		{
+			name:        "Basic Auth",
+			sendHeader:  true,
+			headerName:  "Authorization",
+			headerValue: "Basic " + bearerToken,
+			handler:     emptyHandler,
+		},
+		{
+			name:        "X-Forwarded-Access-Token",
+			headerName:  "X-Forwarded-Access-Token",
+			sendHeader:  true,
+			headerValue: "Bearer " + bearerToken,
+			handler:     validTokenHandler,
+		},
+		{
+			name:        "Invalid header",
+			headerName:  "X-Forwarded-Access-Token",
+			sendHeader:  true,
+			headerValue: "Bearer " + bearerToken + " another stuff",
+			handler:     emptyHandler,
+		},
 	}
 
 	for _, testCase := range testCases {

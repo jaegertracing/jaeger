@@ -34,8 +34,8 @@ const (
 
 // clientMetrics are maintained only for data submitted in Jaeger Thrift format.
 type clientMetrics struct {
-	BatchesReceived  metrics.Counter `metric:"batches_received" help:"Total count of batches received from conforming clients"`
-	BatchesSent      metrics.Counter `metric:"batches_sent" help:"Total count of batches sent by clients"`
+	BatchesReceived  metrics.Counter `metric:"batches_received"  help:"Total count of batches received from conforming clients"`
+	BatchesSent      metrics.Counter `metric:"batches_sent"      help:"Total count of batches sent by clients"`
 	ConnectedClients metrics.Gauge   `metric:"connected_clients" help:"Total count of unique clients sending data to the agent"`
 
 	// NB: The following three metrics all have the same name, but different "cause" tags.
@@ -91,7 +91,9 @@ type ClientMetricsReporterParams struct {
 }
 
 // WrapWithClientMetrics creates ClientMetricsReporter.
-func WrapWithClientMetrics(params ClientMetricsReporterParams) *ClientMetricsReporter {
+func WrapWithClientMetrics(
+	params ClientMetricsReporterParams,
+) *ClientMetricsReporter {
 	if params.ExpireFrequency == 0 {
 		params.ExpireFrequency = defaultExpireFrequency
 	}
@@ -99,7 +101,13 @@ func WrapWithClientMetrics(params ClientMetricsReporterParams) *ClientMetricsRep
 		params.ExpireTTL = defaultExpireTTL
 	}
 	cm := new(clientMetrics)
-	metrics.MustInit(cm, params.MetricsFactory.Namespace(metrics.NSOptions{Name: "client_stats"}), nil)
+	metrics.MustInit(
+		cm,
+		params.MetricsFactory.Namespace(
+			metrics.NSOptions{Name: "client_stats"},
+		),
+		nil,
+	)
 	r := &ClientMetricsReporter{
 		params:        params,
 		clientMetrics: cm,
@@ -110,12 +118,18 @@ func WrapWithClientMetrics(params ClientMetricsReporterParams) *ClientMetricsRep
 }
 
 // EmitZipkinBatch delegates to underlying Reporter.
-func (r *ClientMetricsReporter) EmitZipkinBatch(ctx context.Context, spans []*zipkincore.Span) error {
+func (r *ClientMetricsReporter) EmitZipkinBatch(
+	ctx context.Context,
+	spans []*zipkincore.Span,
+) error {
 	return r.params.Reporter.EmitZipkinBatch(ctx, spans)
 }
 
 // EmitBatch processes client data loss metrics and delegates to the underlying reporter.
-func (r *ClientMetricsReporter) EmitBatch(ctx context.Context, batch *jaeger.Batch) error {
+func (r *ClientMetricsReporter) EmitBatch(
+	ctx context.Context,
+	batch *jaeger.Batch,
+) error {
 	r.updateClientMetrics(batch)
 	return r.params.Reporter.EmitBatch(ctx, batch)
 }
@@ -148,9 +162,11 @@ func (r *ClientMetricsReporter) expireClientMetrics(t time.Time) {
 		stats.lock.Lock()
 		defer stats.lock.Unlock()
 
-		if !stats.lastUpdated.IsZero() && t.Sub(stats.lastUpdated) > r.params.ExpireTTL {
+		if !stats.lastUpdated.IsZero() &&
+			t.Sub(stats.lastUpdated) > r.params.ExpireTTL {
 			r.lastReceivedClientStats.Delete(k)
-			r.params.Logger.Debug("have not heard from a client for a while, freeing stats",
+			r.params.Logger.Debug(
+				"have not heard from a client for a while, freeing stats",
 				zap.Any("client-uuid", k),
 				zap.Time("last-message", stats.lastUpdated),
 			)
@@ -171,9 +187,13 @@ func (r *ClientMetricsReporter) updateClientMetrics(batch *jaeger.Batch) {
 	}
 	entry, found := r.lastReceivedClientStats.Load(clientUUID)
 	if !found {
-		ent, loaded := r.lastReceivedClientStats.LoadOrStore(clientUUID, &lastReceivedClientStats{})
+		ent, loaded := r.lastReceivedClientStats.LoadOrStore(
+			clientUUID,
+			&lastReceivedClientStats{},
+		)
 		if !loaded {
-			r.params.Logger.Debug("received batch from a new client, starting to keep stats",
+			r.params.Logger.Debug(
+				"received batch from a new client, starting to keep stats",
 				zap.String("client-uuid", clientUUID),
 			)
 		}
@@ -204,9 +224,15 @@ func (s *lastReceivedClientStats) update(
 	if s.batchSeqNo > 0 {
 		metrics.BatchesSent.Inc(batchSeqNo - s.batchSeqNo)
 		if stats != nil {
-			metrics.FailedToEmitSpans.Inc(stats.FailedToEmitSpans - s.failedToEmitSpans)
-			metrics.TooLargeDroppedSpans.Inc(stats.TooLargeDroppedSpans - s.tooLargeDroppedSpans)
-			metrics.FullQueueDroppedSpans.Inc(stats.FullQueueDroppedSpans - s.fullQueueDroppedSpans)
+			metrics.FailedToEmitSpans.Inc(
+				stats.FailedToEmitSpans - s.failedToEmitSpans,
+			)
+			metrics.TooLargeDroppedSpans.Inc(
+				stats.TooLargeDroppedSpans - s.tooLargeDroppedSpans,
+			)
+			metrics.FullQueueDroppedSpans.Inc(
+				stats.FullQueueDroppedSpans - s.fullQueueDroppedSpans,
+			)
 		}
 	}
 

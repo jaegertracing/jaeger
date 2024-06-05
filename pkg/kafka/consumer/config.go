@@ -28,7 +28,12 @@ import (
 // Consumer is an interface to features of Sarama that are necessary for the consumer
 type Consumer interface {
 	Partitions() <-chan cluster.PartitionConsumer
-	MarkPartitionOffset(topic string, partition int32, offset int64, metadata string)
+	MarkPartitionOffset(
+		topic string,
+		partition int32,
+		offset int64,
+		metadata string,
+	)
 	io.Closer
 }
 
@@ -77,5 +82,10 @@ func (c *Configuration) NewConsumer(logger *zap.Logger) (Consumer, error) {
 	if c.InitialOffset != 0 {
 		saramaConfig.Consumer.Offsets.Initial = c.InitialOffset
 	}
-	return cluster.NewConsumer(c.Brokers, c.GroupID, []string{c.Topic}, saramaConfig)
+	return cluster.NewConsumer(
+		c.Brokers,
+		c.GroupID,
+		[]string{c.Topic},
+		saramaConfig,
+	)
 }

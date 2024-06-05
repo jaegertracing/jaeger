@@ -38,7 +38,10 @@ func TestFromDomainEmbedProcess(t *testing.T) {
 			domainStr, jsonStr := loadFixtures(t, i)
 
 			var span model.Span
-			require.NoError(t, jsonpb.Unmarshal(bytes.NewReader(domainStr), &span))
+			require.NoError(
+				t,
+				jsonpb.Unmarshal(bytes.NewReader(domainStr), &span),
+			)
 			converter := NewFromDomain(false, nil, ":")
 			embeddedSpan := converter.FromDomainEmbedProcess(&span)
 
@@ -140,19 +143,30 @@ func TestConvertKeyValueValue(t *testing.T) {
 			expected: KeyValue{Key: key, Value: longString, Type: "string"},
 		},
 		{
-			kv:       model.Binary(key, []byte(longString)),
-			expected: KeyValue{Key: key, Value: hex.EncodeToString([]byte(longString)), Type: "binary"},
+			kv: model.Binary(key, []byte(longString)),
+			expected: KeyValue{
+				Key:   key,
+				Value: hex.EncodeToString([]byte(longString)),
+				Type:  "binary",
+			},
 		},
 		{
-			kv:       model.KeyValue{VType: 1500, Key: key},
-			expected: KeyValue{Key: key, Value: "unknown type 1500", Type: "1500"},
+			kv: model.KeyValue{VType: 1500, Key: key},
+			expected: KeyValue{
+				Key:   key,
+				Value: "unknown type 1500",
+				Type:  "1500",
+			},
 		},
 	}
 
 	for _, test := range tests {
-		t.Run(fmt.Sprintf("%s:%s", test.expected.Type, test.expected.Key), func(t *testing.T) {
-			actual := convertKeyValue(test.kv)
-			assert.Equal(t, test.expected, actual)
-		})
+		t.Run(
+			fmt.Sprintf("%s:%s", test.expected.Type, test.expected.Key),
+			func(t *testing.T) {
+				actual := convertKeyValue(test.kv)
+				assert.Equal(t, test.expected, actual)
+			},
+		)
 	}
 }

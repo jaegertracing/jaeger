@@ -55,7 +55,11 @@ func TestGetTraces(t *testing.T) {
 	require.Error(t, err)
 
 	query = NewQueryService(server.URL, zap.NewNop())
-	traces, err := query.GetTraces("svc", "op", map[string]string{"key": "value"})
+	traces, err := query.GetTraces(
+		"svc",
+		"op",
+		map[string]string{"key": "value"},
+	)
 	require.NoError(t, err)
 	assert.Len(t, traces, 1)
 	assert.EqualValues(t, "traceid", traces[0].TraceID)
@@ -65,9 +69,11 @@ func TestGetTraces(t *testing.T) {
 }
 
 func TestGetTracesReadAllErr(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Length", "1")
-	}))
+	server := httptest.NewServer(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Length", "1")
+		}),
+	)
 	defer server.Close()
 	query := NewQueryService(server.URL, zap.NewNop())
 	_, err := query.GetTraces("svc", "op", map[string]string{"key": "value"})

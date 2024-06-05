@@ -77,7 +77,9 @@ func TestGetOtelcolFactories(t *testing.T) {
 	}
 }
 
-func mockFactoryMap[FACTORY component.Factory](err error) func(factories ...FACTORY) (map[component.Type]FACTORY, error) {
+func mockFactoryMap[FACTORY component.Factory](
+	err error,
+) func(factories ...FACTORY) (map[component.Type]FACTORY, error) {
 	return func(factories ...FACTORY) (map[component.Type]FACTORY, error) {
 		return nil, err
 	}

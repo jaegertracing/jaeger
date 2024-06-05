@@ -80,10 +80,16 @@ func (f *Factory) configureFromOptions(opts Options) {
 }
 
 // Initialize implements storage.Factory
-func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
+func (f *Factory) Initialize(
+	metricsFactory metrics.Factory,
+	logger *zap.Logger,
+) error {
 	f.metricsFactory, f.logger = metricsFactory, logger
 	f.store = WithConfiguration(f.options.Configuration)
-	logger.Info("Memory storage initialized", zap.Any("configuration", f.store.defaultConfig))
+	logger.Info(
+		"Memory storage initialized",
+		zap.Any("configuration", f.store.defaultConfig),
+	)
 	f.publishOpts()
 
 	return nil
@@ -115,7 +121,9 @@ func (f *Factory) CreateDependencyReader() (dependencystore.Reader, error) {
 }
 
 // CreateSamplingStore implements storage.SamplingStoreFactory
-func (*Factory) CreateSamplingStore(maxBuckets int) (samplingstore.Store, error) {
+func (*Factory) CreateSamplingStore(
+	maxBuckets int,
+) (samplingstore.Store, error) {
 	return NewSamplingStore(maxBuckets), nil
 }
 
@@ -125,5 +133,8 @@ func (*Factory) CreateLock() (distributedlock.Lock, error) {
 }
 
 func (f *Factory) publishOpts() {
-	safeexpvar.SetInt("jaeger_storage_memory_max_traces", int64(f.options.Configuration.MaxTraces))
+	safeexpvar.SetInt(
+		"jaeger_storage_memory_max_traces",
+		int64(f.options.Configuration.MaxTraces),
+	)
 }

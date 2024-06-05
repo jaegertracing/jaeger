@@ -31,8 +31,14 @@ func TestConvertStrategyTypeToDomain(t *testing.T) {
 		expected api_v2.SamplingStrategyType
 		err      error
 	}{
-		{in: sampling.SamplingStrategyType_PROBABILISTIC, expected: api_v2.SamplingStrategyType_PROBABILISTIC},
-		{in: sampling.SamplingStrategyType_RATE_LIMITING, expected: api_v2.SamplingStrategyType_RATE_LIMITING},
+		{
+			in:       sampling.SamplingStrategyType_PROBABILISTIC,
+			expected: api_v2.SamplingStrategyType_PROBABILISTIC,
+		},
+		{
+			in:       sampling.SamplingStrategyType_RATE_LIMITING,
+			expected: api_v2.SamplingStrategyType_RATE_LIMITING,
+		},
 		{in: 44, err: errors.New("could not convert sampling strategy type")},
 	}
 	for _, test := range tests {
@@ -51,7 +57,10 @@ func TestConvertProbabilisticToDomain(t *testing.T) {
 		expected *api_v2.ProbabilisticSamplingStrategy
 		in       *sampling.ProbabilisticSamplingStrategy
 	}{
-		{expected: &api_v2.ProbabilisticSamplingStrategy{SamplingRate: 21}, in: &sampling.ProbabilisticSamplingStrategy{SamplingRate: 21}},
+		{
+			expected: &api_v2.ProbabilisticSamplingStrategy{SamplingRate: 21},
+			in:       &sampling.ProbabilisticSamplingStrategy{SamplingRate: 21},
+		},
 		{},
 	}
 	for _, test := range tests {
@@ -65,7 +74,14 @@ func TestConvertRateLimitingToDomain(t *testing.T) {
 		expected *api_v2.RateLimitingSamplingStrategy
 		in       *sampling.RateLimitingSamplingStrategy
 	}{
-		{expected: &api_v2.RateLimitingSamplingStrategy{MaxTracesPerSecond: 21}, in: &sampling.RateLimitingSamplingStrategy{MaxTracesPerSecond: 21}},
+		{
+			expected: &api_v2.RateLimitingSamplingStrategy{
+				MaxTracesPerSecond: 21,
+			},
+			in: &sampling.RateLimitingSamplingStrategy{
+				MaxTracesPerSecond: 21,
+			},
+		},
 		{},
 	}
 	for _, test := range tests {
@@ -83,11 +99,15 @@ func TestConvertPerOperationStrategyToDomain(t *testing.T) {
 		{
 			expected: &api_v2.PerOperationSamplingStrategies{
 				DefaultSamplingProbability: 15.2, DefaultUpperBoundTracesPerSecond: a, DefaultLowerBoundTracesPerSecond: 2,
-				PerOperationStrategies: []*api_v2.OperationSamplingStrategy{{Operation: "fao"}},
+				PerOperationStrategies: []*api_v2.OperationSamplingStrategy{
+					{Operation: "fao"},
+				},
 			},
 			in: &sampling.PerOperationSamplingStrategies{
 				DefaultSamplingProbability: 15.2, DefaultUpperBoundTracesPerSecond: &a, DefaultLowerBoundTracesPerSecond: 2,
-				PerOperationStrategies: []*sampling.OperationSamplingStrategy{{Operation: "fao"}},
+				PerOperationStrategies: []*sampling.OperationSamplingStrategy{
+					{Operation: "fao"},
+				},
 			},
 		},
 		{},
@@ -104,8 +124,18 @@ func TestConvertSamplingResponseToDomain(t *testing.T) {
 		in       *sampling.SamplingStrategyResponse
 		err      string
 	}{
-		{in: &sampling.SamplingStrategyResponse{StrategyType: 55}, err: "could not convert sampling strategy type"},
-		{expected: &api_v2.SamplingStrategyResponse{StrategyType: api_v2.SamplingStrategyType_PROBABILISTIC}, in: &sampling.SamplingStrategyResponse{StrategyType: sampling.SamplingStrategyType_PROBABILISTIC}},
+		{
+			in:  &sampling.SamplingStrategyResponse{StrategyType: 55},
+			err: "could not convert sampling strategy type",
+		},
+		{
+			expected: &api_v2.SamplingStrategyResponse{
+				StrategyType: api_v2.SamplingStrategyType_PROBABILISTIC,
+			},
+			in: &sampling.SamplingStrategyResponse{
+				StrategyType: sampling.SamplingStrategyType_PROBABILISTIC,
+			},
+		},
 		{},
 	}
 	for _, test := range tests {

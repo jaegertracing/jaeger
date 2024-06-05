@@ -79,7 +79,8 @@ func addKerberosFlags(configPrefix string, flagSet *flag.FlagSet) {
 	flagSet.Bool(
 		configPrefix+kerberosPrefix+suffixKerberosUseKeyTab,
 		defaultKerberosUseKeyTab,
-		"Use of keytab instead of password, if this is true, keytab file will be used instead of password")
+		"Use of keytab instead of password, if this is true, keytab file will be used instead of password",
+	)
 	flagSet.String(
 		configPrefix+kerberosPrefix+suffixKerberosKeyTab,
 		defaultKerberosKeyTab,
@@ -87,7 +88,8 @@ func addKerberosFlags(configPrefix string, flagSet *flag.FlagSet) {
 	flagSet.Bool(
 		configPrefix+kerberosPrefix+suffixKerberosDisablePAFXFAST,
 		defaultKerberosDisablePAFXFast,
-		"Disable FAST negotiation when not supported by KDC's like Active Directory. See https://github.com/jcmturner/gokrb5/blob/master/USAGE.md#active-directory-kdc-and-fast-negotiation.")
+		"Disable FAST negotiation when not supported by KDC's like Active Directory. See https://github.com/jcmturner/gokrb5/blob/master/USAGE.md#active-directory-kdc-and-fast-negotiation.",
+	)
 }
 
 func addPlainTextFlags(configPrefix string, flagSet *flag.FlagSet) {
@@ -102,7 +104,8 @@ func addPlainTextFlags(configPrefix string, flagSet *flag.FlagSet) {
 	flagSet.String(
 		configPrefix+plainTextPrefix+suffixPlainTextMechanism,
 		defaultPlainTextMechanism,
-		"The plaintext Mechanism for SASL/PLAIN authentication, e.g. 'SCRAM-SHA-256' or 'SCRAM-SHA-512' or 'PLAIN'")
+		"The plaintext Mechanism for SASL/PLAIN authentication, e.g. 'SCRAM-SHA-256' or 'SCRAM-SHA-512' or 'PLAIN'",
+	)
 }
 
 // AddFlags add configuration flags to a flagSet.
@@ -110,7 +113,10 @@ func AddFlags(configPrefix string, flagSet *flag.FlagSet) {
 	flagSet.String(
 		configPrefix+suffixAuthentication,
 		defaultAuthentication,
-		"Authentication type used to authenticate with kafka cluster. e.g. "+strings.Join(authTypes, ", "),
+		"Authentication type used to authenticate with kafka cluster. e.g. "+strings.Join(
+			authTypes,
+			", ",
+		),
 	)
 	addKerberosFlags(configPrefix, flagSet)
 

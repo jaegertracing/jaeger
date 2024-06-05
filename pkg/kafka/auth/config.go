@@ -48,7 +48,10 @@ type AuthenticationConfig struct {
 }
 
 // SetConfiguration set configure authentication into sarama config structure
-func (config *AuthenticationConfig) SetConfiguration(saramaConfig *sarama.Config, logger *zap.Logger) error {
+func (config *AuthenticationConfig) SetConfiguration(
+	saramaConfig *sarama.Config,
+	logger *zap.Logger,
+) error {
 	authentication := strings.ToLower(config.Authentication)
 	if strings.Trim(authentication, " ") == "" {
 		authentication = none
@@ -70,21 +73,43 @@ func (config *AuthenticationConfig) SetConfiguration(saramaConfig *sarama.Config
 	case plaintext:
 		return setPlainTextConfiguration(&config.PlainText, saramaConfig)
 	default:
-		return fmt.Errorf("Unknown/Unsupported authentication method %s to kafka cluster", config.Authentication)
+		return fmt.Errorf(
+			"Unknown/Unsupported authentication method %s to kafka cluster",
+			config.Authentication,
+		)
 	}
 }
 
 // InitFromViper loads authentication configuration from viper flags.
-func (config *AuthenticationConfig) InitFromViper(configPrefix string, v *viper.Viper) error {
+func (config *AuthenticationConfig) InitFromViper(
+	configPrefix string,
+	v *viper.Viper,
+) error {
 	config.Authentication = v.GetString(configPrefix + suffixAuthentication)
-	config.Kerberos.ServiceName = v.GetString(configPrefix + kerberosPrefix + suffixKerberosServiceName)
-	config.Kerberos.Realm = v.GetString(configPrefix + kerberosPrefix + suffixKerberosRealm)
-	config.Kerberos.UseKeyTab = v.GetBool(configPrefix + kerberosPrefix + suffixKerberosUseKeyTab)
-	config.Kerberos.Username = v.GetString(configPrefix + kerberosPrefix + suffixKerberosUsername)
-	config.Kerberos.Password = v.GetString(configPrefix + kerberosPrefix + suffixKerberosPassword)
-	config.Kerberos.ConfigPath = v.GetString(configPrefix + kerberosPrefix + suffixKerberosConfig)
-	config.Kerberos.KeyTabPath = v.GetString(configPrefix + kerberosPrefix + suffixKerberosKeyTab)
-	config.Kerberos.DisablePAFXFast = v.GetBool(configPrefix + kerberosPrefix + suffixKerberosDisablePAFXFAST)
+	config.Kerberos.ServiceName = v.GetString(
+		configPrefix + kerberosPrefix + suffixKerberosServiceName,
+	)
+	config.Kerberos.Realm = v.GetString(
+		configPrefix + kerberosPrefix + suffixKerberosRealm,
+	)
+	config.Kerberos.UseKeyTab = v.GetBool(
+		configPrefix + kerberosPrefix + suffixKerberosUseKeyTab,
+	)
+	config.Kerberos.Username = v.GetString(
+		configPrefix + kerberosPrefix + suffixKerberosUsername,
+	)
+	config.Kerberos.Password = v.GetString(
+		configPrefix + kerberosPrefix + suffixKerberosPassword,
+	)
+	config.Kerberos.ConfigPath = v.GetString(
+		configPrefix + kerberosPrefix + suffixKerberosConfig,
+	)
+	config.Kerberos.KeyTabPath = v.GetString(
+		configPrefix + kerberosPrefix + suffixKerberosKeyTab,
+	)
+	config.Kerberos.DisablePAFXFast = v.GetBool(
+		configPrefix + kerberosPrefix + suffixKerberosDisablePAFXFAST,
+	)
 
 	tlsClientConfig := tlscfg.ClientFlagsConfig{
 		Prefix: configPrefix,
@@ -99,8 +124,14 @@ func (config *AuthenticationConfig) InitFromViper(configPrefix string, v *viper.
 		config.TLS.Enabled = true
 	}
 
-	config.PlainText.Username = v.GetString(configPrefix + plainTextPrefix + suffixPlainTextUsername)
-	config.PlainText.Password = v.GetString(configPrefix + plainTextPrefix + suffixPlainTextPassword)
-	config.PlainText.Mechanism = v.GetString(configPrefix + plainTextPrefix + suffixPlainTextMechanism)
+	config.PlainText.Username = v.GetString(
+		configPrefix + plainTextPrefix + suffixPlainTextUsername,
+	)
+	config.PlainText.Password = v.GetString(
+		configPrefix + plainTextPrefix + suffixPlainTextPassword,
+	)
+	config.PlainText.Mechanism = v.GetString(
+		configPrefix + plainTextPrefix + suffixPlainTextMechanism,
+	)
 	return nil
 }

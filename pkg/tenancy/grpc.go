@@ -38,7 +38,10 @@ func getValidTenant(ctx context.Context, tc *Manager) (string, error) {
 	tenant := GetTenant(ctx)
 	if tenant != "" {
 		if !tc.Valid(tenant) {
-			return tenant, status.Errorf(codes.PermissionDenied, "unknown tenant")
+			return tenant, status.Errorf(
+				codes.PermissionDenied,
+				"unknown tenant",
+			)
 		}
 		return tenant, nil
 	}
@@ -46,7 +49,10 @@ func getValidTenant(ctx context.Context, tc *Manager) (string, error) {
 	// Handle case where tenant is in the context metadata
 	md, ok := metadata.FromIncomingContext(ctx)
 	if !ok {
-		return "", status.Errorf(codes.PermissionDenied, "missing tenant header")
+		return "", status.Errorf(
+			codes.PermissionDenied,
+			"missing tenant header",
+		)
 	}
 
 	var err error

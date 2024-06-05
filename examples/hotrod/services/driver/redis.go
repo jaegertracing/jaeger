@@ -41,7 +41,11 @@ type Redis struct {
 	errorSimulator
 }
 
-func newRedis(otelExporter string, metricsFactory metrics.Factory, logger log.Factory) *Redis {
+func newRedis(
+	otelExporter string,
+	metricsFactory metrics.Factory,
+	logger log.Factory,
+) *Redis {
 	tp := tracing.InitOTEL("redis-manual", otelExporter, metricsFactory, logger)
 	return &Redis{
 		tracer: tp.Tracer("redis-manual"),
@@ -51,7 +55,11 @@ func newRedis(otelExporter string, metricsFactory metrics.Factory, logger log.Fa
 
 // FindDriverIDs finds IDs of drivers who are near the location.
 func (r *Redis) FindDriverIDs(ctx context.Context, location string) []string {
-	ctx, span := r.tracer.Start(ctx, "FindDriverIDs", trace.WithSpanKind(trace.SpanKindClient))
+	ctx, span := r.tracer.Start(
+		ctx,
+		"FindDriverIDs",
+		trace.WithSpanKind(trace.SpanKindClient),
+	)
 	span.SetAttributes(attribute.Key("param.driver.location").String(location))
 	defer span.End()
 
@@ -68,8 +76,15 @@ func (r *Redis) FindDriverIDs(ctx context.Context, location string) []string {
 }
 
 // GetDriver returns driver and the current car location
-func (r *Redis) GetDriver(ctx context.Context, driverID string) (Driver, error) {
-	ctx, span := r.tracer.Start(ctx, "GetDriver", trace.WithSpanKind(trace.SpanKindClient))
+func (r *Redis) GetDriver(
+	ctx context.Context,
+	driverID string,
+) (Driver, error) {
+	ctx, span := r.tracer.Start(
+		ctx,
+		"GetDriver",
+		trace.WithSpanKind(trace.SpanKindClient),
+	)
 	span.SetAttributes(attribute.Key("param.driverID").String(driverID))
 	defer span.End()
 
@@ -78,7 +93,8 @@ func (r *Redis) GetDriver(ctx context.Context, driverID string) (Driver, error) 
 	if err := r.checkError(); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "An error occurred")
-		r.logger.For(ctx).Error("redis timeout", zap.String("driver_id", driverID), zap.Error(err))
+		r.logger.For(ctx).
+			Error("redis timeout", zap.String("driver_id", driverID), zap.Error(err))
 		return Driver{}, err
 	}
 

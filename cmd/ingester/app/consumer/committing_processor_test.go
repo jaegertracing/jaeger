@@ -70,7 +70,10 @@ func (fakeProcessorMessage) Value() []byte {
 }
 
 func TestNewCommittingProcessorErrorNoKafkaMessage(t *testing.T) {
-	committingProcessor := NewCommittingProcessor(&mocks.SpanProcessor{}, &fakeOffsetMarker{})
+	committingProcessor := NewCommittingProcessor(
+		&mocks.SpanProcessor{},
+		&fakeOffsetMarker{},
+	)
 
 	require.Error(t, committingProcessor.Process(fakeProcessorMessage{}))
 }

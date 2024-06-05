@@ -21,7 +21,10 @@ func NewFactory() receiver.Factory {
 	return receiver.NewFactory(
 		componentType,
 		createDefaultConfig,
-		receiver.WithTraces(createTracesReceiver, component.StabilityLevelDevelopment),
+		receiver.WithTraces(
+			createTracesReceiver,
+			component.StabilityLevelDevelopment,
+		),
 	)
 }
 
@@ -29,7 +32,12 @@ func createDefaultConfig() component.Config {
 	return &Config{}
 }
 
-func createTracesReceiver(ctx context.Context, set receiver.CreateSettings, config component.Config, nextConsumer consumer.Traces) (receiver.Traces, error) {
+func createTracesReceiver(
+	ctx context.Context,
+	set receiver.CreateSettings,
+	config component.Config,
+	nextConsumer consumer.Traces,
+) (receiver.Traces, error) {
 	cfg := config.(*Config)
 
 	return newTracesReceiver(cfg, set, nextConsumer)

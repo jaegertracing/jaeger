@@ -34,7 +34,11 @@ const (
 
 // AddConfigFileFlag adds flags for ExternalConfFlags
 func AddConfigFileFlag(flagSet *flag.FlagSet) {
-	flagSet.String(configFile, "", "Configuration file in JSON, TOML, YAML, HCL, or Java properties formats (default none). See spf13/viper for precedence.")
+	flagSet.String(
+		configFile,
+		"",
+		"Configuration file in JSON, TOML, YAML, HCL, or Java properties formats (default none). See spf13/viper for precedence.",
+	)
 }
 
 // TryLoadConfigFile initializes viper with config file specified as flag
@@ -59,7 +63,12 @@ func ParseJaegerTags(jaegerTags string) map[string]string {
 	for _, p := range tagPairs {
 		kv := strings.SplitN(p, "=", 2)
 		if len(kv) != 2 {
-			panic(fmt.Sprintf("invalid Jaeger tag pair %q, expected key=value", p))
+			panic(
+				fmt.Sprintf(
+					"invalid Jaeger tag pair %q, expected key=value",
+					p,
+				),
+			)
 		}
 		k, v := strings.TrimSpace(kv[0]), strings.TrimSpace(kv[1])
 
@@ -103,13 +112,21 @@ type logging struct {
 
 // AddFlags adds flags for SharedFlags
 func AddFlags(flagSet *flag.FlagSet) {
-	flagSet.String(spanStorageType, "", "(deprecated) please use SPAN_STORAGE_TYPE environment variable. Run this binary with the 'env' command for help.")
+	flagSet.String(
+		spanStorageType,
+		"",
+		"(deprecated) please use SPAN_STORAGE_TYPE environment variable. Run this binary with the 'env' command for help.",
+	)
 	AddLoggingFlag(flagSet)
 }
 
 // AddLoggingFlag adds logging flag for SharedFlags
 func AddLoggingFlag(flagSet *flag.FlagSet) {
-	flagSet.String(logLevel, "info", "Minimal allowed log Level. For more levels see https://github.com/uber-go/zap")
+	flagSet.String(
+		logLevel,
+		"info",
+		"Minimal allowed log Level. For more levels see https://github.com/uber-go/zap",
+	)
 }
 
 // InitFromViper initializes SharedFlags with properties from viper
@@ -119,7 +136,10 @@ func (flags *SharedFlags) InitFromViper(v *viper.Viper) *SharedFlags {
 }
 
 // NewLogger returns logger based on configuration in SharedFlags
-func (flags *SharedFlags) NewLogger(conf zap.Config, options ...zap.Option) (*zap.Logger, error) {
+func (flags *SharedFlags) NewLogger(
+	conf zap.Config,
+	options ...zap.Option,
+) (*zap.Logger, error) {
 	var level zapcore.Level
 	err := (&level).UnmarshalText([]byte(flags.Logging.Level))
 	if err != nil {

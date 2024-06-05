@@ -72,7 +72,10 @@ func TestSpanCollectorHTTP(t *testing.T) {
 	defer mFact.Backend.Stop()
 	logger, _ := zap.NewDevelopment()
 	params := &HTTPServerParams{
-		Handler:        handler.NewJaegerSpanHandler(logger, &mockSpanProcessor{}),
+		Handler: handler.NewJaegerSpanHandler(
+			logger,
+			&mockSpanProcessor{},
+		),
 		SamplingStore:  &mockSamplingStore{},
 		MetricsFactory: mFact,
 		HealthCheck:    healthcheck.New(),
@@ -198,8 +201,11 @@ func TestSpanCollectorHTTPS(t *testing.T) {
 			mFact := metricstest.NewFactory(time.Hour)
 			defer mFact.Backend.Stop()
 			params := &HTTPServerParams{
-				HostPort:       fmt.Sprintf(":%d", ports.CollectorHTTP),
-				Handler:        handler.NewJaegerSpanHandler(logger, &mockSpanProcessor{}),
+				HostPort: fmt.Sprintf(":%d", ports.CollectorHTTP),
+				Handler: handler.NewJaegerSpanHandler(
+					logger,
+					&mockSpanProcessor{},
+				),
 				SamplingStore:  &mockSamplingStore{},
 				MetricsFactory: mFact,
 				HealthCheck:    healthcheck.New(),
@@ -218,7 +224,12 @@ func TestSpanCollectorHTTPS(t *testing.T) {
 			defer test.clientTLS.Close()
 			require.NoError(t, err0)
 			dialer := &net.Dialer{Timeout: 2 * time.Second}
-			conn, clientError := tls.DialWithDialer(dialer, "tcp", "localhost:"+fmt.Sprintf("%d", ports.CollectorHTTP), clientTLSCfg)
+			conn, clientError := tls.DialWithDialer(
+				dialer,
+				"tcp",
+				"localhost:"+fmt.Sprintf("%d", ports.CollectorHTTP),
+				clientTLSCfg,
+			)
 			var clientClose func() error
 			clientClose = nil
 			if conn != nil {
@@ -241,7 +252,11 @@ func TestSpanCollectorHTTPS(t *testing.T) {
 				},
 			}
 
-			response, requestError := client.Post("https://localhost:"+fmt.Sprintf("%d", ports.CollectorHTTP), "", nil)
+			response, requestError := client.Post(
+				"https://localhost:"+fmt.Sprintf("%d", ports.CollectorHTTP),
+				"",
+				nil,
+			)
 
 			if test.expectClientError {
 				require.Error(t, requestError)
@@ -260,8 +275,11 @@ func TestStartHTTPServerParams(t *testing.T) {
 	mFact := metricstest.NewFactory(time.Hour)
 	defer mFact.Stop()
 	params := &HTTPServerParams{
-		HostPort:          fmt.Sprintf(":%d", ports.CollectorHTTP),
-		Handler:           handler.NewJaegerSpanHandler(logger, &mockSpanProcessor{}),
+		HostPort: fmt.Sprintf(":%d", ports.CollectorHTTP),
+		Handler: handler.NewJaegerSpanHandler(
+			logger,
+			&mockSpanProcessor{},
+		),
 		SamplingStore:     &mockSamplingStore{},
 		MetricsFactory:    mFact,
 		HealthCheck:       healthcheck.New(),

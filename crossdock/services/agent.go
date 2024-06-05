@@ -52,7 +52,9 @@ func getSamplingURL(url string) string {
 }
 
 // GetSamplingRate returns the sampling rate for the service-operation from the agent service.
-func (s *agentService) GetSamplingRate(service, operation string) (float64, error) {
+func (s *agentService) GetSamplingRate(
+	service, operation string,
+) (float64, error) {
 	url := fmt.Sprintf(getSamplingURL(s.url), getTracerServiceName(service))
 	resp, err := http.Get(url)
 	if err != nil {
@@ -63,7 +65,10 @@ func (s *agentService) GetSamplingRate(service, operation string) (float64, erro
 	if err != nil {
 		return 0, err
 	}
-	s.logger.Info("Retrieved sampling rates from agent", zap.String("body", string(body)))
+	s.logger.Info(
+		"Retrieved sampling rates from agent",
+		zap.String("body", string(body)),
+	)
 
 	response, err := p2json.SamplingStrategyResponseFromJSON(body)
 	if err != nil {
@@ -72,7 +77,10 @@ func (s *agentService) GetSamplingRate(service, operation string) (float64, erro
 	return getSamplingRate(operation, response)
 }
 
-func getSamplingRate(operation string, response *api_v2.SamplingStrategyResponse) (float64, error) {
+func getSamplingRate(
+	operation string,
+	response *api_v2.SamplingStrategyResponse,
+) (float64, error) {
 	if response.OperationSampling == nil {
 		return 0, errSamplingRateMissing
 	}

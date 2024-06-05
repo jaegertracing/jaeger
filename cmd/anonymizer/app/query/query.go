@@ -37,9 +37,15 @@ type Query struct {
 
 // New creates a Query object
 func New(addr string) (*Query, error) {
-	conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.NewClient(
+		addr,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect with the jaeger-query service: %w", err)
+		return nil, fmt.Errorf(
+			"failed to connect with the jaeger-query service: %w",
+			err,
+		)
 	}
 
 	return &Query{
@@ -62,12 +68,18 @@ func unwrapNotFoundErr(err error) error {
 func (q *Query) QueryTrace(traceID string) ([]model.Span, error) {
 	mTraceID, err := model.TraceIDFromString(traceID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to convert the provided trace id: %w", err)
+		return nil, fmt.Errorf(
+			"failed to convert the provided trace id: %w",
+			err,
+		)
 	}
 
-	stream, err := q.client.GetTrace(context.Background(), &api_v2.GetTraceRequest{
-		TraceID: mTraceID,
-	})
+	stream, err := q.client.GetTrace(
+		context.Background(),
+		&api_v2.GetTraceRequest{
+			TraceID: mTraceID,
+		},
+	)
 	if err != nil {
 		return nil, unwrapNotFoundErr(err)
 	}

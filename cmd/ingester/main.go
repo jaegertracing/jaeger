@@ -42,7 +42,9 @@ import (
 func main() {
 	svc := flags.NewService(ports.IngesterAdminHTTP)
 
-	storageFactory, err := storage.NewFactory(storage.FactoryConfigFromEnvAndCLI(os.Args, os.Stderr))
+	storageFactory, err := storage.NewFactory(
+		storage.FactoryConfigFromEnvAndCLI(os.Args, os.Stderr),
+	)
 	if err != nil {
 		log.Fatalf("Cannot initialize storage factory: %v", err)
 	}
@@ -57,8 +59,12 @@ func main() {
 				return err
 			}
 			logger := svc.Logger // shortcut
-			baseFactory := svc.MetricsFactory.Namespace(metrics.NSOptions{Name: "jaeger"})
-			metricsFactory := baseFactory.Namespace(metrics.NSOptions{Name: "ingester"})
+			baseFactory := svc.MetricsFactory.Namespace(
+				metrics.NSOptions{Name: "jaeger"},
+			)
+			metricsFactory := baseFactory.Namespace(
+				metrics.NSOptions{Name: "ingester"},
+			)
 			version.NewInfoMetrics(metricsFactory)
 
 			storageFactory.InitFromViper(v, logger)
@@ -72,7 +78,12 @@ func main() {
 
 			options := app.Options{}
 			options.InitFromViper(v)
-			consumer, err := builder.CreateConsumer(logger, metricsFactory, spanWriter, options)
+			consumer, err := builder.CreateConsumer(
+				logger,
+				metricsFactory,
+				spanWriter,
+				options,
+			)
 			if err != nil {
 				logger.Fatal("Unable to create consumer", zap.Error(err))
 			}
@@ -80,7 +91,10 @@ func main() {
 
 			svc.RunAndThen(func() {
 				if err := options.TLS.Close(); err != nil {
-					logger.Error("Failed to close TLS certificates watcher", zap.Error(err))
+					logger.Error(
+						"Failed to close TLS certificates watcher",
+						zap.Error(err),
+					)
 				}
 				if err = consumer.Close(); err != nil {
 					logger.Error("Failed to close consumer", zap.Error(err))
@@ -88,11 +102,17 @@ func main() {
 				if closer, ok := spanWriter.(io.Closer); ok {
 					err := closer.Close()
 					if err != nil {
-						logger.Error("Failed to close span writer", zap.Error(err))
+						logger.Error(
+							"Failed to close span writer",
+							zap.Error(err),
+						)
 					}
 				}
 				if err := storageFactory.Close(); err != nil {
-					logger.Error("Failed to close storage factory", zap.Error(err))
+					logger.Error(
+						"Failed to close storage factory",
+						zap.Error(err),
+					)
 				}
 			})
 			return nil

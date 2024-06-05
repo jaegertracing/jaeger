@@ -142,5 +142,9 @@ func TestStorageExtensionStartError(t *testing.T) {
 	assert.Eventually(t, func() bool {
 		return startStatus.Load() != nil
 	}, 5*time.Second, 100*time.Millisecond)
-	require.Contains(t, startStatus.Load().Err().Error(), "error starting cleaner server")
+	require.Contains(
+		t,
+		startStatus.Load().Err().Error(),
+		"error starting cleaner server",
+	)
 }

@@ -34,7 +34,16 @@ type Table struct {
 // NewTable takes a metrics scope and creates a table metrics struct
 func NewTable(factory metrics.Factory, tableName string) *Table {
 	t := storageMetrics.WriteMetrics{}
-	metrics.Init(&t, factory.Namespace(metrics.NSOptions{Name: "", Tags: map[string]string{"table": tableName}}), nil)
+	metrics.Init(
+		&t,
+		factory.Namespace(
+			metrics.NSOptions{
+				Name: "",
+				Tags: map[string]string{"table": tableName},
+			},
+		),
+		nil,
+	)
 	return &Table{t}
 }
 
@@ -46,7 +55,11 @@ func (t *Table) Exec(query cassandra.UpdateQuery, logger *zap.Logger) error {
 	if err != nil {
 		queryString := query.String()
 		if logger != nil {
-			logger.Error("Failed to exec query", zap.String("query", queryString), zap.Error(err))
+			logger.Error(
+				"Failed to exec query",
+				zap.String("query", queryString),
+				zap.Error(err),
+			)
 		}
 		return fmt.Errorf("failed to Exec query '%s': %w", queryString, err)
 	}

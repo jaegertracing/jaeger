@@ -58,7 +58,9 @@ var httpClient = &http.Client{
 
 func TestAllInOne(t *testing.T) {
 	if os.Getenv("TEST_MODE") != "integration" {
-		t.Skip("Integration test for all-in-one skipped; set environment variable TEST_MODE=integration to enable")
+		t.Skip(
+			"Integration test for all-in-one skipped; set environment variable TEST_MODE=integration to enable",
+		)
 	}
 
 	// Check if the query service is available
@@ -95,7 +97,9 @@ func checkWebUI(t *testing.T) {
 	require.NoError(t, err)
 	body := string(bodyBytes)
 	t.Run("Static_files", func(t *testing.T) {
-		pattern := regexp.MustCompile(`<link rel="shortcut icon"[^<]+href="(.*?)"`)
+		pattern := regexp.MustCompile(
+			`<link rel="shortcut icon"[^<]+href="(.*?)"`,
+		)
 		match := pattern.FindStringSubmatch(body)
 		require.Len(t, match, 2)
 		url := match[1]
@@ -134,7 +138,11 @@ type response struct {
 }
 
 func getAPITrace(t *testing.T) {
-	req, err := http.NewRequest(http.MethodGet, queryAddr+getTraceURL+traceID, nil)
+	req, err := http.NewRequest(
+		http.MethodGet,
+		queryAddr+getTraceURL+traceID,
+		nil,
+	)
 	require.NoError(t, err)
 
 	var queryResponse response
@@ -161,9 +169,15 @@ func getAPITrace(t *testing.T) {
 func getSamplingStrategy(t *testing.T) {
 	// TODO once jaeger-v2 can pass this test, remove from .github/workflows/ci-all-in-one-build.yml
 	if os.Getenv("SKIP_SAMPLING") == "true" {
-		t.Skip("skipping sampling strategy check because SKIP_SAMPLING=true is set")
+		t.Skip(
+			"skipping sampling strategy check because SKIP_SAMPLING=true is set",
+		)
 	}
-	req, err := http.NewRequest(http.MethodGet, agentAddr+getSamplingStrategyURL, nil)
+	req, err := http.NewRequest(
+		http.MethodGet,
+		agentAddr+getSamplingStrategyURL,
+		nil,
+	)
 	require.NoError(t, err)
 
 	resp, err := httpClient.Do(req)
@@ -181,7 +195,11 @@ func getSamplingStrategy(t *testing.T) {
 }
 
 func getServicesAPIV3(t *testing.T) {
-	req, err := http.NewRequest(http.MethodGet, queryAddr+getServicesAPIV3URL, nil)
+	req, err := http.NewRequest(
+		http.MethodGet,
+		queryAddr+getServicesAPIV3URL,
+		nil,
+	)
 	require.NoError(t, err)
 	resp, err := httpClient.Do(req)
 	require.NoError(t, err)

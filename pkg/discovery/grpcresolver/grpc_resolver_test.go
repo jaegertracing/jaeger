@@ -44,7 +44,10 @@ type test struct {
 	addresses []string
 }
 
-func (*testServer) EmptyCall(ctx context.Context, in *grpc_testing.Empty) (*grpc_testing.Empty, error) {
+func (*testServer) EmptyCall(
+	ctx context.Context,
+	in *grpc_testing.Empty,
+) (*grpc_testing.Empty, error) {
 	return &grpc_testing.Empty{}, nil
 }
 
@@ -71,7 +74,10 @@ func startTestServers(t *testing.T, count int) *test {
 		s := grpc.NewServer()
 		grpc_testing.RegisterTestServiceServer(s, &testServer{})
 		testInstance.servers = append(testInstance.servers, s)
-		testInstance.addresses = append(testInstance.addresses, lis.Addr().String())
+		testInstance.addresses = append(
+			testInstance.addresses,
+			lis.Addr().String(),
+		)
 
 		go func(s *grpc.Server, l net.Listener) {
 			s.Serve(l)
@@ -81,34 +87,61 @@ func startTestServers(t *testing.T, count int) *test {
 	return testInstance
 }
 
-func makeSureConnectionsUp(t *testing.T, count int, testc grpc_testing.TestServiceClient) {
+func makeSureConnectionsUp(
+	t *testing.T,
+	count int,
+	testc grpc_testing.TestServiceClient,
+) {
 	var p peer.Peer
 	addrs := make(map[string]struct{})
 	// Make sure connections to all servers are up.
 	for si := 0; si < count; si++ {
 		connected := false
 		for i := 0; i < 3000; i++ { // 3000 * 10ms = 30s
-			_, err := testc.EmptyCall(context.Background(), &grpc_testing.Empty{}, grpc.Peer(&p))
+			_, err := testc.EmptyCall(
+				context.Background(),
+				&grpc_testing.Empty{},
+				grpc.Peer(&p),
+			)
 			if err != nil {
 				continue
 			}
 			if _, ok := addrs[p.Addr.String()]; !ok {
 				addrs[p.Addr.String()] = struct{}{}
 				connected = true
-				t.Logf("connected to peer #%d (%v) on iteration %d", si, p.Addr, i)
+				t.Logf(
+					"connected to peer #%d (%v) on iteration %d",
+					si,
+					p.Addr,
+					i,
+				)
 				break
 			}
 			time.Sleep(time.Millisecond * 10)
 		}
-		assert.True(t, connected, "Connection #%d was still not up. Connections so far: %+v", si, addrs)
+		assert.True(
+			t,
+			connected,
+			"Connection #%d was still not up. Connections so far: %+v",
+			si,
+			addrs,
+		)
 	}
 }
 
-func assertRoundRobinCall(t *testing.T, connections int, testc grpc_testing.TestServiceClient) {
+func assertRoundRobinCall(
+	t *testing.T,
+	connections int,
+	testc grpc_testing.TestServiceClient,
+) {
 	addrs := make(map[string]struct{})
 	var p peer.Peer
 	for i := 0; i < connections; i++ {
-		_, err := testc.EmptyCall(context.Background(), &grpc_testing.Empty{}, grpc.Peer(&p))
+		_, err := testc.EmptyCall(
+			context.Background(),
+			&grpc_testing.Empty{},
+			grpc.Peer(&p),
+		)
 		require.NoError(t, err)
 		addrs[p.Addr.String()] = struct{}{}
 	}
@@ -148,7 +181,11 @@ func TestGRPCResolverRoundRobin(t *testing.T) {
 		t.Run(fmt.Sprintf("%+v", test), func(t *testing.T) {
 			res := New(notifier, discoverer, zap.NewNop(), test.minPeers)
 
-			cc, err := grpc.NewClient(res.Scheme()+":///round_robin", grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithDefaultServiceConfig(GRPCServiceConfig))
+			cc, err := grpc.NewClient(
+				res.Scheme()+":///round_robin",
+				grpc.WithTransportCredentials(insecure.NewCredentials()),
+				grpc.WithDefaultServiceConfig(GRPCServiceConfig),
+			)
 			require.NoError(t, err, "could not dial using resolver's scheme")
 			defer cc.Close()
 
@@ -167,8 +204,18 @@ func TestGRPCResolverRoundRobin(t *testing.T) {
 
 func TestRendezvousHash(t *testing.T) {
 	// Rendezvous Hash should return same subset with same addresses & salt string
-	addresses := []string{"127.1.0.3:8080", "127.0.1.1:8080", "127.2.1.2:8080", "127.3.0.4:8080"}
-	sameAddressesDifferentOrder := []string{"127.2.1.2:8080", "127.1.0.3:8080", "127.3.0.4:8080", "127.0.1.1:8080"}
+	addresses := []string{
+		"127.1.0.3:8080",
+		"127.0.1.1:8080",
+		"127.2.1.2:8080",
+		"127.3.0.4:8080",
+	}
+	sameAddressesDifferentOrder := []string{
+		"127.2.1.2:8080",
+		"127.1.0.3:8080",
+		"127.3.0.4:8080",
+		"127.0.1.1:8080",
+	}
 	notifier := &discovery.Dispatcher{}
 	discoverer := discovery.FixedDiscoverer{}
 	resolverInstance := New(notifier, discoverer, zap.NewNop(), 2)

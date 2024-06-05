@@ -34,7 +34,10 @@ import (
 // In this test we run a queue with capacity 1 and a single consumer.
 // We want to test the overflow behavior, so we block the consumer
 // by holding a startLock before submitting items to the queue.
-func helper(t *testing.T, startConsumers func(q *BoundedQueue, consumerFn func(item any))) {
+func helper(
+	t *testing.T,
+	startConsumers func(q *BoundedQueue, consumerFn func(item any)),
+) {
 	mFact := metricstest.NewFactory(0)
 	counter := mFact.Counter(metrics.Options{Name: "dropped", Tags: nil})
 	gauge := mFact.Gauge(metrics.Options{Name: "size", Tags: nil})
@@ -120,7 +123,10 @@ func TestBoundedQueue(t *testing.T) {
 
 func TestBoundedQueueWithFactory(t *testing.T) {
 	helper(t, func(q *BoundedQueue, consumerFn func(item any)) {
-		q.StartConsumersWithFactory(1, func() Consumer { return ConsumerFunc(consumerFn) })
+		q.StartConsumersWithFactory(
+			1,
+			func() Consumer { return ConsumerFunc(consumerFn) },
+		)
 	})
 }
 
@@ -161,7 +167,12 @@ func (s *consumerState) waitToConsumeOnce() {
 			time.Sleep(time.Millisecond)
 		}
 	}
-	require.EqualValues(s.t, 1, atomic.LoadInt32(&s.consumedOnce), "expected to consumer once")
+	require.EqualValues(
+		s.t,
+		1,
+		atomic.LoadInt32(&s.consumedOnce),
+		"expected to consumer once",
+	)
 }
 
 func (s *consumerState) assertConsumed(expected map[string]bool) {
@@ -212,13 +223,24 @@ func TestResizeUp(t *testing.T) {
 	assert.True(t, q.Produce("e")) // in process by the second consumer
 	secondConsumer.Wait()
 
-	assert.True(t, q.Produce("f"))  // in the new queue
-	assert.True(t, q.Produce("g"))  // in the new queue
-	assert.False(t, q.Produce("h")) // the new queue has the capacity, but the sum of queues doesn't
+	assert.True(t, q.Produce("f")) // in the new queue
+	assert.True(t, q.Produce("g")) // in the new queue
+	assert.False(
+		t,
+		q.Produce("h"),
+	) // the new queue has the capacity, but the sum of queues doesn't
 
 	assert.EqualValues(t, 4, q.Capacity())
-	assert.EqualValues(t, q.Capacity(), q.Size()) // the combined queues are at the capacity right now
-	assert.Len(t, *q.items, 2)                    // the new internal queue should have two items only
+	assert.EqualValues(
+		t,
+		q.Capacity(),
+		q.Size(),
+	) // the combined queues are at the capacity right now
+	assert.Len(
+		t,
+		*q.items,
+		2,
+	) // the new internal queue should have two items only
 
 	released = true
 	releaseConsumers.Done()
@@ -261,8 +283,15 @@ func TestResizeDown(t *testing.T) {
 	assert.False(t, q.Produce("f")) // dropped
 
 	assert.EqualValues(t, 2, q.Capacity())
-	assert.EqualValues(t, 4, q.Size()) // the queue will eventually drain, but it will live for a while over capacity
-	assert.Empty(t, *q.items)          // the new queue is empty, as the old queue is still full and over capacity
+	assert.EqualValues(
+		t,
+		4,
+		q.Size(),
+	) // the queue will eventually drain, but it will live for a while over capacity
+	assert.Empty(
+		t,
+		*q.items,
+	) // the new queue is empty, as the old queue is still full and over capacity
 
 	released = true
 	releaseConsumers.Done()

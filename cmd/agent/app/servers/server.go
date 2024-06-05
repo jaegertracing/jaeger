@@ -25,7 +25,9 @@ type Server interface {
 	IsServing() bool
 	Stop()
 	DataChan() chan *ReadBuf
-	DataRecd(*ReadBuf) // must be called by consumer after reading data from the ReadBuf
+	DataRecd(
+		*ReadBuf,
+	) // must be called by consumer after reading data from the ReadBuf
 }
 
 // ReadBuf is a structure that holds the bytes to read into as well as the number of bytes

@@ -65,9 +65,9 @@ type Anonymizer struct {
 // Options represents the various options with which the anonymizer can be configured.
 type Options struct {
 	HashStandardTags bool `yaml:"hash_standard_tags" name:"hash_standard_tags"`
-	HashCustomTags   bool `yaml:"hash_custom_tags" name:"hash_custom_tags"`
-	HashLogs         bool `yaml:"hash_logs" name:"hash_logs"`
-	HashProcess      bool `yaml:"hash_process" name:"hash_process"`
+	HashCustomTags   bool `yaml:"hash_custom_tags"   name:"hash_custom_tags"`
+	HashLogs         bool `yaml:"hash_logs"          name:"hash_logs"`
+	HashProcess      bool `yaml:"hash_process"       name:"hash_process"`
 }
 
 // New creates new Anonymizer. The mappingFile stores the mapping from original to
@@ -130,7 +130,8 @@ func (a *Anonymizer) SaveMapping() {
 		a.logger.Error("Failed to write mapping file", zap.Error(err))
 		return
 	}
-	a.logger.Sugar().Infof("Saved mapping file %s: %s", a.mappingFile, string(dat))
+	a.logger.Sugar().
+		Infof("Saved mapping file %s: %s", a.mappingFile, string(dat))
 }
 
 func (a *Anonymizer) mapServiceName(service string) string {

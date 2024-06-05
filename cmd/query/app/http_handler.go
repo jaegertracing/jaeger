@@ -94,7 +94,11 @@ type APIHandler struct {
 }
 
 // NewAPIHandler returns an APIHandler
-func NewAPIHandler(queryService *querysvc.QueryService, tm *tenancy.Manager, options ...HandlerOption) *APIHandler {
+func NewAPIHandler(
+	queryService *querysvc.QueryService,
+	tm *tenancy.Manager,
+	options ...HandlerOption,
+) *APIHandler {
 	aH := &APIHandler{
 		queryService: queryService,
 		queryParser: queryParser{
@@ -121,20 +125,28 @@ func NewAPIHandler(queryService *querysvc.QueryService, tm *tenancy.Manager, opt
 
 // RegisterRoutes registers routes for this handler on the given router
 func (aH *APIHandler) RegisterRoutes(router *mux.Router) {
-	aH.handleFunc(router, aH.getTrace, "/traces/{%s}", traceIDParam).Methods(http.MethodGet)
-	aH.handleFunc(router, aH.archiveTrace, "/archive/{%s}", traceIDParam).Methods(http.MethodPost)
+	aH.handleFunc(router, aH.getTrace, "/traces/{%s}", traceIDParam).
+		Methods(http.MethodGet)
+	aH.handleFunc(router, aH.archiveTrace, "/archive/{%s}", traceIDParam).
+		Methods(http.MethodPost)
 	aH.handleFunc(router, aH.search, "/traces").Methods(http.MethodGet)
 	aH.handleFunc(router, aH.getServices, "/services").Methods(http.MethodGet)
 	// TODO change the UI to use this endpoint. Requires ?service= parameter.
-	aH.handleFunc(router, aH.getOperations, "/operations").Methods(http.MethodGet)
+	aH.handleFunc(router, aH.getOperations, "/operations").
+		Methods(http.MethodGet)
 	// TODO - remove this when UI catches up
-	aH.handleFunc(router, aH.getOperationsLegacy, "/services/{%s}/operations", serviceParam).Methods(http.MethodGet)
-	aH.handleFunc(router, aH.transformOTLP, "/transform").Methods(http.MethodPost)
-	aH.handleFunc(router, aH.dependencies, "/dependencies").Methods(http.MethodGet)
-	aH.handleFunc(router, aH.latencies, "/metrics/latencies").Methods(http.MethodGet)
+	aH.handleFunc(router, aH.getOperationsLegacy, "/services/{%s}/operations", serviceParam).
+		Methods(http.MethodGet)
+	aH.handleFunc(router, aH.transformOTLP, "/transform").
+		Methods(http.MethodPost)
+	aH.handleFunc(router, aH.dependencies, "/dependencies").
+		Methods(http.MethodGet)
+	aH.handleFunc(router, aH.latencies, "/metrics/latencies").
+		Methods(http.MethodGet)
 	aH.handleFunc(router, aH.calls, "/metrics/calls").Methods(http.MethodGet)
 	aH.handleFunc(router, aH.errors, "/metrics/errors").Methods(http.MethodGet)
-	aH.handleFunc(router, aH.minStep, "/metrics/minstep").Methods(http.MethodGet)
+	aH.handleFunc(router, aH.minStep, "/metrics/minstep").
+		Methods(http.MethodGet)
 }
 
 func (aH *APIHandler) handleFunc(
@@ -172,7 +184,10 @@ func (aH *APIHandler) getServices(w http.ResponseWriter, r *http.Request) {
 	aH.writeJSON(w, r, &structuredRes)
 }
 
-func (aH *APIHandler) getOperationsLegacy(w http.ResponseWriter, r *http.Request) {
+func (aH *APIHandler) getOperationsLegacy(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
 	vars := mux.Vars(r)
 	// given how getOperationsLegacy is bound to URL route, serviceParam cannot be empty
 	service, _ := url.QueryUnescape(vars[serviceParam])
@@ -214,14 +229,21 @@ func (aH *APIHandler) transformOTLP(w http.ResponseWriter, r *http.Request) {
 func (aH *APIHandler) getOperations(w http.ResponseWriter, r *http.Request) {
 	service := r.FormValue(serviceParam)
 	if service == "" {
-		if aH.handleError(w, errServiceParameterRequired, http.StatusBadRequest) {
+		if aH.handleError(
+			w,
+			errServiceParameterRequired,
+			http.StatusBadRequest,
+		) {
 			return
 		}
 	}
 	spanKind := r.FormValue(spanKindParam)
 	operations, err := aH.queryService.GetOperations(
 		r.Context(),
-		spanstore.OperationQueryParameters{ServiceName: service, SpanKind: spanKind},
+		spanstore.OperationQueryParameters{
+			ServiceName: service,
+			SpanKind:    spanKind,
+		},
 	)
 
 	if aH.handleError(w, err, http.StatusInternalServerError) {
@@ -250,7 +272,10 @@ func (aH *APIHandler) search(w http.ResponseWriter, r *http.Request) {
 	var uiErrors []structuredError
 	var tracesFromStorage []*model.Trace
 	if len(tQuery.traceIDs) > 0 {
-		tracesFromStorage, uiErrors, err = aH.tracesByIDs(r.Context(), tQuery.traceIDs)
+		tracesFromStorage, uiErrors, err = aH.tracesByIDs(
+			r.Context(),
+			tQuery.traceIDs,
+		)
 		if aH.handleError(w, err, http.StatusInternalServerError) {
 			return
 		}
@@ -265,7 +290,11 @@ func (aH *APIHandler) search(w http.ResponseWriter, r *http.Request) {
 	aH.writeJSON(w, r, structuredRes)
 }
 
-func (aH *APIHandler) tracesToResponse(traces []*model.Trace, adjust bool, uiErrors []structuredError) *structuredResponse {
+func (aH *APIHandler) tracesToResponse(
+	traces []*model.Trace,
+	adjust bool,
+	uiErrors []structuredError,
+) *structuredResponse {
 	uiTraces := make([]*ui.Trace, len(traces))
 	for i, v := range traces {
 		uiTrace, uiErr := aH.convertModelToUI(v, adjust)
@@ -281,7 +310,10 @@ func (aH *APIHandler) tracesToResponse(traces []*model.Trace, adjust bool, uiErr
 	}
 }
 
-func (aH *APIHandler) tracesByIDs(ctx context.Context, traceIDs []model.TraceID) ([]*model.Trace, []structuredError, error) {
+func (aH *APIHandler) tracesByIDs(
+	ctx context.Context,
+	traceIDs []model.TraceID,
+) ([]*model.Trace, []structuredError, error) {
 	var traceErrors []structuredError
 	retMe := make([]*model.Trace, 0, len(traceIDs))
 	for _, traceID := range traceIDs {
@@ -307,12 +339,19 @@ func (aH *APIHandler) dependencies(w http.ResponseWriter, r *http.Request) {
 	}
 	service := r.FormValue(serviceParam)
 
-	dependencies, err := aH.queryService.GetDependencies(r.Context(), dqp.endTs, dqp.lookback)
+	dependencies, err := aH.queryService.GetDependencies(
+		r.Context(),
+		dqp.endTs,
+		dqp.lookback,
+	)
 	if aH.handleError(w, err, http.StatusInternalServerError) {
 		return
 	}
 
-	filteredDependencies := aH.filterDependenciesByService(dependencies, service)
+	filteredDependencies := aH.filterDependenciesByService(
+		dependencies,
+		service,
+	)
 	structuredRes := structuredResponse{
 		Data: aH.deduplicateDependencies(filteredDependencies),
 	}
@@ -322,35 +361,63 @@ func (aH *APIHandler) dependencies(w http.ResponseWriter, r *http.Request) {
 func (aH *APIHandler) latencies(w http.ResponseWriter, r *http.Request) {
 	q, err := strconv.ParseFloat(r.FormValue(quantileParam), 64)
 	if err != nil {
-		aH.handleError(w, newParseError(err, quantileParam), http.StatusBadRequest)
+		aH.handleError(
+			w,
+			newParseError(err, quantileParam),
+			http.StatusBadRequest,
+		)
 		return
 	}
-	aH.metrics(w, r, func(ctx context.Context, baseParams metricsstore.BaseQueryParameters) (*metrics.MetricFamily, error) {
-		return aH.metricsQueryService.GetLatencies(ctx, &metricsstore.LatenciesQueryParameters{
-			BaseQueryParameters: baseParams,
-			Quantile:            q,
-		})
-	})
+	aH.metrics(
+		w,
+		r,
+		func(ctx context.Context, baseParams metricsstore.BaseQueryParameters) (*metrics.MetricFamily, error) {
+			return aH.metricsQueryService.GetLatencies(
+				ctx,
+				&metricsstore.LatenciesQueryParameters{
+					BaseQueryParameters: baseParams,
+					Quantile:            q,
+				},
+			)
+		},
+	)
 }
 
 func (aH *APIHandler) calls(w http.ResponseWriter, r *http.Request) {
-	aH.metrics(w, r, func(ctx context.Context, baseParams metricsstore.BaseQueryParameters) (*metrics.MetricFamily, error) {
-		return aH.metricsQueryService.GetCallRates(ctx, &metricsstore.CallRateQueryParameters{
-			BaseQueryParameters: baseParams,
-		})
-	})
+	aH.metrics(
+		w,
+		r,
+		func(ctx context.Context, baseParams metricsstore.BaseQueryParameters) (*metrics.MetricFamily, error) {
+			return aH.metricsQueryService.GetCallRates(
+				ctx,
+				&metricsstore.CallRateQueryParameters{
+					BaseQueryParameters: baseParams,
+				},
+			)
+		},
+	)
 }
 
 func (aH *APIHandler) errors(w http.ResponseWriter, r *http.Request) {
-	aH.metrics(w, r, func(ctx context.Context, baseParams metricsstore.BaseQueryParameters) (*metrics.MetricFamily, error) {
-		return aH.metricsQueryService.GetErrorRates(ctx, &metricsstore.ErrorRateQueryParameters{
-			BaseQueryParameters: baseParams,
-		})
-	})
+	aH.metrics(
+		w,
+		r,
+		func(ctx context.Context, baseParams metricsstore.BaseQueryParameters) (*metrics.MetricFamily, error) {
+			return aH.metricsQueryService.GetErrorRates(
+				ctx,
+				&metricsstore.ErrorRateQueryParameters{
+					BaseQueryParameters: baseParams,
+				},
+			)
+		},
+	)
 }
 
 func (aH *APIHandler) minStep(w http.ResponseWriter, r *http.Request) {
-	minStep, err := aH.metricsQueryService.GetMinStepDuration(r.Context(), &metricsstore.MinStepDurationQueryParameters{})
+	minStep, err := aH.metricsQueryService.GetMinStepDuration(
+		r.Context(),
+		&metricsstore.MinStepDurationQueryParameters{},
+	)
 	if aH.handleError(w, err, http.StatusInternalServerError) {
 		return
 	}
@@ -361,7 +428,11 @@ func (aH *APIHandler) minStep(w http.ResponseWriter, r *http.Request) {
 	aH.writeJSON(w, r, &structuredRes)
 }
 
-func (aH *APIHandler) metrics(w http.ResponseWriter, r *http.Request, getMetrics func(context.Context, metricsstore.BaseQueryParameters) (*metrics.MetricFamily, error)) {
+func (aH *APIHandler) metrics(
+	w http.ResponseWriter,
+	r *http.Request,
+	getMetrics func(context.Context, metricsstore.BaseQueryParameters) (*metrics.MetricFamily, error),
+) {
 	requestParams, err := aH.queryParser.parseMetricsQueryParams(r)
 	if aH.handleError(w, err, http.StatusBadRequest) {
 		return
@@ -373,7 +444,10 @@ func (aH *APIHandler) metrics(w http.ResponseWriter, r *http.Request, getMetrics
 	aH.writeJSON(w, r, m)
 }
 
-func (aH *APIHandler) convertModelToUI(trace *model.Trace, adjust bool) (*ui.Trace, *structuredError) {
+func (aH *APIHandler) convertModelToUI(
+	trace *model.Trace,
+	adjust bool,
+) (*ui.Trace, *structuredError) {
 	var errs []error
 	if adjust {
 		var err error
@@ -393,7 +467,9 @@ func (aH *APIHandler) convertModelToUI(trace *model.Trace, adjust bool) (*ui.Tra
 	return uiTrace, uiError
 }
 
-func (*APIHandler) deduplicateDependencies(dependencies []model.DependencyLink) []ui.DependencyLink {
+func (*APIHandler) deduplicateDependencies(
+	dependencies []model.DependencyLink,
+) []ui.DependencyLink {
 	type Key struct {
 		parent string
 		child  string
@@ -406,7 +482,10 @@ func (*APIHandler) deduplicateDependencies(dependencies []model.DependencyLink) 
 
 	result := make([]ui.DependencyLink, 0, len(links))
 	for k, v := range links {
-		result = append(result, ui.DependencyLink{Parent: k.parent, Child: k.child, CallCount: v})
+		result = append(
+			result,
+			ui.DependencyLink{Parent: k.parent, Child: k.child, CallCount: v},
+		)
 	}
 
 	return result
@@ -430,7 +509,10 @@ func (*APIHandler) filterDependenciesByService(
 }
 
 // Parses trace ID from URL like /traces/{trace-id}
-func (aH *APIHandler) parseTraceID(w http.ResponseWriter, r *http.Request) (model.TraceID, bool) {
+func (aH *APIHandler) parseTraceID(
+	w http.ResponseWriter,
+	r *http.Request,
+) (model.TraceID, bool) {
 	vars := mux.Vars(r)
 	traceIDVar := vars[traceIDParam]
 	traceID, err := model.TraceIDFromString(traceIDVar)
@@ -458,7 +540,11 @@ func (aH *APIHandler) getTrace(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var uiErrors []structuredError
-	structuredRes := aH.tracesToResponse([]*model.Trace{trace}, shouldAdjust(r), uiErrors)
+	structuredRes := aH.tracesToResponse(
+		[]*model.Trace{trace},
+		shouldAdjust(r),
+		uiErrors,
+	)
 	aH.writeJSON(w, r, structuredRes)
 }
 
@@ -493,7 +579,11 @@ func (aH *APIHandler) archiveTrace(w http.ResponseWriter, r *http.Request) {
 	aH.writeJSON(w, r, &structuredRes)
 }
 
-func (aH *APIHandler) handleError(w http.ResponseWriter, err error, statusCode int) bool {
+func (aH *APIHandler) handleError(
+	w http.ResponseWriter,
+	err error,
+	statusCode int,
+) bool {
 	if err == nil {
 		return false
 	}
@@ -516,7 +606,11 @@ func (aH *APIHandler) handleError(w http.ResponseWriter, err error, statusCode i
 	return true
 }
 
-func (aH *APIHandler) writeJSON(w http.ResponseWriter, r *http.Request, response any) {
+func (aH *APIHandler) writeJSON(
+	w http.ResponseWriter,
+	r *http.Request,
+	response any,
+) {
 	prettyPrintValue := r.FormValue(prettyPrintParam)
 	prettyPrint := prettyPrintValue != "" && prettyPrintValue != "false"
 
@@ -530,7 +624,11 @@ func (aH *APIHandler) writeJSON(w http.ResponseWriter, r *http.Request, response
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := marshal(w, response); err != nil {
-		aH.handleError(w, fmt.Errorf("failed writing HTTP response: %w", err), http.StatusInternalServerError)
+		aH.handleError(
+			w,
+			fmt.Errorf("failed writing HTTP response: %w", err),
+			http.StatusInternalServerError,
+		)
 	}
 }
 

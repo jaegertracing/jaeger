@@ -35,7 +35,12 @@ type Action struct {
 
 // Do the lookback action
 func (a *Action) Do() error {
-	rolloverIndices := app.RolloverIndices(a.Config.Archive, a.Config.SkipDependencies, a.Config.AdaptiveSampling, a.Config.IndexPrefix)
+	rolloverIndices := app.RolloverIndices(
+		a.Config.Archive,
+		a.Config.SkipDependencies,
+		a.Config.AdaptiveSampling,
+		a.Config.IndexPrefix,
+	)
 	for _, indexName := range rolloverIndices {
 		if err := a.lookback(indexName); err != nil {
 			return err
@@ -52,23 +57,40 @@ func (a *Action) lookback(indexSet app.IndexOption) error {
 
 	readAliasName := indexSet.ReadAliasName()
 	readAliasIndices := filter.ByAlias(jaegerIndex, []string{readAliasName})
-	excludedWriteIndex := filter.ByAliasExclude(readAliasIndices, []string{indexSet.WriteAliasName()})
-	finalIndices := filter.ByDate(excludedWriteIndex, getTimeReference(timeNow(), a.Unit, a.UnitCount))
+	excludedWriteIndex := filter.ByAliasExclude(
+		readAliasIndices,
+		[]string{indexSet.WriteAliasName()},
+	)
+	finalIndices := filter.ByDate(
+		excludedWriteIndex,
+		getTimeReference(timeNow(), a.Unit, a.UnitCount),
+	)
 
 	if len(finalIndices) == 0 {
-		a.Logger.Info("No indices to remove from alias", zap.String("readAliasName", readAliasName))
+		a.Logger.Info(
+			"No indices to remove from alias",
+			zap.String("readAliasName", readAliasName),
+		)
 		return nil
 	}
 
 	aliases := make([]client.Alias, 0, len(finalIndices))
-	a.Logger.Info("About to remove indices", zap.String("readAliasName", readAliasName), zap.Int("indicesCount", len(finalIndices)))
+	a.Logger.Info(
+		"About to remove indices",
+		zap.String("readAliasName", readAliasName),
+		zap.Int("indicesCount", len(finalIndices)),
+	)
 
 	for _, index := range finalIndices {
 		aliases = append(aliases, client.Alias{
 			Index: index.Index,
 			Name:  readAliasName,
 		})
-		a.Logger.Info("To be removed", zap.String("index", index.Index), zap.String("creationTime", index.CreationTime.String()))
+		a.Logger.Info(
+			"To be removed",
+			zap.String("index", index.Index),
+			zap.String("creationTime", index.CreationTime.String()),
+		)
 	}
 
 	return a.IndicesClient.DeleteAlias(aliases)

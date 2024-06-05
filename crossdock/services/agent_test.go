@@ -49,7 +49,14 @@ func TestGetSamplingRateInternal(t *testing.T) {
 		rate      float64
 	}{
 		{"op", &api_v2.SamplingStrategyResponse{}, true, 0},
-		{"op", &api_v2.SamplingStrategyResponse{OperationSampling: &api_v2.PerOperationSamplingStrategies{}}, true, 0},
+		{
+			"op",
+			&api_v2.SamplingStrategyResponse{
+				OperationSampling: &api_v2.PerOperationSamplingStrategies{},
+			},
+			true,
+			0,
+		},
 		{"op", testResponse, false, 0.01},
 		{"nop", testResponse, true, 0},
 	}
@@ -107,9 +114,11 @@ func TestGetSamplingRate(t *testing.T) {
 }
 
 func TestGetSamplingRateReadAllErr(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Length", "1")
-	}))
+	server := httptest.NewServer(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Length", "1")
+		}),
+	)
 	defer server.Close()
 	agent := NewAgentService(server.URL, zap.NewNop())
 	_, err := agent.GetSamplingRate("svc", "op")

@@ -39,13 +39,21 @@ import (
 func TestFailToListen(t *testing.T) {
 	logger, _ := zap.NewDevelopment()
 	server, err := StartGRPCServer(&GRPCServerParams{
-		HostPort:      ":-1",
-		Handler:       handler.NewGRPCHandler(logger, &mockSpanProcessor{}, &tenancy.Manager{}),
+		HostPort: ":-1",
+		Handler: handler.NewGRPCHandler(
+			logger,
+			&mockSpanProcessor{},
+			&tenancy.Manager{},
+		),
 		SamplingStore: &mockSamplingStore{},
 		Logger:        logger,
 	})
 	assert.Nil(t, server)
-	require.EqualError(t, err, "failed to listen on gRPC port: listen tcp: address -1: invalid port")
+	require.EqualError(
+		t,
+		err,
+		"failed to listen on gRPC port: listen tcp: address -1: invalid port",
+	)
 }
 
 func TestFailServe(t *testing.T) {
@@ -59,12 +67,20 @@ func TestFailServe(t *testing.T) {
 	server := grpc.NewServer()
 	defer server.Stop()
 	serveGRPC(server, lis, &GRPCServerParams{
-		Handler:       handler.NewGRPCHandler(logger, &mockSpanProcessor{}, &tenancy.Manager{}),
+		Handler: handler.NewGRPCHandler(
+			logger,
+			&mockSpanProcessor{},
+			&tenancy.Manager{},
+		),
 		SamplingStore: &mockSamplingStore{},
 		Logger:        logger,
 		OnError: func(e error) {
 			assert.Len(t, logs.All(), 1)
-			assert.Equal(t, "Could not launch gRPC service", logs.All()[0].Message)
+			assert.Equal(
+				t,
+				"Could not launch gRPC service",
+				logs.All()[0].Message,
+			)
 			wg.Done()
 		},
 	})
@@ -74,7 +90,11 @@ func TestFailServe(t *testing.T) {
 func TestSpanCollector(t *testing.T) {
 	logger, _ := zap.NewDevelopment()
 	params := &GRPCServerParams{
-		Handler:                 handler.NewGRPCHandler(logger, &mockSpanProcessor{}, &tenancy.Manager{}),
+		Handler: handler.NewGRPCHandler(
+			logger,
+			&mockSpanProcessor{},
+			&tenancy.Manager{},
+		),
 		SamplingStore:           &mockSamplingStore{},
 		Logger:                  logger,
 		MaxReceiveMessageLength: 1024 * 1024,
@@ -91,7 +111,10 @@ func TestSpanCollector(t *testing.T) {
 	defer conn.Close()
 
 	c := api_v2.NewCollectorServiceClient(conn)
-	response, err := c.PostSpans(context.Background(), &api_v2.PostSpansRequest{})
+	response, err := c.PostSpans(
+		context.Background(),
+		&api_v2.PostSpansRequest{},
+	)
 	require.NoError(t, err)
 	require.NotNil(t, response)
 }
@@ -99,7 +122,11 @@ func TestSpanCollector(t *testing.T) {
 func TestCollectorStartWithTLS(t *testing.T) {
 	logger, _ := zap.NewDevelopment()
 	params := &GRPCServerParams{
-		Handler:       handler.NewGRPCHandler(logger, &mockSpanProcessor{}, &tenancy.Manager{}),
+		Handler: handler.NewGRPCHandler(
+			logger,
+			&mockSpanProcessor{},
+			&tenancy.Manager{},
+		),
 		SamplingStore: &mockSamplingStore{},
 		Logger:        logger,
 		TLSConfig: tlscfg.Options{
@@ -118,7 +145,11 @@ func TestCollectorStartWithTLS(t *testing.T) {
 func TestCollectorReflection(t *testing.T) {
 	logger, _ := zap.NewDevelopment()
 	params := &GRPCServerParams{
-		Handler:       handler.NewGRPCHandler(logger, &mockSpanProcessor{}, &tenancy.Manager{}),
+		Handler: handler.NewGRPCHandler(
+			logger,
+			&mockSpanProcessor{},
+			&tenancy.Manager{},
+		),
 		SamplingStore: &mockSamplingStore{},
 		Logger:        logger,
 	}

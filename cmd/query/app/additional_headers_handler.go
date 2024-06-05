@@ -18,7 +18,10 @@ import (
 	"net/http"
 )
 
-func additionalHeadersHandler(h http.Handler, additionalHeaders http.Header) http.Handler {
+func additionalHeadersHandler(
+	h http.Handler,
+	additionalHeaders http.Header,
+) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		header := w.Header()
 		for key, values := range additionalHeaders {

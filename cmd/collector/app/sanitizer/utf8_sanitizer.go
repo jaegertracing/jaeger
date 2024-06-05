@@ -45,13 +45,27 @@ func NewUTF8Sanitizer(logger *zap.Logger) SanitizeSpan {
 // Sanitize sanitizes the UTF8 in the spans.
 func (s *utf8Sanitizer) Sanitize(span *model.Span) *model.Span {
 	if !utf8.ValidString(span.OperationName) {
-		s.logSpan(span, "Invalid utf8 operation name", zap.String("operation_name", span.OperationName))
-		span.Tags = append(span.Tags, model.Binary(invalidOperation, []byte(span.OperationName)))
+		s.logSpan(
+			span,
+			"Invalid utf8 operation name",
+			zap.String("operation_name", span.OperationName),
+		)
+		span.Tags = append(
+			span.Tags,
+			model.Binary(invalidOperation, []byte(span.OperationName)),
+		)
 		span.OperationName = invalidOperation
 	}
 	if !utf8.ValidString(span.Process.ServiceName) {
-		s.logSpan(span, "Invalid utf8 service name", zap.String("service_name", span.Process.ServiceName))
-		span.Tags = append(span.Tags, model.Binary(invalidService, []byte(span.Process.ServiceName)))
+		s.logSpan(
+			span,
+			"Invalid utf8 service name",
+			zap.String("service_name", span.Process.ServiceName),
+		)
+		span.Tags = append(
+			span.Tags,
+			model.Binary(invalidService, []byte(span.Process.ServiceName)),
+		)
 		span.Process.ServiceName = invalidService
 	}
 	sanitizeKV(span.Process.Tags)
@@ -62,7 +76,11 @@ func (s *utf8Sanitizer) Sanitize(span *model.Span) *model.Span {
 	return span
 }
 
-func (s *utf8Sanitizer) logSpan(span *model.Span, message string, field zapcore.Field) {
+func (s *utf8Sanitizer) logSpan(
+	span *model.Span,
+	message string,
+	field zapcore.Field,
+) {
 	s.logger.Info(
 		message,
 		zap.String("trace_id", span.TraceID.String()),
@@ -72,7 +90,10 @@ func (s *utf8Sanitizer) logSpan(span *model.Span, message string, field zapcore.
 func sanitizeKV(keyValues model.KeyValues) {
 	for i, kv := range keyValues {
 		if !utf8.ValidString(kv.Key) {
-			keyValues[i] = model.Binary(invalidTagKey, []byte(fmt.Sprintf("%s:%s", kv.Key, kv.AsStringLossy())))
+			keyValues[i] = model.Binary(
+				invalidTagKey,
+				[]byte(fmt.Sprintf("%s:%s", kv.Key, kv.AsStringLossy())),
+			)
 		} else if kv.VType == model.StringType && !utf8.ValidString(kv.VStr) {
 			keyValues[i] = model.Binary(kv.Key, []byte(kv.VStr))
 		}

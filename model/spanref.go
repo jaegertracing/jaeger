@@ -29,7 +29,11 @@ const (
 // We no longer store ParentSpanID in the domain model, but the data in the database
 // or other formats might still have these IDs without representing them in the References,
 // so this converts parent IDs to canonical reference format.
-func MaybeAddParentSpanID(traceID TraceID, parentSpanID SpanID, refs []SpanRef) []SpanRef {
+func MaybeAddParentSpanID(
+	traceID TraceID,
+	parentSpanID SpanID,
+	refs []SpanRef,
+) []SpanRef {
 	if parentSpanID == 0 {
 		return refs
 	}

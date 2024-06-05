@@ -41,11 +41,18 @@ func TestFactoryConfigFromEnv(t *testing.T) {
 	assert.Equal(t, memoryStorageType, f.DependenciesStorageType)
 	assert.Equal(t, cassandraStorageType, f.SamplingStorageType)
 
-	t.Setenv(SpanStorageTypeEnvVar, elasticsearchStorageType+","+kafkaStorageType)
+	t.Setenv(
+		SpanStorageTypeEnvVar,
+		elasticsearchStorageType+","+kafkaStorageType,
+	)
 
 	f = FactoryConfigFromEnvAndCLI(nil, &bytes.Buffer{})
 	assert.Len(t, f.SpanWriterTypes, 2)
-	assert.Equal(t, []string{elasticsearchStorageType, kafkaStorageType}, f.SpanWriterTypes)
+	assert.Equal(
+		t,
+		[]string{elasticsearchStorageType, kafkaStorageType},
+		f.SpanWriterTypes,
+	)
 	assert.Equal(t, elasticsearchStorageType, f.SpanReaderType)
 
 	t.Setenv(SpanStorageTypeEnvVar, badgerStorageType)
@@ -62,9 +69,27 @@ func TestFactoryConfigFromEnvDeprecated(t *testing.T) {
 		log   bool
 		value string
 	}{
-		{args: []string{"appname", "-x", "y", "--span-storage.type=memory"}, log: true, value: "memory"},
-		{args: []string{"appname", "-x", "y", "--span-storage.type", "memory"}, log: true, value: "memory"},
-		{args: []string{"appname", "-x", "y", "--span-storage.type"}, log: true, value: "cassandra"},
+		{
+			args:  []string{"appname", "-x", "y", "--span-storage.type=memory"},
+			log:   true,
+			value: "memory",
+		},
+		{
+			args: []string{
+				"appname",
+				"-x",
+				"y",
+				"--span-storage.type",
+				"memory",
+			},
+			log:   true,
+			value: "memory",
+		},
+		{
+			args:  []string{"appname", "-x", "y", "--span-storage.type"},
+			log:   true,
+			value: "cassandra",
+		},
 		{args: []string{"appname", "-x", "y"}, log: false, value: "cassandra"},
 	}
 	for _, testCase := range testCases {

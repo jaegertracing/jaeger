@@ -71,7 +71,14 @@ func TestFactory(t *testing.T) {
 	assert.Equal(t, time.Second, f.options.LeaderLeaseRefreshInterval)
 	assert.Equal(t, time.Second*2, f.options.FollowerLeaseRefreshInterval)
 
-	require.NoError(t, f.Initialize(metrics.NullFactory, &mockSamplingStoreFactory{}, zap.NewNop()))
+	require.NoError(
+		t,
+		f.Initialize(
+			metrics.NullFactory,
+			&mockSamplingStoreFactory{},
+			zap.NewNop(),
+		),
+	)
 	store, aggregator, err := f.CreateStrategyStore()
 	require.NoError(t, err)
 	require.NoError(t, store.Close())
@@ -95,7 +102,14 @@ func TestBadConfigFail(t *testing.T) {
 
 		f.InitFromViper(v, zap.NewNop())
 
-		require.NoError(t, f.Initialize(metrics.NullFactory, &mockSamplingStoreFactory{}, zap.NewNop()))
+		require.NoError(
+			t,
+			f.Initialize(
+				metrics.NullFactory,
+				&mockSamplingStoreFactory{},
+				zap.NewNop(),
+			),
+		)
 		_, _, err := f.CreateStrategyStore()
 		require.Error(t, err)
 		require.NoError(t, f.Close())
@@ -109,10 +123,24 @@ func TestSamplingStoreFactoryFails(t *testing.T) {
 	require.Error(t, f.Initialize(metrics.NullFactory, nil, zap.NewNop()))
 
 	// fail if lock fails
-	require.Error(t, f.Initialize(metrics.NullFactory, &mockSamplingStoreFactory{lockFailsWith: errors.New("fail")}, zap.NewNop()))
+	require.Error(
+		t,
+		f.Initialize(
+			metrics.NullFactory,
+			&mockSamplingStoreFactory{lockFailsWith: errors.New("fail")},
+			zap.NewNop(),
+		),
+	)
 
 	// fail if store fails
-	require.Error(t, f.Initialize(metrics.NullFactory, &mockSamplingStoreFactory{storeFailsWith: errors.New("fail")}, zap.NewNop()))
+	require.Error(
+		t,
+		f.Initialize(
+			metrics.NullFactory,
+			&mockSamplingStoreFactory{storeFailsWith: errors.New("fail")},
+			zap.NewNop(),
+		),
+	)
 }
 
 type mockSamplingStoreFactory struct {
@@ -131,13 +159,16 @@ func (m *mockSamplingStoreFactory) CreateLock() (distributedlock.Lock, error) {
 	return mockLock, nil
 }
 
-func (m *mockSamplingStoreFactory) CreateSamplingStore(maxBuckets int) (samplingstore.Store, error) {
+func (m *mockSamplingStoreFactory) CreateSamplingStore(
+	maxBuckets int,
+) (samplingstore.Store, error) {
 	if m.storeFailsWith != nil {
 		return nil, m.storeFailsWith
 	}
 
 	mockStorage := &smocks.Store{}
-	mockStorage.On("GetLatestProbabilities").Return(make(model.ServiceOperationProbabilities), nil)
+	mockStorage.On("GetLatestProbabilities").
+		Return(make(model.ServiceOperationProbabilities), nil)
 	mockStorage.On("GetThroughput", mock.AnythingOfType("time.Time"), mock.AnythingOfType("time.Time")).
 		Return([]*model.Throughput{}, nil)
 

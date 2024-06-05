@@ -52,7 +52,10 @@ func testClientMetrics(fn func(tr *clientMetricsTest)) {
 	testClientMetricsWithParams(ClientMetricsReporterParams{}, fn)
 }
 
-func testClientMetricsWithParams(params ClientMetricsReporterParams, fn func(tr *clientMetricsTest)) {
+func testClientMetricsWithParams(
+	params ClientMetricsReporterParams,
+	fn func(tr *clientMetricsTest),
+) {
 	r1 := testutils.NewInMemoryReporter()
 	zapCore, logs := observer.New(zap.DebugLevel)
 	mb := metricstest.NewFactory(time.Hour)
@@ -76,7 +79,10 @@ func testClientMetricsWithParams(params ClientMetricsReporterParams, fn func(tr 
 
 func TestClientMetricsReporter_Zipkin(t *testing.T) {
 	testClientMetrics(func(tr *clientMetricsTest) {
-		require.NoError(t, tr.r.EmitZipkinBatch(context.Background(), []*zipkincore.Span{{}}))
+		require.NoError(
+			t,
+			tr.r.EmitZipkinBatch(context.Background(), []*zipkincore.Span{{}}),
+		)
 		assert.Len(t, tr.mr.ZipkinSpans(), 1)
 	})
 }
@@ -115,9 +121,21 @@ func TestClientMetricsReporter_Jaeger(t *testing.T) {
 				expCounters: []metricstest.ExpectedMetric{
 					{Name: prefix + "batches_received", Value: 1},
 					{Name: prefix + "batches_sent", Value: 0},
-					{Name: prefix + "spans_dropped", Tags: tag("cause", "full-queue"), Value: 0},
-					{Name: prefix + "spans_dropped", Tags: tag("cause", "too-large"), Value: 0},
-					{Name: prefix + "spans_dropped", Tags: tag("cause", "send-failure"), Value: 0},
+					{
+						Name:  prefix + "spans_dropped",
+						Tags:  tag("cause", "full-queue"),
+						Value: 0,
+					},
+					{
+						Name:  prefix + "spans_dropped",
+						Tags:  tag("cause", "too-large"),
+						Value: 0,
+					},
+					{
+						Name:  prefix + "spans_dropped",
+						Tags:  tag("cause", "send-failure"),
+						Value: 0,
+					},
 				},
 				expGauges: []metricstest.ExpectedMetric{
 					{Name: prefix + "connected_clients", Value: 1},
@@ -134,9 +152,21 @@ func TestClientMetricsReporter_Jaeger(t *testing.T) {
 				expCounters: []metricstest.ExpectedMetric{
 					{Name: prefix + "batches_received", Value: 2},
 					{Name: prefix + "batches_sent", Value: 5},
-					{Name: prefix + "spans_dropped", Tags: tag("cause", "full-queue"), Value: 5},
-					{Name: prefix + "spans_dropped", Tags: tag("cause", "too-large"), Value: 5},
-					{Name: prefix + "spans_dropped", Tags: tag("cause", "send-failure"), Value: 5},
+					{
+						Name:  prefix + "spans_dropped",
+						Tags:  tag("cause", "full-queue"),
+						Value: 5,
+					},
+					{
+						Name:  prefix + "spans_dropped",
+						Tags:  tag("cause", "too-large"),
+						Value: 5,
+					},
+					{
+						Name:  prefix + "spans_dropped",
+						Tags:  tag("cause", "send-failure"),
+						Value: 5,
+					},
 				},
 			},
 			{
@@ -158,9 +188,21 @@ func TestClientMetricsReporter_Jaeger(t *testing.T) {
 				}, expCounters: []metricstest.ExpectedMetric{
 					{Name: prefix + "batches_received", Value: 4},
 					{Name: prefix + "batches_sent", Value: 10},
-					{Name: prefix + "spans_dropped", Tags: tag("cause", "full-queue"), Value: 7},
-					{Name: prefix + "spans_dropped", Tags: tag("cause", "too-large"), Value: 8},
-					{Name: prefix + "spans_dropped", Tags: tag("cause", "send-failure"), Value: 9},
+					{
+						Name:  prefix + "spans_dropped",
+						Tags:  tag("cause", "full-queue"),
+						Value: 7,
+					},
+					{
+						Name:  prefix + "spans_dropped",
+						Tags:  tag("cause", "too-large"),
+						Value: 8,
+					},
+					{
+						Name:  prefix + "spans_dropped",
+						Tags:  tag("cause", "send-failure"),
+						Value: 9,
+					},
 				},
 			},
 		}
@@ -178,7 +220,9 @@ func TestClientMetricsReporter_Jaeger(t *testing.T) {
 					Stats: test.stats,
 				}
 				if test.clientUUID != nil {
-					batch.Process.Tags = []*jaeger.Tag{{Key: "client-uuid", VStr: test.clientUUID}}
+					batch.Process.Tags = []*jaeger.Tag{
+						{Key: "client-uuid", VStr: test.clientUUID},
+					}
 				}
 
 				err := tr.r.EmitBatch(context.Background(), batch)
@@ -211,13 +255,30 @@ func TestClientMetricsReporter_ClientUUID(t *testing.T) {
 		{process: nil, clientUUID: ""},
 		{process: &jaeger.Process{}, clientUUID: ""},
 		{process: &jaeger.Process{Tags: []*jaeger.Tag{}}, clientUUID: ""},
-		{process: &jaeger.Process{Tags: []*jaeger.Tag{{Key: "blah"}}}, clientUUID: ""},
-		{process: &jaeger.Process{Tags: []*jaeger.Tag{{Key: "client-uuid"}}}, clientUUID: ""},
-		{process: &jaeger.Process{Tags: []*jaeger.Tag{{Key: "client-uuid", VStr: &id}}}, clientUUID: id},
+		{
+			process:    &jaeger.Process{Tags: []*jaeger.Tag{{Key: "blah"}}},
+			clientUUID: "",
+		},
+		{
+			process: &jaeger.Process{
+				Tags: []*jaeger.Tag{{Key: "client-uuid"}},
+			},
+			clientUUID: "",
+		},
+		{
+			process: &jaeger.Process{
+				Tags: []*jaeger.Tag{{Key: "client-uuid", VStr: &id}},
+			},
+			clientUUID: id,
+		},
 	}
 	for i, test := range tests {
 		t.Run(fmt.Sprintf("iter%d", i), func(t *testing.T) {
-			assert.Equal(t, test.clientUUID, clientUUID(&jaeger.Batch{Process: test.process}))
+			assert.Equal(
+				t,
+				test.clientUUID,
+				clientUUID(&jaeger.Batch{Process: test.process}),
+			)
 		})
 	}
 }
@@ -235,7 +296,9 @@ func TestClientMetricsReporter_Expire(t *testing.T) {
 			Spans: []*jaeger.Span{{}},
 			Process: &jaeger.Process{
 				ServiceName: "blah",
-				Tags:        []*jaeger.Tag{{Key: "client-uuid", VStr: &clientUUID}},
+				Tags: []*jaeger.Tag{
+					{Key: "client-uuid", VStr: &clientUUID},
+				},
 			},
 			SeqNo: nPtr(1),
 		}

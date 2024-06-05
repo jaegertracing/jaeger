@@ -37,18 +37,30 @@ func TestSamplingManager_GetSamplingStrategy(t *testing.T) {
 	s, addr := initializeGRPCTestServer(t, func(s *grpc.Server) {
 		api_v2.RegisterSamplingManagerServer(s, &mockSamplingHandler{})
 	})
-	conn, err := grpc.NewClient(addr.String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.NewClient(
+		addr.String(),
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
 	defer close(t, conn)
 	require.NoError(t, err)
 	defer s.GracefulStop()
 	manager := NewConfigManager(conn)
 	resp, err := manager.GetSamplingStrategy(context.Background(), "any")
 	require.NoError(t, err)
-	assert.Equal(t, &api_v2.SamplingStrategyResponse{StrategyType: api_v2.SamplingStrategyType_PROBABILISTIC}, resp)
+	assert.Equal(
+		t,
+		&api_v2.SamplingStrategyResponse{
+			StrategyType: api_v2.SamplingStrategyType_PROBABILISTIC,
+		},
+		resp,
+	)
 }
 
 func TestSamplingManager_GetSamplingStrategy_error(t *testing.T) {
-	conn, err := grpc.NewClient("foo", grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.NewClient(
+		"foo",
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
 	defer close(t, conn)
 	require.NoError(t, err)
 	manager := NewConfigManager(conn)
@@ -67,11 +79,19 @@ func TestSamplingManager_GetBaggageRestrictions(t *testing.T) {
 
 type mockSamplingHandler struct{}
 
-func (*mockSamplingHandler) GetSamplingStrategy(context.Context, *api_v2.SamplingStrategyParameters) (*api_v2.SamplingStrategyResponse, error) {
-	return &api_v2.SamplingStrategyResponse{StrategyType: api_v2.SamplingStrategyType_PROBABILISTIC}, nil
+func (*mockSamplingHandler) GetSamplingStrategy(
+	context.Context,
+	*api_v2.SamplingStrategyParameters,
+) (*api_v2.SamplingStrategyResponse, error) {
+	return &api_v2.SamplingStrategyResponse{
+		StrategyType: api_v2.SamplingStrategyType_PROBABILISTIC,
+	}, nil
 }
 
-func initializeGRPCTestServer(t *testing.T, beforeServe func(server *grpc.Server)) (*grpc.Server, net.Addr) {
+func initializeGRPCTestServer(
+	t *testing.T,
+	beforeServe func(server *grpc.Server),
+) (*grpc.Server, net.Addr) {
 	server := grpc.NewServer()
 	lis, err := net.Listen("tcp", "localhost:0")
 	require.NoError(t, err)

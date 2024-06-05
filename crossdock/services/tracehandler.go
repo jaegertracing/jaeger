@@ -68,7 +68,11 @@ type TraceHandler struct {
 }
 
 // NewTraceHandler returns a TraceHandler that can create traces and verify them
-func NewTraceHandler(query QueryService, agent AgentService, logger *zap.Logger) *TraceHandler {
+func NewTraceHandler(
+	query QueryService,
+	agent AgentService,
+	logger *zap.Logger,
+) *TraceHandler {
 	return &TraceHandler{
 		query:  query,
 		agent:  agent,
@@ -77,7 +81,9 @@ func NewTraceHandler(query QueryService, agent AgentService, logger *zap.Logger)
 			return fmt.Sprintf("http://%s:8081", service)
 		},
 		getTags: func() map[string]string {
-			return map[string]string{generateRandomString(): generateRandomString()}
+			return map[string]string{
+				generateRandomString(): generateRandomString(),
+			}
 		},
 		createTracesLoopInterval:              2 * time.Second,
 		getSamplingRateInterval:               500 * time.Millisecond,
@@ -113,7 +119,10 @@ func (h *TraceHandler) AdaptiveSamplingTest(t crossdock.T) {
 	operation := generateRandomString()
 	request := h.createTraceRequest(jaeger.SamplerTypeRemote, operation, 10)
 	service := t.Param(servicesParam)
-	h.logger.Info("Starting AdaptiveSampling test", zap.String("service", service))
+	h.logger.Info(
+		"Starting AdaptiveSampling test",
+		zap.String("service", service),
+	)
 
 	if err := h.runTest(service, request, h.adaptiveSamplingTest, validateAdaptiveSamplingTraces); err != nil {
 		h.logger.Error(err.Error())
@@ -123,7 +132,12 @@ func (h *TraceHandler) AdaptiveSamplingTest(t crossdock.T) {
 	}
 }
 
-func (*TraceHandler) runTest(service string, request *traceRequest, tFunc testFunc, vFunc validateFunc) error {
+func (*TraceHandler) runTest(
+	service string,
+	request *traceRequest,
+	tFunc testFunc,
+	vFunc validateFunc,
+) error {
 	traces, err := tFunc(service, request)
 	if err != nil {
 		return err
@@ -131,7 +145,10 @@ func (*TraceHandler) runTest(service string, request *traceRequest, tFunc testFu
 	return vFunc(request, traces)
 }
 
-func (h *TraceHandler) adaptiveSamplingTest(service string, request *traceRequest) ([]*ui.Trace, error) {
+func (h *TraceHandler) adaptiveSamplingTest(
+	service string,
+	request *traceRequest,
+) ([]*ui.Trace, error) {
 	stop := make(chan struct{})
 	go h.createTracesLoop(service, *request, stop)
 	defer close(stop)
@@ -140,10 +157,18 @@ func (h *TraceHandler) adaptiveSamplingTest(service string, request *traceReques
 	var err error
 	for i := 0; i < 20; i++ {
 		// Keep checking to see if the sampling rate has been calculated
-		h.logger.Info(fmt.Sprintf("Waiting for adaptive sampling probabilities, iteration %d out of 20", i+1))
+		h.logger.Info(
+			fmt.Sprintf(
+				"Waiting for adaptive sampling probabilities, iteration %d out of 20",
+				i+1,
+			),
+		)
 		rate, err = h.agent.GetSamplingRate(service, request.Operation)
 		if err != nil {
-			return nil, fmt.Errorf("could not retrieve sampling rate from agent: %w", err)
+			return nil, fmt.Errorf(
+				"could not retrieve sampling rate from agent: %w",
+				err,
+			)
 		}
 		if !isDefaultProbability(rate) {
 			break
@@ -166,7 +191,10 @@ func (h *TraceHandler) adaptiveSamplingTest(service string, request *traceReques
 	return traces, nil
 }
 
-func validateAdaptiveSamplingTraces(expected *traceRequest, actual []*ui.Trace) error {
+func validateAdaptiveSamplingTraces(
+	expected *traceRequest,
+	actual []*ui.Trace,
+) error {
 	if err := validateTraces(expected, actual); err != nil {
 		return err
 	}
@@ -175,14 +203,26 @@ func validateAdaptiveSamplingTraces(expected *traceRequest, actual []*ui.Trace) 
 		samplerParam, ok1 := tags[samplerParamKey]
 		samplerType, ok2 := tags[samplerTypeKey]
 		if !ok1 || !ok2 {
-			return fmt.Errorf("%s and %s tags not found", samplerParamKey, samplerTypeKey)
+			return fmt.Errorf(
+				"%s and %s tags not found",
+				samplerParamKey,
+				samplerTypeKey,
+			)
 		}
 		probability, err := strconv.ParseFloat(samplerParam, 64)
 		if err != nil {
-			return fmt.Errorf("%s tag value is not a float: %s", samplerParamKey, samplerParam)
+			return fmt.Errorf(
+				"%s tag value is not a float: %s",
+				samplerParamKey,
+				samplerParam,
+			)
 		}
 		if samplerType != jaeger.SamplerTypeProbabilistic {
-			return fmt.Errorf("%s tag value should be '%s'", samplerTypeKey, jaeger.SamplerTypeProbabilistic)
+			return fmt.Errorf(
+				"%s tag value should be '%s'",
+				samplerTypeKey,
+				jaeger.SamplerTypeProbabilistic,
+			)
 		}
 		if isDefaultProbability(probability) {
 			return fmt.Errorf("adaptive sampling probability not used")
@@ -193,7 +233,11 @@ func validateAdaptiveSamplingTraces(expected *traceRequest, actual []*ui.Trace) 
 
 // createTracesLoop creates traces every createTracesLoopInterval.
 // The loop can be terminated by closing the stop channel.
-func (h *TraceHandler) createTracesLoop(service string, request traceRequest, stop chan struct{}) {
+func (h *TraceHandler) createTracesLoop(
+	service string,
+	request traceRequest,
+	stop chan struct{},
+) {
 	ticker := time.NewTicker(h.createTracesLoopInterval)
 	defer ticker.Stop()
 	for {
@@ -206,7 +250,10 @@ func (h *TraceHandler) createTracesLoop(service string, request traceRequest, st
 	}
 }
 
-func (h *TraceHandler) createAndRetrieveTraces(service string, request *traceRequest) ([]*ui.Trace, error) {
+func (h *TraceHandler) createAndRetrieveTraces(
+	service string,
+	request *traceRequest,
+) ([]*ui.Trace, error) {
 	if err := h.createTrace(service, request); err != nil {
 		return nil, fmt.Errorf("failed to create trace: %w", err)
 	}
@@ -217,22 +264,36 @@ func (h *TraceHandler) createAndRetrieveTraces(service string, request *traceReq
 	return traces, nil
 }
 
-func (h *TraceHandler) getTraces(service, operation string, tags map[string]string) []*ui.Trace {
+func (h *TraceHandler) getTraces(
+	service, operation string,
+	tags map[string]string,
+) []*ui.Trace {
 	// Retry multiple time since SASI indexing takes a couple of seconds
 	for i := 0; i < 10; i++ {
-		h.logger.Info(fmt.Sprintf("Querying for traces, iteration %d out of 10", i+1))
-		traces, err := h.query.GetTraces(getTracerServiceName(service), operation, tags)
+		h.logger.Info(
+			fmt.Sprintf("Querying for traces, iteration %d out of 10", i+1),
+		)
+		traces, err := h.query.GetTraces(
+			getTracerServiceName(service),
+			operation,
+			tags,
+		)
 		if err == nil && len(traces) > 0 {
 			return traces
 		}
 		h.logger.Info("Could not retrieve trace from query service")
-		h.logger.Info(fmt.Sprintf("Waiting %v for traces", h.getTracesSleepDuration))
+		h.logger.Info(
+			fmt.Sprintf("Waiting %v for traces", h.getTracesSleepDuration),
+		)
 		time.Sleep(h.getTracesSleepDuration)
 	}
 	return nil
 }
 
-func (h *TraceHandler) createTrace(service string, request *traceRequest) error {
+func (h *TraceHandler) createTrace(
+	service string,
+	request *traceRequest,
+) error {
 	url := h.getClientURL(service) + "/create_traces"
 
 	// NB. json.Marshal cannot error no matter what traceRequest we give it
@@ -244,12 +305,19 @@ func (h *TraceHandler) createTrace(service string, request *traceRequest) error 
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("retrieved %d status code from client service", resp.StatusCode)
+		return fmt.Errorf(
+			"retrieved %d status code from client service",
+			resp.StatusCode,
+		)
 	}
 	return nil
 }
 
-func (h *TraceHandler) createTraceRequest(samplerType string, operation string, count int) *traceRequest {
+func (h *TraceHandler) createTraceRequest(
+	samplerType string,
+	operation string,
+	count int,
+) *traceRequest {
 	return &traceRequest{
 		Type:      samplerType,
 		Operation: operation,
@@ -260,7 +328,11 @@ func (h *TraceHandler) createTraceRequest(samplerType string, operation string, 
 
 func validateTracesWithCount(expected *traceRequest, actual []*ui.Trace) error {
 	if expected.Count != len(actual) {
-		return fmt.Errorf("expected %d trace(s), got %d", expected.Count, len(actual))
+		return fmt.Errorf(
+			"expected %d trace(s), got %d",
+			expected.Count,
+			len(actual),
+		)
 	}
 	return validateTraces(expected, actual)
 }
@@ -279,7 +351,10 @@ func validateTraces(expected *traceRequest, actual []*ui.Trace) error {
 }
 
 // The real trace has more tags than the tags we sent in, make sure our tags were created
-func expectedTagsExist(expected map[string]string, actual map[string]string) bool {
+func expectedTagsExist(
+	expected map[string]string,
+	actual map[string]string,
+) bool {
 	for k, v := range expected {
 		value, ok := actual[k]
 		if !ok || value != v {

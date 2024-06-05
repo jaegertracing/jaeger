@@ -39,7 +39,9 @@ func StartNewRemoteMemoryStorage(t *testing.T) *RemoteMemoryStorage {
 		},
 	}
 	tm := tenancy.NewManager(&opts.Tenancy)
-	storageFactory, err := storage.NewFactory(storage.FactoryConfigFromEnvAndCLI(os.Args, os.Stderr))
+	storageFactory, err := storage.NewFactory(
+		storage.FactoryConfigFromEnvAndCLI(os.Args, os.Stderr),
+	)
 	require.NoError(t, err)
 
 	v, _ := config.Viperize(storageFactory.AddFlags)
@@ -47,7 +49,13 @@ func StartNewRemoteMemoryStorage(t *testing.T) *RemoteMemoryStorage {
 	require.NoError(t, storageFactory.Initialize(metrics.NullFactory, logger))
 
 	t.Logf("Starting in-process remote storage server on %s", opts.GRPCHostPort)
-	server, err := app.NewServer(opts, storageFactory, tm, logger, healthcheck.New())
+	server, err := app.NewServer(
+		opts,
+		storageFactory,
+		tm,
+		logger,
+		healthcheck.New(),
+	)
 	require.NoError(t, err)
 	require.NoError(t, server.Start())
 

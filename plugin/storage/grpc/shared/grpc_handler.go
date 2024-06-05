@@ -95,21 +95,46 @@ func (s *GRPCHandler) Register(ss *grpc.Server, hs *health.Server) error {
 	storage_v1.RegisterDependenciesReaderPluginServer(ss, s)
 	storage_v1.RegisterStreamingSpanWriterPluginServer(ss, s)
 
-	hs.SetServingStatus("jaeger.storage.v1.SpanReaderPlugin", grpc_health_v1.HealthCheckResponse_SERVING)
-	hs.SetServingStatus("jaeger.storage.v1.SpanWriterPlugin", grpc_health_v1.HealthCheckResponse_SERVING)
-	hs.SetServingStatus("jaeger.storage.v1.ArchiveSpanReaderPlugin", grpc_health_v1.HealthCheckResponse_SERVING)
-	hs.SetServingStatus("jaeger.storage.v1.ArchiveSpanWriterPlugin", grpc_health_v1.HealthCheckResponse_SERVING)
-	hs.SetServingStatus("jaeger.storage.v1.PluginCapabilities", grpc_health_v1.HealthCheckResponse_SERVING)
-	hs.SetServingStatus("jaeger.storage.v1.DependenciesReaderPlugin", grpc_health_v1.HealthCheckResponse_SERVING)
-	hs.SetServingStatus("jaeger.storage.v1.StreamingSpanWriterPlugin", grpc_health_v1.HealthCheckResponse_SERVING)
+	hs.SetServingStatus(
+		"jaeger.storage.v1.SpanReaderPlugin",
+		grpc_health_v1.HealthCheckResponse_SERVING,
+	)
+	hs.SetServingStatus(
+		"jaeger.storage.v1.SpanWriterPlugin",
+		grpc_health_v1.HealthCheckResponse_SERVING,
+	)
+	hs.SetServingStatus(
+		"jaeger.storage.v1.ArchiveSpanReaderPlugin",
+		grpc_health_v1.HealthCheckResponse_SERVING,
+	)
+	hs.SetServingStatus(
+		"jaeger.storage.v1.ArchiveSpanWriterPlugin",
+		grpc_health_v1.HealthCheckResponse_SERVING,
+	)
+	hs.SetServingStatus(
+		"jaeger.storage.v1.PluginCapabilities",
+		grpc_health_v1.HealthCheckResponse_SERVING,
+	)
+	hs.SetServingStatus(
+		"jaeger.storage.v1.DependenciesReaderPlugin",
+		grpc_health_v1.HealthCheckResponse_SERVING,
+	)
+	hs.SetServingStatus(
+		"jaeger.storage.v1.StreamingSpanWriterPlugin",
+		grpc_health_v1.HealthCheckResponse_SERVING,
+	)
 	grpc_health_v1.RegisterHealthServer(ss, hs)
 
 	return nil
 }
 
 // GetDependencies returns all interservice dependencies
-func (s *GRPCHandler) GetDependencies(ctx context.Context, r *storage_v1.GetDependenciesRequest) (*storage_v1.GetDependenciesResponse, error) {
-	deps, err := s.impl.DependencyReader().GetDependencies(ctx, r.EndTime, r.EndTime.Sub(r.StartTime))
+func (s *GRPCHandler) GetDependencies(
+	ctx context.Context,
+	r *storage_v1.GetDependenciesRequest,
+) (*storage_v1.GetDependenciesResponse, error) {
+	deps, err := s.impl.DependencyReader().
+		GetDependencies(ctx, r.EndTime, r.EndTime.Sub(r.StartTime))
 	if err != nil {
 		return nil, err
 	}
@@ -119,7 +144,9 @@ func (s *GRPCHandler) GetDependencies(ctx context.Context, r *storage_v1.GetDepe
 }
 
 // WriteSpanStream receive the span from stream and save it
-func (s *GRPCHandler) WriteSpanStream(stream storage_v1.StreamingSpanWriterPlugin_WriteSpanStreamServer) error {
+func (s *GRPCHandler) WriteSpanStream(
+	stream storage_v1.StreamingSpanWriterPlugin_WriteSpanStreamServer,
+) error {
 	writer := s.impl.StreamingSpanWriter()
 	if writer == nil {
 		return status.Error(codes.Unimplemented, "not implemented")
@@ -141,7 +168,10 @@ func (s *GRPCHandler) WriteSpanStream(stream storage_v1.StreamingSpanWriterPlugi
 }
 
 // WriteSpan saves the span
-func (s *GRPCHandler) WriteSpan(ctx context.Context, r *storage_v1.WriteSpanRequest) (*storage_v1.WriteSpanResponse, error) {
+func (s *GRPCHandler) WriteSpan(
+	ctx context.Context,
+	r *storage_v1.WriteSpanRequest,
+) (*storage_v1.WriteSpanResponse, error) {
 	err := s.impl.SpanWriter().WriteSpan(ctx, r.Span)
 	if err != nil {
 		return nil, err
@@ -149,7 +179,10 @@ func (s *GRPCHandler) WriteSpan(ctx context.Context, r *storage_v1.WriteSpanRequ
 	return &storage_v1.WriteSpanResponse{}, nil
 }
 
-func (s *GRPCHandler) Close(ctx context.Context, r *storage_v1.CloseWriterRequest) (*storage_v1.CloseWriterResponse, error) {
+func (s *GRPCHandler) Close(
+	ctx context.Context,
+	r *storage_v1.CloseWriterRequest,
+) (*storage_v1.CloseWriterResponse, error) {
 	if closer, ok := s.impl.SpanWriter().(io.Closer); ok {
 		if err := closer.Close(); err != nil {
 			return nil, err
@@ -157,11 +190,17 @@ func (s *GRPCHandler) Close(ctx context.Context, r *storage_v1.CloseWriterReques
 
 		return &storage_v1.CloseWriterResponse{}, nil
 	}
-	return nil, status.Error(codes.Unimplemented, "span writer does not support graceful shutdown")
+	return nil, status.Error(
+		codes.Unimplemented,
+		"span writer does not support graceful shutdown",
+	)
 }
 
 // GetTrace takes a traceID and streams a Trace associated with that traceID
-func (s *GRPCHandler) GetTrace(r *storage_v1.GetTraceRequest, stream storage_v1.SpanReaderPlugin_GetTraceServer) error {
+func (s *GRPCHandler) GetTrace(
+	r *storage_v1.GetTraceRequest,
+	stream storage_v1.SpanReaderPlugin_GetTraceServer,
+) error {
 	trace, err := s.impl.SpanReader().GetTrace(stream.Context(), r.TraceID)
 	if errors.Is(err, spanstore.ErrTraceNotFound) {
 		return status.Errorf(codes.NotFound, spanstore.ErrTraceNotFound.Error())
@@ -179,7 +218,10 @@ func (s *GRPCHandler) GetTrace(r *storage_v1.GetTraceRequest, stream storage_v1.
 }
 
 // GetServices returns a list of all known services
-func (s *GRPCHandler) GetServices(ctx context.Context, r *storage_v1.GetServicesRequest) (*storage_v1.GetServicesResponse, error) {
+func (s *GRPCHandler) GetServices(
+	ctx context.Context,
+	r *storage_v1.GetServicesRequest,
+) (*storage_v1.GetServicesResponse, error) {
 	services, err := s.impl.SpanReader().GetServices(ctx)
 	if err != nil {
 		return nil, err
@@ -194,10 +236,11 @@ func (s *GRPCHandler) GetOperations(
 	ctx context.Context,
 	r *storage_v1.GetOperationsRequest,
 ) (*storage_v1.GetOperationsResponse, error) {
-	operations, err := s.impl.SpanReader().GetOperations(ctx, spanstore.OperationQueryParameters{
-		ServiceName: r.Service,
-		SpanKind:    r.SpanKind,
-	})
+	operations, err := s.impl.SpanReader().
+		GetOperations(ctx, spanstore.OperationQueryParameters{
+			ServiceName: r.Service,
+			SpanKind:    r.SpanKind,
+		})
 	if err != nil {
 		return nil, err
 	}
@@ -214,17 +257,21 @@ func (s *GRPCHandler) GetOperations(
 }
 
 // FindTraces streams traces that match the traceQuery
-func (s *GRPCHandler) FindTraces(r *storage_v1.FindTracesRequest, stream storage_v1.SpanReaderPlugin_FindTracesServer) error {
-	traces, err := s.impl.SpanReader().FindTraces(stream.Context(), &spanstore.TraceQueryParameters{
-		ServiceName:   r.Query.ServiceName,
-		OperationName: r.Query.OperationName,
-		Tags:          r.Query.Tags,
-		StartTimeMin:  r.Query.StartTimeMin,
-		StartTimeMax:  r.Query.StartTimeMax,
-		DurationMin:   r.Query.DurationMin,
-		DurationMax:   r.Query.DurationMax,
-		NumTraces:     int(r.Query.NumTraces),
-	})
+func (s *GRPCHandler) FindTraces(
+	r *storage_v1.FindTracesRequest,
+	stream storage_v1.SpanReaderPlugin_FindTracesServer,
+) error {
+	traces, err := s.impl.SpanReader().
+		FindTraces(stream.Context(), &spanstore.TraceQueryParameters{
+			ServiceName:   r.Query.ServiceName,
+			OperationName: r.Query.OperationName,
+			Tags:          r.Query.Tags,
+			StartTimeMin:  r.Query.StartTimeMin,
+			StartTimeMax:  r.Query.StartTimeMax,
+			DurationMin:   r.Query.DurationMin,
+			DurationMax:   r.Query.DurationMax,
+			NumTraces:     int(r.Query.NumTraces),
+		})
 	if err != nil {
 		return err
 	}
@@ -240,17 +287,21 @@ func (s *GRPCHandler) FindTraces(r *storage_v1.FindTracesRequest, stream storage
 }
 
 // FindTraceIDs retrieves traceIDs that match the traceQuery
-func (s *GRPCHandler) FindTraceIDs(ctx context.Context, r *storage_v1.FindTraceIDsRequest) (*storage_v1.FindTraceIDsResponse, error) {
-	traceIDs, err := s.impl.SpanReader().FindTraceIDs(ctx, &spanstore.TraceQueryParameters{
-		ServiceName:   r.Query.ServiceName,
-		OperationName: r.Query.OperationName,
-		Tags:          r.Query.Tags,
-		StartTimeMin:  r.Query.StartTimeMin,
-		StartTimeMax:  r.Query.StartTimeMax,
-		DurationMin:   r.Query.DurationMin,
-		DurationMax:   r.Query.DurationMax,
-		NumTraces:     int(r.Query.NumTraces),
-	})
+func (s *GRPCHandler) FindTraceIDs(
+	ctx context.Context,
+	r *storage_v1.FindTraceIDsRequest,
+) (*storage_v1.FindTraceIDsResponse, error) {
+	traceIDs, err := s.impl.SpanReader().
+		FindTraceIDs(ctx, &spanstore.TraceQueryParameters{
+			ServiceName:   r.Query.ServiceName,
+			OperationName: r.Query.OperationName,
+			Tags:          r.Query.Tags,
+			StartTimeMin:  r.Query.StartTimeMin,
+			StartTimeMax:  r.Query.StartTimeMax,
+			DurationMin:   r.Query.DurationMin,
+			DurationMax:   r.Query.DurationMax,
+			NumTraces:     int(r.Query.NumTraces),
+		})
 	if err != nil {
 		return nil, err
 	}
@@ -259,7 +310,10 @@ func (s *GRPCHandler) FindTraceIDs(ctx context.Context, r *storage_v1.FindTraceI
 	}, nil
 }
 
-func (*GRPCHandler) sendSpans(spans []*model.Span, sendFn func(*storage_v1.SpansResponseChunk) error) error {
+func (*GRPCHandler) sendSpans(
+	spans []*model.Span,
+	sendFn func(*storage_v1.SpansResponseChunk) error,
+) error {
 	chunk := make([]model.Span, 0, len(spans))
 	for i := 0; i < len(spans); i += spanBatchSize {
 		chunk = chunk[:0]
@@ -274,7 +328,10 @@ func (*GRPCHandler) sendSpans(spans []*model.Span, sendFn func(*storage_v1.Spans
 	return nil
 }
 
-func (s *GRPCHandler) Capabilities(ctx context.Context, request *storage_v1.CapabilitiesRequest) (*storage_v1.CapabilitiesResponse, error) {
+func (s *GRPCHandler) Capabilities(
+	ctx context.Context,
+	request *storage_v1.CapabilitiesRequest,
+) (*storage_v1.CapabilitiesResponse, error) {
 	return &storage_v1.CapabilitiesResponse{
 		ArchiveSpanReader:   s.impl.ArchiveSpanReader() != nil,
 		ArchiveSpanWriter:   s.impl.ArchiveSpanWriter() != nil,
@@ -282,7 +339,10 @@ func (s *GRPCHandler) Capabilities(ctx context.Context, request *storage_v1.Capa
 	}, nil
 }
 
-func (s *GRPCHandler) GetArchiveTrace(r *storage_v1.GetTraceRequest, stream storage_v1.ArchiveSpanReaderPlugin_GetArchiveTraceServer) error {
+func (s *GRPCHandler) GetArchiveTrace(
+	r *storage_v1.GetTraceRequest,
+	stream storage_v1.ArchiveSpanReaderPlugin_GetArchiveTraceServer,
+) error {
 	reader := s.impl.ArchiveSpanReader()
 	if reader == nil {
 		return status.Error(codes.Unimplemented, "not implemented")
@@ -303,7 +363,10 @@ func (s *GRPCHandler) GetArchiveTrace(r *storage_v1.GetTraceRequest, stream stor
 	return nil
 }
 
-func (s *GRPCHandler) WriteArchiveSpan(ctx context.Context, r *storage_v1.WriteSpanRequest) (*storage_v1.WriteSpanResponse, error) {
+func (s *GRPCHandler) WriteArchiveSpan(
+	ctx context.Context,
+	r *storage_v1.WriteSpanRequest,
+) (*storage_v1.WriteSpanResponse, error) {
 	writer := s.impl.ArchiveSpanWriter()
 	if writer == nil {
 		return nil, status.Error(codes.Unimplemented, "not implemented")

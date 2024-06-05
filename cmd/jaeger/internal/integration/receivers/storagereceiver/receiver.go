@@ -32,7 +32,11 @@ type consumedTrace struct {
 	spanIDs map[model.SpanID]struct{}
 }
 
-func newTracesReceiver(config *Config, set receiver.CreateSettings, nextConsumer consumer.Traces) (*storageReceiver, error) {
+func newTracesReceiver(
+	config *Config,
+	set receiver.CreateSettings,
+	nextConsumer consumer.Traces,
+) (*storageReceiver, error) {
 	return &storageReceiver{
 		config:         config,
 		settings:       set,
@@ -41,7 +45,10 @@ func newTracesReceiver(config *Config, set receiver.CreateSettings, nextConsumer
 	}, nil
 }
 
-func (r *storageReceiver) Start(ctx context.Context, host component.Host) error {
+func (r *storageReceiver) Start(
+	ctx context.Context,
+	host component.Host,
+) error {
 	f, err := jaegerstorage.GetStorageFactory(r.config.TraceStorage, host)
 	if err != nil {
 		return fmt.Errorf("cannot find storage factory: %w", err)
@@ -67,13 +74,19 @@ func (r *storageReceiver) consumeLoop(ctx context.Context) error {
 	for {
 		services, err := r.spanReader.GetServices(ctx)
 		if err != nil {
-			r.settings.Logger.Error("Failed to get services from consumer", zap.Error(err))
+			r.settings.Logger.Error(
+				"Failed to get services from consumer",
+				zap.Error(err),
+			)
 			return err
 		}
 
 		for _, svc := range services {
 			if err := r.consumeTraces(ctx, svc); err != nil {
-				r.settings.Logger.Error("Failed to consume traces from consumer", zap.Error(err))
+				r.settings.Logger.Error(
+					"Failed to consume traces from consumer",
+					zap.Error(err),
+				)
 			}
 		}
 
@@ -87,7 +100,10 @@ func (r *storageReceiver) consumeLoop(ctx context.Context) error {
 	}
 }
 
-func (r *storageReceiver) consumeTraces(ctx context.Context, serviceName string) error {
+func (r *storageReceiver) consumeTraces(
+	ctx context.Context,
+	serviceName string,
+) error {
 	endTime := time.Now()
 	traces, err := r.spanReader.FindTraces(ctx, &spanstore.TraceQueryParameters{
 		ServiceName:  serviceName,
@@ -111,7 +127,11 @@ func (r *storageReceiver) consumeTraces(ctx context.Context, serviceName string)
 	return nil
 }
 
-func (r *storageReceiver) consumeSpans(ctx context.Context, tc *consumedTrace, spans []*model.Span) error {
+func (r *storageReceiver) consumeSpans(
+	ctx context.Context,
+	tc *consumedTrace,
+	spans []*model.Span,
+) error {
 	// Spans are consumed one at a time because we don't know whether all spans
 	// in a trace have been completely exported
 	for _, span := range spans {

@@ -46,13 +46,20 @@ type Options struct {
 
 // AddFlags adds flags to flag set.
 func AddFlags(flagSet *flag.FlagSet) {
-	flagSet.String(flagGRPCHostPort, ports.PortToHostPort(ports.RemoteStorageGRPC), "The host:port (e.g. 127.0.0.1:17271 or :17271) of the gRPC server")
+	flagSet.String(
+		flagGRPCHostPort,
+		ports.PortToHostPort(ports.RemoteStorageGRPC),
+		"The host:port (e.g. 127.0.0.1:17271 or :17271) of the gRPC server",
+	)
 	tlsGRPCFlagsConfig.AddFlags(flagSet)
 	tenancy.AddFlags(flagSet)
 }
 
 // InitFromViper initializes Options with properties from CLI flags.
-func (o *Options) InitFromViper(v *viper.Viper, logger *zap.Logger) (*Options, error) {
+func (o *Options) InitFromViper(
+	v *viper.Viper,
+	logger *zap.Logger,
+) (*Options, error) {
 	o.GRPCHostPort = v.GetString(flagGRPCHostPort)
 	tlsGrpc, err := tlsGRPCFlagsConfig.InitFromViper(v)
 	if err != nil {

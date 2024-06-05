@@ -98,16 +98,28 @@ func TestHTTPGatewayTryHandleError(t *testing.T) {
 	assert.False(t, gw.tryHandleError(nil, nil, 0), "returns false if no error")
 
 	w := httptest.NewRecorder()
-	assert.True(t, gw.tryHandleError(w, spanstore.ErrTraceNotFound, 0), "returns true if error")
+	assert.True(
+		t,
+		gw.tryHandleError(w, spanstore.ErrTraceNotFound, 0),
+		"returns true if error",
+	)
 	assert.Equal(t, http.StatusNotFound, w.Code, "sets status code to 404")
 
 	logger, log := testutils.NewLogger()
 	gw.Logger = logger
 	w = httptest.NewRecorder()
 	const e = "some err"
-	assert.True(t, gw.tryHandleError(w, fmt.Errorf(e), http.StatusInternalServerError))
+	assert.True(
+		t,
+		gw.tryHandleError(w, fmt.Errorf(e), http.StatusInternalServerError),
+	)
 	assert.Contains(t, log.String(), e, "logs error if status code is 500")
-	assert.Contains(t, string(w.Body.String()), e, "writes error message to body")
+	assert.Contains(
+		t,
+		string(w.Body.String()),
+		e,
+		"writes error message to body",
+	)
 }
 
 func TestHTTPGatewayOTLPError(t *testing.T) {
@@ -176,7 +188,11 @@ func mockFindQueries() (url.Values, *spanstore.TraceQueryParameters) {
 func TestHTTPGatewayFindTracesErrors(t *testing.T) {
 	goodTimeV := time.Now()
 	goodTime := goodTimeV.Format(time.RFC3339Nano)
-	timeRangeErr := fmt.Sprintf("%s and %s are required", paramTimeMin, paramTimeMax)
+	timeRangeErr := fmt.Sprintf(
+		"%s and %s are required",
+		paramTimeMin,
+		paramTimeMax,
+	)
 	testCases := []struct {
 		name   string
 		params map[string]string
@@ -197,28 +213,46 @@ func TestHTTPGatewayFindTracesErrors(t *testing.T) {
 			expErr: timeRangeErr,
 		},
 		{
-			name:   "bax min time",
-			params: map[string]string{paramTimeMin: "NaN", paramTimeMax: goodTime},
+			name: "bax min time",
+			params: map[string]string{
+				paramTimeMin: "NaN",
+				paramTimeMax: goodTime,
+			},
 			expErr: paramTimeMin,
 		},
 		{
-			name:   "bax max time",
-			params: map[string]string{paramTimeMin: goodTime, paramTimeMax: "NaN"},
+			name: "bax max time",
+			params: map[string]string{
+				paramTimeMin: goodTime,
+				paramTimeMax: "NaN",
+			},
 			expErr: paramTimeMax,
 		},
 		{
-			name:   "bad num_traces",
-			params: map[string]string{paramTimeMin: goodTime, paramTimeMax: goodTime, paramNumTraces: "NaN"},
+			name: "bad num_traces",
+			params: map[string]string{
+				paramTimeMin:   goodTime,
+				paramTimeMax:   goodTime,
+				paramNumTraces: "NaN",
+			},
 			expErr: paramNumTraces,
 		},
 		{
-			name:   "bad min duration",
-			params: map[string]string{paramTimeMin: goodTime, paramTimeMax: goodTime, paramDurationMin: "NaN"},
+			name: "bad min duration",
+			params: map[string]string{
+				paramTimeMin:     goodTime,
+				paramTimeMax:     goodTime,
+				paramDurationMin: "NaN",
+			},
 			expErr: paramDurationMin,
 		},
 		{
-			name:   "bad max duration",
-			params: map[string]string{paramTimeMin: goodTime, paramTimeMax: goodTime, paramDurationMax: "NaN"},
+			name: "bad max duration",
+			params: map[string]string{
+				paramTimeMin:     goodTime,
+				paramTimeMax:     goodTime,
+				paramDurationMax: "NaN",
+			},
 			expErr: paramDurationMax,
 		},
 	}
@@ -228,7 +262,11 @@ func TestHTTPGatewayFindTracesErrors(t *testing.T) {
 			for k, v := range tc.params {
 				q.Set(k, v)
 			}
-			r, err := http.NewRequest(http.MethodGet, "/api/v3/traces?"+q.Encode(), nil)
+			r, err := http.NewRequest(
+				http.MethodGet,
+				"/api/v3/traces?"+q.Encode(),
+				nil,
+			)
 			require.NoError(t, err)
 			w := httptest.NewRecorder()
 
@@ -240,7 +278,11 @@ func TestHTTPGatewayFindTracesErrors(t *testing.T) {
 	t.Run("span reader error", func(t *testing.T) {
 		q, qp := mockFindQueries()
 		const simErr = "simulated error"
-		r, err := http.NewRequest(http.MethodGet, "/api/v3/traces?"+q.Encode(), nil)
+		r, err := http.NewRequest(
+			http.MethodGet,
+			"/api/v3/traces?"+q.Encode(),
+			nil,
+		)
 		require.NoError(t, err)
 		w := httptest.NewRecorder()
 
@@ -272,13 +314,20 @@ func TestHTTPGatewayGetServicesErrors(t *testing.T) {
 func TestHTTPGatewayGetOperationsErrors(t *testing.T) {
 	gw := setupHTTPGatewayNoServer(t, "", tenancy.Options{})
 
-	qp := spanstore.OperationQueryParameters{ServiceName: "foo", SpanKind: "server"}
+	qp := spanstore.OperationQueryParameters{
+		ServiceName: "foo",
+		SpanKind:    "server",
+	}
 	const simErr = "simulated error"
 	gw.reader.
 		On("GetOperations", matchContext, qp).
 		Return(nil, fmt.Errorf(simErr)).Once()
 
-	r, err := http.NewRequest(http.MethodGet, "/api/v3/operations?service=foo&span_kind=server", nil)
+	r, err := http.NewRequest(
+		http.MethodGet,
+		"/api/v3/operations?service=foo&span_kind=server",
+		nil,
+	)
 	require.NoError(t, err)
 	w := httptest.NewRecorder()
 	gw.router.ServeHTTP(w, r)
@@ -302,7 +351,11 @@ func TestHTTPGatewayTenancyRejection(t *testing.T) {
 			},
 		}, nil).Once()
 
-	req, err := http.NewRequest(http.MethodGet, gw.url+"/api/v3/traces/123", nil)
+	req, err := http.NewRequest(
+		http.MethodGet,
+		gw.url+"/api/v3/traces/123",
+		nil,
+	)
 	require.NoError(t, err)
 	req.Header.Set("Content-Type", "application/json")
 	// We don't set tenant header
@@ -311,7 +364,13 @@ func TestHTTPGatewayTenancyRejection(t *testing.T) {
 	body, err := io.ReadAll(response.Body)
 	require.NoError(t, err)
 	require.NoError(t, response.Body.Close())
-	require.Equal(t, http.StatusUnauthorized, response.StatusCode, "response=%s", string(body))
+	require.Equal(
+		t,
+		http.StatusUnauthorized,
+		response.StatusCode,
+		"response=%s",
+		string(body),
+	)
 
 	// Try again with tenant header set
 	tm := tenancy.NewManager(&tenancyOptions)

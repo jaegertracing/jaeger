@@ -56,7 +56,10 @@ func (o *Options) Config(logger *zap.Logger) (*tls.Config, error) {
 
 	cipherSuiteIds, err := CipherSuiteNamesToIDs(o.CipherSuites)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get cipher suite ids from cipher suite names: %w", err)
+		return nil, fmt.Errorf(
+			"failed to get cipher suite ids from cipher suite names: %w",
+			err,
+		)
 	}
 
 	if o.MinVersion != "" {
@@ -75,7 +78,9 @@ func (o *Options) Config(logger *zap.Logger) (*tls.Config, error) {
 
 	if o.MinVersion != "" && o.MaxVersion != "" {
 		if minVersionId > maxVersionId {
-			return nil, fmt.Errorf("minimum tls version can't be greater than maximum tls version")
+			return nil, fmt.Errorf(
+				"minimum tls version can't be greater than maximum tls version",
+			)
 		}
 	}
 
@@ -98,14 +103,22 @@ func (o *Options) Config(logger *zap.Logger) (*tls.Config, error) {
 		tlsCfg.ClientAuth = tls.RequireAndVerifyClientCert
 	}
 
-	certWatcher, err := newCertWatcher(*o, logger, tlsCfg.RootCAs, tlsCfg.ClientCAs)
+	certWatcher, err := newCertWatcher(
+		*o,
+		logger,
+		tlsCfg.RootCAs,
+		tlsCfg.ClientCAs,
+	)
 	if err != nil {
 		return nil, err
 	}
 	o.certWatcher = certWatcher
 
-	if (o.CertPath == "" && o.KeyPath != "") || (o.CertPath != "" && o.KeyPath == "") {
-		return nil, fmt.Errorf("for client auth via TLS, either both client certificate and key must be supplied, or neither")
+	if (o.CertPath == "" && o.KeyPath != "") ||
+		(o.CertPath != "" && o.KeyPath == "") {
+		return nil, fmt.Errorf(
+			"for client auth via TLS, either both client certificate and key must be supplied, or neither",
+		)
 	}
 	if o.CertPath != "" && o.KeyPath != "" {
 		tlsCfg.GetCertificate = func(*tls.ClientHelloInfo) (*tls.Certificate, error) {

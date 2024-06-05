@@ -25,7 +25,10 @@ type normalizedEndpoints struct {
 	mux        sync.RWMutex
 }
 
-func newNormalizedEndpoints(maxSize int, normalizer NameNormalizer) *normalizedEndpoints {
+func newNormalizedEndpoints(
+	maxSize int,
+	normalizer NameNormalizer,
+) *normalizedEndpoints {
 	return &normalizedEndpoints{
 		maxSize:    maxSize,
 		normalizer: normalizer,

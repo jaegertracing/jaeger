@@ -67,7 +67,16 @@ func TestFS(t *testing.T) {
 			expectedName:    "foobar",
 			expectedSize:    11,
 			expectedContent: "hello world",
-			expectedModTime: time.Date(1, 1, 1, 0, 0, 0, 0 /* nanos */, time.UTC),
+			expectedModTime: time.Date(
+				1,
+				1,
+				1,
+				0,
+				0,
+				0,
+				0, /* nanos */
+				time.UTC,
+			),
 		},
 		{
 			name:            "compressed file",
@@ -76,7 +85,16 @@ func TestFS(t *testing.T) {
 			expectedName:    "foobar.gz",
 			expectedSize:    38,
 			expectedContent: "", // actual gzipped payload is returned
-			expectedModTime: time.Date(1, 1, 1, 0, 0, 0, 0 /* nanos */, time.UTC),
+			expectedModTime: time.Date(
+				1,
+				1,
+				1,
+				0,
+				0,
+				0,
+				0, /* nanos */
+				time.UTC,
+			),
 		},
 		{
 			name:            "compressed file accessed without gz extension",
@@ -85,7 +103,16 @@ func TestFS(t *testing.T) {
 			expectedName:    "foobaz",
 			expectedSize:    11,
 			expectedContent: "hello world",
-			expectedModTime: time.Date(1, 1, 1, 0, 0, 0, 0 /* nanos */, time.UTC),
+			expectedModTime: time.Date(
+				1,
+				1,
+				1,
+				0,
+				0,
+				0,
+				0, /* nanos */
+				time.UTC,
+			),
 		},
 		{
 			name:        "non-existing file",

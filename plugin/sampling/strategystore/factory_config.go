@@ -36,7 +36,11 @@ func FactoryConfigFromEnv() (*FactoryConfig, error) {
 	strategyStoreType := getStrategyStoreTypeFromEnv()
 	if strategyStoreType != samplingTypeAdaptive &&
 		strategyStoreType != samplingTypeFile {
-		return nil, fmt.Errorf("invalid sampling type: %s. Valid types are %v", strategyStoreType, AllSamplingTypes)
+		return nil, fmt.Errorf(
+			"invalid sampling type: %s. Valid types are %v",
+			strategyStoreType,
+			AllSamplingTypes,
+		)
 	}
 
 	return &FactoryConfig{

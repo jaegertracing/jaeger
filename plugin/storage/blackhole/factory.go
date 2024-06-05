@@ -42,7 +42,10 @@ func NewFactory() *Factory {
 }
 
 // Initialize implements storage.Factory
-func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
+func (f *Factory) Initialize(
+	metricsFactory metrics.Factory,
+	logger *zap.Logger,
+) error {
 	f.metricsFactory, f.logger = metricsFactory, logger
 	f.store = NewStore()
 	logger.Info("Blackhole storage initialized")

@@ -74,7 +74,9 @@ type ContextUpgradeFunc func(ctx context.Context) context.Context
 
 // composeContextUpgradeFuncs composes ContextUpgradeFunc and returns a composed function
 // to run the given func in strict order.
-func composeContextUpgradeFuncs(funcs ...ContextUpgradeFunc) ContextUpgradeFunc {
+func composeContextUpgradeFuncs(
+	funcs ...ContextUpgradeFunc,
+) ContextUpgradeFunc {
 	return func(ctx context.Context) context.Context {
 		for _, fun := range funcs {
 			ctx = fun(ctx)
@@ -127,10 +129,16 @@ func (c *GRPCClient) ArchiveSpanWriter() spanstore.Writer {
 }
 
 // GetTrace takes a traceID and returns a Trace associated with that traceID
-func (c *GRPCClient) GetTrace(ctx context.Context, traceID model.TraceID) (*model.Trace, error) {
-	stream, err := c.readerClient.GetTrace(upgradeContext(ctx), &storage_v1.GetTraceRequest{
-		TraceID: traceID,
-	})
+func (c *GRPCClient) GetTrace(
+	ctx context.Context,
+	traceID model.TraceID,
+) (*model.Trace, error) {
+	stream, err := c.readerClient.GetTrace(
+		upgradeContext(ctx),
+		&storage_v1.GetTraceRequest{
+			TraceID: traceID,
+		},
+	)
 	if status.Code(err) == codes.NotFound {
 		return nil, spanstore.ErrTraceNotFound
 	}
@@ -143,7 +151,10 @@ func (c *GRPCClient) GetTrace(ctx context.Context, traceID model.TraceID) (*mode
 
 // GetServices returns a list of all known services
 func (c *GRPCClient) GetServices(ctx context.Context) ([]string, error) {
-	resp, err := c.readerClient.GetServices(upgradeContext(ctx), &storage_v1.GetServicesRequest{})
+	resp, err := c.readerClient.GetServices(
+		upgradeContext(ctx),
+		&storage_v1.GetServicesRequest{},
+	)
 	if err != nil {
 		return nil, fmt.Errorf("plugin error: %w", err)
 	}
@@ -156,10 +167,13 @@ func (c *GRPCClient) GetOperations(
 	ctx context.Context,
 	query spanstore.OperationQueryParameters,
 ) ([]spanstore.Operation, error) {
-	resp, err := c.readerClient.GetOperations(upgradeContext(ctx), &storage_v1.GetOperationsRequest{
-		Service:  query.ServiceName,
-		SpanKind: query.SpanKind,
-	})
+	resp, err := c.readerClient.GetOperations(
+		upgradeContext(ctx),
+		&storage_v1.GetOperationsRequest{
+			Service:  query.ServiceName,
+			SpanKind: query.SpanKind,
+		},
+	)
 	if err != nil {
 		return nil, fmt.Errorf("plugin error: %w", err)
 	}
@@ -183,19 +197,25 @@ func (c *GRPCClient) GetOperations(
 }
 
 // FindTraces retrieves traces that match the traceQuery
-func (c *GRPCClient) FindTraces(ctx context.Context, query *spanstore.TraceQueryParameters) ([]*model.Trace, error) {
-	stream, err := c.readerClient.FindTraces(upgradeContext(ctx), &storage_v1.FindTracesRequest{
-		Query: &storage_v1.TraceQueryParameters{
-			ServiceName:   query.ServiceName,
-			OperationName: query.OperationName,
-			Tags:          query.Tags,
-			StartTimeMin:  query.StartTimeMin,
-			StartTimeMax:  query.StartTimeMax,
-			DurationMin:   query.DurationMin,
-			DurationMax:   query.DurationMax,
-			NumTraces:     int32(query.NumTraces),
+func (c *GRPCClient) FindTraces(
+	ctx context.Context,
+	query *spanstore.TraceQueryParameters,
+) ([]*model.Trace, error) {
+	stream, err := c.readerClient.FindTraces(
+		upgradeContext(ctx),
+		&storage_v1.FindTracesRequest{
+			Query: &storage_v1.TraceQueryParameters{
+				ServiceName:   query.ServiceName,
+				OperationName: query.OperationName,
+				Tags:          query.Tags,
+				StartTimeMin:  query.StartTimeMin,
+				StartTimeMax:  query.StartTimeMax,
+				DurationMin:   query.DurationMin,
+				DurationMax:   query.DurationMax,
+				NumTraces:     int32(query.NumTraces),
+			},
 		},
-	})
+	)
 	if err != nil {
 		return nil, fmt.Errorf("plugin error: %w", err)
 	}
@@ -221,19 +241,25 @@ func (c *GRPCClient) FindTraces(ctx context.Context, query *spanstore.TraceQuery
 }
 
 // FindTraceIDs retrieves traceIDs that match the traceQuery
-func (c *GRPCClient) FindTraceIDs(ctx context.Context, query *spanstore.TraceQueryParameters) ([]model.TraceID, error) {
-	resp, err := c.readerClient.FindTraceIDs(upgradeContext(ctx), &storage_v1.FindTraceIDsRequest{
-		Query: &storage_v1.TraceQueryParameters{
-			ServiceName:   query.ServiceName,
-			OperationName: query.OperationName,
-			Tags:          query.Tags,
-			StartTimeMin:  query.StartTimeMin,
-			StartTimeMax:  query.StartTimeMax,
-			DurationMin:   query.DurationMin,
-			DurationMax:   query.DurationMax,
-			NumTraces:     int32(query.NumTraces),
+func (c *GRPCClient) FindTraceIDs(
+	ctx context.Context,
+	query *spanstore.TraceQueryParameters,
+) ([]model.TraceID, error) {
+	resp, err := c.readerClient.FindTraceIDs(
+		upgradeContext(ctx),
+		&storage_v1.FindTraceIDsRequest{
+			Query: &storage_v1.TraceQueryParameters{
+				ServiceName:   query.ServiceName,
+				OperationName: query.OperationName,
+				Tags:          query.Tags,
+				StartTimeMin:  query.StartTimeMin,
+				StartTimeMax:  query.StartTimeMax,
+				DurationMin:   query.DurationMin,
+				DurationMax:   query.DurationMax,
+				NumTraces:     int32(query.NumTraces),
+			},
 		},
-	})
+	)
 	if err != nil {
 		return nil, fmt.Errorf("plugin error: %w", err)
 	}
@@ -254,7 +280,10 @@ func (c *GRPCClient) WriteSpan(ctx context.Context, span *model.Span) error {
 }
 
 func (c *GRPCClient) Close() error {
-	_, err := c.writerClient.Close(context.Background(), &storage_v1.CloseWriterRequest{})
+	_, err := c.writerClient.Close(
+		context.Background(),
+		&storage_v1.CloseWriterRequest{},
+	)
 	if err != nil && status.Code(err) != codes.Unimplemented {
 		return fmt.Errorf("plugin error: %w", err)
 	}
@@ -263,11 +292,18 @@ func (c *GRPCClient) Close() error {
 }
 
 // GetDependencies returns all interservice dependencies
-func (c *GRPCClient) GetDependencies(ctx context.Context, endTs time.Time, lookback time.Duration) ([]model.DependencyLink, error) {
-	resp, err := c.depsReaderClient.GetDependencies(ctx, &storage_v1.GetDependenciesRequest{
-		EndTime:   endTs,
-		StartTime: endTs.Add(-lookback),
-	})
+func (c *GRPCClient) GetDependencies(
+	ctx context.Context,
+	endTs time.Time,
+	lookback time.Duration,
+) ([]model.DependencyLink, error) {
+	resp, err := c.depsReaderClient.GetDependencies(
+		ctx,
+		&storage_v1.GetDependenciesRequest{
+			EndTime:   endTs,
+			StartTime: endTs.Add(-lookback),
+		},
+	)
 	if err != nil {
 		return nil, fmt.Errorf("plugin error: %w", err)
 	}
@@ -276,7 +312,10 @@ func (c *GRPCClient) GetDependencies(ctx context.Context, endTs time.Time, lookb
 }
 
 func (c *GRPCClient) Capabilities() (*Capabilities, error) {
-	capabilities, err := c.capabilitiesClient.Capabilities(context.Background(), &storage_v1.CapabilitiesRequest{})
+	capabilities, err := c.capabilitiesClient.Capabilities(
+		context.Background(),
+		&storage_v1.CapabilitiesRequest{},
+	)
 	if status.Code(err) == codes.Unimplemented {
 		return &Capabilities{}, nil
 	}
@@ -291,7 +330,9 @@ func (c *GRPCClient) Capabilities() (*Capabilities, error) {
 	}, nil
 }
 
-func readTrace(stream storage_v1.SpanReaderPlugin_GetTraceClient) (*model.Trace, error) {
+func readTrace(
+	stream storage_v1.SpanReaderPlugin_GetTraceClient,
+) (*model.Trace, error) {
 	trace := model.Trace{}
 	for received, err := stream.Recv(); !errors.Is(err, io.EOF); received, err = stream.Recv() {
 		if err != nil {

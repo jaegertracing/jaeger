@@ -67,9 +67,20 @@ func TestCreateTLSServerSinglePortError(t *testing.T) {
 		ClientCAPath: testCertKeyLocation + "/example-CA-cert.pem",
 	}
 
-	_, err := NewServer(zaptest.NewLogger(t), healthcheck.New(), &querysvc.QueryService{}, nil,
-		&QueryOptions{HTTPHostPort: ":8080", GRPCHostPort: ":8080", TLSGRPC: tlsCfg, TLSHTTP: tlsCfg},
-		tenancy.NewManager(&tenancy.Options{}), jtracer.NoOp())
+	_, err := NewServer(
+		zaptest.NewLogger(t),
+		healthcheck.New(),
+		&querysvc.QueryService{},
+		nil,
+		&QueryOptions{
+			HTTPHostPort: ":8080",
+			GRPCHostPort: ":8080",
+			TLSGRPC:      tlsCfg,
+			TLSHTTP:      tlsCfg,
+		},
+		tenancy.NewManager(&tenancy.Options{}),
+		jtracer.NoOp(),
+	)
 	require.Error(t, err)
 }
 
@@ -81,9 +92,19 @@ func TestCreateTLSGrpcServerError(t *testing.T) {
 		ClientCAPath: "invalid/path",
 	}
 
-	_, err := NewServer(zaptest.NewLogger(t), healthcheck.New(), &querysvc.QueryService{}, nil,
-		&QueryOptions{HTTPHostPort: ":8080", GRPCHostPort: ":8081", TLSGRPC: tlsCfg},
-		tenancy.NewManager(&tenancy.Options{}), jtracer.NoOp())
+	_, err := NewServer(
+		zaptest.NewLogger(t),
+		healthcheck.New(),
+		&querysvc.QueryService{},
+		nil,
+		&QueryOptions{
+			HTTPHostPort: ":8080",
+			GRPCHostPort: ":8081",
+			TLSGRPC:      tlsCfg,
+		},
+		tenancy.NewManager(&tenancy.Options{}),
+		jtracer.NoOp(),
+	)
 	require.Error(t, err)
 }
 
@@ -95,9 +116,19 @@ func TestCreateTLSHttpServerError(t *testing.T) {
 		ClientCAPath: "invalid/path",
 	}
 
-	_, err := NewServer(zaptest.NewLogger(t), healthcheck.New(), &querysvc.QueryService{}, nil,
-		&QueryOptions{HTTPHostPort: ":8080", GRPCHostPort: ":8081", TLSHTTP: tlsCfg},
-		tenancy.NewManager(&tenancy.Options{}), jtracer.NoOp())
+	_, err := NewServer(
+		zaptest.NewLogger(t),
+		healthcheck.New(),
+		&querysvc.QueryService{},
+		nil,
+		&QueryOptions{
+			HTTPHostPort: ":8080",
+			GRPCHostPort: ":8081",
+			TLSHTTP:      tlsCfg,
+		},
+		tenancy.NewManager(&tenancy.Options{}),
+		jtracer.NoOp(),
+	)
 	require.Error(t, err)
 }
 
@@ -295,8 +326,13 @@ func makeQuerySvc() *fakeQueryService {
 	spanReader := &spanstoremocks.Reader{}
 	dependencyReader := &depsmocks.Reader{}
 	expectedServices := []string{"test"}
-	spanReader.On("GetServices", mock.AnythingOfType("*context.valueCtx")).Return(expectedServices, nil)
-	qs := querysvc.NewQueryService(spanReader, dependencyReader, querysvc.QueryServiceOptions{})
+	spanReader.On("GetServices", mock.AnythingOfType("*context.valueCtx")).
+		Return(expectedServices, nil)
+	qs := querysvc.NewQueryService(
+		spanReader,
+		dependencyReader,
+		querysvc.QueryServiceOptions{},
+	)
 	return &fakeQueryService{
 		qs:               qs,
 		spanReader:       spanReader,
@@ -344,10 +380,16 @@ func TestServerHTTPTLS(t *testing.T) {
 			}
 
 			serverOptions := &QueryOptions{
-				GRPCHostPort: ports.GetAddressFromCLIOptions(ports.QueryGRPC, ""),
-				HTTPHostPort: ports.GetAddressFromCLIOptions(ports.QueryHTTP, ""),
-				TLSHTTP:      test.TLS,
-				TLSGRPC:      tlsGrpc,
+				GRPCHostPort: ports.GetAddressFromCLIOptions(
+					ports.QueryGRPC,
+					"",
+				),
+				HTTPHostPort: ports.GetAddressFromCLIOptions(
+					ports.QueryHTTP,
+					"",
+				),
+				TLSHTTP: test.TLS,
+				TLSGRPC: tlsGrpc,
 				QueryOptionsBase: QueryOptionsBase{
 					BearerTokenPropagation: true,
 				},
@@ -356,9 +398,15 @@ func TestServerHTTPTLS(t *testing.T) {
 			flagsSvc.Logger = zaptest.NewLogger(t)
 
 			querySvc := makeQuerySvc()
-			server, err := NewServer(flagsSvc.Logger, flagsSvc.HC(), querySvc.qs,
-				nil, serverOptions, tenancy.NewManager(&tenancy.Options{}),
-				jtracer.NoOp())
+			server, err := NewServer(
+				flagsSvc.Logger,
+				flagsSvc.HC(),
+				querySvc.qs,
+				nil,
+				serverOptions,
+				tenancy.NewManager(&tenancy.Options{}),
+				jtracer.NoOp(),
+			)
 			require.NoError(t, err)
 			require.NoError(t, server.Start())
 			t.Cleanup(func() {
@@ -376,7 +424,12 @@ func TestServerHTTPTLS(t *testing.T) {
 
 				require.NoError(t, err0)
 				dialer := &net.Dialer{Timeout: 2 * time.Second}
-				conn, err1 := tls.DialWithDialer(dialer, "tcp", "localhost:"+fmt.Sprintf("%d", ports.QueryHTTP), clientTLSCfg)
+				conn, err1 := tls.DialWithDialer(
+					dialer,
+					"tcp",
+					"localhost:"+fmt.Sprintf("%d", ports.QueryHTTP),
+					clientTLSCfg,
+				)
 				clientError = err1
 				clientClose = nil
 				if conn != nil {
@@ -406,9 +459,18 @@ func TestServerHTTPTLS(t *testing.T) {
 						TLSClientConfig: clientTLSCfg,
 					},
 				}
-				querySvc.spanReader.On("FindTraces", mock.Anything, mock.Anything).Return([]*model.Trace{mockTrace}, nil).Once()
+				querySvc.spanReader.On("FindTraces", mock.Anything, mock.Anything).
+					Return([]*model.Trace{mockTrace}, nil).
+					Once()
 				queryString := "/api/traces?service=service&start=0&end=0&operation=operation&limit=200&minDuration=20ms"
-				req, err := http.NewRequest(http.MethodGet, "https://localhost:"+fmt.Sprintf("%d", ports.QueryHTTP)+queryString, nil)
+				req, err := http.NewRequest(
+					http.MethodGet,
+					"https://localhost:"+fmt.Sprintf(
+						"%d",
+						ports.QueryHTTP,
+					)+queryString,
+					nil,
+				)
 				require.NoError(t, err)
 				req.Header.Add("Accept", "application/json")
 
@@ -427,7 +489,11 @@ func TestServerHTTPTLS(t *testing.T) {
 	}
 }
 
-func newGRPCClientWithTLS(t *testing.T, addr string, creds credentials.TransportCredentials) *grpcClient {
+func newGRPCClientWithTLS(
+	t *testing.T,
+	addr string,
+	creds credentials.TransportCredentials,
+) *grpcClient {
 	var conn *grpc.ClientConn
 	var err error
 
@@ -481,10 +547,16 @@ func TestServerGRPCTLS(t *testing.T) {
 				tlsHttp = enabledTLSCfg
 			}
 			serverOptions := &QueryOptions{
-				GRPCHostPort: ports.GetAddressFromCLIOptions(ports.QueryGRPC, ""),
-				HTTPHostPort: ports.GetAddressFromCLIOptions(ports.QueryHTTP, ""),
-				TLSHTTP:      tlsHttp,
-				TLSGRPC:      test.TLS,
+				GRPCHostPort: ports.GetAddressFromCLIOptions(
+					ports.QueryGRPC,
+					"",
+				),
+				HTTPHostPort: ports.GetAddressFromCLIOptions(
+					ports.QueryHTTP,
+					"",
+				),
+				TLSHTTP: tlsHttp,
+				TLSGRPC: test.TLS,
 				QueryOptionsBase: QueryOptionsBase{
 					BearerTokenPropagation: true,
 				},
@@ -493,9 +565,15 @@ func TestServerGRPCTLS(t *testing.T) {
 			flagsSvc.Logger = zaptest.NewLogger(t)
 
 			querySvc := makeQuerySvc()
-			server, err := NewServer(flagsSvc.Logger, flagsSvc.HC(), querySvc.qs,
-				nil, serverOptions, tenancy.NewManager(&tenancy.Options{}),
-				jtracer.NoOp())
+			server, err := NewServer(
+				flagsSvc.Logger,
+				flagsSvc.HC(),
+				querySvc.qs,
+				nil,
+				serverOptions,
+				tenancy.NewManager(&tenancy.Options{}),
+				jtracer.NoOp(),
+			)
 			require.NoError(t, err)
 			require.NoError(t, server.Start())
 			t.Cleanup(func() {
@@ -508,7 +586,11 @@ func TestServerGRPCTLS(t *testing.T) {
 				require.NoError(t, err0)
 				defer test.clientTLS.Close()
 				creds := credentials.NewTLS(clientTLSCfg)
-				client = newGRPCClientWithTLS(t, ports.PortToHostPort(ports.QueryGRPC), creds)
+				client = newGRPCClientWithTLS(
+					t,
+					ports.PortToHostPort(ports.QueryGRPC),
+					creds,
+				)
 			} else {
 				client = newGRPCClientWithTLS(t, ports.PortToHostPort(ports.QueryGRPC), nil)
 			}
@@ -517,11 +599,17 @@ func TestServerGRPCTLS(t *testing.T) {
 			})
 
 			// using generous timeout since grpc.NewClient no longer does a handshake.
-			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			ctx, cancel := context.WithTimeout(
+				context.Background(),
+				30*time.Second,
+			)
 			defer cancel()
 
 			flagsSvc.Logger.Info("calling client.GetServices()")
-			res, clientError := client.GetServices(ctx, &api_v2.GetServicesRequest{})
+			res, clientError := client.GetServices(
+				ctx,
+				&api_v2.GetServicesRequest{},
+			)
 			flagsSvc.Logger.Info("returned from GetServices()")
 
 			if test.expectClientError {
@@ -535,7 +623,11 @@ func TestServerGRPCTLS(t *testing.T) {
 }
 
 func TestServerBadHostPort(t *testing.T) {
-	_, err := NewServer(zaptest.NewLogger(t), healthcheck.New(), &querysvc.QueryService{}, nil,
+	_, err := NewServer(
+		zaptest.NewLogger(t),
+		healthcheck.New(),
+		&querysvc.QueryService{},
+		nil,
 		&QueryOptions{
 			HTTPHostPort: "8080", // bad string, not :port
 			GRPCHostPort: "127.0.0.1:8081",
@@ -544,10 +636,15 @@ func TestServerBadHostPort(t *testing.T) {
 			},
 		},
 		tenancy.NewManager(&tenancy.Options{}),
-		jtracer.NoOp())
+		jtracer.NoOp(),
+	)
 	require.Error(t, err)
 
-	_, err = NewServer(zaptest.NewLogger(t), healthcheck.New(), &querysvc.QueryService{}, nil,
+	_, err = NewServer(
+		zaptest.NewLogger(t),
+		healthcheck.New(),
+		&querysvc.QueryService{},
+		nil,
 		&QueryOptions{
 			HTTPHostPort: "127.0.0.1:8081",
 			GRPCHostPort: "9123", // bad string, not :port
@@ -556,7 +653,8 @@ func TestServerBadHostPort(t *testing.T) {
 			},
 		},
 		tenancy.NewManager(&tenancy.Options{}),
-		jtracer.NoOp())
+		jtracer.NoOp(),
+	)
 
 	require.Error(t, err)
 }
@@ -638,7 +736,12 @@ func TestServerGracefulExit(t *testing.T) {
 	flagsSvc := flags.NewService(ports.QueryAdminHTTP)
 
 	zapCore, logs := observer.New(zap.ErrorLevel)
-	assert.Equal(t, 0, logs.Len(), "Expected initial ObservedLogs to have zero length.")
+	assert.Equal(
+		t,
+		0,
+		logs.Len(),
+		"Expected initial ObservedLogs to have zero length.",
+	)
 
 	flagsSvc.Logger = zap.New(zapCore)
 	hostPort := ports.PortToHostPort(ports.QueryAdminHTTP)
@@ -686,7 +789,12 @@ func TestServerHandlesPortZero(t *testing.T) {
 	defer server.Close()
 
 	message := logs.FilterMessage("Query server started")
-	assert.Equal(t, 1, message.Len(), "Expected 'Query server started' log message.")
+	assert.Equal(
+		t,
+		1,
+		message.Len(),
+		"Expected 'Query server started' log message.",
+	)
 
 	onlyEntry := message.All()[0]
 	port := onlyEntry.ContextMap()["port"].(int64)
@@ -734,9 +842,18 @@ func TestServerHTTPTenancy(t *testing.T) {
 	}
 	tenancyMgr := tenancy.NewManager(&serverOptions.Tenancy)
 	querySvc := makeQuerySvc()
-	querySvc.spanReader.On("FindTraces", mock.Anything, mock.Anything).Return([]*model.Trace{mockTrace}, nil).Once()
-	server, err := NewServer(zaptest.NewLogger(t), healthcheck.New(), querySvc.qs,
-		nil, serverOptions, tenancyMgr, jtracer.NoOp())
+	querySvc.spanReader.On("FindTraces", mock.Anything, mock.Anything).
+		Return([]*model.Trace{mockTrace}, nil).
+		Once()
+	server, err := NewServer(
+		zaptest.NewLogger(t),
+		healthcheck.New(),
+		querySvc.qs,
+		nil,
+		serverOptions,
+		tenancyMgr,
+		jtracer.NoOp(),
+	)
 	require.NoError(t, err)
 	require.NoError(t, server.Start())
 	t.Cleanup(func() {
@@ -745,11 +862,19 @@ func TestServerHTTPTenancy(t *testing.T) {
 
 	for _, test := range testCases {
 		t.Run(test.name, func(t *testing.T) {
-			conn, clientError := net.DialTimeout("tcp", "localhost:8080", 2*time.Second)
+			conn, clientError := net.DialTimeout(
+				"tcp",
+				"localhost:8080",
+				2*time.Second,
+			)
 			require.NoError(t, clientError)
 
 			queryString := "/api/traces?service=service&start=0&end=0&operation=operation&limit=200&minDuration=20ms"
-			req, err := http.NewRequest(http.MethodGet, "http://localhost:8080"+queryString, nil)
+			req, err := http.NewRequest(
+				http.MethodGet,
+				"http://localhost:8080"+queryString,
+				nil,
+			)
 			if test.tenant != "" {
 				req.Header.Add(tenancyMgr.Header, test.tenant)
 			}

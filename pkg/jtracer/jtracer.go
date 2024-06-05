@@ -65,7 +65,10 @@ func NoOp() *JTracer {
 }
 
 // initOTEL initializes OTEL Tracer
-func initOTEL(ctx context.Context, svc string) (*sdktrace.TracerProvider, error) {
+func initOTEL(
+	ctx context.Context,
+	svc string,
+) (*sdktrace.TracerProvider, error) {
 	return initHelper(ctx, svc, otelExporter, otelResource)
 }
 

@@ -31,11 +31,20 @@ const (
 
 // AddFlags adds flags for tenancy to the FlagSet.
 func AddFlags(flags *flag.FlagSet) {
-	flags.Bool(flagTenancyEnabled, false, "Enable tenancy header when receiving or querying")
+	flags.Bool(
+		flagTenancyEnabled,
+		false,
+		"Enable tenancy header when receiving or querying",
+	)
 	flags.String(flagTenancyHeader, "x-tenant", "HTTP header carrying tenant")
-	flags.String(flagValidTenants, "",
-		fmt.Sprintf("comma-separated list of allowed values for --%s header.  (If not supplied, tenants are not restricted)",
-			flagTenancyHeader))
+	flags.String(
+		flagValidTenants,
+		"",
+		fmt.Sprintf(
+			"comma-separated list of allowed values for --%s header.  (If not supplied, tenants are not restricted)",
+			flagTenancyHeader,
+		),
+	)
 }
 
 // InitFromViper creates tenancy.Options populated with values retrieved from Viper.

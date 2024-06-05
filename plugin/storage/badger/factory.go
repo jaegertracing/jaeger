@@ -124,7 +124,10 @@ func (f *Factory) configureFromOptions(opts *Options) {
 }
 
 // Initialize implements storage.Factory
-func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
+func (f *Factory) Initialize(
+	metricsFactory metrics.Factory,
+	logger *zap.Logger,
+) error {
 	f.logger = logger
 
 	opts := badger.DefaultOptions("")
@@ -158,12 +161,24 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 	}
 	f.store = store
 
-	f.cache = badgerStore.NewCacheStore(f.store, f.Options.Primary.SpanStoreTTL, true)
+	f.cache = badgerStore.NewCacheStore(
+		f.store,
+		f.Options.Primary.SpanStoreTTL,
+		true,
+	)
 
-	f.metrics.ValueLogSpaceAvailable = metricsFactory.Gauge(metrics.Options{Name: valueLogSpaceAvailableName})
-	f.metrics.KeyLogSpaceAvailable = metricsFactory.Gauge(metrics.Options{Name: keyLogSpaceAvailableName})
-	f.metrics.LastMaintenanceRun = metricsFactory.Gauge(metrics.Options{Name: lastMaintenanceRunName})
-	f.metrics.LastValueLogCleaned = metricsFactory.Gauge(metrics.Options{Name: lastValueLogCleanedName})
+	f.metrics.ValueLogSpaceAvailable = metricsFactory.Gauge(
+		metrics.Options{Name: valueLogSpaceAvailableName},
+	)
+	f.metrics.KeyLogSpaceAvailable = metricsFactory.Gauge(
+		metrics.Options{Name: keyLogSpaceAvailableName},
+	)
+	f.metrics.LastMaintenanceRun = metricsFactory.Gauge(
+		metrics.Options{Name: lastMaintenanceRunName},
+	)
+	f.metrics.LastValueLogCleaned = metricsFactory.Gauge(
+		metrics.Options{Name: lastValueLogCleanedName},
+	)
 
 	f.registerBadgerExpvarMetrics(metricsFactory)
 
@@ -189,7 +204,11 @@ func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
 
 // CreateSpanWriter implements storage.Factory
 func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
-	return badgerStore.NewSpanWriter(f.store, f.cache, f.Options.Primary.SpanStoreTTL), nil
+	return badgerStore.NewSpanWriter(
+		f.store,
+		f.cache,
+		f.Options.Primary.SpanStoreTTL,
+	), nil
 }
 
 // CreateDependencyReader implements storage.Factory
@@ -199,7 +218,9 @@ func (f *Factory) CreateDependencyReader() (dependencystore.Reader, error) {
 }
 
 // CreateSamplingStore implements storage.SamplingStoreFactory
-func (f *Factory) CreateSamplingStore(maxBuckets int) (samplingstore.Store, error) {
+func (f *Factory) CreateSamplingStore(
+	maxBuckets int,
+) (samplingstore.Store, error) {
 	return badgerSampling.NewSamplingStore(f.store), nil
 }
 
@@ -240,7 +261,9 @@ func (f *Factory) maintenance() {
 
 			// After there's nothing to clean, the err is raised
 			for err == nil {
-				err = f.store.RunValueLogGC(0.5) // 0.5 is selected to rewrite a file if half of it can be discarded
+				err = f.store.RunValueLogGC(
+					0.5,
+				) // 0.5 is selected to rewrite a file if half of it can be discarded
 			}
 			if errors.Is(err, badger.ErrNoRewrite) {
 				f.metrics.LastValueLogCleaned.Update(t.UnixNano())

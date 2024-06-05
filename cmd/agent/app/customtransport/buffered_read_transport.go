@@ -30,7 +30,9 @@ type TBufferedReadTransport struct {
 var _ thrift.TTransport = (*TBufferedReadTransport)(nil)
 
 // NewTBufferedReadTransport creates a buffer backed TTransport
-func NewTBufferedReadTransport(readBuf *bytes.Buffer) (*TBufferedReadTransport, error) {
+func NewTBufferedReadTransport(
+	readBuf *bytes.Buffer,
+) (*TBufferedReadTransport, error) {
 	return &TBufferedReadTransport{readBuf: readBuf}, nil
 }
 

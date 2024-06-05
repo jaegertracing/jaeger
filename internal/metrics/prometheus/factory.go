@@ -115,7 +115,11 @@ func New(opts ...Option) *Factory {
 		nil) // tags
 }
 
-func newFactory(parent *Factory, scope string, tags map[string]string) *Factory {
+func newFactory(
+	parent *Factory,
+	scope string,
+	tags map[string]string,
+) *Factory {
 	return &Factory{
 		cache:      parent.cache,
 		buckets:    parent.buckets,
@@ -194,7 +198,9 @@ func asFloatBuckets(buckets []time.Duration) []float64 {
 }
 
 // Histogram implements Histogram of metrics.Factory.
-func (f *Factory) Histogram(options metrics.HistogramOptions) metrics.Histogram {
+func (f *Factory) Histogram(
+	options metrics.HistogramOptions,
+) metrics.Histogram {
 	help := strings.TrimSpace(options.Help)
 	if len(help) == 0 {
 		help = options.Name
@@ -244,7 +250,9 @@ type timer struct {
 }
 
 func (t *timer) Record(v time.Duration) {
-	t.histogram.Observe(float64(v.Nanoseconds()) / float64(time.Second/time.Nanosecond))
+	t.histogram.Observe(
+		float64(v.Nanoseconds()) / float64(time.Second/time.Nanosecond),
+	)
 }
 
 type histogram struct {
@@ -289,7 +297,10 @@ func (*Factory) tagNames(tags map[string]string) []string {
 	return ret
 }
 
-func (*Factory) tagsAsLabelValues(labels []string, tags map[string]string) []string {
+func (*Factory) tagsAsLabelValues(
+	labels []string,
+	tags map[string]string,
+) []string {
 	ret := make([]string, 0, len(tags))
 	for _, l := range labels {
 		ret = append(ret, tags[l])

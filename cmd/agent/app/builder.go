@@ -58,8 +58,12 @@ type Model string
 type Protocol string
 
 var protocolFactoryMap = map[Protocol]thrift.TProtocolFactory{
-	compactProtocol: thrift.NewTCompactProtocolFactoryConf(&thrift.TConfiguration{}),
-	binaryProtocol:  thrift.NewTBinaryProtocolFactoryConf(&thrift.TConfiguration{}),
+	compactProtocol: thrift.NewTCompactProtocolFactoryConf(
+		&thrift.TConfiguration{},
+	),
+	binaryProtocol: thrift.NewTBinaryProtocolFactoryConf(
+		&thrift.TConfiguration{},
+	),
 }
 
 // CollectorProxy provides access to Reporter and ClientConfigManager
@@ -90,7 +94,7 @@ type ServerConfiguration struct {
 	QueueSize        int    `yaml:"queueSize"`
 	MaxPacketSize    int    `yaml:"maxPacketSize"`
 	SocketBufferSize int    `yaml:"socketBufferSize"`
-	HostPort         string `yaml:"hostPort" validate:"nonzero"`
+	HostPort         string `yaml:"hostPort"         validate:"nonzero"`
 }
 
 // HTTPServerConfiguration holds config for a server providing sampling strategies and baggage restrictions to clients
@@ -105,13 +109,21 @@ func (b *Builder) WithReporter(r ...reporter.Reporter) *Builder {
 }
 
 // CreateAgent creates the Agent
-func (b *Builder) CreateAgent(primaryProxy CollectorProxy, logger *zap.Logger, mFactory metrics.Factory) (*Agent, error) {
+func (b *Builder) CreateAgent(
+	primaryProxy CollectorProxy,
+	logger *zap.Logger,
+	mFactory metrics.Factory,
+) (*Agent, error) {
 	r := b.getReporter(primaryProxy)
 	processors, err := b.getProcessors(r, mFactory, logger)
 	if err != nil {
 		return nil, fmt.Errorf("cannot create processors: %w", err)
 	}
-	server := b.HTTPServer.getHTTPServer(primaryProxy.GetManager(), mFactory, logger)
+	server := b.HTTPServer.getHTTPServer(
+		primaryProxy.GetManager(),
+		mFactory,
+		logger,
+	)
 	b.publishOpts()
 
 	return NewAgent(processors, server, logger), nil
@@ -132,31 +144,54 @@ func (b *Builder) getReporter(primaryProxy CollectorProxy) reporter.Reporter {
 func (b *Builder) publishOpts() {
 	for _, p := range b.Processors {
 		prefix := fmt.Sprintf(processorPrefixFmt, p.Model, p.Protocol)
-		safeexpvar.SetInt(prefix+suffixServerMaxPacketSize, int64(p.Server.MaxPacketSize))
-		safeexpvar.SetInt(prefix+suffixServerQueueSize, int64(p.Server.QueueSize))
+		safeexpvar.SetInt(
+			prefix+suffixServerMaxPacketSize,
+			int64(p.Server.MaxPacketSize),
+		)
+		safeexpvar.SetInt(
+			prefix+suffixServerQueueSize,
+			int64(p.Server.QueueSize),
+		)
 		safeexpvar.SetInt(prefix+suffixWorkers, int64(p.Workers))
 	}
 }
 
-func (b *Builder) getProcessors(rep reporter.Reporter, mFactory metrics.Factory, logger *zap.Logger) ([]processors.Processor, error) {
+func (b *Builder) getProcessors(
+	rep reporter.Reporter,
+	mFactory metrics.Factory,
+	logger *zap.Logger,
+) ([]processors.Processor, error) {
 	retMe := make([]processors.Processor, len(b.Processors))
 	for idx, cfg := range b.Processors {
 		protoFactory, ok := protocolFactoryMap[cfg.Protocol]
 		if !ok {
-			return nil, fmt.Errorf("cannot find protocol factory for protocol %v", cfg.Protocol)
+			return nil, fmt.Errorf(
+				"cannot find protocol factory for protocol %v",
+				cfg.Protocol,
+			)
 		}
 		var handler processors.AgentProcessor
 		switch cfg.Model {
 		case jaegerModel, zipkinModel:
 			handler = agentThrift.NewAgentProcessor(rep)
 		default:
-			return nil, fmt.Errorf("cannot find agent processor for data model %v", cfg.Model)
+			return nil, fmt.Errorf(
+				"cannot find agent processor for data model %v",
+				cfg.Model,
+			)
 		}
-		metrics := mFactory.Namespace(metrics.NSOptions{Name: "", Tags: map[string]string{
-			"protocol": string(cfg.Protocol),
-			"model":    string(cfg.Model),
-		}})
-		processor, err := cfg.GetThriftProcessor(metrics, protoFactory, handler, logger)
+		metrics := mFactory.Namespace(
+			metrics.NSOptions{Name: "", Tags: map[string]string{
+				"protocol": string(cfg.Protocol),
+				"model":    string(cfg.Model),
+			}},
+		)
+		processor, err := cfg.GetThriftProcessor(
+			metrics,
+			protoFactory,
+			handler,
+			logger,
+		)
 		if err != nil {
 			return nil, fmt.Errorf("cannot create Thrift Processor: %w", err)
 		}
@@ -166,7 +201,11 @@ func (b *Builder) getProcessors(rep reporter.Reporter, mFactory metrics.Factory,
 }
 
 // GetHTTPServer creates an HTTP server that provides sampling strategies and baggage restrictions to client libraries.
-func (c HTTPServerConfiguration) getHTTPServer(manager configmanager.ClientConfigManager, mFactory metrics.Factory, logger *zap.Logger) *http.Server {
+func (c HTTPServerConfiguration) getHTTPServer(
+	manager configmanager.ClientConfigManager,
+	mFactory metrics.Factory,
+	logger *zap.Logger,
+) *http.Server {
 	hostPort := c.HostPort
 	if hostPort == "" {
 		hostPort = defaultHTTPServerHostPort
@@ -188,7 +227,14 @@ func (c *ProcessorConfiguration) GetThriftProcessor(
 		return nil, fmt.Errorf("cannot create UDP Server: %w", err)
 	}
 
-	return processors.NewThriftProcessor(server, c.Workers, mFactory, factory, handler, logger)
+	return processors.NewThriftProcessor(
+		server,
+		c.Workers,
+		mFactory,
+		factory,
+		handler,
+		logger,
+	)
 }
 
 func (c *ProcessorConfiguration) applyDefaults() {
@@ -202,7 +248,9 @@ func (c *ServerConfiguration) applyDefaults() {
 }
 
 // getUDPServer gets a TBufferedServer backed server using the server configuration
-func (c *ServerConfiguration) getUDPServer(mFactory metrics.Factory) (servers.Server, error) {
+func (c *ServerConfiguration) getUDPServer(
+	mFactory metrics.Factory,
+) (servers.Server, error) {
 	c.applyDefaults()
 
 	if c.HostPort == "" {
@@ -218,7 +266,12 @@ func (c *ServerConfiguration) getUDPServer(mFactory metrics.Factory) (servers.Se
 		}
 	}
 
-	return servers.NewTBufferedServer(transport, c.QueueSize, c.MaxPacketSize, mFactory)
+	return servers.NewTBufferedServer(
+		transport,
+		c.QueueSize,
+		c.MaxPacketSize,
+		mFactory,
+	)
 }
 
 func defaultInt(value int, defaultVal int) int {
@@ -246,7 +299,10 @@ func CreateCollectorProxy(
 ) (CollectorProxy, error) {
 	builder, ok := builders[opts.ReporterType]
 	if !ok {
-		return nil, fmt.Errorf("unknown reporter type %s", string(opts.ReporterType))
+		return nil, fmt.Errorf(
+			"unknown reporter type %s",
+			string(opts.ReporterType),
+		)
 	}
 	return builder(ctx, opts)
 }

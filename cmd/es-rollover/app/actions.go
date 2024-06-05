@@ -26,7 +26,11 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/es/client"
 )
 
-func newESClient(endpoint string, cfg *Config, tlsCfg *tls.Config) client.Client {
+func newESClient(
+	endpoint string,
+	cfg *Config,
+	tlsCfg *tls.Config,
+) client.Client {
 	httpClient := &http.Client{
 		Timeout: time.Duration(cfg.Timeout) * time.Second,
 		Transport: &http.Transport{
@@ -58,7 +62,10 @@ type ActionExecuteOptions struct {
 type ActionCreatorFunction func(client.Client, Config) Action
 
 // ExecuteAction execute the action returned by the createAction function
-func ExecuteAction(opts ActionExecuteOptions, createAction ActionCreatorFunction) error {
+func ExecuteAction(
+	opts ActionExecuteOptions,
+	createAction ActionCreatorFunction,
+) error {
 	cfg := Config{}
 	cfg.InitFromViper(opts.Viper)
 	tlsOpts, err := opts.TLSFlags.InitFromViper(opts.Viper)

@@ -78,7 +78,14 @@ func TestSuccessfulUnderlyingCalls(t *testing.T) {
 		"latency|operation=get_latencies|result=err.P50",
 	}
 
-	checkExpectedExistingAndNonExistentCounters(t, counters, wantCounts, gauges, wantExistingKeys, wantNonExistentKeys)
+	checkExpectedExistingAndNonExistentCounters(
+		t,
+		counters,
+		wantCounts,
+		gauges,
+		wantExistingKeys,
+		wantNonExistentKeys,
+	)
 }
 
 func checkExpectedExistingAndNonExistentCounters(t *testing.T,
@@ -151,7 +158,14 @@ func TestFailingUnderlyingCalls(t *testing.T) {
 		"latency|operation=get_error_rates|result=ok.P50",
 	}
 
-	checkExpectedExistingAndNonExistentCounters(t, counters, wantCounts, gauges, wantExistingKeys, wantNonExistentKeys)
+	checkExpectedExistingAndNonExistentCounters(
+		t,
+		counters,
+		wantCounts,
+		gauges,
+		wantExistingKeys,
+		wantNonExistentKeys,
+	)
 }
 
 func TestMain(m *testing.M) {

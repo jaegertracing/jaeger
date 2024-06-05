@@ -65,7 +65,9 @@ func TestMappingBuilder_GetMapping(t *testing.T) {
 			require.NoError(t, err)
 			var wantbytes []byte
 			fileSuffix := fmt.Sprintf("-%d", tt.esVersion)
-			wantbytes, err = FIXTURES.ReadFile("fixtures/" + tt.mapping + fileSuffix + ".json")
+			wantbytes, err = FIXTURES.ReadFile(
+				"fixtures/" + tt.mapping + fileSuffix + ".json",
+			)
 			require.NoError(t, err)
 			want := string(wantbytes)
 			assert.Equal(t, want, got)
@@ -118,7 +120,8 @@ func TestMappingBuilder_fixMapping(t *testing.T) {
 			templateBuilderMockFunc: func() *mocks.TemplateBuilder {
 				tb := mocks.TemplateBuilder{}
 				ta := mocks.TemplateApplier{}
-				ta.On("Execute", mock.Anything, mock.Anything).Return(errors.New("template exec error"))
+				ta.On("Execute", mock.Anything, mock.Anything).
+					Return(errors.New("template exec error"))
 				tb.On("Parse", mock.Anything).Return(&ta, nil)
 				return &tb
 			},
@@ -128,7 +131,8 @@ func TestMappingBuilder_fixMapping(t *testing.T) {
 			name: "templateLoadError",
 			templateBuilderMockFunc: func() *mocks.TemplateBuilder {
 				tb := mocks.TemplateBuilder{}
-				tb.On("Parse", mock.Anything).Return(nil, errors.New("template load error"))
+				tb.On("Parse", mock.Anything).
+					Return(nil, errors.New("template load error"))
 				return &tb
 			},
 			err: "template load error",
@@ -203,8 +207,12 @@ func TestMappingBuilder_GetSpanServiceMappings(t *testing.T) {
 			mockNewTextTemplateBuilder: func() es.TemplateBuilder {
 				tb := mocks.TemplateBuilder{}
 				ta := mocks.TemplateApplier{}
-				ta.On("Execute", mock.Anything, mock.Anything).Return(nil).Once()
-				ta.On("Execute", mock.Anything, mock.Anything).Return(errors.New("template load error")).Once()
+				ta.On("Execute", mock.Anything, mock.Anything).
+					Return(nil).
+					Once()
+				ta.On("Execute", mock.Anything, mock.Anything).
+					Return(errors.New("template load error")).
+					Once()
 				tb.On("Parse", mock.Anything).Return(&ta, nil)
 				return &tb
 			},
@@ -223,7 +231,9 @@ func TestMappingBuilder_GetSpanServiceMappings(t *testing.T) {
 			mockNewTextTemplateBuilder: func() es.TemplateBuilder {
 				tb := mocks.TemplateBuilder{}
 				ta := mocks.TemplateApplier{}
-				ta.On("Execute", mock.Anything, mock.Anything).Return(errors.New("template load error")).Once()
+				ta.On("Execute", mock.Anything, mock.Anything).
+					Return(errors.New("template load error")).
+					Once()
 				tb.On("Parse", mock.Anything).Return(&ta, nil)
 				return &tb
 			},
@@ -254,7 +264,8 @@ func TestMappingBuilder_GetSpanServiceMappings(t *testing.T) {
 func TestMappingBuilder_GetDependenciesMappings(t *testing.T) {
 	tb := mocks.TemplateBuilder{}
 	ta := mocks.TemplateApplier{}
-	ta.On("Execute", mock.Anything, mock.Anything).Return(errors.New("template load error"))
+	ta.On("Execute", mock.Anything, mock.Anything).
+		Return(errors.New("template load error"))
 	tb.On("Parse", mock.Anything).Return(&ta, nil)
 
 	mappingBuilder := MappingBuilder{
@@ -267,7 +278,8 @@ func TestMappingBuilder_GetDependenciesMappings(t *testing.T) {
 func TestMappingBuilder_GetSamplingMappings(t *testing.T) {
 	tb := mocks.TemplateBuilder{}
 	ta := mocks.TemplateApplier{}
-	ta.On("Execute", mock.Anything, mock.Anything).Return(errors.New("template load error"))
+	ta.On("Execute", mock.Anything, mock.Anything).
+		Return(errors.New("template load error"))
 	tb.On("Parse", mock.Anything).Return(&ta, nil)
 
 	mappingBuilder := MappingBuilder{

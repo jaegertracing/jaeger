@@ -34,7 +34,13 @@ func (z zapRecoveryWrapper) Println(args ...any) {
 }
 
 // NewRecoveryHandler returns an http.Handler that recovers on panics
-func NewRecoveryHandler(logger *zap.Logger, printStack bool) func(h http.Handler) http.Handler {
+func NewRecoveryHandler(
+	logger *zap.Logger,
+	printStack bool,
+) func(h http.Handler) http.Handler {
 	zWrapper := zapRecoveryWrapper{logger}
-	return handlers.RecoveryHandler(handlers.RecoveryLogger(zWrapper), handlers.PrintRecoveryStack(printStack))
+	return handlers.RecoveryHandler(
+		handlers.RecoveryLogger(zWrapper),
+		handlers.PrintRecoveryStack(printStack),
+	)
 }

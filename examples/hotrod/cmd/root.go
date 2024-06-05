@@ -63,15 +63,25 @@ func onInitialize() {
 		zap.AddCallerSkip(1),
 	}
 	if !verbose {
-		zapOptions = append(zapOptions,
-			zap.IncreaseLevel(zap.LevelEnablerFunc(func(l zapcore.Level) bool { return l != zapcore.DebugLevel })),
+		zapOptions = append(
+			zapOptions,
+			zap.IncreaseLevel(
+				zap.LevelEnablerFunc(
+					func(l zapcore.Level) bool { return l != zapcore.DebugLevel },
+				),
+			),
 		)
 	}
 	logger, _ = zap.NewDevelopment(zapOptions...)
-	metricsFactory = prometheus.New().Namespace(metrics.NSOptions{Name: "hotrod", Tags: nil})
+	metricsFactory = prometheus.New().
+		Namespace(metrics.NSOptions{Name: "hotrod", Tags: nil})
 
 	if config.MySQLGetDelay != fixDBConnDelay {
-		logger.Info("fix: overriding MySQL query delay", zap.Duration("old", config.MySQLGetDelay), zap.Duration("new", fixDBConnDelay))
+		logger.Info(
+			"fix: overriding MySQL query delay",
+			zap.Duration("old", config.MySQLGetDelay),
+			zap.Duration("new", fixDBConnDelay),
+		)
 		config.MySQLGetDelay = fixDBConnDelay
 	}
 	if fixDBConnDisableMutex {
@@ -79,28 +89,52 @@ func onInitialize() {
 		config.MySQLMutexDisabled = true
 	}
 	if config.RouteWorkerPoolSize != fixRouteWorkerPoolSize {
-		logger.Info("fix: overriding route worker pool size", zap.Int("old", config.RouteWorkerPoolSize), zap.Int("new", fixRouteWorkerPoolSize))
+		logger.Info(
+			"fix: overriding route worker pool size",
+			zap.Int("old", config.RouteWorkerPoolSize),
+			zap.Int("new", fixRouteWorkerPoolSize),
+		)
 		config.RouteWorkerPoolSize = fixRouteWorkerPoolSize
 	}
 
 	if customerPort != 8081 {
-		logger.Info("changing customer service port", zap.Int("old", 8081), zap.Int("new", customerPort))
+		logger.Info(
+			"changing customer service port",
+			zap.Int("old", 8081),
+			zap.Int("new", customerPort),
+		)
 	}
 
 	if driverPort != 8082 {
-		logger.Info("changing driver service port", zap.Int("old", 8082), zap.Int("new", driverPort))
+		logger.Info(
+			"changing driver service port",
+			zap.Int("old", 8082),
+			zap.Int("new", driverPort),
+		)
 	}
 
 	if frontendPort != 8080 {
-		logger.Info("changing frontend service port", zap.Int("old", 8080), zap.Int("new", frontendPort))
+		logger.Info(
+			"changing frontend service port",
+			zap.Int("old", 8080),
+			zap.Int("new", frontendPort),
+		)
 	}
 
 	if routePort != 8083 {
-		logger.Info("changing route service port", zap.Int("old", 8083), zap.Int("new", routePort))
+		logger.Info(
+			"changing route service port",
+			zap.Int("old", 8083),
+			zap.Int("new", routePort),
+		)
 	}
 
 	if basepath != "" {
-		logger.Info("changing basepath for frontend", zap.String("old", "/"), zap.String("new", basepath))
+		logger.Info(
+			"changing basepath for frontend",
+			zap.String("old", "/"),
+			zap.String("new", basepath),
+		)
 	}
 }
 

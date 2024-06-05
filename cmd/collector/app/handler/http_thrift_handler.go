@@ -63,31 +63,54 @@ func (aH *APIHandler) SaveSpan(w http.ResponseWriter, r *http.Request) {
 	bodyBytes, err := io.ReadAll(r.Body)
 	r.Body.Close()
 	if err != nil {
-		http.Error(w, fmt.Sprintf(UnableToReadBodyErrFormat, err), http.StatusInternalServerError)
+		http.Error(
+			w,
+			fmt.Sprintf(UnableToReadBodyErrFormat, err),
+			http.StatusInternalServerError,
+		)
 		return
 	}
 
 	contentType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
 	if err != nil {
-		http.Error(w, fmt.Sprintf("Cannot parse content type: %v", err), http.StatusBadRequest)
+		http.Error(
+			w,
+			fmt.Sprintf("Cannot parse content type: %v", err),
+			http.StatusBadRequest,
+		)
 		return
 	}
 
 	if _, ok := acceptedThriftFormats[contentType]; !ok {
-		http.Error(w, fmt.Sprintf("Unsupported content type: %v", html.EscapeString(contentType)), http.StatusBadRequest)
+		http.Error(
+			w,
+			fmt.Sprintf(
+				"Unsupported content type: %v",
+				html.EscapeString(contentType),
+			),
+			http.StatusBadRequest,
+		)
 		return
 	}
 
 	tdes := thrift.NewTDeserializer()
 	batch := &tJaeger.Batch{}
 	if err = tdes.Read(r.Context(), batch, bodyBytes); err != nil {
-		http.Error(w, fmt.Sprintf(UnableToReadBodyErrFormat, err), http.StatusBadRequest)
+		http.Error(
+			w,
+			fmt.Sprintf(UnableToReadBodyErrFormat, err),
+			http.StatusBadRequest,
+		)
 		return
 	}
 	batches := []*tJaeger.Batch{batch}
 	opts := SubmitBatchOptions{InboundTransport: processor.HTTPTransport}
 	if _, err = aH.jaegerBatchesHandler.SubmitBatches(batches, opts); err != nil {
-		http.Error(w, fmt.Sprintf("Cannot submit Jaeger batch: %v", err), http.StatusInternalServerError)
+		http.Error(
+			w,
+			fmt.Sprintf("Cannot submit Jaeger batch: %v", err),
+			http.StatusInternalServerError,
+		)
 		return
 	}
 

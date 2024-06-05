@@ -168,7 +168,8 @@ type errorTagSanitizer struct{}
 
 func (*errorTagSanitizer) Sanitize(span *zc.Span) *zc.Span {
 	for _, binAnno := range span.BinaryAnnotations {
-		if binAnno.AnnotationType != zc.AnnotationType_BOOL && strings.EqualFold("error", binAnno.Key) {
+		if binAnno.AnnotationType != zc.AnnotationType_BOOL &&
+			strings.EqualFold("error", binAnno.Key) {
 			binAnno.AnnotationType = zc.AnnotationType_BOOL
 
 			switch {
@@ -183,7 +184,10 @@ func (*errorTagSanitizer) Sanitize(span *zc.Span) *zc.Span {
 					Value:          binAnno.Value,
 					AnnotationType: zc.AnnotationType_STRING,
 				}
-				span.BinaryAnnotations = append(span.BinaryAnnotations, annoErrorMsg)
+				span.BinaryAnnotations = append(
+					span.BinaryAnnotations,
+					annoErrorMsg,
+				)
 				binAnno.Value = []byte{1}
 			}
 		}

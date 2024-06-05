@@ -39,7 +39,10 @@ func newVectorCache(registerer prometheus.Registerer) *vectorCache {
 	}
 }
 
-func (c *vectorCache) getOrMakeCounterVec(opts prometheus.CounterOpts, labelNames []string) *prometheus.CounterVec {
+func (c *vectorCache) getOrMakeCounterVec(
+	opts prometheus.CounterOpts,
+	labelNames []string,
+) *prometheus.CounterVec {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
@@ -53,7 +56,10 @@ func (c *vectorCache) getOrMakeCounterVec(opts prometheus.CounterOpts, labelName
 	return cv
 }
 
-func (c *vectorCache) getOrMakeGaugeVec(opts prometheus.GaugeOpts, labelNames []string) *prometheus.GaugeVec {
+func (c *vectorCache) getOrMakeGaugeVec(
+	opts prometheus.GaugeOpts,
+	labelNames []string,
+) *prometheus.GaugeVec {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
@@ -67,7 +73,10 @@ func (c *vectorCache) getOrMakeGaugeVec(opts prometheus.GaugeOpts, labelNames []
 	return gv
 }
 
-func (c *vectorCache) getOrMakeHistogramVec(opts prometheus.HistogramOpts, labelNames []string) *prometheus.HistogramVec {
+func (c *vectorCache) getOrMakeHistogramVec(
+	opts prometheus.HistogramOpts,
+	labelNames []string,
+) *prometheus.HistogramVec {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
