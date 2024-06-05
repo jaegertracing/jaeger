@@ -3,11 +3,11 @@
 set -euf -o pipefail
 
 print_help() {
-  echo "Usage: $0 [-l] [-D] [-p platforms]"
-  echo "-l: Enable local-only mode that only pushes images to local registry"
-  echo "-D: Disable building of images with debugger"
-  echo "-p: Comma-separated list of platforms to build for (default: all supported)"
+  echo "Usage: $0 [-D] [-l] [-p platforms]"
   echo "-h: Print help"
+  echo "-D: Disable building of images with debugger"
+  echo "-l: Enable local-only mode that only pushes images to local registry"
+  echo "-p: Comma-separated list of platforms to build for (default: all supported)"
   exit 1
 }
 
@@ -15,7 +15,7 @@ add_debugger='Y'
 platforms="linux/amd64,linux/s390x,linux/ppc64le,linux/arm64"
 LOCAL_FLAG=''
 
-while getopts "hlDp:" opt; do
+while getopts "Dhlp:" opt; do
 	case "${opt}" in
 	D)
 		add_debugger='N'

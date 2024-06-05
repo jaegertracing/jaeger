@@ -3,12 +3,12 @@
 set -euf -o pipefail
 
 print_help() {
-  echo "Usage: $0 [-l] [-D] [-b binary] [-p platforms]"
-  echo "-l: Enable local-only mode that only pushes images to local registry"
-  echo "-D: Disable building of images with debugger"
+  echo "Usage: $0 [-b binary] [-D] [-l] [-p platforms]"
   echo "-b: Which binary to build: 'all-in-one' (default) or 'jaeger' (v2)"
-  echo "-p: Comma-separated list of platforms to build for (default: all supported)"
+  echo "-D: Disable building of images with debugger"
   echo "-h: Print help"
+  echo "-l: Enable local-only mode that only pushes images to local registry"
+  echo "-p: Comma-separated list of platforms to build for (default: all supported)"
   exit 1
 }
 
@@ -17,7 +17,7 @@ platforms="linux/amd64,linux/s390x,linux/ppc64le,linux/arm64"
 LOCAL_FLAG=''
 BINARY='all-in-one'
 
-while getopts "b:hlDp:" opt; do
+while getopts "b:Dhlp:" opt; do
 	case "${opt}" in
 	b)
 		BINARY=${OPTARG}
