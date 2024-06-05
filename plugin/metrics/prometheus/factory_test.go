@@ -88,7 +88,6 @@ func TestWithConfiguration(t *testing.T) {
 		f := NewFactory()
 		v, command := config.Viperize(f.AddFlags)
 		err := command.ParseFlags([]string{
-			"--prometheus.query.support-spanmetrics-connector=true",
 			"--prometheus.query.namespace=mynamespace",
 			"--prometheus.query.duration-unit=ms",
 		})

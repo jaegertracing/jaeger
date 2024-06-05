@@ -61,8 +61,8 @@ const defaultTimeout = 30 * time.Second
 
 // defaultConfig should consist of the default values for the prometheus.query.* command line options.
 var defaultConfig = config.Configuration{
-	MetricNamespace:             "",
-	LatencyUnit:                 "ms",
+	MetricNamespace: "",
+	LatencyUnit:     "ms",
 }
 
 func tracerProvider(t *testing.T) (trace.TracerProvider, *tracetest.InMemoryExporter, func()) {
@@ -691,8 +691,8 @@ func TestInvalidLatencyUnit(t *testing.T) {
 	tracer, _, closer := tracerProvider(t)
 	defer closer()
 	cfg := config.Configuration{
-		NormalizeDuration:           true,
-		LatencyUnit:                 "something invalid",
+		NormalizeDuration: true,
+		LatencyUnit:       "something invalid",
 	}
 	_, _ = NewMetricsReader(cfg, zap.NewNop(), tracer)
 }

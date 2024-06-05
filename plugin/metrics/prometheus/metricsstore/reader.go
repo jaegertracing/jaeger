@@ -131,8 +131,7 @@ func (m MetricsReader) GetLatencies(ctx context.Context, requestParams *metricss
 }
 
 func buildFullLatencyMetricName(cfg config.Configuration) string {
-	metricName := "latency"
-	metricName = "duration"
+	metricName := "duration"
 
 	if cfg.MetricNamespace != "" {
 		metricName = cfg.MetricNamespace + "_" + metricName
