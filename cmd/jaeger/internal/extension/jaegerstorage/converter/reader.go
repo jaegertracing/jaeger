@@ -29,12 +29,9 @@ func NewTraceReader(spanReader spanstore_v1.Reader) (spanstore.Reader, error) {
 
 // GetTrace implements spanstore.Reader.
 func (s *TraceReader) GetTrace(ctx context.Context, traceID pcommon.TraceID) (ptrace.Traces, error) {
-	// otelcol-contrib has the translator to jaeger proto but declared in private function
-	// similar to https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/internal/coreinternal/idutils/big_endian_converter.go#L21
-	traceIDHigh, traceIDLow := binary.BigEndian.Uint64(traceID[:8]), binary.BigEndian.Uint64(traceID[8:])
-	id := model.TraceID{
-		Low:  traceIDLow,
-		High: traceIDHigh,
+	id, err := model.TraceIDFromBytes(traceID[:])
+	if err != nil {
+		return ptrace.NewTraces(), fmt.Errorf("cannot transform OTLP trace ID to Jaeger format: %w", err)
 	}
 	trace, err := s.spanReader.GetTrace(ctx, id)
 	if err != nil {
