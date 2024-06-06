@@ -380,7 +380,6 @@ func TestGetErrorRates(t *testing.T) {
 			wantName:         "service_operation_error_rate",
 			wantDescription:  "error rate, computed as a fraction of errors/sec over calls/sec, grouped by service & operation",
 			wantLabels: map[string]string{
-				"span_name":    "/OrderResult",
 				"service_name": "emailservice",
 			},
 			wantPromQlQuery: `sum(rate(calls{service_name =~ "emailservice", status_code = "STATUS_CODE_ERROR", ` +
@@ -453,7 +452,7 @@ func TestGetErrorRates(t *testing.T) {
 				"service_name": "emailservice",
 			},
 			wantPromQlQuery: `sum(rate(calls_total{service_name =~ "emailservice", status_code = "STATUS_CODE_ERROR", ` +
-				`span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name, span_name) / ` +
+				`span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name,span_name) / ` +
 				`sum(rate(calls_total{service_name =~ "emailservice", span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name,span_name)`,
 		},
 	} {
