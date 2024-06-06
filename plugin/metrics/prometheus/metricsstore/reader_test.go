@@ -182,7 +182,6 @@ func TestGetLatencies(t *testing.T) {
 			wantName:         "service_operation_latencies",
 			wantDescription:  "0.95th quantile latency, grouped by service & operation",
 			wantLabels: map[string]string{
-				"span_name":    "/OrderResult",
 				"service_name": "emailservice",
 			},
 			wantPromQlQuery: `histogram_quantile(0.95, sum(rate(duration_bucket{service_name =~ "emailservice", ` +
@@ -284,7 +283,6 @@ func TestGetCallRates(t *testing.T) {
 			wantDescription:  "calls/sec, grouped by service & operation",
 			wantLabels: map[string]string{
 				"service_name": "emailservice",
-				"span_name":    "/OrderResult",
 			},
 			wantPromQlQuery: `sum(rate(calls{service_name =~ "emailservice", ` +
 				`span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name,span_name)`,
