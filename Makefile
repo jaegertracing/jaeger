@@ -358,7 +358,10 @@ _prepare-winres-helper:
 	echo $$VERSIONINFO | $(GOVERSIONINFO) -o="$(PKGPATH)/$(SYSOFILE)" -
 
 .PHONY: build-binaries-linux
-build-binaries-linux:
+build-binaries-linux: build-binaries-amd64
+
+.PHONY: build-binaries-amd64
+build-binaries-amd64:
 	GOOS=linux GOARCH=amd64 $(MAKE) _build-platform-binaries
 
 .PHONY: build-binaries-windows
