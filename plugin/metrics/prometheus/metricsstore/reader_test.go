@@ -182,11 +182,11 @@ func TestGetLatencies(t *testing.T) {
 			wantName:         "service_operation_latencies",
 			wantDescription:  "0.95th quantile latency, grouped by service & operation",
 			wantLabels: map[string]string{
-				"operation":    "/OrderResult",
+				"span_name":    "/OrderResult",
 				"service_name": "emailservice",
 			},
 			wantPromQlQuery: `histogram_quantile(0.95, sum(rate(duration_bucket{service_name =~ "emailservice", ` +
-				`span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name,operation,le))`,
+				`span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name,span_name,le))`,
 		},
 		{
 			name:             "two services and span kinds result in regex 'or' symbol in query",
@@ -215,10 +215,9 @@ func TestGetLatencies(t *testing.T) {
 			wantDescription: "0.95th quantile latency, grouped by service & operation",
 			wantLabels: map[string]string{
 				"service_name": "emailservice",
-				"operation":    "/OrderResult",
 			},
 			wantPromQlQuery: `histogram_quantile(0.95, sum(rate(span_metrics_duration_bucket{service_name =~ "emailservice", ` +
-				`span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name,operation,le))`,
+				`span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name,span_name,le))`,
 		},
 		{
 			name:             "enable support for spanmetrics connector with normalized metric name",
@@ -234,10 +233,9 @@ func TestGetLatencies(t *testing.T) {
 			wantDescription: "0.95th quantile latency, grouped by service & operation",
 			wantLabels: map[string]string{
 				"service_name": "emailservice",
-				"operation":    "/OrderResult",
 			},
 			wantPromQlQuery: `histogram_quantile(0.95, sum(rate(duration_seconds_bucket{service_name =~ "emailservice", ` +
-				`span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name,operation,le))`,
+				`span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name,span_name,le))`,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -285,11 +283,11 @@ func TestGetCallRates(t *testing.T) {
 			wantName:         "service_operation_call_rate",
 			wantDescription:  "calls/sec, grouped by service & operation",
 			wantLabels: map[string]string{
-				"operation":    "/OrderResult",
 				"service_name": "emailservice",
+				"span_name":    "/OrderResult",
 			},
 			wantPromQlQuery: `sum(rate(calls{service_name =~ "emailservice", ` +
-				`span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name,operation)`,
+				`span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name,span_name)`,
 		},
 		{
 			name:             "two services and span kinds result in regex 'or' symbol in query",
@@ -317,10 +315,9 @@ func TestGetCallRates(t *testing.T) {
 			wantDescription: "calls/sec, grouped by service & operation",
 			wantLabels: map[string]string{
 				"service_name": "emailservice",
-				"operation":    "/OrderResult",
 			},
 			wantPromQlQuery: `sum(rate(span_metrics_calls{service_name =~ "emailservice", ` +
-				`span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name,operation)`,
+				`span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name,span_name)`,
 		},
 		{
 			name:             "enable support for spanmetrics connector with normalized metric name",
@@ -335,10 +332,9 @@ func TestGetCallRates(t *testing.T) {
 			wantDescription: "calls/sec, grouped by service & operation",
 			wantLabels: map[string]string{
 				"service_name": "emailservice",
-				"operation":    "/OrderResult",
 			},
 			wantPromQlQuery: `sum(rate(calls_total{service_name =~ "emailservice", ` +
-				`span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name,operation)`,
+				`span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name,span_name)`,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -386,11 +382,11 @@ func TestGetErrorRates(t *testing.T) {
 			wantName:         "service_operation_error_rate",
 			wantDescription:  "error rate, computed as a fraction of errors/sec over calls/sec, grouped by service & operation",
 			wantLabels: map[string]string{
-				"operation":    "/OrderResult",
+				"span_name":    "/OrderResult",
 				"service_name": "emailservice",
 			},
 			wantPromQlQuery: `sum(rate(calls{service_name =~ "emailservice", status_code = "STATUS_CODE_ERROR", ` +
-				`span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name,operation) / ` +
+				`span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name,span_name) / ` +
 				`sum(rate(calls{service_name =~ "emailservice", span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name,operation)`,
 		},
 		{
@@ -439,11 +435,10 @@ func TestGetErrorRates(t *testing.T) {
 			wantDescription: "error rate, computed as a fraction of errors/sec over calls/sec, grouped by service & operation",
 			wantLabels: map[string]string{
 				"service_name": "emailservice",
-				"operation":    "/OrderResult",
 			},
 			wantPromQlQuery: `sum(rate(span_metrics_calls{service_name =~ "emailservice", status_code = "STATUS_CODE_ERROR", ` +
-				`span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name,operation) / ` +
-				`sum(rate(span_metrics_calls{service_name =~ "emailservice", span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name,operation)`,
+				`span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name,span_name) / ` +
+				`sum(rate(span_metrics_calls{service_name =~ "emailservice", span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name,span_name)`,
 		},
 		{
 			name:             "enable support for spanmetrics connector with normalized metric name",
@@ -458,11 +453,10 @@ func TestGetErrorRates(t *testing.T) {
 			wantDescription: "error rate, computed as a fraction of errors/sec over calls/sec, grouped by service & operation",
 			wantLabels: map[string]string{
 				"service_name": "emailservice",
-				"operation":    "/OrderResult",
 			},
 			wantPromQlQuery: `sum(rate(calls_total{service_name =~ "emailservice", status_code = "STATUS_CODE_ERROR", ` +
-				`span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name, operation) / ` +
-				`sum(rate(calls_total{service_name =~ "emailservice", span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name,operation)`,
+				`span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name, span_name) / ` +
+				`sum(rate(calls_total{service_name =~ "emailservice", span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name,span_name)`,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
