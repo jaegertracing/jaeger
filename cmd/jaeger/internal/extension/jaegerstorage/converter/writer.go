@@ -19,10 +19,10 @@ type TraceWriter struct {
 	spanWriter spanstore_v1.Writer
 }
 
-func NewTraceWriter(spanWriter spanstore_v1.Writer) (spanstore.Writer, error) {
+func NewTraceWriter(spanWriter spanstore_v1.Writer) spanstore.Writer {
 	return &TraceWriter{
 		spanWriter: spanWriter,
-	}, nil
+	}
 }
 
 // WriteTraces implements spanstore.Writer.

@@ -54,5 +54,5 @@ func (f *Factory) CreateTraceWriter() (spanstore.Writer, error) {
 	if err != nil {
 		return nil, err
 	}
-	return NewTraceWriter(spanWriter)
+	return NewTraceWriter(spanWriter), nil
 }
