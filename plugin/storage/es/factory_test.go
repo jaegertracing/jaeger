@@ -336,12 +336,12 @@ func TestPasswordFromFile(t *testing.T) {
 	defer testutils.VerifyGoLeaksOnce(t)
 	t.Run("primary client", func(t *testing.T) {
 		f := NewFactory()
-		testPasswordFromFile(t, f, f.getPrimaryClient, f.CreateSpanWriter)
+		test_Password_From_File(t, f, f.getPrimaryClient, f.CreateSpanWriter)
 	})
 
 	t.Run("archive client", func(t *testing.T) {
 		f2 := NewFactory()
-		testPasswordFromFile(t, f2, f2.getArchiveClient, f2.CreateArchiveSpanWriter)
+		test_Password_From_File(t, f2, f2.getArchiveClient, f2.CreateArchiveSpanWriter)
 	})
 
 	t.Run("load token error", func(t *testing.T) {
@@ -352,7 +352,7 @@ func TestPasswordFromFile(t *testing.T) {
 	})
 }
 
-func testPasswordFromFile(t *testing.T, f *Factory, getClient func() es.Client, getWriter func() (spanstore.Writer, error)) {
+func test_Password_From_File(t *testing.T, f *Factory, getClient func() es.Client, getWriter func() (spanstore.Writer, error)) {
 	const (
 		pwd1 = "first password"
 		pwd2 = "second password"

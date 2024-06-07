@@ -78,7 +78,7 @@ func prefixIndexName(prefix, index string) string {
 // WriteDependencies implements dependencystore.Writer#WriteDependencies.
 func (s *DependencyStore) WriteDependencies(ts time.Time, dependencies []model.DependencyLink) error {
 	writeIndexName := s.getWriteIndex(ts)
-	s.writeDependencies(writeIndexName, ts, dependencies)
+	s.write_Dependencies(writeIndexName, ts, dependencies)
 	return nil
 }
 
@@ -91,7 +91,7 @@ func (s *DependencyStore) CreateTemplates(dependenciesTemplate string) error {
 	return nil
 }
 
-func (s *DependencyStore) writeDependencies(indexName string, ts time.Time, dependencies []model.DependencyLink) {
+func (s *DependencyStore) write_Dependencies(indexName string, ts time.Time, dependencies []model.DependencyLink) {
 	s.client().Index().Index(indexName).Type(dependencyType).
 		BodyJson(&dbmodel.TimeDependencies{
 			Timestamp:    ts,

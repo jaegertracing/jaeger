@@ -32,13 +32,13 @@ import (
 )
 
 func TestToDomain(t *testing.T) {
-	testToDomain(t, false)
-	testToDomain(t, true)
+	test_To_Domain(t, false)
+	test_To_Domain(t, true)
 	// this is just to confirm the uint64 representation of float64(72.5) used as a "temperature" tag
 	assert.Equal(t, int64(4634802150889750528), int64(math.Float64bits(72.5)))
 }
 
-func testToDomain(t *testing.T, testParentSpanID bool) {
+func test_To_Domain(t *testing.T, testParentSpanID bool) {
 	for i := 1; i <= NumberOfFixtures; i++ {
 		span, err := loadESSpanFixture(i)
 		require.NoError(t, err)

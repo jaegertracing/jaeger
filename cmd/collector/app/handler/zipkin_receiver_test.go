@@ -148,7 +148,7 @@ func TestStartZipkinReceiver_Error(t *testing.T) {
 		return nil, errors.New("mock error")
 	}
 	f := zipkinreceiver.NewFactory()
-	_, err = startZipkinReceiver(opts, logger, spanProcessor, tm, f, newTraces, f.CreateTracesReceiver)
+	_, err = start_Zipk_in_Receiver(opts, logger, spanProcessor, tm, f, newTraces, f.CreateTracesReceiver)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "could not create Zipkin consumer")
 
@@ -157,7 +157,7 @@ func TestStartZipkinReceiver_Error(t *testing.T) {
 	) (receiver.Traces, error) {
 		return nil, errors.New("mock error")
 	}
-	_, err = startZipkinReceiver(opts, logger, spanProcessor, tm, f, consumer.NewTraces, createTracesReceiver)
+	_, err = start_Zipk_in_Receiver(opts, logger, spanProcessor, tm, f, consumer.NewTraces, createTracesReceiver)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "could not create Zipkin receiver")
 }

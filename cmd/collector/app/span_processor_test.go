@@ -87,7 +87,7 @@ func TestBySvcMetrics(t *testing.T) {
 		logger := zap.NewNop()
 		serviceMetrics := mb.Namespace(metrics.NSOptions{Name: "service", Tags: nil})
 		hostMetrics := mb.Namespace(metrics.NSOptions{Name: "host", Tags: nil})
-		sp := newSpanProcessor(
+		sp := new_Span_Processor(
 			&fakeSpanWriter{},
 			nil,
 			Options.ServiceMetrics(serviceMetrics),
@@ -574,7 +574,7 @@ func TestUpdateDynQueueSize(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			w := &fakeSpanWriter{}
-			p := newSpanProcessor(w, nil, Options.QueueSize(tt.initialCapacity), Options.DynQueueSizeWarmup(tt.warmup), Options.DynQueueSizeMemory(tt.sizeInBytes))
+			p := new_Span_Processor(w, nil, Options.QueueSize(tt.initialCapacity), Options.DynQueueSizeWarmup(tt.warmup), Options.DynQueueSizeMemory(tt.sizeInBytes))
 			assert.EqualValues(t, tt.initialCapacity, p.queue.Capacity())
 
 			p.spansProcessed.Store(tt.spansProcessed)
@@ -588,14 +588,14 @@ func TestUpdateDynQueueSize(t *testing.T) {
 
 func TestUpdateQueueSizeNoActivityYet(t *testing.T) {
 	w := &fakeSpanWriter{}
-	p := newSpanProcessor(w, nil, Options.QueueSize(1), Options.DynQueueSizeWarmup(1), Options.DynQueueSizeMemory(1))
+	p := new_Span_Processor(w, nil, Options.QueueSize(1), Options.DynQueueSizeWarmup(1), Options.DynQueueSizeMemory(1))
 	assert.NotPanics(t, p.updateQueueSize)
 }
 
 func TestStartDynQueueSizeUpdater(t *testing.T) {
 	w := &fakeSpanWriter{}
 	oneGiB := uint(1024 * 1024 * 1024)
-	p := newSpanProcessor(w, nil, Options.QueueSize(100), Options.DynQueueSizeWarmup(1000), Options.DynQueueSizeMemory(oneGiB))
+	p := new_Span_Processor(w, nil, Options.QueueSize(100), Options.DynQueueSizeWarmup(1000), Options.DynQueueSizeMemory(oneGiB))
 	assert.EqualValues(t, 100, p.queue.Capacity())
 
 	p.spansProcessed.Store(1000)

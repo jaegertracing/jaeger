@@ -28,7 +28,7 @@ func StartZipkinReceiver(
 	tm *tenancy.Manager,
 ) (receiver.Traces, error) {
 	zipkinFactory := zipkinreceiver.NewFactory()
-	return startZipkinReceiver(
+	return start_Zipk_in_Receiver(
 		options,
 		logger,
 		spanProcessor,
@@ -42,7 +42,7 @@ func StartZipkinReceiver(
 // Some of OTELCOL constructor functions return errors when passed nil arguments,
 // which is a situation we cannot reproduce. To test our own error handling, this
 // function allows to mock those constructors.
-func startZipkinReceiver(
+func start_Zipk_in_Receiver(
 	options *flags.CollectorOptions,
 	logger *zap.Logger,
 	spanProcessor processor.SpanProcessor,
