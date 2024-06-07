@@ -234,7 +234,7 @@ func addGRPCFlags(flags *flag.FlagSet, cfg serverFlagsConfig, defaultHostPort st
 	cfg.tls.AddFlags(flags)
 }
 
-func (opts *HTTPOptions) initFromViper(v *viper.Viper, logger *zap.Logger, cfg serverFlagsConfig) error {
+func (opts *HTTPOptions) initFromViper(v *viper.Viper, _ *zap.Logger, cfg serverFlagsConfig) error {
 	opts.HostPort = ports.FormatHostPort(v.GetString(cfg.prefix + "." + flagSuffixHostPort))
 	opts.IdleTimeout = v.GetDuration(cfg.prefix + "." + flagSuffixHTTPIdleTimeout)
 	opts.ReadTimeout = v.GetDuration(cfg.prefix + "." + flagSuffixHTTPReadTimeout)
@@ -247,7 +247,7 @@ func (opts *HTTPOptions) initFromViper(v *viper.Viper, logger *zap.Logger, cfg s
 	return nil
 }
 
-func (opts *GRPCOptions) initFromViper(v *viper.Viper, logger *zap.Logger, cfg serverFlagsConfig) error {
+func (opts *GRPCOptions) initFromViper(v *viper.Viper, _ *zap.Logger, cfg serverFlagsConfig) error {
 	opts.HostPort = ports.FormatHostPort(v.GetString(cfg.prefix + "." + flagSuffixHostPort))
 	opts.MaxReceiveMessageLength = v.GetInt(cfg.prefix + "." + flagSuffixGRPCMaxReceiveMessageLength)
 	opts.MaxConnectionAge = v.GetDuration(cfg.prefix + "." + flagSuffixGRPCMaxConnectionAge)

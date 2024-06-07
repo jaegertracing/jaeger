@@ -26,12 +26,12 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 )
 
-func readyHandler(w http.ResponseWriter, r *http.Request) {
+func readyHandler(w http.ResponseWriter, _ *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("{\"status\":\"Server available\"}"))
 }
 
-func unavailableHandler(w http.ResponseWriter, r *http.Request) {
+func unavailableHandler(w http.ResponseWriter, _ *http.Request) {
 	w.WriteHeader(http.StatusServiceUnavailable)
 	w.Write([]byte("{\"status\":\"Server not available\"}"))
 }

@@ -30,7 +30,7 @@ type mockSamplingStore struct {
 	samplingResponse *api_v2.SamplingStrategyResponse
 }
 
-func (m *mockSamplingStore) GetSamplingStrategy(_ context.Context, serviceName string) (*api_v2.SamplingStrategyResponse, error) {
+func (m *mockSamplingStore) GetSamplingStrategy(context.Context, string /* serviceName */) (*api_v2.SamplingStrategyResponse, error) {
 	if m.samplingResponse == nil {
 		return nil, errors.New("no mock response provided")
 	}
@@ -45,7 +45,7 @@ type mockBaggageMgr struct {
 	baggageResponse []*baggage.BaggageRestriction
 }
 
-func (m *mockBaggageMgr) GetBaggageRestrictions(_ context.Context, serviceName string) ([]*baggage.BaggageRestriction, error) {
+func (m *mockBaggageMgr) GetBaggageRestrictions(context.Context, string /* serviceName */) ([]*baggage.BaggageRestriction, error) {
 	if m.baggageResponse == nil {
 		return nil, errors.New("no mock response provided")
 	}

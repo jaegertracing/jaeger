@@ -69,7 +69,7 @@ func (s *Server) createServeMux() http.Handler {
 	return mux
 }
 
-func movedToFrontend(w http.ResponseWriter, r *http.Request) {
+func movedToFrontend(w http.ResponseWriter, _ *http.Request) {
 	http.Error(w, "endpoint moved to the frontend service", http.StatusNotFound)
 }
 

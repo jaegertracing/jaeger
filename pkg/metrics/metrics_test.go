@@ -124,7 +124,7 @@ func TestInitPanic(t *testing.T) {
 	metrics.MustInit(&noMetricTag, metrics.NullFactory, nil)
 }
 
-func TestNullMetrics(t *testing.T) {
+func TestNullMetrics(*testing.T) {
 	// This test is just for cover
 	metrics.NullFactory.Timer(metrics.TimerOptions{
 		Name: "name",

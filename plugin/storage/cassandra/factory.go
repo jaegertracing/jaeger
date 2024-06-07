@@ -124,7 +124,7 @@ func (f *Factory) AddFlags(flagSet *flag.FlagSet) {
 }
 
 // InitFromViper implements plugin.Configurable
-func (f *Factory) InitFromViper(v *viper.Viper, logger *zap.Logger) {
+func (f *Factory) InitFromViper(v *viper.Viper, _ *zap.Logger) {
 	f.Options.InitFromViper(v)
 	f.configureFromOptions(f.Options)
 }
@@ -218,7 +218,7 @@ func (f *Factory) CreateLock() (distributedlock.Lock, error) {
 }
 
 // CreateSamplingStore implements storage.SamplingStoreFactory
-func (f *Factory) CreateSamplingStore(maxBuckets int) (samplingstore.Store, error) {
+func (f *Factory) CreateSamplingStore(int /* maxBuckets */) (samplingstore.Store, error) {
 	return cSamplingStore.New(f.primarySession, f.primaryMetricsFactory, f.logger), nil
 }
 

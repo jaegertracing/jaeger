@@ -69,11 +69,11 @@ func (fakeStorageExt) Factory(name string) (storage.Factory, bool) {
 	return fakeFactory{name: name}, true
 }
 
-func (fakeStorageExt) Start(ctx context.Context, host component.Host) error {
+func (fakeStorageExt) Start(context.Context, component.Host) error {
 	return nil
 }
 
-func (fakeStorageExt) Shutdown(ctx context.Context) error {
+func (fakeStorageExt) Shutdown(context.Context) error {
 	return nil
 }
 
@@ -81,7 +81,7 @@ type storageHost struct {
 	extension component.Component
 }
 
-func (storageHost) ReportFatalError(err error) {
+func (storageHost) ReportFatalError(error) {
 }
 
 func (host storageHost) GetExtensions() map[component.ID]component.Component {

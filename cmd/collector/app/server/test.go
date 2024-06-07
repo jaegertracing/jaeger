@@ -24,7 +24,7 @@ import (
 
 type mockSamplingStore struct{}
 
-func (mockSamplingStore) GetSamplingStrategy(_ context.Context, serviceName string) (*api_v2.SamplingStrategyResponse, error) {
+func (mockSamplingStore) GetSamplingStrategy(context.Context, string /* serviceName */) (*api_v2.SamplingStrategyResponse, error) {
 	return nil, nil
 }
 
@@ -38,6 +38,6 @@ func (*mockSpanProcessor) Close() error {
 	return nil
 }
 
-func (*mockSpanProcessor) ProcessSpans(spans []*model.Span, _ processor.SpansOptions) ([]bool, error) {
+func (*mockSpanProcessor) ProcessSpans([]*model.Span, processor.SpansOptions) ([]bool, error) {
 	return []bool{}, nil
 }
