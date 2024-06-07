@@ -127,7 +127,10 @@ func calculateThreshold(ratio float64) uint64 {
 
 // ShouldSample decides if a span should be sampled
 func (s *Sampler) ShouldSample(span *model.Span) bool {
-	hasherInstance := s.hasherPool.Get().(*hasher)
+	hasherInstance, ok := s.hasherPool.Get().(*hasher)
+	if !ok {
+		return false
+	}
 	// Currently MarshalTo will only return err if size of traceIDBytes is smaller than 16
 	// Since we force traceIDBytes to be size of 16 metrics is not necessary here.
 	_, _ = span.TraceID.MarshalTo(hasherInstance.buffer[s.lengthOfSalt:])

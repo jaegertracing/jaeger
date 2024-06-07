@@ -21,6 +21,8 @@ import (
 	"math/rand"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
@@ -59,7 +61,8 @@ func BenchmarkDownSamplingWriter_HashBytes(b *testing.B) {
 	}
 	b.ResetTimer()
 	b.ReportAllocs()
-	h := c.sampler.hasherPool.Get().(*hasher)
+	h, ok := c.sampler.hasherPool.Get().(*hasher)
+	require.True(b, ok, "Type assertion to *haser failed")
 	for it := 0; it < b.N; it++ {
 		h.hashBytes()
 	}
@@ -76,7 +79,8 @@ func BenchmarkDownsamplingWriter_RandomHash(b *testing.B) {
 		MetricsFactory: metrics.NullFactory,
 	}
 	c := NewDownsamplingWriter(&noopWriteSpanStore{}, downsamplingOptions)
-	h := c.sampler.hasherPool.Get().(*hasher)
+	h, ok := c.sampler.hasherPool.Get().(*hasher)
+	require.True(b, ok, "Type assertion to *haser failed")
 	for it := 0; it < b.N; it++ {
 		countSmallerThanRatio = 0
 		for i := 0; i < numberActions; i++ {

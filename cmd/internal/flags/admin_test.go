@@ -54,7 +54,8 @@ func TestAdminServerHandlesPortZero(t *testing.T) {
 	assert.Equal(t, 1, message.Len(), "Expected Admin server started log message.")
 
 	onlyEntry := message.All()[0]
-	hostPort := onlyEntry.ContextMap()["http.host-port"].(string)
+	hostPort, ok := onlyEntry.ContextMap()["http.host-port"].(string)
+	require.True(t, ok, "Type assertion to string failed")
 	port, _ := strconv.Atoi(strings.Split(hostPort, ":")[3])
 	assert.Greater(t, port, 0)
 }

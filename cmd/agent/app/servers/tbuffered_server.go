@@ -105,7 +105,10 @@ func (s *TBufferedServer) Serve() {
 	}
 
 	for s.IsServing() {
-		readBuf := s.readBufPool.Get().(*ReadBuf)
+		readBuf, ok := s.readBufPool.Get().(*ReadBuf)
+		if !ok {
+			return
+		}
 		n, err := s.transport.Read(readBuf.bytes)
 		if err == nil {
 			readBuf.n = n

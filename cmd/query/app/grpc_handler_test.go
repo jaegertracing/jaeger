@@ -627,7 +627,8 @@ func TestGetMetricsSuccessGRPC(t *testing.T) {
 		} {
 			t.Run(tc.mockMethod, func(t *testing.T) {
 				expectedMetrics := &metrics.MetricFamily{Name: "foo"}
-				m := server.metricsQueryService.(*metricsmocks.Reader)
+				m, ok := server.metricsQueryService.(*metricsmocks.Reader)
+				require.True(t, ok)
 				m.On(tc.mockMethod, mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType(tc.mockParamType)).
 					Return(expectedMetrics, nil).Once()
 
@@ -697,7 +698,8 @@ func TestGetMetricsUseDefaultParamsGRPC(t *testing.T) {
 				SpanKinds:    defaultMetricsSpanKinds,
 			},
 		}
-		m := server.metricsQueryService.(*metricsmocks.Reader)
+		m, ok := server.metricsQueryService.(*metricsmocks.Reader)
+		require.True(t, ok, "Type assertion to *metricsmocks.Reader failed")
 		m.On("GetCallRates", mock.AnythingOfType("*context.valueCtx"), expectedParams).
 			Return(expectedMetrics, nil).Once()
 
@@ -738,7 +740,8 @@ func TestGetMetricsOverrideDefaultParamsGRPC(t *testing.T) {
 				SpanKinds:    expectedSpanKinds,
 			},
 		}
-		m := server.metricsQueryService.(*metricsmocks.Reader)
+		m, ok := server.metricsQueryService.(*metricsmocks.Reader)
+		require.True(t, ok, "Type assertion to *metricmocks.Reader failed")
 		m.On("GetCallRates", mock.AnythingOfType("*context.valueCtx"), expectedParams).
 			Return(expectedMetrics, nil).Once()
 
@@ -785,7 +788,8 @@ func TestGetMetricsFailureGRPC(t *testing.T) {
 			},
 		} {
 			t.Run(tc.mockMethod, func(t *testing.T) {
-				m := server.metricsQueryService.(*metricsmocks.Reader)
+				m, ok := server.metricsQueryService.(*metricsmocks.Reader)
+				require.True(t, ok, "Type assertion to *metricsmocks.Reader failed")
 				m.On(tc.mockMethod, mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType(tc.mockParamType)).
 					Return(nil, errStorageGRPC).Once()
 
@@ -801,7 +805,8 @@ func TestGetMetricsFailureGRPC(t *testing.T) {
 
 func TestGetMinStepDurationSuccessGRPC(t *testing.T) {
 	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
-		m := server.metricsQueryService.(*metricsmocks.Reader)
+		m, ok := server.metricsQueryService.(*metricsmocks.Reader)
+		require.True(t, ok, "Type assertion to *metricmocks.Reader failed")
 		m.On("GetMinStepDuration", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("*metricsstore.MinStepDurationQueryParameters")).
 			Return(time.Hour, nil).Once()
 
@@ -813,7 +818,8 @@ func TestGetMinStepDurationSuccessGRPC(t *testing.T) {
 
 func TestGetMinStepDurationFailureGRPC(t *testing.T) {
 	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
-		m := server.metricsQueryService.(*metricsmocks.Reader)
+		m, ok := server.metricsQueryService.(*metricsmocks.Reader)
+		require.True(t, ok, "Type assertion to *metricmocks.Reader failed")
 		m.On("GetMinStepDuration", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("*metricsstore.MinStepDurationQueryParameters")).
 			Return(time.Duration(0), errStorageGRPC).Once()
 
@@ -876,7 +882,8 @@ func TestGetMetricsInvalidParametersGRPC(t *testing.T) {
 			},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
-				m := server.metricsQueryService.(*metricsmocks.Reader)
+				m, ok := server.metricsQueryService.(*metricsmocks.Reader)
+				require.True(t, ok, "Type assertion to *metricsmocks.Reader failed")
 				m.On(tc.mockMethod, mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType(tc.mockParamType)).
 					Times(0)
 

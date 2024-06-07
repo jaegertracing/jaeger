@@ -5,6 +5,7 @@ package storagereceiver
 
 import (
 	"context"
+	"errors"
 
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/consumer"
@@ -30,7 +31,9 @@ func createDefaultConfig() component.Config {
 }
 
 func createTracesReceiver(ctx context.Context, set receiver.CreateSettings, config component.Config, nextConsumer consumer.Traces) (receiver.Traces, error) {
-	cfg := config.(*Config)
-
+	cfg, ok := config.(*Config)
+	if !ok {
+		return nil, errors.New("Type assertion to *Config failed")
+	}
 	return newTracesReceiver(cfg, set, nextConsumer)
 }

@@ -144,7 +144,10 @@ func (r *ClientMetricsReporter) expireClientMetricsLoop() {
 func (r *ClientMetricsReporter) expireClientMetrics(t time.Time) {
 	var size int64
 	r.lastReceivedClientStats.Range(func(k, v any) bool {
-		stats := v.(*lastReceivedClientStats)
+		stats, ok := v.(*lastReceivedClientStats)
+		if !ok {
+			return false
+		}
 		stats.lock.Lock()
 		defer stats.lock.Unlock()
 
@@ -179,7 +182,10 @@ func (r *ClientMetricsReporter) updateClientMetrics(batch *jaeger.Batch) {
 		}
 		entry = ent
 	}
-	clientStats := entry.(*lastReceivedClientStats)
+	clientStats, ok := entry.(*lastReceivedClientStats)
+	if !ok {
+		return
+	}
 	clientStats.update(*batch.SeqNo, batch.Stats, r.clientMetrics)
 }
 

@@ -55,7 +55,12 @@ func NewAgent(
 
 // GetHTTPRouter returns Gorilla HTTP router used by the agent's HTTP server.
 func (a *Agent) GetHTTPRouter() *mux.Router {
-	return a.httpServer.Handler.(*mux.Router)
+	router, ok := a.httpServer.Handler.(*mux.Router)
+	if !ok {
+		// Handle the case where the type assertion fails gracefully
+		return nil // Or return a default router, or log an error and return
+	}
+	return router
 }
 
 // Run runs all of agent UDP and HTTP servers in separate go-routines.
@@ -84,7 +89,11 @@ func (a *Agent) Run() error {
 
 // HTTPAddr returns the address that HTTP server is listening on
 func (a *Agent) HTTPAddr() string {
-	return a.httpAddr.Load().(string)
+	addr, ok := a.httpAddr.Load().(string)
+	if !ok {
+		return ""
+	}
+	return addr
 }
 
 // Stop forces all agent go routines to exit.

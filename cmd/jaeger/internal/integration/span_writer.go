@@ -5,6 +5,7 @@ package integration
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"time"
@@ -36,7 +37,10 @@ func createSpanWriter(logger *zap.Logger, port int) (*spanWriter, error) {
 	logger.Info("Creating the span writer", zap.Int("port", port))
 
 	factory := otlpexporter.NewFactory()
-	cfg := factory.CreateDefaultConfig().(*otlpexporter.Config)
+	cfg, ok := factory.CreateDefaultConfig().(*otlpexporter.Config)
+	if !ok {
+		return nil, errors.New("type assertion to *otlpexporter.Config failed")
+	}
 	cfg.Endpoint = fmt.Sprintf("localhost:%d", port)
 	cfg.Timeout = 30 * time.Second
 	cfg.RetryConfig.Enabled = false

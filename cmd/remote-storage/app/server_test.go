@@ -392,7 +392,8 @@ func TestServerHandlesPortZero(t *testing.T) {
 	require.Equal(t, 1, message.Len(), "Expected '%s' log message, actual logs: %+v", line, logs)
 
 	onlyEntry := message.All()[0]
-	hostPort := onlyEntry.ContextMap()["addr"].(string)
+	hostPort, ok := onlyEntry.ContextMap()["addr"].(string)
+	require.True(t, ok, "Type assertion to string failed")
 	validateGRPCServer(t, hostPort, server.grpcServer)
 
 	server.Close()

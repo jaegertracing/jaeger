@@ -376,7 +376,8 @@ func TestAutoUpdateStrategyWithFile(t *testing.T) {
 		ReloadInterval: time.Millisecond * 10,
 	}, zap.NewNop())
 	require.NoError(t, err)
-	store := ss.(*strategyStore)
+	store, ok := ss.(*strategyStore)
+	require.True(t, ok, "type assertion to *strategyStore failed")
 	defer store.Close()
 
 	// confirm baseline value
@@ -411,7 +412,8 @@ func TestAutoUpdateStrategyWithURL(t *testing.T) {
 		ReloadInterval: 10 * time.Millisecond,
 	}, zap.NewNop())
 	require.NoError(t, err)
-	store := ss.(*strategyStore)
+	store, ok := ss.(*strategyStore)
+	require.True(t, ok, "type assertion to *strategyStore failed")
 	defer store.Close()
 
 	// confirm baseline value
@@ -459,7 +461,8 @@ func TestAutoUpdateStrategyErrors(t *testing.T) {
 		ReloadInterval: time.Hour,
 	}, logger)
 	require.NoError(t, err)
-	store := s.(*strategyStore)
+	store, ok := s.(*strategyStore)
+	require.True(t, ok, "type assertion to *strategyStore failed")
 	defer store.Close()
 
 	// check invalid file path or read failure

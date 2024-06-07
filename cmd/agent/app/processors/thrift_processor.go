@@ -114,7 +114,10 @@ func (s *ThriftProcessor) Stop() {
 // the processor to process
 func (s *ThriftProcessor) processBuffer() {
 	for readBuf := range s.server.DataChan() {
-		protocol := s.protocolPool.Get().(thrift.TProtocol)
+		protocol, ok := s.protocolPool.Get().(thrift.TProtocol)
+		if !ok {
+			return
+		}
 		payload := readBuf.GetBytes()
 		protocol.Transport().Write(payload)
 		s.logger.Debug("Span(s) received by the agent", zap.Int("bytes-received", len(payload)))

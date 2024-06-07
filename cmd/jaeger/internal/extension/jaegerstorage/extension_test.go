@@ -73,7 +73,8 @@ func (e errorFactory) Close() error {
 }
 
 func TestStorageExtensionConfigError(t *testing.T) {
-	config := createDefaultConfig().(*Config)
+	config, ok := createDefaultConfig().(*Config)
+	require.True(t, ok, "Type assertion to *Config failed")
 	err := config.Validate()
 	require.ErrorContains(t, err, "no storage type present in config")
 }

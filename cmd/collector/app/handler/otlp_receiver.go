@@ -16,6 +16,7 @@ package handler
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	otlp2jaeger "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger"
@@ -69,7 +70,10 @@ func startOTLPReceiver(
 	createTracesReceiver func(ctx context.Context, set receiver.CreateSettings,
 		cfg component.Config, nextConsumer consumer.Traces) (receiver.Traces, error),
 ) (receiver.Traces, error) {
-	otlpReceiverConfig := otlpFactory.CreateDefaultConfig().(*otlpreceiver.Config)
+	otlpReceiverConfig, ok := otlpFactory.CreateDefaultConfig().(*otlpreceiver.Config)
+	if !ok {
+		return nil, errors.New("type assertion to *otlpreceiver.Config failed")
+	}
 	applyGRPCSettings(otlpReceiverConfig.GRPC, &options.OTLP.GRPC)
 	applyHTTPSettings(otlpReceiverConfig.HTTP.ServerConfig, &options.OTLP.HTTP)
 	statusReporter := func(ev *component.StatusEvent) {

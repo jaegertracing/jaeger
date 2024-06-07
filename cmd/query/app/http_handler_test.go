@@ -530,8 +530,12 @@ func TestGetServicesSuccess(t *testing.T) {
 	err := getJSON(ts.server.URL+"/api/services", &response)
 	require.NoError(t, err)
 	actualServices := make([]string, len(expectedServices))
-	for i, s := range response.Data.([]any) {
-		actualServices[i] = s.(string)
+	data, ok := response.Data.([]any)
+	require.True(t, ok, "Type assertion to []any failed")
+	for i, s := range data {
+		str, ok := s.(string)
+		require.True(t, ok, "Type assertion to string failed")
+		actualServices[i] = str
 	}
 	assert.Equal(t, expectedServices, actualServices)
 }

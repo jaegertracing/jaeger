@@ -347,7 +347,10 @@ func (m *spanCountsBySvc) countByServiceName(serviceName string, isDebug bool) {
 }
 
 func (m *traceCountsBySvc) buildKey(serviceName, samplerType string) string {
-	keyBuilder := m.stringBuilderPool.Get().(*strings.Builder)
+	keyBuilder, ok := m.stringBuilderPool.Get().(*strings.Builder)
+	if !ok {
+		return ""
+	}
 	keyBuilder.Reset()
 	keyBuilder.WriteString(serviceName)
 	keyBuilder.WriteString(concatenation)

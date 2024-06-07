@@ -10,14 +10,16 @@ import (
 )
 
 func TestStorageExtensionConfig(t *testing.T) {
-	config := createDefaultConfig().(*Config)
+	config, ok := createDefaultConfig().(*Config)
+	require.True(t, ok, "Type assertion to *Config failed")
 	config.TraceStorage = "storage"
 	err := config.Validate()
 	require.NoError(t, err)
 }
 
 func TestStorageExtensionConfigError(t *testing.T) {
-	config := createDefaultConfig().(*Config)
+	config, ok := createDefaultConfig().(*Config)
+	require.True(t, ok, "Type assertion to *Config failed")
 	err := config.Validate()
 	require.ErrorContains(t, err, "non zero value required")
 }
