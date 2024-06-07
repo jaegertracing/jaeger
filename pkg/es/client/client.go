@@ -116,22 +116,14 @@ func (*Client) handleFailedRequest(res *http.Response) error {
 		bodyBytes, err := io.ReadAll(res.Body)
 		if err != nil {
 			return newResponseError(
-				fmt.Errorf(
-					"request failed and failed to read response body, status code: %d, %w",
-					res.StatusCode,
-					err,
-				),
+				fmt.Errorf("request failed and failed to read response body, status code: %d, %w", res.StatusCode, err),
 				res.StatusCode,
 				nil,
 			)
 		}
 		body := string(bodyBytes)
 		return newResponseError(
-			fmt.Errorf(
-				"request failed, status code: %d, body: %s",
-				res.StatusCode,
-				body,
-			),
+			fmt.Errorf("request failed, status code: %d, body: %s", res.StatusCode, body),
 			res.StatusCode,
 			bodyBytes,
 		)

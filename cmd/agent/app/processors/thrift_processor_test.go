@@ -145,10 +145,7 @@ func TestProcessorWithCompactZipkin(t *testing.T) {
 	span := zipkincore.NewSpan()
 	span.Name = testSpanName
 	span.Annotations = []*zipkincore.Annotation{
-		{
-			Value: zipkincore.CLIENT_SEND,
-			Host:  &zipkincore.Endpoint{ServiceName: "foo"},
-		},
+		{Value: zipkincore.CLIENT_SEND, Host: &zipkincore.Endpoint{ServiceName: "foo"}},
 	}
 
 	err = client.EmitZipkinBatch(context.Background(), []*zipkincore.Span{span})

@@ -226,10 +226,8 @@ func TestSpanWriter(t *testing.T) {
 					Return("select from duration_index")
 
 				// Define expected queries
-				w.session.On("Query", stringMatcher(insertSpan), matchEverything()).
-					Return(spanQuery)
-				w.session.On("Query", stringMatcher(serviceNameIndex), matchEverything()).
-					Return(serviceNameQuery)
+				w.session.On("Query", stringMatcher(insertSpan), matchEverything()).Return(spanQuery)
+				w.session.On("Query", stringMatcher(serviceNameIndex), matchEverything()).Return(serviceNameQuery)
 				w.session.On("Query", stringMatcher(serviceOperationIndex), matchEverything()).
 					Return(serviceOperationNameQuery)
 				// note: using matchOnce below because we only want one tag to be inserted

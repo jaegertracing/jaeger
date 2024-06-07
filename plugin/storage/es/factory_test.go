@@ -300,15 +300,9 @@ func TestArchiveEnabled(t *testing.T) {
 func TestConfigureFromOptions(t *testing.T) {
 	f := NewFactory()
 	o := &Options{
-		Primary: namespaceConfig{
-			Configuration: escfg.Configuration{Servers: []string{"server"}},
-		},
+		Primary: namespaceConfig{Configuration: escfg.Configuration{Servers: []string{"server"}}},
 		others: map[string]*namespaceConfig{
-			"es-archive": {
-				Configuration: escfg.Configuration{
-					Servers: []string{"server2"},
-				},
-			},
+			"es-archive": {Configuration: escfg.Configuration{Servers: []string{"server2"}}},
 		},
 	}
 	f.configureFromOptions(o)

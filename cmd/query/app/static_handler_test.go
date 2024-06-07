@@ -164,20 +164,8 @@ func TestRegisterStaticHandler(t *testing.T) {
 			}
 
 			html := httpGet("") // get home page
-			assert.Contains(
-				t,
-				html,
-				testCase.expectedUIConfig,
-				"actual: %v",
-				html,
-			)
-			assert.Contains(
-				t,
-				html,
-				testCase.expectedStorageCapabilities,
-				"actual: %v",
-				html,
-			)
+			assert.Contains(t, html, testCase.expectedUIConfig, "actual: %v", html)
+			assert.Contains(t, html, testCase.expectedStorageCapabilities, "actual: %v", html)
 			assert.Contains(
 				t,
 				html,
@@ -185,13 +173,7 @@ func TestRegisterStaticHandler(t *testing.T) {
 				"actual: %v",
 				html,
 			)
-			assert.Contains(
-				t,
-				html,
-				testCase.expectedBaseHTML,
-				"actual: %v",
-				html,
-			)
+			assert.Contains(t, html, testCase.expectedBaseHTML, "actual: %v", html)
 
 			asset := httpGet("static/asset.txt")
 			assert.Contains(t, asset, "some asset", "actual: %v", asset)
@@ -214,10 +196,7 @@ func TestNewStaticAssetsHandlerErrors(t *testing.T) {
 	for _, base := range []string{"x", "x/", "/x/"} {
 		_, err := NewStaticAssetsHandler(
 			"fixture",
-			StaticAssetsHandlerOptions{
-				UIConfigPath: "fixture/ui-config.json",
-				BasePath:     base,
-			},
+			StaticAssetsHandlerOptions{UIConfigPath: "fixture/ui-config.json", BasePath: base},
 		)
 		require.Errorf(t, err, "basePath=%s", base)
 		assert.Contains(t, err.Error(), "invalid base path")

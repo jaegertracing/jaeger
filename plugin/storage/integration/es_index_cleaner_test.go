@@ -134,34 +134,20 @@ func TestIndexCleaner(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
-		t.Run(
-			fmt.Sprintf("%s_no_prefix, %s", test.name, test.envVars),
-			func(t *testing.T) {
-				runIndexCleanerTest(
-					t,
-					client,
-					v8Client,
-					"",
-					test.expectedIndices,
-					test.envVars,
-					test.adaptiveSampling,
-				)
-			},
-		)
-		t.Run(
-			fmt.Sprintf("%s_prefix, %s", test.name, test.envVars),
-			func(t *testing.T) {
-				runIndexCleanerTest(
-					t,
-					client,
-					v8Client,
-					indexPrefix,
-					test.expectedIndices,
-					append(test.envVars, "INDEX_PREFIX="+indexPrefix),
-					test.adaptiveSampling,
-				)
-			},
-		)
+		t.Run(fmt.Sprintf("%s_no_prefix, %s", test.name, test.envVars), func(t *testing.T) {
+			runIndexCleanerTest(t, client, v8Client, "", test.expectedIndices, test.envVars, test.adaptiveSampling)
+		})
+		t.Run(fmt.Sprintf("%s_prefix, %s", test.name, test.envVars), func(t *testing.T) {
+			runIndexCleanerTest(
+				t,
+				client,
+				v8Client,
+				indexPrefix,
+				test.expectedIndices,
+				append(test.envVars, "INDEX_PREFIX="+indexPrefix),
+				test.adaptiveSampling,
+			)
+		})
 	}
 }
 

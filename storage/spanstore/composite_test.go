@@ -56,10 +56,7 @@ func TestCompositeWriteSpanStoreSuccess(t *testing.T) {
 }
 
 func TestCompositeWriteSpanStoreSecondFailure(t *testing.T) {
-	c := spanstore.NewCompositeWriter(
-		&errProneWriteSpanStore{},
-		&errProneWriteSpanStore{},
-	)
+	c := spanstore.NewCompositeWriter(&errProneWriteSpanStore{}, &errProneWriteSpanStore{})
 	require.EqualError(
 		t,
 		c.WriteSpan(context.Background(), nil),

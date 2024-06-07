@@ -372,13 +372,10 @@ func (aH *APIHandler) latencies(w http.ResponseWriter, r *http.Request) {
 		w,
 		r,
 		func(ctx context.Context, baseParams metricsstore.BaseQueryParameters) (*metrics.MetricFamily, error) {
-			return aH.metricsQueryService.GetLatencies(
-				ctx,
-				&metricsstore.LatenciesQueryParameters{
-					BaseQueryParameters: baseParams,
-					Quantile:            q,
-				},
-			)
+			return aH.metricsQueryService.GetLatencies(ctx, &metricsstore.LatenciesQueryParameters{
+				BaseQueryParameters: baseParams,
+				Quantile:            q,
+			})
 		},
 	)
 }
@@ -388,12 +385,9 @@ func (aH *APIHandler) calls(w http.ResponseWriter, r *http.Request) {
 		w,
 		r,
 		func(ctx context.Context, baseParams metricsstore.BaseQueryParameters) (*metrics.MetricFamily, error) {
-			return aH.metricsQueryService.GetCallRates(
-				ctx,
-				&metricsstore.CallRateQueryParameters{
-					BaseQueryParameters: baseParams,
-				},
-			)
+			return aH.metricsQueryService.GetCallRates(ctx, &metricsstore.CallRateQueryParameters{
+				BaseQueryParameters: baseParams,
+			})
 		},
 	)
 }
@@ -403,12 +397,9 @@ func (aH *APIHandler) errors(w http.ResponseWriter, r *http.Request) {
 		w,
 		r,
 		func(ctx context.Context, baseParams metricsstore.BaseQueryParameters) (*metrics.MetricFamily, error) {
-			return aH.metricsQueryService.GetErrorRates(
-				ctx,
-				&metricsstore.ErrorRateQueryParameters{
-					BaseQueryParameters: baseParams,
-				},
-			)
+			return aH.metricsQueryService.GetErrorRates(ctx, &metricsstore.ErrorRateQueryParameters{
+				BaseQueryParameters: baseParams,
+			})
 		},
 	)
 }

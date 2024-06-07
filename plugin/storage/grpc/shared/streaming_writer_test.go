@@ -45,12 +45,8 @@ func withStreamingWriterGRPCClient(fn func(r *streamingSpanWriterTest)) {
 func TestStreamClientWriteSpan(t *testing.T) {
 	withStreamingWriterGRPCClient(func(r *streamingSpanWriterTest) {
 		stream := new(grpcMocks.StreamingSpanWriterPlugin_WriteSpanStreamClient)
-		stream.On("Send", &storage_v1.WriteSpanRequest{Span: &mockTraceSpans[0]}).
-			Return(io.EOF).
-			Once().
-			On("Send", &storage_v1.WriteSpanRequest{Span: &mockTraceSpans[0]}).
-			Return(nil).
-			Twice()
+		stream.On("Send", &storage_v1.WriteSpanRequest{Span: &mockTraceSpans[0]}).Return(io.EOF).Once().
+			On("Send", &storage_v1.WriteSpanRequest{Span: &mockTraceSpans[0]}).Return(nil).Twice()
 		r.streamingSpanWriter.On("WriteSpanStream", mock.Anything).
 			Return(nil, status.Error(codes.DeadlineExceeded, "timeout")).
 			Once().

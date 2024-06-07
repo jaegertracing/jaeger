@@ -50,9 +50,7 @@ func TestMultipleCollectors(t *testing.T) {
 	cancel()
 	proxy, err := NewCollectorProxy(
 		ctx,
-		&ConnBuilder{
-			CollectorHostPorts: []string{addr1.String(), addr2.String()},
-		},
+		&ConnBuilder{CollectorHostPorts: []string{addr1.String(), addr2.String()}},
 		nil,
 		mFactory,
 		zap.NewNop(),

@@ -168,33 +168,26 @@ func TestGetLatestIndices(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			withEsSampling(
-				"",
-				test.indexDateLayout,
-				defaultMaxDocCount,
-				func(w *samplingStorageTest) {
-					indexService := &mocks.IndicesExistsService{}
-					w.client.On("IndexExists", mock.Anything).
-						Return(indexService)
-					indexService.On("Do", mock.Anything).
-						Return(test.indexExist, test.IndexExistError)
-					clientFnMock := w.storage.client()
-					actualIndices, err := getLatestIndices(
-						"",
-						test.indexDateLayout,
-						clientFnMock,
-						-24*time.Hour,
-						test.maxDuration,
-					)
-					if test.expectedError != "" {
-						require.EqualError(t, err, test.expectedError)
-						assert.Nil(t, actualIndices)
-					} else {
-						require.NoError(t, err)
-						require.Equal(t, test.expectedIndices, actualIndices)
-					}
-				},
-			)
+			withEsSampling("", test.indexDateLayout, defaultMaxDocCount, func(w *samplingStorageTest) {
+				indexService := &mocks.IndicesExistsService{}
+				w.client.On("IndexExists", mock.Anything).Return(indexService)
+				indexService.On("Do", mock.Anything).Return(test.indexExist, test.IndexExistError)
+				clientFnMock := w.storage.client()
+				actualIndices, err := getLatestIndices(
+					"",
+					test.indexDateLayout,
+					clientFnMock,
+					-24*time.Hour,
+					test.maxDuration,
+				)
+				if test.expectedError != "" {
+					require.EqualError(t, err, test.expectedError)
+					assert.Nil(t, actualIndices)
+				} else {
+					require.NoError(t, err)
+					require.Equal(t, test.expectedIndices, actualIndices)
+				}
+			})
 		})
 	}
 }

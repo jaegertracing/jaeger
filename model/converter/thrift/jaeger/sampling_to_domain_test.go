@@ -75,12 +75,8 @@ func TestConvertRateLimitingToDomain(t *testing.T) {
 		in       *sampling.RateLimitingSamplingStrategy
 	}{
 		{
-			expected: &api_v2.RateLimitingSamplingStrategy{
-				MaxTracesPerSecond: 21,
-			},
-			in: &sampling.RateLimitingSamplingStrategy{
-				MaxTracesPerSecond: 21,
-			},
+			expected: &api_v2.RateLimitingSamplingStrategy{MaxTracesPerSecond: 21},
+			in:       &sampling.RateLimitingSamplingStrategy{MaxTracesPerSecond: 21},
 		},
 		{},
 	}
@@ -124,17 +120,10 @@ func TestConvertSamplingResponseToDomain(t *testing.T) {
 		in       *sampling.SamplingStrategyResponse
 		err      string
 	}{
+		{in: &sampling.SamplingStrategyResponse{StrategyType: 55}, err: "could not convert sampling strategy type"},
 		{
-			in:  &sampling.SamplingStrategyResponse{StrategyType: 55},
-			err: "could not convert sampling strategy type",
-		},
-		{
-			expected: &api_v2.SamplingStrategyResponse{
-				StrategyType: api_v2.SamplingStrategyType_PROBABILISTIC,
-			},
-			in: &sampling.SamplingStrategyResponse{
-				StrategyType: sampling.SamplingStrategyType_PROBABILISTIC,
-			},
+			expected: &api_v2.SamplingStrategyResponse{StrategyType: api_v2.SamplingStrategyType_PROBABILISTIC},
+			in:       &sampling.SamplingStrategyResponse{StrategyType: sampling.SamplingStrategyType_PROBABILISTIC},
 		},
 		{},
 	}

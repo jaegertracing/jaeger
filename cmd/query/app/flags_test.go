@@ -78,11 +78,7 @@ func TestStringSliceAsHeader(t *testing.T) {
 
 	parsedHeaders, err := stringSliceAsHeader(headers)
 
-	assert.Equal(
-		t,
-		[]string{"https://mozilla.org"},
-		parsedHeaders["Access-Control-Allow-Origin"],
-	)
+	assert.Equal(t, []string{"https://mozilla.org"}, parsedHeaders["Access-Control-Allow-Origin"])
 	assert.Equal(
 		t,
 		[]string{"X-My-Custom-Header", "X-Another-Custom-Header"},

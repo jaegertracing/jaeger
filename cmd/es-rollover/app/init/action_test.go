@@ -177,10 +177,8 @@ func TestRolloverAction(t *testing.T) {
 			name: "fail to get jaeger indices",
 			setupCallExpectations: func(indexClient *mocks.MockIndexAPI, clusterClient *mocks.MockClusterAPI, ilmClient *mocks.MockILMAPI) {
 				clusterClient.On("Version").Return(uint(7), nil)
-				indexClient.On("CreateTemplate", mock.Anything, "jaeger-span").
-					Return(nil)
-				indexClient.On("CreateIndex", "jaeger-span-archive-000001").
-					Return(nil)
+				indexClient.On("CreateTemplate", mock.Anything, "jaeger-span").Return(nil)
+				indexClient.On("CreateIndex", "jaeger-span-archive-000001").Return(nil)
 				indexClient.On("GetJaegerIndices", "").
 					Return([]client.Index{}, errors.New("error getting jaeger indices"))
 			},

@@ -38,16 +38,8 @@ var tlsFlagsConfig = tlscfg.ClientFlagsConfig{
 
 // AddFlags adds flags for Options.
 func AddFlags(flags *flag.FlagSet) {
-	flags.Uint(
-		retry,
-		defaultMaxRetry,
-		"Sets the maximum number of retries for a call",
-	)
-	flags.Int(
-		discoveryMinPeers,
-		3,
-		"Max number of collectors to which the agent will try to connect at any given time",
-	)
+	flags.Uint(retry, defaultMaxRetry, "Sets the maximum number of retries for a call")
+	flags.Int(discoveryMinPeers, 3, "Max number of collectors to which the agent will try to connect at any given time")
 	flags.String(
 		collectorHostPort,
 		"",

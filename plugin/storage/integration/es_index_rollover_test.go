@@ -122,11 +122,7 @@ func runIndexRolloverWithILMTest(
 	ilmPolicyName string,
 	adaptiveSampling bool,
 ) {
-	writeAliases := []string{
-		"jaeger-service-write",
-		"jaeger-span-write",
-		"jaeger-dependencies-write",
-	}
+	writeAliases := []string{"jaeger-service-write", "jaeger-span-write", "jaeger-dependencies-write"}
 	if adaptiveSampling {
 		writeAliases = append(writeAliases, "jaeger-sampling-write")
 		expectedIndices = append(expectedIndices, "jaeger-sampling-000001")
@@ -184,11 +180,7 @@ func runIndexRolloverWithILMTest(
 		t,
 		actualWriteAliases,
 		expectedWriteAliases,
-		fmt.Sprintf(
-			"aliases found: %v, expected: %v",
-			actualWriteAliases,
-			expectedWriteAliases,
-		),
+		fmt.Sprintf("aliases found: %v, expected: %v", actualWriteAliases, expectedWriteAliases),
 	)
 }
 

@@ -54,10 +54,7 @@ func TestGetArchivedTrace_NotFound(t *testing.T) {
 					Return(nil, spanstore.ErrTraceNotFound).
 					Once()
 				var response structuredResponse
-				err := getJSON(
-					ts.server.URL+"/api/traces/"+mockTraceID.String(),
-					&response,
-				)
+				err := getJSON(ts.server.URL+"/api/traces/"+mockTraceID.String(), &response)
 				require.EqualError(
 					t,
 					err,
@@ -118,11 +115,7 @@ func TestArchiveTrace_TraceNotFound(t *testing.T) {
 			Return(nil, spanstore.ErrTraceNotFound).
 			Once()
 		var response structuredResponse
-		err := postJSON(
-			ts.server.URL+"/api/archive/"+mockTraceID.String(),
-			[]string{},
-			&response,
-		)
+		err := postJSON(ts.server.URL+"/api/archive/"+mockTraceID.String(), []string{}, &response)
 		require.EqualError(
 			t,
 			err,
@@ -134,11 +127,7 @@ func TestArchiveTrace_TraceNotFound(t *testing.T) {
 func TestArchiveTrace_NoStorage(t *testing.T) {
 	withTestServer(func(ts *testServer) {
 		var response structuredResponse
-		err := postJSON(
-			ts.server.URL+"/api/archive/"+mockTraceID.String(),
-			[]string{},
-			&response,
-		)
+		err := postJSON(ts.server.URL+"/api/archive/"+mockTraceID.String(), []string{}, &response)
 		require.EqualError(
 			t,
 			err,
@@ -176,11 +165,7 @@ func TestArchiveTrace_WriteErrors(t *testing.T) {
 			Return(mockTrace, nil).
 			Once()
 		var response structuredResponse
-		err := postJSON(
-			ts.server.URL+"/api/archive/"+mockTraceID.String(),
-			[]string{},
-			&response,
-		)
+		err := postJSON(ts.server.URL+"/api/archive/"+mockTraceID.String(), []string{}, &response)
 		require.EqualError(
 			t,
 			err,

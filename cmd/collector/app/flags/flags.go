@@ -184,21 +184,9 @@ type GRPCOptions struct {
 
 // AddFlags adds flags for CollectorOptions
 func AddFlags(flags *flag.FlagSet) {
-	flags.Int(
-		flagNumWorkers,
-		DefaultNumWorkers,
-		"The number of workers pulling items from the queue",
-	)
-	flags.Int(
-		flagQueueSize,
-		DefaultQueueSize,
-		"The queue size of the collector",
-	)
-	flags.Uint(
-		flagDynQueueSizeMemory,
-		0,
-		"(experimental) The max memory size in MiB to use for the dynamic queue.",
-	)
+	flags.Int(flagNumWorkers, DefaultNumWorkers, "The number of workers pulling items from the queue")
+	flags.Int(flagQueueSize, DefaultQueueSize, "The queue size of the collector")
+	flags.Uint(flagDynQueueSizeMemory, 0, "(experimental) The max memory size in MiB to use for the dynamic queue.")
 	flags.String(
 		flagCollectorTags,
 		"",
@@ -246,26 +234,14 @@ func AddFlags(flags *flag.FlagSet) {
 	tenancy.AddFlags(flags)
 }
 
-func addHTTPFlags(
-	flags *flag.FlagSet,
-	cfg serverFlagsConfig,
-	defaultHostPort string,
-) {
+func addHTTPFlags(flags *flag.FlagSet, cfg serverFlagsConfig, defaultHostPort string) {
 	flags.String(
 		cfg.prefix+"."+flagSuffixHostPort,
 		defaultHostPort,
 		"The host:port (e.g. 127.0.0.1:12345 or :12345) of the collector's HTTP server",
 	)
-	flags.Duration(
-		cfg.prefix+"."+flagSuffixHTTPIdleTimeout,
-		0,
-		"See https://pkg.go.dev/net/http#Server",
-	)
-	flags.Duration(
-		cfg.prefix+"."+flagSuffixHTTPReadTimeout,
-		0,
-		"See https://pkg.go.dev/net/http#Server",
-	)
+	flags.Duration(cfg.prefix+"."+flagSuffixHTTPIdleTimeout, 0, "See https://pkg.go.dev/net/http#Server")
+	flags.Duration(cfg.prefix+"."+flagSuffixHTTPReadTimeout, 0, "See https://pkg.go.dev/net/http#Server")
 	flags.Duration(
 		cfg.prefix+"."+flagSuffixHTTPReadHeaderTimeout,
 		2*time.Second,

@@ -124,36 +124,16 @@ func AddFlags(flagSet *flag.FlagSet) {
 		"/",
 		"The base path for all HTTP routes, e.g. /jaeger; useful when running behind a reverse proxy. See https://github.com/jaegertracing/jaeger/blob/main/examples/reverse-proxy/README.md",
 	)
-	flagSet.String(
-		queryStaticFiles,
-		"",
-		"The directory path override for the static assets for the UI",
-	)
-	flagSet.Bool(
-		queryLogStaticAssetsAccess,
-		false,
-		"Log when static assets are accessed (for debugging)",
-	)
-	flagSet.String(
-		queryUIConfig,
-		"",
-		"The path to the UI configuration file in JSON format",
-	)
-	flagSet.Bool(
-		queryTokenPropagation,
-		false,
-		"Allow propagation of bearer token to be used by storage plugins",
-	)
+	flagSet.String(queryStaticFiles, "", "The directory path override for the static assets for the UI")
+	flagSet.Bool(queryLogStaticAssetsAccess, false, "Log when static assets are accessed (for debugging)")
+	flagSet.String(queryUIConfig, "", "The path to the UI configuration file in JSON format")
+	flagSet.Bool(queryTokenPropagation, false, "Allow propagation of bearer token to be used by storage plugins")
 	flagSet.Duration(
 		queryMaxClockSkewAdjust,
 		0,
 		"The maximum delta by which span timestamps may be adjusted in the UI due to clock skew; set to 0s to disable clock skew adjustments",
 	)
-	flagSet.Bool(
-		queryEnableTracing,
-		false,
-		"Enables emitting jaeger-query traces",
-	)
+	flagSet.Bool(queryEnableTracing, false, "Enables emitting jaeger-query traces")
 	tlsGRPCFlagsConfig.AddFlags(flagSet)
 	tlsHTTPFlagsConfig.AddFlags(flagSet)
 }

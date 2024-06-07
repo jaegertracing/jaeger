@@ -109,15 +109,10 @@ func (b *ConnBuilder) CreateConnection(
 			dialTarget = b.CollectorHostPorts[0]
 		}
 	}
+	dialOptions = append(dialOptions, grpc.WithDefaultServiceConfig(grpcresolver.GRPCServiceConfig))
 	dialOptions = append(
 		dialOptions,
-		grpc.WithDefaultServiceConfig(grpcresolver.GRPCServiceConfig),
-	)
-	dialOptions = append(
-		dialOptions,
-		grpc.WithUnaryInterceptor(
-			grpc_retry.UnaryClientInterceptor(grpc_retry.WithMax(b.MaxRetry)),
-		),
+		grpc.WithUnaryInterceptor(grpc_retry.UnaryClientInterceptor(grpc_retry.WithMax(b.MaxRetry))),
 	)
 	dialOptions = append(dialOptions, b.AdditionalDialOptions...)
 

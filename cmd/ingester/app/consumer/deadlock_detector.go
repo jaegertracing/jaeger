@@ -133,10 +133,7 @@ func (s *deadlockDetector) monitorForPartition(
 				case w.closePartition <- struct{}{}:
 					s.metricsFactory.Counter(metrics.Options{Name: "deadlockdetector.close-signalled", Tags: map[string]string{"partition": strconv.Itoa(int(partition))}}).
 						Inc(1)
-					s.logger.Warn(
-						"Signalling partition close due to inactivity",
-						zap.Int32("partition", partition),
-					)
+					s.logger.Warn("Signalling partition close due to inactivity", zap.Int32("partition", partition))
 				default:
 					// If closePartition is blocked, the consumer might have deadlocked - kill the process
 					s.panicFunc(partition)

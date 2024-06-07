@@ -297,13 +297,10 @@ func (c *GRPCClient) GetDependencies(
 	endTs time.Time,
 	lookback time.Duration,
 ) ([]model.DependencyLink, error) {
-	resp, err := c.depsReaderClient.GetDependencies(
-		ctx,
-		&storage_v1.GetDependenciesRequest{
-			EndTime:   endTs,
-			StartTime: endTs.Add(-lookback),
-		},
-	)
+	resp, err := c.depsReaderClient.GetDependencies(ctx, &storage_v1.GetDependenciesRequest{
+		EndTime:   endTs,
+		StartTime: endTs.Add(-lookback),
+	})
 	if err != nil {
 		return nil, fmt.Errorf("plugin error: %w", err)
 	}

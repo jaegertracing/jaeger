@@ -44,34 +44,10 @@ func TestAcquireLock(t *testing.T) {
 		expectedInterval time.Duration
 		expectedError    bool
 	}{
-		{
-			isLeader:         true,
-			acquiredLock:     true,
-			err:              nil,
-			expectedInterval: leaderInterval,
-			expectedError:    false,
-		},
-		{
-			isLeader:         true,
-			acquiredLock:     false,
-			err:              errTestLock,
-			expectedInterval: leaderInterval,
-			expectedError:    true,
-		},
-		{
-			isLeader:         true,
-			acquiredLock:     false,
-			err:              nil,
-			expectedInterval: followerInterval,
-			expectedError:    false,
-		},
-		{
-			isLeader:         false,
-			acquiredLock:     false,
-			err:              nil,
-			expectedInterval: followerInterval,
-			expectedError:    false,
-		},
+		{isLeader: true, acquiredLock: true, err: nil, expectedInterval: leaderInterval, expectedError: false},
+		{isLeader: true, acquiredLock: false, err: errTestLock, expectedInterval: leaderInterval, expectedError: true},
+		{isLeader: true, acquiredLock: false, err: nil, expectedInterval: followerInterval, expectedError: false},
+		{isLeader: false, acquiredLock: false, err: nil, expectedInterval: followerInterval, expectedError: false},
 		{
 			isLeader:         false,
 			acquiredLock:     false,
@@ -79,13 +55,7 @@ func TestAcquireLock(t *testing.T) {
 			expectedInterval: followerInterval,
 			expectedError:    true,
 		},
-		{
-			isLeader:         false,
-			acquiredLock:     true,
-			err:              nil,
-			expectedInterval: leaderInterval,
-			expectedError:    false,
-		},
+		{isLeader: false, acquiredLock: true, err: nil, expectedInterval: leaderInterval, expectedError: false},
 	}
 
 	for i, test := range tests {

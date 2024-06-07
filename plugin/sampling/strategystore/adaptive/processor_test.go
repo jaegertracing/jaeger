@@ -156,10 +156,7 @@ func TestInitializeThroughput(t *testing.T) {
 		Return([]*model.Throughput{}, nil)
 	p := &PostAggregator{
 		storage: mockStorage,
-		Options: Options{
-			CalculationInterval: time.Minute,
-			AggregationBuckets:  3,
-		},
+		Options: Options{CalculationInterval: time.Minute, AggregationBuckets: 3},
 	}
 	p.initializeThroughput(time.Time{}.Add(time.Minute * 20))
 
@@ -178,10 +175,7 @@ func TestInitializeThroughputFailure(t *testing.T) {
 		Return(nil, errTestStorage())
 	p := &PostAggregator{
 		storage: mockStorage,
-		Options: Options{
-			CalculationInterval: time.Minute,
-			AggregationBuckets:  1,
-		},
+		Options: Options{CalculationInterval: time.Minute, AggregationBuckets: 1},
 	}
 	p.initializeThroughput(time.Time{}.Add(time.Minute * 20))
 
@@ -415,11 +409,9 @@ func TestRunCalculationLoop(t *testing.T) {
 	mockStorage.On("GetLatestProbabilities").
 		Return(model.ServiceOperationProbabilities{}, errTestStorage())
 	mockStorage.On("InsertProbabilitiesAndQPS", mock.AnythingOfType("string"), mock.AnythingOfType("model.ServiceOperationProbabilities"),
-		mock.AnythingOfType("model.ServiceOperationQPS"),
-	).
+		mock.AnythingOfType("model.ServiceOperationQPS")).
 		Return(errTestStorage())
-	mockStorage.On("InsertThroughput", mock.AnythingOfType("[]*model.Throughput")).
-		Return(errTestStorage())
+	mockStorage.On("InsertThroughput", mock.AnythingOfType("[]*model.Throughput")).Return(errTestStorage())
 	mockEP := &epmocks.ElectionParticipant{}
 	mockEP.On("Start").Return(nil)
 	mockEP.On("Close").Return(nil)
@@ -472,11 +464,9 @@ func TestRunCalculationLoop_GetThroughputError(t *testing.T) {
 	mockStorage.On("GetLatestProbabilities").
 		Return(model.ServiceOperationProbabilities{}, errTestStorage())
 	mockStorage.On("InsertProbabilitiesAndQPS", mock.AnythingOfType("string"), mock.AnythingOfType("model.ServiceOperationProbabilities"),
-		mock.AnythingOfType("model.ServiceOperationQPS"),
-	).
+		mock.AnythingOfType("model.ServiceOperationQPS")).
 		Return(errTestStorage())
-	mockStorage.On("InsertThroughput", mock.AnythingOfType("[]*model.Throughput")).
-		Return(errTestStorage())
+	mockStorage.On("InsertThroughput", mock.AnythingOfType("[]*model.Throughput")).Return(errTestStorage())
 
 	mockEP := &epmocks.ElectionParticipant{}
 	mockEP.On("Start").Return(nil)
@@ -779,12 +769,7 @@ func TestUsingAdaptiveSampling(t *testing.T) {
 		assert.Equal(
 			t,
 			test.expected,
-			p.isUsingAdaptiveSampling(
-				test.probability,
-				test.service,
-				test.operation,
-				throughput,
-			),
+			p.isUsingAdaptiveSampling(test.probability, test.service, test.operation, throughput),
 		)
 	}
 }

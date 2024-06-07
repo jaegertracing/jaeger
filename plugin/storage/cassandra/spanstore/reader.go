@@ -460,11 +460,7 @@ func (s *SpanReader) queryByServiceNameAndOperation(
 	ctx context.Context,
 	tq *spanstore.TraceQueryParameters,
 ) (dbmodel.UniqueTraceIDs, error) {
-	_, span := s.startSpanForQuery(
-		ctx,
-		"queryByServiceNameAndOperation",
-		queryByServiceAndOperationName,
-	)
+	_, span := s.startSpanForQuery(ctx, "queryByServiceNameAndOperation", queryByServiceAndOperationName)
 	defer span.End()
 	query := s.session.Query(
 		queryByServiceAndOperationName,
@@ -481,11 +477,7 @@ func (s *SpanReader) queryByService(
 	ctx context.Context,
 	tq *spanstore.TraceQueryParameters,
 ) (dbmodel.UniqueTraceIDs, error) {
-	_, span := s.startSpanForQuery(
-		ctx,
-		"queryByService",
-		queryByServiceAndOperationName,
-	)
+	_, span := s.startSpanForQuery(ctx, "queryByService", queryByServiceAndOperationName)
 	defer span.End()
 	query := s.session.Query(
 		queryByServiceName,

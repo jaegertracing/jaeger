@@ -516,10 +516,7 @@ func TestSearchByTraceIDNotFound(t *testing.T) {
 	assert.Len(t, response.Errors, 1)
 	assert.Equal(
 		t,
-		structuredError{
-			Msg:     "trace not found",
-			TraceID: ui.TraceID("0000000000000001"),
-		},
+		structuredError{Msg: "trace not found", TraceID: ui.TraceID("0000000000000001")},
 		response.Errors[0],
 	)
 }

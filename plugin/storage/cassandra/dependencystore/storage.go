@@ -158,10 +158,7 @@ func (s *DependencyStore) GetDependencies(
 			zap.Duration("lookback", lookback),
 			zap.Error(err),
 		)
-		return nil, fmt.Errorf(
-			"error reading dependencies from storage: %w",
-			err,
-		)
+		return nil, fmt.Errorf("error reading dependencies from storage: %w", err)
 	}
 	return mDependency, nil
 }

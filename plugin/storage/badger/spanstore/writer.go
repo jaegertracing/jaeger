@@ -89,12 +89,7 @@ func (w *SpanWriter) WriteSpan(ctx context.Context, span *model.Span) error {
 	entriesToStore = append(
 		entriesToStore,
 		w.createBadgerEntry(
-			createIndexKey(
-				serviceNameIndexKey,
-				[]byte(span.Process.ServiceName),
-				startTime,
-				span.TraceID,
-			),
+			createIndexKey(serviceNameIndexKey, []byte(span.Process.ServiceName), startTime, span.TraceID),
 			nil,
 			expireTime,
 		),
@@ -115,22 +110,10 @@ func (w *SpanWriter) WriteSpan(ctx context.Context, span *model.Span) error {
 
 	// It doesn't matter if we overwrite Duration index keys, everything is read at Trace level in any case
 	durationValue := make([]byte, 8)
-	binary.BigEndian.PutUint64(
-		durationValue,
-		uint64(model.DurationAsMicroseconds(span.Duration)),
-	)
+	binary.BigEndian.PutUint64(durationValue, uint64(model.DurationAsMicroseconds(span.Duration)))
 	entriesToStore = append(
 		entriesToStore,
-		w.createBadgerEntry(
-			createIndexKey(
-				durationIndexKey,
-				durationValue,
-				startTime,
-				span.TraceID,
-			),
-			nil,
-			expireTime,
-		),
+		w.createBadgerEntry(createIndexKey(durationIndexKey, durationValue, startTime, span.TraceID), nil, expireTime),
 	)
 
 	for _, kv := range span.Tags {

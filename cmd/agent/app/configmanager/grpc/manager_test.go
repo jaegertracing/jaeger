@@ -83,9 +83,7 @@ func (*mockSamplingHandler) GetSamplingStrategy(
 	context.Context,
 	*api_v2.SamplingStrategyParameters,
 ) (*api_v2.SamplingStrategyResponse, error) {
-	return &api_v2.SamplingStrategyResponse{
-		StrategyType: api_v2.SamplingStrategyType_PROBABILISTIC,
-	}, nil
+	return &api_v2.SamplingStrategyResponse{StrategyType: api_v2.SamplingStrategyType_PROBABILISTIC}, nil
 }
 
 func initializeGRPCTestServer(

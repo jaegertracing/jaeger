@@ -68,12 +68,7 @@ func TestExpiredItems(t *testing.T) {
 func TestOldReads(t *testing.T) {
 	runWithBadger(t, func(store *badger.DB, t *testing.T) {
 		timeNow := model.TimeAsEpochMicroseconds(time.Now())
-		s1Key := createIndexKey(
-			serviceNameIndexKey,
-			[]byte("service1"),
-			timeNow,
-			model.TraceID{High: 0, Low: 0},
-		)
+		s1Key := createIndexKey(serviceNameIndexKey, []byte("service1"), timeNow, model.TraceID{High: 0, Low: 0})
 		s1o1Key := createIndexKey(
 			operationNameIndexKey,
 			[]byte("service1operation1"),

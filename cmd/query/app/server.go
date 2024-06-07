@@ -85,8 +85,7 @@ func NewServer(
 		return nil, fmt.Errorf("invalid gRPC server host:port: %w", err)
 	}
 
-	if (options.TLSHTTP.Enabled || options.TLSGRPC.Enabled) &&
-		(grpcPort == httpPort) {
+	if (options.TLSHTTP.Enabled || options.TLSGRPC.Enabled) && (grpcPort == httpPort) {
 		return nil, errors.New(
 			"server with TLS enabled can not use same host ports for gRPC and HTTP.  Use dedicated HTTP and gRPC host ports instead",
 		)
@@ -171,18 +170,12 @@ func createGRPCServer(
 		&apiv3.Handler{QueryService: querySvc},
 	)
 
-	healthServer.SetServingStatus(
-		"jaeger.api_v2.QueryService",
-		grpc_health_v1.HealthCheckResponse_SERVING,
-	)
+	healthServer.SetServingStatus("jaeger.api_v2.QueryService", grpc_health_v1.HealthCheckResponse_SERVING)
 	healthServer.SetServingStatus(
 		"jaeger.api_v2.metrics.MetricsQueryService",
 		grpc_health_v1.HealthCheckResponse_SERVING,
 	)
-	healthServer.SetServingStatus(
-		"jaeger.api_v3.QueryService",
-		grpc_health_v1.HealthCheckResponse_SERVING,
-	)
+	healthServer.SetServingStatus("jaeger.api_v3.QueryService", grpc_health_v1.HealthCheckResponse_SERVING)
 
 	grpc_health_v1.RegisterHealthServer(server, healthServer)
 	return server, nil
@@ -365,8 +358,7 @@ func (s *Server) Start() error {
 		} else {
 			err = s.httpServer.Serve(s.httpConn)
 		}
-		if err != nil && !errors.Is(err, http.ErrServerClosed) &&
-			!errors.Is(err, cmux.ErrListenerClosed) &&
+		if err != nil && !errors.Is(err, http.ErrServerClosed) && !errors.Is(err, cmux.ErrListenerClosed) &&
 			!errors.Is(err, cmux.ErrServerClosed) {
 			s.logger.Error("Could not start HTTP server", zap.Error(err))
 		}

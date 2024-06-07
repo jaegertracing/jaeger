@@ -129,11 +129,7 @@ func TestInsertProbabilitiesAndQPS(t *testing.T) {
 				model.ServiceOperationQPS{"new-srv": {"op": 7}},
 			),
 		)
-		assert.Equal(
-			t,
-			0.3,
-			samplingStore.probabilitiesAndQPS.probabilities["my-app"]["hello"],
-		)
+		assert.Equal(t, 0.3, samplingStore.probabilitiesAndQPS.probabilities["my-app"]["hello"])
 	})
 }
 
@@ -149,18 +145,12 @@ func TestGetLatestProbability(t *testing.T) {
 		// With some pregenerated data
 		ret, err := samplingStore.GetLatestProbabilities()
 		require.NoError(t, err)
-		assert.Equal(
-			t,
-			model.ServiceOperationProbabilities{"svc-1": {"op-1": 0.01}},
-			ret,
-		)
+		assert.Equal(t, model.ServiceOperationProbabilities{"svc-1": {"op-1": 0.01}}, ret)
 		require.NoError(
 			t,
 			samplingStore.InsertProbabilitiesAndQPS(
 				"utfhyolf",
-				model.ServiceOperationProbabilities{
-					"another-service": {"hello": 0.009},
-				},
+				model.ServiceOperationProbabilities{"another-service": {"hello": 0.009}},
 				model.ServiceOperationQPS{"new-srv": {"op": 5}},
 			),
 		)

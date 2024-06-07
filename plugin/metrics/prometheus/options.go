@@ -86,34 +86,23 @@ func NewOptions(primaryNamespace string) *Options {
 // AddFlags from this storage to the CLI.
 func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
 	nsConfig := &opt.Primary
-	flagSet.String(
-		nsConfig.namespace+suffixServerURL,
-		defaultServerURL,
-		"The Prometheus server's URL, must include the protocol scheme e.g. http://localhost:9090",
-	)
-	flagSet.Duration(
-		nsConfig.namespace+suffixConnectTimeout,
-		defaultConnectTimeout,
-		"The period to wait for a connection to Prometheus when executing queries.",
-	)
+	flagSet.String(nsConfig.namespace+suffixServerURL, defaultServerURL,
+		"The Prometheus server's URL, must include the protocol scheme e.g. http://localhost:9090")
+	flagSet.Duration(nsConfig.namespace+suffixConnectTimeout, defaultConnectTimeout,
+		"The period to wait for a connection to Prometheus when executing queries.")
 	flagSet.String(
 		nsConfig.namespace+suffixTokenFilePath,
 		defaultTokenFilePath,
 		"The path to a file containing the bearer token which will be included when executing queries against the Prometheus API.",
 	)
-	flagSet.Bool(
-		nsConfig.namespace+suffixOverrideFromContext,
-		true,
-		"Whether the bearer token should be overridden from context (incoming request)",
-	)
+	flagSet.Bool(nsConfig.namespace+suffixOverrideFromContext, true,
+		"Whether the bearer token should be overridden from context (incoming request)")
 	flagSet.Bool(
 		nsConfig.namespace+suffixSupportSpanmetricsConnector,
 		defaultSupportSpanmetricsConnector,
 		deprecatedSpanMetricsProcessor+" Controls whether the metrics queries should match the OpenTelemetry Collector's spanmetrics connector naming (when true) or spanmetrics processor naming (when false).",
 	)
-	flagSet.String(
-		nsConfig.namespace+suffixMetricNamespace,
-		defaultMetricNamespace,
+	flagSet.String(nsConfig.namespace+suffixMetricNamespace, defaultMetricNamespace,
 		`The metric namespace that is prefixed to the metric name. A '.' separator will be added between `+
 			`the namespace and the metric name.`,
 	)

@@ -60,8 +60,7 @@ func addFlags(cmd *cobra.Command) {
 		IntVarP(&routePort, "route-service-port", "r", 8083, "Port for routing service")
 
 	// Flag for serving frontend at custom basepath url
-	cmd.PersistentFlags().
-		StringVarP(&basepath, "basepath", "b", "", `Basepath for frontend service(default "/")`)
+	cmd.PersistentFlags().StringVarP(&basepath, "basepath", "b", "", `Basepath for frontend service(default "/")`)
 	cmd.PersistentFlags().
 		StringVarP(&jaegerUI, "jaeger-ui", "j", "http://localhost:16686", "Address of Jaeger UI to create [find trace] links")
 

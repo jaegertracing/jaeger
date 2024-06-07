@@ -144,26 +144,14 @@ func TestBuilderWithProcessorErrors(t *testing.T) {
 		err         string
 		errContains string
 	}{
-		{
-			protocol: Protocol("bad"),
-			err:      "cannot find protocol factory for protocol bad",
-		},
-		{
-			protocol: compactProtocol,
-			model:    Model("bad"),
-			err:      "cannot find agent processor for data model bad",
-		},
+		{protocol: Protocol("bad"), err: "cannot find protocol factory for protocol bad"},
+		{protocol: compactProtocol, model: Model("bad"), err: "cannot find agent processor for data model bad"},
 		{
 			protocol: compactProtocol,
 			model:    jaegerModel,
 			err:      "no host:port provided for udp server: {QueueSize:1000 MaxPacketSize:65000 SocketBufferSize:0 HostPort:}",
 		},
-		{
-			protocol:    compactProtocol,
-			model:       zipkinModel,
-			hostPort:    "bad-host-port",
-			errContains: "bad-host-port",
-		},
+		{protocol: compactProtocol, model: zipkinModel, hostPort: "bad-host-port", errContains: "bad-host-port"},
 	}
 	for _, tc := range testCases {
 		testCase := tc // capture loop var
@@ -260,30 +248,18 @@ func TestCreateCollectorProxy(t *testing.T) {
 			err:   "at least one collector hostPort address is required when resolver is not available",
 		},
 		{
-			flags: []string{
-				"--reporter.type=grpc",
-				"--reporter.grpc.host-port=foo",
-			},
+			flags: []string{"--reporter.type=grpc", "--reporter.grpc.host-port=foo"},
 			metric: metricstest.ExpectedMetric{
-				Name: "reporter.batches.failures",
-				Tags: map[string]string{
-					"protocol": "grpc",
-					"format":   "jaeger",
-				},
+				Name:  "reporter.batches.failures",
+				Tags:  map[string]string{"protocol": "grpc", "format": "jaeger"},
 				Value: 1,
 			},
 		},
 		{
-			flags: []string{
-				"--reporter.type=grpc",
-				"--reporter.grpc.host-port=foo",
-			},
+			flags: []string{"--reporter.type=grpc", "--reporter.grpc.host-port=foo"},
 			metric: metricstest.ExpectedMetric{
-				Name: "reporter.batches.failures",
-				Tags: map[string]string{
-					"protocol": "grpc",
-					"format":   "jaeger",
-				},
+				Name:  "reporter.batches.failures",
+				Tags:  map[string]string{"protocol": "grpc", "format": "jaeger"},
 				Value: 1,
 			},
 		},

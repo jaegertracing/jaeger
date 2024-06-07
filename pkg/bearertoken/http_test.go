@@ -74,12 +74,7 @@ func Test_PropagationHandler(t *testing.T) {
 			headerValue: bearerToken,
 			handler:     validTokenHandler,
 		},
-		{
-			name:       "No headerValue",
-			sendHeader: false,
-			headerName: "Authorization",
-			handler:    emptyHandler,
-		},
+		{name: "No headerValue", sendHeader: false, headerName: "Authorization", handler: emptyHandler},
 		{
 			name:        "Basic Auth",
 			sendHeader:  true,

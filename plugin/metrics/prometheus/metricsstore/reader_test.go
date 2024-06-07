@@ -1047,11 +1047,7 @@ func prepareMetricsReaderAndServer(
 	wantWarnings []string,
 	tracer trace.TracerProvider,
 ) (metricsstore.Reader, *httptest.Server) {
-	mockPrometheus := startMockPrometheusServer(
-		t,
-		wantPromQlQuery,
-		wantWarnings,
-	)
+	mockPrometheus := startMockPrometheusServer(t, wantPromQlQuery, wantWarnings)
 
 	logger := zap.NewNop()
 	address := mockPrometheus.Listener.Addr().String()

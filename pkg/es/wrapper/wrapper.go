@@ -274,11 +274,7 @@ func WrapESIndexService(
 	bulkService *elastic.BulkProcessor,
 	esVersion uint,
 ) IndexServiceWrapper {
-	return IndexServiceWrapper{
-		bulkIndexReq: indexService,
-		bulkService:  bulkService,
-		esVersion:    esVersion,
-	}
+	return IndexServiceWrapper{bulkIndexReq: indexService, bulkService: bulkService, esVersion: esVersion}
 }
 
 // Index calls this function to internal service.

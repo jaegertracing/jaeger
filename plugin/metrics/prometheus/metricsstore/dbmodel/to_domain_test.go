@@ -75,9 +75,7 @@ func TestToDomainMetricsFamily(t *testing.T) {
 	}
 	assert.Equal(
 		t,
-		[]*metrics.MetricPoint{
-			{Timestamp: &types.Timestamp{Seconds: nowSec}, Value: wantMpValue},
-		},
+		[]*metrics.MetricPoint{{Timestamp: &types.Timestamp{Seconds: nowSec}, Value: wantMpValue}},
 		mf.Metrics[0].MetricPoints,
 	)
 }

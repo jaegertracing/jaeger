@@ -61,10 +61,8 @@ func TestRolloverAction(t *testing.T) {
 			expectedError: false,
 			indices:       readIndices,
 			setupCallExpectations: func(indexClient *mocks.MockIndexAPI, test *testCase) {
-				indexClient.On("GetJaegerIndices", "").
-					Return(test.indices, test.getJaegerIndicesErr)
-				indexClient.On("CreateAlias", aliasToCreate).
-					Return(test.createAliasErr)
+				indexClient.On("GetJaegerIndices", "").Return(test.indices, test.getJaegerIndicesErr)
+				indexClient.On("CreateAlias", aliasToCreate).Return(test.createAliasErr)
 				indexClient.On("Rollover", "jaeger-span-archive-write", map[string]any{"max_age": "2d"}).
 					Return(test.rolloverErr)
 			},
@@ -82,8 +80,7 @@ func TestRolloverAction(t *testing.T) {
 				},
 			},
 			setupCallExpectations: func(indexClient *mocks.MockIndexAPI, test *testCase) {
-				indexClient.On("GetJaegerIndices", "").
-					Return(test.indices, test.getJaegerIndicesErr)
+				indexClient.On("GetJaegerIndices", "").Return(test.indices, test.getJaegerIndicesErr)
 				indexClient.On("Rollover", "jaeger-span-archive-write", map[string]any{"max_age": "2d"}).
 					Return(test.rolloverErr)
 			},
@@ -97,8 +94,7 @@ func TestRolloverAction(t *testing.T) {
 			setupCallExpectations: func(indexClient *mocks.MockIndexAPI, test *testCase) {
 				indexClient.On("Rollover", "jaeger-span-archive-write", map[string]any{"max_age": "2d"}).
 					Return(test.rolloverErr)
-				indexClient.On("GetJaegerIndices", "").
-					Return(test.indices, test.getJaegerIndicesErr)
+				indexClient.On("GetJaegerIndices", "").Return(test.indices, test.getJaegerIndicesErr)
 			},
 		},
 		{
@@ -119,10 +115,8 @@ func TestRolloverAction(t *testing.T) {
 			createAliasErr: errors.New("unable to create alias"),
 			indices:        readIndices,
 			setupCallExpectations: func(indexClient *mocks.MockIndexAPI, test *testCase) {
-				indexClient.On("GetJaegerIndices", "").
-					Return(test.indices, test.getJaegerIndicesErr)
-				indexClient.On("CreateAlias", aliasToCreate).
-					Return(test.createAliasErr)
+				indexClient.On("GetJaegerIndices", "").Return(test.indices, test.getJaegerIndicesErr)
+				indexClient.On("CreateAlias", aliasToCreate).Return(test.createAliasErr)
 				indexClient.On("Rollover", "jaeger-span-archive-write", map[string]any{"max_age": "2d"}).
 					Return(test.rolloverErr)
 			},

@@ -651,16 +651,9 @@ func TestAutoUpdateStrategyErrors(t *testing.T) {
 	assert.Equal(
 		t,
 		"blah",
-		store.reloadSamplingStrategy(
-			store.samplingStrategyLoader(tempFile.Name()+"bad-path"),
-			"blah",
-		),
+		store.reloadSamplingStrategy(store.samplingStrategyLoader(tempFile.Name()+"bad-path"), "blah"),
 	)
-	assert.Len(
-		t,
-		logs.FilterMessage("failed to re-load sampling strategies").All(),
-		1,
-	)
+	assert.Len(t, logs.FilterMessage("failed to re-load sampling strategies").All(), 1)
 
 	// check bad file content
 	require.NoError(
@@ -701,31 +694,17 @@ func TestAutoUpdateStrategyErrors(t *testing.T) {
 	assert.Equal(
 		t,
 		"duh",
-		store.reloadSamplingStrategy(
-			store.samplingStrategyLoader(mockServer.URL+"/bad-status"),
-			"duh",
-		),
+		store.reloadSamplingStrategy(store.samplingStrategyLoader(mockServer.URL+"/bad-status"), "duh"),
 	)
-	assert.Len(
-		t,
-		logs.FilterMessage("failed to re-load sampling strategies").All(),
-		3,
-	)
+	assert.Len(t, logs.FilterMessage("failed to re-load sampling strategies").All(), 3)
 
 	// check bad content from url
 	assert.Equal(
 		t,
 		"duh",
-		store.reloadSamplingStrategy(
-			store.samplingStrategyLoader(mockServer.URL+"/bad-content"),
-			"duh",
-		),
+		store.reloadSamplingStrategy(store.samplingStrategyLoader(mockServer.URL+"/bad-content"), "duh"),
 	)
-	assert.Len(
-		t,
-		logs.FilterMessage("failed to update sampling strategies").All(),
-		2,
-	)
+	assert.Len(t, logs.FilterMessage("failed to update sampling strategies").All(), 2)
 }
 
 func TestServiceNoPerOperationStrategies(t *testing.T) {

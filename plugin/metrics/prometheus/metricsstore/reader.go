@@ -254,9 +254,7 @@ func (m MetricsReader) GetErrorRates(
 	// the absence of call rate metrics altogether.
 	callMetrics, err := m.GetCallRates(
 		ctx,
-		&metricsstore.CallRateQueryParameters{
-			BaseQueryParameters: requestParams.BaseQueryParameters,
-		},
+		&metricsstore.CallRateQueryParameters{BaseQueryParameters: requestParams.BaseQueryParameters},
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed getting call metrics: %w", err)
@@ -272,9 +270,7 @@ func (m MetricsReader) GetErrorRates(
 		zm := *cm
 		for i := 0; i < len(zm.MetricPoints); i++ {
 			zm.MetricPoints[i].Value = &metrics.MetricPoint_GaugeValue{
-				GaugeValue: &metrics.GaugeValue{
-					Value: &metrics.GaugeValue_DoubleValue{DoubleValue: 0.0},
-				},
+				GaugeValue: &metrics.GaugeValue{Value: &metrics.GaugeValue_DoubleValue{DoubleValue: 0.0}},
 			}
 		}
 		zeroErrorMetrics = append(zeroErrorMetrics, &zm)

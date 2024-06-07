@@ -180,12 +180,7 @@ func (s *SamplingStore) createProbabilitiesEntry(
 	qps model.ServiceOperationQPS,
 	startTime uint64,
 ) (*badger.Entry, error) {
-	pK, pV, err := s.createProbabilitiesKV(
-		hostname,
-		probabilities,
-		qps,
-		startTime,
-	)
+	pK, pV, err := s.createProbabilitiesKV(hostname, probabilities, qps, startTime)
 	if err != nil {
 		return nil, err
 	}

@@ -398,9 +398,7 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 		cfg.RemoteReadClusters = strings.Split(remoteReadClusters, ",")
 	}
 
-	cfg.IndexRolloverFrequencySpans = strings.ToLower(
-		v.GetString(cfg.namespace + suffixIndexRolloverFrequencySpans),
-	)
+	cfg.IndexRolloverFrequencySpans = strings.ToLower(v.GetString(cfg.namespace + suffixIndexRolloverFrequencySpans))
 	cfg.IndexRolloverFrequencyServices = strings.ToLower(
 		v.GetString(cfg.namespace + suffixIndexRolloverFrequencyServices),
 	)

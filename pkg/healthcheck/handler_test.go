@@ -51,11 +51,7 @@ func TestStatusSetGet(t *testing.T) {
 	assert.Equal(t, healthcheck.Ready, hc.Get())
 	assert.Equal(
 		t,
-		map[string]string{
-			"level":  "info",
-			"msg":    "Health Check state change",
-			"status": "ready",
-		},
+		map[string]string{"level": "info", "msg": "Health Check state change", "status": "ready"},
 		logBuf.JSONLine(0),
 	)
 }

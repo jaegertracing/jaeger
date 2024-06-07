@@ -185,12 +185,7 @@ func throughputToString(throughput []*model.Throughput) string {
 	writer := csv.NewWriter(&buf)
 	for _, t := range throughput {
 		writer.Write(
-			[]string{
-				t.Service,
-				t.Operation,
-				strconv.Itoa(int(t.Count)),
-				probabilitiesSetToString(t.Probabilities),
-			},
+			[]string{t.Service, t.Operation, strconv.Itoa(int(t.Count)), probabilitiesSetToString(t.Probabilities)},
 		)
 	}
 	writer.Flush()

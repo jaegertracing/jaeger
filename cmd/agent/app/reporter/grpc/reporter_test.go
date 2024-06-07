@@ -89,10 +89,7 @@ func TestReporter_EmitZipkinBatch(t *testing.T) {
 				ID:        2,
 				Timestamp: &a,
 				Annotations: []*zipkincore.Annotation{
-					{
-						Value: zipkincore.CLIENT_SEND,
-						Host:  &zipkincore.Endpoint{ServiceName: "spring"},
-					},
+					{Value: zipkincore.CLIENT_SEND, Host: &zipkincore.Endpoint{ServiceName: "spring"}},
 				},
 			},
 			expected: model.Batch{
@@ -101,16 +98,8 @@ func TestReporter_EmitZipkinBatch(t *testing.T) {
 						0,
 						1,
 					), SpanID: model.NewSpanID(2), OperationName: "jonatan", Duration: time.Microsecond * 1,
-					Tags: model.KeyValues{
-						{
-							Key:   "span.kind",
-							VStr:  "client",
-							VType: model.StringType,
-						},
-					},
-					Process: &model.Process{
-						ServiceName: "spring",
-					}, StartTime: tm.UTC(),
+					Tags:    model.KeyValues{{Key: "span.kind", VStr: "client", VType: model.StringType}},
+					Process: &model.Process{ServiceName: "spring"}, StartTime: tm.UTC(),
 				}},
 			},
 		},
@@ -152,18 +141,11 @@ func TestReporter_EmitBatch(t *testing.T) {
 		{
 			in: &jThrift.Batch{
 				Process: &jThrift.Process{ServiceName: "node"},
-				Spans: []*jThrift.Span{
-					{
-						OperationName: "foo",
-						StartTime:     int64(model.TimeAsEpochMicroseconds(tm)),
-					},
-				},
+				Spans:   []*jThrift.Span{{OperationName: "foo", StartTime: int64(model.TimeAsEpochMicroseconds(tm))}},
 			},
 			expected: model.Batch{
 				Process: &model.Process{ServiceName: "node"},
-				Spans: []*model.Span{
-					{OperationName: "foo", StartTime: tm.UTC()},
-				},
+				Spans:   []*model.Span{{OperationName: "foo", StartTime: tm.UTC()}},
 			},
 		},
 	}
@@ -308,12 +290,7 @@ func TestReporter_MultitenantEmitBatch(t *testing.T) {
 		{
 			in: &jThrift.Batch{
 				Process: &jThrift.Process{ServiceName: "node"},
-				Spans: []*jThrift.Span{
-					{
-						OperationName: "foo",
-						StartTime:     int64(model.TimeAsEpochMicroseconds(tm)),
-					},
-				},
+				Spans:   []*jThrift.Span{{OperationName: "foo", StartTime: int64(model.TimeAsEpochMicroseconds(tm))}},
 			},
 			err: "missing tenant header",
 		},

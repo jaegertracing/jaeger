@@ -51,11 +51,7 @@ type ServerFlagsConfig struct {
 
 // AddFlags adds flags for TLS to the FlagSet.
 func (c ClientFlagsConfig) AddFlags(flags *flag.FlagSet) {
-	flags.Bool(
-		c.Prefix+tlsEnabled,
-		false,
-		"Enable TLS when talking to the remote server(s)",
-	)
+	flags.Bool(c.Prefix+tlsEnabled, false, "Enable TLS when talking to the remote server(s)")
 	flags.String(
 		c.Prefix+tlsCA,
 		"",
@@ -86,16 +82,8 @@ func (c ClientFlagsConfig) AddFlags(flags *flag.FlagSet) {
 // AddFlags adds flags for TLS to the FlagSet.
 func (c ServerFlagsConfig) AddFlags(flags *flag.FlagSet) {
 	flags.Bool(c.Prefix+tlsEnabled, false, "Enable TLS on the server")
-	flags.String(
-		c.Prefix+tlsCert,
-		"",
-		"Path to a TLS Certificate file, used to identify this server to clients",
-	)
-	flags.String(
-		c.Prefix+tlsKey,
-		"",
-		"Path to a TLS Private Key file, used to identify this server to clients",
-	)
+	flags.String(c.Prefix+tlsCert, "", "Path to a TLS Certificate file, used to identify this server to clients")
+	flags.String(c.Prefix+tlsKey, "", "Path to a TLS Private Key file, used to identify this server to clients")
 	flags.String(
 		c.Prefix+tlsClientCA,
 		"",
@@ -106,16 +94,8 @@ func (c ServerFlagsConfig) AddFlags(flags *flag.FlagSet) {
 		"",
 		"Comma-separated list of cipher suites for the server, values are from tls package constants (https://golang.org/pkg/crypto/tls/#pkg-constants).",
 	)
-	flags.String(
-		c.Prefix+tlsMinVersion,
-		"",
-		"Minimum TLS version supported (Possible values: 1.0, 1.1, 1.2, 1.3)",
-	)
-	flags.String(
-		c.Prefix+tlsMaxVersion,
-		"",
-		"Maximum TLS version supported (Possible values: 1.0, 1.1, 1.2, 1.3)",
-	)
+	flags.String(c.Prefix+tlsMinVersion, "", "Minimum TLS version supported (Possible values: 1.0, 1.1, 1.2, 1.3)")
+	flags.String(c.Prefix+tlsMaxVersion, "", "Maximum TLS version supported (Possible values: 1.0, 1.1, 1.2, 1.3)")
 	if c.EnableCertReloadInterval {
 		flags.Duration(
 			c.Prefix+tlsReloadInterval,

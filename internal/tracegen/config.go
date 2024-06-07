@@ -46,66 +46,21 @@ type Config struct {
 // Flags registers config flags.
 func (c *Config) Flags(fs *flag.FlagSet) {
 	fs.IntVar(&c.Workers, "workers", 1, "Number of workers (goroutines) to run")
-	fs.IntVar(
-		&c.Traces,
-		"traces",
-		1,
-		"Number of traces to generate in each worker (ignored if duration is provided)",
-	)
-	fs.IntVar(
-		&c.ChildSpans,
-		"spans",
-		1,
-		"Number of child spans to generate for each trace",
-	)
-	fs.IntVar(
-		&c.Attributes,
-		"attrs",
-		11,
-		"Number of attributes to generate for each child span",
-	)
-	fs.IntVar(
-		&c.AttrKeys,
-		"attr-keys",
-		97,
-		"Number of distinct attributes keys to use",
-	)
-	fs.IntVar(
-		&c.AttrValues,
-		"attr-values",
-		1000,
-		"Number of distinct values to allow for each attribute",
-	)
-	fs.BoolVar(
-		&c.Debug,
-		"debug",
-		false,
-		"Whether to set DEBUG flag on the spans to force sampling",
-	)
-	fs.BoolVar(
-		&c.Firehose,
-		"firehose",
-		false,
-		"Whether to set FIREHOSE flag on the spans to skip indexing",
-	)
+	fs.IntVar(&c.Traces, "traces", 1, "Number of traces to generate in each worker (ignored if duration is provided)")
+	fs.IntVar(&c.ChildSpans, "spans", 1, "Number of child spans to generate for each trace")
+	fs.IntVar(&c.Attributes, "attrs", 11, "Number of attributes to generate for each child span")
+	fs.IntVar(&c.AttrKeys, "attr-keys", 97, "Number of distinct attributes keys to use")
+	fs.IntVar(&c.AttrValues, "attr-values", 1000, "Number of distinct values to allow for each attribute")
+	fs.BoolVar(&c.Debug, "debug", false, "Whether to set DEBUG flag on the spans to force sampling")
+	fs.BoolVar(&c.Firehose, "firehose", false, "Whether to set FIREHOSE flag on the spans to skip indexing")
 	fs.DurationVar(
 		&c.Pause,
 		"pause",
 		time.Microsecond,
 		"How long to sleep before finishing each span. If set to 0s then a fake 123µs duration is used.",
 	)
-	fs.DurationVar(
-		&c.Duration,
-		"duration",
-		0,
-		"For how long to run the test if greater than 0s (overrides -traces).",
-	)
-	fs.StringVar(
-		&c.Service,
-		"service",
-		"tracegen",
-		"Service name prefix to use",
-	)
+	fs.DurationVar(&c.Duration, "duration", 0, "For how long to run the test if greater than 0s (overrides -traces).")
+	fs.StringVar(&c.Service, "service", "tracegen", "Service name prefix to use")
 	fs.IntVar(
 		&c.Services,
 		"services",

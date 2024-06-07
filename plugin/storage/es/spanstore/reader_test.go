@@ -1093,9 +1093,7 @@ func TestTraceIDsStringsToModelsConversion(t *testing.T) {
 	assert.Len(t, traceIDs, 3)
 	assert.Equal(t, model.NewTraceID(0, 1), traceIDs[0])
 
-	traceIDs, err = convertTraceIDsStringsToModels(
-		[]string{"dsfjsdklfjdsofdfsdbfkgbgoaemlrksdfbsdofgerjl"},
-	)
+	traceIDs, err = convertTraceIDsStringsToModels([]string{"dsfjsdklfjdsofdfsdbfkgbgoaemlrksdfbsdofgerjl"})
 	require.EqualError(
 		t,
 		err,
@@ -1106,12 +1104,17 @@ func TestTraceIDsStringsToModelsConversion(t *testing.T) {
 
 func mockMultiSearchService(r *spanReaderTest) *mock.Call {
 	multiSearchService := &mocks.MultiSearchService{}
-	multiSearchService.On("Add", mock.Anything, mock.Anything, mock.Anything).
-		Return(multiSearchService)
-	multiSearchService.On("Index", mock.AnythingOfType("string"), mock.AnythingOfType("string"),
+	multiSearchService.On("Add", mock.Anything, mock.Anything, mock.Anything).Return(multiSearchService)
+	multiSearchService.On(
+		"Index",
 		mock.AnythingOfType("string"),
-		mock.AnythingOfType("string"), mock.AnythingOfType("string")).
-		Return(multiSearchService)
+		mock.AnythingOfType("string"),
+		mock.AnythingOfType(
+			"string",
+		),
+		mock.AnythingOfType("string"),
+		mock.AnythingOfType("string"),
+	).Return(multiSearchService)
 	r.client.On("MultiSearch").Return(multiSearchService)
 	return multiSearchService.On("Do", mock.Anything)
 }

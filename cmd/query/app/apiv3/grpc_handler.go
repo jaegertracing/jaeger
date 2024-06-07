@@ -141,13 +141,10 @@ func (h *Handler) GetOperations(
 	ctx context.Context,
 	request *api_v3.GetOperationsRequest,
 ) (*api_v3.GetOperationsResponse, error) {
-	operations, err := h.QueryService.GetOperations(
-		ctx,
-		spanstore.OperationQueryParameters{
-			ServiceName: request.GetService(),
-			SpanKind:    request.GetSpanKind(),
-		},
-	)
+	operations, err := h.QueryService.GetOperations(ctx, spanstore.OperationQueryParameters{
+		ServiceName: request.GetService(),
+		SpanKind:    request.GetSpanKind(),
+	})
 	if err != nil {
 		return nil, err
 	}

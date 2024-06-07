@@ -52,19 +52,11 @@ func TestNewGRPCHandler(t *testing.T) {
 		resp *api_v2.SamplingStrategyResponse
 		err  string
 	}{
+		{req: &api_v2.SamplingStrategyParameters{ServiceName: "error"}, err: "some error"},
+		{req: &api_v2.SamplingStrategyParameters{ServiceName: "nil"}, resp: nil},
 		{
-			req: &api_v2.SamplingStrategyParameters{ServiceName: "error"},
-			err: "some error",
-		},
-		{
-			req:  &api_v2.SamplingStrategyParameters{ServiceName: "nil"},
-			resp: nil,
-		},
-		{
-			req: &api_v2.SamplingStrategyParameters{ServiceName: "foo"},
-			resp: &api_v2.SamplingStrategyResponse{
-				StrategyType: api_v2.SamplingStrategyType_PROBABILISTIC,
-			},
+			req:  &api_v2.SamplingStrategyParameters{ServiceName: "foo"},
+			resp: &api_v2.SamplingStrategyResponse{StrategyType: api_v2.SamplingStrategyType_PROBABILISTIC},
 		},
 	}
 	h := NewGRPCHandler(mockSamplingStore{})

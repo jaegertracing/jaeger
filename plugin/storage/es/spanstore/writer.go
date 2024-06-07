@@ -93,11 +93,7 @@ func NewSpanWriter(p SpanWriterParams) *SpanWriter {
 			),
 		},
 		serviceWriter: serviceOperationStorage.Write,
-		spanConverter: dbmodel.NewFromDomain(
-			p.AllTagsAsFields,
-			p.TagKeysAsFields,
-			p.TagDotReplacement,
-		),
+		spanConverter: dbmodel.NewFromDomain(p.AllTagsAsFields, p.TagKeysAsFields, p.TagDotReplacement),
 		spanServiceIndex: getSpanAndServiceIndexFn(
 			p.Archive,
 			p.UseReadWriteAliases,

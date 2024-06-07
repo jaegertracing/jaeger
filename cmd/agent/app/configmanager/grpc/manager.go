@@ -42,10 +42,7 @@ func (s *ConfigManagerProxy) GetSamplingStrategy(
 	ctx context.Context,
 	serviceName string,
 ) (*api_v2.SamplingStrategyResponse, error) {
-	resp, err := s.client.GetSamplingStrategy(
-		ctx,
-		&api_v2.SamplingStrategyParameters{ServiceName: serviceName},
-	)
+	resp, err := s.client.GetSamplingStrategy(ctx, &api_v2.SamplingStrategyParameters{ServiceName: serviceName})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get sampling strategy: %w", err)
 	}

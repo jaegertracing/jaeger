@@ -110,21 +110,9 @@ func TestUnknownJaegerType(t *testing.T) {
 
 func TestToDomain_ToDomainProcess(t *testing.T) {
 	p := ToDomainProcess(
-		&jaeger.Process{
-			ServiceName: "foo",
-			Tags: []*jaeger.Tag{
-				{Key: "foo", VType: jaeger.TagType_BOOL},
-			},
-		},
+		&jaeger.Process{ServiceName: "foo", Tags: []*jaeger.Tag{{Key: "foo", VType: jaeger.TagType_BOOL}}},
 	)
-	assert.Equal(
-		t,
-		&model.Process{
-			ServiceName: "foo",
-			Tags:        []model.KeyValue{{Key: "foo", VType: model.BoolType}},
-		},
-		p,
-	)
+	assert.Equal(t, &model.Process{ServiceName: "foo", Tags: []model.KeyValue{{Key: "foo", VType: model.BoolType}}}, p)
 }
 
 func TestToDomain_ToDomainSpanProcessNull(t *testing.T) {

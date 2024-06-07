@@ -76,17 +76,11 @@ func TestConvertRateLimitingFromDomain(t *testing.T) {
 		err      string
 	}{
 		{
-			in: &api_v2.RateLimitingSamplingStrategy{
-				MaxTracesPerSecond: 21,
-			},
-			expected: &sampling.RateLimitingSamplingStrategy{
-				MaxTracesPerSecond: 21,
-			},
+			in:       &api_v2.RateLimitingSamplingStrategy{MaxTracesPerSecond: 21},
+			expected: &sampling.RateLimitingSamplingStrategy{MaxTracesPerSecond: 21},
 		},
 		{
-			in: &api_v2.RateLimitingSamplingStrategy{
-				MaxTracesPerSecond: math.MaxInt32,
-			},
+			in:  &api_v2.RateLimitingSamplingStrategy{MaxTracesPerSecond: math.MaxInt32},
 			err: "maxTracesPerSecond is higher than int16",
 		},
 		{},
@@ -114,16 +108,12 @@ func TestConvertOperationStrategyFromDomain(t *testing.T) {
 		},
 		{
 			in: &api_v2.OperationSamplingStrategy{
-				Operation: "foo",
-				ProbabilisticSampling: &api_v2.ProbabilisticSamplingStrategy{
-					SamplingRate: 2,
-				},
+				Operation:             "foo",
+				ProbabilisticSampling: &api_v2.ProbabilisticSamplingStrategy{SamplingRate: 2},
 			},
 			expected: &sampling.OperationSamplingStrategy{
-				Operation: "foo",
-				ProbabilisticSampling: &sampling.ProbabilisticSamplingStrategy{
-					SamplingRate: 2,
-				},
+				Operation:             "foo",
+				ProbabilisticSampling: &sampling.ProbabilisticSamplingStrategy{SamplingRate: 2},
 			},
 		},
 		{},
@@ -184,20 +174,14 @@ func TestConvertSamplingResponseFromDomain(t *testing.T) {
 		},
 		{
 			in: &api_v2.SamplingStrategyResponse{
-				StrategyType: api_v2.SamplingStrategyType_PROBABILISTIC,
-				RateLimitingSampling: &api_v2.RateLimitingSamplingStrategy{
-					MaxTracesPerSecond: math.MaxInt32,
-				},
+				StrategyType:         api_v2.SamplingStrategyType_PROBABILISTIC,
+				RateLimitingSampling: &api_v2.RateLimitingSamplingStrategy{MaxTracesPerSecond: math.MaxInt32},
 			},
 			err: "maxTracesPerSecond is higher than int16",
 		},
 		{
-			in: &api_v2.SamplingStrategyResponse{
-				StrategyType: api_v2.SamplingStrategyType_PROBABILISTIC,
-			},
-			expected: &sampling.SamplingStrategyResponse{
-				StrategyType: sampling.SamplingStrategyType_PROBABILISTIC,
-			},
+			in:       &api_v2.SamplingStrategyResponse{StrategyType: api_v2.SamplingStrategyType_PROBABILISTIC},
+			expected: &sampling.SamplingStrategyResponse{StrategyType: sampling.SamplingStrategyType_PROBABILISTIC},
 		},
 	}
 	for _, test := range tests {

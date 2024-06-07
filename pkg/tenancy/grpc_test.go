@@ -88,10 +88,8 @@ func TestTenancyInterceptors(t *testing.T) {
 			errMsg: "",
 		},
 		{
-			name: "extra tenant header",
-			tenancyMgr: NewManager(
-				&Options{Enabled: true, Tenants: []string{"acme"}},
-			),
+			name:       "extra tenant header",
+			tenancyMgr: NewManager(&Options{Enabled: true, Tenants: []string{"acme"}}),
 			ctx: metadata.NewIncomingContext(
 				context.Background(),
 				map[string][]string{"x-tenant": {"acme", "megacorp"}},

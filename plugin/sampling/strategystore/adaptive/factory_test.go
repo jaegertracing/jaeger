@@ -125,21 +125,13 @@ func TestSamplingStoreFactoryFails(t *testing.T) {
 	// fail if lock fails
 	require.Error(
 		t,
-		f.Initialize(
-			metrics.NullFactory,
-			&mockSamplingStoreFactory{lockFailsWith: errors.New("fail")},
-			zap.NewNop(),
-		),
+		f.Initialize(metrics.NullFactory, &mockSamplingStoreFactory{lockFailsWith: errors.New("fail")}, zap.NewNop()),
 	)
 
 	// fail if store fails
 	require.Error(
 		t,
-		f.Initialize(
-			metrics.NullFactory,
-			&mockSamplingStoreFactory{storeFailsWith: errors.New("fail")},
-			zap.NewNop(),
-		),
+		f.Initialize(metrics.NullFactory, &mockSamplingStoreFactory{storeFailsWith: errors.New("fail")}, zap.NewNop()),
 	)
 }
 

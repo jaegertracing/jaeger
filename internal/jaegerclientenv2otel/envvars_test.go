@@ -37,11 +37,7 @@ func TestMapJaegerToOtelEnvVars(t *testing.T) {
 		buffer.String(),
 		"Replacing deprecated Jaeger SDK env var JAEGER_USER with OpenTelemetry env var OTEL_EXPORTER_JAEGER_USER",
 	)
-	assert.Contains(
-		t,
-		buffer.String(),
-		"Ignoring deprecated Jaeger SDK env var JAEGER_TAGS",
-	)
+	assert.Contains(t, buffer.String(), "Ignoring deprecated Jaeger SDK env var JAEGER_TAGS")
 }
 
 func TestMain(m *testing.M) {

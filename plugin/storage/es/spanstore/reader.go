@@ -355,11 +355,7 @@ func (s *SpanReader) GetServices(ctx context.Context) ([]string, error) {
 		currentTime,
 		s.serviceIndexRolloverFrequency,
 	)
-	return s.serviceOperationStorage.getServices(
-		ctx,
-		jaegerIndices,
-		s.maxDocCount,
-	)
+	return s.serviceOperationStorage.getServices(ctx, jaegerIndices, s.maxDocCount)
 }
 
 // GetOperations returns all operations for a specific service traced by Jaeger
@@ -377,12 +373,7 @@ func (s *SpanReader) GetOperations(
 		currentTime,
 		s.serviceIndexRolloverFrequency,
 	)
-	operations, err := s.serviceOperationStorage.getOperations(
-		ctx,
-		jaegerIndices,
-		query.ServiceName,
-		s.maxDocCount,
-	)
+	operations, err := s.serviceOperationStorage.getOperations(ctx, jaegerIndices, query.ServiceName, s.maxDocCount)
 	if err != nil {
 		return nil, err
 	}

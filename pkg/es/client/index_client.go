@@ -192,10 +192,7 @@ func (i *IndicesClient) CreateAlias(aliases []Alias) error {
 		if errors.As(err, &responseError) {
 			if responseError.StatusCode != http.StatusOK {
 				return responseError.prefixMessage(
-					fmt.Sprintf(
-						"failed to create aliases: %s",
-						i.aliasesString(aliases),
-					),
+					fmt.Sprintf("failed to create aliases: %s", i.aliasesString(aliases)),
 				)
 			}
 		}
@@ -212,10 +209,7 @@ func (i *IndicesClient) DeleteAlias(aliases []Alias) error {
 		if errors.As(err, &responseError) {
 			if responseError.StatusCode != http.StatusOK {
 				return responseError.prefixMessage(
-					fmt.Sprintf(
-						"failed to delete aliases: %s",
-						i.aliasesString(aliases),
-					),
+					fmt.Sprintf("failed to delete aliases: %s", i.aliasesString(aliases)),
 				)
 			}
 		}

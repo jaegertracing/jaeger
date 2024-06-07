@@ -95,12 +95,7 @@ func TestLogMatcher(t *testing.T) {
 			expected:    false,
 			errMsg:      "subStr 'hi' does not occur 3 time(s) in [hi hi]",
 		},
-		{
-			occurrences: 3,
-			subStr:      "hi",
-			logs:        []string{"hi", "hi", "hi"},
-			expected:    true,
-		},
+		{occurrences: 3, subStr: "hi", logs: []string{"hi", "hi", "hi"}, expected: true},
 		{
 			occurrences: 1,
 			subStr:      "hi",

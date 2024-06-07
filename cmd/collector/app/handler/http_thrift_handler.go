@@ -84,10 +84,7 @@ func (aH *APIHandler) SaveSpan(w http.ResponseWriter, r *http.Request) {
 	if _, ok := acceptedThriftFormats[contentType]; !ok {
 		http.Error(
 			w,
-			fmt.Sprintf(
-				"Unsupported content type: %v",
-				html.EscapeString(contentType),
-			),
+			fmt.Sprintf("Unsupported content type: %v", html.EscapeString(contentType)),
 			http.StatusBadRequest,
 		)
 		return

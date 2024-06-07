@@ -232,11 +232,8 @@ func TestHTTPHandlerErrors(t *testing.T) {
 			body:        "collector error: no mock response provided\n",
 			metrics: []metricstest.ExpectedMetric{
 				{
-					Name: "http-server.errors",
-					Tags: map[string]string{
-						"source": "collector-proxy",
-						"status": "5xx",
-					},
+					Name:  "http-server.errors",
+					Tags:  map[string]string{"source": "collector-proxy", "status": "5xx"},
 					Value: 1,
 				},
 			},
@@ -248,11 +245,8 @@ func TestHTTPHandlerErrors(t *testing.T) {
 			body:        "collector error: no mock response provided\n",
 			metrics: []metricstest.ExpectedMetric{
 				{
-					Name: "http-server.errors",
-					Tags: map[string]string{
-						"source": "collector-proxy",
-						"status": "5xx",
-					},
+					Name:  "http-server.errors",
+					Tags:  map[string]string{"source": "collector-proxy", "status": "5xx"},
 					Value: 1,
 				},
 			},
@@ -321,11 +315,8 @@ func TestHTTPHandlerErrors(t *testing.T) {
 				ts.metricsFactory.AssertCounterMetrics(
 					t,
 					metricstest.ExpectedMetric{
-						Name: "http-server.errors",
-						Tags: map[string]string{
-							"source": "write",
-							"status": "5xx",
-						},
+						Name:  "http-server.errors",
+						Tags:  map[string]string{"source": "write", "status": "5xx"},
 						Value: 1,
 					},
 				)
@@ -340,16 +331,12 @@ func TestHTTPHandlerErrors(t *testing.T) {
 				ts.metricsFactory.AssertCounterMetrics(
 					t,
 					metricstest.ExpectedMetric{
-						Name: "http-server.errors",
-						Tags: map[string]string{
-							"source": "write",
-							"status": "5xx",
-						},
+						Name:  "http-server.errors",
+						Tags:  map[string]string{"source": "write", "status": "5xx"},
 						Value: 2,
 					},
 				)
-			},
-		)
+			})
 	})
 }
 

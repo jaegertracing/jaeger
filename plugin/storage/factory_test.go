@@ -83,11 +83,7 @@ func TestNewFactory(t *testing.T) {
 	assert.Equal(t, memoryStorageType, f.DependenciesStorageType)
 
 	_, err = NewFactory(
-		FactoryConfig{
-			SpanWriterTypes:         []string{"x"},
-			DependenciesStorageType: "y",
-			SpanReaderType:          "z",
-		},
+		FactoryConfig{SpanWriterTypes: []string{"x"}, DependenciesStorageType: "y", SpanReaderType: "z"},
 	)
 	require.Error(t, err)
 	expected := "unknown storage type" // could be 'x' or 'y' since code iterates through map.

@@ -42,11 +42,7 @@ func tlsFlagsConfig() tlscfg.ClientFlagsConfig {
 func v1AddFlags(flagSet *flag.FlagSet) {
 	tlsFlagsConfig().AddFlags(flagSet)
 
-	flagSet.String(
-		remoteServer,
-		"",
-		"The remote storage gRPC server address as host:port",
-	)
+	flagSet.String(remoteServer, "", "The remote storage gRPC server address as host:port")
 	flagSet.Duration(
 		remoteConnectionTimeout,
 		defaultConnectionTimeout,

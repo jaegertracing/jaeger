@@ -1112,58 +1112,55 @@ func TestSearchTenancyGRPC(t *testing.T) {
 	tm := tenancy.NewManager(&tenancy.Options{
 		Enabled: true,
 	})
-	withTenantedServerAndClient(
-		t,
-		tm,
-		func(server *grpcServer, client *grpcClient) {
-			server.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
-				Return(mockTrace, nil).
-				Once()
+	withTenantedServerAndClient(t, tm, func(server *grpcServer, client *grpcClient) {
+		server.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
+			Return(mockTrace, nil).
+			Once()
 
-			// First try without tenancy header
-			res, err := client.GetTrace(
+		// First try without tenancy header
+		res, err := client.GetTrace(
+			context.Background(),
+			&api_v2.GetTraceRequest{
+				TraceID: mockTraceID,
+			},
+		)
+
+		require.NoError(t, err, "could not initiate GetTraceRequest")
+
+		spanResChunk, err := res.Recv()
+		assertGRPCError(
+			t,
+			err,
+			codes.Unauthenticated,
+			"missing tenant header",
+		)
+		assert.Nil(t, spanResChunk)
+
+		// Next try with tenancy
+		res, err = client.GetTrace(
+			withOutgoingMetadata(
+				t,
 				context.Background(),
-				&api_v2.GetTraceRequest{
-					TraceID: mockTraceID,
-				},
-			)
+				tm.Header,
+				"acme",
+			),
+			&api_v2.GetTraceRequest{
+				TraceID: mockTraceID,
+			},
+		)
 
-			require.NoError(t, err, "could not initiate GetTraceRequest")
+		spanResChunk, _ = res.Recv()
 
-			spanResChunk, err := res.Recv()
-			assertGRPCError(
-				t,
-				err,
-				codes.Unauthenticated,
-				"missing tenant header",
-			)
-			assert.Nil(t, spanResChunk)
-
-			// Next try with tenancy
-			res, err = client.GetTrace(
-				withOutgoingMetadata(
-					t,
-					context.Background(),
-					tm.Header,
-					"acme",
-				),
-				&api_v2.GetTraceRequest{
-					TraceID: mockTraceID,
-				},
-			)
-
-			spanResChunk, _ = res.Recv()
-
-			require.NoError(
-				t,
-				err,
-				"expecting gRPC to succeed with any tenancy header",
-			)
-			require.NotNil(t, spanResChunk)
-			require.NotNil(t, spanResChunk.Spans)
-			require.Equal(t, len(mockTrace.Spans), len(spanResChunk.Spans))
-			assert.Equal(t, mockTraceID, spanResChunk.Spans[0].TraceID)
-		},
+		require.NoError(
+			t,
+			err,
+			"expecting gRPC to succeed with any tenancy header",
+		)
+		require.NotNil(t, spanResChunk)
+		require.NotNil(t, spanResChunk.Spans)
+		require.Equal(t, len(mockTrace.Spans), len(spanResChunk.Spans))
+		assert.Equal(t, mockTraceID, spanResChunk.Spans[0].TraceID)
+	},
 	)
 }
 
@@ -1171,45 +1168,32 @@ func TestServicesTenancyGRPC(t *testing.T) {
 	tm := tenancy.NewManager(&tenancy.Options{
 		Enabled: true,
 	})
-	withTenantedServerAndClient(
-		t,
-		tm,
-		func(server *grpcServer, client *grpcClient) {
-			expectedServices := []string{"trifle", "bling"}
-			server.spanReader.On("GetServices", mock.AnythingOfType("*context.valueCtx")).
-				Return(expectedServices, nil).
-				Once()
+	withTenantedServerAndClient(t, tm, func(server *grpcServer, client *grpcClient) {
+		expectedServices := []string{"trifle", "bling"}
+		server.spanReader.On("GetServices", mock.AnythingOfType("*context.valueCtx")).
+			Return(expectedServices, nil).
+			Once()
 
-			// First try without tenancy header
-			_, err := client.GetServices(
-				context.Background(),
-				&api_v2.GetServicesRequest{},
-			)
-			assertGRPCError(
-				t,
-				err,
-				codes.Unauthenticated,
-				"missing tenant header",
-			)
+		// First try without tenancy header
+		_, err := client.GetServices(
+			context.Background(),
+			&api_v2.GetServicesRequest{},
+		)
+		assertGRPCError(
+			t,
+			err,
+			codes.Unauthenticated,
+			"missing tenant header",
+		)
 
-			// Next try with tenancy
-			res, err := client.GetServices(
-				withOutgoingMetadata(
-					t,
-					context.Background(),
-					tm.Header,
-					"acme",
-				),
-				&api_v2.GetServicesRequest{},
-			)
-			require.NoError(
-				t,
-				err,
-				"expecting gRPC to succeed with any tenancy header",
-			)
-			assert.Equal(t, expectedServices, res.Services)
-		},
-	)
+		// Next try with tenancy
+		res, err := client.GetServices(
+			withOutgoingMetadata(t, context.Background(), tm.Header, "acme"),
+			&api_v2.GetServicesRequest{},
+		)
+		require.NoError(t, err, "expecting gRPC to succeed with any tenancy header")
+		assert.Equal(t, expectedServices, res.Services)
+	})
 }
 
 func TestSearchTenancyGRPCExplicitList(t *testing.T) {
@@ -1218,98 +1202,95 @@ func TestSearchTenancyGRPCExplicitList(t *testing.T) {
 		Header:  "non-standard-tenant-header",
 		Tenants: []string{"mercury", "venus", "mars"},
 	})
-	withTenantedServerAndClient(
-		t,
-		tm,
-		func(server *grpcServer, client *grpcClient) {
-			server.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
-				Return(mockTrace, nil).
-				Once()
+	withTenantedServerAndClient(t, tm, func(server *grpcServer, client *grpcClient) {
+		server.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
+			Return(mockTrace, nil).
+			Once()
 
-			for _, tc := range []struct {
-				name           string
-				tenancyHeader  string
-				tenant         string
-				wantErr        bool
-				failureCode    codes.Code
-				failureMessage string
-			}{
-				{
-					name:           "no header",
-					wantErr:        true,
-					failureCode:    codes.Unauthenticated,
-					failureMessage: "missing tenant header",
-				},
-				{
-					name:           "invalid header",
-					tenancyHeader:  "not-the-correct-header",
-					tenant:         "mercury",
-					wantErr:        true,
-					failureCode:    codes.Unauthenticated,
-					failureMessage: "missing tenant header",
-				},
-				{
-					name:           "missing tenant",
-					tenancyHeader:  tm.Header,
-					tenant:         "",
-					wantErr:        true,
-					failureCode:    codes.PermissionDenied,
-					failureMessage: "unknown tenant",
-				},
-				{
-					name:           "invalid tenant",
-					tenancyHeader:  tm.Header,
-					tenant:         "some-other-tenant-not-in-the-list",
-					wantErr:        true,
-					failureCode:    codes.PermissionDenied,
-					failureMessage: "unknown tenant",
-				},
-				{
-					name:          "valid tenant",
-					tenancyHeader: tm.Header,
-					tenant:        "venus",
-				},
-			} {
-				t.Run(tc.name, func(t *testing.T) {
-					ctx := context.Background()
-					if tc.tenancyHeader != "" {
-						ctx = withOutgoingMetadata(
-							t,
-							context.Background(),
-							tc.tenancyHeader,
-							tc.tenant,
-						)
-					}
-					res, err := client.GetTrace(ctx, &api_v2.GetTraceRequest{
-						TraceID: mockTraceID,
-					})
+		for _, tc := range []struct {
+			name           string
+			tenancyHeader  string
+			tenant         string
+			wantErr        bool
+			failureCode    codes.Code
+			failureMessage string
+		}{
+			{
+				name:           "no header",
+				wantErr:        true,
+				failureCode:    codes.Unauthenticated,
+				failureMessage: "missing tenant header",
+			},
+			{
+				name:           "invalid header",
+				tenancyHeader:  "not-the-correct-header",
+				tenant:         "mercury",
+				wantErr:        true,
+				failureCode:    codes.Unauthenticated,
+				failureMessage: "missing tenant header",
+			},
+			{
+				name:           "missing tenant",
+				tenancyHeader:  tm.Header,
+				tenant:         "",
+				wantErr:        true,
+				failureCode:    codes.PermissionDenied,
+				failureMessage: "unknown tenant",
+			},
+			{
+				name:           "invalid tenant",
+				tenancyHeader:  tm.Header,
+				tenant:         "some-other-tenant-not-in-the-list",
+				wantErr:        true,
+				failureCode:    codes.PermissionDenied,
+				failureMessage: "unknown tenant",
+			},
+			{
+				name:          "valid tenant",
+				tenancyHeader: tm.Header,
+				tenant:        "venus",
+			},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				ctx := context.Background()
+				if tc.tenancyHeader != "" {
+					ctx = withOutgoingMetadata(
+						t,
+						context.Background(),
+						tc.tenancyHeader,
+						tc.tenant,
+					)
+				}
+				res, err := client.GetTrace(ctx, &api_v2.GetTraceRequest{
+					TraceID: mockTraceID,
+				})
 
-					require.NoError(
+				require.NoError(
+					t,
+					err,
+					"could not initiate GetTraceRequest",
+				)
+
+				spanResChunk, err := res.Recv()
+
+				if tc.wantErr {
+					assertGRPCError(
 						t,
 						err,
-						"could not initiate GetTraceRequest",
+						tc.failureCode,
+						tc.failureMessage,
 					)
-
-					spanResChunk, err := res.Recv()
-
-					if tc.wantErr {
-						assertGRPCError(
-							t,
-							err,
-							tc.failureCode,
-							tc.failureMessage,
-						)
-						assert.Nil(t, spanResChunk)
-					} else {
-						require.NoError(t, err, "expecting gRPC to succeed")
-						require.NotNil(t, spanResChunk)
-						require.NotNil(t, spanResChunk.Spans)
-						require.Equal(t, len(mockTrace.Spans), len(spanResChunk.Spans))
-						assert.Equal(t, mockTraceID, spanResChunk.Spans[0].TraceID)
-					}
-				})
-			}
-		},
+					assert.Nil(t, spanResChunk)
+				} else {
+					require.NoError(t, err, "expecting gRPC to succeed")
+					require.NotNil(t, spanResChunk)
+					require.NotNil(t, spanResChunk.Spans)
+					require.Equal(t, len(mockTrace.Spans), len(spanResChunk.Spans))
+					assert.Equal(t, mockTraceID, spanResChunk.Spans[0].TraceID)
+				}
+			})
+		}
+	},
 	)
 }
 
@@ -1374,25 +1355,11 @@ func TestTenancyContextFlowGRPC(t *testing.T) {
 				t.Run(tenant, func(t *testing.T) {
 					// Test context propagation to Unary method.
 					resGetServices, err := client.GetServices(
-						withOutgoingMetadata(
-							t,
-							context.Background(),
-							tm.Header,
-							tenant,
-						),
+						withOutgoingMetadata(t, context.Background(), tm.Header, tenant),
 						&api_v2.GetServicesRequest{},
 					)
-					require.NoError(
-						t,
-						err,
-						"expecting gRPC to succeed with %q tenancy header",
-						tenant,
-					)
-					assert.Equal(
-						t,
-						expected.expectedServices,
-						resGetServices.Services,
-					)
+					require.NoError(t, err, "expecting gRPC to succeed with %q tenancy header", tenant)
+					assert.Equal(t, expected.expectedServices, resGetServices.Services)
 
 					// Test context propagation to Streaming method.
 					resGetTrace, err := client.GetTrace(

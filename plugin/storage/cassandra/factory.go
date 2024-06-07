@@ -270,11 +270,7 @@ func writerOptions(opts *Options) ([]cSpanStore.Option, error) {
 	if !opts.Index.Tags || !opts.Index.ProcessTags || !opts.Index.Logs {
 		tagFilters = append(
 			tagFilters,
-			dbmodel.NewTagFilterDropAll(
-				!opts.Index.Tags,
-				!opts.Index.ProcessTags,
-				!opts.Index.Logs,
-			),
+			dbmodel.NewTagFilterDropAll(!opts.Index.Tags, !opts.Index.ProcessTags, !opts.Index.Logs),
 		)
 	}
 

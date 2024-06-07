@@ -114,8 +114,7 @@ func (o *Options) Config(logger *zap.Logger) (*tls.Config, error) {
 	}
 	o.certWatcher = certWatcher
 
-	if (o.CertPath == "" && o.KeyPath != "") ||
-		(o.CertPath != "" && o.KeyPath == "") {
+	if (o.CertPath == "" && o.KeyPath != "") || (o.CertPath != "" && o.KeyPath == "") {
 		return nil, fmt.Errorf(
 			"for client auth via TLS, either both client certificate and key must be supplied, or neither",
 		)

@@ -219,11 +219,7 @@ func TestTLSFlags(t *testing.T) {
 		ConfigPath:  "/etc/krb5.conf",
 		KeyTabPath:  "/etc/security/kafka.keytab",
 	}
-	plain := auth.PlainTextConfig{
-		Username:  "",
-		Password:  "",
-		Mechanism: "PLAIN",
-	}
+	plain := auth.PlainTextConfig{Username: "", Password: "", Mechanism: "PLAIN"}
 	tests := []struct {
 		flags    []string
 		expected auth.AuthenticationConfig
@@ -245,10 +241,7 @@ func TestTLSFlags(t *testing.T) {
 			},
 		},
 		{
-			flags: []string{
-				"--kafka.producer.authentication=kerberos",
-				"--kafka.producer.tls.enabled=true",
-			},
+			flags: []string{"--kafka.producer.authentication=kerberos", "--kafka.producer.tls.enabled=true"},
 			expected: auth.AuthenticationConfig{
 				Authentication: "kerberos",
 				Kerberos:       kerb,
@@ -266,10 +259,7 @@ func TestTLSFlags(t *testing.T) {
 			},
 		},
 		{
-			flags: []string{
-				"--kafka.producer.authentication=tls",
-				"--kafka.producer.tls.enabled=false",
-			},
+			flags: []string{"--kafka.producer.authentication=tls", "--kafka.producer.tls.enabled=false"},
 			expected: auth.AuthenticationConfig{
 				Authentication: "tls",
 				Kerberos:       kerb,

@@ -150,49 +150,23 @@ func NewSpanProcessorMetrics(
 		)
 	}
 	m := &SpanProcessorMetrics{
-		SaveLatency: hostMetrics.Timer(
-			metrics.TimerOptions{Name: "save-latency", Tags: nil},
-		),
-		InQueueLatency: hostMetrics.Timer(
-			metrics.TimerOptions{Name: "in-queue-latency", Tags: nil},
-		),
-		SpansDropped: hostMetrics.Counter(
-			metrics.Options{Name: "spans.dropped", Tags: nil},
-		),
-		BatchSize: hostMetrics.Gauge(
-			metrics.Options{Name: "batch-size", Tags: nil},
-		),
-		QueueCapacity: hostMetrics.Gauge(
-			metrics.Options{Name: "queue-capacity", Tags: nil},
-		),
-		QueueLength: hostMetrics.Gauge(
-			metrics.Options{Name: "queue-length", Tags: nil},
-		),
-		SpansBytes: hostMetrics.Gauge(
-			metrics.Options{Name: "spans.bytes", Tags: nil},
-		),
+		SaveLatency:    hostMetrics.Timer(metrics.TimerOptions{Name: "save-latency", Tags: nil}),
+		InQueueLatency: hostMetrics.Timer(metrics.TimerOptions{Name: "in-queue-latency", Tags: nil}),
+		SpansDropped:   hostMetrics.Counter(metrics.Options{Name: "spans.dropped", Tags: nil}),
+		BatchSize:      hostMetrics.Gauge(metrics.Options{Name: "batch-size", Tags: nil}),
+		QueueCapacity:  hostMetrics.Gauge(metrics.Options{Name: "queue-capacity", Tags: nil}),
+		QueueLength:    hostMetrics.Gauge(metrics.Options{Name: "queue-length", Tags: nil}),
+		SpansBytes:     hostMetrics.Gauge(metrics.Options{Name: "spans.bytes", Tags: nil}),
 		SavedOkBySvc: newMetricsBySvc(
-			serviceMetrics.Namespace(
-				metrics.NSOptions{
-					Name: "",
-					Tags: map[string]string{"result": "ok"},
-				},
-			),
+			serviceMetrics.Namespace(metrics.NSOptions{Name: "", Tags: map[string]string{"result": "ok"}}),
 			"saved-by-svc",
 		),
 		SavedErrBySvc: newMetricsBySvc(
-			serviceMetrics.Namespace(
-				metrics.NSOptions{
-					Name: "",
-					Tags: map[string]string{"result": "err"},
-				},
-			),
+			serviceMetrics.Namespace(metrics.NSOptions{Name: "", Tags: map[string]string{"result": "err"}}),
 			"saved-by-svc",
 		),
-		spanCounts: spanCounts,
-		serviceNames: hostMetrics.Gauge(
-			metrics.Options{Name: "spans.serviceNames", Tags: nil},
-		),
+		spanCounts:   spanCounts,
+		serviceNames: hostMetrics.Gauge(metrics.Options{Name: "spans.serviceNames", Tags: nil}),
 	}
 
 	return m
@@ -274,24 +248,12 @@ func newSpanCountsBySvc(
 		countsBySvc: countsBySvc{
 			counts: map[string]metrics.Counter{
 				otherServices: factory.Counter(
-					metrics.Options{
-						Name: category,
-						Tags: map[string]string{
-							"svc":   otherServices,
-							"debug": "false",
-						},
-					},
+					metrics.Options{Name: category, Tags: map[string]string{"svc": otherServices, "debug": "false"}},
 				),
 			},
 			debugCounts: map[string]metrics.Counter{
 				otherServices: factory.Counter(
-					metrics.Options{
-						Name: category,
-						Tags: map[string]string{
-							"svc":   otherServices,
-							"debug": "true",
-						},
-					},
+					metrics.Options{Name: category, Tags: map[string]string{"svc": otherServices, "debug": "true"}},
 				),
 			},
 			factory:         factory,

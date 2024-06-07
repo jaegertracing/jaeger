@@ -133,8 +133,7 @@ func (s *GRPCHandler) GetDependencies(
 	ctx context.Context,
 	r *storage_v1.GetDependenciesRequest,
 ) (*storage_v1.GetDependenciesResponse, error) {
-	deps, err := s.impl.DependencyReader().
-		GetDependencies(ctx, r.EndTime, r.EndTime.Sub(r.StartTime))
+	deps, err := s.impl.DependencyReader().GetDependencies(ctx, r.EndTime, r.EndTime.Sub(r.StartTime))
 	if err != nil {
 		return nil, err
 	}
@@ -261,17 +260,16 @@ func (s *GRPCHandler) FindTraces(
 	r *storage_v1.FindTracesRequest,
 	stream storage_v1.SpanReaderPlugin_FindTracesServer,
 ) error {
-	traces, err := s.impl.SpanReader().
-		FindTraces(stream.Context(), &spanstore.TraceQueryParameters{
-			ServiceName:   r.Query.ServiceName,
-			OperationName: r.Query.OperationName,
-			Tags:          r.Query.Tags,
-			StartTimeMin:  r.Query.StartTimeMin,
-			StartTimeMax:  r.Query.StartTimeMax,
-			DurationMin:   r.Query.DurationMin,
-			DurationMax:   r.Query.DurationMax,
-			NumTraces:     int(r.Query.NumTraces),
-		})
+	traces, err := s.impl.SpanReader().FindTraces(stream.Context(), &spanstore.TraceQueryParameters{
+		ServiceName:   r.Query.ServiceName,
+		OperationName: r.Query.OperationName,
+		Tags:          r.Query.Tags,
+		StartTimeMin:  r.Query.StartTimeMin,
+		StartTimeMax:  r.Query.StartTimeMax,
+		DurationMin:   r.Query.DurationMin,
+		DurationMax:   r.Query.DurationMax,
+		NumTraces:     int(r.Query.NumTraces),
+	})
 	if err != nil {
 		return err
 	}
@@ -291,17 +289,16 @@ func (s *GRPCHandler) FindTraceIDs(
 	ctx context.Context,
 	r *storage_v1.FindTraceIDsRequest,
 ) (*storage_v1.FindTraceIDsResponse, error) {
-	traceIDs, err := s.impl.SpanReader().
-		FindTraceIDs(ctx, &spanstore.TraceQueryParameters{
-			ServiceName:   r.Query.ServiceName,
-			OperationName: r.Query.OperationName,
-			Tags:          r.Query.Tags,
-			StartTimeMin:  r.Query.StartTimeMin,
-			StartTimeMax:  r.Query.StartTimeMax,
-			DurationMin:   r.Query.DurationMin,
-			DurationMax:   r.Query.DurationMax,
-			NumTraces:     int(r.Query.NumTraces),
-		})
+	traceIDs, err := s.impl.SpanReader().FindTraceIDs(ctx, &spanstore.TraceQueryParameters{
+		ServiceName:   r.Query.ServiceName,
+		OperationName: r.Query.OperationName,
+		Tags:          r.Query.Tags,
+		StartTimeMin:  r.Query.StartTimeMin,
+		StartTimeMax:  r.Query.StartTimeMax,
+		DurationMin:   r.Query.DurationMin,
+		DurationMax:   r.Query.DurationMax,
+		NumTraces:     int(r.Query.NumTraces),
+	})
 	if err != nil {
 		return nil, err
 	}

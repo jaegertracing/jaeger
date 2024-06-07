@@ -72,9 +72,7 @@ func New(
 		discoCh:           make(chan []string, 100),
 		logger:            logger,
 		discoveryMinPeers: discoveryMinPeers,
-		salt: []byte(
-			strconv.FormatInt(random.Int63(), 10),
-		), // random salt for rendezvousHash
+		salt:              []byte(strconv.FormatInt(random.Int63(), 10)), // random salt for rendezvousHash
 		scheme: strconv.FormatInt(
 			seed,
 			36,

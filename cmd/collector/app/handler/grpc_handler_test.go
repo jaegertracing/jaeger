@@ -142,31 +142,16 @@ func TestPostSpans(t *testing.T) {
 		{
 			batch: model.Batch{
 				Process: &model.Process{ServiceName: "batch-process"},
-				Spans: []*model.Span{
-					{
-						OperationName: "test-op",
-						Process:       &model.Process{ServiceName: "bar"},
-					},
-				},
+				Spans:   []*model.Span{{OperationName: "test-op", Process: &model.Process{ServiceName: "bar"}}},
 			},
-			expected: []*model.Span{
-				{
-					OperationName: "test-op",
-					Process:       &model.Process{ServiceName: "bar"},
-				},
-			},
+			expected: []*model.Span{{OperationName: "test-op", Process: &model.Process{ServiceName: "bar"}}},
 		},
 		{
 			batch: model.Batch{
 				Process: &model.Process{ServiceName: "batch-process"},
 				Spans:   []*model.Span{{OperationName: "test-op"}},
 			},
-			expected: []*model.Span{
-				{
-					OperationName: "test-op",
-					Process:       &model.Process{ServiceName: "batch-process"},
-				},
-			},
+			expected: []*model.Span{{OperationName: "test-op", Process: &model.Process{ServiceName: "batch-process"}}},
 		},
 	}
 	for _, test := range tests {
@@ -318,12 +303,7 @@ func TestPostTenantedSpans(t *testing.T) {
 			ctx:  ctxWithTenant,
 			batch: model.Batch{
 				Process: &model.Process{ServiceName: "batch-process"},
-				Spans: []*model.Span{
-					{
-						OperationName: "test-op",
-						Process:       &model.Process{ServiceName: "bar"},
-					},
-				},
+				Spans:   []*model.Span{{OperationName: "test-op", Process: &model.Process{ServiceName: "bar"}}},
 			},
 
 			mustFail: false,
@@ -340,12 +320,7 @@ func TestPostTenantedSpans(t *testing.T) {
 			ctx:  ctxNoTenant,
 			batch: model.Batch{
 				Process: &model.Process{ServiceName: "batch-process"},
-				Spans: []*model.Span{
-					{
-						OperationName: "test-op",
-						Process:       &model.Process{ServiceName: "bar"},
-					},
-				},
+				Spans:   []*model.Span{{OperationName: "test-op", Process: &model.Process{ServiceName: "bar"}}},
 			},
 
 			// Because NewGRPCHandler expects a tenant header, it will reject spans without one
@@ -358,12 +333,7 @@ func TestPostTenantedSpans(t *testing.T) {
 			ctx:  ctxTwoTenants,
 			batch: model.Batch{
 				Process: &model.Process{ServiceName: "batch-process"},
-				Spans: []*model.Span{
-					{
-						OperationName: "test-op",
-						Process:       &model.Process{ServiceName: "bar"},
-					},
-				},
+				Spans:   []*model.Span{{OperationName: "test-op", Process: &model.Process{ServiceName: "bar"}}},
 			},
 
 			// NewGRPCHandler rejects spans with multiple values for tenant header
@@ -376,12 +346,7 @@ func TestPostTenantedSpans(t *testing.T) {
 			ctx:  ctxBadTenant,
 			batch: model.Batch{
 				Process: &model.Process{ServiceName: "batch-process"},
-				Spans: []*model.Span{
-					{
-						OperationName: "test-op",
-						Process:       &model.Process{ServiceName: "bar"},
-					},
-				},
+				Spans:   []*model.Span{{OperationName: "test-op", Process: &model.Process{ServiceName: "bar"}}},
 			},
 
 			// NewGRPCHandler rejects spans with multiple values for tenant header

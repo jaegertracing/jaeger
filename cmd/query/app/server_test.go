@@ -465,10 +465,7 @@ func TestServerHTTPTLS(t *testing.T) {
 				queryString := "/api/traces?service=service&start=0&end=0&operation=operation&limit=200&minDuration=20ms"
 				req, err := http.NewRequest(
 					http.MethodGet,
-					"https://localhost:"+fmt.Sprintf(
-						"%d",
-						ports.QueryHTTP,
-					)+queryString,
+					"https://localhost:"+fmt.Sprintf("%d", ports.QueryHTTP)+queryString,
 					nil,
 				)
 				require.NoError(t, err)

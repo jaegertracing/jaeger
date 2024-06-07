@@ -60,16 +60,13 @@ func RegisterStaticHandler(
 	qOpts *QueryOptions,
 	qCapabilities querysvc.StorageCapabilities,
 ) io.Closer {
-	staticHandler, err := NewStaticAssetsHandler(
-		qOpts.StaticAssets.Path,
-		StaticAssetsHandlerOptions{
-			BasePath:            qOpts.BasePath,
-			UIConfigPath:        qOpts.UIConfig,
-			StorageCapabilities: qCapabilities,
-			Logger:              logger,
-			LogAccess:           qOpts.StaticAssets.LogAccess,
-		},
-	)
+	staticHandler, err := NewStaticAssetsHandler(qOpts.StaticAssets.Path, StaticAssetsHandlerOptions{
+		BasePath:            qOpts.BasePath,
+		UIConfigPath:        qOpts.UIConfig,
+		StorageCapabilities: qCapabilities,
+		Logger:              logger,
+		LogAccess:           qOpts.StaticAssets.LogAccess,
+	})
 	if err != nil {
 		logger.Panic("Could not create static assets handler", zap.Error(err))
 	}
@@ -176,8 +173,7 @@ func (sH *StaticAssetsHandler) loadAndEnrichIndexHTML(
 		sH.options.BasePath = "/"
 	}
 	if sH.options.BasePath != "/" {
-		if !strings.HasPrefix(sH.options.BasePath, "/") ||
-			strings.HasSuffix(sH.options.BasePath, "/") {
+		if !strings.HasPrefix(sH.options.BasePath, "/") || strings.HasSuffix(sH.options.BasePath, "/") {
 			return nil, fmt.Errorf(
 				"invalid base path '%s'. Must start but not end with a slash '/', e.g. '/jaeger/ui'",
 				sH.options.BasePath,
