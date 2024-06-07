@@ -182,6 +182,7 @@ func TestGetLatencies(t *testing.T) {
 			wantName:         "service_operation_latencies",
 			wantDescription:  "0.95th quantile latency, grouped by service & operation",
 			wantLabels: map[string]string{
+				"span_name": "/OrderResult",
 				"service_name": "emailservice",
 			},
 			wantPromQlQuery: `histogram_quantile(0.95, sum(rate(duration_bucket{service_name =~ "emailservice", ` +
@@ -282,6 +283,7 @@ func TestGetCallRates(t *testing.T) {
 			wantName:         "service_operation_call_rate",
 			wantDescription:  "calls/sec, grouped by service & operation",
 			wantLabels: map[string]string{
+				"span_name":"/OrderResult",
 				"service_name": "emailservice",
 			},
 			wantPromQlQuery: `sum(rate(calls{service_name =~ "emailservice", ` +
@@ -380,6 +382,7 @@ func TestGetErrorRates(t *testing.T) {
 			wantName:         "service_operation_error_rate",
 			wantDescription:  "error rate, computed as a fraction of errors/sec over calls/sec, grouped by service & operation",
 			wantLabels: map[string]string{
+				"span_name": "/OrderResult",
 				"service_name": "emailservice",
 			},
 			wantPromQlQuery: `sum(rate(calls{service_name =~ "emailservice", status_code = "STATUS_CODE_ERROR", ` +
@@ -888,8 +891,8 @@ func startMockPrometheusServer(t *testing.T, wantPromQlQuery string, wantWarning
 		assert.Equal(t, wantPromQlQuery, promQuery)
 
 		mockResponsePayloadFile := "testdata/service_datapoint_response.json"
-		if strings.Contains(promQuery, "by (service_name,operation") {
-			mockResponsePayloadFile = "testdata/service_operation_datapoint_response.json"
+		if strings.Contains(promQuery, "by (service_name,span_name") {
+			mockResponsePayloadFile = "testdata/service_span_name_datapoint_response.json"
 		}
 		sendResponse(t, w, mockResponsePayloadFile)
 	}))
