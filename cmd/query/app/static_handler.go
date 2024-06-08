@@ -235,7 +235,7 @@ func (sH *StaticAssetsHandler) RegisterRoutes(router *mux.Router) {
 	router.NotFoundHandler = sH.loggingHandler(http.HandlerFunc(sH.notFound))
 }
 
-func (sH *StaticAssetsHandler) notFound(w http.ResponseWriter, r *http.Request) {
+func (sH *StaticAssetsHandler) notFound(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Write(sH.indexHTML.Load().([]byte))
 }

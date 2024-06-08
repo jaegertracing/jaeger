@@ -302,7 +302,7 @@ type blockingWriter struct {
 	inWriteSpan atomic.Int32
 }
 
-func (w *blockingWriter) WriteSpan(ctx context.Context, span *model.Span) error {
+func (w *blockingWriter) WriteSpan(context.Context, *model.Span) error {
 	w.inWriteSpan.Add(1)
 	w.Lock()
 	defer w.Unlock()

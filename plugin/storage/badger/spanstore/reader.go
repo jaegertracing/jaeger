@@ -157,7 +157,7 @@ func (r *TraceReader) getTraces(traceIDs []model.TraceID) ([]*model.Trace, error
 }
 
 // GetTrace takes a traceID and returns a Trace associated with that traceID
-func (r *TraceReader) GetTrace(ctx context.Context, traceID model.TraceID) (*model.Trace, error) {
+func (r *TraceReader) GetTrace(_ context.Context, traceID model.TraceID) (*model.Trace, error) {
 	traces, err := r.getTraces([]model.TraceID{traceID})
 	if err != nil {
 		return nil, err
@@ -241,13 +241,13 @@ func createPrimaryKeySeekPrefix(traceID model.TraceID) []byte {
 }
 
 // GetServices fetches the sorted service list that have not expired
-func (r *TraceReader) GetServices(ctx context.Context) ([]string, error) {
+func (r *TraceReader) GetServices(context.Context) ([]string, error) {
 	return r.cache.GetServices()
 }
 
 // GetOperations fetches operations in the service and empty slice if service does not exists
 func (r *TraceReader) GetOperations(
-	ctx context.Context,
+	_ context.Context,
 	query spanstore.OperationQueryParameters,
 ) ([]spanstore.Operation, error) {
 	return r.cache.GetOperations(query.ServiceName)
@@ -464,7 +464,7 @@ func (r *TraceReader) FindTraces(ctx context.Context, query *spanstore.TraceQuer
 }
 
 // FindTraceIDs retrieves only the TraceIDs that match the traceQuery, but not the trace data
-func (r *TraceReader) FindTraceIDs(ctx context.Context, query *spanstore.TraceQueryParameters) ([]model.TraceID, error) {
+func (r *TraceReader) FindTraceIDs(_ context.Context, query *spanstore.TraceQueryParameters) ([]model.TraceID, error) {
 	// Validate and set query defaults which were not defined
 	if err := validateQuery(query); err != nil {
 		return nil, err

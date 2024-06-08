@@ -121,7 +121,7 @@ type failingHandler struct {
 	err error
 }
 
-func (h failingHandler) Process(_ context.Context, iprot, oprot thrift.TProtocol) (success bool, err thrift.TException) {
+func (h failingHandler) Process(context.Context, thrift.TProtocol /* iprot */, thrift.TProtocol /* oprot */) (success bool, err thrift.TException) {
 	return false, thrift.NewTApplicationException(0, h.err.Error())
 }
 

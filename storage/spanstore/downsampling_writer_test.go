@@ -28,7 +28,7 @@ import (
 
 type noopWriteSpanStore struct{}
 
-func (*noopWriteSpanStore) WriteSpan(ct context.Context, span *model.Span) error {
+func (*noopWriteSpanStore) WriteSpan(context.Context, *model.Span) error {
 	return nil
 }
 
@@ -36,7 +36,7 @@ var errIWillAlwaysFail = errors.New("ErrProneWriteSpanStore will always fail")
 
 type errorWriteSpanStore struct{}
 
-func (*errorWriteSpanStore) WriteSpan(ctx context.Context, span *model.Span) error {
+func (*errorWriteSpanStore) WriteSpan(context.Context, *model.Span) error {
 	return errIWillAlwaysFail
 }
 

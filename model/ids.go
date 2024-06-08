@@ -98,7 +98,7 @@ func (TraceID) MarshalText() ([]byte, error) {
 }
 
 // UnmarshalText is called by encoding/json, which we do not want people to use.
-func (*TraceID) UnmarshalText(text []byte) error {
+func (*TraceID) UnmarshalText([]byte /* text */) error {
 	return fmt.Errorf("unsupported method TraceID.UnmarshalText; please use github.com/gogo/protobuf/jsonpb for marshalling")
 }
 
@@ -192,7 +192,7 @@ func (SpanID) MarshalText() ([]byte, error) {
 }
 
 // UnmarshalText is called by encoding/json, which we do not want people to use.
-func (*SpanID) UnmarshalText(text []byte) error {
+func (*SpanID) UnmarshalText([]byte /* text */) error {
 	return fmt.Errorf("unsupported method SpanID.UnmarshalText; please use github.com/gogo/protobuf/jsonpb for marshalling")
 }
 

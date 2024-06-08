@@ -142,13 +142,13 @@ func NewSpanReader(
 }
 
 // GetServices returns all services traced by Jaeger
-func (s *SpanReader) GetServices(ctx context.Context) ([]string, error) {
+func (s *SpanReader) GetServices(context.Context) ([]string, error) {
 	return s.serviceNamesReader()
 }
 
 // GetOperations returns all operations for a specific service traced by Jaeger
 func (s *SpanReader) GetOperations(
-	ctx context.Context,
+	_ context.Context,
 	query spanstore.OperationQueryParameters,
 ) ([]spanstore.Operation, error) {
 	return s.operationNamesReader(query)
@@ -164,7 +164,7 @@ func (s *SpanReader) readTrace(ctx context.Context, traceID dbmodel.TraceID) (*m
 	return trace, err
 }
 
-func (s *SpanReader) readTraceInSpan(ctx context.Context, traceID dbmodel.TraceID) (*model.Trace, error) {
+func (s *SpanReader) readTraceInSpan(_ context.Context, traceID dbmodel.TraceID) (*model.Trace, error) {
 	start := time.Now()
 	q := s.session.Query(querySpanByTraceID, traceID)
 	i := q.Iter()

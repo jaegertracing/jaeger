@@ -73,7 +73,7 @@ func NewSpanWriter(
 }
 
 // WriteSpan writes the span to kafka.
-func (w *SpanWriter) WriteSpan(ctx context.Context, span *model.Span) error {
+func (w *SpanWriter) WriteSpan(_ context.Context, span *model.Span) error {
 	spanBytes, err := w.marshaller.Marshal(span)
 	if err != nil {
 		w.metrics.SpansWrittenFailure.Inc(1)

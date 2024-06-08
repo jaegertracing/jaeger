@@ -49,17 +49,17 @@ func NewWhitelistFilter(tags []string) ExactMatchTagFilter {
 }
 
 // FilterProcessTags implements TagFilter
-func (tf ExactMatchTagFilter) FilterProcessTags(span *model.Span, processTags model.KeyValues) model.KeyValues {
+func (tf ExactMatchTagFilter) FilterProcessTags(_ *model.Span, processTags model.KeyValues) model.KeyValues {
 	return tf.filter(processTags)
 }
 
 // FilterTags implements TagFilter
-func (tf ExactMatchTagFilter) FilterTags(span *model.Span, tags model.KeyValues) model.KeyValues {
+func (tf ExactMatchTagFilter) FilterTags(_ *model.Span, tags model.KeyValues) model.KeyValues {
 	return tf.filter(tags)
 }
 
 // FilterLogFields implements TagFilter
-func (tf ExactMatchTagFilter) FilterLogFields(span *model.Span, logFields model.KeyValues) model.KeyValues {
+func (tf ExactMatchTagFilter) FilterLogFields(_ *model.Span, logFields model.KeyValues) model.KeyValues {
 	return tf.filter(logFields)
 }
 

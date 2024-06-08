@@ -139,7 +139,7 @@ func TestDefaultClock(t *testing.T) {
 	assert.Equal(t, 0, cache.Size())
 }
 
-func TestLRUCacheConcurrentAccess(t *testing.T) {
+func TestLRUCacheConcurrentAccess(*testing.T) {
 	cache := NewLRU(5)
 	values := map[string]string{
 		"A": "foo",

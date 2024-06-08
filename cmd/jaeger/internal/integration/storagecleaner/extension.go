@@ -41,7 +41,7 @@ func newStorageCleaner(config *Config, telemetrySettings component.TelemetrySett
 	}
 }
 
-func (c *storageCleaner) Start(ctx context.Context, host component.Host) error {
+func (c *storageCleaner) Start(_ context.Context, host component.Host) error {
 	storageFactory, err := jaegerstorage.GetStorageFactory(c.config.TraceStorage, host)
 	if err != nil {
 		return fmt.Errorf("cannot find storage factory '%s': %w", c.config.TraceStorage, err)
