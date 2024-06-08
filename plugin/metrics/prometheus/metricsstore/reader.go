@@ -278,7 +278,7 @@ func (m MetricsReader) executeQuery(ctx context.Context, p metricsQueryParams) (
 func (m MetricsReader) buildPromQuery(metricsParams metricsQueryParams) string {
 	groupBy := []string{"service_name"}
 	if metricsParams.GroupByOperation {
-		groupBy = append(groupBy, m.operationLabel)
+		groupBy = append(groupBy, "span_name")
 	}
 	if metricsParams.groupByHistBucket {
 		// Group by the bucket value ("le" => "less than or equal to").
