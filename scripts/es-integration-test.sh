@@ -62,11 +62,10 @@ wait_for_storage() {
 
 bring_up_storage() {
   local distro=$1
-  local version=$2
-  local major_version=${version%%.*}
+  local major_version=$2
   local compose_file="docker-compose/${distro}/v${major_version}.yml"
 
-  echo "starting ${distro} ${version}"
+  echo "starting ${distro} ${major_version}"
   for retry in 1 2 3
   do
     echo "attempt $retry"

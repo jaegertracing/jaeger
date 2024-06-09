@@ -23,10 +23,10 @@ jobs:
         jaeger-version: [v1, v2]
         version:
         - distribution: cassandra
-          major: 3.x
+          major: 3
           schema: v003
         - distribution: cassandra
-          major: 4.x
+          major: 4
           schema: v004
     name: ${{ matrix.version.distribution }} ${{ matrix.version.major }} ${{ matrix.jaeger-version }}
     steps:
