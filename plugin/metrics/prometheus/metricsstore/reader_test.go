@@ -214,6 +214,7 @@ func TestGetLatencies(t *testing.T) {
 			wantName:        "service_operation_latencies",
 			wantDescription: "0.95th quantile latency, grouped by service & operation",
 			wantLabels: map[string]string{
+				"span_name":    "/OrderResult",
 				"service_name": "emailservice",
 			},
 			wantPromQlQuery: `histogram_quantile(0.95, sum(rate(span_metrics_duration_bucket{service_name =~ "emailservice", ` +
@@ -232,6 +233,7 @@ func TestGetLatencies(t *testing.T) {
 			wantName:        "service_operation_latencies",
 			wantDescription: "0.95th quantile latency, grouped by service & operation",
 			wantLabels: map[string]string{
+				"span_name":    "/OrderResult",
 				"service_name": "emailservice",
 			},
 			wantPromQlQuery: `histogram_quantile(0.95, sum(rate(duration_seconds_bucket{service_name =~ "emailservice", ` +
@@ -314,6 +316,7 @@ func TestGetCallRates(t *testing.T) {
 			wantName:        "service_operation_call_rate",
 			wantDescription: "calls/sec, grouped by service & operation",
 			wantLabels: map[string]string{
+				"span_name":    "/OrderResult",
 				"service_name": "emailservice",
 			},
 			wantPromQlQuery: `sum(rate(span_metrics_calls{service_name =~ "emailservice", ` +
@@ -331,6 +334,7 @@ func TestGetCallRates(t *testing.T) {
 			wantName:        "service_operation_call_rate",
 			wantDescription: "calls/sec, grouped by service & operation",
 			wantLabels: map[string]string{
+				"span_name":    "/OrderResult",
 				"service_name": "emailservice",
 			},
 			wantPromQlQuery: `sum(rate(calls_total{service_name =~ "emailservice", ` +
@@ -434,6 +438,7 @@ func TestGetErrorRates(t *testing.T) {
 			wantName:        "service_operation_error_rate",
 			wantDescription: "error rate, computed as a fraction of errors/sec over calls/sec, grouped by service & operation",
 			wantLabels: map[string]string{
+				"span_name":    "/OrderResult",
 				"service_name": "emailservice",
 			},
 			wantPromQlQuery: `sum(rate(span_metrics_calls{service_name =~ "emailservice", status_code = "STATUS_CODE_ERROR", ` +
@@ -452,6 +457,7 @@ func TestGetErrorRates(t *testing.T) {
 			wantName:        "service_operation_error_rate",
 			wantDescription: "error rate, computed as a fraction of errors/sec over calls/sec, grouped by service & operation",
 			wantLabels: map[string]string{
+				"span_name":    "/OrderResult",
 				"service_name": "emailservice",
 			},
 			wantPromQlQuery: `sum(rate(calls_total{service_name =~ "emailservice", status_code = "STATUS_CODE_ERROR", ` +
@@ -945,15 +951,24 @@ func assertMetrics(t *testing.T, gotMetrics *metrics.MetricFamily, wantLabels ma
 	mps := gotMetrics.Metrics[0].MetricPoints
 	assert.Len(t, mps, 1)
 
-	// There is no guaranteed order of labels, so we need to take the approach of using a map of expected values.
-	labels := gotMetrics.Metrics[0].Labels
-	assert.Equal(t, len(wantLabels), len(labels))
-	for _, l := range labels {
-		assert.Contains(t, wantLabels, l.Name)
-		assert.Equal(t, wantLabels[l.Name], l.Value)
-		delete(wantLabels, l.Name)
+	// Map actual labels to desired label names
+	actualLabels := gotMetrics.Metrics[0].Labels
+	mappedLabels := map[string]string{}
+	for _, l := range actualLabels {
+		if l.Name == "operation" {
+			mappedLabels["span_name"] = l.Value
+		} else {
+			mappedLabels[l.Name] = l.Value
+		}
 	}
-	assert.Empty(t, wantLabels)
+
+	// Compare the mapped actual labels with the expected labels
+	assert.Equal(t, len(wantLabels), len(mappedLabels), "Mismatch in number of labels")
+	for name, value := range wantLabels {
+		assert.Contains(t, mappedLabels, name)
+		assert.Equal(t, value, mappedLabels[name])
+	}
+
 	assert.Equal(t, int64(1620351786), mps[0].Timestamp.GetSeconds())
 
 	actualVal := mps[0].Value.(*metrics.MetricPoint_GaugeValue).GaugeValue.Value.(*metrics.GaugeValue_DoubleValue).DoubleValue
