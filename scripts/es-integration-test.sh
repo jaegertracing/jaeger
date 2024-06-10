@@ -64,7 +64,7 @@ bring_up_storage() {
   local distro=$1
   local version=$2
   local major_version=${version%%.*}
-  local compose_file="docker-compose/${distro}/v${major_version}.yml"
+  local compose_file="docker-compose/${distro}/v${major_version}/docker-compose.yml"
 
   echo "starting ${distro} ${version}"
   for retry in 1 2 3
