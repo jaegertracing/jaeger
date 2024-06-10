@@ -63,7 +63,9 @@ wait_for_storage() {
 bring_up_storage() {
   local distro=$1
   local version=$2
+  echo "-------------------------------------------------------- version=${version}"
   local major_version=${version%%.*}
+   echo "-------------------------------------------------------- version=${major_version}"
   local compose_file="docker-compose/${distro}/v${major_version}.yml"
 
   echo "starting ${distro} ${version}"

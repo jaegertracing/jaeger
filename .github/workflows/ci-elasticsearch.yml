@@ -22,13 +22,13 @@ jobs:
       fail-fast: false
       matrix:
         version:
-        - major: 7
+        - major: 7.x
           distribution: elasticsearch
           jaeger: v1
-        - major: 8
+        - major: 8.x
           distribution: elasticsearch
           jaeger: v1
-        - major: 8
+        - major: 8.x
           distribution: elasticsearch
           jaeger: v2
     name: ${{ matrix.version.distribution }} ${{ matrix.version.major }} ${{ matrix.version.jaeger }}
