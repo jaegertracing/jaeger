@@ -418,6 +418,10 @@ func testPasswordFromFile(t *testing.T, f *Factory, getClient func() es.Client, 
 	require.NoError(t, os.WriteFile(newPwdFile, []byte(pwd2), 0o600))
 	require.NoError(t, os.Rename(newPwdFile, pwdFile))
 
+	// Close the old client
+	err = client1.Close()
+	require.NoError(t, err)
+
 	assert.Eventually(t,
 		func() bool {
 			client2 := getClient()
