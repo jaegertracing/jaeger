@@ -138,6 +138,15 @@ updates:
         update-types: ["version-update:semver-minor"]
   - package-ecosystem: docker
     directory: /docker-compose/cassandra
+    file: "v3.yaml"
+    schedule:
+      interval: daily
+    allow:
+      - dependency-name: "cassandra"
+        update-types: ["version-update:semver-minor"]
+  - package-ecosystem: docker
+    directory: /docker-compose/cassandra
+    file: "v4.yaml"
     schedule:
       interval: daily
     allow:
