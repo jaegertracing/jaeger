@@ -71,14 +71,18 @@ updates:
       interval: daily
     allow:
       - dependency-name: "docker.elastic.co/opensearch/opensearch"
-        update-types: [ "version-update:semver-minor" ]
+    update-types:
+      - minor
+      - patch
   - package-ecosystem: docker
     directory: /docker-compose/kafka-integration-test
     schedule:
       interval: daily
     allow:
       - dependency-name: "bitnami/kafka"
-        update-types: [ "version-update:semver-minor" ]
+    update-types:
+      - minor
+      - patch
   - package-ecosystem: docker
     directories:
       - /docker-compose/cassandra/v3
@@ -87,4 +91,6 @@ updates:
       interval: daily
     allow:
       - dependency-name: "cassandra"
-        update-types: [ "version-update:semver-minor" ]
+    update-types:
+      - minor
+      - patch
