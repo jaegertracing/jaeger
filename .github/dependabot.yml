@@ -60,7 +60,9 @@ updates:
       interval: daily
     allow:
       - dependency-name: "docker.elastic.co/elasticsearch/elasticsearch"
-        update-types: [ "version-update:semver-minor" ]
+    update-types:
+      - minor
+      - patch
   - package-ecosystem: docker
     directories:
       - /docker-compose/opensearch/v1
