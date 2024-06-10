@@ -14,12 +14,6 @@ type Cache interface {
 	IsEmpty() bool
 }
 
-// NewServiceNameSanitizer creates a service name sanitizer with a given cache.
-func NewServiceNameSanitizer(cache Cache) SanitizeSpan {
-	sanitizer := serviceNameSanitizer{cache: cache}
-	return sanitizer.Sanitize
-}
-
 // serviceNameSanitizer sanitizes the service names in span annotations given a source of truth alias to service cache.
 type serviceNameSanitizer struct {
 	cache Cache
