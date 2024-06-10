@@ -16,6 +16,7 @@ package metricsstore
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -256,7 +257,7 @@ func TestGetLatencies(t *testing.T) {
 
 			m, err := reader.GetLatencies(context.Background(), &params)
 			require.NoError(t, err)
-			assertMetrics(t, m, tc.wantLabels, tc.wantName, tc.wantDescription)
+			assertMetrics(t, tc.name, m, tc.wantLabels, tc.wantName, tc.wantDescription)
 			assert.Len(t, exp.GetSpans(), 1, "HTTP request was traced and span reported")
 		})
 	}
@@ -356,7 +357,7 @@ func TestGetCallRates(t *testing.T) {
 
 			m, err := reader.GetCallRates(context.Background(), &params)
 			require.NoError(t, err)
-			assertMetrics(t, m, tc.wantLabels, tc.wantName, tc.wantDescription)
+			assertMetrics(t, tc.name, m, tc.wantLabels, tc.wantName, tc.wantDescription)
 			assert.Len(t, exp.GetSpans(), 1, "HTTP request was traced and span reported")
 		})
 	}
@@ -480,7 +481,7 @@ func TestGetErrorRates(t *testing.T) {
 
 			m, err := reader.GetErrorRates(context.Background(), &params)
 			require.NoError(t, err)
-			assertMetrics(t, m, tc.wantLabels, tc.wantName, tc.wantDescription)
+			assertMetrics(t, tc.name, m, tc.wantLabels, tc.wantName, tc.wantDescription)
 			assert.Len(t, exp.GetSpans(), 1, "HTTP request was traced and span reported")
 		})
 	}
@@ -944,30 +945,31 @@ func prepareMetricsReaderAndServer(t *testing.T, config config.Configuration, wa
 	return reader, mockPrometheus
 }
 
-func assertMetrics(t *testing.T, gotMetrics *metrics.MetricFamily, wantLabels map[string]string, wantName, wantDescription string) {
+func assertMetrics(t *testing.T, testName string, gotMetrics *metrics.MetricFamily, wantLabels map[string]string, wantName, wantDescription string) {
 	assert.Len(t, gotMetrics.Metrics, 1)
 	assert.Equal(t, wantName, gotMetrics.Name)
 	assert.Equal(t, wantDescription, gotMetrics.Help)
 	mps := gotMetrics.Metrics[0].MetricPoints
 	assert.Len(t, mps, 1)
 
-	// Map actual labels to desired label names
-	actualLabels := gotMetrics.Metrics[0].Labels
-	mappedLabels := map[string]string{}
-	for _, l := range actualLabels {
-		if l.Name == "operation" {
-			mappedLabels["span_name"] = l.Value
-		} else {
-			mappedLabels[l.Name] = l.Value
-		}
-	}
+	// logging for expected and actual labels
+	fmt.Printf("Test Name: %s\n", testName)
+	fmt.Printf("Expected labels: %v\n", wantLabels)
+	fmt.Printf("Actual labels: %v\n", gotMetrics.Metrics[0].Labels)
 
-	// Compare the mapped actual labels with the expected labels
-	assert.Equal(t, len(wantLabels), len(mappedLabels), "Mismatch in number of labels")
-	for name, value := range wantLabels {
-		assert.Contains(t, mappedLabels, name)
-		assert.Equal(t, value, mappedLabels[name])
+	// There is no guaranteed order of labels, so we need to take the approach of using a map of expected values.
+	labels := gotMetrics.Metrics[0].Labels
+	assert.Equal(t, len(wantLabels), len(labels))
+	for _, l := range labels {
+		assert.Contains(t, wantLabels, l.Name)
+		assert.Equal(t, wantLabels[l.Name], l.Value)
+		delete(wantLabels, l.Name)
 	}
+	assert.Empty(t, wantLabels)
+
+	// Additional logging to show that all expected labels were found and matched
+	fmt.Printf("Remaining expected labels after matching: %v\n", wantLabels)
+	fmt.Printf("\n")
 
 	assert.Equal(t, int64(1620351786), mps[0].Timestamp.GetSeconds())
 

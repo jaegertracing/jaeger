@@ -48,7 +48,7 @@ func TestToDomainMetricsFamily(t *testing.T) {
 
 	wantMetricLabels := map[string]string{
 		"label_key": "label_value",
-		"operation": "span_name_value", // assert the name is translated to a Jaeger-friendly label.
+		"span_name": "span_name_value", // assert the name is translated to a Jaeger-friendly label.
 	}
 	assert.Len(t, mf.Metrics, 1)
 	for _, ml := range mf.Metrics[0].Labels {
