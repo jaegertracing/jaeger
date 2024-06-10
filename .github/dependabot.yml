@@ -122,6 +122,9 @@ updates:
     allow:
       - dependency-name: "docker.elastic.co/elasticsearch/elasticsearch"
         update-types: ["version-update:semver-minor"]
+    includeds:
+      - /docker-compose/elasticsearch/v7.yml
+      - /docker-compose/elasticsearch/v8.yml
   - package-ecosystem: docker
     directory: /docker-compose/opensearch
     schedule:
@@ -129,6 +132,9 @@ updates:
     allow:
       - dependency-name: "docker.elastic.co/opensearch/opensearch"
         update-types: ["version-update:semver-minor"]
+    includeds:
+      - /docker-compose/opensearch/v1.yml
+      - /docker-compose/opensearch/v2.yml
   - package-ecosystem: docker
     directory: /docker-compose/kafka-integration-test
     schedule:
@@ -136,6 +142,8 @@ updates:
     allow:
       - dependency-name: "bitnami/kafka"
         update-types: ["version-update:semver-minor"]
+    includeds:
+      - /docker-compose/kafka-integration-test/v3.yml
   - package-ecosystem: docker
     directory: /docker-compose/cassandra
     schedule:
@@ -143,3 +151,7 @@ updates:
     allow:
       - dependency-name: "cassandra"
         update-types: ["version-update:semver-minor"]
+    includeds:
+      - /docker-compose/cassandra/v3.yml
+      - /docker-compose/cassandra/v4.yml
+
