@@ -30,7 +30,7 @@ jobs:
       uses: ./.github/actions/block-pr-not-on-main
 
     - name: Set up Python 3.x for DCO check
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v5
       with:
         python-version: '3.x'
 
