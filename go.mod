@@ -144,7 +144,7 @@ require (
 	github.com/mitchellh/reflectwalk v1.0.2 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
-	github.com/mostynb/go-grpc-compression v1.2.2 // indirect
+	github.com/mostynb/go-grpc-compression v1.2.3 // indirect
 	github.com/onsi/ginkgo v1.16.5 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/storage v0.102.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/common v0.102.0 // indirect
