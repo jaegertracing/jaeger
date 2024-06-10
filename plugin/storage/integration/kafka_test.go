@@ -133,5 +133,6 @@ func TestKafkaStorage(t *testing.T) {
 	SkipUnlessEnv(t, "kafka")
 	s := &KafkaIntegrationTestSuite{}
 	s.initialize(t)
+	defer s.CleanUp(t)
 	t.Run("GetTrace", s.testGetTrace)
 }
