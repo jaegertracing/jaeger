@@ -116,14 +116,28 @@ updates:
     schedule:
       interval: daily
   - package-ecosystem: docker
-    directory: /docker-compose/elasticsearch
+    directory: /docker-compose/elasticsearch/v7
     schedule:
       interval: daily
     allow:
       - dependency-name: "docker.elastic.co/elasticsearch/elasticsearch"
         update-types: ["version-update:semver-minor"]
   - package-ecosystem: docker
-    directory: /docker-compose/opensearch
+    directory: /docker-compose/elasticsearch/v8
+    schedule:
+      interval: daily
+    allow:
+      - dependency-name: "docker.elastic.co/elasticsearch/elasticsearch"
+        update-types: ["version-update:semver-minor"]
+  - package-ecosystem: docker
+    directory: /docker-compose/opensearch/v1
+    schedule:
+      interval: daily
+    allow:
+      - dependency-name: "docker.elastic.co/opensearch/opensearch"
+        update-types: ["version-update:semver-minor"]
+  - package-ecosystem: docker
+    directory: /docker-compose/opensearch/v2
     schedule:
       interval: daily
     allow:
@@ -137,16 +151,14 @@ updates:
       - dependency-name: "bitnami/kafka"
         update-types: ["version-update:semver-minor"]
   - package-ecosystem: docker
-    directory: /docker-compose/cassandra
-    file: "v3.yaml"
+    directory: /docker-compose/cassandra/v3
     schedule:
       interval: daily
     allow:
       - dependency-name: "cassandra"
         update-types: ["version-update:semver-minor"]
   - package-ecosystem: docker
-    directory: /docker-compose/cassandra
-    file: "v4.yaml"
+    directory: /docker-compose/cassandra/v4
     schedule:
       interval: daily
     allow:
