@@ -52,7 +52,7 @@ func withDepStorage(indexPrefix, indexDateLayout string, maxDocCount int, fn fun
 		client:    client,
 		logger:    logger,
 		logBuffer: logBuffer,
-		storage: NewDependencyStore(DependencyStoreParams{
+		storage: NewDependencyStore(Params{
 			Client:          func() es.Client { return client },
 			Logger:          logger,
 			IndexPrefix:     indexPrefix,
@@ -79,7 +79,7 @@ func TestNewSpanReaderIndexPrefix(t *testing.T) {
 	}
 	for _, testCase := range testCases {
 		client := &mocks.Client{}
-		r := NewDependencyStore(DependencyStoreParams{
+		r := NewDependencyStore(Params{
 			Client:          func() es.Client { return client },
 			Logger:          zap.NewNop(),
 			IndexPrefix:     testCase.prefix,
@@ -144,7 +144,7 @@ func TestGetDependencies(t *testing.T) {
 		expectedOutput []model.DependencyLink
 		indexPrefix    string
 		maxDocCount    int
-		indices        []interface{}
+		indices        []any
 	}{
 		{
 			searchResult: createSearchResult(goodDependencies),
@@ -155,24 +155,24 @@ func TestGetDependencies(t *testing.T) {
 					CallCount: 12,
 				},
 			},
-			indices:     []interface{}{"jaeger-dependencies-1995-04-21", "jaeger-dependencies-1995-04-20"},
+			indices:     []any{"jaeger-dependencies-1995-04-21", "jaeger-dependencies-1995-04-20"},
 			maxDocCount: 1000, // can be anything, assertion will check this value is used in search query.
 		},
 		{
 			searchResult:  createSearchResult(badDependencies),
 			expectedError: "unmarshalling ElasticSearch documents failed",
-			indices:       []interface{}{"jaeger-dependencies-1995-04-21", "jaeger-dependencies-1995-04-20"},
+			indices:       []any{"jaeger-dependencies-1995-04-21", "jaeger-dependencies-1995-04-20"},
 		},
 		{
 			searchError:   errors.New("search failure"),
 			expectedError: "failed to search for dependencies: search failure",
-			indices:       []interface{}{"jaeger-dependencies-1995-04-21", "jaeger-dependencies-1995-04-20"},
+			indices:       []any{"jaeger-dependencies-1995-04-21", "jaeger-dependencies-1995-04-20"},
 		},
 		{
 			searchError:   errors.New("search failure"),
 			expectedError: "failed to search for dependencies: search failure",
 			indexPrefix:   "foo",
-			indices:       []interface{}{"foo-jaeger-dependencies-1995-04-21", "foo-jaeger-dependencies-1995-04-20"},
+			indices:       []any{"foo-jaeger-dependencies-1995-04-21", "foo-jaeger-dependencies-1995-04-20"},
 		},
 	}
 	for _, testCase := range testCases {
@@ -216,17 +216,17 @@ func TestGetReadIndices(t *testing.T) {
 	testCases := []struct {
 		indices  []string
 		lookback time.Duration
-		params   DependencyStoreParams
+		params   Params
 	}{
 		{
-			params:   DependencyStoreParams{IndexPrefix: "", IndexDateLayout: "2006-01-02", UseReadWriteAliases: true},
+			params:   Params{IndexPrefix: "", IndexDateLayout: "2006-01-02", UseReadWriteAliases: true},
 			lookback: 23 * time.Hour,
 			indices: []string{
 				dependencyIndex + "read",
 			},
 		},
 		{
-			params:   DependencyStoreParams{IndexPrefix: "", IndexDateLayout: "2006-01-02"},
+			params:   Params{IndexPrefix: "", IndexDateLayout: "2006-01-02"},
 			lookback: 23 * time.Hour,
 			indices: []string{
 				dependencyIndex + fixedTime.Format("2006-01-02"),
@@ -234,7 +234,7 @@ func TestGetReadIndices(t *testing.T) {
 			},
 		},
 		{
-			params:   DependencyStoreParams{IndexPrefix: "", IndexDateLayout: "2006-01-02"},
+			params:   Params{IndexPrefix: "", IndexDateLayout: "2006-01-02"},
 			lookback: 13 * time.Hour,
 			indices: []string{
 				dependencyIndex + fixedTime.UTC().Format("2006-01-02"),
@@ -242,14 +242,14 @@ func TestGetReadIndices(t *testing.T) {
 			},
 		},
 		{
-			params:   DependencyStoreParams{IndexPrefix: "foo:", IndexDateLayout: "2006-01-02"},
+			params:   Params{IndexPrefix: "foo:", IndexDateLayout: "2006-01-02"},
 			lookback: 1 * time.Hour,
 			indices: []string{
 				"foo:" + indexPrefixSeparator + dependencyIndex + fixedTime.Format("2006-01-02"),
 			},
 		},
 		{
-			params:   DependencyStoreParams{IndexPrefix: "foo-", IndexDateLayout: "2006-01-02"},
+			params:   Params{IndexPrefix: "foo-", IndexDateLayout: "2006-01-02"},
 			lookback: 0,
 			indices: []string{
 				"foo-" + indexPrefixSeparator + dependencyIndex + fixedTime.Format("2006-01-02"),
@@ -267,14 +267,14 @@ func TestGetWriteIndex(t *testing.T) {
 	testCases := []struct {
 		writeIndex string
 		lookback   time.Duration
-		params     DependencyStoreParams
+		params     Params
 	}{
 		{
-			params:     DependencyStoreParams{IndexPrefix: "", IndexDateLayout: "2006-01-02", UseReadWriteAliases: true},
+			params:     Params{IndexPrefix: "", IndexDateLayout: "2006-01-02", UseReadWriteAliases: true},
 			writeIndex: dependencyIndex + "write",
 		},
 		{
-			params:     DependencyStoreParams{IndexPrefix: "", IndexDateLayout: "2006-01-02", UseReadWriteAliases: false},
+			params:     Params{IndexPrefix: "", IndexDateLayout: "2006-01-02", UseReadWriteAliases: false},
 			writeIndex: dependencyIndex + fixedTime.Format("2006-01-02"),
 		},
 	}
@@ -285,7 +285,7 @@ func TestGetWriteIndex(t *testing.T) {
 }
 
 // stringMatcher can match a string argument when it contains a specific substring q
-func stringMatcher(q string) interface{} {
+func stringMatcher(q string) any {
 	matchFunc := func(s string) bool {
 		return strings.Contains(s, q)
 	}

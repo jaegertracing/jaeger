@@ -100,7 +100,7 @@ func TestExtractorTraceScanError(t *testing.T) {
 	require.Contains(t, err.Error(), "failed when scanning the file")
 }
 
-func loadJSON(t *testing.T, fileName string, i interface{}) {
+func loadJSON(t *testing.T, fileName string, i any) {
 	b, err := os.ReadFile(fileName)
 	require.NoError(t, err)
 	err = json.Unmarshal(b, i)

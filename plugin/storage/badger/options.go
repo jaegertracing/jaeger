@@ -65,7 +65,7 @@ const (
 )
 
 // NewOptions creates a new Options struct.
-func NewOptions(primaryNamespace string, otherNamespaces ...string) *Options {
+func NewOptions(primaryNamespace string, _ ...string /* otherNamespaces */) *Options {
 	defaultBadgerDataDir := getCurrentExecutableDir()
 
 	options := &Options{
@@ -143,7 +143,7 @@ func (opt *Options) InitFromViper(v *viper.Viper, logger *zap.Logger) {
 	initFromViper(&opt.Primary, v, logger)
 }
 
-func initFromViper(cfg *NamespaceConfig, v *viper.Viper, logger *zap.Logger) {
+func initFromViper(cfg *NamespaceConfig, v *viper.Viper, _ *zap.Logger) {
 	cfg.Ephemeral = v.GetBool(cfg.namespace + suffixEphemeral)
 	cfg.KeyDirectory = v.GetString(cfg.namespace + suffixKeyDirectory)
 	cfg.ValueDirectory = v.GetString(cfg.namespace + suffixValueDirectory)

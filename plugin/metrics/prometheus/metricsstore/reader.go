@@ -246,7 +246,7 @@ func (m MetricsReader) GetErrorRates(ctx context.Context, requestParams *metrics
 }
 
 // GetMinStepDuration gets the minimum step duration (the smallest possible duration between two data points in a time series) supported.
-func (m MetricsReader) GetMinStepDuration(_ context.Context, _ *metricsstore.MinStepDurationQueryParameters) (time.Duration, error) {
+func (MetricsReader) GetMinStepDuration(_ context.Context, _ *metricsstore.MinStepDurationQueryParameters) (time.Duration, error) {
 	return minStep, nil
 }
 

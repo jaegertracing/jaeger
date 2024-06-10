@@ -213,7 +213,7 @@ var samplingStrategyTypes = []api_v2.SamplingStrategyType{
 //
 // Thrift 0.9.3 classes generate this JSON:
 // {"strategyType":"PROBABILISTIC","probabilisticSampling":{"samplingRate":0.5}}
-func (h *HTTPHandler) encodeThriftEnums092(json []byte) []byte {
+func (*HTTPHandler) encodeThriftEnums092(json []byte) []byte {
 	str := string(json)
 	for _, strategyType := range samplingStrategyTypes {
 		str = strings.Replace(

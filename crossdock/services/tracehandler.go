@@ -123,7 +123,7 @@ func (h *TraceHandler) AdaptiveSamplingTest(t crossdock.T) {
 	}
 }
 
-func (h *TraceHandler) runTest(service string, request *traceRequest, tFunc testFunc, vFunc validateFunc) error {
+func (*TraceHandler) runTest(service string, request *traceRequest, tFunc testFunc, vFunc validateFunc) error {
 	traces, err := tFunc(service, request)
 	if err != nil {
 		return err

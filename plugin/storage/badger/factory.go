@@ -199,12 +199,12 @@ func (f *Factory) CreateDependencyReader() (dependencystore.Reader, error) {
 }
 
 // CreateSamplingStore implements storage.SamplingStoreFactory
-func (f *Factory) CreateSamplingStore(maxBuckets int) (samplingstore.Store, error) {
+func (f *Factory) CreateSamplingStore(int /* maxBuckets */) (samplingstore.Store, error) {
 	return badgerSampling.NewSamplingStore(f.store), nil
 }
 
 // CreateLock implements storage.SamplingStoreFactory
-func (f *Factory) CreateLock() (distributedlock.Lock, error) {
+func (*Factory) CreateLock() (distributedlock.Lock, error) {
 	return &lock{}, nil
 }
 

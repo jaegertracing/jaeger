@@ -93,17 +93,17 @@ func TraceIDFromBytes(data []byte) (TraceID, error) {
 }
 
 // MarshalText is called by encoding/json, which we do not want people to use.
-func (t TraceID) MarshalText() ([]byte, error) {
+func (TraceID) MarshalText() ([]byte, error) {
 	return nil, fmt.Errorf("unsupported method TraceID.MarshalText; please use github.com/gogo/protobuf/jsonpb for marshalling")
 }
 
 // UnmarshalText is called by encoding/json, which we do not want people to use.
-func (t *TraceID) UnmarshalText(text []byte) error {
+func (*TraceID) UnmarshalText([]byte /* text */) error {
 	return fmt.Errorf("unsupported method TraceID.UnmarshalText; please use github.com/gogo/protobuf/jsonpb for marshalling")
 }
 
 // Size returns the size of this datum in protobuf. It is always 16 bytes.
-func (t *TraceID) Size() int {
+func (*TraceID) Size() int {
 	return 16
 }
 
@@ -187,17 +187,17 @@ func SpanIDFromBytes(data []byte) (SpanID, error) {
 }
 
 // MarshalText is called by encoding/json, which we do not want people to use.
-func (s SpanID) MarshalText() ([]byte, error) {
+func (SpanID) MarshalText() ([]byte, error) {
 	return nil, fmt.Errorf("unsupported method SpanID.MarshalText; please use github.com/gogo/protobuf/jsonpb for marshalling")
 }
 
 // UnmarshalText is called by encoding/json, which we do not want people to use.
-func (s *SpanID) UnmarshalText(text []byte) error {
+func (*SpanID) UnmarshalText([]byte /* text */) error {
 	return fmt.Errorf("unsupported method SpanID.UnmarshalText; please use github.com/gogo/protobuf/jsonpb for marshalling")
 }
 
 // Size returns the size of this datum in protobuf. It is always 8 bytes.
-func (s *SpanID) Size() int {
+func (*SpanID) Size() int {
 	return 8
 }
 

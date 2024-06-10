@@ -30,7 +30,7 @@ import (
 
 type testQueryHandler struct{}
 
-func (h *testQueryHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (*testQueryHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	svc := r.FormValue("service")
 	body := []byte("bad json")
 	if svc == "svc" {

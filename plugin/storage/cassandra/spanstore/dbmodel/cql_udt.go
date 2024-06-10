@@ -26,12 +26,12 @@ import (
 var ErrTraceIDWrongLength = errors.New("TraceID is not a 128bit integer")
 
 // MarshalCQL handles marshaling DBTraceID (e.g. in SpanRef)
-func (t TraceID) MarshalCQL(info gocql.TypeInfo) ([]byte, error) {
+func (t TraceID) MarshalCQL(gocql.TypeInfo) ([]byte, error) {
 	return t[:], nil
 }
 
 // UnmarshalCQL handles unmarshaling DBTraceID (e.g. in SpanRef)
-func (t *TraceID) UnmarshalCQL(info gocql.TypeInfo, data []byte) error {
+func (t *TraceID) UnmarshalCQL(_ gocql.TypeInfo, data []byte) error {
 	if len(data) != 16 {
 		return ErrTraceIDWrongLength
 	}

@@ -258,9 +258,9 @@ func TestLoadUIConfig(t *testing.T) {
 			regexp: configPattern,
 		},
 	})
-	c, _ := json.Marshal(map[string]interface{}{
-		"menu": []interface{}{
-			map[string]interface{}{
+	c, _ := json.Marshal(map[string]any{
+		"menu": []any{
+			map[string]any{
 				"label": "GitHub",
 				"url":   "https://github.com/jaegertracing/jaeger",
 			},
@@ -310,7 +310,7 @@ type fakeFile struct {
 	os.File
 }
 
-func (*fakeFile) Read(p []byte) (n int, err error) {
+func (*fakeFile) Read([]byte) (n int, err error) {
 	return 0, fmt.Errorf("read error")
 }
 

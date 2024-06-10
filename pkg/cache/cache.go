@@ -24,10 +24,10 @@ import (
 type Cache interface {
 	// Get retrieves an element based on a key, returning nil if the element
 	// does not exist
-	Get(key string) interface{}
+	Get(key string) any
 
 	// Put adds an element to the cache, returning the previous element
-	Put(key string, value interface{}) interface{}
+	Put(key string, value any) any
 
 	// Delete deletes an element in the cache
 	Delete(key string)
@@ -37,7 +37,7 @@ type Cache interface {
 
 	// CompareAndSwap adds an element to the cache if the existing entry matches the old value.
 	// It returns the element in cache after function is executed and true if the element was replaced, false otherwise.
-	CompareAndSwap(key string, old, new interface{}) (interface{}, bool)
+	CompareAndSwap(key string, old, new any) (any, bool)
 }
 
 // Options control the behavior of the cache
@@ -58,4 +58,4 @@ type Options struct {
 
 // EvictCallback is a type for notifying applications when an item is
 // scheduled for eviction from the Cache.
-type EvictCallback func(key string, value interface{})
+type EvictCallback func(key string, value any)

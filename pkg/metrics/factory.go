@@ -64,19 +64,19 @@ var NullFactory Factory = nullFactory{}
 
 type nullFactory struct{}
 
-func (nullFactory) Counter(options Options) Counter {
+func (nullFactory) Counter(Options) Counter {
 	return NullCounter
 }
 
-func (nullFactory) Timer(options TimerOptions) Timer {
+func (nullFactory) Timer(TimerOptions) Timer {
 	return NullTimer
 }
 
-func (nullFactory) Gauge(options Options) Gauge {
+func (nullFactory) Gauge(Options) Gauge {
 	return NullGauge
 }
 
-func (nullFactory) Histogram(options HistogramOptions) Histogram {
+func (nullFactory) Histogram(HistogramOptions) Histogram {
 	return NullHistogram
 }
-func (nullFactory) Namespace(scope NSOptions) Factory { return NullFactory }
+func (nullFactory) Namespace(NSOptions /* scope */) Factory { return NullFactory }

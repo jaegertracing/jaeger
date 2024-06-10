@@ -145,6 +145,7 @@ func (c *Consumer) handleMessages(pc sc.PartitionConsumer) {
 
 			if msgProcessor == nil {
 				msgProcessor = c.processorFactory.new(pc.Topic(), pc.Partition(), msg.Offset-1)
+				// revive:disable-next-line defer
 				defer msgProcessor.Close()
 			}
 

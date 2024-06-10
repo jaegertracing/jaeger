@@ -83,7 +83,7 @@ func (td toDomain) transformSpan(jSpan *jaeger.Span, mProcess *model.Process) *m
 	}
 }
 
-func (td toDomain) getReferences(jRefs []*jaeger.SpanRef) []model.SpanRef {
+func (toDomain) getReferences(jRefs []*jaeger.SpanRef) []model.SpanRef {
 	if len(jRefs) == 0 {
 		return nil
 	}
@@ -127,7 +127,7 @@ func (td toDomain) getTags(tags []*jaeger.Tag, extraSpace int) model.KeyValues {
 	return retMe
 }
 
-func (td toDomain) getTag(tag *jaeger.Tag) model.KeyValue {
+func (toDomain) getTag(tag *jaeger.Tag) model.KeyValue {
 	switch tag.VType {
 	case jaeger.TagType_BOOL:
 		return model.Bool(tag.Key, tag.GetVBool())

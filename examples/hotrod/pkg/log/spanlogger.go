@@ -172,5 +172,5 @@ func (e *bridgeFieldEncoder) AddUintptr(key string, value uintptr) {
 	e.pairs = append(e.pairs, attribute.String(key, fmt.Sprint(value)))
 }
 
-func (e *bridgeFieldEncoder) AddReflected(key string, value interface{}) error { return nil }
-func (e *bridgeFieldEncoder) OpenNamespace(key string)                         {}
+func (*bridgeFieldEncoder) AddReflected(string /* key */, any /* value */) error { return nil }
+func (*bridgeFieldEncoder) OpenNamespace(string /* key */)                       {}

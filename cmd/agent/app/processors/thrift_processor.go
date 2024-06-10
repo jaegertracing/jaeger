@@ -67,7 +67,7 @@ func NewThriftProcessor(
 			"number of processors must be greater than 0, called with %d", numProcessors)
 	}
 	protocolPool := &sync.Pool{
-		New: func() interface{} {
+		New: func() any {
 			trans := &customtransport.TBufferedReadTransport{}
 			return factory.GetProtocol(trans)
 		},

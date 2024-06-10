@@ -280,7 +280,7 @@ func (f *Factory) mergeTags(tags map[string]string) map[string]string {
 	return ret
 }
 
-func (f *Factory) tagNames(tags map[string]string) []string {
+func (*Factory) tagNames(tags map[string]string) []string {
 	ret := make([]string, 0, len(tags))
 	for k := range tags {
 		ret = append(ret, k)
@@ -289,7 +289,7 @@ func (f *Factory) tagNames(tags map[string]string) []string {
 	return ret
 }
 
-func (f *Factory) tagsAsLabelValues(labels []string, tags map[string]string) []string {
+func (*Factory) tagsAsLabelValues(labels []string, tags map[string]string) []string {
 	ret := make([]string, 0, len(tags))
 	for _, l := range labels {
 		ret = append(ret, tags[l])

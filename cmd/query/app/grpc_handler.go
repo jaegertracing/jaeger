@@ -181,7 +181,7 @@ func (g *GRPCHandler) sendSpanChunks(spans []*model.Span, sendFn func(*api_v2.Sp
 }
 
 // GetServices is the gRPC handler to fetch services.
-func (g *GRPCHandler) GetServices(ctx context.Context, r *api_v2.GetServicesRequest) (*api_v2.GetServicesResponse, error) {
+func (g *GRPCHandler) GetServices(ctx context.Context, _ *api_v2.GetServicesRequest) (*api_v2.GetServicesResponse, error) {
 	services, err := g.queryService.GetServices(ctx)
 	if err != nil {
 		g.logger.Error("failed to fetch services", zap.Error(err))
@@ -323,7 +323,7 @@ func (g *GRPCHandler) handleErr(msg string, err error) error {
 	return status.Errorf(codes.Internal, "%s: %v", msg, err)
 }
 
-func (g *GRPCHandler) newBaseQueryParameters(r interface{}) (bqp metricsstore.BaseQueryParameters, err error) {
+func (g *GRPCHandler) newBaseQueryParameters(r any) (bqp metricsstore.BaseQueryParameters, err error) {
 	if r == nil {
 		return bqp, errNilRequest
 	}

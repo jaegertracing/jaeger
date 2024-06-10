@@ -125,7 +125,7 @@ func loadFixtures(t *testing.T, i int, processEmbedded bool) ([]byte, []byte) {
 	return inStr, outStr
 }
 
-func testJSONEncoding(t *testing.T, i int, expectedStr []byte, object interface{}, processEmbedded bool) {
+func testJSONEncoding(t *testing.T, i int, expectedStr []byte, object any, processEmbedded bool) {
 	buf := &bytes.Buffer{}
 	enc := json.NewEncoder(buf)
 	enc.SetIndent("", "  ")

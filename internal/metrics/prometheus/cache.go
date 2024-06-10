@@ -81,6 +81,6 @@ func (c *vectorCache) getOrMakeHistogramVec(opts prometheus.HistogramOpts, label
 	return hv
 }
 
-func (c *vectorCache) getCacheKey(name string, labels []string) string {
+func (*vectorCache) getCacheKey(name string, labels []string) string {
 	return strings.Join(append([]string{name}, labels...), "||")
 }

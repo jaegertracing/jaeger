@@ -149,7 +149,7 @@ func (a *clockSkewAdjuster) adjustNode(n *node, parent *node, skew clockSkew) {
 	}
 }
 
-func (a *clockSkewAdjuster) calculateSkew(child *node, parent *node) time.Duration {
+func (*clockSkewAdjuster) calculateSkew(child *node, parent *node) time.Duration {
 	parentDuration := parent.span.Duration
 	childDuration := child.span.Duration
 	parentEndTime := parent.span.StartTime.Add(parent.span.Duration)

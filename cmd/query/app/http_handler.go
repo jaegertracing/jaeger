@@ -63,7 +63,7 @@ type HTTPHandler interface {
 }
 
 type structuredResponse struct {
-	Data   interface{}       `json:"data"`
+	Data   any               `json:"data"`
 	Total  int               `json:"total"`
 	Limit  int               `json:"limit"`
 	Offset int               `json:"offset"`
@@ -141,7 +141,7 @@ func (aH *APIHandler) handleFunc(
 	router *mux.Router,
 	f func(http.ResponseWriter, *http.Request),
 	routeFmt string,
-	args ...interface{},
+	args ...any,
 ) *mux.Route {
 	route := aH.formatRoute(routeFmt, args...)
 	var handler http.Handler = http.HandlerFunc(f)
@@ -155,8 +155,8 @@ func (aH *APIHandler) handleFunc(
 	return router.HandleFunc(route, traceMiddleware.ServeHTTP)
 }
 
-func (aH *APIHandler) formatRoute(route string, args ...interface{}) string {
-	args = append([]interface{}{aH.apiPrefix}, args...)
+func (aH *APIHandler) formatRoute(route string, args ...any) string {
+	args = append([]any{aH.apiPrefix}, args...)
 	return fmt.Sprintf("/%s"+route, args...)
 }
 
@@ -393,7 +393,7 @@ func (aH *APIHandler) convertModelToUI(trace *model.Trace, adjust bool) (*ui.Tra
 	return uiTrace, uiError
 }
 
-func (aH *APIHandler) deduplicateDependencies(dependencies []model.DependencyLink) []ui.DependencyLink {
+func (*APIHandler) deduplicateDependencies(dependencies []model.DependencyLink) []ui.DependencyLink {
 	type Key struct {
 		parent string
 		child  string
@@ -412,7 +412,7 @@ func (aH *APIHandler) deduplicateDependencies(dependencies []model.DependencyLin
 	return result
 }
 
-func (aH *APIHandler) filterDependenciesByService(
+func (*APIHandler) filterDependenciesByService(
 	dependencies []model.DependencyLink,
 	service string,
 ) []model.DependencyLink {
@@ -516,7 +516,7 @@ func (aH *APIHandler) handleError(w http.ResponseWriter, err error, statusCode i
 	return true
 }
 
-func (aH *APIHandler) writeJSON(w http.ResponseWriter, r *http.Request, response interface{}) {
+func (aH *APIHandler) writeJSON(w http.ResponseWriter, r *http.Request, response any) {
 	prettyPrintValue := r.FormValue(prettyPrintParam)
 	prettyPrint := prettyPrintValue != "" && prettyPrintValue != "false"
 

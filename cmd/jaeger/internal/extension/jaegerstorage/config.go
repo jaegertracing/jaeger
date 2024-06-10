@@ -11,7 +11,7 @@ import (
 	memoryCfg "github.com/jaegertracing/jaeger/pkg/memory/config"
 	badgerCfg "github.com/jaegertracing/jaeger/plugin/storage/badger"
 	"github.com/jaegertracing/jaeger/plugin/storage/cassandra"
-	grpcCfg "github.com/jaegertracing/jaeger/plugin/storage/grpc/config"
+	grpcCfg "github.com/jaegertracing/jaeger/plugin/storage/grpc"
 )
 
 // Config has the configuration for jaeger-query,
@@ -34,10 +34,8 @@ type MemoryStorage struct {
 
 func (cfg *Config) Validate() error {
 	emptyCfg := createDefaultConfig().(*Config)
-	//nolint:govet // The remoteRPCClient field in GRPC.Configuration contains error type
 	if reflect.DeepEqual(*cfg, *emptyCfg) {
 		return fmt.Errorf("%s: no storage type present in config", ID)
-	} else {
-		return nil
 	}
+	return nil
 }

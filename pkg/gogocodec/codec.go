@@ -61,12 +61,12 @@ func newCodec() *gogoCodec {
 }
 
 // Name implements encoding.Codec
-func (c *gogoCodec) Name() string {
+func (*gogoCodec) Name() string {
 	return proto.Name
 }
 
 // Marshal implements encoding.Codec
-func (c *gogoCodec) Marshal(v interface{}) ([]byte, error) {
+func (*gogoCodec) Marshal(v any) ([]byte, error) {
 	t := reflect.TypeOf(v)
 	elem := t.Elem()
 	// use gogo proto only for Jaeger types
@@ -77,7 +77,7 @@ func (c *gogoCodec) Marshal(v interface{}) ([]byte, error) {
 }
 
 // Unmarshal implements encoding.Codec
-func (c *gogoCodec) Unmarshal(data []byte, v interface{}) error {
+func (*gogoCodec) Unmarshal(data []byte, v any) error {
 	t := reflect.TypeOf(v)
 	elem := t.Elem() // only for collections
 	// use gogo proto only for Jaeger types

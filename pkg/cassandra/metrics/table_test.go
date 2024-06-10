@@ -155,7 +155,7 @@ func (q insertQuery) String() string {
 	return q.str
 }
 
-func (q insertQuery) ScanCAS(dest ...interface{}) (bool, error) {
+func (insertQuery) ScanCAS(...any /* dest */) (bool, error) {
 	return true, nil
 }
 

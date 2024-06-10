@@ -118,7 +118,7 @@ type Options struct {
 }
 
 // AddFlags adds flags for Options
-func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
+func (*Options) AddFlags(flagSet *flag.FlagSet) {
 	flagSet.String(
 		configPrefix+suffixRequiredAcks,
 		defaultRequiredAcks,

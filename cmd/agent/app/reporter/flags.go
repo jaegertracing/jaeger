@@ -52,7 +52,7 @@ func AddFlags(flags *flag.FlagSet) {
 }
 
 // InitFromViper initializes Options with properties retrieved from Viper.
-func (b *Options) InitFromViper(v *viper.Viper, logger *zap.Logger) *Options {
+func (b *Options) InitFromViper(v *viper.Viper, _ *zap.Logger) *Options {
 	b.ReporterType = Type(v.GetString(reporterType))
 	if !setupcontext.IsAllInOne() {
 		if len(v.GetString(agentTags)) > 0 {

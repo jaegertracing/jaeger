@@ -78,20 +78,20 @@ func (fd FromDomain) convertReferences(span *model.Span) []Reference {
 	return out
 }
 
-func (fd FromDomain) convertRefType(refType model.SpanRefType) ReferenceType {
+func (FromDomain) convertRefType(refType model.SpanRefType) ReferenceType {
 	if refType == model.FollowsFrom {
 		return FollowsFrom
 	}
 	return ChildOf
 }
 
-func (fd FromDomain) convertKeyValuesString(keyValues model.KeyValues) ([]KeyValue, map[string]interface{}) {
-	var tagsMap map[string]interface{}
+func (fd FromDomain) convertKeyValuesString(keyValues model.KeyValues) ([]KeyValue, map[string]any) {
+	var tagsMap map[string]any
 	var kvs []KeyValue
 	for _, kv := range keyValues {
 		if kv.GetVType() != model.BinaryType && (fd.allTagsAsFields || fd.tagKeysAsFields[kv.Key]) {
 			if tagsMap == nil {
-				tagsMap = map[string]interface{}{}
+				tagsMap = map[string]any{}
 			}
 			tagsMap[strings.ReplaceAll(kv.Key, ".", fd.tagDotReplacement)] = kv.Value()
 		} else {
@@ -104,7 +104,7 @@ func (fd FromDomain) convertKeyValuesString(keyValues model.KeyValues) ([]KeyVal
 	return kvs, tagsMap
 }
 
-func (fd FromDomain) convertLogs(logs []model.Log) []Log {
+func (FromDomain) convertLogs(logs []model.Log) []Log {
 	out := make([]Log, len(logs))
 	for i, log := range logs {
 		var kvs []KeyValue

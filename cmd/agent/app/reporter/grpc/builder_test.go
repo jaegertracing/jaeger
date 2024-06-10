@@ -369,7 +369,7 @@ type fakeInterceptor struct {
 	isCalled bool
 }
 
-func (f *fakeInterceptor) intercept(ctx context.Context, method string, req, reply interface{}, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
+func (f *fakeInterceptor) intercept(ctx context.Context, method string, req, reply any, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
 	f.isCalled = true
 	return invoker(ctx, method, req, reply, cc, opts...)
 }
