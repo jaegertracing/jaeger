@@ -26,6 +26,7 @@ updates:
     labels: [ "changelog:dependencies" ]
 
   - package-ecosystem: "github-actions"
+    directory: "/"
     schedule:
       interval: "weekly"
     labels: [ "changelog:dependencies" ]
@@ -52,7 +53,7 @@ updates:
     schedule:
       interval: daily
   - package-ecosystem: docker
-    directories: 
+    directories:
       - /docker-compose/elasticsearch/v7
       - /docker-compose/elasticsearch/v8
     schedule:
@@ -61,7 +62,7 @@ updates:
       - dependency-name: "docker.elastic.co/elasticsearch/elasticsearch"
         update-types: [ "version-update:semver-minor" ]
   - package-ecosystem: docker
-    directories: 
+    directories:
       - /docker-compose/opensearch/v1
       - /docker-compose/opensearch/v2
     schedule:
@@ -77,7 +78,7 @@ updates:
       - dependency-name: "bitnami/kafka"
         update-types: [ "version-update:semver-minor" ]
   - package-ecosystem: docker
-    directories: 
+    directories:
       - /docker-compose/cassandra/v3
       - /docker-compose/cassandra/v4
     schedule:
