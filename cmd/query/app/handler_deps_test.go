@@ -318,8 +318,8 @@ func TestGetDependenciesSuccess(t *testing.T) {
 	var response structuredResponse
 	err := getJSON(ts.server.URL+"/api/dependencies?endTs=1476374248550&service=queen", &response)
 	assert.NotEmpty(t, response.Data)
-	data := response.Data.([]interface{})[0]
-	actual := data.(map[string]interface{})
+	data := response.Data.([]any)[0]
+	actual := data.(map[string]any)
 	assert.Equal(t, "killer", actual["parent"])
 	assert.Equal(t, "queen", actual["child"])
 	assert.Equal(t, 12.00, actual["callCount"]) // recovered type is float

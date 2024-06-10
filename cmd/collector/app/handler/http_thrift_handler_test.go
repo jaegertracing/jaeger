@@ -171,7 +171,7 @@ func TestCannotReadBodyFromRequest(t *testing.T) {
 
 type errReader struct{}
 
-func (e *errReader) Read(p []byte) (int, error) {
+func (*errReader) Read([]byte) (int, error) {
 	return 0, fmt.Errorf("Simulated error reading body")
 }
 
@@ -180,7 +180,7 @@ type dummyResponseWriter struct {
 	myStatusCode int
 }
 
-func (d *dummyResponseWriter) Header() http.Header {
+func (*dummyResponseWriter) Header() http.Header {
 	return http.Header{}
 }
 

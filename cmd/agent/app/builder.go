@@ -31,6 +31,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/servers"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/servers/thriftudp"
+	"github.com/jaegertracing/jaeger/internal/safeexpvar"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/ports"
 	agentThrift "github.com/jaegertracing/jaeger/thrift-gen/agent"
@@ -111,7 +112,7 @@ func (b *Builder) CreateAgent(primaryProxy CollectorProxy, logger *zap.Logger, m
 		return nil, fmt.Errorf("cannot create processors: %w", err)
 	}
 	server := b.HTTPServer.getHTTPServer(primaryProxy.GetManager(), mFactory, logger)
-	b.publishOpts(mFactory)
+	b.publishOpts()
 
 	return NewAgent(processors, server, logger), nil
 }
@@ -128,16 +129,12 @@ func (b *Builder) getReporter(primaryProxy CollectorProxy) reporter.Reporter {
 	return reporter.NewMultiReporter(rep...)
 }
 
-func (b *Builder) publishOpts(mFactory metrics.Factory) {
-	internalFactory := mFactory.Namespace(metrics.NSOptions{Name: "internal"})
+func (b *Builder) publishOpts() {
 	for _, p := range b.Processors {
 		prefix := fmt.Sprintf(processorPrefixFmt, p.Model, p.Protocol)
-		internalFactory.Gauge(metrics.Options{Name: prefix + suffixServerMaxPacketSize}).
-			Update(int64(p.Server.MaxPacketSize))
-		internalFactory.Gauge(metrics.Options{Name: prefix + suffixServerQueueSize}).
-			Update(int64(p.Server.QueueSize))
-		internalFactory.Gauge(metrics.Options{Name: prefix + suffixWorkers}).
-			Update(int64(p.Workers))
+		safeexpvar.SetInt(prefix+suffixServerMaxPacketSize, int64(p.Server.MaxPacketSize))
+		safeexpvar.SetInt(prefix+suffixServerQueueSize, int64(p.Server.QueueSize))
+		safeexpvar.SetInt(prefix+suffixWorkers, int64(p.Workers))
 	}
 }
 
@@ -170,10 +167,11 @@ func (b *Builder) getProcessors(rep reporter.Reporter, mFactory metrics.Factory,
 
 // GetHTTPServer creates an HTTP server that provides sampling strategies and baggage restrictions to client libraries.
 func (c HTTPServerConfiguration) getHTTPServer(manager configmanager.ClientConfigManager, mFactory metrics.Factory, logger *zap.Logger) *http.Server {
-	if c.HostPort == "" {
-		c.HostPort = defaultHTTPServerHostPort
+	hostPort := c.HostPort
+	if hostPort == "" {
+		hostPort = defaultHTTPServerHostPort
 	}
-	return httpserver.NewHTTPServer(c.HostPort, manager, mFactory, logger)
+	return httpserver.NewHTTPServer(hostPort, manager, mFactory, logger)
 }
 
 // GetThriftProcessor gets a TBufferedServer backed Processor using the collector configuration

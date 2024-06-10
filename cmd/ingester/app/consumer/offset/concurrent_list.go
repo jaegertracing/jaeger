@@ -76,11 +76,10 @@ func getHighestContiguous(offsets []int64) int64 {
 
 	highestContiguous := minOffset
 	for {
-		if _, ok := offsetSet[highestContiguous+1]; ok {
-			highestContiguous++
-		} else {
+		if _, ok := offsetSet[highestContiguous+1]; !ok {
 			break
 		}
+		highestContiguous++
 	}
 
 	return highestContiguous

@@ -29,7 +29,7 @@ import (
 )
 
 func setupHTTPGatewayNoServer(
-	t *testing.T,
+	_ *testing.T,
 	basePath string,
 	tenancyOptions tenancy.Options,
 ) *testGateway {

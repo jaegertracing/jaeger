@@ -50,7 +50,7 @@ func withEsSampling(indexPrefix, indexDateLayout string, maxDocCount int, fn fun
 		client:    client,
 		logger:    logger,
 		logBuffer: logBuffer,
-		storage: NewSamplingStore(SamplingStoreParams{
+		storage: NewSamplingStore(Params{
 			Client:          func() es.Client { return client },
 			Logger:          logger,
 			IndexPrefix:     indexPrefix,
@@ -81,7 +81,7 @@ func TestNewIndexPrefix(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			client := &mocks.Client{}
-			r := NewSamplingStore(SamplingStoreParams{
+			r := NewSamplingStore(Params{
 				Client:          func() es.Client { return client },
 				Logger:          zap.NewNop(),
 				IndexPrefix:     test.prefix,
@@ -449,7 +449,7 @@ func createSearchResult(rawJsonStr string) *elastic.SearchResult {
 	return searchResult
 }
 
-func stringMatcher(q string) interface{} {
+func stringMatcher(q string) any {
 	matchFunc := func(s string) bool {
 		return strings.Contains(s, q)
 	}

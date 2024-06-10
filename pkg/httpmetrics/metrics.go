@@ -149,5 +149,5 @@ func (r *requestDurations) buildTimer(metricsFactory metrics.Factory, key record
 			"method": key.method,
 		},
 	})
-	return
+	return out
 }

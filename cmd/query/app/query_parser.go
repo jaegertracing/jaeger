@@ -165,11 +165,11 @@ func (p *queryParser) parseTraceQueryParams(r *http.Request) (*traceQueryParamet
 
 	var traceIDs []model.TraceID
 	for _, id := range r.Form[traceIDParam] {
-		if traceID, err := model.TraceIDFromString(id); err == nil {
-			traceIDs = append(traceIDs, traceID)
-		} else {
+		traceID, err := model.TraceIDFromString(id)
+		if err != nil {
 			return nil, fmt.Errorf("cannot parse traceID param: %w", err)
 		}
+		traceIDs = append(traceIDs, traceID)
 	}
 
 	traceQuery := &traceQueryParameters{
@@ -360,16 +360,16 @@ func parseSpanKinds(r *http.Request, paramName string, defaultSpanKinds []string
 func mapSpanKindsToOpenTelemetry(spanKinds []string) ([]string, error) {
 	otelSpanKinds := make([]string, len(spanKinds))
 	for i, spanKind := range spanKinds {
-		if v, ok := jaegerToOtelSpanKind[spanKind]; ok {
-			otelSpanKinds[i] = v
-		} else {
+		v, ok := jaegerToOtelSpanKind[spanKind]
+		if !ok {
 			return otelSpanKinds, fmt.Errorf("unsupported span kind: '%s'", spanKind)
 		}
+		otelSpanKinds[i] = v
 	}
 	return otelSpanKinds, nil
 }
 
-func (p *queryParser) validateQuery(traceQuery *traceQueryParameters) error {
+func (*queryParser) validateQuery(traceQuery *traceQueryParameters) error {
 	if len(traceQuery.traceIDs) == 0 && traceQuery.ServiceName == "" {
 		return errServiceParameterRequired
 	}
@@ -381,15 +381,14 @@ func (p *queryParser) validateQuery(traceQuery *traceQueryParameters) error {
 	return nil
 }
 
-func (p *queryParser) parseTags(simpleTags []string, jsonTags []string) (map[string]string, error) {
+func (*queryParser) parseTags(simpleTags []string, jsonTags []string) (map[string]string, error) {
 	retMe := make(map[string]string)
 	for _, tag := range simpleTags {
 		keyAndValue := strings.Split(tag, ":")
-		if l := len(keyAndValue); l > 1 {
-			retMe[keyAndValue[0]] = strings.Join(keyAndValue[1:], ":")
-		} else {
+		if l := len(keyAndValue); l <= 1 {
 			return nil, fmt.Errorf("malformed 'tag' parameter, expecting key:value, received: %s", tag)
 		}
+		retMe[keyAndValue[0]] = strings.Join(keyAndValue[1:], ":")
 	}
 	for _, tags := range jsonTags {
 		var fromJSON map[string]string

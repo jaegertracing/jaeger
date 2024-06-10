@@ -538,7 +538,7 @@ func makeWriteSupports(tagsCount, spans int) ([]model.KeyValue, []string, []stri
 	return tags, services, operations
 }
 
-func makeReadBenchmark(b *testing.B, tid time.Time, params *spanstore.TraceQueryParameters, outputFile string) {
+func makeReadBenchmark(b *testing.B, _ time.Time, params *spanstore.TraceQueryParameters, outputFile string) {
 	runLargeFactoryTest(b, func(tb testing.TB, sw spanstore.Writer, sr spanstore.Reader) {
 		tid := time.Now()
 

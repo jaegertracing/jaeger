@@ -79,7 +79,7 @@ func TestPanicFunc(t *testing.T) {
 	})
 }
 
-func TestPanicForPartition(t *testing.T) {
+func TestPanicForPartition(*testing.T) {
 	l, _ := zap.NewDevelopment()
 	wg := sync.WaitGroup{}
 	wg.Add(1)
@@ -96,7 +96,7 @@ func TestPanicForPartition(t *testing.T) {
 	wg.Wait()
 }
 
-func TestGlobalPanic(t *testing.T) {
+func TestGlobalPanic(*testing.T) {
 	l, _ := zap.NewDevelopment()
 	wg := sync.WaitGroup{}
 	wg.Add(1)

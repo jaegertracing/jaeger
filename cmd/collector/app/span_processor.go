@@ -73,7 +73,7 @@ func NewSpanProcessor(
 ) processor.SpanProcessor {
 	sp := newSpanProcessor(spanWriter, additional, opts...)
 
-	sp.queue.StartConsumers(sp.numWorkers, func(item interface{}) {
+	sp.queue.StartConsumers(sp.numWorkers, func(item any) {
 		value := item.(*queueItem)
 		sp.processItemFromQueue(value)
 	})
@@ -93,7 +93,7 @@ func newSpanProcessor(spanWriter spanstore.Writer, additional []ProcessSpan, opt
 		options.serviceMetrics,
 		options.hostMetrics,
 		options.extraFormatTypes)
-	droppedItemHandler := func(item interface{}) {
+	droppedItemHandler := func(item any) {
 		handlerMetrics.SpansDropped.Inc(1)
 		if options.onDroppedSpan != nil {
 			options.onDroppedSpan(item.(*queueItem).span)
@@ -169,7 +169,7 @@ func (sp *spanProcessor) saveSpan(span *model.Span, tenant string) {
 	sp.metrics.SaveLatency.Record(time.Since(startTime))
 }
 
-func (sp *spanProcessor) countSpan(span *model.Span, tenant string) {
+func (sp *spanProcessor) countSpan(span *model.Span, _ string /* tenant */) {
 	sp.bytesProcessed.Add(uint64(span.Size()))
 	sp.spansProcessed.Add(1)
 }

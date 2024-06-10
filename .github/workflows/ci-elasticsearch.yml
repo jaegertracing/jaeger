@@ -19,18 +19,22 @@ jobs:
   elasticsearch:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         version:
-        - major: 7.x
-          image: 7.14.0
+        - major: 7
           distribution: elasticsearch
-        - major: 8.x
-          image: 8.8.2
+          jaeger: v1
+        - major: 8
           distribution: elasticsearch
-    name: ${{ matrix.version.distribution }} ${{ matrix.version.major }}
+          jaeger: v1
+        - major: 8
+          distribution: elasticsearch
+          jaeger: v2
+    name: ${{ matrix.version.distribution }} ${{ matrix.version.major }} ${{ matrix.version.jaeger }}
     steps:
     - name: Harden Runner
-      uses: step-security/harden-runner@63c24ba6bd7ba022e95695ff85de572c04a18142 # v2.7.0
+      uses: step-security/harden-runner@f086349bfa2bd1361f7909c78558e816508cdc10 # v2.8.0
       with:
         egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
 
@@ -50,17 +54,18 @@ jobs:
       run: make install-ci
 
     - uses: docker/setup-qemu-action@68827325e0b33c7199eb31dd4e31fbe9023e06e3 # v3.0.0
-
-    - name: Run elasticsearch integration tests
+    - name: Run ${{ matrix.version.distribution }} integration tests
       id: test-execution
-      run: bash scripts/es-integration-test.sh ${{ matrix.version.distribution }} ${{ matrix.version.image }}
+      run: bash scripts/es-integration-test.sh ${{ matrix.version.distribution }} ${{ matrix.version.major }} ${{ matrix.version.jaeger }}
 
-    - name: Output Elasticsearch logs
-      run: docker logs ${{ steps.test-execution.outputs.cid }}
+
+    - name: Output ${{ matrix.version.distribution }} logs
+      run: docker compose -f ${{ steps.test-execution.outputs.docker_compose_file }} logs 
       if: ${{ failure() }}
 
     - name: Upload coverage to codecov
       uses: ./.github/actions/upload-codecov
       with:
         files: cover.out,cover-index-cleaner.out,cover-index-rollover.out
-        flags: elasticsearch-${{ matrix.version.major }}
+        flags: ${{ matrix.version.distribution }}-${{ matrix.version.major }}-${{ matrix.version.jaeger }}
+

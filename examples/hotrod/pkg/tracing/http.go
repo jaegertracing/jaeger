@@ -46,7 +46,7 @@ func NewHTTPClient(tp trace.TracerProvider) *HTTPClient {
 
 // GetJSON executes HTTP GET against specified url and tried to parse
 // the response into out object.
-func (c *HTTPClient) GetJSON(ctx context.Context, endpoint string, url string, out interface{}) error {
+func (c *HTTPClient) GetJSON(ctx context.Context, _ string /* endpoint */, url string, out any) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return err

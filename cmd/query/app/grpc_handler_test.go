@@ -948,6 +948,7 @@ func withTenantedServerAndClient(t *testing.T, tm *tenancy.Manager, actualTest f
 }
 
 // withOutgoingMetadata returns a Context with metadata for a server to receive
+// revive:disable-next-line context-as-argument
 func withOutgoingMetadata(t *testing.T, ctx context.Context, headerName, headerValue string) context.Context {
 	t.Helper()
 
@@ -1108,7 +1109,7 @@ func TestTenancyContextFlowGRPC(t *testing.T) {
 		}
 
 		addTenantedGetServices := func(mockReader *spanstoremocks.Reader, tenant string, expectedServices []string) {
-			mockReader.On("GetServices", mock.MatchedBy(func(v interface{}) bool {
+			mockReader.On("GetServices", mock.MatchedBy(func(v any) bool {
 				ctx, ok := v.(context.Context)
 				if !ok {
 					return false
@@ -1120,7 +1121,7 @@ func TestTenancyContextFlowGRPC(t *testing.T) {
 			})).Return(expectedServices, nil).Once()
 		}
 		addTenantedGetTrace := func(mockReader *spanstoremocks.Reader, tenant string, trace *model.Trace, err error) {
-			mockReader.On("GetTrace", mock.MatchedBy(func(v interface{}) bool {
+			mockReader.On("GetTrace", mock.MatchedBy(func(v any) bool {
 				ctx, ok := v.(context.Context)
 				if !ok {
 					return false

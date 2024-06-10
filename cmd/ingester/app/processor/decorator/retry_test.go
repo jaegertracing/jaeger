@@ -95,7 +95,7 @@ func TestNewRetryingProcessorNoErrorPropagation(t *testing.T) {
 
 type fakeRand struct{}
 
-func (f *fakeRand) Int63n(v int64) int64 {
+func (*fakeRand) Int63n(v int64) int64 {
 	return v
 }
 

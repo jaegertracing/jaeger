@@ -32,7 +32,7 @@ import (
 // of type Counter or Gauge or Timer.
 //
 // Errors during Init lead to a panic.
-func MustInit(metrics interface{}, factory Factory, globalTags map[string]string) {
+func MustInit(metrics any, factory Factory, globalTags map[string]string) {
 	if err := Init(metrics, factory, globalTags); err != nil {
 		panic(err.Error())
 	}
@@ -40,7 +40,7 @@ func MustInit(metrics interface{}, factory Factory, globalTags map[string]string
 
 // Init does the same as MustInit, but returns an error instead of
 // panicking.
-func Init(m interface{}, factory Factory, globalTags map[string]string) error {
+func Init(m any, factory Factory, globalTags map[string]string) error {
 	// Allow user to opt out of reporting metrics by passing in nil.
 	if factory == nil {
 		factory = NullFactory
@@ -101,7 +101,7 @@ func Init(m interface{}, factory Factory, globalTags map[string]string) error {
 			}
 		}
 		help := field.Tag.Get("help")
-		var obj interface{}
+		var obj any
 		switch {
 		case field.Type.AssignableTo(counterPtrType):
 			obj = factory.Counter(Options{

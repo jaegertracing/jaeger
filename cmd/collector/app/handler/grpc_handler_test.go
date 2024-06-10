@@ -91,7 +91,7 @@ func (p *mockSpanProcessor) reset() {
 	p.spanFormat = ""
 }
 
-func (p *mockSpanProcessor) Close() error {
+func (*mockSpanProcessor) Close() error {
 	return nil
 }
 

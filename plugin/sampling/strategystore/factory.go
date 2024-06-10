@@ -67,7 +67,7 @@ func NewFactory(config FactoryConfig) (*Factory, error) {
 	return f, nil
 }
 
-func (f *Factory) getFactoryOfType(factoryType Kind) (strategystore.Factory, error) {
+func (*Factory) getFactoryOfType(factoryType Kind) (strategystore.Factory, error) {
 	switch factoryType {
 	case samplingTypeFile:
 		return static.NewFactory(), nil

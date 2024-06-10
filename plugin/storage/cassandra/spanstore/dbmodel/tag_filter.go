@@ -63,14 +63,14 @@ var DefaultTagFilter = tagFilterImpl{}
 
 type tagFilterImpl struct{}
 
-func (f tagFilterImpl) FilterProcessTags(span *model.Span, processTags model.KeyValues) model.KeyValues {
+func (tagFilterImpl) FilterProcessTags(_ *model.Span, processTags model.KeyValues) model.KeyValues {
 	return processTags
 }
 
-func (f tagFilterImpl) FilterTags(span *model.Span, tags model.KeyValues) model.KeyValues {
+func (tagFilterImpl) FilterTags(_ *model.Span, tags model.KeyValues) model.KeyValues {
 	return tags
 }
 
-func (f tagFilterImpl) FilterLogFields(span *model.Span, logFields model.KeyValues) model.KeyValues {
+func (tagFilterImpl) FilterLogFields(_ *model.Span, logFields model.KeyValues) model.KeyValues {
 	return logFields
 }

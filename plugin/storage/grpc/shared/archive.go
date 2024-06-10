@@ -58,22 +58,22 @@ func (r *archiveReader) GetTrace(ctx context.Context, traceID model.TraceID) (*m
 }
 
 // GetServices not used in archiveReader
-func (r *archiveReader) GetServices(ctx context.Context) ([]string, error) {
+func (*archiveReader) GetServices(context.Context) ([]string, error) {
 	return nil, errors.New("GetServices not implemented")
 }
 
 // GetOperations not used in archiveReader
-func (r *archiveReader) GetOperations(ctx context.Context, query spanstore.OperationQueryParameters) ([]spanstore.Operation, error) {
+func (*archiveReader) GetOperations(context.Context, spanstore.OperationQueryParameters) ([]spanstore.Operation, error) {
 	return nil, errors.New("GetOperations not implemented")
 }
 
 // FindTraces not used in archiveReader
-func (r *archiveReader) FindTraces(ctx context.Context, query *spanstore.TraceQueryParameters) ([]*model.Trace, error) {
+func (*archiveReader) FindTraces(context.Context, *spanstore.TraceQueryParameters) ([]*model.Trace, error) {
 	return nil, errors.New("FindTraces not implemented")
 }
 
 // FindTraceIDs not used in archiveReader
-func (r *archiveReader) FindTraceIDs(ctx context.Context, query *spanstore.TraceQueryParameters) ([]model.TraceID, error) {
+func (*archiveReader) FindTraceIDs(context.Context, *spanstore.TraceQueryParameters) ([]model.TraceID, error) {
 	return nil, errors.New("FindTraceIDs not implemented")
 }
 

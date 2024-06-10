@@ -107,7 +107,7 @@ func (s *ESStorageIntegration) esCleanUp(t *testing.T) {
 	require.NoError(t, s.factory.Purge(context.Background()))
 }
 
-func (s *ESStorageIntegration) initializeESFactory(t *testing.T, allTagsAsFields bool) *es.Factory {
+func (*ESStorageIntegration) initializeESFactory(t *testing.T, allTagsAsFields bool) *es.Factory {
 	logger := zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller()))
 	f := es.NewFactory()
 	v, command := config.Viperize(f.AddFlags)

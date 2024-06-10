@@ -21,6 +21,7 @@ import (
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/internal/safeexpvar"
 	"github.com/jaegertracing/jaeger/pkg/distributedlock"
 	"github.com/jaegertracing/jaeger/pkg/memory/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
@@ -64,12 +65,12 @@ func NewFactoryWithConfig(
 }
 
 // AddFlags implements plugin.Configurable
-func (f *Factory) AddFlags(flagSet *flag.FlagSet) {
+func (*Factory) AddFlags(flagSet *flag.FlagSet) {
 	AddFlags(flagSet)
 }
 
 // InitFromViper implements plugin.Configurable
-func (f *Factory) InitFromViper(v *viper.Viper, logger *zap.Logger) {
+func (f *Factory) InitFromViper(v *viper.Viper, _ *zap.Logger) {
 	f.options.InitFromViper(v)
 }
 
@@ -114,17 +115,15 @@ func (f *Factory) CreateDependencyReader() (dependencystore.Reader, error) {
 }
 
 // CreateSamplingStore implements storage.SamplingStoreFactory
-func (f *Factory) CreateSamplingStore(maxBuckets int) (samplingstore.Store, error) {
+func (*Factory) CreateSamplingStore(maxBuckets int) (samplingstore.Store, error) {
 	return NewSamplingStore(maxBuckets), nil
 }
 
 // CreateLock implements storage.SamplingStoreFactory
-func (f *Factory) CreateLock() (distributedlock.Lock, error) {
+func (*Factory) CreateLock() (distributedlock.Lock, error) {
 	return &lock{}, nil
 }
 
 func (f *Factory) publishOpts() {
-	internalFactory := f.metricsFactory.Namespace(metrics.NSOptions{Name: "internal"})
-	internalFactory.Gauge(metrics.Options{Name: limit}).
-		Update(int64(f.options.Configuration.MaxTraces))
+	safeexpvar.SetInt("jaeger_storage_memory_max_traces", int64(f.options.Configuration.MaxTraces))
 }

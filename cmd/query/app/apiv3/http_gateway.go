@@ -66,7 +66,7 @@ func (h *HTTPGateway) addRoute(
 	router *mux.Router,
 	f func(http.ResponseWriter, *http.Request),
 	route string,
-	args ...interface{},
+	_ ...any, /* args */
 ) *mux.Route {
 	var handler http.Handler = http.HandlerFunc(f)
 	if h.TenancyMgr.Enabled {
@@ -131,7 +131,7 @@ func (h *HTTPGateway) returnSpansTestable(
 	h.marshalResponse(response, w)
 }
 
-func (h *HTTPGateway) marshalResponse(response proto.Message, w http.ResponseWriter) {
+func (*HTTPGateway) marshalResponse(response proto.Message, w http.ResponseWriter) {
 	_ = new(jsonpb.Marshaler).Marshal(w, response)
 }
 

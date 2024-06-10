@@ -5,7 +5,7 @@ package api_v3
 
 import (
 	"github.com/gogo/protobuf/jsonpb"
-	proto "github.com/gogo/protobuf/proto"
+	"github.com/gogo/protobuf/proto"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger/pkg/gogocodec"
@@ -33,7 +33,7 @@ func (td *TracesData) Marshal() ([]byte, error) {
 }
 
 // MarshalTo implements gogocodec.CustomType.
-func (*TracesData) MarshalTo(data []byte) (n int, err error) {
+func (*TracesData) MarshalTo([]byte /* data */) (n int, err error) {
 	// TODO unclear when this might be called, perhaps when type is embedded inside other structs.
 	panic("unimplemented")
 }

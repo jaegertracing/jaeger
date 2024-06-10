@@ -80,7 +80,7 @@ func (s *shouldIErrorProcessor) ProcessSpans(mSpans []*model.Span, _ processor.S
 	return retMe, nil
 }
 
-func (s *shouldIErrorProcessor) Close() error {
+func (*shouldIErrorProcessor) Close() error {
 	return nil
 }
 

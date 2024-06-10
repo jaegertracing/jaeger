@@ -76,8 +76,8 @@ func (i *IndicesClient) GetJaegerIndices(prefix string) ([]Index, error) {
 	}
 
 	type indexInfo struct {
-		Aliases  map[string]interface{} `json:"aliases"`
-		Settings map[string]string      `json:"settings"`
+		Aliases  map[string]any    `json:"aliases"`
+		Settings map[string]string `json:"settings"`
 	}
 	var indicesInfo map[string]indexInfo
 	if err = json.Unmarshal(body, &indicesInfo); err != nil {
@@ -195,7 +195,7 @@ func (i *IndicesClient) DeleteAlias(aliases []Alias) error {
 	return nil
 }
 
-func (i *IndicesClient) aliasesString(aliases []Alias) string {
+func (*IndicesClient) aliasesString(aliases []Alias) string {
 	concatAliases := ""
 	for _, alias := range aliases {
 		concatAliases += fmt.Sprintf("[index: %s, alias: %s],", alias.Index, alias.Name)
@@ -204,22 +204,22 @@ func (i *IndicesClient) aliasesString(aliases []Alias) string {
 }
 
 func (i *IndicesClient) aliasAction(action string, aliases []Alias) error {
-	actions := []map[string]interface{}{}
+	actions := []map[string]any{}
 
 	for _, alias := range aliases {
-		options := map[string]interface{}{
+		options := map[string]any{
 			"index": alias.Index,
 			"alias": alias.Name,
 		}
 		if alias.IsWriteIndex {
 			options["is_write_index"] = true
 		}
-		actions = append(actions, map[string]interface{}{
+		actions = append(actions, map[string]any{
 			action: options,
 		})
 	}
 
-	body := map[string]interface{}{
+	body := map[string]any{
 		"actions": actions,
 	}
 
@@ -244,12 +244,10 @@ func (i IndicesClient) version() (uint, error) {
 // CreateTemplate an ES index template
 func (i IndicesClient) CreateTemplate(template, name string) error {
 	endpointFmt := "_template/%s"
-	if v, err := i.version(); err == nil {
-		if v >= 8 {
-			endpointFmt = "_index_template/%s"
-		}
-	} else {
+	if v, err := i.version(); err != nil {
 		return err
+	} else if v >= 8 {
+		endpointFmt = "_index_template/%s"
 	}
 	_, err := i.request(elasticRequest{
 		endpoint: fmt.Sprintf(endpointFmt, name),
@@ -269,13 +267,13 @@ func (i IndicesClient) CreateTemplate(template, name string) error {
 }
 
 // Rollover create a rollover for certain index/alias
-func (i IndicesClient) Rollover(rolloverTarget string, conditions map[string]interface{}) error {
+func (i IndicesClient) Rollover(rolloverTarget string, conditions map[string]any) error {
 	esReq := elasticRequest{
 		endpoint: fmt.Sprintf("%s/_rollover/", rolloverTarget),
 		method:   http.MethodPost,
 	}
 	if len(conditions) > 0 {
-		body := map[string]interface{}{
+		body := map[string]any{
 			"conditions": conditions,
 		}
 		bodyBytes, err := json.Marshal(body)

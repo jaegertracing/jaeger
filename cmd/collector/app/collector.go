@@ -30,6 +30,8 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/strategystore"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/server"
+	"github.com/jaegertracing/jaeger/internal/safeexpvar"
+	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
@@ -103,7 +105,9 @@ func (c *Collector) Start(options *flags.CollectorOptions) error {
 
 	var additionalProcessors []ProcessSpan
 	if c.aggregator != nil {
-		additionalProcessors = append(additionalProcessors, handleRootSpan(c.aggregator, c.logger))
+		additionalProcessors = append(additionalProcessors, func(span *model.Span, tenant string) {
+			c.aggregator.HandleRootSpan(span, c.logger)
+		})
 	}
 
 	c.spanProcessor = handlerBuilder.BuildSpanProcessor(additionalProcessors...)
@@ -150,7 +154,6 @@ func (c *Collector) Start(options *flags.CollectorOptions) error {
 			return fmt.Errorf("could not start Zipkin receiver: %w", err)
 		}
 		c.zipkinReceiver = zipkinReceiver
-
 	}
 
 	if options.OTLP.Enabled {
@@ -166,10 +169,9 @@ func (c *Collector) Start(options *flags.CollectorOptions) error {
 	return nil
 }
 
-func (c *Collector) publishOpts(cOpts *flags.CollectorOptions) {
-	internalFactory := c.metricsFactory.Namespace(metrics.NSOptions{Name: "internal"})
-	internalFactory.Gauge(metrics.Options{Name: metricNumWorkers}).Update(int64(cOpts.NumWorkers))
-	internalFactory.Gauge(metrics.Options{Name: metricQueueSize}).Update(int64(cOpts.QueueSize))
+func (*Collector) publishOpts(cOpts *flags.CollectorOptions) {
+	safeexpvar.SetInt(metricNumWorkers, int64(cOpts.NumWorkers))
+	safeexpvar.SetInt(metricQueueSize, int64(cOpts.QueueSize))
 }
 
 // Close the component and all its underlying dependencies

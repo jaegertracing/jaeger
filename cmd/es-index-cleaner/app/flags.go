@@ -43,7 +43,7 @@ type Config struct {
 }
 
 // AddFlags adds flags for TLS to the FlagSet.
-func (c *Config) AddFlags(flags *flag.FlagSet) {
+func (*Config) AddFlags(flags *flag.FlagSet) {
 	flags.String(indexPrefix, "", "Index prefix")
 	flags.Bool(archive, false, "Whether to remove archive indices. It works only for rollover")
 	flags.Bool(rollover, false, "Whether to remove indices created by rollover")

@@ -24,34 +24,34 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger/model"
-	. "github.com/jaegertracing/jaeger/storage/spanstore"
+	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
 var errIWillAlwaysFail = errors.New("ErrProneWriteSpanStore will always fail")
 
 type errProneWriteSpanStore struct{}
 
-func (e *errProneWriteSpanStore) WriteSpan(ctx context.Context, span *model.Span) error {
+func (*errProneWriteSpanStore) WriteSpan(context.Context, *model.Span) error {
 	return errIWillAlwaysFail
 }
 
 type noopWriteSpanStore struct{}
 
-func (n *noopWriteSpanStore) WriteSpan(ctx context.Context, span *model.Span) error {
+func (*noopWriteSpanStore) WriteSpan(context.Context, *model.Span) error {
 	return nil
 }
 
 func TestCompositeWriteSpanStoreSuccess(t *testing.T) {
-	c := NewCompositeWriter(&noopWriteSpanStore{}, &noopWriteSpanStore{})
+	c := spanstore.NewCompositeWriter(&noopWriteSpanStore{}, &noopWriteSpanStore{})
 	require.NoError(t, c.WriteSpan(context.Background(), nil))
 }
 
 func TestCompositeWriteSpanStoreSecondFailure(t *testing.T) {
-	c := NewCompositeWriter(&errProneWriteSpanStore{}, &errProneWriteSpanStore{})
+	c := spanstore.NewCompositeWriter(&errProneWriteSpanStore{}, &errProneWriteSpanStore{})
 	require.EqualError(t, c.WriteSpan(context.Background(), nil), fmt.Sprintf("%s\n%s", errIWillAlwaysFail, errIWillAlwaysFail))
 }
 
 func TestCompositeWriteSpanStoreFirstFailure(t *testing.T) {
-	c := NewCompositeWriter(&errProneWriteSpanStore{}, &noopWriteSpanStore{})
+	c := spanstore.NewCompositeWriter(&errProneWriteSpanStore{}, &noopWriteSpanStore{})
 	require.EqualError(t, c.WriteSpan(context.Background(), nil), errIWillAlwaysFail.Error())
 }

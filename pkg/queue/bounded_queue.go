@@ -26,7 +26,7 @@ import (
 
 // Consumer consumes data from a bounded queue
 type Consumer interface {
-	Consume(item interface{})
+	Consume(item any)
 }
 
 // BoundedQueue implements a producer-consumer exchange similar to a ring buffer queue,
@@ -40,16 +40,16 @@ type BoundedQueue struct {
 	size          atomic.Int32
 	capacity      atomic.Uint32
 	stopped       atomic.Uint32
-	items         *chan interface{}
-	onDroppedItem func(item interface{})
+	items         *chan any
+	onDroppedItem func(item any)
 	factory       func() Consumer
 	stopCh        chan struct{}
 }
 
 // NewBoundedQueue constructs the new queue of specified capacity, and with an optional
 // callback for dropped items (e.g. useful to emit metrics).
-func NewBoundedQueue(capacity int, onDroppedItem func(item interface{})) *BoundedQueue {
-	queue := make(chan interface{}, capacity)
+func NewBoundedQueue(capacity int, onDroppedItem func(item any)) *BoundedQueue {
+	queue := make(chan any, capacity)
 	bq := &BoundedQueue{
 		onDroppedItem: onDroppedItem,
 		items:         &queue,
@@ -95,23 +95,23 @@ func (q *BoundedQueue) StartConsumersWithFactory(num int, factory func() Consume
 
 // ConsumerFunc is an adapter to allow the use of
 // a consume function callback as a Consumer.
-type ConsumerFunc func(item interface{})
+type ConsumerFunc func(item any)
 
 // Consume calls c(item)
-func (c ConsumerFunc) Consume(item interface{}) {
+func (c ConsumerFunc) Consume(item any) {
 	c(item)
 }
 
 // StartConsumers starts a given number of goroutines consuming items from the queue
 // and passing them into the consumer callback.
-func (q *BoundedQueue) StartConsumers(num int, callback func(item interface{})) {
+func (q *BoundedQueue) StartConsumers(num int, callback func(item any)) {
 	q.StartConsumersWithFactory(num, func() Consumer {
 		return ConsumerFunc(callback)
 	})
 }
 
 // Produce is used by the producer to submit new item to the queue. Returns false in case of queue overflow.
-func (q *BoundedQueue) Produce(item interface{}) bool {
+func (q *BoundedQueue) Produce(item any) bool {
 	if q.stopped.Load() != 0 {
 		q.onDroppedItem(item)
 		return false
@@ -185,7 +185,7 @@ func (q *BoundedQueue) Resize(capacity int) bool {
 	}
 
 	previous := *q.items
-	queue := make(chan interface{}, capacity)
+	queue := make(chan any, capacity)
 
 	// swap queues
 	// #nosec

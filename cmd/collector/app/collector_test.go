@@ -16,7 +16,9 @@ package app
 
 import (
 	"context"
+	"expvar"
 	"io"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -26,7 +28,6 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/flags"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
-	"github.com/jaegertracing/jaeger/internal/metrics/fork"
 	"github.com/jaegertracing/jaeger/internal/metricstest"
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
@@ -45,6 +46,26 @@ func optionsForEphemeralPorts() *flags.CollectorOptions {
 	collectorOpts.OTLP.HTTP.HostPort = ":0"
 	collectorOpts.Zipkin.HTTPHostPort = ":0"
 	return collectorOpts
+}
+
+type mockAggregator struct {
+	callCount  atomic.Int32
+	closeCount atomic.Int32
+}
+
+func (t *mockAggregator) RecordThroughput(string /* service */, string /* operation */, model.SamplerType, float64 /* probability */) {
+	t.callCount.Add(1)
+}
+
+func (t *mockAggregator) HandleRootSpan(*model.Span, *zap.Logger) {
+	t.callCount.Add(1)
+}
+
+func (*mockAggregator) Start() {}
+
+func (t *mockAggregator) Close() error {
+	t.closeCount.Add(1)
+	return nil
 }
 
 func TestNewCollector(t *testing.T) {
@@ -125,11 +146,11 @@ func TestCollector_StartErrors(t *testing.T) {
 
 type mockStrategyStore struct{}
 
-func (m *mockStrategyStore) GetSamplingStrategy(_ context.Context, serviceName string) (*api_v2.SamplingStrategyResponse, error) {
+func (*mockStrategyStore) GetSamplingStrategy(context.Context, string /* serviceName */) (*api_v2.SamplingStrategyResponse, error) {
 	return &api_v2.SamplingStrategyResponse{}, nil
 }
 
-func (m *mockStrategyStore) Close() error {
+func (*mockStrategyStore) Close() error {
 	return nil
 }
 
@@ -137,11 +158,8 @@ func TestCollector_PublishOpts(t *testing.T) {
 	// prepare
 	hc := healthcheck.New()
 	logger := zap.NewNop()
-	baseMetrics := metricstest.NewFactory(time.Second)
-	defer baseMetrics.Backend.Stop()
-	forkFactory := metricstest.NewFactory(time.Second)
-	defer forkFactory.Backend.Stop()
-	metricsFactory := fork.New("internal", forkFactory, baseMetrics)
+	metricsFactory := metricstest.NewFactory(time.Second)
+	defer metricsFactory.Backend.Stop()
 	spanWriter := &fakeSpanWriter{}
 	strategyStore := &mockStrategyStore{}
 	tm := &tenancy.Manager{}
@@ -161,15 +179,9 @@ func TestCollector_PublishOpts(t *testing.T) {
 
 	require.NoError(t, c.Start(collectorOpts))
 	defer c.Close()
-
-	forkFactory.AssertGaugeMetrics(t, metricstest.ExpectedMetric{
-		Name:  "internal.collector.num-workers",
-		Value: 24,
-	})
-	forkFactory.AssertGaugeMetrics(t, metricstest.ExpectedMetric{
-		Name:  "internal.collector.queue-size",
-		Value: 42,
-	})
+	c.publishOpts(collectorOpts)
+	assert.EqualValues(t, 24, expvar.Get(metricNumWorkers).(*expvar.Int).Value())
+	assert.EqualValues(t, 42, expvar.Get(metricQueueSize).(*expvar.Int).Value())
 }
 
 func TestAggregator(t *testing.T) {

@@ -1,0 +1,95 @@
+name: Publish release
+
+on:
+  # allow running release workflow manually
+  workflow_dispatch:
+
+# See https://github.com/jaegertracing/jaeger/issues/4017
+permissions:
+  contents: read
+
+jobs:
+  publish-release:
+    permissions:
+      contents: write
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+    - name: Disk size
+      run: df -g /
+
+    - name: Harden Runner
+      uses: step-security/harden-runner@f086349bfa2bd1361f7909c78558e816508cdc10 # v2.8.0
+      with:
+        egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
+
+    - uses: actions/checkout@9bb56186c3b09b4f86b1c65136769dd318469633 # v4.1.2
+      with:
+        submodules: true
+
+    - name: Fetch git tags
+      run: |
+        git fetch --prune --unshallow --tags
+
+    - uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491 # v5.0.0
+      with:
+        go-version: 1.22.x
+
+    - name: Setup Node.js version
+      uses: ./.github/actions/setup-node.js
+
+    - name: Export BRANCH variable and validate it is a semver
+      # Many scripts depend on BRANCH variable. We do not want to
+      # use ./.github/actions/setup-branch here because it may set
+      # BRANCH=main when the workflow is triggered manually.
+      run: |
+        BRANCH=$(make echo-version)
+        echo "BRANCH=${BRANCH}" >> ${GITHUB_ENV}
+        echo Validate that the latest tag ${BRANCH} is in semver format
+        echo ${BRANCH} | grep -E '^v[0-9]+.[0-9]+.[0-9]+$'
+
+    - name: Install tools
+      run: make install-ci
+
+    - name: Configure GPG Key
+      id: import_gpg
+      uses: crazy-max/ghaction-import-gpg@01dd5d3ca463c7f10f7f4f7b4f177225ac661ee4 # v6.1.0
+      with:
+        gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
+        passphrase: ${{ secrets.GPG_PASSPHRASE }}
+
+    - name: Build binaries
+      run: make build-all-platforms
+
+    - name: Package binaries
+      id: package-binaries
+      run: bash scripts/package-deploy.sh
+
+    - uses: docker/setup-qemu-action@68827325e0b33c7199eb31dd4e31fbe9023e06e3 # v3.0.0
+
+    - name: Build all container images (do not push)
+      run: bash scripts/build-upload-docker-images.sh -l
+      env:
+        DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
+
+    - name: Build and test all-in-one image (do not push)
+      run: bash scripts/build-all-in-one-image.sh -l
+      env:
+        DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
+
+    - name: Build, test, and publish hotrod image
+      run: bash scripts/hotrod-integration-test.sh
+      env:
+        DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
+
+    - name: Generate SBOM
+      uses: anchore/sbom-action@e8d2a6937ecead383dfe75190d104edd1f9c5751 # v0.16.0
+      with:
+        output-file: jaeger-SBOM.spdx.json
+        upload-release-assets: false
+        upload-artifact: false

@@ -47,7 +47,7 @@ type DependencyStore struct {
 }
 
 // DependencyStoreParams holds constructor parameters for NewDependencyStore
-type DependencyStoreParams struct {
+type Params struct {
 	Client              func() es.Client
 	Logger              *zap.Logger
 	IndexPrefix         string
@@ -57,7 +57,7 @@ type DependencyStoreParams struct {
 }
 
 // NewDependencyStore returns a DependencyStore
-func NewDependencyStore(p DependencyStoreParams) *DependencyStore {
+func NewDependencyStore(p Params) *DependencyStore {
 	return &DependencyStore{
 		client:                p.Client,
 		logger:                p.Logger,

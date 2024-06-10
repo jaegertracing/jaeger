@@ -38,7 +38,7 @@ var (
 // dont_go:generate mockery -name=ServiceAliasMappingStorage
 // dont_go:generate mockery -name=ServiceAliasMappingExternalSource
 
-func getCache(t *testing.T) (*autoRefreshCache, *mocks.ServiceAliasMappingExternalSource, *mocks.ServiceAliasMappingStorage) {
+func getCache(*testing.T) (*autoRefreshCache, *mocks.ServiceAliasMappingExternalSource, *mocks.ServiceAliasMappingStorage) {
 	mockExtSource := &mocks.ServiceAliasMappingExternalSource{}
 	mockStorage := &mocks.ServiceAliasMappingStorage{}
 	logger := zap.NewNop()

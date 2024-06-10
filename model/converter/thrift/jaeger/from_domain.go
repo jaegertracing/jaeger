@@ -44,7 +44,7 @@ func FromDomainSpan(span *model.Span) *jaeger.Span {
 
 type domainToJaegerTransformer struct{}
 
-func (d domainToJaegerTransformer) keyValueToTag(kv *model.KeyValue) *jaeger.Tag {
+func (domainToJaegerTransformer) keyValueToTag(kv *model.KeyValue) *jaeger.Tag {
 	if kv.VType == model.StringType {
 		stringValue := kv.VStr
 		return &jaeger.Tag{
@@ -119,7 +119,7 @@ func (d domainToJaegerTransformer) convertLogs(logs []model.Log) []*jaeger.Log {
 	return jaegerLogs
 }
 
-func (d domainToJaegerTransformer) convertSpanRefs(refs []model.SpanRef) []*jaeger.SpanRef {
+func (domainToJaegerTransformer) convertSpanRefs(refs []model.SpanRef) []*jaeger.SpanRef {
 	jaegerSpanRefs := make([]*jaeger.SpanRef, len(refs))
 	for idx, ref := range refs {
 		jaegerSpanRefs[idx] = &jaeger.SpanRef{

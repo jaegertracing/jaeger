@@ -21,7 +21,7 @@ jobs:
 
     steps:
     - name: Harden Runner
-      uses: step-security/harden-runner@63c24ba6bd7ba022e95695ff85de572c04a18142 # v2.7.0
+      uses: step-security/harden-runner@f086349bfa2bd1361f7909c78558e816508cdc10 # v2.8.0
       with:
         egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
 
@@ -48,12 +48,13 @@ jobs:
 
     - uses: docker/setup-qemu-action@68827325e0b33c7199eb31dd4e31fbe9023e06e3 # v3.0.0
 
-    - name: Build only linux/amd64 docker image for Pull Request
+    - name: Build only linux/amd64 container images for a Pull Request
       if: github.ref_name != 'main'
-      run: bash scripts/build-upload-docker-images.sh pr-only
+      run: bash scripts/build-upload-docker-images.sh -D -p linux/amd64
 
-    - name: Build and upload all docker images
+    - name: Build and upload all container images
       if: github.ref_name == 'main'
+      # -d: include images with debugger
       run: bash scripts/build-upload-docker-images.sh
       env:
         DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}

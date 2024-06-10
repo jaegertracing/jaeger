@@ -65,7 +65,7 @@ func TestNewCommittingProcessorError(t *testing.T) {
 
 type fakeProcessorMessage struct{}
 
-func (f fakeProcessorMessage) Value() []byte {
+func (fakeProcessorMessage) Value() []byte {
 	return nil
 }
 

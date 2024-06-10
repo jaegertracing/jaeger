@@ -63,7 +63,7 @@ func loadFixtures(t *testing.T, i int) ([]byte, []byte) {
 	return inStr, outStr
 }
 
-func testJSONEncoding(t *testing.T, i int, expectedStr []byte, object interface{}) {
+func testJSONEncoding(t *testing.T, i int, expectedStr []byte, object any) {
 	buf := &bytes.Buffer{}
 	enc := json.NewEncoder(buf)
 	enc.SetIndent("", "  ")
@@ -101,7 +101,7 @@ func TestTagMap(t *testing.T) {
 	assert.Len(t, dbSpan.Process.Tags, 1)
 	assert.Equal(t, "foo", dbSpan.Process.Tags[0].Key)
 
-	tagsMap := map[string]interface{}{}
+	tagsMap := map[string]any{}
 	tagsMap["a"] = true
 	tagsMap["b:b"] = int64(1)
 	assert.Equal(t, tagsMap, dbSpan.Tag)
