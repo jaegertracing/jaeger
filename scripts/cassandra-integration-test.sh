@@ -44,8 +44,7 @@ apply_schema() {
 }
 
 run_integration_test() {
-  local version=$1
-  local major_version=${version%%.*}
+  local major_version=$1
   local schema_version=$2
   local jaegerVersion=$3
   local primaryKeyspace="jaeger_v1_dc1"
