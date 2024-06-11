@@ -20,22 +20,26 @@ type serviceNameSanitizer struct {
 }
 
 // Sanitize sanitizes the service names in the span annotations.
-func (s serviceNameSanitizer) Sanitize(span ptrace.Span) ptrace.Span {
+func (s serviceNameSanitizer) Sanitize(traces ptrace.Traces) ptrace.Traces {
 	if s.cache.IsEmpty() {
-		return span
+		return traces
 	}
 
-	attributes := span.Attributes()
-	serviceNameAttr, exists := attributes.Get("service.name")
-	if !exists || serviceNameAttr.Type() != pcommon.ValueTypeStr {
-		return span
+	resourceSpans := traces.ResourceSpans()
+	for i := 0; i < resourceSpans.Len(); i++ {
+		resourceSpan := resourceSpans.At(i)
+		attributes := resourceSpan.Resource().Attributes()
+		serviceNameAttr, exists := attributes.Get("service.name")
+		if !exists || serviceNameAttr.Type() != pcommon.ValueTypeStr {
+			continue
+		}
+
+		alias := serviceNameAttr.Str()
+		serviceName := s.cache.Get(alias)
+		if serviceName != "" {
+			attributes.PutStr("service.name", serviceName)
+		}
 	}
 
-	alias := serviceNameAttr.Str()
-	serviceName := s.cache.Get(alias)
-	if serviceName != "" {
-		attributes.PutStr("service.name", serviceName)
-	}
-
-	return span
+	return traces
 }

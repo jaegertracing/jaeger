@@ -10,11 +10,11 @@ import (
 
 // SanitizeSpan sanitizes/normalizes spans. Any business logic that needs to be applied to normalize the contents of a
 // span should implement this interface.
-type SanitizeSpan func(span ptrace.Span) ptrace.Span
+type SanitizeTraces func(traces ptrace.Traces) ptrace.Traces
 
 // NewStandardSanitizers are automatically applied by SpanProcessor.
-func NewStandardSanitizers(logger *zap.Logger, cache Cache) []SanitizeSpan {
-	return []SanitizeSpan{
+func NewStandardSanitizers(logger *zap.Logger, cache Cache) []SanitizeTraces {
+	return []SanitizeTraces{
 		NewEmptyServiceNameSanitizer(),
 		NewUTF8Sanitizer(logger),
 		serviceNameSanitizer{cache: cache}.Sanitize,
@@ -23,14 +23,14 @@ func NewStandardSanitizers(logger *zap.Logger, cache Cache) []SanitizeSpan {
 
 // NewChainedSanitizer creates a Sanitizer from the variadic list of passed Sanitizers.
 // If the list only has one element, it is returned directly to minimize indirection.
-func NewChainedSanitizer(sanitizers ...SanitizeSpan) SanitizeSpan {
+func NewChainedSanitizer(sanitizers ...SanitizeTraces) SanitizeTraces {
 	if len(sanitizers) == 1 {
 		return sanitizers[0]
 	}
-	return func(span ptrace.Span) ptrace.Span {
+	return func(traces ptrace.Traces) ptrace.Traces {
 		for _, s := range sanitizers {
-			span = s(span)
+			traces = s(traces)
 		}
-		return span
+		return traces
 	}
 }
