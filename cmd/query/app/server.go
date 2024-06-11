@@ -49,6 +49,9 @@ import (
 
 // Server runs HTTP, Mux and a grpc server
 type Server struct {
+	mu           sync.Mutex
+	started      bool
+	stopChan     chan struct{}
 	logger       *zap.Logger
 	healthCheck  *healthcheck.HealthCheck
 	querySvc     *querysvc.QueryService
@@ -100,6 +103,7 @@ func NewServer(logger *zap.Logger, healthCheck *healthcheck.HealthCheck, querySv
 		grpcServer:    grpcServer,
 		httpServer:    httpServer,
 		separatePorts: grpcPort != httpPort,
+		stopChan:      make(chan struct{}),
 	}, nil
 }
 
@@ -272,6 +276,12 @@ func (s *Server) initListener() (cmux.CMux, error) {
 
 // Start http, GRPC and cmux servers concurrently
 func (s *Server) Start() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.started {
+		return nil
+	}
+	s.started = true
 	cmuxServer, err := s.initListener()
 	if err != nil {
 		return err
@@ -346,6 +356,16 @@ func (s *Server) Start() error {
 
 // Close stops http, GRPC servers and closes the port listener.
 func (s *Server) Close() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !s.started {
+		return nil
+	}
+	s.started = false
+
+	s.logger.Info("Stopping server")
+	close(s.stopChan)
+
 	var errs []error
 	errs = append(errs, s.queryOptions.TLSGRPC.Close())
 	errs = append(errs, s.queryOptions.TLSHTTP.Close())
@@ -355,5 +375,6 @@ func (s *Server) Close() error {
 		s.cmuxServer.Close()
 	}
 	s.bgFinished.Wait()
+	s.logger.Info("Server stopped")
 	return errors.Join(errs...)
 }
