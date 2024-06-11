@@ -13,6 +13,7 @@ import (
 	"go.opentelemetry.io/collector/extension"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage/factoryadapter"
 	esCfg "github.com/jaegertracing/jaeger/pkg/es/config"
 	memoryCfg "github.com/jaegertracing/jaeger/pkg/memory/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
@@ -24,6 +25,7 @@ import (
 	grpcCfg "github.com/jaegertracing/jaeger/plugin/storage/grpc/config"
 	"github.com/jaegertracing/jaeger/plugin/storage/memory"
 	"github.com/jaegertracing/jaeger/storage"
+	"github.com/jaegertracing/jaeger/storage_v2/spanstore"
 )
 
 var _ Extension = (*storageExt)(nil)
@@ -62,6 +64,15 @@ func GetStorageFactory(name string, host component.Host) (storage.Factory, error
 		)
 	}
 	return f, nil
+}
+
+func GetStorageFactoryV2(logger *zap.Logger, name string, host component.Host) (spanstore.Factory, error) {
+	f, err := GetStorageFactory(name, host)
+	if err != nil {
+		return nil, err
+	}
+
+	return factoryadapter.NewFactory(logger, f), nil
 }
 
 func newStorageExt(config *Config, otel component.TelemetrySettings) *storageExt {
