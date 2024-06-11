@@ -50,7 +50,7 @@ run_integration_test() {
   local jaegerVersion=$3
   local primaryKeyspace="jaeger_v1_dc1"
   local archiveKeyspace="jaeger_v1_dc1_archive"
-  local compose_file="docker-compose/cassandra/v$major_version.yaml"
+  local compose_file="docker-compose/cassandra/v$major_version/docker-compose.yaml"
 
   setup_cassandra "${compose_file}"
 
