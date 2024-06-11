@@ -33,7 +33,6 @@ updates:
 
   - package-ecosystem: docker
     directories:
-      - "/"
       - /cmd/agent
       - /cmd/all-in-one
       - /cmd/anonymizer
