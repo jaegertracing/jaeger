@@ -27,12 +27,12 @@ func NewFactory(logger *zap.Logger, ss storage_v1.Factory) spanstore.Factory {
 }
 
 // Initialize implements spanstore.Factory.
-func (f *Factory) Initialize(ctx context.Context) error {
+func (f *Factory) Initialize(_ context.Context) error {
 	return f.ss.Initialize(metrics.NullFactory, f.logger)
 }
 
 // Close implements spanstore.Factory.
-func (f *Factory) Close(ctx context.Context) error {
+func (f *Factory) Close(_ context.Context) error {
 	if closer, ok := f.ss.(io.Closer); ok {
 		return closer.Close()
 	}
@@ -40,7 +40,7 @@ func (f *Factory) Close(ctx context.Context) error {
 }
 
 // CreateTraceReader implements spanstore.Factory.
-func (f *Factory) CreateTraceReader() (spanstore.Reader, error) {
+func (*Factory) CreateTraceReader() (spanstore.Reader, error) {
 	panic("not implemented")
 }
 
