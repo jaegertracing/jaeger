@@ -27,9 +27,10 @@ run `make changelog` to generate content
 
 #### ⛔ Breaking Changes
 
+* Remove support for otel spanmetrics processor ([@varshith257](https://github.com/varshith257) in [#5539](https://github.com/jaegertracing/jaeger/pull/5539))
 * Remove support for expvar-backed metrics ([@joeyyy09](https://github.com/joeyyy09) in [#5437](https://github.com/jaegertracing/jaeger/pull/5437))
 * Remove support for elasticsearch v5/v6 ([@FlamingSaint](https://github.com/FlamingSaint) in [#5448](https://github.com/jaegertracing/jaeger/pull/5448))
-* Deprecate grpc-plugin support ([@h4shk4t](https://github.com/h4shk4t) in [#5388](https://github.com/jaegertracing/jaeger/pull/5388))
+* Remove support for gRPC-Plugin ([@h4shk4t](https://github.com/h4shk4t) in [#5388](https://github.com/jaegertracing/jaeger/pull/5388))
 
 #### 🐞 Bug fixes, Minor Improvements
 
