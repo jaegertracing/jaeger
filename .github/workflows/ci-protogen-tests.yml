@@ -1,4 +1,4 @@
-name: Protogen Validation
+name: Generated Files Validation
 
 on:
   push:
@@ -16,7 +16,7 @@ permissions:  # added using https://github.com/step-security/secure-workflows
   contents: read
 
 jobs:
-  protogen:
+  generated-files-check:
     runs-on: ubuntu-latest
     steps:
     - name: Harden Runner
@@ -37,3 +37,6 @@ jobs:
 
     - name: Verify Thrift types are up to date
       run: make thrift && git diff --name-status --exit-code
+
+    - name: Verify Mockery types are up to date
+      run: make generate-mocks && git diff --name-status --exit-code
