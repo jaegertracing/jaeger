@@ -57,21 +57,21 @@ jobs:
 
     - uses: docker/setup-qemu-action@68827325e0b33c7199eb31dd4e31fbe9023e06e3 # v3.0.0
 
-    - name: Define LOCAL_FLAG var if running on a Pull Request
+    - name: Define BUILD_FLAGS var if running on a Pull Request
       run: |
         case ${GITHUB_EVENT_NAME} in
           pull_request)
-            echo "LOCAL_FLAG=-l" >> ${GITHUB_ENV}
+            echo "BUILD_FLAGS=-l -D -p linux/amd64" >> ${GITHUB_ENV}
             ;;
           *)
-            echo "LOCAL_FLAG=" >> ${GITHUB_ENV}
+            echo "BUILD_FLAGS=" >> ${GITHUB_ENV}
             ;;
         esac
 
     - name: Build, test, and publish all-in-one image
       run: |
         bash scripts/build-all-in-one-image.sh \
-          ${{ env.LOCAL_FLAG }} \
+          ${{ env.BUILD_FLAGS }} \
           -b ${{ matrix.mode.binary }}
       env:
         DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
