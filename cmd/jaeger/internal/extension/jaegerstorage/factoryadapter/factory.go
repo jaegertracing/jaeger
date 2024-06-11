@@ -41,11 +41,7 @@ func (f *Factory) Close(ctx context.Context) error {
 
 // CreateTraceReader implements spanstore.Factory.
 func (f *Factory) CreateTraceReader() (spanstore.Reader, error) {
-	spanReader, err := f.ss.CreateSpanReader()
-	if err != nil {
-		return nil, err
-	}
-	return NewTraceReader(spanReader)
+	panic("not implemented")
 }
 
 // CreateTraceWriter implements spanstore.Factory.
