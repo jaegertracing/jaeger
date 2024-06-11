@@ -89,8 +89,6 @@ updates:
       - /docker-compose/cassandra/v4
     schedule:
       interval: daily
-    allow:
+    ignore:
       - dependency-name: "cassandra"
-    update-types:
-      - minor
-      - patch
+        update-types: [ "version-update:semver-major" ]
