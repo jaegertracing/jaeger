@@ -602,11 +602,12 @@ func TestServerInUseHostPort(t *testing.T) {
 func TestServerSinglePort(t *testing.T) {
 	flagsSvc := flags.NewService(ports.QueryAdminHTTP)
 	flagsSvc.Logger = zaptest.NewLogger(t)
+	hostPort := ports.GetAddressFromCLIOptions(ports.QueryHTTP, "")
 	querySvc := makeQuerySvc()
 	server, err := NewServer(flagsSvc.Logger, flagsSvc.HC(), querySvc.qs, nil,
 		&QueryOptions{
-			GRPCHostPort: ":0",
-			HTTPHostPort: ":0",
+			GRPCHostPort: hostPort,
+			HTTPHostPort: hostPort,
 			QueryOptionsBase: QueryOptionsBase{
 				BearerTokenPropagation: true,
 			},
@@ -619,22 +620,11 @@ func TestServerSinglePort(t *testing.T) {
 		require.NoError(t, server.Close())
 	})
 
-	// Wait for the server to start and get the assigned ports
-	time.Sleep(2 * time.Second)
-
-	_, httpPortStr, err := net.SplitHostPort(server.httpConn.Addr().String())
-	require.NoError(t, err)
-	_, grpcPortStr, err := net.SplitHostPort(server.grpcConn.Addr().String())
-	require.NoError(t, err)
-
-	t.Logf("Server started with HTTP port: %s, gRPC port: %s", httpPortStr, grpcPortStr)
-
-	client := newGRPCClient(t, fmt.Sprintf(":%s", grpcPortStr))
+	client := newGRPCClient(t, hostPort)
 	t.Cleanup(func() {
 		require.NoError(t, client.conn.Close())
 	})
 
-	// using generous timeout since grpc.NewClient no longer does a handshake.
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
