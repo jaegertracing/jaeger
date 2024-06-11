@@ -15,7 +15,7 @@ This environment consists the following backend components:
 
 - [MicroSim](https://github.com/yurishkuro/microsim): a program to simulate traces.
 - [Jaeger All-in-one](https://www.jaegertracing.io/docs/1.24/getting-started/#all-in-one): the full Jaeger stack in a single container image.
-- [OpenTelemetry Collector](https://opentelemetry.io/docs/collector/): vendor agnostic integration layer for traces and metrics. Its main role in this particular development environment is to receive Jaeger spans, forward these spans untouched to Jaeger All-in-one while simultaneously aggregating metrics out of this span data. To learn more about span metrics aggregation, please refer to the [spanmetrics processor documentation][spanmetricsprocessor].
+- [OpenTelemetry Collector](https://opentelemetry.io/docs/collector/): vendor agnostic integration layer for traces and metrics. Its main role in this particular development environment is to receive Jaeger spans, forward these spans untouched to Jaeger All-in-one while simultaneously aggregating metrics out of this span data. To learn more about span metrics aggregation, please refer to the [spanmetrics connector documentation][spanmetricsconnectorreadme].
 - [Prometheus](https://prometheus.io/): a metrics collection and query engine, used to scrape metrics computed by OpenTelemetry Collector, and presents an API for Jaeger All-in-one to query these metrics.
 - [Grafana](https://grafana.com/): a metrics visualization, analytics & monitoring solution supporting multiple metrics databases.
 
@@ -65,16 +65,6 @@ make build
 make dev
 ```
 
-## Backwards compatibility testing with spanmetrics processor
-
-```bash
-make dev-processor
-```
-
-For each "run" make target, you should expect to see the following in the Monitor tab after a few minutes:
-
-![Monitor Screenshot](images/startup-monitor-tab.png)
-
 ## Sending traces
 
 We will use [tracegen](https://github.com/jaegertracing/jaeger/tree/main/cmd/tracegen)
@@ -113,45 +103,6 @@ under the `tracegen` service:
 Then navigate to the Monitor tab at http://localhost:16686/monitor to view the RED metrics:
 
 ![TraceGen RED Metrics](images/tracegen_metrics.png)
-
-## Migrating to Span Metrics Connector 
-
-### Background
-
-A new [Connector](https://pkg.go.dev/go.opentelemetry.io/collector/connector#section-readme) API was introduced
-to the OpenTelemetry Collector to provide a means of receiving and exporting between any type of telemetry.
-
-The existing [Span Metrics Processor][spanmetricsprocessor] was a good candidate to migrate over to the connector type,
-resulting in the new [Span Metrics Connector][spanmetricsconnector] component.
-
-The Span Metrics Connector variant introduces some [breaking changes][processor-to-connector], and the following
-section aims to provide the instructions necessary to use the metrics produced by this component.
-
-### Migrating
-
-Assuming the OpenTelemetry Collector is running with the [Span Metrics Connector][spanmetricsconnector] correctly
-configured, the minimum configuration required for jaeger-query or jaeger-all-in-one are as follows:
-
-as command line parameters:
-```shell
---prometheus.query.support-spanmetrics-connector=true
-```
-
-as environment variables:
-```shell
-PROMETHEUS_QUERY_SUPPORT_SPANMETRICS_CONNECTOR=true
-```
-
-If the Span Metrics Connector is configured with a namespace and/or an alternative duration unit,
-the following configuration options are available, as both command line and environment variables:
-
-```shell
---prometheus.query.namespace=span_metrics
---prometheus.query.duration-unit=s
-
-PROMETHEUS_QUERY_NAMESPACE=span_metrics
-PROMETHEUS_QUERY_DURATION_UNIT=s
-```
 
 ## Querying the HTTP API
 
@@ -278,7 +229,13 @@ For example:
           },
           "timestamp": "2021-06-03T09:12:11Z"
         },
+      ]
 ...
+    }
+...
+  ]
+...
+}
   ```
 
 If the `groupByOperation=true` parameter is set, the response will include the operation name in the labels like so:
@@ -318,6 +275,5 @@ $ curl http://localhost:16686/api/metrics/minstep | jq .
 }
 ```
 
-[spanmetricsprocessor]: https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/processor/spanmetricsprocessor
 [spanmetricsconnector]: https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/connector/spanmetricsconnector
-[processor-to-connector]: https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/connector/spanmetricsconnector#span-to-metrics-processor-to-span-to-metrics-connector
+[spanmetricsconnectorreadme]: https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/connector/spanmetricsconnector/README.md
