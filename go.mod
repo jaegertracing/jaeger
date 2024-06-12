@@ -2,7 +2,7 @@ module github.com/jaegertracing/jaeger
 
 go 1.21.0
 
-toolchain go1.22.3
+toolchain go1.22.4
 
 require (
 	github.com/HdrHistogram/hdrhistogram-go v1.1.2
@@ -18,7 +18,7 @@ require (
 	github.com/gocql/gocql v1.3.2
 	github.com/gogo/googleapis v1.4.1
 	github.com/gogo/protobuf v1.3.2
-	github.com/gorilla/handlers v1.5.1
+	github.com/gorilla/handlers v1.5.2
 	github.com/gorilla/mux v1.8.1
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0
 	github.com/kr/pretty v0.3.1
@@ -83,7 +83,7 @@ require (
 	golang.org/x/net v0.26.0
 	golang.org/x/sys v0.21.0
 	google.golang.org/grpc v1.64.0
-	google.golang.org/protobuf v1.34.1
+	google.golang.org/protobuf v1.34.2
 	gopkg.in/yaml.v2 v2.4.0
 )
 
