@@ -465,11 +465,12 @@ test-ci: build-examples cover
 init-submodules:
 	git submodule update --init --recursive
 
+MOCKERY_FLAGS := --all --disable-version-string
 .PHONY: generate-mocks
 generate-mocks: $(MOCKERY)
-	$(MOCKERY) --all --dir ./pkg/es/ --output ./pkg/es/mocks
-	$(MOCKERY) --all --dir ./storage/spanstore/ --output ./storage/spanstore/mocks
-	$(MOCKERY) --all --dir ./proto-gen/storage_v1/ --output ./proto-gen/storage_v1/mocks
+	$(MOCKERY) $(MOCKERY_FLAGS) --dir ./pkg/es/ --output ./pkg/es/mocks
+	$(MOCKERY) $(MOCKERY_FLAGS) --dir ./storage/spanstore/ --output ./storage/spanstore/mocks
+	$(MOCKERY) $(MOCKERY_FLAGS) --dir ./proto-gen/storage_v1/ --output ./proto-gen/storage_v1/mocks
 
 .PHONY: certs
 certs:
