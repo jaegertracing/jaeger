@@ -13,11 +13,10 @@ import (
 type SanitizeTraces func(traces ptrace.Traces) ptrace.Traces
 
 // NewStandardSanitizers are automatically applied by SpanProcessor.
-func NewStandardSanitizers(logger *zap.Logger, cache Cache) []SanitizeTraces {
+func NewStandardSanitizers(logger *zap.Logger) []SanitizeTraces {
 	return []SanitizeTraces{
 		NewEmptyServiceNameSanitizer(),
 		NewUTF8Sanitizer(logger),
-		serviceNameSanitizer{cache: cache}.Sanitize,
 	}
 }
 
