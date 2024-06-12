@@ -100,7 +100,7 @@ func tenantFromMetadata(md metadata.MD, tenancyHeader string) (string, error) {
 // NewGuardingUnaryInterceptor blocks handling of RPCs whose tenancy header doesn't meet tenancy requirements.
 // It also ensures the tenant is directly in the context, rather than context metadata.
 func NewGuardingUnaryInterceptor(tc *Manager) grpc.UnaryServerInterceptor {
-	return func(ctx context.Context, req any, _ /* info */ *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
+	return func(ctx context.Context, req any, _ *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 		tenant, err := getValidTenant(ctx, tc)
 		if err != nil {
 			return nil, err
