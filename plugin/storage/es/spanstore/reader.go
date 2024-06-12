@@ -171,12 +171,12 @@ func getTimeRangeIndexFn(archive, useReadWriteAliases bool, remoteReadClusters [
 		} else {
 			archiveSuffix = archiveIndexSuffix
 		}
-		return addRemoteReadClusters(func(indexPrefix, _ /* indexDateLayout */ string, _ /* startTime */ time.Time, _ /* endTime */ time.Time, _ /* reducedDuration */ time.Duration) []string {
+		return addRemoteReadClusters(func(indexPrefix, _ /* indexDateLayout */ string, _ /* startTime */ time.Time, _ /* endTime */ time.Time, _ /* reduceDuration */ time.Duration) []string {
 			return []string{archiveIndex(indexPrefix, archiveSuffix)}
 		}, remoteReadClusters)
 	}
 	if useReadWriteAliases {
-		return addRemoteReadClusters(func(indexPrefix string, _ /* indexDateLayout */ string, _ /* startTime */ time.Time, _ /* endTime */ time.Time, _ /* reducedDuration */ time.Duration) []string {
+		return addRemoteReadClusters(func(indexPrefix string, _ /* indexDateLayout */ string, _ /* startTime */ time.Time, _ /* endTime */ time.Time, _ /* reduceDuration */ time.Duration) []string {
 			return []string{indexPrefix + "read"}
 		}, remoteReadClusters)
 	}

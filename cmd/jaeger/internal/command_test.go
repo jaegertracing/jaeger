@@ -39,7 +39,7 @@ func TestCommand(t *testing.T) {
 
 func TestCheckConfigAndRun_DefaultConfig(t *testing.T) {
 	cmd := &cobra.Command{
-		RunE: func(_ /* cmd */ *cobra.Command, _ /* args */ []string) error {
+		RunE: func(_ *cobra.Command, _ /* args */ []string) error {
 			return nil
 		},
 	}
@@ -47,7 +47,7 @@ func TestCheckConfigAndRun_DefaultConfig(t *testing.T) {
 	getCfg := func( /* name */ string) ([]byte, error) {
 		return []byte("default-config"), nil
 	}
-	runE := func( /* cmd */ _ *cobra.Command, _ /* args */ []string,
+	runE := func(_ *cobra.Command, _ /* args */ []string,
 	) error {
 		return nil
 	}

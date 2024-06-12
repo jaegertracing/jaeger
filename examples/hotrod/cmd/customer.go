@@ -31,7 +31,7 @@ var customerCmd = &cobra.Command{
 	Use:   "customer",
 	Short: "Starts Customer service",
 	Long:  `Starts Customer service.`,
-	RunE: func(_ /* cmd */ *cobra.Command, _ /* args */ []string) error {
+	RunE: func(_ *cobra.Command, _ /* args */ []string) error {
 		zapLogger := logger.With(zap.String("service", "customer"))
 		logger := log.NewFactory(zapLogger)
 		server := customer.NewServer(
