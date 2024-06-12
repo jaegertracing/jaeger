@@ -46,7 +46,7 @@ func sanitizeUTF8(traces ptrace.Traces) ptrace.Traces {
 					originalName := span.Name()
 					span.SetName(invalidOperation)
 					binaryAttr := span.Attributes().PutEmptyBytes(badUTF8Prefix + "operation_name")
-					byteSlice.FromRaw([]byte(originalName))
+					binaryAttr.FromRaw([]byte(originalName))
 				}
 
 				// Sanitize span attributes
@@ -79,14 +79,14 @@ func sanitizeAttributes(attributes pcommon.Map) {
 	for _, k := range invalidKeys {
 		originalKey := k
 		attributes.PutStr(invalidTagKey, k)
-		byteSlice := attributes.PutEmptyBytes(badUTF8Prefix + originalKey)
-		byteSlice.FromRaw([]byte(originalKey))
+		binaryAttr := attributes.PutEmptyBytes(badUTF8Prefix + originalKey)
+		binaryAttr.FromRaw([]byte(originalKey))
 	}
 
 	for k, v := range invalidValues {
 		originalValue := v
 		attributes.PutStr(k, invalidTagKey)
-		byteSlice := attributes.PutEmptyBytes(badUTF8Prefix + k)
-		byteSlice.FromRaw([]byte(originalValue))
+		binaryAttr := attributes.PutEmptyBytes(badUTF8Prefix + k)
+		binaryAttr.FromRaw([]byte(originalValue))
 	}
 }
