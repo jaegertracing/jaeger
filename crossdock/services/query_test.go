@@ -65,7 +65,7 @@ func TestGetTraces(t *testing.T) {
 }
 
 func TestGetTracesReadAllErr(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Length", "1")
 	}))
 	defer server.Close()

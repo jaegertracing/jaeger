@@ -118,7 +118,7 @@ func (h *HTTPGateway) returnSpans(spans []*model.Span, w http.ResponseWriter) {
 func (h *HTTPGateway) returnSpansTestable(
 	spans []*model.Span,
 	w http.ResponseWriter,
-	modelToOTLP func(spans []*model.Span) (ptrace.Traces, error),
+	modelToOTLP func(_ []*model.Span) (ptrace.Traces, error),
 ) {
 	td, err := modelToOTLP(spans)
 	if h.tryHandleError(w, err, http.StatusInternalServerError) {

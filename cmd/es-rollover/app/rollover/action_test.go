@@ -116,7 +116,7 @@ func TestRolloverAction(t *testing.T) {
 			unmarshalErrExpected:  true,
 			createAliasErr:        errors.New("unable to create alias"),
 			indices:               readIndices,
-			setupCallExpectations: func(indexClient *mocks.MockIndexAPI, test *testCase) {},
+			setupCallExpectations: func(_ *mocks.MockIndexAPI, _ *testCase) {},
 		},
 	}
 

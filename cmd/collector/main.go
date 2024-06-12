@@ -65,7 +65,7 @@ func main() {
 		Use:   "jaeger-collector",
 		Short: "Jaeger collector receives and processes traces from Jaeger agents and clients",
 		Long:  `Jaeger collector receives traces from Jaeger agents and runs them through a processing pipeline.`,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ /* args */ []string) error {
 			if err := svc.Start(v); err != nil {
 				return err
 			}

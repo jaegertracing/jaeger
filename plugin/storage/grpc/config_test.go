@@ -15,7 +15,7 @@ import (
 func TestBuildRemoteNewClientError(t *testing.T) {
 	// this is a silly test to verify handling of error from grpc.NewClient, which cannot be induced via params.
 	c := &ConfigV2{}
-	newClientFn := func(opts ...grpc.DialOption) (conn *grpc.ClientConn, err error) {
+	newClientFn := func(_ ...grpc.DialOption) (conn *grpc.ClientConn, err error) {
 		return nil, errors.New("test error")
 	}
 	_, err := newRemoteStorage(c, component.TelemetrySettings{}, newClientFn)

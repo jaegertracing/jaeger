@@ -39,15 +39,16 @@ func TestCommand(t *testing.T) {
 
 func TestCheckConfigAndRun_DefaultConfig(t *testing.T) {
 	cmd := &cobra.Command{
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ /* args */ []string) error {
 			return nil
 		},
 	}
 	cmd.Flags().String("config", "", "path to config file")
-	getCfg := func(name string) ([]byte, error) {
+	getCfg := func( /* name */ string) ([]byte, error) {
 		return []byte("default-config"), nil
 	}
-	runE := func(cmd *cobra.Command, args []string) error {
+	runE := func(_ *cobra.Command, _ /* args */ []string,
+	) error {
 		return nil
 	}
 
@@ -55,7 +56,7 @@ func TestCheckConfigAndRun_DefaultConfig(t *testing.T) {
 	require.NoError(t, err)
 
 	errGetCfg := errors.New("error")
-	getCfgErr := func(name string) ([]byte, error) {
+	getCfgErr := func( /* name */ string) ([]byte, error) {
 		return nil, errGetCfg
 	}
 	err = checkConfigAndRun(cmd, nil, getCfgErr, runE)

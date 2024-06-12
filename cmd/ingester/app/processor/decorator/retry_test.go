@@ -134,7 +134,7 @@ func Test_ProcessBackoff(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+		t.Run(tt.name, func(_ *testing.T) {
 			rd := &retryDecorator{
 				retryAttempts: metrics.NullCounter,
 				options: retryOptions{

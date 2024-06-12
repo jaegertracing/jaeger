@@ -32,7 +32,7 @@ var frontendCmd = &cobra.Command{
 	Use:   "frontend",
 	Short: "Starts Frontend service",
 	Long:  `Starts Frontend service.`,
-	RunE: func(cmd *cobra.Command, args []string) error {
+	RunE: func(_ *cobra.Command, _ /* args */ []string) error {
 		options.FrontendHostPort = net.JoinHostPort("0.0.0.0", strconv.Itoa(frontendPort))
 		options.DriverHostPort = net.JoinHostPort("0.0.0.0", strconv.Itoa(driverPort))
 		options.CustomerHostPort = net.JoinHostPort("0.0.0.0", strconv.Itoa(customerPort))

@@ -111,14 +111,14 @@ func TestServiceNamesStorageGetServices(t *testing.T) {
 	scanError := errors.New("scan error")
 	var writeCacheTTL time.Duration
 	var matched bool
-	matchOnce := mock.MatchedBy(func(v []any) bool {
+	matchOnce := mock.MatchedBy(func(_ []any) bool {
 		if matched {
 			return false
 		}
 		matched = true
 		return true
 	})
-	matchEverything := mock.MatchedBy(func(v []any) bool { return true })
+	matchEverything := mock.MatchedBy(func(_ []any) bool { return true })
 	for _, expErr := range []error{nil, scanError} {
 		withServiceNamesStorage(writeCacheTTL, func(s *serviceNameStorageTest) {
 			iter := &mocks.Iterator{}

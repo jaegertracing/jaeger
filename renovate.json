@@ -1,0 +1,11 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":gitSignOff"
+  ],
+  "labels": [
+    "changelog:dependencies"
+  ],
+  "suppressNotifications": ["prEditedNotification"]
+}

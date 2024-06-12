@@ -65,7 +65,7 @@ func main() {
 		Use:   "jaeger-query",
 		Short: "Jaeger query service provides a Web UI and an API for accessing trace data.",
 		Long:  `Jaeger query service provides a Web UI and an API for accessing trace data.`,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ /* args */ []string) error {
 			if err := svc.Start(v); err != nil {
 				return err
 			}
