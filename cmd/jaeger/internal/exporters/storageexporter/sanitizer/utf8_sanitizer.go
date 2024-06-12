@@ -40,7 +40,7 @@ func sanitizeUF8(traces ptrace.Traces) ptrace.Traces {
 					byteSlice.FromRaw([]byte(originalName))
 				}
 
-				// Sanitize service name attribute				
+				// Sanitize service name attribute
 				attributes := span.Attributes()
 				serviceNameAttr, ok := attributes.Get("service.name")
 				if ok && !utf8.ValidString(serviceNameAttr.Str()) {
