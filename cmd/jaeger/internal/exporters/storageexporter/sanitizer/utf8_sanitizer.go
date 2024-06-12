@@ -32,6 +32,7 @@ func sanitizeUF8(traces ptrace.Traces) ptrace.Traces {
 			spans := scopeSpans.At(j).Spans()
 			for k := 0; k < spans.Len(); k++ {
 				span := spans.At(k)
+				// Sanitize operation name
 				if !utf8.ValidString(span.Name()) {
 					originalName := span.Name()
 					span.SetName(invalidOperation)
@@ -39,6 +40,7 @@ func sanitizeUF8(traces ptrace.Traces) ptrace.Traces {
 					byteSlice.FromRaw([]byte(originalName))
 				}
 
+				// Sanitize service name attribute				
 				attributes := span.Attributes()
 				serviceNameAttr, ok := attributes.Get("service.name")
 				if ok && !utf8.ValidString(serviceNameAttr.Str()) {
@@ -58,12 +60,14 @@ func sanitizeUF8(traces ptrace.Traces) ptrace.Traces {
 // sanitizeAttributes sanitizes attributes to ensure UTF8 validity.
 func sanitizeAttributes(attributes pcommon.Map) {
 	attributes.Range(func(k string, v pcommon.Value) bool {
+		// Handle invalid UTF8 in attribute keys
 		if !utf8.ValidString(k) {
 			originalKey := k
-			k = invalidTagKey
+			attributes.PutStr(invalidTagKey, k)
 			byteSlice := attributes.PutEmptyBytes(badUTF8Prefix + originalKey)
 			byteSlice.FromRaw([]byte(originalKey))
 		} else if v.Type() == pcommon.ValueTypeStr && !utf8.ValidString(v.Str()) {
+			// Handle invalid UTF8 in attribute values
 			originalValue := v.Str()
 			attributes.PutStr(k, invalidTagKey)
 			byteSlice := attributes.PutEmptyBytes(badUTF8Prefix + k)
