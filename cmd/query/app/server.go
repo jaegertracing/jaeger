@@ -272,9 +272,6 @@ func (s *Server) initListener() (cmux.CMux, error) {
 
 // Start http, GRPC and cmux servers concurrently
 func (s *Server) Start() error {
-	if s.logger == nil {
-		return errors.New("logger not initialized")
-	}
 	cmuxServer, err := s.initListener()
 	if err != nil {
 		return fmt.Errorf("query server failed to initialize listener: %w", err)
@@ -353,13 +350,7 @@ func (s *Server) Start() error {
 // Close stops http, GRPC servers and closes the port listener.
 func (s *Server) Close() error {
 	var errs []error
-
-	// Log and close TLS gRPC server
-	s.logger.Info("Closing TLS gRPC server")
 	errs = append(errs, s.queryOptions.TLSGRPC.Close())
-
-	// Log and close TLS HTTP server
-	s.logger.Info("Closing TLS HTTP server")
 	errs = append(errs, s.queryOptions.TLSHTTP.Close())
 
 	// Stop gRPC server
@@ -371,7 +362,6 @@ func (s *Server) Close() error {
 	errs = append(errs, s.httpServer.Close())
 
 	if !s.separatePorts {
-		// Log and close CMux server
 		s.logger.Info("Closing CMux server")
 		s.cmuxServer.Close()
 	}
