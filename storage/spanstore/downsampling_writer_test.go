@@ -62,7 +62,7 @@ func TestDownSamplingWriter_WriteSpan(t *testing.T) {
 }
 
 // This test is to make sure h.hash.Reset() works and same traceID will always hash to the same value.
-func TestDownSamplingWriter_hashBytes(_ *testing.T) {
+func TestDownSamplingWriter_hashBytes(t *testing.T) {
 	downsamplingOptions := DownsamplingOptions{
 		Ratio:          1,
 		HashSalt:       "",
@@ -70,7 +70,12 @@ func TestDownSamplingWriter_hashBytes(_ *testing.T) {
 	}
 	c := NewDownsamplingWriter(&noopWriteSpanStore{}, downsamplingOptions)
 	h := c.sampler.hasherPool.Get().(*hasher)
-	c.sampler.hasherPool.Put(h)
+	defer c.sampler.hasherPool.Put(h)
+
+	once := h.hashBytes()
+	twice := h.hashBytes()
+	assert.Equal(t, once, twice, "hashBytes should be idempotent for empty buffer")
+
 	trace := model.TraceID{
 		Low:  uint64(0),
 		High: uint64(1),
@@ -79,7 +84,9 @@ func TestDownSamplingWriter_hashBytes(_ *testing.T) {
 		TraceID: trace,
 	}
 	_, _ = span.TraceID.MarshalTo(h.buffer)
-	// Same traceID should always be hashed to same uint64 in DownSamplingWriter.
+	once = h.hashBytes()
+	twice = h.hashBytes()
+	assert.Equal(t, once, twice, "hashBytes should be idempotent for non-empty buffer")
 }
 
 func TestDownsamplingWriter_calculateThreshold(t *testing.T) {
