@@ -37,7 +37,10 @@ func (t *TraceWriter) WriteTraces(ctx context.Context, td ptrace.Traces) error {
 			if span.Process == nil {
 				span.Process = batch.Process
 			}
-			errs = append(errs, t.spanWriter.WriteSpan(ctx, span))
+			err := t.spanWriter.WriteSpan(ctx, span)
+			if err != nil {
+				errs = append(errs, err)
+			}
 		}
 	}
 	return errors.Join(errs...)
