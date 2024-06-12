@@ -32,7 +32,7 @@ services:
       - cassandra-schema
 
   cassandra-schema:
-    image: jaegertracing/jaeger-cassandra-schema:1.43
+    image: jaegertracing/jaeger-cassandra-schema:1.58
     environment:
       CASSANDRA_PROTOCOL_VERSION: 4
       CASSANDRA_VERSION: 4
