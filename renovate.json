@@ -7,5 +7,9 @@
   "labels": [
     "changelog:dependencies"
   ],
+  "postUpdateOptions": [
+    "gomodTidy",
+    "gomodUpdateImportPaths"
+  ],
   "suppressNotifications": ["prEditedNotification"]
 }
