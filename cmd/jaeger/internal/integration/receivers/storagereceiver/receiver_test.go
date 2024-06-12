@@ -79,7 +79,7 @@ func withReceiver(
 		receivertest.NewNopCreateSettings(),
 		consumertest.NewNop(),
 	)
-	receiver.settings.ReportStatus = func(se *component.StatusEvent) {}
+	receiver.settings.ReportStatus = func(_ *component.StatusEvent) {}
 
 	r.reader = reader
 	r.factory = factory

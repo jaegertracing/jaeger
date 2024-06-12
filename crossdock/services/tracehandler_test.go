@@ -73,10 +73,10 @@ func TestConvertTagsIntoMap(t *testing.T) {
 }
 
 func TestRunTest(t *testing.T) {
-	errFunc := func(service string, request *traceRequest) ([]*ui.Trace, error) {
+	errFunc := func(_ /* service */ string, _ *traceRequest) ([]*ui.Trace, error) {
 		return nil, errors.New("test error")
 	}
-	successFunc := func(service string, request *traceRequest) ([]*ui.Trace, error) {
+	successFunc := func(_ /* service */ string, _ *traceRequest) ([]*ui.Trace, error) {
 		return []*ui.Trace{}, nil
 	}
 
@@ -220,7 +220,7 @@ func TestCreateTrace(t *testing.T) {
 
 	handler := &TraceHandler{
 		logger: zap.NewNop(),
-		getClientURL: func(service string) string {
+		getClientURL: func(_ /* service */ string) string {
 			return ""
 		},
 	}
@@ -228,7 +228,7 @@ func TestCreateTrace(t *testing.T) {
 	err := handler.createTrace("svc", &traceRequest{Operation: "op"})
 	require.Error(t, err)
 
-	handler.getClientURL = func(service string) string {
+	handler.getClientURL = func(_ /* service */ string) string {
 		return server.URL
 	}
 
@@ -261,7 +261,7 @@ func TestCreateTracesLoop(t *testing.T) {
 	handler := &TraceHandler{
 		logger:                   zap.NewNop(),
 		createTracesLoopInterval: time.Millisecond,
-		getClientURL: func(service string) string {
+		getClientURL: func(_ /* service */ string) string {
 			return server.URL
 		},
 	}
@@ -433,7 +433,7 @@ func TestAdaptiveSamplingTestInternal(t *testing.T) {
 				agent:  agent,
 				query:  query,
 				logger: zap.NewNop(),
-				getClientURL: func(service string) string {
+				getClientURL: func(_ /* service */ string) string {
 					return server.URL
 				},
 				createTracesLoopInterval:              time.Second,
@@ -476,7 +476,7 @@ func TestEndToEndTest(t *testing.T) {
 
 	server := httptest.NewServer(&testClientHandler{})
 	defer server.Close()
-	handler.getClientURL = func(service string) string {
+	handler.getClientURL = func(_ /* service */ string) string {
 		return server.URL
 	}
 
@@ -506,7 +506,7 @@ func TestAdaptiveSamplingTest(t *testing.T) {
 		agent:  agent,
 		query:  query,
 		logger: zap.NewNop(),
-		getClientURL: func(service string) string {
+		getClientURL: func(_ /* service */ string) string {
 			return server.URL
 		},
 		getTags: func() map[string]string {

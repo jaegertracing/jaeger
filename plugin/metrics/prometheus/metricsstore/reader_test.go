@@ -138,7 +138,7 @@ func TestMetricsServerError(t *testing.T) {
 		},
 	}
 
-	mockPrometheus := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	mockPrometheus := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 	}))
 	defer mockPrometheus.Close()
@@ -728,7 +728,7 @@ func newFakePromServer(t *testing.T) *fakePromServer {
 	s := &fakePromServer{}
 	s.Server = httptest.NewServer(
 		http.HandlerFunc(
-			func(w http.ResponseWriter, r *http.Request) {
+			func(_ http.ResponseWriter, r *http.Request) {
 				t.Logf("Request to fake Prometheus server %+v", r)
 				h := r.Header.Get("Authorization")
 				s.authReceived.Store(&h)

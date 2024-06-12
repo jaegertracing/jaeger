@@ -319,7 +319,7 @@ func TestArchiveTraceNotFoundGRPC(t *testing.T) {
 }
 
 func TestArchiveTraceEmptyTraceFailureGRPC(t *testing.T) {
-	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
+	withServerAndClient(t, func(_ *grpcServer, client *grpcClient) {
 		_, err := client.ArchiveTrace(context.Background(), &api_v2.ArchiveTraceRequest{
 			TraceID: model.TraceID{},
 		})
@@ -404,7 +404,7 @@ func TestFindTracesSuccess_SpanStreamingGRPC(t *testing.T) {
 }
 
 func TestFindTracesMissingQuery_GRPC(t *testing.T) {
-	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
+	withServerAndClient(t, func(_ *grpcServer, client *grpcClient) {
 		res, err := client.FindTraces(context.Background(), &api_v2.FindTracesRequest{
 			Query: nil,
 		})
@@ -560,7 +560,7 @@ func TestGetDependenciesFailureUninitializedTimeGRPC(t *testing.T) {
 	}
 
 	for _, input := range timeInputs {
-		withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
+		withServerAndClient(t, func(_ *grpcServer, client *grpcClient) {
 			_, err := client.GetDependencies(context.Background(), &api_v2.GetDependenciesRequest{
 				StartTime: input.startTime,
 				EndTime:   input.endTime,
@@ -640,7 +640,7 @@ func TestGetMetricsSuccessGRPC(t *testing.T) {
 }
 
 func TestGetMetricsReaderDisabledGRPC(t *testing.T) {
-	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
+	withServerAndClient(t, func(_ *grpcServer, client *grpcClient) {
 		baseQueryParam := &metrics.MetricsQueryBaseRequest{
 			ServiceNames: []string{"foo"},
 		}

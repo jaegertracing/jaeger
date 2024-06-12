@@ -39,7 +39,7 @@ func helper(t *testing.T, startConsumers func(q *BoundedQueue, consumerFn func(i
 	counter := mFact.Counter(metrics.Options{Name: "dropped", Tags: nil})
 	gauge := mFact.Gauge(metrics.Options{Name: "size", Tags: nil})
 
-	q := NewBoundedQueue(1, func(item any) {
+	q := NewBoundedQueue(1, func( /* item */ any) {
 		counter.Inc(1)
 	})
 	assert.Equal(t, 1, q.Capacity())
@@ -184,7 +184,7 @@ func TestResizeUp(t *testing.T) {
 	releaseConsumers.Add(1)
 
 	released, resized := false, false
-	q.StartConsumers(1, func(item any) {
+	q.StartConsumers(1, func( /* item */ any) {
 		if !resized { // we'll have a second consumer once the queue is resized
 			// signal that the worker is processing
 			firstConsumer.Done()
@@ -234,7 +234,7 @@ func TestResizeDown(t *testing.T) {
 	releaseConsumers.Add(1)
 
 	released := false
-	q.StartConsumers(1, func(item any) {
+	q.StartConsumers(1, func( /* item */ any) {
 		// once we release the lock, we might end up with multiple calls to reach this
 		if !released {
 			// signal that the worker is processing
@@ -282,7 +282,7 @@ func TestResizeOldQueueIsDrained(t *testing.T) {
 	consumed.Store(5)
 
 	first := true
-	q.StartConsumers(1, func(item any) {
+	q.StartConsumers(1, func( /* item */ any) {
 		// first run only
 		if first {
 			first = false
@@ -318,23 +318,23 @@ func TestResizeOldQueueIsDrained(t *testing.T) {
 }
 
 func TestNoopResize(t *testing.T) {
-	q := NewBoundedQueue(2, func(item any) {})
+	q := NewBoundedQueue(2, func( /* item */ any) {})
 
 	assert.False(t, q.Resize(2))
 }
 
 func TestZeroSize(t *testing.T) {
-	q := NewBoundedQueue(0, func(item any) {})
+	q := NewBoundedQueue(0, func( /* item */ any) {})
 
-	q.StartConsumers(1, func(item any) {})
+	q.StartConsumers(1, func( /* item */ any) {})
 	defer q.Stop()
 
 	assert.False(t, q.Produce("a")) // in process
 }
 
 func BenchmarkBoundedQueue(b *testing.B) {
-	q := NewBoundedQueue(1000, func(item any) {})
-	q.StartConsumers(10, func(item any) {})
+	q := NewBoundedQueue(1000, func( /* item */ any) {})
+	q.StartConsumers(10, func( /* item */ any) {})
 	defer q.Stop()
 
 	for n := 0; n < b.N; n++ {
@@ -343,10 +343,10 @@ func BenchmarkBoundedQueue(b *testing.B) {
 }
 
 func BenchmarkBoundedQueueWithFactory(b *testing.B) {
-	q := NewBoundedQueue(1000, func(item any) {})
+	q := NewBoundedQueue(1000, func( /* item */ any) {})
 
 	q.StartConsumersWithFactory(10, func() Consumer {
-		return ConsumerFunc(func(item any) {})
+		return ConsumerFunc(func( /* item */ any) {})
 	})
 	defer q.Stop()
 

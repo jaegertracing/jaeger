@@ -51,7 +51,7 @@ func ExtractTenantHTTPHandler(tc *Manager, h http.Handler) http.Handler {
 // MetadataAnnotator returns a function suitable for propagating tenancy
 // via github.com/grpc-ecosystem/grpc-gateway/runtime.NewServeMux
 func (tc *Manager) MetadataAnnotator() func(context.Context, *http.Request) metadata.MD {
-	return func(ctx context.Context, req *http.Request) metadata.MD {
+	return func(_ context.Context, req *http.Request) metadata.MD {
 		tenant := req.Header.Get(tc.Header)
 		if tenant == "" {
 			// The HTTP request lacked the tenancy header.  Pass along

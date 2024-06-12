@@ -72,7 +72,7 @@ func TestAgentSamplingEndpoint(t *testing.T) {
 }
 
 func TestAgentMetricsEndpoint(t *testing.T) {
-	withRunningAgent(t, func(httpAddr string, errorch chan error) {
+	withRunningAgent(t, func(httpAddr string, _ chan error) {
 		url := fmt.Sprintf("http://%s/metrics", httpAddr)
 		resp, err := http.Get(url)
 		require.NoError(t, err)

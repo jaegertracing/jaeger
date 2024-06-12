@@ -268,5 +268,5 @@ func TestGetBuckets(t *testing.T) {
 }
 
 func matchEverything() any {
-	return mock.MatchedBy(func(v []any) bool { return true })
+	return mock.MatchedBy(func(_ /* v */ []any) bool { return true })
 }

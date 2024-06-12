@@ -62,7 +62,7 @@ func TestFailServe(t *testing.T) {
 		Handler:       handler.NewGRPCHandler(logger, &mockSpanProcessor{}, &tenancy.Manager{}),
 		SamplingStore: &mockSamplingStore{},
 		Logger:        logger,
-		OnError: func(e error) {
+		OnError: func(_ error) {
 			assert.Len(t, logs.All(), 1)
 			assert.Equal(t, "Could not launch gRPC service", logs.All()[0].Message)
 			wg.Done()

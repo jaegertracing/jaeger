@@ -127,7 +127,7 @@ func TestStartOtlpReceiver_Error(t *testing.T) {
 func TestProtoFromTracesError(t *testing.T) {
 	mockErr := errors.New("mock error")
 	c := &consumerDelegate{
-		protoFromTraces: func(td ptrace.Traces) ([]*model.Batch, error) {
+		protoFromTraces: func(_ ptrace.Traces) ([]*model.Batch, error) {
 			return nil, mockErr
 		},
 	}
