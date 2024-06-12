@@ -7,8 +7,6 @@ import (
 	"context"
 	"io"
 
-	"go.uber.org/zap"
-
 	storage_v1 "github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage_v2/spanstore"
 )
@@ -17,14 +15,14 @@ type Factory struct {
 	ss storage_v1.Factory
 }
 
-func NewFactory(logger *zap.Logger, ss storage_v1.Factory) spanstore.Factory {
+func NewFactory(ss storage_v1.Factory) spanstore.Factory {
 	return &Factory{
 		ss: ss,
 	}
 }
 
 // Initialize implements spanstore.Factory.
-func (f *Factory) Initialize(_ context.Context) error {
+func (*Factory) Initialize(_ context.Context) error {
 	panic("not implemented")
 }
 

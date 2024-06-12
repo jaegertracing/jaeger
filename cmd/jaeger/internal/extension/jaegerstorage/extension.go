@@ -66,13 +66,13 @@ func GetStorageFactory(name string, host component.Host) (storage.Factory, error
 	return f, nil
 }
 
-func GetStorageFactoryV2(logger *zap.Logger, name string, host component.Host) (spanstore.Factory, error) {
+func GetStorageFactoryV2(name string, host component.Host) (spanstore.Factory, error) {
 	f, err := GetStorageFactory(name, host)
 	if err != nil {
 		return nil, err
 	}
 
-	return factoryadapter.NewFactory(logger, f), nil
+	return factoryadapter.NewFactory(f), nil
 }
 
 func newStorageExt(config *Config, otel component.TelemetrySettings) *storageExt {
