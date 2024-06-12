@@ -278,9 +278,6 @@ func (s *Server) Start() error {
 	}
 	s.cmuxServer = cmuxServer
 
-	// Logging for ports
-	s.logger.Info("Initialized listener", zap.String("HTTP", s.queryOptions.HTTPHostPort), zap.String("gRPC", s.queryOptions.GRPCHostPort))
-
 	var tcpPort int
 	if !s.separatePorts {
 		if port, err := netutils.GetPort(s.conn.Addr()); err == nil {
@@ -347,27 +344,42 @@ func (s *Server) Start() error {
 	return nil
 }
 
-// Close stops http, GRPC servers and closes the port listener.
+// Close stops HTTP, GRPC servers and closes the port listener.
 func (s *Server) Close() error {
 	var errs []error
-	errs = append(errs, s.queryOptions.TLSGRPC.Close())
-	errs = append(errs, s.queryOptions.TLSHTTP.Close())
 
-	// Stop gRPC server
+	if err := s.queryOptions.TLSGRPC.Close(); err != nil && !isConnAlreadyClosedError(err) {
+		errs = append(errs, fmt.Errorf("failed to close TLS gRPC server: %w", err))
+	}
+	time.Sleep(200 * time.Millisecond)
+
+	if err := s.queryOptions.TLSHTTP.Close(); err != nil && !isConnAlreadyClosedError(err) {
+		errs = append(errs, fmt.Errorf("failed to close TLS HTTP server: %w", err))
+	}
+	time.Sleep(200 * time.Millisecond)
+
 	s.logger.Info("Stopping gRPC server")
 	s.grpcServer.Stop()
+	time.Sleep(200 * time.Millisecond)
 
-	// Log and close HTTP server
 	s.logger.Info("Closing HTTP server")
-	errs = append(errs, s.httpServer.Close())
+	if err := s.httpServer.Close(); err != nil && !isConnAlreadyClosedError(err) {
+		errs = append(errs, fmt.Errorf("failed to close HTTP server: %w", err))
+	}
+	time.Sleep(200 * time.Millisecond)
 
 	if !s.separatePorts {
 		s.logger.Info("Closing CMux server")
 		s.cmuxServer.Close()
 	}
-	// Wait for background tasks to finish
+
 	s.bgFinished.Wait()
 
 	s.logger.Info("Server stopped")
 	return errors.Join(errs...)
+}
+
+// Helper function to check if an error is "conn already closed"
+func isConnAlreadyClosedError(err error) bool {
+	return strings.Contains(err.Error(), "use of closed network connection")
 }
