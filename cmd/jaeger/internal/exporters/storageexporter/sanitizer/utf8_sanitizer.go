@@ -12,26 +12,35 @@ import (
 
 const (
 	invalidOperation = "InvalidOperationName"
-	invalidService   = "InvalidServiceName"
 	invalidTagKey    = "InvalidTagKey"
 	badUTF8Prefix    = "bad_utf8_"
 )
 
 // NewUTF8Sanitizer creates a UTF8 sanitizer.
 func NewUTF8Sanitizer() SanitizeTraces {
-	return sanitizeUF8
+	return sanitizeUTF8
 }
 
-// sanitizeUTF8 sanitizes the UTF8 in the spans.
-func sanitizeUF8(traces ptrace.Traces) ptrace.Traces {
+// sanitizeUTF8 sanitizes the UTF8 in the traces.
+func sanitizeUTF8(traces ptrace.Traces) ptrace.Traces {
 	resourceSpans := traces.ResourceSpans()
 	for i := 0; i < resourceSpans.Len(); i++ {
 		resourceSpan := resourceSpans.At(i)
+
+		// Sanitize resource attributes
+		sanitizeAttributes(resourceSpan.Resource().Attributes())
+
 		scopeSpans := resourceSpan.ScopeSpans()
 		for j := 0; j < scopeSpans.Len(); j++ {
-			spans := scopeSpans.At(j).Spans()
+			scopeSpan := scopeSpans.At(j)
+
+			// Sanitize scope attributes
+			sanitizeAttributes(scopeSpan.Scope().Attributes())
+
+			spans := scopeSpan.Spans()
 			for k := 0; k < spans.Len(); k++ {
 				span := spans.At(k)
+
 				// Sanitize operation name
 				if !utf8.ValidString(span.Name()) {
 					originalName := span.Name()
@@ -40,17 +49,8 @@ func sanitizeUF8(traces ptrace.Traces) ptrace.Traces {
 					byteSlice.FromRaw([]byte(originalName))
 				}
 
-				// Sanitize service name attribute
-				attributes := span.Attributes()
-				serviceNameAttr, ok := attributes.Get("service.name")
-				if ok && !utf8.ValidString(serviceNameAttr.Str()) {
-					originalServiceName := serviceNameAttr.Str()
-					attributes.PutStr("service.name", invalidService)
-					byteSlice := attributes.PutEmptyBytes(badUTF8Prefix + "service.name")
-					byteSlice.FromRaw([]byte(originalServiceName))
-				}
-
-				sanitizeAttributes(attributes)
+				// Sanitize span attributes
+				sanitizeAttributes(span.Attributes())
 			}
 		}
 	}
@@ -59,20 +59,34 @@ func sanitizeUF8(traces ptrace.Traces) ptrace.Traces {
 
 // sanitizeAttributes sanitizes attributes to ensure UTF8 validity.
 func sanitizeAttributes(attributes pcommon.Map) {
+	// Collect invalid keys and values during iteration
+	var invalidKeys []string
+	invalidValues := make(map[string]string)
+
 	attributes.Range(func(k string, v pcommon.Value) bool {
-		// Handle invalid UTF8 in attribute keys
+		// Handle invalid UTF-8 in attribute keys
 		if !utf8.ValidString(k) {
-			originalKey := k
-			attributes.PutStr(invalidTagKey, k)
-			byteSlice := attributes.PutEmptyBytes(badUTF8Prefix + originalKey)
-			byteSlice.FromRaw([]byte(originalKey))
-		} else if v.Type() == pcommon.ValueTypeStr && !utf8.ValidString(v.Str()) {
-			// Handle invalid UTF8 in attribute values
-			originalValue := v.Str()
-			attributes.PutStr(k, invalidTagKey)
-			byteSlice := attributes.PutEmptyBytes(badUTF8Prefix + k)
-			byteSlice.FromRaw([]byte(originalValue))
+			invalidKeys = append(invalidKeys, k)
+		}
+		// Handle invalid UTF-8 in attribute values
+		if v.Type() == pcommon.ValueTypeStr && !utf8.ValidString(v.Str()) {
+			invalidValues[k] = v.Str()
 		}
 		return true
 	})
+
+	// Apply collected changes after iteration
+	for _, k := range invalidKeys {
+		originalKey := k
+		attributes.PutStr(invalidTagKey, k)
+		byteSlice := attributes.PutEmptyBytes(badUTF8Prefix + originalKey)
+		byteSlice.FromRaw([]byte(originalKey))
+	}
+
+	for k, v := range invalidValues {
+		originalValue := v
+		attributes.PutStr(k, invalidTagKey)
+		byteSlice := attributes.PutEmptyBytes(badUTF8Prefix + k)
+		byteSlice.FromRaw([]byte(originalValue))
+	}
 }
