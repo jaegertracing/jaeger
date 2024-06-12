@@ -325,7 +325,7 @@ func (s *Server) Start() error {
 		s.healthCheck.Set(healthcheck.Unavailable)
 		s.bgFinished.Done()
 	}()
-	//
+
 	// Start cmux server concurrently.
 	if !s.separatePorts {
 		s.bgFinished.Add(1)
