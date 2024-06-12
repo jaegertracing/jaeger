@@ -9,8 +9,8 @@ import (
 
 // Constants for the replacement names
 const (
-	serviceNameReplacement = "empty-service-name"
-	missingServiceName     = "missing-service-name"
+	emptyServiceName   = "empty-service-name"
+	missingServiceName = "missing-service-name"
 )
 
 // NewEmptyServiceNameSanitizer returns a function that replaces empty service names
@@ -31,7 +31,7 @@ func sanitizeEmptyServiceName(traces ptrace.Traces) ptrace.Traces {
 			attributes.PutStr("service.name", missingServiceName)
 		} else if serviceNameAttr.Str() == "" {
 			// If service.name is empty, replace it with serviceNameReplacement
-			attributes.PutStr("service.name", serviceNameReplacement)
+			attributes.PutStr("service.name", emptyServiceName)
 		}
 	}
 	return traces
