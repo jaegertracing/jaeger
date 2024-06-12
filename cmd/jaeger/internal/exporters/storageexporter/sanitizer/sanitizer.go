@@ -5,7 +5,6 @@ package sanitizer
 
 import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
-	"go.uber.org/zap"
 )
 
 // SanitizeSpan sanitizes/normalizes spans. Any business logic that needs to be applied to normalize the contents of a
@@ -13,10 +12,10 @@ import (
 type SanitizeTraces func(traces ptrace.Traces) ptrace.Traces
 
 // NewStandardSanitizers are automatically applied by SpanProcessor.
-func NewStandardSanitizers(logger *zap.Logger) []SanitizeTraces {
+func NewStandardSanitizers() []SanitizeTraces {
 	return []SanitizeTraces{
 		NewEmptyServiceNameSanitizer(),
-		NewUTF8Sanitizer(logger),
+		NewUTF8Sanitizer(),
 	}
 }
 
