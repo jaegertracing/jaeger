@@ -15,7 +15,7 @@ require (
 	github.com/elastic/go-elasticsearch/v8 v8.14.0
 	github.com/fsnotify/fsnotify v1.7.0
 	github.com/go-logr/zapr v1.3.0
-	github.com/gocql/gocql v1.3.2
+	github.com/gocql/gocql v1.6.0
 	github.com/gogo/googleapis v1.4.1
 	github.com/gogo/protobuf v1.3.2
 	github.com/gorilla/handlers v1.5.2
