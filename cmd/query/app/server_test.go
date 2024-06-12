@@ -625,6 +625,7 @@ func TestServerSinglePort(t *testing.T) {
 		require.NoError(t, client.conn.Close())
 	})
 
+	// using generous timeout since grpc.NewClient no longer does a handshake.
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
