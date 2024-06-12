@@ -8,7 +8,7 @@ runs:
       run: |
         echo "JAEGER_UI_NODE_JS_VERSION=$(cat jaeger-ui/.nvmrc)" >> ${GITHUB_ENV}
 
-    - uses: actions/setup-node@64ed1c7eab4cce3362f8c340dee64e5eaeef8f7c # v4.0.2
+    - uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8 # v4.0.2
       with:
         node-version: ${{ env.JAEGER_UI_NODE_JS_VERSION }}
         cache: 'yarn'
