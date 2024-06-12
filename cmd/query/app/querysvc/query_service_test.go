@@ -89,7 +89,7 @@ func withArchiveSpanWriter() testOption {
 }
 
 func withAdjuster() testOption {
-	return func(tqs *testQueryService, options *QueryServiceOptions) {
+	return func(_ *testQueryService, options *QueryServiceOptions) {
 		options.Adjuster = adjuster.Func(func(trace *model.Trace) (*model.Trace, error) {
 			return trace, errAdjustment
 		})

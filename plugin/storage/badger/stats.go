@@ -17,6 +17,6 @@
 
 package badger
 
-func (f *Factory) diskStatisticsUpdate() error {
+func (*Factory) diskStatisticsUpdate() error {
 	return nil
 }

@@ -164,14 +164,14 @@ func TestOperationNamesStorageGetServices(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			withOperationNamesStorage(0, test.schemaVersion, func(s *operationNameStorageTest) {
 				var matched bool
-				matchOnce := mock.MatchedBy(func(v []any) bool {
+				matchOnce := mock.MatchedBy(func(_ []any) bool {
 					if matched {
 						return false
 					}
 					matched = true
 					return true
 				})
-				matchEverything := mock.MatchedBy(func(v []any) bool { return true })
+				matchEverything := mock.MatchedBy(func(_ []any) bool { return true })
 
 				iter := &mocks.Iterator{}
 				iter.On("Scan", matchOnce).Return(true)

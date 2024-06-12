@@ -100,7 +100,7 @@ func TestExecuteAction(t *testing.T) {
 				Viper:    v,
 				Logger:   logger,
 				TLSFlags: tlsFlags,
-			}, func(c client.Client, cfg Config) Action {
+			}, func(c client.Client, _ Config) Action {
 				assert.Equal(t, "https://localhost:9300", c.Endpoint)
 				transport, ok := c.Client.Transport.(*http.Transport)
 				require.True(t, ok)

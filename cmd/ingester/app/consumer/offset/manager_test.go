@@ -54,7 +54,7 @@ func TestHandleReset(t *testing.T) {
 func TestCache(t *testing.T) {
 	offset := int64(1498)
 
-	fakeMarker := func(offset int64) {
+	fakeMarker := func(_ /* offset */ int64) {
 		assert.Fail(t, "Shouldn't mark cached offset")
 	}
 	manager := NewManager(offset, fakeMarker, "test_topic", 1, metrics.NullFactory)

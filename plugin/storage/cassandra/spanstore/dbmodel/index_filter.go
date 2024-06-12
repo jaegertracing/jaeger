@@ -29,6 +29,6 @@ const (
 type IndexFilter func(span *Span, index int) bool
 
 // DefaultIndexFilter is a filter that indexes everything.
-var DefaultIndexFilter = func(span *Span, index int) bool {
+var DefaultIndexFilter = func(_ *Span, _ /* index */ int) bool {
 	return true
 }

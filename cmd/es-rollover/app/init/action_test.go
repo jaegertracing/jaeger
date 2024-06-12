@@ -97,7 +97,7 @@ func TestRolloverAction(t *testing.T) {
 	}{
 		{
 			name: "Unsupported version",
-			setupCallExpectations: func(indexClient *mocks.MockIndexAPI, clusterClient *mocks.MockClusterAPI, ilmClient *mocks.MockILMAPI) {
+			setupCallExpectations: func(_ *mocks.MockIndexAPI, clusterClient *mocks.MockClusterAPI, _ *mocks.MockILMAPI) {
 				clusterClient.On("Version").Return(uint(5), nil)
 			},
 			config: Config{
@@ -110,7 +110,7 @@ func TestRolloverAction(t *testing.T) {
 		},
 		{
 			name: "error getting version",
-			setupCallExpectations: func(indexClient *mocks.MockIndexAPI, clusterClient *mocks.MockClusterAPI, ilmClient *mocks.MockILMAPI) {
+			setupCallExpectations: func(_ *mocks.MockIndexAPI, clusterClient *mocks.MockClusterAPI, _ *mocks.MockILMAPI) {
 				clusterClient.On("Version").Return(uint(0), errors.New("version error"))
 			},
 			expectedErr: errors.New("version error"),
@@ -123,7 +123,7 @@ func TestRolloverAction(t *testing.T) {
 		},
 		{
 			name: "ilm doesnt exist",
-			setupCallExpectations: func(indexClient *mocks.MockIndexAPI, clusterClient *mocks.MockClusterAPI, ilmClient *mocks.MockILMAPI) {
+			setupCallExpectations: func(_ *mocks.MockIndexAPI, clusterClient *mocks.MockClusterAPI, ilmClient *mocks.MockILMAPI) {
 				clusterClient.On("Version").Return(uint(7), nil)
 				ilmClient.On("Exists", "myilmpolicy").Return(false, nil)
 			},
@@ -138,7 +138,7 @@ func TestRolloverAction(t *testing.T) {
 		},
 		{
 			name: "fail get ilm policy",
-			setupCallExpectations: func(indexClient *mocks.MockIndexAPI, clusterClient *mocks.MockClusterAPI, ilmClient *mocks.MockILMAPI) {
+			setupCallExpectations: func(_ *mocks.MockIndexAPI, clusterClient *mocks.MockClusterAPI, ilmClient *mocks.MockILMAPI) {
 				clusterClient.On("Version").Return(uint(7), nil)
 				ilmClient.On("Exists", "myilmpolicy").Return(false, errors.New("error getting ilm policy"))
 			},
@@ -153,7 +153,7 @@ func TestRolloverAction(t *testing.T) {
 		},
 		{
 			name: "fail to create template",
-			setupCallExpectations: func(indexClient *mocks.MockIndexAPI, clusterClient *mocks.MockClusterAPI, ilmClient *mocks.MockILMAPI) {
+			setupCallExpectations: func(indexClient *mocks.MockIndexAPI, clusterClient *mocks.MockClusterAPI, _ *mocks.MockILMAPI) {
 				clusterClient.On("Version").Return(uint(7), nil)
 				indexClient.On("CreateTemplate", mock.Anything, "jaeger-span").Return(errors.New("error creating template"))
 			},
@@ -167,7 +167,7 @@ func TestRolloverAction(t *testing.T) {
 		},
 		{
 			name: "fail to get jaeger indices",
-			setupCallExpectations: func(indexClient *mocks.MockIndexAPI, clusterClient *mocks.MockClusterAPI, ilmClient *mocks.MockILMAPI) {
+			setupCallExpectations: func(indexClient *mocks.MockIndexAPI, clusterClient *mocks.MockClusterAPI, _ *mocks.MockILMAPI) {
 				clusterClient.On("Version").Return(uint(7), nil)
 				indexClient.On("CreateTemplate", mock.Anything, "jaeger-span").Return(nil)
 				indexClient.On("CreateIndex", "jaeger-span-archive-000001").Return(nil)
@@ -183,7 +183,7 @@ func TestRolloverAction(t *testing.T) {
 		},
 		{
 			name: "fail to create alias",
-			setupCallExpectations: func(indexClient *mocks.MockIndexAPI, clusterClient *mocks.MockClusterAPI, ilmClient *mocks.MockILMAPI) {
+			setupCallExpectations: func(indexClient *mocks.MockIndexAPI, clusterClient *mocks.MockClusterAPI, _ *mocks.MockILMAPI) {
 				clusterClient.On("Version").Return(uint(7), nil)
 				indexClient.On("CreateTemplate", mock.Anything, "jaeger-span").Return(nil)
 				indexClient.On("CreateIndex", "jaeger-span-archive-000001").Return(nil)
@@ -203,7 +203,7 @@ func TestRolloverAction(t *testing.T) {
 		},
 		{
 			name: "create rollover index",
-			setupCallExpectations: func(indexClient *mocks.MockIndexAPI, clusterClient *mocks.MockClusterAPI, ilmClient *mocks.MockILMAPI) {
+			setupCallExpectations: func(indexClient *mocks.MockIndexAPI, clusterClient *mocks.MockClusterAPI, _ *mocks.MockILMAPI) {
 				clusterClient.On("Version").Return(uint(7), nil)
 				indexClient.On("CreateTemplate", mock.Anything, "jaeger-span").Return(nil)
 				indexClient.On("CreateIndex", "jaeger-span-archive-000001").Return(nil)

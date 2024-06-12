@@ -52,7 +52,7 @@ func main() {
 		Use:   "jaeger-ingester",
 		Short: "Jaeger ingester consumes from Kafka and writes to storage.",
 		Long:  `Jaeger ingester consumes spans from a particular Kafka topic and writes them to a configured storage.`,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ /* args */ []string) error {
 			if err := svc.Start(v); err != nil {
 				return err
 			}

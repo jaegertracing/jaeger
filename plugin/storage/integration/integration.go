@@ -185,7 +185,7 @@ func (s *StorageIntegration) testArchiveTrace(t *testing.T) {
 	require.NoError(t, s.ArchiveSpanWriter.WriteSpan(context.Background(), expected))
 
 	var actual *model.Trace
-	found := s.waitForCondition(t, func(t *testing.T) bool {
+	found := s.waitForCondition(t, func(_ *testing.T) bool {
 		var err error
 		actual, err = s.ArchiveSpanReader.GetTrace(context.Background(), tID)
 		return err == nil && len(actual.Spans) == 1
@@ -203,7 +203,7 @@ func (s *StorageIntegration) testGetLargeSpan(t *testing.T) {
 	expectedTraceID := expected.Spans[0].TraceID
 
 	var actual *model.Trace
-	found := s.waitForCondition(t, func(t *testing.T) bool {
+	found := s.waitForCondition(t, func(_ *testing.T) bool {
 		var err error
 		actual, err = s.SpanReader.GetTrace(context.Background(), expectedTraceID)
 		return err == nil && len(actual.Spans) >= len(expected.Spans)

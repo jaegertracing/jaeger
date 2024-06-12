@@ -32,7 +32,7 @@ var routeCmd = &cobra.Command{
 	Use:   "route",
 	Short: "Starts Route service",
 	Long:  `Starts Route service.`,
-	RunE: func(cmd *cobra.Command, args []string) error {
+	RunE: func(_ *cobra.Command, _ /* args */ []string) error {
 		zapLogger := logger.With(zap.String("service", "route"))
 		logger := log.NewFactory(zapLogger)
 		server := route.NewServer(

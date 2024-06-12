@@ -38,7 +38,7 @@ func Command(v *viper.Viper) *cobra.Command {
 		Use:   "docs",
 		Short: "Generates documentation",
 		Long:  `Generates command and flags documentation`,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, _ /* args */ []string) error {
 			for cmd.Parent() != nil {
 				cmd = cmd.Parent()
 			}

@@ -615,7 +615,7 @@ func TestSpanReaderFindIndices(t *testing.T) {
 }
 
 func TestSpanReader_indexWithDate(t *testing.T) {
-	withSpanReader(t, func(r *spanReaderTest) {
+	withSpanReader(t, func(_ *spanReaderTest) {
 		actual := indexWithDate(spanIndex, "2006-01-02", time.Date(1995, time.April, 21, 4, 21, 19, 95, time.UTC))
 		assert.Equal(t, "jaeger-span-1995-04-21", actual)
 	})
@@ -702,7 +702,7 @@ func returnSearchFunc(typ string, r *spanReaderTest) (any, error) {
 }
 
 func TestSpanReader_bucketToStringArray(t *testing.T) {
-	withSpanReader(t, func(r *spanReaderTest) {
+	withSpanReader(t, func(_ *spanReaderTest) {
 		buckets := make([]*elastic.AggregationBucketKeyItem, 3)
 		buckets[0] = &elastic.AggregationBucketKeyItem{Key: "hello"}
 		buckets[1] = &elastic.AggregationBucketKeyItem{Key: "world"}
@@ -716,7 +716,7 @@ func TestSpanReader_bucketToStringArray(t *testing.T) {
 }
 
 func TestSpanReader_bucketToStringArrayError(t *testing.T) {
-	withSpanReader(t, func(r *spanReaderTest) {
+	withSpanReader(t, func(_ *spanReaderTest) {
 		buckets := make([]*elastic.AggregationBucketKeyItem, 3)
 		buckets[0] = &elastic.AggregationBucketKeyItem{Key: "hello"}
 		buckets[1] = &elastic.AggregationBucketKeyItem{Key: "world"}

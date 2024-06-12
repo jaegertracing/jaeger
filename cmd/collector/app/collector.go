@@ -105,7 +105,7 @@ func (c *Collector) Start(options *flags.CollectorOptions) error {
 
 	var additionalProcessors []ProcessSpan
 	if c.aggregator != nil {
-		additionalProcessors = append(additionalProcessors, func(span *model.Span, tenant string) {
+		additionalProcessors = append(additionalProcessors, func(span *model.Span, _ /* tenant */ string) {
 			c.aggregator.HandleRootSpan(span, c.logger)
 		})
 	}

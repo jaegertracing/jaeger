@@ -121,7 +121,7 @@ func NewClient(c *Configuration, logger *zap.Logger, metricsFactory metrics.Fact
 	m := sync.Map{}
 
 	bulkProc, err := rawClient.BulkProcessor().
-		Before(func(id int64, requests []elastic.BulkableRequest) {
+		Before(func(id int64, _ /* requests */ []elastic.BulkableRequest) {
 			m.Store(id, time.Now())
 		}).
 		After(func(id int64, requests []elastic.BulkableRequest, response *elastic.BulkResponse, err error) {
