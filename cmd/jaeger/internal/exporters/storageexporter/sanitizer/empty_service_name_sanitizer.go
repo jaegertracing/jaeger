@@ -10,7 +10,7 @@ import (
 // Constants for the replacement names
 const (
 	serviceNameReplacement = "empty-service-name"
-	nullProcessServiceName = "null-process-and-service-name"
+	missingServiceName = "missing-service-name"
 )
 
 // NewEmptyServiceNameSanitizer returns a function that replaces empty service names

@@ -45,7 +45,7 @@ func sanitizeUTF8(traces ptrace.Traces) ptrace.Traces {
 				if !utf8.ValidString(span.Name()) {
 					originalName := span.Name()
 					span.SetName(invalidOperation)
-					byteSlice := span.Attributes().PutEmptyBytes(badUTF8Prefix + "operation_name")
+					binaryAttr := span.Attributes().PutEmptyBytes(badUTF8Prefix + "operation_name")
 					byteSlice.FromRaw([]byte(originalName))
 				}
 
