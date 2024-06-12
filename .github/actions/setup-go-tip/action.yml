@@ -4,7 +4,7 @@ description: 'Install Go Tip toolchain'
 runs:
   using: "composite"
   steps:
-    - name: Install Go Tip
+    - name: Try to download Go Tip
       shell: bash
       run: |
         set -euo pipefail
@@ -22,11 +22,12 @@ runs:
           echo "Failed to download. Retrying in $wait_time seconds..."
           sleep $wait_time
         done
+        echo "download_status=${success}" >> $GITHUB_OUTPUT
 
-        if [[ "$success" == false ]]; then
-          echo "Failed to download Go Tip after $retries attempts"
-          exit 1
-        fi
+    - name: Install Go Tip
+      if: steps.try-to-download-go-tip.outputs.download_status == 'true'
+      shell: bash
+      run: |
         echo "Downloaded bundle:"
         ls -lah gotip.tar.gz
         export GOROOT="$HOME/sdk/gotip"
@@ -39,3 +40,12 @@ runs:
         echo "PATH=$PATH" >> $GITHUB_ENV
         echo "Active Go version:"
         go version
+
+    - name: Build Go Tip from source
+      if: steps.try-to-download-go-tip.outputs.download_status == 'false'
+      shell: bash
+      run: |
+        go install golang.org/dl/gotip@latest
+        gotip download
+        echo "GOROOT=$(go env GOROOT)" >> $GITHUB_ENV
+        echo "GOTIP_BIN=$(go env GOPATH)/bin/gotip" >> $GITHUB_ENV
