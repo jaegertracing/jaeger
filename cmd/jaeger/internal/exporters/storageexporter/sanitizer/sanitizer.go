@@ -7,8 +7,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 )
 
-// SanitizeSpan sanitizes/normalizes spans. Any business logic that needs to be applied to normalize the contents of a
-// span should implement this interface.
+// SanitizeTraces is a function that performs enrichment, clean-up, or normalization of trace data.
 type SanitizeTraces func(traces ptrace.Traces) ptrace.Traces
 
 // NewStandardSanitizers are automatically applied by SpanProcessor.
