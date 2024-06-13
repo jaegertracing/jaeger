@@ -10,8 +10,12 @@
   "suppressNotifications": ["prEditedNotification"],
   "packageRules": [
     {
+      "matchFileNames": [
+        "docker-compose/**/v*/docker-compose.yaml",
+        "docker-compose/**/v*/docker-compose.yml"
+      ],
       "matchUpdateTypes": ["major"],
-      "dependencyDashboardApproval": true
+      "enabled": false
     }
   ]
 }
