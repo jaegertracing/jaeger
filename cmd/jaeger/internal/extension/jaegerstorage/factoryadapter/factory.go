@@ -7,6 +7,8 @@ import (
 	"context"
 	"io"
 
+	"go.opentelemetry.io/collector/pdata/ptrace"
+
 	storage_v1 "github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage_v2/spanstore"
 )
@@ -23,6 +25,10 @@ func NewFactory(ss storage_v1.Factory) spanstore.Factory {
 
 // Initialize implements spanstore.Factory.
 func (*Factory) Initialize(_ context.Context) error {
+	panic("not implemented")
+}
+
+func (*Factory) ChExportSpans(_ context.Context, _ ptrace.Traces) error {
 	panic("not implemented")
 }
 

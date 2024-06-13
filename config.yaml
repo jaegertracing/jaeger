@@ -1,0 +1,53 @@
+service:
+  extensions: [jaeger_storage, jaeger_query]
+  pipelines:
+    traces:
+      receivers: [otlp, jaeger, zipkin]
+      processors: [batch]
+      exporters: [jaeger_storage_exporter]
+
+extensions:
+  # health_check:
+  # pprof:
+  #   endpoint: 0.0.0.0:1777
+  # zpages:
+  #   endpoint: 0.0.0.0:55679
+
+  jaeger_query:
+    trace_storage: ch_store
+    ui_config: ./cmd/jaeger/config-ui.json
+
+  jaeger_storage:
+    memory:
+      memstore:
+        max_traces: 100000
+      memstore_archive:
+        max_traces: 100000
+    clickhouse:
+      ch_store:
+        endpoint: tcp://127.0.0.1:9000?dial_timeout=10s&compress=lz4
+        spans_table_name: jaeger_spans
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 127.0.0.1:4317
+      http:
+        endpoint: 127.0.0.1:4318
+
+  jaeger:
+    protocols:
+      grpc:
+      thrift_binary:
+      thrift_compact:
+      thrift_http:
+
+  zipkin:
+
+processors:
+  batch: 
+
+exporters:
+  jaeger_storage_exporter:
+    trace_storage: ch_store

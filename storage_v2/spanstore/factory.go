@@ -4,6 +4,10 @@
 package spanstore
 
 import (
+	"context"
+
+	"go.opentelemetry.io/collector/pdata/ptrace"
+
 	"github.com/jaegertracing/jaeger/storage_v2"
 )
 
@@ -17,4 +21,6 @@ type Factory interface {
 
 	// CreateTraceWriter creates a spanstore.Writer.
 	CreateTraceWriter() (Writer, error)
+
+	ChExportSpans(ctx context.Context, td ptrace.Traces) error
 }

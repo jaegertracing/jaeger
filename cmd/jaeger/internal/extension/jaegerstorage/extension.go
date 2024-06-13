@@ -19,6 +19,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/plugin/storage/badger"
 	"github.com/jaegertracing/jaeger/plugin/storage/cassandra"
+	ch "github.com/jaegertracing/jaeger/plugin/storage/clickhouse"
 	"github.com/jaegertracing/jaeger/plugin/storage/es"
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc"
 	"github.com/jaegertracing/jaeger/plugin/storage/memory"
@@ -64,13 +65,19 @@ func GetStorageFactory(name string, host component.Host) (storage.Factory, error
 	return f, nil
 }
 
-func GetStorageFactoryV2(name string, host component.Host) (spanstore.Factory, error) {
+func GetStorageFactoryV2(name string, host component.Host) (bool, spanstore.Factory, error) {
 	f, err := GetStorageFactory(name, host)
 	if err != nil {
-		return nil, err
+		return false, nil, err
 	}
 
-	return factoryadapter.NewFactory(f), nil
+	var clickhouse bool
+	switch f.(type) {
+	case *ch.Factory:
+		clickhouse = true
+	}
+
+	return clickhouse, factoryadapter.NewFactory(f), nil
 }
 
 func newStorageExt(config *Config, otel component.TelemetrySettings) *storageExt {
@@ -82,24 +89,31 @@ func newStorageExt(config *Config, otel component.TelemetrySettings) *storageExt
 }
 
 type starter[Config any, Factory storage.Factory] struct {
-	ext         *storageExt
-	storageKind string
-	cfg         map[string]Config
-	builder     func(Config, metrics.Factory, *zap.Logger) (Factory, error)
+	ext               *storageExt
+	storageKind       string
+	cfg               map[string]Config
+	builder           func(Config, metrics.Factory, *zap.Logger) (Factory, error)
+	clickhouseBuilder func(context.Context, Config, *zap.Logger) Factory
 }
 
-func (s *starter[Config, Factory]) build(_ context.Context, _ component.Host) error {
+func (s *starter[Config, Factory]) build(ctx context.Context, _ component.Host) error {
 	for name, cfg := range s.cfg {
 		if _, ok := s.ext.factories[name]; ok {
 			return fmt.Errorf("duplicate %s storage name %s", s.storageKind, name)
 		}
-		factory, err := s.builder(
-			cfg,
-			metrics.NullFactory,
-			s.ext.logger.With(zap.String("storage_name", name)),
-		)
-		if err != nil {
-			return fmt.Errorf("failed to initialize %s storage %s: %w", s.storageKind, name, err)
+		var factory Factory
+		if s.clickhouseBuilder != nil {
+			factory = s.clickhouseBuilder(ctx, cfg, s.ext.logger.With(zap.String("storage_name", name)))
+		} else {
+			var err error
+			factory, err = s.builder(
+				cfg,
+				metrics.NullFactory,
+				s.ext.logger.With(zap.String("storage_name", name)),
+			)
+			if err != nil {
+				return fmt.Errorf("failed to initialize %s storage %s: %w", s.storageKind, name, err)
+			}
 		}
 		s.ext.factories[name] = factory
 	}
@@ -150,6 +164,12 @@ func (s *storageExt) Start(ctx context.Context, host component.Host) error {
 		cfg:         s.config.Cassandra,
 		builder:     cassandra.NewFactoryWithConfig,
 	}
+	clickhouseStarter := &starter[ch.Config, *ch.Factory]{
+		ext:               s,
+		storageKind:       "clickhouse",
+		cfg:               s.config.ClickHouse,
+		clickhouseBuilder: ch.NewFactory,
+	}
 
 	builders := []func(ctx context.Context, host component.Host) error{
 		memStarter.build,
@@ -158,6 +178,7 @@ func (s *storageExt) Start(ctx context.Context, host component.Host) error {
 		esStarter.build,
 		osStarter.build,
 		cassandraStarter.build,
+		clickhouseStarter.build,
 		// TODO add support for other backends
 	}
 	for _, builder := range builders {

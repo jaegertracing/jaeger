@@ -19,6 +19,10 @@ type storageExporter struct {
 	config      *Config
 	logger      *zap.Logger
 	traceWriter spanstore.Writer
+	clickhouse  bool
+	// Separate traces exporting function for ClickHouse storage.
+	// This is temporary until we have v2 storage API.
+	chExportTraces func(ctx context.Context, td ptrace.Traces) error
 }
 
 func newExporter(config *Config, otel component.TelemetrySettings) *storageExporter {
@@ -29,13 +33,17 @@ func newExporter(config *Config, otel component.TelemetrySettings) *storageExpor
 }
 
 func (exp *storageExporter) start(_ context.Context, host component.Host) error {
-	f, err := jaegerstorage.GetStorageFactoryV2(exp.config.TraceStorage, host)
+	clickhouse, f, err := jaegerstorage.GetStorageFactoryV2(exp.config.TraceStorage, host)
 	if err != nil {
 		return fmt.Errorf("cannot find storage factory: %w", err)
 	}
 
-	if exp.traceWriter, err = f.CreateTraceWriter(); err != nil {
-		return fmt.Errorf("cannot create trace writer: %w", err)
+	if clickhouse == true {
+		exp.chExportTraces = f.ChExportSpans
+	} else {
+		if exp.traceWriter, err = f.CreateTraceWriter(); err != nil {
+			return fmt.Errorf("cannot create trace writer: %w", err)
+		}
 	}
 
 	return nil
@@ -47,5 +55,9 @@ func (*storageExporter) close(_ context.Context) error {
 }
 
 func (exp *storageExporter) pushTraces(ctx context.Context, td ptrace.Traces) error {
+	if exp.clickhouse {
+		return exp.chExportTraces(ctx, td)
+	}
+
 	return exp.traceWriter.WriteTraces(ctx, td)
 }

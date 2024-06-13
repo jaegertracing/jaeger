@@ -11,6 +11,7 @@ import (
 	memoryCfg "github.com/jaegertracing/jaeger/pkg/memory/config"
 	badgerCfg "github.com/jaegertracing/jaeger/plugin/storage/badger"
 	"github.com/jaegertracing/jaeger/plugin/storage/cassandra"
+	"github.com/jaegertracing/jaeger/plugin/storage/clickhouse"
 	grpcCfg "github.com/jaegertracing/jaeger/plugin/storage/grpc"
 )
 
@@ -22,14 +23,10 @@ type Config struct {
 	Opensearch    map[string]esCfg.Configuration       `mapstructure:"opensearch"`
 	Elasticsearch map[string]esCfg.Configuration       `mapstructure:"elasticsearch"`
 	Cassandra     map[string]cassandra.Options         `mapstructure:"cassandra"`
+	ClickHouse    map[string]clickhouse.Config         `mapstructure:"clickhouse"`
 	// TODO add other storage types here
 	// TODO how will this work with 3rd party storage implementations?
 	//      Option: instead of looking for specific name, check interface.
-}
-
-type MemoryStorage struct {
-	Name string `mapstructure:"name"`
-	memoryCfg.Configuration
 }
 
 func (cfg *Config) Validate() error {
