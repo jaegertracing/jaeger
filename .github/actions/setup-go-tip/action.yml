@@ -1,10 +1,10 @@
-# Inspired by https://github.com/actions/setup-go/issues/21#issuecomment-997208686
 name: 'Install Go Tip'
 description: 'Install Go Tip toolchain'
 runs:
   using: "composite"
   steps:
     - name: Try to download Go Tip
+      id: try-to-download-go-tip
       shell: bash
       run: |
         set -euo pipefail
@@ -49,3 +49,10 @@ runs:
         gotip download
         echo "GOROOT=$(go env GOROOT)" >> $GITHUB_ENV
         echo "GOTIP_BIN=$(go env GOPATH)/bin/gotip" >> $GITHUB_ENV
+
+    - name: Fail if Go Tip is not installed
+      if: steps.try-to-download-go-tip.outputs.download_status == 'false' && failure()
+      shell: bash
+      run: |
+        echo "Both downloading and building Go Tip failed."
+        exit 1
