@@ -3,8 +3,8 @@ description: 'Install Go Tip toolchain'
 runs:
   using: "composite"
   steps:
-    - name: Try to download Go Tip
-      id: try-to-download-go-tip
+    - name: Download Go Tip
+      id: download-go-tip
       shell: bash
       run: |
         set -euo pipefail
@@ -25,7 +25,7 @@ runs:
         echo "download_status=${success}" >> $GITHUB_OUTPUT
 
     - name: Install Go Tip
-      if: steps.try-to-download-go-tip.outputs.download_status == 'true'
+      if: steps.download-go-tip.outputs.download_status == 'true'
       shell: bash
       run: |
         echo "Downloaded bundle:"
@@ -42,7 +42,7 @@ runs:
         go version
 
     - name: Build Go Tip from source
-      if: steps.try-to-download-go-tip.outputs.download_status == 'false'
+      if: steps.download-go-tip.outputs.download_status == 'false'
       shell: bash
       run: |
         go install golang.org/dl/gotip@latest
@@ -50,9 +50,3 @@ runs:
         echo "GOROOT=$(go env GOROOT)" >> $GITHUB_ENV
         echo "GOTIP_BIN=$(go env GOPATH)/bin/gotip" >> $GITHUB_ENV
 
-    - name: Fail if Go Tip is not installed
-      if: steps.try-to-download-go-tip.outputs.download_status == 'false' && failure()
-      shell: bash
-      run: |
-        echo "Both downloading and building Go Tip failed."
-        exit 1
