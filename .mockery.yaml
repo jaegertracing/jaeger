@@ -16,10 +16,5 @@ packages:
       all: true
   github.com/jaegertracing/jaeger/pkg/es/client:
     config:
-      mockname: "Mock{{.InterfaceName}}"
-    interfaces:
-      IndexAPI:
-      ClusterAPI:
-      IndexManagementLifecycleAPI:
-        config:
-          mockname: "MockILMAPI"
+      all: true
+

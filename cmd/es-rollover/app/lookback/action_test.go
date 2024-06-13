@@ -76,13 +76,13 @@ func TestLookBackAction(t *testing.T) {
 
 	tests := []struct {
 		name                  string
-		setupCallExpectations func(indexClient *mocks.MockIndexAPI)
+		setupCallExpectations func(indexClient *mocks.IndexAPI)
 		config                Config
 		expectedErr           error
 	}{
 		{
 			name: "success",
-			setupCallExpectations: func(indexClient *mocks.MockIndexAPI) {
+			setupCallExpectations: func(indexClient *mocks.IndexAPI) {
 				indexClient.On("GetJaegerIndices", "").Return(indices, nil)
 				indexClient.On("DeleteAlias", []client.Alias{
 					{
@@ -103,7 +103,7 @@ func TestLookBackAction(t *testing.T) {
 		},
 		{
 			name: "get indices error",
-			setupCallExpectations: func(indexClient *mocks.MockIndexAPI) {
+			setupCallExpectations: func(indexClient *mocks.IndexAPI) {
 				indexClient.On("GetJaegerIndices", "").Return(indices, errors.New("get indices error"))
 			},
 			config: Config{
@@ -118,7 +118,7 @@ func TestLookBackAction(t *testing.T) {
 		},
 		{
 			name: "empty indices",
-			setupCallExpectations: func(indexClient *mocks.MockIndexAPI) {
+			setupCallExpectations: func(indexClient *mocks.IndexAPI) {
 				indexClient.On("GetJaegerIndices", "").Return([]client.Index{}, nil)
 			},
 			config: Config{
@@ -137,7 +137,7 @@ func TestLookBackAction(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			indexClient := &mocks.MockIndexAPI{}
+			indexClient := &mocks.IndexAPI{}
 			lookbackAction := Action{
 				Config:        test.config,
 				IndicesClient: indexClient,
