@@ -87,6 +87,8 @@ require (
 	gopkg.in/yaml.v3 v3.0.1
 )
 
+require github.com/dgraph-io/badger/v4 v4.2.0 // indirect
+
 require (
 	github.com/IBM/sarama v1.43.2 // indirect
 	github.com/aws/aws-sdk-go v1.53.11 // indirect
