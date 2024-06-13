@@ -45,11 +45,7 @@ func NewFactory(ctx context.Context, cfg Config, logger *zap.Logger) *Factory {
 }
 
 func (f *Factory) ChExportSpans(ctx context.Context, td ptrace.Traces) error {
-	if err := chSpanStore.ExportSpans(ctx, f.client, f.spansTableName, td); err != nil {
-		return err
-	}
-
-	return nil
+	return chSpanStore.ExportSpans(ctx, f.client, f.spansTableName, td)
 }
 
 func (*Factory) Initialize(_ metrics.Factory, _ *zap.Logger) error {
