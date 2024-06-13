@@ -1,3 +1,4 @@
+# Inspired by https://github.com/actions/setup-go/issues/21#issuecomment-997208686
 name: 'Install Go Tip'
 description: 'Install Go Tip toolchain'
 runs:
@@ -38,8 +39,6 @@ runs:
         echo "GOROOT=$GOROOT" >> $GITHUB_ENV
         echo "GOPATH=$GOPATH" >> $GITHUB_ENV
         echo "PATH=$PATH" >> $GITHUB_ENV
-        echo "Active Go version:"
-        go version
 
     - name: Build Go Tip from source
       if: steps.download-go-tip.outputs.download_status == 'false'
@@ -49,4 +48,10 @@ runs:
         gotip download
         echo "GOROOT=$(go env GOROOT)" >> $GITHUB_ENV
         echo "GOTIP_BIN=$(go env GOPATH)/bin/gotip" >> $GITHUB_ENV
+      
+    - name: Check Go Version
+      shell: bash
+      run: |
+        echo "Active Go version:"
+        go version
 
