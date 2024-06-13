@@ -38,7 +38,7 @@ jobs:
           echo "$GOPATH/bin" >>"$GITHUB_PATH"
 
       - name: Run FOSSA scan and upload report
-        uses: fossa-contrib/fossa-action@cdc5065bcdee31a32e47d4585df72d66e8e941c2
+        uses: fossa-contrib/fossa-action@3a0863c9d342abd4cfcc762f193ea226a85429eb
         with:
           # FOSSA Push-Only API Token
           fossa-api-key: 304657e2357ba57b416b94e6b119131b
