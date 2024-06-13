@@ -2,35 +2,24 @@ with-expecter: false
 disable-version-string: true
 outpkg: "mocks"
 dir: "{{.InterfaceDir}}/mocks/"
-filename: "{{ .InterfaceName | snakecase }}.go"
+mockname: "{{.InterfaceName}}"
+filename: "{{.InterfaceName}}.go"
 packages:
   github.com/jaegertracing/jaeger/pkg/es:
     config:
       all: true
-      mockname: "{{.InterfaceName}}"
-      filename: "{{.InterfaceName}}.go"
-  github.com/jaegertracing/jaeger/pkg/es/client:
-    interfaces:
-      IndexAPI:
-        config:
-          filename: "index_client.go"
-      ClusterAPI:
-        config:
-          filename: "cluster_client.go"
-      IndexManagementLifecycleAPI:
-        config:
-          mockname: "MockILMAPI"
-          filename: "ilm_client.go"
   github.com/jaegertracing/jaeger/storage/spanstore: 
     config:
-      mockname: "{{.InterfaceName}}"
-      filename: "{{.InterfaceName}}.go"
-    interfaces:
-      Writer:
-      Reader:
+      all: true
   github.com/jaegertracing/jaeger/proto-gen/storage_v1: 
     config:
       all: true
-      recursive: true
-      mockname: "{{.InterfaceName}}"
-      filename: "{{.InterfaceName}}.go"
+  github.com/jaegertracing/jaeger/pkg/es/client:
+    config:
+      mockname: "Mock{{.InterfaceName}}"
+    interfaces:
+      IndexAPI:
+      ClusterAPI:
+      IndexManagementLifecycleAPI:
+        config:
+          mockname: "MockILMAPI"
