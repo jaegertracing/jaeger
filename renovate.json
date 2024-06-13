@@ -7,6 +7,7 @@
   "labels": [
     "changelog:dependencies"
   ],
+<<<<<<< renovate-major-updates
   "suppressNotifications": ["prEditedNotification"],
   "packageRules": [
     {
@@ -22,4 +23,11 @@
       "enabled": false
     }
   ]
+=======
+  "postUpdateOptions": [
+    "gomodTidy",
+    "gomodUpdateImportPaths"
+  ],
+  "suppressNotifications": ["prEditedNotification"]
+>>>>>>> main
 }

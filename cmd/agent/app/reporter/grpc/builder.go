@@ -20,7 +20,7 @@ import (
 	"fmt"
 	"strings"
 
-	grpc_retry "github.com/grpc-ecosystem/go-grpc-middleware/retry"
+	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/retry"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
@@ -99,7 +99,7 @@ func (b *ConnBuilder) CreateConnection(ctx context.Context, logger *zap.Logger, 
 		}
 	}
 	dialOptions = append(dialOptions, grpc.WithDefaultServiceConfig(grpcresolver.GRPCServiceConfig))
-	dialOptions = append(dialOptions, grpc.WithUnaryInterceptor(grpc_retry.UnaryClientInterceptor(grpc_retry.WithMax(b.MaxRetry))))
+	dialOptions = append(dialOptions, grpc.WithUnaryInterceptor(retry.UnaryClientInterceptor(retry.WithMax(b.MaxRetry))))
 	dialOptions = append(dialOptions, b.AdditionalDialOptions...)
 
 	conn, err := grpc.NewClient(dialTarget, dialOptions...)
