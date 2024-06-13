@@ -1,4 +1,4 @@
-FROM cassandra:4.1
+FROM cassandra:5.0
 
 COPY schema/* /cassandra-schema/
 
