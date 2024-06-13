@@ -114,7 +114,6 @@ func TestMaintenanceRun(t *testing.T) {
 
 	// This is to for codecov only. Can break without anything else breaking as it does test badger's
 	// internal implementation
-	// fmt.Println(expvar.Get("badger_size_bytes_vlog"))
 	vlogSize := expvar.Get("badger_size_bytes_vlog").(*expvar.Map).Get(f.tmpDir).(*expvar.Int)
 	currSize := vlogSize.Value()
 	vlogSize.Set(currSize + 1<<31)
