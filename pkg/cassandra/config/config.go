@@ -48,6 +48,21 @@ type Configuration struct {
 	TLS                  tlscfg.Options `mapstructure:"tls"`
 }
 
+var (
+	defaultApprovedAuthenticators = []string{
+		"org.apache.cassandra.auth.PasswordAuthenticator",
+		"com.instaclustr.cassandra.auth.SharedSecretAuthenticator",
+		"com.datastax.bdp.cassandra.auth.DseAuthenticator",
+		"io.aiven.cassandra.auth.AivenAuthenticator",
+		"com.ericsson.bss.cassandra.ecaudit.auth.AuditPasswordAuthenticator",
+		"com.amazon.helenus.auth.HelenusAuthenticator",
+		"com.ericsson.bss.cassandra.ecaudit.auth.AuditAuthenticator",
+		"com.scylladb.auth.SaslauthdAuthenticator",
+		"com.scylladb.auth.TransitionalAuthenticator",
+		"com.instaclustr.cassandra.auth.InstaclustrPasswordAuthenticator",
+	}
+)
+
 // Authenticator holds the authentication properties needed to connect to a Cassandra cluster
 type Authenticator struct {
 	Basic BasicAuthenticator `yaml:"basic" mapstructure:",squash"`
@@ -143,8 +158,9 @@ func (c *Configuration) NewCluster(logger *zap.Logger) (*gocql.ClusterConfig, er
 
 	if c.Authenticator.Basic.Username != "" && c.Authenticator.Basic.Password != "" {
 		cluster.Authenticator = gocql.PasswordAuthenticator{
-			Username: c.Authenticator.Basic.Username,
-			Password: c.Authenticator.Basic.Password,
+			Username:              c.Authenticator.Basic.Username,
+			Password:              c.Authenticator.Basic.Password,
+			AllowedAuthenticators: defaultApprovedAuthenticators,
 		}
 	}
 	tlsCfg, err := c.TLS.Config(logger)
