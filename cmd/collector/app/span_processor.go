@@ -169,7 +169,7 @@ func (sp *spanProcessor) saveSpan(span *model.Span, tenant string) {
 	sp.metrics.SaveLatency.Record(time.Since(startTime))
 }
 
-func (sp *spanProcessor) countSpan(span *model.Span, tenant string) {
+func (sp *spanProcessor) countSpan(span *model.Span, _ string /* tenant */) {
 	sp.bytesProcessed.Add(uint64(span.Size()))
 	sp.spansProcessed.Add(1)
 }

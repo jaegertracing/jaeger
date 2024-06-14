@@ -181,7 +181,7 @@ func (g *GRPCHandler) sendSpanChunks(spans []*model.Span, sendFn func(*api_v2.Sp
 }
 
 // GetServices is the gRPC handler to fetch services.
-func (g *GRPCHandler) GetServices(ctx context.Context, r *api_v2.GetServicesRequest) (*api_v2.GetServicesResponse, error) {
+func (g *GRPCHandler) GetServices(ctx context.Context, _ *api_v2.GetServicesRequest) (*api_v2.GetServicesResponse, error) {
 	services, err := g.queryService.GetServices(ctx)
 	if err != nil {
 		g.logger.Error("failed to fetch services", zap.Error(err))

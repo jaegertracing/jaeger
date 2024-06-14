@@ -21,7 +21,7 @@ import (
 )
 
 func TestCalculateFunc(t *testing.T) {
-	c := CalculateFunc(func(targetQPS, qps, oldProbability float64) float64 {
+	c := CalculateFunc(func(targetQPS, _ /* qps */, _ /* oldProbability */ float64) float64 {
 		return targetQPS
 	})
 	val := 1.0

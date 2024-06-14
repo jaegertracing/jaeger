@@ -48,7 +48,7 @@ func NewObserver(metricsFactory metrics.Factory, normalizer NameNormalizer) *Obs
 	}
 }
 
-func (*Observer) OnStart(parent context.Context, s sdktrace.ReadWriteSpan) {}
+func (*Observer) OnStart(context.Context /* parent */, sdktrace.ReadWriteSpan) {}
 
 func (o *Observer) OnEnd(sp sdktrace.ReadOnlySpan) {
 	operationName := sp.Name()
@@ -83,10 +83,10 @@ func (o *Observer) OnEnd(sp sdktrace.ReadOnlySpan) {
 	}
 }
 
-func (*Observer) Shutdown(ctx context.Context) error {
+func (*Observer) Shutdown(context.Context) error {
 	return nil
 }
 
-func (*Observer) ForceFlush(ctx context.Context) error {
+func (*Observer) ForceFlush(context.Context) error {
 	return nil
 }

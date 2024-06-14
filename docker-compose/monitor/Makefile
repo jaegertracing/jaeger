@@ -12,17 +12,6 @@ dev: export JAEGER_IMAGE_TAG = dev
 dev:
 	docker compose -f docker-compose.yml up
 
-# starts older spanmetrics processor setup, for example,
-# to test backwards compatibility of Jaeger with spanmetrics processor.
-.PHONY: dev-processor
-dev-processor: export JAEGER_IMAGE_TAG = dev
-# Fix to a version before the breaking changes were introduced.
-dev-processor: export OTEL_IMAGE_TAG = 0.70.0
-dev-processor: export OTEL_CONFIG_SRC = ./otel-collector-config-processor.yml
-dev-processor: export PROMETHEUS_QUERY_SUPPORT_SPANMETRICS_CONNECTOR = false
-dev-processor:
-	docker compose -f docker-compose.yml up
-
 .PHONY: clean-jaeger
 clean-jaeger:
 	# Also cleans up intermediate cached containers.

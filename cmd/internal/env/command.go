@@ -106,7 +106,7 @@ func Command() *cobra.Command {
 		Use:   "env",
 		Short: "Help about environment variables.",
 		Long:  long,
-		Run: func(cmd *cobra.Command, args []string) {
+		Run: func(cmd *cobra.Command, _ /* args */ []string) {
 			fmt.Fprint(cmd.OutOrStdout(), long)
 		},
 	}

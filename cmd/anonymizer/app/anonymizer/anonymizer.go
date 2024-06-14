@@ -40,6 +40,8 @@ var allowedTags = map[string]bool{
 	"sampler.param":    true,
 }
 
+const PermUserRW = 0o600 // Read-write for owner only
+
 // mapping stores the mapping of service/operation names to their one-way hashes,
 // so that we can do a reverse lookup should the researchers have questions.
 type mapping struct {
@@ -126,7 +128,7 @@ func (a *Anonymizer) SaveMapping() {
 		a.logger.Error("Failed to marshal mapping file", zap.Error(err))
 		return
 	}
-	if err := os.WriteFile(filepath.Clean(a.mappingFile), dat, os.ModePerm); err != nil {
+	if err := os.WriteFile(filepath.Clean(a.mappingFile), dat, PermUserRW); err != nil {
 		a.logger.Error("Failed to write mapping file", zap.Error(err))
 		return
 	}

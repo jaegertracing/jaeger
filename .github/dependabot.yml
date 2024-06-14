@@ -32,114 +32,56 @@ updates:
     labels: [ "changelog:dependencies" ]
 
   - package-ecosystem: docker
-    directory: /
-    schedule:
-      interval: daily
-
-  - package-ecosystem: docker
-    directory: /cmd/agent
-    schedule:
-      interval: daily
-
-  - package-ecosystem: docker
-    directory: /cmd/all-in-one
-    schedule:
-      interval: daily
-
-  - package-ecosystem: docker
-    directory: /cmd/anonymizer
-    schedule:
-      interval: daily
-
-  - package-ecosystem: docker
-    directory: /cmd/collector
-    schedule:
-      interval: daily
-
-  - package-ecosystem: docker
-    directory: /cmd/es-index-cleaner
-    schedule:
-      interval: daily
-
-  - package-ecosystem: docker
-    directory: /cmd/es-rollover
-    schedule:
-      interval: daily
-
-  - package-ecosystem: docker
-    directory: /cmd/ingester
-    schedule:
-      interval: daily
-
-  - package-ecosystem: docker
-    directory: /cmd/jaeger
-    schedule:
-      interval: daily
-
-  - package-ecosystem: docker
-    directory: /cmd/query
-    schedule:
-      interval: daily
-
-  - package-ecosystem: docker
-    directory: /cmd/remote-storage
-    schedule:
-      interval: daily
-
-  - package-ecosystem: docker
-    directory: /cmd/tracegen
-    schedule:
-      interval: daily
-
-  - package-ecosystem: docker
-    directory: /crossdock
-    schedule:
-      interval: daily
-
-  - package-ecosystem: docker
-    directory: /docker/base
-    schedule:
-      interval: daily
-
-  - package-ecosystem: docker
-    directory: /docker/debug
-    schedule:
-      interval: daily
-
-  - package-ecosystem: docker
-    directory: /examples/hotrod
-    schedule:
-      interval: daily
-
-  - package-ecosystem: docker
-    directory: /plugin/storage/cassandra
+    directories:
+      - /cmd/agent
+      - /cmd/all-in-one
+      - /cmd/anonymizer
+      - /cmd/collector
+      - /cmd/es-index-cleaner
+      - /cmd/es-rollover
+      - /cmd/ingester
+      - /cmd/jaeger
+      - /cmd/query
+      - /cmd/remote-storage
+      - /cmd/tracegen
+      - /crossdock
+      - /docker/base
+      - /docker/debug
+      - /examples/hotrod
+      - /plugin/storage/cassandra
     schedule:
       interval: daily
   - package-ecosystem: docker
-    directory: /docker-compose/elasticsearch
+    directories:
+      - /docker-compose/elasticsearch/v7
+      - /docker-compose/elasticsearch/v8
     schedule:
       interval: daily
-    allow:
+    ignore:
       - dependency-name: "docker.elastic.co/elasticsearch/elasticsearch"
-        update-types: ["version-update:semver-minor"]
+        update-types: [ "version-update:semver-major" ]
   - package-ecosystem: docker
-    directory: /docker-compose/opensearch
+    directories:
+      - /docker-compose/opensearch/v1
+      - /docker-compose/opensearch/v2
     schedule:
       interval: daily
-    allow:
-      - dependency-name: "docker.elastic.co/opensearch/opensearch"
-        update-types: ["version-update:semver-minor"]
+    ignore:
+      - dependency-name: "opensearchproject/opensearch"
+        update-types: [ "version-update:semver-major" ]
   - package-ecosystem: docker
     directory: /docker-compose/kafka-integration-test
     schedule:
       interval: daily
-    allow:
+    ignore:
       - dependency-name: "bitnami/kafka"
-        update-types: ["version-update:semver-minor"]
+        update-types: [ "version-update:semver-major" ]
   - package-ecosystem: docker
-    directory: /docker-compose/cassandra
+    directories:
+      - /docker-compose/cassandra/v3
+      - /docker-compose/cassandra/v4
     schedule:
       interval: daily
-    allow:
+    ignore:
       - dependency-name: "cassandra"
-        update-types: ["version-update:semver-minor"]
+        update-types: [ "version-update:semver-major" ]

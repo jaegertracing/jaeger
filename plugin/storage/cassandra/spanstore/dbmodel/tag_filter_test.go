@@ -47,15 +47,15 @@ func (onlyStringsFilter) filterStringTags(tags model.KeyValues) model.KeyValues 
 	return ret
 }
 
-func (f onlyStringsFilter) FilterProcessTags(span *model.Span, processTags model.KeyValues) model.KeyValues {
+func (f onlyStringsFilter) FilterProcessTags(_ *model.Span, processTags model.KeyValues) model.KeyValues {
 	return f.filterStringTags(processTags)
 }
 
-func (f onlyStringsFilter) FilterTags(span *model.Span, tags model.KeyValues) model.KeyValues {
+func (f onlyStringsFilter) FilterTags(_ *model.Span, tags model.KeyValues) model.KeyValues {
 	return f.filterStringTags(tags)
 }
 
-func (f onlyStringsFilter) FilterLogFields(span *model.Span, logFields model.KeyValues) model.KeyValues {
+func (f onlyStringsFilter) FilterLogFields(_ *model.Span, logFields model.KeyValues) model.KeyValues {
 	return f.filterStringTags(logFields)
 }
 

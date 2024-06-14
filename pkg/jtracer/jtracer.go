@@ -72,8 +72,8 @@ func initOTEL(ctx context.Context, svc string) (*sdktrace.TracerProvider, error)
 func initHelper(
 	ctx context.Context,
 	svc string,
-	otelExporter func(ctx context.Context) (sdktrace.SpanExporter, error),
-	otelResource func(ctx context.Context, svc string) (*resource.Resource, error),
+	otelExporter func(_ context.Context) (sdktrace.SpanExporter, error),
+	otelResource func(_ context.Context, _ /* svc */ string) (*resource.Resource, error),
 ) (*sdktrace.TracerProvider, error) {
 	res, err := otelResource(ctx, svc)
 	if err != nil {

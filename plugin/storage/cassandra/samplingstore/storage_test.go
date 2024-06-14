@@ -289,7 +289,7 @@ func TestGetLatestProbabilities(t *testing.T) {
 }
 
 func matchEverything() any {
-	return mock.MatchedBy(func(v []any) bool { return true })
+	return mock.MatchedBy(func(_ []any) bool { return true })
 }
 
 func TestGenerateRandomBucket(t *testing.T) {

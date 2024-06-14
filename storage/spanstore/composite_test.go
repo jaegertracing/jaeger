@@ -31,13 +31,13 @@ var errIWillAlwaysFail = errors.New("ErrProneWriteSpanStore will always fail")
 
 type errProneWriteSpanStore struct{}
 
-func (*errProneWriteSpanStore) WriteSpan(ctx context.Context, span *model.Span) error {
+func (*errProneWriteSpanStore) WriteSpan(context.Context, *model.Span) error {
 	return errIWillAlwaysFail
 }
 
 type noopWriteSpanStore struct{}
 
-func (*noopWriteSpanStore) WriteSpan(ctx context.Context, span *model.Span) error {
+func (*noopWriteSpanStore) WriteSpan(context.Context, *model.Span) error {
 	return nil
 }
 

@@ -28,7 +28,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 )
 
-func TestAddFlags(t *testing.T) {
+func TestAddFlags(*testing.T) {
 	s := NewService(0)
 	s.AddFlags(new(flag.FlagSet))
 

@@ -40,7 +40,7 @@ func matchOnceWithSideEffect(fn func(v []any)) any {
 }
 
 func matchEverything() any {
-	return mock.MatchedBy(func(v []any) bool { return true })
+	return mock.MatchedBy(func(_ []any) bool { return true })
 }
 
 // stringMatcher can match a string argument when it contains a specific substring q

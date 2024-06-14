@@ -37,7 +37,7 @@ func Command(v *viper.Viper, adminPort int) *cobra.Command {
 		Use:   "status",
 		Short: "Print the status.",
 		Long:  `Print Jaeger component status information, exit non-zero on any error.`,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ /* args */ []string) error {
 			url := convert(v.GetString(statusHTTPHostPort))
 			ctx, cx := context.WithTimeout(context.Background(), time.Second)
 			defer cx()

@@ -168,6 +168,6 @@ func (r *spanReader) FindTraces(ctx context.Context, query *spanstore.TraceQuery
 	return traces, nil
 }
 
-func (*spanReader) FindTraceIDs(ctx context.Context, query *spanstore.TraceQueryParameters) ([]model.TraceID, error) {
+func (*spanReader) FindTraceIDs(context.Context, *spanstore.TraceQueryParameters) ([]model.TraceID, error) {
 	panic("not implemented")
 }

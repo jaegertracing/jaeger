@@ -48,7 +48,7 @@ type errHashable struct {
 	err error
 }
 
-func (e *errHashable) Hash(w io.Writer) error {
+func (e *errHashable) Hash(io.Writer) error {
 	return e.err
 }
 

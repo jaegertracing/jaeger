@@ -1,0 +1,29 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":gitSignOff"
+  ],
+  "labels": [
+    "changelog:dependencies"
+  ],
+  "postUpdateOptions": [
+    "gomodTidy",
+    "gomodUpdateImportPaths"
+  ],
+  "suppressNotifications": ["prEditedNotification"],
+  "packageRules": [
+    {
+      "matchFileNames": [
+        "docker-compose/cassandra/v3/docker-compose.yaml",
+        "docker-compose/cassandra/v4/docker-compose.yaml",
+        "docker-compose/elasticsearch/v7/docker-compose.yml",
+        "docker-compose/elasticsearch/v8/docker-compose.yml",
+        "docker-compose/opensearch/v1/docker-compose.yml",
+        "docker-compose/opensearch/v2/docker-compose.yml"
+      ],
+      "matchUpdateTypes": ["major", "patch"],
+      "enabled": false
+    }
+  ]
+}

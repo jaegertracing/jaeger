@@ -53,22 +53,11 @@ func TestWithDefaultConfiguration(t *testing.T) {
 	assert.Equal(t, "http://localhost:9090", f.options.Primary.ServerURL)
 	assert.Equal(t, 30*time.Second, f.options.Primary.ConnectTimeout)
 
-	assert.True(t, f.options.Primary.SupportSpanmetricsConnector)
 	assert.Empty(t, f.options.Primary.MetricNamespace)
 	assert.Equal(t, "ms", f.options.Primary.LatencyUnit)
 }
 
 func TestWithConfiguration(t *testing.T) {
-	t.Run("still supports the deprecated spanmetrics processor", func(t *testing.T) {
-		f := NewFactory()
-		v, command := config.Viperize(f.AddFlags)
-		err := command.ParseFlags([]string{
-			"--prometheus.query.support-spanmetrics-connector=false",
-		})
-		require.NoError(t, err)
-		f.InitFromViper(v, zap.NewNop())
-		assert.False(t, f.options.Primary.SupportSpanmetricsConnector)
-	})
 	t.Run("with custom configuration and no space in token file path", func(t *testing.T) {
 		f := NewFactory()
 		v, command := config.Viperize(f.AddFlags)
@@ -99,13 +88,11 @@ func TestWithConfiguration(t *testing.T) {
 		f := NewFactory()
 		v, command := config.Viperize(f.AddFlags)
 		err := command.ParseFlags([]string{
-			"--prometheus.query.support-spanmetrics-connector=true",
 			"--prometheus.query.namespace=mynamespace",
 			"--prometheus.query.duration-unit=ms",
 		})
 		require.NoError(t, err)
 		f.InitFromViper(v, zap.NewNop())
-		assert.True(t, f.options.Primary.SupportSpanmetricsConnector)
 		assert.Equal(t, "mynamespace", f.options.Primary.MetricNamespace)
 		assert.Equal(t, "ms", f.options.Primary.LatencyUnit)
 	})

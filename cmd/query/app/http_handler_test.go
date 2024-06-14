@@ -209,7 +209,7 @@ type httpResponseErrWriter struct{}
 func (*httpResponseErrWriter) Write([]byte) (int, error) {
 	return 0, fmt.Errorf("failed to write")
 }
-func (*httpResponseErrWriter) WriteHeader(statusCode int) {}
+func (*httpResponseErrWriter) WriteHeader(int /* statusCode */) {}
 func (*httpResponseErrWriter) Header() http.Header {
 	return http.Header{}
 }

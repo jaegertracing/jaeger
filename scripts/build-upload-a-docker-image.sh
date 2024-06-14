@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -exu
+set -euf -o pipefail
 
 base_debug_img_arg=""
 docker_file_arg="Dockerfile"
@@ -35,6 +35,8 @@ while getopts "lbc:d:f:p:t:" opt; do
 		;;
 	esac
 done
+
+set -x
 
 if [ -n "${target_arg}" ]; then
     target_arg="--target ${target_arg}"

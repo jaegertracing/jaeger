@@ -28,7 +28,7 @@ import (
 
 type noopWriteSpanStore struct{}
 
-func (*noopWriteSpanStore) WriteSpan(ct context.Context, span *model.Span) error {
+func (*noopWriteSpanStore) WriteSpan(context.Context, *model.Span) error {
 	return nil
 }
 
@@ -36,7 +36,7 @@ var errIWillAlwaysFail = errors.New("ErrProneWriteSpanStore will always fail")
 
 type errorWriteSpanStore struct{}
 
-func (*errorWriteSpanStore) WriteSpan(ctx context.Context, span *model.Span) error {
+func (*errorWriteSpanStore) WriteSpan(context.Context, *model.Span) error {
 	return errIWillAlwaysFail
 }
 
@@ -70,8 +70,12 @@ func TestDownSamplingWriter_hashBytes(t *testing.T) {
 	}
 	c := NewDownsamplingWriter(&noopWriteSpanStore{}, downsamplingOptions)
 	h := c.sampler.hasherPool.Get().(*hasher)
-	assert.Equal(t, h.hashBytes(), h.hashBytes())
-	c.sampler.hasherPool.Put(h)
+	defer c.sampler.hasherPool.Put(h)
+
+	once := h.hashBytes()
+	twice := h.hashBytes()
+	assert.Equal(t, once, twice, "hashBytes should be idempotent for empty buffer")
+
 	trace := model.TraceID{
 		Low:  uint64(0),
 		High: uint64(1),
@@ -80,8 +84,9 @@ func TestDownSamplingWriter_hashBytes(t *testing.T) {
 		TraceID: trace,
 	}
 	_, _ = span.TraceID.MarshalTo(h.buffer)
-	// Same traceID should always be hashed to same uint64 in DownSamplingWriter.
-	assert.Equal(t, h.hashBytes(), h.hashBytes())
+	once = h.hashBytes()
+	twice = h.hashBytes()
+	assert.Equal(t, once, twice, "hashBytes should be idempotent for non-empty buffer")
 }
 
 func TestDownsamplingWriter_calculateThreshold(t *testing.T) {

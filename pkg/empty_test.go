@@ -20,7 +20,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 )
 
-func TestDummy(t *testing.T) {
+func TestDummy(*testing.T) {
 	// This is a dummy test in the root package.
 	// Without it `go test -v .` prints "testing: warning: no tests to run".
 }

@@ -422,7 +422,7 @@ var (
 	_ io.Closer       = (*errorFactory)(nil)
 )
 
-func (errorFactory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
+func (errorFactory) Initialize(metrics.Factory, *zap.Logger) error {
 	panic("implement me")
 }
 

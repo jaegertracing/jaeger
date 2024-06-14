@@ -99,7 +99,7 @@ func TestSpanReaderGetOperations(t *testing.T) {
 				SpanKind: "server",
 			},
 		}
-		r.reader.operationNamesReader = func(parameters spanstore.OperationQueryParameters) ([]spanstore.Operation, error) {
+		r.reader.operationNamesReader = func(_ spanstore.OperationQueryParameters) ([]spanstore.Operation, error) {
 			return expectedOperations, nil
 		}
 		s, err := r.reader.GetOperations(context.Background(),
@@ -310,7 +310,7 @@ func TestSpanReaderFindTraces(t *testing.T) {
 		t.Run(testCase.caption, func(t *testing.T) {
 			withSpanReader(t, func(r *spanReaderTest) {
 				// scanMatcher can match Iter.Scan() parameters and set trace ID fields
-				scanMatcher := func(name string) any {
+				scanMatcher := func(_ /* name */ string) any {
 					traceIDs := []dbmodel.TraceID{
 						dbmodel.TraceIDFromDomain(model.NewTraceID(0, 1)),
 						dbmodel.TraceIDFromDomain(model.NewTraceID(0, 2)),

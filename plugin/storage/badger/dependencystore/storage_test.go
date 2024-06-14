@@ -60,7 +60,7 @@ func runFactoryTest(tb testing.TB, test func(tb testing.TB, sw spanstore.Writer,
 }
 
 func TestDependencyReader(t *testing.T) {
-	runFactoryTest(t, func(tb testing.TB, sw spanstore.Writer, dr dependencystore.Reader) {
+	runFactoryTest(t, func(_ testing.TB, sw spanstore.Writer, dr dependencystore.Reader) {
 		tid := time.Now()
 		links, err := dr.GetDependencies(context.Background(), tid, time.Hour)
 		require.NoError(t, err)

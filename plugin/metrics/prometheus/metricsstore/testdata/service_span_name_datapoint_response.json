@@ -5,7 +5,7 @@
     "result": [
       {
         "metric": {
-          "operation": "/OrderResult",
+          "span_name": "/OrderResult",
           "service_name": "emailservice"
         },
         "values": [

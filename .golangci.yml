@@ -18,6 +18,13 @@ issues:
       text: "exitAfterDefer"
     - linters: [gocritic]
       text: "appendAssign"
+  exclude-dirs-use-default: false
+  exclude-dirs:
+    - mocks
+    - thrift-0.9.2
+    - .*-gen
+  exclude-files:
+    - ".*.pb.go$"
   max-issues-per-linter: 0
   max-same-issues: 0
 
@@ -136,10 +143,7 @@ linters-settings:
       - G107
       - G404
       - G601
-  gosimple:
-    go: "1.21"
   govet:
-    check-shadowing: false
     enable-all: true
     disable:
       # There is rarely performance differences due to padding,
@@ -167,9 +171,6 @@ linters-settings:
           disabled: true
         # not sure how different from previous one
         - name: cyclomatic
-          disabled: true
-        # do a clean-up and enable
-        - name: unused-parameter
           disabled: true
         # we use storage_v2, so...
         - name: var-naming
@@ -238,10 +239,3 @@ linters-settings:
 run:
   go: "1.21"
   timeout: 20m
-  skip-dirs-use-default: false
-  skip-dirs:
-    - mocks
-    - thrift-0.9.2
-    - .*-gen
-  skip-files:
-    - ".*.pb.go$"

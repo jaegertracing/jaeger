@@ -77,7 +77,7 @@ func newSaramaClusterConsumer(saramaPartitionConsumer sarama.PartitionConsumer, 
 	}
 	saramaClusterConsumer := &kmocks.Consumer{}
 	saramaClusterConsumer.On("Partitions").Return((<-chan cluster.PartitionConsumer)(pcha))
-	saramaClusterConsumer.On("Close").Return(nil).Run(func(args mock.Arguments) {
+	saramaClusterConsumer.On("Close").Return(nil).Run(func(_ mock.Arguments) {
 		mc.Close()
 		close(pcha)
 	})
@@ -88,7 +88,7 @@ func newSaramaClusterConsumer(saramaPartitionConsumer sarama.PartitionConsumer, 
 func newConsumer(
 	t *testing.T,
 	metricsFactory metrics.Factory,
-	topic string,
+	_ string, /* topic */
 	processor processor.SpanProcessor,
 	consumer consumer.Consumer,
 ) *Consumer {
@@ -127,7 +127,7 @@ func TestSaramaConsumerWrapper_start_Messages(t *testing.T) {
 	isProcessed := sync.WaitGroup{}
 	isProcessed.Add(1)
 	mp := &pmocks.SpanProcessor{}
-	mp.On("Process", saramaMessageWrapper{msg}).Return(func(msg processor.Message) error {
+	mp.On("Process", saramaMessageWrapper{msg}).Return(func(_ processor.Message) error {
 		isProcessed.Done()
 		return nil
 	})

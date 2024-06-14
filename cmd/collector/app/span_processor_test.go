@@ -302,7 +302,7 @@ type blockingWriter struct {
 	inWriteSpan atomic.Int32
 }
 
-func (w *blockingWriter) WriteSpan(ctx context.Context, span *model.Span) error {
+func (w *blockingWriter) WriteSpan(context.Context, *model.Span) error {
 	w.inWriteSpan.Add(1)
 	w.Lock()
 	defer w.Unlock()
@@ -446,7 +446,7 @@ func TestSpanProcessorCountSpan(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+		t.Run(tt.name, func(_ *testing.T) {
 			mb := metricstest.NewFactory(time.Hour)
 			defer mb.Backend.Stop()
 			m := mb.Namespace(metrics.NSOptions{})
@@ -635,7 +635,7 @@ func TestAdditionalProcessors(t *testing.T) {
 
 	// additional processor is called
 	count := 0
-	f := func(s *model.Span, t string) {
+	f := func(_ *model.Span, _ string) {
 		count++
 	}
 	p = NewSpanProcessor(w, []ProcessSpan{f}, Options.QueueSize(1))
