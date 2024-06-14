@@ -1,0 +1,20 @@
+with-expecter: false
+disable-version-string: true
+outpkg: "mocks"
+dir: "{{.InterfaceDir}}/mocks/"
+mockname: "{{.InterfaceName}}"
+filename: "{{.InterfaceName}}.go"
+packages:
+  github.com/jaegertracing/jaeger/pkg/es:
+    config:
+      all: true
+  github.com/jaegertracing/jaeger/storage/spanstore: 
+    config:
+      all: true
+  github.com/jaegertracing/jaeger/proto-gen/storage_v1: 
+    config:
+      all: true
+  github.com/jaegertracing/jaeger/pkg/es/client:
+    config:
+      all: true
+
