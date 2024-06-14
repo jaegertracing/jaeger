@@ -114,7 +114,7 @@ func TestMaintenanceRun(t *testing.T) {
 
 	// This is to for codecov only. Can break without anything else breaking as it does test badger's
 	// internal implementation
-	vlogSize := expvar.Get("badger_v3_vlog_size_bytes").(*expvar.Map).Get(f.tmpDir).(*expvar.Int)
+	vlogSize := expvar.Get("badger_size_bytes_vlog").(*expvar.Map).Get(f.tmpDir).(*expvar.Int)
 	currSize := vlogSize.Value()
 	vlogSize.Set(currSize + 1<<31)
 
@@ -154,7 +154,7 @@ func TestMaintenanceCodecov(t *testing.T) {
 
 func TestBadgerMetrics(t *testing.T) {
 	// The expvar is leaking keyparams between tests. We need to clean up a bit..
-	eMap := expvar.Get("badger_v3_lsm_size_bytes").(*expvar.Map)
+	eMap := expvar.Get("badger_size_bytes_lsm").(*expvar.Map)
 	eMap.Init()
 
 	f := NewFactory()
@@ -166,28 +166,28 @@ func TestBadgerMetrics(t *testing.T) {
 	mFactory := metricstest.NewFactory(0)
 	f.Initialize(mFactory, zap.NewNop())
 	assert.NotNil(t, f.metrics.badgerMetrics)
-	_, found := f.metrics.badgerMetrics["badger_v3_memtable_gets_total"]
+	_, found := f.metrics.badgerMetrics["badger_get_num_memtable"]
 	assert.True(t, found)
 
 	waiter := func(previousValue int64) int64 {
 		sleeps := 0
 		_, gs := mFactory.Snapshot()
-		for gs["badger_v3_memtable_gets_total"] == previousValue && sleeps < 8 {
+		for gs["badger_get_num_memtable"] == previousValue && sleeps < 8 {
 			// Wait for the scheduler
 			time.Sleep(time.Duration(50) * time.Millisecond)
 			sleeps++
 			_, gs = mFactory.Snapshot()
 		}
-		assert.Equal(t, gs["badger_v3_memtable_gets_total"], previousValue)
-		return gs["badger_v3_memtable_gets_total"]
+		assert.Equal(t, gs["badger_get_num_memtable"], previousValue)
+		return gs["badger_get_num_memtable"]
 	}
 
 	vlogSize := waiter(0)
 	_, gs := mFactory.Snapshot()
 	assert.EqualValues(t, 0, vlogSize)
-	assert.EqualValues(t, int64(0), gs["badger_v3_memtable_gets_total"]) // IntVal metric
+	assert.EqualValues(t, int64(0), gs["badger_get_num_memtable"]) // IntVal metric
 
-	_, found = gs["badger_v3_lsm_size_bytes"] // Map metric
+	_, found = gs["badger_size_bytes_lsm"] // Map metric
 	assert.True(t, found)
 
 	err := f.Close()
