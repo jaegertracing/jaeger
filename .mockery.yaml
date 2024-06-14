@@ -17,4 +17,42 @@ packages:
   github.com/jaegertracing/jaeger/pkg/es/client:
     config:
       all: true
-
+  github.com/jaegertracing/jaeger/crossdock/services:
+    config:
+      all: true
+  github.com/jaegertracing/jaeger/cmd/ingester/app/processor:
+    config:
+      all: true
+  github.com/jaegertracing/jaeger/cmd/ingester/app/consumer:
+    config:
+      all: true
+  github.com/jaegertracing/jaeger/cmd/collector/app/sanitizer/cache:
+    config:
+      all: true
+  github.com/jaegertracing/jaeger/plugin/sampling/leaderelection:
+    config:
+      all: true
+  github.com/jaegertracing/jaeger/plugin/storage/grpc:
+    config:
+      all: true
+  github.com/jaegertracing/jaeger/storage:
+    config:
+      all: true
+  github.com/jaegertracing/jaeger/storage/metricsstore:
+    config:
+      all: true
+  github.com/jaegertracing/jaeger/storage/dependencystore:
+    config:
+      all: true
+  github.com/jaegertracing/jaeger/storage/samplingstore:
+    config:
+      all: true
+  github.com/jaegertracing/jaeger/pkg/kafka:
+    config:
+      all: true
+  github.com/jaegertracing/jaeger/pkg/cassandra:
+    config:
+      all: true
+  github.com/jaegertracing/jaeger/pkg/distributedlock:
+    config:
+      all: true
