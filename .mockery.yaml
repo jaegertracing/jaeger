@@ -47,9 +47,6 @@ packages:
   github.com/jaegertracing/jaeger/storage/samplingstore:
     config:
       all: true
-  github.com/jaegertracing/jaeger/pkg/kafka:
-    config:
-      all: true
   github.com/jaegertracing/jaeger/pkg/cassandra:
     config:
       all: true
