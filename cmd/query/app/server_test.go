@@ -601,7 +601,7 @@ func TestServerInUseHostPort(t *testing.T) {
 
 func TestServerSinglePort(t *testing.T) {
 	flagsSvc := flags.NewService(ports.QueryAdminHTTP)
-	flagsSvc.Logger = zaptest.NewLogger(t)
+	flagsSvc.Logger = zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller()))
 	hostPort := ports.GetAddressFromCLIOptions(ports.QueryHTTP, "")
 	querySvc := makeQuerySvc()
 	server, err := NewServer(flagsSvc.Logger, flagsSvc.HC(), querySvc.qs, nil,

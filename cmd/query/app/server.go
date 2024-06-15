@@ -274,7 +274,7 @@ func (s *Server) initListener() (cmux.CMux, error) {
 func (s *Server) Start() error {
 	cmuxServer, err := s.initListener()
 	if err != nil {
-		return err
+		return fmt.Errorf("query server failed to initialize listener: %w", err)
 	}
 	s.cmuxServer = cmuxServer
 
@@ -317,7 +317,8 @@ func (s *Server) Start() error {
 	go func() {
 		s.logger.Info("Starting GRPC server", zap.Int("port", grpcPort), zap.String("addr", s.queryOptions.GRPCHostPort))
 
-		if err := s.grpcServer.Serve(s.grpcConn); err != nil {
+		err := s.grpcServer.Serve(s.grpcConn)
+		if err != nil && !errors.Is(err, cmux.ErrListenerClosed) && !errors.Is(err, cmux.ErrServerClosed) {
 			s.logger.Error("Could not start GRPC server", zap.Error(err))
 		}
 		s.logger.Info("GRPC server stopped", zap.Int("port", grpcPort), zap.String("addr", s.queryOptions.GRPCHostPort))
@@ -336,6 +337,7 @@ func (s *Server) Start() error {
 			if err != nil && !strings.Contains(err.Error(), "use of closed network connection") {
 				s.logger.Error("Could not start multiplexed server", zap.Error(err))
 			}
+			s.logger.Info("CMUX server stopped", zap.Int("port", tcpPort), zap.String("addr", s.queryOptions.HTTPHostPort))
 			s.healthCheck.Set(healthcheck.Unavailable)
 			s.bgFinished.Done()
 		}()
@@ -344,16 +346,27 @@ func (s *Server) Start() error {
 	return nil
 }
 
-// Close stops http, GRPC servers and closes the port listener.
+// Close stops HTTP, GRPC servers and closes the port listener.
 func (s *Server) Close() error {
-	var errs []error
-	errs = append(errs, s.queryOptions.TLSGRPC.Close())
-	errs = append(errs, s.queryOptions.TLSHTTP.Close())
+	errs := []error{
+		s.queryOptions.TLSGRPC.Close(),
+		s.queryOptions.TLSHTTP.Close(),
+	}
+
+	s.logger.Info("Closing HTTP server")
+	if err := s.httpServer.Close(); err != nil {
+		errs = append(errs, fmt.Errorf("failed to close HTTP server: %w", err))
+	}
+
+	s.logger.Info("Stopping gRPC server")
 	s.grpcServer.Stop()
-	errs = append(errs, s.httpServer.Close())
+
 	if !s.separatePorts {
+		s.logger.Info("Closing CMux server")
 		s.cmuxServer.Close()
 	}
+
 	s.bgFinished.Wait()
+	s.logger.Info("Server stopped")
 	return errors.Join(errs...)
 }
