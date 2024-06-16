@@ -94,16 +94,16 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, ssFactory storage.S
 
 // CreateStrategyProvider implements samplingstrategy.Factory
 func (f *Factory) CreateStrategyProvider() (samplingstrategy.Provider, samplingstrategy.Aggregator, error) {
-	s := NewProvider(*f.options, f.logger, f.participant, f.store)
-	a, err := NewAggregator(*f.options, f.logger, f.metricsFactory, f.participant, f.store)
+	provider := NewProvider(f.options.ProviderSettings, f.logger, f.participant, f.store)
+	agg, err := NewAggregator(f.options.AggregatorSettings, f.participant, f.store, f.logger, f.metricsFactory)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	s.Start()
-	a.Start()
+	provider.Start()
+	agg.Start()
 
-	return s, a, nil
+	return provider, agg, nil
 }
 
 // Closes the factory

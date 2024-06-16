@@ -34,15 +34,16 @@ const (
 	leaderLeaseRefreshInterval   = "sampling.leader-lease-refresh-interval"
 	followerLeaseRefreshInterval = "sampling.follower-lease-refresh-interval"
 
+	defaultInitialSamplingProbability = 0.001
+	defaultMinSamplesPerSecond        = 1.0 / float64(time.Minute/time.Second) // once every 1 minute
+
 	defaultTargetSamplesPerSecond       = 1
 	defaultDeltaTolerance               = 0.3
 	defaultBucketsForCalculation        = 1
 	defaultCalculationInterval          = time.Minute
 	defaultAggregationBuckets           = 10
 	defaultDelay                        = time.Minute * 2
-	defaultInitialSamplingProbability   = 0.001
-	defaultMinSamplingProbability       = 1e-5                                   // one in 100k requests
-	defaultMinSamplesPerSecond          = 1.0 / float64(time.Minute/time.Second) // once every 1 minute
+	defaultMinSamplingProbability       = 1e-5 // one in 100k requests
 	defaultLeaderLeaseRefreshInterval   = 5 * time.Second
 	defaultFollowerLeaseRefreshInterval = 60 * time.Second
 )
@@ -51,6 +52,29 @@ const (
 // The abbreviation SPS refers to "samples-per-second", which is the target
 // of the optimization/control implemented by the adaptive sampling.
 type Options struct {
+	AggregatorSettings
+	ProviderSettings
+}
+
+// ProviderSettings holds configuration for the sampling strategies provider.
+type ProviderSettings struct {
+	// InitialSamplingProbability is assigned to all new (previously unseen) operations.
+	InitialSamplingProbability float64
+
+	// MinSamplesPerSecond determines the min number of traces that are sampled per second.
+	// For example, if the value is 0.01666666666 (one every minute), then the sampling processor will do
+	// its best to sample at least one trace a minute for an operation. This is useful for low QPS operations
+	// that may never be sampled by the probabilistic sampler.
+	MinSamplesPerSecond float64
+}
+
+// AggregatorSettings holds configuration for the throughput aggregator and processor.
+type AggregatorSettings struct {
+	// InitialSamplingProbability is assigned to all new (previously unseen) operations.
+	// This should be the same value as in ProviderSettings, which is an unfortunate coupling.
+	// The Factory will copy this value from ProviderSettings when creating an aggregator.
+	InitialSamplingProbability float64
+
 	// TargetSamplesPerSecond is the global target rate of samples per operation.
 	// TODO implement manual overrides per service/operation.
 	TargetSamplesPerSecond float64
@@ -90,18 +114,9 @@ type Options struct {
 	// guarantee that all clients can use the latest calculated probabilities for at least 1 minute.
 	Delay time.Duration
 
-	// InitialSamplingProbability is the initial sampling probability for all new operations.
-	InitialSamplingProbability float64
-
 	// MinSamplingProbability is the minimum sampling probability for all operations. ie. the calculated sampling
 	// probability will be in the range [MinSamplingProbability, 1.0].
 	MinSamplingProbability float64
-
-	// MinSamplesPerSecond determines the min number of traces that are sampled per second.
-	// For example, if the value is 0.01666666666 (one every minute), then the sampling processor will do
-	// its best to sample at least one trace a minute for an operation. This is useful for low QPS operations
-	// that may never be sampled by the probabilistic sampler.
-	MinSamplesPerSecond float64
 
 	// LeaderLeaseRefreshInterval is the duration to sleep if this processor is elected leader before
 	// attempting to renew the lease on the leader lock. NB. This should be less than FollowerLeaseRefreshInterval
@@ -158,7 +173,9 @@ func (opts *Options) InitFromViper(v *viper.Viper) *Options {
 	opts.CalculationInterval = v.GetDuration(calculationInterval)
 	opts.AggregationBuckets = v.GetInt(aggregationBuckets)
 	opts.Delay = v.GetDuration(delay)
-	opts.InitialSamplingProbability = v.GetFloat64(initialSamplingProbability)
+	// duplicate the setting into two places in the config.
+	opts.ProviderSettings.InitialSamplingProbability = v.GetFloat64(initialSamplingProbability)
+	opts.AggregatorSettings.InitialSamplingProbability = v.GetFloat64(initialSamplingProbability)
 	opts.MinSamplingProbability = v.GetFloat64(minSamplingProbability)
 	opts.MinSamplesPerSecond = v.GetFloat64(minSamplesPerSecond)
 	opts.LeaderLeaseRefreshInterval = v.GetDuration(leaderLeaseRefreshInterval)

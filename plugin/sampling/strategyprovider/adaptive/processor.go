@@ -75,7 +75,7 @@ type throughputBucket struct {
 // and generating a probability to match the targetQPS.
 type PostAggregator struct {
 	sync.RWMutex
-	Options
+	AggregatorSettings
 
 	electionParticipant leaderelection.ElectionParticipant
 	storage             samplingstore.Store
@@ -108,7 +108,7 @@ type PostAggregator struct {
 
 // newPostAggregator creates a new sampling postAggregator that generates sampling rates for service operations.
 func newPostAggregator(
-	opts Options,
+	opts AggregatorSettings,
 	hostname string,
 	storage samplingstore.Store,
 	electionParticipant leaderelection.ElectionParticipant,
@@ -123,7 +123,7 @@ func newPostAggregator(
 	}
 	metricsFactory = metricsFactory.Namespace(metrics.NSOptions{Name: "adaptive_sampling_processor"})
 	return &PostAggregator{
-		Options:             opts,
+		AggregatorSettings:  opts,
 		storage:             storage,
 		probabilities:       make(model.ServiceOperationProbabilities),
 		qps:                 make(model.ServiceOperationQPS),

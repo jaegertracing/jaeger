@@ -39,14 +39,14 @@ func TestAggregator(t *testing.T) {
 	mockEP.On("Start").Return(nil)
 	mockEP.On("Close").Return(nil)
 	mockEP.On("IsLeader").Return(true)
-	testOpts := Options{
+	testOpts := AggregatorSettings{
 		CalculationInterval:   1 * time.Second,
 		AggregationBuckets:    1,
 		BucketsForCalculation: 1,
 	}
 	logger := zap.NewNop()
 
-	a, err := NewAggregator(testOpts, logger, metricsFactory, mockEP, mockStorage)
+	a, err := NewAggregator(testOpts, mockEP, mockStorage, logger, metricsFactory)
 	require.NoError(t, err)
 	a.RecordThroughput("A", "GET", model.SamplerTypeProbabilistic, 0.001)
 	a.RecordThroughput("B", "POST", model.SamplerTypeProbabilistic, 0.001)
@@ -75,13 +75,13 @@ func TestIncrementThroughput(t *testing.T) {
 	metricsFactory := metricstest.NewFactory(0)
 	mockStorage := &mocks.Store{}
 	mockEP := &epmocks.ElectionParticipant{}
-	testOpts := Options{
+	testOpts := AggregatorSettings{
 		CalculationInterval:   1 * time.Second,
 		AggregationBuckets:    1,
 		BucketsForCalculation: 1,
 	}
 	logger := zap.NewNop()
-	a, err := NewAggregator(testOpts, logger, metricsFactory, mockEP, mockStorage)
+	a, err := NewAggregator(testOpts, mockEP, mockStorage, logger, metricsFactory)
 	require.NoError(t, err)
 	// 20 different probabilities
 	for i := 0; i < 20; i++ {
@@ -89,7 +89,7 @@ func TestIncrementThroughput(t *testing.T) {
 	}
 	assert.Len(t, a.(*aggregator).currentThroughput["A"]["GET"].Probabilities, 10)
 
-	a, err = NewAggregator(testOpts, logger, metricsFactory, mockEP, mockStorage)
+	a, err = NewAggregator(testOpts, mockEP, mockStorage, logger, metricsFactory)
 	require.NoError(t, err)
 	// 20 of the same probabilities
 	for i := 0; i < 20; i++ {
@@ -102,14 +102,14 @@ func TestLowerboundThroughput(t *testing.T) {
 	metricsFactory := metricstest.NewFactory(0)
 	mockStorage := &mocks.Store{}
 	mockEP := &epmocks.ElectionParticipant{}
-	testOpts := Options{
+	testOpts := AggregatorSettings{
 		CalculationInterval:   1 * time.Second,
 		AggregationBuckets:    1,
 		BucketsForCalculation: 1,
 	}
 	logger := zap.NewNop()
 
-	a, err := NewAggregator(testOpts, logger, metricsFactory, mockEP, mockStorage)
+	a, err := NewAggregator(testOpts, mockEP, mockStorage, logger, metricsFactory)
 	require.NoError(t, err)
 	a.RecordThroughput("A", "GET", model.SamplerTypeLowerBound, 0.001)
 	assert.EqualValues(t, 0, a.(*aggregator).currentThroughput["A"]["GET"].Count)
@@ -120,13 +120,13 @@ func TestRecordThroughput(t *testing.T) {
 	metricsFactory := metricstest.NewFactory(0)
 	mockStorage := &mocks.Store{}
 	mockEP := &epmocks.ElectionParticipant{}
-	testOpts := Options{
+	testOpts := AggregatorSettings{
 		CalculationInterval:   1 * time.Second,
 		AggregationBuckets:    1,
 		BucketsForCalculation: 1,
 	}
 	logger := zap.NewNop()
-	a, err := NewAggregator(testOpts, logger, metricsFactory, mockEP, mockStorage)
+	a, err := NewAggregator(testOpts, mockEP, mockStorage, logger, metricsFactory)
 	require.NoError(t, err)
 
 	// Testing non-root span

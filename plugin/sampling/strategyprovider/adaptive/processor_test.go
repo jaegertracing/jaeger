@@ -128,7 +128,9 @@ func TestInitializeThroughput(t *testing.T) {
 		Return([]*model.Throughput{{Service: "svcA", Operation: "GET", Count: 7}}, nil)
 	mockStorage.On("GetThroughput", time.Time{}.Add(time.Minute*17), time.Time{}.Add(time.Minute*18)).
 		Return([]*model.Throughput{}, nil)
-	p := &PostAggregator{storage: mockStorage, Options: Options{CalculationInterval: time.Minute, AggregationBuckets: 3}}
+	p := &PostAggregator{
+		storage:            mockStorage,
+		AggregatorSettings: AggregatorSettings{CalculationInterval: time.Minute, AggregationBuckets: 3}}
 	p.initializeThroughput(time.Time{}.Add(time.Minute * 20))
 
 	require.Len(t, p.throughputs, 2)
@@ -144,7 +146,7 @@ func TestInitializeThroughputFailure(t *testing.T) {
 	mockStorage := &smocks.Store{}
 	mockStorage.On("GetThroughput", time.Time{}.Add(time.Minute*19), time.Time{}.Add(time.Minute*20)).
 		Return(nil, errTestStorage())
-	p := &PostAggregator{storage: mockStorage, Options: Options{CalculationInterval: time.Minute, AggregationBuckets: 1}}
+	p := &PostAggregator{storage: mockStorage, AggregatorSettings: AggregatorSettings{CalculationInterval: time.Minute, AggregationBuckets: 1}}
 	p.initializeThroughput(time.Time{}.Add(time.Minute * 20))
 
 	assert.Empty(t, p.throughputs)
@@ -159,7 +161,7 @@ func TestCalculateQPS(t *testing.T) {
 }
 
 func TestGenerateOperationQPS(t *testing.T) {
-	p := &PostAggregator{throughputs: testThroughputBuckets(), Options: Options{BucketsForCalculation: 10, AggregationBuckets: 10}}
+	p := &PostAggregator{throughputs: testThroughputBuckets(), AggregatorSettings: AggregatorSettings{BucketsForCalculation: 10, AggregationBuckets: 10}}
 	svcOpQPS := p.throughputToQPS()
 	assert.Len(t, svcOpQPS, 2)
 
@@ -207,7 +209,7 @@ func TestGenerateOperationQPS(t *testing.T) {
 }
 
 func TestGenerateOperationQPS_UseMostRecentBucketOnly(t *testing.T) {
-	p := &PostAggregator{throughputs: testThroughputBuckets(), Options: Options{BucketsForCalculation: 1, AggregationBuckets: 10}}
+	p := &PostAggregator{throughputs: testThroughputBuckets(), AggregatorSettings: AggregatorSettings{BucketsForCalculation: 1, AggregationBuckets: 10}}
 	svcOpQPS := p.throughputToQPS()
 	assert.Len(t, svcOpQPS, 2)
 
@@ -262,14 +264,14 @@ func TestCalculateProbability(t *testing.T) {
 			"GET": 0.5,
 		},
 	}
-	cfg := Options{
+	cfg := AggregatorSettings{
 		TargetSamplesPerSecond:     1.0,
 		DeltaTolerance:             0.2,
 		InitialSamplingProbability: 0.001,
 		MinSamplingProbability:     0.00001,
 	}
 	p := &PostAggregator{
-		Options:               cfg,
+		AggregatorSettings:    cfg,
 		probabilities:         probabilities,
 		probabilityCalculator: testCalculator(),
 		throughputs:           throughputs,
@@ -309,7 +311,7 @@ func TestCalculateProbabilitiesAndQPS(t *testing.T) {
 	}
 	mets := metricstest.NewFactory(0)
 	p := &PostAggregator{
-		Options: Options{
+		AggregatorSettings: AggregatorSettings{
 			TargetSamplesPerSecond:     1.0,
 			DeltaTolerance:             0.2,
 			InitialSamplingProbability: 0.001,
@@ -347,7 +349,7 @@ func TestRunCalculationLoop(t *testing.T) {
 	mockEP.On("Close").Return(nil)
 	mockEP.On("IsLeader").Return(true)
 
-	cfg := Options{
+	cfg := AggregatorSettings{
 		TargetSamplesPerSecond:       1.0,
 		DeltaTolerance:               0.1,
 		InitialSamplingProbability:   0.001,
@@ -358,7 +360,7 @@ func TestRunCalculationLoop(t *testing.T) {
 		FollowerLeaseRefreshInterval: time.Second,
 		BucketsForCalculation:        10,
 	}
-	agg, err := NewAggregator(cfg, logger, metrics.NullFactory, mockEP, mockStorage)
+	agg, err := NewAggregator(cfg, mockEP, mockStorage, logger, metrics.NullFactory)
 	require.NoError(t, err)
 	agg.Start()
 	defer agg.Close()
@@ -395,12 +397,12 @@ func TestRunCalculationLoop_GetThroughputError(t *testing.T) {
 	mockEP.On("Close").Return(nil)
 	mockEP.On("IsLeader").Return(false)
 
-	cfg := Options{
+	cfg := AggregatorSettings{
 		CalculationInterval:   time.Millisecond * 5,
 		AggregationBuckets:    2,
 		BucketsForCalculation: 10,
 	}
-	agg, err := NewAggregator(cfg, logger, metrics.NullFactory, mockEP, mockStorage)
+	agg, err := NewAggregator(cfg, mockEP, mockStorage, logger, metrics.NullFactory)
 	require.NoError(t, err)
 	agg.Start()
 	for i := 0; i < 1000; i++ {
@@ -480,13 +482,13 @@ func TestRealisticRunCalculationLoop(t *testing.T) {
 	mockEP.On("Start").Return(nil)
 	mockEP.On("Close").Return(nil)
 	mockEP.On("IsLeader").Return(true)
-	cfg := Options{
-		TargetSamplesPerSecond:     1.0,
-		DeltaTolerance:             0.2,
+	cfg := ProviderSettings{
+		// TargetSamplesPerSecond:     1.0,
+		// DeltaTolerance:             0.2,
 		InitialSamplingProbability: 0.001,
-		CalculationInterval:        time.Second * 10,
-		AggregationBuckets:         1,
-		Delay:                      time.Second * 10,
+		// CalculationInterval:        time.Second * 10,
+		// AggregationBuckets:         1,
+		// Delay:                      time.Second * 10,
 	}
 	s := NewProvider(cfg, logger, mockEP, mockStorage)
 	s.Start()
@@ -524,7 +526,7 @@ func TestRealisticRunCalculationLoop(t *testing.T) {
 }
 
 func TestPrependBucket(t *testing.T) {
-	p := &PostAggregator{Options: Options{AggregationBuckets: 1}}
+	p := &PostAggregator{AggregatorSettings: AggregatorSettings{AggregationBuckets: 1}}
 	p.prependThroughputBucket(&throughputBucket{interval: time.Minute})
 	require.Len(t, p.throughputs, 1)
 	assert.Equal(t, time.Minute, p.throughputs[0].interval)
@@ -537,7 +539,7 @@ func TestPrependBucket(t *testing.T) {
 func TestConstructorFailure(t *testing.T) {
 	logger := zap.NewNop()
 
-	cfg := Options{
+	cfg := AggregatorSettings{
 		TargetSamplesPerSecond:     1.0,
 		DeltaTolerance:             0.2,
 		InitialSamplingProbability: 0.001,
@@ -566,7 +568,7 @@ func TestGenerateStrategyResponses(t *testing.T) {
 	}
 	p := &Provider{
 		probabilities: probabilities,
-		Options: Options{
+		ProviderSettings: ProviderSettings{
 			InitialSamplingProbability: 0.001,
 			MinSamplesPerSecond:        0.0001,
 		},
@@ -644,7 +646,7 @@ func TestCalculateProbabilitiesAndQPSMultiple(t *testing.T) {
 	}
 
 	p := &PostAggregator{
-		Options: Options{
+		AggregatorSettings: AggregatorSettings{
 			TargetSamplesPerSecond:     1.0,
 			DeltaTolerance:             0.002,
 			InitialSamplingProbability: 0.001,

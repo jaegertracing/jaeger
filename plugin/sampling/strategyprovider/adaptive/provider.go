@@ -30,7 +30,7 @@ const defaultFollowerProbabilityInterval = 20 * time.Second
 
 type Provider struct {
 	sync.RWMutex
-	Options
+	ProviderSettings
 
 	electionParticipant leaderelection.ElectionParticipant
 	storage             samplingstore.Store
@@ -52,9 +52,9 @@ type Provider struct {
 }
 
 // NewProvider creates a strategy store that holds adaptive sampling strategies.
-func NewProvider(options Options, logger *zap.Logger, participant leaderelection.ElectionParticipant, store samplingstore.Store) *Provider {
+func NewProvider(options ProviderSettings, logger *zap.Logger, participant leaderelection.ElectionParticipant, store samplingstore.Store) *Provider {
 	return &Provider{
-		Options:                 options,
+		ProviderSettings:        options,
 		storage:                 store,
 		probabilities:           make(model.ServiceOperationProbabilities),
 		strategyResponses:       make(map[string]*api_v2.SamplingStrategyResponse),
@@ -67,7 +67,7 @@ func NewProvider(options Options, logger *zap.Logger, participant leaderelection
 
 // Start initializes and starts the sampling service which regularly loads sampling probabilities and generates strategies.
 func (ss *Provider) Start() error {
-	ss.logger.Info("starting adaptive sampling service")
+	ss.logger.Info("starting adaptive sampling strategy provider")
 	ss.loadProbabilities()
 	ss.generateStrategyResponses()
 
@@ -82,7 +82,7 @@ func (ss *Provider) Start() error {
 
 // Close stops the service from loading probabilities and generating strategies.
 func (ss *Provider) Close() error {
-	ss.logger.Info("stopping adaptive sampling service")
+	ss.logger.Info("stopping adaptive sampling strategy provider")
 	close(ss.shutdown)
 	ss.bgFinished.Wait()
 	return nil
