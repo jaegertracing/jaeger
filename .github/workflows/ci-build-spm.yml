@@ -1,0 +1,34 @@
+name: Build all-in-one
+
+on:
+  push:
+    branches: [main]
+
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ (github.event.pull_request && github.event.pull_request.number) || github.ref || github.run_id }}
+  cancel-in-progress: true
+
+# See https://github.com/ossf/scorecard/blob/main/docs/checks.md#token-permissions
+permissions:
+  contents: read
+
+jobs:
+  SPM:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@17d0e2bd7d51742c71671bd19fa12bdc9d40a3d6 # v2.8.1
+        with:
+          egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
+
+      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
+
+      - uses: actions/setup-go@cdcb36043654635271a94b9a6d1392de5bb323a7 # v5.0.1
+        with:
+          go-version: 1.22.x
+          
+      - name: Run SPM Test
+        run: ./scripts/build-SPM.sh
