@@ -107,9 +107,7 @@ func GetSamplingStorage(
 
 func (ext *rsExtension) Start(ctx context.Context, host component.Host) error {
 	if ext.cfg.File.Path != "" {
-		// TODO contextcheck linter complains about next line that context is not passed. It is not wrong.
-		//nolint
-		if err := ext.startFileStrategyStore(); err != nil {
+		if err := ext.startFileStrategyStore(ctx); err != nil {
 			return err
 		}
 	}
@@ -152,12 +150,12 @@ func (ext *rsExtension) Shutdown(ctx context.Context) error {
 	return errors.Join(errs...)
 }
 
-func (ext *rsExtension) startFileStrategyStore() error {
+func (ext *rsExtension) startFileStrategyStore(_ context.Context) error {
 	opts := static.Options{
 		StrategiesFile: ext.cfg.File.Path,
 	}
 
-	// TODO contextcheck linter complains about next line that context is not passed. It is not wrong.
+	// contextcheck linter complains about next line that context is not passed.
 	//nolint
 	ss, err := static.NewStrategyStore(opts, ext.telemetry.Logger)
 	if err != nil {
