@@ -32,34 +32,24 @@ func newTraceProcessor(cfg Config, otel component.TelemetrySettings) *traceProce
 }
 
 func (tp *traceProcessor) start(_ context.Context, host component.Host) error {
-	extCfg, err := remotesampling.GetExtensionConfig(host)
-
-	tp.logger.Info("Adaptive sampling extension config", zap.Any("config", extCfg))
-
+	store, ep, err := remotesampling.GetAdaptiveSamplingStore(host)
 	if err != nil {
 		return err
 	}
+
 	opts := adaptive.Options{
-		InitialSamplingProbability:   extCfg.InitialSamplingProbability,
-		TargetSamplesPerSecond:       tp.config.TargetSamplesPerSecond,
-		DeltaTolerance:               tp.config.DeltaTolerance,
-		CalculationInterval:          tp.config.CalculationInterval,
-		AggregationBuckets:           extCfg.AggregationBuckets,
-		BucketsForCalculation:        tp.config.BucketsForCalculation,
-		Delay:                        tp.config.Delay,
-		MinSamplingProbability:       tp.config.MinSamplingProbability,
-		LeaderLeaseRefreshInterval:   extCfg.LeaderLeaseRefreshInterval,
-		FollowerLeaseRefreshInterval: extCfg.FollowerLeaseRefreshInterval,
+		TargetSamplesPerSecond: tp.config.TargetSamplesPerSecond,
+		DeltaTolerance:         tp.config.DeltaTolerance,
+		CalculationInterval:    tp.config.CalculationInterval,
+		BucketsForCalculation:  tp.config.BucketsForCalculation,
+		Delay:                  tp.config.Delay,
+		MinSamplingProbability: tp.config.MinSamplingProbability,
 	}
 
-	store, ep, err := remotesampling.GetSamplingStorage(tp.config.StrategyStore, host, opts, tp.logger)
-	if err != nil {
-		return err
-	}
-
+	// TODO it is unlikely that aggregator needs the full Options object, we need to refactor.
 	agg, err := adaptive.NewAggregator(opts, tp.logger, metrics.NullFactory, ep, store)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to create the adpative sampling aggregator : %w", err)
 	}
 
 	agg.Start()
