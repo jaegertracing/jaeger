@@ -50,8 +50,26 @@ type Configuration struct {
 
 // Authenticator holds the authentication properties needed to connect to a Cassandra cluster
 type Authenticator struct {
-	Basic BasicAuthenticator `yaml:"basic" mapstructure:",squash"`
+	Basic               BasicAuthenticator `yaml:"basic" mapstructure:",squash"`
+	CustomAuthenticator string             `yaml:"custom_authenticator" mapstructure:"custom_authenticator"`
 	// TODO: add more auth types
+}
+
+type DsePlainTextAuthenticator struct {
+	Username string
+	Password string
+}
+
+func (a DsePlainTextAuthenticator) Challenge(req []byte) ([]byte, gocql.Authenticator, error) {
+	return []byte(fmt.Sprintf("\x00%s\x00%s", a.Username, a.Password)), nil, nil
+}
+
+func (a DsePlainTextAuthenticator) InitialResponse() ([]byte, error) {
+	return nil, nil
+}
+
+func (a DsePlainTextAuthenticator) Success(data []byte) error {
+	return nil
 }
 
 // BasicAuthenticator holds the username and password for a password authenticator for a Cassandra cluster
@@ -146,7 +164,14 @@ func (c *Configuration) NewCluster(logger *zap.Logger) (*gocql.ClusterConfig, er
 			Username: c.Authenticator.Basic.Username,
 			Password: c.Authenticator.Basic.Password,
 		}
+	} else if c.Authenticator.CustomAuthenticator != "" {
+		auth, err := getCustomAuthenticator(c.Authenticator.CustomAuthenticator, c.Authenticator.Basic.Username, c.Authenticator.Basic.Password)
+		if err != nil {
+			return nil, fmt.Errorf("could not create custom authenticator: %v", err)
+		}
+		cluster.Authenticator = auth
 	}
+
 	tlsCfg, err := c.TLS.Config(logger)
 	if err != nil {
 		return nil, err
@@ -175,4 +200,21 @@ func (c *Configuration) String() string {
 func (c *Configuration) Validate() error {
 	_, err := govalidator.ValidateStruct(c)
 	return err
+}
+
+func getCustomAuthenticator(authenticatorName, username, password string) (gocql.Authenticator, error) {
+	switch authenticatorName {
+	case "Password":
+		return gocql.PasswordAuthenticator{
+			Username: username,
+			Password: password,
+		}, nil
+	case "DsePlainText":
+		return DsePlainTextAuthenticator{
+			Username: username,
+			Password: password,
+		}, nil
+	default:
+		return nil, fmt.Errorf("unsupported custom authenticator: %s", authenticatorName)
+	}
 }
