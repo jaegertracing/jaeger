@@ -24,7 +24,6 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/config"
-	memCfg "github.com/jaegertracing/jaeger/pkg/memory/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/storage"
 )
@@ -44,9 +43,10 @@ func TestMemoryStorageFactory(t *testing.T) {
 	depReader, err := f.CreateDependencyReader()
 	require.NoError(t, err)
 	assert.Equal(t, f.store, depReader)
-	samplingStore, err := f.CreateSamplingStore(2)
+	f.options.Config.SamplingAggregationBuckets = 123
+	samplingStore, err := f.CreateSamplingStore()
 	require.NoError(t, err)
-	assert.Equal(t, 2, samplingStore.(*SamplingStore).maxBuckets)
+	assert.Equal(t, 123, samplingStore.(*SamplingStore).maxBuckets)
 	lock, err := f.CreateLock()
 	require.NoError(t, err)
 	assert.NotNil(t, lock)
@@ -57,15 +57,15 @@ func TestWithConfiguration(t *testing.T) {
 	v, command := config.Viperize(f.AddFlags)
 	command.ParseFlags([]string{"--memory.max-traces=100"})
 	f.InitFromViper(v, zap.NewNop())
-	assert.Equal(t, 100, f.options.Configuration.MaxTraces)
+	assert.Equal(t, 100, f.options.Config.MaxTraces)
 }
 
 func TestNewFactoryWithConfig(t *testing.T) {
-	cfg := memCfg.Configuration{
+	cfg := Configuration{
 		MaxTraces: 42,
 	}
 	f := NewFactoryWithConfig(cfg, metrics.NullFactory, zap.NewNop())
-	assert.Equal(t, cfg, f.options.Configuration)
+	assert.Equal(t, cfg, f.options.Config)
 }
 
 func TestPublishOpts(t *testing.T) {

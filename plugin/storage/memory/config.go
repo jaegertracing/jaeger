@@ -12,9 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package config
+package memory
 
 // Configuration describes the options to customize the storage behavior
 type Configuration struct {
+	// MaxTraces is the maximum number of traces that can be stored in memory in FIFO manner.
 	MaxTraces int `mapstructure:"max_traces"`
+
+	// SamplingAggregationBuckets is used with adaptive sampling to control how many buckets
+	// of trace throughput is stored in memory.
+	SamplingAggregationBuckets int `mapstructure:"sampling_aggregation_buckets"`
 }

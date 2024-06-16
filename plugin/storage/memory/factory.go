@@ -23,7 +23,6 @@ import (
 
 	"github.com/jaegertracing/jaeger/internal/safeexpvar"
 	"github.com/jaegertracing/jaeger/pkg/distributedlock"
-	"github.com/jaegertracing/jaeger/pkg/memory/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/plugin"
 	"github.com/jaegertracing/jaeger/storage"
@@ -54,12 +53,12 @@ func NewFactory() *Factory {
 
 // NewFactoryWithConfig is used from jaeger(v2).
 func NewFactoryWithConfig(
-	cfg config.Configuration,
+	cfg Configuration,
 	metricsFactory metrics.Factory,
 	logger *zap.Logger,
 ) *Factory {
 	f := NewFactory()
-	f.configureFromOptions(Options{Configuration: cfg})
+	f.configureFromOptions(Options{Config: cfg})
 	_ = f.Initialize(metricsFactory, logger)
 	return f
 }
@@ -82,7 +81,7 @@ func (f *Factory) configureFromOptions(opts Options) {
 // Initialize implements storage.Factory
 func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
 	f.metricsFactory, f.logger = metricsFactory, logger
-	f.store = WithConfiguration(f.options.Configuration)
+	f.store = WithConfiguration(f.options.Config)
 	logger.Info("Memory storage initialized", zap.Any("configuration", f.store.defaultConfig))
 	f.publishOpts()
 
@@ -115,8 +114,8 @@ func (f *Factory) CreateDependencyReader() (dependencystore.Reader, error) {
 }
 
 // CreateSamplingStore implements storage.SamplingStoreFactory
-func (*Factory) CreateSamplingStore(maxBuckets int) (samplingstore.Store, error) {
-	return NewSamplingStore(maxBuckets), nil
+func (f *Factory) CreateSamplingStore() (samplingstore.Store, error) {
+	return NewSamplingStore(f.options.Config.SamplingAggregationBuckets), nil
 }
 
 // CreateLock implements storage.SamplingStoreFactory
@@ -125,5 +124,6 @@ func (*Factory) CreateLock() (distributedlock.Lock, error) {
 }
 
 func (f *Factory) publishOpts() {
-	safeexpvar.SetInt("jaeger_storage_memory_max_traces", int64(f.options.Configuration.MaxTraces))
+	safeexpvar.SetInt("jaeger_storage_memory_max_traces", int64(f.options.Config.MaxTraces))
+	safeexpvar.SetInt("jaeger_storage_memory_sampling_aggregation_buckets", int64(f.options.Config.MaxTraces))
 }

@@ -15,10 +15,34 @@
 package server
 
 import (
+	"context"
 	"testing"
 
+	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
+	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
+	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 )
+
+type mockSamplingProvider struct{}
+
+func (mockSamplingProvider) GetSamplingStrategy(context.Context, string /* serviceName */) (*api_v2.SamplingStrategyResponse, error) {
+	return nil, nil
+}
+
+func (mockSamplingProvider) Close() error {
+	return nil
+}
+
+type mockSpanProcessor struct{}
+
+func (*mockSpanProcessor) Close() error {
+	return nil
+}
+
+func (*mockSpanProcessor) ProcessSpans([]*model.Span, processor.SpansOptions) ([]bool, error) {
+	return []bool{}, nil
+}
 
 func TestMain(m *testing.M) {
 	testutils.VerifyGoLeaks(m)

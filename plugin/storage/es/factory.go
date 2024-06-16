@@ -54,9 +54,11 @@ const (
 var ( // interface comformance checks
 	_ storage.Factory        = (*Factory)(nil)
 	_ storage.ArchiveFactory = (*Factory)(nil)
-	_ io.Closer              = (*Factory)(nil)
-	_ plugin.Configurable    = (*Factory)(nil)
-	_ storage.Purger         = (*Factory)(nil)
+	// TODO does not implement CreateLock !
+	// _ storage.SamplingStoreFactory = (*Factory)(nil)
+	_ io.Closer           = (*Factory)(nil)
+	_ plugin.Configurable = (*Factory)(nil)
+	_ storage.Purger      = (*Factory)(nil)
 )
 
 // Factory implements storage.Factory for Elasticsearch backend.
@@ -296,7 +298,7 @@ func createSpanWriter(
 	return writer, nil
 }
 
-func (f *Factory) CreateSamplingStore(int /* maxBuckets */) (samplingstore.Store, error) {
+func (f *Factory) CreateSamplingStore() (samplingstore.Store, error) {
 	params := esSampleStore.Params{
 		Client:                 f.getPrimaryClient,
 		Logger:                 f.logger,

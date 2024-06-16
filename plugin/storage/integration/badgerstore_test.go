@@ -48,7 +48,7 @@ func (s *BadgerIntegrationStorage) initialize(t *testing.T) {
 	s.SpanReader, err = s.factory.CreateSpanReader()
 	require.NoError(t, err)
 
-	s.SamplingStore, err = s.factory.CreateSamplingStore(0)
+	s.SamplingStore, err = s.factory.CreateSamplingStore()
 	require.NoError(t, err)
 }
 

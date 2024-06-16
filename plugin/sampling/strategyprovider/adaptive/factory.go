@@ -78,7 +78,7 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, ssFactory storage.S
 	if err != nil {
 		return err
 	}
-	f.store, err = ssFactory.CreateSamplingStore(f.options.AggregationBuckets)
+	f.store, err = ssFactory.CreateSamplingStore()
 	if err != nil {
 		return err
 	}
