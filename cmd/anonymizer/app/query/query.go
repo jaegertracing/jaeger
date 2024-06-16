@@ -83,3 +83,8 @@ func (q *Query) QueryTrace(traceID string) ([]model.Span, error) {
 
 	return spans, nil
 }
+
+// Close closes the grpc client connection
+func (q *Query) Close() error {
+	return q.conn.Close()
+}
