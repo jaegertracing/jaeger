@@ -3,7 +3,6 @@ name: Build all-in-one
 on:
   push:
     branches: [main]
-
   pull_request:
     branches: [main]
 
@@ -11,7 +10,6 @@ concurrency:
   group: ${{ github.workflow }}-${{ (github.event.pull_request && github.event.pull_request.number) || github.ref || github.run_id }}
   cancel-in-progress: true
 
-# See https://github.com/ossf/scorecard/blob/main/docs/checks.md#token-permissions
 permissions:
   contents: read
 
@@ -21,58 +19,78 @@ jobs:
     strategy:
       matrix:
         mode:
-        - name: v1
-          binary: all-in-one
-          skip_sampling: false
-        - name: v2
-          binary: jaeger
-          skip_sampling: true
+          - name: v1
+            binary: all-in-one
+            skip_sampling: false
+          - name: v2
+            binary: jaeger
+            skip_sampling: true
 
     steps:
-    - name: Harden Runner
-      uses: step-security/harden-runner@63c24ba6bd7ba022e95695ff85de572c04a18142 # v2.7.0
-      with:
-        egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
+      - name: Harden Runner
+        uses: step-security/harden-runner@63c24ba6bd7ba022e95695ff85de572c04a18142 # v2.7.0
+        with:
+          egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
 
-    - uses: actions/checkout@9bb56186c3b09b4f86b1c65136769dd318469633 # v4.1.2
-      with:
-        submodules: true
+      - uses: actions/checkout@9bb56186c3b09b4f86b1c65136769dd318469633 # v4.1.2
+        with:
+          submodules: true
 
-    - name: Fetch git tags
-      run: |
-        git fetch --prune --unshallow --tags
+      - name: Fetch git tags
+        run: |
+          git fetch --prune --unshallow --tags
 
-    - uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491 # v5.0.0
-      with:
-        go-version: 1.22.x
+      - uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491 # v5.0.0
+        with:
+          go-version: 1.22.x
 
-    - name: Setup Node.js version
-      uses: ./.github/actions/setup-node.js
+      - name: Setup Node.js version
+        uses: ./.github/actions/setup-node.js
 
-    - name: Export BRANCH variable
-      uses: ./.github/actions/setup-branch
+      - name: Export BRANCH variable
+        uses: ./.github/actions/setup-branch
 
-    - name: Install tools
-      run: make install-ci
+      - name: Install tools
+        run: make install-ci
 
-    - uses: docker/setup-qemu-action@68827325e0b33c7199eb31dd4e31fbe9023e06e3 # v3.0.0
+      - uses: docker/setup-qemu-action@68827325e0b33c7199eb31dd4e31fbe9023e06e3 # v3.0.0
 
-    - name: Define PR_ONLY var if running on a Pull Request
-      run: |
-        case ${GITHUB_EVENT_NAME} in
-          pull_request)
-            echo "PR_ONLY=pr-only" >> ${GITHUB_ENV}
-            ;;
-          *)
-            echo "PR_ONLY=" >> ${GITHUB_ENV}
-            ;;
-        esac
+      - name: Define PR_ONLY var if running on a Pull Request
+        run: |
+          case ${GITHUB_EVENT_NAME} in
+            pull_request)
+              echo "PR_ONLY=pr-only" >> ${GITHUB_ENV}
+              ;;
+            *)
+              echo "PR_ONLY=" >> ${GITHUB_ENV}
+              ;;
+          esac
 
-    - name: Build, test, and publish all-in-one image
-      run: |
-        BINARY=${{ matrix.mode.binary }} \
-          SKIP_SAMPLING=${{ matrix.mode.skip_sampling }} \
-          bash scripts/build-all-in-one-image.sh ${{ env.PR_ONLY }}
-      env:
-        DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
-        QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
+      - name: Build, test, and publish all-in-one image
+        run: |
+          BINARY=${{ matrix.mode.binary }} \
+            SKIP_SAMPLING=${{ matrix.mode.skip_sampling }} \
+            bash scripts/build-all-in-one-image.sh ${{ env.PR_ONLY }}
+        env:
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+          QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
+
+      - name: Set up Docker Compose
+        run: sudo curl -L "https://github.com/docker/compose/releases/download/v2.11.2/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose && sudo chmod +x /usr/local/bin/docker-compose
+
+      - name: Start Docker Compose services
+        run: docker-compose -f docker-compose/monitor/docker-compose.yml up -d
+
+      - name: Run smoke tests
+        run: |
+          # Wait for services to be up
+          sleep 30
+          # Check if Jaeger UI is accessible
+          curl -f http://localhost:16686 || exit 1
+          # Check if Prometheus is accessible
+          curl -f http://localhost:9090 || exit 1
+          # Check if Grafana is accessible
+          curl -f http://localhost:3000 || exit 1
+
+      - name: Shut down Docker Compose services
+        run: docker-compose -f docker-compose/monitor/docker-compose.yml down
