@@ -29,7 +29,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/handler"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling"
-	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/strategystore"
+	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/samplingstrategy"
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 )
@@ -39,7 +39,7 @@ type GRPCServerParams struct {
 	TLSConfig               tlscfg.Options
 	HostPort                string
 	Handler                 *handler.GRPCHandler
-	SamplingStore           strategystore.StrategyStore
+	SamplingProvider        samplingstrategy.Provider
 	Logger                  *zap.Logger
 	OnError                 func(error)
 	MaxReceiveMessageLength int
@@ -94,7 +94,7 @@ func serveGRPC(server *grpc.Server, listener net.Listener, params *GRPCServerPar
 	healthServer := health.NewServer()
 
 	api_v2.RegisterCollectorServiceServer(server, params.Handler)
-	api_v2.RegisterSamplingManagerServer(server, sampling.NewGRPCHandler(params.SamplingStore))
+	api_v2.RegisterSamplingManagerServer(server, sampling.NewGRPCHandler(params.SamplingProvider))
 
 	healthServer.SetServingStatus("jaeger.api_v2.CollectorService", grpc_health_v1.HealthCheckResponse_SERVING)
 	healthServer.SetServingStatus("jaeger.api_v2.SamplingManager", grpc_health_v1.HealthCheckResponse_SERVING)

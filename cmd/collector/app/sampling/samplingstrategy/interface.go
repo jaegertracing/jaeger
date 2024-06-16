@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package strategystore
+package samplingstrategy
 
 import (
 	"context"
@@ -24,8 +24,8 @@ import (
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 )
 
-// StrategyStore keeps track of service specific sampling strategies.
-type StrategyStore interface {
+// Provider keeps track of service specific sampling strategies.
+type Provider interface {
 	// Close() from io.Closer  stops the processor from calculating probabilities.
 	io.Closer
 
