@@ -77,7 +77,7 @@ func (s *CassandraStorageIntegration) initializeCassandra(t *testing.T) {
 	require.NoError(t, err)
 	s.ArchiveSpanWriter, err = f.CreateArchiveSpanWriter()
 	require.NoError(t, err)
-	s.SamplingStore, err = f.CreateSamplingStore(0)
+	s.SamplingStore, err = f.CreateSamplingStore()
 	require.NoError(t, err)
 	s.initializeDependencyReaderAndWriter(t, f)
 	t.Cleanup(func() {

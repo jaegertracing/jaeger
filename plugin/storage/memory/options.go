@@ -18,23 +18,26 @@ import (
 	"flag"
 
 	"github.com/spf13/viper"
-
-	"github.com/jaegertracing/jaeger/pkg/memory/config"
 )
 
-const limit = "memory.max-traces"
+const (
+	limit                      = "memory.max-traces"
+	samplingAggregationBuckets = "memory.sampling.aggregation-buckets"
+)
 
 // Options stores the configuration entries for this storage
 type Options struct {
-	Configuration config.Configuration `mapstructure:",squash"`
+	Config Configuration `mapstructure:",squash"`
 }
 
 // AddFlags from this storage to the CLI
 func AddFlags(flagSet *flag.FlagSet) {
 	flagSet.Int(limit, 0, "The maximum amount of traces to store in memory. The default number of traces is unbounded.")
+	flagSet.Int(samplingAggregationBuckets, 20, "SamplingAggregationBuckets is used with adaptive sampling to control how many buckets of trace throughput is stored in memory. Should not be fewer than the number of buckets used in adaptive sampling.")
 }
 
 // InitFromViper initializes the options struct with values from Viper
 func (opt *Options) InitFromViper(v *viper.Viper) {
-	opt.Configuration.MaxTraces = v.GetInt(limit)
+	opt.Config.MaxTraces = v.GetInt(limit)
+	opt.Config.SamplingAggregationBuckets = v.GetInt(samplingAggregationBuckets)
 }

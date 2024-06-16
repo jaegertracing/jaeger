@@ -107,7 +107,7 @@ func TestElasticsearchFactory(t *testing.T) {
 	_, err = f.CreateArchiveSpanWriter()
 	require.NoError(t, err)
 
-	_, err = f.CreateSamplingStore(1)
+	_, err = f.CreateSamplingStore()
 	require.NoError(t, err)
 
 	require.NoError(t, f.Close())
@@ -217,7 +217,7 @@ func TestCreateTemplateError(t *testing.T) {
 	assert.Nil(t, w)
 	require.Error(t, err, "template-error")
 
-	s, err := f.CreateSamplingStore(1)
+	s, err := f.CreateSamplingStore()
 	assert.Nil(t, s)
 	require.Error(t, err, "template-error")
 }

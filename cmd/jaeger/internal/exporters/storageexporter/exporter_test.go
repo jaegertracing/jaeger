@@ -31,7 +31,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
 	"github.com/jaegertracing/jaeger/model"
-	memoryCfg "github.com/jaegertracing/jaeger/pkg/memory/config"
+	"github.com/jaegertracing/jaeger/plugin/storage/memory"
 )
 
 type storageHost struct {
@@ -143,7 +143,7 @@ func makeStorageExtension(t *testing.T, memstoreName string) storageHost {
 				TracerProvider: nooptrace.NewTracerProvider(),
 			},
 		},
-		&jaegerstorage.Config{Memory: map[string]memoryCfg.Configuration{
+		&jaegerstorage.Config{Memory: map[string]memory.Configuration{
 			memstoreName: {MaxTraces: 10000},
 		}})
 	require.NoError(t, err)

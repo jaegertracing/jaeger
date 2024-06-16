@@ -14,7 +14,6 @@ import (
 	"go.uber.org/zap"
 
 	esCfg "github.com/jaegertracing/jaeger/pkg/es/config"
-	memoryCfg "github.com/jaegertracing/jaeger/pkg/memory/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/plugin/storage/badger"
 	"github.com/jaegertracing/jaeger/plugin/storage/cassandra"
@@ -96,13 +95,13 @@ func (s *starter[Config, Factory]) build(_ context.Context, _ component.Host) er
 }
 
 func (s *storageExt) Start(ctx context.Context, host component.Host) error {
-	memStarter := &starter[memoryCfg.Configuration, *memory.Factory]{
+	memStarter := &starter[memory.Configuration, *memory.Factory]{
 		ext:         s,
 		storageKind: "memory",
 		cfg:         s.config.Memory,
 		// memory factory does not return an error, so need to wrap it
 		builder: func(
-			cfg memoryCfg.Configuration,
+			cfg memory.Configuration,
 			metricsFactory metrics.Factory,
 			logger *zap.Logger,
 		) (*memory.Factory, error) {

@@ -103,7 +103,7 @@ func TestCassandraFactory(t *testing.T) {
 	_, err = f.CreateLock()
 	require.NoError(t, err)
 
-	_, err = f.CreateSamplingStore(0)
+	_, err = f.CreateSamplingStore()
 	require.NoError(t, err)
 
 	require.NoError(t, f.Close())

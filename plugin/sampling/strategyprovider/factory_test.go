@@ -159,6 +159,6 @@ func (*mockSamplingStoreFactory) CreateLock() (distributedlock.Lock, error) {
 	return nil, nil
 }
 
-func (*mockSamplingStoreFactory) CreateSamplingStore(int /* maxBuckets */) (samplingstore.Store, error) {
+func (*mockSamplingStoreFactory) CreateSamplingStore() (samplingstore.Store, error) {
 	return nil, nil
 }

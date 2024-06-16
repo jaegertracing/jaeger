@@ -8,15 +8,15 @@ import (
 	"reflect"
 
 	esCfg "github.com/jaegertracing/jaeger/pkg/es/config"
-	memoryCfg "github.com/jaegertracing/jaeger/pkg/memory/config"
 	badgerCfg "github.com/jaegertracing/jaeger/plugin/storage/badger"
 	"github.com/jaegertracing/jaeger/plugin/storage/cassandra"
 	grpcCfg "github.com/jaegertracing/jaeger/plugin/storage/grpc"
+	"github.com/jaegertracing/jaeger/plugin/storage/memory"
 )
 
 // Config has the configuration for jaeger-query,
 type Config struct {
-	Memory        map[string]memoryCfg.Configuration   `mapstructure:"memory"`
+	Memory        map[string]memory.Configuration      `mapstructure:"memory"`
 	Badger        map[string]badgerCfg.NamespaceConfig `mapstructure:"badger"`
 	GRPC          map[string]grpcCfg.ConfigV2          `mapstructure:"grpc"`
 	Opensearch    map[string]esCfg.Configuration       `mapstructure:"opensearch"`
@@ -25,11 +25,6 @@ type Config struct {
 	// TODO add other storage types here
 	// TODO how will this work with 3rd party storage implementations?
 	//      Option: instead of looking for specific name, check interface.
-}
-
-type MemoryStorage struct {
-	Name string `mapstructure:"name"`
-	memoryCfg.Configuration
 }
 
 func (cfg *Config) Validate() error {

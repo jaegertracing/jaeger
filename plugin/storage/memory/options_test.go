@@ -24,9 +24,13 @@ import (
 
 func TestOptionsWithFlags(t *testing.T) {
 	v, command := config.Viperize(AddFlags)
-	command.ParseFlags([]string{"--memory.max-traces=100"})
+	command.ParseFlags([]string{
+		"--memory.max-traces=100",
+		"--memory.sampling.aggregation-buckets=42",
+	})
 	opts := Options{}
 	opts.InitFromViper(v)
 
-	assert.Equal(t, 100, opts.Configuration.MaxTraces)
+	assert.Equal(t, 100, opts.Config.MaxTraces)
+	assert.Equal(t, 42, opts.Config.SamplingAggregationBuckets)
 }
