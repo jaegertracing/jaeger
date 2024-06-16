@@ -50,8 +50,9 @@ type Configuration struct {
 
 // Authenticator holds the authentication properties needed to connect to a Cassandra cluster
 type Authenticator struct {
-	Basic                 BasicAuthenticator `yaml:"basic" mapstructure:",squash"`
-	AllowedAuthenticators []string           `yaml:"allowedAuthenticators" mapstructure:"allowedAuthenticators"`
+	Basic              BasicAuthenticator `yaml:"basic" mapstructure:",squash"`
+	AivenAuthenticator string             `yaml:"aiven_authenticator" mapstructure:"aiven_authenticator"`
+	// TODO: add more auth types
 }
 
 // BasicAuthenticator holds the username and password for a password authenticator for a Cassandra cluster
@@ -143,11 +144,14 @@ func (c *Configuration) NewCluster(logger *zap.Logger) (*gocql.ClusterConfig, er
 
 	if c.Authenticator.Basic.Username != "" && c.Authenticator.Basic.Password != "" {
 		cluster.Authenticator = gocql.PasswordAuthenticator{
-			Username:              c.Authenticator.Basic.Username,
-			Password:              c.Authenticator.Basic.Password,
-			AllowedAuthenticators: c.Authenticator.AllowedAuthenticators,
+			Username: c.Authenticator.Basic.Username,
+			Password: c.Authenticator.Basic.Password,
 		}
+	} else if c.Authenticator.AivenAuthenticator == "aiven" {
+		auth, _ := getAivenAuthenticator(c.Authenticator.AivenAuthenticator, c.Authenticator.Basic.Username, c.Authenticator.Basic.Password)
+		cluster.Authenticator = auth
 	}
+
 	tlsCfg, err := c.TLS.Config(logger)
 	if err != nil {
 		return nil, err
@@ -176,4 +180,34 @@ func (c *Configuration) String() string {
 func (c *Configuration) Validate() error {
 	_, err := govalidator.ValidateStruct(c)
 	return err
+}
+
+func getAivenAuthenticator(authenticatorName, username, password string) (gocql.Authenticator, error) {
+	switch authenticatorName {
+	case "aiven":
+		return &AivenAuthenticator{
+			Username: username,
+			Password: password,
+		}, nil
+	default:
+		return nil, fmt.Errorf("unsupported authenticator: %s", authenticatorName)
+	}
+}
+
+// AivenAuthenticator implementation
+type AivenAuthenticator struct {
+	Username string
+	Password string
+}
+
+func (a *AivenAuthenticator) InitialResponse() ([]byte, error) {
+	return []byte(a.Username + "\x00" + a.Password), nil
+}
+
+func (a *AivenAuthenticator) Challenge(challenge []byte) ([]byte, gocql.Authenticator, error) {
+	return nil, nil, nil
+}
+
+func (a *AivenAuthenticator) Success(data []byte) error {
+	return nil
 }
