@@ -17,23 +17,23 @@ package sampling
 import (
 	"context"
 
-	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/strategystore"
+	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/samplingstrategy"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 )
 
 // GRPCHandler is sampling strategy handler for gRPC.
 type GRPCHandler struct {
-	store strategystore.StrategyStore
+	samplingProvider samplingstrategy.Provider
 }
 
 // NewGRPCHandler creates a handler that controls sampling strategies for services.
-func NewGRPCHandler(store strategystore.StrategyStore) GRPCHandler {
+func NewGRPCHandler(provider samplingstrategy.Provider) GRPCHandler {
 	return GRPCHandler{
-		store: store,
+		samplingProvider: provider,
 	}
 }
 
 // GetSamplingStrategy returns sampling decision from store.
 func (s GRPCHandler) GetSamplingStrategy(ctx context.Context, param *api_v2.SamplingStrategyParameters) (*api_v2.SamplingStrategyResponse, error) {
-	return s.store.GetSamplingStrategy(ctx, param.GetServiceName())
+	return s.samplingProvider.GetSamplingStrategy(ctx, param.GetServiceName())
 }
