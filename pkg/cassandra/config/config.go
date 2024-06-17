@@ -51,7 +51,7 @@ type Configuration struct {
 // Authenticator holds the authentication properties needed to connect to a Cassandra cluster
 type Authenticator struct {
 	Basic                 BasicAuthenticator `yaml:"basic" mapstructure:",squash"`
-	AllowedAuthenticators []string           `yaml:"allowedAuthenticators" mapstructure:"allowedAuthenticators"`
+	AllowedAuthenticators []string           `yaml:"allowed_authenticators" mapstructure:"allowed_authenticators"`
 }
 
 // BasicAuthenticator holds the username and password for a password authenticator for a Cassandra cluster

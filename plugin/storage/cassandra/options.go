@@ -215,9 +215,20 @@ func addFlags(flagSet *flag.FlagSet, nsConfig namespaceConfig) {
 		nsConfig.Authenticator.Basic.Password,
 		"Password for password authentication for Cassandra")
 	flagSet.String(
-		nsConfig.namespace+suffixAuth,
-		"",
-		"The comma-separated list of Allowed password authentication for Cassandra.")
+			nsConfig.namespace + suffixAuth,
+			"",
+			"The comma-separated list of Allowed password authenticators for Cassandra.\n" +
+			"list of acceptable strings: " +
+			"org.apache.cassandra.auth.PasswordAuthenticator, " +
+			"com.instaclustr.cassandra.auth.SharedSecretAuthenticator, " +
+			"com.datastax.bdp.cassandra.auth.DseAuthenticator, " +
+			"io.aiven.cassandra.auth.AivenAuthenticator, " +
+			"com.ericsson.bss.cassandra.ecaudit.auth.AuditPasswordAuthenticator, " +
+			"com.amazon.helenus.auth.HelenusAuthenticator, " +
+			"com.ericsson.bss.cassandra.ecaudit.auth.AuditAuthenticator, " +
+			"com.scylladb.auth.SaslauthdAuthenticator, " +
+			"com.scylladb.auth.TransitionalAuthenticator, " +
+			"com.instaclustr.cassandra.auth.InstaclustrPasswordAuthenticator")		
 }
 
 // InitFromViper initializes Options with properties from viper
