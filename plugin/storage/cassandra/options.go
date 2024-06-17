@@ -217,7 +217,7 @@ func addFlags(flagSet *flag.FlagSet, nsConfig namespaceConfig) {
 	flagSet.String(
 		nsConfig.namespace+suffixAuth,
 		"",
-		"The comma-separated list of Allowed password authenticators for Cassandra.\n"+
+		"(the authentication is only handled by server)The comma-separated list of Allowed password authenticators for Cassandra.\n"+
 			"list of acceptable strings: "+
 			"org.apache.cassandra.auth.PasswordAuthenticator, "+
 			"com.instaclustr.cassandra.auth.SharedSecretAuthenticator, "+
