@@ -28,7 +28,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/collector/app/flags"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/handler"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
-	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/strategystore"
+	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/samplingstrategy"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/server"
 	"github.com/jaegertracing/jaeger/internal/safeexpvar"
 	"github.com/jaegertracing/jaeger/model"
@@ -46,16 +46,16 @@ const (
 // Collector returns the collector as a manageable unit of work
 type Collector struct {
 	// required to start a new collector
-	serviceName    string
-	logger         *zap.Logger
-	metricsFactory metrics.Factory
-	spanWriter     spanstore.Writer
-	strategyStore  strategystore.StrategyStore
-	aggregator     strategystore.Aggregator
-	hCheck         *healthcheck.HealthCheck
-	spanProcessor  processor.SpanProcessor
-	spanHandlers   *SpanHandlers
-	tenancyMgr     *tenancy.Manager
+	serviceName        string
+	logger             *zap.Logger
+	metricsFactory     metrics.Factory
+	spanWriter         spanstore.Writer
+	samplingProvider   samplingstrategy.Provider
+	samplingAggregator samplingstrategy.Aggregator
+	hCheck             *healthcheck.HealthCheck
+	spanProcessor      processor.SpanProcessor
+	spanHandlers       *SpanHandlers
+	tenancyMgr         *tenancy.Manager
 
 	// state, read only
 	hServer                    *http.Server
@@ -69,27 +69,27 @@ type Collector struct {
 
 // CollectorParams to construct a new Jaeger Collector.
 type CollectorParams struct {
-	ServiceName    string
-	Logger         *zap.Logger
-	MetricsFactory metrics.Factory
-	SpanWriter     spanstore.Writer
-	StrategyStore  strategystore.StrategyStore
-	Aggregator     strategystore.Aggregator
-	HealthCheck    *healthcheck.HealthCheck
-	TenancyMgr     *tenancy.Manager
+	ServiceName        string
+	Logger             *zap.Logger
+	MetricsFactory     metrics.Factory
+	SpanWriter         spanstore.Writer
+	SamplingProvider   samplingstrategy.Provider
+	SamplingAggregator samplingstrategy.Aggregator
+	HealthCheck        *healthcheck.HealthCheck
+	TenancyMgr         *tenancy.Manager
 }
 
 // New constructs a new collector component, ready to be started
 func New(params *CollectorParams) *Collector {
 	return &Collector{
-		serviceName:    params.ServiceName,
-		logger:         params.Logger,
-		metricsFactory: params.MetricsFactory,
-		spanWriter:     params.SpanWriter,
-		strategyStore:  params.StrategyStore,
-		aggregator:     params.Aggregator,
-		hCheck:         params.HealthCheck,
-		tenancyMgr:     params.TenancyMgr,
+		serviceName:        params.ServiceName,
+		logger:             params.Logger,
+		metricsFactory:     params.MetricsFactory,
+		spanWriter:         params.SpanWriter,
+		samplingProvider:   params.SamplingProvider,
+		samplingAggregator: params.SamplingAggregator,
+		hCheck:             params.HealthCheck,
+		tenancyMgr:         params.TenancyMgr,
 	}
 }
 
@@ -104,9 +104,9 @@ func (c *Collector) Start(options *flags.CollectorOptions) error {
 	}
 
 	var additionalProcessors []ProcessSpan
-	if c.aggregator != nil {
+	if c.samplingAggregator != nil {
 		additionalProcessors = append(additionalProcessors, func(span *model.Span, _ /* tenant */ string) {
-			c.aggregator.HandleRootSpan(span, c.logger)
+			c.samplingAggregator.HandleRootSpan(span, c.logger)
 		})
 	}
 
@@ -117,7 +117,7 @@ func (c *Collector) Start(options *flags.CollectorOptions) error {
 		HostPort:                options.GRPC.HostPort,
 		Handler:                 c.spanHandlers.GRPCHandler,
 		TLSConfig:               options.GRPC.TLS,
-		SamplingStore:           c.strategyStore,
+		SamplingProvider:        c.samplingProvider,
 		Logger:                  c.logger,
 		MaxReceiveMessageLength: options.GRPC.MaxReceiveMessageLength,
 		MaxConnectionAge:        options.GRPC.MaxConnectionAge,
@@ -129,13 +129,13 @@ func (c *Collector) Start(options *flags.CollectorOptions) error {
 	c.grpcServer = grpcServer
 
 	httpServer, err := server.StartHTTPServer(&server.HTTPServerParams{
-		HostPort:       options.HTTP.HostPort,
-		Handler:        c.spanHandlers.JaegerBatchesHandler,
-		TLSConfig:      options.HTTP.TLS,
-		HealthCheck:    c.hCheck,
-		MetricsFactory: c.metricsFactory,
-		SamplingStore:  c.strategyStore,
-		Logger:         c.logger,
+		HostPort:         options.HTTP.HostPort,
+		Handler:          c.spanHandlers.JaegerBatchesHandler,
+		TLSConfig:        options.HTTP.TLS,
+		HealthCheck:      c.hCheck,
+		MetricsFactory:   c.metricsFactory,
+		SamplingProvider: c.samplingProvider,
+		Logger:           c.logger,
 	})
 	if err != nil {
 		return fmt.Errorf("could not start HTTP server: %w", err)
@@ -213,8 +213,8 @@ func (c *Collector) Close() error {
 	}
 
 	// aggregator does not exist for all strategy stores. only Close() if exists.
-	if c.aggregator != nil {
-		if err := c.aggregator.Close(); err != nil {
+	if c.samplingAggregator != nil {
+		if err := c.samplingAggregator.Close(); err != nil {
 			c.logger.Error("failed to close aggregator.", zap.Error(err))
 		}
 	}

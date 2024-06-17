@@ -75,17 +75,17 @@ func TestNewCollector(t *testing.T) {
 	baseMetrics := metricstest.NewFactory(time.Hour)
 	defer baseMetrics.Backend.Stop()
 	spanWriter := &fakeSpanWriter{}
-	strategyStore := &mockStrategyStore{}
+	samplingProvider := &mockSamplingProvider{}
 	tm := &tenancy.Manager{}
 
 	c := New(&CollectorParams{
-		ServiceName:    "collector",
-		Logger:         logger,
-		MetricsFactory: baseMetrics,
-		SpanWriter:     spanWriter,
-		StrategyStore:  strategyStore,
-		HealthCheck:    hc,
-		TenancyMgr:     tm,
+		ServiceName:      "collector",
+		Logger:           logger,
+		MetricsFactory:   baseMetrics,
+		SpanWriter:       spanWriter,
+		SamplingProvider: samplingProvider,
+		HealthCheck:      hc,
+		TenancyMgr:       tm,
 	})
 
 	collectorOpts := optionsForEphemeralPorts()
@@ -102,17 +102,17 @@ func TestCollector_StartErrors(t *testing.T) {
 			baseMetrics := metricstest.NewFactory(time.Hour)
 			defer baseMetrics.Backend.Stop()
 			spanWriter := &fakeSpanWriter{}
-			strategyStore := &mockStrategyStore{}
+			samplingProvider := &mockSamplingProvider{}
 			tm := &tenancy.Manager{}
 
 			c := New(&CollectorParams{
-				ServiceName:    "collector",
-				Logger:         logger,
-				MetricsFactory: baseMetrics,
-				SpanWriter:     spanWriter,
-				StrategyStore:  strategyStore,
-				HealthCheck:    hc,
-				TenancyMgr:     tm,
+				ServiceName:      "collector",
+				Logger:           logger,
+				MetricsFactory:   baseMetrics,
+				SpanWriter:       spanWriter,
+				SamplingProvider: samplingProvider,
+				HealthCheck:      hc,
+				TenancyMgr:       tm,
 			})
 			err := c.Start(options)
 			require.Error(t, err)
@@ -144,13 +144,13 @@ func TestCollector_StartErrors(t *testing.T) {
 	run("OTLP/HTTP", options, "could not start OTLP receiver")
 }
 
-type mockStrategyStore struct{}
+type mockSamplingProvider struct{}
 
-func (*mockStrategyStore) GetSamplingStrategy(context.Context, string /* serviceName */) (*api_v2.SamplingStrategyResponse, error) {
+func (*mockSamplingProvider) GetSamplingStrategy(context.Context, string /* serviceName */) (*api_v2.SamplingStrategyResponse, error) {
 	return &api_v2.SamplingStrategyResponse{}, nil
 }
 
-func (*mockStrategyStore) Close() error {
+func (*mockSamplingProvider) Close() error {
 	return nil
 }
 
@@ -161,17 +161,17 @@ func TestCollector_PublishOpts(t *testing.T) {
 	metricsFactory := metricstest.NewFactory(time.Second)
 	defer metricsFactory.Backend.Stop()
 	spanWriter := &fakeSpanWriter{}
-	strategyStore := &mockStrategyStore{}
+	samplingProvider := &mockSamplingProvider{}
 	tm := &tenancy.Manager{}
 
 	c := New(&CollectorParams{
-		ServiceName:    "collector",
-		Logger:         logger,
-		MetricsFactory: metricsFactory,
-		SpanWriter:     spanWriter,
-		StrategyStore:  strategyStore,
-		HealthCheck:    hc,
-		TenancyMgr:     tm,
+		ServiceName:      "collector",
+		Logger:           logger,
+		MetricsFactory:   metricsFactory,
+		SpanWriter:       spanWriter,
+		SamplingProvider: samplingProvider,
+		HealthCheck:      hc,
+		TenancyMgr:       tm,
 	})
 	collectorOpts := optionsForEphemeralPorts()
 	collectorOpts.NumWorkers = 24
@@ -191,19 +191,19 @@ func TestAggregator(t *testing.T) {
 	baseMetrics := metricstest.NewFactory(time.Hour)
 	defer baseMetrics.Backend.Stop()
 	spanWriter := &fakeSpanWriter{}
-	strategyStore := &mockStrategyStore{}
+	samplingProvider := &mockSamplingProvider{}
 	agg := &mockAggregator{}
 	tm := &tenancy.Manager{}
 
 	c := New(&CollectorParams{
-		ServiceName:    "collector",
-		Logger:         logger,
-		MetricsFactory: baseMetrics,
-		SpanWriter:     spanWriter,
-		StrategyStore:  strategyStore,
-		HealthCheck:    hc,
-		Aggregator:     agg,
-		TenancyMgr:     tm,
+		ServiceName:        "collector",
+		Logger:             logger,
+		MetricsFactory:     baseMetrics,
+		SpanWriter:         spanWriter,
+		SamplingProvider:   samplingProvider,
+		HealthCheck:        hc,
+		SamplingAggregator: agg,
+		TenancyMgr:         tm,
 	})
 	collectorOpts := optionsForEphemeralPorts()
 	collectorOpts.NumWorkers = 10

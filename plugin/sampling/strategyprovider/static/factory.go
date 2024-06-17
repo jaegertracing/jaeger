@@ -20,7 +20,7 @@ import (
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/strategystore"
+	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/samplingstrategy"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/plugin"
 	"github.com/jaegertracing/jaeger/storage"
@@ -28,7 +28,7 @@ import (
 
 var _ plugin.Configurable = (*Factory)(nil)
 
-// Factory implements strategystore.Factory for a static strategy store.
+// Factory implements samplingstrategy.Factory for a static strategy store.
 type Factory struct {
 	options *Options
 	logger  *zap.Logger
@@ -52,15 +52,15 @@ func (f *Factory) InitFromViper(v *viper.Viper, _ *zap.Logger) {
 	f.options.InitFromViper(v)
 }
 
-// Initialize implements strategystore.Factory
+// Initialize implements samplingstrategy.Factory
 func (f *Factory) Initialize(_ metrics.Factory, _ storage.SamplingStoreFactory, logger *zap.Logger) error {
 	f.logger = logger
 	return nil
 }
 
-// CreateStrategyStore implements strategystore.Factory
-func (f *Factory) CreateStrategyStore() (strategystore.StrategyStore, strategystore.Aggregator, error) {
-	s, err := NewStrategyStore(*f.options, f.logger)
+// CreateStrategyStore implements samplingstrategy.Factory
+func (f *Factory) CreateStrategyProvider() (samplingstrategy.Provider, samplingstrategy.Aggregator, error) {
+	s, err := NewProvider(*f.options, f.logger)
 	if err != nil {
 		return nil, nil, err
 	}
