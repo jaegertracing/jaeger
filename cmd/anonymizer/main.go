@@ -68,6 +68,9 @@ func main() {
 			if err != nil {
 				logger.Fatal("error while querying for trace", zap.Error(err))
 			}
+			if err := query.Close(); err != nil {
+				logger.Error("Failed to close grpc client connection", zap.Error(err))
+			}
 
 			for _, span := range spans {
 				if err := w.WriteSpan(&span); err != nil {
