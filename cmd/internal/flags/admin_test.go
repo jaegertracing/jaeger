@@ -27,6 +27,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest"
 	"go.uber.org/zap/zaptest/observer"
 
 	"github.com/jaegertracing/jaeger/pkg/config"
@@ -137,10 +138,8 @@ func TestAdminServerTLS(t *testing.T) {
 			v, command := config.Viperize(adminServer.AddFlags)
 			err := command.ParseFlags(test.serverTLSFlags)
 			require.NoError(t, err)
-			zapCore, _ := observer.New(zap.InfoLevel)
-			logger := zap.New(zapCore)
 
-			err = adminServer.initFromViper(v, logger)
+			err = adminServer.initFromViper(v, zaptest.NewLogger(t))
 			require.NoError(t, err)
 
 			adminServer.Serve()
@@ -148,6 +147,7 @@ func TestAdminServerTLS(t *testing.T) {
 
 			clientTLSCfg, err0 := test.clientTLS.Config(zap.NewNop())
 			require.NoError(t, err0)
+			defer test.clientTLS.Close()
 			dialer := &net.Dialer{Timeout: 2 * time.Second}
 			conn, clientError := tls.DialWithDialer(dialer, "tcp", fmt.Sprintf("localhost:%d", ports.CollectorAdminHTTP), clientTLSCfg)
 			require.NoError(t, clientError)
@@ -158,9 +158,12 @@ func TestAdminServerTLS(t *testing.T) {
 					TLSClientConfig: clientTLSCfg,
 				},
 			}
-
-			response, requestError := client.Get(fmt.Sprintf("https://localhost:%d", ports.CollectorAdminHTTP))
+			req, err := http.NewRequest("GET", fmt.Sprintf("https://localhost:%d", ports.CollectorAdminHTTP), nil)
+			require.NoError(t, err)
+			req.Close = true // no persistent connections, they cause goroutine leaks
+			response, requestError := client.Do(req)
 			require.NoError(t, requestError)
+			defer response.Body.Close()
 			require.NotNil(t, response)
 		})
 	}
