@@ -75,22 +75,81 @@ jobs:
           DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
           QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
 
-      - name: Set up Docker Compose
-        run: sudo curl -L "https://github.com/docker/compose/releases/download/v2.11.2/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose && sudo chmod +x /usr/local/bin/docker-compose
-
       - name: Start Docker Compose services
         run: docker-compose -f docker-compose/monitor/docker-compose.yml up -d
 
-      - name: Run smoke tests
+      - name: Wait for Jaeger UI to be up
         run: |
-          # Wait for services to be up
-          sleep 30
-          # Check if Jaeger UI is accessible
-          curl -f http://localhost:16686 || exit 1
-          # Check if Prometheus is accessible
-          curl -f http://localhost:9090 || exit 1
-          # Check if Grafana is accessible
-          curl -f http://localhost:3000 || exit 1
+          for i in {1..30}; do
+            if curl -f http://localhost:16686; then
+              echo "Jaeger UI is accessible"
+              break
+            fi
+            echo "Waiting for Jaeger UI..."
+            sleep 2
+          done
+          if ! curl -f http://localhost:16686; then
+            echo "Jaeger UI is not accessible after waiting"
+            docker-compose -f docker-compose/monitor/docker-compose.yml logs jaeger
+            docker-compose -f docker-compose/monitor/docker-compose.yml down
+            exit 1
+          fi
+
+      - name: Wait for Prometheus to be up
+        run: |
+          for i in {1..30}; do
+            if curl -f http://localhost:9090; then
+              echo "Prometheus is accessible"
+              break
+            fi
+            echo "Waiting for Prometheus..."
+            sleep 2
+          done
+          if ! curl -f http://localhost:9090; then
+            echo "Prometheus is not accessible after waiting"
+            docker-compose -f docker-compose/monitor/docker-compose.yml logs prometheus
+            docker-compose -f docker-compose/monitor/docker-compose.yml down
+            exit 1
+          fi
+
+      - name: Wait for Grafana to be up
+        run: |
+          for i in {1..30}; do
+            if curl -f http://localhost:3000; then
+              echo "Grafana is accessible"
+              break
+            fi
+            echo "Waiting for Grafana..."
+            sleep 2
+          done
+          if ! curl -f http://localhost:3000; then
+            echo "Grafana is not accessible after waiting"
+            docker-compose -f docker-compose/monitor/docker-compose.yml logs grafana
+            docker-compose -f docker-compose/monitor/docker-compose.yml down
+            exit 1
+          fi
+
+      - name: Verify Jaeger SPM functionality
+        run: |
+          for i in {1..30}; do
+            response=$(curl -s http://localhost:16686/api/metrics/spans?service=jaeger-query)
+            if [[ $response == *"metrics"* ]]; then
+              echo "Jaeger SPM is returning metrics"
+              break
+            fi
+            echo "Waiting for Jaeger SPM metrics..."
+            sleep 2
+          done
+          response=$(curl -s http://localhost:16686/api/metrics/spans?service=jaeger-query)
+          if [[ $response != *"metrics"* ]]; then
+            echo "Jaeger SPM is not returning metrics after waiting"
+            docker-compose -f docker-compose/monitor/docker-compose.yml logs jaeger
+            docker-compose -f docker-compose/monitor/docker-compose.yml down
+            exit 1
+          fi
+
+      - name: Smoke tests passed
+        run: echo "Smoke tests passed successfully"
 
       - name: Shut down Docker Compose services
         run: docker-compose -f docker-compose/monitor/docker-compose.yml down
