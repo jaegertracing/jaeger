@@ -158,9 +158,10 @@ func TestAdminServerTLS(t *testing.T) {
 					TLSClientConfig: clientTLSCfg,
 				},
 			}
-			req, err := http.NewRequest("GET", fmt.Sprintf("https://localhost:%d", ports.CollectorAdminHTTP), nil)
+			url := fmt.Sprintf("https://localhost:%d", ports.CollectorAdminHTTP)
+			req, err := http.NewRequest(http.MethodGet, url, nil)
 			require.NoError(t, err)
-			req.Close = true // no persistent connections, they cause goroutine leaks
+			req.Close = true // avoid persistent connections which leak goroutines
 			response, requestError := client.Do(req)
 			require.NoError(t, requestError)
 			defer response.Body.Close()
