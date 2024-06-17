@@ -65,10 +65,14 @@ func TestOptionsWithFlags(t *testing.T) {
 		"--cas.index.tags=true",
 		"--cas.index.process-tags=false",
 		"--cas.auth=org.apache.cassandra.auth.PasswordAuthenticator,com.datastax.bdp.cassandra.auth.DseAuthenticator",
+		"--cas.username=username",
+		"--cas.password=password",
 		// enable aux with a couple overrides
 		"--cas-aux.enabled=true",
 		"--cas-aux.keyspace=jaeger-archive",
 		"--cas-aux.servers=3.3.3.3, 4.4.4.4",
+		"--cas-aux.username=username",
+		"--cas-aux.password=password",
 		"--cas-aux.auth=org.apache.cassandra.auth.PasswordAuthenticator,com.ericsson.bss.cassandra.ecaudit.auth.AuditAuthenticator",
 	})
 	opts.InitFromViper(v)
