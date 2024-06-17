@@ -21,7 +21,7 @@ import (
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/strategystore"
+	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/samplingstrategy"
 	"github.com/jaegertracing/jaeger/pkg/distributedlock"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/plugin"
@@ -30,9 +30,12 @@ import (
 	"github.com/jaegertracing/jaeger/storage/samplingstore"
 )
 
-var _ plugin.Configurable = (*Factory)(nil)
+var (
+	_ plugin.Configurable      = (*Factory)(nil)
+	_ samplingstrategy.Factory = (*Factory)(nil)
+)
 
-// Factory implements strategystore.Factory for an adaptive strategy store.
+// Factory implements samplingstrategy.Factory for an adaptive strategy store.
 type Factory struct {
 	options        *Options
 	logger         *zap.Logger
@@ -63,7 +66,7 @@ func (f *Factory) InitFromViper(v *viper.Viper, _ *zap.Logger) {
 	f.options.InitFromViper(v)
 }
 
-// Initialize implements strategystore.Factory
+// Initialize implements samplingstrategy.Factory
 func (f *Factory) Initialize(metricsFactory metrics.Factory, ssFactory storage.SamplingStoreFactory, logger *zap.Logger) error {
 	if ssFactory == nil {
 		return errors.New("sampling store factory is nil. Please configure a backend that supports adaptive sampling")
@@ -89,9 +92,9 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, ssFactory storage.S
 	return nil
 }
 
-// CreateStrategyStore implements strategystore.Factory
-func (f *Factory) CreateStrategyStore() (strategystore.StrategyStore, strategystore.Aggregator, error) {
-	s := NewStrategyStore(*f.options, f.logger, f.participant, f.store)
+// CreateStrategyProvider implements samplingstrategy.Factory
+func (f *Factory) CreateStrategyProvider() (samplingstrategy.Provider, samplingstrategy.Aggregator, error) {
+	s := NewProvider(*f.options, f.logger, f.participant, f.store)
 	a, err := NewAggregator(*f.options, f.logger, f.metricsFactory, f.participant, f.store)
 	if err != nil {
 		return nil, nil, err

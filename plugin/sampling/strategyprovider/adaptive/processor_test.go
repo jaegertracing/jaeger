@@ -29,8 +29,8 @@ import (
 	"github.com/jaegertracing/jaeger/internal/metricstest"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
-	"github.com/jaegertracing/jaeger/plugin/sampling/calculationstrategy"
 	epmocks "github.com/jaegertracing/jaeger/plugin/sampling/leaderelection/mocks"
+	"github.com/jaegertracing/jaeger/plugin/sampling/strategyprovider/adaptive/calculationstrategy"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 	smocks "github.com/jaegertracing/jaeger/storage/samplingstore/mocks"
 )
@@ -420,7 +420,7 @@ func TestLoadProbabilities(t *testing.T) {
 	mockStorage := &smocks.Store{}
 	mockStorage.On("GetLatestProbabilities").Return(make(model.ServiceOperationProbabilities), nil)
 
-	p := &StrategyStore{storage: mockStorage}
+	p := &Provider{storage: mockStorage}
 	require.Nil(t, p.probabilities)
 	p.loadProbabilities()
 	require.NotNil(t, p.probabilities)
@@ -434,7 +434,7 @@ func TestRunUpdateProbabilitiesLoop(t *testing.T) {
 	mockEP.On("Close").Return(nil)
 	mockEP.On("IsLeader").Return(false)
 
-	p := &StrategyStore{
+	p := &Provider{
 		storage:                 mockStorage,
 		shutdown:                make(chan struct{}),
 		followerRefreshInterval: time.Millisecond,
@@ -488,7 +488,7 @@ func TestRealisticRunCalculationLoop(t *testing.T) {
 		AggregationBuckets:         1,
 		Delay:                      time.Second * 10,
 	}
-	s := NewStrategyStore(cfg, logger, mockEP, mockStorage)
+	s := NewProvider(cfg, logger, mockEP, mockStorage)
 	s.Start()
 
 	for i := 0; i < 100; i++ {
@@ -564,7 +564,7 @@ func TestGenerateStrategyResponses(t *testing.T) {
 			"GET": 0.5,
 		},
 	}
-	p := &StrategyStore{
+	p := &Provider{
 		probabilities: probabilities,
 		Options: Options{
 			InitialSamplingProbability: 0.001,

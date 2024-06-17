@@ -28,7 +28,7 @@ import (
 
 const defaultFollowerProbabilityInterval = 20 * time.Second
 
-type StrategyStore struct {
+type Provider struct {
 	sync.RWMutex
 	Options
 
@@ -51,9 +51,9 @@ type StrategyStore struct {
 	bgFinished sync.WaitGroup
 }
 
-// NewStrategyStore creates a strategy store that holds adaptive sampling strategies.
-func NewStrategyStore(options Options, logger *zap.Logger, participant leaderelection.ElectionParticipant, store samplingstore.Store) *StrategyStore {
-	return &StrategyStore{
+// NewProvider creates a strategy store that holds adaptive sampling strategies.
+func NewProvider(options Options, logger *zap.Logger, participant leaderelection.ElectionParticipant, store samplingstore.Store) *Provider {
+	return &Provider{
 		Options:                 options,
 		storage:                 store,
 		probabilities:           make(model.ServiceOperationProbabilities),
@@ -66,7 +66,7 @@ func NewStrategyStore(options Options, logger *zap.Logger, participant leaderele
 }
 
 // Start initializes and starts the sampling service which regularly loads sampling probabilities and generates strategies.
-func (ss *StrategyStore) Start() error {
+func (ss *Provider) Start() error {
 	ss.logger.Info("starting adaptive sampling service")
 	ss.loadProbabilities()
 	ss.generateStrategyResponses()
@@ -81,7 +81,7 @@ func (ss *StrategyStore) Start() error {
 }
 
 // Close stops the service from loading probabilities and generating strategies.
-func (ss *StrategyStore) Close() error {
+func (ss *Provider) Close() error {
 	ss.logger.Info("stopping adaptive sampling service")
 	close(ss.shutdown)
 	ss.bgFinished.Wait()

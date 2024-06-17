@@ -26,8 +26,8 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/model"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
-	"github.com/jaegertracing/jaeger/plugin/sampling/calculationstrategy"
 	"github.com/jaegertracing/jaeger/plugin/sampling/leaderelection"
+	"github.com/jaegertracing/jaeger/plugin/sampling/strategyprovider/adaptive/calculationstrategy"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 	"github.com/jaegertracing/jaeger/storage/samplingstore"
 )
@@ -141,7 +141,7 @@ func newPostAggregator(
 }
 
 // GetSamplingStrategy implements protobuf endpoint for retrieving sampling strategy for a service.
-func (p *StrategyStore) GetSamplingStrategy(_ context.Context, service string) (*api_v2.SamplingStrategyResponse, error) {
+func (p *Provider) GetSamplingStrategy(_ context.Context, service string) (*api_v2.SamplingStrategyResponse, error) {
 	p.RLock()
 	defer p.RUnlock()
 	if strategy, ok := p.strategyResponses[service]; ok {
@@ -159,7 +159,7 @@ func (p *PostAggregator) Start() error {
 	return nil
 }
 
-func (p *StrategyStore) loadProbabilities() {
+func (p *Provider) loadProbabilities() {
 	// TODO GetLatestProbabilities API can be changed to return the latest measured qps for initialization
 	probabilities, err := p.storage.GetLatestProbabilities()
 	if err != nil {
@@ -173,7 +173,7 @@ func (p *StrategyStore) loadProbabilities() {
 
 // runUpdateProbabilitiesLoop is a loop that reads probabilities from storage.
 // The follower updates its local cache with the latest probabilities and serves them.
-func (p *StrategyStore) runUpdateProbabilitiesLoop() {
+func (p *Provider) runUpdateProbabilitiesLoop() {
 	select {
 	case <-time.After(addJitter(p.followerRefreshInterval)):
 		// continue after jitter delay
@@ -201,7 +201,7 @@ func (p *PostAggregator) isLeader() bool {
 	return p.electionParticipant.IsLeader()
 }
 
-func (p *StrategyStore) isLeader() bool {
+func (p *Provider) isLeader() bool {
 	return p.electionParticipant.IsLeader()
 }
 
@@ -470,7 +470,7 @@ func (p *PostAggregator) isUsingAdaptiveSampling(
 }
 
 // generateStrategyResponses generates and caches SamplingStrategyResponse from the calculated sampling probabilities.
-func (p *StrategyStore) generateStrategyResponses() {
+func (p *Provider) generateStrategyResponses() {
 	p.RLock()
 	strategies := make(map[string]*api_v2.SamplingStrategyResponse)
 	for svc, opProbabilities := range p.probabilities {
@@ -496,7 +496,7 @@ func (p *StrategyStore) generateStrategyResponses() {
 	p.strategyResponses = strategies
 }
 
-func (p *StrategyStore) generateDefaultSamplingStrategyResponse() *api_v2.SamplingStrategyResponse {
+func (p *Provider) generateDefaultSamplingStrategyResponse() *api_v2.SamplingStrategyResponse {
 	return &api_v2.SamplingStrategyResponse{
 		StrategyType: api_v2.SamplingStrategyType_PROBABILISTIC,
 		OperationSampling: &api_v2.PerOperationSamplingStrategies{

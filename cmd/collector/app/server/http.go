@@ -24,7 +24,7 @@ import (
 	"go.uber.org/zap/zapcore"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/handler"
-	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/strategystore"
+	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/samplingstrategy"
 	clientcfgHandler "github.com/jaegertracing/jaeger/pkg/clientcfg/clientcfghttp"
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
@@ -35,13 +35,13 @@ import (
 
 // HTTPServerParams to construct a new Jaeger Collector HTTP Server
 type HTTPServerParams struct {
-	TLSConfig      tlscfg.Options
-	HostPort       string
-	Handler        handler.JaegerBatchesHandler
-	SamplingStore  strategystore.StrategyStore
-	MetricsFactory metrics.Factory
-	HealthCheck    *healthcheck.HealthCheck
-	Logger         *zap.Logger
+	TLSConfig        tlscfg.Options
+	HostPort         string
+	Handler          handler.JaegerBatchesHandler
+	SamplingProvider samplingstrategy.Provider
+	MetricsFactory   metrics.Factory
+	HealthCheck      *healthcheck.HealthCheck
+	Logger           *zap.Logger
 
 	// ReadTimeout sets the respective parameter of http.Server
 	ReadTimeout time.Duration
@@ -88,7 +88,7 @@ func serveHTTP(server *http.Server, listener net.Listener, params *HTTPServerPar
 
 	cfgHandler := clientcfgHandler.NewHTTPHandler(clientcfgHandler.HTTPHandlerParams{
 		ConfigManager: &clientcfgHandler.ConfigManager{
-			SamplingStrategyStore: params.SamplingStore,
+			SamplingProvider: params.SamplingProvider,
 			// TODO provide baggage manager
 		},
 		MetricsFactory:         params.MetricsFactory,
