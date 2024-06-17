@@ -111,7 +111,7 @@ also supported). Logs are written to standard out using the structured logging l
 
 ### Security
 
-Third-party security audits of Jaeger are available in https://github.com/jaegertracing/security-audits. Please see [Issue #1718](https://github.com/jaegertracing/jaeger/issues/1718) for the summary of available security mechanisms in Jaeger.
+Third-party security audits of Jaeger are available in https://github.com/jaegertracing/security-audits. Please see [Issue #1718](https://github.com/jaegertracing/jaeger/issues/1718) for the summary of available security mechanisms in Jaeger. For more details please see [SECURITY](./SECURITY.md).
 
 ### Backwards compatibility with Zipkin
 
@@ -220,6 +220,10 @@ Have questions, suggestions, bug reports? Reach the project community via these 
  * [Slack chat room `#jaeger`][slack] (need to join [CNCF Slack][slack-join] for the first time)
  * [`jaeger-tracing` mail group](https://groups.google.com/forum/#!forum/jaeger-tracing)
  * GitHub [issues](https://github.com/jaegertracing/jaeger/issues) and [discussions](https://github.com/jaegertracing/jaeger/discussions)
+
+## Bug Report
+
+For bug reports, open an issue with the [Bug](https://github.com/jaegertracing/jaeger/issues/new?assignees=&labels=bug&projects=&template=bug_report.yaml&title=%5BBug%5D%3A+) type. The process used to handle your request is handled in [BUG-TRIAGE](./BUG-TRIAGE.md)
 
 ## Adopters
 
