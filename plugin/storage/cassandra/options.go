@@ -45,7 +45,7 @@ const (
 	suffixSocketKeepAlive    = ".socket-keep-alive"
 	suffixUsername           = ".username"
 	suffixPassword           = ".password"
-	suffixAuth               = ".auth"
+	suffixAuth               = ".basic.allowed-authenticators"
 	// common storage settings
 	suffixSpanStoreWriteCacheTTL = ".span-store-write-cache-ttl"
 	suffixIndexTagsBlacklist     = ".index.tag-blacklist"
@@ -217,18 +217,10 @@ func addFlags(flagSet *flag.FlagSet, nsConfig namespaceConfig) {
 	flagSet.String(
 		nsConfig.namespace+suffixAuth,
 		"",
-		"(the authentication is only handled by server)The comma-separated list of Allowed password authenticators for Cassandra.\n"+
-			"list of acceptable strings: "+
-			"org.apache.cassandra.auth.PasswordAuthenticator, "+
-			"com.instaclustr.cassandra.auth.SharedSecretAuthenticator, "+
-			"com.datastax.bdp.cassandra.auth.DseAuthenticator, "+
-			"io.aiven.cassandra.auth.AivenAuthenticator, "+
-			"com.ericsson.bss.cassandra.ecaudit.auth.AuditPasswordAuthenticator, "+
-			"com.amazon.helenus.auth.HelenusAuthenticator, "+
-			"com.ericsson.bss.cassandra.ecaudit.auth.AuditAuthenticator, "+
-			"com.scylladb.auth.SaslauthdAuthenticator, "+
-			"com.scylladb.auth.TransitionalAuthenticator, "+
-			"com.instaclustr.cassandra.auth.InstaclustrPasswordAuthenticator")
+		"The comma-separated list of allowed password authenticators for Cassandra."+
+			"If none are specified, there is a default 'approved' list that is used "+
+			"(https://github.com/gocql/gocql/blob/34fdeebefcbf183ed7f916f931aa0586fdaa1b40/conn.go#L27). "+
+			"If a non-empty list is provided, only specified authenticators are allowed.")
 }
 
 // InitFromViper initializes Options with properties from viper
@@ -272,7 +264,7 @@ func (cfg *namespaceConfig) initFromViper(v *viper.Viper) {
 	cfg.Authenticator.Basic.Username = v.GetString(cfg.namespace + suffixUsername)
 	cfg.Authenticator.Basic.Password = v.GetString(cfg.namespace + suffixPassword)
 	authentication := stripWhiteSpace(v.GetString(cfg.namespace + suffixAuth))
-	cfg.Authenticator.AllowedAuthenticators = strings.Split(authentication, ",")
+	cfg.Authenticator.Basic.AllowedAuthenticators = strings.Split(authentication, ",")
 	cfg.DisableCompression = v.GetBool(cfg.namespace + suffixDisableCompression)
 	var err error
 	cfg.TLS, err = tlsFlagsConfig.InitFromViper(v)
