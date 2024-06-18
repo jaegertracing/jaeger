@@ -31,20 +31,20 @@ func NewFactory() extension.Factory {
 
 func createDefaultConfig() component.Config {
 	return &Config{
-		HTTP: confighttp.ServerConfig{
-			Endpoint: ports.PortToHostPort(ports.CollectorHTTP),
+		HTTP: &confighttp.ServerConfig{
+			Endpoint: ports.PortToHostPort(ports.CollectorHTTP + 100),
 		},
-		GRPC: configgrpc.ServerConfig{
+		GRPC: &configgrpc.ServerConfig{
 			NetAddr: confignet.AddrConfig{
-				Endpoint:  ports.PortToHostPort(ports.CollectorGRPC),
+				Endpoint:  ports.PortToHostPort(ports.CollectorGRPC + 100),
 				Transport: confignet.TransportTypeTCP,
 			},
 		},
-		File: FileConfig{
+		File: &FileConfig{
 			Path: "", // path needs to be specified
 		},
-		Adaptive: AdaptiveConfig{
-			StrategyStore: "", // storage name needs to be specified
+		Adaptive: &AdaptiveConfig{
+			SamplingStore: "", // storage name needs to be specified
 			Options:       adaptive.DefaultOptions(),
 		},
 	}

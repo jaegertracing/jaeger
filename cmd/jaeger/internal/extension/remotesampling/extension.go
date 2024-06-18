@@ -94,24 +94,36 @@ func GetAdaptiveSamplingComponents(host component.Host) (*AdaptiveSamplingCompon
 }
 
 func (ext *rsExtension) Start(ctx context.Context, host component.Host) error {
-	if ext.cfg.File.Path != "" {
+	if ext.cfg.File != nil {
+		ext.telemetry.Logger.Info(
+			"Starting file-based sampling strategy provider",
+			zap.String("path", ext.cfg.File.Path),
+		)
 		if err := ext.startFileBasedStrategyProvider(ctx); err != nil {
 			return err
 		}
 	}
 
-	if ext.cfg.Adaptive.StrategyStore != "" {
+	if ext.cfg.Adaptive != nil {
+		ext.telemetry.Logger.Info(
+			"Starting adaptive sampling strategy provider",
+			zap.String("sampling_store", ext.cfg.Adaptive.SamplingStore),
+		)
 		if err := ext.startAdaptiveStrategyProvider(host); err != nil {
 			return err
 		}
 	}
 
-	if err := ext.startHTTPServer(ctx, host); err != nil {
-		return fmt.Errorf("failed to start sampling http server: %w", err)
+	if ext.cfg.HTTP != nil {
+		if err := ext.startHTTPServer(ctx, host); err != nil {
+			return fmt.Errorf("failed to start sampling http server: %w", err)
+		}
 	}
 
-	if err := ext.startGRPCServer(ctx, host); err != nil {
-		return fmt.Errorf("failed to start sampling gRPC server: %w", err)
+	if ext.cfg.GRPC != nil {
+		if err := ext.startGRPCServer(ctx, host); err != nil {
+			return fmt.Errorf("failed to start sampling gRPC server: %w", err)
+		}
 	}
 
 	return nil
@@ -161,7 +173,7 @@ func (ext *rsExtension) startFileBasedStrategyProvider(_ context.Context) error 
 }
 
 func (ext *rsExtension) startAdaptiveStrategyProvider(host component.Host) error {
-	storageName := ext.cfg.Adaptive.StrategyStore
+	storageName := ext.cfg.Adaptive.SamplingStore
 	f, err := jaegerstorage.GetStorageFactory(storageName, host)
 	if err != nil {
 		return fmt.Errorf("cannot find storage factory: %w", err)
@@ -204,46 +216,15 @@ func (ext *rsExtension) startAdaptiveStrategyProvider(host component.Host) error
 	return nil
 }
 
-func (ext *rsExtension) startGRPCServer(ctx context.Context, host component.Host) error {
-	var err error
-	if ext.grpcServer, err = ext.cfg.GRPC.ToServer(ctx, host, ext.telemetry); err != nil {
-		return err
-	}
-
-	healthServer := health.NewServer()
-	api_v2.RegisterSamplingManagerServer(ext.grpcServer, sampling.NewGRPCHandler(ext.strategyProvider))
-	healthServer.SetServingStatus("jaeger.api_v2.SamplingManager", grpc_health_v1.HealthCheckResponse_SERVING)
-	grpc_health_v1.RegisterHealthServer(ext.grpcServer, healthServer)
-	ext.telemetry.Logger.Info("Starting GRPC server", zap.String("endpoint", ext.cfg.GRPC.NetAddr.Endpoint))
-
-	var gln net.Listener
-	if gln, err = ext.cfg.GRPC.NetAddr.Listen(ctx); err != nil {
-		return err
-	}
-
-	ext.shutdownWG.Add(1)
-	go func() {
-		defer ext.shutdownWG.Done()
-
-		if errGrpc := ext.grpcServer.Serve(gln); errGrpc != nil && !errors.Is(errGrpc, grpc.ErrServerStopped) {
-			ext.telemetry.ReportStatus(component.NewFatalErrorEvent(errGrpc))
-		}
-	}()
-
-	return nil
-}
-
 func (ext *rsExtension) startHTTPServer(ctx context.Context, host component.Host) error {
-	httpMux := http.NewServeMux()
-
 	handler := clientcfghttp.NewHTTPHandler(clientcfghttp.HTTPHandlerParams{
 		ConfigManager: &clientcfghttp.ConfigManager{
 			SamplingProvider: ext.strategyProvider,
 		},
 		MetricsFactory: metrics.NullFactory,
-		BasePath:       "/api",
+		BasePath:       "/api", // TODO is /api correct?
 	})
-
+	httpMux := http.NewServeMux()
 	handler.RegisterRoutesWithHTTP(httpMux)
 
 	var err error
@@ -251,7 +232,10 @@ func (ext *rsExtension) startHTTPServer(ctx context.Context, host component.Host
 		return err
 	}
 
-	ext.telemetry.Logger.Info("Starting HTTP server", zap.String("endpoint", ext.cfg.HTTP.Endpoint))
+	ext.telemetry.Logger.Info(
+		"Starting remote sampling HTTP server",
+		zap.String("endpoint", ext.cfg.HTTP.Endpoint),
+	)
 	var hln net.Listener
 	if hln, err = ext.cfg.HTTP.ToListener(ctx); err != nil {
 		return err
@@ -263,6 +247,38 @@ func (ext *rsExtension) startHTTPServer(ctx context.Context, host component.Host
 
 		err := ext.httpServer.Serve(hln)
 		if err != nil && !errors.Is(err, http.ErrServerClosed) {
+			ext.telemetry.ReportStatus(component.NewFatalErrorEvent(err))
+		}
+	}()
+
+	return nil
+}
+
+func (ext *rsExtension) startGRPCServer(ctx context.Context, host component.Host) error {
+	var err error
+	if ext.grpcServer, err = ext.cfg.GRPC.ToServer(ctx, host, ext.telemetry); err != nil {
+		return err
+	}
+
+	api_v2.RegisterSamplingManagerServer(ext.grpcServer, sampling.NewGRPCHandler(ext.strategyProvider))
+
+	healthServer := health.NewServer() // support health checks on the gRPC server
+	healthServer.SetServingStatus("jaeger.api_v2.SamplingManager", grpc_health_v1.HealthCheckResponse_SERVING)
+	grpc_health_v1.RegisterHealthServer(ext.grpcServer, healthServer)
+
+	ext.telemetry.Logger.Info(
+		"Starting remote sampling GRPC server",
+		zap.String("endpoint", ext.cfg.GRPC.NetAddr.Endpoint),
+	)
+	var gln net.Listener
+	if gln, err = ext.cfg.GRPC.NetAddr.Listen(ctx); err != nil {
+		return err
+	}
+
+	ext.shutdownWG.Add(1)
+	go func() {
+		defer ext.shutdownWG.Done()
+		if err := ext.grpcServer.Serve(gln); err != nil && !errors.Is(err, grpc.ErrServerStopped) {
 			ext.telemetry.ReportStatus(component.NewFatalErrorEvent(err))
 		}
 	}()

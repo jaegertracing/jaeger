@@ -13,16 +13,6 @@ extensions:
   # zpages:
   #   endpoint: 0.0.0.0:55679
 
-  remote_sampling:
-    # You can either use file or adaptive sampling strategy in remote_sampling
-    # file:
-    #   path: ./cmd/jaeger/sampling-strategies.json
-    adaptive:
-      initial_sampling_probability: 0.1
-      strategy_store: memstore
-    http:
-    grpc:
-
   jaeger_query:
     trace_storage: memstore
     trace_storage_archive: memstore_archive
@@ -34,6 +24,16 @@ extensions:
         max_traces: 100000
       memstore_archive:
         max_traces: 100000
+
+  remote_sampling:
+    # You can either use file or adaptive sampling strategy in remote_sampling
+    # file:
+    #   path: ./cmd/jaeger/sampling-strategies.json
+    adaptive:
+      sampling_store: memstore
+      initial_sampling_probability: 0.1
+    http:
+    grpc:
 
 receivers:
   otlp:
@@ -53,7 +53,6 @@ receivers:
 processors:
   batch:
   adaptive_sampling:
-    strategy_store: memstore
 
 exporters:
   jaeger_storage_exporter:
