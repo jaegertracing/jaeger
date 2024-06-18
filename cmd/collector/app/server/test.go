@@ -22,13 +22,13 @@ import (
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 )
 
-type mockSamplingStore struct{}
+type mockSamplingProvider struct{}
 
-func (mockSamplingStore) GetSamplingStrategy(context.Context, string /* serviceName */) (*api_v2.SamplingStrategyResponse, error) {
+func (mockSamplingProvider) GetSamplingStrategy(context.Context, string /* serviceName */) (*api_v2.SamplingStrategyResponse, error) {
 	return nil, nil
 }
 
-func (mockSamplingStore) Close() error {
+func (mockSamplingProvider) Close() error {
 	return nil
 }
 

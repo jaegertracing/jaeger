@@ -39,10 +39,10 @@ import (
 func TestFailToListen(t *testing.T) {
 	logger, _ := zap.NewDevelopment()
 	server, err := StartGRPCServer(&GRPCServerParams{
-		HostPort:      ":-1",
-		Handler:       handler.NewGRPCHandler(logger, &mockSpanProcessor{}, &tenancy.Manager{}),
-		SamplingStore: &mockSamplingStore{},
-		Logger:        logger,
+		HostPort:         ":-1",
+		Handler:          handler.NewGRPCHandler(logger, &mockSpanProcessor{}, &tenancy.Manager{}),
+		SamplingProvider: &mockSamplingProvider{},
+		Logger:           logger,
 	})
 	assert.Nil(t, server)
 	require.EqualError(t, err, "failed to listen on gRPC port: listen tcp: address -1: invalid port")
@@ -59,9 +59,9 @@ func TestFailServe(t *testing.T) {
 	server := grpc.NewServer()
 	defer server.Stop()
 	serveGRPC(server, lis, &GRPCServerParams{
-		Handler:       handler.NewGRPCHandler(logger, &mockSpanProcessor{}, &tenancy.Manager{}),
-		SamplingStore: &mockSamplingStore{},
-		Logger:        logger,
+		Handler:          handler.NewGRPCHandler(logger, &mockSpanProcessor{}, &tenancy.Manager{}),
+		SamplingProvider: &mockSamplingProvider{},
+		Logger:           logger,
 		OnError: func(_ error) {
 			assert.Len(t, logs.All(), 1)
 			assert.Equal(t, "Could not launch gRPC service", logs.All()[0].Message)
@@ -75,7 +75,7 @@ func TestSpanCollector(t *testing.T) {
 	logger, _ := zap.NewDevelopment()
 	params := &GRPCServerParams{
 		Handler:                 handler.NewGRPCHandler(logger, &mockSpanProcessor{}, &tenancy.Manager{}),
-		SamplingStore:           &mockSamplingStore{},
+		SamplingProvider:        &mockSamplingProvider{},
 		Logger:                  logger,
 		MaxReceiveMessageLength: 1024 * 1024,
 	}
@@ -99,9 +99,9 @@ func TestSpanCollector(t *testing.T) {
 func TestCollectorStartWithTLS(t *testing.T) {
 	logger, _ := zap.NewDevelopment()
 	params := &GRPCServerParams{
-		Handler:       handler.NewGRPCHandler(logger, &mockSpanProcessor{}, &tenancy.Manager{}),
-		SamplingStore: &mockSamplingStore{},
-		Logger:        logger,
+		Handler:          handler.NewGRPCHandler(logger, &mockSpanProcessor{}, &tenancy.Manager{}),
+		SamplingProvider: &mockSamplingProvider{},
+		Logger:           logger,
 		TLSConfig: tlscfg.Options{
 			Enabled:      true,
 			CertPath:     testCertKeyLocation + "/example-server-cert.pem",
@@ -118,9 +118,9 @@ func TestCollectorStartWithTLS(t *testing.T) {
 func TestCollectorReflection(t *testing.T) {
 	logger, _ := zap.NewDevelopment()
 	params := &GRPCServerParams{
-		Handler:       handler.NewGRPCHandler(logger, &mockSpanProcessor{}, &tenancy.Manager{}),
-		SamplingStore: &mockSamplingStore{},
-		Logger:        logger,
+		Handler:          handler.NewGRPCHandler(logger, &mockSpanProcessor{}, &tenancy.Manager{}),
+		SamplingProvider: &mockSamplingProvider{},
+		Logger:           logger,
 	}
 
 	server, err := StartGRPCServer(params)

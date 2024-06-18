@@ -72,11 +72,11 @@ func TestSpanCollectorHTTP(t *testing.T) {
 	defer mFact.Backend.Stop()
 	logger, _ := zap.NewDevelopment()
 	params := &HTTPServerParams{
-		Handler:        handler.NewJaegerSpanHandler(logger, &mockSpanProcessor{}),
-		SamplingStore:  &mockSamplingStore{},
-		MetricsFactory: mFact,
-		HealthCheck:    healthcheck.New(),
-		Logger:         logger,
+		Handler:          handler.NewJaegerSpanHandler(logger, &mockSpanProcessor{}),
+		SamplingProvider: &mockSamplingProvider{},
+		MetricsFactory:   mFact,
+		HealthCheck:      healthcheck.New(),
+		Logger:           logger,
 	}
 
 	server := httptest.NewServer(nil)
@@ -198,13 +198,13 @@ func TestSpanCollectorHTTPS(t *testing.T) {
 			mFact := metricstest.NewFactory(time.Hour)
 			defer mFact.Backend.Stop()
 			params := &HTTPServerParams{
-				HostPort:       fmt.Sprintf(":%d", ports.CollectorHTTP),
-				Handler:        handler.NewJaegerSpanHandler(logger, &mockSpanProcessor{}),
-				SamplingStore:  &mockSamplingStore{},
-				MetricsFactory: mFact,
-				HealthCheck:    healthcheck.New(),
-				Logger:         logger,
-				TLSConfig:      test.TLS,
+				HostPort:         fmt.Sprintf(":%d", ports.CollectorHTTP),
+				Handler:          handler.NewJaegerSpanHandler(logger, &mockSpanProcessor{}),
+				SamplingProvider: &mockSamplingProvider{},
+				MetricsFactory:   mFact,
+				HealthCheck:      healthcheck.New(),
+				Logger:           logger,
+				TLSConfig:        test.TLS,
 			}
 			defer params.TLSConfig.Close()
 
@@ -262,7 +262,7 @@ func TestStartHTTPServerParams(t *testing.T) {
 	params := &HTTPServerParams{
 		HostPort:          fmt.Sprintf(":%d", ports.CollectorHTTP),
 		Handler:           handler.NewJaegerSpanHandler(logger, &mockSpanProcessor{}),
-		SamplingStore:     &mockSamplingStore{},
+		SamplingProvider:  &mockSamplingProvider{},
 		MetricsFactory:    mFact,
 		HealthCheck:       healthcheck.New(),
 		Logger:            logger,

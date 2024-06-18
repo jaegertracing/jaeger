@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package strategystore
+package samplingstrategy
 
 import (
 	"go.uber.org/zap"
@@ -21,7 +21,7 @@ import (
 	"github.com/jaegertracing/jaeger/storage"
 )
 
-// Factory defines an interface for a factory that can create implementations of different strategy storage components.
+// Factory defines an interface for a factory that can create implementations of different sampling strategy components.
 // Implementations are also encouraged to implement plugin.Configurable interface.
 //
 // # See also
@@ -31,8 +31,8 @@ type Factory interface {
 	// Initialize performs internal initialization of the factory.
 	Initialize(metricsFactory metrics.Factory, ssFactory storage.SamplingStoreFactory, logger *zap.Logger) error
 
-	// CreateStrategyStore initializes the StrategyStore and returns it.
-	CreateStrategyStore() (StrategyStore, Aggregator, error)
+	// CreateStrategyProvider initializes and returns Provider and optionallty Aggregator.
+	CreateStrategyProvider() (Provider, Aggregator, error)
 
 	// Close closes the factory
 	Close() error

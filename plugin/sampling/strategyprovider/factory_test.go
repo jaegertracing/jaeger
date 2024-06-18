@@ -13,7 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package strategystore
+package strategyprovider
 
 import (
 	"errors"
@@ -25,7 +25,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
-	ss "github.com/jaegertracing/jaeger/cmd/collector/app/sampling/strategystore"
+	ss "github.com/jaegertracing/jaeger/cmd/collector/app/sampling/samplingstrategy"
 	"github.com/jaegertracing/jaeger/pkg/distributedlock"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/plugin"
@@ -77,20 +77,20 @@ func TestNewFactory(t *testing.T) {
 		f.factories[Kind(tc.strategyStoreType)] = mock
 
 		require.NoError(t, f.Initialize(metrics.NullFactory, mockSSFactory, zap.NewNop()))
-		_, _, err = f.CreateStrategyStore()
+		_, _, err = f.CreateStrategyProvider()
 		require.NoError(t, err)
 		require.NoError(t, f.Close())
 
 		// force the mock to return errors
 		mock.retError = true
 		require.EqualError(t, f.Initialize(metrics.NullFactory, mockSSFactory, zap.NewNop()), "error initializing store")
-		_, _, err = f.CreateStrategyStore()
+		_, _, err = f.CreateStrategyProvider()
 		require.EqualError(t, err, "error creating store")
 		require.EqualError(t, f.Close(), "error closing store")
 
 		// request something that doesn't exist
 		f.StrategyStoreType = "doesntexist"
-		_, _, err = f.CreateStrategyStore()
+		_, _, err = f.CreateStrategyProvider()
 		require.EqualError(t, err, "no doesntexist strategy store registered")
 	}
 }
@@ -132,7 +132,7 @@ func (f *mockFactory) InitFromViper(v *viper.Viper, logger *zap.Logger) {
 	f.logger = logger
 }
 
-func (f *mockFactory) CreateStrategyStore() (ss.StrategyStore, ss.Aggregator, error) {
+func (f *mockFactory) CreateStrategyProvider() (ss.Provider, ss.Aggregator, error) {
 	if f.retError {
 		return nil, nil, errors.New("error creating store")
 	}

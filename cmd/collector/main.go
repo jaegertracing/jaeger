@@ -37,7 +37,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/pkg/version"
-	ss "github.com/jaegertracing/jaeger/plugin/sampling/strategystore"
+	ss "github.com/jaegertracing/jaeger/plugin/sampling/strategyprovider"
 	"github.com/jaegertracing/jaeger/plugin/storage"
 	"github.com/jaegertracing/jaeger/ports"
 )
@@ -51,11 +51,11 @@ func main() {
 	if err != nil {
 		log.Fatalf("Cannot initialize storage factory: %v", err)
 	}
-	strategyStoreFactoryConfig, err := ss.FactoryConfigFromEnv()
+	samplingStrategyFactoryConfig, err := ss.FactoryConfigFromEnv()
 	if err != nil {
 		log.Fatalf("Cannot initialize sampling strategy store factory config: %v", err)
 	}
-	strategyStoreFactory, err := ss.NewFactory(*strategyStoreFactoryConfig)
+	samplingStrategyFactory, err := ss.NewFactory(*samplingStrategyFactoryConfig)
 	if err != nil {
 		log.Fatalf("Cannot initialize sampling strategy store factory: %v", err)
 	}
@@ -85,16 +85,16 @@ func main() {
 
 			ssFactory, err := storageFactory.CreateSamplingStoreFactory()
 			if err != nil {
-				logger.Fatal("Failed to create sampling store factory", zap.Error(err))
+				logger.Fatal("Failed to create sampling strategy factory", zap.Error(err))
 			}
 
-			strategyStoreFactory.InitFromViper(v, logger)
-			if err := strategyStoreFactory.Initialize(metricsFactory, ssFactory, logger); err != nil {
-				logger.Fatal("Failed to init sampling strategy store factory", zap.Error(err))
+			samplingStrategyFactory.InitFromViper(v, logger)
+			if err := samplingStrategyFactory.Initialize(metricsFactory, ssFactory, logger); err != nil {
+				logger.Fatal("Failed to init sampling strategy factory", zap.Error(err))
 			}
-			strategyStore, aggregator, err := strategyStoreFactory.CreateStrategyStore()
+			samplingProvider, samplingAggregator, err := samplingStrategyFactory.CreateStrategyProvider()
 			if err != nil {
-				logger.Fatal("Failed to create sampling strategy store", zap.Error(err))
+				logger.Fatal("Failed to create sampling strategy provider", zap.Error(err))
 			}
 			collectorOpts, err := new(flags.CollectorOptions).InitFromViper(v, logger)
 			if err != nil {
@@ -103,14 +103,14 @@ func main() {
 			tm := tenancy.NewManager(&collectorOpts.GRPC.Tenancy)
 
 			collector := app.New(&app.CollectorParams{
-				ServiceName:    serviceName,
-				Logger:         logger,
-				MetricsFactory: metricsFactory,
-				SpanWriter:     spanWriter,
-				StrategyStore:  strategyStore,
-				Aggregator:     aggregator,
-				HealthCheck:    svc.HC(),
-				TenancyMgr:     tm,
+				ServiceName:        serviceName,
+				Logger:             logger,
+				MetricsFactory:     metricsFactory,
+				SpanWriter:         spanWriter,
+				SamplingProvider:   samplingProvider,
+				SamplingAggregator: samplingAggregator,
+				HealthCheck:        svc.HC(),
+				TenancyMgr:         tm,
 			})
 			// Start all Collector services
 			if err := collector.Start(collectorOpts); err != nil {
@@ -130,7 +130,7 @@ func main() {
 				if err := storageFactory.Close(); err != nil {
 					logger.Error("Failed to close storage factory", zap.Error(err))
 				}
-				if err := strategyStoreFactory.Close(); err != nil {
+				if err := samplingStrategyFactory.Close(); err != nil {
 					logger.Error("Failed to close sampling strategy store factory", zap.Error(err))
 				}
 			})
@@ -150,7 +150,7 @@ func main() {
 		svc.AddFlags,
 		flags.AddFlags,
 		storageFactory.AddPipelineFlags,
-		strategyStoreFactory.AddFlags,
+		samplingStrategyFactory.AddFlags,
 	)
 
 	if err := command.Execute(); err != nil {
