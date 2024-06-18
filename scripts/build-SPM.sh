@@ -32,14 +32,15 @@ wait_for_services() {
   check_service_health "Prometheus" "http://localhost:9090/graph"
   check_service_health "Grafana" "http://localhost:3000"
 }
-check_jaeger(){
-  echo "Checking Jaeger"
+# Function to check SPM
+check_spm(){
+  echo "Checking spm"
   services_list=("driver" "customer" "mysql" "redis" "frontend" "route" "ui" )
+  echo "Waiting for 60 seconds for services to start"
   sleep 60
   for service in "${services_list[@]}"; do
   echo "Processing service: $service"
     response=$(curl -s "http://localhost:16686/api/metrics/calls?service=$service&endTs=$(date +%s)000&lookback=1000&step=100&ratePer=60000")
-    echo "$response"
     service_name=$(echo "$response" | jq -r '.metrics[0].labels[] | select(.name=="service_name") | .value')
     if [ "$service_name" != "$service" ]; then
       echo "Service name does not match 'driver'"
@@ -48,6 +49,11 @@ check_jaeger(){
     
     all_non_zero=true
     metric_points=$(echo "$response" | jq -r '.metrics[0].metricPoints[] | .gaugeValue.doubleValue')
+    # Check if metric points are empty
+    if [ -z "$metric_points" ]; then
+      echo "Metric points for service $service are empty"
+      exit 1
+    fi
     for value in $metric_points; do
       if (( $(echo "$value == 0" | bc -l) )); then
         all_non_zero=false
@@ -67,14 +73,14 @@ check_jaeger(){
 
 # Function to tear down Docker Compose services
 teardown_services() {
-  docker compose -f docker-compose/monitor/docker-compose.yml down
+ (cd docker-compose/monitor && make clean-all)
 }
 
 # Main function
 main() {
-  docker compose -f docker-compose/monitor/docker-compose.yml up -d
+  (cd docker-compose/monitor && make dev)
   wait_for_services
-  check_jaeger 
+  check_spm
   echo "All services are running correctly"
   teardown_services
 }
