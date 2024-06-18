@@ -1,4 +1,4 @@
-name: Build all-in-one
+name: Test SPM
 
 on:
   push:

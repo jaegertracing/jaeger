@@ -41,7 +41,7 @@ check_jaeger(){
     response=$(curl -s "http://localhost:16686/api/metrics/calls?service=$service&endTs=$(date +%s)000&lookback=1000&step=100&ratePer=60000")
     echo "$response"
     service_name=$(echo "$response" | jq -r '.metrics[0].labels[] | select(.name=="service_name") | .value')
-    if [ "$service_name" != $service ]; then
+    if [ "$service_name" != "$service" ]; then
       echo "Service name does not match 'driver'"
       exit 1
     fi
