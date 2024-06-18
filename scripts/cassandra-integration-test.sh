@@ -3,13 +3,13 @@
 set -uxf -o pipefail
 
 usage() {
-  echo $"Usage: $0 <cassandra_version> <schema_version>"
+  echo $"Usage: $0 <cassandra_version> <schema_version> <jaeger_version> <db_password>"
   exit 1
 }
 
 check_arg() {
-  if [ ! $# -eq 3 ]; then
-    echo "ERROR: need exactly three arguments, <cassandra_version> <schema_version> <jaeger_version>"
+  if [ ! $# -eq 4 ]; then
+    echo "ERROR: need exactly four arguments, <cassandra_version> <schema_version> <jaeger_version> <db_password>"
     usage
   fi
 }
@@ -31,12 +31,14 @@ apply_schema() {
   local schema_dir=plugin/storage/cassandra/
   local schema_version=$1
   local keyspace=$2
+  local db_password=$3
   local params=(
     --rm
     --env CQLSH_HOST=localhost
     --env CQLSH_PORT=9042
     --env "TEMPLATE=/cassandra-schema/${schema_version}.cql.tmpl"
     --env "KEYSPACE=${keyspace}"
+    --env "DB_PASSWORD=${db_password}"
     --network host
   )
   docker build -t ${image} ${schema_dir}
@@ -48,14 +50,15 @@ run_integration_test() {
   local major_version=${version%%.*}
   local schema_version=$2
   local jaegerVersion=$3
+  local db_password=$4
   local primaryKeyspace="jaeger_v1_dc1"
   local archiveKeyspace="jaeger_v1_dc1_archive"
   local compose_file="docker-compose/cassandra/v$major_version/docker-compose.yaml"
 
   setup_cassandra "${compose_file}"
 
-  apply_schema "$schema_version" "$primaryKeyspace"
-  apply_schema "$schema_version" "$archiveKeyspace"
+  apply_schema "$schema_version" "$primaryKeyspace" "$db_password"
+  apply_schema "$schema_version" "$archiveKeyspace" "$db_password"
 
   if [ "${jaegerVersion}" = "v1" ]; then
     STORAGE=cassandra make storage-integration-test
@@ -77,7 +80,7 @@ main() {
   check_arg "$@"
 
   echo "Executing integration test for $1 with schema $2.cql.tmpl"
-  run_integration_test "$1" "$2" "$3"
+  run_integration_test "$1" "$2" "$3" "$4"
 }
 
 main "$@"
