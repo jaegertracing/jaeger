@@ -42,7 +42,7 @@ require (
 	go.opentelemetry.io/collector/component v0.102.1
 	go.opentelemetry.io/collector/config/configgrpc v0.102.1
 	go.opentelemetry.io/collector/config/confighttp v0.102.1
-	go.opentelemetry.io/collector/config/configretry v0.102.1
+	go.opentelemetry.io/collector/config/configretry v0.103.0
 	go.opentelemetry.io/collector/config/configtls v0.102.1
 	go.opentelemetry.io/collector/confmap v0.102.1
 	go.opentelemetry.io/collector/confmap/converter/expandconverter v0.102.1
