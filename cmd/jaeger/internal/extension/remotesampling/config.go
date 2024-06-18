@@ -7,11 +7,12 @@ import (
 	"errors"
 
 	"github.com/asaskevich/govalidator"
-	"github.com/jaegertracing/jaeger/plugin/sampling/strategyprovider/adaptive"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/confmap"
+
+	"github.com/jaegertracing/jaeger/plugin/sampling/strategyprovider/adaptive"
 )
 
 var (
@@ -19,8 +20,10 @@ var (
 	errMultipleProviders = errors.New("only one sampling strategy provider can be specified, 'adaptive' or 'file'")
 )
 
-var _ component.ConfigValidator = (*Config)(nil)
-var _ confmap.Unmarshaler = (*Config)(nil)
+var (
+	_ component.ConfigValidator = (*Config)(nil)
+	_ confmap.Unmarshaler       = (*Config)(nil)
+)
 
 type Config struct {
 	File     *FileConfig              `mapstructure:"file"`
