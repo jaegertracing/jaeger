@@ -1,22 +1,12 @@
 service:
-  extensions: [jaeger_storage, jaeger_query, remote_sampling]
+  extensions: [jaeger_storage, jaeger_query]
   pipelines:
     traces:
       receivers: [otlp]
-      processors: [batch, adaptive_sampling]
+      processors: [batch]
       exporters: [jaeger_storage_exporter]
 
 extensions:
-  remote_sampling:
-    # You can either use file or adaptive sampling strategy in remote_sampling
-    # file:
-    #   path: ./cmd/jaeger/sampling-strategies.json
-    adaptive:
-      initial_sampling_probability: 0.1
-      strategy_store: os_main
-    http:
-    grpc:
-
   jaeger_query:
     trace_storage: os_main
     trace_storage_archive: os_archive
@@ -46,8 +36,6 @@ receivers:
 
 processors:
   batch:
-  adaptive_sampling:
-    strategy_store: os_main
 
 exporters:
   jaeger_storage_exporter:
