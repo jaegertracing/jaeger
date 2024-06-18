@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package strategystore
+package strategyprovider
 
 import (
 	"errors"
@@ -22,11 +22,11 @@ import (
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/strategystore"
+	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/samplingstrategy"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/plugin"
-	"github.com/jaegertracing/jaeger/plugin/sampling/strategystore/adaptive"
-	"github.com/jaegertracing/jaeger/plugin/sampling/strategystore/static"
+	"github.com/jaegertracing/jaeger/plugin/sampling/strategyprovider/adaptive"
+	"github.com/jaegertracing/jaeger/plugin/sampling/strategyprovider/static"
 	"github.com/jaegertracing/jaeger/storage"
 )
 
@@ -41,13 +41,16 @@ const (
 // AllSamplingTypes lists all types of sampling factories.
 var AllSamplingTypes = []string{samplingTypeFile, samplingTypeAdaptive}
 
-var _ plugin.Configurable = (*Factory)(nil)
+var (
+	_ plugin.Configurable      = (*Factory)(nil)
+	_ samplingstrategy.Factory = (*Factory)(nil)
+)
 
-// Factory implements strategystore.Factory interface as a meta-factory for strategy storage components.
+// Factory implements samplingstrategy.Factory interface as a meta-factory for strategy storage components.
 type Factory struct {
 	FactoryConfig
 
-	factories map[Kind]strategystore.Factory
+	factories map[Kind]samplingstrategy.Factory
 }
 
 // NewFactory creates the meta-factory.
@@ -56,7 +59,7 @@ func NewFactory(config FactoryConfig) (*Factory, error) {
 	uniqueTypes := map[Kind]struct{}{
 		f.StrategyStoreType: {},
 	}
-	f.factories = make(map[Kind]strategystore.Factory)
+	f.factories = make(map[Kind]samplingstrategy.Factory)
 	for t := range uniqueTypes {
 		ff, err := f.getFactoryOfType(t)
 		if err != nil {
@@ -67,7 +70,7 @@ func NewFactory(config FactoryConfig) (*Factory, error) {
 	return f, nil
 }
 
-func (*Factory) getFactoryOfType(factoryType Kind) (strategystore.Factory, error) {
+func (*Factory) getFactoryOfType(factoryType Kind) (samplingstrategy.Factory, error) {
 	switch factoryType {
 	case samplingTypeFile:
 		return static.NewFactory(), nil
@@ -96,7 +99,7 @@ func (f *Factory) InitFromViper(v *viper.Viper, logger *zap.Logger) {
 	}
 }
 
-// Initialize implements strategystore.Factory
+// Initialize implements samplingstrategy.Factory
 func (f *Factory) Initialize(metricsFactory metrics.Factory, ssFactory storage.SamplingStoreFactory, logger *zap.Logger) error {
 	for _, factory := range f.factories {
 		if err := factory.Initialize(metricsFactory, ssFactory, logger); err != nil {
@@ -106,13 +109,13 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, ssFactory storage.S
 	return nil
 }
 
-// CreateStrategyStore implements strategystore.Factory
-func (f *Factory) CreateStrategyStore() (strategystore.StrategyStore, strategystore.Aggregator, error) {
+// CreateStrategyProvider implements samplingstrategy.Factory
+func (f *Factory) CreateStrategyProvider() (samplingstrategy.Provider, samplingstrategy.Aggregator, error) {
 	factory, ok := f.factories[f.StrategyStoreType]
 	if !ok {
 		return nil, nil, fmt.Errorf("no %s strategy store registered", f.StrategyStoreType)
 	}
-	return factory.CreateStrategyStore()
+	return factory.CreateStrategyProvider()
 }
 
 // Close closes all factories.

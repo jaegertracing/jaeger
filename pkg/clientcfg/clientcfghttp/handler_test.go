@@ -36,11 +36,11 @@ import (
 )
 
 type testServer struct {
-	metricsFactory *metricstest.Factory
-	samplingStore  *mockSamplingStore
-	bgMgr          *mockBaggageMgr
-	server         *httptest.Server
-	handler        *HTTPHandler
+	metricsFactory   *metricstest.Factory
+	samplingProvider *mockSamplingProvider
+	bgMgr            *mockBaggageMgr
+	server           *httptest.Server
+	handler          *HTTPHandler
 }
 
 func withServer(
@@ -50,11 +50,11 @@ func withServer(
 	testFn func(server *testServer),
 ) {
 	metricsFactory := metricstest.NewFactory(0)
-	samplingStore := &mockSamplingStore{samplingResponse: mockSamplingResponse}
+	samplingProvider := &mockSamplingProvider{samplingResponse: mockSamplingResponse}
 	bgMgr := &mockBaggageMgr{baggageResponse: mockBaggageResponse}
 	cfgMgr := &ConfigManager{
-		SamplingStrategyStore: samplingStore,
-		BaggageManager:        bgMgr,
+		SamplingProvider: samplingProvider,
+		BaggageManager:   bgMgr,
 	}
 	handler := NewHTTPHandler(HTTPHandlerParams{
 		ConfigManager:          cfgMgr,
@@ -67,11 +67,11 @@ func withServer(
 	server := httptest.NewServer(r)
 	defer server.Close()
 	testFn(&testServer{
-		metricsFactory: metricsFactory,
-		samplingStore:  samplingStore,
-		bgMgr:          bgMgr,
-		server:         server,
-		handler:        handler,
+		metricsFactory:   metricsFactory,
+		samplingProvider: samplingProvider,
+		bgMgr:            bgMgr,
+		server:           server,
+		handler:          handler,
 	})
 }
 
@@ -112,15 +112,15 @@ func testHTTPHandler(t *testing.T, basePath string) {
 					objResp := &tSampling092.SamplingStrategyResponse{}
 					require.NoError(t, json.Unmarshal(body, objResp))
 					assert.EqualValues(t,
-						ts.samplingStore.samplingResponse.GetStrategyType(),
+						ts.samplingProvider.samplingResponse.GetStrategyType(),
 						objResp.GetStrategyType())
 					assert.EqualValues(t,
-						ts.samplingStore.samplingResponse.GetRateLimitingSampling().GetMaxTracesPerSecond(),
+						ts.samplingProvider.samplingResponse.GetRateLimitingSampling().GetMaxTracesPerSecond(),
 						objResp.GetRateLimitingSampling().GetMaxTracesPerSecond())
 				} else {
 					objResp, err := p2json.SamplingStrategyResponseFromJSON(body)
 					require.NoError(t, err)
-					assert.EqualValues(t, ts.samplingStore.samplingResponse, objResp)
+					assert.EqualValues(t, ts.samplingProvider.samplingResponse, objResp)
 				}
 			})
 		}

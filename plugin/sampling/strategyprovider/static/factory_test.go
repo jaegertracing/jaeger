@@ -20,7 +20,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
-	ss "github.com/jaegertracing/jaeger/cmd/collector/app/sampling/strategystore"
+	ss "github.com/jaegertracing/jaeger/cmd/collector/app/sampling/samplingstrategy"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/plugin"
@@ -38,7 +38,7 @@ func TestFactory(t *testing.T) {
 	f.InitFromViper(v, zap.NewNop())
 
 	require.NoError(t, f.Initialize(metrics.NullFactory, nil, zap.NewNop()))
-	_, _, err := f.CreateStrategyStore()
+	_, _, err := f.CreateStrategyProvider()
 	require.NoError(t, err)
 	require.NoError(t, f.Close())
 }

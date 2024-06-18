@@ -22,7 +22,7 @@ import (
 	"github.com/spf13/pflag"
 
 	"github.com/jaegertracing/jaeger/plugin/metrics"
-	"github.com/jaegertracing/jaeger/plugin/sampling/strategystore"
+	"github.com/jaegertracing/jaeger/plugin/sampling/strategyprovider"
 	"github.com/jaegertracing/jaeger/plugin/storage"
 )
 
@@ -77,11 +77,11 @@ func Command() *cobra.Command {
 		"The type of backend used for service dependencies storage.",
 	)
 	fs.String(
-		strategystore.SamplingTypeEnvVar,
+		strategyprovider.SamplingTypeEnvVar,
 		"file",
 		fmt.Sprintf(
 			strings.ReplaceAll(samplingTypeDescription, "\n", " "),
-			strings.Join(strategystore.AllSamplingTypes, ", "),
+			strings.Join(strategyprovider.AllSamplingTypes, ", "),
 		),
 	)
 	fs.String(
@@ -90,7 +90,7 @@ func Command() *cobra.Command {
 		fmt.Sprintf(
 			strings.ReplaceAll(samplingStorageTypeDescription, "\n", " "),
 			strings.Join(storage.AllSamplingStorageTypes(), ", "),
-			strategystore.SamplingTypeEnvVar,
+			strategyprovider.SamplingTypeEnvVar,
 		),
 	)
 	fs.String(
