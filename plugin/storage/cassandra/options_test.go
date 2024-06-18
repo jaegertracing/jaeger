@@ -64,10 +64,16 @@ func TestOptionsWithFlags(t *testing.T) {
 		"--cas.index.tag-whitelist=flerg, flarg,florg ",
 		"--cas.index.tags=true",
 		"--cas.index.process-tags=false",
+		"--cas.basic.allowed-authenticators=org.apache.cassandra.auth.PasswordAuthenticator,com.datastax.bdp.cassandra.auth.DseAuthenticator",
+		"--cas.username=username",
+		"--cas.password=password",
 		// enable aux with a couple overrides
 		"--cas-aux.enabled=true",
 		"--cas-aux.keyspace=jaeger-archive",
 		"--cas-aux.servers=3.3.3.3, 4.4.4.4",
+		"--cas-aux.username=username",
+		"--cas-aux.password=password",
+		"--cas-aux.basic.allowed-authenticators=org.apache.cassandra.auth.PasswordAuthenticator,com.ericsson.bss.cassandra.ecaudit.auth.AuditAuthenticator",
 	})
 	opts.InitFromViper(v)
 
@@ -75,6 +81,7 @@ func TestOptionsWithFlags(t *testing.T) {
 	assert.Equal(t, "jaeger", primary.Keyspace)
 	assert.Equal(t, "mojave", primary.LocalDC)
 	assert.Equal(t, []string{"1.1.1.1", "2.2.2.2"}, primary.Servers)
+	assert.Equal(t, []string{"org.apache.cassandra.auth.PasswordAuthenticator", "com.datastax.bdp.cassandra.auth.DseAuthenticator"}, primary.Authenticator.Basic.AllowedAuthenticators)
 	assert.Equal(t, "ONE", primary.Consistency)
 	assert.Equal(t, []string{"blerg", "blarg", "blorg"}, opts.TagIndexBlacklist())
 	assert.Equal(t, []string{"flerg", "flarg", "florg"}, opts.TagIndexWhitelist())
@@ -86,6 +93,7 @@ func TestOptionsWithFlags(t *testing.T) {
 	require.NotNil(t, aux)
 	assert.Equal(t, "jaeger-archive", aux.Keyspace)
 	assert.Equal(t, []string{"3.3.3.3", "4.4.4.4"}, aux.Servers)
+	assert.Equal(t, []string{"org.apache.cassandra.auth.PasswordAuthenticator", "com.ericsson.bss.cassandra.ecaudit.auth.AuditAuthenticator"}, aux.Authenticator.Basic.AllowedAuthenticators)
 	assert.Equal(t, 42, aux.ConnectionsPerHost)
 	assert.Equal(t, 42, aux.MaxRetryAttempts)
 	assert.Equal(t, 42*time.Second, aux.Timeout)
