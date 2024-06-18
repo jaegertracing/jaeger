@@ -8,10 +8,11 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc"
 	factoryMocks "github.com/jaegertracing/jaeger/storage/mocks"
 	spanstoreMocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
-	"github.com/stretchr/testify/require"
 )
 
 func TestAdapterInitialize(t *testing.T) {

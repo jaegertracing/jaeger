@@ -8,12 +8,13 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/jaegertracing/jaeger/plugin/storage/memory"
-	spanstoreMocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+
+	"github.com/jaegertracing/jaeger/plugin/storage/memory"
+	spanstoreMocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
 )
 
 func TestWriteTraces(t *testing.T) {

@@ -43,11 +43,11 @@ type mockStorageExt struct {
 	factory *factoryMocks.Factory
 }
 
-func (m *mockStorageExt) Start(context.Context, component.Host) error {
+func (*mockStorageExt) Start(context.Context, component.Host) error {
 	panic("not implemented")
 }
 
-func (m *mockStorageExt) Shutdown(context.Context) error {
+func (*mockStorageExt) Shutdown(context.Context) error {
 	panic("not implemented")
 }
 
