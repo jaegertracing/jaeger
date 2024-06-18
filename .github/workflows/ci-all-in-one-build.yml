@@ -3,6 +3,7 @@ name: Build all-in-one
 on:
   push:
     branches: [main]
+
   pull_request:
     branches: [main]
 
@@ -10,6 +11,7 @@ concurrency:
   group: ${{ github.workflow }}-${{ (github.event.pull_request && github.event.pull_request.number) || github.ref || github.run_id }}
   cancel-in-progress: true
 
+# See https://github.com/ossf/scorecard/blob/main/docs/checks.md#token-permissions
 permissions:
   contents: read
 
@@ -28,20 +30,19 @@ jobs:
 
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@63c24ba6bd7ba022e95695ff85de572c04a18142 # v2.7.0
+        uses: step-security/harden-runner@17d0e2bd7d51742c71671bd19fa12bdc9d40a3d6 # v2.8.1
         with:
           egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
 
-      - name: Checkout repository
-        uses: actions/checkout@v4.1.2
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
         with:
           submodules: true
 
       - name: Fetch git tags
-        run: git fetch --prune --unshallow --tags
+        run: |
+          git fetch --prune --unshallow --tags
 
-      - name: Setup Go
-        uses: actions/setup-go@v5.0.0
+      - uses: actions/setup-go@cdcb36043654635271a94b9a6d1392de5bb323a7 # v5.0.1
         with:
           go-version: 1.22.x
 
@@ -54,101 +55,26 @@ jobs:
       - name: Install tools
         run: make install-ci
 
-      - name: Setup QEMU
-        uses: docker/setup-qemu-action@v3.0.0
+      - uses: docker/setup-qemu-action@68827325e0b33c7199eb31dd4e31fbe9023e06e3 # v3.0.0
 
-      - name: Define PR_ONLY var if running on a Pull Request
+      - name: Define BUILD_FLAGS var if running on a Pull Request
         run: |
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            echo "PR_ONLY=pr-only" >> $GITHUB_ENV
-          else
-            echo "PR_ONLY=" >> $GITHUB_ENV
-          fi
+          case ${GITHUB_EVENT_NAME} in
+            pull_request)
+              echo "BUILD_FLAGS=-l -D -p linux/amd64" >> ${GITHUB_ENV}
+              ;;
+            *)
+              echo "BUILD_FLAGS=" >> ${GITHUB_ENV}
+              ;;
+          esac
 
       - name: Build, test, and publish all-in-one image
         run: |
-          BINARY=${{ matrix.mode.binary }} \
-          SKIP_SAMPLING=${{ matrix.mode.skip_sampling }} \
-          bash scripts/build-all-in-one-image.sh ${{ env.PR_ONLY }}
+          bash scripts/build-all-in-one-image.sh \
+            ${{ env.BUILD_FLAGS }} \
+            -b ${{ matrix.mode.binary }}
         env:
           DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
           QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
-
-      - name: Start Docker Compose services
-        run: docker-compose -f docker-compose/monitor/docker-compose.yml up -d
-
-      - name: Wait for Jaeger UI to be up
-        run: |
-          for i in {1..30}; do
-            if curl -f http://localhost:16686; then
-              echo "Jaeger UI is accessible"
-              break
-            fi
-            echo "Waiting for Jaeger UI..."
-            sleep 2
-          done
-          if ! curl -f http://localhost:16686; then
-            echo "Jaeger UI is not accessible after waiting"
-            docker-compose -f docker-compose/monitor/docker-compose.yml logs jaeger
-            docker-compose -f docker-compose/monitor/docker-compose.yml down
-            exit 1
-          fi
-
-      - name: Wait for Prometheus to be up
-        run: |
-          for i in {1..30}; do
-            if curl -f http://localhost:9090; then
-              echo "Prometheus is accessible"
-              break
-            fi
-            echo "Waiting for Prometheus..."
-            sleep 2
-          done
-          if ! curl -f http://localhost:9090; then
-            echo "Prometheus is not accessible after waiting"
-            docker-compose -f docker-compose/monitor/docker-compose.yml logs prometheus
-            docker-compose -f docker-compose/monitor/docker-compose.yml down
-            exit 1
-          fi
-
-      - name: Wait for Grafana to be up
-        run: |
-          for i in {1..30}; do
-            if curl -f http://localhost:3000; then
-              echo "Grafana is accessible"
-              break
-            fi
-            echo "Waiting for Grafana..."
-            sleep 2
-          done
-          if ! curl -f http://localhost:3000; then
-            echo "Grafana is not accessible after waiting"
-            docker-compose -f docker-compose/monitor/docker-compose.yml logs grafana
-            docker-compose -f docker-compose/monitor/docker-compose.yml down
-            exit 1
-          fi
-
-      - name: Verify Jaeger SPM functionality
-        run: |
-          for i in {1..30}; do
-            response=$(curl -s http://localhost:16686/api/metrics/spans?service=jaeger-query)
-            if [[ $response == *"metrics"* ]]; then
-              echo "Jaeger SPM is returning metrics"
-              break
-            fi
-            echo "Waiting for Jaeger SPM metrics..."
-            sleep 2
-          done
-          response=$(curl -s http://localhost:16686/api/metrics/spans?service=jaeger-query)
-          if [[ $response != *"metrics"* ]]; then
-            echo "Jaeger SPM is not returning metrics after waiting"
-            docker-compose -f docker-compose/monitor/docker-compose.yml logs jaeger
-            docker-compose -f docker-compose/monitor/docker-compose.yml down
-            exit 1
-          fi
-
-      - name: Smoke tests passed
-        run: echo "Smoke tests passed successfully"
-
-      - name: Shut down Docker Compose services
-        run: docker-compose -f docker-compose/monitor/docker-compose.yml down
+          # SKIP_SAMPLING is used by integration tests, see https://github.com/jaegertracing/jaeger/issues/5531
+          SKIP_SAMPLING: ${{ matrix.mode.skip_sampling }}

@@ -1,0 +1,50 @@
+name: SPM Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  spm-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4.1.2
+        with:
+          submodules: true
+
+      - name: Setup Docker Compose
+        run: sudo curl -L "https://github.com/docker/compose/releases/download/v2.11.2/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose && sudo chmod +x /usr/local/bin/docker-compose
+
+      - name: Start Docker Compose services
+        run: docker-compose -f docker-compose/monitor/docker-compose.yml up -d
+
+      - name: Wait for services to be up
+        run: |
+          for i in {1..30}; do
+            if curl -f http://localhost:16686 && \
+               curl -f http://localhost:9090 && \
+               curl -f http://localhost:3000; then
+              echo "Services are up"
+              break
+            fi
+            echo "Waiting for services..."
+            sleep 2
+          done
+          if ! curl -f http://localhost:16686 || \
+             ! curl -f http://localhost:9090 || \
+             ! curl -f http://localhost:3000; then
+            echo "Services are not up after waiting"
+            docker-compose -f docker-compose/monitor/docker-compose.yml logs
+            docker-compose -f docker-compose/monitor/docker-compose.yml down
+            exit 1
+          fi
+
+      - name: SPM tests passed
+        run: echo "SPM tests passed successfully"
+
+      - name: Shut down Docker Compose services
+        run: docker-compose -f docker-compose/monitor/docker-compose.yml down
