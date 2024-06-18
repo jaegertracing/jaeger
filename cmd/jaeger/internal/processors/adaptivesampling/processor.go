@@ -34,10 +34,9 @@ func newTraceProcessor(cfg Config, otel component.TelemetrySettings) *traceProce
 func (tp *traceProcessor) start(_ context.Context, host component.Host) error {
 	parts, err := remotesampling.GetAdaptiveSamplingComponents(host)
 	if err != nil {
-		return err
+		return fmt.Errorf("cannot start the '%s' processor: %w", componentType, err)
 	}
 
-	// TODO it is unlikely that aggregator needs the full Options object, we need to refactor.
 	agg, err := adaptive.NewAggregator(
 		*parts.Options,
 		tp.logger,
@@ -46,7 +45,7 @@ func (tp *traceProcessor) start(_ context.Context, host component.Host) error {
 		parts.SamplingStore,
 	)
 	if err != nil {
-		return fmt.Errorf("failed to create the adpative sampling aggregator : %w", err)
+		return fmt.Errorf("failed to create the adaptive sampling aggregator: %w", err)
 	}
 
 	agg.Start()

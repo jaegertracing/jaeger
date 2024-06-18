@@ -52,6 +52,8 @@ receivers:
 
 processors:
   batch:
+  # Adaptive Sampling Processor is required to support adaptive sampling.
+  # It expects remote_sampling extension with `adaptive:` config to be enabled.
   adaptive_sampling:
 
 exporters:
