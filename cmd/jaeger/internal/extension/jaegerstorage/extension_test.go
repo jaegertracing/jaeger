@@ -126,6 +126,10 @@ func TestStorageExtension(t *testing.T) {
 	f, err := GetStorageFactory(name, host)
 	require.NoError(t, err)
 	require.NotNil(t, f)
+
+	f2, err := GetStorageFactoryV2(name, host)
+	require.NoError(t, err)
+	require.NotNil(t, f2)
 }
 
 func TestBadgerStorageExtension(t *testing.T) {
