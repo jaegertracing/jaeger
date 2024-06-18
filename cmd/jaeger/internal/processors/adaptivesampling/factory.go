@@ -36,14 +36,7 @@ func NewFactory() processor.Factory {
 }
 
 func createDefaultConfig() component.Config {
-	return &Config{
-		TargetSamplesPerSecond: defaultTargetSamplesPerSecond,
-		DeltaTolerance:         defaultDeltaTolerance,
-		CalculationInterval:    defaultCalculationInterval,
-		BucketsForCalculation:  defaultBucketsForCalculation,
-		Delay:                  defaultDelay,
-		MinSamplingProbability: defaultMinSamplingProbability,
-	}
+	return &Config{}
 }
 
 func createTracesProcessor(

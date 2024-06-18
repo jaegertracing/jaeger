@@ -129,7 +129,7 @@ func (a *aggregator) RecordThroughput(service, operation string, samplerType spa
 	}
 }
 
-func RecordThroughput(agg strategystore.Aggregator, span *span_model.Span, logger *zap.Logger) {
+func RecordThroughput(agg samplingstrategy.Aggregator, span *span_model.Span, logger *zap.Logger) {
 	// TODO simply checking parentId to determine if a span is a root span is not sufficient. However,
 	// we can be sure that only a root span will have sampler tags.
 	if span.ParentSpanID() != span_model.NewSpanID(0) {

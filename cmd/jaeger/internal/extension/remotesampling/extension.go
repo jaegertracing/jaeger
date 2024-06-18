@@ -19,13 +19,13 @@ import (
 	"google.golang.org/grpc/health/grpc_health_v1"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling"
-	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/strategystore"
+	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/samplingstrategy"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
 	"github.com/jaegertracing/jaeger/pkg/clientcfg/clientcfghttp"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/plugin/sampling/leaderelection"
-	"github.com/jaegertracing/jaeger/plugin/sampling/strategystore/adaptive"
-	"github.com/jaegertracing/jaeger/plugin/sampling/strategystore/static"
+	"github.com/jaegertracing/jaeger/plugin/sampling/strategyprovider/adaptive"
+	"github.com/jaegertracing/jaeger/plugin/sampling/strategyprovider/static"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/samplingstore"
@@ -40,7 +40,7 @@ type rsExtension struct {
 	telemetry        component.TelemetrySettings
 	httpServer       *http.Server
 	grpcServer       *grpc.Server
-	strategyProvider strategystore.StrategyStore // TODO we should rename this to Provider, not "store"
+	strategyProvider samplingstrategy.Provider // TODO we should rename this to Provider, not "store"
 	adaptiveStore    samplingstore.Store
 	distLock         *leaderelection.DistributedElectionParticipant
 	shutdownWG       sync.WaitGroup
@@ -53,12 +53,17 @@ func newExtension(cfg *Config, telemetry component.TelemetrySettings) *rsExtensi
 	}
 }
 
-// GetAdaptiveSamplingStore locates the `remotesampling` extension in Host
+// AdaptiveSamplingComponents is a struct that holds the components needed for adaptive sampling.
+type AdaptiveSamplingComponents struct {
+	SamplingStore samplingstore.Store
+	DistLock      *leaderelection.DistributedElectionParticipant
+	Options       *adaptive.Options
+}
+
+// GetAdaptiveSamplingComponents locates the `remotesampling` extension in Host
 // and returns the sampling store and a loader/follower implementation, provided
 // that the extension is configured with adaptive sampling (vs. file-based config).
-func GetAdaptiveSamplingStore(
-	host component.Host,
-) (samplingstore.Store, *leaderelection.DistributedElectionParticipant, error) {
+func GetAdaptiveSamplingComponents(host component.Host) (*AdaptiveSamplingComponents, error) {
 	var comp component.Component
 	var compID component.ID
 	for id, ext := range host.GetExtensions() {
@@ -69,30 +74,34 @@ func GetAdaptiveSamplingStore(
 		}
 	}
 	if comp == nil {
-		return nil, nil, fmt.Errorf(
+		return nil, fmt.Errorf(
 			"cannot find extension '%s' (make sure it's defined earlier in the config)",
 			componentType,
 		)
 	}
 	ext, ok := comp.(*rsExtension)
 	if !ok {
-		return nil, nil, fmt.Errorf("extension '%s' is not of type '%s'", compID, componentType)
+		return nil, fmt.Errorf("extension '%s' is not of type '%s'", compID, componentType)
 	}
 	if ext.adaptiveStore == nil || ext.distLock == nil {
-		return nil, nil, fmt.Errorf("extension '%s' is not configured for adaptive sampling", compID)
+		return nil, fmt.Errorf("extension '%s' is not configured for adaptive sampling", compID)
 	}
-	return ext.adaptiveStore, ext.distLock, nil
+	return &AdaptiveSamplingComponents{
+		SamplingStore: ext.adaptiveStore,
+		DistLock:      ext.distLock,
+		Options:       &ext.cfg.Adaptive.Options,
+	}, nil
 }
 
 func (ext *rsExtension) Start(ctx context.Context, host component.Host) error {
 	if ext.cfg.File.Path != "" {
-		if err := ext.startFileStrategyStore(ctx); err != nil {
+		if err := ext.startFileBasedStrategyProvider(ctx); err != nil {
 			return err
 		}
 	}
 
 	if ext.cfg.Adaptive.StrategyStore != "" {
-		if err := ext.startAdaptiveStrategyStore(host); err != nil {
+		if err := ext.startAdaptiveStrategyProvider(host); err != nil {
 			return err
 		}
 	}
@@ -135,14 +144,14 @@ func (ext *rsExtension) Shutdown(ctx context.Context) error {
 	return errors.Join(errs...)
 }
 
-func (ext *rsExtension) startFileStrategyStore(_ context.Context) error {
+func (ext *rsExtension) startFileBasedStrategyProvider(_ context.Context) error {
 	opts := static.Options{
 		StrategiesFile: ext.cfg.File.Path,
 	}
 
 	// contextcheck linter complains about next line that context is not passed.
 	//nolint
-	provider, err := static.NewStrategyStore(opts, ext.telemetry.Logger)
+	provider, err := static.NewProvider(opts, ext.telemetry.Logger)
 	if err != nil {
 		return fmt.Errorf("failed to create the local file strategy store: %w", err)
 	}
@@ -151,7 +160,7 @@ func (ext *rsExtension) startFileStrategyStore(_ context.Context) error {
 	return nil
 }
 
-func (ext *rsExtension) startAdaptiveStrategyStore(host component.Host) error {
+func (ext *rsExtension) startAdaptiveStrategyProvider(host component.Host) error {
 	storageName := ext.cfg.Adaptive.StrategyStore
 	f, err := jaegerstorage.GetStorageFactory(storageName, host)
 	if err != nil {
@@ -187,15 +196,7 @@ func (ext *rsExtension) startAdaptiveStrategyStore(host component.Host) error {
 		ext.distLock = ep
 	}
 
-	// TODO it is unlikely all these options are needed, we should refactor more
-	opts := adaptive.Options{
-		InitialSamplingProbability:   ext.cfg.Adaptive.InitialSamplingProbability,
-		MinSamplesPerSecond:          ext.cfg.Adaptive.MinSamplesPerSecond,
-		LeaderLeaseRefreshInterval:   ext.cfg.Adaptive.LeaderLeaseRefreshInterval,
-		FollowerLeaseRefreshInterval: ext.cfg.Adaptive.FollowerLeaseRefreshInterval,
-		AggregationBuckets:           ext.cfg.Adaptive.AggregationBuckets,
-	}
-	provider := adaptive.NewStrategyStore(opts, ext.telemetry.Logger, ext.distLock, store)
+	provider := adaptive.NewProvider(ext.cfg.Adaptive.Options, ext.telemetry.Logger, ext.distLock, store)
 	if err := provider.Start(); err != nil {
 		return fmt.Errorf("failed to start the adaptive strategy store: %w", err)
 	}
@@ -237,7 +238,7 @@ func (ext *rsExtension) startHTTPServer(ctx context.Context, host component.Host
 
 	handler := clientcfghttp.NewHTTPHandler(clientcfghttp.HTTPHandlerParams{
 		ConfigManager: &clientcfghttp.ConfigManager{
-			SamplingStrategyStore: ext.strategyProvider,
+			SamplingProvider: ext.strategyProvider,
 		},
 		MetricsFactory: metrics.NullFactory,
 		BasePath:       "/api",
@@ -250,9 +251,9 @@ func (ext *rsExtension) startHTTPServer(ctx context.Context, host component.Host
 		return err
 	}
 
-	ext.telemetry.Logger.Info("Starting HTTP server", zap.String("endpoint", ext.cfg.HTTP.ServerConfig.Endpoint))
+	ext.telemetry.Logger.Info("Starting HTTP server", zap.String("endpoint", ext.cfg.HTTP.Endpoint))
 	var hln net.Listener
-	if hln, err = ext.cfg.HTTP.ServerConfig.ToListener(ctx); err != nil {
+	if hln, err = ext.cfg.HTTP.ToListener(ctx); err != nil {
 		return err
 	}
 

@@ -12,16 +12,16 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/strategystore"
+	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/samplingstrategy"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/remotesampling"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
-	"github.com/jaegertracing/jaeger/plugin/sampling/strategystore/adaptive"
+	"github.com/jaegertracing/jaeger/plugin/sampling/strategyprovider/adaptive"
 )
 
 type traceProcessor struct {
 	config     *Config
 	logger     *zap.Logger
-	aggregator strategystore.Aggregator
+	aggregator samplingstrategy.Aggregator
 }
 
 func newTraceProcessor(cfg Config, otel component.TelemetrySettings) *traceProcessor {
@@ -32,22 +32,19 @@ func newTraceProcessor(cfg Config, otel component.TelemetrySettings) *traceProce
 }
 
 func (tp *traceProcessor) start(_ context.Context, host component.Host) error {
-	store, ep, err := remotesampling.GetAdaptiveSamplingStore(host)
+	parts, err := remotesampling.GetAdaptiveSamplingComponents(host)
 	if err != nil {
 		return err
 	}
 
-	opts := adaptive.Options{
-		TargetSamplesPerSecond: tp.config.TargetSamplesPerSecond,
-		DeltaTolerance:         tp.config.DeltaTolerance,
-		CalculationInterval:    tp.config.CalculationInterval,
-		BucketsForCalculation:  tp.config.BucketsForCalculation,
-		Delay:                  tp.config.Delay,
-		MinSamplingProbability: tp.config.MinSamplingProbability,
-	}
-
 	// TODO it is unlikely that aggregator needs the full Options object, we need to refactor.
-	agg, err := adaptive.NewAggregator(opts, tp.logger, metrics.NullFactory, ep, store)
+	agg, err := adaptive.NewAggregator(
+		*parts.Options,
+		tp.logger,
+		metrics.NullFactory,
+		parts.DistLock,
+		parts.SamplingStore,
+	)
 	if err != nil {
 		return fmt.Errorf("failed to create the adpative sampling aggregator : %w", err)
 	}

@@ -5,7 +5,6 @@ package remotesampling
 
 import (
 	"context"
-	"time"
 
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/configgrpc"
@@ -13,19 +12,12 @@ import (
 	"go.opentelemetry.io/collector/config/confignet"
 	"go.opentelemetry.io/collector/extension"
 
+	"github.com/jaegertracing/jaeger/plugin/sampling/strategyprovider/adaptive"
 	"github.com/jaegertracing/jaeger/ports"
 )
 
 // componentType is the name of this extension in configuration.
 var componentType = component.MustNewType("remote_sampling")
-
-const (
-	defaultAggregationBuckets           = 10
-	defaultInitialSamplingProbability   = 0.001
-	defaultMinSamplesPerSecond          = 1.0 / float64(time.Minute/time.Second) // once every 1 minute
-	defaultLeaderLeaseRefreshInterval   = 5 * time.Second
-	defaultFollowerLeaseRefreshInterval = 60 * time.Second
-)
 
 // NewFactory creates a factory for the jaeger remote sampling extension.
 func NewFactory() extension.Factory {
@@ -39,28 +31,21 @@ func NewFactory() extension.Factory {
 
 func createDefaultConfig() component.Config {
 	return &Config{
-		HTTP: HTTPConfig{
-			ServerConfig: confighttp.ServerConfig{
-				Endpoint: ports.PortToHostPort(ports.CollectorHTTP),
-			},
+		HTTP: confighttp.ServerConfig{
+			Endpoint: ports.PortToHostPort(ports.CollectorHTTP),
 		},
-		GRPC: GRPCConfig{
-			ServerConfig: configgrpc.ServerConfig{
-				NetAddr: confignet.AddrConfig{
-					Endpoint:  ports.PortToHostPort(ports.CollectorGRPC),
-					Transport: confignet.TransportTypeTCP,
-				},
+		GRPC: configgrpc.ServerConfig{
+			NetAddr: confignet.AddrConfig{
+				Endpoint:  ports.PortToHostPort(ports.CollectorGRPC),
+				Transport: confignet.TransportTypeTCP,
 			},
 		},
 		File: FileConfig{
-			Path: "",
+			Path: "", // path needs to be specified
 		},
 		Adaptive: AdaptiveConfig{
-			InitialSamplingProbability:   defaultInitialSamplingProbability,
-			MinSamplesPerSecond:          defaultMinSamplesPerSecond,
-			LeaderLeaseRefreshInterval:   defaultLeaderLeaseRefreshInterval,
-			FollowerLeaseRefreshInterval: defaultFollowerLeaseRefreshInterval,
-			AggregationBuckets:           defaultAggregationBuckets,
+			StrategyStore: "", // storage name needs to be specified
+			Options:       adaptive.DefaultOptions(),
 		},
 	}
 }
