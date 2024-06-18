@@ -33,7 +33,7 @@ build-crossdock-fresh: build-crossdock-linux
 
 .PHONY: crossdock-docker-images-jaeger-backend
 crossdock-docker-images-jaeger-backend: PLATFORMS=linux/amd64
-crossdock-docker-images-jaeger-backend: create-baseimg create-debugimg
+crossdock-docker-images-jaeger-backend: create-baseimg 
 	for component in "jaeger-agent" "jaeger-collector" "jaeger-query" "jaeger-ingester" "all-in-one" ; do \
 		regex="jaeger-(.*)"; \
 		component_suffix=$$component; \

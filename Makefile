@@ -89,6 +89,7 @@ include docker/Makefile
 include Makefile.Protobuf.mk
 include Makefile.Thrift.mk
 include Makefile.Crossdock.mk
+include Makefile.Integration.mk
 
 .DEFAULT_GOAL := test-and-lint
 
