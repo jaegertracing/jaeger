@@ -10,7 +10,7 @@ docker-images-jaeger-backend: create-baseimg
 		docker buildx build --target $(TARGET) \
 			--tag $(DOCKER_NAMESPACE)/$$component$(SUFFIX):${DOCKER_TAG} \
 			--build-arg base_image=$(BASE_IMAGE) \
-			--build-arg debug_image=$(DEBUG_IMAGE) \
+			--build-arg debug_image=$(BASE_IMAGE) \
 			--build-arg TARGETARCH=$(GOARCH) \
 			--load \
 			cmd/$$component_suffix; \
