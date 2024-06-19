@@ -24,6 +24,40 @@
       ],
       "matchUpdateTypes": ["major", "patch"],
       "enabled": false
+    },
+    {
+      "matchManagers": ["github-actions"],
+      "groupName": "github-actions deps"
+    },
+    {
+      "matchManagers": ["gomod"],
+      "matchSourceUrlPrefixes": [
+        "go.opentelemetry.io/otel",
+        "github.com/open-telemetry/opentelemetry-go-contrib"
+      ],
+      "groupName": "All OTEL SDK + contrib packages"
+    },
+    {
+      "matchManagers": ["gomod"],
+      "matchPackagePrefixes": ["go.opentelemetry.io/collector"],
+      "groupName": "All OTEL Collector packages"
+    },
+    {
+      "matchManagers": ["gomod"],
+      "matchPackagePrefixes": [
+        "github.com/open-telemetry/opentelemetry-collector-contrib"
+      ],
+      "groupName": "All OTEL Collector contrib packages"
+    },
+    {
+      "matchManagers": ["gomod"],
+      "matchSourceUrlPrefixes": ["google.golang.org"],
+      "groupName": "All google.golang.org packages"
+    },
+    {
+      "matchManagers": ["gomod"],
+      "matchPackagePrefixes": ["golang.org/x"],
+      "groupName": "All golang.org/x packages"
     }
   ]
 }

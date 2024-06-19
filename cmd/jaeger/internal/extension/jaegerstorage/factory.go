@@ -30,6 +30,6 @@ func createDefaultConfig() component.Config {
 }
 
 // createExtension creates the extension based on this config.
-func createExtension(_ context.Context, set extension.CreateSettings, cfg component.Config) (extension.Extension, error) {
+func createExtension(_ context.Context, set extension.Settings, cfg component.Config) (extension.Extension, error) {
 	return newStorageExt(cfg.(*Config), set.TelemetrySettings), nil
 }
