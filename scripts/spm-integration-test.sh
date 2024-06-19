@@ -55,7 +55,7 @@ check_spm(){
       exit 1
     fi
     for value in $metric_points; do
-      if (( $(echo "$value == 0" | bc -l) )); then
+      if [[ "$value" == "0" || "$value" == "0.0" ]]; then
         all_non_zero=false
         break
       fi
