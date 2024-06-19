@@ -33,4 +33,3 @@ build-crossdock-fresh: build-crossdock-linux
 
 .PHONY: crossdock-docker-images-jaeger-backend
 crossdock-docker-images-jaeger-backend: docker-images-jaeger-backend
-	make docker-images-jaeger-backend
