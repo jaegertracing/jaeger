@@ -44,5 +44,5 @@ jobs:
         cd docker-compose/monitor && make build
         
     - name: Run SPM Test
-      run: ./scripts/build-SPM.sh
+      run: ./scripts/spm-integration-test.sh
 
