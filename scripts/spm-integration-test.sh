@@ -73,12 +73,13 @@ check_spm(){
 
 # Function to tear down Docker Compose services
 teardown_services() {
- (cd docker-compose/monitor && make clean-all)
+ docker compose -f docker-compose/monitor/docker-compose.yml down
 }
 
 # Main function
 main() {
-  (cd docker-compose/monitor && make dev)
+  export JAEGER_IMAGE_TAG=dev
+  docker compose -f docker-compose/monitor/docker-compose.yml up -d 
   wait_for_services
   check_spm
   echo "All services are running correctly"
