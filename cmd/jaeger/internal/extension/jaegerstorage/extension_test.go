@@ -206,7 +206,7 @@ func makeStorageExtenion(t *testing.T, config *Config) component.Component {
 	extensionFactory := NewFactory()
 	ctx := context.Background()
 	storageExtension, err := extensionFactory.CreateExtension(ctx,
-		extension.CreateSettings{
+		extension.Settings{
 			ID:                ID,
 			TelemetrySettings: noopTelemetrySettings(),
 			BuildInfo:         component.NewDefaultBuildInfo(),

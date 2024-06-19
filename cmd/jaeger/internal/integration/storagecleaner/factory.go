@@ -33,7 +33,7 @@ func createDefaultConfig() component.Config {
 
 func createExtension(
 	_ context.Context,
-	set extension.CreateSettings,
+	set extension.Settings,
 	cfg component.Config,
 ) (extension.Extension, error) {
 	return newStorageCleaner(cfg.(*Config), set.TelemetrySettings), nil
