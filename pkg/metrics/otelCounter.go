@@ -1,3 +1,6 @@
+// Copyright (c) 2024 The Jaeger Authors.
+// SPDX-License-Identifier: Apache-2.0
+
 package metrics
 
 import (
@@ -10,9 +13,9 @@ import (
 // otelCounter is a wrapper around otel.Counter
 
 type otelCounter struct {
-	counter   metric.Int64Counter
-	ctx       context.Context
-	attrs     []metric.AddOption
+	counter metric.Int64Counter
+	ctx     context.Context
+	attrs   []metric.AddOption
 }
 
 func (c *otelCounter) Inc(value int64) {
