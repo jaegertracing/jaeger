@@ -114,12 +114,22 @@ func TestStorageFactoryBadShutdownError(t *testing.T) {
 	require.ErrorIs(t, err, shutdownError)
 }
 
+func TestStorageFactoryV2Error(t *testing.T) {
+	host := componenttest.NewNopHost()
+	_, err := GetStorageFactoryV2("something", host)
+	require.ErrorContains(t, err, "cannot find extension")
+}
+
 func TestStorageExtension(t *testing.T) {
 	const name = "foo"
 	host := storageHost{t: t, storageExtension: startStorageExtension(t, name)}
 	f, err := GetStorageFactory(name, host)
 	require.NoError(t, err)
 	require.NotNil(t, f)
+
+	f2, err := GetStorageFactoryV2(name, host)
+	require.NoError(t, err)
+	require.NotNil(t, f2)
 }
 
 func TestBadgerStorageExtension(t *testing.T) {
