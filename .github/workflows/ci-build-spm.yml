@@ -16,7 +16,7 @@ permissions:
   contents: read
 
 jobs:
-  SPM:
+  spm:
     runs-on: ubuntu-latest
     steps:
       - name: Harden Runner
