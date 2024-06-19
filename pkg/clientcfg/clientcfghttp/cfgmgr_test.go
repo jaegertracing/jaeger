@@ -26,18 +26,18 @@ import (
 	"github.com/jaegertracing/jaeger/thrift-gen/baggage"
 )
 
-type mockSamplingStore struct {
+type mockSamplingProvider struct {
 	samplingResponse *api_v2.SamplingStrategyResponse
 }
 
-func (m *mockSamplingStore) GetSamplingStrategy(_ context.Context, serviceName string) (*api_v2.SamplingStrategyResponse, error) {
+func (m *mockSamplingProvider) GetSamplingStrategy(context.Context, string /* serviceName */) (*api_v2.SamplingStrategyResponse, error) {
 	if m.samplingResponse == nil {
 		return nil, errors.New("no mock response provided")
 	}
 	return m.samplingResponse, nil
 }
 
-func (m *mockSamplingStore) Close() error {
+func (*mockSamplingProvider) Close() error {
 	return nil
 }
 
@@ -45,7 +45,7 @@ type mockBaggageMgr struct {
 	baggageResponse []*baggage.BaggageRestriction
 }
 
-func (m *mockBaggageMgr) GetBaggageRestrictions(_ context.Context, serviceName string) ([]*baggage.BaggageRestriction, error) {
+func (m *mockBaggageMgr) GetBaggageRestrictions(context.Context, string /* serviceName */) ([]*baggage.BaggageRestriction, error) {
 	if m.baggageResponse == nil {
 		return nil, errors.New("no mock response provided")
 	}
@@ -55,7 +55,7 @@ func (m *mockBaggageMgr) GetBaggageRestrictions(_ context.Context, serviceName s
 func TestConfigManager(t *testing.T) {
 	bgm := &mockBaggageMgr{}
 	mgr := &ConfigManager{
-		SamplingStrategyStore: &mockSamplingStore{
+		SamplingProvider: &mockSamplingProvider{
 			samplingResponse: &api_v2.SamplingStrategyResponse{},
 		},
 		BaggageManager: bgm,

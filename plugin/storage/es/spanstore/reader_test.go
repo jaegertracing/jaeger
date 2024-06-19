@@ -615,7 +615,7 @@ func TestSpanReaderFindIndices(t *testing.T) {
 }
 
 func TestSpanReader_indexWithDate(t *testing.T) {
-	withSpanReader(t, func(r *spanReaderTest) {
+	withSpanReader(t, func(_ *spanReaderTest) {
 		actual := indexWithDate(spanIndex, "2006-01-02", time.Date(1995, time.April, 21, 4, 21, 19, 95, time.UTC))
 		assert.Equal(t, "jaeger-span-1995-04-21", actual)
 	})
@@ -635,12 +635,12 @@ func testGet(typ string, t *testing.T) {
 		searchResult   *elastic.SearchResult
 		searchError    error
 		expectedError  func() string
-		expectedOutput map[string]interface{}
+		expectedOutput map[string]any
 	}{
 		{
 			caption:      typ + " full behavior",
 			searchResult: &elastic.SearchResult{Aggregations: elastic.Aggregations(goodAggregations)},
-			expectedOutput: map[string]interface{}{
+			expectedOutput: map[string]any{
 				operationsAggregation: []spanstore.Operation{{Name: "123"}},
 				"default":             []string{"123"},
 			},
@@ -686,7 +686,7 @@ func testGet(typ string, t *testing.T) {
 	}
 }
 
-func returnSearchFunc(typ string, r *spanReaderTest) (interface{}, error) {
+func returnSearchFunc(typ string, r *spanReaderTest) (any, error) {
 	switch typ {
 	case servicesAggregation:
 		return r.reader.GetServices(context.Background())
@@ -702,7 +702,7 @@ func returnSearchFunc(typ string, r *spanReaderTest) (interface{}, error) {
 }
 
 func TestSpanReader_bucketToStringArray(t *testing.T) {
-	withSpanReader(t, func(r *spanReaderTest) {
+	withSpanReader(t, func(_ *spanReaderTest) {
 		buckets := make([]*elastic.AggregationBucketKeyItem, 3)
 		buckets[0] = &elastic.AggregationBucketKeyItem{Key: "hello"}
 		buckets[1] = &elastic.AggregationBucketKeyItem{Key: "world"}
@@ -716,7 +716,7 @@ func TestSpanReader_bucketToStringArray(t *testing.T) {
 }
 
 func TestSpanReader_bucketToStringArrayError(t *testing.T) {
-	withSpanReader(t, func(r *spanReaderTest) {
+	withSpanReader(t, func(_ *spanReaderTest) {
 		buckets := make([]*elastic.AggregationBucketKeyItem, 3)
 		buckets[0] = &elastic.AggregationBucketKeyItem{Key: "hello"}
 		buckets[1] = &elastic.AggregationBucketKeyItem{Key: "world"}
@@ -1072,10 +1072,10 @@ func TestSpanReader_buildTraceIDAggregation(t *testing.T) {
 		actual, err := traceIDAggregation.Source()
 		require.NoError(t, err)
 
-		expected := make(map[string]interface{})
+		expected := make(map[string]any)
 		json.Unmarshal([]byte(expectedStr), &expected)
-		expected["terms"].(map[string]interface{})["size"] = 123
-		expected["terms"].(map[string]interface{})["order"] = []interface{}{map[string]string{"startTime": "desc"}}
+		expected["terms"].(map[string]any)["size"] = 123
+		expected["terms"].(map[string]any)["order"] = []any{map[string]string{"startTime": "desc"}}
 		assert.EqualValues(t, expected, actual)
 	})
 }
@@ -1126,11 +1126,11 @@ func TestSpanReader_buildDurationQuery(t *testing.T) {
 		actual, err := durationQuery.Source()
 		require.NoError(t, err)
 
-		expected := make(map[string]interface{})
+		expected := make(map[string]any)
 		json.Unmarshal([]byte(expectedStr), &expected)
 		// We need to do this because we cannot process a json into uint64.
-		expected["range"].(map[string]interface{})["duration"].(map[string]interface{})["from"] = model.DurationAsMicroseconds(durationMin)
-		expected["range"].(map[string]interface{})["duration"].(map[string]interface{})["to"] = model.DurationAsMicroseconds(durationMax)
+		expected["range"].(map[string]any)["duration"].(map[string]any)["from"] = model.DurationAsMicroseconds(durationMin)
+		expected["range"].(map[string]any)["duration"].(map[string]any)["to"] = model.DurationAsMicroseconds(durationMax)
 
 		assert.EqualValues(t, expected, actual)
 	})
@@ -1151,11 +1151,11 @@ func TestSpanReader_buildStartTimeQuery(t *testing.T) {
 		actual, err := durationQuery.Source()
 		require.NoError(t, err)
 
-		expected := make(map[string]interface{})
+		expected := make(map[string]any)
 		json.Unmarshal([]byte(expectedStr), &expected)
 		// We need to do this because we cannot process a json into uint64.
-		expected["range"].(map[string]interface{})["startTimeMillis"].(map[string]interface{})["from"] = model.TimeAsEpochMicroseconds(startTimeMin) / 1000
-		expected["range"].(map[string]interface{})["startTimeMillis"].(map[string]interface{})["to"] = model.TimeAsEpochMicroseconds(startTimeMax) / 1000
+		expected["range"].(map[string]any)["startTimeMillis"].(map[string]any)["from"] = model.TimeAsEpochMicroseconds(startTimeMin) / 1000
+		expected["range"].(map[string]any)["startTimeMillis"].(map[string]any)["to"] = model.TimeAsEpochMicroseconds(startTimeMax) / 1000
 
 		assert.EqualValues(t, expected, actual)
 	})
@@ -1168,7 +1168,7 @@ func TestSpanReader_buildServiceNameQuery(t *testing.T) {
 		actual, err := serviceNameQuery.Source()
 		require.NoError(t, err)
 
-		expected := make(map[string]interface{})
+		expected := make(map[string]any)
 		json.Unmarshal([]byte(expectedStr), &expected)
 
 		assert.EqualValues(t, expected, actual)
@@ -1182,7 +1182,7 @@ func TestSpanReader_buildOperationNameQuery(t *testing.T) {
 		actual, err := operationNameQuery.Source()
 		require.NoError(t, err)
 
-		expected := make(map[string]interface{})
+		expected := make(map[string]any)
 		json.Unmarshal([]byte(expectedStr), &expected)
 
 		assert.EqualValues(t, expected, actual)
@@ -1197,7 +1197,7 @@ func TestSpanReader_buildTagQuery(t *testing.T) {
 		actual, err := tagQuery.Source()
 		require.NoError(t, err)
 
-		expected := make(map[string]interface{})
+		expected := make(map[string]any)
 		json.Unmarshal(inStr, &expected)
 
 		assert.EqualValues(t, expected, actual)
@@ -1212,7 +1212,7 @@ func TestSpanReader_buildTagRegexQuery(t *testing.T) {
 		actual, err := tagQuery.Source()
 		require.NoError(t, err)
 
-		expected := make(map[string]interface{})
+		expected := make(map[string]any)
 		json.Unmarshal(inStr, &expected)
 
 		assert.EqualValues(t, expected, actual)
@@ -1227,7 +1227,7 @@ func TestSpanReader_buildTagRegexEscapedQuery(t *testing.T) {
 		actual, err := tagQuery.Source()
 		require.NoError(t, err)
 
-		expected := make(map[string]interface{})
+		expected := make(map[string]any)
 		json.Unmarshal(inStr, &expected)
 
 		assert.EqualValues(t, expected, actual)
@@ -1340,7 +1340,7 @@ func TestTerminateAfterNotSet(t *testing.T) {
 	sp, err := searchSource.Source()
 	require.NoError(t, err)
 
-	searchParams, ok := sp.(map[string]interface{})
+	searchParams, ok := sp.(map[string]any)
 	require.True(t, ok)
 
 	termAfter, ok := searchParams["terminate_after"]
@@ -1350,7 +1350,7 @@ func TestTerminateAfterNotSet(t *testing.T) {
 	query, ok := searchParams["query"]
 	require.True(t, ok)
 
-	queryMap, ok := query.(map[string]interface{})
+	queryMap, ok := query.(map[string]any)
 	require.True(t, ok)
 	_, ok = queryMap["match_all"]
 	require.True(t, ok)

@@ -42,7 +42,7 @@ func main() {
 		Use:   "jaeger-es-index-cleaner NUM_OF_DAYS http://HOSTNAME:PORT",
 		Short: "Jaeger es-index-cleaner removes Jaeger indices",
 		Long:  "Jaeger es-index-cleaner removes Jaeger indices",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			if len(args) != 2 {
 				return fmt.Errorf("wrong number of arguments")
 			}

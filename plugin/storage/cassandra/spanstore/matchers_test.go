@@ -21,13 +21,13 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
-func matchOnce() interface{} {
+func matchOnce() any {
 	return matchOnceWithSideEffect(nil)
 }
 
-func matchOnceWithSideEffect(fn func(v []interface{})) interface{} {
+func matchOnceWithSideEffect(fn func(v []any)) any {
 	var matched bool
-	return mock.MatchedBy(func(v []interface{}) bool {
+	return mock.MatchedBy(func(v []any) bool {
 		if matched {
 			return false
 		}
@@ -39,12 +39,12 @@ func matchOnceWithSideEffect(fn func(v []interface{})) interface{} {
 	})
 }
 
-func matchEverything() interface{} {
-	return mock.MatchedBy(func(v []interface{}) bool { return true })
+func matchEverything() any {
+	return mock.MatchedBy(func(_ []any) bool { return true })
 }
 
 // stringMatcher can match a string argument when it contains a specific substring q
-func stringMatcher(q string) interface{} {
+func stringMatcher(q string) any {
 	matchFunc := func(s string) bool {
 		return strings.Contains(s, q)
 	}

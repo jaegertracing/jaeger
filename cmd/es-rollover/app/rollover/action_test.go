@@ -45,7 +45,7 @@ func TestRolloverAction(t *testing.T) {
 		createAliasErr        error
 		expectedError         bool
 		indices               []client.Index
-		setupCallExpectations func(indexClient *mocks.MockIndexAPI, t *testCase)
+		setupCallExpectations func(indexClient *mocks.IndexAPI, t *testCase)
 	}
 
 	tests := []testCase{
@@ -54,10 +54,10 @@ func TestRolloverAction(t *testing.T) {
 			conditions:    "{\"max_age\": \"2d\"}",
 			expectedError: false,
 			indices:       readIndices,
-			setupCallExpectations: func(indexClient *mocks.MockIndexAPI, test *testCase) {
+			setupCallExpectations: func(indexClient *mocks.IndexAPI, test *testCase) {
 				indexClient.On("GetJaegerIndices", "").Return(test.indices, test.getJaegerIndicesErr)
 				indexClient.On("CreateAlias", aliasToCreate).Return(test.createAliasErr)
-				indexClient.On("Rollover", "jaeger-span-archive-write", map[string]interface{}{"max_age": "2d"}).Return(test.rolloverErr)
+				indexClient.On("Rollover", "jaeger-span-archive-write", map[string]any{"max_age": "2d"}).Return(test.rolloverErr)
 			},
 		},
 		{
@@ -72,9 +72,9 @@ func TestRolloverAction(t *testing.T) {
 					},
 				},
 			},
-			setupCallExpectations: func(indexClient *mocks.MockIndexAPI, test *testCase) {
+			setupCallExpectations: func(indexClient *mocks.IndexAPI, test *testCase) {
 				indexClient.On("GetJaegerIndices", "").Return(test.indices, test.getJaegerIndicesErr)
-				indexClient.On("Rollover", "jaeger-span-archive-write", map[string]interface{}{"max_age": "2d"}).Return(test.rolloverErr)
+				indexClient.On("Rollover", "jaeger-span-archive-write", map[string]any{"max_age": "2d"}).Return(test.rolloverErr)
 			},
 		},
 		{
@@ -83,8 +83,8 @@ func TestRolloverAction(t *testing.T) {
 			expectedError:       true,
 			getJaegerIndicesErr: errors.New("unable to get indices"),
 			indices:             readIndices,
-			setupCallExpectations: func(indexClient *mocks.MockIndexAPI, test *testCase) {
-				indexClient.On("Rollover", "jaeger-span-archive-write", map[string]interface{}{"max_age": "2d"}).Return(test.rolloverErr)
+			setupCallExpectations: func(indexClient *mocks.IndexAPI, test *testCase) {
+				indexClient.On("Rollover", "jaeger-span-archive-write", map[string]any{"max_age": "2d"}).Return(test.rolloverErr)
 				indexClient.On("GetJaegerIndices", "").Return(test.indices, test.getJaegerIndicesErr)
 			},
 		},
@@ -94,8 +94,8 @@ func TestRolloverAction(t *testing.T) {
 			expectedError: true,
 			rolloverErr:   errors.New("unable to rollover"),
 			indices:       readIndices,
-			setupCallExpectations: func(indexClient *mocks.MockIndexAPI, test *testCase) {
-				indexClient.On("Rollover", "jaeger-span-archive-write", map[string]interface{}{"max_age": "2d"}).Return(test.rolloverErr)
+			setupCallExpectations: func(indexClient *mocks.IndexAPI, test *testCase) {
+				indexClient.On("Rollover", "jaeger-span-archive-write", map[string]any{"max_age": "2d"}).Return(test.rolloverErr)
 			},
 		},
 		{
@@ -104,10 +104,10 @@ func TestRolloverAction(t *testing.T) {
 			expectedError:  true,
 			createAliasErr: errors.New("unable to create alias"),
 			indices:        readIndices,
-			setupCallExpectations: func(indexClient *mocks.MockIndexAPI, test *testCase) {
+			setupCallExpectations: func(indexClient *mocks.IndexAPI, test *testCase) {
 				indexClient.On("GetJaegerIndices", "").Return(test.indices, test.getJaegerIndicesErr)
 				indexClient.On("CreateAlias", aliasToCreate).Return(test.createAliasErr)
-				indexClient.On("Rollover", "jaeger-span-archive-write", map[string]interface{}{"max_age": "2d"}).Return(test.rolloverErr)
+				indexClient.On("Rollover", "jaeger-span-archive-write", map[string]any{"max_age": "2d"}).Return(test.rolloverErr)
 			},
 		},
 		{
@@ -116,13 +116,13 @@ func TestRolloverAction(t *testing.T) {
 			unmarshalErrExpected:  true,
 			createAliasErr:        errors.New("unable to create alias"),
 			indices:               readIndices,
-			setupCallExpectations: func(indexClient *mocks.MockIndexAPI, test *testCase) {},
+			setupCallExpectations: func(_ *mocks.IndexAPI, _ *testCase) {},
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			indexClient := &mocks.MockIndexAPI{}
+			indexClient := &mocks.IndexAPI{}
 
 			rolloverAction := Action{
 				Config: Config{

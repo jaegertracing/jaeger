@@ -64,7 +64,7 @@ func TestWriteService(t *testing.T) {
 	})
 }
 
-func TestWriteServiceError(t *testing.T) {
+func TestWriteServiceError(*testing.T) {
 	withSpanWriter(func(w *spanWriterTest) {
 		indexService := &mocks.IndexService{}
 

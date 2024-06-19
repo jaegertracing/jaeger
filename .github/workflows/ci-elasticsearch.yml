@@ -23,25 +23,22 @@ jobs:
       matrix:
         version:
         - major: 7.x
-          image: 7.14.0
           distribution: elasticsearch
           jaeger: v1
         - major: 8.x
-          image: 8.8.2
           distribution: elasticsearch
           jaeger: v1
         - major: 8.x
-          image: 8.8.2
           distribution: elasticsearch
           jaeger: v2
     name: ${{ matrix.version.distribution }} ${{ matrix.version.major }} ${{ matrix.version.jaeger }}
     steps:
     - name: Harden Runner
-      uses: step-security/harden-runner@f086349bfa2bd1361f7909c78558e816508cdc10 # v2.8.0
+      uses: step-security/harden-runner@17d0e2bd7d51742c71671bd19fa12bdc9d40a3d6 # v2.8.1
       with:
         egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
 
-    - uses: actions/checkout@9bb56186c3b09b4f86b1c65136769dd318469633 # v4.1.2
+    - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
       with:
         submodules: true
 
@@ -49,7 +46,7 @@ jobs:
       run: |
         git fetch --prune --unshallow --tags
 
-    - uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491 # v5.0.0
+    - uses: actions/setup-go@cdcb36043654635271a94b9a6d1392de5bb323a7 # v5.0.1
       with:
         go-version: 1.22.x
 
@@ -57,13 +54,13 @@ jobs:
       run: make install-ci
 
     - uses: docker/setup-qemu-action@68827325e0b33c7199eb31dd4e31fbe9023e06e3 # v3.0.0
-
     - name: Run ${{ matrix.version.distribution }} integration tests
       id: test-execution
-      run: bash scripts/es-integration-test.sh ${{ matrix.version.distribution }} ${{ matrix.version.image }} ${{ matrix.version.jaeger }}
+      run: bash scripts/es-integration-test.sh ${{ matrix.version.distribution }} ${{ matrix.version.major }} ${{ matrix.version.jaeger }}
+
 
     - name: Output ${{ matrix.version.distribution }} logs
-      run: docker logs ${{ steps.test-execution.outputs.cid }}
+      run: docker compose -f ${{ steps.test-execution.outputs.docker_compose_file }} logs 
       if: ${{ failure() }}
 
     - name: Upload coverage to codecov
@@ -71,3 +68,4 @@ jobs:
       with:
         files: cover.out,cover-index-cleaner.out,cover-index-rollover.out
         flags: ${{ matrix.version.distribution }}-${{ matrix.version.major }}-${{ matrix.version.jaeger }}
+

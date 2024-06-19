@@ -171,12 +171,12 @@ func getTimeRangeIndexFn(archive, useReadWriteAliases bool, remoteReadClusters [
 		} else {
 			archiveSuffix = archiveIndexSuffix
 		}
-		return addRemoteReadClusters(func(indexPrefix, indexDateLayout string, startTime time.Time, endTime time.Time, reduceDuration time.Duration) []string {
+		return addRemoteReadClusters(func(indexPrefix, _ /* indexDateLayout */ string, _ /* startTime */ time.Time, _ /* endTime */ time.Time, _ /* reduceDuration */ time.Duration) []string {
 			return []string{archiveIndex(indexPrefix, archiveSuffix)}
 		}, remoteReadClusters)
 	}
 	if useReadWriteAliases {
-		return addRemoteReadClusters(func(indexPrefix string, indexDateLayout string, startTime time.Time, endTime time.Time, reduceDuration time.Duration) []string {
+		return addRemoteReadClusters(func(indexPrefix string, _ /* indexDateLayout */ string, _ /* startTime */ time.Time, _ /* endTime */ time.Time, _ /* reduceDuration */ time.Duration) []string {
 			return []string{indexPrefix + "read"}
 		}, remoteReadClusters)
 	}
@@ -271,7 +271,7 @@ func (s *SpanReader) collectSpans(esSpansRaw []*elastic.SearchHit) ([]*model.Spa
 	return spans, nil
 }
 
-func (s *SpanReader) unmarshalJSONSpan(esSpanRaw *elastic.SearchHit) (*dbmodel.Span, error) {
+func (*SpanReader) unmarshalJSONSpan(esSpanRaw *elastic.SearchHit) (*dbmodel.Span, error) {
 	esSpanInByteArray := esSpanRaw.Source
 
 	var jsonSpan dbmodel.Span
@@ -606,7 +606,7 @@ func (s *SpanReader) buildTraceIDAggregation(numOfTraces int) elastic.Aggregatio
 		SubAggregation(startTimeField, s.buildTraceIDSubAggregation())
 }
 
-func (s *SpanReader) buildTraceIDSubAggregation() elastic.Aggregation {
+func (*SpanReader) buildTraceIDSubAggregation() elastic.Aggregation {
 	return elastic.NewMaxAggregation().
 		Field(startTimeField)
 }
@@ -643,7 +643,7 @@ func (s *SpanReader) buildFindTraceIDsQuery(traceQuery *spanstore.TraceQueryPara
 	return boolQuery
 }
 
-func (s *SpanReader) buildDurationQuery(durationMin time.Duration, durationMax time.Duration) elastic.Query {
+func (*SpanReader) buildDurationQuery(durationMin time.Duration, durationMax time.Duration) elastic.Query {
 	minDurationMicros := model.DurationAsMicroseconds(durationMin)
 	maxDurationMicros := defaultMaxDuration
 	if durationMax != 0 {
@@ -652,7 +652,7 @@ func (s *SpanReader) buildDurationQuery(durationMin time.Duration, durationMax t
 	return elastic.NewRangeQuery(durationField).Gte(minDurationMicros).Lte(maxDurationMicros)
 }
 
-func (s *SpanReader) buildStartTimeQuery(startTimeMin time.Time, startTimeMax time.Time) elastic.Query {
+func (*SpanReader) buildStartTimeQuery(startTimeMin time.Time, startTimeMax time.Time) elastic.Query {
 	minStartTimeMicros := model.TimeAsEpochMicroseconds(startTimeMin)
 	maxStartTimeMicros := model.TimeAsEpochMicroseconds(startTimeMax)
 	// startTimeMillisField is date field in ES mapping.
@@ -661,11 +661,11 @@ func (s *SpanReader) buildStartTimeQuery(startTimeMin time.Time, startTimeMax ti
 	return elastic.NewRangeQuery(startTimeMillisField).Gte(minStartTimeMicros / 1000).Lte(maxStartTimeMicros / 1000)
 }
 
-func (s *SpanReader) buildServiceNameQuery(serviceName string) elastic.Query {
+func (*SpanReader) buildServiceNameQuery(serviceName string) elastic.Query {
 	return elastic.NewMatchQuery(serviceNameField, serviceName)
 }
 
-func (s *SpanReader) buildOperationNameQuery(operationName string) elastic.Query {
+func (*SpanReader) buildOperationNameQuery(operationName string) elastic.Query {
 	return elastic.NewMatchQuery(operationNameField, operationName)
 }
 
@@ -684,7 +684,7 @@ func (s *SpanReader) buildTagQuery(k string, v string) elastic.Query {
 	return elastic.NewBoolQuery().Should(queries...)
 }
 
-func (s *SpanReader) buildNestedQuery(field string, k string, v string) elastic.Query {
+func (*SpanReader) buildNestedQuery(field string, k string, v string) elastic.Query {
 	keyField := fmt.Sprintf("%s.%s", field, tagKeyField)
 	valueField := fmt.Sprintf("%s.%s", field, tagValueField)
 	keyQuery := elastic.NewMatchQuery(keyField, k)
@@ -693,7 +693,7 @@ func (s *SpanReader) buildNestedQuery(field string, k string, v string) elastic.
 	return elastic.NewNestedQuery(field, tagBoolQuery)
 }
 
-func (s *SpanReader) buildObjectQuery(field string, k string, v string) elastic.Query {
+func (*SpanReader) buildObjectQuery(field string, k string, v string) elastic.Query {
 	keyField := fmt.Sprintf("%s.%s", field, k)
 	keyQuery := elastic.NewRegexpQuery(keyField, v)
 	return elastic.NewBoolQuery().Must(keyQuery)

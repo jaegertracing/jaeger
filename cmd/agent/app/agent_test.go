@@ -28,7 +28,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/internal/metrics/fork"
 	"github.com/jaegertracing/jaeger/internal/metrics/metricsbuilder"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
@@ -73,7 +72,7 @@ func TestAgentSamplingEndpoint(t *testing.T) {
 }
 
 func TestAgentMetricsEndpoint(t *testing.T) {
-	withRunningAgent(t, func(httpAddr string, errorch chan error) {
+	withRunningAgent(t, func(httpAddr string, _ chan error) {
 		url := fmt.Sprintf("http://%s/metrics", httpAddr)
 		resp, err := http.Get(url)
 		require.NoError(t, err)
@@ -103,11 +102,10 @@ func withRunningAgent(t *testing.T, testcase func(string, chan error)) {
 	logger, logBuf := testutils.NewLogger()
 	mBldr := &metricsbuilder.Builder{HTTPRoute: "/metrics", Backend: "prometheus"}
 	metricsFactory, err := mBldr.CreateMetricsFactory("jaeger")
-	mFactory := fork.New("internal", metrics.NullFactory, metricsFactory)
 	require.NoError(t, err)
-	agent, err := cfg.CreateAgent(fakeCollectorProxy{}, logger, mFactory)
+	agent, err := cfg.CreateAgent(fakeCollectorProxy{}, logger, metricsFactory)
 	require.NoError(t, err)
-	if h := mBldr.Handler(); mFactory != nil && h != nil {
+	if h := mBldr.Handler(); metricsFactory != nil && h != nil {
 		logger.Info("Registering metrics handler with HTTP server", zap.String("route", mBldr.HTTPRoute))
 		agent.GetHTTPRouter().Handle(mBldr.HTTPRoute, h).Methods(http.MethodGet)
 	}
@@ -158,9 +156,8 @@ func TestStartStopRace(t *testing.T) {
 	logger, logBuf := testutils.NewEchoLogger(t)
 	mBldr := &metricsbuilder.Builder{HTTPRoute: "/metrics", Backend: "prometheus"}
 	metricsFactory, err := mBldr.CreateMetricsFactory("jaeger")
-	mFactory := fork.New("internal", metrics.NullFactory, metricsFactory)
 	require.NoError(t, err)
-	agent, err := cfg.CreateAgent(fakeCollectorProxy{}, logger, mFactory)
+	agent, err := cfg.CreateAgent(fakeCollectorProxy{}, logger, metricsFactory)
 	require.NoError(t, err)
 
 	// This test attempts to hit the data race bug when Stop() is called
@@ -202,9 +199,8 @@ func TestStartStopWithSocketBufferSet(t *testing.T) {
 	}
 	mBldr := &metricsbuilder.Builder{HTTPRoute: "/metrics", Backend: "prometheus"}
 	metricsFactory, err := mBldr.CreateMetricsFactory("jaeger")
-	mFactory := fork.New("internal", metrics.NullFactory, metricsFactory)
 	require.NoError(t, err)
-	agent, err := cfg.CreateAgent(fakeCollectorProxy{}, zap.NewNop(), mFactory)
+	agent, err := cfg.CreateAgent(fakeCollectorProxy{}, zap.NewNop(), metricsFactory)
 	require.NoError(t, err)
 
 	if err := agent.Run(); err != nil {

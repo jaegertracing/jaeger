@@ -63,7 +63,7 @@ func NewFactory(config FactoryConfig) (*Factory, error) {
 	return f, nil
 }
 
-func (f *Factory) getFactoryOfType(factoryType string) (storage.MetricsFactory, error) {
+func (*Factory) getFactoryOfType(factoryType string) (storage.MetricsFactory, error) {
 	switch factoryType {
 	case prometheusStorageType:
 		return prometheus.NewFactory(), nil

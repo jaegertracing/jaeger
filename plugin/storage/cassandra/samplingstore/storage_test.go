@@ -62,8 +62,8 @@ func TestInsertThroughput(t *testing.T) {
 		query := &mocks.Query{}
 		query.On("Exec").Return(nil)
 
-		var args []interface{}
-		captureArgs := mock.MatchedBy(func(v []interface{}) bool {
+		var args []any
+		captureArgs := mock.MatchedBy(func(v []any) bool {
 			args = v
 			return true
 		})
@@ -100,8 +100,8 @@ func TestInsertProbabilitiesAndQPS(t *testing.T) {
 		query := &mocks.Query{}
 		query.On("Exec").Return(nil)
 
-		var args []interface{}
-		captureArgs := mock.MatchedBy(func(v []interface{}) bool {
+		var args []any
+		captureArgs := mock.MatchedBy(func(v []any) bool {
 			args = v
 			return true
 		})
@@ -164,12 +164,12 @@ func TestGetThroughput(t *testing.T) {
 		testCase := tc // capture loop var
 		t.Run(testCase.caption, func(t *testing.T) {
 			withSamplingStore(func(s *samplingStoreTest) {
-				scanMatcher := func() interface{} {
+				scanMatcher := func() any {
 					throughputStr := []string{
 						"\"svc,withcomma\",\"op,withcomma\",40,\"0.1,\"\n",
 						"svc,op,50,\n",
 					}
-					scanFunc := func(args []interface{}) bool {
+					scanFunc := func(args []any) bool {
 						if len(throughputStr) == 0 {
 							return false
 						}
@@ -245,11 +245,11 @@ func TestGetLatestProbabilities(t *testing.T) {
 		testCase := tc // capture loop var
 		t.Run(testCase.caption, func(t *testing.T) {
 			withSamplingStore(func(s *samplingStoreTest) {
-				scanMatcher := func() interface{} {
+				scanMatcher := func() any {
 					probabilitiesStr := []string{
 						"svc,op,0.84,40\n",
 					}
-					scanFunc := func(args []interface{}) bool {
+					scanFunc := func(args []any) bool {
 						if len(probabilitiesStr) == 0 {
 							return false
 						}
@@ -288,8 +288,8 @@ func TestGetLatestProbabilities(t *testing.T) {
 	}
 }
 
-func matchEverything() interface{} {
-	return mock.MatchedBy(func(v []interface{}) bool { return true })
+func matchEverything() any {
+	return mock.MatchedBy(func(_ []any) bool { return true })
 }
 
 func TestGenerateRandomBucket(t *testing.T) {

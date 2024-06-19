@@ -34,7 +34,6 @@ import (
 
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
-	grpcConfig "github.com/jaegertracing/jaeger/plugin/storage/grpc/config"
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc/mocks"
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared"
 	"github.com/jaegertracing/jaeger/storage"
@@ -74,8 +73,8 @@ func (s *store) StreamingSpanWriter() spanstore.Writer {
 	return s.writer
 }
 
-func makeMockServices() *grpcConfig.ClientPluginServices {
-	return &grpcConfig.ClientPluginServices{
+func makeMockServices() *ClientPluginServices {
+	return &ClientPluginServices{
 		PluginServices: shared.PluginServices{
 			Store: &store{
 				writer: new(spanStoreMocks.Writer),
@@ -110,7 +109,7 @@ func makeFactory(t *testing.T) *Factory {
 }
 
 func TestNewFactoryError(t *testing.T) {
-	cfg := &grpcConfig.ConfigV2{
+	cfg := &ConfigV2{
 		ClientConfig: configgrpc.ClientConfig{
 			// non-empty Auth is currently not supported
 			Auth: &configauth.Authentication{},
@@ -161,7 +160,7 @@ func TestGRPCStorageFactoryWithConfig(t *testing.T) {
 	}()
 	defer s.Stop()
 
-	cfg := grpcConfig.ConfigV2{
+	cfg := ConfigV2{
 		ClientConfig: configgrpc.ClientConfig{
 			Endpoint: lis.Addr().String(),
 		},

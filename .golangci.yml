@@ -18,6 +18,13 @@ issues:
       text: "exitAfterDefer"
     - linters: [gocritic]
       text: "appendAssign"
+  exclude-dirs-use-default: false
+  exclude-dirs:
+    - mocks
+    - thrift-0.9.2
+    - .*-gen
+  exclude-files:
+    - ".*.pb.go$"
   max-issues-per-linter: 0
   max-same-issues: 0
 
@@ -86,6 +93,12 @@ linters:
     # Finds sending HTTP request without context.Context.
     - noctx
 
+    # Reports ill-formed or insufficient nolint directives.
+    - nolintlint
+
+    # Fast, configurable, extensible, flexible, and beautiful linter for Go. Drop-in replacement of golint.
+    - revive
+
     # Checks usage of github.com/stretchr/testify.
     - testifylint
 
@@ -112,7 +125,7 @@ linters-settings:
             desc: "Do not refer to crossdock from other packages"
         files:
           - "!**/crossdock/**"
-      
+
       disallow-uber/goleak:
         deny:
          - pkg: go.uber.org/goleak
@@ -130,10 +143,7 @@ linters-settings:
       - G107
       - G404
       - G601
-  gosimple:
-    go: "1.21"
   govet:
-    check-shadowing: false
     enable-all: true
     disable:
       # There is rarely performance differences due to padding,
@@ -143,6 +153,73 @@ linters-settings:
       - fieldalignment
       # Disable shadow
       - shadow
+  revive:
+      ignore-generated-header: true
+      severity: error
+      enable-all-rules: true
+      # See https://github.com/mgechev/revive/blob/master/RULES_DESCRIPTIONS.md
+      rules:
+        # not a completely bad linter, but needs clean-up and sensible width (80 is too small)
+        - name: line-length-limit
+          disabled: true
+          arguments: [80]
+        # would be ok if we could exclude the test files, but otherwise too noisy
+        - name: add-constant
+          disabled: true
+        # maybe enable in the future, needs more investigation
+        - name: cognitive-complexity
+          disabled: true
+        # not sure how different from previous one
+        - name: cyclomatic
+          disabled: true
+        # we use storage_v2, so...
+        - name: var-naming
+          disabled: true
+        # could be useful to catch issues, but needs a clean-up and some ignores
+        - name: unchecked-type-assertion
+          disabled: true
+        # wtf: "you have exceeded the maximum number of public struct declarations"
+        - name: max-public-structs
+          disabled: true
+        # probably a good one to enable after cleanup
+        - name: import-shadowing
+          disabled: true
+        # TBD - often triggered in tests
+        - name: unhandled-error
+          disabled: true
+        # often looks like a red herring, needs investigation
+        - name: flag-parameter
+          disabled: true
+        # looks like a good linter, needs cleanup
+        - name: confusing-naming
+          disabled: true
+        # too pendantic
+        - name: function-length
+          disabled: true
+        # definitely a good one, needs cleanup first
+        - name: argument-limit
+          disabled: true
+        # maybe enable, needs invesitgation of the impact
+        - name: import-alias-naming
+          disabled: true
+        # maybe enable, needs invesitgation of the impact
+        - name: get-return
+          disabled: true
+        # investigate, could be real bugs. But didn't recent Go version changed loop variables semantics?
+        - name: range-val-address
+          disabled: true
+        # this is idiocy, promotes less readable code. Don't enable.
+        - name: var-declaration
+          disabled: true
+        # enable after cleanup
+        - name: redefines-builtin-id
+          disabled: true
+        # "no nested structs are allowed" - don't enable, doesn't make sense
+        - name: nested-structs
+          disabled: true
+        # looks useful, but requires refactoring: "calls to log.Fatal only in main() or init() functions"
+        - name: deep-exit
+          disabled: true
   testifylint:
     disable:
       - float-compare
@@ -162,10 +239,3 @@ linters-settings:
 run:
   go: "1.21"
   timeout: 20m
-  skip-dirs-use-default: false
-  skip-dirs:
-    - mocks
-    - thrift-0.9.2
-    - .*-gen
-  skip-files:
-    - ".*.pb.go$"

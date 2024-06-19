@@ -33,11 +33,11 @@ type mockStorageExt struct {
 	factory *factoryMocks.Factory
 }
 
-func (m *mockStorageExt) Start(ctx context.Context, host component.Host) error {
+func (*mockStorageExt) Start(context.Context, component.Host) error {
 	panic("not implemented")
 }
 
-func (m *mockStorageExt) Shutdown(ctx context.Context) error {
+func (*mockStorageExt) Shutdown(context.Context) error {
 	panic("not implemented")
 }
 
@@ -76,10 +76,10 @@ func withReceiver(
 	cfg.PullInterval = r.receiveInterval
 	receiver, _ := newTracesReceiver(
 		cfg,
-		receivertest.NewNopCreateSettings(),
+		receivertest.NewNopSettings(),
 		consumertest.NewNop(),
 	)
-	receiver.settings.ReportStatus = func(se *component.StatusEvent) {}
+	receiver.settings.ReportStatus = func(_ *component.StatusEvent) {}
 
 	r.reader = reader
 	r.factory = factory

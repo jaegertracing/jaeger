@@ -57,6 +57,6 @@ func (s spanReferenceAdjuster) adjust(span *model.Span) *model.Span {
 	return span
 }
 
-func (s spanReferenceAdjuster) valid(ref *model.SpanRef) bool {
+func (spanReferenceAdjuster) valid(ref *model.SpanRef) bool {
 	return ref.TraceID.High != 0 || ref.TraceID.Low != 0
 }

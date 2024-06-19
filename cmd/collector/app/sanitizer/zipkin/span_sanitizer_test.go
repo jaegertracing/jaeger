@@ -29,7 +29,7 @@ var (
 	positiveDuration = int64(1)
 )
 
-func TestNewStandardSanitizers(t *testing.T) {
+func TestNewStandardSanitizers(*testing.T) {
 	NewStandardSanitizers()
 }
 

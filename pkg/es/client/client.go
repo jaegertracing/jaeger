@@ -107,7 +107,7 @@ func (c *Client) setAuthorization(r *http.Request) {
 	}
 }
 
-func (c *Client) handleFailedRequest(res *http.Response) error {
+func (*Client) handleFailedRequest(res *http.Response) error {
 	if res.Body != nil {
 		bodyBytes, err := io.ReadAll(res.Body)
 		if err != nil {

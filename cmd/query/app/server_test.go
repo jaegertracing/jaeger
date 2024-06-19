@@ -338,16 +338,16 @@ func TestServerHTTPTLS(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			TLSGRPC := disabledTLSCfg
+			tlsGrpc := disabledTLSCfg
 			if test.GRPCTLSEnabled {
-				TLSGRPC = enabledTLSCfg
+				tlsGrpc = enabledTLSCfg
 			}
 
 			serverOptions := &QueryOptions{
 				GRPCHostPort: ports.GetAddressFromCLIOptions(ports.QueryGRPC, ""),
 				HTTPHostPort: ports.GetAddressFromCLIOptions(ports.QueryHTTP, ""),
 				TLSHTTP:      test.TLS,
-				TLSGRPC:      TLSGRPC,
+				TLSGRPC:      tlsGrpc,
 				QueryOptionsBase: QueryOptionsBase{
 					BearerTokenPropagation: true,
 				},
@@ -382,9 +382,7 @@ func TestServerHTTPTLS(t *testing.T) {
 				if conn != nil {
 					clientClose = conn.Close
 				}
-
 			} else {
-
 				conn, err1 := net.DialTimeout("tcp", "localhost:"+fmt.Sprintf("%d", ports.QueryHTTP), 2*time.Second)
 				clientError = err1
 				clientClose = nil
@@ -478,14 +476,14 @@ func TestServerGRPCTLS(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			TLSHTTP := disabledTLSCfg
+			tlsHttp := disabledTLSCfg
 			if test.HTTPTLSEnabled {
-				TLSHTTP = enabledTLSCfg
+				tlsHttp = enabledTLSCfg
 			}
 			serverOptions := &QueryOptions{
 				GRPCHostPort: ports.GetAddressFromCLIOptions(ports.QueryGRPC, ""),
 				HTTPHostPort: ports.GetAddressFromCLIOptions(ports.QueryHTTP, ""),
-				TLSHTTP:      TLSHTTP,
+				TLSHTTP:      tlsHttp,
 				TLSGRPC:      test.TLS,
 				QueryOptionsBase: QueryOptionsBase{
 					BearerTokenPropagation: true,
@@ -603,7 +601,7 @@ func TestServerInUseHostPort(t *testing.T) {
 
 func TestServerSinglePort(t *testing.T) {
 	flagsSvc := flags.NewService(ports.QueryAdminHTTP)
-	flagsSvc.Logger = zaptest.NewLogger(t)
+	flagsSvc.Logger = zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller()))
 	hostPort := ports.GetAddressFromCLIOptions(ports.QueryHTTP, "")
 	querySvc := makeQuerySvc()
 	server, err := NewServer(flagsSvc.Logger, flagsSvc.HC(), querySvc.qs, nil,

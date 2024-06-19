@@ -132,7 +132,7 @@ func (s *StorageIntegration) skipIfNeeded(t *testing.T) {
 	}
 }
 
-func (s *StorageIntegration) waitForCondition(t *testing.T, predicate func(t *testing.T) bool) bool {
+func (*StorageIntegration) waitForCondition(t *testing.T, predicate func(t *testing.T) bool) bool {
 	const iterations = 100 // Will wait at most 100 seconds.
 	for i := 0; i < iterations; i++ {
 		if predicate(t) {
@@ -185,7 +185,7 @@ func (s *StorageIntegration) testArchiveTrace(t *testing.T) {
 	require.NoError(t, s.ArchiveSpanWriter.WriteSpan(context.Background(), expected))
 
 	var actual *model.Trace
-	found := s.waitForCondition(t, func(t *testing.T) bool {
+	found := s.waitForCondition(t, func(_ *testing.T) bool {
 		var err error
 		actual, err = s.ArchiveSpanReader.GetTrace(context.Background(), tID)
 		return err == nil && len(actual.Spans) == 1
@@ -203,7 +203,7 @@ func (s *StorageIntegration) testGetLargeSpan(t *testing.T) {
 	expectedTraceID := expected.Spans[0].TraceID
 
 	var actual *model.Trace
-	found := s.waitForCondition(t, func(t *testing.T) bool {
+	found := s.waitForCondition(t, func(_ *testing.T) bool {
 		var err error
 		actual, err = s.SpanReader.GetTrace(context.Background(), expectedTraceID)
 		return err == nil && len(actual.Spans) >= len(expected.Spans)
@@ -364,7 +364,7 @@ func (s *StorageIntegration) loadParseAndWriteLargeTrace(t *testing.T) *model.Tr
 	return trace
 }
 
-func (s *StorageIntegration) getTraceFixture(t *testing.T, fixture string) *model.Trace {
+func (*StorageIntegration) getTraceFixture(t *testing.T, fixture string) *model.Trace {
 	fileName := fmt.Sprintf("fixtures/traces/%s.json", fixture)
 	return getTraceFixtureExact(t, fileName)
 }
@@ -390,7 +390,7 @@ func LoadAndParseQueryTestCases(t *testing.T, queriesFile string) []*QueryFixtur
 	return queries
 }
 
-func loadAndParseJSON(t *testing.T, path string, object interface{}) {
+func loadAndParseJSON(t *testing.T, path string, object any) {
 	// #nosec
 	inStr, err := fixtures.ReadFile(path)
 	require.NoError(t, err, "Not expecting error when loading fixture %s", path)

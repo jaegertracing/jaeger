@@ -99,7 +99,7 @@ func TestSpanReaderGetOperations(t *testing.T) {
 				SpanKind: "server",
 			},
 		}
-		r.reader.operationNamesReader = func(parameters spanstore.OperationQueryParameters) ([]spanstore.Operation, error) {
+		r.reader.operationNamesReader = func(_ spanstore.OperationQueryParameters) ([]spanstore.Operation, error) {
 			return expectedOperations, nil
 		}
 		s, err := r.reader.GetOperations(context.Background(),
@@ -110,8 +110,8 @@ func TestSpanReaderGetOperations(t *testing.T) {
 }
 
 func TestSpanReaderGetTrace(t *testing.T) {
-	badScan := func() interface{} {
-		return matchOnceWithSideEffect(func(args []interface{}) {
+	badScan := func() any {
+		return matchOnceWithSideEffect(func(args []any) {
 			for _, arg := range args {
 				if v, ok := arg.(*[]dbmodel.KeyValue); ok {
 					*v = []dbmodel.KeyValue{
@@ -125,7 +125,7 @@ func TestSpanReaderGetTrace(t *testing.T) {
 	}
 
 	testCases := []struct {
-		scanner     interface{}
+		scanner     any
 		closeErr    error
 		expectedErr string
 	}{
@@ -310,12 +310,12 @@ func TestSpanReaderFindTraces(t *testing.T) {
 		t.Run(testCase.caption, func(t *testing.T) {
 			withSpanReader(t, func(r *spanReaderTest) {
 				// scanMatcher can match Iter.Scan() parameters and set trace ID fields
-				scanMatcher := func(name string) interface{} {
+				scanMatcher := func(_ /* name */ string) any {
 					traceIDs := []dbmodel.TraceID{
 						dbmodel.TraceIDFromDomain(model.NewTraceID(0, 1)),
 						dbmodel.TraceIDFromDomain(model.NewTraceID(0, 2)),
 					}
-					scanFunc := func(args []interface{}) bool {
+					scanFunc := func(args []any) bool {
 						if len(traceIDs) == 0 {
 							return false
 						}
@@ -402,7 +402,6 @@ func TestSpanReaderFindTraces(t *testing.T) {
 				if testCase.queryDuration {
 					queryParams.DurationMin = time.Minute
 					queryParams.DurationMax = time.Minute * 3
-
 				}
 				res, err := r.reader.FindTraces(context.Background(), queryParams)
 				if testCase.expectedError == "" {

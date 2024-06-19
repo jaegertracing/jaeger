@@ -28,9 +28,8 @@ type Configuration struct {
 	TokenFilePath            string
 	TokenOverrideFromContext bool
 
-	SupportSpanmetricsConnector bool
-	MetricNamespace             string
-	LatencyUnit                 string
-	NormalizeCalls              bool
-	NormalizeDuration           bool
+	MetricNamespace   string
+	LatencyUnit       string
+	NormalizeCalls    bool
+	NormalizeDuration bool
 }

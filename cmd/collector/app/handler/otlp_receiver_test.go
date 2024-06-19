@@ -115,7 +115,7 @@ func TestStartOtlpReceiver_Error(t *testing.T) {
 	assert.Contains(t, err.Error(), "could not create the OTLP consumer")
 
 	createTracesReceiver := func(
-		context.Context, receiver.CreateSettings, component.Config, consumer.Traces,
+		context.Context, receiver.Settings, component.Config, consumer.Traces,
 	) (receiver.Traces, error) {
 		return nil, errors.New("mock error")
 	}
@@ -127,7 +127,7 @@ func TestStartOtlpReceiver_Error(t *testing.T) {
 func TestProtoFromTracesError(t *testing.T) {
 	mockErr := errors.New("mock error")
 	c := &consumerDelegate{
-		protoFromTraces: func(td ptrace.Traces) ([]*model.Batch, error) {
+		protoFromTraces: func(_ ptrace.Traces) ([]*model.Batch, error) {
 			return nil, mockErr
 		},
 	}

@@ -31,8 +31,6 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/internal/docs"
 	"github.com/jaegertracing/jaeger/cmd/internal/flags"
 	"github.com/jaegertracing/jaeger/cmd/internal/status"
-	"github.com/jaegertracing/jaeger/internal/metrics/expvar"
-	"github.com/jaegertracing/jaeger/internal/metrics/fork"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/version"
@@ -52,18 +50,15 @@ func main() {
 		Use:   "jaeger-agent",
 		Short: "(deprecated) Jaeger agent is a local daemon program which collects tracing data.",
 		Long:  `(deprecated) Jaeger agent is a daemon program that runs on every host and receives tracing data submitted by Jaeger client libraries.`,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ /* args */ []string) error {
 			if err := svc.Start(v); err != nil {
 				return err
 			}
 			logger := svc.Logger // shortcut
 
-			baseFactory := svc.MetricsFactory.
+			mFactory := svc.MetricsFactory.
 				Namespace(metrics.NSOptions{Name: "jaeger"}).
 				Namespace(metrics.NSOptions{Name: "agent"})
-			mFactory := fork.New("internal",
-				expvar.NewFactory(), // expvar backend to report settings
-				baseFactory)
 			version.NewInfoMetrics(mFactory)
 
 			rOpts := new(reporter.Options).InitFromViper(v, logger)

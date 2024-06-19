@@ -69,6 +69,7 @@ function check() {
 }
 
 check go.mod "^go\s\+$version_regex" "$go_previous_version"
+check internal/tools/go.mod "^go\s\+$version_regex" "$go_latest_version"
 
 check docker/debug/Dockerfile "^.*golang:$version_regex" "$go_latest_version"
 

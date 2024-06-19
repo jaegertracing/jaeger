@@ -61,9 +61,9 @@ type Span struct {
 	Duration        uint64     `json:"duration"` // microseconds
 	Tags            []KeyValue `json:"tags"`
 	// Alternative representation of tags for better kibana support
-	Tag     map[string]interface{} `json:"tag,omitempty"`
-	Logs    []Log                  `json:"logs"`
-	Process Process                `json:"process,omitempty"`
+	Tag     map[string]any `json:"tag,omitempty"`
+	Logs    []Log          `json:"logs"`
+	Process Process        `json:"process,omitempty"`
 }
 
 // Reference is a reference from one span to another
@@ -78,7 +78,7 @@ type Process struct {
 	ServiceName string     `json:"serviceName"`
 	Tags        []KeyValue `json:"tags"`
 	// Alternative representation of tags for better kibana support
-	Tag map[string]interface{} `json:"tag,omitempty"`
+	Tag map[string]any `json:"tag,omitempty"`
 }
 
 // Log is a log emitted in a span
@@ -89,9 +89,9 @@ type Log struct {
 
 // KeyValue is a key-value pair with typed value.
 type KeyValue struct {
-	Key   string      `json:"key"`
-	Type  ValueType   `json:"type,omitempty"`
-	Value interface{} `json:"value"`
+	Key   string    `json:"key"`
+	Type  ValueType `json:"type,omitempty"`
+	Value any       `json:"value"`
 }
 
 // Service is the JSON struct for service:operation documents in ElasticSearch

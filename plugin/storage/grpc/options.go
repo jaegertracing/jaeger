@@ -23,7 +23,6 @@ import (
 
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
-	"github.com/jaegertracing/jaeger/plugin/storage/grpc/config"
 )
 
 const (
@@ -47,7 +46,7 @@ func v1AddFlags(flagSet *flag.FlagSet) {
 	flagSet.Duration(remoteConnectionTimeout, defaultConnectionTimeout, "The remote storage gRPC server connection timeout")
 }
 
-func v1InitFromViper(cfg *config.Configuration, v *viper.Viper) error {
+func v1InitFromViper(cfg *Configuration, v *viper.Viper) error {
 	cfg.RemoteServerAddr = v.GetString(remoteServer)
 	var err error
 	cfg.RemoteTLS, err = tlsFlagsConfig().InitFromViper(v)

@@ -69,7 +69,7 @@ func NewSpanDurationSanitizer() Sanitizer {
 
 type spanDurationSanitizer struct{}
 
-func (s *spanDurationSanitizer) Sanitize(span *zc.Span) *zc.Span {
+func (*spanDurationSanitizer) Sanitize(span *zc.Span) *zc.Span {
 	if span.Duration == nil {
 		duration := defaultDuration
 		if len(span.Annotations) >= 2 {
@@ -116,7 +116,7 @@ func NewSpanStartTimeSanitizer() Sanitizer {
 
 type spanStartTimeSanitizer struct{}
 
-func (s *spanStartTimeSanitizer) Sanitize(span *zc.Span) *zc.Span {
+func (*spanStartTimeSanitizer) Sanitize(span *zc.Span) *zc.Span {
 	if span.Timestamp != nil || len(span.Annotations) == 0 {
 		return span
 	}
@@ -143,7 +143,7 @@ func NewParentIDSanitizer() Sanitizer {
 
 type parentIDSanitizer struct{}
 
-func (s *parentIDSanitizer) Sanitize(span *zc.Span) *zc.Span {
+func (*parentIDSanitizer) Sanitize(span *zc.Span) *zc.Span {
 	if span.ParentID == nil || *span.ParentID != 0 {
 		return span
 	}
@@ -166,7 +166,7 @@ func NewErrorTagSanitizer() Sanitizer {
 
 type errorTagSanitizer struct{}
 
-func (s *errorTagSanitizer) Sanitize(span *zc.Span) *zc.Span {
+func (*errorTagSanitizer) Sanitize(span *zc.Span) *zc.Span {
 	for _, binAnno := range span.BinaryAnnotations {
 		if binAnno.AnnotationType != zc.AnnotationType_BOOL && strings.EqualFold("error", binAnno.Key) {
 			binAnno.AnnotationType = zc.AnnotationType_BOOL

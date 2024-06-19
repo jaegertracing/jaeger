@@ -95,8 +95,8 @@ func TestDependencyStoreWrite(t *testing.T) {
 				query := &mocks.Query{}
 				query.On("Exec").Return(nil)
 
-				var args []interface{}
-				captureArgs := mock.MatchedBy(func(v []interface{}) bool {
+				var args []any
+				captureArgs := mock.MatchedBy(func(v []any) bool {
 					args = v
 					return true
 				})
@@ -190,7 +190,7 @@ func TestDependencyStoreGetDependencies(t *testing.T) {
 		testCase := tc // capture loop var
 		t.Run(testCase.caption, func(t *testing.T) {
 			withDepStore(testCase.version, func(s *depStorageTest) {
-				scanMatcher := func() interface{} {
+				scanMatcher := func() any {
 					deps := [][]Dependency{
 						{
 							{Parent: "a", Child: "b", CallCount: 1},
@@ -201,7 +201,7 @@ func TestDependencyStoreGetDependencies(t *testing.T) {
 							{Parent: "b", Child: "c", CallCount: 1},
 						},
 					}
-					scanFunc := func(args []interface{}) bool {
+					scanFunc := func(args []any) bool {
 						if len(deps) == 0 {
 							return false
 						}
@@ -267,6 +267,6 @@ func TestGetBuckets(t *testing.T) {
 	assert.Equal(t, expected, getBuckets(start, end))
 }
 
-func matchEverything() interface{} {
-	return mock.MatchedBy(func(v []interface{}) bool { return true })
+func matchEverything() any {
+	return mock.MatchedBy(func([]any) bool { return true })
 }

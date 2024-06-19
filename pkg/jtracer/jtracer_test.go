@@ -45,7 +45,7 @@ func TestNewHelperProviderError(t *testing.T) {
 	fakeErr := errors.New("fakeProviderError")
 	_, err := newHelper(
 		"svc",
-		func(ctx context.Context, svc string) (*sdktrace.TracerProvider, error) {
+		func(_ context.Context, _ /* svc */ string) (*sdktrace.TracerProvider, error) {
 			return nil, fakeErr
 		})
 	require.Error(t, err)
@@ -57,10 +57,10 @@ func TestInitHelperExporterError(t *testing.T) {
 	_, err := initHelper(
 		context.Background(),
 		"svc",
-		func(ctx context.Context) (sdktrace.SpanExporter, error) {
+		func(_ context.Context) (sdktrace.SpanExporter, error) {
 			return nil, fakeErr
 		},
-		func(ctx context.Context, svc string) (*resource.Resource, error) {
+		func(_ context.Context, _ /* svc */ string) (*resource.Resource, error) {
 			return nil, nil
 		},
 	)
@@ -74,7 +74,7 @@ func TestInitHelperResourceError(t *testing.T) {
 		context.Background(),
 		"svc",
 		otelExporter,
-		func(ctx context.Context, svc string) (*resource.Resource, error) {
+		func(_ context.Context, _ /* svc */ string) (*resource.Resource, error) {
 			return nil, fakeErr
 		},
 	)

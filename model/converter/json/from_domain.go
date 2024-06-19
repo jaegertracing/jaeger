@@ -110,17 +110,17 @@ func (fd fromDomain) convertReferences(span *model.Span) []json.Reference {
 	return out
 }
 
-func (fd fromDomain) convertRefType(refType model.SpanRefType) json.ReferenceType {
+func (fromDomain) convertRefType(refType model.SpanRefType) json.ReferenceType {
 	if refType == model.FollowsFrom {
 		return json.FollowsFrom
 	}
 	return json.ChildOf
 }
 
-func (fd fromDomain) convertKeyValues(keyValues model.KeyValues) []json.KeyValue {
+func (fromDomain) convertKeyValues(keyValues model.KeyValues) []json.KeyValue {
 	out := make([]json.KeyValue, len(keyValues))
 	for i, kv := range keyValues {
-		var value interface{}
+		var value any
 		switch kv.VType {
 		case model.StringType:
 			value = kv.VStr
@@ -146,7 +146,7 @@ func (fd fromDomain) convertKeyValues(keyValues model.KeyValues) []json.KeyValue
 	return out
 }
 
-func (fd fromDomain) convertKeyValuesString(keyValues model.KeyValues) []json.KeyValue {
+func (fromDomain) convertKeyValuesString(keyValues model.KeyValues) []json.KeyValue {
 	out := make([]json.KeyValue, len(keyValues))
 	for i, kv := range keyValues {
 		out[i] = json.KeyValue{

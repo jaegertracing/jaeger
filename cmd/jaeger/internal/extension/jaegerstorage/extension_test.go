@@ -52,19 +52,19 @@ type errorFactory struct {
 	closeErr error
 }
 
-func (e errorFactory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
+func (errorFactory) Initialize(metrics.Factory, *zap.Logger) error {
 	panic("not implemented")
 }
 
-func (e errorFactory) CreateSpanReader() (spanstore.Reader, error) {
+func (errorFactory) CreateSpanReader() (spanstore.Reader, error) {
 	panic("not implemented")
 }
 
-func (e errorFactory) CreateSpanWriter() (spanstore.Writer, error) {
+func (errorFactory) CreateSpanWriter() (spanstore.Writer, error) {
 	panic("not implemented")
 }
 
-func (e errorFactory) CreateDependencyReader() (dependencystore.Reader, error) {
+func (errorFactory) CreateDependencyReader() (dependencystore.Reader, error) {
 	panic("not implemented")
 }
 
@@ -170,7 +170,7 @@ func TestESStorageExtension(t *testing.T) {
 		}
 	}
 	`)
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Write(mockEsServerResponse)
 	}))
 	defer server.Close()
@@ -216,7 +216,7 @@ func makeStorageExtenion(t *testing.T, config *Config) component.Component {
 	extensionFactory := NewFactory()
 	ctx := context.Background()
 	storageExtension, err := extensionFactory.CreateExtension(ctx,
-		extension.CreateSettings{
+		extension.Settings{
 			ID:                ID,
 			TelemetrySettings: noopTelemetrySettings(),
 			BuildInfo:         component.NewDefaultBuildInfo(),

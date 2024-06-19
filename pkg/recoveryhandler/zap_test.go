@@ -29,7 +29,7 @@ import (
 func TestNewRecoveryHandler(t *testing.T) {
 	logger, log := testutils.NewLogger()
 
-	handlerFunc := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+	handlerFunc := http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
 		panic("Unexpected error!")
 	})
 

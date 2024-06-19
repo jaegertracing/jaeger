@@ -81,7 +81,7 @@ func TestBySvcMetrics(t *testing.T) {
 		}
 	}
 
-	for _, test := range tests {
+	testFn := func(t *testing.T, test TestCase) {
 		mb := metricstest.NewFactory(time.Hour)
 		defer mb.Backend.Stop()
 		logger := zap.NewNop()
@@ -160,6 +160,11 @@ func TestBySvcMetrics(t *testing.T) {
 		}
 		mb.AssertCounterMetrics(t, expected...)
 	}
+	for _, test := range tests {
+		t.Run(fmt.Sprintf("%v", test), func(t *testing.T) {
+			testFn(t, test)
+		})
+	}
 }
 
 func isSpanAllowed(span *model.Span) bool {
@@ -192,7 +197,7 @@ func (n *fakeSpanWriter) WriteSpan(ctx context.Context, span *model.Span) error 
 	return n.err
 }
 
-func (n *fakeSpanWriter) Close() error {
+func (*fakeSpanWriter) Close() error {
 	return nil
 }
 
@@ -297,7 +302,7 @@ type blockingWriter struct {
 	inWriteSpan atomic.Int32
 }
 
-func (w *blockingWriter) WriteSpan(ctx context.Context, span *model.Span) error {
+func (w *blockingWriter) WriteSpan(context.Context, *model.Span) error {
 	w.inWriteSpan.Add(1)
 	w.Lock()
 	defer w.Unlock()
@@ -441,7 +446,7 @@ func TestSpanProcessorCountSpan(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+		t.Run(tt.name, func(_ *testing.T) {
 			mb := metricstest.NewFactory(time.Hour)
 			defer mb.Backend.Stop()
 			m := mb.Namespace(metrics.NSOptions{})
@@ -602,11 +607,10 @@ func TestStartDynQueueSizeUpdater(t *testing.T) {
 
 	// we wait up to 50 milliseconds
 	for i := 0; i < 5; i++ {
-		if p.queue.Capacity() == 100 {
-			time.Sleep(10 * time.Millisecond)
-		} else {
+		if p.queue.Capacity() != 100 {
 			break
 		}
+		time.Sleep(10 * time.Millisecond)
 	}
 
 	assert.EqualValues(t, 104857, p.queue.Capacity())
@@ -631,7 +635,7 @@ func TestAdditionalProcessors(t *testing.T) {
 
 	// additional processor is called
 	count := 0
-	f := func(s *model.Span, t string) {
+	f := func(_ *model.Span, _ string) {
 		count++
 	}
 	p = NewSpanProcessor(w, []ProcessSpan{f}, Options.QueueSize(1))

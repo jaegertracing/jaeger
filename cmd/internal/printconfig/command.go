@@ -65,7 +65,7 @@ func Command(v *viper.Viper) *cobra.Command {
 		Use:   "print-config",
 		Short: "Print names and values of configuration options",
 		Long:  "Print names and values of configuration options, distinguishing between default and user-assigned values",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, _ /* args */ []string) error {
 			printConfigurations(cmd, v, allFlag)
 			return nil
 		},

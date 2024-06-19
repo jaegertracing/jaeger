@@ -50,17 +50,17 @@ func (f file) Stat() (fs.FileInfo, error) {
 	}, nil
 }
 
-func (f *file) Read(buf []byte) (n int, err error) {
+func (f *file) Read(buf []byte) (int, error) {
 	if len(buf) > len(f.content)-f.offset {
 		buf = buf[0:len(f.content[f.offset:])]
 	}
 
-	n = copy(buf, f.content[f.offset:])
+	n := copy(buf, f.content[f.offset:])
 	if n == len(f.content)-f.offset {
 		return n, io.EOF
 	}
 	f.offset += n
-	return
+	return n, nil
 }
 
 func (f file) Close() error {
@@ -80,7 +80,7 @@ func (fi fileInfo) ModTime() time.Time { return fi.info.ModTime() }
 
 func (fi fileInfo) IsDir() bool { return fi.info.IsDir() }
 
-func (fi fileInfo) Sys() interface{} { return nil }
+func (fileInfo) Sys() any { return nil }
 
 // New wraps underlying fs that is expected to contain gzipped files
 // and presents an unzipped view of it.

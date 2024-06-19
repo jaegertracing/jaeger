@@ -50,7 +50,7 @@ func (s *CassandraStorageIntegration) cleanUp(t *testing.T) {
 	require.NoError(t, s.factory.Purge(context.Background()))
 }
 
-func (s *CassandraStorageIntegration) initializeCassandraFactory(t *testing.T, flags []string) *cassandra.Factory {
+func (*CassandraStorageIntegration) initializeCassandraFactory(t *testing.T, flags []string) *cassandra.Factory {
 	logger := zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller()))
 	f := cassandra.NewFactory()
 	v, command := config.Viperize(f.AddFlags)
@@ -62,6 +62,9 @@ func (s *CassandraStorageIntegration) initializeCassandraFactory(t *testing.T, f
 
 func (s *CassandraStorageIntegration) initializeCassandra(t *testing.T) {
 	f := s.initializeCassandraFactory(t, []string{
+		"--cassandra.basic.allowed-authenticators=",
+		"--cassandra.password=password",
+		"--cassandra.username=username",
 		"--cassandra.keyspace=jaeger_v1_dc1",
 		"--cassandra-archive.keyspace=jaeger_v1_dc1_archive",
 		"--cassandra-archive.enabled=true",
