@@ -22,7 +22,7 @@ func TestCreateDefaultConfig(t *testing.T) {
 func TestCreateTracesReceiver(t *testing.T) {
 	cfg := createDefaultConfig().(*Config)
 	f := NewFactory()
-	r, err := f.CreateTracesReceiver(context.Background(), receivertest.NewNopCreateSettings(), cfg, nil)
+	r, err := f.CreateTracesReceiver(context.Background(), receivertest.NewNopSettings(), cfg, nil)
 	require.NoError(t, err)
 	assert.NotNil(t, r)
 }

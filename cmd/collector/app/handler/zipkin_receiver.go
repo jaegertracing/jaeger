@@ -50,7 +50,7 @@ func startZipkinReceiver(
 	// from here: params that can be mocked in tests
 	zipkinFactory receiver.Factory,
 	newTraces func(consume consumer.ConsumeTracesFunc, options ...consumer.Option) (consumer.Traces, error),
-	createTracesReceiver func(ctx context.Context, set receiver.CreateSettings,
+	createTracesReceiver func(ctx context.Context, set receiver.Settings,
 		cfg component.Config, nextConsumer consumer.Traces) (receiver.Traces, error),
 ) (receiver.Traces, error) {
 	receiverConfig := zipkinFactory.CreateDefaultConfig().(*zipkinreceiver.Config)
@@ -60,7 +60,7 @@ func startZipkinReceiver(
 		CORS:     options.HTTP.CORS,
 		// TODO keepAlive not supported?
 	})
-	receiverSettings := receiver.CreateSettings{
+	receiverSettings := receiver.Settings{
 		TelemetrySettings: component.TelemetrySettings{
 			Logger:         logger,
 			TracerProvider: nooptrace.NewTracerProvider(),
