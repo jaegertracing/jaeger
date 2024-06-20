@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   cassandra:
-    image: index.docker.io/library/cassandra@sha256:52510388c3c29080a9cb6056e49939905a8e36eb9ae191fda32e574b5c591b70 # 3.11
+    image: index.docker.io/library/cassandra@sha256:b5cde1e2b16451fa511e4a1cda4177853903879f9bab0b8f27445451a07f7ef7 # 3.11
     ports:
       - "9042:9042"
       - "9160:9160"
