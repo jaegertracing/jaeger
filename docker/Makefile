@@ -17,6 +17,11 @@ create-debugimg: prepare-docker-buildx
 		--platform=$(PLATFORMS) \
 		docker/debug
 
+create-fake-debugimg: prepare-docker-buildx
+	docker buildx build -t $(DEBUG_IMAGE) --push \
+		--platform=$(PLATFORMS) \
+		docker/base
+
 .PHONY: prepare-docker-buildx
 prepare-docker-buildx:
 	docker buildx inspect jaeger-build > /dev/null || docker buildx create --use --name=jaeger-build --buildkitd-flags="--allow-insecure-entitlement security.insecure --allow-insecure-entitlement network.host" --driver-opt="network=host"
