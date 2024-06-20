@@ -29,7 +29,7 @@ services:
   microsim:
     networks:
       - backend
-    image: index.docker.io/yurishkuro/microsim@sha256:8cdacca2912d0f5fef3350be4bf7472215c3ec7e50ddfbc9cf11fbf59599aae5 # 0.2.0
+    image: index.docker.io/yurishkuro/microsim@sha256:087b7a613f8393b97780063eefa63356a7b9ea2635c1f5551b3b187a8ff07e85 # 0.2.0
     command: "-j http://otel_collector:14278/api/traces -d 24h -s 500ms"
     depends_on:
       - otel_collector
