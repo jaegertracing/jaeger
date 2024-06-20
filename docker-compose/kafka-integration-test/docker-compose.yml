@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   kafka:
-    image: bitnami/kafka:3.7.0
+    image: index.docker.io/bitnami/kafka@sha256:9abe5ce1ce14e0ff3041075c5183202fb5c47ea28ad270bfcb067f7ade304d8b # 3.7.0
     ports:
       - "9092:9092"
     environment:
