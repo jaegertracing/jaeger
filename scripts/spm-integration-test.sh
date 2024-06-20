@@ -10,7 +10,7 @@ check_service_health() {
   local wait_seconds=5
 
   echo "Checking health of service: $service_name at $url"
-
+  
   for i in $(seq 1 $retry_count); do
     if curl -s -L --head --request GET "$url" | grep "200 OK" > /dev/null; then
       echo "$service_name is healthy"
@@ -34,18 +34,26 @@ wait_for_services() {
 }
 # Function to check SPM
 check_spm(){
+  local attempt=0
+  local max_attempts=60
+  local wait_seconds=5
+
   echo "Checking spm"
   services_list=("driver" "customer" "mysql" "redis" "frontend" "route" "ui" )
-  echo "Waiting for 60 seconds for services to start"
-  sleep 60
   for service in "${services_list[@]}"; do
   echo "Processing service: $service"
-    response=$(curl -s "http://localhost:16686/api/metrics/calls?service=$service&endTs=$(date +%s)000&lookback=1000&step=100&ratePer=60000")
-    service_name=$(echo "$response" | jq -r '.metrics[0].labels[] | select(.name=="service_name") | .value')
-    if [ "$service_name" != "$service" ]; then
-      echo "Service name does not match 'driver'"
-      exit 1
-    fi
+     while (( attempt <= max_attempts )); do
+      response=$(curl -s "http://localhost:16686/api/metrics/calls?service=$service&endTs=$(date +%s)000&lookback=1000&step=100&ratePer=60000")
+      service_name=$(echo "$response" | jq -r 'if .metrics and .metrics[0] then .metrics[0].labels[] | select(.name=="service_name") | .value else empty end')
+      if [ "$service_name" != "$service" ]; then
+        echo "Service name does not match 'driver'"
+        attempt=$(( attempt + 1 ))
+        sleep $wait_seconds
+      else
+        echo "Service name matched with 'driver'"
+        break
+      fi
+  done
     
     all_non_zero=true
     metric_points=$(echo "$response" | jq -r '.metrics[0].metricPoints[] | .gaugeValue.doubleValue')
@@ -78,12 +86,10 @@ teardown_services() {
 
 # Main function
 main() {
-  export JAEGER_IMAGE_TAG=dev
-  docker compose -f docker-compose/monitor/docker-compose.yml up -d 
+  (cd docker-compose/monitor && make build && make dev  ARGS="-d")
   wait_for_services
   check_spm
   echo "All services are running correctly"
-  teardown_services
 }
 trap teardown_services EXIT INT
 # Run the main function
