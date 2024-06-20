@@ -26,6 +26,7 @@
         "docker-compose/opensearch/v2/docker-compose.yml"
       ],
       "matchUpdateTypes": ["major", "patch"],
+      "versioning": "docker",
       "enabled": false
     },
     {
