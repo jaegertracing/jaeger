@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   opensearch:
-    image: index.docker.io/opensearchproject/opensearch@sha256:466a49f379bb8889af29d615475e69b7b990898c6987d28470cd7105df9046ff # 2.14.0
+    image: opensearchproject/opensearch:2.14.0
     environment:
       - discovery.type=single-node
       - plugins.security.disabled=true
