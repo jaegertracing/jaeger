@@ -29,7 +29,7 @@ services:
   microsim:
     networks:
       - backend
-    image: yurishkuro/microsim:0.2.0
+    image: yurishkuro/microsim:0.3.0
     command: "-j http://otel_collector:14278/api/traces -d 24h -s 500ms"
     depends_on:
       - otel_collector
