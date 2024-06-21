@@ -5,6 +5,12 @@ wait_seconds=5
 retry_count=10
 compose_file=docker-compose/monitor/docker-compose.yml
 
+create_logs(){
+  echo "::group:: docker logs"
+  docker compose -f $compose_file logs
+  echo "::endgroup::"
+}
+
 # Function to check if a service is healthy
 check_service_health() {
   local service_name=$1
@@ -22,9 +28,7 @@ check_service_health() {
   done
 
   echo "Error: $service_name did not become healthy in time"
-  echo "::group:: docker logs logs"
-  docker compose -f $compose_file logs
-  echo "::endgroup::"
+  create_logs
   return 1
 }
 
@@ -40,11 +44,11 @@ wait_for_services() {
 check_spm() {
   local timeout=180
   local interval=5
+  local end_time=$((SECONDS + timeout))
   echo "Checking SPM"
   services_list=("driver" "customer" "mysql" "redis" "frontend" "route" "ui")
   for service in "${services_list[@]}"; do
     echo "Processing service: $service"
-    local end_time=$((SECONDS + timeout))
     while [ $SECONDS -lt $end_time ]; do
       response=$(curl -s "http://localhost:16686/api/metrics/calls?service=$service&endTs=$(date +%s)000&lookback=1000&step=100&ratePer=60000")
       service_name=$(echo "$response" | jq -r 'if .metrics and .metrics[0] then .metrics[0].labels[] | select(.name=="service_name") | .value else empty end')
@@ -58,36 +62,34 @@ check_spm() {
     done
     if [ $SECONDS -gt $end_time ]; then
       echo "Error: $service service did not become healthy in time"
-      echo "::group:: docker logs logs"
-      docker compose -f $compose_file logs
-      echo "::endgroup::"
+      create_logs
       exit 1
     fi
 
     all_non_zero=true
-    metric_points=$(echo "$response" | jq -r '.metrics[0].metricPoints[] | .gaugeValue.doubleValue')
-    # Check if metric points are empty
-    if [ -z "$metric_points" ]; then
-      echo "Metric points for service $service are empty"
-      echo "::group:: docker logs logs"
-      docker compose -f $compose_file logs
-      echo "::endgroup::"
+    metric_points=($(echo $response | jq -r '.metrics[0].metricPoints[].gaugeValue.doubleValue'))
+    echo "Metric points for $service: ${metric_points[@]}"
+    if [ ${#metric_points[@]} -lt 3 ]; then
+      echo "Metric points for service $service are less than 3"
+      create_logs
       exit 1
     fi
-    for value in $metric_points; do
+    local non_zero_count=0
+    for value in "${metric_points[@]}"; do
       if [[ "$value" == "0" || "$value" == "0.0" ]]; then
         all_non_zero=false
         break
+      else
+        non_zero_count=$((non_zero_count + 1))
       fi
+
     done
 
-    if [ "$all_non_zero" = true ]; then
-      echo "All gauge values are non-zero for $service"
+    if [ "$all_non_zero" = true ] && [ $non_zero_count -gt 3 ]; then
+      echo "All gauge values are non-zero and count is greater than 3 for $service"
     else
-      echo "Some gauge values are zero for $service"
-      echo "::group:: docker logs logs"
-      docker compose -f $compose_file logs
-      echo "::endgroup::"
+      echo "Some gauge values are zero or count is not greater than 3 for $service"
+      create_logs
       exit 1
     fi
   done
