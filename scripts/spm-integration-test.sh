@@ -3,10 +3,6 @@
 set -e -uxf -o pipefail
 wait_seconds=5
 retry_count=10
-max_attempts=10
-timeout=180
-interval=5
-end_time=$((SECONDS + timeout))
 compose_file=docker-compose/monitor/docker-compose.yml
 
 # Function to check if a service is healthy
@@ -42,7 +38,6 @@ wait_for_services() {
 
 # Function to check SPM
 check_spm() {
-  local attempt=0
   local timeout=180
   local interval=5
   echo "Checking SPM"
@@ -55,7 +50,7 @@ check_spm() {
       service_name=$(echo "$response" | jq -r 'if .metrics and .metrics[0] then .metrics[0].labels[] | select(.name=="service_name") | .value else empty end')
       if [ "$service_name" != "$service" ]; then
         echo "Service name does not match '$service'"
-        sleep $wait_seconds
+        sleep $interval
       else
         echo "Service name matched with '$service'"
         break
