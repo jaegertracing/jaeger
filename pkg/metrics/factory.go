@@ -16,11 +16,7 @@
 package metrics
 
 import (
-	"context"
 	"time"
-
-	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/metric"
 )
 
 // NSOptions defines the name and tags map associated with a factory namespace
@@ -50,47 +46,6 @@ type HistogramOptions struct {
 	Tags    map[string]string
 	Help    string
 	Buckets []float64
-}
-
-type otelFactory struct {
-	meter metric.Meter
-}
-
-func NewOTelFactory() Factory {
-	return &otelFactory{
-		meter: otel.Meter("jaeger-V2"),
-	}
-}
-
-func (f *otelFactory) Counter(options Options) Counter {
-	counter, _ := f.meter.Int64Counter(options.Name)
-	attrs := getAttributes(options.Tags)
-	return &otelCounter{
-		counter: counter,
-		ctx:     context.Background(),
-		attrs:   attrs,
-	}
-}
-
-func (f *otelFactory) Timer(options TimerOptions) Timer {
-	// Implement the OTEL Timer
-	return NullTimer
-}
-
-func (f *otelFactory) Gauge(options Options) Gauge {
-	// Implement the OTEL Gauge
-	return NullGauge
-}
-
-func (f *otelFactory) Histogram(options HistogramOptions) Histogram {
-	// Implement the OTEL Histogram
-	return NullHistogram
-}
-
-func (f *otelFactory) Namespace(scope NSOptions) Factory {
-	return &otelFactory{
-		meter: otel.Meter(scope.Name),
-	}
 }
 
 // Factory creates new metrics
