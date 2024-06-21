@@ -67,8 +67,7 @@ check_spm() {
     fi
 
     all_non_zero=true
-    metric_points=($(echo $response | jq -r '.metrics[0].metricPoints[].gaugeValue.doubleValue'))
-    echo "Metric points for $service: ${metric_points[@]}"
+    mapfile -t metric_points < <(echo "$response" | jq -r '.metrics[0].metricPoints[].gaugeValue.doubleValue')
     if [ ${#metric_points[@]} -lt 3 ]; then
       echo "Metric points for service $service are less than 3"
       create_logs
