@@ -8,7 +8,7 @@ services:
     environment:
       - ALLOW_ANONYMOUS_LOGIN=yes
   kafka:
-    image: 'bitnami/kafka:latest'
+    image: index.docker.io/bitnami/kafka@sha256:9abe5ce1ce14e0ff3041075c5183202fb5c47ea28ad270bfcb067f7ade304d8b # 3.7.0
     ports:
       - '9092:9092'
     environment:
