@@ -4,7 +4,7 @@ import "github.com/jaegertracing/jaeger/pkg/metrics"
 
 type otelFactory struct{}
 
-func NewOTELFactory() metrics.Factory {
+func NewFactory() metrics.Factory {
 	return &otelFactory{}
 }
 
