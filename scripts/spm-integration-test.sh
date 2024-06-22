@@ -1,11 +1,10 @@
 #!/bin/bash
 
 set -e -uxf -o pipefail
-wait_seconds=5
-retry_count=10
+
 compose_file=docker-compose/monitor/docker-compose.yml
 
-create_logs(){
+dump_logs(){
   echo "::group:: docker logs"
   docker compose -f $compose_file logs
   echo "::endgroup::"
@@ -15,7 +14,8 @@ create_logs(){
 check_service_health() {
   local service_name=$1
   local url=$2
-
+  local wait_seconds=5
+  local retry_count=10
   echo "Checking health of service: $service_name at $url"
   for i in $(seq 1 $retry_count); do
     if curl -s -L --head --request GET "$url" | grep "200 OK" > /dev/null; then
@@ -28,7 +28,6 @@ check_service_health() {
   done
 
   echo "Error: $service_name did not become healthy in time"
-  create_logs
   return 1
 }
 
@@ -61,18 +60,16 @@ check_spm() {
       fi
     done
     if [ $SECONDS -gt $end_time ]; then
-      echo "Error: $service service did not become healthy in time"
-      create_logs
+      echo "Error:  no metrics returned by the API for service $service"
       exit 1
     fi
 
     all_non_zero=true
     mapfile -t metric_points < <(echo "$response" | jq -r '.metrics[0].metricPoints[].gaugeValue.doubleValue')
-    if [ ${#metric_points[@]} -lt 3 ]; then
+    while [ ${#metric_points[@]} -lt 3 ]; do
       echo "Metric points for service $service are less than 3"
-      create_logs
-      exit 1
-    fi
+      mapfile -t metric_points < <(echo "$response" | jq -r '.metrics[0].metricPoints[].gaugeValue.doubleValue')
+    done
     local non_zero_count=0
     for value in "${metric_points[@]}"; do
       if [[ "$value" == "0" || "$value" == "0.0" ]]; then
@@ -88,7 +85,6 @@ check_spm() {
       echo "All gauge values are non-zero and count is greater than 3 for $service"
     else
       echo "Some gauge values are zero or count is not greater than 3 for $service"
-      create_logs
       exit 1
     fi
   done
@@ -96,6 +92,7 @@ check_spm() {
 
 # Function to tear down Docker Compose services
 teardown_services() {
+  dump_logs
   docker compose -f $compose_file down
 }
 
