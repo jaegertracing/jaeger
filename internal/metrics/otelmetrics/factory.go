@@ -1,9 +1,13 @@
 package otelmetrics
 
 import (
-	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"context"
+
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
+
+	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
 type otelFactory struct{}
@@ -26,8 +30,9 @@ func (f *otelFactory) Counter(opts metrics.Options) metrics.Counter {
 	attributeSet := attribute.NewSet(attributes...)
 
 	return &otelCounter{
-		counter:      counter,
-		attributeSet: attributeSet,
+		counter:  counter,
+		fixedCtx: context.Background(),
+		option:   metric.WithAttributeSet(attributeSet),
 	}
 }
 
