@@ -60,7 +60,7 @@ check_spm() {
       fi
     done
     if [ $SECONDS -gt $end_time ]; then
-      echo "Error:  no metrics returned by the API for service $service"
+      echo "Error: no metrics returned by the API for service $service"
       exit 1
     fi
 
@@ -78,7 +78,6 @@ check_spm() {
       else
         non_zero_count=$((non_zero_count + 1))
       fi
-
     done
 
     if [ "$all_non_zero" = true ] && [ $non_zero_count -gt 3 ]; then
