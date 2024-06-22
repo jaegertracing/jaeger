@@ -8,7 +8,7 @@ import (
 
 type otelFactory struct{}
 
-func NewOTELFactory() metrics.Factory {
+func NewFactory() metrics.Factory {
 	return &otelFactory{}
 }
 
