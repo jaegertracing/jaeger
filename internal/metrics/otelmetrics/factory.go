@@ -1,7 +1,11 @@
+// Copyright (c) 2024 The Jaeger Authors.
+// SPDX-License-Identifier: Apache-2.0
+
 package otelmetrics
 
 import (
 	"context"
+	"log"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -20,7 +24,8 @@ func (f *otelFactory) Counter(opts metrics.Options) metrics.Counter {
 	meter := otel.Meter("jaeger-V2")
 	counter, err := meter.Int64Counter(opts.Name)
 	if err != nil {
-		panic(err)
+		log.Printf("Error creating OTEL counter: %v", err)
+		return &noopCounter{}
 	}
 
 	attributes := make([]attribute.KeyValue, 0, len(opts.Tags))

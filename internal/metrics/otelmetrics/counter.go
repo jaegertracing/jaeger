@@ -1,3 +1,6 @@
+// Copyright (c) 2024 The Jaeger Authors.
+// SPDX-License-Identifier: Apache-2.0
+
 package otelmetrics
 
 import (
@@ -15,3 +18,7 @@ type otelCounter struct {
 func (c *otelCounter) Inc(value int64) {
 	c.counter.Add(c.fixedCtx, value, c.option)
 }
+
+type noopCounter struct{}
+
+func (c *noopCounter) Inc(value int64) {}
