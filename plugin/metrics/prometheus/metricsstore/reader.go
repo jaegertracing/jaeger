@@ -55,7 +55,7 @@ type (
 		metricsTranslator dbmodel.Translator
 		latencyMetricName string
 		callsMetricName   string
-		operationLabel    string
+		operationLabel    string // name of the attribute that contains span name / operation
 	}
 
 	promQueryParams struct {
@@ -90,7 +90,7 @@ func NewMetricsReader(cfg config.Configuration, logger *zap.Logger, tracer trace
 		return nil, fmt.Errorf("failed to initialize prometheus client: %w", err)
 	}
 
-	operationLabel := "span_name"
+	const operationLabel = "span_name"
 
 	mr := &MetricsReader{
 		client: promapi.NewAPI(client),
