@@ -1,4 +1,4 @@
-name: Build binaries
+name: Test SPM
 
 on:
   push:
@@ -16,26 +16,8 @@ permissions:
   contents: read
 
 jobs:
-  build-binaries:
+  spm:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        platform:
-        - name: linux
-          task: build-binaries-linux
-        - name: windows
-          task: build-binaries-windows
-        - name: osx
-          task: build-binaries-darwin
-        - name: osx-m1
-          task: build-binaries-darwin-arm64
-        - name: system/390
-          task: build-binaries-s390x
-        - name: arm
-          task: build-binaries-arm64
-        - name: powerpc
-          task: build-binaries-ppc64le
-    name: build binaries for ${{ matrix.platform.name }}
     steps:
     - name: Harden Runner
       uses: step-security/harden-runner@17d0e2bd7d51742c71671bd19fa12bdc9d40a3d6 # v2.8.1
@@ -57,11 +39,6 @@ jobs:
     - name: Setup Node.js version
       uses: ./.github/actions/setup-node.js
 
-    - name: Export BRANCH variable
-      uses: ./.github/actions/setup-branch
-
-    - name: Install tools
-      run: make install-ci
-
-    - name: Build binaries
-      run: make ${{ matrix.platform.task }}
+    - name: Temporary - only run the build
+      run:
+        cd docker-compose/monitor && make build

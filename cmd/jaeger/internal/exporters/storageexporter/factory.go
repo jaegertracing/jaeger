@@ -32,7 +32,7 @@ func createDefaultConfig() component.Config {
 	return &Config{}
 }
 
-func createTracesExporter(ctx context.Context, set exporter.CreateSettings, config component.Config) (exporter.Traces, error) {
+func createTracesExporter(ctx context.Context, set exporter.Settings, config component.Config) (exporter.Traces, error) {
 	cfg := config.(*Config)
 	ex := newExporter(cfg, set.TelemetrySettings)
 	return exporterhelper.NewTracesExporter(ctx, set, cfg,
