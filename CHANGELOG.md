@@ -21,6 +21,16 @@ run `make changelog` to generate content
 
 </details>
 
+1.58.1 (2024-06-22)
+-------------------
+
+### Backend Changes
+
+#### 🐞 Bug fixes, Minor Improvements
+
+* SPM: Restore "operation" name in the metrics response ([@yurishkuro](https://github.com/yurishkuro) in [#5673](https://github.com/jaegertracing/jaeger/pull/5673))
+
+
 1.58.0 (2024-06-11)
 -------------------
 ### Backend Changes
