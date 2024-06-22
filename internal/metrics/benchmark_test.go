@@ -27,6 +27,6 @@ func BenchmarkPrometheusCounter(b *testing.B) {
 }
 
 func BenchmarkOTELCounter(b *testing.B) {
-	factory := otelmetrics.NewOTELFactory()
+	factory := otelmetrics.NewFactory()
 	benchmarkCounter(b, factory)
 }
