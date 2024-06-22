@@ -23,6 +23,8 @@ extensions:
           tags: true
           logs: true
           process_tags: true
+        password: "${CASSANDRA_MAIN_PASSWORD}"
+
       cassandra_archive:
         servers: 127.0.0.1
         port: 9042
@@ -32,6 +34,8 @@ extensions:
           tags: true
           logs: true
           process_tags: true
+        password: "${CASSANDRA_ARCHIVE_PASSWORD}"
+
 receivers:
   otlp:
     protocols:

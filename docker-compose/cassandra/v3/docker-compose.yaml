@@ -6,6 +6,8 @@ services:
     ports:
       - "9042:9042"
       - "9160:9160"
+    environment:
+      - DB_PASSWORD=${DB_PASSWORD}  
     networks:
       - cassandra-net
     healthcheck:
