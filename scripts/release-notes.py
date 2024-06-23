@@ -26,15 +26,13 @@ def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
 
 
-def num_commits_since_prev_tag(token, base_url, verbose):
+def num_commits_since_prev_tag(token, base_url, branch, verbose):
     tags_url = f"{base_url}/tags"
-    trunk = "main"
-
     req = Request(tags_url)
     req.add_header("Authorization", f"token {token}")
     tags = json.loads(urlopen(req).read())
     prev_release_tag = tags[0]['name']
-    compare_url = f"{base_url}/compare/{trunk}...{prev_release_tag}"
+    compare_url = f"{base_url}/compare/{branch}...{prev_release_tag}"
     req = Request(compare_url)
     req.add_header("Authorization", f"token {token}")
     compare_results = json.loads(urlopen(req).read())
@@ -66,7 +64,7 @@ def updateProgress(iteration, total_iterations):
         print()
     return iteration + 1
 
-def main(token, repo, num_commits, exclude_dependabot, verbose):
+def main(token, repo, branch, num_commits, exclude_dependabot, verbose):
     accept_header = "application/vnd.github.groot-preview+json"
     base_url = f"https://api.github.com/repos/jaegertracing/{repo}"
     commits_url = f"{base_url}/commits"
@@ -74,7 +72,7 @@ def main(token, repo, num_commits, exclude_dependabot, verbose):
 
     # If num_commits isn't set, get the number of commits made since the previous release tag.
     if not num_commits:
-        num_commits = num_commits_since_prev_tag(token, base_url, verbose)
+        num_commits = num_commits_since_prev_tag(token, base_url, branch, verbose)
 
     if not num_commits:
         return
@@ -170,7 +168,7 @@ def main(token, repo, num_commits, exclude_dependabot, verbose):
         print()
         print('### 📊 UI Changes')
         print()
-        main(token, 'jaeger-ui', None, exclude_dependabot, False)
+        main(token, 'jaeger-ui', 'main', None, exclude_dependabot, False)
 
     # Print pull requests in the 'UNCATTEGORIZED' category
     if other_results:
@@ -208,6 +206,8 @@ if __name__ == "__main__":
                              '(default: ~/.github_token)')
     parser.add_argument('--repo', type=str, default='jaeger',
                         help='The repository name to fetch commit logs from. (default: jaeger)')
+    parser.add_argument('--branch', type=str, default='main',
+                        help='The branch name to fetch commit logs from. (default: main)')
     parser.add_argument('--exclude-dependabot', action='store_true',
                         help='Excludes dependabot commits. (default: false)')
     parser.add_argument('--num-commits', type=int,
@@ -234,4 +234,4 @@ if __name__ == "__main__":
         eprint(f"{token_file} is missing your personal github token.\n{generate_err_msg}")
         sys.exit(1)
 
-    main(token, args.repo, args.num_commits, args.exclude_dependabot, args.verbose)
+    main(token, args.repo, args.branch, args.num_commits, args.exclude_dependabot, args.verbose)
