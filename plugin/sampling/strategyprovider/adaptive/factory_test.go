@@ -25,7 +25,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/model"
-	ss "github.com/jaegertracing/jaeger/cmd/collector/app/sampling/strategystore"
+	ss "github.com/jaegertracing/jaeger/cmd/collector/app/sampling/samplingstrategy"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/distributedlock"
 	lmocks "github.com/jaegertracing/jaeger/pkg/distributedlock/mocks"
@@ -72,9 +72,9 @@ func TestFactory(t *testing.T) {
 	assert.Equal(t, time.Second*2, f.options.FollowerLeaseRefreshInterval)
 
 	require.NoError(t, f.Initialize(metrics.NullFactory, &mockSamplingStoreFactory{}, zap.NewNop()))
-	store, aggregator, err := f.CreateStrategyStore()
+	provider, aggregator, err := f.CreateStrategyProvider()
 	require.NoError(t, err)
-	require.NoError(t, store.Close())
+	require.NoError(t, provider.Close())
 	require.NoError(t, aggregator.Close())
 	require.NoError(t, f.Close())
 }
@@ -96,7 +96,7 @@ func TestBadConfigFail(t *testing.T) {
 		f.InitFromViper(v, zap.NewNop())
 
 		require.NoError(t, f.Initialize(metrics.NullFactory, &mockSamplingStoreFactory{}, zap.NewNop()))
-		_, _, err := f.CreateStrategyStore()
+		_, _, err := f.CreateStrategyProvider()
 		require.Error(t, err)
 		require.NoError(t, f.Close())
 	}

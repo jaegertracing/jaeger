@@ -62,6 +62,9 @@ func (*CassandraStorageIntegration) initializeCassandraFactory(t *testing.T, fla
 
 func (s *CassandraStorageIntegration) initializeCassandra(t *testing.T) {
 	f := s.initializeCassandraFactory(t, []string{
+		"--cassandra.basic.allowed-authenticators=",
+		"--cassandra.password=password",
+		"--cassandra.username=username",
 		"--cassandra.keyspace=jaeger_v1_dc1",
 		"--cassandra-archive.keyspace=jaeger_v1_dc1_archive",
 		"--cassandra-archive.enabled=true",

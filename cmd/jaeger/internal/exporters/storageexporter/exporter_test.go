@@ -16,8 +16,10 @@ package storageexporter
 
 import (
 	"context"
+	"errors"
 	"testing"
 
+	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/storage/storagetest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
@@ -32,29 +34,28 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
 	"github.com/jaegertracing/jaeger/model"
 	memoryCfg "github.com/jaegertracing/jaeger/pkg/memory/config"
+	"github.com/jaegertracing/jaeger/storage"
+	factoryMocks "github.com/jaegertracing/jaeger/storage/mocks"
 )
 
-type storageHost struct {
-	t                *testing.T
-	storageExtension component.Component
+type mockStorageExt struct {
+	name    string
+	factory *factoryMocks.Factory
 }
 
-func (host storageHost) GetExtensions() map[component.ID]component.Component {
-	myMap := make(map[component.ID]component.Component)
-	myMap[jaegerstorage.ID] = host.storageExtension
-	return myMap
+func (*mockStorageExt) Start(context.Context, component.Host) error {
+	panic("not implemented")
 }
 
-func (host storageHost) ReportFatalError(err error) {
-	host.t.Fatal(err)
+func (*mockStorageExt) Shutdown(context.Context) error {
+	panic("not implemented")
 }
 
-func (storageHost) GetFactory(_ component.Kind, _ component.Type) component.Factory {
-	return nil
-}
-
-func (storageHost) GetExporters() map[component.DataType]map[component.ID]component.Component {
-	return nil
+func (m *mockStorageExt) Factory(name string) (storage.Factory, bool) {
+	if m.name == name {
+		return m.factory, true
+	}
+	return nil, false
 }
 
 func TestExporterConfigError(t *testing.T) {
@@ -63,8 +64,10 @@ func TestExporterConfigError(t *testing.T) {
 	require.EqualError(t, err, "TraceStorage: non zero value required")
 }
 
-func TestExporterStartError(t *testing.T) {
-	host := makeStorageExtension(t, "foo")
+func TestExporterStartBadNameError(t *testing.T) {
+	host := storagetest.NewStorageHost()
+	host.WithExtension(jaegerstorage.ID, &mockStorageExt{name: "foo"})
+
 	exporter := &storageExporter{
 		config: &Config{
 			TraceStorage: "bar",
@@ -73,6 +76,26 @@ func TestExporterStartError(t *testing.T) {
 	err := exporter.start(context.Background(), host)
 	require.Error(t, err)
 	require.ErrorContains(t, err, "cannot find storage factory")
+}
+
+func TestExporterStartBadSpanstoreError(t *testing.T) {
+	factory := new(factoryMocks.Factory)
+	factory.On("CreateSpanWriter").Return(nil, errors.New("mocked error"))
+
+	host := storagetest.NewStorageHost()
+	host.WithExtension(jaegerstorage.ID, &mockStorageExt{
+		name:    "foo",
+		factory: factory,
+	})
+
+	exporter := &storageExporter{
+		config: &Config{
+			TraceStorage: "foo",
+		},
+	}
+	err := exporter.start(context.Background(), host)
+	require.Error(t, err)
+	require.ErrorContains(t, err, "mocked error")
 }
 
 func TestExporter(t *testing.T) {
@@ -92,7 +115,7 @@ func TestExporter(t *testing.T) {
 	err := config.Validate()
 	require.NoError(t, err)
 
-	tracesExporter, err := exporterFactory.CreateTracesExporter(ctx, exporter.CreateSettings{
+	tracesExporter, err := exporterFactory.CreateTracesExporter(ctx, exporter.Settings{
 		ID:                ID,
 		TelemetrySettings: telemetrySettings,
 		BuildInfo:         component.NewDefaultBuildInfo(),
@@ -133,11 +156,11 @@ func TestExporter(t *testing.T) {
 	assert.Equal(t, spanID.String(), requiredTrace.Spans[0].SpanID.String())
 }
 
-func makeStorageExtension(t *testing.T, memstoreName string) storageHost {
+func makeStorageExtension(t *testing.T, memstoreName string) component.Host {
 	extensionFactory := jaegerstorage.NewFactory()
 	storageExtension, err := extensionFactory.CreateExtension(
 		context.Background(),
-		extension.CreateSettings{
+		extension.Settings{
 			TelemetrySettings: component.TelemetrySettings{
 				Logger:         zap.L(),
 				TracerProvider: nooptrace.NewTracerProvider(),
@@ -147,10 +170,13 @@ func makeStorageExtension(t *testing.T, memstoreName string) storageHost {
 			memstoreName: {MaxTraces: 10000},
 		}})
 	require.NoError(t, err)
-	host := storageHost{t: t, storageExtension: storageExtension}
+
+	host := storagetest.NewStorageHost()
+	host.WithExtension(jaegerstorage.ID, storageExtension)
 
 	err = storageExtension.Start(context.Background(), host)
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, storageExtension.Shutdown(context.Background())) })
+
 	return host
 }

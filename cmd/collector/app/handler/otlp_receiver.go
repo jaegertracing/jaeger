@@ -66,7 +66,7 @@ func startOTLPReceiver(
 	// from here: params that can be mocked in tests
 	otlpFactory receiver.Factory,
 	newTraces func(consume consumer.ConsumeTracesFunc, options ...consumer.Option) (consumer.Traces, error),
-	createTracesReceiver func(ctx context.Context, set receiver.CreateSettings,
+	createTracesReceiver func(ctx context.Context, set receiver.Settings,
 		cfg component.Config, nextConsumer consumer.Traces) (receiver.Traces, error),
 ) (receiver.Traces, error) {
 	otlpReceiverConfig := otlpFactory.CreateDefaultConfig().(*otlpreceiver.Config)
@@ -76,7 +76,7 @@ func startOTLPReceiver(
 		// TODO this could be wired into changing healthcheck.HealthCheck
 		logger.Info("OTLP receiver status change", zap.Stringer("status", ev.Status()))
 	}
-	otlpReceiverSettings := receiver.CreateSettings{
+	otlpReceiverSettings := receiver.Settings{
 		TelemetrySettings: component.TelemetrySettings{
 			Logger:         logger,
 			TracerProvider: nooptrace.NewTracerProvider(),

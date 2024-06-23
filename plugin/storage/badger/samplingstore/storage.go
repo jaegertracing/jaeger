@@ -20,7 +20,7 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/dgraph-io/badger/v3"
+	"github.com/dgraph-io/badger/v4"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/model"
 	jaegermodel "github.com/jaegertracing/jaeger/model"
