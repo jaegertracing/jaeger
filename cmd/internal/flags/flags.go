@@ -131,5 +131,8 @@ func (flags *SharedFlags) NewLogger(conf zap.Config, options ...zap.Option) (*za
 	}
 	conf.Level = zap.NewAtomicLevelAt(level)
 	conf.Encoding = flags.Logging.Encoding
+	if flags.Logging.Encoding == "console" {
+		conf.EncoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
+	}
 	return conf.Build(options...)
 }
