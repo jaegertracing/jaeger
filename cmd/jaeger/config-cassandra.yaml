@@ -23,6 +23,7 @@ extensions:
           tags: true
           logs: true
           process_tags: true
+        username: "${CASSANDRA_MAIN_USERNAME}"
         password: "${CASSANDRA_MAIN_PASSWORD}"
 
       cassandra_archive:
@@ -34,6 +35,7 @@ extensions:
           tags: true
           logs: true
           process_tags: true
+        username: "${CASSANDRA_ARCHIVE_USERNAME}"
         password: "${CASSANDRA_ARCHIVE_PASSWORD}"
 
 receivers:
