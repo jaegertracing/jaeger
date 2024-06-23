@@ -25,7 +25,7 @@ func (f *otelFactory) Counter(opts metrics.Options) metrics.Counter {
 	counter, err := meter.Int64Counter(opts.Name)
 	if err != nil {
 		log.Printf("Error creating OTEL counter: %v", err)
-		return &noopCounter{}
+		return metrics.NullCounter
 	}
 
 	attributes := make([]attribute.KeyValue, 0, len(opts.Tags))

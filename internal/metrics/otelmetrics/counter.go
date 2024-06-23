@@ -18,7 +18,3 @@ type otelCounter struct {
 func (c *otelCounter) Inc(value int64) {
 	c.counter.Add(c.fixedCtx, value, c.option)
 }
-
-type noopCounter struct{}
-
-func (c *noopCounter) Inc(value int64) {}
