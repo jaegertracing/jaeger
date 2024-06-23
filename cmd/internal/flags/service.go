@@ -68,7 +68,7 @@ func NewService(adminPort int) *Service {
 func (s *Service) AddFlags(flagSet *flag.FlagSet) {
 	AddConfigFileFlag(flagSet)
 	if s.NoStorage {
-		AddLoggingFlag(flagSet)
+		AddLoggingFlags(flagSet)
 	} else {
 		AddFlags(flagSet)
 	}
