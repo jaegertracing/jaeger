@@ -38,7 +38,8 @@ func (exp *storageExporter) start(_ context.Context, host component.Host) error 
 		return fmt.Errorf("cannot find storage factory: %w", err)
 	}
 
-	if clickhouse == true {
+	if clickhouse {
+		exp.clickhouse = clickhouse
 		exp.chExportTraces = f.ChExportSpans
 	} else {
 		if exp.traceWriter, err = f.CreateTraceWriter(); err != nil {
