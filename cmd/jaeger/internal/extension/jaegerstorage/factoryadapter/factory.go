@@ -16,7 +16,6 @@ import (
 
 type Factory struct {
 	ss storage_v1.Factory
-	ch clickhouse.Factory
 }
 
 func NewFactory(ss storage_v1.Factory) spanstore.Factory {
@@ -31,7 +30,12 @@ func (*Factory) Initialize(_ context.Context) error {
 }
 
 func (f *Factory) ChExportSpans(ctx context.Context, td ptrace.Traces) error {
-	return f.ch.ChExportSpans(ctx, td)
+	switch t := f.ss.(type) {
+	case *clickhouse.Factory:
+		return t.ChExportSpans(ctx, td)
+	}
+
+	return nil
 }
 
 // Close implements spanstore.Factory.
