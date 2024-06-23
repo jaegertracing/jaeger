@@ -4,52 +4,60 @@ outpkg: "mocks"
 dir: "{{.InterfaceDir}}/mocks/"
 mockname: "{{.InterfaceName}}"
 filename: "{{.InterfaceName}}.go"
+boilerplate-file: .mockery.header.txt
 packages:
+  github.com/jaegertracing/jaeger/cmd/collector/app/sanitizer/cache:
+    interfaces:
+      ServiceAliasMappingExternalSource:
+      ServiceAliasMappingStorage:
+  github.com/jaegertracing/jaeger/cmd/ingester/app/consumer:
+    interfaces:
+      Message:
+  github.com/jaegertracing/jaeger/cmd/ingester/app/processor:
+    interfaces:
+      SpanProcessor:
+  github.com/jaegertracing/jaeger/crossdock/services:
+    interfaces:
+      AgentService:
+      QueryService:
+  github.com/jaegertracing/jaeger/pkg/cassandra:
+    interfaces:
+      Iterator:
+      Query:
+      Session:
+  github.com/jaegertracing/jaeger/pkg/distributedlock:
+    config:
+      all: true
   github.com/jaegertracing/jaeger/pkg/es:
-    config:
-      all: true
-  github.com/jaegertracing/jaeger/storage/spanstore: 
-    config:
-      all: true
-  github.com/jaegertracing/jaeger/proto-gen/storage_v1: 
     config:
       all: true
   github.com/jaegertracing/jaeger/pkg/es/client:
     config:
       all: true
-  github.com/jaegertracing/jaeger/crossdock/services:
-    config:
-      all: true
-  github.com/jaegertracing/jaeger/cmd/ingester/app/processor:
-    config:
-      all: true
-  github.com/jaegertracing/jaeger/cmd/ingester/app/consumer:
-    config:
-      all: true
-  github.com/jaegertracing/jaeger/cmd/collector/app/sanitizer/cache:
-    config:
-      all: true
+  github.com/jaegertracing/jaeger/pkg/kafka/consumer:
+    interfaces:
+      Consumer:
   github.com/jaegertracing/jaeger/plugin/sampling/leaderelection:
     config:
       all: true
   github.com/jaegertracing/jaeger/plugin/storage/grpc:
+    interfaces:
+      PluginCapabilities:
+  github.com/jaegertracing/jaeger/proto-gen/storage_v1:
     config:
       all: true
   github.com/jaegertracing/jaeger/storage:
     config:
       all: true
-  github.com/jaegertracing/jaeger/storage/metricsstore:
-    config:
-      all: true
   github.com/jaegertracing/jaeger/storage/dependencystore:
+    interfaces:
+      Reader:
+  github.com/jaegertracing/jaeger/storage/metricsstore:
     config:
       all: true
   github.com/jaegertracing/jaeger/storage/samplingstore:
     config:
       all: true
-  github.com/jaegertracing/jaeger/pkg/cassandra:
-    config:
-      all: true
-  github.com/jaegertracing/jaeger/pkg/distributedlock:
+  github.com/jaegertracing/jaeger/storage/spanstore:
     config:
       all: true
