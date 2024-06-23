@@ -153,7 +153,7 @@ func TestStartZipkinReceiver_Error(t *testing.T) {
 	assert.Contains(t, err.Error(), "could not create Zipkin consumer")
 
 	createTracesReceiver := func(
-		context.Context, receiver.CreateSettings, component.Config, consumer.Traces,
+		context.Context, receiver.Settings, component.Config, consumer.Traces,
 	) (receiver.Traces, error) {
 		return nil, errors.New("mock error")
 	}
