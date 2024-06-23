@@ -50,6 +50,6 @@ func createDefaultConfig() component.Config {
 	}
 }
 
-func createExtension(_ context.Context, set extension.CreateSettings, cfg component.Config) (extension.Extension, error) {
+func createExtension(_ context.Context, set extension.Settings, cfg component.Config) (extension.Extension, error) {
 	return newExtension(cfg.(*Config), set.TelemetrySettings), nil
 }

@@ -22,7 +22,7 @@ func TestCreateDefaultConfig(t *testing.T) {
 func TestCreateExtension(t *testing.T) {
 	cfg := createDefaultConfig().(*Config)
 	f := NewFactory()
-	r, err := f.CreateExtension(context.Background(), extensiontest.NewNopCreateSettings(), cfg)
+	r, err := f.CreateExtension(context.Background(), extensiontest.NewNopSettings(), cfg)
 	require.NoError(t, err)
 	assert.NotNil(t, r)
 }

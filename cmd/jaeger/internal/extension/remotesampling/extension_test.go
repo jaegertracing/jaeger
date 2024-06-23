@@ -43,7 +43,7 @@ func makeStorageExtension(t *testing.T, memstoreName string) storageHost {
 	extensionFactory := jaegerstorage.NewFactory()
 	storageExtension, err := extensionFactory.CreateExtension(
 		context.Background(),
-		extension.CreateSettings{
+		extension.Settings{
 			TelemetrySettings: component.TelemetrySettings{
 				Logger:         zap.L(),
 				TracerProvider: nooptrace.NewTracerProvider(),
@@ -70,7 +70,7 @@ func TestStartFileBasedProvider(t *testing.T) {
 	cfg.GRPC = nil
 	require.NoError(t, cfg.Validate())
 
-	ext, err := factory.CreateExtension(context.Background(), extension.CreateSettings{
+	ext, err := factory.CreateExtension(context.Background(), extension.Settings{
 		TelemetrySettings: componenttest.NewNopTelemetrySettings(),
 	}, cfg)
 	require.NoError(t, err)
@@ -88,7 +88,7 @@ func TestStartAdaptiveProvider(t *testing.T) {
 	cfg.GRPC = nil
 	require.NoError(t, cfg.Validate())
 
-	ext, err := factory.CreateExtension(context.Background(), extension.CreateSettings{
+	ext, err := factory.CreateExtension(context.Background(), extension.Settings{
 		TelemetrySettings: componenttest.NewNopTelemetrySettings(),
 	}, cfg)
 	require.NoError(t, err)
