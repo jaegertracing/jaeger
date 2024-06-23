@@ -29,6 +29,7 @@ import (
 const (
 	spanStorageType = "span-storage.type" // deprecated
 	logLevel        = "log-level"
+	logEncoding     = "log-encoding" // json or console
 	configFile      = "config-file"
 )
 
@@ -98,23 +99,26 @@ type SharedFlags struct {
 }
 
 type logging struct {
-	Level string
+	Level    string
+	Encoding string
 }
 
 // AddFlags adds flags for SharedFlags
 func AddFlags(flagSet *flag.FlagSet) {
 	flagSet.String(spanStorageType, "", "(deprecated) please use SPAN_STORAGE_TYPE environment variable. Run this binary with the 'env' command for help.")
-	AddLoggingFlag(flagSet)
+	AddLoggingFlags(flagSet)
 }
 
 // AddLoggingFlag adds logging flag for SharedFlags
-func AddLoggingFlag(flagSet *flag.FlagSet) {
+func AddLoggingFlags(flagSet *flag.FlagSet) {
 	flagSet.String(logLevel, "info", "Minimal allowed log Level. For more levels see https://github.com/uber-go/zap")
+	flagSet.String(logEncoding, "json", "Log encoding. Supported values are 'json' and 'console'.")
 }
 
 // InitFromViper initializes SharedFlags with properties from viper
 func (flags *SharedFlags) InitFromViper(v *viper.Viper) *SharedFlags {
 	flags.Logging.Level = v.GetString(logLevel)
+	flags.Logging.Encoding = v.GetString(logEncoding)
 	return flags
 }
 
@@ -126,5 +130,9 @@ func (flags *SharedFlags) NewLogger(conf zap.Config, options ...zap.Option) (*za
 		return nil, err
 	}
 	conf.Level = zap.NewAtomicLevelAt(level)
+	conf.Encoding = flags.Logging.Encoding
+	if flags.Logging.Encoding == "console" {
+		conf.EncoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
+	}
 	return conf.Build(options...)
 }

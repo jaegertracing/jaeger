@@ -16,7 +16,6 @@ package metricsstore
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -183,7 +182,7 @@ func TestGetLatencies(t *testing.T) {
 			wantName:         "service_operation_latencies",
 			wantDescription:  "0.95th quantile latency, grouped by service & operation",
 			wantLabels: map[string]string{
-				"span_name":    "/OrderResult",
+				"operation":    "/OrderResult",
 				"service_name": "emailservice",
 			},
 			wantPromQlQuery: `histogram_quantile(0.95, sum(rate(duration_bucket{service_name =~ "emailservice", ` +
@@ -215,7 +214,7 @@ func TestGetLatencies(t *testing.T) {
 			wantName:        "service_operation_latencies",
 			wantDescription: "0.95th quantile latency, grouped by service & operation",
 			wantLabels: map[string]string{
-				"span_name":    "/OrderResult",
+				"operation":    "/OrderResult",
 				"service_name": "emailservice",
 			},
 			wantPromQlQuery: `histogram_quantile(0.95, sum(rate(span_metrics_duration_bucket{service_name =~ "emailservice", ` +
@@ -234,7 +233,7 @@ func TestGetLatencies(t *testing.T) {
 			wantName:        "service_operation_latencies",
 			wantDescription: "0.95th quantile latency, grouped by service & operation",
 			wantLabels: map[string]string{
-				"span_name":    "/OrderResult",
+				"operation":    "/OrderResult",
 				"service_name": "emailservice",
 			},
 			wantPromQlQuery: `histogram_quantile(0.95, sum(rate(duration_seconds_bucket{service_name =~ "emailservice", ` +
@@ -257,7 +256,7 @@ func TestGetLatencies(t *testing.T) {
 
 			m, err := reader.GetLatencies(context.Background(), &params)
 			require.NoError(t, err)
-			assertMetrics(t, tc.name, m, tc.wantLabels, tc.wantName, tc.wantDescription)
+			assertMetrics(t, m, tc.wantLabels, tc.wantName, tc.wantDescription)
 			assert.Len(t, exp.GetSpans(), 1, "HTTP request was traced and span reported")
 		})
 	}
@@ -286,7 +285,7 @@ func TestGetCallRates(t *testing.T) {
 			wantName:         "service_operation_call_rate",
 			wantDescription:  "calls/sec, grouped by service & operation",
 			wantLabels: map[string]string{
-				"span_name":    "/OrderResult",
+				"operation":    "/OrderResult",
 				"service_name": "emailservice",
 			},
 			wantPromQlQuery: `sum(rate(calls{service_name =~ "emailservice", ` +
@@ -317,7 +316,7 @@ func TestGetCallRates(t *testing.T) {
 			wantName:        "service_operation_call_rate",
 			wantDescription: "calls/sec, grouped by service & operation",
 			wantLabels: map[string]string{
-				"span_name":    "/OrderResult",
+				"operation":    "/OrderResult",
 				"service_name": "emailservice",
 			},
 			wantPromQlQuery: `sum(rate(span_metrics_calls{service_name =~ "emailservice", ` +
@@ -335,7 +334,7 @@ func TestGetCallRates(t *testing.T) {
 			wantName:        "service_operation_call_rate",
 			wantDescription: "calls/sec, grouped by service & operation",
 			wantLabels: map[string]string{
-				"span_name":    "/OrderResult",
+				"operation":    "/OrderResult",
 				"service_name": "emailservice",
 			},
 			wantPromQlQuery: `sum(rate(calls_total{service_name =~ "emailservice", ` +
@@ -357,7 +356,7 @@ func TestGetCallRates(t *testing.T) {
 
 			m, err := reader.GetCallRates(context.Background(), &params)
 			require.NoError(t, err)
-			assertMetrics(t, tc.name, m, tc.wantLabels, tc.wantName, tc.wantDescription)
+			assertMetrics(t, m, tc.wantLabels, tc.wantName, tc.wantDescription)
 			assert.Len(t, exp.GetSpans(), 1, "HTTP request was traced and span reported")
 		})
 	}
@@ -387,7 +386,7 @@ func TestGetErrorRates(t *testing.T) {
 			wantName:         "service_operation_error_rate",
 			wantDescription:  "error rate, computed as a fraction of errors/sec over calls/sec, grouped by service & operation",
 			wantLabels: map[string]string{
-				"span_name":    "/OrderResult",
+				"operation":    "/OrderResult",
 				"service_name": "emailservice",
 			},
 			wantPromQlQuery: `sum(rate(calls{service_name =~ "emailservice", status_code = "STATUS_CODE_ERROR", ` +
@@ -439,7 +438,7 @@ func TestGetErrorRates(t *testing.T) {
 			wantName:        "service_operation_error_rate",
 			wantDescription: "error rate, computed as a fraction of errors/sec over calls/sec, grouped by service & operation",
 			wantLabels: map[string]string{
-				"span_name":    "/OrderResult",
+				"operation":    "/OrderResult",
 				"service_name": "emailservice",
 			},
 			wantPromQlQuery: `sum(rate(span_metrics_calls{service_name =~ "emailservice", status_code = "STATUS_CODE_ERROR", ` +
@@ -458,7 +457,7 @@ func TestGetErrorRates(t *testing.T) {
 			wantName:        "service_operation_error_rate",
 			wantDescription: "error rate, computed as a fraction of errors/sec over calls/sec, grouped by service & operation",
 			wantLabels: map[string]string{
-				"span_name":    "/OrderResult",
+				"operation":    "/OrderResult",
 				"service_name": "emailservice",
 			},
 			wantPromQlQuery: `sum(rate(calls_total{service_name =~ "emailservice", status_code = "STATUS_CODE_ERROR", ` +
@@ -481,7 +480,7 @@ func TestGetErrorRates(t *testing.T) {
 
 			m, err := reader.GetErrorRates(context.Background(), &params)
 			require.NoError(t, err)
-			assertMetrics(t, tc.name, m, tc.wantLabels, tc.wantName, tc.wantDescription)
+			assertMetrics(t, m, tc.wantLabels, tc.wantName, tc.wantDescription)
 			assert.Len(t, exp.GetSpans(), 1, "HTTP request was traced and span reported")
 		})
 	}
@@ -945,7 +944,7 @@ func prepareMetricsReaderAndServer(t *testing.T, config config.Configuration, wa
 	return reader, mockPrometheus
 }
 
-func assertMetrics(t *testing.T, testName string, gotMetrics *metrics.MetricFamily, wantLabels map[string]string, wantName, wantDescription string) {
+func assertMetrics(t *testing.T, gotMetrics *metrics.MetricFamily, wantLabels map[string]string, wantName, wantDescription string) {
 	assert.Len(t, gotMetrics.Metrics, 1)
 	assert.Equal(t, wantName, gotMetrics.Name)
 	assert.Equal(t, wantDescription, gotMetrics.Help)
@@ -953,9 +952,8 @@ func assertMetrics(t *testing.T, testName string, gotMetrics *metrics.MetricFami
 	assert.Len(t, mps, 1)
 
 	// logging for expected and actual labels
-	fmt.Printf("Test Name: %s\n", testName)
-	fmt.Printf("Expected labels: %v\n", wantLabels)
-	fmt.Printf("Actual labels: %v\n", gotMetrics.Metrics[0].Labels)
+	t.Logf("Expected labels: %v\n", wantLabels)
+	t.Logf("Actual labels: %v\n", gotMetrics.Metrics[0].Labels)
 
 	// There is no guaranteed order of labels, so we need to take the approach of using a map of expected values.
 	labels := gotMetrics.Metrics[0].Labels
@@ -968,8 +966,8 @@ func assertMetrics(t *testing.T, testName string, gotMetrics *metrics.MetricFami
 	assert.Empty(t, wantLabels)
 
 	// Additional logging to show that all expected labels were found and matched
-	fmt.Printf("Remaining expected labels after matching: %v\n", wantLabels)
-	fmt.Printf("\n")
+	t.Logf("Remaining expected labels after matching: %v\n", wantLabels)
+	t.Logf("\n")
 
 	assert.Equal(t, int64(1620351786), mps[0].Timestamp.GetSeconds())
 
