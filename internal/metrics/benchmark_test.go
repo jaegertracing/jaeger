@@ -4,44 +4,66 @@
 package benchmark_test
 
 import (
-	"log"
+	"context"
 	"testing"
 
-	prometheus "github.com/prometheus/client_golang/prometheus"
-	"go.opentelemetry.io/otel/sdk/metric"
+	promsdk "github.com/prometheus/client_golang/prometheus"
+	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 
-	"github.com/jaegertracing/jaeger/internal/metrics/otelmetrics"
-	prom "github.com/jaegertracing/jaeger/internal/metrics/prometheus"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 	promExporter "go.opentelemetry.io/otel/exporters/prometheus"
 )
 
-func benchmarkCounter(b *testing.B, factory metrics.Factory) {
-	counter := factory.Counter(metrics.Options{
-		Name: "test_counter",
-		Tags: map[string]string{"tag1": "value1"},
-	})
-
-	for i := 0; i < b.N; i++ {
-		counter.Inc(1)
-	}
-}
-
 func BenchmarkPrometheusCounter(b *testing.B) {
-	reg := prometheus.NewRegistry()
-	factory := prom.New(prom.WithRegisterer(reg))
-	benchmarkCounter(b, factory)
+	reg := promsdk.NewRegistry()
+	opts := promsdk.CounterOpts{
+		Name: "test_counter",
+		Help: "help",
+	}
+	cv := promsdk.NewCounterVec(opts, []string{"tag1"})
+	reg.MustRegister(cv)
+	counter := cv.WithLabelValues("value1")
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		counter.Add(1)
+	}
 }
 
 func BenchmarkOTELCounter(b *testing.B) {
-	registry := prometheus.NewRegistry()
-	exporter, err := promExporter.New(promExporter.WithRegisterer(registry))
-	if err != nil {
-		log.Fatalf("Failed to create Prometheus exporter: %v", err)
+	counter := otelCounter(b)
+	ctx := context.Background()
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		counter.Add(ctx, 1)
 	}
-	meterProvider := metric.NewMeterProvider(
-		metric.WithReader(exporter),
+}
+
+func BenchmarkOTELCounterWithLabel(b *testing.B) {
+	counter := otelCounter(b)
+	ctx := context.Background()
+	attrSet := attribute.NewSet(attribute.String("tag1", "value1"))
+	attrOpt := metric.WithAttributeSet(attrSet)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		counter.Add(ctx, 1, attrOpt)
+	}
+}
+
+func otelCounter(b *testing.B) metric.Int64Counter {
+	registry := promsdk.NewRegistry()
+	exporter, err := promExporter.New(promExporter.WithRegisterer(registry))
+	require.NoError(b, err)
+	meterProvider := sdkmetric.NewMeterProvider(
+		sdkmetric.WithReader(exporter),
 	)
-	factory := otelmetrics.NewFactory(meterProvider)
-	benchmarkCounter(b, factory)
+
+	meter := meterProvider.Meter("test")
+	counter, err := meter.Int64Counter("test_counter")
+	require.NoError(b, err)
+	return counter
 }
