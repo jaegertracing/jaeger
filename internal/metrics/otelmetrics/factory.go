@@ -12,27 +12,13 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	metric "go.opentelemetry.io/otel/metric"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
-	"go.opentelemetry.io/otel/sdk/resource"
-	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
 )
 
 type otelFactory struct {
 	meter metric.Meter
 }
 
-func NewFactory() metrics.Factory {
-	res, err := resource.New(context.Background(),
-		resource.WithAttributes(
-			semconv.ServiceNameKey.String("jaeger-V2"),
-		),
-	)
-	if err != nil {
-		log.Fatalf("Could not create resource: %v", err)
-	}
-	meterProvider := sdkmetric.NewMeterProvider(
-		sdkmetric.WithResource(res),
-		sdkmetric.WithReader(sdkmetric.NewManualReader()),
-	)
+func NewFactory(meterProvider *sdkmetric.MeterProvider) metrics.Factory {
 	otel.SetMeterProvider(meterProvider)
 	return &otelFactory{
 		meter: otel.Meter("jaeger-V2"),
