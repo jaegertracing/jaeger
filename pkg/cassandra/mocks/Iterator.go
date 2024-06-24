@@ -34,9 +34,7 @@ func (_m *Iterator) Close() error {
 
 // Scan provides a mock function with given fields: dest
 func (_m *Iterator) Scan(dest ...interface{}) bool {
-	var _ca []interface{}
-	_ca = append(_ca, dest...)
-	ret := _m.Called(_ca...)
+	ret := _m.Called(dest)
 
 	if len(ret) == 0 {
 		panic("no return value specified for Scan")

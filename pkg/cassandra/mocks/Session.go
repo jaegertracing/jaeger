@@ -24,10 +24,7 @@ func (_m *Session) Close() {
 
 // Query provides a mock function with given fields: stmt, values
 func (_m *Session) Query(stmt string, values ...interface{}) cassandra.Query {
-	var _ca []interface{}
-	_ca = append(_ca, stmt)
-	_ca = append(_ca, values...)
-	ret := _m.Called(_ca...)
+	ret := _m.Called(stmt, values)
 
 	if len(ret) == 0 {
 		panic("no return value specified for Query")

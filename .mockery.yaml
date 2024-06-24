@@ -21,6 +21,8 @@ packages:
       AgentService:
       QueryService:
   github.com/jaegertracing/jaeger/pkg/cassandra:
+    config:
+      unroll-variadic: false
     interfaces:
       Iterator:
       Query:

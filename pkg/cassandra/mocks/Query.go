@@ -19,9 +19,7 @@ type Query struct {
 
 // Bind provides a mock function with given fields: v
 func (_m *Query) Bind(v ...interface{}) cassandra.Query {
-	var _ca []interface{}
-	_ca = append(_ca, v...)
-	ret := _m.Called(_ca...)
+	ret := _m.Called(v)
 
 	if len(ret) == 0 {
 		panic("no return value specified for Bind")
@@ -119,9 +117,7 @@ func (_m *Query) PageSize(_a0 int) cassandra.Query {
 
 // ScanCAS provides a mock function with given fields: dest
 func (_m *Query) ScanCAS(dest ...interface{}) (bool, error) {
-	var _ca []interface{}
-	_ca = append(_ca, dest...)
-	ret := _m.Called(_ca...)
+	ret := _m.Called(dest)
 
 	if len(ret) == 0 {
 		panic("no return value specified for ScanCAS")
