@@ -166,11 +166,10 @@ func TestAcquire(t *testing.T) {
 						}
 						for i, arg := range args {
 							ptr, ok := arg.(*string)
-							if ok {
-								*ptr = vals[i]
-							} else {
+							if !ok {
 								return false
 							}
+							*ptr = vals[i]
 						}
 						return true
 					})

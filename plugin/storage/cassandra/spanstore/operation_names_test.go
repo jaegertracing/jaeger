@@ -179,11 +179,10 @@ func TestOperationNamesStorageGetServices(t *testing.T) {
 						}
 						for i, arg := range args {
 							ptr, ok := arg.(*string)
-							if ok {
-								*ptr = vals[i]
-							} else {
+							if !ok {
 								return false
 							}
+							*ptr = vals[i]
 						}
 						return true
 					})
@@ -207,8 +206,6 @@ func TestOperationNamesStorageGetServices(t *testing.T) {
 				})
 				if test.expErr == nil {
 					require.NoError(t, err)
-					// expect one empty operation result
-					// because mock iter.Scan(&placeholder) does not write to `placeholder`
 					assert.Equal(t, test.expRes, services)
 				} else {
 					require.EqualError(
