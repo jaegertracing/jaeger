@@ -45,6 +45,10 @@ packages:
   github.com/jaegertracing/jaeger/plugin/storage/grpc:
     interfaces:
       PluginCapabilities:
+  github.com/jaegertracing/jaeger/plugin/storage/kafka:
+    interfaces:
+      Marshaller:
+      Unmarshaller:
   github.com/jaegertracing/jaeger/proto-gen/storage_v1:
     config:
       all: true
