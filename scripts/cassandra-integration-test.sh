@@ -37,7 +37,8 @@ apply_schema() {
     --env CQLSH_PORT=9042
     --env "TEMPLATE=/cassandra-schema/${schema_version}.cql.tmpl"
     --env "KEYSPACE=${keyspace}"
-    --env "DB_PASSWORD=${DB_PASSWORD}"
+    --env "DB_USERNAME=testUserName"
+    --env "DB_PASSWORD=testPwd"
     --network host
   )
   docker build -t ${image} ${schema_dir}
