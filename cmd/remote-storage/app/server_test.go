@@ -145,7 +145,12 @@ func TestCreateGRPCHandler(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "writer error")
 
-	storageMocks.depReader.On("GetDependencies", mock.Anything, mock.Anything).Return(nil, errors.New("deps error"))
+	storageMocks.depReader.On(
+		"GetDependencies",
+		mock.Anything, // context
+		mock.Anything, // time
+		mock.Anything, // lookback
+	).Return(nil, errors.New("deps error"))
 	_, err = h.GetDependencies(context.Background(), &storage_v1.GetDependenciesRequest{})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "deps error")
