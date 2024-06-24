@@ -280,7 +280,11 @@ func TestGetDependencies(t *testing.T) {
 		},
 	}
 	endTs := time.Unix(0, 1476374248550*millisToNanosMultiplier)
-	tqs.depsReader.On("GetDependencies", endTs, defaultDependencyLookbackDuration).Return(expectedDependencies, nil).Times(1)
+	tqs.depsReader.On(
+		"GetDependencies",
+		mock.Anything, // context.Context
+		endTs,
+		defaultDependencyLookbackDuration).Return(expectedDependencies, nil).Times(1)
 
 	actualDependencies, err := tqs.queryService.GetDependencies(context.Background(), time.Unix(0, 1476374248550*millisToNanosMultiplier), defaultDependencyLookbackDuration)
 	require.NoError(t, err)
