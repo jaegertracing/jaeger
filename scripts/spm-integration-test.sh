@@ -38,39 +38,27 @@ wait_for_services() {
   check_service_health "Prometheus" "http://localhost:9090/graph"
   check_service_health "Grafana" "http://localhost:3000"
 }
-
-# Function to check SPM
-check_spm() {
-  local timeout=180
-  local interval=5
-  local end_time=$((SECONDS + timeout))
-  echo "Checking SPM"
-  services_list=("driver" "customer" "mysql" "redis" "frontend" "route" "ui")
-  for service in "${services_list[@]}"; do
-    echo "Processing service: $service"
-    while [ $SECONDS -lt $end_time ]; do
-      response=$(curl -s "http://localhost:16686/api/metrics/calls?service=$service&endTs=$(date +%s)000&lookback=1000&step=100&ratePer=60000")
-      service_name=$(echo "$response" | jq -r 'if .metrics and .metrics[0] then .metrics[0].labels[] | select(.name=="service_name") | .value else empty end')
-      if [ "$service_name" != "$service" ]; then
-        echo "Service name does not match '$service'"
-        sleep $interval
-      else
-        echo "Service name matched with '$service'"
-        break
-      fi
-    done
-    if [ $SECONDS -gt $end_time ]; then
-      echo "Error: no metrics returned by the API for service $service"
-      exit 1
+# Function to validate the service metrics
+service_metrics_valider(){
+    local service=$1
+    local non_zero_count=0
+    local all_non_zero=true
+    # Check if the service is up and running
+    response=$(curl -s "http://localhost:16686/api/metrics/calls?service=$service&endTs=$(date +%s)000&lookback=1000&step=100&ratePer=60000")
+    service_name=$(echo "$response" | jq -r 'if .metrics and .metrics[0] then .metrics[0].labels[] | select(.name=="service_name") | .value else empty end')
+    if [ "$service_name" != "$service" ]; then
+      echo "Service name does not match '$service'"
+      return 1
+    else
+      echo "Service name matched with '$service'"
     fi
-
-    all_non_zero=true
+    #stores the gauge values in an array and make sure that there are at least 3 gauge values
     mapfile -t metric_points < <(echo "$response" | jq -r '.metrics[0].metricPoints[].gaugeValue.doubleValue')
     while [ ${#metric_points[@]} -lt 3 ]; do
       echo "Metric points for service $service are less than 3"
       mapfile -t metric_points < <(echo "$response" | jq -r '.metrics[0].metricPoints[].gaugeValue.doubleValue')
     done
-    local non_zero_count=0
+    #check if all gauge values are non-zero and count is greater than 3
     for value in "${metric_points[@]}"; do
       if [[ "$value" == "0" || "$value" == "0.0" ]]; then
         all_non_zero=false
@@ -79,14 +67,50 @@ check_spm() {
         non_zero_count=$((non_zero_count + 1))
       fi
     done
-
     if [ "$all_non_zero" = true ] && [ $non_zero_count -gt 3 ]; then
       echo "All gauge values are non-zero and count is greater than 3 for $service"
+      return 0 
     else
       echo "Some gauge values are zero or count is not greater than 3 for $service"
-      exit 1
+      return 1
     fi
+}
+
+
+# Function to check SPM
+check_spm() {
+  local timeout=180
+  local interval=5
+  local end_time=$((SECONDS + timeout))
+  local successful_service=0
+  echo "Checking SPM"
+  #list of services to check
+  services_list=("driver" "customer" "mysql" "redis" "frontend" "route" "ui")
+  for service in "${services_list[@]}"; do
+    echo "Processing service: $service"
+    while [ $SECONDS -lt $end_time ]; do
+      #check if the service metrics are returned by the API
+      if service_metrics_valider "$service"; then
+        successful_service=$((successful_service + 1))
+        break
+      else
+        #timeout condition
+        if [ $SECONDS -gt $end_time ]; then
+          echo "Error: no metrics returned by the API for service $service"
+          exit 1
+        fi
+        echo "Waiting for metrics to be returned by the API for service $service..."
+        sleep $interval
+      fi
+    done
   done
+  if [ $successful_service -lt ${#services_list[@]} ]; then
+    echo "All services metrics are not returned by the API"
+    exit 1
+  else
+    echo "All services metrics are returned by the API"
+  fi
+    
 }
 
 # Function to tear down Docker Compose services
