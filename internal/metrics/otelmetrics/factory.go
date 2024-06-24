@@ -8,20 +8,17 @@ import (
 	"log"
 
 	"github.com/jaegertracing/jaeger/pkg/metrics"
-	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	metric "go.opentelemetry.io/otel/metric"
-	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 )
 
 type otelFactory struct {
 	meter metric.Meter
 }
 
-func NewFactory(meterProvider *sdkmetric.MeterProvider) metrics.Factory {
-	otel.SetMeterProvider(meterProvider)
+func NewFactory(meterProvider metric.MeterProvider) metrics.Factory {
 	return &otelFactory{
-		meter: otel.Meter("jaeger-V2"),
+		meter: meterProvider.Meter("jaeger-v2"),
 	}
 }
 

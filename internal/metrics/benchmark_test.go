@@ -8,7 +8,6 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/sdk/metric"
-	"go.opentelemetry.io/otel/sdk/resource"
 
 	"github.com/jaegertracing/jaeger/internal/metrics/otelmetrics"
 	prom "github.com/jaegertracing/jaeger/internal/metrics/prometheus"
@@ -33,10 +32,7 @@ func BenchmarkPrometheusCounter(b *testing.B) {
 }
 
 func BenchmarkOTELCounter(b *testing.B) {
-	res := resource.NewWithAttributes(
-		resource.Default().SchemaURL(),
-	)
-	meterProvider := metric.NewMeterProvider(metric.WithResource(res))
+	meterProvider := metric.NewMeterProvider()
 	factory := otelmetrics.NewFactory(meterProvider)
 	benchmarkCounter(b, factory)
 }
