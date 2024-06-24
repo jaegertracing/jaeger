@@ -4,14 +4,16 @@
 package benchmark_test
 
 import (
+	"log"
 	"testing"
 
-	"github.com/prometheus/client_golang/prometheus"
+	prometheus "github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/sdk/metric"
 
 	"github.com/jaegertracing/jaeger/internal/metrics/otelmetrics"
 	prom "github.com/jaegertracing/jaeger/internal/metrics/prometheus"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
+	promExporter "go.opentelemetry.io/otel/exporters/prometheus"
 )
 
 func benchmarkCounter(b *testing.B, factory metrics.Factory) {
@@ -32,7 +34,14 @@ func BenchmarkPrometheusCounter(b *testing.B) {
 }
 
 func BenchmarkOTELCounter(b *testing.B) {
-	meterProvider := metric.NewMeterProvider()
+	registry := prometheus.NewRegistry()
+	exporter, err := promExporter.New(promExporter.WithRegisterer(registry))
+	if err != nil {
+		log.Fatalf("Failed to create Prometheus exporter: %v", err)
+	}
+	meterProvider := metric.NewMeterProvider(
+		metric.WithReader(exporter),
+	)
 	factory := otelmetrics.NewFactory(meterProvider)
 	benchmarkCounter(b, factory)
 }
