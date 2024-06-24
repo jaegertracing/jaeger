@@ -29,11 +29,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
-	kmocks "github.com/jaegertracing/jaeger/cmd/ingester/app/consumer/mocks"
 	"github.com/jaegertracing/jaeger/cmd/ingester/app/processor"
 	pmocks "github.com/jaegertracing/jaeger/cmd/ingester/app/processor/mocks"
 	"github.com/jaegertracing/jaeger/internal/metricstest"
 	"github.com/jaegertracing/jaeger/pkg/kafka/consumer"
+	kmocks "github.com/jaegertracing/jaeger/pkg/kafka/consumer/mocks"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
@@ -146,7 +146,7 @@ func TestSaramaConsumerWrapper_start_Messages(t *testing.T) {
 			partitionConsumer: &partitionConsumerWrapper{
 				topic:             topic,
 				partition:         partition,
-				PartitionConsumer: &kmocks.PartitionConsumer{},
+				PartitionConsumer: &smocks.PartitionConsumer{},
 			},
 		},
 	}
