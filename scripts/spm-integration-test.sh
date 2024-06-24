@@ -39,7 +39,7 @@ wait_for_services() {
   check_service_health "Grafana" "http://localhost:3000"
 }
 # Function to validate the service metrics
-service_metrics_valider(){
+validate_service_metrics(){
     local service=$1
     local non_zero_count=0
     local all_non_zero=true
@@ -90,7 +90,7 @@ check_spm() {
     echo "Processing service: $service"
     while [ $SECONDS -lt $end_time ]; do
       #check if the service metrics are returned by the API
-      if service_metrics_valider "$service"; then
+      if validate_service_metrics "$service"; then
         successful_service=$((successful_service + 1))
         break
       else
