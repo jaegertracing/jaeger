@@ -7,9 +7,10 @@ import (
 	"context"
 	"log"
 
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"go.opentelemetry.io/otel/attribute"
 	metric "go.opentelemetry.io/otel/metric"
+
+	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
 type otelFactory struct {
@@ -29,12 +30,7 @@ func (f *otelFactory) Counter(opts metrics.Options) metrics.Counter {
 		return metrics.NullCounter
 	}
 
-	attributes := make([]attribute.KeyValue, 0, len(opts.Tags))
-	for k, v := range opts.Tags {
-		attributes = append(attributes, attribute.String(k, v))
-	}
-	attributeSet := attribute.NewSet(attributes...)
-
+	attributeSet := f.CreateAtrributeSet(opts.Tags)
 	return &otelCounter{
 		counter:  counter,
 		fixedCtx: context.Background(),
@@ -43,20 +39,58 @@ func (f *otelFactory) Counter(opts metrics.Options) metrics.Counter {
 }
 
 func (f *otelFactory) Gauge(opts metrics.Options) metrics.Gauge {
-	// TODO: Implement OTEL Gauge
-	return nil
-}
+	gauge, err := f.meter.Int64Gauge(opts.Name)
+	if err != nil {
+		log.Printf("Error creating OTEL gauge: %v", err)
+		return metrics.NullGauge
 
-func (f *otelFactory) Timer(opts metrics.TimerOptions) metrics.Timer {
-	// TODO: Implement OTEL Timer
-	return nil
+	}
+
+	attributeSet := f.CreateAtrributeSet(opts.Tags)
+	return &otelGauge{
+		gauge:    gauge,
+		fixedCtx: context.Background(),
+		option:   metric.WithAttributeSet(attributeSet),
+	}
 }
 
 func (f *otelFactory) Histogram(opts metrics.HistogramOptions) metrics.Histogram {
-	// TODO: Implement OTEL Histogram
-	return nil
+	histogram, err := f.meter.Float64Histogram(opts.Name)
+	if err != nil {
+		log.Printf("Error creating OTEL histogram: %v", err)
+		return metrics.NullHistogram
+	}
+
+	attributeSet := f.CreateAtrributeSet(opts.Tags)
+	return &otelHistogram{
+		histogram: histogram,
+		fixedCtx:  context.Background(),
+		option:    metric.WithAttributeSet(attributeSet),
+	}
+}
+
+func (f *otelFactory) Timer(opts metrics.TimerOptions) metrics.Timer {
+	timer, err := f.meter.Float64Histogram(opts.Name)
+	if err != nil {
+		log.Printf("Error creating OTEL timer: %v", err)
+		return metrics.NullTimer
+	}
+	attributeSet := f.CreateAtrributeSet(opts.Tags)
+	return &otelTimer{
+		histogram: timer,
+		fixedCtx:  context.Background(),
+		option:    metric.WithAttributeSet(attributeSet),
+	}
 }
 
 func (f *otelFactory) Namespace(opts metrics.NSOptions) metrics.Factory {
 	return f
+}
+
+func (f *otelFactory) CreateAtrributeSet(tags map[string]string) attribute.Set {
+	attributes := make([]attribute.KeyValue, 0, len(tags))
+	for k, v := range tags {
+		attributes = append(attributes, attribute.String(k, v))
+	}
+	return attribute.NewSet(attributes...)
 }
