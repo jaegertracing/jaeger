@@ -87,7 +87,7 @@ func (f *otelFactory) Namespace(opts metrics.NSOptions) metrics.Factory {
 	return f
 }
 
-func (f *otelFactory) CreateAtrributeSet(tags map[string]string) attribute.Set {
+func attributeSetOption(tags map[string]string) metric.Option {
 	attributes := make([]attribute.KeyValue, 0, len(tags))
 	for k, v := range tags {
 		attributes = append(attributes, attribute.String(k, v))
