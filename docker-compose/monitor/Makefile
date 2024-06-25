@@ -15,7 +15,7 @@ build: clean-jaeger
 .PHONY: dev
 dev: export JAEGER_IMAGE_TAG = dev
 dev:
-	docker compose -f docker-compose.yml up
+	docker compose -f docker-compose.yml up $(DOCKER_COMPOSE_ARGS)
 
 .PHONY: clean-jaeger
 clean-jaeger:
