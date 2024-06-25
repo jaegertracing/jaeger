@@ -34,7 +34,7 @@ func (f *otelFactory) Counter(opts metrics.Options) metrics.Counter {
 	return &otelCounter{
 		counter:  counter,
 		fixedCtx: context.Background(),
-		option:   metric.WithAttributeSet(attributeSet),
+		option:   attributeSetOption(opts.Tags),
 	}
 }
 
