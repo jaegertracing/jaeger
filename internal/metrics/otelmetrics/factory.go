@@ -66,7 +66,7 @@ func (f *otelFactory) Histogram(opts metrics.HistogramOptions) metrics.Histogram
 }
 
 func (f *otelFactory) Timer(opts metrics.TimerOptions) metrics.Timer {
-	timer, err := f.meter.Float64Histogram(opts.Name)
+	timer, err := f.meter.Float64Histogram(opts.Name, metric.WithUnit("s"))
 	if err != nil {
 		log.Printf("Error creating OTEL timer: %v", err)
 		return metrics.NullTimer
