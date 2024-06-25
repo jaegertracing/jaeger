@@ -24,9 +24,7 @@ func setupPrometheusFactory() metrics.Factory {
 func setupOTELFactory(b *testing.B) metrics.Factory {
 	registry := prometheus.NewRegistry()
 	exporter, err := promExporter.New(promExporter.WithRegisterer(registry))
-	if err != nil {
-		log.Fatalf("Failed to create Prometheus exporter: %v", err)
-	}
+	require.NoError(b, err)
 	meterProvider := metric.NewMeterProvider(
 		metric.WithReader(exporter),
 	)
