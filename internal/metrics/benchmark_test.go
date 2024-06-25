@@ -21,7 +21,7 @@ func setupPrometheusFactory() metrics.Factory {
 	return prom.New(prom.WithRegisterer(reg))
 }
 
-func setupOTELFactory() metrics.Factory {
+func setupOTELFactory(b *testing.B) metrics.Factory {
 	registry := prometheus.NewRegistry()
 	exporter, err := promExporter.New(promExporter.WithRegisterer(registry))
 	if err != nil {
