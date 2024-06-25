@@ -24,8 +24,8 @@ clean-jaeger:
 
 .PHONY: clean-all
 clean-all: clean-jaeger
-	docker rmi -f jaegertracing/all-in-one:dev ; \
-	docker rmi -f jaegertracing/all-in-one:latest ; \
-	docker rmi -f otel/opentelemetry-collector-contrib:latest ; \
-	docker rmi -f prom/prometheus:latest ; \
-	docker rmi -f grafana/grafana:latest
+	docker stop monitor-microsim-1 && docker rm monitor-microsim-1 && \
+	docker stop monitor-otel_collector-1 && docker rm monitor-otel_collector-1 && \
+	docker stop monitor-jaeger-1 && docker rm monitor-jaeger-1 && \
+	docker stop monitor-grafana-1 && docker rm monitor-grafana-1 && \
+	docker stop monitor-prometheus-1 && docker rm monitor-prometheus-1 
