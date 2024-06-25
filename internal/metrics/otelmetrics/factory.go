@@ -29,8 +29,6 @@ func (f *otelFactory) Counter(opts metrics.Options) metrics.Counter {
 		log.Printf("Error creating OTEL counter: %v", err)
 		return metrics.NullCounter
 	}
-
-	attributeSet := f.CreateAtrributeSet(opts.Tags)
 	return &otelCounter{
 		counter:  counter,
 		fixedCtx: context.Background(),
@@ -46,11 +44,10 @@ func (f *otelFactory) Gauge(opts metrics.Options) metrics.Gauge {
 
 	}
 
-	attributeSet := f.CreateAtrributeSet(opts.Tags)
 	return &otelGauge{
 		gauge:    gauge,
 		fixedCtx: context.Background(),
-		option:   metric.WithAttributeSet(attributeSet),
+		option:   attributeSetOption(opts.Tags),
 	}
 }
 
@@ -61,11 +58,10 @@ func (f *otelFactory) Histogram(opts metrics.HistogramOptions) metrics.Histogram
 		return metrics.NullHistogram
 	}
 
-	attributeSet := f.CreateAtrributeSet(opts.Tags)
 	return &otelHistogram{
 		histogram: histogram,
 		fixedCtx:  context.Background(),
-		option:    metric.WithAttributeSet(attributeSet),
+		option:    attributeSetOption(opts.Tags),
 	}
 }
 
@@ -75,11 +71,10 @@ func (f *otelFactory) Timer(opts metrics.TimerOptions) metrics.Timer {
 		log.Printf("Error creating OTEL timer: %v", err)
 		return metrics.NullTimer
 	}
-	attributeSet := f.CreateAtrributeSet(opts.Tags)
 	return &otelTimer{
 		histogram: timer,
 		fixedCtx:  context.Background(),
-		option:    metric.WithAttributeSet(attributeSet),
+		option:    attributeSetOption(opts.Tags),
 	}
 }
 
@@ -87,10 +82,10 @@ func (f *otelFactory) Namespace(opts metrics.NSOptions) metrics.Factory {
 	return f
 }
 
-func attributeSetOption(tags map[string]string) metric.Option {
+func attributeSetOption(tags map[string]string) metric.MeasurementOption {
 	attributes := make([]attribute.KeyValue, 0, len(tags))
 	for k, v := range tags {
 		attributes = append(attributes, attribute.String(k, v))
 	}
-	return attribute.NewSet(attributes...)
+	return metric.WithAttributes(attributes...)
 }

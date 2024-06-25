@@ -4,10 +4,10 @@
 package benchmark_test
 
 import (
-	"log"
 	"testing"
 
 	prometheus "github.com/prometheus/client_golang/prometheus"
+	"github.com/stretchr/testify/require"
 	promExporter "go.opentelemetry.io/otel/exporters/prometheus"
 	"go.opentelemetry.io/otel/sdk/metric"
 
@@ -31,73 +31,78 @@ func setupOTELFactory(b *testing.B) metrics.Factory {
 	return otelmetrics.NewFactory(meterProvider)
 }
 
-func benchmarkMetric(b *testing.B, factory metrics.Factory, metricType string) {
-	var metricObj interface{}
-	switch metricType {
-	case "counter":
-		metricObj = factory.Counter(metrics.Options{
-			Name: "test_counter",
-			Tags: map[string]string{"tag1": "value1"},
-		})
-	case "gauge":
-		metricObj = factory.Gauge(metrics.Options{
-			Name: "test_gauge",
-			Tags: map[string]string{"tag1": "value1"},
-		})
-	case "timer":
-		metricObj = factory.Timer(metrics.TimerOptions{
-			Name: "test_timer",
-			Tags: map[string]string{"tag1": "value1"},
-		})
-	case "histogram":
-		metricObj = factory.Histogram(metrics.HistogramOptions{
-			Name: "test_histogram",
-			Tags: map[string]string{"tag1": "value1"},
-		})
-	}
+func benchmarkCounter(b *testing.B, factory metrics.Factory) {
+	counter := factory.Counter(metrics.Options{
+		Name: "test_counter",
+		Tags: map[string]string{"tag1": "value1"},
+	})
 
 	for i := 0; i < b.N; i++ {
-		switch m := metricObj.(type) {
-		case metrics.Counter:
-			m.Inc(1)
-		case metrics.Gauge:
-			m.Update(1)
-		case metrics.Timer:
-			m.Record(100)
-		case metrics.Histogram:
-			m.Record(1.0)
-		}
+		counter.Inc(1)
+	}
+}
+
+func benchmarkGauge(b *testing.B, factory metrics.Factory) {
+	gauge := factory.Gauge(metrics.Options{
+		Name: "test_gauge",
+		Tags: map[string]string{"tag1": "value1"},
+	})
+
+	for i := 0; i < b.N; i++ {
+		gauge.Update(1)
+	}
+}
+
+func benchmarkTimer(b *testing.B, factory metrics.Factory) {
+	timer := factory.Timer(metrics.TimerOptions{
+		Name: "test_timer",
+		Tags: map[string]string{"tag1": "value1"},
+	})
+
+	for i := 0; i < b.N; i++ {
+		timer.Record(100)
+	}
+}
+
+func benchmarkHistogram(b *testing.B, factory metrics.Factory) {
+	histogram := factory.Histogram(metrics.HistogramOptions{
+		Name: "test_histogram",
+		Tags: map[string]string{"tag1": "value1"},
+	})
+
+	for i := 0; i < b.N; i++ {
+		histogram.Record(1.0)
 	}
 }
 
 func BenchmarkPrometheusCounter(b *testing.B) {
-	benchmarkMetric(b, setupPrometheusFactory(), "counter")
+	benchmarkCounter(b, setupPrometheusFactory())
 }
 
 func BenchmarkOTELCounter(b *testing.B) {
-	benchmarkMetric(b, setupOTELFactory(), "counter")
+	benchmarkCounter(b, setupOTELFactory(b))
 }
 
 func BenchmarkPrometheusGauge(b *testing.B) {
-	benchmarkMetric(b, setupPrometheusFactory(), "gauge")
+	benchmarkGauge(b, setupPrometheusFactory())
 }
 
 func BenchmarkOTELGauge(b *testing.B) {
-	benchmarkMetric(b, setupOTELFactory(), "gauge")
+	benchmarkGauge(b, setupOTELFactory(b))
 }
 
 func BenchmarkPrometheusTimer(b *testing.B) {
-	benchmarkMetric(b, setupPrometheusFactory(), "timer")
+	benchmarkTimer(b, setupPrometheusFactory())
 }
 
 func BenchmarkOTELTimer(b *testing.B) {
-	benchmarkMetric(b, setupOTELFactory(), "timer")
+	benchmarkTimer(b, setupOTELFactory(b))
 }
 
 func BenchmarkPrometheusHistogram(b *testing.B) {
-	benchmarkMetric(b, setupPrometheusFactory(), "histogram")
+	benchmarkHistogram(b, setupPrometheusFactory())
 }
 
 func BenchmarkOTELHistogram(b *testing.B) {
-	benchmarkMetric(b, setupOTELFactory(), "histogram")
+	benchmarkHistogram(b, setupOTELFactory(b))
 }
