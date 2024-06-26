@@ -14,8 +14,8 @@ build: clean-jaeger
 # Note: the jaeger "dev" image can be built with "make build".
 .PHONY: dev
 dev: export JAEGER_IMAGE_TAG = dev
-dev:
-	docker compose -f docker-compose.yml up $(DOCKER_COMPOSE_ARGS)
+dev: build-v2
+	docker compose -f docker-compose-v2.yml up $(DOCKER_COMPOSE_ARGS)
 
 .PHONY: clean-jaeger
 clean-jaeger:
@@ -29,3 +29,15 @@ clean-all: clean-jaeger
 	docker rmi -f otel/opentelemetry-collector-contrib:latest ; \
 	docker rmi -f prom/prometheus:latest ; \
 	docker rmi -f grafana/grafana:latest
+
+.PHONY: build-v2
+build: clean-jaeger
+	cd ../../ && make build-jaeger-linux
+	cd ../../ && make create-baseimg PLATFORMS=linux/$(shell go env GOARCH)
+	cd ../../ && docker buildx build --target release \
+		--tag jaegertracing/jaeger:dev \
+		--build-arg base_image=localhost:5000/baseimg_alpine:latest \
+		--build-arg debug_image=not-used \
+		--build-arg TARGETARCH=$(shell go env GOARCH) \
+		--load \
+		cmd/jaeger
