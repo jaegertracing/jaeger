@@ -24,7 +24,7 @@ func newTestFactory(t *testing.T) metrics.Factory {
 }
 
 func TestCounter(t *testing.T) {
-	factory := newTestFactory()
+	factory := newTestFactory(t)
 	counter := factory.Counter(metrics.Options{
 		Name: "test_counter",
 		Tags: map[string]string{"tag1": "value1"},
@@ -34,7 +34,7 @@ func TestCounter(t *testing.T) {
 }
 
 func TestGauge(t *testing.T) {
-	factory := newTestFactory()
+	factory := newTestFactory(t)
 	gauge := factory.Gauge(metrics.Options{
 		Name: "test_gauge",
 		Tags: map[string]string{"tag1": "value1"},
@@ -44,7 +44,7 @@ func TestGauge(t *testing.T) {
 }
 
 func TestHistogram(t *testing.T) {
-	factory := newTestFactory()
+	factory := newTestFactory(t)
 	histogram := factory.Histogram(metrics.HistogramOptions{
 		Name: "test_histogram",
 		Tags: map[string]string{"tag1": "value1"},
@@ -54,7 +54,7 @@ func TestHistogram(t *testing.T) {
 }
 
 func TestTimer(t *testing.T) {
-	factory := newTestFactory()
+	factory := newTestFactory(t)
 	timer := factory.Timer(metrics.TimerOptions{
 		Name: "test_timer",
 		Tags: map[string]string{"tag1": "value1"},
@@ -64,7 +64,7 @@ func TestTimer(t *testing.T) {
 }
 
 func TestNamespace(t *testing.T) {
-	factory := newTestFactory()
+	factory := newTestFactory(t)
 	nsFactory := factory.Namespace(metrics.NSOptions{
 		Name: "namespace",
 		Tags: map[string]string{"ns_tag1": "ns_value1"},
@@ -79,7 +79,7 @@ func TestNamespace(t *testing.T) {
 }
 
 func TestNormalization(t *testing.T) {
-	factory := newTestFactory()
+	factory := newTestFactory(t)
 	normalizedFactory := factory.Namespace(metrics.NSOptions{
 		Name: "My Namespace",
 	})
