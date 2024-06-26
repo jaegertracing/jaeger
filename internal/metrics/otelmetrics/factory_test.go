@@ -16,8 +16,9 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
-func newTestFactory() metrics.Factory {
-	exporter, _ := prometheus.New()
+func newTestFactory(t *testing.T) metrics.Factory {
+	exporter, err := prometheus.New()
+	require.NoError(t, err)
 	meterProvider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(exporter))
 	return otelmetrics.NewFactory(meterProvider)
 }
