@@ -16,30 +16,63 @@ import (
 )
 
 func Test_SimulateTraces(t *testing.T) {
-	logger, buf := testutils.NewLogger()
-	tp := sdktrace.NewTracerProvider()
-	tracers := []trace.Tracer{tp.Tracer("stdout")}
-	wg := sync.WaitGroup{}
-	wg.Add(1)
-	var running uint32 = 1
+	// First test case with Pause = time.Second
+	t.Run("Pause time.Second", func(t *testing.T) {
+		logger, buf := testutils.NewLogger()
+		tp := sdktrace.NewTracerProvider()
+		tracers := []trace.Tracer{tp.Tracer("stdout")}
+		wg := sync.WaitGroup{}
+		wg.Add(1)
+		var running uint32 = 1
 
-	worker := &worker{
-		logger:  logger,
-		tracers: tracers,
-		wg:      &wg,
-		id:      7,
-		running: &running,
-		Config: Config{
-			Traces:   7,
-			Duration: time.Second,
-			Pause:    time.Second,
-			Service:  "stdout",
-			Debug:    true,
-			Firehose: true,
-		},
-	}
-	expectedOutput := `{"level":"info","msg":"Worker 7 generated 7 traces"}` + "\n"
+		worker := &worker{
+			logger:  logger,
+			tracers: tracers,
+			wg:      &wg,
+			id:      7,
+			running: &running,
+			Config: Config{
+				Traces:   7,
+				Duration: time.Second,
+				Pause:    time.Second,
+				Service:  "stdout",
+				Debug:    true,
+				Firehose: true,
+			},
+		}
+		expectedOutput := `{"level":"info","msg":"Worker 7 generated 7 traces"}` + "\n"
 
-	worker.simulateTraces()
-	assert.Equal(t, expectedOutput, buf.String())
+		worker.simulateTraces()
+		assert.Equal(t, expectedOutput, buf.String())
+	})
+
+	// Second test case with Pause = 3 * time.Second
+	t.Run("Pause 3 * time.Second", func(t *testing.T) {
+		logger, buf := testutils.NewLogger()
+		tp := sdktrace.NewTracerProvider()
+		tracers := []trace.Tracer{tp.Tracer("stdout")}
+		wg := sync.WaitGroup{}
+		wg.Add(1)
+		var running uint32 = 1
+
+		worker := &worker{
+			logger:  logger,
+			tracers: tracers,
+			wg:      &wg,
+			id:      7,
+			running: &running,
+			Config: Config{
+				Traces:   7,
+				Duration: time.Second,
+				Pause:    3 * time.Second,
+				Service:  "stdout",
+				Debug:    true,
+				Firehose: true,
+			},
+		}
+		expectedOutput := `{"level":"info","msg":"Worker 7 generated 7 traces"}` + "\n"
+
+		worker.simulateTraces()
+		assert.Equal(t, expectedOutput, buf.String())
+	})
 }
