@@ -36,6 +36,7 @@ func findMetric(t *testing.T, registry *promReg.Registry, name string) *promMode
 			return mf
 		}
 	}
+	require.NotNil(t, name, "Expected to find Metric Family")
 	return nil
 }
 
@@ -52,7 +53,6 @@ func TestCounter(t *testing.T) {
 
 	// Find the metric in the registry
 	testCounter := findMetric(t, registry, "test_counter_total")
-	require.NotNil(t, testCounter, "Expected to find test_counter_total metric family")
 
 	// Check the metric values
 	metrics := testCounter.GetMetric()
@@ -70,7 +70,6 @@ func TestGauge(t *testing.T) {
 	gauge.Update(2)
 
 	testGauge := findMetric(t, registry, "test_gauge")
-	require.NotNil(t, testGauge, "Expected to find test_gauge metric family")
 
 	metrics := testGauge.GetMetric()
 	assert.Equal(t, float64(2), metrics[0].GetGauge().GetValue())
@@ -87,7 +86,7 @@ func TestHistogram(t *testing.T) {
 	histogram.Record(1.0)
 
 	testHistogram := findMetric(t, registry, "test_histogram")
-	require.NotNil(t, testHistogram, "Expected to find test_histogram metric family")
+
 	metrics := testHistogram.GetMetric()
 	assert.Equal(t, float64(1), metrics[0].GetHistogram().GetSampleSum())
 }
@@ -103,7 +102,7 @@ func TestTimer(t *testing.T) {
 	timer.Record(100 * time.Millisecond)
 
 	testTimer := findMetric(t, registry, "test_timer_seconds")
-	require.NotNil(t, testTimer, "Expected to find test_timer metric family")
+
 	metrics := testTimer.GetMetric()
 	assert.Equal(t, float64(0.1), metrics[0].GetHistogram().GetSampleSum())
 }
@@ -122,6 +121,12 @@ func TestNamespace(t *testing.T) {
 	})
 	require.NotNil(t, counter)
 	counter.Inc(1)
+
+
+	testCounter := findMetric(t, registry, "namespace_test_counter_total")
+
+	metrics := testCounter.GetMetric()
+	assert.Equal(t, float64(1), metrics[0].GetCounter().GetValue())
 }
 
 func TestNormalization(t *testing.T) {
@@ -135,6 +140,12 @@ func TestNormalization(t *testing.T) {
 		Name: "My Gauge",
 	})
 	require.NotNil(t, gauge)
+	gauge.Update(1)
+
+	testGauge := findMetric(t, registry, "My_Namespace_My_Gauge")
+
+	metrics := testGauge.GetMetric()
+	assert.Equal(t, float64(1), metrics[0].GetGauge().GetValue())
 }
 
 func TestNoopMeterProvider(t *testing.T) {
