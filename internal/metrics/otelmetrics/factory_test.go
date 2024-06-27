@@ -7,6 +7,9 @@ import (
 	"testing"
 	"time"
 
+	promReg "github.com/prometheus/client_golang/prometheus"
+	promModel "github.com/prometheus/client_model/go"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/exporters/prometheus"
 	"go.opentelemetry.io/otel/metric/noop"
@@ -16,55 +19,98 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
-func newTestFactory(t *testing.T) metrics.Factory {
-	exporter, err := prometheus.New()
+func newTestFactory(t *testing.T, registry *promReg.Registry) metrics.Factory {
+	exporter, err := prometheus.New(prometheus.WithRegisterer(registry))
 	require.NoError(t, err)
 	meterProvider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(exporter))
 	return otelmetrics.NewFactory(meterProvider)
 }
 
+func findMetric(t *testing.T, registry *promReg.Registry, name string) *promModel.MetricFamily {
+	metricFamilies, err := registry.Gather()
+	require.NoError(t, err)
+
+	for _, mf := range metricFamilies {
+		t.Log(mf.GetName())
+		if mf.GetName() == name {
+			return mf
+		}
+	}
+	return nil
+}
+
 func TestCounter(t *testing.T) {
-	factory := newTestFactory(t)
+	registry := promReg.NewPedanticRegistry()
+	factory := newTestFactory(t, registry)
 	counter := factory.Counter(metrics.Options{
 		Name: "test_counter",
 		Tags: map[string]string{"tag1": "value1"},
 	})
 	require.NotNil(t, counter)
 	counter.Inc(1)
+	counter.Inc(1)
+
+	// Find the metric in the registry
+	testCounter := findMetric(t, registry, "test_counter_total")
+	require.NotNil(t, testCounter, "Expected to find test_counter_total metric family")
+
+	// Check the metric values
+	metrics := testCounter.GetMetric()
+	assert.Equal(t, float64(2), metrics[0].GetCounter().GetValue())
 }
 
 func TestGauge(t *testing.T) {
-	factory := newTestFactory(t)
+	registry := promReg.NewPedanticRegistry()
+	factory := newTestFactory(t, registry)
 	gauge := factory.Gauge(metrics.Options{
 		Name: "test_gauge",
 		Tags: map[string]string{"tag1": "value1"},
 	})
 	require.NotNil(t, gauge)
-	gauge.Update(1)
+	gauge.Update(2)
+
+	testGauge := findMetric(t, registry, "test_gauge")
+	require.NotNil(t, testGauge, "Expected to find test_gauge metric family")
+
+	metrics := testGauge.GetMetric()
+	assert.Equal(t, float64(2), metrics[0].GetGauge().GetValue())
 }
 
 func TestHistogram(t *testing.T) {
-	factory := newTestFactory(t)
+	registry := promReg.NewPedanticRegistry()
+	factory := newTestFactory(t, registry)
 	histogram := factory.Histogram(metrics.HistogramOptions{
 		Name: "test_histogram",
 		Tags: map[string]string{"tag1": "value1"},
 	})
 	require.NotNil(t, histogram)
 	histogram.Record(1.0)
+
+	testHistogram := findMetric(t, registry, "test_histogram")
+	require.NotNil(t, testHistogram, "Expected to find test_histogram metric family")
+	metrics := testHistogram.GetMetric()
+	assert.Equal(t, float64(1), metrics[0].GetHistogram().GetSampleSum())
 }
 
 func TestTimer(t *testing.T) {
-	factory := newTestFactory(t)
+	registry := promReg.NewPedanticRegistry()
+	factory := newTestFactory(t, registry)
 	timer := factory.Timer(metrics.TimerOptions{
 		Name: "test_timer",
 		Tags: map[string]string{"tag1": "value1"},
 	})
 	require.NotNil(t, timer)
 	timer.Record(100 * time.Millisecond)
+
+	testTimer := findMetric(t, registry, "test_timer_seconds")
+	require.NotNil(t, testTimer, "Expected to find test_timer metric family")
+	metrics := testTimer.GetMetric()
+	assert.Equal(t, float64(0.1), metrics[0].GetHistogram().GetSampleSum())
 }
 
 func TestNamespace(t *testing.T) {
-	factory := newTestFactory(t)
+	registry := promReg.NewPedanticRegistry()
+	factory := newTestFactory(t, registry)
 	nsFactory := factory.Namespace(metrics.NSOptions{
 		Name: "namespace",
 		Tags: map[string]string{"ns_tag1": "ns_value1"},
@@ -79,7 +125,8 @@ func TestNamespace(t *testing.T) {
 }
 
 func TestNormalization(t *testing.T) {
-	factory := newTestFactory(t)
+	registry := promReg.NewPedanticRegistry()
+	factory := newTestFactory(t, registry)
 	normalizedFactory := factory.Namespace(metrics.NSOptions{
 		Name: "My Namespace",
 	})
