@@ -4,7 +4,11 @@ service:
     traces:
       receivers: [otlp, jaeger, zipkin]
       processors: [batch]
-      exporters: [jaeger_storage_exporter]
+      exporters: [jaeger_storage_exporter, spanmetrics]
+    metrics/spanmetrics:
+      receivers: [spanmetrics] 
+      exporters: [prometheus] 
+
 
 extensions:
   jaeger_query:
@@ -14,6 +18,9 @@ extensions:
     memory:
       memstore:
         max_traces: 100000
+
+connectors:
+  spanmetrics:
 
 receivers:
   otlp:
@@ -36,3 +43,5 @@ processors:
 exporters:
   jaeger_storage_exporter:
     trace_storage: memstore
+  prometheus: 
+    endpoint: "0.0.0.0:8889"

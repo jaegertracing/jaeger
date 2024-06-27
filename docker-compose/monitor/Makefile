@@ -14,7 +14,12 @@ build: clean-jaeger
 # Note: the jaeger "dev" image can be built with "make build".
 .PHONY: dev
 dev: export JAEGER_IMAGE_TAG = dev
-dev: build-v2
+dev: 
+	docker compose -f docker-compose.yml up $(DOCKER_COMPOSE_ARGS)
+
+.PHONY: dev-v2
+dev-v2: export JAEGER_IMAGE_TAG = dev
+dev-v2: build-v2
 	docker compose -f docker-compose-v2.yml up $(DOCKER_COMPOSE_ARGS)
 
 .PHONY: clean-jaeger
@@ -31,7 +36,7 @@ clean-all: clean-jaeger
 	docker rmi -f grafana/grafana:latest
 
 .PHONY: build-v2
-build: clean-jaeger
+build-v2: clean-jaeger
 	cd ../../ && make build-jaeger-linux
 	cd ../../ && make create-baseimg PLATFORMS=linux/$(shell go env GOARCH)
 	cd ../../ && docker buildx build --target release \
