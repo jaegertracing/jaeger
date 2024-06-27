@@ -55,10 +55,7 @@ func TestCounter(t *testing.T) {
 	counter.Inc(1)
 	counter.Inc(1)
 
-	// Find the metric in the registry
 	testCounter := findMetric(t, registry, "test_counter_total")
-
-	// Check the metric values
 	metrics := testCounter.GetMetric()
 	assert.Equal(t, float64(2), metrics[0].GetCounter().GetValue())
 }
