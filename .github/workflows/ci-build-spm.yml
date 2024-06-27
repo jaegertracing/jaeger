@@ -49,7 +49,7 @@ jobs:
 
     - name: Temporary - only run the build
       run: |
-        case ${{ matrix.mode.version }} in
+        case ${{ matrix.mode.name }} in
           v1)
             cd docker-compose/monitor && make build
             ;;
