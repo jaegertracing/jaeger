@@ -14,7 +14,12 @@ import (
 	"github.com/jaegertracing/jaeger/internal/metrics/otelmetrics"
 	prom "github.com/jaegertracing/jaeger/internal/metrics/prometheus"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/pkg/testutils"
 )
+
+func TestMain(m *testing.M) {
+	testutils.VerifyGoLeaks(m)
+}
 
 func setupPrometheusFactory() metrics.Factory {
 	reg := prometheus.NewRegistry()
