@@ -40,8 +40,32 @@ func findMetric(t *testing.T, registry *promReg.Registry, name string) *promMode
 			return mf
 		}
 	}
-	require.NotNil(t, name, "Expected to find Metric Family")
+	require.Fail(t, "Expected to find Metric Family")
 	return nil
+}
+
+func checkLabels(t *testing.T, expectedLabels map[string]string, labels []*promModel.LabelPair) {
+	for key, value := range expectedLabels {
+		found := false
+		for _, label := range labels {
+			if label.GetName() == key {
+				assert.Equal(t, value, label.GetValue())
+				found = true
+				break
+			}
+		}
+		assert.True(t, found, "Label %s not found", key)
+	}
+}
+
+func TestInvalidMetric(t *testing.T) {
+	registry := promReg.NewPedanticRegistry()
+	factory := newTestFactory(t, registry)
+	counter := factory.Counter(metrics.Options{
+		Name: "invalid*name%",
+		Tags: map[string]string{"tag1": "value1"},
+	})
+	assert.True(t, counter == metrics.NullCounter, "Expected NullCounter, got %v", counter)
 }
 
 func TestCounter(t *testing.T) {
@@ -58,6 +82,8 @@ func TestCounter(t *testing.T) {
 	testCounter := findMetric(t, registry, "test_counter_total")
 	metrics := testCounter.GetMetric()
 	assert.Equal(t, float64(2), metrics[0].GetCounter().GetValue())
+	expectedLabels := map[string]string{"tag1": "value1"}
+	checkLabels(t, expectedLabels, metrics[0].GetLabel())
 }
 
 func TestGauge(t *testing.T) {
@@ -74,6 +100,8 @@ func TestGauge(t *testing.T) {
 
 	metrics := testGauge.GetMetric()
 	assert.Equal(t, float64(2), metrics[0].GetGauge().GetValue())
+	expectedLabels := map[string]string{"tag1": "value1"}
+	checkLabels(t, expectedLabels, metrics[0].GetLabel())
 }
 
 func TestHistogram(t *testing.T) {
@@ -90,6 +118,8 @@ func TestHistogram(t *testing.T) {
 
 	metrics := testHistogram.GetMetric()
 	assert.Equal(t, float64(1), metrics[0].GetHistogram().GetSampleSum())
+	expectedLabels := map[string]string{"tag1": "value1"}
+	checkLabels(t, expectedLabels, metrics[0].GetLabel())
 }
 
 func TestTimer(t *testing.T) {
@@ -106,6 +136,8 @@ func TestTimer(t *testing.T) {
 
 	metrics := testTimer.GetMetric()
 	assert.Equal(t, float64(0.1), metrics[0].GetHistogram().GetSampleSum())
+	expectedLabels := map[string]string{"tag1": "value1"}
+	checkLabels(t, expectedLabels, metrics[0].GetLabel())
 }
 
 func TestNamespace(t *testing.T) {
@@ -127,6 +159,8 @@ func TestNamespace(t *testing.T) {
 
 	metrics := testCounter.GetMetric()
 	assert.Equal(t, float64(1), metrics[0].GetCounter().GetValue())
+	expectedLabels := map[string]string{"tag1": "value1"}
+	checkLabels(t, expectedLabels, metrics[0].GetLabel())
 }
 
 func TestNormalization(t *testing.T) {
