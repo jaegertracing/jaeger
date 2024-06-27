@@ -43,6 +43,7 @@ func TestOptionsWithFlags(t *testing.T) {
 		"--kafka.consumer.protocol-version=1.0.0",
 		"--ingester.parallelism=5",
 		"--ingester.deadlockInterval=2m",
+		"--kafka.consumer.authentication=tls",
 	})
 	o.InitFromViper(v)
 
@@ -56,6 +57,7 @@ func TestOptionsWithFlags(t *testing.T) {
 	assert.Equal(t, 5, o.Parallelism)
 	assert.Equal(t, 2*time.Minute, o.DeadlockInterval)
 	assert.Equal(t, kafka.EncodingJSON, o.Encoding)
+	assert.Equal(t, "tls", o.AuthenticationConfig.Authentication)
 }
 
 func TestTLSFlags(t *testing.T) {

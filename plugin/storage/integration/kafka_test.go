@@ -82,6 +82,7 @@ func (s *KafkaIntegrationTestSuite) initialize(t *testing.T) {
 		clientID,
 		"--ingester.parallelism",
 		"1000",
+		"--kafka.consumer.authentication=plaintext",
 	})
 	require.NoError(t, err)
 	options := app.Options{
