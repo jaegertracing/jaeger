@@ -35,7 +35,6 @@ func findMetric(t *testing.T, registry *promReg.Registry, name string) *promMode
 	require.NoError(t, err)
 
 	for _, mf := range metricFamilies {
-		t.Log(mf.GetName())
 		if mf.GetName() == name {
 			return mf
 		}
@@ -44,18 +43,12 @@ func findMetric(t *testing.T, registry *promReg.Registry, name string) *promMode
 	return nil
 }
 
-func checkLabels(t *testing.T, expectedLabels map[string]string, labels []*promModel.LabelPair) {
-	for key, value := range expectedLabels {
-		found := false
-		for _, label := range labels {
-			if label.GetName() == key {
-				assert.Equal(t, value, label.GetValue())
-				found = true
-				break
-			}
-		}
-		assert.True(t, found, "Label %s not found", key)
+func promLabelsToMap(labels []*promModel.LabelPair) map[string]string {
+	labelMap := make(map[string]string)
+	for _, label := range labels {
+		labelMap[label.GetName()] = label.GetValue()
 	}
+	return labelMap
 }
 
 func TestInvalidMetric(t *testing.T) {
@@ -65,7 +58,7 @@ func TestInvalidMetric(t *testing.T) {
 		Name: "invalid*name%",
 		Tags: map[string]string{"tag1": "value1"},
 	})
-	assert.True(t, counter == metrics.NullCounter, "Expected NullCounter, got %v", counter)
+	assert.Equal(t, counter, metrics.NullCounter, "Expected NullCounter, got %v", counter)
 }
 
 func TestCounter(t *testing.T) {
@@ -82,8 +75,12 @@ func TestCounter(t *testing.T) {
 	testCounter := findMetric(t, registry, "test_counter_total")
 	metrics := testCounter.GetMetric()
 	assert.Equal(t, float64(2), metrics[0].GetCounter().GetValue())
-	expectedLabels := map[string]string{"tag1": "value1"}
-	checkLabels(t, expectedLabels, metrics[0].GetLabel())
+	expectedLabels := map[string]string{
+		"tag1":               "value1",
+		"otel_scope_name":    "jaeger-v2",
+		"otel_scope_version": "",
+	}
+	assert.Equal(t, expectedLabels, promLabelsToMap(metrics[0].GetLabel()))
 }
 
 func TestGauge(t *testing.T) {
@@ -100,8 +97,12 @@ func TestGauge(t *testing.T) {
 
 	metrics := testGauge.GetMetric()
 	assert.Equal(t, float64(2), metrics[0].GetGauge().GetValue())
-	expectedLabels := map[string]string{"tag1": "value1"}
-	checkLabels(t, expectedLabels, metrics[0].GetLabel())
+	expectedLabels := map[string]string{
+		"tag1":               "value1",
+		"otel_scope_name":    "jaeger-v2",
+		"otel_scope_version": "",
+	}
+	assert.Equal(t, expectedLabels, promLabelsToMap(metrics[0].GetLabel()))
 }
 
 func TestHistogram(t *testing.T) {
@@ -118,8 +119,12 @@ func TestHistogram(t *testing.T) {
 
 	metrics := testHistogram.GetMetric()
 	assert.Equal(t, float64(1), metrics[0].GetHistogram().GetSampleSum())
-	expectedLabels := map[string]string{"tag1": "value1"}
-	checkLabels(t, expectedLabels, metrics[0].GetLabel())
+	expectedLabels := map[string]string{
+		"tag1":               "value1",
+		"otel_scope_name":    "jaeger-v2",
+		"otel_scope_version": "",
+	}
+	assert.Equal(t, expectedLabels, promLabelsToMap(metrics[0].GetLabel()))
 }
 
 func TestTimer(t *testing.T) {
@@ -136,31 +141,81 @@ func TestTimer(t *testing.T) {
 
 	metrics := testTimer.GetMetric()
 	assert.Equal(t, float64(0.1), metrics[0].GetHistogram().GetSampleSum())
-	expectedLabels := map[string]string{"tag1": "value1"}
-	checkLabels(t, expectedLabels, metrics[0].GetLabel())
+	expectedLabels := map[string]string{
+		"tag1":               "value1",
+		"otel_scope_name":    "jaeger-v2",
+		"otel_scope_version": "",
+	}
+	assert.Equal(t, expectedLabels, promLabelsToMap(metrics[0].GetLabel()))
 }
 
 func TestNamespace(t *testing.T) {
-	registry := promReg.NewPedanticRegistry()
-	factory := newTestFactory(t, registry)
-	nsFactory := factory.Namespace(metrics.NSOptions{
-		Name: "namespace",
-		Tags: map[string]string{"ns_tag1": "ns_value1"},
-	})
+	testCases := []struct {
+		nsOptions      metrics.NSOptions
+		expectedName   string
+		expectedLabels map[string]string
+	}{
+		{
+			nsOptions: metrics.NSOptions{
+				Name: "first_namespace",
+				Tags: map[string]string{"ns_tag1": "ns_value1"},
+			},
+			expectedName: "first_namespace_test_counter_total",
+			expectedLabels: map[string]string{
+				"ns_tag1":            "ns_value1",
+				"tag1":               "value1",
+				"otel_scope_name":    "jaeger-v2",
+				"otel_scope_version": "",
+			},
+		},
+		{
+			nsOptions: metrics.NSOptions{
+				Name: "second_namespace",
+				Tags: map[string]string{"ns_tag2": "ns_value2"},
+			},
+			expectedName: "second_namespace_test_counter_total",
+			expectedLabels: map[string]string{
+				"ns_tag2":            "ns_value2",
+				"tag1":               "value1",
+				"otel_scope_name":    "jaeger-v2",
+				"otel_scope_version": "",
+			},
+		},
+		{
+			nsOptions: metrics.NSOptions{
+				Name: "third_namespace",
+				Tags: map[string]string{"ns_tag3": "ns_value3"},
+			},
+			expectedName: "third_namespace_test_counter_total",
+			expectedLabels: map[string]string{
+				"ns_tag3":            "ns_value3",
+				"tag1":               "value1",
+				"otel_scope_name":    "jaeger-v2",
+				"otel_scope_version": "",
+			},
+		},
+	}
 
-	counter := nsFactory.Counter(metrics.Options{
-		Name: "test_counter",
-		Tags: map[string]string{"tag1": "value1"},
-	})
-	require.NotNil(t, counter)
-	counter.Inc(1)
+	for _, tc := range testCases {
+		t.Run(tc.expectedName, func(t *testing.T) {
+			registry := promReg.NewPedanticRegistry()
+			factory := newTestFactory(t, registry)
+			nsFactory := factory.Namespace(tc.nsOptions)
 
-	testCounter := findMetric(t, registry, "namespace_test_counter_total")
+			counter := nsFactory.Counter(metrics.Options{
+				Name: "test_counter",
+				Tags: map[string]string{"tag1": "value1"},
+			})
+			require.NotNil(t, counter)
+			counter.Inc(1)
 
-	metrics := testCounter.GetMetric()
-	assert.Equal(t, float64(1), metrics[0].GetCounter().GetValue())
-	expectedLabels := map[string]string{"tag1": "value1"}
-	checkLabels(t, expectedLabels, metrics[0].GetLabel())
+			testCounter := findMetric(t, registry, tc.expectedName)
+
+			metrics := testCounter.GetMetric()
+			assert.Equal(t, float64(1), metrics[0].GetCounter().GetValue())
+			assert.Equal(t, tc.expectedLabels, promLabelsToMap(metrics[0].GetLabel()))
+		})
+	}
 }
 
 func TestNormalization(t *testing.T) {
