@@ -18,6 +18,14 @@ permissions:
 jobs:
   spm:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        mode:
+        - name: v1
+          binary: all-in-one
+        - name: v2
+          binary: jaeger
+
     steps:
     - name: Harden Runner
       uses: step-security/harden-runner@17d0e2bd7d51742c71671bd19fa12bdc9d40a3d6 # v2.8.1
@@ -40,9 +48,15 @@ jobs:
       uses: ./.github/actions/setup-node.js
 
     - name: Temporary - only run the build
-      run:
-        cd docker-compose/monitor && make build
+      run: |
+        case ${{ matrix.mode.version }} in
+          v1)
+            cd docker-compose/monitor && make build
+            ;;
+          v2)
+            cd docker-compose/monitor && make build-v2
+            ;;
+        esac
         
     - name: Run SPM Test
-      run: ./scripts/spm-integration-test.sh
-
+      run:  bash scripts/spm-integration-test.sh  -b ${{ matrix.mode.binary }}

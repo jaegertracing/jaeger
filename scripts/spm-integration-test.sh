@@ -2,7 +2,31 @@
 
 set -euf -o pipefail
 
+print_help() {
+  echo "Usage: $0 [-b binary]"
+  echo "-b: Which binary to build: 'all-in-one' (default) or 'jaeger' (v2)"
+  echo "-h: Print help"
+  exit 1
+}
+
+BINARY='all-in-one'
 compose_file=docker-compose/monitor/docker-compose.yml
+
+while getopts "b:h" opt; do
+	case "${opt}" in
+	b)
+		BINARY=${OPTARG}
+		;;
+	?)
+		print_help
+		;;
+	esac
+done
+
+if [ "$BINARY" == "jaeger" ]; then
+  compose_file=docker-compose/monitor/docker-compose-v2.yml
+fi
+
 timeout=300
 end_time=$((SECONDS + timeout))
 success="false"
@@ -115,7 +139,11 @@ teardown_services() {
 }
 
 main() {
-  (cd docker-compose/monitor && make build && make dev DOCKER_COMPOSE_ARGS="-d")
+  if [ "$BINARY" == "jaeger" ]; then
+    (cd docker-compose/monitor && make build-v2 && make dev-v2 DOCKER_COMPOSE_ARGS="-d")
+  else
+    (cd docker-compose/monitor && make build && make dev DOCKER_COMPOSE_ARGS="-d")
+  fi
   wait_for_services
   check_spm
   success="true"
