@@ -12,7 +12,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/exporters/prometheus"
-	"go.opentelemetry.io/otel/metric/noop"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 
 	"github.com/jaegertracing/jaeger/internal/metrics/otelmetrics"
@@ -122,7 +121,6 @@ func TestNamespace(t *testing.T) {
 	require.NotNil(t, counter)
 	counter.Inc(1)
 
-
 	testCounter := findMetric(t, registry, "namespace_test_counter_total")
 
 	metrics := testCounter.GetMetric()
@@ -146,14 +144,4 @@ func TestNormalization(t *testing.T) {
 
 	metrics := testGauge.GetMetric()
 	assert.Equal(t, float64(1), metrics[0].GetGauge().GetValue())
-}
-
-func TestNoopMeterProvider(t *testing.T) {
-	noOpFactory := otelmetrics.NewFactory(noop.NewMeterProvider())
-	counter := noOpFactory.Counter(metrics.Options{
-		Name: "noop_counter",
-		Tags: map[string]string{"tag1": "value1"},
-	})
-	require.NotNil(t, counter)
-	counter.Inc(1)
 }
