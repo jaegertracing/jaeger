@@ -174,7 +174,7 @@ func TestNamespace(t *testing.T) {
 		expectedName   string
 		expectedLabels map[string]string
 	}{
-		//Test Nested Namespace
+		// Test Nested Namespace
 		{
 			nsOptions: metrics.NSOptions{
 				Name: "first_namespace",
@@ -187,15 +187,11 @@ func TestNamespace(t *testing.T) {
 				"tag1":    "value1",
 			},
 		},
-		//Test Empty Namespace
+		// Test Empty Namespace
 		{
-			nsOptions: metrics.NSOptions{
-				Name: "",
-				Tags: map[string]string{"ns_tag2": "ns_value2"},
-			},
+			nsOptions: metrics.NSOptions{},
 			expectedName: "second_namespace_test_counter_total",
 			expectedLabels: map[string]string{
-				"ns_tag2": "ns_value2",
 				"ns_tag3": "ns_value3",
 				"tag1":    "value1",
 			},
