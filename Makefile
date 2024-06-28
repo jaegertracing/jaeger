@@ -257,10 +257,6 @@ rebuild-ui:
 build-all-in-one-linux:
 	GOOS=linux $(MAKE) build-all-in-one
 
-.PHONY: build-jaeger-linux
-build-jaeger-linux:
-	GOOS=linux $(MAKE) build-jaeger
-
 # Requires variables: $(BIN_NAME) $(BIN_PATH) $(GO_TAGS) $(DISABLE_OPTIMIZATIONS) $(SUFFIX) $(GOOS) $(GOARCH) $(BUILD_INFO)
 # Other targets can depend on this one but with a unique suffix to ensure it is always executed.
 BIN_PATH = ./cmd/$(BIN_NAME)
