@@ -48,15 +48,6 @@ jobs:
       uses: ./.github/actions/setup-node.js
 
     - name: Temporary - only run the build
-      run: |
-        case ${{ matrix.mode.name }} in
-          v1)
-            cd docker-compose/monitor && make build
-            ;;
-          v2)
-            cd docker-compose/monitor && make build-v2
-            ;;
-        esac
-        
+      run: make build-${{ matrix.mode.name }}
     - name: Run SPM Test
       run:  bash scripts/spm-integration-test.sh  -b ${{ matrix.mode.binary }}
