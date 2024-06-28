@@ -24,7 +24,7 @@ func TestMain(m *testing.M) {
 }
 
 func newTestFactory(t *testing.T, registry *promReg.Registry) metrics.Factory {
-	exporter, err := prometheus.New(prometheus.WithRegisterer(registry))
+	exporter, err := prometheus.New(prometheus.WithRegisterer(registry), prometheus.WithoutScopeInfo())
 	require.NoError(t, err)
 	meterProvider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(exporter))
 	return otelmetrics.NewFactory(meterProvider)
@@ -102,9 +102,7 @@ func TestCounter(t *testing.T) {
 	metrics := testCounter.GetMetric()
 	assert.Equal(t, float64(2), metrics[0].GetCounter().GetValue())
 	expectedLabels := map[string]string{
-		"tag1":               "value1",
-		"otel_scope_name":    "jaeger-v2",
-		"otel_scope_version": "",
+		"tag1": "value1",
 	}
 	assert.Equal(t, expectedLabels, promLabelsToMap(metrics[0].GetLabel()))
 }
@@ -124,9 +122,7 @@ func TestGauge(t *testing.T) {
 	metrics := testGauge.GetMetric()
 	assert.Equal(t, float64(2), metrics[0].GetGauge().GetValue())
 	expectedLabels := map[string]string{
-		"tag1":               "value1",
-		"otel_scope_name":    "jaeger-v2",
-		"otel_scope_version": "",
+		"tag1": "value1",
 	}
 	assert.Equal(t, expectedLabels, promLabelsToMap(metrics[0].GetLabel()))
 }
@@ -146,9 +142,7 @@ func TestHistogram(t *testing.T) {
 	metrics := testHistogram.GetMetric()
 	assert.Equal(t, float64(1), metrics[0].GetHistogram().GetSampleSum())
 	expectedLabels := map[string]string{
-		"tag1":               "value1",
-		"otel_scope_name":    "jaeger-v2",
-		"otel_scope_version": "",
+		"tag1": "value1",
 	}
 	assert.Equal(t, expectedLabels, promLabelsToMap(metrics[0].GetLabel()))
 }
@@ -168,9 +162,7 @@ func TestTimer(t *testing.T) {
 	metrics := testTimer.GetMetric()
 	assert.Equal(t, float64(0.1), metrics[0].GetHistogram().GetSampleSum())
 	expectedLabels := map[string]string{
-		"tag1":               "value1",
-		"otel_scope_name":    "jaeger-v2",
-		"otel_scope_version": "",
+		"tag1": "value1",
 	}
 	assert.Equal(t, expectedLabels, promLabelsToMap(metrics[0].GetLabel()))
 }
@@ -190,8 +182,6 @@ func TestNamespace(t *testing.T) {
 			expectedLabels: map[string]string{
 				"ns_tag1":            "ns_value1",
 				"tag1":               "value1",
-				"otel_scope_name":    "jaeger-v2",
-				"otel_scope_version": "",
 			},
 		},
 		{
@@ -203,8 +193,6 @@ func TestNamespace(t *testing.T) {
 			expectedLabels: map[string]string{
 				"ns_tag2":            "ns_value2",
 				"tag1":               "value1",
-				"otel_scope_name":    "jaeger-v2",
-				"otel_scope_version": "",
 			},
 		},
 	}
