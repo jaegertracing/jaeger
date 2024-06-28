@@ -51,14 +51,40 @@ func promLabelsToMap(labels []*promModel.LabelPair) map[string]string {
 	return labelMap
 }
 
-func TestInvalidMetric(t *testing.T) {
+func TestInvalidCounter(t *testing.T) {
 	registry := promReg.NewPedanticRegistry()
 	factory := newTestFactory(t, registry)
 	counter := factory.Counter(metrics.Options{
-		Name: "invalid*name%",
-		Tags: map[string]string{"tag1": "value1"},
+		Name: "invalid*counter%",
 	})
 	assert.Equal(t, counter, metrics.NullCounter, "Expected NullCounter, got %v", counter)
+}
+
+func TestInvalidGauge(t *testing.T) {
+	registry := promReg.NewPedanticRegistry()
+	factory := newTestFactory(t, registry)
+	gauge := factory.Gauge(metrics.Options{
+		Name: "#invalid>gauge%",
+	})
+	assert.Equal(t, gauge, metrics.NullGauge, "Expected NullCounter, got %v", gauge)
+}
+
+func TestInvalidHistogram(t *testing.T) {
+	registry := promReg.NewPedanticRegistry()
+	factory := newTestFactory(t, registry)
+	histogram := factory.Histogram(metrics.HistogramOptions{
+		Name: "invalid>histogram?%",
+	})
+	assert.Equal(t, histogram, metrics.NullHistogram, "Expected NullCounter, got %v", histogram)
+}
+
+func TestInvalidTimer(t *testing.T) {
+	registry := promReg.NewPedanticRegistry()
+	factory := newTestFactory(t, registry)
+	timer := factory.Timer(metrics.TimerOptions{
+		Name: "invalid*<=timer%",
+	})
+	assert.Equal(t, timer, metrics.NullTimer, "Expected NullCounter, got %v", timer)
 }
 
 func TestCounter(t *testing.T) {
