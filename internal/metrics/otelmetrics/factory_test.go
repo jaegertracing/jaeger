@@ -189,7 +189,7 @@ func TestNamespace(t *testing.T) {
 		},
 		// Test Empty Namespace
 		{
-			nsOptions: metrics.NSOptions{},
+			nsOptions:    metrics.NSOptions{},
 			expectedName: "second_namespace_test_counter_total",
 			expectedLabels: map[string]string{
 				"ns_tag3": "ns_value3",
