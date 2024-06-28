@@ -139,12 +139,11 @@ teardown_services() {
 }
 
 main() {
-  (cd docker-compose/monitor && make build BINARY="$BINARY")
   if [ "$BINARY" == "jaeger" ]; then
-    (make dev-v2 DOCKER_COMPOSE_ARGS="-d")
+    (cd docker-compose/monitor && make build BINARY="$BINARY" && make dev-v2 DOCKER_COMPOSE_ARGS="-d")
   else
-    (make dev DOCKER_COMPOSE_ARGS="-d")
-  fi
+    (cd docker-compose/monitor && make build BINARY="$BINARY" && make dev DOCKER_COMPOSE_ARGS="-d")
+  fi 
   wait_for_services
   check_spm
   success="true"
