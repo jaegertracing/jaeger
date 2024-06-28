@@ -196,25 +196,12 @@ func TestNamespace(t *testing.T) {
 		},
 		{
 			nsOptions: metrics.NSOptions{
-				Name: "second_namespace",
+				Name: "",
 				Tags: map[string]string{"ns_tag2": "ns_value2"},
 			},
-			expectedName: "second_namespace_test_counter_total",
+			expectedName: "test_counter_total",
 			expectedLabels: map[string]string{
 				"ns_tag2":            "ns_value2",
-				"tag1":               "value1",
-				"otel_scope_name":    "jaeger-v2",
-				"otel_scope_version": "",
-			},
-		},
-		{
-			nsOptions: metrics.NSOptions{
-				Name: "third_namespace",
-				Tags: map[string]string{"ns_tag3": "ns_value3"},
-			},
-			expectedName: "third_namespace_test_counter_total",
-			expectedLabels: map[string]string{
-				"ns_tag3":            "ns_value3",
 				"tag1":               "value1",
 				"otel_scope_name":    "jaeger-v2",
 				"otel_scope_version": "",
