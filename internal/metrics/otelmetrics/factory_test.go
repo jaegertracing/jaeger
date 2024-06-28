@@ -35,6 +35,7 @@ func findMetric(t *testing.T, registry *promReg.Registry, name string) *promMode
 	require.NoError(t, err)
 
 	for _, mf := range metricFamilies {
+		t.Log(mf.GetName())
 		if mf.GetName() == name {
 			return mf
 		}
@@ -173,26 +174,30 @@ func TestNamespace(t *testing.T) {
 		expectedName   string
 		expectedLabels map[string]string
 	}{
+		//Test Nested Namespace
 		{
 			nsOptions: metrics.NSOptions{
 				Name: "first_namespace",
 				Tags: map[string]string{"ns_tag1": "ns_value1"},
 			},
-			expectedName: "first_namespace_test_counter_total",
+			expectedName: "first_namespace_second_namespace_test_counter_total",
 			expectedLabels: map[string]string{
-				"ns_tag1":            "ns_value1",
-				"tag1":               "value1",
+				"ns_tag1": "ns_value1",
+				"ns_tag3": "ns_value3",
+				"tag1":    "value1",
 			},
 		},
+		//Test Empty Namespace
 		{
 			nsOptions: metrics.NSOptions{
 				Name: "",
 				Tags: map[string]string{"ns_tag2": "ns_value2"},
 			},
-			expectedName: "test_counter_total",
+			expectedName: "second_namespace_test_counter_total",
 			expectedLabels: map[string]string{
-				"ns_tag2":            "ns_value2",
-				"tag1":               "value1",
+				"ns_tag2": "ns_value2",
+				"ns_tag3": "ns_value3",
+				"tag1":    "value1",
 			},
 		},
 	}
@@ -201,9 +206,13 @@ func TestNamespace(t *testing.T) {
 		t.Run(tc.expectedName, func(t *testing.T) {
 			registry := promReg.NewPedanticRegistry()
 			factory := newTestFactory(t, registry)
-			nsFactory := factory.Namespace(tc.nsOptions)
+			nsFactory1 := factory.Namespace(tc.nsOptions)
+			nsFactory2 := nsFactory1.Namespace(metrics.NSOptions{
+				Name: "second_namespace",
+				Tags: map[string]string{"ns_tag3": "ns_value3"},
+			})
 
-			counter := nsFactory.Counter(metrics.Options{
+			counter := nsFactory2.Counter(metrics.Options{
 				Name: "test_counter",
 				Tags: map[string]string{"tag1": "value1"},
 			})
