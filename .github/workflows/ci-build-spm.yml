@@ -48,7 +48,7 @@ jobs:
       uses: ./.github/actions/setup-node.js
 
     - name: Temporary - only run the build
-      run:  cd docker-compose/monitor && make build BINARY = ${{ matrix.mode.binary }}
+      run:  cd docker-compose/monitor && make build BINARY=${{ matrix.mode.binary }}
       
     - name: Run SPM Test
       run:  bash scripts/spm-integration-test.sh  -b ${{ matrix.mode.binary }}
