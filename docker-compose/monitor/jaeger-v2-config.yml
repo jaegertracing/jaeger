@@ -2,7 +2,7 @@ service:
   extensions: [jaeger_storage, jaeger_query]
   pipelines:
     traces:
-      receivers: [otlp, jaeger, zipkin]
+      receivers: [otlp, jaeger]
       processors: [batch]
       exporters: [jaeger_storage_exporter, spanmetrics]
     metrics/spanmetrics:
@@ -31,11 +31,6 @@ receivers:
   jaeger:
     protocols:
       grpc:
-      thrift_binary:
-      thrift_compact:
-      thrift_http:
-
-  zipkin:
 
 processors:
   batch:

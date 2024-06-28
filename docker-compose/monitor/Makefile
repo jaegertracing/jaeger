@@ -10,6 +10,9 @@ build: clean-jaeger
 		--load \
 		cmd/all-in-one
 
+.PHONY: build-v1
+build-v1: build
+
 # starts up the system required for SPM using the latest otel image and a development jaeger image.
 # Note: the jaeger "dev" image can be built with "make build".
 .PHONY: dev
