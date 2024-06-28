@@ -139,7 +139,7 @@ teardown_services() {
 }
 
 main() {
-  (cd docker-compose/monitor && make build BINARY=$BINARY)
+  (cd docker-compose/monitor && make build BINARY="$BINARY")
   if [ "$BINARY" == "jaeger" ]; then
     (make dev-v2 DOCKER_COMPOSE_ARGS="-d")
   else
