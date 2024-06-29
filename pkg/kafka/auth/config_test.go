@@ -117,7 +117,7 @@ func TestSetConfiguration(t *testing.T) {
 			"--kafka.auth.plaintext.username=user",
 			"--kafka.auth.plaintext.password=password",
 			"--kafka.auth.plaintext.mechanism=SCRAM-SHA-256",
-			"--kafka.producer.kerberos.use-keytab=false",
+			"--kafka.auth.kerberos.use-keytab=false",
 		})
 		authConfig = &AuthenticationConfig{}
 		err := authConfig.InitFromViper(configPrefix, v)
@@ -138,11 +138,14 @@ func TestSetConfiguration(t *testing.T) {
 	testPlaintext(v, t, configPrefix, logger, "SCRAM-SHA-512", saramaConfig)
 	testPlaintext(v, t, configPrefix, logger, "PLAIN", saramaConfig)
 
-	// Test with tls
-	parseFlagsAndInit("tls")
-	require.NoError(t, authConfig.SetConfiguration(saramaConfig, logger))
-
 	// Test with no authentication
 	parseFlagsAndInit(" ")
 	require.NoError(t, authConfig.SetConfiguration(saramaConfig, logger))
+
+	// Test with tls
+	parseFlagsAndInit("tls")
+	require.NoError(t, authConfig.SetConfiguration(saramaConfig, logger))
+	// test tls_fail
+	authConfig.TLS.CipherSuites = []string{"fail"}
+	require.Error(t, authConfig.SetConfiguration(saramaConfig, logger))
 }
