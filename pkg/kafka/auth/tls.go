@@ -26,6 +26,8 @@ import (
 func setTLSConfiguration(config *tlscfg.Options, saramaConfig *sarama.Config, logger *zap.Logger) error {
 	if config.Enabled {
 		tlsConfig, err := config.Config(logger)
+		defer config.Close()
+
 		if err != nil {
 			return fmt.Errorf("error loading tls config: %w", err)
 		}

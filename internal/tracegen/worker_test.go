@@ -7,7 +7,7 @@ import (
 	"sync"
 	"testing"
 	"time"
-	"fmt"
+
 	"github.com/stretchr/testify/assert"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/trace"
@@ -41,7 +41,6 @@ func Test_SimulateTraces(t *testing.T) {
 			},
 		}
 		expectedOutput := `{"level":"info","msg":"Worker 7 generated 7 traces"}` + "\n"
-		fmt.Println(worker.Pause)
 		worker.simulateTraces()
 		assert.Equal(t, expectedOutput, buf.String())
 	})
@@ -63,12 +62,12 @@ func Test_SimulateTraces(t *testing.T) {
 			running: &running,
 			Config: Config{
 				ChildSpans: 1,
-				Traces:   7,
-				Duration: time.Second,
-				Pause:    time.Second,
-				Service:  "stdout",
-				Debug:    true,
-				Firehose: true,
+				Traces:     7,
+				Duration:   time.Second,
+				Pause:      time.Second,
+				Service:    "stdout",
+				Debug:      true,
+				Firehose:   true,
 			},
 		}
 		expectedOutput := `{"level":"info","msg":"Worker 7 generated 7 traces"}` + "\n"

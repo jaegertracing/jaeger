@@ -5,22 +5,24 @@ package auth
 
 import (
 	"flag"
-	"testing"
 	"strings"
+	"testing"
+
 	"github.com/Shopify/sarama"
-	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
+
+	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 )
 
 func Test_InitFromViper(t *testing.T) {
 	configPrefix := "kafka.auth"
 	flagSet := flag.NewFlagSet("flags", flag.ContinueOnError)
-	AddFlags(configPrefix,flagSet)
-	command:= &cobra.Command{}
+	AddFlags(configPrefix, flagSet)
+	command := &cobra.Command{}
 	command.Flags().AddGoFlagSet(flagSet)
 	command.ParseFlags([]string{
 		"--kafka.auth.authentication=tls",
@@ -47,35 +49,36 @@ func Test_InitFromViper(t *testing.T) {
 	expectedConfig := &AuthenticationConfig{
 		Authentication: "tls",
 		Kerberos: KerberosConfig{
-			ServiceName:      "kafka",
-			Realm:            "EXAMPLE.COM",
-			UseKeyTab:        true,
-			Username:         "user",
-			Password:         "password",
-			ConfigPath:       "/path/to/krb5.conf",
-			KeyTabPath:       "/path/to/keytab",
-			DisablePAFXFast:  true,
+			ServiceName:     "kafka",
+			Realm:           "EXAMPLE.COM",
+			UseKeyTab:       true,
+			Username:        "user",
+			Password:        "password",
+			ConfigPath:      "/path/to/krb5.conf",
+			KeyTabPath:      "/path/to/keytab",
+			DisablePAFXFast: true,
 		},
 		TLS: tlscfg.Options{
 			Enabled: true,
 		},
 		PlainText: PlainTextConfig{
-			Username:   "user",
-			Password:   "password",
-			Mechanism:  "SCRAM-SHA-256",
+			Username:  "user",
+			Password:  "password",
+			Mechanism: "SCRAM-SHA-256",
 		},
 	}
 	assert.Equal(t, expectedConfig, authConfig)
 }
 
 // Test plaintext with different mechanisms
-func testPlaintext(v *viper.Viper,t *testing.T,configPrefix string,logger *zap.Logger,mechanism string,saramaConfig *sarama.Config) {
+func testPlaintext(v *viper.Viper, t *testing.T, configPrefix string, logger *zap.Logger, mechanism string, saramaConfig *sarama.Config) {
 	v.Set(configPrefix+plainTextPrefix+suffixPlainTextMechanism, mechanism)
 	authConfig := &AuthenticationConfig{}
 	err := authConfig.InitFromViper(configPrefix, v)
 	require.NoError(t, err)
 	require.NoError(t, authConfig.SetConfiguration(saramaConfig, logger))
 }
+
 func TestSetConfiguration(t *testing.T) {
 	logger, _ := zap.NewDevelopment()
 	saramaConfig := sarama.NewConfig()
