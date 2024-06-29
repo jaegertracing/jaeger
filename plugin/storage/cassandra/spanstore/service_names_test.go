@@ -65,13 +65,13 @@ func TestServiceNamesStorageWrite(t *testing.T) {
 				query := &mocks.Query{}
 				query1 := &mocks.Query{}
 				query2 := &mocks.Query{}
-				query.On("Bind", []interface{}{"service-a"}).Return(query1)
-				query.On("Bind", []interface{}{"service-b"}).Return(query2)
+				query.On("Bind", []any{"service-a"}).Return(query1)
+				query.On("Bind", []any{"service-b"}).Return(query2)
 				query1.On("Exec").Return(nil)
 				query2.On("Exec").Return(execError)
 				query2.On("String").Return("select from service_names")
 
-				var emptyArgs []interface{}
+				var emptyArgs []any
 				s.session.On("Query", mock.AnythingOfType("string"), emptyArgs).Return(query)
 
 				err := s.storage.Write("service-a")
@@ -111,14 +111,14 @@ func TestServiceNamesStorageGetServices(t *testing.T) {
 	scanError := errors.New("scan error")
 	var writeCacheTTL time.Duration
 	var matched bool
-	matchOnce := mock.MatchedBy(func(v []interface{}) bool {
+	matchOnce := mock.MatchedBy(func(_ []any) bool {
 		if matched {
 			return false
 		}
 		matched = true
 		return true
 	})
-	matchEverything := mock.MatchedBy(func(v []interface{}) bool { return true })
+	matchEverything := mock.MatchedBy(func(_ []any) bool { return true })
 	for _, expErr := range []error{nil, scanError} {
 		withServiceNamesStorage(writeCacheTTL, func(s *serviceNameStorageTest) {
 			iter := &mocks.Iterator{}
@@ -129,7 +129,7 @@ func TestServiceNamesStorageGetServices(t *testing.T) {
 			query := &mocks.Query{}
 			query.On("Iter").Return(iter)
 
-			var emptyArgs []interface{}
+			var emptyArgs []any
 			s.session.On("Query", mock.AnythingOfType("string"), emptyArgs).Return(query)
 
 			services, err := s.storage.GetServices()

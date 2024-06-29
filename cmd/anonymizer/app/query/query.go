@@ -19,6 +19,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -51,7 +52,7 @@ func New(addr string) (*Query, error) {
 // unwrapNotFoundErr is a conversion function
 func unwrapNotFoundErr(err error) error {
 	if s, _ := status.FromError(err); s != nil {
-		if s.Message() == spanstore.ErrTraceNotFound.Error() {
+		if strings.Contains(s.Message(), spanstore.ErrTraceNotFound.Error()) {
 			return spanstore.ErrTraceNotFound
 		}
 	}
@@ -81,4 +82,9 @@ func (q *Query) QueryTrace(traceID string) ([]model.Span, error) {
 	}
 
 	return spans, nil
+}
+
+// Close closes the grpc client connection
+func (q *Query) Close() error {
+	return q.conn.Close()
 }

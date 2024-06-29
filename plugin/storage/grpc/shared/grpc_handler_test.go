@@ -272,7 +272,7 @@ func TestGRPCServerGetDependencies(t *testing.T) {
 				Child:  "child",
 			},
 		}
-		r.impl.depsReader.On("GetDependencies", end, lookback).
+		r.impl.depsReader.On("GetDependencies", mock.Anything, end, lookback).
 			Return(deps, nil)
 
 		s, err := r.server.GetDependencies(context.Background(), &storage_v1.GetDependenciesRequest{

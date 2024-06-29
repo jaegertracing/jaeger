@@ -124,7 +124,7 @@ func (f *Factory) AddFlags(flagSet *flag.FlagSet) {
 }
 
 // InitFromViper implements plugin.Configurable
-func (f *Factory) InitFromViper(v *viper.Viper, logger *zap.Logger) {
+func (f *Factory) InitFromViper(v *viper.Viper, _ *zap.Logger) {
 	f.Options.InitFromViper(v)
 	f.configureFromOptions(f.Options)
 }
@@ -155,11 +155,11 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 	f.primarySession = primarySession
 
 	if f.archiveConfig != nil {
-		if archiveSession, err := f.archiveConfig.NewSession(logger); err == nil {
-			f.archiveSession = archiveSession
-		} else {
+		archiveSession, err := f.archiveConfig.NewSession(logger)
+		if err != nil {
 			return err
 		}
+		f.archiveSession = archiveSession
 	} else {
 		logger.Info("Cassandra archive storage configuration is empty, skipping")
 	}
@@ -218,7 +218,7 @@ func (f *Factory) CreateLock() (distributedlock.Lock, error) {
 }
 
 // CreateSamplingStore implements storage.SamplingStoreFactory
-func (f *Factory) CreateSamplingStore(maxBuckets int) (samplingstore.Store, error) {
+func (f *Factory) CreateSamplingStore(int /* maxBuckets */) (samplingstore.Store, error) {
 	return cSamplingStore.New(f.primarySession, f.primaryMetricsFactory, f.logger), nil
 }
 

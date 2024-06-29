@@ -55,7 +55,7 @@ type (
 		metricsTranslator dbmodel.Translator
 		latencyMetricName string
 		callsMetricName   string
-		operationLabel    string
+		operationLabel    string // name of the attribute that contains span name / operation
 	}
 
 	promQueryParams struct {
@@ -90,10 +90,7 @@ func NewMetricsReader(cfg config.Configuration, logger *zap.Logger, tracer trace
 		return nil, fmt.Errorf("failed to initialize prometheus client: %w", err)
 	}
 
-	operationLabel := "operation"
-	if cfg.SupportSpanmetricsConnector {
-		operationLabel = "span_name"
-	}
+	const operationLabel = "span_name"
 
 	mr := &MetricsReader{
 		client: promapi.NewAPI(client),
@@ -134,11 +131,7 @@ func (m MetricsReader) GetLatencies(ctx context.Context, requestParams *metricss
 }
 
 func buildFullLatencyMetricName(cfg config.Configuration) string {
-	metricName := "latency"
-	if !cfg.SupportSpanmetricsConnector {
-		return metricName
-	}
-	metricName = "duration"
+	metricName := "duration"
 
 	if cfg.MetricNamespace != "" {
 		metricName = cfg.MetricNamespace + "_" + metricName
@@ -181,10 +174,6 @@ func (m MetricsReader) GetCallRates(ctx context.Context, requestParams *metricss
 
 func buildFullCallsMetricName(cfg config.Configuration) string {
 	metricName := "calls"
-	if !cfg.SupportSpanmetricsConnector {
-		return metricName
-	}
-
 	if cfg.MetricNamespace != "" {
 		metricName = cfg.MetricNamespace + "_" + metricName
 	}
@@ -246,7 +235,7 @@ func (m MetricsReader) GetErrorRates(ctx context.Context, requestParams *metrics
 }
 
 // GetMinStepDuration gets the minimum step duration (the smallest possible duration between two data points in a time series) supported.
-func (m MetricsReader) GetMinStepDuration(_ context.Context, _ *metricsstore.MinStepDurationQueryParameters) (time.Duration, error) {
+func (MetricsReader) GetMinStepDuration(_ context.Context, _ *metricsstore.MinStepDurationQueryParameters) (time.Duration, error) {
 	return minStep, nil
 }
 

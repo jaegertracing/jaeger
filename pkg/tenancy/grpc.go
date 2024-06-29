@@ -68,7 +68,7 @@ func directlyAttachedTenant(ctx context.Context) bool {
 // NewGuardingStreamInterceptor blocks handling of streams whose tenancy header doesn't meet tenancy requirements.
 // It also ensures the tenant is directly in the context, rather than context metadata.
 func NewGuardingStreamInterceptor(tc *Manager) grpc.StreamServerInterceptor {
-	return func(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+	return func(srv any, ss grpc.ServerStream, _ *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 		tenant, err := getValidTenant(ss.Context(), tc)
 		if err != nil {
 			return err
@@ -100,7 +100,7 @@ func tenantFromMetadata(md metadata.MD, tenancyHeader string) (string, error) {
 // NewGuardingUnaryInterceptor blocks handling of RPCs whose tenancy header doesn't meet tenancy requirements.
 // It also ensures the tenant is directly in the context, rather than context metadata.
 func NewGuardingUnaryInterceptor(tc *Manager) grpc.UnaryServerInterceptor {
-	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+	return func(ctx context.Context, req any, _ *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 		tenant, err := getValidTenant(ctx, tc)
 		if err != nil {
 			return nil, err
@@ -119,7 +119,7 @@ func NewClientUnaryInterceptor(tc *Manager) grpc.UnaryClientInterceptor {
 	return grpc.UnaryClientInterceptor(func(
 		ctx context.Context,
 		method string,
-		req, reply interface{},
+		req, reply any,
 		cc *grpc.ClientConn,
 		invoker grpc.UnaryInvoker,
 		opts ...grpc.CallOption,

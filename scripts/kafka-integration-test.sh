@@ -3,7 +3,7 @@
 set -e
 
 export STORAGE=kafka
-compose_file="docker-compose/kafka-integration-test/v3.yml"
+compose_file="docker-compose/kafka-integration-test/docker-compose.yml"
 
 # Check if the -k parameter is provided and start Kafka if it was
 if [ "$1" == "-k" ]; then

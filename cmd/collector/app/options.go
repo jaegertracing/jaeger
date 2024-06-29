@@ -172,7 +172,7 @@ func (options) OnDroppedSpan(onDroppedSpan func(span *model.Span)) Option {
 	}
 }
 
-func (o options) apply(opts ...Option) options {
+func (options) apply(opts ...Option) options {
 	ret := options{}
 	for _, opt := range opts {
 		opt(&ret)
@@ -187,16 +187,16 @@ func (o options) apply(opts ...Option) options {
 		ret.hostMetrics = metrics.NullFactory
 	}
 	if ret.preProcessSpans == nil {
-		ret.preProcessSpans = func(spans []*model.Span, tenant string) {}
+		ret.preProcessSpans = func(_ []*model.Span, _ /* tenant */ string) {}
 	}
 	if ret.sanitizer == nil {
 		ret.sanitizer = func(span *model.Span) *model.Span { return span }
 	}
 	if ret.preSave == nil {
-		ret.preSave = func(span *model.Span, tenant string) {}
+		ret.preSave = func(_ *model.Span, _ /* tenant */ string) {}
 	}
 	if ret.spanFilter == nil {
-		ret.spanFilter = func(span *model.Span) bool { return true }
+		ret.spanFilter = func(_ *model.Span) bool { return true }
 	}
 	if ret.numWorkers == 0 {
 		ret.numWorkers = flags.DefaultNumWorkers

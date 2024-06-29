@@ -21,7 +21,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/dgraph-io/badger/v3"
+	"github.com/dgraph-io/badger/v4"
 	"github.com/gogo/protobuf/proto"
 
 	"github.com/jaegertracing/jaeger/model"
@@ -65,7 +65,7 @@ func NewSpanWriter(db *badger.DB, c *CacheStore, ttl time.Duration) *SpanWriter 
 }
 
 // WriteSpan writes the encoded span as well as creates indexes with defined TTL
-func (w *SpanWriter) WriteSpan(ctx context.Context, span *model.Span) error {
+func (w *SpanWriter) WriteSpan(_ context.Context, span *model.Span) error {
 	expireTime := uint64(time.Now().Add(w.ttl).Unix())
 	startTime := model.TimeAsEpochMicroseconds(span.StartTime)
 
@@ -138,7 +138,7 @@ func createIndexKey(indexPrefixKey byte, value []byte, startTime uint64, traceID
 	return key
 }
 
-func (w *SpanWriter) createBadgerEntry(key []byte, value []byte, expireTime uint64) *badger.Entry {
+func (*SpanWriter) createBadgerEntry(key []byte, value []byte, expireTime uint64) *badger.Entry {
 	return &badger.Entry{
 		Key:       key,
 		Value:     value,

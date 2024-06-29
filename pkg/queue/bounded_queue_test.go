@@ -34,12 +34,12 @@ import (
 // In this test we run a queue with capacity 1 and a single consumer.
 // We want to test the overflow behavior, so we block the consumer
 // by holding a startLock before submitting items to the queue.
-func helper(t *testing.T, startConsumers func(q *BoundedQueue, consumerFn func(item interface{}))) {
+func helper(t *testing.T, startConsumers func(q *BoundedQueue, consumerFn func(item any))) {
 	mFact := metricstest.NewFactory(0)
 	counter := mFact.Counter(metrics.Options{Name: "dropped", Tags: nil})
 	gauge := mFact.Gauge(metrics.Options{Name: "size", Tags: nil})
 
-	q := NewBoundedQueue(1, func(item interface{}) {
+	q := NewBoundedQueue(1, func( /* item */ any) {
 		counter.Inc(1)
 	})
 	assert.Equal(t, 1, q.Capacity())
@@ -49,7 +49,7 @@ func helper(t *testing.T, startConsumers func(q *BoundedQueue, consumerFn func(i
 	startLock.Lock() // block consumers
 	consumerState := newConsumerState(t)
 
-	startConsumers(q, func(item interface{}) {
+	startConsumers(q, func(item any) {
 		consumerState.record(item.(string))
 
 		// block further processing until startLock is released
@@ -80,11 +80,10 @@ func helper(t *testing.T, startConsumers func(q *BoundedQueue, consumerFn func(i
 	q.StartLengthReporting(time.Millisecond, gauge)
 	for i := 0; i < 1000; i++ {
 		_, g := mFact.Snapshot()
-		if g["size"] == 0 {
-			time.Sleep(time.Millisecond)
-		} else {
+		if g["size"] != 0 {
 			break
 		}
+		time.Sleep(time.Millisecond)
 	}
 
 	c, g := mFact.Snapshot()
@@ -114,13 +113,13 @@ func helper(t *testing.T, startConsumers func(q *BoundedQueue, consumerFn func(i
 }
 
 func TestBoundedQueue(t *testing.T) {
-	helper(t, func(q *BoundedQueue, consumerFn func(item interface{})) {
+	helper(t, func(q *BoundedQueue, consumerFn func(item any)) {
 		q.StartConsumers(1, consumerFn)
 	})
 }
 
 func TestBoundedQueueWithFactory(t *testing.T) {
-	helper(t, func(q *BoundedQueue, consumerFn func(item interface{})) {
+	helper(t, func(q *BoundedQueue, consumerFn func(item any)) {
 		q.StartConsumersWithFactory(1, func() Consumer { return ConsumerFunc(consumerFn) })
 	})
 }
@@ -175,7 +174,7 @@ func (s *consumerState) assertConsumed(expected map[string]bool) {
 }
 
 func TestResizeUp(t *testing.T) {
-	q := NewBoundedQueue(2, func(item interface{}) {
+	q := NewBoundedQueue(2, func(item any) {
 		fmt.Printf("dropped: %v\n", item)
 	})
 
@@ -185,7 +184,7 @@ func TestResizeUp(t *testing.T) {
 	releaseConsumers.Add(1)
 
 	released, resized := false, false
-	q.StartConsumers(1, func(item interface{}) {
+	q.StartConsumers(1, func( /* item */ any) {
 		if !resized { // we'll have a second consumer once the queue is resized
 			// signal that the worker is processing
 			firstConsumer.Done()
@@ -226,7 +225,7 @@ func TestResizeUp(t *testing.T) {
 }
 
 func TestResizeDown(t *testing.T) {
-	q := NewBoundedQueue(4, func(item interface{}) {
+	q := NewBoundedQueue(4, func(item any) {
 		fmt.Printf("dropped: %v\n", item)
 	})
 
@@ -235,7 +234,7 @@ func TestResizeDown(t *testing.T) {
 	releaseConsumers.Add(1)
 
 	released := false
-	q.StartConsumers(1, func(item interface{}) {
+	q.StartConsumers(1, func( /* item */ any) {
 		// once we release the lock, we might end up with multiple calls to reach this
 		if !released {
 			// signal that the worker is processing
@@ -270,7 +269,7 @@ func TestResizeDown(t *testing.T) {
 }
 
 func TestResizeOldQueueIsDrained(t *testing.T) {
-	q := NewBoundedQueue(2, func(item interface{}) {
+	q := NewBoundedQueue(2, func(item any) {
 		fmt.Printf("dropped: %v\n", item)
 	})
 
@@ -283,7 +282,7 @@ func TestResizeOldQueueIsDrained(t *testing.T) {
 	consumed.Store(5)
 
 	first := true
-	q.StartConsumers(1, func(item interface{}) {
+	q.StartConsumers(1, func( /* item */ any) {
 		// first run only
 		if first {
 			first = false
@@ -319,23 +318,23 @@ func TestResizeOldQueueIsDrained(t *testing.T) {
 }
 
 func TestNoopResize(t *testing.T) {
-	q := NewBoundedQueue(2, func(item interface{}) {})
+	q := NewBoundedQueue(2, func( /* item */ any) {})
 
 	assert.False(t, q.Resize(2))
 }
 
 func TestZeroSize(t *testing.T) {
-	q := NewBoundedQueue(0, func(item interface{}) {})
+	q := NewBoundedQueue(0, func( /* item */ any) {})
 
-	q.StartConsumers(1, func(item interface{}) {})
+	q.StartConsumers(1, func( /* item */ any) {})
 	defer q.Stop()
 
 	assert.False(t, q.Produce("a")) // in process
 }
 
 func BenchmarkBoundedQueue(b *testing.B) {
-	q := NewBoundedQueue(1000, func(item interface{}) {})
-	q.StartConsumers(10, func(item interface{}) {})
+	q := NewBoundedQueue(1000, func( /* item */ any) {})
+	q.StartConsumers(10, func( /* item */ any) {})
 	defer q.Stop()
 
 	for n := 0; n < b.N; n++ {
@@ -344,10 +343,10 @@ func BenchmarkBoundedQueue(b *testing.B) {
 }
 
 func BenchmarkBoundedQueueWithFactory(b *testing.B) {
-	q := NewBoundedQueue(1000, func(item interface{}) {})
+	q := NewBoundedQueue(1000, func( /* item */ any) {})
 
 	q.StartConsumersWithFactory(10, func() Consumer {
-		return ConsumerFunc(func(item interface{}) {})
+		return ConsumerFunc(func( /* item */ any) {})
 	})
 	defer q.Stop()
 

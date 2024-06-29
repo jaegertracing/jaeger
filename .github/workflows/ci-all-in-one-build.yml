@@ -30,11 +30,11 @@ jobs:
 
     steps:
     - name: Harden Runner
-      uses: step-security/harden-runner@f086349bfa2bd1361f7909c78558e816508cdc10 # v2.8.0
+      uses: step-security/harden-runner@17d0e2bd7d51742c71671bd19fa12bdc9d40a3d6 # v2.8.1
       with:
         egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
 
-    - uses: actions/checkout@9bb56186c3b09b4f86b1c65136769dd318469633 # v4.1.2
+    - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
       with:
         submodules: true
 
@@ -42,7 +42,7 @@ jobs:
       run: |
         git fetch --prune --unshallow --tags
 
-    - uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491 # v5.0.0
+    - uses: actions/setup-go@cdcb36043654635271a94b9a6d1392de5bb323a7 # v5.0.1
       with:
         go-version: 1.22.x
 
@@ -57,22 +57,24 @@ jobs:
 
     - uses: docker/setup-qemu-action@68827325e0b33c7199eb31dd4e31fbe9023e06e3 # v3.0.0
 
-    - name: Define PR_ONLY var if running on a Pull Request
+    - name: Define BUILD_FLAGS var if running on a Pull Request
       run: |
         case ${GITHUB_EVENT_NAME} in
           pull_request)
-            echo "PR_ONLY=pr-only" >> ${GITHUB_ENV}
+            echo "BUILD_FLAGS=-l -D -p linux/amd64" >> ${GITHUB_ENV}
             ;;
           *)
-            echo "PR_ONLY=" >> ${GITHUB_ENV}
+            echo "BUILD_FLAGS=" >> ${GITHUB_ENV}
             ;;
         esac
 
     - name: Build, test, and publish all-in-one image
       run: |
-        BINARY=${{ matrix.mode.binary }} \
-          SKIP_SAMPLING=${{ matrix.mode.skip_sampling }} \
-          bash scripts/build-all-in-one-image.sh ${{ env.PR_ONLY }}
+        bash scripts/build-all-in-one-image.sh \
+          ${{ env.BUILD_FLAGS }} \
+          -b ${{ matrix.mode.binary }}
       env:
         DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
+        # SKIP_SAMPLING is used by integration tests, see https://github.com/jaegertracing/jaeger/issues/5531
+        SKIP_SAMPLING: ${{ matrix.mode.skip_sampling }}

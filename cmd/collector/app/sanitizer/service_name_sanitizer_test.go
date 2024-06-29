@@ -40,11 +40,11 @@ func (d *fixedMappingCache) Get(key string) string {
 	return k
 }
 
-func (d *fixedMappingCache) Put(key string, value string) error {
+func (*fixedMappingCache) Put(string /* key */, string /* value */) error {
 	return nil
 }
 
-func (d *fixedMappingCache) Initialize() error {
+func (*fixedMappingCache) Initialize() error {
 	return nil
 }
 

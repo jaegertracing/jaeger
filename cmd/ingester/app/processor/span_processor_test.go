@@ -25,7 +25,7 @@ import (
 
 	cmocks "github.com/jaegertracing/jaeger/cmd/ingester/app/consumer/mocks"
 	"github.com/jaegertracing/jaeger/model"
-	umocks "github.com/jaegertracing/jaeger/pkg/kafka/mocks"
+	umocks "github.com/jaegertracing/jaeger/plugin/storage/kafka/mocks"
 	smocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
 )
 

@@ -140,7 +140,7 @@ func TestClientGetIndices(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
+			testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, _ *http.Request) {
 				res.WriteHeader(test.responseCode)
 
 				response := test.response
@@ -545,7 +545,7 @@ func TestClientCreateTemplate(t *testing.T) {
 
 func TestRollover(t *testing.T) {
 	expectedRequestBody := "{\"conditions\":{\"max_age\":\"2d\"}}"
-	mapConditions := map[string]interface{}{
+	mapConditions := map[string]any{
 		"max_age": "2d",
 	}
 

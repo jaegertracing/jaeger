@@ -51,7 +51,7 @@ func main() {
 		Long:         "creates indices and aliases",
 		Args:         cobra.ExactArgs(1),
 		SilenceUsage: true,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			return app.ExecuteAction(app.ActionExecuteOptions{
 				Args:     args,
 				Viper:    v,
@@ -88,7 +88,7 @@ func main() {
 		Short: "rollover to new write index",
 		Long:  "rollover to new write index",
 		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			rolloverCfg.InitFromViper(v)
 			return app.ExecuteAction(app.ActionExecuteOptions{
 				Args:     args,
@@ -117,7 +117,7 @@ func main() {
 		Short: "removes old indices from read alias",
 		Long:  "removes old indices from read alias",
 		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			lookbackCfg.InitFromViper(v)
 			return app.ExecuteAction(app.ActionExecuteOptions{
 				Args:     args,

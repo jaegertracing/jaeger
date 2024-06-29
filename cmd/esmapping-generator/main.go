@@ -34,7 +34,7 @@ func main() {
 		Use:   "jaeger-esmapping-generator",
 		Short: "Jaeger esmapping-generator prints rendered mappings as string",
 		Long:  `Jaeger esmapping-generator renders passed templates with provided values and prints rendered output to stdout`,
-		Run: func(cmd *cobra.Command, args []string) {
+		Run: func(_ *cobra.Command, _ /* args */ []string) {
 			if !renderer.IsValidOption(options.Mapping) {
 				logger.Fatal("please pass either 'jaeger-service' or 'jaeger-span' as argument")
 			}

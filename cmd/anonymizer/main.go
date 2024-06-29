@@ -39,7 +39,7 @@ func main() {
 		Use:   "jaeger-anonymizer",
 		Short: "Jaeger anonymizer hashes fields of a trace for easy sharing",
 		Long:  `Jaeger anonymizer queries Jaeger query for a trace, anonymizes fields, and store in file`,
-		Run: func(cmd *cobra.Command, args []string) {
+		Run: func(_ *cobra.Command, _ /* args */ []string) {
 			prefix := options.OutputDir + "/" + options.TraceID
 			conf := writer.Config{
 				MaxSpansCount:  options.MaxSpansCount,
@@ -67,6 +67,9 @@ func main() {
 			spans, err := query.QueryTrace(options.TraceID)
 			if err != nil {
 				logger.Fatal("error while querying for trace", zap.Error(err))
+			}
+			if err := query.Close(); err != nil {
+				logger.Error("Failed to close grpc client connection", zap.Error(err))
 			}
 
 			for _, span := range spans {

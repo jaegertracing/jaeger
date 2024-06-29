@@ -117,7 +117,7 @@ func (t *fakeTransport) Read(p []byte) (n int, err error) {
 	return len(p), nil
 }
 
-func (t *fakeTransport) Close() error {
+func (*fakeTransport) Close() error {
 	return nil
 }
 

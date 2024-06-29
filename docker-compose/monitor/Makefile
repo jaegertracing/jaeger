@@ -1,27 +1,21 @@
 .PHONY: build
-build: export DOCKER_TAG = dev
 build: clean-jaeger
-	cd ../../ && \
-	make build-all-in-one-linux && \
-	make docker-images-jaeger-backend
+	cd ../../ && make build-all-in-one-linux
+	cd ../../ && make create-baseimg PLATFORMS=linux/$(shell go env GOARCH)
+	cd ../../ && docker buildx build --target release \
+		--tag jaegertracing/all-in-one:dev \
+		--build-arg base_image=localhost:5000/baseimg_alpine:latest \
+		--build-arg debug_image=not-used \
+		--build-arg TARGETARCH=$(shell go env GOARCH) \
+		--load \
+		cmd/all-in-one
 
 # starts up the system required for SPM using the latest otel image and a development jaeger image.
 # Note: the jaeger "dev" image can be built with "make build".
 .PHONY: dev
 dev: export JAEGER_IMAGE_TAG = dev
 dev:
-	docker compose -f docker-compose.yml up
-
-# starts older spanmetrics processor setup, for example,
-# to test backwards compatibility of Jaeger with spanmetrics processor.
-.PHONY: dev-processor
-dev-processor: export JAEGER_IMAGE_TAG = dev
-# Fix to a version before the breaking changes were introduced.
-dev-processor: export OTEL_IMAGE_TAG = 0.70.0
-dev-processor: export OTEL_CONFIG_SRC = ./otel-collector-config-processor.yml
-dev-processor: export PROMETHEUS_QUERY_SUPPORT_SPANMETRICS_CONNECTOR = false
-dev-processor:
-	docker compose -f docker-compose.yml up
+	docker compose -f docker-compose.yml up $(DOCKER_COMPOSE_ARGS)
 
 .PHONY: clean-jaeger
 clean-jaeger:

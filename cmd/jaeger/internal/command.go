@@ -10,6 +10,13 @@ import (
 
 	"github.com/spf13/cobra"
 	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/confmap"
+	"go.opentelemetry.io/collector/confmap/converter/expandconverter"
+	"go.opentelemetry.io/collector/confmap/provider/envprovider"
+	"go.opentelemetry.io/collector/confmap/provider/fileprovider"
+	"go.opentelemetry.io/collector/confmap/provider/httpprovider"
+	"go.opentelemetry.io/collector/confmap/provider/httpsprovider"
+	"go.opentelemetry.io/collector/confmap/provider/yamlprovider"
 	"go.opentelemetry.io/collector/otelcol"
 
 	"github.com/jaegertracing/jaeger/pkg/version"
@@ -30,9 +37,23 @@ func Command() *cobra.Command {
 	settings := otelcol.CollectorSettings{
 		BuildInfo: info,
 		Factories: Components,
+		ConfigProviderSettings: otelcol.ConfigProviderSettings{
+			ResolverSettings: confmap.ResolverSettings{
+				ProviderFactories: []confmap.ProviderFactory{
+					envprovider.NewFactory(),
+					fileprovider.NewFactory(),
+					httpprovider.NewFactory(),
+					httpsprovider.NewFactory(),
+					yamlprovider.NewFactory(),
+				},
+				ConverterFactories: []confmap.ConverterFactory{
+					expandconverter.NewFactory(),
+				},
+			},
+		},
 	}
 
-	cmd := otelcol.NewCommand(settings)
+	cmd := otelcol.NewCommandMustSetProvider(settings)
 
 	// We want to support running the binary in all-in-one mode without a config file.
 	// Since there are no explicit hooks in OTel Collector for that today (as of v0.87),

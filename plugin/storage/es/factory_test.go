@@ -57,7 +57,7 @@ type mockClientBuilder struct {
 	createTemplateError error
 }
 
-func (m *mockClientBuilder) NewClient(_ *escfg.Configuration, logger *zap.Logger, metricsFactory metrics.Factory) (es.Client, error) {
+func (m *mockClientBuilder) NewClient(*escfg.Configuration, *zap.Logger, metrics.Factory) (es.Client, error) {
 	if m.err == nil {
 		c := &mocks.Client{}
 		tService := &mocks.TemplateCreateService{}
@@ -274,7 +274,7 @@ func TestConfigureFromOptions(t *testing.T) {
 }
 
 func TestESStorageFactoryWithConfig(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Write(mockEsServerResponse)
 	}))
 	defer server.Close()
@@ -446,7 +446,7 @@ func TestFactoryESClientsAreNil(t *testing.T) {
 
 func TestPasswordFromFileErrors(t *testing.T) {
 	defer testutils.VerifyGoLeaksOnce(t)
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Write(mockEsServerResponse)
 	}))
 	defer server.Close()

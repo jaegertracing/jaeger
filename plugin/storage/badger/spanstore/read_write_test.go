@@ -37,7 +37,7 @@ import (
 )
 
 func TestWriteReadBack(t *testing.T) {
-	runFactoryTest(t, func(tb testing.TB, sw spanstore.Writer, sr spanstore.Reader) {
+	runFactoryTest(t, func(_ testing.TB, sw spanstore.Writer, sr spanstore.Reader) {
 		tid := time.Now()
 		traces := 40
 		spans := 3
@@ -91,7 +91,7 @@ func TestWriteReadBack(t *testing.T) {
 }
 
 func TestValidation(t *testing.T) {
-	runFactoryTest(t, func(tb testing.TB, sw spanstore.Writer, sr spanstore.Reader) {
+	runFactoryTest(t, func(_ testing.TB, _ spanstore.Writer, sr spanstore.Reader) {
 		tid := time.Now()
 		params := &spanstore.TraceQueryParameters{
 			StartTimeMin: tid,
@@ -130,7 +130,7 @@ func TestValidation(t *testing.T) {
 }
 
 func TestIndexSeeks(t *testing.T) {
-	runFactoryTest(t, func(tb testing.TB, sw spanstore.Writer, sr spanstore.Reader) {
+	runFactoryTest(t, func(_ testing.TB, sw spanstore.Writer, sr spanstore.Reader) {
 		startT := time.Now()
 		traces := 60
 		spans := 3
@@ -290,7 +290,7 @@ func TestIndexSeeks(t *testing.T) {
 }
 
 func TestFindNothing(t *testing.T) {
-	runFactoryTest(t, func(tb testing.TB, sw spanstore.Writer, sr spanstore.Reader) {
+	runFactoryTest(t, func(_ testing.TB, _ spanstore.Writer, sr spanstore.Reader) {
 		startT := time.Now()
 		params := &spanstore.TraceQueryParameters{
 			StartTimeMin: startT,
@@ -309,7 +309,7 @@ func TestFindNothing(t *testing.T) {
 }
 
 func TestWriteDuplicates(t *testing.T) {
-	runFactoryTest(t, func(tb testing.TB, sw spanstore.Writer, sr spanstore.Reader) {
+	runFactoryTest(t, func(_ testing.TB, sw spanstore.Writer, _ spanstore.Reader) {
 		tid := time.Now()
 		times := 40
 		spans := 3
@@ -336,7 +336,7 @@ func TestWriteDuplicates(t *testing.T) {
 }
 
 func TestMenuSeeks(t *testing.T) {
-	runFactoryTest(t, func(tb testing.TB, sw spanstore.Writer, sr spanstore.Reader) {
+	runFactoryTest(t, func(_ testing.TB, sw spanstore.Writer, sr spanstore.Reader) {
 		tid := time.Now()
 		traces := 40
 		services := 4
@@ -410,7 +410,7 @@ func TestPersist(t *testing.T) {
 		test(t, sw, sr)
 	}
 
-	p(t, dir, func(t *testing.T, sw spanstore.Writer, sr spanstore.Reader) {
+	p(t, dir, func(t *testing.T, sw spanstore.Writer, _ spanstore.Reader) {
 		s := model.Span{
 			TraceID: model.TraceID{
 				Low:  uint64(1),
@@ -428,7 +428,7 @@ func TestPersist(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	p(t, dir, func(t *testing.T, sw spanstore.Writer, sr spanstore.Reader) {
+	p(t, dir, func(t *testing.T, _ spanstore.Writer, sr spanstore.Reader) {
 		trace, err := sr.GetTrace(context.Background(), model.TraceID{
 			Low:  uint64(1),
 			High: 1,
@@ -494,7 +494,7 @@ func writeSpans(sw spanstore.Writer, tags []model.KeyValue, services, operations
 }
 
 func BenchmarkWrites(b *testing.B) {
-	runFactoryTest(b, func(tb testing.TB, sw spanstore.Writer, sr spanstore.Reader) {
+	runFactoryTest(b, func(_ testing.TB, sw spanstore.Writer, _ spanstore.Reader) {
 		tid := time.Now()
 		traces := 1000
 		spans := 32
@@ -538,8 +538,8 @@ func makeWriteSupports(tagsCount, spans int) ([]model.KeyValue, []string, []stri
 	return tags, services, operations
 }
 
-func makeReadBenchmark(b *testing.B, tid time.Time, params *spanstore.TraceQueryParameters, outputFile string) {
-	runLargeFactoryTest(b, func(tb testing.TB, sw spanstore.Writer, sr spanstore.Reader) {
+func makeReadBenchmark(b *testing.B, _ time.Time, params *spanstore.TraceQueryParameters, outputFile string) {
+	runLargeFactoryTest(b, func(_ testing.TB, sw spanstore.Writer, sr spanstore.Reader) {
 		tid := time.Now()
 
 		// Total amount of traces is traces * tracesTimes
@@ -646,7 +646,7 @@ func runLargeFactoryTest(tb testing.TB, test func(tb testing.TB, sw spanstore.Wr
 
 // TestRandomTraceID from issue #1808
 func TestRandomTraceID(t *testing.T) {
-	runFactoryTest(t, func(tb testing.TB, sw spanstore.Writer, sr spanstore.Reader) {
+	runFactoryTest(t, func(_ testing.TB, sw spanstore.Writer, sr spanstore.Reader) {
 		s1 := model.Span{
 			TraceID: model.TraceID{
 				Low:  uint64(14767110704788176287),

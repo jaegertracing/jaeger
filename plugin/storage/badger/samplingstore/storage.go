@@ -20,7 +20,7 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/dgraph-io/badger/v3"
+	"github.com/dgraph-io/badger/v4"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/model"
 	jaegermodel "github.com/jaegertracing/jaeger/model"
@@ -178,7 +178,7 @@ func (s *SamplingStore) createProbabilitiesEntry(hostname string, probabilities 
 	return e, nil
 }
 
-func (s *SamplingStore) createProbabilitiesKV(hostname string, probabilities model.ServiceOperationProbabilities, qps model.ServiceOperationQPS, startTime uint64) ([]byte, []byte, error) {
+func (*SamplingStore) createProbabilitiesKV(hostname string, probabilities model.ServiceOperationProbabilities, qps model.ServiceOperationQPS, startTime uint64) ([]byte, []byte, error) {
 	key := make([]byte, 16)
 	key[0] = probabilitiesKeyPrefix
 	pos := 1
@@ -206,14 +206,14 @@ func (s *SamplingStore) createThroughputEntry(throughput []*model.Throughput, st
 	return e, nil
 }
 
-func (s *SamplingStore) createBadgerEntry(key []byte, value []byte) *badger.Entry {
+func (*SamplingStore) createBadgerEntry(key []byte, value []byte) *badger.Entry {
 	return &badger.Entry{
 		Key:   key,
 		Value: value,
 	}
 }
 
-func (s *SamplingStore) createThroughputKV(throughput []*model.Throughput, startTime uint64) ([]byte, []byte, error) {
+func (*SamplingStore) createThroughputKV(throughput []*model.Throughput, startTime uint64) ([]byte, []byte, error) {
 	key := make([]byte, 16)
 	key[0] = throughputKeyPrefix
 	pos := 1

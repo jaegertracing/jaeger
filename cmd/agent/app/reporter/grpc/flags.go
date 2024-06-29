@@ -27,7 +27,7 @@ import (
 const (
 	gRPCPrefix        = "reporter.grpc"
 	collectorHostPort = gRPCPrefix + ".host-port"
-	retry             = gRPCPrefix + ".retry.max"
+	retryFlag         = gRPCPrefix + ".retry.max"
 	defaultMaxRetry   = 3
 	discoveryMinPeers = gRPCPrefix + ".discovery.min-peers"
 )
@@ -38,7 +38,7 @@ var tlsFlagsConfig = tlscfg.ClientFlagsConfig{
 
 // AddFlags adds flags for Options.
 func AddFlags(flags *flag.FlagSet) {
-	flags.Uint(retry, defaultMaxRetry, "Sets the maximum number of retries for a call")
+	flags.Uint(retryFlag, defaultMaxRetry, "Sets the maximum number of retries for a call")
 	flags.Int(discoveryMinPeers, 3, "Max number of collectors to which the agent will try to connect at any given time")
 	flags.String(collectorHostPort, "", "Comma-separated string representing host:port of a static list of collectors to connect to directly")
 	tlsFlagsConfig.AddFlags(flags)
@@ -50,12 +50,12 @@ func (b *ConnBuilder) InitFromViper(v *viper.Viper) (*ConnBuilder, error) {
 	if hostPorts != "" {
 		b.CollectorHostPorts = strings.Split(hostPorts, ",")
 	}
-	b.MaxRetry = uint(v.GetInt(retry))
-	if tls, err := tlsFlagsConfig.InitFromViper(v); err == nil {
-		b.TLS = tls
-	} else {
+	b.MaxRetry = uint(v.GetInt(retryFlag))
+	tls, err := tlsFlagsConfig.InitFromViper(v)
+	if err != nil {
 		return b, fmt.Errorf("failed to process TLS options: %w", err)
 	}
+	b.TLS = tls
 	b.DiscoveryMinPeers = v.GetInt(discoveryMinPeers)
 	return b, nil
 }

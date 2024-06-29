@@ -79,7 +79,7 @@ func TestPanicFunc(t *testing.T) {
 	})
 }
 
-func TestPanicForPartition(t *testing.T) {
+func TestPanicForPartition(*testing.T) {
 	l, _ := zap.NewDevelopment()
 	wg := sync.WaitGroup{}
 	wg.Add(1)
@@ -87,7 +87,7 @@ func TestPanicForPartition(t *testing.T) {
 		metricsFactory: metricstest.NewFactory(0),
 		logger:         l,
 		interval:       1,
-		panicFunc: func(partition int32) {
+		panicFunc: func(_ /* partition */ int32) {
 			wg.Done()
 		},
 	}
@@ -96,7 +96,7 @@ func TestPanicForPartition(t *testing.T) {
 	wg.Wait()
 }
 
-func TestGlobalPanic(t *testing.T) {
+func TestGlobalPanic(*testing.T) {
 	l, _ := zap.NewDevelopment()
 	wg := sync.WaitGroup{}
 	wg.Add(1)
@@ -104,7 +104,7 @@ func TestGlobalPanic(t *testing.T) {
 		metricsFactory: metricstest.NewFactory(0),
 		logger:         l,
 		interval:       1,
-		panicFunc: func(partition int32) {
+		panicFunc: func(_ /* partition */ int32) {
 			wg.Done()
 		},
 	}
@@ -119,7 +119,7 @@ func TestNoGlobalPanicIfDeadlockDetectorDisabled(t *testing.T) {
 		metricsFactory: metricstest.NewFactory(0),
 		logger:         l,
 		interval:       0,
-		panicFunc: func(partition int32) {
+		panicFunc: func(_ /* partition */ int32) {
 			t.Errorf("Should not panic when deadlock detector is disabled")
 		},
 	}
@@ -137,7 +137,7 @@ func TestNoPanicForPartitionIfDeadlockDetectorDisabled(t *testing.T) {
 		metricsFactory: metricstest.NewFactory(0),
 		logger:         l,
 		interval:       0,
-		panicFunc: func(partition int32) {
+		panicFunc: func(_ /* partition */ int32) {
 			t.Errorf("Should not panic when deadlock detector is disabled")
 		},
 	}

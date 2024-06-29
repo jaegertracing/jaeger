@@ -22,6 +22,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
@@ -41,14 +42,20 @@ func TestCodecMarshallAndUnmarshall_jaeger_type(t *testing.T) {
 
 func TestCodecMarshallAndUnmarshall_no_jaeger_type(t *testing.T) {
 	c := newCodec()
-	goprotoMessage1 := &emptypb.Empty{}
-	data, err := c.Marshal(goprotoMessage1)
+	msg1 := &timestamppb.Timestamp{Seconds: 42, Nanos: 24}
+	data, err := c.Marshal(msg1)
 	require.NoError(t, err)
 
-	goprotoMessage2 := &emptypb.Empty{}
-	err = c.Unmarshal(data, goprotoMessage2)
+	msg2 := &timestamppb.Timestamp{}
+	err = c.Unmarshal(data, msg2)
 	require.NoError(t, err)
-	assert.Equal(t, goprotoMessage1, goprotoMessage2)
+
+	// Marshal function initializes some internal fields in msg1, like sizeCache.
+	// To ensure the final assert.Equal, do a dummy marshal call on msg2.
+	_, err = c.Marshal(msg2)
+	require.NoError(t, err)
+
+	assert.Equal(t, msg1, msg2)
 }
 
 func TestWireCompatibility(t *testing.T) {

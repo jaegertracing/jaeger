@@ -61,9 +61,8 @@ const defaultTimeout = 30 * time.Second
 
 // defaultConfig should consist of the default values for the prometheus.query.* command line options.
 var defaultConfig = config.Configuration{
-	SupportSpanmetricsConnector: false,
-	MetricNamespace:             "",
-	LatencyUnit:                 "ms",
+	MetricNamespace: "",
+	LatencyUnit:     "ms",
 }
 
 func tracerProvider(t *testing.T) (trace.TracerProvider, *tracetest.InMemoryExporter, func()) {
@@ -138,7 +137,7 @@ func TestMetricsServerError(t *testing.T) {
 		},
 	}
 
-	mockPrometheus := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	mockPrometheus := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 	}))
 	defer mockPrometheus.Close()
@@ -172,7 +171,7 @@ func TestGetLatencies(t *testing.T) {
 			wantLabels: map[string]string{
 				"service_name": "emailservice",
 			},
-			wantPromQlQuery: `histogram_quantile(0.95, sum(rate(latency_bucket{service_name =~ "emailservice", ` +
+			wantPromQlQuery: `histogram_quantile(0.95, sum(rate(duration_bucket{service_name =~ "emailservice", ` +
 				`span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name,le))`,
 		},
 		{
@@ -186,8 +185,8 @@ func TestGetLatencies(t *testing.T) {
 				"operation":    "/OrderResult",
 				"service_name": "emailservice",
 			},
-			wantPromQlQuery: `histogram_quantile(0.95, sum(rate(latency_bucket{service_name =~ "emailservice", ` +
-				`span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name,operation,le))`,
+			wantPromQlQuery: `histogram_quantile(0.95, sum(rate(duration_bucket{service_name =~ "emailservice", ` +
+				`span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name,span_name,le))`,
 		},
 		{
 			name:             "two services and span kinds result in regex 'or' symbol in query",
@@ -199,16 +198,15 @@ func TestGetLatencies(t *testing.T) {
 			wantLabels: map[string]string{
 				"service_name": "emailservice",
 			},
-			wantPromQlQuery: `histogram_quantile(0.95, sum(rate(latency_bucket{service_name =~ "frontend|emailservice", ` +
+			wantPromQlQuery: `histogram_quantile(0.95, sum(rate(duration_bucket{service_name =~ "frontend|emailservice", ` +
 				`span_kind =~ "SPAN_KIND_SERVER|SPAN_KIND_CLIENT"}[10m])) by (service_name,le))`,
 		},
 		{
-			name:             "enable support for spanmetrics connector with normalized metric name",
+			name:             "enable support for spanmetrics connector with a namespace",
 			serviceNames:     []string{"emailservice"},
 			spanKinds:        []string{"SPAN_KIND_SERVER"},
 			groupByOperation: true,
 			updateConfig: func(cfg config.Configuration) config.Configuration {
-				cfg.SupportSpanmetricsConnector = true
 				cfg.MetricNamespace = "span_metrics"
 				cfg.LatencyUnit = "s"
 				return cfg
@@ -216,6 +214,7 @@ func TestGetLatencies(t *testing.T) {
 			wantName:        "service_operation_latencies",
 			wantDescription: "0.95th quantile latency, grouped by service & operation",
 			wantLabels: map[string]string{
+				"operation":    "/OrderResult",
 				"service_name": "emailservice",
 			},
 			wantPromQlQuery: `histogram_quantile(0.95, sum(rate(span_metrics_duration_bucket{service_name =~ "emailservice", ` +
@@ -227,7 +226,6 @@ func TestGetLatencies(t *testing.T) {
 			spanKinds:        []string{"SPAN_KIND_SERVER"},
 			groupByOperation: true,
 			updateConfig: func(cfg config.Configuration) config.Configuration {
-				cfg.SupportSpanmetricsConnector = true
 				cfg.NormalizeDuration = true
 				cfg.LatencyUnit = "s"
 				return cfg
@@ -235,6 +233,7 @@ func TestGetLatencies(t *testing.T) {
 			wantName:        "service_operation_latencies",
 			wantDescription: "0.95th quantile latency, grouped by service & operation",
 			wantLabels: map[string]string{
+				"operation":    "/OrderResult",
 				"service_name": "emailservice",
 			},
 			wantPromQlQuery: `histogram_quantile(0.95, sum(rate(duration_seconds_bucket{service_name =~ "emailservice", ` +
@@ -290,7 +289,7 @@ func TestGetCallRates(t *testing.T) {
 				"service_name": "emailservice",
 			},
 			wantPromQlQuery: `sum(rate(calls{service_name =~ "emailservice", ` +
-				`span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name,operation)`,
+				`span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name,span_name)`,
 		},
 		{
 			name:             "two services and span kinds result in regex 'or' symbol in query",
@@ -311,13 +310,13 @@ func TestGetCallRates(t *testing.T) {
 			spanKinds:        []string{"SPAN_KIND_SERVER"},
 			groupByOperation: true,
 			updateConfig: func(cfg config.Configuration) config.Configuration {
-				cfg.SupportSpanmetricsConnector = true
 				cfg.MetricNamespace = "span_metrics"
 				return cfg
 			},
 			wantName:        "service_operation_call_rate",
 			wantDescription: "calls/sec, grouped by service & operation",
 			wantLabels: map[string]string{
+				"operation":    "/OrderResult",
 				"service_name": "emailservice",
 			},
 			wantPromQlQuery: `sum(rate(span_metrics_calls{service_name =~ "emailservice", ` +
@@ -329,13 +328,13 @@ func TestGetCallRates(t *testing.T) {
 			spanKinds:        []string{"SPAN_KIND_SERVER"},
 			groupByOperation: true,
 			updateConfig: func(cfg config.Configuration) config.Configuration {
-				cfg.SupportSpanmetricsConnector = true
 				cfg.NormalizeCalls = true
 				return cfg
 			},
 			wantName:        "service_operation_call_rate",
 			wantDescription: "calls/sec, grouped by service & operation",
 			wantLabels: map[string]string{
+				"operation":    "/OrderResult",
 				"service_name": "emailservice",
 			},
 			wantPromQlQuery: `sum(rate(calls_total{service_name =~ "emailservice", ` +
@@ -391,8 +390,8 @@ func TestGetErrorRates(t *testing.T) {
 				"service_name": "emailservice",
 			},
 			wantPromQlQuery: `sum(rate(calls{service_name =~ "emailservice", status_code = "STATUS_CODE_ERROR", ` +
-				`span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name,operation) / ` +
-				`sum(rate(calls{service_name =~ "emailservice", span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name,operation)`,
+				`span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name,span_name) / ` +
+				`sum(rate(calls{service_name =~ "emailservice", span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name,span_name)`,
 		},
 		{
 			name:             "two services and span kinds result in regex 'or' symbol in query",
@@ -414,7 +413,6 @@ func TestGetErrorRates(t *testing.T) {
 			spanKinds:        []string{"SPAN_KIND_SERVER"},
 			groupByOperation: false,
 			updateConfig: func(cfg config.Configuration) config.Configuration {
-				cfg.SupportSpanmetricsConnector = false
 				cfg.MetricNamespace = "span_metrics"
 				cfg.NormalizeCalls = true
 				return cfg
@@ -424,9 +422,9 @@ func TestGetErrorRates(t *testing.T) {
 			wantLabels: map[string]string{
 				"service_name": "emailservice",
 			},
-			wantPromQlQuery: `sum(rate(calls{service_name =~ "emailservice", status_code = "STATUS_CODE_ERROR", ` +
+			wantPromQlQuery: `sum(rate(span_metrics_calls_total{service_name =~ "emailservice", status_code = "STATUS_CODE_ERROR", ` +
 				`span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name) / ` +
-				`sum(rate(calls{service_name =~ "emailservice", span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name)`,
+				`sum(rate(span_metrics_calls_total{service_name =~ "emailservice", span_kind =~ "SPAN_KIND_SERVER"}[10m])) by (service_name)`,
 		},
 		{
 			name:             "enable support for spanmetrics connector with a metric namespace",
@@ -434,13 +432,13 @@ func TestGetErrorRates(t *testing.T) {
 			spanKinds:        []string{"SPAN_KIND_SERVER"},
 			groupByOperation: true,
 			updateConfig: func(cfg config.Configuration) config.Configuration {
-				cfg.SupportSpanmetricsConnector = true
 				cfg.MetricNamespace = "span_metrics"
 				return cfg
 			},
 			wantName:        "service_operation_error_rate",
 			wantDescription: "error rate, computed as a fraction of errors/sec over calls/sec, grouped by service & operation",
 			wantLabels: map[string]string{
+				"operation":    "/OrderResult",
 				"service_name": "emailservice",
 			},
 			wantPromQlQuery: `sum(rate(span_metrics_calls{service_name =~ "emailservice", status_code = "STATUS_CODE_ERROR", ` +
@@ -453,13 +451,13 @@ func TestGetErrorRates(t *testing.T) {
 			spanKinds:        []string{"SPAN_KIND_SERVER"},
 			groupByOperation: true,
 			updateConfig: func(cfg config.Configuration) config.Configuration {
-				cfg.SupportSpanmetricsConnector = true
 				cfg.NormalizeCalls = true
 				return cfg
 			},
 			wantName:        "service_operation_error_rate",
 			wantDescription: "error rate, computed as a fraction of errors/sec over calls/sec, grouped by service & operation",
 			wantLabels: map[string]string{
+				"operation":    "/OrderResult",
 				"service_name": "emailservice",
 			},
 			wantPromQlQuery: `sum(rate(calls_total{service_name =~ "emailservice", status_code = "STATUS_CODE_ERROR", ` +
@@ -699,9 +697,8 @@ func TestInvalidLatencyUnit(t *testing.T) {
 	tracer, _, closer := tracerProvider(t)
 	defer closer()
 	cfg := config.Configuration{
-		SupportSpanmetricsConnector: true,
-		NormalizeDuration:           true,
-		LatencyUnit:                 "something invalid",
+		NormalizeDuration: true,
+		LatencyUnit:       "something invalid",
 	}
 	_, _ = NewMetricsReader(cfg, zap.NewNop(), tracer)
 }
@@ -730,7 +727,7 @@ func newFakePromServer(t *testing.T) *fakePromServer {
 	s := &fakePromServer{}
 	s.Server = httptest.NewServer(
 		http.HandlerFunc(
-			func(w http.ResponseWriter, r *http.Request) {
+			func(_ http.ResponseWriter, r *http.Request) {
 				t.Logf("Request to fake Prometheus server %+v", r)
 				h := r.Header.Get("Authorization")
 				s.authReceived.Store(&h)
@@ -900,8 +897,8 @@ func startMockPrometheusServer(t *testing.T, wantPromQlQuery string, wantWarning
 		assert.Equal(t, wantPromQlQuery, promQuery)
 
 		mockResponsePayloadFile := "testdata/service_datapoint_response.json"
-		if strings.Contains(promQuery, "by (service_name,operation") {
-			mockResponsePayloadFile = "testdata/service_operation_datapoint_response.json"
+		if strings.Contains(promQuery, "by (service_name,span_name") {
+			mockResponsePayloadFile = "testdata/service_span_name_datapoint_response.json"
 		}
 		sendResponse(t, w, mockResponsePayloadFile)
 	}))
@@ -954,6 +951,10 @@ func assertMetrics(t *testing.T, gotMetrics *metrics.MetricFamily, wantLabels ma
 	mps := gotMetrics.Metrics[0].MetricPoints
 	assert.Len(t, mps, 1)
 
+	// logging for expected and actual labels
+	t.Logf("Expected labels: %v\n", wantLabels)
+	t.Logf("Actual labels: %v\n", gotMetrics.Metrics[0].Labels)
+
 	// There is no guaranteed order of labels, so we need to take the approach of using a map of expected values.
 	labels := gotMetrics.Metrics[0].Labels
 	assert.Equal(t, len(wantLabels), len(labels))
@@ -963,6 +964,11 @@ func assertMetrics(t *testing.T, gotMetrics *metrics.MetricFamily, wantLabels ma
 		delete(wantLabels, l.Name)
 	}
 	assert.Empty(t, wantLabels)
+
+	// Additional logging to show that all expected labels were found and matched
+	t.Logf("Remaining expected labels after matching: %v\n", wantLabels)
+	t.Logf("\n")
+
 	assert.Equal(t, int64(1620351786), mps[0].Timestamp.GetSeconds())
 
 	actualVal := mps[0].Value.(*metrics.MetricPoint_GaugeValue).GaugeValue.Value.(*metrics.GaugeValue_DoubleValue).DoubleValue

@@ -88,11 +88,11 @@ func TestOperationNamesStorageWrite(t *testing.T) {
 				query2 := &mocks.Query{}
 
 				if test.schemaVersion == previousVersion {
-					query.On("Bind", []interface{}{"service-a", "Operation-b"}).Return(query1)
-					query.On("Bind", []interface{}{"service-c", "operation-d"}).Return(query2)
+					query.On("Bind", []any{"service-a", "Operation-b"}).Return(query1)
+					query.On("Bind", []any{"service-c", "operation-d"}).Return(query2)
 				} else {
-					query.On("Bind", []interface{}{"service-a", "", "Operation-b"}).Return(query1)
-					query.On("Bind", []interface{}{"service-c", "", "operation-d"}).Return(query2)
+					query.On("Bind", []any{"service-a", "", "Operation-b"}).Return(query1)
+					query.On("Bind", []any{"service-c", "", "operation-d"}).Return(query2)
 				}
 
 				query1.On("Exec").Return(nil)
@@ -155,27 +155,46 @@ func TestOperationNamesStorageGetServices(t *testing.T) {
 		name          string
 		schemaVersion schemaVersion
 		expErr        error
+		expRes        []spanstore.Operation
 	}{
-		{name: "test old schema without error", schemaVersion: previousVersion, expErr: nil},
+		{
+			name:          "test old schema without error",
+			schemaVersion: previousVersion,
+			expRes:        []spanstore.Operation{{Name: "foo"}},
+		},
+		{
+			name:          "test new schema without error",
+			schemaVersion: latestVersion,
+			expRes:        []spanstore.Operation{{SpanKind: "foo", Name: "bar"}},
+		},
 		{name: "test old schema with scan error", schemaVersion: previousVersion, expErr: scanError},
-		{name: "test new schema without error", schemaVersion: latestVersion, expErr: nil},
 		{name: "test new schema with scan error", schemaVersion: latestVersion, expErr: scanError},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			withOperationNamesStorage(0, test.schemaVersion, func(s *operationNameStorageTest) {
-				var matched bool
-				matchOnce := mock.MatchedBy(func(v []interface{}) bool {
-					if matched {
-						return false
-					}
-					matched = true
-					return true
-				})
-				matchEverything := mock.MatchedBy(func(v []interface{}) bool { return true })
+				assignPtr := func(vals ...string) any {
+					return mock.MatchedBy(func(args []any) bool {
+						if len(args) != len(vals) {
+							return false
+						}
+						for i, arg := range args {
+							ptr, ok := arg.(*string)
+							if !ok {
+								return false
+							}
+							*ptr = vals[i]
+						}
+						return true
+					})
+				}
 
 				iter := &mocks.Iterator{}
-				iter.On("Scan", matchOnce).Return(true)
-				iter.On("Scan", matchEverything).Return(false) // false to stop the loop
+				if test.schemaVersion == previousVersion {
+					iter.On("Scan", assignPtr("foo")).Return(true).Once()
+				} else {
+					iter.On("Scan", assignPtr("foo", "bar")).Return(true).Once()
+				}
+				iter.On("Scan", mock.Anything).Return(false) // false to stop the loop
 				iter.On("Close").Return(test.expErr)
 
 				query := &mocks.Query{}
@@ -187,9 +206,7 @@ func TestOperationNamesStorageGetServices(t *testing.T) {
 				})
 				if test.expErr == nil {
 					require.NoError(t, err)
-					// expect one empty operation result
-					// because mock iter.Scan(&placeholder) does not write to `placeholder`
-					assert.Equal(t, []spanstore.Operation{{}}, services)
+					assert.Equal(t, test.expRes, services)
 				} else {
 					require.EqualError(
 						t,

@@ -23,8 +23,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
-	kmocks "github.com/jaegertracing/jaeger/cmd/ingester/app/consumer/mocks"
+	cmocks "github.com/jaegertracing/jaeger/cmd/ingester/app/consumer/mocks"
 	"github.com/jaegertracing/jaeger/cmd/ingester/app/processor/mocks"
+	kmocks "github.com/jaegertracing/jaeger/pkg/kafka/consumer/mocks"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
@@ -56,7 +57,7 @@ func Test_new(t *testing.T) {
 
 	processor := pf.new(topic, partition, offset)
 	defer processor.Close()
-	msg := &kmocks.Message{}
+	msg := &cmocks.Message{}
 	msg.On("Offset").Return(offset + 1)
 	processor.Process(msg)
 
@@ -91,7 +92,7 @@ func (f *fakeProcessor) Start() {
 
 type fakeMsg struct{}
 
-func (f *fakeMsg) Value() []byte {
+func (*fakeMsg) Value() []byte {
 	return nil
 }
 

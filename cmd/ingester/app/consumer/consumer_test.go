@@ -29,11 +29,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
-	kmocks "github.com/jaegertracing/jaeger/cmd/ingester/app/consumer/mocks"
 	"github.com/jaegertracing/jaeger/cmd/ingester/app/processor"
 	pmocks "github.com/jaegertracing/jaeger/cmd/ingester/app/processor/mocks"
 	"github.com/jaegertracing/jaeger/internal/metricstest"
 	"github.com/jaegertracing/jaeger/pkg/kafka/consumer"
+	kmocks "github.com/jaegertracing/jaeger/pkg/kafka/consumer/mocks"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
@@ -77,7 +77,7 @@ func newSaramaClusterConsumer(saramaPartitionConsumer sarama.PartitionConsumer, 
 	}
 	saramaClusterConsumer := &kmocks.Consumer{}
 	saramaClusterConsumer.On("Partitions").Return((<-chan cluster.PartitionConsumer)(pcha))
-	saramaClusterConsumer.On("Close").Return(nil).Run(func(args mock.Arguments) {
+	saramaClusterConsumer.On("Close").Return(nil).Run(func(_ mock.Arguments) {
 		mc.Close()
 		close(pcha)
 	})
@@ -88,7 +88,7 @@ func newSaramaClusterConsumer(saramaPartitionConsumer sarama.PartitionConsumer, 
 func newConsumer(
 	t *testing.T,
 	metricsFactory metrics.Factory,
-	topic string,
+	_ string, /* topic */
 	processor processor.SpanProcessor,
 	consumer consumer.Consumer,
 ) *Consumer {
@@ -127,7 +127,7 @@ func TestSaramaConsumerWrapper_start_Messages(t *testing.T) {
 	isProcessed := sync.WaitGroup{}
 	isProcessed.Add(1)
 	mp := &pmocks.SpanProcessor{}
-	mp.On("Process", saramaMessageWrapper{msg}).Return(func(msg processor.Message) error {
+	mp.On("Process", saramaMessageWrapper{msg}).Return(func(_ processor.Message) error {
 		isProcessed.Done()
 		return nil
 	})
@@ -146,7 +146,7 @@ func TestSaramaConsumerWrapper_start_Messages(t *testing.T) {
 			partitionConsumer: &partitionConsumerWrapper{
 				topic:             topic,
 				partition:         partition,
-				PartitionConsumer: &kmocks.PartitionConsumer{},
+				PartitionConsumer: &smocks.PartitionConsumer{},
 			},
 		},
 	}

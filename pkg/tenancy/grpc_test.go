@@ -83,7 +83,7 @@ func TestTenancyInterceptors(t *testing.T) {
 				context: test.ctx,
 			}
 			ssi := grpc.StreamServerInfo{}
-			handler := func(interface{}, grpc.ServerStream) error {
+			handler := func(any, grpc.ServerStream) error {
 				// do nothing
 				return nil
 			}
@@ -98,7 +98,7 @@ func TestTenancyInterceptors(t *testing.T) {
 			uinterceptor := NewGuardingUnaryInterceptor(test.tenancyMgr)
 			usi := &grpc.UnaryServerInfo{}
 			iface := 0
-			uhandler := func(ctx context.Context, req interface{}) (interface{}, error) {
+			uhandler := func(_ context.Context, req any) (any, error) {
 				// do nothing
 				return req, nil
 			}
@@ -118,7 +118,7 @@ func TestClientUnaryInterceptor(t *testing.T) {
 	interceptor := NewClientUnaryInterceptor(tm)
 	var tenant string
 	fakeErr := errors.New("foo")
-	invoker := func(ctx context.Context, method string, req, reply interface{}, cc *grpc.ClientConn, opts ...grpc.CallOption) error {
+	invoker := func(ctx context.Context, _ /* method */ string, _ /* req */, _ /* reply */ any, _ *grpc.ClientConn, _ ...grpc.CallOption) error {
 		md, ok := metadata.FromOutgoingContext(ctx)
 		assert.True(t, ok)
 		ten, err := tenantFromMetadata(md, tm.Header)
@@ -138,7 +138,7 @@ func TestClientStreamInterceptor(t *testing.T) {
 	var tenant string
 	fakeErr := errors.New("foo")
 	ctx := WithTenant(context.Background(), "acme")
-	streamer := func(ctx context.Context, desc *grpc.StreamDesc, cc *grpc.ClientConn, method string, opts ...grpc.CallOption) (grpc.ClientStream, error) {
+	streamer := func(ctx context.Context, _ *grpc.StreamDesc, _ *grpc.ClientConn, _ /* method */ string, _ ...grpc.CallOption) (grpc.ClientStream, error) {
 		md, ok := metadata.FromOutgoingContext(ctx)
 		assert.True(t, ok)
 		ten, err := tenantFromMetadata(md, tm.Header)

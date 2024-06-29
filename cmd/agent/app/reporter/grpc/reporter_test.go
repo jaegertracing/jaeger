@@ -46,7 +46,7 @@ func (h *mockSpanHandler) getRequests() []*api_v2.PostSpansRequest {
 	return h.requests
 }
 
-func (h *mockSpanHandler) PostSpans(c context.Context, r *api_v2.PostSpansRequest) (*api_v2.PostSpansResponse, error) {
+func (h *mockSpanHandler) PostSpans(_ context.Context, r *api_v2.PostSpansRequest) (*api_v2.PostSpansResponse, error) {
 	h.mux.Lock()
 	defer h.mux.Unlock()
 	h.requests = append(h.requests, r)
@@ -60,7 +60,6 @@ func TestReporter_EmitZipkinBatch(t *testing.T) {
 	})
 	defer s.Stop()
 	conn, err := grpc.NewClient(addr.String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
-	//nolint:staticcheck // don't care about errors
 	require.NoError(t, err)
 	defer conn.Close()
 
@@ -103,7 +102,6 @@ func TestReporter_EmitBatch(t *testing.T) {
 	})
 	defer s.Stop()
 	conn, err := grpc.NewClient(addr.String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
-	//nolint:staticcheck // don't care about errors
 	require.NoError(t, err)
 	defer conn.Close()
 	rep := NewReporter(conn, nil, zap.NewNop())
@@ -185,7 +183,7 @@ func TestReporter_MakeModelKeyValue(t *testing.T) {
 
 type mockMultitenantSpanHandler struct{}
 
-func (h *mockMultitenantSpanHandler) PostSpans(ctx context.Context, r *api_v2.PostSpansRequest) (*api_v2.PostSpansResponse, error) {
+func (*mockMultitenantSpanHandler) PostSpans(ctx context.Context, _ *api_v2.PostSpansRequest) (*api_v2.PostSpansResponse, error) {
 	md, ok := metadata.FromIncomingContext(ctx)
 	if !ok {
 		return &api_v2.PostSpansResponse{}, status.Errorf(codes.PermissionDenied, "missing tenant header")

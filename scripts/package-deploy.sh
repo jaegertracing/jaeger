@@ -1,6 +1,8 @@
 #!/bin/bash
 set -euxf -o pipefail
 
+TARCMD=${TARCMD:-tar}
+
 # stage-platform-files stages the different the platform ($1) into the package
 # staging dir ($2). If you pass in a file extension ($3) it will be used when
 # copying on the source
@@ -24,9 +26,9 @@ function stage-tool-platform-files {
     local -r TOOLS_PACKAGE_STAGING_DIR=$2
     local -r FILE_EXTENSION=${3:-}
 
-    cp "./cmd/es-index-cleaner/es-index-cleaner-${PLATFORM}"        "${TOOLS_PACKAGE_STAGING_DIR}/jaeger-es-index-cleaner${FILE_EXTENSION}"
-    cp "./cmd/es-rollover/es-rollover-${PLATFORM}"                  "${TOOLS_PACKAGE_STAGING_DIR}/jaeger-es-rollover${FILE_EXTENSION}"
-    cp "./cmd/esmapping-generator/esmapping-generator-${PLATFORM}"  "${TOOLS_PACKAGE_STAGING_DIR}/jaeger-esmapping-generator${FILE_EXTENSION}"
+    cp "./cmd/es-index-cleaner/es-index-cleaner-${PLATFORM}"  "${TOOLS_PACKAGE_STAGING_DIR}/jaeger-es-index-cleaner${FILE_EXTENSION}"
+    cp "./cmd/es-rollover/es-rollover-${PLATFORM}"            "${TOOLS_PACKAGE_STAGING_DIR}/jaeger-es-rollover${FILE_EXTENSION}"
+    cp "./plugin/storage/es/esmapping-generator-${PLATFORM}"  "${TOOLS_PACKAGE_STAGING_DIR}/jaeger-esmapping-generator${FILE_EXTENSION}"
 }
 
 # package pulls built files for the platform ($2) and compresses it using the compression ($1).
@@ -67,14 +69,14 @@ function package {
     else
         local -r ARCHIVE_NAME="$PACKAGE_NAME.tar.gz"
         echo "Packaging into $ARCHIVE_NAME:"
-        tar --sort=name -czvf "./deploy/$ARCHIVE_NAME" "$PACKAGE_STAGING_DIR"
+        ${TARCMD} --sort=name -czvf "./deploy/$ARCHIVE_NAME" "$PACKAGE_STAGING_DIR"
         local -r TOOLS_ARCHIVE_NAME="$TOOLS_PACKAGE_NAME.tar.gz"
         echo "Packaging into $TOOLS_ARCHIVE_NAME:"
-        tar --sort=name -czvf "./deploy/$TOOLS_ARCHIVE_NAME" "$TOOLS_PACKAGE_STAGING_DIR"
+        ${TARCMD} --sort=name -czvf "./deploy/$TOOLS_ARCHIVE_NAME" "$TOOLS_PACKAGE_STAGING_DIR"
     fi
 
-    rm -rf "$PACKAGE_STAGING_DIR" 
-    rm -rf "$TOOLS_PACKAGE_STAGING_DIR" 
+    rm -rf "$PACKAGE_STAGING_DIR"
+    rm -rf "$TOOLS_PACKAGE_STAGING_DIR"
 }
 
 set -e

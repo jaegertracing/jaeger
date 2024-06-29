@@ -30,7 +30,7 @@ func TestAdditionalHeadersHandler(t *testing.T) {
 	additionalHeaders.Add("Access-Control-Expose-Headers", "X-Another-Custom-Header")
 	additionalHeaders.Add("Access-Control-Request-Headers", "field1, field2")
 
-	emptyHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	emptyHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Write([]byte{})
 	})
 

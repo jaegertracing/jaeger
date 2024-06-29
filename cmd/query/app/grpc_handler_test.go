@@ -319,7 +319,7 @@ func TestArchiveTraceNotFoundGRPC(t *testing.T) {
 }
 
 func TestArchiveTraceEmptyTraceFailureGRPC(t *testing.T) {
-	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
+	withServerAndClient(t, func(_ *grpcServer, client *grpcClient) {
 		_, err := client.ArchiveTrace(context.Background(), &api_v2.ArchiveTraceRequest{
 			TraceID: model.TraceID{},
 		})
@@ -404,7 +404,7 @@ func TestFindTracesSuccess_SpanStreamingGRPC(t *testing.T) {
 }
 
 func TestFindTracesMissingQuery_GRPC(t *testing.T) {
-	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
+	withServerAndClient(t, func(_ *grpcServer, client *grpcClient) {
 		res, err := client.FindTraces(context.Background(), &api_v2.FindTracesRequest{
 			Query: nil,
 		})
@@ -522,8 +522,11 @@ func TestGetDependenciesSuccessGRPC(t *testing.T) {
 	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
 		expectedDependencies := []model.DependencyLink{{Parent: "killer", Child: "queen", CallCount: 12}}
 		endTs := time.Now().UTC()
-		server.depReader.On("GetDependencies", endTs.Add(time.Duration(-1)*defaultDependencyLookbackDuration), defaultDependencyLookbackDuration).
-			Return(expectedDependencies, nil).Times(1)
+		server.depReader.On("GetDependencies",
+			mock.Anything, // context.Context
+			endTs.Add(time.Duration(-1)*defaultDependencyLookbackDuration),
+			defaultDependencyLookbackDuration,
+		).Return(expectedDependencies, nil).Times(1)
 
 		res, err := client.GetDependencies(context.Background(), &api_v2.GetDependenciesRequest{
 			StartTime: endTs.Add(time.Duration(-1) * defaultDependencyLookbackDuration),
@@ -537,8 +540,11 @@ func TestGetDependenciesSuccessGRPC(t *testing.T) {
 func TestGetDependenciesFailureGRPC(t *testing.T) {
 	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
 		endTs := time.Now().UTC()
-		server.depReader.On("GetDependencies", endTs.Add(time.Duration(-1)*defaultDependencyLookbackDuration), defaultDependencyLookbackDuration).
-			Return(nil, errStorageGRPC).Times(1)
+		server.depReader.On(
+			"GetDependencies",
+			mock.Anything, // context.Context
+			endTs.Add(time.Duration(-1)*defaultDependencyLookbackDuration),
+			defaultDependencyLookbackDuration).Return(nil, errStorageGRPC).Times(1)
 
 		_, err := client.GetDependencies(context.Background(), &api_v2.GetDependenciesRequest{
 			StartTime: endTs.Add(time.Duration(-1) * defaultDependencyLookbackDuration),
@@ -560,7 +566,7 @@ func TestGetDependenciesFailureUninitializedTimeGRPC(t *testing.T) {
 	}
 
 	for _, input := range timeInputs {
-		withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
+		withServerAndClient(t, func(_ *grpcServer, client *grpcClient) {
 			_, err := client.GetDependencies(context.Background(), &api_v2.GetDependenciesRequest{
 				StartTime: input.startTime,
 				EndTime:   input.endTime,
@@ -640,7 +646,7 @@ func TestGetMetricsSuccessGRPC(t *testing.T) {
 }
 
 func TestGetMetricsReaderDisabledGRPC(t *testing.T) {
-	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
+	withServerAndClient(t, func(_ *grpcServer, client *grpcClient) {
 		baseQueryParam := &metrics.MetricsQueryBaseRequest{
 			ServiceNames: []string{"foo"},
 		}
@@ -948,6 +954,7 @@ func withTenantedServerAndClient(t *testing.T, tm *tenancy.Manager, actualTest f
 }
 
 // withOutgoingMetadata returns a Context with metadata for a server to receive
+// revive:disable-next-line context-as-argument
 func withOutgoingMetadata(t *testing.T, ctx context.Context, headerName, headerValue string) context.Context {
 	t.Helper()
 
@@ -1108,7 +1115,7 @@ func TestTenancyContextFlowGRPC(t *testing.T) {
 		}
 
 		addTenantedGetServices := func(mockReader *spanstoremocks.Reader, tenant string, expectedServices []string) {
-			mockReader.On("GetServices", mock.MatchedBy(func(v interface{}) bool {
+			mockReader.On("GetServices", mock.MatchedBy(func(v any) bool {
 				ctx, ok := v.(context.Context)
 				if !ok {
 					return false
@@ -1120,7 +1127,7 @@ func TestTenancyContextFlowGRPC(t *testing.T) {
 			})).Return(expectedServices, nil).Once()
 		}
 		addTenantedGetTrace := func(mockReader *spanstoremocks.Reader, tenant string, trace *model.Trace, err error) {
-			mockReader.On("GetTrace", mock.MatchedBy(func(v interface{}) bool {
+			mockReader.On("GetTrace", mock.MatchedBy(func(v any) bool {
 				ctx, ok := v.(context.Context)
 				if !ok {
 					return false

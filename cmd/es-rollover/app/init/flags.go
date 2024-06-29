@@ -43,7 +43,7 @@ type Config struct {
 }
 
 // AddFlags adds flags for TLS to the FlagSet.
-func (c *Config) AddFlags(flags *flag.FlagSet) {
+func (*Config) AddFlags(flags *flag.FlagSet) {
 	flags.Int(shards, 5, "Number of shards")
 	flags.Int(replicas, 1, "Number of replicas")
 	flags.Int(prioritySpanTemplate, 0, "Priority of jaeger-span index template (ESv8 only)")

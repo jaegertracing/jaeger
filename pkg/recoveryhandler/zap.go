@@ -29,7 +29,7 @@ type zapRecoveryWrapper struct {
 }
 
 // Println logs an error message with the given fields
-func (z zapRecoveryWrapper) Println(args ...interface{}) {
+func (z zapRecoveryWrapper) Println(args ...any) {
 	z.logger.Error(fmt.Sprint(args...))
 }
 

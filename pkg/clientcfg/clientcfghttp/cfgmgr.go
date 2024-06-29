@@ -18,20 +18,20 @@ import (
 	"context"
 	"errors"
 
-	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/strategystore"
+	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/samplingstrategy"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 	"github.com/jaegertracing/jaeger/thrift-gen/baggage"
 )
 
 // ConfigManager implements ClientConfigManager.
 type ConfigManager struct {
-	SamplingStrategyStore strategystore.StrategyStore
-	BaggageManager        baggage.BaggageRestrictionManager
+	SamplingProvider samplingstrategy.Provider
+	BaggageManager   baggage.BaggageRestrictionManager
 }
 
 // GetSamplingStrategy implements ClientConfigManager.GetSamplingStrategy.
 func (c *ConfigManager) GetSamplingStrategy(ctx context.Context, serviceName string) (*api_v2.SamplingStrategyResponse, error) {
-	return c.SamplingStrategyStore.GetSamplingStrategy(ctx, serviceName)
+	return c.SamplingProvider.GetSamplingStrategy(ctx, serviceName)
 }
 
 // GetBaggageRestrictions implements ClientConfigManager.GetBaggageRestrictions.

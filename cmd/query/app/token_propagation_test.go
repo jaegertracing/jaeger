@@ -46,7 +46,7 @@ type elasticsearchHandlerMock struct {
 	test *testing.T
 }
 
-func (h *elasticsearchHandlerMock) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (*elasticsearchHandlerMock) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if token, ok := bearertoken.GetBearerToken(r.Context()); ok && token == bearerToken {
 		// Return empty results, we don't care about the result here.
 		// we just need to make sure the token was propagated to the storage and the query-service returns 200

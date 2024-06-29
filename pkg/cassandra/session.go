@@ -41,7 +41,7 @@ const (
 
 // Session is an abstraction of gocql.Session
 type Session interface {
-	Query(stmt string, values ...interface{}) Query
+	Query(stmt string, values ...any) Query
 	Close()
 }
 
@@ -54,20 +54,20 @@ type UpdateQuery interface {
 	// statement containing an IF clause). If the transaction fails because
 	// the existing values did not match, the previous values will be stored
 	// in dest.
-	ScanCAS(dest ...interface{}) (bool, error)
+	ScanCAS(dest ...any) (bool, error)
 }
 
 // Query is an abstraction of gocql.Query
 type Query interface {
 	UpdateQuery
 	Iter() Iterator
-	Bind(v ...interface{}) Query
+	Bind(v ...any) Query
 	Consistency(level Consistency) Query
 	PageSize(int) Query
 }
 
 // Iterator is an abstraction of gocql.Iter
 type Iterator interface {
-	Scan(dest ...interface{}) bool
+	Scan(dest ...any) bool
 	Close() error
 }

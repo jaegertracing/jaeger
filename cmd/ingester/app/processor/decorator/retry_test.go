@@ -95,7 +95,7 @@ func TestNewRetryingProcessorNoErrorPropagation(t *testing.T) {
 
 type fakeRand struct{}
 
-func (f *fakeRand) Int63n(v int64) int64 {
+func (*fakeRand) Int63n(v int64) int64 {
 	return v
 }
 
@@ -134,7 +134,7 @@ func Test_ProcessBackoff(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+		t.Run(tt.name, func(_ *testing.T) {
 			rd := &retryDecorator{
 				retryAttempts: metrics.NullCounter,
 				options: retryOptions{

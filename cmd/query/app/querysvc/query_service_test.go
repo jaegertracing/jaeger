@@ -89,7 +89,7 @@ func withArchiveSpanWriter() testOption {
 }
 
 func withAdjuster() testOption {
-	return func(tqs *testQueryService, options *QueryServiceOptions) {
+	return func(_ *testQueryService, options *QueryServiceOptions) {
 		options.Adjuster = adjuster.Func(func(trace *model.Trace) (*model.Trace, error) {
 			return trace, errAdjustment
 		})
@@ -280,7 +280,11 @@ func TestGetDependencies(t *testing.T) {
 		},
 	}
 	endTs := time.Unix(0, 1476374248550*millisToNanosMultiplier)
-	tqs.depsReader.On("GetDependencies", endTs, defaultDependencyLookbackDuration).Return(expectedDependencies, nil).Times(1)
+	tqs.depsReader.On(
+		"GetDependencies",
+		mock.Anything, // context.Context
+		endTs,
+		defaultDependencyLookbackDuration).Return(expectedDependencies, nil).Times(1)
 
 	actualDependencies, err := tqs.queryService.GetDependencies(context.Background(), time.Unix(0, 1476374248550*millisToNanosMultiplier), defaultDependencyLookbackDuration)
 	require.NoError(t, err)
@@ -315,7 +319,7 @@ type fakeStorageFactory2 struct {
 	wErr error
 }
 
-func (*fakeStorageFactory1) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
+func (*fakeStorageFactory1) Initialize(metrics.Factory, *zap.Logger) error {
 	return nil
 }
 func (*fakeStorageFactory1) CreateSpanReader() (spanstore.Reader, error)             { return nil, nil }

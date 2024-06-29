@@ -170,6 +170,8 @@ func (s *AdminServer) registerPprofHandlers() {
 
 // Close stops the HTTP server
 func (s *AdminServer) Close() error {
-	_ = s.tlsCertWatcherCloser.Close()
-	return s.server.Shutdown(context.Background())
+	return errors.Join(
+		s.tlsCertWatcherCloser.Close(),
+		s.server.Shutdown(context.Background()),
+	)
 }

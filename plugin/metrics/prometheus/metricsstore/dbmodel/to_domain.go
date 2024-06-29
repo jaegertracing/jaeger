@@ -31,7 +31,7 @@ type Translator struct {
 // New returns a new Translator.
 func New(spanNameLabel string) Translator {
 	return Translator{
-		// "operator" is the label name that Jaeger UI expects.
+		// "operation" is the label name that Jaeger UI expects.
 		labelMap: map[string]string{spanNameLabel: "operation"},
 	}
 }

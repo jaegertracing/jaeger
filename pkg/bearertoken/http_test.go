@@ -35,7 +35,7 @@ func Test_PropagationHandler(t *testing.T) {
 	const bearerToken = "blah"
 
 	validTokenHandler := func(stop *sync.WaitGroup) http.HandlerFunc {
-		return func(w http.ResponseWriter, r *http.Request) {
+		return func(_ http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
 			token, ok := GetBearerToken(ctx)
 			assert.Equal(t, bearerToken, token)
@@ -45,7 +45,7 @@ func Test_PropagationHandler(t *testing.T) {
 	}
 
 	emptyHandler := func(stop *sync.WaitGroup) http.HandlerFunc {
-		return func(w http.ResponseWriter, r *http.Request) {
+		return func(_ http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
 			token, _ := GetBearerToken(ctx)
 			assert.Empty(t, token, bearerToken)

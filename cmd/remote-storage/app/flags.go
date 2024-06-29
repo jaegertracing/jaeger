@@ -52,13 +52,13 @@ func AddFlags(flagSet *flag.FlagSet) {
 }
 
 // InitFromViper initializes Options with properties from CLI flags.
-func (o *Options) InitFromViper(v *viper.Viper, logger *zap.Logger) (*Options, error) {
+func (o *Options) InitFromViper(v *viper.Viper, _ *zap.Logger) (*Options, error) {
 	o.GRPCHostPort = v.GetString(flagGRPCHostPort)
-	if tlsGrpc, err := tlsGRPCFlagsConfig.InitFromViper(v); err == nil {
-		o.TLSGRPC = tlsGrpc
-	} else {
+	tlsGrpc, err := tlsGRPCFlagsConfig.InitFromViper(v)
+	if err != nil {
 		return o, fmt.Errorf("failed to process gRPC TLS options: %w", err)
 	}
+	o.TLSGRPC = tlsGrpc
 	o.Tenancy = tenancy.InitFromViper(v)
 	return o, nil
 }

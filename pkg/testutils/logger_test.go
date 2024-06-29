@@ -49,7 +49,7 @@ func TestJSONLineError(t *testing.T) {
 }
 
 // NB. Run with -race to ensure no race condition
-func TestRaceCondition(t *testing.T) {
+func TestRaceCondition(*testing.T) {
 	logger, buffer := NewLogger()
 
 	start := make(chan struct{})

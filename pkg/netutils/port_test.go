@@ -27,7 +27,7 @@ type testAddr struct {
 	Address string
 }
 
-func (tA *testAddr) Network() string {
+func (*testAddr) Network() string {
 	return "tcp"
 }
 

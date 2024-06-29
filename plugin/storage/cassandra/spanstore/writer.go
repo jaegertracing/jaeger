@@ -138,7 +138,7 @@ func (s *SpanWriter) Close() error {
 }
 
 // WriteSpan saves the span into Cassandra
-func (s *SpanWriter) WriteSpan(ctx context.Context, span *model.Span) error {
+func (s *SpanWriter) WriteSpan(_ context.Context, span *model.Span) error {
 	ds := dbmodel.FromDomain(span)
 	if s.storageMode&storeFlag == storeFlag {
 		if err := s.writeSpan(span, ds); err != nil {
@@ -153,7 +153,7 @@ func (s *SpanWriter) WriteSpan(ctx context.Context, span *model.Span) error {
 	return nil
 }
 
-func (s *SpanWriter) writeSpan(span *model.Span, ds *dbmodel.Span) error {
+func (s *SpanWriter) writeSpan(_ *model.Span, ds *dbmodel.Span) error {
 	mainQuery := s.session.Query(
 		insertSpan,
 		ds.TraceID,
@@ -264,7 +264,7 @@ func (s *SpanWriter) indexByOperation(span *dbmodel.Span) error {
 }
 
 // shouldIndexTag checks to see if the tag is json or not, if it's UTF8 valid and it's not too large
-func (s *SpanWriter) shouldIndexTag(tag dbmodel.TagInsertion) bool {
+func (*SpanWriter) shouldIndexTag(tag dbmodel.TagInsertion) bool {
 	isJSON := func(s string) bool {
 		var js json.RawMessage
 		// poor man's string-is-a-json check shortcircuits full unmarshalling
@@ -278,7 +278,7 @@ func (s *SpanWriter) shouldIndexTag(tag dbmodel.TagInsertion) bool {
 		!isJSON(tag.TagValue)
 }
 
-func (s *SpanWriter) logError(span *dbmodel.Span, err error, msg string, logger *zap.Logger) error {
+func (*SpanWriter) logError(span *dbmodel.Span, err error, msg string, logger *zap.Logger) error {
 	logger.
 		With(zap.String("trace_id", span.TraceID.String())).
 		With(zap.Int64("span_id", span.SpanID)).

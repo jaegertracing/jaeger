@@ -143,7 +143,7 @@ func (r *ClientMetricsReporter) expireClientMetricsLoop() {
 
 func (r *ClientMetricsReporter) expireClientMetrics(t time.Time) {
 	var size int64
-	r.lastReceivedClientStats.Range(func(k, v interface{}) bool {
+	r.lastReceivedClientStats.Range(func(k, v any) bool {
 		stats := v.(*lastReceivedClientStats)
 		stats.lock.Lock()
 		defer stats.lock.Unlock()

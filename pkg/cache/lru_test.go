@@ -27,7 +27,7 @@ import (
 
 func TestLRU(t *testing.T) {
 	cache := NewLRUWithOptions(4, &Options{
-		OnEvict: func(k string, i interface{}) {
+		OnEvict: func(_ string, _ any) {
 			// do nothing, just for code coverage
 		},
 	})
@@ -139,7 +139,7 @@ func TestDefaultClock(t *testing.T) {
 	assert.Equal(t, 0, cache.Size())
 }
 
-func TestLRUCacheConcurrentAccess(t *testing.T) {
+func TestLRUCacheConcurrentAccess(*testing.T) {
 	cache := NewLRU(5)
 	values := map[string]string{
 		"A": "foo",
@@ -176,7 +176,7 @@ func TestLRUCacheConcurrentAccess(t *testing.T) {
 func TestRemoveFunc(t *testing.T) {
 	ch := make(chan bool)
 	cache := NewLRUWithOptions(5, &Options{
-		OnEvict: func(k string, i interface{}) {
+		OnEvict: func(_ string, i any) {
 			go func() {
 				_, ok := i.(*testing.T)
 				assert.True(t, ok)
@@ -202,7 +202,7 @@ func TestRemovedFuncWithTTL(t *testing.T) {
 	ch := make(chan bool)
 	cache := NewLRUWithOptions(5, &Options{
 		TTL: time.Millisecond * 5,
-		OnEvict: func(k string, i interface{}) {
+		OnEvict: func(_ string, i any) {
 			go func() {
 				_, ok := i.(*testing.T)
 				assert.True(t, ok)

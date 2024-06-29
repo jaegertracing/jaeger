@@ -79,24 +79,24 @@ func TestExtendLease(t *testing.T) {
 		t.Run(testCase.caption, func(t *testing.T) {
 			withCQLLock(func(s *cqlLockTest) {
 				query := &mocks.Query{}
-				query.On("ScanCAS", matchEverything()).Return(testCase.applied, testCase.errScan)
+				query.On("ScanCAS", mock.Anything).Return(testCase.applied, testCase.errScan)
 
-				var args []interface{}
-				captureArgs := mock.MatchedBy(func(v []interface{}) bool {
-					args = v
-					return true
-				})
-
-				s.session.On("Query", mock.AnythingOfType("string"), captureArgs).Return(query)
+				s.session.On(
+					"Query",
+					mock.AnythingOfType("string"),
+					[]any{
+						60,
+						localhost,
+						samplingLock,
+						localhost,
+					},
+				).Return(query)
 				err := s.lock.extendLease(samplingLock, time.Second*60)
 				if testCase.expectedErrMsg == "" {
 					require.NoError(t, err)
 				} else {
 					require.EqualError(t, err, testCase.expectedErrMsg)
 				}
-
-				expectedArgs := []interface{}{60, localhost, samplingLock, localhost}
-				assert.Equal(t, expectedArgs, args)
 			})
 		})
 	}
@@ -159,25 +159,29 @@ func TestAcquire(t *testing.T) {
 		testCase := tc // capture loop var
 		t.Run(testCase.caption, func(t *testing.T) {
 			withCQLLock(func(s *cqlLockTest) {
-				firstQuery := &mocks.Query{}
-				secondQuery := &mocks.Query{}
-
-				scanMatcher := func() interface{} {
-					scanFunc := func(args []interface{}) bool {
+				assignPtr := func(vals ...string) any {
+					return mock.MatchedBy(func(args []any) bool {
+						if len(args) != len(vals) {
+							return false
+						}
 						for i, arg := range args {
-							if ptr, ok := arg.(*string); ok {
-								*ptr = testCase.retVals[i]
+							ptr, ok := arg.(*string)
+							if !ok {
+								return false
 							}
+							*ptr = vals[i]
 						}
 						return true
-					}
-					return mock.MatchedBy(scanFunc)
+					})
 				}
-				firstQuery.On("ScanCAS", scanMatcher()).Return(testCase.insertLockApplied, testCase.errScan)
-				secondQuery.On("ScanCAS", matchEverything()).Return(testCase.updateLockApplied, nil)
+				firstQuery := &mocks.Query{}
+				firstQuery.On("ScanCAS", assignPtr(testCase.retVals...)).
+					Return(testCase.insertLockApplied, testCase.errScan)
+				secondQuery := &mocks.Query{}
+				secondQuery.On("ScanCAS", mock.Anything).Return(testCase.updateLockApplied, nil)
 
-				s.session.On("Query", stringMatcher("INSERT INTO leases"), matchEverything()).Return(firstQuery)
-				s.session.On("Query", stringMatcher("UPDATE leases"), matchEverything()).Return(secondQuery)
+				s.session.On("Query", stringMatcher("INSERT INTO leases"), mock.Anything).Return(firstQuery)
+				s.session.On("Query", stringMatcher("UPDATE leases"), mock.Anything).Return(secondQuery)
 				acquired, err := s.lock.Acquire(samplingLock, 0)
 				if testCase.expectedErrMsg == "" {
 					require.NoError(t, err)
@@ -226,15 +230,9 @@ func TestForfeit(t *testing.T) {
 		t.Run(testCase.caption, func(t *testing.T) {
 			withCQLLock(func(s *cqlLockTest) {
 				query := &mocks.Query{}
-				query.On("ScanCAS", matchEverything()).Return(testCase.applied, testCase.errScan)
+				query.On("ScanCAS", mock.Anything).Return(testCase.applied, testCase.errScan)
 
-				var args []interface{}
-				captureArgs := mock.MatchedBy(func(v []interface{}) bool {
-					args = v
-					return true
-				})
-
-				s.session.On("Query", mock.AnythingOfType("string"), captureArgs).Return(query)
+				s.session.On("Query", mock.AnythingOfType("string"), []any{samplingLock, localhost}).Return(query)
 				applied, err := s.lock.Forfeit(samplingLock)
 				if testCase.expectedErrMsg == "" {
 					require.NoError(t, err)
@@ -242,29 +240,13 @@ func TestForfeit(t *testing.T) {
 					require.EqualError(t, err, testCase.expectedErrMsg)
 				}
 				assert.Equal(t, testCase.applied, applied)
-
-				assert.Len(t, args, 2)
-				if d, ok := args[0].(string); ok {
-					assert.Equal(t, samplingLock, d)
-				} else {
-					assert.Fail(t, "expecting first arg as string", "received: %+v", args)
-				}
-				if d, ok := args[1].(string); ok {
-					assert.Equal(t, localhost, d)
-				} else {
-					assert.Fail(t, "expecting second arg as string", "received: %+v", args)
-				}
 			})
 		})
 	}
 }
 
-func matchEverything() interface{} {
-	return mock.MatchedBy(func(v []interface{}) bool { return true })
-}
-
 // stringMatcher can match a string argument when it contains a specific substring q
-func stringMatcher(q string) interface{} {
+func stringMatcher(q string) any {
 	matchFunc := func(s string) bool {
 		return strings.Contains(s, q)
 	}
