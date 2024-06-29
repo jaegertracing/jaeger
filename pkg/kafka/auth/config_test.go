@@ -34,10 +34,11 @@ func Test_InitFromViper(t *testing.T) {
 		"--kafka.auth.kerberos.config-file=/path/to/krb5.conf",
 		"--kafka.auth.kerberos.keytab-file=/path/to/keytab",
 		"--kafka.auth.kerberos.disable-fast-negotiation=true",
-		"--kafka.auth.tls.enabled=true",
+		"--kafka.auth.tls.enabled=false",
 		"--kafka.auth.plaintext.username=user",
 		"--kafka.auth.plaintext.password=password",
 		"--kafka.auth.plaintext.mechanism=SCRAM-SHA-256",
+		"--kafka.auth.tls.ca=blah",
 	})
 	v := viper.New()
 	v.AutomaticEnv()
@@ -45,7 +46,13 @@ func Test_InitFromViper(t *testing.T) {
 	v.BindPFlags(command.Flags())
 	authConfig := &AuthenticationConfig{}
 	err := authConfig.InitFromViper(configPrefix, v)
+	require.Error(t, err)
+
+	command.ParseFlags([]string{"--kafka.auth.tls.ca="})
+	v.BindPFlags(command.Flags())
+	err = authConfig.InitFromViper(configPrefix, v)
 	require.NoError(t, err)
+
 	expectedConfig := &AuthenticationConfig{
 		Authentication: "tls",
 		Kerberos: KerberosConfig{
@@ -106,10 +113,11 @@ func TestSetConfiguration(t *testing.T) {
 			"--kafka.auth.kerberos.config-file=/path/to/krb5.conf",
 			"--kafka.auth.kerberos.keytab-file=/path/to/keytab",
 			"--kafka.auth.kerberos.disable-fast-negotiation=true",
-			"--kafka.auth.tls.enabled=true",
+			"--kafka.auth.tls.enabled=false",
 			"--kafka.auth.plaintext.username=user",
 			"--kafka.auth.plaintext.password=password",
 			"--kafka.auth.plaintext.mechanism=SCRAM-SHA-256",
+			"--kafka.producer.kerberos.use-keytab=false",
 		})
 		authConfig = &AuthenticationConfig{}
 		err := authConfig.InitFromViper(configPrefix, v)
