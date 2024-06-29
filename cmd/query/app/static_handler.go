@@ -49,6 +49,7 @@ var (
 func RegisterStaticHandler(r *mux.Router, logger *zap.Logger, qOpts *QueryOptions, qCapabilities querysvc.StorageCapabilities) io.Closer {
 	staticHandler, err := NewStaticAssetsHandler(qOpts.StaticAssets.Path, StaticAssetsHandlerOptions{
 		BasePath:            qOpts.BasePath,
+		UIBasePath:          qOpts.UIBasePath, // Added UIBasePath here
 		UIConfigPath:        qOpts.UIConfig,
 		StorageCapabilities: qCapabilities,
 		Logger:              logger,
@@ -74,6 +75,7 @@ type StaticAssetsHandler struct {
 // StaticAssetsHandlerOptions defines options for NewStaticAssetsHandler
 type StaticAssetsHandlerOptions struct {
 	BasePath            string
+	UIBasePath          string
 	UIConfigPath        string
 	LogAccess           bool
 	StorageCapabilities querysvc.StorageCapabilities
@@ -91,7 +93,6 @@ func NewStaticAssetsHandler(staticAssetsRoot string, options StaticAssetsHandler
 	if staticAssetsRoot != "" {
 		assetsFS = http.Dir(staticAssetsRoot)
 	}
-
 	if options.Logger == nil {
 		options.Logger = zap.NewNop()
 	}
@@ -141,11 +142,14 @@ func (sH *StaticAssetsHandler) loadAndEnrichIndexHTML(open func(string) (http.Fi
 	if sH.options.BasePath == "" {
 		sH.options.BasePath = "/"
 	}
+	if sH.options.UIBasePath == "" {
+		sH.options.UIBasePath = sH.options.BasePath // default value
+	}
 	if sH.options.BasePath != "/" {
-		if !strings.HasPrefix(sH.options.BasePath, "/") || strings.HasSuffix(sH.options.BasePath, "/") {
-			return nil, fmt.Errorf("invalid base path '%s'. Must start but not end with a slash '/', e.g. '/jaeger/ui'", sH.options.BasePath)
+		if !strings.HasPrefix(sH.options.UIBasePath, "/") || strings.HasSuffix(sH.options.UIBasePath, "/") {
+		        return nil, fmt.Errorf("invalid base path '%s'. Must start but not end with a slash '/', e.g. '/jaeger/ui'", sH.options.UIBasePath)
 		}
-		indexBytes = basePathPattern.ReplaceAll(indexBytes, []byte(fmt.Sprintf(`<base href="%s/"`, sH.options.BasePath)))
+		indexBytes = basePathPattern.ReplaceAll(indexBytes, []byte(fmt.Sprintf(`<base href="%s/"`, sH.options.UIBasePath)))
 	}
 
 	return indexBytes, nil
