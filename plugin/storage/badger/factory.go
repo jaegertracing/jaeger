@@ -24,7 +24,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dgraph-io/badger/v3"
+	"github.com/dgraph-io/badger/v4"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
 
@@ -311,7 +311,7 @@ func (f *Factory) registerBadgerExpvarMetrics(metricsFactory metrics.Factory) {
 // This function is intended for testing purposes only and should not be used in production environments.
 // Calling Purge in production will result in permanent data loss.
 func (f *Factory) Purge(_ context.Context) error {
-	return f.store.Update(func(txn *badger.Txn) error {
+	return f.store.Update(func(_ *badger.Txn) error {
 		return f.store.DropAll()
 	})
 }

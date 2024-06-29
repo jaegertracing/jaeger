@@ -468,9 +468,7 @@ init-submodules:
 MOCKERY_FLAGS := --all --disable-version-string
 .PHONY: generate-mocks
 generate-mocks: $(MOCKERY)
-	$(MOCKERY) $(MOCKERY_FLAGS) --dir ./pkg/es/ --output ./pkg/es/mocks
-	$(MOCKERY) $(MOCKERY_FLAGS) --dir ./storage/spanstore/ --output ./storage/spanstore/mocks
-	$(MOCKERY) $(MOCKERY_FLAGS) --dir ./proto-gen/storage_v1/ --output ./proto-gen/storage_v1/mocks
+	$(MOCKERY)
 
 .PHONY: certs
 certs:

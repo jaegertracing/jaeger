@@ -29,7 +29,7 @@ func createDefaultConfig() component.Config {
 	return &Config{}
 }
 
-func createTracesReceiver(_ context.Context, set receiver.CreateSettings, config component.Config, nextConsumer consumer.Traces) (receiver.Traces, error) {
+func createTracesReceiver(_ context.Context, set receiver.Settings, config component.Config, nextConsumer consumer.Traces) (receiver.Traces, error) {
 	cfg := config.(*Config)
 
 	return newTracesReceiver(cfg, set, nextConsumer)

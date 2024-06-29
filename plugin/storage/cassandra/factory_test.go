@@ -216,7 +216,7 @@ func TestNewFactoryWithConfig(t *testing.T) {
 			opts:           opts,
 			metricsFactory: metrics.NullFactory,
 			logger:         zap.NewNop(),
-			initializer:    func(metricsFactory metrics.Factory, logger *zap.Logger) error { return nil },
+			initializer:    func(_ metrics.Factory, _ *zap.Logger) error { return nil },
 		}
 		_, err := b.build()
 		require.NoError(t, err)
@@ -236,7 +236,7 @@ func TestNewFactoryWithConfig(t *testing.T) {
 			opts:           opts,
 			metricsFactory: metrics.NullFactory,
 			logger:         zap.NewNop(),
-			initializer:    func(metricsFactory metrics.Factory, logger *zap.Logger) error { return expErr },
+			initializer:    func(_ metrics.Factory, _ *zap.Logger) error { return expErr },
 		}
 		_, err := b.build()
 		require.ErrorIs(t, err, expErr)

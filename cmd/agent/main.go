@@ -50,7 +50,7 @@ func main() {
 		Use:   "jaeger-agent",
 		Short: "(deprecated) Jaeger agent is a local daemon program which collects tracing data.",
 		Long:  `(deprecated) Jaeger agent is a daemon program that runs on every host and receives tracing data submitted by Jaeger client libraries.`,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ /* args */ []string) error {
 			if err := svc.Start(v); err != nil {
 				return err
 			}

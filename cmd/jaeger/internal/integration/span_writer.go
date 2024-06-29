@@ -45,7 +45,7 @@ func createSpanWriter(logger *zap.Logger, port int) (*spanWriter, error) {
 		Insecure: true,
 	}
 
-	set := exportertest.NewNopCreateSettings()
+	set := exportertest.NewNopSettings()
 	set.Logger = logger
 
 	exporter, err := factory.CreateTracesExporter(context.Background(), set, cfg)

@@ -19,7 +19,7 @@ func Test_NewFactory(t *testing.T) {
 }
 
 func Test_CreateExtension(t *testing.T) {
-	set := extension.CreateSettings{
+	set := extension.Settings{
 		ID: ID,
 	}
 	cfg := createDefaultConfig()

@@ -69,7 +69,7 @@ var schemas = map[schemaVersion]tableMeta{
 		queryByKindStmt: "SELECT operation_name FROM %s WHERE service_name = ?",
 		queryStmt:       "SELECT operation_name FROM %s WHERE service_name = ?",
 		getOperations:   getOperationsV1,
-		createWriteQuery: func(query cassandra.Query, service, kind, opName string) cassandra.Query {
+		createWriteQuery: func(query cassandra.Query, service, _ /* kind*/, opName string) cassandra.Query {
 			return query.Bind(service, opName)
 		},
 	},

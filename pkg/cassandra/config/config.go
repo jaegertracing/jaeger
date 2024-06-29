@@ -56,8 +56,9 @@ type Authenticator struct {
 
 // BasicAuthenticator holds the username and password for a password authenticator for a Cassandra cluster
 type BasicAuthenticator struct {
-	Username string `yaml:"username" mapstructure:"username"`
-	Password string `yaml:"password" mapstructure:"password" json:"-"`
+	Username              string   `yaml:"username" mapstructure:"username"`
+	Password              string   `yaml:"password" mapstructure:"password" json:"-"`
+	AllowedAuthenticators []string `yaml:"allowed_authenticators" mapstructure:"allowed_authenticators"`
 }
 
 // ApplyDefaults copies settings from source unless its own value is non-zero.
@@ -143,8 +144,9 @@ func (c *Configuration) NewCluster(logger *zap.Logger) (*gocql.ClusterConfig, er
 
 	if c.Authenticator.Basic.Username != "" && c.Authenticator.Basic.Password != "" {
 		cluster.Authenticator = gocql.PasswordAuthenticator{
-			Username: c.Authenticator.Basic.Username,
-			Password: c.Authenticator.Basic.Password,
+			Username:              c.Authenticator.Basic.Username,
+			Password:              c.Authenticator.Basic.Password,
+			AllowedAuthenticators: c.Authenticator.Basic.AllowedAuthenticators,
 		}
 	}
 	tlsCfg, err := c.TLS.Config(logger)

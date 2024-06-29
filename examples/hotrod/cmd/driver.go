@@ -31,7 +31,7 @@ var driverCmd = &cobra.Command{
 	Use:   "driver",
 	Short: "Starts Driver service",
 	Long:  `Starts Driver service.`,
-	RunE: func(cmd *cobra.Command, args []string) error {
+	RunE: func(_ *cobra.Command, _ /* args */ []string) error {
 		zapLogger := logger.With(zap.String("service", "driver"))
 		logger := log.NewFactory(zapLogger)
 		server := driver.NewServer(

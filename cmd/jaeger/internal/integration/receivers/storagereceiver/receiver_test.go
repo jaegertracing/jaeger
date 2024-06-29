@@ -76,10 +76,10 @@ func withReceiver(
 	cfg.PullInterval = r.receiveInterval
 	receiver, _ := newTracesReceiver(
 		cfg,
-		receivertest.NewNopCreateSettings(),
+		receivertest.NewNopSettings(),
 		consumertest.NewNop(),
 	)
-	receiver.settings.ReportStatus = func(se *component.StatusEvent) {}
+	receiver.settings.ReportStatus = func(_ *component.StatusEvent) {}
 
 	r.reader = reader
 	r.factory = factory

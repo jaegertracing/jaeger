@@ -31,7 +31,7 @@ import (
 )
 
 func TestNewMetricsHandler(t *testing.T) {
-	dummyHandlerFunc := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+	dummyHandlerFunc := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		time.Sleep(time.Millisecond)
 		w.WriteHeader(http.StatusAccepted)
 		w.WriteHeader(http.StatusTeapot) // any subsequent statuses should be ignored
@@ -74,7 +74,7 @@ func TestMaxEntries(t *testing.T) {
 }
 
 func TestIllegalPrometheusLabel(t *testing.T) {
-	dummyHandlerFunc := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+	dummyHandlerFunc := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		time.Sleep(time.Millisecond)
 		w.WriteHeader(http.StatusAccepted)
 		w.WriteHeader(http.StatusTeapot) // any subsequent statuses should be ignored

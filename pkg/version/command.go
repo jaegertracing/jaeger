@@ -30,7 +30,7 @@ func Command() *cobra.Command {
 		Use:   "version",
 		Short: "Print the version.",
 		Long:  `Print the version and build information.`,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, _ /* args */ []string) error {
 			json, err := json.Marshal(info)
 			if err != nil {
 				return err

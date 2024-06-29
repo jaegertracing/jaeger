@@ -121,7 +121,7 @@ func NewClient(c *Configuration, logger *zap.Logger, metricsFactory metrics.Fact
 	m := sync.Map{}
 
 	bulkProc, err := rawClient.BulkProcessor().
-		Before(func(id int64, requests []elastic.BulkableRequest) {
+		Before(func(id int64, _ /* requests */ []elastic.BulkableRequest) {
 			m.Store(id, time.Now())
 		}).
 		After(func(id int64, requests []elastic.BulkableRequest, response *elastic.BulkResponse, err error) {
@@ -378,7 +378,7 @@ func (c *Configuration) getConfigOptions(logger *zap.Logger) ([]elastic.ClientOp
 		options = append(options, elastic.SetSendGetBodyAs(c.SendGetBodyAs))
 	}
 
-	options, err := addLoggerOptions(options, c.LogLevel)
+	options, err := addLoggerOptions(options, c.LogLevel, logger)
 	if err != nil {
 		return options, err
 	}
@@ -391,13 +391,11 @@ func (c *Configuration) getConfigOptions(logger *zap.Logger) ([]elastic.ClientOp
 	return options, nil
 }
 
-func addLoggerOptions(options []elastic.ClientOptionFunc, logLevel string) ([]elastic.ClientOptionFunc, error) {
+func addLoggerOptions(options []elastic.ClientOptionFunc, logLevel string, logger *zap.Logger) ([]elastic.ClientOptionFunc, error) {
 	// Decouple ES logger from the log-level assigned to the parent application's log-level; otherwise, the least
 	// permissive log-level will dominate.
 	// e.g. --log-level=info and --es.log-level=debug would mute ES's debug logging and would require --log-level=debug
 	// to show ES debug logs.
-	prodConfig := zap.NewProductionConfig()
-
 	var lvl zapcore.Level
 	var setLogger func(logger elastic.Logger) elastic.ClientOptionFunc
 
@@ -415,11 +413,10 @@ func addLoggerOptions(options []elastic.ClientOptionFunc, logLevel string) ([]el
 		return options, fmt.Errorf("unrecognized log-level: \"%s\"", logLevel)
 	}
 
-	prodConfig.Level.SetLevel(lvl)
-	esLogger, err := prodConfig.Build()
-	if err != nil {
-		return options, err
-	}
+	esLogger := logger.WithOptions(
+		zap.IncreaseLevel(lvl),
+		zap.AddCallerSkip(2), // to ensure the right caller:lineno are logged
+	)
 
 	// Elastic client requires a "Printf"-able logger.
 	l := zapgrpc.NewLogger(esLogger)

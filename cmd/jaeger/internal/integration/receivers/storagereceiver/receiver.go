@@ -22,7 +22,7 @@ import (
 type storageReceiver struct {
 	cancelConsumeLoop context.CancelFunc
 	config            *Config
-	settings          receiver.CreateSettings
+	settings          receiver.Settings
 	consumedTraces    map[model.TraceID]*consumedTrace
 	nextConsumer      consumer.Traces
 	spanReader        spanstore.Reader
@@ -32,7 +32,7 @@ type consumedTrace struct {
 	spanIDs map[model.SpanID]struct{}
 }
 
-func newTracesReceiver(config *Config, set receiver.CreateSettings, nextConsumer consumer.Traces) (*storageReceiver, error) {
+func newTracesReceiver(config *Config, set receiver.Settings, nextConsumer consumer.Traces) (*storageReceiver, error) {
 	return &storageReceiver{
 		config:         config,
 		settings:       set,
