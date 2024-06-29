@@ -38,7 +38,7 @@ func Test_InitFromViper(t *testing.T) {
 		"--kafka.auth.plaintext.username=user",
 		"--kafka.auth.plaintext.password=password",
 		"--kafka.auth.plaintext.mechanism=SCRAM-SHA-256",
-		"--kafka.auth.tls.ca=blah",
+		"--kafka.auth.tls.ca=failing",
 	})
 	v := viper.New()
 	v.AutomaticEnv()
