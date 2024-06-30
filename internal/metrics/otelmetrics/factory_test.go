@@ -53,7 +53,7 @@ func promLabelsToMap(labels []*promModel.LabelPair) map[string]string {
 }
 
 func TestInvalidCounter(t *testing.T) {
-	factory, registry := newTestFactory(t)
+	factory := newTestFactory(t, promReg.NewPedanticRegistry())
 	counter := factory.Counter(metrics.Options{
 		Name: "invalid*counter%",
 	})
@@ -61,8 +61,7 @@ func TestInvalidCounter(t *testing.T) {
 }
 
 func TestInvalidGauge(t *testing.T) {
-	registry := promReg.NewPedanticRegistry()
-	factory := newTestFactory(t, registry)
+	factory := newTestFactory(t, promReg.NewPedanticRegistry())
 	gauge := factory.Gauge(metrics.Options{
 		Name: "#invalid>gauge%",
 	})
@@ -70,8 +69,7 @@ func TestInvalidGauge(t *testing.T) {
 }
 
 func TestInvalidHistogram(t *testing.T) {
-	registry := promReg.NewPedanticRegistry()
-	factory := newTestFactory(t, registry)
+	factory := newTestFactory(t, promReg.NewPedanticRegistry())
 	histogram := factory.Histogram(metrics.HistogramOptions{
 		Name: "invalid>histogram?%",
 	})
@@ -79,8 +77,7 @@ func TestInvalidHistogram(t *testing.T) {
 }
 
 func TestInvalidTimer(t *testing.T) {
-	registry := promReg.NewPedanticRegistry()
-	factory := newTestFactory(t, registry)
+	factory := newTestFactory(t, promReg.NewPedanticRegistry())
 	timer := factory.Timer(metrics.TimerOptions{
 		Name: "invalid*<=timer%",
 	})
@@ -167,6 +164,27 @@ func TestTimer(t *testing.T) {
 	assert.Equal(t, expectedLabels, promLabelsToMap(metrics[0].GetLabel()))
 }
 
+func TestEmptyNamespace(t *testing.T) {
+	registry := promReg.NewPedanticRegistry()
+	factory := newTestFactory(t, registry)
+	emptyFactory := factory.Namespace(metrics.NSOptions{})
+	counter := emptyFactory.Counter(metrics.Options{
+		Name: "test_counter",
+		Tags: map[string]string{"tag1": "value1"},
+	})
+	require.NotNil(t, counter)
+	counter.Inc(1)
+
+	testCounter := findMetric(t, registry, "test_counter_total")
+
+	metrics := testCounter.GetMetric()
+	assert.Equal(t, float64(1), metrics[0].GetCounter().GetValue())
+	expectedLabels := map[string]string{
+		"tag1": "value1",
+	}
+	assert.Equal(t, expectedLabels, promLabelsToMap(metrics[0].GetLabel()))
+}
+
 func TestNamespace(t *testing.T) {
 	testCases := []struct {
 		nsOptions      metrics.NSOptions
@@ -206,7 +224,6 @@ func TestNamespace(t *testing.T) {
 				Name: "second_namespace",
 				Tags: map[string]string{"ns_tag3": "ns_value3"},
 			})
-
 			counter := nsFactory2.Counter(metrics.Options{
 				Name: "test_counter",
 				Tags: map[string]string{"tag1": "value1"},
