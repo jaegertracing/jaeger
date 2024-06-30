@@ -53,8 +53,7 @@ func promLabelsToMap(labels []*promModel.LabelPair) map[string]string {
 }
 
 func TestInvalidCounter(t *testing.T) {
-	registry := promReg.NewPedanticRegistry()
-	factory := newTestFactory(t, registry)
+	factory, registry := newTestFactory(t)
 	counter := factory.Counter(metrics.Options{
 		Name: "invalid*counter%",
 	})
