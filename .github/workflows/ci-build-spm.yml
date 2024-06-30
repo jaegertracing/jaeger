@@ -42,3 +42,7 @@ jobs:
     - name: Temporary - only run the build
       run:
         cd docker-compose/monitor && make build
+        
+    - name: Run SPM Test
+      run: ./scripts/spm-integration-test.sh
+
