@@ -164,38 +164,23 @@ func TestTimer(t *testing.T) {
 	assert.Equal(t, expectedLabels, promLabelsToMap(metrics[0].GetLabel()))
 }
 
-func TestEmptyNamespace(t *testing.T) {
-	registry := promReg.NewPedanticRegistry()
-	factory := newTestFactory(t, registry)
-	emptyFactory := factory.Namespace(metrics.NSOptions{})
-	counter := emptyFactory.Counter(metrics.Options{
-		Name: "test_counter",
-		Tags: map[string]string{"tag1": "value1"},
-	})
-	require.NotNil(t, counter)
-	counter.Inc(1)
-
-	testCounter := findMetric(t, registry, "test_counter_total")
-
-	metrics := testCounter.GetMetric()
-	assert.Equal(t, float64(1), metrics[0].GetCounter().GetValue())
-	expectedLabels := map[string]string{
-		"tag1": "value1",
-	}
-	assert.Equal(t, expectedLabels, promLabelsToMap(metrics[0].GetLabel()))
-}
-
 func TestNamespace(t *testing.T) {
 	testCases := []struct {
-		nsOptions      metrics.NSOptions
+		name           string
+		nsOptions1     metrics.NSOptions
+		nsOptions2     metrics.NSOptions
 		expectedName   string
 		expectedLabels map[string]string
 	}{
-		// Test Nested Namespace
 		{
-			nsOptions: metrics.NSOptions{
+			name: "Nested Namespace",
+			nsOptions1: metrics.NSOptions{
 				Name: "first_namespace",
 				Tags: map[string]string{"ns_tag1": "ns_value1"},
+			},
+			nsOptions2: metrics.NSOptions{
+				Name: "second_namespace",
+				Tags: map[string]string{"ns_tag3": "ns_value3"},
 			},
 			expectedName: "first_namespace_second_namespace_test_counter_total",
 			expectedLabels: map[string]string{
@@ -204,26 +189,37 @@ func TestNamespace(t *testing.T) {
 				"tag1":    "value1",
 			},
 		},
-		// Test Empty Namespace
 		{
-			nsOptions:    metrics.NSOptions{},
-			expectedName: "second_namespace_test_counter_total",
+			name: "Single Namespace",
+			nsOptions1: metrics.NSOptions{
+				Name: "single_namespace",
+				Tags: map[string]string{"ns_tag2": "ns_value2"},
+			},
+			nsOptions2:   metrics.NSOptions{},
+			expectedName: "single_namespace_test_counter_total",
 			expectedLabels: map[string]string{
-				"ns_tag3": "ns_value3",
+				"ns_tag2": "ns_value2",
 				"tag1":    "value1",
+			},
+		},
+		{
+			name:         "Empty Namespace Name",
+			nsOptions1:   metrics.NSOptions{},
+			nsOptions2:   metrics.NSOptions{},
+			expectedName: "test_counter_total",
+			expectedLabels: map[string]string{
+				"tag1": "value1",
 			},
 		},
 	}
 
 	for _, tc := range testCases {
-		t.Run(tc.expectedName, func(t *testing.T) {
+		t.Run(tc.name, func(t *testing.T) {
 			registry := promReg.NewPedanticRegistry()
 			factory := newTestFactory(t, registry)
-			nsFactory1 := factory.Namespace(tc.nsOptions)
-			nsFactory2 := nsFactory1.Namespace(metrics.NSOptions{
-				Name: "second_namespace",
-				Tags: map[string]string{"ns_tag3": "ns_value3"},
-			})
+			nsFactory1 := factory.Namespace(tc.nsOptions1)
+			nsFactory2 := nsFactory1.Namespace(tc.nsOptions2)
+
 			counter := nsFactory2.Counter(metrics.Options{
 				Name: "test_counter",
 				Tags: map[string]string{"tag1": "value1"},
