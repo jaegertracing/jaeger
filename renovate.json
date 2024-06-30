@@ -26,7 +26,7 @@
         "docker-compose/opensearch/v2/docker-compose.yml",
         "plugin/storage/scylladb/docker-compose.yml"
       ],
-      "matchUpdateTypes": ["major", "patch"],
+      "matchUpdateTypes": ["major", "patch", "digest"],
       "enabled": false
     },
     {
