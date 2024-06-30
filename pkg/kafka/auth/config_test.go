@@ -145,6 +145,7 @@ func TestSetConfiguration(t *testing.T) {
 	// Test with tls
 	parseFlagsAndInit("tls")
 	require.NoError(t, authConfig.SetConfiguration(saramaConfig, logger))
+	defer authConfig.TLS.Close()
 	// test tls_fail
 	authConfig.TLS.CipherSuites = []string{"fail"}
 	require.Error(t, authConfig.SetConfiguration(saramaConfig, logger))

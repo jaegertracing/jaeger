@@ -94,7 +94,8 @@ func (s *KafkaIntegrationTestSuite) initialize(t *testing.T) {
 	options.InitFromViper(v)
 	traceStore := memory.NewStore()
 	_, err = builder.CreateConsumer(logger, metrics.NullFactory, traceStore, options)
-	require.Error(t, err, "invalid version `0`")
+	require.EqualError(t, err, "invalid version `0`")
+
 	command.ParseFlags([]string{"--kafka.consumer.protocol-version", "2.0.0"})
 	options.InitFromViper(v)
 	spanConsumer, err := builder.CreateConsumer(logger, metrics.NullFactory, traceStore, options)

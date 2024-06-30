@@ -16,63 +16,53 @@ import (
 )
 
 func Test_SimulateTraces(t *testing.T) {
-	// First test case with Pause = time.Second
-	t.Run("Pause time.Second", func(t *testing.T) {
-		logger, buf := testutils.NewLogger()
-		tp := sdktrace.NewTracerProvider()
-		tracers := []trace.Tracer{tp.Tracer("stdout")}
-		wg := sync.WaitGroup{}
-		wg.Add(1)
-		var running uint32 = 1
+	tests := []struct {
+		name           string
+		pause          time.Duration
+		childSpans     int
+		expectedOutput string
+	}{
+		{
+			name:           "no pause",
+			pause:          0,
+			childSpans:     1,
+			expectedOutput: `{"level":"info","msg":"Worker 7 generated 7 traces"}` + "\n",
+		},
+		{
+			name:           "with pause",
+			pause:          time.Second,
+			childSpans:     1,
+			expectedOutput: `{"level":"info","msg":"Worker 7 generated 7 traces"}` + "\n",
+		},
+	}
 
-		worker := &worker{
-			logger:  logger,
-			tracers: tracers,
-			wg:      &wg,
-			id:      7,
-			running: &running,
-			Config: Config{
-				Traces:   7,
-				Duration: time.Second,
-				Pause:    0,
-				Service:  "stdout",
-				Debug:    true,
-				Firehose: true,
-			},
-		}
-		expectedOutput := `{"level":"info","msg":"Worker 7 generated 7 traces"}` + "\n"
-		worker.simulateTraces()
-		assert.Equal(t, expectedOutput, buf.String())
-	})
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			logger, buf := testutils.NewLogger()
+			tp := sdktrace.NewTracerProvider()
+			tracers := []trace.Tracer{tp.Tracer("stdout")}
+			wg := sync.WaitGroup{}
+			wg.Add(1)
+			var running uint32 = 1
+			worker := &worker{
+				logger:  logger,
+				tracers: tracers,
+				wg:      &wg,
+				id:      7,
+				running: &running,
+				Config: Config{
+					Traces:     7,
+					Duration:   time.Second,
+					Pause:      tt.pause,
+					Service:    "stdout",
+					Debug:      true,
+					Firehose:   true,
+					ChildSpans: tt.childSpans,
+				},
+			}
 
-	// Second test case with Pause = 3 * time.Second
-	t.Run("no pause", func(t *testing.T) {
-		logger, buf := testutils.NewLogger()
-		tp := sdktrace.NewTracerProvider()
-		tracers := []trace.Tracer{tp.Tracer("stdout")}
-		wg := sync.WaitGroup{}
-		wg.Add(1)
-		var running uint32 = 1
-
-		worker := &worker{
-			logger:  logger,
-			tracers: tracers,
-			wg:      &wg,
-			id:      7,
-			running: &running,
-			Config: Config{
-				ChildSpans: 1,
-				Traces:     7,
-				Duration:   time.Second,
-				Pause:      time.Second,
-				Service:    "stdout",
-				Debug:      true,
-				Firehose:   true,
-			},
-		}
-		expectedOutput := `{"level":"info","msg":"Worker 7 generated 7 traces"}` + "\n"
-
-		worker.simulateTraces()
-		assert.Equal(t, expectedOutput, buf.String())
-	})
+			worker.simulateTraces()
+			assert.Equal(t, tt.expectedOutput, buf.String())
+		})
+	}
 }

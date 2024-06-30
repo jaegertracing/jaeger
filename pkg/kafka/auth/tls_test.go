@@ -20,6 +20,7 @@ func TestSetTLSConfiguration(t *testing.T) {
 	tlsConfig := &tlscfg.Options{
 		Enabled: true,
 	}
+	defer tlsConfig.Close()
 
 	err := setTLSConfiguration(tlsConfig, saramaConfig, logger)
 	require.NoError(t, err)
