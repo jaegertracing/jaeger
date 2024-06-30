@@ -59,8 +59,15 @@ func (s *KafkaIntegrationTestSuite) initialize(t *testing.T) {
 		defaultLocalKafkaBroker,
 		"--kafka.producer.encoding",
 		encoding,
+		"--kafka.producer.protocol-version",
+		"0",
 	})
 	require.NoError(t, err)
+	f.InitFromViper(v, logger)
+	err = f.Initialize(metrics.NullFactory, logger)
+	require.EqualError(t, err, "invalid version `0`")
+
+	command.ParseFlags([]string{"--kafka.producer.protocol-version", "2.0.0"})
 	f.InitFromViper(v, logger)
 	err = f.Initialize(metrics.NullFactory, logger)
 	require.NoError(t, err)

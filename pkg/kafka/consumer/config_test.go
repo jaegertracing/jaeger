@@ -7,16 +7,15 @@ import (
 	//"flag"
 	//"strings"
 	"testing"
+	//"fmt"
 
 	//"github.com/Shopify/sarama"
 	//"github.com/spf13/cobra"
 	//"github.com/spf13/viper"
-
 	//"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
-	//"fmt"
 	"github.com/jaegertracing/jaeger/pkg/kafka/auth"
 )
 
@@ -43,5 +42,5 @@ func TestSetConfiguration(t *testing.T) {
 	// require.Error(t, authConfig.SetConfiguration(saramaConfig, logger), "Unknown/Unsupported authentication method fail to kafka cluster")
 	test := &Configuration{AuthenticationConfig: auth.AuthenticationConfig{Authentication: "fail"}}
 	_, err := test.NewConsumer(logger)
-	require.EqualError(t, err,"Unknown/Unsupported authentication method fail to kafka cluster")
+	require.EqualError(t, err, "Unknown/Unsupported authentication method fail to kafka cluster")
 }
