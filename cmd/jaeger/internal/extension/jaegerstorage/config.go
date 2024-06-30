@@ -12,25 +12,55 @@ import (
 	"github.com/jaegertracing/jaeger/plugin/storage/cassandra"
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc"
 	"github.com/jaegertracing/jaeger/plugin/storage/memory"
+	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/confmap"
 )
 
-// Config has the configuration for jaeger-query,
+var (
+	_ component.ConfigValidator = (*Config)(nil)
+	// _ confmap.Unmarshaler       = (*Config)(nil)
+)
+
+// Config contains configuration(s) for jaeger trace storage.
+// Keys in the map are storage names that can be used to refer to them
+// from other components, e.g. from jaeger_storage_exporter or jaeger_query.
 type Config struct {
-	Memory        map[string]memory.Configuration   `mapstructure:"memory"`
-	Badger        map[string]badger.NamespaceConfig `mapstructure:"badger"`
-	GRPC          map[string]grpc.ConfigV2          `mapstructure:"grpc"`
-	Opensearch    map[string]esCfg.Configuration    `mapstructure:"opensearch"`
-	Elasticsearch map[string]esCfg.Configuration    `mapstructure:"elasticsearch"`
-	Cassandra     map[string]cassandra.Options      `mapstructure:"cassandra"`
-	// TODO add other storage types here
-	// TODO how will this work with 3rd party storage implementations?
-	//      Option: instead of looking for specific name, check interface.
+	Backends map[string]Backend `mapstructure:"backends"`
+}
+
+type Backend struct {
+	Memory        *memory.Configuration   `mapstructure:"memory"`
+	Badger        *badger.NamespaceConfig `mapstructure:"badger"`
+	GRPC          *grpc.ConfigV2          `mapstructure:"grpc"`
+	Cassandra     *cassandra.Options      `mapstructure:"cassandra"`
+	Elasticsearch *esCfg.Configuration    `mapstructure:"elasticsearch"`
+	Opensearch    *esCfg.Configuration    `mapstructure:"opensearch"`
+}
+
+func (cfg *Backend) Unmarshal(conf *confmap.Conf) error {
+	// apply defaults
+	if conf.IsSet("memory") {
+		cfg.Memory = &memory.Configuration{
+			MaxTraces: 1_000_000,
+		}
+	}
+	if conf.IsSet("badger") {
+		v := badger.DefaultNamespaceConfig()
+		cfg.Badger = &v
+	}
+	// TODO add defaults for other storage backends
+	return conf.Unmarshal(cfg)
 }
 
 func (cfg *Config) Validate() error {
-	emptyCfg := createDefaultConfig().(*Config)
-	if reflect.DeepEqual(*cfg, *emptyCfg) {
-		return fmt.Errorf("%s: no storage type present in config", ID)
+	if len(cfg.Backends) == 0 {
+		return fmt.Errorf("at least one storage is required")
+	}
+	for name, b := range cfg.Backends {
+		empty := Backend{}
+		if reflect.DeepEqual(b, empty) {
+			return fmt.Errorf("no backend defined for storage '%s'", name)
+		}
 	}
 	return nil
 }

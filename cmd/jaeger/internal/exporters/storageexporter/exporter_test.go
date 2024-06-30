@@ -166,9 +166,10 @@ func makeStorageExtension(t *testing.T, memstoreName string) component.Host {
 				TracerProvider: nooptrace.NewTracerProvider(),
 			},
 		},
-		&jaegerstorage.Config{Memory: map[string]memory.Configuration{
-			memstoreName: {MaxTraces: 10000},
-		}})
+		&jaegerstorage.Config{Backends: map[string]jaegerstorage.Backend{
+			memstoreName: {Memory: &memory.Configuration{MaxTraces: 10000}},
+		}},
+	)
 	require.NoError(t, err)
 
 	host := storagetest.NewStorageHost()

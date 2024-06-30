@@ -8,16 +8,17 @@ service:
 
 extensions:
   jaeger_query:
-    trace_storage: external-storage
+    trace_storage: some-storage
     ui_config: ./cmd/jaeger/config-ui.json
 
   jaeger_storage:
-    grpc:
-      external-storage:
-        endpoint: localhost:17271
-        timeout: 5s
-        tls:
-          insecure: true
+    backends:
+      some-storage:
+        grpc:
+          endpoint: localhost:17271
+          timeout: 5s
+          tls:
+            insecure: true
 
 receivers:
   otlp:
@@ -30,4 +31,4 @@ processors:
 
 exporters:
   jaeger_storage_exporter:
-    trace_storage: external-storage
+    trace_storage: some-storage

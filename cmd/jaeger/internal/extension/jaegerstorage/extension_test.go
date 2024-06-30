@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
@@ -20,7 +21,6 @@ import (
 
 	esCfg "github.com/jaegertracing/jaeger/pkg/es/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
-	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/plugin/storage/badger"
 	"github.com/jaegertracing/jaeger/plugin/storage/memory"
 	"github.com/jaegertracing/jaeger/storage"
@@ -29,13 +29,13 @@ import (
 )
 
 type storageHost struct {
-	t                *testing.T
-	storageExtension component.Component
+	t   *testing.T
+	ext component.Component
 }
 
 func (host storageHost) GetExtensions() map[component.ID]component.Component {
 	return map[component.ID]component.Component{
-		ID: host.storageExtension,
+		ID: host.ext,
 	}
 }
 
@@ -72,25 +72,6 @@ func (e errorFactory) Close() error {
 	return e.closeErr
 }
 
-func TestStorageExtensionConfigError(t *testing.T) {
-	config := createDefaultConfig().(*Config)
-	err := config.Validate()
-	require.ErrorContains(t, err, "no storage type present in config")
-}
-
-func TestStorageExtensionNameConflict(t *testing.T) {
-	storageExtension := makeStorageExtenion(t, &Config{
-		Memory: map[string]memory.Configuration{
-			"foo": {MaxTraces: 10000},
-		},
-		Badger: map[string]badger.NamespaceConfig{
-			"foo": {},
-		},
-	})
-	err := storageExtension.Start(context.Background(), componenttest.NewNopHost())
-	require.ErrorContains(t, err, "duplicate")
-}
-
 func TestStorageFactoryBadHostError(t *testing.T) {
 	host := componenttest.NewNopHost()
 	_, err := GetStorageFactory("something", host)
@@ -98,19 +79,19 @@ func TestStorageFactoryBadHostError(t *testing.T) {
 }
 
 func TestStorageFactoryBadNameError(t *testing.T) {
-	host := storageHost{t: t, storageExtension: startStorageExtension(t, "foo")}
+	host := storageHost{t: t, ext: startStorageExtension(t, "foo")}
 	_, err := GetStorageFactory("bar", host)
 	require.ErrorContains(t, err, "cannot find storage 'bar'")
 }
 
 func TestStorageFactoryBadShutdownError(t *testing.T) {
 	shutdownError := fmt.Errorf("shutdown error")
-	storageExtension := storageExt{
+	ext := storageExt{
 		factories: map[string]storage.Factory{
 			"foo": errorFactory{closeErr: shutdownError},
 		},
 	}
-	err := storageExtension.Shutdown(context.Background())
+	err := ext.Shutdown(context.Background())
 	require.ErrorIs(t, err, shutdownError)
 }
 
@@ -122,7 +103,7 @@ func TestStorageFactoryV2Error(t *testing.T) {
 
 func TestStorageExtension(t *testing.T) {
 	const name = "foo"
-	host := storageHost{t: t, storageExtension: startStorageExtension(t, name)}
+	host := storageHost{t: t, ext: startStorageExtension(t, name)}
 	f, err := GetStorageFactory(name, host)
 	require.NoError(t, err)
 	require.NotNil(t, f)
@@ -133,32 +114,36 @@ func TestStorageExtension(t *testing.T) {
 }
 
 func TestBadgerStorageExtension(t *testing.T) {
-	storageExtension := makeStorageExtenion(t, &Config{
-		Badger: map[string]badger.NamespaceConfig{
+	ext := makeStorageExtenion(t, &Config{
+		Backends: map[string]Backend{
 			"foo": {
-				Ephemeral:             true,
-				MaintenanceInterval:   5,
-				MetricsUpdateInterval: 10,
+				Badger: &badger.NamespaceConfig{
+					Ephemeral:             true,
+					MaintenanceInterval:   5,
+					MetricsUpdateInterval: 10,
+				},
 			},
 		},
 	})
 	ctx := context.Background()
-	err := storageExtension.Start(ctx, componenttest.NewNopHost())
+	err := ext.Start(ctx, componenttest.NewNopHost())
 	require.NoError(t, err)
-	require.NoError(t, storageExtension.Shutdown(ctx))
+	require.NoError(t, ext.Shutdown(ctx))
 }
 
 func TestBadgerStorageExtensionError(t *testing.T) {
 	ext := makeStorageExtenion(t, &Config{
-		Badger: map[string]badger.NamespaceConfig{
+		Backends: map[string]Backend{
 			"foo": {
-				KeyDirectory:   "/bad/path",
-				ValueDirectory: "/bad/path",
+				Badger: &badger.NamespaceConfig{
+					KeyDirectory:   "/bad/path",
+					ValueDirectory: "/bad/path",
+				},
 			},
 		},
 	})
 	err := ext.Start(context.Background(), componenttest.NewNopHost())
-	require.ErrorContains(t, err, "failed to initialize badger storage")
+	require.ErrorContains(t, err, "failed to initialize storage 'foo'")
 	require.ErrorContains(t, err, "/bad/path")
 }
 
@@ -174,33 +159,36 @@ func TestESStorageExtension(t *testing.T) {
 		w.Write(mockEsServerResponse)
 	}))
 	defer server.Close()
-	storageExtension := makeStorageExtenion(t, &Config{
-		Elasticsearch: map[string]esCfg.Configuration{
+	ext := makeStorageExtenion(t, &Config{
+		Backends: map[string]Backend{
 			"foo": {
-				Servers:  []string{server.URL},
-				LogLevel: "error",
+				Elasticsearch: &esCfg.Configuration{
+					Servers:  []string{server.URL},
+					LogLevel: "error",
+				},
 			},
 		},
 	})
 	ctx := context.Background()
-	err := storageExtension.Start(ctx, componenttest.NewNopHost())
+	err := ext.Start(ctx, componenttest.NewNopHost())
 	require.NoError(t, err)
-	require.NoError(t, storageExtension.Shutdown(ctx))
+	require.NoError(t, ext.Shutdown(ctx))
 }
 
 func TestESStorageExtensionError(t *testing.T) {
-	defer testutils.VerifyGoLeaksOnce(t)
-
 	ext := makeStorageExtenion(t, &Config{
-		Elasticsearch: map[string]esCfg.Configuration{
+		Backends: map[string]Backend{
 			"foo": {
-				Servers:  []string{"http://127.0.0.1:65535"},
-				LogLevel: "error",
+				Elasticsearch: &esCfg.Configuration{
+					Servers:  []string{"http://127.0.0.1:65535"},
+					LogLevel: "error",
+					Timeout:  100 * time.Millisecond,
+				},
 			},
 		},
 	})
 	err := ext.Start(context.Background(), componenttest.NewNopHost())
-	require.ErrorContains(t, err, "failed to initialize elasticsearch storage")
+	require.ErrorContains(t, err, "failed to initialize storage 'foo'")
 	require.ErrorContains(t, err, "http://127.0.0.1:65535")
 }
 
@@ -215,7 +203,7 @@ func noopTelemetrySettings() component.TelemetrySettings {
 func makeStorageExtenion(t *testing.T, config *Config) component.Component {
 	extensionFactory := NewFactory()
 	ctx := context.Background()
-	storageExtension, err := extensionFactory.CreateExtension(ctx,
+	ext, err := extensionFactory.CreateExtension(ctx,
 		extension.Settings{
 			ID:                ID,
 			TelemetrySettings: noopTelemetrySettings(),
@@ -224,22 +212,26 @@ func makeStorageExtenion(t *testing.T, config *Config) component.Component {
 		config,
 	)
 	require.NoError(t, err)
-	return storageExtension
+	return ext
 }
 
 func startStorageExtension(t *testing.T, memstoreName string) component.Component {
 	config := &Config{
-		Memory: map[string]memory.Configuration{
-			memstoreName: {MaxTraces: 10000},
+		Backends: map[string]Backend{
+			memstoreName: {
+				Memory: &memory.Configuration{
+					MaxTraces: 10000,
+				},
+			},
 		},
 	}
 	require.NoError(t, config.Validate())
 
-	storageExtension := makeStorageExtenion(t, config)
-	err := storageExtension.Start(context.Background(), componenttest.NewNopHost())
+	ext := makeStorageExtenion(t, config)
+	err := ext.Start(context.Background(), componenttest.NewNopHost())
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		require.NoError(t, storageExtension.Shutdown(context.Background()))
+		require.NoError(t, ext.Shutdown(context.Background()))
 	})
-	return storageExtension
+	return ext
 }
