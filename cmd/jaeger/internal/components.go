@@ -29,7 +29,9 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/exporters/storageexporter"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/remotesampling"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/integration/storagecleaner"
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/processors/adaptivesampling"
 )
 
 type builders struct {
@@ -62,7 +64,7 @@ func (b builders) build() (otelcol.Factories, error) {
 		jaegerquery.NewFactory(),
 		jaegerstorage.NewFactory(),
 		storagecleaner.NewFactory(),
-		// TODO add adaptive sampling
+		remotesampling.NewFactory(),
 	)
 	if err != nil {
 		return otelcol.Factories{}, err
@@ -99,7 +101,7 @@ func (b builders) build() (otelcol.Factories, error) {
 		batchprocessor.NewFactory(),
 		memorylimiterprocessor.NewFactory(),
 		// add-ons
-		// TODO add adaptive sampling
+		adaptivesampling.NewFactory(),
 	)
 	if err != nil {
 		return otelcol.Factories{}, err

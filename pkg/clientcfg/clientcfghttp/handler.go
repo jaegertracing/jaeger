@@ -109,6 +109,17 @@ func (h *HTTPHandler) RegisterRoutes(router *mux.Router) {
 	}).Methods(http.MethodGet)
 }
 
+// RegisterRoutes registers configuration handlers with HTTP Router.
+func (h *HTTPHandler) RegisterRoutesWithHTTP(router *http.ServeMux) {
+	prefix := h.params.BasePath
+	router.HandleFunc(
+		prefix+"/",
+		func(w http.ResponseWriter, r *http.Request) {
+			h.serveSamplingHTTP(w, r, h.encodeThriftLegacy)
+		},
+	)
+}
+
 func (h *HTTPHandler) serviceFromRequest(w http.ResponseWriter, r *http.Request) (string, error) {
 	services := r.URL.Query()["service"]
 	if len(services) != 1 {
