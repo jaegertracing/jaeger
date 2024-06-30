@@ -7,11 +7,11 @@ import (
 	"fmt"
 	"strings"
 	"testing"
-	"github.com/xdg-go/scram"
-	//"hash"
+
 	"github.com/Shopify/sarama"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/xdg-go/scram"
 )
 
 func TestScramClient(t *testing.T) {
@@ -19,13 +19,13 @@ func TestScramClient(t *testing.T) {
 	client := scramClientFunc().(*scramClient)
 
 	err := client.Begin("testUser", "testPassword", "testAuthzID")
-	assert.NoError(t, err, "Begin should not return an error")
+	require.NoError(t, err, "Begin should not return an error")
 	assert.NotNil(t, client.Client, "Client should be initialized")
 	assert.NotNil(t, client.ClientConversation, "ClientConversation should be initialized")
 
 	step, err := client.Step("testChallenge")
-	assert.NoError(t, err, "Step should not return an error")
-	assert.NotEmpty(t, step, "Step should return a non-empty response")
+	require.NoError(t, err, "Step should not return an error")
+	require.NotEmpty(t, step, "Step should return a non-empty response")
 
 	done := client.Done()
 	assert.False(t, done, "Done should return false initially")
