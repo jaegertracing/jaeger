@@ -19,10 +19,10 @@ import (
 	"go.uber.org/zap"
 
 	esCfg "github.com/jaegertracing/jaeger/pkg/es/config"
-	memoryCfg "github.com/jaegertracing/jaeger/pkg/memory/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
-	badgerCfg "github.com/jaegertracing/jaeger/plugin/storage/badger"
+	"github.com/jaegertracing/jaeger/plugin/storage/badger"
+	"github.com/jaegertracing/jaeger/plugin/storage/memory"
 	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
@@ -80,10 +80,10 @@ func TestStorageExtensionConfigError(t *testing.T) {
 
 func TestStorageExtensionNameConflict(t *testing.T) {
 	storageExtension := makeStorageExtenion(t, &Config{
-		Memory: map[string]memoryCfg.Configuration{
+		Memory: map[string]memory.Configuration{
 			"foo": {MaxTraces: 10000},
 		},
-		Badger: map[string]badgerCfg.NamespaceConfig{
+		Badger: map[string]badger.NamespaceConfig{
 			"foo": {},
 		},
 	})
@@ -134,7 +134,7 @@ func TestStorageExtension(t *testing.T) {
 
 func TestBadgerStorageExtension(t *testing.T) {
 	storageExtension := makeStorageExtenion(t, &Config{
-		Badger: map[string]badgerCfg.NamespaceConfig{
+		Badger: map[string]badger.NamespaceConfig{
 			"foo": {
 				Ephemeral:             true,
 				MaintenanceInterval:   5,
@@ -150,7 +150,7 @@ func TestBadgerStorageExtension(t *testing.T) {
 
 func TestBadgerStorageExtensionError(t *testing.T) {
 	ext := makeStorageExtenion(t, &Config{
-		Badger: map[string]badgerCfg.NamespaceConfig{
+		Badger: map[string]badger.NamespaceConfig{
 			"foo": {
 				KeyDirectory:   "/bad/path",
 				ValueDirectory: "/bad/path",
@@ -229,7 +229,7 @@ func makeStorageExtenion(t *testing.T, config *Config) component.Component {
 
 func startStorageExtension(t *testing.T, memstoreName string) component.Component {
 	config := &Config{
-		Memory: map[string]memoryCfg.Configuration{
+		Memory: map[string]memory.Configuration{
 			memstoreName: {MaxTraces: 10000},
 		},
 	}
