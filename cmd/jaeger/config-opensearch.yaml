@@ -8,25 +8,19 @@ service:
 
 extensions:
   jaeger_query:
-    trace_storage: os_main
-    trace_storage_archive: os_archive
+    trace_storage: some_storage
+    trace_storage_archive: another_storage
     ui_config: ./cmd/jaeger/config-ui.json
 
   jaeger_storage:
-    opensearch:
-      os_main:
-        server_urls: http://localhost:9200
-        log_level: "error"
-        index_prefix: "jaeger-main"
-        use_aliases: false
-        create_mappings: true
+    backends:
+      some_storage:
+        opensearch:
+          index_prefix: "jaeger-main"
 
-      os_archive:
-        server_urls: http://localhost:9200
-        log_level: "error"
-        index_prefix: "jaeger-main"
-        use_aliases: false
-        create_mappings: true
+      another_storage:
+        opensearch:
+          index_prefix: "jaeger-main"
 
 receivers:
   otlp:
@@ -39,4 +33,4 @@ processors:
 
 exporters:
   jaeger_storage_exporter:
-    trace_storage: os_main
+    trace_storage: some_storage
