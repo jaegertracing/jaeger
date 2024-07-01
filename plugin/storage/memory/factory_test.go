@@ -24,7 +24,6 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/config"
-	memCfg "github.com/jaegertracing/jaeger/pkg/memory/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/storage"
 )
@@ -61,7 +60,7 @@ func TestWithConfiguration(t *testing.T) {
 }
 
 func TestNewFactoryWithConfig(t *testing.T) {
-	cfg := memCfg.Configuration{
+	cfg := Configuration{
 		MaxTraces: 42,
 	}
 	f := NewFactoryWithConfig(cfg, metrics.NullFactory, zap.NewNop())

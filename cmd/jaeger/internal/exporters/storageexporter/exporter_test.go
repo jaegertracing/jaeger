@@ -29,11 +29,11 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	noopmetric "go.opentelemetry.io/otel/metric/noop"
 	nooptrace "go.opentelemetry.io/otel/trace/noop"
-	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
 	"github.com/jaegertracing/jaeger/model"
-	memoryCfg "github.com/jaegertracing/jaeger/pkg/memory/config"
+	"github.com/jaegertracing/jaeger/plugin/storage/memory"
 	"github.com/jaegertracing/jaeger/storage"
 	factoryMocks "github.com/jaegertracing/jaeger/storage/mocks"
 )
@@ -103,7 +103,7 @@ func TestExporter(t *testing.T) {
 
 	ctx := context.Background()
 	telemetrySettings := component.TelemetrySettings{
-		Logger:         zap.L(),
+		Logger:         zaptest.NewLogger(t),
 		TracerProvider: nooptrace.NewTracerProvider(),
 		MeterProvider:  noopmetric.NewMeterProvider(),
 	}
@@ -157,18 +157,21 @@ func TestExporter(t *testing.T) {
 }
 
 func makeStorageExtension(t *testing.T, memstoreName string) component.Host {
+	telemetrySettings := component.TelemetrySettings{
+		Logger:         zaptest.NewLogger(t),
+		TracerProvider: nooptrace.NewTracerProvider(),
+		MeterProvider:  noopmetric.NewMeterProvider(),
+	}
 	extensionFactory := jaegerstorage.NewFactory()
 	storageExtension, err := extensionFactory.CreateExtension(
 		context.Background(),
 		extension.Settings{
-			TelemetrySettings: component.TelemetrySettings{
-				Logger:         zap.L(),
-				TracerProvider: nooptrace.NewTracerProvider(),
-			},
+			TelemetrySettings: telemetrySettings,
 		},
-		&jaegerstorage.Config{Memory: map[string]memoryCfg.Configuration{
-			memstoreName: {MaxTraces: 10000},
-		}})
+		&jaegerstorage.Config{Backends: map[string]jaegerstorage.Backend{
+			memstoreName: {Memory: &memory.Configuration{MaxTraces: 10000}},
+		}},
+	)
 	require.NoError(t, err)
 
 	host := storagetest.NewStorageHost()

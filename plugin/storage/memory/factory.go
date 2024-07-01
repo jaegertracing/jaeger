@@ -23,7 +23,6 @@ import (
 
 	"github.com/jaegertracing/jaeger/internal/safeexpvar"
 	"github.com/jaegertracing/jaeger/pkg/distributedlock"
-	"github.com/jaegertracing/jaeger/pkg/memory/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/plugin"
 	"github.com/jaegertracing/jaeger/storage"
@@ -54,7 +53,7 @@ func NewFactory() *Factory {
 
 // NewFactoryWithConfig is used from jaeger(v2).
 func NewFactoryWithConfig(
-	cfg config.Configuration,
+	cfg Configuration,
 	metricsFactory metrics.Factory,
 	logger *zap.Logger,
 ) *Factory {

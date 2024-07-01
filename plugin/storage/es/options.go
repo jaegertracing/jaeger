@@ -99,7 +99,7 @@ type namespaceConfig struct {
 // NewOptions creates a new Options struct.
 func NewOptions(primaryNamespace string, otherNamespaces ...string) *Options {
 	// TODO all default values should be defined via cobra flags
-	defaultConfig := getDefaultConfig()
+	defaultConfig := DefaultConfig()
 	options := &Options{
 		Primary: namespaceConfig{
 			Configuration: defaultConfig,
@@ -408,7 +408,7 @@ func initDateLayout(rolloverFreq, sep string) string {
 	return indexLayout
 }
 
-func getDefaultConfig() config.Configuration {
+func DefaultConfig() config.Configuration {
 	return config.Configuration{
 		Username:                     "",
 		Password:                     "",

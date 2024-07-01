@@ -45,6 +45,8 @@ type Factory struct {
 	logger         *zap.Logger
 	tracerProvider trace.TracerProvider
 
+	// configV1 is used for backward compatibility. it will be removed in v2.
+	// In the main initialization logic, only configV2 is used.
 	configV1 Configuration
 	configV2 *ConfigV2
 
