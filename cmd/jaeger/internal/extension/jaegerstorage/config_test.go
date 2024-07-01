@@ -1,3 +1,6 @@
+// Copyright (c) 2024 The Jaeger Authors.
+// SPDX-License-Identifier: Apache-2.0
+
 package jaegerstorage
 
 import (
@@ -14,7 +17,7 @@ import (
 func loadConf(t *testing.T, config string) *confmap.Conf {
 	d := t.TempDir()
 	f := filepath.Join(d, "config.yaml")
-	require.NoError(t, os.WriteFile(f, []byte(config), 0644))
+	require.NoError(t, os.WriteFile(f, []byte(config), 0o644))
 	cm, err := confmaptest.LoadConf(f)
 	require.NoError(t, err)
 	return cm

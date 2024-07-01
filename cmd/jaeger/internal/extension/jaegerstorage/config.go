@@ -7,18 +7,19 @@ import (
 	"fmt"
 	"reflect"
 
+	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/confmap"
+
 	esCfg "github.com/jaegertracing/jaeger/pkg/es/config"
 	"github.com/jaegertracing/jaeger/plugin/storage/badger"
 	"github.com/jaegertracing/jaeger/plugin/storage/cassandra"
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc"
 	"github.com/jaegertracing/jaeger/plugin/storage/memory"
-	"go.opentelemetry.io/collector/component"
-	"go.opentelemetry.io/collector/confmap"
 )
 
 var (
 	_ component.ConfigValidator = (*Config)(nil)
-	// _ confmap.Unmarshaler       = (*Config)(nil)
+	_ confmap.Unmarshaler       = (*Backend)(nil)
 )
 
 // Config contains configuration(s) for jaeger trace storage.
