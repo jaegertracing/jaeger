@@ -17,22 +17,16 @@ import (
 
 func Test_SimulateTraces(t *testing.T) {
 	tests := []struct {
-		name           string
-		pause          time.Duration
-		childSpans     int
-		expectedOutput string
+		name  string
+		pause time.Duration
 	}{
 		{
-			name:           "no pause",
-			pause:          0,
-			childSpans:     1,
-			expectedOutput: `{"level":"info","msg":"Worker 7 generated 7 traces"}` + "\n",
+			name:  "no pause",
+			pause: 0,
 		},
 		{
-			name:           "with pause",
-			pause:          time.Second,
-			childSpans:     1,
-			expectedOutput: `{"level":"info","msg":"Worker 7 generated 7 traces"}` + "\n",
+			name:  "with pause",
+			pause: time.Second,
 		},
 	}
 
@@ -57,12 +51,12 @@ func Test_SimulateTraces(t *testing.T) {
 					Service:    "stdout",
 					Debug:      true,
 					Firehose:   true,
-					ChildSpans: tt.childSpans,
+					ChildSpans: 1,
 				},
 			}
-
+			expectedOutput := `{"level":"info","msg":"Worker 7 generated 7 traces"}` + "\n"
 			worker.simulateTraces()
-			assert.Equal(t, tt.expectedOutput, buf.String())
+			assert.Equal(t, expectedOutput, buf.String())
 		})
 	}
 }

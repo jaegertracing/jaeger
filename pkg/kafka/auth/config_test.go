@@ -5,25 +5,26 @@ package auth
 
 import (
 	"flag"
-	"strings"
 	"testing"
 
 	"github.com/Shopify/sarama"
-	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 )
 
+func addFlags(Flags *flag.FlagSet) {
+	configPrefix := "kafka.auth"
+	AddFlags(configPrefix, Flags)
+}
+
 func Test_InitFromViper(t *testing.T) {
 	configPrefix := "kafka.auth"
-	flagSet := flag.NewFlagSet("flags", flag.ContinueOnError)
-	AddFlags(configPrefix, flagSet)
-	command := &cobra.Command{}
-	command.Flags().AddGoFlagSet(flagSet)
+	v, command := config.Viperize(addFlags)
 	command.ParseFlags([]string{
 		"--kafka.auth.authentication=tls",
 		"--kafka.auth.kerberos.service-name=kafka",
@@ -40,10 +41,7 @@ func Test_InitFromViper(t *testing.T) {
 		"--kafka.auth.plaintext.mechanism=SCRAM-SHA-256",
 		"--kafka.auth.tls.ca=failing",
 	})
-	v := viper.New()
-	v.AutomaticEnv()
-	v.SetEnvKeyReplacer(strings.NewReplacer("-", "_", ".", "_"))
-	v.BindPFlags(command.Flags())
+
 	authConfig := &AuthenticationConfig{}
 	err := authConfig.InitFromViper(configPrefix, v)
 	require.Error(t, err)
@@ -90,15 +88,7 @@ func TestSetConfiguration(t *testing.T) {
 	logger, _ := zap.NewDevelopment()
 	saramaConfig := sarama.NewConfig()
 	configPrefix := "kafka.auth"
-	flagSet := flag.NewFlagSet("flags", flag.ContinueOnError)
-	AddFlags(configPrefix, flagSet)
-	command := &cobra.Command{}
-	command.Flags().AddGoFlagSet(flagSet)
-	v := viper.New()
-	v.AutomaticEnv()
-	v.SetEnvKeyReplacer(strings.NewReplacer("-", "_", ".", "_"))
-	v.BindPFlags(command.Flags())
-
+	v, command := config.Viperize(addFlags)
 	authConfig := &AuthenticationConfig{}
 
 	// Helper function to parse flags and initialize authConfig
