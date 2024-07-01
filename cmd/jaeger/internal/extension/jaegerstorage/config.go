@@ -6,13 +6,16 @@ package jaegerstorage
 import (
 	"fmt"
 	"reflect"
+	"time"
 
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/confmap"
 
+	casCfg "github.com/jaegertracing/jaeger/pkg/cassandra/config"
 	esCfg "github.com/jaegertracing/jaeger/pkg/es/config"
 	"github.com/jaegertracing/jaeger/plugin/storage/badger"
 	"github.com/jaegertracing/jaeger/plugin/storage/cassandra"
+	"github.com/jaegertracing/jaeger/plugin/storage/es"
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc"
 	"github.com/jaegertracing/jaeger/plugin/storage/memory"
 )
@@ -25,6 +28,8 @@ var (
 // Config contains configuration(s) for jaeger trace storage.
 // Keys in the map are storage names that can be used to refer to them
 // from other components, e.g. from jaeger_storage_exporter or jaeger_query.
+// We tried to alias this type directly to a map, but conf did not populated it correctly.
+// Note also that the Backend struct has a custom unmarshaler.
 type Config struct {
 	Backends map[string]Backend `mapstructure:"backends"`
 }
@@ -38,6 +43,9 @@ type Backend struct {
 	Opensearch    *esCfg.Configuration    `mapstructure:"opensearch"`
 }
 
+// Unmarshal implements confmap.Unmarshaler. This allows us to provide
+// defaults for different configs. It cannot be done in createDefaultConfig()
+// because at that time we don't know which backends the user wants to use.
 func (cfg *Backend) Unmarshal(conf *confmap.Conf) error {
 	// apply defaults
 	if conf.IsSet("memory") {
@@ -53,7 +61,28 @@ func (cfg *Backend) Unmarshal(conf *confmap.Conf) error {
 		v := grpc.DefaultConfigV2()
 		cfg.GRPC = &v
 	}
-	// TODO add defaults for other storage backends
+	if conf.IsSet("cassandra") {
+		cfg.Cassandra = &cassandra.Options{
+			Primary: cassandra.NamespaceConfig{
+				Configuration: casCfg.DefaultConfiguration(),
+				Enabled:       true,
+			},
+			SpanStoreWriteCacheTTL: 12 * time.Hour,
+			Index: cassandra.IndexConfig{
+				Tags:        true,
+				ProcessTags: true,
+				Logs:        true,
+			},
+		}
+	}
+	if conf.IsSet("elasticsearch") {
+		v := es.DefaultConfig()
+		cfg.Elasticsearch = &v
+	}
+	if conf.IsSet("opensearch") {
+		v := es.DefaultConfig()
+		cfg.Opensearch = &v
+	}
 	return conf.Unmarshal(cfg)
 }
 

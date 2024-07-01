@@ -16,24 +16,10 @@ extensions:
     backends:
       some_storage:
         cassandra:
-          servers: 127.0.0.1
-          port: 9042
           keyspace: "jaeger_v1_dc1"
-          connections_per_host: 2
-          index:
-            tags: true
-            logs: true
-            process_tags: true
       another_storage:
         cassandra:
-          servers: 127.0.0.1
-          port: 9042
           keyspace: "jaeger_v1_dc1"
-          connections_per_host: 2
-          index:
-            tags: true
-            logs: true
-            process_tags: true
 receivers:
   otlp:
     protocols:

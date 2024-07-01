@@ -16,19 +16,11 @@ extensions:
     backends:
       some_storage:
         opensearch:
-          server_urls: http://localhost:9200
-          log_level: "error"
           index_prefix: "jaeger-main"
-          use_aliases: false
-          create_mappings: true
 
       another_storage:
         opensearch:
-          server_urls: http://localhost:9200
-          log_level: "error"
           index_prefix: "jaeger-main"
-          use_aliases: false
-          create_mappings: true
 
 receivers:
   otlp:

@@ -48,6 +48,18 @@ type Configuration struct {
 	TLS                  tlscfg.Options `mapstructure:"tls"`
 }
 
+func DefaultConfiguration() Configuration {
+	return Configuration{
+		Servers:            []string{"127.0.0.1"},
+		Port:               9042,
+		MaxRetryAttempts:   3,
+		Keyspace:           "jaeger_v1_test",
+		ProtoVersion:       4,
+		ConnectionsPerHost: 2,
+		ReconnectInterval:  60 * time.Second,
+	}
+}
+
 // Authenticator holds the authentication properties needed to connect to a Cassandra cluster
 type Authenticator struct {
 	Basic BasicAuthenticator `yaml:"basic" mapstructure:",squash"`

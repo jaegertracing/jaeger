@@ -74,3 +74,36 @@ backends:
 	require.NoError(t, conf.Unmarshal(cfg))
 	assert.NotEmpty(t, cfg.Backends["some_storage"].GRPC.Timeout)
 }
+
+func TestConfigDefaultCassandra(t *testing.T) {
+	conf := loadConf(t, `
+backends:
+  some_storage:
+    cassandra:
+`)
+	cfg := createDefaultConfig().(*Config)
+	require.NoError(t, conf.Unmarshal(cfg))
+	assert.NotEmpty(t, cfg.Backends["some_storage"].Cassandra.Primary.Servers)
+}
+
+func TestConfigDefaultElasticsearch(t *testing.T) {
+	conf := loadConf(t, `
+backends:
+  some_storage:
+    elasticsearch:
+`)
+	cfg := createDefaultConfig().(*Config)
+	require.NoError(t, conf.Unmarshal(cfg))
+	assert.NotEmpty(t, cfg.Backends["some_storage"].Elasticsearch.Servers)
+}
+
+func TestConfigDefaultOpensearch(t *testing.T) {
+	conf := loadConf(t, `
+backends:
+  some_storage:
+    opensearch:
+`)
+	cfg := createDefaultConfig().(*Config)
+	require.NoError(t, conf.Unmarshal(cfg))
+	assert.NotEmpty(t, cfg.Backends["some_storage"].Opensearch.Servers)
+}
