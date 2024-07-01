@@ -17,6 +17,7 @@ package integration
 
 import (
 	"context"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -54,6 +55,14 @@ func (*CassandraStorageIntegration) initializeCassandraFactory(t *testing.T, fla
 	logger := zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller()))
 	f := cassandra.NewFactory()
 	v, command := config.Viperize(f.AddFlags)
+
+	// Modify to fetch password from environment variable
+	password := os.Getenv("DB_PASSWORD")
+	require.NotEmpty(t, password, "DB_PASSWORD environment variable must be set")
+
+	// Add the Cassandra password flag
+	flags = append(flags, "--cassandra.password="+password)
+
 	require.NoError(t, command.ParseFlags(flags))
 	f.InitFromViper(v, logger)
 	require.NoError(t, f.Initialize(metrics.NullFactory, logger))
@@ -61,9 +70,11 @@ func (*CassandraStorageIntegration) initializeCassandraFactory(t *testing.T, fla
 }
 
 func (s *CassandraStorageIntegration) initializeCassandra(t *testing.T) {
+	password := os.Getenv("DB_PASSWORD")
+
 	f := s.initializeCassandraFactory(t, []string{
 		"--cassandra.basic.allowed-authenticators=",
-		"--cassandra.password=password",
+		"--cassandra.password=" + password,
 		"--cassandra.username=username",
 		"--cassandra.keyspace=jaeger_v1_dc1",
 		"--cassandra-archive.keyspace=jaeger_v1_dc1_archive",

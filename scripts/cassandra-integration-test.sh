@@ -3,7 +3,7 @@
 set -uxf -o pipefail
 
 usage() {
-  echo $"Usage: $0 <cassandra_version> <schema_version>"
+  echo $"Usage: $0 <cassandra_version> <schema_version> <jaeger_version>"
   exit 1
 }
 
@@ -37,6 +37,8 @@ apply_schema() {
     --env CQLSH_PORT=9042
     --env "TEMPLATE=/cassandra-schema/${schema_version}.cql.tmpl"
     --env "KEYSPACE=${keyspace}"
+    --env "DB_USERNAME=testUserName"
+    --env "DB_PASSWORD=testPwd"
     --network host
   )
   docker build -t ${image} ${schema_dir}
