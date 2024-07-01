@@ -16,7 +16,6 @@ extensions:
       some-storage:
         grpc:
           endpoint: localhost:17271
-          timeout: 5s
           tls:
             insecure: true
 

@@ -14,6 +14,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage/factoryadapter"
 	"github.com/jaegertracing/jaeger/internal/metrics/otelmetrics"
+	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/plugin/storage/badger"
 	"github.com/jaegertracing/jaeger/plugin/storage/cassandra"
 	"github.com/jaegertracing/jaeger/plugin/storage/es"
@@ -78,30 +79,42 @@ func newStorageExt(config *Config, telset component.TelemetrySettings) *storageE
 	}
 }
 
+func (s *storageExt) makeBuilder(mf metrics.Factory, cfg Backend) func() (storage.Factory, error) {
+	if cfg.Memory != nil {
+		return func() (storage.Factory, error) {
+			return memory.NewFactoryWithConfig(*cfg.Memory, mf, s.telset.Logger), nil
+		}
+	} else if cfg.Badger != nil {
+		return func() (storage.Factory, error) {
+			return badger.NewFactoryWithConfig(*cfg.Badger, mf, s.telset.Logger)
+		}
+	} else if cfg.GRPC != nil {
+		return func() (storage.Factory, error) {
+			return grpc.NewFactoryWithConfig(*cfg.GRPC, mf, s.telset.Logger)
+		}
+	} else if cfg.Cassandra != nil {
+		return func() (storage.Factory, error) {
+			return cassandra.NewFactoryWithConfig(*cfg.Cassandra, mf, s.telset.Logger)
+		}
+	} else if cfg.Elasticsearch != nil {
+		return func() (storage.Factory, error) {
+			return es.NewFactoryWithConfig(*cfg.Elasticsearch, mf, s.telset.Logger)
+		}
+	} else if cfg.Opensearch != nil {
+		return func() (storage.Factory, error) {
+			return es.NewFactoryWithConfig(*cfg.Opensearch, mf, s.telset.Logger)
+		}
+	}
+	return func() (storage.Factory, error) {
+		return nil, errors.New("empty configuration")
+	}
+}
+
 func (s *storageExt) Start(ctx context.Context, host component.Host) error {
 	mf := otelmetrics.NewFactory(s.telset.MeterProvider)
 	for storageName, cfg := range s.config.Backends {
 		s.telset.Logger.Sugar().Infof("Initializing storage '%s'", storageName)
-		var factory storage.Factory
-		var err error
-		if _, ok := s.factories[storageName]; ok {
-			return fmt.Errorf("duplicate storage name '%s'", storageName)
-		}
-		if cfg.Memory != nil {
-			factory = memory.NewFactoryWithConfig(*cfg.Memory, mf, s.telset.Logger)
-		} else if cfg.Badger != nil {
-			factory, err = badger.NewFactoryWithConfig(*cfg.Badger, mf, s.telset.Logger)
-		} else if cfg.GRPC != nil {
-			factory, err = grpc.NewFactoryWithConfig(*cfg.GRPC, mf, s.telset.Logger)
-		} else if cfg.Cassandra != nil {
-			factory, err = cassandra.NewFactoryWithConfig(*cfg.Cassandra, mf, s.telset.Logger)
-		} else if cfg.Elasticsearch != nil {
-			factory, err = es.NewFactoryWithConfig(*cfg.Elasticsearch, mf, s.telset.Logger)
-		} else if cfg.Opensearch != nil {
-			factory, err = es.NewFactoryWithConfig(*cfg.Opensearch, mf, s.telset.Logger)
-		} else {
-			err = fmt.Errorf("empty configuration for storage '%s'", storageName)
-		}
+		factory, err := s.makeBuilder(mf, cfg)()
 		if err != nil {
 			return fmt.Errorf("failed to initialize storage '%s': %w", storageName, err)
 		}

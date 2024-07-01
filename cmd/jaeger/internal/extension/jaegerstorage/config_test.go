@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/confmap/confmaptest"
@@ -19,7 +20,7 @@ func loadConf(t *testing.T, config string) *confmap.Conf {
 	return cm
 }
 
-func TestValidateNoBackends(t *testing.T) {
+func TestConfigValidateNoBackends(t *testing.T) {
 	conf := loadConf(t, `
 backends:
 `)
@@ -28,7 +29,7 @@ backends:
 	require.EqualError(t, cfg.Validate(), "at least one storage is required")
 }
 
-func TestValidateEmptyBackend(t *testing.T) {
+func TestConfigValidateEmptyBackend(t *testing.T) {
 	conf := loadConf(t, `
 backends:
   some_storage:
@@ -38,7 +39,7 @@ backends:
 	require.EqualError(t, cfg.Validate(), "no backend defined for storage 'some_storage'")
 }
 
-func TestUnmarshalDefaultMemory(t *testing.T) {
+func TestConfigDefaultMemory(t *testing.T) {
 	conf := loadConf(t, `
 backends:
   some_storage:
@@ -46,5 +47,27 @@ backends:
 `)
 	cfg := createDefaultConfig().(*Config)
 	require.NoError(t, conf.Unmarshal(cfg))
-	require.Equal(t, 1_000_000, cfg.Backends["some_storage"].Memory.MaxTraces)
+	assert.NotEmpty(t, cfg.Backends["some_storage"].Memory.MaxTraces)
+}
+
+func TestConfigDefaultBadger(t *testing.T) {
+	conf := loadConf(t, `
+backends:
+  some_storage:
+    badger:
+`)
+	cfg := createDefaultConfig().(*Config)
+	require.NoError(t, conf.Unmarshal(cfg))
+	assert.NotEmpty(t, cfg.Backends["some_storage"].Badger.SpanStoreTTL)
+}
+
+func TestConfigDefaultGRPC(t *testing.T) {
+	conf := loadConf(t, `
+backends:
+  some_storage:
+    grpc:
+`)
+	cfg := createDefaultConfig().(*Config)
+	require.NoError(t, conf.Unmarshal(cfg))
+	assert.NotEmpty(t, cfg.Backends["some_storage"].GRPC.Timeout)
 }

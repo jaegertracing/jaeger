@@ -48,6 +48,10 @@ func (cfg *Backend) Unmarshal(conf *confmap.Conf) error {
 		v := badger.DefaultNamespaceConfig()
 		cfg.Badger = &v
 	}
+	if conf.IsSet("grpc") {
+		v := grpc.DefaultConfigV2()
+		cfg.GRPC = &v
+	}
 	// TODO add defaults for other storage backends
 	return conf.Unmarshal(cfg)
 }

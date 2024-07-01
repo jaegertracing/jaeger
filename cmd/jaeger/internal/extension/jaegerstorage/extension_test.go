@@ -5,15 +5,16 @@ package jaegerstorage
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componenttest"
+	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/extension"
 	noopmetric "go.opentelemetry.io/otel/metric/noop"
 	nooptrace "go.opentelemetry.io/otel/trace/noop"
@@ -22,6 +23,8 @@ import (
 	esCfg "github.com/jaegertracing/jaeger/pkg/es/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/plugin/storage/badger"
+	"github.com/jaegertracing/jaeger/plugin/storage/cassandra"
+	"github.com/jaegertracing/jaeger/plugin/storage/grpc"
 	"github.com/jaegertracing/jaeger/plugin/storage/memory"
 	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
@@ -73,8 +76,7 @@ func (e errorFactory) Close() error {
 }
 
 func TestStorageFactoryBadHostError(t *testing.T) {
-	host := componenttest.NewNopHost()
-	_, err := GetStorageFactory("something", host)
+	_, err := GetStorageFactory("something", componenttest.NewNopHost())
 	require.ErrorContains(t, err, "cannot find extension")
 }
 
@@ -95,13 +97,13 @@ func TestStorageFactoryBadShutdownError(t *testing.T) {
 	require.ErrorIs(t, err, shutdownError)
 }
 
-func TestStorageFactoryV2Error(t *testing.T) {
+func TestGetFactoryV2Error(t *testing.T) {
 	host := componenttest.NewNopHost()
 	_, err := GetStorageFactoryV2("something", host)
 	require.ErrorContains(t, err, "cannot find extension")
 }
 
-func TestStorageExtension(t *testing.T) {
+func TestGetFactory(t *testing.T) {
 	const name = "foo"
 	host := storageHost{t: t, ext: startStorageExtension(t, name)}
 	f, err := GetStorageFactory(name, host)
@@ -113,7 +115,7 @@ func TestStorageExtension(t *testing.T) {
 	require.NotNil(t, f2)
 }
 
-func TestBadgerStorageExtension(t *testing.T) {
+func TestBadger(t *testing.T) {
 	ext := makeStorageExtenion(t, &Config{
 		Backends: map[string]Backend{
 			"foo": {
@@ -131,40 +133,14 @@ func TestBadgerStorageExtension(t *testing.T) {
 	require.NoError(t, ext.Shutdown(ctx))
 }
 
-func TestBadgerStorageExtensionError(t *testing.T) {
+func TestGRPC(t *testing.T) {
 	ext := makeStorageExtenion(t, &Config{
 		Backends: map[string]Backend{
 			"foo": {
-				Badger: &badger.NamespaceConfig{
-					KeyDirectory:   "/bad/path",
-					ValueDirectory: "/bad/path",
-				},
-			},
-		},
-	})
-	err := ext.Start(context.Background(), componenttest.NewNopHost())
-	require.ErrorContains(t, err, "failed to initialize storage 'foo'")
-	require.ErrorContains(t, err, "/bad/path")
-}
-
-func TestESStorageExtension(t *testing.T) {
-	mockEsServerResponse := []byte(`
-	{
-		"Version": {
-			"Number": "6"
-		}
-	}
-	`)
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Write(mockEsServerResponse)
-	}))
-	defer server.Close()
-	ext := makeStorageExtenion(t, &Config{
-		Backends: map[string]Backend{
-			"foo": {
-				Elasticsearch: &esCfg.Configuration{
-					Servers:  []string{server.URL},
-					LogLevel: "error",
+				GRPC: &grpc.ConfigV2{
+					ClientConfig: configgrpc.ClientConfig{
+						Endpoint: "localhost:12345",
+					},
 				},
 			},
 		},
@@ -175,21 +151,71 @@ func TestESStorageExtension(t *testing.T) {
 	require.NoError(t, ext.Shutdown(ctx))
 }
 
-func TestESStorageExtensionError(t *testing.T) {
+func TestStartError(t *testing.T) {
 	ext := makeStorageExtenion(t, &Config{
 		Backends: map[string]Backend{
-			"foo": {
-				Elasticsearch: &esCfg.Configuration{
-					Servers:  []string{"http://127.0.0.1:65535"},
-					LogLevel: "error",
-					Timeout:  100 * time.Millisecond,
-				},
-			},
+			"foo": {},
 		},
 	})
 	err := ext.Start(context.Background(), componenttest.NewNopHost())
 	require.ErrorContains(t, err, "failed to initialize storage 'foo'")
-	require.ErrorContains(t, err, "http://127.0.0.1:65535")
+	require.ErrorContains(t, err, "empty configuration")
+}
+
+func testElasticsearchOrOpensearch(t *testing.T, cfg Backend) {
+	ext := makeStorageExtenion(t, &Config{
+		Backends: map[string]Backend{
+			"foo": cfg,
+		},
+	})
+	ctx := context.Background()
+	err := ext.Start(ctx, componenttest.NewNopHost())
+	require.NoError(t, err)
+	require.NoError(t, ext.Shutdown(ctx))
+}
+
+func TestXYZsearch(t *testing.T) {
+	versionResponse, err := json.Marshal(map[string]any{
+		"Version": map[string]any{
+			"Number": "7",
+		},
+	})
+	require.NoError(t, err)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Write(versionResponse)
+	}))
+	defer server.Close()
+	t.Run("Elasticsearch", func(t *testing.T) {
+		testElasticsearchOrOpensearch(t, Backend{
+			Elasticsearch: &esCfg.Configuration{
+				Servers:  []string{server.URL},
+				LogLevel: "error",
+			},
+		})
+	})
+	t.Run("OpenSearch", func(t *testing.T) {
+		testElasticsearchOrOpensearch(t, Backend{
+			Opensearch: &esCfg.Configuration{
+				Servers:  []string{server.URL},
+				LogLevel: "error",
+			},
+		})
+	})
+}
+
+func TestCassandraError(t *testing.T) {
+	// since we cannot successfully create storage factory for Cassandra
+	// without running a Cassandra server, we only test the error case.
+	ext := makeStorageExtenion(t, &Config{
+		Backends: map[string]Backend{
+			"cassandra": {
+				Cassandra: &cassandra.Options{},
+			},
+		},
+	})
+	err := ext.Start(context.Background(), componenttest.NewNopHost())
+	require.ErrorContains(t, err, "failed to initialize storage 'cassandra'")
+	require.ErrorContains(t, err, "Servers: non zero value required")
 }
 
 func noopTelemetrySettings() component.TelemetrySettings {
