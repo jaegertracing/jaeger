@@ -17,6 +17,29 @@ import (
 	promExporter "go.opentelemetry.io/otel/exporters/prometheus"
 )
 
+func BenchmarkVarags(b *testing.B) {
+	f := func(opts ...string) int {
+		return len(opts)
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		f("x", "y", "z")
+	}
+}
+
+func BenchmarkAddConfig(b *testing.B) {
+	attrSet := attribute.NewSet(attribute.String("tag1", "value1"))
+	attrOpt := metric.WithAttributeSet(attrSet)
+	f := func(opts ...metric.AddOption) int {
+		metric.NewAddConfig(opts)
+		return len(opts)
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		f(attrOpt)
+	}
+}
+
 func BenchmarkPrometheusCounter(b *testing.B) {
 	reg := promsdk.NewRegistry()
 	opts := promsdk.CounterOpts{
