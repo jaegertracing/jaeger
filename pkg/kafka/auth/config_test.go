@@ -17,9 +17,9 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 )
 
-func addFlags(Flags *flag.FlagSet) {
+func addFlags(flags *flag.FlagSet) {
 	configPrefix := "kafka.auth"
-	AddFlags(configPrefix, Flags)
+	AddFlags(configPrefix, flags)
 }
 
 func Test_InitFromViper(t *testing.T) {
@@ -44,7 +44,7 @@ func Test_InitFromViper(t *testing.T) {
 
 	authConfig := &AuthenticationConfig{}
 	err := authConfig.InitFromViper(configPrefix, v)
-	require.Error(t, err)
+	require.EqualError(t, err, "failed to process Kafka TLS options: kafka.auth.tls.* options cannot be used when kafka.auth.tls.enabled is false")
 
 	command.ParseFlags([]string{"--kafka.auth.tls.ca="})
 	v.BindPFlags(command.Flags())
@@ -89,54 +89,85 @@ func TestSetConfiguration(t *testing.T) {
 	saramaConfig := sarama.NewConfig()
 	configPrefix := "kafka.auth"
 	v, command := config.Viperize(addFlags)
-	authConfig := &AuthenticationConfig{}
 
-	// Helper function to parse flags and initialize authConfig
-	parseFlagsAndInit := func(authType string) {
-		command.ParseFlags([]string{
-			"--kafka.auth.authentication=" + authType,
-			"--kafka.auth.kerberos.service-name=kafka",
-			"--kafka.auth.kerberos.realm=EXAMPLE.COM",
-			"--kafka.auth.kerberos.use-keytab=true",
-			"--kafka.auth.kerberos.username=user",
-			"--kafka.auth.kerberos.password=password",
-			"--kafka.auth.kerberos.config-file=/path/to/krb5.conf",
-			"--kafka.auth.kerberos.keytab-file=/path/to/keytab",
-			"--kafka.auth.kerberos.disable-fast-negotiation=true",
-			"--kafka.auth.tls.enabled=false",
-			"--kafka.auth.plaintext.username=user",
-			"--kafka.auth.plaintext.password=password",
-			"--kafka.auth.plaintext.mechanism=SCRAM-SHA-256",
-			"--kafka.auth.kerberos.use-keytab=false",
-		})
-		authConfig = &AuthenticationConfig{}
-		err := authConfig.InitFromViper(configPrefix, v)
-		require.NoError(t, err)
+	// Table-driven test cases
+	tests := []struct {
+		name                string
+		authType            string
+		expectedError       string
+		plainTextMechanisms []string
+	}{
+		{
+			name:          "Invalid authentication method",
+			authType:      "fail",
+			expectedError: "Unknown/Unsupported authentication method fail to kafka cluster",
+		},
+		{
+			name:          "Kerberos authentication",
+			authType:      "kerberos",
+			expectedError: "",
+		},
+		{
+			name:                "Plaintext authentication with SCRAM-SHA-256",
+			authType:            "plaintext",
+			expectedError:       "",
+			plainTextMechanisms: []string{"SCRAM-SHA-256"},
+		},
+		{
+			name:                "Plaintext authentication with SCRAM-SHA-512",
+			authType:            "plaintext",
+			expectedError:       "",
+			plainTextMechanisms: []string{"SCRAM-SHA-512"},
+		},
+		{
+			name:                "Plaintext authentication with PLAIN",
+			authType:            "plaintext",
+			expectedError:       "",
+			plainTextMechanisms: []string{"PLAIN"},
+		},
+		{
+			name:          "No authentication",
+			authType:      " ",
+			expectedError: "",
+		},
+		{
+			name:          "TLS authentication",
+			authType:      "tls",
+			expectedError: "",
+		},
+		{
+			name:          "TLS authentication with invalid cipher suite",
+			authType:      "tls",
+			expectedError: "error loading tls config: failed to get cipher suite ids from cipher suite names: cipher suite fail not supported or doesn't exist",
+		},
 	}
 
-	// Test with invalid authentication method
-	parseFlagsAndInit("fail")
-	require.Error(t, authConfig.SetConfiguration(saramaConfig, logger), "Unknown/Unsupported authentication method fail to kafka cluster")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			command.ParseFlags([]string{
+				"--kafka.auth.authentication=" + tt.authType,
+			})
+			authConfig := &AuthenticationConfig{}
+			defer authConfig.TLS.Close()
+			err := authConfig.InitFromViper(configPrefix, v)
+			require.NoError(t, err)
 
-	// Test with kerberos
-	parseFlagsAndInit("kerberos")
-	require.NoError(t, authConfig.SetConfiguration(saramaConfig, logger))
+			if tt.authType == "tls" && tt.expectedError != "" {
+				authConfig.TLS.CipherSuites = []string{"fail"}
+			}
 
-	// Test all plaintext options
-	parseFlagsAndInit("plaintext")
-	testPlaintext(v, t, configPrefix, logger, "SCRAM-SHA-256", saramaConfig)
-	testPlaintext(v, t, configPrefix, logger, "SCRAM-SHA-512", saramaConfig)
-	testPlaintext(v, t, configPrefix, logger, "PLAIN", saramaConfig)
-
-	// Test with no authentication
-	parseFlagsAndInit(" ")
-	require.NoError(t, authConfig.SetConfiguration(saramaConfig, logger))
-
-	// Test with tls
-	parseFlagsAndInit("tls")
-	require.NoError(t, authConfig.SetConfiguration(saramaConfig, logger))
-	defer authConfig.TLS.Close()
-	// test tls_fail
-	authConfig.TLS.CipherSuites = []string{"fail"}
-	require.Error(t, authConfig.SetConfiguration(saramaConfig, logger))
+			if len(tt.plainTextMechanisms) > 0 {
+				for _, mechanism := range tt.plainTextMechanisms {
+					testPlaintext(v, t, configPrefix, logger, mechanism, saramaConfig)
+				}
+			} else {
+				err = authConfig.SetConfiguration(saramaConfig, logger)
+				if tt.expectedError != "" {
+					require.EqualError(t, err, tt.expectedError)
+				} else {
+					require.NoError(t, err)
+				}
+			}
+		})
+	}
 }

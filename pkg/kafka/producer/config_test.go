@@ -7,13 +7,13 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest"
 
 	"github.com/jaegertracing/jaeger/pkg/kafka/auth"
 )
 
 func TestSetConfiguration(t *testing.T) {
-	logger, _ := zap.NewDevelopment()
+	logger := zaptest.NewLogger(t)
 	test := &Configuration{AuthenticationConfig: auth.AuthenticationConfig{Authentication: "fail"}}
 	_, err := test.NewProducer(logger)
 	require.EqualError(t, err, "Unknown/Unsupported authentication method fail to kafka cluster")
