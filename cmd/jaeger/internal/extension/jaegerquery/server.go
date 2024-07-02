@@ -17,6 +17,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	"github.com/jaegertracing/jaeger/pkg/jtracer"
+	"github.com/jaegertracing/jaeger/pkg/telemetery"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/plugin/metrics/disabled"
 	"github.com/jaegertracing/jaeger/ports"
@@ -83,14 +84,16 @@ func (s *server) Start(_ context.Context, host component.Host) error {
 	// TODO contextcheck linter complains about next line that context is not passed. It is not wrong.
 	//nolint
 	s.server, err = queryApp.NewServer(
-		s.logger,
+		telemetery.TelemeterySetting{
+			Logger: s.logger,
+			Tracer: s.jtracer,
+		},
 		// TODO propagate healthcheck updates up to the collector's runtime
 		healthcheck.New(),
 		qs,
 		metricsQueryService,
 		s.makeQueryOptions(),
 		tm,
-		s.jtracer,
 	)
 	if err != nil {
 		return fmt.Errorf("could not create jaeger-query: %w", err)

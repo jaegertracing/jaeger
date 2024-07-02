@@ -32,6 +32,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/jtracer"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/pkg/telemetery"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/plugin/storage/es"
 	"github.com/jaegertracing/jaeger/ports"
@@ -91,7 +92,10 @@ func runQueryService(t *testing.T, esURL string) *Server {
 	require.NoError(t, err)
 
 	querySvc := querysvc.NewQueryService(spanReader, nil, querysvc.QueryServiceOptions{})
-	server, err := NewServer(flagsSvc.Logger, flagsSvc.HC(), querySvc, nil,
+	server, err := NewServer(telemetery.TelemeterySetting{
+		Logger: flagsSvc.Logger,
+		Tracer: jtracer.NoOp(),
+	}, flagsSvc.HC(), querySvc, nil,
 		&QueryOptions{
 			GRPCHostPort: ":0",
 			HTTPHostPort: ":0",
@@ -100,7 +104,6 @@ func runQueryService(t *testing.T, esURL string) *Server {
 			},
 		},
 		tenancy.NewManager(&tenancy.Options{}),
-		jtracer.NoOp(),
 	)
 	require.NoError(t, err)
 	require.NoError(t, server.Start())

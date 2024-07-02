@@ -42,6 +42,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/jtracer"
 	"github.com/jaegertracing/jaeger/pkg/netutils"
 	"github.com/jaegertracing/jaeger/pkg/recoveryhandler"
+	"github.com/jaegertracing/jaeger/pkg/telemetery"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2/metrics"
@@ -67,7 +68,7 @@ type Server struct {
 }
 
 // NewServer creates and initializes Server
-func NewServer(logger *zap.Logger, healthCheck *healthcheck.HealthCheck, querySvc *querysvc.QueryService, metricsQuerySvc querysvc.MetricsQueryService, options *QueryOptions, tm *tenancy.Manager, tracer *jtracer.JTracer) (*Server, error) {
+func NewServer(telset telemetery.TelemeterySetting, healthCheck *healthcheck.HealthCheck, querySvc *querysvc.QueryService, metricsQuerySvc querysvc.MetricsQueryService, options *QueryOptions, tm *tenancy.Manager) (*Server, error) {
 	_, httpPort, err := net.SplitHostPort(options.HTTPHostPort)
 	if err != nil {
 		return nil, fmt.Errorf("invalid HTTP server host:port: %w", err)
@@ -81,22 +82,22 @@ func NewServer(logger *zap.Logger, healthCheck *healthcheck.HealthCheck, querySv
 		return nil, errors.New("server with TLS enabled can not use same host ports for gRPC and HTTP.  Use dedicated HTTP and gRPC host ports instead")
 	}
 
-	grpcServer, err := createGRPCServer(querySvc, metricsQuerySvc, options, tm, logger, tracer)
+	grpcServer, err := createGRPCServer(querySvc, metricsQuerySvc, options, tm, telset.Logger, telset.Tracer)
 	if err != nil {
 		return nil, err
 	}
 
-	httpServer, err := createHTTPServer(querySvc, metricsQuerySvc, options, tm, tracer, logger)
+	httpServer, err := createHTTPServer(querySvc, metricsQuerySvc, options, tm, telset.Tracer, telset.Logger)
 	if err != nil {
 		return nil, err
 	}
 
 	return &Server{
-		logger:        logger,
+		logger:        telset.Logger,
 		healthCheck:   healthCheck,
 		querySvc:      querySvc,
 		queryOptions:  options,
-		tracer:        tracer,
+		tracer:        telset.Tracer,
 		grpcServer:    grpcServer,
 		httpServer:    httpServer,
 		separatePorts: grpcPort != httpPort,
