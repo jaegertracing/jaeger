@@ -14,7 +14,7 @@
 # instead of the go_package's declared by the imported protof files.
 #
 
-DOCKER_PROTOBUF_VERSION=0.5.0
+DOCKER_PROTOBUF_VERSION=v0.5.1rc
 DOCKER_PROTOBUF=jaegertracing/protobuf:$(DOCKER_PROTOBUF_VERSION)
 PROTOC := docker run --rm -u ${shell id -u} -v${PWD}:${PWD} -w${PWD} ${DOCKER_PROTOBUF} --proto_path=${PWD}
 
@@ -24,6 +24,7 @@ PROTO_INCLUDES := \
 	-Iidl/proto/api_v2 \
 	-Iidl/proto/api_v3 \
 	-Imodel/proto/metrics \
+	-Iproto-gen/.includes \
 	-I/usr/include/github.com/gogo/protobuf
 
 # Remapping of std types to gogo types (must not contain spaces)
@@ -78,13 +79,22 @@ define proto_compile
 endef
 
 .PHONY: proto
-proto: proto-model \
+proto: proto-download-google-apis \
+	proto-model \
 	proto-api-v2 \
 	proto-storage-v1 \
 	proto-hotrod \
 	proto-zipkin \
 	proto-openmetrics \
 	proto-api-v3
+
+.PHONY: proto-download-google-apis
+proto-download-google-apis:
+	mkdir -p ./proto-gen/.includes/google/api/
+	curl -sSL -o ./proto-gen/.includes/google/api/annotations.proto \
+		https://raw.githubusercontent.com/googleapis/googleapis/master/google/api/annotations.proto
+	curl -sSL -o ./proto-gen/.includes/google/api/http.proto \
+		https://raw.githubusercontent.com/googleapis/googleapis/master/google/api/http.proto
 
 .PHONY: proto-model
 proto-model:
