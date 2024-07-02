@@ -17,6 +17,7 @@ package uiconv
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 
@@ -25,7 +26,7 @@ import (
 	uimodel "github.com/jaegertracing/jaeger/model/json"
 )
 
-var errNoMoreSpans = fmt.Errorf("no more spans")
+var errNoMoreSpans = errors.New("no more spans")
 
 // spanReader loads previously captured spans from a file.
 type spanReader struct {
