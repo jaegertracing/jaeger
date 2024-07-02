@@ -43,6 +43,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/jtracer"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/pkg/telemetery"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/pkg/version"
 	metricsPlugin "github.com/jaegertracing/jaeger/plugin/metrics"
@@ -279,7 +280,10 @@ func startQuery(
 ) *queryApp.Server {
 	spanReader = storageMetrics.NewReadMetricsDecorator(spanReader, metricsFactory)
 	qs := querysvc.NewQueryService(spanReader, depReader, *queryOpts)
-	server, err := queryApp.NewServer(svc.Logger, svc.HC(), qs, metricsQueryService, qOpts, tm, jt)
+	server, err := queryApp.NewServer(telemetery.TelemeterySetting{
+		Logger: svc.Logger,
+		Tracer: jt,
+	}, svc.HC(), qs, metricsQueryService, qOpts, tm)
 	if err != nil {
 		svc.Logger.Fatal("Could not create jaeger-query", zap.Error(err))
 	}
