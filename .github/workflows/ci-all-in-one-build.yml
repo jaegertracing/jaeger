@@ -55,7 +55,7 @@ jobs:
     - name: Install tools
       run: make install-ci
 
-    - uses: docker/setup-qemu-action@68827325e0b33c7199eb31dd4e31fbe9023e06e3 # v3.0.0
+    - uses: docker/setup-qemu-action@5927c834f5b4fdf503fca6f4c7eccda82949e1ee # v3.1.0
 
     - name: Define BUILD_FLAGS var if running on a Pull Request
       run: |
