@@ -25,6 +25,7 @@ require (
 	github.com/olivere/elastic v6.2.37+incompatible
 	github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector v0.104.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/kafkaexporter v0.104.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/prometheusexporter v0.104.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger v0.104.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver v0.104.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kafkareceiver v0.104.0
@@ -91,11 +92,6 @@ require (
 )
 
 require (
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry v0.104.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/prometheus v0.104.0 // indirect
-)
-
-require (
 	github.com/IBM/sarama v1.43.2 // indirect
 	github.com/aws/aws-sdk-go v1.53.11 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
@@ -155,14 +151,15 @@ require (
 	github.com/mostynb/go-grpc-compression v1.2.3 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/onsi/ginkgo v1.16.5 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/prometheusexporter v0.104.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/storage v0.104.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/common v0.104.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal v0.104.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/kafka v0.104.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/batchpersignal v0.104.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatautil v0.104.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry v0.104.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/azure v0.104.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/prometheus v0.104.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/zipkin v0.104.0 // indirect
 	github.com/opentracing/opentracing-go v1.2.0 // indirect
 	github.com/openzipkin/zipkin-go v0.4.3 // indirect

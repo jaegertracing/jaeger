@@ -25,7 +25,6 @@ services:
     command: "-d 24h -s 500ms"
     environment:
       - OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://jaeger:4318/v1/traces
-      - OTEL_EXPORTER_OTLP_INSECURE=true
     depends_on:
       - jaeger
   prometheus:
