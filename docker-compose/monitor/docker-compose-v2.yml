@@ -18,13 +18,14 @@ services:
       - PROMETHEUS_QUERY_NORMALIZE_DURATION=true
     ports:
       - "16686:16686"
-      - "14278:14278"
   microsim:
     networks:
       - backend
-    image: yurishkuro/microsim:0.3.0
-    # TODO: Fix error - dial tcp [::1]:14278: connect: connection refused
-    command: "-j http://localhost:14278/api/traces -d 24h -s 500ms"
+    image: yurishkuro/microsim:v0.4.1
+    command: "-d 24h -s 500ms"
+    environment:
+      - OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://jaeger:4318/v1/traces
+      - OTEL_EXPORTER_OTLP_INSECURE=true
     depends_on:
       - jaeger
   prometheus:
