@@ -47,6 +47,14 @@ type ConfigV2 struct {
 	exporterhelper.TimeoutSettings `mapstructure:",squash"`
 }
 
+func DefaultConfigV2() ConfigV2 {
+	return ConfigV2{
+		TimeoutSettings: exporterhelper.TimeoutSettings{
+			Timeout: defaultConnectionTimeout,
+		},
+	}
+}
+
 func (c *Configuration) TranslateToConfigV2() *ConfigV2 {
 	return &ConfigV2{
 		ClientConfig: configgrpc.ClientConfig{
