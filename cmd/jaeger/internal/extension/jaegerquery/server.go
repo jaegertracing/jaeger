@@ -80,20 +80,20 @@ func (s *server) Start(_ context.Context, host component.Host) error {
 	if err != nil {
 		return fmt.Errorf("could not initialize a tracer: %w", err)
 	}
-
+	telset := telemetery.Setting{
+		Logger: s.logger,
+		Tracer: s.jtracer,
+		HC:    healthcheck.New(),
+	}
 	// TODO contextcheck linter complains about next line that context is not passed. It is not wrong.
 	//nolint
 	s.server, err = queryApp.NewServer(
-		telemetery.Setting{
-			Logger: s.logger,
-			Tracer: s.jtracer,
-		},
 		// TODO propagate healthcheck updates up to the collector's runtime
-		healthcheck.New(),
 		qs,
 		metricsQueryService,
 		s.makeQueryOptions(),
 		tm,
+		telset,
 	)
 	if err != nil {
 		return fmt.Errorf("could not create jaeger-query: %w", err)
