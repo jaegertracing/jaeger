@@ -25,6 +25,7 @@ require (
 	github.com/olivere/elastic v6.2.37+incompatible
 	github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector v0.104.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/kafkaexporter v0.104.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/extension/storage v0.104.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger v0.104.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver v0.104.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kafkareceiver v0.104.0
@@ -68,8 +69,8 @@ require (
 	go.opentelemetry.io/collector/processor/memorylimiterprocessor v0.104.0
 	go.opentelemetry.io/collector/receiver v0.104.0
 	go.opentelemetry.io/collector/receiver/otlpreceiver v0.104.0
-	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.52.0
-	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.52.0
+	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.53.0
+	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.53.0
 	go.opentelemetry.io/otel v1.28.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.28.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.28.0
@@ -150,7 +151,6 @@ require (
 	github.com/mostynb/go-grpc-compression v1.2.3 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/onsi/ginkgo v1.16.5 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/extension/storage v0.104.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/common v0.104.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal v0.104.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/kafka v0.104.0 // indirect
