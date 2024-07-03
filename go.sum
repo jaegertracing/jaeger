@@ -258,6 +258,8 @@ github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsc
 github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector v0.104.0/go.mod h1:MfSM6mt9qH3vHCaj2rlX6IY/7fN+zCLzNJC25XG9rNU=
 github.com/open-telemetry/opentelemetry-collector-contrib/exporter/kafkaexporter v0.104.0 h1:xDA/V4cZ4LXj70la1uzvGaX/xfzeGIEq3txhF7W6TAg=
 github.com/open-telemetry/opentelemetry-collector-contrib/exporter/kafkaexporter v0.104.0/go.mod h1:BxDMJl5xzSbCwcuVFs9jIrBwc1sflBVdihNJxcEKkOE=
+github.com/open-telemetry/opentelemetry-collector-contrib/exporter/prometheusexporter v0.103.0 h1:NQCp4YFDJz5rqJ3PuecRVFIfqcZaZUacqaiSnPOyHGQ=
+github.com/open-telemetry/opentelemetry-collector-contrib/exporter/prometheusexporter v0.103.0/go.mod h1:8v8Pn7bLxFrWmer685QqLNe4f86fPIAsb+1rr2bahco=
 github.com/open-telemetry/opentelemetry-collector-contrib/extension/storage v0.104.0 h1:VD2R4q2XziQCJIAsQG2qhlSKyDoT9XaTR2LNkJHs2C0=
 github.com/open-telemetry/opentelemetry-collector-contrib/extension/storage v0.104.0/go.mod h1:sOdPmcOeSXXqZeBflu3Oa+0aWFL8QkAKpr/X1txJYSs=
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/common v0.104.0 h1:4ke4j/y7AQnRAyYveB+KGcdjVYEKVrwTxc3BDHagdd0=
@@ -272,10 +274,14 @@ github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatatest v0.104.0
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatatest v0.104.0/go.mod h1:tImy4FWNu1qpaXRVaNi2BU+TmZHtYgLO6LbB6mspZio=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatautil v0.104.0 h1:Pl4rXXpRG/xJuNWUS3I/w1jViHcrssMf47bGX/Ug/KY=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatautil v0.104.0/go.mod h1:tP4dyc5+g/qoXYb8lmNj+y+Nhphn4MkL23/np0Zhx2g=
+github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry v0.103.0 h1:imXTMt9ravkIqcvvow0ya3aQh64OOiQpMOyWeG/SLDQ=
+github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry v0.103.0/go.mod h1:DR/fbOxaIyobmsd8nbDzuwqwwSNX9+yONDWx8dF2qS4=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/azure v0.104.0 h1:V58XfkZBVuOcNL/+US/ZnG8mVy5AbVHV49mGDIgIMo8=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/azure v0.104.0/go.mod h1:HpEqZW6TOsujFvvOSkcCFj7N2NEW4LP/Q6X7/ryfSnA=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger v0.104.0 h1:3joQv7QiLvsVfrpqYAxHvq3bKUaUEpgg93fMLW+TU2w=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger v0.104.0/go.mod h1:aUAgxXQQPiSajwMXQv4LobDTc16ezeF9S1Xh53yHbOg=
+github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/prometheus v0.103.0 h1:mZbM5uIvfL4/Q0i9xKYps8AYe37MhwJJpk1Ojz9m6mw=
+github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/prometheus v0.103.0/go.mod h1:+WiRcWZOrXV3B5Qk0KlF5Tm7BopRvLpoPYqTrt4iA7s=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/zipkin v0.104.0 h1:oIYYjBh2kNi7APSArA/9YCQzLwOlMdUhqMxUoMoTChY=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/zipkin v0.104.0/go.mod h1:hRayDDoU1e1POXuDO7RpwcqIirFJoCdSgHgICY0hNNI=
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver v0.104.0 h1:9HJ3ejNoiMFWxTRy9gobdurEocf79QlxwlYrOY9tMIQ=
