@@ -33,13 +33,11 @@ func TestScramClient(t *testing.T) {
 
 func TestSetPlainTextConfiguration(t *testing.T) {
 	tests := []struct {
-		name              string
 		config            PlainTextConfig
 		expectedError     error
 		expectedMechanism sarama.SASLMechanism
 	}{
 		{
-			name: "SCRAM-SHA-256",
 			config: PlainTextConfig{
 				Username:  "username",
 				Password:  "password",
@@ -49,7 +47,6 @@ func TestSetPlainTextConfiguration(t *testing.T) {
 			expectedMechanism: sarama.SASLTypeSCRAMSHA256,
 		},
 		{
-			name: "SCRAM-SHA-512",
 			config: PlainTextConfig{
 				Username:  "username",
 				Password:  "password",
@@ -59,7 +56,6 @@ func TestSetPlainTextConfiguration(t *testing.T) {
 			expectedMechanism: sarama.SASLTypeSCRAMSHA512,
 		},
 		{
-			name: "PLAIN",
 			config: PlainTextConfig{
 				Username:  "username",
 				Password:  "password",
@@ -69,18 +65,17 @@ func TestSetPlainTextConfiguration(t *testing.T) {
 			expectedMechanism: sarama.SASLTypePlaintext,
 		},
 		{
-			name: "Invalid Mechanism",
 			config: PlainTextConfig{
 				Username:  "username",
 				Password:  "password",
-				Mechanism: "INVALID",
+				Mechanism: "INVALID_MECHANISM",
 			},
-			expectedError: fmt.Errorf("config plaintext.mechanism error: %s, only support 'SCRAM-SHA-256' or 'SCRAM-SHA-512' or 'PLAIN'", "INVALID"),
+			expectedError: fmt.Errorf("config plaintext.mechanism error: %s, only support 'SCRAM-SHA-256' or 'SCRAM-SHA-512' or 'PLAIN'", "INVALID_MECHANISM"),
 		},
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+		t.Run(tt.config.Mechanism, func(t *testing.T) {
 			saramaConfig := sarama.NewConfig()
 
 			err := setPlainTextConfiguration(&tt.config, saramaConfig)

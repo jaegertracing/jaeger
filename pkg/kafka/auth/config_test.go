@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest"
 
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
@@ -85,7 +86,7 @@ func testPlaintext(v *viper.Viper, t *testing.T, configPrefix string, logger *za
 }
 
 func TestSetConfiguration(t *testing.T) {
-	logger, _ := zap.NewDevelopment()
+	logger := zaptest.NewLogger(t)
 	saramaConfig := sarama.NewConfig()
 	configPrefix := "kafka.auth"
 	v, command := config.Viperize(addFlags)

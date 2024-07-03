@@ -59,15 +59,8 @@ func (s *KafkaIntegrationTestSuite) initialize(t *testing.T) {
 		defaultLocalKafkaBroker,
 		"--kafka.producer.encoding",
 		encoding,
-		"--kafka.producer.protocol-version",
-		"0",
 	})
 	require.NoError(t, err)
-	f.InitFromViper(v, logger)
-	err = f.Initialize(metrics.NullFactory, logger)
-	require.EqualError(t, err, "invalid version `0`")
-
-	command.ParseFlags([]string{"--kafka.producer.protocol-version", "2.0.0"})
 	f.InitFromViper(v, logger)
 	err = f.Initialize(metrics.NullFactory, logger)
 	require.NoError(t, err)
@@ -89,8 +82,6 @@ func (s *KafkaIntegrationTestSuite) initialize(t *testing.T) {
 		clientID,
 		"--ingester.parallelism",
 		"1000",
-		"--kafka.consumer.protocol-version",
-		"0",
 	})
 	require.NoError(t, err)
 	options := app.Options{
@@ -100,11 +91,6 @@ func (s *KafkaIntegrationTestSuite) initialize(t *testing.T) {
 	}
 	options.InitFromViper(v)
 	traceStore := memory.NewStore()
-	_, err = builder.CreateConsumer(logger, metrics.NullFactory, traceStore, options)
-	require.EqualError(t, err, "invalid version `0`")
-
-	command.ParseFlags([]string{"--kafka.consumer.protocol-version", "2.0.0"})
-	options.InitFromViper(v)
 	spanConsumer, err := builder.CreateConsumer(logger, metrics.NullFactory, traceStore, options)
 	require.NoError(t, err)
 	spanConsumer.Start()
