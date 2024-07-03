@@ -49,7 +49,7 @@ func (mb *MappingBuilder) GetMapping(mapping string) (string, error) {
 	} else if mb.EsVersion == 7 {
 		return mb.fixMapping(mapping + "-7.json")
 	}
-	return mb.fixMapping(mapping + ".json")
+	return mb.fixMapping(mapping + "-6.json")
 }
 
 // GetSpanServiceMappings returns span and service mappings
