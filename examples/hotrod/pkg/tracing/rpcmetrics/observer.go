@@ -22,10 +22,10 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	semconv "go.opentelemetry.io/otel/semconv/v1.25.0"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/pkg/otelsemconv"
 )
 
 const defaultMaxNumberOfEndpoints = 200
@@ -70,7 +70,7 @@ func (o *Observer) OnEnd(sp sdktrace.ReadOnlySpan) {
 		mets.RequestLatencySuccess.Record(latency)
 	}
 	for _, attr := range sp.Attributes() {
-		if string(attr.Key) == string(semconv.HTTPResponseStatusCodeKey) {
+		if string(attr.Key) == string(otelsemconv.HTTPResponseStatusCodeKey) {
 			if attr.Value.Type() == attribute.INT64 {
 				mets.recordHTTPStatusCode(attr.Value.AsInt64())
 			} else if attr.Value.Type() == attribute.STRING {

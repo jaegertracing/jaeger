@@ -24,9 +24,10 @@ import (
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	semconv "go.opentelemetry.io/otel/semconv/v1.25.0"
 	"go.opentelemetry.io/otel/trace"
 	nooptrace "go.opentelemetry.io/otel/trace/noop"
+
+	"github.com/jaegertracing/jaeger/pkg/otelsemconv"
 )
 
 type JTracer struct {
@@ -110,8 +111,8 @@ func initHelper(
 func otelResource(ctx context.Context, svc string) (*resource.Resource, error) {
 	return resource.New(
 		ctx,
-		resource.WithSchemaURL(semconv.SchemaURL),
-		resource.WithAttributes(semconv.ServiceNameKey.String(svc)),
+		resource.WithSchemaURL(otelsemconv.SchemaURL),
+		resource.WithAttributes(otelsemconv.ServiceNameKey.String(svc)),
 		resource.WithTelemetrySDK(),
 		resource.WithHost(),
 		resource.WithOSType(),

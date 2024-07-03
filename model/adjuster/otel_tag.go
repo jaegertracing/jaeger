@@ -15,14 +15,16 @@
 package adjuster
 
 import (
-	semconv "go.opentelemetry.io/otel/semconv/v1.25.0"
-
 	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger/pkg/otelsemconv"
 )
 
 var otelLibraryKeys = map[string]struct{}{
-	string(semconv.OTelLibraryNameKey):    {},
-	string(semconv.OTelLibraryVersionKey): {},
+	string(otelsemconv.TelemetrySDKLanguageKey):   {},
+	string(otelsemconv.TelemetrySDKNameKey):       {},
+	string(otelsemconv.TelemetrySDKVersionKey):    {},
+	string(otelsemconv.TelemetryDistroNameKey):    {},
+	string(otelsemconv.TelemetryDistroVersionKey): {},
 }
 
 func OTelTagAdjuster() Adjuster {
