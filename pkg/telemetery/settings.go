@@ -6,7 +6,7 @@ import (
 	"go.uber.org/zap"
 )
 
-type TelemeterySetting struct {
+type Setting struct {
 	Logger        *zap.Logger
 	Tracer        *jtracer.JTracer
 	MeterProvider metric.MeterProvider
