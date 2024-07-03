@@ -10,6 +10,6 @@ import (
 type Setting struct {
 	Logger        *zap.Logger
 	Tracer        *jtracer.JTracer
-	MeterProvider metrics.Factory
+	Metrics metrics.Factory
 	HC            *healthcheck.HealthCheck
 }
