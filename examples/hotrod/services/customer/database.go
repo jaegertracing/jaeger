@@ -21,7 +21,6 @@ import (
 	"fmt"
 
 	"go.opentelemetry.io/otel/attribute"
-	semconv "go.opentelemetry.io/otel/semconv/v1.25.0"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
@@ -29,6 +28,7 @@ import (
 	"github.com/jaegertracing/jaeger/examples/hotrod/pkg/log"
 	"github.com/jaegertracing/jaeger/examples/hotrod/pkg/tracing"
 	"github.com/jaegertracing/jaeger/examples/hotrod/services/config"
+	"github.com/jaegertracing/jaeger/pkg/otelsemconv"
 )
 
 // database simulates Customer repository implemented on top of an SQL database
@@ -77,7 +77,7 @@ func (d *database) Get(ctx context.Context, customerID int) (*Customer, error) {
 
 	ctx, span := d.tracer.Start(ctx, "SQL SELECT", trace.WithSpanKind(trace.SpanKindClient))
 	span.SetAttributes(
-		semconv.PeerServiceKey.String("mysql"),
+		otelsemconv.PeerServiceKey.String("mysql"),
 		attribute.
 			Key("sql.query").
 			String(fmt.Sprintf("SELECT * FROM customer WHERE customer_id=%d", customerID)),
