@@ -28,7 +28,7 @@ receivers:
     protocols:
       grpc:
       http:
-        # endpoint: "0.0.0.0:4318"
+        endpoint: "0.0.0.0:4318"
 
 processors:
   batch:
