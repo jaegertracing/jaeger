@@ -93,9 +93,9 @@ func runQueryService(t *testing.T, esURL string) *Server {
 
 	querySvc := querysvc.NewQueryService(spanReader, nil, querysvc.QueryServiceOptions{})
 	telset := telemetery.Setting{
-		Logger: flagsSvc.Logger,
-		Tracer: jtracer.NoOp(),
-		HC:     flagsSvc.HC(),
+		Logger:       flagsSvc.Logger,
+		Tracer:       jtracer.NoOp(),
+		ReportStatus: telemetery.HCAdapter(flagsSvc.HC()),
 	}
 	server, err := NewServer(querySvc, nil,
 		&QueryOptions{

@@ -115,9 +115,9 @@ func main() {
 				*queryServiceOptions)
 			tm := tenancy.NewManager(&queryOpts.Tenancy)
 			telset := telemetery.Setting{
-				Logger: logger,
-				Tracer: jt,
-				HC:     svc.HC(),
+				Logger:       logger,
+				Tracer:       jt,
+				ReportStatus: telemetery.HCAdapter(svc.HC()),
 			}
 			server, err := app.NewServer(queryService, metricsQueryService, queryOpts, tm, telset)
 			if err != nil {

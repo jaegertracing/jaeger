@@ -81,9 +81,9 @@ func (s *server) Start(_ context.Context, host component.Host) error {
 		return fmt.Errorf("could not initialize a tracer: %w", err)
 	}
 	telset := telemetery.Setting{
-		Logger: s.logger,
-		Tracer: s.jtracer,
-		HC:    healthcheck.New(),
+		Logger:       s.logger,
+		Tracer:       s.jtracer,
+		ReportStatus: telemetery.HCAdapter(healthcheck.New()),
 	}
 	// TODO contextcheck linter complains about next line that context is not passed. It is not wrong.
 	//nolint

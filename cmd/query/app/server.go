@@ -51,7 +51,7 @@ import (
 // Server runs HTTP, Mux and a grpc server
 type Server struct {
 	logger       *zap.Logger
-	healthCheck  *healthcheck.HealthCheck
+	hcFunc       func(*telemetery.StatusEvent)
 	querySvc     *querysvc.QueryService
 	queryOptions *QueryOptions
 
@@ -99,7 +99,7 @@ func NewServer(querySvc *querysvc.QueryService,
 
 	return &Server{
 		logger:        telset.Logger,
-		healthCheck:   telset.HC,
+		hcFunc:        telset.ReportStatus,
 		querySvc:      querySvc,
 		queryOptions:  options,
 		tracer:        telset.Tracer,
@@ -314,7 +314,7 @@ func (s *Server) Start() error {
 			s.logger.Error("Could not start HTTP server", zap.Error(err))
 		}
 		s.logger.Info("HTTP server stopped", zap.Int("port", httpPort), zap.String("addr", s.queryOptions.HTTPHostPort))
-		s.healthCheck.Set(healthcheck.Unavailable)
+		s.hcFunc(&telemetery.StatusEvent{status: healthcheck.Unavailable})
 		s.bgFinished.Done()
 	}()
 
@@ -328,7 +328,7 @@ func (s *Server) Start() error {
 			s.logger.Error("Could not start GRPC server", zap.Error(err))
 		}
 		s.logger.Info("GRPC server stopped", zap.Int("port", grpcPort), zap.String("addr", s.queryOptions.GRPCHostPort))
-		s.healthCheck.Set(healthcheck.Unavailable)
+		s.hcFunc(&telemetery.StatusEvent{status: healthcheck.Unavailable})
 		s.bgFinished.Done()
 	}()
 
@@ -344,7 +344,7 @@ func (s *Server) Start() error {
 				s.logger.Error("Could not start multiplexed server", zap.Error(err))
 			}
 			s.logger.Info("CMUX server stopped", zap.Int("port", tcpPort), zap.String("addr", s.queryOptions.HTTPHostPort))
-			s.healthCheck.Set(healthcheck.Unavailable)
+			s.hcFunc(&telemetery.StatusEvent{status: healthcheck.Unavailable})
 			s.bgFinished.Done()
 		}()
 	}
