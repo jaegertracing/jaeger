@@ -84,7 +84,7 @@ func (s *server) Start(_ context.Context, host component.Host) error {
 	// TODO contextcheck linter complains about next line that context is not passed. It is not wrong.
 	//nolint
 	s.server, err = queryApp.NewServer(
-		telemetery.TelemeterySetting{
+		telemetery.Setting{
 			Logger: s.logger,
 			Tracer: s.jtracer,
 		},

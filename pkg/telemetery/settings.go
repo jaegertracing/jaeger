@@ -1,13 +1,15 @@
 package telemetery
 
 import (
+	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	"github.com/jaegertracing/jaeger/pkg/jtracer"
-	"go.opentelemetry.io/otel/metric"
+	"github.com/jaegertracing/jaeger/plugin/metrics"
 	"go.uber.org/zap"
 )
 
 type Setting struct {
 	Logger        *zap.Logger
 	Tracer        *jtracer.JTracer
-	MeterProvider metric.MeterProvider
+	MeterProvider metrics.Factory
+	HC            *healthcheck.HealthCheck
 }

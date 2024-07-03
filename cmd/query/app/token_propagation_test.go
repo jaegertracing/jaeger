@@ -92,10 +92,12 @@ func runQueryService(t *testing.T, esURL string) *Server {
 	require.NoError(t, err)
 
 	querySvc := querysvc.NewQueryService(spanReader, nil, querysvc.QueryServiceOptions{})
-	server, err := NewServer(telemetery.TelemeterySetting{
+	telset := telemetery.Setting{
 		Logger: flagsSvc.Logger,
 		Tracer: jtracer.NoOp(),
-	}, flagsSvc.HC(), querySvc, nil,
+		HC:     flagsSvc.HC(),
+	}
+	server, err := NewServer(querySvc, nil,
 		&QueryOptions{
 			GRPCHostPort: ":0",
 			HTTPHostPort: ":0",
@@ -104,6 +106,7 @@ func runQueryService(t *testing.T, esURL string) *Server {
 			},
 		},
 		tenancy.NewManager(&tenancy.Options{}),
+		telset,
 	)
 	require.NoError(t, err)
 	require.NoError(t, server.Start())

@@ -68,7 +68,12 @@ type Server struct {
 }
 
 // NewServer creates and initializes Server
-func NewServer(telset telemetery.TelemeterySetting, healthCheck *healthcheck.HealthCheck, querySvc *querysvc.QueryService, metricsQuerySvc querysvc.MetricsQueryService, options *QueryOptions, tm *tenancy.Manager) (*Server, error) {
+func NewServer(querySvc *querysvc.QueryService,
+	metricsQuerySvc querysvc.MetricsQueryService,
+	options *QueryOptions,
+	tm *tenancy.Manager,
+	telset telemetery.Setting,
+) (*Server, error) {
 	_, httpPort, err := net.SplitHostPort(options.HTTPHostPort)
 	if err != nil {
 		return nil, fmt.Errorf("invalid HTTP server host:port: %w", err)
@@ -94,7 +99,7 @@ func NewServer(telset telemetery.TelemeterySetting, healthCheck *healthcheck.Hea
 
 	return &Server{
 		logger:        telset.Logger,
-		healthCheck:   healthCheck,
+		healthCheck:   telset.HC,
 		querySvc:      querySvc,
 		queryOptions:  options,
 		tracer:        telset.Tracer,

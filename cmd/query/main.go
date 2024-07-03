@@ -114,10 +114,12 @@ func main() {
 				dependencyReader,
 				*queryServiceOptions)
 			tm := tenancy.NewManager(&queryOpts.Tenancy)
-			server, err := app.NewServer(telemetery.TelemeterySetting{
+			telset := telemetery.Setting{
 				Logger: logger,
 				Tracer: jt,
-			}, svc.HC(), queryService, metricsQueryService, queryOpts, tm)
+				HC:     svc.HC(),
+			}
+			server, err := app.NewServer(queryService, metricsQueryService, queryOpts, tm, telset)
 			if err != nil {
 				logger.Fatal("Failed to create server", zap.Error(err))
 			}
