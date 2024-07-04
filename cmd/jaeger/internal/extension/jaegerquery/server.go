@@ -10,12 +10,12 @@ import (
 
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/extension"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
 	queryApp "github.com/jaegertracing/jaeger/cmd/query/app"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
-	"github.com/jaegertracing/jaeger/pkg/jtracer"
 	"github.com/jaegertracing/jaeger/pkg/telemetery"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/plugin/metrics/disabled"
@@ -28,16 +28,19 @@ var (
 )
 
 type server struct {
-	config  *Config
-	logger  *zap.Logger
-	server  *queryApp.Server
-	jtracer *jtracer.JTracer
+	config *Config
+	logger *zap.Logger
+	server *queryApp.Server
+	tracer trace.TracerProvider
+	hcFunc func(*component.StatusEvent)
 }
 
 func newServer(config *Config, otel component.TelemetrySettings) *server {
 	return &server{
 		config: config,
 		logger: otel.Logger,
+		tracer: otel.TracerProvider,
+		hcFunc: otel.ReportStatus,
 	}
 }
 
@@ -75,17 +78,15 @@ func (s *server) Start(_ context.Context, host component.Host) error {
 	// TODO OTel-collector does not initialize the tracer currently
 	// https://github.com/open-telemetry/opentelemetry-collector/issues/7532
 	//nolint
-	s.jtracer, err = jtracer.New("jaeger")
+
 	if err != nil {
 		return fmt.Errorf("could not initialize a tracer: %w", err)
 	}
-	statusReporter := func(ev *component.StatusEvent) {
-		s.logger.Info("OTLP receiver status change", zap.Stringer("status", ev.Status()))
-	}
+
 	telset := telemetery.Setting{
 		Logger:         s.logger,
-		TracerProvider: s.jtracer.OTEL,
-		ReportStatus:   statusReporter,
+		TracerProvider: s.tracer,
+		ReportStatus:   s.hcFunc,
 	}
 	// TODO contextcheck linter complains about next line that context is not passed. It is not wrong.
 	//nolint
@@ -140,8 +141,8 @@ func (s *server) Shutdown(ctx context.Context) error {
 	if s.server != nil {
 		errs = append(errs, s.server.Close())
 	}
-	if s.jtracer != nil {
-		errs = append(errs, s.jtracer.Close(ctx))
-	}
+	// if s.tracer != nil {
+	// 	errs = append(errs, s.tracer.Shutdown(ctx))
+	// }
 	return errors.Join(errs...)
 }
