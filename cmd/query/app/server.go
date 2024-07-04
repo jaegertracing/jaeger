@@ -26,6 +26,7 @@ import (
 
 	"github.com/gorilla/handlers"
 	"github.com/soheilhy/cmux"
+	"go.opentelemetry.io/collector/component"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"google.golang.org/grpc"
@@ -38,7 +39,6 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/query/app/internal/api_v3"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	"github.com/jaegertracing/jaeger/pkg/bearertoken"
-	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	"github.com/jaegertracing/jaeger/pkg/jtracer"
 	"github.com/jaegertracing/jaeger/pkg/netutils"
 	"github.com/jaegertracing/jaeger/pkg/recoveryhandler"
@@ -51,7 +51,7 @@ import (
 // Server runs HTTP, Mux and a grpc server
 type Server struct {
 	logger       *zap.Logger
-	hcFunc       func(*telemetery.StatusEvent)
+	hcFunc       func(*component.StatusEvent)
 	querySvc     *querysvc.QueryService
 	queryOptions *QueryOptions
 
@@ -314,7 +314,7 @@ func (s *Server) Start() error {
 			s.logger.Error("Could not start HTTP server", zap.Error(err))
 		}
 		s.logger.Info("HTTP server stopped", zap.Int("port", httpPort), zap.String("addr", s.queryOptions.HTTPHostPort))
-		s.hcFunc(&telemetery.StatusEvent{status: healthcheck.Unavailable})
+		s.hcFunc(component.NewStatusEvent(component.StatusStopping))
 		s.bgFinished.Done()
 	}()
 
@@ -328,7 +328,7 @@ func (s *Server) Start() error {
 			s.logger.Error("Could not start GRPC server", zap.Error(err))
 		}
 		s.logger.Info("GRPC server stopped", zap.Int("port", grpcPort), zap.String("addr", s.queryOptions.GRPCHostPort))
-		s.hcFunc(&telemetery.StatusEvent{status: healthcheck.Unavailable})
+		s.hcFunc(component.NewStatusEvent(component.StatusStopping))
 		s.bgFinished.Done()
 	}()
 
@@ -344,7 +344,7 @@ func (s *Server) Start() error {
 				s.logger.Error("Could not start multiplexed server", zap.Error(err))
 			}
 			s.logger.Info("CMUX server stopped", zap.Int("port", tcpPort), zap.String("addr", s.queryOptions.HTTPHostPort))
-			s.hcFunc(&telemetery.StatusEvent{status: healthcheck.Unavailable})
+			s.hcFunc(component.NewStatusEvent(component.StatusStopping))
 			s.bgFinished.Done()
 		}()
 	}
@@ -371,7 +371,7 @@ func (s *Server) Close() error {
 		s.logger.Info("Closing CMux server")
 		s.cmuxServer.Close()
 	}
-
+	s.hcFunc(component.NewStatusEvent(component.StatusStopped))
 	s.bgFinished.Wait()
 	s.logger.Info("Server stopped")
 	return errors.Join(errs...)
