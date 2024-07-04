@@ -27,6 +27,7 @@ import (
 	"github.com/gorilla/handlers"
 	"github.com/soheilhy/cmux"
 	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"google.golang.org/grpc"
@@ -55,7 +56,7 @@ type Server struct {
 	querySvc     *querysvc.QueryService
 	queryOptions *QueryOptions
 
-	tracer *jtracer.JTracer // TODO make part of flags.Service
+	tracer trace.TracerProvider // TODO make part of flags.Service
 
 	conn          net.Listener
 	grpcConn      net.Listener
@@ -87,12 +88,12 @@ func NewServer(querySvc *querysvc.QueryService,
 		return nil, errors.New("server with TLS enabled can not use same host ports for gRPC and HTTP.  Use dedicated HTTP and gRPC host ports instead")
 	}
 
-	grpcServer, err := createGRPCServer(querySvc, metricsQuerySvc, options, tm, telset.Logger, telset.Tracer)
+	grpcServer, err := createGRPCServer(querySvc, metricsQuerySvc, options, tm, telset.Logger, telset.TracerProvider)
 	if err != nil {
 		return nil, err
 	}
 
-	httpServer, err := createHTTPServer(querySvc, metricsQuerySvc, options, tm, telset.Tracer, telset.Logger)
+	httpServer, err := createHTTPServer(querySvc, metricsQuerySvc, options, tm, telset.TracerProvider, telset.Logger)
 	if err != nil {
 		return nil, err
 	}
@@ -102,7 +103,7 @@ func NewServer(querySvc *querysvc.QueryService,
 		hcFunc:        telset.ReportStatus,
 		querySvc:      querySvc,
 		queryOptions:  options,
-		tracer:        telset.Tracer,
+		tracer:        telset.TracerProvider,
 		grpcServer:    grpcServer,
 		httpServer:    httpServer,
 		separatePorts: grpcPort != httpPort,
