@@ -33,7 +33,7 @@ const (
 	spanIndexName         = "jaeger-span-2019-01-01"
 	serviceIndexName      = "jaeger-service-2019-01-01"
 	indexCleanerImage     = "jaegertracing/jaeger-es-index-cleaner:latest"
-	rolloverImage         = "jaegertracing/jaeger-es-rollover:latest"
+	rolloverImage         = "jaegertracing/jaeger-es-rollover:1.57.0"
 	rolloverNowEnvVar     = `CONDITIONS='{"max_age":"0s"}'`
 )
 
