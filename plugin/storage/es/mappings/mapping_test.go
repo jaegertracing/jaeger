@@ -35,20 +35,25 @@ import (
 //go:embed fixtures/*.json
 var FIXTURES embed.FS
 
-func TestMappingBuilder_GetMapping(t *testing.T) {
+func TestMappingBuilderGetMapping(t *testing.T) {
+	const (
+		jaegerSpan         = "jaeger-span"
+		jaegerService      = "jaeger-service"
+		jaegerDependencies = "jaeger-dependencies"
+	)
 	tests := []struct {
 		mapping   string
 		esVersion uint
 	}{
-		{mapping: "jaeger-span", esVersion: 8},
-		{mapping: "jaeger-span", esVersion: 7},
-		{mapping: "jaeger-span", esVersion: 6},
-		{mapping: "jaeger-service", esVersion: 8},
-		{mapping: "jaeger-service", esVersion: 7},
-		{mapping: "jaeger-service", esVersion: 6},
-		{mapping: "jaeger-dependencies", esVersion: 8},
-		{mapping: "jaeger-dependencies", esVersion: 7},
-		{mapping: "jaeger-dependencies", esVersion: 6},
+		{mapping: jaegerSpan, esVersion: 8},
+		{mapping: jaegerSpan, esVersion: 7},
+		{mapping: jaegerSpan, esVersion: 6},
+		{mapping: jaegerService, esVersion: 8},
+		{mapping: jaegerService, esVersion: 7},
+		{mapping: jaegerService, esVersion: 6},
+		{mapping: jaegerDependencies, esVersion: 8},
+		{mapping: jaegerDependencies, esVersion: 7},
+		{mapping: jaegerDependencies, esVersion: 6},
 	}
 	for _, tt := range tests {
 		t.Run(tt.mapping, func(t *testing.T) {
@@ -67,10 +72,7 @@ func TestMappingBuilder_GetMapping(t *testing.T) {
 			got, err := mb.GetMapping(tt.mapping)
 			require.NoError(t, err)
 			var wantbytes []byte
-			fileSuffix := ""
-			if tt.esVersion >= 7 {
-				fileSuffix = fmt.Sprintf("-%d", tt.esVersion)
-			}
+			fileSuffix := fmt.Sprintf("-%d", tt.esVersion)
 			wantbytes, err = FIXTURES.ReadFile("fixtures/" + tt.mapping + fileSuffix + ".json")
 			require.NoError(t, err)
 			want := string(wantbytes)
@@ -79,7 +81,7 @@ func TestMappingBuilder_GetMapping(t *testing.T) {
 	}
 }
 
-func TestMappingBuilder_loadMapping(t *testing.T) {
+func TestMappingBuilderLoadMapping(t *testing.T) {
 	tests := []struct {
 		name string
 	}{
@@ -105,7 +107,7 @@ func TestMappingBuilder_loadMapping(t *testing.T) {
 	}
 }
 
-func TestMappingBuilder_fixMapping(t *testing.T) {
+func TestMappingBuilderFixMapping(t *testing.T) {
 	tests := []struct {
 		name                    string
 		templateBuilderMockFunc func() *mocks.TemplateBuilder
@@ -165,7 +167,7 @@ func TestMappingBuilder_fixMapping(t *testing.T) {
 	}
 }
 
-func TestMappingBuilder_GetSpanServiceMappings(t *testing.T) {
+func TestMappingBuilderGetSpanServiceMappings(t *testing.T) {
 	type args struct {
 		shards        int64
 		replicas      int64
@@ -319,7 +321,7 @@ func TestMappingBuilder_GetSpanServiceMappings(t *testing.T) {
 	}
 }
 
-func TestMappingBuilder_GetDependenciesMappings(t *testing.T) {
+func TestMappingBuilderGetDependenciesMappings(t *testing.T) {
 	tb := mocks.TemplateBuilder{}
 	ta := mocks.TemplateApplier{}
 	ta.On("Execute", mock.Anything, mock.Anything).Return(errors.New("template load error"))
@@ -332,7 +334,7 @@ func TestMappingBuilder_GetDependenciesMappings(t *testing.T) {
 	require.EqualError(t, err, "template load error")
 }
 
-func TestMappingBuilder_GetSamplingMappings(t *testing.T) {
+func TestMappingBuilderGetSamplingMappings(t *testing.T) {
 	tb := mocks.TemplateBuilder{}
 	ta := mocks.TemplateApplier{}
 	ta.On("Execute", mock.Anything, mock.Anything).Return(errors.New("template load error"))
