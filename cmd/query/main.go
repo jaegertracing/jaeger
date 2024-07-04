@@ -21,6 +21,11 @@ import (
 	"log"
 	"os"
 
+	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
+	_ "go.uber.org/automaxprocs"
+	"go.uber.org/zap"
+
 	"github.com/jaegertracing/jaeger/cmd/internal/docs"
 	"github.com/jaegertracing/jaeger/cmd/internal/env"
 	"github.com/jaegertracing/jaeger/cmd/internal/flags"
@@ -30,6 +35,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	"github.com/jaegertracing/jaeger/pkg/bearertoken"
 	"github.com/jaegertracing/jaeger/pkg/config"
+	"github.com/jaegertracing/jaeger/pkg/jtracer"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/telemetery"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
@@ -39,13 +45,6 @@ import (
 	"github.com/jaegertracing/jaeger/ports"
 	metricsstoreMetrics "github.com/jaegertracing/jaeger/storage/metricsstore/metrics"
 	spanstoreMetrics "github.com/jaegertracing/jaeger/storage/spanstore/metrics"
-	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
-	"go.opentelemetry.io/otel/trace"
-	sdkTrace "go.opentelemetry.io/otel/sdk/trace"
-	nooptrace "go.opentelemetry.io/otel/trace/noop"
-	_ "go.uber.org/automaxprocs"
-	"go.uber.org/zap"
 )
 
 func main() {
@@ -81,14 +80,12 @@ func main() {
 				logger.Fatal("Failed to configure query service", zap.Error(err))
 			}
 
-			var tracerProvider trace.TracerProvider = nooptrace.NewTracerProvider()
-			var sdkTracerProvider *sdkTrace.TracerProvider
+			jt := jtracer.NoOp()
 			if queryOpts.EnableTracing {
-				sdkTracerProvider, err = telemetery.InitTracerProvider("jaeger-query")
+				jt, err = jtracer.New("jaeger-query")
 				if err != nil {
 					logger.Fatal("Failed to create tracer", zap.Error(err))
 				}
-				tracerProvider = sdkTracerProvider
 			}
 
 			// TODO: Need to figure out set enable/disable propagation on storage plugins.
@@ -119,7 +116,7 @@ func main() {
 			tm := tenancy.NewManager(&queryOpts.Tenancy)
 			telset := telemetery.Setting{
 				Logger:         logger,
-				TracerProvider: tracerProvider,
+				TracerProvider: jt.OTEL,
 				ReportStatus:   telemetery.HCAdapter(svc.HC()),
 			}
 			server, err := app.NewServer(queryService, metricsQueryService, queryOpts, tm, telset)
@@ -136,7 +133,7 @@ func main() {
 				if err := storageFactory.Close(); err != nil {
 					logger.Error("Failed to close storage factory", zap.Error(err))
 				}
-				if err = sdkTracerProvider.Shutdown(context.Background()); err != nil {
+				if err = jt.Close(context.Background()); err != nil {
 					logger.Fatal("Error shutting down tracer provider", zap.Error(err))
 				}
 			})

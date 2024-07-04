@@ -195,10 +195,10 @@ by default uses only in-memory database.`,
 			}
 			agent := startAgent(cp, aOpts, logger, agentMetricsFactory)
 			telset := telemetery.Setting{
-				Logger:       svc.Logger,
-				Tracer:       tracer,
-				Metrics:      queryMetricsFactory,
-				ReportStatus: telemetery.HCAdapter(svc.HC()),
+				Logger:         svc.Logger,
+				TracerProvider: tracer.OTEL,
+				Metrics:        queryMetricsFactory,
+				ReportStatus:   telemetery.HCAdapter(svc.HC()),
 			}
 			// query
 			querySrv := startQuery(

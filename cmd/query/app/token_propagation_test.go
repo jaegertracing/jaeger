@@ -30,12 +30,12 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	"github.com/jaegertracing/jaeger/pkg/bearertoken"
 	"github.com/jaegertracing/jaeger/pkg/config"
+	"github.com/jaegertracing/jaeger/pkg/jtracer"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/telemetery"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/plugin/storage/es"
 	"github.com/jaegertracing/jaeger/ports"
-	nooptrace "go.opentelemetry.io/otel/trace/noop"
 )
 
 const (
@@ -94,7 +94,7 @@ func runQueryService(t *testing.T, esURL string) *Server {
 	querySvc := querysvc.NewQueryService(spanReader, nil, querysvc.QueryServiceOptions{})
 	telset := telemetery.Setting{
 		Logger:         flagsSvc.Logger,
-		TracerProvider: nooptrace.NewTracerProvider(),
+		TracerProvider: jtracer.NoOp().OTEL,
 		ReportStatus:   telemetery.HCAdapter(flagsSvc.HC()),
 	}
 	server, err := NewServer(querySvc, nil,

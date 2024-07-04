@@ -15,7 +15,6 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
 	queryApp "github.com/jaegertracing/jaeger/cmd/query/app"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
-	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	"github.com/jaegertracing/jaeger/pkg/jtracer"
 	"github.com/jaegertracing/jaeger/pkg/telemetery"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
@@ -80,10 +79,13 @@ func (s *server) Start(_ context.Context, host component.Host) error {
 	if err != nil {
 		return fmt.Errorf("could not initialize a tracer: %w", err)
 	}
+	statusReporter := func(ev *component.StatusEvent) {
+		s.logger.Info("OTLP receiver status change", zap.Stringer("status", ev.Status()))
+	}
 	telset := telemetery.Setting{
-		Logger:       s.logger,
-		Tracer:       s.jtracer,
-		ReportStatus: telemetery.HCAdapter(healthcheck.New()),
+		Logger:         s.logger,
+		TracerProvider: s.jtracer.OTEL,
+		ReportStatus:   statusReporter,
 	}
 	// TODO contextcheck linter complains about next line that context is not passed. It is not wrong.
 	//nolint
