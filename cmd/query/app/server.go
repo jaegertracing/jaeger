@@ -27,7 +27,6 @@ import (
 	"github.com/gorilla/handlers"
 	"github.com/soheilhy/cmux"
 	"go.opentelemetry.io/collector/component"
-	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"google.golang.org/grpc"
@@ -84,12 +83,12 @@ func NewServer(querySvc *querysvc.QueryService,
 		return nil, errors.New("server with TLS enabled can not use same host ports for gRPC and HTTP.  Use dedicated HTTP and gRPC host ports instead")
 	}
 
-	grpcServer, err := createGRPCServer(querySvc, metricsQuerySvc, options, tm, telset.Logger, telset.TracerProvider)
+	grpcServer, err := createGRPCServer(querySvc, metricsQuerySvc, options, tm, telset)
 	if err != nil {
 		return nil, err
 	}
 
-	httpServer, err := createHTTPServer(querySvc, metricsQuerySvc, options, tm, telset.TracerProvider, telset.Logger)
+	httpServer, err := createHTTPServer(querySvc, metricsQuerySvc, options, tm, telset)
 	if err != nil {
 		return nil, err
 	}
@@ -104,11 +103,11 @@ func NewServer(querySvc *querysvc.QueryService,
 	}, nil
 }
 
-func createGRPCServer(querySvc *querysvc.QueryService, metricsQuerySvc querysvc.MetricsQueryService, options *QueryOptions, tm *tenancy.Manager, logger *zap.Logger, tracer trace.TracerProvider) (*grpc.Server, error) {
+func createGRPCServer(querySvc *querysvc.QueryService, metricsQuerySvc querysvc.MetricsQueryService, options *QueryOptions, tm *tenancy.Manager, telset telemetery.Setting) (*grpc.Server, error) {
 	var grpcOpts []grpc.ServerOption
 
 	if options.TLSGRPC.Enabled {
-		tlsCfg, err := options.TLSGRPC.Config(logger)
+		tlsCfg, err := options.TLSGRPC.Config(telset.Logger)
 		if err != nil {
 			return nil, err
 		}
@@ -128,8 +127,7 @@ func createGRPCServer(querySvc *querysvc.QueryService, metricsQuerySvc querysvc.
 	reflection.Register(server)
 
 	handler := NewGRPCHandler(querySvc, metricsQuerySvc, GRPCHandlerOptions{
-		Logger: logger,
-		Tracer: tracer,
+		Logger: telset.Logger,
 	})
 	healthServer := health.NewServer()
 
@@ -157,12 +155,11 @@ func createHTTPServer(
 	metricsQuerySvc querysvc.MetricsQueryService,
 	queryOpts *QueryOptions,
 	tm *tenancy.Manager,
-	tracer trace.TracerProvider,
-	logger *zap.Logger,
+	telset telemetery.Setting,
 ) (*httpServer, error) {
 	apiHandlerOptions := []HandlerOption{
-		HandlerOptions.Logger(logger),
-		HandlerOptions.Tracer(tracer),
+		HandlerOptions.Logger(telset.Logger),
+		HandlerOptions.Tracer(telset.TracerProvider),
 		HandlerOptions.MetricsQueryService(metricsQuerySvc),
 	}
 
@@ -178,20 +175,20 @@ func createHTTPServer(
 	(&apiv3.HTTPGateway{
 		QueryService: querySvc,
 		TenancyMgr:   tm,
-		Logger:       logger,
-		Tracer:       tracer,
+		Logger:       telset.Logger,
+		Tracer:       telset.TracerProvider,
 	}).RegisterRoutes(r)
 
 	apiHandler.RegisterRoutes(r)
 	var handler http.Handler = r
 	handler = additionalHeadersHandler(handler, queryOpts.AdditionalHeaders)
 	if queryOpts.BearerTokenPropagation {
-		handler = bearertoken.PropagationHandler(logger, handler)
+		handler = bearertoken.PropagationHandler(telset.Logger, handler)
 	}
 	handler = handlers.CompressHandler(handler)
-	recoveryHandler := recoveryhandler.NewRecoveryHandler(logger, true)
+	recoveryHandler := recoveryhandler.NewRecoveryHandler(telset.Logger, true)
 
-	errorLog, _ := zap.NewStdLogAt(logger, zapcore.ErrorLevel)
+	errorLog, _ := zap.NewStdLogAt(telset.Logger, zapcore.ErrorLevel)
 	server := &httpServer{
 		Server: &http.Server{
 			Handler:           recoveryHandler(handler),
@@ -201,14 +198,14 @@ func createHTTPServer(
 	}
 
 	if queryOpts.TLSHTTP.Enabled {
-		tlsCfg, err := queryOpts.TLSHTTP.Config(logger) // This checks if the certificates are correctly provided
+		tlsCfg, err := queryOpts.TLSHTTP.Config(telset.Logger) // This checks if the certificates are correctly provided
 		if err != nil {
 			return nil, err
 		}
 		server.TLSConfig = tlsCfg
 	}
 
-	server.staticHandlerCloser = RegisterStaticHandler(r, logger, queryOpts, querySvc.GetCapabilities())
+	server.staticHandlerCloser = RegisterStaticHandler(r, telset.Logger, queryOpts, querySvc.GetCapabilities())
 
 	return server, nil
 }
