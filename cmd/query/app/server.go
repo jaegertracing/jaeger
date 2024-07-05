@@ -60,7 +60,7 @@ type Server struct {
 	httpServer    *httpServer
 	separatePorts bool
 	bgFinished    sync.WaitGroup
-	telset        telemetery.Setting
+	telemetery.Setting
 }
 
 // NewServer creates and initializes Server
