@@ -99,7 +99,6 @@ func NewServer(querySvc *querysvc.QueryService,
 		grpcServer:    grpcServer,
 		httpServer:    httpServer,
 		separatePorts: grpcPort != httpPort,
-		telset:        telset,
 	}, nil
 }
 
@@ -230,7 +229,7 @@ func (s *Server) initListener() (cmux.CMux, error) {
 		if err != nil {
 			return nil, err
 		}
-		s.telset.Logger.Info(
+		s.Logger.Info(
 			"Query server started",
 			zap.String("http_addr", s.httpConn.Addr().String()),
 			zap.String("grpc_addr", s.grpcConn.Addr().String()),
@@ -251,7 +250,7 @@ func (s *Server) initListener() (cmux.CMux, error) {
 		tcpPort = port
 	}
 
-	s.telset.Logger.Info(
+	s.Logger.Info(
 		"Query server started",
 		zap.Int("port", tcpPort),
 		zap.String("addr", s.queryOptions.HTTPHostPort))
@@ -295,7 +294,7 @@ func (s *Server) Start() error {
 
 	s.bgFinished.Add(1)
 	go func() {
-		s.telset.Logger.Info("Starting HTTP server", zap.Int("port", httpPort), zap.String("addr", s.queryOptions.HTTPHostPort))
+		s.Logger.Info("Starting HTTP server", zap.Int("port", httpPort), zap.String("addr", s.queryOptions.HTTPHostPort))
 		var err error
 		if s.queryOptions.TLSHTTP.Enabled {
 			err = s.httpServer.ServeTLS(s.httpConn, "", "")
@@ -303,22 +302,24 @@ func (s *Server) Start() error {
 			err = s.httpServer.Serve(s.httpConn)
 		}
 		if err != nil && !errors.Is(err, http.ErrServerClosed) && !errors.Is(err, cmux.ErrListenerClosed) && !errors.Is(err, cmux.ErrServerClosed) {
-			s.telset.Logger.Error("Could not start HTTP server", zap.Error(err))
+			s.Logger.Error("Could not start HTTP server", zap.Error(err))
+			s.ReportStatus(component.NewFatalErrorEvent(err))
 		}
-		s.telset.Logger.Info("HTTP server stopped", zap.Int("port", httpPort), zap.String("addr", s.queryOptions.HTTPHostPort))
+		s.Logger.Info("HTTP server stopped", zap.Int("port", httpPort), zap.String("addr", s.queryOptions.HTTPHostPort))
 		s.bgFinished.Done()
 	}()
 
 	// Start GRPC server concurrently
 	s.bgFinished.Add(1)
 	go func() {
-		s.telset.Logger.Info("Starting GRPC server", zap.Int("port", grpcPort), zap.String("addr", s.queryOptions.GRPCHostPort))
+		s.Logger.Info("Starting GRPC server", zap.Int("port", grpcPort), zap.String("addr", s.queryOptions.GRPCHostPort))
 
 		err := s.grpcServer.Serve(s.grpcConn)
 		if err != nil && !errors.Is(err, cmux.ErrListenerClosed) && !errors.Is(err, cmux.ErrServerClosed) {
-			s.telset.Logger.Error("Could not start GRPC server", zap.Error(err))
+			s.Logger.Error("Could not start GRPC server", zap.Error(err))
+			s.ReportStatus(component.NewFatalErrorEvent(err))
 		}
-		s.telset.Logger.Info("GRPC server stopped", zap.Int("port", grpcPort), zap.String("addr", s.queryOptions.GRPCHostPort))
+		s.Logger.Info("GRPC server stopped", zap.Int("port", grpcPort), zap.String("addr", s.queryOptions.GRPCHostPort))
 		s.bgFinished.Done()
 	}()
 
@@ -326,22 +327,18 @@ func (s *Server) Start() error {
 	if !s.separatePorts {
 		s.bgFinished.Add(1)
 		go func() {
-			s.telset.Logger.Info("Starting CMUX server", zap.Int("port", tcpPort), zap.String("addr", s.queryOptions.HTTPHostPort))
+			s.Logger.Info("Starting CMUX server", zap.Int("port", tcpPort), zap.String("addr", s.queryOptions.HTTPHostPort))
 
 			err := cmuxServer.Serve()
 			// TODO: find a way to avoid string comparison. Even though cmux has ErrServerClosed, it's not returned here.
 			if err != nil && !strings.Contains(err.Error(), "use of closed network connection") {
-				s.telset.Logger.Error("Could not start multiplexed server", zap.Error(err))
+				s.Logger.Error("Could not start multiplexed server", zap.Error(err))
+				s.ReportStatus(component.NewFatalErrorEvent(err))
 			}
-			s.telset.Logger.Info("CMUX server stopped", zap.Int("port", tcpPort), zap.String("addr", s.queryOptions.HTTPHostPort))
+			s.Logger.Info("CMUX server stopped", zap.Int("port", tcpPort), zap.String("addr", s.queryOptions.HTTPHostPort))
 			s.bgFinished.Done()
 		}()
 	}
-	if err != nil {
-		s.telset.ReportStatus(component.NewStatusEvent(component.StatusFatalError))
-		return err
-	}
-	s.telset.ReportStatus(component.NewStatusEvent(component.StatusOK))
 	return nil
 }
 
@@ -352,20 +349,20 @@ func (s *Server) Close() error {
 		s.queryOptions.TLSHTTP.Close(),
 	}
 
-	s.telset.Logger.Info("Closing HTTP server")
+	s.Logger.Info("Closing HTTP server")
 	if err := s.httpServer.Close(); err != nil {
 		errs = append(errs, fmt.Errorf("failed to close HTTP server: %w", err))
 	}
 
-	s.telset.Logger.Info("Stopping gRPC server")
+	s.Logger.Info("Stopping gRPC server")
 	s.grpcServer.Stop()
 
 	if !s.separatePorts {
-		s.telset.Logger.Info("Closing CMux server")
+		s.Logger.Info("Closing CMux server")
 		s.cmuxServer.Close()
 	}
 	s.bgFinished.Wait()
-	s.telset.ReportStatus(component.NewStatusEvent(component.StatusStopped))
-	s.telset.Logger.Info("Server stopped")
+	s.ReportStatus(component.NewStatusEvent(component.StatusStopped))
+	s.Logger.Info("Server stopped")
 	return errors.Join(errs...)
 }
