@@ -309,7 +309,6 @@ func (s *Server) Start() error {
 			return
 		}
 		s.Logger.Info("HTTP server stopped", zap.Int("port", httpPort), zap.String("addr", s.queryOptions.HTTPHostPort))
-		s.ReportStatus(component.NewStatusEvent(component.StatusStopped))
 		
 	}()
 
@@ -326,7 +325,6 @@ func (s *Server) Start() error {
 			return 
 		}
 		s.Logger.Info("GRPC server stopped", zap.Int("port", grpcPort), zap.String("addr", s.queryOptions.GRPCHostPort))
-		s.ReportStatus(component.NewStatusEvent(component.StatusStopped))
 	}()
 
 	// Start cmux server concurrently.
@@ -344,7 +342,6 @@ func (s *Server) Start() error {
 				return
 			}
 			s.Logger.Info("CMUX server stopped", zap.Int("port", tcpPort), zap.String("addr", s.queryOptions.HTTPHostPort))
-			s.ReportStatus(component.NewStatusEvent(component.StatusStopped))
 		}()
 	}
 	return nil

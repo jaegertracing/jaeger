@@ -40,6 +40,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	"github.com/jaegertracing/jaeger/pkg/jtracer"
+	"github.com/jaegertracing/jaeger/pkg/telemetery"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/ports"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
@@ -66,10 +67,14 @@ func TestCreateTLSServerSinglePortError(t *testing.T) {
 		KeyPath:      testCertKeyLocation + "/example-server-key.pem",
 		ClientCAPath: testCertKeyLocation + "/example-CA-cert.pem",
 	}
-
-	_, err := NewServer(zaptest.NewLogger(t), healthcheck.New(), &querysvc.QueryService{}, nil,
+	telset := telemetery.Setting{
+		Logger:         zaptest.NewLogger(t),
+		TracerProvider: jtracer.NoOp().OTEL,
+		ReportStatus:   telemetery.HCAdapter(healthcheck.New()),
+	}
+	_, err := NewServer(&querysvc.QueryService{}, nil,
 		&QueryOptions{HTTPHostPort: ":8080", GRPCHostPort: ":8080", TLSGRPC: tlsCfg, TLSHTTP: tlsCfg},
-		tenancy.NewManager(&tenancy.Options{}), jtracer.NoOp())
+		tenancy.NewManager(&tenancy.Options{}), telset)
 	require.Error(t, err)
 }
 
@@ -80,10 +85,14 @@ func TestCreateTLSGrpcServerError(t *testing.T) {
 		KeyPath:      "invalid/path",
 		ClientCAPath: "invalid/path",
 	}
-
-	_, err := NewServer(zaptest.NewLogger(t), healthcheck.New(), &querysvc.QueryService{}, nil,
+	telset := telemetery.Setting{
+		Logger:         zaptest.NewLogger(t),
+		TracerProvider: jtracer.NoOp().OTEL,
+		ReportStatus:   telemetery.HCAdapter(healthcheck.New()),
+	}
+	_, err := NewServer(&querysvc.QueryService{}, nil,
 		&QueryOptions{HTTPHostPort: ":8080", GRPCHostPort: ":8081", TLSGRPC: tlsCfg},
-		tenancy.NewManager(&tenancy.Options{}), jtracer.NoOp())
+		tenancy.NewManager(&tenancy.Options{}), telset)
 	require.Error(t, err)
 }
 
@@ -94,10 +103,14 @@ func TestCreateTLSHttpServerError(t *testing.T) {
 		KeyPath:      "invalid/path",
 		ClientCAPath: "invalid/path",
 	}
-
-	_, err := NewServer(zaptest.NewLogger(t), healthcheck.New(), &querysvc.QueryService{}, nil,
+	telset := telemetery.Setting{
+		Logger:         zaptest.NewLogger(t),
+		TracerProvider: jtracer.NoOp().OTEL,
+		ReportStatus:   telemetery.HCAdapter(healthcheck.New()),
+	}
+	_, err := NewServer(&querysvc.QueryService{}, nil,
 		&QueryOptions{HTTPHostPort: ":8080", GRPCHostPort: ":8081", TLSHTTP: tlsCfg},
-		tenancy.NewManager(&tenancy.Options{}), jtracer.NoOp())
+		tenancy.NewManager(&tenancy.Options{}), telset)
 	require.Error(t, err)
 }
 
