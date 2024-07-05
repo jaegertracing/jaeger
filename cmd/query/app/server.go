@@ -99,6 +99,7 @@ func NewServer(querySvc *querysvc.QueryService,
 		grpcServer:    grpcServer,
 		httpServer:    httpServer,
 		separatePorts: grpcPort != httpPort,
+		Setting:       telset,
 	}, nil
 }
 
