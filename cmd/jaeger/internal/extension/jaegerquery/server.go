@@ -13,6 +13,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
 	queryApp "github.com/jaegertracing/jaeger/cmd/query/app"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
+	"github.com/jaegertracing/jaeger/pkg/jtracer"
 	"github.com/jaegertracing/jaeger/pkg/telemetery"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/plugin/metrics/disabled"
@@ -71,12 +72,16 @@ func (s *server) Start(_ context.Context, host component.Host) error {
 	// TODO OTel-collector does not initialize the tracer currently
 	// https://github.com/open-telemetry/opentelemetry-collector/issues/7532
 	//nolint
-
+	tracerProvider, err := jtracer.New("jaeger")
+	if err != nil {
+		return fmt.Errorf("could not initialize a tracer: %w", err)
+	}
 	internalTelset := telemetery.Setting{
 		Logger:         s.telset.Logger,
-		TracerProvider: s.telset.TracerProvider,
+		TracerProvider: tracerProvider.OTEL,
 		ReportStatus:   s.telset.ReportStatus,
 	}
+
 	// TODO contextcheck linter complains about next line that context is not passed. It is not wrong.
 	//nolint
 	s.server, err = queryApp.NewServer(
