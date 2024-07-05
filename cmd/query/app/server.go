@@ -306,7 +306,7 @@ func (s *Server) Start() error {
 			s.telset.Logger.Error("Could not start HTTP server", zap.Error(err))
 		}
 		s.telset.Logger.Info("HTTP server stopped", zap.Int("port", httpPort), zap.String("addr", s.queryOptions.HTTPHostPort))
-		s.telset.ReportStatus(component.NewStatusEvent(component.StatusStopping))
+		s.telset.ReportStatus(component.NewStatusEvent(component.StatusStopped))
 		s.bgFinished.Done()
 	}()
 
@@ -320,7 +320,7 @@ func (s *Server) Start() error {
 			s.telset.Logger.Error("Could not start GRPC server", zap.Error(err))
 		}
 		s.telset.Logger.Info("GRPC server stopped", zap.Int("port", grpcPort), zap.String("addr", s.queryOptions.GRPCHostPort))
-		s.telset.ReportStatus(component.NewStatusEvent(component.StatusStopping))
+		s.telset.ReportStatus(component.NewStatusEvent(component.StatusStopped))
 		s.bgFinished.Done()
 	}()
 
@@ -336,7 +336,7 @@ func (s *Server) Start() error {
 				s.telset.Logger.Error("Could not start multiplexed server", zap.Error(err))
 			}
 			s.telset.Logger.Info("CMUX server stopped", zap.Int("port", tcpPort), zap.String("addr", s.queryOptions.HTTPHostPort))
-			s.telset.ReportStatus(component.NewStatusEvent(component.StatusStopping))
+			s.telset.ReportStatus(component.NewStatusEvent(component.StatusStopped))
 			s.bgFinished.Done()
 		}()
 	}

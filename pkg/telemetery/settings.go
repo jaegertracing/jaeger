@@ -29,9 +29,10 @@ func HCAdapter(hc *healthcheck.HealthCheck) func(*component.StatusEvent) {
 			component.StatusRecoverableError,
 			component.StatusPermanentError,
 			component.StatusNone,
-			component.StatusStopping:
+			component.StatusStopping,
+			component.StatusStopped:
 			hcStatus = healthcheck.Unavailable
-		case component.StatusFatalError, component.StatusStopped:
+		case component.StatusFatalError:
 			hcStatus = healthcheck.Broken
 		}
 		hc.Set(hcStatus)

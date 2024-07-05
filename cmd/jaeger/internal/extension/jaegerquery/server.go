@@ -76,7 +76,7 @@ func (s *server) Start(_ context.Context, host component.Host) error {
 	if err != nil {
 		return fmt.Errorf("could not initialize a tracer: %w", err)
 	}
-	internalTelset := telemetery.Setting{
+	telset := telemetery.Setting{
 		Logger:         s.telset.Logger,
 		TracerProvider: tracerProvider.OTEL,
 		ReportStatus:   s.telset.ReportStatus,
@@ -90,7 +90,7 @@ func (s *server) Start(_ context.Context, host component.Host) error {
 		metricsQueryService,
 		s.makeQueryOptions(),
 		tm,
-		internalTelset,
+		telset,
 	)
 	if err != nil {
 		return fmt.Errorf("could not create jaeger-query: %w", err)
