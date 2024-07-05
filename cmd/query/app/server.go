@@ -295,6 +295,7 @@ func (s *Server) Start() error {
 
 	s.bgFinished.Add(1)
 	go func() {
+		defer s.bgFinished.Done()
 		s.Logger.Info("Starting HTTP server", zap.Int("port", httpPort), zap.String("addr", s.queryOptions.HTTPHostPort))
 		var err error
 		if s.queryOptions.TLSHTTP.Enabled {
@@ -305,29 +306,34 @@ func (s *Server) Start() error {
 		if err != nil && !errors.Is(err, http.ErrServerClosed) && !errors.Is(err, cmux.ErrListenerClosed) && !errors.Is(err, cmux.ErrServerClosed) {
 			s.Logger.Error("Could not start HTTP server", zap.Error(err))
 			s.ReportStatus(component.NewFatalErrorEvent(err))
+			return
 		}
 		s.Logger.Info("HTTP server stopped", zap.Int("port", httpPort), zap.String("addr", s.queryOptions.HTTPHostPort))
-		s.bgFinished.Done()
+		s.ReportStatus(component.NewStatusEvent(component.StatusStopped))
+		
 	}()
 
 	// Start GRPC server concurrently
 	s.bgFinished.Add(1)
 	go func() {
+		defer s.bgFinished.Done()
 		s.Logger.Info("Starting GRPC server", zap.Int("port", grpcPort), zap.String("addr", s.queryOptions.GRPCHostPort))
 
 		err := s.grpcServer.Serve(s.grpcConn)
 		if err != nil && !errors.Is(err, cmux.ErrListenerClosed) && !errors.Is(err, cmux.ErrServerClosed) {
 			s.Logger.Error("Could not start GRPC server", zap.Error(err))
 			s.ReportStatus(component.NewFatalErrorEvent(err))
+			return 
 		}
 		s.Logger.Info("GRPC server stopped", zap.Int("port", grpcPort), zap.String("addr", s.queryOptions.GRPCHostPort))
-		s.bgFinished.Done()
+		s.ReportStatus(component.NewStatusEvent(component.StatusStopped))
 	}()
 
 	// Start cmux server concurrently.
 	if !s.separatePorts {
 		s.bgFinished.Add(1)
 		go func() {
+			defer s.bgFinished.Done()
 			s.Logger.Info("Starting CMUX server", zap.Int("port", tcpPort), zap.String("addr", s.queryOptions.HTTPHostPort))
 
 			err := cmuxServer.Serve()
@@ -335,9 +341,10 @@ func (s *Server) Start() error {
 			if err != nil && !strings.Contains(err.Error(), "use of closed network connection") {
 				s.Logger.Error("Could not start multiplexed server", zap.Error(err))
 				s.ReportStatus(component.NewFatalErrorEvent(err))
+				return
 			}
 			s.Logger.Info("CMUX server stopped", zap.Int("port", tcpPort), zap.String("addr", s.queryOptions.HTTPHostPort))
-			s.bgFinished.Done()
+			s.ReportStatus(component.NewStatusEvent(component.StatusStopped))
 		}()
 	}
 	return nil
