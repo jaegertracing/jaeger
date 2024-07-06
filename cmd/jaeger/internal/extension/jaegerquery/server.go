@@ -130,6 +130,6 @@ func (s *server) makeQueryOptions() *queryApp.QueryOptions {
 	}
 }
 
-func (s *server) Shutdown(ctx context.Context) error {
+func (s *server) Shutdown(_ context.Context) error {
 	return s.server.Close()
 }
