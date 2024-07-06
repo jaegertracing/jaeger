@@ -15,7 +15,8 @@ var (
 
 // Config defines configuration for jaeger_storage_exporter.
 type Config struct {
-	TraceStorage string `valid:"required" mapstructure:"trace_storage"`
+	TraceStorage   string `valid:"required" mapstructure:"trace_storage"`
+	MetricsStorage string `valid:"required" mapstructure:"metrics_storage"`
 }
 
 func (cfg *Config) Validate() error {

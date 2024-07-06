@@ -13,6 +13,7 @@ import (
 
 	casCfg "github.com/jaegertracing/jaeger/pkg/cassandra/config"
 	esCfg "github.com/jaegertracing/jaeger/pkg/es/config"
+	promCfg "github.com/jaegertracing/jaeger/pkg/prometheus/config"
 	"github.com/jaegertracing/jaeger/plugin/storage/badger"
 	"github.com/jaegertracing/jaeger/plugin/storage/cassandra"
 	"github.com/jaegertracing/jaeger/plugin/storage/es"
@@ -41,6 +42,7 @@ type Backend struct {
 	Cassandra     *cassandra.Options      `mapstructure:"cassandra"`
 	Elasticsearch *esCfg.Configuration    `mapstructure:"elasticsearch"`
 	Opensearch    *esCfg.Configuration    `mapstructure:"opensearch"`
+	Prometheus    *promCfg.Configuration  `mapstructure:"prometheus"`
 }
 
 // Unmarshal implements confmap.Unmarshaler. This allows us to provide
