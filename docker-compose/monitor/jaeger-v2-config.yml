@@ -20,7 +20,8 @@ extensions:
         memory:
           max_traces: 100000
     metrics_backends:
-      prometheus:
+      some_metrics_storage:
+        prometheus:
 
 connectors:
   spanmetrics:
