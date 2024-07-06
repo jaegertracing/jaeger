@@ -19,7 +19,8 @@ extensions:
       some_storage:
         memory:
           max_traces: 100000
-        prometheus:
+    metrics_backends:
+      prometheus:
 
 connectors:
   spanmetrics:
@@ -37,6 +38,5 @@ processors:
 exporters:
   jaeger_storage_exporter:
     trace_storage: some_storage
-    metrics_storage: prometheus
   prometheus: 
     endpoint: "0.0.0.0:8889"

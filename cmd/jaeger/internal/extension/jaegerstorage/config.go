@@ -32,7 +32,8 @@ var (
 // We tried to alias this type directly to a map, but conf did not populated it correctly.
 // Note also that the Backend struct has a custom unmarshaler.
 type Config struct {
-	Backends map[string]Backend `mapstructure:"backends"`
+	Backends       map[string]Backend        `mapstructure:"backends"`
+	MetricsBackend map[string]MetricsBackend `mapstructure:"metrics_backends"`
 }
 
 type Backend struct {
@@ -42,7 +43,10 @@ type Backend struct {
 	Cassandra     *cassandra.Options      `mapstructure:"cassandra"`
 	Elasticsearch *esCfg.Configuration    `mapstructure:"elasticsearch"`
 	Opensearch    *esCfg.Configuration    `mapstructure:"opensearch"`
-	Prometheus    *promCfg.Configuration  `mapstructure:"prometheus"`
+}
+
+type MetricsBackend struct {
+	Prometheus *promCfg.Configuration `mapstructure:"prometheus"`
 }
 
 // Unmarshal implements confmap.Unmarshaler. This allows us to provide
