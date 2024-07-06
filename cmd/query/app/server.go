@@ -309,7 +309,6 @@ func (s *Server) Start() error {
 			return
 		}
 		s.Logger.Info("HTTP server stopped", zap.Int("port", httpPort), zap.String("addr", s.queryOptions.HTTPHostPort))
-		
 	}()
 
 	// Start GRPC server concurrently
@@ -322,7 +321,7 @@ func (s *Server) Start() error {
 		if err != nil && !errors.Is(err, cmux.ErrListenerClosed) && !errors.Is(err, cmux.ErrServerClosed) {
 			s.Logger.Error("Could not start GRPC server", zap.Error(err))
 			s.ReportStatus(component.NewFatalErrorEvent(err))
-			return 
+			return
 		}
 		s.Logger.Info("GRPC server stopped", zap.Int("port", grpcPort), zap.String("addr", s.queryOptions.GRPCHostPort))
 	}()
