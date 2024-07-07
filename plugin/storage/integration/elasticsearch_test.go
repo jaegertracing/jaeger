@@ -201,7 +201,7 @@ func TestElasticsearchStorage_IndexTemplates(t *testing.T) {
 	esVersion, err := s.getVersion()
 	require.NoError(t, err)
 	// TODO abstract this into pkg/es/client.IndexManagementLifecycleAPI
-	if esVersion == 7 {
+	if esVersion == 6 || esVersion == 7 {
 		serviceTemplateExists, err := s.client.IndexTemplateExists(indexPrefix + "-jaeger-service").Do(context.Background())
 		require.NoError(t, err)
 		assert.True(t, serviceTemplateExists)
