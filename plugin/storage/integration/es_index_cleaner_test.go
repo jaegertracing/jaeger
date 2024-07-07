@@ -17,6 +17,7 @@ package integration
 import (
 	"context"
 	"fmt"
+	"os"
 	"os/exec"
 	"testing"
 
@@ -27,15 +28,27 @@ import (
 )
 
 const (
-	archiveIndexName      = "jaeger-span-archive"
-	dependenciesIndexName = "jaeger-dependencies-2019-01-01"
-	samplingIndexName     = "jaeger-sampling-2019-01-01"
-	spanIndexName         = "jaeger-span-2019-01-01"
-	serviceIndexName      = "jaeger-service-2019-01-01"
-	indexCleanerImage     = "jaegertracing/jaeger-es-index-cleaner:latest"
-	rolloverImage         = "jaegertracing/jaeger-es-rollover:1.57.0"
-	rolloverNowEnvVar     = `CONDITIONS='{"max_age":"0s"}'`
+	archiveIndexName         = "jaeger-span-archive"
+	dependenciesIndexName    = "jaeger-dependencies-2019-01-01"
+	samplingIndexName        = "jaeger-sampling-2019-01-01"
+	spanIndexName            = "jaeger-span-2019-01-01"
+	serviceIndexName         = "jaeger-service-2019-01-01"
+	defaultIndexCleanerImage = "jaegertracing/jaeger-es-index-cleaner:latest"
+	defaultRolloverImage     = "jaegertracing/jaeger-es-rollover:1.57.0"
+	rolloverNowEnvVar        = `CONDITIONS='{"max_age":"0s"}'`
 )
+
+var (
+	indexCleanerImage = getEnvOrDefault("JAEGER_ES_INDEX_CLEANER_IMAGE", defaultIndexCleanerImage)
+	rolloverImage     = getEnvOrDefault("JAEGER_ES_ROLLOVER_IMAGE", defaultRolloverImage)
+)
+
+func getEnvOrDefault(key, defaultValue string) string {
+	if value, exists := os.LookupEnv(key); exists {
+		return value
+	}
+	return defaultValue
+}
 
 func TestIndexCleaner_doNotFailOnEmptyStorage(t *testing.T) {
 	SkipUnlessEnv(t, "elasticsearch", "opensearch")

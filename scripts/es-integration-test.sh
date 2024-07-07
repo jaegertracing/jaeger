@@ -18,6 +18,20 @@ check_arg() {
   fi
 }
 
+# Build local images for index cleaner and rollover
+build_local_images() {
+  local j_version=$1
+  JAEGER_VERSION=$(git describe --tags --abbrev=0)
+  LOCAL_TAG="local-${JAEGER_VERSION}"
+
+  bash scripts/build-upload-a-docker-image.sh -b -c jaeger-es-index-cleaner -d cmd/es-index-cleaner -t "${LOCAL_TAG}"
+  bash scripts/build-upload-a-docker-image.sh -b -c jaeger-es-rollover -d cmd/es-rollover -t "${LOCAL_TAG}"
+
+  # Set environment variables for the test
+  export JAEGER_ES_INDEX_CLEANER_IMAGE="jaegertracing/jaeger-es-index-cleaner:${LOCAL_TAG}"
+  export JAEGER_ES_ROLLOVER_IMAGE="jaegertracing/jaeger-es-rollover:${LOCAL_TAG}"
+}
+
 # start the elasticsearch/opensearch container
 setup_db() {
   local compose_file=$1
@@ -45,7 +59,7 @@ wait_for_storage() {
     echo "Attempt: ${attempt} ${distro} is not yet available at ${url}..."
     sleep 10
   done
-
+  
   # if after all the attempts the storage is not accessible, terminate it and exit
   if [[ "$(curl "${params[@]}" "${url}")" != "200" ]]; then
     echo "ERROR: ${distro} is not ready at ${url} after $(( attempt * 10 )) seconds"
@@ -65,7 +79,7 @@ bring_up_storage() {
   local version=$2
   local major_version=${version%%.*}
   local compose_file="docker-compose/${distro}/v${major_version}/docker-compose.yml"
-
+  
   echo "starting ${distro} ${major_version}"
   for retry in 1 2 3
   do
@@ -100,10 +114,11 @@ main() {
   check_arg "$@"
   local distro=$1
   local es_version=$2
-  local j_version=$2
-
+  local j_version=$3
+  
+  build_local_images "${j_version}"
   bring_up_storage "${distro}" "${es_version}"
-
+  
   if [[ "${j_version}" == "v2" ]]; then
     STORAGE=${distro} SPAN_STORAGE_TYPE=${distro} make jaeger-v2-storage-integration-test
   else
