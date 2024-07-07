@@ -96,6 +96,14 @@ teardown_storage() {
   docker compose -f "${compose_file}" down
 }
 
+build_local_img(){
+    local LOCAL_FLAG=''
+    local platforms="linux/amd64,linux/s390x,linux/ppc64le,linux/arm64"
+    export GITHUB_SHA="local-test"
+    make create-baseimg
+    bash scripts/build-upload-a-docker-image.sh ${LOCAL_FLAG} -b -c jaeger-es-index-cleaner -d cmd/es-index-cleaner -p "${platforms}" -t release -l Y
+}
+
 main() {
   check_arg "$@"
   local distro=$1
@@ -103,7 +111,7 @@ main() {
   local j_version=$2
 
   bring_up_storage "${distro}" "${es_version}"
-
+  build_local_img
   if [[ "${j_version}" == "v2" ]]; then
     STORAGE=${distro} SPAN_STORAGE_TYPE=${distro} make jaeger-v2-storage-integration-test
   else
