@@ -6,11 +6,12 @@ package telemetery_test
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"go.opentelemetry.io/collector/component"
+
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	"github.com/jaegertracing/jaeger/pkg/telemetery"
-	"github.com/stretchr/testify/assert"
-
-	"go.opentelemetry.io/collector/component"
+	"github.com/jaegertracing/jaeger/pkg/testutils"
 )
 
 func TestHCAdapter(t *testing.T) {
@@ -70,4 +71,8 @@ func TestHCAdapter(t *testing.T) {
 			assert.Equal(t, tt.expectedHC, hc.Get())
 		})
 	}
+}
+
+func TestMain(m *testing.M) {
+	testutils.VerifyGoLeaks(m)
 }
