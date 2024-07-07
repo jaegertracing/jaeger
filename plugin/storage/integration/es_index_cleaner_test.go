@@ -32,7 +32,7 @@ const (
 	samplingIndexName     = "jaeger-sampling-2019-01-01"
 	spanIndexName         = "jaeger-span-2019-01-01"
 	serviceIndexName      = "jaeger-service-2019-01-01"
-	indexCleanerImage     = "localhost:5000/jaegertracing/jaeger-es-index-cleaner:local_test"
+	indexCleanerImage     = "jaegertracing/jaeger-es-index-cleaner:local-test"
 	rolloverImage         = "jaegertracing/jaeger-es-rollover:latest"
 	rolloverNowEnvVar     = `CONDITIONS='{"max_age":"0s"}'`
 )
@@ -215,6 +215,7 @@ func runEsCleaner(days int, envs []string) error {
 	for _, e := range envs {
 		dockerEnv += fmt.Sprintf(" -e %s", e)
 	}
+	fmt.Sprintf("--------------------------------------------------------------------------------------docker run %s --rm --net=host %s %d http://%s", dockerEnv, indexCleanerImage, days, queryHostPort)
 	args := fmt.Sprintf("docker run %s --rm --net=host %s %d http://%s", dockerEnv, indexCleanerImage, days, queryHostPort)
 	cmd := exec.Command("/bin/sh", "-c", args)
 	out, err := cmd.CombinedOutput()
