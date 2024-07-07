@@ -104,3 +104,12 @@ func (cfg *Config) Validate() error {
 	}
 	return nil
 }
+
+func (cfg *MetricsBackend) Unmarshal(conf *confmap.Conf) error {
+	// apply defaults
+	if conf.IsSet("prometheus") {
+		// cfg.Prometheus = &prometheus.Configuration{ TODO: Need to implement this, Need to add prometheus as a v2 storage ??
+		// }
+	}
+	return conf.Unmarshal(cfg)
+}

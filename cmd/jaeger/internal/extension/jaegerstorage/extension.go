@@ -31,9 +31,10 @@ type Extension interface {
 }
 
 type storageExt struct {
-	config    *Config
-	telset    component.TelemetrySettings
-	factories map[string]storage.Factory
+	config           *Config
+	telset           component.TelemetrySettings
+	factories        map[string]storage.Factory
+	metricsFactories map[string]storage.MetricsFactory
 }
 
 // GetStorageFactory locates the extension in Host and retrieves a storage factory from it with the given name.
@@ -104,6 +105,20 @@ func (s *storageExt) Start(_ context.Context, _ component.Host) error {
 		}
 		s.factories[storageName] = factory
 	}
+
+	for metricsStorageName, cfg := range s.config.MetricsBackend {
+		s.telset.Logger.Sugar().Infof("Initializing metrics storage '%s'", metricsStorageName)
+		var metricsFactory storage.MetricsFactory
+		var err error = errors.New("empty configuration")
+		if cfg.Prometheus != nil {
+			// metricsFactory, err = prometheus.NewFactoryWithConfig(*cfg.Prometheus, mf, s.telset.Logger) // TODO: Need to implement NewFactoryWithConfig)
+		}
+		if err != nil {
+			return fmt.Errorf("failed to initialize storage '%s': %w", metricsStorageName, err)
+		}
+		s.metricsFactories[metricsStorageName] = metricsFactory
+	}
+
 	return nil
 }
 
