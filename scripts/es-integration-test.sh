@@ -20,7 +20,7 @@ check_arg() {
 
 # Build local images for index cleaner and rollover
 build_local_images() {
-  local j_version=$1
+  
   JAEGER_VERSION=$(git describe --tags --abbrev=0)
   LOCAL_TAG="local-${JAEGER_VERSION}"
 
@@ -116,7 +116,7 @@ main() {
   local es_version=$2
   local j_version=$3
   
-  build_local_images "${j_version}"
+  build_local_images
   bring_up_storage "${distro}" "${es_version}"
   
   if [[ "${j_version}" == "v2" ]]; then
