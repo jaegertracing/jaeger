@@ -105,14 +105,9 @@ build_local_img(){
       arch=${platform##*/}  # Remove everything before the last slash
       make "build-binaries-$arch"
     done
-    export GITHUB_SHA="akfeoiafsf"
+    export GITHUB_SHA="local-test"
     make create-baseimg
-    #bash scripts/build-upload-a-docker-image.sh ${LOCAL_FLAG} -b -c jaeger-es-index-cleaner -d cmd/es-index-cleaner -p "${platforms}" -t release -l Y
-    docker build \
-    --build-arg base_image=localhost:5000/baseimg_alpine:latest \
-    --file cmd/es-index-cleaner/Dockerfile \
-    -t jaegertracing/jaeger-es-index-cleaner:local-test \
-    cmd/es-index-cleaner
+    bash scripts/build-upload-a-docker-image.sh ${LOCAL_FLAG} -b -c jaeger-es-index-cleaner -d cmd/es-index-cleaner -p "${platforms}" -t release -l Y
 }
 
 main() {
