@@ -215,7 +215,6 @@ func runEsCleaner(days int, envs []string) error {
 	for _, e := range envs {
 		dockerEnv += fmt.Sprintf(" -e %s", e)
 	}
-	fmt.Sprintf("--------------------------------------------------------------------------------------docker run %s --rm --net=host %s %d http://%s", dockerEnv, indexCleanerImage, days, queryHostPort)
 	args := fmt.Sprintf("docker run %s --rm --net=host %s %d http://%s", dockerEnv, indexCleanerImage, days, queryHostPort)
 	cmd := exec.Command("/bin/sh", "-c", args)
 	out, err := cmd.CombinedOutput()
