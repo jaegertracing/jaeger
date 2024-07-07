@@ -106,10 +106,12 @@ main() {
 
   if [[ "${j_version}" == "v2" ]]; then
     STORAGE=${distro} SPAN_STORAGE_TYPE=${distro} make jaeger-v2-storage-integration-test
-  else
+  elif [[ "${j_version}" == "v1" ]]; then
     STORAGE=${distro} make storage-integration-test
     make index-cleaner-integration-test
     make index-rollover-integration-test
+  else
+    echo "ERROR: Invalid jaeger_version=${j_version} argument value, expecing v1/v2".
   fi
 }
 
