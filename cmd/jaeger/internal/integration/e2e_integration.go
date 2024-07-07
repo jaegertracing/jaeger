@@ -139,8 +139,8 @@ func createStorageCleanerConfig(t *testing.T, configFile string, storage string)
 	require.True(t, ok)
 	query, ok := extensions["jaeger_query"].(map[string]any)
 	require.True(t, ok)
-	trace_storage := query["trace_storage"].(string)
-	extensions["storage_cleaner"] = map[string]string{"trace_storage": trace_storage}
+	traceStorage := query["trace_storage"].(string)
+	extensions["storage_cleaner"] = map[string]string{"trace_storage": traceStorage}
 
 	jaegerStorage, ok := extensions["jaeger_storage"].(map[string]any)
 	require.True(t, ok)
@@ -148,15 +148,15 @@ func createStorageCleanerConfig(t *testing.T, configFile string, storage string)
 	switch storage {
 	case "elasticsearch":
 		elasticsearch, ok := jaegerStorage["elasticsearch"].(map[string]any)
-		require.True(t, ok)
-		esMain, ok := elasticsearch["es_main"].(map[string]any)
+		require.True(t, ok, "expecting 'elasticsearch'")
+		esMain, ok := elasticsearch["some_storage"].(map[string]any)
 		require.True(t, ok)
 		esMain["service_cache_ttl"] = "1ms"
 
 	case "opensearch":
 		opensearch, ok := jaegerStorage["opensearch"].(map[string]any)
 		require.True(t, ok)
-		osMain, ok := opensearch["os_main"].(map[string]any)
+		osMain, ok := opensearch["some_storage"].(map[string]any)
 		require.True(t, ok)
 		osMain["service_cache_ttl"] = "1ms"
 

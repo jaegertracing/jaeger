@@ -102,7 +102,7 @@ main() {
   local es_version=$2
   local j_version=$3
 
-  bring_up_storage "${distro}" "${es_version}"
+  # bring_up_storage "${distro}" "${es_version}"
 
   if [[ "${j_version}" == "v2" ]]; then
     STORAGE=${distro} SPAN_STORAGE_TYPE=${distro} make jaeger-v2-storage-integration-test
