@@ -15,9 +15,15 @@
 package version
 
 import (
+	"fmt"
 	"testing"
+	//"time"
 
 	"github.com/stretchr/testify/assert"
+	//"github.com/stretchr/testify/mock"
+
+	"github.com/jaegertracing/jaeger/internal/metrics/metricsbuilder"
+	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
 func TestGet(t *testing.T) {
@@ -43,4 +49,20 @@ func TestString(t *testing.T) {
 	}
 	expectedOutput := "git-commit=foobar, git-version=v1.2.3, build-date=2024-01-04"
 	assert.Equal(t, expectedOutput, test.String())
+}
+
+func InitBuilder(b *metricsbuilder.Builder) *metricsbuilder.Builder {
+	b.Backend = "prometheus"
+	b.HTTPRoute = "/metrics"
+	return b
+}
+
+func TestNewInfoMetrics(t *testing.T) {
+	metricsBuilder := InitBuilder(new(metricsbuilder.Builder))
+	metricsFactory, _ := metricsBuilder.CreateMetricsFactory("")
+	baseFactory := metricsFactory.Namespace(metrics.NSOptions{Name: "jaeger"})
+
+	info := NewInfoMetrics(baseFactory)
+	fmt.Println(info)
+	// assert.Equal(t, NewInfoMetrics(factory), "hi")
 }
