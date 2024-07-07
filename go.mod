@@ -87,6 +87,8 @@ require (
 	gopkg.in/yaml.v3 v3.0.1
 )
 
+require go.opentelemetry.io/collector/pdata/testdata v0.103.0 // indirect
+
 require (
 	github.com/IBM/sarama v1.43.2 // indirect
 	github.com/aws/aws-sdk-go v1.53.11 // indirect
@@ -188,7 +190,7 @@ require (
 	go.opentelemetry.io/collector v0.103.0 // indirect
 	go.opentelemetry.io/collector/config/configauth v0.103.0
 	go.opentelemetry.io/collector/config/configcompression v1.10.0 // indirect
-	go.opentelemetry.io/collector/config/confignet v0.103.0 // indirect
+	go.opentelemetry.io/collector/config/confignet v0.103.0
 	go.opentelemetry.io/collector/config/configopaque v1.10.0 // indirect
 	go.opentelemetry.io/collector/config/configtelemetry v0.103.0 // indirect
 	go.opentelemetry.io/collector/config/internal v0.103.0 // indirect

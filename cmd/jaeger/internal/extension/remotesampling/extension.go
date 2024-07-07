@@ -33,6 +33,11 @@ import (
 
 var _ extension.Extension = (*rsExtension)(nil)
 
+// type Extension interface {
+// 	extension.Extension
+// 	// rs *rsExtension
+// }
+
 const defaultResourceName = "sampling_store_leader"
 
 type rsExtension struct {

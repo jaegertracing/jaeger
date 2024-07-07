@@ -4,7 +4,6 @@
 package adaptivesampling
 
 import (
-	"github.com/asaskevich/govalidator"
 	"go.opentelemetry.io/collector/component"
 )
 
@@ -15,6 +14,5 @@ type Config struct {
 }
 
 func (cfg *Config) Validate() error {
-	_, err := govalidator.ValidateStruct(cfg)
-	return err
+	return nil
 }
