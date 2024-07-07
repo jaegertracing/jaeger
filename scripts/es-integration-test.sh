@@ -112,6 +112,7 @@ main() {
     make index-rollover-integration-test
   else
     echo "ERROR: Invalid jaeger_version=${j_version} argument value, expecing v1/v2".
+    exit 1
   fi
 }
 
