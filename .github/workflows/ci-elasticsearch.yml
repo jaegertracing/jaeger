@@ -22,6 +22,9 @@ jobs:
       fail-fast: false
       matrix:
         version:
+        - major: 6.x
+          distribution: elasticsearch
+          jaeger: v1
         - major: 7.x
           distribution: elasticsearch
           jaeger: v1
@@ -53,7 +56,7 @@ jobs:
     - name: Install tools
       run: make install-ci
 
-    - uses: docker/setup-qemu-action@68827325e0b33c7199eb31dd4e31fbe9023e06e3 # v3.0.0
+    - uses: docker/setup-qemu-action@5927c834f5b4fdf503fca6f4c7eccda82949e1ee # v3.1.0
     - name: Run ${{ matrix.version.distribution }} integration tests
       id: test-execution
       run: bash scripts/es-integration-test.sh ${{ matrix.version.distribution }} ${{ matrix.version.major }} ${{ matrix.version.jaeger }}

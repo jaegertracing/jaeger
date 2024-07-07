@@ -23,7 +23,6 @@ import (
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
-	semconv "go.opentelemetry.io/otel/semconv/v1.25.0"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
@@ -31,6 +30,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/cassandra"
 	casMetrics "github.com/jaegertracing/jaeger/pkg/cassandra/metrics"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/pkg/otelsemconv"
 	"github.com/jaegertracing/jaeger/plugin/storage/cassandra/spanstore/dbmodel"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
@@ -430,8 +430,8 @@ func (s *SpanReader) executeQuery(span trace.Span, query cassandra.Query, tableM
 func (s *SpanReader) startSpanForQuery(ctx context.Context, name, query string) (context.Context, trace.Span) {
 	ctx, span := s.tracer.Start(ctx, name)
 	span.SetAttributes(
-		attribute.Key(semconv.DBStatementKey).String(query),
-		attribute.Key(semconv.DBSystemKey).String("cassandra"),
+		attribute.Key(otelsemconv.DBQueryTextKey).String(query),
+		attribute.Key(otelsemconv.DBSystemKey).String("cassandra"),
 		attribute.Key("component").String("gocql"),
 	)
 	return ctx, span

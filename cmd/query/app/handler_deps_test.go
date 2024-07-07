@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger/model"
@@ -313,7 +314,11 @@ func TestGetDependenciesSuccess(t *testing.T) {
 	defer ts.server.Close()
 	expectedDependencies := []model.DependencyLink{{Parent: "killer", Child: "queen", CallCount: 12}}
 	endTs := time.Unix(0, 1476374248550*millisToNanosMultiplier)
-	ts.dependencyReader.On("GetDependencies", endTs, defaultDependencyLookbackDuration).Return(expectedDependencies, nil).Times(1)
+	ts.dependencyReader.On("GetDependencies",
+		mock.Anything, // context
+		endTs,
+		defaultDependencyLookbackDuration,
+	).Return(expectedDependencies, nil).Times(1)
 
 	var response structuredResponse
 	err := getJSON(ts.server.URL+"/api/dependencies?endTs=1476374248550&service=queen", &response)

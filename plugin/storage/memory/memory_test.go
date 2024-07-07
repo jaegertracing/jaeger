@@ -24,7 +24,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger/model"
-	"github.com/jaegertracing/jaeger/pkg/memory/config"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
@@ -170,7 +169,7 @@ func TestStoreWriteSpan(t *testing.T) {
 
 func TestStoreWithLimit(t *testing.T) {
 	maxTraces := 100
-	store := WithConfiguration(config.Configuration{MaxTraces: maxTraces})
+	store := WithConfiguration(Configuration{MaxTraces: maxTraces})
 
 	for i := 0; i < maxTraces*2; i++ {
 		id := model.NewTraceID(1, uint64(i))

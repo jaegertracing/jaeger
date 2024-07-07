@@ -28,7 +28,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/internal/metricstest"
 	"github.com/jaegertracing/jaeger/model"
-	"github.com/jaegertracing/jaeger/pkg/kafka/mocks"
+	"github.com/jaegertracing/jaeger/plugin/storage/kafka/mocks"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 

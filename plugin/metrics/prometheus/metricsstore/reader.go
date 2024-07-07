@@ -30,11 +30,11 @@ import (
 	promapi "github.com/prometheus/client_golang/api/prometheus/v1"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
-	semconv "go.opentelemetry.io/otel/semconv/v1.25.0"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/bearertoken"
+	"github.com/jaegertracing/jaeger/pkg/otelsemconv"
 	"github.com/jaegertracing/jaeger/pkg/prometheus/config"
 	"github.com/jaegertracing/jaeger/plugin/metrics/prometheus/metricsstore/dbmodel"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2/metrics"
@@ -314,8 +314,8 @@ func promqlDurationString(d *time.Duration) string {
 func startSpanForQuery(ctx context.Context, metricName, query string, tp trace.Tracer) (context.Context, trace.Span) {
 	ctx, span := tp.Start(ctx, metricName)
 	span.SetAttributes(
-		attribute.Key(semconv.DBStatementKey).String(query),
-		attribute.Key(semconv.DBSystemKey).String("prometheus"),
+		attribute.Key(otelsemconv.DBQueryTextKey).String(query),
+		attribute.Key(otelsemconv.DBSystemKey).String("prometheus"),
 		attribute.Key("component").String("promql"),
 	)
 	return ctx, span

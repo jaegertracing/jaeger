@@ -53,16 +53,14 @@ const (
 	suffixIndexLogs              = ".index.logs"
 	suffixIndexTags              = ".index.tags"
 	suffixIndexProcessTags       = ".index.process-tags"
-
-	defaultHost = "127.0.0.1"
 )
 
 // Options contains various type of Cassandra configs and provides the ability
 // to bind them to command line flag and apply overlays, so that some configurations
 // (e.g. archive) may be underspecified and infer the rest of its parameters from primary.
 type Options struct {
-	Primary                namespaceConfig `mapstructure:",squash"`
-	others                 map[string]*namespaceConfig
+	Primary                NamespaceConfig `mapstructure:",squash"`
+	others                 map[string]*NamespaceConfig
 	SpanStoreWriteCacheTTL time.Duration `mapstructure:"span_store_write_cache_ttl"`
 	Index                  IndexConfig   `mapstructure:"index"`
 }
@@ -80,7 +78,7 @@ type IndexConfig struct {
 // the Servers field in config.Configuration is a list, which we cannot represent with flags.
 // This struct adds a plain string field that can be bound to flags and is then parsed when
 // preparing the actual config.Configuration.
-type namespaceConfig struct {
+type NamespaceConfig struct {
 	config.Configuration `mapstructure:",squash"`
 	namespace            string
 	Enabled              bool `mapstructure:"-"`
@@ -90,24 +88,17 @@ type namespaceConfig struct {
 func NewOptions(primaryNamespace string, otherNamespaces ...string) *Options {
 	// TODO all default values should be defined via cobra flags
 	options := &Options{
-		Primary: namespaceConfig{
-			Configuration: config.Configuration{
-				MaxRetryAttempts:   3,
-				Keyspace:           "jaeger_v1_test",
-				ProtoVersion:       4,
-				ConnectionsPerHost: 2,
-				ReconnectInterval:  60 * time.Second,
-				Servers:            []string{defaultHost},
-			},
-			namespace: primaryNamespace,
-			Enabled:   true,
+		Primary: NamespaceConfig{
+			Configuration: config.DefaultConfiguration(),
+			namespace:     primaryNamespace,
+			Enabled:       true,
 		},
-		others:                 make(map[string]*namespaceConfig, len(otherNamespaces)),
+		others:                 make(map[string]*NamespaceConfig, len(otherNamespaces)),
 		SpanStoreWriteCacheTTL: time.Hour * 12,
 	}
 
 	for _, namespace := range otherNamespaces {
-		options.others[namespace] = &namespaceConfig{namespace: namespace}
+		options.others[namespace] = &NamespaceConfig{namespace: namespace}
 	}
 
 	return options
@@ -144,7 +135,7 @@ func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
 		"Controls process tag indexing. Set to false to disable.")
 }
 
-func addFlags(flagSet *flag.FlagSet, nsConfig namespaceConfig) {
+func addFlags(flagSet *flag.FlagSet, nsConfig NamespaceConfig) {
 	tlsFlagsConfig := tlsFlagsConfig(nsConfig.namespace)
 	tlsFlagsConfig.AddFlags(flagSet)
 
@@ -243,7 +234,7 @@ func tlsFlagsConfig(namespace string) tlscfg.ClientFlagsConfig {
 	}
 }
 
-func (cfg *namespaceConfig) initFromViper(v *viper.Viper) {
+func (cfg *NamespaceConfig) initFromViper(v *viper.Viper) {
 	tlsFlagsConfig := tlsFlagsConfig(cfg.namespace)
 	if cfg.namespace != primaryStorageConfig {
 		cfg.Enabled = v.GetBool(cfg.namespace + suffixEnabled)
@@ -283,7 +274,7 @@ func (opt *Options) GetPrimary() *config.Configuration {
 func (opt *Options) Get(namespace string) *config.Configuration {
 	nsCfg, ok := opt.others[namespace]
 	if !ok {
-		nsCfg = &namespaceConfig{}
+		nsCfg = &NamespaceConfig{}
 		opt.others[namespace] = nsCfg
 	}
 	if !nsCfg.Enabled {

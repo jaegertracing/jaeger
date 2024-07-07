@@ -64,21 +64,26 @@ const (
 	defaultKeysDir            = defaultDataDir + string(os.PathSeparator) + "keys"
 )
 
+func DefaultNamespaceConfig() NamespaceConfig {
+	defaultBadgerDataDir := getCurrentExecutableDir()
+	return NamespaceConfig{
+		SpanStoreTTL:          defaultTTL,
+		SyncWrites:            false, // Performance over durability
+		Ephemeral:             true,  // Default is ephemeral storage
+		ValueDirectory:        defaultBadgerDataDir + defaultValueDir,
+		KeyDirectory:          defaultBadgerDataDir + defaultKeysDir,
+		MaintenanceInterval:   defaultMaintenanceInterval,
+		MetricsUpdateInterval: defaultMetricsUpdateInterval,
+	}
+}
+
 // NewOptions creates a new Options struct.
 func NewOptions(primaryNamespace string, _ ...string /* otherNamespaces */) *Options {
-	defaultBadgerDataDir := getCurrentExecutableDir()
+	defaultConfig := DefaultNamespaceConfig()
+	defaultConfig.namespace = primaryNamespace
 
 	options := &Options{
-		Primary: NamespaceConfig{
-			namespace:             primaryNamespace,
-			SpanStoreTTL:          defaultTTL,
-			SyncWrites:            false, // Performance over durability
-			Ephemeral:             true,  // Default is ephemeral storage
-			ValueDirectory:        defaultBadgerDataDir + defaultValueDir,
-			KeyDirectory:          defaultBadgerDataDir + defaultKeysDir,
-			MaintenanceInterval:   defaultMaintenanceInterval,
-			MetricsUpdateInterval: defaultMetricsUpdateInterval,
-		},
+		Primary: defaultConfig,
 	}
 
 	return options

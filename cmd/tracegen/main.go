@@ -29,13 +29,13 @@ import (
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	semconv "go.opentelemetry.io/otel/semconv/v1.25.0"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
 	"github.com/jaegertracing/jaeger/internal/jaegerclientenv2otel"
 	"github.com/jaegertracing/jaeger/internal/tracegen"
+	"github.com/jaegertracing/jaeger/pkg/otelsemconv"
 	"github.com/jaegertracing/jaeger/pkg/version"
 )
 
@@ -84,8 +84,8 @@ func createTracers(cfg *tracegen.Config, logger *zap.Logger) ([]trace.Tracer, fu
 
 		res, err := resource.New(
 			context.Background(),
-			resource.WithSchemaURL(semconv.SchemaURL),
-			resource.WithAttributes(semconv.ServiceNameKey.String(svc)),
+			resource.WithSchemaURL(otelsemconv.SchemaURL),
+			resource.WithAttributes(otelsemconv.ServiceNameKey.String(svc)),
 			resource.WithTelemetrySDK(),
 			resource.WithHost(),
 			resource.WithOSType(),

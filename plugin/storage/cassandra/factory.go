@@ -134,7 +134,7 @@ func (f *Factory) configureFromOptions(o *Options) {
 	f.Options = o
 	// TODO this is a hack because we do not define defaults in Options
 	if o.others == nil {
-		o.others = make(map[string]*namespaceConfig)
+		o.others = make(map[string]*NamespaceConfig)
 	}
 	f.primaryConfig = o.GetPrimary()
 	if cfg := f.Options.Get(archiveStorageConfig); cfg != nil {
