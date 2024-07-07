@@ -98,8 +98,14 @@ teardown_storage() {
 
 build_local_img(){
     local LOCAL_FLAG=''
-    local platforms="linux/amd64,linux/s390x,linux/ppc64le,linux/arm64"
-    export GITHUB_SHA="local-test"
+    local platforms="linux/amd64"
+    # Loop through each platform (separated by commas)
+    for platform in $(echo "$platforms" | tr ',' ' '); do
+      # Extract the architecture from the platform string
+      arch=${platform##*/}  # Remove everything before the last slash
+      make "build-binaries-$arch"
+    done
+    export GITHUB_SHA="akfeoiafsf"
     make create-baseimg
     bash scripts/build-upload-a-docker-image.sh ${LOCAL_FLAG} -b -c jaeger-es-index-cleaner -d cmd/es-index-cleaner -p "${platforms}" -t release -l Y
 }
