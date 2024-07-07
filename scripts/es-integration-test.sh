@@ -97,15 +97,21 @@ teardown_storage() {
 }
 
 build_local_img(){
-    local LOCAL_FLAG=''
     make "build-binaries-linux"
     make create-baseimg
-    #bash scripts/build-upload-a-docker-image.sh ${LOCAL_FLAG} -b -c jaeger-es-index-cleaner -d cmd/es-index-cleaner -p "${platforms}" -t release -l Y
+    #build es-index-cleaner
     docker build \
     --build-arg base_image=localhost:5000/baseimg_alpine:latest \
     --file cmd/es-index-cleaner/Dockerfile \
     -t jaegertracing/jaeger-es-index-cleaner:local-test \
     cmd/es-index-cleaner
+
+     #build es-rollover
+    docker build \
+    --build-arg base_image=localhost:5000/baseimg_alpine:latest \
+    --file cmd/es-rollover/Dockerfile \
+    -t jaegertracing/jaeger-es-rollover:local-test \
+    cmd/es-rollover
 }
 
 main() {
