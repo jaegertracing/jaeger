@@ -100,7 +100,7 @@ main() {
   check_arg "$@"
   local distro=$1
   local es_version=$2
-  local j_version=$2
+  local j_version=$3
 
   bring_up_storage "${distro}" "${es_version}"
 
@@ -111,7 +111,7 @@ main() {
     make index-cleaner-integration-test
     make index-rollover-integration-test
   else
-    echo "ERROR: Invalid jaeger_version=${j_version} argument value, expecing v1/v2".
+    echo "ERROR: Invalid argument value jaeger_version=${j_version}, expecing v1/v2".
     exit 1
   fi
 }
