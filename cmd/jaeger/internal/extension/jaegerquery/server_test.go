@@ -119,13 +119,13 @@ func TestServerStart(t *testing.T) {
 		config      *Config
 		expectedErr string
 	}{
-		// {
-		// 	name: "Non-empty config with fake storage host",
-		// 	config: &Config{
-		// 		TraceStorageArchive: "jaeger_storage",
-		// 		TraceStoragePrimary: "jaeger_storage",
-		// 	},
-		// },
+		{
+			name: "Non-empty config with fake storage host",
+			config: &Config{
+				TraceStorageArchive: "jaeger_storage",
+				TraceStoragePrimary: "jaeger_storage",
+			},
+		},
 		{
 			name: "factory error",
 			config: &Config{

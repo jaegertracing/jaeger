@@ -5,6 +5,7 @@ package jaegerquery
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"go.opentelemetry.io/collector/component"
@@ -26,9 +27,10 @@ var (
 )
 
 type server struct {
-	config *Config
-	server *queryApp.Server
-	telset component.TelemetrySettings
+	config      *Config
+	server      *queryApp.Server
+	telset      component.TelemetrySettings
+	closeTracer func(ctx context.Context) error
 }
 
 func newServer(config *Config, otel component.TelemetrySettings) *server {
@@ -76,6 +78,7 @@ func (s *server) Start(_ context.Context, host component.Host) error {
 	if err != nil {
 		return fmt.Errorf("could not initialize a tracer: %w", err)
 	}
+	s.closeTracer = tracerProvider.Close
 	telset := telemetery.Setting{
 		Logger:         s.telset.Logger,
 		TracerProvider: tracerProvider.OTEL,
@@ -130,6 +133,13 @@ func (s *server) makeQueryOptions() *queryApp.QueryOptions {
 	}
 }
 
-func (s *server) Shutdown(_ context.Context) error {
-	return s.server.Close()
+func (s *server) Shutdown(ctx context.Context) error {
+	var errs []error
+	if s.server != nil {
+		errs = append(errs, s.server.Close())
+	}
+	if s.server.TracerProvider != nil {
+		errs = append(errs, s.closeTracer(ctx))
+	}
+	return errors.Join(errs...)
 }
