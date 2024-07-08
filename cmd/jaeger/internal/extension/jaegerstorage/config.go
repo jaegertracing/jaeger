@@ -109,9 +109,7 @@ func (cfg *MetricBackends) Unmarshal(conf *confmap.Conf) error {
 	// apply defaults
 	if conf.IsSet("prometheus") {
 		cfg.Prometheus = &prometheus.Options{
-			Primary: prometheus.NamespaceConfig{
-				Configuration: prometheus.DefaultConfig(),
-			},
+			Configuration: prometheus.DefaultConfig(),
 		}
 		// TODO: Need to implement this, Need to add prometheus as a v2 storage ??
 	}

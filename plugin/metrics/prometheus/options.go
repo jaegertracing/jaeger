@@ -68,7 +68,7 @@ func DefaultConfig() config.Configuration {
 }
 
 // NewOptions creates a new Options struct.
-func NewOptions(primaryNamespace string) *Options {
+func NewOptions() *Options {
 	defaultConfig := DefaultConfig()
 
 	return &Options{
