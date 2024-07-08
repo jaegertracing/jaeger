@@ -20,7 +20,7 @@ type Config struct {
 
 	TraceStoragePrimary     string `valid:"required" mapstructure:"trace_storage"`
 	TraceStorageArchive     string `valid:"optional" mapstructure:"trace_storage_archive"`
-	MetricsStorage          string `valid:"optional" mapstructure:"metrics_storage"`
+	MetricStorage           string `valid:"optional" mapstructure:"metric_storage"`
 	confighttp.ServerConfig `mapstructure:",squash"`
 	Tenancy                 tenancy.Options `mapstructure:"multi_tenancy"`
 }

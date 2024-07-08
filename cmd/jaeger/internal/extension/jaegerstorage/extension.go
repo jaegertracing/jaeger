@@ -106,7 +106,7 @@ func (s *storageExt) Start(_ context.Context, _ component.Host) error {
 		s.factories[storageName] = factory
 	}
 
-	for metricsStorageName, cfg := range s.config.MetricsBackend {
+	for metricsStorageName, cfg := range s.config.MetricBackend {
 		s.telset.Logger.Sugar().Infof("Initializing metrics storage '%s'", metricsStorageName)
 		var metricsFactory storage.MetricsFactory
 		var err error = errors.New("empty configuration")
