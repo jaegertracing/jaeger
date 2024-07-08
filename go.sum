@@ -489,6 +489,8 @@ go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.53.0 h1:4K4tsIX
 go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.53.0/go.mod h1:jjdQuTGVsXV4vSs+CJ2qYDeDPf9yIJV23qlIzBm73Vg=
 go.opentelemetry.io/contrib/propagators/b3 v1.27.0 h1:IjgxbomVrV9za6bRi8fWCNXENs0co37SZedQilP2hm0=
 go.opentelemetry.io/contrib/propagators/b3 v1.27.0/go.mod h1:Dv9obQz25lCisDvvs4dy28UPh974CxkahRDUPsY7y9E=
+go.opentelemetry.io/contrib/samplers/jaegerremote v0.22.0 h1:OYxqumWcd1yaV/qvCt1B7Sru9OeUNGjeXq/oldx3AGk=
+go.opentelemetry.io/contrib/samplers/jaegerremote v0.22.0/go.mod h1:2tZTRqCbvx7nG57wUwd5NQpNVujOWnR84iPLllIH0Ok=
 go.opentelemetry.io/contrib/zpages v0.52.0 h1:MPgkMy0Cp3O5EdfVXP0ss3ujhEibysTM4eszx7E7d+E=
 go.opentelemetry.io/contrib/zpages v0.52.0/go.mod h1:fqG5AFdoYru3A3DnhibVuaaEfQV2WKxE7fYE1jgDRwk=
 go.opentelemetry.io/otel v1.28.0 h1:/SqNcYk+idO0CxKEUOtKQClMK/MimZihKYMruSMViUo=
