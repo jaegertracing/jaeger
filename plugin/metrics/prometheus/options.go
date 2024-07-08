@@ -48,14 +48,10 @@ const (
 	defaultNormalizeDuration           = false
 )
 
-type namespaceConfig struct {
-	config.Configuration `mapstructure:",squash"`
-	namespace            string
-}
-
 // Options stores the configuration entries for this storage.
 type Options struct {
-	Primary namespaceConfig `mapstructure:",squash"`
+	config.Configuration `mapstructure:",squash"`
+	namespace            string
 }
 
 // NewOptions creates a new Options struct.
@@ -71,16 +67,14 @@ func NewOptions(primaryNamespace string) *Options {
 	}
 
 	return &Options{
-		Primary: namespaceConfig{
-			Configuration: defaultConfig,
-			namespace:     primaryNamespace,
-		},
+		Configuration: defaultConfig,
+		namespace:     primaryNamespace,
 	}
 }
 
 // AddFlags from this storage to the CLI.
 func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
-	nsConfig := &opt.Primary
+	nsConfig := opt
 	flagSet.String(nsConfig.namespace+suffixServerURL, defaultServerURL,
 		"The Prometheus server's URL, must include the protocol scheme e.g. http://localhost:9090")
 	flagSet.Duration(nsConfig.namespace+suffixConnectTimeout, defaultConnectTimeout,
@@ -113,7 +107,7 @@ func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
 
 // InitFromViper initializes the options struct with values from Viper.
 func (opt *Options) InitFromViper(v *viper.Viper) error {
-	cfg := &opt.Primary
+	cfg := opt
 	cfg.ServerURL = stripWhiteSpace(v.GetString(cfg.namespace + suffixServerURL))
 	cfg.ConnectTimeout = v.GetDuration(cfg.namespace + suffixConnectTimeout)
 	cfg.TokenFilePath = v.GetString(cfg.namespace + suffixTokenFilePath)
@@ -137,9 +131,9 @@ func (opt *Options) InitFromViper(v *viper.Viper) error {
 	return nil
 }
 
-func (config *namespaceConfig) getTLSFlagsConfig() tlscfg.ClientFlagsConfig {
+func (opt *Options) getTLSFlagsConfig() tlscfg.ClientFlagsConfig {
 	return tlscfg.ClientFlagsConfig{
-		Prefix: config.namespace,
+		Prefix: opt.namespace,
 	}
 }
 
