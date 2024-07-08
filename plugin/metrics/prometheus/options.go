@@ -48,19 +48,18 @@ const (
 	defaultNormalizeDuration           = false
 )
 
-type namespaceConfig struct {
+type NamespaceConfig struct {
 	config.Configuration `mapstructure:",squash"`
 	namespace            string
 }
 
 // Options stores the configuration entries for this storage.
 type Options struct {
-	Primary namespaceConfig `mapstructure:",squash"`
+	Primary NamespaceConfig `mapstructure:",squash"`
 }
 
-// NewOptions creates a new Options struct.
-func NewOptions(primaryNamespace string) *Options {
-	defaultConfig := config.Configuration{
+func DefaultConfig() config.Configuration {
+	return config.Configuration{
 		ServerURL:      defaultServerURL,
 		ConnectTimeout: defaultConnectTimeout,
 
@@ -69,9 +68,14 @@ func NewOptions(primaryNamespace string) *Options {
 		NormalizeCalls:    defaultNormalizeCalls,
 		NormalizeDuration: defaultNormalizeCalls,
 	}
+}
+
+// NewOptions creates a new Options struct.
+func NewOptions(primaryNamespace string) *Options {
+	defaultConfig := DefaultConfig()
 
 	return &Options{
-		Primary: namespaceConfig{
+		Primary: NamespaceConfig{
 			Configuration: defaultConfig,
 			namespace:     primaryNamespace,
 		},
@@ -137,7 +141,7 @@ func (opt *Options) InitFromViper(v *viper.Viper) error {
 	return nil
 }
 
-func (config *namespaceConfig) getTLSFlagsConfig() tlscfg.ClientFlagsConfig {
+func (config *NamespaceConfig) getTLSFlagsConfig() tlscfg.ClientFlagsConfig {
 	return tlscfg.ClientFlagsConfig{
 		Prefix: config.namespace,
 	}

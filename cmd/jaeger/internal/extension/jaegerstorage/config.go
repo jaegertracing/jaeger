@@ -13,7 +13,7 @@ import (
 
 	casCfg "github.com/jaegertracing/jaeger/pkg/cassandra/config"
 	esCfg "github.com/jaegertracing/jaeger/pkg/es/config"
-	promCfg "github.com/jaegertracing/jaeger/pkg/prometheus/config"
+	"github.com/jaegertracing/jaeger/plugin/metrics/prometheus"
 	"github.com/jaegertracing/jaeger/plugin/storage/badger"
 	"github.com/jaegertracing/jaeger/plugin/storage/cassandra"
 	"github.com/jaegertracing/jaeger/plugin/storage/es"
@@ -46,7 +46,7 @@ type Backend struct {
 }
 
 type MetricBackends struct {
-	Prometheus *promCfg.Configuration `mapstructure:"prometheus"`
+	Prometheus *prometheus.Options `mapstructure:"prometheus"`
 }
 
 // Unmarshal implements confmap.Unmarshaler. This allows us to provide
@@ -108,8 +108,12 @@ func (cfg *Config) Validate() error {
 func (cfg *MetricBackends) Unmarshal(conf *confmap.Conf) error {
 	// apply defaults
 	if conf.IsSet("prometheus") {
-		// cfg.Prometheus = &prometheus.Configuration{ TODO: Need to implement this, Need to add prometheus as a v2 storage ??
-		// }
+		cfg.Prometheus = &prometheus.Options{
+			Primary: prometheus.NamespaceConfig{
+				Configuration: prometheus.DefaultConfig(),
+			},
+		}
+		// TODO: Need to implement this, Need to add prometheus as a v2 storage ??
 	}
 	return conf.Unmarshal(cfg)
 }
