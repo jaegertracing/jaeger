@@ -14,6 +14,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage/factoryadapter"
 	"github.com/jaegertracing/jaeger/internal/metrics/otelmetrics"
+	"github.com/jaegertracing/jaeger/plugin/metrics/prometheus"
 	"github.com/jaegertracing/jaeger/plugin/storage/badger"
 	"github.com/jaegertracing/jaeger/plugin/storage/cassandra"
 	"github.com/jaegertracing/jaeger/plugin/storage/es"
@@ -106,16 +107,16 @@ func (s *storageExt) Start(_ context.Context, _ component.Host) error {
 		s.factories[storageName] = factory
 	}
 
-	for metricStorageName := range s.config.MetricBackends {
+	for metricStorageName, cfg := range s.config.MetricBackends {
 		s.telset.Logger.Sugar().Infof("Initializing metrics storage '%s'", metricStorageName)
 		var metricsFactory storage.MetricsFactory
-		// var err error = errors.New("empty configuration")
-		// TODO: Need to implement
-		// if cfg.Prometheus != nil {
-		// }
-		// if err != nil {
-		// 	return fmt.Errorf("failed to initialize storage '%s': %w", metricStorageName, err)
-		// }
+		var err error = errors.New("empty configuration")
+		if cfg.Prometheus != nil {
+			metricsFactory = prometheus.NewFactory()
+		}
+		if err != nil {
+			return fmt.Errorf("failed to initialize metrics storage '%s': %w", metricStorageName, err)
+		}
 		s.metricsFactories[metricStorageName] = metricsFactory
 	}
 

@@ -111,7 +111,6 @@ func (cfg *MetricBackends) Unmarshal(conf *confmap.Conf) error {
 		cfg.Prometheus = &prometheus.Options{
 			Configuration: prometheus.DefaultConfig(),
 		}
-		// TODO: Need to implement this, Need to add prometheus as a v2 storage ??
 	}
 	return conf.Unmarshal(cfg)
 }
