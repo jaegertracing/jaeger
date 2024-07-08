@@ -74,9 +74,10 @@ func GetStorageFactoryV2(name string, host component.Host) (spanstore.Factory, e
 
 func newStorageExt(config *Config, telset component.TelemetrySettings) *storageExt {
 	return &storageExt{
-		config:    config,
-		telset:    telset,
-		factories: make(map[string]storage.Factory),
+		config:           config,
+		telset:           telset,
+		factories:        make(map[string]storage.Factory),
+		metricsFactories: make(map[string]storage.MetricsFactory),
 	}
 }
 
