@@ -32,8 +32,8 @@ var (
 // We tried to alias this type directly to a map, but conf did not populated it correctly.
 // Note also that the Backend struct has a custom unmarshaler.
 type Config struct {
-	Backends      map[string]Backend       `mapstructure:"backends"`
-	MetricBackend map[string]MetricBackend `mapstructure:"metric_backends"`
+	Backends       map[string]Backend        `mapstructure:"backends"`
+	MetricBackends map[string]MetricBackends `mapstructure:"metric_backends"`
 }
 
 type Backend struct {
@@ -45,7 +45,7 @@ type Backend struct {
 	Opensearch    *esCfg.Configuration    `mapstructure:"opensearch"`
 }
 
-type MetricBackend struct {
+type MetricBackends struct {
 	Prometheus *promCfg.Configuration `mapstructure:"prometheus"`
 }
 
@@ -105,7 +105,7 @@ func (cfg *Config) Validate() error {
 	return nil
 }
 
-func (cfg *MetricBackend) Unmarshal(conf *confmap.Conf) error {
+func (cfg *MetricBackends) Unmarshal(conf *confmap.Conf) error {
 	// apply defaults
 	if conf.IsSet("prometheus") {
 		// cfg.Prometheus = &prometheus.Configuration{ TODO: Need to implement this, Need to add prometheus as a v2 storage ??

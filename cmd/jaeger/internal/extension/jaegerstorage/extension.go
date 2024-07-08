@@ -106,17 +106,17 @@ func (s *storageExt) Start(_ context.Context, _ component.Host) error {
 		s.factories[storageName] = factory
 	}
 
-	for metricsStorageName, cfg := range s.config.MetricBackend {
-		s.telset.Logger.Sugar().Infof("Initializing metrics storage '%s'", metricsStorageName)
+	for metricStorageName, cfg := range s.config.MetricBackends {
+		s.telset.Logger.Sugar().Infof("Initializing metrics storage '%s'", metricStorageName)
 		var metricsFactory storage.MetricsFactory
 		var err error = errors.New("empty configuration")
 		if cfg.Prometheus != nil {
 			// metricsFactory, err = prometheus.NewFactoryWithConfig(*cfg.Prometheus, mf, s.telset.Logger) // TODO: Need to implement NewFactoryWithConfig)
 		}
 		if err != nil {
-			return fmt.Errorf("failed to initialize storage '%s': %w", metricsStorageName, err)
+			return fmt.Errorf("failed to initialize storage '%s': %w", metricStorageName, err)
 		}
-		s.metricsFactories[metricsStorageName] = metricsFactory
+		s.metricsFactories[metricStorageName] = metricsFactory
 	}
 
 	return nil
