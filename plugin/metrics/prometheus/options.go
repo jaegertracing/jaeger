@@ -27,6 +27,8 @@ import (
 )
 
 const (
+	prefix = "prometheus"
+
 	suffixServerURL           = ".server-url"
 	suffixConnectTimeout      = ".connect-timeout"
 	suffixTokenFilePath       = ".token-file"
@@ -42,7 +44,7 @@ const (
 	defaultTokenFilePath  = ""
 
 	defaultSupportSpanmetricsConnector = true
-	defaultMetricNamespace             = "prometheus"
+	defaultMetricNamespace             = ""
 	defaultLatencyUnit                 = "ms"
 	defaultNormalizeCalls              = false
 	defaultNormalizeDuration           = false
@@ -72,28 +74,28 @@ func NewOptions() *Options {
 
 // AddFlags from this storage to the CLI.
 func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
-	flagSet.String(defaultMetricNamespace+suffixServerURL, defaultServerURL,
+	flagSet.String(prefix+suffixServerURL, defaultServerURL,
 		"The Prometheus server's URL, must include the protocol scheme e.g. http://localhost:9090")
-	flagSet.Duration(defaultMetricNamespace+suffixConnectTimeout, defaultConnectTimeout,
+	flagSet.Duration(prefix+suffixConnectTimeout, defaultConnectTimeout,
 		"The period to wait for a connection to Prometheus when executing queries.")
-	flagSet.String(defaultMetricNamespace+suffixTokenFilePath, defaultTokenFilePath,
+	flagSet.String(prefix+suffixTokenFilePath, defaultTokenFilePath,
 		"The path to a file containing the bearer token which will be included when executing queries against the Prometheus API.")
-	flagSet.Bool(defaultMetricNamespace+suffixOverrideFromContext, true,
+	flagSet.Bool(prefix+suffixOverrideFromContext, true,
 		"Whether the bearer token should be overridden from context (incoming request)")
-	flagSet.String(defaultMetricNamespace+suffixMetricNamespace, defaultMetricNamespace,
+	flagSet.String(prefix+suffixMetricNamespace, defaultMetricNamespace,
 		`The metric namespace that is prefixed to the metric name. A '.' separator will be added between `+
 			`the namespace and the metric name.`)
-	flagSet.String(defaultMetricNamespace+suffixLatencyUnit, defaultLatencyUnit,
+	flagSet.String(prefix+suffixLatencyUnit, defaultLatencyUnit,
 		`The units used for the "latency" histogram. It can be either "ms" or "s" and should be consistent with the `+
 			`histogram unit value set in the spanmetrics connector (see: `+
 			`https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/connector/spanmetricsconnector#configurations). `+
 			`This also helps jaeger-query determine the metric name when querying for "latency" metrics.`)
-	flagSet.Bool(defaultMetricNamespace+suffixNormalizeCalls, defaultNormalizeCalls,
+	flagSet.Bool(prefix+suffixNormalizeCalls, defaultNormalizeCalls,
 		`Whether to normalize the "calls" metric name according to `+
 			`https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/pkg/translator/prometheus/README.md. `+
 			`For example: `+
 			`"calls" (not normalized) -> "calls_total" (normalized), `)
-	flagSet.Bool(defaultMetricNamespace+suffixNormalizeDuration, defaultNormalizeDuration,
+	flagSet.Bool(prefix+suffixNormalizeDuration, defaultNormalizeDuration,
 		`Whether to normalize the "duration" metric name according to `+
 			`https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/pkg/translator/prometheus/README.md. `+
 			`For example: `+
@@ -104,15 +106,15 @@ func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
 
 // InitFromViper initializes the options struct with values from Viper.
 func (opt *Options) InitFromViper(v *viper.Viper) error {
-	opt.ServerURL = stripWhiteSpace(v.GetString(defaultMetricNamespace + suffixServerURL))
-	opt.ConnectTimeout = v.GetDuration(defaultMetricNamespace + suffixConnectTimeout)
-	opt.TokenFilePath = v.GetString(defaultMetricNamespace + suffixTokenFilePath)
+	opt.ServerURL = stripWhiteSpace(v.GetString(prefix + suffixServerURL))
+	opt.ConnectTimeout = v.GetDuration(prefix + suffixConnectTimeout)
+	opt.TokenFilePath = v.GetString(prefix + suffixTokenFilePath)
 
-	opt.MetricNamespace = v.GetString(defaultMetricNamespace + suffixMetricNamespace)
-	opt.LatencyUnit = v.GetString(defaultMetricNamespace + suffixLatencyUnit)
-	opt.NormalizeCalls = v.GetBool(defaultMetricNamespace + suffixNormalizeCalls)
-	opt.NormalizeDuration = v.GetBool(defaultMetricNamespace + suffixNormalizeDuration)
-	opt.TokenOverrideFromContext = v.GetBool(defaultMetricNamespace + suffixOverrideFromContext)
+	opt.MetricNamespace = v.GetString(prefix + suffixMetricNamespace)
+	opt.LatencyUnit = v.GetString(prefix + suffixLatencyUnit)
+	opt.NormalizeCalls = v.GetBool(prefix + suffixNormalizeCalls)
+	opt.NormalizeDuration = v.GetBool(prefix + suffixNormalizeDuration)
+	opt.TokenOverrideFromContext = v.GetBool(prefix + suffixOverrideFromContext)
 
 	isValidUnit := map[string]bool{"ms": true, "s": true}
 	if _, ok := isValidUnit[opt.LatencyUnit]; !ok {
@@ -129,7 +131,7 @@ func (opt *Options) InitFromViper(v *viper.Viper) error {
 
 func (*Options) getTLSFlagsConfig() tlscfg.ClientFlagsConfig {
 	return tlscfg.ClientFlagsConfig{
-		Prefix: defaultMetricNamespace,
+		Prefix: prefix,
 	}
 }
 
