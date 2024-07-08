@@ -1,4 +1,4 @@
-name: Validation Of Shell Scripts
+name: Lint Shell Scripts
 
 on:
   push:
@@ -11,7 +11,7 @@ permissions:
   contents: read
 
 jobs:
-  validation-of-shell-scripts:
+  link-shell-scripts:
     runs-on: ubuntu-latest
 
     steps:
@@ -20,7 +20,7 @@ jobs:
       with:
         egress-policy: audit
 
-    - name: check out code 
+    - name: check out code
       uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
 
     - name: Install shellcheck
@@ -28,9 +28,3 @@ jobs:
 
     - name: Run shellcheck
       run: shellcheck scripts/*.sh
-
-
-
-
-
-
