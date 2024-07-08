@@ -17,6 +17,7 @@ package config
 import (
 	"time"
 
+	"github.com/asaskevich/govalidator"
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 )
 
@@ -32,4 +33,31 @@ type Configuration struct {
 	LatencyUnit       string
 	NormalizeCalls    bool
 	NormalizeDuration bool
+}
+
+func (c *Configuration) Validate() error {
+	_, err := govalidator.ValidateStruct(c)
+	return err
+}
+
+// ApplyDefaults copies settings from source unless its own value is non-zero.
+func (c *Configuration) ApplyDefaults(source *Configuration) {
+	if c.ServerURL == "" {
+		c.ServerURL = source.ServerURL
+	}
+	if c.ConnectTimeout == 0 {
+		c.ConnectTimeout = source.ConnectTimeout
+	}
+	if c.MetricNamespace == "" {
+		c.MetricNamespace = source.MetricNamespace
+	}
+	if c.LatencyUnit == "" {
+		c.LatencyUnit = source.LatencyUnit
+	}
+	if c.NormalizeCalls == false {
+		c.NormalizeCalls = source.NormalizeCalls
+	}
+	if c.NormalizeDuration == false {
+		c.NormalizeDuration = source.NormalizeDuration
+	}
 }
