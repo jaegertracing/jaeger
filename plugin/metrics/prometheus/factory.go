@@ -40,7 +40,7 @@ type Factory struct {
 func NewFactory() *Factory {
 	return &Factory{
 		tracer:  otel.GetTracerProvider(),
-		options: NewOptions("prometheus"),
+		options: NewOptions(),
 	}
 }
 

@@ -34,7 +34,7 @@ func TestPrometheusFactory(t *testing.T) {
 	f := NewFactory()
 	require.NoError(t, f.Initialize(zap.NewNop()))
 	assert.NotNil(t, f.logger)
-	assert.Equal(t, "prometheus", f.options.namespace)
+	assert.Equal(t, "prometheus", f.options.MetricNamespace)
 
 	listener, err := net.Listen("tcp", "localhost:")
 	require.NoError(t, err)
@@ -53,7 +53,7 @@ func TestWithDefaultConfiguration(t *testing.T) {
 	assert.Equal(t, "http://localhost:9090", f.options.ServerURL)
 	assert.Equal(t, 30*time.Second, f.options.ConnectTimeout)
 
-	assert.Empty(t, f.options.MetricNamespace)
+	assert.Equal(t, "prometheus", f.options.MetricNamespace)
 	assert.Equal(t, "ms", f.options.LatencyUnit)
 }
 
