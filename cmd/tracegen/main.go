@@ -19,8 +19,10 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"time"
 
 	"github.com/go-logr/zapr"
+	"go.opentelemetry.io/contrib/samplers/jaegerremote"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
@@ -39,6 +41,8 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/version"
 )
 
+var flagAdaptiveSamplingEndpoint string
+
 func main() {
 	zc := zap.NewDevelopmentConfig()
 	zc.Level = zap.NewAtomicLevelAt(zapcore.Level(-8)) // level used by OTEL's Debug()
@@ -51,6 +55,14 @@ func main() {
 	fs := flag.CommandLine
 	cfg := new(tracegen.Config)
 	cfg.Flags(fs)
+	fs.StringVar(
+		&flagAdaptiveSamplingEndpoint,
+		"adaptive-sampling",
+		"",
+		"HTTP endpoint to use to retrieve sampling strategies, "+
+			"e.g. http://localhost:14268/api/sampling. "+
+			"When not specified a standard SDK sampler will be used "+
+			"(see OTEL_TRACES_SAMPLER env var in OTEL docs)")
 	flag.Parse()
 
 	logger.Info(version.Get().String())
@@ -94,10 +106,21 @@ func createTracers(cfg *tracegen.Config, logger *zap.Logger) ([]trace.Tracer, fu
 			logger.Sugar().Fatalf("resource creation failed: %s", err)
 		}
 
-		tp := sdktrace.NewTracerProvider(
+		opts := []sdktrace.TracerProviderOption{
 			sdktrace.WithBatcher(exp, sdktrace.WithBlocking()),
 			sdktrace.WithResource(res),
-		)
+		}
+		if flagAdaptiveSamplingEndpoint != "" {
+			jaegerRemoteSampler := jaegerremote.New(
+				svc,
+				jaegerremote.WithSamplingServerURL(flagAdaptiveSamplingEndpoint),
+				jaegerremote.WithSamplingRefreshInterval(5*time.Second),
+				jaegerremote.WithInitialSampler(sdktrace.TraceIDRatioBased(0.5)),
+			)
+			opts = append(opts, sdktrace.WithSampler(jaegerRemoteSampler))
+			logger.Sugar().Infof("using adaptive sampling URL: %s", flagAdaptiveSamplingEndpoint)
+		}
+		tp := sdktrace.NewTracerProvider(opts...)
 		tracers = append(tracers, tp.Tracer(cfg.Service))
 		shutdown = append(shutdown, tp.Shutdown)
 	}
