@@ -131,35 +131,37 @@ func createStorageCleanerConfig(t *testing.T, configFile string, storage string)
 	err = yaml.Unmarshal(data, &config)
 	require.NoError(t, err)
 
-	service, ok := config["service"].(map[string]any)
+	serviceAny, ok := config["service"]
 	require.True(t, ok)
+	service := serviceAny.(map[string]any)
 	service["extensions"] = append(service["extensions"].([]any), "storage_cleaner")
 
-	extensions, ok := config["extensions"].(map[string]any)
+	extensionsAny, ok := config["extensions"]
 	require.True(t, ok)
-	query, ok := extensions["jaeger_query"].(map[string]any)
+	extensions := extensionsAny.(map[string]any)
+	queryAny, ok := extensions["jaeger_query"]
 	require.True(t, ok)
-	trace_storage := query["trace_storage"].(string)
-	extensions["storage_cleaner"] = map[string]string{"trace_storage": trace_storage}
+	traceStorageAny, ok := queryAny.(map[string]any)["trace_storage"]
+	require.True(t, ok)
+	traceStorage := traceStorageAny.(string)
+	extensions["storage_cleaner"] = map[string]string{"trace_storage": traceStorage}
 
-	jaegerStorage, ok := extensions["jaeger_storage"].(map[string]any)
+	jaegerStorageAny, ok := extensions["jaeger_storage"]
 	require.True(t, ok)
+	jaegerStorage := jaegerStorageAny.(map[string]any)
+	backendsAny, ok := jaegerStorage["backends"]
+	require.True(t, ok)
+	backends := backendsAny.(map[string]any)
 
 	switch storage {
-	case "elasticsearch":
-		elasticsearch, ok := jaegerStorage["elasticsearch"].(map[string]any)
-		require.True(t, ok)
-		esMain, ok := elasticsearch["es_main"].(map[string]any)
-		require.True(t, ok)
+	case "elasticsearch", "opensearch":
+		someStoreAny, ok := backends["some_storage"]
+		require.True(t, ok, "expecting 'some_storage' entry, found: %v", jaegerStorage)
+		someStore := someStoreAny.(map[string]any)
+		esMainAny, ok := someStore[storage]
+		require.True(t, ok, "expecting '%s' entry, found %v", storage, someStore)
+		esMain := esMainAny.(map[string]any)
 		esMain["service_cache_ttl"] = "1ms"
-
-	case "opensearch":
-		opensearch, ok := jaegerStorage["opensearch"].(map[string]any)
-		require.True(t, ok)
-		osMain, ok := opensearch["os_main"].(map[string]any)
-		require.True(t, ok)
-		osMain["service_cache_ttl"] = "1ms"
-
 	default:
 		// Do Nothing
 	}

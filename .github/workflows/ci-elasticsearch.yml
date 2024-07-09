@@ -53,9 +53,6 @@ jobs:
       with:
         go-version: 1.22.x
 
-    - name: Install tools
-      run: make install-ci
-
     - uses: docker/setup-qemu-action@5927c834f5b4fdf503fca6f4c7eccda82949e1ee # v3.1.0
     - name: Run ${{ matrix.version.distribution }} integration tests
       id: test-execution

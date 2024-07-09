@@ -40,7 +40,7 @@ type Factory struct {
 func NewFactory() *Factory {
 	return &Factory{
 		tracer:  otel.GetTracerProvider(),
-		options: NewOptions("prometheus"),
+		options: NewOptions(),
 	}
 }
 
@@ -64,5 +64,5 @@ func (f *Factory) Initialize(logger *zap.Logger) error {
 
 // CreateMetricsReader implements storage.MetricsFactory.
 func (f *Factory) CreateMetricsReader() (metricsstore.Reader, error) {
-	return prometheusstore.NewMetricsReader(f.options.Primary.Configuration, f.logger, f.tracer)
+	return prometheusstore.NewMetricsReader(f.options.Configuration, f.logger, f.tracer)
 }
