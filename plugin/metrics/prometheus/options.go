@@ -69,10 +69,8 @@ func DefaultConfig() config.Configuration {
 
 // NewOptions creates a new Options struct.
 func NewOptions() *Options {
-	defaultConfig := DefaultConfig()
-
 	return &Options{
-		Configuration: defaultConfig,
+		Configuration: DefaultConfig(),
 	}
 }
 

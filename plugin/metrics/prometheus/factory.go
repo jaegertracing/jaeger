@@ -68,10 +68,6 @@ func (f *Factory) CreateMetricsReader() (metricsstore.Reader, error) {
 	return prometheusstore.NewMetricsReader(f.options.Configuration, f.logger, f.tracer)
 }
 
-func (f *Factory) configureFromOptions(o *Options) {
-	f.options = o
-}
-
 func NewFactoryWithConfig(
 	cfg config.Configuration,
 	logger *zap.Logger,
@@ -80,13 +76,10 @@ func NewFactoryWithConfig(
 		return nil, err
 	}
 
-	defaultConfig := DefaultConfig()
-	cfg.ApplyDefaults(&defaultConfig)
-
 	f := NewFactory()
-	f.configureFromOptions(&Options{
+	f.options = &Options{
 		Configuration: cfg,
-	})
+	}
 	err := f.Initialize(logger)
 	if err != nil {
 		return nil, err
