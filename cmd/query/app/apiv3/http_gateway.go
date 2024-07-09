@@ -17,12 +17,12 @@ import (
 	"github.com/gorilla/mux"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/query/app/internal/api_v3"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	"github.com/jaegertracing/jaeger/model"
-	"github.com/jaegertracing/jaeger/pkg/jtracer"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
@@ -48,7 +48,7 @@ type HTTPGateway struct {
 	QueryService *querysvc.QueryService
 	TenancyMgr   *tenancy.Manager
 	Logger       *zap.Logger
-	Tracer       *jtracer.JTracer
+	Tracer       trace.TracerProvider
 }
 
 // RegisterRoutes registers HTTP endpoints for APIv3 into provided mux.
@@ -75,7 +75,7 @@ func (h *HTTPGateway) addRoute(
 	traceMiddleware := otelhttp.NewHandler(
 		otelhttp.WithRouteTag(route, handler),
 		route,
-		otelhttp.WithTracerProvider(h.Tracer.OTEL))
+		otelhttp.WithTracerProvider(h.Tracer))
 	return router.HandleFunc(route, traceMiddleware.ServeHTTP)
 }
 

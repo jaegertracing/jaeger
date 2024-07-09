@@ -321,7 +321,7 @@ func TestGetTrace(t *testing.T) {
 			jTracer := jtracer.JTracer{OTEL: tracerProvider}
 			defer tracerProvider.Shutdown(context.Background())
 
-			ts := initializeTestServer(HandlerOptions.Tracer(&jTracer))
+			ts := initializeTestServer(HandlerOptions.Tracer(jTracer.OTEL))
 			defer ts.server.Close()
 
 			ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), model.NewTraceID(0, 0x123456abc)).

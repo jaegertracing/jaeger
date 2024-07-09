@@ -10,13 +10,12 @@ import (
 
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/extension"
-	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
 	queryApp "github.com/jaegertracing/jaeger/cmd/query/app"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
-	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	"github.com/jaegertracing/jaeger/pkg/jtracer"
+	"github.com/jaegertracing/jaeger/pkg/telemetery"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/plugin/metrics/disabled"
 	"github.com/jaegertracing/jaeger/ports"
@@ -28,16 +27,16 @@ var (
 )
 
 type server struct {
-	config  *Config
-	logger  *zap.Logger
-	server  *queryApp.Server
-	jtracer *jtracer.JTracer
+	config      *Config
+	server      *queryApp.Server
+	telset      component.TelemetrySettings
+	closeTracer func(ctx context.Context) error
 }
 
 func newServer(config *Config, otel component.TelemetrySettings) *server {
 	return &server{
 		config: config,
-		logger: otel.Logger,
+		telset: otel,
 	}
 }
 
@@ -75,22 +74,26 @@ func (s *server) Start(_ context.Context, host component.Host) error {
 	// TODO OTel-collector does not initialize the tracer currently
 	// https://github.com/open-telemetry/opentelemetry-collector/issues/7532
 	//nolint
-	s.jtracer, err = jtracer.New("jaeger")
+	tracerProvider, err := jtracer.New("jaeger")
 	if err != nil {
 		return fmt.Errorf("could not initialize a tracer: %w", err)
+	}
+	s.closeTracer = tracerProvider.Close
+	telset := telemetery.Setting{
+		Logger:         s.telset.Logger,
+		TracerProvider: tracerProvider.OTEL,
+		ReportStatus:   s.telset.ReportStatus,
 	}
 
 	// TODO contextcheck linter complains about next line that context is not passed. It is not wrong.
 	//nolint
 	s.server, err = queryApp.NewServer(
-		s.logger,
 		// TODO propagate healthcheck updates up to the collector's runtime
-		healthcheck.New(),
 		qs,
 		metricsQueryService,
 		s.makeQueryOptions(),
 		tm,
-		s.jtracer,
+		telset,
 	)
 	if err != nil {
 		return fmt.Errorf("could not create jaeger-query: %w", err)
@@ -105,7 +108,7 @@ func (s *server) Start(_ context.Context, host component.Host) error {
 
 func (s *server) addArchiveStorage(opts *querysvc.QueryServiceOptions, host component.Host) error {
 	if s.config.TraceStorageArchive == "" {
-		s.logger.Info("Archive storage not configured")
+		s.telset.Logger.Info("Archive storage not configured")
 		return nil
 	}
 
@@ -114,8 +117,8 @@ func (s *server) addArchiveStorage(opts *querysvc.QueryServiceOptions, host comp
 		return fmt.Errorf("cannot find archive storage factory: %w", err)
 	}
 
-	if !opts.InitArchiveStorage(f, s.logger) {
-		s.logger.Info("Archive storage not initialized")
+	if !opts.InitArchiveStorage(f, s.telset.Logger) {
+		s.telset.Logger.Info("Archive storage not initialized")
 	}
 	return nil
 }
@@ -135,8 +138,8 @@ func (s *server) Shutdown(ctx context.Context) error {
 	if s.server != nil {
 		errs = append(errs, s.server.Close())
 	}
-	if s.jtracer != nil {
-		errs = append(errs, s.jtracer.Close(ctx))
+	if s.closeTracer != nil {
+		errs = append(errs, s.closeTracer(ctx))
 	}
 	return errors.Join(errs...)
 }
