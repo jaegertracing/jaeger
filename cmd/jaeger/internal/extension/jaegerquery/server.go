@@ -138,7 +138,7 @@ func (s *server) Shutdown(ctx context.Context) error {
 	if s.server != nil {
 		errs = append(errs, s.server.Close())
 	}
-	if s.server.closeTracer != nil {
+	if s.closeTracer != nil {
 		errs = append(errs, s.closeTracer(ctx))
 	}
 	return errors.Join(errs...)
