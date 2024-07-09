@@ -366,7 +366,7 @@ func (s *Server) Close() error {
 		s.cmuxServer.Close()
 	}
 	s.bgFinished.Wait()
-	s.ReportStatus(component.NewStatusEvent(component.StatusStopped))
+
 	s.Logger.Info("Server stopped")
 	return errors.Join(errs...)
 }
