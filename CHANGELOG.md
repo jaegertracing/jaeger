@@ -29,7 +29,6 @@ run `make changelog` to generate content
 #### ⛔ Breaking Changes
 
 * Update opentelemetry-go to v1.28.0 and refactor references to semantic conventions ([@renovate-bot](https://github.com/renovate-bot) in [#5698](https://github.com/jaegertracing/jaeger/pull/5698))
-* Support default configs for storage backends ([@yurishkuro](https://github.com/yurishkuro) in [#5691](https://github.com/jaegertracing/jaeger/pull/5691))
 
 #### ✨ New Features
 
@@ -55,6 +54,7 @@ run `make changelog` to generate content
 
 * Implement telemetery struct for v1 components initialization ([@Wise-Wizard](https://github.com/Wise-Wizard) in [#5695](https://github.com/jaegertracing/jaeger/pull/5695))
 * Create metrics.factory adapter for otel metrics ([@Wise-Wizard](https://github.com/Wise-Wizard) in [#5661](https://github.com/jaegertracing/jaeger/pull/5661))
+* Support default configs for storage backends ([@yurishkuro](https://github.com/yurishkuro) in [#5691](https://github.com/jaegertracing/jaeger/pull/5691))
 
 #### 👷 CI Improvements
 
