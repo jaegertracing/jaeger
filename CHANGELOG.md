@@ -21,6 +21,65 @@ run `make changelog` to generate content
 
 </details>
 
+1.59.0 (2024-07-10)
+-------------------
+
+### Backend Changes
+
+#### ⛔ Breaking Changes
+
+* Update opentelemetry-go to v1.28.0 and refactor references to semantic conventions ([@renovate-bot](https://github.com/renovate-bot) in [#5698](https://github.com/jaegertracing/jaeger/pull/5698))
+* Support default configs for storage backends ([@yurishkuro](https://github.com/yurishkuro) in [#5691](https://github.com/jaegertracing/jaeger/pull/5691))
+
+#### ✨ New Features
+
+* Run  jaeger-es-index-cleaner and jaeger-es-rollover locally ([@hellspawn679](https://github.com/hellspawn679) in [#5714](https://github.com/jaegertracing/jaeger/pull/5714))
+* [tracegen] allow use of adaptive sampling ([@yurishkuro](https://github.com/yurishkuro) in [#5718](https://github.com/jaegertracing/jaeger/pull/5718))
+* [v2] add v1 factory converter to v2 storage factory ([@james-ryans](https://github.com/james-ryans) in [#5497](https://github.com/jaegertracing/jaeger/pull/5497))
+* Upgrade badger  v3->badger  v4 ([@hellspawn679](https://github.com/hellspawn679) in [#5619](https://github.com/jaegertracing/jaeger/pull/5619))
+
+#### 🐞 Bug fixes, Minor Improvements
+
+* Cleanup the prometheus config ([@FlamingSaint](https://github.com/FlamingSaint) in [#5720](https://github.com/jaegertracing/jaeger/pull/5720))
+* Upgrade microsim to v0.4.1 ([@FlamingSaint](https://github.com/FlamingSaint) in [#5702](https://github.com/jaegertracing/jaeger/pull/5702))
+* Add all mocks to mockery config file and regenerate ([@danish9039](https://github.com/danish9039) in [#5626](https://github.com/jaegertracing/jaeger/pull/5626))
+* Add better logging options ([@yurishkuro](https://github.com/yurishkuro) in [#5675](https://github.com/jaegertracing/jaeger/pull/5675))
+* Restore "operation" name in the metrics response ([@yurishkuro](https://github.com/yurishkuro) in [#5673](https://github.com/jaegertracing/jaeger/pull/5673))
+* Add flag for custom authenticators in cassandra storage ([@hellspawn679](https://github.com/hellspawn679) in [#5628](https://github.com/jaegertracing/jaeger/pull/5628))
+* Rename strategy store to sampling strategy provider ([@yurishkuro](https://github.com/yurishkuro) in [#5634](https://github.com/jaegertracing/jaeger/pull/5634))
+* [query] avoid errors when closing shared listener ([@vermaaatul07](https://github.com/vermaaatul07) in [#5559](https://github.com/jaegertracing/jaeger/pull/5559))
+* Bump github.com/golangci/golangci-lint from 1.55.2 to 1.59.1 and fix linter errors ([@FlamingSaint](https://github.com/FlamingSaint) in [#5579](https://github.com/jaegertracing/jaeger/pull/5579))
+* Fix binary path in package-deploy.sh ([@yurishkuro](https://github.com/yurishkuro) in [#5561](https://github.com/jaegertracing/jaeger/pull/5561))
+
+#### 🚧 Experimental Features
+
+* Implement telemetery struct for v1 components initialization ([@Wise-Wizard](https://github.com/Wise-Wizard) in [#5695](https://github.com/jaegertracing/jaeger/pull/5695))
+* Create metrics.factory adapter for otel metrics ([@Wise-Wizard](https://github.com/Wise-Wizard) in [#5661](https://github.com/jaegertracing/jaeger/pull/5661))
+
+#### 👷 CI Improvements
+
+* Add spm integration tests ([@hellspawn679](https://github.com/hellspawn679) in [#5640](https://github.com/jaegertracing/jaeger/pull/5640))
+* Add spm build to ci ([@yurishkuro](https://github.com/yurishkuro) in [#5663](https://github.com/jaegertracing/jaeger/pull/5663))
+* Remove unnecessary .nocover files ([@yurishkuro](https://github.com/yurishkuro) in [#5642](https://github.com/jaegertracing/jaeger/pull/5642))
+* Add tests for anonymizer/app/query. ([@shanukun](https://github.com/shanukun) in [#5638](https://github.com/jaegertracing/jaeger/pull/5638))
+* Add alternate way to install gotip ([@EraKin575](https://github.com/EraKin575) in [#5618](https://github.com/jaegertracing/jaeger/pull/5618))
+* Add semver to dependencies ([@danish9039](https://github.com/danish9039) in [#5590](https://github.com/jaegertracing/jaeger/pull/5590))
+* Create config file for mockery instead of using explicit cli flags in the makefile ([@jesslourenco](https://github.com/jesslourenco) in [#5623](https://github.com/jaegertracing/jaeger/pull/5623))
+* Update renovate bot to not apply patches to e2e test dependencies ([@DustyMMiller](https://github.com/DustyMMiller) in [#5622](https://github.com/jaegertracing/jaeger/pull/5622))
+* Require renovate bot to run go mod tidy ([@yurishkuro](https://github.com/yurishkuro) in [#5612](https://github.com/jaegertracing/jaeger/pull/5612))
+* Fix new warnings from the linter upgrade ([@WaterLemons2k](https://github.com/WaterLemons2k) in [#5589](https://github.com/jaegertracing/jaeger/pull/5589))
+* [ci] validate that generated mocks are up to date ([@yurishkuro](https://github.com/yurishkuro) in [#5568](https://github.com/jaegertracing/jaeger/pull/5568))
+* Update renovate bot to not update to major releases #5607 ([@DustyMMiller](https://github.com/DustyMMiller) in [#5613](https://github.com/jaegertracing/jaeger/pull/5613))
+* [bug] Use correct argument as jaeger-version to correctly test v2 ([@yurishkuro](https://github.com/yurishkuro)) in [#5716](https://github.com/jaegertracing/jaeger/pull/5716)
+
+### 📊 UI Changes
+
+#### 🐞 Bug fixes, Minor Improvements
+
+* Add escaped example to tag search help popup ([@yurishkuro](https://github.com/yurishkuro) in [#2354](https://github.com/jaegertracing/jaeger-ui/pull/2354))
+
+
+
 1.58.1 (2024-06-22)
 -------------------
 
