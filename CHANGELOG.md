@@ -53,11 +53,14 @@ run `make changelog` to generate content
 #### 🚧 Experimental Features
 
 * Implement telemetery struct for v1 components initialization ([@Wise-Wizard](https://github.com/Wise-Wizard) in [#5695](https://github.com/jaegertracing/jaeger/pull/5695))
-* Create metrics.factory adapter for otel metrics ([@Wise-Wizard](https://github.com/Wise-Wizard) in [#5661](https://github.com/jaegertracing/jaeger/pull/5661))
 * Support default configs for storage backends ([@yurishkuro](https://github.com/yurishkuro) in [#5691](https://github.com/jaegertracing/jaeger/pull/5691))
+* Simplify configs organization ([@yurishkuro](https://github.com/yurishkuro) in [#5690](https://github.com/jaegertracing/jaeger/pull/5690))
+* Create metrics.factory adapter for otel metrics ([@Wise-Wizard](https://github.com/Wise-Wizard) in [#5661](https://github.com/jaegertracing/jaeger/pull/5661))
 
 #### 👷 CI Improvements
 
+* Apply 'latest' tag to latest published snapshot images ([@yurishkuro](https://github.com/yurishkuro) in [#5724](https://github.com/jaegertracing/jaeger/pull/5724))
+* [bug] use correct argument as jaeger-version ([@yurishkuro](https://github.com/yurishkuro) in [#5716](https://github.com/jaegertracing/jaeger/pull/5716))
 * Add spm integration tests ([@hellspawn679](https://github.com/hellspawn679) in [#5640](https://github.com/jaegertracing/jaeger/pull/5640))
 * Add spm build to ci ([@yurishkuro](https://github.com/yurishkuro) in [#5663](https://github.com/jaegertracing/jaeger/pull/5663))
 * Remove unnecessary .nocover files ([@yurishkuro](https://github.com/yurishkuro) in [#5642](https://github.com/jaegertracing/jaeger/pull/5642))
@@ -69,8 +72,6 @@ run `make changelog` to generate content
 * Require renovate bot to run go mod tidy ([@yurishkuro](https://github.com/yurishkuro) in [#5612](https://github.com/jaegertracing/jaeger/pull/5612))
 * Fix new warnings from the linter upgrade ([@WaterLemons2k](https://github.com/WaterLemons2k) in [#5589](https://github.com/jaegertracing/jaeger/pull/5589))
 * [ci] validate that generated mocks are up to date ([@yurishkuro](https://github.com/yurishkuro) in [#5568](https://github.com/jaegertracing/jaeger/pull/5568))
-* Update renovate bot to not update to major releases #5607 ([@DustyMMiller](https://github.com/DustyMMiller) in [#5613](https://github.com/jaegertracing/jaeger/pull/5613))
-* [bug] Use correct argument as jaeger-version to correctly test v2 ([@yurishkuro](https://github.com/yurishkuro)) in [#5716](https://github.com/jaegertracing/jaeger/pull/5716)
 
 ### 📊 UI Changes
 
