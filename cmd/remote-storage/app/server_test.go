@@ -33,6 +33,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/grpctest"
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
+	"github.com/jaegertracing/jaeger/pkg/telemetery"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/ports"
 	"github.com/jaegertracing/jaeger/proto-gen/storage_v1"
@@ -51,14 +52,16 @@ func TestNewServer_CreateStorageErrors(t *testing.T) {
 	factory.On("CreateSpanWriter").Return(nil, nil)
 	factory.On("CreateDependencyReader").Return(nil, errors.New("no deps")).Once()
 	factory.On("CreateDependencyReader").Return(nil, nil)
-
+	telset := telemetery.Setting{
+		Logger:       zap.NewNop(),
+		ReportStatus: telemetery.HCAdapter(healthcheck.New()),
+	}
 	f := func() (*Server, error) {
 		return NewServer(
 			&Options{GRPCHostPort: ":0"},
 			factory,
 			tenancy.NewManager(&tenancy.Options{}),
-			zap.NewNop(),
-			healthcheck.New(),
+			telset,
 		)
 	}
 	_, err := f()
@@ -123,13 +126,16 @@ func TestNewServer_TLSConfigError(t *testing.T) {
 		KeyPath:      "invalid/path",
 		ClientCAPath: "invalid/path",
 	}
+	telset := telemetery.Setting{
+		Logger:       zap.NewNop(),
+		ReportStatus: telemetery.HCAdapter(healthcheck.New()),
+	}
 	storageMocks := newStorageMocks()
 	_, err := NewServer(
 		&Options{GRPCHostPort: ":8081", TLSGRPC: tlsCfg},
 		storageMocks.factory,
 		tenancy.NewManager(&tenancy.Options{}),
-		zap.NewNop(),
-		healthcheck.New(),
+		telset,
 	)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid TLS config")
@@ -334,12 +340,15 @@ func TestServerGRPCTLS(t *testing.T) {
 			storageMocks.reader.On("GetServices", mock.AnythingOfType("*context.valueCtx")).Return(expectedServices, nil)
 
 			tm := tenancy.NewManager(&tenancy.Options{Enabled: true})
+			telset := telemetery.Setting{
+				Logger:       flagsSvc.Logger,
+				ReportStatus: telemetery.HCAdapter(flagsSvc.HC()),
+			}
 			server, err := NewServer(
 				serverOptions,
 				storageMocks.factory,
 				tm,
-				flagsSvc.Logger,
-				flagsSvc.HC(),
+				telset,
 			)
 			require.NoError(t, err)
 			require.NoError(t, server.Start())
@@ -380,13 +389,15 @@ func TestServerHandlesPortZero(t *testing.T) {
 	zapCore, logs := observer.New(zap.InfoLevel)
 	flagsSvc.Logger = zap.New(zapCore)
 	storageMocks := newStorageMocks()
-
+	telset := telemetery.Setting{
+		Logger:       flagsSvc.Logger,
+		ReportStatus: telemetery.HCAdapter(flagsSvc.HC()),
+	}
 	server, err := NewServer(
 		&Options{GRPCHostPort: ":0"},
 		storageMocks.factory,
 		tenancy.NewManager(&tenancy.Options{}),
-		flagsSvc.Logger,
-		flagsSvc.HC(),
+		telset,
 	)
 	require.NoError(t, err)
 
