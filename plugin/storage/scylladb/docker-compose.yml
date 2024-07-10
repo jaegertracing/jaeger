@@ -77,7 +77,7 @@ services:
       - jaeger-scylladb
 
   hotrod:
-    image: jaegertracing/example-hotrod:1.58
+    image: jaegertracing/example-hotrod:1.59
     ports:
       - 8080:8080
     command: [ "all" ]
