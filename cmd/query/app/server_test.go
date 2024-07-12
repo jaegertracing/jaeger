@@ -705,7 +705,6 @@ func TestServerHandlesPortZero(t *testing.T) {
 
 	grpctest.ReflectionServiceValidator{
 		HostPort: fmt.Sprintf(":%v", port),
-		Server:   server.grpcServer,
 		ExpectedServices: []string{
 			"jaeger.api_v2.QueryService",
 			"jaeger.api_v3.QueryService",
