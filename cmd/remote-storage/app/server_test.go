@@ -408,7 +408,6 @@ func TestServerHandlesPortZero(t *testing.T) {
 func validateGRPCServer(t *testing.T, hostPort string, server *grpc.Server) {
 	grpctest.ReflectionServiceValidator{
 		HostPort: hostPort,
-		Server:   server,
 		ExpectedServices: []string{
 			"jaeger.storage.v1.SpanReaderPlugin",
 			"jaeger.storage.v1.SpanWriterPlugin",
