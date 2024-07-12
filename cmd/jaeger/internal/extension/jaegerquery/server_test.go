@@ -166,6 +166,8 @@ func TestServerStart(t *testing.T) {
 				Logger:       zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller())),
 				ReportStatus: func(*component.StatusEvent) {},
 			}
+			tt.config.HTTP.Endpoint = ":0"
+			tt.config.GRPC.NetAddr.Endpoint = ":0"
 			server := newServer(tt.config, telemetrySettings)
 			err := server.Start(context.Background(), host)
 			if tt.expectedErr == "" {
@@ -176,7 +178,7 @@ func TestServerStart(t *testing.T) {
 				// which could cause flaky code coverage by going through error cases.
 				require.Eventually(t,
 					func() bool {
-						resp, err := http.Get("http://localhost:16686/")
+						resp, err := http.Get(fmt.Sprintf("http://%s/", server.server.HTTPAddr()))
 						if err != nil {
 							return false
 						}
@@ -187,7 +189,7 @@ func TestServerStart(t *testing.T) {
 					100*time.Millisecond,
 					"server not started")
 				grpctest.ReflectionServiceValidator{
-					HostPort: ":16685",
+					HostPort: server.server.GRPCAddr(),
 					ExpectedServices: []string{
 						"jaeger.api_v2.QueryService",
 						"jaeger.api_v3.QueryService",
