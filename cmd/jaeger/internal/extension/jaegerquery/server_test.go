@@ -170,6 +170,7 @@ func TestServerStart(t *testing.T) {
 			err := server.Start(context.Background(), host)
 			if tt.expectedErr == "" {
 				require.NoError(t, err)
+				defer server.Shutdown(context.Background())
 				// We need to wait for servers to become available.
 				// Otherwise, we could call shutdown before the servers are even started,
 				// which could cause flaky code coverage by going through error cases.
@@ -194,7 +195,6 @@ func TestServerStart(t *testing.T) {
 						"grpc.health.v1.Health",
 					},
 				}.Execute(t)
-				defer server.Shutdown(context.Background())
 			} else {
 				require.ErrorContains(t, err, tt.expectedErr)
 			}
