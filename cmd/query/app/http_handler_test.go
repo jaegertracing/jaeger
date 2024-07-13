@@ -40,6 +40,7 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest"
+	"go.uber.org/zap/zaptest/observer"
 
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	"github.com/jaegertracing/jaeger/model"
@@ -195,22 +196,19 @@ func (l testLogger) Write(e zapcore.Entry, f []zapcore.Field) error {
 }
 
 func TestLogOnServerError(t *testing.T) {
-	l := &testLogger{
-		logs: &[]logData{},
-	}
+	zapCore, logs := observer.New(zap.InfoLevel)
+	logger := zap.New(zapCore)
 	readStorage := &spanstoremocks.Reader{}
 	dependencyStorage := &depsmocks.Reader{}
 	qs := querysvc.NewQueryService(readStorage, dependencyStorage, querysvc.QueryServiceOptions{})
-	apiHandlerOptions := []HandlerOption{
-		HandlerOptions.Logger(zap.New(l)),
-	}
-	h := NewAPIHandler(qs, &tenancy.Manager{}, apiHandlerOptions...)
+	h := NewAPIHandler(qs, &tenancy.Manager{}, HandlerOptions.Logger(logger))
 	e := errors.New("test error")
 	h.handleError(&httptest.ResponseRecorder{}, e, http.StatusInternalServerError)
-	require.Len(t, *l.logs, 1)
-	assert.Equal(t, "HTTP handler, Internal Server Error", (*l.logs)[0].e.Message)
-	assert.Len(t, (*l.logs)[0].f, 1)
-	assert.Equal(t, e, (*l.logs)[0].f[0].Interface)
+	require.Len(t, logs.All(), 1)
+	log := logs.All()[0]
+	assert.Equal(t, "HTTP handler, Internal Server Error", log.Message)
+	require.Len(t, log.Context, 1)
+	assert.Equal(t, e, log.Context[0].Interface)
 }
 
 // httpResponseErrWriter implements the http.ResponseWriter interface that returns an error on Write.
