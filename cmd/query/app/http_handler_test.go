@@ -38,7 +38,6 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest"
 	"go.uber.org/zap/zaptest/observer"
 
@@ -172,27 +171,6 @@ func TestGetTraceSuccess(t *testing.T) {
 	err := getJSON(ts.server.URL+`/api/traces/123456`, &response)
 	require.NoError(t, err)
 	assert.Empty(t, response.Errors)
-}
-
-type logData struct {
-	e zapcore.Entry
-	f []zapcore.Field
-}
-
-type testLogger struct {
-	logs *[]logData
-}
-
-func (testLogger) Enabled(zapcore.Level) bool          { return true }
-func (l testLogger) With([]zapcore.Field) zapcore.Core { return l }
-func (testLogger) Sync() error                         { return nil }
-func (l testLogger) Check(e zapcore.Entry, ce *zapcore.CheckedEntry) *zapcore.CheckedEntry {
-	return ce.AddCore(e, l)
-}
-
-func (l testLogger) Write(e zapcore.Entry, f []zapcore.Field) error {
-	*l.logs = append(*l.logs, logData{e: e, f: f})
-	return nil
 }
 
 func TestLogOnServerError(t *testing.T) {
