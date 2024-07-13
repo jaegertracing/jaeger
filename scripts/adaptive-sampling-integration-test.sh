@@ -33,7 +33,7 @@ check_sampling_strategy() {
   echo "Initial adaptive sampling strategy:"
   initial_strategy=$(curl -s 'http://localhost:14268/api/sampling?service=tracegen')
   echo "Initial adaptive sampling stratergy:"
-  echo "$initial stratergy" | jq.
+  echo "$initial_strategy" | jq.
   
   # Wait for some time to allow for adaptive sampling adjustments (adjust sleep duration as needed)
   adjustment_duration=30
