@@ -12,10 +12,6 @@ services:
       - "4318:4318"
     environment:
       - LOG_LEVEL=debug
-      # Since v0.105 the OTEL Collector components default hostname to 'localhost'.
-      # However, that does not work inside a Docker container, so we listen on all IPs.
-      - COLLECTOR_OTLP_GRPC_HOST_PORT=0.0.0.0:4317
-      - COLLECTOR_OTLP_HTTP_HOST_PORT=0.0.0.0:4318
     networks:
       - jaeger-example
   hotrod:

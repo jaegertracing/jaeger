@@ -18,7 +18,6 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/telemetery"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/plugin/metrics/disabled"
-	"github.com/jaegertracing/jaeger/ports"
 )
 
 var (
@@ -127,9 +126,10 @@ func (s *server) makeQueryOptions() *queryApp.QueryOptions {
 	return &queryApp.QueryOptions{
 		QueryOptionsBase: s.config.QueryOptionsBase,
 
-		// TODO expose via config
-		HTTPHostPort: ports.PortToHostPort(ports.QueryHTTP),
-		GRPCHostPort: ports.PortToHostPort(ports.QueryGRPC),
+		// TODO utilize OTEL helpers for creating HTTP/GRPC servers
+		HTTPHostPort: s.config.HTTP.Endpoint,
+		GRPCHostPort: s.config.GRPC.NetAddr.Endpoint,
+		// TODO handle TLS
 	}
 }
 

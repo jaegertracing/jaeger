@@ -353,8 +353,8 @@ func TestServerHTTPTLS(t *testing.T) {
 			}
 
 			serverOptions := &QueryOptions{
-				GRPCHostPort: ports.GetAddressFromCLIOptions(ports.QueryGRPC, ""),
-				HTTPHostPort: ports.GetAddressFromCLIOptions(ports.QueryHTTP, ""),
+				GRPCHostPort: ":0",
+				HTTPHostPort: ":0",
 				TLSHTTP:      test.TLS,
 				TLSGRPC:      tlsGrpc,
 				QueryOptionsBase: QueryOptionsBase{
@@ -385,14 +385,14 @@ func TestServerHTTPTLS(t *testing.T) {
 
 				require.NoError(t, err0)
 				dialer := &net.Dialer{Timeout: 2 * time.Second}
-				conn, err1 := tls.DialWithDialer(dialer, "tcp", "localhost:"+fmt.Sprintf("%d", ports.QueryHTTP), clientTLSCfg)
+				conn, err1 := tls.DialWithDialer(dialer, "tcp", server.HTTPAddr(), clientTLSCfg)
 				clientError = err1
 				clientClose = nil
 				if conn != nil {
 					clientClose = conn.Close
 				}
 			} else {
-				conn, err1 := net.DialTimeout("tcp", "localhost:"+fmt.Sprintf("%d", ports.QueryHTTP), 2*time.Second)
+				conn, err1 := net.DialTimeout("tcp", server.HTTPAddr(), 2*time.Second)
 				clientError = err1
 				clientClose = nil
 				if conn != nil {
@@ -417,7 +417,7 @@ func TestServerHTTPTLS(t *testing.T) {
 				}
 				querySvc.spanReader.On("FindTraces", mock.Anything, mock.Anything).Return([]*model.Trace{mockTrace}, nil).Once()
 				queryString := "/api/traces?service=service&start=0&end=0&operation=operation&limit=200&minDuration=20ms"
-				req, err := http.NewRequest(http.MethodGet, "https://localhost:"+fmt.Sprintf("%d", ports.QueryHTTP)+queryString, nil)
+				req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("https://%s/%s", server.HTTPAddr(), queryString), nil)
 				require.NoError(t, err)
 				req.Header.Add("Accept", "application/json")
 
@@ -490,8 +490,8 @@ func TestServerGRPCTLS(t *testing.T) {
 				tlsHttp = enabledTLSCfg
 			}
 			serverOptions := &QueryOptions{
-				GRPCHostPort: ports.GetAddressFromCLIOptions(ports.QueryGRPC, ""),
-				HTTPHostPort: ports.GetAddressFromCLIOptions(ports.QueryHTTP, ""),
+				GRPCHostPort: ":0",
+				HTTPHostPort: ":0",
 				TLSHTTP:      tlsHttp,
 				TLSGRPC:      test.TLS,
 				QueryOptionsBase: QueryOptionsBase{
@@ -518,9 +518,9 @@ func TestServerGRPCTLS(t *testing.T) {
 				require.NoError(t, err0)
 				defer test.clientTLS.Close()
 				creds := credentials.NewTLS(clientTLSCfg)
-				client = newGRPCClientWithTLS(t, ports.PortToHostPort(ports.QueryGRPC), creds)
+				client = newGRPCClientWithTLS(t, server.GRPCAddr(), creds)
 			} else {
-				client = newGRPCClientWithTLS(t, ports.PortToHostPort(ports.QueryGRPC), nil)
+				client = newGRPCClientWithTLS(t, server.GRPCAddr(), nil)
 			}
 			t.Cleanup(func() {
 				require.NoError(t, client.conn.Close())
@@ -699,13 +699,8 @@ func TestServerHandlesPortZero(t *testing.T) {
 	message := logs.FilterMessage("Query server started")
 	assert.Equal(t, 1, message.Len(), "Expected 'Query server started' log message.")
 
-	onlyEntry := message.All()[0]
-	port := onlyEntry.ContextMap()["port"].(int64)
-	assert.Greater(t, port, int64(0))
-
 	grpctest.ReflectionServiceValidator{
-		HostPort: fmt.Sprintf(":%v", port),
-		Server:   server.grpcServer,
+		HostPort: server.GRPCAddr(),
 		ExpectedServices: []string{
 			"jaeger.api_v2.QueryService",
 			"jaeger.api_v3.QueryService",

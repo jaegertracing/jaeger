@@ -6,7 +6,9 @@ package jaegerquery
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -17,6 +19,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
+	"github.com/jaegertracing/jaeger/internal/grpctest"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/storage"
@@ -160,14 +163,40 @@ func TestServerStart(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			telemetrySettings := component.TelemetrySettings{
-				Logger: zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller())),
+				Logger:       zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller())),
+				ReportStatus: func(*component.StatusEvent) {},
 			}
+			tt.config.HTTP.Endpoint = ":0"
+			tt.config.GRPC.NetAddr.Endpoint = ":0"
 			server := newServer(tt.config, telemetrySettings)
 			err := server.Start(context.Background(), host)
-
 			if tt.expectedErr == "" {
 				require.NoError(t, err)
 				defer server.Shutdown(context.Background())
+				// We need to wait for servers to become available.
+				// Otherwise, we could call shutdown before the servers are even started,
+				// which could cause flaky code coverage by going through error cases.
+				require.Eventually(t,
+					func() bool {
+						resp, err := http.Get(fmt.Sprintf("http://%s/", server.server.HTTPAddr()))
+						if err != nil {
+							return false
+						}
+						defer resp.Body.Close()
+						return resp.StatusCode == http.StatusOK
+					},
+					10*time.Second,
+					100*time.Millisecond,
+					"server not started")
+				grpctest.ReflectionServiceValidator{
+					HostPort: server.server.GRPCAddr(),
+					ExpectedServices: []string{
+						"jaeger.api_v2.QueryService",
+						"jaeger.api_v3.QueryService",
+						"jaeger.api_v2.metrics.MetricsQueryService",
+						"grpc.health.v1.Health",
+					},
+				}.Execute(t)
 			} else {
 				require.ErrorContains(t, err, tt.expectedErr)
 			}

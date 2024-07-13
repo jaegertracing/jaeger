@@ -77,7 +77,7 @@ func TestNewServer_CreateStorageErrors(t *testing.T) {
 	require.NoError(t, err)
 	err = s.Start()
 	require.NoError(t, err)
-	validateGRPCServer(t, s.grpcConn.Addr().String(), s.grpcServer)
+	validateGRPCServer(t, s.grpcConn.Addr().String())
 
 	s.grpcConn.Close() // causes logged error
 }
@@ -398,17 +398,16 @@ func TestServerHandlesPortZero(t *testing.T) {
 
 	onlyEntry := message.All()[0]
 	hostPort := onlyEntry.ContextMap()["addr"].(string)
-	validateGRPCServer(t, hostPort, server.grpcServer)
+	validateGRPCServer(t, hostPort)
 
 	server.Close()
 
 	assert.Equal(t, healthcheck.Unavailable, flagsSvc.HC().Get())
 }
 
-func validateGRPCServer(t *testing.T, hostPort string, server *grpc.Server) {
+func validateGRPCServer(t *testing.T, hostPort string) {
 	grpctest.ReflectionServiceValidator{
 		HostPort: hostPort,
-		Server:   server,
 		ExpectedServices: []string{
 			"jaeger.storage.v1.SpanReaderPlugin",
 			"jaeger.storage.v1.SpanWriterPlugin",
@@ -417,7 +416,7 @@ func validateGRPCServer(t *testing.T, hostPort string, server *grpc.Server) {
 			"jaeger.storage.v1.ArchiveSpanReaderPlugin",
 			"jaeger.storage.v1.ArchiveSpanWriterPlugin",
 			"jaeger.storage.v1.StreamingSpanWriterPlugin",
-			// "grpc.health.v1.Health",
+			"grpc.health.v1.Health",
 		},
 	}.Execute(t)
 }
