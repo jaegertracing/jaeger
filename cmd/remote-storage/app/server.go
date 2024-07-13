@@ -148,5 +148,6 @@ func (s *Server) Close() error {
 	s.grpcConn.Close()
 	s.opts.TLSGRPC.Close()
 	s.wg.Wait()
+	s.ReportStatus(component.NewStatusEvent(component.StatusStopped))
 	return nil
 }
