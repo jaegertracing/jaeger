@@ -129,7 +129,6 @@ func TestCollectorReflection(t *testing.T) {
 
 	grpctest.ReflectionServiceValidator{
 		HostPort: params.HostPortActual,
-		Server:   server,
 		ExpectedServices: []string{
 			"jaeger.api_v2.CollectorService",
 			"jaeger.api_v2.SamplingManager",

@@ -78,8 +78,9 @@ func NewServer(querySvc *querysvc.QueryService,
 	if err != nil {
 		return nil, fmt.Errorf("invalid gRPC server host:port: %w", err)
 	}
+	separatePorts := grpcPort != httpPort || grpcPort == "0" || httpPort == "0"
 
-	if (options.TLSHTTP.Enabled || options.TLSGRPC.Enabled) && (grpcPort == httpPort) {
+	if (options.TLSHTTP.Enabled || options.TLSGRPC.Enabled) && !separatePorts {
 		return nil, errors.New("server with TLS enabled can not use same host ports for gRPC and HTTP.  Use dedicated HTTP and gRPC host ports instead")
 	}
 
@@ -98,7 +99,7 @@ func NewServer(querySvc *querysvc.QueryService,
 		queryOptions:  options,
 		grpcServer:    grpcServer,
 		httpServer:    httpServer,
-		separatePorts: grpcPort != httpPort,
+		separatePorts: separatePorts,
 		Setting:       telset,
 	}, nil
 }
@@ -232,8 +233,8 @@ func (s *Server) initListener() (cmux.CMux, error) {
 		}
 		s.Logger.Info(
 			"Query server started",
-			zap.String("http_addr", s.httpConn.Addr().String()),
-			zap.String("grpc_addr", s.grpcConn.Addr().String()),
+			zap.String("http_addr", s.HTTPAddr()),
+			zap.String("grpc_addr", s.GRPCAddr()),
 		)
 		return nil, nil
 	}
@@ -344,6 +345,14 @@ func (s *Server) Start() error {
 		}()
 	}
 	return nil
+}
+
+func (s *Server) HTTPAddr() string {
+	return s.httpConn.Addr().String()
+}
+
+func (s *Server) GRPCAddr() string {
+	return s.grpcConn.Addr().String()
 }
 
 // Close stops HTTP, GRPC servers and closes the port listener.
