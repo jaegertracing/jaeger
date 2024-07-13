@@ -39,6 +39,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+	"go.uber.org/zap/zaptest"
 
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	"github.com/jaegertracing/jaeger/model"
@@ -102,8 +103,9 @@ type structuredTraceResponse struct {
 	Errors []structuredError `json:"errors"`
 }
 
-func initializeTestServerWithHandler(queryOptions querysvc.QueryServiceOptions, options ...HandlerOption) *testServer {
+func initializeTestServerWithHandler(t *testing.T, queryOptions querysvc.QueryServiceOptions, options ...HandlerOption) *testServer {
 	return initializeTestServerWithOptions(
+		t,
 		&tenancy.Manager{},
 		queryOptions,
 		append(
@@ -119,23 +121,33 @@ func initializeTestServerWithHandler(queryOptions querysvc.QueryServiceOptions, 
 	)
 }
 
-func initializeTestServerWithOptions(tenancyMgr *tenancy.Manager, queryOptions querysvc.QueryServiceOptions, options ...HandlerOption) *testServer {
+func initializeTestServerWithOptions(
+	t *testing.T,
+	tenancyMgr *tenancy.Manager,
+	queryOptions querysvc.QueryServiceOptions,
+	options ...HandlerOption,
+) *testServer {
+	options = append(options, HandlerOptions.Logger(zaptest.NewLogger(t)))
 	readStorage := &spanstoremocks.Reader{}
 	dependencyStorage := &depsmocks.Reader{}
 	qs := querysvc.NewQueryService(readStorage, dependencyStorage, queryOptions)
 	r := NewRouter()
 	handler := NewAPIHandler(qs, tenancyMgr, options...)
 	handler.RegisterRoutes(r)
-	return &testServer{
+	ts := &testServer{
 		server:           httptest.NewServer(tenancy.ExtractTenantHTTPHandler(tenancyMgr, r)),
 		spanReader:       readStorage,
 		dependencyReader: dependencyStorage,
 		handler:          handler,
 	}
+	t.Cleanup(func() {
+		ts.server.Close()
+	})
+	return ts
 }
 
-func initializeTestServer(options ...HandlerOption) *testServer {
-	return initializeTestServerWithHandler(querysvc.QueryServiceOptions{}, options...)
+func initializeTestServer(t *testing.T, options ...HandlerOption) *testServer {
+	return initializeTestServerWithHandler(t, querysvc.QueryServiceOptions{}, options...)
 }
 
 type testServer struct {
@@ -145,15 +157,13 @@ type testServer struct {
 	server           *httptest.Server
 }
 
-func withTestServer(doTest func(s *testServer), queryOptions querysvc.QueryServiceOptions, options ...HandlerOption) {
-	ts := initializeTestServerWithOptions(&tenancy.Manager{}, queryOptions, options...)
-	defer ts.server.Close()
+func withTestServer(t *testing.T, doTest func(s *testServer), queryOptions querysvc.QueryServiceOptions, options ...HandlerOption) {
+	ts := initializeTestServerWithOptions(t, &tenancy.Manager{}, queryOptions, options...)
 	doTest(ts)
 }
 
 func TestGetTraceSuccess(t *testing.T) {
-	ts := initializeTestServer()
-	defer ts.server.Close()
+	ts := initializeTestServer(t)
 	ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
 		Return(mockTrace, nil).Once()
 
@@ -321,8 +331,7 @@ func TestGetTrace(t *testing.T) {
 			jTracer := jtracer.JTracer{OTEL: tracerProvider}
 			defer tracerProvider.Shutdown(context.Background())
 
-			ts := initializeTestServer(HandlerOptions.Tracer(jTracer.OTEL))
-			defer ts.server.Close()
+			ts := initializeTestServer(t, HandlerOptions.Tracer(jTracer.OTEL))
 
 			ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), model.NewTraceID(0, 0x123456abc)).
 				Return(makeMockTrace(t), nil).Once()
@@ -343,8 +352,7 @@ func TestGetTrace(t *testing.T) {
 }
 
 func TestGetTraceDBFailure(t *testing.T) {
-	ts := initializeTestServer()
-	defer ts.server.Close()
+	ts := initializeTestServer(t)
 	ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
 		Return(nil, errStorage).Once()
 
@@ -354,8 +362,7 @@ func TestGetTraceDBFailure(t *testing.T) {
 }
 
 func TestGetTraceNotFound(t *testing.T) {
-	ts := initializeTestServer()
-	defer ts.server.Close()
+	ts := initializeTestServer(t)
 	ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
 		Return(nil, spanstore.ErrTraceNotFound).Once()
 
@@ -366,13 +373,13 @@ func TestGetTraceNotFound(t *testing.T) {
 
 func TestGetTraceAdjustmentFailure(t *testing.T) {
 	ts := initializeTestServerWithHandler(
+		t,
 		querysvc.QueryServiceOptions{
 			Adjuster: adjuster.Func(func(trace *model.Trace) (*model.Trace, error) {
 				return trace, errAdjustment
 			}),
 		},
 	)
-	defer ts.server.Close()
 	ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
 		Return(mockTrace, nil).Once()
 
@@ -384,8 +391,7 @@ func TestGetTraceAdjustmentFailure(t *testing.T) {
 }
 
 func TestGetTraceBadTraceID(t *testing.T) {
-	ts := initializeTestServer()
-	defer ts.server.Close()
+	ts := initializeTestServer(t)
 
 	var response structuredResponse
 	err := getJSON(ts.server.URL+`/api/traces/chumbawumba`, &response)
@@ -393,8 +399,7 @@ func TestGetTraceBadTraceID(t *testing.T) {
 }
 
 func TestSearchSuccess(t *testing.T) {
-	ts := initializeTestServer()
-	defer ts.server.Close()
+	ts := initializeTestServer(t)
 	ts.spanReader.On("FindTraces", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("*spanstore.TraceQueryParameters")).
 		Return([]*model.Trace{mockTrace}, nil).Once()
 
@@ -405,8 +410,7 @@ func TestSearchSuccess(t *testing.T) {
 }
 
 func TestSearchByTraceIDSuccess(t *testing.T) {
-	ts := initializeTestServer()
-	defer ts.server.Close()
+	ts := initializeTestServer(t)
 	ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
 		Return(mockTrace, nil).Twice()
 
@@ -419,10 +423,9 @@ func TestSearchByTraceIDSuccess(t *testing.T) {
 
 func TestSearchByTraceIDSuccessWithArchive(t *testing.T) {
 	archiveReadMock := &spanstoremocks.Reader{}
-	ts := initializeTestServerWithOptions(&tenancy.Manager{}, querysvc.QueryServiceOptions{
+	ts := initializeTestServerWithOptions(t, &tenancy.Manager{}, querysvc.QueryServiceOptions{
 		ArchiveSpanReader: archiveReadMock,
 	})
-	defer ts.server.Close()
 	ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
 		Return(nil, spanstore.ErrTraceNotFound).Twice()
 	archiveReadMock.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
@@ -436,8 +439,7 @@ func TestSearchByTraceIDSuccessWithArchive(t *testing.T) {
 }
 
 func TestSearchByTraceIDNotFound(t *testing.T) {
-	ts := initializeTestServer()
-	defer ts.server.Close()
+	ts := initializeTestServer(t)
 	ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
 		Return(nil, spanstore.ErrTraceNotFound).Once()
 
@@ -449,8 +451,7 @@ func TestSearchByTraceIDNotFound(t *testing.T) {
 }
 
 func TestSearchByTraceIDFailure(t *testing.T) {
-	ts := initializeTestServer()
-	defer ts.server.Close()
+	ts := initializeTestServer(t)
 	whatsamattayou := "https://youtu.be/WrKFOCg13QQ"
 	ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
 		Return(nil, fmt.Errorf(whatsamattayou)).Once()
@@ -462,6 +463,7 @@ func TestSearchByTraceIDFailure(t *testing.T) {
 
 func TestSearchModelConversionFailure(t *testing.T) {
 	ts := initializeTestServerWithOptions(
+		t,
 		&tenancy.Manager{},
 		querysvc.QueryServiceOptions{
 			Adjuster: adjuster.Func(func(trace *model.Trace) (*model.Trace, error) {
@@ -469,7 +471,6 @@ func TestSearchModelConversionFailure(t *testing.T) {
 			}),
 		},
 	)
-	defer ts.server.Close()
 	ts.spanReader.On("FindTraces", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("*spanstore.TraceQueryParameters")).
 		Return([]*model.Trace{mockTrace}, nil).Once()
 	var response structuredResponse
@@ -480,8 +481,7 @@ func TestSearchModelConversionFailure(t *testing.T) {
 }
 
 func TestSearchDBFailure(t *testing.T) {
-	ts := initializeTestServer()
-	defer ts.server.Close()
+	ts := initializeTestServer(t)
 	ts.spanReader.On("FindTraces", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("*spanstore.TraceQueryParameters")).
 		Return(nil, fmt.Errorf("whatsamattayou")).Once()
 
@@ -510,8 +510,7 @@ func TestSearchFailures(t *testing.T) {
 }
 
 func testIndividualSearchFailures(t *testing.T, urlStr, errMsg string) {
-	ts := initializeTestServer()
-	defer ts.server.Close()
+	ts := initializeTestServer(t)
 	ts.spanReader.On("Query", mock.AnythingOfType("spanstore.TraceQueryParameters")).
 		Return([]*model.Trace{}, nil).Once()
 
@@ -521,8 +520,7 @@ func testIndividualSearchFailures(t *testing.T, urlStr, errMsg string) {
 }
 
 func TestGetServicesSuccess(t *testing.T) {
-	ts := initializeTestServer()
-	defer ts.server.Close()
+	ts := initializeTestServer(t)
 	expectedServices := []string{"trifle", "bling"}
 	ts.spanReader.On("GetServices", mock.AnythingOfType("*context.valueCtx")).Return(expectedServices, nil).Once()
 
@@ -537,8 +535,7 @@ func TestGetServicesSuccess(t *testing.T) {
 }
 
 func TestGetServicesStorageFailure(t *testing.T) {
-	ts := initializeTestServer()
-	defer ts.server.Close()
+	ts := initializeTestServer(t)
 	ts.spanReader.On("GetServices", mock.AnythingOfType("*context.valueCtx")).Return(nil, errStorage).Once()
 
 	var response structuredResponse
@@ -547,8 +544,7 @@ func TestGetServicesStorageFailure(t *testing.T) {
 }
 
 func TestGetOperationsSuccess(t *testing.T) {
-	ts := initializeTestServer()
-	defer ts.server.Close()
+	ts := initializeTestServer(t)
 	expectedOperations := []spanstore.Operation{{Name: ""}, {Name: "get", SpanKind: "server"}}
 	ts.spanReader.On(
 		"GetOperations",
@@ -577,17 +573,14 @@ func TestGetOperationsSuccess(t *testing.T) {
 }
 
 func TestGetOperationsNoServiceName(t *testing.T) {
-	ts := initializeTestServer()
-	defer ts.server.Close()
-
+	ts := initializeTestServer(t)
 	var response structuredResponse
 	err := getJSON(ts.server.URL+"/api/operations", &response)
 	require.Error(t, err)
 }
 
 func TestGetOperationsStorageFailure(t *testing.T) {
-	ts := initializeTestServer()
-	defer ts.server.Close()
+	ts := initializeTestServer(t)
 	ts.spanReader.On(
 		"GetOperations",
 		mock.AnythingOfType("*context.valueCtx"),
@@ -599,8 +592,7 @@ func TestGetOperationsStorageFailure(t *testing.T) {
 }
 
 func TestGetOperationsLegacySuccess(t *testing.T) {
-	ts := initializeTestServer()
-	defer ts.server.Close()
+	ts := initializeTestServer(t)
 	expectedOperationNames := []string{"", "get"}
 	expectedOperations := []spanstore.Operation{
 		{Name: ""},
@@ -621,8 +613,7 @@ func TestGetOperationsLegacySuccess(t *testing.T) {
 }
 
 func TestGetOperationsLegacyStorageFailure(t *testing.T) {
-	ts := initializeTestServer()
-	defer ts.server.Close()
+	ts := initializeTestServer(t)
 	ts.spanReader.On(
 		"GetOperations",
 		mock.AnythingOfType("*context.valueCtx"),
@@ -641,7 +632,7 @@ func TestTransformOTLPSuccess(t *testing.T) {
 		require.NoError(t, err)
 		return out
 	}
-	withTestServer(func(ts *testServer) {
+	withTestServer(t, func(ts *testServer) {
 		inFile, err := os.Open("./fixture/otlp2jaeger-in.json")
 		require.NoError(t, err)
 
@@ -661,7 +652,7 @@ func TestTransformOTLPSuccess(t *testing.T) {
 }
 
 func TestTransformOTLPReadError(t *testing.T) {
-	withTestServer(func(ts *testServer) {
+	withTestServer(t, func(ts *testServer) {
 		bytesReader := &IoReaderMock{}
 		bytesReader.On("Read", mock.AnythingOfType("[]uint8")).Return(0, errors.New("Mocked error"))
 		_, err := ts.server.Client().Post(ts.server.URL+"/api/transform", "application/json", bytesReader)
@@ -670,7 +661,7 @@ func TestTransformOTLPReadError(t *testing.T) {
 }
 
 func TestTransformOTLPBadPayload(t *testing.T) {
-	withTestServer(func(ts *testServer) {
+	withTestServer(t, func(ts *testServer) {
 		response := new(any)
 		request := "Bad Payload"
 		err := postJSON(ts.server.URL+"/api/transform", request, response)
@@ -683,8 +674,7 @@ func TestGetMetricsSuccess(t *testing.T) {
 	apiHandlerOptions := []HandlerOption{
 		HandlerOptions.MetricsQueryService(mr),
 	}
-	ts := initializeTestServer(apiHandlerOptions...)
-	defer ts.server.Close()
+	ts := initializeTestServer(t, apiHandlerOptions...)
 	expectedLabel := &metrics.Label{
 		Name:  "service_name",
 		Value: "emailservice",
@@ -766,11 +756,7 @@ func TestGetMetricsSuccess(t *testing.T) {
 
 func TestMetricsReaderError(t *testing.T) {
 	metricsReader := &metricsmocks.Reader{}
-	apiHandlerOptions := []HandlerOption{
-		HandlerOptions.MetricsQueryService(metricsReader),
-	}
-	ts := initializeTestServer(apiHandlerOptions...)
-	defer ts.server.Close()
+	ts := initializeTestServer(t, HandlerOptions.MetricsQueryService(metricsReader))
 
 	for _, tc := range []struct {
 		name                       string
@@ -818,10 +804,7 @@ func TestMetricsQueryDisabled(t *testing.T) {
 	disabledReader, err := disabled.NewMetricsReader()
 	require.NoError(t, err)
 
-	apiHandlerOptions := []HandlerOption{
-		HandlerOptions.MetricsQueryService(disabledReader),
-	}
-	ts := initializeTestServer(apiHandlerOptions...)
+	ts := initializeTestServer(t, HandlerOptions.MetricsQueryService(disabledReader))
 	defer ts.server.Close()
 
 	for _, tc := range []struct {
@@ -854,10 +837,7 @@ func TestMetricsQueryDisabled(t *testing.T) {
 
 func TestGetMinStep(t *testing.T) {
 	metricsReader := &metricsmocks.Reader{}
-	apiHandlerOptions := []HandlerOption{
-		HandlerOptions.MetricsQueryService(metricsReader),
-	}
-	ts := initializeTestServer(apiHandlerOptions...)
+	ts := initializeTestServer(t, HandlerOptions.MetricsQueryService(metricsReader))
 	defer ts.server.Close()
 	// Prepare
 	metricsReader.On(
@@ -946,10 +926,9 @@ func TestSearchTenancyHTTP(t *testing.T) {
 	tenancyOptions := tenancy.Options{
 		Enabled: true,
 	}
-	ts := initializeTestServerWithOptions(
+	ts := initializeTestServerWithOptions(t,
 		tenancy.NewManager(&tenancyOptions),
 		querysvc.QueryServiceOptions{})
-	defer ts.server.Close()
 	ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
 		Return(mockTrace, nil).Twice()
 
@@ -973,10 +952,7 @@ func TestSearchTenancyRejectionHTTP(t *testing.T) {
 	tenancyOptions := tenancy.Options{
 		Enabled: true,
 	}
-	ts := initializeTestServerWithOptions(
-		tenancy.NewManager(&tenancyOptions),
-		querysvc.QueryServiceOptions{})
-	defer ts.server.Close()
+	ts := initializeTestServerWithOptions(t, tenancy.NewManager(&tenancyOptions), querysvc.QueryServiceOptions{})
 	ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
 		Return(mockTrace, nil).Twice()
 
@@ -1002,10 +978,7 @@ func TestSearchTenancyFlowTenantHTTP(t *testing.T) {
 	tenancyOptions := tenancy.Options{
 		Enabled: true,
 	}
-	ts := initializeTestServerWithOptions(
-		tenancy.NewManager(&tenancyOptions),
-		querysvc.QueryServiceOptions{})
-	defer ts.server.Close()
+	ts := initializeTestServerWithOptions(t, tenancy.NewManager(&tenancyOptions), querysvc.QueryServiceOptions{})
 	ts.spanReader.On("GetTrace", mock.MatchedBy(func(v any) bool {
 		ctx, ok := v.(context.Context)
 		if !ok || tenancy.GetTenant(ctx) != "acme" {

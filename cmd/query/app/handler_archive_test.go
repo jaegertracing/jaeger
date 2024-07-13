@@ -48,7 +48,7 @@ func TestGetArchivedTrace_NotFound(t *testing.T) {
 	} {
 		tc := tc // capture loop var
 		t.Run(tc.name, func(t *testing.T) {
-			withTestServer(func(ts *testServer) {
+			withTestServer(t, func(ts *testServer) {
 				ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
 					Return(nil, spanstore.ErrTraceNotFound).Once()
 				var response structuredResponse
@@ -66,7 +66,7 @@ func TestGetArchivedTraceSuccess(t *testing.T) {
 	mockReader := &spanstoremocks.Reader{}
 	mockReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
 		Return(mockTrace, nil).Once()
-	withTestServer(func(ts *testServer) {
+	withTestServer(t, func(ts *testServer) {
 		// make main reader return NotFound
 		ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
 			Return(nil, spanstore.ErrTraceNotFound).Once()
@@ -81,7 +81,7 @@ func TestGetArchivedTraceSuccess(t *testing.T) {
 
 // Test failure in parsing trace ID.
 func TestArchiveTrace_BadTraceID(t *testing.T) {
-	withTestServer(func(ts *testServer) {
+	withTestServer(t, func(ts *testServer) {
 		var response structuredResponse
 		err := postJSON(ts.server.URL+"/api/archive/badtraceid", []string{}, &response)
 		require.Error(t, err)
@@ -95,7 +95,7 @@ func TestArchiveTrace_TraceNotFound(t *testing.T) {
 		Return(nil, spanstore.ErrTraceNotFound).Once()
 	mockWriter := &spanstoremocks.Writer{}
 	// Not actually going to write the trace, so no need to define mockWriter action
-	withTestServer(func(ts *testServer) {
+	withTestServer(t, func(ts *testServer) {
 		// make main reader return NotFound
 		ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
 			Return(nil, spanstore.ErrTraceNotFound).Once()
@@ -106,7 +106,7 @@ func TestArchiveTrace_TraceNotFound(t *testing.T) {
 }
 
 func TestArchiveTrace_NoStorage(t *testing.T) {
-	withTestServer(func(ts *testServer) {
+	withTestServer(t, func(ts *testServer) {
 		var response structuredResponse
 		err := postJSON(ts.server.URL+"/api/archive/"+mockTraceID.String(), []string{}, &response)
 		require.EqualError(t, err, `500 error from server: {"data":null,"total":0,"limit":0,"offset":0,"errors":[{"code":500,"msg":"archive span storage was not configured"}]}`+"\n")
@@ -117,7 +117,7 @@ func TestArchiveTrace_Success(t *testing.T) {
 	mockWriter := &spanstoremocks.Writer{}
 	mockWriter.On("WriteSpan", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("*model.Span")).
 		Return(nil).Times(2)
-	withTestServer(func(ts *testServer) {
+	withTestServer(t, func(ts *testServer) {
 		ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
 			Return(mockTrace, nil).Once()
 		var response structuredResponse
@@ -130,7 +130,7 @@ func TestArchiveTrace_WriteErrors(t *testing.T) {
 	mockWriter := &spanstoremocks.Writer{}
 	mockWriter.On("WriteSpan", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("*model.Span")).
 		Return(errors.New("cannot save")).Times(2)
-	withTestServer(func(ts *testServer) {
+	withTestServer(t, func(ts *testServer) {
 		ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
 			Return(mockTrace, nil).Once()
 		var response structuredResponse
