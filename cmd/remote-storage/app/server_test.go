@@ -54,7 +54,7 @@ func TestNewServer_CreateStorageErrors(t *testing.T) {
 	factory.On("CreateDependencyReader").Return(nil, nil)
 	telset := telemetery.Setting{
 		Logger:       zap.NewNop(),
-		ReportStatus: telemetery.HCAdapter(healthcheck.New()),
+		ReportStatus: func(*component.StatusEvent) {},
 	}
 	f := func() (*Server, error) {
 		return NewServer(
