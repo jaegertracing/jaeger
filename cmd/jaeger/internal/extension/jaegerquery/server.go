@@ -17,7 +17,6 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/jtracer"
 	"github.com/jaegertracing/jaeger/pkg/telemetery"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
-	"github.com/jaegertracing/jaeger/ports"
 	"github.com/jaegertracing/jaeger/storage/metricsstore"
 )
 
@@ -132,7 +131,7 @@ func (s *server) addArchiveStorage(opts *querysvc.QueryServiceOptions, host comp
 
 func (s *server) addMetricStorage(opts *querysvc.QueryServiceOptions, host component.Host) (metricsstore.Reader, error) {
 	if s.config.MetricStorage == "" {
-		s.logger.Info("Metric storage not configured")
+		s.telset.Logger.Info("Metric storage not configured")
 		return nil, nil
 	}
 
@@ -141,9 +140,9 @@ func (s *server) addMetricStorage(opts *querysvc.QueryServiceOptions, host compo
 		return nil, fmt.Errorf("cannot find metrics storage factory: %w", err)
 	}
 
-	metricsReader, ok := opts.InitMetricStorage(mf, s.logger)
+	metricsReader, ok := opts.InitMetricStorage(mf, s.telset.Logger)
 	if !ok {
-		s.logger.Info("Metric storage not initialized")
+		s.telset.Logger.Info("Metric storage not initialized")
 		return nil, nil
 	}
 	return metricsReader, nil
