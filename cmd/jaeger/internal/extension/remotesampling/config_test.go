@@ -104,15 +104,17 @@ func Test_Unmarshal(t *testing.T) {
 			expectedErr: "",
 		},
 		{
-			name:  "Empty config",
-			input: map[string]any{},
-			expectedCfg: &Config{
-				File:     nil,
-				Adaptive: nil,
-				HTTP:     nil,
-				GRPC:     nil,
-			},
+			name:        "Empty config",
+			input:       map[string]any{},
+			expectedCfg: &Config{},
 			expectedErr: "",
+		},
+		{
+			name: "Invalid config",
+			input: map[string]any{
+				"foo": "bar",
+			},
+			expectedErr: "invalid keys: foo", // sensitive to lib implementation
 		},
 	}
 
@@ -125,7 +127,7 @@ func Test_Unmarshal(t *testing.T) {
 				require.NoError(t, err)
 				assert.Equal(t, tt.expectedCfg, &cfg)
 			} else {
-				assert.EqualError(t, err, tt.expectedErr)
+				assert.ErrorContains(t, err, tt.expectedErr)
 			}
 		})
 	}
