@@ -7,12 +7,13 @@ import (
 	"context"
 	"testing"
 
-	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/remotesampling"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componenttest"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
+
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/remotesampling"
 )
 
 type storageHost struct {
