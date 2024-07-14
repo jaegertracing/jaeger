@@ -2,17 +2,53 @@
 
 set -euxf -o pipefail
 
-make build-examples GOOS=linux GOARCH=amd64
-make build-examples GOOS=linux GOARCH=s390x
-make build-examples GOOS=linux GOARCH=ppc64le
-make build-examples GOOS=linux GOARCH=arm64
+print_help() {
+  echo "Usage: $0 [-b binary] [-D] [-l] [-p platforms]"
+  echo "-b: Which binary to build (default: 'example-hotrod')"
+  echo "-D: Disable building of images with debugger"
+  echo "-h: Print help"
+  echo "-l: Enable local-only mode that only pushes images to local registry"
+  echo "-p: Comma-separated list of platforms to build for (default: all supported)"
+  exit 1
+}
 
-REPO=jaegertracing/example-hotrod
+add_debugger='Y'
 platforms="linux/amd64,linux/s390x,linux/ppc64le,linux/arm64"
+LOCAL_FLAG=''
+BINARY='example-hotrod'
+
+while getopts "b:Dhlp:" opt; do
+  case "${opt}" in
+    b)
+      BINARY=${OPTARG}
+      ;;
+    D)
+      add_debugger='N'
+      ;;
+    l)
+      LOCAL_FLAG='-l'
+      ;;
+    p)
+      platforms=${OPTARG}
+      ;;
+    ?)
+      print_help
+      ;;
+  esac
+done
+
+set -x
+
+REPO=jaegertracing/${BINARY}
 make prepare-docker-buildx
 
-# build image locally (-l) for integration test
-bash scripts/build-upload-a-docker-image.sh -l -c example-hotrod -d examples/hotrod -p "${platforms}"
+for platform in $(echo "$platforms" | tr ',' ' '); do
+  arch=${platform##*/}
+  make build-examples GOOS=linux GOARCH="${arch}"
+done
+
+# build image locally for integration test (the -l switch)
+bash scripts/build-upload-a-docker-image.sh -l -c "${BINARY}" -d examples/hotrod -p "${platforms}"
 
 # pass --name example-hotrod so that we can do `docker logs example-hotrod` later
 export CID
@@ -30,4 +66,18 @@ if [[ $body != *"Rides On Demand"* ]]; then
 fi
 docker rm -f "$CID"
 
-bash scripts/build-upload-a-docker-image.sh -c example-hotrod -d examples/hotrod -p "${platforms}"
+# build and upload image to dockerhub/quay.io
+bash scripts/build-upload-a-docker-image.sh ${LOCAL_FLAG} -c "${BINARY}" -d examples/hotrod -p "${platforms}"
+
+# build debug image if requested
+if [[ "${add_debugger}" == "Y" ]]; then
+  make build-examples GOOS=linux GOARCH="${GOARCH}" DEBUG_BINARY=1
+  repo="${REPO}-debug"
+
+  # build locally for integration test (the -l switch)
+  bash scripts/build-upload-a-docker-image.sh -l -c "${BINARY}-debug" -d examples/hotrod -t debug
+  run_integration_test "localhost:5000/$repo"
+
+  # build & upload official image
+  bash scripts/build-upload-a-docker-image.sh ${LOCAL_FLAG} -c "${BINARY}-debug" -d examples/hotrod -t debug
+fi

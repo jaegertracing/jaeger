@@ -18,6 +18,12 @@ permissions:
 jobs:
   hotrod:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        mode:
+        - name: default
+          skip_sampling: false
+
     steps:
     - name: Harden Runner
       uses: step-security/harden-runner@17d0e2bd7d51742c71671bd19fa12bdc9d40a3d6 # v2.8.1
@@ -44,8 +50,19 @@ jobs:
 
     - uses: docker/setup-qemu-action@5927c834f5b4fdf503fca6f4c7eccda82949e1ee # v3.1.0
 
+    - name: Define BUILD_FLAGS var if running on a Pull Request
+      run: |
+        case ${GITHUB_EVENT_NAME} in
+          pull_request)
+            echo "BUILD_FLAGS=-l -D -p linux/amd64" >> ${GITHUB_ENV}
+            ;;
+          *)
+            echo "BUILD_FLAGS=" >> ${GITHUB_ENV}
+            ;;
+        esac
+
     - name: Build, test, and publish hotrod image
-      run: bash scripts/hotrod-integration-test.sh
+      run: bash scripts/hotrod-integration-test.sh ${{ env.BUILD_FLAGS }}
       env:
         DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
