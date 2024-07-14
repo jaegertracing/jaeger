@@ -83,6 +83,14 @@ type ArchiveFactory interface {
 	CreateArchiveSpanWriter() (spanstore.Writer, error)
 }
 
+var (
+	// ErrMetricStorageNotConfigured can be returned by the MetricsFactory when the metric storage is not configured.
+	ErrMetricStorageNotConfigured = errors.New("Metric storage not configured")
+
+	// ErrMetricStorageNotSupported can be returned by the MetricsFactory when the metric storage is not supported by the backend.
+	ErrMetricStorageNotSupported = errors.New("Metric storage not supported")
+)
+
 // MetricsFactory defines an interface for a factory that can create implementations of different metrics storage components.
 // Implementations are also encouraged to implement plugin.Configurable interface.
 //
@@ -92,7 +100,7 @@ type ArchiveFactory interface {
 type MetricsFactory interface {
 	// Initialize performs internal initialization of the factory, such as opening connections to the backend store.
 	// It is called after all configuration of the factory itself has been done.
-	Initialize(logger *zap.Logger) error
+	InitializeMetricsFactory(logger *zap.Logger) error // Tests will fail as MetricsFactory and Factory Interface require Initialize but with different param's
 
 	// CreateMetricsReader creates a metricsstore.Reader.
 	CreateMetricsReader() (metricsstore.Reader, error)

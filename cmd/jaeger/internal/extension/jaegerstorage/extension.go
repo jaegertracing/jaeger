@@ -29,6 +29,7 @@ var _ Extension = (*storageExt)(nil)
 type Extension interface {
 	extension.Extension
 	Factory(name string) (storage.Factory, bool)
+	MetricsFactory(name string) (storage.MetricsFactory, bool)
 }
 
 type storageExt struct {
@@ -61,6 +62,31 @@ func GetStorageFactory(name string, host component.Host) (storage.Factory, error
 		)
 	}
 	return f, nil
+}
+
+// GetMetricsFactory locates the extension in Host and retrieves a metrics factory from it with the given name.
+func GetMetricsFactory(name string, host component.Host) (storage.MetricsFactory, error) {
+	var comp component.Component
+	for id, ext := range host.GetExtensions() {
+		if id.Type() == componentType {
+			comp = ext
+			break
+		}
+	}
+	if comp == nil {
+		return nil, fmt.Errorf(
+			"cannot find extension '%s' (make sure it's defined earlier in the config)",
+			componentType,
+		)
+	}
+	mf, ok := comp.(Extension).MetricsFactory(name)
+	if !ok {
+		return nil, fmt.Errorf(
+			"cannot find metric storage '%s' declared by '%s' extension",
+			name, componentType,
+		)
+	}
+	return mf, nil
 }
 
 func GetStorageFactoryV2(name string, host component.Host) (spanstore.Factory, error) {
@@ -140,4 +166,9 @@ func (s *storageExt) Shutdown(context.Context) error {
 func (s *storageExt) Factory(name string) (storage.Factory, bool) {
 	f, ok := s.factories[name]
 	return f, ok
+}
+
+func (s *storageExt) MetricsFactory(name string) (storage.MetricsFactory, bool) {
+	mf, ok := s.metricsFactories[name]
+	return mf, ok
 }

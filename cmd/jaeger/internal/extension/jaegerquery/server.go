@@ -18,8 +18,8 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	"github.com/jaegertracing/jaeger/pkg/jtracer"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
-	"github.com/jaegertracing/jaeger/plugin/metrics/disabled"
 	"github.com/jaegertracing/jaeger/ports"
+	"github.com/jaegertracing/jaeger/storage/metricsstore"
 )
 
 var (
@@ -69,7 +69,14 @@ func (s *server) Start(_ context.Context, host component.Host) error {
 		return err
 	}
 	qs := querysvc.NewQueryService(spanReader, depReader, opts)
-	metricsQueryService, _ := disabled.NewMetricsReader()
+
+	var mqs querysvc.MetricsQueryService
+	mqs, err = s.addMetricStorage(&opts, host)
+	if err != nil {
+		return err
+	}
+
+	// metricsQueryService, _ := disabled.NewMetricsReader()
 	tm := tenancy.NewManager(&s.config.Tenancy)
 
 	// TODO OTel-collector does not initialize the tracer currently
@@ -87,7 +94,7 @@ func (s *server) Start(_ context.Context, host component.Host) error {
 		// TODO propagate healthcheck updates up to the collector's runtime
 		healthcheck.New(),
 		qs,
-		metricsQueryService,
+		mqs,
 		s.makeQueryOptions(),
 		tm,
 		s.jtracer,
@@ -118,6 +125,25 @@ func (s *server) addArchiveStorage(opts *querysvc.QueryServiceOptions, host comp
 		s.logger.Info("Archive storage not initialized")
 	}
 	return nil
+}
+
+func (s *server) addMetricStorage(opts *querysvc.QueryServiceOptions, host component.Host) (metricsstore.Reader, error) {
+	if s.config.MetricStorage == "" {
+		s.logger.Info("Metric storage not configured")
+		return nil, nil
+	}
+
+	mf, err := jaegerstorage.GetMetricsFactory(s.config.MetricStorage, host)
+	if err != nil {
+		return nil, fmt.Errorf("cannot find metrics storage factory: %w", err)
+	}
+
+	metricsReader, ok := opts.InitMetricStorage(mf, s.logger)
+	if !ok {
+		s.logger.Info("Metric storage not initialized")
+		return nil, nil
+	}
+	return metricsReader, nil
 }
 
 func (s *server) makeQueryOptions() *queryApp.QueryOptions {

@@ -29,8 +29,9 @@ import (
 var _ jaegerstorage.Extension = (*mockStorageExt)(nil)
 
 type mockStorageExt struct {
-	name    string
-	factory *factoryMocks.Factory
+	name           string
+	factory        *factoryMocks.Factory
+	metricsFactory *factoryMocks.MetricsFactory
 }
 
 func (*mockStorageExt) Start(context.Context, component.Host) error {
@@ -44,6 +45,13 @@ func (*mockStorageExt) Shutdown(context.Context) error {
 func (m *mockStorageExt) Factory(name string) (storage.Factory, bool) {
 	if m.name == name {
 		return m.factory, true
+	}
+	return nil, false
+}
+
+func (m *mockStorageExt) MetricsFactory(name string) (storage.MetricsFactory, bool) {
+	if m.name == name {
+		return m.metricsFactory, true
 	}
 	return nil, false
 }

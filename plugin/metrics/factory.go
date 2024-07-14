@@ -74,9 +74,9 @@ func (*Factory) getFactoryOfType(factoryType string) (storage.MetricsFactory, er
 }
 
 // Initialize implements storage.MetricsFactory.
-func (f *Factory) Initialize(logger *zap.Logger) error {
+func (f *Factory) InitializeMetricsFactory(logger *zap.Logger) error {
 	for _, factory := range f.factories {
-		factory.Initialize(logger)
+		factory.InitializeMetricsFactory(logger)
 	}
 	return nil
 }

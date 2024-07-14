@@ -58,7 +58,7 @@ func (f *Factory) InitFromViper(v *viper.Viper, logger *zap.Logger) {
 }
 
 // Initialize implements storage.MetricsFactory.
-func (f *Factory) Initialize(logger *zap.Logger) error {
+func (f *Factory) InitializeMetricsFactory(logger *zap.Logger) error {
 	f.logger = logger
 	return nil
 }
@@ -80,7 +80,7 @@ func NewFactoryWithConfig(
 	f.options = &Options{
 		Configuration: cfg,
 	}
-	err := f.Initialize(logger)
+	err := f.InitializeMetricsFactory(logger)
 	if err != nil {
 		return nil, err
 	}

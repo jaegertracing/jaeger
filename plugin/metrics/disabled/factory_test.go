@@ -28,9 +28,9 @@ var _ storage.MetricsFactory = new(Factory)
 
 func TestPrometheusFactory(t *testing.T) {
 	f := NewFactory()
-	require.NoError(t, f.Initialize(zap.NewNop()))
+	require.NoError(t, f.InitializeMetricsFactory(zap.NewNop()))
 
-	err := f.Initialize(nil)
+	err := f.InitializeMetricsFactory(nil)
 	require.NoError(t, err)
 
 	f.AddFlags(nil)

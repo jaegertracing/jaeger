@@ -296,7 +296,7 @@ func createMetricsQueryService(
 	logger *zap.Logger,
 	metricsReaderMetricsFactory metrics.Factory,
 ) (querysvc.MetricsQueryService, error) {
-	if err := metricsReaderFactory.Initialize(logger); err != nil {
+	if err := metricsReaderFactory.InitializeMetricsFactory(logger); err != nil {
 		return nil, fmt.Errorf("failed to init metrics reader factory: %w", err)
 	}
 

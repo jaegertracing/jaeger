@@ -22,6 +22,8 @@ import (
 	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	depsmocks "github.com/jaegertracing/jaeger/storage/dependencystore/mocks"
+	"github.com/jaegertracing/jaeger/storage/metricsstore"
+	metricsstoremocks "github.com/jaegertracing/jaeger/storage/metricsstore/mocks"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	spanstoremocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
 )
@@ -51,7 +53,21 @@ func (ff fakeFactory) CreateSpanWriter() (spanstore.Writer, error) {
 	return &spanstoremocks.Writer{}, nil
 }
 
+func (ff fakeFactory) CreateMetricsReader() (metricsstore.Reader, error) {
+	if ff.name == "need-span-writer-error" {
+		return nil, fmt.Errorf("test-error")
+	}
+	return &metricsstoremocks.Reader{}, nil
+}
+
 func (ff fakeFactory) Initialize(metrics.Factory, *zap.Logger) error {
+	if ff.name == "need-initialize-error" {
+		return fmt.Errorf("test-error")
+	}
+	return nil
+}
+
+func (ff fakeFactory) InitializeMetricsFactory(*zap.Logger) error {
 	if ff.name == "need-initialize-error" {
 		return fmt.Errorf("test-error")
 	}
@@ -63,6 +79,13 @@ type fakeStorageExt struct{}
 var _ jaegerstorage.Extension = (*fakeStorageExt)(nil)
 
 func (fakeStorageExt) Factory(name string) (storage.Factory, bool) {
+	if name == "need-factory-error" {
+		return nil, false
+	}
+	return fakeFactory{name: name}, true
+}
+
+func (fakeStorageExt) MetricsFactory(name string) (storage.MetricsFactory, bool) {
 	if name == "need-factory-error" {
 		return nil, false
 	}

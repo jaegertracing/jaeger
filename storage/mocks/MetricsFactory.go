@@ -50,7 +50,7 @@ func (_m *MetricsFactory) CreateMetricsReader() (metricsstore.Reader, error) {
 }
 
 // Initialize provides a mock function with given fields: logger
-func (_m *MetricsFactory) Initialize(logger *zap.Logger) error {
+func (_m *MetricsFactory) InitializeMetricsFactory(logger *zap.Logger) error {
 	ret := _m.Called(logger)
 
 	if len(ret) == 0 {

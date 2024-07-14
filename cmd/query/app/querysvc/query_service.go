@@ -25,6 +25,7 @@ import (
 	"github.com/jaegertracing/jaeger/model/adjuster"
 	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
+	"github.com/jaegertracing/jaeger/storage/metricsstore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
@@ -38,12 +39,14 @@ const (
 type QueryServiceOptions struct {
 	ArchiveSpanReader spanstore.Reader
 	ArchiveSpanWriter spanstore.Writer
+	MetricsReader     metricsstore.Reader
 	Adjuster          adjuster.Adjuster
 }
 
 // StorageCapabilities is a feature flag for query service
 type StorageCapabilities struct {
 	ArchiveStorage bool `json:"archiveStorage"`
+	// TODO: Maybe add metrics Storage here
 	// SupportRegex     bool
 	// SupportTagFilter bool
 }
@@ -164,6 +167,26 @@ func (opts *QueryServiceOptions) InitArchiveStorage(storageFactory storage.Facto
 	opts.ArchiveSpanReader = reader
 	opts.ArchiveSpanWriter = writer
 	return true
+}
+
+// InitMetricStorage tries to initialize metric storage reader if storage factory supports them.
+func (opts *QueryServiceOptions) InitMetricStorage(metricsFactory storage.MetricsFactory, logger *zap.Logger) (metricsstore.Reader, bool) {
+	// metricsFactory = metricsFactory.(storage.MetricsFactory)
+	// if !ok {
+	// 	logger.Info("Metric storage not supported by the factory")
+	// 	return false
+	// }
+	reader, err := metricsFactory.CreateMetricsReader()
+	if errors.Is(err, storage.ErrMetricStorageNotConfigured) || errors.Is(err, storage.ErrMetricStorageNotSupported) {
+		logger.Info("Metric storage not created", zap.String("reason", err.Error()))
+		return nil, false
+	}
+	if err != nil {
+		logger.Error("Cannot init metric storage reader", zap.Error(err))
+		return nil, false
+	}
+	opts.MetricsReader = reader
+	return reader, true
 }
 
 // hasArchiveStorage returns true if archive storage reader/writer are initialized.
