@@ -43,6 +43,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/jtracer"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/pkg/telemetery"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/pkg/version"
 	metricsPlugin "github.com/jaegertracing/jaeger/plugin/metrics"
@@ -193,12 +194,17 @@ by default uses only in-memory database.`,
 				logger.Fatal("Could not create collector proxy", zap.Error(err))
 			}
 			agent := startAgent(cp, aOpts, logger, agentMetricsFactory)
-
+			telset := telemetery.Setting{
+				Logger:         svc.Logger,
+				TracerProvider: tracer.OTEL,
+				Metrics:        queryMetricsFactory,
+				ReportStatus:   telemetery.HCAdapter(svc.HC()),
+			}
 			// query
 			querySrv := startQuery(
 				svc, qOpts, qOpts.BuildQueryServiceOptions(storageFactory, logger),
 				spanReader, dependencyReader, metricsQueryService,
-				queryMetricsFactory, tm, tracer,
+				tm, telset,
 			)
 
 			svc.RunAndThen(func() {
@@ -273,13 +279,13 @@ func startQuery(
 	spanReader spanstore.Reader,
 	depReader dependencystore.Reader,
 	metricsQueryService querysvc.MetricsQueryService,
-	metricsFactory metrics.Factory,
 	tm *tenancy.Manager,
-	jt *jtracer.JTracer,
+	telset telemetery.Setting,
 ) *queryApp.Server {
-	spanReader = storageMetrics.NewReadMetricsDecorator(spanReader, metricsFactory)
+	spanReader = storageMetrics.NewReadMetricsDecorator(spanReader, telset.Metrics)
 	qs := querysvc.NewQueryService(spanReader, depReader, *queryOpts)
-	server, err := queryApp.NewServer(svc.Logger, svc.HC(), qs, metricsQueryService, qOpts, tm, jt)
+
+	server, err := queryApp.NewServer(qs, metricsQueryService, qOpts, tm, telset)
 	if err != nil {
 		svc.Logger.Fatal("Could not create jaeger-query", zap.Error(err))
 	}

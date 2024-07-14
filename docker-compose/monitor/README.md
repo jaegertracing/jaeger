@@ -24,6 +24,45 @@ The following diagram illustrates the relationship between these components:
 
 ![SPM diagram](./diagram.png)
 
+```mermaid
+flowchart LR
+    SDK -->|traces| Receiver
+    Receiver --> MG
+    Receiver --> Batch
+    MG --> ExpMetrics
+    Batch --> ExpTraces
+    ExpMetrics -->|metrics| Prometheus[(Prometheus)]
+    ExpTraces -->|traces| Jaeger[Jaeger
+     Collector]
+    Prometheus -.-> JaegerUI
+    Jaeger --> Storage[(Storage)]
+    Storage -.-> JaegerUI[Jaeger
+     Query
+     and UI]
+
+    style Prometheus fill:red,color:white
+    style Jaeger fill:blue,color:white
+    style JaegerUI fill:blue,color:white
+    style Storage fill:gray,color:white
+
+    subgraph Application
+        SDK[OTel
+         SDK]
+    end
+
+    subgraph OTEL[OTel Collector]
+        Receiver
+        Batch
+        MG[Span
+         Metrics
+         Connector]
+        ExpTraces[Traces
+         Exporter]
+        ExpMetrics[Metrics
+         Exporter]
+    end
+```
+
 # Getting Started
 
 ## Quickstart
@@ -160,7 +199,7 @@ quantile = 'quantile=' floatValue
   - The quantile to compute the latency 'P' value. Valid range (0,1].
   - Mandatory for 'latencies' type.
 
-groupByOperation = 'groupByOperation=' boolValue 
+groupByOperation = 'groupByOperation=' boolValue
 boolValue = '1' | 't' | 'T' | 'true' | 'TRUE' | 'True' | 0 | 'f' | 'F' | 'false' | 'FALSE' | 'False'
   - A boolean value which will determine if the metrics query will also group by operation.
   - Optional with default: false

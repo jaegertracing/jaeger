@@ -8,6 +8,7 @@ services:
     image: jaegertracing/all-in-one:${JAEGER_VERSION:-latest}
     ports:
       - "16686:16686"
+      - "4317:4317"
       - "4318:4318"
     environment:
       - LOG_LEVEL=debug

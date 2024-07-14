@@ -27,7 +27,6 @@ import (
 // ReflectionServiceValidator verifies that a gRPC service at a given address
 // supports reflection service. Called must invoke Execute func.
 type ReflectionServiceValidator struct {
-	Server           *grpc.Server
 	HostPort         string
 	ExpectedServices []string
 }

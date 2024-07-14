@@ -37,6 +37,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/jtracer"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/pkg/telemetery"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/pkg/version"
 	metricsPlugin "github.com/jaegertracing/jaeger/plugin/metrics"
@@ -113,7 +114,12 @@ func main() {
 				dependencyReader,
 				*queryServiceOptions)
 			tm := tenancy.NewManager(&queryOpts.Tenancy)
-			server, err := app.NewServer(svc.Logger, svc.HC(), queryService, metricsQueryService, queryOpts, tm, jt)
+			telset := telemetery.Setting{
+				Logger:         logger,
+				TracerProvider: jt.OTEL,
+				ReportStatus:   telemetery.HCAdapter(svc.HC()),
+			}
+			server, err := app.NewServer(queryService, metricsQueryService, queryOpts, tm, telset)
 			if err != nil {
 				logger.Fatal("Failed to create server", zap.Error(err))
 			}
