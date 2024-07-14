@@ -75,14 +75,14 @@ func Test_Validate(t *testing.T) {
 func Test_Unmarshal(t *testing.T) {
 	tests := []struct {
 		name        string
-		input       map[string]interface{}
+		input       map[string]any
 		expectedCfg *Config
 		expectedErr string
 	}{
 		{
 			name: "Valid config with File",
-			input: map[string]interface{}{
-				"file": map[string]interface{}{
+			input: map[string]any{
+				"file": map[string]any{
 					"path": "test-path",
 				},
 			},
@@ -93,8 +93,8 @@ func Test_Unmarshal(t *testing.T) {
 		},
 		{
 			name: "Valid config with Adaptive",
-			input: map[string]interface{}{
-				"adaptive": map[string]interface{}{
+			input: map[string]any{
+				"adaptive": map[string]any{
 					"sampling_store": "test-store",
 				},
 			},
@@ -105,7 +105,7 @@ func Test_Unmarshal(t *testing.T) {
 		},
 		{
 			name:  "Empty config",
-			input: map[string]interface{}{},
+			input: map[string]any{},
 			expectedCfg: &Config{
 				File:     nil,
 				Adaptive: nil,

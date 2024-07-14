@@ -13,6 +13,6 @@ type Config struct {
 	// all configuration for the processor is in the remotesampling extension
 }
 
-func (cfg *Config) Validate() error {
+func (*Config) Validate() error {
 	return nil
 }
