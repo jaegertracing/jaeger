@@ -2,69 +2,92 @@
 
 set -euf -o pipefail
 
-# Function to start Jaeger with adaptive sampling
 start_jaeger() {
   echo "Starting Jaeger with adaptive sampling..."
-  SAMPLING_STORAGE_TYPE=memory SAMPLING_CONFIG_TYPE=adaptive go run -tags=ui ../cmd/all-in-one --log-level=debug
+  SAMPLING_STORAGE_TYPE=memory SAMPLING_CONFIG_TYPE=adaptive go run -tags=ui ../cmd/all-in-one --log-level=debug &
 
   # Wait for Jaeger to start (adjust sleep duration as needed)
   until curl -s 'http://localhost:16686' > /dev/null; do
     echo "waiting for Jaeger to start"
     sleep 2
   done
-  echo "Jeager started"
+  echo "Jaeger started"
 }
 
-# Function to run trace generator with adaptive sampling
-run_trace_generator() {
-  echo "Running trace generator with adaptive sampling..."
-  go run ./cmd/tracegen -adaptive-sampling=http://localhost:14268/api/sampling -pause=10ms -duration=60m
+set_initial_sampling_rate() {
+  local service_name="$1"
+  local initial_rate="$2"
 
-  # Wait for trace generation to complete (adjust duration as needed)
-  until curl -s 'http://localhost:14268' >dev/null; do
+  echo "Setting initial sampling rate for service $service_name to $initial_rate..."
+  curl -X POST 'http://localhost:14268/api/sampling' \
+    -H 'Content-Type: application/json' \
+    -d '{
+          "service": "'"$service_name"'",
+          "operation": "default",
+          "type": "probabilistic",
+          "param": '"$initial_rate"'
+        }'
+
+  echo "Initial sampling rate set."
+}
+
+start_trace_generator() {
+  echo "Running trace generator with adaptive sampling..."
+  go run ../cmd/tracegen -adaptive-sampling=http://localhost:14268/api/sampling -pause=10ms -duration=60m &
+  tracegen_pid=$!
+
+  # Wait for trace generator to start
+  until curl -s 'http://localhost:14268' > /dev/null; do
     echo "waiting for trace generator to start.."
     sleep 2
   done 
   echo "Trace generator started."
 }
 
-# Function to check adaptive sampling strategy changes
+
 check_sampling_strategy() {
   echo "Initial adaptive sampling strategy:"
   initial_strategy=$(curl -s 'http://localhost:14268/api/sampling?service=tracegen')
-  echo "Initial adaptive sampling stratergy:"
-  echo "$initial_strategy" | jq.
-  
-  # Wait for some time to allow for adaptive sampling adjustments (adjust sleep duration as needed)
-  adjustment_duration=30
-  echo "Waiting for $adjustment_duration seconds to allow for adaptive sampling adjustments..."
-  sleep $adjustment_duration
+  echo "$initial_strategy" | jq .
 
-  echo "Fetching updated adaptive sampling strategy..."
-  updated_strategy=$(curl -s 'http://localhost:14268/api/sampling?service=tracegen')
-  echo "Updated adaptive sampling strategy:"
-  echo "$updated_strategy" | jq .
+  echo "Monitoring adaptive sampling adjustments..."
+  max_checks=60  # Maximum number of checks before timing out
+  check_interval=5  # Time in seconds between checks
 
-  initial_prob=$(echo "$initial_strategy" | jq -r '.probabilities[0].probability')
-  updated_prob=$(echo "$updated_strategy" | jq -r '.probabilities[0].probability')
+  for ((i=1; i<=max_checks; i++)); do
+    echo "Check $i of $max_checks..."
 
-  echo "Initial probability: $initial_prob"
-  echo "Updated probability: $updated_prob"
+    updated_strategy=$(curl -s 'http://localhost:14268/api/sampling?service=tracegen')
+    echo "Updated adaptive sampling strategy:"
+    echo "$updated_strategy" | jq .
 
-  if (( $(echo "$updated_prob < $initial_prob" | bc -l) )); then
-    echo "Adaptive sampling is working: probability decreased from $initial_prob to $updated_prob"
-  else
-    echo "Adaptive sampling is not working as expected: probability did not decrease"
-    exit 1
-  fi
+    initial_prob=$(echo "$initial_strategy" | jq -r '.probabilities[0].probability')
+    updated_prob=$(echo "$updated_strategy" | jq -r '.probabilities[0].probability')
+
+    echo "Initial probability: $initial_prob"
+    echo "Updated probability: $updated_prob"
+
+    if (( $(echo "$updated_prob < $initial_prob" | bc -l) )); then
+      echo "Adaptive sampling is working: probability decreased from $initial_prob to $updated_prob"
+      return 0
+    else
+      echo "Adaptive sampling adjustment not yet observed, sleeping for $check_interval seconds..."
+      sleep $check_interval
+    fi
+  done
+
+  echo "Adaptive sampling is not working as expected: probability did not decrease after $((max_checks * check_interval)) seconds"
+  exit 1
 }
 
-# Main function to execute test cases
 main() {
+  local service_name="tracegen"
+  local initial_rate=0.5  # Set your initial sampling rate here
+
   start_jaeger
-  run_trace_generator
+  set_initial_sampling_rate "$service_name" "$initial_rate"
+  start_trace_generator
   check_sampling_strategy
 }
 
-# Execute main function
 main
