@@ -21,6 +21,7 @@ var (
 )
 
 var (
+	_ component.Config          = (*Config)(nil)
 	_ component.ConfigValidator = (*Config)(nil)
 	_ confmap.Unmarshaler       = (*Config)(nil)
 )
