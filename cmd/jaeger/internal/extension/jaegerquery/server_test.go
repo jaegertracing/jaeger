@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/storage/storagetest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
@@ -80,27 +81,6 @@ func (fakeStorageExt) Shutdown(context.Context) error {
 	return nil
 }
 
-type storageHost struct {
-	extension component.Component
-}
-
-func (storageHost) ReportFatalError(error) {
-}
-
-func (host storageHost) GetExtensions() map[component.ID]component.Component {
-	return map[component.ID]component.Component{
-		jaegerstorage.ID: host.extension,
-	}
-}
-
-func (storageHost) GetFactory(_ component.Kind, _ component.Type) component.Factory {
-	return nil
-}
-
-func (storageHost) GetExporters() map[component.DataType]map[component.ID]component.Component {
-	return nil
-}
-
 func TestServerDependencies(t *testing.T) {
 	expectedDependencies := []component.ID{jaegerstorage.ID}
 	telemetrySettings := component.TelemetrySettings{
@@ -114,9 +94,7 @@ func TestServerDependencies(t *testing.T) {
 }
 
 func TestServerStart(t *testing.T) {
-	host := storageHost{
-		extension: fakeStorageExt{},
-	}
+	host := storagetest.NewStorageHost().WithExtension(jaegerstorage.ID, fakeStorageExt{})
 	tests := []struct {
 		name        string
 		config      *Config
@@ -251,7 +229,7 @@ func TestServerAddArchiveStorage(t *testing.T) {
 			}
 			server := newServer(tt.config, telemetrySettings)
 			if tt.extension != nil {
-				host = storageHost{extension: tt.extension}
+				host = storagetest.NewStorageHost().WithExtension(jaegerstorage.ID, tt.extension)
 			}
 			err := server.addArchiveStorage(tt.qSvcOpts, host)
 			if tt.expectedErr == "" {
