@@ -15,7 +15,7 @@ services:
       - jaeger-example
 
   hotrod:
-    image: ${HOTROD_IMAGE:-jaegertracing/example-hotrod}:${GITHUB_SHA:-${JAEGER_VERSION:-latest}}
+    image: ${REGISTRY:-}jaegertracing/example-hotrod:${JAEGER_VERSION:-latest}
     ports:
       - "8080:8080"
       - "8083:8083"
