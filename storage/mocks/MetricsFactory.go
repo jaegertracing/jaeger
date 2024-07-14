@@ -49,12 +49,12 @@ func (_m *MetricsFactory) CreateMetricsReader() (metricsstore.Reader, error) {
 	return r0, r1
 }
 
-// Initialize provides a mock function with given fields: logger
+// InitializeMetricsFactory provides a mock function with given fields: logger
 func (_m *MetricsFactory) InitializeMetricsFactory(logger *zap.Logger) error {
 	ret := _m.Called(logger)
 
 	if len(ret) == 0 {
-		panic("no return value specified for Initialize")
+		panic("no return value specified for InitializeMetricsFactory")
 	}
 
 	var r0 error
