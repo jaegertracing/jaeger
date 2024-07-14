@@ -10,37 +10,38 @@ import (
 	otlp2jaeger "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/pdata/ptrace"
-	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/samplingstrategy"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/remotesampling"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/internal/metrics/otelmetrics"
 	"github.com/jaegertracing/jaeger/plugin/sampling/strategyprovider/adaptive"
 )
 
 type traceProcessor struct {
 	config     *Config
-	logger     *zap.Logger
 	aggregator samplingstrategy.Aggregator
+	telset     component.TelemetrySettings
 }
 
-func newTraceProcessor(cfg Config, otel component.TelemetrySettings) *traceProcessor {
+func newTraceProcessor(cfg Config, telset component.TelemetrySettings) *traceProcessor {
 	return &traceProcessor{
 		config: &cfg,
-		logger: otel.Logger,
+		telset: telset,
 	}
 }
 
 func (tp *traceProcessor) start(_ context.Context, host component.Host) error {
 	parts, err := remotesampling.GetAdaptiveSamplingComponents(host)
 	if err != nil {
-		return fmt.Errorf("cannot start the '%s' processor: %w", componentType, err)
+		return fmt.Errorf(
+			"cannot load adaptive sampling components from `%s` extension: %w",
+			remotesampling.ComponentType, err)
 	}
 
 	agg, err := adaptive.NewAggregator(
 		*parts.Options,
-		tp.logger,
-		metrics.NullFactory,
+		tp.telset.Logger,
+		otelmetrics.NewFactory(tp.telset.MeterProvider),
 		parts.DistLock,
 		parts.SamplingStore,
 	)
@@ -57,7 +58,7 @@ func (tp *traceProcessor) start(_ context.Context, host component.Host) error {
 func (tp *traceProcessor) close(context.Context) error {
 	if tp.aggregator != nil {
 		if err := tp.aggregator.Close(); err != nil {
-			return fmt.Errorf("failed to stop the adpative sampling aggregator : %w", err)
+			return fmt.Errorf("failed to stop the adaptive sampling aggregator : %w", err)
 		}
 	}
 	return nil
@@ -74,7 +75,7 @@ func (tp *traceProcessor) processTraces(_ context.Context, td ptrace.Traces) (pt
 			if span.Process == nil {
 				span.Process = batch.Process
 			}
-			adaptive.RecordThroughput(tp.aggregator, span, tp.logger)
+			adaptive.RecordThroughput(tp.aggregator, span, tp.telset.Logger)
 		}
 	}
 	return td, nil

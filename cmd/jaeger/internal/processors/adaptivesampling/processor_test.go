@@ -5,6 +5,7 @@ package adaptivesampling
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/storage/storagetest"
@@ -19,6 +20,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/remotesampling"
+	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/plugin/sampling/strategyprovider/adaptive"
 	"github.com/jaegertracing/jaeger/plugin/storage/memory"
 )
@@ -106,21 +108,26 @@ func TestNewTraceProcessor(t *testing.T) {
 
 func TestTraceProcessor(t *testing.T) {
 	telemetrySettings := component.TelemetrySettings{
-		Logger: zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller())),
+		Logger:        zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller())),
+		MeterProvider: noopmetric.NewMeterProvider(),
 	}
-	config, ok := createDefaultConfig().(*Config)
-	require.True(t, ok)
+	config := createDefaultConfig().(*Config)
 	traceProcessor := newTraceProcessor(*config, telemetrySettings)
 
-	host := makeRemoteSamplingExtension(t, &remotesampling.Config{
+	rsCfg := &remotesampling.Config{
 		Adaptive: &remotesampling.AdaptiveConfig{
 			SamplingStore: "foobar",
 			Options:       adaptive.DefaultOptions(),
 		},
-	})
+	}
+	host := makeRemoteSamplingExtension(t, rsCfg)
 
+	rsCfg.Adaptive.Options.AggregationBuckets = 0
 	err := traceProcessor.start(context.Background(), host)
-	require.NoError(t, err)
+	require.ErrorContains(t, err, "AggregationBuckets must be greater than 0")
+
+	rsCfg.Adaptive.Options = adaptive.DefaultOptions()
+	require.NoError(t, traceProcessor.start(context.Background(), host))
 
 	twww := makeTracesOneSpan()
 	trace, err := traceProcessor.processTraces(context.Background(), twww)
@@ -138,4 +145,27 @@ func makeTracesOneSpan() ptrace.Traces {
 	span := sSpans.Spans().AppendEmpty()
 	span.SetName("test")
 	return traces
+}
+
+func TestGetAdaptiveSamplingComponentsError(t *testing.T) {
+	host := &samplingHost{}
+	processor := &traceProcessor{}
+	err := processor.start(context.Background(), host)
+	require.ErrorContains(t, err, "cannot load adaptive sampling components")
+}
+
+// aggregator that returns error from Close()
+type notClosingAgg struct{}
+
+func (*notClosingAgg) Close() error { return errors.New("not closing") }
+
+func (*notClosingAgg) HandleRootSpan(*model.Span, *zap.Logger)                     {}
+func (*notClosingAgg) RecordThroughput(string, string, model.SamplerType, float64) {}
+func (*notClosingAgg) Start()                                                      {}
+
+func TestTraceProcessorCloseError(t *testing.T) {
+	processor := &traceProcessor{
+		aggregator: &notClosingAgg{},
+	}
+	require.ErrorContains(t, processor.close(context.Background()), "not closing")
 }

@@ -72,7 +72,7 @@ func GetAdaptiveSamplingComponents(host component.Host) (*AdaptiveSamplingCompon
 	var comp component.Component
 	var compID component.ID
 	for id, ext := range host.GetExtensions() {
-		if id.Type() == componentType {
+		if id.Type() == ComponentType {
 			comp = ext
 			compID = id
 			break
@@ -81,12 +81,12 @@ func GetAdaptiveSamplingComponents(host component.Host) (*AdaptiveSamplingCompon
 	if comp == nil {
 		return nil, fmt.Errorf(
 			"cannot find extension '%s' (make sure it's defined earlier in the config)",
-			componentType,
+			ComponentType,
 		)
 	}
 	ext, ok := comp.(*rsExtension)
 	if !ok {
-		return nil, fmt.Errorf("extension '%s' is not of type '%s'", compID, componentType)
+		return nil, fmt.Errorf("extension '%s' is not of type '%s'", compID, ComponentType)
 	}
 	if ext.adaptiveStore == nil || ext.distLock == nil {
 		return nil, fmt.Errorf("extension '%s' is not configured for adaptive sampling", compID)

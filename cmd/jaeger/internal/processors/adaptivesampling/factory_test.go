@@ -18,6 +18,7 @@ func TestCreateDefaultConfig(t *testing.T) {
 	cfg := createDefaultConfig().(*Config)
 	require.NotNil(t, cfg, "failed to create default config")
 	require.NoError(t, componenttest.CheckConfigStruct(cfg))
+	require.NoError(t, cfg.Validate())
 }
 
 func TestCreateTracesProcessor(t *testing.T) {
