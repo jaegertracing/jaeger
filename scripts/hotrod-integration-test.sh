@@ -35,8 +35,6 @@ logs=$(docker compose -f ./examples/hotrod/docker-compose.yml logs hotrod)
 # Extract the trace_id from the logs
 TRACE_ID=$(echo "$logs" | grep -oP '(?<="trace_id": ")[^"]+' | tail -n 1)
 
-
-
 JAEGER_QUERY_URL="http://localhost:16686"
 EXPECTED_SPANS=10  # Change this to the expected number of spans
 MAX_RETRIES=30     
