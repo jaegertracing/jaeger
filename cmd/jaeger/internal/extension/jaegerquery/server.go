@@ -10,6 +10,7 @@ import (
 
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/extension"
+	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
 	queryApp "github.com/jaegertracing/jaeger/cmd/query/app"
@@ -17,6 +18,8 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/jtracer"
 	"github.com/jaegertracing/jaeger/pkg/telemetery"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
+	"github.com/jaegertracing/jaeger/plugin/metrics/disabled"
+	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/metricsstore"
 )
 
@@ -68,8 +71,7 @@ func (s *server) Start(_ context.Context, host component.Host) error {
 	}
 	qs := querysvc.NewQueryService(spanReader, depReader, opts)
 
-	var mqs querysvc.MetricsQueryService
-	mqs, err = s.addMetricStorage(&opts, host)
+	mqs, err := s.createMetricStorage(host)
 	if err != nil {
 		return err
 	}
@@ -129,10 +131,10 @@ func (s *server) addArchiveStorage(opts *querysvc.QueryServiceOptions, host comp
 	return nil
 }
 
-func (s *server) addMetricStorage(opts *querysvc.QueryServiceOptions, host component.Host) (metricsstore.Reader, error) {
+func (s *server) createMetricStorage(host component.Host) (metricsstore.Reader, error) {
 	if s.config.MetricStorage == "" {
 		s.telset.Logger.Info("Metric storage not configured")
-		return nil, nil
+		return disabled.NewMetricsReader()
 	}
 
 	mf, err := jaegerstorage.GetMetricsFactory(s.config.MetricStorage, host)
@@ -140,10 +142,15 @@ func (s *server) addMetricStorage(opts *querysvc.QueryServiceOptions, host compo
 		return nil, fmt.Errorf("cannot find metrics storage factory: %w", err)
 	}
 
-	metricsReader, ok := opts.InitMetricStorage(mf, s.telset.Logger)
-	if !ok {
-		s.telset.Logger.Info("Metric storage not initialized")
-		return nil, nil
+	// metricsReader, ok := opts.InitMetricStorage(mf, s.telset.Logger)
+	metricsReader, err := mf.CreateMetricsReader()
+	if errors.Is(err, storage.ErrMetricStorageNotConfigured) || errors.Is(err, storage.ErrMetricStorageNotSupported) {
+		s.telset.Logger.Info("Metric storage not created", zap.String("reason", err.Error()))
+		return disabled.NewMetricsReader()
+	}
+	if err != nil {
+		s.telset.Logger.Error("Cannot init metric storage reader", zap.Error(err))
+		return disabled.NewMetricsReader()
 	}
 	return metricsReader, nil
 }
