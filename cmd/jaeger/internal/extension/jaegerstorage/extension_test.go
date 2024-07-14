@@ -83,7 +83,7 @@ func TestStorageFactoryBadHostError(t *testing.T) {
 func TestStorageFactoryBadNameError(t *testing.T) {
 	host := storageHost{t: t, ext: startStorageExtension(t, "foo")}
 	_, err := GetStorageFactory("bar", host)
-	require.ErrorContains(t, err, "cannot find storage 'bar'")
+	require.ErrorContains(t, err, "cannot find definition of storage 'bar'")
 }
 
 func TestStorageFactoryBadShutdownError(t *testing.T) {
