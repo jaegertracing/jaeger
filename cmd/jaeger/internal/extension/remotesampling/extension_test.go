@@ -227,9 +227,9 @@ func TestGetAdaptiveSamplingComponents(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotNil(t, comps.DistLock)
 	assert.NotNil(t, comps.SamplingStore)
-	assert.Equal(t, comps.Options.FollowerLeaseRefreshInterval, time.Duration(1))
-	assert.Equal(t, comps.Options.LeaderLeaseRefreshInterval, time.Duration(1))
-	assert.Equal(t, comps.Options.AggregationBuckets, 1)
+	assert.Equal(t, time.Duration(1), comps.Options.FollowerLeaseRefreshInterval)
+	assert.Equal(t, time.Duration(1), comps.Options.LeaderLeaseRefreshInterval)
+	assert.Equal(t, 1, comps.Options.AggregationBuckets)
 
 	// Error case
 	host = makeRemoteSamplingExtension(t, &Config{})
@@ -244,5 +244,5 @@ func TestDependencies(t *testing.T) {
 		TelemetrySettings: componenttest.NewNopTelemetrySettings(),
 	}, cfg)
 	require.NoError(t, err)
-	assert.Equal(t, ext.(*rsExtension).Dependencies(), []component.ID{jaegerstorage.ID})
+	assert.Equal(t, []component.ID{jaegerstorage.ID}, ext.(*rsExtension).Dependencies())
 }
