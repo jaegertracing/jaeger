@@ -611,7 +611,7 @@ func TestServerInUseHostPort(t *testing.T) {
 func TestServerSinglePort(t *testing.T) {
 	flagsSvc := flags.NewService(ports.QueryAdminHTTP)
 	flagsSvc.Logger = zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller()))
-	hostPort := ports.GetAddressFromCLIOptions(ports.QueryHTTP, "")
+	hostPort := ports.PortToHostPort(ports.QueryHTTP)
 	querySvc := makeQuerySvc()
 	telset := initTelSet(flagsSvc.Logger, jtracer.NoOp(), flagsSvc.HC())
 	server, err := NewServer(querySvc.qs, nil,
