@@ -1,4 +1,6 @@
 version: '3.7'
+# To run a specific version of Jaeger, use environment variable, e.g.:
+#     JAEGER_VERSION=1.52 docker compose up 
 
 services:
   jaeger:
