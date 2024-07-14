@@ -46,7 +46,6 @@ const (
 	memoryStorageType        = "memory"
 	kafkaStorageType         = "kafka"
 	grpcStorageType          = "grpc"
-	grpcPluginDeprecated     = "grpc-plugin"
 	badgerStorageType        = "badger"
 	blackholeStorageType     = "blackhole"
 
