@@ -25,7 +25,6 @@ import (
 
 	"github.com/jaegertracing/jaeger/internal/metricstest"
 	"github.com/jaegertracing/jaeger/model"
-	span_model "github.com/jaegertracing/jaeger/model"
 	epmocks "github.com/jaegertracing/jaeger/plugin/sampling/leaderelection/mocks"
 	"github.com/jaegertracing/jaeger/storage/samplingstore/mocks"
 )
@@ -172,13 +171,13 @@ func TestRecordThroughputFunc(t *testing.T) {
 	require.NoError(t, err)
 
 	// Testing non-root span
-	span := &span_model.Span{References: []span_model.SpanRef{{SpanID: span_model.NewSpanID(1), RefType: span_model.ChildOf}}}
+	span := &model.Span{References: []model.SpanRef{{SpanID: model.NewSpanID(1), RefType: model.ChildOf}}}
 	RecordThroughput(a, span, logger)
 	require.Empty(t, a.(*aggregator).currentThroughput)
 
 	// Testing span with service name but no operation
-	span.References = []span_model.SpanRef{}
-	span.Process = &span_model.Process{
+	span.References = []model.SpanRef{}
+	span.Process = &model.Process{
 		ServiceName: "A",
 	}
 	RecordThroughput(a, span, logger)
@@ -190,9 +189,9 @@ func TestRecordThroughputFunc(t *testing.T) {
 	require.Empty(t, a.(*aggregator).currentThroughput)
 
 	// Testing span with service name, operation, and probabilistic sampling tags
-	span.Tags = span_model.KeyValues{
-		span_model.String("sampler.type", "probabilistic"),
-		span_model.String("sampler.param", "0.001"),
+	span.Tags = model.KeyValues{
+		model.String("sampler.type", "probabilistic"),
+		model.String("sampler.param", "0.001"),
 	}
 	RecordThroughput(a, span, logger)
 	assert.EqualValues(t, 1, a.(*aggregator).currentThroughput["A"]["GET"].Count)

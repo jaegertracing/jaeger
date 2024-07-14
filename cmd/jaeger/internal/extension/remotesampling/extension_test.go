@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/crossdock/crossdock-go/assert"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/storage/storagetest"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componenttest"
@@ -187,7 +187,7 @@ func TestStartGRPC(t *testing.T) {
 	c := api_v2.NewSamplingManagerClient(conn)
 	response, err := c.GetSamplingStrategy(context.Background(), &api_v2.SamplingStrategyParameters{ServiceName: "foo"})
 	require.NoError(t, err)
-	require.Equal(t, response.ProbabilisticSampling.SamplingRate, 0.8)
+	require.Equal(t, 0.8, response.ProbabilisticSampling.SamplingRate)
 
 	require.NoError(t, ext.Shutdown(context.Background()))
 }
