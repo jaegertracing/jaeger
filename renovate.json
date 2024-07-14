@@ -35,6 +35,11 @@
       "groupName": "github-actions deps"
     },
     {
+      "matchManagers": ["github-actions"],
+      "matchUpdateTypes": ["major", "patch", "digest"],
+      "enabled": false
+    },
+    {
       "matchManagers": ["gomod"],
       "matchSourceUrlPrefixes": [
         "go.opentelemetry.io/otel",

@@ -32,6 +32,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/remote-storage/app"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/pkg/telemetery"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/pkg/version"
 	"github.com/jaegertracing/jaeger/plugin/storage"
@@ -77,7 +78,11 @@ func main() {
 			}
 
 			tm := tenancy.NewManager(&opts.Tenancy)
-			server, err := app.NewServer(opts, storageFactory, tm, svc.Logger, svc.HC())
+			telset := telemetery.Setting{
+				Logger:       svc.Logger,
+				ReportStatus: telemetery.HCAdapter(svc.HC()),
+			}
+			server, err := app.NewServer(opts, storageFactory, tm, telset)
 			if err != nil {
 				logger.Fatal("Failed to create server", zap.Error(err))
 			}

@@ -194,9 +194,9 @@ func AddFlags(flags *flag.FlagSet) {
 	addGRPCFlags(flags, grpcServerFlagsCfg, ports.PortToHostPort(ports.CollectorGRPC))
 
 	flags.Bool(flagCollectorOTLPEnabled, true, "Enables OpenTelemetry OTLP receiver on dedicated HTTP and gRPC ports")
-	addHTTPFlags(flags, otlpServerFlagsCfg.HTTP, "")
+	addHTTPFlags(flags, otlpServerFlagsCfg.HTTP, ":4318")
 	corsOTLPFlags.AddFlags(flags)
-	addGRPCFlags(flags, otlpServerFlagsCfg.GRPC, "")
+	addGRPCFlags(flags, otlpServerFlagsCfg.GRPC, ":4317")
 
 	flags.String(flagZipkinHTTPHostPort, "", "The host:port (e.g. 127.0.0.1:9411 or :9411) of the collector's Zipkin server (disabled by default)")
 	flags.Bool(flagZipkinKeepAliveEnabled, true, "KeepAlive configures allow Keep-Alive for Zipkin HTTP server (enabled by default)")

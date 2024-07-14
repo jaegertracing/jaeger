@@ -30,6 +30,7 @@ import (
 	"github.com/gorilla/mux"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
@@ -90,7 +91,7 @@ type APIHandler struct {
 	basePath            string
 	apiPrefix           string
 	logger              *zap.Logger
-	tracer              *jtracer.JTracer
+	tracer              trace.TracerProvider
 }
 
 // NewAPIHandler returns an APIHandler
@@ -114,7 +115,7 @@ func NewAPIHandler(queryService *querysvc.QueryService, tm *tenancy.Manager, opt
 		aH.logger = zap.NewNop()
 	}
 	if aH.tracer == nil {
-		aH.tracer = jtracer.NoOp()
+		aH.tracer = jtracer.NoOp().OTEL
 	}
 	return aH
 }
@@ -151,7 +152,7 @@ func (aH *APIHandler) handleFunc(
 	traceMiddleware := otelhttp.NewHandler(
 		otelhttp.WithRouteTag(route, traceResponseHandler(handler)),
 		route,
-		otelhttp.WithTracerProvider(aH.tracer.OTEL))
+		otelhttp.WithTracerProvider(aH.tracer))
 	return router.HandleFunc(route, traceMiddleware.ServeHTTP)
 }
 

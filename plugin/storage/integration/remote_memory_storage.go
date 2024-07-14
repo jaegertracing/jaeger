@@ -20,6 +20,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/pkg/telemetery"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/plugin/storage"
 	"github.com/jaegertracing/jaeger/ports"
@@ -47,7 +48,11 @@ func StartNewRemoteMemoryStorage(t *testing.T) *RemoteMemoryStorage {
 	require.NoError(t, storageFactory.Initialize(metrics.NullFactory, logger))
 
 	t.Logf("Starting in-process remote storage server on %s", opts.GRPCHostPort)
-	server, err := app.NewServer(opts, storageFactory, tm, logger, healthcheck.New())
+	telset := telemetery.Setting{
+		Logger:       logger,
+		ReportStatus: telemetery.HCAdapter(healthcheck.New()),
+	}
+	server, err := app.NewServer(opts, storageFactory, tm, telset)
 	require.NoError(t, err)
 	require.NoError(t, server.Start())
 

@@ -1,19 +1,22 @@
 #!/bin/bash
 
 PS4='T$(date "+%H:%M:%S") '
-set -euxf -o pipefail
+set -euf -o pipefail
 
 # use global variables to reflect status of db
 db_is_up=
 
 usage() {
-  echo $"Usage: $0 <elasticsearch|opensearch> <version>"
+  echo "Usage: $0 <backend> <backend_version> <jaeger_version>"
+  echo "  backend:         elasticsearch | opensearch"
+  echo "  backend_version: major version, e.g. 7.x"
+  echo "  jaeger_version:  major version, e.g. v1 | v2"
   exit 1
 }
 
 check_arg() {
   if [ ! $# -eq 3 ]; then
-    echo "ERROR: need exactly three arguments, <elasticsearch|opensearch> <image> <jaeger-version>"
+    echo "ERROR: need exactly three arguments"
     usage
   fi
 }
@@ -96,20 +99,34 @@ teardown_storage() {
   docker compose -f "${compose_file}" down
 }
 
+build_local_img(){
+    make build-es-index-cleaner GOOS=linux
+    make build-es-rollover GOOS=linux
+    make create-baseimg PLATFORMS="linux/$(go env GOARCH)"
+    #build es-index-cleaner and es-rollover images
+    GITHUB_SHA=local-test BRANCH=local-test bash scripts/build-upload-a-docker-image.sh -l -b -c jaeger-es-index-cleaner -d cmd/es-index-cleaner -t release -p "linux/$(go env GOARCH)"
+    GITHUB_SHA=local-test BRANCH=local-test bash scripts/build-upload-a-docker-image.sh -l -b -c jaeger-es-rollover -d cmd/es-rollover -t release -p "linux/$(go env GOARCH)"
+}
+
 main() {
   check_arg "$@"
   local distro=$1
   local es_version=$2
-  local j_version=$2
+  local j_version=$3
+
+  set -x
 
   bring_up_storage "${distro}" "${es_version}"
-
+  build_local_img
   if [[ "${j_version}" == "v2" ]]; then
     STORAGE=${distro} SPAN_STORAGE_TYPE=${distro} make jaeger-v2-storage-integration-test
-  else
+  elif [[ "${j_version}" == "v1" ]]; then
     STORAGE=${distro} make storage-integration-test
     make index-cleaner-integration-test
     make index-rollover-integration-test
+  else
+    echo "ERROR: Invalid argument value jaeger_version=${j_version}, expecing v1/v2".
+    exit 1
   fi
 }
 
