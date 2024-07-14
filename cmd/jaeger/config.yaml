@@ -1,9 +1,9 @@
 service:
-  extensions: [jaeger_storage, jaeger_query]
+  extensions: [jaeger_storage, jaeger_query, remote_sampling]
   pipelines:
     traces:
       receivers: [otlp, jaeger, zipkin]
-      processors: [batch]
+      processors: [batch, adaptive_sampling]
       exporters: [jaeger_storage_exporter]
 
 extensions:
@@ -25,6 +25,16 @@ extensions:
       memstore_archive:
         max_traces: 100000
 
+  remote_sampling:
+    # You can either use file or adaptive sampling strategy in remote_sampling
+    # file:
+    #   path: ./cmd/jaeger/sampling-strategies.json
+    adaptive:
+      sampling_store: memstore
+      initial_sampling_probability: 0.1
+    http:
+    grpc:
+
 receivers:
   otlp:
     protocols:
@@ -42,6 +52,9 @@ receivers:
 
 processors:
   batch:
+  # Adaptive Sampling Processor is required to support adaptive sampling.
+  # It expects remote_sampling extension with `adaptive:` config to be enabled.
+  adaptive_sampling:
 
 exporters:
   jaeger_storage_exporter:
