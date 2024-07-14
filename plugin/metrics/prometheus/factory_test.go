@@ -32,7 +32,7 @@ var _ storage.MetricsFactory = new(Factory)
 
 func TestPrometheusFactory(t *testing.T) {
 	f := NewFactory()
-	require.NoError(t, f.InitializeMetricsFactory(zap.NewNop()))
+	require.NoError(t, f.Initialize(zap.NewNop()))
 	assert.NotNil(t, f.logger)
 
 	listener, err := net.Listen("tcp", "localhost:")

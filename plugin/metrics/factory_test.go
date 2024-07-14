@@ -64,7 +64,7 @@ func TestCreateMetricsReader(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, f)
 
-	require.NoError(t, f.InitializeMetricsFactory(zap.NewNop()))
+	require.NoError(t, f.Initialize(zap.NewNop()))
 
 	reader, err := f.CreateMetricsReader()
 	require.NoError(t, err)

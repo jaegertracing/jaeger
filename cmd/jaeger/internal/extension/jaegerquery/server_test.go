@@ -56,13 +56,6 @@ func (ff fakeFactory) CreateSpanWriter() (spanstore.Writer, error) {
 	return &spanstoremocks.Writer{}, nil
 }
 
-func (ff fakeFactory) CreateMetricsReader() (metricsstore.Reader, error) {
-	if ff.name == "need-span-writer-error" {
-		return nil, fmt.Errorf("test-error")
-	}
-	return &metricsstoremocks.Reader{}, nil
-}
-
 func (ff fakeFactory) Initialize(metrics.Factory, *zap.Logger) error {
 	if ff.name == "need-initialize-error" {
 		return fmt.Errorf("test-error")
@@ -70,11 +63,23 @@ func (ff fakeFactory) Initialize(metrics.Factory, *zap.Logger) error {
 	return nil
 }
 
-func (ff fakeFactory) InitializeMetricsFactory(*zap.Logger) error {
-	if ff.name == "need-initialize-error" {
+type fakeMetricsFactory struct {
+	name string
+}
+
+// Initialize implements storage.MetricsFactory.
+func (fmf fakeMetricsFactory) Initialize(*zap.Logger) error {
+	if fmf.name == "need-initialize-error" {
 		return fmt.Errorf("test-error")
 	}
 	return nil
+}
+
+func (fmf fakeMetricsFactory) CreateMetricsReader() (metricsstore.Reader, error) {
+	if fmf.name == "need-span-writer-error" {
+		return nil, fmt.Errorf("test-error")
+	}
+	return &metricsstoremocks.Reader{}, nil
 }
 
 type fakeStorageExt struct{}
@@ -92,7 +97,7 @@ func (fakeStorageExt) MetricsFactory(name string) (storage.MetricsFactory, bool)
 	if name == "need-factory-error" {
 		return nil, false
 	}
-	return fakeFactory{name: name}, true
+	return fakeMetricsFactory{name: name}, true
 }
 
 func (fakeStorageExt) Start(context.Context, component.Host) error {

@@ -41,7 +41,7 @@ func (*Factory) AddFlags(_ *flag.FlagSet) {}
 func (*Factory) InitFromViper(_ *viper.Viper, _ *zap.Logger) {}
 
 // Initialize implements storage.MetricsFactory.
-func (*Factory) InitializeMetricsFactory(_ *zap.Logger) error {
+func (*Factory) Initialize(_ *zap.Logger) error {
 	return nil
 }
 
