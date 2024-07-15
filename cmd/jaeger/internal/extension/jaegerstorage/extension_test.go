@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/storage/storagetest"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componenttest"
@@ -30,26 +31,6 @@ import (
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
-
-type storageHost struct {
-	t   *testing.T
-	ext component.Component
-}
-
-func (host storageHost) GetExtensions() map[component.ID]component.Component {
-	return map[component.ID]component.Component{
-		ID: host.ext,
-	}
-}
-
-func (host storageHost) ReportFatalError(err error) {
-	host.t.Fatal(err)
-}
-
-func (storageHost) GetFactory(_ component.Kind, _ component.Type) component.Factory { return nil }
-func (storageHost) GetExporters() map[component.DataType]map[component.ID]component.Component {
-	return nil
-}
 
 type errorFactory struct {
 	closeErr error
@@ -81,7 +62,7 @@ func TestStorageFactoryBadHostError(t *testing.T) {
 }
 
 func TestStorageFactoryBadNameError(t *testing.T) {
-	host := storageHost{t: t, ext: startStorageExtension(t, "foo")}
+	host := storagetest.NewStorageHost().WithExtension(ID, startStorageExtension(t, "foo"))
 	_, err := GetStorageFactory("bar", host)
 	require.ErrorContains(t, err, "cannot find definition of storage 'bar'")
 }
@@ -105,7 +86,7 @@ func TestGetFactoryV2Error(t *testing.T) {
 
 func TestGetFactory(t *testing.T) {
 	const name = "foo"
-	host := storageHost{t: t, ext: startStorageExtension(t, name)}
+	host := storagetest.NewStorageHost().WithExtension(ID, startStorageExtension(t, name))
 	f, err := GetStorageFactory(name, host)
 	require.NoError(t, err)
 	require.NotNil(t, f)

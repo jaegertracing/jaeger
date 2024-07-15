@@ -25,26 +25,6 @@ import (
 	"github.com/jaegertracing/jaeger/plugin/storage/memory"
 )
 
-type samplingHost struct {
-	t                 *testing.T
-	samplingExtension component.Component
-}
-
-func (host samplingHost) GetExtensions() map[component.ID]component.Component {
-	return map[component.ID]component.Component{
-		remotesampling.ID: host.samplingExtension,
-	}
-}
-
-func (host samplingHost) ReportFatalError(err error) {
-	host.t.Fatal(err)
-}
-
-func (samplingHost) GetFactory(_ component.Kind, _ component.Type) component.Factory { return nil }
-func (samplingHost) GetExporters() map[component.DataType]map[component.ID]component.Component {
-	return nil
-}
-
 func makeStorageExtension(t *testing.T, memstoreName string) component.Host {
 	telemetrySettings := component.TelemetrySettings{
 		Logger:         zaptest.NewLogger(t),
@@ -74,7 +54,7 @@ func makeStorageExtension(t *testing.T, memstoreName string) component.Host {
 
 var _ component.Config = (*Config)(nil)
 
-func makeRemoteSamplingExtension(t *testing.T, cfg component.Config) samplingHost {
+func makeRemoteSamplingExtension(t *testing.T, cfg component.Config) component.Host {
 	extensionFactory := remotesampling.NewFactory()
 	samplingExtension, err := extensionFactory.CreateExtension(
 		context.Background(),
@@ -87,7 +67,7 @@ func makeRemoteSamplingExtension(t *testing.T, cfg component.Config) samplingHos
 		cfg,
 	)
 	require.NoError(t, err)
-	host := samplingHost{t: t, samplingExtension: samplingExtension}
+	host := storagetest.NewStorageHost().WithExtension(remotesampling.ID, samplingExtension)
 	storageHost := makeStorageExtension(t, "foobar")
 
 	err = samplingExtension.Start(context.Background(), storageHost)
@@ -148,9 +128,8 @@ func makeTracesOneSpan() ptrace.Traces {
 }
 
 func TestGetAdaptiveSamplingComponentsError(t *testing.T) {
-	host := &samplingHost{}
 	processor := &traceProcessor{}
-	err := processor.start(context.Background(), host)
+	err := processor.start(context.Background(), storagetest.NewStorageHost())
 	require.ErrorContains(t, err, "cannot load adaptive sampling components")
 }
 

@@ -32,11 +32,12 @@
     },
     {
       "matchManagers": ["github-actions"],
-      "groupName": "github-actions deps"
+      "groupName": "github-actions deps",
+      "schedule": ["on the first day of the month"]
     },
     {
       "matchManagers": ["github-actions"],
-      "matchUpdateTypes": ["major", "patch", "digest"],
+      "matchUpdateTypes": ["patch", "digest"],
       "enabled": false
     },
     {
