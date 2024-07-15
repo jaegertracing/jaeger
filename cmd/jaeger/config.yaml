@@ -14,23 +14,25 @@ extensions:
   #   endpoint: 0.0.0.0:55679
 
   jaeger_query:
-    trace_storage: memstore
-    trace_storage_archive: memstore_archive
+    trace_storage: some_store
+    trace_storage_archive: another_store
     ui_config: ./cmd/jaeger/config-ui.json
 
   jaeger_storage:
-    memory:
-      memstore:
-        max_traces: 100000
-      memstore_archive:
-        max_traces: 100000
+    backends:
+      some_store:
+        memory:
+          max_traces: 100000
+      another_store:
+        memory:
+          max_traces: 100000
 
   remote_sampling:
     # You can either use file or adaptive sampling strategy in remote_sampling
     # file:
     #   path: ./cmd/jaeger/sampling-strategies.json
     adaptive:
-      sampling_store: memstore
+      sampling_store: some_store
       initial_sampling_probability: 0.1
     http:
     grpc:
@@ -58,4 +60,4 @@ processors:
 
 exporters:
   jaeger_storage_exporter:
-    trace_storage: memstore
+    trace_storage: some_store
