@@ -8,6 +8,8 @@ service:
   telemetry:
     metrics:
       address: 0.0.0.0:8889
+    logs:
+      level: debug
 
 extensions:
   jaeger_query:
