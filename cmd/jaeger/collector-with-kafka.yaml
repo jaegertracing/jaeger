@@ -1,24 +1,14 @@
-service:
-  pipelines:
-    traces:
-      receivers: [otlp, jaeger, zipkin]
-      processors: [batch]
-      exporters: [kafka]
-
 receivers:
   otlp:
     protocols:
       grpc:
       http:
-
   jaeger:
     protocols:
       grpc:
       thrift_binary:
       thrift_compact:
       thrift_http:
-
-  zipkin:
 
 processors:
   batch:
@@ -29,3 +19,10 @@ exporters:
       - localhost:9092
     topic: "jaeger-spans"
     encoding: otlp_proto
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp, jaeger]
+      processors: [batch]
+      exporters: [kafka]
