@@ -25,12 +25,6 @@ updates:
       interval: daily
     labels: [ "changelog:dependencies" ]
 
-  - package-ecosystem: "github-actions"
-    directory: "/"
-    schedule:
-      interval: "weekly"
-    labels: [ "changelog:dependencies" ]
-
   - package-ecosystem: docker
     directories:
       - /cmd/agent
