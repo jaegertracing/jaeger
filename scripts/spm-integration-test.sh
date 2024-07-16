@@ -72,7 +72,7 @@ validate_service_metrics() {
       fi
 
       if [[ $threshold -eq 0 ]]; then
-        echo "❌ ERROR: Zero values above threshold limit not expected"
+        echo "❌ ERROR: Zero values crossing threshold limit not expected (Threshold limit - '$threshold')"
         return 1
       fi
     done
