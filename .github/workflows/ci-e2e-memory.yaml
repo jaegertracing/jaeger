@@ -35,7 +35,7 @@ jobs:
 
     - name: Run Memory storage integration tests
       run: |
-        STORAGE=memory make jaeger-v2-storage-integration-test
+        STORAGE=memory_v2 make jaeger-v2-storage-integration-test
 
     - name: Upload coverage to codecov
       uses: ./.github/actions/upload-codecov
