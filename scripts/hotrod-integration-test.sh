@@ -3,7 +3,6 @@
 set -euxf -o pipefail
 
 docker_compose_file="./examples/hotrod/docker-compose.yml"
-export REGISTRY="localhost:5000/"
 platforms="linux/amd64,linux/s390x,linux/ppc64le,linux/arm64"
 
 teardown() {
@@ -18,11 +17,13 @@ make build-examples GOOS=linux GOARCH=ppc64le
 make build-examples GOOS=linux GOARCH=arm64
 
 make prepare-docker-buildx
+make create-baseimg
 
 # Build image locally (-l) for integration test
 bash scripts/build-upload-a-docker-image.sh -l -c example-hotrod -d examples/hotrod -p "${platforms}"
+bash scripts/build-upload-a-docker-image.sh -l -b -c all-in-one -d cmd/all-in-one -p "${platforms}" -t release
 
-docker compose -f "$docker_compose_file" up -d
+JAEGER_VERSION=$GITHUB_SHA REGISTRY="localhost:5000/" docker compose -f "$docker_compose_file" up -d
 
 i=0
 while [[ "$(curl -s -o /dev/null -w '%{http_code}' localhost:8080)" != "200" && $i -lt 30 ]]; do
