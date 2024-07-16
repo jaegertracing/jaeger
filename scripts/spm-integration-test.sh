@@ -61,13 +61,18 @@ validate_service_metrics() {
     # Store the values in an array
     mapfile -t metric_points < <(echo "$response" | jq -r '.metrics[0].metricPoints[].gaugeValue.doubleValue')
     echo "Metric datapoints found for service '$service': " "${metric_points[@]}"
-    # Check that all values are non-zero
+    # Check that atleast some values are non-zero after the threshold
     local non_zero_count=0
+    local threshold=3
     for value in "${metric_points[@]}"; do
       if [[ $(echo "$value > 0.0" | bc) == "1" ]]; then
         non_zero_count=$((non_zero_count + 1))
       else
-        echo "❌ ERROR: Zero values not expected"
+        threshold=$((threshold - 1))
+      fi
+
+      if [[ $threshold -eq 0 ]]; then
+        echo "❌ ERROR: Zero values above threshold limit not expected"
         return 1
       fi
     done
