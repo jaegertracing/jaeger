@@ -9,7 +9,7 @@ import (
 	"github.com/jaegertracing/jaeger/plugin/storage/integration"
 )
 
-func TestOSStorage(t *testing.T) {
+func TestOpenSearchStorage(t *testing.T) {
 	integration.SkipUnlessEnv(t, "opensearch")
 	s := &E2EStorageIntegration{
 		ConfigFile: "../../config-opensearch.yaml",

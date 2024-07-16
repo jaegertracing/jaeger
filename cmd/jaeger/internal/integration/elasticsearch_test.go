@@ -9,7 +9,7 @@ import (
 	"github.com/jaegertracing/jaeger/plugin/storage/integration"
 )
 
-func TestESStorage(t *testing.T) {
+func TestElasticsearchStorage(t *testing.T) {
 	integration.SkipUnlessEnv(t, "elasticsearch")
 
 	s := &E2EStorageIntegration{
