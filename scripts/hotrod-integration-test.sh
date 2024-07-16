@@ -19,6 +19,13 @@ make build-examples GOOS=linux GOARCH=arm64
 make prepare-docker-buildx
 make create-baseimg
 
+# Loop through each platform (separated by commas)
+for platform in $(echo "$platforms" | tr ',' ' '); do
+  # Extract the architecture from the platform string
+  arch=${platform##*/}  # Remove everything before the last slash
+  make "build-all-in-one" GOOS=linux GOARCH="${arch}"
+done
+
 # Build image locally (-l) for integration test
 bash scripts/build-upload-a-docker-image.sh -l -c example-hotrod -d examples/hotrod -p "${platforms}"
 bash scripts/build-upload-a-docker-image.sh -l -b -c all-in-one -d cmd/all-in-one -p "${platforms}" -t release
