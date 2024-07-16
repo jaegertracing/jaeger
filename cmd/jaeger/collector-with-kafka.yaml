@@ -1,3 +1,10 @@
+service:
+  pipelines:
+    traces:
+      receivers: [otlp, jaeger]
+      processors: [batch]
+      exporters: [kafka]
+      
 receivers:
   otlp:
     protocols:
@@ -19,10 +26,3 @@ exporters:
       - localhost:9092
     topic: "jaeger-spans"
     encoding: otlp_proto
-
-service:
-  pipelines:
-    traces:
-      receivers: [otlp, jaeger]
-      processors: [batch]
-      exporters: [kafka]
