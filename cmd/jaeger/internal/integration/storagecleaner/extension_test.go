@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
+	"go.uber.org/zap/zaptest"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
 	"github.com/jaegertracing/jaeger/storage"
@@ -84,7 +85,9 @@ func TestStorageCleanerExtension(t *testing.T) {
 				TraceStorage: "storage",
 				Port:         Port,
 			}
-			s := newStorageCleaner(config, component.TelemetrySettings{})
+			s := newStorageCleaner(config, component.TelemetrySettings{
+				Logger: zaptest.NewLogger(t),
+			})
 			require.NotEmpty(t, s.Dependencies())
 			host := storagetest.NewStorageHost()
 			host.WithExtension(jaegerstorage.ID, &mockStorageExt{
@@ -110,7 +113,9 @@ func TestStorageCleanerExtension(t *testing.T) {
 
 func TestGetStorageFactoryError(t *testing.T) {
 	config := &Config{}
-	s := newStorageCleaner(config, component.TelemetrySettings{})
+	s := newStorageCleaner(config, component.TelemetrySettings{
+		Logger: zaptest.NewLogger(t),
+	})
 	host := storagetest.NewStorageHost()
 	host.WithExtension(jaegerstorage.ID, &mockStorageExt{
 		name:    "storage",
@@ -128,6 +133,7 @@ func TestStorageExtensionStartError(t *testing.T) {
 	}
 	var startStatus atomic.Pointer[component.StatusEvent]
 	s := newStorageCleaner(config, component.TelemetrySettings{
+		Logger: zaptest.NewLogger(t),
 		ReportStatus: func(status *component.StatusEvent) {
 			startStatus.Store(status)
 		},
