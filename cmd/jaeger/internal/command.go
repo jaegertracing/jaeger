@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log"
 
+	"github.com/jaegertracing/jaeger/pkg/version"
 	"github.com/spf13/cobra"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/confmap"
@@ -29,8 +30,7 @@ func Command() *cobra.Command {
 	info := component.BuildInfo{
 		Command:     "jaeger",
 		Description: description,
-		// TODO: Set Version back to version.Get().String() once https://github.com/open-telemetry/opentelemetry-collector/issues/10644 is fixed
-		Version: "jaeger",
+		Version:     version.Get().String(),
 	}
 
 	settings := otelcol.CollectorSettings{
