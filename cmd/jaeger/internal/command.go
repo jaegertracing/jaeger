@@ -18,8 +18,6 @@ import (
 	"go.opentelemetry.io/collector/confmap/provider/httpsprovider"
 	"go.opentelemetry.io/collector/confmap/provider/yamlprovider"
 	"go.opentelemetry.io/collector/otelcol"
-
-	"github.com/jaegertracing/jaeger/pkg/version"
 )
 
 //go:embed all-in-one.yaml
@@ -31,7 +29,8 @@ func Command() *cobra.Command {
 	info := component.BuildInfo{
 		Command:     "jaeger",
 		Description: description,
-		Version:     version.Get().String(),
+		// TODO: should be version.Get().String(), but open-telemetry/opentelemetry-collector#10644
+		Version: "jaeger",
 	}
 
 	settings := otelcol.CollectorSettings{
