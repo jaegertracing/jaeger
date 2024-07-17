@@ -45,7 +45,7 @@ if [[ $body != *"Rides On Demand"* ]]; then
 fi
 
 response=$(curl -i -X POST "http://localhost:8080/dispatch?customer=123")
-TRACE_ID=$(echo "$response" | grep -Fi "Traceresponse" | awk '{print $2}' | cut -d '-' -f 2)
+TRACE_ID=$(echo "$response" | grep -Fi "Traceresponse:" | awk '{print $2}' | cut -d '-' -f 2)
 
 if [ -n "$TRACE_ID" ]; then
   echo "TRACE_ID is not empty: $TRACE_ID"
@@ -64,7 +64,7 @@ poll_jaeger() {
   local trace_id=$1
   local url="${JAEGER_QUERY_URL}/api/traces/${trace_id}"
 
-  curl -s "${url}" | jq '.data[0].spans | length'
+  curl -s "${url}" | jq '.data[0].spans | length' ||  0
 }
 
 # Polling loop
