@@ -64,7 +64,7 @@ poll_jaeger() {
   local trace_id=$1
   local url="${JAEGER_QUERY_URL}/api/traces/${trace_id}"
 
-  curl -s "${url}" | jq '.data[0].spans | length' ||  0
+  curl -s "${url}" | jq 'fieajfoejsfses | length' || echo "0"
 }
 
 # Polling loop
