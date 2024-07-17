@@ -172,12 +172,15 @@ func getSamplingStrategy(t *testing.T) {
 }
 
 func getServicesAPIV3(t *testing.T) {
-	_, body := httpGet(t, queryAddr+getServicesAPIV3URL)
+	resp, body := httpGet(t, queryAddr+getServicesAPIV3URL)
+	t.Logf("HTTP response status: %v", resp.Status)
+	t.Logf("Response body: %s", body)
 
 	var servicesResponse struct {
 		Services []string
 	}
 	require.NoError(t, json.Unmarshal(body, &servicesResponse))
+	t.Logf("Services response: %v", servicesResponse.Services)
 	require.Len(t, servicesResponse.Services, 1)
 	assert.Contains(t, servicesResponse.Services[0], "jaeger")
 }
