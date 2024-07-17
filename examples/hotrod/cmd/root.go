@@ -56,8 +56,6 @@ func init() {
 
 // onInitialize is called before the command is executed.
 func onInitialize() {
-	jaegerclientenv2otel.MapJaegerToOtelEnvVars(logger)
-
 	zapOptions := []zap.Option{
 		zap.AddStacktrace(zapcore.FatalLevel),
 		zap.AddCallerSkip(1),
@@ -68,6 +66,9 @@ func onInitialize() {
 		)
 	}
 	logger, _ = zap.NewDevelopment(zapOptions...)
+
+	jaegerclientenv2otel.MapJaegerToOtelEnvVars(logger)
+
 	metricsFactory = prometheus.New().Namespace(metrics.NSOptions{Name: "hotrod", Tags: nil})
 
 	if config.MySQLGetDelay != fixDBConnDelay {
