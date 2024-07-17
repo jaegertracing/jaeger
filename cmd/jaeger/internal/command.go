@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/jaegertracing/jaeger/pkg/version"
 	"github.com/spf13/cobra"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/confmap"
@@ -19,6 +18,8 @@ import (
 	"go.opentelemetry.io/collector/confmap/provider/httpsprovider"
 	"go.opentelemetry.io/collector/confmap/provider/yamlprovider"
 	"go.opentelemetry.io/collector/otelcol"
+
+	"github.com/jaegertracing/jaeger/pkg/version"
 )
 
 //go:embed all-in-one.yaml
