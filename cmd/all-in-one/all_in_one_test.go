@@ -89,6 +89,7 @@ func healthCheck(t *testing.T) {
 }
 
 func httpGet(t *testing.T, url string) (*http.Response, []byte) {
+	t.Logf("Executing HTTP GET %s", url)
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	require.NoError(t, err)
 	req.Close = true // avoid persistent connections which leak goroutines
