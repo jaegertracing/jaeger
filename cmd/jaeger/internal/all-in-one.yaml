@@ -6,6 +6,8 @@ service:
       processors: [batch]
       exporters: [jaeger_storage_exporter]
   telemetry:
+    resource:
+      service.name: jaeger
     metrics:
       level: detailed
     traces:
