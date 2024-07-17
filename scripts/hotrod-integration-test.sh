@@ -47,8 +47,15 @@ fi
 response=$(curl -i -X POST "http://localhost:8080/dispatch?customer=123")
 TRACE_ID=$(echo "$response" | grep -Fi "Traceresponse" | awk '{print $2}' | cut -d '-' -f 2)
 
+if [ -n "$TRACE_ID" ]; then
+  echo "TRACE_ID is not empty: $TRACE_ID"
+else
+  echo "TRACE_ID is empty"
+  exit 1
+fi
+
 JAEGER_QUERY_URL="http://localhost:16686"
-EXPECTED_SPANS=10
+EXPECTED_SPANS=35
 MAX_RETRIES=30
 SLEEP_INTERVAL=10
 
