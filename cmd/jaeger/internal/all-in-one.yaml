@@ -14,6 +14,7 @@ service:
             schedule_delay: 1000
             exporter:
               otlp:
+                endpoint: http://localhost:4318/v1/traces
                 protocol: http/protobuf
 extensions:
   jaeger_query:
