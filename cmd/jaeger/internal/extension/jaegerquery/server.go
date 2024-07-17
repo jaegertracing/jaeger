@@ -67,10 +67,6 @@ func (s *server) Start(_ context.Context, host component.Host) error {
 	metricsQueryService, _ := disabled.NewMetricsReader()
 	tm := tenancy.NewManager(&s.config.Tenancy)
 
-	// TODO OTel-collector does not initialize the tracer currently
-	// https://github.com/open-telemetry/opentelemetry-collector/issues/7532
-	//nolint
-
 	telset := telemetery.Setting{
 		Logger:         s.telset.Logger,
 		TracerProvider: s.telset.TracerProvider,
