@@ -1,6 +1,0 @@
-jaeger_storage_receiver:
-jaeger_storage_receiver/defaults:
-  trace_storage: storage
-jaeger_storage_receiver/filled:
-  trace_storage: storage
-  pull_interval: 2s
