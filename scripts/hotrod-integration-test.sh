@@ -2,82 +2,60 @@
 
 set -euxf -o pipefail
 
-print_help() {
-  echo "Usage: $0 [-b binary] [-D] [-l] [-p platforms]"
-  echo "-b: Which binary to build (default: 'example-hotrod')"
-  echo "-D: Disable building of images with debugger"
-  echo "-h: Print help"
-  echo "-l: Enable local-only mode that only pushes images to local registry"
-  echo "-p: Comma-separated list of platforms to build for (default: all supported)"
-  exit 1
+# Constants
+BINARY='example-hotrod'
+REPO="jaegertracing/${BINARY}"
+PLATFORMS="linux/amd64,linux/s390x,linux/ppc64le,linux/arm64"
+LOCAL_FLAG='-l'
+
+# Function to run integration tests
+run_integration_test() {
+  local image_name="$1"
+  export CID
+  CID=$(docker run -d --name "${BINARY}" -p 8080:8080 "${image_name}:${GITHUB_SHA}")
+
+  i=0
+  while [[ "$(curl -s -o /dev/null -w '%{http_code}' localhost:8080)" != "200" && ${i} -lt 30 ]]; do
+    sleep 1
+    i=$((i+1))
+  done
+  body=$(curl localhost:8080)
+  if [[ $body != *"Rides On Demand"* ]]; then
+    echo "String \"Rides On Demand\" is not present on the index page"
+    exit 1
+  fi
+  docker rm -f "$CID"
 }
 
-add_debugger='Y'
-platforms="linux/amd64,linux/s390x,linux/ppc64le,linux/arm64"
-LOCAL_FLAG=''
-BINARY='example-hotrod'
-
-while getopts "b:Dhlp:" opt; do
-  case "${opt}" in
-    b)
-      BINARY=${OPTARG}
-      ;;
-    D)
-      add_debugger='N'
-      ;;
-    l)
-      LOCAL_FLAG='-l'
-      ;;
-    p)
-      platforms=${OPTARG}
-      ;;
-    ?)
-      print_help
-      ;;
-  esac
+# Build for each platform
+for platform in $(echo "$PLATFORMS" | tr ',' ' '); do
+  os=${platform%/*}   # Extract OS (part before the slash)
+  arch=${platform##*/} # Extract architecture (part after the slash)
+  make build-examples GOOS="${os}" GOARCH="${arch}"
 done
 
-set -x
+# Build image locally for integration test
+bash scripts/build-upload-a-docker-image.sh -l -c "${BINARY}" -d "${BINARY}" -p "linux/amd64"
 
-REPO=jaegertracing/${BINARY}
-make prepare-docker-buildx
+# Run integration test on the local image
+run_integration_test "localhost:5000/${REPO}"
 
-for platform in $(echo "$platforms" | tr ',' ' '); do
-  arch=${platform##*/}
-  make build-examples GOOS=linux GOARCH="${arch}"
-done
+# Build and upload image to dockerhub/quay.io
+bash scripts/build-upload-a-docker-image.sh ${LOCAL_FLAG} -c "${BINARY}" -d "${BINARY}" -p "${PLATFORMS}"
 
-# build image locally for integration test (the -l switch)
-bash scripts/build-upload-a-docker-image.sh -l -c "${BINARY}" -d examples/hotrod -p "${platforms}"
-
-# pass --name example-hotrod so that we can do `docker logs example-hotrod` later
-export CID
-CID=$(docker run -d --name example-hotrod -p 8080:8080 "localhost:5000/${REPO}:${GITHUB_SHA}")
-
-i=0
-while [[ "$(curl -s -o /dev/null -w '%{http_code}' localhost:8080)" != "200" && ${i} -lt 30 ]]; do
-  sleep 1
-  i=$((i+1))
-done
-body=$(curl localhost:8080)
-if [[ $body != *"Rides On Demand"* ]]; then
-  echo "String \"Rides On Demand\" is not present on the index page"
-  exit 1
-fi
-docker rm -f "$CID"
-
-# build and upload image to dockerhub/quay.io
-bash scripts/build-upload-a-docker-image.sh ${LOCAL_FLAG} -c "${BINARY}" -d examples/hotrod -p "${platforms}"
-
-# build debug image if requested
+# Build debug image if requested
 if [[ "${add_debugger}" == "Y" ]]; then
-  make build-examples GOOS=linux GOARCH="${GOARCH}" DEBUG_BINARY=1
+  for platform in $(echo "$PLATFORMS" | tr ',' ' '); do
+    os=${platform%/*}
+    arch=${platform##*/}
+    make build-examples GOOS="${os}" GOARCH="${arch}" DEBUG_BINARY=1
+  done
   repo="${REPO}-debug"
 
-  # build locally for integration test (the -l switch)
-  bash scripts/build-upload-a-docker-image.sh -l -c "${BINARY}-debug" -d examples/hotrod -t debug
+  # Build locally for integration test
+  bash scripts/build-upload-a-docker-image.sh -l -c "${BINARY}-debug" -d "${BINARY}" -t debug
   run_integration_test "localhost:5000/$repo"
 
-  # build & upload official image
-  bash scripts/build-upload-a-docker-image.sh ${LOCAL_FLAG} -c "${BINARY}-debug" -d examples/hotrod -t debug
+  # Build and upload official debug image
+  bash scripts.build-upload-a-docker-image.sh ${LOCAL_FLAG} -c "${BINARY}-debug" -d "${BINARY}" -t debug
 fi
