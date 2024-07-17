@@ -16,6 +16,8 @@ service:
               otlp:
                 endpoint: http://localhost:4318/v1/traces
                 protocol: http/protobuf
+                headers:
+                  Authorization: "Basic ..."
 extensions:
   jaeger_query:
     trace_storage: some_storage
