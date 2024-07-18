@@ -124,8 +124,7 @@ func TestExporter(t *testing.T) {
 
 	host := makeStorageExtension(t, memstoreName)
 
-	err = tracesExporter.Start(ctx, host)
-	require.NoError(t, err)
+	require.NoError(t, tracesExporter.Start(ctx, host))
 	defer func() {
 		require.NoError(t, tracesExporter.Shutdown(ctx))
 	}()

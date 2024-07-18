@@ -62,5 +62,5 @@ jobs:
         QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
 
     - name: Print logs from hotrod
-      run: docker logs example-hotrod
+      run: docker compose -f ./examples/hotrod/docker-compose.yml logs
       if: failure()
