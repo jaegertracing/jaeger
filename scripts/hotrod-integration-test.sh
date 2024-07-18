@@ -2,8 +2,32 @@
 
 set -euxf -o pipefail
 
+print_help() {
+  echo "Usage: $0 [-l] [-p platforms] [-h]"
+  echo "-h: Print help"
+  echo "-l: Enable local-only mode that only pushes images to local registry"
+  echo "-p: Comma-separated list of platforms to build for (default: all supported)"
+  exit 1
+}
+
 docker_compose_file="./examples/hotrod/docker-compose.yml"
 platforms="linux/amd64,linux/s390x,linux/ppc64le,linux/arm64"
+LOCAL_FLAG=''
+
+while getopts "lp:h" opt; do
+	case "${opt}" in
+	l)
+		# in the local-only mode the images will only be pushed to local registry
+		LOCAL_FLAG='-l'
+		;;
+	p)
+		platforms=${OPTARG}
+		;;
+	?)
+		print_help
+		;;
+	esac
+done
 
 teardown() {
   echo "Tearing down..."
@@ -21,14 +45,16 @@ make create-baseimg
 
 # Loop through each platform (separated by commas)
 for platform in $(echo "$platforms" | tr ',' ' '); do
+  # Extract the operating system from the platform string
+  os=${platform%%/*}  #remove everything after the last slash
   # Extract the architecture from the platform string
   arch=${platform##*/}  # Remove everything before the last slash
-  make "build-all-in-one" GOOS=linux GOARCH="${arch}"
+  make "build-all-in-one" GOOS=${os} GOARCH="${arch}"
 done
 
 # Build image locally (-l) for integration test
 bash scripts/build-upload-a-docker-image.sh -l -c example-hotrod -d examples/hotrod -p "${platforms}"
-bash scripts/build-upload-a-docker-image.sh -l -b -c all-in-one -d cmd/all-in-one -p "${platforms}" -t release
+bash scripts/build-upload-a-docker-image.sh ${LOCAL_FLAG} -b -c all-in-one -d cmd/all-in-one -p "${platforms}" -t release
 
 JAEGER_VERSION=$GITHUB_SHA REGISTRY="localhost:5000/" docker compose -f "$docker_compose_file" up -d
 
