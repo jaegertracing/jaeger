@@ -68,17 +68,23 @@ poll_jaeger() {
 }
 
 # Polling loop
+span_count=0
 for ((i=1; i<=MAX_RETRIES; i++)); do
   span_count=$(poll_jaeger "${TRACE_ID}")
 
   if [[ "$span_count" -ge "$EXPECTED_SPANS" ]]; then
     echo "Trace found with $span_count spans."
-    exit 0
+    break
   fi
 
   echo "Retry $i/$MAX_RETRIES: Trace not found or insufficient spans ($span_count/$EXPECTED_SPANS). Retrying in $SLEEP_INTERVAL seconds..."
   sleep $SLEEP_INTERVAL
 done
 
-echo "Failed to find the trace with the expected number of spans within the timeout period."
-exit 1
+if [[ "$span_count" -lt "$EXPECTED_SPANS" ]]; then
+  echo "Failed to find the trace with the expected number of spans within the timeout period."
+  exit 1
+fi
+
+# Ensure the image is published after succesful test (no -l flag)
+bash scripts/build-upload-a-docker-image.sh -c example-hotrod -d examples/hotrod -p "${platforms}"
