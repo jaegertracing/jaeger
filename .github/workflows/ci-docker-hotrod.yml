@@ -39,16 +39,13 @@ jobs:
     - name: Export BRANCH variable
       uses: ./.github/actions/setup-branch
 
-    - name: Install tools
-      run: make install-ci
-
     - uses: docker/setup-qemu-action@5927c834f5b4fdf503fca6f4c7eccda82949e1ee # v3.1.0
 
     - name: Define BUILD_FLAGS var if running on a Pull Request
       run: |
         case ${GITHUB_EVENT_NAME} in
           pull_request)
-            echo "BUILD_FLAGS=-l -D -p linux/amd64" >> ${GITHUB_ENV}
+            echo "BUILD_FLAGS=-l -p linux/amd64" >> ${GITHUB_ENV}
             ;;
           *)
             echo "BUILD_FLAGS=" >> ${GITHUB_ENV}
