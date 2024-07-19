@@ -23,7 +23,7 @@ func TestBadgerStorage(t *testing.T) {
 			GetOperationsMissingSpanKind: true,
 		},
 	}
-	s.e2eInitialize(t, "badger")
+	s.e2eInitialize(t, "badger", true)
 	t.Cleanup(func() {
 		s.e2eCleanUp(t)
 	})

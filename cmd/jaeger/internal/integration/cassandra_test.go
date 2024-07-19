@@ -21,7 +21,7 @@ func TestCassandraStorage(t *testing.T) {
 			SkipList: integration.CassandraSkippedTests,
 		},
 	}
-	s.e2eInitialize(t, "cassandra")
+	s.e2eInitialize(t, "cassandra", true)
 	t.Cleanup(func() {
 		s.e2eCleanUp(t)
 	})

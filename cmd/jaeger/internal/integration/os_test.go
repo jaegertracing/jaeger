@@ -19,7 +19,7 @@ func TestOSStorage(t *testing.T) {
 			GetOperationsMissingSpanKind: true,
 		},
 	}
-	s.e2eInitialize(t, "opensearch")
+	s.e2eInitialize(t, "opensearch", true)
 	t.Cleanup(func() {
 		s.e2eCleanUp(t)
 	})

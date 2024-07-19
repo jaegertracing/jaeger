@@ -44,9 +44,9 @@ type E2EStorageIntegration struct {
 // e2eInitialize starts the Jaeger-v2 collector with the provided config file,
 // it also initialize the SpanWriter and SpanReader below.
 // This function should be called before any of the tests start.
-func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
+func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string, injectStorageCleaner bool) {
 	logger := zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller()))
-	configFile := createStorageCleanerConfig(t, s.ConfigFile, storage)
+	configFile := createStorageCleanerConfig(t, s.ConfigFile, storage, injectStorageCleaner)
 	t.Logf("Starting Jaeger-v2 in the background with config file %s", configFile)
 
 	outFile, err := os.OpenFile(
@@ -124,25 +124,35 @@ func (s *E2EStorageIntegration) e2eCleanUp(t *testing.T) {
 	require.NoError(t, s.SpanWriter.(io.Closer).Close())
 }
 
-func createStorageCleanerConfig(t *testing.T, configFile string, storage string) string {
+func createStorageCleanerConfig(t *testing.T, configFile string, storage string, injectStorageCleaner bool) string {
 	data, err := os.ReadFile(configFile)
 	require.NoError(t, err)
 	var config map[string]any
 	err = yaml.Unmarshal(data, &config)
 	require.NoError(t, err)
 
-	service, ok := config["service"].(map[string]any)
-	require.True(t, ok)
-	service["extensions"] = append(service["extensions"].([]any), "storage_cleaner")
+	if injectStorageCleaner{	
+	    // Add storage_cleaner to the service extensions
+		service, ok := config["service"].(map[string]any)
+		require.True(t, ok)
+		serviceExtensions, ok := service["extensions"].([]any)
+		require.True(t, ok)
+		serviceExtensions = append(serviceExtensions, "storage_cleaner")
+		service["extensions"] = serviceExtensions
 
-	extensions, ok := config["extensions"].(map[string]any)
-	require.True(t, ok)
-	query, ok := extensions["jaeger_query"].(map[string]any)
-	require.True(t, ok)
-	trace_storage := query["trace_storage"].(string)
-	extensions["storage_cleaner"] = map[string]string{"trace_storage": trace_storage}
+		// Configure the storage_cleaner extension
+		extensions, ok := config["extensions"].(map[string]any)
+		require.True(t, ok)
+		query, ok := extensions["jaeger_query"].(map[string]any)
+		require.True(t, ok)
+		trace_storage := query["trace_storage"].(string)
+		extensions["storage_cleaner"] = map[string]string{"trace_storage": trace_storage}	
+	}
 
-	jaegerStorage, ok := extensions["jaeger_storage"].(map[string]any)
+	// Modify the jaeger_storage settings based on the storage type
+    extensions, ok := config["extensions"].(map[string]any)
+    require.True(t, ok)
+    jaegerStorage, ok := extensions["jaeger_storage"].(map[string]any)	
 	require.True(t, ok)
 
 	switch storage {

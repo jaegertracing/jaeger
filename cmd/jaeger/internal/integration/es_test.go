@@ -20,7 +20,7 @@ func TestESStorage(t *testing.T) {
 			GetOperationsMissingSpanKind: true,
 		},
 	}
-	s.e2eInitialize(t, "elasticsearch")
+	s.e2eInitialize(t, "elasticsearch", true)
 	t.Cleanup(func() {
 		s.e2eCleanUp(t)
 	})
