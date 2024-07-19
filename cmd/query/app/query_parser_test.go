@@ -256,8 +256,7 @@ func TestParseRepeatedSpanKinds(t *testing.T) {
 }
 
 func TestParameterErrors(t *testing.T) {
-	ts := initializeTestServer()
-	defer ts.server.Close()
+	ts := initializeTestServer(t)
 
 	for _, tc := range []struct {
 		name                       string

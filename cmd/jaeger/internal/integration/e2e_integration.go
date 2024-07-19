@@ -131,45 +131,34 @@ func createStorageCleanerConfig(t *testing.T, configFile string, storage string,
 	err = yaml.Unmarshal(data, &config)
 	require.NoError(t, err)
 
-	if injectStorageCleaner{	
-	    // Add storage_cleaner to the service extensions
-		service, ok := config["service"].(map[string]any)
-		require.True(t, ok)
-		serviceExtensions, ok := service["extensions"].([]any)
-		require.True(t, ok)
-		serviceExtensions = append(serviceExtensions, "storage_cleaner")
-		service["extensions"] = serviceExtensions
-
-		// Configure the storage_cleaner extension
-		extensions, ok := config["extensions"].(map[string]any)
-		require.True(t, ok)
-		query, ok := extensions["jaeger_query"].(map[string]any)
-		require.True(t, ok)
-		trace_storage := query["trace_storage"].(string)
-		extensions["storage_cleaner"] = map[string]string{"trace_storage": trace_storage}	
-	}
-
-	// Modify the jaeger_storage settings based on the storage type
-    extensions, ok := config["extensions"].(map[string]any)
-    require.True(t, ok)
-    jaegerStorage, ok := extensions["jaeger_storage"].(map[string]any)	
+	serviceAny, ok := config["service"]
 	require.True(t, ok)
+	service := serviceAny.(map[string]any)
+	service["extensions"] = append(service["extensions"].([]any), "storage_cleaner")
+
+	extensions, ok := config["extensions"].(map[string]any)
+	require.True(t, ok)
+	query, ok := extensions["jaeger_query"].(map[string]any)
+	require.True(t, ok)
+	trace_storage := query["trace_storage"].(string)
+	extensions["storage_cleaner"] = map[string]string{"trace_storage": trace_storage}
+
+	jaegerStorageAny, ok := extensions["jaeger_storage"]
+	require.True(t, ok)
+	jaegerStorage := jaegerStorageAny.(map[string]any)
+	backendsAny, ok := jaegerStorage["backends"]
+	require.True(t, ok)
+	backends := backendsAny.(map[string]any)
 
 	switch storage {
-	case "elasticsearch":
-		elasticsearch, ok := jaegerStorage["elasticsearch"].(map[string]any)
-		require.True(t, ok)
-		esMain, ok := elasticsearch["es_main"].(map[string]any)
-		require.True(t, ok)
+	case "elasticsearch", "opensearch":
+		someStoreAny, ok := backends["some_storage"]
+		require.True(t, ok, "expecting 'some_storage' entry, found: %v", jaegerStorage)
+		someStore := someStoreAny.(map[string]any)
+		esMainAny, ok := someStore[storage]
+		require.True(t, ok, "expecting '%s' entry, found %v", storage, someStore)
+		esMain := esMainAny.(map[string]any)
 		esMain["service_cache_ttl"] = "1ms"
-
-	case "opensearch":
-		opensearch, ok := jaegerStorage["opensearch"].(map[string]any)
-		require.True(t, ok)
-		osMain, ok := opensearch["os_main"].(map[string]any)
-		require.True(t, ok)
-		osMain["service_cache_ttl"] = "1ms"
-
 	default:
 		// Do Nothing
 	}
@@ -185,6 +174,7 @@ func createStorageCleanerConfig(t *testing.T, configFile string, storage string,
 
 func purge(t *testing.T) {
 	addr := fmt.Sprintf("http://0.0.0.0:%s%s", storagecleaner.Port, storagecleaner.URL)
+	t.Logf("Purging storage via %s", addr)
 	r, err := http.NewRequestWithContext(context.Background(), http.MethodPost, addr, nil)
 	require.NoError(t, err)
 
@@ -193,6 +183,8 @@ func purge(t *testing.T) {
 	resp, err := client.Do(r)
 	require.NoError(t, err)
 	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
 
-	require.Equal(t, http.StatusOK, resp.StatusCode)
+	require.Equal(t, http.StatusOK, resp.StatusCode, "body: %s", string(body))
 }

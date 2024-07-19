@@ -66,13 +66,6 @@ func FactoryConfigFromEnvAndCLI(args []string, log io.Writer) FactoryConfig {
 	if spanStorageType == "" {
 		spanStorageType = cassandraStorageType
 	}
-	if spanStorageType == grpcPluginDeprecated {
-		fmt.Fprintf(log,
-			"WARNING: `%s` storage type is deprecated and will be remove from v1.60. Use `%s`.\n\n",
-			grpcPluginDeprecated, grpcStorageType,
-		)
-		spanStorageType = grpcStorageType
-	}
 	spanWriterTypes := strings.Split(spanStorageType, ",")
 	if len(spanWriterTypes) > 1 {
 		fmt.Fprintf(log,

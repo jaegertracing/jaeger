@@ -22,7 +22,6 @@ fi
 # for docker.io and quay.io
 BUILD_IMAGE=${BUILD_IMAGE:-"${BASE_BUILD_IMAGE}:${MAJOR_MINOR_PATCH}"}
 IMAGE_TAGS="--tag docker.io/${BASE_BUILD_IMAGE} --tag docker.io/${BUILD_IMAGE} --tag quay.io/${BASE_BUILD_IMAGE} --tag quay.io/${BUILD_IMAGE}"
-SNAPSHOT_TAG="${BASE_BUILD_IMAGE}-snapshot:${GITHUB_SHA}"
 
 if [ "${MAJOR_MINOR}x" != "x" ]; then
     MAJOR_MINOR_IMAGE="${BASE_BUILD_IMAGE}:${MAJOR_MINOR}"
@@ -34,6 +33,9 @@ if [ "${MAJOR}x" != "x" ]; then
     IMAGE_TAGS="${IMAGE_TAGS} --tag docker.io/${MAJOR_IMAGE} --tag quay.io/${MAJOR_IMAGE}"
 fi
 
-IMAGE_TAGS="${IMAGE_TAGS} --tag docker.io/${SNAPSHOT_TAG} --tag quay.io/${SNAPSHOT_TAG}"
+SNAPSHOT_TAG1="${BASE_BUILD_IMAGE}-snapshot:${GITHUB_SHA}"
+IMAGE_TAGS="${IMAGE_TAGS} --tag docker.io/${SNAPSHOT_TAG1} --tag quay.io/${SNAPSHOT_TAG1}"
+SNAPSHOT_TAG2="${BASE_BUILD_IMAGE}-snapshot:latest"
+IMAGE_TAGS="${IMAGE_TAGS} --tag docker.io/${SNAPSHOT_TAG2} --tag quay.io/${SNAPSHOT_TAG2}"
 
 echo "${IMAGE_TAGS}"

@@ -61,15 +61,6 @@ func PortToHostPort(port int) string {
 	return ":" + strconv.Itoa(port)
 }
 
-// GetAddressFromCLIOptions gets listening address based on port (deprecated flags) or host:port (new flags)
-func GetAddressFromCLIOptions(port int, hostPort string) string {
-	if port != 0 {
-		return PortToHostPort(port)
-	}
-
-	return FormatHostPort(hostPort)
-}
-
 // FormatHostPort returns hostPort in a usable format (host:port) if it wasn't already
 func FormatHostPort(hostPort string) string {
 	if hostPort == "" {
