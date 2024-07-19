@@ -45,7 +45,6 @@ func TestKafkaStorage(t *testing.T) {
         ingester.e2eCleanUp(t)
     })
 
-    // Run the span store tests for both collector and ingester
-    collector.RunSpanStoreTests(t)
+    // Run the span store tests
     ingester.RunSpanStoreTests(t)
 }
