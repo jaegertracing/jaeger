@@ -72,45 +72,45 @@ The primary difference between the Kafka integration tests and other integration
 
 ``` mermaid
 flowchart LR
-    Test -->|writeSpan| SpanWriter
-    SpanWriter --> RPCW[RPC_client]
-    RPCW --> OTLP_Receiver[Receiver]
-    OTLP_Receiver --> CollectorExporter[Kafka Exporter]
-    CollectorExporter --> Kafka[Kafka]
-    Kafka --> IngesterReceiver[Kafka Receiver]
-    IngesterReceiver --> IngesterExporter[Exporter]
-    IngesterExporter --> StorageBackend[(In-Memory Store)]
-    Test -->|readSpan| SpanReader
-    SpanReader --> RPCR[RPC_client]
-    RPCR --> QueryProcess[jaeger_query]
-    QueryProcess --> StorageBackend
-    IngesterExporter -.-> StorageCleaner
-    StorageCleaner -->[purge] StorageBackend
+        Test -->|writeSpan| SpanWriter
+        SpanWriter --> RPCW[RPC_client]
+        RPCW --> OTLP_Receiver[Receiver]
+        OTLP_Receiver --> CollectorExporter[Kafka Exporter]
+        CollectorExporter --> Kafka[Kafka]
+        Kafka --> IngesterReceiver[Kafka Receiver]
+        IngesterReceiver --> IngesterExporter[Exporter]
+        IngesterExporter --> StorageBackend[(In-Memory Store)]
+        Test -->|readSpan| SpanReader
+        SpanReader --> RPCR[RPC_client]
+        RPCR --> QueryProcess[jaeger_query]
+        StorageCleaner -->|purge| StorageBackend
+        QueryProcess --> StorageBackend
+        
 
-    subgraph Integration_Test_Executable
-        Test
-        SpanWriter
-        SpanReader
-        RPCW
-        RPCR
-    end
+        subgraph Integration_Test_Executable
+            Test
+            SpanWriter
+            SpanReader
+            RPCW
+            RPCR
+        end
 
-    subgraph Jaeger Collector
-        OTLP_Receiver
-        CollectorExporter
-    end
+        subgraph Jaeger Collector
+            OTLP_Receiver
+            CollectorExporter
+        end
 
-    subgraph Jaeger Ingester
-        IngesterReceiver
-        IngesterExporter
-        QueryProcess
-        StorageBackend
-        StorageCleaner[Storage Cleaner Extension]
-    end
+        subgraph Jaeger Ingester
+            IngesterReceiver
+            IngesterExporter
+            QueryProcess
+            StorageBackend
+            StorageCleaner[Storage Cleaner Extension]
+        end
 
-    subgraph Kafka
-        Topic
-    end
+        subgraph Kafka
+            Topic
+        end
 ```
 
 ## Running tests locally
