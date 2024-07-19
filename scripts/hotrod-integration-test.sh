@@ -24,7 +24,7 @@ while getopts "lp:h" opt; do
 	p)
 		platforms=${OPTARG}
 		;;
-	h)
+	*)
 		print_help
 		;;
 	esac
