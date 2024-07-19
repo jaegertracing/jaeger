@@ -108,8 +108,8 @@ flowchart LR
         StorageCleaner[Storage Cleaner Extension]
     end
 
-    subgraph Kafka Buffer
-        Kafka
+    subgraph Kafka
+        Topic
     end
 ```
 
