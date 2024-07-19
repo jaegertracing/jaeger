@@ -48,7 +48,9 @@ for platform in $(echo "$platforms" | tr ',' ' '); do
   make build-examples GOOS="${os}" GOARCH="${arch}"
 done
 
-# Build hotrod image locally (-l) for integration test
+# Build hotrod image locally (-l) for integration test.
+# Note: hotrod's Dockerfile is different from main binaries,
+# so we do not pass flags like -b and -t.
 bash scripts/build-upload-a-docker-image.sh -l -c example-hotrod -d examples/hotrod -p "${current_platform}"
 
 # Build all-in-one image locally (-l) for integration test
@@ -112,4 +114,4 @@ fi
 
 # Ensure the image is published after successful test (maybe with -l flag if on a pull request).
 # This is where all those multi-platform binaries we built earlier are utilized.
-bash scripts/build-upload-a-docker-image.sh ${LOCAL_FLAG} -c example-hotrod -d examples/hotrod -p "${platforms}" -t release
+bash scripts/build-upload-a-docker-image.sh ${LOCAL_FLAG} -c example-hotrod -d examples/hotrod -p "${platforms}"
