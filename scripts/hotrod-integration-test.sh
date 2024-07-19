@@ -54,8 +54,8 @@ for platform in $(echo "$platforms" | tr ',' ' '); do
 done
 
 # Build image locally (-l) for integration test
-bash scripts/build-upload-a-docker-image.sh -l -c ${BINARY} -d examples/hotrod -p "${platforms}"
-bash scripts/build-upload-a-docker-image.sh ${LOCAL_FLAG} -b -c all-in-one -d cmd/all-in-one -p "${platforms}" -t release
+bash scripts/build-upload-a-docker-image.sh ${LOCAL_FLAG} -c ${BINARY} -d examples/hotrod -p "${platforms}"
+bash scripts/build-upload-a-docker-image.sh -l -b -c all-in-one -d cmd/all-in-one -p "${platforms}" -t release
 
 JAEGER_VERSION=$GITHUB_SHA REGISTRY="localhost:5000/" docker compose -f "$docker_compose_file" up -d
 
