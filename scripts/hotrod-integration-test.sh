@@ -114,5 +114,5 @@ if [[ "$span_count" -lt "$EXPECTED_SPANS" ]]; then
   exit 1
 fi
 
-# Ensure the image is published after successful test (with -l flag)
+# Ensure the image is published after successful test (maybe with -l flag if on a pull request)
 bash scripts/build-upload-a-docker-image.sh ${LOCAL_FLAG} -c example-hotrod -d examples/hotrod -p "${platforms}"
