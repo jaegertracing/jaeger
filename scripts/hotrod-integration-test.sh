@@ -3,7 +3,8 @@
 set -euxf -o pipefail
 
 print_help() {
-  echo "Usage: $0 [-l] [-p platforms] [-h]"
+  echo "Usage: $0 [-l] [-D] [-p platforms] [-h]"
+  echo "-D: Disable building of images with debugger"
   echo "-h: Print help"
   echo "-l: Enable local-only mode that only pushes images to local registry"
   echo "-p: Comma-separated list of platforms to build for (default: all supported)"
@@ -50,11 +51,11 @@ for platform in $(echo "$platforms" | tr ',' ' '); do
   os=${platform%%/*}  #remove everything after the last slash
   # Extract the architecture from the platform string
   arch=${platform##*/}  # Remove everything before the last slash
-  make "build-all-in-one" GOOS=${os} GOARCH="${arch}"
+  make "build-all-in-one" GOOS="${os}" GOARCH="${arch}"
 done
 
 # Build image locally (-l) for integration test
-bash scripts/build-upload-a-docker-image.sh ${LOCAL_FLAG} -c ${BINARY} -d examples/hotrod -p "${platforms}"
+bash scripts/build-upload-a-docker-image.sh -l -c ${BINARY} -d examples/hotrod -p "${platforms}"
 bash scripts/build-upload-a-docker-image.sh -l -b -c all-in-one -d cmd/all-in-one -p "${platforms}" -t release
 
 JAEGER_VERSION=$GITHUB_SHA REGISTRY="localhost:5000/" docker compose -f "$docker_compose_file" up -d
@@ -113,5 +114,5 @@ if [[ "$span_count" -lt "$EXPECTED_SPANS" ]]; then
   exit 1
 fi
 
-# Ensure the image is published after successful test (no -l flag)
-bash scripts/build-upload-a-docker-image.sh -c example-hotrod -d examples/hotrod -p "${platforms}"
+# Ensure the image is published after successful test (with -l flag)
+bash scripts/build-upload-a-docker-image.sh ${LOCAL_FLAG} -c example-hotrod -d examples/hotrod -p "${platforms}"
