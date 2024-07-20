@@ -1,9 +1,4 @@
 receivers:
-  jaeger:
-    protocols:
-      thrift_http:
-        endpoint: "0.0.0.0:14278"
-
   otlp:
     protocols:
       grpc:
@@ -27,11 +22,12 @@ processors:
 service:
   pipelines:
     traces:
-      receivers: [otlp, jaeger]
+      receivers: [otlp]
       processors: [batch]
       exporters: [spanmetrics, otlp]
-    # The exporter name in this pipeline must match the spanmetrics.metrics_exporter name.
-    # The receiver is just a dummy and never used; added to pass validation requiring at least one receiver in a pipeline.
+
+    # The metrics pipeline receives generated span metrics from 'spanmetrics' connector
+    # and pushes to Prometheus exporter, which makes them available for scraping on :8889.
     metrics/spanmetrics:
       receivers: [spanmetrics]
       exporters: [prometheus]
