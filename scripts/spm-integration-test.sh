@@ -17,7 +17,7 @@ while getopts "b:h" opt; do
 	b)
 		BINARY=${OPTARG}
 		;;
-	?)
+	*)
 		print_help
 		;;
 	esac
