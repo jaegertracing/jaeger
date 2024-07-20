@@ -2,23 +2,18 @@ version: "3.5"
 services:
   jaeger:
     networks:
-      - backend
+      backend:
+        # This is the host name used in Prometheus scrape configuration.
+        aliases: [spm_metrics_source]
     image: jaegertracing/jaeger:${JAEGER_IMAGE_TAG:-latest}
     volumes:
       - "./jaeger-ui.json:/etc/jaeger/jaeger-ui.json" # Do we need this for v2 ? Seems to be running without this.
       - "./jaeger-v2-config.yml:/etc/jaeger/config.yml"
     command: ["--config", "/etc/jaeger/config.yml"]
-    #  TODO: Need to pass this through config
-    # environment:
-    #   - METRICS_STORAGE_TYPE=prometheus
-    #   - PROMETHEUS_SERVER_URL=http://prometheus:9090
-    #   # - PROMETHEUS_QUERY_SUPPORT_SPANMETRICS_CONNECTOR=${PROMETHEUS_QUERY_SUPPORT_SPANMETRICS_CONNECTOR:-true}
-    #   - PROMETHEUS_QUERY_NAMESPACE=${PROMETHEUS_QUERY_NAMESPACE:-}
-    #   - PROMETHEUS_QUERY_DURATION_UNIT=${PROMETHEUS_QUERY_DURATION_UNIT:-}
-    #   - PROMETHEUS_QUERY_NORMALIZE_CALLS=true
-    #   - PROMETHEUS_QUERY_NORMALIZE_DURATION=true
     ports:
       - "16686:16686"
+      - "8889:8889"
+
   microsim:
     networks:
       - backend
@@ -28,6 +23,7 @@ services:
       - OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://jaeger:4318/v1/traces
     depends_on:
       - jaeger
+
   prometheus:
     networks:
       - backend
@@ -36,6 +32,7 @@ services:
       - "./prometheus.yml:/etc/prometheus/prometheus.yml"
     ports:
       - "9090:9090"
+
   grafana:
     networks:
       - backend

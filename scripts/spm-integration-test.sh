@@ -23,6 +23,8 @@ while getopts "b:h" opt; do
 	esac
 done
 
+set -x
+
 if [ "$BINARY" == "jaeger" ]; then
   compose_file=docker-compose/monitor/docker-compose-v2.yml
 fi
@@ -36,7 +38,7 @@ check_service_health() {
   local url=$2
   echo "Checking health of service: $service_name at $url"
 
-  local wait_seconds=10
+  local wait_seconds=3
   local curl_params=(
     --silent
     --output
@@ -63,7 +65,7 @@ wait_for_services() {
   check_service_health "Jaeger" "http://localhost:16686"
   check_service_health "Prometheus" "http://localhost:9090/graph"
   # Grafana is not actually important for the functional test,
-  # but it at least validates that the docker-compose file is correct.
+  # but we still validate that the docker-compose file is correct.
   check_service_health "Grafana" "http://localhost:3000"
 }
 
@@ -150,7 +152,7 @@ main() {
     (cd docker-compose/monitor && make build BINARY="$BINARY" && make dev-v2 DOCKER_COMPOSE_ARGS="-d")
   else
     (cd docker-compose/monitor && make build BINARY="$BINARY" && make dev DOCKER_COMPOSE_ARGS="-d")
-  fi 
+  fi
   wait_for_services
   check_spm
   success="true"

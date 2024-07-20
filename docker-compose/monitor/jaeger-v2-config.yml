@@ -8,7 +8,9 @@ service:
     metrics/spanmetrics:
       receivers: [spanmetrics]
       exporters: [prometheus]
-
+  telemetry:
+    logs:
+      level: DEBUG
 
 extensions:
   jaeger_query:
@@ -23,6 +25,8 @@ extensions:
       some_metrics_storage:
         prometheus:
           endpoint: http://prometheus:9090
+          normalize_calls: true
+          normalize_duration: true
 
 connectors:
   spanmetrics:
