@@ -137,7 +137,7 @@ func (s *storageExt) Start(_ context.Context, _ component.Host) error {
 	for metricStorageName, cfg := range s.config.MetricBackends {
 		s.telset.Logger.Sugar().Infof("Initializing metrics storage '%s'", metricStorageName)
 		var metricsFactory storage.MetricsFactory
-		var err error = errors.New("empty configuration")
+		var err error
 		if cfg.Prometheus != nil {
 			metricsFactory, err = prometheus.NewFactoryWithConfig(*cfg.Prometheus, s.telset.Logger)
 		}

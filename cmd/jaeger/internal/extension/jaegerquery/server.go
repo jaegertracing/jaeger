@@ -76,7 +76,6 @@ func (s *server) Start(_ context.Context, host component.Host) error {
 		return err
 	}
 
-	// metricsQueryService, _ := disabled.NewMetricsReader()
 	tm := tenancy.NewManager(&s.config.Tenancy)
 
 	// TODO OTel-collector does not initialize the tracer currently
