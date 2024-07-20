@@ -50,7 +50,7 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
 	configFile := s.ConfigFile
 	if !s.SkipStorageCleaner {
 		configFile = createStorageCleanerConfig(t, s.ConfigFile, storage)
-	}	
+	}
 	t.Logf("Starting Jaeger-v2 in the background with config file %s", configFile)
 
 	outFile, err := os.OpenFile(

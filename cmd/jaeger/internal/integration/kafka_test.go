@@ -10,38 +10,37 @@ import (
 )
 
 func TestKafkaStorage(t *testing.T) {
-    integration.SkipUnlessEnv(t, "kafka")
+	integration.SkipUnlessEnv(t, "kafka")
 
-    collectorConfig := "../../collector-with-kafka.yaml"
-    ingesterConfig := "../../ingester-remote-storage.yaml"
+	collectorConfig := "../../collector-with-kafka.yaml"
+	ingesterConfig := "../../ingester-remote-storage.yaml"
 
-    collector := &E2EStorageIntegration{
-        SkipStorageCleaner: true,
-        ConfigFile: collectorConfig,
-    }
+	collector := &E2EStorageIntegration{
+		SkipStorageCleaner: true,
+		ConfigFile:         collectorConfig,
+	}
 
-    // Initialize and start the collector
-    collector.e2eInitialize(t, "kafka")
+	// Initialize and start the collector
+	collector.e2eInitialize(t, "kafka")
 
-
-    ingester := &E2EStorageIntegration{
-        ConfigFile: ingesterConfig,
-        StorageIntegration: integration.StorageIntegration{
-            CleanUp: purge,
-            GetDependenciesReturnsSource: true,
-            SkipArchiveTest: true,
-        },
-    }
+	ingester := &E2EStorageIntegration{
+		ConfigFile: ingesterConfig,
+		StorageIntegration: integration.StorageIntegration{
+			CleanUp:                      purge,
+			GetDependenciesReturnsSource: true,
+			SkipArchiveTest:              true,
+		},
+	}
 
 	// Initialize and start the ingester
-    ingester.e2eInitialize(t, "kafka")
+	ingester.e2eInitialize(t, "kafka")
 
-    // Set up cleanup for both collector and ingester
-    t.Cleanup(func() {
-        collector.e2eCleanUp(t)
-        ingester.e2eCleanUp(t)
-    })
+	// Set up cleanup for both collector and ingester
+	t.Cleanup(func() {
+		collector.e2eCleanUp(t)
+		ingester.e2eCleanUp(t)
+	})
 
-    // Run the span store tests
-    ingester.RunSpanStoreTests(t)
+	// Run the span store tests
+	ingester.RunSpanStoreTests(t)
 }
