@@ -6,8 +6,8 @@ service:
       processors: [batch]
       exporters: [jaeger_storage_exporter, spanmetrics]
     metrics/spanmetrics:
-      receivers: [spanmetrics] 
-      exporters: [prometheus] 
+      receivers: [spanmetrics]
+      exporters: [prometheus]
 
 
 extensions:
@@ -22,6 +22,7 @@ extensions:
     metric_backends:
       some_metrics_storage:
         prometheus:
+          endpoint: http://prometheus:9090
 
 connectors:
   spanmetrics:
@@ -39,5 +40,5 @@ processors:
 exporters:
   jaeger_storage_exporter:
     trace_storage: some_storage
-  prometheus: 
+  prometheus:
     endpoint: "0.0.0.0:8889"

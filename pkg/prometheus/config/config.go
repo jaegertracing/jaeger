@@ -24,7 +24,7 @@ import (
 
 // Configuration describes the options to customize the storage behavior.
 type Configuration struct {
-	ServerURL                string
+	ServerURL                string `mapstructure:"endpoint"`
 	ConnectTimeout           time.Duration
 	TLS                      tlscfg.Options
 	TokenFilePath            string
