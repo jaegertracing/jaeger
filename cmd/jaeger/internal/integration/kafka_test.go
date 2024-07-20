@@ -21,7 +21,7 @@ func TestKafkaStorage(t *testing.T) {
     }
 
     // Initialize and start the collector
-    collector.e2eInitialize(t, "kafka-collector")
+    collector.e2eInitialize(t, "kafka")
 
 
     ingester := &E2EStorageIntegration{
@@ -34,7 +34,7 @@ func TestKafkaStorage(t *testing.T) {
     }
 
 	// Initialize and start the ingester
-    ingester.e2eInitialize(t, "kafka-ingester")
+    ingester.e2eInitialize(t, "kafka")
 
     // Set up cleanup for both collector and ingester
     t.Cleanup(func() {
