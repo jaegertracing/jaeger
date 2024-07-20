@@ -43,3 +43,18 @@ func TestOptionsWithFlags(t *testing.T) {
 	assert.Equal(t, time.Duration(5000000000), opts.LeaderLeaseRefreshInterval)
 	assert.Equal(t, time.Duration(60000000000), opts.FollowerLeaseRefreshInterval)
 }
+
+func TestDefaultOptions(t *testing.T) {
+	options := DefaultOptions()
+	assert.Equal(t, float64(defaultTargetSamplesPerSecond), options.TargetSamplesPerSecond)
+	assert.Equal(t, defaultDeltaTolerance, options.DeltaTolerance)
+	assert.Equal(t, defaultBucketsForCalculation, options.BucketsForCalculation)
+	assert.Equal(t, defaultCalculationInterval, options.CalculationInterval)
+	assert.Equal(t, defaultAggregationBuckets, options.AggregationBuckets)
+	assert.Equal(t, defaultDelay, options.Delay)
+	assert.Equal(t, defaultInitialSamplingProbability, options.InitialSamplingProbability)
+	assert.Equal(t, defaultMinSamplingProbability, options.MinSamplingProbability)
+	assert.Equal(t, defaultMinSamplesPerSecond, options.MinSamplesPerSecond)
+	assert.Equal(t, defaultLeaderLeaseRefreshInterval, options.LeaderLeaseRefreshInterval)
+	assert.Equal(t, defaultFollowerLeaseRefreshInterval, options.FollowerLeaseRefreshInterval)
+}

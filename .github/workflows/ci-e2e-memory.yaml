@@ -1,4 +1,4 @@
-name: CIT Hotrod
+name: CIT Memory
 
 on:
   push:
@@ -12,11 +12,11 @@ concurrency:
   cancel-in-progress: true
 
 # See https://github.com/ossf/scorecard/blob/main/docs/checks.md#token-permissions
-permissions:
+permissions:  # added using https://github.com/step-security/secure-workflows
   contents: read
 
 jobs:
-  hotrod:
+  memory-v2:
     runs-on: ubuntu-latest
     steps:
     - name: Harden Runner
@@ -25,31 +25,17 @@ jobs:
         egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
 
     - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
-      with:
-        submodules: true
-
-    - name: Fetch git tags
-      run: |
-        git fetch --prune --unshallow --tags
 
     - uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5.0.2
       with:
         go-version: 1.22.x
 
-    - name: Export BRANCH variable
-      uses: ./.github/actions/setup-branch
+    - name: Run Memory storage integration tests
+      run: |
+        STORAGE=memory_v2 make jaeger-v2-storage-integration-test
 
-    - name: Install tools
-      run: make install-ci
-
-    - uses: docker/setup-qemu-action@5927c834f5b4fdf503fca6f4c7eccda82949e1ee # v3.1.0
-
-    - name: Build, test, and publish hotrod image
-      run: bash scripts/hotrod-integration-test.sh
-      env:
-        DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
-        QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
-
-    - name: Print logs from hotrod
-      run: docker logs example-hotrod
-      if: failure()
+    - name: Upload coverage to codecov
+      uses: ./.github/actions/upload-codecov
+      with:
+        files: cover.out
+        flags: memory_v2

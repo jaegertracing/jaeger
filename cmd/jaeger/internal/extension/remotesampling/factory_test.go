@@ -1,7 +1,7 @@
 // Copyright (c) 2024 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
-package storagereceiver
+package remotesampling
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component/componenttest"
-	"go.opentelemetry.io/collector/receiver/receivertest"
+	"go.opentelemetry.io/collector/extension/extensiontest"
 )
 
 func TestCreateDefaultConfig(t *testing.T) {
@@ -19,10 +19,10 @@ func TestCreateDefaultConfig(t *testing.T) {
 	require.NoError(t, componenttest.CheckConfigStruct(cfg))
 }
 
-func TestCreateTracesReceiver(t *testing.T) {
+func TestCreateExtension(t *testing.T) {
 	cfg := createDefaultConfig().(*Config)
 	f := NewFactory()
-	r, err := f.CreateTracesReceiver(context.Background(), receivertest.NewNopSettings(), cfg, nil)
+	r, err := f.CreateExtension(context.Background(), extensiontest.NewNopSettings(), cfg)
 	require.NoError(t, err)
 	assert.NotNil(t, r)
 }
