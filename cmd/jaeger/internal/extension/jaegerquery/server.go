@@ -145,7 +145,7 @@ func (s *server) createMetricStorage(host component.Host) (metricsstore.Reader, 
 	// metricsReader, ok := opts.InitMetricStorage(mf, s.telset.Logger)
 	metricsReader, err := mf.CreateMetricsReader()
 	if errors.Is(err, storage.ErrMetricStorageNotConfigured) || errors.Is(err, storage.ErrMetricStorageNotSupported) {
-		s.telset.Logger.Info("Metric storage not created", zap.String("reason", err.Error()))
+		s.telset.Logger.Info("Metric storage not created", zap.Error(err))
 		return disabled.NewMetricsReader()
 	}
 	return metricsReader, err
