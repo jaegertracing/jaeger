@@ -47,7 +47,10 @@ type E2EStorageIntegration struct {
 // This function should be called before any of the tests start.
 func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
 	logger := zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller()))
-	configFile := createStorageCleanerConfig(t, s.SkipStorageCleaner,s.ConfigFile, storage)
+	configFile := s.ConfigFile
+	if !s.SkipStorageCleaner {
+		configFile = createStorageCleanerConfig(t, s.ConfigFile, storage)
+	}	
 	t.Logf("Starting Jaeger-v2 in the background with config file %s", configFile)
 
 	outFile, err := os.OpenFile(
@@ -125,44 +128,28 @@ func (s *E2EStorageIntegration) e2eCleanUp(t *testing.T) {
 	require.NoError(t, s.SpanWriter.(io.Closer).Close())
 }
 
-func createStorageCleanerConfig(t *testing.T, SkipStorageCleaner bool, configFile string, storage string) string {
+func createStorageCleanerConfig(t *testing.T, configFile string, storage string) string {
 	data, err := os.ReadFile(configFile)
 	require.NoError(t, err)
-
 	var config map[string]any
 	err = yaml.Unmarshal(data, &config)
 	require.NoError(t, err)
 
-	// Ensure extensions are correctly parsed before any modifications
+	serviceAny, ok := config["service"]
+	require.True(t, ok)
+	service := serviceAny.(map[string]any)
+	service["extensions"] = append(service["extensions"].([]any), "storage_cleaner")
+
 	extensionsAny, ok := config["extensions"]
 	require.True(t, ok)
 	extensions := extensionsAny.(map[string]any)
+	queryAny, ok := extensions["jaeger_query"]
+	require.True(t, ok)
+	traceStorageAny, ok := queryAny.(map[string]any)["trace_storage"]
+	require.True(t, ok)
+	traceStorage := traceStorageAny.(string)
+	extensions["storage_cleaner"] = map[string]string{"trace_storage": traceStorage}
 
-
-	if !SkipStorageCleaner{	
-		// Add storage_cleaner to the service extensions
-		serviceAny, ok := config["service"]
-		require.True(t, ok)
-		service := serviceAny.(map[string]any)
-
-		// Ensure the extensions key is present and is a slice
-		if extList, ok := service["extensions"].([]any); ok {
-			service["extensions"] = append(extList, "storage_cleaner")
-		} else {
-			service["extensions"] = []any{"storage_cleaner"}
-		}
-
-		// Ensure jaeger_query is correctly parsed
-		queryAny, ok := extensions["jaeger_query"]
-		require.True(t, ok)
-		query := queryAny.(map[string]any)
-		trace_storage, ok := query["trace_storage"].(string)
-		require.True(t, ok)
-		
-		extensions["storage_cleaner"] = map[string]string{"trace_storage": trace_storage}
-	}
-
-    // Ensure jaeger_storage is correctly parsed
 	jaegerStorageAny, ok := extensions["jaeger_storage"]
 	require.True(t, ok)
 	jaegerStorage := jaegerStorageAny.(map[string]any)

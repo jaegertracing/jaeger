@@ -18,10 +18,6 @@ func TestKafkaStorage(t *testing.T) {
     collector := &E2EStorageIntegration{
         SkipStorageCleaner: true,
         ConfigFile: collectorConfig,
-        StorageIntegration: integration.StorageIntegration{
-            GetDependenciesReturnsSource: true,
-            SkipArchiveTest: true,
-        },
     }
 
     // Initialize and start the collector
