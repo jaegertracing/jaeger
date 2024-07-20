@@ -148,11 +148,7 @@ func (s *server) createMetricStorage(host component.Host) (metricsstore.Reader, 
 		s.telset.Logger.Info("Metric storage not created", zap.String("reason", err.Error()))
 		return disabled.NewMetricsReader()
 	}
-	if err != nil {
-		s.telset.Logger.Error("Cannot init metric storage reader", zap.Error(err))
-		return disabled.NewMetricsReader()
-	}
-	return metricsReader, nil
+	return metricsReader, err
 }
 
 func (s *server) makeQueryOptions() *queryApp.QueryOptions {
