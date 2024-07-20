@@ -19,7 +19,7 @@ func TestMemoryStorage(t *testing.T) {
 			CleanUp:         purge,
 		},
 	}
-	s.e2eInitialize(t, "memory", true)
+	s.e2eInitialize(t, "memory")
 	t.Cleanup(func() {
 		s.e2eCleanUp(t)
 	})

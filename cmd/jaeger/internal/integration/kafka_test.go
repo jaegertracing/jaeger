@@ -16,6 +16,7 @@ func TestKafkaStorage(t *testing.T) {
     ingesterConfig := "../../ingester-remote-storage.yaml"
 
     collector := &E2EStorageIntegration{
+        SkipStorageCleaner: true,
         ConfigFile: collectorConfig,
         StorageIntegration: integration.StorageIntegration{
             GetDependenciesReturnsSource: true,
@@ -24,7 +25,7 @@ func TestKafkaStorage(t *testing.T) {
     }
 
     // Initialize and start the collector
-    collector.e2eInitialize(t, "kafka-collector", false)
+    collector.e2eInitialize(t, "kafka-collector")
 
 
     ingester := &E2EStorageIntegration{
@@ -37,7 +38,7 @@ func TestKafkaStorage(t *testing.T) {
     }
 
 	// Initialize and start the ingester
-    ingester.e2eInitialize(t, "kafka-ingester", true)
+    ingester.e2eInitialize(t, "kafka-ingester")
 
     // Set up cleanup for both collector and ingester
     t.Cleanup(func() {

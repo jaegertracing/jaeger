@@ -37,6 +37,7 @@ const otlpPort = 4317
 //   - At last, clean up anything declared in its own test functions.
 //     (e.g. close remote-storage)
 type E2EStorageIntegration struct {
+	SkipStorageCleaner bool
 	integration.StorageIntegration
 	ConfigFile string
 }
@@ -44,9 +45,9 @@ type E2EStorageIntegration struct {
 // e2eInitialize starts the Jaeger-v2 collector with the provided config file,
 // it also initialize the SpanWriter and SpanReader below.
 // This function should be called before any of the tests start.
-func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string, injectStorageCleaner bool) {
+func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
 	logger := zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller()))
-	configFile := createStorageCleanerConfig(t, s.ConfigFile, storage, injectStorageCleaner)
+	configFile := createStorageCleanerConfig(t, s.SkipStorageCleaner,s.ConfigFile, storage)
 	t.Logf("Starting Jaeger-v2 in the background with config file %s", configFile)
 
 	outFile, err := os.OpenFile(
@@ -124,7 +125,7 @@ func (s *E2EStorageIntegration) e2eCleanUp(t *testing.T) {
 	require.NoError(t, s.SpanWriter.(io.Closer).Close())
 }
 
-func createStorageCleanerConfig(t *testing.T, configFile string, storage string, injectStorageCleaner bool) string {
+func createStorageCleanerConfig(t *testing.T, SkipStorageCleaner bool, configFile string, storage string) string {
 	data, err := os.ReadFile(configFile)
 	require.NoError(t, err)
 
@@ -138,7 +139,7 @@ func createStorageCleanerConfig(t *testing.T, configFile string, storage string,
 	extensions := extensionsAny.(map[string]any)
 
 
-	if injectStorageCleaner{	
+	if !SkipStorageCleaner{	
 		// Add storage_cleaner to the service extensions
 		serviceAny, ok := config["service"]
 		require.True(t, ok)
