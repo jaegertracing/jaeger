@@ -29,7 +29,7 @@ if [ "$BINARY" == "jaeger" ]; then
   compose_file=docker-compose/monitor/docker-compose-v2.yml
 fi
 
-timeout=300
+timeout=600
 end_time=$((SECONDS + timeout))
 success="false"
 

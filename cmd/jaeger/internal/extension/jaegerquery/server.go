@@ -141,7 +141,6 @@ func (s *server) createMetricStorage(host component.Host) (metricsstore.Reader, 
 		return nil, fmt.Errorf("cannot find metrics storage factory: %w", err)
 	}
 
-	// metricsReader, ok := opts.InitMetricStorage(mf, s.telset.Logger)
 	metricsReader, err := mf.CreateMetricsReader()
 	if errors.Is(err, storage.ErrMetricStorageNotConfigured) || errors.Is(err, storage.ErrMetricStorageNotSupported) {
 		s.telset.Logger.Info("Metric storage not created", zap.Error(err))
