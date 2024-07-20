@@ -28,8 +28,8 @@ var _ Extension = (*storageExt)(nil)
 
 type Extension interface {
 	extension.Extension
-	Factory(name string) (storage.Factory, bool)
-	MetricsFactory(name string) (storage.MetricsFactory, bool)
+	TraceStorageFactory(name string) (storage.Factory, bool)
+	MetricStorageFactory(name string) (storage.MetricsFactory, bool)
 }
 
 type storageExt struct {
@@ -41,20 +41,11 @@ type storageExt struct {
 
 // GetStorageFactory locates the extension in Host and retrieves a storage factory from it with the given name.
 func GetStorageFactory(name string, host component.Host) (storage.Factory, error) {
-	var comp component.Component
-	for id, ext := range host.GetExtensions() {
-		if id.Type() == componentType {
-			comp = ext
-			break
-		}
+	ext, err := findExtension(host)
+	if err != nil {
+		return nil, err
 	}
-	if comp == nil {
-		return nil, fmt.Errorf(
-			"cannot find extension '%s' (make sure it's defined earlier in the config)",
-			componentType,
-		)
-	}
-	f, ok := comp.(Extension).Factory(name)
+	f, ok := ext.TraceStorageFactory(name)
 	if !ok {
 		return nil, fmt.Errorf(
 			"cannot find definition of storage '%s' in the configuration for extension '%s'",
@@ -66,20 +57,11 @@ func GetStorageFactory(name string, host component.Host) (storage.Factory, error
 
 // GetMetricsFactory locates the extension in Host and retrieves a metrics factory from it with the given name.
 func GetMetricsFactory(name string, host component.Host) (storage.MetricsFactory, error) {
-	var comp component.Component
-	for id, ext := range host.GetExtensions() {
-		if id.Type() == componentType {
-			comp = ext
-			break
-		}
+	ext, err := findExtension(host)
+	if err != nil {
+		return nil, err
 	}
-	if comp == nil {
-		return nil, fmt.Errorf(
-			"cannot find extension '%s' (make sure it's defined earlier in the config)",
-			componentType,
-		)
-	}
-	mf, ok := comp.(Extension).MetricsFactory(name)
+	mf, ok := ext.MetricStorageFactory(name)
 	if !ok {
 		return nil, fmt.Errorf(
 			"cannot find metric storage '%s' declared by '%s' extension",
@@ -96,6 +78,28 @@ func GetStorageFactoryV2(name string, host component.Host) (spanstore.Factory, e
 	}
 
 	return factoryadapter.NewFactory(f), nil
+}
+
+func findExtension(host component.Host) (Extension, error) {
+	var id component.ID
+	var comp component.Component
+	for i, ext := range host.GetExtensions() {
+		if i.Type() == componentType {
+			id, comp = i, ext
+			break
+		}
+	}
+	if comp == nil {
+		return nil, fmt.Errorf(
+			"cannot find extension '%s' (make sure it's defined earlier in the config)",
+			componentType,
+		)
+	}
+	ext, ok := comp.(Extension)
+	if !ok {
+		return nil, fmt.Errorf("extension '%s' is not of expected type '%s'", id, componentType)
+	}
+	return ext, nil
 }
 
 func newStorageExt(config *Config, telset component.TelemetrySettings) *storageExt {
@@ -163,12 +167,12 @@ func (s *storageExt) Shutdown(context.Context) error {
 	return errors.Join(errs...)
 }
 
-func (s *storageExt) Factory(name string) (storage.Factory, bool) {
+func (s *storageExt) TraceStorageFactory(name string) (storage.Factory, bool) {
 	f, ok := s.factories[name]
 	return f, ok
 }
 
-func (s *storageExt) MetricsFactory(name string) (storage.MetricsFactory, bool) {
+func (s *storageExt) MetricStorageFactory(name string) (storage.MetricsFactory, bool) {
 	mf, ok := s.metricsFactories[name]
 	return mf, ok
 }

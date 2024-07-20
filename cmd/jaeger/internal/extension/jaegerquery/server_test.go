@@ -87,14 +87,14 @@ type fakeStorageExt struct{}
 
 var _ jaegerstorage.Extension = (*fakeStorageExt)(nil)
 
-func (fakeStorageExt) Factory(name string) (storage.Factory, bool) {
+func (fakeStorageExt) TraceStorageFactory(name string) (storage.Factory, bool) {
 	if name == "need-factory-error" {
 		return nil, false
 	}
 	return fakeFactory{name: name}, true
 }
 
-func (fakeStorageExt) MetricsFactory(name string) (storage.MetricsFactory, bool) {
+func (fakeStorageExt) MetricStorageFactory(name string) (storage.MetricsFactory, bool) {
 	if name == "need-factory-error" {
 		return nil, false
 	}

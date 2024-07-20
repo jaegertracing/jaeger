@@ -44,6 +44,8 @@ type mockStorageExt struct {
 	metricsFactory *factoryMocks.MetricsFactory
 }
 
+var _ jaegerstorage.Extension = (*mockStorageExt)(nil)
+
 func (*mockStorageExt) Start(context.Context, component.Host) error {
 	panic("not implemented")
 }
@@ -52,14 +54,14 @@ func (*mockStorageExt) Shutdown(context.Context) error {
 	panic("not implemented")
 }
 
-func (m *mockStorageExt) Factory(name string) (storage.Factory, bool) {
+func (m *mockStorageExt) TraceStorageFactory(name string) (storage.Factory, bool) {
 	if m.name == name {
 		return m.factory, true
 	}
 	return nil, false
 }
 
-func (m *mockStorageExt) MetricsFactory(name string) (storage.MetricsFactory, bool) {
+func (m *mockStorageExt) MetricStorageFactory(name string) (storage.MetricsFactory, bool) {
 	if m.name == name {
 		return m.metricsFactory, true
 	}
