@@ -5,6 +5,7 @@ package jaegerquery
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"go.opentelemetry.io/collector/component"
@@ -13,6 +14,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
 	queryApp "github.com/jaegertracing/jaeger/cmd/query/app"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
+	"github.com/jaegertracing/jaeger/pkg/jtracer"
 	"github.com/jaegertracing/jaeger/pkg/telemetery"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/plugin/metrics/disabled"
@@ -24,9 +26,10 @@ var (
 )
 
 type server struct {
-	config *Config
-	server *queryApp.Server
-	telset component.TelemetrySettings
+	config      *Config
+	server      *queryApp.Server
+	telset      component.TelemetrySettings
+	closeTracer func(ctx context.Context) error
 }
 
 func newServer(config *Config, otel component.TelemetrySettings) *server {
@@ -67,9 +70,17 @@ func (s *server) Start(_ context.Context, host component.Host) error {
 	metricsQueryService, _ := disabled.NewMetricsReader()
 	tm := tenancy.NewManager(&s.config.Tenancy)
 
+	// TODO OTel-collector does not initialize the tracer currently
+	// https://github.com/open-telemetry/opentelemetry-collector/issues/7532
+	//nolint
+	tracerProvider, err := jtracer.New("jaeger")
+	if err != nil {
+		return fmt.Errorf("could not initialize a tracer: %w", err)
+	}
+	s.closeTracer = tracerProvider.Close
 	telset := telemetery.Setting{
 		Logger:         s.telset.Logger,
-		TracerProvider: s.telset.TracerProvider,
+		TracerProvider: tracerProvider.OTEL,
 		ReportStatus:   s.telset.ReportStatus,
 	}
 
@@ -122,6 +133,13 @@ func (s *server) makeQueryOptions() *queryApp.QueryOptions {
 	}
 }
 
-func (s *server) Shutdown(_ context.Context) error {
-	return s.server.Close()
+func (s *server) Shutdown(ctx context.Context) error {
+	var errs []error
+	if s.server != nil {
+		errs = append(errs, s.server.Close())
+	}
+	if s.closeTracer != nil {
+		errs = append(errs, s.closeTracer(ctx))
+	}
+	return errors.Join(errs...)
 }

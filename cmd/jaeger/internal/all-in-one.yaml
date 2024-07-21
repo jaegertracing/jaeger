@@ -10,14 +10,15 @@ service:
       service.name: jaeger
     metrics:
       level: detailed
-    traces:
-      processors:
-        - batch:
-            schedule_delay: 1000
-            exporter:
-              otlp:
-                endpoint: http://localhost:4318
-                protocol: http/protobuf
+    # TODO Initialize telemetery tracer once OTEL released new feature.
+    # traces:
+    #   processors:
+    #     - batch:
+    #         schedule_delay: 1000
+    #         exporter:
+    #           otlp:
+    #             endpoint: http://localhost:4318
+    #             protocol: http/protobuf
 extensions:
   jaeger_query:
     trace_storage: some_storage
