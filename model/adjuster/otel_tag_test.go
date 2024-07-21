@@ -19,9 +19,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	semconv "go.opentelemetry.io/otel/semconv/v1.25.0"
 
 	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger/pkg/otelsemconv"
 )
 
 func TestOTelTagAdjuster(t *testing.T) {
@@ -35,8 +35,12 @@ func TestOTelTagAdjuster(t *testing.T) {
 			span: &model.Span{
 				Tags: model.KeyValues{
 					model.String("random_key", "random_value"),
-					model.String(string(semconv.OTelLibraryNameKey), "go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"),
-					model.String(string(semconv.OTelLibraryVersionKey), "0.45.0"),
+					model.String(string(otelsemconv.TelemetrySDKLanguageKey), "Go"),
+					model.String(string(otelsemconv.TelemetrySDKNameKey), "opentelemetry"),
+					model.String(string(otelsemconv.TelemetrySDKVersionKey), "1.27.0"),
+					// distro attrs intentionally after SDK attrs to test sorting
+					model.String(string(otelsemconv.TelemetryDistroNameKey), "opentelemetry"),
+					model.String(string(otelsemconv.TelemetryDistroVersionKey), "blah"),
 					model.String("another_key", "another_value"),
 				},
 				Process: &model.Process{
@@ -50,8 +54,11 @@ func TestOTelTagAdjuster(t *testing.T) {
 				},
 				Process: &model.Process{
 					Tags: model.KeyValues{
-						model.String(string(semconv.OTelLibraryNameKey), "go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"),
-						model.String(string(semconv.OTelLibraryVersionKey), "0.45.0"),
+						model.String(string(otelsemconv.TelemetryDistroNameKey), "opentelemetry"),
+						model.String(string(otelsemconv.TelemetryDistroVersionKey), "blah"),
+						model.String(string(otelsemconv.TelemetrySDKLanguageKey), "Go"),
+						model.String(string(otelsemconv.TelemetrySDKNameKey), "opentelemetry"),
+						model.String(string(otelsemconv.TelemetrySDKVersionKey), "1.27.0"),
 					},
 				},
 			},

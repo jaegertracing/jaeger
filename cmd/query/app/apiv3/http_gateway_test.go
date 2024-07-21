@@ -46,7 +46,7 @@ func setupHTTPGatewayNoServer(
 		QueryService: q,
 		TenancyMgr:   tenancy.NewManager(&tenancyOptions),
 		Logger:       zap.NewNop(),
-		Tracer:       jtracer.NoOp(),
+		Tracer:       jtracer.NoOp().OTEL,
 	}
 
 	gw.router = &mux.Router{}

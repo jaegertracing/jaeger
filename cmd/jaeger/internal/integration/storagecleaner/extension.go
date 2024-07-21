@@ -13,6 +13,7 @@ import (
 	"github.com/gorilla/mux"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/extension"
+	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
 	"github.com/jaegertracing/jaeger/storage"
@@ -29,15 +30,15 @@ const (
 )
 
 type storageCleaner struct {
-	config   *Config
-	server   *http.Server
-	settings component.TelemetrySettings
+	config *Config
+	server *http.Server
+	telset component.TelemetrySettings
 }
 
-func newStorageCleaner(config *Config, telemetrySettings component.TelemetrySettings) *storageCleaner {
+func newStorageCleaner(config *Config, telset component.TelemetrySettings) *storageCleaner {
 	return &storageCleaner{
-		config:   config,
-		settings: telemetrySettings,
+		config: config,
+		telset: telset,
 	}
 }
 
@@ -74,10 +75,11 @@ func (c *storageCleaner) Start(_ context.Context, host component.Host) error {
 		Handler:           r,
 		ReadHeaderTimeout: 3 * time.Second,
 	}
+	c.telset.Logger.Info("Starting storage cleaner server", zap.String("addr", c.server.Addr))
 	go func() {
 		if err := c.server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			err = fmt.Errorf("error starting cleaner server: %w", err)
-			c.settings.ReportStatus(component.NewFatalErrorEvent(err))
+			c.telset.ReportStatus(component.NewFatalErrorEvent(err))
 		}
 	}()
 

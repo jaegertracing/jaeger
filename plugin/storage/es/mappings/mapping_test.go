@@ -35,17 +35,25 @@ import (
 //go:embed fixtures/*.json
 var FIXTURES embed.FS
 
-func TestMappingBuilder_GetMapping(t *testing.T) {
+func TestMappingBuilderGetMapping(t *testing.T) {
+	const (
+		jaegerSpan         = "jaeger-span"
+		jaegerService      = "jaeger-service"
+		jaegerDependencies = "jaeger-dependencies"
+	)
 	tests := []struct {
 		mapping   string
 		esVersion uint
 	}{
-		{mapping: "jaeger-span", esVersion: 8},
-		{mapping: "jaeger-span", esVersion: 7},
-		{mapping: "jaeger-service", esVersion: 8},
-		{mapping: "jaeger-service", esVersion: 7},
-		{mapping: "jaeger-dependencies", esVersion: 8},
-		{mapping: "jaeger-dependencies", esVersion: 7},
+		{mapping: jaegerSpan, esVersion: 8},
+		{mapping: jaegerSpan, esVersion: 7},
+		{mapping: jaegerSpan, esVersion: 6},
+		{mapping: jaegerService, esVersion: 8},
+		{mapping: jaegerService, esVersion: 7},
+		{mapping: jaegerService, esVersion: 6},
+		{mapping: jaegerDependencies, esVersion: 8},
+		{mapping: jaegerDependencies, esVersion: 7},
+		{mapping: jaegerDependencies, esVersion: 6},
 	}
 	for _, tt := range tests {
 		t.Run(tt.mapping, func(t *testing.T) {
@@ -73,14 +81,17 @@ func TestMappingBuilder_GetMapping(t *testing.T) {
 	}
 }
 
-func TestMappingBuilder_loadMapping(t *testing.T) {
+func TestMappingBuilderLoadMapping(t *testing.T) {
 	tests := []struct {
 		name string
 	}{
+		{name: "jaeger-span-6.json"},
 		{name: "jaeger-span-7.json"},
 		{name: "jaeger-span-8.json"},
+		{name: "jaeger-service-6.json"},
 		{name: "jaeger-service-7.json"},
 		{name: "jaeger-service-8.json"},
+		{name: "jaeger-dependencies-6.json"},
 		{name: "jaeger-dependencies-7.json"},
 		{name: "jaeger-dependencies-8.json"},
 	}
@@ -96,7 +107,7 @@ func TestMappingBuilder_loadMapping(t *testing.T) {
 	}
 }
 
-func TestMappingBuilder_fixMapping(t *testing.T) {
+func TestMappingBuilderFixMapping(t *testing.T) {
 	tests := []struct {
 		name                    string
 		templateBuilderMockFunc func() *mocks.TemplateBuilder
@@ -156,7 +167,7 @@ func TestMappingBuilder_fixMapping(t *testing.T) {
 	}
 }
 
-func TestMappingBuilder_GetSpanServiceMappings(t *testing.T) {
+func TestMappingBuilderGetSpanServiceMappings(t *testing.T) {
 	type args struct {
 		shards        int64
 		replicas      int64
@@ -210,6 +221,65 @@ func TestMappingBuilder_GetSpanServiceMappings(t *testing.T) {
 			},
 			err: "template load error",
 		},
+
+		{
+			name: "ES Version < 7",
+			args: args{
+				shards:        3,
+				replicas:      3,
+				esVersion:     6,
+				indexPrefix:   "test",
+				useILM:        true,
+				ilmPolicyName: "jaeger-test-policy",
+			},
+			mockNewTextTemplateBuilder: func() es.TemplateBuilder {
+				tb := mocks.TemplateBuilder{}
+				ta := mocks.TemplateApplier{}
+				ta.On("Execute", mock.Anything, mock.Anything).Return(nil)
+				tb.On("Parse", mock.Anything).Return(&ta, nil)
+				return &tb
+			},
+			err: "",
+		},
+		{
+			name: "ES Version < 7 Service Error",
+			args: args{
+				shards:        3,
+				replicas:      3,
+				esVersion:     6,
+				indexPrefix:   "test",
+				useILM:        true,
+				ilmPolicyName: "jaeger-test-policy",
+			},
+			mockNewTextTemplateBuilder: func() es.TemplateBuilder {
+				tb := mocks.TemplateBuilder{}
+				ta := mocks.TemplateApplier{}
+				ta.On("Execute", mock.Anything, mock.Anything).Return(nil).Once()
+				ta.On("Execute", mock.Anything, mock.Anything).Return(errors.New("template load error")).Once()
+				tb.On("Parse", mock.Anything).Return(&ta, nil)
+				return &tb
+			},
+			err: "template load error",
+		},
+		{
+			name: "ES Version < 7 Span Error",
+			args: args{
+				shards:        3,
+				replicas:      3,
+				esVersion:     6,
+				indexPrefix:   "test",
+				useILM:        true,
+				ilmPolicyName: "jaeger-test-policy",
+			},
+			mockNewTextTemplateBuilder: func() es.TemplateBuilder {
+				tb := mocks.TemplateBuilder{}
+				ta := mocks.TemplateApplier{}
+				ta.On("Execute", mock.Anything, mock.Anything).Return(errors.New("template load error"))
+				tb.On("Parse", mock.Anything).Return(&ta, nil)
+				return &tb
+			},
+			err: "template load error",
+		},
 		{
 			name: "ES Version  7 Span Error",
 			args: args{
@@ -251,7 +321,7 @@ func TestMappingBuilder_GetSpanServiceMappings(t *testing.T) {
 	}
 }
 
-func TestMappingBuilder_GetDependenciesMappings(t *testing.T) {
+func TestMappingBuilderGetDependenciesMappings(t *testing.T) {
 	tb := mocks.TemplateBuilder{}
 	ta := mocks.TemplateApplier{}
 	ta.On("Execute", mock.Anything, mock.Anything).Return(errors.New("template load error"))
@@ -264,7 +334,7 @@ func TestMappingBuilder_GetDependenciesMappings(t *testing.T) {
 	require.EqualError(t, err, "template load error")
 }
 
-func TestMappingBuilder_GetSamplingMappings(t *testing.T) {
+func TestMappingBuilderGetSamplingMappings(t *testing.T) {
 	tb := mocks.TemplateBuilder{}
 	ta := mocks.TemplateApplier{}
 	ta.On("Execute", mock.Anything, mock.Anything).Return(errors.New("template load error"))

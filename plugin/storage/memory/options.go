@@ -18,15 +18,13 @@ import (
 	"flag"
 
 	"github.com/spf13/viper"
-
-	"github.com/jaegertracing/jaeger/pkg/memory/config"
 )
 
 const limit = "memory.max-traces"
 
 // Options stores the configuration entries for this storage
 type Options struct {
-	Configuration config.Configuration `mapstructure:",squash"`
+	Configuration Configuration `mapstructure:",squash"`
 }
 
 // AddFlags from this storage to the CLI

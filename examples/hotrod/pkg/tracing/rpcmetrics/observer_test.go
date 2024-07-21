@@ -26,10 +26,10 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	semconv "go.opentelemetry.io/otel/semconv/v1.25.0"
 	"go.opentelemetry.io/otel/trace"
 
 	u "github.com/jaegertracing/jaeger/internal/metricstest"
+	"github.com/jaegertracing/jaeger/pkg/otelsemconv"
 )
 
 type testTracer struct {
@@ -45,8 +45,8 @@ func withTestTracer(runTest func(tt *testTracer)) {
 	tp := sdktrace.NewTracerProvider(
 		sdktrace.WithSpanProcessor(observer),
 		sdktrace.WithResource(resource.NewWithAttributes(
-			semconv.SchemaURL,
-			semconv.ServiceNameKey.String("test"),
+			otelsemconv.SchemaURL,
+			otelsemconv.ServiceNameKey.String("test"),
 		)),
 	)
 	runTest(&testTracer{
@@ -120,7 +120,7 @@ func TestTags(t *testing.T) {
 
 	for i := 200; i <= 500; i += 100 {
 		testCases = append(testCases, tagTestCase{
-			attr: semconv.HTTPResponseStatusCode(i),
+			attr: otelsemconv.HTTPResponseStatusCode(i),
 			metrics: []u.ExpectedMetric{
 				{Name: "http_requests", Value: 1, Tags: tags("status_code", fmt.Sprintf("%dxx", i/100))},
 			},

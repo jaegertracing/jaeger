@@ -16,6 +16,7 @@
 package memory
 
 import (
+	"context"
 	"flag"
 
 	"github.com/spf13/viper"
@@ -23,7 +24,6 @@ import (
 
 	"github.com/jaegertracing/jaeger/internal/safeexpvar"
 	"github.com/jaegertracing/jaeger/pkg/distributedlock"
-	"github.com/jaegertracing/jaeger/pkg/memory/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/plugin"
 	"github.com/jaegertracing/jaeger/storage"
@@ -37,6 +37,7 @@ var ( // interface comformance checks
 	_ storage.ArchiveFactory       = (*Factory)(nil)
 	_ storage.SamplingStoreFactory = (*Factory)(nil)
 	_ plugin.Configurable          = (*Factory)(nil)
+	_ storage.Purger               = (*Factory)(nil)
 )
 
 // Factory implements storage.Factory and creates storage components backed by memory store.
@@ -54,7 +55,7 @@ func NewFactory() *Factory {
 
 // NewFactoryWithConfig is used from jaeger(v2).
 func NewFactoryWithConfig(
-	cfg config.Configuration,
+	cfg Configuration,
 	metricsFactory metrics.Factory,
 	logger *zap.Logger,
 ) *Factory {
@@ -126,4 +127,11 @@ func (*Factory) CreateLock() (distributedlock.Lock, error) {
 
 func (f *Factory) publishOpts() {
 	safeexpvar.SetInt("jaeger_storage_memory_max_traces", int64(f.options.Configuration.MaxTraces))
+}
+
+// Purge removes all data from the Factory's underlying Memory store.
+// This function is intended for testing purposes only and should not be used in production environments.
+func (f *Factory) Purge(ctx context.Context) error {
+	f.store.purge(ctx)
+	return nil
 }

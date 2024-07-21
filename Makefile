@@ -177,7 +177,7 @@ goleak:
 	@scripts/check-goleak-files.sh $(ALL_PKGS)
 
 .PHONY: fmt
-fmt:
+fmt: $(GOFUMPT)
 	@echo Running import-order-cleanup on ALL_SRC ...
 	@./scripts/import-order-cleanup.py -o inplace -t $(ALL_SRC)
 	@echo Running gofmt on ALL_SRC ...
@@ -188,13 +188,13 @@ fmt:
 	@./scripts/updateLicense.py $(ALL_SRC)
 
 .PHONY: lint
-lint: goleak
-	$(LINT) -v run
+lint: $(LINT) goleak
 	@./scripts/updateLicense.py $(ALL_SRC) > $(FMT_LOG)
 	@./scripts/import-order-cleanup.py -o stdout -t $(ALL_SRC) > $(IMPORT_LOG)
 	@[ ! -s "$(FMT_LOG)" -a ! -s "$(IMPORT_LOG)" ] || (echo "License check or import ordering failures, run 'make fmt'" | cat - $(FMT_LOG) $(IMPORT_LOG) && false)
 	./scripts/check-semconv-version.sh
 	./scripts/check-go-version.sh
+	$(LINT) -v run
 
 .PHONY: build-examples
 build-examples:

@@ -41,7 +41,6 @@ func TestReflectionServiceValidator(t *testing.T) {
 
 	ReflectionServiceValidator{
 		HostPort:         listener.Addr().String(),
-		Server:           server,
 		ExpectedServices: []string{"grpc.reflection.v1alpha.ServerReflection"},
 	}.Execute(t)
 }
