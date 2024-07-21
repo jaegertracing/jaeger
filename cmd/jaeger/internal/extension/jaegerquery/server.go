@@ -10,7 +10,6 @@ import (
 
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/extension"
-	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
 	queryApp "github.com/jaegertracing/jaeger/cmd/query/app"
@@ -19,7 +18,6 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/telemetery"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/plugin/metrics/disabled"
-	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/metricsstore"
 )
 
@@ -142,10 +140,6 @@ func (s *server) createMetricStorage(host component.Host) (metricsstore.Reader, 
 	}
 
 	metricsReader, err := mf.CreateMetricsReader()
-	if errors.Is(err, storage.ErrMetricStorageNotConfigured) || errors.Is(err, storage.ErrMetricStorageNotSupported) {
-		s.telset.Logger.Info("Metric storage not created", zap.Error(err))
-		return disabled.NewMetricsReader()
-	}
 	return metricsReader, err
 }
 
