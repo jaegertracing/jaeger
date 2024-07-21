@@ -20,8 +20,5 @@ func TestOpenSearchStorage(t *testing.T) {
 		},
 	}
 	s.e2eInitialize(t, "opensearch")
-	t.Cleanup(func() {
-		s.e2eCleanUp(t)
-	})
 	s.RunSpanStoreTests(t)
 }

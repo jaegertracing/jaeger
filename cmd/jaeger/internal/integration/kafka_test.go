@@ -35,12 +35,6 @@ func TestKafkaStorage(t *testing.T) {
 	// Initialize and start the ingester
 	ingester.e2eInitialize(t, "kafka")
 
-	// Set up cleanup for both collector and ingester
-	t.Cleanup(func() {
-		collector.e2eCleanUp(t)
-		ingester.e2eCleanUp(t)
-	})
-
 	// Run the span store tests
 	ingester.RunSpanStoreTests(t)
 }
