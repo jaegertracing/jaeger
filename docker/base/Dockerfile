@@ -1,6 +1,6 @@
-FROM alpine:3.20.1 AS cert
+FROM alpine:3.20.2 AS cert
 RUN apk add --update --no-cache ca-certificates mailcap
 
-FROM alpine:3.20.1
+FROM alpine:3.20.2
 COPY --from=cert /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 COPY --from=cert /etc/mime.types /etc/mime.types
