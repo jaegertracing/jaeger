@@ -23,12 +23,14 @@ import (
 
 	esCfg "github.com/jaegertracing/jaeger/pkg/es/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
+	promCfg "github.com/jaegertracing/jaeger/pkg/prometheus/config"
 	"github.com/jaegertracing/jaeger/plugin/storage/badger"
 	"github.com/jaegertracing/jaeger/plugin/storage/cassandra"
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc"
 	"github.com/jaegertracing/jaeger/plugin/storage/memory"
 	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
+	"github.com/jaegertracing/jaeger/storage/metricsstore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
@@ -56,15 +58,42 @@ func (e errorFactory) Close() error {
 	return e.closeErr
 }
 
+type errorMetricsFactory struct {
+	closeErr error
+}
+
+func (errorMetricsFactory) Initialize(*zap.Logger) error {
+	panic("not implemented")
+}
+
+func (errorMetricsFactory) CreateMetricsReader() (metricsstore.Reader, error) {
+	panic("not implemented")
+}
+
+func (e errorMetricsFactory) Close() error {
+	return e.closeErr
+}
+
 func TestStorageFactoryBadHostError(t *testing.T) {
 	_, err := GetStorageFactory("something", componenttest.NewNopHost())
 	require.ErrorContains(t, err, "cannot find extension")
 }
 
 func TestStorageFactoryBadNameError(t *testing.T) {
-	host := storagetest.NewStorageHost().WithExtension(ID, startStorageExtension(t, "foo"))
+	host := storagetest.NewStorageHost().WithExtension(ID, startStorageExtension(t, "foo", ""))
 	_, err := GetStorageFactory("bar", host)
 	require.ErrorContains(t, err, "cannot find definition of storage 'bar'")
+}
+
+func TestMetricsFactoryBadHostError(t *testing.T) {
+	_, err := GetMetricsFactory("something", componenttest.NewNopHost())
+	require.ErrorContains(t, err, "cannot find extension")
+}
+
+func TestMetricsFactoryBadNameError(t *testing.T) {
+	host := storagetest.NewStorageHost().WithExtension(ID, startStorageExtension(t, "", "foo"))
+	_, err := GetMetricsFactory("bar", host)
+	require.ErrorContains(t, err, "cannot find metric storage 'bar'")
 }
 
 func TestStorageFactoryBadShutdownError(t *testing.T) {
@@ -86,7 +115,8 @@ func TestGetFactoryV2Error(t *testing.T) {
 
 func TestGetFactory(t *testing.T) {
 	const name = "foo"
-	host := storagetest.NewStorageHost().WithExtension(ID, startStorageExtension(t, name))
+	const metricname = "bar"
+	host := storagetest.NewStorageHost().WithExtension(ID, startStorageExtension(t, name, metricname))
 	f, err := GetStorageFactory(name, host)
 	require.NoError(t, err)
 	require.NotNil(t, f)
@@ -122,6 +152,22 @@ func TestGRPC(t *testing.T) {
 					ClientConfig: configgrpc.ClientConfig{
 						Endpoint: "localhost:12345",
 					},
+				},
+			},
+		},
+	})
+	ctx := context.Background()
+	err := ext.Start(ctx, componenttest.NewNopHost())
+	require.NoError(t, err)
+	require.NoError(t, ext.Shutdown(ctx))
+}
+
+func TestPrometheus(t *testing.T) {
+	ext := makeStorageExtenion(t, &Config{
+		MetricBackends: map[string]MetricBackends{
+			"foo": {
+				Prometheus: &promCfg.Configuration{
+					ServerURL: "localhost:12345",
 				},
 			},
 		},
@@ -222,12 +268,19 @@ func makeStorageExtenion(t *testing.T, config *Config) component.Component {
 	return ext
 }
 
-func startStorageExtension(t *testing.T, memstoreName string) component.Component {
+func startStorageExtension(t *testing.T, memstoreName string, promstoreName string) component.Component {
 	config := &Config{
 		Backends: map[string]Backend{
 			memstoreName: {
 				Memory: &memory.Configuration{
 					MaxTraces: 10000,
+				},
+			},
+		},
+		MetricBackends: map[string]MetricBackends{
+			promstoreName: {
+				Prometheus: &promCfg.Configuration{
+					ServerURL: "localhost:12345",
 				},
 			},
 		},
