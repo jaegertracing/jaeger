@@ -107,3 +107,14 @@ backends:
 	require.NoError(t, conf.Unmarshal(cfg))
 	assert.NotEmpty(t, cfg.Backends["some_storage"].Opensearch.Servers)
 }
+
+func TestConfigDefaultPrometheus(t *testing.T) {
+	conf := loadConf(t, `
+metric_backends:
+  some_metrics_storage:
+    prometheus:
+`)
+	cfg := createDefaultConfig().(*Config)
+	require.NoError(t, conf.Unmarshal(cfg))
+	assert.NotEmpty(t, cfg.MetricBackends["some_metrics_storage"].Prometheus.ServerURL)
+}
