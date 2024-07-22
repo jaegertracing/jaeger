@@ -30,7 +30,6 @@ import (
 	"github.com/jaegertracing/jaeger/plugin/storage/memory"
 	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
-	"github.com/jaegertracing/jaeger/storage/metricsstore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
@@ -55,22 +54,6 @@ func (errorFactory) CreateDependencyReader() (dependencystore.Reader, error) {
 }
 
 func (e errorFactory) Close() error {
-	return e.closeErr
-}
-
-type errorMetricsFactory struct {
-	closeErr error
-}
-
-func (errorMetricsFactory) Initialize(*zap.Logger) error {
-	panic("not implemented")
-}
-
-func (errorMetricsFactory) CreateMetricsReader() (metricsstore.Reader, error) {
-	panic("not implemented")
-}
-
-func (e errorMetricsFactory) Close() error {
 	return e.closeErr
 }
 
@@ -124,6 +107,10 @@ func TestGetFactory(t *testing.T) {
 	f2, err := GetStorageFactoryV2(name, host)
 	require.NoError(t, err)
 	require.NotNil(t, f2)
+
+	f3, err := GetMetricsFactory(metricname, host)
+	require.NoError(t, err)
+	require.NotNil(t, f3)
 }
 
 func TestBadger(t *testing.T) {
