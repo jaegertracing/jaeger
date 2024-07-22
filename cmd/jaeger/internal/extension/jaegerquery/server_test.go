@@ -270,3 +270,51 @@ func TestServerAddArchiveStorage(t *testing.T) {
 		})
 	}
 }
+
+func TestServerAddMetricsStorage(t *testing.T) {
+	host := componenttest.NewNopHost()
+
+	tests := []struct {
+		name           string
+		config         *Config
+		extension      component.Component
+		expectedOutput string
+		expectedErr    string
+	}{
+		{
+			name:           "Metrics storage unset",
+			config:         &Config{},
+			expectedOutput: `{"level":"info","msg":"Metric storage not configured"}` + "\n",
+			expectedErr:    "",
+		},
+		{
+			name: "Metrics storage set",
+			config: &Config{
+				MetricStorage: "random-value",
+			},
+			expectedOutput: "",
+			expectedErr:    "cannot find metrics storage factory: cannot find extension",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			logger, buf := testutils.NewLogger()
+			telemetrySettings := component.TelemetrySettings{
+				Logger: logger,
+			}
+			server := newServer(tt.config, telemetrySettings)
+			if tt.extension != nil {
+				host = storagetest.NewStorageHost().WithExtension(jaegerstorage.ID, tt.extension)
+			}
+			_, err := server.createMetricStorage(host)
+			if tt.expectedErr == "" {
+				require.NoError(t, err)
+			} else {
+				require.ErrorContains(t, err, tt.expectedErr)
+			}
+
+			assert.Contains(t, buf.String(), tt.expectedOutput)
+		})
+	}
+}
