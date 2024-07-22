@@ -28,6 +28,11 @@ run `make changelog` to generate content
 
 #### ⛔ Breaking Changes
 
+* The OTEL Collector upgrade brought in a change where OTLP receivers started listening on `localhost` instead of `0.0.0.0` as before. As a result, when running in container environment the endpoints are likely unreachable from other containers (Issue [#5737](https://github.com/jaegertracing/jaeger/issues/5737)). The fix will be available in the next release. Meanwhile, the workaround is to instruct Jaeger to listen on `0.0.0.0`, as in [this fix](https://github.com/jaegertracing/jaeger/pull/5734/files#diff-299f817cc4ab077ddb763f1e6a023d9d042d714e2fd3736cc40af3f218d44f1eR15):
+```
+      - COLLECTOR_OTLP_GRPC_HOST_PORT=0.0.0.0:4317
+      - COLLECTOR_OTLP_HTTP_HOST_PORT=0.0.0.0:4318
+```
 * Update opentelemetry-go to v1.28.0 and refactor references to semantic conventions ([@renovate-bot](https://github.com/renovate-bot) in [#5698](https://github.com/jaegertracing/jaeger/pull/5698))
 
 #### ✨ New Features
