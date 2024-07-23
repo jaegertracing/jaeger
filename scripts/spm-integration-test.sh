@@ -94,7 +94,6 @@ validate_service_metrics() {
     local expected_max_zero_count=4
     for value in "${metric_points[@]}"; do
       if [[ $(echo "$value > 0.0" | bc) == "1" ]]; then
-        flag=true
         non_zero_count=$((non_zero_count + 1))
       else
         zero_count=$((zero_count + 1))
