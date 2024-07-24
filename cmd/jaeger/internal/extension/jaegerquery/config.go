@@ -18,14 +18,12 @@ var _ component.ConfigValidator = (*Config)(nil)
 // Config represents the configuration for jaeger-query,
 type Config struct {
 	queryApp.QueryOptionsBase `mapstructure:",squash"`
-
-	TraceStoragePrimary string `valid:"required" mapstructure:"trace_storage"`
-	TraceStorageArchive string `valid:"optional" mapstructure:"trace_storage_archive"`
-
-	HTTP confighttp.ServerConfig `mapstructure:",squash"`
-	GRPC configgrpc.ServerConfig `mapstructure:",squash"`
-
-	Tenancy tenancy.Options `mapstructure:"multi_tenancy"`
+	TraceStoragePrimary       string                  `valid:"required" mapstructure:"trace_storage"`
+	TraceStorageArchive       string                  `valid:"optional" mapstructure:"trace_storage_archive"`
+	MetricStorage             string                  `valid:"optional" mapstructure:"metric_storage"`
+	HTTP                      confighttp.ServerConfig `mapstructure:",squash"`
+	GRPC                      configgrpc.ServerConfig `mapstructure:",squash"`
+	Tenancy                   tenancy.Options         `mapstructure:"multi_tenancy"`
 }
 
 func (cfg *Config) Validate() error {

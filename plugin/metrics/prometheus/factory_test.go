@@ -24,6 +24,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/config"
+	promCfg "github.com/jaegertracing/jaeger/pkg/prometheus/config"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/storage"
 )
@@ -132,6 +133,20 @@ func TestFailedTLSOptions(t *testing.T) {
 
 	f.InitFromViper(v, logger)
 	t.Errorf("f.InitFromViper did not panic")
+}
+
+func TestEmptyFactoryConfig(t *testing.T) {
+	cfg := promCfg.Configuration{}
+	_, err := NewFactoryWithConfig(cfg, zap.NewNop())
+	require.Error(t, err)
+}
+
+func TestFactoryConfig(t *testing.T) {
+	cfg := promCfg.Configuration{
+		ServerURL: "localhost:1234",
+	}
+	_, err := NewFactoryWithConfig(cfg, zap.NewNop())
+	require.NoError(t, err)
 }
 
 func TestMain(m *testing.M) {
