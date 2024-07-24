@@ -100,8 +100,6 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
 		if err := cmd.Process.Kill(); err != nil {
 			t.Errorf("Failed to kill Jaeger-v2 process: %v", err)
 		}
-		// Call e2eCleanUp to close the SpanReader and SpanWriter gRPC connection.
-		s.e2eCleanUp(t)
 		if t.Failed() {
 			// A Github Actions special annotation to create a foldable section
 			// in the Github runner output.
@@ -129,6 +127,11 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
 	require.NoError(t, err)
 	s.SpanReader, err = createSpanReader(logger, ports.QueryGRPC)
 	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		// Call e2eCleanUp to close the SpanReader and SpanWriter gRPC connection.
+		s.e2eCleanUp(t)
+	})
 }
 
 // e2eCleanUp closes the SpanReader and SpanWriter gRPC connection.
