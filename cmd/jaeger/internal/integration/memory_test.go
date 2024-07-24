@@ -20,8 +20,5 @@ func TestMemoryStorage(t *testing.T) {
 		},
 	}
 	s.e2eInitialize(t, "memory")
-	t.Cleanup(func() {
-		s.e2eCleanUp(t)
-	})
 	s.RunAll(t)
 }
