@@ -77,7 +77,7 @@ func (fmf fakeMetricsFactory) Initialize(*zap.Logger) error {
 }
 
 func (fmf fakeMetricsFactory) CreateMetricsReader() (metricsstore.Reader, error) {
-	if fmf.name == "need-span-writer-error" {
+	if fmf.name == "need-metrics-reader-error" {
 		return nil, fmt.Errorf("test-error")
 	}
 	return &metricsstoremocks.Reader{}, nil
@@ -133,6 +133,7 @@ func TestServerStart(t *testing.T) {
 			config: &Config{
 				TraceStorageArchive: "jaeger_storage",
 				TraceStoragePrimary: "jaeger_storage",
+				MetricStorage:       "jaeger_metrics_storage",
 			},
 		},
 		{
@@ -163,6 +164,22 @@ func TestServerStart(t *testing.T) {
 				TraceStoragePrimary: "jaeger_storage",
 			},
 			expectedErr: "cannot find archive storage factory",
+		},
+		{
+			name: "metrics storage error",
+			config: &Config{
+				MetricStorage:       "need-factory-error",
+				TraceStoragePrimary: "jaeger_storage",
+			},
+			expectedErr: "cannot find metrics storage factory",
+		},
+		{
+			name: " metrics reader error",
+			config: &Config{
+				MetricStorage:       "need-metrics-reader-error",
+				TraceStoragePrimary: "jaeger_storage",
+			},
+			expectedErr: "cannot create metrics reader",
 		},
 	}
 

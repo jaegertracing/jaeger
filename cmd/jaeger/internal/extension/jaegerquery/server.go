@@ -140,6 +140,9 @@ func (s *server) createMetricStorage(host component.Host) (metricsstore.Reader, 
 	}
 
 	metricsReader, err := mf.CreateMetricsReader()
+	if err != nil {
+		return nil, fmt.Errorf("cannot create metrics reader %w", err)
+	}
 	return metricsReader, err
 }
 
