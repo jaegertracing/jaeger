@@ -1,104 +1,352 @@
 {
-    "common_names": [
-        "otelcol_query_latency",
-        "otelcol_query_requests",
-        "otelcol_query_responses"
-    ],
-    "v1_only_names": [
-        "go_gc_duration_seconds",
-        "go_goroutines",
-        "go_info",
-        "go_memstats_alloc_bytes",
-        "go_memstats_alloc_bytes_total",
-        "go_memstats_buck_hash_sys_bytes",
-        "go_memstats_frees_total",
-        "go_memstats_gc_sys_bytes",
-        "go_memstats_heap_alloc_bytes",
-        "go_memstats_heap_idle_bytes",
-        "go_memstats_heap_inuse_bytes",
-        "go_memstats_heap_objects",
-        "go_memstats_heap_released_bytes",
-        "go_memstats_heap_sys_bytes",
-        "go_memstats_last_gc_time_seconds",
-        "go_memstats_lookups_total",
-        "go_memstats_mallocs_total",
-        "go_memstats_mcache_inuse_bytes",
-        "go_memstats_mcache_sys_bytes",
-        "go_memstats_mspan_inuse_bytes",
-        "go_memstats_mspan_sys_bytes",
-        "go_memstats_next_gc_bytes",
-        "go_memstats_other_sys_bytes",
-        "go_memstats_stack_inuse_bytes",
-        "go_memstats_stack_sys_bytes",
-        "go_memstats_sys_bytes",
-        "go_threads",
-        "jaeger_agent_client_stats_batches_received_total",
-        "jaeger_agent_client_stats_batches_sent_total",
-        "jaeger_agent_client_stats_connected_clients",
-        "jaeger_agent_client_stats_spans_dropped_total",
-        "jaeger_agent_collector_proxy_total",
-        "jaeger_agent_connection_status_collector_connected",
-        "jaeger_agent_connection_status_collector_reconnects_total",
-        "jaeger_agent_http_server_errors_total",
-        "jaeger_agent_http_server_requests_total",
-        "jaeger_agent_reporter_batch_size",
-        "jaeger_agent_reporter_batches_failures_total",
-        "jaeger_agent_reporter_batches_submitted_total",
-        "jaeger_agent_reporter_spans_failures_total",
-        "jaeger_agent_reporter_spans_submitted_total",
-        "jaeger_agent_thrift_udp_server_packet_size",
-        "jaeger_agent_thrift_udp_server_packets_dropped_total",
-        "jaeger_agent_thrift_udp_server_packets_processed_total",
-        "jaeger_agent_thrift_udp_server_queue_size",
-        "jaeger_agent_thrift_udp_server_read_errors_total",
-        "jaeger_agent_thrift_udp_t_processor_close_time",
-        "jaeger_agent_thrift_udp_t_processor_handler_errors_total",
-        "jaeger_build_info",
-        "jaeger_collector_batch_size",
-        "jaeger_collector_http_request_duration",
-        "jaeger_collector_http_server_errors_total",
-        "jaeger_collector_http_server_requests_total",
-        "jaeger_collector_in_queue_latency",
-        "jaeger_collector_queue_capacity",
-        "jaeger_collector_queue_length",
-        "jaeger_collector_save_latency",
-        "jaeger_collector_spans_bytes",
-        "jaeger_collector_spans_dropped_total",
-        "jaeger_collector_spans_received_total",
-        "jaeger_collector_spans_rejected_total",
-        "jaeger_collector_spans_saved_by_svc_total",
-        "jaeger_collector_spans_serviceNames",
-        "jaeger_collector_traces_received_total",
-        "jaeger_collector_traces_rejected_total",
-        "jaeger_collector_traces_saved_by_svc_total",
-        "process_cpu_seconds_total",
-        "process_max_fds",
-        "process_open_fds",
-        "process_resident_memory_bytes",
-        "process_start_time_seconds",
-        "process_virtual_memory_bytes",
-        "process_virtual_memory_max_bytes"
-    ],
-    "v2_only_names": [
-        "otelcol_exporter_send_failed_spans",
-        "otelcol_exporter_sent_spans",
-        "otelcol_process_cpu_seconds",
-        "otelcol_process_memory_rss",
-        "otelcol_process_runtime_heap_alloc_bytes",
-        "otelcol_process_runtime_total_alloc_bytes",
-        "otelcol_process_runtime_total_sys_memory_bytes",
-        "otelcol_process_uptime",
-        "otelcol_processor_batch_batch_send_size",
-        "otelcol_processor_batch_batch_send_size_bytes",
-        "otelcol_processor_batch_metadata_cardinality",
-        "otelcol_processor_batch_timeout_trigger_send",
-        "otelcol_receiver_accepted_spans",
-        "otelcol_receiver_refused_spans",
-        "otelcol_rpc_server_duration",
-        "otelcol_rpc_server_request_size",
-        "otelcol_rpc_server_requests_per_rpc",
-        "otelcol_rpc_server_response_size",
-        "otelcol_rpc_server_responses_per_rpc",
-        "target_info"
-    ]
+    "common_metrics": {},
+    "v1_only_metrics": {
+        "go_gc_duration_seconds": {},
+        "go_goroutines": {},
+        "go_info": {
+            "version": "go1.22.5"
+        },
+        "go_memstats_alloc_bytes": {},
+        "go_memstats_alloc_bytes_total": {},
+        "go_memstats_buck_hash_sys_bytes": {},
+        "go_memstats_frees_total": {},
+        "go_memstats_gc_sys_bytes": {},
+        "go_memstats_heap_alloc_bytes": {},
+        "go_memstats_heap_idle_bytes": {},
+        "go_memstats_heap_inuse_bytes": {},
+        "go_memstats_heap_objects": {},
+        "go_memstats_heap_released_bytes": {},
+        "go_memstats_heap_sys_bytes": {},
+        "go_memstats_last_gc_time_seconds": {},
+        "go_memstats_lookups_total": {},
+        "go_memstats_mallocs_total": {},
+        "go_memstats_mcache_inuse_bytes": {},
+        "go_memstats_mcache_sys_bytes": {},
+        "go_memstats_mspan_inuse_bytes": {},
+        "go_memstats_mspan_sys_bytes": {},
+        "go_memstats_next_gc_bytes": {},
+        "go_memstats_other_sys_bytes": {},
+        "go_memstats_stack_inuse_bytes": {},
+        "go_memstats_stack_sys_bytes": {},
+        "go_memstats_sys_bytes": {},
+        "go_threads": {},
+        "jaeger_agent_client_stats_batches_received_total": {},
+        "jaeger_agent_client_stats_batches_sent_total": {},
+        "jaeger_agent_client_stats_connected_clients": {},
+        "jaeger_agent_client_stats_spans_dropped_total": {
+            "cause": "full-queue"
+        },
+        "jaeger_agent_collector_proxy_total": {
+            "endpoint": "baggage",
+            "protocol": "grpc",
+            "result": "err"
+        },
+        "jaeger_agent_connection_status_collector_connected": {
+            "protocol": "grpc"
+        },
+        "jaeger_agent_connection_status_collector_reconnects_total": {
+            "protocol": "grpc"
+        },
+        "jaeger_agent_http_server_errors_total": {
+            "source": "all",
+            "status": "4xx"
+        },
+        "jaeger_agent_http_server_requests_total": {
+            "type": "baggage"
+        },
+        "jaeger_agent_reporter_batch_size": {
+            "format": "jaeger",
+            "protocol": "grpc"
+        },
+        "jaeger_agent_reporter_batches_failures_total": {
+            "format": "jaeger",
+            "protocol": "grpc"
+        },
+        "jaeger_agent_reporter_batches_submitted_total": {
+            "format": "jaeger",
+            "protocol": "grpc"
+        },
+        "jaeger_agent_reporter_spans_failures_total": {
+            "format": "jaeger",
+            "protocol": "grpc"
+        },
+        "jaeger_agent_reporter_spans_submitted_total": {
+            "format": "jaeger",
+            "protocol": "grpc"
+        },
+        "jaeger_agent_thrift_udp_server_packet_size": {
+            "model": "jaeger",
+            "protocol": "binary"
+        },
+        "jaeger_agent_thrift_udp_server_packets_dropped_total": {
+            "model": "jaeger",
+            "protocol": "binary"
+        },
+        "jaeger_agent_thrift_udp_server_packets_processed_total": {
+            "model": "jaeger",
+            "protocol": "binary"
+        },
+        "jaeger_agent_thrift_udp_server_queue_size": {
+            "model": "jaeger",
+            "protocol": "binary"
+        },
+        "jaeger_agent_thrift_udp_server_read_errors_total": {
+            "model": "jaeger",
+            "protocol": "binary"
+        },
+        "jaeger_agent_thrift_udp_t_processor_close_time": {
+            "model": "jaeger",
+            "protocol": "binary"
+        },
+        "jaeger_agent_thrift_udp_t_processor_handler_errors_total": {
+            "model": "jaeger",
+            "protocol": "binary"
+        },
+        "jaeger_build_info": {
+            "build_date": "",
+            "revision": "",
+            "version": ""
+        },
+        "jaeger_collector_batch_size": {
+            "host": "MamundiKarpar"
+        },
+        "jaeger_collector_http_request_duration": {
+            "method": "other",
+            "path": "other",
+            "status": "other"
+        },
+        "jaeger_collector_http_server_errors_total": {
+            "source": "all",
+            "status": "4xx"
+        },
+        "jaeger_collector_http_server_requests_total": {
+            "type": "baggage"
+        },
+        "jaeger_collector_in_queue_latency": {
+            "host": "MamundiKarpar"
+        },
+        "jaeger_collector_queue_capacity": {
+            "host": "MamundiKarpar"
+        },
+        "jaeger_collector_queue_length": {
+            "host": "MamundiKarpar"
+        },
+        "jaeger_collector_save_latency": {
+            "host": "MamundiKarpar"
+        },
+        "jaeger_collector_spans_bytes": {
+            "host": "MamundiKarpar"
+        },
+        "jaeger_collector_spans_dropped_total": {
+            "host": "MamundiKarpar"
+        },
+        "jaeger_collector_spans_received_total": {
+            "debug": "false",
+            "format": "jaeger",
+            "svc": "other-services",
+            "transport": "grpc"
+        },
+        "jaeger_collector_spans_rejected_total": {
+            "debug": "false",
+            "format": "jaeger",
+            "svc": "other-services",
+            "transport": "grpc"
+        },
+        "jaeger_collector_spans_saved_by_svc_total": {
+            "debug": "false",
+            "result": "err",
+            "svc": "other-services"
+        },
+        "jaeger_collector_spans_serviceNames": {
+            "host": "MamundiKarpar"
+        },
+        "jaeger_collector_traces_received_total": {
+            "debug": "false",
+            "format": "jaeger",
+            "sampler_type": "const",
+            "svc": "other-services",
+            "transport": "grpc"
+        },
+        "jaeger_collector_traces_rejected_total": {
+            "debug": "false",
+            "format": "jaeger",
+            "sampler_type": "const",
+            "svc": "other-services",
+            "transport": "grpc"
+        },
+        "jaeger_collector_traces_saved_by_svc_total": {
+            "debug": "false",
+            "result": "err",
+            "sampler_type": "const",
+            "svc": "other-services"
+        },
+        "jaeger_query_latency": {
+            "operation": "find_trace_ids",
+            "result": "err"
+        },
+        "jaeger_query_requests_total": {
+            "operation": "find_trace_ids",
+            "result": "err"
+        },
+        "jaeger_query_responses": {
+            "operation": "find_trace_ids"
+        },
+        "process_cpu_seconds_total": {},
+        "process_max_fds": {},
+        "process_open_fds": {},
+        "process_resident_memory_bytes": {},
+        "process_start_time_seconds": {},
+        "process_virtual_memory_bytes": {},
+        "process_virtual_memory_max_bytes": {}
+    },
+    "v2_only_metrics": {
+        "otelcol_exporter_send_failed_spans": {
+            "exporter": "jaeger_storage_exporter",
+            "service_instance_id": "a820d496-5799-42b4-9fe2-85f9178f6743",
+            "service_name": "jaeger",
+            "service_version": "git-commit=, git-version=, build-date="
+        },
+        "otelcol_exporter_sent_spans": {
+            "exporter": "jaeger_storage_exporter",
+            "service_instance_id": "a820d496-5799-42b4-9fe2-85f9178f6743",
+            "service_name": "jaeger",
+            "service_version": "git-commit=, git-version=, build-date="
+        },
+        "otelcol_process_cpu_seconds": {
+            "service_instance_id": "a820d496-5799-42b4-9fe2-85f9178f6743",
+            "service_name": "jaeger",
+            "service_version": "git-commit=, git-version=, build-date="
+        },
+        "otelcol_process_memory_rss": {
+            "service_instance_id": "a820d496-5799-42b4-9fe2-85f9178f6743",
+            "service_name": "jaeger",
+            "service_version": "git-commit=, git-version=, build-date="
+        },
+        "otelcol_process_runtime_heap_alloc_bytes": {
+            "service_instance_id": "a820d496-5799-42b4-9fe2-85f9178f6743",
+            "service_name": "jaeger",
+            "service_version": "git-commit=, git-version=, build-date="
+        },
+        "otelcol_process_runtime_total_alloc_bytes": {
+            "service_instance_id": "a820d496-5799-42b4-9fe2-85f9178f6743",
+            "service_name": "jaeger",
+            "service_version": "git-commit=, git-version=, build-date="
+        },
+        "otelcol_process_runtime_total_sys_memory_bytes": {
+            "service_instance_id": "a820d496-5799-42b4-9fe2-85f9178f6743",
+            "service_name": "jaeger",
+            "service_version": "git-commit=, git-version=, build-date="
+        },
+        "otelcol_process_uptime": {
+            "service_instance_id": "a820d496-5799-42b4-9fe2-85f9178f6743",
+            "service_name": "jaeger",
+            "service_version": "git-commit=, git-version=, build-date="
+        },
+        "otelcol_processor_batch_batch_send_size": {
+            "processor": "batch",
+            "service_instance_id": "a820d496-5799-42b4-9fe2-85f9178f6743",
+            "service_name": "jaeger",
+            "service_version": "git-commit=, git-version=, build-date="
+        },
+        "otelcol_processor_batch_batch_send_size_bytes": {
+            "processor": "batch",
+            "service_instance_id": "a820d496-5799-42b4-9fe2-85f9178f6743",
+            "service_name": "jaeger",
+            "service_version": "git-commit=, git-version=, build-date="
+        },
+        "otelcol_processor_batch_metadata_cardinality": {
+            "processor": "batch",
+            "service_instance_id": "a820d496-5799-42b4-9fe2-85f9178f6743",
+            "service_name": "jaeger",
+            "service_version": "git-commit=, git-version=, build-date="
+        },
+        "otelcol_processor_batch_timeout_trigger_send": {
+            "processor": "batch",
+            "service_instance_id": "a820d496-5799-42b4-9fe2-85f9178f6743",
+            "service_name": "jaeger",
+            "service_version": "git-commit=, git-version=, build-date="
+        },
+        "otelcol_query_latency": {
+            "operation": "find_traces",
+            "result": "ok",
+            "service_instance_id": "a820d496-5799-42b4-9fe2-85f9178f6743",
+            "service_name": "jaeger",
+            "service_version": "git-commit=, git-version=, build-date="
+        },
+        "otelcol_query_requests": {
+            "operation": "find_traces",
+            "result": "ok",
+            "service_instance_id": "a820d496-5799-42b4-9fe2-85f9178f6743",
+            "service_name": "jaeger",
+            "service_version": "git-commit=, git-version=, build-date="
+        },
+        "otelcol_query_responses": {
+            "operation": "find_traces",
+            "service_instance_id": "a820d496-5799-42b4-9fe2-85f9178f6743",
+            "service_name": "jaeger",
+            "service_version": "git-commit=, git-version=, build-date="
+        },
+        "otelcol_receiver_accepted_spans": {
+            "receiver": "otlp",
+            "service_instance_id": "a820d496-5799-42b4-9fe2-85f9178f6743",
+            "service_name": "jaeger",
+            "service_version": "git-commit=, git-version=, build-date=",
+            "transport": "grpc"
+        },
+        "otelcol_receiver_refused_spans": {
+            "receiver": "otlp",
+            "service_instance_id": "a820d496-5799-42b4-9fe2-85f9178f6743",
+            "service_name": "jaeger",
+            "service_version": "git-commit=, git-version=, build-date=",
+            "transport": "grpc"
+        },
+        "otelcol_rpc_server_duration": {
+            "rpc_grpc_status_code": "0",
+            "rpc_method": "Export",
+            "rpc_service": "opentelemetry.proto.collector.trace.v1.TraceService",
+            "rpc_system": "grpc",
+            "service_instance_id": "a820d496-5799-42b4-9fe2-85f9178f6743",
+            "service_name": "jaeger",
+            "service_version": "git-commit=, git-version=, build-date="
+        },
+        "otelcol_rpc_server_request_size": {
+            "rpc_method": "Export",
+            "rpc_service": "opentelemetry.proto.collector.trace.v1.TraceService",
+            "rpc_system": "grpc",
+            "service_instance_id": "a820d496-5799-42b4-9fe2-85f9178f6743",
+            "service_name": "jaeger",
+            "service_version": "git-commit=, git-version=, build-date="
+        },
+        "otelcol_rpc_server_requests_per_rpc": {
+            "rpc_grpc_status_code": "0",
+            "rpc_method": "Export",
+            "rpc_service": "opentelemetry.proto.collector.trace.v1.TraceService",
+            "rpc_system": "grpc",
+            "service_instance_id": "a820d496-5799-42b4-9fe2-85f9178f6743",
+            "service_name": "jaeger",
+            "service_version": "git-commit=, git-version=, build-date="
+        },
+        "otelcol_rpc_server_response_size": {
+            "rpc_method": "Export",
+            "rpc_service": "opentelemetry.proto.collector.trace.v1.TraceService",
+            "rpc_system": "grpc",
+            "service_instance_id": "a820d496-5799-42b4-9fe2-85f9178f6743",
+            "service_name": "jaeger",
+            "service_version": "git-commit=, git-version=, build-date="
+        },
+        "otelcol_rpc_server_responses_per_rpc": {
+            "rpc_grpc_status_code": "0",
+            "rpc_method": "Export",
+            "rpc_service": "opentelemetry.proto.collector.trace.v1.TraceService",
+            "rpc_system": "grpc",
+            "service_instance_id": "a820d496-5799-42b4-9fe2-85f9178f6743",
+            "service_name": "jaeger",
+            "service_version": "git-commit=, git-version=, build-date="
+        },
+        "target_info": {
+            "service_instance_id": "a820d496-5799-42b4-9fe2-85f9178f6743",
+            "service_name": "jaeger",
+            "service_version": "git-commit=, git-version=, build-date="
+        }
+    }
 }
