@@ -80,9 +80,7 @@ func NewFactoryWithConfig(
 	f.options = &Options{
 		Configuration: cfg,
 	}
-	err := f.Initialize(logger)
-	if err != nil {
-		return nil, err
-	}
+	f.Initialize(logger)
+
 	return f, nil
 }
