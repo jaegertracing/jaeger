@@ -123,7 +123,6 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
 			// End of Github Actions foldable section annotation.
 			fmt.Println("::endgroup::")
 		}
-		
 	})
 
 	s.SpanWriter, err = createSpanWriter(logger, otlpPort)
