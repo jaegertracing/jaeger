@@ -23,6 +23,7 @@ import (
 
 	esCfg "github.com/jaegertracing/jaeger/pkg/es/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
+	promCfg "github.com/jaegertracing/jaeger/pkg/prometheus/config"
 	"github.com/jaegertracing/jaeger/plugin/storage/badger"
 	"github.com/jaegertracing/jaeger/plugin/storage/cassandra"
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc"
@@ -62,9 +63,26 @@ func TestStorageFactoryBadHostError(t *testing.T) {
 }
 
 func TestStorageFactoryBadNameError(t *testing.T) {
-	host := storagetest.NewStorageHost().WithExtension(ID, startStorageExtension(t, "foo"))
+	host := storagetest.NewStorageHost().WithExtension(ID, startStorageExtension(t, "foo", ""))
 	_, err := GetStorageFactory("bar", host)
 	require.ErrorContains(t, err, "cannot find definition of storage 'bar'")
+}
+
+func TestMetricsFactoryBadHostError(t *testing.T) {
+	_, err := GetMetricsFactory("something", componenttest.NewNopHost())
+	require.ErrorContains(t, err, "cannot find extension")
+}
+
+func TestMetricsFactoryBadNameError(t *testing.T) {
+	host := storagetest.NewStorageHost().WithExtension(ID, startStorageExtension(t, "", "foo"))
+	_, err := GetMetricsFactory("bar", host)
+	require.ErrorContains(t, err, "cannot find metric storage 'bar'")
+}
+
+func TestStorageExtensionType(t *testing.T) {
+	host := storagetest.NewStorageHost().WithExtension(ID, startStorageExtension(t, "", "foo"))
+	_, err := findExtension(host)
+	require.NoError(t, err)
 }
 
 func TestStorageFactoryBadShutdownError(t *testing.T) {
@@ -86,7 +104,8 @@ func TestGetFactoryV2Error(t *testing.T) {
 
 func TestGetFactory(t *testing.T) {
 	const name = "foo"
-	host := storagetest.NewStorageHost().WithExtension(ID, startStorageExtension(t, name))
+	const metricname = "bar"
+	host := storagetest.NewStorageHost().WithExtension(ID, startStorageExtension(t, name, metricname))
 	f, err := GetStorageFactory(name, host)
 	require.NoError(t, err)
 	require.NotNil(t, f)
@@ -94,6 +113,10 @@ func TestGetFactory(t *testing.T) {
 	f2, err := GetStorageFactoryV2(name, host)
 	require.NoError(t, err)
 	require.NotNil(t, f2)
+
+	f3, err := GetMetricsFactory(metricname, host)
+	require.NoError(t, err)
+	require.NotNil(t, f3)
 }
 
 func TestBadger(t *testing.T) {
@@ -132,6 +155,22 @@ func TestGRPC(t *testing.T) {
 	require.NoError(t, ext.Shutdown(ctx))
 }
 
+func TestPrometheus(t *testing.T) {
+	ext := makeStorageExtenion(t, &Config{
+		MetricBackends: map[string]MetricBackends{
+			"foo": {
+				Prometheus: &promCfg.Configuration{
+					ServerURL: "localhost:12345",
+				},
+			},
+		},
+	})
+	ctx := context.Background()
+	err := ext.Start(ctx, componenttest.NewNopHost())
+	require.NoError(t, err)
+	require.NoError(t, ext.Shutdown(ctx))
+}
+
 func TestStartError(t *testing.T) {
 	ext := makeStorageExtenion(t, &Config{
 		Backends: map[string]Backend{
@@ -141,6 +180,18 @@ func TestStartError(t *testing.T) {
 	err := ext.Start(context.Background(), componenttest.NewNopHost())
 	require.ErrorContains(t, err, "failed to initialize storage 'foo'")
 	require.ErrorContains(t, err, "empty configuration")
+}
+
+func TestMetricsStorageStartError(t *testing.T) {
+	ext := makeStorageExtenion(t, &Config{
+		MetricBackends: map[string]MetricBackends{
+			"foo": {
+				Prometheus: &promCfg.Configuration{},
+			},
+		},
+	})
+	err := ext.Start(context.Background(), componenttest.NewNopHost())
+	require.ErrorContains(t, err, "failed to initialize metrics storage 'foo'")
 }
 
 func testElasticsearchOrOpensearch(t *testing.T, cfg Backend) {
@@ -222,12 +273,19 @@ func makeStorageExtenion(t *testing.T, config *Config) component.Component {
 	return ext
 }
 
-func startStorageExtension(t *testing.T, memstoreName string) component.Component {
+func startStorageExtension(t *testing.T, memstoreName string, promstoreName string) component.Component {
 	config := &Config{
 		Backends: map[string]Backend{
 			memstoreName: {
 				Memory: &memory.Configuration{
 					MaxTraces: 10000,
+				},
+			},
+		},
+		MetricBackends: map[string]MetricBackends{
+			promstoreName: {
+				Prometheus: &promCfg.Configuration{
+					ServerURL: "localhost:12345",
 				},
 			},
 		},

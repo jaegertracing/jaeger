@@ -25,6 +25,7 @@ require (
 	github.com/olivere/elastic v6.2.37+incompatible
 	github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector v0.105.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/kafkaexporter v0.105.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/prometheusexporter v0.105.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/storage v0.105.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger v0.105.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver v0.105.0
@@ -93,6 +94,8 @@ require (
 )
 
 require (
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry v0.105.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/prometheus v0.105.0 // indirect
 	go.opentelemetry.io/collector/internal/globalgates v0.105.0 // indirect
 	go.opentelemetry.io/collector/pdata/pprofile v0.105.0 // indirect
 	go.opentelemetry.io/collector/pdata/testdata v0.105.0 // indirect
@@ -103,7 +106,7 @@ require (
 
 require (
 	github.com/IBM/sarama v1.43.2 // indirect
-	github.com/aws/aws-sdk-go v1.53.11 // indirect
+	github.com/aws/aws-sdk-go v1.53.16 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect

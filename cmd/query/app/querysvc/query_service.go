@@ -44,6 +44,7 @@ type QueryServiceOptions struct {
 // StorageCapabilities is a feature flag for query service
 type StorageCapabilities struct {
 	ArchiveStorage bool `json:"archiveStorage"`
+	// TODO: Maybe add metrics Storage here
 	// SupportRegex     bool
 	// SupportTagFilter bool
 }

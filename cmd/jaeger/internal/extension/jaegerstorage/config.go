@@ -13,6 +13,8 @@ import (
 
 	casCfg "github.com/jaegertracing/jaeger/pkg/cassandra/config"
 	esCfg "github.com/jaegertracing/jaeger/pkg/es/config"
+	promCfg "github.com/jaegertracing/jaeger/pkg/prometheus/config"
+	"github.com/jaegertracing/jaeger/plugin/metrics/prometheus"
 	"github.com/jaegertracing/jaeger/plugin/storage/badger"
 	"github.com/jaegertracing/jaeger/plugin/storage/cassandra"
 	"github.com/jaegertracing/jaeger/plugin/storage/es"
@@ -23,6 +25,7 @@ import (
 var (
 	_ component.ConfigValidator = (*Config)(nil)
 	_ confmap.Unmarshaler       = (*Backend)(nil)
+	_ confmap.Unmarshaler       = (*MetricBackends)(nil)
 )
 
 // Config contains configuration(s) for jaeger trace storage.
@@ -31,7 +34,8 @@ var (
 // We tried to alias this type directly to a map, but conf did not populated it correctly.
 // Note also that the Backend struct has a custom unmarshaler.
 type Config struct {
-	Backends map[string]Backend `mapstructure:"backends"`
+	Backends       map[string]Backend        `mapstructure:"backends"`
+	MetricBackends map[string]MetricBackends `mapstructure:"metric_backends"`
 }
 
 type Backend struct {
@@ -41,6 +45,10 @@ type Backend struct {
 	Cassandra     *cassandra.Options      `mapstructure:"cassandra"`
 	Elasticsearch *esCfg.Configuration    `mapstructure:"elasticsearch"`
 	Opensearch    *esCfg.Configuration    `mapstructure:"opensearch"`
+}
+
+type MetricBackends struct {
+	Prometheus *promCfg.Configuration `mapstructure:"prometheus"`
 }
 
 // Unmarshal implements confmap.Unmarshaler. This allows us to provide
@@ -97,4 +105,13 @@ func (cfg *Config) Validate() error {
 		}
 	}
 	return nil
+}
+
+func (cfg *MetricBackends) Unmarshal(conf *confmap.Conf) error {
+	// apply defaults
+	if conf.IsSet("prometheus") {
+		v := prometheus.DefaultConfig()
+		cfg.Prometheus = &v
+	}
+	return conf.Unmarshal(cfg)
 }
