@@ -79,6 +79,12 @@ func TestMetricsFactoryBadNameError(t *testing.T) {
 	require.ErrorContains(t, err, "cannot find metric storage 'bar'")
 }
 
+func TestStorageExtensionType(t *testing.T) {
+	host := storagetest.NewStorageHost().WithExtension(ID, startStorageExtension(t, "", "foo"))
+	_, err := findExtension(host)
+	require.NoError(t, err)
+}
+
 func TestStorageFactoryBadShutdownError(t *testing.T) {
 	shutdownError := fmt.Errorf("shutdown error")
 	ext := storageExt{
@@ -174,6 +180,18 @@ func TestStartError(t *testing.T) {
 	err := ext.Start(context.Background(), componenttest.NewNopHost())
 	require.ErrorContains(t, err, "failed to initialize storage 'foo'")
 	require.ErrorContains(t, err, "empty configuration")
+}
+
+func TestMetricsStorageStartError(t *testing.T) {
+	ext := makeStorageExtenion(t, &Config{
+		MetricBackends: map[string]MetricBackends{
+			"foo": {
+				Prometheus: &promCfg.Configuration{},
+			},
+		},
+	})
+	err := ext.Start(context.Background(), componenttest.NewNopHost())
+	require.ErrorContains(t, err, "failed to initialize metrics storage 'foo'")
 }
 
 func testElasticsearchOrOpensearch(t *testing.T, cfg Backend) {
