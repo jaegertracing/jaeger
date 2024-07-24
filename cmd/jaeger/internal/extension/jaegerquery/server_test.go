@@ -324,7 +324,7 @@ func TestServerAddMetricsStorage(t *testing.T) {
 			if tt.extension != nil {
 				host = storagetest.NewStorageHost().WithExtension(jaegerstorage.ID, tt.extension)
 			}
-			_, err := server.createMetricStorage(host)
+			_, err := server.createMetricReader(host)
 			if tt.expectedErr == "" {
 				require.NoError(t, err)
 			} else {
