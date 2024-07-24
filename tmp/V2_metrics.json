@@ -1,0 +1,703 @@
+[
+    {
+        "name": "otelcol_exporter_send_failed_spans",
+        "help": "Number of spans in failed attempts to send to destination.",
+        "type": "COUNTER",
+        "metrics": [
+            {
+                "labels": {
+                    "exporter": "jaeger_storage_exporter",
+                    "service_instance_id": "a820d496-5799-42b4-9fe2-85f9178f6743",
+                    "service_name": "jaeger",
+                    "service_version": "git-commit=, git-version=, build-date="
+                },
+                "value": "0"
+            }
+        ]
+    },
+    {
+        "name": "otelcol_exporter_sent_spans",
+        "help": "Number of spans successfully sent to destination.",
+        "type": "COUNTER",
+        "metrics": [
+            {
+                "labels": {
+                    "exporter": "jaeger_storage_exporter",
+                    "service_instance_id": "a820d496-5799-42b4-9fe2-85f9178f6743",
+                    "service_name": "jaeger",
+                    "service_version": "git-commit=, git-version=, build-date="
+                },
+                "value": "10"
+            }
+        ]
+    },
+    {
+        "name": "otelcol_process_cpu_seconds",
+        "help": "Total CPU user and system time in seconds",
+        "type": "COUNTER",
+        "metrics": [
+            {
+                "labels": {
+                    "service_instance_id": "a820d496-5799-42b4-9fe2-85f9178f6743",
+                    "service_name": "jaeger",
+                    "service_version": "git-commit=, git-version=, build-date="
+                },
+                "value": "1.17"
+            }
+        ]
+    },
+    {
+        "name": "otelcol_process_memory_rss",
+        "help": "Total physical memory (resident set size)",
+        "type": "GAUGE",
+        "metrics": [
+            {
+                "labels": {
+                    "service_instance_id": "a820d496-5799-42b4-9fe2-85f9178f6743",
+                    "service_name": "jaeger",
+                    "service_version": "git-commit=, git-version=, build-date="
+                },
+                "value": "5.4063104e+07"
+            }
+        ]
+    },
+    {
+        "name": "otelcol_process_runtime_heap_alloc_bytes",
+        "help": "Bytes of allocated heap objects (see 'go doc runtime.MemStats.HeapAlloc')",
+        "type": "GAUGE",
+        "metrics": [
+            {
+                "labels": {
+                    "service_instance_id": "a820d496-5799-42b4-9fe2-85f9178f6743",
+                    "service_name": "jaeger",
+                    "service_version": "git-commit=, git-version=, build-date="
+                },
+                "value": "7.451144e+06"
+            }
+        ]
+    },
+    {
+        "name": "otelcol_process_runtime_total_alloc_bytes",
+        "help": "Cumulative bytes allocated for heap objects (see 'go doc runtime.MemStats.TotalAlloc')",
+        "type": "COUNTER",
+        "metrics": [
+            {
+                "labels": {
+                    "service_instance_id": "a820d496-5799-42b4-9fe2-85f9178f6743",
+                    "service_name": "jaeger",
+                    "service_version": "git-commit=, git-version=, build-date="
+                },
+                "value": "1.14150504e+08"
+            }
+        ]
+    },
+    {
+        "name": "otelcol_process_runtime_total_sys_memory_bytes",
+        "help": "Total bytes of memory obtained from the OS (see 'go doc runtime.MemStats.Sys')",
+        "type": "GAUGE",
+        "metrics": [
+            {
+                "labels": {
+                    "service_instance_id": "a820d496-5799-42b4-9fe2-85f9178f6743",
+                    "service_name": "jaeger",
+                    "service_version": "git-commit=, git-version=, build-date="
+                },
+                "value": "4.045748e+07"
+            }
+        ]
+    },
+    {
+        "name": "otelcol_process_uptime",
+        "help": "Uptime of the process",
+        "type": "COUNTER",
+        "metrics": [
+            {
+                "labels": {
+                    "service_instance_id": "a820d496-5799-42b4-9fe2-85f9178f6743",
+                    "service_name": "jaeger",
+                    "service_version": "git-commit=, git-version=, build-date="
+                },
+                "value": "391.414710833"
+            }
+        ]
+    },
+    {
+        "name": "otelcol_processor_batch_batch_send_size",
+        "help": "Number of units in the batch",
+        "type": "HISTOGRAM",
+        "metrics": [
+            {
+                "labels": {
+                    "processor": "batch",
+                    "service_instance_id": "a820d496-5799-42b4-9fe2-85f9178f6743",
+                    "service_name": "jaeger",
+                    "service_version": "git-commit=, git-version=, build-date="
+                },
+                "buckets": {
+                    "10": "2",
+                    "100": "2",
+                    "1000": "2",
+                    "10000": "2",
+                    "100000": "2",
+                    "2000": "2",
+                    "20000": "2",
+                    "25": "2",
+                    "250": "2",
+                    "3000": "2",
+                    "30000": "2",
+                    "4000": "2",
+                    "50": "2",
+                    "500": "2",
+                    "5000": "2",
+                    "50000": "2",
+                    "6000": "2",
+                    "7000": "2",
+                    "75": "2",
+                    "750": "2",
+                    "8000": "2",
+                    "9000": "2"
+                },
+                "count": "2",
+                "sum": "10"
+            }
+        ]
+    },
+    {
+        "name": "otelcol_processor_batch_batch_send_size_bytes",
+        "help": "Number of bytes in batch that was sent",
+        "type": "HISTOGRAM",
+        "metrics": [
+            {
+                "labels": {
+                    "processor": "batch",
+                    "service_instance_id": "a820d496-5799-42b4-9fe2-85f9178f6743",
+                    "service_name": "jaeger",
+                    "service_version": "git-commit=, git-version=, build-date="
+                },
+                "buckets": {
+                    "10": "0",
+                    "100": "0",
+                    "1000": "0",
+                    "10000": "2",
+                    "100000": "2",
+                    "1e+06": "2",
+                    "2000": "1",
+                    "20000": "2",
+                    "200000": "2",
+                    "25": "0",
+                    "250": "0",
+                    "2e+06": "2",
+                    "3000": "1",
+                    "30000": "2",
+                    "300000": "2",
+                    "3e+06": "2",
+                    "4000": "1",
+                    "400000": "2",
+                    "4e+06": "2",
+                    "50": "0",
+                    "500": "0",
+                    "5000": "2",
+                    "50000": "2",
+                    "500000": "2",
+                    "5e+06": "2",
+                    "6000": "2",
+                    "600000": "2",
+                    "6e+06": "2",
+                    "7000": "2",
+                    "700000": "2",
+                    "75": "0",
+                    "750": "0",
+                    "7e+06": "2",
+                    "8000": "2",
+                    "800000": "2",
+                    "8e+06": "2",
+                    "9000": "2",
+                    "900000": "2",
+                    "9e+06": "2"
+                },
+                "count": "2",
+                "sum": "6017"
+            }
+        ]
+    },
+    {
+        "name": "otelcol_processor_batch_metadata_cardinality",
+        "help": "Number of distinct metadata value combinations being processed",
+        "type": "GAUGE",
+        "metrics": [
+            {
+                "labels": {
+                    "processor": "batch",
+                    "service_instance_id": "a820d496-5799-42b4-9fe2-85f9178f6743",
+                    "service_name": "jaeger",
+                    "service_version": "git-commit=, git-version=, build-date="
+                },
+                "value": "1"
+            }
+        ]
+    },
+    {
+        "name": "otelcol_processor_batch_timeout_trigger_send",
+        "help": "Number of times the batch was sent due to a timeout trigger",
+        "type": "COUNTER",
+        "metrics": [
+            {
+                "labels": {
+                    "processor": "batch",
+                    "service_instance_id": "a820d496-5799-42b4-9fe2-85f9178f6743",
+                    "service_name": "jaeger",
+                    "service_version": "git-commit=, git-version=, build-date="
+                },
+                "value": "2"
+            }
+        ]
+    },
+    {
+        "name": "otelcol_query_latency",
+        "help": "",
+        "type": "HISTOGRAM",
+        "metrics": [
+            {
+                "labels": {
+                    "operation": "find_traces",
+                    "result": "ok",
+                    "service_instance_id": "a820d496-5799-42b4-9fe2-85f9178f6743",
+                    "service_name": "jaeger",
+                    "service_version": "git-commit=, git-version=, build-date="
+                },
+                "buckets": {
+                    "0": "0",
+                    "10": "4",
+                    "100": "4",
+                    "1000": "4",
+                    "10000": "4",
+                    "25": "4",
+                    "250": "4",
+                    "2500": "4",
+                    "5": "4",
+                    "50": "4",
+                    "500": "4",
+                    "5000": "4",
+                    "75": "4",
+                    "750": "4",
+                    "7500": "4"
+                },
+                "count": "4",
+                "sum": "0.000370049"
+            },
+            {
+                "labels": {
+                    "operation": "get_operations",
+                    "result": "ok",
+                    "service_instance_id": "a820d496-5799-42b4-9fe2-85f9178f6743",
+                    "service_name": "jaeger",
+                    "service_version": "git-commit=, git-version=, build-date="
+                },
+                "buckets": {
+                    "0": "0",
+                    "10": "3",
+                    "100": "3",
+                    "1000": "3",
+                    "10000": "3",
+                    "25": "3",
+                    "250": "3",
+                    "2500": "3",
+                    "5": "3",
+                    "50": "3",
+                    "500": "3",
+                    "5000": "3",
+                    "75": "3",
+                    "750": "3",
+                    "7500": "3"
+                },
+                "count": "3",
+                "sum": "1.3208e-05"
+            },
+            {
+                "labels": {
+                    "operation": "get_services",
+                    "result": "ok",
+                    "service_instance_id": "a820d496-5799-42b4-9fe2-85f9178f6743",
+                    "service_name": "jaeger",
+                    "service_version": "git-commit=, git-version=, build-date="
+                },
+                "buckets": {
+                    "0": "0",
+                    "10": "3",
+                    "100": "3",
+                    "1000": "3",
+                    "10000": "3",
+                    "25": "3",
+                    "250": "3",
+                    "2500": "3",
+                    "5": "3",
+                    "50": "3",
+                    "500": "3",
+                    "5000": "3",
+                    "75": "3",
+                    "750": "3",
+                    "7500": "3"
+                },
+                "count": "3",
+                "sum": "0.000116608"
+            }
+        ]
+    },
+    {
+        "name": "otelcol_query_requests",
+        "help": "",
+        "type": "COUNTER",
+        "metrics": [
+            {
+                "labels": {
+                    "operation": "find_traces",
+                    "result": "ok",
+                    "service_instance_id": "a820d496-5799-42b4-9fe2-85f9178f6743",
+                    "service_name": "jaeger",
+                    "service_version": "git-commit=, git-version=, build-date="
+                },
+                "value": "4"
+            },
+            {
+                "labels": {
+                    "operation": "get_operations",
+                    "result": "ok",
+                    "service_instance_id": "a820d496-5799-42b4-9fe2-85f9178f6743",
+                    "service_name": "jaeger",
+                    "service_version": "git-commit=, git-version=, build-date="
+                },
+                "value": "3"
+            },
+            {
+                "labels": {
+                    "operation": "get_services",
+                    "result": "ok",
+                    "service_instance_id": "a820d496-5799-42b4-9fe2-85f9178f6743",
+                    "service_name": "jaeger",
+                    "service_version": "git-commit=, git-version=, build-date="
+                },
+                "value": "3"
+            }
+        ]
+    },
+    {
+        "name": "otelcol_query_responses",
+        "help": "",
+        "type": "HISTOGRAM",
+        "metrics": [
+            {
+                "labels": {
+                    "operation": "find_traces",
+                    "service_instance_id": "a820d496-5799-42b4-9fe2-85f9178f6743",
+                    "service_name": "jaeger",
+                    "service_version": "git-commit=, git-version=, build-date="
+                },
+                "buckets": {
+                    "0": "3",
+                    "10": "4",
+                    "100": "4",
+                    "1000": "4",
+                    "10000": "4",
+                    "25": "4",
+                    "250": "4",
+                    "2500": "4",
+                    "5": "4",
+                    "50": "4",
+                    "500": "4",
+                    "5000": "4",
+                    "75": "4",
+                    "750": "4",
+                    "7500": "4"
+                },
+                "count": "4",
+                "sum": "3e-09"
+            },
+            {
+                "labels": {
+                    "operation": "get_operations",
+                    "service_instance_id": "a820d496-5799-42b4-9fe2-85f9178f6743",
+                    "service_name": "jaeger",
+                    "service_version": "git-commit=, git-version=, build-date="
+                },
+                "buckets": {
+                    "0": "2",
+                    "10": "3",
+                    "100": "3",
+                    "1000": "3",
+                    "10000": "3",
+                    "25": "3",
+                    "250": "3",
+                    "2500": "3",
+                    "5": "3",
+                    "50": "3",
+                    "500": "3",
+                    "5000": "3",
+                    "75": "3",
+                    "750": "3",
+                    "7500": "3"
+                },
+                "count": "3",
+                "sum": "3e-09"
+            },
+            {
+                "labels": {
+                    "operation": "get_services",
+                    "service_instance_id": "a820d496-5799-42b4-9fe2-85f9178f6743",
+                    "service_name": "jaeger",
+                    "service_version": "git-commit=, git-version=, build-date="
+                },
+                "buckets": {
+                    "0": "2",
+                    "10": "3",
+                    "100": "3",
+                    "1000": "3",
+                    "10000": "3",
+                    "25": "3",
+                    "250": "3",
+                    "2500": "3",
+                    "5": "3",
+                    "50": "3",
+                    "500": "3",
+                    "5000": "3",
+                    "75": "3",
+                    "750": "3",
+                    "7500": "3"
+                },
+                "count": "3",
+                "sum": "1e-09"
+            }
+        ]
+    },
+    {
+        "name": "otelcol_receiver_accepted_spans",
+        "help": "Number of spans successfully pushed into the pipeline.",
+        "type": "COUNTER",
+        "metrics": [
+            {
+                "labels": {
+                    "receiver": "otlp",
+                    "service_instance_id": "a820d496-5799-42b4-9fe2-85f9178f6743",
+                    "service_name": "jaeger",
+                    "service_version": "git-commit=, git-version=, build-date=",
+                    "transport": "grpc"
+                },
+                "value": "10"
+            }
+        ]
+    },
+    {
+        "name": "otelcol_receiver_refused_spans",
+        "help": "Number of spans that could not be pushed into the pipeline.",
+        "type": "COUNTER",
+        "metrics": [
+            {
+                "labels": {
+                    "receiver": "otlp",
+                    "service_instance_id": "a820d496-5799-42b4-9fe2-85f9178f6743",
+                    "service_name": "jaeger",
+                    "service_version": "git-commit=, git-version=, build-date=",
+                    "transport": "grpc"
+                },
+                "value": "0"
+            }
+        ]
+    },
+    {
+        "name": "otelcol_rpc_server_duration",
+        "help": "Measures the duration of inbound RPC.",
+        "type": "HISTOGRAM",
+        "metrics": [
+            {
+                "labels": {
+                    "rpc_grpc_status_code": "0",
+                    "rpc_method": "Export",
+                    "rpc_service": "opentelemetry.proto.collector.trace.v1.TraceService",
+                    "rpc_system": "grpc",
+                    "service_instance_id": "a820d496-5799-42b4-9fe2-85f9178f6743",
+                    "service_name": "jaeger",
+                    "service_version": "git-commit=, git-version=, build-date="
+                },
+                "buckets": {
+                    "0": "0",
+                    "10": "2",
+                    "100": "2",
+                    "1000": "2",
+                    "10000": "2",
+                    "25": "2",
+                    "250": "2",
+                    "2500": "2",
+                    "5": "2",
+                    "50": "2",
+                    "500": "2",
+                    "5000": "2",
+                    "75": "2",
+                    "750": "2",
+                    "7500": "2"
+                },
+                "count": "2",
+                "sum": "0.614766"
+            }
+        ]
+    },
+    {
+        "name": "otelcol_rpc_server_request_size",
+        "help": "Measures size of RPC request messages (uncompressed).",
+        "type": "HISTOGRAM",
+        "metrics": [
+            {
+                "labels": {
+                    "rpc_method": "Export",
+                    "rpc_service": "opentelemetry.proto.collector.trace.v1.TraceService",
+                    "rpc_system": "grpc",
+                    "service_instance_id": "a820d496-5799-42b4-9fe2-85f9178f6743",
+                    "service_name": "jaeger",
+                    "service_version": "git-commit=, git-version=, build-date="
+                },
+                "buckets": {
+                    "0": "0",
+                    "10": "0",
+                    "100": "0",
+                    "1000": "0",
+                    "10000": "2",
+                    "25": "0",
+                    "250": "0",
+                    "2500": "1",
+                    "5": "0",
+                    "50": "0",
+                    "500": "0",
+                    "5000": "2",
+                    "75": "0",
+                    "750": "0",
+                    "7500": "2"
+                },
+                "count": "2",
+                "sum": "5997"
+            }
+        ]
+    },
+    {
+        "name": "otelcol_rpc_server_requests_per_rpc",
+        "help": "Measures the number of messages received per RPC. Should be 1 for all non-streaming RPCs.",
+        "type": "HISTOGRAM",
+        "metrics": [
+            {
+                "labels": {
+                    "rpc_grpc_status_code": "0",
+                    "rpc_method": "Export",
+                    "rpc_service": "opentelemetry.proto.collector.trace.v1.TraceService",
+                    "rpc_system": "grpc",
+                    "service_instance_id": "a820d496-5799-42b4-9fe2-85f9178f6743",
+                    "service_name": "jaeger",
+                    "service_version": "git-commit=, git-version=, build-date="
+                },
+                "buckets": {
+                    "0": "0",
+                    "10": "2",
+                    "100": "2",
+                    "1000": "2",
+                    "10000": "2",
+                    "25": "2",
+                    "250": "2",
+                    "2500": "2",
+                    "5": "2",
+                    "50": "2",
+                    "500": "2",
+                    "5000": "2",
+                    "75": "2",
+                    "750": "2",
+                    "7500": "2"
+                },
+                "count": "2",
+                "sum": "2"
+            }
+        ]
+    },
+    {
+        "name": "otelcol_rpc_server_response_size",
+        "help": "Measures size of RPC response messages (uncompressed).",
+        "type": "HISTOGRAM",
+        "metrics": [
+            {
+                "labels": {
+                    "rpc_method": "Export",
+                    "rpc_service": "opentelemetry.proto.collector.trace.v1.TraceService",
+                    "rpc_system": "grpc",
+                    "service_instance_id": "a820d496-5799-42b4-9fe2-85f9178f6743",
+                    "service_name": "jaeger",
+                    "service_version": "git-commit=, git-version=, build-date="
+                },
+                "buckets": {
+                    "0": "0",
+                    "10": "2",
+                    "100": "2",
+                    "1000": "2",
+                    "10000": "2",
+                    "25": "2",
+                    "250": "2",
+                    "2500": "2",
+                    "5": "2",
+                    "50": "2",
+                    "500": "2",
+                    "5000": "2",
+                    "75": "2",
+                    "750": "2",
+                    "7500": "2"
+                },
+                "count": "2",
+                "sum": "4"
+            }
+        ]
+    },
+    {
+        "name": "otelcol_rpc_server_responses_per_rpc",
+        "help": "Measures the number of messages received per RPC. Should be 1 for all non-streaming RPCs.",
+        "type": "HISTOGRAM",
+        "metrics": [
+            {
+                "labels": {
+                    "rpc_grpc_status_code": "0",
+                    "rpc_method": "Export",
+                    "rpc_service": "opentelemetry.proto.collector.trace.v1.TraceService",
+                    "rpc_system": "grpc",
+                    "service_instance_id": "a820d496-5799-42b4-9fe2-85f9178f6743",
+                    "service_name": "jaeger",
+                    "service_version": "git-commit=, git-version=, build-date="
+                },
+                "buckets": {
+                    "0": "0",
+                    "10": "2",
+                    "100": "2",
+                    "1000": "2",
+                    "10000": "2",
+                    "25": "2",
+                    "250": "2",
+                    "2500": "2",
+                    "5": "2",
+                    "50": "2",
+                    "500": "2",
+                    "5000": "2",
+                    "75": "2",
+                    "750": "2",
+                    "7500": "2"
+                },
+                "count": "2",
+                "sum": "2"
+            }
+        ]
+    },
+    {
+        "name": "target_info",
+        "help": "Target metadata",
+        "type": "GAUGE",
+        "metrics": [
+            {
+                "labels": {
+                    "service_instance_id": "a820d496-5799-42b4-9fe2-85f9178f6743",
+                    "service_name": "jaeger",
+                    "service_version": "git-commit=, git-version=, build-date="
+                },
+                "value": "1"
+            }
+        ]
+    }
+]
