@@ -75,12 +75,10 @@ func NewFactoryWithConfig(
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
-
 	f := NewFactory()
 	f.options = &Options{
 		Configuration: cfg,
 	}
 	f.Initialize(logger)
-
 	return f, nil
 }
