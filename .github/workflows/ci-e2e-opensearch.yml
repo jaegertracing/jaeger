@@ -54,7 +54,7 @@ jobs:
 
     - name: Run ${{ matrix.version.distribution }} integration tests
       id: test-execution
-      run: bash scripts/es-integration-test.sh ${{ matrix.version.distribution }} ${{ matrix.version.major }} ${{ matrix.version.jaeger }}
+      run: bash scripts/elasticsearch-integration-test.sh ${{ matrix.version.distribution }} ${{ matrix.version.major }} ${{ matrix.version.jaeger }}
 
 
     - name: Output ${{ matrix.version.distribution }} logs
