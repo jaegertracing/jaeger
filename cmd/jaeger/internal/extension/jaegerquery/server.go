@@ -21,6 +21,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/plugin/metrics/disabled"
 	storageMetrics "github.com/jaegertracing/jaeger/storage/spanstore/metrics"
+	"github.com/jaegertracing/jaeger/storage/metricsstore"
 )
 
 var (
@@ -72,7 +73,12 @@ func (s *server) Start(_ context.Context, host component.Host) error {
 		return err
 	}
 	qs := querysvc.NewQueryService(spanReader, depReader, opts)
-	metricsQueryService, _ := disabled.NewMetricsReader()
+
+	mqs, err := s.createMetricReader(host)
+	if err != nil {
+		return err
+	}
+
 	tm := tenancy.NewManager(&s.config.Tenancy)
 
 	// TODO OTel-collector does not initialize the tracer currently
@@ -95,7 +101,7 @@ func (s *server) Start(_ context.Context, host component.Host) error {
 	s.server, err = queryApp.NewServer(
 		// TODO propagate healthcheck updates up to the collector's runtime
 		qs,
-		metricsQueryService,
+		mqs,
 		s.makeQueryOptions(),
 		tm,
 		telset,
@@ -126,6 +132,24 @@ func (s *server) addArchiveStorage(opts *querysvc.QueryServiceOptions, host comp
 		s.telset.Logger.Info("Archive storage not initialized")
 	}
 	return nil
+}
+
+func (s *server) createMetricReader(host component.Host) (metricsstore.Reader, error) {
+	if s.config.MetricStorage == "" {
+		s.telset.Logger.Info("Metric storage not configured")
+		return disabled.NewMetricsReader()
+	}
+
+	mf, err := jaegerstorage.GetMetricsFactory(s.config.MetricStorage, host)
+	if err != nil {
+		return nil, fmt.Errorf("cannot find metrics storage factory: %w", err)
+	}
+
+	metricsReader, err := mf.CreateMetricsReader()
+	if err != nil {
+		return nil, fmt.Errorf("cannot create metrics reader %w", err)
+	}
+	return metricsReader, err
 }
 
 func (s *server) makeQueryOptions() *queryApp.QueryOptions {

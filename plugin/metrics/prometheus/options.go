@@ -55,9 +55,8 @@ type Options struct {
 	config.Configuration `mapstructure:",squash"`
 }
 
-// NewOptions creates a new Options struct.
-func NewOptions() *Options {
-	defaultConfig := config.Configuration{
+func DefaultConfig() config.Configuration {
+	return config.Configuration{
 		ServerURL:      defaultServerURL,
 		ConnectTimeout: defaultConnectTimeout,
 
@@ -66,9 +65,12 @@ func NewOptions() *Options {
 		NormalizeCalls:    defaultNormalizeCalls,
 		NormalizeDuration: defaultNormalizeCalls,
 	}
+}
 
+// NewOptions creates a new Options struct.
+func NewOptions() *Options {
 	return &Options{
-		Configuration: defaultConfig,
+		Configuration: DefaultConfig(),
 	}
 }
 

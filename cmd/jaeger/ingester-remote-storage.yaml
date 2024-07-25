@@ -1,0 +1,37 @@
+service:
+  extensions: [jaeger_storage, jaeger_query]
+  pipelines:
+    traces:
+      receivers: [kafka]
+      processors: [batch]
+      exporters: [jaeger_storage_exporter]
+  telemetry:
+    metrics:
+      address: 0.0.0.0:8889
+    logs:
+      level: debug
+
+extensions:
+  jaeger_query:
+    trace_storage: some_storage
+
+  jaeger_storage:
+    backends:
+      some_storage:
+        memory:
+          max_traces: 100000
+
+receivers:  
+  kafka:
+    brokers:
+      - localhost:9092
+    topic: "jaeger-spans"
+    encoding: otlp_proto
+    initial_offset: earliest
+
+processors:
+  batch:
+
+exporters:
+  jaeger_storage_exporter:
+    trace_storage: some_storage

@@ -17,15 +17,21 @@ services:
       - PROMETHEUS_QUERY_NORMALIZE_DURATION=true
     ports:
       - "16686:16686"
+
   otel_collector:
     networks:
-      - backend
+      backend:
+        # This is the host name used in Prometheus scrape configuration.
+        aliases: [spm_metrics_source]
     image: otel/opentelemetry-collector-contrib:${OTEL_IMAGE_TAG:-0.89.0}
     volumes:
       - ${OTEL_CONFIG_SRC:-./otel-collector-config-connector.yml}:/etc/otelcol/otel-collector-config.yml
     command: --config /etc/otelcol/otel-collector-config.yml
     depends_on:
       - jaeger
+    ports:
+      - "8889:8889"
+
   microsim:
     networks:
       - backend
@@ -36,6 +42,7 @@ services:
       - OTEL_EXPORTER_OTLP_INSECURE=true
     depends_on:
       - otel_collector
+
   prometheus:
     networks:
       - backend
@@ -44,6 +51,7 @@ services:
       - "./prometheus.yml:/etc/prometheus/prometheus.yml"
     ports:
       - "9090:9090"
+
   grafana:
     networks:
       - backend
@@ -56,7 +64,7 @@ services:
       - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
       - GF_AUTH_DISABLE_LOGIN_FORM=true
     ports:
-      - 3000:3000
+      - "3000:3000"
 
 networks:
   backend:

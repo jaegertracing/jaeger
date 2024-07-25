@@ -37,8 +37,9 @@ func (f *PurgerFactory) Purge(_ context.Context) error {
 }
 
 type mockStorageExt struct {
-	name    string
-	factory storage.Factory
+	name           string
+	factory        storage.Factory
+	metricsFactory storage.MetricsFactory
 }
 
 func (*mockStorageExt) Start(context.Context, component.Host) error {
@@ -49,9 +50,16 @@ func (*mockStorageExt) Shutdown(context.Context) error {
 	panic("not implemented")
 }
 
-func (m *mockStorageExt) Factory(name string) (storage.Factory, bool) {
+func (m *mockStorageExt) TraceStorageFactory(name string) (storage.Factory, bool) {
 	if m.name == name {
 		return m.factory, true
+	}
+	return nil, false
+}
+
+func (m *mockStorageExt) MetricStorageFactory(name string) (storage.MetricsFactory, bool) {
+	if m.name == name {
+		return m.metricsFactory, true
 	}
 	return nil, false
 }

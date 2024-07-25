@@ -21,8 +21,5 @@ func TestElasticsearchStorage(t *testing.T) {
 		},
 	}
 	s.e2eInitialize(t, "elasticsearch")
-	t.Cleanup(func() {
-		s.e2eCleanUp(t)
-	})
 	s.RunSpanStoreTests(t)
 }

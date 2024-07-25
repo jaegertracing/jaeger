@@ -1,0 +1,28 @@
+service:
+  pipelines:
+    traces:
+      receivers: [otlp, jaeger]
+      processors: [batch]
+      exporters: [kafka]
+      
+receivers:
+  otlp:
+    protocols:
+      grpc:
+      http:
+  jaeger:
+    protocols:
+      grpc:
+      thrift_binary:
+      thrift_compact:
+      thrift_http:
+
+processors:
+  batch:
+
+exporters:
+  kafka:
+    brokers:
+      - localhost:9092
+    topic: "jaeger-spans"
+    encoding: otlp_proto

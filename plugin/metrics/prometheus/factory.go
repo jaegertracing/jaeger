@@ -22,6 +22,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/pkg/prometheus/config"
 	"github.com/jaegertracing/jaeger/plugin"
 	prometheusstore "github.com/jaegertracing/jaeger/plugin/metrics/prometheus/metricsstore"
 	"github.com/jaegertracing/jaeger/storage/metricsstore"
@@ -65,4 +66,19 @@ func (f *Factory) Initialize(logger *zap.Logger) error {
 // CreateMetricsReader implements storage.MetricsFactory.
 func (f *Factory) CreateMetricsReader() (metricsstore.Reader, error) {
 	return prometheusstore.NewMetricsReader(f.options.Configuration, f.logger, f.tracer)
+}
+
+func NewFactoryWithConfig(
+	cfg config.Configuration,
+	logger *zap.Logger,
+) (*Factory, error) {
+	if err := cfg.Validate(); err != nil {
+		return nil, err
+	}
+	f := NewFactory()
+	f.options = &Options{
+		Configuration: cfg,
+	}
+	f.Initialize(logger)
+	return f, nil
 }
