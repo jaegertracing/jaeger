@@ -293,7 +293,6 @@ func TestServerAddMetricsStorage(t *testing.T) {
 
 	tests := []struct {
 		name           string
-		qSvcOpts       *querysvc.QueryServiceOptions
 		config         *Config
 		extension      component.Component
 		expectedOutput string
