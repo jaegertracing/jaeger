@@ -302,7 +302,6 @@ func TestServerAddMetricsStorage(t *testing.T) {
 		{
 			name:           "Metrics storage unset",
 			config:         &Config{},
-			qSvcOpts:       &querysvc.QueryServiceOptions{},
 			expectedOutput: `{"level":"info","msg":"Metric storage not configured"}` + "\n",
 			expectedErr:    "",
 		},
@@ -311,7 +310,6 @@ func TestServerAddMetricsStorage(t *testing.T) {
 			config: &Config{
 				MetricStorage: "random-value",
 			},
-			qSvcOpts:       &querysvc.QueryServiceOptions{},
 			expectedOutput: "",
 			expectedErr:    "cannot find metrics storage factory: cannot find extension",
 		},
@@ -327,7 +325,7 @@ func TestServerAddMetricsStorage(t *testing.T) {
 			if tt.extension != nil {
 				host = storagetest.NewStorageHost().WithExtension(jaegerstorage.ID, tt.extension)
 			}
-			_, err := server.createMetricReader(tt.qSvcOpts, host)
+			_, err := server.createMetricReader(host)
 			if tt.expectedErr == "" {
 				require.NoError(t, err)
 			} else {

@@ -69,7 +69,8 @@ func (s *server) Start(_ context.Context, host component.Host) error {
 	}
 	qs := querysvc.NewQueryService(spanReader, depReader, opts)
 
-	mqs, err := s.createMetricReader(&opts, host)
+	mqs, err := s.createMetricReader(host)
+	opts.MetricsReader = mqs
 	if err != nil {
 		return err
 	}
@@ -128,7 +129,7 @@ func (s *server) addArchiveStorage(opts *querysvc.QueryServiceOptions, host comp
 	return nil
 }
 
-func (s *server) createMetricReader(opts *querysvc.QueryServiceOptions, host component.Host) (metricsstore.Reader, error) {
+func (s *server) createMetricReader(host component.Host) (metricsstore.Reader, error) {
 	if s.config.MetricStorage == "" {
 		s.telset.Logger.Info("Metric storage not configured")
 		return disabled.NewMetricsReader()
@@ -143,7 +144,6 @@ func (s *server) createMetricReader(opts *querysvc.QueryServiceOptions, host com
 	if err != nil {
 		return nil, fmt.Errorf("cannot create metrics reader %w", err)
 	}
-	opts.MetricsReader = metricsReader
 	return metricsReader, err
 }
 
