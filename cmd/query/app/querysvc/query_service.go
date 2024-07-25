@@ -25,6 +25,7 @@ import (
 	"github.com/jaegertracing/jaeger/model/adjuster"
 	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
+	"github.com/jaegertracing/jaeger/storage/metricsstore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
@@ -38,13 +39,14 @@ const (
 type QueryServiceOptions struct {
 	ArchiveSpanReader spanstore.Reader
 	ArchiveSpanWriter spanstore.Writer
+	MetricsReader     metricsstore.Reader
 	Adjuster          adjuster.Adjuster
 }
 
 // StorageCapabilities is a feature flag for query service
 type StorageCapabilities struct {
 	ArchiveStorage bool `json:"archiveStorage"`
-	// TODO: Maybe add metrics Storage here
+	MetricStorage  bool `json:"metricsStorage"`
 	// SupportRegex     bool
 	// SupportTagFilter bool
 }
@@ -134,6 +136,7 @@ func (qs QueryService) GetDependencies(ctx context.Context, endTs time.Time, loo
 func (qs QueryService) GetCapabilities() StorageCapabilities {
 	return StorageCapabilities{
 		ArchiveStorage: qs.options.hasArchiveStorage(),
+		MetricStorage:  qs.options.hasMetricStorage(),
 	}
 }
 
@@ -170,4 +173,10 @@ func (opts *QueryServiceOptions) InitArchiveStorage(storageFactory storage.Facto
 // hasArchiveStorage returns true if archive storage reader/writer are initialized.
 func (opts *QueryServiceOptions) hasArchiveStorage() bool {
 	return opts.ArchiveSpanReader != nil && opts.ArchiveSpanWriter != nil
+}
+
+// hasMetricsStorage returns true if metric storage reader is initialized.
+func (opts *QueryServiceOptions) hasMetricStorage() bool {
+	// TODO: NEED to pass the reader when the metricsreader is created
+	return opts.MetricsReader != nil
 }
