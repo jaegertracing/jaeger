@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componenttest"
+	noopMeter "go.opentelemetry.io/otel/metric/noop"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 
@@ -186,8 +187,9 @@ func TestServerStart(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			telemetrySettings := component.TelemetrySettings{
-				Logger:       zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller())),
-				ReportStatus: func(*component.StatusEvent) {},
+				Logger:        zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller())),
+				MeterProvider: noopMeter.NewMeterProvider(),
+				ReportStatus:  func(*component.StatusEvent) {},
 			}
 			tt.config.HTTP.Endpoint = ":0"
 			tt.config.GRPC.NetAddr.Endpoint = ":0"
