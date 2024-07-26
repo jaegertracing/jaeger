@@ -1,5 +1,10 @@
 #!/bin/bash
 
+# This script uses https://github.com/kward/shunit2 to run unit tests.
+# The path to this repo must be provided via SHUNIT2 env var.
+
+SHUNIT2="${SHUNIT2:?'expecting SHUNIT2 env var pointing to a dir with https://github.com/kward/shunit2 clone'}"
+
 # shellcheck disable=SC2086
 computeTags="$(dirname $0)/compute-tags.sh"
 
@@ -16,7 +21,7 @@ testRequireImageName() {
 }
 
 testRequireBranch() {
-    err=$(bash "$computeTags" foo/bar 2>&1)
+    err=$(GITHUB_SHA=sha bash "$computeTags" foo/bar 2>&1)
     assertContains "$err" "$err" 'expecting BRANCH env var'
 }
 
@@ -73,6 +78,5 @@ testSemVerBranch() {
     expect "${expected[@]}"
 }
 
-SHUNIT2="${SHUNIT2:?'expecting SHUNIT2 env var pointing to a dir with https://github.com/kward/shunit2 clone'}"
 # shellcheck disable=SC1091
 source "${SHUNIT2}/shunit2"
