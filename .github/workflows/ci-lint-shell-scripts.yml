@@ -32,7 +32,7 @@ jobs:
     - name: Install shunit2
       uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
       with:
-        repository: https://github.com/kward/shunit2.git
+        repository: kward/shunit2
         path: .tools/shunit2
 
     - name: Run unit tests for scripts
