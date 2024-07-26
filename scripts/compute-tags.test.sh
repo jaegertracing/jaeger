@@ -1,30 +1,31 @@
 #!/bin/bash
 
-computeTags=$(dirname $0)/compute-tags.sh
+# shellcheck disable=SC2086
+computeTags="$(dirname $0)/compute-tags.sh"
 
 # suppress command echoing by compute-tags.sh
 export QUIET=1
 
 testRequireImageName() {
-    err=$(bash $computeTags 2>&1)
+    err=$(bash "$computeTags" 2>&1)
     assertContains "$err" 'expecting Docker image name'
 }
 
 testRequireBranch() {
-    err=$(bash $computeTags foo/bar 2>&1)
+    err=$(bash "$computeTags" foo/bar 2>&1)
     assertContains "$err" "$err" 'expecting BRANCH env var'
 }
 
 testRequireGithubSha() {
-    err=$(BRANCH=abcd bash $computeTags foo/bar 2>&1)
+    err=$(BRANCH=abcd bash "$computeTags" foo/bar 2>&1)
     assertContains "$err" "$err" 'expecting GITHUB_SHA env var'
 }
 
 out=""
 expect() {
-    echo '   Actual:' $out
+    echo '   Actual:' "$out"
     while [ "$#" -gt 0 ]; do
-        echo '   checking' $1
+        echo '   checking' "$1"
         assertContains "actual !!$out!!" "$out" "--tag docker.io/$1"
         assertContains "actual !!$out!!" "$out" "--tag quay.io/$1"
         shift
@@ -32,7 +33,7 @@ expect() {
 }
 
 testRandomBranch() {
-    out=$(BRANCH=branch GITHUB_SHA=sha bash $computeTags foo/bar)
+    out=$(BRANCH=branch GITHUB_SHA=sha bash "$computeTags" foo/bar)
     expected=(
         "foo/bar"
         "foo/bar:latest"
@@ -43,7 +44,7 @@ testRandomBranch() {
 }
 
 testMainBranch() {
-    out=$(BRANCH=main GITHUB_SHA=sha bash $computeTags foo/bar)
+    out=$(BRANCH=main GITHUB_SHA=sha bash "$computeTags" foo/bar)
     # TODO we do not want :latest tag in this scenario for non-snapshot images
     expected=(
         "foo/bar"
@@ -55,7 +56,7 @@ testMainBranch() {
 }
 
 testSemVerBranch() {
-    out=$(BRANCH=v1.2.3 GITHUB_SHA=sha bash $computeTags foo/bar)
+    out=$(BRANCH=v1.2.3 GITHUB_SHA=sha bash "$computeTags" foo/bar)
     # TODO we want :latest tag in this scenario, it's currently not produced
     expected=(
         "foo/bar"
@@ -68,4 +69,6 @@ testSemVerBranch() {
     expect "${expected[@]}"
 }
 
-source ${SHUNIT2:?'expecting SHUNIT2 env var pointing to a dir with https://github.com/kward/shunit2 clone'}/shunit2
+SHUNIT2="${SHUNIT2:?'expecting SHUNIT2 env var pointing to a dir with https://github.com/kward/shunit2 clone'}"
+# shellcheck disable=SC1091
+source "${SHUNIT2}/shunit2"
