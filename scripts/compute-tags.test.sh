@@ -6,6 +6,10 @@ computeTags="$(dirname $0)/compute-tags.sh"
 # suppress command echoing by compute-tags.sh
 export QUIET=1
 
+# unset env vars that were possibly set by the caller, since we test against them
+unset BRANCH
+unset GITHUB_SHA
+
 testRequireImageName() {
     err=$(bash "$computeTags" 2>&1)
     assertContains "$err" 'expecting Docker image name'
