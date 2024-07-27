@@ -34,9 +34,19 @@ out=""
 expect() {
     echo '   Actual:' "$out"
     while [ "$#" -gt 0 ]; do
-        echo '   checking' "$1"
-        assertContains "actual !!$out!!" "$out" "--tag docker.io/$1"
-        assertContains "actual !!$out!!" "$out" "--tag quay.io/$1"
+        echo '   checking includes' "$1"
+        assertContains "actual [$out]" "$out" "--tag docker.io/$1"
+        assertContains "actual [$out]" "$out" "--tag quay.io/$1"
+        shift
+    done
+}
+
+expectNot() {
+    echo '   Actual:' "$out"
+    while [ "$#" -gt 0 ]; do
+        echo '   checking excludes' "$1"
+        assertNotContains "actual [$out]" "$out" "--tag docker.io/$1"
+        assertNotContains "actual [$out]" "$out" "--tag quay.io/$1"
         shift
     done
 }
@@ -54,21 +64,20 @@ testRandomBranch() {
 
 testMainBranch() {
     out=$(BRANCH=main GITHUB_SHA=sha bash "$computeTags" foo/bar)
-    # TODO we do not want :latest tag in this scenario for non-snapshot images
     expected=(
         "foo/bar"
-        "foo/bar:latest"
         "foo/bar-snapshot:sha"
         "foo/bar-snapshot:latest"
     )
     expect "${expected[@]}"
+    expectNot "foo/bar:latest"
 }
 
 testSemVerBranch() {
     out=$(BRANCH=v1.2.3 GITHUB_SHA=sha bash "$computeTags" foo/bar)
-    # TODO we want :latest tag in this scenario, it's currently not produced
     expected=(
         "foo/bar"
+        "foo/bar:latest"
         "foo/bar:1"
         "foo/bar:1.2"
         "foo/bar:1.2.3"
