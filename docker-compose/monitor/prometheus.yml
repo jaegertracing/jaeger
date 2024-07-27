@@ -6,4 +6,4 @@ global:
 scrape_configs:
   - job_name: aggregated-trace-metrics
     static_configs:
-    - targets: ['otel_collector:8889']
+    - targets: ['spm_metrics_source:8889']

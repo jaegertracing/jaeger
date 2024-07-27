@@ -3,9 +3,9 @@
 <img align="right" width="290" height="290" src="https://www.jaegertracing.io/img/jaeger-vector.svg">
 
 [![Slack chat][slack-img]](#get-in-touch)
-[![Project+Community stats][community-badge]][community-stats]
 [![Unit Tests][ci-img]][ci]
 [![Coverage Status][cov-img]][cov]
+[![Project+Community stats][community-badge]][community-stats]
 [![FOSSA Status][fossa-img]][fossa]
 [![OpenSSF Scorecard][openssf-img]][openssf]
 [![OpenSSF Best Practices][openssf-bp-img]][openssf-bp] 
@@ -15,6 +15,8 @@
 <img src="https://raw.githubusercontent.com/cncf/artwork/main/other/cncf-member/graduated/color/cncf-graduated-color.svg" width="250">
 
 # Jaeger - a Distributed Tracing System
+
+💥💥💥 Jaeger v2 is coming! Read the [blog post](https://medium.com/jaegertracing/towards-jaeger-v2-moar-opentelemetry-2f8239bee48e) and [try it out](./cmd/jaeger).
 
 ```mermaid
 graph TD

@@ -49,7 +49,7 @@ var fixtures embed.FS
 // - in those functions it instantiates and populates this struct
 // - it then calls RunAll.
 //
-// Some implementations may declate multuple tests, with different settings,
+// Some implementations may declare multiple tests, with different settings,
 // and RunAll() under different conditions.
 type StorageIntegration struct {
 	SpanWriter        spanstore.Writer

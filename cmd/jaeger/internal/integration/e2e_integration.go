@@ -37,6 +37,7 @@ const otlpPort = 4317
 //   - At last, clean up anything declared in its own test functions.
 //     (e.g. close remote-storage)
 type E2EStorageIntegration struct {
+	SkipStorageCleaner bool
 	integration.StorageIntegration
 	ConfigFile string
 }
@@ -46,7 +47,10 @@ type E2EStorageIntegration struct {
 // This function should be called before any of the tests start.
 func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
 	logger := zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller()))
-	configFile := createStorageCleanerConfig(t, s.ConfigFile, storage)
+	configFile := s.ConfigFile
+	if !s.SkipStorageCleaner {
+		configFile = createStorageCleanerConfig(t, s.ConfigFile, storage)
+	}
 	t.Logf("Starting Jaeger-v2 in the background with config file %s", configFile)
 
 	outFile, err := os.OpenFile(
@@ -93,19 +97,27 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
 	}, 30*time.Second, 500*time.Millisecond, "Jaeger-v2 did not start")
 	t.Log("Jaeger-v2 is ready")
 	t.Cleanup(func() {
-		require.NoError(t, cmd.Process.Kill())
+		if err := cmd.Process.Kill(); err != nil {
+			t.Errorf("Failed to kill Jaeger-v2 process: %v", err)
+		}
 		if t.Failed() {
 			// A Github Actions special annotation to create a foldable section
 			// in the Github runner output.
 			// https://docs.github.com/en/actions/using-workflows/workflow-commands-for-github-actions#grouping-log-lines
 			fmt.Println("::group::🚧 🚧 🚧 Jaeger-v2 binary logs")
 			outLogs, err := os.ReadFile(outFile.Name())
-			require.NoError(t, err)
-			fmt.Printf("🚧 🚧 🚧 Jaeger-v2 output logs:\n%s", outLogs)
+			if err != nil {
+				t.Errorf("Failed to read output logs: %v", err)
+			} else {
+				fmt.Printf("🚧 🚧 🚧 Jaeger-v2 output logs:\n%s", outLogs)
+			}
 
 			errLogs, err := os.ReadFile(errFile.Name())
-			require.NoError(t, err)
-			fmt.Printf("🚧 🚧 🚧 Jaeger-v2 error logs:\n%s", errLogs)
+			if err != nil {
+				t.Errorf("Failed to read error logs: %v", err)
+			} else {
+				fmt.Printf("🚧 🚧 🚧 Jaeger-v2 error logs:\n%s", errLogs)
+			}
 			// End of Github Actions foldable section annotation.
 			fmt.Println("::endgroup::")
 		}
@@ -115,6 +127,11 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
 	require.NoError(t, err)
 	s.SpanReader, err = createSpanReader(logger, ports.QueryGRPC)
 	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		// Call e2eCleanUp to close the SpanReader and SpanWriter gRPC connection.
+		s.e2eCleanUp(t)
+	})
 }
 
 // e2eCleanUp closes the SpanReader and SpanWriter gRPC connection.

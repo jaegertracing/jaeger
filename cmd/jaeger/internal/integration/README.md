@@ -63,6 +63,56 @@ flowchart LR
     end
 ```
 
+## Kafka Integration
+
+The primary difference between the Kafka integration tests and other integration tests lies in the flow of data. In the standard tests, spans are written by the SpanWriter, sent through an RPC_client directly to a receiver, then to an exporter, and written to a storage backend. Spans are read by the SpanReader, which queries the jaeger_query process accessing the storage backend. In contrast, the Kafka tests introduce Kafka as an intermediary. Spans go from the SpanWriter through an RPC_client to an OTLP receiver in the Jaeger Collector, exported to Kafka, received by the Jaeger Ingester, and then stored. For details, see the [Architecture](#KafkaArchitecture) section below.
+
+
+## Kafka Architecture
+
+``` mermaid
+flowchart LR
+        Test -->|writeSpan| SpanWriter
+        SpanWriter --> RPCW[RPC_client]
+        RPCW --> OTLP_Receiver[Receiver]
+        OTLP_Receiver --> CollectorExporter[Kafka Exporter]
+        CollectorExporter --> Kafka[Kafka]
+        Kafka --> IngesterReceiver[Kafka Receiver]
+        IngesterReceiver --> IngesterExporter[Exporter]
+        IngesterExporter --> StorageBackend[(In-Memory Store)]
+        Test -->|readSpan| SpanReader
+        SpanReader --> RPCR[RPC_client]
+        RPCR --> QueryProcess[jaeger_query]
+        StorageCleaner -->|purge| StorageBackend
+        QueryProcess --> StorageBackend
+        
+
+        subgraph Integration_Test_Executable
+            Test
+            SpanWriter
+            SpanReader
+            RPCW
+            RPCR
+        end
+
+        subgraph Jaeger Collector
+            OTLP_Receiver
+            CollectorExporter
+        end
+
+        subgraph Jaeger Ingester
+            IngesterReceiver
+            IngesterExporter
+            QueryProcess
+            StorageBackend
+            StorageCleaner[Storage Cleaner Extension]
+        end
+
+        subgraph Kafka
+            Topic
+        end
+```
+
 ## Running tests locally
 
 All integration tests can be run locally.

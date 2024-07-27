@@ -2,8 +2,34 @@
 
 set -euf -o pipefail
 
+print_help() {
+  echo "Usage: $0 [-b binary]"
+  echo "-b: Which binary to build: 'all-in-one' (default) or 'jaeger' (v2)"
+  echo "-h: Print help"
+  exit 1
+}
+
+BINARY='all-in-one'
 compose_file=docker-compose/monitor/docker-compose.yml
-timeout=300
+
+while getopts "b:h" opt; do
+	case "${opt}" in
+	b)
+		BINARY=${OPTARG}
+		;;
+	*)
+		print_help
+		;;
+	esac
+done
+
+set -x
+
+if [ "$BINARY" == "jaeger" ]; then
+  compose_file=docker-compose/monitor/docker-compose-v2.yml
+fi
+
+timeout=600
 end_time=$((SECONDS + timeout))
 success="false"
 
@@ -12,7 +38,7 @@ check_service_health() {
   local url=$2
   echo "Checking health of service: $service_name at $url"
 
-  local wait_seconds=10
+  local wait_seconds=3
   local curl_params=(
     --silent
     --output
@@ -39,7 +65,7 @@ wait_for_services() {
   check_service_health "Jaeger" "http://localhost:16686"
   check_service_health "Prometheus" "http://localhost:9090/graph"
   # Grafana is not actually important for the functional test,
-  # but it at least validates that the docker-compose file is correct.
+  # but we still validate that the docker-compose file is correct.
   check_service_health "Grafana" "http://localhost:3000"
 }
 
@@ -63,9 +89,9 @@ validate_service_metrics() {
     echo "Metric datapoints found for service '$service': " "${metric_points[@]}"
     # Check that atleast some values are non-zero after the threshold
     local non_zero_count=0
-    local expected_non_zero_count=3
+    local expected_non_zero_count=4
     local zero_count=0
-    local expected_max_zero_count=3
+    local expected_max_zero_count=4
     for value in "${metric_points[@]}"; do
       if [[ $(echo "$value > 0.0" | bc) == "1" ]]; then
         non_zero_count=$((non_zero_count + 1))
@@ -79,7 +105,7 @@ validate_service_metrics() {
       fi
     done
     if [ $non_zero_count -lt $expected_non_zero_count ]; then
-      echo "⏳ Expecting at least 3 non-zero data points"
+      echo "⏳ Expecting at least 4 non-zero data points"
       return 1
     fi
     return 0
@@ -122,7 +148,11 @@ teardown_services() {
 }
 
 main() {
-  (cd docker-compose/monitor && make build && make dev DOCKER_COMPOSE_ARGS="-d")
+  if [ "$BINARY" == "jaeger" ]; then
+    (cd docker-compose/monitor && make build BINARY="$BINARY" && make dev-v2 DOCKER_COMPOSE_ARGS="-d")
+  else
+    (cd docker-compose/monitor && make build BINARY="$BINARY" && make dev DOCKER_COMPOSE_ARGS="-d")
+  fi
   wait_for_services
   check_spm
   success="true"

@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componenttest"
+	noopMeter "go.opentelemetry.io/otel/metric/noop"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 
@@ -26,6 +27,8 @@ import (
 	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	depsmocks "github.com/jaegertracing/jaeger/storage/dependencystore/mocks"
+	"github.com/jaegertracing/jaeger/storage/metricsstore"
+	metricsstoremocks "github.com/jaegertracing/jaeger/storage/metricsstore/mocks"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	spanstoremocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
 )
@@ -62,15 +65,41 @@ func (ff fakeFactory) Initialize(metrics.Factory, *zap.Logger) error {
 	return nil
 }
 
+type fakeMetricsFactory struct {
+	name string
+}
+
+// Initialize implements storage.MetricsFactory.
+func (fmf fakeMetricsFactory) Initialize(*zap.Logger) error {
+	if fmf.name == "need-initialize-error" {
+		return fmt.Errorf("test-error")
+	}
+	return nil
+}
+
+func (fmf fakeMetricsFactory) CreateMetricsReader() (metricsstore.Reader, error) {
+	if fmf.name == "need-metrics-reader-error" {
+		return nil, fmt.Errorf("test-error")
+	}
+	return &metricsstoremocks.Reader{}, nil
+}
+
 type fakeStorageExt struct{}
 
 var _ jaegerstorage.Extension = (*fakeStorageExt)(nil)
 
-func (fakeStorageExt) Factory(name string) (storage.Factory, bool) {
+func (fakeStorageExt) TraceStorageFactory(name string) (storage.Factory, bool) {
 	if name == "need-factory-error" {
 		return nil, false
 	}
 	return fakeFactory{name: name}, true
+}
+
+func (fakeStorageExt) MetricStorageFactory(name string) (storage.MetricsFactory, bool) {
+	if name == "need-factory-error" {
+		return nil, false
+	}
+	return fakeMetricsFactory{name: name}, true
 }
 
 func (fakeStorageExt) Start(context.Context, component.Host) error {
@@ -105,6 +134,7 @@ func TestServerStart(t *testing.T) {
 			config: &Config{
 				TraceStorageArchive: "jaeger_storage",
 				TraceStoragePrimary: "jaeger_storage",
+				MetricStorage:       "jaeger_metrics_storage",
 			},
 		},
 		{
@@ -136,13 +166,30 @@ func TestServerStart(t *testing.T) {
 			},
 			expectedErr: "cannot find archive storage factory",
 		},
+		{
+			name: "metrics storage error",
+			config: &Config{
+				MetricStorage:       "need-factory-error",
+				TraceStoragePrimary: "jaeger_storage",
+			},
+			expectedErr: "cannot find metrics storage factory",
+		},
+		{
+			name: " metrics reader error",
+			config: &Config{
+				MetricStorage:       "need-metrics-reader-error",
+				TraceStoragePrimary: "jaeger_storage",
+			},
+			expectedErr: "cannot create metrics reader",
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			telemetrySettings := component.TelemetrySettings{
-				Logger:       zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller())),
-				ReportStatus: func(*component.StatusEvent) {},
+				Logger:        zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller())),
+				MeterProvider: noopMeter.NewMeterProvider(),
+				ReportStatus:  func(*component.StatusEvent) {},
 			}
 			tt.config.HTTP.Endpoint = ":0"
 			tt.config.GRPC.NetAddr.Endpoint = ":0"
@@ -232,6 +279,54 @@ func TestServerAddArchiveStorage(t *testing.T) {
 				host = storagetest.NewStorageHost().WithExtension(jaegerstorage.ID, tt.extension)
 			}
 			err := server.addArchiveStorage(tt.qSvcOpts, host)
+			if tt.expectedErr == "" {
+				require.NoError(t, err)
+			} else {
+				require.ErrorContains(t, err, tt.expectedErr)
+			}
+
+			assert.Contains(t, buf.String(), tt.expectedOutput)
+		})
+	}
+}
+
+func TestServerAddMetricsStorage(t *testing.T) {
+	host := componenttest.NewNopHost()
+
+	tests := []struct {
+		name           string
+		config         *Config
+		extension      component.Component
+		expectedOutput string
+		expectedErr    string
+	}{
+		{
+			name:           "Metrics storage unset",
+			config:         &Config{},
+			expectedOutput: `{"level":"info","msg":"Metric storage not configured"}` + "\n",
+			expectedErr:    "",
+		},
+		{
+			name: "Metrics storage set",
+			config: &Config{
+				MetricStorage: "random-value",
+			},
+			expectedOutput: "",
+			expectedErr:    "cannot find metrics storage factory: cannot find extension",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			logger, buf := testutils.NewLogger()
+			telemetrySettings := component.TelemetrySettings{
+				Logger: logger,
+			}
+			server := newServer(tt.config, telemetrySettings)
+			if tt.extension != nil {
+				host = storagetest.NewStorageHost().WithExtension(jaegerstorage.ID, tt.extension)
+			}
+			_, err := server.createMetricReader(host)
 			if tt.expectedErr == "" {
 				require.NoError(t, err)
 			} else {

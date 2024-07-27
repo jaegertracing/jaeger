@@ -14,6 +14,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage/factoryadapter"
 	"github.com/jaegertracing/jaeger/internal/metrics/otelmetrics"
+	"github.com/jaegertracing/jaeger/plugin/metrics/prometheus"
 	"github.com/jaegertracing/jaeger/plugin/storage/badger"
 	"github.com/jaegertracing/jaeger/plugin/storage/cassandra"
 	"github.com/jaegertracing/jaeger/plugin/storage/es"
@@ -27,31 +28,24 @@ var _ Extension = (*storageExt)(nil)
 
 type Extension interface {
 	extension.Extension
-	Factory(name string) (storage.Factory, bool)
+	TraceStorageFactory(name string) (storage.Factory, bool)
+	MetricStorageFactory(name string) (storage.MetricsFactory, bool)
 }
 
 type storageExt struct {
-	config    *Config
-	telset    component.TelemetrySettings
-	factories map[string]storage.Factory
+	config           *Config
+	telset           component.TelemetrySettings
+	factories        map[string]storage.Factory
+	metricsFactories map[string]storage.MetricsFactory
 }
 
 // GetStorageFactory locates the extension in Host and retrieves a storage factory from it with the given name.
 func GetStorageFactory(name string, host component.Host) (storage.Factory, error) {
-	var comp component.Component
-	for id, ext := range host.GetExtensions() {
-		if id.Type() == componentType {
-			comp = ext
-			break
-		}
+	ext, err := findExtension(host)
+	if err != nil {
+		return nil, err
 	}
-	if comp == nil {
-		return nil, fmt.Errorf(
-			"cannot find extension '%s' (make sure it's defined earlier in the config)",
-			componentType,
-		)
-	}
-	f, ok := comp.(Extension).Factory(name)
+	f, ok := ext.TraceStorageFactory(name)
 	if !ok {
 		return nil, fmt.Errorf(
 			"cannot find definition of storage '%s' in the configuration for extension '%s'",
@@ -59,6 +53,22 @@ func GetStorageFactory(name string, host component.Host) (storage.Factory, error
 		)
 	}
 	return f, nil
+}
+
+// GetMetricsFactory locates the extension in Host and retrieves a metrics factory from it with the given name.
+func GetMetricsFactory(name string, host component.Host) (storage.MetricsFactory, error) {
+	ext, err := findExtension(host)
+	if err != nil {
+		return nil, err
+	}
+	mf, ok := ext.MetricStorageFactory(name)
+	if !ok {
+		return nil, fmt.Errorf(
+			"cannot find metric storage '%s' declared by '%s' extension",
+			name, componentType,
+		)
+	}
+	return mf, nil
 }
 
 func GetStorageFactoryV2(name string, host component.Host) (spanstore.Factory, error) {
@@ -70,11 +80,34 @@ func GetStorageFactoryV2(name string, host component.Host) (spanstore.Factory, e
 	return factoryadapter.NewFactory(f), nil
 }
 
+func findExtension(host component.Host) (Extension, error) {
+	var id component.ID
+	var comp component.Component
+	for i, ext := range host.GetExtensions() {
+		if i.Type() == componentType {
+			id, comp = i, ext
+			break
+		}
+	}
+	if comp == nil {
+		return nil, fmt.Errorf(
+			"cannot find extension '%s' (make sure it's defined earlier in the config)",
+			componentType,
+		)
+	}
+	ext, ok := comp.(Extension)
+	if !ok {
+		return nil, fmt.Errorf("extension '%s' is not of expected type '%s'", id, componentType)
+	}
+	return ext, nil
+}
+
 func newStorageExt(config *Config, telset component.TelemetrySettings) *storageExt {
 	return &storageExt{
-		config:    config,
-		telset:    telset,
-		factories: make(map[string]storage.Factory),
+		config:           config,
+		telset:           telset,
+		factories:        make(map[string]storage.Factory),
+		metricsFactories: make(map[string]storage.MetricsFactory),
 	}
 }
 
@@ -104,6 +137,20 @@ func (s *storageExt) Start(_ context.Context, _ component.Host) error {
 		}
 		s.factories[storageName] = factory
 	}
+
+	for metricStorageName, cfg := range s.config.MetricBackends {
+		s.telset.Logger.Sugar().Infof("Initializing metrics storage '%s'", metricStorageName)
+		var metricsFactory storage.MetricsFactory
+		var err error
+		if cfg.Prometheus != nil {
+			metricsFactory, err = prometheus.NewFactoryWithConfig(*cfg.Prometheus, s.telset.Logger)
+		}
+		if err != nil {
+			return fmt.Errorf("failed to initialize metrics storage '%s': %w", metricStorageName, err)
+		}
+		s.metricsFactories[metricStorageName] = metricsFactory
+	}
+
 	return nil
 }
 
@@ -120,7 +167,12 @@ func (s *storageExt) Shutdown(context.Context) error {
 	return errors.Join(errs...)
 }
 
-func (s *storageExt) Factory(name string) (storage.Factory, bool) {
+func (s *storageExt) TraceStorageFactory(name string) (storage.Factory, bool) {
 	f, ok := s.factories[name]
 	return f, ok
+}
+
+func (s *storageExt) MetricStorageFactory(name string) (storage.MetricsFactory, bool) {
+	mf, ok := s.metricsFactories[name]
+	return mf, ok
 }

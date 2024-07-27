@@ -19,6 +19,8 @@ As of Jaeger v1.42.0 this application was upgraded to use the OpenTelemetry SDK 
 
 ## Running
 
+💥💥💥 Try it with Jaeger v2!  See [cmd/jaeger](../../cmd/jaeger).
+
 ### Run everything via `docker compose`
 
 * Download `docker-compose.yml` from https://github.com/jaegertracing/jaeger/blob/main/examples/hotrod/docker-compose.yml
