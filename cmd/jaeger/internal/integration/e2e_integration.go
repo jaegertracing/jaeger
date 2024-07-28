@@ -98,7 +98,7 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
 		}
 		defer resp.Body.Close()
 		return resp.StatusCode == http.StatusOK
-	}, 60*time.Second, 1*time.Millisecond, "Jaeger-v2 did not start")
+	}, 60*time.Second, 1*time.Second, "Jaeger-v2 did not start")
 	t.Log("Jaeger-v2 is ready")
 	t.Cleanup(func() {
 		if err := cmd.Process.Kill(); err != nil {
