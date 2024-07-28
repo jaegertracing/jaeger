@@ -4,7 +4,12 @@ service:
       receivers: [otlp, jaeger]
       processors: [batch]
       exporters: [kafka]
-      
+  telemetry:
+    resource:
+      service.name: jaeger_collector
+    metrics:
+      level: detailed
+
 receivers:
   otlp:
     protocols:

@@ -18,6 +18,10 @@ permissions:  # added using https://github.com/step-security/secure-workflows
 jobs:
   kafka:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        jaeger-version: [v1, v2]  # Adjust if there are specific versions of Jaeger
+    name: Kafka Integration Tests ${{ matrix.jaeger-version }}
     steps:
     - name: Harden Runner
       uses: step-security/harden-runner@17d0e2bd7d51742c71671bd19fa12bdc9d40a3d6 # v2.8.1
@@ -30,9 +34,9 @@ jobs:
       with:
         go-version: 1.22.x
 
-    - name: Run kafka integration tests
+    - name: Run Kafka integration tests
       id: test-execution
-      run: bash scripts/kafka-integration-test.sh -k
+      run: bash scripts/kafka-integration-test.sh -j ${{ matrix.jaeger-version }}
 
     - name: Output Kafka logs on failure
       run: docker compose -f ${{ steps.test-execution.outputs.docker_compose_file }} logs
@@ -42,4 +46,4 @@ jobs:
       uses: ./.github/actions/upload-codecov
       with:
         files: cover.out
-        flags: kafka
+        flags: kafka-${{ matrix.jaeger-version }}

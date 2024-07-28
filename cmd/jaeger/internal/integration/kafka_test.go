@@ -12,12 +12,21 @@ import (
 func TestKafkaStorage(t *testing.T) {
 	integration.SkipUnlessEnv(t, "kafka")
 
+	// TODO these config files use topic: "jaeger-spans",
+	// but for integration tests we want to use random topic in each run.
+	// https://github.com/jaegertracing/jaeger/blob/ed5cc2981c34158d0650cb96cb2fafcb753bea70/plugin/storage/integration/kafka_test.go#L50-L51
+	// Once OTEL Collector supports default values for env vars
+	// (https://github.com/open-telemetry/opentelemetry-collector/issues/5228)
+	// we can change the config to use topic: "${KAFKA_TOPIC:-jaeger-spans}"
+	// and export a KAFKA_TOPIC var with random topic name in the tests.
+
 	collectorConfig := "../../collector-with-kafka.yaml"
 	ingesterConfig := "../../ingester-remote-storage.yaml"
 
 	collector := &E2EStorageIntegration{
-		SkipStorageCleaner: true,
-		ConfigFile:         collectorConfig,
+		SkipStorageCleaner:  true,
+		ConfigFile:          collectorConfig,
+		HealthCheckEndpoint: "http://localhost:8888/metrics",
 	}
 
 	// Initialize and start the collector
