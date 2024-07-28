@@ -5,6 +5,9 @@
 
 SHUNIT2="${SHUNIT2:?'expecting SHUNIT2 env var pointing to a dir with https://github.com/kward/shunit2 clone'}"
 
+# if running on MacOS, `brew install grep` and run with GREP=ggrep
+GREP=${GREP:-grep}
+
 # shellcheck disable=SC2086
 computeTags="$(dirname $0)/compute-tags.sh"
 
@@ -30,23 +33,44 @@ testRequireGithubSha() {
     assertContains "$err" "$err" 'expecting GITHUB_SHA env var'
 }
 
+# out is global var which is populated for every output under test
 out=""
+
+scan_list() {
+    local target="$1"
+    echo "$out" | tr ' ' '\n' | $GREP -v '^--tag$' | $GREP -Po "^($target)"'$'
+}
+
+expect_contains() {
+    local target="$1"
+    # shellcheck disable=SC2155
+    local found=$(scan_list "$target")
+    assertContains "$found" "$target"
+}
+
+expect_not_contains() {
+    local target="$1"
+    # shellcheck disable=SC2155
+    local found=$(scan_list "$target")
+    assertNotContains "$found" "$target"
+}
+
 expect() {
     echo '   Actual:' "$out"
     while [ "$#" -gt 0 ]; do
         echo '   checking includes' "$1"
-        assertContains "actual [$out]" "$out" "--tag docker.io/$1"
-        assertContains "actual [$out]" "$out" "--tag quay.io/$1"
+        expect_contains "docker.io/$1"
+        expect_contains "quay.io/$1"
         shift
     done
 }
 
-expectNot() {
+expect_not() {
     echo '   Actual:' "$out"
     while [ "$#" -gt 0 ]; do
         echo '   checking excludes' "$1"
-        assertNotContains "actual [$out]" "$out" "--tag docker.io/$1"
-        assertNotContains "actual [$out]" "$out" "--tag quay.io/$1"
+        expect_not_contains "docker.io/$1"
+        expect_not_contains "quay.io/$1"
         shift
     done
 }
@@ -54,29 +78,27 @@ expectNot() {
 testRandomBranch() {
     out=$(BRANCH=branch GITHUB_SHA=sha bash "$computeTags" foo/bar)
     expected=(
-        "foo/bar"
         "foo/bar:latest"
         "foo/bar-snapshot:sha"
         "foo/bar-snapshot:latest"
     )
     expect "${expected[@]}"
+    expect_not "foo/bar"
 }
 
 testMainBranch() {
     out=$(BRANCH=main GITHUB_SHA=sha bash "$computeTags" foo/bar)
     expected=(
-        "foo/bar"
         "foo/bar-snapshot:sha"
         "foo/bar-snapshot:latest"
     )
     expect "${expected[@]}"
-    expectNot "foo/bar:latest"
+    expect_not "foo/bar" "foo/bar:latest"
 }
 
 testSemVerBranch() {
     out=$(BRANCH=v1.2.3 GITHUB_SHA=sha bash "$computeTags" foo/bar)
     expected=(
-        "foo/bar"
         "foo/bar:latest"
         "foo/bar:1"
         "foo/bar:1.2"
@@ -85,6 +107,7 @@ testSemVerBranch() {
         "foo/bar-snapshot:latest"
     )
     expect "${expected[@]}"
+    expect_not "foo/bar"
 }
 
 # shellcheck disable=SC1091
