@@ -36,7 +36,7 @@ jobs:
 
     - name: Run Kafka integration tests
       id: test-execution
-      run: bash scripts/kafka-integration-test.sh -k ${{ matrix.jaeger-version }}
+      run: bash scripts/kafka-integration-test.sh -j ${{ matrix.jaeger-version }}
 
     - name: Output Kafka logs on failure
       run: docker compose -f ${{ steps.test-execution.outputs.docker_compose_file }} logs

@@ -1,26 +1,43 @@
 #!/bin/bash
 
-set -e
+set -euf -o pipefail
 
-export STORAGE=kafka
 compose_file="docker-compose/kafka-integration-test/docker-compose.yml"
+echo "docker_compose_file=${compose_file}" >> "${GITHUB_OUTPUT:-/dev/null}"
 
-usage() {
-  echo $"Usage: $0 -k <jaeger_version>"
+jaeger_version=""
+manage_kafka="true"
+
+print_help() {
+  echo "Usage: $0 [-K] -j <jaeger_version>"
+  echo "  -K: do not start or stop Kafka container (useful for local testing)"
+  echo "  -j: major version of Jaeger to test (v1|v2)"
   exit 1
 }
 
-check_args() {
-  if [ $# -ne 2 ]; then
-    echo "ERROR: need exactly two arguments, -k and <jaeger_version>"
-    usage
+parse_args() {
+  while getopts "j:Kh" opt; do
+    case "${opt}" in
+    j)
+      jaeger_version=${OPTARG}
+      ;;
+    K)
+      manage_kafka="false"
+      ;;
+    *)
+      print_help
+      ;;
+    esac
+  done
+  if [ "$jaeger_version" != "v1" ] && [ "$jaeger_version" != "v2" ]; then
+    echo "Error: Invalid Jaeger version. Valid options are v1 or v2"
+    print_help
   fi
 }
 
 setup_kafka() {
   echo "Starting Kafka using Docker Compose..."
   docker compose -f "${compose_file}" up -d kafka
-  echo "docker_compose_file=${compose_file}" >> "${GITHUB_OUTPUT:-/dev/null}"
 }
 
 teardown_kafka() {
@@ -43,43 +60,41 @@ wait_for_kafka() {
 
   while [ $SECONDS -lt $end_time ]; do
     if is_kafka_ready; then
-      break
+      return
     fi
     echo "Kafka broker not ready, waiting ${interval} seconds"
     sleep $interval
   done
 
-  if ! is_kafka_ready; then
-    echo "Timed out waiting for Kafka to start"
-    exit 1
-  fi
+  echo "Timed out waiting for Kafka to start"
+  exit 1
 }
 
 run_integration_test() {
-  local version=$1
-
-  if [ "${version}" = "v1" ]; then
-    STORAGE=kafka make storage-integration-test
-  elif [ "${version}" = "v2" ]; then
-    STORAGE=kafka make jaeger-v2-storage-integration-test
+  export STORAGE=kafka
+  if [ "${jaeger_version}" = "v1" ]; then
+    make storage-integration-test
+  elif [ "${jaeger_version}" = "v2" ]; then
+    make jaeger-v2-storage-integration-test
   else
-    echo "Unknown test version ${version}. Valid options are v1 or v2"
-    exit 1
+    echo "Unknown Jaeger version ${jaeger_version}."
+    print_help
   fi
 }
 
 main() {
-  check_args "$@"
+  parse_args "$@"
 
   echo "Executing Kafka integration test for version $2"
+  set -x
 
-  if [ "$1" == "-k" ]; then
+  if [[ "$manage_kafka" == "true" ]]; then
     setup_kafka
     trap 'teardown_kafka' EXIT
-    wait_for_kafka
   fi
+  wait_for_kafka
 
-  run_integration_test "$2"
+  run_integration_test
 }
 
 main "$@"

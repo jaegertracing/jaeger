@@ -12,12 +12,16 @@ import (
 func TestKafkaStorage(t *testing.T) {
 	integration.SkipUnlessEnv(t, "kafka")
 
+	// TODO these config files use topic: "jaeger-spans",
+	// but for integration tests we want to use random topic in each run.
+
 	collectorConfig := "../../collector-with-kafka.yaml"
 	ingesterConfig := "../../ingester-remote-storage.yaml"
 
 	collector := &E2EStorageIntegration{
-		SkipStorageCleaner: true,
-		ConfigFile:         collectorConfig,
+		SkipStorageCleaner:  true,
+		ConfigFile:          collectorConfig,
+		HealthCheckEndpoint: "http://localhost:8888/metrics",
 	}
 
 	// Initialize and start the collector
