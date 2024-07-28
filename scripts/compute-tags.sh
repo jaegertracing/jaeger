@@ -16,18 +16,7 @@ GITHUB_SHA=${GITHUB_SHA:?'expecting GITHUB_SHA env var'}
 # allow substituting for ggrep on Mac, since its default grep doesn't grok -P flag.
 GREP=${GREP:-"grep"}
 
-## If we are on a release tag, let's extract the version number.
-## The other possible values are 'main' or another branch name.
-if [[ $BRANCH =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-    MAJOR_MINOR_PATCH=$(echo "${BRANCH}" | ${GREP} -Po "([\d\.]+)")
-    MAJOR_MINOR=$(echo "${MAJOR_MINOR_PATCH}" | awk -F. '{print $1"."$2}')
-    MAJOR=$(echo "${MAJOR_MINOR_PATCH}" | awk -F. '{print $1}')
-else
-    MAJOR_MINOR_PATCH="latest"
-    MAJOR_MINOR=""
-    MAJOR=""
-fi
-
+# accumulate output in this variable
 IMAGE_TAGS=""
 
 # append given tag for docker.io and quay.io
@@ -40,14 +29,20 @@ tags() {
 }
 
 tags "${BASE_BUILD_IMAGE}"
-tags "${BASE_BUILD_IMAGE}:${MAJOR_MINOR_PATCH}"
 
-if [ "${MAJOR_MINOR}x" != "x" ]; then
+## If we are on a release tag, let's extract the version number.
+## The other possible values are 'main' or another branch name.
+if [[ $BRANCH =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    MAJOR_MINOR_PATCH=$(echo "${BRANCH}" | ${GREP} -Po "([\d\.]+)")
+    MAJOR_MINOR=$(echo "${MAJOR_MINOR_PATCH}" | awk -F. '{print $1"."$2}')
+    MAJOR=$(echo "${MAJOR_MINOR_PATCH}" | awk -F. '{print $1}')
+
+    tags "${BASE_BUILD_IMAGE}:${MAJOR_MINOR_PATCH}"
     tags "${BASE_BUILD_IMAGE}:${MAJOR_MINOR}"
-fi
-
-if [ "${MAJOR}x" != "x" ]; then
     tags "${BASE_BUILD_IMAGE}:${MAJOR}"
+    tags "${BASE_BUILD_IMAGE}:latest"
+elif [[ $BRANCH != "main" ]]; then
+    tags "${BASE_BUILD_IMAGE}:latest"
 fi
 
 tags "${BASE_BUILD_IMAGE}-snapshot:${GITHUB_SHA}"
