@@ -51,6 +51,12 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
 	if !s.SkipStorageCleaner {
 		configFile = createStorageCleanerConfig(t, s.ConfigFile, storage)
 	}
+
+	// Ensure the configuration file exists
+	absConfigFile, err := filepath.Abs(configFile)
+	require.NoError(t, err, "Failed to get absolute path of the config file")
+	require.FileExists(t, absConfigFile, "Config file does not exist at the resolved path")
+	
 	t.Logf("Starting Jaeger-v2 in the background with config file %s", configFile)
 
 	outFile, err := os.OpenFile(
