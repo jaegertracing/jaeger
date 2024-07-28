@@ -28,8 +28,6 @@ tags() {
     IMAGE_TAGS="${IMAGE_TAGS}--tag docker.io/${1} --tag quay.io/${1}"
 }
 
-tags "${BASE_BUILD_IMAGE}"
-
 ## If we are on a release tag, let's extract the version number.
 ## The other possible values are 'main' or another branch name.
 if [[ $BRANCH =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
