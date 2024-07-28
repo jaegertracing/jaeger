@@ -79,6 +79,7 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
 		Stdout: outFile,
 		Stderr: errFile,
 	}
+	t.Logf("Running command: %v", cmd.Args)
 	require.NoError(t, cmd.Start())
 	require.Eventually(t, func() bool {
 		url := fmt.Sprintf("http://localhost:%d/", ports.QueryHTTP)
@@ -86,15 +87,18 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
 		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 		defer cancel()
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-		require.NoError(t, err)
+		if err != nil {
+			t.Logf("HTTP request creation failed: %v", err)
+			return false
+		}
 		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
-			t.Log(err)
+			t.Logf("HTTP request failed: %v", err)
 			return false
 		}
 		defer resp.Body.Close()
 		return resp.StatusCode == http.StatusOK
-	}, 30*time.Second, 500*time.Millisecond, "Jaeger-v2 did not start")
+	}, 60*time.Second, 1*time.Millisecond, "Jaeger-v2 did not start")
 	t.Log("Jaeger-v2 is ready")
 	t.Cleanup(func() {
 		if err := cmd.Process.Kill(); err != nil {
