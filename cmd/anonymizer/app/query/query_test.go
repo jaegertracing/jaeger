@@ -5,6 +5,7 @@ package query
 
 import (
 	"net"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -70,11 +71,16 @@ func newTestServer(t *testing.T) *testServer {
 	lis, err := net.Listen("tcp", ":0")
 	require.NoError(t, err)
 
+	var exited sync.WaitGroup
+	exited.Add(1)
 	go func() {
-		err := server.Serve(lis)
-		require.NoError(t, err)
+		require.NoError(t, server.Serve(lis))
+		exited.Done()
 	}()
-	t.Cleanup(func() { server.Stop() })
+	t.Cleanup(func() {
+		server.Stop()
+		exited.Wait() // don't allow test to finish before server exits
+	})
 
 	return &testServer{
 		server:     server,
