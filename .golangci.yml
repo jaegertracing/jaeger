@@ -211,9 +211,6 @@ linters-settings:
         # this is idiocy, promotes less readable code. Don't enable.
         - name: var-declaration
           disabled: true
-        # enable after cleanup
-        - name: redefines-builtin-id
-          disabled: true
         # "no nested structs are allowed" - don't enable, doesn't make sense
         - name: nested-structs
           disabled: true
