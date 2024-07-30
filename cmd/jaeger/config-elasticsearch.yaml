@@ -17,6 +17,13 @@ extensions:
       some_storage:
         elasticsearch:
           index_prefix: "jaeger-main"
+          index_date_layout_spans: "2006-01-02"
+          index_date_layout_services: "2006-01-02"
+          index_date_layout_sampling: "2006-01-02"
+          index_date_layout_dependencies: "2006-01-02"
+          index_rollover_frequency_spans: "hour"
+          index_rollover_frequency_services: "hour"
+          index_rollover_frequency_sampling: "hour"
       another_storage:
         elasticsearch:
           index_prefix: "jaeger-archive"

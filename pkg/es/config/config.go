@@ -68,13 +68,13 @@ type Configuration struct {
 	BulkActions                    int            `mapstructure:"-"`
 	BulkFlushInterval              time.Duration  `mapstructure:"-"`
 	IndexPrefix                    string         `mapstructure:"index_prefix"`
-	IndexDateLayoutSpans           string         `mapstructure:"-"`
-	IndexDateLayoutServices        string         `mapstructure:"-"`
-	IndexDateLayoutSampling        string         `mapstructure:"-"`
-	IndexDateLayoutDependencies    string         `mapstructure:"-"`
-	IndexRolloverFrequencySpans    string         `mapstructure:"-"`
-	IndexRolloverFrequencyServices string         `mapstructure:"-"`
-	IndexRolloverFrequencySampling string         `mapstructure:"-"`
+	IndexDateLayoutSpans           string         `mapstructure:"index_date_layout_spans"`
+	IndexDateLayoutServices        string         `mapstructure:"index_date_layout_services"`
+	IndexDateLayoutSampling        string         `mapstructure:"index_date_layout_sampling"`
+	IndexDateLayoutDependencies    string         `mapstructure:"index_date_layout_dependencies"`
+	IndexRolloverFrequencySpans    string         `mapstructure:"index_rollover_frequency_spans"`
+	IndexRolloverFrequencyServices string         `mapstructure:"index_rollover_frequency_services"`
+	IndexRolloverFrequencySampling string         `mapstructure:"index_rollover_frequency_sampling"`
 	ServiceCacheTTL                time.Duration  `mapstructure:"service_cache_ttl"`
 	AdaptiveSamplingLookback       time.Duration  `mapstructure:"-"`
 	Tags                           TagsAsFields   `mapstructure:"tags_as_fields"`
