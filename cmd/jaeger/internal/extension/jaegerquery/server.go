@@ -50,7 +50,8 @@ func (*server) Dependencies() []component.ID {
 
 func (s *server) Start(_ context.Context, host component.Host) error {
 	mf := otelmetrics.NewFactory(s.telset.MeterProvider)
-	queryMetricsFactory := mf.Namespace(metrics.NSOptions{Name: "query"})
+	baseFactory := mf.Namespace(metrics.NSOptions{Name: "jaeger"})
+	queryMetricsFactory := baseFactory.Namespace(metrics.NSOptions{Name: "query"})
 	f, err := jaegerstorage.GetStorageFactory(s.config.TraceStoragePrimary, host)
 	if err != nil {
 		return fmt.Errorf("cannot find primary storage %s: %w", s.config.TraceStoragePrimary, err)
