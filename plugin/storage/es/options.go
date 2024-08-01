@@ -80,6 +80,13 @@ const (
 	defaultSendGetBodyAs          = ""
 )
 
+var (
+	defaultIndexOptions = config.IndexOptions{
+		DateLayout:        initDateLayout(defaultIndexRolloverFrequency, defaultIndexDateSeparator),
+		RolloverFrequency: defaultIndexRolloverFrequency,
+	}
+)
+
 // TODO this should be moved next to config.Configuration struct (maybe ./flags package)
 
 // Options contains various type of Elasticsearch configs and provides the ability
@@ -427,15 +434,27 @@ func DefaultConfig() config.Configuration {
 		Tags: config.TagsAsFields{
 			DotReplacement: "@",
 		},
-		Enabled:              true,
-		CreateIndexTemplates: true,
-		Version:              0,
-		UseReadWriteAliases:  false,
-		UseILM:               false,
-		Servers:              []string{defaultServerURL},
-		RemoteReadClusters:   []string{},
-		MaxDocCount:          defaultMaxDocCount,
-		LogLevel:             "error",
-		SendGetBodyAs:        defaultSendGetBodyAs,
+		Enabled:                        true,
+		CreateIndexTemplates:           true,
+		Version:                        0,
+		UseReadWriteAliases:            false,
+		UseILM:                         false,
+		Servers:                        []string{defaultServerURL},
+		RemoteReadClusters:             []string{},
+		MaxDocCount:                    defaultMaxDocCount,
+		LogLevel:                       "error",
+		SendGetBodyAs:                  defaultSendGetBodyAs,
+		IndexDateLayoutSpans:           defaultIndexOptions.DateLayout,
+		IndexDateLayoutServices:        defaultIndexOptions.DateLayout,
+		IndexDateLayoutSampling:        defaultIndexOptions.DateLayout,
+		IndexRolloverFrequencySpans:    defaultIndexOptions.RolloverFrequency,
+		IndexRolloverFrequencyServices: defaultIndexOptions.RolloverFrequency,
+		IndexRolloverFrequencySampling: defaultIndexOptions.RolloverFrequency,
+		Indices: config.Indices{
+			Spans:        defaultIndexOptions,
+			Services:     defaultIndexOptions,
+			Dependencies: defaultIndexOptions,
+			Sampling:     defaultIndexOptions,
+		},
 	}
 }

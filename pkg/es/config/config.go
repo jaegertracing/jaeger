@@ -44,37 +44,59 @@ import (
 	storageMetrics "github.com/jaegertracing/jaeger/storage/spanstore/metrics"
 )
 
+// IndexOptions describes the index format and rollover frequency
+type IndexOptions struct {
+	DateLayout        string `mapstructure:"date_layout"`
+	RolloverFrequency string `mapstructure:"rollover_frequency"`
+}
+
+// Indices describes different configuration options for each index type
+type Indices struct {
+	Spans        IndexOptions `mapstructure:"spans"`
+	Services     IndexOptions `mapstructure:"services"`
+	Dependencies IndexOptions `mapstructure:"dependencies"`
+	Sampling     IndexOptions `mapstructure:"sampling"`
+}
+
 // Configuration describes the configuration properties needed to connect to an ElasticSearch cluster
 type Configuration struct {
-	Servers                        []string       `mapstructure:"server_urls" valid:"required,url"`
-	RemoteReadClusters             []string       `mapstructure:"remote_read_clusters"`
-	Username                       string         `mapstructure:"username"`
-	Password                       string         `mapstructure:"password" json:"-"`
-	TokenFilePath                  string         `mapstructure:"token_file"`
-	PasswordFilePath               string         `mapstructure:"password_file"`
-	AllowTokenFromContext          bool           `mapstructure:"-"`
-	Sniffer                        bool           `mapstructure:"sniffer"` // https://github.com/olivere/elastic/wiki/Sniffing
-	SnifferTLSEnabled              bool           `mapstructure:"sniffer_tls_enabled"`
-	MaxDocCount                    int            `mapstructure:"-"` // Defines maximum number of results to fetch from storage per query
-	MaxSpanAge                     time.Duration  `mapstructure:"-"` // configures the maximum lookback on span reads
-	NumShards                      int64          `mapstructure:"num_shards"`
-	NumReplicas                    int64          `mapstructure:"num_replicas"`
-	PrioritySpanTemplate           int64          `mapstructure:"priority_span_template"`
-	PriorityServiceTemplate        int64          `mapstructure:"priority_service_template"`
-	PriorityDependenciesTemplate   int64          `mapstructure:"priority_dependencies_template"`
-	Timeout                        time.Duration  `mapstructure:"-"`
-	BulkSize                       int            `mapstructure:"-"`
-	BulkWorkers                    int            `mapstructure:"-"`
-	BulkActions                    int            `mapstructure:"-"`
-	BulkFlushInterval              time.Duration  `mapstructure:"-"`
-	IndexPrefix                    string         `mapstructure:"index_prefix"`
-	IndexDateLayoutSpans           string         `mapstructure:"index_date_layout_spans"`
-	IndexDateLayoutServices        string         `mapstructure:"index_date_layout_services"`
-	IndexDateLayoutSampling        string         `mapstructure:"index_date_layout_sampling"`
-	IndexDateLayoutDependencies    string         `mapstructure:"index_date_layout_dependencies"`
-	IndexRolloverFrequencySpans    string         `mapstructure:"index_rollover_frequency_spans"`
-	IndexRolloverFrequencyServices string         `mapstructure:"index_rollover_frequency_services"`
-	IndexRolloverFrequencySampling string         `mapstructure:"index_rollover_frequency_sampling"`
+	Servers                      []string      `mapstructure:"server_urls" valid:"required,url"`
+	RemoteReadClusters           []string      `mapstructure:"remote_read_clusters"`
+	Username                     string        `mapstructure:"username"`
+	Password                     string        `mapstructure:"password" json:"-"`
+	TokenFilePath                string        `mapstructure:"token_file"`
+	PasswordFilePath             string        `mapstructure:"password_file"`
+	AllowTokenFromContext        bool          `mapstructure:"-"`
+	Sniffer                      bool          `mapstructure:"sniffer"` // https://github.com/olivere/elastic/wiki/Sniffing
+	SnifferTLSEnabled            bool          `mapstructure:"sniffer_tls_enabled"`
+	MaxDocCount                  int           `mapstructure:"-"` // Defines maximum number of results to fetch from storage per query
+	MaxSpanAge                   time.Duration `mapstructure:"-"` // configures the maximum lookback on span reads
+	NumShards                    int64         `mapstructure:"num_shards"`
+	NumReplicas                  int64         `mapstructure:"num_replicas"`
+	PrioritySpanTemplate         int64         `mapstructure:"priority_span_template"`
+	PriorityServiceTemplate      int64         `mapstructure:"priority_service_template"`
+	PriorityDependenciesTemplate int64         `mapstructure:"priority_dependencies_template"`
+	Timeout                      time.Duration `mapstructure:"-"`
+	BulkSize                     int           `mapstructure:"-"`
+	BulkWorkers                  int           `mapstructure:"-"`
+	BulkActions                  int           `mapstructure:"-"`
+	BulkFlushInterval            time.Duration `mapstructure:"-"`
+	IndexPrefix                  string        `mapstructure:"index_prefix"`
+	// Deprecated: use Indices and IndexOptions instead.
+	IndexDateLayoutSpans string `mapstructure:"-"`
+	// Deprecated: use Indices and IndexOptions instead.
+	IndexDateLayoutServices string `mapstructure:"-"`
+	// Deprecated: use Indices and IndexOptions instead.
+	IndexDateLayoutSampling string `mapstructure:"-"`
+	// Deprecated: use Indices and IndexOptions instead.
+	IndexDateLayoutDependencies string `mapstructure:"-"`
+	// Deprecated: use Indices and IndexOptions instead.
+	IndexRolloverFrequencySpans string `mapstructure:"-"`
+	// Deprecated: use Indices and IndexOptions instead.
+	IndexRolloverFrequencyServices string `mapstructure:"-"`
+	// Deprecated: use Indices and IndexOptions instead.
+	IndexRolloverFrequencySampling string         `mapstructure:"-"`
+	Indices                        Indices        `mapstructure:"indices"`
 	ServiceCacheTTL                time.Duration  `mapstructure:"service_cache_ttl"`
 	AdaptiveSamplingLookback       time.Duration  `mapstructure:"-"`
 	Tags                           TagsAsFields   `mapstructure:"tags_as_fields"`
