@@ -363,17 +363,17 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 		cfg.RemoteReadClusters = strings.Split(remoteReadClusters, ",")
 	}
 
-	cfg.IndexRolloverFrequencySpans = strings.ToLower(v.GetString(cfg.namespace + suffixIndexRolloverFrequencySpans))
-	cfg.IndexRolloverFrequencyServices = strings.ToLower(v.GetString(cfg.namespace + suffixIndexRolloverFrequencyServices))
-	cfg.IndexRolloverFrequencySampling = strings.ToLower(v.GetString(cfg.namespace + suffixIndexRolloverFrequencySampling))
+	cfg.Indices.Spans.RolloverFrequency = strings.ToLower(v.GetString(cfg.namespace + suffixIndexRolloverFrequencySpans))
+	cfg.Indices.Services.RolloverFrequency = strings.ToLower(v.GetString(cfg.namespace + suffixIndexRolloverFrequencyServices))
+	cfg.Indices.Sampling.RolloverFrequency = strings.ToLower(v.GetString(cfg.namespace + suffixIndexRolloverFrequencySampling))
 
 	separator := v.GetString(cfg.namespace + suffixIndexDateSeparator)
-	cfg.IndexDateLayoutSpans = initDateLayout(cfg.IndexRolloverFrequencySpans, separator)
-	cfg.IndexDateLayoutServices = initDateLayout(cfg.IndexRolloverFrequencyServices, separator)
-	cfg.IndexDateLayoutSampling = initDateLayout(cfg.IndexRolloverFrequencySampling, separator)
+	cfg.Indices.Spans.DateLayout = initDateLayout(cfg.Indices.Spans.RolloverFrequency, separator)
+	cfg.Indices.Services.DateLayout = initDateLayout(cfg.Indices.Services.RolloverFrequency, separator)
+	cfg.Indices.Sampling.DateLayout = initDateLayout(cfg.Indices.Sampling.RolloverFrequency, separator)
 
 	// Dependencies calculation should be daily, and this index size is very small
-	cfg.IndexDateLayoutDependencies = initDateLayout(defaultIndexRolloverFrequency, separator)
+	cfg.Indices.Dependencies.DateLayout = initDateLayout(defaultIndexRolloverFrequency, separator)
 	var err error
 	cfg.TLS, err = cfg.getTLSFlagsConfig().InitFromViper(v)
 	if err != nil {
@@ -434,22 +434,16 @@ func DefaultConfig() config.Configuration {
 		Tags: config.TagsAsFields{
 			DotReplacement: "@",
 		},
-		Enabled:                        true,
-		CreateIndexTemplates:           true,
-		Version:                        0,
-		UseReadWriteAliases:            false,
-		UseILM:                         false,
-		Servers:                        []string{defaultServerURL},
-		RemoteReadClusters:             []string{},
-		MaxDocCount:                    defaultMaxDocCount,
-		LogLevel:                       "error",
-		SendGetBodyAs:                  defaultSendGetBodyAs,
-		IndexDateLayoutSpans:           defaultIndexOptions.DateLayout,
-		IndexDateLayoutServices:        defaultIndexOptions.DateLayout,
-		IndexDateLayoutSampling:        defaultIndexOptions.DateLayout,
-		IndexRolloverFrequencySpans:    defaultIndexOptions.RolloverFrequency,
-		IndexRolloverFrequencyServices: defaultIndexOptions.RolloverFrequency,
-		IndexRolloverFrequencySampling: defaultIndexOptions.RolloverFrequency,
+		Enabled:              true,
+		CreateIndexTemplates: true,
+		Version:              0,
+		UseReadWriteAliases:  false,
+		UseILM:               false,
+		Servers:              []string{defaultServerURL},
+		RemoteReadClusters:   []string{},
+		MaxDocCount:          defaultMaxDocCount,
+		LogLevel:             "error",
+		SendGetBodyAs:        defaultSendGetBodyAs,
 		Indices: config.Indices{
 			Spans:        defaultIndexOptions,
 			Services:     defaultIndexOptions,

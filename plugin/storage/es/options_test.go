@@ -98,8 +98,8 @@ func TestOptionsWithFlags(t *testing.T) {
 	assert.Equal(t, "!", primary.Tags.DotReplacement)
 	assert.Equal(t, "./file.txt", primary.Tags.File)
 	assert.Equal(t, "test,tags", primary.Tags.Include)
-	assert.Equal(t, "20060102", primary.IndexDateLayoutServices)
-	assert.Equal(t, "2006010215", primary.IndexDateLayoutSpans)
+	assert.Equal(t, "20060102", primary.Indices.Services.DateLayout)
+	assert.Equal(t, "2006010215", primary.Indices.Spans.DateLayout)
 	aux := opts.Get("es.aux")
 	assert.Equal(t, []string{"3.3.3.3", "4.4.4.4"}, aux.Servers)
 	assert.Equal(t, "hello", aux.Username)
@@ -112,8 +112,8 @@ func TestOptionsWithFlags(t *testing.T) {
 	assert.Equal(t, "@", aux.Tags.DotReplacement)
 	assert.Equal(t, "./file.txt", aux.Tags.File)
 	assert.Equal(t, "test,tags", aux.Tags.Include)
-	assert.Equal(t, "2006.01.02", aux.IndexDateLayoutServices)
-	assert.Equal(t, "2006.01.02.15", aux.IndexDateLayoutSpans)
+	assert.Equal(t, "2006.01.02", aux.Indices.Services.DateLayout)
+	assert.Equal(t, "2006.01.02.15", aux.Indices.Spans.DateLayout)
 	assert.True(t, primary.UseILM)
 	assert.Equal(t, "POST", aux.SendGetBodyAs)
 }
@@ -182,7 +182,7 @@ func TestIndexDateSeparator(t *testing.T) {
 			opts.InitFromViper(v)
 
 			primary := opts.GetPrimary()
-			assert.Equal(t, tc.wantDateLayout, primary.IndexDateLayoutSpans)
+			assert.Equal(t, tc.wantDateLayout, primary.Indices.Spans.DateLayout)
 		})
 	}
 }
@@ -236,8 +236,8 @@ func TestIndexRollover(t *testing.T) {
 			command.ParseFlags(tc.flags)
 			opts.InitFromViper(v)
 			primary := opts.GetPrimary()
-			assert.Equal(t, tc.wantSpanDateLayout, primary.IndexDateLayoutSpans)
-			assert.Equal(t, tc.wantServiceDateLayout, primary.IndexDateLayoutServices)
+			assert.Equal(t, tc.wantSpanDateLayout, primary.Indices.Spans.DateLayout)
+			assert.Equal(t, tc.wantServiceDateLayout, primary.Indices.Services.DateLayout)
 			assert.Equal(t, tc.wantSpanIndexRolloverFrequency, primary.GetIndexRolloverFrequencySpansDuration())
 			assert.Equal(t, tc.wantServiceIndexRolloverFrequency, primary.GetIndexRolloverFrequencyServicesDuration())
 		})

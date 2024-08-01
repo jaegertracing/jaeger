@@ -60,54 +60,40 @@ type Indices struct {
 
 // Configuration describes the configuration properties needed to connect to an ElasticSearch cluster
 type Configuration struct {
-	Servers                      []string      `mapstructure:"server_urls" valid:"required,url"`
-	RemoteReadClusters           []string      `mapstructure:"remote_read_clusters"`
-	Username                     string        `mapstructure:"username"`
-	Password                     string        `mapstructure:"password" json:"-"`
-	TokenFilePath                string        `mapstructure:"token_file"`
-	PasswordFilePath             string        `mapstructure:"password_file"`
-	AllowTokenFromContext        bool          `mapstructure:"-"`
-	Sniffer                      bool          `mapstructure:"sniffer"` // https://github.com/olivere/elastic/wiki/Sniffing
-	SnifferTLSEnabled            bool          `mapstructure:"sniffer_tls_enabled"`
-	MaxDocCount                  int           `mapstructure:"-"` // Defines maximum number of results to fetch from storage per query
-	MaxSpanAge                   time.Duration `mapstructure:"-"` // configures the maximum lookback on span reads
-	NumShards                    int64         `mapstructure:"num_shards"`
-	NumReplicas                  int64         `mapstructure:"num_replicas"`
-	PrioritySpanTemplate         int64         `mapstructure:"priority_span_template"`
-	PriorityServiceTemplate      int64         `mapstructure:"priority_service_template"`
-	PriorityDependenciesTemplate int64         `mapstructure:"priority_dependencies_template"`
-	Timeout                      time.Duration `mapstructure:"-"`
-	BulkSize                     int           `mapstructure:"-"`
-	BulkWorkers                  int           `mapstructure:"-"`
-	BulkActions                  int           `mapstructure:"-"`
-	BulkFlushInterval            time.Duration `mapstructure:"-"`
-	IndexPrefix                  string        `mapstructure:"index_prefix"`
-	// Deprecated: use Indices and IndexOptions instead.
-	IndexDateLayoutSpans string `mapstructure:"-"`
-	// Deprecated: use Indices and IndexOptions instead.
-	IndexDateLayoutServices string `mapstructure:"-"`
-	// Deprecated: use Indices and IndexOptions instead.
-	IndexDateLayoutSampling string `mapstructure:"-"`
-	// Deprecated: use Indices and IndexOptions instead.
-	IndexDateLayoutDependencies string `mapstructure:"-"`
-	// Deprecated: use Indices and IndexOptions instead.
-	IndexRolloverFrequencySpans string `mapstructure:"-"`
-	// Deprecated: use Indices and IndexOptions instead.
-	IndexRolloverFrequencyServices string `mapstructure:"-"`
-	// Deprecated: use Indices and IndexOptions instead.
-	IndexRolloverFrequencySampling string         `mapstructure:"-"`
-	Indices                        Indices        `mapstructure:"indices"`
-	ServiceCacheTTL                time.Duration  `mapstructure:"service_cache_ttl"`
-	AdaptiveSamplingLookback       time.Duration  `mapstructure:"-"`
-	Tags                           TagsAsFields   `mapstructure:"tags_as_fields"`
-	Enabled                        bool           `mapstructure:"-"`
-	TLS                            tlscfg.Options `mapstructure:"tls"`
-	UseReadWriteAliases            bool           `mapstructure:"use_aliases"`
-	CreateIndexTemplates           bool           `mapstructure:"create_mappings"`
-	UseILM                         bool           `mapstructure:"use_ilm"`
-	Version                        uint           `mapstructure:"version"`
-	LogLevel                       string         `mapstructure:"log_level"`
-	SendGetBodyAs                  string         `mapstructure:"send_get_body_as"`
+	Servers                      []string       `mapstructure:"server_urls" valid:"required,url"`
+	RemoteReadClusters           []string       `mapstructure:"remote_read_clusters"`
+	Username                     string         `mapstructure:"username"`
+	Password                     string         `mapstructure:"password" json:"-"`
+	TokenFilePath                string         `mapstructure:"token_file"`
+	PasswordFilePath             string         `mapstructure:"password_file"`
+	AllowTokenFromContext        bool           `mapstructure:"-"`
+	Sniffer                      bool           `mapstructure:"sniffer"` // https://github.com/olivere/elastic/wiki/Sniffing
+	SnifferTLSEnabled            bool           `mapstructure:"sniffer_tls_enabled"`
+	MaxDocCount                  int            `mapstructure:"-"` // Defines maximum number of results to fetch from storage per query
+	MaxSpanAge                   time.Duration  `mapstructure:"-"` // configures the maximum lookback on span reads
+	NumShards                    int64          `mapstructure:"num_shards"`
+	NumReplicas                  int64          `mapstructure:"num_replicas"`
+	PrioritySpanTemplate         int64          `mapstructure:"priority_span_template"`
+	PriorityServiceTemplate      int64          `mapstructure:"priority_service_template"`
+	PriorityDependenciesTemplate int64          `mapstructure:"priority_dependencies_template"`
+	Timeout                      time.Duration  `mapstructure:"-"`
+	BulkSize                     int            `mapstructure:"-"`
+	BulkWorkers                  int            `mapstructure:"-"`
+	BulkActions                  int            `mapstructure:"-"`
+	BulkFlushInterval            time.Duration  `mapstructure:"-"`
+	IndexPrefix                  string         `mapstructure:"index_prefix"`
+	Indices                      Indices        `mapstructure:"indices"`
+	ServiceCacheTTL              time.Duration  `mapstructure:"service_cache_ttl"`
+	AdaptiveSamplingLookback     time.Duration  `mapstructure:"-"`
+	Tags                         TagsAsFields   `mapstructure:"tags_as_fields"`
+	Enabled                      bool           `mapstructure:"-"`
+	TLS                          tlscfg.Options `mapstructure:"tls"`
+	UseReadWriteAliases          bool           `mapstructure:"use_aliases"`
+	CreateIndexTemplates         bool           `mapstructure:"create_mappings"`
+	UseILM                       bool           `mapstructure:"use_ilm"`
+	Version                      uint           `mapstructure:"version"`
+	LogLevel                     string         `mapstructure:"log_level"`
+	SendGetBodyAs                string         `mapstructure:"send_get_body_as"`
 }
 
 // TagsAsFields holds configuration for tag schema.
@@ -315,17 +301,17 @@ func (c *Configuration) ApplyDefaults(source *Configuration) {
 
 // GetIndexRolloverFrequencySpansDuration returns jaeger-span index rollover frequency duration
 func (c *Configuration) GetIndexRolloverFrequencySpansDuration() time.Duration {
-	return getIndexRolloverFrequencyDuration(c.IndexRolloverFrequencySpans)
+	return getIndexRolloverFrequencyDuration(c.Indices.Spans.RolloverFrequency)
 }
 
 // GetIndexRolloverFrequencyServicesDuration returns jaeger-service index rollover frequency duration
 func (c *Configuration) GetIndexRolloverFrequencyServicesDuration() time.Duration {
-	return getIndexRolloverFrequencyDuration(c.IndexRolloverFrequencyServices)
+	return getIndexRolloverFrequencyDuration(c.Indices.Services.RolloverFrequency)
 }
 
 // GetIndexRolloverFrequencySamplingDuration returns jaeger-sampling index rollover frequency duration
 func (c *Configuration) GetIndexRolloverFrequencySamplingDuration() time.Duration {
-	return getIndexRolloverFrequencyDuration(c.IndexRolloverFrequencySampling)
+	return getIndexRolloverFrequencyDuration(c.Indices.Sampling.RolloverFrequency)
 }
 
 // GetIndexRolloverFrequencyDuration returns the index rollover frequency duration for the given frequency string
