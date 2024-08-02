@@ -8,8 +8,8 @@
     },
     {{- end }}
     "settings": {
-      "index.number_of_shards": {{ .Shards }},
-      "index.number_of_replicas": {{ .Replicas }},
+      "index.number_of_shards": {{ .ShardsSampling }},
+      "index.number_of_replicas": {{ .ReplicasSampling }},
       "index.mapping.nested_fields.limit": 50,
       "index.requests.cache.enable": false
       {{- if .UseILM }},

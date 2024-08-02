@@ -30,8 +30,14 @@ var MAPPINGS embed.FS
 // MappingBuilder holds parameters required to render an elasticsearch index template
 type MappingBuilder struct {
 	TemplateBuilder              es.TemplateBuilder
-	Shards                       int64
-	Replicas                     int64
+	ShardsSpan                   int64
+	ReplicasSpan                 int64
+	ShardsService                int64
+	ReplicasService              int64
+	ShardsDependencies           int64
+	ReplicasDependencies         int64
+	ShardsSampling               int64
+	ReplicasSampling             int64
 	PrioritySpanTemplate         int64
 	PriorityServiceTemplate      int64
 	PriorityDependenciesTemplate int64

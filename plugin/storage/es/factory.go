@@ -325,14 +325,20 @@ func (f *Factory) CreateSamplingStore(int /* maxBuckets */) (samplingstore.Store
 func mappingBuilderFromConfig(cfg *config.Configuration) mappings.MappingBuilder {
 	return mappings.MappingBuilder{
 		TemplateBuilder:              es.TextTemplateBuilder{},
-		Shards:                       cfg.NumShards,
-		Replicas:                     cfg.NumReplicas,
+		ShardsSpan:                   cfg.Indices.Spans.TemplateOptions.NumShards,
+		ReplicasSpan:                 cfg.Indices.Spans.TemplateOptions.NumReplicas,
+		ShardsService:                cfg.Indices.Services.TemplateOptions.NumShards,
+		ReplicasService:              cfg.Indices.Services.TemplateOptions.NumShards,
+		ShardsSampling:               cfg.Indices.Sampling.TemplateOptions.NumShards,
+		ReplicasSampling:             cfg.Indices.Sampling.TemplateOptions.NumShards,
+		ShardsDependencies:           cfg.Indices.Dependencies.TemplateOptions.NumShards,
+		ReplicasDependencies:         cfg.Indices.Dependencies.TemplateOptions.NumShards,
 		EsVersion:                    cfg.Version,
 		IndexPrefix:                  cfg.IndexPrefix,
 		UseILM:                       cfg.UseILM,
-		PrioritySpanTemplate:         cfg.PrioritySpanTemplate,
-		PriorityServiceTemplate:      cfg.PriorityServiceTemplate,
-		PriorityDependenciesTemplate: cfg.PriorityDependenciesTemplate,
+		PrioritySpanTemplate:         cfg.Indices.Spans.TemplateOptions.Priority,
+		PriorityServiceTemplate:      cfg.Indices.Services.TemplateOptions.Priority,
+		PriorityDependenciesTemplate: cfg.Indices.Dependencies.TemplateOptions.Priority,
 	}
 }
 
