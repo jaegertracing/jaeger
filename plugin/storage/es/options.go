@@ -390,7 +390,7 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	cfg.AdaptiveSamplingLookback = v.GetDuration(cfg.namespace + suffixAdaptiveSamplingLookback)
 
 	deprecatedNumShards := v.GetInt64(cfg.namespace + suffixNumShards)
-	deprecatedReplicaShards := v.GetInt64(cfg.namespace + suffixNumShards)
+	deprecatedReplicaShards := v.GetInt64(cfg.namespace + suffixNumReplicas)
 
 	cfg.Indices.Spans.TemplateOptions.NumShards = overrideIndexShardsNums(deprecatedNumShards, v.GetInt64(cfg.namespace+suffixNumShardsSpan))
 	cfg.Indices.Services.TemplateOptions.NumShards = overrideIndexShardsNums(deprecatedNumShards, v.GetInt64(cfg.namespace+suffixNumShardsServices))
