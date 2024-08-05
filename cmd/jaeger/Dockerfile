@@ -1,6 +1,8 @@
 ARG base_image
 ARG debug_image
 
+# ------------- Begin PROD image -------------
+
 FROM $base_image AS release
 ARG TARGETARCH
 ARG USER_UID=10001
@@ -14,8 +16,11 @@ EXPOSE 6831/udp
 # Agent jaeger.thrift binary
 EXPOSE 6832/udp
 
-# Agent config HTTP
+# Sampling config HTTP
 EXPOSE 5778
+
+# Sampling config gRPC
+EXPOSE 5779
 
 # Collector OTLP gRPC
 EXPOSE 4317
@@ -35,15 +40,14 @@ EXPOSE 9411
 # Web HTTP
 EXPOSE 16686
 
-# Default configuration file for setting sampling strategies
-# ENV SAMPLING_STRATEGIES_FILE=/etc/jaeger/sampling_strategies.json
-# COPY sampling_strategies.json /etc/jaeger/
-
-COPY jaeger-linux-$TARGETARCH /go/bin/jaeger-linux
+COPY jaeger-linux-$TARGETARCH /cmd/jaeger/jaeger-linux
+COPY sampling-strategies.json /cmd/jaeger/sampling-strategies.json
 
 VOLUME ["/tmp"]
-ENTRYPOINT ["/go/bin/jaeger-linux"]
+ENTRYPOINT ["/cmd/jaeger/jaeger-linux"]
 USER ${USER_UID}
+
+# ------------- Begin DEBUG image -------------
 
 FROM $debug_image AS debug
 ARG TARGETARCH=amd64
@@ -58,8 +62,11 @@ EXPOSE 6831/udp
 # Agent jaeger.thrift binary
 EXPOSE 6832/udp
 
-# Agent config HTTP
+# Sampling config HTTP
 EXPOSE 5778
+
+# Sampling config gRPC
+EXPOSE 5779
 
 # Collector OTLP gRPC
 EXPOSE 4317
@@ -82,12 +89,9 @@ EXPOSE 16686
 # Delve
 EXPOSE 12345
 
-# Default configuration file for setting sampling strategies
-# ENV SAMPLING_STRATEGIES_FILE=/etc/jaeger/sampling_strategies.json
-# COPY sampling_strategies.json /etc/jaeger/
-
-COPY jaeger-debug-linux-$TARGETARCH /go/bin/jaeger-linux
+COPY jaeger-debug-linux-$TARGETARCH /cmd/jaeger/jaeger-linux
+COPY sampling-strategies.json /cmd/jaeger/sampling-strategies.json
 
 VOLUME ["/tmp"]
-ENTRYPOINT ["/go/bin/dlv", "exec", "/go/bin/jaeger-linux", "--headless", "--listen=:12345", "--api-version=2", "--accept-multiclient", "--log", "--"]
+ENTRYPOINT ["/go/bin/dlv", "exec", "/cmd/jaeger/jaeger-linux", "--headless", "--listen=:12345", "--api-version=2", "--accept-multiclient", "--log", "--"]
 USER ${USER_UID}
