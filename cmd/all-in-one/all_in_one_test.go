@@ -159,11 +159,11 @@ func getAPITrace(t *testing.T) {
 }
 
 func getSamplingStrategy(t *testing.T) {
-	// TODO once jaeger-v2 can pass this test, remove from .github/workflows/ci-all-in-one-build.yml
-	if os.Getenv("SKIP_SAMPLING") == "true" {
-		t.Skip("skipping sampling strategy check because SKIP_SAMPLING=true is set")
-	}
-	_, body := httpGet(t, agentAddr+getSamplingStrategyURL)
+	// TODO should we test refreshing the strategy file?
+
+	r, body := httpGet(t, agentAddr+getSamplingStrategyURL)
+	t.Logf("Sampling strategy response: %s", string(body))
+	require.EqualValues(t, http.StatusOK, r.StatusCode)
 
 	var queryResponse api_v2.SamplingStrategyResponse
 	require.NoError(t, jsonpb.Unmarshal(bytes.NewReader(body), &queryResponse))

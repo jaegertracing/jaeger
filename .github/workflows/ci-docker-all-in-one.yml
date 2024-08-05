@@ -23,10 +23,8 @@ jobs:
         mode:
         - name: v1
           binary: all-in-one
-          skip_sampling: false
         - name: v2
           binary: jaeger
-          skip_sampling: true
 
     steps:
     - name: Harden Runner
@@ -61,7 +59,7 @@ jobs:
       run: |
         case ${GITHUB_EVENT_NAME} in
           pull_request)
-            echo "BUILD_FLAGS=-l -D -p linux/amd64" >> ${GITHUB_ENV}
+            echo "BUILD_FLAGS=-l -D -p linux/$(go env GOARCH)" >> ${GITHUB_ENV}
             ;;
           *)
             echo "BUILD_FLAGS=" >> ${GITHUB_ENV}
@@ -76,5 +74,3 @@ jobs:
       env:
         DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
-        # SKIP_SAMPLING is used by integration tests, see https://github.com/jaegertracing/jaeger/issues/5531
-        SKIP_SAMPLING: ${{ matrix.mode.skip_sampling }}
