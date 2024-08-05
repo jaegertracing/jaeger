@@ -21,6 +21,54 @@ run `make changelog` to generate content
 
 </details>
 
+1.60.0 (2024-08-06)
+-------------------
+
+### Backend Changes
+
+#### ⛔ Breaking Changes
+
+* Completely remove "grpc-plugin" as storage type ([@yurishkuro](https://github.com/yurishkuro) in [#5741](https://github.com/jaegertracing/jaeger/pull/5741))
+
+#### ✨ New Features
+
+* Created telset for remote-storage component ([@Wise-Wizard](https://github.com/Wise-Wizard) in [#5731](https://github.com/jaegertracing/jaeger/pull/5731))
+
+#### 🐞 Bug fixes, Minor Improvements
+
+* Do not use image tag without version ([@yurishkuro](https://github.com/yurishkuro) in [#5783](https://github.com/jaegertracing/jaeger/pull/5783))
+* Only attach :latest tag to versioned images from main ([@yurishkuro](https://github.com/yurishkuro) in [#5781](https://github.com/jaegertracing/jaeger/pull/5781))
+* Add references to jaeger v2 ([@yurishkuro](https://github.com/yurishkuro) in [#5779](https://github.com/jaegertracing/jaeger/pull/5779))
+* Ensure hotrod image is published at the end of e2e test ([@yurishkuro](https://github.com/yurishkuro) in [#5764](https://github.com/jaegertracing/jaeger/pull/5764))
+* [bug] [hotrod] delay env var mapping until logger is initialized ([@yurishkuro](https://github.com/yurishkuro) in [#5760](https://github.com/jaegertracing/jaeger/pull/5760))
+* Make otlp receiver listen on all ips again ([@yurishkuro](https://github.com/yurishkuro) in [#5739](https://github.com/jaegertracing/jaeger/pull/5739))
+* [hotrod] fix connectivity in docker compose ([@yurishkuro](https://github.com/yurishkuro) in [#5734](https://github.com/jaegertracing/jaeger/pull/5734))
+
+#### 🚧 Experimental Features
+
+* Ensure similar naming for storage write metrics ([@Wise-Wizard](https://github.com/Wise-Wizard) in [#5798](https://github.com/jaegertracing/jaeger/pull/5798))
+* [v2] ensure similar naming for query service metrics ([@Wise-Wizard](https://github.com/Wise-Wizard) in [#5785](https://github.com/jaegertracing/jaeger/pull/5785))
+* Configure otel collector to observe internal telemetry ([@Wise-Wizard](https://github.com/Wise-Wizard) in [#5752](https://github.com/jaegertracing/jaeger/pull/5752))
+* Add kafka exporter and receiver configuration ([@joeyyy09](https://github.com/joeyyy09) in [#5703](https://github.com/jaegertracing/jaeger/pull/5703))
+* Enable spm in jaeger v2 ([@FlamingSaint](https://github.com/FlamingSaint) in [#5681](https://github.com/jaegertracing/jaeger/pull/5681))
+* [jaeger-v2] add `remotesampling` extension ([@Pushkarm029](https://github.com/Pushkarm029) in [#5389](https://github.com/jaegertracing/jaeger/pull/5389))
+
+#### 👷 CI Improvements
+
+* Unpin codeql actions ([@yurishkuro](https://github.com/yurishkuro) in [#5787](https://github.com/jaegertracing/jaeger/pull/5787))
+* Skip building hotrod for all platforms for pull requests ([@Manoramsharma](https://github.com/Manoramsharma) in [#5765](https://github.com/jaegertracing/jaeger/pull/5765))
+* Add a threshold for expected zero values in the spm script ([@FlamingSaint](https://github.com/FlamingSaint) in [#5753](https://github.com/jaegertracing/jaeger/pull/5753))
+* [v2] add e2e test with memory store ([@yurishkuro](https://github.com/yurishkuro) in [#5751](https://github.com/jaegertracing/jaeger/pull/5751))
+* Rationalize naming of gha workflow files ([@yurishkuro](https://github.com/yurishkuro) in [#5750](https://github.com/jaegertracing/jaeger/pull/5750))
+
+
+### 📊 UI Changes
+
+#### 🐞 Bug fixes, Minor Improvements
+
+* Allow uploading json-per-line otlp data ([@BenzeneAlcohol](https://github.com/BenzeneAlcohol) in [#2380](https://github.com/jaegertracing/jaeger-ui/pull/2380))
+
+
 1.59.0 (2024-07-10)
 -------------------
 
