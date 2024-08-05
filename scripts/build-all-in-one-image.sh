@@ -63,6 +63,7 @@ make build-ui
 run_integration_test() {
   local image_name="$1"
   CID=$(docker run -d -p 16686:16686 -p 5778:5778 "${image_name}:${GITHUB_SHA}")
+
   if ! make all-in-one-integration-test ; then
       echo "---- integration test failed unexpectedly ----"
       echo "--- check the docker log below for details ---"
@@ -90,6 +91,7 @@ fi
 
 # build all-in-one image locally for integration test (the -l switch)
 bash scripts/build-upload-a-docker-image.sh -l -b -c "${BINARY}" -d "cmd/${BINARY}" -p "${platforms}" -t release
+
 run_integration_test "localhost:5000/$repo"
 
 # build all-in-one image and upload to dockerhub/quay.io

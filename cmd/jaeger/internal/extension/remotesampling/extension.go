@@ -227,7 +227,12 @@ func (ext *rsExtension) startHTTPServer(ctx context.Context, host component.Host
 			SamplingProvider: ext.strategyProvider,
 		},
 		MetricsFactory: metrics.NullFactory,
-		BasePath:       "/api", // TODO is /api correct?
+
+		// In v1 the sampling endpoint in the collector was at /api/sampling, because
+		// the collector reused the same port for multiple services. In v2, the extension
+		// always uses a separate port, making /api prefix unnecessary. So we mimic the behavior
+		// of jaeger-agent port 5778 which serves sampling strategies at /sampling endpoint.
+		BasePath: "",
 	})
 	httpMux := http.NewServeMux()
 	handler.RegisterRoutesWithHTTP(httpMux)
