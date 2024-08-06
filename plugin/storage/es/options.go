@@ -190,27 +190,27 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		nsConfig.Timeout,
 		"Timeout used for queries. A Timeout of zero means no timeout")
 	// TODO deprecated flag to be removed
-	flagSet.Int64(
+	flagSet.Int(
 		nsConfig.namespace+suffixNumShards,
 		defaultIndexOptions.TemplateOptions.NumShards,
 		"(deprecated, will be removed in the future, use .num-shards-spans or .num-shards-services or .num-shards-sampling or .num-shards-dependencies instead) The number of shards per index in Elasticsearch")
-	flagSet.Int64(
+	flagSet.Int(
 		nsConfig.namespace+suffixNumReplicas,
 		defaultIndexOptions.TemplateOptions.NumReplicas,
 		"(deprecated, will be removed in the future, use .num-replicas-spans or .num-replicas-services or .num-replicas-sampling or .num-replicas-dependencies instead) The number of replicas per index in Elasticsearch")
-	flagSet.Int64(
+	flagSet.Int(
 		nsConfig.namespace+suffixNumShardsSpan,
 		nsConfig.Indices.Spans.TemplateOptions.NumShards,
 		"The number of shards per span index in Elasticsearch")
-	flagSet.Int64(
+	flagSet.Int(
 		nsConfig.namespace+suffixNumShardsServices,
 		nsConfig.Indices.Services.TemplateOptions.NumShards,
 		"The number of shards per service index in Elasticsearch")
-	flagSet.Int64(
+	flagSet.Int(
 		nsConfig.namespace+suffixNumShardsSampling,
 		nsConfig.Indices.Sampling.TemplateOptions.NumShards,
 		"The number of shards per sampling index in Elasticsearch")
-	flagSet.Int64(
+	flagSet.Int(
 		nsConfig.namespace+suffixNumShardsDependencies,
 		nsConfig.Indices.Dependencies.TemplateOptions.NumShards,
 		"The number of shards per dependencies index in Elasticsearch")
@@ -219,31 +219,31 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		nsConfig.ServiceCacheTTL,
 		"The TTL for the cache of known service names",
 	)
-	flagSet.Int64(
+	flagSet.Int(
 		nsConfig.namespace+suffixNumReplicasSpan,
 		nsConfig.Indices.Spans.TemplateOptions.NumReplicas,
 		"The number of replicas per span index in Elasticsearch")
-	flagSet.Int64(
+	flagSet.Int(
 		nsConfig.namespace+suffixNumReplicasServices,
 		nsConfig.Indices.Services.TemplateOptions.NumReplicas,
 		"The number of replicas per service index in Elasticsearch")
-	flagSet.Int64(
+	flagSet.Int(
 		nsConfig.namespace+suffixNumReplicasSampling,
 		nsConfig.Indices.Sampling.TemplateOptions.NumReplicas,
 		"The number of replicas per sampling index in Elasticsearch")
-	flagSet.Int64(
+	flagSet.Int(
 		nsConfig.namespace+suffixNumReplicasDependencies,
 		nsConfig.Indices.Dependencies.TemplateOptions.NumReplicas,
 		"The number of replicas per dependencies index in Elasticsearch")
-	flagSet.Int64(
+	flagSet.Int(
 		nsConfig.namespace+suffixPrioritySpanTemplate,
 		nsConfig.Indices.Spans.TemplateOptions.Priority,
 		"Priority of jaeger-span index template (ESv8 only)")
-	flagSet.Int64(
+	flagSet.Int(
 		nsConfig.namespace+suffixPriorityServiceTemplate,
 		nsConfig.Indices.Services.TemplateOptions.Priority,
 		"Priority of jaeger-service index template (ESv8 only)")
-	flagSet.Int64(
+	flagSet.Int(
 		nsConfig.namespace+suffixPriorityDependenciesTemplate,
 		nsConfig.Indices.Dependencies.TemplateOptions.Priority,
 		"Priority of jaeger-dependecies index template (ESv8 only)")
@@ -372,7 +372,7 @@ func (opt *Options) InitFromViper(v *viper.Viper) {
 }
 
 func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
-	overrideIndexShardsNums := func(deprecatedNum, newNum int64) int64 {
+	overrideIndexShardsNums := func(deprecatedNum, newNum int) int {
 		if deprecatedNum > 0 {
 			return deprecatedNum
 		} else {
@@ -389,21 +389,21 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	cfg.MaxSpanAge = v.GetDuration(cfg.namespace + suffixMaxSpanAge)
 	cfg.AdaptiveSamplingLookback = v.GetDuration(cfg.namespace + suffixAdaptiveSamplingLookback)
 
-	deprecatedNumShards := v.GetInt64(cfg.namespace + suffixNumShards)
-	deprecatedReplicaShards := v.GetInt64(cfg.namespace + suffixNumReplicas)
+	deprecatedNumShards := v.GetInt(cfg.namespace + suffixNumShards)
+	deprecatedReplicaShards := v.GetInt(cfg.namespace + suffixNumReplicas)
 
-	cfg.Indices.Spans.TemplateOptions.NumShards = overrideIndexShardsNums(deprecatedNumShards, v.GetInt64(cfg.namespace+suffixNumShardsSpan))
-	cfg.Indices.Services.TemplateOptions.NumShards = overrideIndexShardsNums(deprecatedNumShards, v.GetInt64(cfg.namespace+suffixNumShardsServices))
-	cfg.Indices.Sampling.TemplateOptions.NumShards = overrideIndexShardsNums(deprecatedNumShards, v.GetInt64(cfg.namespace+suffixNumShardsSampling))
-	cfg.Indices.Dependencies.TemplateOptions.NumShards = overrideIndexShardsNums(deprecatedNumShards, v.GetInt64(cfg.namespace+suffixNumShardsDependencies))
-	cfg.Indices.Spans.TemplateOptions.NumReplicas = overrideIndexShardsNums(deprecatedReplicaShards, v.GetInt64(cfg.namespace+suffixNumReplicasSpan))
-	cfg.Indices.Services.TemplateOptions.NumReplicas = overrideIndexShardsNums(deprecatedReplicaShards, v.GetInt64(cfg.namespace+suffixNumReplicasServices))
-	cfg.Indices.Sampling.TemplateOptions.NumReplicas = overrideIndexShardsNums(deprecatedReplicaShards, v.GetInt64(cfg.namespace+suffixNumReplicasSampling))
-	cfg.Indices.Dependencies.TemplateOptions.NumReplicas = overrideIndexShardsNums(deprecatedReplicaShards, v.GetInt64(cfg.namespace+suffixNumReplicasDependencies))
+	cfg.Indices.Spans.TemplateOptions.NumShards = overrideIndexShardsNums(deprecatedNumShards, v.GetInt(cfg.namespace+suffixNumShardsSpan))
+	cfg.Indices.Services.TemplateOptions.NumShards = overrideIndexShardsNums(deprecatedNumShards, v.GetInt(cfg.namespace+suffixNumShardsServices))
+	cfg.Indices.Sampling.TemplateOptions.NumShards = overrideIndexShardsNums(deprecatedNumShards, v.GetInt(cfg.namespace+suffixNumShardsSampling))
+	cfg.Indices.Dependencies.TemplateOptions.NumShards = overrideIndexShardsNums(deprecatedNumShards, v.GetInt(cfg.namespace+suffixNumShardsDependencies))
+	cfg.Indices.Spans.TemplateOptions.NumReplicas = overrideIndexShardsNums(deprecatedReplicaShards, v.GetInt(cfg.namespace+suffixNumReplicasSpan))
+	cfg.Indices.Services.TemplateOptions.NumReplicas = overrideIndexShardsNums(deprecatedReplicaShards, v.GetInt(cfg.namespace+suffixNumReplicasServices))
+	cfg.Indices.Sampling.TemplateOptions.NumReplicas = overrideIndexShardsNums(deprecatedReplicaShards, v.GetInt(cfg.namespace+suffixNumReplicasSampling))
+	cfg.Indices.Dependencies.TemplateOptions.NumReplicas = overrideIndexShardsNums(deprecatedReplicaShards, v.GetInt(cfg.namespace+suffixNumReplicasDependencies))
 
-	cfg.Indices.Spans.TemplateOptions.Priority = v.GetInt64(cfg.namespace + suffixPrioritySpanTemplate)
-	cfg.Indices.Services.TemplateOptions.Priority = v.GetInt64(cfg.namespace + suffixPriorityServiceTemplate)
-	cfg.Indices.Dependencies.TemplateOptions.Priority = v.GetInt64(cfg.namespace + suffixPriorityDependenciesTemplate)
+	cfg.Indices.Spans.TemplateOptions.Priority = v.GetInt(cfg.namespace + suffixPrioritySpanTemplate)
+	cfg.Indices.Services.TemplateOptions.Priority = v.GetInt(cfg.namespace + suffixPriorityServiceTemplate)
+	cfg.Indices.Dependencies.TemplateOptions.Priority = v.GetInt(cfg.namespace + suffixPriorityDependenciesTemplate)
 
 	cfg.BulkSize = v.GetInt(cfg.namespace + suffixBulkSize)
 	cfg.BulkWorkers = v.GetInt(cfg.namespace + suffixBulkWorkers)
