@@ -309,21 +309,21 @@ func (c *Configuration) ApplyDefaults(source *Configuration) {
 
 // GetIndexRolloverFrequencySpansDuration returns jaeger-span index rollover frequency duration
 func (c *Configuration) GetIndexRolloverFrequencySpansDuration() time.Duration {
-	return getIndexRolloverFrequencyDuration(c.Indices.Spans.RolloverFrequency)
+	return GetIndexRolloverFrequencyDuration(c.Indices.Spans.RolloverFrequency)
 }
 
 // GetIndexRolloverFrequencyServicesDuration returns jaeger-service index rollover frequency duration
 func (c *Configuration) GetIndexRolloverFrequencyServicesDuration() time.Duration {
-	return getIndexRolloverFrequencyDuration(c.Indices.Services.RolloverFrequency)
+	return GetIndexRolloverFrequencyDuration(c.Indices.Services.RolloverFrequency)
 }
 
 // GetIndexRolloverFrequencySamplingDuration returns jaeger-sampling index rollover frequency duration
 func (c *Configuration) GetIndexRolloverFrequencySamplingDuration() time.Duration {
-	return getIndexRolloverFrequencyDuration(c.Indices.Sampling.RolloverFrequency)
+	return GetIndexRolloverFrequencyDuration(c.Indices.Sampling.RolloverFrequency)
 }
 
 // GetIndexRolloverFrequencyDuration returns the index rollover frequency duration for the given frequency string
-func getIndexRolloverFrequencyDuration(frequency string) time.Duration {
+func GetIndexRolloverFrequencyDuration(frequency string) time.Duration {
 	if frequency == "hour" {
 		return -1 * time.Hour
 	}

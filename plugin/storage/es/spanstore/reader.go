@@ -31,6 +31,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/es"
+	"github.com/jaegertracing/jaeger/pkg/es/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/plugin/storage/es/spanstore/dbmodel"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
@@ -95,40 +96,34 @@ type SpanReader struct {
 	client func() es.Client
 	// The age of the oldest service/operation we will look for. Because indices in ElasticSearch are by day,
 	// this will be rounded down to UTC 00:00 of that day.
-	maxSpanAge                    time.Duration
-	serviceOperationStorage       *ServiceOperationStorage
-	spanIndexPrefix               string
-	serviceIndexPrefix            string
-	spanIndexDateLayout           string
-	serviceIndexDateLayout        string
-	spanIndexRolloverFrequency    time.Duration
-	serviceIndexRolloverFrequency time.Duration
-	spanConverter                 dbmodel.ToDomain
-	timeRangeIndices              timeRangeIndexFn
-	sourceFn                      sourceFn
-	maxDocCount                   int
-	useReadWriteAliases           bool
-	logger                        *zap.Logger
-	tracer                        trace.Tracer
+	maxSpanAge              time.Duration
+	serviceOperationStorage *ServiceOperationStorage
+	indices                 config.Indices
+	spanIndexPrefix         string
+	serviceIndexPrefix      string
+	spanConverter           dbmodel.ToDomain
+	timeRangeIndices        timeRangeIndexFn
+	sourceFn                sourceFn
+	maxDocCount             int
+	useReadWriteAliases     bool
+	logger                  *zap.Logger
+	tracer                  trace.Tracer
 }
 
 // SpanReaderParams holds constructor params for NewSpanReader
 type SpanReaderParams struct {
-	Client                        func() es.Client
-	MaxSpanAge                    time.Duration
-	MaxDocCount                   int
-	IndexPrefix                   string
-	SpanIndexDateLayout           string
-	ServiceIndexDateLayout        string
-	SpanIndexRolloverFrequency    time.Duration
-	ServiceIndexRolloverFrequency time.Duration
-	TagDotReplacement             string
-	Archive                       bool
-	UseReadWriteAliases           bool
-	RemoteReadClusters            []string
-	MetricsFactory                metrics.Factory
-	Logger                        *zap.Logger
-	Tracer                        trace.Tracer
+	Client              func() es.Client
+	MaxSpanAge          time.Duration
+	MaxDocCount         int
+	IndexPrefix         string
+	Indices             config.Indices
+	TagDotReplacement   string
+	Archive             bool
+	UseReadWriteAliases bool
+	RemoteReadClusters  []string
+	MetricsFactory      metrics.Factory
+	Logger              *zap.Logger
+	Tracer              trace.Tracer
 }
 
 // NewSpanReader returns a new SpanReader with a metrics.
@@ -140,22 +135,19 @@ func NewSpanReader(p SpanReaderParams) *SpanReader {
 		maxSpanAge = rolloverMaxSpanAge
 	}
 	return &SpanReader{
-		client:                        p.Client,
-		maxSpanAge:                    maxSpanAge,
-		serviceOperationStorage:       NewServiceOperationStorage(p.Client, p.Logger, 0), // the decorator takes care of metrics
-		spanIndexPrefix:               indexNames(p.IndexPrefix, spanIndex),
-		serviceIndexPrefix:            indexNames(p.IndexPrefix, serviceIndex),
-		spanIndexDateLayout:           p.SpanIndexDateLayout,
-		serviceIndexDateLayout:        p.ServiceIndexDateLayout,
-		spanIndexRolloverFrequency:    p.SpanIndexRolloverFrequency,
-		serviceIndexRolloverFrequency: p.SpanIndexRolloverFrequency,
-		spanConverter:                 dbmodel.NewToDomain(p.TagDotReplacement),
-		timeRangeIndices:              getTimeRangeIndexFn(p.Archive, p.UseReadWriteAliases, p.RemoteReadClusters),
-		sourceFn:                      getSourceFn(p.Archive, p.MaxDocCount),
-		maxDocCount:                   p.MaxDocCount,
-		useReadWriteAliases:           p.UseReadWriteAliases,
-		logger:                        p.Logger,
-		tracer:                        p.Tracer,
+		client:                  p.Client,
+		maxSpanAge:              maxSpanAge,
+		serviceOperationStorage: NewServiceOperationStorage(p.Client, p.Logger, 0), // the decorator takes care of metrics
+		spanIndexPrefix:         indexNames(p.IndexPrefix, spanIndex),
+		serviceIndexPrefix:      indexNames(p.IndexPrefix, serviceIndex),
+		indices:                 p.Indices,
+		spanConverter:           dbmodel.NewToDomain(p.TagDotReplacement),
+		timeRangeIndices:        getTimeRangeIndexFn(p.Archive, p.UseReadWriteAliases, p.RemoteReadClusters),
+		sourceFn:                getSourceFn(p.Archive, p.MaxDocCount),
+		maxDocCount:             p.MaxDocCount,
+		useReadWriteAliases:     p.UseReadWriteAliases,
+		logger:                  p.Logger,
+		tracer:                  p.Tracer,
 	}
 }
 
@@ -289,7 +281,7 @@ func (s *SpanReader) GetServices(ctx context.Context) ([]string, error) {
 	ctx, span := s.tracer.Start(ctx, "GetService")
 	defer span.End()
 	currentTime := time.Now()
-	jaegerIndices := s.timeRangeIndices(s.serviceIndexPrefix, s.serviceIndexDateLayout, currentTime.Add(-s.maxSpanAge), currentTime, s.serviceIndexRolloverFrequency)
+	jaegerIndices := s.timeRangeIndices(s.serviceIndexPrefix, s.indices.Services.DateLayout, currentTime.Add(-s.maxSpanAge), currentTime, config.GetIndexRolloverFrequencyDuration(s.indices.Services.RolloverFrequency))
 	return s.serviceOperationStorage.getServices(ctx, jaegerIndices, s.maxDocCount)
 }
 
@@ -301,7 +293,7 @@ func (s *SpanReader) GetOperations(
 	ctx, span := s.tracer.Start(ctx, "GetOperations")
 	defer span.End()
 	currentTime := time.Now()
-	jaegerIndices := s.timeRangeIndices(s.serviceIndexPrefix, s.serviceIndexDateLayout, currentTime.Add(-s.maxSpanAge), currentTime, s.serviceIndexRolloverFrequency)
+	jaegerIndices := s.timeRangeIndices(s.serviceIndexPrefix, s.indices.Services.DateLayout, currentTime.Add(-s.maxSpanAge), currentTime, config.GetIndexRolloverFrequencyDuration(s.indices.Services.RolloverFrequency))
 	operations, err := s.serviceOperationStorage.getOperations(ctx, jaegerIndices, query.ServiceName, s.maxDocCount)
 	if err != nil {
 		return nil, err
@@ -380,7 +372,7 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []model.TraceID, st
 
 	// Add an hour in both directions so that traces that straddle two indexes are retrieved.
 	// i.e starts in one and ends in another.
-	indices := s.timeRangeIndices(s.spanIndexPrefix, s.spanIndexDateLayout, startTime.Add(-time.Hour), endTime.Add(time.Hour), s.spanIndexRolloverFrequency)
+	indices := s.timeRangeIndices(s.spanIndexPrefix, s.indices.Spans.DateLayout, startTime.Add(-time.Hour), endTime.Add(time.Hour), config.GetIndexRolloverFrequencyDuration(s.indices.Spans.RolloverFrequency))
 	nextTime := model.TimeAsEpochMicroseconds(startTime.Add(-time.Hour))
 	searchAfterTime := make(map[model.TraceID]uint64)
 	totalDocumentsFetched := make(map[model.TraceID]int)
@@ -572,7 +564,7 @@ func (s *SpanReader) findTraceIDs(ctx context.Context, traceQuery *spanstore.Tra
 	//  }
 	aggregation := s.buildTraceIDAggregation(traceQuery.NumTraces)
 	boolQuery := s.buildFindTraceIDsQuery(traceQuery)
-	jaegerIndices := s.timeRangeIndices(s.spanIndexPrefix, s.spanIndexDateLayout, traceQuery.StartTimeMin, traceQuery.StartTimeMax, s.spanIndexRolloverFrequency)
+	jaegerIndices := s.timeRangeIndices(s.spanIndexPrefix, s.indices.Spans.DateLayout, traceQuery.StartTimeMin, traceQuery.StartTimeMax, config.GetIndexRolloverFrequencyDuration(s.indices.Spans.RolloverFrequency))
 
 	searchService := s.client().Search(jaegerIndices...).
 		Size(0). // set to 0 because we don't want actual documents.
