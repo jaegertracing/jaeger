@@ -30,10 +30,6 @@ run `make changelog` to generate content
 
 * Completely remove "grpc-plugin" as storage type ([@yurishkuro](https://github.com/yurishkuro) in [#5741](https://github.com/jaegertracing/jaeger/pull/5741))
 
-#### ✨ New Features
-
-* Created telset for remote-storage component ([@Wise-Wizard](https://github.com/Wise-Wizard) in [#5731](https://github.com/jaegertracing/jaeger/pull/5731))
-
 #### 🐞 Bug fixes, Minor Improvements
 
 * Do not use image tag without version ([@yurishkuro](https://github.com/yurishkuro) in [#5783](https://github.com/jaegertracing/jaeger/pull/5783))
@@ -46,12 +42,14 @@ run `make changelog` to generate content
 
 #### 🚧 Experimental Features
 
+* [v2] enable remote sampling extension and include in e2e tests ([@yurishkuro](https://github.com/yurishkuro) in [#5802](https://github.com/jaegertracing/jaeger/pull/5802))
 * Ensure similar naming for storage write metrics ([@Wise-Wizard](https://github.com/Wise-Wizard) in [#5798](https://github.com/jaegertracing/jaeger/pull/5798))
 * [v2] ensure similar naming for query service metrics ([@Wise-Wizard](https://github.com/Wise-Wizard) in [#5785](https://github.com/jaegertracing/jaeger/pull/5785))
 * Configure otel collector to observe internal telemetry ([@Wise-Wizard](https://github.com/Wise-Wizard) in [#5752](https://github.com/jaegertracing/jaeger/pull/5752))
 * Add kafka exporter and receiver configuration ([@joeyyy09](https://github.com/joeyyy09) in [#5703](https://github.com/jaegertracing/jaeger/pull/5703))
 * Enable spm in jaeger v2 ([@FlamingSaint](https://github.com/FlamingSaint) in [#5681](https://github.com/jaegertracing/jaeger/pull/5681))
 * [jaeger-v2] add `remotesampling` extension ([@Pushkarm029](https://github.com/Pushkarm029) in [#5389](https://github.com/jaegertracing/jaeger/pull/5389))
+* Created telset for remote-storage component ([@Wise-Wizard](https://github.com/Wise-Wizard) in [#5731](https://github.com/jaegertracing/jaeger/pull/5731))
 
 #### 👷 CI Improvements
 
