@@ -16,6 +16,7 @@ package renderer
 
 import (
 	"errors"
+	"github.com/jaegertracing/jaeger/pkg/es/config"
 	"io"
 	"testing"
 
@@ -46,6 +47,7 @@ func TestIsValidOption(t *testing.T) {
 }
 
 func Test_getMappingAsString(t *testing.T) {
+	indicesOption := config.Indices{Spans: config.IndexOptions{TemplateOptions: config.TemplateOptions{NumShards: 5, NumReplicas: 1}}}
 	tests := []struct {
 		name    string
 		args    app.Options
@@ -53,15 +55,15 @@ func Test_getMappingAsString(t *testing.T) {
 		wantErr error
 	}{
 		{
-			name: "ES version 7", args: app.Options{Mapping: "jaeger-span", EsVersion: 7, Shards: 5, Replicas: 1, IndexPrefix: "test", UseILM: "true", ILMPolicyName: "jaeger-test-policy"},
+			name: "ES version 7", args: app.Options{Mapping: "jaeger-span", EsVersion: 7, Indices: indicesOption, IndexPrefix: "test", UseILM: "true", ILMPolicyName: "jaeger-test-policy"},
 			want: "ES version 7",
 		},
 		{
-			name: "Parse Error version 7", args: app.Options{Mapping: "jaeger-span", EsVersion: 7, Shards: 5, Replicas: 1, IndexPrefix: "test", UseILM: "true", ILMPolicyName: "jaeger-test-policy"},
+			name: "Parse Error version 7", args: app.Options{Mapping: "jaeger-span", EsVersion: 7, Indices: indicesOption, IndexPrefix: "test", UseILM: "true", ILMPolicyName: "jaeger-test-policy"},
 			wantErr: errors.New("parse error"),
 		},
 		{
-			name: "Parse bool error", args: app.Options{Mapping: "jaeger-span", EsVersion: 7, Shards: 5, Replicas: 1, IndexPrefix: "test", UseILM: "foo", ILMPolicyName: "jaeger-test-policy"},
+			name: "Parse bool error", args: app.Options{Mapping: "jaeger-span", EsVersion: 7, Indices: indicesOption, IndexPrefix: "test", UseILM: "foo", ILMPolicyName: "jaeger-test-policy"},
 			wantErr: errors.New("strconv.ParseBool: parsing \"foo\": invalid syntax"),
 		},
 	}

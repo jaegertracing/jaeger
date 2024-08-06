@@ -1,8 +1,8 @@
 {
   "template": "*jaeger-span-*",
   "settings":{
-    "index.number_of_shards": {{ .ShardsSpan }},
-    "index.number_of_replicas": {{ .ReplicasSpan }},
+    "index.number_of_shards": {{ .Indices.Spans.TemplateOptions.NumShards }},
+    "index.number_of_replicas": {{ .Indices.Spans.TemplateOptions.NumReplicas }},
     "index.mapping.nested_fields.limit":50,
     "index.requests.cache.enable":true,
     "index.mapper.dynamic":false

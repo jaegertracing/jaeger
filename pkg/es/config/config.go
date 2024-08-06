@@ -45,9 +45,9 @@ import (
 )
 
 type TemplateOptions struct {
-	Priority    int64 `mapstructure:"priority"`
-	NumShards   int64 `mapstructure:"num_shards"`
-	NumReplicas int64 `mapstructure:"num_replicas"`
+	Priority    int `mapstructure:"priority"`
+	NumShards   int `mapstructure:"num_shards"`
+	NumReplicas int `mapstructure:"num_replicas"`
 }
 
 // IndexOptions describes the index format and rollover frequency
@@ -78,6 +78,8 @@ type Configuration struct {
 	SnifferTLSEnabled        bool           `mapstructure:"sniffer_tls_enabled"`
 	MaxDocCount              int            `mapstructure:"-"` // Defines maximum number of results to fetch from storage per query
 	MaxSpanAge               time.Duration  `mapstructure:"-"` // configures the maximum lookback on span reads
+	NumShards                int64          `mapstructure:"num_shards"`
+	NumReplicas              int64          `mapstructure:"num_replicas"`
 	Timeout                  time.Duration  `mapstructure:"-"`
 	BulkSize                 int            `mapstructure:"-"`
 	BulkWorkers              int            `mapstructure:"-"`
@@ -228,6 +230,20 @@ func newElasticsearchV8(c *Configuration, logger *zap.Logger) (*esV8.Client, err
 	return esV8.NewClient(options)
 }
 
+func setFieldIfZero(cfg, source *IndexOptions) {
+	if cfg.TemplateOptions.NumShards == 0 {
+		cfg.TemplateOptions.NumShards = source.TemplateOptions.NumShards
+	}
+
+	if cfg.TemplateOptions.NumReplicas == 0 {
+		cfg.TemplateOptions.NumReplicas = source.TemplateOptions.NumReplicas
+	}
+
+	if cfg.TemplateOptions.Priority == 0 {
+		cfg.TemplateOptions.Priority = source.TemplateOptions.Priority
+	}
+}
+
 // ApplyDefaults copies settings from source unless its own value is non-zero.
 func (c *Configuration) ApplyDefaults(source *Configuration) {
 	if len(c.RemoteReadClusters) == 0 {
@@ -248,21 +264,11 @@ func (c *Configuration) ApplyDefaults(source *Configuration) {
 	if c.AdaptiveSamplingLookback == 0 {
 		c.AdaptiveSamplingLookback = source.AdaptiveSamplingLookback
 	}
-	if c.Indices.Dependencies.TemplateOptions.NumShards == 0 {
-		c.Indices.Dependencies.TemplateOptions.NumShards = source.Indices.Dependencies.TemplateOptions.NumShards
-	}
-	if c.Indices.Dependencies.TemplateOptions.NumReplicas == 0 {
-		c.Indices.Dependencies.TemplateOptions.NumReplicas = source.Indices.Dependencies.TemplateOptions.NumReplicas
-	}
-	if c.Indices.Spans.TemplateOptions.Priority == 0 {
-		c.Indices.Spans.TemplateOptions.Priority = source.Indices.Spans.TemplateOptions.Priority
-	}
-	if c.Indices.Services.TemplateOptions.Priority == 0 {
-		c.Indices.Services.TemplateOptions.Priority = source.Indices.Services.TemplateOptions.Priority
-	}
-	if c.Indices.Dependencies.TemplateOptions.Priority == 0 {
-		c.Indices.Dependencies.TemplateOptions.Priority = source.Indices.Dependencies.TemplateOptions.Priority
-	}
+
+	setFieldIfZero(&c.Indices.Spans, &source.Indices.Spans)
+	setFieldIfZero(&c.Indices.Services, &source.Indices.Services)
+	setFieldIfZero(&c.Indices.Dependencies, &source.Indices.Dependencies)
+
 	if c.BulkSize == 0 {
 		c.BulkSize = source.BulkSize
 	}

@@ -1,5 +1,5 @@
 {
-  "priority": {{ .PriorityServiceTemplate}},
+  "priority": {{ .Indices.Services.TemplateOptions.Priority }},
   "index_patterns": "{{ .IndexPrefix }}jaeger-service-*",
   "template": {
     {{- if .UseILM }}
@@ -8,8 +8,8 @@
     },
     {{- end }}
     "settings": {
-      "index.number_of_shards": {{ .ShardsService }},
-      "index.number_of_replicas": {{  .ReplicasService }},
+      "index.number_of_shards": {{ .Indices.Services.TemplateOptions.NumShards }},
+      "index.number_of_replicas": {{ .Indices.Services.TemplateOptions.NumReplicas }},
       "index.mapping.nested_fields.limit": 50,
       "index.requests.cache.enable": true
       {{- if .UseILM }},

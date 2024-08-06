@@ -34,8 +34,8 @@ func TestBindFlags(t *testing.T) {
 	v.BindPFlags(command.PersistentFlags())
 
 	err := command.ParseFlags([]string{
-		"--shards=8",
-		"--replicas=16",
+		"--shards-span=8",
+		"--replicas-span=16",
 		"--priority-span-template=300",
 		"--priority-service-template=301",
 		"--priority-dependencies-template=302",
@@ -44,10 +44,10 @@ func TestBindFlags(t *testing.T) {
 	require.NoError(t, err)
 
 	c.InitFromViper(v)
-	assert.Equal(t, 8, c.Shards)
-	assert.Equal(t, 16, c.Replicas)
-	assert.Equal(t, 300, c.PrioritySpanTemplate)
-	assert.Equal(t, 301, c.PriorityServiceTemplate)
-	assert.Equal(t, 302, c.PriorityDependenciesTemplate)
-	assert.Equal(t, 303, c.PrioritySamplingTemplate)
+	assert.Equal(t, 8, c.Indices.Spans.TemplateOptions.NumShards)
+	assert.Equal(t, 16, c.Indices.Spans.TemplateOptions.NumReplicas)
+	assert.Equal(t, 300, c.Indices.Spans.TemplateOptions.Priority)
+	assert.Equal(t, 301, c.Indices.Services.TemplateOptions.Priority)
+	assert.Equal(t, 302, c.Indices.Dependencies.TemplateOptions.Priority)
+	assert.Equal(t, 303, c.Indices.Sampling.TemplateOptions.Priority)
 }

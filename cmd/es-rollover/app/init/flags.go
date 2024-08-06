@@ -17,14 +17,21 @@ package init
 import (
 	"flag"
 
+	cfg "github.com/jaegertracing/jaeger/pkg/es/config"
 	"github.com/spf13/viper"
 
 	"github.com/jaegertracing/jaeger/cmd/es-rollover/app"
 )
 
 const (
-	shards                       = "shards"
-	replicas                     = "replicas"
+	spanShards                   = "shards-span"
+	serviceShards                = "shards-service"
+	dependenciesShards           = "shards-dependencies"
+	samplingShards               = "shards-sampling"
+	spanReplicas                 = "replicas-span"
+	serviceReplicas              = "replicas-service"
+	dependenciesReplicas         = "replicas-dependencies"
+	samplingReplicas             = "replicas-sampling"
 	prioritySpanTemplate         = "priority-span-template"
 	priorityServiceTemplate      = "priority-service-template"
 	priorityDependenciesTemplate = "priority-dependencies-template"
@@ -34,30 +41,39 @@ const (
 // Config holds configuration for index cleaner binary.
 type Config struct {
 	app.Config
-	Shards                       int
-	Replicas                     int
-	PrioritySpanTemplate         int
-	PriorityServiceTemplate      int
-	PriorityDependenciesTemplate int
-	PrioritySamplingTemplate     int
+	cfg.Indices
 }
 
 // AddFlags adds flags for TLS to the FlagSet.
 func (*Config) AddFlags(flags *flag.FlagSet) {
-	flags.Int(shards, 5, "Number of shards")
-	flags.Int(replicas, 1, "Number of replicas")
-	flags.Int(prioritySpanTemplate, 0, "Priority of jaeger-span index template (ESv8 only)")
-	flags.Int(priorityServiceTemplate, 0, "Priority of jaeger-service index template (ESv8 only)")
-	flags.Int(priorityDependenciesTemplate, 0, "Priority of jaeger-dependencies index template (ESv8 only)")
-	flags.Int(prioritySamplingTemplate, 0, "Priority of jaeger-sampling index template (ESv8 only)")
+	flags.Int64(spanShards, 5, "Number of span index shards")
+	flags.Int64(serviceShards, 5, "Number of service index shards")
+	flags.Int64(dependenciesShards, 5, "Number of dependencies index shards")
+	flags.Int64(samplingShards, 5, "Number of sampling index shards")
+
+	flags.Int64(spanReplicas, 1, "Number of span index replicas")
+	flags.Int64(serviceReplicas, 1, "Number of services index replicas")
+	flags.Int64(dependenciesReplicas, 1, "Number of dependencies index replicas")
+	flags.Int64(samplingReplicas, 1, "Number of sampling index replicas")
+
+	flags.Int64(prioritySpanTemplate, 0, "Priority of jaeger-span index template (ESv8 only)")
+	flags.Int64(priorityServiceTemplate, 0, "Priority of jaeger-service index template (ESv8 only)")
+	flags.Int64(priorityDependenciesTemplate, 0, "Priority of jaeger-dependencies index template (ESv8 only)")
+	flags.Int64(prioritySamplingTemplate, 0, "Priority of jaeger-sampling index template (ESv8 only)")
 }
 
 // InitFromViper initializes config from viper.Viper.
 func (c *Config) InitFromViper(v *viper.Viper) {
-	c.Shards = v.GetInt(shards)
-	c.Replicas = v.GetInt(replicas)
-	c.PrioritySpanTemplate = v.GetInt(prioritySpanTemplate)
-	c.PriorityServiceTemplate = v.GetInt(priorityServiceTemplate)
-	c.PriorityDependenciesTemplate = v.GetInt(priorityDependenciesTemplate)
-	c.PrioritySamplingTemplate = v.GetInt(prioritySamplingTemplate)
+	c.Indices.Spans.TemplateOptions.NumShards = v.GetInt(spanShards)
+	c.Indices.Spans.TemplateOptions.NumReplicas = v.GetInt(spanReplicas)
+	c.Indices.Services.TemplateOptions.NumShards = v.GetInt(serviceShards)
+	c.Indices.Services.TemplateOptions.NumReplicas = v.GetInt(serviceReplicas)
+	c.Indices.Dependencies.TemplateOptions.NumShards = v.GetInt(dependenciesShards)
+	c.Indices.Dependencies.TemplateOptions.NumReplicas = v.GetInt(dependenciesReplicas)
+	c.Indices.Sampling.TemplateOptions.NumShards = v.GetInt(samplingShards)
+	c.Indices.Sampling.TemplateOptions.NumReplicas = v.GetInt(samplingReplicas)
+	c.Indices.Spans.TemplateOptions.Priority = v.GetInt(prioritySpanTemplate)
+	c.Indices.Services.TemplateOptions.Priority = v.GetInt(priorityServiceTemplate)
+	c.Indices.Dependencies.TemplateOptions.Priority = v.GetInt(priorityDependenciesTemplate)
+	c.Indices.Sampling.TemplateOptions.Priority = v.GetInt(prioritySamplingTemplate)
 }

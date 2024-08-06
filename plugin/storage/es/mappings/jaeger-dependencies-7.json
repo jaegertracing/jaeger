@@ -6,8 +6,8 @@
   },
   {{- end }}
   "settings":{
-    "index.number_of_shards": {{ .ShardsDependencies }},
-    "index.number_of_replicas": {{ .ReplicasDependencies }},
+    "index.number_of_shards": {{ .Indices.Dependencies.TemplateOptions.NumShards }},
+    "index.number_of_replicas": {{ .Indices.Dependencies.TemplateOptions.NumReplicas }},
     "index.mapping.nested_fields.limit":50,
     "index.requests.cache.enable":true
   {{- if .UseILM }}
