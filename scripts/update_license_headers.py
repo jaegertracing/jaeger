@@ -3,7 +3,6 @@
 import os
 import re
 import sys
-from datetime import datetime
 
 def update_license_header(file_path):
     with open(file_path, 'r') as file:
