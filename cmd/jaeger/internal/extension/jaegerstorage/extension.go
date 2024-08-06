@@ -14,6 +14,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage/factoryadapter"
 	"github.com/jaegertracing/jaeger/internal/metrics/otelmetrics"
+	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/plugin/metrics/prometheus"
 	"github.com/jaegertracing/jaeger/plugin/storage/badger"
 	"github.com/jaegertracing/jaeger/plugin/storage/cassandra"
@@ -112,7 +113,8 @@ func newStorageExt(config *Config, telset component.TelemetrySettings) *storageE
 }
 
 func (s *storageExt) Start(_ context.Context, _ component.Host) error {
-	mf := otelmetrics.NewFactory(s.telset.MeterProvider)
+	baseFactory := otelmetrics.NewFactory(s.telset.MeterProvider)
+	mf := baseFactory.Namespace(metrics.NSOptions{Name: "jaeger"})
 	for storageName, cfg := range s.config.Backends {
 		s.telset.Logger.Sugar().Infof("Initializing storage '%s'", storageName)
 		var factory storage.Factory
