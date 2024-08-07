@@ -104,6 +104,18 @@ func TestCounter(t *testing.T) {
 	assert.Equal(t, expectedLabels, promLabelsToMap(metrics[0].GetLabel()))
 }
 
+func TestCounterNamingConvention(t *testing.T) {
+    input := "test_counter"
+    expected := "test_counter_total"
+    
+    result := otelmetrics.CounterNamingConvention(input)
+    
+    if result != expected {
+        t.Errorf("Expected %s, but got %s", expected, result)
+    }
+}
+
+
 func TestGauge(t *testing.T) {
 	registry := promReg.NewPedanticRegistry()
 	factory := newTestFactory(t, registry)
