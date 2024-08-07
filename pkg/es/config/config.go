@@ -53,7 +53,7 @@ type TemplateOptions struct {
 // IndexOptions describes the index format and rollover frequency
 type IndexOptions struct {
 	DateLayout        string          `mapstructure:"date_layout"`
-	RolloverFrequency string          `mapstructure:"rollover_frequency"`
+	RolloverFrequency string          `mapstructure:"rollover_frequency"` // "hour" or "day"
 	TemplateOptions   TemplateOptions `mapstructure:"template"`
 }
 
