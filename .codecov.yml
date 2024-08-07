@@ -1,7 +1,7 @@
 codecov:
   notify:
     require_ci_to_pass: yes
-    after_n_builds: 11
+    after_n_builds: 19
   strict_yaml_branch: main  # only use the latest copy on the main branch
 
 ignore:
