@@ -6,18 +6,21 @@ def update_license_header(file_path):
     with open(file_path, 'r') as file:
         content = file.read()
 
-    apache_header_pattern = re.compile(
-        r'(/\*|#|//)\s*Licensed under the Apache License, Version 2\.0.*?'
-        r'limitations under the License\.',
-        re.DOTALL
+    # Pattern to match copyright lines and Apache license
+    header_pattern = re.compile(
+        r'^(// Copyright.*\n)+'  # Match one or more copyright lines
+        r'(//\s*\n)*'  # Match zero or more empty comment lines
+        r'// Licensed under the Apache License, Version 2\.0.*?'
+        r'limitations under the License\.\n+',
+        re.MULTILINE | re.DOTALL
     )
+
     spdx_header = "// SPDX-License-Identifier: Apache-2.0\n"
 
-    if content.startswith(spdx_header):
-        print(f"Skipping {file_path}: SPDX header already present")
-        return False
-
-    new_content, count = apache_header_pattern.subn(spdx_header, content, count=1)
+    new_content, count = header_pattern.subn(
+        lambda m: ''.join(re.findall(r'^// Copyright.*\n', m.group(0), re.MULTILINE)) + spdx_header,
+        content
+    )
 
     if count > 0:
         with open(file_path, 'w') as file:
