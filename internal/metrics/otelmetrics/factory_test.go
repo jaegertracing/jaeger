@@ -105,16 +105,15 @@ func TestCounter(t *testing.T) {
 }
 
 func TestCounterNamingConvention(t *testing.T) {
-    input := "test_counter"
-    expected := "test_counter_total"
-    
-    result := otelmetrics.CounterNamingConvention(input)
-    
-    if result != expected {
-        t.Errorf("Expected %s, but got %s", expected, result)
-    }
-}
+	input := "test_counter"
+	expected := "test_counter_total"
 
+	result := otelmetrics.CounterNamingConvention(input)
+
+	if result != expected {
+		t.Errorf("Expected %s, but got %s", expected, result)
+	}
+}
 
 func TestGauge(t *testing.T) {
 	registry := promReg.NewPedanticRegistry()
