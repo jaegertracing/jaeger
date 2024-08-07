@@ -17,10 +17,10 @@ package mappings
 import (
 	"bytes"
 	"embed"
-	"github.com/jaegertracing/jaeger/pkg/es/config"
 	"strings"
 
 	"github.com/jaegertracing/jaeger/pkg/es"
+	"github.com/jaegertracing/jaeger/pkg/es/config"
 )
 
 // MAPPINGS contains embedded index templates.

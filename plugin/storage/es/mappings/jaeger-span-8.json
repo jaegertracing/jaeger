@@ -1,5 +1,5 @@
 {
-  "priority": {{ .Indices.Spans.TemplateOptions.Priority }},
+  "priority": {{ .Indices.Spans.TemplatePriority }},
   "index_patterns": "{{ .IndexPrefix }}jaeger-span-*",
   "template": {
 
@@ -9,8 +9,8 @@
     },
     {{- end}}
     "settings": {
-      "index.number_of_shards": {{ .Indices.Spans.TemplateOptions.NumShards }},
-      "index.number_of_replicas": {{ .Indices.Spans.TemplateOptions.NumReplicas }},
+      "index.number_of_shards": {{ .Indices.Spans.TemplateNumShards }},
+      "index.number_of_replicas": {{ .Indices.Spans.TemplateNumReplicas }},
       "index.mapping.nested_fields.limit": 50,
       "index.requests.cache.enable": true
       {{- if .UseILM }},

@@ -52,9 +52,11 @@ type TemplateOptions struct {
 
 // IndexOptions describes the index format and rollover frequency
 type IndexOptions struct {
-	DateLayout        string          `mapstructure:"date_layout"`
-	RolloverFrequency string          `mapstructure:"rollover_frequency"` // "hour" or "day"
-	TemplateOptions   TemplateOptions `mapstructure:"template"`
+	DateLayout          string `mapstructure:"date_layout"`
+	RolloverFrequency   string `mapstructure:"rollover_frequency"` // "hour" or "day"
+	TemplatePriority    int    `mapstructure:"template_priority"`
+	TemplateNumShards   int    `mapstructure:"template_num_shards"`
+	TemplateNumReplicas int    `mapstructure:"template_num_replicas"`
 }
 
 // Indices describes different configuration options for each index type
@@ -230,17 +232,25 @@ func newElasticsearchV8(c *Configuration, logger *zap.Logger) (*esV8.Client, err
 	return esV8.NewClient(options)
 }
 
-func setFieldIfZero(cfg, source *IndexOptions) {
-	if cfg.TemplateOptions.NumShards == 0 {
-		cfg.TemplateOptions.NumShards = source.TemplateOptions.NumShards
+func setDefaultIndexOptions(cfg, source *IndexOptions) {
+	if cfg.TemplateNumShards == 0 {
+		cfg.TemplateNumShards = source.TemplateNumShards
 	}
 
-	if cfg.TemplateOptions.NumReplicas == 0 {
-		cfg.TemplateOptions.NumReplicas = source.TemplateOptions.NumReplicas
+	if cfg.TemplateNumReplicas == 0 {
+		cfg.TemplateNumReplicas = source.TemplateNumReplicas
 	}
 
-	if cfg.TemplateOptions.Priority == 0 {
-		cfg.TemplateOptions.Priority = source.TemplateOptions.Priority
+	if cfg.TemplatePriority == 0 {
+		cfg.TemplatePriority = source.TemplatePriority
+	}
+
+	if cfg.DateLayout == "" {
+		cfg.DateLayout = source.DateLayout
+	}
+
+	if cfg.RolloverFrequency == "" {
+		cfg.RolloverFrequency = source.RolloverFrequency
 	}
 }
 
@@ -265,9 +275,9 @@ func (c *Configuration) ApplyDefaults(source *Configuration) {
 		c.AdaptiveSamplingLookback = source.AdaptiveSamplingLookback
 	}
 
-	setFieldIfZero(&c.Indices.Spans, &source.Indices.Spans)
-	setFieldIfZero(&c.Indices.Services, &source.Indices.Services)
-	setFieldIfZero(&c.Indices.Dependencies, &source.Indices.Dependencies)
+	setDefaultIndexOptions(&c.Indices.Spans, &source.Indices.Spans)
+	setDefaultIndexOptions(&c.Indices.Services, &source.Indices.Services)
+	setDefaultIndexOptions(&c.Indices.Dependencies, &source.Indices.Dependencies)
 
 	if c.BulkSize == 0 {
 		c.BulkSize = source.BulkSize

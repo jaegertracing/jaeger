@@ -16,7 +16,6 @@ package renderer
 
 import (
 	"errors"
-	"github.com/jaegertracing/jaeger/pkg/es/config"
 	"io"
 	"testing"
 
@@ -25,6 +24,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger/cmd/esmapping-generator/app"
+	"github.com/jaegertracing/jaeger/pkg/es/config"
 	"github.com/jaegertracing/jaeger/pkg/es/mocks"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 )

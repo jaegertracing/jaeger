@@ -17,25 +17,10 @@ package init
 import (
 	"flag"
 
-	cfg "github.com/jaegertracing/jaeger/pkg/es/config"
 	"github.com/spf13/viper"
 
 	"github.com/jaegertracing/jaeger/cmd/es-rollover/app"
-)
-
-const (
-	spanShards                   = "shards-span"
-	serviceShards                = "shards-service"
-	dependenciesShards           = "shards-dependencies"
-	samplingShards               = "shards-sampling"
-	spanReplicas                 = "replicas-span"
-	serviceReplicas              = "replicas-service"
-	dependenciesReplicas         = "replicas-dependencies"
-	samplingReplicas             = "replicas-sampling"
-	prioritySpanTemplate         = "priority-span-template"
-	priorityServiceTemplate      = "priority-service-template"
-	priorityDependenciesTemplate = "priority-dependencies-template"
-	prioritySamplingTemplate     = "priority-sampling-template"
+	cfg "github.com/jaegertracing/jaeger/pkg/es/config"
 )
 
 // Config holds configuration for index cleaner binary.
@@ -46,34 +31,34 @@ type Config struct {
 
 // AddFlags adds flags for TLS to the FlagSet.
 func (*Config) AddFlags(flags *flag.FlagSet) {
-	flags.Int64(spanShards, 5, "Number of span index shards")
-	flags.Int64(serviceShards, 5, "Number of service index shards")
-	flags.Int64(dependenciesShards, 5, "Number of dependencies index shards")
-	flags.Int64(samplingShards, 5, "Number of sampling index shards")
+	flags.Int64(cfg.GetNumShardSpanFlag(), 5, "Number of span index shards")
+	flags.Int64(cfg.GetNumShardServiceFlag(), 5, "Number of service index shards")
+	flags.Int64(cfg.GetNumShardDependenciesFlag(), 5, "Number of dependencies index shards")
+	flags.Int64(cfg.GetNumShardSamplingFlag(), 5, "Number of sampling index shards")
 
-	flags.Int64(spanReplicas, 1, "Number of span index replicas")
-	flags.Int64(serviceReplicas, 1, "Number of services index replicas")
-	flags.Int64(dependenciesReplicas, 1, "Number of dependencies index replicas")
-	flags.Int64(samplingReplicas, 1, "Number of sampling index replicas")
+	flags.Int64(cfg.GetNumReplicasSpanFlag(), 1, "Number of span index replicas")
+	flags.Int64(cfg.GetNumReplicasServiceFlag(), 1, "Number of services index replicas")
+	flags.Int64(cfg.GetNumReplicasDependenciesFlag(), 1, "Number of dependencies index replicas")
+	flags.Int64(cfg.GetNumReplicasSamplingFlag(), 1, "Number of sampling index replicas")
 
-	flags.Int64(prioritySpanTemplate, 0, "Priority of jaeger-span index template (ESv8 only)")
-	flags.Int64(priorityServiceTemplate, 0, "Priority of jaeger-service index template (ESv8 only)")
-	flags.Int64(priorityDependenciesTemplate, 0, "Priority of jaeger-dependencies index template (ESv8 only)")
-	flags.Int64(prioritySamplingTemplate, 0, "Priority of jaeger-sampling index template (ESv8 only)")
+	flags.Int64(cfg.GetPrioritySpanTemplate(), 0, "Priority of jaeger-span index template (ESv8 only)")
+	flags.Int64(cfg.GetPriorityServiceTemplate(), 0, "Priority of jaeger-service index template (ESv8 only)")
+	flags.Int64(cfg.GetPriorityDependenciesTemplate(), 0, "Priority of jaeger-dependencies index template (ESv8 only)")
+	flags.Int64(cfg.GetPrioritySamplingTemplate(), 0, "Priority of jaeger-sampling index template (ESv8 only)")
 }
 
 // InitFromViper initializes config from viper.Viper.
 func (c *Config) InitFromViper(v *viper.Viper) {
-	c.Indices.Spans.TemplateOptions.NumShards = v.GetInt(spanShards)
-	c.Indices.Spans.TemplateOptions.NumReplicas = v.GetInt(spanReplicas)
-	c.Indices.Services.TemplateOptions.NumShards = v.GetInt(serviceShards)
-	c.Indices.Services.TemplateOptions.NumReplicas = v.GetInt(serviceReplicas)
-	c.Indices.Dependencies.TemplateOptions.NumShards = v.GetInt(dependenciesShards)
-	c.Indices.Dependencies.TemplateOptions.NumReplicas = v.GetInt(dependenciesReplicas)
-	c.Indices.Sampling.TemplateOptions.NumShards = v.GetInt(samplingShards)
-	c.Indices.Sampling.TemplateOptions.NumReplicas = v.GetInt(samplingReplicas)
-	c.Indices.Spans.TemplateOptions.Priority = v.GetInt(prioritySpanTemplate)
-	c.Indices.Services.TemplateOptions.Priority = v.GetInt(priorityServiceTemplate)
-	c.Indices.Dependencies.TemplateOptions.Priority = v.GetInt(priorityDependenciesTemplate)
-	c.Indices.Sampling.TemplateOptions.Priority = v.GetInt(prioritySamplingTemplate)
+	c.Indices.Spans.TemplateNumShards = v.GetInt(cfg.GetNumShardSpanFlag())
+	c.Indices.Spans.TemplateNumReplicas = v.GetInt(cfg.GetNumReplicasSpanFlag())
+	c.Indices.Services.TemplateNumShards = v.GetInt(cfg.GetNumShardServiceFlag())
+	c.Indices.Services.TemplateNumReplicas = v.GetInt(cfg.GetNumReplicasServiceFlag())
+	c.Indices.Dependencies.TemplateNumShards = v.GetInt(cfg.GetNumShardDependenciesFlag())
+	c.Indices.Dependencies.TemplateNumReplicas = v.GetInt(cfg.GetNumReplicasDependenciesFlag())
+	c.Indices.Sampling.TemplateNumShards = v.GetInt(cfg.GetNumShardSamplingFlag())
+	c.Indices.Sampling.TemplateNumReplicas = v.GetInt(cfg.GetNumShardSamplingFlag())
+	c.Indices.Spans.TemplatePriority = v.GetInt(cfg.GetPrioritySpanTemplate())
+	c.Indices.Services.TemplatePriority = v.GetInt(cfg.GetPriorityServiceTemplate())
+	c.Indices.Dependencies.TemplatePriority = v.GetInt(cfg.GetPriorityDependenciesTemplate())
+	c.Indices.Sampling.TemplatePriority = v.GetInt(cfg.GetPrioritySamplingTemplate())
 }

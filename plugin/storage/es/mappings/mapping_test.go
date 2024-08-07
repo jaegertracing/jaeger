@@ -18,7 +18,6 @@ import (
 	"embed"
 	"errors"
 	"fmt"
-	"github.com/jaegertracing/jaeger/pkg/es/config"
 	"io"
 	"os"
 	"testing"
@@ -29,6 +28,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger/pkg/es"
+	"github.com/jaegertracing/jaeger/pkg/es/config"
 	"github.com/jaegertracing/jaeger/pkg/es/mocks"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 )
@@ -383,7 +383,6 @@ func TestMappingBuilderGetSpanServiceMappings(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-
 			mappingBuilder := MappingBuilder{
 				TemplateBuilder: test.mockNewTextTemplateBuilder(),
 				Indices: config.Indices{

@@ -15,8 +15,9 @@
 package app
 
 import (
-	"github.com/jaegertracing/jaeger/pkg/es/config"
 	"github.com/spf13/cobra"
+
+	"github.com/jaegertracing/jaeger/pkg/es/config"
 )
 
 // Options represent configurable parameters for jaeger-esmapping-generator
@@ -30,19 +31,11 @@ type Options struct {
 }
 
 const (
-	mappingFlag              = "mapping"
-	esVersionFlag            = "es-version"
-	spanShardsFlag           = "shards-span"
-	serviceShardsFlag        = "shards-service"
-	dependenciesShardsFlag   = "shards-dependencies"
-	samplingShardsFlag       = "shards-sampling"
-	spanReplicasFlag         = "replicas-span"
-	serviceReplicasFlag      = "replicas-service"
-	dependenciesReplicasFlag = "replicas-dependencies"
-	samplingReplicasFlag     = "replicas-sampling"
-	indexPrefixFlag          = "index-prefix"
-	useILMFlag               = "use-ilm"
-	ilmPolicyNameFlag        = "ilm-policy-name"
+	mappingFlag       = "mapping"
+	esVersionFlag     = "es-version"
+	indexPrefixFlag   = "index-prefix"
+	useILMFlag        = "use-ilm"
+	ilmPolicyNameFlag = "ilm-policy-name"
 )
 
 // AddFlags adds flags for esmapping-generator main program
@@ -58,43 +51,43 @@ func (o *Options) AddFlags(command *cobra.Command) {
 		7,
 		"The major Elasticsearch version")
 	command.Flags().IntVar(
-		&o.Indices.Spans.TemplateOptions.NumShards,
-		spanShardsFlag,
+		&o.Indices.Spans.TemplateNumShards,
+		config.GetNumShardSpanFlag(),
 		5,
 		"The number of shards per span index in Elasticsearch")
 	command.Flags().IntVar(
-		&o.Indices.Spans.TemplateOptions.NumReplicas,
-		spanReplicasFlag,
+		&o.Indices.Spans.TemplateNumReplicas,
+		config.GetNumReplicasSpanFlag(),
 		1,
 		"The number of replicas per index in Elasticsearch")
 	command.Flags().IntVar(
-		&o.Indices.Services.TemplateOptions.NumShards,
-		serviceShardsFlag,
+		&o.Indices.Services.TemplateNumShards,
+		config.GetNumShardServiceFlag(),
 		5,
 		"The number of shards per service index in Elasticsearch")
 	command.Flags().IntVar(
-		&o.Indices.Services.TemplateOptions.NumReplicas,
-		serviceReplicasFlag,
+		&o.Indices.Services.TemplateNumReplicas,
+		config.GetNumReplicasServiceFlag(),
 		1,
 		"The number of replicas per service index in Elasticsearch")
 	command.Flags().IntVar(
-		&o.Indices.Dependencies.TemplateOptions.NumShards,
-		dependenciesShardsFlag,
+		&o.Indices.Dependencies.TemplateNumShards,
+		config.GetNumShardDependenciesFlag(),
 		5,
 		"The number of shards per dependencies index in Elasticsearch")
 	command.Flags().IntVar(
-		&o.Indices.Dependencies.TemplateOptions.NumReplicas,
-		dependenciesReplicasFlag,
+		&o.Indices.Dependencies.TemplateNumReplicas,
+		config.GetNumReplicasDependenciesFlag(),
 		1,
 		"The number of replicas per dependencies index in Elasticsearch")
 	command.Flags().IntVar(
-		&o.Indices.Sampling.TemplateOptions.NumShards,
-		samplingShardsFlag,
+		&o.Indices.Sampling.TemplateNumShards,
+		config.GetNumShardSamplingFlag(),
 		5,
 		"The number of shards per sampling index in Elasticsearch")
 	command.Flags().IntVar(
-		&o.Indices.Sampling.TemplateOptions.NumReplicas,
-		samplingReplicasFlag,
+		&o.Indices.Sampling.TemplateNumReplicas,
+		config.GetNumReplicasSamplingFlag(),
 		1,
 		"The number of replicas per sampling index in Elasticsearch")
 	command.Flags().StringVar(
