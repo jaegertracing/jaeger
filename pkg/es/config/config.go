@@ -54,9 +54,9 @@ type TemplateOptions struct {
 type IndexOptions struct {
 	DateLayout          string `mapstructure:"date_layout"`
 	RolloverFrequency   string `mapstructure:"rollover_frequency"` // "hour" or "day"
-	TemplatePriority    int    `mapstructure:"template_priority"`
-	TemplateNumShards   int    `mapstructure:"template_num_shards"`
-	TemplateNumReplicas int    `mapstructure:"template_num_replicas"`
+	TemplatePriority    int64  `mapstructure:"template_priority"`
+	TemplateNumShards   int64  `mapstructure:"template_num_shards"`
+	TemplateNumReplicas int64  `mapstructure:"template_num_replicas"`
 }
 
 // Indices describes different configuration options for each index type
@@ -80,8 +80,6 @@ type Configuration struct {
 	SnifferTLSEnabled        bool           `mapstructure:"sniffer_tls_enabled"`
 	MaxDocCount              int            `mapstructure:"-"` // Defines maximum number of results to fetch from storage per query
 	MaxSpanAge               time.Duration  `mapstructure:"-"` // configures the maximum lookback on span reads
-	NumShards                int64          `mapstructure:"num_shards"`
-	NumReplicas              int64          `mapstructure:"num_replicas"`
 	Timeout                  time.Duration  `mapstructure:"-"`
 	BulkSize                 int            `mapstructure:"-"`
 	BulkWorkers              int            `mapstructure:"-"`

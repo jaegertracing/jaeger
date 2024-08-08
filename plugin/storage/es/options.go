@@ -29,55 +29,47 @@ import (
 )
 
 const (
-	suffix                             = "."
-	username                           = "username"
-	password                           = "password"
-	sniffer                            = "sniffer"
-	snifferTLSEnabled                  = "sniffer-tls-enabled"
-	tokenPath                          = "token-file"
-	passwordPath                       = "password-file"
-	serverURLs                         = "server-urls"
-	remoteReadClusters                 = "remote-read-clusters"
-	maxSpanAge                         = "max-span-age"
-	adaptiveSamplingLookback           = "adaptive-sampling.lookback"
-	numShards                          = "num-shards"
-	numReplicas                        = "num-replicas"
-	prioritySpanTemplate               = "prioirity-span-template"
-	priorityServiceTemplate            = "prioirity-service-template"
-	priorityDependenciesTemplate       = "prioirity-dependencies-template"
-	bulkSize                           = "bulk.size"
-	bulkWorkers                        = "bulk.workers"
-	bulkActions                        = "bulk.actions"
-	bulkFlushInterval                  = "bulk.flush-interval"
-	timeout                            = "timeout"
-	indexPrefix                        = "index-prefix"
-	indexDateSeparator                 = "index-date-separator"
-	indexRolloverFrequencySpans        = "index-rollover-frequency-spans"
-	indexRolloverFrequencyServices     = "index-rollover-frequency-services"
-	indexRolloverFrequencySampling     = "index-rollover-frequency-adaptive-sampling"
-	indexRolloverFrequencyDependencies = "index-rollover-frequency-adaptive-dependencies"
-	serviceCacheTTL                    = "service-cache-ttl"
-	tagsAsFields                       = "tags-as-fields"
-	tagsAsFieldsAll                    = tagsAsFields + ".all"
-	tagsAsFieldsInclude                = tagsAsFields + ".include"
-	tagsFile                           = tagsAsFields + ".config-file"
-	tagDeDotChar                       = tagsAsFields + ".dot-replacement"
-	readAlias                          = "use-aliases"
-	useILM                             = "use-ilm"
-	createIndexTemplate                = "create-index-templates"
-	enabled                            = "enabled"
-	version                            = "version"
-	maxDocCount                        = "max-doc-count"
-	logLevel                           = "log-level"
-	sendGetBodyAs                      = "send-get-body-as"
+	suffix                         = "."
+	suffixUsername                 = ".username"
+	suffixPassword                 = ".password"
+	suffixSniffer                  = ".sniffer"
+	suffixSnifferTLSEnabled        = ".sniffer-tls-enabled"
+	suffixTokenPath                = ".token-file"
+	suffixPasswordPath             = ".password-file"
+	suffixServerURLs               = ".server-urls"
+	suffixRemoteReadClusters       = ".remote-read-clusters"
+	suffixMaxSpanAge               = ".max-span-age"
+	suffixAdaptiveSamplingLookback = ".adaptive-sampling.lookback"
+	suffixNumShards                = ".num-shards"
+	suffixNumReplicas              = ".num-replicas"
+	suffixBulkSize                 = ".bulk.size"
+	suffixBulkWorkers              = ".bulk.workers"
+	suffixBulkActions              = ".bulk.actions"
+	suffixBulkFlushInterval        = ".bulk.flush-interval"
+	suffixTimeout                  = ".timeout"
+	suffixIndexPrefix              = ".index-prefix"
+	suffixIndexDateSeparator       = ".index-date-separator"
+	suffixServiceCacheTTL          = ".service-cache-ttl"
+	suffixTagsAsFields             = ".tags-as-fields"
+	suffixTagsAsFieldsAll          = suffixTagsAsFields + ".all"
+	suffixTagsAsFieldsInclude      = suffixTagsAsFields + ".include"
+	suffixTagsFile                 = suffixTagsAsFields + ".config-file"
+	suffixTagDeDotChar             = suffixTagsAsFields + ".dot-replacement"
+	suffixReadAlias                = ".use-aliases"
+	suffixUseILM                   = ".use-ilm"
+	suffixCreateIndexTemplate      = ".create-index-templates"
+	suffixEnabled                  = ".enabled"
+	suffixVersion                  = ".version"
+	suffixMaxDocCount              = ".max-doc-count"
+	suffixLogLevel                 = ".log-level"
+	suffixSendGetBodyAs            = ".send-get-body-as"
 	// default number of documents to return from a query (elasticsearch allowed limit)
 	// see search.max_buckets and index.max_result_window
 	defaultMaxDocCount        = 10_000
 	defaultServerURL          = "http://127.0.0.1:9200"
 	defaultRemoteReadClusters = ""
 	// default separator for Elasticsearch index date layout.
-	defaultIndexDateSeparator = "-"
-
+	defaultIndexDateSeparator     = "-"
 	defaultIndexRolloverFrequency = "day"
 	defaultSendGetBodyAs          = ""
 )
@@ -144,216 +136,207 @@ func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
 	}
 }
 
-func flagWithSuffix(namespace, flag string) string {
-	if namespace != "" {
-		return namespace + suffix + flag
-	} else {
-		return suffix + flag
-	}
-}
-
 func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 	flagSet.String(
-		flagWithSuffix(nsConfig.namespace, username),
+		nsConfig.namespace+suffixUsername,
 		nsConfig.Username,
 		"The username required by Elasticsearch. The basic authentication also loads CA if it is specified.")
 	flagSet.String(
-		flagWithSuffix(nsConfig.namespace, password),
+		nsConfig.namespace+suffixPassword,
 		nsConfig.Password,
 		"The password required by Elasticsearch")
 	flagSet.String(
-		flagWithSuffix(nsConfig.namespace, tokenPath),
+		nsConfig.namespace+suffixTokenPath,
 		nsConfig.TokenFilePath,
 		"Path to a file containing bearer token. This flag also loads CA if it is specified.")
 	flagSet.String(
-		flagWithSuffix(nsConfig.namespace, passwordPath),
+		nsConfig.namespace+suffixPasswordPath,
 		nsConfig.PasswordFilePath,
 		"Path to a file containing password. This file is watched for changes.")
 	flagSet.Bool(
-		flagWithSuffix(nsConfig.namespace, sniffer),
+		nsConfig.namespace+suffixSniffer,
 		nsConfig.Sniffer,
 		"The sniffer config for Elasticsearch; client uses sniffing process to find all nodes automatically, disable if not required")
 	flagSet.String(
-		flagWithSuffix(nsConfig.namespace, serverURLs),
+		nsConfig.namespace+suffixServerURLs,
 		defaultServerURL,
 		"The comma-separated list of Elasticsearch servers, must be full url i.e. http://localhost:9200")
 	flagSet.String(
-		flagWithSuffix(nsConfig.namespace, remoteReadClusters),
+		nsConfig.namespace+suffixRemoteReadClusters,
 		defaultRemoteReadClusters,
 		"Comma-separated list of Elasticsearch remote cluster names for cross-cluster querying."+
 			"See Elasticsearch remote clusters and cross-cluster query api.")
 	flagSet.Duration(
-		flagWithSuffix(nsConfig.namespace, timeout),
+		nsConfig.namespace+suffixTimeout,
 		nsConfig.Timeout,
 		"Timeout used for queries. A Timeout of zero means no timeout")
-	// TODO deprecated flag to be removed
-	flagSet.Int(
-		flagWithSuffix(nsConfig.namespace, numShards),
-		defaultIndexOptions.TemplateNumShards,
-		"(deprecated, will be removed in the future, use .num-shards-spans or .num-shards-services or .num-shards-sampling or .num-shards-dependencies instead) The number of shards per index in Elasticsearch")
-	flagSet.Int(
-		flagWithSuffix(nsConfig.namespace, numReplicas),
-		defaultIndexOptions.TemplateNumReplicas,
-		"(deprecated, will be removed in the future, use .num-replicas-spans or .num-replicas-services or .num-replicas-sampling or .num-replicas-dependencies instead) The number of replicas per index in Elasticsearch")
-	flagSet.Int(
-		flagWithSuffix(nsConfig.namespace, config.GetNumShardSpanFlag()),
-		nsConfig.Indices.Spans.TemplateNumShards,
-		"The number of shards per span index in Elasticsearch")
-	flagSet.Int(
-		flagWithSuffix(nsConfig.namespace, config.GetNumShardServiceFlag()),
-		nsConfig.Indices.Services.TemplateNumShards,
-		"The number of shards per service index in Elasticsearch")
-	flagSet.Int(
-		flagWithSuffix(nsConfig.namespace, config.GetNumShardSamplingFlag()),
-		nsConfig.Indices.Sampling.TemplateNumShards,
-		"The number of shards per sampling index in Elasticsearch")
-	flagSet.Int(
-		flagWithSuffix(nsConfig.namespace, config.GetNumShardDependenciesFlag()),
-		nsConfig.Indices.Dependencies.TemplateNumShards,
-		"The number of shards per dependencies index in Elasticsearch")
 	flagSet.Duration(
-		flagWithSuffix(nsConfig.namespace, serviceCacheTTL),
+		nsConfig.namespace+suffixServiceCacheTTL,
 		nsConfig.ServiceCacheTTL,
 		"The TTL for the cache of known service names",
 	)
-	flagSet.Int(
-		flagWithSuffix(nsConfig.namespace, config.GetNumReplicasSpanFlag()),
+	flagSet.Int64(
+		nsConfig.namespace+suffixNumShards,
+		defaultIndexOptions.TemplateNumShards,
+		"(deprecated, will be replaced with num-shards-span,num-shards-service,num-shards-sampling,num-shards-dependencies, if .num-shards set, it will be used as global settings for span,service,sampling,dependencies index) The number of shards per index in Elasticsearch")
+	flagSet.Int64(
+		nsConfig.namespace+suffixNumReplicas,
+		defaultIndexOptions.TemplateNumReplicas,
+		"(deprecated, will be replaced with num-replicas-span,num-replicas-service,num-replicas-sampling,num-replicas-dependencies, if .num-replicas set, it will be used as global settings for span,service,sampling,dependencies index) The number of replicas per index in Elasticsearch")
+	flagSet.Int64(
+		nsConfig.namespace+suffix+config.NumShardSpanFlag(),
+		nsConfig.Indices.Spans.TemplateNumShards,
+		"The number of shards per span index in Elasticsearch")
+	flagSet.Int64(
+		nsConfig.namespace+suffix+config.NumReplicaSpanFlag(),
 		nsConfig.Indices.Spans.TemplateNumReplicas,
 		"The number of replicas per span index in Elasticsearch")
-	flagSet.Int(
-		flagWithSuffix(nsConfig.namespace, config.GetNumReplicasServiceFlag()),
+	flagSet.Int64(
+		nsConfig.namespace+suffix+config.NumShardServiceFlag(),
+		nsConfig.Indices.Services.TemplateNumShards,
+		"The number of shards per service index in Elasticsearch")
+	flagSet.Int64(
+		nsConfig.namespace+suffix+config.NumReplicaServiceFlag(),
 		nsConfig.Indices.Services.TemplateNumReplicas,
 		"The number of replicas per service index in Elasticsearch")
-	flagSet.Int(
-		flagWithSuffix(nsConfig.namespace, config.GetNumReplicasSamplingFlag()),
+	flagSet.Int64(
+		nsConfig.namespace+suffix+config.NumShardSamplingFlag(),
+		nsConfig.Indices.Sampling.TemplateNumShards,
+		"The number of shards per sampling index in Elasticsearch")
+	flagSet.Int64(
+		nsConfig.namespace+suffix+config.NumReplicaSamplingFlag(),
 		nsConfig.Indices.Sampling.TemplateNumReplicas,
 		"The number of replicas per sampling index in Elasticsearch")
-	flagSet.Int(
-		flagWithSuffix(nsConfig.namespace, config.GetNumReplicasDependenciesFlag()),
+	flagSet.Int64(
+		nsConfig.namespace+suffix+config.NumShardDependenciesFlag(),
+		nsConfig.Indices.Dependencies.TemplateNumShards,
+		"The number of shards per dependencies index in Elasticsearch")
+	flagSet.Int64(
+		nsConfig.namespace+suffix+config.NumReplicaDependenciesFlag(),
 		nsConfig.Indices.Dependencies.TemplateNumReplicas,
 		"The number of replicas per dependencies index in Elasticsearch")
-	flagSet.Int(
-		flagWithSuffix(nsConfig.namespace, prioritySpanTemplate),
+	flagSet.Int64(
+		nsConfig.namespace+suffix+config.PrioritySpanTemplateFlag(),
 		nsConfig.Indices.Spans.TemplatePriority,
 		"Priority of jaeger-span index template (ESv8 only)")
-	flagSet.Int(
-		flagWithSuffix(nsConfig.namespace, priorityServiceTemplate),
+	flagSet.Int64(
+		nsConfig.namespace+suffix+config.PriorityServiceTemplateFlag(),
 		nsConfig.Indices.Services.TemplatePriority,
 		"Priority of jaeger-service index template (ESv8 only)")
-	flagSet.Int(
-		flagWithSuffix(nsConfig.namespace, priorityDependenciesTemplate),
+	flagSet.Int64(
+		nsConfig.namespace+suffix+config.PriorityDependenciesTemplateFlag(),
 		nsConfig.Indices.Dependencies.TemplatePriority,
 		"Priority of jaeger-dependecies index template (ESv8 only)")
 	flagSet.Int(
-		flagWithSuffix(nsConfig.namespace, bulkSize),
+		nsConfig.namespace+suffixBulkSize,
 		nsConfig.BulkSize,
 		"The number of bytes that the bulk requests can take up before the bulk processor decides to commit")
 	flagSet.Int(
-		flagWithSuffix(nsConfig.namespace, bulkWorkers),
+		nsConfig.namespace+suffixBulkWorkers,
 		nsConfig.BulkWorkers,
 		"The number of workers that are able to receive bulk requests and eventually commit them to Elasticsearch")
 	flagSet.Int(
-		flagWithSuffix(nsConfig.namespace, bulkActions),
+		nsConfig.namespace+suffixBulkActions,
 		nsConfig.BulkActions,
 		"The number of requests that can be enqueued before the bulk processor decides to commit")
 	flagSet.Duration(
-		flagWithSuffix(nsConfig.namespace, bulkFlushInterval),
+		nsConfig.namespace+suffixBulkFlushInterval,
 		nsConfig.BulkFlushInterval,
 		"A time.Duration after which bulk requests are committed, regardless of other thresholds. Set to zero to disable. By default, this is disabled.")
 	flagSet.String(
-		flagWithSuffix(nsConfig.namespace, indexPrefix),
+		nsConfig.namespace+suffixIndexPrefix,
 		nsConfig.IndexPrefix,
 		"Optional prefix of Jaeger indices. For example \"production\" creates \"production-jaeger-*\".")
 	flagSet.String(
-		flagWithSuffix(nsConfig.namespace, indexDateSeparator),
+		nsConfig.namespace+suffixIndexDateSeparator,
 		defaultIndexDateSeparator,
 		"Optional date separator of Jaeger indices. For example \".\" creates \"jaeger-span-2020.11.20\".")
 	flagSet.String(
-		flagWithSuffix(nsConfig.namespace, indexRolloverFrequencySpans),
-		defaultIndexRolloverFrequency,
+		nsConfig.namespace+suffix+config.IndexRolloverFrequencySpanFlag(),
+		nsConfig.Indices.Spans.RolloverFrequency,
 		"Rotates jaeger-span indices over the given period. For example \"day\" creates \"jaeger-span-yyyy-MM-dd\" every day after UTC 12AM. Valid options: [hour, day]. "+
 			"This does not delete old indices. For details on complete index management solutions supported by Jaeger, refer to: https://www.jaegertracing.io/docs/deployment/#elasticsearch-rollover")
 	flagSet.String(
-		flagWithSuffix(nsConfig.namespace, indexRolloverFrequencyServices),
-		defaultIndexRolloverFrequency,
+		nsConfig.namespace+suffix+config.IndexRolloverFrequencyServiceFlag(),
+		nsConfig.Indices.Services.RolloverFrequency,
 		"Rotates jaeger-service indices over the given period. For example \"day\" creates \"jaeger-service-yyyy-MM-dd\" every day after UTC 12AM. Valid options: [hour, day]. "+
 			"This does not delete old indices. For details on complete index management solutions supported by Jaeger, refer to: https://www.jaegertracing.io/docs/deployment/#elasticsearch-rollover")
 	flagSet.String(
-		flagWithSuffix(nsConfig.namespace, indexRolloverFrequencySampling),
-		defaultIndexRolloverFrequency,
+		nsConfig.namespace+suffix+config.IndexRolloverFrequencySamplingFlag(),
+		nsConfig.Indices.Sampling.RolloverFrequency,
 		"Rotates jaeger-sampling indices over the given period. For example \"day\" creates \"jaeger-sampling-yyyy-MM-dd\" every day after UTC 12AM. Valid options: [hour, day]. "+
 			"This does not delete old indices. For details on complete index management solutions supported by Jaeger, refer to: https://www.jaegertracing.io/docs/deployment/#elasticsearch-rollover")
 	flagSet.String(
-		flagWithSuffix(nsConfig.namespace, indexRolloverFrequencyDependencies),
-		defaultIndexRolloverFrequency,
+		nsConfig.namespace+suffix+config.IndexRolloverFrequencyDependenciesFlag(),
+		nsConfig.Indices.Dependencies.RolloverFrequency,
 		"Rotates jaeger-dependencies indices over the given period. For example \"day\" creates \"jaeger-dependencies-yyyy-MM-dd\" every day after UTC 12AM. Valid options: [hour, day]. "+
 			"This does not delete old indices. For details on complete index management solutions supported by Jaeger, refer to: https://www.jaegertracing.io/docs/deployment/#elasticsearch-rollover")
 	flagSet.Bool(
-		flagWithSuffix(nsConfig.namespace, tagsAsFieldsAll),
+		nsConfig.namespace+suffixTagsAsFieldsAll,
 		nsConfig.Tags.AllAsFields,
-		"(experimental) Store all span and process tags as object fields. If true "+tagsFile+" and "+tagsAsFieldsInclude+" is ignored. Binary tags are always stored as nested objects.")
+		"(experimental) Store all span and process tags as object fields. If true "+suffixTagsFile+" and "+suffixTagsAsFieldsInclude+" is ignored. Binary tags are always stored as nested objects.")
 	flagSet.String(
-		flagWithSuffix(nsConfig.namespace, tagsAsFieldsInclude),
+		nsConfig.namespace+suffixTagsAsFieldsInclude,
 		nsConfig.Tags.Include,
-		"(experimental) Comma delimited list of tag keys which will be stored as object fields. Merged with the contents of "+tagsFile)
+		"(experimental) Comma delimited list of tag keys which will be stored as object fields. Merged with the contents of "+suffixTagsFile)
 	flagSet.String(
-		flagWithSuffix(nsConfig.namespace, tagsFile),
+		nsConfig.namespace+suffixTagsFile,
 		nsConfig.Tags.File,
-		"(experimental) Optional path to a file containing tag keys which will be stored as object fields. Each key should be on a separate line.  Merged with "+tagsAsFieldsInclude)
+		"(experimental) Optional path to a file containing tag keys which will be stored as object fields. Each key should be on a separate line.  Merged with "+suffixTagsAsFieldsInclude)
 	flagSet.String(
-		flagWithSuffix(nsConfig.namespace, tagDeDotChar),
+		nsConfig.namespace+suffixTagDeDotChar,
 		nsConfig.Tags.DotReplacement,
 		"(experimental) The character used to replace dots (\".\") in tag keys stored as object fields.")
 	flagSet.Bool(
-		flagWithSuffix(nsConfig.namespace, readAlias),
+		nsConfig.namespace+suffixReadAlias,
 		nsConfig.UseReadWriteAliases,
 		"Use read and write aliases for indices. Use this option with Elasticsearch rollover "+
 			"API. It requires an external component to create aliases before startup and then performing its management. "+
-			"Note that es"+maxSpanAge+" will influence trace search window start times.")
+			"Note that es"+suffixMaxSpanAge+" will influence trace search window start times.")
 	flagSet.Bool(
-		flagWithSuffix(nsConfig.namespace, useILM),
+		nsConfig.namespace+suffixUseILM,
 		nsConfig.UseILM,
-		"(experimental) Option to enable ILM for jaeger span & service indices. Use this option with  "+nsConfig.namespace+readAlias+". "+
+		"(experimental) Option to enable ILM for jaeger span & service indices. Use this option with  "+nsConfig.namespace+suffixReadAlias+". "+
 			"It requires an external component to create aliases before startup and then performing its management. "+
 			"ILM policy must be manually created in ES before startup. Supported only for elasticsearch version 7+.")
 	flagSet.Bool(
-		flagWithSuffix(nsConfig.namespace, createIndexTemplate),
+		nsConfig.namespace+suffixCreateIndexTemplate,
 		nsConfig.CreateIndexTemplates,
 		"Create index templates at application startup. Set to false when templates are installed manually.")
 	flagSet.Uint(
-		flagWithSuffix(nsConfig.namespace, version),
+		nsConfig.namespace+suffixVersion,
 		0,
 		"The major Elasticsearch version. If not specified, the value will be auto-detected from Elasticsearch.")
 	flagSet.Bool(
-		flagWithSuffix(nsConfig.namespace, snifferTLSEnabled),
+		nsConfig.namespace+suffixSnifferTLSEnabled,
 		nsConfig.SnifferTLSEnabled,
 		"Option to enable TLS when sniffing an Elasticsearch Cluster ; client uses sniffing process to find all nodes automatically, disabled by default")
 	flagSet.Int(
-		flagWithSuffix(nsConfig.namespace, maxDocCount),
+		nsConfig.namespace+suffixMaxDocCount,
 		nsConfig.MaxDocCount,
 		"The maximum document count to return from an Elasticsearch query. This will also apply to aggregations.")
 	flagSet.String(
-		flagWithSuffix(nsConfig.namespace, logLevel),
+		nsConfig.namespace+suffixLogLevel,
 		nsConfig.LogLevel,
 		"The Elasticsearch client log-level. Valid levels: [debug, info, error]")
 	flagSet.String(
-		flagWithSuffix(nsConfig.namespace, sendGetBodyAs),
+		nsConfig.namespace+suffixSendGetBodyAs,
 		nsConfig.SendGetBodyAs,
 		"HTTP verb for requests that contain a body [GET, POST].")
 	flagSet.Duration(
-		flagWithSuffix(nsConfig.namespace, adaptiveSamplingLookback),
+		nsConfig.namespace+suffixAdaptiveSamplingLookback,
 		nsConfig.AdaptiveSamplingLookback,
 		"How far back to look for the latest adaptive sampling probabilities")
 	if nsConfig.namespace == archiveNamespace {
 		flagSet.Bool(
-			flagWithSuffix(nsConfig.namespace, enabled),
+			nsConfig.namespace+suffixEnabled,
 			nsConfig.Enabled,
 			"Enable extra storage")
 	} else {
 		// MaxSpanAge is only relevant when searching for unarchived traces.
 		// Archived traces are searched with no look-back limit.
 		flagSet.Duration(
-			flagWithSuffix(nsConfig.namespace, maxSpanAge),
+			nsConfig.namespace+suffixMaxSpanAge,
 			nsConfig.MaxSpanAge,
 			"The maximum lookback for spans in Elasticsearch")
 	}
@@ -369,74 +352,80 @@ func (opt *Options) InitFromViper(v *viper.Viper) {
 }
 
 func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
-	overrideIndexShardsNums := func(deprecatedNum, newNum int) int {
+	overrideIndexShardsNums := func(deprecatedNum, newNum int) int64 {
 		if deprecatedNum > 0 {
-			return deprecatedNum
+			return int64(deprecatedNum)
 		} else {
-			return newNum
+			return int64(newNum)
 		}
 	}
-	cfg.Username = v.GetString(flagWithSuffix(cfg.namespace, username))
-	cfg.Password = v.GetString(flagWithSuffix(cfg.namespace, password))
-	cfg.TokenFilePath = v.GetString(flagWithSuffix(cfg.namespace, tokenPath))
-	cfg.PasswordFilePath = v.GetString(flagWithSuffix(cfg.namespace, passwordPath))
-	cfg.Sniffer = v.GetBool(flagWithSuffix(cfg.namespace, sniffer))
-	cfg.SnifferTLSEnabled = v.GetBool(flagWithSuffix(cfg.namespace, snifferTLSEnabled))
-	cfg.Servers = strings.Split(stripWhiteSpace(v.GetString(flagWithSuffix(cfg.namespace, serverURLs))), ",")
-	cfg.MaxSpanAge = v.GetDuration(flagWithSuffix(cfg.namespace, maxSpanAge))
-	cfg.AdaptiveSamplingLookback = v.GetDuration(flagWithSuffix(cfg.namespace, adaptiveSamplingLookback))
 
-	deprecatedNumShards := v.GetInt(flagWithSuffix(cfg.namespace, numShards))
-	deprecatedReplicaShards := v.GetInt(flagWithSuffix(cfg.namespace, numReplicas))
+	cfg.Username = v.GetString(cfg.namespace + suffixUsername)
+	cfg.Password = v.GetString(cfg.namespace + suffixPassword)
+	cfg.TokenFilePath = v.GetString(cfg.namespace + suffixTokenPath)
+	cfg.PasswordFilePath = v.GetString(cfg.namespace + suffixPasswordPath)
+	cfg.Sniffer = v.GetBool(cfg.namespace + suffixSniffer)
+	cfg.SnifferTLSEnabled = v.GetBool(cfg.namespace + suffixSnifferTLSEnabled)
+	cfg.Servers = strings.Split(stripWhiteSpace(v.GetString(cfg.namespace+suffixServerURLs)), ",")
+	cfg.MaxSpanAge = v.GetDuration(cfg.namespace + suffixMaxSpanAge)
+	cfg.AdaptiveSamplingLookback = v.GetDuration(cfg.namespace + suffixAdaptiveSamplingLookback)
 
-	cfg.Indices.Spans.TemplateNumShards = overrideIndexShardsNums(deprecatedNumShards, v.GetInt(flagWithSuffix(cfg.namespace, config.GetNumShardSpanFlag())))
-	cfg.Indices.Services.TemplateNumShards = overrideIndexShardsNums(deprecatedNumShards, v.GetInt(flagWithSuffix(cfg.namespace, config.GetNumShardServiceFlag())))
-	cfg.Indices.Sampling.TemplateNumShards = overrideIndexShardsNums(deprecatedNumShards, v.GetInt(flagWithSuffix(cfg.namespace, config.GetNumShardSamplingFlag())))
-	cfg.Indices.Dependencies.TemplateNumShards = overrideIndexShardsNums(deprecatedNumShards, v.GetInt(flagWithSuffix(cfg.namespace, config.GetNumShardDependenciesFlag())))
+	deprecatedNumShards := v.GetInt(cfg.namespace + suffixNumShards)
+	deprecatedReplicaShards := v.GetInt(cfg.namespace + suffixNumReplicas)
 
-	cfg.Indices.Spans.TemplateNumReplicas = overrideIndexShardsNums(deprecatedReplicaShards, v.GetInt(flagWithSuffix(cfg.namespace, config.GetNumReplicasSpanFlag())))
-	cfg.Indices.Services.TemplateNumReplicas = overrideIndexShardsNums(deprecatedReplicaShards, v.GetInt(flagWithSuffix(cfg.namespace, config.GetNumReplicasServiceFlag())))
-	cfg.Indices.Sampling.TemplateNumReplicas = overrideIndexShardsNums(deprecatedReplicaShards, v.GetInt(flagWithSuffix(cfg.namespace, config.GetNumReplicasSamplingFlag())))
-	cfg.Indices.Dependencies.TemplateNumReplicas = overrideIndexShardsNums(deprecatedReplicaShards, v.GetInt(flagWithSuffix(cfg.namespace, config.GetNumReplicasDependenciesFlag())))
+	if deprecatedReplicaShards > 0 || deprecatedNumShards > 0 {
+		log.Printf("using deprecated %s or %s", suffixNumShards, suffixNumReplicas)
+	}
+	cfg.Indices.Spans.TemplateNumShards = overrideIndexShardsNums(deprecatedNumShards, v.GetInt(cfg.namespace+suffix+config.NumShardSpanFlag()))
+	cfg.Indices.Services.TemplateNumShards = overrideIndexShardsNums(deprecatedNumShards, v.GetInt(cfg.namespace+suffix+config.NumShardServiceFlag()))
+	cfg.Indices.Sampling.TemplateNumShards = overrideIndexShardsNums(deprecatedNumShards, v.GetInt(cfg.namespace+suffix+config.NumShardSamplingFlag()))
+	cfg.Indices.Dependencies.TemplateNumShards = overrideIndexShardsNums(deprecatedNumShards, v.GetInt(cfg.namespace+suffix+config.NumShardDependenciesFlag()))
 
-	cfg.Indices.Spans.TemplatePriority = v.GetInt(flagWithSuffix(cfg.namespace, prioritySpanTemplate))
-	cfg.Indices.Services.TemplatePriority = v.GetInt(flagWithSuffix(cfg.namespace, priorityServiceTemplate))
-	cfg.Indices.Dependencies.TemplatePriority = v.GetInt(flagWithSuffix(cfg.namespace, priorityDependenciesTemplate))
+	cfg.Indices.Spans.TemplateNumReplicas = overrideIndexShardsNums(deprecatedReplicaShards, v.GetInt(cfg.namespace+suffix+config.NumReplicaSpanFlag()))
+	cfg.Indices.Services.TemplateNumReplicas = overrideIndexShardsNums(deprecatedReplicaShards, v.GetInt(cfg.namespace+suffix+config.NumReplicaServiceFlag()))
+	cfg.Indices.Sampling.TemplateNumReplicas = overrideIndexShardsNums(deprecatedReplicaShards, v.GetInt(cfg.namespace+suffix+config.NumReplicaSamplingFlag()))
+	cfg.Indices.Dependencies.TemplateNumReplicas = overrideIndexShardsNums(deprecatedReplicaShards, v.GetInt(cfg.namespace+suffix+config.NumReplicaDependenciesFlag()))
 
-	cfg.BulkSize = v.GetInt(flagWithSuffix(cfg.namespace, bulkSize))
-	cfg.BulkWorkers = v.GetInt(flagWithSuffix(cfg.namespace, bulkWorkers))
-	cfg.BulkActions = v.GetInt(flagWithSuffix(cfg.namespace, bulkActions))
-	cfg.BulkFlushInterval = v.GetDuration(flagWithSuffix(cfg.namespace, bulkFlushInterval))
-	cfg.Timeout = v.GetDuration(flagWithSuffix(cfg.namespace, timeout))
-	cfg.ServiceCacheTTL = v.GetDuration(flagWithSuffix(cfg.namespace, serviceCacheTTL))
-	cfg.IndexPrefix = v.GetString(flagWithSuffix(cfg.namespace, indexPrefix))
-	cfg.Tags.AllAsFields = v.GetBool(flagWithSuffix(cfg.namespace, tagsAsFieldsAll))
-	cfg.Tags.Include = v.GetString(flagWithSuffix(cfg.namespace, tagsAsFieldsInclude))
-	cfg.Tags.File = v.GetString(flagWithSuffix(cfg.namespace, tagsFile))
-	cfg.Tags.DotReplacement = v.GetString(flagWithSuffix(cfg.namespace, tagDeDotChar))
-	cfg.UseReadWriteAliases = v.GetBool(flagWithSuffix(cfg.namespace, readAlias))
-	cfg.Enabled = v.GetBool(flagWithSuffix(cfg.namespace, enabled))
-	cfg.CreateIndexTemplates = v.GetBool(flagWithSuffix(cfg.namespace, createIndexTemplate))
-	cfg.Version = uint(v.GetInt(flagWithSuffix(cfg.namespace, version)))
-	cfg.LogLevel = v.GetString(flagWithSuffix(cfg.namespace, logLevel))
-	cfg.SendGetBodyAs = v.GetString(flagWithSuffix(cfg.namespace, sendGetBodyAs))
+	cfg.Indices.Spans.TemplatePriority = v.GetInt64(cfg.namespace + suffix + config.PrioritySpanTemplateFlag())
+	cfg.Indices.Services.TemplatePriority = v.GetInt64(cfg.namespace + suffix + config.PriorityServiceTemplateFlag())
+	cfg.Indices.Dependencies.TemplatePriority = v.GetInt64(cfg.namespace + suffix + config.PriorityDependenciesTemplateFlag())
+	cfg.Indices.Sampling.TemplatePriority = v.GetInt64(cfg.namespace + suffix + config.PrioritySpanTemplateFlag())
 
-	cfg.MaxDocCount = v.GetInt(flagWithSuffix(cfg.namespace, maxDocCount))
-	cfg.UseILM = v.GetBool(flagWithSuffix(cfg.namespace, useILM))
+	cfg.BulkSize = v.GetInt(cfg.namespace + suffixBulkSize)
+	cfg.BulkWorkers = v.GetInt(cfg.namespace + suffixBulkWorkers)
+	cfg.BulkActions = v.GetInt(cfg.namespace + suffixBulkActions)
+	cfg.BulkFlushInterval = v.GetDuration(cfg.namespace + suffixBulkFlushInterval)
+	cfg.Timeout = v.GetDuration(cfg.namespace + suffixTimeout)
+	cfg.ServiceCacheTTL = v.GetDuration(cfg.namespace + suffixServiceCacheTTL)
+	cfg.IndexPrefix = v.GetString(cfg.namespace + suffixIndexPrefix)
+	cfg.Tags.AllAsFields = v.GetBool(cfg.namespace + suffixTagsAsFieldsAll)
+	cfg.Tags.Include = v.GetString(cfg.namespace + suffixTagsAsFieldsInclude)
+	cfg.Tags.File = v.GetString(cfg.namespace + suffixTagsFile)
+	cfg.Tags.DotReplacement = v.GetString(cfg.namespace + suffixTagDeDotChar)
+	cfg.UseReadWriteAliases = v.GetBool(cfg.namespace + suffixReadAlias)
+	cfg.Enabled = v.GetBool(cfg.namespace + suffixEnabled)
+	cfg.CreateIndexTemplates = v.GetBool(cfg.namespace + suffixCreateIndexTemplate)
+	cfg.Version = uint(v.GetInt(cfg.namespace + suffixVersion))
+	cfg.LogLevel = v.GetString(cfg.namespace + suffixLogLevel)
+	cfg.SendGetBodyAs = v.GetString(cfg.namespace + suffixSendGetBodyAs)
+
+	cfg.MaxDocCount = v.GetInt(cfg.namespace + suffixMaxDocCount)
+	cfg.UseILM = v.GetBool(cfg.namespace + suffixUseILM)
 
 	// TODO: Need to figure out a better way for do this.
 	cfg.AllowTokenFromContext = v.GetBool(bearertoken.StoragePropagationKey)
 
-	rReadClusters := stripWhiteSpace(v.GetString(flagWithSuffix(cfg.namespace, remoteReadClusters)))
-	if len(rReadClusters) > 0 {
-		cfg.RemoteReadClusters = strings.Split(rReadClusters, ",")
+	remoteReadClusters := stripWhiteSpace(v.GetString(cfg.namespace + suffixRemoteReadClusters))
+	if len(remoteReadClusters) > 0 {
+		cfg.RemoteReadClusters = strings.Split(remoteReadClusters, ",")
 	}
 
-	cfg.Indices.Spans.RolloverFrequency = strings.ToLower(v.GetString(flagWithSuffix(cfg.namespace, indexRolloverFrequencySpans)))
-	cfg.Indices.Services.RolloverFrequency = strings.ToLower(v.GetString(flagWithSuffix(cfg.namespace, indexRolloverFrequencyServices)))
-	cfg.Indices.Sampling.RolloverFrequency = strings.ToLower(v.GetString(flagWithSuffix(cfg.namespace, indexRolloverFrequencySampling)))
+	cfg.Indices.Spans.DateLayout = strings.ToLower(v.GetString(cfg.namespace + suffix + config.IndexRolloverFrequencySpanFlag()))
+	cfg.Indices.Services.DateLayout = strings.ToLower(v.GetString(cfg.namespace + suffix + config.IndexRolloverFrequencyServiceFlag()))
+	cfg.Indices.Sampling.DateLayout = strings.ToLower(v.GetString(cfg.namespace + suffix + config.IndexRolloverFrequencySamplingFlag()))
+	cfg.Indices.Dependencies.DateLayout = strings.ToLower(v.GetString(cfg.namespace + suffix + config.IndexRolloverFrequencyDependenciesFlag()))
 
-	separator := v.GetString(flagWithSuffix(cfg.namespace, indexDateSeparator))
+	separator := v.GetString(cfg.namespace + suffixIndexDateSeparator)
 	cfg.Indices.Spans.DateLayout = initDateLayout(cfg.Indices.Spans.RolloverFrequency, separator)
 	cfg.Indices.Services.DateLayout = initDateLayout(cfg.Indices.Services.RolloverFrequency, separator)
 	cfg.Indices.Sampling.DateLayout = initDateLayout(cfg.Indices.Sampling.RolloverFrequency, separator)

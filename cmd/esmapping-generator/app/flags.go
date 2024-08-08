@@ -57,7 +57,7 @@ func (o *Options) AddFlags(command *cobra.Command) {
 		"The number of shards per span index in Elasticsearch")
 	command.Flags().IntVar(
 		&o.Indices.Spans.TemplateNumReplicas,
-		config.GetNumReplicasSpanFlag(),
+		config.NumReplicaSpanFlag(),
 		1,
 		"The number of replicas per index in Elasticsearch")
 	command.Flags().IntVar(
@@ -67,27 +67,27 @@ func (o *Options) AddFlags(command *cobra.Command) {
 		"The number of shards per service index in Elasticsearch")
 	command.Flags().IntVar(
 		&o.Indices.Services.TemplateNumReplicas,
-		config.GetNumReplicasServiceFlag(),
+		config.NumReplicaServiceFlag(),
 		1,
 		"The number of replicas per service index in Elasticsearch")
 	command.Flags().IntVar(
 		&o.Indices.Dependencies.TemplateNumShards,
-		config.GetNumShardDependenciesFlag(),
+		config.NumShardDependenciesFlag(),
 		5,
 		"The number of shards per dependencies index in Elasticsearch")
 	command.Flags().IntVar(
 		&o.Indices.Dependencies.TemplateNumReplicas,
-		config.GetNumReplicasDependenciesFlag(),
+		config.NumReplicaDependenciesFlag(),
 		1,
 		"The number of replicas per dependencies index in Elasticsearch")
 	command.Flags().IntVar(
 		&o.Indices.Sampling.TemplateNumShards,
-		config.GetNumShardSamplingFlag(),
+		config.NumShardSamplingFlag(),
 		5,
 		"The number of shards per sampling index in Elasticsearch")
 	command.Flags().IntVar(
 		&o.Indices.Sampling.TemplateNumReplicas,
-		config.GetNumReplicasSamplingFlag(),
+		config.NumReplicaSamplingFlag(),
 		1,
 		"The number of replicas per sampling index in Elasticsearch")
 	command.Flags().StringVar(

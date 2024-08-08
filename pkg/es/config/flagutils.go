@@ -19,72 +19,94 @@ import "fmt"
 type IndexType string
 
 const (
-	SPAN         IndexType = "span"
-	SERVICE      IndexType = "service"
+	SPAN         IndexType = "spans"
+	SERVICE      IndexType = "services"
 	DEPENDENCIES IndexType = "dependencies"
 	SAMPLING     IndexType = "sampling"
 
-	numShards   = "num-shards-"
-	numReplicas = "num-replicas-"
+	numShards   = "num-shards-%s"
+	numReplicas = "num-replicas-%s"
 	priority    = "priority-%s-template"
+
+	indexRolloverFrequency = "index-rollover-frequency-%s"
 )
 
 func NumShardSpanFlag() string {
-	return getNumShardPrefix(SPAN)
+	return numShardPrefix(SPAN)
 }
 
-func GetNumShardsServiceFlag() string {
-	return getNumShardPrefix(SERVICE)
+func NumShardServiceFlag() string {
+	return numShardPrefix(SERVICE)
 }
 
-func GetNumShardSamplingFlag() string {
-	return getNumShardPrefix(SAMPLING)
+func NumShardSamplingFlag() string {
+	return numShardPrefix(SAMPLING)
 }
 
-func GetNumShardDependenciesFlag() string {
-	return getNumShardPrefix(DEPENDENCIES)
+func NumShardDependenciesFlag() string {
+	return numShardPrefix(DEPENDENCIES)
 }
 
-func GetNumReplicasSpanFlag() string {
-	return getNumReplicasPrefix(SPAN)
+func NumReplicaSpanFlag() string {
+	return numReplicaPrefix(SPAN)
 }
 
-func GetNumReplicasServiceFlag() string {
-	return getNumReplicasPrefix(SERVICE)
+func NumReplicaServiceFlag() string {
+	return numReplicaPrefix(SERVICE)
 }
 
-func GetNumReplicasDependenciesFlag() string {
-	return getNumReplicasPrefix(DEPENDENCIES)
+func NumReplicaDependenciesFlag() string {
+	return numReplicaPrefix(DEPENDENCIES)
 }
 
-func GetNumReplicasSamplingFlag() string {
-	return getNumReplicasPrefix(SAMPLING)
+func NumReplicaSamplingFlag() string {
+	return numReplicaPrefix(SAMPLING)
 }
 
-func getNumShardPrefix(indexType IndexType) string {
-	return string(numShards + indexType)
+func numShardPrefix(indexType IndexType) string {
+	return fmt.Sprintf(numShards, indexType)
 }
 
-func getNumReplicasPrefix(indexType IndexType) string {
-	return string(numReplicas + indexType)
+func numReplicaPrefix(indexType IndexType) string {
+	return fmt.Sprintf(numReplicas, indexType)
 }
 
-func GetPrioritySpanTemplate() string {
-	return getPriorityTemplate(SPAN)
+func PrioritySpanTemplateFlag() string {
+	return priorityTemplate(SPAN)
 }
 
-func GetPriorityServiceTemplate() string {
-	return getPriorityTemplate(SERVICE)
+func PriorityServiceTemplateFlag() string {
+	return priorityTemplate(SERVICE)
 }
 
-func GetPriorityDependenciesTemplate() string {
-	return getPriorityTemplate(DEPENDENCIES)
+func PriorityDependenciesTemplateFlag() string {
+	return priorityTemplate(DEPENDENCIES)
 }
 
-func GetPrioritySamplingTemplate() string {
-	return getPriorityTemplate(SAMPLING)
+func PrioritySamplingTemplateFlag() string {
+	return priorityTemplate(SAMPLING)
 }
 
-func getPriorityTemplate(indexType IndexType) string {
+func priorityTemplate(indexType IndexType) string {
 	return fmt.Sprintf(priority, indexType)
+}
+
+func rolloverFrequency(indexType IndexType) string {
+	return fmt.Sprintf(indexRolloverFrequency, indexType)
+}
+
+func IndexRolloverFrequencySpanFlag() string {
+	return rolloverFrequency(SPAN)
+}
+
+func IndexRolloverFrequencyServiceFlag() string {
+	return rolloverFrequency(SERVICE)
+}
+
+func IndexRolloverFrequencySamplingFlag() string {
+	return rolloverFrequency(SAMPLING)
+}
+
+func IndexRolloverFrequencyDependenciesFlag() string {
+	return rolloverFrequency(DEPENDENCIES)
 }

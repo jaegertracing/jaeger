@@ -31,24 +31,24 @@ func TestGetFlags(t *testing.T) {
 		{
 			name:                    "span-options",
 			indexType:               SPAN,
-			expectedNumShardsFlag:   "num-shards-span",
-			expectedNumReplicasFlag: "num-replicas-span",
-			expectedPriorityFlag:    "priority-span-template",
+			expectedNumShardsFlag:   "num-shards-spans",
+			expectedNumReplicasFlag: "num-replicas-spans",
+			expectedPriorityFlag:    "priority-spans-template",
 		},
 		{
 			name:                    "service-options",
 			indexType:               SERVICE,
-			expectedNumShardsFlag:   "num-shards-service",
-			expectedNumReplicasFlag: "num-replicas-service",
-			expectedPriorityFlag:    "priority-service-template",
+			expectedNumShardsFlag:   "num-shards-services",
+			expectedNumReplicasFlag: "num-replicas-services",
+			expectedPriorityFlag:    "priority-services-template",
 		},
 	}
 
 	for _, tt := range testCase {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.expectedNumShardsFlag, getNumShardPrefix(tt.indexType))
-			assert.Equal(t, tt.expectedNumReplicasFlag, getNumReplicasPrefix(tt.indexType))
-			assert.Equal(t, tt.expectedPriorityFlag, getPriorityTemplate(tt.indexType))
+			assert.Equal(t, tt.expectedNumShardsFlag, numShardPrefix(tt.indexType))
+			assert.Equal(t, tt.expectedNumReplicasFlag, numReplicaPrefix(tt.indexType))
+			assert.Equal(t, tt.expectedPriorityFlag, priorityTemplate(tt.indexType))
 		})
 	}
 }
