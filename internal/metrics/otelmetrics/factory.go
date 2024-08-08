@@ -32,7 +32,7 @@ func NewFactory(meterProvider metric.MeterProvider) metrics.Factory {
 }
 
 func (f *otelFactory) Counter(opts metrics.Options) metrics.Counter {
-	name := f.subScope(opts.Name)
+	name := CounterNamingConvention(f.subScope(opts.Name))
 	counter, err := f.meter.Int64Counter(name)
 	if err != nil {
 		log.Printf("Error creating OTEL counter: %v", err)
@@ -130,4 +130,11 @@ func attributeSetOption(tags map[string]string) metric.MeasurementOption {
 		attributes = append(attributes, attribute.String(k, v))
 	}
 	return metric.WithAttributes(attributes...)
+}
+
+func CounterNamingConvention(name string) string {
+	if !strings.HasSuffix(name, "_total") {
+		name += "_total"
+	}
+	return name
 }
