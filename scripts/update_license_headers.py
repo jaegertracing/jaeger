@@ -2,42 +2,43 @@
 import re
 import sys
 
-def update_license_header(file_path):
+def update_license_header(file_path, dry_run=False):
     with open(file_path, 'r') as file:
         content = file.read()
 
-    # Pattern to match copyright lines and Apache license
-    header_pattern = re.compile(
-        r'^(// Copyright.*\n)+'  # Match one or more copyright lines
-        r'(//\s*\n)*'  # Match zero or more empty comment lines
-        r'// Licensed under the Apache License, Version 2\.0.*?'
-        r'limitations under the License\.\n+',
-        re.MULTILINE | re.DOTALL
-    )
-
-    spdx_header = "// SPDX-License-Identifier: Apache-2.0\n"
-
-    new_content, count = header_pattern.subn(
-        lambda m: ''.join(re.findall(r'^// Copyright.*\n', m.group(0), re.MULTILINE)) + spdx_header,
-        content
-    )
-
-    if count > 0:
+    # Pattern to match the old header
+    header_pattern = re.compile(r'(?s)(// Copyright.*?)\n.*?limitations under the License\.\s*')
+    
+    match = header_pattern.match(content)
+    if match:
+        if dry_run:
+            print(f"Would update {file_path}")
+            return True
+        
+        new_header = f"{match.group(1)}\n// SPDX-License-Identifier: Apache-2.0\n\n"
+        new_content = header_pattern.sub(new_header, content, count=1)
+        
         with open(file_path, 'w') as file:
             file.write(new_content)
         print(f"Updated {file_path}")
         return True
     else:
-        print(f"Skipping {file_path}: No Apache header found")
+        print(f"Warning: {file_path} - Could not find expected license header")
         return False
 
 def main():
-    if len(sys.argv) < 2:
-        print("Usage: python update_license_headers.py <file> [<file> ...]")
+    dry_run = '--dry-run' in sys.argv
+    files = [f for f in sys.argv[1:] if f != '--dry-run']
+
+    if not files:
+        print("Usage: python update_license_headers.py [--dry-run] <file> [<file> ...]")
         sys.exit(1)
 
-    total_updated = sum(update_license_header(file) for file in sys.argv[1:])
-    print(f"Total files updated: {total_updated}")
+    if dry_run:
+        print("Performing dry run - no files will be modified")
+
+    total_updated = sum(update_license_header(file, dry_run) for file in files)
+    print(f"Total files {'that would be' if dry_run else ''} updated: {total_updated}")
 
 if __name__ == "__main__":
     main()
