@@ -33,7 +33,7 @@ func NumShardSpanFlag() string {
 	return getNumShardPrefix(SPAN)
 }
 
-func GetNumShardServiceFlag() string {
+func GetNumShardsServiceFlag() string {
 	return getNumShardPrefix(SERVICE)
 }
 
