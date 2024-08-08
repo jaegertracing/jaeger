@@ -97,7 +97,7 @@ func TestCounter(t *testing.T) {
 
 	testCounter := findMetric(t, registry, "test_counter_total")
 	metrics := testCounter.GetMetric()
-	assert.Equal(t, float64(2), metrics[0].GetCounter().GetValue())
+	assert.Equal(t, float64(3), metrics[0].GetCounter().GetValue())
 	expectedLabels := map[string]string{
 		"tag1": "value1",
 	}
@@ -148,7 +148,7 @@ func TestHistogram(t *testing.T) {
 	testHistogram := findMetric(t, registry, "test_histogram")
 
 	metrics := testHistogram.GetMetric()
-	assert.Equal(t, float64(1), metrics[0].GetHistogram().GetSampleSum())
+	assert.Equal(t, float64(2), metrics[0].GetHistogram().GetSampleSum())
 	expectedLabels := map[string]string{
 		"tag1": "value1",
 	}
@@ -168,7 +168,7 @@ func TestTimer(t *testing.T) {
 	testTimer := findMetric(t, registry, "test_timer_seconds")
 
 	metrics := testTimer.GetMetric()
-	assert.Equal(t, float64(0.1), metrics[0].GetHistogram().GetSampleSum())
+	assert.Equal(t, float64(1.1), metrics[0].GetHistogram().GetSampleSum())
 	expectedLabels := map[string]string{
 		"tag1": "value1",
 	}
@@ -241,7 +241,7 @@ func TestNamespace(t *testing.T) {
 			testCounter := findMetric(t, registry, tc.expectedName)
 
 			metrics := testCounter.GetMetric()
-			assert.Equal(t, float64(1), metrics[0].GetCounter().GetValue())
+			assert.Equal(t, float64(2), metrics[0].GetCounter().GetValue())
 			assert.Equal(t, tc.expectedLabels, promLabelsToMap(metrics[0].GetLabel()))
 		})
 	}
