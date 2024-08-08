@@ -420,10 +420,10 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 		cfg.RemoteReadClusters = strings.Split(remoteReadClusters, ",")
 	}
 
-	cfg.Indices.Spans.DateLayout = strings.ToLower(v.GetString(cfg.namespace + suffix + config.IndexRolloverFrequencySpanFlag()))
-	cfg.Indices.Services.DateLayout = strings.ToLower(v.GetString(cfg.namespace + suffix + config.IndexRolloverFrequencyServiceFlag()))
-	cfg.Indices.Sampling.DateLayout = strings.ToLower(v.GetString(cfg.namespace + suffix + config.IndexRolloverFrequencySamplingFlag()))
-	cfg.Indices.Dependencies.DateLayout = strings.ToLower(v.GetString(cfg.namespace + suffix + config.IndexRolloverFrequencyDependenciesFlag()))
+	cfg.Indices.Spans.RolloverFrequency = v.GetString(cfg.namespace + suffix + config.IndexRolloverFrequencySpanFlag())
+	cfg.Indices.Services.RolloverFrequency = v.GetString(cfg.namespace + suffix + config.IndexRolloverFrequencyServiceFlag())
+	cfg.Indices.Dependencies.RolloverFrequency = v.GetString(cfg.namespace + suffix + config.IndexRolloverFrequencyDependenciesFlag())
+	cfg.Indices.Sampling.RolloverFrequency = v.GetString(cfg.namespace + suffix + config.IndexRolloverFrequencySamplingFlag())
 
 	separator := v.GetString(cfg.namespace + suffixIndexDateSeparator)
 	cfg.Indices.Spans.DateLayout = initDateLayout(cfg.Indices.Spans.RolloverFrequency, separator)
