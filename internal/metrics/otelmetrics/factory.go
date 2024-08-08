@@ -34,7 +34,7 @@ func NewFactory(meterProvider metric.MeterProvider) metrics.Factory {
 func (f *otelFactory) Counter(opts metrics.Options) metrics.Counter {
 	name := CounterNamingConvention(f.subScope(opts.Name))
 	counter, err := f.meter.Int64Counter(name)
-	counter.Add(context.Background(), 1, attributeSetOption(f.mergeTags(opts.Tags)))
+	counter.Add(context.Background(), 0, attributeSetOption(f.mergeTags(opts.Tags)))
 	if err != nil {
 		log.Printf("Error creating OTEL counter: %v", err)
 		return metrics.NullCounter
@@ -64,7 +64,7 @@ func (f *otelFactory) Gauge(opts metrics.Options) metrics.Gauge {
 func (f *otelFactory) Histogram(opts metrics.HistogramOptions) metrics.Histogram {
 	name := f.subScope(opts.Name)
 	histogram, err := f.meter.Float64Histogram(name)
-	histogram.Record(context.Background(), 1.0, attributeSetOption(f.mergeTags(opts.Tags)))
+	histogram.Record(context.Background(), 0.0, attributeSetOption(f.mergeTags(opts.Tags)))
 	if err != nil {
 		log.Printf("Error creating OTEL histogram: %v", err)
 		return metrics.NullHistogram
@@ -80,7 +80,7 @@ func (f *otelFactory) Histogram(opts metrics.HistogramOptions) metrics.Histogram
 func (f *otelFactory) Timer(opts metrics.TimerOptions) metrics.Timer {
 	name := f.subScope(opts.Name)
 	timer, err := f.meter.Float64Histogram(name, metric.WithUnit("s"))
-	timer.Record(context.Background(), 1.0, attributeSetOption(f.mergeTags(opts.Tags)))
+	timer.Record(context.Background(), 0.0, attributeSetOption(f.mergeTags(opts.Tags)))
 	if err != nil {
 		log.Printf("Error creating OTEL timer: %v", err)
 		return metrics.NullTimer
