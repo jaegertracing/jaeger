@@ -29,7 +29,7 @@ const (
 	priority    = "priority-%s-template"
 )
 
-func GetNumShardSpanFlag() string {
+func NumShardSpanFlag() string {
 	return getNumShardPrefix(SPAN)
 }
 
