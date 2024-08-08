@@ -6,11 +6,15 @@ def update_license_header(file_path, dry_run=False):
     with open(file_path, 'r') as file:
         content = file.read()
 
-    # Pattern to match the old header
-    header_pattern = re.compile(r'(?s)(// Copyright.*?)\n.*?limitations under the License\.\s*')
+    # Pattern to match the old header or the new SPDX header
+    header_pattern = re.compile(r'(?s)(// Copyright.*?)\n(.*?limitations under the License\.|// SPDX-License-Identifier: Apache-2\.0)\s*')
     
     match = header_pattern.match(content)
     if match:
+        if "SPDX-License-Identifier: Apache-2.0" in match.group(2):
+            print(f"Skipping {file_path}: SPDX identifier already present")
+            return False
+        
         if dry_run:
             print(f"Would update {file_path}")
             return True
