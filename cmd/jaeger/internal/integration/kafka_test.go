@@ -20,30 +20,65 @@ func TestKafkaStorage(t *testing.T) {
 	// we can change the config to use topic: "${KAFKA_TOPIC:-jaeger-spans}"
 	// and export a KAFKA_TOPIC var with random topic name in the tests.
 
-	collectorConfig := "../../collector-with-kafka.yaml"
-	ingesterConfig := "../../ingester-remote-storage.yaml"
+	// OTLP config files
+	otlpCollectorConfig := "../../collector-with-kafka.yaml"
+	otlpIngesterConfig := "../../ingester-remote-storage.yaml"
 
-	collector := &E2EStorageIntegration{
-		SkipStorageCleaner:  true,
-		ConfigFile:          collectorConfig,
-		HealthCheckEndpoint: "http://localhost:8888/metrics",
-	}
+	// Legacy Jaeger config files
+	legacyCollectorConfig := "../../collector-with-jaeger.yaml"
+	legacyIngesterConfig := "../../ingester-with-jaeger.yaml"
 
-	// Initialize and start the collector
-	collector.e2eInitialize(t, "kafka")
+	// Test OTLP formats
+	t.Run("OTLPFormats", func(t *testing.T) {
+		collector := &E2EStorageIntegration{
+			SkipStorageCleaner:  true,
+			ConfigFile:          otlpCollectorConfig,
+			HealthCheckEndpoint: "http://localhost:8888/metrics",
+		}
 
-	ingester := &E2EStorageIntegration{
-		ConfigFile: ingesterConfig,
-		StorageIntegration: integration.StorageIntegration{
-			CleanUp:                      purge,
-			GetDependenciesReturnsSource: true,
-			SkipArchiveTest:              true,
-		},
-	}
+		// Initialize and start the OTLP collector
+		collector.e2eInitialize(t, "kafka")
 
-	// Initialize and start the ingester
-	ingester.e2eInitialize(t, "kafka")
+		ingester := &E2EStorageIntegration{
+			ConfigFile: otlpIngesterConfig,
+			StorageIntegration: integration.StorageIntegration{
+				CleanUp:                      purge,
+				GetDependenciesReturnsSource: true,
+				SkipArchiveTest:              true,
+			},
+		}
 
-	// Run the span store tests
-	ingester.RunSpanStoreTests(t)
+		// Initialize and start the OTLP ingester
+		ingester.e2eInitialize(t, "kafka")
+
+		// Run the span store tests for OTLP formats
+		ingester.RunSpanStoreTests(t)
+	})
+
+	// Test legacy Jaeger formats
+	t.Run("LegacyJaegerFormats", func(t *testing.T) {
+		collector := &E2EStorageIntegration{
+			SkipStorageCleaner:  true,
+			ConfigFile:          legacyCollectorConfig,
+			HealthCheckEndpoint: "http://localhost:8888/metrics",
+		}
+
+		// Initialize and start the Jaeger collector
+		collector.e2eInitialize(t, "kafka")
+
+		ingester := &E2EStorageIntegration{
+			ConfigFile: legacyIngesterConfig,
+			StorageIntegration: integration.StorageIntegration{
+				CleanUp:                      purge,
+				GetDependenciesReturnsSource: true,
+				SkipArchiveTest:              true,
+			},
+		}
+
+		// Initialize and start the Jaeger ingester
+		ingester.e2eInitialize(t, "kafka")
+
+		// Run the span store tests for legacy Jaeger formats
+		ingester.RunSpanStoreTests(t)
+	})
 }
