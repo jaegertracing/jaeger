@@ -29,56 +29,58 @@ import (
 )
 
 const (
-	suffixUsername                       = ".username"
-	suffixPassword                       = ".password"
-	suffixSniffer                        = ".sniffer"
-	suffixSnifferTLSEnabled              = ".sniffer-tls-enabled"
-	suffixTokenPath                      = ".token-file"
-	suffixPasswordPath                   = ".password-file"
-	suffixServerURLs                     = ".server-urls"
-	suffixRemoteReadClusters             = ".remote-read-clusters"
-	suffixMaxSpanAge                     = ".max-span-age"
-	suffixAdaptiveSamplingLookback       = ".adaptive-sampling.lookback"
-	suffixNumShards                      = ".num-shards"
-	suffixNumReplicas                    = ".num-replicas"
-	suffixPrioritySpanTemplate           = ".prioirity-span-template"
-	suffixPriorityServiceTemplate        = ".prioirity-service-template"
-	suffixPriorityDependenciesTemplate   = ".prioirity-dependencies-template"
-	suffixBulkSize                       = ".bulk.size"
-	suffixBulkWorkers                    = ".bulk.workers"
-	suffixBulkActions                    = ".bulk.actions"
-	suffixBulkFlushInterval              = ".bulk.flush-interval"
-	suffixTimeout                        = ".timeout"
-	suffixIndexPrefix                    = ".index-prefix"
-	suffixIndexDateSeparator             = ".index-date-separator"
-	suffixIndexRolloverFrequencySpans    = ".index-rollover-frequency-spans"
-	suffixIndexRolloverFrequencyServices = ".index-rollover-frequency-services"
-	suffixIndexRolloverFrequencySampling = ".index-rollover-frequency-adaptive-sampling"
-	suffixServiceCacheTTL                = ".service-cache-ttl"
-	suffixTagsAsFields                   = ".tags-as-fields"
-	suffixTagsAsFieldsAll                = suffixTagsAsFields + ".all"
-	suffixTagsAsFieldsInclude            = suffixTagsAsFields + ".include"
-	suffixTagsFile                       = suffixTagsAsFields + ".config-file"
-	suffixTagDeDotChar                   = suffixTagsAsFields + ".dot-replacement"
-	suffixReadAlias                      = ".use-aliases"
-	suffixUseILM                         = ".use-ilm"
-	suffixCreateIndexTemplate            = ".create-index-templates"
-	suffixEnabled                        = ".enabled"
-	suffixVersion                        = ".version"
-	suffixMaxDocCount                    = ".max-doc-count"
-	suffixLogLevel                       = ".log-level"
-	suffixSendGetBodyAs                  = ".send-get-body-as"
+	suffix                         = "."
+	suffixUsername                 = ".username"
+	suffixPassword                 = ".password"
+	suffixSniffer                  = ".sniffer"
+	suffixSnifferTLSEnabled        = ".sniffer-tls-enabled"
+	suffixTokenPath                = ".token-file"
+	suffixPasswordPath             = ".password-file"
+	suffixServerURLs               = ".server-urls"
+	suffixRemoteReadClusters       = ".remote-read-clusters"
+	suffixMaxSpanAge               = ".max-span-age"
+	suffixAdaptiveSamplingLookback = ".adaptive-sampling.lookback"
+	suffixNumShards                = ".num-shards"
+	suffixNumReplicas              = ".num-replicas"
+	suffixBulkSize                 = ".bulk.size"
+	suffixBulkWorkers              = ".bulk.workers"
+	suffixBulkActions              = ".bulk.actions"
+	suffixBulkFlushInterval        = ".bulk.flush-interval"
+	suffixTimeout                  = ".timeout"
+	suffixIndexPrefix              = ".index-prefix"
+	suffixIndexDateSeparator       = ".index-date-separator"
+	suffixServiceCacheTTL          = ".service-cache-ttl"
+	suffixTagsAsFields             = ".tags-as-fields"
+	suffixTagsAsFieldsAll          = suffixTagsAsFields + ".all"
+	suffixTagsAsFieldsInclude      = suffixTagsAsFields + ".include"
+	suffixTagsFile                 = suffixTagsAsFields + ".config-file"
+	suffixTagDeDotChar             = suffixTagsAsFields + ".dot-replacement"
+	suffixReadAlias                = ".use-aliases"
+	suffixUseILM                   = ".use-ilm"
+	suffixCreateIndexTemplate      = ".create-index-templates"
+	suffixEnabled                  = ".enabled"
+	suffixVersion                  = ".version"
+	suffixMaxDocCount              = ".max-doc-count"
+	suffixLogLevel                 = ".log-level"
+	suffixSendGetBodyAs            = ".send-get-body-as"
 	// default number of documents to return from a query (elasticsearch allowed limit)
 	// see search.max_buckets and index.max_result_window
 	defaultMaxDocCount        = 10_000
 	defaultServerURL          = "http://127.0.0.1:9200"
 	defaultRemoteReadClusters = ""
 	// default separator for Elasticsearch index date layout.
-	defaultIndexDateSeparator = "-"
-
+	defaultIndexDateSeparator     = "-"
 	defaultIndexRolloverFrequency = "day"
 	defaultSendGetBodyAs          = ""
 )
+
+var defaultIndexOptions = config.IndexOptions{
+	DateLayout:          initDateLayout(defaultIndexRolloverFrequency, defaultIndexDateSeparator),
+	RolloverFrequency:   defaultIndexRolloverFrequency,
+	TemplateNumShards:   5,
+	TemplateNumReplicas: 1,
+	TemplatePriority:    0,
+}
 
 // TODO this should be moved next to config.Configuration struct (maybe ./flags package)
 
@@ -168,30 +170,62 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		nsConfig.namespace+suffixTimeout,
 		nsConfig.Timeout,
 		"Timeout used for queries. A Timeout of zero means no timeout")
-	flagSet.Int64(
-		nsConfig.namespace+suffixNumShards,
-		nsConfig.NumShards,
-		"The number of shards per index in Elasticsearch")
 	flagSet.Duration(
 		nsConfig.namespace+suffixServiceCacheTTL,
 		nsConfig.ServiceCacheTTL,
 		"The TTL for the cache of known service names",
 	)
 	flagSet.Int64(
-		nsConfig.namespace+suffixNumReplicas,
-		nsConfig.NumReplicas,
-		"The number of replicas per index in Elasticsearch")
+		nsConfig.namespace+suffixNumShards,
+		defaultIndexOptions.TemplateNumShards,
+		"(deprecated, will be replaced with num-shards-span,num-shards-service,num-shards-sampling,num-shards-dependencies, if .num-shards set, it will be used as global settings for span,service,sampling,dependencies index) The number of shards per index in Elasticsearch")
 	flagSet.Int64(
-		nsConfig.namespace+suffixPrioritySpanTemplate,
-		nsConfig.PrioritySpanTemplate,
+		nsConfig.namespace+suffixNumReplicas,
+		defaultIndexOptions.TemplateNumReplicas,
+		"(deprecated, will be replaced with num-replicas-span,num-replicas-service,num-replicas-sampling,num-replicas-dependencies, if .num-replicas set, it will be used as global settings for span,service,sampling,dependencies index) The number of replicas per index in Elasticsearch")
+	flagSet.Int64(
+		nsConfig.namespace+suffix+config.NumShardSpanFlag(),
+		nsConfig.Indices.Spans.TemplateNumShards,
+		"The number of shards per span index in Elasticsearch")
+	flagSet.Int64(
+		nsConfig.namespace+suffix+config.NumReplicaSpanFlag(),
+		nsConfig.Indices.Spans.TemplateNumReplicas,
+		"The number of replicas per span index in Elasticsearch")
+	flagSet.Int64(
+		nsConfig.namespace+suffix+config.NumShardServiceFlag(),
+		nsConfig.Indices.Services.TemplateNumShards,
+		"The number of shards per service index in Elasticsearch")
+	flagSet.Int64(
+		nsConfig.namespace+suffix+config.NumReplicaServiceFlag(),
+		nsConfig.Indices.Services.TemplateNumReplicas,
+		"The number of replicas per service index in Elasticsearch")
+	flagSet.Int64(
+		nsConfig.namespace+suffix+config.NumShardSamplingFlag(),
+		nsConfig.Indices.Sampling.TemplateNumShards,
+		"The number of shards per sampling index in Elasticsearch")
+	flagSet.Int64(
+		nsConfig.namespace+suffix+config.NumReplicaSamplingFlag(),
+		nsConfig.Indices.Sampling.TemplateNumReplicas,
+		"The number of replicas per sampling index in Elasticsearch")
+	flagSet.Int64(
+		nsConfig.namespace+suffix+config.NumShardDependenciesFlag(),
+		nsConfig.Indices.Dependencies.TemplateNumShards,
+		"The number of shards per dependencies index in Elasticsearch")
+	flagSet.Int64(
+		nsConfig.namespace+suffix+config.NumReplicaDependenciesFlag(),
+		nsConfig.Indices.Dependencies.TemplateNumReplicas,
+		"The number of replicas per dependencies index in Elasticsearch")
+	flagSet.Int64(
+		nsConfig.namespace+suffix+config.PrioritySpanTemplateFlag(),
+		nsConfig.Indices.Spans.TemplatePriority,
 		"Priority of jaeger-span index template (ESv8 only)")
 	flagSet.Int64(
-		nsConfig.namespace+suffixPriorityServiceTemplate,
-		nsConfig.PriorityServiceTemplate,
+		nsConfig.namespace+suffix+config.PriorityServiceTemplateFlag(),
+		nsConfig.Indices.Services.TemplatePriority,
 		"Priority of jaeger-service index template (ESv8 only)")
 	flagSet.Int64(
-		nsConfig.namespace+suffixPriorityDependenciesTemplate,
-		nsConfig.PriorityDependenciesTemplate,
+		nsConfig.namespace+suffix+config.PriorityDependenciesTemplateFlag(),
+		nsConfig.Indices.Dependencies.TemplatePriority,
 		"Priority of jaeger-dependecies index template (ESv8 only)")
 	flagSet.Int(
 		nsConfig.namespace+suffixBulkSize,
@@ -218,19 +252,24 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		defaultIndexDateSeparator,
 		"Optional date separator of Jaeger indices. For example \".\" creates \"jaeger-span-2020.11.20\".")
 	flagSet.String(
-		nsConfig.namespace+suffixIndexRolloverFrequencySpans,
-		defaultIndexRolloverFrequency,
+		nsConfig.namespace+suffix+config.IndexRolloverFrequencySpanFlag(),
+		nsConfig.Indices.Spans.RolloverFrequency,
 		"Rotates jaeger-span indices over the given period. For example \"day\" creates \"jaeger-span-yyyy-MM-dd\" every day after UTC 12AM. Valid options: [hour, day]. "+
 			"This does not delete old indices. For details on complete index management solutions supported by Jaeger, refer to: https://www.jaegertracing.io/docs/deployment/#elasticsearch-rollover")
 	flagSet.String(
-		nsConfig.namespace+suffixIndexRolloverFrequencyServices,
-		defaultIndexRolloverFrequency,
+		nsConfig.namespace+suffix+config.IndexRolloverFrequencyServiceFlag(),
+		nsConfig.Indices.Services.RolloverFrequency,
 		"Rotates jaeger-service indices over the given period. For example \"day\" creates \"jaeger-service-yyyy-MM-dd\" every day after UTC 12AM. Valid options: [hour, day]. "+
 			"This does not delete old indices. For details on complete index management solutions supported by Jaeger, refer to: https://www.jaegertracing.io/docs/deployment/#elasticsearch-rollover")
 	flagSet.String(
-		nsConfig.namespace+suffixIndexRolloverFrequencySampling,
-		defaultIndexRolloverFrequency,
+		nsConfig.namespace+suffix+config.IndexRolloverFrequencySamplingFlag(),
+		nsConfig.Indices.Sampling.RolloverFrequency,
 		"Rotates jaeger-sampling indices over the given period. For example \"day\" creates \"jaeger-sampling-yyyy-MM-dd\" every day after UTC 12AM. Valid options: [hour, day]. "+
+			"This does not delete old indices. For details on complete index management solutions supported by Jaeger, refer to: https://www.jaegertracing.io/docs/deployment/#elasticsearch-rollover")
+	flagSet.String(
+		nsConfig.namespace+suffix+config.IndexRolloverFrequencyDependenciesFlag(),
+		nsConfig.Indices.Dependencies.RolloverFrequency,
+		"Rotates jaeger-dependencies indices over the given period. For example \"day\" creates \"jaeger-dependencies-yyyy-MM-dd\" every day after UTC 12AM. Valid options: [hour, day]. "+
 			"This does not delete old indices. For details on complete index management solutions supported by Jaeger, refer to: https://www.jaegertracing.io/docs/deployment/#elasticsearch-rollover")
 	flagSet.Bool(
 		nsConfig.namespace+suffixTagsAsFieldsAll,
@@ -313,6 +352,14 @@ func (opt *Options) InitFromViper(v *viper.Viper) {
 }
 
 func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
+	overrideIndexShardsNums := func(deprecatedNum, newNum int) int64 {
+		if deprecatedNum > 0 {
+			return int64(deprecatedNum)
+		} else {
+			return int64(newNum)
+		}
+	}
+
 	cfg.Username = v.GetString(cfg.namespace + suffixUsername)
 	cfg.Password = v.GetString(cfg.namespace + suffixPassword)
 	cfg.TokenFilePath = v.GetString(cfg.namespace + suffixTokenPath)
@@ -322,11 +369,28 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	cfg.Servers = strings.Split(stripWhiteSpace(v.GetString(cfg.namespace+suffixServerURLs)), ",")
 	cfg.MaxSpanAge = v.GetDuration(cfg.namespace + suffixMaxSpanAge)
 	cfg.AdaptiveSamplingLookback = v.GetDuration(cfg.namespace + suffixAdaptiveSamplingLookback)
-	cfg.NumShards = v.GetInt64(cfg.namespace + suffixNumShards)
-	cfg.NumReplicas = v.GetInt64(cfg.namespace + suffixNumReplicas)
-	cfg.PrioritySpanTemplate = v.GetInt64(cfg.namespace + suffixPrioritySpanTemplate)
-	cfg.PriorityServiceTemplate = v.GetInt64(cfg.namespace + suffixPriorityServiceTemplate)
-	cfg.PriorityDependenciesTemplate = v.GetInt64(cfg.namespace + suffixPriorityDependenciesTemplate)
+
+	deprecatedNumShards := v.GetInt(cfg.namespace + suffixNumShards)
+	deprecatedReplicaShards := v.GetInt(cfg.namespace + suffixNumReplicas)
+
+	if deprecatedReplicaShards > 0 || deprecatedNumShards > 0 {
+		log.Printf("using deprecated %s or %s", suffixNumShards, suffixNumReplicas)
+	}
+	cfg.Indices.Spans.TemplateNumShards = overrideIndexShardsNums(deprecatedNumShards, v.GetInt(cfg.namespace+suffix+config.NumShardSpanFlag()))
+	cfg.Indices.Services.TemplateNumShards = overrideIndexShardsNums(deprecatedNumShards, v.GetInt(cfg.namespace+suffix+config.NumShardServiceFlag()))
+	cfg.Indices.Sampling.TemplateNumShards = overrideIndexShardsNums(deprecatedNumShards, v.GetInt(cfg.namespace+suffix+config.NumShardSamplingFlag()))
+	cfg.Indices.Dependencies.TemplateNumShards = overrideIndexShardsNums(deprecatedNumShards, v.GetInt(cfg.namespace+suffix+config.NumShardDependenciesFlag()))
+
+	cfg.Indices.Spans.TemplateNumReplicas = overrideIndexShardsNums(deprecatedReplicaShards, v.GetInt(cfg.namespace+suffix+config.NumReplicaSpanFlag()))
+	cfg.Indices.Services.TemplateNumReplicas = overrideIndexShardsNums(deprecatedReplicaShards, v.GetInt(cfg.namespace+suffix+config.NumReplicaServiceFlag()))
+	cfg.Indices.Sampling.TemplateNumReplicas = overrideIndexShardsNums(deprecatedReplicaShards, v.GetInt(cfg.namespace+suffix+config.NumReplicaSamplingFlag()))
+	cfg.Indices.Dependencies.TemplateNumReplicas = overrideIndexShardsNums(deprecatedReplicaShards, v.GetInt(cfg.namespace+suffix+config.NumReplicaDependenciesFlag()))
+
+	cfg.Indices.Spans.TemplatePriority = v.GetInt64(cfg.namespace + suffix + config.PrioritySpanTemplateFlag())
+	cfg.Indices.Services.TemplatePriority = v.GetInt64(cfg.namespace + suffix + config.PriorityServiceTemplateFlag())
+	cfg.Indices.Dependencies.TemplatePriority = v.GetInt64(cfg.namespace + suffix + config.PriorityDependenciesTemplateFlag())
+	cfg.Indices.Sampling.TemplatePriority = v.GetInt64(cfg.namespace + suffix + config.PrioritySpanTemplateFlag())
+
 	cfg.BulkSize = v.GetInt(cfg.namespace + suffixBulkSize)
 	cfg.BulkWorkers = v.GetInt(cfg.namespace + suffixBulkWorkers)
 	cfg.BulkActions = v.GetInt(cfg.namespace + suffixBulkActions)
@@ -356,17 +420,18 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 		cfg.RemoteReadClusters = strings.Split(remoteReadClusters, ",")
 	}
 
-	cfg.IndexRolloverFrequencySpans = strings.ToLower(v.GetString(cfg.namespace + suffixIndexRolloverFrequencySpans))
-	cfg.IndexRolloverFrequencyServices = strings.ToLower(v.GetString(cfg.namespace + suffixIndexRolloverFrequencyServices))
-	cfg.IndexRolloverFrequencySampling = strings.ToLower(v.GetString(cfg.namespace + suffixIndexRolloverFrequencySampling))
+	cfg.Indices.Spans.RolloverFrequency = v.GetString(cfg.namespace + suffix + config.IndexRolloverFrequencySpanFlag())
+	cfg.Indices.Services.RolloverFrequency = v.GetString(cfg.namespace + suffix + config.IndexRolloverFrequencyServiceFlag())
+	cfg.Indices.Dependencies.RolloverFrequency = v.GetString(cfg.namespace + suffix + config.IndexRolloverFrequencyDependenciesFlag())
+	cfg.Indices.Sampling.RolloverFrequency = v.GetString(cfg.namespace + suffix + config.IndexRolloverFrequencySamplingFlag())
 
 	separator := v.GetString(cfg.namespace + suffixIndexDateSeparator)
-	cfg.IndexDateLayoutSpans = initDateLayout(cfg.IndexRolloverFrequencySpans, separator)
-	cfg.IndexDateLayoutServices = initDateLayout(cfg.IndexRolloverFrequencyServices, separator)
-	cfg.IndexDateLayoutSampling = initDateLayout(cfg.IndexRolloverFrequencySampling, separator)
+	cfg.Indices.Spans.DateLayout = initDateLayout(cfg.Indices.Spans.RolloverFrequency, separator)
+	cfg.Indices.Services.DateLayout = initDateLayout(cfg.Indices.Services.RolloverFrequency, separator)
+	cfg.Indices.Sampling.DateLayout = initDateLayout(cfg.Indices.Sampling.RolloverFrequency, separator)
 
-	// Dependencies calculation should be daily, and this index size is very small
-	cfg.IndexDateLayoutDependencies = initDateLayout(defaultIndexRolloverFrequency, separator)
+	// Daily is recommended for dependencies calculation, and this index size is very small
+	cfg.Indices.Dependencies.DateLayout = initDateLayout(cfg.Indices.Dependencies.RolloverFrequency, separator)
 	var err error
 	cfg.TLS, err = cfg.getTLSFlagsConfig().InitFromViper(v)
 	if err != nil {
@@ -410,20 +475,15 @@ func initDateLayout(rolloverFreq, sep string) string {
 
 func DefaultConfig() config.Configuration {
 	return config.Configuration{
-		Username:                     "",
-		Password:                     "",
-		Sniffer:                      false,
-		MaxSpanAge:                   72 * time.Hour,
-		AdaptiveSamplingLookback:     72 * time.Hour,
-		NumShards:                    5,
-		NumReplicas:                  1,
-		PrioritySpanTemplate:         0,
-		PriorityServiceTemplate:      0,
-		PriorityDependenciesTemplate: 0,
-		BulkSize:                     5 * 1000 * 1000,
-		BulkWorkers:                  1,
-		BulkActions:                  1000,
-		BulkFlushInterval:            time.Millisecond * 200,
+		Username:                 "",
+		Password:                 "",
+		Sniffer:                  false,
+		MaxSpanAge:               72 * time.Hour,
+		AdaptiveSamplingLookback: 72 * time.Hour,
+		BulkSize:                 5 * 1000 * 1000,
+		BulkWorkers:              1,
+		BulkActions:              1000,
+		BulkFlushInterval:        time.Millisecond * 200,
 		Tags: config.TagsAsFields{
 			DotReplacement: "@",
 		},
@@ -437,5 +497,11 @@ func DefaultConfig() config.Configuration {
 		MaxDocCount:          defaultMaxDocCount,
 		LogLevel:             "error",
 		SendGetBodyAs:        defaultSendGetBodyAs,
+		Indices: config.Indices{
+			Spans:        defaultIndexOptions,
+			Services:     defaultIndexOptions,
+			Dependencies: defaultIndexOptions,
+			Sampling:     defaultIndexOptions,
+		},
 	}
 }

@@ -38,8 +38,7 @@ func GetMappingAsString(builder es.TemplateBuilder, opt *app.Options) (string, e
 
 	mappingBuilder := mappings.MappingBuilder{
 		TemplateBuilder: builder,
-		Shards:          opt.Shards,
-		Replicas:        opt.Replicas,
+		Indices:         opt.Indices,
 		EsVersion:       opt.EsVersion,
 		IndexPrefix:     opt.IndexPrefix,
 		UseILM:          enableILM,

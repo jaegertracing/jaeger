@@ -37,6 +37,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/metricstest"
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/es"
+	"github.com/jaegertracing/jaeger/pkg/es/config"
 	"github.com/jaegertracing/jaeger/pkg/es/mocks"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/plugin/storage/es/spanstore/dbmodel"
@@ -190,10 +191,21 @@ func TestSpanReaderIndices(t *testing.T) {
 	client := &mocks.Client{}
 	clientFn := func() es.Client { return client }
 	date := time.Date(2019, 10, 10, 5, 0, 0, 0, time.UTC)
+
 	spanDataLayout := "2006-01-02-15"
 	serviceDataLayout := "2006-01-02"
 	spanDataLayoutFormat := date.UTC().Format(spanDataLayout)
 	serviceDataLayoutFormat := date.UTC().Format(serviceDataLayout)
+
+	indices := config.Indices{
+		Spans: config.IndexOptions{
+			DateLayout: spanDataLayout,
+		},
+		Services: config.IndexOptions{
+			DateLayout: serviceDataLayout,
+		},
+	}
+
 	metricsFactory := metricstest.NewFactory(0)
 	logger, _ := testutils.NewLogger()
 	tracer, _, closer := tracerProvider(t)
@@ -204,9 +216,7 @@ func TestSpanReaderIndices(t *testing.T) {
 		params  SpanReaderParams
 	}{
 		{
-			params: SpanReaderParams{
-				IndexPrefix: "", Archive: false, SpanIndexDateLayout: spanDataLayout, ServiceIndexDateLayout: serviceDataLayout,
-			},
+			params:  SpanReaderParams{IndexPrefix: "", Archive: false, Indices: indices},
 			indices: []string{spanIndex + spanDataLayoutFormat, serviceIndex + serviceDataLayoutFormat},
 		},
 		{
@@ -216,9 +226,7 @@ func TestSpanReaderIndices(t *testing.T) {
 			indices: []string{spanIndex + "read", serviceIndex + "read"},
 		},
 		{
-			params: SpanReaderParams{
-				IndexPrefix: "foo:", Archive: false, SpanIndexDateLayout: spanDataLayout, ServiceIndexDateLayout: serviceDataLayout,
-			},
+			params:  SpanReaderParams{IndexPrefix: "foo:", Archive: false, Indices: indices},
 			indices: []string{"foo:" + indexPrefixSeparator + spanIndex + spanDataLayoutFormat, "foo:" + indexPrefixSeparator + serviceIndex + serviceDataLayoutFormat},
 		},
 		{
@@ -246,9 +254,7 @@ func TestSpanReaderIndices(t *testing.T) {
 			indices: []string{"foo:" + indexPrefixSeparator + spanIndex + archiveReadIndexSuffix, "foo:" + indexPrefixSeparator + serviceIndex + archiveReadIndexSuffix},
 		},
 		{
-			params: SpanReaderParams{
-				IndexPrefix: "", Archive: false, RemoteReadClusters: []string{"cluster_one", "cluster_two"}, SpanIndexDateLayout: spanDataLayout, ServiceIndexDateLayout: serviceDataLayout,
-			},
+			params: SpanReaderParams{IndexPrefix: "", Archive: false, RemoteReadClusters: []string{"cluster_one", "cluster_two"}, Indices: indices},
 			indices: []string{
 				spanIndex + spanDataLayoutFormat,
 				"cluster_one:" + spanIndex + spanDataLayoutFormat,
@@ -305,8 +311,8 @@ func TestSpanReaderIndices(t *testing.T) {
 		testCase.params.Tracer = tracer.Tracer("test")
 		r := NewSpanReader(testCase.params)
 
-		actualSpan := r.timeRangeIndices(r.spanIndexPrefix, r.spanIndexDateLayout, date, date, -1*time.Hour)
-		actualService := r.timeRangeIndices(r.serviceIndexPrefix, r.serviceIndexDateLayout, date, date, -24*time.Hour)
+		actualSpan := r.timeRangeIndices(r.spanIndexPrefix, r.indices.Spans.DateLayout, date, date, -1*time.Hour)
+		actualService := r.timeRangeIndices(r.serviceIndexPrefix, r.indices.Services.DateLayout, date, date, -24*time.Hour)
 		assert.Equal(t, testCase.indices, append(actualSpan, actualService...))
 	}
 }

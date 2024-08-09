@@ -20,44 +20,45 @@ import (
 	"github.com/spf13/viper"
 
 	"github.com/jaegertracing/jaeger/cmd/es-rollover/app"
-)
-
-const (
-	shards                       = "shards"
-	replicas                     = "replicas"
-	prioritySpanTemplate         = "priority-span-template"
-	priorityServiceTemplate      = "priority-service-template"
-	priorityDependenciesTemplate = "priority-dependencies-template"
-	prioritySamplingTemplate     = "priority-sampling-template"
+	cfg "github.com/jaegertracing/jaeger/pkg/es/config"
 )
 
 // Config holds configuration for index cleaner binary.
 type Config struct {
 	app.Config
-	Shards                       int
-	Replicas                     int
-	PrioritySpanTemplate         int
-	PriorityServiceTemplate      int
-	PriorityDependenciesTemplate int
-	PrioritySamplingTemplate     int
+	cfg.Indices
 }
 
 // AddFlags adds flags for TLS to the FlagSet.
 func (*Config) AddFlags(flags *flag.FlagSet) {
-	flags.Int(shards, 5, "Number of shards")
-	flags.Int(replicas, 1, "Number of replicas")
-	flags.Int(prioritySpanTemplate, 0, "Priority of jaeger-span index template (ESv8 only)")
-	flags.Int(priorityServiceTemplate, 0, "Priority of jaeger-service index template (ESv8 only)")
-	flags.Int(priorityDependenciesTemplate, 0, "Priority of jaeger-dependencies index template (ESv8 only)")
-	flags.Int(prioritySamplingTemplate, 0, "Priority of jaeger-sampling index template (ESv8 only)")
+	flags.Int64(cfg.NumShardSpanFlag(), 5, "Number of span index shards")
+	flags.Int64(cfg.NumShardServiceFlag(), 5, "Number of service index shards")
+	flags.Int64(cfg.NumShardDependenciesFlag(), 5, "Number of dependencies index shards")
+	flags.Int64(cfg.NumShardSamplingFlag(), 5, "Number of sampling index shards")
+
+	flags.Int64(cfg.NumReplicaSpanFlag(), 1, "Number of span index replicas")
+	flags.Int64(cfg.NumReplicaServiceFlag(), 1, "Number of services index replicas")
+	flags.Int64(cfg.NumReplicaDependenciesFlag(), 1, "Number of dependencies index replicas")
+	flags.Int64(cfg.NumReplicaSamplingFlag(), 1, "Number of sampling index replicas")
+
+	flags.Int64(cfg.PrioritySpanTemplateFlag(), 0, "Priority of jaeger-span index template (ESv8 only)")
+	flags.Int64(cfg.PriorityServiceTemplateFlag(), 0, "Priority of jaeger-service index template (ESv8 only)")
+	flags.Int64(cfg.PriorityDependenciesTemplateFlag(), 0, "Priority of jaeger-dependencies index template (ESv8 only)")
+	flags.Int64(cfg.PrioritySamplingTemplateFlag(), 0, "Priority of jaeger-sampling index template (ESv8 only)")
 }
 
 // InitFromViper initializes config from viper.Viper.
 func (c *Config) InitFromViper(v *viper.Viper) {
-	c.Shards = v.GetInt(shards)
-	c.Replicas = v.GetInt(replicas)
-	c.PrioritySpanTemplate = v.GetInt(prioritySpanTemplate)
-	c.PriorityServiceTemplate = v.GetInt(priorityServiceTemplate)
-	c.PriorityDependenciesTemplate = v.GetInt(priorityDependenciesTemplate)
-	c.PrioritySamplingTemplate = v.GetInt(prioritySamplingTemplate)
+	c.Indices.Spans.TemplateNumShards = v.GetInt64(cfg.NumShardSpanFlag())
+	c.Indices.Spans.TemplateNumReplicas = v.GetInt64(cfg.NumReplicaSpanFlag())
+	c.Indices.Services.TemplateNumShards = v.GetInt64(cfg.NumShardServiceFlag())
+	c.Indices.Services.TemplateNumReplicas = v.GetInt64(cfg.NumReplicaServiceFlag())
+	c.Indices.Dependencies.TemplateNumShards = v.GetInt64(cfg.NumShardDependenciesFlag())
+	c.Indices.Dependencies.TemplateNumReplicas = v.GetInt64(cfg.NumReplicaDependenciesFlag())
+	c.Indices.Sampling.TemplateNumShards = v.GetInt64(cfg.NumShardSamplingFlag())
+	c.Indices.Sampling.TemplateNumReplicas = v.GetInt64(cfg.NumShardSamplingFlag())
+	c.Indices.Spans.TemplatePriority = v.GetInt64(cfg.PrioritySpanTemplateFlag())
+	c.Indices.Services.TemplatePriority = v.GetInt64(cfg.PriorityServiceTemplateFlag())
+	c.Indices.Dependencies.TemplatePriority = v.GetInt64(cfg.PriorityDependenciesTemplateFlag())
+	c.Indices.Sampling.TemplatePriority = v.GetInt64(cfg.PrioritySamplingTemplateFlag())
 }

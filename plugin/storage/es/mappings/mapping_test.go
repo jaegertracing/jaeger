@@ -28,6 +28,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger/pkg/es"
+	"github.com/jaegertracing/jaeger/pkg/es/config"
 	"github.com/jaegertracing/jaeger/pkg/es/mocks"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 )
@@ -57,17 +58,38 @@ func TestMappingBuilderGetMapping(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.mapping, func(t *testing.T) {
+			indexTemOps := config.TemplateOptions{
+				NumShards:   3,
+				NumReplicas: 3,
+				Priority:    500,
+			}
+			serviceOps := indexTemOps
+			serviceOps.Priority = 501
+			dependenciesOps := indexTemOps
+			dependenciesOps.Priority = 502
+			samplingOps := indexTemOps
+			samplingOps.Priority = 503
+
 			mb := &MappingBuilder{
-				TemplateBuilder:              es.TextTemplateBuilder{},
-				Shards:                       3,
-				Replicas:                     3,
-				PrioritySpanTemplate:         500,
-				PriorityServiceTemplate:      501,
-				PriorityDependenciesTemplate: 502,
-				EsVersion:                    tt.esVersion,
-				IndexPrefix:                  "test-",
-				UseILM:                       true,
-				ILMPolicyName:                "jaeger-test-policy",
+				TemplateBuilder: es.TextTemplateBuilder{},
+				Indices: config.Indices{
+					Spans: config.IndexOptions{
+						TemplateOptions: indexTemOps,
+					},
+					Services: config.IndexOptions{
+						TemplateOptions: serviceOps,
+					},
+					Dependencies: config.IndexOptions{
+						TemplateOptions: dependenciesOps,
+					},
+					Sampling: config.IndexOptions{
+						TemplateOptions: samplingOps,
+					},
+				},
+				EsVersion:     tt.esVersion,
+				IndexPrefix:   "test-",
+				UseILM:        true,
+				ILMPolicyName: "jaeger-test-policy",
 			}
 			got, err := mb.GetMapping(tt.mapping)
 			require.NoError(t, err)
@@ -148,14 +170,31 @@ func TestMappingBuilderFixMapping(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			indexTemOps := config.TemplateOptions{
+				NumShards:   3,
+				NumReplicas: 5,
+				Priority:    500,
+			}
 			mappingBuilder := MappingBuilder{
 				TemplateBuilder: test.templateBuilderMockFunc(),
-				Shards:          3,
-				Replicas:        5,
-				EsVersion:       7,
-				IndexPrefix:     "test",
-				UseILM:          true,
-				ILMPolicyName:   "jaeger-test-policy",
+				Indices: config.Indices{
+					Spans: config.IndexOptions{
+						TemplateOptions: indexTemOps,
+					},
+					Services: config.IndexOptions{
+						TemplateOptions: indexTemOps,
+					},
+					Dependencies: config.IndexOptions{
+						TemplateOptions: indexTemOps,
+					},
+					Sampling: config.IndexOptions{
+						TemplateOptions: indexTemOps,
+					},
+				},
+				EsVersion:     7,
+				IndexPrefix:   "test",
+				UseILM:        true,
+				ILMPolicyName: "jaeger-test-policy",
 			}
 			_, err := mappingBuilder.fixMapping("test")
 			if test.err != "" {
@@ -169,12 +208,18 @@ func TestMappingBuilderFixMapping(t *testing.T) {
 
 func TestMappingBuilderGetSpanServiceMappings(t *testing.T) {
 	type args struct {
-		shards        int64
-		replicas      int64
-		esVersion     uint
-		indexPrefix   string
-		useILM        bool
-		ilmPolicyName string
+		ShardsSpan           int
+		ReplicasSpan         int
+		ShardsService        int
+		ReplicasService      int
+		ShardsDependencies   int
+		ReplicasDependencies int
+		ShardsSampling       int
+		ReplicasSampling     int
+		esVersion            uint
+		indexPrefix          string
+		useILM               bool
+		ilmPolicyName        string
 	}
 	tests := []struct {
 		name                       string
@@ -185,12 +230,18 @@ func TestMappingBuilderGetSpanServiceMappings(t *testing.T) {
 		{
 			name: "ES Version 7",
 			args: args{
-				shards:        3,
-				replicas:      3,
-				esVersion:     7,
-				indexPrefix:   "test",
-				useILM:        true,
-				ilmPolicyName: "jaeger-test-policy",
+				ShardsSpan:           3,
+				ReplicasSpan:         3,
+				ShardsService:        3,
+				ReplicasService:      3,
+				ShardsDependencies:   3,
+				ReplicasDependencies: 3,
+				ShardsSampling:       3,
+				ReplicasSampling:     3,
+				esVersion:            7,
+				indexPrefix:          "test",
+				useILM:               true,
+				ilmPolicyName:        "jaeger-test-policy",
 			},
 			mockNewTextTemplateBuilder: func() es.TemplateBuilder {
 				tb := mocks.TemplateBuilder{}
@@ -204,12 +255,18 @@ func TestMappingBuilderGetSpanServiceMappings(t *testing.T) {
 		{
 			name: "ES Version 7 Service Error",
 			args: args{
-				shards:        3,
-				replicas:      3,
-				esVersion:     7,
-				indexPrefix:   "test",
-				useILM:        true,
-				ilmPolicyName: "jaeger-test-policy",
+				ShardsSpan:           3,
+				ReplicasSpan:         3,
+				ShardsService:        3,
+				ReplicasService:      3,
+				ShardsDependencies:   3,
+				ReplicasDependencies: 3,
+				ShardsSampling:       3,
+				ReplicasSampling:     3,
+				esVersion:            7,
+				indexPrefix:          "test",
+				useILM:               true,
+				ilmPolicyName:        "jaeger-test-policy",
 			},
 			mockNewTextTemplateBuilder: func() es.TemplateBuilder {
 				tb := mocks.TemplateBuilder{}
@@ -225,12 +282,18 @@ func TestMappingBuilderGetSpanServiceMappings(t *testing.T) {
 		{
 			name: "ES Version < 7",
 			args: args{
-				shards:        3,
-				replicas:      3,
-				esVersion:     6,
-				indexPrefix:   "test",
-				useILM:        true,
-				ilmPolicyName: "jaeger-test-policy",
+				ShardsSpan:           3,
+				ReplicasSpan:         3,
+				ShardsService:        3,
+				ReplicasService:      3,
+				ShardsDependencies:   3,
+				ReplicasDependencies: 3,
+				ShardsSampling:       3,
+				ReplicasSampling:     3,
+				esVersion:            6,
+				indexPrefix:          "test",
+				useILM:               true,
+				ilmPolicyName:        "jaeger-test-policy",
 			},
 			mockNewTextTemplateBuilder: func() es.TemplateBuilder {
 				tb := mocks.TemplateBuilder{}
@@ -244,12 +307,18 @@ func TestMappingBuilderGetSpanServiceMappings(t *testing.T) {
 		{
 			name: "ES Version < 7 Service Error",
 			args: args{
-				shards:        3,
-				replicas:      3,
-				esVersion:     6,
-				indexPrefix:   "test",
-				useILM:        true,
-				ilmPolicyName: "jaeger-test-policy",
+				ShardsSpan:           3,
+				ReplicasSpan:         3,
+				ShardsService:        3,
+				ReplicasService:      3,
+				ShardsDependencies:   3,
+				ReplicasDependencies: 3,
+				ShardsSampling:       3,
+				ReplicasSampling:     3,
+				esVersion:            6,
+				indexPrefix:          "test",
+				useILM:               true,
+				ilmPolicyName:        "jaeger-test-policy",
 			},
 			mockNewTextTemplateBuilder: func() es.TemplateBuilder {
 				tb := mocks.TemplateBuilder{}
@@ -264,12 +333,18 @@ func TestMappingBuilderGetSpanServiceMappings(t *testing.T) {
 		{
 			name: "ES Version < 7 Span Error",
 			args: args{
-				shards:        3,
-				replicas:      3,
-				esVersion:     6,
-				indexPrefix:   "test",
-				useILM:        true,
-				ilmPolicyName: "jaeger-test-policy",
+				ShardsSpan:           3,
+				ReplicasSpan:         3,
+				ShardsService:        3,
+				ReplicasService:      3,
+				ShardsDependencies:   3,
+				ReplicasDependencies: 3,
+				ShardsSampling:       3,
+				ReplicasSampling:     3,
+				esVersion:            6,
+				indexPrefix:          "test",
+				useILM:               true,
+				ilmPolicyName:        "jaeger-test-policy",
 			},
 			mockNewTextTemplateBuilder: func() es.TemplateBuilder {
 				tb := mocks.TemplateBuilder{}
@@ -283,12 +358,18 @@ func TestMappingBuilderGetSpanServiceMappings(t *testing.T) {
 		{
 			name: "ES Version  7 Span Error",
 			args: args{
-				shards:        3,
-				replicas:      3,
-				esVersion:     7,
-				indexPrefix:   "test",
-				useILM:        true,
-				ilmPolicyName: "jaeger-test-policy",
+				ShardsSpan:           3,
+				ReplicasSpan:         3,
+				ShardsService:        3,
+				ReplicasService:      3,
+				ShardsDependencies:   3,
+				ReplicasDependencies: 3,
+				ShardsSampling:       3,
+				ReplicasSampling:     3,
+				esVersion:            7,
+				indexPrefix:          "test",
+				useILM:               true,
+				ilmPolicyName:        "jaeger-test-policy",
 			},
 			mockNewTextTemplateBuilder: func() es.TemplateBuilder {
 				tb := mocks.TemplateBuilder{}
@@ -304,12 +385,36 @@ func TestMappingBuilderGetSpanServiceMappings(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			mappingBuilder := MappingBuilder{
 				TemplateBuilder: test.mockNewTextTemplateBuilder(),
-				Shards:          test.args.shards,
-				Replicas:        test.args.replicas,
-				EsVersion:       test.args.esVersion,
-				IndexPrefix:     test.args.indexPrefix,
-				UseILM:          test.args.useILM,
-				ILMPolicyName:   test.args.ilmPolicyName,
+				Indices: config.Indices{
+					Spans: config.IndexOptions{
+						TemplateOptions: config.TemplateOptions{
+							NumShards:   test.args.ShardsSpan,
+							NumReplicas: test.args.ReplicasSpan,
+						},
+					},
+					Services: config.IndexOptions{
+						TemplateOptions: config.TemplateOptions{
+							NumShards:   test.args.ShardsService,
+							NumReplicas: test.args.ReplicasService,
+						},
+					},
+					Dependencies: config.IndexOptions{
+						TemplateOptions: config.TemplateOptions{
+							NumShards:   test.args.ShardsDependencies,
+							NumReplicas: test.args.ReplicasDependencies,
+						},
+					},
+					Sampling: config.IndexOptions{
+						TemplateOptions: config.TemplateOptions{
+							NumShards:   test.args.ShardsSampling,
+							NumReplicas: test.args.ReplicasSampling,
+						},
+					},
+				},
+				EsVersion:     test.args.esVersion,
+				IndexPrefix:   test.args.indexPrefix,
+				UseILM:        test.args.useILM,
+				ILMPolicyName: test.args.ilmPolicyName,
 			}
 			_, _, err := mappingBuilder.GetSpanServiceMappings()
 			if test.err != "" {

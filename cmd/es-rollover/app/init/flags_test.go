@@ -34,20 +34,20 @@ func TestBindFlags(t *testing.T) {
 	v.BindPFlags(command.PersistentFlags())
 
 	err := command.ParseFlags([]string{
-		"--shards=8",
-		"--replicas=16",
-		"--priority-span-template=300",
-		"--priority-service-template=301",
+		"--num-shards-spans=8",
+		"--num-replicas-spans=16",
+		"--priority-spans-template=300",
+		"--priority-services-template=301",
 		"--priority-dependencies-template=302",
 		"--priority-sampling-template=303",
 	})
 	require.NoError(t, err)
 
 	c.InitFromViper(v)
-	assert.Equal(t, 8, c.Shards)
-	assert.Equal(t, 16, c.Replicas)
-	assert.Equal(t, 300, c.PrioritySpanTemplate)
-	assert.Equal(t, 301, c.PriorityServiceTemplate)
-	assert.Equal(t, 302, c.PriorityDependenciesTemplate)
-	assert.Equal(t, 303, c.PrioritySamplingTemplate)
+	assert.Equal(t, int64(8), c.Indices.Spans.TemplateNumShards)
+	assert.Equal(t, int64(16), c.Indices.Spans.TemplateNumReplicas)
+	assert.Equal(t, int64(300), c.Indices.Spans.TemplatePriority)
+	assert.Equal(t, int64(301), c.Indices.Services.TemplatePriority)
+	assert.Equal(t, int64(302), c.Indices.Dependencies.TemplatePriority)
+	assert.Equal(t, int64(303), c.Indices.Sampling.TemplatePriority)
 }
