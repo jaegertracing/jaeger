@@ -1,9 +1,3 @@
-# Run the following commands first to create the JSON files:
-# Run V1 Binary
-# prom2json http://localhost:14269/metrics > V1_Metrics.json
-# Run V2 Binary
-# prom2json http://localhost:8888/metrics > V2_Metrics.json
-
 import json
 
 v1_metrics_path = "./V1_Metrics.json"
@@ -41,7 +35,7 @@ v2_only_metrics = {}
 for name, labels in v1_metrics_with_labels.items():
     if name in v2_metrics_with_labels:
         common_metrics[name] = labels
-    else:
+    elif not name.startswith("jaeger_agent"):
         v1_only_metrics[name] = labels
 
 for name, labels in v2_metrics_with_labels.items():
@@ -54,6 +48,7 @@ differences = {
     "v2_only_metrics": v2_only_metrics
 }
 
+# Write the differences to a new JSON file
 differences_path = "./differences.json"
 with open(differences_path, 'w') as file:
     json.dump(differences, file, indent=4)

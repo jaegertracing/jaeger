@@ -5,7 +5,8 @@
     * A curated list of notable changes and links to PRs. Do not simply dump git log, select the changes that affect the users.
       To obtain the list of all changes run `make changelog` or use `scripts/release-notes.py`.
     * The section can be split into sub-section if necessary, e.g. UI Changes, Backend Changes, Bug Fixes, etc.
-    * If the jaeger-ui submodule has changes cut a new release and also upgrade the submodule versions then commit, for example:
+    * If the jaeger-ui submodule has changes cut a new release
+    * Then upgrade the submodule versions and finally commit. For example:
         ```
         git submodule init
         git submodule update
@@ -60,8 +61,8 @@ Here are the release managers for future versions with the tentative release dat
 
 | Version | Release Manager | Tentative release date |
 |---------|-----------------|------------------------|
-| 1.60.0  | @jkowall        | 7 August 2024          |
 | 1.61.0  | @yurishkuro     | 3 September 2024       |
 | 1.62.0  | @albertteoh     | 2 October 2024         |
 | 1.63.0  | @pavolloffay    | 5 November 2024        |
 | 1.64.0  | @joe-elliott    | 4 December 2024        |
+| 1.65.0  | @jkowall        | 8 January 2025         |
