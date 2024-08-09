@@ -31,12 +31,16 @@ apply_schema() {
   local schema_dir=plugin/storage/cassandra/
   local schema_version=$1
   local keyspace=$2
+  local username=$3
+  local password=$4
   local params=(
     --rm
     --env CQLSH_HOST=localhost
     --env CQLSH_PORT=9042
     --env "TEMPLATE=/cassandra-schema/${schema_version}.cql.tmpl"
     --env "KEYSPACE=${keyspace}"
+    --env "USERNAME=${username}"
+    --env "PASSWORD=${password}"
     --network host
   )
   docker build -t ${image} ${schema_dir}
@@ -48,14 +52,16 @@ run_integration_test() {
   local major_version=${version%%.*}
   local schema_version=$2
   local jaegerVersion=$3
+  local username="username"
+  local password="password"
   local primaryKeyspace="jaeger_v1_dc1"
   local archiveKeyspace="jaeger_v1_dc1_archive"
   local compose_file="docker-compose/cassandra/v$major_version/docker-compose.yaml"
 
   setup_cassandra "${compose_file}"
 
-  apply_schema "$schema_version" "$primaryKeyspace"
-  apply_schema "$schema_version" "$archiveKeyspace"
+  apply_schema "$schema_version" "$primaryKeyspace" "$username" "$password"
+  apply_schema "$schema_version" "$archiveKeyspace" "$username" "$password"
 
   if [ "${jaegerVersion}" = "v1" ]; then
     STORAGE=cassandra make storage-integration-test

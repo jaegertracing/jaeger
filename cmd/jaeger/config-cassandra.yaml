@@ -17,9 +17,13 @@ extensions:
       some_storage:
         cassandra:
           keyspace: "jaeger_v1_dc1"
+          password: "password"
+          username: "username"
       another_storage:
         cassandra:
           keyspace: "jaeger_v1_dc1"
+          password: "password"
+          username: "username"
 receivers:
   otlp:
     protocols:
