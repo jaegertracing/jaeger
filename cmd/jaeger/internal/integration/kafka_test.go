@@ -14,25 +14,29 @@ import (
 )
 
 func modifyConfigEncoding(t *testing.T, configFile string, encoding string) string {
-	data, err := os.ReadFile(configFile)
-	require.NoError(t, err)
+    data, err := os.ReadFile(configFile)
+    require.NoError(t, err)
 
-	var config map[string]interface{}
-	err = yaml.Unmarshal(data, &config)
-	require.NoError(t, err)
+    var config map[string]interface{}
+    err = yaml.Unmarshal(data, &config)
+    require.NoError(t, err)
 
-	exporters := config["exporters"].(map[string]interface{})
-	kafka := exporters["kafka"].(map[string]interface{})
-	kafka["encoding"] = encoding
+    exporters, ok := config["exporters"].(map[string]interface{})
+    require.True(t, ok, "exporters key not found or not a map")
 
-	newData, err := yaml.Marshal(config)
-	require.NoError(t, err)
+    kafka, ok := exporters["kafka"].(map[string]interface{})
+    require.True(t, ok, "kafka key not found in exporters or not a map")
 
-	tempFile := filepath.Join(t.TempDir(), "modified_config.yaml")
-	err = os.WriteFile(tempFile, newData, 0o600)
-	require.NoError(t, err)
+    kafka["encoding"] = encoding
 
-	return tempFile
+    newData, err := yaml.Marshal(config)
+    require.NoError(t, err)
+
+    tempFile := filepath.Join(t.TempDir(), "modified_config.yaml")
+    err = os.WriteFile(tempFile, newData, 0600)
+    require.NoError(t, err)
+
+    return tempFile
 }
 
 func TestKafkaStorage(t *testing.T) {
@@ -46,63 +50,38 @@ func TestKafkaStorage(t *testing.T) {
 	// we can change the config to use topic: "${KAFKA_TOPIC:-jaeger-spans}"
 	// and export a KAFKA_TOPIC var with random topic name in the tests.
 
-	// OTLP config files
-	baseCollectorConfig := "../../collector-with-kafka.yaml"
-	baseIngesterConfig := "../../ingester-remote-storage.yaml"
+    baseCollectorConfig := "../../collector-with-kafka.yaml"
+    baseIngesterConfig := "../../ingester-remote-storage.yaml"
 
-	// Test OTLP formats
-	t.Run("OTLPFormats", func(t *testing.T) {
-		collector := &E2EStorageIntegration{
-			SkipStorageCleaner:  true,
-			ConfigFile:          baseCollectorConfig,
-			HealthCheckEndpoint: "http://localhost:8888/metrics",
-		}
+    runTest := func(t *testing.T, encoding string) {
+        collectorConfig := modifyConfigEncoding(t, baseCollectorConfig, encoding)
+        ingesterConfig := modifyConfigEncoding(t, baseIngesterConfig, encoding)
 
-		// Initialize and start the OTLP collector
-		collector.e2eInitialize(t, "kafka")
+        collector := &E2EStorageIntegration{
+            SkipStorageCleaner:  true,
+            ConfigFile:          collectorConfig,
+            HealthCheckEndpoint: "http://localhost:8888/metrics",
+        }
+        collector.e2eInitialize(t, "kafka")
 
-		ingester := &E2EStorageIntegration{
-			ConfigFile: baseIngesterConfig,
-			StorageIntegration: integration.StorageIntegration{
-				CleanUp:                      purge,
-				GetDependenciesReturnsSource: true,
-				SkipArchiveTest:              true,
-			},
-		}
+        ingester := &E2EStorageIntegration{
+            ConfigFile: ingesterConfig,
+            StorageIntegration: integration.StorageIntegration{
+                CleanUp:                      purge,
+                GetDependenciesReturnsSource: true,
+                SkipArchiveTest:              true,
+            },
+        }
+        ingester.e2eInitialize(t, "kafka")
 
-		// Initialize and start the OTLP ingester
-		ingester.e2eInitialize(t, "kafka")
+        ingester.RunSpanStoreTests(t)
+    }
 
-		// Run the span store tests for OTLP formats
-		ingester.RunSpanStoreTests(t)
-	})
+    t.Run("OTLPFormats", func(t *testing.T) {
+        runTest(t, "otlp_proto")
+    })
 
-	// Test legacy Jaeger formats
-	t.Run("LegacyJaegerFormats", func(t *testing.T) {
-		legacyCollectorConfig := modifyConfigEncoding(t, baseCollectorConfig, "jaeger_json")
-		legacyIngesterConfig := modifyConfigEncoding(t, baseIngesterConfig, "jaeger_json")
-		collector := &E2EStorageIntegration{
-			SkipStorageCleaner:  true,
-			ConfigFile:          legacyCollectorConfig,
-			HealthCheckEndpoint: "http://localhost:8888/metrics",
-		}
-
-		// Initialize and start the Jaeger collector
-		collector.e2eInitialize(t, "kafka")
-
-		ingester := &E2EStorageIntegration{
-			ConfigFile: legacyIngesterConfig,
-			StorageIntegration: integration.StorageIntegration{
-				CleanUp:                      purge,
-				GetDependenciesReturnsSource: true,
-				SkipArchiveTest:              true,
-			},
-		}
-
-		// Initialize and start the Jaeger ingester
-		ingester.e2eInitialize(t, "kafka")
-
-		// Run the span store tests for legacy Jaeger formats
-		ingester.RunSpanStoreTests(t)
-	})
+    t.Run("LegacyJaegerFormats", func(t *testing.T) {
+        runTest(t, "jaeger_json")
+    })
 }
