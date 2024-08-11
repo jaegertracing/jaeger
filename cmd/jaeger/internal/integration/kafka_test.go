@@ -4,10 +4,36 @@
 package integration
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/jaegertracing/jaeger/plugin/storage/integration"
+	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v3"
 )
+
+func modifyConfigEncoding(t *testing.T, configFile string, encoding string) string {
+    data, err := os.ReadFile(configFile)
+    require.NoError(t, err)
+    
+    var config map[string]interface{}
+    err = yaml.Unmarshal(data, &config)
+    require.NoError(t, err)
+    
+    exporters := config["exporters"].(map[string]interface{})
+    kafka := exporters["kafka"].(map[string]interface{})
+    kafka["encoding"] = encoding
+    
+    newData, err := yaml.Marshal(config)
+    require.NoError(t, err)
+    
+    tempFile := filepath.Join(t.TempDir(), "modified_config.yaml")
+    err = os.WriteFile(tempFile, newData, 0600)
+    require.NoError(t, err)
+    
+    return tempFile
+}
 
 func TestKafkaStorage(t *testing.T) {
 	integration.SkipUnlessEnv(t, "kafka")
@@ -21,18 +47,14 @@ func TestKafkaStorage(t *testing.T) {
 	// and export a KAFKA_TOPIC var with random topic name in the tests.
 
 	// OTLP config files
-	otlpCollectorConfig := "../../collector-with-kafka.yaml"
-	otlpIngesterConfig := "../../ingester-remote-storage.yaml"
-
-	// Legacy Jaeger config files
-	legacyCollectorConfig := "../../collector-with-jaeger.yaml"
-	legacyIngesterConfig := "../../ingester-with-jaeger.yaml"
+	baseCollectorConfig := "../../collector-with-kafka.yaml"
+	baseIngesterConfig := "../../ingester-remote-storage.yaml"
 
 	// Test OTLP formats
 	t.Run("OTLPFormats", func(t *testing.T) {
 		collector := &E2EStorageIntegration{
 			SkipStorageCleaner:  true,
-			ConfigFile:          otlpCollectorConfig,
+			ConfigFile:          baseCollectorConfig,
 			HealthCheckEndpoint: "http://localhost:8888/metrics",
 		}
 
@@ -40,7 +62,7 @@ func TestKafkaStorage(t *testing.T) {
 		collector.e2eInitialize(t, "kafka")
 
 		ingester := &E2EStorageIntegration{
-			ConfigFile: otlpIngesterConfig,
+			ConfigFile: baseIngesterConfig,
 			StorageIntegration: integration.StorageIntegration{
 				CleanUp:                      purge,
 				GetDependenciesReturnsSource: true,
@@ -57,6 +79,8 @@ func TestKafkaStorage(t *testing.T) {
 
 	// Test legacy Jaeger formats
 	t.Run("LegacyJaegerFormats", func(t *testing.T) {
+		legacyCollectorConfig := modifyConfigEncoding(t, baseCollectorConfig, "jaeger_json")
+        legacyIngesterConfig := modifyConfigEncoding(t, baseIngesterConfig, "jaeger_json")
 		collector := &E2EStorageIntegration{
 			SkipStorageCleaner:  true,
 			ConfigFile:          legacyCollectorConfig,
