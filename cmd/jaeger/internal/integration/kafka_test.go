@@ -14,25 +14,25 @@ import (
 )
 
 func modifyConfigEncoding(t *testing.T, configFile string, encoding string) string {
-    data, err := os.ReadFile(configFile)
-    require.NoError(t, err)
-    
-    var config map[string]interface{}
-    err = yaml.Unmarshal(data, &config)
-    require.NoError(t, err)
-    
-    exporters := config["exporters"].(map[string]interface{})
-    kafka := exporters["kafka"].(map[string]interface{})
-    kafka["encoding"] = encoding
-    
-    newData, err := yaml.Marshal(config)
-    require.NoError(t, err)
-    
-    tempFile := filepath.Join(t.TempDir(), "modified_config.yaml")
-    err = os.WriteFile(tempFile, newData, 0600)
-    require.NoError(t, err)
-    
-    return tempFile
+	data, err := os.ReadFile(configFile)
+	require.NoError(t, err)
+
+	var config map[string]interface{}
+	err = yaml.Unmarshal(data, &config)
+	require.NoError(t, err)
+
+	exporters := config["exporters"].(map[string]interface{})
+	kafka := exporters["kafka"].(map[string]interface{})
+	kafka["encoding"] = encoding
+
+	newData, err := yaml.Marshal(config)
+	require.NoError(t, err)
+
+	tempFile := filepath.Join(t.TempDir(), "modified_config.yaml")
+	err = os.WriteFile(tempFile, newData, 0o600)
+	require.NoError(t, err)
+
+	return tempFile
 }
 
 func TestKafkaStorage(t *testing.T) {
@@ -80,7 +80,7 @@ func TestKafkaStorage(t *testing.T) {
 	// Test legacy Jaeger formats
 	t.Run("LegacyJaegerFormats", func(t *testing.T) {
 		legacyCollectorConfig := modifyConfigEncoding(t, baseCollectorConfig, "jaeger_json")
-        legacyIngesterConfig := modifyConfigEncoding(t, baseIngesterConfig, "jaeger_json")
+		legacyIngesterConfig := modifyConfigEncoding(t, baseIngesterConfig, "jaeger_json")
 		collector := &E2EStorageIntegration{
 			SkipStorageCleaner:  true,
 			ConfigFile:          legacyCollectorConfig,
