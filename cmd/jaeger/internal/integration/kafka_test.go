@@ -14,32 +14,40 @@ import (
 	"github.com/jaegertracing/jaeger/plugin/storage/integration"
 )
 
-func createConfigWithEncoding(t *testing.T, configFile string, newEncoding string) string {
+func createConfigWithEncoding(t *testing.T, configFile string) string {
 	data, err := os.ReadFile(configFile)
-	require.NoError(t, err)
+	require.NoError(t, err, "Failed to read config file: %s", configFile)
 
 	var config map[string]any
 	err = yaml.Unmarshal(data, &config)
-	require.NoError(t, err)
+	require.NoError(t, err, "Failed to unmarshal YAML data from config file: %s", configFile)
 
-	exportersAny, ok := config["exporters"]
-	require.True(t, ok)
-	exporters := exportersAny.(map[string]any)
-	kafkaAny, ok := exporters["kafka"]
-	require.True(t, ok)
-	kafka := kafkaAny.(map[string]any)
-	kafka["encoding"] = newEncoding
+	// Function to recursively search and replace the encoding
+	var replaceEncoding func(m map[string]any)
+	replaceEncoding = func(m map[string]any) {
+		for k, v := range m {
+			if k == "encoding" && v == "otlp_proto" {
+				t.Logf("Replacing encoding 'otlp_proto' with 'jaeger_json' in key: %s", k)
+				m[k] = "jaeger_json"
+			} else if subMap, ok := v.(map[string]any); ok {
+				replaceEncoding(subMap)
+			}
+		}
+	}
+
+	replaceEncoding(config)
 
 	newData, err := yaml.Marshal(config)
-	require.NoError(t, err)
+	require.NoError(t, err, "Failed to marshal YAML data after encoding replacement")
 
-	tempFile := filepath.Join(t.TempDir(), "config_with_"+newEncoding+".yaml")
+	tempFile := filepath.Join(t.TempDir(), "jaeger_encoding_config.yaml")
 	err = os.WriteFile(tempFile, newData, 0o600)
-	require.NoError(t, err)
+	require.NoError(t, err, "Failed to write updated config file to: %s", tempFile)
+
+	t.Logf("Configuration file with updated encoding written to: %s", tempFile)
 
 	return tempFile
 }
-
 
 func TestKafkaStorage(t *testing.T) {
 	integration.SkipUnlessEnv(t, "kafka")
@@ -58,12 +66,14 @@ func TestKafkaStorage(t *testing.T) {
 
 	// Test OTLP formats (no need to modify as default is otlp_proto)
 	t.Run("OTLPFormats", func(t *testing.T) {
+		t.Log("Starting OTLPFormats test")
 		collector := &E2EStorageIntegration{
 			SkipStorageCleaner:  true,
 			ConfigFile:          baseCollectorConfig,
 			HealthCheckEndpoint: "http://localhost:8888/metrics",
 		}
 		collector.e2eInitialize(t, "kafka")
+		t.Log("Collector initialized")
 
 		ingester := &E2EStorageIntegration{
 			ConfigFile: baseIngesterConfig,
@@ -74,13 +84,17 @@ func TestKafkaStorage(t *testing.T) {
 			},
 		}
 		ingester.e2eInitialize(t, "kafka")
+		t.Log("Ingester initialized")
 		ingester.RunSpanStoreTests(t)
+		t.Log("OTLPFormats test completed successfully")
 	})
 
 	// Test legacy Jaeger formats
 	t.Run("LegacyJaegerFormats", func(t *testing.T) {
-		collectorConfig := createConfigWithEncoding(t, baseCollectorConfig, "jaeger_json")
-		ingesterConfig := createConfigWithEncoding(t, baseIngesterConfig, "jaeger_json")
+		t.Log("Starting LegacyJaegerFormats test")
+
+		collectorConfig := createConfigWithEncoding(t, baseCollectorConfig)
+		ingesterConfig := createConfigWithEncoding(t, baseIngesterConfig)
 
 		collector := &E2EStorageIntegration{
 			SkipStorageCleaner:  true,
@@ -88,6 +102,7 @@ func TestKafkaStorage(t *testing.T) {
 			HealthCheckEndpoint: "http://localhost:8888/metrics",
 		}
 		collector.e2eInitialize(t, "kafka")
+		t.Log("Collector initialized with legacy Jaeger formats")
 
 		ingester := &E2EStorageIntegration{
 			ConfigFile: ingesterConfig,
@@ -98,6 +113,8 @@ func TestKafkaStorage(t *testing.T) {
 			},
 		}
 		ingester.e2eInitialize(t, "kafka")
+		t.Log("Ingester initialized with legacy Jaeger formats")
 		ingester.RunSpanStoreTests(t)
+		t.Log("LegacyJaegerFormats test completed successfully")
 	})
 }
