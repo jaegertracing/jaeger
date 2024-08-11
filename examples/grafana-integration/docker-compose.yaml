@@ -1,5 +1,3 @@
-version: '2'
-
 services:
   grafana:
     image: grafana/grafana:10.2.2

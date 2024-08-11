@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   opensearch:
     image: opensearchproject/opensearch:1.3.17
