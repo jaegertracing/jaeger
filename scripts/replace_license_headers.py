@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+# Copyright (c) 2024 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
+# Replace Apache 2.0 license headers with SPDX license identifiers.
+
 import re
 import sys
 
