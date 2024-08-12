@@ -18,14 +18,6 @@ def get_license_blob_lines(comment_prefix):
         (comment_prefix + ' ' + l).strip() + '\n' for l in LICENSE_BLOB.split('\n')
     ]
 
-LICENSE_BLOB_LINES_GO = get_license_blob_lines('//')
-
-LICENSE_BLOB_LINES_SHELL = get_license_blob_lines('#')
-
-LICENSE_BLOB_LINES_MAKEFILE = get_license_blob_lines('#')
-
-LICENSE_BLOB_LINES_PYTHON = get_license_blob_lines('#')
-
 COPYRIGHT_RE = re.compile(r'Copyright \(c\) (\d+)', re.I)
 
 SHEBANG_RE = re.compile(r'^#!\s*/[^\s]+')
@@ -92,12 +84,15 @@ def update_license(name, license_lines):
         print(name)
 
 def get_license_type(file):
+    license_blob_lines_go = get_license_blob_lines('//')
+    license_blob_lines_script = get_license_blob_lines('#')
+
     ext_map = {
-        '.go' : LICENSE_BLOB_LINES_GO,
-        '.mk' : LICENSE_BLOB_LINES_MAKEFILE,
-        'Makefile' : LICENSE_BLOB_LINES_MAKEFILE,
-        '.py' : LICENSE_BLOB_LINES_PYTHON,
-        '.sh' : LICENSE_BLOB_LINES_SHELL,
+        '.go' : license_blob_lines_go,
+        '.mk' : license_blob_lines_script,
+        'Makefile' : license_blob_lines_script,
+        '.py' : license_blob_lines_script,
+        '.sh' : license_blob_lines_script,
     }
 
     license_type = None
