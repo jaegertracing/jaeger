@@ -29,8 +29,8 @@ endif
 
 
 # All .go files that are not auto-generated and should be auto-formatted and linted.
-# .sh files are included.
-ALL_SRC = $(shell find . \( -name '*.go' -o -name '*.sh' \) \
+# .sh files and makefiles are included.
+ALL_SRC = $(shell find . \( -name '*.go' -o -name '*.sh' -o -name 'Makefile*' \) \
 				   -not -name '_*' \
 				   -not -name '.*' \
 				   -not -name 'mocks*' \
