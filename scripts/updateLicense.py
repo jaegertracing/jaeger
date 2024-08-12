@@ -91,30 +91,34 @@ def update_license(name, license_lines):
                 f.write(line)
         print(name)
 
+def get_license_type(file):
+    ext_map = {
+        '.go' : LICENSE_BLOB_LINES_GO,
+        '.mk' : LICENSE_BLOB_LINES_MAKEFILE,
+        'Makefile' : LICENSE_BLOB_LINES_MAKEFILE,
+        '.py' : LICENSE_BLOB_LINES_PYTHON,
+        '.sh' : LICENSE_BLOB_LINES_SHELL,
+    }
+
+    license_type = None
+
+    for ext, license in ext_map.items():
+        if file.endswith(ext):
+            license_type = license
+            break
+
+    return license_type
 
 def main():
     if len(sys.argv) == 1:
         print('USAGE: %s FILE ...' % sys.argv[0])
         sys.exit(1)
-
+   
     for name in sys.argv[1:]:
-        if name.endswith('.go'):
+        license_type = get_license_type(name)
+        if license_type:
             try:
-                update_license(name, LICENSE_BLOB_LINES_GO)
-            except Exception as error:
-                logger.error('Failed to process file %s', name)
-                logger.exception(error)
-                raise error
-        elif name.endswith('.sh'):
-            try:
-                update_license(name, LICENSE_BLOB_LINES_SHELL_AND_MAKEFILE)
-            except Exception as error:
-                logger.error('Failed to process file %s', name)
-                logger.exception(error)
-                raise error
-        elif 'Makefile' in name:
-            try:
-                update_license(name, LICENSE_BLOB_LINES_SHELL_AND_MAKEFILE)
+                update_license(name, license_type)
             except Exception as error:
                 logger.error('Failed to process file %s', name)
                 logger.exception(error)
