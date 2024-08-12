@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 
+# Copyright (c) 2024 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
 # This script can read N latest commits from one of Jaeger repos
 # and output them in the release notes format:
 # * {title} ({author} in {pull_request})
