@@ -44,6 +44,8 @@ ALL_SRC = $(shell find . -name '*.go' \
 
 # All .sh or .py or Makefile or .mk files that should be auto-formatted and linted.
 SCRIPTS_SRC = $(shell find . \( -name '*.sh' -o -name '*.py' -o -name 'Makefile*' \) \
+						-not -path './idl/*' \
+						-not -path './jaeger-ui/*' \
 						-type f | \
 					sort)
 
