@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Copyright (c) 2024 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
 version_regex='[0-9]\.[0-9][0-9]'
 update=false
 verbose=false

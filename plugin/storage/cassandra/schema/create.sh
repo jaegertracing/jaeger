@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 
+# Copyright (c) 2024 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
 function usage {
     >&2 echo "Error: $1"
     >&2 echo ""

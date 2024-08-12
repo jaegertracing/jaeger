@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 
+# Copyright (c) 2024 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
 import logging
 import re
 import sys
@@ -91,6 +94,7 @@ def get_license_type(file):
         '.go' : license_blob_lines_go,
         '.mk' : license_blob_lines_script,
         'Makefile' : license_blob_lines_script,
+        'Dockerfile' : license_blob_lines_script,
         '.py' : license_blob_lines_script,
         '.sh' : license_blob_lines_script,
     }
@@ -108,7 +112,7 @@ def main():
     if len(sys.argv) == 1:
         print('USAGE: %s FILE ...' % sys.argv[0])
         sys.exit(1)
-   
+
     for name in sys.argv[1:]:
         license_type = get_license_type(name)
         if license_type:

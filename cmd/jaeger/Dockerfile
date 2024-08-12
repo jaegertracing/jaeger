@@ -1,3 +1,6 @@
+# Copyright (c) 2024 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
 ARG base_image
 ARG debug_image
 

@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Copyright (c) 2024 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
 PS4='T$(date "+%H:%M:%S") '
 set -euf -o pipefail
 

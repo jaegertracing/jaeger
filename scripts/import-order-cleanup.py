@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 
+# Copyright (c) 2024 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
 import argparse
 
 def cleanup_imports_and_return(imports):

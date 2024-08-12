@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Copyright (c) 2024 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
 # This script uses https://github.com/kward/shunit2 to run unit tests.
 # The path to this repo must be provided via SHUNIT2 env var.
 

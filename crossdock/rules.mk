@@ -1,3 +1,6 @@
+# Copyright (c) 2024 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
 XDOCK_YAML=crossdock/docker-compose.yml
 
 JAEGER_COMPOSE_YAML ?= crossdock/jaeger-docker-compose.yml
