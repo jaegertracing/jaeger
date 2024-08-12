@@ -13,13 +13,18 @@ CURRENT_YEAR = datetime.today().year
 LICENSE_BLOB = """Copyright (c) %d The Jaeger Authors.
 SPDX-License-Identifier: Apache-2.0""" % CURRENT_YEAR
 
-LICENSE_BLOB_LINES_GO = [
-    ('// ' + l).strip() + '\n' for l in LICENSE_BLOB.split('\n')
-]
+def get_license_blob_lines(comment_prefix):
+    return [
+        (comment_prefix + ' ' + l).strip() + '\n' for l in LICENSE_BLOB.split('\n')
+    ]
 
-LICENSE_BLOB_LINES_SHELL_AND_MAKEFILE = [
-    ('# ' + l).strip() + '\n' for l in LICENSE_BLOB.split('\n')
-]
+LICENSE_BLOB_LINES_GO = get_license_blob_lines('//')
+
+LICENSE_BLOB_LINES_SHELL = get_license_blob_lines('#')
+
+LICENSE_BLOB_LINES_MAKEFILE = get_license_blob_lines('#')
+
+LICENSE_BLOB_LINES_PYTHON = get_license_blob_lines('#')
 
 COPYRIGHT_RE = re.compile(r'Copyright \(c\) (\d+)', re.I)
 
