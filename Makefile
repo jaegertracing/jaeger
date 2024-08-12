@@ -29,8 +29,7 @@ endif
 
 
 # All .go files that are not auto-generated and should be auto-formatted and linted.
-# .sh files and makefiles are included.
-ALL_SRC = $(shell find . \( -name '*.go' -o -name '*.sh' -o -name 'Makefile*' \) \
+ALL_SRC = $(shell find . -name '*.go' \
 				   -not -name '_*' \
 				   -not -name '.*' \
 				   -not -name 'mocks*' \
@@ -42,6 +41,11 @@ ALL_SRC = $(shell find . \( -name '*.go' -o -name '*.sh' -o -name 'Makefile*' \)
 				   -not -path '*/thrift-0.9.2/*' \
 				   -type f | \
 				sort)
+
+# All .sh or .py or Makefile or .mk files that should be auto-formatted and linted.
+SCRIPTS_SRC = $(shell find . \( -name '*.sh' -o -name '*.py' -o -name 'Makefile*' \) \
+						-type f | \
+					sort)
 
 # ALL_PKGS is used with 'nocover' and 'goleak'
 ALL_PKGS = $(shell echo $(dir $(ALL_SRC)) | tr ' ' '\n' | sort -u)
@@ -186,11 +190,11 @@ fmt: $(GOFUMPT)
 	@echo Running gofumpt on ALL_SRC ...
 	@$(GOFUMPT) -e -l -w $(ALL_SRC)
 	@echo Running updateLicense.py on ALL_SRC ...
-	@./scripts/updateLicense.py $(ALL_SRC)
+	@./scripts/updateLicense.py $(ALL_SRC) $(SCRIPTS_SRC)
 
 .PHONY: lint
 lint: $(LINT) goleak
-	@./scripts/updateLicense.py $(ALL_SRC) > $(FMT_LOG)
+	@./scripts/updateLicense.py $(ALL_SRC) $(SCRIPTS_SRC) > $(FMT_LOG)
 	@./scripts/import-order-cleanup.py -o stdout -t $(ALL_SRC) > $(IMPORT_LOG)
 	@[ ! -s "$(FMT_LOG)" -a ! -s "$(IMPORT_LOG)" ] || (echo "License check or import ordering failures, run 'make fmt'" | cat - $(FMT_LOG) $(IMPORT_LOG) && false)
 	./scripts/check-semconv-version.sh
