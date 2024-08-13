@@ -42,6 +42,14 @@ ALL_SRC = $(shell find . -name '*.go' \
 				   -type f | \
 				sort)
 
+# All .sh or .py or Makefile or .mk files that should be auto-formatted and linted.
+SCRIPTS_SRC = $(shell find . \( -name '*.sh' -o -name '*.py' -o -name '*.mk' -o -name 'Makefile*' -o -name 'Dockerfile*' \) \
+						-not -path './.git/*' \
+						-not -path './idl/*' \
+						-not -path './jaeger-ui/*' \
+						-type f | \
+					sort)
+
 # ALL_PKGS is used with 'nocover' and 'goleak'
 ALL_PKGS = $(shell echo $(dir $(ALL_SRC)) | tr ' ' '\n' | sort -u)
 
@@ -185,11 +193,11 @@ fmt: $(GOFUMPT)
 	@echo Running gofumpt on ALL_SRC ...
 	@$(GOFUMPT) -e -l -w $(ALL_SRC)
 	@echo Running updateLicense.py on ALL_SRC ...
-	@./scripts/updateLicense.py $(ALL_SRC)
+	@./scripts/updateLicense.py $(ALL_SRC) $(SCRIPTS_SRC)
 
 .PHONY: lint
 lint: $(LINT) goleak
-	@./scripts/updateLicense.py $(ALL_SRC) > $(FMT_LOG)
+	@./scripts/updateLicense.py $(ALL_SRC) $(SCRIPTS_SRC) > $(FMT_LOG)
 	@./scripts/import-order-cleanup.py -o stdout -t $(ALL_SRC) > $(IMPORT_LOG)
 	@[ ! -s "$(FMT_LOG)" -a ! -s "$(IMPORT_LOG)" ] || (echo "License check or import ordering failures, run 'make fmt'" | cat - $(FMT_LOG) $(IMPORT_LOG) && false)
 	./scripts/check-semconv-version.sh
