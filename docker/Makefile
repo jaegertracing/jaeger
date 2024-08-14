@@ -1,3 +1,6 @@
+# Copyright (c) 2024 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
 VERSION := 1.0.0
 
 DOCKER_REGISTRY ?= localhost:5000

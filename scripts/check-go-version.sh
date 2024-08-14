@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Copyright (c) 2024 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
 version_regex='[0-9]\.[0-9][0-9]'
 update=false
 verbose=false
@@ -16,7 +19,12 @@ while getopts "uvdx" opt; do
 done
 
 # Fetch latest go release version
-go_latest_version=$(curl -s https://go.dev/dl/?mode=json | jq -r '.[0].version' | awk -F'.' '{gsub("go", ""); print $1"."$2}')
+# go_latest_version=$(curl -s https://go.dev/dl/?mode=json | jq -r '.[0].version' | awk -F'.' '{gsub("go", ""); print $1"."$2}')
+#
+# UPDATE: we don't use the logic above because it causes CI to fail when new version of Go is released,
+# which may create circular dependencies when other utilities need to be upgraded. Instead use the toolchain
+# version declared in the main go.mod. Updates to that version will be handled by the bots.
+go_latest_version=$(grep toolchain go.mod | sed 's/^.*go\([0-9]\.[0-9]*\).*/\1/')
 go_previous_version="${go_latest_version%.*}.$((10#${go_latest_version#*.} - 1))"
 
 files_to_update=0
@@ -56,7 +64,7 @@ function check() {
     if [ "$go_version" = "$target" ]; then
         mismatch=''
     else
-        mismatch='*** needs update ***'
+        mismatch="*** needs update to $target ***"
         files_to_update=$((files_to_update+1))
     fi
 

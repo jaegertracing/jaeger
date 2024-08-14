@@ -218,6 +218,8 @@ func (kv KeyValue) Hash(w io.Writer) error {
 	case StringType:
 		_, err = w.Write([]byte(kv.VStr))
 	case BoolType:
+		// staticcheck incorrectly complains about bool, even though its docs say bool wasn’t supported only before Go 1.8.
+		//nolint: staticcheck
 		err = binary.Write(w, binary.BigEndian, kv.VBool)
 	case Int64Type:
 		err = binary.Write(w, binary.BigEndian, kv.VInt64)

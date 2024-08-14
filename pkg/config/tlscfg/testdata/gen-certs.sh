@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 
+# Copyright (c) 2024 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
 # The following commands were used to create the CA, server and client's certificates and keys in this directory used by unit tests.
 # These certificates use the Subject Alternative Name extension rather than the Common Name, which will be unsupported in Go 1.15.
 

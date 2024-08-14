@@ -16,7 +16,6 @@
 package app
 
 import (
-	"fmt"
 	"net/http"
 	"regexp"
 	"testing"
@@ -174,7 +173,7 @@ func TestParseTraceQuery(t *testing.T) {
 			} else {
 				matched, matcherr := regexp.MatchString(test.errMsg, err.Error())
 				require.NoError(t, matcherr)
-				assert.True(t, matched, fmt.Sprintf("Error \"%s\" should match \"%s\"", err.Error(), test.errMsg))
+				assert.True(t, matched, "Error \"%s\" should match \"%s\"", err.Error(), test.errMsg)
 			}
 		})
 	}

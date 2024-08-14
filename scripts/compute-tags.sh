@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Copyright (c) 2024 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
 # Compute major/minor/etc image tags based on the current branch
 
 set -ef -o pipefail
