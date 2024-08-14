@@ -220,6 +220,9 @@ linters-settings:
         # looks useful, but requires refactoring: "calls to log.Fatal only in main() or init() functions"
         - name: deep-exit
           disabled: true
+        # this rule conflicts with nolintlint which does insist on no-space in //nolint
+        - name: comment-spacings
+          disabled: true
   testifylint:
     disable:
       - float-compare

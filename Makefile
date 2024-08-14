@@ -179,11 +179,6 @@ nocover:
 	@echo Verifying that all packages have test files to count in coverage
 	@scripts/check-test-files.sh $(ALL_PKGS)
 
-.PHONY: goleak
-goleak:
-	@echo Verifying that all packages with tests have goleak in their TestMain
-	@scripts/check-goleak-files.sh $(ALL_PKGS)
-
 .PHONY: fmt
 fmt: $(GOFUMPT)
 	@echo Running import-order-cleanup on ALL_SRC ...
@@ -196,12 +191,35 @@ fmt: $(GOFUMPT)
 	@./scripts/updateLicense.py $(ALL_SRC) $(SCRIPTS_SRC)
 
 .PHONY: lint
-lint: $(LINT) goleak
+lint: lint-license lint-imports lint-semconv lint-goversion lint-goleak lint-go
+
+.PHONY: lint-license
+lint-license:
+	@echo Verifying that all files have license headers
 	@./scripts/updateLicense.py $(ALL_SRC) $(SCRIPTS_SRC) > $(FMT_LOG)
+	@[ ! -s "$(FMT_LOG)" ] || (echo "License check failures, run 'make fmt'" | cat - $(FMT_LOG) && false)
+
+.PHONY: lint-imports
+lint-imports:
+	@echo Verifying that all Go files have correctly ordered imports
 	@./scripts/import-order-cleanup.py -o stdout -t $(ALL_SRC) > $(IMPORT_LOG)
-	@[ ! -s "$(FMT_LOG)" -a ! -s "$(IMPORT_LOG)" ] || (echo "License check or import ordering failures, run 'make fmt'" | cat - $(FMT_LOG) $(IMPORT_LOG) && false)
+	@[ ! -s "$(IMPORT_LOG)" ] || (echo "Import ordering failures, run 'make fmt'" | cat - $(IMPORT_LOG) && false)
+
+.PHONY: lint-semconv
+lint-semconv:
 	./scripts/check-semconv-version.sh
+
+.PHONY: lint-goversion
+lint-goversion:
 	./scripts/check-go-version.sh
+
+.PHONY: lint-goleak
+lint-goleak:
+	@echo Verifying that all packages with tests have goleak in their TestMain
+	@scripts/check-goleak-files.sh $(ALL_PKGS)
+
+.PHONY: lint-go
+lint-go: $(LINT)
 	$(LINT) -v run
 
 .PHONY: build-examples
