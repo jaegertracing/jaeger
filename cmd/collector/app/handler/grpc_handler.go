@@ -93,7 +93,7 @@ func (c *batchConsumer) consume(ctx context.Context, batch *model.Batch) error {
 	})
 	if err != nil {
 		if errors.Is(err, processor.ErrBusy) {
-			return status.Errorf(codes.ResourceExhausted, err.Error())
+			return status.Error(codes.ResourceExhausted, err.Error())
 		}
 		c.logger.Error("cannot process spans", zap.Error(err))
 		return err

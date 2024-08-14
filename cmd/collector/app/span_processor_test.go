@@ -474,7 +474,7 @@ func TestSpanProcessorCountSpan(t *testing.T) {
 					time.Second,
 					time.Millisecond,
 				)
-				assert.Greater(t, p.spansProcessed.Load(), uint64(0))
+				assert.Positive(t, p.spansProcessed.Load())
 			}
 
 			for i := 0; i < 10000; i++ {

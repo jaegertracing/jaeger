@@ -276,7 +276,7 @@ func TestCreateTracesLoop(t *testing.T) {
 		}
 		time.Sleep(time.Millisecond)
 	}
-	assert.Greater(t, h.CallCount(), int64(0))
+	assert.Positive(t, h.CallCount())
 }
 
 func TestValidateAdaptiveSamplingTraces(t *testing.T) {
