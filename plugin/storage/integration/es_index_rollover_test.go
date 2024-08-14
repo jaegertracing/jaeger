@@ -16,7 +16,6 @@ package integration
 
 import (
 	"context"
-	"fmt"
 	"strconv"
 	"testing"
 
@@ -129,9 +128,9 @@ func runIndexRolloverWithILMTest(t *testing.T, client *elastic.Client, prefix st
 		actualWriteAliases = append(actualWriteAliases, v.Settings["index.lifecycle.rollover_alias"].(string))
 	}
 	// Check indices created
-	assert.ElementsMatch(t, indices, expected, fmt.Sprintf("indices found: %v, expected: %v", indices, expected))
+	assert.ElementsMatch(t, indices, expected)
 	// Check rollover alias is write alias
-	assert.ElementsMatch(t, actualWriteAliases, expectedWriteAliases, fmt.Sprintf("aliases found: %v, expected: %v", actualWriteAliases, expectedWriteAliases))
+	assert.ElementsMatch(t, actualWriteAliases, expectedWriteAliases)
 }
 
 func getVersion(client *elastic.Client) (uint, error) {
