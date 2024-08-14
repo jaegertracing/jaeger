@@ -428,9 +428,9 @@ func TestSearchByTraceIDNotFound(t *testing.T) {
 
 func TestSearchByTraceIDFailure(t *testing.T) {
 	ts := initializeTestServer(t)
-	whatsamattayou := "https://youtu.be/WrKFOCg13QQ"
+	whatsamattayou := "whatsamattayou"
 	ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
-		Return(nil, fmt.Errorf(whatsamattayou)).Once()
+		Return(nil, errors.New(whatsamattayou)).Once()
 
 	var response structuredResponse
 	err := getJSON(ts.server.URL+`/api/traces?traceID=1`, &response)
@@ -763,7 +763,7 @@ func TestMetricsReaderError(t *testing.T) {
 				tc.mockedQueryMethod,
 				mock.AnythingOfType("*context.valueCtx"),
 				mock.AnythingOfType(tc.mockedQueryMethodParamType),
-			).Return(tc.mockedResponse, fmt.Errorf(tc.wantErrorMessage)).Once()
+			).Return(tc.mockedResponse, errors.New(tc.wantErrorMessage)).Once()
 
 			// Test
 			var response metrics.MetricFamily

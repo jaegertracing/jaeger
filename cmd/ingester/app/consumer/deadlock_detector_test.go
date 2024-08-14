@@ -45,7 +45,7 @@ func TestNoClosingSignalIfMessagesProcessedInInterval(t *testing.T) {
 	w := f.startMonitoringForPartition(1)
 
 	w.incrementMsgCount()
-	assert.Zero(t, len(w.closePartitionChannel()))
+	assert.Empty(t, w.closePartitionChannel())
 	w.close()
 }
 
@@ -160,6 +160,6 @@ func TestApiCompatibilityWhenDeadlockDetectorDisabled(t *testing.T) {
 
 	w.incrementMsgCount()
 	w.incrementAllPartitionMsgCount()
-	assert.Zero(t, len(w.closePartitionChannel()))
+	assert.Empty(t, w.closePartitionChannel())
 	w.close()
 }
