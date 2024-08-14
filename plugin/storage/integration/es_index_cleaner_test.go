@@ -161,7 +161,7 @@ func runIndexCleanerTest(t *testing.T, client *elastic.Client, v8Client *elastic
 	for _, index := range expectedIndices {
 		expected = append(expected, prefix+index)
 	}
-	assert.ElementsMatch(t, indices, expected, fmt.Sprintf("indices found: %v, expected: %v", indices, expected))
+	assert.ElementsMatch(t, indices, expected, "indices found: %v, expected: %v", indices, expected)
 }
 
 func createAllIndices(client *elastic.Client, prefix string, adaptiveSampling bool) error {

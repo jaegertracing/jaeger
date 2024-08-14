@@ -18,7 +18,7 @@
           "duration": 123,
           "tags": [
             {
-              "key": "otel.library.name",
+              "key": "otel.scope.name",
               "type": "string",
               "value": "telemetrygen"
             },
@@ -57,7 +57,7 @@
           "duration": 123,
           "tags": [
             {
-              "key": "otel.library.name",
+              "key": "otel.scope.name",
               "type": "string",
               "value": "telemetrygen"
             },

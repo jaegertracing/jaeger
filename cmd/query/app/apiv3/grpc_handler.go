@@ -16,6 +16,7 @@ package apiv3
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/gogo/protobuf/types"
@@ -59,11 +60,11 @@ func (h *Handler) GetTrace(request *api_v3.GetTraceRequest, stream api_v3.QueryS
 func (h *Handler) FindTraces(request *api_v3.FindTracesRequest, stream api_v3.QueryService_FindTracesServer) error {
 	query := request.GetQuery()
 	if query == nil {
-		return status.Errorf(codes.InvalidArgument, "missing query")
+		return status.Error(codes.InvalidArgument, "missing query")
 	}
 	if query.GetStartTimeMin() == nil ||
 		query.GetStartTimeMax() == nil {
-		return fmt.Errorf("start time min and max are required parameters")
+		return errors.New("start time min and max are required parameters")
 	}
 
 	queryParams := &spanstore.TraceQueryParameters{
