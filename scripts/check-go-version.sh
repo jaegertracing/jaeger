@@ -64,7 +64,7 @@ function check() {
     if [ "$go_version" = "$target" ]; then
         mismatch=''
     else
-        mismatch='*** needs update ***'
+        mismatch="*** needs update to $target ***"
         files_to_update=$((files_to_update+1))
     fi
 

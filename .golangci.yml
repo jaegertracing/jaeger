@@ -240,5 +240,5 @@ linters-settings:
       - suite-extra-assert-call
 
 run:
-  go: "1.21"
+  go: "1.22"
   timeout: 20m
