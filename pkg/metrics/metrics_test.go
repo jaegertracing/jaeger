@@ -66,7 +66,7 @@ func TestInitMetrics(t *testing.T) {
 
 	stopwatch := metrics.StartStopwatch(testMetrics.Timer)
 	stopwatch.Stop()
-	assert.Greater(t, stopwatch.ElapsedTime(), time.Duration(0))
+	assert.Positive(t, stopwatch.ElapsedTime())
 }
 
 var (

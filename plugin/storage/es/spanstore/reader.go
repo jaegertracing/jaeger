@@ -417,7 +417,7 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []model.TraceID, st
 			return nil, err
 		}
 
-		if results.Responses == nil || len(results.Responses) == 0 {
+		if len(results.Responses) == 0 {
 			break
 		}
 

@@ -120,7 +120,7 @@ func TestMaintenanceRun(t *testing.T) {
 
 	waiter(runtime)
 	_, gs = mFactory.Snapshot()
-	assert.Greater(t, gs[lastValueLogCleanedName], int64(0))
+	assert.Positive(t, gs[lastValueLogCleanedName])
 
 	err := io.Closer(f).Close()
 	require.NoError(t, err)
