@@ -1,5 +1,5 @@
 service:
-  extensions: [jaeger_storage, jaeger_query, remote_sampling]
+  extensions: [jaeger_storage, jaeger_query, remote_sampling, healthcheckv2]
   pipelines:
     traces:
       receivers: [otlp, jaeger, zipkin]
@@ -33,6 +33,24 @@ extensions:
     #   initial_sampling_probability: 0.1
     http:
     grpc:
+  
+  healthcheckv2:
+    use_v2: true
+    component_health:
+      include_permanent_errors: false
+      include_recoverable_errors: true
+      recovery_duration: 5m
+    http:
+      endpoint: "localhost:13133"
+      status:
+        enabled: true
+        path: "/health/status"
+      config:
+        enabled: true
+        path: "/health/config"
+    grpc:
+      endpoint: "localhost:13132"
+      transport: "tcp"
 
 receivers:
   otlp:
