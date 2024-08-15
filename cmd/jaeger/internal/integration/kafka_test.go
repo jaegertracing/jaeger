@@ -4,6 +4,7 @@
 package integration
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -14,7 +15,7 @@ import (
 	"github.com/jaegertracing/jaeger/plugin/storage/integration"
 )
 
-func createConfigWithEncoding(t *testing.T, configFile string) string {
+func createConfigWithEncoding(t *testing.T, configFile string, targetEncoding string) string {
 	data, err := os.ReadFile(configFile)
 	require.NoError(t, err, "Failed to read config file: %s", configFile)
 
@@ -26,9 +27,10 @@ func createConfigWithEncoding(t *testing.T, configFile string) string {
 	var replaceEncoding func(m map[string]any)
 	replaceEncoding = func(m map[string]any) {
 		for k, v := range m {
-			if k == "encoding" && v == "otlp_proto" {
-				t.Logf("Replacing encoding 'otlp_proto' with 'jaeger_json' in key: %s", k)
-				m[k] = "jaeger_json"
+			if k == "encoding" {
+				oldEncoding := v.(string)
+				t.Logf("Replacing encoding '%s' with '%s' in key: %s", oldEncoding, targetEncoding, k)
+				m[k] = targetEncoding
 			} else if subMap, ok := v.(map[string]any); ok {
 				replaceEncoding(subMap)
 			}
@@ -40,7 +42,7 @@ func createConfigWithEncoding(t *testing.T, configFile string) string {
 	newData, err := yaml.Marshal(config)
 	require.NoError(t, err, "Failed to marshal YAML data after encoding replacement")
 
-	tempFile := filepath.Join(t.TempDir(), "jaeger_encoding_config.yaml")
+	tempFile := filepath.Join(t.TempDir(), fmt.Sprintf("config_%s.yaml", targetEncoding))
 	err = os.WriteFile(tempFile, newData, 0o600)
 	require.NoError(t, err, "Failed to write updated config file to: %s", tempFile)
 
@@ -64,57 +66,44 @@ func TestKafkaStorage(t *testing.T) {
 	baseCollectorConfig := "../../collector-with-kafka.yaml"
 	baseIngesterConfig := "../../ingester-remote-storage.yaml"
 
-	// Test OTLP formats (no need to modify as default is otlp_proto)
-	t.Run("OTLPFormats", func(t *testing.T) {
-		t.Log("Starting OTLPFormats test")
-		collector := &E2EStorageIntegration{
-			SkipStorageCleaner:  true,
-			ConfigFile:          baseCollectorConfig,
-			HealthCheckEndpoint: "http://localhost:8888/metrics",
-		}
-		collector.e2eInitialize(t, "kafka")
-		t.Log("Collector initialized")
+	formats := []struct {
+		name     string
+		encoding string
+	}{
+		{"OTLP Proto", "otlp_proto"},
+		{"OTLP JSON", "otlp_json"},
+		{"Jaeger Proto", "jaeger_proto"},
+		{"Jaeger JSON", "jaeger_json"},
+		{"Jaeger Thrift", "jaeger_thrift"},
+	}
 
-		ingester := &E2EStorageIntegration{
-			ConfigFile: baseIngesterConfig,
-			StorageIntegration: integration.StorageIntegration{
-				CleanUp:                      purge,
-				GetDependenciesReturnsSource: true,
-				SkipArchiveTest:              true,
-			},
-		}
-		ingester.e2eInitialize(t, "kafka")
-		t.Log("Ingester initialized")
-		ingester.RunSpanStoreTests(t)
-		t.Log("OTLPFormats test completed successfully")
-	})
+	for _, format := range formats {
+		t.Run(format.name, func(t *testing.T) {
+			t.Logf("Starting %s test", format.name)
 
-	// Test legacy Jaeger formats
-	t.Run("LegacyJaegerFormats", func(t *testing.T) {
-		t.Log("Starting LegacyJaegerFormats test")
+			collectorConfig := createConfigWithEncoding(t, baseCollectorConfig, format.encoding)
+			ingesterConfig := createConfigWithEncoding(t, baseIngesterConfig, format.encoding)
 
-		collectorConfig := createConfigWithEncoding(t, baseCollectorConfig)
-		ingesterConfig := createConfigWithEncoding(t, baseIngesterConfig)
+			collector := &E2EStorageIntegration{
+				SkipStorageCleaner:  true,
+				ConfigFile:          collectorConfig,
+				HealthCheckEndpoint: "http://localhost:8888/metrics",
+			}
+			collector.e2eInitialize(t, "kafka")
+			t.Logf("Collector initialized with %s format", format.name)
 
-		collector := &E2EStorageIntegration{
-			SkipStorageCleaner:  true,
-			ConfigFile:          collectorConfig,
-			HealthCheckEndpoint: "http://localhost:8888/metrics",
-		}
-		collector.e2eInitialize(t, "kafka")
-		t.Log("Collector initialized with legacy Jaeger formats")
-
-		ingester := &E2EStorageIntegration{
-			ConfigFile: ingesterConfig,
-			StorageIntegration: integration.StorageIntegration{
-				CleanUp:                      purge,
-				GetDependenciesReturnsSource: true,
-				SkipArchiveTest:              true,
-			},
-		}
-		ingester.e2eInitialize(t, "kafka")
-		t.Log("Ingester initialized with legacy Jaeger formats")
-		ingester.RunSpanStoreTests(t)
-		t.Log("LegacyJaegerFormats test completed successfully")
-	})
+			ingester := &E2EStorageIntegration{
+				ConfigFile: ingesterConfig,
+				StorageIntegration: integration.StorageIntegration{
+					CleanUp:                      purge,
+					GetDependenciesReturnsSource: true,
+					SkipArchiveTest:              true,
+				},
+			}
+			ingester.e2eInitialize(t, "kafka")
+			t.Logf("Ingester initialized with %s format", format.name)
+			ingester.RunSpanStoreTests(t)
+			t.Logf("%s test completed successfully", format.name)
+		})
+	}
 }
