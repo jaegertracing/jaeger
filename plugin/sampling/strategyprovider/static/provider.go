@@ -375,7 +375,7 @@ func deepCopy(s *api_v2.SamplingStrategyResponse) *api_v2.SamplingStrategyRespon
 	enc := gob.NewEncoder(&buf)
 	dec := gob.NewDecoder(&buf)
 	enc.Encode(*s)
-	var copy api_v2.SamplingStrategyResponse
-	dec.Decode(&copy)
-	return &copy
+	var copyValue api_v2.SamplingStrategyResponse
+	dec.Decode(&copyValue)
+	return &copyValue
 }
