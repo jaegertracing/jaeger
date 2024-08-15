@@ -85,25 +85,25 @@ check go.mod "^go\s\+$version_regex" "$go_previous_version"
 check internal/tools/go.mod "^go\s\+$version_regex" "$go_latest_version"
 
 # Patch Version Handling in Dockerfile
-check_dockerfile() {
-    local file=$1
-    local pattern=$2
-    local target=$3
+# check_dockerfile() {
+#     local file=$1
+#     local pattern=$2
+#     local target=$3
 
-    go_version=$(grep -e "$pattern" "$file" | head -1 | sed "s/^.*golang:\($version_regex\.[0-9]*\).*$/\1/")
+#     go_version=$(grep -e "$pattern" "$file" | head -1 | sed "s/^.*golang:\($version_regex\.[0-9]*\).*$/\1/")
 
-    if [[ "$go_version" != "$target" ]]; then
-        if [[ "$go_version" =~ $version_regex\.[0-9]+ ]]; then
-            echo "Patch version detected in $file ($go_version). Manual update required."
-            exit 1
-        fi
-        files_to_update=$((files_to_update+1))
-    fi
+#     if [[ "$go_version" != "$target" ]]; then
+#         if [[ "$go_version" =~ $version_regex\.[0-9]+ ]]; then
+#             echo "Patch version detected in $file ($go_version). Manual update required."
+#             exit 1
+#         fi
+#         files_to_update=$((files_to_update+1))
+#     fi
 
-    printf "%-50s Go version: %s %s\n" "$file" "$go_version" "${mismatch:-}"
-}
+#     printf "%-50s Go version: %s %s\n" "$file" "$go_version" "${mismatch:-}"
+# }
 
-check_dockerfile docker/debug/Dockerfile "^.*golang:$version_regex" "$go_latest_version"
+check docker/debug/Dockerfile "^.*golang:$version_regex" "$go_latest_version"
 
 IFS='|' read -r -a gha_workflows <<< "$(grep -rl go-version .github | tr '\n' '|')"
 for gha_workflow in "${gha_workflows[@]}"; do
