@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
@@ -15,7 +16,7 @@ import (
 	"github.com/jaegertracing/jaeger/plugin/storage/integration"
 )
 
-func createConfigWithEncoding(t *testing.T, configFile string, targetEncoding string) string {
+func createConfigWithEncoding(t *testing.T, configFile string, targetEncoding string, uniqueTopic string) string {
 	data, err := os.ReadFile(configFile)
 	require.NoError(t, err, "Failed to read config file: %s", configFile)
 
@@ -24,20 +25,24 @@ func createConfigWithEncoding(t *testing.T, configFile string, targetEncoding st
 	require.NoError(t, err, "Failed to unmarshal YAML data from config file: %s", configFile)
 
 	// Function to recursively search and replace the encoding
-	var replaceEncoding func(m map[string]any)
-	replaceEncoding = func(m map[string]any) {
+	var replaceEncodingAndTopic func(m map[string]any)
+	replaceEncodingAndTopic = func(m map[string]any) {
 		for k, v := range m {
 			if k == "encoding" {
 				oldEncoding := v.(string)
-				t.Logf("Replacing encoding '%s' with '%s' in key: %s", oldEncoding, targetEncoding, k)
 				m[k] = targetEncoding
+				t.Logf("Replaced encoding '%s' with '%s' in key: %s", oldEncoding, targetEncoding, k)
+			} else if k == "topic" {
+				oldTopic := v.(string)
+				m[k] = uniqueTopic
+				t.Logf("Replaced topic '%s' with '%s' in key: %s", oldTopic, uniqueTopic, k)
 			} else if subMap, ok := v.(map[string]any); ok {
-				replaceEncoding(subMap)
+				replaceEncodingAndTopic(subMap)
 			}
 		}
 	}
 
-	replaceEncoding(config)
+	replaceEncodingAndTopic(config)
 
 	newData, err := yaml.Marshal(config)
 	require.NoError(t, err, "Failed to marshal YAML data after encoding replacement")
@@ -46,7 +51,7 @@ func createConfigWithEncoding(t *testing.T, configFile string, targetEncoding st
 	err = os.WriteFile(tempFile, newData, 0o600)
 	require.NoError(t, err, "Failed to write updated config file to: %s", tempFile)
 
-	t.Logf("Configuration file with updated encoding written to: %s", tempFile)
+	t.Logf("Configuration file with encoding '%s' and topic '%s' written to: %s", targetEncoding, uniqueTopic, tempFile)
 
 	return tempFile
 }
@@ -81,8 +86,12 @@ func TestKafkaStorage(t *testing.T) {
 		t.Run(format.name, func(t *testing.T) {
 			t.Logf("Starting %s test", format.name)
 
-			collectorConfig := createConfigWithEncoding(t, baseCollectorConfig, format.encoding)
-			ingesterConfig := createConfigWithEncoding(t, baseIngesterConfig, format.encoding)
+			// Generate a unique topic name for test runs
+			uniqueTopic := fmt.Sprintf("jaeger-spans-%d", time.Now().UnixNano())
+			t.Logf("Using unique Kafka topic: %s", uniqueTopic)
+
+			collectorConfig := createConfigWithEncoding(t, baseCollectorConfig, format.encoding, uniqueTopic)
+			ingesterConfig := createConfigWithEncoding(t, baseIngesterConfig, format.encoding, uniqueTopic)
 
 			collector := &E2EStorageIntegration{
 				SkipStorageCleaner:  true,
