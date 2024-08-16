@@ -74,13 +74,13 @@ func healthCheck(t *testing.T) {
 		},
 		10*time.Second,
 		time.Second,
-		"expecting query endpoint to be healhty",
+		"expecting query endpoint to be healthy",
 	)
 	t.Logf("Server detected at %s", queryAddr)
 }
 
 func healthCheckV2(t *testing.T) {
-	if os.Getenv("SKIP_HEALTHCHECK") == "true" {
+	if os.Getenv("HEALTHCHECK_V2") == "false" {
 		t.Skip("Skipping health check for V1 Binary")
 	}
 	require.Eventuallyf(
@@ -94,7 +94,7 @@ func healthCheckV2(t *testing.T) {
 		},
 		10*time.Second,
 		time.Second,
-		"expecting health endpoint to be healhty",
+		"expecting health endpoint to be healthy",
 	)
 	t.Logf("V2-HealthCheck Server detected at %s", healthAddr)
 }

@@ -23,10 +23,8 @@ jobs:
         mode:
         - name: v1
           binary: all-in-one
-          skip_healthcheck: true
         - name: v2
           binary: jaeger
-          skip_healthcheck: false
 
     steps:
     - name: Harden Runner
@@ -68,12 +66,21 @@ jobs:
             ;;
         esac
 
+    - name: Determine healthcheck setting
+      id: healthcheck
+      run: |
+        if [[ "${{ matrix.mode.name }}" == "v1" ]]; then
+          echo "HEALTHCHECK_V2=false" >> $GITHUB_ENV
+        elif [[ "${{ matrix.mode.name }}" == "v2" ]]; then
+          echo "HEALTHCHECK_V2=true" >> $GITHUB_ENV
+        fi
+
     - name: Build, test, and publish all-in-one image
       run: |
         bash scripts/build-all-in-one-image.sh \
           ${{ env.BUILD_FLAGS }} \
-          -b ${{ matrix.mode.binary }}
+          -b ${{ matrix.mode.binary }} \
       env:
         DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
-        SKIP_HEALTHCHECK: ${{ matrix.mode.skip_healthcheck }}
+        HEALTHCHECK_V2: ${{ env.HEALTHCHECK_V2 }}
