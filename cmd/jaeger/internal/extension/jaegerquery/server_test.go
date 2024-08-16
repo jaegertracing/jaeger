@@ -189,7 +189,6 @@ func TestServerStart(t *testing.T) {
 			telemetrySettings := component.TelemetrySettings{
 				Logger:        zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller())),
 				MeterProvider: noopMeter.NewMeterProvider(),
-				ReportStatus:  func(*component.StatusEvent) {},
 			}
 			tt.config.HTTP.Endpoint = ":0"
 			tt.config.GRPC.NetAddr.Endpoint = ":0"
