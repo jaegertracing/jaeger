@@ -5,7 +5,6 @@ package grpc
 
 import (
 	"context"
-	"io"
 	"net"
 	"testing"
 
@@ -18,16 +17,12 @@ import (
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 )
 
-func closeTestGrpcConn(t *testing.T, c io.Closer) {
-	require.NoError(t, c.Close())
-}
-
 func TestSamplingManager_GetSamplingStrategy(t *testing.T) {
 	s, addr := initializeGRPCTestServer(t, func(s *grpc.Server) {
 		api_v2.RegisterSamplingManagerServer(s, &mockSamplingHandler{})
 	})
 	conn, err := grpc.NewClient(addr.String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
-	defer closeTestGrpcConn(t, conn)
+	t.Cleanup(func() { require.NoError(t, conn.Close()) })
 	require.NoError(t, err)
 	defer s.GracefulStop()
 	manager := NewConfigManager(conn)
@@ -38,7 +33,7 @@ func TestSamplingManager_GetSamplingStrategy(t *testing.T) {
 
 func TestSamplingManager_GetSamplingStrategy_error(t *testing.T) {
 	conn, err := grpc.NewClient("foo", grpc.WithTransportCredentials(insecure.NewCredentials()))
-	defer closeTestGrpcConn(t, conn)
+	t.Cleanup(func() { require.NoError(t, conn.Close()) })
 	require.NoError(t, err)
 	manager := NewConfigManager(conn)
 	resp, err := manager.GetSamplingStrategy(context.Background(), "any")
