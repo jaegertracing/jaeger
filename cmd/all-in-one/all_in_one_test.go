@@ -24,7 +24,6 @@ import (
 )
 
 // These tests are only run when the environment variable TEST_MODE=integration is set.
-// An optional SKIP_SAMPLING=true environment variable can be used to skip sampling checks (for jaeger-v2).
 
 const (
 	host       = "0.0.0.0"
@@ -81,6 +80,9 @@ func healthCheck(t *testing.T) {
 }
 
 func healthCheckV2(t *testing.T) {
+	if os.Getenv("SKIP_HEALTHCHECK") == "true" {
+		t.Skip("Skipping health check for V1 Binary")
+	}
 	require.Eventuallyf(
 		t,
 		func() bool {

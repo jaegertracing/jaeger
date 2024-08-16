@@ -23,8 +23,10 @@ jobs:
         mode:
         - name: v1
           binary: all-in-one
+          skip_healthcheck: true
         - name: v2
           binary: jaeger
+          skip_healthcheck: false
 
     steps:
     - name: Harden Runner
