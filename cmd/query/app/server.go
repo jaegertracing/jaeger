@@ -15,7 +15,7 @@ import (
 
 	"github.com/gorilla/handlers"
 	"github.com/soheilhy/cmux"
-	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/component/componentstatus"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"google.golang.org/grpc"
@@ -295,7 +295,7 @@ func (s *Server) Start() error {
 		}
 		if err != nil && !errors.Is(err, http.ErrServerClosed) && !errors.Is(err, cmux.ErrListenerClosed) && !errors.Is(err, cmux.ErrServerClosed) {
 			s.Logger.Error("Could not start HTTP server", zap.Error(err))
-			s.ReportStatus(component.NewFatalErrorEvent(err))
+			s.ReportStatus(componentstatus.NewFatalErrorEvent(err))
 			return
 		}
 		s.Logger.Info("HTTP server stopped", zap.Int("port", httpPort), zap.String("addr", s.queryOptions.HTTPHostPort))
@@ -310,7 +310,7 @@ func (s *Server) Start() error {
 		err := s.grpcServer.Serve(s.grpcConn)
 		if err != nil && !errors.Is(err, cmux.ErrListenerClosed) && !errors.Is(err, cmux.ErrServerClosed) {
 			s.Logger.Error("Could not start GRPC server", zap.Error(err))
-			s.ReportStatus(component.NewFatalErrorEvent(err))
+			s.ReportStatus(componentstatus.NewFatalErrorEvent(err))
 			return
 		}
 		s.Logger.Info("GRPC server stopped", zap.Int("port", grpcPort), zap.String("addr", s.queryOptions.GRPCHostPort))
@@ -327,7 +327,7 @@ func (s *Server) Start() error {
 			// TODO: find a way to avoid string comparison. Even though cmux has ErrServerClosed, it's not returned here.
 			if err != nil && !strings.Contains(err.Error(), "use of closed network connection") {
 				s.Logger.Error("Could not start multiplexed server", zap.Error(err))
-				s.ReportStatus(component.NewFatalErrorEvent(err))
+				s.ReportStatus(componentstatus.NewFatalErrorEvent(err))
 				return
 			}
 			s.Logger.Info("CMUX server stopped", zap.Int("port", tcpPort), zap.String("addr", s.queryOptions.HTTPHostPort))

@@ -42,6 +42,7 @@ require (
 	github.com/uber/jaeger-client-go v2.30.0+incompatible
 	github.com/xdg-go/scram v1.1.2
 	go.opentelemetry.io/collector/component v0.108.1
+	go.opentelemetry.io/collector/component/componentstatus v0.108.1
 	go.opentelemetry.io/collector/config/configauth v0.108.1
 	go.opentelemetry.io/collector/config/configgrpc v0.108.1
 	go.opentelemetry.io/collector/config/confighttp v0.108.1
@@ -99,7 +100,6 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/prometheus v0.107.0 // indirect
 	go.opentelemetry.io/collector/client v1.14.1 // indirect
 	go.opentelemetry.io/collector/component/componentprofiles v0.108.1 // indirect
-	go.opentelemetry.io/collector/component/componentstatus v0.108.1 // indirect
 	go.opentelemetry.io/collector/consumer/consumerprofiles v0.108.1 // indirect
 	go.opentelemetry.io/collector/internal/globalgates v0.108.1 // indirect
 	go.opentelemetry.io/collector/pdata/pprofile v0.108.1 // indirect
@@ -110,8 +110,8 @@ require (
 )
 
 require (
-	github.com/IBM/sarama v1.43.2 // indirect
-	github.com/aws/aws-sdk-go v1.53.16 // indirect
+	github.com/IBM/sarama v1.43.3 // indirect
+	github.com/aws/aws-sdk-go v1.54.19 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
@@ -119,7 +119,7 @@ require (
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/dgraph-io/ristretto v0.1.1 // indirect
 	github.com/dustin/go-humanize v1.0.0 // indirect
-	github.com/eapache/go-resiliency v1.6.0 // indirect
+	github.com/eapache/go-resiliency v1.7.0 // indirect
 	github.com/eapache/go-xerial-snappy v0.0.0-20230731223053-c322873962e3 // indirect
 	github.com/eapache/queue v1.1.0 // indirect
 	github.com/elastic/elastic-transport-go/v8 v8.6.0 // indirect

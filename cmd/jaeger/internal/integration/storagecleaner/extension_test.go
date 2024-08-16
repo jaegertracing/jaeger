@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/component/componentstatus"
 	"go.uber.org/zap/zaptest"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
@@ -139,22 +140,34 @@ func TestStorageExtensionStartError(t *testing.T) {
 		TraceStorage: "storage",
 		Port:         "invalid-port",
 	}
-	var startStatus atomic.Pointer[component.StatusEvent]
+	var startStatus atomic.Pointer[componentstatus.Event]
 	s := newStorageCleaner(config, component.TelemetrySettings{
 		Logger: zaptest.NewLogger(t),
-		ReportStatus: func(status *component.StatusEvent) {
+	})
+	host := &testHost{
+		Host: storagetest.NewStorageHost().WithExtension(
+			jaegerstorage.ID,
+			&mockStorageExt{
+				name:    "storage",
+				factory: &PurgerFactory{},
+			}),
+		reportFunc: func(status *componentstatus.Event) {
 			startStatus.Store(status)
 		},
-	})
-	host := storagetest.NewStorageHost().WithExtension(
-		jaegerstorage.ID,
-		&mockStorageExt{
-			name:    "storage",
-			factory: &PurgerFactory{},
-		})
+	}
+
 	require.NoError(t, s.Start(context.Background(), host))
 	assert.Eventually(t, func() bool {
 		return startStatus.Load() != nil
 	}, 5*time.Second, 100*time.Millisecond)
 	require.Contains(t, startStatus.Load().Err().Error(), "error starting cleaner server")
+}
+
+type testHost struct {
+	component.Host
+	reportFunc func(event *componentstatus.Event)
+}
+
+func (h *testHost) Report(event *componentstatus.Event) {
+	h.reportFunc(event)
 }

@@ -8,7 +8,7 @@ import (
 	"net"
 	"sync"
 
-	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/component/componentstatus"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -124,7 +124,7 @@ func (s *Server) Start() error {
 		defer s.wg.Done()
 		if err := s.grpcServer.Serve(s.grpcConn); err != nil {
 			s.Logger.Error("GRPC server exited", zap.Error(err))
-			s.ReportStatus(component.NewFatalErrorEvent(err))
+			s.ReportStatus(componentstatus.NewFatalErrorEvent(err))
 		}
 	}()
 
@@ -137,6 +137,6 @@ func (s *Server) Close() error {
 	s.grpcConn.Close()
 	s.opts.TLSGRPC.Close()
 	s.wg.Wait()
-	s.ReportStatus(component.NewStatusEvent(component.StatusStopped))
+	s.ReportStatus(componentstatus.NewEvent(componentstatus.StatusStopped))
 	return nil
 }

@@ -12,6 +12,7 @@ import (
 	"sync"
 
 	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/component/componentstatus"
 	"go.opentelemetry.io/collector/extension"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -257,7 +258,7 @@ func (ext *rsExtension) startHTTPServer(ctx context.Context, host component.Host
 
 		err := ext.httpServer.Serve(hln)
 		if err != nil && !errors.Is(err, http.ErrServerClosed) {
-			ext.telemetry.ReportStatus(component.NewFatalErrorEvent(err))
+			componentstatus.ReportStatus(host, componentstatus.NewFatalErrorEvent(err))
 		}
 	}()
 
@@ -289,7 +290,7 @@ func (ext *rsExtension) startGRPCServer(ctx context.Context, host component.Host
 	go func() {
 		defer ext.shutdownWG.Done()
 		if err := ext.grpcServer.Serve(gln); err != nil && !errors.Is(err, grpc.ErrServerStopped) {
-			ext.telemetry.ReportStatus(component.NewFatalErrorEvent(err))
+			componentstatus.ReportStatus(host, componentstatus.NewFatalErrorEvent(err))
 		}
 	}()
 

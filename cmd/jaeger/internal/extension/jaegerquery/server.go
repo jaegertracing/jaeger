@@ -9,6 +9,7 @@ import (
 	"fmt"
 
 	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/component/componentstatus"
 	"go.opentelemetry.io/collector/extension"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
@@ -94,7 +95,9 @@ func (s *server) Start(_ context.Context, host component.Host) error {
 		Logger:         s.telset.Logger,
 		TracerProvider: tracerProvider.OTEL,
 		Metrics:        queryMetricsFactory,
-		ReportStatus:   s.telset.ReportStatus,
+		ReportStatus: func(event *componentstatus.Event) {
+			componentstatus.ReportStatus(host, event)
+		},
 	}
 
 	// TODO contextcheck linter complains about next line that context is not passed. It is not wrong.
