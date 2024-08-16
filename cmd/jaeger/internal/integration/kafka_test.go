@@ -81,10 +81,10 @@ func TestKafkaStorage(t *testing.T) {
 		encoding string
 	}{
 		{"OTLP Proto", "otlp_proto"},
-		{"OTLP JSON", "otlp_json"},
+		// {"OTLP JSON", "otlp_json"},
 		{"Jaeger Proto", "jaeger_proto"},
 		{"Jaeger JSON", "jaeger_json"},
-		// {"Jaeger Thrift", "jaeger_thrift"},
+		{"Jaeger Thrift", "jaeger_thrift"},
 	}
 
 	for _, format := range formats {
