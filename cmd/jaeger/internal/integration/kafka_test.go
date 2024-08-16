@@ -24,25 +24,30 @@ func createConfigWithEncoding(t *testing.T, configFile string, targetEncoding st
 	err = yaml.Unmarshal(data, &config)
 	require.NoError(t, err, "Failed to unmarshal YAML data from config file: %s", configFile)
 
-	// Function to recursively search and replace the encoding
-	var replaceEncodingAndTopic func(m map[string]any)
-	replaceEncodingAndTopic = func(m map[string]any) {
+	// Function to recursively search and replace the encoding and topic
+	var replaceEncodingAndTopic func(m map[string]any) int
+	replaceEncodingAndTopic = func(m map[string]any) int {
+		replacements := 0
 		for k, v := range m {
 			if k == "encoding" {
 				oldEncoding := v.(string)
 				m[k] = targetEncoding
 				t.Logf("Replaced encoding '%s' with '%s' in key: %s", oldEncoding, targetEncoding, k)
+				replacements++
 			} else if k == "topic" {
 				oldTopic := v.(string)
 				m[k] = uniqueTopic
 				t.Logf("Replaced topic '%s' with '%s' in key: %s", oldTopic, uniqueTopic, k)
+				replacements++
 			} else if subMap, ok := v.(map[string]any); ok {
-				replaceEncodingAndTopic(subMap)
+				replacements += replaceEncodingAndTopic(subMap)
 			}
 		}
+		return replacements
 	}
 
-	replaceEncodingAndTopic(config)
+	totalReplacements := replaceEncodingAndTopic(config)
+	require.Equal(t, 2, totalReplacements, "Expected exactly 2 replacements (encoding and topic), but got %d", totalReplacements)
 
 	newData, err := yaml.Marshal(config)
 	require.NoError(t, err, "Failed to marshal YAML data after encoding replacement")
