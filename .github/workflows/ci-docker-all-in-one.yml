@@ -76,3 +76,4 @@ jobs:
       env:
         DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
+        SKIP_HEALTHCHECK: ${{ matrix.mode.skip_healthcheck }}
