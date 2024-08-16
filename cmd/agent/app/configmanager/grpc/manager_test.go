@@ -1,22 +1,10 @@
 // Copyright (c) 2018 The Jaeger Authors.
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// SPDX-License-Identifier: Apache-2.0
 
 package grpc
 
 import (
 	"context"
-	"io"
 	"net"
 	"testing"
 
@@ -29,16 +17,12 @@ import (
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 )
 
-func close(t *testing.T, c io.Closer) {
-	require.NoError(t, c.Close())
-}
-
 func TestSamplingManager_GetSamplingStrategy(t *testing.T) {
 	s, addr := initializeGRPCTestServer(t, func(s *grpc.Server) {
 		api_v2.RegisterSamplingManagerServer(s, &mockSamplingHandler{})
 	})
 	conn, err := grpc.NewClient(addr.String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
-	defer close(t, conn)
+	t.Cleanup(func() { require.NoError(t, conn.Close()) })
 	require.NoError(t, err)
 	defer s.GracefulStop()
 	manager := NewConfigManager(conn)
@@ -49,7 +33,7 @@ func TestSamplingManager_GetSamplingStrategy(t *testing.T) {
 
 func TestSamplingManager_GetSamplingStrategy_error(t *testing.T) {
 	conn, err := grpc.NewClient("foo", grpc.WithTransportCredentials(insecure.NewCredentials()))
-	defer close(t, conn)
+	t.Cleanup(func() { require.NoError(t, conn.Close()) })
 	require.NoError(t, err)
 	manager := NewConfigManager(conn)
 	resp, err := manager.GetSamplingStrategy(context.Background(), "any")

@@ -69,6 +69,11 @@ function check() {
     fi
 
     if [[ $update = true && "$mismatch" != "" ]]; then
+        # Detect if the line includes a patch version
+        if [[ "$go_version" =~ $version_regex\.[0-9]+ ]]; then
+            echo "Patch version detected in $file. Manual update required."
+            exit 1
+        fi
         update "$file" "$pattern" "$go_version" "$target"
         mismatch="*** => $target ***"
     fi
@@ -78,7 +83,6 @@ function check() {
 
 check go.mod "^go\s\+$version_regex" "$go_previous_version"
 check internal/tools/go.mod "^go\s\+$version_regex" "$go_latest_version"
-
 check docker/debug/Dockerfile "^.*golang:$version_regex" "$go_latest_version"
 
 IFS='|' read -r -a gha_workflows <<< "$(grep -rl go-version .github | tr '\n' '|')"
