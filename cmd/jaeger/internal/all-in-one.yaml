@@ -36,21 +36,8 @@ extensions:
   
   healthcheckv2:
     use_v2: true
-    component_health:
-      include_permanent_errors: false
-      include_recoverable_errors: true
-      recovery_duration: 5m
     http:
-      endpoint: "localhost:13133"
-      status:
-        enabled: true
-        path: "/health/status"
-      config:
-        enabled: true
-        path: "/health/config"
     grpc:
-      endpoint: "localhost:13132"
-      transport: "tcp"
 
 receivers:
   otlp:

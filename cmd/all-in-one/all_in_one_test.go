@@ -38,16 +38,19 @@ import (
 // An optional SKIP_SAMPLING=true environment variable can be used to skip sampling checks (for jaeger-v2).
 
 const (
-	host      = "0.0.0.0"
-	queryPort = "16686"
-	agentPort = "5778"
-	queryAddr = "http://" + host + ":" + queryPort
-	agentAddr = "http://" + host + ":" + agentPort
+	host       = "0.0.0.0"
+	queryPort  = "16686"
+	agentPort  = "5778"
+	healthPort = "13133"
+	queryAddr  = "http://" + host + ":" + queryPort
+	agentAddr  = "http://" + host + ":" + agentPort
+	healthAddr = "http://" + host + ":" + healthPort
 
 	getServicesURL         = "/api/services"
 	getTraceURL            = "/api/traces/"
 	getServicesAPIV3URL    = "/api/v3/services"
 	getSamplingStrategyURL = "/sampling?service=whatever"
+	getHealthURL           = "/status/"
 )
 
 var traceID string // stores state exchanged between createTrace and getAPITrace
@@ -63,7 +66,7 @@ func TestAllInOne(t *testing.T) {
 
 	// Check if the query service is available
 	healthCheck(t)
-
+	healthCheckV2(t)
 	t.Run("checkWebUI", checkWebUI)
 	t.Run("createTrace", createTrace)
 	t.Run("getAPITrace", getAPITrace)
@@ -86,6 +89,23 @@ func healthCheck(t *testing.T) {
 		"expecting query endpoint to be healhty",
 	)
 	t.Logf("Server detected at %s", queryAddr)
+}
+
+func healthCheckV2(t *testing.T) {
+	require.Eventuallyf(
+		t,
+		func() bool {
+			resp, err := http.Get(healthAddr + getHealthURL)
+			if err == nil {
+				resp.Body.Close()
+			}
+			return err == nil
+		},
+		10*time.Second,
+		time.Second,
+		"expecting health endpoint to be healhty",
+	)
+	t.Logf("V2-HealthCheck Server detected at %s", healthAddr)
 }
 
 func httpGet(t *testing.T, url string) (*http.Response, []byte) {
