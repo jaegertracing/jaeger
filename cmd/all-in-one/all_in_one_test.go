@@ -38,7 +38,7 @@ const (
 	getTraceURL            = "/api/traces/"
 	getServicesAPIV3URL    = "/api/v3/services"
 	getSamplingStrategyURL = "/sampling?service=whatever"
-	getHealthURL           = "/status/"
+	getHealthURL           = "/status"
 )
 
 var traceID string // stores state exchanged between createTrace and getAPITrace
