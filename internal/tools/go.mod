@@ -6,7 +6,7 @@ require (
 	github.com/golangci/golangci-lint v1.60.1
 	github.com/josephspurrier/goversioninfo v1.4.0
 	github.com/vektra/mockery/v2 v2.44.2
-	mvdan.cc/gofumpt v0.6.0
+	mvdan.cc/gofumpt v0.7.0
 )
 
 require (
