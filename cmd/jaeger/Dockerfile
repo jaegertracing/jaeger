@@ -43,6 +43,9 @@ EXPOSE 9411
 # Web HTTP
 EXPOSE 16686
 
+# Health Check gRPC
+EXPOSE 13132
+
 # Health Check HTTP
 EXPOSE 13133
 
@@ -94,6 +97,9 @@ EXPOSE 16686
 
 # Delve
 EXPOSE 12345
+
+# Health Check gRPC
+EXPOSE 13132
 
 # Health Check HTTP
 EXPOSE 13133

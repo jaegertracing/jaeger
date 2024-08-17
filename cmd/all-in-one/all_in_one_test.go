@@ -32,13 +32,12 @@ const (
 	healthPort = "13133"
 	queryAddr  = "http://" + host + ":" + queryPort
 	agentAddr  = "http://" + host + ":" + agentPort
-	healthAddr = "http://" + host + ":" + healthPort
+	healthAddr = "http://" + host + ":" + healthPort + "/status"
 
 	getServicesURL         = "/api/services"
 	getTraceURL            = "/api/traces/"
 	getServicesAPIV3URL    = "/api/v3/services"
 	getSamplingStrategyURL = "/sampling?service=whatever"
-	getHealthURL           = "/status"
 )
 
 var traceID string // stores state exchanged between createTrace and getAPITrace
@@ -54,7 +53,8 @@ func TestAllInOne(t *testing.T) {
 
 	// Check if the query service is available
 	healthCheck(t)
-	healthCheckV2(t)
+
+	t.Run("healthCheckV2", healthCheckV2)
 	t.Run("checkWebUI", checkWebUI)
 	t.Run("createTrace", createTrace)
 	t.Run("getAPITrace", getAPITrace)
@@ -63,8 +63,7 @@ func TestAllInOne(t *testing.T) {
 }
 
 func healthCheck(t *testing.T) {
-	require.Eventuallyf(
-		t,
+	require.Eventuallyf(t,
 		func() bool {
 			resp, err := http.Get(queryAddr + "/")
 			if err == nil {
@@ -83,11 +82,9 @@ func healthCheckV2(t *testing.T) {
 	if os.Getenv("HEALTHCHECK_V2") == "false" {
 		t.Skip("Skipping health check for V1 Binary")
 	}
-	require.Eventuallyf(
-		t,
+	require.Eventuallyf(t,
 		func() bool {
-			resp, err := http.Get(healthAddr + getHealthURL)
-			t.Log("gdkjfdsgfdggdfdgfgfgfddgfgfdfdgg", err)
+			resp, err := http.Get(healthAddr)
 			if err == nil {
 				resp.Body.Close()
 			}
