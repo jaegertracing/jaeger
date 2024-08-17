@@ -43,6 +43,9 @@ EXPOSE 9411
 # Web HTTP
 EXPOSE 16686
 
+# Health Check HTTP
+EXPOSE 13133
+
 COPY jaeger-linux-$TARGETARCH /cmd/jaeger/jaeger-linux
 COPY sampling-strategies.json /cmd/jaeger/sampling-strategies.json
 
@@ -91,6 +94,9 @@ EXPOSE 16686
 
 # Delve
 EXPOSE 12345
+
+# Health Check HTTP
+EXPOSE 13133
 
 COPY jaeger-debug-linux-$TARGETARCH /cmd/jaeger/jaeger-linux
 COPY sampling-strategies.json /cmd/jaeger/sampling-strategies.json
