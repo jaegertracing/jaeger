@@ -386,6 +386,8 @@ github.com/open-telemetry/opentelemetry-collector-contrib/exporter/kafkaexporter
 github.com/open-telemetry/opentelemetry-collector-contrib/exporter/kafkaexporter v0.107.0/go.mod h1:gMY05z3fY6HnL/vNfyVYl3w4eihI8DftosfHuxqEeTg=
 github.com/open-telemetry/opentelemetry-collector-contrib/exporter/prometheusexporter v0.107.0 h1:g4LloH7qCMZfahxep5dKU9U18RnHGYsDw+/BQkzg9ts=
 github.com/open-telemetry/opentelemetry-collector-contrib/exporter/prometheusexporter v0.107.0/go.mod h1:+oXUZlAMk5MepQpL7OJiLEUyugPFlmCs8kL/ciaERAs=
+github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckv2extension v0.107.0 h1:qAJyEY8c0OwAaX/avNOI1Ovoh2oRu744WXdlm6oefBc=
+github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckv2extension v0.107.0/go.mod h1:6LO3bm94bdTS6W7d2vuYboDNtPzspTJBDZRema1gBb4=
 github.com/open-telemetry/opentelemetry-collector-contrib/extension/storage v0.107.0 h1:ng+d8RpXN+cUUJTn1yA2xmXCEah0o7BsGzwsm3fDSsw=
 github.com/open-telemetry/opentelemetry-collector-contrib/extension/storage v0.107.0/go.mod h1:pc5uB5lbPTNddFYA0bYy0TYkp4Yjh4teYXBPsRL2/Rk=
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/common v0.107.0 h1:NKH1JyZbqUSDGbIVqTyGJclmdnp6v4TQYfLhNI4tZno=
