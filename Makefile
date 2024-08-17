@@ -36,6 +36,7 @@ ALL_SRC = $(shell find . -name '*.go' \
 				   -not -name '*.pb.go' \
 				   -not -path './vendor/*' \
 				   -not -path './internal/tools/*' \
+				   -not -path './docker/debug/*' \
 				   -not -path '*/mocks/*' \
 				   -not -path '*/*-gen/*' \
 				   -not -path '*/thrift-0.9.2/*' \

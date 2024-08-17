@@ -81,16 +81,22 @@ function check() {
     printf "%-50s Go version: %s %s\n" "$file" "$go_version" "$mismatch"
 }
 
+# In the main go.mod file (and linter config) we want Go version N-1.
+# See README.md / Go Version Compatibility Guarantees.
 check go.mod "^go\s\+$version_regex" "$go_previous_version"
-check internal/tools/go.mod "^go\s\+$version_regex" "$go_latest_version"
+check .golangci.yml "go:\s\+\"$version_regex\"" "$go_previous_version"
+
+# find all other go.mod files in the repository and check for latest Go version
+for file in $(find . -type f -name go.mod | grep -v '^./go.mod'); do
+    check "$file" "^go\s\+$version_regex" "$go_latest_version"
+done
+
 check docker/debug/Dockerfile "^.*golang:$version_regex" "$go_latest_version"
 
 IFS='|' read -r -a gha_workflows <<< "$(grep -rl go-version .github | tr '\n' '|')"
 for gha_workflow in "${gha_workflows[@]}"; do
     check "$gha_workflow" "^\s*go-version:\s\+$version_regex" "$go_latest_version"
 done
-
-check .golangci.yml "go:\s\+\"$version_regex\"" "$go_previous_version"
 
 if [ $files_to_update -eq 0 ]; then
     echo "All files are up to date."
