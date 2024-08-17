@@ -16,6 +16,13 @@ import (
 	"github.com/jaegertracing/jaeger/plugin/storage/integration"
 )
 
+// createConfigWithEncoding rewrites the base configuration files to use the given encoding
+// and Kafka topic which are varied between the test runs.
+//
+// Once OTEL Collector supports default values for env vars
+// (https://github.com/open-telemetry/opentelemetry-collector/issues/5228)
+// we can change the config to use topic: "${KAFKA_TOPIC:-jaeger-spans}"
+// and export a KAFKA_TOPIC var with random topic name in the tests.
 func createConfigWithEncoding(t *testing.T, configFile string, targetEncoding string, uniqueTopic string) string {
 	data, err := os.ReadFile(configFile)
 	require.NoError(t, err, "Failed to read config file: %s", configFile)
@@ -64,50 +71,40 @@ func createConfigWithEncoding(t *testing.T, configFile string, targetEncoding st
 func TestKafkaStorage(t *testing.T) {
 	integration.SkipUnlessEnv(t, "kafka")
 
-	// TODO these config files use topic: "jaeger-spans",
-	// but for integration tests we want to use random topic in each run.
-	// https://github.com/jaegertracing/jaeger/blob/ed5cc2981c34158d0650cb96cb2fafcb753bea70/plugin/storage/integration/kafka_test.go#L50-L51
-	// Once OTEL Collector supports default values for env vars
-	// (https://github.com/open-telemetry/opentelemetry-collector/issues/5228)
-	// we can change the config to use topic: "${KAFKA_TOPIC:-jaeger-spans}"
-	// and export a KAFKA_TOPIC var with random topic name in the tests.
-
-	// OTLP config files
-	baseCollectorConfig := "../../collector-with-kafka.yaml"
-	baseIngesterConfig := "../../ingester-remote-storage.yaml"
-
-	formats := []struct {
-		name     string
+	tests := []struct {
 		encoding string
+		skip     string
 	}{
-		{"OTLP Proto", "otlp_proto"},
-		// {"OTLP JSON", "otlp_json"},
-		{"Jaeger Proto", "jaeger_proto"},
-		{"Jaeger JSON", "jaeger_json"},
-		// {"Jaeger Thrift", "jaeger_thrift"},
+		{encoding: "otlp_proto"},
+		{encoding: "otlp_json", skip: "not supported: https://github.com/open-telemetry/opentelemetry-collector-contrib/issues/33627"},
+		{encoding: "jaeger_proto"},
+		{encoding: "jaeger_json"},
 	}
 
-	for _, format := range formats {
-		t.Run(format.name, func(t *testing.T) {
-			t.Logf("Starting %s test", format.name)
-
-			// Generate a unique topic name for test runs
+	for _, test := range tests {
+		t.Run(test.encoding, func(t *testing.T) {
+			if test.skip != "" {
+				t.Skip(test.skip)
+			}
 			uniqueTopic := fmt.Sprintf("jaeger-spans-%d", time.Now().UnixNano())
 			t.Logf("Using unique Kafka topic: %s", uniqueTopic)
 
-			collectorConfig := createConfigWithEncoding(t, baseCollectorConfig, format.encoding, uniqueTopic)
-			ingesterConfig := createConfigWithEncoding(t, baseIngesterConfig, format.encoding, uniqueTopic)
+			// Unlike the other storage tests where "collector" has access to the storage,
+			// here we have two distinct binaries, collector and ingester, and only the ingester
+			// has access to the storage and allows the test to query it.
+			// We reuse E2EStorageIntegration struct to manage lifecycle of the collector,
+			// but the tests are run against the ingester.
 
 			collector := &E2EStorageIntegration{
 				SkipStorageCleaner:  true,
-				ConfigFile:          collectorConfig,
+				ConfigFile:          createConfigWithEncoding(t, "../../collector-with-kafka.yaml", test.encoding, uniqueTopic),
 				HealthCheckEndpoint: "http://localhost:8888/metrics",
 			}
 			collector.e2eInitialize(t, "kafka")
-			t.Logf("Collector initialized with %s format", format.name)
+			t.Log("Collector initialized")
 
 			ingester := &E2EStorageIntegration{
-				ConfigFile: ingesterConfig,
+				ConfigFile: createConfigWithEncoding(t, "../../ingester-remote-storage.yaml", test.encoding, uniqueTopic),
 				StorageIntegration: integration.StorageIntegration{
 					CleanUp:                      purge,
 					GetDependenciesReturnsSource: true,
@@ -115,9 +112,9 @@ func TestKafkaStorage(t *testing.T) {
 				},
 			}
 			ingester.e2eInitialize(t, "kafka")
-			t.Logf("Ingester initialized with %s format", format.name)
+			t.Log("Ingester initialized")
+
 			ingester.RunSpanStoreTests(t)
-			t.Logf("%s test completed successfully", format.name)
 		})
 	}
 }
