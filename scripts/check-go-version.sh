@@ -12,7 +12,7 @@ while getopts "uvdx" opt; do
         u) update=true ;;
         v) verbose=true ;;
         x) set -x ;;
-        *) echo "Usage: $0 [-u] [-v] [-d]" >&2
+        *) echo "Usage: $0 [-u] [-v] [-x]" >&2
            exit 1
            ;;
     esac
@@ -28,6 +28,10 @@ go_latest_version=$(grep toolchain go.mod | sed 's/^.*go\([0-9]\.[0-9]*\).*/\1/'
 go_previous_version="${go_latest_version%.*}.$((10#${go_latest_version#*.} - 1))"
 
 files_to_update=0
+
+# Create a temp file and add a trap function to delete it
+log_file=$(mktemp)
+trap 'rm -f "$log_file"' EXIT
 
 function update() {
     local file=$1
@@ -46,10 +50,6 @@ function update() {
         echo "$line" >> "$newfile"
     done < "$file"
     IFS=$old_IFS
-
-    if [ $verbose = true ]; then
-        diff "$file" "$newfile"
-    fi
 
     mv "$newfile" "$file"
 }
@@ -78,7 +78,12 @@ function check() {
         mismatch="*** => $target ***"
     fi
 
-    printf "%-50s Go version: %s %s\n" "$file" "$go_version" "$mismatch"
+    log=$(printf "%-50s Go version: %s %s\n" "$file" "$go_version" "$mismatch")
+    echo "$log" >> "$log_file"
+
+    if [ $verbose = true ]; then
+        echo "$log"
+    fi
 }
 
 # In the main go.mod file (and linter config) we want Go version N-1.
@@ -101,6 +106,7 @@ done
 if [ $files_to_update -eq 0 ]; then
     echo "All files are up to date."
 else
+    cat "$log_file"
     if [[ $update = true ]]; then
         echo "$files_to_update file(s) updated."
     else
