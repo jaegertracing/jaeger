@@ -87,6 +87,7 @@ func healthCheckV2(t *testing.T) {
 		t,
 		func() bool {
 			resp, err := http.Get(healthAddr + getHealthURL)
+			t.Log("gdkjfdsgfdggdfdgfgfgfddgfgfdfdgg", err)
 			if err == nil {
 				resp.Body.Close()
 			}
