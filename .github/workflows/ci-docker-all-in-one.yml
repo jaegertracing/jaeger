@@ -79,7 +79,7 @@ jobs:
       run: |
         bash scripts/build-all-in-one-image.sh \
           ${{ env.BUILD_FLAGS }} \
-          -b ${{ matrix.mode.binary }} \
+          -b ${{ matrix.mode.binary }}
       env:
         DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
