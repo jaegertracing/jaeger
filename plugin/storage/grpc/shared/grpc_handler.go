@@ -1,16 +1,5 @@
 // Copyright (c) 2019 The Jaeger Authors.
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// SPDX-License-Identifier: Apache-2.0
 
 package shared
 
@@ -164,7 +153,7 @@ func (s *GRPCHandler) Close(context.Context, *storage_v1.CloseWriterRequest) (*s
 func (s *GRPCHandler) GetTrace(r *storage_v1.GetTraceRequest, stream storage_v1.SpanReaderPlugin_GetTraceServer) error {
 	trace, err := s.impl.SpanReader().GetTrace(stream.Context(), r.TraceID)
 	if errors.Is(err, spanstore.ErrTraceNotFound) {
-		return status.Errorf(codes.NotFound, spanstore.ErrTraceNotFound.Error())
+		return status.Error(codes.NotFound, spanstore.ErrTraceNotFound.Error())
 	}
 	if err != nil {
 		return err
@@ -289,7 +278,7 @@ func (s *GRPCHandler) GetArchiveTrace(r *storage_v1.GetTraceRequest, stream stor
 	}
 	trace, err := reader.GetTrace(stream.Context(), r.TraceID)
 	if errors.Is(err, spanstore.ErrTraceNotFound) {
-		return status.Errorf(codes.NotFound, spanstore.ErrTraceNotFound.Error())
+		return status.Error(codes.NotFound, spanstore.ErrTraceNotFound.Error())
 	}
 	if err != nil {
 		return err

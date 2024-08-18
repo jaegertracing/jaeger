@@ -1,17 +1,6 @@
 // Copyright (c) 2019 The Jaeger Authors.
 // Copyright (c) 2017 Uber Technologies, Inc.
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// SPDX-License-Identifier: Apache-2.0
 
 package main
 
@@ -35,14 +24,15 @@ import (
 )
 
 // These tests are only run when the environment variable TEST_MODE=integration is set.
-// An optional SKIP_SAMPLING=true environment variable can be used to skip sampling checks (for jaeger-v2).
 
 const (
-	host      = "0.0.0.0"
-	queryPort = "16686"
-	agentPort = "5778"
-	queryAddr = "http://" + host + ":" + queryPort
-	agentAddr = "http://" + host + ":" + agentPort
+	host       = "0.0.0.0"
+	queryPort  = "16686"
+	agentPort  = "5778"
+	healthPort = "13133"
+	queryAddr  = "http://" + host + ":" + queryPort
+	agentAddr  = "http://" + host + ":" + agentPort
+	healthAddr = "http://" + host + ":" + healthPort + "/status"
 
 	getServicesURL         = "/api/services"
 	getTraceURL            = "/api/traces/"
@@ -64,6 +54,7 @@ func TestAllInOne(t *testing.T) {
 	// Check if the query service is available
 	healthCheck(t)
 
+	t.Run("healthCheckV2", healthCheckV2)
 	t.Run("checkWebUI", checkWebUI)
 	t.Run("createTrace", createTrace)
 	t.Run("getAPITrace", getAPITrace)
@@ -72,8 +63,7 @@ func TestAllInOne(t *testing.T) {
 }
 
 func healthCheck(t *testing.T) {
-	require.Eventuallyf(
-		t,
+	require.Eventuallyf(t,
 		func() bool {
 			resp, err := http.Get(queryAddr + "/")
 			if err == nil {
@@ -83,9 +73,28 @@ func healthCheck(t *testing.T) {
 		},
 		10*time.Second,
 		time.Second,
-		"expecting query endpoint to be healhty",
+		"expecting query endpoint to be healthy",
 	)
 	t.Logf("Server detected at %s", queryAddr)
+}
+
+func healthCheckV2(t *testing.T) {
+	if os.Getenv("HEALTHCHECK_V2") == "false" {
+		t.Skip("Skipping health check for V1 Binary")
+	}
+	require.Eventuallyf(t,
+		func() bool {
+			resp, err := http.Get(healthAddr)
+			if err == nil {
+				resp.Body.Close()
+			}
+			return err == nil
+		},
+		10*time.Second,
+		time.Second,
+		"expecting health endpoint to be healthy",
+	)
+	t.Logf("V2-HealthCheck Server detected at %s", healthAddr)
 }
 
 func httpGet(t *testing.T, url string) (*http.Response, []byte) {

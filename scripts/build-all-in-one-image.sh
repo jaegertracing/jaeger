@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Copyright (c) 2024 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
 set -euf -o pipefail
 
 print_help() {
@@ -62,7 +65,7 @@ make build-ui
 
 run_integration_test() {
   local image_name="$1"
-  CID=$(docker run -d -p 16686:16686 -p 5778:5778 "${image_name}:${GITHUB_SHA}")
+  CID=$(docker run -d -p 16686:16686 -p 5778:5778 -p13133:13133 "${image_name}:${GITHUB_SHA}")
 
   if ! make all-in-one-integration-test ; then
       echo "---- integration test failed unexpectedly ----"

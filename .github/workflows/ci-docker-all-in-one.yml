@@ -42,7 +42,7 @@ jobs:
 
     - uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5.0.2
       with:
-        go-version: 1.22.x
+        go-version: 1.23.x
 
     - name: Setup Node.js version
       uses: ./.github/actions/setup-node.js
@@ -66,6 +66,15 @@ jobs:
             ;;
         esac
 
+    - name: Determine healthcheck setting
+      id: healthcheck
+      run: |
+        if [[ "${{ matrix.mode.name }}" == "v1" ]]; then
+          echo "HEALTHCHECK_V2=false" >> $GITHUB_ENV
+        elif [[ "${{ matrix.mode.name }}" == "v2" ]]; then
+          echo "HEALTHCHECK_V2=true" >> $GITHUB_ENV
+        fi
+
     - name: Build, test, and publish all-in-one image
       run: |
         bash scripts/build-all-in-one-image.sh \
@@ -74,3 +83,4 @@ jobs:
       env:
         DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
+        HEALTHCHECK_V2: ${{ env.HEALTHCHECK_V2 }}

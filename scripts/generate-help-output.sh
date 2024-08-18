@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Copyright (c) 2024 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
 # This script runs the `help` command on all Jaeger binaries (using go run) with variations of SPAN_STORAGE_TYPE.
 # It can be used to compare the CLI API changes between releases.
 

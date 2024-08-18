@@ -1,17 +1,6 @@
 // Copyright (c) 2019 The Jaeger Authors.
 // Copyright (c) 2017 Uber Technologies, Inc.
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// SPDX-License-Identifier: Apache-2.0
 
 package model
 
@@ -218,6 +207,8 @@ func (kv KeyValue) Hash(w io.Writer) error {
 	case StringType:
 		_, err = w.Write([]byte(kv.VStr))
 	case BoolType:
+		// staticcheck incorrectly complains about bool, even though its docs say bool wasn’t supported only before Go 1.8.
+		//nolint: staticcheck
 		err = binary.Write(w, binary.BigEndian, kv.VBool)
 	case Int64Type:
 		err = binary.Write(w, binary.BigEndian, kv.VInt64)
