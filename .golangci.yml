@@ -211,14 +211,14 @@ linters-settings:
         # this is idiocy, promotes less readable code. Don't enable.
         - name: var-declaration
           disabled: true
-        # enable after cleanup
-        - name: redefines-builtin-id
-          disabled: true
         # "no nested structs are allowed" - don't enable, doesn't make sense
         - name: nested-structs
           disabled: true
         # looks useful, but requires refactoring: "calls to log.Fatal only in main() or init() functions"
         - name: deep-exit
+          disabled: true
+        # this rule conflicts with nolintlint which does insist on no-space in //nolint
+        - name: comment-spacings
           disabled: true
   testifylint:
     disable:
@@ -237,5 +237,5 @@ linters-settings:
       - suite-extra-assert-call
 
 run:
-  go: "1.21"
+  go: "1.22"
   timeout: 20m

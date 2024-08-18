@@ -30,7 +30,7 @@ jobs:
       uses: ./.github/actions/block-pr-not-on-main
 
     - name: Set up Python 3.x for DCO check
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@39cd14951b08e74b54015e9e001cdefcf80e669f # v5.1.1
       with:
         python-version: '3.x'
 
@@ -41,7 +41,7 @@ jobs:
 
     - uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5.0.2
       with:
-        go-version: 1.22.x
+        go-version: 1.23.x
 
     - name: Print Jaeger version
       run: make echo-version

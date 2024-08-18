@@ -1,3 +1,6 @@
+# Copyright (c) 2024 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
 ARG base_image
 ARG debug_image
 
@@ -39,6 +42,12 @@ EXPOSE 9411
 
 # Web HTTP
 EXPOSE 16686
+
+# Health Check gRPC
+EXPOSE 13132
+
+# Health Check HTTP
+EXPOSE 13133
 
 COPY jaeger-linux-$TARGETARCH /cmd/jaeger/jaeger-linux
 COPY sampling-strategies.json /cmd/jaeger/sampling-strategies.json
@@ -88,6 +97,12 @@ EXPOSE 16686
 
 # Delve
 EXPOSE 12345
+
+# Health Check gRPC
+EXPOSE 13132
+
+# Health Check HTTP
+EXPOSE 13133
 
 COPY jaeger-debug-linux-$TARGETARCH /cmd/jaeger/jaeger-linux
 COPY sampling-strategies.json /cmd/jaeger/sampling-strategies.json
