@@ -98,7 +98,7 @@ func TestKafkaStorage(t *testing.T) {
 			collector := &E2EStorageIntegration{
 				SkipStorageCleaner:  true,
 				ConfigFile:          createConfigWithEncoding(t, "../../collector-with-kafka.yaml", test.encoding, uniqueTopic),
-				HealthCheckEndpoint: "http://localhost:8888/metrics",
+				HealthCheckEndpoint: "http://localhost:13133/status",
 			}
 			collector.e2eInitialize(t, "kafka")
 			t.Log("Collector initialized")

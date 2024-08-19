@@ -5,6 +5,7 @@ package integration
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -109,7 +110,20 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
 			return false
 		}
 		defer resp.Body.Close()
-		return resp.StatusCode == http.StatusOK
+		var healthResponse struct {
+			Status string `json:"status"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&healthResponse); err != nil {
+			t.Logf("Failed to decode JSON response: %v", err)
+			return false
+		}
+
+		// Check if the status field in the JSON is "StatusOK"
+		if healthResponse.Status != "StatusOK" {
+			t.Logf("Received non-StatusOK status: %s", healthResponse.Status)
+			return false
+		}
+		return true
 	}, 60*time.Second, 3*time.Second, "Jaeger-v2 did not start")
 	t.Log("Jaeger-v2 is ready")
 	t.Cleanup(func() {
