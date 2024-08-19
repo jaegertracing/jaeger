@@ -1,5 +1,5 @@
 service:
-  extensions: [jaeger_storage, jaeger_query]
+  extensions: [jaeger_storage, jaeger_query, healthcheckv2]
   pipelines:
     traces:
       receivers: [otlp]
@@ -20,6 +20,13 @@ extensions:
       another_storage:
         cassandra:
           keyspace: "jaeger_v1_dc1"
+
+  healthcheckv2:
+  use_v2: true
+  http:
+    endpoint: "0.0.0.0:13133"
+  grpc:
+
 receivers:
   otlp:
     protocols:

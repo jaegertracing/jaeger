@@ -1,4 +1,5 @@
 service:
+  extensions: [healthcheckv2]
   pipelines:
     traces:
       receivers: [otlp, jaeger]
@@ -9,6 +10,13 @@ service:
       service.name: jaeger_collector
     metrics:
       level: detailed
+
+extensions:
+  healthcheckv2:
+  use_v2: true
+  http:
+    endpoint: "0.0.0.0:13133"
+  grpc:
 
 receivers:
   otlp:

@@ -1,5 +1,5 @@
 service:
-  extensions: [jaeger_storage, jaeger_query]
+  extensions: [jaeger_storage, jaeger_query, healthcheckv2]
   pipelines:
     traces:
       receivers: [otlp]
@@ -21,6 +21,12 @@ extensions:
       another_storage:
         opensearch:
           index_prefix: "jaeger-main"
+  
+  healthcheckv2:
+  use_v2: true
+  http:
+    endpoint: "0.0.0.0:13133"
+  grpc:
 
 receivers:
   otlp:

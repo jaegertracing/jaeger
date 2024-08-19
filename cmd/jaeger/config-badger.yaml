@@ -1,5 +1,5 @@
 service:
-  extensions: [jaeger_storage, jaeger_query]
+  extensions: [jaeger_storage, jaeger_query, healthcheckv2]
   pipelines:
     traces:
       receivers: [otlp]
@@ -24,6 +24,12 @@ extensions:
           directory_key: "/tmp/jaeger_archive/"
           directory_value: "/tmp/jaeger_archive/"
           ephemeral: false
+  
+  healthcheckv2:
+  use_v2: true
+  http:
+    endpoint: "0.0.0.0:13133"
+  grpc:
 
 receivers:
   otlp:
