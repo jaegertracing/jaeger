@@ -110,6 +110,10 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
 			return false
 		}
 		defer resp.Body.Close()
+		if s.HealthCheckEndpoint == "" {
+			return resp.StatusCode == http.StatusOK
+		}
+		
 		var healthResponse struct {
 			Status string `json:"status"`
 		}
