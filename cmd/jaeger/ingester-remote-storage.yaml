@@ -1,5 +1,5 @@
 service:
-  extensions: [jaeger_storage, jaeger_query]
+  extensions: [jaeger_storage, jaeger_query, healthcheckv2]
   pipelines:
     traces:
       receivers: [kafka]
@@ -12,6 +12,11 @@ service:
       level: debug
 
 extensions:
+  healthcheckv2:
+    use_v2: true
+    http:
+      endpoint: "0.0.0.0:13133"
+    grpc:
   jaeger_query:
     trace_storage: some_storage
 
