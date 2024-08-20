@@ -1,12 +1,17 @@
 #!/bin/bash
 
+# Copyright (c) 2024 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
 set -euo pipefail
 
 bad_pkgs=0
+total_pkgs=0
 failed_pkgs=0
 
 # shellcheck disable=SC2048
 for dir in $*; do
+  ((total_pkgs+=1))
   if [[ -f "${dir}/.nocover" ]]; then
     continue
   fi
@@ -22,10 +27,10 @@ for dir in $*; do
     fi
   done
   if ((good == 0)); then
-    echo "🔴 Error(check-goleak): no goleak check in package ${dir}"
+    echo "Error(check-goleak): no goleak check in package ${dir}"
     ((bad_pkgs+=1))
     if [[ "${dir}" == "./cmd/jaeger/internal/integration/" || "${dir}" == "./plugin/storage/integration/" ]]; then
-      echo "	this package is temporarily allowed and will not cause linter failure"
+      echo "	... this package is temporarily allowed and will not cause linter failure"
     else
       ((failed_pkgs+=1))
     fi
@@ -33,8 +38,7 @@ for dir in $*; do
 done
 
 function help() {
-  echo "	See https://github.com/jaegertracing/jaeger/pull/5010/files"
-  echo "	for examples of adding the checks."
+  echo "	See pkg/version/package_test.go as example of adding the checks."
 }
 
 if ((failed_pkgs > 0)); then
@@ -44,4 +48,6 @@ if ((failed_pkgs > 0)); then
 elif ((bad_pkgs > 0)); then
   echo "🐞 Warning(check-goleak): no goleak check in ${bad_pkgs} package(s)."
   help
+else
+  echo "✅ Info(check-goleak): no issues after scanning ${total_pkgs} package(s)."
 fi

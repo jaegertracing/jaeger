@@ -1,5 +1,3 @@
-version: '2'
-
 services:
     hotrod:
       image: jaegertracing/example-hotrod:latest

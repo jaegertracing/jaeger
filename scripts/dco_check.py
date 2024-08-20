@@ -1,3 +1,6 @@
+# Copyright (c) 2024 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
 # Script copied from https://github.com/christophebedard/dco-check/blob/master/dco_check/dco_check.py
 #
 # Copyright 2020 Christophe Bedard

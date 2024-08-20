@@ -11,7 +11,6 @@ import (
 	"github.com/spf13/cobra"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/confmap"
-	"go.opentelemetry.io/collector/confmap/converter/expandconverter"
 	"go.opentelemetry.io/collector/confmap/provider/envprovider"
 	"go.opentelemetry.io/collector/confmap/provider/fileprovider"
 	"go.opentelemetry.io/collector/confmap/provider/httpprovider"
@@ -45,9 +44,6 @@ func Command() *cobra.Command {
 					httpprovider.NewFactory(),
 					httpsprovider.NewFactory(),
 					yamlprovider.NewFactory(),
-				},
-				ConverterFactories: []confmap.ConverterFactory{
-					expandconverter.NewFactory(),
 				},
 			},
 		},

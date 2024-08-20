@@ -4,6 +4,7 @@
 package apiv3
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -105,7 +106,7 @@ func TestHTTPGatewayTryHandleError(t *testing.T) {
 	gw.Logger = logger
 	w = httptest.NewRecorder()
 	const e = "some err"
-	assert.True(t, gw.tryHandleError(w, fmt.Errorf(e), http.StatusInternalServerError))
+	assert.True(t, gw.tryHandleError(w, errors.New(e), http.StatusInternalServerError))
 	assert.Contains(t, log.String(), e, "logs error if status code is 500")
 	assert.Contains(t, string(w.Body.String()), e, "writes error message to body")
 }
@@ -118,7 +119,7 @@ func TestHTTPGatewayOTLPError(t *testing.T) {
 	const simErr = "simulated error"
 	gw.returnSpansTestable(nil, w,
 		func(_ []*model.Span) (ptrace.Traces, error) {
-			return ptrace.Traces{}, fmt.Errorf(simErr)
+			return ptrace.Traces{}, errors.New(simErr)
 		},
 	)
 	assert.Contains(t, w.Body.String(), simErr)
@@ -138,7 +139,7 @@ func TestHTTPGatewayGetTraceErrors(t *testing.T) {
 	const simErr = "simulated error"
 	gw.reader.
 		On("GetTrace", matchContext, matchTraceID).
-		Return(nil, fmt.Errorf(simErr)).Once()
+		Return(nil, errors.New(simErr)).Once()
 
 	r, err = http.NewRequest(http.MethodGet, "/api/v3/traces/123", nil)
 	require.NoError(t, err)
@@ -247,7 +248,7 @@ func TestHTTPGatewayFindTracesErrors(t *testing.T) {
 		gw := setupHTTPGatewayNoServer(t, "", tenancy.Options{})
 		gw.reader.
 			On("FindTraces", matchContext, qp).
-			Return(nil, fmt.Errorf(simErr)).Once()
+			Return(nil, errors.New(simErr)).Once()
 
 		gw.router.ServeHTTP(w, r)
 		assert.Contains(t, w.Body.String(), simErr)
@@ -260,7 +261,7 @@ func TestHTTPGatewayGetServicesErrors(t *testing.T) {
 	const simErr = "simulated error"
 	gw.reader.
 		On("GetServices", matchContext).
-		Return(nil, fmt.Errorf(simErr)).Once()
+		Return(nil, errors.New(simErr)).Once()
 
 	r, err := http.NewRequest(http.MethodGet, "/api/v3/services", nil)
 	require.NoError(t, err)
@@ -276,7 +277,7 @@ func TestHTTPGatewayGetOperationsErrors(t *testing.T) {
 	const simErr = "simulated error"
 	gw.reader.
 		On("GetOperations", matchContext, qp).
-		Return(nil, fmt.Errorf(simErr)).Once()
+		Return(nil, errors.New(simErr)).Once()
 
 	r, err := http.NewRequest(http.MethodGet, "/api/v3/operations?service=foo&span_kind=server", nil)
 	require.NoError(t, err)

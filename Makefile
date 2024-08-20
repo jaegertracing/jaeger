@@ -36,11 +36,20 @@ ALL_SRC = $(shell find . -name '*.go' \
 				   -not -name '*.pb.go' \
 				   -not -path './vendor/*' \
 				   -not -path './internal/tools/*' \
+				   -not -path './docker/debug/*' \
 				   -not -path '*/mocks/*' \
 				   -not -path '*/*-gen/*' \
 				   -not -path '*/thrift-0.9.2/*' \
 				   -type f | \
 				sort)
+
+# All .sh or .py or Makefile or .mk files that should be auto-formatted and linted.
+SCRIPTS_SRC = $(shell find . \( -name '*.sh' -o -name '*.py' -o -name '*.mk' -o -name 'Makefile*' -o -name 'Dockerfile*' \) \
+						-not -path './.git/*' \
+						-not -path './idl/*' \
+						-not -path './jaeger-ui/*' \
+						-type f | \
+					sort)
 
 # ALL_PKGS is used with 'nocover' and 'goleak'
 ALL_PKGS = $(shell echo $(dir $(ALL_SRC)) | tr ' ' '\n' | sort -u)
@@ -171,11 +180,6 @@ nocover:
 	@echo Verifying that all packages have test files to count in coverage
 	@scripts/check-test-files.sh $(ALL_PKGS)
 
-.PHONY: goleak
-goleak:
-	@echo Verifying that all packages with tests have goleak in their TestMain
-	@scripts/check-goleak-files.sh $(ALL_PKGS)
-
 .PHONY: fmt
 fmt: $(GOFUMPT)
 	@echo Running import-order-cleanup on ALL_SRC ...
@@ -185,15 +189,38 @@ fmt: $(GOFUMPT)
 	@echo Running gofumpt on ALL_SRC ...
 	@$(GOFUMPT) -e -l -w $(ALL_SRC)
 	@echo Running updateLicense.py on ALL_SRC ...
-	@./scripts/updateLicense.py $(ALL_SRC)
+	@./scripts/updateLicense.py $(ALL_SRC) $(SCRIPTS_SRC)
 
 .PHONY: lint
-lint: $(LINT) goleak
-	@./scripts/updateLicense.py $(ALL_SRC) > $(FMT_LOG)
+lint: lint-license lint-imports lint-semconv lint-goversion lint-goleak lint-go
+
+.PHONY: lint-license
+lint-license:
+	@echo Verifying that all files have license headers
+	@./scripts/updateLicense.py $(ALL_SRC) $(SCRIPTS_SRC) > $(FMT_LOG)
+	@[ ! -s "$(FMT_LOG)" ] || (echo "License check failures, run 'make fmt'" | cat - $(FMT_LOG) && false)
+
+.PHONY: lint-imports
+lint-imports:
+	@echo Verifying that all Go files have correctly ordered imports
 	@./scripts/import-order-cleanup.py -o stdout -t $(ALL_SRC) > $(IMPORT_LOG)
-	@[ ! -s "$(FMT_LOG)" -a ! -s "$(IMPORT_LOG)" ] || (echo "License check or import ordering failures, run 'make fmt'" | cat - $(FMT_LOG) $(IMPORT_LOG) && false)
+	@[ ! -s "$(IMPORT_LOG)" ] || (echo "Import ordering failures, run 'make fmt'" | cat - $(IMPORT_LOG) && false)
+
+.PHONY: lint-semconv
+lint-semconv:
 	./scripts/check-semconv-version.sh
+
+.PHONY: lint-goversion
+lint-goversion:
 	./scripts/check-go-version.sh
+
+.PHONY: lint-goleak
+lint-goleak:
+	@echo Verifying that all packages with tests have goleak in their TestMain
+	@scripts/check-goleak-files.sh $(ALL_PKGS)
+
+.PHONY: lint-go
+lint-go: $(LINT)
 	$(LINT) -v run
 
 .PHONY: build-examples
@@ -467,8 +494,10 @@ init-submodules:
 
 MOCKERY_FLAGS := --all --disable-version-string
 .PHONY: generate-mocks
+# TODO remove GODEBUG=gotypesalias=0
+# once this is fixed: https://github.com/vektra/mockery/issues/803
 generate-mocks: $(MOCKERY)
-	$(MOCKERY)
+	GODEBUG=gotypesalias=0 $(MOCKERY)
 
 .PHONY: certs
 certs:

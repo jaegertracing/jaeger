@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+
+# Copyright (c) 2024 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
 #
 # This script is used in the Docker image jaegertracing/jaeger-cassandra-schema
 # that allows installing Jaeger keyspace and schema without installing cqlsh.

@@ -23,10 +23,8 @@ jobs:
         mode:
         - name: v1
           binary: all-in-one
-          skip_sampling: false
         - name: v2
           binary: jaeger
-          skip_sampling: true
 
     steps:
     - name: Harden Runner
@@ -44,7 +42,7 @@ jobs:
 
     - uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5.0.2
       with:
-        go-version: 1.22.x
+        go-version: 1.23.x
 
     - name: Setup Node.js version
       uses: ./.github/actions/setup-node.js
@@ -61,12 +59,21 @@ jobs:
       run: |
         case ${GITHUB_EVENT_NAME} in
           pull_request)
-            echo "BUILD_FLAGS=-l -D -p linux/amd64" >> ${GITHUB_ENV}
+            echo "BUILD_FLAGS=-l -D -p linux/$(go env GOARCH)" >> ${GITHUB_ENV}
             ;;
           *)
             echo "BUILD_FLAGS=" >> ${GITHUB_ENV}
             ;;
         esac
+
+    - name: Determine healthcheck setting
+      id: healthcheck
+      run: |
+        if [[ "${{ matrix.mode.name }}" == "v1" ]]; then
+          echo "HEALTHCHECK_V2=false" >> $GITHUB_ENV
+        elif [[ "${{ matrix.mode.name }}" == "v2" ]]; then
+          echo "HEALTHCHECK_V2=true" >> $GITHUB_ENV
+        fi
 
     - name: Build, test, and publish all-in-one image
       run: |
@@ -76,5 +83,4 @@ jobs:
       env:
         DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
-        # SKIP_SAMPLING is used by integration tests, see https://github.com/jaegertracing/jaeger/issues/5531
-        SKIP_SAMPLING: ${{ matrix.mode.skip_sampling }}
+        HEALTHCHECK_V2: ${{ env.HEALTHCHECK_V2 }}
