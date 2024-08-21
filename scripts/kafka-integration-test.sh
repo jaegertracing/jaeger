@@ -44,6 +44,9 @@ setup_kafka() {
 }
 
 teardown_kafka() {
+  echo "::group::Kafka logs"
+  docker compose -f "${compose_file}" logs
+  echo "::endgroup::"
   echo "Stopping Kafka..."
   docker compose -f "${compose_file}" down
 }
