@@ -44,6 +44,7 @@ type E2EStorageIntegration struct {
 
 	SkipStorageCleaner  bool
 	ConfigFile          string
+	BinaryName          string
 	HealthCheckEndpoint string
 }
 
@@ -52,16 +53,18 @@ type E2EStorageIntegration struct {
 // This function should be called before any of the tests start.
 func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
 	logger := zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller()))
+	if s.BinaryName == "" {
+		s.BinaryName = "jaeger-v2"
+	}
 	configFile := s.ConfigFile
 	if !s.SkipStorageCleaner {
 		configFile = createStorageCleanerConfig(t, s.ConfigFile, storage)
 	}
-
 	configFile, err := filepath.Abs(configFile)
 	require.NoError(t, err, "Failed to get absolute path of the config file")
 	require.FileExists(t, configFile, "Config file does not exist at the resolved path")
 
-	t.Logf("Starting Jaeger-v2 in the background with config file %s", configFile)
+	t.Logf("Starting %s in the background with config file %s", s.BinaryName, configFile)
 
 	outFile, err := os.OpenFile(
 		filepath.Join(t.TempDir(), "jaeger_output_logs.txt"),
@@ -69,7 +72,7 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
 		os.ModePerm,
 	)
 	require.NoError(t, err)
-	t.Logf("Writing the Jaeger-v2 output logs into %s", outFile.Name())
+	t.Logf("Writing the %s output logs into %s", s.BinaryName, outFile.Name())
 
 	errFile, err := os.OpenFile(
 		filepath.Join(t.TempDir(), "jaeger_error_logs.txt"),
@@ -77,7 +80,7 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
 		os.ModePerm,
 	)
 	require.NoError(t, err)
-	t.Logf("Writing the Jaeger-v2 error logs into %s", errFile.Name())
+	t.Logf("Writing the %s error logs into %s", s.BinaryName, errFile.Name())
 
 	cmd := exec.Cmd{
 		Path: "./cmd/jaeger/jaeger",
@@ -93,25 +96,25 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
 	require.NoError(t, cmd.Start())
 	t.Cleanup(func() {
 		if err := cmd.Process.Kill(); err != nil {
-			t.Errorf("Failed to kill Jaeger-v2 process: %v", err)
+			t.Errorf("Failed to kill %s process: %v", s.BinaryName, err)
 		}
 		if t.Failed() {
 			// A Github Actions special annotation to create a foldable section
 			// in the Github runner output.
 			// https://docs.github.com/en/actions/using-workflows/workflow-commands-for-github-actions#grouping-log-lines
-			fmt.Println("::group::🚧 🚧 🚧 Jaeger-v2 binary logs")
+			fmt.Printf("::group::🚧 🚧 🚧 %s binary logs\n", s.BinaryName)
 			outLogs, err := os.ReadFile(outFile.Name())
 			if err != nil {
 				t.Errorf("Failed to read output logs: %v", err)
 			} else {
-				fmt.Printf("🚧 🚧 🚧 Jaeger-v2 output logs:\n%s", outLogs)
+				fmt.Printf("🚧 🚧 🚧 %s output logs:\n%s", s.BinaryName, outLogs)
 			}
 
 			errLogs, err := os.ReadFile(errFile.Name())
 			if err != nil {
 				t.Errorf("Failed to read error logs: %v", err)
 			} else {
-				fmt.Printf("🚧 🚧 🚧 Jaeger-v2 error logs:\n%s", errLogs)
+				fmt.Printf("🚧 🚧 🚧 5s error logs:\n%s", s.BinaryName, errLogs)
 			}
 			// End of Github Actions foldable section annotation.
 			fmt.Println("::endgroup::")
@@ -120,8 +123,8 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
 
 	// Wait for the binary to start and become ready to serve requests.
 	require.Eventually(t, func() bool { return s.doHealthCheck(t) },
-		60*time.Second, 3*time.Second, "Jaeger-v2 did not start")
-	t.Log("Jaeger-v2 is ready")
+		60*time.Second, 3*time.Second, "%s did not start", s.BinaryName)
+	t.Logf("%s is ready", s.BinaryName)
 
 	s.SpanWriter, err = createSpanWriter(logger, otlpPort)
 	require.NoError(t, err)
@@ -139,7 +142,7 @@ func (s *E2EStorageIntegration) doHealthCheck(t *testing.T) bool {
 	if healthCheckEndpoint == "" {
 		healthCheckEndpoint = "http://localhost:13133/status"
 	}
-	t.Logf("Checking if Jaeger-v2 is available on %s", healthCheckEndpoint)
+	t.Logf("Checking if %s is available on %s", s.BinaryName, healthCheckEndpoint)
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, healthCheckEndpoint, nil)
@@ -239,6 +242,7 @@ func createStorageCleanerConfig(t *testing.T, configFile string, storage string)
 	err = os.WriteFile(tempFile, newData, 0o600)
 	require.NoError(t, err)
 
+	t.Logf("Transformed configuration file %s to %s", configFile, tempFile)
 	return tempFile
 }
 

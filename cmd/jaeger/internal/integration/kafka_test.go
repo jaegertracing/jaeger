@@ -95,15 +95,17 @@ func TestKafkaStorage(t *testing.T) {
 			// but the tests are run against the ingester.
 
 			collector := &E2EStorageIntegration{
-				SkipStorageCleaner:  true,
-				ConfigFile:          createConfigWithEncoding(t, "../../config-kafka-collector.yaml", test.encoding, uniqueTopic),
-				HealthCheckEndpoint: "http://localhost:14133/status",
+				BinaryName:         "jaeger-v2-collector",
+				ConfigFile:         createConfigWithEncoding(t, "../../config-kafka-collector.yaml", test.encoding, uniqueTopic),
+				SkipStorageCleaner: true,
 			}
 			collector.e2eInitialize(t, "kafka")
 			t.Log("Collector initialized")
 
 			ingester := &E2EStorageIntegration{
-				ConfigFile: createConfigWithEncoding(t, "../../config-kafka-ingester.yaml", test.encoding, uniqueTopic),
+				BinaryName:          "jaeger-v2-ingester",
+				ConfigFile:          createConfigWithEncoding(t, "../../config-kafka-ingester.yaml", test.encoding, uniqueTopic),
+				HealthCheckEndpoint: "http://localhost:14133/status",
 				StorageIntegration: integration.StorageIntegration{
 					CleanUp:                      purge,
 					GetDependenciesReturnsSource: true,

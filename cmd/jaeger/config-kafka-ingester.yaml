@@ -15,8 +15,9 @@ extensions:
   healthcheckv2:
     use_v2: true
     http:
-      endpoint: "localhost:13133"
+      endpoint: 0.0.0.0:14133
     grpc:
+      endpoint: 0.0.0.0:14132
   jaeger_query:
     trace_storage: some_storage
 
