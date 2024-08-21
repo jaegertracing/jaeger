@@ -135,7 +135,8 @@ func (r *spanReader) FindTraces(ctx context.Context, query *spanstore.TraceQuery
 			StartTimeMax:  query.StartTimeMax,
 			DurationMin:   query.DurationMin,
 			DurationMax:   query.DurationMax,
-			SearchDepth:   int32(query.NumTraces),
+			//nolint: gosec // G115
+			SearchDepth: int32(query.NumTraces),
 		},
 	})
 	if err != nil {

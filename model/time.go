@@ -12,6 +12,7 @@ import (
 func EpochMicrosecondsAsTime(ts uint64) time.Time {
 	seconds := ts / 1000000
 	nanos := 1000 * (ts % 1000000)
+	//nolint: gosec // G115
 	return time.Unix(int64(seconds), int64(nanos)).UTC()
 }
 
@@ -23,6 +24,7 @@ func TimeAsEpochMicroseconds(t time.Time) uint64 {
 
 // MicrosecondsAsDuration converts duration in microseconds to time.Duration value.
 func MicrosecondsAsDuration(v uint64) time.Duration {
+	//nolint: gosec // G115
 	return time.Duration(v) * time.Microsecond
 }
 

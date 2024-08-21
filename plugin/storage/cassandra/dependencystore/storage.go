@@ -76,8 +76,9 @@ func (s *DependencyStore) WriteDependencies(ts time.Time, dependencies []model.D
 	deps := make([]Dependency, len(dependencies))
 	for i, d := range dependencies {
 		deps[i] = Dependency{
-			Parent:    d.Parent,
-			Child:     d.Child,
+			Parent: d.Parent,
+			Child:  d.Child,
+			//nolint: gosec // G115
 			CallCount: int64(d.CallCount),
 			Source:    string(d.Source),
 		}

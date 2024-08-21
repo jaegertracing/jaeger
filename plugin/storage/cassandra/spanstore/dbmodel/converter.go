@@ -60,6 +60,7 @@ func (c converter) fromDomain(span *model.Span) *Span {
 
 	tags = append(tags, warnings...)
 
+	//nolint: gosec // G115
 	return &Span{
 		TraceID:       TraceIDFromDomain(span.TraceID),
 		SpanID:        int64(span.SpanID),
@@ -236,6 +237,7 @@ func (c converter) toDBLogs(logs []model.Log) []Log {
 	retMe := make([]Log, len(logs))
 	for i, l := range logs {
 		retMe[i] = Log{
+			//nolint: gosec // G115
 			Timestamp: int64(model.TimeAsEpochMicroseconds(l.Timestamp)),
 			Fields:    c.toDBTags(l.Fields),
 		}
@@ -248,6 +250,7 @@ func (converter) toDBRefs(refs []model.SpanRef) []SpanRef {
 	for i, r := range refs {
 		retMe[i] = SpanRef{
 			TraceID: TraceIDFromDomain(r.TraceID),
+			//nolint: gosec // G115
 			SpanID:  int64(r.SpanID),
 			RefType: domainToDBRefMap[r.RefType],
 		}

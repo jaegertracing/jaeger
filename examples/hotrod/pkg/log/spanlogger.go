@@ -154,6 +154,7 @@ func (e *bridgeFieldEncoder) AddUint16(key string, value uint16) {
 }
 
 func (e *bridgeFieldEncoder) AddUint8(key string, value uint8) {
+	//nolint: gosec // G115
 	e.pairs = append(e.pairs, attribute.Int64(key, int64(value)))
 }
 

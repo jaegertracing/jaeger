@@ -220,6 +220,7 @@ func (td toDomain) generateProcess(zSpan *zipkincore.Span) (*model.Process, erro
 	serviceName, ipv4, err := td.findServiceNameAndIP(zSpan)
 	if ipv4 != 0 {
 		// If the ip process tag already exists, don't add it again
+		//nolint: gosec // G115
 		tags = append(tags, model.Int64(IPTagName, int64(uint64(ipv4))))
 	}
 	return model.NewProcess(serviceName, tags), err
