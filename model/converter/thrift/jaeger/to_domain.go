@@ -80,6 +80,7 @@ func (toDomain) getReferences(jRefs []*jaeger.SpanRef) []model.SpanRef {
 	mRefs := make([]model.SpanRef, len(jRefs))
 	for idx, jRef := range jRefs {
 		mRefs[idx] = model.SpanRef{
+			//nolint: gosec // G115
 			RefType: model.SpanRefType(int(jRef.RefType)),
 			TraceID: model.NewTraceID(uint64(jRef.TraceIdHigh), uint64(jRef.TraceIdLow)),
 			SpanID:  model.NewSpanID(uint64(jRef.SpanId)),

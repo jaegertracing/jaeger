@@ -182,7 +182,8 @@ func (c *GRPCClient) FindTraces(ctx context.Context, query *spanstore.TraceQuery
 			StartTimeMax:  query.StartTimeMax,
 			DurationMin:   query.DurationMin,
 			DurationMax:   query.DurationMax,
-			NumTraces:     int32(query.NumTraces),
+			//nolint: gosec // G115
+			NumTraces: int32(query.NumTraces),
 		},
 	})
 	if err != nil {
@@ -220,7 +221,8 @@ func (c *GRPCClient) FindTraceIDs(ctx context.Context, query *spanstore.TraceQue
 			StartTimeMax:  query.StartTimeMax,
 			DurationMin:   query.DurationMin,
 			DurationMax:   query.DurationMax,
-			NumTraces:     int32(query.NumTraces),
+			//nolint: gosec // G115
+			NumTraces: int32(query.NumTraces),
 		},
 	})
 	if err != nil {

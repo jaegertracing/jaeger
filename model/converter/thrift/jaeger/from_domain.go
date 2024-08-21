@@ -101,6 +101,7 @@ func (d domainToJaegerTransformer) convertLogs(logs []model.Log) []*jaeger.Log {
 	jaegerLogs := make([]*jaeger.Log, len(logs))
 	for idx, log := range logs {
 		jaegerLogs[idx] = &jaeger.Log{
+			//nolint: gosec // G115
 			Timestamp: int64(model.TimeAsEpochMicroseconds(log.Timestamp)),
 			Fields:    d.convertKeyValuesToTags(log.Fields),
 		}
@@ -111,6 +112,7 @@ func (d domainToJaegerTransformer) convertLogs(logs []model.Log) []*jaeger.Log {
 func (domainToJaegerTransformer) convertSpanRefs(refs []model.SpanRef) []*jaeger.SpanRef {
 	jaegerSpanRefs := make([]*jaeger.SpanRef, len(refs))
 	for idx, ref := range refs {
+		//nolint: gosec // G115
 		jaegerSpanRefs[idx] = &jaeger.SpanRef{
 			RefType:     jaeger.SpanRefType(ref.RefType),
 			TraceIdLow:  int64(ref.TraceID.Low),
@@ -126,6 +128,7 @@ func (d domainToJaegerTransformer) transformSpan(span *model.Span) *jaeger.Span 
 	logs := d.convertLogs(span.Logs)
 	refs := d.convertSpanRefs(span.References)
 
+	//nolint: gosec // G115
 	jaegerSpan := &jaeger.Span{
 		TraceIdLow:    int64(span.TraceID.Low),
 		TraceIdHigh:   int64(span.TraceID.High),
