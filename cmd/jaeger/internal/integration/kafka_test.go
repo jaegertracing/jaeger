@@ -63,8 +63,7 @@ func createConfigWithEncoding(t *testing.T, configFile string, targetEncoding st
 	err = os.WriteFile(tempFile, newData, 0o600)
 	require.NoError(t, err, "Failed to write updated config file to: %s", tempFile)
 
-	t.Logf("Configuration file with encoding '%s' and topic '%s' written to: %s", targetEncoding, uniqueTopic, tempFile)
-
+	t.Logf("Transformed configuration file %s to %s", configFile, tempFile)
 	return tempFile
 }
 
@@ -98,7 +97,7 @@ func TestKafkaStorage(t *testing.T) {
 			collector := &E2EStorageIntegration{
 				SkipStorageCleaner:  true,
 				ConfigFile:          createConfigWithEncoding(t, "../../config-kafka-collector.yaml", test.encoding, uniqueTopic),
-				HealthCheckEndpoint: "http://localhost:13133/status",
+				HealthCheckEndpoint: "http://localhost:14133/status",
 			}
 			collector.e2eInitialize(t, "kafka")
 			t.Log("Collector initialized")
@@ -110,7 +109,6 @@ func TestKafkaStorage(t *testing.T) {
 					GetDependenciesReturnsSource: true,
 					SkipArchiveTest:              true,
 				},
-				HealthCheckEndpoint: "http://localhost:14133/status",
 			}
 			ingester.e2eInitialize(t, "kafka")
 			t.Log("Ingester initialized")

@@ -4,6 +4,7 @@
 package integration
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -12,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -117,7 +119,7 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
 	})
 
 	// Wait for the binary to start and become ready to serve requests.
-	require.Eventually(t, func() bool { return s.doHealthCheckV2(t) },
+	require.Eventually(t, func() bool { return s.doHealthCheck(t) },
 		60*time.Second, 3*time.Second, "Jaeger-v2 did not start")
 	t.Log("Jaeger-v2 is ready")
 
@@ -132,7 +134,7 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
 	})
 }
 
-func (s *E2EStorageIntegration) doHealthCheckV2(t *testing.T) bool {
+func (s *E2EStorageIntegration) doHealthCheck(t *testing.T) bool {
 	healthCheckEndpoint := s.HealthCheckEndpoint
 	if healthCheckEndpoint == "" {
 		healthCheckEndpoint = "http://localhost:13133/status"
@@ -151,11 +153,25 @@ func (s *E2EStorageIntegration) doHealthCheckV2(t *testing.T) bool {
 		return false
 	}
 	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Logf("Failed to read HTTP response body: %v", err)
+		return false
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Logf("Failed to read receive OK HTTP response: %v", string(body))
+		return false
+	}
+	// for backwards compatibility with other healthchecks
+	if !strings.HasSuffix(healthCheckEndpoint, "/status") {
+		t.Logf("OK HTTP from endpoint that is not healthcheckv2")
+		return false
+	}
 
 	var healthResponse struct {
 		Status string `json:"status"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&healthResponse); err != nil {
+	if err := json.NewDecoder(bytes.NewReader(body)).Decode(&healthResponse); err != nil {
 		t.Logf("Failed to decode JSON response: %v", err)
 		return false
 	}
