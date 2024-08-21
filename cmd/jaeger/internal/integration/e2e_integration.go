@@ -89,44 +89,6 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
 	}
 	t.Logf("Running command: %v", cmd.Args)
 	require.NoError(t, cmd.Start())
-
-	// Wait for the binary to start and become ready to serve requests.
-	healthCheckEndpoint := s.HealthCheckEndpoint
-	if healthCheckEndpoint == "" {
-		healthCheckEndpoint = fmt.Sprintf("http://localhost:13133/status")
-	}
-	require.Eventually(t, func() bool {
-		t.Logf("Checking if Jaeger-v2 is available on %s", healthCheckEndpoint)
-		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-		defer cancel()
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, healthCheckEndpoint, nil)
-		if err != nil {
-			t.Logf("HTTP request creation failed: %v", err)
-			return false
-		}
-		resp, err := http.DefaultClient.Do(req)
-		if err != nil {
-			t.Logf("HTTP request failed: %v", err)
-			return false
-		}
-		defer resp.Body.Close()
-
-		var healthResponse struct {
-			Status string `json:"status"`
-		}
-		if err := json.NewDecoder(resp.Body).Decode(&healthResponse); err != nil {
-			t.Logf("Failed to decode JSON response: %v", err)
-			return false
-		}
-
-		// Check if the status field in the JSON is "StatusOK"
-		if healthResponse.Status != "StatusOK" {
-			t.Logf("Received non-StatusOK status: %s", healthResponse.Status)
-			return false
-		}
-		return true
-	}, 60*time.Second, 3*time.Second, "Jaeger-v2 did not start")
-	t.Log("Jaeger-v2 is ready")
 	t.Cleanup(func() {
 		if err := cmd.Process.Kill(); err != nil {
 			t.Errorf("Failed to kill Jaeger-v2 process: %v", err)
@@ -154,6 +116,11 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
 		}
 	})
 
+	// Wait for the binary to start and become ready to serve requests.
+	require.Eventually(t, func() bool { return s.doHealthCheckV2(t) },
+		60*time.Second, 3*time.Second, "Jaeger-v2 did not start")
+	t.Log("Jaeger-v2 is ready")
+
 	s.SpanWriter, err = createSpanWriter(logger, otlpPort)
 	require.NoError(t, err)
 	s.SpanReader, err = createSpanReader(logger, ports.QueryGRPC)
@@ -163,6 +130,42 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
 		// Call e2eCleanUp to close the SpanReader and SpanWriter gRPC connection.
 		s.e2eCleanUp(t)
 	})
+}
+
+func (s *E2EStorageIntegration) doHealthCheckV2(t *testing.T) bool {
+	healthCheckEndpoint := s.HealthCheckEndpoint
+	if healthCheckEndpoint == "" {
+		healthCheckEndpoint = "http://localhost:13133/status"
+	}
+	t.Logf("Checking if Jaeger-v2 is available on %s", healthCheckEndpoint)
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, healthCheckEndpoint, nil)
+	if err != nil {
+		t.Logf("HTTP request creation failed: %v", err)
+		return false
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Logf("HTTP request failed: %v", err)
+		return false
+	}
+	defer resp.Body.Close()
+
+	var healthResponse struct {
+		Status string `json:"status"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&healthResponse); err != nil {
+		t.Logf("Failed to decode JSON response: %v", err)
+		return false
+	}
+
+	// Check if the status field in the JSON is "StatusOK"
+	if healthResponse.Status != "StatusOK" {
+		t.Logf("Received non-StatusOK status: %s", healthResponse.Status)
+		return false
+	}
+	return true
 }
 
 // e2eCleanUp closes the SpanReader and SpanWriter gRPC connection.
