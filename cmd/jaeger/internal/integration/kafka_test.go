@@ -97,14 +97,14 @@ func TestKafkaStorage(t *testing.T) {
 
 			collector := &E2EStorageIntegration{
 				SkipStorageCleaner:  true,
-				ConfigFile:          createConfigWithEncoding(t, "../../collector-with-kafka.yaml", test.encoding, uniqueTopic),
+				ConfigFile:          createConfigWithEncoding(t, "../../config-kafka-collector.yaml", test.encoding, uniqueTopic),
 				HealthCheckEndpoint: "http://localhost:13133/status",
 			}
 			collector.e2eInitialize(t, "kafka")
 			t.Log("Collector initialized")
 
 			ingester := &E2EStorageIntegration{
-				ConfigFile: createConfigWithEncoding(t, "../../ingester-remote-storage.yaml", test.encoding, uniqueTopic),
+				ConfigFile: createConfigWithEncoding(t, "../../config-kafka-ingester.yaml", test.encoding, uniqueTopic),
 				StorageIntegration: integration.StorageIntegration{
 					CleanUp:                      purge,
 					GetDependenciesReturnsSource: true,
