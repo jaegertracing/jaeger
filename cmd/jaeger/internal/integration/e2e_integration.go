@@ -114,7 +114,7 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
 			if err != nil {
 				t.Errorf("Failed to read error logs: %v", err)
 			} else {
-				fmt.Printf("🚧 🚧 🚧 5s error logs:\n%s", s.BinaryName, errLogs)
+				fmt.Printf("🚧 🚧 🚧 %s error logs:\n%s", s.BinaryName, errLogs)
 			}
 			// End of Github Actions foldable section annotation.
 			fmt.Println("::endgroup::")
