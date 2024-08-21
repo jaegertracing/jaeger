@@ -93,6 +93,7 @@ func (h *HTTPGateway) tryHandleError(w http.ResponseWriter, err error, statusCod
 	}
 	errorResponse := api_v3.GRPCGatewayError{
 		Error: &api_v3.GRPCGatewayError_GRPCGatewayErrorDetails{
+			//nolint: gosec // G115
 			HttpCode: int32(statusCode),
 			Message:  err.Error(),
 		},
