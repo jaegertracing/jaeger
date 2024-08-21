@@ -93,7 +93,7 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
 	// Wait for the binary to start and become ready to serve requests.
 	healthCheckEndpoint := s.HealthCheckEndpoint
 	if healthCheckEndpoint == "" {
-		healthCheckEndpoint = fmt.Sprintf("http://localhost:%d/", ports.QueryHTTP)
+		healthCheckEndpoint = fmt.Sprintf("http://localhost:13133/status")
 	}
 	require.Eventually(t, func() bool {
 		t.Logf("Checking if Jaeger-v2 is available on %s", healthCheckEndpoint)
@@ -110,10 +110,7 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
 			return false
 		}
 		defer resp.Body.Close()
-		if s.HealthCheckEndpoint == "" {
-			return resp.StatusCode == http.StatusOK
-		}
-		
+
 		var healthResponse struct {
 			Status string `json:"status"`
 		}
