@@ -15,7 +15,7 @@ extensions:
   healthcheckv2:
     use_v2: true
     http:
-      endpoint: "0.0.0.0:13134"
+      endpoint: "0.0.0.0:13133"
     grpc:
   jaeger_query:
     trace_storage: some_storage
@@ -26,7 +26,7 @@ extensions:
         memory:
           max_traces: 100000
 
-receivers:  
+receivers:
   kafka:
     brokers:
       - localhost:9092

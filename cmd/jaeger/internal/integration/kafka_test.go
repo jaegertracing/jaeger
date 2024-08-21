@@ -110,7 +110,7 @@ func TestKafkaStorage(t *testing.T) {
 					GetDependenciesReturnsSource: true,
 					SkipArchiveTest:              true,
 				},
-				HealthCheckEndpoint: "http://localhost:13134/status",
+				HealthCheckEndpoint: "http://localhost:13133/status",
 			}
 			ingester.e2eInitialize(t, "kafka")
 			t.Log("Ingester initialized")
