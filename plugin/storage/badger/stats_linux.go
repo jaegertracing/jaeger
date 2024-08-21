@@ -20,9 +20,9 @@ func (f *Factory) diskStatisticsUpdate() error {
 
 	// Using Bavail instead of Bfree to get non-priviledged user space available
 	//nolint: gosec // G115
-	f.metrics.ValueLogSpaceAvailable.Update(int64(valDirStatfs.Bavail) * valDirStatfs.Bsize)
+	f.metrics.ValueLogSpaceAvailable.Update(int64(valDirStatfs.Bavail) * int64(valDirStatfs.Bsize))
 	//nolint: gosec // G115
-	f.metrics.KeyLogSpaceAvailable.Update(int64(keyDirStatfs.Bavail) * keyDirStatfs.Bsize)
+	f.metrics.KeyLogSpaceAvailable.Update(int64(keyDirStatfs.Bavail) * int64(keyDirStatfs.Bsize))
 
 	/*
 	 TODO If we wanted to clean up oldest data to free up diskspace, we need at a minimum an index to the StartTime
