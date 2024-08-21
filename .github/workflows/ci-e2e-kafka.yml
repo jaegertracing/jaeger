@@ -38,10 +38,6 @@ jobs:
       id: test-execution
       run: bash scripts/kafka-integration-test.sh -j ${{ matrix.jaeger-version }}
 
-    - name: Output Kafka logs on failure
-      run: docker compose -f ${{ steps.test-execution.outputs.docker_compose_file }} logs
-      if: ${{ failure() }}
-
     - name: Upload coverage to codecov
       uses: ./.github/actions/upload-codecov
       with:
