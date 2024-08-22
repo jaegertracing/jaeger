@@ -120,7 +120,7 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
 			fmt.Println("::endgroup::")
 		}
 	})
-	
+
 	// Wait for the binary to start and become ready to serve requests.
 	require.Eventually(t, func() bool { return s.doHealthCheck(t) },
 		60*time.Second, 3*time.Second, "%s did not start", s.BinaryName)
@@ -168,7 +168,7 @@ func (s *E2EStorageIntegration) doHealthCheck(t *testing.T) bool {
 	// for backwards compatibility with other healthchecks
 	if !strings.HasSuffix(healthCheckEndpoint, "/status") {
 		t.Logf("OK HTTP from endpoint that is not healthcheckv2")
-		return false
+		return true
 	}
 
 	var healthResponse struct {
