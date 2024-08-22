@@ -6,8 +6,10 @@ package internal
 import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/kafkaexporter"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/loadbalancingexporter"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/prometheusexporter"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckv2extension"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/tailsamplingprocessor"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kafkareceiver"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zipkinreceiver"
@@ -90,6 +92,7 @@ func (b builders) build() (otelcol.Factories, error) {
 		debugexporter.NewFactory(),
 		otlpexporter.NewFactory(),
 		otlphttpexporter.NewFactory(),
+		loadbalancingexporter.NewFactory(),
 		// add-ons
 		storageexporter.NewFactory(), // generic exporter to Jaeger v1 spanstore.SpanWriter
 		kafkaexporter.NewFactory(),
@@ -104,6 +107,7 @@ func (b builders) build() (otelcol.Factories, error) {
 		// standard
 		batchprocessor.NewFactory(),
 		memorylimiterprocessor.NewFactory(),
+		tailsamplingprocessor.NewFactory(),
 		// add-ons
 		adaptivesampling.NewFactory(),
 	)
