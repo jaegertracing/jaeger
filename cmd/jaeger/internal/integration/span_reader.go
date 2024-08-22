@@ -96,7 +96,6 @@ func (r *spanReader) GetServices(ctx context.Context) ([]string, error) {
 	if err != nil {
 		return []string{}, err
 	}
-	r.logger.Info(fmt.Sprintf("Received %d services", len(res.Services)))
 	return res.Services, nil
 }
 
@@ -109,8 +108,6 @@ func (r *spanReader) GetOperations(ctx context.Context, query spanstore.Operatio
 	if err != nil {
 		return operations, err
 	}
-	r.logger.Info(fmt.Sprintf("Received %d operations", len(res.Operations)))
-
 	for _, operation := range res.Operations {
 		operations = append(operations, spanstore.Operation{
 			Name:     operation.Name,
