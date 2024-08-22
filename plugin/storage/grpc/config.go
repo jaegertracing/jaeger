@@ -4,18 +4,10 @@
 package grpc
 
 import (
-	"context"
-	"fmt"
 	"time"
 
-	"go.opentelemetry.io/collector/component"
-	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
-	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
-	"go.opentelemetry.io/otel/trace"
-	"go.uber.org/zap"
-	"google.golang.org/grpc"
 
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
@@ -60,56 +52,4 @@ func (c *Configuration) TranslateToConfigV2() *ConfigV2 {
 type ClientPluginServices struct {
 	shared.PluginServices
 	Capabilities shared.PluginCapabilities
-	remoteConn   *grpc.ClientConn
-}
-
-// TODO move this to factory.go
-func (c *ConfigV2) Build(logger *zap.Logger, tracerProvider trace.TracerProvider) (*ClientPluginServices, error) {
-	telset := component.TelemetrySettings{
-		Logger:         logger,
-		TracerProvider: tracerProvider,
-	}
-	newClientFn := func(opts ...grpc.DialOption) (conn *grpc.ClientConn, err error) {
-		return c.ToClientConn(context.Background(), componenttest.NewNopHost(), telset, opts...)
-	}
-	return newRemoteStorage(c, telset, newClientFn)
-}
-
-type newClientFn func(opts ...grpc.DialOption) (*grpc.ClientConn, error)
-
-func newRemoteStorage(c *ConfigV2, telset component.TelemetrySettings, newClient newClientFn) (*ClientPluginServices, error) {
-	opts := []grpc.DialOption{
-		grpc.WithStatsHandler(otelgrpc.NewClientHandler(otelgrpc.WithTracerProvider(telset.TracerProvider))),
-	}
-	if c.Auth != nil {
-		return nil, fmt.Errorf("authenticator is not supported")
-	}
-
-	tenancyMgr := tenancy.NewManager(&c.Tenancy)
-	if tenancyMgr.Enabled {
-		opts = append(opts, grpc.WithUnaryInterceptor(tenancy.NewClientUnaryInterceptor(tenancyMgr)))
-		opts = append(opts, grpc.WithStreamInterceptor(tenancy.NewClientStreamInterceptor(tenancyMgr)))
-	}
-
-	remoteConn, err := newClient(opts...)
-	if err != nil {
-		return nil, fmt.Errorf("error creating remote storage client: %w", err)
-	}
-	grpcClient := shared.NewGRPCClient(remoteConn)
-	return &ClientPluginServices{
-		PluginServices: shared.PluginServices{
-			Store:               grpcClient,
-			ArchiveStore:        grpcClient,
-			StreamingSpanWriter: grpcClient,
-		},
-		Capabilities: grpcClient,
-		remoteConn:   remoteConn,
-	}, nil
-}
-
-func (c *ClientPluginServices) Close() error {
-	if c.remoteConn != nil {
-		return c.remoteConn.Close()
-	}
-	return nil
 }

@@ -4,18 +4,25 @@
 package grpc
 
 import (
+	"context"
 	"errors"
 	"flag"
 	"fmt"
 	"io"
 
 	"github.com/spf13/viper"
+	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/component/componenttest"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
+	"google.golang.org/grpc"
 
 	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/plugin"
+	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared"
 	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
@@ -39,7 +46,8 @@ type Factory struct {
 	configV1 Configuration
 	configV2 *ConfigV2
 
-	services *ClientPluginServices
+	services   *ClientPluginServices
+	remoteConn *grpc.ClientConn
 }
 
 // NewFactory creates a new Factory.
@@ -82,13 +90,54 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 		f.configV2 = f.configV1.TranslateToConfigV2()
 	}
 
+	telset := component.TelemetrySettings{
+		Logger:         logger,
+		TracerProvider: f.tracerProvider,
+	}
+	newClientFn := func(opts ...grpc.DialOption) (conn *grpc.ClientConn, err error) {
+		return f.configV2.ToClientConn(context.Background(), componenttest.NewNopHost(), telset, opts...)
+	}
+
 	var err error
-	f.services, err = f.configV2.Build(logger, f.tracerProvider)
+	f.services, err = f.newRemoteStorage(telset, newClientFn)
 	if err != nil {
 		return fmt.Errorf("grpc storage builder failed to create a store: %w", err)
 	}
 	logger.Info("Remote storage configuration", zap.Any("configuration", f.configV2))
 	return nil
+}
+
+type newClientFn func(opts ...grpc.DialOption) (*grpc.ClientConn, error)
+
+func (f *Factory) newRemoteStorage(telset component.TelemetrySettings, newClient newClientFn) (*ClientPluginServices, error) {
+	c := f.configV2
+	opts := []grpc.DialOption{
+		grpc.WithStatsHandler(otelgrpc.NewClientHandler(otelgrpc.WithTracerProvider(telset.TracerProvider))),
+	}
+	if c.Auth != nil {
+		return nil, fmt.Errorf("authenticator is not supported")
+	}
+
+	tenancyMgr := tenancy.NewManager(&c.Tenancy)
+	if tenancyMgr.Enabled {
+		opts = append(opts, grpc.WithUnaryInterceptor(tenancy.NewClientUnaryInterceptor(tenancyMgr)))
+		opts = append(opts, grpc.WithStreamInterceptor(tenancy.NewClientStreamInterceptor(tenancyMgr)))
+	}
+
+	remoteConn, err := newClient(opts...)
+	if err != nil {
+		return nil, fmt.Errorf("error creating remote storage client: %w", err)
+	}
+	f.remoteConn = remoteConn
+	grpcClient := shared.NewGRPCClient(remoteConn)
+	return &ClientPluginServices{
+		PluginServices: shared.PluginServices{
+			Store:               grpcClient,
+			ArchiveStore:        grpcClient,
+			StreamingSpanWriter: grpcClient,
+		},
+		Capabilities: grpcClient,
+	}, nil
 }
 
 // CreateSpanReader implements storage.Factory
@@ -144,8 +193,8 @@ func (f *Factory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
 // Close closes the resources held by the factory
 func (f *Factory) Close() error {
 	var errs []error
-	if f.services != nil {
-		errs = append(errs, f.services.Close())
+	if f.remoteConn != nil {
+		errs = append(errs, f.remoteConn.Close())
 	}
 	errs = append(errs, f.configV1.RemoteTLS.Close())
 	return errors.Join(errs...)

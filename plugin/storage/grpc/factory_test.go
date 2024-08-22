@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/configauth"
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
@@ -23,6 +24,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared"
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared/mocks"
 	"github.com/jaegertracing/jaeger/storage"
@@ -87,9 +89,7 @@ func makeFactory(t *testing.T) *Factory {
 	f.InitFromViper(viper.New(), zap.NewNop())
 	require.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
 
-	keepServices := f.services
 	t.Cleanup(func() {
-		keepServices.Close()
 		f.Close()
 	})
 
@@ -117,6 +117,19 @@ func TestNewFactoryError(t *testing.T) {
 		err := f.Initialize(metrics.NullFactory, zap.NewNop())
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "authenticator")
+	})
+
+	t.Run("client", func(t *testing.T) {
+		// this is a silly test to verify handling of error from grpc.NewClient, which cannot be induced via params.
+		f, err := NewFactoryWithConfig(ConfigV2{}, metrics.NullFactory, zap.NewNop())
+		require.NoError(t, err)
+		t.Cleanup(func() { require.NoError(t, f.Close()) })
+		newClientFn := func(_ ...grpc.DialOption) (conn *grpc.ClientConn, err error) {
+			return nil, errors.New("test error")
+		}
+		_, err = f.newRemoteStorage(component.TelemetrySettings{}, newClientFn)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "error creating remote storage client")
 	})
 }
 
@@ -155,6 +168,9 @@ func TestGRPCStorageFactoryWithConfig(t *testing.T) {
 		},
 		TimeoutSettings: exporterhelper.TimeoutSettings{
 			Timeout: 1 * time.Second,
+		},
+		Tenancy: tenancy.Options{
+			Enabled: true,
 		},
 	}
 	f, err := NewFactoryWithConfig(cfg, metrics.NullFactory, zap.NewNop())
