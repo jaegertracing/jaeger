@@ -11,8 +11,6 @@ extensions:
     use_v2: true
     http:
       endpoint: 0.0.0.0:13133
-    grpc:
-      endpoint: 0.0.0.0:13132
   jaeger_query:
     trace_storage: some-storage
     ui_config: ./cmd/jaeger/config-ui.json

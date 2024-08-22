@@ -11,6 +11,7 @@ import (
 
 	"github.com/spf13/viper"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/metrics"
@@ -31,6 +32,7 @@ var ( // interface comformance checks
 type Factory struct {
 	metricsFactory metrics.Factory
 	logger         *zap.Logger
+	tracerProvider trace.TracerProvider
 
 	// configV1 is used for backward compatibility. it will be removed in v2.
 	// In the main initialization logic, only configV2 is used.
@@ -74,14 +76,14 @@ func (f *Factory) InitFromViper(v *viper.Viper, logger *zap.Logger) {
 // Initialize implements storage.Factory
 func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
 	f.metricsFactory, f.logger = metricsFactory, logger
-	tracerProvider := otel.GetTracerProvider()
+	f.tracerProvider = otel.GetTracerProvider()
 
 	if f.configV2 == nil {
 		f.configV2 = f.configV1.TranslateToConfigV2()
 	}
 
 	var err error
-	f.services, err = f.configV2.Build(logger, tracerProvider)
+	f.services, err = f.configV2.Build(logger, f.tracerProvider)
 	if err != nil {
 		return fmt.Errorf("grpc storage builder failed to create a store: %w", err)
 	}
