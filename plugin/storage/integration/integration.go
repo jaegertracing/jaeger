@@ -147,8 +147,7 @@ func (s *StorageIntegration) testGetServices(t *testing.T) {
 		require.NoError(t, err)
 		sort.Strings(actual)
 		t.Logf("Retrieved services: %v", actual)
-		match := assert.ObjectsAreEqualValues(expected, actual)
-		if !match && len(actual) > len(expected) {
+		if len(actual) > len(expected) {
 			// If the storage backend returns more services than expected, let's log traces for those
 			t.Log("🛑 Found unexpected services!")
 			for _, service := range actual {
@@ -166,7 +165,7 @@ func (s *StorageIntegration) testGetServices(t *testing.T) {
 				}
 			}
 		}
-		return match
+		return assert.ObjectsAreEqualValues(expected, actual)
 	})
 
 	if !assert.True(t, found) {
