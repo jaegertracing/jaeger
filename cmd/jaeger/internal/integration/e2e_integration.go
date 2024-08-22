@@ -121,15 +121,15 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
 		}
 	})
 
-	// Wait for the binary to start and become ready to serve requests.
-	require.Eventually(t, func() bool { return s.doHealthCheck(t) },
-		60*time.Second, 3*time.Second, "%s did not start", s.BinaryName)
-	t.Logf("%s is ready", s.BinaryName)
-
 	s.SpanWriter, err = createSpanWriter(logger, otlpPort)
 	require.NoError(t, err)
 	s.SpanReader, err = createSpanReader(logger, ports.QueryGRPC)
 	require.NoError(t, err)
+
+	// Wait for the binary to start and become ready to serve requests.
+	require.Eventually(t, func() bool { return s.doHealthCheck(t) },
+		60*time.Second, 3*time.Second, "%s did not start", s.BinaryName)
+	t.Logf("%s is ready", s.BinaryName)
 
 	t.Cleanup(func() {
 		// Call e2eCleanUp to close the SpanReader and SpanWriter gRPC connection.
