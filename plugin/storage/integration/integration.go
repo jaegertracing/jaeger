@@ -146,6 +146,25 @@ func (s *StorageIntegration) testGetServices(t *testing.T) {
 		actual, err = s.SpanReader.GetServices(context.Background())
 		require.NoError(t, err)
 		sort.Strings(actual)
+		t.Logf("Retrieved services: %v", actual)
+		if len(actual) > len(expected) {
+			// If the storage backend returns more services than expected, let's log traces for those
+			t.Log("🛑 Found unexpected services!")
+			for _, service := range actual {
+				traces, err := s.SpanReader.FindTraces(context.Background(), &spanstore.TraceQueryParameters{
+					ServiceName: service,
+				})
+				if err != nil {
+					t.Log(err)
+					continue
+				}
+				for _, trace := range traces {
+					for _, span := range trace.Spans {
+						t.Logf("span: Service: %s, TraceID: %s, Operation: %s", service, span.TraceID, span.OperationName)
+					}
+				}
+			}
+		}
 		return assert.ObjectsAreEqualValues(expected, actual)
 	})
 
@@ -231,6 +250,7 @@ func (s *StorageIntegration) testGetOperations(t *testing.T) {
 		sort.Slice(actual, func(i, j int) bool {
 			return actual[i].Name < actual[j].Name
 		})
+		t.Logf("Retrieved operations: %v", actual)
 		return assert.ObjectsAreEqualValues(expected, actual)
 	})
 
