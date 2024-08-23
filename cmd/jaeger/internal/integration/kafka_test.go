@@ -63,8 +63,7 @@ func createConfigWithEncoding(t *testing.T, configFile string, targetEncoding st
 	err = os.WriteFile(tempFile, newData, 0o600)
 	require.NoError(t, err, "Failed to write updated config file to: %s", tempFile)
 
-	t.Logf("Configuration file with encoding '%s' and topic '%s' written to: %s", targetEncoding, uniqueTopic, tempFile)
-
+	t.Logf("Transformed configuration file %s to %s", configFile, tempFile)
 	return tempFile
 }
 
@@ -96,15 +95,17 @@ func TestKafkaStorage(t *testing.T) {
 			// but the tests are run against the ingester.
 
 			collector := &E2EStorageIntegration{
-				SkipStorageCleaner:  true,
-				ConfigFile:          createConfigWithEncoding(t, "../../collector-with-kafka.yaml", test.encoding, uniqueTopic),
-				HealthCheckEndpoint: "http://localhost:8888/metrics",
+				BinaryName:         "jaeger-v2-collector",
+				ConfigFile:         createConfigWithEncoding(t, "../../config-kafka-collector.yaml", test.encoding, uniqueTopic),
+				SkipStorageCleaner: true,
 			}
 			collector.e2eInitialize(t, "kafka")
 			t.Log("Collector initialized")
 
 			ingester := &E2EStorageIntegration{
-				ConfigFile: createConfigWithEncoding(t, "../../ingester-remote-storage.yaml", test.encoding, uniqueTopic),
+				BinaryName:          "jaeger-v2-ingester",
+				ConfigFile:          createConfigWithEncoding(t, "../../config-kafka-ingester.yaml", test.encoding, uniqueTopic),
+				HealthCheckEndpoint: "http://localhost:14133/status",
 				StorageIntegration: integration.StorageIntegration{
 					CleanUp:                      purge,
 					GetDependenciesReturnsSource: true,

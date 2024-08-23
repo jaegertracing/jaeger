@@ -10,6 +10,7 @@ echo "docker_compose_file=${compose_file}" >> "${GITHUB_OUTPUT:-/dev/null}"
 
 jaeger_version=""
 manage_kafka="true"
+success="false"
 
 print_help() {
   echo "Usage: $0 [-K] -j <jaeger_version>"
@@ -43,7 +44,16 @@ setup_kafka() {
   docker compose -f "${compose_file}" up -d kafka
 }
 
+dump_logs() {
+  echo "::group::🚧 🚧 🚧 Kafka logs"
+  docker compose -f "${compose_file}" logs
+  echo "::endgroup::"
+}
+
 teardown_kafka() {
+   if [[ "$success" == "false" ]]; then
+    dump_logs
+  fi
   echo "Stopping Kafka..."
   docker compose -f "${compose_file}" down
 }
@@ -98,6 +108,8 @@ main() {
   wait_for_kafka
 
   run_integration_test
+
+  success="true"
 }
 
 main "$@"

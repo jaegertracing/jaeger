@@ -294,6 +294,7 @@ func (sp *spanProcessor) updateQueueSize() {
 }
 
 func (sp *spanProcessor) updateGauges() {
+	//nolint: gosec // G115
 	sp.metrics.SpansBytes.Update(int64(sp.bytesProcessed.Load()))
 	sp.metrics.QueueLength.Update(int64(sp.queue.Size()))
 	sp.metrics.QueueCapacity.Update(int64(sp.queue.Capacity()))

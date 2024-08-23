@@ -44,7 +44,10 @@ func convertRateLimitingFromDomain(s *api_v2.RateLimitingSamplingStrategy) (*sam
 	if s.MaxTracesPerSecond > math.MaxInt16 {
 		return nil, errors.New("maxTracesPerSecond is higher than int16")
 	}
-	return &sampling.RateLimitingSamplingStrategy{MaxTracesPerSecond: int16(s.GetMaxTracesPerSecond())}, nil
+	return &sampling.RateLimitingSamplingStrategy{
+		//nolint: gosec // G115
+		MaxTracesPerSecond: int16(s.GetMaxTracesPerSecond()),
+	}, nil
 }
 
 func convertPerOperationFromDomain(s *api_v2.PerOperationSamplingStrategies) *sampling.PerOperationSamplingStrategies {
