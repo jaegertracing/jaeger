@@ -21,13 +21,13 @@ extensions:
       some_storage:
         cassandra:
           keyspace: "jaeger_v1_dc1"
-          password: "cassandra"
           username: "cassandra"
+          password: "cassandra"
       another_storage:
         cassandra:
           keyspace: "jaeger_v1_dc1"
-          password: "cassandra"
           username: "cassandra"
+          password: "cassandra"
 receivers:
   otlp:
     protocols:

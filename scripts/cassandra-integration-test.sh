@@ -7,6 +7,7 @@ set -uxf -o pipefail
 
 export CASSANDRA_USERNAME="cassandra"
 export CASSANDRA_PASSWORD="cassandra"
+success="false"
 
 usage() {
   echo $"Usage: $0 <cassandra_version> <schema_version>"
@@ -26,10 +27,19 @@ setup_cassandra() {
   echo "docker_compose_file=${compose_file}" >> "${GITHUB_OUTPUT:-/dev/null}"
 }
 
+dump_logs() {
+  local compose_file=$1
+  echo "::group::🚧 🚧 🚧 Cassandra logs"
+  docker compose -f "${compose_file}" logs
+  echo "::endgroup::"
+}
+
 teardown_cassandra() {
   local compose_file=$1
+   if [[ "$success" == "false" ]]; then
+    dump_logs "${compose_file}"
+  fi
   docker compose -f "$compose_file" down
-  exit "${exit_status}"
 }
 
 apply_schema() {
@@ -62,22 +72,21 @@ run_integration_test() {
 
   setup_cassandra "${compose_file}"
 
+  # shellcheck disable=SC2064
+  trap "teardown_cassandra ${compose_file}" EXIT
+
   apply_schema "$schema_version" "$primaryKeyspace"
   apply_schema "$schema_version" "$archiveKeyspace"
 
   if [ "${jaegerVersion}" = "v1" ]; then
     STORAGE=cassandra make storage-integration-test
-    exit_status=$?
   elif [ "${jaegerVersion}" == "v2" ]; then
     STORAGE=cassandra make jaeger-v2-storage-integration-test
-    exit_status=$?
   else
     echo "Unknown jaeger version $jaegerVersion. Valid options are v1 or v2"
     exit 1
   fi
-
-  # shellcheck disable=SC2064
-  trap "teardown_cassandra ${compose_file}" EXIT
+  success="true"
 }
 
 
