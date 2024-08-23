@@ -4,11 +4,9 @@
 package integration
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/jaegertracing/jaeger/plugin/storage/integration"
-	"github.com/jaegertracing/jaeger/ports"
 )
 
 type GRPCStorageIntegration struct {
@@ -32,8 +30,6 @@ func TestGRPCStorage(t *testing.T) {
 	s := &GRPCStorageIntegration{
 		E2EStorageIntegration: E2EStorageIntegration{
 			ConfigFile: "../../config-remote-storage.yaml",
-			// TODO this should be removed in favor of default health check endpoint
-			HealthCheckEndpoint: fmt.Sprintf("http://localhost:%d/", ports.QueryHTTP),
 		},
 	}
 	s.CleanUp = s.cleanUp
