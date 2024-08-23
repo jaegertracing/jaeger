@@ -162,7 +162,7 @@ func (s *E2EStorageIntegration) doHealthCheck(t *testing.T) bool {
 		return false
 	}
 	if resp.StatusCode != http.StatusOK {
-		t.Logf("Failed to read receive OK HTTP response: %v", string(body))
+		t.Logf("HTTP response not OK: %v", string(body))
 		return false
 	}
 	// for backwards compatibility with other healthchecks
@@ -175,13 +175,13 @@ func (s *E2EStorageIntegration) doHealthCheck(t *testing.T) bool {
 		Status string `json:"status"`
 	}
 	if err := json.NewDecoder(bytes.NewReader(body)).Decode(&healthResponse); err != nil {
-		t.Logf("Failed to decode JSON response: %v", err)
+		t.Logf("Failed to decode JSON response '%s': %v", string(body), err)
 		return false
 	}
 
 	// Check if the status field in the JSON is "StatusOK"
 	if healthResponse.Status != "StatusOK" {
-		t.Logf("Received non-StatusOK status: %s", healthResponse.Status)
+		t.Logf("Received non-K status %s: %s", healthResponse.Status, string(body))
 		return false
 	}
 	return true
