@@ -45,7 +45,7 @@ setup_kafka() {
 }
 
 dump_logs() {
-  echo "::group::Kafka logs"
+  echo "::group::🚧 🚧 🚧 Kafka logs"
   docker compose -f "${compose_file}" logs
   echo "::endgroup::"
 }
