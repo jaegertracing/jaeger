@@ -5,6 +5,9 @@
 
 set -uxf -o pipefail
 
+export CASSANDRA_USERNAME="cassandra"
+export CASSANDRA_PASSWORD="cassandra"
+
 usage() {
   echo $"Usage: $0 <cassandra_version> <schema_version>"
   exit 1
@@ -34,16 +37,14 @@ apply_schema() {
   local schema_dir=plugin/storage/cassandra/
   local schema_version=$1
   local keyspace=$2
-  local username=$3
-  local password=$4
   local params=(
     --rm
     --env CQLSH_HOST=localhost
     --env CQLSH_PORT=9042
     --env "TEMPLATE=/cassandra-schema/${schema_version}.cql.tmpl"
     --env "KEYSPACE=${keyspace}"
-    --env "CASSANDRA_USERNAME=${username}"
-    --env "CASSANDRA_PASSWORD=${password}"
+    --env "CASSANDRA_USERNAME=${CASSANDRA_USERNAME}"
+    --env "CASSANDRA_PASSWORD=${CASSANDRA_PASSWORD}"
     --network host
   )
   docker build -t ${image} ${schema_dir}
@@ -61,11 +62,11 @@ run_integration_test() {
 
   setup_cassandra "${compose_file}"
 
-  apply_schema "$schema_version" "$primaryKeyspace" "cassandra" "cassandra"
-  apply_schema "$schema_version" "$archiveKeyspace" "cassandra" "cassandra"
+  apply_schema "$schema_version" "$primaryKeyspace"
+  apply_schema "$schema_version" "$archiveKeyspace"
 
   if [ "${jaegerVersion}" = "v1" ]; then
-    STORAGE=cassandra CASSANDRA_USERNAME="cassandra" CASSANDRA_PASSWORD="cassandra" make storage-integration-test
+    STORAGE=cassandra make storage-integration-test
     exit_status=$?
   elif [ "${jaegerVersion}" == "v2" ]; then
     STORAGE=cassandra make jaeger-v2-storage-integration-test
