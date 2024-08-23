@@ -3,7 +3,7 @@
 # Copyright (c) 2024 The Jaeger Authors.
 # SPDX-License-Identifier: Apache-2.0
 
-set -uxf -o pipefail
+set -euxf -o pipefail
 
 export CASSANDRA_USERNAME="cassandra"
 export CASSANDRA_PASSWORD="cassandra"
