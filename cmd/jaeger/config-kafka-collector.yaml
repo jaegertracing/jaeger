@@ -15,8 +15,6 @@ extensions:
   healthcheckv2:
     use_v2: true
     http:
-      endpoint: "0.0.0.0:13133"
-    grpc:
 
 receivers:
   otlp:
