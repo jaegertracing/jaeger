@@ -42,8 +42,8 @@ apply_schema() {
     --env CQLSH_PORT=9042
     --env "TEMPLATE=/cassandra-schema/${schema_version}.cql.tmpl"
     --env "KEYSPACE=${keyspace}"
-    --env "USERNAME=${username}"
-    --env "PASSWORD=${password}"
+    --env "CASSANDRA_USERNAME=${username}"
+    --env "CASSANDRA_PASSWORD=${password}"
     --network host
   )
   docker build -t ${image} ${schema_dir}
@@ -55,19 +55,17 @@ run_integration_test() {
   local major_version=${version%%.*}
   local schema_version=$2
   local jaegerVersion=$3
-  local username="username"
-  local password="password"
   local primaryKeyspace="jaeger_v1_dc1"
   local archiveKeyspace="jaeger_v1_dc1_archive"
   local compose_file="docker-compose/cassandra/v$major_version/docker-compose.yaml"
 
   setup_cassandra "${compose_file}"
 
-  apply_schema "$schema_version" "$primaryKeyspace" "$username" "$password"
-  apply_schema "$schema_version" "$archiveKeyspace" "$username" "$password"
+  apply_schema "$schema_version" "$primaryKeyspace" "cassandra" "cassandra"
+  apply_schema "$schema_version" "$archiveKeyspace" "cassandra" "cassandra"
 
   if [ "${jaegerVersion}" = "v1" ]; then
-    STORAGE=cassandra make storage-integration-test
+    STORAGE=cassandra CASSANDRA_USERNAME="cassandra" CASSANDRA_PASSWORD="cassandra" make storage-integration-test
     exit_status=$?
   elif [ "${jaegerVersion}" == "v2" ]; then
     STORAGE=cassandra make jaeger-v2-storage-integration-test
