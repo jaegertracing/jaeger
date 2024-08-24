@@ -70,7 +70,7 @@ require (
 	go.opentelemetry.io/collector/processor/memorylimiterprocessor v0.107.0
 	go.opentelemetry.io/collector/receiver v0.107.0
 	go.opentelemetry.io/collector/receiver/otlpreceiver v0.107.0
-	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.53.0
+	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.54.0
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.53.0
 	go.opentelemetry.io/contrib/samplers/jaegerremote v0.22.0
 	go.opentelemetry.io/otel v1.29.0
