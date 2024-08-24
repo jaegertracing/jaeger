@@ -41,6 +41,18 @@
       "enabled": false
     },
     {
+      "groupName": "All OTEL SDK + contrib packages (alternative)",
+      "groupSlug": "go-otel-sdk",
+      "matchDatasources": [
+        "go"
+      ],
+      "matchPackageNames": [
+        "go.opentelemetry.io/otel/**",
+        "go.opentelemetry.io/contrib/**",
+        "github.com/open-telemetry/opentelemetry-go-contrib/**"
+      ]
+    },
+    {
       "matchManagers": ["gomod"],
       "matchSourceUrlPrefixes": [
         "go.opentelemetry.io/otel",
