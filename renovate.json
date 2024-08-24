@@ -44,6 +44,7 @@
       "matchManagers": ["gomod"],
       "matchSourceUrlPrefixes": [
         "go.opentelemetry.io/otel",
+        "go.opentelemetry.io/contrib",
         "github.com/open-telemetry/opentelemetry-go-contrib"
       ],
       "groupName": "All OTEL SDK + contrib packages"
