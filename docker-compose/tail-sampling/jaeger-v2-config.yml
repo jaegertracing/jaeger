@@ -31,24 +31,9 @@ processors:
     policies:
       [
         {
-          name: all-errors,
-          type: status_code,
-          status_code: {status_codes: [ERROR]}
-        },
-        {
           name: filter-by-attribute,
           type: string_attribute,
-          string_attribute: { key: key1, values: [ value1 ] }
-        },
-        {
-          name: filter-by-latency,
-          type: latency,
-          latency: { threshold_ms: 5000}
-        },
-        {
-          name: probabilistic-sampler,
-          type: probabilistic,
-          probabilistic: { sampling_percentage: 1 }
+          string_attribute: { key: service.name, values: [ tracegen-02, tracegen-04 ] }
         },
       ]
 
