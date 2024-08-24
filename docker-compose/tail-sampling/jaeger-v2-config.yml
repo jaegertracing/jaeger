@@ -1,0 +1,57 @@
+service:
+  extensions: [jaeger_storage, jaeger_query]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [tail_sampling]
+      exporters: [jaeger_storage_exporter]
+  telemetry:
+    logs:
+      level: DEBUG
+
+extensions:
+  jaeger_query:
+    trace_storage: some_storage
+  jaeger_storage:
+    backends:
+      some_storage:
+        memory:
+          max_traces: 100000
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+      http:
+        endpoint: "0.0.0.0:4318"
+
+processors:
+  tail_sampling:
+    decision_wait: 15s
+    policies:
+      [
+        {
+          name: all-errors,
+          type: status_code,
+          status_code: {status_codes: [ERROR]}
+        },
+        {
+          name: filter-by-attribute,
+          type: string_attribute,
+          string_attribute: { key: key1, values: [ value1 ] }
+        },
+        {
+          name: filter-by-latency,
+          type: latency,
+          latency: { threshold_ms: 5000}
+        },
+        {
+          name: probabilistic-sampler,
+          type: probabilistic,
+          probabilistic: { sampling_percentage: 1 }
+        },
+      ]
+
+exporters:
+  jaeger_storage_exporter:
+    trace_storage: some_storage
