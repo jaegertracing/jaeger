@@ -13,7 +13,7 @@ fi
 
 set -u
 
-BASE_BUILD_IMAGE=${1:?'expecting Docker image name, such as jaegertracing/jaeger'}
+BASE_BUILD_IMAGE=${1:?'expecting Docker image name as argument, such as jaegertracing/jaeger'}
 BRANCH=${BRANCH:?'expecting BRANCH env var'}
 GITHUB_SHA=${GITHUB_SHA:?'expecting GITHUB_SHA env var'}
 # allow substituting for ggrep on Mac, since its default grep doesn't grok -P flag.
