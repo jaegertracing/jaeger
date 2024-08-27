@@ -76,28 +76,14 @@ FMT_LOG=.fmt.log
 IMPORT_LOG=.import.log
 COLORIZE ?= | $(SED) 's/PASS/✅ PASS/g' | $(SED) 's/FAIL/❌ FAIL/g' | $(SED) 's/SKIP/🔕 SKIP/g'
 
-GIT_SHA=$(shell git rev-parse HEAD)
-GIT_SHALLOW_CLONE := $(shell git rev-parse --is-shallow-repository)
-# Some of GitHub Actions workflows do a shallow checkout without tags. This avoids logging warnings from git.
-GIT_CLOSEST_TAG=$(shell if [ "$(GIT_SHALLOW_CLONE)" = "false" ]; then git describe --abbrev=0 --tags; else echo 0.0.0; fi)
-ifneq ($(GIT_CLOSEST_TAG),$(shell echo ${GIT_CLOSEST_TAG} | grep -E "$(semver_regex)"))
-	$(warning GIT_CLOSEST_TAG=$(GIT_CLOSEST_TAG) is not in the semver format $(semver_regex))
-endif
-GIT_CLOSEST_TAG_MAJOR := $(shell echo $(GIT_CLOSEST_TAG) | $(SED) -n 's/v\([0-9]*\)\.[0-9]*\.[0-9]/\1/p')
-GIT_CLOSEST_TAG_MINOR := $(shell echo $(GIT_CLOSEST_TAG) | $(SED) -n 's/v[0-9]*\.\([0-9]*\)\.[0-9]/\1/p')
-GIT_CLOSEST_TAG_PATCH := $(shell echo $(GIT_CLOSEST_TAG) | $(SED) -n 's/v[0-9]*\.[0-9]*\.\([0-9]\)/\1/p')
-DATE=$(shell TZ=UTC0 git show --quiet --date='format-local:%Y-%m-%dT%H:%M:%SZ' --format="%cd")
-BUILD_INFO_IMPORT_PATH=$(JAEGER_IMPORT_PATH)/pkg/version
-BUILD_INFO=-ldflags "-X $(BUILD_INFO_IMPORT_PATH).commitSHA=$(GIT_SHA) -X $(BUILD_INFO_IMPORT_PATH).latestVersion=$(GIT_CLOSEST_TAG) -X $(BUILD_INFO_IMPORT_PATH).date=$(DATE)"
-
-SYSOFILE=resource.syso
-
 # import other Makefiles after the variables are defined
-include Makefile.Tools.mk
 include docker/Makefile
+include Makefile.BuildInfo.mk
+include Makefile.Crossdock.mk
 include Makefile.Protobuf.mk
 include Makefile.Thrift.mk
-include Makefile.Crossdock.mk
+include Makefile.Tools.mk
+include Makefile.Windows.mk
 
 .DEFAULT_GOAL := test-and-lint
 
@@ -233,23 +219,23 @@ build-tracegen:
 
 .PHONY: build-anonymizer
 build-anonymizer:
-	$(GOBUILD) $(BUILD_INFO) -o ./cmd/anonymizer/anonymizer-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/anonymizer/
+	$(GOBUILD) $(BUILD_INFO) -o ./cmd/anonymizer/anonymizer-$(GOOS)-$(GOARCH) ./cmd/anonymizer/
 
 .PHONY: build-esmapping-generator
 build-esmapping-generator:
-	$(GOBUILD) -o ./plugin/storage/es/esmapping-generator-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/esmapping-generator/
+	$(GOBUILD) $(BUILD_INFO) -o ./plugin/storage/es/esmapping-generator-$(GOOS)-$(GOARCH) ./cmd/esmapping-generator/
 
 .PHONY: build-esmapping-generator-linux
 build-esmapping-generator-linux:
-	 GOOS=linux GOARCH=amd64 $(GOBUILD) -o ./plugin/storage/es/esmapping-generator $(BUILD_INFO) ./cmd/esmapping-generator/
+	 GOOS=linux $(BUILD_INFO) GOARCH=amd64 $(GOBUILD) -o ./plugin/storage/es/esmapping-generator ./cmd/esmapping-generator/
 
 .PHONY: build-es-index-cleaner
 build-es-index-cleaner:
-	$(GOBUILD) -o ./cmd/es-index-cleaner/es-index-cleaner-$(GOOS)-$(GOARCH) ./cmd/es-index-cleaner/
+	$(GOBUILD) $(BUILD_INFO) -o ./cmd/es-index-cleaner/es-index-cleaner-$(GOOS)-$(GOARCH) ./cmd/es-index-cleaner/
 
 .PHONY: build-es-rollover
 build-es-rollover:
-	$(GOBUILD) -o ./cmd/es-rollover/es-rollover-$(GOOS)-$(GOARCH) ./cmd/es-rollover/
+	$(GOBUILD) $(BUILD_INFO) -o ./cmd/es-rollover/es-rollover-$(GOOS)-$(GOARCH) ./cmd/es-rollover/
 
 .PHONY: docker-hotrod
 docker-hotrod:
@@ -294,6 +280,7 @@ _build-a-binary-%:
 .PHONY: build-jaeger
 build-jaeger: BIN_NAME = jaeger
 build-jaeger: GO_TAGS = -tags ui
+build-jaeger: BUILD_INFO = $(BUILD_INFO_V2)
 build-jaeger: build-ui _build-a-binary-jaeger$(SUFFIX)-$(GOOS)-$(GOARCH)
 
 .PHONY: build-all-in-one
@@ -322,68 +309,6 @@ build-ingester: _build-a-binary-ingester$(SUFFIX)-$(GOOS)-$(GOARCH)
 build-remote-storage: BIN_NAME = remote-storage
 build-remote-storage: _build-a-binary-remote-storage$(SUFFIX)-$(GOOS)-$(GOARCH)
 
-# Magic values:
-# - LangID "0409" is "US-English".
-# - CharsetID "04B0" translates to decimal 1200 for "Unicode".
-# - FileOS "040004" defines the Windows kernel "Windows NT".
-# - FileType "01" is "Application".
-define VERSIONINFO
-{
-    "FixedFileInfo": {
-        "FileVersion": {
-            "Major": $(GIT_CLOSEST_TAG_MAJOR),
-            "Minor": $(GIT_CLOSEST_TAG_MINOR),
-            "Patch": $(GIT_CLOSEST_TAG_PATCH),
-            "Build": 0
-        },
-        "ProductVersion": {
-            "Major": $(GIT_CLOSEST_TAG_MAJOR),
-            "Minor": $(GIT_CLOSEST_TAG_MINOR),
-            "Patch": $(GIT_CLOSEST_TAG_PATCH),
-            "Build": 0
-        },
-        "FileFlagsMask": "3f",
-        "FileFlags ": "00",
-        "FileOS": "040004",
-        "FileType": "01",
-        "FileSubType": "00"
-    },
-    "StringFileInfo": {
-        "FileDescription": "$(NAME)",
-        "FileVersion": "$(GIT_CLOSEST_TAG_MAJOR).$(GIT_CLOSEST_TAG_MINOR).$(GIT_CLOSEST_TAG_PATCH).0",
-        "LegalCopyright": "2015-2023 The Jaeger Project Authors",
-		"ProductName": "$(NAME)",
-        "ProductVersion": "$(GIT_CLOSEST_TAG_MAJOR).$(GIT_CLOSEST_TAG_MINOR).$(GIT_CLOSEST_TAG_PATCH).0"
-    },
-    "VarFileInfo": {
-        "Translation": {
-            "LangID": "0409",
-            "CharsetID": "04B0"
-        }
-    }
-}
-endef
-
-export VERSIONINFO
-
-.PHONY: _prepare-winres
-_prepare-winres:
-	$(MAKE) _prepare-winres-helper NAME="Jaeger Agent"            PKGPATH="cmd/agent"
-	$(MAKE) _prepare-winres-helper NAME="Jaeger Collector"        PKGPATH="cmd/collector"
-	$(MAKE) _prepare-winres-helper NAME="Jaeger Query"            PKGPATH="cmd/query"
-	$(MAKE) _prepare-winres-helper NAME="Jaeger Ingester"         PKGPATH="cmd/ingester"
-	$(MAKE) _prepare-winres-helper NAME="Jaeger Remote Storage"   PKGPATH="cmd/remote-storage"
-	$(MAKE) _prepare-winres-helper NAME="Jaeger All-In-One"       PKGPATH="cmd/all-in-one"
-	$(MAKE) _prepare-winres-helper NAME="Jaeger V2"               PKGPATH="cmd/jaeger"
-	$(MAKE) _prepare-winres-helper NAME="Jaeger Tracegen"         PKGPATH="cmd/tracegen"
-	$(MAKE) _prepare-winres-helper NAME="Jaeger Anonymizer"       PKGPATH="cmd/anonymizer"
-	$(MAKE) _prepare-winres-helper NAME="Jaeger ES-Index-Cleaner" PKGPATH="cmd/es-index-cleaner"
-	$(MAKE) _prepare-winres-helper NAME="Jaeger ES-Rollover"      PKGPATH="cmd/es-rollover"
-
-.PHONY: _prepare-winres-helper
-_prepare-winres-helper:
-	echo $$VERSIONINFO | $(GOVERSIONINFO) -o="$(PKGPATH)/$(SYSOFILE)" -
-
 .PHONY: build-binaries-linux
 build-binaries-linux: build-binaries-amd64
 
@@ -391,10 +316,12 @@ build-binaries-linux: build-binaries-amd64
 build-binaries-amd64:
 	GOOS=linux GOARCH=amd64 $(MAKE) _build-platform-binaries
 
+# helper targets defined in Makefile.Windows.mk
 .PHONY: build-binaries-windows
-build-binaries-windows: _prepare-winres
+build-binaries-windows:
+	$(MAKE) _build-syso
 	GOOS=windows GOARCH=amd64 $(MAKE) _build-platform-binaries
-	rm ./cmd/*/$(SYSOFILE)
+	$(MAKE) _clean-syso
 
 .PHONY: build-binaries-darwin
 build-binaries-darwin:

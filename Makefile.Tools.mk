@@ -20,11 +20,8 @@ install-tools: $(TOOLS_BIN_NAMES)
 .PHONY: install-test-tools
 install-test-tools: $(LINT) $(GOFUMPT)
 
-.PHONY: install-build-tools
-install-build-tools: $(GOVERSIONINFO)
-
 .PHONY: install-ci
-install-ci: install-test-tools install-build-tools
+install-ci: install-test-tools
 
 list-internal-tools:
 	@echo Third party tool modules:
@@ -35,5 +32,5 @@ list-internal-tools:
 $(TOOLS_BIN_DIR):
 	mkdir -p $@
 
-$(TOOLS_BIN_NAMES): $(TOOLS_BIN_DIR) $(TOOLS_MOD_DIR)/go.mod
+$(TOOLS_BIN_NAMES): $(TOOLS_BIN_DIR) $(TOOLS_MOD_DIR)/go.mod $(TOOLS_MOD_DIR)/go.sum
 	cd $(TOOLS_MOD_DIR) && $(GO) build -o $@ -trimpath $(shell echo $(TOOLS_PKG_NAMES) | tr ' ' '\n' | grep $(notdir $@))
