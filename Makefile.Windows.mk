@@ -49,32 +49,33 @@ endef
 
 export VERSIONINFO
 
-.PHONY: _prepare-syso-helper
-_prepare-syso-helper:
-	echo $(NAME)
+.PHONY: _build_syso_once
+_build_syso_once:
 	echo $$VERSIONINFO
 	echo $$VERSIONINFO | $(GOVERSIONINFO) -o="$(PKGPATH)/$(SYSOFILE)" -
 
-.PHONY: _prepare-syso
-_prepare-syso: $(GOVERSIONINFO)
-	$(eval SEMVER_ALL := $(shell QUIET=1 scripts/compute-version.sh v1))
+define _build_syso_macro
+	$(MAKE) _build_syso_once NAME="$(1)" PKGPATH="$(2)" SEMVER_MAJOR=$(SEMVER_MAJOR) SEMVER_MINOR=$(SEMVER_MINOR) SEMVER_PATCH=$(SEMVER_PATCH)
+endef
+
+.PHONY: _build-syso
+_build-syso: $(GOVERSIONINFO)
+	$(eval SEMVER_ALL := $(shell scripts/compute-version.sh -s v1))
 	$(eval SEMVER_MAJOR := $(word 2, $(SEMVER_ALL)))
 	$(eval SEMVER_MINOR := $(word 3, $(SEMVER_ALL)))
 	$(eval SEMVER_PATCH := $(word 4, $(SEMVER_ALL)))
-	echo SEMVER_MAJOR=$(SEMVER_MAJOR), SEMVER_MINOR=$(SEMVER_MINOR), SEMVER_PATCH=$(SEMVER_PATCH)
-	$(MAKE) _prepare-syso-helper NAME="Jaeger Agent"            PKGPATH="cmd/agent"
-	false
-	$(MAKE) -e _prepare-syso-helper NAME="Jaeger Collector"        PKGPATH="cmd/collector"
-	$(MAKE) -e _prepare-syso-helper NAME="Jaeger Query"            PKGPATH="cmd/query"
-	$(MAKE) -e _prepare-syso-helper NAME="Jaeger Ingester"         PKGPATH="cmd/ingester"
-	$(MAKE) -e _prepare-syso-helper NAME="Jaeger Remote Storage"   PKGPATH="cmd/remote-storage"
-	$(MAKE) -e _prepare-syso-helper NAME="Jaeger All-In-One"       PKGPATH="cmd/all-in-one"
-	$(MAKE) -e _prepare-syso-helper NAME="Jaeger Tracegen"         PKGPATH="cmd/tracegen"
-	$(MAKE) -e _prepare-syso-helper NAME="Jaeger Anonymizer"       PKGPATH="cmd/anonymizer"
-	$(MAKE) -e _prepare-syso-helper NAME="Jaeger ES-Index-Cleaner" PKGPATH="cmd/es-index-cleaner"
-	$(MAKE) -e _prepare-syso-helper NAME="Jaeger ES-Rollover"      PKGPATH="cmd/es-rollover"
+	$(call _build_syso_macro,Jaeger Agent,cmd/agent)
+	$(call _build_syso_macro,Jaeger Collector,cmd/collector)
+	$(call _build_syso_macro,Jaeger Query,cmd/query)
+	$(call _build_syso_macro,Jaeger Ingester,cmd/ingester)
+	$(call _build_syso_macro,Jaeger Remote Storage,cmd/remote-storage)
+	$(call _build_syso_macro,Jaeger All-In-One,cmd/all-in-one)
+	$(call _build_syso_macro,Jaeger Tracegen,cmd/tracegen)
+	$(call _build_syso_macro,Jaeger Anonymizer,cmd/anonymizer)
+	$(call _build_syso_macro,Jaeger ES-Index-Cleaner,cmd/es-index-cleaner)
+	$(call _build_syso_macro,Jaeger ES-Rollover,cmd/es-rollover)
 	# TODO in the future this should be in v2
-	$(MAKE) -e _prepare-syso-helper NAME="Jaeger V2"               PKGPATH="cmd/jaeger"
+	$(call _build_syso_macro,Jaeger V2,cmd/jaeger)
 
 .PHONY: _clean-syso
 _clean-syso:

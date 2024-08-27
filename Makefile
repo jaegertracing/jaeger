@@ -76,28 +76,14 @@ FMT_LOG=.fmt.log
 IMPORT_LOG=.import.log
 COLORIZE ?= | $(SED) 's/PASS/✅ PASS/g' | $(SED) 's/FAIL/❌ FAIL/g' | $(SED) 's/SKIP/🔕 SKIP/g'
 
-GIT_SHA=$(shell git rev-parse HEAD)
-DATE=$(shell TZ=UTC0 git show --quiet --date='format-local:%Y-%m-%dT%H:%M:%SZ' --format="%cd")
-BUILD_INFO_IMPORT_PATH=$(JAEGER_IMPORT_PATH)/pkg/version
-BUILD_INFO=-ldflags "-X $(BUILD_INFO_IMPORT_PATH).commitSHA=$(GIT_SHA) -X $(BUILD_INFO_IMPORT_PATH).latestVersion=$(GIT_CLOSEST_TAG) -X $(BUILD_INFO_IMPORT_PATH).date=$(DATE)"
-
-GIT_SHALLOW_CLONE := $(shell git rev-parse --is-shallow-repository)
-# Some of GitHub Actions workflows do a shallow checkout without tags. This avoids logging warnings from git.
-GIT_CLOSEST_TAG=$(shell if [ "$(GIT_SHALLOW_CLONE)" = "false" ]; then git describe --abbrev=0 --tags; else echo 0.0.0; fi)
-ifneq ($(GIT_CLOSEST_TAG),$(shell echo ${GIT_CLOSEST_TAG} | grep -E "$(semver_regex)"))
-	$(warning GIT_CLOSEST_TAG=$(GIT_CLOSEST_TAG) is not in the semver format $(semver_regex))
-endif
-GIT_CLOSEST_TAG_MAJOR := $(shell echo $(GIT_CLOSEST_TAG) | $(SED) -n 's/v\([0-9]*\)\.[0-9]*\.[0-9]/\1/p')
-GIT_CLOSEST_TAG_MINOR := $(shell echo $(GIT_CLOSEST_TAG) | $(SED) -n 's/v[0-9]*\.\([0-9]*\)\.[0-9]/\1/p')
-GIT_CLOSEST_TAG_PATCH := $(shell echo $(GIT_CLOSEST_TAG) | $(SED) -n 's/v[0-9]*\.[0-9]*\.\([0-9]\)/\1/p')
-
 # import other Makefiles after the variables are defined
-include Makefile.Tools.mk
-include Makefile.Windows.mk
 include docker/Makefile
+include Makefile.BuildInfo.mk
+include Makefile.Crossdock.mk
 include Makefile.Protobuf.mk
 include Makefile.Thrift.mk
-include Makefile.Crossdock.mk
+include Makefile.Tools.mk
+include Makefile.Windows.mk
 
 .DEFAULT_GOAL := test-and-lint
 
@@ -233,15 +219,15 @@ build-tracegen:
 
 .PHONY: build-anonymizer
 build-anonymizer:
-	$(GOBUILD) $(BUILD_INFO) -o ./cmd/anonymizer/anonymizer-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/anonymizer/
+	$(GOBUILD) $(BUILD_INFO) -o ./cmd/anonymizer/anonymizer-$(GOOS)-$(GOARCH) ./cmd/anonymizer/
 
 .PHONY: build-esmapping-generator
 build-esmapping-generator:
-	$(GOBUILD) -o ./plugin/storage/es/esmapping-generator-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/esmapping-generator/
+	$(GOBUILD) -o ./plugin/storage/es/esmapping-generator-$(GOOS)-$(GOARCH) ./cmd/esmapping-generator/
 
 .PHONY: build-esmapping-generator-linux
 build-esmapping-generator-linux:
-	 GOOS=linux GOARCH=amd64 $(GOBUILD) -o ./plugin/storage/es/esmapping-generator $(BUILD_INFO) ./cmd/esmapping-generator/
+	 GOOS=linux GOARCH=amd64 $(GOBUILD) -o ./plugin/storage/es/esmapping-generator ./cmd/esmapping-generator/
 
 .PHONY: build-es-index-cleaner
 build-es-index-cleaner:
@@ -294,6 +280,7 @@ _build-a-binary-%:
 .PHONY: build-jaeger
 build-jaeger: BIN_NAME = jaeger
 build-jaeger: GO_TAGS = -tags ui
+build-jaeger: BUILD_INFO = $(BUILD_INFO_V2)
 build-jaeger: build-ui _build-a-binary-jaeger$(SUFFIX)-$(GOOS)-$(GOARCH)
 
 .PHONY: build-all-in-one
@@ -332,7 +319,7 @@ build-binaries-amd64:
 # helper targets defined in Makefile.Windows.mk
 .PHONY: build-binaries-windows
 build-binaries-windows:
-	$(MAKE) _prepare-syso
+	$(MAKE) _build-syso
 	GOOS=windows GOARCH=amd64 $(MAKE) _build-platform-binaries
 	$(MAKE) _clean-syso
 
