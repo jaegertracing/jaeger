@@ -50,9 +50,9 @@ esac
 
 print_result() {
   if [[ "$split" == "true" ]]; then
-    echo $1 $2 $3 $4
+    echo "$1" "$2" "$3" "$4"
   else
-    echo $1
+    echo "$1"
   fi
 }
 
@@ -95,4 +95,4 @@ else
     exit 1
 fi
 
-print_result $MATCHING_TAG $MAJOR $MINOR $PATCH
+print_result "$MATCHING_TAG" "$MAJOR" "$MINOR" "$PATCH"
