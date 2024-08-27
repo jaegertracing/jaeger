@@ -3,7 +3,6 @@
 
 GIT_SHA=$(shell git rev-parse HEAD)
 DATE=$(shell TZ=UTC0 git show --quiet --date='format-local:%Y-%m-%dT%H:%M:%SZ' --format="%cd")
-BUILD_INFO_IMPORT_PATH=$(JAEGER_IMPORT_PATH)/pkg/version
 # Defer evaluation of semver tags until actually needed, using trick from StackOverflow:
 # https://stackoverflow.com/questions/44114466/how-to-declare-a-deferred-variable-that-is-computed-only-once-for-all
 GIT_CLOSEST_TAG_V1 = $(eval GIT_CLOSEST_TAG_V1 := $(shell scripts/compute-version.sh v1))$(GIT_CLOSEST_TAG_V1)
