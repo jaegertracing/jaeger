@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
-	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/component/componentstatus"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest/observer"
 	"google.golang.org/grpc"
@@ -44,7 +44,7 @@ func TestNewServer_CreateStorageErrors(t *testing.T) {
 	factory.On("CreateDependencyReader").Return(nil, nil)
 	telset := telemetery.Setting{
 		Logger:       zap.NewNop(),
-		ReportStatus: func(*component.StatusEvent) {},
+		ReportStatus: func(*componentstatus.Event) {},
 	}
 	f := func() (*Server, error) {
 		return NewServer(
