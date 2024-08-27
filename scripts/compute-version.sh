@@ -28,9 +28,6 @@ while getopts "sv" opt; do
 	v)
 		verbose="true"
 		;;
-	*)
-		usage
-		;;
 	esac
 done
 
