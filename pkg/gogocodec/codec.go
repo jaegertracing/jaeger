@@ -35,8 +35,7 @@ type CustomType interface {
 }
 
 func init() {
-	standardCodec := encoding.GetCodecV2(proto.Name)
-	defaultCodec = standardCodec
+	defaultCodec = encoding.GetCodecV2(proto.Name)
 	defaultCodec.Name() // ensure it's not nil
 	encoding.RegisterCodecV2(newCodec())
 }
@@ -63,12 +62,7 @@ func (*gogoCodec) Marshal(v any) (mem.BufferSlice, error) {
 	// use gogo proto only for Jaeger types
 	if useGogo(elem) {
 		bytes, err := gogoproto.Marshal(v.(gogoproto.Message))
-		var buf mem.BufferSlice
-		if err != nil {
-			return buf, err
-		}
-		buf = append(buf, mem.SliceBuffer(bytes))
-		return buf, nil
+		return mem.BufferSlice{mem.SliceBuffer(bytes)}, err
 	}
 	return defaultCodec.Marshal(v)
 }
@@ -79,8 +73,7 @@ func (*gogoCodec) Unmarshal(data mem.BufferSlice, v any) error {
 	elem := t.Elem() // only for collections
 	// use gogo proto only for Jaeger types
 	if useGogo(elem) {
-		bytes := data.Materialize()
-		return gogoproto.Unmarshal(bytes, v.(gogoproto.Message))
+		return gogoproto.Unmarshal(data.Materialize(), v.(gogoproto.Message))
 	}
 	return defaultCodec.Unmarshal(data, v)
 }
