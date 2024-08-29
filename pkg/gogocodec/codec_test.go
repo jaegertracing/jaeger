@@ -9,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/mem"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -54,14 +55,14 @@ func TestWireCompatibility(t *testing.T) {
 	require.NoError(t, err)
 
 	var goprotoMessage emptypb.Empty
-	err = proto.Unmarshal(data, &goprotoMessage)
+	err = proto.Unmarshal(data.Materialize(), &goprotoMessage)
 	require.NoError(t, err)
 
 	data2, err := proto.Marshal(&goprotoMessage)
 	require.NoError(t, err)
 
 	s2 := &model.Span{}
-	err = c.Unmarshal(data2, s2)
+	err = c.Unmarshal(mem.BufferSlice{mem.SliceBuffer(data2)}, s2)
 	require.NoError(t, err)
 	assert.Equal(t, s1, s2)
 }

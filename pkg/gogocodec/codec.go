@@ -11,6 +11,7 @@ import (
 	gogoproto "github.com/gogo/protobuf/proto"
 	"google.golang.org/grpc/encoding"
 	"google.golang.org/grpc/encoding/proto"
+	"google.golang.org/grpc/mem"
 )
 
 const (
@@ -18,7 +19,7 @@ const (
 	jaegerModelPkgPath    = "github.com/jaegertracing/jaeger/model"
 )
 
-var defaultCodec encoding.Codec
+var defaultCodec encoding.CodecV2
 
 // CustomType is an interface that Gogo expects custom types to implement.
 // https://github.com/gogo/protobuf/blob/master/custom_types.md
@@ -34,16 +35,17 @@ type CustomType interface {
 }
 
 func init() {
-	defaultCodec = encoding.GetCodec(proto.Name)
+	standardCodec := encoding.GetCodecV2(proto.Name)
+	defaultCodec = standardCodec
 	defaultCodec.Name() // ensure it's not nil
-	encoding.RegisterCodec(newCodec())
+	encoding.RegisterCodecV2(newCodec())
 }
 
 // gogoCodec forces the use of gogo proto marshalling/unmarshalling for
 // Jaeger proto types (package jaeger/gen-proto).
 type gogoCodec struct{}
 
-var _ encoding.Codec = (*gogoCodec)(nil)
+var _ encoding.CodecV2 = (*gogoCodec)(nil)
 
 func newCodec() *gogoCodec {
 	return &gogoCodec{}
@@ -55,23 +57,30 @@ func (*gogoCodec) Name() string {
 }
 
 // Marshal implements encoding.Codec
-func (*gogoCodec) Marshal(v any) ([]byte, error) {
+func (*gogoCodec) Marshal(v any) (mem.BufferSlice, error) {
 	t := reflect.TypeOf(v)
 	elem := t.Elem()
 	// use gogo proto only for Jaeger types
 	if useGogo(elem) {
-		return gogoproto.Marshal(v.(gogoproto.Message))
+		bytes, err := gogoproto.Marshal(v.(gogoproto.Message))
+		var buf mem.BufferSlice
+		if err != nil {
+			return buf, err
+		}
+		buf = append(buf, mem.SliceBuffer(bytes))
+		return buf, nil
 	}
 	return defaultCodec.Marshal(v)
 }
 
 // Unmarshal implements encoding.Codec
-func (*gogoCodec) Unmarshal(data []byte, v any) error {
+func (*gogoCodec) Unmarshal(data mem.BufferSlice, v any) error {
 	t := reflect.TypeOf(v)
 	elem := t.Elem() // only for collections
 	// use gogo proto only for Jaeger types
 	if useGogo(elem) {
-		return gogoproto.Unmarshal(data, v.(gogoproto.Message))
+		bytes := data.Materialize()
+		return gogoproto.Unmarshal(bytes, v.(gogoproto.Message))
 	}
 	return defaultCodec.Unmarshal(data, v)
 }
