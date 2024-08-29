@@ -1,8 +1,8 @@
-# es-index-cleaner
+# jaeger-es-index-cleaner
 
 It is common to only keep observability data for a limited time.
 However, Elasticsearch does no support expiring of old data via TTL.
-To help with this task, `es-index-cleaner` can be used to purge
+To help with this task, `jaeger-es-index-cleaner` can be used to purge
 old Jaeger indices. For example, to delete indixes older than 14 days:
 
 ```
