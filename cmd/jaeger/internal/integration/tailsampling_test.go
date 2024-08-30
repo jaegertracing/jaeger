@@ -11,9 +11,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jaegertracing/jaeger/plugin/storage/integration"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/jaegertracing/jaeger/plugin/storage/integration"
 )
 
 // TailSamplingIntegration contains the test components to perform an integration test
