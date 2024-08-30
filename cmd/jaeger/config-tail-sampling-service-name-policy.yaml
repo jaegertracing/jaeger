@@ -31,8 +31,9 @@ processors:
     policies:
       [
         {
-          name: test-policy-1,
-          type: always_sample
+          name: filter-by-attribute,
+          type: string_attribute,
+          string_attribute: { key: service.name, values: [tracegen-00, tracegen-03] }
         },
       ]
 
