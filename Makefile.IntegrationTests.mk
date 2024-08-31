@@ -43,3 +43,7 @@ index-cleaner-integration-test: docker-images-elastic
 .PHONY: index-rollover-integration-test
 index-rollover-integration-test: docker-images-elastic
 	$(MAKE) storage-integration-test COVEROUT=cover-index-rollover.out
+
+.PHONY: tail-sampling-integration-test
+tail-sampling-integration-test:
+	SAMPLING=tail $(MAKE) jaeger-v2-storage-integration-test

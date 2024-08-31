@@ -121,55 +121,6 @@ clean:
 test:
 	bash -c "set -e; set -o pipefail; $(GOTEST) -tags=memory_storage_integration ./... $(COLORIZE)"
 
-<<<<<<< Updated upstream
-.PHONY: all-in-one-integration-test
-all-in-one-integration-test:
-	TEST_MODE=integration $(GOTEST) ./cmd/all-in-one/
-
-# A general integration tests for jaeger-v2 storage backends,
-# these tests placed at `./cmd/jaeger/internal/integration/*_test.go`.
-# The integration tests are filtered by STORAGE env,
-# currently the available STORAGE variable is:
-#  - grpc
-.PHONY: jaeger-v2-storage-integration-test
-jaeger-v2-storage-integration-test:
-	(cd cmd/jaeger/ && go build .)
-	# Expire tests results for jaeger storage integration tests since the environment might change
-	# even though the code remains the same.
-	go clean -testcache
-	bash -c "set -e; set -o pipefail; $(GOTEST) -coverpkg=./... -coverprofile $(COVEROUT) $(JAEGER_V2_STORAGE_PKGS) $(COLORIZE)"
-
-.PHONY: storage-integration-test
-storage-integration-test:
-	# Expire tests results for storage integration tests since the environment might change
-	# even though the code remains the same.
-	go clean -testcache
-	bash -c "set -e; set -o pipefail; $(GOTEST) -coverpkg=./... -coverprofile $(COVEROUT) $(STORAGE_PKGS) $(COLORIZE)"
-
-.PHONY: badger-storage-integration-test
-badger-storage-integration-test:
-	STORAGE=badger $(MAKE) storage-integration-test
-
-.PHONY: grpc-storage-integration-test
-grpc-storage-integration-test:
-	STORAGE=grpc $(MAKE) storage-integration-test
-
-# this test assumes STORAGE environment variable is set to elasticsearch|opensearch
-.PHONY: index-cleaner-integration-test
-index-cleaner-integration-test: docker-images-elastic
-	$(MAKE) storage-integration-test COVEROUT=cover-index-cleaner.out
-
-# this test assumes STORAGE environment variable is set to elasticsearch|opensearch
-.PHONY: index-rollover-integration-test
-index-rollover-integration-test: docker-images-elastic
-	$(MAKE) storage-integration-test COVEROUT=cover-index-rollover.out
-
-.PHONY: tail-sampling-integration-test
-tail-sampling-integration-test:
-	SAMPLING=tail $(MAKE) jaeger-v2-storage-integration-test
-
-=======
->>>>>>> Stashed changes
 .PHONY: cover
 cover: nocover
 	bash -c "set -e; set -o pipefail; STORAGE=memory $(GOTEST) -timeout 5m -coverprofile $(COVEROUT) ./... | tee test-results.json"
