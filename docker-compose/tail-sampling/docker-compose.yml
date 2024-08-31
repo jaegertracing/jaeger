@@ -20,7 +20,6 @@ services:
     depends_on:
       - jaeger
     ports:
-      - "8889:8889"
       - "4318"
 
   tracegen:
