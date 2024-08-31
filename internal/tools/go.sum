@@ -234,8 +234,8 @@ github.com/golangci/dupl v0.0.0-20180902072040-3e9179ac440a h1:w8hkcTqaFpzKqonE9
 github.com/golangci/dupl v0.0.0-20180902072040-3e9179ac440a/go.mod h1:ryS0uhF+x9jgbj/N71xsEqODy9BN81/GonCZiOzirOk=
 github.com/golangci/gofmt v0.0.0-20240816233607-d8596aa466a9 h1:/1322Qns6BtQxUZDTAT4SdcoxknUki7IAoK4SAXr8ME=
 github.com/golangci/gofmt v0.0.0-20240816233607-d8596aa466a9/go.mod h1:Oesb/0uFAyWoaw1U1qS5zyjCg5NP9C9iwjnI4tIsXEE=
-github.com/golangci/golangci-lint v1.60.2 h1:Y8aWnZCMOLY5T7Ga5hcoemyKsZZJCUmIIK3xTD3jIhc=
-github.com/golangci/golangci-lint v1.60.2/go.mod h1:4UvjLpOJoQSvmyWkmO1urDR3txhL9R9sn4oM/evJ95g=
+github.com/golangci/golangci-lint v1.60.3 h1:l38A5de24ZeDlcFF+EB7m3W5joPD99/hS5SIHJPyZa0=
+github.com/golangci/golangci-lint v1.60.3/go.mod h1:J4vOpcjzRI+lDL2DKNGBZVB3EQSBfCBCMpaydWLtJNo=
 github.com/golangci/misspell v0.6.0 h1:JCle2HUTNWirNlDIAUO44hUsKhOFqGPoC4LZxlaSXDs=
 github.com/golangci/misspell v0.6.0/go.mod h1:keMNyY6R9isGaSAu+4Q8NMBwMPkh15Gtc8UCVoDtAWo=
 github.com/golangci/modinfo v0.3.4 h1:oU5huX3fbxqQXdfspamej74DFX0kyGLkw1ppvXoJ8GA=
@@ -485,8 +485,8 @@ github.com/sashamelentyev/interfacebloat v1.1.0 h1:xdRdJp0irL086OyW1H/RTZTr1h/tM
 github.com/sashamelentyev/interfacebloat v1.1.0/go.mod h1:+Y9yU5YdTkrNvoX0xHc84dxiN1iBi9+G8zZIhPVoNjQ=
 github.com/sashamelentyev/usestdlibvars v1.27.0 h1:t/3jZpSXtRPRf2xr0m63i32ZrusyurIGT9E5wAvXQnI=
 github.com/sashamelentyev/usestdlibvars v1.27.0/go.mod h1:9nl0jgOfHKWNFS43Ojw0i7aRoS4j6EBye3YBhmAIRF8=
-github.com/securego/gosec/v2 v2.20.1-0.20240820084340-81cda2f91fbe h1:exdneYmXwZ4+VaIWv9mQ47uIHkTQSN50DYdCjXJ1cdQ=
-github.com/securego/gosec/v2 v2.20.1-0.20240820084340-81cda2f91fbe/go.mod h1:iyeMMRw8QEmueUSZ2VqmkQMiDyDcobfPnG00CV/NWdE=
+github.com/securego/gosec/v2 v2.20.1-0.20240822074752-ab3f6c1c83a0 h1:VqD4JMoqwuuCz8GZlBDsIDyE6K4YUsWJpbNtuOWHoFk=
+github.com/securego/gosec/v2 v2.20.1-0.20240822074752-ab3f6c1c83a0/go.mod h1:iyeMMRw8QEmueUSZ2VqmkQMiDyDcobfPnG00CV/NWdE=
 github.com/shazow/go-diff v0.0.0-20160112020656-b6b7b6733b8c h1:W65qqJCIOVP4jpqPQ0YvHYKwcMEMVWIzWC5iNQQfBTU=
 github.com/shazow/go-diff v0.0.0-20160112020656-b6b7b6733b8c/go.mod h1:/PevMnwAxekIXwN8qQyfc5gl2NlkB3CQlkizAbOkeBs=
 github.com/shurcooL/go v0.0.0-20180423040247-9e1955d9fb6e/go.mod h1:TDJrrUr11Vxrven61rcy3hJMUqaf/CLWYhHNPmT14Lk=

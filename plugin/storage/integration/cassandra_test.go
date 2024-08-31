@@ -6,6 +6,7 @@ package integration
 
 import (
 	"context"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -50,14 +51,19 @@ func (*CassandraStorageIntegration) initializeCassandraFactory(t *testing.T, fla
 }
 
 func (s *CassandraStorageIntegration) initializeCassandra(t *testing.T) {
+	username := os.Getenv("CASSANDRA_USERNAME")
+	password := os.Getenv("CASSANDRA_USERNAME")
 	f := s.initializeCassandraFactory(t, []string{
-		"--cassandra.basic.allowed-authenticators=",
-		"--cassandra.password=password",
-		"--cassandra.username=username",
+		"--cassandra.basic.allowed-authenticators=org.apache.cassandra.auth.PasswordAuthenticator",
+		"--cassandra.password=" + password,
+		"--cassandra.username=" + username,
 		"--cassandra.keyspace=jaeger_v1_dc1",
 		"--cassandra-archive.keyspace=jaeger_v1_dc1_archive",
 		"--cassandra-archive.enabled=true",
 		"--cassandra-archive.servers=127.0.0.1",
+		"--cassandra-archive.basic.allowed-authenticators=org.apache.cassandra.auth.PasswordAuthenticator",
+		"--cassandra-archive.password=" + password,
+		"--cassandra-archive.username=" + username,
 	})
 	s.factory = f
 	var err error

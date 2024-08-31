@@ -4,7 +4,7 @@
 package telemetery
 
 import (
-	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/component/componentstatus"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
@@ -16,23 +16,23 @@ type Setting struct {
 	Logger         *zap.Logger
 	TracerProvider trace.TracerProvider
 	Metrics        metrics.Factory
-	ReportStatus   func(*component.StatusEvent)
+	ReportStatus   func(*componentstatus.Event)
 }
 
-func HCAdapter(hc *healthcheck.HealthCheck) func(*component.StatusEvent) {
-	return func(event *component.StatusEvent) {
+func HCAdapter(hc *healthcheck.HealthCheck) func(*componentstatus.Event) {
+	return func(event *componentstatus.Event) {
 		var hcStatus healthcheck.Status
 		switch event.Status() {
-		case component.StatusOK:
+		case componentstatus.StatusOK:
 			hcStatus = healthcheck.Ready
-		case component.StatusStarting,
-			component.StatusRecoverableError,
-			component.StatusPermanentError,
-			component.StatusNone,
-			component.StatusStopping,
-			component.StatusStopped:
+		case componentstatus.StatusStarting,
+			componentstatus.StatusRecoverableError,
+			componentstatus.StatusPermanentError,
+			componentstatus.StatusNone,
+			componentstatus.StatusStopping,
+			componentstatus.StatusStopped:
 			hcStatus = healthcheck.Unavailable
-		case component.StatusFatalError:
+		case componentstatus.StatusFatalError:
 			hcStatus = healthcheck.Broken
 		}
 		hc.Set(hcStatus)

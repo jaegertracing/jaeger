@@ -4,11 +4,14 @@
 package gogocodec
 
 import (
+	"os"
 	"reflect"
 	"testing"
 
+	"github.com/gogo/protobuf/jsonpb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/mem"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -54,14 +57,14 @@ func TestWireCompatibility(t *testing.T) {
 	require.NoError(t, err)
 
 	var goprotoMessage emptypb.Empty
-	err = proto.Unmarshal(data, &goprotoMessage)
+	err = proto.Unmarshal(data.Materialize(), &goprotoMessage)
 	require.NoError(t, err)
 
 	data2, err := proto.Marshal(&goprotoMessage)
 	require.NoError(t, err)
 
 	s2 := &model.Span{}
-	err = c.Unmarshal(data2, s2)
+	err = c.Unmarshal(mem.BufferSlice{mem.SliceBuffer(data2)}, s2)
 	require.NoError(t, err)
 	assert.Equal(t, s1, s2)
 }
@@ -71,6 +74,33 @@ func TestUseGogo(t *testing.T) {
 
 	var span model.Span
 	assert.True(t, useGogo(reflect.TypeOf(span)))
+}
+
+func BenchmarkCodecUnmarshal25Spans(b *testing.B) {
+	const fileName = "../../model/converter/thrift/jaeger/fixtures/domain_01.json"
+	jsonFile, err := os.Open(fileName)
+	require.NoError(b, err, "Failed to open json fixture file %s", fileName)
+	var trace model.Trace
+	require.NoError(b, jsonpb.Unmarshal(jsonFile, &trace), fileName)
+	require.NotEmpty(b, trace.Spans)
+	spans := make([]*model.Span, 25)
+	for i := 0; i < len(spans); i++ {
+		spans[i] = trace.Spans[0]
+	}
+	trace.Spans = spans
+	c := newCodec()
+	bytes, err := c.Marshal(&trace)
+	require.NoError(b, err)
+
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		var trace model.Trace
+		err := c.Unmarshal(bytes, &trace)
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
 }
 
 func TestMain(m *testing.M) {

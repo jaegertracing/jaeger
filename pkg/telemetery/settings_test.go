@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/component/componentstatus"
 
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	"github.com/jaegertracing/jaeger/pkg/telemetery"
@@ -17,47 +17,47 @@ import (
 func TestHCAdapter(t *testing.T) {
 	tests := []struct {
 		name       string
-		status     component.Status
+		status     componentstatus.Status
 		expectedHC healthcheck.Status
 	}{
 		{
 			name:       "StatusOK",
-			status:     component.StatusOK,
+			status:     componentstatus.StatusOK,
 			expectedHC: healthcheck.Ready,
 		},
 		{
 			name:       "StatusStarting",
-			status:     component.StatusStarting,
+			status:     componentstatus.StatusStarting,
 			expectedHC: healthcheck.Unavailable,
 		},
 		{
 			name:       "StatusRecoverableError",
-			status:     component.StatusRecoverableError,
+			status:     componentstatus.StatusRecoverableError,
 			expectedHC: healthcheck.Unavailable,
 		},
 		{
 			name:       "StatusPermanentError",
-			status:     component.StatusPermanentError,
+			status:     componentstatus.StatusPermanentError,
 			expectedHC: healthcheck.Unavailable,
 		},
 		{
 			name:       "StatusNone",
-			status:     component.StatusNone,
+			status:     componentstatus.StatusNone,
 			expectedHC: healthcheck.Unavailable,
 		},
 		{
 			name:       "StatusStopping",
-			status:     component.StatusStopping,
+			status:     componentstatus.StatusStopping,
 			expectedHC: healthcheck.Unavailable,
 		},
 		{
 			name:       "StatusStopped",
-			status:     component.StatusStopped,
+			status:     componentstatus.StatusStopped,
 			expectedHC: healthcheck.Unavailable,
 		},
 		{
 			name:       "StatusFatalError",
-			status:     component.StatusFatalError,
+			status:     componentstatus.StatusFatalError,
 			expectedHC: healthcheck.Broken,
 		},
 	}
@@ -66,7 +66,7 @@ func TestHCAdapter(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			hc := healthcheck.New()
 			hcAdapter := telemetery.HCAdapter(hc)
-			event := component.NewStatusEvent(tt.status)
+			event := componentstatus.NewEvent(tt.status)
 			hcAdapter(event)
 			assert.Equal(t, tt.expectedHC, hc.Get())
 		})

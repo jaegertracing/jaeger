@@ -5,6 +5,11 @@ on:
     paths:
       - '.github/dependabot.yml'
       - '.github/workflows/validate-dependabot-config.yml'
+
+# See https://github.com/ossf/scorecard/blob/main/docs/checks.md#token-permissions
+permissions:
+  contents: read
+
 jobs:
   validate:
     runs-on: ubuntu-latest
