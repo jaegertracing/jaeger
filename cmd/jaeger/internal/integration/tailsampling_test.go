@@ -74,7 +74,7 @@ func (ts *TailSamplingIntegration) testTailSamplingProccessor(t *testing.T) {
 	ts.generateTraces(t)
 
 	var actual []string
-	found := assert.Eventually(t, func() bool {
+	assert.Eventually(t, func() bool {
 		var err error
 		actual, err = ts.SpanReader.GetServices(context.Background())
 		require.NoError(t, err)
@@ -82,10 +82,8 @@ func (ts *TailSamplingIntegration) testTailSamplingProccessor(t *testing.T) {
 		return assert.ObjectsAreEqualValues(ts.expectedServices, actual)
 	}, 100*time.Second, 15*time.Second)
 
-	if !found {
-		t.Log("\t Expected:", ts.expectedServices)
-		t.Log("\t Actual  :", actual)
-	}
+	t.Logf("Expected: %v", ts.expectedServices)
+	t.Logf("Actual  : %v", actual)
 }
 
 // generateTraces generates 5 traces using `tracegen` with one service per trace
