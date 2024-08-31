@@ -48,6 +48,61 @@ type E2EStorageIntegration struct {
 	HealthCheckEndpoint string
 }
 
+// Binary is a wrapper around exec.Cmd to help running binaries in tests.
+type Binary struct {
+	Name string
+	exec.Cmd
+}
+
+func (b *Binary) Start(t *testing.T) {
+	outFile, err := os.OpenFile(
+		filepath.Join(t.TempDir(), "output_logs.txt"),
+		os.O_CREATE|os.O_WRONLY,
+		os.ModePerm,
+	)
+	require.NoError(t, err)
+	t.Logf("Writing the %s output logs into %s", b.Name, outFile.Name())
+
+	errFile, err := os.OpenFile(
+		filepath.Join(t.TempDir(), "error_logs.txt"),
+		os.O_CREATE|os.O_WRONLY,
+		os.ModePerm,
+	)
+	require.NoError(t, err)
+	t.Logf("Writing the %s error logs into %s", b.Name, errFile.Name())
+
+	b.Stdout = outFile
+	b.Stderr = errFile
+
+	t.Logf("Running command: %v", b.Args)
+	require.NoError(t, b.Cmd.Start())
+	t.Cleanup(func() {
+		if err := b.Process.Kill(); err != nil {
+			t.Errorf("Failed to kill %s process: %v", b.Name, err)
+		}
+		if t.Failed() {
+			// A special annotation to create a foldable section in the GitHub Actions runner output.
+			// https://docs.github.com/en/actions/using-workflows/workflow-commands-for-github-actions#grouping-log-lines
+			fmt.Printf("::group::🚧 🚧 🚧 %s binary logs\n", b.Name)
+			outLogs, err := os.ReadFile(outFile.Name())
+			if err != nil {
+				t.Errorf("Failed to read output logs: %v", err)
+			} else {
+				fmt.Printf("🚧 🚧 🚧 %s output logs:\n%s", b.Name, outLogs)
+			}
+
+			errLogs, err := os.ReadFile(errFile.Name())
+			if err != nil {
+				t.Errorf("Failed to read error logs: %v", err)
+			} else {
+				fmt.Printf("🚧 🚧 🚧 %s error logs:\n%s", b.Name, errLogs)
+			}
+			// End of Github Actions foldable section annotation.
+			fmt.Println("::endgroup::")
+		}
+	})
+}
+
 // e2eInitialize starts the Jaeger-v2 collector with the provided config file,
 // it also initialize the SpanWriter and SpanReader below.
 // This function should be called before any of the tests start.
@@ -65,61 +120,18 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
 	require.FileExists(t, configFile, "Config file does not exist at the resolved path")
 
 	t.Logf("Starting %s in the background with config file %s", s.BinaryName, configFile)
-
-	outFile, err := os.OpenFile(
-		filepath.Join(t.TempDir(), "jaeger_output_logs.txt"),
-		os.O_CREATE|os.O_WRONLY,
-		os.ModePerm,
-	)
-	require.NoError(t, err)
-	t.Logf("Writing the %s output logs into %s", s.BinaryName, outFile.Name())
-
-	errFile, err := os.OpenFile(
-		filepath.Join(t.TempDir(), "jaeger_error_logs.txt"),
-		os.O_CREATE|os.O_WRONLY,
-		os.ModePerm,
-	)
-	require.NoError(t, err)
-	t.Logf("Writing the %s error logs into %s", s.BinaryName, errFile.Name())
-
-	cmd := exec.Cmd{
-		Path: "./cmd/jaeger/jaeger",
-		Args: []string{"jaeger", "--config", configFile},
-		// Change the working directory to the root of this project
-		// since the binary config file jaeger_query's ui_config points to
-		// "./cmd/jaeger/config-ui.json"
-		Dir:    "../../../..",
-		Stdout: outFile,
-		Stderr: errFile,
+	cmd := Binary{
+		Name: s.BinaryName,
+		Cmd: exec.Cmd{
+			Path: "./cmd/jaeger/jaeger",
+			Args: []string{"jaeger", "--config", configFile},
+			// Change the working directory to the root of this project
+			// since the binary config file jaeger_query's ui_config points to
+			// "./cmd/jaeger/config-ui.json"
+			Dir: "../../../..",
+		},
 	}
-	t.Logf("Running command: %v", cmd.Args)
-	require.NoError(t, cmd.Start())
-	t.Cleanup(func() {
-		if err := cmd.Process.Kill(); err != nil {
-			t.Errorf("Failed to kill %s process: %v", s.BinaryName, err)
-		}
-		if t.Failed() {
-			// A Github Actions special annotation to create a foldable section
-			// in the Github runner output.
-			// https://docs.github.com/en/actions/using-workflows/workflow-commands-for-github-actions#grouping-log-lines
-			fmt.Printf("::group::🚧 🚧 🚧 %s binary logs\n", s.BinaryName)
-			outLogs, err := os.ReadFile(outFile.Name())
-			if err != nil {
-				t.Errorf("Failed to read output logs: %v", err)
-			} else {
-				fmt.Printf("🚧 🚧 🚧 %s output logs:\n%s", s.BinaryName, outLogs)
-			}
-
-			errLogs, err := os.ReadFile(errFile.Name())
-			if err != nil {
-				t.Errorf("Failed to read error logs: %v", err)
-			} else {
-				fmt.Printf("🚧 🚧 🚧 %s error logs:\n%s", s.BinaryName, errLogs)
-			}
-			// End of Github Actions foldable section annotation.
-			fmt.Println("::endgroup::")
-		}
-	})
+	cmd.Start(t)
 
 	// Wait for the binary to start and become ready to serve requests.
 	require.Eventually(t, func() bool { return s.doHealthCheck(t) },
