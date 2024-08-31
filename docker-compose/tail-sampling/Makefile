@@ -17,7 +17,6 @@ build: clean-jaeger
 
 .PHONY: dev
 dev: export JAEGER_IMAGE_TAG = dev
-dev: export BINARY = jaeger
 dev: build 
 	docker compose -f docker-compose.yml up $(DOCKER_COMPOSE_ARGS)
 
@@ -28,4 +27,4 @@ clean-jaeger:
 
 .PHONY: clean-all
 clean-all: clean-jaeger
-	docker rmi -f otel/opentelemetry-collector-contrib:latest ; \
+	docker rmi -f otel/opentelemetry-collector-contrib:latest ;
