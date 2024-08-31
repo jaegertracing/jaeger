@@ -29,7 +29,7 @@ receivers:
 
 processors:
   tail_sampling:
-    decision_wait: 15s
+    decision_wait: 5s
     policies:
       [
         {
