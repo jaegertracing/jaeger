@@ -1,0 +1,27 @@
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318
+
+exporters:
+  loadbalancing:
+    routing_key: "traceID"
+    protocol:
+      otlp:
+        timeout: 1s
+        tls:
+          insecure: true
+    resolver:
+      static:
+        hostnames:
+        - jaeger:4317
+
+service:
+  pipelines:
+    traces:
+      receivers:
+        - otlp
+      processors: []
+      exporters:
+        - loadbalancing

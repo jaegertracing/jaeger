@@ -1,0 +1,36 @@
+services:
+  jaeger:
+    networks:
+      backend:
+    image: jaegertracing/jaeger:${JAEGER_IMAGE_TAG:-latest}
+    volumes:
+      - "./jaeger-v2-config.yml:/etc/jaeger/config.yml"
+    command: ["--config", "/etc/jaeger/config.yml"]
+    ports:
+      - "16686:16686"
+      - "4317"
+
+  otel_collector:
+    networks:
+      backend:
+    image: otel/opentelemetry-collector-contrib:${OTEL_IMAGE_TAG:-0.108.0}
+    volumes:
+      - ${OTEL_CONFIG_SRC:-./otel-collector-config-connector.yml}:/etc/otelcol/otel-collector-config.yml
+    command: --config /etc/otelcol/otel-collector-config.yml
+    depends_on:
+      - jaeger
+    ports:
+      - "4318"
+
+  tracegen:
+    networks:
+      - backend
+    image: jaegertracing/jaeger-tracegen:latest
+    environment:
+      - OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://otel_collector:4318/v1/traces
+    command: ["-workers", "3", "-pause", "250ms", "-services", "5", "-duration", "10s"]
+    depends_on:
+      - jaeger
+
+networks:
+  backend:
