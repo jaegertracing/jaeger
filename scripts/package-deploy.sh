@@ -6,12 +6,12 @@ set -euxf -o pipefail
 
 TARCMD=${TARCMD:-tar}
 
-dry_run="false"
-while getopts "d" opt; do
+platforms="$(make echo-platforms)"
+while getopts "p:" opt; do
 	# shellcheck disable=SC2220 # we don't need a *) case
 	case "${opt}" in
-	d)
-		dry_run="true"
+	p)
+		platforms=${OPTARG}
 		;;
 	esac
 done
@@ -64,6 +64,8 @@ function package {
     local -r PACKAGE_NAME_V2=jaeger-${VERSION_V2}-$PLATFORM
     local -r TOOLS_PACKAGE_NAME=jaeger-tools-${VERSION_V1}-$PLATFORM
 
+    echo "Packaging binaries for $PLATFORM"
+
     PACKAGES=("$PACKAGE_NAME_V1" "$PACKAGE_NAME_V2" "$TOOLS_PACKAGE_NAME")
     for d in "${PACKAGES[@]}"; do
       if [ -d "$d" ]; then
@@ -111,16 +113,17 @@ fi
 rm -rf deploy
 mkdir deploy
 
-package tar linux-amd64
-if [[ "$dry_run" == "false" ]]; then
-  package tar darwin-amd64
-  package tar darwin-arm64
-  package tar windows-amd64 .exe
-  package zip windows-amd64 .exe
-  package tar linux-s390x
-  package tar linux-arm64
-  package tar linux-ppc64le
-fi
+# Loop through each platform (separated by commas)
+for platform in $(echo "$platforms" | tr ',' ' '); do
+  os="${platform%%/*}"  # Remove everything after the slash
+  arch=${platform##*/}  # Remove everything before the last slash
+  if [[ "$os" == "windows" ]]; then
+    package tar "${os}-${arch}" .exe
+    package zip "${os}-${arch}" .exe
+  else
+    package tar "${os}-${arch}"
+  fi
+done
 
 # Create a checksum file for all non-checksum files in the deploy directory. Strips the leading 'deploy/' directory from filepaths. Sort by filename.
 find deploy \( ! -name '*sha256sum.txt' \) -type f -exec shasum -b -a 256 {} \; \
