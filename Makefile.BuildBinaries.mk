@@ -140,7 +140,8 @@ build-binaries-ppc64le:
 
 # build all binaries for one specific platform GOOS/GOARCH
 .PHONY: _build-platform-binaries
-_build-platform-binaries: build-agent \
+_build-platform-binaries: \
+		build-agent \
 		build-all-in-one \
 		build-collector \
 		build-query \
@@ -153,16 +154,19 @@ _build-platform-binaries: build-agent \
 		build-esmapping-generator \
 		build-es-index-cleaner \
 		build-es-rollover
+# invoke make recursively such that DEBUG_BINARY=1 can take effect
 	$(MAKE) _build-platform-binaries-debug GOOS=$(GOOS) GOARCH=$(GOARCH) DEBUG_BINARY=1
 
 # build binaries that support DEBUG release, for one specific platform GOOS/GOARCH
 .PHONY: _build-platform-binaries-debug
-_build-platform-binaries-debug: build-agent \
+_build-platform-binaries-debug: \
+	build-agent \
 	build-collector \
 	build-query \
 	build-ingester \
 	build-remote-storage \
 	build-all-in-one \
+	build-jaeger
 
 .PHONY: build-all-platforms
 build-all-platforms: \
