@@ -28,13 +28,7 @@ receivers:
 processors:
   tail_sampling:
     decision_wait: 5s
-    policies:
-      [
-        {
-          name: test-policy-1,
-          type: always_sample
-        },
-      ]
+    policies: [{ name: test-policy-1, type: always_sample }]
 
 exporters:
   jaeger_storage_exporter:

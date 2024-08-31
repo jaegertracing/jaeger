@@ -33,7 +33,8 @@ processors:
         {
           name: filter-by-attribute,
           type: string_attribute,
-          string_attribute: { key: service.name, values: [ tracegen-02, tracegen-04 ] }
+          string_attribute:
+            { key: service.name, values: [tracegen-02, tracegen-04] },
         },
       ]
 
