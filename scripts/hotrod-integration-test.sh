@@ -14,7 +14,7 @@ print_help() {
 }
 
 docker_compose_file="./examples/hotrod/docker-compose.yml"
-platforms="linux/amd64,linux/s390x,linux/ppc64le,linux/arm64"
+platforms="$(make echo-linux-platforms)"
 current_platform="$(go env GOOS)/$(go env GOARCH)"
 LOCAL_FLAG=''
 
