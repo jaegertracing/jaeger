@@ -60,8 +60,8 @@ func TestTailSamplingProcessor_EnforcesPolicies(t *testing.T) {
 		expectedServices: expectedServicesB,
 	}
 
-	t.Run("testA", tailSamplingA.testTailSamplingProccessor)
-	t.Run("testB", tailSamplingB.testTailSamplingProccessor)
+	t.Run("sample_all", tailSamplingA.testTailSamplingProccessor)
+	t.Run("sample_some", tailSamplingB.testTailSamplingProccessor)
 }
 
 // testTailSamplingProccessor performs the following steps:
@@ -80,9 +80,9 @@ func (ts *TailSamplingIntegration) testTailSamplingProccessor(t *testing.T) {
 		require.NoError(t, err)
 		sort.Strings(actual)
 		return assert.ObjectsAreEqualValues(ts.expectedServices, actual)
-	}, 100*time.Second, time.Second)
+	}, 100*time.Second, 15*time.Second)
 
-	if !assert.True(t, found) {
+	if !found {
 		t.Log("\t Expected:", ts.expectedServices)
 		t.Log("\t Actual  :", actual)
 	}
