@@ -34,8 +34,7 @@ type TailSamplingIntegration struct {
 //     traces using on the `service.name` attribute. In this test, we check that only the services
 //     listed as part of the policy in the config file are stored.
 func TestTailSamplingProcessor_EnforcesPolicies(t *testing.T) {
-	env := os.Getenv("SAMPLING")
-	if env != "tail" {
+	if env := os.Getenv("SAMPLING"); env != "tail" {
 		t.Skipf("This test requires environment variable SAMPLING=tail")
 	}
 
@@ -75,13 +74,13 @@ func (ts *TailSamplingIntegration) testTailSamplingProccessor(t *testing.T) {
 	ts.generateTraces(t)
 
 	var actual []string
-	found := ts.waitForCondition(t, func(t *testing.T) bool {
+	found := assert.Eventually(t, func() bool {
 		var err error
 		actual, err = ts.SpanReader.GetServices(context.Background())
 		require.NoError(t, err)
 		sort.Strings(actual)
 		return assert.ObjectsAreEqualValues(ts.expectedServices, actual)
-	})
+	}, 100*time.Second, time.Second)
 
 	if !assert.True(t, found) {
 		t.Log("\t Expected:", ts.expectedServices)
@@ -91,21 +90,8 @@ func (ts *TailSamplingIntegration) testTailSamplingProccessor(t *testing.T) {
 
 // generateTraces generates 5 traces using `tracegen` with one service per trace
 func (*TailSamplingIntegration) generateTraces(t *testing.T) {
-	os.Setenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", "http://localhost:4318/v1/traces")
 	tracegenCmd := exec.Command("go", "run", "../../../../cmd/tracegen", "-traces", "5", "-services", "5")
 	stdout, err := tracegenCmd.Output()
 	require.NoError(t, err)
 	t.Logf("tracegen completed: %s", stdout)
-}
-
-func (*TailSamplingIntegration) waitForCondition(t *testing.T, predicate func(t *testing.T) bool) bool {
-	const iterations = 100 // Will wait at most 100 seconds.
-	for i := 0; i < iterations; i++ {
-		if predicate(t) {
-			return true
-		}
-		t.Logf("Waiting for storage backend to update documents, iteration %d out of %d", i+1, iterations)
-		time.Sleep(time.Second)
-	}
-	return predicate(t)
 }
