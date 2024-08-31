@@ -7,9 +7,9 @@ platforms=$(make echo-platforms)
 for main in ./cmd/*/main.go; do
     dir=$(dirname "$main")
     bin=$(basename "$dir")
-    rm -rf "$dir/$bin"
+    rm -rf "${dir:?}/$bin"
     for platform in $(echo "$platforms" | tr ',' ' ' | tr '/' '-'); do
-      b="$dir/$bin-$platform"
+      b="${dir:?}/$bin-$platform"
       echo "$b"
       rm -f "$b"
     done
