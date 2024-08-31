@@ -8,6 +8,7 @@ services:
     command: ["--config", "/etc/jaeger/config.yml"]
     ports:
       - "16686:16686"
+      - "4317"
 
   otel_collector:
     networks:
@@ -20,13 +21,14 @@ services:
       - jaeger
     ports:
       - "8889:8889"
+      - "4318"
 
   tracegen:
     networks:
       - backend
     image: jaegertracing/jaeger-tracegen:latest
     environment:
-      - OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://jaeger:4318/v1/traces
+      - OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://otel_collector:4318/v1/traces
     command: ["-workers", "3", "-pause", "250ms", "-services", "5", "-duration", "10s"]
     depends_on:
       - jaeger

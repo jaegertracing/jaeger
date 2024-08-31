@@ -17,7 +17,7 @@ exporters:
     resolver:
       static:
         hostnames:
-        - 0.0.0.0:4317
+        - jaeger:4317
 
 service:
   pipelines:
