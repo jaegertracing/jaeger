@@ -157,7 +157,7 @@ func TestInvalidAnnotationTypeError(t *testing.T) {
 	require.EqualError(t, err, "unknown zipkin annotation type: -1")
 }
 
-// TestZipkinEncoding is just for reference to explain the base64 strings
+// TestValidateBase64Values is just for reference to explain the base64 strings
 // used in zipkin_03.json and jaeger_03.json fixtures
 func TestValidateBase64Values(t *testing.T) {
 	numberToBase64 := func(num any) string {

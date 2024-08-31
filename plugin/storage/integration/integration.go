@@ -543,7 +543,7 @@ func (s *StorageIntegration) RunAll(t *testing.T) {
 	t.Run("GetLatestProbability", s.testGetLatestProbability)
 }
 
-// RunTestSpanstore runs only span related integration tests
+// RunSpanStoreTests runs only span related integration tests
 func (s *StorageIntegration) RunSpanStoreTests(t *testing.T) {
 	t.Run("GetServices", s.testGetServices)
 	t.Run("GetOperations", s.testGetOperations)
