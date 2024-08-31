@@ -12,7 +12,7 @@ services:
   otel_collector:
     networks:
       backend:
-    image: otel/opentelemetry-collector-contrib:${OTEL_IMAGE_TAG:-0.89.0}
+    image: otel/opentelemetry-collector-contrib:${OTEL_IMAGE_TAG:-0.108.0}
     volumes:
       - ${OTEL_CONFIG_SRC:-./otel-collector-config-connector.yml}:/etc/otelcol/otel-collector-config.yml
     command: --config /etc/otelcol/otel-collector-config.yml
