@@ -8,6 +8,7 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/kafkaexporter"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/prometheusexporter"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckv2extension"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/tailsamplingprocessor"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kafkareceiver"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zipkinreceiver"
@@ -104,6 +105,7 @@ func (b builders) build() (otelcol.Factories, error) {
 		// standard
 		batchprocessor.NewFactory(),
 		memorylimiterprocessor.NewFactory(),
+		tailsamplingprocessor.NewFactory(),
 		// add-ons
 		adaptivesampling.NewFactory(),
 	)
