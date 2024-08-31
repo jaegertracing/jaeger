@@ -1,5 +1,5 @@
 service:
-  extensions: [jaeger_storage, jaeger_query]
+  extensions: [jaeger_storage, jaeger_query, healthcheckv2]
   pipelines:
     traces:
       receivers: [otlp]
@@ -10,6 +10,9 @@ service:
       level: DEBUG
 
 extensions:
+  healthcheckv2:
+    use_v2: true
+    http:
   jaeger_query:
     trace_storage: some_storage
   jaeger_storage:
