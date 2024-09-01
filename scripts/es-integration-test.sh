@@ -8,6 +8,7 @@ set -euf -o pipefail
 
 # use global variables to reflect status of db
 db_is_up=
+success="false"
 
 usage() {
   echo "Usage: $0 <backend> <backend_version> <jaeger_version>"
@@ -99,7 +100,7 @@ dump_logs() {
 teardown_storage() {
   local compose_file=$1
   local distro=$2
-  if [[ ${db_is_up} != "1" ]]; then
+  if [[ "$success" == "false" ]]; then
     dump_logs "${compose_file}" "${distro}"
   fi
   docker compose -f "${compose_file}" down
@@ -134,6 +135,7 @@ main() {
     echo "ERROR: Invalid argument value jaeger_version=${j_version}, expecing v1/v2".
     exit 1
   fi
+  success="true"
 }
 
 main "$@"
