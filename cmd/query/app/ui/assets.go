@@ -1,3 +1,6 @@
+// Copyright (c) 2024 The Jaeger Authors.
+// SPDX-License-Identifier: Apache-2.0
+
 package ui
 
 import (
@@ -14,6 +17,9 @@ var actualAssetsFS embed.FS
 //go:embed placeholder/index.html
 var placeholderAssetsFS embed.FS
 
+// GetStaticFiles gets the static assets that the Jaeger UI will serve. If the actual
+// assets are available, then this function will return them. Otherwise, a
+// non-functional index.html is returned to be used as a placeholder.
 func GetStaticFiles() http.FileSystem {
 	if _, err := actualAssetsFS.ReadFile("actual/index.html.gz"); err != nil {
 		return httpfs.PrefixedFS("placeholder", http.FS(placeholderAssetsFS))
