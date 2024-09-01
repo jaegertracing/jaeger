@@ -9,6 +9,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/pkg/gzipfs"
 	"github.com/jaegertracing/jaeger/pkg/httpfs"
+	"go.uber.org/zap"
 )
 
 //go:embed actual/*
@@ -20,8 +21,9 @@ var placeholderAssetsFS embed.FS
 // GetStaticFiles gets the static assets that the Jaeger UI will serve. If the actual
 // assets are available, then this function will return them. Otherwise, a
 // non-functional index.html is returned to be used as a placeholder.
-func GetStaticFiles() http.FileSystem {
+func GetStaticFiles(logger *zap.Logger) http.FileSystem {
 	if _, err := actualAssetsFS.ReadFile("actual/index.html.gz"); err != nil {
+		logger.Warn("ui assets not found", zap.Error(err))
 		return httpfs.PrefixedFS("placeholder", http.FS(placeholderAssetsFS))
 	}
 
