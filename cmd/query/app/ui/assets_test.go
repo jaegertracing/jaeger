@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/crossdock/crossdock-go/require"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 )
 
