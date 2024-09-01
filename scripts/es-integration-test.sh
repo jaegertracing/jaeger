@@ -55,10 +55,6 @@ wait_for_storage() {
   # if after all the attempts the storage is not accessible, terminate it and exit
   if [[ "$(curl "${params[@]}" "${url}")" != "200" ]]; then
     echo "ERROR: ${distro} is not ready at ${url} after $(( attempt * 10 )) seconds"
-    echo "::group::${distro} logs"
-    docker compose -f "${compose_file}" logs
-    echo "::endgroup::"
-    docker compose -f "${compose_file}" down
     db_is_up=0
   else
     echo "SUCCESS: ${distro} is available at ${url}"
@@ -87,18 +83,25 @@ bring_up_storage() {
       break
     fi
   done
-  if [ ${db_is_up} = "1" ]; then
-    # shellcheck disable=SC2064
-    trap "teardown_storage ${compose_file}" EXIT
-  else
-    echo "ERROR: unable to start ${distro}"
-    exit 1
-  fi
+  # shellcheck disable=SC2064
+  trap "teardown_storage ${compose_file} ${distro}" EXIT
+}
+
+dump_logs() {
+  local compose_file=$1
+  local distro=$2
+  echo "::group::${distro} logs"
+  docker compose -f "${compose_file}" logs
+  echo "::endgroup::"
 }
 
 # terminate the elasticsearch/opensearch container
 teardown_storage() {
   local compose_file=$1
+  local distro=$2
+  if [[ ${db_is_up} != "1" ]]; then
+    dump_logs "${compose_file}" "${distro}"
+  fi
   docker compose -f "${compose_file}" down
 }
 
