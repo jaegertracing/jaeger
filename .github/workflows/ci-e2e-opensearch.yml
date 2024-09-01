@@ -56,11 +56,6 @@ jobs:
       id: test-execution
       run: bash scripts/es-integration-test.sh ${{ matrix.version.distribution }} ${{ matrix.version.major }} ${{ matrix.version.jaeger }}
 
-
-    - name: Output ${{ matrix.version.distribution }} logs
-      run: docker compose -f ${{ steps.test-execution.outputs.docker_compose_file }} logs
-      if: ${{ failure() }}
-
     - name: Upload coverage to codecov
       uses: ./.github/actions/upload-codecov
       with:
