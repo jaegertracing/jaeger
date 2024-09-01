@@ -7,9 +7,10 @@ import (
 	"embed"
 	"net/http"
 
+	"go.uber.org/zap"
+
 	"github.com/jaegertracing/jaeger/pkg/gzipfs"
 	"github.com/jaegertracing/jaeger/pkg/httpfs"
-	"go.uber.org/zap"
 )
 
 //go:embed actual/*
