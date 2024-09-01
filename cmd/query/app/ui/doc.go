@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // Package ui bundles UI assets packaged with stdlib/embed.
-// By default it imports the placeholder, non-functional index.html.
-// When building with "-tags ui", it imports the real UI assets
-// generated in build-ui Makefile target.
+// If the real UI assets are available, they are used in the
+// build-ui Makefile target. Otherwise, the non-functional
+// index.html is used.
 package ui
