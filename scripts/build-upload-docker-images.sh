@@ -15,7 +15,7 @@ print_help() {
 }
 
 add_debugger='Y'
-platforms="linux/amd64,linux/s390x,linux/ppc64le,linux/arm64"
+platforms="$(make echo-linux-platforms)"
 LOCAL_FLAG=''
 
 while getopts "Dhlp:" opt; do
