@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/jaegertracing/jaeger/pkg/es"
+	"github.com/jaegertracing/jaeger/pkg/es/config"
 )
 
 // MAPPINGS contains embedded index templates.
@@ -16,29 +17,50 @@ import (
 //go:embed *.json
 var MAPPINGS embed.FS
 
-// MappingBuilder holds parameters required to render an elasticsearch index template
+// MappingBuilder holds common parameters required to render an elasticsearch index template
 type MappingBuilder struct {
-	TemplateBuilder              es.TemplateBuilder
-	Shards                       int64
-	Replicas                     int64
-	PrioritySpanTemplate         int64
-	PriorityServiceTemplate      int64
-	PriorityDependenciesTemplate int64
-	PrioritySamplingTemplate     int64
-	EsVersion                    uint
-	IndexPrefix                  string
-	UseILM                       bool
-	ILMPolicyName                string
+	TemplateBuilder es.TemplateBuilder
+	Indices         config.Indices
+	EsVersion       uint
+	UseILM          bool
+	ILMPolicyName   string
+}
+
+// IndexTemplateOptions holds parameters required to render an elasticsearch index template
+type IndexTemplateOptions struct {
+	UseILM        bool
+	ILMPolicyName string
+	config.IndexOptions
+}
+
+func (mb *MappingBuilder) getMappingTemplateOptions(mapping string) *IndexTemplateOptions {
+	mappingOpts := &IndexTemplateOptions{}
+	mappingOpts.UseILM = mb.UseILM
+	mappingOpts.ILMPolicyName = mb.ILMPolicyName
+
+	switch {
+	case strings.Contains(mapping, "span"):
+		mappingOpts.IndexOptions = mb.Indices.Spans
+	case strings.Contains(mapping, "service"):
+		mappingOpts.IndexOptions = mb.Indices.Services
+	case strings.Contains(mapping, "dependencies"):
+		mappingOpts.IndexOptions = mb.Indices.Dependencies
+	case strings.Contains(mapping, "sampling"):
+		mappingOpts.IndexOptions = mb.Indices.Sampling
+	}
+
+	return mappingOpts
 }
 
 // GetMapping returns the rendered mapping based on elasticsearch version
 func (mb *MappingBuilder) GetMapping(mapping string) (string, error) {
+	templateOpts := mb.getMappingTemplateOptions(mapping)
 	if mb.EsVersion == 8 {
-		return mb.fixMapping(mapping + "-8.json")
+		return mb.fixMapping(mapping+"-8.json", templateOpts)
 	} else if mb.EsVersion == 7 {
-		return mb.fixMapping(mapping + "-7.json")
+		return mb.fixMapping(mapping+"-7.json", templateOpts)
 	}
-	return mb.fixMapping(mapping + "-6.json")
+	return mb.fixMapping(mapping+"-6.json", templateOpts)
 }
 
 // GetSpanServiceMappings returns span and service mappings
@@ -69,17 +91,17 @@ func loadMapping(name string) string {
 	return string(s)
 }
 
-func (mb *MappingBuilder) fixMapping(mapping string) (string, error) {
+func (mb *MappingBuilder) fixMapping(mapping string, options *IndexTemplateOptions) (string, error) {
 	tmpl, err := mb.TemplateBuilder.Parse(loadMapping(mapping))
 	if err != nil {
 		return "", err
 	}
 	writer := new(bytes.Buffer)
 
-	if mb.IndexPrefix != "" && !strings.HasSuffix(mb.IndexPrefix, "-") {
-		mb.IndexPrefix += "-"
+	if options.Prefix != "" && !strings.HasSuffix(options.Prefix, "-") {
+		options.Prefix += "-"
 	}
-	if err := tmpl.Execute(writer, mb); err != nil {
+	if err := tmpl.Execute(writer, options); err != nil {
 		return "", err
 	}
 

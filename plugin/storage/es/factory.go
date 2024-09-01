@@ -221,21 +221,18 @@ func createSpanReader(
 		return nil, fmt.Errorf("--es.use-ilm must always be used in conjunction with --es.use-aliases to ensure ES writers and readers refer to the single index mapping")
 	}
 	return esSpanStore.NewSpanReader(esSpanStore.SpanReaderParams{
-		Client:                        clientFn,
-		MaxDocCount:                   cfg.MaxDocCount,
-		MaxSpanAge:                    cfg.MaxSpanAge,
-		IndexPrefix:                   cfg.IndexPrefix,
-		SpanIndexDateLayout:           cfg.IndexDateLayoutSpans,
-		ServiceIndexDateLayout:        cfg.IndexDateLayoutServices,
-		SpanIndexRolloverFrequency:    cfg.GetIndexRolloverFrequencySpansDuration(),
-		ServiceIndexRolloverFrequency: cfg.GetIndexRolloverFrequencyServicesDuration(),
-		TagDotReplacement:             cfg.Tags.DotReplacement,
-		UseReadWriteAliases:           cfg.UseReadWriteAliases,
-		Archive:                       archive,
-		RemoteReadClusters:            cfg.RemoteReadClusters,
-		Logger:                        logger,
-		MetricsFactory:                mFactory,
-		Tracer:                        tp.Tracer("esSpanStore.SpanReader"),
+		Client:              clientFn,
+		MaxDocCount:         cfg.MaxDocCount,
+		MaxSpanAge:          cfg.MaxSpanAge,
+		SpanIndex:           cfg.Indices.Spans,
+		ServiceIndex:        cfg.Indices.Services,
+		TagDotReplacement:   cfg.Tags.DotReplacement,
+		UseReadWriteAliases: cfg.UseReadWriteAliases,
+		Archive:             archive,
+		RemoteReadClusters:  cfg.RemoteReadClusters,
+		Logger:              logger,
+		MetricsFactory:      mFactory,
+		Tracer:              tp.Tracer("esSpanStore.SpanReader"),
 	}), nil
 }
 
@@ -259,8 +256,8 @@ func createSpanWriter(
 	writer := esSpanStore.NewSpanWriter(esSpanStore.SpanWriterParams{
 		Client:                 clientFn,
 		IndexPrefix:            cfg.IndexPrefix,
-		SpanIndexDateLayout:    cfg.IndexDateLayoutSpans,
-		ServiceIndexDateLayout: cfg.IndexDateLayoutServices,
+		SpanIndexDateLayout:    cfg.Indices.Spans.DateLayout,
+		ServiceIndexDateLayout: cfg.Indices.Services.DateLayout,
 		AllTagsAsFields:        cfg.Tags.AllAsFields,
 		TagKeysAsFields:        tags,
 		TagDotReplacement:      cfg.Tags.DotReplacement,
@@ -290,8 +287,8 @@ func (f *Factory) CreateSamplingStore(int /* maxBuckets */) (samplingstore.Store
 		Client:                 f.getPrimaryClient,
 		Logger:                 f.logger,
 		IndexPrefix:            f.primaryConfig.IndexPrefix,
-		IndexDateLayout:        f.primaryConfig.IndexDateLayoutSampling,
-		IndexRolloverFrequency: f.primaryConfig.GetIndexRolloverFrequencySamplingDuration(),
+		IndexDateLayout:        f.primaryConfig.Indices.Sampling.DateLayout,
+		IndexRolloverFrequency: config.RolloverFrequencyAsNegativeDuration(f.primaryConfig.Indices.Sampling.RolloverFrequency),
 		Lookback:               f.primaryConfig.AdaptiveSamplingLookback,
 		MaxDocCount:            f.primaryConfig.MaxDocCount,
 	}
@@ -313,15 +310,10 @@ func (f *Factory) CreateSamplingStore(int /* maxBuckets */) (samplingstore.Store
 
 func mappingBuilderFromConfig(cfg *config.Configuration) mappings.MappingBuilder {
 	return mappings.MappingBuilder{
-		TemplateBuilder:              es.TextTemplateBuilder{},
-		Shards:                       cfg.NumShards,
-		Replicas:                     cfg.NumReplicas,
-		EsVersion:                    cfg.Version,
-		IndexPrefix:                  cfg.IndexPrefix,
-		UseILM:                       cfg.UseILM,
-		PrioritySpanTemplate:         cfg.PrioritySpanTemplate,
-		PriorityServiceTemplate:      cfg.PriorityServiceTemplate,
-		PriorityDependenciesTemplate: cfg.PriorityDependenciesTemplate,
+		TemplateBuilder: es.TextTemplateBuilder{},
+		Indices:         cfg.Indices,
+		EsVersion:       cfg.Version,
+		UseILM:          cfg.UseILM,
 	}
 }
 
@@ -334,7 +326,7 @@ func createDependencyReader(
 		Client:              clientFn,
 		Logger:              logger,
 		IndexPrefix:         cfg.IndexPrefix,
-		IndexDateLayout:     cfg.IndexDateLayoutDependencies,
+		IndexDateLayout:     cfg.Indices.Dependencies.RolloverFrequency,
 		MaxDocCount:         cfg.MaxDocCount,
 		UseReadWriteAliases: cfg.UseReadWriteAliases,
 	})
