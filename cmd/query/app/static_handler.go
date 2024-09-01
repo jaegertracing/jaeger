@@ -76,13 +76,13 @@ type loadedConfig struct {
 
 // NewStaticAssetsHandler returns a StaticAssetsHandler
 func NewStaticAssetsHandler(staticAssetsRoot string, options StaticAssetsHandlerOptions) (*StaticAssetsHandler, error) {
-	assetsFS := ui.GetStaticFiles()
-	if staticAssetsRoot != "" {
-		assetsFS = http.Dir(staticAssetsRoot)
-	}
-
 	if options.Logger == nil {
 		options.Logger = zap.NewNop()
+	}
+
+	assetsFS := ui.GetStaticFiles(options.Logger)
+	if staticAssetsRoot != "" {
+		assetsFS = http.Dir(staticAssetsRoot)
 	}
 
 	h := &StaticAssetsHandler{
