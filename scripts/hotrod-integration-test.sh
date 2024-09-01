@@ -17,6 +17,7 @@ docker_compose_file="./examples/hotrod/docker-compose.yml"
 platforms="$(make echo-linux-platforms)"
 current_platform="$(go env GOOS)/$(go env GOARCH)"
 LOCAL_FLAG=''
+success="false"
 
 while getopts "lp:h" opt; do
 	case "${opt}" in
@@ -33,8 +34,18 @@ while getopts "lp:h" opt; do
 	esac
 done
 
+dump_logs() {
+  local compose_file=$1
+  echo "::group:: Hotrod logs"
+  docker compose -f "${compose_file}" logs
+  echo "::endgroup::"
+}
+
 teardown() {
   echo "Tearing down..."
+  if [[ "$success" == "false" ]]; then
+    dump_logs "${docker_compose_file}"
+  fi
   docker compose -f "$docker_compose_file" down
 }
 trap teardown EXIT
@@ -114,6 +125,8 @@ if [[ "$span_count" -lt "$EXPECTED_SPANS" ]]; then
   echo "Failed to find the trace with the expected number of spans within the timeout period."
   exit 1
 fi
+
+success="true"
 
 # Ensure the image is published after successful test (maybe with -l flag if on a pull request).
 # This is where all those multi-platform binaries we built earlier are utilized.
