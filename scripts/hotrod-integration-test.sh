@@ -36,7 +36,7 @@ done
 
 dump_logs() {
   local compose_file=$1
-  echo "::group::🚧 🚧 🚧 Hotrod logs"
+  echo "::group:: Hotrod logs"
   docker compose -f "${compose_file}" logs
   echo "::endgroup::"
 }
