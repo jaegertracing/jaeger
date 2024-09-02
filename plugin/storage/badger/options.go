@@ -19,18 +19,33 @@ type Options struct {
 	// This storage plugin does not support additional namespaces
 }
 
-// NamespaceConfig is badger's internal configuration data
+// NamespaceConfig is badger's internal configuration data.
 type NamespaceConfig struct {
-	namespace      string
-	SpanStoreTTL   time.Duration `mapstructure:"span_store_ttl"`
-	ValueDirectory string        `mapstructure:"directory_value"`
-	KeyDirectory   string        `mapstructure:"directory_key"`
-	// Setting this to true will ignore ValueDirectory and KeyDirectory
-	Ephemeral             bool          `mapstructure:"ephemeral"`
-	SyncWrites            bool          `mapstructure:"consistency"`
-	MaintenanceInterval   time.Duration `mapstructure:"maintenance_interval"`
+	namespace string
+	// SpanStoreTTL holds the amount of time that the span store data is stored.
+	// Once this duration has passed for a given key, it will no longer be accessible.
+	SpanStoreTTL time.Duration `mapstructure:"span_store_ttl"`
+	// KeyDirectory is the directory in which the keys are stored. Ephemeral must be
+	// set to false for this configuration to take effect.
+	KeyDirectory string `mapstructure:"directory_key"`
+	// ValueDirectory is the directory in which the values should be stored. Ephemeral must be
+	// set to false for this configuration to take effect.
+	ValueDirectory string `mapstructure:"directory_value"`
+	// Ephemeral, if set to true, will store data in a temporary file system.
+	// If set to true, KeyDirectory and ValueDirectory are ignored.
+	Ephemeral bool `mapstructure:"ephemeral"`
+	// SyncWrites, if set to true, will immediately sync all writes to disk. Note that
+	// setting this field to true will affect write performance.
+	SyncWrites bool `mapstructure:"consistency"`
+	// MaintenanceInterval is the regular interval after which a maintenance job is
+	// run on the values in the store.
+	MaintenanceInterval time.Duration `mapstructure:"maintenance_interval"`
+	// MetricsUpdateInterval is the regular interval after which metrics are collected
+	// by Jaeger.
 	MetricsUpdateInterval time.Duration `mapstructure:"metrics_update_interval"`
-	ReadOnly              bool          `mapstructure:"read_only"`
+	// ReadOnly opens the data store in read-only mode. Multiple instances can open the same
+	// store in read-only mode. Values still in the write-ahead-log must be replayed before opening.
+	ReadOnly bool `mapstructure:"read_only"`
 }
 
 const (
