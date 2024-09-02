@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/asaskevich/govalidator"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
 )
@@ -166,4 +167,9 @@ func initFromViper(cfg *NamespaceConfig, v *viper.Viper, _ *zap.Logger) {
 // GetPrimary returns the primary namespace configuration
 func (opt *Options) GetPrimary() NamespaceConfig {
 	return opt.Primary
+}
+
+func (c *NamespaceConfig) Validate() error {
+	_, err := govalidator.ValidateStruct(c)
+	return err
 }
