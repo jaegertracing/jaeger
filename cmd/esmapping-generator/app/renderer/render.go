@@ -8,6 +8,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/esmapping-generator/app"
 	"github.com/jaegertracing/jaeger/pkg/es"
+	cfg "github.com/jaegertracing/jaeger/pkg/es/config"
 	"github.com/jaegertracing/jaeger/plugin/storage/es/mappings"
 )
 
@@ -25,14 +26,22 @@ func GetMappingAsString(builder es.TemplateBuilder, opt *app.Options) (string, e
 		return "", err
 	}
 
+	indexOpts := cfg.IndexOptions{
+		Priority: 0,
+		Shards:   opt.Shards,
+		Replicas: opt.Shards,
+	}
 	mappingBuilder := mappings.MappingBuilder{
 		TemplateBuilder: builder,
-		Shards:          opt.Shards,
-		Replicas:        opt.Replicas,
-		EsVersion:       opt.EsVersion,
-		IndexPrefix:     opt.IndexPrefix,
-		UseILM:          enableILM,
-		ILMPolicyName:   opt.ILMPolicyName,
+		Indices: cfg.Indices{
+			Spans:        indexOpts,
+			Services:     indexOpts,
+			Dependencies: indexOpts,
+			Sampling:     indexOpts,
+		},
+		EsVersion:     opt.EsVersion,
+		UseILM:        enableILM,
+		ILMPolicyName: opt.ILMPolicyName,
 	}
 	return mappingBuilder.GetMapping(opt.Mapping)
 }
