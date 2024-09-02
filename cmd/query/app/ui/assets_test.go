@@ -6,11 +6,11 @@ package ui
 import (
 	"embed"
 	"io"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
+
+	"github.com/jaegertracing/jaeger/pkg/testutils"
 )
 
 func TestGetStaticFiles_ReturnsPlaceholderWhenActualNotPresent(t *testing.T) {
@@ -20,11 +20,12 @@ func TestGetStaticFiles_ReturnsPlaceholderWhenActualNotPresent(t *testing.T) {
 	actualAssetsFS = embed.FS{}
 	t.Cleanup(func() { actualAssetsFS = currentActualAssets })
 
-	fs := GetStaticFiles(zap.NewNop())
+	logger, logBuf := testutils.NewLogger()
+	fs := GetStaticFiles(logger)
 	file, err := fs.Open("/index.html")
 	require.NoError(t, err)
-	buf := new(strings.Builder)
-	_, err = io.Copy(buf, file)
+	bytes, err := io.ReadAll(file)
 	require.NoError(t, err)
-	require.Contains(t, buf.String(), "This is a placeholder for the Jaeger UI home page")
+	require.Contains(t, string(bytes), "This is a placeholder for the Jaeger UI home page")
+	require.Contains(t, logBuf.String(), "ui assets not embedded in the binary, using a placeholder")
 }

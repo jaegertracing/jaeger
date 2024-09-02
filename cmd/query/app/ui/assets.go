@@ -24,7 +24,7 @@ var placeholderAssetsFS embed.FS
 // non-functional index.html is returned to be used as a placeholder.
 func GetStaticFiles(logger *zap.Logger) http.FileSystem {
 	if _, err := actualAssetsFS.ReadFile("actual/index.html.gz"); err != nil {
-		logger.Warn("ui assets not found", zap.Error(err))
+		logger.Warn("ui assets not embedded in the binary, using a placeholder", zap.Error(err))
 		return httpfs.PrefixedFS("placeholder", http.FS(placeholderAssetsFS))
 	}
 
