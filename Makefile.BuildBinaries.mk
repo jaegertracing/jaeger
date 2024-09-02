@@ -1,7 +1,9 @@
 # Copyright (c) 2023 The Jaeger Authors.
 # SPDX-License-Identifier: Apache-2.0
 
-GOBUILD=CGO_ENABLED=0 installsuffix=cgo $(GO) build -trimpath
+# This command expects $GOOS/$GOARCH env variables set to reflect the desired target platform.
+GOBUILD=echo "building for $$(go env GOOS)-$$(go env GOARCH)"; \
+  CGO_ENABLED=0 installsuffix=cgo $(GO) build -trimpath
 
 ifeq ($(DEBUG_BINARY),)
 	DISABLE_OPTIMIZATIONS =
