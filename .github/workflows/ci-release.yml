@@ -6,6 +6,13 @@ on:
       - published
   # allow running release workflow manually
   workflow_dispatch:
+    # Determine the version numbers that will be assigned to the release.
+    inputs:
+      version_v1:
+        description: Version number for 1.x components. Don't include a leading `v`.
+
+      version_v2:
+        description: Version number for 2.x components. Don't include a leading `v`.
 
 # See https://github.com/jaegertracing/jaeger/issues/4017
 permissions:
@@ -49,6 +56,11 @@ jobs:
     - name: Setup Node.js version
       uses: ./.github/actions/setup-node.js
 
+    - name: Determine if this is a dry run
+      id: dry_run
+      run: |
+        echo "dry_run=true" >> $GITHUB_OUTPUT
+
     - name: Export BRANCH variable and validate it is a semver
       # Many scripts depend on BRANCH variable. We do not want to
       # use ./.github/actions/setup-branch here because it may set
@@ -65,13 +77,13 @@ jobs:
       run: make install-ci
 
     - name: Configure GPG Key
-      id: import_gpg
+      if: ${{ steps.dry_run.outputs.dry_run != "true" }}
       uses: crazy-max/ghaction-import-gpg@01dd5d3ca463c7f10f7f4f7b4f177225ac661ee4 # v6.1.0
       with:
         gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
         passphrase: ${{ secrets.GPG_PASSPHRASE }}
 
-    - name: Build binaries
+    - name: Build all binaries
       run: make build-all-platforms
 
     - name: Package binaries

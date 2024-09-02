@@ -3,7 +3,7 @@
 1. Create a PR "Prepare release X.Y.Z" against main or maintenance branch ([example](https://github.com/jaegertracing/jaeger/pull/543/files)) by updating CHANGELOG.md to include:
     * A new section with the header `<X.Y.Z> (YYYY-MM-DD)` (copy the template at the top)
     * A curated list of notable changes and links to PRs. Do not simply dump git log, select the changes that affect the users.
-      To obtain the list of all changes run `make changelog` or use `scripts/release-notes.py`.
+      To obtain the list of all changes run `make changelog`.
     * The section can be split into sub-section if necessary, e.g. UI Changes, Backend Changes, Bug Fixes, etc.
     * If the jaeger-ui submodule has changes cut a new release
     * Then upgrade the submodule versions and finally commit. For example:

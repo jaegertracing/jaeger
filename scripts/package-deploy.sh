@@ -1,15 +1,22 @@
 #!/bin/bash
-
+#
 # Copyright (c) 2024 The Jaeger Authors.
 # SPDX-License-Identifier: Apache-2.0
 set -euxf -o pipefail
 
+# This script uses --sort=name option that is not supported by MacOS tar.
+# On MacOS, install `brew install gnu-tar` and run this script with TARCMD=gtar.
 TARCMD=${TARCMD:-tar}
 
+# Default signing key (accessible to maintainers-only), documented in https://www.jaegertracing.io/download/.
+gpg_key_id="B42D1DB0F079690F"
 platforms="$(make echo-platforms)"
-while getopts "p:" opt; do
+while getopts "k:p:" opt; do
 	# shellcheck disable=SC2220 # we don't need a *) case
 	case "${opt}" in
+	k)
+		gpg_key_id=${OPTARG}
+		;;
 	p)
 		platforms=${OPTARG}
 		;;
@@ -133,7 +140,9 @@ find deploy \( ! -name '*sha256sum.txt' \) -type f -exec shasum -b -a 256 {} \; 
   | tee "./deploy/jaeger-${VERSION_V2}.sha256sum.txt"
 
 # Use gpg to sign the (g)zip files (excluding checksum files) into .asc files.
-find deploy \( ! -name '*sha256sum.txt' \) -type f -exec gpg --armor --detach-sign {} \;
+echo "Signing archives with GPG key ${gpg_key_id}"
+gpg --list-keys "${gpg_key_id}"
+find deploy \( ! -name '*sha256sum.txt' \) -type f -exec gpg -v --local-user "${gpg_key_id}" --armor --detach-sign {} \;
 
 # show your work
 ls -lF deploy/

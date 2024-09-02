@@ -12,5 +12,8 @@ for main in ./cmd/*/main.go; do
       b="${dir:?}/$bin-$platform"
       echo "$b"
       rm -f "$b"
+      b="${dir:?}/$bin-debug-$platform"
+      echo "$b"
+      rm -f "$b"
     done
 done
