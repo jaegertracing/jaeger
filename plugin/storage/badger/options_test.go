@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/config"
@@ -52,4 +53,36 @@ func TestReadOnlyOptions(t *testing.T) {
 	})
 	opts.InitFromViper(v, zap.NewNop())
 	assert.True(t, opts.GetPrimary().ReadOnly)
+}
+
+func TestValidate_DoesNotReturnErrorWhenValid(t *testing.T) {
+	tests := []struct {
+		name   string
+		config *NamespaceConfig
+	}{
+		{
+			name:   "non-required fields not set",
+			config: &NamespaceConfig{},
+		},
+		{
+			name: "all fields are set",
+			config: &NamespaceConfig{
+				SpanStoreTTL:          time.Second,
+				KeyDirectory:          "some-key-directory",
+				ValueDirectory:        "some-value-directory",
+				Ephemeral:             false,
+				SyncWrites:            false,
+				MaintenanceInterval:   time.Second,
+				MetricsUpdateInterval: time.Second,
+				ReadOnly:              false,
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			err := test.config.Validate()
+			require.NoError(t, err)
+		})
+	}
 }
