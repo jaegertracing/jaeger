@@ -29,7 +29,9 @@ import (
 //go:generate mockery -all -dir ../../../pkg/fswatcher
 
 func TestNotExistingUiConfig(t *testing.T) {
-	handler, err := NewStaticAssetsHandler("/foo/bar", StaticAssetsHandlerOptions{})
+	handler, err := NewStaticAssetsHandler("/foo/bar", StaticAssetsHandlerOptions{
+		Logger: zap.NewNop(),
+	})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "no such file or directory")
 	assert.Nil(t, handler)
@@ -155,11 +157,18 @@ func TestRegisterStaticHandler(t *testing.T) {
 }
 
 func TestNewStaticAssetsHandlerErrors(t *testing.T) {
-	_, err := NewStaticAssetsHandler("fixture", StaticAssetsHandlerOptions{UIConfigPath: "fixture/invalid-config"})
+	_, err := NewStaticAssetsHandler("fixture", StaticAssetsHandlerOptions{
+		UIConfigPath: "fixture/invalid-config",
+		Logger:       zap.NewNop(),
+	})
 	require.Error(t, err)
 
 	for _, base := range []string{"x", "x/", "/x/"} {
-		_, err := NewStaticAssetsHandler("fixture", StaticAssetsHandlerOptions{UIConfigPath: "fixture/ui-config.json", BasePath: base})
+		_, err := NewStaticAssetsHandler("fixture", StaticAssetsHandlerOptions{
+			UIConfigPath: "fixture/ui-config.json",
+			BasePath:     base,
+			Logger:       zap.NewNop(),
+		})
 		require.Errorf(t, err, "basePath=%s", base)
 		assert.Contains(t, err.Error(), "invalid base path")
 	}
