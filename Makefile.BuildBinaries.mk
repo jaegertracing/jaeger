@@ -74,13 +74,11 @@ _build-a-binary-%:
 
 .PHONY: build-jaeger
 build-jaeger: BIN_NAME = jaeger
-build-jaeger: GO_TAGS = -tags ui
 build-jaeger: BUILD_INFO = $(BUILD_INFO_V2)
 build-jaeger: build-ui _build-a-binary-jaeger$(SUFFIX)-$(GOOS)-$(GOARCH)
 
 .PHONY: build-all-in-one
 build-all-in-one: BIN_NAME = all-in-one
-build-all-in-one: GO_TAGS = -tags ui
 build-all-in-one: build-ui _build-a-binary-all-in-one$(SUFFIX)-$(GOOS)-$(GOARCH)
 
 .PHONY: build-agent
@@ -89,7 +87,6 @@ build-agent: _build-a-binary-agent$(SUFFIX)-$(GOOS)-$(GOARCH)
 
 .PHONY: build-query
 build-query: BIN_NAME = query
-build-query: GO_TAGS = -tags ui
 build-query: build-ui _build-a-binary-query$(SUFFIX)-$(GOOS)-$(GOARCH)
 
 .PHONY: build-collector

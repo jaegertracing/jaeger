@@ -186,7 +186,7 @@ lint-go: $(LINT)
 
 .PHONY: run-all-in-one
 run-all-in-one: build-ui
-	go run -tags ui ./cmd/all-in-one --log-level debug
+	go run ./cmd/all-in-one --log-level debug
 
 .PHONY: changelog
 changelog:
