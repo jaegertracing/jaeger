@@ -32,7 +32,7 @@ func TestGetStaticFiles_ReturnsPlaceholderWhenActualNotPresent(t *testing.T) {
 }
 
 func TestGetStaticFiles_ReturnsActualWhenPresent(t *testing.T) {
-	// swap out the assets FS for an dummy one and then replace it back when the
+	// swap out the assets FS for a dummy one and then replace it back when the
 	// test completes
 	currentActualAssets := actualAssetsFS
 	actualAssetsFS = testdata.TestFS
