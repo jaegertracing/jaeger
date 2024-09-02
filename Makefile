@@ -151,6 +151,16 @@ lint-license:
 	@./scripts/updateLicense.py $(ALL_SRC) $(SCRIPTS_SRC) > $(FMT_LOG)
 	@[ ! -s "$(FMT_LOG)" ] || (echo "License check failures, run 'make fmt'" | cat - $(FMT_LOG) && false)
 
+.PHONY: lint-nocommit
+lint-nocommit:
+	@if git diff main | grep '@no''commit' ; then \
+		echo "❌ Cannot merge PR that contains @no""commit string" ; \
+		GIT_PAGER=cat git diff -G '@no''commit' main ; \
+		false ; \
+	else \
+		echo "✅ Changes do not contain @no""commit string" ; \
+	fi
+
 .PHONY: lint-imports
 lint-imports:
 	@echo Verifying that all Go files have correctly ordered imports
