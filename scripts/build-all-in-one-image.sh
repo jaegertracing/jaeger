@@ -82,7 +82,7 @@ run_integration_test() {
 # Loop through each platform (separated by commas)
 for platform in $(echo "$platforms" | tr ',' ' '); do
   arch=${platform##*/}  # Remove everything before the last slash
-  make "build-${BINARY}-linux-${arch}"
+  make "build-${BINARY}" GOOS=linux GOARCH="${arch}"
 done
 
 if [[ "${add_debugger}" == "N" ]]; then

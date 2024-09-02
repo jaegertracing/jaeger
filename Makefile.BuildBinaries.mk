@@ -29,13 +29,11 @@ jaeger-ui/packages/jaeger-ui/build/index.html:
 
 .PHONY: rebuild-ui
 rebuild-ui:
+	@echo "::group::rebuild-ui logs"
 	bash ./scripts/rebuild-ui.sh
 	@echo "NOTE: This target only rebuilds the UI assets inside jaeger-ui/packages/jaeger-ui/build/."
 	@echo "NOTE: To make them usable from query-service run 'make build-ui'."
-
-.PHONY: build-all-in-one-linux
-build-all-in-one-linux:
-	GOOS=linux $(MAKE) build-all-in-one
+	@echo "::endgroup::"
 
 .PHONY: build-examples
 build-examples:
@@ -100,9 +98,6 @@ build-ingester: _build-a-binary-ingester$(SUFFIX)-$(GOOS)-$(GOARCH)
 .PHONY: build-remote-storage
 build-remote-storage: BIN_NAME = remote-storage
 build-remote-storage: _build-a-binary-remote-storage$(SUFFIX)-$(GOOS)-$(GOARCH)
-
-.PHONY: build-binaries-linux
-build-binaries-linux: build-binaries-linux-amd64
 
 .PHONY: build-binaries-linux-amd64
 build-binaries-linux-amd64:
