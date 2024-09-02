@@ -101,6 +101,7 @@ jobs:
 
     - name: Clean up some more disk space
       # Delete the release artifacts after uploading them.
+      # TODO @nocommit if we do not need the binaries we can run scripts/clean-binaries.sh
       run: |
         rm -rf deploy || true
         df -h /
@@ -108,6 +109,7 @@ jobs:
     - uses: docker/setup-qemu-action@49b3bc8e6bdd4a60e6116a5414239cba5943d3cf # v3.2.0
 
     - name: Build and upload all container images
+      # TODO @nocommit can we avoid re-building all the binaries?
       run: bash scripts/build-upload-docker-images.sh
       env:
         DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
