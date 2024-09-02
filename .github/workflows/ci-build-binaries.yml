@@ -16,29 +16,24 @@ permissions:
   contents: read
 
 jobs:
+  generate-matrix:
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+    - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+    - name: define matrix
+      id: set-matrix
+      run: |
+        echo "matrix=$(bash scripts/platforms-to-gh-matrix.sh)" >> $GITHUB_OUTPUT
+
   build-binaries:
+    needs: generate-matrix
     runs-on: ubuntu-latest
     strategy:
-      matrix:
-        platform:
-        - name: linux
-          task: build-binaries-linux
-        - name: windows
-          task: build-binaries-windows
-        - name: osx
-          task: build-binaries-darwin
-        - name: osx-m1
-          task: build-binaries-darwin-arm64
-        - name: system/390
-          task: build-binaries-s390x
-        - name: arm
-          task: build-binaries-arm64
-        - name: powerpc
-          task: build-binaries-ppc64le
-    name: build binaries for ${{ matrix.platform.name }}
+      matrix: ${{fromJson(needs.generate-matrix.outputs.matrix)}}
+    name: build-binaries-${{ matrix.os }}-${{ matrix.arch }}
     steps:
-    - name: Harden Runner
-      uses: step-security/harden-runner@0d381219ddf674d61a7572ddd19d7941e271515c # v2.9.0
+    - uses: step-security/harden-runner@0d381219ddf674d61a7572ddd19d7941e271515c # v2.9.0
       with:
         egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
 
@@ -57,11 +52,8 @@ jobs:
     - name: Setup Node.js version
       uses: ./.github/actions/setup-node.js
 
-    - name: Export BRANCH variable
-      uses: ./.github/actions/setup-branch
-
     - name: Install tools
       run: make install-ci
 
-    - name: Build binaries
-      run: make ${{ matrix.platform.task }}
+    - name: Build platform binaries
+      run: make build-binaries-${{ matrix.os }}-${{ matrix.arch }}

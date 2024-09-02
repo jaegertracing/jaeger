@@ -108,9 +108,9 @@ build-binaries-linux: build-binaries-amd64
 build-binaries-amd64:
 	GOOS=linux GOARCH=amd64 $(MAKE) _build-platform-binaries
 
-# helper targets defined in Makefile.Windows.mk
-.PHONY: build-binaries-windows
-build-binaries-windows:
+# helper sysp targets are defined in Makefile.Windows.mk
+.PHONY: build-binaries-windows-amd64
+build-binaries-windows-amd64:
 	$(MAKE) _build-syso
 	GOOS=windows GOARCH=amd64 $(MAKE) _build-platform-binaries
 	$(MAKE) _clean-syso
@@ -168,7 +168,7 @@ _build-platform-binaries-debug: \
 .PHONY: build-all-platforms
 build-all-platforms: \
 	build-binaries-linux \
-	build-binaries-windows \
+	build-binaries-windows-amd64 \
 	build-binaries-darwin \
 	build-binaries-darwin-arm64 \
 	build-binaries-s390x \
