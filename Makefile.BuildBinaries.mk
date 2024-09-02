@@ -102,10 +102,10 @@ build-remote-storage: BIN_NAME = remote-storage
 build-remote-storage: _build-a-binary-remote-storage$(SUFFIX)-$(GOOS)-$(GOARCH)
 
 .PHONY: build-binaries-linux
-build-binaries-linux: build-binaries-amd64
+build-binaries-linux: build-binaries-linux-amd64
 
-.PHONY: build-binaries-amd64
-build-binaries-amd64:
+.PHONY: build-binaries-linux-amd64
+build-binaries-linux-amd64:
 	GOOS=linux GOARCH=amd64 $(MAKE) _build-platform-binaries
 
 # helper sysp targets are defined in Makefile.Windows.mk
@@ -115,24 +115,24 @@ build-binaries-windows-amd64:
 	GOOS=windows GOARCH=amd64 $(MAKE) _build-platform-binaries
 	$(MAKE) _clean-syso
 
-.PHONY: build-binaries-darwin
-build-binaries-darwin:
+.PHONY: build-binaries-darwin-amd64
+build-binaries-darwin-amd64:
 	GOOS=darwin GOARCH=amd64 $(MAKE) _build-platform-binaries
 
 .PHONY: build-binaries-darwin-arm64
 build-binaries-darwin-arm64:
 	GOOS=darwin GOARCH=arm64 $(MAKE) _build-platform-binaries
 
-.PHONY: build-binaries-s390x
-build-binaries-s390x:
+.PHONY: build-binaries-linux-s390x
+build-binaries-linux-s390x:
 	GOOS=linux GOARCH=s390x $(MAKE) _build-platform-binaries
 
-.PHONY: build-binaries-arm64
-build-binaries-arm64:
+.PHONY: build-binaries-linux-arm64
+build-binaries-linux-arm64:
 	GOOS=linux GOARCH=arm64 $(MAKE) _build-platform-binaries
 
-.PHONY: build-binaries-ppc64le
-build-binaries-ppc64le:
+.PHONY: build-binaries-linux-ppc64le
+build-binaries-linux-ppc64le:
 	GOOS=linux GOARCH=ppc64le $(MAKE) _build-platform-binaries
 
 # build all binaries for one specific platform GOOS/GOARCH
@@ -156,6 +156,7 @@ _build-platform-binaries: \
 
 # build binaries that support DEBUG release, for one specific platform GOOS/GOARCH
 .PHONY: _build-platform-binaries-debug
+_build-platform-binaries-debug:
 _build-platform-binaries-debug: \
 	build-agent \
 	build-collector \
@@ -167,10 +168,10 @@ _build-platform-binaries-debug: \
 
 .PHONY: build-all-platforms
 build-all-platforms: \
-	build-binaries-linux \
+	build-binaries-linux-amd64 \
 	build-binaries-windows-amd64 \
-	build-binaries-darwin \
+	build-binaries-darwin-amd64 \
 	build-binaries-darwin-arm64 \
-	build-binaries-s390x \
-	build-binaries-arm64 \
-	build-binaries-ppc64le
+	build-binaries-linux-s390x \
+	build-binaries-linux-arm64 \
+	build-binaries-linux-ppc64le
