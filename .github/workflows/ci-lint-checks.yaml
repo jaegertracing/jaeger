@@ -26,9 +26,6 @@ jobs:
 
     - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
 
-    - name: Ensure PR is not on main branch
-      uses: ./.github/actions/block-pr-not-on-main
-
     - uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5.0.2
       with:
         go-version: 1.23.x
@@ -42,7 +39,23 @@ jobs:
     - name: Lint
       run: make lint
 
-  dco:
+  pull-request-preconditions:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Harden Runner
+      uses: step-security/harden-runner@0d381219ddf674d61a7572ddd19d7941e271515c # v2.9.0
+      with:
+        egress-policy: audit # TODO: change to 'egress-policy: block' after a couple of runs
+
+    - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+
+    - name: Ensure PR is not on main branch
+      uses: ./.github/actions/block-pr-not-on-main
+
+    - name: lint-nocommit
+      run: make lint-nocommit
+
+  dco-check:
     runs-on: ubuntu-latest
     steps:
     - name: Harden Runner
@@ -61,3 +74,56 @@ jobs:
       run: python3 scripts/dco_check.py -b main -v --exclude-pattern '\[bot\]@users\.noreply\.github\.com'
       env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  generated-files-check:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Harden Runner
+      uses: step-security/harden-runner@0d381219ddf674d61a7572ddd19d7941e271515c # v2.9.0
+      with:
+        egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
+
+    - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+      with:
+        submodules: recursive
+
+    - uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5.0.2
+      with:
+        go-version: 1.23.x
+
+    - name: Verify Protobuf types are up to date
+      run: make proto && git diff --name-status --exit-code
+
+    - name: Verify Thrift types are up to date
+      run: make thrift && git diff --name-status --exit-code
+
+    - name: Verify Mockery types are up to date
+      run: make generate-mocks && git diff --name-status --exit-code
+
+  lint-shell-scripts:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Harden Runner
+      uses: step-security/harden-runner@0d381219ddf674d61a7572ddd19d7941e271515c # v2.9.0
+      with:
+        egress-policy: audit
+
+    - name: Check out code
+      uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+
+    - name: Install shellcheck
+      run: sudo apt-get install shellcheck
+
+    - name: Run shellcheck
+      run: shellcheck scripts/*.sh
+
+    - name: Install shunit2
+      uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+      with:
+        repository: kward/shunit2
+        path: .tools/shunit2
+
+    - name: Run unit tests for scripts
+      run: |
+        SHUNIT2=.tools/shunit2 bash scripts/compute-tags.test.sh
