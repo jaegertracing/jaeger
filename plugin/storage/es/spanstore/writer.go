@@ -103,8 +103,8 @@ func getSpanAndServiceIndexFn(archive, useReadWriteAliases bool, prefix, spanDat
 	if prefix != "" {
 		prefix += indexPrefixSeparator
 	}
-	spanIndexPrefix := prefix + spanIndex
-	serviceIndexPrefix := prefix + serviceIndex
+	spanIndexPrefix := prefix + spanIndexBaseName
+	serviceIndexPrefix := prefix + serviceIndexBaseName
 	if archive {
 		return func(_ time.Time) (string, string) {
 			if useReadWriteAliases {
