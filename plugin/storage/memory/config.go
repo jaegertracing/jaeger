@@ -7,8 +7,9 @@ import "github.com/asaskevich/govalidator"
 
 // Configuration describes the options to customize the storage behavior.
 type Configuration struct {
-	// MaxTraces is the maximum amount of traces to store to store in memory.
-	// If MaxTraces is set to 0 (default), the number of traces stored will be unbounded.
+	// MaxTraces is the maximum amount of traces to store in memory.
+	// If multi-tenancy is enabled, this limit applies per tenant.
+	// Zero value (default) means no limit (Warning: memory usage will be unbounded).
 	MaxTraces int `mapstructure:"max_traces"`
 }
 
