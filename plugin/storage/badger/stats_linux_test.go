@@ -16,7 +16,7 @@ import (
 
 func TestDiskStatisticsUpdate(t *testing.T) {
 	f := NewFactory()
-	opts := NewOptions("badger")
+	opts := NewOptions()
 	v, command := config.Viperize(opts.AddFlags)
 	command.ParseFlags([]string{
 		"--badger.ephemeral=true",
