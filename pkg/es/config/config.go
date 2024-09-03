@@ -69,7 +69,6 @@ type Configuration struct {
 	BulkWorkers              int            `mapstructure:"-"`
 	BulkActions              int            `mapstructure:"-"`
 	BulkFlushInterval        time.Duration  `mapstructure:"-"`
-	IndexPrefix              string         `mapstructure:"index_prefix"`
 	Indices                  Indices        `mapstructure:"indices"`
 	ServiceCacheTTL          time.Duration  `mapstructure:"service_cache_ttl"`
 	AdaptiveSamplingLookback time.Duration  `mapstructure:"-"`

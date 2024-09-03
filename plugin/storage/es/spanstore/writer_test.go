@@ -19,6 +19,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/metricstest"
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/es"
+	"github.com/jaegertracing/jaeger/pkg/es/config"
 	"github.com/jaegertracing/jaeger/pkg/es/mocks"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/plugin/storage/es/spanstore/dbmodel"
@@ -40,7 +41,7 @@ func withSpanWriter(fn func(w *spanWriterTest)) {
 		client:    client,
 		logger:    logger,
 		logBuffer: logBuffer,
-		writer:    NewSpanWriter(SpanWriterParams{Client: func() es.Client { return client }, Logger: logger, MetricsFactory: metricsFactory, SpanIndexDateLayout: "2006-01-02", ServiceIndexDateLayout: "2006-01-02"}),
+		writer:    NewSpanWriter(SpanWriterParams{Client: func() es.Client { return client }, Logger: logger, MetricsFactory: metricsFactory, SpanIndex: config.IndexOptions{DateLayout: "2006-01-02"}, ServiceIndex: config.IndexOptions{DateLayout: "2006-01-02"}}),
 	}
 	fn(w)
 }
@@ -57,6 +58,16 @@ func TestSpanWriterIndices(t *testing.T) {
 	serviceDataLayout := "2006-01-02"
 	spanDataLayoutFormat := date.UTC().Format(spanDataLayout)
 	serviceDataLayoutFormat := date.UTC().Format(serviceDataLayout)
+
+	spanIndexOpts := config.IndexOptions{DateLayout: spanDataLayout}
+	serviceIndexOpts := config.IndexOptions{DateLayout: serviceDataLayout}
+
+	serviceIndexOptsWithFoo := serviceIndexOpts
+	serviceIndexOptsWithFoo.Prefix = "foo:"
+
+	spanIndexOptsWithFoo := spanIndexOpts
+	spanIndexOptsWithFoo.Prefix = "foo:"
+
 	testCases := []struct {
 		indices []string
 		params  SpanWriterParams
@@ -64,49 +75,49 @@ func TestSpanWriterIndices(t *testing.T) {
 		{
 			params: SpanWriterParams{
 				Client: clientFn, Logger: logger, MetricsFactory: metricsFactory,
-				IndexPrefix: "", SpanIndexDateLayout: spanDataLayout, ServiceIndexDateLayout: serviceDataLayout, Archive: false,
+				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts, Archive: false,
 			},
 			indices: []string{spanIndexBaseName + spanDataLayoutFormat, serviceIndexBaseName + serviceDataLayoutFormat},
 		},
 		{
 			params: SpanWriterParams{
 				Client: clientFn, Logger: logger, MetricsFactory: metricsFactory,
-				IndexPrefix: "", SpanIndexDateLayout: spanDataLayout, ServiceIndexDateLayout: serviceDataLayout, UseReadWriteAliases: true,
+				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts, UseReadWriteAliases: true,
 			},
 			indices: []string{spanIndexBaseName + "write", serviceIndexBaseName + "write"},
 		},
 		{
 			params: SpanWriterParams{
 				Client: clientFn, Logger: logger, MetricsFactory: metricsFactory,
-				IndexPrefix: "foo:", SpanIndexDateLayout: spanDataLayout, ServiceIndexDateLayout: serviceDataLayout, Archive: false,
+				SpanIndex: spanIndexOptsWithFoo, ServiceIndex: serviceIndexOptsWithFoo, Archive: false,
 			},
 			indices: []string{"foo:" + indexPrefixSeparator + spanIndexBaseName + spanDataLayoutFormat, "foo:" + indexPrefixSeparator + serviceIndexBaseName + serviceDataLayoutFormat},
 		},
 		{
 			params: SpanWriterParams{
 				Client: clientFn, Logger: logger, MetricsFactory: metricsFactory,
-				IndexPrefix: "foo:", SpanIndexDateLayout: spanDataLayout, ServiceIndexDateLayout: serviceDataLayout, UseReadWriteAliases: true,
+				SpanIndex: spanIndexOptsWithFoo, ServiceIndex: serviceIndexOptsWithFoo, UseReadWriteAliases: true,
 			},
 			indices: []string{"foo:-" + spanIndexBaseName + "write", "foo:-" + serviceIndexBaseName + "write"},
 		},
 		{
 			params: SpanWriterParams{
 				Client: clientFn, Logger: logger, MetricsFactory: metricsFactory,
-				IndexPrefix: "", SpanIndexDateLayout: spanDataLayout, ServiceIndexDateLayout: serviceDataLayout, Archive: true,
+				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts, Archive: true,
 			},
 			indices: []string{spanIndexBaseName + archiveIndexSuffix, ""},
 		},
 		{
 			params: SpanWriterParams{
 				Client: clientFn, Logger: logger, MetricsFactory: metricsFactory,
-				IndexPrefix: "foo:", SpanIndexDateLayout: spanDataLayout, ServiceIndexDateLayout: serviceDataLayout, Archive: true,
+				SpanIndex: spanIndexOptsWithFoo, ServiceIndex: serviceIndexOptsWithFoo, Archive: true,
 			},
 			indices: []string{"foo:" + indexPrefixSeparator + spanIndexBaseName + archiveIndexSuffix, ""},
 		},
 		{
 			params: SpanWriterParams{
 				Client: clientFn, Logger: logger, MetricsFactory: metricsFactory,
-				IndexPrefix: "foo:", SpanIndexDateLayout: spanDataLayout, ServiceIndexDateLayout: serviceDataLayout, Archive: true, UseReadWriteAliases: true,
+				SpanIndex: spanIndexOptsWithFoo, ServiceIndex: serviceIndexOptsWithFoo, Archive: true, UseReadWriteAliases: true,
 			},
 			indices: []string{"foo:" + indexPrefixSeparator + spanIndexBaseName + archiveWriteIndexSuffix, ""},
 		},

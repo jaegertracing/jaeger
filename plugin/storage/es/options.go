@@ -67,6 +67,7 @@ const (
 
 	defaultIndexRolloverFrequency = "day"
 	defaultSendGetBodyAs          = ""
+	defaultIndexPrefix            = ""
 )
 
 var defaultIndexOptions = config.IndexOptions{
@@ -208,7 +209,7 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		"A time.Duration after which bulk requests are committed, regardless of other thresholds. Set to zero to disable. By default, this is disabled.")
 	flagSet.String(
 		nsConfig.namespace+suffixIndexPrefix,
-		nsConfig.IndexPrefix,
+		defaultIndexPrefix,
 		"Optional prefix of Jaeger indices. For example \"production\" creates \"production-jaeger-*\".")
 	flagSet.String(
 		nsConfig.namespace+suffixIndexDateSeparator,
@@ -341,13 +342,13 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	cfg.BulkFlushInterval = v.GetDuration(cfg.namespace + suffixBulkFlushInterval)
 	cfg.Timeout = v.GetDuration(cfg.namespace + suffixTimeout)
 	cfg.ServiceCacheTTL = v.GetDuration(cfg.namespace + suffixServiceCacheTTL)
-	cfg.IndexPrefix = v.GetString(cfg.namespace + suffixIndexPrefix)
+	indexPrefix := v.GetString(cfg.namespace + suffixIndexPrefix)
 
 	// TODO cfg.Indices does not have a separate flag
-	cfg.Indices.Spans.Prefix = cfg.IndexPrefix
-	cfg.Indices.Services.Prefix = cfg.IndexPrefix
-	cfg.Indices.Sampling.Prefix = cfg.IndexPrefix
-	cfg.Indices.Dependencies.Prefix = cfg.IndexPrefix
+	cfg.Indices.Spans.Prefix = indexPrefix
+	cfg.Indices.Services.Prefix = indexPrefix
+	cfg.Indices.Sampling.Prefix = indexPrefix
+	cfg.Indices.Dependencies.Prefix = indexPrefix
 
 	cfg.Tags.AllAsFields = v.GetBool(cfg.namespace + suffixTagsAsFieldsAll)
 	cfg.Tags.Include = v.GetString(cfg.namespace + suffixTagsAsFieldsInclude)

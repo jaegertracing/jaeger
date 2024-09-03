@@ -15,6 +15,7 @@ import (
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/cache"
 	"github.com/jaegertracing/jaeger/pkg/es"
+	cfg "github.com/jaegertracing/jaeger/pkg/es/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/plugin/storage/es/spanstore/dbmodel"
 	storageMetrics "github.com/jaegertracing/jaeger/storage/spanstore/metrics"
@@ -46,18 +47,20 @@ type SpanWriter struct {
 
 // SpanWriterParams holds constructor parameters for NewSpanWriter
 type SpanWriterParams struct {
-	Client                 func() es.Client
-	Logger                 *zap.Logger
-	MetricsFactory         metrics.Factory
-	IndexPrefix            string
-	SpanIndexDateLayout    string
-	ServiceIndexDateLayout string
-	AllTagsAsFields        bool
-	TagKeysAsFields        []string
-	TagDotReplacement      string
-	Archive                bool
-	UseReadWriteAliases    bool
-	ServiceCacheTTL        time.Duration
+	Client         func() es.Client
+	Logger         *zap.Logger
+	MetricsFactory metrics.Factory
+	SpanIndex      cfg.IndexOptions
+	ServiceIndex   cfg.IndexOptions
+	// IndexPrefix            string
+	// SpanIndexDateLayout    string
+	// ServiceIndexDateLayout string
+	AllTagsAsFields     bool
+	TagKeysAsFields     []string
+	TagDotReplacement   string
+	Archive             bool
+	UseReadWriteAliases bool
+	ServiceCacheTTL     time.Duration
 }
 
 // NewSpanWriter creates a new SpanWriter for use
@@ -76,7 +79,7 @@ func NewSpanWriter(p SpanWriterParams) *SpanWriter {
 		},
 		serviceWriter:    serviceOperationStorage.Write,
 		spanConverter:    dbmodel.NewFromDomain(p.AllTagsAsFields, p.TagKeysAsFields, p.TagDotReplacement),
-		spanServiceIndex: getSpanAndServiceIndexFn(p.Archive, p.UseReadWriteAliases, p.IndexPrefix, p.SpanIndexDateLayout, p.ServiceIndexDateLayout),
+		spanServiceIndex: getSpanAndServiceIndexFn(p.Archive, p.UseReadWriteAliases, p.SpanIndex, p.ServiceIndex),
 	}
 }
 
@@ -99,12 +102,15 @@ func (s *SpanWriter) CreateTemplates(spanTemplate, serviceTemplate, indexPrefix 
 // spanAndServiceIndexFn returns names of span and service indices
 type spanAndServiceIndexFn func(spanTime time.Time) (string, string)
 
-func getSpanAndServiceIndexFn(archive, useReadWriteAliases bool, prefix, spanDateLayout string, serviceDateLayout string) spanAndServiceIndexFn {
-	if prefix != "" {
-		prefix += indexPrefixSeparator
+func getSpanAndServiceIndexFn(archive, useReadWriteAliases bool, spanIndexOpts, serviceIndexOpts cfg.IndexOptions) spanAndServiceIndexFn {
+	if spanIndexOpts.Prefix != "" {
+		spanIndexOpts.Prefix += indexPrefixSeparator
 	}
-	spanIndexPrefix := prefix + spanIndexBaseName
-	serviceIndexPrefix := prefix + serviceIndexBaseName
+	if serviceIndexOpts.Prefix != "" {
+		serviceIndexOpts.Prefix += indexPrefixSeparator
+	}
+	spanIndexPrefix := spanIndexOpts.Prefix + spanIndexBaseName
+	serviceIndexPrefix := serviceIndexOpts.Prefix + serviceIndexBaseName
 	if archive {
 		return func(_ time.Time) (string, string) {
 			if useReadWriteAliases {
@@ -120,7 +126,7 @@ func getSpanAndServiceIndexFn(archive, useReadWriteAliases bool, prefix, spanDat
 		}
 	}
 	return func(date time.Time) (string, string) {
-		return indexWithDate(spanIndexPrefix, spanDateLayout, date), indexWithDate(serviceIndexPrefix, serviceDateLayout, date)
+		return indexWithDate(spanIndexPrefix, spanIndexOpts.DateLayout, date), indexWithDate(serviceIndexPrefix, serviceIndexOpts.DateLayout, date)
 	}
 }
 
