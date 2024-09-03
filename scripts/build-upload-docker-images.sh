@@ -40,9 +40,8 @@ set -x
 
 # Loop through each platform (separated by commas)
 for platform in $(echo "$platforms" | tr ',' ' '); do
-  # Extract the architecture from the platform string
   arch=${platform##*/}  # Remove everything before the last slash
-  make "build-binaries-$arch"
+  make "build-binaries-linux-${arch}"
 done
 
 if [[ "${add_debugger}" == "N" ]]; then

@@ -115,7 +115,7 @@ mkdir deploy
 
 # Loop through each platform (separated by commas)
 for platform in $(echo "$platforms" | tr ',' ' '); do
-  os="${platform%%/*}"  # Remove everything after the slash
+  os=${platform%%/*}  # Remove everything after the slash
   arch=${platform##*/}  # Remove everything before the last slash
   if [[ "$os" == "windows" ]]; then
     package tar "${os}-${arch}" .exe
