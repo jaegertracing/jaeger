@@ -20,19 +20,21 @@ extensions:
     backends:
       some_storage:
         elasticsearch:
-          index_prefix: "jaeger-main"
           indices:
             spans:
+              index_prefix: "jaeger-main"
               date_layout: "2006-01-02"
               rollover_frequency: "day"
               shards: 5
               replicas: 1
             services:
+              index_prefix: "jaeger-main"
               date_layout: "2006-01-02"
               rollover_frequency: "day"
               shards: 5
               replicas: 1
             dependencies:
+              index_prefix: "jaeger-main"
               date_layout: "2006-01-02"
               rollover_frequency: "day"
               shards: 5
@@ -44,7 +46,9 @@ extensions:
               replicas: 1
       another_storage:
         elasticsearch:
-          index_prefix: "jaeger-archive"
+          indices:
+            spans:
+              index_prefix: "jaeger-archive"
 
 receivers:
   otlp:

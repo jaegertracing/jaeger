@@ -254,18 +254,17 @@ func createSpanWriter(
 	}
 
 	writer := esSpanStore.NewSpanWriter(esSpanStore.SpanWriterParams{
-		Client:                 clientFn,
-		IndexPrefix:            cfg.IndexPrefix,
-		SpanIndexDateLayout:    cfg.Indices.Spans.DateLayout,
-		ServiceIndexDateLayout: cfg.Indices.Services.DateLayout,
-		AllTagsAsFields:        cfg.Tags.AllAsFields,
-		TagKeysAsFields:        tags,
-		TagDotReplacement:      cfg.Tags.DotReplacement,
-		Archive:                archive,
-		UseReadWriteAliases:    cfg.UseReadWriteAliases,
-		Logger:                 logger,
-		MetricsFactory:         mFactory,
-		ServiceCacheTTL:        cfg.ServiceCacheTTL,
+		Client:              clientFn,
+		SpanIndex:           cfg.Indices.Spans,
+		ServiceIndex:        cfg.Indices.Services,
+		AllTagsAsFields:     cfg.Tags.AllAsFields,
+		TagKeysAsFields:     tags,
+		TagDotReplacement:   cfg.Tags.DotReplacement,
+		Archive:             archive,
+		UseReadWriteAliases: cfg.UseReadWriteAliases,
+		Logger:              logger,
+		MetricsFactory:      mFactory,
+		ServiceCacheTTL:     cfg.ServiceCacheTTL,
 	})
 
 	// Creating a template here would conflict with the one created for ILM resulting to no index rollover
@@ -275,7 +274,7 @@ func createSpanWriter(
 		if err != nil {
 			return nil, err
 		}
-		if err := writer.CreateTemplates(spanMapping, serviceMapping, cfg.IndexPrefix); err != nil {
+		if err := writer.CreateTemplates(spanMapping, serviceMapping, cfg.Indices.Spans.Prefix); err != nil {
 			return nil, err
 		}
 	}
@@ -286,7 +285,7 @@ func (f *Factory) CreateSamplingStore(int /* maxBuckets */) (samplingstore.Store
 	params := esSampleStore.Params{
 		Client:                 f.getPrimaryClient,
 		Logger:                 f.logger,
-		IndexPrefix:            f.primaryConfig.IndexPrefix,
+		IndexPrefix:            f.primaryConfig.Indices.Sampling.Prefix,
 		IndexDateLayout:        f.primaryConfig.Indices.Sampling.DateLayout,
 		IndexRolloverFrequency: config.RolloverFrequencyAsNegativeDuration(f.primaryConfig.Indices.Sampling.RolloverFrequency),
 		Lookback:               f.primaryConfig.AdaptiveSamplingLookback,
@@ -325,7 +324,7 @@ func createDependencyReader(
 	reader := esDepStore.NewDependencyStore(esDepStore.Params{
 		Client:              clientFn,
 		Logger:              logger,
-		IndexPrefix:         cfg.IndexPrefix,
+		IndexPrefix:         cfg.Indices.Dependencies.Prefix,
 		IndexDateLayout:     cfg.Indices.Dependencies.RolloverFrequency,
 		MaxDocCount:         cfg.MaxDocCount,
 		UseReadWriteAliases: cfg.UseReadWriteAliases,
