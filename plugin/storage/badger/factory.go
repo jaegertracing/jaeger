@@ -127,7 +127,7 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 		opts.ValueDir = f.tmpDir
 
 		f.Options.Primary.Directories.Keys = f.tmpDir
-		f.Options.Primary.Directories.Keys = f.tmpDir
+		f.Options.Primary.Directories.Values = f.tmpDir
 	} else {
 		// Errors are ignored as they're caught in the Open call
 		initializeDir(f.Options.Primary.Directories.Keys)
