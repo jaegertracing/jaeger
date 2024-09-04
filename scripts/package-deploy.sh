@@ -20,17 +20,17 @@ print_help() {
 gpg_key_id="B42D1DB0F079690F"
 platforms="$(make echo-platforms)"
 while getopts "hk:p:" opt; do
-	case "${opt}" in
-	k)
-		gpg_key_id=${OPTARG}
-		;;
-	p)
-		platforms=${OPTARG}
-		;;
-	?)
-		print_help
-		;;
-	esac
+  case "${opt}" in
+  k)
+    gpg_key_id=${OPTARG}
+    ;;
+  p)
+    platforms=${OPTARG}
+    ;;
+  ?)
+    print_help
+    ;;
+  esac
 done
 
 # stage-platform-files stages the different the platform ($1) into the package
