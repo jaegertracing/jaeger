@@ -20,13 +20,15 @@ extensions:
     backends:
       some_store:
         badger:
-          directory_key: "/tmp/jaeger/"
-          directory_value: "/tmp/jaeger/"
+          directories:
+            keys: "/tmp/jaeger/"
+            values: "/tmp/jaeger/"
           ephemeral: false
       another_store:
         badger:
-          directory_key: "/tmp/jaeger_archive/"
-          directory_value: "/tmp/jaeger_archive/"
+          directories:
+            keys: "/tmp/jaeger_archive/"
+            values: "/tmp/jaeger_archive/"
           ephemeral: false
 
 receivers:

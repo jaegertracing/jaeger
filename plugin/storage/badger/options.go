@@ -26,14 +26,11 @@ type NamespaceConfig struct {
 	// SpanStoreTTL holds the amount of time that the span store data is stored.
 	// Once this duration has passed for a given key, it will no longer be accessible.
 	SpanStoreTTL time.Duration `mapstructure:"span_store_ttl"`
-	// KeyDirectory is the directory in which the keys are stored. Ephemeral must be
+	// Directories contains the configuration for where items are stored. Ephemeral must be
 	// set to false for this configuration to take effect.
-	KeyDirectory string `mapstructure:"directory_key"`
-	// ValueDirectory is the directory in which the values should be stored. Ephemeral must be
-	// set to false for this configuration to take effect.
-	ValueDirectory string `mapstructure:"directory_value"`
+	Directories Directories `mapstructure:"directories"`
 	// Ephemeral, if set to true, will store data in a temporary file system.
-	// If set to true, KeyDirectory and ValueDirectory are ignored.
+	// If set to true, the configuration in Directories is ignored.
 	Ephemeral bool `mapstructure:"ephemeral"`
 	// SyncWrites, if set to true, will immediately sync all writes to disk. Note that
 	// setting this field to true will affect write performance.
@@ -47,6 +44,13 @@ type NamespaceConfig struct {
 	// ReadOnly opens the data store in read-only mode. Multiple instances can open the same
 	// store in read-only mode. Values still in the write-ahead-log must be replayed before opening.
 	ReadOnly bool `mapstructure:"read_only"`
+}
+
+type Directories struct {
+	// Keys contains the directory in which the keys are stored.
+	Keys string `mapstructure:"keys"`
+	// Values contains the directory in which the values are stored.
+	Values string `mapstructure:"values"`
 }
 
 const (
@@ -72,11 +76,13 @@ const (
 func DefaultNamespaceConfig() NamespaceConfig {
 	defaultBadgerDataDir := getCurrentExecutableDir()
 	return NamespaceConfig{
-		SpanStoreTTL:          defaultTTL,
-		SyncWrites:            false, // Performance over durability
-		Ephemeral:             true,  // Default is ephemeral storage
-		ValueDirectory:        defaultBadgerDataDir + defaultValueDir,
-		KeyDirectory:          defaultBadgerDataDir + defaultKeysDir,
+		SpanStoreTTL: defaultTTL,
+		SyncWrites:   false, // Performance over durability
+		Ephemeral:    true,  // Default is ephemeral storage
+		Directories: Directories{
+			Keys:   defaultBadgerDataDir + defaultKeysDir,
+			Values: defaultBadgerDataDir + defaultValueDir,
+		},
 		MaintenanceInterval:   defaultMaintenanceInterval,
 		MetricsUpdateInterval: defaultMetricsUpdateInterval,
 	}
@@ -118,12 +124,12 @@ func addFlags(flagSet *flag.FlagSet, nsConfig NamespaceConfig) {
 	)
 	flagSet.String(
 		nsConfig.namespace+suffixKeyDirectory,
-		nsConfig.KeyDirectory,
+		nsConfig.Directories.Keys,
 		"Path to store the keys (indexes), this directory should reside in SSD disk. Set ephemeral to false if you want to define this setting.",
 	)
 	flagSet.String(
 		nsConfig.namespace+suffixValueDirectory,
-		nsConfig.ValueDirectory,
+		nsConfig.Directories.Values,
 		"Path to store the values (spans). Set ephemeral to false if you want to define this setting.",
 	)
 	flagSet.Bool(
@@ -155,8 +161,8 @@ func (opt *Options) InitFromViper(v *viper.Viper, logger *zap.Logger) {
 
 func initFromViper(cfg *NamespaceConfig, v *viper.Viper, _ *zap.Logger) {
 	cfg.Ephemeral = v.GetBool(cfg.namespace + suffixEphemeral)
-	cfg.KeyDirectory = v.GetString(cfg.namespace + suffixKeyDirectory)
-	cfg.ValueDirectory = v.GetString(cfg.namespace + suffixValueDirectory)
+	cfg.Directories.Keys = v.GetString(cfg.namespace + suffixKeyDirectory)
+	cfg.Directories.Values = v.GetString(cfg.namespace + suffixValueDirectory)
 	cfg.SyncWrites = v.GetBool(cfg.namespace + suffixSyncWrite)
 	cfg.SpanStoreTTL = v.GetDuration(cfg.namespace + suffixSpanstoreTTL)
 	cfg.MaintenanceInterval = v.GetDuration(cfg.namespace + suffixMaintenanceInterval)

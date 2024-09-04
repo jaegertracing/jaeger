@@ -40,8 +40,8 @@ func TestParseOptions(t *testing.T) {
 	assert.False(t, opts.GetPrimary().Ephemeral)
 	assert.True(t, opts.GetPrimary().SyncWrites)
 	assert.Equal(t, time.Duration(168*time.Hour), opts.GetPrimary().SpanStoreTTL)
-	assert.Equal(t, "/var/lib/badger", opts.GetPrimary().KeyDirectory)
-	assert.Equal(t, "/mnt/slow/badger", opts.GetPrimary().ValueDirectory)
+	assert.Equal(t, "/var/lib/badger", opts.GetPrimary().Directories.Keys)
+	assert.Equal(t, "/mnt/slow/badger", opts.GetPrimary().Directories.Values)
 	assert.False(t, opts.GetPrimary().ReadOnly)
 }
 
@@ -67,9 +67,11 @@ func TestValidate_DoesNotReturnErrorWhenValid(t *testing.T) {
 		{
 			name: "all fields are set",
 			config: &NamespaceConfig{
-				SpanStoreTTL:          time.Second,
-				KeyDirectory:          "some-key-directory",
-				ValueDirectory:        "some-value-directory",
+				SpanStoreTTL: time.Second,
+				Directories: Directories{
+					Keys:   "some-key-directory",
+					Values: "some-values-directory",
+				},
 				Ephemeral:             false,
 				SyncWrites:            false,
 				MaintenanceInterval:   time.Second,
