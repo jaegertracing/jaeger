@@ -49,7 +49,7 @@ type TTL struct {
 	// SpanStore holds the amount of time that the span store data is stored.
 	// Once this duration has passed for a given key, span store data will
 	// no longer be accessible.
-	SpanStore time.Duration `mapstructure:"span_store"`
+	Spans time.Duration `mapstructure:"spans"`
 }
 
 type Directories struct {
@@ -83,7 +83,7 @@ func DefaultNamespaceConfig() NamespaceConfig {
 	defaultBadgerDataDir := getCurrentExecutableDir()
 	return NamespaceConfig{
 		TTL: TTL{
-			SpanStore: defaultTTL,
+			Spans: defaultTTL,
 		},
 		SyncWrites: false, // Performance over durability
 		Ephemeral:  true,  // Default is ephemeral storage
@@ -127,7 +127,7 @@ func addFlags(flagSet *flag.FlagSet, nsConfig NamespaceConfig) {
 	)
 	flagSet.Duration(
 		nsConfig.namespace+suffixSpanstoreTTL,
-		nsConfig.TTL.SpanStore,
+		nsConfig.TTL.Spans,
 		"How long to store the data. Format is time.Duration (https://golang.org/pkg/time/#Duration)",
 	)
 	flagSet.String(
@@ -172,7 +172,7 @@ func initFromViper(cfg *NamespaceConfig, v *viper.Viper, _ *zap.Logger) {
 	cfg.Directories.Keys = v.GetString(cfg.namespace + suffixKeyDirectory)
 	cfg.Directories.Values = v.GetString(cfg.namespace + suffixValueDirectory)
 	cfg.SyncWrites = v.GetBool(cfg.namespace + suffixSyncWrite)
-	cfg.TTL.SpanStore = v.GetDuration(cfg.namespace + suffixSpanstoreTTL)
+	cfg.TTL.Spans = v.GetDuration(cfg.namespace + suffixSpanstoreTTL)
 	cfg.MaintenanceInterval = v.GetDuration(cfg.namespace + suffixMaintenanceInterval)
 	cfg.MetricsUpdateInterval = v.GetDuration(cfg.namespace + suffixMetricsInterval)
 	cfg.ReadOnly = v.GetBool(cfg.namespace + suffixReadOnly)
