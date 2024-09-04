@@ -15,7 +15,7 @@ import (
 )
 
 func TestDefaultOptionsParsing(t *testing.T) {
-	opts := NewOptions("badger")
+	opts := NewOptions()
 	v, command := config.Viperize(opts.AddFlags)
 	command.ParseFlags([]string{})
 	opts.InitFromViper(v, zap.NewNop())
@@ -26,7 +26,7 @@ func TestDefaultOptionsParsing(t *testing.T) {
 }
 
 func TestParseOptions(t *testing.T) {
-	opts := NewOptions("badger")
+	opts := NewOptions()
 	v, command := config.Viperize(opts.AddFlags)
 	command.ParseFlags([]string{
 		"--badger.ephemeral=false",
@@ -46,7 +46,7 @@ func TestParseOptions(t *testing.T) {
 }
 
 func TestReadOnlyOptions(t *testing.T) {
-	opts := NewOptions("badger")
+	opts := NewOptions()
 	v, command := config.Viperize(opts.AddFlags)
 	command.ParseFlags([]string{
 		"--badger.read-only=true",

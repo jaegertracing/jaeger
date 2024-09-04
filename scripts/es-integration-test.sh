@@ -29,7 +29,6 @@ check_arg() {
 setup_db() {
   local compose_file=$1
   docker compose -f "${compose_file}" up -d
-  echo "docker_compose_file=${compose_file}" >> "${GITHUB_OUTPUT:-/dev/null}"
 }
 
 # check if the storage is up and running

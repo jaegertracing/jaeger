@@ -22,7 +22,6 @@ type Options struct {
 
 // NamespaceConfig is badger's internal configuration data.
 type NamespaceConfig struct {
-	namespace string
 	// TTL holds time-to-live configuration for the badger store.
 	TTL TTL `mapstructure:"ttl"`
 	// Directories contains the configuration for where items are stored. Ephemeral must be
@@ -66,6 +65,7 @@ const (
 )
 
 const (
+	prefix                    = "badger"
 	suffixKeyDirectory        = ".directory-key"
 	suffixValueDirectory      = ".directory-value"
 	suffixEphemeral           = ".ephemeral"
@@ -97,9 +97,9 @@ func DefaultNamespaceConfig() NamespaceConfig {
 }
 
 // NewOptions creates a new Options struct.
-func NewOptions(primaryNamespace string, _ ...string /* otherNamespaces */) *Options {
+// @nocommit func NewOptions(primaryNamespace string, _ ...string /* otherNamespaces */) *Options {
+func NewOptions() *Options {
 	defaultConfig := DefaultNamespaceConfig()
-	defaultConfig.namespace = primaryNamespace
 
 	options := &Options{
 		Primary: defaultConfig,
@@ -121,7 +121,7 @@ func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
 
 func addFlags(flagSet *flag.FlagSet, nsConfig NamespaceConfig) {
 	flagSet.Bool(
-		nsConfig.namespace+suffixEphemeral,
+		prefix+suffixEphemeral,
 		nsConfig.Ephemeral,
 		"Mark this storage ephemeral, data is stored in tmpfs.",
 	)
@@ -141,22 +141,22 @@ func addFlags(flagSet *flag.FlagSet, nsConfig NamespaceConfig) {
 		"Path to store the values (spans). Set ephemeral to false if you want to define this setting.",
 	)
 	flagSet.Bool(
-		nsConfig.namespace+suffixSyncWrite,
+		prefix+suffixSyncWrite,
 		nsConfig.SyncWrites,
 		"If all writes should be synced immediately to physical disk. This will impact write performance.",
 	)
 	flagSet.Duration(
-		nsConfig.namespace+suffixMaintenanceInterval,
+		prefix+suffixMaintenanceInterval,
 		nsConfig.MaintenanceInterval,
 		"How often the maintenance thread for values is ran. Format is time.Duration (https://golang.org/pkg/time/#Duration)",
 	)
 	flagSet.Duration(
-		nsConfig.namespace+suffixMetricsInterval,
+		prefix+suffixMetricsInterval,
 		nsConfig.MetricsUpdateInterval,
 		"How often the badger metrics are collected by Jaeger. Format is time.Duration (https://golang.org/pkg/time/#Duration)",
 	)
 	flagSet.Bool(
-		nsConfig.namespace+suffixReadOnly,
+		prefix+suffixReadOnly,
 		nsConfig.ReadOnly,
 		"Allows to open badger database in read only mode. Multiple instances can open same database in read-only mode. Values still in the write-ahead-log must be replayed before opening.",
 	)

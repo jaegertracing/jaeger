@@ -1,7 +1,9 @@
 # Copyright (c) 2023 The Jaeger Authors.
 # SPDX-License-Identifier: Apache-2.0
 
-GOBUILD=CGO_ENABLED=0 installsuffix=cgo $(GO) build -trimpath
+# This command expects $GOOS/$GOARCH env variables set to reflect the desired target platform.
+GOBUILD=echo "building binary for $$(go env GOOS)-$$(go env GOARCH)"; \
+  CGO_ENABLED=0 installsuffix=cgo $(GO) build -trimpath
 
 ifeq ($(DEBUG_BINARY),)
 	DISABLE_OPTIMIZATIONS =
@@ -29,13 +31,11 @@ jaeger-ui/packages/jaeger-ui/build/index.html:
 
 .PHONY: rebuild-ui
 rebuild-ui:
+	@echo "::group::rebuild-ui logs"
 	bash ./scripts/rebuild-ui.sh
 	@echo "NOTE: This target only rebuilds the UI assets inside jaeger-ui/packages/jaeger-ui/build/."
 	@echo "NOTE: To make them usable from query-service run 'make build-ui'."
-
-.PHONY: build-all-in-one-linux
-build-all-in-one-linux:
-	GOOS=linux $(MAKE) build-all-in-one
+	@echo "::endgroup::"
 
 .PHONY: build-examples
 build-examples:
@@ -101,38 +101,35 @@ build-ingester: _build-a-binary-ingester$(SUFFIX)-$(GOOS)-$(GOARCH)
 build-remote-storage: BIN_NAME = remote-storage
 build-remote-storage: _build-a-binary-remote-storage$(SUFFIX)-$(GOOS)-$(GOARCH)
 
-.PHONY: build-binaries-linux
-build-binaries-linux: build-binaries-amd64
-
-.PHONY: build-binaries-amd64
-build-binaries-amd64:
+.PHONY: build-binaries-linux-amd64
+build-binaries-linux-amd64:
 	GOOS=linux GOARCH=amd64 $(MAKE) _build-platform-binaries
 
-# helper targets defined in Makefile.Windows.mk
-.PHONY: build-binaries-windows
-build-binaries-windows:
+# helper sysp targets are defined in Makefile.Windows.mk
+.PHONY: build-binaries-windows-amd64
+build-binaries-windows-amd64:
 	$(MAKE) _build-syso
 	GOOS=windows GOARCH=amd64 $(MAKE) _build-platform-binaries
 	$(MAKE) _clean-syso
 
-.PHONY: build-binaries-darwin
-build-binaries-darwin:
+.PHONY: build-binaries-darwin-amd64
+build-binaries-darwin-amd64:
 	GOOS=darwin GOARCH=amd64 $(MAKE) _build-platform-binaries
 
 .PHONY: build-binaries-darwin-arm64
 build-binaries-darwin-arm64:
 	GOOS=darwin GOARCH=arm64 $(MAKE) _build-platform-binaries
 
-.PHONY: build-binaries-s390x
-build-binaries-s390x:
+.PHONY: build-binaries-linux-s390x
+build-binaries-linux-s390x:
 	GOOS=linux GOARCH=s390x $(MAKE) _build-platform-binaries
 
-.PHONY: build-binaries-arm64
-build-binaries-arm64:
+.PHONY: build-binaries-linux-arm64
+build-binaries-linux-arm64:
 	GOOS=linux GOARCH=arm64 $(MAKE) _build-platform-binaries
 
-.PHONY: build-binaries-ppc64le
-build-binaries-ppc64le:
+.PHONY: build-binaries-linux-ppc64le
+build-binaries-linux-ppc64le:
 	GOOS=linux GOARCH=ppc64le $(MAKE) _build-platform-binaries
 
 # build all binaries for one specific platform GOOS/GOARCH
@@ -156,6 +153,7 @@ _build-platform-binaries: \
 
 # build binaries that support DEBUG release, for one specific platform GOOS/GOARCH
 .PHONY: _build-platform-binaries-debug
+_build-platform-binaries-debug:
 _build-platform-binaries-debug: \
 	build-agent \
 	build-collector \
@@ -166,11 +164,8 @@ _build-platform-binaries-debug: \
 	build-jaeger
 
 .PHONY: build-all-platforms
-build-all-platforms: \
-	build-binaries-linux \
-	build-binaries-windows \
-	build-binaries-darwin \
-	build-binaries-darwin-arm64 \
-	build-binaries-s390x \
-	build-binaries-arm64 \
-	build-binaries-ppc64le
+build-all-platforms:
+	for platform in $$(echo "$(PLATFORMS)" | tr ',' ' ' | tr '/' '-'); do \
+	  echo "Building binaries for $$platform"; \
+	  $(MAKE) build-binaries-$$platform; \
+	done
