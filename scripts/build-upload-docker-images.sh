@@ -48,7 +48,7 @@ set -x
 if [[ "$build_binaries" == "Y" ]]; then
   for platform in $(echo "$platforms" | tr ',' ' '); do
     arch=${platform##*/}  # Remove everything before the last slash
-    make "build-binaries-$arch"
+    make "build-binaries-linux-$arch"
   done
 fi
 

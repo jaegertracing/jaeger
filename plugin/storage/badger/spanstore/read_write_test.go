@@ -373,7 +373,7 @@ func TestPersist(t *testing.T) {
 			require.NoError(t, f.Close())
 		}()
 
-		opts := badger.NewOptions("badger")
+		opts := badger.NewOptions()
 		v, command := config.Viperize(opts.AddFlags)
 
 		keyParam := fmt.Sprintf("--badger.directory-key=%s", dir)
@@ -438,7 +438,7 @@ func runFactoryTest(tb testing.TB, test func(tb testing.TB, sw spanstore.Writer,
 		require.NoError(tb, f.Close())
 	}()
 
-	opts := badger.NewOptions("badger")
+	opts := badger.NewOptions()
 	v, command := config.Viperize(opts.AddFlags)
 	command.ParseFlags([]string{
 		"--badger.ephemeral=true",
@@ -598,7 +598,7 @@ func BenchmarkServiceIndexLimitFetch(b *testing.B) {
 func runLargeFactoryTest(tb testing.TB, test func(tb testing.TB, sw spanstore.Writer, sr spanstore.Reader)) {
 	assertion := require.New(tb)
 	f := badger.NewFactory()
-	opts := badger.NewOptions("badger")
+	opts := badger.NewOptions()
 	v, command := config.Viperize(opts.AddFlags)
 
 	dir := filepath.Join(tb.TempDir(), "badger-testRun")
