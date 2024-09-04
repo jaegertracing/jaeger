@@ -126,17 +126,17 @@ func addFlags(flagSet *flag.FlagSet, nsConfig NamespaceConfig) {
 		"Mark this storage ephemeral, data is stored in tmpfs.",
 	)
 	flagSet.Duration(
-		nsConfig.namespace+suffixSpanstoreTTL,
+		prefix+suffixSpanstoreTTL,
 		nsConfig.TTL.Spans,
 		"How long to store the data. Format is time.Duration (https://golang.org/pkg/time/#Duration)",
 	)
 	flagSet.String(
-		nsConfig.namespace+suffixKeyDirectory,
+		prefix+suffixKeyDirectory,
 		nsConfig.Directories.Keys,
 		"Path to store the keys (indexes), this directory should reside in SSD disk. Set ephemeral to false if you want to define this setting.",
 	)
 	flagSet.String(
-		nsConfig.namespace+suffixValueDirectory,
+		prefix+suffixValueDirectory,
 		nsConfig.Directories.Values,
 		"Path to store the values (spans). Set ephemeral to false if you want to define this setting.",
 	)
@@ -168,14 +168,14 @@ func (opt *Options) InitFromViper(v *viper.Viper, logger *zap.Logger) {
 }
 
 func initFromViper(cfg *NamespaceConfig, v *viper.Viper, _ *zap.Logger) {
-	cfg.Ephemeral = v.GetBool(cfg.namespace + suffixEphemeral)
-	cfg.Directories.Keys = v.GetString(cfg.namespace + suffixKeyDirectory)
-	cfg.Directories.Values = v.GetString(cfg.namespace + suffixValueDirectory)
-	cfg.SyncWrites = v.GetBool(cfg.namespace + suffixSyncWrite)
-	cfg.TTL.Spans = v.GetDuration(cfg.namespace + suffixSpanstoreTTL)
-	cfg.MaintenanceInterval = v.GetDuration(cfg.namespace + suffixMaintenanceInterval)
-	cfg.MetricsUpdateInterval = v.GetDuration(cfg.namespace + suffixMetricsInterval)
-	cfg.ReadOnly = v.GetBool(cfg.namespace + suffixReadOnly)
+	cfg.Ephemeral = v.GetBool(prefix + suffixEphemeral)
+	cfg.Directories.Keys = v.GetString(prefix + suffixKeyDirectory)
+	cfg.Directories.Values = v.GetString(prefix + suffixValueDirectory)
+	cfg.SyncWrites = v.GetBool(prefix + suffixSyncWrite)
+	cfg.TTL.Spans = v.GetDuration(prefix + suffixSpanstoreTTL)
+	cfg.MaintenanceInterval = v.GetDuration(prefix + suffixMaintenanceInterval)
+	cfg.MetricsUpdateInterval = v.GetDuration(prefix + suffixMetricsInterval)
+	cfg.ReadOnly = v.GetBool(prefix + suffixReadOnly)
 }
 
 // GetPrimary returns the primary namespace configuration
