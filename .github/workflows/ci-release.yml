@@ -104,7 +104,7 @@ jobs:
 
     - name: Package binaries
       id: package-binaries
-      run: bash scripts/package-deploy.sh -p ${{ steps.params.outputs.platforms }} ${{ gpg_key_override }}
+      run: bash scripts/package-deploy.sh -p ${{ steps.params.outputs.platforms }} ${{ steps.params.outputs.gpg_key_override }}
 
     - name: Upload binaries
       if: ${{ inputs.dry_run != true }}
