@@ -23,9 +23,8 @@ type Options struct {
 // NamespaceConfig is badger's internal configuration data.
 type NamespaceConfig struct {
 	namespace string
-	// SpanStoreTTL holds the amount of time that the span store data is stored.
-	// Once this duration has passed for a given key, it will no longer be accessible.
-	SpanStoreTTL time.Duration `mapstructure:"span_store_ttl"`
+	// TTL holds time-to-live configuration for the badger store.
+	TTL TTL `mapstructure:"ttl"`
 	// Directories contains the configuration for where items are stored. Ephemeral must be
 	// set to false for this configuration to take effect.
 	Directories Directories `mapstructure:"directories"`
@@ -44,6 +43,13 @@ type NamespaceConfig struct {
 	// ReadOnly opens the data store in read-only mode. Multiple instances can open the same
 	// store in read-only mode. Values still in the write-ahead-log must be replayed before opening.
 	ReadOnly bool `mapstructure:"read_only"`
+}
+
+type TTL struct {
+	// SpanStore holds the amount of time that the span store data is stored.
+	// Once this duration has passed for a given key, span store data will
+	// no longer be accessible.
+	SpanStore time.Duration `mapstructure:"span_store"`
 }
 
 type Directories struct {
@@ -76,9 +82,11 @@ const (
 func DefaultNamespaceConfig() NamespaceConfig {
 	defaultBadgerDataDir := getCurrentExecutableDir()
 	return NamespaceConfig{
-		SpanStoreTTL: defaultTTL,
-		SyncWrites:   false, // Performance over durability
-		Ephemeral:    true,  // Default is ephemeral storage
+		TTL: TTL{
+			SpanStore: defaultTTL,
+		},
+		SyncWrites: false, // Performance over durability
+		Ephemeral:  true,  // Default is ephemeral storage
 		Directories: Directories{
 			Keys:   defaultBadgerDataDir + defaultKeysDir,
 			Values: defaultBadgerDataDir + defaultValueDir,
@@ -119,7 +127,7 @@ func addFlags(flagSet *flag.FlagSet, nsConfig NamespaceConfig) {
 	)
 	flagSet.Duration(
 		nsConfig.namespace+suffixSpanstoreTTL,
-		nsConfig.SpanStoreTTL,
+		nsConfig.TTL.SpanStore,
 		"How long to store the data. Format is time.Duration (https://golang.org/pkg/time/#Duration)",
 	)
 	flagSet.String(
@@ -164,7 +172,7 @@ func initFromViper(cfg *NamespaceConfig, v *viper.Viper, _ *zap.Logger) {
 	cfg.Directories.Keys = v.GetString(cfg.namespace + suffixKeyDirectory)
 	cfg.Directories.Values = v.GetString(cfg.namespace + suffixValueDirectory)
 	cfg.SyncWrites = v.GetBool(cfg.namespace + suffixSyncWrite)
-	cfg.SpanStoreTTL = v.GetDuration(cfg.namespace + suffixSpanstoreTTL)
+	cfg.TTL.SpanStore = v.GetDuration(cfg.namespace + suffixSpanstoreTTL)
 	cfg.MaintenanceInterval = v.GetDuration(cfg.namespace + suffixMaintenanceInterval)
 	cfg.MetricsUpdateInterval = v.GetDuration(cfg.namespace + suffixMetricsInterval)
 	cfg.ReadOnly = v.GetBool(cfg.namespace + suffixReadOnly)

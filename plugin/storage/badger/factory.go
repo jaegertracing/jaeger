@@ -147,7 +147,7 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 	}
 	f.store = store
 
-	f.cache = badgerStore.NewCacheStore(f.store, f.Options.Primary.SpanStoreTTL, true)
+	f.cache = badgerStore.NewCacheStore(f.store, f.Options.Primary.TTL.SpanStore, true)
 
 	f.metrics.ValueLogSpaceAvailable = metricsFactory.Gauge(metrics.Options{Name: valueLogSpaceAvailableName})
 	f.metrics.KeyLogSpaceAvailable = metricsFactory.Gauge(metrics.Options{Name: keyLogSpaceAvailableName})
@@ -178,7 +178,7 @@ func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
 
 // CreateSpanWriter implements storage.Factory
 func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
-	return badgerStore.NewSpanWriter(f.store, f.cache, f.Options.Primary.SpanStoreTTL), nil
+	return badgerStore.NewSpanWriter(f.store, f.cache, f.Options.Primary.TTL.SpanStore), nil
 }
 
 // CreateDependencyReader implements storage.Factory
