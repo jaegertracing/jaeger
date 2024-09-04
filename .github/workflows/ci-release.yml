@@ -71,6 +71,7 @@ jobs:
         if [[ "${{ inputs.dry_run }}" == "true" ]]; then
           echo "platforms=linux/amd64" >> $GITHUB_OUTPUT
           echo "linux_platforms=linux/amd64" >> $GITHUB_OUTPUT
+          echo "gpg_key_override=-k skip" >> $GITHUB_OUTPUT
         else
           echo "platforms=$(make echo-platforms)" >> $GITHUB_OUTPUT
           echo "linux_platforms=$(make echo-linux-platforms)" >> $GITHUB_OUTPUT
@@ -103,8 +104,7 @@ jobs:
 
     - name: Package binaries
       id: package-binaries
-      # TODO @nocommit skip signing step when in dry run or create a fake signature
-      run: bash scripts/package-deploy.sh -p ${{ steps.params.outputs.platforms }}
+      run: bash scripts/package-deploy.sh -p ${{ steps.params.outputs.platforms }} ${{ gpg_key_override }}
 
     - name: Upload binaries
       if: ${{ inputs.dry_run != true }}
