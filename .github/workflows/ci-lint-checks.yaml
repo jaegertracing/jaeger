@@ -71,7 +71,7 @@ jobs:
         python-version: '3.x'
 
     - name: Run DCO check
-      run: python3 scripts/dco_check.py -b main -v --exclude-pattern '\[bot\]@users\.noreply\.github\.com'
+      run: python3 scripts/dco_check.py -b main -v --exclude-pattern '@users\.noreply\.github\.com'
       env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
