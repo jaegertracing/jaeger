@@ -77,7 +77,7 @@ type Factory struct {
 // NewFactory creates a new Factory.
 func NewFactory() *Factory {
 	return &Factory{
-		Options:         NewOptions("badger"),
+		Options:         NewOptions(),
 		maintenanceDone: make(chan bool),
 	}
 }

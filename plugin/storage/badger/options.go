@@ -21,7 +21,6 @@ type Options struct {
 
 // NamespaceConfig is badger's internal configuration data
 type NamespaceConfig struct {
-	namespace      string
 	SpanStoreTTL   time.Duration `mapstructure:"span_store_ttl"`
 	ValueDirectory string        `mapstructure:"directory_value"`
 	KeyDirectory   string        `mapstructure:"directory_key"`
@@ -40,6 +39,7 @@ const (
 )
 
 const (
+	prefix                    = "badger"
 	suffixKeyDirectory        = ".directory-key"
 	suffixValueDirectory      = ".directory-value"
 	suffixEphemeral           = ".ephemeral"
@@ -67,9 +67,9 @@ func DefaultNamespaceConfig() NamespaceConfig {
 }
 
 // NewOptions creates a new Options struct.
-func NewOptions(primaryNamespace string, _ ...string /* otherNamespaces */) *Options {
+// @nocommit func NewOptions(primaryNamespace string, _ ...string /* otherNamespaces */) *Options {
+func NewOptions() *Options {
 	defaultConfig := DefaultNamespaceConfig()
-	defaultConfig.namespace = primaryNamespace
 
 	options := &Options{
 		Primary: defaultConfig,
@@ -91,42 +91,42 @@ func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
 
 func addFlags(flagSet *flag.FlagSet, nsConfig NamespaceConfig) {
 	flagSet.Bool(
-		nsConfig.namespace+suffixEphemeral,
+		prefix+suffixEphemeral,
 		nsConfig.Ephemeral,
 		"Mark this storage ephemeral, data is stored in tmpfs.",
 	)
 	flagSet.Duration(
-		nsConfig.namespace+suffixSpanstoreTTL,
+		prefix+suffixSpanstoreTTL,
 		nsConfig.SpanStoreTTL,
 		"How long to store the data. Format is time.Duration (https://golang.org/pkg/time/#Duration)",
 	)
 	flagSet.String(
-		nsConfig.namespace+suffixKeyDirectory,
+		prefix+suffixKeyDirectory,
 		nsConfig.KeyDirectory,
 		"Path to store the keys (indexes), this directory should reside in SSD disk. Set ephemeral to false if you want to define this setting.",
 	)
 	flagSet.String(
-		nsConfig.namespace+suffixValueDirectory,
+		prefix+suffixValueDirectory,
 		nsConfig.ValueDirectory,
 		"Path to store the values (spans). Set ephemeral to false if you want to define this setting.",
 	)
 	flagSet.Bool(
-		nsConfig.namespace+suffixSyncWrite,
+		prefix+suffixSyncWrite,
 		nsConfig.SyncWrites,
 		"If all writes should be synced immediately to physical disk. This will impact write performance.",
 	)
 	flagSet.Duration(
-		nsConfig.namespace+suffixMaintenanceInterval,
+		prefix+suffixMaintenanceInterval,
 		nsConfig.MaintenanceInterval,
 		"How often the maintenance thread for values is ran. Format is time.Duration (https://golang.org/pkg/time/#Duration)",
 	)
 	flagSet.Duration(
-		nsConfig.namespace+suffixMetricsInterval,
+		prefix+suffixMetricsInterval,
 		nsConfig.MetricsUpdateInterval,
 		"How often the badger metrics are collected by Jaeger. Format is time.Duration (https://golang.org/pkg/time/#Duration)",
 	)
 	flagSet.Bool(
-		nsConfig.namespace+suffixReadOnly,
+		prefix+suffixReadOnly,
 		nsConfig.ReadOnly,
 		"Allows to open badger database in read only mode. Multiple instances can open same database in read-only mode. Values still in the write-ahead-log must be replayed before opening.",
 	)
@@ -138,14 +138,14 @@ func (opt *Options) InitFromViper(v *viper.Viper, logger *zap.Logger) {
 }
 
 func initFromViper(cfg *NamespaceConfig, v *viper.Viper, _ *zap.Logger) {
-	cfg.Ephemeral = v.GetBool(cfg.namespace + suffixEphemeral)
-	cfg.KeyDirectory = v.GetString(cfg.namespace + suffixKeyDirectory)
-	cfg.ValueDirectory = v.GetString(cfg.namespace + suffixValueDirectory)
-	cfg.SyncWrites = v.GetBool(cfg.namespace + suffixSyncWrite)
-	cfg.SpanStoreTTL = v.GetDuration(cfg.namespace + suffixSpanstoreTTL)
-	cfg.MaintenanceInterval = v.GetDuration(cfg.namespace + suffixMaintenanceInterval)
-	cfg.MetricsUpdateInterval = v.GetDuration(cfg.namespace + suffixMetricsInterval)
-	cfg.ReadOnly = v.GetBool(cfg.namespace + suffixReadOnly)
+	cfg.Ephemeral = v.GetBool(prefix + suffixEphemeral)
+	cfg.KeyDirectory = v.GetString(prefix + suffixKeyDirectory)
+	cfg.ValueDirectory = v.GetString(prefix + suffixValueDirectory)
+	cfg.SyncWrites = v.GetBool(prefix + suffixSyncWrite)
+	cfg.SpanStoreTTL = v.GetDuration(prefix + suffixSpanstoreTTL)
+	cfg.MaintenanceInterval = v.GetDuration(prefix + suffixMaintenanceInterval)
+	cfg.MetricsUpdateInterval = v.GetDuration(prefix + suffixMetricsInterval)
+	cfg.ReadOnly = v.GetBool(prefix + suffixReadOnly)
 }
 
 // GetPrimary returns the primary namespace configuration
