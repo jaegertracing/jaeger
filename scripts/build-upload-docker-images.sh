@@ -20,27 +20,27 @@ build_binaries='Y'
 platforms="$(make echo-linux-platforms)"
 LOCAL_FLAG=''
 
-while getopts "Dhlp:" opt; do
-	case "${opt}" in
-	B)
-		build_binaries='N'
+while getopts "BDhlp:" opt; do
+  case "${opt}" in
+  B)
+    build_binaries='N'
     echo "Skip buliding binaries"
-		;;
-	D)
-		add_debugger='N'
+    ;;
+  D)
+    add_debugger='N'
     echo "Skip buliding debug images"
-		;;
-	l)
-		# in the local-only mode the images will only be pushed to local registry
-		LOCAL_FLAG='-l'
-		;;
-	p)
-		platforms=${OPTARG}
-		;;
-	?)
-		print_help
-		;;
-	esac
+    ;;
+  l)
+    # in the local-only mode the images will only be pushed to local registry
+    LOCAL_FLAG='-l'
+    ;;
+  p)
+    platforms=${OPTARG}
+    ;;
+  ?)
+    print_help
+    ;;
+  esac
 done
 
 set -x
@@ -48,7 +48,7 @@ set -x
 if [[ "$build_binaries" == "Y" ]]; then
   for platform in $(echo "$platforms" | tr ',' ' '); do
     arch=${platform##*/}  # Remove everything before the last slash
-    make "build-binaries-linux-$arch"
+    make "build-binaries-$arch"
   done
 fi
 
