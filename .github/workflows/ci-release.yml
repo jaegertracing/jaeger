@@ -9,10 +9,19 @@ on:
     # Determine the version numbers that will be assigned to the release.
     inputs:
       version_v1:
+        required: true
+        type: string
         description: Version number for 1.x components. Don't include a leading `v`.
 
       version_v2:
+        required: true
+        type: string
         description: Version number for 2.x components. Don't include a leading `v`.
+
+      dry_run:
+        required: true
+        type: boolean
+        description: Pass `true` for a test run. It will only build one platform (for speed) and will not push artifacts.
 
 # See https://github.com/jaegertracing/jaeger/issues/4017
 permissions:
@@ -56,10 +65,16 @@ jobs:
     - name: Setup Node.js version
       uses: ./.github/actions/setup-node.js
 
-    - name: Determine if this is a dry run
-      id: dry_run
+    - name: Determine parameters
+      id: params
       run: |
-        echo "dry_run=true" >> $GITHUB_OUTPUT
+        if [[ "${{ inputs.dry_run }}" == "true" ]]; then
+          echo "platforms=linux/amd64" >> $GITHUB_OUTPUT
+          echo "linux_platforms=linux/amd64" >> $GITHUB_OUTPUT
+        else
+          echo "platforms=$(make echo-platforms)" >> $GITHUB_OUTPUT
+          echo "linux_platforms=$(make echo-linux-platforms)" >> $GITHUB_OUTPUT
+        fi
 
     - name: Export BRANCH variable and validate it is a semver
       # Many scripts depend on BRANCH variable. We do not want to
@@ -77,22 +92,22 @@ jobs:
       run: make install-ci
 
     - name: Configure GPG Key
-      if: ${{ steps.dry_run.outputs.dry_run != "true" }}
+      if: ${{ inputs.dry_run != true }}
       uses: crazy-max/ghaction-import-gpg@01dd5d3ca463c7f10f7f4f7b4f177225ac661ee4 # v6.1.0
       with:
         gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
         passphrase: ${{ secrets.GPG_PASSPHRASE }}
 
     - name: Build all binaries
-      run: make build-all-platforms
+      run: make build-all-platforms PLATFORMS=${{ steps.params.outputs.platforms }}
 
     - name: Package binaries
       id: package-binaries
       # TODO @nocommit skip signing step when in dry run or create a fake signature
-      run: bash scripts/package-deploy.sh
+      run: bash scripts/package-deploy.sh -p ${{ steps.params.outputs.platforms }}
 
     - name: Upload binaries
-      if: ${{ steps.dry_run.outputs.dry_run != "true" }}
+      if: ${{ inputs.dry_run != true }}
       uses: svenstaro/upload-release-action@04733e069f2d7f7f0b4aebc4fbdbce8613b03ccd # 2.9.0
       with:
         file: '{deploy/*.tar.gz,deploy/*.zip,deploy/*.sha256sum.txt,deploy/*.asc}'
@@ -110,19 +125,19 @@ jobs:
 
     - name: Build and upload all container images
       # -B skips building the binaries since we already did that above
-      run: bash scripts/build-upload-docker-images.sh -B
+      run: bash scripts/build-upload-docker-images.sh -B -p ${{ steps.params.outputs.linux_platforms }}
       env:
         DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
 
     - name: Build, test, and publish all-in-one image
-      run: bash scripts/build-all-in-one-image.sh
+      run: bash scripts/build-all-in-one-image.sh -p ${{ steps.params.outputs.linux_platforms }}
       env:
         DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
 
     - name: Build, test, and publish hotrod image
-      run: bash scripts/hotrod-integration-test.sh
+      run: bash scripts/hotrod-integration-test.sh -p ${{ steps.params.outputs.linux_platforms }}
       env:
         DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
@@ -139,6 +154,7 @@ jobs:
       # when the workflow is triggered manually, only from a release.
       # See https://github.com/jaegertracing/jaeger/issues/4817
       uses: svenstaro/upload-release-action@04733e069f2d7f7f0b4aebc4fbdbce8613b03ccd # 2.9.0
+      if: ${{ inputs.dry_run != true }}
       with:
         file: jaeger-SBOM.spdx.json
         overwrite: true

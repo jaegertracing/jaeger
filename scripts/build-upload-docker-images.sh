@@ -24,11 +24,11 @@ while getopts "BDhlp:" opt; do
   case "${opt}" in
   B)
     build_binaries='N'
-    echo "Skip buliding binaries"
+    echo "Will not build binaries as requested"
     ;;
   D)
     add_debugger='N'
-    echo "Skip buliding debug images"
+    echo "Will not build debug images as requested"
     ;;
   l)
     # in the local-only mode the images will only be pushed to local registry
@@ -48,7 +48,7 @@ set -x
 if [[ "$build_binaries" == "Y" ]]; then
   for platform in $(echo "$platforms" | tr ',' ' '); do
     arch=${platform##*/}  # Remove everything before the last slash
-    make "build-binaries-$arch"
+    make "build-binaries-linux-$arch"
   done
 fi
 
