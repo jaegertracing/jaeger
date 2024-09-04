@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # This command expects $GOOS/$GOARCH env variables set to reflect the desired target platform.
-GOBUILD=echo "building for $$(go env GOOS)-$$(go env GOARCH)"; \
+GOBUILD=echo "building binary for $$(go env GOOS)-$$(go env GOARCH)"; \
   CGO_ENABLED=0 installsuffix=cgo $(GO) build -trimpath
 
 ifeq ($(DEBUG_BINARY),)
@@ -164,11 +164,8 @@ _build-platform-binaries-debug: \
 	build-jaeger
 
 .PHONY: build-all-platforms
-build-all-platforms: \
-	build-binaries-linux-amd64 \
-	build-binaries-windows-amd64 \
-	build-binaries-darwin-amd64 \
-	build-binaries-darwin-arm64 \
-	build-binaries-linux-s390x \
-	build-binaries-linux-arm64 \
-	build-binaries-linux-ppc64le
+build-all-platforms:
+	for platform in $$(echo "$(PLATFORMS)" | tr ',' ' ' | tr '/' '-'); do \
+	  echo "Building binaries for $$platform"; \
+	  $(MAKE) build-binaries-$$platform; \
+	done
