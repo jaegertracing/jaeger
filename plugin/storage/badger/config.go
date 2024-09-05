@@ -11,6 +11,15 @@ import (
 	"github.com/asaskevich/govalidator"
 )
 
+const (
+	defaultMaintenanceInterval   time.Duration = 5 * time.Minute
+	defaultMetricsUpdateInterval time.Duration = 10 * time.Second
+	defaultTTL                   time.Duration = time.Hour * 72
+	defaultDataDir               string        = string(os.PathSeparator) + "data"
+	defaultValueDir              string        = defaultDataDir + string(os.PathSeparator) + "values"
+	defaultKeysDir               string        = defaultDataDir + string(os.PathSeparator) + "keys"
+)
+
 // Config is badger's internal configuration data.
 type Config struct {
 	// TTL holds time-to-live configuration for the badger store.
@@ -48,15 +57,6 @@ type Directories struct {
 	// Values contains the directory in which the values are stored.
 	Values string `mapstructure:"values"`
 }
-
-const (
-	defaultMaintenanceInterval   time.Duration = 5 * time.Minute
-	defaultMetricsUpdateInterval time.Duration = 10 * time.Second
-	defaultTTL                   time.Duration = time.Hour * 72
-	defaultDataDir               string        = string(os.PathSeparator) + "data"
-	defaultValueDir              string        = defaultDataDir + string(os.PathSeparator) + "values"
-	defaultKeysDir               string        = defaultDataDir + string(os.PathSeparator) + "keys"
-)
 
 func DefaultConfig() *Config {
 	defaultBadgerDataDir := getCurrentExecutableDir()
