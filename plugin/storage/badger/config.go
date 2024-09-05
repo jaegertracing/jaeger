@@ -4,14 +4,11 @@
 package badger
 
 import (
-	"flag"
 	"os"
 	"path/filepath"
 	"time"
 
 	"github.com/asaskevich/govalidator"
-	"github.com/spf13/viper"
-	"go.uber.org/zap"
 )
 
 // Config is badger's internal configuration data.
@@ -56,24 +53,12 @@ const (
 	defaultMaintenanceInterval   time.Duration = 5 * time.Minute
 	defaultMetricsUpdateInterval time.Duration = 10 * time.Second
 	defaultTTL                   time.Duration = time.Hour * 72
+	defaultDataDir               string        = string(os.PathSeparator) + "data"
+	defaultValueDir              string        = defaultDataDir + string(os.PathSeparator) + "values"
+	defaultKeysDir               string        = defaultDataDir + string(os.PathSeparator) + "keys"
 )
 
-const (
-	prefix                    = "badger"
-	suffixKeyDirectory        = ".directory-key"
-	suffixValueDirectory      = ".directory-value"
-	suffixEphemeral           = ".ephemeral"
-	suffixSpanstoreTTL        = ".span-store-ttl"
-	suffixSyncWrite           = ".consistency"
-	suffixMaintenanceInterval = ".maintenance-interval"
-	suffixMetricsInterval     = ".metrics-update-interval" // Intended only for testing purposes
-	suffixReadOnly            = ".read-only"
-	defaultDataDir            = string(os.PathSeparator) + "data"
-	defaultValueDir           = defaultDataDir + string(os.PathSeparator) + "values"
-	defaultKeysDir            = defaultDataDir + string(os.PathSeparator) + "keys"
-)
-
-func NewConfig() *Config {
+func DefaultConfig() *Config {
 	defaultBadgerDataDir := getCurrentExecutableDir()
 	return &Config{
 		TTL: TTL{
@@ -94,66 +79,6 @@ func getCurrentExecutableDir() string {
 	// We ignore the error, this will fail later when trying to start the store
 	exec, _ := os.Executable()
 	return filepath.Dir(exec)
-}
-
-// AddFlags adds flags for Config.
-func (c *Config) AddFlags(flagSet *flag.FlagSet) {
-	flagSet.Bool(
-		prefix+suffixEphemeral,
-		c.Ephemeral,
-		"Mark this storage ephemeral, data is stored in tmpfs.",
-	)
-	flagSet.Duration(
-		prefix+suffixSpanstoreTTL,
-		c.TTL.Spans,
-		"How long to store the data. Format is time.Duration (https://golang.org/pkg/time/#Duration)",
-	)
-	flagSet.String(
-		prefix+suffixKeyDirectory,
-		c.Directories.Keys,
-		"Path to store the keys (indexes), this directory should reside in SSD disk. Set ephemeral to false if you want to define this setting.",
-	)
-	flagSet.String(
-		prefix+suffixValueDirectory,
-		c.Directories.Values,
-		"Path to store the values (spans). Set ephemeral to false if you want to define this setting.",
-	)
-	flagSet.Bool(
-		prefix+suffixSyncWrite,
-		c.SyncWrites,
-		"If all writes should be synced immediately to physical disk. This will impact write performance.",
-	)
-	flagSet.Duration(
-		prefix+suffixMaintenanceInterval,
-		c.MaintenanceInterval,
-		"How often the maintenance thread for values is ran. Format is time.Duration (https://golang.org/pkg/time/#Duration)",
-	)
-	flagSet.Duration(
-		prefix+suffixMetricsInterval,
-		c.MetricsUpdateInterval,
-		"How often the badger metrics are collected by Jaeger. Format is time.Duration (https://golang.org/pkg/time/#Duration)",
-	)
-	flagSet.Bool(
-		prefix+suffixReadOnly,
-		c.ReadOnly,
-		"Allows to open badger database in read only mode. Multiple instances can open same database in read-only mode. Values still in the write-ahead-log must be replayed before opening.",
-	)
-}
-
-// InitFromViper initializes Config with properties from viper.
-func (c *Config) InitFromViper(v *viper.Viper, logger *zap.Logger) {
-	initFromViper(c, v, logger)
-}
-
-func initFromViper(config *Config, v *viper.Viper, _ *zap.Logger) {
-	config.Ephemeral = v.GetBool(prefix + suffixEphemeral)
-	config.Directories.Keys = v.GetString(prefix + suffixKeyDirectory)
-	config.Directories.Values = v.GetString(prefix + suffixValueDirectory)
-	config.SyncWrites = v.GetBool(prefix + suffixSyncWrite)
-	config.TTL.Spans = v.GetDuration(prefix + suffixSpanstoreTTL)
-	config.MaintenanceInterval = v.GetDuration(prefix + suffixMaintenanceInterval)
-	config.MetricsUpdateInterval = v.GetDuration(prefix + suffixMetricsInterval)
-	config.ReadOnly = v.GetBool(prefix + suffixReadOnly)
 }
 
 func (c *Config) Validate() error {

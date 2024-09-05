@@ -28,7 +28,7 @@ func runFactoryTest(tb testing.TB, test func(tb testing.TB, sw spanstore.Writer,
 		require.NoError(tb, f.Close())
 	}()
 
-	cfg := badger.NewConfig()
+	cfg := badger.DefaultConfig()
 	v, command := config.Viperize(cfg.AddFlags)
 	command.ParseFlags([]string{
 		"--badger.ephemeral=true",

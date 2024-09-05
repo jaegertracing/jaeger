@@ -183,12 +183,12 @@ func TestBadgerMetrics(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestConfigureFromConfig(t *testing.T) {
+func TestConfigure(t *testing.T) {
 	f := NewFactory()
 	config := &Config{
 		MaintenanceInterval: 42 * time.Second,
 	}
-	f.configureFromConfig(config)
+	f.configure(config)
 	assert.Equal(t, config, f.Config)
 }
 

@@ -77,7 +77,7 @@ type Factory struct {
 // NewFactory creates a new Factory.
 func NewFactory() *Factory {
 	return &Factory{
-		Config:          NewConfig(),
+		Config:          DefaultConfig(),
 		maintenanceDone: make(chan bool),
 	}
 }
@@ -88,7 +88,7 @@ func NewFactoryWithConfig(
 	logger *zap.Logger,
 ) (*Factory, error) {
 	f := NewFactory()
-	f.configureFromConfig(&cfg)
+	f.configure(&cfg)
 	err := f.Initialize(metricsFactory, logger)
 	if err != nil {
 		return nil, err
@@ -104,11 +104,11 @@ func (f *Factory) AddFlags(flagSet *flag.FlagSet) {
 // InitFromViper implements plugin.Configurable
 func (f *Factory) InitFromViper(v *viper.Viper, logger *zap.Logger) {
 	f.Config.InitFromViper(v, logger)
-	f.configureFromConfig(f.Config)
+	f.configure(f.Config)
 }
 
-// configureFromConfig initializes Factory from supplied Config.
-func (f *Factory) configureFromConfig(config *Config) {
+// configure initializes Factory from supplied Config.
+func (f *Factory) configure(config *Config) {
 	f.Config = config
 }
 

@@ -62,7 +62,7 @@ func (cfg *Backend) Unmarshal(conf *confmap.Conf) error {
 		}
 	}
 	if conf.IsSet("badger") {
-		v := badger.NewConfig()
+		v := badger.DefaultConfig()
 		cfg.Badger = v
 	}
 	if conf.IsSet("grpc") {
