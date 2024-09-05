@@ -123,7 +123,7 @@ func TestBadger(t *testing.T) {
 	ext := makeStorageExtenion(t, &Config{
 		Backends: map[string]Backend{
 			"foo": {
-				Badger: &badger.NamespaceConfig{
+				Badger: &badger.Config{
 					Ephemeral:             true,
 					MaintenanceInterval:   5,
 					MetricsUpdateInterval: 10,
