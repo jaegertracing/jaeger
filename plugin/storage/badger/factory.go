@@ -50,10 +50,10 @@ var ( // interface comformance checks
 
 // Factory implements storage.Factory for Badger backend.
 type Factory struct {
-	Options *Options
-	store   *badger.DB
-	cache   *badgerStore.CacheStore
-	logger  *zap.Logger
+	Config *Config
+	store  *badger.DB
+	cache  *badgerStore.CacheStore
+	logger *zap.Logger
 
 	tmpDir          string
 	maintenanceDone chan bool
@@ -77,18 +77,18 @@ type Factory struct {
 // NewFactory creates a new Factory.
 func NewFactory() *Factory {
 	return &Factory{
-		Options:         NewOptions(),
+		Config:          NewConfig(),
 		maintenanceDone: make(chan bool),
 	}
 }
 
 func NewFactoryWithConfig(
-	cfg NamespaceConfig,
+	cfg Config,
 	metricsFactory metrics.Factory,
 	logger *zap.Logger,
 ) (*Factory, error) {
 	f := NewFactory()
-	f.configureFromOptions(&Options{Primary: cfg})
+	f.configureFromConfig(&cfg)
 	err := f.Initialize(metricsFactory, logger)
 	if err != nil {
 		return nil, err
@@ -98,18 +98,18 @@ func NewFactoryWithConfig(
 
 // AddFlags implements plugin.Configurable
 func (f *Factory) AddFlags(flagSet *flag.FlagSet) {
-	f.Options.AddFlags(flagSet)
+	f.Config.AddFlags(flagSet)
 }
 
 // InitFromViper implements plugin.Configurable
 func (f *Factory) InitFromViper(v *viper.Viper, logger *zap.Logger) {
-	f.Options.InitFromViper(v, logger)
-	f.configureFromOptions(f.Options)
+	f.Config.InitFromViper(v, logger)
+	f.configureFromConfig(f.Config)
 }
 
-// InitFromOptions initializes Factory from supplied options
-func (f *Factory) configureFromOptions(opts *Options) {
-	f.Options = opts
+// configureFromConfig initializes Factory from supplied Config.
+func (f *Factory) configureFromConfig(config *Config) {
+	f.Config = config
 }
 
 // Initialize implements storage.Factory
@@ -118,7 +118,7 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 
 	opts := badger.DefaultOptions("")
 
-	if f.Options.Primary.Ephemeral {
+	if f.Config.Ephemeral {
 		opts.SyncWrites = false
 		// Error from TempDir is ignored to satisfy Codecov
 		dir, _ := os.MkdirTemp("", "badger")
@@ -126,19 +126,19 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 		opts.Dir = f.tmpDir
 		opts.ValueDir = f.tmpDir
 
-		f.Options.Primary.Directories.Keys = f.tmpDir
-		f.Options.Primary.Directories.Values = f.tmpDir
+		f.Config.Directories.Keys = f.tmpDir
+		f.Config.Directories.Values = f.tmpDir
 	} else {
 		// Errors are ignored as they're caught in the Open call
-		initializeDir(f.Options.Primary.Directories.Keys)
-		initializeDir(f.Options.Primary.Directories.Values)
+		initializeDir(f.Config.Directories.Keys)
+		initializeDir(f.Config.Directories.Values)
 
-		opts.SyncWrites = f.Options.Primary.SyncWrites
-		opts.Dir = f.Options.Primary.Directories.Keys
-		opts.ValueDir = f.Options.Primary.Directories.Values
+		opts.SyncWrites = f.Config.SyncWrites
+		opts.Dir = f.Config.Directories.Keys
+		opts.ValueDir = f.Config.Directories.Values
 
 		// These options make no sense with ephemeral data
-		opts.ReadOnly = f.Options.Primary.ReadOnly
+		opts.ReadOnly = f.Config.ReadOnly
 	}
 
 	store, err := badger.Open(opts)
@@ -147,7 +147,7 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 	}
 	f.store = store
 
-	f.cache = badgerStore.NewCacheStore(f.store, f.Options.Primary.TTL.Spans, true)
+	f.cache = badgerStore.NewCacheStore(f.store, f.Config.TTL.Spans, true)
 
 	f.metrics.ValueLogSpaceAvailable = metricsFactory.Gauge(metrics.Options{Name: valueLogSpaceAvailableName})
 	f.metrics.KeyLogSpaceAvailable = metricsFactory.Gauge(metrics.Options{Name: keyLogSpaceAvailableName})
@@ -178,7 +178,7 @@ func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
 
 // CreateSpanWriter implements storage.Factory
 func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
-	return badgerStore.NewSpanWriter(f.store, f.cache, f.Options.Primary.TTL.Spans), nil
+	return badgerStore.NewSpanWriter(f.store, f.cache, f.Config.TTL.Spans), nil
 }
 
 // CreateDependencyReader implements storage.Factory
@@ -206,7 +206,7 @@ func (f *Factory) Close() error {
 	err := f.store.Close()
 
 	// Remove tmp files if this was ephemeral storage
-	if f.Options.Primary.Ephemeral {
+	if f.Config.Ephemeral {
 		errSecondary := os.RemoveAll(f.tmpDir)
 		if err == nil {
 			err = errSecondary
@@ -218,7 +218,7 @@ func (f *Factory) Close() error {
 
 // Maintenance starts a background maintenance job for the badger K/V store, such as ValueLogGC
 func (f *Factory) maintenance() {
-	maintenanceTicker := time.NewTicker(f.Options.Primary.MaintenanceInterval)
+	maintenanceTicker := time.NewTicker(f.Config.MaintenanceInterval)
 	defer maintenanceTicker.Stop()
 	for {
 		select {
@@ -244,7 +244,7 @@ func (f *Factory) maintenance() {
 }
 
 func (f *Factory) metricsCopier() {
-	metricsTicker := time.NewTicker(f.Options.Primary.MetricsUpdateInterval)
+	metricsTicker := time.NewTicker(f.Config.MetricsUpdateInterval)
 	defer metricsTicker.Stop()
 	for {
 		select {

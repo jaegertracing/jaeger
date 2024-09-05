@@ -14,14 +14,8 @@ import (
 	"go.uber.org/zap"
 )
 
-// Options store storage plugin related configs
-type Options struct {
-	Primary NamespaceConfig `mapstructure:",squash"`
-	// This storage plugin does not support additional namespaces
-}
-
-// NamespaceConfig is badger's internal configuration data.
-type NamespaceConfig struct {
+// Config is badger's internal configuration data.
+type Config struct {
 	// TTL holds time-to-live configuration for the badger store.
 	TTL TTL `mapstructure:"ttl"`
 	// Directories contains the configuration for where items are stored. Ephemeral must be
@@ -79,9 +73,9 @@ const (
 	defaultKeysDir            = defaultDataDir + string(os.PathSeparator) + "keys"
 )
 
-func DefaultNamespaceConfig() NamespaceConfig {
+func NewConfig() *Config {
 	defaultBadgerDataDir := getCurrentExecutableDir()
-	return NamespaceConfig{
+	return &Config{
 		TTL: TTL{
 			Spans: defaultTTL,
 		},
@@ -96,94 +90,77 @@ func DefaultNamespaceConfig() NamespaceConfig {
 	}
 }
 
-// NewOptions creates a new Options struct.
-// @nocommit func NewOptions(primaryNamespace string, _ ...string /* otherNamespaces */) *Options {
-func NewOptions() *Options {
-	defaultConfig := DefaultNamespaceConfig()
-
-	options := &Options{
-		Primary: defaultConfig,
-	}
-
-	return options
-}
-
 func getCurrentExecutableDir() string {
 	// We ignore the error, this will fail later when trying to start the store
 	exec, _ := os.Executable()
 	return filepath.Dir(exec)
 }
 
-// AddFlags adds flags for Options
-func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
-	addFlags(flagSet, opt.Primary)
+// AddFlags adds flags for Config.
+func (c Config) AddFlags(flagSet *flag.FlagSet) {
+	addFlags(flagSet, c)
 }
 
-func addFlags(flagSet *flag.FlagSet, nsConfig NamespaceConfig) {
+func addFlags(flagSet *flag.FlagSet, config Config) {
 	flagSet.Bool(
 		prefix+suffixEphemeral,
-		nsConfig.Ephemeral,
+		config.Ephemeral,
 		"Mark this storage ephemeral, data is stored in tmpfs.",
 	)
 	flagSet.Duration(
 		prefix+suffixSpanstoreTTL,
-		nsConfig.TTL.Spans,
+		config.TTL.Spans,
 		"How long to store the data. Format is time.Duration (https://golang.org/pkg/time/#Duration)",
 	)
 	flagSet.String(
 		prefix+suffixKeyDirectory,
-		nsConfig.Directories.Keys,
+		config.Directories.Keys,
 		"Path to store the keys (indexes), this directory should reside in SSD disk. Set ephemeral to false if you want to define this setting.",
 	)
 	flagSet.String(
 		prefix+suffixValueDirectory,
-		nsConfig.Directories.Values,
+		config.Directories.Values,
 		"Path to store the values (spans). Set ephemeral to false if you want to define this setting.",
 	)
 	flagSet.Bool(
 		prefix+suffixSyncWrite,
-		nsConfig.SyncWrites,
+		config.SyncWrites,
 		"If all writes should be synced immediately to physical disk. This will impact write performance.",
 	)
 	flagSet.Duration(
 		prefix+suffixMaintenanceInterval,
-		nsConfig.MaintenanceInterval,
+		config.MaintenanceInterval,
 		"How often the maintenance thread for values is ran. Format is time.Duration (https://golang.org/pkg/time/#Duration)",
 	)
 	flagSet.Duration(
 		prefix+suffixMetricsInterval,
-		nsConfig.MetricsUpdateInterval,
+		config.MetricsUpdateInterval,
 		"How often the badger metrics are collected by Jaeger. Format is time.Duration (https://golang.org/pkg/time/#Duration)",
 	)
 	flagSet.Bool(
 		prefix+suffixReadOnly,
-		nsConfig.ReadOnly,
+		config.ReadOnly,
 		"Allows to open badger database in read only mode. Multiple instances can open same database in read-only mode. Values still in the write-ahead-log must be replayed before opening.",
 	)
 }
 
-// InitFromViper initializes Options with properties from viper
-func (opt *Options) InitFromViper(v *viper.Viper, logger *zap.Logger) {
-	initFromViper(&opt.Primary, v, logger)
+// InitFromViper initializes Config with properties from viper.
+func (c *Config) InitFromViper(v *viper.Viper, logger *zap.Logger) {
+	initFromViper(c, v, logger)
 }
 
-func initFromViper(cfg *NamespaceConfig, v *viper.Viper, _ *zap.Logger) {
-	cfg.Ephemeral = v.GetBool(prefix + suffixEphemeral)
-	cfg.Directories.Keys = v.GetString(prefix + suffixKeyDirectory)
-	cfg.Directories.Values = v.GetString(prefix + suffixValueDirectory)
-	cfg.SyncWrites = v.GetBool(prefix + suffixSyncWrite)
-	cfg.TTL.Spans = v.GetDuration(prefix + suffixSpanstoreTTL)
-	cfg.MaintenanceInterval = v.GetDuration(prefix + suffixMaintenanceInterval)
-	cfg.MetricsUpdateInterval = v.GetDuration(prefix + suffixMetricsInterval)
-	cfg.ReadOnly = v.GetBool(prefix + suffixReadOnly)
+func initFromViper(config *Config, v *viper.Viper, _ *zap.Logger) {
+	config.Ephemeral = v.GetBool(prefix + suffixEphemeral)
+	config.Directories.Keys = v.GetString(prefix + suffixKeyDirectory)
+	config.Directories.Values = v.GetString(prefix + suffixValueDirectory)
+	config.SyncWrites = v.GetBool(prefix + suffixSyncWrite)
+	config.TTL.Spans = v.GetDuration(prefix + suffixSpanstoreTTL)
+	config.MaintenanceInterval = v.GetDuration(prefix + suffixMaintenanceInterval)
+	config.MetricsUpdateInterval = v.GetDuration(prefix + suffixMetricsInterval)
+	config.ReadOnly = v.GetBool(prefix + suffixReadOnly)
 }
 
-// GetPrimary returns the primary namespace configuration
-func (opt *Options) GetPrimary() NamespaceConfig {
-	return opt.Primary
-}
-
-func (c *NamespaceConfig) Validate() error {
+func (c *Config) Validate() error {
 	_, err := govalidator.ValidateStruct(c)
 	return err
 }

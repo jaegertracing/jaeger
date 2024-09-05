@@ -14,20 +14,20 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/config"
 )
 
-func TestDefaultOptionsParsing(t *testing.T) {
-	opts := NewOptions()
-	v, command := config.Viperize(opts.AddFlags)
+func TestDefaultConfigParsing(t *testing.T) {
+	cfg := NewConfig()
+	v, command := config.Viperize(cfg.AddFlags)
 	command.ParseFlags([]string{})
-	opts.InitFromViper(v, zap.NewNop())
+	cfg.InitFromViper(v, zap.NewNop())
 
-	assert.True(t, opts.GetPrimary().Ephemeral)
-	assert.False(t, opts.GetPrimary().SyncWrites)
-	assert.Equal(t, time.Duration(72*time.Hour), opts.GetPrimary().TTL.Spans)
+	assert.True(t, cfg.Ephemeral)
+	assert.False(t, cfg.SyncWrites)
+	assert.Equal(t, time.Duration(72*time.Hour), cfg.TTL.Spans)
 }
 
-func TestParseOptions(t *testing.T) {
-	opts := NewOptions()
-	v, command := config.Viperize(opts.AddFlags)
+func TestParseConfig(t *testing.T) {
+	cfg := NewConfig()
+	v, command := config.Viperize(cfg.AddFlags)
 	command.ParseFlags([]string{
 		"--badger.ephemeral=false",
 		"--badger.consistency=true",
@@ -35,38 +35,38 @@ func TestParseOptions(t *testing.T) {
 		"--badger.directory-value=/mnt/slow/badger",
 		"--badger.span-store-ttl=168h",
 	})
-	opts.InitFromViper(v, zap.NewNop())
+	cfg.InitFromViper(v, zap.NewNop())
 
-	assert.False(t, opts.GetPrimary().Ephemeral)
-	assert.True(t, opts.GetPrimary().SyncWrites)
-	assert.Equal(t, time.Duration(168*time.Hour), opts.GetPrimary().TTL.Spans)
-	assert.Equal(t, "/var/lib/badger", opts.GetPrimary().Directories.Keys)
-	assert.Equal(t, "/mnt/slow/badger", opts.GetPrimary().Directories.Values)
-	assert.False(t, opts.GetPrimary().ReadOnly)
+	assert.False(t, cfg.Ephemeral)
+	assert.True(t, cfg.SyncWrites)
+	assert.Equal(t, time.Duration(168*time.Hour), cfg.TTL.Spans)
+	assert.Equal(t, "/var/lib/badger", cfg.Directories.Keys)
+	assert.Equal(t, "/mnt/slow/badger", cfg.Directories.Values)
+	assert.False(t, cfg.ReadOnly)
 }
 
-func TestReadOnlyOptions(t *testing.T) {
-	opts := NewOptions()
-	v, command := config.Viperize(opts.AddFlags)
+func TestReadOnlyConfig(t *testing.T) {
+	cfg := NewConfig()
+	v, command := config.Viperize(cfg.AddFlags)
 	command.ParseFlags([]string{
 		"--badger.read-only=true",
 	})
-	opts.InitFromViper(v, zap.NewNop())
-	assert.True(t, opts.GetPrimary().ReadOnly)
+	cfg.InitFromViper(v, zap.NewNop())
+	assert.True(t, cfg.ReadOnly)
 }
 
 func TestValidate_DoesNotReturnErrorWhenValid(t *testing.T) {
 	tests := []struct {
-		name   string
-		config *NamespaceConfig
+		name string
+		cfg  *Config
 	}{
 		{
-			name:   "non-required fields not set",
-			config: &NamespaceConfig{},
+			name: "non-required fields not set",
+			cfg:  &Config{},
 		},
 		{
 			name: "all fields are set",
-			config: &NamespaceConfig{
+			cfg: &Config{
 				TTL: TTL{
 					Spans: time.Second,
 				},
@@ -85,7 +85,7 @@ func TestValidate_DoesNotReturnErrorWhenValid(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			err := test.config.Validate()
+			err := test.cfg.Validate()
 			require.NoError(t, err)
 		})
 	}

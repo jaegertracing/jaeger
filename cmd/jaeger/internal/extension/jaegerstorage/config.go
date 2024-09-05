@@ -39,12 +39,12 @@ type Config struct {
 }
 
 type Backend struct {
-	Memory        *memory.Configuration   `mapstructure:"memory"`
-	Badger        *badger.NamespaceConfig `mapstructure:"badger"`
-	GRPC          *grpc.ConfigV2          `mapstructure:"grpc"`
-	Cassandra     *cassandra.Options      `mapstructure:"cassandra"`
-	Elasticsearch *esCfg.Configuration    `mapstructure:"elasticsearch"`
-	Opensearch    *esCfg.Configuration    `mapstructure:"opensearch"`
+	Memory        *memory.Configuration `mapstructure:"memory"`
+	Badger        *badger.Config        `mapstructure:"badger"`
+	GRPC          *grpc.ConfigV2        `mapstructure:"grpc"`
+	Cassandra     *cassandra.Options    `mapstructure:"cassandra"`
+	Elasticsearch *esCfg.Configuration  `mapstructure:"elasticsearch"`
+	Opensearch    *esCfg.Configuration  `mapstructure:"opensearch"`
 }
 
 type MetricBackends struct {
@@ -62,8 +62,8 @@ func (cfg *Backend) Unmarshal(conf *confmap.Conf) error {
 		}
 	}
 	if conf.IsSet("badger") {
-		v := badger.DefaultNamespaceConfig()
-		cfg.Badger = &v
+		v := badger.NewConfig()
+		cfg.Badger = v
 	}
 	if conf.IsSet("grpc") {
 		v := grpc.DefaultConfigV2()

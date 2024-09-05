@@ -183,26 +183,24 @@ func TestBadgerMetrics(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestConfigureFromOptions(t *testing.T) {
+func TestConfigureFromConfig(t *testing.T) {
 	f := NewFactory()
-	opts := &Options{
-		Primary: NamespaceConfig{
-			MaintenanceInterval: 42 * time.Second,
-		},
+	config := &Config{
+		MaintenanceInterval: 42 * time.Second,
 	}
-	f.configureFromOptions(opts)
-	assert.Equal(t, opts, f.Options)
+	f.configureFromConfig(config)
+	assert.Equal(t, config, f.Config)
 }
 
 func TestBadgerStorageFactoryWithConfig(t *testing.T) {
-	cfg := NamespaceConfig{}
+	cfg := Config{}
 	_, err := NewFactoryWithConfig(cfg, metrics.NullFactory, zap.NewNop())
 	require.Error(t, err)
 	require.ErrorContains(t, err, "Error Creating Dir")
 
 	tmp := os.TempDir()
 	defer os.Remove(tmp)
-	cfg = NamespaceConfig{
+	cfg = Config{
 		Directories: Directories{
 			Keys:   tmp,
 			Values: tmp,
