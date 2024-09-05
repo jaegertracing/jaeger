@@ -97,49 +97,45 @@ func getCurrentExecutableDir() string {
 }
 
 // AddFlags adds flags for Config.
-func (c Config) AddFlags(flagSet *flag.FlagSet) {
-	addFlags(flagSet, c)
-}
-
-func addFlags(flagSet *flag.FlagSet, config Config) {
+func (c *Config) AddFlags(flagSet *flag.FlagSet) {
 	flagSet.Bool(
 		prefix+suffixEphemeral,
-		config.Ephemeral,
+		c.Ephemeral,
 		"Mark this storage ephemeral, data is stored in tmpfs.",
 	)
 	flagSet.Duration(
 		prefix+suffixSpanstoreTTL,
-		config.TTL.Spans,
+		c.TTL.Spans,
 		"How long to store the data. Format is time.Duration (https://golang.org/pkg/time/#Duration)",
 	)
 	flagSet.String(
 		prefix+suffixKeyDirectory,
-		config.Directories.Keys,
+		c.Directories.Keys,
 		"Path to store the keys (indexes), this directory should reside in SSD disk. Set ephemeral to false if you want to define this setting.",
 	)
 	flagSet.String(
 		prefix+suffixValueDirectory,
-		config.Directories.Values,
+		c.Directories.Values,
 		"Path to store the values (spans). Set ephemeral to false if you want to define this setting.",
 	)
 	flagSet.Bool(
 		prefix+suffixSyncWrite,
-		config.SyncWrites,
+		c.SyncWrites,
 		"If all writes should be synced immediately to physical disk. This will impact write performance.",
 	)
 	flagSet.Duration(
 		prefix+suffixMaintenanceInterval,
-		config.MaintenanceInterval,
+		c.MaintenanceInterval,
 		"How often the maintenance thread for values is ran. Format is time.Duration (https://golang.org/pkg/time/#Duration)",
 	)
 	flagSet.Duration(
 		prefix+suffixMetricsInterval,
-		config.MetricsUpdateInterval,
+		c.MetricsUpdateInterval,
 		"How often the badger metrics are collected by Jaeger. Format is time.Duration (https://golang.org/pkg/time/#Duration)",
 	)
 	flagSet.Bool(
 		prefix+suffixReadOnly,
-		config.ReadOnly,
+		c.ReadOnly,
 		"Allows to open badger database in read only mode. Multiple instances can open same database in read-only mode. Values still in the write-ahead-log must be replayed before opening.",
 	)
 }
