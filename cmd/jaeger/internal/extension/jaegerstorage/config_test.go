@@ -61,7 +61,7 @@ backends:
 `)
 	cfg := createDefaultConfig().(*Config)
 	require.NoError(t, conf.Unmarshal(cfg))
-	assert.NotEmpty(t, cfg.Backends["some_storage"].Badger.SpanStoreTTL)
+	assert.NotEmpty(t, cfg.Backends["some_storage"].Badger.TTL.Spans)
 }
 
 func TestConfigDefaultGRPC(t *testing.T) {

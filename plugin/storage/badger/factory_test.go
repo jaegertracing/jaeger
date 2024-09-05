@@ -203,8 +203,10 @@ func TestBadgerStorageFactoryWithConfig(t *testing.T) {
 	tmp := os.TempDir()
 	defer os.Remove(tmp)
 	cfg = NamespaceConfig{
-		ValueDirectory:        tmp,
-		KeyDirectory:          tmp,
+		Directories: Directories{
+			Keys:   tmp,
+			Values: tmp,
+		},
 		Ephemeral:             false,
 		MaintenanceInterval:   5,
 		MetricsUpdateInterval: 10,

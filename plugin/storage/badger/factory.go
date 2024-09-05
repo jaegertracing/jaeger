@@ -126,16 +126,16 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 		opts.Dir = f.tmpDir
 		opts.ValueDir = f.tmpDir
 
-		f.Options.Primary.KeyDirectory = f.tmpDir
-		f.Options.Primary.ValueDirectory = f.tmpDir
+		f.Options.Primary.Directories.Keys = f.tmpDir
+		f.Options.Primary.Directories.Values = f.tmpDir
 	} else {
 		// Errors are ignored as they're caught in the Open call
-		initializeDir(f.Options.Primary.KeyDirectory)
-		initializeDir(f.Options.Primary.ValueDirectory)
+		initializeDir(f.Options.Primary.Directories.Keys)
+		initializeDir(f.Options.Primary.Directories.Values)
 
 		opts.SyncWrites = f.Options.Primary.SyncWrites
-		opts.Dir = f.Options.Primary.KeyDirectory
-		opts.ValueDir = f.Options.Primary.ValueDirectory
+		opts.Dir = f.Options.Primary.Directories.Keys
+		opts.ValueDir = f.Options.Primary.Directories.Values
 
 		// These options make no sense with ephemeral data
 		opts.ReadOnly = f.Options.Primary.ReadOnly
@@ -147,7 +147,7 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 	}
 	f.store = store
 
-	f.cache = badgerStore.NewCacheStore(f.store, f.Options.Primary.SpanStoreTTL, true)
+	f.cache = badgerStore.NewCacheStore(f.store, f.Options.Primary.TTL.Spans, true)
 
 	f.metrics.ValueLogSpaceAvailable = metricsFactory.Gauge(metrics.Options{Name: valueLogSpaceAvailableName})
 	f.metrics.KeyLogSpaceAvailable = metricsFactory.Gauge(metrics.Options{Name: keyLogSpaceAvailableName})
@@ -178,7 +178,7 @@ func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
 
 // CreateSpanWriter implements storage.Factory
 func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
-	return badgerStore.NewSpanWriter(f.store, f.cache, f.Options.Primary.SpanStoreTTL), nil
+	return badgerStore.NewSpanWriter(f.store, f.cache, f.Options.Primary.TTL.Spans), nil
 }
 
 // CreateDependencyReader implements storage.Factory
