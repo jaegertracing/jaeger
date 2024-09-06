@@ -30,7 +30,7 @@ func main() {
 		ProtoVersion:       4,
 		Keyspace:           "jaeger_v1_test",
 	}
-	cqlSession, err := cConfig.NewSession(logger)
+	cqlSession, err := cConfig.NewSession()
 	if err != nil {
 		logger.Fatal("Cannot create Cassandra session", zap.Error(err))
 	}

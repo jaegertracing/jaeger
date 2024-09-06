@@ -102,7 +102,7 @@ func TestDefaultTlsHostVerify(t *testing.T) {
 	opts.InitFromViper(v)
 
 	primary := opts.GetPrimary()
-	assert.False(t, primary.TLS.SkipHostVerify)
+	assert.False(t, primary.TLS.InsecureSkipVerify)
 }
 
 func TestEmptyBlackWhiteLists(t *testing.T) {

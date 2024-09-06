@@ -5,36 +5,36 @@
 package config
 
 import (
+	"context"
 	"fmt"
 	"time"
 
 	"github.com/asaskevich/govalidator"
 	"github.com/gocql/gocql"
-	"go.uber.org/zap"
+	"go.opentelemetry.io/collector/config/configtls"
 
 	"github.com/jaegertracing/jaeger/pkg/cassandra"
 	gocqlw "github.com/jaegertracing/jaeger/pkg/cassandra/gocql"
-	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 )
 
 // Configuration describes the configuration properties needed to connect to a Cassandra cluster
 type Configuration struct {
-	Servers              []string       `valid:"required,url" mapstructure:"servers"`
-	Keyspace             string         `mapstructure:"keyspace"`
-	LocalDC              string         `mapstructure:"local_dc"`
-	ConnectionsPerHost   int            `mapstructure:"connections_per_host"`
-	Timeout              time.Duration  `mapstructure:"-"`
-	ConnectTimeout       time.Duration  `mapstructure:"connection_timeout"`
-	ReconnectInterval    time.Duration  `mapstructure:"reconnect_interval"`
-	SocketKeepAlive      time.Duration  `mapstructure:"socket_keep_alive"`
-	MaxRetryAttempts     int            `mapstructure:"max_retry_attempts"`
-	ProtoVersion         int            `mapstructure:"proto_version"`
-	Consistency          string         `mapstructure:"consistency"`
-	DisableCompression   bool           `mapstructure:"disable_compression"`
-	Port                 int            `mapstructure:"port"`
-	Authenticator        Authenticator  `mapstructure:",squash"`
-	DisableAutoDiscovery bool           `mapstructure:"-"`
-	TLS                  tlscfg.Options `mapstructure:"tls"`
+	Servers              []string               `valid:"required,url" mapstructure:"servers"`
+	Keyspace             string                 `mapstructure:"keyspace"`
+	LocalDC              string                 `mapstructure:"local_dc"`
+	ConnectionsPerHost   int                    `mapstructure:"connections_per_host"`
+	Timeout              time.Duration          `mapstructure:"-"`
+	ConnectTimeout       time.Duration          `mapstructure:"connection_timeout"`
+	ReconnectInterval    time.Duration          `mapstructure:"reconnect_interval"`
+	SocketKeepAlive      time.Duration          `mapstructure:"socket_keep_alive"`
+	MaxRetryAttempts     int                    `mapstructure:"max_retry_attempts"`
+	ProtoVersion         int                    `mapstructure:"proto_version"`
+	Consistency          string                 `mapstructure:"consistency"`
+	DisableCompression   bool                   `mapstructure:"disable_compression"`
+	Port                 int                    `mapstructure:"port"`
+	Authenticator        Authenticator          `mapstructure:",squash"`
+	DisableAutoDiscovery bool                   `mapstructure:"-"`
+	TLS                  configtls.ClientConfig `mapstructure:"tls"`
 }
 
 func DefaultConfiguration() Configuration {
@@ -92,12 +92,12 @@ func (c *Configuration) ApplyDefaults(source *Configuration) {
 
 // SessionBuilder creates new cassandra.Session
 type SessionBuilder interface {
-	NewSession(logger *zap.Logger) (cassandra.Session, error)
+	NewSession() (cassandra.Session, error)
 }
 
 // NewSession creates a new Cassandra session
-func (c *Configuration) NewSession(logger *zap.Logger) (cassandra.Session, error) {
-	cluster, err := c.NewCluster(logger)
+func (c *Configuration) NewSession() (cassandra.Session, error) {
+	cluster, err := c.NewCluster()
 	if err != nil {
 		return nil, err
 	}
@@ -109,7 +109,7 @@ func (c *Configuration) NewSession(logger *zap.Logger) (cassandra.Session, error
 }
 
 // NewCluster creates a new gocql cluster from the configuration
-func (c *Configuration) NewCluster(logger *zap.Logger) (*gocql.ClusterConfig, error) {
+func (c *Configuration) NewCluster() (*gocql.ClusterConfig, error) {
 	cluster := gocql.NewCluster(c.Servers...)
 	cluster.Keyspace = c.Keyspace
 	cluster.NumConns = c.ConnectionsPerHost
@@ -150,11 +150,11 @@ func (c *Configuration) NewCluster(logger *zap.Logger) (*gocql.ClusterConfig, er
 			AllowedAuthenticators: c.Authenticator.Basic.AllowedAuthenticators,
 		}
 	}
-	tlsCfg, err := c.TLS.Config(logger)
+	tlsCfg, err := c.TLS.LoadTLSConfig(context.Background())
 	if err != nil {
 		return nil, err
 	}
-	if c.TLS.Enabled {
+	if !c.TLS.Insecure {
 		cluster.SslOpts = &gocql.SslOptions{
 			Config: tlsCfg,
 		}
@@ -165,10 +165,6 @@ func (c *Configuration) NewCluster(logger *zap.Logger) (*gocql.ClusterConfig, er
 		cluster.IgnorePeerAddr = true
 	}
 	return cluster, nil
-}
-
-func (c *Configuration) Close() error {
-	return c.TLS.Close()
 }
 
 func (c *Configuration) String() string {

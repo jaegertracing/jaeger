@@ -247,11 +247,12 @@ func (cfg *NamespaceConfig) initFromViper(v *viper.Viper) {
 	cfg.Authenticator.Basic.AllowedAuthenticators = strings.Split(authentication, ",")
 	cfg.DisableCompression = v.GetBool(cfg.namespace + suffixDisableCompression)
 	var err error
-	cfg.TLS, err = tlsFlagsConfig.InitFromViper(v)
+	tlsCfg, err := tlsFlagsConfig.InitFromViper(v)
 	if err != nil {
 		// TODO refactor to be able to return error
 		log.Fatal(err)
 	}
+	cfg.TLS = tlsCfg.ToOtelClientConfig()
 }
 
 // GetPrimary returns primary configuration.

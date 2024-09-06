@@ -34,7 +34,7 @@ func newMockSessionBuilder(session *mocks.Session, err error) *mockSessionBuilde
 	}
 }
 
-func (m *mockSessionBuilder) NewSession(*zap.Logger) (cassandra.Session, error) {
+func (m *mockSessionBuilder) NewSession() (cassandra.Session, error) {
 	return m.session, m.err
 }
 
