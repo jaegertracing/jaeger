@@ -22,7 +22,7 @@ type BadgerIntegrationStorage struct {
 
 func (s *BadgerIntegrationStorage) initialize(t *testing.T) {
 	s.factory = badger.NewFactory()
-	s.factory.Options.Primary.Ephemeral = false
+	s.factory.Config.Ephemeral = false
 
 	logger := zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller()))
 	err := s.factory.Initialize(metrics.NullFactory, logger)

@@ -1,13 +1,14 @@
 #!/bin/bash
-
+#
 # Copyright (c) 2024 The Jaeger Authors.
 # SPDX-License-Identifier: Apache-2.0
 
 set -euf -o pipefail
 
 print_help() {
-  echo "Usage: $0 [-D] [-l] [-p platforms]"
+  echo "Usage: $0 [-B] [-D] [-h] [-l] [-p platforms]"
   echo "-h: Print help"
+  echo "-B: Skip building of the binaries (e.g. when they were already built)"
   echo "-D: Disable building of images with debugger"
   echo "-l: Enable local-only mode that only pushes images to local registry"
   echo "-p: Comma-separated list of platforms to build for (default: all supported)"
@@ -15,35 +16,41 @@ print_help() {
 }
 
 add_debugger='Y'
+build_binaries='Y'
 platforms="$(make echo-linux-platforms)"
 LOCAL_FLAG=''
 
-while getopts "Dhlp:" opt; do
-	case "${opt}" in
-	D)
-		add_debugger='N'
-		;;
-	l)
-		# in the local-only mode the images will only be pushed to local registry
-		LOCAL_FLAG='-l'
-		;;
-	p)
-		platforms=${OPTARG}
-		;;
-	?)
-		print_help
-		;;
-	esac
+while getopts "BDhlp:" opt; do
+  case "${opt}" in
+  B)
+    build_binaries='N'
+    echo "Will not build binaries as requested"
+    ;;
+  D)
+    add_debugger='N'
+    echo "Will not build debug images as requested"
+    ;;
+  l)
+    # in the local-only mode the images will only be pushed to local registry
+    LOCAL_FLAG='-l'
+    ;;
+  p)
+    platforms=${OPTARG}
+    ;;
+  ?)
+    print_help
+    ;;
+  esac
 done
 
 set -x
 
-# Loop through each platform (separated by commas)
-for platform in $(echo "$platforms" | tr ',' ' '); do
-  # Extract the architecture from the platform string
-  arch=${platform##*/}  # Remove everything before the last slash
-  make "build-binaries-$arch"
-done
+if [[ "$build_binaries" == "Y" ]]; then
+  for platform in $(echo "$platforms" | tr ',' ' '); do
+    arch=${platform##*/}  # Remove everything before the last slash
+    make "build-binaries-linux-$arch"
+  done
+fi
 
 if [[ "${add_debugger}" == "N" ]]; then
   make create-baseimg

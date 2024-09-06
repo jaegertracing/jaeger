@@ -6,8 +6,6 @@
 set -euf -o pipefail
 
 compose_file="docker-compose/kafka-integration-test/docker-compose.yml"
-echo "docker_compose_file=${compose_file}" >> "${GITHUB_OUTPUT:-/dev/null}"
-
 jaeger_version=""
 manage_kafka="true"
 success="false"

@@ -18,8 +18,8 @@ import (
 
 func TestDiskStatisticsUpdate(t *testing.T) {
 	f := NewFactory()
-	opts := NewOptions("badger")
-	v, command := config.Viperize(opts.AddFlags)
+	cfg := DefaultConfig()
+	v, command := config.Viperize(cfg.AddFlags)
 	command.ParseFlags([]string{
 		"--badger.ephemeral=true",
 		"--badger.consistency=false",

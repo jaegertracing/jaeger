@@ -19,7 +19,7 @@ build-crossdock-ui-placeholder:
 	$(MAKE) build-ui
 
 .PHONY: build-crossdock
-build-crossdock: build-crossdock-ui-placeholder build-binaries-linux build-crossdock-linux docker-images-cassandra crossdock-docker-images-jaeger-backend
+build-crossdock: build-crossdock-ui-placeholder build-binaries-linux-$(GOARCH) build-crossdock-binary docker-images-cassandra crossdock-docker-images-jaeger-backend
 	docker build -t $(DOCKER_NAMESPACE)/test-driver:${DOCKER_TAG} --build-arg TARGETARCH=$(GOARCH) crossdock/
 	@echo "Finished building test-driver ==============" ; \
 
@@ -28,11 +28,11 @@ build-and-run-crossdock: build-crossdock
 	make crossdock
 
 .PHONY: build-crossdock-fresh
-build-crossdock-fresh: build-crossdock-linux
+build-crossdock-fresh: build-crossdock-binary
 	make crossdock-fresh
 
 .PHONY: crossdock-docker-images-jaeger-backend
-crossdock-docker-images-jaeger-backend: PLATFORMS=linux/$(shell go env GOARCH)
+crossdock-docker-images-jaeger-backend: PLATFORMS=linux/$(GOARCH)
 crossdock-docker-images-jaeger-backend: create-baseimg create-fake-debugimg
 	for component in "jaeger-agent" "jaeger-collector" "jaeger-query" "jaeger-ingester" "all-in-one" ; do \
 		regex="jaeger-(.*)"; \
