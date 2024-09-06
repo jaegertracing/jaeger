@@ -23,11 +23,15 @@ extensions:
           keyspace: "jaeger_v1_dc1"
           username: "cassandra"
           password: "cassandra"
+          tls:
+            insecure: true
       another_storage:
         cassandra:
           keyspace: "jaeger_v1_dc1"
           username: "cassandra"
           password: "cassandra"
+          tls:
+            insecure: true
 receivers:
   otlp:
     protocols:
