@@ -1,0 +1,40 @@
+service:
+  extensions: [jaeger_storage, jaeger_query, remote_sampling, healthcheckv2]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch, adaptive_sampling]
+      exporters: [jaeger_storage_exporter]
+
+extensions:
+  healthcheckv2:
+    use_v2: true
+    http:
+  jaeger_query:
+    trace_storage: some_store
+  jaeger_storage:
+    backends:
+      some_store:
+        memory:
+          max_traces: 100000
+  remote_sampling:
+    adaptive:
+      sampling_store: some_store
+      initial_sampling_probability: 0.1
+    http:
+    grpc:
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  batch:
+  adaptive_sampling:
+
+exporters:
+  jaeger_storage_exporter:
+    trace_storage: some_store
