@@ -9,7 +9,7 @@ build: clean-jaeger
 	cd ../../ && make create-baseimg PLATFORMS=linux/$(shell go env GOARCH)
 	cd ../../ && docker buildx build --target release \
 		--tag jaegertracing/$(BINARY):dev \
-		--build-arg base_image=localhost:5000/baseimg_alpine:latest \
+		--build-arg base_image=localhost:5001/baseimg_alpine:latest \
 		--build-arg debug_image=not-used \
 		--build-arg TARGETARCH=$(shell go env GOARCH) \
 		--load \
@@ -27,4 +27,5 @@ clean-jaeger:
 
 .PHONY: clean-all
 clean-all: clean-jaeger
-	docker rmi -f otel/opentelemetry-collector-contrib:latest
+	docker rmi -f jaegertracing/jaeger:dev ; \
+	docker rmi -f jaegertracing/jaeger:latest ;
