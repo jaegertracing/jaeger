@@ -12,6 +12,6 @@ services:
     image: jaegertracing/jaeger-tracegen:latest
     environment:
       - OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://jaeger:4318/v1/traces
-    command: ["-adaptive-sampling", "http://jaeger:5778/api/sampling", "-pause", "10ms", "-duration", "60m"]
+    command: ["-adaptive-sampling", "http://jaeger:5778/api/sampling", "-pause", "100ms", "-duration", "60m"]
     depends_on:
       - jaeger
