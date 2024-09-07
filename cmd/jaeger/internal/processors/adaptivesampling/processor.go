@@ -75,7 +75,7 @@ func (tp *traceProcessor) processTraces(_ context.Context, td ptrace.Traces) (pt
 			if span.Process == nil {
 				span.Process = batch.Process
 			}
-			adaptive.RecordThroughput(tp.aggregator, span, tp.telset.Logger)
+			tp.aggregator.HandleRootSpan(span, tp.telset.Logger)
 		}
 	}
 	return td, nil
