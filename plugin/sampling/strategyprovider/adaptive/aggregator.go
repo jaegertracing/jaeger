@@ -22,6 +22,12 @@ const (
 	maxProbabilities = 10
 )
 
+// aggregator is a kind of trace processor that watches for root spans
+// and calculates how many traces per service / per endpoint are being
+// produced. It periodically flushes these stats ("throughput") to storage.
+//
+// It also invokes PostAggregator which actually computes adaptive sampling
+// probabilities based on the observed throughput.
 type aggregator struct {
 	sync.Mutex
 
