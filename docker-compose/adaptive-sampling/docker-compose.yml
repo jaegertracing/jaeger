@@ -1,0 +1,19 @@
+services:
+  jaeger:
+    image: jaegertracing/all-in-one:${JAEGER_IMAGE_TAG:-latest}
+    ports:
+      - "16686:16686"
+      - "14268:14268"
+    environment: 
+      - SAMPLING_CONFIG_TYPE=adaptive
+    command:
+      - "--sampling.initial-sampling-probability=1.0"
+      - "--sampling.target-samples-per-second=1"
+
+  tracegen:
+    image: jaegertracing/jaeger-tracegen:latest
+    environment:
+      - OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://jaeger:4318/v1/traces
+    command: ["-adaptive-sampling", "http://jaeger:14268/api/sampling", "-pause", "10ms", "-duration", "60m"]
+    depends_on:
+      - jaeger
