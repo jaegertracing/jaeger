@@ -49,7 +49,6 @@ func (field FieldType) Format(f fmt.State, verb rune) {
 		_, _ = f.Write([]byte(str))
 	default:
 		_, _ = f.Write([]byte(strconv.Itoa(int(field))))
-
 	}
 }
 

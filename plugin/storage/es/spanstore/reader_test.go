@@ -129,7 +129,7 @@ func withDisableLogsFieldSearchSpanReader(t *testing.T, fn func(r *spanReaderTes
 		logBuffer:   logBuffer,
 		traceBuffer: exp,
 		reader: NewSpanReader(SpanReaderParams{
-			Client:                 client,
+			Client:                 func() es.Client { return client },
 			Logger:                 zap.NewNop(),
 			Tracer:                 tracer.Tracer("test"),
 			MaxSpanAge:             0,
@@ -812,7 +812,7 @@ func TestSpanReader_FindTraces_WithDisableLogsFieldSearch(t *testing.T) {
 
 		traces, err := r.reader.FindTraces(context.Background(), traceQuery)
 		require.NoError(t, err)
-		assert.Len(t, traces, 0)
+		assert.Empty(t, traces)
 	})
 }
 
@@ -1253,7 +1253,7 @@ func TestSpanReader_buildTagQuery_WithDisableLogsFieldSearch(t *testing.T) {
 		actual, err := tagQuery.Source()
 		require.NoError(t, err)
 
-		expected := make(map[string]interface{})
+		expected := make(map[string]any)
 		json.Unmarshal(inStr, &expected)
 
 		assert.EqualValues(t, expected, actual)

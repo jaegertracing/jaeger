@@ -106,7 +106,7 @@ func TestOptionsWithFlags(t *testing.T) {
 	assert.Equal(t, "2006.01.02.15", aux.IndexDateLayoutSpans)
 	assert.True(t, primary.UseILM)
 	assert.Equal(t, "POST", aux.SendGetBodyAs)
-	assert.Equal(t, true, primary.DisableLogsFieldSearch)
+	assert.True(t, primary.DisableLogsFieldSearch)
 }
 
 func TestEmptyRemoteReadClusters(t *testing.T) {
