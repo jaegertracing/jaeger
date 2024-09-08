@@ -6,7 +6,7 @@
 set -euxf -o pipefail
 
 print_help() {
-  echo "Usage: $0 [-l] [-D] [-p platforms] [-h]"
+  echo "Usage: $0 [-h] [-l] [-p platforms]"
   echo "-h: Print help"
   echo "-l: Enable local-only mode that only pushes images to local registry"
   echo "-p: Comma-separated list of platforms to build for (default: all supported)"
@@ -19,7 +19,7 @@ current_platform="$(go env GOOS)/$(go env GOARCH)"
 LOCAL_FLAG=''
 success="false"
 
-while getopts "lp:h" opt; do
+while getopts "hlp:" opt; do
 	case "${opt}" in
 	l)
 		# in the local-only mode the images will only be pushed to local registry

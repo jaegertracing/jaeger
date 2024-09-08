@@ -21,7 +21,12 @@ on:
       dry_run:
         required: true
         type: boolean
-        description: Pass `true` for a test run. It will only build one platform (for speed) and will not push artifacts.
+        description: Do a test run. It will only build one platform (for speed) and will not push artifacts.
+
+      overwrite:
+        required: true
+        type: boolean
+        description: Allow overwriting artifacts.
 
 # See https://github.com/jaegertracing/jaeger/issues/4017
 permissions:
@@ -45,8 +50,7 @@ jobs:
         sudo rm -rf /usr/local/lib/android || true
         df -h /
 
-    - name: Harden Runner
-      uses: step-security/harden-runner@0d381219ddf674d61a7572ddd19d7941e271515c # v2.9.0
+    - uses: step-security/harden-runner@0d381219ddf674d61a7572ddd19d7941e271515c # v2.9.0
       with:
         egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
 
@@ -62,17 +66,18 @@ jobs:
       with:
         go-version: 1.23.x
 
-    - name: Setup Node.js version
-      uses: ./.github/actions/setup-node.js
+    - uses: ./.github/actions/setup-node.js
 
     - name: Determine parameters
       id: params
       run: |
         if [[ "${{ inputs.dry_run }}" == "true" ]]; then
+          echo "local_build=-l" >> $GITHUB_OUTPUT
           echo "platforms=linux/amd64" >> $GITHUB_OUTPUT
           echo "linux_platforms=linux/amd64" >> $GITHUB_OUTPUT
           echo "gpg_key_override=-k skip" >> $GITHUB_OUTPUT
         else
+          echo "local_build=" >> $GITHUB_OUTPUT
           echo "platforms=$(make echo-platforms)" >> $GITHUB_OUTPUT
           echo "linux_platforms=$(make echo-linux-platforms)" >> $GITHUB_OUTPUT
         fi
@@ -84,13 +89,13 @@ jobs:
       #
       # TODO this currently utilizes 1.x version tag
       run: |
+        # @nocommit this always looks back the most recent tag
         BRANCH=$(make echo-v1)
         echo "BRANCH=${BRANCH}" >> ${GITHUB_ENV}
         echo Validate that the latest tag ${BRANCH} is in semver format
         echo ${BRANCH} | grep -E '^v[0-9]+.[0-9]+.[0-9]+$'
 
-    - name: Install tools
-      run: make install-ci
+    - run: make install-ci
 
     - name: Configure GPG Key
       if: ${{ inputs.dry_run != true }}
@@ -112,7 +117,7 @@ jobs:
       with:
         file: '{deploy/*.tar.gz,deploy/*.zip,deploy/*.sha256sum.txt,deploy/*.asc}'
         file_glob: true
-        overwrite: true
+        overwrite: ${{ inputs.overwrite }}
         tag: ${{ env.BRANCH }}
         repo_token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -125,19 +130,28 @@ jobs:
 
     - name: Build and upload all container images
       # -B skips building the binaries since we already did that above
-      run: bash scripts/build-upload-docker-images.sh -B -p ${{ steps.params.outputs.linux_platforms }}
+      run: |
+        bash scripts/build-upload-docker-images.sh -B \
+          -p ${{ steps.params.outputs.linux_platforms }} \
+          ${{ steps.params.outputs.local_build }}
       env:
         DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
 
     - name: Build, test, and publish all-in-one image
-      run: bash scripts/build-all-in-one-image.sh -p ${{ steps.params.outputs.linux_platforms }}
+      run: |
+        bash scripts/build-all-in-one-image.sh \
+          -p ${{ steps.params.outputs.linux_platforms }} \
+          ${{ steps.params.outputs.local_build }}
       env:
         DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
 
     - name: Build, test, and publish hotrod image
-      run: bash scripts/build-hotrod-image.sh -p ${{ steps.params.outputs.linux_platforms }}
+      run: |
+        bash scripts/build-hotrod-image.sh \
+          -p ${{ steps.params.outputs.linux_platforms }} \
+          ${{ steps.params.outputs.local_build }}
       env:
         DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
@@ -157,6 +171,6 @@ jobs:
       if: ${{ inputs.dry_run != true }}
       with:
         file: jaeger-SBOM.spdx.json
-        overwrite: true
+        overwrite: ${{ inputs.overwrite }}
         tag: ${{ env.BRANCH }}
         repo_token: ${{ secrets.GITHUB_TOKEN }}
