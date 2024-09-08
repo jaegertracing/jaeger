@@ -16,7 +16,7 @@ type Options struct {
 	IndexPrefix            string
 	UseILM                 string // using string as util is being used in python and using bool leads to type issues.
 	ILMPolicyName          string
-	DisableLogsFieldSearch string
+	DisableLogsFieldSearch string // using string as util is being used in python and using bool leads to type issues.
 }
 
 const (

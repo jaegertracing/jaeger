@@ -24,16 +24,20 @@ func GetMappingAsString(builder es.TemplateBuilder, opt *app.Options) (string, e
 	if err != nil {
 		return "", err
 	}
+	disableLogsFieldSearch, err := strconv.ParseBool(opt.DisableLogsFieldSearch)
+	if err != nil {
+		return "", err
+	}
 
 	mappingBuilder := mappings.MappingBuilder{
-		TemplateBuilder: builder,
-		Shards:          opt.Shards,
-		Replicas:        opt.Replicas,
-		EsVersion:       opt.EsVersion,
-		IndexPrefix:     opt.IndexPrefix,
-		UseILM:          enableILM,
-		ILMPolicyName:   opt.ILMPolicyName,
-		LogsFieldsType:  mappings.ParseFieldType(opt.DisableLogsFieldSearch),
+		TemplateBuilder:        builder,
+		Shards:                 opt.Shards,
+		Replicas:               opt.Replicas,
+		EsVersion:              opt.EsVersion,
+		IndexPrefix:            opt.IndexPrefix,
+		UseILM:                 enableILM,
+		ILMPolicyName:          opt.ILMPolicyName,
+		DisableLogsFieldSearch: disableLogsFieldSearch,
 	}
 	return mappingBuilder.GetMapping(opt.Mapping)
 }

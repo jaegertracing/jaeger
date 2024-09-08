@@ -323,6 +323,7 @@ func mappingBuilderFromConfig(cfg *config.Configuration) mappings.MappingBuilder
 		PrioritySpanTemplate:         cfg.PrioritySpanTemplate,
 		PriorityServiceTemplate:      cfg.PriorityServiceTemplate,
 		PriorityDependenciesTemplate: cfg.PriorityDependenciesTemplate,
+		DisableLogsFieldSearch:       cfg.DisableLogsFieldSearch,
 	}
 }
 

@@ -281,8 +281,8 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 	flagSet.Bool(
 		nsConfig.namespace+suffixDisableLogsFieldSearch,
 		nsConfig.DisableLogsFieldSearch,
-		"(experimental) Option to disable search on logs.field field of jaeger span index. Setting this option to true would set mapping of "+
-			"logs.field field span index to object type. Its set to false by default.",
+		"(experimental) When true, turns off the ability to search within log fields, and uses "+
+			"more efficient 'object' mapping for logs[].fields[], instead of 'nested' mapping.",
 	)
 
 	if nsConfig.namespace == archiveNamespace {

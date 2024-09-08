@@ -30,17 +30,17 @@ func TestMappingBuilderGetMapping(t *testing.T) {
 		jaegerDependencies = "jaeger-dependencies"
 	)
 	tests := []struct {
-		mapping       string
-		esVersion     uint
-		fixtureName   string
-		logsFieldType FieldType
+		mapping                string
+		esVersion              uint
+		fixtureName            string
+		disableLogsFieldSearch bool
 	}{
 		{mapping: jaegerSpan, esVersion: 8, fixtureName: "jaeger-span-8"},
 		{mapping: jaegerSpan, esVersion: 7, fixtureName: "jaeger-span-7"},
 		{mapping: jaegerSpan, esVersion: 6, fixtureName: "jaeger-span-6"},
-		{mapping: jaegerSpan, esVersion: 8, logsFieldType: ObjectFieldType, fixtureName: "jaeger-span-with-object-fieldtype-logs-8"},
-		{mapping: jaegerSpan, esVersion: 7, logsFieldType: ObjectFieldType, fixtureName: "jaeger-span-with-object-fieldtype-logs-7"},
-		{mapping: jaegerSpan, esVersion: 6, logsFieldType: ObjectFieldType, fixtureName: "jaeger-span-with-object-fieldtype-logs-6"},
+		{mapping: jaegerSpan, esVersion: 8, fixtureName: "jaeger-span-with-logs-fieldtype-object-8", disableLogsFieldSearch: true},
+		{mapping: jaegerSpan, esVersion: 7, fixtureName: "jaeger-span-with-logs-fieldtype-object-7", disableLogsFieldSearch: true},
+		{mapping: jaegerSpan, esVersion: 6, fixtureName: "jaeger-span-with-logs-fieldtype-object-6", disableLogsFieldSearch: true},
 		{mapping: jaegerService, esVersion: 8, fixtureName: "jaeger-service-8"},
 		{mapping: jaegerService, esVersion: 7, fixtureName: "jaeger-service-7"},
 		{mapping: jaegerService, esVersion: 6, fixtureName: "jaeger-service-6"},
@@ -61,7 +61,7 @@ func TestMappingBuilderGetMapping(t *testing.T) {
 				IndexPrefix:                  "test-",
 				UseILM:                       true,
 				ILMPolicyName:                "jaeger-test-policy",
-				LogsFieldsType:               tt.logsFieldType,
+				DisableLogsFieldSearch:       tt.disableLogsFieldSearch,
 			}
 			got, err := mb.GetMapping(tt.mapping)
 			require.NoError(t, err)

@@ -29,7 +29,7 @@ type MappingBuilder struct {
 	IndexPrefix                  string
 	UseILM                       bool
 	ILMPolicyName                string
-	LogsFieldsType               FieldType
+	DisableLogsFieldSearch       bool
 }
 
 // GetMapping returns the rendered mapping based on elasticsearch version

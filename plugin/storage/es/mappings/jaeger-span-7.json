@@ -69,14 +69,22 @@
         "type":"integer"
       },
       "logs":{
-        "type":"{{ .LogsFieldsType }}",
+        {{- if .DisableLogsFieldSearch }}
+        "type":"object",
+        {{- else }}
+        "type":"nested",
+        {{- end }}
         "dynamic":false,
         "properties":{
           "timestamp":{
             "type":"long"
           },
           "fields":{
-            "type":"{{ .LogsFieldsType }}",
+            {{- if .DisableLogsFieldSearch }}
+            "type":"object",
+            {{- else }}
+            "type":"nested",
+            {{- end }}
             "dynamic":false,
             "properties":{
               "key":{
