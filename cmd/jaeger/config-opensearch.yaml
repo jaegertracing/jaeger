@@ -48,8 +48,9 @@ extensions:
               replicas: 1
       another_storage:
         opensearch:
-          spans:
-            prefix: "jaeger-archive"
+          indices:
+            spans:
+              prefix: "jaeger-archive"
 
 receivers:
   otlp:
