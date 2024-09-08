@@ -22,6 +22,12 @@ const (
 	maxProbabilities = 10
 )
 
+// aggregator is a kind of trace processor that watches for root spans
+// and calculates how many traces per service / per endpoint are being
+// produced. It periodically flushes these stats ("throughput") to storage.
+//
+// It also invokes PostAggregator which actually computes adaptive sampling
+// probabilities based on the observed throughput.
 type aggregator struct {
 	sync.Mutex
 
@@ -116,23 +122,6 @@ func (a *aggregator) RecordThroughput(service, operation string, samplerType spa
 	if samplerType == span_model.SamplerTypeProbabilistic {
 		throughput.Count++
 	}
-}
-
-func RecordThroughput(agg samplingstrategy.Aggregator, span *span_model.Span, logger *zap.Logger) {
-	// TODO simply checking parentId to determine if a span is a root span is not sufficient. However,
-	// we can be sure that only a root span will have sampler tags.
-	if span.ParentSpanID() != span_model.NewSpanID(0) {
-		return
-	}
-	service := span.Process.ServiceName
-	if service == "" || span.OperationName == "" {
-		return
-	}
-	samplerType, samplerParam := span.GetSamplerParams(logger)
-	if samplerType == span_model.SamplerTypeUnrecognized {
-		return
-	}
-	agg.RecordThroughput(service, span.OperationName, samplerType, samplerParam)
 }
 
 func (a *aggregator) Start() {
