@@ -69,10 +69,10 @@ if [[ "${local_test_only}" = "Y" ]]; then
     IMAGE_TAGS=("--tag" "localhost:5000/${namespace}/${component_name}:${GITHUB_SHA}")
     PUSHTAG="type=image, push=true"
 else
-	echo "::group:: compute tags ${component_name}"
+    echo "::group:: compute tags ${component_name}"
     # shellcheck disable=SC2086
     IFS=" " read -r -a IMAGE_TAGS <<< "$(bash scripts/compute-tags.sh ${namespace}/${component_name})"
-	echo "::endgroup::"
+    echo "::endgroup::"
 
     # Only push multi-arch images to dockerhub/quay.io for main branch or for release tags vM.N.P
     if [[ "$BRANCH" == "main" || $BRANCH =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then

@@ -36,6 +36,7 @@ tags() {
 if [[ $BRANCH =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
     MAJOR_MINOR_PATCH=$(echo "${BRANCH}" | ${GREP} -Po "([\d\.]+)")
     tags "${BASE_BUILD_IMAGE}:${MAJOR_MINOR_PATCH}"
+    tags "${BASE_BUILD_IMAGE}:latest"
 elif [[ $BRANCH != "main" ]]; then
     # not on release tag nor on main - no tags are needed since we won't publish
     echo ""
