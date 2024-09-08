@@ -86,11 +86,11 @@ else
     fi
 fi
 
+echo "::group:: docker build ${component_name}"
 # Some of the variables can be blank and should not produce extra arguments,
 # so we need to disable the linter checks for quoting.
 # TODO: collect arguments into an array and add optional once conditionally
 # shellcheck disable=SC2086
-echo "::group:: docker build ${component_name}"
 docker buildx build --output "${PUSHTAG}" ${target_arg} ${base_debug_img_arg} \
 	--progress=plain \
 	--platform="${platforms}" \
