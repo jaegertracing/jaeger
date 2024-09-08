@@ -27,7 +27,7 @@ func GetMappingAsString(builder es.TemplateBuilder, opt *app.Options) (string, e
 	}
 
 	indexOpts := cfg.IndexOptions{
-		Priority: 0,
+		Prefix:   opt.IndexPrefix,
 		Shards:   opt.Shards,
 		Replicas: opt.Shards,
 	}
