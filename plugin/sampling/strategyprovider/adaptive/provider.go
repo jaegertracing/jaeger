@@ -4,6 +4,7 @@
 package adaptive
 
 import (
+	"context"
 	"sync"
 	"time"
 
@@ -17,6 +18,11 @@ import (
 
 const defaultFollowerProbabilityInterval = 20 * time.Second
 
+// Provider is responsible for providing sampling strategies for services.
+// It periodically loads sampling probabilities from storage and converts them
+// into sampling strategies that are cached and served to clients.
+// Provider relies on sampling probabilities being periodically updated by the
+// aggregator & post-aggregator.
 type Provider struct {
 	sync.RWMutex
 	Options
@@ -55,24 +61,113 @@ func NewProvider(options Options, logger *zap.Logger, participant leaderelection
 }
 
 // Start initializes and starts the sampling service which regularly loads sampling probabilities and generates strategies.
-func (ss *Provider) Start() error {
-	ss.logger.Info("starting adaptive sampling service")
-	ss.loadProbabilities()
-	ss.generateStrategyResponses()
+func (p *Provider) Start() error {
+	p.logger.Info("starting adaptive sampling service")
+	p.loadProbabilities()
+	p.generateStrategyResponses()
 
-	ss.bgFinished.Add(1)
+	p.bgFinished.Add(1)
 	go func() {
-		ss.runUpdateProbabilitiesLoop()
-		ss.bgFinished.Done()
+		p.runUpdateProbabilitiesLoop()
+		p.bgFinished.Done()
 	}()
 
 	return nil
 }
 
+func (p *Provider) loadProbabilities() {
+	// TODO GetLatestProbabilities API can be changed to return the latest measured qps for initialization
+	probabilities, err := p.storage.GetLatestProbabilities()
+	if err != nil {
+		p.logger.Warn("failed to initialize probabilities", zap.Error(err))
+		return
+	}
+	p.Lock()
+	defer p.Unlock()
+	p.probabilities = probabilities
+}
+
+// runUpdateProbabilitiesLoop is a loop that reads probabilities from storage.
+// The follower updates its local cache with the latest probabilities and serves them.
+func (p *Provider) runUpdateProbabilitiesLoop() {
+	select {
+	case <-time.After(addJitter(p.followerRefreshInterval)):
+		// continue after jitter delay
+	case <-p.shutdown:
+		return
+	}
+
+	ticker := time.NewTicker(p.followerRefreshInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			// Only load probabilities if this strategy_store doesn't hold the leader lock
+			if !p.isLeader() {
+				p.loadProbabilities()
+				p.generateStrategyResponses()
+			}
+		case <-p.shutdown:
+			return
+		}
+	}
+}
+
+func (p *Provider) isLeader() bool {
+	return p.electionParticipant.IsLeader()
+}
+
+// generateStrategyResponses generates and caches SamplingStrategyResponse from the calculated sampling probabilities.
+func (p *Provider) generateStrategyResponses() {
+	p.RLock()
+	strategies := make(map[string]*api_v2.SamplingStrategyResponse)
+	for svc, opProbabilities := range p.probabilities {
+		opStrategies := make([]*api_v2.OperationSamplingStrategy, len(opProbabilities))
+		var idx int
+		for op, probability := range opProbabilities {
+			opStrategies[idx] = &api_v2.OperationSamplingStrategy{
+				Operation: op,
+				ProbabilisticSampling: &api_v2.ProbabilisticSamplingStrategy{
+					SamplingRate: probability,
+				},
+			}
+			idx++
+		}
+		strategy := p.generateDefaultSamplingStrategyResponse()
+		strategy.OperationSampling.PerOperationStrategies = opStrategies
+		strategies[svc] = strategy
+	}
+	p.RUnlock()
+
+	p.Lock()
+	defer p.Unlock()
+	p.strategyResponses = strategies
+}
+
+func (p *Provider) generateDefaultSamplingStrategyResponse() *api_v2.SamplingStrategyResponse {
+	return &api_v2.SamplingStrategyResponse{
+		StrategyType: api_v2.SamplingStrategyType_PROBABILISTIC,
+		OperationSampling: &api_v2.PerOperationSamplingStrategies{
+			DefaultSamplingProbability:       p.InitialSamplingProbability,
+			DefaultLowerBoundTracesPerSecond: p.MinSamplesPerSecond,
+		},
+	}
+}
+
+// GetSamplingStrategy implements protobuf endpoint for retrieving sampling strategy for a service.
+func (p *Provider) GetSamplingStrategy(_ context.Context, service string) (*api_v2.SamplingStrategyResponse, error) {
+	p.RLock()
+	defer p.RUnlock()
+	if strategy, ok := p.strategyResponses[service]; ok {
+		return strategy, nil
+	}
+	return p.generateDefaultSamplingStrategyResponse(), nil
+}
+
 // Close stops the service from loading probabilities and generating strategies.
-func (ss *Provider) Close() error {
-	ss.logger.Info("stopping adaptive sampling service")
-	close(ss.shutdown)
-	ss.bgFinished.Wait()
+func (p *Provider) Close() error {
+	p.logger.Info("stopping adaptive sampling service")
+	close(p.shutdown)
+	p.bgFinished.Wait()
 	return nil
 }
