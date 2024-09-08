@@ -89,7 +89,6 @@ jobs:
       #
       # TODO this currently utilizes 1.x version tag
       run: |
-        # @nocommit this always looks back the most recent tag
         BRANCH=$(make echo-v1)
         echo "BRANCH=${BRANCH}" >> ${GITHUB_ENV}
         echo Validate that the latest tag ${BRANCH} is in semver format
