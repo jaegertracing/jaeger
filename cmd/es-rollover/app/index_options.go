@@ -6,8 +6,6 @@ package app
 import (
 	"fmt"
 	"strings"
-
-	cfg "github.com/jaegertracing/jaeger/pkg/es/config"
 )
 
 const (
@@ -24,11 +22,11 @@ type IndexOption struct {
 }
 
 // RolloverIndices return an array of indices to rollover
-func RolloverIndices(archive bool, skipDependencies bool, adaptiveSampling bool, indices cfg.Indices) []IndexOption {
+func RolloverIndices(archive bool, skipDependencies bool, adaptiveSampling bool, prefix string) []IndexOption {
 	if archive {
 		return []IndexOption{
 			{
-				prefix:    indices.Spans.Prefix,
+				prefix:    prefix,
 				indexType: "jaeger-span-archive",
 				Mapping:   "jaeger-span",
 			},
@@ -37,12 +35,12 @@ func RolloverIndices(archive bool, skipDependencies bool, adaptiveSampling bool,
 
 	indexOptions := []IndexOption{
 		{
-			prefix:    indices.Spans.Prefix,
+			prefix:    prefix,
 			Mapping:   "jaeger-span",
 			indexType: "jaeger-span",
 		},
 		{
-			prefix:    indices.Services.Prefix,
+			prefix:    prefix,
 			Mapping:   "jaeger-service",
 			indexType: "jaeger-service",
 		},
@@ -50,7 +48,7 @@ func RolloverIndices(archive bool, skipDependencies bool, adaptiveSampling bool,
 
 	if !skipDependencies {
 		indexOptions = append(indexOptions, IndexOption{
-			prefix:    indices.Dependencies.Prefix,
+			prefix:    prefix,
 			Mapping:   "jaeger-dependencies",
 			indexType: "jaeger-dependencies",
 		})
@@ -58,7 +56,7 @@ func RolloverIndices(archive bool, skipDependencies bool, adaptiveSampling bool,
 
 	if adaptiveSampling {
 		indexOptions = append(indexOptions, IndexOption{
-			prefix:    indices.Sampling.Prefix,
+			prefix:    prefix,
 			Mapping:   "jaeger-sampling",
 			indexType: "jaeger-sampling",
 		})

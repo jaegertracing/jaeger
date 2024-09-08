@@ -7,8 +7,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-
-	cfg "github.com/jaegertracing/jaeger/pkg/es/config"
 )
 
 func TestRolloverIndices(t *testing.T) {
@@ -173,14 +171,7 @@ func TestRolloverIndices(t *testing.T) {
 			if test.prefix != "" {
 				test.prefix += "-"
 			}
-			opts := cfg.IndexOptions{Prefix: test.prefix}
-			indices := cfg.Indices{
-				Spans:        opts,
-				Services:     opts,
-				Dependencies: opts,
-				Sampling:     opts,
-			}
-			result := RolloverIndices(test.archive, test.skipDependencies, test.adaptiveSampling, indices)
+			result := RolloverIndices(test.archive, test.skipDependencies, test.adaptiveSampling, test.prefix)
 			assert.Equal(t, len(test.expected), len(result))
 			for i, r := range result {
 				assert.Equal(t, test.expected[i].templateName, r.TemplateName())
