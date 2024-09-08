@@ -100,7 +100,9 @@ docker buildx build --output "${PUSHTAG}" ${target_arg} ${base_debug_img_arg} \
 echo "::endgroup::"
 echo "Finished building${upload_comment} ${component_name} =============="
 
+echo "::group:: docker prune"
 df -h /
 docker buildx prune --all --force
 docker system prune --force
 df -h /
+echo "::endgroup::"
