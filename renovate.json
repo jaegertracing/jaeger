@@ -73,6 +73,11 @@
       "matchManagers": ["gomod"],
       "matchPackagePrefixes": ["golang.org/x"],
       "groupName": "All golang.org/x packages"
+    },
+    {
+      "matchManagers": ["gomod"],
+      "matchPackagePrefixes": ["github.com/prometheus"],
+      "groupName": "All github.com/prometheus packages"
     }
   ]
 }

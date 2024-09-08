@@ -4,7 +4,6 @@
 package adaptive
 
 import (
-	"context"
 	"errors"
 	"math"
 	"math/rand"
@@ -17,7 +16,6 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/plugin/sampling/leaderelection"
 	"github.com/jaegertracing/jaeger/plugin/sampling/strategyprovider/adaptive/calculationstrategy"
-	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 	"github.com/jaegertracing/jaeger/storage/samplingstore"
 )
 
@@ -58,7 +56,7 @@ type throughputBucket struct {
 	endTime    time.Time
 }
 
-// PostAggregator retrieves service throughput over a look back interval and calculates sampling probabilities
+// PostAggregator retrieves service throughput over a lookback interval and calculates sampling probabilities
 // per operation such that each operation is sampled at a specified target QPS. It achieves this by
 // retrieving discrete buckets of operation throughput and doing a weighted average of the throughput
 // and generating a probability to match the targetQPS.
@@ -129,16 +127,6 @@ func newPostAggregator(
 	}, nil
 }
 
-// GetSamplingStrategy implements protobuf endpoint for retrieving sampling strategy for a service.
-func (p *Provider) GetSamplingStrategy(_ context.Context, service string) (*api_v2.SamplingStrategyResponse, error) {
-	p.RLock()
-	defer p.RUnlock()
-	if strategy, ok := p.strategyResponses[service]; ok {
-		return strategy, nil
-	}
-	return p.generateDefaultSamplingStrategyResponse(), nil
-}
-
 // Start initializes and starts the sampling postAggregator which regularly calculates sampling probabilities.
 func (p *PostAggregator) Start() error {
 	p.logger.Info("starting adaptive sampling postAggregator")
@@ -148,49 +136,7 @@ func (p *PostAggregator) Start() error {
 	return nil
 }
 
-func (p *Provider) loadProbabilities() {
-	// TODO GetLatestProbabilities API can be changed to return the latest measured qps for initialization
-	probabilities, err := p.storage.GetLatestProbabilities()
-	if err != nil {
-		p.logger.Warn("failed to initialize probabilities", zap.Error(err))
-		return
-	}
-	p.Lock()
-	defer p.Unlock()
-	p.probabilities = probabilities
-}
-
-// runUpdateProbabilitiesLoop is a loop that reads probabilities from storage.
-// The follower updates its local cache with the latest probabilities and serves them.
-func (p *Provider) runUpdateProbabilitiesLoop() {
-	select {
-	case <-time.After(addJitter(p.followerRefreshInterval)):
-		// continue after jitter delay
-	case <-p.shutdown:
-		return
-	}
-
-	ticker := time.NewTicker(p.followerRefreshInterval)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ticker.C:
-			// Only load probabilities if this strategy_store doesn't hold the leader lock
-			if !p.isLeader() {
-				p.loadProbabilities()
-				p.generateStrategyResponses()
-			}
-		case <-p.shutdown:
-			return
-		}
-	}
-}
-
 func (p *PostAggregator) isLeader() bool {
-	return p.electionParticipant.IsLeader()
-}
-
-func (p *Provider) isLeader() bool {
 	return p.electionParticipant.IsLeader()
 }
 
@@ -456,41 +402,4 @@ func (p *PostAggregator) isUsingAdaptiveSampling(
 		}
 	}
 	return false
-}
-
-// generateStrategyResponses generates and caches SamplingStrategyResponse from the calculated sampling probabilities.
-func (p *Provider) generateStrategyResponses() {
-	p.RLock()
-	strategies := make(map[string]*api_v2.SamplingStrategyResponse)
-	for svc, opProbabilities := range p.probabilities {
-		opStrategies := make([]*api_v2.OperationSamplingStrategy, len(opProbabilities))
-		var idx int
-		for op, probability := range opProbabilities {
-			opStrategies[idx] = &api_v2.OperationSamplingStrategy{
-				Operation: op,
-				ProbabilisticSampling: &api_v2.ProbabilisticSamplingStrategy{
-					SamplingRate: probability,
-				},
-			}
-			idx++
-		}
-		strategy := p.generateDefaultSamplingStrategyResponse()
-		strategy.OperationSampling.PerOperationStrategies = opStrategies
-		strategies[svc] = strategy
-	}
-	p.RUnlock()
-
-	p.Lock()
-	defer p.Unlock()
-	p.strategyResponses = strategies
-}
-
-func (p *Provider) generateDefaultSamplingStrategyResponse() *api_v2.SamplingStrategyResponse {
-	return &api_v2.SamplingStrategyResponse{
-		StrategyType: api_v2.SamplingStrategyType_PROBABILISTIC,
-		OperationSampling: &api_v2.PerOperationSamplingStrategies{
-			DefaultSamplingProbability:       p.InitialSamplingProbability,
-			DefaultLowerBoundTracesPerSecond: p.MinSamplesPerSecond,
-		},
-	}
 }
