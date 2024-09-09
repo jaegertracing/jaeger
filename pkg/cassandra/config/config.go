@@ -19,8 +19,8 @@ import (
 
 // Configuration describes the configuration properties needed to connect to a Cassandra cluster.
 type Configuration struct {
-	Connection Connection `mapstructure:"connection"`
 	Schema     Schema     `mapstructure:"schema"`
+	Connection Connection `mapstructure:"connection"`
 }
 
 type Connection struct {

@@ -20,18 +20,22 @@ extensions:
     backends:
       some_storage:
         cassandra:
-          keyspace: "jaeger_v1_dc1"
-          username: "cassandra"
-          password: "cassandra"
-          tls:
-            insecure: true
+          schema: 
+            keyspace: "jaeger_v1_dc1"
+          connection: 
+            username: "cassandra"
+            password: "cassandra"
+            tls:
+              insecure: true
       another_storage:
         cassandra:
-          keyspace: "jaeger_v1_dc1"
-          username: "cassandra"
-          password: "cassandra"
-          tls:
-            insecure: true
+          schema: 
+            keyspace: "jaeger_v1_dc1"
+          connection: 
+            username: "cassandra"
+            password: "cassandra"
+            tls:
+              insecure: true
 receivers:
   otlp:
     protocols:
