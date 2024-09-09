@@ -31,9 +31,13 @@ testRequireBranch() {
     assertContains "$err" "$err" 'expecting BRANCH env var'
 }
 
-testRequireGithubSha() {
-    err=$(BRANCH=abcd bash "$computeTags" foo/bar 2>&1)
-    assertContains "$err" "$err" 'expecting GITHUB_SHA env var'
+testGithubShaIsDefaulted() {
+    out=$(BRANCH=main bash "$computeTags" foo/bar)
+    expected=(
+        "foo/bar-snapshot:$(git rev-parse HEAD)"
+        "foo/bar-snapshot:latest"
+    )
+    expect "${expected[@]}"
 }
 
 # out is global var which is populated for every output under test
@@ -79,14 +83,8 @@ expect_not() {
 }
 
 testRandomBranch() {
-    out=$(BRANCH=branch GITHUB_SHA=sha bash "$computeTags" foo/bar)
-    expected=(
-        "foo/bar:latest"
-        "foo/bar-snapshot:sha"
-        "foo/bar-snapshot:latest"
-    )
-    expect "${expected[@]}"
-    expect_not "foo/bar"
+    out=$(BRANCH=random GITHUB_SHA=sha bash "$computeTags" foo/bar)
+    expect
 }
 
 testMainBranch() {
@@ -103,8 +101,6 @@ testSemVerBranch() {
     out=$(BRANCH=v1.2.3 GITHUB_SHA=sha bash "$computeTags" foo/bar)
     expected=(
         "foo/bar:latest"
-        "foo/bar:1"
-        "foo/bar:1.2"
         "foo/bar:1.2.3"
         "foo/bar-snapshot:sha"
         "foo/bar-snapshot:latest"

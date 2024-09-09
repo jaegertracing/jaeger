@@ -19,8 +19,7 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-    - name: Harden Runner
-      uses: step-security/harden-runner@0d381219ddf674d61a7572ddd19d7941e271515c # v2.9.0
+    - uses: step-security/harden-runner@0d381219ddf674d61a7572ddd19d7941e271515c # v2.9.0
       with:
         egress-policy: audit # TODO: change to 'egress-policy: block' after a couple of runs
 
@@ -33,33 +32,27 @@ jobs:
     - name: Print Jaeger version for no reason
       run: make echo-v1 echo-v2
 
-    - name: Install tools
-      run: make install-test-tools
+    - run: make install-test-tools
 
-    - name: Lint
-      run: make lint
+    - run: make lint
 
   pull-request-preconditions:
     runs-on: ubuntu-latest
     steps:
-    - name: Harden Runner
-      uses: step-security/harden-runner@0d381219ddf674d61a7572ddd19d7941e271515c # v2.9.0
+    - uses: step-security/harden-runner@0d381219ddf674d61a7572ddd19d7941e271515c # v2.9.0
       with:
         egress-policy: audit # TODO: change to 'egress-policy: block' after a couple of runs
 
     - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
 
-    - name: Ensure PR is not on main branch
-      uses: ./.github/actions/block-pr-not-on-main
+    - uses: ./.github/actions/block-pr-from-main-branch
 
-    - name: lint-nocommit
-      run: make lint-nocommit
+    - run: make lint-nocommit
 
   dco-check:
     runs-on: ubuntu-latest
     steps:
-    - name: Harden Runner
-      uses: step-security/harden-runner@0d381219ddf674d61a7572ddd19d7941e271515c # v2.9.0
+    - uses: step-security/harden-runner@0d381219ddf674d61a7572ddd19d7941e271515c # v2.9.0
       with:
         egress-policy: audit # TODO: change to 'egress-policy: block' after a couple of runs
 
@@ -78,8 +71,7 @@ jobs:
   generated-files-check:
     runs-on: ubuntu-latest
     steps:
-    - name: Harden Runner
-      uses: step-security/harden-runner@0d381219ddf674d61a7572ddd19d7941e271515c # v2.9.0
+    - uses: step-security/harden-runner@0d381219ddf674d61a7572ddd19d7941e271515c # v2.9.0
       with:
         egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
 
@@ -104,21 +96,17 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Harden Runner
-      uses: step-security/harden-runner@0d381219ddf674d61a7572ddd19d7941e271515c # v2.9.0
+    - uses: step-security/harden-runner@0d381219ddf674d61a7572ddd19d7941e271515c # v2.9.0
       with:
         egress-policy: audit
 
-    - name: Check out code
-      uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+    - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
 
-    - name: Install shellcheck
-      run: sudo apt-get install shellcheck
+    - run: sudo apt-get install shellcheck
 
-    - name: Run shellcheck
-      run: shellcheck scripts/*.sh
+    - run: shellcheck scripts/*.sh
 
-    - name: Install shunit2
+    - name: Install shunit2 for shell unit tests
       uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
       with:
         repository: kward/shunit2
