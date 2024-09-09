@@ -1,3 +1,6 @@
+// Copyright (c) 2024 The Jaeger Authors.
+// SPDX-License-Identifier: Apache-2.0
+
 package config
 
 import (
@@ -34,7 +37,6 @@ func TestValidate_ReturnsErrorWhenInvalid(t *testing.T) {
 }
 
 func TestValidate_DoesNotReturnErrorWhenRequiredFieldsSet(t *testing.T) {
-
 	cfg := Configuration{
 		Connection: Connection{
 			Servers: []string{"localhost:9200"},
