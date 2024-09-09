@@ -6,7 +6,7 @@
 set -euf -o pipefail
 
 print_help() {
-  echo "Usage: $0 [-b binary] [-D] [-l] [-p platforms]"
+  echo "Usage: $0 [-b binary] [-D] [-h] [-l] [-p platforms]"
   echo "-b: Which binary to build: 'all-in-one' (default) or 'jaeger' (v2)"
   echo "-D: Disable building of images with debugger"
   echo "-h: Print help"

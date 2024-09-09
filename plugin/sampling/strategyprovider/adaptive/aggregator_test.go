@@ -161,7 +161,7 @@ func TestRecordThroughputFunc(t *testing.T) {
 
 	// Testing non-root span
 	span := &model.Span{References: []model.SpanRef{{SpanID: model.NewSpanID(1), RefType: model.ChildOf}}}
-	RecordThroughput(a, span, logger)
+	a.HandleRootSpan(span, logger)
 	require.Empty(t, a.(*aggregator).currentThroughput)
 
 	// Testing span with service name but no operation
@@ -169,12 +169,12 @@ func TestRecordThroughputFunc(t *testing.T) {
 	span.Process = &model.Process{
 		ServiceName: "A",
 	}
-	RecordThroughput(a, span, logger)
+	a.HandleRootSpan(span, logger)
 	require.Empty(t, a.(*aggregator).currentThroughput)
 
 	// Testing span with service name and operation but no probabilistic sampling tags
 	span.OperationName = "GET"
-	RecordThroughput(a, span, logger)
+	a.HandleRootSpan(span, logger)
 	require.Empty(t, a.(*aggregator).currentThroughput)
 
 	// Testing span with service name, operation, and probabilistic sampling tags
@@ -182,6 +182,6 @@ func TestRecordThroughputFunc(t *testing.T) {
 		model.String("sampler.type", "probabilistic"),
 		model.String("sampler.param", "0.001"),
 	}
-	RecordThroughput(a, span, logger)
+	a.HandleRootSpan(span, logger)
 	assert.EqualValues(t, 1, a.(*aggregator).currentThroughput["A"]["GET"].Count)
 }
