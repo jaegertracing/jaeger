@@ -22,9 +22,10 @@ extensions:
         cassandra:
           schema: 
             keyspace: "jaeger_v1_dc1"
-          connection: 
-            username: "cassandra"
-            password: "cassandra"
+          connection:
+            auth: 
+              username: "cassandra"
+              password: "cassandra"
             tls:
               insecure: true
       another_storage:
@@ -32,8 +33,9 @@ extensions:
           schema: 
             keyspace: "jaeger_v1_dc1"
           connection: 
-            username: "cassandra"
-            password: "cassandra"
+            auth:
+              username: "cassandra"
+              password: "cassandra"
             tls:
               insecure: true
 receivers:
