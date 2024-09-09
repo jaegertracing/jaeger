@@ -195,7 +195,9 @@ func TestNewFactoryWithConfig(t *testing.T) {
 		opts := &Options{
 			Primary: NamespaceConfig{
 				Configuration: cassandraCfg.Configuration{
-					Servers: []string{"localhost:9200"},
+					Connection: cassandraCfg.Connection{
+						Servers: []string{"localhost:9200"},
+					},
 				},
 			},
 		}
@@ -215,7 +217,9 @@ func TestNewFactoryWithConfig(t *testing.T) {
 		opts := &Options{
 			Primary: NamespaceConfig{
 				Configuration: cassandraCfg.Configuration{
-					Servers: []string{"localhost:9200"},
+					Connection: cassandraCfg.Connection{
+						Servers: []string{"localhost:9200"},
+					},
 				},
 			},
 		}

@@ -17,36 +17,32 @@ import (
 	gocqlw "github.com/jaegertracing/jaeger/pkg/cassandra/gocql"
 )
 
-// Configuration describes the configuration properties needed to connect to a Cassandra cluster
+// Configuration describes the configuration properties needed to connect to a Cassandra cluster.
 type Configuration struct {
-	Servers              []string               `valid:"required,url" mapstructure:"servers"`
-	Keyspace             string                 `mapstructure:"keyspace"`
+	Connection Connection `mapstructure:"connection"`
+	Schema     Schema     `mapstructure:"schema"`
+}
+
+type Connection struct {
+	Servers              []string               `mapstructure:"servers" valid:"required,url" `
 	LocalDC              string                 `mapstructure:"local_dc"`
+	Port                 int                    `mapstructure:"port"`
+	DisableAutoDiscovery bool                   `mapstructure:"disable_auto_discovery"`
 	ConnectionsPerHost   int                    `mapstructure:"connections_per_host"`
-	Timeout              time.Duration          `mapstructure:"-"`
-	ConnectTimeout       time.Duration          `mapstructure:"connection_timeout"`
 	ReconnectInterval    time.Duration          `mapstructure:"reconnect_interval"`
 	SocketKeepAlive      time.Duration          `mapstructure:"socket_keep_alive"`
 	MaxRetryAttempts     int                    `mapstructure:"max_retry_attempts"`
+	TLS                  configtls.ClientConfig `mapstructure:"tls"`
+	QueryTimeout         time.Duration          `mapstructure:"query_timeout"`
+	ConnectTimeout       time.Duration          `mapstructure:"connection_timeout"`
+	Authenticator        Authenticator          `mapstructure:"auth"`
 	ProtoVersion         int                    `mapstructure:"proto_version"`
 	Consistency          string                 `mapstructure:"consistency"`
-	DisableCompression   bool                   `mapstructure:"disable_compression"`
-	Port                 int                    `mapstructure:"port"`
-	Authenticator        Authenticator          `mapstructure:",squash"`
-	DisableAutoDiscovery bool                   `mapstructure:"-"`
-	TLS                  configtls.ClientConfig `mapstructure:"tls"`
 }
 
-func DefaultConfiguration() Configuration {
-	return Configuration{
-		Servers:            []string{"127.0.0.1"},
-		Port:               9042,
-		MaxRetryAttempts:   3,
-		Keyspace:           "jaeger_v1_test",
-		ProtoVersion:       4,
-		ConnectionsPerHost: 2,
-		ReconnectInterval:  60 * time.Second,
-	}
+type Schema struct {
+	Keyspace           string `mapstructure:"keyspace"`
+	DisableCompression bool   `mapstructure:"disable_compression"`
 }
 
 // Authenticator holds the authentication properties needed to connect to a Cassandra cluster
@@ -62,31 +58,48 @@ type BasicAuthenticator struct {
 	AllowedAuthenticators []string `yaml:"allowed_authenticators" mapstructure:"allowed_authenticators"`
 }
 
+func DefaultConfiguration() Configuration {
+	return Configuration{
+		Connection: Connection{
+			Servers:            []string{"127.0.0.1"},
+			Port:               9042,
+			MaxRetryAttempts:   3,
+			ProtoVersion:       4,
+			ConnectionsPerHost: 2,
+			ReconnectInterval:  60 * time.Second,
+		},
+		Schema: Schema{
+			Keyspace: "jaeger_v1_test",
+		},
+	}
+}
+
 // ApplyDefaults copies settings from source unless its own value is non-zero.
 func (c *Configuration) ApplyDefaults(source *Configuration) {
-	if c.ConnectionsPerHost == 0 {
-		c.ConnectionsPerHost = source.ConnectionsPerHost
+	if c.Connection.ConnectionsPerHost == 0 {
+		c.Connection.ConnectionsPerHost = source.Connection.ConnectionsPerHost
 	}
-	if c.MaxRetryAttempts == 0 {
-		c.MaxRetryAttempts = source.MaxRetryAttempts
+	if c.Connection.MaxRetryAttempts == 0 {
+		c.Connection.MaxRetryAttempts = source.Connection.MaxRetryAttempts
 	}
-	if c.Timeout == 0 {
-		c.Timeout = source.Timeout
+	if c.Connection.QueryTimeout == 0 {
+		c.Connection.QueryTimeout = source.Connection.QueryTimeout
 	}
-	if c.ReconnectInterval == 0 {
-		c.ReconnectInterval = source.ReconnectInterval
+	if c.Connection.ReconnectInterval == 0 {
+		c.Connection.ReconnectInterval = source.Connection.ReconnectInterval
 	}
-	if c.Port == 0 {
-		c.Port = source.Port
+	if c.Connection.Port == 0 {
+		c.Connection.Port = source.Connection.Port
 	}
-	if c.Keyspace == "" {
-		c.Keyspace = source.Keyspace
+	if c.Connection.ProtoVersion == 0 {
+		c.Connection.ProtoVersion = source.Connection.ProtoVersion
 	}
-	if c.ProtoVersion == 0 {
-		c.ProtoVersion = source.ProtoVersion
+	if c.Connection.SocketKeepAlive == 0 {
+		c.Connection.SocketKeepAlive = source.Connection.SocketKeepAlive
 	}
-	if c.SocketKeepAlive == 0 {
-		c.SocketKeepAlive = source.SocketKeepAlive
+
+	if c.Schema.Keyspace == "" {
+		c.Schema.Keyspace = source.Schema.Keyspace
 	}
 }
 
@@ -110,57 +123,57 @@ func (c *Configuration) NewSession() (cassandra.Session, error) {
 
 // NewCluster creates a new gocql cluster from the configuration
 func (c *Configuration) NewCluster() (*gocql.ClusterConfig, error) {
-	cluster := gocql.NewCluster(c.Servers...)
-	cluster.Keyspace = c.Keyspace
-	cluster.NumConns = c.ConnectionsPerHost
-	cluster.Timeout = c.Timeout
-	cluster.ConnectTimeout = c.ConnectTimeout
-	cluster.ReconnectInterval = c.ReconnectInterval
-	cluster.SocketKeepalive = c.SocketKeepAlive
-	if c.ProtoVersion > 0 {
-		cluster.ProtoVersion = c.ProtoVersion
+	cluster := gocql.NewCluster(c.Connection.Servers...)
+	cluster.Keyspace = c.Schema.Keyspace
+	cluster.NumConns = c.Connection.ConnectionsPerHost
+	cluster.Timeout = c.Connection.QueryTimeout
+	cluster.ConnectTimeout = c.Connection.ConnectTimeout
+	cluster.ReconnectInterval = c.Connection.ReconnectInterval
+	cluster.SocketKeepalive = c.Connection.SocketKeepAlive
+	if c.Connection.ProtoVersion > 0 {
+		cluster.ProtoVersion = c.Connection.ProtoVersion
 	}
-	if c.MaxRetryAttempts > 1 {
-		cluster.RetryPolicy = &gocql.SimpleRetryPolicy{NumRetries: c.MaxRetryAttempts - 1}
+	if c.Connection.MaxRetryAttempts > 1 {
+		cluster.RetryPolicy = &gocql.SimpleRetryPolicy{NumRetries: c.Connection.MaxRetryAttempts - 1}
 	}
-	if c.Port != 0 {
-		cluster.Port = c.Port
+	if c.Connection.Port != 0 {
+		cluster.Port = c.Connection.Port
 	}
 
-	if !c.DisableCompression {
+	if !c.Schema.DisableCompression {
 		cluster.Compressor = gocql.SnappyCompressor{}
 	}
 
-	if c.Consistency == "" {
+	if c.Connection.Consistency == "" {
 		cluster.Consistency = gocql.LocalOne
 	} else {
-		cluster.Consistency = gocql.ParseConsistency(c.Consistency)
+		cluster.Consistency = gocql.ParseConsistency(c.Connection.Consistency)
 	}
 
 	fallbackHostSelectionPolicy := gocql.RoundRobinHostPolicy()
-	if c.LocalDC != "" {
-		fallbackHostSelectionPolicy = gocql.DCAwareRoundRobinPolicy(c.LocalDC)
+	if c.Connection.LocalDC != "" {
+		fallbackHostSelectionPolicy = gocql.DCAwareRoundRobinPolicy(c.Connection.LocalDC)
 	}
 	cluster.PoolConfig.HostSelectionPolicy = gocql.TokenAwareHostPolicy(fallbackHostSelectionPolicy, gocql.ShuffleReplicas())
 
-	if c.Authenticator.Basic.Username != "" && c.Authenticator.Basic.Password != "" {
+	if c.Connection.Authenticator.Basic.Username != "" && c.Connection.Authenticator.Basic.Password != "" {
 		cluster.Authenticator = gocql.PasswordAuthenticator{
-			Username:              c.Authenticator.Basic.Username,
-			Password:              c.Authenticator.Basic.Password,
-			AllowedAuthenticators: c.Authenticator.Basic.AllowedAuthenticators,
+			Username:              c.Connection.Authenticator.Basic.Username,
+			Password:              c.Connection.Authenticator.Basic.Password,
+			AllowedAuthenticators: c.Connection.Authenticator.Basic.AllowedAuthenticators,
 		}
 	}
-	tlsCfg, err := c.TLS.LoadTLSConfig(context.Background())
+	tlsCfg, err := c.Connection.TLS.LoadTLSConfig(context.Background())
 	if err != nil {
 		return nil, err
 	}
-	if !c.TLS.Insecure {
+	if !c.Connection.TLS.Insecure {
 		cluster.SslOpts = &gocql.SslOptions{
 			Config: tlsCfg,
 		}
 	}
 	// If tunneling connection to C*, disable cluster autodiscovery features.
-	if c.DisableAutoDiscovery {
+	if c.Connection.DisableAutoDiscovery {
 		cluster.DisableInitialHostLookup = true
 		cluster.IgnorePeerAddr = true
 	}
