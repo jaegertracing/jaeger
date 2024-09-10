@@ -36,7 +36,7 @@ if [[ "$template" == "" ]]; then
             template=$(dirname $0)/v004.cql.tmpl
             ;;
         5)
-            template=$(dirname $0)/v005.cql.tmpl
+            template=$(dirname $0)/v004.cql.tmpl
             ;;
         *)
             template=$(ls $(dirname $0)/*cql.tmpl | sort | tail -1)
