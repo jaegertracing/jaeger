@@ -50,9 +50,9 @@ require (
 	go.opentelemetry.io/collector/config/confighttp v0.108.1
 	go.opentelemetry.io/collector/config/configretry v1.14.1
 	go.opentelemetry.io/collector/config/configtls v1.14.1
-	go.opentelemetry.io/collector/confmap v1.14.1
-	go.opentelemetry.io/collector/confmap/provider/envprovider v0.108.1
-	go.opentelemetry.io/collector/confmap/provider/fileprovider v0.108.1
+	go.opentelemetry.io/collector/confmap v1.15.0
+	go.opentelemetry.io/collector/confmap/provider/envprovider v1.15.0
+	go.opentelemetry.io/collector/confmap/provider/fileprovider v1.15.0
 	go.opentelemetry.io/collector/confmap/provider/httpprovider v0.108.1
 	go.opentelemetry.io/collector/confmap/provider/httpsprovider v0.108.1
 	go.opentelemetry.io/collector/confmap/provider/yamlprovider v0.108.1
