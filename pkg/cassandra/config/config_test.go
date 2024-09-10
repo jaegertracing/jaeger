@@ -31,7 +31,7 @@ func TestValidate_ReturnsErrorWhenInvalid(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			err := test.cfg.Validate()
-			require.NoError(t, err)
+			require.Error(t, err)
 		})
 	}
 }
