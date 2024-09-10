@@ -24,8 +24,9 @@ extensions:
             keyspace: "jaeger_v1_dc1"
           connection:
             auth: 
-              username: "cassandra"
-              password: "cassandra"
+              basic:
+                username: "cassandra"
+                password: "cassandra"
             tls:
               insecure: true
       another_storage:
@@ -34,8 +35,9 @@ extensions:
             keyspace: "jaeger_v1_dc1"
           connection: 
             auth:
-              username: "cassandra"
-              password: "cassandra"
+              basic: 
+                username: "cassandra"
+                password: "cassandra"
             tls:
               insecure: true
 receivers:

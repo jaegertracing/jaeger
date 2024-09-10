@@ -47,7 +47,7 @@ type Schema struct {
 
 // Authenticator holds the authentication properties needed to connect to a Cassandra cluster
 type Authenticator struct {
-	Basic BasicAuthenticator `yaml:"basic" mapstructure:",squash"`
+	Basic BasicAuthenticator `mapstructure:"basic"`
 	// TODO: add more auth types
 }
 
