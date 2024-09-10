@@ -24,14 +24,16 @@ var logger, _ = zap.NewDevelopment()
 func main() {
 	noScope := metrics.NullFactory
 	cConfig := &cascfg.Configuration{
+		Schema: cascfg.Schema{
+			Keyspace: "jaeger_v1_test",
+		},
 		Connection: cascfg.Connection{
 			Servers:            []string{"127.0.0.1"},
 			ConnectionsPerHost: 10,
-			QueryTimeout:       time.Millisecond * 750,
 			ProtoVersion:       4,
 		},
-		Schema: cascfg.Schema{
-			Keyspace: "jaeger_v1_test",
+		Query: cascfg.Query{
+			Timeout: time.Millisecond * 750,
 		},
 	}
 	cqlSession, err := cConfig.NewSession()

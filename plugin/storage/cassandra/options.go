@@ -140,15 +140,15 @@ func addFlags(flagSet *flag.FlagSet, nsConfig NamespaceConfig) {
 		"The number of Cassandra connections from a single backend instance")
 	flagSet.Int(
 		nsConfig.namespace+suffixMaxRetryAttempts,
-		nsConfig.Connection.MaxRetryAttempts,
+		nsConfig.Query.MaxRetryAttempts,
 		"The number of attempts when reading from Cassandra")
 	flagSet.Duration(
 		nsConfig.namespace+suffixTimeout,
-		nsConfig.Connection.QueryTimeout,
+		nsConfig.Query.Timeout,
 		"Timeout used for queries. A Timeout of zero means no timeout")
 	flagSet.Duration(
 		nsConfig.namespace+suffixConnectTimeout,
-		nsConfig.Connection.ConnectTimeout,
+		nsConfig.Connection.Timeout,
 		"Timeout used for connections to Cassandra Servers")
 	flagSet.Duration(
 		nsConfig.namespace+suffixReconnectInterval,
@@ -229,9 +229,9 @@ func (cfg *NamespaceConfig) initFromViper(v *viper.Viper) {
 		cfg.Enabled = v.GetBool(cfg.namespace + suffixEnabled)
 	}
 	cfg.Connection.ConnectionsPerHost = v.GetInt(cfg.namespace + suffixConnPerHost)
-	cfg.Connection.MaxRetryAttempts = v.GetInt(cfg.namespace + suffixMaxRetryAttempts)
-	cfg.Connection.QueryTimeout = v.GetDuration(cfg.namespace + suffixTimeout)
-	cfg.Connection.ConnectTimeout = v.GetDuration(cfg.namespace + suffixConnectTimeout)
+	cfg.Query.MaxRetryAttempts = v.GetInt(cfg.namespace + suffixMaxRetryAttempts)
+	cfg.Query.Timeout = v.GetDuration(cfg.namespace + suffixTimeout)
+	cfg.Connection.Timeout = v.GetDuration(cfg.namespace + suffixConnectTimeout)
 	cfg.Connection.ReconnectInterval = v.GetDuration(cfg.namespace + suffixReconnectInterval)
 	servers := stripWhiteSpace(v.GetString(cfg.namespace + suffixServers))
 	cfg.Connection.Servers = strings.Split(servers, ",")

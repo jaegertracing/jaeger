@@ -21,6 +21,7 @@ import (
 type Configuration struct {
 	Schema     Schema     `mapstructure:"schema"`
 	Connection Connection `mapstructure:"connection"`
+	Query      Query      `mapstructure:"query"`
 }
 
 type Connection struct {
@@ -31,10 +32,8 @@ type Connection struct {
 	ConnectionsPerHost   int                    `mapstructure:"connections_per_host"`
 	ReconnectInterval    time.Duration          `mapstructure:"reconnect_interval"`
 	SocketKeepAlive      time.Duration          `mapstructure:"socket_keep_alive"`
-	MaxRetryAttempts     int                    `mapstructure:"max_retry_attempts"`
 	TLS                  configtls.ClientConfig `mapstructure:"tls"`
-	QueryTimeout         time.Duration          `mapstructure:"query_timeout"`
-	ConnectTimeout       time.Duration          `mapstructure:"connection_timeout"`
+	Timeout              time.Duration          `mapstructure:"timeout"`
 	Authenticator        Authenticator          `mapstructure:"auth"`
 	ProtoVersion         int                    `mapstructure:"proto_version"`
 	Consistency          string                 `mapstructure:"consistency"`
@@ -43,6 +42,11 @@ type Connection struct {
 type Schema struct {
 	Keyspace           string `mapstructure:"keyspace"`
 	DisableCompression bool   `mapstructure:"disable_compression"`
+}
+
+type Query struct {
+	Timeout          time.Duration `mapstructure:"timeout"`
+	MaxRetryAttempts int           `mapstructure:"max_retry_attempts"`
 }
 
 // Authenticator holds the authentication properties needed to connect to a Cassandra cluster
@@ -60,16 +64,18 @@ type BasicAuthenticator struct {
 
 func DefaultConfiguration() Configuration {
 	return Configuration{
+		Schema: Schema{
+			Keyspace: "jaeger_v1_test",
+		},
 		Connection: Connection{
 			Servers:            []string{"127.0.0.1"},
 			Port:               9042,
-			MaxRetryAttempts:   3,
 			ProtoVersion:       4,
 			ConnectionsPerHost: 2,
 			ReconnectInterval:  60 * time.Second,
 		},
-		Schema: Schema{
-			Keyspace: "jaeger_v1_test",
+		Query: Query{
+			MaxRetryAttempts: 3,
 		},
 	}
 }
@@ -79,11 +85,11 @@ func (c *Configuration) ApplyDefaults(source *Configuration) {
 	if c.Connection.ConnectionsPerHost == 0 {
 		c.Connection.ConnectionsPerHost = source.Connection.ConnectionsPerHost
 	}
-	if c.Connection.MaxRetryAttempts == 0 {
-		c.Connection.MaxRetryAttempts = source.Connection.MaxRetryAttempts
+	if c.Query.MaxRetryAttempts == 0 {
+		c.Query.MaxRetryAttempts = source.Query.MaxRetryAttempts
 	}
-	if c.Connection.QueryTimeout == 0 {
-		c.Connection.QueryTimeout = source.Connection.QueryTimeout
+	if c.Query.Timeout == 0 {
+		c.Query.Timeout = source.Query.Timeout
 	}
 	if c.Connection.ReconnectInterval == 0 {
 		c.Connection.ReconnectInterval = source.Connection.ReconnectInterval
@@ -97,7 +103,6 @@ func (c *Configuration) ApplyDefaults(source *Configuration) {
 	if c.Connection.SocketKeepAlive == 0 {
 		c.Connection.SocketKeepAlive = source.Connection.SocketKeepAlive
 	}
-
 	if c.Schema.Keyspace == "" {
 		c.Schema.Keyspace = source.Schema.Keyspace
 	}
@@ -126,15 +131,15 @@ func (c *Configuration) NewCluster() (*gocql.ClusterConfig, error) {
 	cluster := gocql.NewCluster(c.Connection.Servers...)
 	cluster.Keyspace = c.Schema.Keyspace
 	cluster.NumConns = c.Connection.ConnectionsPerHost
-	cluster.Timeout = c.Connection.QueryTimeout
-	cluster.ConnectTimeout = c.Connection.ConnectTimeout
+	cluster.Timeout = c.Query.Timeout
+	cluster.ConnectTimeout = c.Connection.Timeout
 	cluster.ReconnectInterval = c.Connection.ReconnectInterval
 	cluster.SocketKeepalive = c.Connection.SocketKeepAlive
 	if c.Connection.ProtoVersion > 0 {
 		cluster.ProtoVersion = c.Connection.ProtoVersion
 	}
-	if c.Connection.MaxRetryAttempts > 1 {
-		cluster.RetryPolicy = &gocql.SimpleRetryPolicy{NumRetries: c.Connection.MaxRetryAttempts - 1}
+	if c.Query.MaxRetryAttempts > 1 {
+		cluster.RetryPolicy = &gocql.SimpleRetryPolicy{NumRetries: c.Query.MaxRetryAttempts - 1}
 	}
 	if c.Connection.Port != 0 {
 		cluster.Port = c.Connection.Port
