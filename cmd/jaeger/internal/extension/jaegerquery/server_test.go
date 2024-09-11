@@ -17,7 +17,7 @@ import (
 	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/config/configtelemetry"
 	"go.opentelemetry.io/otel/metric"
-	noopMeter "go.opentelemetry.io/otel/metric/noop"
+	noopmetric "go.opentelemetry.io/otel/metric/noop"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 
@@ -193,7 +193,7 @@ func TestServerStart(t *testing.T) {
 				LeveledMeterProvider: func(level configtelemetry.Level) metric.MeterProvider {
 					return noopmetric.NewMeterProvider()
 				},
-				MeterProvider: noopMeter.NewMeterProvider(),
+				MeterProvider: noopmetric.NewMeterProvider(),
 			}
 			tt.config.HTTP.Endpoint = ":0"
 			tt.config.GRPC.NetAddr.Endpoint = ":0"

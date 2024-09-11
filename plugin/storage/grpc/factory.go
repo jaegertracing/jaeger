@@ -13,8 +13,11 @@ import (
 	"github.com/spf13/viper"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componenttest"
+	"go.opentelemetry.io/collector/config/configtelemetry"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/metric"
+	noopmetric "go.opentelemetry.io/otel/metric/noop"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -93,6 +96,10 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 	telset := component.TelemetrySettings{
 		Logger:         logger,
 		TracerProvider: f.tracerProvider,
+		// TODO needs to be joined with the metricsFactory
+		LeveledMeterProvider: func(level configtelemetry.Level) metric.MeterProvider {
+			return noopmetric.NewMeterProvider()
+		},
 	}
 	newClientFn := func(opts ...grpc.DialOption) (conn *grpc.ClientConn, err error) {
 		return f.configV2.ToClientConn(context.Background(), componenttest.NewNopHost(), telset, opts...)
