@@ -12,10 +12,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/config/configtelemetry"
 	"go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/extension"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+	"go.opentelemetry.io/otel/metric"
 	noopmetric "go.opentelemetry.io/otel/metric/noop"
 	nooptrace "go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/zap/zaptest"
@@ -104,7 +106,10 @@ func TestExporter(t *testing.T) {
 	telemetrySettings := component.TelemetrySettings{
 		Logger:         zaptest.NewLogger(t),
 		TracerProvider: nooptrace.NewTracerProvider(),
-		MeterProvider:  noopmetric.NewMeterProvider(),
+		LeveledMeterProvider: func(level configtelemetry.Level) metric.MeterProvider {
+			return noopmetric.NewMeterProvider()
+		},
+		MeterProvider: noopmetric.NewMeterProvider(),
 	}
 
 	const memstoreName = "memstore"
@@ -158,7 +163,10 @@ func makeStorageExtension(t *testing.T, memstoreName string) component.Host {
 	telemetrySettings := component.TelemetrySettings{
 		Logger:         zaptest.NewLogger(t),
 		TracerProvider: nooptrace.NewTracerProvider(),
-		MeterProvider:  noopmetric.NewMeterProvider(),
+		LeveledMeterProvider: func(level configtelemetry.Level) metric.MeterProvider {
+			return noopmetric.NewMeterProvider()
+		},
+		MeterProvider: noopmetric.NewMeterProvider(),
 	}
 	extensionFactory := jaegerstorage.NewFactory()
 	storageExtension, err := extensionFactory.CreateExtension(

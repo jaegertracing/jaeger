@@ -9,8 +9,10 @@ import (
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zipkinreceiver"
 	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/config/configtelemetry"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/receiver"
+	"go.opentelemetry.io/otel/metric"
 	noopmetric "go.opentelemetry.io/otel/metric/noop"
 	nooptrace "go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/zap"
@@ -64,7 +66,11 @@ func startZipkinReceiver(
 		TelemetrySettings: component.TelemetrySettings{
 			Logger:         logger,
 			TracerProvider: nooptrace.NewTracerProvider(),
-			MeterProvider:  noopmetric.NewMeterProvider(), // TODO wire this with jaegerlib metrics?
+			// TODO wire this with jaegerlib metrics?
+			LeveledMeterProvider: func(level configtelemetry.Level) metric.MeterProvider {
+				return noopmetric.NewMeterProvider()
+			},
+			MeterProvider: noopmetric.NewMeterProvider(),
 		},
 	}
 

@@ -16,7 +16,9 @@ import (
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/config/configgrpc"
+	"go.opentelemetry.io/collector/config/configtelemetry"
 	"go.opentelemetry.io/collector/extension"
+	"go.opentelemetry.io/otel/metric"
 	noopmetric "go.opentelemetry.io/otel/metric/noop"
 	nooptrace "go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/zap"
@@ -254,7 +256,10 @@ func noopTelemetrySettings() component.TelemetrySettings {
 	return component.TelemetrySettings{
 		Logger:         zap.L(),
 		TracerProvider: nooptrace.NewTracerProvider(),
-		MeterProvider:  noopmetric.NewMeterProvider(),
+		LeveledMeterProvider: func(level configtelemetry.Level) metric.MeterProvider {
+			return noopmetric.NewMeterProvider()
+		},
+		MeterProvider: noopmetric.NewMeterProvider(),
 	}
 }
 
