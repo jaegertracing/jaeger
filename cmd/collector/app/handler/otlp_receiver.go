@@ -73,7 +73,7 @@ func startOTLPReceiver(
 			Logger:         logger,
 			TracerProvider: nooptrace.NewTracerProvider(),
 			// TODO wire this with jaegerlib metrics?
-			LeveledMeterProvider: func(level configtelemetry.Level) metric.MeterProvider {
+			LeveledMeterProvider: func(_ configtelemetry.Level) metric.MeterProvider {
 				return noopmetric.NewMeterProvider()
 			},
 			MeterProvider: noopmetric.NewMeterProvider(),

@@ -256,7 +256,7 @@ func noopTelemetrySettings() component.TelemetrySettings {
 	return component.TelemetrySettings{
 		Logger:         zap.L(),
 		TracerProvider: nooptrace.NewTracerProvider(),
-		LeveledMeterProvider: func(level configtelemetry.Level) metric.MeterProvider {
+		LeveledMeterProvider: func(_ configtelemetry.Level) metric.MeterProvider {
 			return noopmetric.NewMeterProvider()
 		},
 		MeterProvider: noopmetric.NewMeterProvider(),

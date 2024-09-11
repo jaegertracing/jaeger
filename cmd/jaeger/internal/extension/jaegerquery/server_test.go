@@ -190,7 +190,7 @@ func TestServerStart(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			telemetrySettings := component.TelemetrySettings{
 				Logger: zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller())),
-				LeveledMeterProvider: func(level configtelemetry.Level) metric.MeterProvider {
+				LeveledMeterProvider: func(_ configtelemetry.Level) metric.MeterProvider {
 					return noopmetric.NewMeterProvider()
 				},
 				MeterProvider: noopmetric.NewMeterProvider(),

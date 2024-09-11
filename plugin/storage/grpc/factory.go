@@ -97,7 +97,7 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 		Logger:         logger,
 		TracerProvider: f.tracerProvider,
 		// TODO needs to be joined with the metricsFactory
-		LeveledMeterProvider: func(level configtelemetry.Level) metric.MeterProvider {
+		LeveledMeterProvider: func(_ configtelemetry.Level) metric.MeterProvider {
 			return noopmetric.NewMeterProvider()
 		},
 	}

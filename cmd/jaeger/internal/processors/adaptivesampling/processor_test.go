@@ -31,7 +31,7 @@ func makeStorageExtension(t *testing.T, memstoreName string) component.Host {
 	telemetrySettings := component.TelemetrySettings{
 		Logger:         zaptest.NewLogger(t),
 		TracerProvider: nooptrace.NewTracerProvider(),
-		LeveledMeterProvider: func(level configtelemetry.Level) metric.MeterProvider {
+		LeveledMeterProvider: func(_ configtelemetry.Level) metric.MeterProvider {
 			return noopmetric.NewMeterProvider()
 		},
 		MeterProvider: noopmetric.NewMeterProvider(),
@@ -94,7 +94,7 @@ func TestNewTraceProcessor(t *testing.T) {
 func TestTraceProcessor(t *testing.T) {
 	telemetrySettings := component.TelemetrySettings{
 		Logger: zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller())),
-		LeveledMeterProvider: func(level configtelemetry.Level) metric.MeterProvider {
+		LeveledMeterProvider: func(_ configtelemetry.Level) metric.MeterProvider {
 			return noopmetric.NewMeterProvider()
 		},
 		MeterProvider: noopmetric.NewMeterProvider(),
