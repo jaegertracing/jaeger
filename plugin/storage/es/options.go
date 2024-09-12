@@ -330,7 +330,7 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	cfg.UseReadWriteAliases = v.GetBool(cfg.namespace + suffixReadAlias)
 	cfg.Enabled = v.GetBool(cfg.namespace + suffixEnabled)
 	cfg.CreateIndexTemplates = v.GetBool(cfg.namespace + suffixCreateIndexTemplate)
-	cfg.Version = uint(v.GetInt(cfg.namespace + suffixVersion))
+	cfg.Version = v.GetUint(cfg.namespace + suffixVersion)
 	cfg.LogLevel = v.GetString(cfg.namespace + suffixLogLevel)
 	cfg.SendGetBodyAs = v.GetString(cfg.namespace + suffixSendGetBodyAs)
 

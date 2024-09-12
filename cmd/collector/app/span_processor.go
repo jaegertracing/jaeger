@@ -159,6 +159,7 @@ func (sp *spanProcessor) saveSpan(span *model.Span, tenant string) {
 }
 
 func (sp *spanProcessor) countSpan(span *model.Span, _ string /* tenant */) {
+	//nolint: gosec // G115
 	sp.bytesProcessed.Add(uint64(span.Size()))
 	sp.spansProcessed.Add(1)
 }
