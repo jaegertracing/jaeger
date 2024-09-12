@@ -46,15 +46,15 @@ type GRPCClient struct {
 	streamWriterClient  storage_v1.StreamingSpanWriterPluginClient
 }
 
-func NewGRPCClient(c *grpc.ClientConn) *GRPCClient {
+func NewGRPCClient(withTraceConn *grpc.ClientConn, withoutTraceConn *grpc.ClientConn) *GRPCClient {
 	return &GRPCClient{
-		readerClient:        storage_v1.NewSpanReaderPluginClient(c),
-		writerClient:        storage_v1.NewSpanWriterPluginClient(c),
-		archiveReaderClient: storage_v1.NewArchiveSpanReaderPluginClient(c),
-		archiveWriterClient: storage_v1.NewArchiveSpanWriterPluginClient(c),
-		capabilitiesClient:  storage_v1.NewPluginCapabilitiesClient(c),
-		depsReaderClient:    storage_v1.NewDependenciesReaderPluginClient(c),
-		streamWriterClient:  storage_v1.NewStreamingSpanWriterPluginClient(c),
+		readerClient:        storage_v1.NewSpanReaderPluginClient(withTraceConn),
+		writerClient:        storage_v1.NewSpanWriterPluginClient(withoutTraceConn),
+		archiveReaderClient: storage_v1.NewArchiveSpanReaderPluginClient(withTraceConn),
+		archiveWriterClient: storage_v1.NewArchiveSpanWriterPluginClient(withoutTraceConn),
+		capabilitiesClient:  storage_v1.NewPluginCapabilitiesClient(withTraceConn),
+		depsReaderClient:    storage_v1.NewDependenciesReaderPluginClient(withTraceConn),
+		streamWriterClient:  storage_v1.NewStreamingSpanWriterPluginClient(withoutTraceConn),
 	}
 }
 

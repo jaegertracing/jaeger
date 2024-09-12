@@ -50,8 +50,8 @@ type Factory struct {
 	configV1 Configuration
 	configV2 *ConfigV2
 
-	services   *ClientPluginServices
-	remoteConn *grpc.ClientConn
+	services    *ClientPluginServices
+	remoteConns []*grpc.ClientConn
 }
 
 // NewFactory creates a new Factory.
@@ -95,19 +95,18 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 	}
 
 	telset := component.TelemetrySettings{
-		Logger:         logger,
-		TracerProvider: f.tracerProvider,
+		Logger: logger,
 		// TODO needs to be joined with the metricsFactory
 		LeveledMeterProvider: func(_ configtelemetry.Level) metric.MeterProvider {
 			return noopmetric.NewMeterProvider()
 		},
 	}
-	newClientFn := func(opts ...grpc.DialOption) (conn *grpc.ClientConn, err error) {
+	newClientFn := func(telSettings component.TelemetrySettings, opts ...grpc.DialOption) (conn *grpc.ClientConn, err error) {
 		clientOpts := make([]configgrpc.ToClientConnOption, 0)
 		for _, opt := range opts {
 			clientOpts = append(clientOpts, configgrpc.WithGrpcDialOption(opt))
 		}
-		return f.configV2.ToClientConnWithOptions(context.Background(), componenttest.NewNopHost(), telset, clientOpts...)
+		return f.configV2.ToClientConnWithOptions(context.Background(), componenttest.NewNopHost(), telSettings, clientOpts...)
 	}
 
 	var err error
@@ -119,13 +118,11 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 	return nil
 }
 
-type newClientFn func(opts ...grpc.DialOption) (*grpc.ClientConn, error)
+type newClientFn func(telSettings component.TelemetrySettings, opts ...grpc.DialOption) (*grpc.ClientConn, error)
 
 func (f *Factory) newRemoteStorage(telset component.TelemetrySettings, newClient newClientFn) (*ClientPluginServices, error) {
 	c := f.configV2
-	opts := []grpc.DialOption{
-		grpc.WithStatsHandler(otelgrpc.NewClientHandler(otelgrpc.WithTracerProvider(telset.TracerProvider))),
-	}
+	opts := make([]grpc.DialOption, 0)
 	if c.Auth != nil {
 		return nil, fmt.Errorf("authenticator is not supported")
 	}
@@ -136,12 +133,20 @@ func (f *Factory) newRemoteStorage(telset component.TelemetrySettings, newClient
 		opts = append(opts, grpc.WithStreamInterceptor(tenancy.NewClientStreamInterceptor(tenancyMgr)))
 	}
 
-	remoteConn, err := newClient(opts...)
+	noTraceConn, err := newClient(telset, opts...)
 	if err != nil {
-		return nil, fmt.Errorf("error creating remote storage client: %w", err)
+		return nil, fmt.Errorf("error creating remote storage client without tracing: %w", err)
 	}
-	f.remoteConn = remoteConn
-	grpcClient := shared.NewGRPCClient(remoteConn)
+	f.remoteConns = append(f.remoteConns, noTraceConn)
+
+	opts = append(opts, grpc.WithStatsHandler(otelgrpc.NewClientHandler(otelgrpc.WithTracerProvider(f.tracerProvider))))
+	traceConn, err := newClient(telset, opts...)
+	if err != nil {
+		return nil, fmt.Errorf("error creating remote storage client with tracing: %w", err)
+	}
+	f.remoteConns = append(f.remoteConns, traceConn)
+
+	grpcClient := shared.NewGRPCClient(traceConn, noTraceConn)
 	return &ClientPluginServices{
 		PluginServices: shared.PluginServices{
 			Store:               grpcClient,
@@ -205,8 +210,8 @@ func (f *Factory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
 // Close closes the resources held by the factory
 func (f *Factory) Close() error {
 	var errs []error
-	if f.remoteConn != nil {
-		errs = append(errs, f.remoteConn.Close())
+	for i := range f.remoteConns {
+		errs = append(errs, f.remoteConns[i].Close())
 	}
 	errs = append(errs, f.configV1.RemoteTLS.Close())
 	return errors.Join(errs...)

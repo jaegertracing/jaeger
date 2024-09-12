@@ -124,7 +124,7 @@ func TestNewFactoryError(t *testing.T) {
 		f, err := NewFactoryWithConfig(ConfigV2{}, metrics.NullFactory, zap.NewNop())
 		require.NoError(t, err)
 		t.Cleanup(func() { require.NoError(t, f.Close()) })
-		newClientFn := func(_ ...grpc.DialOption) (conn *grpc.ClientConn, err error) {
+		newClientFn := func(_ component.TelemetrySettings, _ ...grpc.DialOption) (conn *grpc.ClientConn, err error) {
 			return nil, errors.New("test error")
 		}
 		_, err = f.newRemoteStorage(component.TelemetrySettings{}, newClientFn)
