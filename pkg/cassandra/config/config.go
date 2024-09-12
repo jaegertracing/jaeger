@@ -25,37 +25,58 @@ type Configuration struct {
 }
 
 type Connection struct {
-	Servers              []string               `mapstructure:"servers" valid:"required,url" `
-	LocalDC              string                 `mapstructure:"local_dc"`
-	Port                 int                    `mapstructure:"port"`
-	DisableAutoDiscovery bool                   `mapstructure:"disable_auto_discovery"`
-	ConnectionsPerHost   int                    `mapstructure:"connections_per_host"`
-	ReconnectInterval    time.Duration          `mapstructure:"reconnect_interval"`
-	SocketKeepAlive      time.Duration          `mapstructure:"socket_keep_alive"`
-	TLS                  configtls.ClientConfig `mapstructure:"tls"`
-	Timeout              time.Duration          `mapstructure:"timeout"`
-	Authenticator        Authenticator          `mapstructure:"auth"`
-	ProtoVersion         int                    `mapstructure:"proto_version"`
+	// Servers contains a list of hosts that are used to connect to the cluster.
+	Servers []string `mapstructure:"servers" valid:"required,url"`
+	// LocalDC contains the name of the local Data Center (DC) for DC-aware host selection
+	LocalDC string `mapstructure:"local_dc"`
+	// The port used when dialing to a cluster.
+	Port int `mapstructure:"port"`
+	// DisableAutoDiscovery, if set to true, will disable the cluster's auto-discovery features.
+	DisableAutoDiscovery bool `mapstructure:"disable_auto_discovery"`
+	// ConnectionsPerHost contains the maximum number of open connections for each host on the cluster.
+	ConnectionsPerHost int `mapstructure:"connections_per_host"`
+	// ReconnectInterval contains the regular interval after which the driver tries to connect to
+	// nodes that are down.
+	ReconnectInterval time.Duration `mapstructure:"reconnect_interval"`
+	// SocketKeepAlive contains the keep alive period for the default dialer to the cluster.
+	SocketKeepAlive time.Duration `mapstructure:"socket_keep_alive"`
+	// TLS contains the TLS configuration for the connection to the cluster.
+	TLS configtls.ClientConfig `mapstructure:"tls"`
+	// Timeout contains the maximum time spent to connect to a cluster.
+	Timeout time.Duration `mapstructure:"timeout"`
+	// Authenticator contains the details of the authentication mechanism that is used for
+	// connecting to a cluster.
+	Authenticator Authenticator `mapstructure:"auth"`
+	// ProtoVersion contains the version of the native protocol to use when connecting to a cluster.
+	ProtoVersion int `mapstructure:"proto_version"`
 }
 
 type Schema struct {
-	Keyspace           string `mapstructure:"keyspace"`
-	DisableCompression bool   `mapstructure:"disable_compression"`
+	// Keyspace contains the namespace where Jaeger data will be stored.
+	Keyspace string `mapstructure:"keyspace"`
+	// DisableCompression, if set to true, disables the use of the default Snappy Compression
+	// while connecting to the Cassandra Cluster. This is useful for connecting to clusters, like Azure Cosmos DB,
+	// that do not support SnappyCompression.
+	DisableCompression bool `mapstructure:"disable_compression"`
 }
 
 type Query struct {
-	Timeout          time.Duration `mapstructure:"timeout"`
-	MaxRetryAttempts int           `mapstructure:"max_retry_attempts"`
-	Consistency      string        `mapstructure:"consistency"`
+	// Timeout contains the maximum time spent executing a query.
+	Timeout time.Duration `mapstructure:"timeout"`
+	// MaxRetryAttempts indicates the maximum number of times a query will be retried for execution.
+	MaxRetryAttempts int `mapstructure:"max_retry_attempts"`
+	// Consistency specifies the consistency level which needs to be satisified before responding
+	// to a query.
+	Consistency string `mapstructure:"consistency"`
 }
 
-// Authenticator holds the authentication properties needed to connect to a Cassandra cluster
+// Authenticator holds the authentication properties needed to connect to a Cassandra cluster.
 type Authenticator struct {
 	Basic BasicAuthenticator `mapstructure:"basic"`
 	// TODO: add more auth types
 }
 
-// BasicAuthenticator holds the username and password for a password authenticator for a Cassandra cluster
+// BasicAuthenticator holds the username and password for a password authenticator for a Cassandra cluster.
 type BasicAuthenticator struct {
 	Username              string   `yaml:"username" mapstructure:"username"`
 	Password              string   `yaml:"password" mapstructure:"password" json:"-"`
