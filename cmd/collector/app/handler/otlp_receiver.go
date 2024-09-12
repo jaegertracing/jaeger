@@ -12,12 +12,14 @@ import (
 	"go.opentelemetry.io/collector/component/componentstatus"
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/config/confighttp"
+	"go.opentelemetry.io/collector/config/configtelemetry"
 	"go.opentelemetry.io/collector/config/configtls"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/extension"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/collector/receiver"
 	"go.opentelemetry.io/collector/receiver/otlpreceiver"
+	"go.opentelemetry.io/otel/metric"
 	noopmetric "go.opentelemetry.io/otel/metric/noop"
 	nooptrace "go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/zap"
@@ -70,7 +72,11 @@ func startOTLPReceiver(
 		TelemetrySettings: component.TelemetrySettings{
 			Logger:         logger,
 			TracerProvider: nooptrace.NewTracerProvider(),
-			MeterProvider:  noopmetric.NewMeterProvider(), // TODO wire this with jaegerlib metrics?
+			// TODO wire this with jaegerlib metrics?
+			LeveledMeterProvider: func(_ configtelemetry.Level) metric.MeterProvider {
+				return noopmetric.NewMeterProvider()
+			},
+			MeterProvider: noopmetric.NewMeterProvider(),
 		},
 	}
 
@@ -103,7 +109,7 @@ func applyGRPCSettings(cfg *configgrpc.ServerConfig, opts *flags.GRPCOptions) {
 		cfg.TLSSetting = applyTLSSettings(&opts.TLS)
 	}
 	if opts.MaxReceiveMessageLength > 0 {
-		cfg.MaxRecvMsgSizeMiB = uint64(opts.MaxReceiveMessageLength / (1024 * 1024))
+		cfg.MaxRecvMsgSizeMiB = int(opts.MaxReceiveMessageLength / (1024 * 1024))
 	}
 	if opts.MaxConnectionAge != 0 || opts.MaxConnectionAgeGrace != 0 {
 		cfg.Keepalive = &configgrpc.KeepaliveServerConfig{
