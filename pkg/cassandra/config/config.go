@@ -103,14 +103,11 @@ func DefaultConfiguration() Configuration {
 
 // ApplyDefaults copies settings from source unless its own value is non-zero.
 func (c *Configuration) ApplyDefaults(source *Configuration) {
+	if c.Schema.Keyspace == "" {
+		c.Schema.Keyspace = source.Schema.Keyspace
+	}
 	if c.Connection.ConnectionsPerHost == 0 {
 		c.Connection.ConnectionsPerHost = source.Connection.ConnectionsPerHost
-	}
-	if c.Query.MaxRetryAttempts == 0 {
-		c.Query.MaxRetryAttempts = source.Query.MaxRetryAttempts
-	}
-	if c.Query.Timeout == 0 {
-		c.Query.Timeout = source.Query.Timeout
 	}
 	if c.Connection.ReconnectInterval == 0 {
 		c.Connection.ReconnectInterval = source.Connection.ReconnectInterval
@@ -124,8 +121,11 @@ func (c *Configuration) ApplyDefaults(source *Configuration) {
 	if c.Connection.SocketKeepAlive == 0 {
 		c.Connection.SocketKeepAlive = source.Connection.SocketKeepAlive
 	}
-	if c.Schema.Keyspace == "" {
-		c.Schema.Keyspace = source.Schema.Keyspace
+	if c.Query.MaxRetryAttempts == 0 {
+		c.Query.MaxRetryAttempts = source.Query.MaxRetryAttempts
+	}
+	if c.Query.Timeout == 0 {
+		c.Query.Timeout = source.Query.Timeout
 	}
 }
 
@@ -152,10 +152,10 @@ func (c *Configuration) NewCluster() (*gocql.ClusterConfig, error) {
 	cluster := gocql.NewCluster(c.Connection.Servers...)
 	cluster.Keyspace = c.Schema.Keyspace
 	cluster.NumConns = c.Connection.ConnectionsPerHost
-	cluster.Timeout = c.Query.Timeout
 	cluster.ConnectTimeout = c.Connection.Timeout
 	cluster.ReconnectInterval = c.Connection.ReconnectInterval
 	cluster.SocketKeepalive = c.Connection.SocketKeepAlive
+	cluster.Timeout = c.Query.Timeout
 	if c.Connection.ProtoVersion > 0 {
 		cluster.ProtoVersion = c.Connection.ProtoVersion
 	}
