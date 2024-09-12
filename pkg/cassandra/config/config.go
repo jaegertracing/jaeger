@@ -36,7 +36,6 @@ type Connection struct {
 	Timeout              time.Duration          `mapstructure:"timeout"`
 	Authenticator        Authenticator          `mapstructure:"auth"`
 	ProtoVersion         int                    `mapstructure:"proto_version"`
-	Consistency          string                 `mapstructure:"consistency"`
 }
 
 type Schema struct {
@@ -47,6 +46,7 @@ type Schema struct {
 type Query struct {
 	Timeout          time.Duration `mapstructure:"timeout"`
 	MaxRetryAttempts int           `mapstructure:"max_retry_attempts"`
+	Consistency      string        `mapstructure:"consistency"`
 }
 
 // Authenticator holds the authentication properties needed to connect to a Cassandra cluster
@@ -149,10 +149,10 @@ func (c *Configuration) NewCluster() (*gocql.ClusterConfig, error) {
 		cluster.Compressor = gocql.SnappyCompressor{}
 	}
 
-	if c.Connection.Consistency == "" {
+	if c.Query.Consistency == "" {
 		cluster.Consistency = gocql.LocalOne
 	} else {
-		cluster.Consistency = gocql.ParseConsistency(c.Connection.Consistency)
+		cluster.Consistency = gocql.ParseConsistency(c.Query.Consistency)
 	}
 
 	fallbackHostSelectionPolicy := gocql.RoundRobinHostPolicy()

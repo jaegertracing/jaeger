@@ -71,7 +71,7 @@ func TestOptionsWithFlags(t *testing.T) {
 	assert.Equal(t, "mojave", primary.Connection.LocalDC)
 	assert.Equal(t, []string{"1.1.1.1", "2.2.2.2"}, primary.Connection.Servers)
 	assert.Equal(t, []string{"org.apache.cassandra.auth.PasswordAuthenticator", "com.datastax.bdp.cassandra.auth.DseAuthenticator"}, primary.Connection.Authenticator.Basic.AllowedAuthenticators)
-	assert.Equal(t, "ONE", primary.Connection.Consistency)
+	assert.Equal(t, "ONE", primary.Query.Consistency)
 	assert.Equal(t, []string{"blerg", "blarg", "blorg"}, opts.TagIndexBlacklist())
 	assert.Equal(t, []string{"flerg", "flarg", "florg"}, opts.TagIndexWhitelist())
 	assert.True(t, opts.Index.Tags)
@@ -88,7 +88,7 @@ func TestOptionsWithFlags(t *testing.T) {
 	assert.Equal(t, 42*time.Second, aux.Query.Timeout)
 	assert.Equal(t, 42*time.Second, aux.Connection.ReconnectInterval)
 	assert.Equal(t, 4242, aux.Connection.Port)
-	assert.Equal(t, "", aux.Connection.Consistency, "aux storage does not inherit consistency from primary")
+	assert.Equal(t, "", aux.Query.Consistency, "aux storage does not inherit consistency from primary")
 	assert.Equal(t, 3, aux.Connection.ProtoVersion)
 	assert.Equal(t, 42*time.Second, aux.Connection.SocketKeepAlive)
 }

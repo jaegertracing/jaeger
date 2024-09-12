@@ -172,7 +172,7 @@ func addFlags(flagSet *flag.FlagSet, nsConfig NamespaceConfig) {
 		"The name of the Cassandra local data center for DC Aware host selection")
 	flagSet.String(
 		nsConfig.namespace+suffixConsistency,
-		nsConfig.Connection.Consistency,
+		nsConfig.Query.Consistency,
 		"The Cassandra consistency level, e.g. ANY, ONE, TWO, THREE, QUORUM, ALL, LOCAL_QUORUM, EACH_QUORUM, LOCAL_ONE (default LOCAL_ONE)")
 	flagSet.Bool(
 		nsConfig.namespace+suffixDisableCompression,
@@ -238,7 +238,7 @@ func (cfg *NamespaceConfig) initFromViper(v *viper.Viper) {
 	cfg.Connection.Port = v.GetInt(cfg.namespace + suffixPort)
 	cfg.Schema.Keyspace = v.GetString(cfg.namespace + suffixKeyspace)
 	cfg.Connection.LocalDC = v.GetString(cfg.namespace + suffixDC)
-	cfg.Connection.Consistency = v.GetString(cfg.namespace + suffixConsistency)
+	cfg.Query.Consistency = v.GetString(cfg.namespace + suffixConsistency)
 	cfg.Connection.ProtoVersion = v.GetInt(cfg.namespace + suffixProtoVer)
 	cfg.Connection.SocketKeepAlive = v.GetDuration(cfg.namespace + suffixSocketKeepAlive)
 	cfg.Connection.Authenticator.Basic.Username = v.GetString(cfg.namespace + suffixUsername)
