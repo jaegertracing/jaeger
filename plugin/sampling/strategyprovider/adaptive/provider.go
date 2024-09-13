@@ -102,11 +102,8 @@ func (p *Provider) runUpdateProbabilitiesLoop() {
 	for {
 		select {
 		case <-ticker.C:
-			// Only load probabilities if this strategy_store doesn't hold the leader lock
-			if !p.isLeader() {
-				p.loadProbabilities()
-				p.generateStrategyResponses()
-			}
+			p.loadProbabilities()
+			p.generateStrategyResponses()
 		case <-p.shutdown:
 			return
 		}
