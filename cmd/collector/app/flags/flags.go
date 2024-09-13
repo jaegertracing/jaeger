@@ -102,7 +102,7 @@ type CollectorOptions struct {
 	// DynQueueSizeMemory determines how much memory to use for the queue
 	DynQueueSizeMemory uint
 	// QueueSize is the size of collector's queue
-	QueueSize int
+	QueueSize uint
 	// NumWorkers is the number of internal workers in a collector
 	NumWorkers int
 	// HTTP section defines options for HTTP server
@@ -255,7 +255,7 @@ func (opts *GRPCOptions) initFromViper(v *viper.Viper, _ *zap.Logger, cfg server
 func (cOpts *CollectorOptions) InitFromViper(v *viper.Viper, logger *zap.Logger) (*CollectorOptions, error) {
 	cOpts.CollectorTags = flags.ParseJaegerTags(v.GetString(flagCollectorTags))
 	cOpts.NumWorkers = v.GetInt(flagNumWorkers)
-	cOpts.QueueSize = v.GetInt(flagQueueSize)
+	cOpts.QueueSize = v.GetUint(flagQueueSize)
 	cOpts.DynQueueSizeMemory = v.GetUint(flagDynQueueSizeMemory) * 1024 * 1024 // we receive in MiB and store in bytes
 	cOpts.SpanSizeMetricsEnabled = v.GetBool(flagSpanSizeMetricsEnabled)
 

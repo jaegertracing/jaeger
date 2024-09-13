@@ -119,6 +119,7 @@ func (c *CacheStore) Update(service, operation string, expireTime uint64) {
 // GetOperations returns all operations for a specific service & spanKind traced by Jaeger
 func (c *CacheStore) GetOperations(service string) ([]spanstore.Operation, error) {
 	operations := make([]string, 0, len(c.services))
+	//nolint: gosec // G115
 	t := uint64(time.Now().Unix())
 	c.cacheLock.Lock()
 	defer c.cacheLock.Unlock()
@@ -155,6 +156,7 @@ func (c *CacheStore) GetOperations(service string) ([]spanstore.Operation, error
 // GetServices returns all services traced by Jaeger
 func (c *CacheStore) GetServices() ([]string, error) {
 	services := make([]string, 0, len(c.services))
+	//nolint: gosec // G115
 	t := uint64(time.Now().Unix())
 	c.cacheLock.Lock()
 	// Fetch the items
