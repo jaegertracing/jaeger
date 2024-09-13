@@ -39,7 +39,7 @@ func (b *ConnBuilder) InitFromViper(v *viper.Viper) (*ConnBuilder, error) {
 	if hostPorts != "" {
 		b.CollectorHostPorts = strings.Split(hostPorts, ",")
 	}
-	b.MaxRetry = uint(v.GetInt(retryFlag))
+	b.MaxRetry = v.GetUint(retryFlag)
 	tls, err := tlsFlagsConfig.InitFromViper(v)
 	if err != nil {
 		return b, fmt.Errorf("failed to process TLS options: %w", err)

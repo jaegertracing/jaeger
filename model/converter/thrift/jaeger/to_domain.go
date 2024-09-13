@@ -47,6 +47,7 @@ func (td toDomain) ToDomainSpan(jSpan *jaeger.Span, jProcess *jaeger.Process) *m
 }
 
 func (td toDomain) transformSpan(jSpan *jaeger.Span, mProcess *model.Process) *model.Span {
+	//nolint: gosec // G115
 	traceID := model.NewTraceID(uint64(jSpan.TraceIdHigh), uint64(jSpan.TraceIdLow))
 	// allocate extra space for future append operation
 	tags := td.getTags(jSpan.Tags, 1)
@@ -55,20 +56,25 @@ func (td toDomain) transformSpan(jSpan *jaeger.Span, mProcess *model.Process) *m
 	// might still have these IDs without representing them in the References, so we
 	// convert it back into child-of reference.
 	if jSpan.ParentSpanId != 0 {
+		//nolint: gosec // G115
 		parentSpanID := model.NewSpanID(uint64(jSpan.ParentSpanId))
 		refs = model.MaybeAddParentSpanID(traceID, parentSpanID, refs)
 	}
 	return &model.Span{
-		TraceID:       traceID,
+		TraceID: traceID,
+		//nolint: gosec // G115
 		SpanID:        model.NewSpanID(uint64(jSpan.SpanId)),
 		OperationName: jSpan.OperationName,
 		References:    refs,
-		Flags:         model.Flags(jSpan.Flags),
-		StartTime:     model.EpochMicrosecondsAsTime(uint64(jSpan.StartTime)),
-		Duration:      model.MicrosecondsAsDuration(uint64(jSpan.Duration)),
-		Tags:          tags,
-		Logs:          td.getLogs(jSpan.Logs),
-		Process:       mProcess,
+		//nolint: gosec // G115
+		Flags: model.Flags(jSpan.Flags),
+		//nolint: gosec // G115
+		StartTime: model.EpochMicrosecondsAsTime(uint64(jSpan.StartTime)),
+		//nolint: gosec // G115
+		Duration: model.MicrosecondsAsDuration(uint64(jSpan.Duration)),
+		Tags:     tags,
+		Logs:     td.getLogs(jSpan.Logs),
+		Process:  mProcess,
 	}
 }
 
@@ -82,8 +88,10 @@ func (toDomain) getReferences(jRefs []*jaeger.SpanRef) []model.SpanRef {
 		mRefs[idx] = model.SpanRef{
 			//nolint: gosec // G115
 			RefType: model.SpanRefType(int(jRef.RefType)),
+			//nolint: gosec // G115
 			TraceID: model.NewTraceID(uint64(jRef.TraceIdHigh), uint64(jRef.TraceIdLow)),
-			SpanID:  model.NewSpanID(uint64(jRef.SpanId)),
+			//nolint: gosec // G115
+			SpanID: model.NewSpanID(uint64(jRef.SpanId)),
 		}
 	}
 
@@ -141,6 +149,7 @@ func (td toDomain) getLogs(logs []*jaeger.Log) []model.Log {
 	retMe := make([]model.Log, len(logs))
 	for i, log := range logs {
 		retMe[i] = model.Log{
+			//nolint: gosec // G115
 			Timestamp: model.EpochMicrosecondsAsTime(uint64(log.Timestamp)),
 			Fields:    td.getTags(log.Fields, 0),
 		}
