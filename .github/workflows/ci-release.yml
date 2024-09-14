@@ -97,8 +97,6 @@ jobs:
         echo ${BRANCH} | grep -E '^v[0-9]+.[0-9]+.[0-9]+$'
         echo "BRANCH=${BRANCH}" >> ${GITHUB_ENV}
 
-    - run: make install-ci
-
     - name: Configure GPG Key
       if: ${{ inputs.dry_run != true }}
       uses: crazy-max/ghaction-import-gpg@01dd5d3ca463c7f10f7f4f7b4f177225ac661ee4 # v6.1.0
