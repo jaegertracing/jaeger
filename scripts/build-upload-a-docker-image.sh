@@ -104,9 +104,9 @@ else
 	    bash scripts/docker-login.sh
 	    PUSHTAG="type=image,push=true"
 	    upload_comment=" and uploading"
-		if [[ "$overwrite" == 'N' ]]; then
-		  check_overwrite "${IMAGE_TAGS[@]}"
-		fi
+	    if [[ "$overwrite" == 'N' ]]; then
+	      check_overwrite "${IMAGE_TAGS[@]}"
+	    fi
     else
 	    echo 'skipping docker images upload, because not on tagged release or main branch'
 	    PUSHTAG="type=image,push=false"
