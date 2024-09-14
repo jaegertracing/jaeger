@@ -18,7 +18,7 @@ print_help() {
   exit 1
 }
 
-BRANCH=${BRANCH:?'expecting BRANCH env var'}
+echo "BRANCH=${BRANCH:?'expecting BRANCH env var'}"
 base_debug_img_arg=""
 docker_file_arg="Dockerfile"
 target_arg=""
