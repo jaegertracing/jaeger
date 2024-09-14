@@ -28,6 +28,7 @@
       * If there are only dependency bumps, indicate this with "Dependencies upgrades only" ([example](https://github.com/jaegertracing/jaeger-ui/pull/2431/files)).
       * If there are no changes, indicate this with "No changes" ([example](https://github.com/jaegertracing/jaeger/pull/4131/files)).
     * Rotate the below release managers table placing yourself at the bottom. The date should be the first Wednesday of the month.
+    * Add label `changelog:skip` to the pull request.
 2. After the PR is merged, create new release tags:
     ```
     git checkout main
@@ -78,8 +79,8 @@ Here are the release managers for future versions with the tentative release dat
 
 | Version | Release Manager | Tentative release date |
 |---------|-----------------|------------------------|
-| 1.61.0  | @yurishkuro     | 3 September 2024       |
 | 1.62.0  | @albertteoh     | 2 October 2024         |
 | 1.63.0  | @pavolloffay    | 5 November 2024        |
 | 1.64.0  | @joe-elliott    | 4 December 2024        |
 | 1.65.0  | @jkowall        | 8 January 2025         |
+| 1.66.0  | @yurishkuro     | 3 February 2024        |
