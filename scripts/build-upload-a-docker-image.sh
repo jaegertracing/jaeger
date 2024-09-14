@@ -91,7 +91,7 @@ upload_comment=""
 
 if [[ "${local_test_only}" = "Y" ]]; then
     IMAGE_TAGS=("--tag" "localhost:5000/${namespace}/${component_name}:${GITHUB_SHA}")
-    PUSHTAG="type=image, push=true"
+    PUSHTAG="type=image,push=true"
 else
     echo "::group:: compute tags ${component_name}"
     # shellcheck disable=SC2086
