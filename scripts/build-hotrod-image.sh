@@ -3,7 +3,7 @@
 # Copyright (c) 2024 The Jaeger Authors.
 # SPDX-License-Identifier: Apache-2.0
 
-set -euxf -o pipefail
+set -euf -o pipefail
 
 print_help() {
   echo "Usage: $0 [-h] [-l] [-o] [-p platforms]"
@@ -37,6 +37,8 @@ while getopts "hlop:" opt; do
 		;;
 	esac
 done
+
+set -x
 
 dump_logs() {
   local compose_file=$1
