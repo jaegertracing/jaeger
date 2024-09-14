@@ -8,19 +8,29 @@ import re
 import subprocess
 
 
-release_header_pattern = re.compile(r".*(\d+\.\d+\.\d) \(\d{4}-\d{2}-\d{2}\)", flags=0)
+release_header_pattern = re.compile(
+    r".*(1\.\d+\.\d+) */ *(2\.\d+\.\d+-rc\d+) \(\d{4}-\d{2}-\d{2}\)", flags=0
+)
 underline_pattern = re.compile(r"^[-]+$", flags=0)
 
 
 def main(title, repo):
-    changelog_text, version = get_changelog()
+    changelog_text, version_v1, version_v2 = get_changelog()
     print(changelog_text)
     output_string = subprocess.check_output(
-        ["gh", "release", "create", f"v{version}",
-         "--draft",
-         "--title", f"{title} v{version}",
-         "--repo", f"jaegertracing/{repo}",
-         "-F", "-"],
+        [
+            "gh",
+            "release",
+            "create",
+            f"v{version_v1}",
+            "--draft",
+            "--title",
+            f"{title} v{version_v1} / v{version_v2}",
+            "--repo",
+            f"jaegertracing/{repo}",
+            "-F",
+            "-",
+        ],
         input=changelog_text,
         text=True,
     )
@@ -40,7 +50,8 @@ def get_changelog():
                 # Found the first release.
                 if not in_changelog_text:
                     in_changelog_text = True
-                    version = release_header_match.group(1)
+                    version_v1 = release_header_match.group(1)
+                    version_v2 = release_header_match.group(2)
                 else:
                     # Found the next release.
                     break
@@ -51,16 +62,26 @@ def get_changelog():
                 elif in_changelog_text:
                     changelog_text += line
 
-    return changelog_text, version
+    return changelog_text, version_v1, version_v2
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='List changes based on git log for release notes.')
+    parser = argparse.ArgumentParser(
+        description="List changes based on git log for release notes."
+    )
 
-    parser.add_argument('--title', type=str, default='Release',
-                        help='The title of the release. (default: Release)')
-    parser.add_argument('--repo', type=str, default='jaeger',
-                        help='The repository name where the draft release will be created. (default: jaeger)')
+    parser.add_argument(
+        "--title",
+        type=str,
+        default="Release",
+        help="The title of the release. (default: Release)",
+    )
+    parser.add_argument(
+        "--repo",
+        type=str,
+        default="jaeger",
+        help="The repository name where the draft release will be created. (default: jaeger)",
+    )
 
     args = parser.parse_args()
 
