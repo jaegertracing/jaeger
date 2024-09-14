@@ -55,7 +55,7 @@ teardown() {
 trap teardown EXIT
 
 make prepare-docker-buildx
-make create-baseimg
+make create-baseimg LINUX_PLATFORMS="$platforms"
 
 # Build hotrod binary for each target platform (separated by commas)
 for platform in $(echo "$platforms" | tr ',' ' '); do

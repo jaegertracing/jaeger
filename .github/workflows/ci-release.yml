@@ -82,6 +82,7 @@ jobs:
           docker_flags=("${docker_flags[@]}" -o)
         fi
         echo "docker_flags=${docker_flags[@]}" >> $GITHUB_OUTPUT
+        cat $GITHUB_OUTPUT
 
     - name: Export BRANCH variable and validate it is a semver
       # Many scripts depend on BRANCH variable. We do not want to

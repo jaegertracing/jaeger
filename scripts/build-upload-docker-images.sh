@@ -56,11 +56,11 @@ if [[ "$build_binaries" == "Y" ]]; then
   done
 fi
 
+baseimg_target='create-baseimg-debugimg'
 if [[ "${add_debugger}" == "N" ]]; then
-  make create-baseimg
-else
-  make create-baseimg-debugimg
+  baseimg_target='create-baseimg'
 fi
+make "$baseimg_target" LINUX_PLATFORMS="$platforms"
 
 # build/upload raw and debug images of Jaeger backend components
 for component in agent collector query ingester remote-storage
