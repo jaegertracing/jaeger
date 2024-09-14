@@ -6,18 +6,19 @@
 set -euf -o pipefail
 
 print_help() {
-  echo "Usage: $0 [-b binary] [-D] [-h] [-l] [-p platforms]"
+  echo "Usage: $0 [-b binary] [-D] [-h] [-l] [-o] [-p platforms]"
   echo "-b: Which binary to build: 'all-in-one' (default) or 'jaeger' (v2)"
   echo "-D: Disable building of images with debugger"
   echo "-h: Print help"
   echo "-l: Enable local-only mode that only pushes images to local registry"
+  echo "-o: overwrite image in the target remote repository even if the semver tag already exists"
   echo "-p: Comma-separated list of platforms to build for (default: all supported)"
   exit 1
 }
 
 add_debugger='Y'
 platforms="$(make echo-linux-platforms)"
-LOCAL_FLAG=''
+FLAGS=()
 BINARY='all-in-one'
 
 while getopts "b:Dhlp:" opt; do
@@ -30,7 +31,10 @@ while getopts "b:Dhlp:" opt; do
 		;;
 	l)
 		# in the local-only mode the images will only be pushed to local registry
-		LOCAL_FLAG='-l'
+    FLAGS=("${FLAGS[@]}" -l)
+		;;
+	o)
+    FLAGS=("${FLAGS[@]}" -o)
 		;;
 	p)
 		platforms=${OPTARG}
@@ -91,13 +95,13 @@ else
   make create-baseimg-debugimg
 fi
 
-# build all-in-one image locally for integration test (the -l switch)
+# build all-in-one image locally for integration test (the explicit -l switch)
 bash scripts/build-upload-a-docker-image.sh -l -b -c "${BINARY}" -d "cmd/${BINARY}" -p "${platforms}" -t release
 
 run_integration_test "localhost:5000/$repo"
 
 # build all-in-one image and upload to dockerhub/quay.io
-bash scripts/build-upload-a-docker-image.sh ${LOCAL_FLAG} -b -c "${BINARY}" -d "cmd/${BINARY}" -p "${platforms}" -t release
+bash scripts/build-upload-a-docker-image.sh "${FLAGS[@]}" -b -c "${BINARY}" -d "cmd/${BINARY}" -p "${platforms}" -t release
 
 # build debug image if requested
 if [[ "${add_debugger}" == "Y" ]]; then
@@ -109,5 +113,5 @@ if [[ "${add_debugger}" == "Y" ]]; then
   run_integration_test "localhost:5000/$repo"
 
   # build & upload official image
-  bash scripts/build-upload-a-docker-image.sh ${LOCAL_FLAG} -b -c "${BINARY}-debug" -d "cmd/${BINARY}" -t debug
+  bash scripts/build-upload-a-docker-image.sh "${FLAGS[@]}" -b -c "${BINARY}-debug" -d "cmd/${BINARY}" -t debug
 fi

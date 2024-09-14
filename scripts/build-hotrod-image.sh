@@ -6,9 +6,10 @@
 set -euxf -o pipefail
 
 print_help() {
-  echo "Usage: $0 [-h] [-l] [-p platforms]"
+  echo "Usage: $0 [-h] [-l] [-o] [-p platforms]"
   echo "-h: Print help"
   echo "-l: Enable local-only mode that only pushes images to local registry"
+  echo "-o: overwrite image in the target remote repository even if the semver tag already exists"
   echo "-p: Comma-separated list of platforms to build for (default: all supported)"
   exit 1
 }
@@ -16,14 +17,17 @@ print_help() {
 docker_compose_file="./examples/hotrod/docker-compose.yml"
 platforms="$(make echo-linux-platforms)"
 current_platform="$(go env GOOS)/$(go env GOARCH)"
-LOCAL_FLAG=''
+FLAGS=()
 success="false"
 
 while getopts "hlp:" opt; do
 	case "${opt}" in
 	l)
 		# in the local-only mode the images will only be pushed to local registry
-		LOCAL_FLAG='-l'
+    FLAGS=("${FLAGS[@]}" -l)
+		;;
+	o)
+    FLAGS=("${FLAGS[@]}" -o)
 		;;
 	p)
 		platforms=${OPTARG}
@@ -130,4 +134,4 @@ success="true"
 
 # Ensure the image is published after successful test (maybe with -l flag if on a pull request).
 # This is where all those multi-platform binaries we built earlier are utilized.
-bash scripts/build-upload-a-docker-image.sh ${LOCAL_FLAG} -c example-hotrod -d examples/hotrod -p "${platforms}"
+bash scripts/build-upload-a-docker-image.sh "${FLAGS[@]}" -c example-hotrod -d examples/hotrod -p "${platforms}"
