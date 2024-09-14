@@ -77,7 +77,9 @@ bash scripts/build-upload-a-docker-image.sh -l -c example-hotrod -d examples/hot
 make build-all-in-one
 bash scripts/build-upload-a-docker-image.sh -l -b -c all-in-one -d cmd/all-in-one -p "${current_platform}" -t release
 
+echo '::group:: docker compose'
 JAEGER_VERSION=$GITHUB_SHA REGISTRY="localhost:5000/" docker compose -f "$docker_compose_file" up -d
+echo '::endgroup::'
 
 i=0
 while [[ "$(curl -s -o /dev/null -w '%{http_code}' localhost:8080)" != "200" && $i -lt 30 ]]; do
@@ -85,11 +87,14 @@ while [[ "$(curl -s -o /dev/null -w '%{http_code}' localhost:8080)" != "200" && 
   i=$((i+1))
 done
 
+echo '::group:: check HTML'
+echo 'Check that home page contains text Rides On Demand'
 body=$(curl localhost:8080)
 if [[ $body != *"Rides On Demand"* ]]; then
   echo "String \"Rides On Demand\" is not present on the index page"
   exit 1
 fi
+echo '::endgroup::'
 
 response=$(curl -i -X POST "http://localhost:8080/dispatch?customer=123")
 TRACE_ID=$(echo "$response" | grep -Fi "Traceresponse:" | awk '{print $2}' | cut -d '-' -f 2)
