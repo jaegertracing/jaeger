@@ -51,12 +51,10 @@ fi
 
 case $1 in
   v1)
-    JAEGER_MAJOR=v1
     BINARY='all-in-one'
     export HEALTHCHECK_V2=false
     ;;
   v2)
-    JAEGER_MAJOR=v2
     BINARY='jaeger'
     export HEALTHCHECK_V2=true
     ;;
