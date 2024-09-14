@@ -27,7 +27,7 @@ while getopts "hlop:" opt; do
     FLAGS=("${FLAGS[@]}" -l)
 		;;
 	o)
-    FLAGS=("${FLAGS[@]}" -o)
+		FLAGS=("${FLAGS[@]}" -o)
 		;;
 	p)
 		platforms=${OPTARG}
