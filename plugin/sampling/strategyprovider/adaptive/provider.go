@@ -110,10 +110,6 @@ func (p *Provider) runUpdateProbabilitiesLoop() {
 	}
 }
 
-func (p *Provider) isLeader() bool {
-	return p.electionParticipant.IsLeader()
-}
-
 // generateStrategyResponses generates and caches SamplingStrategyResponse from the calculated sampling probabilities.
 func (p *Provider) generateStrategyResponses() {
 	p.RLock()
