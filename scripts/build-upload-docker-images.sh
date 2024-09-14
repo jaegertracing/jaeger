@@ -35,9 +35,9 @@ while getopts "BDhlop:" opt; do
     # in the local-only mode the images will only be pushed to local registry
     FLAGS=("${FLAGS[@]}" -l)
     ;;
-	o)
+  o)
     FLAGS=("${FLAGS[@]}" -o)
-		;;
+    ;;
   p)
     platforms=${OPTARG}
     ;;
