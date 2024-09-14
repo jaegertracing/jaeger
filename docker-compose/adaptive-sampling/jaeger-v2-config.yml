@@ -22,6 +22,8 @@ extensions:
       sampling_store: some_store
       initial_sampling_probability: 1.0
       target_samples_per_second: 1
+      calculation_interval: 10s
+      calculation_delay: 20s
     http:
     grpc:
 
