@@ -21,7 +21,7 @@ platforms="$(make echo-linux-platforms)"
 FLAGS=()
 BINARY='all-in-one'
 
-while getopts "b:Dhlp:" opt; do
+while getopts "b:Dhlop:" opt; do
 	case "${opt}" in
 	b)
 		BINARY=${OPTARG}
@@ -31,10 +31,10 @@ while getopts "b:Dhlp:" opt; do
 		;;
 	l)
 		# in the local-only mode the images will only be pushed to local registry
-    FLAGS=("${FLAGS[@]}" -l)
+		FLAGS=("${FLAGS[@]}" -l)
 		;;
 	o)
-    FLAGS=("${FLAGS[@]}" -o)
+		FLAGS=("${FLAGS[@]}" -o)
 		;;
 	p)
 		platforms=${OPTARG}

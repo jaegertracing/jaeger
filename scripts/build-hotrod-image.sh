@@ -20,7 +20,7 @@ current_platform="$(go env GOOS)/$(go env GOARCH)"
 FLAGS=()
 success="false"
 
-while getopts "hlp:" opt; do
+while getopts "hlop:" opt; do
 	case "${opt}" in
 	l)
 		# in the local-only mode the images will only be pushed to local registry

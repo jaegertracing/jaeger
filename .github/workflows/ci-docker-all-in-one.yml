@@ -57,8 +57,7 @@ jobs:
             ;;
         esac
 
-    - name: Determine healthcheck setting
-      id: healthcheck
+    - name: Customize the build based on v1/v2 version
       run: |
         if [[ "${{ matrix.jaeger_version }}" == "v1" ]]; then
           echo "HEALTHCHECK_V2=false" >> $GITHUB_ENV
