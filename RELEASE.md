@@ -41,7 +41,7 @@
        * `make draft-release`
     * Manual:
        * Title "Release 1.x.x / 2.x.x-rcN"
-       * Tag `vX.Y.Z` (note the `v` prefix) and choose appropriate branch
+       * Tag `v1.x.x` (note the `v` prefix) and choose appropriate branch (usually `main`)
        * Copy the new CHANGELOG.md section into the release notes
        * Extra: GitHub has a button "generate release notes". Those are not formatted as we want,
          but it has a nice feature of explicitly listing first-time contributors.

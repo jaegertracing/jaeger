@@ -26,6 +26,8 @@ copy from UI changelog
 
 ### Backend Changes
 
+This release contains an official pre-release candidate of Jaeger v2, as binary and Docker image `jaeger`.
+
 #### ⛔ Breaking Changes
 
 * Remove support for cassandra 3.x and add cassandra 5.x ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#5962](https://github.com/jaegertracing/jaeger/pull/5962))
