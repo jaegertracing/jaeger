@@ -57,22 +57,11 @@ jobs:
             ;;
         esac
 
-    - name: Customize the build based on v1/v2 version
-      run: |
-        if [[ "${{ matrix.jaeger_version }}" == "v1" ]]; then
-          echo "HEALTHCHECK_V2=false" >> $GITHUB_ENV
-          echo "JAEGER_BINARY=all-in-one" >> $GITHUB_ENV
-        elif [[ "${{ matrix.jaeger_version }}" == "v2" ]]; then
-          echo "HEALTHCHECK_V2=true" >> $GITHUB_ENV
-          echo "JAEGER_BINARY=jaeger" >> $GITHUB_ENV
-        fi
-
     - name: Build, test, and publish all-in-one image
       run: |
         bash scripts/build-all-in-one-image.sh \
           ${{ env.BUILD_FLAGS }} \
-          -b ${{ env.JAEGER_BINARY }}
+          "${{ matrix.jaeger_version }}"
       env:
         DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
-        HEALTHCHECK_V2: ${{ env.HEALTHCHECK_V2 }}

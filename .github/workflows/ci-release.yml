@@ -143,8 +143,8 @@ jobs:
       run: |
         BRANCH=$(make echo-v1) \
         bash scripts/build-all-in-one-image.sh \
-          -b all-in-one \
-          ${{ steps.params.outputs.docker_flags }}
+          ${{ steps.params.outputs.docker_flags }} \
+          v1
       env:
         DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
@@ -153,8 +153,8 @@ jobs:
       run: |
         BRANCH=$(make echo-v2) \
         bash scripts/build-all-in-one-image.sh \
-          -b jaeger \
-          ${{ steps.params.outputs.docker_flags }}
+          ${{ steps.params.outputs.docker_flags }} \
+          v2
       env:
         DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}

@@ -6,26 +6,22 @@
 set -euf -o pipefail
 
 print_help() {
-  echo "Usage: $0 [-b binary] [-D] [-h] [-l] [-o] [-p platforms]"
-  echo "-b: Which binary to build: 'all-in-one' (default) or 'jaeger' (v2)"
-  echo "-D: Disable building of images with debugger"
-  echo "-h: Print help"
-  echo "-l: Enable local-only mode that only pushes images to local registry"
-  echo "-o: overwrite image in the target remote repository even if the semver tag already exists"
-  echo "-p: Comma-separated list of platforms to build for (default: all supported)"
+  echo "Usage: $0 [-b binary] [-D] [-h] [-l] [-o] [-p platforms] <jaeger_version>"
+  echo "  -D: Disable building of images with debugger"
+  echo "  -h: Print help"
+  echo "  -l: Enable local-only mode that only pushes images to local registry"
+  echo "  -o: overwrite image in the target remote repository even if the semver tag already exists"
+  echo "  -p: Comma-separated list of platforms to build for (default: all supported)"
+  echo "  jaeger_version:  major version, v1 | v2"
   exit 1
 }
 
 add_debugger='Y'
 platforms="$(make echo-linux-platforms)"
 FLAGS=()
-BINARY='all-in-one'
 
-while getopts "b:Dhlop:" opt; do
+while getopts "Dhlop:" opt; do
 	case "${opt}" in
-	b)
-		BINARY=${OPTARG}
-		;;
 	D)
 		add_debugger='N'
 		;;
@@ -44,6 +40,30 @@ while getopts "b:Dhlop:" opt; do
 		;;
 	esac
 done
+
+# remove flags, leave only positional args
+shift $((OPTIND - 1))
+
+if [[ $# -eq 0 ]]; then
+  echo "Jaeger major version is required as argument"
+  print_help
+fi
+
+case $1 in
+  v1)
+    JAEGER_MAJOR=v1
+    BINARY='all-in-one'
+    export HEALTHCHECK_V2=false
+    ;;
+  v2)
+    JAEGER_MAJOR=v2
+    BINARY='jaeger'
+    export HEALTHCHECK_V2=true
+    ;;
+  *)
+    echo "Jaeger major version is required as argument"
+    print_help
+esac
 
 set -x
 
