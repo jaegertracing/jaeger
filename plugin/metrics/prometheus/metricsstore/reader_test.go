@@ -961,7 +961,7 @@ func assertMetrics(t *testing.T, gotMetrics *metrics.MetricFamily, wantLabels ma
 	assert.Equal(t, int64(1620351786), mps[0].Timestamp.GetSeconds())
 
 	actualVal := mps[0].Value.(*metrics.MetricPoint_GaugeValue).GaugeValue.Value.(*metrics.GaugeValue_DoubleValue).DoubleValue
-	assert.Equal(t, float64(9223372036854), actualVal)
+	assert.InDelta(t, float64(9223372036854), actualVal, 0.01)
 }
 
 func TestMain(m *testing.M) {

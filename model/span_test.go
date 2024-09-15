@@ -494,7 +494,7 @@ func TestGetSamplerParams(t *testing.T) {
 			span.Tags = tt.tags
 			actualType, actualParam := span.GetSamplerParams(logger)
 			assert.Equal(t, tt.expectedType, actualType)
-			assert.Equal(t, tt.expectedParam, actualParam)
+			assert.InDelta(t, tt.expectedParam, actualParam, 0.01)
 		})
 	}
 }

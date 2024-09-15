@@ -817,7 +817,7 @@ func TestGetMinStep(t *testing.T) {
 
 	// Verify
 	require.NoError(t, err)
-	assert.Equal(t, float64(5), response.Data)
+	assert.InDelta(t, float64(5), response.Data, 0.01)
 }
 
 // getJSON fetches a JSON document from a server via HTTP GET
