@@ -70,7 +70,7 @@ func initializeGRPCTestServer(t *testing.T, beforeServe func(server *grpc.Server
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() {
-		require.NoError(t, server.Serve(lis))
+		assert.NoError(t, server.Serve(lis))
 		wg.Done()
 	}()
 	t.Cleanup(func() {

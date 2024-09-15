@@ -74,7 +74,7 @@ func newTestServer(t *testing.T) *testServer {
 	var exited sync.WaitGroup
 	exited.Add(1)
 	go func() {
-		require.NoError(t, server.Serve(lis))
+		assert.NoError(t, server.Serve(lis))
 		exited.Done()
 	}()
 	t.Cleanup(func() {
