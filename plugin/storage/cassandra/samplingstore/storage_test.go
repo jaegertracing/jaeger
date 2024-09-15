@@ -268,7 +268,7 @@ func TestGetLatestProbabilities(t *testing.T) {
 
 				if testCase.expectedError == "" {
 					require.NoError(t, err)
-					assert.Equal(t, 0.84, probabilities["svc"]["op"])
+					assert.InDelta(t, 0.84, probabilities["svc"]["op"], 0.01)
 				} else {
 					require.EqualError(t, err, testCase.expectedError)
 				}

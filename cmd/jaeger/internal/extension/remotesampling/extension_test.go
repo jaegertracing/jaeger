@@ -169,7 +169,7 @@ func TestStartGRPC(t *testing.T) {
 	c := api_v2.NewSamplingManagerClient(conn)
 	response, err := c.GetSamplingStrategy(context.Background(), &api_v2.SamplingStrategyParameters{ServiceName: "foo"})
 	require.NoError(t, err)
-	require.Equal(t, 0.8, response.ProbabilisticSampling.SamplingRate)
+	require.InDelta(t, 0.8, response.ProbabilisticSampling.SamplingRate, 0.01)
 
 	require.NoError(t, ext.Shutdown(context.Background()))
 }

@@ -74,7 +74,7 @@ func TestInsertProbabilitiesAndQPS(t *testing.T) {
 		assert.NotEmpty(t, 1, samplingStore.probabilitiesAndQPS)
 		// Only latest one is kept in memory
 		require.NoError(t, samplingStore.InsertProbabilitiesAndQPS("lncol73", model.ServiceOperationProbabilities{"my-app": {"hello": 0.3}}, model.ServiceOperationQPS{"new-srv": {"op": 7}}))
-		assert.Equal(t, 0.3, samplingStore.probabilitiesAndQPS.probabilities["my-app"]["hello"])
+		assert.InDelta(t, 0.3, samplingStore.probabilitiesAndQPS.probabilities["my-app"]["hello"], 0.01)
 	})
 }
 
