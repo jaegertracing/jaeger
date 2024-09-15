@@ -222,19 +222,8 @@ linters-settings:
           disabled: true
   testifylint:
     disable:
-      - float-compare
       - go-require
-    enable:
-      - bool-compare
-      - compares
-      - empty
-      - error-is-as
-      - error-nil
-      - expected-actual
-      - len
-      - require-error
-      - suite-dont-use-pkg
-      - suite-extra-assert-call
+    enable-all: true
 
 run:
   go: "1.22"

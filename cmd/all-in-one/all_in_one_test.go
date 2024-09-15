@@ -178,7 +178,7 @@ func getSamplingStrategy(t *testing.T) {
 	require.NoError(t, jsonpb.Unmarshal(bytes.NewReader(body), &queryResponse))
 
 	assert.NotNil(t, queryResponse.ProbabilisticSampling)
-	assert.EqualValues(t, 1.0, queryResponse.ProbabilisticSampling.SamplingRate)
+	assert.InDelta(t, 1.0, queryResponse.ProbabilisticSampling.SamplingRate, 0.01)
 }
 
 func getServicesAPIV3(t *testing.T) {
