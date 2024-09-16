@@ -8,6 +8,7 @@ services:
       - "16686:16686"
       - "5778:5778"
       - "4318:4318"
+      - "27777:27777"
 
   tracegen:
     image: jaegertracing/jaeger-tracegen:latest

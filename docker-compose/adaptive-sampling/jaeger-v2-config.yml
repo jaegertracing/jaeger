@@ -1,5 +1,5 @@
 service:
-  extensions: [jaeger_storage, jaeger_query, remote_sampling, healthcheckv2]
+  extensions: [jaeger_storage, jaeger_query, remote_sampling, healthcheckv2, expvar]
   pipelines:
     traces:
       receivers: [otlp]
@@ -26,6 +26,8 @@ extensions:
       calculation_delay: 20s
     http:
     grpc:
+  expvar:
+    port: 27777
 
 receivers:
   otlp:
