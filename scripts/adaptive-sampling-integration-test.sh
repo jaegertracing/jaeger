@@ -89,7 +89,7 @@ check_adaptive_sampling() {
 }
 
 main() {
-    (cd docker-compose/adaptive-sampling && make dev DOCKER_COMPOSE_ARGS="-d")
+    (cd docker-compose/adaptive-sampling && make build && make dev DOCKER_COMPOSE_ARGS="-d")
     wait_for_services
     check_adaptive_sampling
 }
