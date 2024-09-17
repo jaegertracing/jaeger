@@ -38,7 +38,7 @@ func newGrpcServer(t *testing.T, handler *Handler) (*grpc.Server, net.Addr) {
 	require.NoError(t, err)
 	go func() {
 		err := server.Serve(lis)
-		require.NoError(t, err)
+		assert.NoError(t, err)
 	}()
 	t.Cleanup(func() { server.Stop() })
 	return server, lis.Addr()

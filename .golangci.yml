@@ -221,8 +221,6 @@ linters-settings:
         - name: comment-spacings
           disabled: true
   testifylint:
-    disable:
-      - go-require
     enable-all: true
 
 run:
