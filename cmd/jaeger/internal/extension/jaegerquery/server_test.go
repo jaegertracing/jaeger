@@ -132,53 +132,67 @@ func TestServerStart(t *testing.T) {
 		{
 			name: "Non-empty config with fake storage host",
 			config: &Config{
-				TraceStorageArchive: "jaeger_storage",
-				TraceStoragePrimary: "jaeger_storage",
-				MetricStorage:       "jaeger_metrics_storage",
+				Storage: Storage{
+					TraceArchive: "jaeger_storage",
+					TracePrimary: "jaeger_storage",
+					Metric:       "jaeger_metrics_storage",
+				},
 			},
 		},
 		{
 			name: "factory error",
 			config: &Config{
-				TraceStoragePrimary: "need-factory-error",
+				Storage: Storage{
+					TracePrimary: "need-factory-error",
+				},
 			},
 			expectedErr: "cannot find primary storage",
 		},
 		{
 			name: "span reader error",
 			config: &Config{
-				TraceStoragePrimary: "need-span-reader-error",
+				Storage: Storage{
+					TracePrimary: "need-span-reader-error",
+				},
 			},
 			expectedErr: "cannot create span reader",
 		},
 		{
 			name: "dependency error",
 			config: &Config{
-				TraceStoragePrimary: "need-dependency-reader-error",
+				Storage: Storage{
+					TracePrimary: "need-dependency-reader-error",
+				},
 			},
 			expectedErr: "cannot create dependencies reader",
 		},
 		{
 			name: "storage archive error",
 			config: &Config{
-				TraceStorageArchive: "need-factory-error",
-				TraceStoragePrimary: "jaeger_storage",
+				Storage: Storage{
+					TraceArchive: "need-factory-error",
+					TracePrimary: "jaeger_storage",
+				},
 			},
 			expectedErr: "cannot find archive storage factory",
 		},
 		{
 			name: "metrics storage error",
 			config: &Config{
-				MetricStorage:       "need-factory-error",
-				TraceStoragePrimary: "jaeger_storage",
+				Storage: Storage{
+					Metric:       "need-factory-error",
+					TracePrimary: "jaeger_storage",
+				},
 			},
 			expectedErr: "cannot find metrics storage factory",
 		},
 		{
 			name: " metrics reader error",
 			config: &Config{
-				MetricStorage:       "need-metrics-reader-error",
-				TraceStoragePrimary: "jaeger_storage",
+				Storage: Storage{
+					Metric:       "need-metrics-reader-error",
+					TracePrimary: "jaeger_storage",
+				},
 			},
 			expectedErr: "cannot create metrics reader",
 		},
@@ -190,8 +204,8 @@ func TestServerStart(t *testing.T) {
 				Logger:        zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller())),
 				MeterProvider: noopMeter.NewMeterProvider(),
 			}
-			tt.config.HTTP.Endpoint = ":0"
-			tt.config.GRPC.NetAddr.Endpoint = ":0"
+			tt.config.Connection.HTTP.Endpoint = ":0"
+			tt.config.Connection.GRPC.NetAddr.Endpoint = ":0"
 			server := newServer(tt.config, telemetrySettings)
 			err := server.Start(context.Background(), host)
 			if tt.expectedErr == "" {
@@ -249,7 +263,9 @@ func TestServerAddArchiveStorage(t *testing.T) {
 		{
 			name: "Archive storage set",
 			config: &Config{
-				TraceStorageArchive: "random-value",
+				Storage: Storage{
+					TraceArchive: "random-value",
+				},
 			},
 			qSvcOpts:       &querysvc.QueryServiceOptions{},
 			expectedOutput: "",
@@ -258,7 +274,9 @@ func TestServerAddArchiveStorage(t *testing.T) {
 		{
 			name: "Archive storage not supported",
 			config: &Config{
-				TraceStorageArchive: "badger",
+				Storage: Storage{
+					TraceArchive: "badger",
+				},
 			},
 			qSvcOpts:       &querysvc.QueryServiceOptions{},
 			extension:      fakeStorageExt{},
@@ -308,7 +326,9 @@ func TestServerAddMetricsStorage(t *testing.T) {
 		{
 			name: "Metrics storage set",
 			config: &Config{
-				MetricStorage: "random-value",
+				Storage: Storage{
+					Metric: "random-value",
+				},
 			},
 			expectedOutput: "",
 			expectedErr:    "cannot find metrics storage factory: cannot find extension",

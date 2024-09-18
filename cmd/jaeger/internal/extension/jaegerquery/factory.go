@@ -27,13 +27,15 @@ func NewFactory() extension.Factory {
 
 func createDefaultConfig() component.Config {
 	return &Config{
-		HTTP: confighttp.ServerConfig{
-			Endpoint: ports.PortToHostPort(ports.QueryHTTP),
-		},
-		GRPC: configgrpc.ServerConfig{
-			NetAddr: confignet.AddrConfig{
-				Endpoint:  ports.PortToHostPort(ports.QueryGRPC),
-				Transport: confignet.TransportTypeTCP,
+		Connection: Connection{
+			HTTP: confighttp.ServerConfig{
+				Endpoint: ports.PortToHostPort(ports.QueryHTTP),
+			},
+			GRPC: configgrpc.ServerConfig{
+				NetAddr: confignet.AddrConfig{
+					Endpoint:  ports.PortToHostPort(ports.QueryGRPC),
+					Transport: confignet.TransportTypeTCP,
+				},
 			},
 		},
 	}
