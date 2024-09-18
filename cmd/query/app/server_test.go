@@ -721,10 +721,8 @@ func TestServerHTTPTenancy(t *testing.T) {
 	serverOptions := &QueryOptions{
 		HTTPHostPort: ":8080",
 		GRPCHostPort: ":8080",
-		QueryOptionsBase: QueryOptionsBase{
-			Tenancy: tenancy.Options{
-				Enabled: true,
-			},
+		Tenancy: tenancy.Options{
+			Enabled: true,
 		},
 	}
 	tenancyMgr := tenancy.NewManager(&serverOptions.Tenancy)

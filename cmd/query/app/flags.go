@@ -67,12 +67,8 @@ type QueryOptionsBase struct {
 	UIConfig string `valid:"optional" mapstructure:"ui_config"`
 	// BearerTokenPropagation activate/deactivate bearer token propagation to storage
 	BearerTokenPropagation bool
-	// AdditionalHeaders
-	AdditionalHeaders http.Header
 	// MaxClockSkewAdjust is the maximum duration by which jaeger-query will adjust a span
 	MaxClockSkewAdjust time.Duration
-	// Tenancy configures tenancy for query
-	Tenancy tenancy.Options
 	// EnableTracing determines whether traces will be emitted by jaeger-query.
 	EnableTracing bool
 }
@@ -81,6 +77,10 @@ type QueryOptionsBase struct {
 type QueryOptions struct {
 	QueryOptionsBase
 
+	// Tenancy configures tenancy for query
+	Tenancy tenancy.Options
+	// AdditionalHeaders
+	AdditionalHeaders http.Header
 	// HTTPHostPort is the host:port address that the query service listens in on for http requests
 	HTTPHostPort string
 	// GRPCHostPort is the host:port address that the query service listens in on for gRPC requests
