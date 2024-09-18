@@ -223,7 +223,9 @@ func createStorageCleanerConfig(t *testing.T, configFile string, storage string)
 	extensions := extensionsAny.(map[string]any)
 	queryAny, ok := extensions["jaeger_query"]
 	require.True(t, ok)
-	traceStorageAny, ok := queryAny.(map[string]any)["trace_storage"]
+	storageAny, ok := queryAny.(map[string]any)["storage"]
+	require.True(t, ok)
+	traceStorageAny, ok := storageAny.(map[string]any)["trace"]
 	require.True(t, ok)
 	traceStorage := traceStorageAny.(string)
 	extensions["storage_cleaner"] = map[string]string{"trace_storage": traceStorage}
