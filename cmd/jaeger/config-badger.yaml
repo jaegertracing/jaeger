@@ -12,8 +12,9 @@ extensions:
     http:
 
   jaeger_query:
-    trace_storage: some_store
-    trace_storage_archive: another_store
+    storage:
+      trace: some_store
+      trace_archive: another_store
     ui_config: ./cmd/jaeger/config-ui.json
 
   jaeger_storage:
