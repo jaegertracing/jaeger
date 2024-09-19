@@ -12,6 +12,7 @@ import (
 	"go.opentelemetry.io/collector/config/confignet"
 	"go.opentelemetry.io/collector/extension"
 
+	"github.com/jaegertracing/jaeger/cmd/query/app"
 	"github.com/jaegertracing/jaeger/ports"
 )
 
@@ -27,6 +28,9 @@ func NewFactory() extension.Factory {
 
 func createDefaultConfig() component.Config {
 	return &Config{
+		OptionsBase: app.OptionsBase{
+			BasePath: "/",
+		},
 		Connection: Connection{
 			HTTP: confighttp.ServerConfig{
 				Endpoint: ports.PortToHostPort(ports.QueryHTTP),

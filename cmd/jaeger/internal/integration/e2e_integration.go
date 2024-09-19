@@ -126,7 +126,7 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
 			Path: "./cmd/jaeger/jaeger",
 			Args: []string{"jaeger", "--config", configFile},
 			// Change the working directory to the root of this project
-			// since the binary config file jaeger_query's ui_config points to
+			// since the binary config file jaeger_query's ui.config_file points to
 			// "./cmd/jaeger/config-ui.json"
 			Dir: "../../../..",
 		},

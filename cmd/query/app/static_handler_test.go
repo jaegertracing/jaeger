@@ -43,10 +43,10 @@ func TestRegisterStaticHandlerPanic(t *testing.T) {
 		closer := RegisterStaticHandler(
 			mux.NewRouter(),
 			logger,
-			&QueryOptions{
-				QueryOptionsBase: QueryOptionsBase{
-					StaticAssets: QueryOptionsStaticAssets{
-						Path: "/foo/bar",
+			&Options{
+				OptionsBase: OptionsBase{
+					UI: UI{
+						AssetsPath: "/foo/bar",
 					},
 				},
 			},
@@ -110,14 +110,14 @@ func TestRegisterStaticHandler(t *testing.T) {
 			if testCase.subroute {
 				r = r.PathPrefix(testCase.basePath).Subrouter()
 			}
-			closer := RegisterStaticHandler(r, logger, &QueryOptions{
-				QueryOptionsBase: QueryOptionsBase{
-					StaticAssets: QueryOptionsStaticAssets{
-						Path:      "fixture",
-						LogAccess: testCase.logAccess,
+			closer := RegisterStaticHandler(r, logger, &Options{
+				OptionsBase: OptionsBase{
+					UI: UI{
+						ConfigFile: testCase.UIConfigPath,
+						AssetsPath: "fixture",
+						LogAccess:  testCase.logAccess,
 					},
 					BasePath: testCase.basePath,
-					UIConfig: testCase.UIConfigPath,
 				},
 			},
 				querysvc.StorageCapabilities{ArchiveStorage: testCase.archiveStorage},

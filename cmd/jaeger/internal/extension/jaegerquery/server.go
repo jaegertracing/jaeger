@@ -156,9 +156,9 @@ func (s *server) createMetricReader(host component.Host) (metricsstore.Reader, e
 	return metricsReader, err
 }
 
-func (s *server) makeQueryOptions() *queryApp.QueryOptions {
-	return &queryApp.QueryOptions{
-		QueryOptionsBase: s.config.QueryOptionsBase,
+func (s *server) makeQueryOptions() *queryApp.Options {
+	return &queryApp.Options{
+		OptionsBase: s.config.OptionsBase,
 
 		// TODO utilize OTEL helpers for creating HTTP/GRPC servers
 		HTTPHostPort: s.config.Connection.HTTP.Endpoint,
