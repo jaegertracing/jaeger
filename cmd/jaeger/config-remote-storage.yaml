@@ -14,7 +14,8 @@ extensions:
   jaeger_query:
     storage:
       trace: some-storage
-    ui_config: ./cmd/jaeger/config-ui.json
+    ui:
+      config_file: ./cmd/jaeger/config-ui.json
 
   jaeger_storage:
     backends:
