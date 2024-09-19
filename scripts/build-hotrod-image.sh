@@ -3,12 +3,13 @@
 # Copyright (c) 2024 The Jaeger Authors.
 # SPDX-License-Identifier: Apache-2.0
 
-set -euxf -o pipefail
+set -euf -o pipefail
 
 print_help() {
-  echo "Usage: $0 [-h] [-l] [-p platforms]"
+  echo "Usage: $0 [-h] [-l] [-o] [-p platforms]"
   echo "-h: Print help"
   echo "-l: Enable local-only mode that only pushes images to local registry"
+  echo "-o: overwrite image in the target remote repository even if the semver tag already exists"
   echo "-p: Comma-separated list of platforms to build for (default: all supported)"
   exit 1
 }
@@ -16,14 +17,17 @@ print_help() {
 docker_compose_file="./examples/hotrod/docker-compose.yml"
 platforms="$(make echo-linux-platforms)"
 current_platform="$(go env GOOS)/$(go env GOARCH)"
-LOCAL_FLAG=''
+FLAGS=()
 success="false"
 
-while getopts "hlp:" opt; do
+while getopts "hlop:" opt; do
 	case "${opt}" in
 	l)
 		# in the local-only mode the images will only be pushed to local registry
-		LOCAL_FLAG='-l'
+    FLAGS=("${FLAGS[@]}" -l)
+		;;
+	o)
+		FLAGS=("${FLAGS[@]}" -o)
 		;;
 	p)
 		platforms=${OPTARG}
@@ -33,6 +37,8 @@ while getopts "hlp:" opt; do
 		;;
 	esac
 done
+
+set -x
 
 dump_logs() {
   local compose_file=$1
@@ -51,7 +57,7 @@ teardown() {
 trap teardown EXIT
 
 make prepare-docker-buildx
-make create-baseimg
+make create-baseimg LINUX_PLATFORMS="$platforms"
 
 # Build hotrod binary for each target platform (separated by commas)
 for platform in $(echo "$platforms" | tr ',' ' '); do
@@ -71,7 +77,9 @@ bash scripts/build-upload-a-docker-image.sh -l -c example-hotrod -d examples/hot
 make build-all-in-one
 bash scripts/build-upload-a-docker-image.sh -l -b -c all-in-one -d cmd/all-in-one -p "${current_platform}" -t release
 
+echo '::group:: docker compose'
 JAEGER_VERSION=$GITHUB_SHA REGISTRY="localhost:5000/" docker compose -f "$docker_compose_file" up -d
+echo '::endgroup::'
 
 i=0
 while [[ "$(curl -s -o /dev/null -w '%{http_code}' localhost:8080)" != "200" && $i -lt 30 ]]; do
@@ -79,11 +87,14 @@ while [[ "$(curl -s -o /dev/null -w '%{http_code}' localhost:8080)" != "200" && 
   i=$((i+1))
 done
 
+echo '::group:: check HTML'
+echo 'Check that home page contains text Rides On Demand'
 body=$(curl localhost:8080)
 if [[ $body != *"Rides On Demand"* ]]; then
   echo "String \"Rides On Demand\" is not present on the index page"
   exit 1
 fi
+echo '::endgroup::'
 
 response=$(curl -i -X POST "http://localhost:8080/dispatch?customer=123")
 TRACE_ID=$(echo "$response" | grep -Fi "Traceresponse:" | awk '{print $2}' | cut -d '-' -f 2)
@@ -130,4 +141,4 @@ success="true"
 
 # Ensure the image is published after successful test (maybe with -l flag if on a pull request).
 # This is where all those multi-platform binaries we built earlier are utilized.
-bash scripts/build-upload-a-docker-image.sh ${LOCAL_FLAG} -c example-hotrod -d examples/hotrod -p "${platforms}"
+bash scripts/build-upload-a-docker-image.sh "${FLAGS[@]}" -c example-hotrod -d examples/hotrod -p "${platforms}"

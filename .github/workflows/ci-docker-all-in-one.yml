@@ -20,11 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        mode:
-        - name: v1
-          binary: all-in-one
-        - name: v2
-          binary: jaeger
+        jaeger_version: [v1, v2]
 
     steps:
     - uses: step-security/harden-runner@0d381219ddf674d61a7572ddd19d7941e271515c # v2.9.0
@@ -61,21 +57,11 @@ jobs:
             ;;
         esac
 
-    - name: Determine healthcheck setting
-      id: healthcheck
-      run: |
-        if [[ "${{ matrix.mode.name }}" == "v1" ]]; then
-          echo "HEALTHCHECK_V2=false" >> $GITHUB_ENV
-        elif [[ "${{ matrix.mode.name }}" == "v2" ]]; then
-          echo "HEALTHCHECK_V2=true" >> $GITHUB_ENV
-        fi
-
     - name: Build, test, and publish all-in-one image
       run: |
         bash scripts/build-all-in-one-image.sh \
           ${{ env.BUILD_FLAGS }} \
-          -b ${{ matrix.mode.binary }}
+          "${{ matrix.jaeger_version }}"
       env:
         DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
-        HEALTHCHECK_V2: ${{ env.HEALTHCHECK_V2 }}

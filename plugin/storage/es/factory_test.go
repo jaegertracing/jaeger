@@ -354,10 +354,12 @@ func testPasswordFromFile(t *testing.T, f *Factory, getClient func() es.Client, 
 		t.Logf("request to fake ES server: %v", r)
 		// epecting header in the form Authorization:[Basic OmZpcnN0IHBhc3N3b3Jk]
 		h := strings.Split(r.Header.Get("Authorization"), " ")
-		require.Len(t, h, 2)
-		require.Equal(t, "Basic", h[0])
+		if !assert.Len(t, h, 2) {
+			return
+		}
+		assert.Equal(t, "Basic", h[0])
 		authBytes, err := base64.StdEncoding.DecodeString(h[1])
-		require.NoError(t, err, "header: %s", h)
+		assert.NoError(t, err, "header: %s", h)
 		auth := string(authBytes)
 		authReceived.Store(auth, auth)
 		t.Logf("request to fake ES server contained auth=%s", auth)

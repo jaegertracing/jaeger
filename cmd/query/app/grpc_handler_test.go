@@ -156,7 +156,7 @@ func newGRPCServer(t *testing.T, q *querysvc.QueryService, mq querysvc.MetricsQu
 
 	go func() {
 		err := grpcServer.Serve(lis)
-		require.NoError(t, err)
+		assert.NoError(t, err)
 	}()
 
 	return grpcServer, lis.Addr()

@@ -385,10 +385,11 @@ func TestClientCreateAliases(t *testing.T) {
 				assert.Equal(t, http.MethodPost, req.Method)
 				assert.Equal(t, "Basic foobar", req.Header.Get("Authorization"))
 				body, err := io.ReadAll(req.Body)
-				require.NoError(t, err)
-				assert.Equal(t, expectedRequestBody, string(body))
-				res.WriteHeader(test.responseCode)
-				res.Write([]byte(test.response))
+				if assert.NoError(t, err) {
+					assert.Equal(t, expectedRequestBody, string(body))
+					res.WriteHeader(test.responseCode)
+					res.Write([]byte(test.response))
+				}
 			}))
 			defer testServer.Close()
 
@@ -445,7 +446,7 @@ func TestClientDeleteAliases(t *testing.T) {
 				assert.Equal(t, http.MethodPost, req.Method)
 				assert.Equal(t, "Basic foobar", req.Header.Get("Authorization"))
 				body, err := io.ReadAll(req.Body)
-				require.NoError(t, err)
+				assert.NoError(t, err)
 				assert.Equal(t, expectedRequestBody, string(body))
 				res.WriteHeader(test.responseCode)
 				res.Write([]byte(test.response))
@@ -508,7 +509,7 @@ func TestClientCreateTemplate(t *testing.T) {
 				assert.Equal(t, http.MethodPut, req.Method)
 				assert.Equal(t, "Basic foobar", req.Header.Get("Authorization"))
 				body, err := io.ReadAll(req.Body)
-				require.NoError(t, err)
+				assert.NoError(t, err)
 				assert.Equal(t, templateContent, string(body))
 
 				res.WriteHeader(test.responseCode)
@@ -562,7 +563,7 @@ func TestRollover(t *testing.T) {
 				assert.Equal(t, http.MethodPost, req.Method)
 				assert.Equal(t, "Basic foobar", req.Header.Get("Authorization"))
 				body, err := io.ReadAll(req.Body)
-				require.NoError(t, err)
+				assert.NoError(t, err)
 				assert.Equal(t, expectedRequestBody, string(body))
 
 				res.WriteHeader(test.responseCode)

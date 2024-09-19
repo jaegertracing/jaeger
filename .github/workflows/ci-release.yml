@@ -1,22 +1,25 @@
 name: Publish release
 
 on:
-  release:
-    types:
-      - published
-  # allow running release workflow manually
-  workflow_dispatch:
-    # Determine the version numbers that will be assigned to the release.
-    inputs:
-      version_v1:
-        required: true
-        type: string
-        description: Version number for 1.x components. Don't include a leading `v`.
+  # Disable auto-run, once we sunset 1.x components we might go back to auto-release.
+  #
+  # release:
+  #   types:
+  #     - published
 
-      version_v2:
-        required: true
-        type: string
-        description: Version number for 2.x components. Don't include a leading `v`.
+  workflow_dispatch:
+    inputs:
+      # Disable version inputs for now, the build always uses the latest tags.
+      #
+      # version_v1:
+      #   required: true
+      #   type: string
+      #   description: Version number for 1.x components. Don't include a leading `v`.
+
+      # version_v2:
+      #   required: true
+      #   type: string
+      #   description: Version number for 2.x components. Don't include a leading `v`.
 
       dry_run:
         required: true
@@ -27,10 +30,6 @@ on:
         required: true
         type: boolean
         description: Allow overwriting artifacts.
-
-# See https://github.com/jaegertracing/jaeger/issues/4017
-permissions:
-  contents: read
 
 jobs:
   publish-release:
@@ -71,30 +70,32 @@ jobs:
     - name: Determine parameters
       id: params
       run: |
+        docker_flags=()
         if [[ "${{ inputs.dry_run }}" == "true" ]]; then
-          echo "local_build=-l" >> $GITHUB_OUTPUT
+          docker_flags=("${docker_flags[@]}" -l -p linux/amd64)
           echo "platforms=linux/amd64" >> $GITHUB_OUTPUT
-          echo "linux_platforms=linux/amd64" >> $GITHUB_OUTPUT
           echo "gpg_key_override=-k skip" >> $GITHUB_OUTPUT
         else
-          echo "local_build=" >> $GITHUB_OUTPUT
           echo "platforms=$(make echo-platforms)" >> $GITHUB_OUTPUT
-          echo "linux_platforms=$(make echo-linux-platforms)" >> $GITHUB_OUTPUT
         fi
+        if [[ "${{ inputs.overwrite }}" == "true" ]]; then
+          docker_flags=("${docker_flags[@]}" -o)
+        fi
+        echo "docker_flags=${docker_flags[@]}" >> $GITHUB_OUTPUT
+        cat $GITHUB_OUTPUT
 
     - name: Export BRANCH variable and validate it is a semver
       # Many scripts depend on BRANCH variable. We do not want to
       # use ./.github/actions/setup-branch here because it may set
       # BRANCH=main when the workflow is triggered manually.
       #
-      # TODO this currently utilizes 1.x version tag
+      # TODO this currently utilizes 1.x version tag, which is ok for v1
+      # binaries, but for tools/utils we may need to change in the future.
       run: |
         BRANCH=$(make echo-v1)
-        echo "BRANCH=${BRANCH}" >> ${GITHUB_ENV}
         echo Validate that the latest tag ${BRANCH} is in semver format
         echo ${BRANCH} | grep -E '^v[0-9]+.[0-9]+.[0-9]+$'
-
-    - run: make install-ci
+        echo "BRANCH=${BRANCH}" >> ${GITHUB_ENV}
 
     - name: Configure GPG Key
       if: ${{ inputs.dry_run != true }}
@@ -107,8 +108,10 @@ jobs:
       run: make build-all-platforms PLATFORMS=${{ steps.params.outputs.platforms }}
 
     - name: Package binaries
-      id: package-binaries
-      run: bash scripts/package-deploy.sh -p ${{ steps.params.outputs.platforms }} ${{ steps.params.outputs.gpg_key_override }}
+      run: |
+        bash scripts/package-deploy.sh \
+          -p ${{ steps.params.outputs.platforms }} \
+          ${{ steps.params.outputs.gpg_key_override }}
 
     - name: Upload binaries
       if: ${{ inputs.dry_run != true }}
@@ -131,17 +134,27 @@ jobs:
       # -B skips building the binaries since we already did that above
       run: |
         bash scripts/build-upload-docker-images.sh -B \
-          -p ${{ steps.params.outputs.linux_platforms }} \
-          ${{ steps.params.outputs.local_build }}
+          ${{ steps.params.outputs.docker_flags }}
       env:
         DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
 
-    - name: Build, test, and publish all-in-one image
+    - name: Build, test, and publish all-in-one v1 image
       run: |
+        BRANCH=$(make echo-v1) \
         bash scripts/build-all-in-one-image.sh \
-          -p ${{ steps.params.outputs.linux_platforms }} \
-          ${{ steps.params.outputs.local_build }}
+          ${{ steps.params.outputs.docker_flags }} \
+          v1
+      env:
+        DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
+
+    - name: Build, test, and publish v2 image
+      run: |
+        BRANCH=$(make echo-v2) \
+        bash scripts/build-all-in-one-image.sh \
+          ${{ steps.params.outputs.docker_flags }} \
+          v2
       env:
         DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
@@ -149,8 +162,7 @@ jobs:
     - name: Build, test, and publish hotrod image
       run: |
         bash scripts/build-hotrod-image.sh \
-          -p ${{ steps.params.outputs.linux_platforms }} \
-          ${{ steps.params.outputs.local_build }}
+          ${{ steps.params.outputs.docker_flags }}
       env:
         DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
@@ -165,11 +177,11 @@ jobs:
     - name: Upload SBOM
       # Upload SBOM manually, because anchore/sbom-action does not do that
       # when the workflow is triggered manually, only from a release.
-      # See https://github.com/jaegertracing/jaeger/issues/4817
       uses: svenstaro/upload-release-action@04733e069f2d7f7f0b4aebc4fbdbce8613b03ccd # 2.9.0
       if: ${{ inputs.dry_run != true }}
       with:
         file: jaeger-SBOM.spdx.json
         overwrite: ${{ inputs.overwrite }}
+        # TODO this will only work for 1.x artifacts
         tag: ${{ env.BRANCH }}
         repo_token: ${{ secrets.GITHUB_TOKEN }}

@@ -160,6 +160,7 @@ func (c *Collector) Start(options *flags.CollectorOptions) error {
 
 func (*Collector) publishOpts(cOpts *flags.CollectorOptions) {
 	safeexpvar.SetInt(metricNumWorkers, int64(cOpts.NumWorkers))
+	//nolint: gosec // G115
 	safeexpvar.SetInt(metricQueueSize, int64(cOpts.QueueSize))
 }
 
