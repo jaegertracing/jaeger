@@ -28,6 +28,16 @@ func ZipkinSpanIDRenamer() Adjuster {
 	})
 }
 
+// DedupeBySpanID returns an adjuster that removes all but one span with the same SpanID.
+func DedupeBySpanID() Adjuster {
+	return Func(func(trace *model.Trace) (*model.Trace, error) {
+		deduper := &spanIDDeduper{trace: trace}
+		deduper.groupSpansByID()
+		deduper.dedupeSpansByID()
+		return deduper.trace, nil
+	})
+}
+
 const (
 	warningTooManySpans = "cannot assign unique span ID, too many spans in the trace"
 )
@@ -52,6 +62,13 @@ func (d *spanIDDeduper) groupSpansByID() {
 		}
 	}
 	d.spansByID = spansByID
+}
+
+func (d *spanIDDeduper) dedupeSpansByID() {
+	d.trace.Spans = nil
+	for _, spans := range d.spansByID {
+		d.trace.Spans = append(d.trace.Spans, spans[0])
+	}
 }
 
 func (d *spanIDDeduper) isSharedWithClientSpan(spanID model.SpanID) bool {
