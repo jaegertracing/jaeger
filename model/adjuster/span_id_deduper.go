@@ -23,7 +23,7 @@ func ZipkinSpanIDRenamer() Adjuster {
 	return Func(func(trace *model.Trace) (*model.Trace, error) {
 		deduper := &spanIDDeduper{trace: trace}
 		deduper.groupSpansByID()
-		deduper.dedupeSpanIDs()
+		deduper.uniquifyServerSpanIDs()
 		return deduper.trace, nil
 	})
 }
@@ -63,7 +63,7 @@ func (d *spanIDDeduper) isSharedWithClientSpan(spanID model.SpanID) bool {
 	return false
 }
 
-func (d *spanIDDeduper) dedupeSpanIDs() {
+func (d *spanIDDeduper) uniquifyServerSpanIDs() {
 	oldToNewSpanIDs := make(map[model.SpanID]model.SpanID)
 	for _, span := range d.trace.Spans {
 		// only replace span IDs for server-side spans that share the ID with something else

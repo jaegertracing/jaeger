@@ -96,7 +96,7 @@ func TestZipkinSpanIDRenamerError(t *testing.T) {
 	deduper := &spanIDDeduper{trace: trace}
 	deduper.groupSpansByID()
 	deduper.maxUsedID = maxSpanID - 1
-	deduper.dedupeSpanIDs()
+	deduper.uniquifyServerSpanIDs()
 	if assert.Len(t, trace.Spans[1].Warnings, 1) {
 		assert.Equal(t, "cannot assign unique span ID, too many spans in the trace", trace.Spans[1].Warnings[0])
 	}
