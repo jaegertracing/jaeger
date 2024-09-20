@@ -4,12 +4,13 @@
 package auth
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
 	"github.com/Shopify/sarama"
 	"github.com/spf13/viper"
-	"go.uber.org/zap"
+	"go.opentelemetry.io/collector/config/configtls"
 
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 )
@@ -30,20 +31,20 @@ var authTypes = []string{
 
 // AuthenticationConfig describes the configuration properties needed authenticate with kafka cluster
 type AuthenticationConfig struct {
-	Authentication string          `mapstructure:"type"`
-	Kerberos       KerberosConfig  `mapstructure:"kerberos"`
-	TLS            tlscfg.Options  `mapstructure:"tls"`
-	PlainText      PlainTextConfig `mapstructure:"plaintext"`
+	Authentication string                 `mapstructure:"type"`
+	Kerberos       KerberosConfig         `mapstructure:"kerberos"`
+	TLS            configtls.ClientConfig `mapstructure:"tls"`
+	PlainText      PlainTextConfig        `mapstructure:"plaintext"`
 }
 
 // SetConfiguration set configure authentication into sarama config structure
-func (config *AuthenticationConfig) SetConfiguration(saramaConfig *sarama.Config, logger *zap.Logger) error {
+func (config *AuthenticationConfig) SetConfiguration(ctx context.Context, saramaConfig *sarama.Config) error {
 	authentication := strings.ToLower(config.Authentication)
 	if strings.Trim(authentication, " ") == "" {
 		authentication = none
 	}
-	if config.Authentication == tls || config.TLS.Enabled {
-		err := setTLSConfiguration(&config.TLS, saramaConfig, logger)
+	if config.Authentication == tls || !config.TLS.Insecure {
+		err := setTLSConfiguration(ctx, &config.TLS, saramaConfig)
 		if err != nil {
 			return err
 		}
@@ -80,13 +81,14 @@ func (config *AuthenticationConfig) InitFromViper(configPrefix string, v *viper.
 	}
 
 	var err error
-	config.TLS, err = tlsClientConfig.InitFromViper(v)
+	tlsCfg, err := tlsClientConfig.InitFromViper(v)
 	if err != nil {
 		return fmt.Errorf("failed to process Kafka TLS options: %w", err)
 	}
 	if config.Authentication == tls {
-		config.TLS.Enabled = true
+		tlsCfg.Enabled = true
 	}
+	config.TLS = tlsCfg.ToOtelClientConfig()
 
 	config.PlainText.Username = v.GetString(configPrefix + plainTextPrefix + suffixPlainTextUsername)
 	config.PlainText.Password = v.GetString(configPrefix + plainTextPrefix + suffixPlainTextPassword)

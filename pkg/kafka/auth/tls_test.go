@@ -4,25 +4,22 @@
 package auth
 
 import (
+	"context"
 	"testing"
 
 	"github.com/Shopify/sarama"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap/zaptest"
-
-	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
+	"go.opentelemetry.io/collector/config/configtls"
 )
 
 func TestSetTLSConfiguration(t *testing.T) {
-	logger := zaptest.NewLogger(t)
 	saramaConfig := sarama.NewConfig()
-	tlsConfig := &tlscfg.Options{
-		Enabled: true,
+	tlsConfig := &configtls.ClientConfig{
+		Insecure: false,
 	}
-	err := setTLSConfiguration(tlsConfig, saramaConfig, logger)
+	err := setTLSConfiguration(context.Background(), tlsConfig, saramaConfig)
 	require.NoError(t, err)
 	assert.True(t, saramaConfig.Net.TLS.Enable)
 	assert.NotNil(t, saramaConfig.Net.TLS.Config)
-	defer tlsConfig.Close()
 }

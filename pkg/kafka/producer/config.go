@@ -4,17 +4,17 @@
 package producer
 
 import (
+	"context"
 	"time"
 
 	"github.com/Shopify/sarama"
-	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/kafka/auth"
 )
 
 // Builder builds a new kafka producer
 type Builder interface {
-	NewProducer(logger *zap.Logger) (sarama.AsyncProducer, error)
+	NewProducer(ctx context.Context) (sarama.AsyncProducer, error)
 }
 
 // Configuration describes the configuration properties needed to create a Kafka producer
@@ -33,7 +33,7 @@ type Configuration struct {
 }
 
 // NewProducer creates a new asynchronous kafka producer
-func (c *Configuration) NewProducer(logger *zap.Logger) (sarama.AsyncProducer, error) {
+func (c *Configuration) NewProducer(ctx context.Context) (sarama.AsyncProducer, error) {
 	saramaConfig := sarama.NewConfig()
 	saramaConfig.Producer.RequiredAcks = c.RequiredAcks
 	saramaConfig.Producer.Compression = c.Compression
@@ -51,7 +51,7 @@ func (c *Configuration) NewProducer(logger *zap.Logger) (sarama.AsyncProducer, e
 		}
 		saramaConfig.Version = ver
 	}
-	if err := c.AuthenticationConfig.SetConfiguration(saramaConfig, logger); err != nil {
+	if err := c.AuthenticationConfig.SetConfiguration(ctx, saramaConfig); err != nil {
 		return nil, err
 	}
 	return sarama.NewAsyncProducer(c.Brokers, saramaConfig)

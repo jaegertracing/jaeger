@@ -11,6 +11,7 @@ import (
 	"github.com/Shopify/sarama"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
+	"golang.org/x/net/context"
 
 	"github.com/jaegertracing/jaeger/pkg/kafka/producer"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
@@ -74,7 +75,7 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 	default:
 		return errors.New("kafka encoding is not one of '" + EncodingJSON + "' or '" + EncodingProto + "'")
 	}
-	p, err := f.NewProducer(logger)
+	p, err := f.NewProducer(context.Background())
 	if err != nil {
 		return err
 	}
@@ -105,6 +106,5 @@ func (f *Factory) Close() error {
 	if f.producer != nil {
 		errs = append(errs, f.producer.Close())
 	}
-	errs = append(errs, f.options.Config.TLS.Close())
 	return errors.Join(errs...)
 }

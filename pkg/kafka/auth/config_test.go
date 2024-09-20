@@ -4,6 +4,7 @@
 package auth
 
 import (
+	"context"
 	"flag"
 	"testing"
 
@@ -11,11 +12,9 @@ import (
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zaptest"
+	"go.opentelemetry.io/collector/config/configtls"
 
 	"github.com/jaegertracing/jaeger/pkg/config"
-	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 )
 
 func addFlags(flags *flag.FlagSet) {
@@ -64,8 +63,8 @@ func Test_InitFromViper(t *testing.T) {
 			KeyTabPath:      "/path/to/keytab",
 			DisablePAFXFast: true,
 		},
-		TLS: tlscfg.Options{
-			Enabled: true,
+		TLS: configtls.ClientConfig{
+			Insecure: false,
 		},
 		PlainText: PlainTextConfig{
 			Username:  "user",
@@ -77,16 +76,15 @@ func Test_InitFromViper(t *testing.T) {
 }
 
 // Test plaintext with different mechanisms
-func testPlaintext(v *viper.Viper, t *testing.T, configPrefix string, logger *zap.Logger, mechanism string, saramaConfig *sarama.Config) {
+func testPlaintext(ctx context.Context, v *viper.Viper, t *testing.T, configPrefix string, mechanism string, saramaConfig *sarama.Config) {
 	v.Set(configPrefix+plainTextPrefix+suffixPlainTextMechanism, mechanism)
 	authConfig := &AuthenticationConfig{}
 	err := authConfig.InitFromViper(configPrefix, v)
 	require.NoError(t, err)
-	require.NoError(t, authConfig.SetConfiguration(saramaConfig, logger))
+	require.NoError(t, authConfig.SetConfiguration(ctx, saramaConfig))
 }
 
 func TestSetConfiguration(t *testing.T) {
-	logger := zaptest.NewLogger(t)
 	saramaConfig := sarama.NewConfig()
 	configPrefix := "kafka.auth"
 	v, command := config.Viperize(addFlags)
@@ -149,7 +147,6 @@ func TestSetConfiguration(t *testing.T) {
 				"--kafka.auth.authentication=" + tt.authType,
 			})
 			authConfig := &AuthenticationConfig{}
-			defer authConfig.TLS.Close()
 			err := authConfig.InitFromViper(configPrefix, v)
 			require.NoError(t, err)
 
@@ -159,10 +156,10 @@ func TestSetConfiguration(t *testing.T) {
 
 			if len(tt.plainTextMechanisms) > 0 {
 				for _, mechanism := range tt.plainTextMechanisms {
-					testPlaintext(v, t, configPrefix, logger, mechanism, saramaConfig)
+					testPlaintext(context.Background(), v, t, configPrefix, mechanism, saramaConfig)
 				}
 			} else {
-				err = authConfig.SetConfiguration(saramaConfig, logger)
+				err = authConfig.SetConfiguration(context.Background(), saramaConfig)
 				if tt.expectedError != "" {
 					require.EqualError(t, err, tt.expectedError)
 				} else {

@@ -4,6 +4,7 @@
 package builder
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -50,7 +51,7 @@ func CreateConsumer(logger *zap.Logger, metricsFactory metrics.Factory, spanWrit
 		RackID:               options.RackID,
 		FetchMaxMessageBytes: options.FetchMaxMessageBytes,
 	}
-	saramaConsumer, err := consumerConfig.NewConsumer(logger)
+	saramaConsumer, err := consumerConfig.NewConsumer(context.Background())
 	if err != nil {
 		return nil, err
 	}

@@ -5,6 +5,7 @@ package kafka
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"testing"
 
@@ -26,7 +27,7 @@ type mockProducerBuilder struct {
 	t   *testing.T
 }
 
-func (m *mockProducerBuilder) NewProducer(*zap.Logger) (sarama.AsyncProducer, error) {
+func (m *mockProducerBuilder) NewProducer(_ context.Context) (sarama.AsyncProducer, error) {
 	if m.err == nil {
 		return mocks.NewAsyncProducer(m.t, nil), nil
 	}

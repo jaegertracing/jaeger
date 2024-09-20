@@ -11,9 +11,9 @@ import (
 	"github.com/Shopify/sarama"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/config/configtls"
 
 	"github.com/jaegertracing/jaeger/pkg/config"
-	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/pkg/kafka/auth"
 )
 
@@ -173,23 +173,23 @@ func TestTLSFlags(t *testing.T) {
 	}{
 		{
 			flags:    []string{},
-			expected: auth.AuthenticationConfig{Authentication: "none", Kerberos: kerb, PlainText: plain},
+			expected: auth.AuthenticationConfig{Authentication: "none", Kerberos: kerb, TLS: configtls.ClientConfig{Insecure: true}, PlainText: plain},
 		},
 		{
 			flags:    []string{"--kafka.producer.authentication=foo"},
-			expected: auth.AuthenticationConfig{Authentication: "foo", Kerberos: kerb, PlainText: plain},
+			expected: auth.AuthenticationConfig{Authentication: "foo", Kerberos: kerb, TLS: configtls.ClientConfig{Insecure: true}, PlainText: plain},
 		},
 		{
 			flags:    []string{"--kafka.producer.authentication=kerberos", "--kafka.producer.tls.enabled=true"},
-			expected: auth.AuthenticationConfig{Authentication: "kerberos", Kerberos: kerb, TLS: tlscfg.Options{Enabled: true}, PlainText: plain},
+			expected: auth.AuthenticationConfig{Authentication: "kerberos", Kerberos: kerb, TLS: configtls.ClientConfig{Insecure: false}, PlainText: plain},
 		},
 		{
 			flags:    []string{"--kafka.producer.authentication=tls"},
-			expected: auth.AuthenticationConfig{Authentication: "tls", Kerberos: kerb, TLS: tlscfg.Options{Enabled: true}, PlainText: plain},
+			expected: auth.AuthenticationConfig{Authentication: "tls", Kerberos: kerb, TLS: configtls.ClientConfig{Insecure: false}, PlainText: plain},
 		},
 		{
 			flags:    []string{"--kafka.producer.authentication=tls", "--kafka.producer.tls.enabled=false"},
-			expected: auth.AuthenticationConfig{Authentication: "tls", Kerberos: kerb, TLS: tlscfg.Options{Enabled: true}, PlainText: plain},
+			expected: auth.AuthenticationConfig{Authentication: "tls", Kerberos: kerb, TLS: configtls.ClientConfig{Insecure: false}, PlainText: plain},
 		},
 	}
 
