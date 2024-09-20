@@ -8,6 +8,7 @@
 
 SHUNIT2="${SHUNIT2:?'expecting SHUNIT2 env var pointing to a dir with https://github.com/kward/shunit2 clone'}"
 
+# allow substituting for ggrep, since default grep on MacOS doesn't grok -P flag.
 # if running on MacOS, `brew install grep` and run with GREP=ggrep
 GREP=${GREP:-grep}
 
@@ -102,6 +103,18 @@ testSemVerBranch() {
     expected=(
         "foo/bar:latest"
         "foo/bar:1.2.3"
+        "foo/bar-snapshot:sha"
+        "foo/bar-snapshot:latest"
+    )
+    expect "${expected[@]}"
+    expect_not "foo/bar"
+}
+
+testSemVerRCBranch() {
+    out=$(BRANCH=v1.22.33-rc12 GITHUB_SHA=sha bash "$computeTags" foo/bar)
+    expected=(
+        "foo/bar:latest"
+        "foo/bar:1.22.33-rc12"
         "foo/bar-snapshot:sha"
         "foo/bar-snapshot:latest"
     )

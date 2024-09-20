@@ -15,8 +15,8 @@
   "packageRules": [
     {
       "matchFileNames": [
-        "docker-compose/cassandra/v3/docker-compose.yaml",
         "docker-compose/cassandra/v4/docker-compose.yaml",
+        "docker-compose/cassandra/v5/docker-compose.yaml",
         "docker-compose/elasticsearch/v6/docker-compose.yml",
         "docker-compose/elasticsearch/v7/docker-compose.yml",
         "docker-compose/elasticsearch/v8/docker-compose.yml",

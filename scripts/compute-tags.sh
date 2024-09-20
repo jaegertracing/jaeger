@@ -16,8 +16,6 @@ set -u
 BASE_BUILD_IMAGE=${1:?'expecting Docker image name as argument, such as jaegertracing/jaeger'}
 BRANCH=${BRANCH:?'expecting BRANCH env var'}
 GITHUB_SHA=${GITHUB_SHA:-$(git rev-parse HEAD)}
-# allow substituting for ggrep, since default grep on MacOS doesn't grok -P flag.
-GREP=${GREP:-"grep"}
 
 # accumulate output in this variable
 IMAGE_TAGS=""
@@ -33,8 +31,8 @@ tags() {
 
 ## If we are on a release tag, let's extract the version number.
 ## The other possible values are 'main' or another branch name.
-if [[ $BRANCH =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-    MAJOR_MINOR_PATCH=$(echo "${BRANCH}" | ${GREP} -Po "([\d\.]+)")
+if [[ $BRANCH =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-rc[0-9]+)?$ ]]; then
+    MAJOR_MINOR_PATCH=${BRANCH#v}
     tags "${BASE_BUILD_IMAGE}:${MAJOR_MINOR_PATCH}"
     tags "${BASE_BUILD_IMAGE}:latest"
 elif [[ $BRANCH != "main" ]]; then

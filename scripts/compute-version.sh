@@ -9,7 +9,7 @@ set -euf -o pipefail
 SED=${SED:-sed}
 
 usage() {
-  echo "Usage: $0 -v -s <jaeger_version>"
+  echo "Usage: $0 [-s] [-v] <jaeger_version>"
   echo "  -s  split semver into 4 parts: semver major minor patch"
   echo "  -v  verbose"
   echo "  jaeger_version:  major version, v1 | v2"

@@ -315,7 +315,7 @@ func TestGetDependenciesSuccess(t *testing.T) {
 	actual := data.(map[string]any)
 	assert.Equal(t, "killer", actual["parent"])
 	assert.Equal(t, "queen", actual["child"])
-	assert.Equal(t, 12.00, actual["callCount"]) // recovered type is float
+	assert.InDelta(t, 12.00, actual["callCount"], 0.01) // recovered type is float
 	require.NoError(t, err)
 }
 

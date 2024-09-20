@@ -91,7 +91,7 @@ func initializeGRPCTestServer(t *testing.T, beforeServe func(s *grpc.Server)) (*
 	require.NoError(t, err)
 	go func() {
 		err := server.Serve(lis)
-		require.NoError(t, err)
+		assert.NoError(t, err)
 	}()
 	return server, lis.Addr()
 }
@@ -397,7 +397,6 @@ func TestBatchConsumer(t *testing.T) {
 
 	logger, _ := testutils.NewLogger()
 	for _, tc := range tests {
-		tc := tc
 		t.Parallel()
 		t.Run(tc.name, func(t *testing.T) {
 			processor := mockSpanProcessor{}

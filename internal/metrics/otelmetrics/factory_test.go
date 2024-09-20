@@ -97,7 +97,7 @@ func TestCounter(t *testing.T) {
 
 	testCounter := findMetric(t, registry, "test_counter_total")
 	metrics := testCounter.GetMetric()
-	assert.Equal(t, float64(2), metrics[0].GetCounter().GetValue())
+	assert.InDelta(t, float64(2), metrics[0].GetCounter().GetValue(), 0.01)
 	expectedLabels := map[string]string{
 		"tag1": "value1",
 	}
@@ -128,7 +128,7 @@ func TestGauge(t *testing.T) {
 	testGauge := findMetric(t, registry, "test_gauge")
 
 	metrics := testGauge.GetMetric()
-	assert.Equal(t, float64(2), metrics[0].GetGauge().GetValue())
+	assert.InDelta(t, float64(2), metrics[0].GetGauge().GetValue(), 0.01)
 	expectedLabels := map[string]string{
 		"tag1": "value1",
 	}
@@ -148,7 +148,7 @@ func TestHistogram(t *testing.T) {
 	testHistogram := findMetric(t, registry, "test_histogram")
 
 	metrics := testHistogram.GetMetric()
-	assert.Equal(t, float64(1), metrics[0].GetHistogram().GetSampleSum())
+	assert.InDelta(t, float64(1), metrics[0].GetHistogram().GetSampleSum(), 0.01)
 	expectedLabels := map[string]string{
 		"tag1": "value1",
 	}
@@ -168,7 +168,7 @@ func TestTimer(t *testing.T) {
 	testTimer := findMetric(t, registry, "test_timer_seconds")
 
 	metrics := testTimer.GetMetric()
-	assert.Equal(t, float64(0.1), metrics[0].GetHistogram().GetSampleSum())
+	assert.InDelta(t, float64(0.1), metrics[0].GetHistogram().GetSampleSum(), 0.01)
 	expectedLabels := map[string]string{
 		"tag1": "value1",
 	}
@@ -241,7 +241,7 @@ func TestNamespace(t *testing.T) {
 			testCounter := findMetric(t, registry, tc.expectedName)
 
 			metrics := testCounter.GetMetric()
-			assert.Equal(t, float64(1), metrics[0].GetCounter().GetValue())
+			assert.InDelta(t, float64(1), metrics[0].GetCounter().GetValue(), 0.01)
 			assert.Equal(t, tc.expectedLabels, promLabelsToMap(metrics[0].GetLabel()))
 		})
 	}
@@ -263,5 +263,5 @@ func TestNormalization(t *testing.T) {
 	testGauge := findMetric(t, registry, "My_Namespace_My_Gauge")
 
 	metrics := testGauge.GetMetric()
-	assert.Equal(t, float64(1), metrics[0].GetGauge().GetValue())
+	assert.InDelta(t, float64(1), metrics[0].GetGauge().GetValue(), 0.01)
 }
