@@ -82,7 +82,7 @@ func (d *spanIDDeduper) uniquifyServerSpanIDs() {
 }
 
 // swapParentIDs corrects ParentSpanID of all spans that are children of the server
-// spans whose IDs we deduped.
+// spans whose IDs we made unique.
 func (d *spanIDDeduper) swapParentIDs(oldToNewSpanIDs map[model.SpanID]model.SpanID) {
 	for _, span := range d.trace.Spans {
 		if parentID, ok := oldToNewSpanIDs[span.ParentSpanID()]; ok {
