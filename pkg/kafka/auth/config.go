@@ -5,6 +5,7 @@ package auth
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -28,6 +29,8 @@ var authTypes = []string{
 	tls,
 	plaintext,
 }
+
+var ErrUnsupportedAuthMethod = errors.New("unknown or unsupported authentication method to kafka cluster")
 
 // AuthenticationConfig describes the configuration properties needed authenticate with kafka cluster
 type AuthenticationConfig struct {
@@ -60,7 +63,7 @@ func (config *AuthenticationConfig) SetConfiguration(ctx context.Context, sarama
 	case plaintext:
 		return setPlainTextConfiguration(&config.PlainText, saramaConfig)
 	default:
-		return fmt.Errorf("Unknown/Unsupported authentication method %s to kafka cluster", config.Authentication)
+		return fmt.Errorf("%w [type=%s]", ErrUnsupportedAuthMethod, config.Authentication)
 	}
 }
 

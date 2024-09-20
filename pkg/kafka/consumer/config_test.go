@@ -15,5 +15,5 @@ import (
 func TestSetConfiguration(t *testing.T) {
 	test := &Configuration{AuthenticationConfig: auth.AuthenticationConfig{Authentication: "fail"}}
 	_, err := test.NewConsumer(context.Background())
-	require.EqualError(t, err, "Unknown/Unsupported authentication method fail to kafka cluster")
+	require.ErrorIs(t, err, auth.ErrUnsupportedAuthMethod)
 }

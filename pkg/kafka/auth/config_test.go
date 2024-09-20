@@ -93,51 +93,45 @@ func TestSetConfiguration(t *testing.T) {
 	tests := []struct {
 		name                string
 		authType            string
-		expectedError       string
+		expectedError       error
 		plainTextMechanisms []string
 	}{
 		{
 			name:          "Invalid authentication method",
 			authType:      "fail",
-			expectedError: "Unknown/Unsupported authentication method fail to kafka cluster",
+			expectedError: ErrUnsupportedAuthMethod,
 		},
 		{
-			name:          "Kerberos authentication",
-			authType:      "kerberos",
-			expectedError: "",
+			name:     "Kerberos authentication",
+			authType: "kerberos",
 		},
 		{
 			name:                "Plaintext authentication with SCRAM-SHA-256",
 			authType:            "plaintext",
-			expectedError:       "",
 			plainTextMechanisms: []string{"SCRAM-SHA-256"},
 		},
 		{
 			name:                "Plaintext authentication with SCRAM-SHA-512",
 			authType:            "plaintext",
-			expectedError:       "",
 			plainTextMechanisms: []string{"SCRAM-SHA-512"},
 		},
 		{
 			name:                "Plaintext authentication with PLAIN",
 			authType:            "plaintext",
-			expectedError:       "",
 			plainTextMechanisms: []string{"PLAIN"},
 		},
 		{
-			name:          "No authentication",
-			authType:      " ",
-			expectedError: "",
+			name:     "No authentication",
+			authType: " ",
 		},
 		{
-			name:          "TLS authentication",
-			authType:      "tls",
-			expectedError: "",
+			name:     "TLS authentication",
+			authType: "tls",
 		},
 		{
 			name:          "TLS authentication with invalid cipher suite",
 			authType:      "tls",
-			expectedError: "error loading tls config: failed to get cipher suite ids from cipher suite names: cipher suite fail not supported or doesn't exist",
+			expectedError: ErrLoadingTLSConfig,
 		},
 	}
 
@@ -150,7 +144,7 @@ func TestSetConfiguration(t *testing.T) {
 			err := authConfig.InitFromViper(configPrefix, v)
 			require.NoError(t, err)
 
-			if tt.authType == "tls" && tt.expectedError != "" {
+			if tt.authType == "tls" && tt.expectedError != nil {
 				authConfig.TLS.CipherSuites = []string{"fail"}
 			}
 
@@ -160,8 +154,8 @@ func TestSetConfiguration(t *testing.T) {
 				}
 			} else {
 				err = authConfig.SetConfiguration(context.Background(), saramaConfig)
-				if tt.expectedError != "" {
-					require.EqualError(t, err, tt.expectedError)
+				if tt.expectedError != nil {
+					require.ErrorIs(t, err, tt.expectedError)
 				} else {
 					require.NoError(t, err)
 				}
