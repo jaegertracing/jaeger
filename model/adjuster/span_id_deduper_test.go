@@ -52,9 +52,9 @@ func newTrace() *model.Trace {
 	}
 }
 
-func TestSpanIDDeduperTriggered(t *testing.T) {
+func TestZipkinSpanIDRenamerTriggered(t *testing.T) {
 	trace := newTrace()
-	deduper := SpanIDDeduper()
+	deduper := ZipkinSpanIDRenamer()
 	trace, err := deduper.Adjust(trace)
 	require.NoError(t, err)
 
@@ -70,11 +70,11 @@ func TestSpanIDDeduperTriggered(t *testing.T) {
 	assert.Equal(t, serverSpan.SpanID, thirdSpan.ParentSpanID(), "server span should be 3rd span's parent")
 }
 
-func TestSpanIDDeduperNotTriggered(t *testing.T) {
+func TestZipkinSpanIDRenamerNotTriggered(t *testing.T) {
 	trace := newTrace()
 	trace.Spans = trace.Spans[1:] // remove client span
 
-	deduper := SpanIDDeduper()
+	deduper := ZipkinSpanIDRenamer()
 	trace, err := deduper.Adjust(trace)
 	require.NoError(t, err)
 
@@ -87,7 +87,7 @@ func TestSpanIDDeduperNotTriggered(t *testing.T) {
 	assert.Equal(t, serverSpan.SpanID, thirdSpan.ParentSpanID(), "server span should be 3rd span's parent")
 }
 
-func TestSpanIDDeduperError(t *testing.T) {
+func TestZipkinSpanIDRenamerError(t *testing.T) {
 	trace := newTrace()
 
 	maxID := int64(-1)

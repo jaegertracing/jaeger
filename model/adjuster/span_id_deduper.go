@@ -11,7 +11,7 @@ import (
 	"github.com/jaegertracing/jaeger/model"
 )
 
-// SpanIDDeduper returns an adjuster that changes span ids for server
+// ZipkinSpanIDRenamer returns an adjuster that changes span ids for server
 // spans (i.e. spans with tag: span.kind == server) if there is another
 // client span that shares the same span ID. This is needed to deal with
 // Zipkin-style clients that reuse the same span ID for both client and server
@@ -19,7 +19,7 @@ import (
 //
 // This adjuster never returns any errors. Instead it records any issues
 // it encounters in Span.Warnings.
-func SpanIDDeduper() Adjuster {
+func ZipkinSpanIDRenamer() Adjuster {
 	return Func(func(trace *model.Trace) (*model.Trace, error) {
 		deduper := &spanIDDeduper{trace: trace}
 		deduper.groupSpansByID()

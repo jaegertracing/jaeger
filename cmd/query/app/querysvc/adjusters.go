@@ -14,7 +14,7 @@ import (
 // before returning the data to the API clients.
 func StandardAdjusters(maxClockSkewAdjust time.Duration) []adjuster.Adjuster {
 	return []adjuster.Adjuster{
-		adjuster.SpanIDDeduper(),
+		adjuster.ZipkinSpanIDRenamer(),
 		adjuster.ClockSkew(maxClockSkewAdjust),
 		adjuster.IPTagAdjuster(),
 		adjuster.OTelTagAdjuster(),
