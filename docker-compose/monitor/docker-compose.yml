@@ -21,7 +21,7 @@ services:
       backend:
         # This is the host name used in Prometheus scrape configuration.
         aliases: [spm_metrics_source]
-    image: otel/opentelemetry-collector-contrib:latest
+    image: otel/opentelemetry-collector-contrib:${OTEL_IMAGE_TAG:-0.109}
     volumes:
       - ${OTEL_CONFIG_SRC:-./otel-collector-config-connector.yml}:/etc/otelcol/otel-collector-config.yml
     command: --config /etc/otelcol/otel-collector-config.yml
