@@ -33,7 +33,7 @@ const (
 	defaultTokenFilePath  = ""
 
 	defaultSupportSpanmetricsConnector = true
-	defaultMetricNamespace             = ""
+	defaultMetricNamespace             = "traces_span_metrics"
 	defaultLatencyUnit                 = "ms"
 	defaultNormalizeCalls              = false
 	defaultNormalizeDuration           = false
