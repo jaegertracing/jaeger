@@ -27,7 +27,6 @@ extensions:
           endpoint: http://prometheus:9090
           normalize_calls: true
           normalize_duration: true
-          metric_namespace: "traces_span_metrics"
 
 connectors:
   spanmetrics:
