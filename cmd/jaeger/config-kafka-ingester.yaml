@@ -29,9 +29,8 @@ extensions:
 
 receivers:
   kafka:
-    broker:
-      addresses:
-        - localhost:9092
+    brokers:
+      - localhost:9092
     topic: "jaeger-spans"
     encoding: otlp_proto
     initial_offset: earliest
