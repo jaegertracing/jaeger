@@ -33,10 +33,11 @@ const (
 	defaultTokenFilePath  = ""
 
 	defaultSupportSpanmetricsConnector = true
-	defaultMetricNamespace             = "traces_span_metrics"
-	defaultLatencyUnit                 = "ms"
-	defaultNormalizeCalls              = false
-	defaultNormalizeDuration           = false
+	// the default configuration here matches the default namespace in the span metrics connector
+	defaultMetricNamespace   = "traces_span_metrics"
+	defaultLatencyUnit       = "ms"
+	defaultNormalizeCalls    = false
+	defaultNormalizeDuration = false
 )
 
 // Options stores the configuration entries for this storage.
