@@ -150,7 +150,9 @@ func TestKafkaFactoryDoesNotLogPassword(t *testing.T) {
 
 func TestConfigureFromOptions(t *testing.T) {
 	f := NewFactory()
-	o := Options{Topic: "testTopic", Config: kafkaConfig.Configuration{Brokers: []string{"host"}}}
+	o := Options{Topic: "testTopic", Config: kafkaConfig.Configuration{
+		Broker: kafkaConfig.Broker{Addresses: []string{"host"}},
+	}}
 	f.configureFromOptions(o)
 	assert.Equal(t, o, f.options)
 	assert.Equal(t, &o.Config, f.Builder)

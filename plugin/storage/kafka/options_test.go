@@ -36,16 +36,16 @@ func TestOptionsWithFlags(t *testing.T) {
 	opts.InitFromViper(v)
 
 	assert.Equal(t, "topic1", opts.Topic)
-	assert.Equal(t, []string{"127.0.0.1:9092", "0.0.0:1234"}, opts.Config.Brokers)
+	assert.Equal(t, []string{"127.0.0.1:9092", "0.0.0:1234"}, opts.Config.Broker.Addresses)
 	assert.Equal(t, "protobuf", opts.Encoding)
-	assert.Equal(t, sarama.WaitForLocal, opts.Config.RequiredAcks)
-	assert.Equal(t, sarama.CompressionGZIP, opts.Config.Compression)
-	assert.Equal(t, 7, opts.Config.CompressionLevel)
-	assert.Equal(t, 128000, opts.Config.BatchSize)
-	assert.Equal(t, time.Duration(1*time.Second), opts.Config.BatchLinger)
-	assert.Equal(t, 50, opts.Config.BatchMinMessages)
-	assert.Equal(t, 100, opts.Config.BatchMaxMessages)
-	assert.Equal(t, 100, opts.Config.BatchMaxMessages)
+	assert.Equal(t, sarama.WaitForLocal, opts.Config.Broker.RequiredAcks)
+	assert.Equal(t, sarama.CompressionGZIP, opts.Config.Compression.Type)
+	assert.Equal(t, 7, opts.Config.Compression.Level)
+	assert.Equal(t, 128000, opts.Config.Batch.Size)
+	assert.Equal(t, time.Duration(1*time.Second), opts.Config.Batch.Linger)
+	assert.Equal(t, 50, opts.Config.Batch.MinMessages)
+	assert.Equal(t, 100, opts.Config.Batch.MaxMessages)
+	assert.Equal(t, 100, opts.Config.Batch.MaxMessages)
 	assert.Equal(t, 10485760, opts.Config.MaxMessageBytes)
 }
 
@@ -56,15 +56,15 @@ func TestFlagDefaults(t *testing.T) {
 	opts.InitFromViper(v)
 
 	assert.Equal(t, defaultTopic, opts.Topic)
-	assert.Equal(t, []string{defaultBroker}, opts.Config.Brokers)
+	assert.Equal(t, []string{defaultBroker}, opts.Config.Broker.Addresses)
 	assert.Equal(t, defaultEncoding, opts.Encoding)
-	assert.Equal(t, sarama.WaitForLocal, opts.Config.RequiredAcks)
-	assert.Equal(t, sarama.CompressionNone, opts.Config.Compression)
-	assert.Equal(t, 0, opts.Config.CompressionLevel)
-	assert.Equal(t, 0, opts.Config.BatchSize)
-	assert.Equal(t, time.Duration(0*time.Second), opts.Config.BatchLinger)
-	assert.Equal(t, 0, opts.Config.BatchMinMessages)
-	assert.Equal(t, 0, opts.Config.BatchMaxMessages)
+	assert.Equal(t, sarama.WaitForLocal, opts.Config.Broker.RequiredAcks)
+	assert.Equal(t, sarama.CompressionNone, opts.Config.Compression.Type)
+	assert.Equal(t, 0, opts.Config.Compression.Level)
+	assert.Equal(t, 0, opts.Config.Batch.Size)
+	assert.Equal(t, time.Duration(0*time.Second), opts.Config.Batch.Linger)
+	assert.Equal(t, 0, opts.Config.Batch.MinMessages)
+	assert.Equal(t, 0, opts.Config.Batch.MaxMessages)
 	assert.Equal(t, defaultMaxMessageBytes, opts.Config.MaxMessageBytes)
 }
 
@@ -200,7 +200,7 @@ func TestTLSFlags(t *testing.T) {
 			err := command.ParseFlags(test.flags)
 			require.NoError(t, err)
 			o.InitFromViper(v)
-			assert.Equal(t, test.expected, o.Config.AuthenticationConfig)
+			assert.Equal(t, test.expected, o.Config.Authentication)
 		})
 	}
 }

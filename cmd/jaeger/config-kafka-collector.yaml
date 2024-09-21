@@ -33,7 +33,8 @@ processors:
 
 exporters:
   kafka:
-    brokers:
-      - localhost:9092
+    broker:
+      addresses:
+        - localhost:9092
     topic: "jaeger-spans"
     encoding: otlp_proto

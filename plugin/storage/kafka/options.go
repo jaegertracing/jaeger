@@ -193,17 +193,23 @@ func (opt *Options) InitFromViper(v *viper.Viper) {
 	}
 
 	opt.Config = producer.Configuration{
-		Brokers:              strings.Split(stripWhiteSpace(v.GetString(configPrefix+suffixBrokers)), ","),
-		RequiredAcks:         requiredAcks,
-		Compression:          compressionModeCodec,
-		CompressionLevel:     compressionLevel,
-		ProtocolVersion:      v.GetString(configPrefix + suffixProtocolVersion),
-		AuthenticationConfig: authenticationOptions,
-		BatchLinger:          v.GetDuration(configPrefix + suffixBatchLinger),
-		BatchSize:            v.GetInt(configPrefix + suffixBatchSize),
-		BatchMinMessages:     v.GetInt(configPrefix + suffixBatchMinMessages),
-		BatchMaxMessages:     v.GetInt(configPrefix + suffixBatchMaxMessages),
-		MaxMessageBytes:      v.GetInt(configPrefix + suffixMaxMessageBytes),
+		Broker: producer.Broker{
+			Addresses:    strings.Split(stripWhiteSpace(v.GetString(configPrefix+suffixBrokers)), ","),
+			RequiredAcks: requiredAcks,
+		},
+		Compression: producer.Compression{
+			Type:  compressionModeCodec,
+			Level: compressionLevel,
+		},
+		ProtocolVersion: v.GetString(configPrefix + suffixProtocolVersion),
+		Authentication:  authenticationOptions,
+		Batch: producer.Batch{
+			Linger:      v.GetDuration(configPrefix + suffixBatchLinger),
+			Size:        v.GetInt(configPrefix + suffixBatchSize),
+			MinMessages: v.GetInt(configPrefix + suffixBatchMinMessages),
+			MaxMessages: v.GetInt(configPrefix + suffixBatchMaxMessages),
+		},
+		MaxMessageBytes: v.GetInt(configPrefix + suffixMaxMessageBytes),
 	}
 	opt.Topic = v.GetString(configPrefix + suffixTopic)
 	opt.Encoding = v.GetString(configPrefix + suffixEncoding)

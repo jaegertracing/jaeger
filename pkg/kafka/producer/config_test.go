@@ -13,7 +13,7 @@ import (
 )
 
 func TestSetConfiguration(t *testing.T) {
-	test := &Configuration{AuthenticationConfig: auth.AuthenticationConfig{Authentication: "fail"}}
+	test := &Configuration{Authentication: auth.AuthenticationConfig{Authentication: "fail"}}
 	_, err := test.NewProducer(context.Background())
 	require.ErrorIs(t, err, auth.ErrUnsupportedAuthMethod)
 }
