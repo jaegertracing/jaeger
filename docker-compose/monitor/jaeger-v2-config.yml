@@ -15,8 +15,8 @@ service:
 extensions:
   jaeger_query:
     storage:
-      trace: some_storage
-      metric: some_metrics_storage
+      traces: some_storage
+      metrics: some_metrics_storage
   jaeger_storage:
     backends:
       some_storage:

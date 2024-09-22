@@ -13,7 +13,7 @@ extensions:
 
   jaeger_query:
     storage:
-      trace: some-storage
+      traces: some-storage
     ui:
       config_file: ./cmd/jaeger/config-ui.json
 

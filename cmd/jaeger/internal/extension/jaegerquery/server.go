@@ -124,12 +124,12 @@ func (s *server) Start(_ context.Context, host component.Host) error {
 }
 
 func (s *server) addArchiveStorage(opts *querysvc.QueryServiceOptions, host component.Host) error {
-	if s.config.Storage.TraceArchive == "" {
+	if s.config.Storage.TracesArchive == "" {
 		s.telset.Logger.Info("Archive storage not configured")
 		return nil
 	}
 
-	f, err := jaegerstorage.GetStorageFactory(s.config.Storage.TraceArchive, host)
+	f, err := jaegerstorage.GetStorageFactory(s.config.Storage.TracesArchive, host)
 	if err != nil {
 		return fmt.Errorf("cannot find archive storage factory: %w", err)
 	}

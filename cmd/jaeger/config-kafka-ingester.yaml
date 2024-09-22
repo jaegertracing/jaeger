@@ -20,7 +20,7 @@ extensions:
 
   jaeger_query:
     storage:
-      trace: some_storage
+      traces: some_storage
 
   jaeger_storage:
     backends:

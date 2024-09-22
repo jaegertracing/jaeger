@@ -31,8 +31,8 @@ type Connection struct {
 type Storage struct {
 	// TracesPrimary contains the name of the primary trace storage that is being queried.
 	TracesPrimary string `mapstructure:"traces" valid:"required"`
-	// TraceArchive contains the name of the archive trace storage that is being queried.
-	TraceArchive string `mapstructure:"trace_archive" valid:"optional"`
+	// TracesArchive contains the name of the archive trace storage that is being queried.
+	TracesArchive string `mapstructure:"traces_archive" valid:"optional"`
 	// Metrics contains the name of the metric storage that is being queried.
 	Metrics string `mapstructure:"metrics" valid:"optional"`
 }

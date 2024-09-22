@@ -135,7 +135,7 @@ func TestServerStart(t *testing.T) {
 			name: "Non-empty config with fake storage host",
 			config: &Config{
 				Storage: Storage{
-					TraceArchive:  "jaeger_storage",
+					TracesArchive: "jaeger_storage",
 					TracesPrimary: "jaeger_storage",
 					Metrics:       "jaeger_metrics_storage",
 				},
@@ -172,7 +172,7 @@ func TestServerStart(t *testing.T) {
 			name: "storage archive error",
 			config: &Config{
 				Storage: Storage{
-					TraceArchive:  "need-factory-error",
+					TracesArchive: "need-factory-error",
 					TracesPrimary: "jaeger_storage",
 				},
 			},
@@ -269,7 +269,7 @@ func TestServerAddArchiveStorage(t *testing.T) {
 			name: "Archive storage set",
 			config: &Config{
 				Storage: Storage{
-					TraceArchive: "random-value",
+					TracesArchive: "random-value",
 				},
 			},
 			qSvcOpts:       &querysvc.QueryServiceOptions{},
@@ -280,7 +280,7 @@ func TestServerAddArchiveStorage(t *testing.T) {
 			name: "Archive storage not supported",
 			config: &Config{
 				Storage: Storage{
-					TraceArchive: "badger",
+					TracesArchive: "badger",
 				},
 			},
 			qSvcOpts:       &querysvc.QueryServiceOptions{},
