@@ -29,12 +29,12 @@ type Connection struct {
 }
 
 type Storage struct {
-	// TracePrimary contains the name of the primary trace storage that is being queried.
-	TracePrimary string `mapstructure:"trace" valid:"required"`
+	// TracesPrimary contains the name of the primary trace storage that is being queried.
+	TracesPrimary string `mapstructure:"traces" valid:"required"`
 	// TraceArchive contains the name of the archive trace storage that is being queried.
 	TraceArchive string `mapstructure:"trace_archive" valid:"optional"`
-	// Metric contains the name of the metric storage that is being queried.
-	Metric string `mapstructure:"metric" valid:"optional"`
+	// Metrics contains the name of the metric storage that is being queried.
+	Metrics string `mapstructure:"metrics" valid:"optional"`
 }
 
 func (cfg *Config) Validate() error {

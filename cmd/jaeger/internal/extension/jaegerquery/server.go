@@ -55,9 +55,9 @@ func (s *server) Start(_ context.Context, host component.Host) error {
 	mf := otelmetrics.NewFactory(s.telset.MeterProvider)
 	baseFactory := mf.Namespace(metrics.NSOptions{Name: "jaeger"})
 	queryMetricsFactory := baseFactory.Namespace(metrics.NSOptions{Name: "query"})
-	f, err := jaegerstorage.GetStorageFactory(s.config.Storage.TracePrimary, host)
+	f, err := jaegerstorage.GetStorageFactory(s.config.Storage.TracesPrimary, host)
 	if err != nil {
-		return fmt.Errorf("cannot find primary storage %s: %w", s.config.Storage.TracePrimary, err)
+		return fmt.Errorf("cannot find primary storage %s: %w", s.config.Storage.TracesPrimary, err)
 	}
 
 	spanReader, err := f.CreateSpanReader()
@@ -141,12 +141,12 @@ func (s *server) addArchiveStorage(opts *querysvc.QueryServiceOptions, host comp
 }
 
 func (s *server) createMetricReader(host component.Host) (metricsstore.Reader, error) {
-	if s.config.Storage.Metric == "" {
+	if s.config.Storage.Metrics == "" {
 		s.telset.Logger.Info("Metric storage not configured")
 		return disabled.NewMetricsReader()
 	}
 
-	mf, err := jaegerstorage.GetMetricsFactory(s.config.Storage.Metric, host)
+	mf, err := jaegerstorage.GetMetricsFactory(s.config.Storage.Metrics, host)
 	if err != nil {
 		return nil, fmt.Errorf("cannot find metrics storage factory: %w", err)
 	}

@@ -25,7 +25,7 @@ func Test_Validate(t *testing.T) {
 			name: "Non empty-config",
 			config: &Config{
 				Storage: Storage{
-					TracePrimary: "some-storage",
+					TracesPrimary: "some-storage",
 				},
 			},
 			expectedErr: "",

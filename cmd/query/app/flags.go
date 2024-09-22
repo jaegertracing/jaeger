@@ -48,7 +48,7 @@ var tlsHTTPFlagsConfig = tlscfg.ServerFlagsConfig{
 	Prefix: "query.http",
 }
 
-type UI struct {
+type UIConfig struct {
 	// ConfigFile is the path to a configuration file for the UI.
 	ConfigFile string `mapstructure:"config_file" valid:"optional"`
 	// AssetsPath is the path for the static assets for the UI (https://github.com/uber/jaeger-ui).
@@ -61,14 +61,14 @@ type UI struct {
 type QueryOptionsBase struct {
 	// BasePath is the base path for all HTTP routes.
 	BasePath string `mapstructure:"base_path"`
-	// UI contains configuration related to the Jaeger UI.
-	UI UI `mapstructure:"ui" valid:"optional"`
+	// UIConfig contains configuration related to the Jaeger UIConfig.
+	UIConfig UIConfig `mapstructure:"ui"`
 	// BearerTokenPropagation activate/deactivate bearer token propagation to storage.
 	BearerTokenPropagation bool `mapstructure:"bearer_token_propagation"`
 	// Tenancy holds the multi-tenancy configuration.
 	Tenancy tenancy.Options `mapstructure:"multi_tenancy"`
 	// MaxClockSkewAdjust is the maximum duration by which jaeger-query will adjust a span.
-	MaxClockSkewAdjust time.Duration `mapstructure:"max_clock_skew_adjust"`
+	MaxClockSkewAdjust time.Duration `mapstructure:"max_clock_skew_adjust"  valid:"optional"`
 	// EnableTracing determines whether traces will be emitted by jaeger-query.
 	EnableTracing bool `mapstructure:"enable_tracing"`
 }
@@ -120,9 +120,9 @@ func (qOpts *QueryOptions) InitFromViper(v *viper.Viper, logger *zap.Logger) (*Q
 	}
 	qOpts.TLSHTTP = tlsHTTP
 	qOpts.BasePath = v.GetString(queryBasePath)
-	qOpts.UI.AssetsPath = v.GetString(queryStaticFiles)
-	qOpts.UI.LogAccess = v.GetBool(queryLogStaticAssetsAccess)
-	qOpts.UI.ConfigFile = v.GetString(queryUIConfig)
+	qOpts.UIConfig.AssetsPath = v.GetString(queryStaticFiles)
+	qOpts.UIConfig.LogAccess = v.GetBool(queryLogStaticAssetsAccess)
+	qOpts.UIConfig.ConfigFile = v.GetString(queryUIConfig)
 	qOpts.BearerTokenPropagation = v.GetBool(queryTokenPropagation)
 
 	qOpts.MaxClockSkewAdjust = v.GetDuration(queryMaxClockSkewAdjust)

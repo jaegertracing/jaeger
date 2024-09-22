@@ -135,9 +135,9 @@ func TestServerStart(t *testing.T) {
 			name: "Non-empty config with fake storage host",
 			config: &Config{
 				Storage: Storage{
-					TraceArchive: "jaeger_storage",
-					TracePrimary: "jaeger_storage",
-					Metric:       "jaeger_metrics_storage",
+					TraceArchive:  "jaeger_storage",
+					TracesPrimary: "jaeger_storage",
+					Metrics:       "jaeger_metrics_storage",
 				},
 			},
 		},
@@ -145,7 +145,7 @@ func TestServerStart(t *testing.T) {
 			name: "factory error",
 			config: &Config{
 				Storage: Storage{
-					TracePrimary: "need-factory-error",
+					TracesPrimary: "need-factory-error",
 				},
 			},
 			expectedErr: "cannot find primary storage",
@@ -154,7 +154,7 @@ func TestServerStart(t *testing.T) {
 			name: "span reader error",
 			config: &Config{
 				Storage: Storage{
-					TracePrimary: "need-span-reader-error",
+					TracesPrimary: "need-span-reader-error",
 				},
 			},
 			expectedErr: "cannot create span reader",
@@ -163,7 +163,7 @@ func TestServerStart(t *testing.T) {
 			name: "dependency error",
 			config: &Config{
 				Storage: Storage{
-					TracePrimary: "need-dependency-reader-error",
+					TracesPrimary: "need-dependency-reader-error",
 				},
 			},
 			expectedErr: "cannot create dependencies reader",
@@ -172,8 +172,8 @@ func TestServerStart(t *testing.T) {
 			name: "storage archive error",
 			config: &Config{
 				Storage: Storage{
-					TraceArchive: "need-factory-error",
-					TracePrimary: "jaeger_storage",
+					TraceArchive:  "need-factory-error",
+					TracesPrimary: "jaeger_storage",
 				},
 			},
 			expectedErr: "cannot find archive storage factory",
@@ -182,8 +182,8 @@ func TestServerStart(t *testing.T) {
 			name: "metrics storage error",
 			config: &Config{
 				Storage: Storage{
-					Metric:       "need-factory-error",
-					TracePrimary: "jaeger_storage",
+					Metrics:       "need-factory-error",
+					TracesPrimary: "jaeger_storage",
 				},
 			},
 			expectedErr: "cannot find metrics storage factory",
@@ -192,8 +192,8 @@ func TestServerStart(t *testing.T) {
 			name: " metrics reader error",
 			config: &Config{
 				Storage: Storage{
-					Metric:       "need-metrics-reader-error",
-					TracePrimary: "jaeger_storage",
+					Metrics:       "need-metrics-reader-error",
+					TracesPrimary: "jaeger_storage",
 				},
 			},
 			expectedErr: "cannot create metrics reader",
@@ -332,7 +332,7 @@ func TestServerAddMetricsStorage(t *testing.T) {
 			name: "Metrics storage set",
 			config: &Config{
 				Storage: Storage{
-					Metric: "random-value",
+					Metrics: "random-value",
 				},
 			},
 			expectedOutput: "",

@@ -45,7 +45,7 @@ func TestRegisterStaticHandlerPanic(t *testing.T) {
 			logger,
 			&QueryOptions{
 				QueryOptionsBase: QueryOptionsBase{
-					UI: UI{
+					UIConfig: UIConfig{
 						AssetsPath: "/foo/bar",
 					},
 				},
@@ -112,7 +112,7 @@ func TestRegisterStaticHandler(t *testing.T) {
 			}
 			closer := RegisterStaticHandler(r, logger, &QueryOptions{
 				QueryOptionsBase: QueryOptionsBase{
-					UI: UI{
+					UIConfig: UIConfig{
 						ConfigFile: testCase.UIConfigPath,
 						AssetsPath: "fixture",
 						LogAccess:  testCase.logAccess,
