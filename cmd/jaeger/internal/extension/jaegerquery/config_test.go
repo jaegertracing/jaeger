@@ -19,7 +19,7 @@ func Test_Validate(t *testing.T) {
 		{
 			name:        "Empty config",
 			config:      &Config{},
-			expectedErr: "Storage.TracePrimary: non zero value required",
+			expectedErr: "Storage.TracesPrimary: non zero value required",
 		},
 		{
 			name: "Non empty-config",
