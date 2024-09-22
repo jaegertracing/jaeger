@@ -28,7 +28,7 @@ func NewFactory() extension.Factory {
 
 func createDefaultConfig() component.Config {
 	return &Config{
-		OptionsBase: app.OptionsBase{
+		QueryOptionsBase: app.QueryOptionsBase{
 			BasePath: "/",
 		},
 		Connection: Connection{

@@ -57,26 +57,26 @@ type UI struct {
 	LogAccess bool `mapstructure:"log_access" valid:"optional"`
 }
 
-// OptionsBase holds configuration for query service shared with jaeger-v2
-type OptionsBase struct {
+// QueryOptionsBase holds configuration for query service shared with jaeger-v2
+type QueryOptionsBase struct {
 	// BasePath is the base path for all HTTP routes.
 	BasePath string `mapstructure:"base_path"`
 	// UI contains configuration related to the Jaeger UI.
 	UI UI `mapstructure:"ui" valid:"optional"`
 	// BearerTokenPropagation activate/deactivate bearer token propagation to storage.
 	BearerTokenPropagation bool `mapstructure:"bearer_token_propagation"`
+	// Tenancy holds the multi-tenancy configuration.
+	Tenancy tenancy.Options `mapstructure:"multi_tenancy"`
 	// MaxClockSkewAdjust is the maximum duration by which jaeger-query will adjust a span.
 	MaxClockSkewAdjust time.Duration `mapstructure:"max_clock_skew_adjust"`
 	// EnableTracing determines whether traces will be emitted by jaeger-query.
 	EnableTracing bool `mapstructure:"enable_tracing"`
 }
 
-// Options holds configuration for query service
-type Options struct {
-	OptionsBase
+// QueryOptions holds configuration for query service
+type QueryOptions struct {
+	QueryOptionsBase
 
-	// Tenancy configures tenancy for query
-	Tenancy tenancy.Options
 	// AdditionalHeaders
 	AdditionalHeaders http.Header
 	// HTTPHostPort is the host:port address that the query service listens in on for http requests
@@ -106,7 +106,7 @@ func AddFlags(flagSet *flag.FlagSet) {
 }
 
 // InitFromViper initializes QueryOptions with properties from viper
-func (qOpts *Options) InitFromViper(v *viper.Viper, logger *zap.Logger) (*Options, error) {
+func (qOpts *QueryOptions) InitFromViper(v *viper.Viper, logger *zap.Logger) (*QueryOptions, error) {
 	qOpts.HTTPHostPort = v.GetString(queryHTTPHostPort)
 	qOpts.GRPCHostPort = v.GetString(queryGRPCHostPort)
 	tlsGrpc, err := tlsGRPCFlagsConfig.InitFromViper(v)
@@ -139,7 +139,7 @@ func (qOpts *Options) InitFromViper(v *viper.Viper, logger *zap.Logger) (*Option
 }
 
 // BuildQueryServiceOptions creates a QueryServiceOptions struct with appropriate adjusters and archive config
-func (qOpts *Options) BuildQueryServiceOptions(storageFactory storage.Factory, logger *zap.Logger) *querysvc.QueryServiceOptions {
+func (qOpts *QueryOptions) BuildQueryServiceOptions(storageFactory storage.Factory, logger *zap.Logger) *querysvc.QueryServiceOptions {
 	opts := &querysvc.QueryServiceOptions{}
 	if !opts.InitArchiveStorage(storageFactory, logger) {
 		logger.Info("Archive storage not initialized")

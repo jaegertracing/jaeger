@@ -10,21 +10,18 @@ import (
 	"go.opentelemetry.io/collector/config/confighttp"
 
 	queryApp "github.com/jaegertracing/jaeger/cmd/query/app"
-	"github.com/jaegertracing/jaeger/pkg/tenancy"
 )
 
 var _ component.ConfigValidator = (*Config)(nil)
 
 // Config represents the configuration for jaeger-query,
 type Config struct {
-	queryApp.OptionsBase `mapstructure:",squash"`
-	Connection           Connection `mapstructure:"connection"`
-	Storage              Storage    `mapstructure:"storage"`
+	queryApp.QueryOptionsBase `mapstructure:",squash"`
+	Connection                Connection `mapstructure:"connection"`
+	Storage                   Storage    `mapstructure:"storage"`
 }
 
 type Connection struct {
-	// Tenancy holds the multi-tenancy configuration.
-	Tenancy tenancy.Options `mapstructure:"multi_tenancy"`
 	// HTTP holds the HTTP configuration that the query service uses to serve requests.
 	HTTP confighttp.ServerConfig `mapstructure:"http"`
 	// GRPC holds the GRPC configuration that the query service uses to serve requests.

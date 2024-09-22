@@ -142,7 +142,7 @@ by default uses only in-memory database.`,
 			if err != nil {
 				logger.Fatal("Failed to initialize collector", zap.Error(err))
 			}
-			qOpts, err := new(queryApp.Options).InitFromViper(v, logger)
+			qOpts, err := new(queryApp.QueryOptions).InitFromViper(v, logger)
 			if err != nil {
 				logger.Fatal("Failed to configure query service", zap.Error(err))
 			}
@@ -263,7 +263,7 @@ func startAgent(
 
 func startQuery(
 	svc *flags.Service,
-	qOpts *queryApp.Options,
+	qOpts *queryApp.QueryOptions,
 	queryOpts *querysvc.QueryServiceOptions,
 	spanReader spanstore.Reader,
 	depReader dependencystore.Reader,

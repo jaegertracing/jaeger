@@ -43,8 +43,8 @@ func TestRegisterStaticHandlerPanic(t *testing.T) {
 		closer := RegisterStaticHandler(
 			mux.NewRouter(),
 			logger,
-			&Options{
-				OptionsBase: OptionsBase{
+			&QueryOptions{
+				QueryOptionsBase: QueryOptionsBase{
 					UI: UI{
 						AssetsPath: "/foo/bar",
 					},
@@ -110,8 +110,8 @@ func TestRegisterStaticHandler(t *testing.T) {
 			if testCase.subroute {
 				r = r.PathPrefix(testCase.basePath).Subrouter()
 			}
-			closer := RegisterStaticHandler(r, logger, &Options{
-				OptionsBase: OptionsBase{
+			closer := RegisterStaticHandler(r, logger, &QueryOptions{
+				QueryOptionsBase: QueryOptionsBase{
 					UI: UI{
 						ConfigFile: testCase.UIConfigPath,
 						AssetsPath: "fixture",

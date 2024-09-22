@@ -39,7 +39,7 @@ import (
 // Server runs HTTP, Mux and a grpc server
 type Server struct {
 	querySvc     *querysvc.QueryService
-	queryOptions *Options
+	queryOptions *QueryOptions
 
 	conn          net.Listener
 	grpcConn      net.Listener
@@ -55,7 +55,7 @@ type Server struct {
 // NewServer creates and initializes Server
 func NewServer(querySvc *querysvc.QueryService,
 	metricsQuerySvc querysvc.MetricsQueryService,
-	options *Options,
+	options *QueryOptions,
 	tm *tenancy.Manager,
 	telset telemetery.Setting,
 ) (*Server, error) {
@@ -93,7 +93,7 @@ func NewServer(querySvc *querysvc.QueryService,
 	}, nil
 }
 
-func createGRPCServer(querySvc *querysvc.QueryService, metricsQuerySvc querysvc.MetricsQueryService, options *Options, tm *tenancy.Manager, telset telemetery.Setting) (*grpc.Server, error) {
+func createGRPCServer(querySvc *querysvc.QueryService, metricsQuerySvc querysvc.MetricsQueryService, options *QueryOptions, tm *tenancy.Manager, telset telemetery.Setting) (*grpc.Server, error) {
 	var grpcOpts []grpc.ServerOption
 
 	if options.TLSGRPC.Enabled {
@@ -143,7 +143,7 @@ var _ io.Closer = (*httpServer)(nil)
 func createHTTPServer(
 	querySvc *querysvc.QueryService,
 	metricsQuerySvc querysvc.MetricsQueryService,
-	queryOpts *Options,
+	queryOpts *QueryOptions,
 	tm *tenancy.Manager,
 	telset telemetery.Setting,
 ) (*httpServer, error) {

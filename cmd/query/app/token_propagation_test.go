@@ -87,10 +87,10 @@ func runQueryService(t *testing.T, esURL string) *Server {
 		ReportStatus:   telemetery.HCAdapter(flagsSvc.HC()),
 	}
 	server, err := NewServer(querySvc, nil,
-		&Options{
+		&QueryOptions{
 			GRPCHostPort: ":0",
 			HTTPHostPort: ":0",
-			OptionsBase: OptionsBase{
+			QueryOptionsBase: QueryOptionsBase{
 				BearerTokenPropagation: true,
 			},
 		},

@@ -49,7 +49,7 @@ func initTelSet(logger *zap.Logger, tracerProvider *jtracer.JTracer, hc *healthc
 
 func TestServerError(t *testing.T) {
 	srv := &Server{
-		queryOptions: &Options{
+		queryOptions: &QueryOptions{
 			HTTPHostPort: ":-1",
 		},
 	}
@@ -66,7 +66,7 @@ func TestCreateTLSServerSinglePortError(t *testing.T) {
 	}
 	telset := initTelSet(zaptest.NewLogger(t), jtracer.NoOp(), healthcheck.New())
 	_, err := NewServer(&querysvc.QueryService{}, nil,
-		&Options{HTTPHostPort: ":8080", GRPCHostPort: ":8080", TLSGRPC: tlsCfg, TLSHTTP: tlsCfg},
+		&QueryOptions{HTTPHostPort: ":8080", GRPCHostPort: ":8080", TLSGRPC: tlsCfg, TLSHTTP: tlsCfg},
 		tenancy.NewManager(&tenancy.Options{}), telset)
 	require.Error(t, err)
 }
@@ -80,7 +80,7 @@ func TestCreateTLSGrpcServerError(t *testing.T) {
 	}
 	telset := initTelSet(zaptest.NewLogger(t), jtracer.NoOp(), healthcheck.New())
 	_, err := NewServer(&querysvc.QueryService{}, nil,
-		&Options{HTTPHostPort: ":8080", GRPCHostPort: ":8081", TLSGRPC: tlsCfg},
+		&QueryOptions{HTTPHostPort: ":8080", GRPCHostPort: ":8081", TLSGRPC: tlsCfg},
 		tenancy.NewManager(&tenancy.Options{}), telset)
 	require.Error(t, err)
 }
@@ -94,7 +94,7 @@ func TestCreateTLSHttpServerError(t *testing.T) {
 	}
 	telset := initTelSet(zaptest.NewLogger(t), jtracer.NoOp(), healthcheck.New())
 	_, err := NewServer(&querysvc.QueryService{}, nil,
-		&Options{HTTPHostPort: ":8080", GRPCHostPort: ":8081", TLSHTTP: tlsCfg},
+		&QueryOptions{HTTPHostPort: ":8080", GRPCHostPort: ":8081", TLSHTTP: tlsCfg},
 		tenancy.NewManager(&tenancy.Options{}), telset)
 	require.Error(t, err)
 }
@@ -341,12 +341,12 @@ func TestServerHTTPTLS(t *testing.T) {
 				tlsGrpc = enabledTLSCfg
 			}
 
-			serverOptions := &Options{
+			serverOptions := &QueryOptions{
 				GRPCHostPort: ":0",
 				HTTPHostPort: ":0",
 				TLSHTTP:      test.TLS,
 				TLSGRPC:      tlsGrpc,
-				OptionsBase: OptionsBase{
+				QueryOptionsBase: QueryOptionsBase{
 					BearerTokenPropagation: true,
 				},
 			}
@@ -478,12 +478,12 @@ func TestServerGRPCTLS(t *testing.T) {
 			if test.HTTPTLSEnabled {
 				tlsHttp = enabledTLSCfg
 			}
-			serverOptions := &Options{
+			serverOptions := &QueryOptions{
 				GRPCHostPort: ":0",
 				HTTPHostPort: ":0",
 				TLSHTTP:      tlsHttp,
 				TLSGRPC:      test.TLS,
-				OptionsBase: OptionsBase{
+				QueryOptionsBase: QueryOptionsBase{
 					BearerTokenPropagation: true,
 				},
 			}
@@ -536,10 +536,10 @@ func TestServerGRPCTLS(t *testing.T) {
 func TestServerBadHostPort(t *testing.T) {
 	telset := initTelSet(zaptest.NewLogger(t), jtracer.NoOp(), healthcheck.New())
 	_, err := NewServer(&querysvc.QueryService{}, nil,
-		&Options{
+		&QueryOptions{
 			HTTPHostPort: "8080", // bad string, not :port
 			GRPCHostPort: "127.0.0.1:8081",
-			OptionsBase: OptionsBase{
+			QueryOptionsBase: QueryOptionsBase{
 				BearerTokenPropagation: true,
 			},
 		},
@@ -548,10 +548,10 @@ func TestServerBadHostPort(t *testing.T) {
 	require.Error(t, err)
 
 	_, err = NewServer(&querysvc.QueryService{}, nil,
-		&Options{
+		&QueryOptions{
 			HTTPHostPort: "127.0.0.1:8081",
 			GRPCHostPort: "9123", // bad string, not :port
-			OptionsBase: OptionsBase{
+			QueryOptionsBase: QueryOptionsBase{
 				BearerTokenPropagation: true,
 			},
 		},
@@ -580,10 +580,10 @@ func TestServerInUseHostPort(t *testing.T) {
 			server, err := NewServer(
 				&querysvc.QueryService{},
 				nil,
-				&Options{
+				&QueryOptions{
 					HTTPHostPort: tc.httpHostPort,
 					GRPCHostPort: tc.grpcHostPort,
-					OptionsBase: OptionsBase{
+					QueryOptionsBase: QueryOptionsBase{
 						BearerTokenPropagation: true,
 					},
 				},
@@ -604,10 +604,10 @@ func TestServerSinglePort(t *testing.T) {
 	querySvc := makeQuerySvc()
 	telset := initTelSet(flagsSvc.Logger, jtracer.NoOp(), flagsSvc.HC())
 	server, err := NewServer(querySvc.qs, nil,
-		&Options{
+		&QueryOptions{
 			GRPCHostPort: hostPort,
 			HTTPHostPort: hostPort,
-			OptionsBase: OptionsBase{
+			QueryOptionsBase: QueryOptionsBase{
 				BearerTokenPropagation: true,
 			},
 		},
@@ -645,7 +645,7 @@ func TestServerGracefulExit(t *testing.T) {
 	querySvc := makeQuerySvc()
 	telset := initTelSet(flagsSvc.Logger, jtracer.NoOp(), flagsSvc.HC())
 	server, err := NewServer(querySvc.qs, nil,
-		&Options{GRPCHostPort: hostPort, HTTPHostPort: hostPort},
+		&QueryOptions{GRPCHostPort: hostPort, HTTPHostPort: hostPort},
 		tenancy.NewManager(&tenancy.Options{}), telset)
 	require.NoError(t, err)
 	require.NoError(t, server.Start())
@@ -678,7 +678,7 @@ func TestServerHandlesPortZero(t *testing.T) {
 	querySvc := &querysvc.QueryService{}
 	telset := initTelSet(flagsSvc.Logger, jtracer.NoOp(), flagsSvc.HC())
 	server, err := NewServer(querySvc, nil,
-		&Options{GRPCHostPort: ":0", HTTPHostPort: ":0"},
+		&QueryOptions{GRPCHostPort: ":0", HTTPHostPort: ":0"},
 		tenancy.NewManager(&tenancy.Options{}),
 		telset)
 	require.NoError(t, err)
@@ -718,11 +718,13 @@ func TestServerHTTPTenancy(t *testing.T) {
 		},
 	}
 
-	serverOptions := &Options{
+	serverOptions := &QueryOptions{
 		HTTPHostPort: ":8080",
 		GRPCHostPort: ":8080",
-		Tenancy: tenancy.Options{
-			Enabled: true,
+		QueryOptionsBase: QueryOptionsBase{
+			Tenancy: tenancy.Options{
+				Enabled: true,
+			},
 		},
 	}
 	tenancyMgr := tenancy.NewManager(&serverOptions.Tenancy)

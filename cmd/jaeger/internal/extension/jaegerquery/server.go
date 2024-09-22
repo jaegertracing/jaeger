@@ -83,7 +83,7 @@ func (s *server) Start(_ context.Context, host component.Host) error {
 		return err
 	}
 
-	tm := tenancy.NewManager(&s.config.Connection.Tenancy)
+	tm := tenancy.NewManager(&s.config.QueryOptionsBase.Tenancy)
 
 	// TODO OTel-collector does not initialize the tracer currently
 	// https://github.com/open-telemetry/opentelemetry-collector/issues/7532
@@ -158,9 +158,9 @@ func (s *server) createMetricReader(host component.Host) (metricsstore.Reader, e
 	return metricsReader, err
 }
 
-func (s *server) makeQueryOptions() *queryApp.Options {
-	return &queryApp.Options{
-		OptionsBase: s.config.OptionsBase,
+func (s *server) makeQueryOptions() *queryApp.QueryOptions {
+	return &queryApp.QueryOptions{
+		QueryOptionsBase: s.config.QueryOptionsBase,
 
 		// TODO utilize OTEL helpers for creating HTTP/GRPC servers
 		HTTPHostPort: s.config.Connection.HTTP.Endpoint,
