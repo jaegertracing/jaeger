@@ -19,16 +19,14 @@ func newDuplicatedSpansTrace() *model.Trace {
 	return &model.Trace{
 		Spans: []*model.Span{
 			{
-				// client span
 				TraceID: traceID,
 				SpanID:  clientSpanID,
 				Tags: model.KeyValues{
-					// span.kind = client
-					model.String(keySpanKind, trace.SpanKindClient.String()),
+					// span.kind = server
+					model.String(keySpanKind, trace.SpanKindServer.String()),
 				},
 			},
 			{
-				// server span
 				TraceID: traceID,
 				SpanID:  clientSpanID, // shared span ID
 				Tags: model.KeyValues{
@@ -46,8 +44,30 @@ func newDuplicatedSpansTrace() *model.Trace {
 	}
 }
 
-func TestDedupeBySpanID(t *testing.T) {
-	trace := newZipkinTrace()
+func newUniqueSpansTrace() *model.Trace {
+	traceID := model.NewTraceID(0, 42)
+	return &model.Trace{
+		Spans: []*model.Span{
+			{
+				TraceID: traceID,
+				SpanID:  clientSpanID,
+				Tags: model.KeyValues{
+					// span.kind = server
+					model.String(keySpanKind, trace.SpanKindServer.String()),
+				},
+			},
+			{
+				// some other span, child of server span
+				TraceID:    traceID,
+				SpanID:     anotherSpanID,
+				References: []model.SpanRef{model.NewChildOfRef(traceID, clientSpanID)},
+			},
+		},
+	}
+}
+
+func TestDedupeBySpanIDTriggers(t *testing.T) {
+	trace := newDuplicatedSpansTrace()
 	deduper := DedupeBySpanID()
 	trace, err := deduper.Adjust(trace)
 	require.NoError(t, err)
@@ -55,4 +75,24 @@ func TestDedupeBySpanID(t *testing.T) {
 	assert.Len(t, trace.Spans, 2, "should dedupe spans")
 	assert.Equal(t, clientSpanID, trace.Spans[0].SpanID, "client span should be kept")
 	assert.Equal(t, anotherSpanID, trace.Spans[1].SpanID, "3rd span should be kept")
+}
+
+func TestDedupeBySpanIDNotTriggered(t *testing.T) {
+	trace := newUniqueSpansTrace()
+	deduper := DedupeBySpanID()
+	trace, err := deduper.Adjust(trace)
+	require.NoError(t, err)
+
+	assert.Len(t, trace.Spans, 2, "should not dedupe spans")
+	assert.Equal(t, clientSpanID, trace.Spans[0].SpanID, "client span should be kept")
+	assert.Equal(t, anotherSpanID, trace.Spans[1].SpanID, "child span should be kept")
+}
+
+func TestDedupeBySpanIDEmpty(t *testing.T) {
+	trace := &model.Trace{}
+	deduper := DedupeBySpanID()
+	trace, err := deduper.Adjust(trace)
+	require.NoError(t, err)
+
+	assert.Len(t, trace.Spans, 0, "should be 0 spans")
 }
