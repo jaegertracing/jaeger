@@ -158,16 +158,20 @@ func TestRegisterStaticHandler(t *testing.T) {
 
 func TestNewStaticAssetsHandlerErrors(t *testing.T) {
 	_, err := NewStaticAssetsHandler("fixture", StaticAssetsHandlerOptions{
-		UIConfigPath: "fixture/invalid-config",
-		Logger:       zap.NewNop(),
+		UIConfig: UIConfig{
+			ConfigFile: "fixture/invalid-config",
+		},
+		Logger: zap.NewNop(),
 	})
 	require.Error(t, err)
 
 	for _, base := range []string{"x", "x/", "/x/"} {
 		_, err := NewStaticAssetsHandler("fixture", StaticAssetsHandlerOptions{
-			UIConfigPath: "fixture/ui-config.json",
-			BasePath:     base,
-			Logger:       zap.NewNop(),
+			UIConfig: UIConfig{
+				ConfigFile: "fixture/ui-config.json",
+			},
+			BasePath: base,
+			Logger:   zap.NewNop(),
 		})
 		require.Errorf(t, err, "basePath=%s", base)
 		assert.Contains(t, err.Error(), "invalid base path")
@@ -195,8 +199,10 @@ func TestHotReloadUIConfig(t *testing.T) {
 	zcore, logObserver := observer.New(zapcore.InfoLevel)
 	logger := zap.New(zcore)
 	h, err := NewStaticAssetsHandler("fixture", StaticAssetsHandlerOptions{
-		UIConfigPath: cfgFileName,
-		Logger:       logger,
+		UIConfig: UIConfig{
+			ConfigFile: cfgFileName,
+		},
+		Logger: logger,
 	})
 	require.NoError(t, err)
 	defer h.Close()
