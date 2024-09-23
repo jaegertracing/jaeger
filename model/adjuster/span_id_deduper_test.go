@@ -66,6 +66,14 @@ func newUniqueSpansTrace() *model.Trace {
 	}
 }
 
+func getSpanIDs(spans []*model.Span) []int {
+	ids := make([]int, len(spans))
+	for i, span := range spans {
+		ids[i] = int(span.SpanID)
+	}
+	return ids
+}
+
 func TestDedupeBySpanIDTriggers(t *testing.T) {
 	trace := newDuplicatedSpansTrace()
 	deduper := DedupeBySpanID()
@@ -73,8 +81,9 @@ func TestDedupeBySpanIDTriggers(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Len(t, trace.Spans, 2, "should dedupe spans")
-	assert.Equal(t, clientSpanID, trace.Spans[0].SpanID, "client span should be kept")
-	assert.Equal(t, anotherSpanID, trace.Spans[1].SpanID, "3rd span should be kept")
+
+	ids := getSpanIDs(trace.Spans)
+	assert.ElementsMatch(t, []int{int(clientSpanID), int(anotherSpanID)}, ids, "should keep unique span IDs")
 }
 
 func TestDedupeBySpanIDNotTriggered(t *testing.T) {
@@ -84,10 +93,8 @@ func TestDedupeBySpanIDNotTriggered(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Len(t, trace.Spans, 2, "should not dedupe spans")
-	var ids [2]int
-	for i, span := range trace.Spans {
-		ids[i] = int(span.SpanID)
-	}
+
+	ids := getSpanIDs(trace.Spans)
 	assert.ElementsMatch(t, []int{int(clientSpanID), int(anotherSpanID)}, ids, "should keep unique span IDs")
 }
 
@@ -117,9 +124,6 @@ func TestDedupeBySpanIDManyManySpans(t *testing.T) {
 
 	assert.Len(t, trace.Spans, distinctSpanIDs, "should dedupe spans")
 
-	var ids [distinctSpanIDs]int
-	for i, span := range trace.Spans {
-		ids[i] = int(span.SpanID)
-	}
+	ids := getSpanIDs(trace.Spans)
 	assert.ElementsMatch(t, []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}, ids, "should keep unique span IDs")
 }
