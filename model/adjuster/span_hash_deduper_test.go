@@ -50,16 +50,15 @@ func newUniqueSpansTrace() *model.Trace {
 		Spans: []*model.Span{
 			{
 				TraceID: traceID,
-				SpanID:  clientSpanID,
+				SpanID:  anotherSpanID,
 				Tags: model.KeyValues{
 					// span.kind = server
 					model.String(keySpanKind, trace.SpanKindServer.String()),
 				},
 			},
 			{
-				// some other span, child of server span
 				TraceID:    traceID,
-				SpanID:     anotherSpanID,
+				SpanID:     anotherSpanID, // same ID as before, but different metadata
 				References: []model.SpanRef{model.NewChildOfRef(traceID, clientSpanID)},
 			},
 		},
@@ -74,9 +73,9 @@ func getSpanIDs(spans []*model.Span) []int {
 	return ids
 }
 
-func TestDedupeBySpanIDTriggers(t *testing.T) {
+func TestDedupeBySpanHashTriggers(t *testing.T) {
 	trace := newDuplicatedSpansTrace()
-	deduper := DedupeBySpanID()
+	deduper := DedupeBySpanHash()
 	trace, err := deduper.Adjust(trace)
 	require.NoError(t, err)
 
@@ -86,28 +85,29 @@ func TestDedupeBySpanIDTriggers(t *testing.T) {
 	assert.ElementsMatch(t, []int{int(clientSpanID), int(anotherSpanID)}, ids, "should keep unique span IDs")
 }
 
-func TestDedupeBySpanIDNotTriggered(t *testing.T) {
+func TestDedupeBySpanHashNotTriggered(t *testing.T) {
 	trace := newUniqueSpansTrace()
-	deduper := DedupeBySpanID()
+	deduper := DedupeBySpanHash()
 	trace, err := deduper.Adjust(trace)
 	require.NoError(t, err)
 
 	assert.Len(t, trace.Spans, 2, "should not dedupe spans")
 
 	ids := getSpanIDs(trace.Spans)
-	assert.ElementsMatch(t, []int{int(clientSpanID), int(anotherSpanID)}, ids, "should keep unique span IDs")
+	assert.ElementsMatch(t, []int{int(anotherSpanID), int(anotherSpanID)}, ids, "should keep unique span IDs")
+	assert.NotEqual(t, trace.Spans[0], trace.Spans[1], "should keep unique hashcodes")
 }
 
-func TestDedupeBySpanIDEmpty(t *testing.T) {
+func TestDedupeBySpanHashEmpty(t *testing.T) {
 	trace := &model.Trace{}
-	deduper := DedupeBySpanID()
+	deduper := DedupeBySpanHash()
 	trace, err := deduper.Adjust(trace)
 	require.NoError(t, err)
 
 	assert.Empty(t, trace.Spans, "should be empty")
 }
 
-func TestDedupeBySpanIDManyManySpans(t *testing.T) {
+func TestDedupeBySpanHashManyManySpans(t *testing.T) {
 	traceID := model.NewTraceID(0, 42)
 	spans := make([]*model.Span, 0, 100)
 	const distinctSpanIDs = 10
@@ -118,7 +118,7 @@ func TestDedupeBySpanIDManyManySpans(t *testing.T) {
 		})
 	}
 	trace := &model.Trace{Spans: spans}
-	deduper := DedupeBySpanID()
+	deduper := DedupeBySpanHash()
 	trace, err := deduper.Adjust(trace)
 	require.NoError(t, err)
 

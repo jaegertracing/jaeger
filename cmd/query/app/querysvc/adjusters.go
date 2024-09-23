@@ -15,7 +15,7 @@ import (
 func StandardAdjusters(maxClockSkewAdjust time.Duration) []adjuster.Adjuster {
 	return []adjuster.Adjuster{
 		adjuster.ZipkinSpanIDUniquifier(),
-		adjuster.DedupeBySpanID(),
+		adjuster.DedupeBySpanHash(),
 		adjuster.ClockSkew(maxClockSkewAdjust),
 		adjuster.IPTagAdjuster(),
 		adjuster.OTelTagAdjuster(),
