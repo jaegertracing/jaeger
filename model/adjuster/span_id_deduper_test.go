@@ -101,3 +101,14 @@ func TestZipkinSpanIDRenamerError(t *testing.T) {
 		assert.Equal(t, "cannot assign unique span ID, too many spans in the trace", trace.Spans[1].Warnings[0])
 	}
 }
+
+func TestDedupeBySpanID(t *testing.T) {
+	trace := newTrace()
+	deduper := DedupeBySpanID()
+	trace, err := deduper.Adjust(trace)
+	require.NoError(t, err)
+
+	assert.Len(t, trace.Spans, 2, "should dedupe spans")
+	assert.Equal(t, clientSpanID, trace.Spans[0].SpanID, "client span should be kept")
+	assert.Equal(t, anotherSpanID, trace.Spans[1].SpanID, "3rd span should be kept")
+}

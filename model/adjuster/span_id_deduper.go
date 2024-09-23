@@ -29,6 +29,8 @@ func ZipkinSpanIDRenamer() Adjuster {
 }
 
 // DedupeBySpanID returns an adjuster that removes all but one span with the same SpanID.
+// This is useful for when spans are duplicated in archival storage, as happens with
+// ElasticSearch archival.
 func DedupeBySpanID() Adjuster {
 	return Func(func(trace *model.Trace) (*model.Trace, error) {
 		deduper := &spanIDDeduper{trace: trace}
