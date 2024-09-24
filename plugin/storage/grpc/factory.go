@@ -103,7 +103,7 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 		},
 	}
 	newClientFn := func(opts ...grpc.DialOption) (conn *grpc.ClientConn, err error) {
-		var clientOpts []configgrpc.ToClientConnOption
+		clientOpts := make([]configgrpc.ToClientConnOption, 0)
 		for _, opt := range opts {
 			clientOpts = append(clientOpts, configgrpc.WithGrpcDialOption(opt))
 		}
