@@ -59,7 +59,7 @@ func newTenant(cfg Configuration) *Tenant {
 		traces:     map[model.TraceID]*model.Trace{},
 		services:   map[string]struct{}{},
 		operations: map[string]map[spanstore.Operation]struct{}{},
-		deduper:    adjuster.SpanIDDeduper(),
+		deduper:    adjuster.ZipkinSpanIDUniquifier(),
 		config:     cfg,
 	}
 }
@@ -90,7 +90,7 @@ func (st *Store) GetDependencies(ctx context.Context, endTs time.Time, lookback 
 	deps := map[string]*model.DependencyLink{}
 	startTs := endTs.Add(-1 * lookback)
 	for _, orig := range m.traces {
-		// SpanIDDeduper never returns an err
+		// ZipkinSpanIDUniquifier never returns an err
 		trace, _ := m.deduper.Adjust(orig)
 		if traceIsBetweenStartAndEnd(startTs, endTs, trace) {
 			for _, s := range trace.Spans {
