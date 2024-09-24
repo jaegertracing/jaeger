@@ -23,16 +23,16 @@ require (
 	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.1.0
 	github.com/kr/pretty v0.3.1
 	github.com/olivere/elastic v6.2.37+incompatible
-	github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector v0.109.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/kafkaexporter v0.109.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/prometheusexporter v0.109.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckv2extension v0.109.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/extension/storage v0.109.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger v0.109.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/processor/tailsamplingprocessor v0.109.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver v0.109.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kafkareceiver v0.109.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zipkinreceiver v0.109.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector v0.110.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/kafkaexporter v0.110.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/prometheusexporter v0.110.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckv2extension v0.110.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/extension/storage v0.110.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger v0.110.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/processor/tailsamplingprocessor v0.110.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver v0.110.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kafkareceiver v0.110.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zipkinreceiver v0.110.0
 	github.com/prometheus/client_golang v1.20.4
 	github.com/prometheus/client_model v0.6.1
 	github.com/prometheus/common v0.59.1
@@ -68,6 +68,7 @@ require (
 	go.opentelemetry.io/collector/extension/zpagesextension v0.110.0
 	go.opentelemetry.io/collector/otelcol v0.110.0
 	go.opentelemetry.io/collector/pdata v1.16.0
+	go.opentelemetry.io/collector/pipeline v0.110.0
 	go.opentelemetry.io/collector/processor v0.110.0
 	go.opentelemetry.io/collector/processor/batchprocessor v0.110.0
 	go.opentelemetry.io/collector/processor/memorylimiterprocessor v0.110.0
@@ -97,13 +98,6 @@ require (
 )
 
 require (
-	github.com/elastic/lunes v0.1.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/internal/pdatautil v0.109.0 // indirect
-	go.opentelemetry.io/collector/internal/globalsignal v0.110.0 // indirect
-	go.opentelemetry.io/collector/pipeline v0.110.0 // indirect
-)
-
-require (
 	github.com/IBM/sarama v1.43.3 // indirect
 	github.com/alecthomas/participle/v2 v2.1.1 // indirect
 	github.com/aws/aws-sdk-go v1.55.5 // indirect
@@ -119,12 +113,14 @@ require (
 	github.com/eapache/queue v1.1.0 // indirect
 	github.com/elastic/elastic-transport-go/v8 v8.6.0 // indirect
 	github.com/elastic/go-grok v0.3.1 // indirect
+	github.com/elastic/lunes v0.1.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/go-logr/logr v1.4.2 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-ole/go-ole v1.2.6 // indirect
 	github.com/go-viper/mapstructure/v2 v2.1.0 // indirect
 	github.com/gobwas/glob v0.2.3 // indirect
+	github.com/goccy/go-json v0.10.3 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
@@ -168,17 +164,19 @@ require (
 	github.com/mostynb/go-grpc-compression v1.2.3 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/onsi/ginkgo v1.16.5 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/internal/common v0.109.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal v0.109.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/internal/filter v0.109.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/internal/kafka v0.109.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/batchpersignal v0.109.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl v0.109.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatautil v0.109.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry v0.109.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/azure v0.109.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/prometheus v0.109.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/zipkin v0.109.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/internal/common v0.110.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal v0.110.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/internal/filter v0.110.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/internal/kafka v0.110.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/internal/pdatautil v0.110.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/batchpersignal v0.110.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/kafka/topic v0.110.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl v0.110.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatautil v0.110.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry v0.110.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/azure v0.110.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/prometheus v0.110.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/zipkin v0.110.0 // indirect
 	github.com/opentracing/opentracing-go v1.2.0 // indirect
 	github.com/openzipkin/zipkin-go v0.4.3 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.2 // indirect
@@ -227,6 +225,7 @@ require (
 	go.opentelemetry.io/collector/extension/extensioncapabilities v0.110.0
 	go.opentelemetry.io/collector/featuregate v1.16.0 // indirect
 	go.opentelemetry.io/collector/internal/globalgates v0.110.0 // indirect
+	go.opentelemetry.io/collector/internal/globalsignal v0.110.0 // indirect
 	go.opentelemetry.io/collector/pdata/pprofile v0.110.0 // indirect
 	go.opentelemetry.io/collector/pdata/testdata v0.110.0 // indirect
 	go.opentelemetry.io/collector/processor/processorprofiles v0.110.0 // indirect
