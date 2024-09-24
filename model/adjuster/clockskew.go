@@ -19,7 +19,7 @@ import (
 // child spans do not start before or end after their parent spans.
 //
 // The algorithm assumes that all spans have unique IDs, so the trace may need
-// to go through another adjuster first, such as SpanIDDeduper.
+// to go through another adjuster first, such as ZipkinSpanIDUniquifier.
 //
 // This adjuster never returns any errors. Instead it records any issues
 // it encounters in Span.Warnings.

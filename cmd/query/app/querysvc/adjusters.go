@@ -14,11 +14,12 @@ import (
 // before returning the data to the API clients.
 func StandardAdjusters(maxClockSkewAdjust time.Duration) []adjuster.Adjuster {
 	return []adjuster.Adjuster{
-		adjuster.SpanIDDeduper(),
+		adjuster.ZipkinSpanIDUniquifier(),
 		adjuster.ClockSkew(maxClockSkewAdjust),
 		adjuster.IPTagAdjuster(),
 		adjuster.OTelTagAdjuster(),
-		adjuster.SortLogFields(),
+		adjuster.SortTagsAndLogFields(),
+		adjuster.DedupeBySpanHash(), // requires SortTagsAndLogFields for deterministic results
 		adjuster.SpanReferences(),
 		adjuster.ParentReference(),
 	}
