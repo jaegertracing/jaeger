@@ -118,3 +118,38 @@ func TestSortTagsAndLogFieldsDoesSortTags(t *testing.T) {
 		assert.IsIncreasing(t, adjustedKeys)
 	}
 }
+
+func TestSortTagsAndLogFieldsDoesSortProcessTags(t *testing.T) {
+	trace := &model.Trace{
+		Spans: []*model.Span{
+			{
+				Process: &model.Process{
+					Tags: model.KeyValues{
+						model.String("process.argv", "mkfs.ext4 /dev/sda1"),
+						model.Int64("process.pid", 42),
+						model.Int64("process.uid", 0),
+						model.String("k8s.node.roles", "control-plane,etcd,master"),
+					},
+				},
+			},
+		},
+	}
+	sorted, err := SortTagsAndLogFields().Adjust(trace)
+	require.NoError(t, err)
+	assert.ElementsMatch(t, trace.Spans[0].Process.Tags, sorted.Spans[0].Process.Tags)
+	adjustedKeys := make([]string, len(sorted.Spans[0].Process.Tags))
+	for i, kv := range sorted.Spans[0].Process.Tags {
+		adjustedKeys[i] = kv.Key
+	}
+	assert.IsIncreasing(t, adjustedKeys)
+}
+
+func TestSortTagsAndLogFieldsHandlesNilProcessTags(t *testing.T) {
+	trace := &model.Trace{
+		Spans: []*model.Span{
+			{},
+		},
+	}
+	_, err := SortTagsAndLogFields().Adjust(trace)
+	require.NoError(t, err)
+}
