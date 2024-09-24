@@ -13,7 +13,7 @@ import (
 	"github.com/jaegertracing/jaeger/model"
 )
 
-func TestSortLogFields(t *testing.T) {
+func TestSortTagsAndLogFieldsDoesSortFields(t *testing.T) {
 	testCases := []struct {
 		fields   model.KeyValues
 		expected model.KeyValues
@@ -79,8 +79,42 @@ func TestSortLogFields(t *testing.T) {
 				},
 			},
 		}
-		trace, err := SortLogFields().Adjust(trace)
+		trace, err := SortTagsAndLogFields().Adjust(trace)
 		require.NoError(t, err)
 		assert.Equal(t, testCase.expected, model.KeyValues(trace.Spans[0].Logs[0].Fields))
+	}
+}
+
+func TestSortTagsAndLogFieldsDoesSortTags(t *testing.T) {
+	testCases := []model.KeyValues{
+		{
+			model.String("http.method", "GET"),
+			model.String("http.url", "http://wikipedia.org"),
+			model.Int64("http.status_code", 200),
+			model.String("guid:x-request-id", "f61defd2-7a77-11ef-b54f-4fbb67a6d181"),
+		},
+		{
+			// empty
+		},
+		{
+			model.String("argv", "mkfs.ext4 /dev/sda1"),
+		},
+	}
+	for _, tags := range testCases {
+		trace := &model.Trace{
+			Spans: []*model.Span{
+				{
+					Tags: tags,
+				},
+			},
+		}
+		sorted, err := SortTagsAndLogFields().Adjust(trace)
+		require.NoError(t, err)
+		assert.ElementsMatch(t, tags, sorted.Spans[0].Tags)
+		adjustedKeys := make([]string, len(sorted.Spans[0].Tags))
+		for i, kv := range sorted.Spans[0].Tags {
+			adjustedKeys[i] = kv.Key
+		}
+		assert.IsIncreasing(t, adjustedKeys)
 	}
 }
