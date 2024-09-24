@@ -23,6 +23,9 @@ func SortTagsAndLogFields() Adjuster {
 	return Func(func(trace *model.Trace) (*model.Trace, error) {
 		for _, span := range trace.Spans {
 			model.KeyValues(span.Tags).Sort()
+			if span.Process != nil {
+				model.KeyValues(span.Process.Tags).Sort()
+			}
 
 			for _, log := range span.Logs {
 				// first move "event" field into the first position
