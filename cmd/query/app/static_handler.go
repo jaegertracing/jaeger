@@ -37,10 +37,7 @@ var (
 // RegisterStaticHandler adds handler for static assets to the router.
 func RegisterStaticHandler(r *mux.Router, logger *zap.Logger, qOpts *QueryOptions, qCapabilities querysvc.StorageCapabilities) io.Closer {
 	staticHandler, err := NewStaticAssetsHandler(qOpts.UIConfig.AssetsPath, StaticAssetsHandlerOptions{
-		UIConfig: UIConfig{
-			ConfigFile: qOpts.UIConfig.ConfigFile,
-			LogAccess:  qOpts.UIConfig.LogAccess,
-		},
+		UIConfig:            qOpts.UIConfig,
 		BasePath:            qOpts.BasePath,
 		StorageCapabilities: qCapabilities,
 		Logger:              logger,
