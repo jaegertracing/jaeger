@@ -83,7 +83,7 @@ func (s *server) Start(_ context.Context, host component.Host) error {
 		return err
 	}
 
-	tm := tenancy.NewManager(&s.config.QueryOptionsBase.Tenancy)
+	tm := tenancy.NewManager(&s.config.Tenancy)
 
 	// TODO OTel-collector does not initialize the tracer currently
 	// https://github.com/open-telemetry/opentelemetry-collector/issues/7532
