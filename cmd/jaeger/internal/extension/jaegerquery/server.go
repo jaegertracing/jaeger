@@ -163,8 +163,8 @@ func (s *server) makeQueryOptions() *queryApp.QueryOptions {
 		QueryOptionsBase: s.config.QueryOptionsBase,
 
 		// TODO utilize OTEL helpers for creating HTTP/GRPC servers
-		HTTPHostPort: s.config.Connection.HTTP.Endpoint,
-		GRPCHostPort: s.config.Connection.GRPC.NetAddr.Endpoint,
+		HTTPHostPort: s.config.HTTP.Endpoint,
+		GRPCHostPort: s.config.GRPC.NetAddr.Endpoint,
 		// TODO handle TLS
 	}
 }

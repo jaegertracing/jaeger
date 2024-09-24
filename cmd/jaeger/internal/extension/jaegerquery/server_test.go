@@ -209,8 +209,8 @@ func TestServerStart(t *testing.T) {
 				},
 				MeterProvider: noopmetric.NewMeterProvider(),
 			}
-			tt.config.Connection.HTTP.Endpoint = ":0"
-			tt.config.Connection.GRPC.NetAddr.Endpoint = ":0"
+			tt.config.HTTP.Endpoint = ":0"
+			tt.config.GRPC.NetAddr.Endpoint = ":0"
 			server := newServer(tt.config, telemetrySettings)
 			err := server.Start(context.Background(), host)
 			if tt.expectedErr == "" {
