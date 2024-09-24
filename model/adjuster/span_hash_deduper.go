@@ -14,32 +14,27 @@ func DedupeBySpanHash() Adjuster {
 	return Func(func(trace *model.Trace) (*model.Trace, error) {
 		deduper := &spanHashDeduper{trace: trace}
 		deduper.groupSpansByHash()
-		deduper.dedupeSpansByHash()
 		return deduper.trace, nil
 	})
 }
 
 type spanHashDeduper struct {
 	trace       *model.Trace
-	spansByHash map[uint64][]*model.Span
+	spansByHash map[uint64]*model.Span
 }
 
 func (d *spanHashDeduper) groupSpansByHash() {
-	spansByHash := make(map[uint64][]*model.Span)
+	spansByHash := make(map[uint64]*model.Span)
 	for _, span := range d.trace.Spans {
 		hash, _ := model.HashCode(span)
-		if spans, ok := spansByHash[hash]; ok {
-			spansByHash[hash] = append(spans, span)
-		} else {
-			spansByHash[hash] = []*model.Span{span}
+		if _, ok := spansByHash[hash]; !ok {
+			spansByHash[hash] = span
 		}
 	}
 	d.spansByHash = spansByHash
-}
 
-func (d *spanHashDeduper) dedupeSpansByHash() {
 	d.trace.Spans = nil
-	for _, spans := range d.spansByHash {
-		d.trace.Spans = append(d.trace.Spans, spans[0])
+	for _, span := range d.spansByHash {
+		d.trace.Spans = append(d.trace.Spans, span)
 	}
 }
