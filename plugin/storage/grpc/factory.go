@@ -13,6 +13,7 @@ import (
 	"github.com/spf13/viper"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componenttest"
+	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/config/configtelemetry"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"go.opentelemetry.io/otel"
@@ -102,7 +103,11 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 		},
 	}
 	newClientFn := func(opts ...grpc.DialOption) (conn *grpc.ClientConn, err error) {
-		return f.configV2.ToClientConn(context.Background(), componenttest.NewNopHost(), telset, opts...)
+		var clientOpts []configgrpc.ToClientConnOption
+		for _, opt := range opts {
+			clientOpts = append(clientOpts, configgrpc.WithGrpcDialOption(opt))
+		}
+		return f.configV2.ToClientConnWithOptions(context.Background(), componenttest.NewNopHost(), telset, clientOpts...)
 	}
 
 	var err error
