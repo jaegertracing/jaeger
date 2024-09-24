@@ -14,6 +14,7 @@ import (
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+	"go.opentelemetry.io/collector/pipeline"
 	"go.opentelemetry.io/collector/receiver"
 	"go.opentelemetry.io/collector/receiver/otlpreceiver"
 
@@ -138,7 +139,7 @@ func TestOtelHost_ReportFatalError(t *testing.T) {
 
 func TestOtelHost(t *testing.T) {
 	host := &otelHost{}
-	assert.Nil(t, host.GetFactory(component.KindReceiver, component.DataTypeTraces))
+	assert.Nil(t, host.GetFactory(component.KindReceiver, pipeline.SignalTraces))
 	assert.Nil(t, host.GetExtensions())
 	assert.Nil(t, host.GetExporters())
 }
