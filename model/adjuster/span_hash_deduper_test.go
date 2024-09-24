@@ -1,5 +1,4 @@
-// Copyright (c) 2019 The Jaeger Authors.
-// Copyright (c) 2017 Uber Technologies, Inc.
+// Copyright (c) 2024 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package adjuster
