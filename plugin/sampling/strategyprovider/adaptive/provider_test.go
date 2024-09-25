@@ -111,10 +111,10 @@ func TestProviderRealisticRunCalculationLoop(t *testing.T) {
 	for _, s := range strategies {
 		switch s.Operation {
 		case "GET":
-			assert.Equal(t, 0.001, s.ProbabilisticSampling.SamplingRate,
+			assert.InDelta(t, 0.001, s.ProbabilisticSampling.SamplingRate, 1e-4,
 				"Already at 1QPS, no probability change")
 		case "POST":
-			assert.Equal(t, 0.001, s.ProbabilisticSampling.SamplingRate,
+			assert.InDelta(t, 0.001, s.ProbabilisticSampling.SamplingRate, 1e-4,
 				"Within epsilon of 1QPS, no probability change")
 		case "PUT":
 			assert.InEpsilon(t, 0.002, s.ProbabilisticSampling.SamplingRate, 0.025,

@@ -139,10 +139,10 @@ func TestInitializeThroughputFailure(t *testing.T) {
 
 func TestCalculateQPS(t *testing.T) {
 	qps := calculateQPS(int64(90), 60*time.Second)
-	assert.Equal(t, 1.5, qps)
+	assert.InDelta(t, 1.5, qps, 0.01)
 
 	qps = calculateQPS(int64(45), 60*time.Second)
-	assert.Equal(t, 0.75, qps)
+	assert.InDelta(t, 0.75, qps, 0.01)
 }
 
 func TestGenerateOperationQPS(t *testing.T) {
@@ -231,7 +231,7 @@ func TestCalculateWeightedQPS(t *testing.T) {
 	p := PostAggregator{weightVectorCache: NewWeightVectorCache()}
 	assert.InDelta(t, 0.86735, p.calculateWeightedQPS([]float64{0.8, 1.2, 1.0}), 0.001)
 	assert.InDelta(t, 0.95197, p.calculateWeightedQPS([]float64{1.0, 1.0, 0.0, 0.0}), 0.001)
-	assert.Equal(t, 0.0, p.calculateWeightedQPS([]float64{}))
+	assert.InDelta(t, 0.0, p.calculateWeightedQPS([]float64{}), 0.01)
 }
 
 func TestCalculateProbability(t *testing.T) {
@@ -278,7 +278,7 @@ func TestCalculateProbability(t *testing.T) {
 	}
 	for _, test := range tests {
 		probability := p.calculateProbability(test.service, test.operation, test.qps)
-		assert.Equal(t, test.expectedProbability, probability, test.errMsg)
+		assert.InDelta(t, test.expectedProbability, probability, 1e-6, test.errMsg)
 	}
 }
 

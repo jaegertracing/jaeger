@@ -30,7 +30,7 @@ type ConfigV2 struct {
 
 func DefaultConfigV2() ConfigV2 {
 	return ConfigV2{
-		TimeoutSettings: exporterhelper.TimeoutSettings{
+		TimeoutSettings: exporterhelper.TimeoutConfig{
 			Timeout: defaultConnectionTimeout,
 		},
 	}
@@ -42,7 +42,7 @@ func (c *Configuration) TranslateToConfigV2() *ConfigV2 {
 			Endpoint:   c.RemoteServerAddr,
 			TLSSetting: c.RemoteTLS.ToOtelClientConfig(),
 		},
-		TimeoutSettings: exporterhelper.TimeoutSettings{
+		TimeoutSettings: exporterhelper.TimeoutConfig{
 			Timeout: c.RemoteConnectTimeout,
 		},
 	}

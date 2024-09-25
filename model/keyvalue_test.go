@@ -21,7 +21,7 @@ func TestKeyValueString(t *testing.T) {
 	assert.Equal(t, "y", kv.VStr)
 	assert.False(t, kv.Bool())
 	assert.Equal(t, int64(0), kv.Int64())
-	assert.Equal(t, float64(0), kv.Float64())
+	assert.InDelta(t, float64(0), kv.Float64(), 0.01)
 	assert.Nil(t, kv.Binary())
 }
 
@@ -43,7 +43,7 @@ func TestKeyValueFloat64(t *testing.T) {
 	kv := model.Float64("x", 123.345)
 	assert.Equal(t, "x", kv.Key)
 	assert.Equal(t, model.Float64Type, kv.VType)
-	assert.Equal(t, 123.345, kv.Float64())
+	assert.InDelta(t, 123.345, kv.Float64(), 1e-4)
 }
 
 func TestKeyValueBinary(t *testing.T) {

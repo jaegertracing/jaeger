@@ -179,6 +179,7 @@ func NewClient(c *Configuration, logger *zap.Logger, metricsFactory metrics.Fact
 			}
 		}
 		logger.Info("Elasticsearch detected", zap.Int("version", esVersion))
+		//nolint: gosec // G115
 		c.Version = uint(esVersion)
 	}
 

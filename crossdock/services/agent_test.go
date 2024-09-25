@@ -48,7 +48,7 @@ func TestGetSamplingRateInternal(t *testing.T) {
 		if test.shouldErr {
 			require.EqualError(t, err, errSamplingRateMissing.Error())
 		}
-		assert.EqualValues(t, test.rate, rate)
+		assert.InDelta(t, test.rate, rate, 0.01)
 	}
 }
 
@@ -89,7 +89,7 @@ func TestGetSamplingRate(t *testing.T) {
 	agent = NewAgentService(server.URL, zap.NewNop())
 	rate, err := agent.GetSamplingRate("svc", "op")
 	require.NoError(t, err)
-	assert.EqualValues(t, 1, rate)
+	assert.InDelta(t, 1.0, rate, 0.01)
 
 	_, err = agent.GetSamplingRate("bad_svc", "op")
 	require.Error(t, err)

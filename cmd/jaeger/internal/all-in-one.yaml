@@ -1,5 +1,5 @@
 service:
-  extensions: [jaeger_storage, jaeger_query, remote_sampling, healthcheckv2]
+  extensions: [jaeger_storage, jaeger_query, remote_sampling, healthcheckv2, expvar]
   pipelines:
     traces:
       receivers: [otlp, jaeger, zipkin]
@@ -16,7 +16,8 @@ service:
 
 extensions:
   jaeger_query:
-    trace_storage: some_storage
+    storage:
+      traces: some_storage
 
   jaeger_storage:
     backends:
@@ -33,12 +34,15 @@ extensions:
     #   initial_sampling_probability: 0.1
     http:
     grpc:
-  
+
   healthcheckv2:
     use_v2: true
     http:
       endpoint: "0.0.0.0:13133"
     grpc:
+
+  expvar:
+    port: 27777
 
 receivers:
   otlp:

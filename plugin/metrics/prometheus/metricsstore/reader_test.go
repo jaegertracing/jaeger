@@ -501,13 +501,13 @@ func TestGetErrorRatesZero(t *testing.T) {
 		defer r.Body.Close()
 
 		u, err := url.Parse("http://" + r.Host + r.RequestURI + "?" + string(body))
-		require.NoError(t, err)
-
-		q := u.Query()
-		promQuery := q.Get("query")
-		assert.Equal(t, wantPromQLQueries[callCount], promQuery)
-		sendResponse(t, w, responses[callCount])
-		callCount++
+		if assert.NoError(t, err) {
+			q := u.Query()
+			promQuery := q.Get("query")
+			assert.Equal(t, wantPromQLQueries[callCount], promQuery)
+			sendResponse(t, w, responses[callCount])
+			callCount++
+		}
 	}))
 
 	logger := zap.NewNop()
@@ -564,7 +564,7 @@ func TestGetErrorRatesNull(t *testing.T) {
 		defer r.Body.Close()
 
 		u, err := url.Parse("http://" + r.Host + r.RequestURI + "?" + string(body))
-		require.NoError(t, err)
+		assert.NoError(t, err)
 
 		q := u.Query()
 		promQuery := q.Get("query")
@@ -635,7 +635,7 @@ func TestGetErrorRatesErrors(t *testing.T) {
 				defer r.Body.Close()
 
 				u, err := url.Parse("http://" + r.Host + r.RequestURI + "?" + string(body))
-				require.NoError(t, err)
+				assert.NoError(t, err)
 
 				q := u.Query()
 				promQuery := q.Get("query")
@@ -879,7 +879,7 @@ func startMockPrometheusServer(t *testing.T, wantPromQlQuery string, wantWarning
 		defer r.Body.Close()
 
 		u, err := url.Parse("http://" + r.Host + r.RequestURI + "?" + string(body))
-		require.NoError(t, err)
+		assert.NoError(t, err)
 
 		q := u.Query()
 		promQuery := q.Get("query")
@@ -961,7 +961,7 @@ func assertMetrics(t *testing.T, gotMetrics *metrics.MetricFamily, wantLabels ma
 	assert.Equal(t, int64(1620351786), mps[0].Timestamp.GetSeconds())
 
 	actualVal := mps[0].Value.(*metrics.MetricPoint_GaugeValue).GaugeValue.Value.(*metrics.GaugeValue_DoubleValue).DoubleValue
-	assert.Equal(t, float64(9223372036854), actualVal)
+	assert.InDelta(t, float64(9223372036854), actualVal, 0.01)
 }
 
 func TestMain(m *testing.M) {
