@@ -36,12 +36,11 @@ var (
 
 // RegisterStaticHandler adds handler for static assets to the router.
 func RegisterStaticHandler(r *mux.Router, logger *zap.Logger, qOpts *QueryOptions, qCapabilities querysvc.StorageCapabilities) io.Closer {
-	staticHandler, err := NewStaticAssetsHandler(qOpts.StaticAssets.Path, StaticAssetsHandlerOptions{
+	staticHandler, err := NewStaticAssetsHandler(qOpts.UIConfig.AssetsPath, StaticAssetsHandlerOptions{
+		UIConfig:            qOpts.UIConfig,
 		BasePath:            qOpts.BasePath,
-		UIConfigPath:        qOpts.UIConfig,
 		StorageCapabilities: qCapabilities,
 		Logger:              logger,
-		LogAccess:           qOpts.StaticAssets.LogAccess,
 	})
 	if err != nil {
 		logger.Panic("Could not create static assets handler", zap.Error(err))
@@ -62,9 +61,8 @@ type StaticAssetsHandler struct {
 
 // StaticAssetsHandlerOptions defines options for NewStaticAssetsHandler
 type StaticAssetsHandlerOptions struct {
+	UIConfig
 	BasePath            string
-	UIConfigPath        string
-	LogAccess           bool
 	StorageCapabilities querysvc.StorageCapabilities
 	Logger              *zap.Logger
 }
@@ -91,8 +89,8 @@ func NewStaticAssetsHandler(staticAssetsRoot string, options StaticAssetsHandler
 		return nil, err
 	}
 
-	options.Logger.Info("Using UI configuration", zap.String("path", options.UIConfigPath))
-	watcher, err := fswatcher.New([]string{options.UIConfigPath}, h.reloadUIConfig, h.options.Logger)
+	options.Logger.Info("Using UI configuration", zap.String("path", options.ConfigFile))
+	watcher, err := fswatcher.New([]string{options.ConfigFile}, h.reloadUIConfig, h.options.Logger)
 	if err != nil {
 		return nil, err
 	}
@@ -109,7 +107,7 @@ func (sH *StaticAssetsHandler) loadAndEnrichIndexHTML(open func(string) (http.Fi
 		return nil, fmt.Errorf("cannot load index.html: %w", err)
 	}
 	// replace UI config
-	if configObject, err := loadUIConfig(sH.options.UIConfigPath); err != nil {
+	if configObject, err := loadUIConfig(sH.options.ConfigFile); err != nil {
 		return nil, err
 	} else if configObject != nil {
 		indexBytes = configObject.regexp.ReplaceAll(indexBytes, configObject.config)
@@ -137,13 +135,13 @@ func (sH *StaticAssetsHandler) loadAndEnrichIndexHTML(open func(string) (http.Fi
 }
 
 func (sH *StaticAssetsHandler) reloadUIConfig() {
-	sH.options.Logger.Info("reloading UI config", zap.String("filename", sH.options.UIConfigPath))
+	sH.options.Logger.Info("reloading UI config", zap.String("filename", sH.options.ConfigFile))
 	content, err := sH.loadAndEnrichIndexHTML(sH.assetsFS.Open)
 	if err != nil {
 		sH.options.Logger.Error("error while reloading the UI config", zap.Error(err))
 	}
 	sH.indexHTML.Store(content)
-	sH.options.Logger.Info("reloaded UI config", zap.String("filename", sH.options.UIConfigPath))
+	sH.options.Logger.Info("reloaded UI config", zap.String("filename", sH.options.ConfigFile))
 }
 
 func loadIndexHTML(open func(string) (http.File, error)) ([]byte, error) {

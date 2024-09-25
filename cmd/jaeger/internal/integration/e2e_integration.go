@@ -126,7 +126,7 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
 			Path: "./cmd/jaeger/jaeger",
 			Args: []string{"jaeger", "--config", configFile},
 			// Change the working directory to the root of this project
-			// since the binary config file jaeger_query's ui_config points to
+			// since the binary config file jaeger_query's ui.config_file points to
 			// "./cmd/jaeger/config-ui.json"
 			Dir: "../../../..",
 		},
@@ -223,7 +223,9 @@ func createStorageCleanerConfig(t *testing.T, configFile string, storage string)
 	extensions := extensionsAny.(map[string]any)
 	queryAny, ok := extensions["jaeger_query"]
 	require.True(t, ok)
-	traceStorageAny, ok := queryAny.(map[string]any)["trace_storage"]
+	storageAny, ok := queryAny.(map[string]any)["storage"]
+	require.True(t, ok)
+	traceStorageAny, ok := storageAny.(map[string]any)["traces"]
 	require.True(t, ok)
 	traceStorage := traceStorageAny.(string)
 	extensions["storage_cleaner"] = map[string]string{"trace_storage": traceStorage}

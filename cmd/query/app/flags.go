@@ -48,39 +48,37 @@ var tlsHTTPFlagsConfig = tlscfg.ServerFlagsConfig{
 	Prefix: "query.http",
 }
 
-// QueryOptionsStaticAssets contains configuration for handling static assets
-type QueryOptionsStaticAssets struct {
-	// Path is the path for the static assets for the UI (https://github.com/uber/jaeger-ui)
-	Path string `valid:"optional" mapstructure:"path"`
-	// LogAccess tells static handler to log access to static assets, useful in debugging
-	LogAccess bool `valid:"optional" mapstructure:"log_access"`
+type UIConfig struct {
+	// ConfigFile is the path to a configuration file for the UI.
+	ConfigFile string `mapstructure:"config_file" valid:"optional"`
+	// AssetsPath is the path for the static assets for the UI (https://github.com/uber/jaeger-ui).
+	AssetsPath string `mapstructure:"assets_path" valid:"optional" `
+	// LogAccess tells static handler to log access to static assets, useful in debugging.
+	LogAccess bool `mapstructure:"log_access" valid:"optional"`
 }
 
-// QueryOptionsBase holds configuration for query service shared with jaeger(v2)
+// QueryOptionsBase holds configuration for query service shared with jaeger-v2
 type QueryOptionsBase struct {
-	// BasePath is the base path for all HTTP routes
-	BasePath string
-
-	StaticAssets QueryOptionsStaticAssets `valid:"optional" mapstructure:"static_assets"`
-
-	// UIConfig is the path to a configuration file for the UI
-	UIConfig string `valid:"optional" mapstructure:"ui_config"`
-	// BearerTokenPropagation activate/deactivate bearer token propagation to storage
-	BearerTokenPropagation bool
-	// AdditionalHeaders
-	AdditionalHeaders http.Header
-	// MaxClockSkewAdjust is the maximum duration by which jaeger-query will adjust a span
-	MaxClockSkewAdjust time.Duration
-	// Tenancy configures tenancy for query
-	Tenancy tenancy.Options
+	// BasePath is the base path for all HTTP routes.
+	BasePath string `mapstructure:"base_path"`
+	// UIConfig contains configuration related to the Jaeger UIConfig.
+	UIConfig UIConfig `mapstructure:"ui"`
+	// BearerTokenPropagation activate/deactivate bearer token propagation to storage.
+	BearerTokenPropagation bool `mapstructure:"bearer_token_propagation"`
+	// Tenancy holds the multi-tenancy configuration.
+	Tenancy tenancy.Options `mapstructure:"multi_tenancy"`
+	// MaxClockSkewAdjust is the maximum duration by which jaeger-query will adjust a span.
+	MaxClockSkewAdjust time.Duration `mapstructure:"max_clock_skew_adjust"  valid:"optional"`
 	// EnableTracing determines whether traces will be emitted by jaeger-query.
-	EnableTracing bool
+	EnableTracing bool `mapstructure:"enable_tracing"`
 }
 
 // QueryOptions holds configuration for query service
 type QueryOptions struct {
 	QueryOptionsBase
 
+	// AdditionalHeaders
+	AdditionalHeaders http.Header
 	// HTTPHostPort is the host:port address that the query service listens in on for http requests
 	HTTPHostPort string
 	// GRPCHostPort is the host:port address that the query service listens in on for gRPC requests
@@ -122,9 +120,9 @@ func (qOpts *QueryOptions) InitFromViper(v *viper.Viper, logger *zap.Logger) (*Q
 	}
 	qOpts.TLSHTTP = tlsHTTP
 	qOpts.BasePath = v.GetString(queryBasePath)
-	qOpts.StaticAssets.Path = v.GetString(queryStaticFiles)
-	qOpts.StaticAssets.LogAccess = v.GetBool(queryLogStaticAssetsAccess)
-	qOpts.UIConfig = v.GetString(queryUIConfig)
+	qOpts.UIConfig.AssetsPath = v.GetString(queryStaticFiles)
+	qOpts.UIConfig.LogAccess = v.GetBool(queryLogStaticAssetsAccess)
+	qOpts.UIConfig.ConfigFile = v.GetString(queryUIConfig)
 	qOpts.BearerTokenPropagation = v.GetBool(queryTokenPropagation)
 
 	qOpts.MaxClockSkewAdjust = v.GetDuration(queryMaxClockSkewAdjust)
