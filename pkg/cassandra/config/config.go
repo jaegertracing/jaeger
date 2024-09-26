@@ -189,11 +189,11 @@ func (c *Configuration) NewCluster() (*gocql.ClusterConfig, error) {
 			AllowedAuthenticators: c.Connection.Authenticator.Basic.AllowedAuthenticators,
 		}
 	}
-	tlsCfg, err := c.Connection.TLS.LoadTLSConfig(context.Background())
-	if err != nil {
-		return nil, err
-	}
 	if !c.Connection.TLS.Insecure {
+		tlsCfg, err := c.Connection.TLS.LoadTLSConfig(context.Background())
+		if err != nil {
+			return nil, err
+		}
 		cluster.SslOpts = &gocql.SslOptions{
 			Config: tlsCfg,
 		}
