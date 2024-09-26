@@ -137,14 +137,14 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 	f.archiveMetricsFactory = metricsFactory.Namespace(metrics.NSOptions{Name: "cassandra-archive", Tags: nil})
 	f.logger = logger
 
-	primarySession, err := f.primaryConfig.NewSession(logger)
+	primarySession, err := f.primaryConfig.NewSession()
 	if err != nil {
 		return err
 	}
 	f.primarySession = primarySession
 
 	if f.archiveConfig != nil {
-		archiveSession, err := f.archiveConfig.NewSession(logger)
+		archiveSession, err := f.archiveConfig.NewSession()
 		if err != nil {
 			return err
 		}
@@ -251,12 +251,7 @@ func (f *Factory) Close() error {
 		f.archiveSession.Close()
 	}
 
-	var errs []error
-	if cfg := f.Options.Get(archiveStorageConfig); cfg != nil {
-		errs = append(errs, cfg.TLS.Close())
-	}
-	errs = append(errs, f.Options.GetPrimary().TLS.Close())
-	return errors.Join(errs...)
+	return nil
 }
 
 func (f *Factory) Purge(_ context.Context) error {
