@@ -6,6 +6,8 @@ package config
 import (
 	"testing"
 
+	"github.com/crossdock/crossdock-go/assert"
+	"github.com/gocql/gocql"
 	"github.com/stretchr/testify/require"
 )
 
@@ -45,4 +47,50 @@ func TestValidate_DoesNotReturnErrorWhenRequiredFieldsSet(t *testing.T) {
 
 	err := cfg.Validate()
 	require.NoError(t, err)
+}
+
+func TestNewClusterWithDefaults(t *testing.T) {
+	cfg := DefaultConfiguration()
+	cl, err := cfg.NewCluster()
+	require.NoError(t, err)
+	assert.NotEmpty(t, cl.Keyspace)
+}
+
+func TestNewClusterWithOverrides(t *testing.T) {
+	cfg := DefaultConfiguration()
+	cfg.Query.Consistency = "LOCAL_QUORUM"
+	cfg.Connection.LocalDC = "local_dc"
+	cfg.Connection.Authenticator.Basic.Username = "username"
+	cfg.Connection.Authenticator.Basic.Password = "password"
+	cfg.Connection.TLS.Insecure = false
+	cfg.Connection.DisableAutoDiscovery = true
+	cl, err := cfg.NewCluster()
+	require.NoError(t, err)
+	assert.NotEmpty(t, cl.Keyspace)
+	assert.Equal(t, cl.Consistency, gocql.LocalQuorum)
+	assert.NotNil(t, cl.PoolConfig.HostSelectionPolicy, "local_dc")
+	require.IsType(t, gocql.PasswordAuthenticator{}, cl.Authenticator)
+	auth := cl.Authenticator.(gocql.PasswordAuthenticator)
+	assert.Equal(t, auth.Username, "username")
+	assert.Equal(t, auth.Password, "password")
+	assert.NotNil(t, cl.SslOpts)
+	assert.True(t, cl.DisableInitialHostLookup)
+}
+
+func TestApplyDefaults(t *testing.T) {
+	cfg1 := DefaultConfiguration()
+	cfg2 := Configuration{}
+	cfg2.ApplyDefaults(&cfg1)
+	assert.Equal(t, cfg2.Schema, cfg1.Schema)
+	assert.Equal(t, cfg2.Query, cfg1.Query)
+	assert.NotEqual(t, cfg2.Connection.Servers, cfg1.Connection.Servers, "servers not copied")
+	cfg1.Connection.Servers = nil
+	assert.Equal(t, cfg2.Connection, cfg1.Connection)
+}
+
+func TestToString(t *testing.T) {
+	cfg := DefaultConfiguration()
+	cfg.Schema.Keyspace = "test"
+	s := cfg.String()
+	assert.Contains(t, s, "Keyspace:test")
 }
