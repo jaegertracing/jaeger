@@ -234,7 +234,8 @@ var testCases = []struct {
 			Config: configtls.Config{
 				CAFile:   testCertKeyLocation + "/example-CA-cert.pem",
 				CertFile: testCertKeyLocation + "/example-client-cert.pem",
-				KeyFile:  testCertKeyLocation + "/example-client-key.pem"},
+				KeyFile:  testCertKeyLocation + "/example-client-key.pem",
+			},
 		},
 		expectError:       false,
 		expectServerFail:  false,
@@ -258,7 +259,8 @@ var testCases = []struct {
 			Config: configtls.Config{
 				CAFile:   testCertKeyLocation + "/example-CA-cert.pem",
 				CertFile: testCertKeyLocation + "/example-client-cert.pem",
-				KeyFile:  testCertKeyLocation + "/example-client-key.pem"},
+				KeyFile:  testCertKeyLocation + "/example-client-key.pem",
+			},
 		},
 		expectError:       false,
 		expectServerFail:  false,
@@ -281,7 +283,8 @@ var testCases = []struct {
 			Config: configtls.Config{
 				CAFile:   testCertKeyLocation + "/example-CA-cert.pem",
 				CertFile: testCertKeyLocation + "/example-client-cert.pem",
-				KeyFile:  testCertKeyLocation + "/example-client-key.pem"},
+				KeyFile:  testCertKeyLocation + "/example-client-key.pem",
+			},
 		},
 		expectError:       false,
 		expectServerFail:  false,
@@ -304,7 +307,8 @@ var testCases = []struct {
 			Config: configtls.Config{
 				CAFile:   testCertKeyLocation + "/example-CA-cert.pem",
 				CertFile: testCertKeyLocation + "/example-client-cert.pem",
-				KeyFile:  testCertKeyLocation + "/example-client-key.pem"},
+				KeyFile:  testCertKeyLocation + "/example-client-key.pem",
+			},
 		},
 		expectError:       false,
 		expectServerFail:  false,
