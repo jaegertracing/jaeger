@@ -91,15 +91,13 @@ func runQueryService(t *testing.T, esURL string) *Server {
 	}
 	server, err := NewServer(querySvc, nil,
 		&QueryOptions{
-			QueryOptionsBase: QueryOptionsBase{
-				BearerTokenPropagation: true,
-				HTTP: confighttp.ServerConfig{
+			BearerTokenPropagation: true,
+			HTTP: confighttp.ServerConfig{
+				Endpoint: ":0",
+			},
+			GRPC: configgrpc.ServerConfig{
+				NetAddr: confignet.AddrConfig{
 					Endpoint: ":0",
-				},
-				GRPC: configgrpc.ServerConfig{
-					NetAddr: confignet.AddrConfig{
-						Endpoint: ":0",
-					},
 				},
 			},
 		},

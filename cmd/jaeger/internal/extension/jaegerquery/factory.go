@@ -28,7 +28,7 @@ func NewFactory() extension.Factory {
 
 func createDefaultConfig() component.Config {
 	return &Config{
-		QueryOptionsBase: app.QueryOptionsBase{
+		QueryOptions: app.QueryOptions{
 			HTTP: confighttp.ServerConfig{
 				Endpoint: ports.PortToHostPort(ports.QueryHTTP),
 			},

@@ -60,8 +60,8 @@ type UIConfig struct {
 	LogAccess bool `mapstructure:"log_access" valid:"optional"`
 }
 
-// QueryOptionsBase holds configuration for query service shared with jaeger-v2
-type QueryOptionsBase struct {
+// QueryOptions holds configuration for query service shared with jaeger-v2
+type QueryOptions struct {
 	// BasePath is the base path for all HTTP routes.
 	BasePath string `mapstructure:"base_path"`
 	// UIConfig contains configuration related to the Jaeger UIConfig.
@@ -78,22 +78,6 @@ type QueryOptionsBase struct {
 	HTTP confighttp.ServerConfig `mapstructure:"http"`
 	// GRPC holds the GRPC configuration that the query service uses to serve requests.
 	GRPC configgrpc.ServerConfig `mapstructure:"grpc"`
-}
-
-// QueryOptions holds configuration for query service
-type QueryOptions struct {
-	QueryOptionsBase
-
-	// // AdditionalHeaders
-	// AdditionalHeaders http.Header
-	// // HTTPHostPort is the host:port address that the query service listens in on for http requests
-	// HTTPHostPort string
-	// // GRPCHostPort is the host:port address that the query service listens in on for gRPC requests
-	// GRPCHostPort string
-	// // TLSGRPC configures secure transport (Consumer to Query service GRPC API)
-	// TLSGRPC tlscfg.Options
-	// // TLSHTTP configures secure transport (Consumer to Query service HTTP API)
-	// TLSHTTP tlscfg.Options
 }
 
 // AddFlags adds flags for QueryOptions

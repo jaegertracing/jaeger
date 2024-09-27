@@ -53,9 +53,7 @@ func initTelSet(logger *zap.Logger, tracerProvider *jtracer.JTracer, hc *healthc
 func TestServerError(t *testing.T) {
 	srv := &Server{
 		queryOptions: &QueryOptions{
-			QueryOptionsBase: QueryOptionsBase{
-				HTTP: confighttp.ServerConfig{Endpoint: ":-1"},
-			},
+			HTTP: confighttp.ServerConfig{Endpoint: ":-1"},
 		},
 	}
 	require.Error(t, srv.Start())
@@ -73,10 +71,8 @@ func TestCreateTLSServerSinglePortError(t *testing.T) {
 	telset := initTelSet(zaptest.NewLogger(t), jtracer.NoOp(), healthcheck.New())
 	_, err := NewServer(&querysvc.QueryService{}, nil,
 		&QueryOptions{
-			QueryOptionsBase: QueryOptionsBase{
-				HTTP: confighttp.ServerConfig{Endpoint: ":8080", TLSSetting: &tlsCfg},
-				GRPC: configgrpc.ServerConfig{NetAddr: confignet.AddrConfig{Endpoint: ":8080"}, TLSSetting: &tlsCfg},
-			},
+			HTTP: confighttp.ServerConfig{Endpoint: ":8080", TLSSetting: &tlsCfg},
+			GRPC: configgrpc.ServerConfig{NetAddr: confignet.AddrConfig{Endpoint: ":8080"}, TLSSetting: &tlsCfg},
 		},
 		tenancy.NewManager(&tenancy.Options{}), telset)
 	require.Error(t, err)
@@ -93,10 +89,8 @@ func TestCreateTLSGrpcServerError(t *testing.T) {
 	telset := initTelSet(zaptest.NewLogger(t), jtracer.NoOp(), healthcheck.New())
 	_, err := NewServer(&querysvc.QueryService{}, nil,
 		&QueryOptions{
-			QueryOptionsBase: QueryOptionsBase{
-				HTTP: confighttp.ServerConfig{Endpoint: ":8080"},
-				GRPC: configgrpc.ServerConfig{NetAddr: confignet.AddrConfig{Endpoint: ":8081"}, TLSSetting: &tlsCfg},
-			},
+			HTTP: confighttp.ServerConfig{Endpoint: ":8080"},
+			GRPC: configgrpc.ServerConfig{NetAddr: confignet.AddrConfig{Endpoint: ":8081"}, TLSSetting: &tlsCfg},
 		},
 		tenancy.NewManager(&tenancy.Options{}), telset)
 	require.Error(t, err)
@@ -113,10 +107,8 @@ func TestCreateTLSHttpServerError(t *testing.T) {
 	telset := initTelSet(zaptest.NewLogger(t), jtracer.NoOp(), healthcheck.New())
 	_, err := NewServer(&querysvc.QueryService{}, nil,
 		&QueryOptions{
-			QueryOptionsBase: QueryOptionsBase{
-				HTTP: confighttp.ServerConfig{Endpoint: ":8080", TLSSetting: &tlsCfg},
-				GRPC: configgrpc.ServerConfig{NetAddr: confignet.AddrConfig{Endpoint: ":8081"}},
-			},
+			HTTP: confighttp.ServerConfig{Endpoint: ":8080", TLSSetting: &tlsCfg},
+			GRPC: configgrpc.ServerConfig{NetAddr: confignet.AddrConfig{Endpoint: ":8081"}},
 		}, tenancy.NewManager(&tenancy.Options{}), telset)
 	require.Error(t, err)
 }
@@ -377,18 +369,16 @@ func TestServerHTTPTLS(t *testing.T) {
 			}
 
 			serverOptions := &QueryOptions{
-				QueryOptionsBase: QueryOptionsBase{
-					BearerTokenPropagation: true,
-					HTTP: confighttp.ServerConfig{
-						Endpoint:   ":0",
-						TLSSetting: test.TLS,
+				BearerTokenPropagation: true,
+				HTTP: confighttp.ServerConfig{
+					Endpoint:   ":0",
+					TLSSetting: test.TLS,
+				},
+				GRPC: configgrpc.ServerConfig{
+					NetAddr: confignet.AddrConfig{
+						Endpoint: ":0",
 					},
-					GRPC: configgrpc.ServerConfig{
-						NetAddr: confignet.AddrConfig{
-							Endpoint: ":0",
-						},
-						TLSSetting: tlsGrpc,
-					},
+					TLSSetting: tlsGrpc,
 				},
 			}
 			flagsSvc := flags.NewService(ports.QueryAdminHTTP)
@@ -516,18 +506,16 @@ func TestServerGRPCTLS(t *testing.T) {
 				tlsHttp = enabledTLSCfg
 			}
 			serverOptions := &QueryOptions{
-				QueryOptionsBase: QueryOptionsBase{
-					BearerTokenPropagation: true,
-					HTTP: confighttp.ServerConfig{
-						Endpoint:   ":0",
-						TLSSetting: tlsHttp,
+				BearerTokenPropagation: true,
+				HTTP: confighttp.ServerConfig{
+					Endpoint:   ":0",
+					TLSSetting: tlsHttp,
+				},
+				GRPC: configgrpc.ServerConfig{
+					NetAddr: confignet.AddrConfig{
+						Endpoint: ":0",
 					},
-					GRPC: configgrpc.ServerConfig{
-						NetAddr: confignet.AddrConfig{
-							Endpoint: ":0",
-						},
-						TLSSetting: test.TLS,
-					},
+					TLSSetting: test.TLS,
 				},
 			}
 			flagsSvc := flags.NewService(ports.QueryAdminHTTP)
@@ -579,15 +567,13 @@ func TestServerBadHostPort(t *testing.T) {
 	telset := initTelSet(zaptest.NewLogger(t), jtracer.NoOp(), healthcheck.New())
 	_, err := NewServer(&querysvc.QueryService{}, nil,
 		&QueryOptions{
-			QueryOptionsBase: QueryOptionsBase{
-				BearerTokenPropagation: true,
-				HTTP: confighttp.ServerConfig{
-					Endpoint: "8080", // bad string, not :port
-				},
-				GRPC: configgrpc.ServerConfig{
-					NetAddr: confignet.AddrConfig{
-						Endpoint: "127.0.0.1:8081",
-					},
+			BearerTokenPropagation: true,
+			HTTP: confighttp.ServerConfig{
+				Endpoint: "8080", // bad string, not :port
+			},
+			GRPC: configgrpc.ServerConfig{
+				NetAddr: confignet.AddrConfig{
+					Endpoint: "127.0.0.1:8081",
 				},
 			},
 		},
@@ -597,15 +583,13 @@ func TestServerBadHostPort(t *testing.T) {
 
 	_, err = NewServer(&querysvc.QueryService{}, nil,
 		&QueryOptions{
-			QueryOptionsBase: QueryOptionsBase{
-				BearerTokenPropagation: true,
-				HTTP: confighttp.ServerConfig{
-					Endpoint: "127.0.0.1:8081",
-				},
-				GRPC: configgrpc.ServerConfig{
-					NetAddr: confignet.AddrConfig{
-						Endpoint: "9123", // bad string, not :port
-					},
+			BearerTokenPropagation: true,
+			HTTP: confighttp.ServerConfig{
+				Endpoint: "127.0.0.1:8081",
+			},
+			GRPC: configgrpc.ServerConfig{
+				NetAddr: confignet.AddrConfig{
+					Endpoint: "9123", // bad string, not :port
 				},
 			},
 		},
@@ -635,15 +619,13 @@ func TestServerInUseHostPort(t *testing.T) {
 				&querysvc.QueryService{},
 				nil,
 				&QueryOptions{
-					QueryOptionsBase: QueryOptionsBase{
-						BearerTokenPropagation: true,
-						HTTP: confighttp.ServerConfig{
-							Endpoint: tc.httpHostPort,
-						},
-						GRPC: configgrpc.ServerConfig{
-							NetAddr: confignet.AddrConfig{
-								Endpoint: tc.grpcHostPort,
-							},
+					BearerTokenPropagation: true,
+					HTTP: confighttp.ServerConfig{
+						Endpoint: tc.httpHostPort,
+					},
+					GRPC: configgrpc.ServerConfig{
+						NetAddr: confignet.AddrConfig{
+							Endpoint: tc.grpcHostPort,
 						},
 					},
 				},
@@ -665,15 +647,13 @@ func TestServerSinglePort(t *testing.T) {
 	telset := initTelSet(flagsSvc.Logger, jtracer.NoOp(), flagsSvc.HC())
 	server, err := NewServer(querySvc.qs, nil,
 		&QueryOptions{
-			QueryOptionsBase: QueryOptionsBase{
-				BearerTokenPropagation: true,
-				HTTP: confighttp.ServerConfig{
+			BearerTokenPropagation: true,
+			HTTP: confighttp.ServerConfig{
+				Endpoint: hostPort,
+			},
+			GRPC: configgrpc.ServerConfig{
+				NetAddr: confignet.AddrConfig{
 					Endpoint: hostPort,
-				},
-				GRPC: configgrpc.ServerConfig{
-					NetAddr: confignet.AddrConfig{
-						Endpoint: hostPort,
-					},
 				},
 			},
 		},
@@ -712,14 +692,12 @@ func TestServerGracefulExit(t *testing.T) {
 	telset := initTelSet(flagsSvc.Logger, jtracer.NoOp(), flagsSvc.HC())
 	server, err := NewServer(querySvc.qs, nil,
 		&QueryOptions{
-			QueryOptionsBase: QueryOptionsBase{
-				HTTP: confighttp.ServerConfig{
+			HTTP: confighttp.ServerConfig{
+				Endpoint: hostPort,
+			},
+			GRPC: configgrpc.ServerConfig{
+				NetAddr: confignet.AddrConfig{
 					Endpoint: hostPort,
-				},
-				GRPC: configgrpc.ServerConfig{
-					NetAddr: confignet.AddrConfig{
-						Endpoint: hostPort,
-					},
 				},
 			},
 		},
@@ -756,14 +734,12 @@ func TestServerHandlesPortZero(t *testing.T) {
 	telset := initTelSet(flagsSvc.Logger, jtracer.NoOp(), flagsSvc.HC())
 	server, err := NewServer(querySvc, nil,
 		&QueryOptions{
-			QueryOptionsBase: QueryOptionsBase{
-				HTTP: confighttp.ServerConfig{
+			HTTP: confighttp.ServerConfig{
+				Endpoint: ":0",
+			},
+			GRPC: configgrpc.ServerConfig{
+				NetAddr: confignet.AddrConfig{
 					Endpoint: ":0",
-				},
-				GRPC: configgrpc.ServerConfig{
-					NetAddr: confignet.AddrConfig{
-						Endpoint: ":0",
-					},
 				},
 			},
 		},
@@ -807,16 +783,14 @@ func TestServerHTTPTenancy(t *testing.T) {
 	}
 
 	serverOptions := &QueryOptions{
-		QueryOptionsBase: QueryOptionsBase{
-			Tenancy: tenancy.Options{
-				Enabled: true,
-			}, HTTP: confighttp.ServerConfig{
+		Tenancy: tenancy.Options{
+			Enabled: true,
+		}, HTTP: confighttp.ServerConfig{
+			Endpoint: ":8080",
+		},
+		GRPC: configgrpc.ServerConfig{
+			NetAddr: confignet.AddrConfig{
 				Endpoint: ":8080",
-			},
-			GRPC: configgrpc.ServerConfig{
-				NetAddr: confignet.AddrConfig{
-					Endpoint: ":8080",
-				},
 			},
 		},
 	}

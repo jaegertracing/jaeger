@@ -14,7 +14,7 @@ var _ component.ConfigValidator = (*Config)(nil)
 
 // Config represents the configuration for jaeger-query,
 type Config struct {
-	queryApp.QueryOptionsBase `mapstructure:",squash"`
+	queryApp.QueryOptions `mapstructure:",squash"`
 	// Storage holds configuration related to the various data stores that are to be queried.
 	Storage Storage `mapstructure:"storage"`
 }
