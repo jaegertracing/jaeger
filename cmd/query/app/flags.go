@@ -16,6 +16,9 @@ import (
 	"time"
 
 	"github.com/spf13/viper"
+	"go.opentelemetry.io/collector/config/configgrpc"
+	"go.opentelemetry.io/collector/config/confighttp"
+	"go.opentelemetry.io/collector/config/configopaque"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
@@ -71,22 +74,26 @@ type QueryOptionsBase struct {
 	MaxClockSkewAdjust time.Duration `mapstructure:"max_clock_skew_adjust"  valid:"optional"`
 	// EnableTracing determines whether traces will be emitted by jaeger-query.
 	EnableTracing bool `mapstructure:"enable_tracing"`
+	// HTTP holds the HTTP configuration that the query service uses to serve requests.
+	HTTP confighttp.ServerConfig `mapstructure:"http"`
+	// GRPC holds the GRPC configuration that the query service uses to serve requests.
+	GRPC configgrpc.ServerConfig `mapstructure:"grpc"`
 }
 
 // QueryOptions holds configuration for query service
 type QueryOptions struct {
 	QueryOptionsBase
 
-	// AdditionalHeaders
-	AdditionalHeaders http.Header
-	// HTTPHostPort is the host:port address that the query service listens in on for http requests
-	HTTPHostPort string
-	// GRPCHostPort is the host:port address that the query service listens in on for gRPC requests
-	GRPCHostPort string
-	// TLSGRPC configures secure transport (Consumer to Query service GRPC API)
-	TLSGRPC tlscfg.Options
-	// TLSHTTP configures secure transport (Consumer to Query service HTTP API)
-	TLSHTTP tlscfg.Options
+	// // AdditionalHeaders
+	// AdditionalHeaders http.Header
+	// // HTTPHostPort is the host:port address that the query service listens in on for http requests
+	// HTTPHostPort string
+	// // GRPCHostPort is the host:port address that the query service listens in on for gRPC requests
+	// GRPCHostPort string
+	// // TLSGRPC configures secure transport (Consumer to Query service GRPC API)
+	// TLSGRPC tlscfg.Options
+	// // TLSHTTP configures secure transport (Consumer to Query service HTTP API)
+	// TLSHTTP tlscfg.Options
 }
 
 // AddFlags adds flags for QueryOptions
@@ -107,18 +114,20 @@ func AddFlags(flagSet *flag.FlagSet) {
 
 // InitFromViper initializes QueryOptions with properties from viper
 func (qOpts *QueryOptions) InitFromViper(v *viper.Viper, logger *zap.Logger) (*QueryOptions, error) {
-	qOpts.HTTPHostPort = v.GetString(queryHTTPHostPort)
-	qOpts.GRPCHostPort = v.GetString(queryGRPCHostPort)
+	qOpts.HTTP.Endpoint = v.GetString(queryHTTPHostPort)
+	qOpts.GRPC.NetAddr.Endpoint = v.GetString(queryGRPCHostPort)
 	tlsGrpc, err := tlsGRPCFlagsConfig.InitFromViper(v)
 	if err != nil {
 		return qOpts, fmt.Errorf("failed to process gRPC TLS options: %w", err)
 	}
-	qOpts.TLSGRPC = tlsGrpc
+	otelTLSCfg := tlsGrpc.ToOtelServerConfig()
+	qOpts.GRPC.TLSSetting = &otelTLSCfg
 	tlsHTTP, err := tlsHTTPFlagsConfig.InitFromViper(v)
 	if err != nil {
 		return qOpts, fmt.Errorf("failed to process HTTP TLS options: %w", err)
 	}
-	qOpts.TLSHTTP = tlsHTTP
+	otelHTTPCfg := tlsHTTP.ToOtelServerConfig()
+	qOpts.HTTP.TLSSetting = &otelHTTPCfg
 	qOpts.BasePath = v.GetString(queryBasePath)
 	qOpts.UIConfig.AssetsPath = v.GetString(queryStaticFiles)
 	qOpts.UIConfig.LogAccess = v.GetBool(queryLogStaticAssetsAccess)
@@ -131,7 +140,7 @@ func (qOpts *QueryOptions) InitFromViper(v *viper.Viper, logger *zap.Logger) (*Q
 	if err != nil {
 		logger.Error("Failed to parse headers", zap.Strings("slice", stringSlice), zap.Error(err))
 	} else {
-		qOpts.AdditionalHeaders = headers
+		qOpts.HTTP.ResponseHeaders = mapHTTPHeaderToOTELHeaders(headers)
 	}
 	qOpts.Tenancy = tenancy.InitFromViper(v)
 	qOpts.EnableTracing = v.GetBool(queryEnableTracing)
@@ -168,4 +177,13 @@ func stringSliceAsHeader(slice []string) (http.Header, error) {
 	}
 
 	return http.Header(header), nil
+}
+
+func mapHTTPHeaderToOTELHeaders(h http.Header) map[string]configopaque.String {
+	otelHeaders := make(map[string]configopaque.String)
+	for key, values := range h {
+		otelHeaders[key] = configopaque.String(strings.Join(values, ","))
+	}
+
+	return otelHeaders
 }

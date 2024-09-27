@@ -6,8 +6,6 @@ package jaegerquery
 import (
 	"github.com/asaskevich/govalidator"
 	"go.opentelemetry.io/collector/component"
-	"go.opentelemetry.io/collector/config/configgrpc"
-	"go.opentelemetry.io/collector/config/confighttp"
 
 	queryApp "github.com/jaegertracing/jaeger/cmd/query/app"
 )
@@ -19,10 +17,6 @@ type Config struct {
 	queryApp.QueryOptionsBase `mapstructure:",squash"`
 	// Storage holds configuration related to the various data stores that are to be queried.
 	Storage Storage `mapstructure:"storage"`
-	// HTTP holds the HTTP configuration that the query service uses to serve requests.
-	HTTP confighttp.ServerConfig `mapstructure:"http"`
-	// GRPC holds the GRPC configuration that the query service uses to serve requests.
-	GRPC configgrpc.ServerConfig `mapstructure:"grpc"`
 }
 
 type Storage struct {

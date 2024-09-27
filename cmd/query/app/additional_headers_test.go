@@ -10,14 +10,15 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/config/configopaque"
 )
 
 func TestAdditionalHeadersHandler(t *testing.T) {
-	additionalHeaders := http.Header{}
-	additionalHeaders.Add("Access-Control-Allow-Origin", "https://mozilla.org")
-	additionalHeaders.Add("Access-Control-Expose-Headers", "X-My-Custom-Header")
-	additionalHeaders.Add("Access-Control-Expose-Headers", "X-Another-Custom-Header")
-	additionalHeaders.Add("Access-Control-Request-Headers", "field1, field2")
+	additionalHeaders := make(map[string]configopaque.String)
+	additionalHeaders["Access-Control-Allow-Origin"] = "https://mozilla.org"
+	additionalHeaders["Access-Control-Expose-Headers"] = "X-My-Custom-Header"
+	additionalHeaders["Access-Control-Expose-Headers"] = "X-Another-Custom-Header"
+	additionalHeaders["Access-Control-Request-Headers"] = "field1, field2"
 
 	emptyHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Write([]byte{})
@@ -34,6 +35,6 @@ func TestAdditionalHeadersHandler(t *testing.T) {
 	require.NoError(t, err)
 
 	for k, v := range additionalHeaders {
-		assert.Equal(t, v, resp.Header[k])
+		assert.Equal(t, []string{v.String()}, resp.Header[k])
 	}
 }
