@@ -10,6 +10,9 @@ import (
 
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componentstatus"
+	"go.opentelemetry.io/collector/config/configgrpc"
+	"go.opentelemetry.io/collector/config/confighttp"
+	"go.opentelemetry.io/collector/config/confignet"
 	"go.opentelemetry.io/collector/extension"
 	"go.opentelemetry.io/collector/extension/extensioncapabilities"
 
@@ -159,8 +162,17 @@ func (s *server) createMetricReader(host component.Host) (metricsstore.Reader, e
 }
 
 func (s *server) makeQueryOptions() *queryApp.QueryOptions {
-	// TODO handle TLS
-	return &s.config.QueryOptions
+	return &queryApp.QueryOptions{
+		HTTP: confighttp.ServerConfig{
+			Endpoint: s.config.HTTP.Endpoint,
+		},
+		GRPC: configgrpc.ServerConfig{
+			NetAddr: confignet.AddrConfig{
+				Endpoint: s.config.GRPC.NetAddr.Endpoint,
+			},
+		},
+		// TODO handle TLS
+	}
 }
 
 func (s *server) Shutdown(ctx context.Context) error {
