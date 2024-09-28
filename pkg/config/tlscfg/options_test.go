@@ -270,7 +270,7 @@ func TestToOtelServerConfig(t *testing.T) {
 			},
 		},
 		{
-			name: "overrides set",
+			name: "with reload interval",
 			options: Options{
 				Enabled:        true,
 				ClientCAPath:   "path/to/client/ca.pem",
