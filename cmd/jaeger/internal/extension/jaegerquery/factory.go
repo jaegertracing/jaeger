@@ -12,6 +12,7 @@ import (
 	"go.opentelemetry.io/collector/config/confignet"
 	"go.opentelemetry.io/collector/extension"
 
+	"github.com/jaegertracing/jaeger/cmd/query/app"
 	"github.com/jaegertracing/jaeger/ports"
 )
 
@@ -27,13 +28,15 @@ func NewFactory() extension.Factory {
 
 func createDefaultConfig() component.Config {
 	return &Config{
-		HTTP: confighttp.ServerConfig{
-			Endpoint: ports.PortToHostPort(ports.QueryHTTP),
-		},
-		GRPC: configgrpc.ServerConfig{
-			NetAddr: confignet.AddrConfig{
-				Endpoint:  ports.PortToHostPort(ports.QueryGRPC),
-				Transport: confignet.TransportTypeTCP,
+		QueryOptions: app.QueryOptions{
+			HTTP: confighttp.ServerConfig{
+				Endpoint: ports.PortToHostPort(ports.QueryHTTP),
+			},
+			GRPC: configgrpc.ServerConfig{
+				NetAddr: confignet.AddrConfig{
+					Endpoint:  ports.PortToHostPort(ports.QueryGRPC),
+					Transport: confignet.TransportTypeTCP,
+				},
 			},
 		},
 	}
