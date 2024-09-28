@@ -236,11 +236,19 @@ func TestToOtelServerConfig(t *testing.T) {
 	testCases := []struct {
 		name     string
 		options  Options
-		expected configtls.ServerConfig
+		expected *configtls.ServerConfig
 	}{
+		{
+			name: "not enabled",
+			options: Options{
+				Enabled: false,
+			},
+			expected: nil,
+		},
 		{
 			name: "default mapping",
 			options: Options{
+				Enabled:      true,
 				ClientCAPath: "path/to/client/ca.pem",
 				CAPath:       "path/to/ca.pem",
 				CertPath:     "path/to/cert.pem",
@@ -249,7 +257,7 @@ func TestToOtelServerConfig(t *testing.T) {
 				MinVersion:   "1.2",
 				MaxVersion:   "1.3",
 			},
-			expected: configtls.ServerConfig{
+			expected: &configtls.ServerConfig{
 				ClientCAFile: "path/to/client/ca.pem",
 				Config: configtls.Config{
 					CAFile:       "path/to/ca.pem",
@@ -264,6 +272,7 @@ func TestToOtelServerConfig(t *testing.T) {
 		{
 			name: "overrides set",
 			options: Options{
+				Enabled:        true,
 				ClientCAPath:   "path/to/client/ca.pem",
 				CAPath:         "path/to/ca.pem",
 				CertPath:       "path/to/cert.pem",
@@ -273,7 +282,7 @@ func TestToOtelServerConfig(t *testing.T) {
 				MaxVersion:     "1.3",
 				ReloadInterval: 24 * time.Hour,
 			},
-			expected: configtls.ServerConfig{
+			expected: &configtls.ServerConfig{
 				ClientCAFile:       "path/to/client/ca.pem",
 				ReloadClientCAFile: true,
 				Config: configtls.Config{

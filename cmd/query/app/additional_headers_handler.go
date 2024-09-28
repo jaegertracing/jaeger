@@ -9,11 +9,11 @@ import (
 	"go.opentelemetry.io/collector/config/configopaque"
 )
 
-func additionalHeadersHandler(h http.Handler, additionalHeaders map[string]configopaque.String) http.Handler {
+func responseHeadersHandler(h http.Handler, responseHeaders map[string]configopaque.String) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		header := w.Header()
-		for key, value := range additionalHeaders {
-			header[key] = []string{value.String()}
+		for key, value := range responseHeaders {
+			header.Set(key, value.String())
 		}
 
 		h.ServeHTTP(w, r)

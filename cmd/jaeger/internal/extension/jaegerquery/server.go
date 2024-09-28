@@ -159,11 +159,8 @@ func (s *server) createMetricReader(host component.Host) (metricsstore.Reader, e
 }
 
 func (s *server) makeQueryOptions() *queryApp.QueryOptions {
-	return &queryApp.QueryOptions{
-		HTTP: s.config.HTTP,
-		GRPC: s.config.GRPC,
-		// TODO handle TLS
-	}
+	// TODO handle TLS
+	return &s.config.QueryOptions
 }
 
 func (s *server) Shutdown(ctx context.Context) error {

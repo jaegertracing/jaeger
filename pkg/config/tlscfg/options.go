@@ -143,8 +143,12 @@ func (o *Options) ToOtelClientConfig() configtls.ClientConfig {
 }
 
 // ToOtelServerConfig provides a mapping between from Options to OTEL's TLS Server Configuration.
-func (o *Options) ToOtelServerConfig() configtls.ServerConfig {
-	cfg := configtls.ServerConfig{
+func (o *Options) ToOtelServerConfig() *configtls.ServerConfig {
+	if !o.Enabled {
+		return nil
+	}
+
+	cfg := &configtls.ServerConfig{
 		ClientCAFile: o.ClientCAPath,
 		Config: configtls.Config{
 			CAFile:         o.CAPath,

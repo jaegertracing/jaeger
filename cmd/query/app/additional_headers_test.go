@@ -13,18 +13,18 @@ import (
 	"go.opentelemetry.io/collector/config/configopaque"
 )
 
-func TestAdditionalHeadersHandler(t *testing.T) {
-	additionalHeaders := make(map[string]configopaque.String)
-	additionalHeaders["Access-Control-Allow-Origin"] = "https://mozilla.org"
-	additionalHeaders["Access-Control-Expose-Headers"] = "X-My-Custom-Header"
-	additionalHeaders["Access-Control-Expose-Headers"] = "X-Another-Custom-Header"
-	additionalHeaders["Access-Control-Request-Headers"] = "field1, field2"
+func TestResponseHeadersHandler(t *testing.T) {
+	responseHeaders := make(map[string]configopaque.String)
+	responseHeaders["Access-Control-Allow-Origin"] = "https://mozilla.org"
+	responseHeaders["Access-Control-Expose-Headers"] = "X-My-Custom-Header"
+	responseHeaders["Access-Control-Expose-Headers"] = "X-Another-Custom-Header"
+	responseHeaders["Access-Control-Request-Headers"] = "field1, field2"
 
 	emptyHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Write([]byte{})
 	})
 
-	handler := additionalHeadersHandler(emptyHandler, additionalHeaders)
+	handler := responseHeadersHandler(emptyHandler, responseHeaders)
 	server := httptest.NewServer(handler)
 	defer server.Close()
 
@@ -34,7 +34,7 @@ func TestAdditionalHeadersHandler(t *testing.T) {
 	resp, err := server.Client().Do(req)
 	require.NoError(t, err)
 
-	for k, v := range additionalHeaders {
+	for k, v := range responseHeaders {
 		assert.Equal(t, []string{v.String()}, resp.Header[k])
 	}
 }

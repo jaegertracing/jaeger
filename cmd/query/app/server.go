@@ -172,7 +172,7 @@ func createHTTPServer(
 
 	apiHandler.RegisterRoutes(r)
 	var handler http.Handler = r
-	handler = additionalHeadersHandler(handler, queryOpts.HTTP.ResponseHeaders)
+	handler = responseHeadersHandler(handler, queryOpts.HTTP.ResponseHeaders)
 	if queryOpts.BearerTokenPropagation {
 		handler = bearertoken.PropagationHandler(telset.Logger, handler)
 	}
