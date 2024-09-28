@@ -108,7 +108,7 @@ func (s *server) Start(_ context.Context, host component.Host) error {
 		// TODO propagate healthcheck updates up to the collector's runtime
 		qs,
 		mqs,
-		s.makeQueryOptions(),
+		&s.config.QueryOptions,
 		tm,
 		telset,
 	)
@@ -156,10 +156,6 @@ func (s *server) createMetricReader(host component.Host) (metricsstore.Reader, e
 		return nil, fmt.Errorf("cannot create metrics reader %w", err)
 	}
 	return metricsReader, err
-}
-
-func (s *server) makeQueryOptions() *queryApp.QueryOptions {
-	return &s.config.QueryOptions
 }
 
 func (s *server) Shutdown(ctx context.Context) error {
