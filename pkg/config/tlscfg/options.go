@@ -142,6 +142,32 @@ func (o *Options) ToOtelClientConfig() configtls.ClientConfig {
 	}
 }
 
+// ToOtelServerConfig provides a mapping between from Options to OTEL's TLS Server Configuration.
+func (o *Options) ToOtelServerConfig() *configtls.ServerConfig {
+	if !o.Enabled {
+		return nil
+	}
+
+	cfg := &configtls.ServerConfig{
+		ClientCAFile: o.ClientCAPath,
+		Config: configtls.Config{
+			CAFile:         o.CAPath,
+			CertFile:       o.CertPath,
+			KeyFile:        o.KeyPath,
+			CipherSuites:   o.CipherSuites,
+			MinVersion:     o.MinVersion,
+			MaxVersion:     o.MaxVersion,
+			ReloadInterval: o.ReloadInterval,
+		},
+	}
+
+	if o.ReloadInterval > 0 {
+		cfg.ReloadClientCAFile = true
+	}
+
+	return cfg
+}
+
 func addCertToPool(caPath string, certPool *x509.CertPool) error {
 	caPEM, err := os.ReadFile(filepath.Clean(caPath))
 	if err != nil {
