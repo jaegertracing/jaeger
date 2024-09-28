@@ -19,7 +19,7 @@ type TemplateApplier struct {
 }
 
 // Execute provides a mock function with given fields: wr, data
-func (_m *TemplateApplier) Execute(wr io.Writer, data interface{}) error {
+func (_m *TemplateApplier) Execute(wr io.Writer, data any) error {
 	ret := _m.Called(wr, data)
 
 	if len(ret) == 0 {
@@ -27,7 +27,7 @@ func (_m *TemplateApplier) Execute(wr io.Writer, data interface{}) error {
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(io.Writer, interface{}) error); ok {
+	if rf, ok := ret.Get(0).(func(io.Writer, any) error); ok {
 		r0 = rf(wr, data)
 	} else {
 		r0 = ret.Error(0)

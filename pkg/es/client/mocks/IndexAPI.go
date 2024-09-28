@@ -138,7 +138,7 @@ func (_m *IndexAPI) GetJaegerIndices(prefix string) ([]client.Index, error) {
 }
 
 // Rollover provides a mock function with given fields: rolloverTarget, conditions
-func (_m *IndexAPI) Rollover(rolloverTarget string, conditions map[string]interface{}) error {
+func (_m *IndexAPI) Rollover(rolloverTarget string, conditions map[string]any) error {
 	ret := _m.Called(rolloverTarget, conditions)
 
 	if len(ret) == 0 {
@@ -146,7 +146,7 @@ func (_m *IndexAPI) Rollover(rolloverTarget string, conditions map[string]interf
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(string, map[string]interface{}) error); ok {
+	if rf, ok := ret.Get(0).(func(string, map[string]any) error); ok {
 		r0 = rf(rolloverTarget, conditions)
 	} else {
 		r0 = ret.Error(0)
