@@ -18,7 +18,7 @@ type Query struct {
 }
 
 // Bind provides a mock function with given fields: v
-func (_m *Query) Bind(v ...interface{}) cassandra.Query {
+func (_m *Query) Bind(v ...any) cassandra.Query {
 	ret := _m.Called(v)
 
 	if len(ret) == 0 {
@@ -26,7 +26,7 @@ func (_m *Query) Bind(v ...interface{}) cassandra.Query {
 	}
 
 	var r0 cassandra.Query
-	if rf, ok := ret.Get(0).(func(...interface{}) cassandra.Query); ok {
+	if rf, ok := ret.Get(0).(func(...any) cassandra.Query); ok {
 		r0 = rf(v...)
 	} else {
 		if ret.Get(0) != nil {
@@ -116,7 +116,7 @@ func (_m *Query) PageSize(_a0 int) cassandra.Query {
 }
 
 // ScanCAS provides a mock function with given fields: dest
-func (_m *Query) ScanCAS(dest ...interface{}) (bool, error) {
+func (_m *Query) ScanCAS(dest ...any) (bool, error) {
 	ret := _m.Called(dest)
 
 	if len(ret) == 0 {
@@ -125,16 +125,16 @@ func (_m *Query) ScanCAS(dest ...interface{}) (bool, error) {
 
 	var r0 bool
 	var r1 error
-	if rf, ok := ret.Get(0).(func(...interface{}) (bool, error)); ok {
+	if rf, ok := ret.Get(0).(func(...any) (bool, error)); ok {
 		return rf(dest...)
 	}
-	if rf, ok := ret.Get(0).(func(...interface{}) bool); ok {
+	if rf, ok := ret.Get(0).(func(...any) bool); ok {
 		r0 = rf(dest...)
 	} else {
 		r0 = ret.Get(0).(bool)
 	}
 
-	if rf, ok := ret.Get(1).(func(...interface{}) error); ok {
+	if rf, ok := ret.Get(1).(func(...any) error); ok {
 		r1 = rf(dest...)
 	} else {
 		r1 = ret.Error(1)

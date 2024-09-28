@@ -23,7 +23,7 @@ func (_m *Session) Close() {
 }
 
 // Query provides a mock function with given fields: stmt, values
-func (_m *Session) Query(stmt string, values ...interface{}) cassandra.Query {
+func (_m *Session) Query(stmt string, values ...any) cassandra.Query {
 	ret := _m.Called(stmt, values)
 
 	if len(ret) == 0 {
@@ -31,7 +31,7 @@ func (_m *Session) Query(stmt string, values ...interface{}) cassandra.Query {
 	}
 
 	var r0 cassandra.Query
-	if rf, ok := ret.Get(0).(func(string, ...interface{}) cassandra.Query); ok {
+	if rf, ok := ret.Get(0).(func(string, ...any) cassandra.Query); ok {
 		r0 = rf(stmt, values...)
 	} else {
 		if ret.Get(0) != nil {
