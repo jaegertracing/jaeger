@@ -159,7 +159,6 @@ func (s *server) createMetricReader(host component.Host) (metricsstore.Reader, e
 }
 
 func (s *server) makeQueryOptions() *queryApp.QueryOptions {
-	// TODO handle TLS
 	return &s.config.QueryOptions
 }
 
