@@ -347,7 +347,7 @@ func (s *Server) GRPCAddr() string {
 
 // Close stops HTTP, GRPC servers and closes the port listener.
 func (s *Server) Close() error {
-	errs := []error{}
+	var errs []error
 
 	s.Logger.Info("Closing HTTP server")
 	if err := s.httpServer.Close(); err != nil {
