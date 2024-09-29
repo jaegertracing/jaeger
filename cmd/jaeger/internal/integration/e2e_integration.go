@@ -46,6 +46,12 @@ type E2EStorageIntegration struct {
 	ConfigFile          string
 	BinaryName          string
 	HealthCheckEndpoint string
+
+	// EnvVarOverrides contains a map of environment variables to set.
+	// The key in the map is the environment variable to override and the value
+	// is the value of the environment variable to set.
+	// These variables are set upon initialization and are unset upon cleanup.
+	EnvVarOverrides map[string]string
 }
 
 // Binary is a wrapper around exec.Cmd to help running binaries in tests.
@@ -107,6 +113,10 @@ func (b *Binary) Start(t *testing.T) {
 // it also initialize the SpanWriter and SpanReader below.
 // This function should be called before any of the tests start.
 func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
+	// set environment variable overrides
+	for key, value := range s.EnvVarOverrides {
+		t.Setenv(key, value)
+	}
 	logger := zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller()))
 	if s.BinaryName == "" {
 		s.BinaryName = "jaeger-v2"
