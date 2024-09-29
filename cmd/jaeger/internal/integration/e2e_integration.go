@@ -115,7 +115,7 @@ func (b *Binary) Start(t *testing.T) {
 func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
 	// set environment variable overrides
 	for key, value := range s.EnvVarOverrides {
-		os.Setenv(key, value)
+		t.Setenv(key, value)
 	}
 	logger := zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller()))
 	if s.BinaryName == "" {
@@ -156,10 +156,6 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
 	t.Cleanup(func() {
 		// Call e2eCleanUp to close the SpanReader and SpanWriter gRPC connection.
 		s.e2eCleanUp(t)
-		// unset environment variable overrides
-		for key := range s.EnvVarOverrides {
-			os.Unsetenv(key)
-		}
 	})
 }
 
