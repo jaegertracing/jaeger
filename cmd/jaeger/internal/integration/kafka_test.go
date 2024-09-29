@@ -37,7 +37,10 @@ func TestKafkaStorage(t *testing.T) {
 			// has access to the storage and allows the test to query it.
 			// We reuse E2EStorageIntegration struct to manage lifecycle of the collector,
 			// but the tests are run against the ingester.
-			envVarOverrides := map[string]string{"KAFKA_TOPIC": uniqueTopic, "KAFKA_ENCODING": test.encoding}
+			envVarOverrides := map[string]string{
+				"KAFKA_TOPIC":    uniqueTopic,
+				"KAFKA_ENCODING": test.encoding,
+			}
 
 			collector := &E2EStorageIntegration{
 				BinaryName:         "jaeger-v2-collector",
