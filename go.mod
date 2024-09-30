@@ -15,7 +15,7 @@ require (
 	github.com/elastic/go-elasticsearch/v8 v8.15.0
 	github.com/fsnotify/fsnotify v1.7.0
 	github.com/go-logr/zapr v1.3.0
-	github.com/gocql/gocql v1.6.0
+	github.com/gocql/gocql v1.7.0
 	github.com/gogo/googleapis v1.4.1
 	github.com/gogo/protobuf v1.3.2
 	github.com/gorilla/handlers v1.5.2
@@ -213,7 +213,7 @@ require (
 	go.opentelemetry.io/collector/component/componentprofiles v0.110.0 // indirect
 	go.opentelemetry.io/collector/config/configcompression v1.16.0 // indirect
 	go.opentelemetry.io/collector/config/confignet v1.16.0
-	go.opentelemetry.io/collector/config/configopaque v1.16.0 // indirect
+	go.opentelemetry.io/collector/config/configopaque v1.16.0
 	go.opentelemetry.io/collector/config/configtelemetry v0.110.0
 	go.opentelemetry.io/collector/config/internal v0.110.0 // indirect
 	go.opentelemetry.io/collector/connector/connectorprofiles v0.110.0 // indirect
