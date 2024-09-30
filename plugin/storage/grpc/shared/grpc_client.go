@@ -18,13 +18,18 @@ import (
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/bearertoken"
 	_ "github.com/jaegertracing/jaeger/pkg/gogocodec" // force gogo codec registration
+	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/proto-gen/storage_v1"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
-// BearerTokenKey is the key name for the bearer token context value.
-const BearerTokenKey = "bearer.token"
+const (
+	// BearerTokenKey is the key name for the bearer token context value.
+	BearerTokenKey = "bearer.token"
+	// TenantKey is the key name for the x-tenant context value.
+	TenantKey = "x.tenant"
+)
 
 var (
 	_ StoragePlugin        = (*GRPCClient)(nil)
@@ -32,7 +37,7 @@ var (
 	_ PluginCapabilities   = (*GRPCClient)(nil)
 
 	// upgradeContext composites several steps of upgrading context
-	upgradeContext = composeContextUpgradeFuncs(upgradeContextWithBearerToken)
+	upgradeContext = composeContextUpgradeFuncs(upgradeContextWithBearerToken, upgradeContextWithXTenant)
 )
 
 // GRPCClient implements shared.StoragePlugin and reads/writes spans and dependencies
@@ -83,6 +88,22 @@ func upgradeContextWithBearerToken(ctx context.Context) context.Context {
 			md = metadata.New(nil)
 		}
 		md.Set(BearerTokenKey, bearerToken)
+		return metadata.NewOutgoingContext(ctx, md)
+	}
+	return ctx
+}
+
+// upgradeContextWithXTenant turns the context into a gRPC outgoing context with x tenant
+// in the request metadata, if the original context has x-tenant attached.
+// Otherwise returns original context.
+func upgradeContextWithXTenant(ctx context.Context) context.Context {
+	tenant := tenancy.GetTenant(ctx)
+	if tenant != "" {
+		md, ok := metadata.FromOutgoingContext(ctx)
+		if !ok {
+			md = metadata.New(nil)
+		}
+		md.Set(TenantKey, tenant)
 		return metadata.NewOutgoingContext(ctx, md)
 	}
 	return ctx
