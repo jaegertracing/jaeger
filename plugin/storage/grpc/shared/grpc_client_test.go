@@ -20,7 +20,6 @@ import (
 
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/bearertoken"
-	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/proto-gen/storage_v1"
 	grpcMocks "github.com/jaegertracing/jaeger/proto-gen/storage_v1/mocks"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
@@ -130,22 +129,6 @@ func TestContextUpgradeWithToken(t *testing.T) {
 func TestContextUpgradeWithoutToken(t *testing.T) {
 	upgradedToken := upgradeContextWithBearerToken(context.Background())
 	_, ok := metadata.FromOutgoingContext(upgradedToken)
-	assert.Falsef(t, ok, "Expected no metadata in context")
-}
-
-func TestContextUpgradeWithTenant(t *testing.T) {
-	testTenantValue := "test-tenant-val-1"
-	ctx := tenancy.WithTenant(context.Background(), testTenantValue)
-	upgradedCtx := upgradeContextWithXTenant(ctx)
-	md, ok := metadata.FromOutgoingContext(upgradedCtx)
-	assert.Truef(t, ok, "Expected metadata in context")
-	xTenantFromMetadata := md.Get(TenantKey)
-	assert.Equal(t, []string{testTenantValue}, xTenantFromMetadata)
-}
-
-func TestContextUpgradeWithoutTenant(t *testing.T) {
-	upgradedTenant := upgradeContextWithXTenant(context.Background())
-	_, ok := metadata.FromOutgoingContext(upgradedTenant)
 	assert.Falsef(t, ok, "Expected no metadata in context")
 }
 
