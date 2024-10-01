@@ -38,6 +38,7 @@ func DefaultConfigV2() ConfigV2 {
 
 func (c *Configuration) TranslateToConfigV2() *ConfigV2 {
 	return &ConfigV2{
+		Tenancy: c.TenancyOpts,
 		ClientConfig: configgrpc.ClientConfig{
 			Endpoint:   c.RemoteServerAddr,
 			TLSSetting: c.RemoteTLS.ToOtelClientConfig(),
