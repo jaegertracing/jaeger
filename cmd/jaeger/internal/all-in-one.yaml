@@ -31,7 +31,8 @@ extensions:
       path: ./cmd/jaeger/sampling-strategies.json
     # adaptive:
     #   sampling_store: some_store
-    #   initial_sampling_probability: 0.1
+    #   sampling:
+    #     initial_probability: 0.1
     http:
     grpc:
 
