@@ -28,14 +28,14 @@ func tlsFlagsConfig() tlscfg.ClientFlagsConfig {
 }
 
 // AddFlags adds flags for Options
-func v1AddFlags(flagSet *flag.FlagSet) {
+func AddFlags(flagSet *flag.FlagSet) {
 	tlsFlagsConfig().AddFlags(flagSet)
 
 	flagSet.String(remoteServer, "", "The remote storage gRPC server address as host:port")
 	flagSet.Duration(remoteConnectionTimeout, defaultConnectionTimeout, "The remote storage gRPC server connection timeout")
 }
 
-func v1InitFromViper(cfg *Config, v *viper.Viper) error {
+func InitFromViper(cfg *Config, v *viper.Viper) error {
 	cfg.ClientConfig.Endpoint = v.GetString(remoteServer)
 	remoteTLS, err := tlsFlagsConfig().InitFromViper(v)
 	if err != nil {

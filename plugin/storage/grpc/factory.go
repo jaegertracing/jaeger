@@ -72,12 +72,12 @@ func NewFactoryWithConfig(
 
 // AddFlags implements plugin.Configurable
 func (*Factory) AddFlags(flagSet *flag.FlagSet) {
-	v1AddFlags(flagSet)
+	AddFlags(flagSet)
 }
 
 // InitFromViper implements plugin.Configurable
 func (f *Factory) InitFromViper(v *viper.Viper, logger *zap.Logger) {
-	if err := v1InitFromViper(&f.config, v); err != nil {
+	if err := InitFromViper(&f.config, v); err != nil {
 		logger.Fatal("unable to initialize gRPC storage factory", zap.Error(err))
 	}
 }
