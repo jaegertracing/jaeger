@@ -72,7 +72,6 @@ func TestFailedTLSFlags(t *testing.T) {
 	})
 	require.NoError(t, err)
 	f := NewFactory()
-	f.configV2 = nil
 	core, logs := observer.New(zap.NewAtomicLevelAt(zapcore.ErrorLevel))
 	logger := zap.New(core, zap.WithFatalHook(zapcore.WriteThenPanic))
 	require.Panics(t, func() { f.InitFromViper(v, logger) })

@@ -45,10 +45,7 @@ type Factory struct {
 	logger         *zap.Logger
 	tracerProvider trace.TracerProvider
 
-	// configV1 is used for backward compatibility. it will be removed in v2.
-	// In the main initialization logic, only configV2 is used.
-	configV1 ConfigV2
-	configV2 *ConfigV2
+	configV2 ConfigV2
 
 	services   *ClientPluginServices
 	remoteConn *grpc.ClientConn
@@ -66,7 +63,7 @@ func NewFactoryWithConfig(
 	logger *zap.Logger,
 ) (*Factory, error) {
 	f := NewFactory()
-	f.configV2 = &cfg
+	f.configV2 = cfg
 	if err := f.Initialize(metricsFactory, logger); err != nil {
 		return nil, err
 	}
@@ -80,7 +77,7 @@ func (*Factory) AddFlags(flagSet *flag.FlagSet) {
 
 // InitFromViper implements plugin.Configurable
 func (f *Factory) InitFromViper(v *viper.Viper, logger *zap.Logger) {
-	if err := v1InitFromViper(&f.configV1, v); err != nil {
+	if err := v1InitFromViper(&f.configV2, v); err != nil {
 		logger.Fatal("unable to initialize gRPC storage factory", zap.Error(err))
 	}
 }
@@ -89,10 +86,6 @@ func (f *Factory) InitFromViper(v *viper.Viper, logger *zap.Logger) {
 func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
 	f.metricsFactory, f.logger = metricsFactory, logger
 	f.tracerProvider = otel.GetTracerProvider()
-
-	if f.configV2 == nil {
-		f.configV2 = &f.configV1
-	}
 
 	telset := component.TelemetrySettings{
 		Logger:         logger,

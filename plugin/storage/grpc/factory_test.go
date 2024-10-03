@@ -113,7 +113,7 @@ func TestNewFactoryError(t *testing.T) {
 	t.Run("viper", func(t *testing.T) {
 		f := NewFactory()
 		f.InitFromViper(viper.New(), zap.NewNop())
-		f.configV2 = cfg
+		f.configV2 = *cfg
 		err := f.Initialize(metrics.NullFactory, zap.NewNop())
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "authenticator")
@@ -265,7 +265,7 @@ func TestWithCLIFlags(t *testing.T) {
 	})
 	require.NoError(t, err)
 	f.InitFromViper(v, zap.NewNop())
-	assert.Equal(t, "foo:1234", f.configV1.ClientConfig.Endpoint)
+	assert.Equal(t, "foo:1234", f.configV2.ClientConfig.Endpoint)
 	require.NoError(t, f.Close())
 }
 
