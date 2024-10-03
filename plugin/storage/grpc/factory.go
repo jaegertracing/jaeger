@@ -47,7 +47,7 @@ type Factory struct {
 
 	// configV1 is used for backward compatibility. it will be removed in v2.
 	// In the main initialization logic, only configV2 is used.
-	configV1 Configuration
+	configV1 ConfigV2
 	configV2 *ConfigV2
 
 	services   *ClientPluginServices
@@ -91,7 +91,7 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 	f.tracerProvider = otel.GetTracerProvider()
 
 	if f.configV2 == nil {
-		f.configV2 = f.configV1.TranslateToConfigV2()
+		f.configV2 = &f.configV1
 	}
 
 	telset := component.TelemetrySettings{
@@ -208,6 +208,5 @@ func (f *Factory) Close() error {
 	if f.remoteConn != nil {
 		errs = append(errs, f.remoteConn.Close())
 	}
-	errs = append(errs, f.configV1.RemoteTLS.Close())
 	return errors.Join(errs...)
 }

@@ -35,14 +35,14 @@ func v1AddFlags(flagSet *flag.FlagSet) {
 	flagSet.Duration(remoteConnectionTimeout, defaultConnectionTimeout, "The remote storage gRPC server connection timeout")
 }
 
-func v1InitFromViper(cfg *Configuration, v *viper.Viper) error {
-	cfg.RemoteServerAddr = v.GetString(remoteServer)
-	var err error
-	cfg.RemoteTLS, err = tlsFlagsConfig().InitFromViper(v)
+func v1InitFromViper(cfg *ConfigV2, v *viper.Viper) error {
+	cfg.ClientConfig.Endpoint = v.GetString(remoteServer)
+	remoteTLS, err := tlsFlagsConfig().InitFromViper(v)
 	if err != nil {
 		return fmt.Errorf("failed to parse gRPC storage TLS options: %w", err)
 	}
-	cfg.RemoteConnectTimeout = v.GetDuration(remoteConnectionTimeout)
-	cfg.TenancyOpts = tenancy.InitFromViper(v)
+	cfg.ClientConfig.TLSSetting = remoteTLS.ToOtelClientConfig()
+	cfg.TimeoutSettings.Timeout = v.GetDuration(remoteConnectionTimeout)
+	cfg.Tenancy = tenancy.InitFromViper(v)
 	return nil
 }

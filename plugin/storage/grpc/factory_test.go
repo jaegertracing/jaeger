@@ -265,7 +265,7 @@ func TestWithCLIFlags(t *testing.T) {
 	})
 	require.NoError(t, err)
 	f.InitFromViper(v, zap.NewNop())
-	assert.Equal(t, "foo:1234", f.configV1.RemoteServerAddr)
+	assert.Equal(t, "foo:1234", f.configV1.ClientConfig.Endpoint)
 	require.NoError(t, f.Close())
 }
 

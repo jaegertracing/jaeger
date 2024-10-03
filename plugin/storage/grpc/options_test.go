@@ -24,12 +24,12 @@ func TestOptionsWithFlags(t *testing.T) {
 		"--multi-tenancy.header=x-scope-orgid",
 	})
 	require.NoError(t, err)
-	var cfg Configuration
+	var cfg ConfigV2
 	require.NoError(t, v1InitFromViper(&cfg, v))
 
-	assert.Equal(t, "foo:12345", cfg.RemoteServerAddr)
-	assert.False(t, cfg.TenancyOpts.Enabled)
-	assert.Equal(t, "x-scope-orgid", cfg.TenancyOpts.Header)
+	assert.Equal(t, "foo:12345", cfg.ClientConfig.Endpoint)
+	assert.False(t, cfg.Tenancy.Enabled)
+	assert.Equal(t, "x-scope-orgid", cfg.Tenancy.Header)
 }
 
 func TestRemoteOptionsWithFlags(t *testing.T) {
@@ -40,12 +40,12 @@ func TestRemoteOptionsWithFlags(t *testing.T) {
 		"--grpc-storage.connection-timeout=60s",
 	})
 	require.NoError(t, err)
-	var cfg Configuration
+	var cfg ConfigV2
 	require.NoError(t, v1InitFromViper(&cfg, v))
 
-	assert.Equal(t, "localhost:2001", cfg.RemoteServerAddr)
-	assert.True(t, cfg.RemoteTLS.Enabled)
-	assert.Equal(t, 60*time.Second, cfg.RemoteConnectTimeout)
+	assert.Equal(t, "localhost:2001", cfg.ClientConfig.Endpoint)
+	assert.False(t, cfg.ClientConfig.TLSSetting.Insecure)
+	assert.Equal(t, 60*time.Second, cfg.TimeoutSettings.Timeout)
 }
 
 func TestRemoteOptionsNoTLSWithFlags(t *testing.T) {
@@ -56,12 +56,12 @@ func TestRemoteOptionsNoTLSWithFlags(t *testing.T) {
 		"--grpc-storage.connection-timeout=60s",
 	})
 	require.NoError(t, err)
-	var cfg Configuration
+	var cfg ConfigV2
 	require.NoError(t, v1InitFromViper(&cfg, v))
 
-	assert.Equal(t, "localhost:2001", cfg.RemoteServerAddr)
-	assert.False(t, cfg.RemoteTLS.Enabled)
-	assert.Equal(t, 60*time.Second, cfg.RemoteConnectTimeout)
+	assert.Equal(t, "localhost:2001", cfg.ClientConfig.Endpoint)
+	assert.True(t, cfg.ClientConfig.TLSSetting.Insecure)
+	assert.Equal(t, 60*time.Second, cfg.TimeoutSettings.Timeout)
 }
 
 func TestFailedTLSFlags(t *testing.T) {
