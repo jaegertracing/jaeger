@@ -11,14 +11,14 @@ import (
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared"
 )
 
-type ConfigV2 struct {
+type Config struct {
 	Tenancy                        tenancy.Options `mapstructure:"multi_tenancy"`
 	configgrpc.ClientConfig        `mapstructure:",squash"`
 	exporterhelper.TimeoutSettings `mapstructure:",squash"`
 }
 
-func DefaultConfigV2() ConfigV2 {
-	return ConfigV2{
+func DefaultConfig() Config {
+	return Config{
 		TimeoutSettings: exporterhelper.TimeoutConfig{
 			Timeout: defaultConnectionTimeout,
 		},

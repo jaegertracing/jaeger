@@ -35,7 +35,7 @@ func v1AddFlags(flagSet *flag.FlagSet) {
 	flagSet.Duration(remoteConnectionTimeout, defaultConnectionTimeout, "The remote storage gRPC server connection timeout")
 }
 
-func v1InitFromViper(cfg *ConfigV2, v *viper.Viper) error {
+func v1InitFromViper(cfg *Config, v *viper.Viper) error {
 	cfg.ClientConfig.Endpoint = v.GetString(remoteServer)
 	remoteTLS, err := tlsFlagsConfig().InitFromViper(v)
 	if err != nil {

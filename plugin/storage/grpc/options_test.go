@@ -24,7 +24,7 @@ func TestOptionsWithFlags(t *testing.T) {
 		"--multi-tenancy.header=x-scope-orgid",
 	})
 	require.NoError(t, err)
-	var cfg ConfigV2
+	var cfg Config
 	require.NoError(t, v1InitFromViper(&cfg, v))
 
 	assert.Equal(t, "foo:12345", cfg.ClientConfig.Endpoint)
@@ -40,7 +40,7 @@ func TestRemoteOptionsWithFlags(t *testing.T) {
 		"--grpc-storage.connection-timeout=60s",
 	})
 	require.NoError(t, err)
-	var cfg ConfigV2
+	var cfg Config
 	require.NoError(t, v1InitFromViper(&cfg, v))
 
 	assert.Equal(t, "localhost:2001", cfg.ClientConfig.Endpoint)
@@ -56,7 +56,7 @@ func TestRemoteOptionsNoTLSWithFlags(t *testing.T) {
 		"--grpc-storage.connection-timeout=60s",
 	})
 	require.NoError(t, err)
-	var cfg ConfigV2
+	var cfg Config
 	require.NoError(t, v1InitFromViper(&cfg, v))
 
 	assert.Equal(t, "localhost:2001", cfg.ClientConfig.Endpoint)

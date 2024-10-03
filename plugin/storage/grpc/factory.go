@@ -45,7 +45,7 @@ type Factory struct {
 	logger         *zap.Logger
 	tracerProvider trace.TracerProvider
 
-	configV2 ConfigV2
+	config Config
 
 	services   *ClientPluginServices
 	remoteConn *grpc.ClientConn
@@ -58,12 +58,12 @@ func NewFactory() *Factory {
 
 // NewFactoryWithConfig is used from jaeger(v2).
 func NewFactoryWithConfig(
-	cfg ConfigV2,
+	cfg Config,
 	metricsFactory metrics.Factory,
 	logger *zap.Logger,
 ) (*Factory, error) {
 	f := NewFactory()
-	f.configV2 = cfg
+	f.config = cfg
 	if err := f.Initialize(metricsFactory, logger); err != nil {
 		return nil, err
 	}
@@ -77,7 +77,7 @@ func (*Factory) AddFlags(flagSet *flag.FlagSet) {
 
 // InitFromViper implements plugin.Configurable
 func (f *Factory) InitFromViper(v *viper.Viper, logger *zap.Logger) {
-	if err := v1InitFromViper(&f.configV2, v); err != nil {
+	if err := v1InitFromViper(&f.config, v); err != nil {
 		logger.Fatal("unable to initialize gRPC storage factory", zap.Error(err))
 	}
 }
@@ -100,7 +100,7 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 		for _, opt := range opts {
 			clientOpts = append(clientOpts, configgrpc.WithGrpcDialOption(opt))
 		}
-		return f.configV2.ToClientConnWithOptions(context.Background(), componenttest.NewNopHost(), telset, clientOpts...)
+		return f.config.ToClientConnWithOptions(context.Background(), componenttest.NewNopHost(), telset, clientOpts...)
 	}
 
 	var err error
@@ -108,14 +108,14 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 	if err != nil {
 		return fmt.Errorf("grpc storage builder failed to create a store: %w", err)
 	}
-	logger.Info("Remote storage configuration", zap.Any("configuration", f.configV2))
+	logger.Info("Remote storage configuration", zap.Any("configuration", f.config))
 	return nil
 }
 
 type newClientFn func(opts ...grpc.DialOption) (*grpc.ClientConn, error)
 
 func (f *Factory) newRemoteStorage(telset component.TelemetrySettings, newClient newClientFn) (*ClientPluginServices, error) {
-	c := f.configV2
+	c := f.config
 	opts := []grpc.DialOption{
 		grpc.WithStatsHandler(otelgrpc.NewClientHandler(otelgrpc.WithTracerProvider(telset.TracerProvider))),
 	}

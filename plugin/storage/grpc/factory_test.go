@@ -98,7 +98,7 @@ func makeFactory(t *testing.T) *Factory {
 }
 
 func TestNewFactoryError(t *testing.T) {
-	cfg := &ConfigV2{
+	cfg := &Config{
 		ClientConfig: configgrpc.ClientConfig{
 			// non-empty Auth is currently not supported
 			Auth: &configauth.Authentication{},
@@ -113,7 +113,7 @@ func TestNewFactoryError(t *testing.T) {
 	t.Run("viper", func(t *testing.T) {
 		f := NewFactory()
 		f.InitFromViper(viper.New(), zap.NewNop())
-		f.configV2 = *cfg
+		f.config = *cfg
 		err := f.Initialize(metrics.NullFactory, zap.NewNop())
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "authenticator")
@@ -121,7 +121,7 @@ func TestNewFactoryError(t *testing.T) {
 
 	t.Run("client", func(t *testing.T) {
 		// this is a silly test to verify handling of error from grpc.NewClient, which cannot be induced via params.
-		f, err := NewFactoryWithConfig(ConfigV2{}, metrics.NullFactory, zap.NewNop())
+		f, err := NewFactoryWithConfig(Config{}, metrics.NullFactory, zap.NewNop())
 		require.NoError(t, err)
 		t.Cleanup(func() { require.NoError(t, f.Close()) })
 		newClientFn := func(_ ...grpc.DialOption) (conn *grpc.ClientConn, err error) {
@@ -162,7 +162,7 @@ func TestGRPCStorageFactoryWithConfig(t *testing.T) {
 	}()
 	defer s.Stop()
 
-	cfg := ConfigV2{
+	cfg := Config{
 		ClientConfig: configgrpc.ClientConfig{
 			Endpoint: lis.Addr().String(),
 		},
@@ -265,7 +265,7 @@ func TestWithCLIFlags(t *testing.T) {
 	})
 	require.NoError(t, err)
 	f.InitFromViper(v, zap.NewNop())
-	assert.Equal(t, "foo:1234", f.configV2.ClientConfig.Endpoint)
+	assert.Equal(t, "foo:1234", f.config.ClientConfig.Endpoint)
 	require.NoError(t, f.Close())
 }
 
