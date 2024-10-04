@@ -11,6 +11,7 @@ import (
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared"
 )
 
+// Config describes the options to customize the storage behavior
 type Config struct {
 	Tenancy                        tenancy.Options `mapstructure:"multi_tenancy"`
 	configgrpc.ClientConfig        `mapstructure:",squash"`
