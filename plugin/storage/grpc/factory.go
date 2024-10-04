@@ -44,11 +44,9 @@ type Factory struct {
 	metricsFactory metrics.Factory
 	logger         *zap.Logger
 	tracerProvider trace.TracerProvider
-
-	config Config
-
-	services   *ClientPluginServices
-	remoteConn *grpc.ClientConn
+	config         Config
+	services       *ClientPluginServices
+	remoteConn     *grpc.ClientConn
 }
 
 // NewFactory creates a new Factory.
