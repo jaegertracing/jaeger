@@ -20,7 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        jaeger-version: [v1, v2]
+        jaeger-version: [invalid, v1, v2]
         version:
         - distribution: cassandra
           major: 4.x
