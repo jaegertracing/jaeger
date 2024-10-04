@@ -19,6 +19,7 @@ jobs:
   kafka:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         jaeger-version: [v1, v2]  # Adjust if there are specific versions of Jaeger
     name: Kafka Integration Tests ${{ matrix.jaeger-version }}

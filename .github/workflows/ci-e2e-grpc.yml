@@ -19,6 +19,7 @@ jobs:
   grpc:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         version: [v1, v2]
     steps:
