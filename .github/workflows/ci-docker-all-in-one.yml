@@ -19,6 +19,7 @@ jobs:
   all-in-one:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         jaeger_version: [v1, v2]
 
