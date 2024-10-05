@@ -220,7 +220,7 @@ func startQuery(
 	spanReader = storageMetrics.NewReadMetricsDecorator(spanReader, telset.Metrics)
 	qs := querysvc.NewQueryService(spanReader, depReader, *queryOpts)
 
-	server, err := queryApp.NewServer(qs, metricsQueryService, qOpts, tm, telset)
+	server, err := queryApp.NewServer(context.Background(), qs, metricsQueryService, qOpts, tm, telset)
 	if err != nil {
 		svc.Logger.Fatal("Could not create jaeger-query", zap.Error(err))
 	}

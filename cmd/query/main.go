@@ -108,7 +108,7 @@ func main() {
 				TracerProvider: jt.OTEL,
 				ReportStatus:   telemetery.HCAdapter(svc.HC()),
 			}
-			server, err := app.NewServer(queryService, metricsQueryService, queryOpts, tm, telset)
+			server, err := app.NewServer(context.Background(), queryService, metricsQueryService, queryOpts, tm, telset)
 			if err != nil {
 				logger.Fatal("Failed to create server", zap.Error(err))
 			}

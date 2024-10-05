@@ -54,7 +54,9 @@ type Server struct {
 }
 
 // NewServer creates and initializes Server
-func NewServer(querySvc *querysvc.QueryService,
+func NewServer(
+	ctx context.Context,
+	querySvc *querysvc.QueryService,
 	metricsQuerySvc querysvc.MetricsQueryService,
 	options *QueryOptions,
 	tm *tenancy.Manager,
@@ -74,12 +76,12 @@ func NewServer(querySvc *querysvc.QueryService,
 		return nil, errors.New("server with TLS enabled can not use same host ports for gRPC and HTTP.  Use dedicated HTTP and gRPC host ports instead")
 	}
 
-	grpcServer, err := createGRPCServer(querySvc, metricsQuerySvc, options, tm, telset)
+	grpcServer, err := createGRPCServer(ctx, querySvc, metricsQuerySvc, options, tm, telset)
 	if err != nil {
 		return nil, err
 	}
 
-	httpServer, err := createHTTPServer(querySvc, metricsQuerySvc, options, tm, telset)
+	httpServer, err := createHTTPServer(ctx, querySvc, metricsQuerySvc, options, tm, telset)
 	if err != nil {
 		return nil, err
 	}
@@ -94,11 +96,11 @@ func NewServer(querySvc *querysvc.QueryService,
 	}, nil
 }
 
-func createGRPCServer(querySvc *querysvc.QueryService, metricsQuerySvc querysvc.MetricsQueryService, options *QueryOptions, tm *tenancy.Manager, telset telemetery.Setting) (*grpc.Server, error) {
+func createGRPCServer(ctx context.Context, querySvc *querysvc.QueryService, metricsQuerySvc querysvc.MetricsQueryService, options *QueryOptions, tm *tenancy.Manager, telset telemetery.Setting) (*grpc.Server, error) {
 	var grpcOpts []grpc.ServerOption
 
 	if options.GRPC.TLSSetting != nil {
-		tlsCfg, err := options.GRPC.TLSSetting.LoadTLSConfig(context.Background())
+		tlsCfg, err := options.GRPC.TLSSetting.LoadTLSConfig(ctx)
 		if err != nil {
 			return nil, err
 		}
@@ -109,6 +111,7 @@ func createGRPCServer(querySvc *querysvc.QueryService, metricsQuerySvc querysvc.
 	}
 	if tm.Enabled {
 		grpcOpts = append(grpcOpts,
+			//nolint
 			grpc.StreamInterceptor(tenancy.NewGuardingStreamInterceptor(tm)),
 			grpc.UnaryInterceptor(tenancy.NewGuardingUnaryInterceptor(tm)),
 		)
@@ -142,6 +145,7 @@ type httpServer struct {
 var _ io.Closer = (*httpServer)(nil)
 
 func createHTTPServer(
+	ctx context.Context,
 	querySvc *querysvc.QueryService,
 	metricsQuerySvc querysvc.MetricsQueryService,
 	queryOpts *QueryOptions,
@@ -189,7 +193,7 @@ func createHTTPServer(
 	}
 
 	if queryOpts.HTTP.TLSSetting != nil {
-		tlsCfg, err := queryOpts.HTTP.TLSSetting.LoadTLSConfig(context.Background()) // This checks if the certificates are correctly provided
+		tlsCfg, err := queryOpts.HTTP.TLSSetting.LoadTLSConfig(ctx) // This checks if the certificates are correctly provided
 		if err != nil {
 			return nil, err
 		}
