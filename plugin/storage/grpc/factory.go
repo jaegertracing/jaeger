@@ -98,7 +98,7 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 		for _, opt := range opts {
 			clientOpts = append(clientOpts, configgrpc.WithGrpcDialOption(opt))
 		}
-		return f.config.ToClientConnWithOptions(context.Background(), componenttest.NewNopHost(), telset, clientOpts...)
+		return f.config.ToClientConn(context.Background(), componenttest.NewNopHost(), telset, clientOpts...)
 	}
 
 	var err error
