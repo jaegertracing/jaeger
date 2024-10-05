@@ -16,6 +16,7 @@ import (
 
 	"github.com/gorilla/handlers"
 	"github.com/soheilhy/cmux"
+	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componentstatus"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -56,6 +57,7 @@ type Server struct {
 // NewServer creates and initializes Server
 func NewServer(
 	ctx context.Context,
+	_ component.Host,
 	querySvc *querysvc.QueryService,
 	metricsQuerySvc querysvc.MetricsQueryService,
 	options *QueryOptions,
