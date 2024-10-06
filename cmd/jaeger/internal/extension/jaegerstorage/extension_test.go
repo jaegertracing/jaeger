@@ -143,7 +143,7 @@ func TestGRPC(t *testing.T) {
 	ext := makeStorageExtenion(t, &Config{
 		Backends: map[string]Backend{
 			"foo": {
-				GRPC: &grpc.ConfigV2{
+				GRPC: &grpc.Config{
 					ClientConfig: configgrpc.ClientConfig{
 						Endpoint: "localhost:12345",
 					},

@@ -46,6 +46,12 @@ type E2EStorageIntegration struct {
 	ConfigFile          string
 	BinaryName          string
 	HealthCheckEndpoint string
+
+	// EnvVarOverrides contains a map of environment variables to set.
+	// The key in the map is the environment variable to override and the value
+	// is the value of the environment variable to set.
+	// These variables are set upon initialization and are unset upon cleanup.
+	EnvVarOverrides map[string]string
 }
 
 // Binary is a wrapper around exec.Cmd to help running binaries in tests.
@@ -107,6 +113,10 @@ func (b *Binary) Start(t *testing.T) {
 // it also initialize the SpanWriter and SpanReader below.
 // This function should be called before any of the tests start.
 func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
+	// set environment variable overrides
+	for key, value := range s.EnvVarOverrides {
+		t.Setenv(key, value)
+	}
 	logger := zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller()))
 	if s.BinaryName == "" {
 		s.BinaryName = "jaeger-v2"
@@ -126,7 +136,7 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
 			Path: "./cmd/jaeger/jaeger",
 			Args: []string{"jaeger", "--config", configFile},
 			// Change the working directory to the root of this project
-			// since the binary config file jaeger_query's ui_config points to
+			// since the binary config file jaeger_query's ui.config_file points to
 			// "./cmd/jaeger/config-ui.json"
 			Dir: "../../../..",
 		},
@@ -223,7 +233,9 @@ func createStorageCleanerConfig(t *testing.T, configFile string, storage string)
 	extensions := extensionsAny.(map[string]any)
 	queryAny, ok := extensions["jaeger_query"]
 	require.True(t, ok)
-	traceStorageAny, ok := queryAny.(map[string]any)["trace_storage"]
+	storageAny, ok := queryAny.(map[string]any)["storage"]
+	require.True(t, ok)
+	traceStorageAny, ok := storageAny.(map[string]any)["traces"]
 	require.True(t, ok)
 	traceStorage := traceStorageAny.(string)
 	extensions["storage_cleaner"] = map[string]string{"trace_storage": traceStorage}

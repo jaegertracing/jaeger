@@ -8,18 +8,25 @@ import (
 	"github.com/jaegertracing/jaeger/model"
 )
 
-// SortLogFields returns an Adjuster that sorts the fields in the span logs.
-// It puts the `event` field in the first position (if present), and sorts
-// all other fields lexicographically.
+// SortTagsAndLogFields returns an Adjuster that sorts the fields in the tags and
+// span logs.
+//
+// For span logs, it puts the `event` field in the first position (if present), and
+// sorts all other fields lexicographically.
 //
 // TODO: it should also do something about the "msg" field, maybe replace it
 // with "event" field.
 // TODO: we may also want to move "level" field (as in logging level) to an earlier
 // place in the list. This adjuster needs some sort of config describing predefined
 // field names/types and their relative order.
-func SortLogFields() Adjuster {
+func SortTagsAndLogFields() Adjuster {
 	return Func(func(trace *model.Trace) (*model.Trace, error) {
 		for _, span := range trace.Spans {
+			model.KeyValues(span.Tags).Sort()
+			if span.Process != nil {
+				model.KeyValues(span.Process.Tags).Sort()
+			}
+
 			for _, log := range span.Logs {
 				// first move "event" field into the first position
 				offset := 0

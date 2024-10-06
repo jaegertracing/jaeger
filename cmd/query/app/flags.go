@@ -16,6 +16,9 @@ import (
 	"time"
 
 	"github.com/spf13/viper"
+	"go.opentelemetry.io/collector/config/configgrpc"
+	"go.opentelemetry.io/collector/config/confighttp"
+	"go.opentelemetry.io/collector/config/configopaque"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
@@ -48,47 +51,33 @@ var tlsHTTPFlagsConfig = tlscfg.ServerFlagsConfig{
 	Prefix: "query.http",
 }
 
-// QueryOptionsStaticAssets contains configuration for handling static assets
-type QueryOptionsStaticAssets struct {
-	// Path is the path for the static assets for the UI (https://github.com/uber/jaeger-ui)
-	Path string `valid:"optional" mapstructure:"path"`
-	// LogAccess tells static handler to log access to static assets, useful in debugging
-	LogAccess bool `valid:"optional" mapstructure:"log_access"`
+type UIConfig struct {
+	// ConfigFile is the path to a configuration file for the UI.
+	ConfigFile string `mapstructure:"config_file" valid:"optional"`
+	// AssetsPath is the path for the static assets for the UI (https://github.com/uber/jaeger-ui).
+	AssetsPath string `mapstructure:"assets_path" valid:"optional" `
+	// LogAccess tells static handler to log access to static assets, useful in debugging.
+	LogAccess bool `mapstructure:"log_access" valid:"optional"`
 }
 
-// QueryOptionsBase holds configuration for query service shared with jaeger(v2)
-type QueryOptionsBase struct {
-	// BasePath is the base path for all HTTP routes
-	BasePath string
-
-	StaticAssets QueryOptionsStaticAssets `valid:"optional" mapstructure:"static_assets"`
-
-	// UIConfig is the path to a configuration file for the UI
-	UIConfig string `valid:"optional" mapstructure:"ui_config"`
-	// BearerTokenPropagation activate/deactivate bearer token propagation to storage
-	BearerTokenPropagation bool
-	// AdditionalHeaders
-	AdditionalHeaders http.Header
-	// MaxClockSkewAdjust is the maximum duration by which jaeger-query will adjust a span
-	MaxClockSkewAdjust time.Duration
-	// Tenancy configures tenancy for query
-	Tenancy tenancy.Options
-	// EnableTracing determines whether traces will be emitted by jaeger-query.
-	EnableTracing bool
-}
-
-// QueryOptions holds configuration for query service
+// QueryOptions holds configuration for query service shared with jaeger-v2
 type QueryOptions struct {
-	QueryOptionsBase
-
-	// HTTPHostPort is the host:port address that the query service listens in on for http requests
-	HTTPHostPort string
-	// GRPCHostPort is the host:port address that the query service listens in on for gRPC requests
-	GRPCHostPort string
-	// TLSGRPC configures secure transport (Consumer to Query service GRPC API)
-	TLSGRPC tlscfg.Options
-	// TLSHTTP configures secure transport (Consumer to Query service HTTP API)
-	TLSHTTP tlscfg.Options
+	// BasePath is the base path for all HTTP routes.
+	BasePath string `mapstructure:"base_path"`
+	// UIConfig contains configuration related to the Jaeger UIConfig.
+	UIConfig UIConfig `mapstructure:"ui"`
+	// BearerTokenPropagation activate/deactivate bearer token propagation to storage.
+	BearerTokenPropagation bool `mapstructure:"bearer_token_propagation"`
+	// Tenancy holds the multi-tenancy configuration.
+	Tenancy tenancy.Options `mapstructure:"multi_tenancy"`
+	// MaxClockSkewAdjust is the maximum duration by which jaeger-query will adjust a span.
+	MaxClockSkewAdjust time.Duration `mapstructure:"max_clock_skew_adjust"  valid:"optional"`
+	// EnableTracing determines whether traces will be emitted by jaeger-query.
+	EnableTracing bool `mapstructure:"enable_tracing"`
+	// HTTP holds the HTTP configuration that the query service uses to serve requests.
+	HTTP confighttp.ServerConfig `mapstructure:"http"`
+	// GRPC holds the GRPC configuration that the query service uses to serve requests.
+	GRPC configgrpc.ServerConfig `mapstructure:"grpc"`
 }
 
 // AddFlags adds flags for QueryOptions
@@ -109,22 +98,22 @@ func AddFlags(flagSet *flag.FlagSet) {
 
 // InitFromViper initializes QueryOptions with properties from viper
 func (qOpts *QueryOptions) InitFromViper(v *viper.Viper, logger *zap.Logger) (*QueryOptions, error) {
-	qOpts.HTTPHostPort = v.GetString(queryHTTPHostPort)
-	qOpts.GRPCHostPort = v.GetString(queryGRPCHostPort)
+	qOpts.HTTP.Endpoint = v.GetString(queryHTTPHostPort)
+	qOpts.GRPC.NetAddr.Endpoint = v.GetString(queryGRPCHostPort)
 	tlsGrpc, err := tlsGRPCFlagsConfig.InitFromViper(v)
 	if err != nil {
 		return qOpts, fmt.Errorf("failed to process gRPC TLS options: %w", err)
 	}
-	qOpts.TLSGRPC = tlsGrpc
+	qOpts.GRPC.TLSSetting = tlsGrpc.ToOtelServerConfig()
 	tlsHTTP, err := tlsHTTPFlagsConfig.InitFromViper(v)
 	if err != nil {
 		return qOpts, fmt.Errorf("failed to process HTTP TLS options: %w", err)
 	}
-	qOpts.TLSHTTP = tlsHTTP
+	qOpts.HTTP.TLSSetting = tlsHTTP.ToOtelServerConfig()
 	qOpts.BasePath = v.GetString(queryBasePath)
-	qOpts.StaticAssets.Path = v.GetString(queryStaticFiles)
-	qOpts.StaticAssets.LogAccess = v.GetBool(queryLogStaticAssetsAccess)
-	qOpts.UIConfig = v.GetString(queryUIConfig)
+	qOpts.UIConfig.AssetsPath = v.GetString(queryStaticFiles)
+	qOpts.UIConfig.LogAccess = v.GetBool(queryLogStaticAssetsAccess)
+	qOpts.UIConfig.ConfigFile = v.GetString(queryUIConfig)
 	qOpts.BearerTokenPropagation = v.GetBool(queryTokenPropagation)
 
 	qOpts.MaxClockSkewAdjust = v.GetDuration(queryMaxClockSkewAdjust)
@@ -133,7 +122,7 @@ func (qOpts *QueryOptions) InitFromViper(v *viper.Viper, logger *zap.Logger) (*Q
 	if err != nil {
 		logger.Error("Failed to parse headers", zap.Strings("slice", stringSlice), zap.Error(err))
 	} else {
-		qOpts.AdditionalHeaders = headers
+		qOpts.HTTP.ResponseHeaders = mapHTTPHeaderToOTELHeaders(headers)
 	}
 	qOpts.Tenancy = tenancy.InitFromViper(v)
 	qOpts.EnableTracing = v.GetBool(queryEnableTracing)
@@ -170,4 +159,13 @@ func stringSliceAsHeader(slice []string) (http.Header, error) {
 	}
 
 	return http.Header(header), nil
+}
+
+func mapHTTPHeaderToOTELHeaders(h http.Header) map[string]configopaque.String {
+	otelHeaders := make(map[string]configopaque.String)
+	for key, values := range h {
+		otelHeaders[key] = configopaque.String(strings.Join(values, ","))
+	}
+
+	return otelHeaders
 }

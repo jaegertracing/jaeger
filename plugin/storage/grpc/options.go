@@ -27,22 +27,22 @@ func tlsFlagsConfig() tlscfg.ClientFlagsConfig {
 	}
 }
 
-// AddFlags adds flags for Options
-func v1AddFlags(flagSet *flag.FlagSet) {
+// addFlags adds flags for Options
+func addFlags(flagSet *flag.FlagSet) {
 	tlsFlagsConfig().AddFlags(flagSet)
 
 	flagSet.String(remoteServer, "", "The remote storage gRPC server address as host:port")
 	flagSet.Duration(remoteConnectionTimeout, defaultConnectionTimeout, "The remote storage gRPC server connection timeout")
 }
 
-func v1InitFromViper(cfg *Configuration, v *viper.Viper) error {
-	cfg.RemoteServerAddr = v.GetString(remoteServer)
-	var err error
-	cfg.RemoteTLS, err = tlsFlagsConfig().InitFromViper(v)
+func initFromViper(cfg *Config, v *viper.Viper) error {
+	cfg.ClientConfig.Endpoint = v.GetString(remoteServer)
+	remoteTLS, err := tlsFlagsConfig().InitFromViper(v)
 	if err != nil {
 		return fmt.Errorf("failed to parse gRPC storage TLS options: %w", err)
 	}
-	cfg.RemoteConnectTimeout = v.GetDuration(remoteConnectionTimeout)
-	cfg.TenancyOpts = tenancy.InitFromViper(v)
+	cfg.ClientConfig.TLSSetting = remoteTLS.ToOtelClientConfig()
+	cfg.TimeoutConfig.Timeout = v.GetDuration(remoteConnectionTimeout)
+	cfg.Tenancy = tenancy.InitFromViper(v)
 	return nil
 }

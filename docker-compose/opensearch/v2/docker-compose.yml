@@ -1,6 +1,6 @@
 services:
   opensearch:
-    image: opensearchproject/opensearch:2.16.0
+    image: opensearchproject/opensearch:2.17.0
     environment:
       - discovery.type=single-node
       - plugins.security.disabled=true

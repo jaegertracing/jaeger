@@ -206,10 +206,8 @@ init-submodules:
 
 MOCKERY_FLAGS := --all --disable-version-string
 .PHONY: generate-mocks
-# TODO remove GODEBUG=gotypesalias=0
-# once this is fixed: https://github.com/vektra/mockery/issues/803
 generate-mocks: $(MOCKERY)
-	GODEBUG=gotypesalias=0 $(MOCKERY)
+	$(MOCKERY)
 
 .PHONY: certs
 certs:

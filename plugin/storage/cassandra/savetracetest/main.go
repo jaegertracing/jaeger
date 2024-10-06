@@ -24,13 +24,19 @@ var logger, _ = zap.NewDevelopment()
 func main() {
 	noScope := metrics.NullFactory
 	cConfig := &cascfg.Configuration{
-		Servers:            []string{"127.0.0.1"},
-		ConnectionsPerHost: 10,
-		Timeout:            time.Millisecond * 750,
-		ProtoVersion:       4,
-		Keyspace:           "jaeger_v1_test",
+		Schema: cascfg.Schema{
+			Keyspace: "jaeger_v1_test",
+		},
+		Connection: cascfg.Connection{
+			Servers:            []string{"127.0.0.1"},
+			ConnectionsPerHost: 10,
+			ProtoVersion:       4,
+		},
+		Query: cascfg.Query{
+			Timeout: time.Millisecond * 750,
+		},
 	}
-	cqlSession, err := cConfig.NewSession(logger)
+	cqlSession, err := cConfig.NewSession()
 	if err != nil {
 		logger.Fatal("Cannot create Cassandra session", zap.Error(err))
 	}

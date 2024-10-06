@@ -17,6 +17,7 @@ import (
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/extension"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+	"go.opentelemetry.io/collector/pipeline"
 	"go.opentelemetry.io/collector/receiver"
 	"go.opentelemetry.io/collector/receiver/otlpreceiver"
 	"go.opentelemetry.io/otel/metric"
@@ -43,7 +44,7 @@ func StartOTLPReceiver(options *flags.CollectorOptions, logger *zap.Logger, span
 		tm,
 		otlpFactory,
 		consumer.NewTraces,
-		otlpFactory.CreateTracesReceiver,
+		otlpFactory.CreateTraces,
 	)
 }
 
@@ -192,7 +193,7 @@ func (h *otelHost) ReportFatalError(err error) {
 	h.logger.Fatal("OTLP receiver error", zap.Error(err))
 }
 
-func (*otelHost) GetFactory(_ component.Kind, _ component.Type) component.Factory {
+func (*otelHost) GetFactory(_ component.Kind, _ pipeline.Signal) component.Factory {
 	return nil
 }
 
@@ -200,7 +201,7 @@ func (*otelHost) GetExtensions() map[component.ID]extension.Extension {
 	return nil
 }
 
-func (*otelHost) GetExporters() map[component.DataType]map[component.ID]component.Component {
+func (*otelHost) GetExporters() map[pipeline.Signal]map[component.ID]component.Component {
 	return nil
 }
 
