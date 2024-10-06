@@ -33,6 +33,7 @@ const (
 	archiveReadIndexSuffix  = archiveIndexSuffix + "-read"
 	archiveWriteIndexSuffix = archiveIndexSuffix + "-write"
 	traceIDAggregation      = "traceIDs"
+	indexPrefixSeparator    = "-"
 
 	traceIDField           = "traceID"
 	durationField          = "duration"
@@ -123,7 +124,7 @@ func NewSpanReader(p SpanReaderParams) *SpanReader {
 	}
 
 	p.SpanIndex.Prefix = p.SpanIndex.FullIndexName(spanIndexBaseName)
-	p.ServiceIndex.Prefix = p.SpanIndex.FullIndexName(spanIndexBaseName)
+	p.ServiceIndex.Prefix = p.ServiceIndex.FullIndexName(serviceIndexBaseName)
 
 	return &SpanReader{
 		client:                  p.Client,
