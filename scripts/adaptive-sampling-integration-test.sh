@@ -63,12 +63,12 @@ check_tracegen_probability() {
     local url="http://localhost:5778/api/sampling?service=tracegen"
     response=$(curl -s "$url")
     probability=$(echo "$response" | jq .operationSampling | jq -r '.perOperationStrategies[] | select(.operation=="lets-go")' | jq .probabilisticSampling.samplingRate)
-    if [ ! -z "$probability" ]; then
+    if [ -n "$probability" ]; then
         if (( $(echo "$probability < $threshold" |bc -l) )); then
             return 0
         fi
     fi
-    return -1
+    return 1
 }
 
 check_adaptive_sampling() {
@@ -81,7 +81,7 @@ check_adaptive_sampling() {
         sleep $wait_seconds
     done
       if [[ "$success" == "false" ]]; then
-        echo "❌ ERROR: Adaptive sampling probability did not drop below "$threshold"."
+        echo "❌ ERROR: Adaptive sampling probability did not drop below $threshold."
         exit 1
       else
         echo "✅ Adaptive sampling probability integration test passed"
