@@ -30,7 +30,7 @@ type MappingBuilder struct {
 type IndexTemplateOptions struct {
 	UseILM        bool
 	ILMPolicyName string
-	config.IndexOptions
+	Prefix        string
 }
 
 func (mb *MappingBuilder) getMappingTemplateOptions(mapping string) *IndexTemplateOptions {
@@ -40,13 +40,13 @@ func (mb *MappingBuilder) getMappingTemplateOptions(mapping string) *IndexTempla
 
 	switch {
 	case strings.Contains(mapping, "span"):
-		mappingOpts.IndexOptions = mb.Indices.Spans
+		mappingOpts.Prefix = mb.Indices.Spans.Prefix
 	case strings.Contains(mapping, "service"):
-		mappingOpts.IndexOptions = mb.Indices.Services
+		mappingOpts.Prefix = mb.Indices.Services.Prefix
 	case strings.Contains(mapping, "dependencies"):
-		mappingOpts.IndexOptions = mb.Indices.Dependencies
+		mappingOpts.Prefix = mb.Indices.Dependencies.Prefix
 	case strings.Contains(mapping, "sampling"):
-		mappingOpts.IndexOptions = mb.Indices.Sampling
+		mappingOpts.Prefix = mb.Indices.Sampling.Prefix
 	}
 
 	return mappingOpts
