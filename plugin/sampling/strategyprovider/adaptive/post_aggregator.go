@@ -385,25 +385,24 @@ func (p *PostAggregator) isUsingAdaptiveSampling(
 	operation string,
 	throughput serviceOperationThroughput,
 ) bool {
-	// if FloatEquals(probability, p.InitialSamplingProbability) {
-	// 	// If the service is seen for the first time, assume it's using adaptive sampling (ie prob == initialProb).
-	// 	// Even if this isn't the case, the next time around this loop, the newly calculated probability will not equal
-	// 	// the initialProb so the logic will fall through.
-	// 	return true
-	// }
-	// if opThroughput, ok := throughput.get(service, operation); ok {
-	// 	f := TruncateFloat(probability)
-	// 	_, ok := opThroughput.Probabilities[f]
-	// 	return ok
-	// }
-	// // By this point, we know that there's no recorded throughput for this operation for this round
-	// // of calculation. Check the previous bucket to see if this operation was using adaptive sampling
-	// // before.
-	// if len(p.serviceCache) > 1 {
-	// 	if e := p.serviceCache[1].Get(service, operation); e != nil {
-	// 		return e.UsingAdaptive && !FloatEquals(e.Probability, p.InitialSamplingProbability)
-	// 	}
-	// }
-	// return false
-	return true
+	if FloatEquals(probability, p.InitialSamplingProbability) {
+		// If the service is seen for the first time, assume it's using adaptive sampling (ie prob == initialProb).
+		// Even if this isn't the case, the next time around this loop, the newly calculated probability will not equal
+		// the initialProb so the logic will fall through.
+		return true
+	}
+	if opThroughput, ok := throughput.get(service, operation); ok {
+		f := TruncateFloat(probability)
+		_, ok := opThroughput.Probabilities[f]
+		return ok
+	}
+	// By this point, we know that there's no recorded throughput for this operation for this round
+	// of calculation. Check the previous bucket to see if this operation was using adaptive sampling
+	// before.
+	if len(p.serviceCache) > 1 {
+		if e := p.serviceCache[1].Get(service, operation); e != nil {
+			return !FloatEquals(e.Probability, p.InitialSamplingProbability)
+		}
+	}
+	return false
 }
