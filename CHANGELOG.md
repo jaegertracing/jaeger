@@ -9,7 +9,7 @@ Changes by Version
 <summary>next release template</summary>
 
 next release v1.x.x / v2.x.x-rcx (yyyy-mm-dd)
--------------------
+-------------------------------
 
 ### Backend Changes
 
