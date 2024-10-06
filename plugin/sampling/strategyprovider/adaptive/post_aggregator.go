@@ -5,6 +5,7 @@ package adaptive
 
 import (
 	"errors"
+	"fmt"
 	"math"
 	"math/rand"
 	"sync"
@@ -13,6 +14,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/model"
+	"github.com/jaegertracing/jaeger/internal/safeexpvar"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/plugin/sampling/leaderelection"
 	"github.com/jaegertracing/jaeger/plugin/sampling/strategyprovider/adaptive/calculationstrategy"
@@ -346,6 +348,7 @@ func (p *PostAggregator) calculateProbability(service, operation string, qps flo
 		Probability:   oldProbability,
 		UsingAdaptive: usingAdaptiveSampling,
 	})
+	safeexpvar.SetString("post_aggregator_service_cache[0]", fmt.Sprintf("%v", p.serviceCache[0].ToValue()))
 
 	// Short circuit if the qps is close enough to targetQPS or if the service doesn't appear to be using
 	// adaptive sampling.
