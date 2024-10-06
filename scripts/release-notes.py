@@ -175,11 +175,11 @@ def main(token, repo, branch, num_commits, exclude_dependabot, verbose):
 
     # Print pull requests in the 'UNCATTEGORIZED' category
     if other_results:
-        print(f'### 💩💩💩 The following commits cannot be categorized (missing changelog labels):\n')
-        print(f'### 💩💩💩 The following commits cannot be categorized (missing "changelog:*" labels):\n')
+        print(f'### 💩💩💩 The following commits cannot be categorized (missing "changelog:*" labels):')
         for result in other_results:
             print(result)
-        print()
+        print(f'### 💩💩💩 Please attach labels to these ^^^ PRs and rerun the script.')
+        print(f'### 💩💩💩 Do not include this section in the changelog.')
 
     # Print warnings for commits with more than one changelog label
     if commits_with_multiple_labels:
