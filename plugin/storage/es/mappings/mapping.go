@@ -33,6 +33,7 @@ type IndexTemplateOptions struct {
 	Prefix        string
 	Shards        int
 	Replicas      int
+	Priority      int
 }
 
 func (mb *MappingBuilder) getMappingTemplateOptions(mapping string) *IndexTemplateOptions {
@@ -45,18 +46,22 @@ func (mb *MappingBuilder) getMappingTemplateOptions(mapping string) *IndexTempla
 		mappingOpts.Prefix = mb.Indices.Spans.Prefix
 		mappingOpts.Shards = mb.Indices.Spans.Shards
 		mappingOpts.Replicas = mb.Indices.Spans.Replicas
+		mappingOpts.Priority = mb.Indices.Spans.Priority
 	case strings.Contains(mapping, "service"):
 		mappingOpts.Prefix = mb.Indices.Services.Prefix
 		mappingOpts.Shards = mb.Indices.Services.Shards
 		mappingOpts.Replicas = mb.Indices.Services.Replicas
+		mappingOpts.Priority = mb.Indices.Services.Priority
 	case strings.Contains(mapping, "dependencies"):
 		mappingOpts.Prefix = mb.Indices.Dependencies.Prefix
 		mappingOpts.Shards = mb.Indices.Dependencies.Shards
 		mappingOpts.Replicas = mb.Indices.Dependencies.Replicas
+		mappingOpts.Priority = mb.Indices.Dependencies.Priority
 	case strings.Contains(mapping, "sampling"):
 		mappingOpts.Prefix = mb.Indices.Sampling.Prefix
 		mappingOpts.Shards = mb.Indices.Sampling.Shards
 		mappingOpts.Replicas = mb.Indices.Sampling.Replicas
+		mappingOpts.Priority = mb.Indices.Sampling.Priority
 	}
 
 	return mappingOpts
