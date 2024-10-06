@@ -31,21 +31,32 @@ type operationNameStorageTest struct {
 	storage        *OperationNamesStorage
 }
 
-func withOperationNamesStorage(writeCacheTTL time.Duration,
+func withOperationNamesStorage(t *testing.T,
+	writeCacheTTL time.Duration,
 	schemaVersion schemaVersion,
 	fn func(s *operationNameStorageTest),
 ) {
 	session := &mocks.Session{}
 	logger, logBuffer := testutils.NewLogger()
 	metricsFactory := metricstest.NewFactory(0)
-	query := &mocks.Query{}
+	latestTableCheckquery := &mocks.Query{}
 	session.On("Query",
-		fmt.Sprintf(tableCheckStmt, schemas[latestVersion].tableName), mock.Anything).Return(query)
+		fmt.Sprintf(tableCheckStmt, schemas[latestVersion].tableName), mock.Anything).Return(latestTableCheckquery)
 	if schemaVersion != latestVersion {
-		query.On("Exec").Return(errors.New("new table does not exist"))
+		latestTableCheckquery.On("Exec").Return(errors.New("new table does not exist"))
 	} else {
-		query.On("Exec").Return(nil)
+		latestTableCheckquery.On("Exec").Return(nil)
 	}
+
+	previousTableCheckquery := &mocks.Query{}
+	session.On("Query",
+		fmt.Sprintf(tableCheckStmt, schemas[previousVersion].tableName), mock.Anything).Return(previousTableCheckquery)
+	if schemaVersion == previousVersion {
+		previousTableCheckquery.On("Exec").Return(nil)
+	}
+
+	storage, err := NewOperationNamesStorage(session, writeCacheTTL, metricsFactory, logger)
+	require.NoError(t, err)
 
 	s := &operationNameStorageTest{
 		session:        session,
@@ -53,7 +64,7 @@ func withOperationNamesStorage(writeCacheTTL time.Duration,
 		metricsFactory: metricsFactory,
 		logger:         logger,
 		logBuffer:      logBuffer,
-		storage:        NewOperationNamesStorage(session, writeCacheTTL, metricsFactory, logger),
+		storage:        storage,
 	}
 	fn(s)
 }
@@ -70,7 +81,7 @@ func TestOperationNamesStorageWrite(t *testing.T) {
 		{name: "test new schema with 1min ttl", ttl: time.Minute, schemaVersion: latestVersion},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			withOperationNamesStorage(test.ttl, test.schemaVersion, func(s *operationNameStorageTest) {
+			withOperationNamesStorage(t, test.ttl, test.schemaVersion, func(s *operationNameStorageTest) {
 				execError := errors.New("exec error")
 				query := &mocks.Query{}
 				query1 := &mocks.Query{}
@@ -160,7 +171,7 @@ func TestOperationNamesStorageGetServices(t *testing.T) {
 		{name: "test new schema with scan error", schemaVersion: latestVersion, expErr: scanError},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			withOperationNamesStorage(0, test.schemaVersion, func(s *operationNameStorageTest) {
+			withOperationNamesStorage(t, 0, test.schemaVersion, func(s *operationNameStorageTest) {
 				assignPtr := func(vals ...string) any {
 					return mock.MatchedBy(func(args []any) bool {
 						if len(args) != len(vals) {
