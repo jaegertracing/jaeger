@@ -176,6 +176,7 @@ def main(token, repo, branch, num_commits, exclude_dependabot, verbose):
     # Print pull requests in the 'UNCATTEGORIZED' category
     if other_results:
         print(f'### 💩💩💩 The following commits cannot be categorized (missing changelog labels):\n')
+        print(f'### 💩💩💩 The following commits cannot be categorized (missing "changelog:*" labels):\n')
         for result in other_results:
             print(result)
         print()
