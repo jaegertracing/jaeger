@@ -103,14 +103,8 @@ func (s *SpanWriter) CreateTemplates(spanTemplate, serviceTemplate, indexPrefix 
 type spanAndServiceIndexFn func(spanTime time.Time) (string, string)
 
 func getSpanAndServiceIndexFn(archive, useReadWriteAliases bool, spanIndexOpts, serviceIndexOpts cfg.IndexOptions) spanAndServiceIndexFn {
-	if spanIndexOpts.Prefix != "" {
-		spanIndexOpts.Prefix += indexPrefixSeparator
-	}
-	if serviceIndexOpts.Prefix != "" {
-		serviceIndexOpts.Prefix += indexPrefixSeparator
-	}
-	spanIndexPrefix := spanIndexOpts.Prefix + spanIndexBaseName
-	serviceIndexPrefix := serviceIndexOpts.Prefix + serviceIndexBaseName
+	spanIndexPrefix := spanIndexOpts.FullIndexName(spanIndexBaseName)
+	serviceIndexPrefix := serviceIndexOpts.FullIndexName(serviceIndexBaseName)
 	if archive {
 		return func(_ time.Time) (string, string) {
 			if useReadWriteAliases {

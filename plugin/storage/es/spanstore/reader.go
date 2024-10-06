@@ -33,7 +33,6 @@ const (
 	archiveReadIndexSuffix  = archiveIndexSuffix + "-read"
 	archiveWriteIndexSuffix = archiveIndexSuffix + "-write"
 	traceIDAggregation      = "traceIDs"
-	indexPrefixSeparator    = "-"
 
 	traceIDField           = "traceID"
 	durationField          = "duration"
@@ -123,15 +122,8 @@ func NewSpanReader(p SpanReaderParams) *SpanReader {
 		maxSpanAge = rolloverMaxSpanAge
 	}
 
-	makeName := func(prefix, index string) string {
-		if prefix != "" {
-			return prefix + indexPrefixSeparator + index
-		}
-		return index
-	}
-
-	p.SpanIndex.Prefix = makeName(p.SpanIndex.Prefix, spanIndexBaseName)
-	p.ServiceIndex.Prefix = makeName(p.ServiceIndex.Prefix, serviceIndexBaseName)
+	p.SpanIndex.Prefix = p.SpanIndex.FullIndexName(spanIndexBaseName)
+	p.ServiceIndex.Prefix = p.SpanIndex.FullIndexName(spanIndexBaseName)
 
 	return &SpanReader{
 		client:                  p.Client,
