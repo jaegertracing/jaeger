@@ -11,7 +11,8 @@ extensions:
     use_v2: true
     http:
   jaeger_query:
-    trace_storage: some_store
+    storage:
+      traces: some_store
   jaeger_storage:
     backends:
       some_store:
