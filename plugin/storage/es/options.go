@@ -382,7 +382,7 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	cfg.Indices.Sampling.DateLayout = initDateLayout(cfg.Indices.Sampling.RolloverFrequency, separator)
 
 	// Daily is recommended for dependencies calculation, and this index size is very small
-	cfg.Indices.Dependencies.DateLayout = initDateLayout(cfg.Indices.Dependencies.RolloverFrequency, separator)
+	cfg.Indices.Dependencies.DateLayout = initDateLayout(cfg.Indices.Dependencies.DateLayout, separator)
 	var err error
 	cfg.TLS, err = cfg.getTLSFlagsConfig().InitFromViper(v)
 	if err != nil {

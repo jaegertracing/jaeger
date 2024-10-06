@@ -218,7 +218,7 @@ func TestSpanReaderIndices(t *testing.T) {
 			params: SpanReaderParams{
 				Archive: false, SpanIndex: spanIndexOptsWithFoo, ServiceIndex: serviceIndexOptsWithFoo,
 			},
-			indices: []string{"foo:" + indexPrefixSeparator + spanIndexBaseName + spanDataLayoutFormat, "foo:" + indexPrefixSeparator + serviceIndexBaseName + serviceDataLayoutFormat},
+			indices: []string{"foo:" + config.IndexPrefixSeparator + spanIndexBaseName + spanDataLayoutFormat, "foo:" + config.IndexPrefixSeparator + serviceIndexBaseName + serviceDataLayoutFormat},
 		},
 		{
 			params: SpanReaderParams{
@@ -236,13 +236,13 @@ func TestSpanReaderIndices(t *testing.T) {
 			params: SpanReaderParams{
 				SpanIndex: spanIndexOptsWithFoo, ServiceIndex: serviceIndexOptsWithFoo, Archive: true,
 			},
-			indices: []string{"foo:" + indexPrefixSeparator + spanIndexBaseName + archiveIndexSuffix, "foo:" + indexPrefixSeparator + serviceIndexBaseName + archiveIndexSuffix},
+			indices: []string{"foo:" + config.IndexPrefixSeparator + spanIndexBaseName + archiveIndexSuffix, "foo:" + config.IndexPrefixSeparator + serviceIndexBaseName + archiveIndexSuffix},
 		},
 		{
 			params: SpanReaderParams{
 				SpanIndex: spanIndexOptsWithFoo, ServiceIndex: serviceIndexOptsWithFoo, Archive: true, UseReadWriteAliases: true,
 			},
-			indices: []string{"foo:" + indexPrefixSeparator + spanIndexBaseName + archiveReadIndexSuffix, "foo:" + indexPrefixSeparator + serviceIndexBaseName + archiveReadIndexSuffix},
+			indices: []string{"foo:" + config.IndexPrefixSeparator + spanIndexBaseName + archiveReadIndexSuffix, "foo:" + config.IndexPrefixSeparator + serviceIndexBaseName + archiveReadIndexSuffix},
 		},
 		{
 			params: SpanReaderParams{

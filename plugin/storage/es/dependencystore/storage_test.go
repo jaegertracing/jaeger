@@ -20,6 +20,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/es"
+	"github.com/jaegertracing/jaeger/pkg/es/config"
 	"github.com/jaegertracing/jaeger/pkg/es/mocks"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
@@ -234,14 +235,14 @@ func TestGetReadIndices(t *testing.T) {
 			params:   Params{IndexPrefix: "foo:", IndexDateLayout: "2006-01-02"},
 			lookback: 1 * time.Hour,
 			indices: []string{
-				"foo:" + indexPrefixSeparator + dependencyIndex + fixedTime.Format("2006-01-02"),
+				"foo:" + config.IndexPrefixSeparator + dependencyIndex + fixedTime.Format("2006-01-02"),
 			},
 		},
 		{
 			params:   Params{IndexPrefix: "foo-", IndexDateLayout: "2006-01-02"},
 			lookback: 0,
 			indices: []string{
-				"foo-" + indexPrefixSeparator + dependencyIndex + fixedTime.Format("2006-01-02"),
+				"foo-" + config.IndexPrefixSeparator + dependencyIndex + fixedTime.Format("2006-01-02"),
 			},
 		},
 	}

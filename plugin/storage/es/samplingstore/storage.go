@@ -14,14 +14,14 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/model"
 	"github.com/jaegertracing/jaeger/pkg/es"
+	"github.com/jaegertracing/jaeger/pkg/es/config"
 	"github.com/jaegertracing/jaeger/plugin/storage/es/samplingstore/dbmodel"
 )
 
 const (
-	samplingIndex        = "jaeger-sampling"
-	throughputType       = "throughput-sampling"
-	probabilitiesType    = "probabilities-sampling"
-	indexPrefixSeparator = "-"
+	samplingIndex     = "jaeger-sampling"
+	throughputType    = "throughput-sampling"
+	probabilitiesType = "probabilities-sampling"
 )
 
 type SamplingStore struct {
@@ -48,7 +48,7 @@ func NewSamplingStore(p Params) *SamplingStore {
 	return &SamplingStore{
 		client:                 p.Client,
 		logger:                 p.Logger,
-		samplingIndexPrefix:    p.PrefixedIndexName() + indexPrefixSeparator,
+		samplingIndexPrefix:    p.PrefixedIndexName() + config.IndexPrefixSeparator,
 		indexDateLayout:        p.IndexDateLayout,
 		maxDocCount:            p.MaxDocCount,
 		indexRolloverFrequency: p.IndexRolloverFrequency,
@@ -186,7 +186,7 @@ func getReadIndices(indexName, indexDateLayout string, startTime time.Time, endT
 
 func (p *Params) PrefixedIndexName() string {
 	if p.IndexPrefix != "" {
-		return p.IndexPrefix + indexPrefixSeparator + samplingIndex
+		return p.IndexPrefix + config.IndexPrefixSeparator + samplingIndex
 	}
 	return samplingIndex
 }

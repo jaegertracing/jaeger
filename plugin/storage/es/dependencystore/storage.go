@@ -16,13 +16,13 @@ import (
 
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/es"
+	"github.com/jaegertracing/jaeger/pkg/es/config"
 	"github.com/jaegertracing/jaeger/plugin/storage/es/dependencystore/dbmodel"
 )
 
 const (
-	dependencyType       = "dependencies"
-	dependencyIndex      = "jaeger-dependencies-"
-	indexPrefixSeparator = "-"
+	dependencyType  = "dependencies"
+	dependencyIndex = "jaeger-dependencies-"
 )
 
 // DependencyStore handles all queries and insertions to ElasticSearch dependencies
@@ -59,7 +59,7 @@ func NewDependencyStore(p Params) *DependencyStore {
 
 func prefixIndexName(prefix, index string) string {
 	if prefix != "" {
-		return prefix + indexPrefixSeparator + index
+		return prefix + config.IndexPrefixSeparator + index
 	}
 	return index
 }

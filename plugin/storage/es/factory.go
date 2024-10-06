@@ -325,7 +325,7 @@ func createDependencyReader(
 		Client:              clientFn,
 		Logger:              logger,
 		IndexPrefix:         cfg.Indices.Dependencies.Prefix,
-		IndexDateLayout:     cfg.Indices.Dependencies.RolloverFrequency,
+		IndexDateLayout:     cfg.Indices.Dependencies.DateLayout,
 		MaxDocCount:         cfg.MaxDocCount,
 		UseReadWriteAliases: cfg.UseReadWriteAliases,
 	})
