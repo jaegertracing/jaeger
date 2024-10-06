@@ -33,6 +33,10 @@ import (
 	storageMetrics "github.com/jaegertracing/jaeger/storage/spanstore/metrics"
 )
 
+const (
+	IndexPrefixSeparator = "-"
+)
+
 // IndexOptions describes the index format and rollover frequency
 type IndexOptions struct {
 	Prefix            string `mapstructure:"prefix"`
@@ -480,4 +484,14 @@ func loadTokenFromFile(path string) (string, error) {
 func (c *Configuration) Validate() error {
 	_, err := govalidator.ValidateStruct(c)
 	return err
+}
+
+func (o IndexOptions) FullIndexName(name string) string {
+	if o.Prefix == "" {
+		return name
+	}
+	if strings.HasSuffix(o.Prefix, IndexPrefixSeparator) {
+		return o.Prefix + name
+	}
+	return o.Prefix + IndexPrefixSeparator + name
 }

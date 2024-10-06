@@ -616,6 +616,47 @@ func TestValidate(t *testing.T) {
 	}
 }
 
+func TestFullIndexName(t *testing.T) {
+	tests := []struct {
+		testName     string
+		options      IndexOptions
+		name         string
+		expectedName string
+	}{
+		{
+			testName: "no prefix",
+			options: IndexOptions{
+				Prefix: "",
+			},
+			name:         "hello",
+			expectedName: "hello",
+		},
+		{
+			testName: "separator suffix",
+			options: IndexOptions{
+				Prefix: "bye-",
+			},
+			name:         "hello",
+			expectedName: "bye-hello",
+		},
+		{
+			testName: "no separator suffix",
+			options: IndexOptions{
+				Prefix: "bye",
+			},
+			name:         "hello",
+			expectedName: "bye-hello",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.testName, func(t *testing.T) {
+			got := test.options.FullIndexName(test.name)
+			require.Equal(t, test.expectedName, got)
+		})
+	}
+}
+
 func TestMain(m *testing.M) {
 	testutils.VerifyGoLeaks(m)
 }
