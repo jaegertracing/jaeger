@@ -12,7 +12,6 @@ import (
 
 	"github.com/spf13/viper"
 	"go.opentelemetry.io/collector/component"
-	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/config/configtelemetry"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
@@ -49,9 +48,19 @@ type Factory struct {
 	remoteConn     *grpc.ClientConn
 }
 
+type nopHost struct{}
+
+func NewNopHost() component.Host {
+	return &nopHost{}
+}
+
 // NewFactory creates a new Factory.
 func NewFactory() *Factory {
 	return &Factory{}
+}
+
+func (*nopHost) GetExtensions() map[component.ID]component.Component {
+	return nil
 }
 
 // NewFactoryWithConfig is used from jaeger(v2).
@@ -98,7 +107,8 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 		for _, opt := range opts {
 			clientOpts = append(clientOpts, configgrpc.WithGrpcDialOption(opt))
 		}
-		return f.config.ToClientConn(context.Background(), componenttest.NewNopHost(), telset, clientOpts...)
+		noophost := NewNopHost()
+		return f.config.ToClientConn(context.Background(), noophost, telset, clientOpts...)
 	}
 
 	var err error
