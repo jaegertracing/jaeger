@@ -97,7 +97,7 @@ def main(token, repo, branch, num_commits, exclude_dependabot, verbose):
 
     progress_iterator = 0
     for commit in commits:
-        if repo == 'jaeger':
+        if verbose:
             # Update the progress bar
             progress_iterator = updateProgress(progress_iterator, num_commits)
 
@@ -171,7 +171,7 @@ def main(token, repo, branch, num_commits, exclude_dependabot, verbose):
         print()
         print('### 📊 UI Changes')
         print()
-        main(token, 'jaeger-ui', 'main', None, exclude_dependabot, verbose)
+        main(token, 'jaeger-ui', 'main', None, exclude_dependabot, False)
 
     # Print pull requests in the 'UNCATTEGORIZED' category
     if other_results:
