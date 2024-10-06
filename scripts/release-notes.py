@@ -97,7 +97,7 @@ def main(token, repo, branch, num_commits, exclude_dependabot, verbose):
 
     progress_iterator = 0
     for commit in commits:
-        if verbose:
+        if repo == 'jaeger':
             # Update the progress bar
             progress_iterator = updateProgress(progress_iterator, num_commits)
 
@@ -171,11 +171,11 @@ def main(token, repo, branch, num_commits, exclude_dependabot, verbose):
         print()
         print('### 📊 UI Changes')
         print()
-        main(token, 'jaeger-ui', 'main', None, exclude_dependabot, False)
+        main(token, 'jaeger-ui', 'main', None, exclude_dependabot, verbose)
 
     # Print pull requests in the 'UNCATTEGORIZED' category
     if other_results:
-        print(f'### 💩💩💩 The following commits cannot be categorized (missing changeglog labels):\n')
+        print(f'### 💩💩💩 The following commits cannot be categorized (missing changelog labels):\n')
         for result in other_results:
             print(result)
         print()
@@ -190,7 +190,8 @@ def main(token, repo, branch, num_commits, exclude_dependabot, verbose):
         print()
 
     if skipped_dependabot:
-        print(f"(Skipped dependabot commits: {skipped_dependabot})")
+        if verbose:
+            print(f"(Skipped dependabot commits: {skipped_dependabot})")
 
 
 def get_pull_request_labels(token, repo, pull_number):

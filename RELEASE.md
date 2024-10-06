@@ -79,8 +79,8 @@ Here are the release managers for future versions with the tentative release dat
 
 | Version | Release Manager | Tentative release date |
 |---------|-----------------|------------------------|
-| 1.62.0  | @albertteoh     | 2 October 2024         |
 | 1.63.0  | @pavolloffay    | 5 November 2024        |
 | 1.64.0  | @joe-elliott    | 4 December 2024        |
 | 1.65.0  | @jkowall        | 8 January 2025         |
-| 1.66.0  | @yurishkuro     | 3 February 2024        |
+| 1.66.0  | @yurishkuro     | 3 February 2025        |
+| 1.67.0  | @albertteoh     | 5 March 2025           |
