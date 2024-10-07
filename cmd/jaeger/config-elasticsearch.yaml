@@ -23,20 +23,18 @@ extensions:
       some_storage:
         elasticsearch:
           indices:
+            index_prefix: "jaeger-main"
             spans:
-              prefix: "jaeger-main"
               date_layout: "2006-01-02"
               rollover_frequency: "day"
               shards: 5
               replicas: 1
             services:
-              prefix: "jaeger-main"
               date_layout: "2006-01-02"
               rollover_frequency: "day"
               shards: 5
               replicas: 1
             dependencies:
-              prefix: "jaeger-main"
               date_layout: "2006-01-02"
               rollover_frequency: "day"
               shards: 5
@@ -49,8 +47,7 @@ extensions:
       another_storage:
         elasticsearch:
           indices:
-            spans:
-              prefix: "jaeger-archive"
+            index_prefix: "jaeger-archive"
 
 receivers:
   otlp:
