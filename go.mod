@@ -29,6 +29,7 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckv2extension v0.111.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/storage v0.111.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger v0.111.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/processor/attributesprocessor v0.111.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/tailsamplingprocessor v0.111.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver v0.111.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kafkareceiver v0.111.0
@@ -101,6 +102,7 @@ require (
 	github.com/antchfx/xmlquery v1.4.1 // indirect
 	github.com/antchfx/xpath v1.3.1 // indirect
 	github.com/ebitengine/purego v0.8.0 // indirect
+	github.com/expr-lang/expr v1.16.9 // indirect
 )
 
 require (
