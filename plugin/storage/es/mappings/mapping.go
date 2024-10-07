@@ -31,23 +31,52 @@ type MappingBuilder struct {
 	ILMPolicyName                string
 }
 
-// GetMapping returns the rendered mapping based on elasticsearch version
-func (mb *MappingBuilder) GetMapping(mapping string) (string, error) {
-	if mb.EsVersion == 8 {
-		return mb.fixMapping(mapping + "-8.json")
-	} else if mb.EsVersion == 7 {
-		return mb.fixMapping(mapping + "-7.json")
+// MappingType represents the type of Elasticsearch mapping
+type MappingType int
+
+const (
+	SpanMapping MappingType = iota
+	ServiceMapping
+	DependenciesMapping
+	SamplingMapping
+)
+
+func (mt MappingType) String() string {
+	switch mt {
+	case SpanMapping:
+		return "jaeger-span"
+	case ServiceMapping:
+		return "jaeger-service"
+	case DependenciesMapping:
+		return "jaeger-dependencies"
+	case SamplingMapping:
+		return "jaeger-sampling"
+	default:
+		return "unknown"
 	}
-	return mb.fixMapping(mapping + "-6.json")
+}
+
+// GetMapping returns the rendered mapping based on elasticsearch version
+func (mb *MappingBuilder) GetMapping(mappingType MappingType) (string, error) {
+	var version string
+	switch mb.EsVersion {
+	case 8:
+		version = "-8"
+	case 7:
+		version = "-7"
+	default:
+		version = "-6"
+	}
+	return mb.fixMapping(mappingType.String() + version + ".json")
 }
 
 // GetSpanServiceMappings returns span and service mappings
 func (mb *MappingBuilder) GetSpanServiceMappings() (spanMapping string, serviceMapping string, err error) {
-	spanMapping, err = mb.GetMapping("jaeger-span")
+	spanMapping, err = mb.GetMapping(SpanMapping)
 	if err != nil {
 		return "", "", err
 	}
-	serviceMapping, err = mb.GetMapping("jaeger-service")
+	serviceMapping, err = mb.GetMapping(ServiceMapping)
 	if err != nil {
 		return "", "", err
 	}
@@ -56,12 +85,12 @@ func (mb *MappingBuilder) GetSpanServiceMappings() (spanMapping string, serviceM
 
 // GetDependenciesMappings returns dependencies mappings
 func (mb *MappingBuilder) GetDependenciesMappings() (string, error) {
-	return mb.GetMapping("jaeger-dependencies")
+	return mb.GetMapping(DependenciesMapping)
 }
 
 // GetSamplingMappings returns sampling mappings
 func (mb *MappingBuilder) GetSamplingMappings() (string, error) {
-	return mb.GetMapping("jaeger-sampling")
+	return mb.GetMapping(SamplingMapping)
 }
 
 func loadMapping(name string) string {
