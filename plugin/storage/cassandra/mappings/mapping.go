@@ -1,19 +1,21 @@
-package main
+package mapping
 
 import (
 	"bytes"
 	"errors"
 	"fmt"
-	"github.com/gocql/gocql"
 	"os"
 	"regexp"
 	"strconv"
 	"strings"
 	"text/template"
+
+	//"github.com/gocql/gocql"
+	//"github.com/jaegertracing/jaeger/pkg/cassandra/config"
+	"github.com/jaegertracing/jaeger/pkg/cassandra"
 )
 
 type MappingBuilder struct {
-	cas_version          uint
 	Mode                 string
 	Datacentre           string
 	Keyspace             string
@@ -105,7 +107,7 @@ func getCompactionWindow(traceTTL int, compactionWindow string) (int, string, er
 			}
 			compactionWindowUnit = unitStr
 		} else {
-			return 0, "", errors.New("invalid compaction window size format. Please use numeric value followed by 'm' for minutes, 'h' for hours, or 'd' for days.")
+			return 0, "", errors.New("invalid compaction window size format. Please use numeric value followed by 'm' for minutes, 'h' for hours, or 'd' for days")
 		}
 	} else {
 		// Calculate default compaction window size and unit
@@ -199,33 +201,54 @@ func (mb *MappingBuilder) GetSpanServiceMappings() (spanMapping string, serviceM
 	return cqlOutput, "", err
 }
 
-func main() {
-	builder := &MappingBuilder{}
+// func main() {
 
+// 	builder := &MappingBuilder{}
+// 	schema, _, err := builder.GetSpanServiceMappings()
+// 	if err != nil {
+// 		fmt.Println("Error:", err)
+// 	}
+
+	
+// 	cluster := gocql.NewCluster("127.0.0.1")
+// 	cluster.Keyspace = "jaeger_v1_test"
+// 	session, err := cluster.CreateSession()
+// 	if err != nil {
+// 		fmt.Println(err)
+// 	}
+// 	defer session.Close()
+
+// 	queries := strings.Split(schema, ";")
+// 	for _, query := range queries {
+// 		trimmedQuery := strings.TrimSpace(query)
+// 		if trimmedQuery != "" {
+// 			fmt.Println(trimmedQuery)
+// 			if err := session.Query(trimmedQuery + ";").Exec(); err != nil {
+// 				fmt.Println("Failed to create sampling_probabilities table: %v", err)
+// 			} else {
+// 				fmt.Println("Table sampling_probabilities created successfully.")
+// 			}
+// 		}
+// 	}
+
+// }
+
+func (c cassandra.Session) SchemaInit() {
+	builder := &MappingBuilder{}
 	schema, _, err := builder.GetSpanServiceMappings()
 	if err != nil {
 		fmt.Println("Error:", err)
 	}
-
-	cluster := gocql.NewCluster("127.0.0.1")
-	cluster.Keyspace = "jaeger_v1_test"
-	session, err := cluster.CreateSession()
-	if err != nil {
-		fmt.Println(err)
-	}
-	defer session.Close()
-
 	queries := strings.Split(schema, ";")
 	for _, query := range queries {
 		trimmedQuery := strings.TrimSpace(query)
 		if trimmedQuery != "" {
 			fmt.Println(trimmedQuery)
-			if err := session.Query(trimmedQuery + ";").Exec(); err != nil {
+			if err := c.Query(trimmedQuery + ";").Exec(); err != nil {
 				fmt.Println("Failed to create sampling_probabilities table: %v", err)
 			} else {
 				fmt.Println("Table sampling_probabilities created successfully.")
 			}
 		}
 	}
-
 }
