@@ -23,7 +23,7 @@
         cd jaeger-ui
         git checkout main
         git pull
-        git checkout {new_ui_version} //e.g. v1.5.0
+        git checkout {new_ui_version} # e.g. v1.5.0
         ```
       * If there are only dependency bumps, indicate this with "Dependencies upgrades only" ([example](https://github.com/jaegertracing/jaeger-ui/pull/2431/files)).
       * If there are no changes, indicate this with "No changes" ([example](https://github.com/jaegertracing/jaeger/pull/4131/files)).
