@@ -62,12 +62,6 @@ func TestSpanWriterIndices(t *testing.T) {
 	spanIndexOpts := config.IndexOptions{DateLayout: spanDataLayout}
 	serviceIndexOpts := config.IndexOptions{DateLayout: serviceDataLayout}
 
-	serviceIndexOptsWithFoo := serviceIndexOpts
-	serviceIndexOptsWithFoo.Prefix = "foo:"
-
-	spanIndexOptsWithFoo := spanIndexOpts
-	spanIndexOptsWithFoo.Prefix = "foo:"
-
 	testCases := []struct {
 		indices []string
 		params  SpanWriterParams
@@ -89,14 +83,14 @@ func TestSpanWriterIndices(t *testing.T) {
 		{
 			params: SpanWriterParams{
 				Client: clientFn, Logger: logger, MetricsFactory: metricsFactory,
-				SpanIndex: spanIndexOptsWithFoo, ServiceIndex: serviceIndexOptsWithFoo, Archive: false,
+				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts, IndexPrefix: "foo:", Archive: false,
 			},
 			indices: []string{"foo:" + config.IndexPrefixSeparator + spanIndexBaseName + spanDataLayoutFormat, "foo:" + config.IndexPrefixSeparator + serviceIndexBaseName + serviceDataLayoutFormat},
 		},
 		{
 			params: SpanWriterParams{
 				Client: clientFn, Logger: logger, MetricsFactory: metricsFactory,
-				SpanIndex: spanIndexOptsWithFoo, ServiceIndex: serviceIndexOptsWithFoo, UseReadWriteAliases: true,
+				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts, IndexPrefix: "foo:", UseReadWriteAliases: true,
 			},
 			indices: []string{"foo:-" + spanIndexBaseName + "write", "foo:-" + serviceIndexBaseName + "write"},
 		},
@@ -110,14 +104,14 @@ func TestSpanWriterIndices(t *testing.T) {
 		{
 			params: SpanWriterParams{
 				Client: clientFn, Logger: logger, MetricsFactory: metricsFactory,
-				SpanIndex: spanIndexOptsWithFoo, ServiceIndex: serviceIndexOptsWithFoo, Archive: true,
+				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts, IndexPrefix: "foo:", Archive: true,
 			},
 			indices: []string{"foo:" + config.IndexPrefixSeparator + spanIndexBaseName + archiveIndexSuffix, ""},
 		},
 		{
 			params: SpanWriterParams{
 				Client: clientFn, Logger: logger, MetricsFactory: metricsFactory,
-				SpanIndex: spanIndexOptsWithFoo, ServiceIndex: serviceIndexOptsWithFoo, Archive: true, UseReadWriteAliases: true,
+				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts, IndexPrefix: "foo:", Archive: true, UseReadWriteAliases: true,
 			},
 			indices: []string{"foo:" + config.IndexPrefixSeparator + spanIndexBaseName + archiveWriteIndexSuffix, ""},
 		},

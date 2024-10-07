@@ -192,12 +192,6 @@ func TestSpanReaderIndices(t *testing.T) {
 	spanIndexOpts := config.IndexOptions{DateLayout: spanDataLayout}
 	serviceIndexOpts := config.IndexOptions{DateLayout: serviceDataLayout}
 
-	serviceIndexOptsWithFoo := serviceIndexOpts
-	serviceIndexOptsWithFoo.Prefix = "foo:"
-
-	spanIndexOptsWithFoo := spanIndexOpts
-	spanIndexOptsWithFoo.Prefix = "foo:"
-
 	testCases := []struct {
 		indices []string
 		params  SpanReaderParams
@@ -216,13 +210,13 @@ func TestSpanReaderIndices(t *testing.T) {
 		},
 		{
 			params: SpanReaderParams{
-				Archive: false, SpanIndex: spanIndexOptsWithFoo, ServiceIndex: serviceIndexOptsWithFoo,
+				Archive: false, SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts, IndexPrefix: "foo:",
 			},
 			indices: []string{"foo:" + config.IndexPrefixSeparator + spanIndexBaseName + spanDataLayoutFormat, "foo:" + config.IndexPrefixSeparator + serviceIndexBaseName + serviceDataLayoutFormat},
 		},
 		{
 			params: SpanReaderParams{
-				SpanIndex: spanIndexOptsWithFoo, ServiceIndex: serviceIndexOptsWithFoo, UseReadWriteAliases: true,
+				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts, IndexPrefix: "foo:", UseReadWriteAliases: true,
 			},
 			indices: []string{"foo:-" + spanIndexBaseName + "read", "foo:-" + serviceIndexBaseName + "read"},
 		},
@@ -234,13 +228,13 @@ func TestSpanReaderIndices(t *testing.T) {
 		},
 		{
 			params: SpanReaderParams{
-				SpanIndex: spanIndexOptsWithFoo, ServiceIndex: serviceIndexOptsWithFoo, Archive: true,
+				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts, IndexPrefix: "foo:", Archive: true,
 			},
 			indices: []string{"foo:" + config.IndexPrefixSeparator + spanIndexBaseName + archiveIndexSuffix, "foo:" + config.IndexPrefixSeparator + serviceIndexBaseName + archiveIndexSuffix},
 		},
 		{
 			params: SpanReaderParams{
-				SpanIndex: spanIndexOptsWithFoo, ServiceIndex: serviceIndexOptsWithFoo, Archive: true, UseReadWriteAliases: true,
+				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts, IndexPrefix: "foo:", Archive: true, UseReadWriteAliases: true,
 			},
 			indices: []string{"foo:" + config.IndexPrefixSeparator + spanIndexBaseName + archiveReadIndexSuffix, "foo:" + config.IndexPrefixSeparator + serviceIndexBaseName + archiveReadIndexSuffix},
 		},
@@ -304,8 +298,8 @@ func TestSpanReaderIndices(t *testing.T) {
 		testCase.params.Tracer = tracer.Tracer("test")
 		r := NewSpanReader(testCase.params)
 
-		actualSpan := r.timeRangeIndices(r.spanIndex.Prefix, r.spanIndex.DateLayout, date, date, -1*time.Hour)
-		actualService := r.timeRangeIndices(r.serviceIndex.Prefix, r.serviceIndex.DateLayout, date, date, -24*time.Hour)
+		actualSpan := r.timeRangeIndices(r.spanIndexPrefix, r.spanIndex.DateLayout, date, date, -1*time.Hour)
+		actualService := r.timeRangeIndices(r.serviceIndexPrefix, r.serviceIndex.DateLayout, date, date, -24*time.Hour)
 		assert.Equal(t, testCase.indices, append(actualSpan, actualService...))
 	}
 }

@@ -52,7 +52,7 @@ type SpanWriterParams struct {
 	MetricsFactory metrics.Factory
 	SpanIndex      cfg.IndexOptions
 	ServiceIndex   cfg.IndexOptions
-	// IndexPrefix            string
+	IndexPrefix    cfg.IndexPrefix
 	// SpanIndexDateLayout    string
 	// ServiceIndexDateLayout string
 	AllTagsAsFields     bool
@@ -79,7 +79,7 @@ func NewSpanWriter(p SpanWriterParams) *SpanWriter {
 		},
 		serviceWriter:    serviceOperationStorage.Write,
 		spanConverter:    dbmodel.NewFromDomain(p.AllTagsAsFields, p.TagKeysAsFields, p.TagDotReplacement),
-		spanServiceIndex: getSpanAndServiceIndexFn(p.Archive, p.UseReadWriteAliases, p.SpanIndex, p.ServiceIndex),
+		spanServiceIndex: getSpanAndServiceIndexFn(p.Archive, p.UseReadWriteAliases, p.IndexPrefix, p.SpanIndex, p.ServiceIndex),
 	}
 }
 
@@ -102,9 +102,9 @@ func (s *SpanWriter) CreateTemplates(spanTemplate, serviceTemplate, indexPrefix 
 // spanAndServiceIndexFn returns names of span and service indices
 type spanAndServiceIndexFn func(spanTime time.Time) (string, string)
 
-func getSpanAndServiceIndexFn(archive, useReadWriteAliases bool, spanIndexOpts, serviceIndexOpts cfg.IndexOptions) spanAndServiceIndexFn {
-	spanIndexPrefix := spanIndexOpts.FullIndexName(spanIndexBaseName)
-	serviceIndexPrefix := serviceIndexOpts.FullIndexName(serviceIndexBaseName)
+func getSpanAndServiceIndexFn(archive, useReadWriteAliases bool, indexPrefix cfg.IndexPrefix, spanIndexOpts, serviceIndexOpts cfg.IndexOptions) spanAndServiceIndexFn {
+	spanIndexPrefix := indexPrefix.Apply(spanIndexBaseName)
+	serviceIndexPrefix := indexPrefix.Apply(serviceIndexBaseName)
 	if archive {
 		return func(_ time.Time) (string, string) {
 			if useReadWriteAliases {

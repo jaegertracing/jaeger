@@ -87,6 +87,8 @@ type SpanReader struct {
 	// this will be rounded down to UTC 00:00 of that day.
 	maxSpanAge              time.Duration
 	serviceOperationStorage *ServiceOperationStorage
+	spanIndexPrefix         string
+	serviceIndexPrefix      string
 	spanIndex               cfg.IndexOptions
 	serviceIndex            cfg.IndexOptions
 	spanConverter           dbmodel.ToDomain
@@ -103,6 +105,7 @@ type SpanReaderParams struct {
 	Client              func() es.Client
 	MaxSpanAge          time.Duration
 	MaxDocCount         int
+	IndexPrefix         cfg.IndexPrefix
 	SpanIndex           cfg.IndexOptions
 	ServiceIndex        cfg.IndexOptions
 	TagDotReplacement   string
@@ -123,13 +126,12 @@ func NewSpanReader(p SpanReaderParams) *SpanReader {
 		maxSpanAge = rolloverMaxSpanAge
 	}
 
-	p.SpanIndex.Prefix = p.SpanIndex.FullIndexName(spanIndexBaseName)
-	p.ServiceIndex.Prefix = p.ServiceIndex.FullIndexName(serviceIndexBaseName)
-
 	return &SpanReader{
 		client:                  p.Client,
 		maxSpanAge:              maxSpanAge,
 		serviceOperationStorage: NewServiceOperationStorage(p.Client, p.Logger, 0), // the decorator takes care of metrics
+		spanIndexPrefix:         p.IndexPrefix.Apply(spanIndexBaseName),
+		serviceIndexPrefix:      p.IndexPrefix.Apply(serviceIndexBaseName),
 		spanIndex:               p.SpanIndex,
 		serviceIndex:            p.ServiceIndex,
 		spanConverter:           dbmodel.NewToDomain(p.TagDotReplacement),
@@ -266,7 +268,7 @@ func (s *SpanReader) GetServices(ctx context.Context) ([]string, error) {
 	defer span.End()
 	currentTime := time.Now()
 	jaegerIndices := s.timeRangeIndices(
-		s.serviceIndex.Prefix,
+		s.serviceIndexPrefix,
 		s.serviceIndex.DateLayout,
 		currentTime.Add(-s.maxSpanAge),
 		currentTime,
@@ -284,7 +286,7 @@ func (s *SpanReader) GetOperations(
 	defer span.End()
 	currentTime := time.Now()
 	jaegerIndices := s.timeRangeIndices(
-		s.serviceIndex.Prefix,
+		s.serviceIndexPrefix,
 		s.serviceIndex.DateLayout,
 		currentTime.Add(-s.maxSpanAge),
 		currentTime,
@@ -369,7 +371,7 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []model.TraceID, st
 	// Add an hour in both directions so that traces that straddle two indexes are retrieved.
 	// i.e starts in one and ends in another.
 	indices := s.timeRangeIndices(
-		s.spanIndex.Prefix,
+		s.spanIndexPrefix,
 		s.spanIndex.DateLayout,
 		startTime.Add(-time.Hour),
 		endTime.Add(time.Hour),
@@ -567,7 +569,7 @@ func (s *SpanReader) findTraceIDs(ctx context.Context, traceQuery *spanstore.Tra
 	aggregation := s.buildTraceIDAggregation(traceQuery.NumTraces)
 	boolQuery := s.buildFindTraceIDsQuery(traceQuery)
 	jaegerIndices := s.timeRangeIndices(
-		s.spanIndex.Prefix,
+		s.spanIndexPrefix,
 		s.spanIndex.DateLayout,
 		traceQuery.StartTimeMin,
 		traceQuery.StartTimeMax,
