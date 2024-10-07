@@ -1,3 +1,6 @@
+// Copyright (c) 2024 The Jaeger Authors.
+// SPDX-License-Identifier: Apache-2.0
+
 package mappings
 
 import (
@@ -9,8 +12,9 @@ import (
 	"strconv"
 	"strings"
 	"text/template"
-	//"github.com/jaegertracing/jaeger/pkg/cassandra"
+
 	"github.com/gocql/gocql"
+	//"github.com/jaegertracing/jaeger/pkg/cassandra"
 )
 
 type MappingBuilder struct {
@@ -39,7 +43,6 @@ func (mb *MappingBuilder) renderTemplate(templatePath string) (string, error) {
 }
 
 func RenderCQLTemplate(params MappingBuilder, cqlOutput string) (string, error) {
-
 	commentRegex := regexp.MustCompile(`--.*`)
 	cqlOutput = commentRegex.ReplaceAllString(cqlOutput, "")
 
@@ -128,7 +131,7 @@ func (mb *MappingBuilder) GetSpanServiceMappings() (spanMapping string, serviceM
 	traceTTL, _ := strconv.Atoi(getEnv("TRACE_TTL", "172800"))
 	dependenciesTTL, _ := strconv.Atoi(getEnv("DEPENDENCIES_TTL", "0"))
 	cas_version := getEnv("VERSION", "4")
-	//template := os.Args[1]
+	// template := os.Args[1]
 	var template string
 	var cqlOutput string
 	if template == "" {
@@ -147,7 +150,7 @@ func (mb *MappingBuilder) GetSpanServiceMappings() (spanMapping string, serviceM
 			return
 		}
 		var datacentre, replications string
-		//var ReplicationFactor int
+		// var ReplicationFactor int
 		if mode == "prod" {
 			datacentre = getEnv("DATACENTRE", "")
 			if datacentre == "" {
@@ -187,7 +190,7 @@ func (mb *MappingBuilder) GetSpanServiceMappings() (spanMapping string, serviceM
 			return "", "", err
 		}
 		cqlOutput, _ = RenderCQLTemplate(params, cqlOutput)
-		//fmt.Println(cqlOutput)
+		// fmt.Println(cqlOutput)
 	}
 	return cqlOutput, "", err
 }
