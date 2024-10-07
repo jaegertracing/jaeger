@@ -256,6 +256,7 @@ func createSpanWriter(
 
 	writer := esSpanStore.NewSpanWriter(esSpanStore.SpanWriterParams{
 		Client:              clientFn,
+		IndexPrefix:         cfg.Indices.IndexPrefix,
 		SpanIndex:           cfg.Indices.Spans,
 		ServiceIndex:        cfg.Indices.Services,
 		AllTagsAsFields:     cfg.Tags.AllAsFields,
