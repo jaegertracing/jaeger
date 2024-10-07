@@ -277,6 +277,9 @@ func (c *Configuration) ApplyDefaults(source *Configuration) {
 	if c.AdaptiveSamplingLookback == 0 {
 		c.AdaptiveSamplingLookback = source.AdaptiveSamplingLookback
 	}
+	if c.Indices.IndexPrefix == "" {
+		c.Indices.IndexPrefix = source.Indices.IndexPrefix
+	}
 
 	setDefaultIndexOptions(&c.Indices.Spans, &source.Indices.Spans)
 	setDefaultIndexOptions(&c.Indices.Services, &source.Indices.Services)
