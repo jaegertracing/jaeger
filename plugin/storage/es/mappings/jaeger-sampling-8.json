@@ -1,10 +1,10 @@
 {
   "priority": {{ .Priority }},
-  "index_patterns": "{{ .Prefix }}jaeger-sampling-*",
+  "index_patterns": "{{ .IndexPrefix }}jaeger-sampling-*",
   "template": {
     {{- if .UseILM }}
     "aliases": {
-      "{{ .Prefix }}jaeger-sampling-read": {}
+      "{{ .IndexPrefix }}jaeger-sampling-read": {}
     },
     {{- end }}
     "settings": {
@@ -15,7 +15,7 @@
       {{- if .UseILM }},
       "lifecycle": {
         "name": "{{ .ILMPolicyName }}",
-        "rollover_alias": "{{ .Prefix }}jaeger-sampling-write"
+        "rollover_alias": "{{ .IndexPrefix }}jaeger-sampling-write"
       }
       {{- end }}
     },

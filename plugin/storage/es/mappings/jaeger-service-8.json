@@ -1,10 +1,10 @@
 {
   "priority": {{ .Priority }},
-  "index_patterns": "{{ .Prefix }}jaeger-service-*",
+  "index_patterns": "{{ .IndexPrefix }}jaeger-service-*",
   "template": {
     {{- if .UseILM }}
     "aliases": {
-      "{{ .Prefix }}jaeger-service-read": {}
+      "{{ .IndexPrefix }}jaeger-service-read": {}
     },
     {{- end }}
     "settings": {
@@ -15,7 +15,7 @@
       {{- if .UseILM }},
       "lifecycle": {
         "name": "{{ .ILMPolicyName }}",
-        "rollover_alias": "{{ .Prefix }}jaeger-service-write"
+        "rollover_alias": "{{ .IndexPrefix }}jaeger-service-write"
       }
       {{- end }}
     },

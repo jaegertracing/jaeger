@@ -168,7 +168,7 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		"Timeout used for queries. A Timeout of zero means no timeout")
 	flagSet.Int(
 		nsConfig.namespace+suffixNumShards,
-		defaultIndexOptions.Shards,
+		nsConfig.Indices.Spans.Shards,
 		"The number of shards per index in Elasticsearch")
 	flagSet.Duration(
 		nsConfig.namespace+suffixServiceCacheTTL,
@@ -177,7 +177,7 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 	)
 	flagSet.Int(
 		nsConfig.namespace+suffixNumReplicas,
-		defaultIndexOptions.Replicas,
+		nsConfig.Indices.Spans.Replicas,
 		"The number of replicas per index in Elasticsearch")
 	flagSet.Int(
 		nsConfig.namespace+suffixPrioritySpanTemplate,

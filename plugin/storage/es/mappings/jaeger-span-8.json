@@ -1,11 +1,11 @@
 {
   "priority": {{ .Priority }},
-  "index_patterns": "{{ .Prefix }}jaeger-span-*",
+  "index_patterns": "{{ .IndexPrefix }}jaeger-span-*",
   "template": {
 
     {{- if .UseILM}}
     "aliases": {
-      "{{ .Prefix }}jaeger-span-read": {}
+      "{{ .IndexPrefix }}jaeger-span-read": {}
     },
     {{- end}}
     "settings": {
@@ -16,7 +16,7 @@
       {{- if .UseILM }},
       "lifecycle": {
         "name": "{{ .ILMPolicyName }}",
-        "rollover_alias": "{{ .Prefix }}jaeger-span-write"
+        "rollover_alias": "{{ .IndexPrefix }}jaeger-span-write"
       }
       {{- end }}
     },

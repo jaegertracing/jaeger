@@ -2,7 +2,7 @@
   "index_patterns": "*jaeger-dependencies-*",
   {{- if .UseILM }}
   "aliases": {
-    "{{ .Prefix }}jaeger-dependencies-read" : {}
+    "{{ .IndexPrefix }}jaeger-dependencies-read" : {}
   },
   {{- end }}
   "settings":{
@@ -13,7 +13,7 @@
   {{- if .UseILM }}
     ,"lifecycle": {
         "name": "{{ .ILMPolicyName }}",
-        "rollover_alias": "{{ .Prefix }}jaeger-dependencies-write"
+        "rollover_alias": "{{ .IndexPrefix }}jaeger-dependencies-write"
     }
   {{- end }}
   },

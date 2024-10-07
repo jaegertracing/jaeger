@@ -2,7 +2,7 @@
   "index_patterns": "*jaeger-sampling-*",
   {{- if .UseILM }}
   "aliases": {
-    "{{ .Prefix }}jaeger-sampling-read" : {}
+    "{{ .IndexPrefix }}jaeger-sampling-read" : {}
   },
   {{- end }}
   "settings":{
@@ -13,7 +13,7 @@
   {{- if .UseILM }}
     ,"lifecycle": {
         "name": "{{ .ILMPolicyName }}",
-        "rollover_alias": "{{ .Prefix }}jaeger-sampling-write"
+        "rollover_alias": "{{ .IndexPrefix }}jaeger-sampling-write"
     }
   {{- end }}
   },

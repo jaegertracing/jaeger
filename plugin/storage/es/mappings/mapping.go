@@ -30,7 +30,7 @@ type MappingBuilder struct {
 type IndexTemplateOptions struct {
 	UseILM        bool
 	ILMPolicyName string
-	Prefix        string
+	IndexPrefix   string
 	Shards        int
 	Replicas      int
 	Priority      int
@@ -43,22 +43,22 @@ func (mb *MappingBuilder) getMappingTemplateOptions(mapping string) *IndexTempla
 
 	switch {
 	case strings.Contains(mapping, "span"):
-		mappingOpts.Prefix = mb.Indices.Spans.Prefix
+		mappingOpts.IndexPrefix = mb.Indices.Spans.Prefix
 		mappingOpts.Shards = mb.Indices.Spans.Shards
 		mappingOpts.Replicas = mb.Indices.Spans.Replicas
 		mappingOpts.Priority = mb.Indices.Spans.Priority
 	case strings.Contains(mapping, "service"):
-		mappingOpts.Prefix = mb.Indices.Services.Prefix
+		mappingOpts.IndexPrefix = mb.Indices.Services.Prefix
 		mappingOpts.Shards = mb.Indices.Services.Shards
 		mappingOpts.Replicas = mb.Indices.Services.Replicas
 		mappingOpts.Priority = mb.Indices.Services.Priority
 	case strings.Contains(mapping, "dependencies"):
-		mappingOpts.Prefix = mb.Indices.Dependencies.Prefix
+		mappingOpts.IndexPrefix = mb.Indices.Dependencies.Prefix
 		mappingOpts.Shards = mb.Indices.Dependencies.Shards
 		mappingOpts.Replicas = mb.Indices.Dependencies.Replicas
 		mappingOpts.Priority = mb.Indices.Dependencies.Priority
 	case strings.Contains(mapping, "sampling"):
-		mappingOpts.Prefix = mb.Indices.Sampling.Prefix
+		mappingOpts.IndexPrefix = mb.Indices.Sampling.Prefix
 		mappingOpts.Shards = mb.Indices.Sampling.Shards
 		mappingOpts.Replicas = mb.Indices.Sampling.Replicas
 		mappingOpts.Priority = mb.Indices.Sampling.Priority
@@ -113,8 +113,8 @@ func (mb *MappingBuilder) fixMapping(mapping string, options *IndexTemplateOptio
 	}
 	writer := new(bytes.Buffer)
 
-	if options.Prefix != "" && !strings.HasSuffix(options.Prefix, "-") {
-		options.Prefix += "-"
+	if options.IndexPrefix != "" && !strings.HasSuffix(options.IndexPrefix, config.IndexPrefixSeparator) {
+		options.IndexPrefix += config.IndexPrefixSeparator
 	}
 	if err := tmpl.Execute(writer, options); err != nil {
 		return "", err
