@@ -48,19 +48,27 @@ type Factory struct {
 	remoteConn     *grpc.ClientConn
 }
 
-type nopHost struct{}
+type host struct {
+	extensions map[component.ID]component.Component
+}
 
-func NewNopHost() component.Host {
-	return &nopHost{}
+func NewHost() component.Host {
+	return &host{
+		extensions: make(map[component.ID]component.Component),
+	}
+}
+
+func (h *host) GetExtensions() map[component.ID]component.Component {
+	return h.extensions
+}
+
+func (h *host) AddExtensions(id component.ID, ext component.Component) {
+	h.extensions[id] = ext
 }
 
 // NewFactory creates a new Factory.
 func NewFactory() *Factory {
 	return &Factory{}
-}
-
-func (*nopHost) GetExtensions() map[component.ID]component.Component {
-	return nil
 }
 
 // NewFactoryWithConfig is used from jaeger(v2).
@@ -107,8 +115,8 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 		for _, opt := range opts {
 			clientOpts = append(clientOpts, configgrpc.WithGrpcDialOption(opt))
 		}
-		noophost := NewNopHost()
-		return f.config.ToClientConn(context.Background(), noophost, telset, clientOpts...)
+		host := NewHost()
+		return f.config.ToClientConn(context.Background(), host, telset, clientOpts...)
 	}
 
 	var err error
