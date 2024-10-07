@@ -21,8 +21,8 @@ import (
 )
 
 const (
-	dependencyType  = "dependencies"
-	dependencyIndex = "jaeger-dependencies-"
+	dependencyType          = "dependencies"
+	dependencyIndexBaseName = "jaeger-dependencies-"
 )
 
 // DependencyStore handles all queries and insertions to ElasticSearch dependencies
@@ -50,7 +50,7 @@ func NewDependencyStore(p Params) *DependencyStore {
 	return &DependencyStore{
 		client:                p.Client,
 		logger:                p.Logger,
-		dependencyIndexPrefix: prefixIndexName(p.IndexPrefix, dependencyIndex),
+		dependencyIndexPrefix: prefixIndexName(p.IndexPrefix, dependencyIndexBaseName),
 		indexDateLayout:       p.IndexDateLayout,
 		maxDocCount:           p.MaxDocCount,
 		useReadWriteAliases:   p.UseReadWriteAliases,

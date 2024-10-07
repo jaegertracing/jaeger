@@ -19,9 +19,9 @@ import (
 )
 
 const (
-	samplingIndex     = "jaeger-sampling"
-	throughputType    = "throughput-sampling"
-	probabilitiesType = "probabilities-sampling"
+	samplingIndexBaseName = "jaeger-sampling"
+	throughputType        = "throughput-sampling"
+	probabilitiesType     = "probabilities-sampling"
 )
 
 type SamplingStore struct {
@@ -186,9 +186,9 @@ func getReadIndices(indexName, indexDateLayout string, startTime time.Time, endT
 
 func (p *Params) PrefixedIndexName() string {
 	if p.IndexPrefix != "" {
-		return p.IndexPrefix + config.IndexPrefixSeparator + samplingIndex
+		return p.IndexPrefix + config.IndexPrefixSeparator + samplingIndexBaseName
 	}
-	return samplingIndex
+	return samplingIndexBaseName
 }
 
 func buildTSQuery(start, end time.Time) elastic.Query {

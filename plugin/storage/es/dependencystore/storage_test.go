@@ -77,7 +77,7 @@ func TestNewSpanReaderIndexPrefix(t *testing.T) {
 			MaxDocCount:     defaultMaxDocCount,
 		})
 
-		assert.Equal(t, testCase.expected+dependencyIndex, r.dependencyIndexPrefix)
+		assert.Equal(t, testCase.expected+dependencyIndexBaseName, r.dependencyIndexPrefix)
 	}
 }
 
@@ -212,37 +212,37 @@ func TestGetReadIndices(t *testing.T) {
 			params:   Params{IndexPrefix: "", IndexDateLayout: "2006-01-02", UseReadWriteAliases: true},
 			lookback: 23 * time.Hour,
 			indices: []string{
-				dependencyIndex + "read",
+				dependencyIndexBaseName + "read",
 			},
 		},
 		{
 			params:   Params{IndexPrefix: "", IndexDateLayout: "2006-01-02"},
 			lookback: 23 * time.Hour,
 			indices: []string{
-				dependencyIndex + fixedTime.Format("2006-01-02"),
-				dependencyIndex + fixedTime.Add(-23*time.Hour).Format("2006-01-02"),
+				dependencyIndexBaseName + fixedTime.Format("2006-01-02"),
+				dependencyIndexBaseName + fixedTime.Add(-23*time.Hour).Format("2006-01-02"),
 			},
 		},
 		{
 			params:   Params{IndexPrefix: "", IndexDateLayout: "2006-01-02"},
 			lookback: 13 * time.Hour,
 			indices: []string{
-				dependencyIndex + fixedTime.UTC().Format("2006-01-02"),
-				dependencyIndex + fixedTime.Add(-13*time.Hour).Format("2006-01-02"),
+				dependencyIndexBaseName + fixedTime.UTC().Format("2006-01-02"),
+				dependencyIndexBaseName + fixedTime.Add(-13*time.Hour).Format("2006-01-02"),
 			},
 		},
 		{
 			params:   Params{IndexPrefix: "foo:", IndexDateLayout: "2006-01-02"},
 			lookback: 1 * time.Hour,
 			indices: []string{
-				"foo:" + config.IndexPrefixSeparator + dependencyIndex + fixedTime.Format("2006-01-02"),
+				"foo:" + config.IndexPrefixSeparator + dependencyIndexBaseName + fixedTime.Format("2006-01-02"),
 			},
 		},
 		{
 			params:   Params{IndexPrefix: "foo-", IndexDateLayout: "2006-01-02"},
 			lookback: 0,
 			indices: []string{
-				"foo-" + config.IndexPrefixSeparator + dependencyIndex + fixedTime.Format("2006-01-02"),
+				"foo-" + config.IndexPrefixSeparator + dependencyIndexBaseName + fixedTime.Format("2006-01-02"),
 			},
 		},
 	}
@@ -261,11 +261,11 @@ func TestGetWriteIndex(t *testing.T) {
 	}{
 		{
 			params:     Params{IndexPrefix: "", IndexDateLayout: "2006-01-02", UseReadWriteAliases: true},
-			writeIndex: dependencyIndex + "write",
+			writeIndex: dependencyIndexBaseName + "write",
 		},
 		{
 			params:     Params{IndexPrefix: "", IndexDateLayout: "2006-01-02", UseReadWriteAliases: false},
-			writeIndex: dependencyIndex + fixedTime.Format("2006-01-02"),
+			writeIndex: dependencyIndexBaseName + fixedTime.Format("2006-01-02"),
 		},
 	}
 	for _, testCase := range testCases {

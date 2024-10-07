@@ -235,25 +235,25 @@ func newElasticsearchV8(c *Configuration, logger *zap.Logger) (*esV8.Client, err
 	return esV8.NewClient(options)
 }
 
-func setDefaultIndexOptions(cfg, source *IndexOptions) {
-	if cfg.Shards == 0 {
-		cfg.Shards = source.Shards
+func setDefaultIndexOptions(target, source *IndexOptions) {
+	if target.Shards == 0 {
+		target.Shards = source.Shards
 	}
 
-	if cfg.Replicas == 0 {
-		cfg.Replicas = source.Replicas
+	if target.Replicas == 0 {
+		target.Replicas = source.Replicas
 	}
 
-	if cfg.Priority == 0 {
-		cfg.Priority = source.Priority
+	if target.Priority == 0 {
+		target.Priority = source.Priority
 	}
 
-	if cfg.DateLayout == "" {
-		cfg.DateLayout = source.DateLayout
+	if target.DateLayout == "" {
+		target.DateLayout = source.DateLayout
 	}
 
-	if cfg.RolloverFrequency == "" {
-		cfg.RolloverFrequency = source.RolloverFrequency
+	if target.RolloverFrequency == "" {
+		target.RolloverFrequency = source.RolloverFrequency
 	}
 }
 

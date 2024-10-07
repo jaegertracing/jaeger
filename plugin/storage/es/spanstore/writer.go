@@ -47,14 +47,12 @@ type SpanWriter struct {
 
 // SpanWriterParams holds constructor parameters for NewSpanWriter
 type SpanWriterParams struct {
-	Client         func() es.Client
-	Logger         *zap.Logger
-	MetricsFactory metrics.Factory
-	SpanIndex      cfg.IndexOptions
-	ServiceIndex   cfg.IndexOptions
-	IndexPrefix    cfg.IndexPrefix
-	// SpanIndexDateLayout    string
-	// ServiceIndexDateLayout string
+	Client              func() es.Client
+	Logger              *zap.Logger
+	MetricsFactory      metrics.Factory
+	SpanIndex           cfg.IndexOptions
+	ServiceIndex        cfg.IndexOptions
+	IndexPrefix         cfg.IndexPrefix
 	AllTagsAsFields     bool
 	TagKeysAsFields     []string
 	TagDotReplacement   string
@@ -79,7 +77,7 @@ func NewSpanWriter(p SpanWriterParams) *SpanWriter {
 		},
 		serviceWriter:    serviceOperationStorage.Write,
 		spanConverter:    dbmodel.NewFromDomain(p.AllTagsAsFields, p.TagKeysAsFields, p.TagDotReplacement),
-		spanServiceIndex: getSpanAndServiceIndexFn(p.Archive, p.UseReadWriteAliases, p.IndexPrefix, p.SpanIndex, p.ServiceIndex),
+		spanServiceIndex: getSpanAndServiceIndexFn(p),
 	}
 }
 
@@ -102,25 +100,25 @@ func (s *SpanWriter) CreateTemplates(spanTemplate, serviceTemplate, indexPrefix 
 // spanAndServiceIndexFn returns names of span and service indices
 type spanAndServiceIndexFn func(spanTime time.Time) (string, string)
 
-func getSpanAndServiceIndexFn(archive, useReadWriteAliases bool, indexPrefix cfg.IndexPrefix, spanIndexOpts, serviceIndexOpts cfg.IndexOptions) spanAndServiceIndexFn {
-	spanIndexPrefix := indexPrefix.Apply(spanIndexBaseName)
-	serviceIndexPrefix := indexPrefix.Apply(serviceIndexBaseName)
-	if archive {
+func getSpanAndServiceIndexFn(p SpanWriterParams) spanAndServiceIndexFn {
+	spanIndexPrefix := p.IndexPrefix.Apply(spanIndexBaseName)
+	serviceIndexPrefix := p.IndexPrefix.Apply(serviceIndexBaseName)
+	if p.Archive {
 		return func(_ time.Time) (string, string) {
-			if useReadWriteAliases {
+			if p.UseReadWriteAliases {
 				return archiveIndex(spanIndexPrefix, archiveWriteIndexSuffix), ""
 			}
 			return archiveIndex(spanIndexPrefix, archiveIndexSuffix), ""
 		}
 	}
 
-	if useReadWriteAliases {
+	if p.UseReadWriteAliases {
 		return func(_ /* spanTime */ time.Time) (string, string) {
 			return spanIndexPrefix + "write", serviceIndexPrefix + "write"
 		}
 	}
 	return func(date time.Time) (string, string) {
-		return indexWithDate(spanIndexPrefix, spanIndexOpts.DateLayout, date), indexWithDate(serviceIndexPrefix, serviceIndexOpts.DateLayout, date)
+		return indexWithDate(spanIndexPrefix, p.SpanIndex.DateLayout, date), indexWithDate(serviceIndexPrefix, p.SpanIndex.DateLayout, date)
 	}
 }
 

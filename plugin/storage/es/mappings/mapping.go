@@ -36,7 +36,7 @@ type IndexTemplateOptions struct {
 	Priority      int
 }
 
-func (mb *MappingBuilder) getMappingTemplateOptions(mapping string) *IndexTemplateOptions {
+func (mb MappingBuilder) getMappingTemplateOptions(mapping string) *IndexTemplateOptions {
 	mappingOpts := &IndexTemplateOptions{}
 	mappingOpts.UseILM = mb.UseILM
 	mappingOpts.ILMPolicyName = mb.ILMPolicyName
