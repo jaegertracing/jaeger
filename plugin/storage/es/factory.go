@@ -224,6 +224,7 @@ func createSpanReader(
 		Client:              clientFn,
 		MaxDocCount:         cfg.MaxDocCount,
 		MaxSpanAge:          cfg.MaxSpanAge,
+		IndexPrefix:         cfg.Indices.IndexPrefix,
 		SpanIndex:           cfg.Indices.Spans,
 		ServiceIndex:        cfg.Indices.Services,
 		TagDotReplacement:   cfg.Tags.DotReplacement,
