@@ -118,7 +118,7 @@ func getSpanAndServiceIndexFn(p SpanWriterParams) spanAndServiceIndexFn {
 		}
 	}
 	return func(date time.Time) (string, string) {
-		return indexWithDate(spanIndexPrefix, p.SpanIndex.DateLayout, date), indexWithDate(serviceIndexPrefix, p.SpanIndex.DateLayout, date)
+		return indexWithDate(spanIndexPrefix, p.SpanIndex.DateLayout, date), indexWithDate(serviceIndexPrefix, p.ServiceIndex.DateLayout, date)
 	}
 }
 
