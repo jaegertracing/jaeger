@@ -30,7 +30,6 @@ import (
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/samplingstore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
-	"github.com/jaegertracing/jaeger/plugin/storage/cassandra/mappings"
 )
 
 const (
@@ -142,7 +141,7 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 	if err != nil {
 		return err
 	}
-	primarySession.SchemaInit()
+
 	f.primarySession = primarySession
 
 	if f.archiveConfig != nil {
