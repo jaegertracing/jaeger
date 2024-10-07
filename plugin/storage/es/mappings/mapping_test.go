@@ -62,6 +62,7 @@ func TestMappingBuilderGetMapping(t *testing.T) {
 			mb := &MappingBuilder{
 				TemplateBuilder: es.TextTemplateBuilder{},
 				Indices: config.Indices{
+					IndexPrefix:  "test-",
 					Spans:        indexTemOps,
 					Services:     serviceOps,
 					Dependencies: dependenciesOps,
