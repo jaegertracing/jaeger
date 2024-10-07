@@ -616,34 +616,28 @@ func TestValidate(t *testing.T) {
 	}
 }
 
-func TestFullIndexName(t *testing.T) {
+func TestApplyForIndexPrefix(t *testing.T) {
 	tests := []struct {
 		testName     string
-		options      IndexOptions
+		prefix       IndexPrefix
 		name         string
 		expectedName string
 	}{
 		{
-			testName: "no prefix",
-			options: IndexOptions{
-				Prefix: "",
-			},
+			testName:     "no prefix",
+			prefix:       "",
 			name:         "hello",
 			expectedName: "hello",
 		},
 		{
-			testName: "separator suffix",
-			options: IndexOptions{
-				Prefix: "bye-",
-			},
+			testName:     "separator suffix",
+			prefix:       "bye-",
 			name:         "hello",
 			expectedName: "bye-hello",
 		},
 		{
-			testName: "no separator suffix",
-			options: IndexOptions{
-				Prefix: "bye",
-			},
+			testName:     "no separator suffix",
+			prefix:       "bye",
 			name:         "hello",
 			expectedName: "bye-hello",
 		},
@@ -651,7 +645,7 @@ func TestFullIndexName(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.testName, func(t *testing.T) {
-			got := test.options.FullIndexName(test.name)
+			got := test.prefix.Apply(test.name)
 			require.Equal(t, test.expectedName, got)
 		})
 	}

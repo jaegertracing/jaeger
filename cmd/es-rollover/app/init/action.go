@@ -36,12 +36,6 @@ func (c Action) getMapping(version uint, templateName string) (string, error) {
 		EsVersion:       version,
 	}
 
-	// TODO: does not have a separate flag for Indices
-	mappingBuilder.Indices.Spans.Prefix = c.Config.IndexPrefix
-	mappingBuilder.Indices.Services.Prefix = c.Config.IndexPrefix
-	mappingBuilder.Indices.Dependencies.Prefix = c.Config.IndexPrefix
-	mappingBuilder.Indices.Sampling.Prefix = c.Config.IndexPrefix
-
 	return mappingBuilder.GetMapping(templateName)
 }
 
@@ -63,7 +57,7 @@ func (c Action) Do() error {
 			return fmt.Errorf("ILM policy %s doesn't exist in Elasticsearch. Please create it and re-run init", c.Config.ILMPolicyName)
 		}
 	}
-	rolloverIndices := app.RolloverIndices(c.Config.Archive, c.Config.SkipDependencies, c.Config.AdaptiveSampling, c.Config.IndexPrefix)
+	rolloverIndices := app.RolloverIndices(c.Config.Archive, c.Config.SkipDependencies, c.Config.AdaptiveSampling, c.Config.Config.IndexPrefix)
 	for _, indexName := range rolloverIndices {
 		if err := c.init(version, indexName); err != nil {
 			return err
@@ -115,7 +109,7 @@ func (c Action) init(version uint, indexopt app.IndexOption) error {
 		return err
 	}
 
-	jaegerIndices, err := c.IndicesClient.GetJaegerIndices(c.Config.IndexPrefix)
+	jaegerIndices, err := c.IndicesClient.GetJaegerIndices(c.Config.Config.IndexPrefix)
 	if err != nil {
 		return err
 	}

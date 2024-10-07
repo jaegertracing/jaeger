@@ -51,7 +51,6 @@ func TestMappingBuilderGetMapping(t *testing.T) {
 				Shards:   3,
 				Replicas: 3,
 				Priority: 500,
-				Prefix:   "test-",
 			}
 			serviceOps := indexTemOps
 			serviceOps.Priority = 501
@@ -155,7 +154,6 @@ func TestMappingBuilderFixMapping(t *testing.T) {
 				Shards:   3,
 				Replicas: 5,
 				Priority: 500,
-				Prefix:   "test",
 			}
 			mappingBuilder := MappingBuilder{
 				TemplateBuilder: test.templateBuilderMockFunc(),
@@ -303,7 +301,6 @@ func TestMappingBuilderGetSpanServiceMappings(t *testing.T) {
 			indexTemOps := config.IndexOptions{
 				Shards:   3,
 				Replicas: 3,
-				Prefix:   test.args.indexPrefix,
 			}
 
 			mappingBuilder := MappingBuilder{

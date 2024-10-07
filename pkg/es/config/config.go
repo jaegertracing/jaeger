@@ -39,7 +39,6 @@ const (
 
 // IndexOptions describes the index format and rollover frequency
 type IndexOptions struct {
-	Prefix            string `mapstructure:"prefix"`
 	Priority          int    `mapstructure:"priority"`
 	DateLayout        string `mapstructure:"date_layout"`
 	Shards            int    `mapstructure:"shards"`
@@ -49,10 +48,27 @@ type IndexOptions struct {
 
 // Indices describes different configuration options for each index type
 type Indices struct {
+	IndexPrefix  IndexPrefix  `mapstructure:"index_prefix"`
 	Spans        IndexOptions `mapstructure:"spans"`
 	Services     IndexOptions `mapstructure:"services"`
 	Dependencies IndexOptions `mapstructure:"dependencies"`
 	Sampling     IndexOptions `mapstructure:"sampling"`
+}
+
+type IndexPrefix string
+
+func (p IndexPrefix) String() string {
+	return string(p)
+}
+
+func (p IndexPrefix) Apply(indexName string) string {
+	if p == "" {
+		return indexName
+	}
+	if strings.HasSuffix(p.String(), IndexPrefixSeparator) {
+		return p.String() + indexName
+	}
+	return p.String() + IndexPrefixSeparator + indexName
 }
 
 // Configuration describes the configuration properties needed to connect to an ElasticSearch cluster
@@ -238,10 +254,6 @@ func setDefaultIndexOptions(cfg, source *IndexOptions) {
 
 	if cfg.RolloverFrequency == "" {
 		cfg.RolloverFrequency = source.RolloverFrequency
-	}
-
-	if cfg.Prefix == "" {
-		cfg.Prefix = source.Prefix
 	}
 }
 
@@ -485,14 +497,4 @@ func loadTokenFromFile(path string) (string, error) {
 func (c *Configuration) Validate() error {
 	_, err := govalidator.ValidateStruct(c)
 	return err
-}
-
-func (o IndexOptions) FullIndexName(name string) string {
-	if o.Prefix == "" {
-		return name
-	}
-	if strings.HasSuffix(o.Prefix, IndexPrefixSeparator) {
-		return o.Prefix + name
-	}
-	return o.Prefix + IndexPrefixSeparator + name
 }

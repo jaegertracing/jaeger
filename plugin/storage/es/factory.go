@@ -274,7 +274,7 @@ func createSpanWriter(
 		if err != nil {
 			return nil, err
 		}
-		if err := writer.CreateTemplates(spanMapping, serviceMapping, cfg.Indices.Spans.Prefix); err != nil {
+		if err := writer.CreateTemplates(spanMapping, serviceMapping, cfg.Indices.IndexPrefix.String()); err != nil {
 			return nil, err
 		}
 	}
@@ -285,7 +285,7 @@ func (f *Factory) CreateSamplingStore(int /* maxBuckets */) (samplingstore.Store
 	params := esSampleStore.Params{
 		Client:                 f.getPrimaryClient,
 		Logger:                 f.logger,
-		IndexPrefix:            f.primaryConfig.Indices.Sampling.Prefix,
+		IndexPrefix:            f.primaryConfig.Indices.IndexPrefix.String(),
 		IndexDateLayout:        f.primaryConfig.Indices.Sampling.DateLayout,
 		IndexRolloverFrequency: config.RolloverFrequencyAsNegativeDuration(f.primaryConfig.Indices.Sampling.RolloverFrequency),
 		Lookback:               f.primaryConfig.AdaptiveSamplingLookback,
@@ -324,7 +324,7 @@ func createDependencyReader(
 	reader := esDepStore.NewDependencyStore(esDepStore.Params{
 		Client:              clientFn,
 		Logger:              logger,
-		IndexPrefix:         cfg.Indices.Dependencies.Prefix,
+		IndexPrefix:         cfg.Indices.IndexPrefix.String(),
 		IndexDateLayout:     cfg.Indices.Dependencies.DateLayout,
 		MaxDocCount:         cfg.MaxDocCount,
 		UseReadWriteAliases: cfg.UseReadWriteAliases,

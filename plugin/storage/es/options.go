@@ -344,11 +344,7 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	cfg.ServiceCacheTTL = v.GetDuration(cfg.namespace + suffixServiceCacheTTL)
 	indexPrefix := v.GetString(cfg.namespace + suffixIndexPrefix)
 
-	// TODO cfg.Indices does not have a separate flag
-	cfg.Indices.Spans.Prefix = indexPrefix
-	cfg.Indices.Services.Prefix = indexPrefix
-	cfg.Indices.Sampling.Prefix = indexPrefix
-	cfg.Indices.Dependencies.Prefix = indexPrefix
+	cfg.Indices.IndexPrefix = config.IndexPrefix(indexPrefix)
 
 	cfg.Tags.AllAsFields = v.GetBool(cfg.namespace + suffixTagsAsFieldsAll)
 	cfg.Tags.Include = v.GetString(cfg.namespace + suffixTagsAsFieldsInclude)

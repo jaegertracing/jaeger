@@ -40,25 +40,22 @@ func (mb *MappingBuilder) getMappingTemplateOptions(mapping string) *IndexTempla
 	mappingOpts := &IndexTemplateOptions{}
 	mappingOpts.UseILM = mb.UseILM
 	mappingOpts.ILMPolicyName = mb.ILMPolicyName
+	mappingOpts.IndexPrefix = mb.Indices.IndexPrefix.String()
 
 	switch {
 	case strings.Contains(mapping, "span"):
-		mappingOpts.IndexPrefix = mb.Indices.Spans.Prefix
 		mappingOpts.Shards = mb.Indices.Spans.Shards
 		mappingOpts.Replicas = mb.Indices.Spans.Replicas
 		mappingOpts.Priority = mb.Indices.Spans.Priority
 	case strings.Contains(mapping, "service"):
-		mappingOpts.IndexPrefix = mb.Indices.Services.Prefix
 		mappingOpts.Shards = mb.Indices.Services.Shards
 		mappingOpts.Replicas = mb.Indices.Services.Replicas
 		mappingOpts.Priority = mb.Indices.Services.Priority
 	case strings.Contains(mapping, "dependencies"):
-		mappingOpts.IndexPrefix = mb.Indices.Dependencies.Prefix
 		mappingOpts.Shards = mb.Indices.Dependencies.Shards
 		mappingOpts.Replicas = mb.Indices.Dependencies.Replicas
 		mappingOpts.Priority = mb.Indices.Dependencies.Priority
 	case strings.Contains(mapping, "sampling"):
-		mappingOpts.IndexPrefix = mb.Indices.Sampling.Prefix
 		mappingOpts.Shards = mb.Indices.Sampling.Shards
 		mappingOpts.Replicas = mb.Indices.Sampling.Replicas
 		mappingOpts.Priority = mb.Indices.Sampling.Priority
