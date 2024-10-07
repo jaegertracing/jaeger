@@ -33,6 +33,7 @@ func GetMappingAsString(builder es.TemplateBuilder, opt *app.Options) (string, e
 	mappingBuilder := mappings.MappingBuilder{
 		TemplateBuilder: builder,
 		Indices: cfg.Indices{
+			IndexPrefix:  cfg.IndexPrefix(opt.IndexPrefix),
 			Spans:        indexOpts,
 			Services:     indexOpts,
 			Dependencies: indexOpts,
