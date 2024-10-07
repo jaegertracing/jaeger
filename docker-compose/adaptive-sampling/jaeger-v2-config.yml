@@ -1,0 +1,46 @@
+service:
+  extensions: [jaeger_storage, jaeger_query, remote_sampling, healthcheckv2, expvar]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch, adaptive_sampling]
+      exporters: [jaeger_storage_exporter]
+
+extensions:
+  healthcheckv2:
+    use_v2: true
+    http:
+  jaeger_query:
+    storage:
+      traces: some_store
+  jaeger_storage:
+    backends:
+      some_store:
+        memory:
+          max_traces: 100000
+  remote_sampling:
+    adaptive:
+      sampling_store: some_store
+      initial_sampling_probability: 1.0
+      target_samples_per_second: 1
+      calculation_interval: 10s
+      calculation_delay: 20s
+    http:
+    grpc:
+  expvar:
+    port: 27777
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  batch:
+  adaptive_sampling:
+
+exporters:
+  jaeger_storage_exporter:
+    trace_storage: some_store

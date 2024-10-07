@@ -29,3 +29,18 @@ func (s SamplingCache) Get(service, operation string) *SamplingCacheEntry {
 	}
 	return v[operation]
 }
+
+type SamplingCacheValue map[string]map[string]SamplingCacheEntry
+
+func (s SamplingCache) ToValue() SamplingCacheValue {
+	scv := make(map[string]map[string]SamplingCacheEntry)
+	for k, v := range s {
+		scv[k] = make(map[string]SamplingCacheEntry)
+		for kk, vv := range v {
+			if vv != nil {
+				scv[k][kk] = *vv
+			}
+		}
+	}
+	return scv
+}

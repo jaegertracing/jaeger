@@ -1,0 +1,19 @@
+services:
+  jaeger:
+    image: jaegertracing/jaeger:${JAEGER_IMAGE_TAG:-latest}
+    volumes:
+      - "./jaeger-v2-config.yml:/etc/jaeger/config.yml"
+    command: ["--config", "/etc/jaeger/config.yml"]
+    ports:
+      - "16686:16686"
+      - "5778:5778"
+      - "4318:4318"
+      - "27777:27777"
+
+  tracegen:
+    image: jaegertracing/jaeger-tracegen:latest
+    environment:
+      - OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://jaeger:4318/v1/traces
+    command: ["-adaptive-sampling", "http://jaeger:5778/api/sampling", "-pause", "100ms", "-duration", "60m"]
+    depends_on:
+      - jaeger
