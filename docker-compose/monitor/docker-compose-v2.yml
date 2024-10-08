@@ -45,6 +45,6 @@ services:
       - GF_AUTH_DISABLE_LOGIN_FORM=true
     ports:
       - 3000:3000
-
+      
 networks:
   backend:

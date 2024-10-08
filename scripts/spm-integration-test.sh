@@ -92,13 +92,19 @@ validate_service_metrics() {
     echo "Metric datapoints found for service '$service': " "${metric_points[@]}"
     # Check that atleast some values are non-zero after the threshold
     local non_zero_count=0
-    local expected_non_zero_count=4
+    local expected_non_zero_count=5
     local zero_count=0
     local expected_max_zero_count=4
+    local flag=false # Becomes true after first non-zero value 
     for value in "${metric_points[@]}"; do
       if [[ $(echo "$value > 0.0" | bc) == "1" ]]; then
+        flag=true
         non_zero_count=$((non_zero_count + 1))
       else
+        if [ $flag == true ]; then
+          echo "❌ ERROR: Zero values appearing after a non-zero value not expected"
+          return 1
+        fi
         zero_count=$((zero_count + 1))
       fi
 
