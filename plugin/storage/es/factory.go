@@ -326,7 +326,7 @@ func createDependencyReader(
 	reader := esDepStore.NewDependencyStore(esDepStore.Params{
 		Client:              clientFn,
 		Logger:              logger,
-		IndexPrefix:         cfg.Indices.IndexPrefix.String(),
+		IndexPrefix:         cfg.Indices.IndexPrefix,
 		IndexDateLayout:     cfg.Indices.Dependencies.DateLayout,
 		MaxDocCount:         cfg.MaxDocCount,
 		UseReadWriteAliases: cfg.UseReadWriteAliases,

@@ -39,10 +39,10 @@ const (
 
 // IndexOptions describes the index format and rollover frequency
 type IndexOptions struct {
-	Priority          int    `mapstructure:"priority"`
+	Priority          int64  `mapstructure:"priority"`
 	DateLayout        string `mapstructure:"date_layout"`
-	Shards            int    `mapstructure:"shards"`
-	Replicas          int    `mapstructure:"replicas"`
+	Shards            int64  `mapstructure:"shards"`
+	Replicas          int64  `mapstructure:"replicas"`
 	RolloverFrequency string `mapstructure:"rollover_frequency"` // "hour" or "day"
 }
 
@@ -62,13 +62,14 @@ func (p IndexPrefix) String() string {
 }
 
 func (p IndexPrefix) Apply(indexName string) string {
+	ps := p.String()
 	if p == "" {
 		return indexName
 	}
-	if strings.HasSuffix(p.String(), IndexPrefixSeparator) {
-		return p.String() + indexName
+	if strings.HasSuffix(ps, IndexPrefixSeparator) {
+		return ps + indexName
 	}
-	return p.String() + IndexPrefixSeparator + indexName
+	return ps + IndexPrefixSeparator + indexName
 }
 
 // Configuration describes the configuration properties needed to connect to an ElasticSearch cluster

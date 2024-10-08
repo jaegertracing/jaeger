@@ -35,7 +35,7 @@ type depStorageTest struct {
 	storage   *DependencyStore
 }
 
-func withDepStorage(indexPrefix, indexDateLayout string, maxDocCount int, fn func(r *depStorageTest)) {
+func withDepStorage(indexPrefix config.IndexPrefix, indexDateLayout string, maxDocCount int, fn func(r *depStorageTest)) {
 	client := &mocks.Client{}
 	logger, logBuffer := testutils.NewLogger()
 	r := &depStorageTest{
@@ -60,7 +60,7 @@ var (
 
 func TestNewSpanReaderIndexPrefix(t *testing.T) {
 	testCases := []struct {
-		prefix   string
+		prefix   config.IndexPrefix
 		expected string
 	}{
 		{prefix: "", expected: ""},
@@ -132,7 +132,7 @@ func TestGetDependencies(t *testing.T) {
 		searchError    error
 		expectedError  string
 		expectedOutput []model.DependencyLink
-		indexPrefix    string
+		indexPrefix    config.IndexPrefix
 		maxDocCount    int
 		indices        []any
 	}{

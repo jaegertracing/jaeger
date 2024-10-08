@@ -39,18 +39,18 @@ func (*Config) AddFlags(flags *flag.FlagSet) {
 
 // InitFromViper initializes config from viper.Viper.
 func (c *Config) InitFromViper(v *viper.Viper) {
-	c.Indices.Spans.Shards = v.GetInt(shards)
-	c.Indices.Services.Shards = v.GetInt(shards)
-	c.Indices.Dependencies.Shards = v.GetInt(shards)
-	c.Indices.Sampling.Shards = v.GetInt(shards)
+	c.Indices.Spans.Shards = v.GetInt64(shards)
+	c.Indices.Services.Shards = v.GetInt64(shards)
+	c.Indices.Dependencies.Shards = v.GetInt64(shards)
+	c.Indices.Sampling.Shards = v.GetInt64(shards)
 
-	c.Indices.Spans.Replicas = v.GetInt(replicas)
-	c.Indices.Services.Replicas = v.GetInt(replicas)
-	c.Indices.Dependencies.Replicas = v.GetInt(replicas)
-	c.Indices.Sampling.Replicas = v.GetInt(replicas)
+	c.Indices.Spans.Replicas = v.GetInt64(replicas)
+	c.Indices.Services.Replicas = v.GetInt64(replicas)
+	c.Indices.Dependencies.Replicas = v.GetInt64(replicas)
+	c.Indices.Sampling.Replicas = v.GetInt64(replicas)
 
-	c.Indices.Spans.Priority = v.GetInt(prioritySpanTemplate)
-	c.Indices.Services.Priority = v.GetInt(priorityServiceTemplate)
-	c.Indices.Dependencies.Priority = v.GetInt(priorityDependenciesTemplate)
-	c.Indices.Sampling.Priority = v.GetInt(prioritySamplingTemplate)
+	c.Indices.Spans.Priority = v.GetInt64(prioritySpanTemplate)
+	c.Indices.Services.Priority = v.GetInt64(priorityServiceTemplate)
+	c.Indices.Dependencies.Priority = v.GetInt64(priorityDependenciesTemplate)
+	c.Indices.Sampling.Priority = v.GetInt64(prioritySamplingTemplate)
 }

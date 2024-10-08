@@ -166,7 +166,7 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		nsConfig.namespace+suffixTimeout,
 		nsConfig.Timeout,
 		"Timeout used for queries. A Timeout of zero means no timeout")
-	flagSet.Int(
+	flagSet.Int64(
 		nsConfig.namespace+suffixNumShards,
 		nsConfig.Indices.Spans.Shards,
 		"The number of shards per index in Elasticsearch")
@@ -175,19 +175,19 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		nsConfig.ServiceCacheTTL,
 		"The TTL for the cache of known service names",
 	)
-	flagSet.Int(
+	flagSet.Int64(
 		nsConfig.namespace+suffixNumReplicas,
 		nsConfig.Indices.Spans.Replicas,
 		"The number of replicas per index in Elasticsearch")
-	flagSet.Int(
+	flagSet.Int64(
 		nsConfig.namespace+suffixPrioritySpanTemplate,
 		nsConfig.Indices.Spans.Priority,
 		"Priority of jaeger-span index template (ESv8 only)")
-	flagSet.Int(
+	flagSet.Int64(
 		nsConfig.namespace+suffixPriorityServiceTemplate,
 		nsConfig.Indices.Services.Priority,
 		"Priority of jaeger-service index template (ESv8 only)")
-	flagSet.Int(
+	flagSet.Int64(
 		nsConfig.namespace+suffixPriorityDependenciesTemplate,
 		nsConfig.Indices.Dependencies.Priority,
 		"Priority of jaeger-dependecies index template (ESv8 only)")
@@ -321,20 +321,20 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	cfg.MaxSpanAge = v.GetDuration(cfg.namespace + suffixMaxSpanAge)
 	cfg.AdaptiveSamplingLookback = v.GetDuration(cfg.namespace + suffixAdaptiveSamplingLookback)
 
-	cfg.Indices.Spans.Shards = v.GetInt(cfg.namespace + suffixNumShards)
-	cfg.Indices.Services.Shards = v.GetInt(cfg.namespace + suffixNumShards)
-	cfg.Indices.Sampling.Shards = v.GetInt(cfg.namespace + suffixNumShards)
-	cfg.Indices.Dependencies.Shards = v.GetInt(cfg.namespace + suffixNumShards)
+	cfg.Indices.Spans.Shards = v.GetInt64(cfg.namespace + suffixNumShards)
+	cfg.Indices.Services.Shards = v.GetInt64(cfg.namespace + suffixNumShards)
+	cfg.Indices.Sampling.Shards = v.GetInt64(cfg.namespace + suffixNumShards)
+	cfg.Indices.Dependencies.Shards = v.GetInt64(cfg.namespace + suffixNumShards)
 
-	cfg.Indices.Spans.Replicas = v.GetInt(cfg.namespace + suffixNumReplicas)
-	cfg.Indices.Services.Replicas = v.GetInt(cfg.namespace + suffixNumReplicas)
-	cfg.Indices.Sampling.Replicas = v.GetInt(cfg.namespace + suffixNumReplicas)
-	cfg.Indices.Dependencies.Replicas = v.GetInt(cfg.namespace + suffixNumReplicas)
+	cfg.Indices.Spans.Replicas = v.GetInt64(cfg.namespace + suffixNumReplicas)
+	cfg.Indices.Services.Replicas = v.GetInt64(cfg.namespace + suffixNumReplicas)
+	cfg.Indices.Sampling.Replicas = v.GetInt64(cfg.namespace + suffixNumReplicas)
+	cfg.Indices.Dependencies.Replicas = v.GetInt64(cfg.namespace + suffixNumReplicas)
 
-	cfg.Indices.Spans.Priority = v.GetInt(cfg.namespace + suffixPrioritySpanTemplate)
-	cfg.Indices.Services.Priority = v.GetInt(cfg.namespace + suffixPriorityServiceTemplate)
+	cfg.Indices.Spans.Priority = v.GetInt64(cfg.namespace + suffixPrioritySpanTemplate)
+	cfg.Indices.Services.Priority = v.GetInt64(cfg.namespace + suffixPriorityServiceTemplate)
 	// cfg.Indices.Sampling does not have a separate flag
-	cfg.Indices.Dependencies.Priority = v.GetInt(cfg.namespace + suffixPriorityDependenciesTemplate)
+	cfg.Indices.Dependencies.Priority = v.GetInt64(cfg.namespace + suffixPriorityDependenciesTemplate)
 
 	cfg.BulkSize = v.GetInt(cfg.namespace + suffixBulkSize)
 	cfg.BulkWorkers = v.GetInt(cfg.namespace + suffixBulkWorkers)

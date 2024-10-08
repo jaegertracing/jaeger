@@ -11,8 +11,8 @@ import (
 type Options struct {
 	Mapping       string
 	EsVersion     uint
-	Shards        int
-	Replicas      int
+	Shards        int64
+	Replicas      int64
 	IndexPrefix   string
 	UseILM        string // using string as util is being used in python and using bool leads to type issues.
 	ILMPolicyName string
@@ -40,12 +40,12 @@ func (o *Options) AddFlags(command *cobra.Command) {
 		esVersionFlag,
 		7,
 		"The major Elasticsearch version")
-	command.Flags().IntVar(
+	command.Flags().Int64Var(
 		&o.Shards,
 		shardsFlag,
 		5,
 		"The number of shards per index in Elasticsearch")
-	command.Flags().IntVar(
+	command.Flags().Int64Var(
 		&o.Replicas,
 		replicasFlag,
 		1,

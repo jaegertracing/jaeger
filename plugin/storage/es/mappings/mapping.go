@@ -31,9 +31,9 @@ type IndexTemplateOptions struct {
 	UseILM        bool
 	ILMPolicyName string
 	IndexPrefix   string
-	Shards        int
-	Replicas      int
-	Priority      int
+	Shards        int64
+	Replicas      int64
+	Priority      int64
 }
 
 func (mb MappingBuilder) getMappingTemplateOptions(mapping string) *IndexTemplateOptions {
