@@ -321,7 +321,6 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	cfg.MaxSpanAge = v.GetDuration(cfg.namespace + suffixMaxSpanAge)
 	cfg.AdaptiveSamplingLookback = v.GetDuration(cfg.namespace + suffixAdaptiveSamplingLookback)
 
-	cfg.Indices.IndexPrefix = config.IndexPrefix(v.GetString(cfg.namespace + suffixIndexPrefix))
 	cfg.Indices.Spans.Shards = v.GetInt(cfg.namespace + suffixNumShards)
 	cfg.Indices.Services.Shards = v.GetInt(cfg.namespace + suffixNumShards)
 	cfg.Indices.Sampling.Shards = v.GetInt(cfg.namespace + suffixNumShards)
