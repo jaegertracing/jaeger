@@ -36,7 +36,7 @@ func (c Action) getMapping(version uint, templateName string) (string, error) {
 		ILMPolicyName:   c.Config.ILMPolicyName,
 		EsVersion:       version,
 	}
-	mappingBuilder.Indices.IndexPrefix = config.IndexPrefix(.Config.Config.IndexPrefix)
+	mappingBuilder.Indices.IndexPrefix = config.IndexPrefix(c.Config.Config.IndexPrefix)
 
 	return mappingBuilder.GetMapping(templateName)
 }
