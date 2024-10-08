@@ -4,7 +4,7 @@
 package renderer
 
 import (
-  "fmt"
+	"fmt"
 	"strconv"
 
 	"github.com/jaegertracing/jaeger/cmd/esmapping-generator/app"

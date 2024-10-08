@@ -6,6 +6,7 @@ package mappings
 import (
 	"bytes"
 	"embed"
+	"fmt"
 	"strings"
 
 	"github.com/jaegertracing/jaeger/pkg/es"
@@ -41,18 +42,18 @@ const (
 	SamplingMapping
 )
 
-func (mt MappingType) String() string {
+func (mt MappingType) String() (string, error) {
 	switch mt {
 	case SpanMapping:
-		return "jaeger-span"
+		return "jaeger-span", nil
 	case ServiceMapping:
-		return "jaeger-service"
+		return "jaeger-service", nil
 	case DependenciesMapping:
-		return "jaeger-dependencies"
+		return "jaeger-dependencies", nil
 	case SamplingMapping:
-		return "jaeger-sampling"
+		return "jaeger-sampling", nil
 	default:
-		return "unknown"
+		return "", fmt.Errorf("Unknown mapping type %d", mt)
 	}
 }
 
@@ -67,7 +68,13 @@ func (mb *MappingBuilder) GetMapping(mappingType MappingType) (string, error) {
 	default:
 		version = "-6"
 	}
-	return mb.fixMapping(mappingType.String() + version + ".json")
+
+	templateName, err := mappingType.String()
+	if err != nil {
+		return "", err
+	}
+
+	return mb.fixMapping(templateName + version + ".json")
 }
 
 // GetSpanServiceMappings returns span and service mappings
