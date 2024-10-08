@@ -63,7 +63,7 @@ func (p IndexPrefix) String() string {
 
 func (p IndexPrefix) Apply(indexName string) string {
 	ps := p.String()
-	if p == "" {
+	if ps == "" {
 		return indexName
 	}
 	if strings.HasSuffix(ps, IndexPrefixSeparator) {
