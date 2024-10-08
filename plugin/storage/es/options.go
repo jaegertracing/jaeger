@@ -181,15 +181,15 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		"The number of replicas per index in Elasticsearch")
 	flagSet.Int(
 		nsConfig.namespace+suffixPrioritySpanTemplate,
-		defaultIndexOptions.Priority,
+		nsConfig.Indices.Spans.Priority,
 		"Priority of jaeger-span index template (ESv8 only)")
 	flagSet.Int(
 		nsConfig.namespace+suffixPriorityServiceTemplate,
-		defaultIndexOptions.Priority,
+		nsConfig.Indices.Services.Priority,
 		"Priority of jaeger-service index template (ESv8 only)")
 	flagSet.Int(
 		nsConfig.namespace+suffixPriorityDependenciesTemplate,
-		defaultIndexOptions.Priority,
+		nsConfig.Indices.Dependencies.Priority,
 		"Priority of jaeger-dependecies index template (ESv8 only)")
 	flagSet.Int(
 		nsConfig.namespace+suffixBulkSize,
