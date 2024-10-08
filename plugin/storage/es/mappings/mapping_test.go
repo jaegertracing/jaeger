@@ -40,7 +40,10 @@ func TestMappingBuilderGetMapping(t *testing.T) {
 		{mapping: DependenciesMapping, esVersion: 6},
 	}
 	for _, tt := range tests {
-		t.Run(tt.mapping.String(), func(t *testing.T) {
+		templateName, err := tt.mapping.String()
+		require.NoError(t, err)
+
+		t.Run(templateName, func(t *testing.T) {
 			mb := &MappingBuilder{
 				TemplateBuilder:              es.TextTemplateBuilder{},
 				Shards:                       3,
@@ -57,7 +60,7 @@ func TestMappingBuilderGetMapping(t *testing.T) {
 			require.NoError(t, err)
 			var wantbytes []byte
 			fileSuffix := fmt.Sprintf("-%d", tt.esVersion)
-			wantbytes, err = FIXTURES.ReadFile("fixtures/" + tt.mapping.String() + fileSuffix + ".json")
+			wantbytes, err = FIXTURES.ReadFile("fixtures/" + templateName + fileSuffix + ".json")
 			require.NoError(t, err)
 			want := string(wantbytes)
 			assert.Equal(t, want, got)
