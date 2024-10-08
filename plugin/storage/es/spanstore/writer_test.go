@@ -216,7 +216,7 @@ func TestCreateTemplates(t *testing.T) {
 		err                    string
 		spanTemplateService    func() *mocks.TemplateCreateService
 		serviceTemplateService func() *mocks.TemplateCreateService
-		indexPrefix            string
+		indexPrefix            config.IndexPrefix
 	}{
 		{
 			spanTemplateService: func() *mocks.TemplateCreateService {
@@ -281,12 +281,10 @@ func TestCreateTemplates(t *testing.T) {
 
 	for _, test := range tests {
 		withSpanWriter(func(w *spanWriterTest) {
-			prefix := ""
-			if test.indexPrefix != "" && !strings.HasSuffix(test.indexPrefix, "-") {
-				prefix = test.indexPrefix + "-"
-			}
-			w.client.On("CreateTemplate", prefix+"jaeger-span").Return(test.spanTemplateService())
-			w.client.On("CreateTemplate", prefix+"jaeger-service").Return(test.serviceTemplateService())
+			jaegerSpanId := test.indexPrefix.Apply("jaeger-span")
+			jaegerServiceId := test.indexPrefix.Apply("jaeger-service")
+			w.client.On("CreateTemplate", jaegerSpanId).Return(test.spanTemplateService())
+			w.client.On("CreateTemplate", jaegerServiceId).Return(test.serviceTemplateService())
 			err := w.writer.CreateTemplates(mock.Anything, mock.Anything, test.indexPrefix)
 			if test.err != "" {
 				require.Error(t, err, test.err)

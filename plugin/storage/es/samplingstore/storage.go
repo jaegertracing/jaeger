@@ -37,7 +37,7 @@ type SamplingStore struct {
 type Params struct {
 	Client                 func() es.Client
 	Logger                 *zap.Logger
-	IndexPrefix            string
+	IndexPrefix            config.IndexPrefix
 	IndexDateLayout        string
 	IndexRolloverFrequency time.Duration
 	Lookback               time.Duration
@@ -185,10 +185,7 @@ func getReadIndices(indexName, indexDateLayout string, startTime time.Time, endT
 }
 
 func (p *Params) PrefixedIndexName() string {
-	if p.IndexPrefix != "" {
-		return p.IndexPrefix + config.IndexPrefixSeparator + samplingIndexBaseName
-	}
-	return samplingIndexBaseName
+	return p.IndexPrefix.Apply(samplingIndexBaseName)
 }
 
 func buildTSQuery(start, end time.Time) elastic.Query {

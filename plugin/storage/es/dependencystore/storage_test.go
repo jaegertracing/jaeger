@@ -242,7 +242,7 @@ func TestGetReadIndices(t *testing.T) {
 			params:   Params{IndexPrefix: "foo-", IndexDateLayout: "2006-01-02"},
 			lookback: 0,
 			indices: []string{
-				"foo-" + config.IndexPrefixSeparator + dependencyIndexBaseName + fixedTime.Format("2006-01-02"),
+				"foo" + config.IndexPrefixSeparator + dependencyIndexBaseName + fixedTime.Format("2006-01-02"),
 			},
 		},
 	}

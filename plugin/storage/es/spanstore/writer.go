@@ -7,7 +7,6 @@ package spanstore
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	"go.uber.org/zap"
@@ -82,17 +81,16 @@ func NewSpanWriter(p SpanWriterParams) *SpanWriter {
 }
 
 // CreateTemplates creates index templates.
-func (s *SpanWriter) CreateTemplates(spanTemplate, serviceTemplate, indexPrefix string) error {
-	if indexPrefix != "" && !strings.HasSuffix(indexPrefix, "-") {
-		indexPrefix += "-"
-	}
-	_, err := s.client().CreateTemplate(indexPrefix + "jaeger-span").Body(spanTemplate).Do(context.Background())
+func (s *SpanWriter) CreateTemplates(spanTemplate, serviceTemplate string, indexPrefix cfg.IndexPrefix) error {
+	jaegerSpanId := indexPrefix.Apply("jaeger-span")
+	jaegerServiceId := indexPrefix.Apply("jaeger-service")
+	_, err := s.client().CreateTemplate(jaegerSpanId).Body(spanTemplate).Do(context.Background())
 	if err != nil {
-		return fmt.Errorf("failed to create template %q: %w", indexPrefix+"jaeger-span", err)
+		return fmt.Errorf("failed to create template %q: %w", jaegerSpanId, err)
 	}
-	_, err = s.client().CreateTemplate(indexPrefix + "jaeger-service").Body(serviceTemplate).Do(context.Background())
+	_, err = s.client().CreateTemplate(jaegerServiceId).Body(serviceTemplate).Do(context.Background())
 	if err != nil {
-		return fmt.Errorf("failed to create template %q: %w", indexPrefix+"jaeger-service", err)
+		return fmt.Errorf("failed to create template %q: %w", jaegerServiceId, err)
 	}
 	return nil
 }

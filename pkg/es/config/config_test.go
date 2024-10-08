@@ -654,11 +654,6 @@ func TestApplyForIndexPrefix(t *testing.T) {
 	}
 }
 
-func TestApplyString(t *testing.T) {
-	ip := IndexPrefix("hello")
-	require.Equal(t, "hello", ip.String())
-}
-
 func TestMain(m *testing.M) {
 	testutils.VerifyGoLeaks(m)
 }

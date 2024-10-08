@@ -30,7 +30,7 @@ type MappingBuilder struct {
 type IndexTemplateOptions struct {
 	UseILM        bool
 	ILMPolicyName string
-	IndexPrefix   string
+	IndexPrefix   config.IndexPrefix
 	Shards        int64
 	Replicas      int64
 	Priority      int64
@@ -40,7 +40,7 @@ func (mb MappingBuilder) getMappingTemplateOptions(mapping string) *IndexTemplat
 	mappingOpts := &IndexTemplateOptions{}
 	mappingOpts.UseILM = mb.UseILM
 	mappingOpts.ILMPolicyName = mb.ILMPolicyName
-	mappingOpts.IndexPrefix = mb.Indices.IndexPrefix.String()
+	mappingOpts.IndexPrefix = mb.Indices.IndexPrefix
 
 	switch {
 	case strings.Contains(mapping, "span"):
@@ -110,9 +110,7 @@ func (mb *MappingBuilder) fixMapping(mapping string, options *IndexTemplateOptio
 	}
 	writer := new(bytes.Buffer)
 
-	if options.IndexPrefix != "" && !strings.HasSuffix(options.IndexPrefix, config.IndexPrefixSeparator) {
-		options.IndexPrefix += config.IndexPrefixSeparator
-	}
+	options.IndexPrefix = config.IndexPrefix(options.IndexPrefix.Apply(""))
 	if err := tmpl.Execute(writer, options); err != nil {
 		return "", err
 	}

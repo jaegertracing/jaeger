@@ -33,7 +33,7 @@ type samplingStorageTest struct {
 	storage   *SamplingStore
 }
 
-func withEsSampling(indexPrefix, indexDateLayout string, maxDocCount int, fn func(w *samplingStorageTest)) {
+func withEsSampling(indexPrefix config.IndexPrefix, indexDateLayout string, maxDocCount int, fn func(w *samplingStorageTest)) {
 	client := &mocks.Client{}
 	logger, logBuffer := testutils.NewLogger()
 	w := &samplingStorageTest{
@@ -54,7 +54,7 @@ func withEsSampling(indexPrefix, indexDateLayout string, maxDocCount int, fn fun
 func TestNewIndexPrefix(t *testing.T) {
 	tests := []struct {
 		name     string
-		prefix   string
+		prefix   config.IndexPrefix
 		expected string
 	}{
 		{
@@ -243,7 +243,7 @@ func TestGetThroughput(t *testing.T) {
 		searchError    error
 		expectedError  string
 		expectedOutput []*samplemodel.Throughput
-		indexPrefix    string
+		indexPrefix    config.IndexPrefix
 		maxDocCount    int
 		index          string
 	}{
@@ -307,7 +307,7 @@ func TestGetThroughput(t *testing.T) {
 				if test.indexPrefix != "" {
 					test.indexPrefix += "-"
 				}
-				index := test.indexPrefix + test.index
+				index := test.indexPrefix.Apply(test.index)
 				w.client.On("Search", index).Return(searchService)
 				searchService.On("Size", mock.Anything).Return(searchService)
 				searchService.On("Query", mock.Anything).Return(searchService)
@@ -351,7 +351,7 @@ func TestGetLatestProbabilities(t *testing.T) {
 		index          string
 		indexPresent   bool
 		indexError     error
-		indexPrefix    string
+		indexPrefix    config.IndexPrefix
 	}{
 		{
 			name:         "good probabilities without prefix",
@@ -403,10 +403,7 @@ func TestGetLatestProbabilities(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			withEsSampling(test.indexPrefix, "2006-01-02", defaultMaxDocCount, func(w *samplingStorageTest) {
 				searchService := &mocks.SearchService{}
-				if test.indexPrefix != "" {
-					test.indexPrefix += "-"
-				}
-				index := test.indexPrefix + test.index
+				index := test.indexPrefix.Apply(test.index)
 				w.client.On("Search", index).Return(searchService)
 				searchService.On("Size", mock.Anything).Return(searchService)
 				searchService.On("IgnoreUnavailable", true).Return(searchService)

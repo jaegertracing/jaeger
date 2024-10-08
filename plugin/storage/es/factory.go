@@ -276,7 +276,7 @@ func createSpanWriter(
 		if err != nil {
 			return nil, err
 		}
-		if err := writer.CreateTemplates(spanMapping, serviceMapping, cfg.Indices.IndexPrefix.String()); err != nil {
+		if err := writer.CreateTemplates(spanMapping, serviceMapping, cfg.Indices.IndexPrefix); err != nil {
 			return nil, err
 		}
 	}
@@ -287,7 +287,7 @@ func (f *Factory) CreateSamplingStore(int /* maxBuckets */) (samplingstore.Store
 	params := esSampleStore.Params{
 		Client:                 f.getPrimaryClient,
 		Logger:                 f.logger,
-		IndexPrefix:            f.primaryConfig.Indices.IndexPrefix.String(),
+		IndexPrefix:            f.primaryConfig.Indices.IndexPrefix,
 		IndexDateLayout:        f.primaryConfig.Indices.Sampling.DateLayout,
 		IndexRolloverFrequency: config.RolloverFrequencyAsNegativeDuration(f.primaryConfig.Indices.Sampling.RolloverFrequency),
 		Lookback:               f.primaryConfig.AdaptiveSamplingLookback,

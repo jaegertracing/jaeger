@@ -57,12 +57,8 @@ type Indices struct {
 
 type IndexPrefix string
 
-func (p IndexPrefix) String() string {
-	return string(p)
-}
-
 func (p IndexPrefix) Apply(indexName string) string {
-	ps := p.String()
+	ps := string(p)
 	if ps == "" {
 		return indexName
 	}
