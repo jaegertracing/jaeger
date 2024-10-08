@@ -323,6 +323,7 @@ func TestApplyDefaults(t *testing.T) {
 		MaxSpanAge:               100,
 		AdaptiveSamplingLookback: 50,
 		Indices: Indices{
+			IndexPrefix: "hello",
 			Spans: IndexOptions{
 				Shards:   5,
 				Replicas: 1,
@@ -394,6 +395,7 @@ func TestApplyDefaults(t *testing.T) {
 				MaxSpanAge:               100,
 				AdaptiveSamplingLookback: 50,
 				Indices: Indices{
+					IndexPrefix: "hello",
 					Spans: IndexOptions{
 						Shards:   5,
 						Replicas: 1,
@@ -430,6 +432,7 @@ func TestApplyDefaults(t *testing.T) {
 				MaxSpanAge:               100,
 				AdaptiveSamplingLookback: 50,
 				Indices: Indices{
+					IndexPrefix: "hello",
 					Spans: IndexOptions{
 						Shards:   5,
 						Replicas: 1,
