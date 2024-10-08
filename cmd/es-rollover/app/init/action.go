@@ -29,6 +29,7 @@ type Action struct {
 }
 
 func (c Action) getMapping(version uint, templateName string) (string, error) {
+	c.Config.Indices.IndexPrefix = config.IndexPrefix(c.Config.Config.IndexPrefix)
 	mappingBuilder := mappings.MappingBuilder{
 		TemplateBuilder: es.TextTemplateBuilder{},
 		Indices:         c.Config.Indices,
@@ -36,7 +37,6 @@ func (c Action) getMapping(version uint, templateName string) (string, error) {
 		ILMPolicyName:   c.Config.ILMPolicyName,
 		EsVersion:       version,
 	}
-	mappingBuilder.Indices.IndexPrefix = config.IndexPrefix(c.Config.Config.IndexPrefix)
 
 	return mappingBuilder.GetMapping(templateName)
 }
