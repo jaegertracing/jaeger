@@ -13,6 +13,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/es-rollover/app"
 	"github.com/jaegertracing/jaeger/pkg/es"
 	"github.com/jaegertracing/jaeger/pkg/es/client"
+	"github.com/jaegertracing/jaeger/pkg/es/config"
 	"github.com/jaegertracing/jaeger/pkg/es/filter"
 	"github.com/jaegertracing/jaeger/plugin/storage/es/mappings"
 )
@@ -35,6 +36,7 @@ func (c Action) getMapping(version uint, templateName string) (string, error) {
 		ILMPolicyName:   c.Config.ILMPolicyName,
 		EsVersion:       version,
 	}
+	mappingBuilder.Indices.IndexPrefix = config.IndexPrefix(.Config.Config.IndexPrefix)
 
 	return mappingBuilder.GetMapping(templateName)
 }
