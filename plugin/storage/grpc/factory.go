@@ -12,7 +12,6 @@ import (
 
 	"github.com/spf13/viper"
 	"go.opentelemetry.io/collector/component"
-	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/config/configtelemetry"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
@@ -47,6 +46,24 @@ type Factory struct {
 	config         Config
 	services       *ClientPluginServices
 	remoteConn     *grpc.ClientConn
+}
+
+type host struct {
+	extensions map[component.ID]component.Component
+}
+
+func NewHost() component.Host {
+	return &host{
+		extensions: make(map[component.ID]component.Component),
+	}
+}
+
+func (h *host) GetExtensions() map[component.ID]component.Component {
+	return h.extensions
+}
+
+func (h *host) AddExtensions(id component.ID, ext component.Component) {
+	h.extensions[id] = ext
 }
 
 // NewFactory creates a new Factory.
@@ -98,7 +115,8 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 		for _, opt := range opts {
 			clientOpts = append(clientOpts, configgrpc.WithGrpcDialOption(opt))
 		}
-		return f.config.ToClientConn(context.Background(), componenttest.NewNopHost(), telset, clientOpts...)
+		host := NewHost()
+		return f.config.ToClientConn(context.Background(), host, telset, clientOpts...)
 	}
 
 	var err error
