@@ -103,7 +103,7 @@ func NewServer(
 	}, nil
 }
 
-func RegisterGRPCServer(
+func registerGRPCServer(
 	server *grpc.Server,
 	querySvc *querysvc.QueryService,
 	metricsQuerySvc querysvc.MetricsQueryService,
@@ -182,7 +182,7 @@ func createGRPCServer(
 			return nil, err
 		}
 	}
-	RegisterGRPCServer(grpcServer, querySvc, metricsQuerySvc, telset)
+	registerGRPCServer(grpcServer, querySvc, metricsQuerySvc, telset)
 
 	return grpcServer, nil
 }
