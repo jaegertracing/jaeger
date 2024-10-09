@@ -239,19 +239,20 @@ func createHTTPServer(
 ) (*httpServer, error) {
 	r := createHTTPRouter(querySvc, metricsQuerySvc, queryOpts, tm, telset)
 	var handler http.Handler = r
+	if queryOpts.BearerTokenPropagation {
+		handler = bearertoken.PropagationHandler(telset.Logger, handler)
+	}
 	var server *httpServer
 	if legacy {
 		handler = responseHeadersHandler(handler, queryOpts.HTTP.ResponseHeaders)
-		if queryOpts.BearerTokenPropagation {
-			handler = bearertoken.PropagationHandler(telset.Logger, handler)
-		}
 		handler = handlers.CompressHandler(handler)
 		recoveryHandler := recoveryhandler.NewRecoveryHandler(telset.Logger, true)
+		handler = recoveryHandler(handler)
 
 		errorLog, _ := zap.NewStdLogAt(telset.Logger, zapcore.ErrorLevel)
 		server = &httpServer{
 			Server: &http.Server{
-				Handler:           recoveryHandler(handler),
+				Handler:           handler,
 				ErrorLog:          errorLog,
 				ReadHeaderTimeout: 2 * time.Second,
 			},
