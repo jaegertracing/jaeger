@@ -242,12 +242,12 @@ func createHTTPServer(
 	if queryOpts.BearerTokenPropagation {
 		handler = bearertoken.PropagationHandler(telset.Logger, handler)
 	}
+	recoveryHandler := recoveryhandler.NewRecoveryHandler(telset.Logger, true)
+	handler = recoveryHandler(handler)
 	var server *httpServer
 	if legacy {
 		handler = responseHeadersHandler(handler, queryOpts.HTTP.ResponseHeaders)
 		handler = handlers.CompressHandler(handler)
-		recoveryHandler := recoveryhandler.NewRecoveryHandler(telset.Logger, true)
-		handler = recoveryHandler(handler)
 
 		errorLog, _ := zap.NewStdLogAt(telset.Logger, zapcore.ErrorLevel)
 		server = &httpServer{
