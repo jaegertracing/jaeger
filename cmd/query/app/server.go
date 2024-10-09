@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/gorilla/handlers"
+	"github.com/gorilla/mux"
 	"github.com/soheilhy/cmux"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componentstatus"
@@ -146,25 +147,25 @@ type httpServer struct {
 
 var _ io.Closer = (*httpServer)(nil)
 
-func createHTTPServer(
-	ctx context.Context,
+func createHTTPRouter(
 	querySvc *querysvc.QueryService,
 	metricsQuerySvc querysvc.MetricsQueryService,
 	queryOpts *QueryOptions,
 	tm *tenancy.Manager,
 	telset telemetery.Setting,
-) (*httpServer, error) {
+) *mux.Router {
 	apiHandlerOptions := []HandlerOption{
 		HandlerOptions.Logger(telset.Logger),
 		HandlerOptions.Tracer(telset.TracerProvider),
 		HandlerOptions.MetricsQueryService(metricsQuerySvc),
 	}
-
 	apiHandler := NewAPIHandler(
 		querySvc,
 		tm,
 		apiHandlerOptions...)
+
 	r := NewRouter()
+
 	if queryOpts.BasePath != "/" {
 		r = r.PathPrefix(queryOpts.BasePath).Subrouter()
 	}
@@ -175,8 +176,20 @@ func createHTTPServer(
 		Logger:       telset.Logger,
 		Tracer:       telset.TracerProvider,
 	}).RegisterRoutes(r)
-
 	apiHandler.RegisterRoutes(r)
+
+	return r
+}
+
+func createHTTPServer(
+	ctx context.Context,
+	querySvc *querysvc.QueryService,
+	metricsQuerySvc querysvc.MetricsQueryService,
+	queryOpts *QueryOptions,
+	tm *tenancy.Manager,
+	telset telemetery.Setting,
+) (*httpServer, error) {
+	r := createHTTPRouter(querySvc, metricsQuerySvc, queryOpts, tm, telset)
 	var handler http.Handler = r
 	handler = responseHeadersHandler(handler, queryOpts.HTTP.ResponseHeaders)
 	if queryOpts.BearerTokenPropagation {
