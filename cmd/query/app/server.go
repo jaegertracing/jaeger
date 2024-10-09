@@ -19,6 +19,7 @@ import (
 	"github.com/soheilhy/cmux"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componentstatus"
+	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/config/configtelemetry"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/metric/noop"
@@ -82,7 +83,7 @@ func NewServer(
 	}
 
 	legacy := !separatePorts
-	grpcServer, err := createGRPCServer(ctx, querySvc, metricsQuerySvc, options, tm, telset)
+	grpcServer, err := createGRPCServer(ctx, legacy, querySvc, metricsQuerySvc, options, tm, telset)
 	if err != nil {
 		return nil, err
 	}
@@ -108,6 +109,7 @@ func RegisterGRPCServer(
 	metricsQuerySvc querysvc.MetricsQueryService,
 	telset telemetery.Setting,
 ) {
+	reflection.Register(server)
 	handler := NewGRPCHandler(querySvc, metricsQuerySvc, GRPCHandlerOptions{
 		Logger: telset.Logger,
 	})
@@ -124,32 +126,65 @@ func RegisterGRPCServer(
 	grpc_health_v1.RegisterHealthServer(server, healthServer)
 }
 
-func createGRPCServer(ctx context.Context, querySvc *querysvc.QueryService, metricsQuerySvc querysvc.MetricsQueryService, options *QueryOptions, tm *tenancy.Manager, telset telemetery.Setting) (*grpc.Server, error) {
-	var grpcOpts []grpc.ServerOption
+func createGRPCServer(
+	ctx context.Context,
+	legacy bool,
+	querySvc *querysvc.QueryService,
+	metricsQuerySvc querysvc.MetricsQueryService,
+	options *QueryOptions,
+	tm *tenancy.Manager,
+	telset telemetery.Setting,
+) (*grpc.Server, error) {
+	var grpcServer *grpc.Server
+	if legacy {
+		var grpcOpts []grpc.ServerOption
+		if options.GRPC.TLSSetting != nil {
+			tlsCfg, err := options.GRPC.TLSSetting.LoadTLSConfig(ctx)
+			if err != nil {
+				return nil, err
+			}
 
-	if options.GRPC.TLSSetting != nil {
-		tlsCfg, err := options.GRPC.TLSSetting.LoadTLSConfig(ctx)
+			creds := credentials.NewTLS(tlsCfg)
+
+			grpcOpts = append(grpcOpts, grpc.Creds(creds))
+		}
+		if tm.Enabled {
+			grpcOpts = append(grpcOpts,
+				//nolint
+				grpc.StreamInterceptor(tenancy.NewGuardingStreamInterceptor(tm)),
+				grpc.UnaryInterceptor(tenancy.NewGuardingUnaryInterceptor(tm)),
+			)
+		}
+
+		grpcServer = grpc.NewServer(grpcOpts...)
+	} else {
+		var grpcOpts []configgrpc.ToServerOption
+		if tm.Enabled {
+			grpcOpts = append(grpcOpts,
+				//nolint
+				configgrpc.WithGrpcServerOption(grpc.StreamInterceptor(tenancy.NewGuardingStreamInterceptor(tm))),
+				configgrpc.WithGrpcServerOption(grpc.UnaryInterceptor(tenancy.NewGuardingUnaryInterceptor(tm))),
+			)
+		}
+		var err error
+		grpcServer, err = options.GRPC.ToServer(
+			ctx,
+			telset.Host,
+			component.TelemetrySettings{
+				Logger:         telset.Logger,
+				TracerProvider: telset.TracerProvider,
+				LeveledMeterProvider: func(_ configtelemetry.Level) metric.MeterProvider {
+					return noop.NewMeterProvider()
+				},
+			},
+			grpcOpts...)
 		if err != nil {
 			return nil, err
 		}
-
-		creds := credentials.NewTLS(tlsCfg)
-
-		grpcOpts = append(grpcOpts, grpc.Creds(creds))
 	}
-	if tm.Enabled {
-		grpcOpts = append(grpcOpts,
-			//nolint
-			grpc.StreamInterceptor(tenancy.NewGuardingStreamInterceptor(tm)),
-			grpc.UnaryInterceptor(tenancy.NewGuardingUnaryInterceptor(tm)),
-		)
-	}
+	RegisterGRPCServer(grpcServer, querySvc, metricsQuerySvc, telset)
 
-	server := grpc.NewServer(grpcOpts...)
-	reflection.Register(server)
-	RegisterGRPCServer(server, querySvc, metricsQuerySvc, telset)
-
-	return server, nil
+	return grpcServer, nil
 }
 
 type httpServer struct {
