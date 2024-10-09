@@ -100,11 +100,11 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 		ReportStatus: func(event *componentstatus.Event) {
 			componentstatus.ReportStatus(host, event)
 		},
+		Host: host,
 	}
 
 	s.server, err = queryApp.NewServer(
 		ctx,
-		host,
 		// TODO propagate healthcheck updates up to the collector's runtime
 		qs,
 		mqs,

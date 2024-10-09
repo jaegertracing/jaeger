@@ -14,7 +14,6 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"go.opentelemetry.io/collector/component/componenttest"
 	_ "go.uber.org/automaxprocs"
 	"go.uber.org/zap"
 
@@ -222,7 +221,7 @@ func startQuery(
 	qs := querysvc.NewQueryService(spanReader, depReader, *queryOpts)
 
 	// TODO: replace componenttest.NewNopHost() with solution from https://github.com/jaegertracing/jaeger/issues/6049
-	server, err := queryApp.NewServer(context.Background(), componenttest.NewNopHost(), qs, metricsQueryService, qOpts, tm, telset)
+	server, err := queryApp.NewServer(context.Background(), qs, metricsQueryService, qOpts, tm, telset)
 	if err != nil {
 		svc.Logger.Fatal("Could not create jaeger-query", zap.Error(err))
 	}
