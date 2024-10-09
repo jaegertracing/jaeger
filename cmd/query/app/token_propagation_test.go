@@ -4,6 +4,7 @@
 package app
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -89,7 +90,7 @@ func runQueryService(t *testing.T, esURL string) *Server {
 		TracerProvider: jtracer.NoOp().OTEL,
 		ReportStatus:   telemetery.HCAdapter(flagsSvc.HC()),
 	}
-	server, err := NewServer(querySvc, nil,
+	server, err := NewServer(context.Background(), querySvc, nil,
 		&QueryOptions{
 			BearerTokenPropagation: true,
 			HTTP: confighttp.ServerConfig{

@@ -15,8 +15,14 @@ import (
 	"time"
 
 	"github.com/gorilla/handlers"
+	"github.com/gorilla/mux"
 	"github.com/soheilhy/cmux"
+	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componentstatus"
+	"go.opentelemetry.io/collector/config/configgrpc"
+	"go.opentelemetry.io/collector/config/configtelemetry"
+	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/metric/noop"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"google.golang.org/grpc"
@@ -54,7 +60,9 @@ type Server struct {
 }
 
 // NewServer creates and initializes Server
-func NewServer(querySvc *querysvc.QueryService,
+func NewServer(
+	ctx context.Context,
+	querySvc *querysvc.QueryService,
 	metricsQuerySvc querysvc.MetricsQueryService,
 	options *QueryOptions,
 	tm *tenancy.Manager,
@@ -74,12 +82,13 @@ func NewServer(querySvc *querysvc.QueryService,
 		return nil, errors.New("server with TLS enabled can not use same host ports for gRPC and HTTP.  Use dedicated HTTP and gRPC host ports instead")
 	}
 
-	grpcServer, err := createGRPCServer(querySvc, metricsQuerySvc, options, tm, telset)
+	legacy := !separatePorts
+	grpcServer, err := createGRPCServer(ctx, legacy, querySvc, metricsQuerySvc, options, tm, telset)
 	if err != nil {
 		return nil, err
 	}
 
-	httpServer, err := createHTTPServer(querySvc, metricsQuerySvc, options, tm, telset)
+	httpServer, err := createHTTPServer(ctx, legacy, querySvc, metricsQuerySvc, options, tm, telset)
 	if err != nil {
 		return nil, err
 	}
@@ -94,29 +103,13 @@ func NewServer(querySvc *querysvc.QueryService,
 	}, nil
 }
 
-func createGRPCServer(querySvc *querysvc.QueryService, metricsQuerySvc querysvc.MetricsQueryService, options *QueryOptions, tm *tenancy.Manager, telset telemetery.Setting) (*grpc.Server, error) {
-	var grpcOpts []grpc.ServerOption
-
-	if options.GRPC.TLSSetting != nil {
-		tlsCfg, err := options.GRPC.TLSSetting.LoadTLSConfig(context.Background())
-		if err != nil {
-			return nil, err
-		}
-
-		creds := credentials.NewTLS(tlsCfg)
-
-		grpcOpts = append(grpcOpts, grpc.Creds(creds))
-	}
-	if tm.Enabled {
-		grpcOpts = append(grpcOpts,
-			grpc.StreamInterceptor(tenancy.NewGuardingStreamInterceptor(tm)),
-			grpc.UnaryInterceptor(tenancy.NewGuardingUnaryInterceptor(tm)),
-		)
-	}
-
-	server := grpc.NewServer(grpcOpts...)
+func registerGRPCServer(
+	server *grpc.Server,
+	querySvc *querysvc.QueryService,
+	metricsQuerySvc querysvc.MetricsQueryService,
+	telset telemetery.Setting,
+) {
 	reflection.Register(server)
-
 	handler := NewGRPCHandler(querySvc, metricsQuerySvc, GRPCHandlerOptions{
 		Logger: telset.Logger,
 	})
@@ -131,7 +124,67 @@ func createGRPCServer(querySvc *querysvc.QueryService, metricsQuerySvc querysvc.
 	healthServer.SetServingStatus("jaeger.api_v3.QueryService", grpc_health_v1.HealthCheckResponse_SERVING)
 
 	grpc_health_v1.RegisterHealthServer(server, healthServer)
-	return server, nil
+}
+
+func createGRPCServer(
+	ctx context.Context,
+	legacy bool,
+	querySvc *querysvc.QueryService,
+	metricsQuerySvc querysvc.MetricsQueryService,
+	options *QueryOptions,
+	tm *tenancy.Manager,
+	telset telemetery.Setting,
+) (*grpc.Server, error) {
+	var grpcServer *grpc.Server
+	if legacy {
+		var grpcOpts []grpc.ServerOption
+		if options.GRPC.TLSSetting != nil {
+			tlsCfg, err := options.GRPC.TLSSetting.LoadTLSConfig(ctx)
+			if err != nil {
+				return nil, err
+			}
+
+			creds := credentials.NewTLS(tlsCfg)
+
+			grpcOpts = append(grpcOpts, grpc.Creds(creds))
+		}
+		if tm.Enabled {
+			grpcOpts = append(grpcOpts,
+				//nolint
+				grpc.StreamInterceptor(tenancy.NewGuardingStreamInterceptor(tm)),
+				grpc.UnaryInterceptor(tenancy.NewGuardingUnaryInterceptor(tm)),
+			)
+		}
+
+		grpcServer = grpc.NewServer(grpcOpts...)
+	} else {
+		var grpcOpts []configgrpc.ToServerOption
+		if tm.Enabled {
+			grpcOpts = append(grpcOpts,
+				//nolint
+				configgrpc.WithGrpcServerOption(grpc.StreamInterceptor(tenancy.NewGuardingStreamInterceptor(tm))),
+				configgrpc.WithGrpcServerOption(grpc.UnaryInterceptor(tenancy.NewGuardingUnaryInterceptor(tm))),
+			)
+		}
+		var err error
+		grpcServer, err = options.GRPC.ToServer(
+			ctx,
+			telset.Host,
+			component.TelemetrySettings{
+				Logger:         telset.Logger,
+				TracerProvider: telset.TracerProvider,
+				LeveledMeterProvider: func(_ configtelemetry.Level) metric.MeterProvider {
+					return noop.NewMeterProvider()
+				},
+			},
+			grpcOpts...)
+		if err != nil {
+			return nil, err
+		}
+	}
+	registerGRPCServer(grpcServer, querySvc, metricsQuerySvc, telset)
+
+	return grpcServer, nil
 }
 
 type httpServer struct {
@@ -141,24 +194,25 @@ type httpServer struct {
 
 var _ io.Closer = (*httpServer)(nil)
 
-func createHTTPServer(
+func createHTTPRouter(
 	querySvc *querysvc.QueryService,
 	metricsQuerySvc querysvc.MetricsQueryService,
 	queryOpts *QueryOptions,
 	tm *tenancy.Manager,
 	telset telemetery.Setting,
-) (*httpServer, error) {
+) *mux.Router {
 	apiHandlerOptions := []HandlerOption{
 		HandlerOptions.Logger(telset.Logger),
 		HandlerOptions.Tracer(telset.TracerProvider),
 		HandlerOptions.MetricsQueryService(metricsQuerySvc),
 	}
-
 	apiHandler := NewAPIHandler(
 		querySvc,
 		tm,
 		apiHandlerOptions...)
+
 	r := NewRouter()
+
 	if queryOpts.BasePath != "/" {
 		r = r.PathPrefix(queryOpts.BasePath).Subrouter()
 	}
@@ -169,33 +223,77 @@ func createHTTPServer(
 		Logger:       telset.Logger,
 		Tracer:       telset.TracerProvider,
 	}).RegisterRoutes(r)
-
 	apiHandler.RegisterRoutes(r)
+
+	return r
+}
+
+func createHTTPServer(
+	ctx context.Context,
+	legacy bool,
+	querySvc *querysvc.QueryService,
+	metricsQuerySvc querysvc.MetricsQueryService,
+	queryOpts *QueryOptions,
+	tm *tenancy.Manager,
+	telset telemetery.Setting,
+) (*httpServer, error) {
+	r := createHTTPRouter(querySvc, metricsQuerySvc, queryOpts, tm, telset)
 	var handler http.Handler = r
-	handler = responseHeadersHandler(handler, queryOpts.HTTP.ResponseHeaders)
 	if queryOpts.BearerTokenPropagation {
 		handler = bearertoken.PropagationHandler(telset.Logger, handler)
 	}
-	handler = handlers.CompressHandler(handler)
 	recoveryHandler := recoveryhandler.NewRecoveryHandler(telset.Logger, true)
+	handler = recoveryHandler(handler)
+	var server *httpServer
+	if legacy {
+		handler = responseHeadersHandler(handler, queryOpts.HTTP.ResponseHeaders)
+		handler = handlers.CompressHandler(handler)
 
-	errorLog, _ := zap.NewStdLogAt(telset.Logger, zapcore.ErrorLevel)
-	server := &httpServer{
-		Server: &http.Server{
-			Handler:           recoveryHandler(handler),
-			ErrorLog:          errorLog,
-			ReadHeaderTimeout: 2 * time.Second,
-		},
-	}
+		errorLog, _ := zap.NewStdLogAt(telset.Logger, zapcore.ErrorLevel)
+		server = &httpServer{
+			Server: &http.Server{
+				Handler:           handler,
+				ErrorLog:          errorLog,
+				ReadHeaderTimeout: 2 * time.Second,
+			},
+		}
 
-	if queryOpts.HTTP.TLSSetting != nil {
-		tlsCfg, err := queryOpts.HTTP.TLSSetting.LoadTLSConfig(context.Background()) // This checks if the certificates are correctly provided
+		if queryOpts.HTTP.TLSSetting != nil {
+			tlsCfg, err := queryOpts.HTTP.TLSSetting.LoadTLSConfig(ctx) // This checks if the certificates are correctly provided
+			if err != nil {
+				return nil, err
+			}
+			server.TLSConfig = tlsCfg
+		}
+	} else {
+		s, err := queryOpts.HTTP.ToServer(
+			ctx,
+			telset.Host,
+			component.TelemetrySettings{
+				Logger:         telset.Logger,
+				TracerProvider: telset.TracerProvider,
+				LeveledMeterProvider: func(_ configtelemetry.Level) metric.MeterProvider {
+					return noop.NewMeterProvider()
+				},
+			},
+			handler,
+		)
 		if err != nil {
 			return nil, err
 		}
-		server.TLSConfig = tlsCfg
-	}
+		server = &httpServer{
+			Server: s,
+		}
 
+		// TODO: remove after ToListener is implemented
+		if queryOpts.HTTP.TLSSetting != nil {
+			tlsCfg, err := queryOpts.HTTP.TLSSetting.LoadTLSConfig(ctx) // This checks if the certificates are correctly provided
+			if err != nil {
+				return nil, err
+			}
+			server.TLSConfig = tlsCfg
+		}
+	}
 	server.staticHandlerCloser = RegisterStaticHandler(r, telset.Logger, queryOpts, querySvc.GetCapabilities())
 
 	return server, nil
