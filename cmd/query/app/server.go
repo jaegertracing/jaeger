@@ -99,6 +99,28 @@ func NewServer(
 	}, nil
 }
 
+func RegisterGRPCServer(
+	server *grpc.Server,
+	querySvc *querysvc.QueryService,
+	metricsQuerySvc querysvc.MetricsQueryService,
+	telset telemetery.Setting,
+) {
+	handler := NewGRPCHandler(querySvc, metricsQuerySvc, GRPCHandlerOptions{
+		Logger: telset.Logger,
+	})
+	healthServer := health.NewServer()
+
+	api_v2.RegisterQueryServiceServer(server, handler)
+	metrics.RegisterMetricsQueryServiceServer(server, handler)
+	api_v3.RegisterQueryServiceServer(server, &apiv3.Handler{QueryService: querySvc})
+
+	healthServer.SetServingStatus("jaeger.api_v2.QueryService", grpc_health_v1.HealthCheckResponse_SERVING)
+	healthServer.SetServingStatus("jaeger.api_v2.metrics.MetricsQueryService", grpc_health_v1.HealthCheckResponse_SERVING)
+	healthServer.SetServingStatus("jaeger.api_v3.QueryService", grpc_health_v1.HealthCheckResponse_SERVING)
+
+	grpc_health_v1.RegisterHealthServer(server, healthServer)
+}
+
 func createGRPCServer(ctx context.Context, querySvc *querysvc.QueryService, metricsQuerySvc querysvc.MetricsQueryService, options *QueryOptions, tm *tenancy.Manager, telset telemetery.Setting) (*grpc.Server, error) {
 	var grpcOpts []grpc.ServerOption
 
@@ -122,21 +144,8 @@ func createGRPCServer(ctx context.Context, querySvc *querysvc.QueryService, metr
 
 	server := grpc.NewServer(grpcOpts...)
 	reflection.Register(server)
+	RegisterGRPCServer(server, querySvc, metricsQuerySvc, telset)
 
-	handler := NewGRPCHandler(querySvc, metricsQuerySvc, GRPCHandlerOptions{
-		Logger: telset.Logger,
-	})
-	healthServer := health.NewServer()
-
-	api_v2.RegisterQueryServiceServer(server, handler)
-	metrics.RegisterMetricsQueryServiceServer(server, handler)
-	api_v3.RegisterQueryServiceServer(server, &apiv3.Handler{QueryService: querySvc})
-
-	healthServer.SetServingStatus("jaeger.api_v2.QueryService", grpc_health_v1.HealthCheckResponse_SERVING)
-	healthServer.SetServingStatus("jaeger.api_v2.metrics.MetricsQueryService", grpc_health_v1.HealthCheckResponse_SERVING)
-	healthServer.SetServingStatus("jaeger.api_v3.QueryService", grpc_health_v1.HealthCheckResponse_SERVING)
-
-	grpc_health_v1.RegisterHealthServer(server, healthServer)
 	return server, nil
 }
 
