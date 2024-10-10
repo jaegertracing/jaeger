@@ -633,6 +633,12 @@ func TestApplyForIndexPrefix(t *testing.T) {
 			expectedName: "hello",
 		},
 		{
+			testName:     "empty name",
+			prefix:       "bye",
+			name:         "",
+			expectedName: "bye-",
+		},
+		{
 			testName:     "separator suffix",
 			prefix:       "bye-",
 			name:         "hello",
