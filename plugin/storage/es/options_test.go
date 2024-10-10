@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger/pkg/config"
+	escfg "github.com/jaegertracing/jaeger/pkg/es/config"
 )
 
 func TestOptions(t *testing.T) {
@@ -22,8 +23,14 @@ func TestOptions(t *testing.T) {
 	assert.Empty(t, primary.PasswordFilePath)
 	assert.NotEmpty(t, primary.Servers)
 	assert.Empty(t, primary.RemoteReadClusters)
-	assert.Equal(t, int64(5), primary.NumShards)
-	assert.Equal(t, int64(1), primary.NumReplicas)
+	assert.EqualValues(t, 5, primary.Indices.Spans.Shards)
+	assert.EqualValues(t, 5, primary.Indices.Services.Shards)
+	assert.EqualValues(t, 5, primary.Indices.Sampling.Shards)
+	assert.EqualValues(t, 5, primary.Indices.Dependencies.Shards)
+	assert.EqualValues(t, 1, primary.Indices.Spans.Replicas)
+	assert.EqualValues(t, 1, primary.Indices.Services.Replicas)
+	assert.EqualValues(t, 1, primary.Indices.Sampling.Replicas)
+	assert.EqualValues(t, 1, primary.Indices.Dependencies.Replicas)
 	assert.Equal(t, 72*time.Hour, primary.MaxSpanAge)
 	assert.False(t, primary.Sniffer)
 	assert.False(t, primary.SnifferTLSEnabled)
@@ -87,22 +94,28 @@ func TestOptionsWithFlags(t *testing.T) {
 	assert.Equal(t, "!", primary.Tags.DotReplacement)
 	assert.Equal(t, "./file.txt", primary.Tags.File)
 	assert.Equal(t, "test,tags", primary.Tags.Include)
-	assert.Equal(t, "20060102", primary.IndexDateLayoutServices)
-	assert.Equal(t, "2006010215", primary.IndexDateLayoutSpans)
+	assert.Equal(t, "20060102", primary.Indices.Services.DateLayout)
+	assert.Equal(t, "2006010215", primary.Indices.Spans.DateLayout)
 	aux := opts.Get("es.aux")
 	assert.Equal(t, []string{"3.3.3.3", "4.4.4.4"}, aux.Servers)
 	assert.Equal(t, "hello", aux.Username)
 	assert.Equal(t, "world", aux.Password)
-	assert.Equal(t, int64(5), aux.NumShards)
-	assert.Equal(t, int64(10), aux.NumReplicas)
+	assert.EqualValues(t, 5, aux.Indices.Spans.Shards)
+	assert.EqualValues(t, 5, aux.Indices.Services.Shards)
+	assert.EqualValues(t, 5, aux.Indices.Sampling.Shards)
+	assert.EqualValues(t, 5, aux.Indices.Dependencies.Shards)
+	assert.EqualValues(t, 10, aux.Indices.Spans.Replicas)
+	assert.EqualValues(t, 10, aux.Indices.Services.Replicas)
+	assert.EqualValues(t, 10, aux.Indices.Sampling.Replicas)
+	assert.EqualValues(t, 10, aux.Indices.Dependencies.Replicas)
 	assert.Equal(t, 24*time.Hour, aux.MaxSpanAge)
 	assert.True(t, aux.Sniffer)
 	assert.True(t, aux.Tags.AllAsFields)
 	assert.Equal(t, "@", aux.Tags.DotReplacement)
 	assert.Equal(t, "./file.txt", aux.Tags.File)
 	assert.Equal(t, "test,tags", aux.Tags.Include)
-	assert.Equal(t, "2006.01.02", aux.IndexDateLayoutServices)
-	assert.Equal(t, "2006.01.02.15", aux.IndexDateLayoutSpans)
+	assert.Equal(t, "2006.01.02", aux.Indices.Services.DateLayout)
+	assert.Equal(t, "2006.01.02.15", aux.Indices.Spans.DateLayout)
 	assert.True(t, primary.UseILM)
 	assert.Equal(t, "POST", aux.SendGetBodyAs)
 }
@@ -171,7 +184,7 @@ func TestIndexDateSeparator(t *testing.T) {
 			opts.InitFromViper(v)
 
 			primary := opts.GetPrimary()
-			assert.Equal(t, tc.wantDateLayout, primary.IndexDateLayoutSpans)
+			assert.Equal(t, tc.wantDateLayout, primary.Indices.Spans.DateLayout)
 		})
 	}
 }
@@ -225,10 +238,10 @@ func TestIndexRollover(t *testing.T) {
 			command.ParseFlags(tc.flags)
 			opts.InitFromViper(v)
 			primary := opts.GetPrimary()
-			assert.Equal(t, tc.wantSpanDateLayout, primary.IndexDateLayoutSpans)
-			assert.Equal(t, tc.wantServiceDateLayout, primary.IndexDateLayoutServices)
-			assert.Equal(t, tc.wantSpanIndexRolloverFrequency, primary.GetIndexRolloverFrequencySpansDuration())
-			assert.Equal(t, tc.wantServiceIndexRolloverFrequency, primary.GetIndexRolloverFrequencyServicesDuration())
+			assert.Equal(t, tc.wantSpanDateLayout, primary.Indices.Spans.DateLayout)
+			assert.Equal(t, tc.wantServiceDateLayout, primary.Indices.Services.DateLayout)
+			assert.Equal(t, tc.wantSpanIndexRolloverFrequency, escfg.RolloverFrequencyAsNegativeDuration(primary.Indices.Spans.RolloverFrequency))
+			assert.Equal(t, tc.wantServiceIndexRolloverFrequency, escfg.RolloverFrequencyAsNegativeDuration(primary.Indices.Services.RolloverFrequency))
 		})
 	}
 }

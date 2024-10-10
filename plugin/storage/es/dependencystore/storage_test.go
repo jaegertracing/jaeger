@@ -20,6 +20,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/es"
+	"github.com/jaegertracing/jaeger/pkg/es/config"
 	"github.com/jaegertracing/jaeger/pkg/es/mocks"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
@@ -34,7 +35,7 @@ type depStorageTest struct {
 	storage   *DependencyStore
 }
 
-func withDepStorage(indexPrefix, indexDateLayout string, maxDocCount int, fn func(r *depStorageTest)) {
+func withDepStorage(indexPrefix config.IndexPrefix, indexDateLayout string, maxDocCount int, fn func(r *depStorageTest)) {
 	client := &mocks.Client{}
 	logger, logBuffer := testutils.NewLogger()
 	r := &depStorageTest{
@@ -59,7 +60,7 @@ var (
 
 func TestNewSpanReaderIndexPrefix(t *testing.T) {
 	testCases := []struct {
-		prefix   string
+		prefix   config.IndexPrefix
 		expected string
 	}{
 		{prefix: "", expected: ""},
@@ -76,7 +77,7 @@ func TestNewSpanReaderIndexPrefix(t *testing.T) {
 			MaxDocCount:     defaultMaxDocCount,
 		})
 
-		assert.Equal(t, testCase.expected+dependencyIndex, r.dependencyIndexPrefix)
+		assert.Equal(t, testCase.expected+dependencyIndexBaseName, r.dependencyIndexPrefix)
 	}
 }
 
@@ -131,7 +132,7 @@ func TestGetDependencies(t *testing.T) {
 		searchError    error
 		expectedError  string
 		expectedOutput []model.DependencyLink
-		indexPrefix    string
+		indexPrefix    config.IndexPrefix
 		maxDocCount    int
 		indices        []any
 	}{
@@ -211,37 +212,37 @@ func TestGetReadIndices(t *testing.T) {
 			params:   Params{IndexPrefix: "", IndexDateLayout: "2006-01-02", UseReadWriteAliases: true},
 			lookback: 23 * time.Hour,
 			indices: []string{
-				dependencyIndex + "read",
+				dependencyIndexBaseName + "read",
 			},
 		},
 		{
 			params:   Params{IndexPrefix: "", IndexDateLayout: "2006-01-02"},
 			lookback: 23 * time.Hour,
 			indices: []string{
-				dependencyIndex + fixedTime.Format("2006-01-02"),
-				dependencyIndex + fixedTime.Add(-23*time.Hour).Format("2006-01-02"),
+				dependencyIndexBaseName + fixedTime.Format("2006-01-02"),
+				dependencyIndexBaseName + fixedTime.Add(-23*time.Hour).Format("2006-01-02"),
 			},
 		},
 		{
 			params:   Params{IndexPrefix: "", IndexDateLayout: "2006-01-02"},
 			lookback: 13 * time.Hour,
 			indices: []string{
-				dependencyIndex + fixedTime.UTC().Format("2006-01-02"),
-				dependencyIndex + fixedTime.Add(-13*time.Hour).Format("2006-01-02"),
+				dependencyIndexBaseName + fixedTime.UTC().Format("2006-01-02"),
+				dependencyIndexBaseName + fixedTime.Add(-13*time.Hour).Format("2006-01-02"),
 			},
 		},
 		{
 			params:   Params{IndexPrefix: "foo:", IndexDateLayout: "2006-01-02"},
 			lookback: 1 * time.Hour,
 			indices: []string{
-				"foo:" + indexPrefixSeparator + dependencyIndex + fixedTime.Format("2006-01-02"),
+				"foo:" + config.IndexPrefixSeparator + dependencyIndexBaseName + fixedTime.Format("2006-01-02"),
 			},
 		},
 		{
 			params:   Params{IndexPrefix: "foo-", IndexDateLayout: "2006-01-02"},
 			lookback: 0,
 			indices: []string{
-				"foo-" + indexPrefixSeparator + dependencyIndex + fixedTime.Format("2006-01-02"),
+				"foo" + config.IndexPrefixSeparator + dependencyIndexBaseName + fixedTime.Format("2006-01-02"),
 			},
 		},
 	}
@@ -260,11 +261,11 @@ func TestGetWriteIndex(t *testing.T) {
 	}{
 		{
 			params:     Params{IndexPrefix: "", IndexDateLayout: "2006-01-02", UseReadWriteAliases: true},
-			writeIndex: dependencyIndex + "write",
+			writeIndex: dependencyIndexBaseName + "write",
 		},
 		{
 			params:     Params{IndexPrefix: "", IndexDateLayout: "2006-01-02", UseReadWriteAliases: false},
-			writeIndex: dependencyIndex + fixedTime.Format("2006-01-02"),
+			writeIndex: dependencyIndexBaseName + fixedTime.Format("2006-01-02"),
 		},
 	}
 	for _, testCase := range testCases {

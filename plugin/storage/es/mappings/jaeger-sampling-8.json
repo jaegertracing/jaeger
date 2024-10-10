@@ -1,5 +1,5 @@
 {
-  "priority": {{ .PrioritySamplingTemplate }},
+  "priority": {{ .Priority }},
   "index_patterns": "{{ .IndexPrefix }}jaeger-sampling-*",
   "template": {
     {{- if .UseILM }}

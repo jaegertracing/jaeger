@@ -19,6 +19,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/metricstest"
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/es"
+	"github.com/jaegertracing/jaeger/pkg/es/config"
 	"github.com/jaegertracing/jaeger/pkg/es/mocks"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/plugin/storage/es/spanstore/dbmodel"
@@ -40,7 +41,12 @@ func withSpanWriter(fn func(w *spanWriterTest)) {
 		client:    client,
 		logger:    logger,
 		logBuffer: logBuffer,
-		writer:    NewSpanWriter(SpanWriterParams{Client: func() es.Client { return client }, Logger: logger, MetricsFactory: metricsFactory, SpanIndexDateLayout: "2006-01-02", ServiceIndexDateLayout: "2006-01-02"}),
+		writer: NewSpanWriter(SpanWriterParams{
+			Client: func() es.Client { return client },
+			Logger: logger, MetricsFactory: metricsFactory,
+			SpanIndex:    config.IndexOptions{DateLayout: "2006-01-02"},
+			ServiceIndex: config.IndexOptions{DateLayout: "2006-01-02"},
+		}),
 	}
 	fn(w)
 }
@@ -57,6 +63,10 @@ func TestSpanWriterIndices(t *testing.T) {
 	serviceDataLayout := "2006-01-02"
 	spanDataLayoutFormat := date.UTC().Format(spanDataLayout)
 	serviceDataLayoutFormat := date.UTC().Format(serviceDataLayout)
+
+	spanIndexOpts := config.IndexOptions{DateLayout: spanDataLayout}
+	serviceIndexOpts := config.IndexOptions{DateLayout: serviceDataLayout}
+
 	testCases := []struct {
 		indices []string
 		params  SpanWriterParams
@@ -64,51 +74,51 @@ func TestSpanWriterIndices(t *testing.T) {
 		{
 			params: SpanWriterParams{
 				Client: clientFn, Logger: logger, MetricsFactory: metricsFactory,
-				IndexPrefix: "", SpanIndexDateLayout: spanDataLayout, ServiceIndexDateLayout: serviceDataLayout, Archive: false,
+				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts, Archive: false,
 			},
-			indices: []string{spanIndex + spanDataLayoutFormat, serviceIndex + serviceDataLayoutFormat},
+			indices: []string{spanIndexBaseName + spanDataLayoutFormat, serviceIndexBaseName + serviceDataLayoutFormat},
 		},
 		{
 			params: SpanWriterParams{
 				Client: clientFn, Logger: logger, MetricsFactory: metricsFactory,
-				IndexPrefix: "", SpanIndexDateLayout: spanDataLayout, ServiceIndexDateLayout: serviceDataLayout, UseReadWriteAliases: true,
+				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts, UseReadWriteAliases: true,
 			},
-			indices: []string{spanIndex + "write", serviceIndex + "write"},
+			indices: []string{spanIndexBaseName + "write", serviceIndexBaseName + "write"},
 		},
 		{
 			params: SpanWriterParams{
 				Client: clientFn, Logger: logger, MetricsFactory: metricsFactory,
-				IndexPrefix: "foo:", SpanIndexDateLayout: spanDataLayout, ServiceIndexDateLayout: serviceDataLayout, Archive: false,
+				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts, IndexPrefix: "foo:", Archive: false,
 			},
-			indices: []string{"foo:" + indexPrefixSeparator + spanIndex + spanDataLayoutFormat, "foo:" + indexPrefixSeparator + serviceIndex + serviceDataLayoutFormat},
+			indices: []string{"foo:" + config.IndexPrefixSeparator + spanIndexBaseName + spanDataLayoutFormat, "foo:" + config.IndexPrefixSeparator + serviceIndexBaseName + serviceDataLayoutFormat},
 		},
 		{
 			params: SpanWriterParams{
 				Client: clientFn, Logger: logger, MetricsFactory: metricsFactory,
-				IndexPrefix: "foo:", SpanIndexDateLayout: spanDataLayout, ServiceIndexDateLayout: serviceDataLayout, UseReadWriteAliases: true,
+				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts, IndexPrefix: "foo:", UseReadWriteAliases: true,
 			},
-			indices: []string{"foo:-" + spanIndex + "write", "foo:-" + serviceIndex + "write"},
+			indices: []string{"foo:-" + spanIndexBaseName + "write", "foo:-" + serviceIndexBaseName + "write"},
 		},
 		{
 			params: SpanWriterParams{
 				Client: clientFn, Logger: logger, MetricsFactory: metricsFactory,
-				IndexPrefix: "", SpanIndexDateLayout: spanDataLayout, ServiceIndexDateLayout: serviceDataLayout, Archive: true,
+				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts, Archive: true,
 			},
-			indices: []string{spanIndex + archiveIndexSuffix, ""},
+			indices: []string{spanIndexBaseName + archiveIndexSuffix, ""},
 		},
 		{
 			params: SpanWriterParams{
 				Client: clientFn, Logger: logger, MetricsFactory: metricsFactory,
-				IndexPrefix: "foo:", SpanIndexDateLayout: spanDataLayout, ServiceIndexDateLayout: serviceDataLayout, Archive: true,
+				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts, IndexPrefix: "foo:", Archive: true,
 			},
-			indices: []string{"foo:" + indexPrefixSeparator + spanIndex + archiveIndexSuffix, ""},
+			indices: []string{"foo:" + config.IndexPrefixSeparator + spanIndexBaseName + archiveIndexSuffix, ""},
 		},
 		{
 			params: SpanWriterParams{
 				Client: clientFn, Logger: logger, MetricsFactory: metricsFactory,
-				IndexPrefix: "foo:", SpanIndexDateLayout: spanDataLayout, ServiceIndexDateLayout: serviceDataLayout, Archive: true, UseReadWriteAliases: true,
+				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts, IndexPrefix: "foo:", Archive: true, UseReadWriteAliases: true,
 			},
-			indices: []string{"foo:" + indexPrefixSeparator + spanIndex + archiveWriteIndexSuffix, ""},
+			indices: []string{"foo:" + config.IndexPrefixSeparator + spanIndexBaseName + archiveWriteIndexSuffix, ""},
 		},
 	}
 	for _, testCase := range testCases {
@@ -211,7 +221,7 @@ func TestCreateTemplates(t *testing.T) {
 		err                    string
 		spanTemplateService    func() *mocks.TemplateCreateService
 		serviceTemplateService func() *mocks.TemplateCreateService
-		indexPrefix            string
+		indexPrefix            config.IndexPrefix
 	}{
 		{
 			spanTemplateService: func() *mocks.TemplateCreateService {
@@ -276,12 +286,10 @@ func TestCreateTemplates(t *testing.T) {
 
 	for _, test := range tests {
 		withSpanWriter(func(w *spanWriterTest) {
-			prefix := ""
-			if test.indexPrefix != "" && !strings.HasSuffix(test.indexPrefix, "-") {
-				prefix = test.indexPrefix + "-"
-			}
-			w.client.On("CreateTemplate", prefix+"jaeger-span").Return(test.spanTemplateService())
-			w.client.On("CreateTemplate", prefix+"jaeger-service").Return(test.serviceTemplateService())
+			jaegerSpanId := test.indexPrefix.Apply("jaeger-span")
+			jaegerServiceId := test.indexPrefix.Apply("jaeger-service")
+			w.client.On("CreateTemplate", jaegerSpanId).Return(test.spanTemplateService())
+			w.client.On("CreateTemplate", jaegerServiceId).Return(test.serviceTemplateService())
 			err := w.writer.CreateTemplates(mock.Anything, mock.Anything, test.indexPrefix)
 			if test.err != "" {
 				require.Error(t, err, test.err)
@@ -296,8 +304,8 @@ func TestSpanIndexName(t *testing.T) {
 	span := &model.Span{
 		StartTime: date,
 	}
-	spanIndexName := indexWithDate(spanIndex, "2006-01-02", span.StartTime)
-	serviceIndexName := indexWithDate(serviceIndex, "2006-01-02", span.StartTime)
+	spanIndexName := indexWithDate(spanIndexBaseName, "2006-01-02", span.StartTime)
+	serviceIndexName := indexWithDate(serviceIndexBaseName, "2006-01-02", span.StartTime)
 	assert.Equal(t, "jaeger-span-1995-04-21", spanIndexName)
 	assert.Equal(t, "jaeger-service-1995-04-21", serviceIndexName)
 }
