@@ -34,14 +34,13 @@ func TestMappingBuilderGetMapping(t *testing.T) {
 		{mapping: SpanMapping, esVersion: 6},
 		{mapping: ServiceMapping, esVersion: 8},
 		{mapping: ServiceMapping, esVersion: 7},
-		{mapping: DependenciesMapping, esVersion: 6},
+		{mapping: ServiceMapping, esVersion: 6},
 		{mapping: DependenciesMapping, esVersion: 8},
 		{mapping: DependenciesMapping, esVersion: 7},
 		{mapping: DependenciesMapping, esVersion: 6},
 	}
 	for _, tt := range tests {
-		templateName, err := tt.mapping.String()
-		require.NoError(t, err)
+		templateName := tt.mapping.String()
 
 		t.Run(templateName, func(t *testing.T) {
 			mb := &MappingBuilder{
