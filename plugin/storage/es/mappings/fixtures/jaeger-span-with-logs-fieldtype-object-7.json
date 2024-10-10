@@ -1,21 +1,17 @@
 {
-  "index_patterns": "*{{ .IndexPrefix }}jaeger-span-*",
-  {{- if .UseILM }}
+  "index_patterns": "*test-jaeger-span-*",
   "aliases": {
-    "{{ .IndexPrefix }}jaeger-span-read": {}
+    "test-jaeger-span-read": {}
   },
-  {{- end }}
   "settings":{
-    "index.number_of_shards": {{ .Shards }},
-    "index.number_of_replicas": {{ .Replicas }},
+    "index.number_of_shards": 3,
+    "index.number_of_replicas": 3,
     "index.mapping.nested_fields.limit":50,
     "index.requests.cache.enable":true
-    {{- if .UseILM }}
     ,"lifecycle": {
-      "name": "{{ .ILMPolicyName }}",
-      "rollover_alias": "{{ .IndexPrefix }}jaeger-span-write"
+      "name": "jaeger-test-policy",
+      "rollover_alias": "test-jaeger-span-write"
     }
-    {{- end }}
   },
   "mappings":{
     "dynamic_templates":[
@@ -69,22 +65,14 @@
         "type":"integer"
       },
       "logs":{
-        {{- if .DisableLogsFieldSearch }}
         "type":"object",
-        {{- else }}
-        "type":"nested",
-        {{- end }}
         "dynamic":false,
         "properties":{
           "timestamp":{
             "type":"long"
           },
           "fields":{
-            {{- if .DisableLogsFieldSearch }}
             "type":"object",
-            {{- else }}
-            "type":"nested",
-            {{- end }}
             "dynamic":false,
             "properties":{
               "key":{
@@ -95,7 +83,7 @@
                 "type":"keyword",
                 "ignore_above":256
               },
-              "type":{
+              "tagType":{
                 "type":"keyword",
                 "ignore_above":256
               }
@@ -124,7 +112,7 @@
                 "type":"keyword",
                 "ignore_above":256
               },
-              "type":{
+              "tagType":{
                 "type":"keyword",
                 "ignore_above":256
               }
@@ -165,7 +153,7 @@
             "type":"keyword",
             "ignore_above":256
           },
-          "type":{
+          "tagType":{
             "type":"keyword",
             "ignore_above":256
           }

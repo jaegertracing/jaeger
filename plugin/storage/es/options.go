@@ -57,6 +57,7 @@ const (
 	suffixMaxDocCount                    = ".max-doc-count"
 	suffixLogLevel                       = ".log-level"
 	suffixSendGetBodyAs                  = ".send-get-body-as"
+	suffixDisableLogsFieldSearch         = ".disable-logs-field-search"
 	// default number of documents to return from a query (elasticsearch allowed limit)
 	// see search.max_buckets and index.max_result_window
 	defaultMaxDocCount        = 10_000
@@ -277,6 +278,13 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		nsConfig.namespace+suffixAdaptiveSamplingLookback,
 		nsConfig.AdaptiveSamplingLookback,
 		"How far back to look for the latest adaptive sampling probabilities")
+	flagSet.Bool(
+		nsConfig.namespace+suffixDisableLogsFieldSearch,
+		nsConfig.DisableLogsFieldSearch,
+		"(experimental) When true, turns off the ability to search within log fields, and uses "+
+			"more efficient 'object' mapping for logs[].fields[], instead of 'nested' mapping.",
+	)
+
 	if nsConfig.namespace == archiveNamespace {
 		flagSet.Bool(
 			nsConfig.namespace+suffixEnabled,
@@ -356,6 +364,8 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 
 	// Dependencies calculation should be daily, and this index size is very small
 	cfg.IndexDateLayoutDependencies = initDateLayout(defaultIndexRolloverFrequency, separator)
+	cfg.DisableLogsFieldSearch = v.GetBool(cfg.namespace + suffixDisableLogsFieldSearch)
+
 	var err error
 	cfg.TLS, err = cfg.getTLSFlagsConfig().InitFromViper(v)
 	if err != nil {

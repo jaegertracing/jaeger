@@ -10,29 +10,31 @@ import (
 )
 
 const (
-	indexPrefix      = "index-prefix"
-	archive          = "archive"
-	username         = "es.username"
-	password         = "es.password"
-	useILM           = "es.use-ilm"
-	ilmPolicyName    = "es.ilm-policy-name"
-	timeout          = "timeout"
-	skipDependencies = "skip-dependencies"
-	adaptiveSampling = "adaptive-sampling"
+	indexPrefix            = "index-prefix"
+	archive                = "archive"
+	username               = "es.username"
+	password               = "es.password"
+	useILM                 = "es.use-ilm"
+	ilmPolicyName          = "es.ilm-policy-name"
+	timeout                = "timeout"
+	skipDependencies       = "skip-dependencies"
+	adaptiveSampling       = "adaptive-sampling"
+	disableLogsFieldSearch = "disable-logs-field-search"
 )
 
 // Config holds the global configurations for the es rollover, common to all actions
 type Config struct {
-	IndexPrefix      string
-	Archive          bool
-	Username         string
-	Password         string
-	TLSEnabled       bool
-	ILMPolicyName    string
-	UseILM           bool
-	Timeout          int
-	SkipDependencies bool
-	AdaptiveSampling bool
+	IndexPrefix            string
+	Archive                bool
+	Username               string
+	Password               string
+	TLSEnabled             bool
+	ILMPolicyName          string
+	UseILM                 bool
+	Timeout                int
+	SkipDependencies       bool
+	AdaptiveSampling       bool
+	DisableLogsFieldSearch bool
 }
 
 // AddFlags adds flags
@@ -46,6 +48,7 @@ func AddFlags(flags *flag.FlagSet) {
 	flags.Int(timeout, 120, "Number of seconds to wait for master node response")
 	flags.Bool(skipDependencies, false, "Disable rollover for dependencies index")
 	flags.Bool(adaptiveSampling, false, "Enable rollover for adaptive sampling index")
+	flags.Bool(disableLogsFieldSearch, false, "Set to `true` to set type logs.field mapping to object")
 }
 
 // InitFromViper initializes config from viper.Viper.
@@ -62,4 +65,5 @@ func (c *Config) InitFromViper(v *viper.Viper) {
 	c.Timeout = v.GetInt(timeout)
 	c.SkipDependencies = v.GetBool(skipDependencies)
 	c.AdaptiveSampling = v.GetBool(adaptiveSampling)
+	c.DisableLogsFieldSearch = v.GetBool(disableLogsFieldSearch)
 }

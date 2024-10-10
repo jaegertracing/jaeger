@@ -236,6 +236,7 @@ func createSpanReader(
 		Logger:                        logger,
 		MetricsFactory:                mFactory,
 		Tracer:                        tp.Tracer("esSpanStore.SpanReader"),
+		DisableLogsFieldSearch:        cfg.DisableLogsFieldSearch,
 	}), nil
 }
 
@@ -322,6 +323,7 @@ func mappingBuilderFromConfig(cfg *config.Configuration) mappings.MappingBuilder
 		PrioritySpanTemplate:         cfg.PrioritySpanTemplate,
 		PriorityServiceTemplate:      cfg.PriorityServiceTemplate,
 		PriorityDependenciesTemplate: cfg.PriorityDependenciesTemplate,
+		DisableLogsFieldSearch:       cfg.DisableLogsFieldSearch,
 	}
 }
 

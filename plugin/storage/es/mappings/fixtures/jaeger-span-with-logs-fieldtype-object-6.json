@@ -1,8 +1,8 @@
 {
   "template": "*jaeger-span-*",
   "settings":{
-    "index.number_of_shards": {{ .Shards }},
-    "index.number_of_replicas": {{ .Replicas }},
+    "index.number_of_shards": 3,
+    "index.number_of_replicas": 3,
     "index.mapping.nested_fields.limit":50,
     "index.requests.cache.enable":true,
     "index.mapper.dynamic":false
@@ -65,22 +65,14 @@
           "type":"integer"
         },
         "logs":{
-          {{- if .DisableLogsFieldSearch }}
           "type":"object",
-          {{- else }}
-          "type":"nested",
-          {{- end }}
           "dynamic":false,
           "properties":{
             "timestamp":{
               "type":"long"
             },
             "fields":{
-              {{- if .DisableLogsFieldSearch }}
               "type":"object",
-              {{- else }}
-              "type":"nested",
-              {{- end }}
               "dynamic":false,
               "properties":{
                 "key":{
@@ -91,7 +83,7 @@
                   "type":"keyword",
                   "ignore_above":256
                 },
-                "type":{
+                "tagType":{
                   "type":"keyword",
                   "ignore_above":256
                 }
@@ -120,7 +112,7 @@
                   "type":"keyword",
                   "ignore_above":256
                 },
-                "type":{
+                "tagType":{
                   "type":"keyword",
                   "ignore_above":256
                 }
@@ -161,7 +153,7 @@
               "type":"keyword",
               "ignore_above":256
             },
-            "type":{
+            "tagType":{
               "type":"keyword",
               "ignore_above":256
             }

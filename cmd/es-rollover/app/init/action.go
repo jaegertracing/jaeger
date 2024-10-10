@@ -40,6 +40,7 @@ func (c Action) getMapping(version uint, templateName string) (string, error) {
 		UseILM:                       c.Config.UseILM,
 		ILMPolicyName:                c.Config.ILMPolicyName,
 		EsVersion:                    version,
+		DisableLogsFieldSearch:       c.Config.DisableLogsFieldSearch,
 	}
 	return mappingBuilder.GetMapping(templateName)
 }

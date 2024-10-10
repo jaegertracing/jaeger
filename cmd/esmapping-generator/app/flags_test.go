@@ -25,6 +25,7 @@ func TestOptionsWithDefaultFlags(t *testing.T) {
 	assert.Equal(t, "", o.IndexPrefix)
 	assert.Equal(t, "false", o.UseILM)
 	assert.Equal(t, "jaeger-ilm-policy", o.ILMPolicyName)
+	assert.Equal(t, "false", o.DisableLogsFieldSearch)
 }
 
 func TestOptionsWithFlags(t *testing.T) {
@@ -40,6 +41,7 @@ func TestOptionsWithFlags(t *testing.T) {
 		"--index-prefix=test",
 		"--use-ilm=true",
 		"--ilm-policy-name=jaeger-test-policy",
+		"--disable-logs-field-search=true",
 	})
 	require.NoError(t, err)
 	assert.Equal(t, "jaeger-span", o.Mapping)
@@ -49,6 +51,7 @@ func TestOptionsWithFlags(t *testing.T) {
 	assert.Equal(t, "test", o.IndexPrefix)
 	assert.Equal(t, "true", o.UseILM)
 	assert.Equal(t, "jaeger-test-policy", o.ILMPolicyName)
+	assert.Equal(t, "true", o.DisableLogsFieldSearch)
 }
 
 func TestMain(m *testing.M) {

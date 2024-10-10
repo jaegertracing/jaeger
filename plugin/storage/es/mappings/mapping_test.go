@@ -6,7 +6,6 @@ package mappings
 import (
 	"embed"
 	"errors"
-	"fmt"
 	"io"
 	"os"
 	"testing"
@@ -31,21 +30,26 @@ func TestMappingBuilderGetMapping(t *testing.T) {
 		jaegerDependencies = "jaeger-dependencies"
 	)
 	tests := []struct {
-		mapping   string
-		esVersion uint
+		mapping                string
+		esVersion              uint
+		fixtureName            string
+		disableLogsFieldSearch bool
 	}{
-		{mapping: jaegerSpan, esVersion: 8},
-		{mapping: jaegerSpan, esVersion: 7},
-		{mapping: jaegerSpan, esVersion: 6},
-		{mapping: jaegerService, esVersion: 8},
-		{mapping: jaegerService, esVersion: 7},
-		{mapping: jaegerService, esVersion: 6},
-		{mapping: jaegerDependencies, esVersion: 8},
-		{mapping: jaegerDependencies, esVersion: 7},
-		{mapping: jaegerDependencies, esVersion: 6},
+		{mapping: jaegerSpan, esVersion: 8, fixtureName: "jaeger-span-8"},
+		{mapping: jaegerSpan, esVersion: 7, fixtureName: "jaeger-span-7"},
+		{mapping: jaegerSpan, esVersion: 6, fixtureName: "jaeger-span-6"},
+		{mapping: jaegerSpan, esVersion: 8, fixtureName: "jaeger-span-with-logs-fieldtype-object-8", disableLogsFieldSearch: true},
+		{mapping: jaegerSpan, esVersion: 7, fixtureName: "jaeger-span-with-logs-fieldtype-object-7", disableLogsFieldSearch: true},
+		{mapping: jaegerSpan, esVersion: 6, fixtureName: "jaeger-span-with-logs-fieldtype-object-6", disableLogsFieldSearch: true},
+		{mapping: jaegerService, esVersion: 8, fixtureName: "jaeger-service-8"},
+		{mapping: jaegerService, esVersion: 7, fixtureName: "jaeger-service-7"},
+		{mapping: jaegerService, esVersion: 6, fixtureName: "jaeger-service-6"},
+		{mapping: jaegerDependencies, esVersion: 8, fixtureName: "jaeger-dependencies-8"},
+		{mapping: jaegerDependencies, esVersion: 7, fixtureName: "jaeger-dependencies-7"},
+		{mapping: jaegerDependencies, esVersion: 6, fixtureName: "jaeger-dependencies-6"},
 	}
 	for _, tt := range tests {
-		t.Run(tt.mapping, func(t *testing.T) {
+		t.Run(tt.fixtureName, func(t *testing.T) {
 			mb := &MappingBuilder{
 				TemplateBuilder:              es.TextTemplateBuilder{},
 				Shards:                       3,
@@ -57,12 +61,12 @@ func TestMappingBuilderGetMapping(t *testing.T) {
 				IndexPrefix:                  "test-",
 				UseILM:                       true,
 				ILMPolicyName:                "jaeger-test-policy",
+				DisableLogsFieldSearch:       tt.disableLogsFieldSearch,
 			}
 			got, err := mb.GetMapping(tt.mapping)
 			require.NoError(t, err)
 			var wantbytes []byte
-			fileSuffix := fmt.Sprintf("-%d", tt.esVersion)
-			wantbytes, err = FIXTURES.ReadFile("fixtures/" + tt.mapping + fileSuffix + ".json")
+			wantbytes, err = FIXTURES.ReadFile("fixtures/" + tt.fixtureName + ".json")
 			require.NoError(t, err)
 			want := string(wantbytes)
 			assert.Equal(t, want, got)
@@ -108,7 +112,8 @@ func TestMappingBuilderFixMapping(t *testing.T) {
 				tb := mocks.TemplateBuilder{}
 				ta := mocks.TemplateApplier{}
 				ta.On("Execute", mock.Anything, mock.Anything).Return(nil)
-				tb.On("Parse", mock.Anything).Return(&ta, nil)
+				tb.On("ParseFieldType", mock.Anything).Return(&ta, nil)
+				tb.On("Parse", mock.Anything).Times(2).Return(&ta, nil)
 				return &tb
 			},
 			err: "",
@@ -119,7 +124,8 @@ func TestMappingBuilderFixMapping(t *testing.T) {
 				tb := mocks.TemplateBuilder{}
 				ta := mocks.TemplateApplier{}
 				ta.On("Execute", mock.Anything, mock.Anything).Return(errors.New("template exec error"))
-				tb.On("Parse", mock.Anything).Return(&ta, nil)
+				tb.On("ParseFieldType", mock.Anything).Return(&ta, nil)
+				tb.On("Parse", mock.Anything).Times(2).Return(&ta, nil)
 				return &tb
 			},
 			err: "template exec error",
@@ -185,7 +191,8 @@ func TestMappingBuilderGetSpanServiceMappings(t *testing.T) {
 				tb := mocks.TemplateBuilder{}
 				ta := mocks.TemplateApplier{}
 				ta.On("Execute", mock.Anything, mock.Anything).Return(nil)
-				tb.On("Parse", mock.Anything).Return(&ta, nil)
+				tb.On("ParseFieldType", mock.Anything).Return(&ta, nil)
+				tb.On("Parse", mock.Anything).Times(2).Return(&ta, nil)
 				return &tb
 			},
 			err: "",
@@ -205,7 +212,8 @@ func TestMappingBuilderGetSpanServiceMappings(t *testing.T) {
 				ta := mocks.TemplateApplier{}
 				ta.On("Execute", mock.Anything, mock.Anything).Return(nil).Once()
 				ta.On("Execute", mock.Anything, mock.Anything).Return(errors.New("template load error")).Once()
-				tb.On("Parse", mock.Anything).Return(&ta, nil)
+				tb.On("ParseFieldType", mock.Anything).Return(&ta, nil)
+				tb.On("Parse", mock.Anything).Times(2).Return(&ta, nil)
 				return &tb
 			},
 			err: "template load error",
@@ -225,7 +233,8 @@ func TestMappingBuilderGetSpanServiceMappings(t *testing.T) {
 				tb := mocks.TemplateBuilder{}
 				ta := mocks.TemplateApplier{}
 				ta.On("Execute", mock.Anything, mock.Anything).Return(nil)
-				tb.On("Parse", mock.Anything).Return(&ta, nil)
+				tb.On("ParseFieldType", mock.Anything).Return(&ta, nil)
+				tb.On("Parse", mock.Anything).Times(2).Return(&ta, nil)
 				return &tb
 			},
 			err: "",
@@ -245,7 +254,8 @@ func TestMappingBuilderGetSpanServiceMappings(t *testing.T) {
 				ta := mocks.TemplateApplier{}
 				ta.On("Execute", mock.Anything, mock.Anything).Return(nil).Once()
 				ta.On("Execute", mock.Anything, mock.Anything).Return(errors.New("template load error")).Once()
-				tb.On("Parse", mock.Anything).Return(&ta, nil)
+				tb.On("Parse", mock.Anything).Times(2).Return(&ta, nil)
+				tb.On("ParseFieldType", mock.Anything).Return(&ta, nil)
 				return &tb
 			},
 			err: "template load error",
@@ -264,7 +274,8 @@ func TestMappingBuilderGetSpanServiceMappings(t *testing.T) {
 				tb := mocks.TemplateBuilder{}
 				ta := mocks.TemplateApplier{}
 				ta.On("Execute", mock.Anything, mock.Anything).Return(errors.New("template load error"))
-				tb.On("Parse", mock.Anything).Return(&ta, nil)
+				tb.On("ParseFieldType", mock.Anything).Return(&ta, nil)
+				tb.On("Parse", mock.Anything).Times(2).Return(&ta, nil)
 				return &tb
 			},
 			err: "template load error",
@@ -283,7 +294,8 @@ func TestMappingBuilderGetSpanServiceMappings(t *testing.T) {
 				tb := mocks.TemplateBuilder{}
 				ta := mocks.TemplateApplier{}
 				ta.On("Execute", mock.Anything, mock.Anything).Return(errors.New("template load error")).Once()
-				tb.On("Parse", mock.Anything).Return(&ta, nil)
+				tb.On("ParseFieldType", mock.Anything).Return(&ta, nil)
+				tb.On("Parse", mock.Anything).Times(2).Return(&ta, nil)
 				return &tb
 			},
 			err: "template load error",
@@ -314,7 +326,8 @@ func TestMappingBuilderGetDependenciesMappings(t *testing.T) {
 	tb := mocks.TemplateBuilder{}
 	ta := mocks.TemplateApplier{}
 	ta.On("Execute", mock.Anything, mock.Anything).Return(errors.New("template load error"))
-	tb.On("Parse", mock.Anything).Return(&ta, nil)
+	tb.On("ParseFieldType", mock.Anything).Return(&ta, nil)
+	tb.On("Parse", mock.Anything).Times(2).Return(&ta, nil)
 
 	mappingBuilder := MappingBuilder{
 		TemplateBuilder: &tb,

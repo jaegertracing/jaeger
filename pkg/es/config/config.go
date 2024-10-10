@@ -75,6 +75,7 @@ type Configuration struct {
 	Version                        uint           `mapstructure:"version"`
 	LogLevel                       string         `mapstructure:"log_level"`
 	SendGetBodyAs                  string         `mapstructure:"send_get_body_as"`
+	DisableLogsFieldSearch         bool           `mapstructure:"disable_logs_field_search"`
 }
 
 // TagsAsFields holds configuration for tag schema.

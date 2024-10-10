@@ -118,6 +118,30 @@ func withSpanReader(t *testing.T, fn func(r *spanReaderTest)) {
 	fn(r)
 }
 
+func withDisableLogsFieldSearchSpanReader(t *testing.T, fn func(r *spanReaderTest)) {
+	client := &mocks.Client{}
+	tracer, exp, closer := tracerProvider(t)
+	defer closer()
+	logger, logBuffer := testutils.NewLogger()
+	r := &spanReaderTest{
+		client:      client,
+		logger:      logger,
+		logBuffer:   logBuffer,
+		traceBuffer: exp,
+		reader: NewSpanReader(SpanReaderParams{
+			Client:                 func() es.Client { return client },
+			Logger:                 zap.NewNop(),
+			Tracer:                 tracer.Tracer("test"),
+			MaxSpanAge:             0,
+			IndexPrefix:            "",
+			TagDotReplacement:      "@",
+			MaxDocCount:            defaultMaxDocCount,
+			DisableLogsFieldSearch: true,
+		}),
+	}
+	fn(r)
+}
+
 func withArchiveSpanReader(t *testing.T, readAlias bool, fn func(r *spanReaderTest)) {
 	client := &mocks.Client{}
 	tracer, exp, closer := tracerProvider(t)
@@ -764,6 +788,34 @@ func TestSpanReader_FindTraces(t *testing.T) {
 	})
 }
 
+func TestSpanReader_FindTraces_WithDisableLogsFieldSearch(t *testing.T) {
+	goodAggregations := make(map[string]*json.RawMessage)
+	rawMessage := []byte(`{"buckets": []}`)
+	goodAggregations[traceIDAggregation] = (*json.RawMessage)(&rawMessage)
+
+	withDisableLogsFieldSearchSpanReader(t, func(r *spanReaderTest) {
+		mockSearchService(r).
+			Return(&elastic.SearchResult{Aggregations: goodAggregations, Hits: nil}, nil)
+		mockMultiSearchService(r).
+			Return(&elastic.MultiSearchResult{
+				Responses: []*elastic.SearchResult{},
+			}, nil)
+
+		traceQuery := &spanstore.TraceQueryParameters{
+			ServiceName: serviceName,
+			Tags: map[string]string{
+				"hello": "world",
+			},
+			StartTimeMin: time.Now().Add(-1 * time.Hour),
+			StartTimeMax: time.Now(),
+		}
+
+		traces, err := r.reader.FindTraces(context.Background(), traceQuery)
+		require.NoError(t, err)
+		assert.Empty(t, traces)
+	})
+}
+
 func TestSpanReader_FindTracesInvalidQuery(t *testing.T) {
 	goodAggregations := make(map[string]*json.RawMessage)
 	rawMessage := []byte(`{"buckets": [{"key": "1","doc_count": 16},{"key": "2","doc_count": 16},{"key": "3","doc_count": 16}]}`)
@@ -1182,6 +1234,21 @@ func TestSpanReader_buildTagQuery(t *testing.T) {
 	inStr, err := os.ReadFile("fixtures/query_01.json")
 	require.NoError(t, err)
 	withSpanReader(t, func(r *spanReaderTest) {
+		tagQuery := r.reader.buildTagQuery("bat.foo", "spook")
+		actual, err := tagQuery.Source()
+		require.NoError(t, err)
+
+		expected := make(map[string]any)
+		json.Unmarshal(inStr, &expected)
+
+		assert.EqualValues(t, expected, actual)
+	})
+}
+
+func TestSpanReader_buildTagQuery_WithDisableLogsFieldSearch(t *testing.T) {
+	inStr, err := os.ReadFile("fixtures/query_04.json")
+	require.NoError(t, err)
+	withDisableLogsFieldSearchSpanReader(t, func(r *spanReaderTest) {
 		tagQuery := r.reader.buildTagQuery("bat.foo", "spook")
 		actual, err := tagQuery.Source()
 		require.NoError(t, err)

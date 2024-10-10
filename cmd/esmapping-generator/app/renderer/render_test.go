@@ -15,6 +15,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/esmapping-generator/app"
 	"github.com/jaegertracing/jaeger/pkg/es/mocks"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
+	"github.com/jaegertracing/jaeger/plugin/storage/es/mappings"
 )
 
 func TestIsValidOption(t *testing.T) {
@@ -36,22 +37,86 @@ func TestIsValidOption(t *testing.T) {
 
 func Test_getMappingAsString(t *testing.T) {
 	tests := []struct {
-		name    string
-		args    app.Options
-		want    string
-		wantErr error
+		name          string
+		args          app.Options
+		wantedMapping *mappings.MappingBuilder
+		want          string
+		wantErr       error
 	}{
 		{
-			name: "ES version 7", args: app.Options{Mapping: "jaeger-span", EsVersion: 7, Shards: 5, Replicas: 1, IndexPrefix: "test", UseILM: "true", ILMPolicyName: "jaeger-test-policy"},
+			name: "ES version 7",
+			args: app.Options{
+				Mapping:                "jaeger-span",
+				EsVersion:              7,
+				Shards:                 5,
+				Replicas:               1,
+				IndexPrefix:            "test-",
+				UseILM:                 "true",
+				ILMPolicyName:          "jaeger-test-policy",
+				DisableLogsFieldSearch: "true",
+			},
+			wantedMapping: &mappings.MappingBuilder{
+				EsVersion:              7,
+				Shards:                 5,
+				Replicas:               1,
+				IndexPrefix:            "test-",
+				UseILM:                 true,
+				ILMPolicyName:          "jaeger-test-policy",
+				DisableLogsFieldSearch: true,
+			},
 			want: "ES version 7",
 		},
 		{
-			name: "Parse Error version 7", args: app.Options{Mapping: "jaeger-span", EsVersion: 7, Shards: 5, Replicas: 1, IndexPrefix: "test", UseILM: "true", ILMPolicyName: "jaeger-test-policy"},
+			name: "Parse Error version 7",
+			args: app.Options{
+				Mapping:                "jaeger-span",
+				EsVersion:              7,
+				Shards:                 5,
+				Replicas:               1,
+				IndexPrefix:            "test-",
+				UseILM:                 "true",
+				ILMPolicyName:          "jaeger-test-policy",
+				DisableLogsFieldSearch: "false",
+			},
+			wantedMapping: &mappings.MappingBuilder{
+				EsVersion:              7,
+				Shards:                 5,
+				Replicas:               1,
+				IndexPrefix:            "test-",
+				UseILM:                 false,
+				ILMPolicyName:          "jaeger-test-policy",
+				DisableLogsFieldSearch: false,
+			},
 			wantErr: errors.New("parse error"),
 		},
 		{
-			name: "Parse bool error", args: app.Options{Mapping: "jaeger-span", EsVersion: 7, Shards: 5, Replicas: 1, IndexPrefix: "test", UseILM: "foo", ILMPolicyName: "jaeger-test-policy"},
-			wantErr: errors.New("strconv.ParseBool: parsing \"foo\": invalid syntax"),
+			name: "Parse bool error for UseILM",
+			args: app.Options{
+				Mapping:       "jaeger-span",
+				EsVersion:     7,
+				Shards:        5,
+				Replicas:      1,
+				IndexPrefix:   "test-",
+				UseILM:        "foo",
+				ILMPolicyName: "jaeger-test-policy",
+			},
+			wantedMapping: &mappings.MappingBuilder{},
+			wantErr:       errors.New("strconv.ParseBool: parsing \"foo\": invalid syntax"),
+		},
+		{
+			name: "Parse bool error for DisableLogsFieldSearch",
+			args: app.Options{
+				Mapping:                "jaeger-span",
+				EsVersion:              7,
+				Shards:                 5,
+				Replicas:               1,
+				IndexPrefix:            "test-",
+				UseILM:                 "false",
+				ILMPolicyName:          "jaeger-test-policy",
+				DisableLogsFieldSearch: "foo",
+			},
+			wantedMapping: &mappings.MappingBuilder{},
+			wantErr:       errors.New("strconv.ParseBool: parsing \"foo\": invalid syntax"),
 		},
 	}
 	for _, tt := range tests {
@@ -60,11 +125,17 @@ func Test_getMappingAsString(t *testing.T) {
 			mockTemplateApplier := &mocks.TemplateApplier{}
 			mockTemplateApplier.On("Execute", mock.Anything, mock.Anything).Return(
 				func(wr io.Writer, data any) error {
+					if actualMapping, ok := data.(*mappings.MappingBuilder); ok {
+						require.Equal(t, tt.wantedMapping, actualMapping)
+					} else {
+						require.Fail(t, "unexpected mapping type")
+					}
 					wr.Write([]byte(tt.want))
 					return nil
 				},
 			)
 			mockTemplateBuilder := &mocks.TemplateBuilder{}
+			tt.wantedMapping.TemplateBuilder = mockTemplateBuilder
 			mockTemplateBuilder.On("Parse", mock.Anything).Return(mockTemplateApplier, tt.wantErr)
 
 			// Test
