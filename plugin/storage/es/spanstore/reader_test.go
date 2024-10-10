@@ -198,7 +198,9 @@ func TestSpanReaderIndices(t *testing.T) {
 	}{
 		{
 			params: SpanReaderParams{
-				Archive: false, SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts,
+				Archive:      false,
+				SpanIndex:    spanIndexOpts,
+				ServiceIndex: serviceIndexOpts,
 			},
 			indices: []string{spanIndexBaseName + spanDataLayoutFormat, serviceIndexBaseName + serviceDataLayoutFormat},
 		},
@@ -210,7 +212,10 @@ func TestSpanReaderIndices(t *testing.T) {
 		},
 		{
 			params: SpanReaderParams{
-				Archive: false, SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts, IndexPrefix: "foo:",
+				Archive:      false,
+				SpanIndex:    spanIndexOpts,
+				ServiceIndex: serviceIndexOpts,
+				IndexPrefix:  "foo:",
 			},
 			indices: []string{"foo:" + config.IndexPrefixSeparator + spanIndexBaseName + spanDataLayoutFormat, "foo:" + config.IndexPrefixSeparator + serviceIndexBaseName + serviceDataLayoutFormat},
 		},
@@ -240,7 +245,10 @@ func TestSpanReaderIndices(t *testing.T) {
 		},
 		{
 			params: SpanReaderParams{
-				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts, Archive: false, RemoteReadClusters: []string{"cluster_one", "cluster_two"},
+				SpanIndex:          spanIndexOpts,
+				ServiceIndex:       serviceIndexOpts,
+				Archive:            false,
+				RemoteReadClusters: []string{"cluster_one", "cluster_two"},
 			},
 			indices: []string{
 				spanIndexBaseName + spanDataLayoutFormat,

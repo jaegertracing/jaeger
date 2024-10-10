@@ -82,15 +82,15 @@ func NewSpanWriter(p SpanWriterParams) *SpanWriter {
 
 // CreateTemplates creates index templates.
 func (s *SpanWriter) CreateTemplates(spanTemplate, serviceTemplate string, indexPrefix cfg.IndexPrefix) error {
-	jaegerSpanId := indexPrefix.Apply("jaeger-span")
-	jaegerServiceId := indexPrefix.Apply("jaeger-service")
-	_, err := s.client().CreateTemplate(jaegerSpanId).Body(spanTemplate).Do(context.Background())
+	jaegerSpanIdx := indexPrefix.Apply("jaeger-span")
+	jaegerServiceIdx := indexPrefix.Apply("jaeger-service")
+	_, err := s.client().CreateTemplate(jaegerSpanIdx).Body(spanTemplate).Do(context.Background())
 	if err != nil {
-		return fmt.Errorf("failed to create template %q: %w", jaegerSpanId, err)
+		return fmt.Errorf("failed to create template %q: %w", jaegerSpanIdx, err)
 	}
-	_, err = s.client().CreateTemplate(jaegerServiceId).Body(serviceTemplate).Do(context.Background())
+	_, err = s.client().CreateTemplate(jaegerServiceIdx).Body(serviceTemplate).Do(context.Background())
 	if err != nil {
-		return fmt.Errorf("failed to create template %q: %w", jaegerServiceId, err)
+		return fmt.Errorf("failed to create template %q: %w", jaegerServiceIdx, err)
 	}
 	return nil
 }

@@ -26,21 +26,20 @@ type MappingBuilder struct {
 	ILMPolicyName   string
 }
 
-// IndexTemplateOptions holds parameters required to render an elasticsearch index template
-type IndexTemplateOptions struct {
+// templateParams holds parameters required to render an elasticsearch index template
+type templateParams struct {
 	UseILM        bool
 	ILMPolicyName string
-	IndexPrefix   config.IndexPrefix
+	IndexPrefix   string
 	Shards        int64
 	Replicas      int64
 	Priority      int64
 }
 
-func (mb MappingBuilder) getMappingTemplateOptions(mapping string) *IndexTemplateOptions {
-	mappingOpts := &IndexTemplateOptions{}
+func (mb MappingBuilder) getMappingTemplateOptions(mapping string) templateParams {
+	mappingOpts := templateParams{}
 	mappingOpts.UseILM = mb.UseILM
 	mappingOpts.ILMPolicyName = mb.ILMPolicyName
-	mappingOpts.IndexPrefix = mb.Indices.IndexPrefix
 
 	switch {
 	case strings.Contains(mapping, "span"):
@@ -68,11 +67,11 @@ func (mb MappingBuilder) getMappingTemplateOptions(mapping string) *IndexTemplat
 func (mb *MappingBuilder) GetMapping(mapping string) (string, error) {
 	templateOpts := mb.getMappingTemplateOptions(mapping)
 	if mb.EsVersion == 8 {
-		return mb.fixMapping(mapping+"-8.json", templateOpts)
+		return mb.renderMapping(mapping+"-8.json", templateOpts)
 	} else if mb.EsVersion == 7 {
-		return mb.fixMapping(mapping+"-7.json", templateOpts)
+		return mb.renderMapping(mapping+"-7.json", templateOpts)
 	}
-	return mb.fixMapping(mapping+"-6.json", templateOpts)
+	return mb.renderMapping(mapping+"-6.json", templateOpts)
 }
 
 // GetSpanServiceMappings returns span and service mappings
@@ -103,14 +102,14 @@ func loadMapping(name string) string {
 	return string(s)
 }
 
-func (mb *MappingBuilder) fixMapping(mapping string, options *IndexTemplateOptions) (string, error) {
+func (mb *MappingBuilder) renderMapping(mapping string, options templateParams) (string, error) {
 	tmpl, err := mb.TemplateBuilder.Parse(loadMapping(mapping))
 	if err != nil {
 		return "", err
 	}
 	writer := new(bytes.Buffer)
 
-	options.IndexPrefix = config.IndexPrefix(options.IndexPrefix.Apply(""))
+	options.IndexPrefix = mb.Indices.IndexPrefix.Apply("")
 	if err := tmpl.Execute(writer, options); err != nil {
 		return "", err
 	}

@@ -41,7 +41,12 @@ func withSpanWriter(fn func(w *spanWriterTest)) {
 		client:    client,
 		logger:    logger,
 		logBuffer: logBuffer,
-		writer:    NewSpanWriter(SpanWriterParams{Client: func() es.Client { return client }, Logger: logger, MetricsFactory: metricsFactory, SpanIndex: config.IndexOptions{DateLayout: "2006-01-02"}, ServiceIndex: config.IndexOptions{DateLayout: "2006-01-02"}}),
+		writer: NewSpanWriter(SpanWriterParams{
+			Client: func() es.Client { return client },
+			Logger: logger, MetricsFactory: metricsFactory,
+			SpanIndex:    config.IndexOptions{DateLayout: "2006-01-02"},
+			ServiceIndex: config.IndexOptions{DateLayout: "2006-01-02"},
+		}),
 	}
 	fn(w)
 }

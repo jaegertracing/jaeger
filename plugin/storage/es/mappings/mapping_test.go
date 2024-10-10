@@ -47,23 +47,22 @@ func TestMappingBuilderGetMapping(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.mapping, func(t *testing.T) {
-			indexTemOps := config.IndexOptions{
-				Shards:   3,
-				Replicas: 3,
-				Priority: 500,
+			defaultOpts := func(p int64) config.IndexOptions {
+				return config.IndexOptions{
+					Shards:   3,
+					Replicas: 3,
+					Priority: p,
+				}
 			}
-			serviceOps := indexTemOps
-			serviceOps.Priority = 501
-			dependenciesOps := indexTemOps
-			dependenciesOps.Priority = 502
-			samplingOps := indexTemOps
-			samplingOps.Priority = 503
+			serviceOps := defaultOpts(501)
+			dependenciesOps := defaultOpts(502)
+			samplingOps := defaultOpts(503)
 
 			mb := &MappingBuilder{
 				TemplateBuilder: es.TextTemplateBuilder{},
 				Indices: config.Indices{
 					IndexPrefix:  "test-",
-					Spans:        indexTemOps,
+					Spans:        defaultOpts(500),
 					Services:     serviceOps,
 					Dependencies: dependenciesOps,
 					Sampling:     samplingOps,
@@ -168,7 +167,7 @@ func TestMappingBuilderFixMapping(t *testing.T) {
 				UseILM:        true,
 				ILMPolicyName: "jaeger-test-policy",
 			}
-			_, err := mappingBuilder.fixMapping("test", mappingBuilder.getMappingTemplateOptions("test"))
+			_, err := mappingBuilder.renderMapping("test", mappingBuilder.getMappingTemplateOptions("test"))
 			if test.err != "" {
 				require.EqualError(t, err, test.err)
 			} else {
