@@ -33,7 +33,6 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/recoveryhandler"
 	"github.com/jaegertracing/jaeger/pkg/telemetery"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
-	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2/metrics"
 )
@@ -112,17 +111,17 @@ func createGRPCServer(querySvc *querysvc.QueryService, metricsQuerySvc querysvc.
 		grpcOpts = append(grpcOpts,
 			grpc.ChainUnaryInterceptor(
 				tenancy.NewGuardingUnaryInterceptor(tm),
-				bearertoken.NewGuardingUnaryInterceptor(shared.BearerTokenKey),
+				bearertoken.NewGuardingUnaryInterceptor(),
 			),
 			grpc.ChainStreamInterceptor(
 				tenancy.NewGuardingStreamInterceptor(tm),
-				bearertoken.NewGuardingStreamInterceptor(shared.BearerTokenKey),
+				bearertoken.NewGuardingStreamInterceptor(),
 			),
 		)
 	} else {
 		grpcOpts = append(grpcOpts,
-			grpc.UnaryInterceptor(bearertoken.NewGuardingUnaryInterceptor(shared.BearerTokenKey)),
-			grpc.StreamInterceptor(bearertoken.NewGuardingStreamInterceptor(shared.BearerTokenKey)),
+			grpc.UnaryInterceptor(bearertoken.NewGuardingUnaryInterceptor()),
+			grpc.StreamInterceptor(bearertoken.NewGuardingStreamInterceptor()),
 		)
 	}
 
