@@ -27,7 +27,7 @@ type Action struct {
 	ILMClient     client.IndexManagementLifecycleAPI
 }
 
-func (c Action) getMapping(version uint, templateName string) (string, error) {
+func (c Action) getMapping(version uint, mappingType mappings.MappingType) (string, error) {
 	mappingBuilder := mappings.MappingBuilder{
 		TemplateBuilder:              es.TextTemplateBuilder{},
 		PrioritySpanTemplate:         int64(c.Config.PrioritySpanTemplate),
@@ -41,7 +41,23 @@ func (c Action) getMapping(version uint, templateName string) (string, error) {
 		ILMPolicyName:                c.Config.ILMPolicyName,
 		EsVersion:                    version,
 	}
-	return mappingBuilder.GetMapping(templateName)
+	return mappingBuilder.GetMapping(mappingType)
+}
+
+// mappingTypeForIndex maps index options to MappingTypes
+func mappingTypeForIndex(indexOpt app.IndexOption) (mappings.MappingType, error) {
+	switch indexOpt.Mapping {
+	case "jaeger-span":
+		return mappings.SpanMapping, nil
+	case "jaeger-service":
+		return mappings.ServiceMapping, nil
+	case "jaeger-dependencies":
+		return mappings.DependenciesMapping, nil
+	case "jaeger-sampling":
+		return mappings.SamplingMapping, nil
+	default:
+		return -1, fmt.Errorf("Unknown mapping type %s", indexOpt.Mapping)
+	}
 }
 
 // Do the init action
@@ -99,7 +115,12 @@ func createIndexIfNotExist(c client.IndexAPI, index string) error {
 }
 
 func (c Action) init(version uint, indexopt app.IndexOption) error {
-	mapping, err := c.getMapping(version, indexopt.Mapping)
+	mappingType, err := mappingTypeForIndex(indexopt)
+	if err != nil {
+		return err
+	}
+
+	mapping, err := c.getMapping(version, mappingType)
 	if err != nil {
 		return err
 	}
