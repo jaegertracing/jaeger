@@ -16,6 +16,7 @@ import (
 	"google.golang.org/grpc/reflection"
 
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
+	"github.com/jaegertracing/jaeger/pkg/bearertoken"
 	"github.com/jaegertracing/jaeger/pkg/telemetery"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared"
@@ -98,8 +99,19 @@ func createGRPCServer(opts *Options, tm *tenancy.Manager, handler *shared.GRPCHa
 	}
 	if tm.Enabled {
 		grpcOpts = append(grpcOpts,
-			grpc.StreamInterceptor(tenancy.NewGuardingStreamInterceptor(tm)),
-			grpc.UnaryInterceptor(tenancy.NewGuardingUnaryInterceptor(tm)),
+			grpc.ChainUnaryInterceptor(
+				tenancy.NewGuardingUnaryInterceptor(tm),
+				bearertoken.NewGuardingUnaryInterceptor(),
+			),
+			grpc.ChainStreamInterceptor(
+				tenancy.NewGuardingStreamInterceptor(tm),
+				bearertoken.NewGuardingStreamInterceptor(),
+			),
+		)
+	} else {
+		grpcOpts = append(grpcOpts,
+			grpc.UnaryInterceptor(bearertoken.NewGuardingUnaryInterceptor()),
+			grpc.StreamInterceptor(bearertoken.NewGuardingStreamInterceptor()),
 		)
 	}
 

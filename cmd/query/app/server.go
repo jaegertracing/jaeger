@@ -109,8 +109,19 @@ func createGRPCServer(querySvc *querysvc.QueryService, metricsQuerySvc querysvc.
 	}
 	if tm.Enabled {
 		grpcOpts = append(grpcOpts,
-			grpc.StreamInterceptor(tenancy.NewGuardingStreamInterceptor(tm)),
-			grpc.UnaryInterceptor(tenancy.NewGuardingUnaryInterceptor(tm)),
+			grpc.ChainUnaryInterceptor(
+				tenancy.NewGuardingUnaryInterceptor(tm),
+				bearertoken.NewGuardingUnaryInterceptor(),
+			),
+			grpc.ChainStreamInterceptor(
+				tenancy.NewGuardingStreamInterceptor(tm),
+				bearertoken.NewGuardingStreamInterceptor(),
+			),
+		)
+	} else {
+		grpcOpts = append(grpcOpts,
+			grpc.UnaryInterceptor(bearertoken.NewGuardingUnaryInterceptor()),
+			grpc.StreamInterceptor(bearertoken.NewGuardingStreamInterceptor()),
 		)
 	}
 
