@@ -32,4 +32,4 @@ if [[ "$last_tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]];  then
 fi
 
 # do a regular full build
-yarn install --frozen-lockfile && cd packages/jaeger-ui && yarn build
+npm ci && cd packages/jaeger-ui && npm run build
