@@ -22,6 +22,7 @@ const (
 )
 
 // Config holds configuration for index cleaner binary.
+// Config.IndexPrefix supersedes Indices.IndexPrefix
 type Config struct {
 	app.Config
 	cfg.Indices
