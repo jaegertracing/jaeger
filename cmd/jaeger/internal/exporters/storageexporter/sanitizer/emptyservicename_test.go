@@ -1,9 +1,12 @@
+// Copyright (c) 2024 The Jaeger Authors.
+// SPDX-License-Identifier: Apache-2.0
+
 package sanitizer
 
 import (
 	"testing"
 
-	"github.com/crossdock/crossdock-go/require"
+	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 )
 
