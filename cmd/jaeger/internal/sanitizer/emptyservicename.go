@@ -28,11 +28,12 @@ func sanitizeEmptyServiceName(traces ptrace.Traces) ptrace.Traces {
 		resourceSpan := resourceSpans.At(i)
 		attributes := resourceSpan.Resource().Attributes()
 		serviceName, ok := attributes.Get(string(otelsemconv.ServiceNameKey))
-		if !ok {
+		switch {
+		case !ok:
 			attributes.PutStr(string(otelsemconv.ServiceNameKey), missingServiceName)
-		} else if serviceName.Type() != pcommon.ValueTypeStr {
+		case serviceName.Type() != pcommon.ValueTypeStr:
 			attributes.PutStr(string(otelsemconv.ServiceNameKey), serviceNameWrongType)
-		} else if serviceName.Str() == "" {
+		case serviceName.Str() == "":
 			attributes.PutStr(string(otelsemconv.ServiceNameKey), emptyServiceName)
 		}
 	}
