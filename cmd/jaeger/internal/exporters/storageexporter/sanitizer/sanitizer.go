@@ -7,8 +7,12 @@ import (
 // Sanitize is a function that performs enrichment, clean-up, or normalization of trace data.
 type Sanitize func(traces ptrace.Traces) ptrace.Traces
 
+// NewStandardSanitizers returns a list of all the sanitizers that are used by the
+// storage exporter.
 func NewStandardSanitizers() []Sanitize {
-	return []Sanitize{}
+	return []Sanitize{
+		NewEmptyServiceNameSanitizer(),
+	}
 }
 
 // NewChainedSanitizer creates a Sanitizer from the variadic list of passed Sanitizers.
