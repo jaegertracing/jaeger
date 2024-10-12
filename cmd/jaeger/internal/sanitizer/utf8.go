@@ -1,7 +1,6 @@
 package sanitizer
 
 import (
-	"fmt"
 	"unicode/utf8"
 
 	"github.com/jaegertracing/jaeger/pkg/otelsemconv"
@@ -49,6 +48,8 @@ func sanitizeUTF8(traces ptrace.Traces) ptrace.Traces {
 					newVal := span.Attributes().PutEmptyBytes(string(otelsemconv.ServiceNameKey))
 					newVal.Append(sanitized...)
 				}
+
+				sanitizeAttributes(span.Attributes())
 			}
 		}
 	}
@@ -75,7 +76,14 @@ func sanitizeAttributes(attributes pcommon.Map) {
 	})
 
 	for k, v := range invalidKeys {
-		sanitized := []byte(fmt.Sprintf("%s:%s", k, v.Str()))
+		sanitized := []byte(k + ":")
+		switch v.Type() {
+		case pcommon.ValueTypeBytes:
+			sanitized = append(sanitized, v.Bytes().AsRaw()...)
+		default:
+			sanitized = append(sanitized, []byte(v.Str())...)
+		}
+
 		attributes.Remove(k)
 		newVal := attributes.PutEmptyBytes(invalidTagKey)
 		newVal.Append(sanitized...)
