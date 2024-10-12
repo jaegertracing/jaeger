@@ -11,6 +11,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/exporters/storageexporter/sanitizer"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
 	"github.com/jaegertracing/jaeger/storage_v2/spanstore"
 )
@@ -19,12 +20,16 @@ type storageExporter struct {
 	config      *Config
 	logger      *zap.Logger
 	traceWriter spanstore.Writer
+	sanitizer   sanitizer.Sanitize
 }
 
 func newExporter(config *Config, otel component.TelemetrySettings) *storageExporter {
 	return &storageExporter{
 		config: config,
 		logger: otel.Logger,
+		sanitizer: sanitizer.NewChainedSanitizer(
+			sanitizer.NewStandardSanitizers()...,
+		),
 	}
 }
 
@@ -47,5 +52,5 @@ func (*storageExporter) close(_ context.Context) error {
 }
 
 func (exp *storageExporter) pushTraces(ctx context.Context, td ptrace.Traces) error {
-	return exp.traceWriter.WriteTraces(ctx, td)
+	return exp.traceWriter.WriteTraces(ctx, exp.sanitizer(td))
 }
