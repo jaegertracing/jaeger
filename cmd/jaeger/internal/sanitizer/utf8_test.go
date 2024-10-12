@@ -1,3 +1,6 @@
+// Copyright (c) 2024 The Jaeger Authors.
+// SPDX-License-Identifier: Apache-2.0
+
 package sanitizer
 
 import (
@@ -15,13 +18,18 @@ func invalidUTF8() string {
 	return string(s)
 }
 
+func getBytesValueFromString(s string) pcommon.Value {
+	b := pcommon.NewValueBytes()
+	b.Bytes().Append([]byte(s)...)
+	return b
+}
+
 var utf8EncodingTests = []struct {
-	name              string
-	key               string
-	value             string
-	expectedKey       string
-	expectedValue     pcommon.Value
-	expectedValueInit func(pcommon.Value)
+	name          string
+	key           string
+	value         string
+	expectedKey   string
+	expectedValue pcommon.Value
 }{
 	{
 		name:          "valid key + valid value",
@@ -35,38 +43,27 @@ var utf8EncodingTests = []struct {
 		key:           invalidUTF8(),
 		value:         "value",
 		expectedKey:   "InvalidTagKey",
-		expectedValue: pcommon.NewValueBytes(),
-		expectedValueInit: func(v pcommon.Value) {
-			expected := []byte(fmt.Sprintf("%s:value", invalidUTF8()))
-			v.Bytes().Append(expected...)
-		},
+		expectedValue: getBytesValueFromString(fmt.Sprintf("%s:value", invalidUTF8())),
 	},
 	{
 		name:          "valid key + invalid value",
 		key:           "key",
 		value:         invalidUTF8(),
 		expectedKey:   "key",
-		expectedValue: pcommon.NewValueBytes(),
-		expectedValueInit: func(v pcommon.Value) {
-			expected := []byte(invalidUTF8())
-			v.Bytes().Append(expected...)
-		},
+		expectedValue: getBytesValueFromString(invalidUTF8()),
 	},
 	{
 		name:          "invalid key + invalid value",
 		key:           invalidUTF8(),
 		value:         invalidUTF8(),
 		expectedKey:   "InvalidTagKey",
-		expectedValue: pcommon.NewValueBytes(),
-		expectedValueInit: func(v pcommon.Value) {
-			expected := []byte(fmt.Sprintf("%s:%s", invalidUTF8(), invalidUTF8()))
-			v.Bytes().Append(expected...)
-		},
+		expectedValue: getBytesValueFromString(fmt.Sprintf("%s:%s", invalidUTF8(), invalidUTF8())),
 	},
 }
 
 func TestUTF8Sanitizer_SanitizesResourceSpanAttributes(t *testing.T) {
-	for _, test := range utf8EncodingTests {
+	tests := utf8EncodingTests
+	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			traces := ptrace.NewTraces()
 			traces.
@@ -84,16 +81,14 @@ func TestUTF8Sanitizer_SanitizesResourceSpanAttributes(t *testing.T) {
 				Attributes().
 				Get(test.expectedKey)
 			require.True(t, ok)
-			if test.expectedValueInit != nil {
-				test.expectedValueInit(test.expectedValue)
-			}
 			require.Equal(t, test.expectedValue, value)
 		})
 	}
 }
 
 func TestUTF8Sanitizer_SanitizesScopeSpanAttributes(t *testing.T) {
-	for _, test := range utf8EncodingTests {
+	tests := utf8EncodingTests
+	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			traces := ptrace.NewTraces()
 			traces.
@@ -115,16 +110,14 @@ func TestUTF8Sanitizer_SanitizesScopeSpanAttributes(t *testing.T) {
 				Attributes().
 				Get(test.expectedKey)
 			require.True(t, ok)
-			if test.expectedValueInit != nil {
-				test.expectedValueInit(test.expectedValue)
-			}
 			require.Equal(t, test.expectedValue, value)
 		})
 	}
 }
 
 func TestUTF8Sanitizer_SanitizesSpanAttributes(t *testing.T) {
-	for _, test := range utf8EncodingTests {
+	tests := utf8EncodingTests
+	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			traces := ptrace.NewTraces()
 			traces.
@@ -148,9 +141,6 @@ func TestUTF8Sanitizer_SanitizesSpanAttributes(t *testing.T) {
 				Attributes().
 				Get(test.expectedKey)
 			require.True(t, ok)
-			if test.expectedValueInit != nil {
-				test.expectedValueInit(test.expectedValue)
-			}
 			require.Equal(t, test.expectedValue, value)
 		})
 	}

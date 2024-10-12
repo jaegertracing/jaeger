@@ -1,11 +1,15 @@
+// Copyright (c) 2024 The Jaeger Authors.
+// SPDX-License-Identifier: Apache-2.0
+
 package sanitizer
 
 import (
 	"unicode/utf8"
 
-	"github.com/jaegertracing/jaeger/pkg/otelsemconv"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+
+	"github.com/jaegertracing/jaeger/pkg/otelsemconv"
 )
 
 const (
@@ -18,9 +22,9 @@ const (
 //   - Checks all attributes of the span to ensure that the keys are valid UTF-8 strings
 //     and all string typed values are valid UTF-8 strings. If any keys or values are invalid,
 //     they are replaced with a valid UTF-8 string containing debugging data related to the invalidations.
-//   - Explictly checks that all span names are valid UTF-8 strings. If they are not, they are replaced
+//   - Explicitly checks that all span names are valid UTF-8 strings. If they are not, they are replaced
 //     with a valid UTF-8 string and debugging information is put into the attributes of the span.
-//   - Explictly checks that the service name is a valid UTF-8 string. If it is not, it is replaced with
+//   - Explicitly checks that the service name is a valid UTF-8 string. If it is not, it is replaced with
 //     a valid UTF-8 string that contains debugging information related to the invalidation.
 func NewUTF8Sanitizer() Func {
 	return sanitizeUTF8
