@@ -109,11 +109,11 @@ func (mb *MappingBuilder) GetMapping(mappingType MappingType) (string, error) {
 	var version string
 	switch mb.EsVersion {
 	case 8:
-		version = "-8"
+		version = 8
 	case 7:
-		version = "-7"
+		version = 7
 	default:
-		version = "-6"
+		version = 6
 	}
 
 	return mb.fixMapping(fmt.Sprintf("%s-%d.json", mappingType, version))
