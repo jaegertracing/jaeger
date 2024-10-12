@@ -158,7 +158,7 @@ func TestExporter(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, spanID.String(), requiredTrace.Spans[0].SpanID.String())
 
-	// check that the service name attribute was by the sanitizer
+	// check that the service name attribute was added by the sanitizer
 	require.Equal(t, "missing-service-name", requiredTrace.Spans[0].Process.ServiceName)
 }
 
