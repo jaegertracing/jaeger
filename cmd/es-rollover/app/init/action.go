@@ -44,22 +44,6 @@ func (c Action) getMapping(version uint, mappingType mappings.MappingType) (stri
 	return mappingBuilder.GetMapping(mappingType)
 }
 
-// mappingTypeForIndex maps index options to MappingTypes
-func mappingTypeForIndex(indexOpt app.IndexOption) (mappings.MappingType, error) {
-	switch indexOpt.Mapping {
-	case "jaeger-span":
-		return mappings.SpanMapping, nil
-	case "jaeger-service":
-		return mappings.ServiceMapping, nil
-	case "jaeger-dependencies":
-		return mappings.DependenciesMapping, nil
-	case "jaeger-sampling":
-		return mappings.SamplingMapping, nil
-	default:
-		return -1, fmt.Errorf("Unknown mapping type %s", indexOpt.Mapping)
-	}
-}
-
 // Do the init action
 func (c Action) Do() error {
 	version, err := c.ClusterClient.Version()
@@ -115,7 +99,7 @@ func createIndexIfNotExist(c client.IndexAPI, index string) error {
 }
 
 func (c Action) init(version uint, indexopt app.IndexOption) error {
-	mappingType, err := mappingTypeForIndex(indexopt)
+	mappingType, err := mappings.MappingTypeFromString(indexopt.Mapping)
 	if err != nil {
 		return err
 	}
