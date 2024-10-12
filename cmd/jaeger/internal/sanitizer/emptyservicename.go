@@ -4,8 +4,6 @@
 package sanitizer
 
 import (
-	"fmt"
-
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger/pkg/otelsemconv"
@@ -28,11 +26,9 @@ func sanitizeEmptyServiceName(traces ptrace.Traces) ptrace.Traces {
 		resourceSpan := resourceSpans.At(i)
 		attributes := resourceSpan.Resource().Attributes()
 		serviceName, ok := attributes.Get(string(otelsemconv.ServiceNameKey))
-		fmt.Printf("service name: %s, ok: %v\n", serviceName.Str(), ok)
 		if !ok {
 			attributes.PutStr(string(otelsemconv.ServiceNameKey), missingServiceName)
 		} else if serviceName.Str() == "" {
-			fmt.Println("here")
 			attributes.PutStr(string(otelsemconv.ServiceNameKey), emptyServiceName)
 		}
 	}
