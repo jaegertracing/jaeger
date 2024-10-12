@@ -8,8 +8,6 @@ import (
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
-
-	"github.com/jaegertracing/jaeger/pkg/otelsemconv"
 )
 
 const (
@@ -51,15 +49,6 @@ func sanitizeUTF8(traces ptrace.Traces) ptrace.Traces {
 					newVal := span.Attributes().PutEmptyBytes(invalidSpanName)
 					newVal.Append(sanitized...)
 					span.SetName(invalidSpanName)
-				}
-
-				serviceName, ok := span.Attributes().Get(string(otelsemconv.ServiceNameKey))
-				if ok &&
-					serviceName.Type() == pcommon.ValueTypeStr &&
-					!utf8.ValidString(serviceName.Str()) {
-					sanitized := []byte(serviceName.Str())
-					newVal := span.Attributes().PutEmptyBytes(string(otelsemconv.ServiceNameKey))
-					newVal.Append(sanitized...)
 				}
 
 				sanitizeAttributes(span.Attributes())
