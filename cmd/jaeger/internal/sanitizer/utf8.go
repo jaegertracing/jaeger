@@ -25,8 +25,8 @@ func sanitizeUTF8(traces ptrace.Traces) ptrace.Traces {
 		sanitizeAttributes(resourceSpan.Resource().Attributes())
 
 		scopeSpans := resourceSpan.ScopeSpans()
-		for j := 0; j < resourceSpans.Len(); j++ {
-			scopeSpan := scopeSpans.At(i)
+		for j := 0; j < scopeSpans.Len(); j++ {
+			scopeSpan := scopeSpans.At(j)
 			sanitizeAttributes(scopeSpan.Scope().Attributes())
 
 			spans := scopeSpan.Spans()
