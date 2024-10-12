@@ -229,3 +229,22 @@ func TestUTF8Sanitizer_DoesNotSanitizeNonStringAttributeValue(t *testing.T) {
 	require.True(t, ok)
 	require.EqualValues(t, 1, value.Int())
 }
+
+func TestUTF8Sanitizer_SanitizesNonStringAttributeValueWithInvalidKey(t *testing.T) {
+	traces := ptrace.NewTraces()
+	traces.
+		ResourceSpans().
+		AppendEmpty().
+		Resource().
+		Attributes().PutInt(invalidUTF8(), 1)
+	sanitizer := NewUTF8Sanitizer()
+	sanitized := sanitizer(traces)
+	value, ok := sanitized.
+		ResourceSpans().
+		At(0).
+		Resource().
+		Attributes().
+		Get("invalid-tag-key")
+	require.True(t, ok)
+	require.EqualValues(t, getBytesValueFromString(fmt.Sprintf("%s:1", invalidUTF8())), value)
+}

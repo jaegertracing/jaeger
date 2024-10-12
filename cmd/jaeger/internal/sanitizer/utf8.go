@@ -83,7 +83,7 @@ func sanitizeAttributes(attributes pcommon.Map) {
 		case pcommon.ValueTypeBytes:
 			sanitized = append(sanitized, v.Bytes().AsRaw()...)
 		default:
-			sanitized = append(sanitized, []byte(v.Str())...)
+			sanitized = append(sanitized, []byte(v.AsString())...)
 		}
 
 		attributes.Remove(k)
