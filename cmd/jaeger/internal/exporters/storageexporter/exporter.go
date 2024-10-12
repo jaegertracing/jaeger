@@ -11,8 +11,8 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/exporters/storageexporter/sanitizer"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/sanitizer"
 	"github.com/jaegertracing/jaeger/storage_v2/spanstore"
 )
 
