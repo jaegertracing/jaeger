@@ -46,6 +46,7 @@ type Factory struct {
 	config         Config
 	services       *ClientPluginServices
 	remoteConn     *grpc.ClientConn
+	host           component.Host
 }
 
 type host struct {
@@ -76,9 +77,11 @@ func NewFactoryWithConfig(
 	cfg Config,
 	metricsFactory metrics.Factory,
 	logger *zap.Logger,
+	host component.Host,
 ) (*Factory, error) {
 	f := NewFactory()
 	f.config = cfg
+	f.host = host
 	if err := f.Initialize(metricsFactory, logger); err != nil {
 		return nil, err
 	}
@@ -115,8 +118,8 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 		for _, opt := range opts {
 			clientOpts = append(clientOpts, configgrpc.WithGrpcDialOption(opt))
 		}
-		host := NewHost()
-		return f.config.ToClientConn(context.Background(), host, telset, clientOpts...)
+
+		return f.config.ToClientConn(context.Background(), f.host, telset, clientOpts...)
 	}
 
 	var err error

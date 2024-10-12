@@ -126,7 +126,7 @@ func (s *storageExt) Start(_ context.Context, _ component.Host) error {
 			factory, err = badger.NewFactoryWithConfig(*cfg.Badger, mf, s.telset.Logger)
 		case cfg.GRPC != nil:
 			//nolint: contextcheck
-			factory, err = grpc.NewFactoryWithConfig(*cfg.GRPC, mf, s.telset.Logger)
+			factory, err = grpc.NewFactoryWithConfig(*cfg.GRPC, mf, s.telset.Logger, grpc.NewHost())
 		case cfg.Cassandra != nil:
 			factory, err = cassandra.NewFactoryWithConfig(*cfg.Cassandra, mf, s.telset.Logger)
 		case cfg.Elasticsearch != nil:
