@@ -7,7 +7,6 @@ import (
 	"bytes"
 	"embed"
 	"fmt"
-	"strings"
 
 	"github.com/jaegertracing/jaeger/pkg/es"
 	"github.com/jaegertracing/jaeger/pkg/es/config"
@@ -17,6 +16,16 @@ import (
 //
 //go:embed *.json
 var MAPPINGS embed.FS
+
+// MappingType represents the type of Elasticsearch mapping
+type MappingType int
+
+const (
+	SpanMapping MappingType = iota
+	ServiceMapping
+	DependenciesMapping
+	SamplingMapping
+)
 
 // MappingBuilder holds common parameters required to render an elasticsearch index template
 type MappingBuilder struct {
@@ -37,25 +46,25 @@ type templateParams struct {
 	Priority      int64
 }
 
-func (mb MappingBuilder) getMappingTemplateOptions(mapping string) templateParams {
+func (mb MappingBuilder) getMappingTemplateOptions(mappingType MappingType) templateParams {
 	mappingOpts := templateParams{}
 	mappingOpts.UseILM = mb.UseILM
 	mappingOpts.ILMPolicyName = mb.ILMPolicyName
 
-	switch {
-	case strings.Contains(mapping, "span"):
+	switch mappingType {
+	case SpanMapping:
 		mappingOpts.Shards = mb.Indices.Spans.Shards
 		mappingOpts.Replicas = mb.Indices.Spans.Replicas
 		mappingOpts.Priority = mb.Indices.Spans.Priority
-	case strings.Contains(mapping, "service"):
+	case ServiceMapping:
 		mappingOpts.Shards = mb.Indices.Services.Shards
 		mappingOpts.Replicas = mb.Indices.Services.Replicas
 		mappingOpts.Priority = mb.Indices.Services.Priority
-	case strings.Contains(mapping, "dependencies"):
+	case DependenciesMapping:
 		mappingOpts.Shards = mb.Indices.Dependencies.Shards
 		mappingOpts.Replicas = mb.Indices.Dependencies.Replicas
 		mappingOpts.Priority = mb.Indices.Dependencies.Priority
-	case strings.Contains(mapping, "sampling"):
+	case SamplingMapping:
 		mappingOpts.Shards = mb.Indices.Sampling.Shards
 		mappingOpts.Replicas = mb.Indices.Sampling.Replicas
 		mappingOpts.Priority = mb.Indices.Sampling.Priority
@@ -63,16 +72,6 @@ func (mb MappingBuilder) getMappingTemplateOptions(mapping string) templateParam
 
 	return mappingOpts
 }
-
-// MappingType represents the type of Elasticsearch mapping
-type MappingType int
-
-const (
-	SpanMapping MappingType = iota
-	ServiceMapping
-	DependenciesMapping
-	SamplingMapping
-)
 
 func (mt MappingType) String() string {
 	switch mt {
