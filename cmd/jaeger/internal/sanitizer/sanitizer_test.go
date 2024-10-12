@@ -16,7 +16,7 @@ func TestNewStandardSanitizers(t *testing.T) {
 }
 
 func TestNewChainedSanitizer(t *testing.T) {
-	var s1 Sanitize = func(traces ptrace.Traces) ptrace.Traces {
+	var s1 Func = func(traces ptrace.Traces) ptrace.Traces {
 		traces.
 			ResourceSpans().
 			AppendEmpty().
@@ -25,7 +25,7 @@ func TestNewChainedSanitizer(t *testing.T) {
 			PutStr("hello", "world")
 		return traces
 	}
-	var s2 Sanitize = func(traces ptrace.Traces) ptrace.Traces {
+	var s2 Func = func(traces ptrace.Traces) ptrace.Traces {
 		traces.
 			ResourceSpans().
 			At(0).

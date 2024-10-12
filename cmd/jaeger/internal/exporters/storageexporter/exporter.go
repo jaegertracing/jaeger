@@ -20,7 +20,7 @@ type storageExporter struct {
 	config      *Config
 	logger      *zap.Logger
 	traceWriter spanstore.Writer
-	sanitizer   sanitizer.Sanitize
+	sanitizer   sanitizer.Func
 }
 
 func newExporter(config *Config, otel component.TelemetrySettings) *storageExporter {

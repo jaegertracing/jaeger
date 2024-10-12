@@ -18,7 +18,7 @@ const (
 
 // NewEmptyServiceNameSanitizer returns a sanitizer function that replaces
 // empty and missing service names with placeholder strings.
-func NewEmptyServiceNameSanitizer() Sanitize {
+func NewEmptyServiceNameSanitizer() Func {
 	return sanitizeEmptyServiceName
 }
 
