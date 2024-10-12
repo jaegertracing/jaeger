@@ -16,13 +16,13 @@ import (
 
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/es"
+	"github.com/jaegertracing/jaeger/pkg/es/config"
 	"github.com/jaegertracing/jaeger/plugin/storage/es/dependencystore/dbmodel"
 )
 
 const (
-	dependencyType       = "dependencies"
-	dependencyIndex      = "jaeger-dependencies-"
-	indexPrefixSeparator = "-"
+	dependencyType          = "dependencies"
+	dependencyIndexBaseName = "jaeger-dependencies-"
 )
 
 // DependencyStore handles all queries and insertions to ElasticSearch dependencies
@@ -39,7 +39,7 @@ type DependencyStore struct {
 type Params struct {
 	Client              func() es.Client
 	Logger              *zap.Logger
-	IndexPrefix         string
+	IndexPrefix         config.IndexPrefix
 	IndexDateLayout     string
 	MaxDocCount         int
 	UseReadWriteAliases bool
@@ -50,18 +50,11 @@ func NewDependencyStore(p Params) *DependencyStore {
 	return &DependencyStore{
 		client:                p.Client,
 		logger:                p.Logger,
-		dependencyIndexPrefix: prefixIndexName(p.IndexPrefix, dependencyIndex),
+		dependencyIndexPrefix: p.IndexPrefix.Apply(dependencyIndexBaseName),
 		indexDateLayout:       p.IndexDateLayout,
 		maxDocCount:           p.MaxDocCount,
 		useReadWriteAliases:   p.UseReadWriteAliases,
 	}
-}
-
-func prefixIndexName(prefix, index string) string {
-	if prefix != "" {
-		return prefix + indexPrefixSeparator + index
-	}
-	return index
 }
 
 // WriteDependencies implements dependencystore.Writer#WriteDependencies.
