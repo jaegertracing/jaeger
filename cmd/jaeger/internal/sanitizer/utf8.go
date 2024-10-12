@@ -13,8 +13,8 @@ import (
 )
 
 const (
-	invalidOperation = "InvalidOperationName"
-	invalidTagKey    = "InvalidTagKey"
+	invalidSpanName = "invalid-span-name"
+	invalidTagKey   = "invalid-tag-key"
 )
 
 // NewUTF8Sanitizer returns a sanitizer function that performs the following sanitizations
@@ -48,9 +48,9 @@ func sanitizeUTF8(traces ptrace.Traces) ptrace.Traces {
 
 				if !utf8.ValidString(span.Name()) {
 					sanitized := []byte(span.Name())
-					newVal := span.Attributes().PutEmptyBytes(invalidOperation)
+					newVal := span.Attributes().PutEmptyBytes(invalidSpanName)
 					newVal.Append(sanitized...)
-					span.SetName(invalidOperation)
+					span.SetName(invalidSpanName)
 				}
 
 				serviceName, ok := span.Attributes().Get(string(otelsemconv.ServiceNameKey))

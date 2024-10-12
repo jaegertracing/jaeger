@@ -42,7 +42,7 @@ var utf8EncodingTests = []struct {
 		name:          "invalid key + valid value",
 		key:           invalidUTF8(),
 		value:         "value",
-		expectedKey:   "InvalidTagKey",
+		expectedKey:   "invalid-tag-key",
 		expectedValue: getBytesValueFromString(fmt.Sprintf("%s:value", invalidUTF8())),
 	},
 	{
@@ -56,7 +56,7 @@ var utf8EncodingTests = []struct {
 		name:          "invalid key + invalid value",
 		key:           invalidUTF8(),
 		value:         invalidUTF8(),
-		expectedKey:   "InvalidTagKey",
+		expectedKey:   "invalid-tag-key",
 		expectedValue: getBytesValueFromString(fmt.Sprintf("%s:%s", invalidUTF8(), invalidUTF8())),
 	},
 }
@@ -166,10 +166,10 @@ func TestUTF8Sanitizer_SanitizesInvalidSpanName(t *testing.T) {
 		Spans().
 		At(0).
 		Name()
-	require.Equal(t, "InvalidOperationName", name)
+	require.Equal(t, "invalid-span-name", name)
 }
 
-func TestUTF8Sanitizer_DoesNotSanitizInvalidSpanName(t *testing.T) {
+func TestUTF8Sanitizer_DoesNotSanitizeInvalidSpanName(t *testing.T) {
 	traces := ptrace.NewTraces()
 	traces.
 		ResourceSpans().
