@@ -316,26 +316,40 @@ func TestNewClient(t *testing.T) {
 
 func TestApplyDefaults(t *testing.T) {
 	source := &Configuration{
-		RemoteReadClusters:           []string{"cluster1", "cluster2"},
-		Username:                     "sourceUser",
-		Password:                     "sourcePass",
-		Sniffer:                      true,
-		MaxSpanAge:                   100,
-		AdaptiveSamplingLookback:     50,
-		NumShards:                    5,
-		NumReplicas:                  1,
-		PrioritySpanTemplate:         10,
-		PriorityServiceTemplate:      20,
-		PriorityDependenciesTemplate: 30,
-		BulkSize:                     1000,
-		BulkWorkers:                  10,
-		BulkActions:                  100,
-		BulkFlushInterval:            30,
-		SnifferTLSEnabled:            true,
-		Tags:                         TagsAsFields{AllAsFields: true, DotReplacement: "dot", Include: "include", File: "file"},
-		MaxDocCount:                  10000,
-		LogLevel:                     "info",
-		SendGetBodyAs:                "json",
+		RemoteReadClusters:       []string{"cluster1", "cluster2"},
+		Username:                 "sourceUser",
+		Password:                 "sourcePass",
+		Sniffer:                  true,
+		MaxSpanAge:               100,
+		AdaptiveSamplingLookback: 50,
+		Indices: Indices{
+			IndexPrefix: "hello",
+			Spans: IndexOptions{
+				Shards:   5,
+				Replicas: 1,
+				Priority: 10,
+			},
+			Services: IndexOptions{
+				Shards:   5,
+				Replicas: 1,
+				Priority: 20,
+			},
+			Dependencies: IndexOptions{
+				Shards:   5,
+				Replicas: 1,
+				Priority: 30,
+			},
+			Sampling: IndexOptions{},
+		},
+		BulkSize:          1000,
+		BulkWorkers:       10,
+		BulkActions:       100,
+		BulkFlushInterval: 30,
+		SnifferTLSEnabled: true,
+		Tags:              TagsAsFields{AllAsFields: true, DotReplacement: "dot", Include: "include", File: "file"},
+		MaxDocCount:       10000,
+		LogLevel:          "info",
+		SendGetBodyAs:     "json",
 	}
 
 	tests := []struct {
@@ -346,66 +360,104 @@ func TestApplyDefaults(t *testing.T) {
 		{
 			name: "All Defaults Applied except PriorityDependenciesTemplate",
 			target: &Configuration{
-				PriorityDependenciesTemplate: 30,
+				Indices: Indices{
+					Dependencies: IndexOptions{
+						Priority: 30,
+					},
+				},
 			}, // All fields are empty
 			expected: source,
 		},
 		{
 			name: "Some Defaults Applied",
 			target: &Configuration{
-				RemoteReadClusters:           []string{"customCluster"},
-				Username:                     "customUser",
-				PrioritySpanTemplate:         10,
-				PriorityServiceTemplate:      20,
-				PriorityDependenciesTemplate: 30,
+				RemoteReadClusters: []string{"customCluster"},
+				Username:           "customUser",
+				Indices: Indices{
+					Spans: IndexOptions{
+						Priority: 10,
+					},
+					Services: IndexOptions{
+						Priority: 20,
+					},
+					Dependencies: IndexOptions{
+						Priority: 30,
+					},
+				},
 				// Other fields left default
 			},
 			expected: &Configuration{
-				RemoteReadClusters:           []string{"customCluster"},
-				Username:                     "customUser",
-				Password:                     "sourcePass",
-				Sniffer:                      true,
-				SnifferTLSEnabled:            true,
-				MaxSpanAge:                   100,
-				AdaptiveSamplingLookback:     50,
-				NumShards:                    5,
-				NumReplicas:                  1,
-				PrioritySpanTemplate:         10,
-				PriorityServiceTemplate:      20,
-				PriorityDependenciesTemplate: 30,
-				BulkSize:                     1000,
-				BulkWorkers:                  10,
-				BulkActions:                  100,
-				BulkFlushInterval:            30,
-				Tags:                         TagsAsFields{AllAsFields: true, DotReplacement: "dot", Include: "include", File: "file"},
-				MaxDocCount:                  10000,
-				LogLevel:                     "info",
-				SendGetBodyAs:                "json",
+				RemoteReadClusters:       []string{"customCluster"},
+				Username:                 "customUser",
+				Password:                 "sourcePass",
+				Sniffer:                  true,
+				SnifferTLSEnabled:        true,
+				MaxSpanAge:               100,
+				AdaptiveSamplingLookback: 50,
+				Indices: Indices{
+					IndexPrefix: "hello",
+					Spans: IndexOptions{
+						Shards:   5,
+						Replicas: 1,
+						Priority: 10,
+					},
+					Services: IndexOptions{
+						Shards:   5,
+						Replicas: 1,
+						Priority: 20,
+					},
+					Dependencies: IndexOptions{
+						Shards:   5,
+						Replicas: 1,
+						Priority: 30,
+					},
+				},
+				BulkSize:          1000,
+				BulkWorkers:       10,
+				BulkActions:       100,
+				BulkFlushInterval: 30,
+				Tags:              TagsAsFields{AllAsFields: true, DotReplacement: "dot", Include: "include", File: "file"},
+				MaxDocCount:       10000,
+				LogLevel:          "info",
+				SendGetBodyAs:     "json",
 			},
 		},
 		{
 			name: "No Defaults Applied",
 			target: &Configuration{
-				RemoteReadClusters:           []string{"cluster1", "cluster2"},
-				Username:                     "sourceUser",
-				Password:                     "sourcePass",
-				Sniffer:                      true,
-				MaxSpanAge:                   100,
-				AdaptiveSamplingLookback:     50,
-				NumShards:                    5,
-				NumReplicas:                  1,
-				PrioritySpanTemplate:         10,
-				PriorityServiceTemplate:      20,
-				PriorityDependenciesTemplate: 30,
-				BulkSize:                     1000,
-				BulkWorkers:                  10,
-				BulkActions:                  100,
-				BulkFlushInterval:            30,
-				SnifferTLSEnabled:            true,
-				Tags:                         TagsAsFields{AllAsFields: true, DotReplacement: "dot", Include: "include", File: "file"},
-				MaxDocCount:                  10000,
-				LogLevel:                     "info",
-				SendGetBodyAs:                "json",
+				RemoteReadClusters:       []string{"cluster1", "cluster2"},
+				Username:                 "sourceUser",
+				Password:                 "sourcePass",
+				Sniffer:                  true,
+				MaxSpanAge:               100,
+				AdaptiveSamplingLookback: 50,
+				Indices: Indices{
+					IndexPrefix: "hello",
+					Spans: IndexOptions{
+						Shards:   5,
+						Replicas: 1,
+						Priority: 10,
+					},
+					Services: IndexOptions{
+						Shards:   5,
+						Replicas: 1,
+						Priority: 20,
+					},
+					Dependencies: IndexOptions{
+						Shards:   5,
+						Replicas: 1,
+						Priority: 30,
+					},
+				},
+				BulkSize:          1000,
+				BulkWorkers:       10,
+				BulkActions:       100,
+				BulkFlushInterval: 30,
+				SnifferTLSEnabled: true,
+				Tags:              TagsAsFields{AllAsFields: true, DotReplacement: "dot", Include: "include", File: "file"},
+				MaxDocCount:       10000,
+				LogLevel:          "info",
+				SendGetBodyAs:     "json",
 			},
 			expected: source,
 		},
@@ -504,7 +556,7 @@ func TestTagKeysAsFields(t *testing.T) {
 	}
 }
 
-func TestGetIndexRolloverFrequencySpansDuration(t *testing.T) {
+func TestRolloverFrequencyAsNegativeDuration(t *testing.T) {
 	tests := []struct {
 		name           string
 		indexFrequency string
@@ -529,72 +581,7 @@ func TestGetIndexRolloverFrequencySpansDuration(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			c := &Configuration{IndexRolloverFrequencySpans: test.indexFrequency}
-			got := c.GetIndexRolloverFrequencySpansDuration()
-			require.Equal(t, test.expected, got)
-		})
-	}
-}
-
-func TestGetIndexRolloverFrequencyServicesDuration(t *testing.T) {
-	tests := []struct {
-		name           string
-		indexFrequency string
-		expected       time.Duration
-	}{
-		{
-			name:           "hourly jaeger-service",
-			indexFrequency: "hour",
-			expected:       -1 * time.Hour,
-		},
-		{
-			name:           "daily jaeger-service",
-			indexFrequency: "daily",
-			expected:       -24 * time.Hour,
-		},
-		{
-			name:           "empty jaeger-service",
-			indexFrequency: "",
-			expected:       -24 * time.Hour,
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			c := &Configuration{IndexRolloverFrequencyServices: test.indexFrequency}
-			got := c.GetIndexRolloverFrequencyServicesDuration()
-			require.Equal(t, test.expected, got)
-		})
-	}
-}
-
-func TestGetIndexRolloverFrequencySamplingDuration(t *testing.T) {
-	tests := []struct {
-		name           string
-		indexFrequency string
-		expected       time.Duration
-	}{
-		{
-			name:           "hourly jaeger-sampling",
-			indexFrequency: "hour",
-			expected:       -1 * time.Hour,
-		},
-		{
-			name:           "daily jaeger-sampling",
-			indexFrequency: "daily",
-			expected:       -24 * time.Hour,
-		},
-		{
-			name:           "empty jaeger-sampling",
-			indexFrequency: "",
-			expected:       -24 * time.Hour,
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			c := &Configuration{IndexRolloverFrequencySampling: test.indexFrequency}
-			got := c.GetIndexRolloverFrequencySamplingDuration()
+			got := RolloverFrequencyAsNegativeDuration(test.indexFrequency)
 			require.Equal(t, test.expected, got)
 		})
 	}
@@ -628,6 +615,47 @@ func TestValidate(t *testing.T) {
 			} else {
 				require.NoError(t, got)
 			}
+		})
+	}
+}
+
+func TestApplyForIndexPrefix(t *testing.T) {
+	tests := []struct {
+		testName     string
+		prefix       IndexPrefix
+		name         string
+		expectedName string
+	}{
+		{
+			testName:     "no prefix",
+			prefix:       "",
+			name:         "hello",
+			expectedName: "hello",
+		},
+		{
+			testName:     "empty name",
+			prefix:       "bye",
+			name:         "",
+			expectedName: "bye-",
+		},
+		{
+			testName:     "separator suffix",
+			prefix:       "bye-",
+			name:         "hello",
+			expectedName: "bye-hello",
+		},
+		{
+			testName:     "no separator suffix",
+			prefix:       "bye",
+			name:         "hello",
+			expectedName: "bye-hello",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.testName, func(t *testing.T) {
+			got := test.prefix.Apply(test.name)
+			require.Equal(t, test.expectedName, got)
 		})
 	}
 }

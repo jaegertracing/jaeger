@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger/pkg/es"
+	"github.com/jaegertracing/jaeger/pkg/es/config"
 	"github.com/jaegertracing/jaeger/pkg/es/mocks"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 )
@@ -44,16 +45,17 @@ func TestMappingBuilderGetMapping(t *testing.T) {
 
 		t.Run(templateName, func(t *testing.T) {
 			mb := &MappingBuilder{
-				TemplateBuilder:              es.TextTemplateBuilder{},
-				Shards:                       3,
-				Replicas:                     3,
-				PrioritySpanTemplate:         500,
-				PriorityServiceTemplate:      501,
-				PriorityDependenciesTemplate: 502,
-				EsVersion:                    tt.esVersion,
-				IndexPrefix:                  "test-",
-				UseILM:                       true,
-				ILMPolicyName:                "jaeger-test-policy",
+				TemplateBuilder: es.TextTemplateBuilder{},
+				Indices: config.Indices{
+					IndexPrefix:  "test-",
+					Spans:        defaultOpts(500),
+					Services:     serviceOps,
+					Dependencies: dependenciesOps,
+					Sampling:     samplingOps,
+				},
+				EsVersion:     tt.esVersion,
+				UseILM:        true,
+				ILMPolicyName: "jaeger-test-policy",
 			}
 			got, err := mb.GetMapping(tt.mapping)
 			require.NoError(t, err)
@@ -134,16 +136,24 @@ func TestMappingBuilderFixMapping(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			indexTemOps := config.IndexOptions{
+				Shards:   3,
+				Replicas: 5,
+				Priority: 500,
+			}
 			mappingBuilder := MappingBuilder{
 				TemplateBuilder: test.templateBuilderMockFunc(),
-				Shards:          3,
-				Replicas:        5,
-				EsVersion:       7,
-				IndexPrefix:     "test",
-				UseILM:          true,
-				ILMPolicyName:   "jaeger-test-policy",
+				Indices: config.Indices{
+					Spans:        indexTemOps,
+					Services:     indexTemOps,
+					Dependencies: indexTemOps,
+					Sampling:     indexTemOps,
+				},
+				EsVersion:     7,
+				UseILM:        true,
+				ILMPolicyName: "jaeger-test-policy",
 			}
-			_, err := mappingBuilder.fixMapping("test")
+			_, err := mappingBuilder.renderMapping("test", mappingBuilder.getMappingTemplateOptions("test"))
 			if test.err != "" {
 				require.EqualError(t, err, test.err)
 			} else {
@@ -155,8 +165,6 @@ func TestMappingBuilderFixMapping(t *testing.T) {
 
 func TestMappingBuilderGetSpanServiceMappings(t *testing.T) {
 	type args struct {
-		shards        int64
-		replicas      int64
 		esVersion     uint
 		indexPrefix   string
 		useILM        bool
@@ -171,8 +179,6 @@ func TestMappingBuilderGetSpanServiceMappings(t *testing.T) {
 		{
 			name: "ES Version 7",
 			args: args{
-				shards:        3,
-				replicas:      3,
 				esVersion:     7,
 				indexPrefix:   "test",
 				useILM:        true,
@@ -190,8 +196,6 @@ func TestMappingBuilderGetSpanServiceMappings(t *testing.T) {
 		{
 			name: "ES Version 7 Service Error",
 			args: args{
-				shards:        3,
-				replicas:      3,
 				esVersion:     7,
 				indexPrefix:   "test",
 				useILM:        true,
@@ -211,8 +215,6 @@ func TestMappingBuilderGetSpanServiceMappings(t *testing.T) {
 		{
 			name: "ES Version < 7",
 			args: args{
-				shards:        3,
-				replicas:      3,
 				esVersion:     6,
 				indexPrefix:   "test",
 				useILM:        true,
@@ -230,8 +232,6 @@ func TestMappingBuilderGetSpanServiceMappings(t *testing.T) {
 		{
 			name: "ES Version < 7 Service Error",
 			args: args{
-				shards:        3,
-				replicas:      3,
 				esVersion:     6,
 				indexPrefix:   "test",
 				useILM:        true,
@@ -250,8 +250,6 @@ func TestMappingBuilderGetSpanServiceMappings(t *testing.T) {
 		{
 			name: "ES Version < 7 Span Error",
 			args: args{
-				shards:        3,
-				replicas:      3,
 				esVersion:     6,
 				indexPrefix:   "test",
 				useILM:        true,
@@ -269,8 +267,6 @@ func TestMappingBuilderGetSpanServiceMappings(t *testing.T) {
 		{
 			name: "ES Version  7 Span Error",
 			args: args{
-				shards:        3,
-				replicas:      3,
 				esVersion:     7,
 				indexPrefix:   "test",
 				useILM:        true,
@@ -288,14 +284,22 @@ func TestMappingBuilderGetSpanServiceMappings(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			indexTemOps := config.IndexOptions{
+				Shards:   3,
+				Replicas: 3,
+			}
+
 			mappingBuilder := MappingBuilder{
 				TemplateBuilder: test.mockNewTextTemplateBuilder(),
-				Shards:          test.args.shards,
-				Replicas:        test.args.replicas,
-				EsVersion:       test.args.esVersion,
-				IndexPrefix:     test.args.indexPrefix,
-				UseILM:          test.args.useILM,
-				ILMPolicyName:   test.args.ilmPolicyName,
+				Indices: config.Indices{
+					Spans:        indexTemOps,
+					Services:     indexTemOps,
+					Dependencies: indexTemOps,
+					Sampling:     indexTemOps,
+				},
+				EsVersion:     test.args.esVersion,
+				UseILM:        test.args.useILM,
+				ILMPolicyName: test.args.ilmPolicyName,
 			}
 			_, _, err := mappingBuilder.GetSpanServiceMappings()
 			if test.err != "" {

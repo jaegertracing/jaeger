@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/jaegertracing/jaeger/pkg/es"
+	"github.com/jaegertracing/jaeger/pkg/es/config"
 )
 
 // MAPPINGS contains embedded index templates.
@@ -17,19 +18,50 @@ import (
 //go:embed *.json
 var MAPPINGS embed.FS
 
-// MappingBuilder holds parameters required to render an elasticsearch index template
+// MappingBuilder holds common parameters required to render an elasticsearch index template
 type MappingBuilder struct {
-	TemplateBuilder              es.TemplateBuilder
-	Shards                       int64
-	Replicas                     int64
-	PrioritySpanTemplate         int64
-	PriorityServiceTemplate      int64
-	PriorityDependenciesTemplate int64
-	PrioritySamplingTemplate     int64
-	EsVersion                    uint
-	IndexPrefix                  string
-	UseILM                       bool
-	ILMPolicyName                string
+	TemplateBuilder es.TemplateBuilder
+	Indices         config.Indices
+	EsVersion       uint
+	UseILM          bool
+	ILMPolicyName   string
+}
+
+// templateParams holds parameters required to render an elasticsearch index template
+type templateParams struct {
+	UseILM        bool
+	ILMPolicyName string
+	IndexPrefix   string
+	Shards        int64
+	Replicas      int64
+	Priority      int64
+}
+
+func (mb MappingBuilder) getMappingTemplateOptions(mapping string) templateParams {
+	mappingOpts := templateParams{}
+	mappingOpts.UseILM = mb.UseILM
+	mappingOpts.ILMPolicyName = mb.ILMPolicyName
+
+	switch {
+	case strings.Contains(mapping, "span"):
+		mappingOpts.Shards = mb.Indices.Spans.Shards
+		mappingOpts.Replicas = mb.Indices.Spans.Replicas
+		mappingOpts.Priority = mb.Indices.Spans.Priority
+	case strings.Contains(mapping, "service"):
+		mappingOpts.Shards = mb.Indices.Services.Shards
+		mappingOpts.Replicas = mb.Indices.Services.Replicas
+		mappingOpts.Priority = mb.Indices.Services.Priority
+	case strings.Contains(mapping, "dependencies"):
+		mappingOpts.Shards = mb.Indices.Dependencies.Shards
+		mappingOpts.Replicas = mb.Indices.Dependencies.Replicas
+		mappingOpts.Priority = mb.Indices.Dependencies.Priority
+	case strings.Contains(mapping, "sampling"):
+		mappingOpts.Shards = mb.Indices.Sampling.Shards
+		mappingOpts.Replicas = mb.Indices.Sampling.Replicas
+		mappingOpts.Priority = mb.Indices.Sampling.Priority
+	}
+
+	return mappingOpts
 }
 
 // MappingType represents the type of Elasticsearch mapping
@@ -116,17 +148,15 @@ func loadMapping(name string) string {
 	return string(s)
 }
 
-func (mb *MappingBuilder) fixMapping(mapping string) (string, error) {
+func (mb *MappingBuilder) renderMapping(mapping string, options templateParams) (string, error) {
 	tmpl, err := mb.TemplateBuilder.Parse(loadMapping(mapping))
 	if err != nil {
 		return "", err
 	}
 	writer := new(bytes.Buffer)
 
-	if mb.IndexPrefix != "" && !strings.HasSuffix(mb.IndexPrefix, "-") {
-		mb.IndexPrefix += "-"
-	}
-	if err := tmpl.Execute(writer, mb); err != nil {
+	options.IndexPrefix = mb.Indices.IndexPrefix.Apply("")
+	if err := tmpl.Execute(writer, options); err != nil {
 		return "", err
 	}
 

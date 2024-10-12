@@ -33,48 +33,72 @@ import (
 	storageMetrics "github.com/jaegertracing/jaeger/storage/spanstore/metrics"
 )
 
+const (
+	IndexPrefixSeparator = "-"
+)
+
+// IndexOptions describes the index format and rollover frequency
+type IndexOptions struct {
+	Priority          int64  `mapstructure:"priority"`
+	DateLayout        string `mapstructure:"date_layout"`
+	Shards            int64  `mapstructure:"shards"`
+	Replicas          int64  `mapstructure:"replicas"`
+	RolloverFrequency string `mapstructure:"rollover_frequency"` // "hour" or "day"
+}
+
+// Indices describes different configuration options for each index type
+type Indices struct {
+	IndexPrefix  IndexPrefix  `mapstructure:"index_prefix"`
+	Spans        IndexOptions `mapstructure:"spans"`
+	Services     IndexOptions `mapstructure:"services"`
+	Dependencies IndexOptions `mapstructure:"dependencies"`
+	Sampling     IndexOptions `mapstructure:"sampling"`
+}
+
+type IndexPrefix string
+
+func (p IndexPrefix) Apply(indexName string) string {
+	ps := string(p)
+	if ps == "" {
+		return indexName
+	}
+	if strings.HasSuffix(ps, IndexPrefixSeparator) {
+		return ps + indexName
+	}
+	return ps + IndexPrefixSeparator + indexName
+}
+
 // Configuration describes the configuration properties needed to connect to an ElasticSearch cluster
 type Configuration struct {
-	Servers                        []string       `mapstructure:"server_urls" valid:"required,url"`
-	RemoteReadClusters             []string       `mapstructure:"remote_read_clusters"`
-	Username                       string         `mapstructure:"username"`
-	Password                       string         `mapstructure:"password" json:"-"`
-	TokenFilePath                  string         `mapstructure:"token_file"`
-	PasswordFilePath               string         `mapstructure:"password_file"`
-	AllowTokenFromContext          bool           `mapstructure:"-"`
-	Sniffer                        bool           `mapstructure:"sniffer"` // https://github.com/olivere/elastic/wiki/Sniffing
-	SnifferTLSEnabled              bool           `mapstructure:"sniffer_tls_enabled"`
-	MaxDocCount                    int            `mapstructure:"-"` // Defines maximum number of results to fetch from storage per query
-	MaxSpanAge                     time.Duration  `mapstructure:"-"` // configures the maximum lookback on span reads
-	NumShards                      int64          `mapstructure:"num_shards"`
-	NumReplicas                    int64          `mapstructure:"num_replicas"`
-	PrioritySpanTemplate           int64          `mapstructure:"priority_span_template"`
-	PriorityServiceTemplate        int64          `mapstructure:"priority_service_template"`
-	PriorityDependenciesTemplate   int64          `mapstructure:"priority_dependencies_template"`
-	Timeout                        time.Duration  `mapstructure:"-"`
-	BulkSize                       int            `mapstructure:"-"`
-	BulkWorkers                    int            `mapstructure:"-"`
-	BulkActions                    int            `mapstructure:"-"`
-	BulkFlushInterval              time.Duration  `mapstructure:"-"`
-	IndexPrefix                    string         `mapstructure:"index_prefix"`
-	IndexDateLayoutSpans           string         `mapstructure:"-"`
-	IndexDateLayoutServices        string         `mapstructure:"-"`
-	IndexDateLayoutSampling        string         `mapstructure:"-"`
-	IndexDateLayoutDependencies    string         `mapstructure:"-"`
-	IndexRolloverFrequencySpans    string         `mapstructure:"-"`
-	IndexRolloverFrequencyServices string         `mapstructure:"-"`
-	IndexRolloverFrequencySampling string         `mapstructure:"-"`
-	ServiceCacheTTL                time.Duration  `mapstructure:"service_cache_ttl"`
-	AdaptiveSamplingLookback       time.Duration  `mapstructure:"-"`
-	Tags                           TagsAsFields   `mapstructure:"tags_as_fields"`
-	Enabled                        bool           `mapstructure:"-"`
-	TLS                            tlscfg.Options `mapstructure:"tls"`
-	UseReadWriteAliases            bool           `mapstructure:"use_aliases"`
-	CreateIndexTemplates           bool           `mapstructure:"create_mappings"`
-	UseILM                         bool           `mapstructure:"use_ilm"`
-	Version                        uint           `mapstructure:"version"`
-	LogLevel                       string         `mapstructure:"log_level"`
-	SendGetBodyAs                  string         `mapstructure:"send_get_body_as"`
+	Servers                  []string      `mapstructure:"server_urls" valid:"required,url"`
+	RemoteReadClusters       []string      `mapstructure:"remote_read_clusters"`
+	Username                 string        `mapstructure:"username"`
+	Password                 string        `mapstructure:"password" json:"-"`
+	TokenFilePath            string        `mapstructure:"token_file"`
+	PasswordFilePath         string        `mapstructure:"password_file"`
+	AllowTokenFromContext    bool          `mapstructure:"-"`
+	Sniffer                  bool          `mapstructure:"sniffer"` // https://github.com/olivere/elastic/wiki/Sniffing
+	SnifferTLSEnabled        bool          `mapstructure:"sniffer_tls_enabled"`
+	MaxDocCount              int           `mapstructure:"-"` // Defines maximum number of results to fetch from storage per query
+	MaxSpanAge               time.Duration `mapstructure:"-"` // configures the maximum lookback on span reads
+	Timeout                  time.Duration `mapstructure:"-"`
+	BulkSize                 int           `mapstructure:"-"`
+	BulkWorkers              int           `mapstructure:"-"`
+	BulkActions              int           `mapstructure:"-"`
+	BulkFlushInterval        time.Duration `mapstructure:"-"`
+	Indices                  Indices       `mapstructure:"indices"`
+	ServiceCacheTTL          time.Duration `mapstructure:"service_cache_ttl"`
+	AdaptiveSamplingLookback time.Duration `mapstructure:"-"`
+	Tags                     TagsAsFields  `mapstructure:"tags_as_fields"`
+	Enabled                  bool          `mapstructure:"-"`
+	// TODO: migration to OTEL's TLS configuration
+	TLS                  tlscfg.Options `mapstructure:"tls"`
+	UseReadWriteAliases  bool           `mapstructure:"use_aliases"`
+	CreateIndexTemplates bool           `mapstructure:"create_mappings"`
+	UseILM               bool           `mapstructure:"use_ilm"`
+	Version              uint           `mapstructure:"version"`
+	LogLevel             string         `mapstructure:"log_level"`
+	SendGetBodyAs        string         `mapstructure:"send_get_body_as"`
 }
 
 // TagsAsFields holds configuration for tag schema.
@@ -208,6 +232,28 @@ func newElasticsearchV8(c *Configuration, logger *zap.Logger) (*esV8.Client, err
 	return esV8.NewClient(options)
 }
 
+func setDefaultIndexOptions(target, source *IndexOptions) {
+	if target.Shards == 0 {
+		target.Shards = source.Shards
+	}
+
+	if target.Replicas == 0 {
+		target.Replicas = source.Replicas
+	}
+
+	if target.Priority == 0 {
+		target.Priority = source.Priority
+	}
+
+	if target.DateLayout == "" {
+		target.DateLayout = source.DateLayout
+	}
+
+	if target.RolloverFrequency == "" {
+		target.RolloverFrequency = source.RolloverFrequency
+	}
+}
+
 // ApplyDefaults copies settings from source unless its own value is non-zero.
 func (c *Configuration) ApplyDefaults(source *Configuration) {
 	if len(c.RemoteReadClusters) == 0 {
@@ -228,21 +274,14 @@ func (c *Configuration) ApplyDefaults(source *Configuration) {
 	if c.AdaptiveSamplingLookback == 0 {
 		c.AdaptiveSamplingLookback = source.AdaptiveSamplingLookback
 	}
-	if c.NumShards == 0 {
-		c.NumShards = source.NumShards
+	if c.Indices.IndexPrefix == "" {
+		c.Indices.IndexPrefix = source.Indices.IndexPrefix
 	}
-	if c.NumReplicas == 0 {
-		c.NumReplicas = source.NumReplicas
-	}
-	if c.PrioritySpanTemplate == 0 {
-		c.PrioritySpanTemplate = source.PrioritySpanTemplate
-	}
-	if c.PriorityServiceTemplate == 0 {
-		c.PriorityServiceTemplate = source.PriorityServiceTemplate
-	}
-	if c.PrioritySpanTemplate == 0 {
-		c.PriorityDependenciesTemplate = source.PriorityDependenciesTemplate
-	}
+
+	setDefaultIndexOptions(&c.Indices.Spans, &source.Indices.Spans)
+	setDefaultIndexOptions(&c.Indices.Services, &source.Indices.Services)
+	setDefaultIndexOptions(&c.Indices.Dependencies, &source.Indices.Dependencies)
+
 	if c.BulkSize == 0 {
 		c.BulkSize = source.BulkSize
 	}
@@ -281,23 +320,8 @@ func (c *Configuration) ApplyDefaults(source *Configuration) {
 	}
 }
 
-// GetIndexRolloverFrequencySpansDuration returns jaeger-span index rollover frequency duration
-func (c *Configuration) GetIndexRolloverFrequencySpansDuration() time.Duration {
-	return getIndexRolloverFrequencyDuration(c.IndexRolloverFrequencySpans)
-}
-
-// GetIndexRolloverFrequencyServicesDuration returns jaeger-service index rollover frequency duration
-func (c *Configuration) GetIndexRolloverFrequencyServicesDuration() time.Duration {
-	return getIndexRolloverFrequencyDuration(c.IndexRolloverFrequencyServices)
-}
-
-// GetIndexRolloverFrequencySamplingDuration returns jaeger-sampling index rollover frequency duration
-func (c *Configuration) GetIndexRolloverFrequencySamplingDuration() time.Duration {
-	return getIndexRolloverFrequencyDuration(c.IndexRolloverFrequencySampling)
-}
-
-// GetIndexRolloverFrequencyDuration returns the index rollover frequency duration for the given frequency string
-func getIndexRolloverFrequencyDuration(frequency string) time.Duration {
+// RolloverFrequencyAsNegativeDuration returns the index rollover frequency duration for the given frequency string
+func RolloverFrequencyAsNegativeDuration(frequency string) time.Duration {
 	if frequency == "hour" {
 		return -1 * time.Hour
 	}
