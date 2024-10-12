@@ -10,6 +10,11 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 )
 
+func TestNewStandardSanitizers(t *testing.T) {
+	sanitizers := NewStandardSanitizers()
+	require.Len(t, sanitizers, 1)
+}
+
 func TestNewChainedSanitizer(t *testing.T) {
 	var s1 Sanitize = func(traces ptrace.Traces) ptrace.Traces {
 		traces.
