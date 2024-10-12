@@ -10,7 +10,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 )
 
-func TestEmptyServiceNameSanitizer(t *testing.T) {
+func TestEmptyServiceNameSanitizer_SubstitutesCorrectlyForStrings(t *testing.T) {
 	emptyServiceName := ""
 	nonEmptyServiceName := "hello"
 	tests := []struct {
@@ -57,4 +57,24 @@ func TestEmptyServiceNameSanitizer(t *testing.T) {
 			require.Equal(t, test.expectedServiceName, serviceName.Str())
 		})
 	}
+}
+
+func TestEmptyServiceNameSanitizer_SubstitutesCorrectlyForNonStringType(t *testing.T) {
+	traces := ptrace.NewTraces()
+	traces.
+		ResourceSpans().
+		AppendEmpty().
+		Resource().
+		Attributes().
+		PutInt("service.name", 1)
+	sanitizer := NewEmptyServiceNameSanitizer()
+	sanitized := sanitizer(traces)
+	serviceName, ok := sanitized.
+		ResourceSpans().
+		At(0).
+		Resource().
+		Attributes().
+		Get("service.name")
+	require.True(t, ok)
+	require.Equal(t, "service-name-wrong-type", serviceName.Str())
 }

@@ -4,14 +4,16 @@
 package sanitizer
 
 import (
+	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger/pkg/otelsemconv"
 )
 
 const (
-	emptyServiceName   = "empty-service-name"
-	missingServiceName = "missing-service-name"
+	emptyServiceName     = "empty-service-name"
+	serviceNameWrongType = "service-name-wrong-type"
+	missingServiceName   = "missing-service-name"
 )
 
 // NewEmptyServiceNameSanitizer returns a sanitizer function that replaces
@@ -28,6 +30,8 @@ func sanitizeEmptyServiceName(traces ptrace.Traces) ptrace.Traces {
 		serviceName, ok := attributes.Get(string(otelsemconv.ServiceNameKey))
 		if !ok {
 			attributes.PutStr(string(otelsemconv.ServiceNameKey), missingServiceName)
+		} else if serviceName.Type() != pcommon.ValueTypeStr {
+			attributes.PutStr(string(otelsemconv.ServiceNameKey), serviceNameWrongType)
 		} else if serviceName.Str() == "" {
 			attributes.PutStr(string(otelsemconv.ServiceNameKey), emptyServiceName)
 		}
