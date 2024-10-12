@@ -33,10 +33,10 @@ func TestBindFlags(t *testing.T) {
 	require.NoError(t, err)
 
 	c.InitFromViper(v)
-	assert.Equal(t, 8, c.Shards)
-	assert.Equal(t, 16, c.Replicas)
-	assert.Equal(t, 300, c.PrioritySpanTemplate)
-	assert.Equal(t, 301, c.PriorityServiceTemplate)
-	assert.Equal(t, 302, c.PriorityDependenciesTemplate)
-	assert.Equal(t, 303, c.PrioritySamplingTemplate)
+	assert.EqualValues(t, 8, c.Indices.Spans.Shards)
+	assert.EqualValues(t, 16, c.Indices.Spans.Replicas)
+	assert.EqualValues(t, 300, c.Indices.Spans.Priority)
+	assert.EqualValues(t, 301, c.Indices.Services.Priority)
+	assert.EqualValues(t, 302, c.Indices.Dependencies.Priority)
+	assert.EqualValues(t, 303, c.Indices.Sampling.Priority)
 }
