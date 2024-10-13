@@ -90,9 +90,6 @@ func sanitizeAttributes(attributes pcommon.Map) {
 		newVal := attributes.PutEmptyBytes(newKey)
 		newVal.Append(sanitized...)
 		i++
-	}
-
-	for k := range invalidKeys {
 		attributes.Remove(k)
 	}
 }

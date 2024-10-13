@@ -233,7 +233,8 @@ func TestUTF8Sanitizer_DoesNotSanitizeNonStringAttributeValue(t *testing.T) {
 		ResourceSpans().
 		AppendEmpty().
 		Resource().
-		Attributes().PutInt("key", 99)
+		Attributes().
+		PutInt("key", 99)
 	sanitizer := NewUTF8Sanitizer()
 	sanitized := sanitizer(traces)
 	value, ok := sanitized.
@@ -252,7 +253,8 @@ func TestUTF8Sanitizer_SanitizesNonStringAttributeValueWithInvalidKey(t *testing
 		ResourceSpans().
 		AppendEmpty().
 		Resource().
-		Attributes().PutInt(invalidUTF8(), 99)
+		Attributes().
+		PutInt(invalidUTF8(), 99)
 	sanitizer := NewUTF8Sanitizer()
 	sanitized := sanitizer(traces)
 	value, ok := sanitized.
