@@ -193,13 +193,19 @@ func TestUTF8Sanitizer_DoesNotSanitizeInvalidSpanName(t *testing.T) {
 }
 
 func TestUTF8Sanitizer_RemovesInvalidKeys(t *testing.T) {
+	k1 := fmt.Sprintf("%s-%d", invalidUTF8(), 1)
+	k2 := fmt.Sprintf("%s-%d", invalidUTF8(), 2)
+
 	traces := ptrace.NewTraces()
-	traces.
+	attributes := traces.
 		ResourceSpans().
 		AppendEmpty().
 		Resource().
-		Attributes().
-		PutStr(invalidUTF8(), "value")
+		Attributes()
+
+	attributes.PutStr(k1, "v1")
+	attributes.PutStr(k2, "v2")
+
 	sanitizer := NewUTF8Sanitizer()
 	sanitized := sanitizer(traces)
 	_, ok := sanitized.
@@ -207,7 +213,17 @@ func TestUTF8Sanitizer_RemovesInvalidKeys(t *testing.T) {
 		At(0).
 		Resource().
 		Attributes().
-		Get(invalidUTF8())
+		Get(k1)
+	require.False(t, ok)
+
+	sanitizer = NewUTF8Sanitizer()
+	sanitized = sanitizer(traces)
+	_, ok = sanitized.
+		ResourceSpans().
+		At(0).
+		Resource().
+		Attributes().
+		Get(k2)
 	require.False(t, ok)
 }
 
