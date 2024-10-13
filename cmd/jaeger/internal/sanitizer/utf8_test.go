@@ -233,7 +233,7 @@ func TestUTF8Sanitizer_DoesNotSanitizeNonStringAttributeValue(t *testing.T) {
 		ResourceSpans().
 		AppendEmpty().
 		Resource().
-		Attributes().PutInt("key", 1)
+		Attributes().PutInt("key", 99)
 	sanitizer := NewUTF8Sanitizer()
 	sanitized := sanitizer(traces)
 	value, ok := sanitized.
@@ -243,7 +243,7 @@ func TestUTF8Sanitizer_DoesNotSanitizeNonStringAttributeValue(t *testing.T) {
 		Attributes().
 		Get("key")
 	require.True(t, ok)
-	require.EqualValues(t, 1, value.Int())
+	require.EqualValues(t, 99, value.Int())
 }
 
 func TestUTF8Sanitizer_SanitizesNonStringAttributeValueWithInvalidKey(t *testing.T) {
@@ -252,7 +252,7 @@ func TestUTF8Sanitizer_SanitizesNonStringAttributeValueWithInvalidKey(t *testing
 		ResourceSpans().
 		AppendEmpty().
 		Resource().
-		Attributes().PutInt(invalidUTF8(), 1)
+		Attributes().PutInt(invalidUTF8(), 99)
 	sanitizer := NewUTF8Sanitizer()
 	sanitized := sanitizer(traces)
 	value, ok := sanitized.
@@ -262,7 +262,7 @@ func TestUTF8Sanitizer_SanitizesNonStringAttributeValueWithInvalidKey(t *testing
 		Attributes().
 		Get("invalid-tag-key-1")
 	require.True(t, ok)
-	require.EqualValues(t, getBytesValueFromString(fmt.Sprintf("%s:1", invalidUTF8())), value)
+	require.EqualValues(t, getBytesValueFromString(fmt.Sprintf("%s:99", invalidUTF8())), value)
 }
 
 func TestUTF8Sanitizer_SanitizesMultipleAttributesWithInvalidKeys(t *testing.T) {
