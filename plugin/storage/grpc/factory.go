@@ -49,24 +49,6 @@ type Factory struct {
 	host           component.Host
 }
 
-type host struct {
-	extensions map[component.ID]component.Component
-}
-
-func NewHost() component.Host {
-	return &host{
-		extensions: make(map[component.ID]component.Component),
-	}
-}
-
-func (h *host) GetExtensions() map[component.ID]component.Component {
-	return h.extensions
-}
-
-func (h *host) AddExtensions(id component.ID, ext component.Component) {
-	h.extensions[id] = ext
-}
-
 // NewFactory creates a new Factory.
 func NewFactory() *Factory {
 	return &Factory{}
