@@ -45,8 +45,3 @@ func GetMappingAsString(builder es.TemplateBuilder, opt *app.Options) (string, e
 	return mappingBuilder.GetMapping(mappingType)
 }
 
-// IsValidOption checks if passed option is a valid index template.
-func IsValidOption(val string) bool {
-	_, err := mappings.MappingTypeFromString(val)
-	return err == nil
-}
