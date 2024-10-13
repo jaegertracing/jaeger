@@ -38,10 +38,10 @@ func createTracesExporter(ctx context.Context, set exporter.Settings, config com
 	return exporterhelper.NewTracesExporter(ctx, set, cfg,
 		ex.pushTraces,
 		exporterhelper.WithCapabilities(consumer.Capabilities{MutatesData: false}),
-		// Disable Timeout/RetryOnFailure and SendingQueue
+		// Disable Timeout/RetryOnFailure
 		exporterhelper.WithTimeout(exporterhelper.TimeoutConfig{Timeout: 0}),
 		exporterhelper.WithRetry(configretry.BackOffConfig{Enabled: false}),
-		exporterhelper.WithQueue(exporterhelper.QueueConfig{Enabled: false}),
+		exporterhelper.WithQueue(cfg.QueueConfig),
 		exporterhelper.WithStart(ex.start),
 		exporterhelper.WithShutdown(ex.close),
 	)
