@@ -169,7 +169,7 @@ func TestUTF8Sanitizer_SanitizesInvalidSpanName(t *testing.T) {
 	require.Equal(t, "invalid-span-name", name)
 }
 
-func TestUTF8Sanitizer_DoesNotSanitizeInvalidSpanName(t *testing.T) {
+func TestUTF8Sanitizer_DoesNotSanitizeValidSpanName(t *testing.T) {
 	traces := ptrace.NewTraces()
 	traces.
 		ResourceSpans().
