@@ -13,9 +13,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/config/configtls"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 )
@@ -139,7 +139,7 @@ func TestNewClient(t *testing.T) {
 				PasswordFilePath:      "",
 				BulkSize:              -1, // disable bulk; we want immediate flush
 				Version:               0,
-				TLS:                   tlscfg.Options{Enabled: true},
+				TLS:                   configtls.ClientConfig{Insecure: false},
 			},
 			expectedError: false,
 		},
@@ -154,8 +154,13 @@ func TestNewClient(t *testing.T) {
 				PasswordFilePath:      "",
 				BulkSize:              -1, // disable bulk; we want immediate flush
 				Version:               0,
-				TLS:                   tlscfg.Options{Enabled: false, CAPath: certFilePath.Name()},
-				TokenFilePath:         pwdtokenFile,
+				TLS: configtls.ClientConfig{
+					Insecure: true,
+					Config: configtls.Config{
+						CAFile: certFilePath.Name(),
+					},
+				},
+				TokenFilePath: pwdtokenFile,
 			},
 			expectedError: false,
 		},
@@ -308,8 +313,6 @@ func TestNewClient(t *testing.T) {
 				err = client.Close()
 				require.NoError(t, err)
 			}
-			err = config.TLS.Close()
-			require.NoError(t, err)
 		})
 	}
 }

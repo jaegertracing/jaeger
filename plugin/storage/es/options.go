@@ -379,12 +379,12 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 
 	// Daily is recommended for dependencies calculation, and this index size is very small
 	cfg.Indices.Dependencies.DateLayout = initDateLayout(cfg.Indices.Dependencies.DateLayout, separator)
-	var err error
-	cfg.TLS, err = cfg.getTLSFlagsConfig().InitFromViper(v)
+	tlsconfig, err := cfg.getTLSFlagsConfig().InitFromViper(v)
 	if err != nil {
 		// TODO refactor to be able to return error
 		log.Fatal(err)
 	}
+	cfg.TLS = tlsconfig.ToOtelClientConfig()
 }
 
 // GetPrimary returns primary configuration.
