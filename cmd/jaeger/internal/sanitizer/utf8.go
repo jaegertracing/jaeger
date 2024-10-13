@@ -22,8 +22,6 @@ const (
 //     they are replaced with a valid UTF-8 string containing debugging data related to the invalidations.
 //   - Explicitly checks that all span names are valid UTF-8 strings. If they are not, they are replaced
 //     with a valid UTF-8 string and debugging information is put into the attributes of the span.
-//   - Explicitly checks that the service name is a valid UTF-8 string. If it is not, it is replaced with
-//     a valid UTF-8 string that contains debugging information related to the invalidation.
 func NewUTF8Sanitizer() Func {
 	return sanitizeUTF8
 }
