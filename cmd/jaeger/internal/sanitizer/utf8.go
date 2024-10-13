@@ -4,6 +4,7 @@
 package sanitizer
 
 import (
+	"fmt"
 	"unicode/utf8"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
@@ -75,6 +76,7 @@ func sanitizeAttributes(attributes pcommon.Map) {
 		return true
 	})
 
+	i := 1
 	for k, v := range invalidKeys {
 		sanitized := []byte(k + ":")
 		switch v.Type() {
@@ -84,8 +86,13 @@ func sanitizeAttributes(attributes pcommon.Map) {
 			sanitized = append(sanitized, []byte(v.AsString())...)
 		}
 
-		attributes.Remove(k)
-		newVal := attributes.PutEmptyBytes(invalidTagKey)
+		newKey := fmt.Sprintf("%s-%d", invalidTagKey, i)
+		newVal := attributes.PutEmptyBytes(newKey)
 		newVal.Append(sanitized...)
+		i += 1
+	}
+
+	for k := range invalidKeys {
+		attributes.Remove(k)
 	}
 }

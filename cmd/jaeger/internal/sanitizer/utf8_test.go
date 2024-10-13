@@ -42,7 +42,7 @@ var utf8EncodingTests = []struct {
 		name:          "invalid key + valid value",
 		key:           invalidUTF8(),
 		value:         "value",
-		expectedKey:   "invalid-tag-key",
+		expectedKey:   "invalid-tag-key-1",
 		expectedValue: getBytesValueFromString(fmt.Sprintf("%s:value", invalidUTF8())),
 	},
 	{
@@ -56,7 +56,7 @@ var utf8EncodingTests = []struct {
 		name:          "invalid key + invalid value",
 		key:           invalidUTF8(),
 		value:         invalidUTF8(),
-		expectedKey:   "invalid-tag-key",
+		expectedKey:   "invalid-tag-key-1",
 		expectedValue: getBytesValueFromString(fmt.Sprintf("%s:%s", invalidUTF8(), invalidUTF8())),
 	},
 }
@@ -244,7 +244,41 @@ func TestUTF8Sanitizer_SanitizesNonStringAttributeValueWithInvalidKey(t *testing
 		At(0).
 		Resource().
 		Attributes().
-		Get("invalid-tag-key")
+		Get("invalid-tag-key-1")
 	require.True(t, ok)
 	require.EqualValues(t, getBytesValueFromString(fmt.Sprintf("%s:1", invalidUTF8())), value)
+}
+
+func TestUTF8Sanitizer_SanitizesMultipleAttributesWithInvalidKeys(t *testing.T) {
+	k1 := fmt.Sprintf("%s-%d", invalidUTF8(), 1)
+	k2 := fmt.Sprintf("%s-%d", invalidUTF8(), 2)
+	traces := ptrace.NewTraces()
+	attributes := traces.
+		ResourceSpans().
+		AppendEmpty().
+		Resource().
+		Attributes()
+
+	attributes.PutStr(k1, "v1")
+	attributes.PutStr(k2, "v2")
+
+	sanitizer := NewUTF8Sanitizer()
+	sanitized := sanitizer(traces)
+	value, ok := sanitized.
+		ResourceSpans().
+		At(0).
+		Resource().
+		Attributes().
+		Get("invalid-tag-key-1")
+	require.True(t, ok)
+	require.EqualValues(t, getBytesValueFromString(fmt.Sprintf("%s:v1", k1)), value)
+
+	value, ok = sanitized.
+		ResourceSpans().
+		At(0).
+		Resource().
+		Attributes().
+		Get("invalid-tag-key-2")
+	require.True(t, ok)
+	require.EqualValues(t, getBytesValueFromString(fmt.Sprintf("%s:v2", k2)), value)
 }
