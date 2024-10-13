@@ -89,7 +89,7 @@ func sanitizeAttributes(attributes pcommon.Map) {
 		newKey := fmt.Sprintf("%s-%d", invalidTagKey, i)
 		newVal := attributes.PutEmptyBytes(newKey)
 		newVal.Append(sanitized...)
-		i += 1
+		i++
 	}
 
 	for k := range invalidKeys {
