@@ -36,7 +36,7 @@ const (
 	getServicesURL         = "/api/services"
 	getTraceURL            = "/api/traces/"
 	getServicesAPIV3URL    = "/api/v3/services"
-	getSamplingStrategyURL = "/sampling?service=whatever"
+	getSamplingStrategyURL = "/api/sampling?service=whatever"
 )
 
 var (
