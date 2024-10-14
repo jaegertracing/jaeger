@@ -28,10 +28,7 @@ import (
 // These tests are only run when the environment variable TEST_MODE=integration is set.
 
 const (
-	host         = "0.0.0.0"
-	queryPort    = ports.QueryHTTP
-	samplingPort = ports.CollectorHTTP
-	healthPort   = 13133
+	host = "0.0.0.0"
 
 	getServicesURL         = "/api/services"
 	getTraceURL            = "/api/traces/"
@@ -40,9 +37,9 @@ const (
 )
 
 var (
-	queryAddr    = fmt.Sprintf("http://%s:%d", host, queryPort)
-	samplingAddr = fmt.Sprintf("http://%s:%d", host, samplingPort)
-	healthAddr   = fmt.Sprintf("http://%s:%d/status", host, healthPort)
+	queryAddr    = fmt.Sprintf("http://%s:%d", host, ports.QueryHTTP)
+	samplingAddr = fmt.Sprintf("http://%s:%d", host, ports.CollectorHTTP)
+	healthAddr   = fmt.Sprintf("http://%s:%d/status", host, ports.CollectorV2HealthChecks)
 )
 
 var traceID string // stores state exchanged between createTrace and getAPITrace

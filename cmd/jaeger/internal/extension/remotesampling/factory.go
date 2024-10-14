@@ -13,6 +13,7 @@ import (
 	"go.opentelemetry.io/collector/extension"
 
 	"github.com/jaegertracing/jaeger/plugin/sampling/strategyprovider/adaptive"
+	"github.com/jaegertracing/jaeger/ports"
 )
 
 // ComponentType is the name of this extension in configuration.
@@ -33,11 +34,11 @@ func NewFactory() extension.Factory {
 func createDefaultConfig() component.Config {
 	return &Config{
 		HTTP: &confighttp.ServerConfig{
-			Endpoint: ":5778",
+			Endpoint: ports.PortToHostPort(ports.CollectorV2SamplingHTTP),
 		},
 		GRPC: &configgrpc.ServerConfig{
 			NetAddr: confignet.AddrConfig{
-				Endpoint:  ":5779",
+				Endpoint:  ports.PortToHostPort(ports.CollectorV2SamplingGRPC),
 				Transport: confignet.TransportTypeTCP,
 			},
 		},

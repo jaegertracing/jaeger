@@ -18,6 +18,13 @@ const (
 	// CollectorZipkin is the port for Zipkin server for sending spans
 	CollectorZipkin = 9411
 
+	// CollectorV2GRPC is the HTTP port for remote sampling extension
+	CollectorV2SamplingHTTP = 5778
+	// CollectorV2GRPC is the gRPC port for remote sampling extension
+	CollectorV2SamplingGRPC = 5779
+	// CollectorV2HealthChecks is the port for health checks extension
+	CollectorV2HealthChecks = 13133
+
 	// QueryGRPC is the default port of GRPC requests for Query trace retrieval
 	QueryGRPC = 16685
 	// QueryHTTP is the default port for UI and Query API (e.g. /api/* endpoints)
