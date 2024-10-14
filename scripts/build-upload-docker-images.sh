@@ -63,7 +63,7 @@ fi
 make "$baseimg_target" LINUX_PLATFORMS="$platforms"
 
 # build/upload raw and debug images of Jaeger backend components
-for component in agent collector query ingester remote-storage
+for component in collector query ingester remote-storage
 do
   bash scripts/build-upload-a-docker-image.sh "${FLAGS[@]}" -b -c "jaeger-${component}" -d "cmd/${component}" -p "${platforms}" -t release
   # do not need debug image built for PRs
