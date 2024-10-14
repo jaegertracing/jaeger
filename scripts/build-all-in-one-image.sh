@@ -19,6 +19,7 @@ print_help() {
 add_debugger='Y'
 platforms="$(make echo-linux-platforms)"
 FLAGS=()
+
 # this script doesn't use BRANCH and GITHUB_SHA itself, but its dependency scripts do.
 export BRANCH=${BRANCH?'env var is required'}
 export GITHUB_SHA=${GITHUB_SHA:-$(git rev-parse HEAD)}
@@ -55,10 +56,12 @@ fi
 case $1 in
   v1)
     BINARY='all-in-one'
+    sampling_port=14268
     export HEALTHCHECK_V2=false
     ;;
   v2)
     BINARY='jaeger'
+    sampling_port=5778
     export HEALTHCHECK_V2=true
     ;;
   *)
@@ -90,7 +93,7 @@ make build-ui
 
 run_integration_test() {
   local image_name="$1"
-  CID=$(docker run -d -p 16686:16686 -p 13133:13133 -p 14268:14268 "${image_name}:${GITHUB_SHA}")
+  CID=$(docker run -d -p 16686:16686 -p 13133:13133 -p "14268:${sampling_port}" "${image_name}:${GITHUB_SHA}")
 
   if ! make all-in-one-integration-test ; then
       echo "---- integration test failed unexpectedly ----"
