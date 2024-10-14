@@ -21,12 +21,12 @@ import (
 	"github.com/asaskevich/govalidator"
 	esV8 "github.com/elastic/go-elasticsearch/v8"
 	"github.com/olivere/elastic"
+	"go.opentelemetry.io/collector/config/configtls"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zapgrpc"
 
 	"github.com/jaegertracing/jaeger/pkg/bearertoken"
-	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/pkg/es"
 	eswrapper "github.com/jaegertracing/jaeger/pkg/es/wrapper"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
@@ -70,35 +70,34 @@ func (p IndexPrefix) Apply(indexName string) string {
 
 // Configuration describes the configuration properties needed to connect to an ElasticSearch cluster
 type Configuration struct {
-	Servers                  []string      `mapstructure:"server_urls" valid:"required,url"`
-	RemoteReadClusters       []string      `mapstructure:"remote_read_clusters"`
-	Username                 string        `mapstructure:"username"`
-	Password                 string        `mapstructure:"password" json:"-"`
-	TokenFilePath            string        `mapstructure:"token_file"`
-	PasswordFilePath         string        `mapstructure:"password_file"`
-	AllowTokenFromContext    bool          `mapstructure:"-"`
-	Sniffer                  bool          `mapstructure:"sniffer"` // https://github.com/olivere/elastic/wiki/Sniffing
-	SnifferTLSEnabled        bool          `mapstructure:"sniffer_tls_enabled"`
-	MaxDocCount              int           `mapstructure:"-"` // Defines maximum number of results to fetch from storage per query
-	MaxSpanAge               time.Duration `mapstructure:"-"` // configures the maximum lookback on span reads
-	Timeout                  time.Duration `mapstructure:"-"`
-	BulkSize                 int           `mapstructure:"-"`
-	BulkWorkers              int           `mapstructure:"-"`
-	BulkActions              int           `mapstructure:"-"`
-	BulkFlushInterval        time.Duration `mapstructure:"-"`
-	Indices                  Indices       `mapstructure:"indices"`
-	ServiceCacheTTL          time.Duration `mapstructure:"service_cache_ttl"`
-	AdaptiveSamplingLookback time.Duration `mapstructure:"-"`
-	Tags                     TagsAsFields  `mapstructure:"tags_as_fields"`
-	Enabled                  bool          `mapstructure:"-"`
-	// TODO: migration to OTEL's TLS configuration
-	TLS                  tlscfg.Options `mapstructure:"tls"`
-	UseReadWriteAliases  bool           `mapstructure:"use_aliases"`
-	CreateIndexTemplates bool           `mapstructure:"create_mappings"`
-	UseILM               bool           `mapstructure:"use_ilm"`
-	Version              uint           `mapstructure:"version"`
-	LogLevel             string         `mapstructure:"log_level"`
-	SendGetBodyAs        string         `mapstructure:"send_get_body_as"`
+	Servers                  []string               `mapstructure:"server_urls" valid:"required,url"`
+	RemoteReadClusters       []string               `mapstructure:"remote_read_clusters"`
+	Username                 string                 `mapstructure:"username"`
+	Password                 string                 `mapstructure:"password" json:"-"`
+	TokenFilePath            string                 `mapstructure:"token_file"`
+	PasswordFilePath         string                 `mapstructure:"password_file"`
+	AllowTokenFromContext    bool                   `mapstructure:"-"`
+	Sniffer                  bool                   `mapstructure:"sniffer"` // https://github.com/olivere/elastic/wiki/Sniffing
+	SnifferTLSEnabled        bool                   `mapstructure:"sniffer_tls_enabled"`
+	MaxDocCount              int                    `mapstructure:"-"` // Defines maximum number of results to fetch from storage per query
+	MaxSpanAge               time.Duration          `mapstructure:"-"` // configures the maximum lookback on span reads
+	Timeout                  time.Duration          `mapstructure:"-"`
+	BulkSize                 int                    `mapstructure:"-"`
+	BulkWorkers              int                    `mapstructure:"-"`
+	BulkActions              int                    `mapstructure:"-"`
+	BulkFlushInterval        time.Duration          `mapstructure:"-"`
+	Indices                  Indices                `mapstructure:"indices"`
+	ServiceCacheTTL          time.Duration          `mapstructure:"service_cache_ttl"`
+	AdaptiveSamplingLookback time.Duration          `mapstructure:"-"`
+	Tags                     TagsAsFields           `mapstructure:"tags_as_fields"`
+	Enabled                  bool                   `mapstructure:"-"`
+	TLS                      configtls.ClientConfig `mapstructure:"tls"`
+	UseReadWriteAliases      bool                   `mapstructure:"use_aliases"`
+	CreateIndexTemplates     bool                   `mapstructure:"create_mappings"`
+	UseILM                   bool                   `mapstructure:"use_ilm"`
+	Version                  uint                   `mapstructure:"version"`
+	LogLevel                 string                 `mapstructure:"log_level"`
+	SendGetBodyAs            string                 `mapstructure:"send_get_body_as"`
 }
 
 // TagsAsFields holds configuration for tag schema.
@@ -440,8 +439,8 @@ func addLoggerOptions(options []elastic.ClientOptionFunc, logLevel string, logge
 
 // GetHTTPRoundTripper returns configured http.RoundTripper
 func GetHTTPRoundTripper(c *Configuration, logger *zap.Logger) (http.RoundTripper, error) {
-	if c.TLS.Enabled {
-		ctlsConfig, err := c.TLS.Config(logger)
+	if !c.TLS.Insecure {
+		ctlsConfig, err := c.TLS.LoadTLSConfig(context.Background())
 		if err != nil {
 			return nil, err
 		}
@@ -454,10 +453,10 @@ func GetHTTPRoundTripper(c *Configuration, logger *zap.Logger) (http.RoundTrippe
 	httpTransport := &http.Transport{
 		Proxy: http.ProxyFromEnvironment,
 		// #nosec G402
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: c.TLS.SkipHostVerify},
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: c.TLS.InsecureSkipVerify},
 	}
-	if c.TLS.CAPath != "" {
-		ctlsConfig, err := c.TLS.Config(logger)
+	if c.TLS.CAFile != "" {
+		ctlsConfig, err := c.TLS.LoadTLSConfig(context.Background())
 		if err != nil {
 			return nil, err
 		}
