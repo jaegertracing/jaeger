@@ -45,7 +45,6 @@ services:
   jaeger-collector:
     image: jaegertracing/jaeger-collector
     command:
-      - "--collector.otlp.enabled=true"
       - "--log-level=debug"
     ports:
       - 4318:4318
@@ -95,7 +94,7 @@ services:
       - "--log-level=debug"
     environment:
       - SPAN_STORAGE_TYPE=grpc
-      - JAEGER_AGENT_HOST=jaeger-agent
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger-collector:4318
     ports:
       - "16686:16686"
       - "16687"

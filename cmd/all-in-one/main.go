@@ -74,8 +74,8 @@ func main() {
 	v := viper.New()
 	command := &cobra.Command{
 		Use:   "jaeger-all-in-one",
-		Short: "Jaeger all-in-one distribution with agent, collector and query in one process.",
-		Long: `Jaeger all-in-one distribution with agent, collector and query. Use with caution this version
+		Short: "Jaeger all-in-one distribution with collector and query in one process.",
+		Long: `Jaeger all-in-one distribution with collector and query. Use with caution: this version
 by default uses only in-memory database.`,
 		RunE: func(_ *cobra.Command, _ /* args */ []string) error {
 			if err := svc.Start(v); err != nil {
