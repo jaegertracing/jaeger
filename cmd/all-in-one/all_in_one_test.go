@@ -31,7 +31,7 @@ const (
 	host         = "0.0.0.0"
 	queryPort    = ports.QueryHTTP
 	samplingPort = ports.CollectorHTTP
-	healthPort   = "13133"
+	healthPort   = 13133
 
 	getServicesURL         = "/api/services"
 	getTraceURL            = "/api/traces/"
