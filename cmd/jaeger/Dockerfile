@@ -10,6 +10,12 @@ FROM $base_image AS release
 ARG TARGETARCH
 ARG USER_UID=10001
 
+# Sampling config HTTP
+EXPOSE 5778
+
+# Sampling config gRPC
+EXPOSE 5779
+
 # Collector OTLP gRPC
 EXPOSE 4317
 
@@ -46,6 +52,12 @@ USER ${USER_UID}
 FROM $debug_image AS debug
 ARG TARGETARCH=amd64
 ARG USER_UID=10001
+
+# Sampling config HTTP
+EXPOSE 5778
+
+# Sampling config gRPC
+EXPOSE 5779
 
 # Collector OTLP gRPC
 EXPOSE 4317
