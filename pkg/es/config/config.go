@@ -81,10 +81,7 @@ type Configuration struct {
 	MaxDocCount              int                    `mapstructure:"-"` // Defines maximum number of results to fetch from storage per query
 	MaxSpanAge               time.Duration          `mapstructure:"-"` // configures the maximum lookback on span reads
 	Timeout                  time.Duration          `mapstructure:"-"`
-	BulkSize                 int                    `mapstructure:"-"`
-	BulkWorkers              int                    `mapstructure:"-"`
-	BulkActions              int                    `mapstructure:"-"`
-	BulkFlushInterval        time.Duration          `mapstructure:"-"`
+	BulkProcessing           BulkProcessing         `mapstructure:"bulk_processing"`
 	Indices                  Indices                `mapstructure:"indices"`
 	ServiceCacheTTL          time.Duration          `mapstructure:"service_cache_ttl"`
 	AdaptiveSamplingLookback time.Duration          `mapstructure:"-"`
@@ -121,6 +118,17 @@ type Sniffing struct {
 	Enabled bool `mapstructure:"enabled"`
 	// UseHTTPS, if set to true, sets the HTTP scheme to HTTPS when performing sniffing.
 	UseHTTPS bool `mapstructure:"tls_enabled"`
+}
+
+type BulkProcessing struct {
+	// Size, contains the number of bytes which specifies when to flush.
+	Size int `mapstructure:"size"`
+	// Workers contains the number of concurrent workers allowed to be executed.
+	Workers int `mapstructure:"workers"`
+	// Actions contain the number of added actions which specifies when to flush.
+	Actions int `mapstructure:"actions"`
+	// FlushInterval is the interval at the end of which a flush occurs.
+	FlushInterval time.Duration `mapstructure:"flush_interval"`
 }
 
 // NewClient creates a new ElasticSearch client
@@ -180,10 +188,10 @@ func NewClient(c *Configuration, logger *zap.Logger, metricsFactory metrics.Fact
 					zap.Any("response", response))
 			}
 		}).
-		BulkSize(c.BulkSize).
-		Workers(c.BulkWorkers).
-		BulkActions(c.BulkActions).
-		FlushInterval(c.BulkFlushInterval).
+		BulkSize(c.BulkProcessing.Size).
+		Workers(c.BulkProcessing.Workers).
+		BulkActions(c.BulkProcessing.Actions).
+		FlushInterval(c.BulkProcessing.FlushInterval).
 		Do(context.Background())
 	if err != nil {
 		return nil, err
@@ -290,17 +298,17 @@ func (c *Configuration) ApplyDefaults(source *Configuration) {
 	setDefaultIndexOptions(&c.Indices.Services, &source.Indices.Services)
 	setDefaultIndexOptions(&c.Indices.Dependencies, &source.Indices.Dependencies)
 
-	if c.BulkSize == 0 {
-		c.BulkSize = source.BulkSize
+	if c.BulkProcessing.Size == 0 {
+		c.BulkProcessing.Size = source.BulkProcessing.Size
 	}
-	if c.BulkWorkers == 0 {
-		c.BulkWorkers = source.BulkWorkers
+	if c.BulkProcessing.Workers == 0 {
+		c.BulkProcessing.Workers = source.BulkProcessing.Workers
 	}
-	if c.BulkActions == 0 {
-		c.BulkActions = source.BulkActions
+	if c.BulkProcessing.Actions == 0 {
+		c.BulkProcessing.Actions = source.BulkProcessing.Actions
 	}
-	if c.BulkFlushInterval == 0 {
-		c.BulkFlushInterval = source.BulkFlushInterval
+	if c.BulkProcessing.FlushInterval == 0 {
+		c.BulkProcessing.FlushInterval = source.BulkProcessing.FlushInterval
 	}
 	if !c.Sniffing.UseHTTPS {
 		c.Sniffing.UseHTTPS = source.Sniffing.UseHTTPS

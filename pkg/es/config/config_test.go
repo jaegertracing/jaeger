@@ -123,8 +123,10 @@ func TestNewClient(t *testing.T) {
 				LogLevel:              "debug",
 				Username:              "user",
 				PasswordFilePath:      "",
-				BulkSize:              -1, // disable bulk; we want immediate flush
-				Version:               8,
+				BulkProcessing: BulkProcessing{
+					Size: -1, // disable bulk; we want immediate flush
+				},
+				Version: 8,
 			},
 			expectedError: false,
 		},
@@ -137,9 +139,11 @@ func TestNewClient(t *testing.T) {
 				LogLevel:              "debug",
 				Username:              "user",
 				PasswordFilePath:      "",
-				BulkSize:              -1, // disable bulk; we want immediate flush
-				Version:               0,
-				TLS:                   configtls.ClientConfig{Insecure: false},
+				BulkProcessing: BulkProcessing{
+					Size: -1, // disable bulk; we want immediate flush
+				},
+				Version: 0,
+				TLS:     configtls.ClientConfig{Insecure: false},
 			},
 			expectedError: false,
 		},
@@ -152,8 +156,10 @@ func TestNewClient(t *testing.T) {
 				LogLevel:              "debug",
 				Username:              "user",
 				PasswordFilePath:      "",
-				BulkSize:              -1, // disable bulk; we want immediate flush
-				Version:               0,
+				BulkProcessing: BulkProcessing{
+					Size: -1, // disable bulk; we want immediate flush
+				},
+				Version: 0,
 				TLS: configtls.ClientConfig{
 					Insecure: true,
 					Config: configtls.Config{
@@ -173,8 +179,10 @@ func TestNewClient(t *testing.T) {
 				LogLevel:              "debug",
 				Username:              "user",
 				PasswordFilePath:      "",
-				BulkSize:              -1, // disable bulk; we want immediate flush
-				Version:               9,
+				BulkProcessing: BulkProcessing{
+					Size: -1, // disable bulk; we want immediate flush
+				},
+				Version: 9,
 			},
 			expectedError: false,
 		},
@@ -187,7 +195,9 @@ func TestNewClient(t *testing.T) {
 				LogLevel:              "debug",
 				Username:              "user",
 				PasswordFilePath:      "",
-				BulkSize:              -1, // disable bulk; we want immediate flush
+				BulkProcessing: BulkProcessing{
+					Size: -1, // disable bulk; we want immediate flush
+				},
 			},
 			expectedError: false,
 		},
@@ -200,7 +210,9 @@ func TestNewClient(t *testing.T) {
 				LogLevel:              "debug",
 				Username:              "user",
 				PasswordFilePath:      "",
-				BulkSize:              -1, // disable bulk; we want immediate flush
+				BulkProcessing: BulkProcessing{
+					Size: -1, // disable bulk; we want immediate flush
+				},
 			},
 			expectedError: false,
 		},
@@ -213,7 +225,9 @@ func TestNewClient(t *testing.T) {
 				LogLevel:              "debug",
 				Username:              "user",
 				PasswordFilePath:      pwdFile,
-				BulkSize:              -1, // disable bulk; we want immediate flush
+				BulkProcessing: BulkProcessing{
+					Size: -1, // disable bulk; we want immediate flush
+				},
 			},
 			expectedError: false,
 		},
@@ -226,7 +240,9 @@ func TestNewClient(t *testing.T) {
 				LogLevel:              "debug",
 				Username:              "user",
 				PasswordFilePath:      pwdFile,
-				BulkSize:              -1, // disable bulk; we want immediate flush
+				BulkProcessing: BulkProcessing{
+					Size: -1, // disable bulk; we want immediate flush
+				},
 			},
 			expectedError: true,
 		},
@@ -239,7 +255,9 @@ func TestNewClient(t *testing.T) {
 				LogLevel:              "debug",
 				Username:              "user",
 				PasswordFilePath:      "",
-				BulkSize:              -1, // disable bulk; we want immediate flush
+				BulkProcessing: BulkProcessing{
+					Size: -1, // disable bulk; we want immediate flush
+				},
 			},
 			expectedError: true,
 		},
@@ -252,7 +270,9 @@ func TestNewClient(t *testing.T) {
 				LogLevel:              "invalid",
 				Username:              "user",
 				PasswordFilePath:      "",
-				BulkSize:              -1, // disable bulk; we want immediate flush
+				BulkProcessing: BulkProcessing{
+					Size: -1, // disable bulk; we want immediate flush
+				},
 			},
 			expectedError: true,
 		},
@@ -265,8 +285,10 @@ func TestNewClient(t *testing.T) {
 				LogLevel:              "invalid",
 				Username:              "user",
 				PasswordFilePath:      "",
-				BulkWorkers:           0,
-				BulkSize:              -1, // disable bulk; we want immediate flush
+				BulkProcessing: BulkProcessing{
+					Workers: 0,
+					Size:    -1, // disable bulk; we want immediate flush
+				},
 			},
 			expectedError: true,
 		},
@@ -279,7 +301,10 @@ func TestNewClient(t *testing.T) {
 				LogLevel:              "info",
 				Username:              "user",
 				PasswordFilePath:      "",
-				BulkSize:              -1, // disable bulk; we want immediate flush
+				BulkProcessing: BulkProcessing{
+					Workers: 0,
+					Size:    -1, // disable bulk; we want immediate flush
+				},
 			},
 			expectedError: false,
 		},
@@ -292,7 +317,9 @@ func TestNewClient(t *testing.T) {
 				LogLevel:              "error",
 				Username:              "user",
 				PasswordFilePath:      "",
-				BulkSize:              -1, // disable bulk; we want immediate flush
+				BulkProcessing: BulkProcessing{
+					Size: -1, // disable bulk; we want immediate flush
+				},
 			},
 			expectedError: false,
 		},
@@ -347,14 +374,16 @@ func TestApplyDefaults(t *testing.T) {
 			},
 			Sampling: IndexOptions{},
 		},
-		BulkSize:          1000,
-		BulkWorkers:       10,
-		BulkActions:       100,
-		BulkFlushInterval: 30,
-		Tags:              TagsAsFields{AllAsFields: true, DotReplacement: "dot", Include: "include", File: "file"},
-		MaxDocCount:       10000,
-		LogLevel:          "info",
-		SendGetBodyAs:     "json",
+		BulkProcessing: BulkProcessing{
+			Size:          1000,
+			Workers:       10,
+			Actions:       100,
+			FlushInterval: 30,
+		},
+		Tags:          TagsAsFields{AllAsFields: true, DotReplacement: "dot", Include: "include", File: "file"},
+		MaxDocCount:   10000,
+		LogLevel:      "info",
+		SendGetBodyAs: "json",
 	}
 
 	tests := []struct {
@@ -419,14 +448,16 @@ func TestApplyDefaults(t *testing.T) {
 						Priority: 30,
 					},
 				},
-				BulkSize:          1000,
-				BulkWorkers:       10,
-				BulkActions:       100,
-				BulkFlushInterval: 30,
-				Tags:              TagsAsFields{AllAsFields: true, DotReplacement: "dot", Include: "include", File: "file"},
-				MaxDocCount:       10000,
-				LogLevel:          "info",
-				SendGetBodyAs:     "json",
+				BulkProcessing: BulkProcessing{
+					Size:          1000,
+					Workers:       10,
+					Actions:       100,
+					FlushInterval: 30,
+				},
+				Tags:          TagsAsFields{AllAsFields: true, DotReplacement: "dot", Include: "include", File: "file"},
+				MaxDocCount:   10000,
+				LogLevel:      "info",
+				SendGetBodyAs: "json",
 			},
 		},
 		{
@@ -459,14 +490,16 @@ func TestApplyDefaults(t *testing.T) {
 						Priority: 30,
 					},
 				},
-				BulkSize:          1000,
-				BulkWorkers:       10,
-				BulkActions:       100,
-				BulkFlushInterval: 30,
-				Tags:              TagsAsFields{AllAsFields: true, DotReplacement: "dot", Include: "include", File: "file"},
-				MaxDocCount:       10000,
-				LogLevel:          "info",
-				SendGetBodyAs:     "json",
+				BulkProcessing: BulkProcessing{
+					Size:          1000,
+					Workers:       10,
+					Actions:       100,
+					FlushInterval: 30,
+				},
+				Tags:          TagsAsFields{AllAsFields: true, DotReplacement: "dot", Include: "include", File: "file"},
+				MaxDocCount:   10000,
+				LogLevel:      "info",
+				SendGetBodyAs: "json",
 			},
 			expected: source,
 		},
