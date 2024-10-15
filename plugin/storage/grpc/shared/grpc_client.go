@@ -117,7 +117,7 @@ func (c *GRPCClient) ArchiveSpanWriter() spanstore.Writer {
 
 // GetTrace takes a traceID and returns a Trace associated with that traceID
 func (c *GRPCClient) GetTrace(ctx context.Context, traceID model.TraceID) (*model.Trace, error) {
-	stream, err := c.readerClient.GetTrace(ctx, &storage_v1.GetTraceRequest{
+	stream, err := c.readerClient.GetTrace(upgradeContext(ctx), &storage_v1.GetTraceRequest{
 		TraceID: traceID,
 	})
 	if status.Code(err) == codes.NotFound {
@@ -132,7 +132,7 @@ func (c *GRPCClient) GetTrace(ctx context.Context, traceID model.TraceID) (*mode
 
 // GetServices returns a list of all known services
 func (c *GRPCClient) GetServices(ctx context.Context) ([]string, error) {
-	resp, err := c.readerClient.GetServices(ctx, &storage_v1.GetServicesRequest{})
+	resp, err := c.readerClient.GetServices(upgradeContext(ctx), &storage_v1.GetServicesRequest{})
 	if err != nil {
 		return nil, fmt.Errorf("plugin error: %w", err)
 	}
@@ -145,7 +145,7 @@ func (c *GRPCClient) GetOperations(
 	ctx context.Context,
 	query spanstore.OperationQueryParameters,
 ) ([]spanstore.Operation, error) {
-	resp, err := c.readerClient.GetOperations(ctx, &storage_v1.GetOperationsRequest{
+	resp, err := c.readerClient.GetOperations(upgradeContext(ctx), &storage_v1.GetOperationsRequest{
 		Service:  query.ServiceName,
 		SpanKind: query.SpanKind,
 	})
@@ -173,7 +173,7 @@ func (c *GRPCClient) GetOperations(
 
 // FindTraces retrieves traces that match the traceQuery
 func (c *GRPCClient) FindTraces(ctx context.Context, query *spanstore.TraceQueryParameters) ([]*model.Trace, error) {
-	stream, err := c.readerClient.FindTraces(ctx, &storage_v1.FindTracesRequest{
+	stream, err := c.readerClient.FindTraces(upgradeContext(ctx), &storage_v1.FindTracesRequest{
 		Query: &storage_v1.TraceQueryParameters{
 			ServiceName:   query.ServiceName,
 			OperationName: query.OperationName,
@@ -212,7 +212,7 @@ func (c *GRPCClient) FindTraces(ctx context.Context, query *spanstore.TraceQuery
 
 // FindTraceIDs retrieves traceIDs that match the traceQuery
 func (c *GRPCClient) FindTraceIDs(ctx context.Context, query *spanstore.TraceQueryParameters) ([]model.TraceID, error) {
-	resp, err := c.readerClient.FindTraceIDs(ctx, &storage_v1.FindTraceIDsRequest{
+	resp, err := c.readerClient.FindTraceIDs(upgradeContext(ctx), &storage_v1.FindTraceIDsRequest{
 		Query: &storage_v1.TraceQueryParameters{
 			ServiceName:   query.ServiceName,
 			OperationName: query.OperationName,

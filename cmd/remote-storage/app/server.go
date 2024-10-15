@@ -101,17 +101,17 @@ func createGRPCServer(opts *Options, tm *tenancy.Manager, handler *shared.GRPCHa
 		grpcOpts = append(grpcOpts,
 			grpc.ChainUnaryInterceptor(
 				tenancy.NewGuardingUnaryInterceptor(tm),
-				bearertoken.NewGuardingUnaryInterceptor(),
+				bearertoken.NewUnaryServerInterceptor(),
 			),
 			grpc.ChainStreamInterceptor(
 				tenancy.NewGuardingStreamInterceptor(tm),
-				bearertoken.NewGuardingStreamInterceptor(),
+				bearertoken.NewStreamServerInterceptor(),
 			),
 		)
 	} else {
 		grpcOpts = append(grpcOpts,
-			grpc.UnaryInterceptor(bearertoken.NewGuardingUnaryInterceptor()),
-			grpc.StreamInterceptor(bearertoken.NewGuardingStreamInterceptor()),
+			grpc.UnaryInterceptor(bearertoken.NewUnaryServerInterceptor()),
+			grpc.StreamInterceptor(bearertoken.NewStreamServerInterceptor()),
 		)
 	}
 

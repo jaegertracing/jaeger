@@ -128,8 +128,8 @@ func (f *Factory) newRemoteStorage(telset component.TelemetrySettings, newClient
 		opts = append(opts, grpc.WithStreamInterceptor(tenancy.NewClientStreamInterceptor(tenancyMgr)))
 	}
 
-	opts = append(opts, grpc.WithUnaryInterceptor(bearertoken.NewClientUnaryInterceptor()))
-	opts = append(opts, grpc.WithStreamInterceptor(bearertoken.NewClientStreamInterceptor()))
+	opts = append(opts, grpc.WithUnaryInterceptor(bearertoken.NewUnaryClientInterceptor()))
+	opts = append(opts, grpc.WithStreamInterceptor(bearertoken.NewStreamClientInterceptor()))
 
 	remoteConn, err := newClient(opts...)
 	if err != nil {
