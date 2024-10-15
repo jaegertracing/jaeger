@@ -77,8 +77,7 @@ type Configuration struct {
 	TokenFilePath            string                 `mapstructure:"token_file"`
 	PasswordFilePath         string                 `mapstructure:"password_file"`
 	AllowTokenFromContext    bool                   `mapstructure:"-"`
-	Sniffer                  bool                   `mapstructure:"sniffer"` // https://github.com/olivere/elastic/wiki/Sniffing
-	SnifferTLSEnabled        bool                   `mapstructure:"sniffer_tls_enabled"`
+	Sniffing                 Sniffing               `mapstructure:"sniffing"`
 	MaxDocCount              int                    `mapstructure:"-"` // Defines maximum number of results to fetch from storage per query
 	MaxSpanAge               time.Duration          `mapstructure:"-"` // configures the maximum lookback on span reads
 	Timeout                  time.Duration          `mapstructure:"-"`
@@ -112,6 +111,16 @@ type TagsAsFields struct {
 	File string `mapstructure:"config_file"`
 	// Comma delimited list of tags to store as object fields
 	Include string `mapstructure:"include"`
+}
+
+// Sniffing sets the sniffing configuration for the ElasticSearch client, which is the process
+// of finding all the nodes of your cluster. Read more about sniffing at
+// https://github.com/olivere/elastic/wiki/Sniffing.
+type Sniffing struct {
+	// Enabled, if set to true, enables sniffing for the ElasticSearch client.
+	Enabled bool `mapstructure:"enabled"`
+	// UseHTTPS, if set to true, sets the HTTP scheme to HTTPS when performing sniffing.
+	UseHTTPS bool `mapstructure:"tls_enabled"`
 }
 
 // NewClient creates a new ElasticSearch client
@@ -222,7 +231,7 @@ func newElasticsearchV8(c *Configuration, logger *zap.Logger) (*esV8.Client, err
 	options.Addresses = c.Servers
 	options.Username = c.Username
 	options.Password = c.Password
-	options.DiscoverNodesOnStart = c.Sniffer
+	options.DiscoverNodesOnStart = c.Sniffing.Enabled
 	transport, err := GetHTTPRoundTripper(c, logger)
 	if err != nil {
 		return nil, err
@@ -264,8 +273,8 @@ func (c *Configuration) ApplyDefaults(source *Configuration) {
 	if c.Password == "" {
 		c.Password = source.Password
 	}
-	if !c.Sniffer {
-		c.Sniffer = source.Sniffer
+	if !c.Sniffing.Enabled {
+		c.Sniffing.Enabled = source.Sniffing.Enabled
 	}
 	if c.MaxSpanAge == 0 {
 		c.MaxSpanAge = source.MaxSpanAge
@@ -293,8 +302,8 @@ func (c *Configuration) ApplyDefaults(source *Configuration) {
 	if c.BulkFlushInterval == 0 {
 		c.BulkFlushInterval = source.BulkFlushInterval
 	}
-	if !c.SnifferTLSEnabled {
-		c.SnifferTLSEnabled = source.SnifferTLSEnabled
+	if !c.Sniffing.UseHTTPS {
+		c.Sniffing.UseHTTPS = source.Sniffing.UseHTTPS
 	}
 	if !c.Tags.AllAsFields {
 		c.Tags.AllAsFields = source.Tags.AllAsFields
@@ -361,13 +370,13 @@ func (c *Configuration) TagKeysAsFields() ([]string, error) {
 // getConfigOptions wraps the configs to feed to the ElasticSearch client init
 func (c *Configuration) getConfigOptions(logger *zap.Logger) ([]elastic.ClientOptionFunc, error) {
 	options := []elastic.ClientOptionFunc{
-		elastic.SetURL(c.Servers...), elastic.SetSniff(c.Sniffer),
+		elastic.SetURL(c.Servers...), elastic.SetSniff(c.Sniffing.Enabled),
 		// Disable health check when token from context is allowed, this is because at this time
 		// we don' have a valid token to do the check ad if we don't disable the check the service that
 		// uses this won't start.
 		elastic.SetHealthcheck(!c.AllowTokenFromContext),
 	}
-	if c.SnifferTLSEnabled {
+	if c.Sniffing.UseHTTPS {
 		options = append(options, elastic.SetScheme("https"))
 	}
 	httpClient := &http.Client{

@@ -319,10 +319,13 @@ func TestNewClient(t *testing.T) {
 
 func TestApplyDefaults(t *testing.T) {
 	source := &Configuration{
-		RemoteReadClusters:       []string{"cluster1", "cluster2"},
-		Username:                 "sourceUser",
-		Password:                 "sourcePass",
-		Sniffer:                  true,
+		RemoteReadClusters: []string{"cluster1", "cluster2"},
+		Username:           "sourceUser",
+		Password:           "sourcePass",
+		Sniffing: Sniffing{
+			Enabled:  true,
+			UseHTTPS: true,
+		},
 		MaxSpanAge:               100,
 		AdaptiveSamplingLookback: 50,
 		Indices: Indices{
@@ -348,7 +351,6 @@ func TestApplyDefaults(t *testing.T) {
 		BulkWorkers:       10,
 		BulkActions:       100,
 		BulkFlushInterval: 30,
-		SnifferTLSEnabled: true,
 		Tags:              TagsAsFields{AllAsFields: true, DotReplacement: "dot", Include: "include", File: "file"},
 		MaxDocCount:       10000,
 		LogLevel:          "info",
@@ -390,11 +392,13 @@ func TestApplyDefaults(t *testing.T) {
 				// Other fields left default
 			},
 			expected: &Configuration{
-				RemoteReadClusters:       []string{"customCluster"},
-				Username:                 "customUser",
-				Password:                 "sourcePass",
-				Sniffer:                  true,
-				SnifferTLSEnabled:        true,
+				RemoteReadClusters: []string{"customCluster"},
+				Username:           "customUser",
+				Password:           "sourcePass",
+				Sniffing: Sniffing{
+					Enabled:  true,
+					UseHTTPS: true,
+				},
 				MaxSpanAge:               100,
 				AdaptiveSamplingLookback: 50,
 				Indices: Indices{
@@ -428,10 +432,13 @@ func TestApplyDefaults(t *testing.T) {
 		{
 			name: "No Defaults Applied",
 			target: &Configuration{
-				RemoteReadClusters:       []string{"cluster1", "cluster2"},
-				Username:                 "sourceUser",
-				Password:                 "sourcePass",
-				Sniffer:                  true,
+				RemoteReadClusters: []string{"cluster1", "cluster2"},
+				Username:           "sourceUser",
+				Password:           "sourcePass",
+				Sniffing: Sniffing{
+					Enabled:  true,
+					UseHTTPS: true,
+				},
 				MaxSpanAge:               100,
 				AdaptiveSamplingLookback: 50,
 				Indices: Indices{
@@ -456,7 +463,6 @@ func TestApplyDefaults(t *testing.T) {
 				BulkWorkers:       10,
 				BulkActions:       100,
 				BulkFlushInterval: 30,
-				SnifferTLSEnabled: true,
 				Tags:              TagsAsFields{AllAsFields: true, DotReplacement: "dot", Include: "include", File: "file"},
 				MaxDocCount:       10000,
 				LogLevel:          "info",
