@@ -293,13 +293,16 @@ func TestUTF8Sanitizer_SanitizesMultipleAttributesWithInvalidKeys(t *testing.T) 
 		getBytesValueFromString(fmt.Sprintf("%s:v1", k1)),
 		getBytesValueFromString(fmt.Sprintf("%s:v2", k2)),
 	}
+	checked := make(map[pcommon.Value]bool)
 	value, ok := got.
 		Get("invalid-tag-key-1")
 	require.True(t, ok)
 	require.Contains(t, expectedValues, value)
+	checked[value] = true
 
 	value, ok = got.
 		Get("invalid-tag-key-2")
 	require.True(t, ok)
+	require.NotContains(t, checked, value)
 	require.Contains(t, expectedValues, value)
 }
