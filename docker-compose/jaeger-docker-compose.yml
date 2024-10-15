@@ -5,23 +5,16 @@ services:
         - '8080:8080'
         - '8083:8083'
       command: ["-m","prometheus","all"]
-      environment:
-        - JAEGER_AGENT_HOST=jaeger-agent
-        - JAEGER_AGENT_PORT=6831
-        - JAEGER_SAMPLER_TYPE=remote
-        - JAEGER_SAMPLING_ENDPOINT=http://jaeger-agent:5778/sampling
-      depends_on:
-        - jaeger-agent
 
     jaeger-collector:
       image: jaegertracing/jaeger-collector
-      command: 
+      command:
         - "--cassandra.keyspace=jaeger_v1_dc1"
         - "--cassandra.servers=cassandra"
         - "--collector.zipkin.host-port=9411"
         - "--sampling.initial-sampling-probability=.5"
         - "--sampling.target-samples-per-second=.01"
-      environment: 
+      environment:
         - SAMPLING_CONFIG_TYPE=adaptive
       ports:
         - "14269:14269"
@@ -42,18 +35,6 @@ services:
       depends_on:
         - cassandra-schema
 
-    jaeger-agent:
-      image: jaegertracing/jaeger-agent
-      command: ["--reporter.grpc.host-port=jaeger-collector:14250"]
-      ports:
-        - "5775:5775/udp"
-        - "6831:6831/udp"
-        - "6832:6832/udp"
-        - "5778:5778"
-      restart: on-failure
-      depends_on:
-        - jaeger-collector
-
     cassandra:
       image: cassandra:4.0
 
@@ -61,4 +42,3 @@ services:
       image: jaegertracing/jaeger-cassandra-schema
       depends_on:
         - cassandra
-

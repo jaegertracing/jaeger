@@ -45,7 +45,6 @@ services:
   jaeger-collector:
     image: jaegertracing/jaeger-collector
     command:
-      - "--collector.otlp.enabled=true"
       - "--log-level=debug"
     ports:
       - 4318:4318
@@ -88,27 +87,6 @@ services:
       - kafka
       - jaeger-remote-storage
 
-  jaeger-agent:
-    image: jaegertracing/jaeger-agent
-    command:
-      - "--reporter.grpc.host-port=jaeger-collector:14250"
-      - "--log-level=debug"
-    ports:
-      - "6831:6831/udp"
-      - "6832:6832/udp"
-      - "5778:5778"
-    restart: on-failure
-    healthcheck:
-      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:14271/ || exit 1"]
-      interval: 5s
-      timeout: 5s
-      retries: 3
-    depends_on:
-      jaeger-collector:
-        condition: service_healthy
-    links:
-      - jaeger-collector
-
   jaeger-query:
     image: jaegertracing/jaeger-query
     command:
@@ -116,7 +94,7 @@ services:
       - "--log-level=debug"
     environment:
       - SPAN_STORAGE_TYPE=grpc
-      - JAEGER_AGENT_HOST=jaeger-agent
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger-collector:4318
     ports:
       - "16686:16686"
       - "16687"
@@ -130,5 +108,4 @@ services:
       jaeger-remote-storage:
         condition: service_healthy
     links:
-      - jaeger-agent
       - jaeger-remote-storage

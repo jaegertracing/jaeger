@@ -34,11 +34,11 @@ func NewFactory() extension.Factory {
 func createDefaultConfig() component.Config {
 	return &Config{
 		HTTP: &confighttp.ServerConfig{
-			Endpoint: ports.PortToHostPort(ports.AgentConfigServerHTTP),
+			Endpoint: ports.PortToHostPort(ports.CollectorV2SamplingHTTP),
 		},
 		GRPC: &configgrpc.ServerConfig{
 			NetAddr: confignet.AddrConfig{
-				Endpoint:  ports.PortToHostPort(ports.AgentConfigServerHTTP + 1),
+				Endpoint:  ports.PortToHostPort(ports.CollectorV2SamplingGRPC),
 				Transport: confignet.TransportTypeTCP,
 			},
 		},
