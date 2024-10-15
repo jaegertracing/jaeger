@@ -70,21 +70,23 @@ func (p IndexPrefix) Apply(indexName string) string {
 
 // Configuration describes the configuration properties needed to connect to an ElasticSearch cluster
 type Configuration struct {
-	Servers                  []string               `mapstructure:"server_urls" valid:"required,url"`
-	RemoteReadClusters       []string               `mapstructure:"remote_read_clusters"`
-	Authentication           Authentication         `mapstructure:"auth"`
-	TokenFilePath            string                 `mapstructure:"token_file"`
-	AllowTokenFromContext    bool                   `mapstructure:"-"`
-	Sniffing                 Sniffing               `mapstructure:"sniffing"`
-	MaxDocCount              int                    `mapstructure:"-"` // Defines maximum number of results to fetch from storage per query
-	MaxSpanAge               time.Duration          `mapstructure:"-"` // configures the maximum lookback on span reads
-	Timeout                  time.Duration          `mapstructure:"-"`
+	Servers               []string       `mapstructure:"server_urls" valid:"required,url"`
+	RemoteReadClusters    []string       `mapstructure:"remote_read_clusters"`
+	Authentication        Authentication `mapstructure:"auth"`
+	TokenFilePath         string         `mapstructure:"token_file"`
+	AllowTokenFromContext bool           `mapstructure:"allow_token_from_context"`
+	Sniffing              Sniffing       `mapstructure:"sniffing"`
+	// MaxDocCount Defines maximum number of results to fetch from storage per query
+	MaxDocCount int `mapstructure:"max_doc_count"`
+	// MaxSpanAge configures the maximum lookback on span reads
+	MaxSpanAge               time.Duration          `mapstructure:"max_span_age"`
+	Timeout                  time.Duration          `mapstructure:"timeout"`
 	BulkProcessing           BulkProcessing         `mapstructure:"bulk_processing"`
 	Indices                  Indices                `mapstructure:"indices"`
 	ServiceCacheTTL          time.Duration          `mapstructure:"service_cache_ttl"`
-	AdaptiveSamplingLookback time.Duration          `mapstructure:"-"`
+	AdaptiveSamplingLookback time.Duration          `mapstructure:"adaptive_sampling_lookback"`
 	Tags                     TagsAsFields           `mapstructure:"tags_as_fields"`
-	Enabled                  bool                   `mapstructure:"-"`
+	Enabled                  bool                   `mapstructure:"enable"`
 	TLS                      configtls.ClientConfig `mapstructure:"tls"`
 	UseReadWriteAliases      bool                   `mapstructure:"use_aliases"`
 	CreateIndexTemplates     bool                   `mapstructure:"create_mappings"`
