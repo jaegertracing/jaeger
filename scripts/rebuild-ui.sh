@@ -7,7 +7,7 @@ set -euxf -o pipefail
 
 cd jaeger-ui
 
-git fetch --all --tags
+git fetch --all --unshallow --tags
 git log --oneline --decorate=full -n 10 | cat
 
 last_tag=$(git describe --tags --dirty 2>/dev/null)
@@ -32,4 +32,4 @@ if [[ "$last_tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]];  then
 fi
 
 # do a regular full build
-yarn install --frozen-lockfile && cd packages/jaeger-ui && yarn build
+npm ci && cd packages/jaeger-ui && npm run build
