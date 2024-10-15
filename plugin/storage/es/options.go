@@ -135,11 +135,11 @@ func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
 func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 	flagSet.String(
 		nsConfig.namespace+suffixUsername,
-		nsConfig.Username,
+		nsConfig.Authentication.BasicAuthentication.Username,
 		"The username required by Elasticsearch. The basic authentication also loads CA if it is specified.")
 	flagSet.String(
 		nsConfig.namespace+suffixPassword,
-		nsConfig.Password,
+		nsConfig.Authentication.BasicAuthentication.Password,
 		"The password required by Elasticsearch")
 	flagSet.String(
 		nsConfig.namespace+suffixTokenPath,
@@ -147,7 +147,7 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		"Path to a file containing bearer token. This flag also loads CA if it is specified.")
 	flagSet.String(
 		nsConfig.namespace+suffixPasswordPath,
-		nsConfig.PasswordFilePath,
+		nsConfig.Authentication.BasicAuthentication.PasswordFilePath,
 		"Path to a file containing password. This file is watched for changes.")
 	flagSet.Bool(
 		nsConfig.namespace+suffixSniffer,
@@ -311,10 +311,10 @@ func (opt *Options) InitFromViper(v *viper.Viper) {
 }
 
 func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
-	cfg.Username = v.GetString(cfg.namespace + suffixUsername)
-	cfg.Password = v.GetString(cfg.namespace + suffixPassword)
+	cfg.Authentication.BasicAuthentication.Username = v.GetString(cfg.namespace + suffixUsername)
+	cfg.Authentication.BasicAuthentication.Password = v.GetString(cfg.namespace + suffixPassword)
 	cfg.TokenFilePath = v.GetString(cfg.namespace + suffixTokenPath)
-	cfg.PasswordFilePath = v.GetString(cfg.namespace + suffixPasswordPath)
+	cfg.Authentication.BasicAuthentication.PasswordFilePath = v.GetString(cfg.namespace + suffixPasswordPath)
 	cfg.Sniffing.Enabled = v.GetBool(cfg.namespace + suffixSniffer)
 	cfg.Sniffing.UseHTTPS = v.GetBool(cfg.namespace + suffixSnifferTLSEnabled)
 	cfg.Servers = strings.Split(stripWhiteSpace(v.GetString(cfg.namespace+suffixServerURLs)), ",")
@@ -422,8 +422,12 @@ func initDateLayout(rolloverFreq, sep string) string {
 
 func DefaultConfig() config.Configuration {
 	return config.Configuration{
-		Username: "",
-		Password: "",
+		Authentication: config.Authentication{
+			BasicAuthentication: config.BasicAuthentication{
+				Username: "",
+				Password: "",
+			},
+		},
 		Sniffing: config.Sniffing{
 			Enabled: false,
 		},

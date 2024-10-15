@@ -72,10 +72,8 @@ func (p IndexPrefix) Apply(indexName string) string {
 type Configuration struct {
 	Servers                  []string               `mapstructure:"server_urls" valid:"required,url"`
 	RemoteReadClusters       []string               `mapstructure:"remote_read_clusters"`
-	Username                 string                 `mapstructure:"username"`
-	Password                 string                 `mapstructure:"password" json:"-"`
+	Authentication           Authentication         `mapstructure:"auth"`
 	TokenFilePath            string                 `mapstructure:"token_file"`
-	PasswordFilePath         string                 `mapstructure:"password_file"`
 	AllowTokenFromContext    bool                   `mapstructure:"-"`
 	Sniffing                 Sniffing               `mapstructure:"sniffing"`
 	MaxDocCount              int                    `mapstructure:"-"` // Defines maximum number of results to fetch from storage per query
@@ -129,6 +127,16 @@ type BulkProcessing struct {
 	Actions int `mapstructure:"actions"`
 	// FlushInterval is the interval at the end of which a flush occurs.
 	FlushInterval time.Duration `mapstructure:"flush_interval"`
+}
+
+type Authentication struct {
+	BasicAuthentication BasicAuthentication `mapstructure:"basic"`
+}
+
+type BasicAuthentication struct {
+	Username         string `mapstructure:"username"`
+	Password         string `mapstructure:"password" json:"-"`
+	PasswordFilePath string `mapstructure:"password_file"`
 }
 
 // NewClient creates a new ElasticSearch client
@@ -237,8 +245,8 @@ func NewClient(c *Configuration, logger *zap.Logger, metricsFactory metrics.Fact
 func newElasticsearchV8(c *Configuration, logger *zap.Logger) (*esV8.Client, error) {
 	var options esV8.Config
 	options.Addresses = c.Servers
-	options.Username = c.Username
-	options.Password = c.Password
+	options.Username = c.Authentication.BasicAuthentication.Username
+	options.Password = c.Authentication.BasicAuthentication.Password
 	options.DiscoverNodesOnStart = c.Sniffing.Enabled
 	transport, err := GetHTTPRoundTripper(c, logger)
 	if err != nil {
@@ -275,11 +283,11 @@ func (c *Configuration) ApplyDefaults(source *Configuration) {
 	if len(c.RemoteReadClusters) == 0 {
 		c.RemoteReadClusters = source.RemoteReadClusters
 	}
-	if c.Username == "" {
-		c.Username = source.Username
+	if c.Authentication.BasicAuthentication.Username == "" {
+		c.Authentication.BasicAuthentication.Username = source.Authentication.BasicAuthentication.Username
 	}
-	if c.Password == "" {
-		c.Password = source.Password
+	if c.Authentication.BasicAuthentication.Password == "" {
+		c.Authentication.BasicAuthentication.Password = source.Authentication.BasicAuthentication.Password
 	}
 	if !c.Sniffing.Enabled {
 		c.Sniffing.Enabled = source.Sniffing.Enabled
@@ -392,17 +400,17 @@ func (c *Configuration) getConfigOptions(logger *zap.Logger) ([]elastic.ClientOp
 	}
 	options = append(options, elastic.SetHttpClient(httpClient))
 
-	if c.Password != "" && c.PasswordFilePath != "" {
+	if c.Authentication.BasicAuthentication.Password != "" && c.Authentication.BasicAuthentication.PasswordFilePath != "" {
 		return nil, fmt.Errorf("both Password and PasswordFilePath are set")
 	}
-	if c.PasswordFilePath != "" {
-		passwordFromFile, err := loadTokenFromFile(c.PasswordFilePath)
+	if c.Authentication.BasicAuthentication.PasswordFilePath != "" {
+		passwordFromFile, err := loadTokenFromFile(c.Authentication.BasicAuthentication.PasswordFilePath)
 		if err != nil {
 			return nil, fmt.Errorf("failed to load password from file: %w", err)
 		}
-		c.Password = passwordFromFile
+		c.Authentication.BasicAuthentication.Password = passwordFromFile
 	}
-	options = append(options, elastic.SetBasicAuth(c.Username, c.Password))
+	options = append(options, elastic.SetBasicAuth(c.Authentication.BasicAuthentication.Username, c.Authentication.BasicAuthentication.Password))
 
 	if c.SendGetBodyAs != "" {
 		options = append(options, elastic.SetSendGetBodyAs(c.SendGetBodyAs))

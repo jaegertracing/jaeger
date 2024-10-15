@@ -119,10 +119,14 @@ func TestNewClient(t *testing.T) {
 			config: &Configuration{
 				Servers:               []string{testServer.URL},
 				AllowTokenFromContext: true,
-				Password:              "secret",
-				LogLevel:              "debug",
-				Username:              "user",
-				PasswordFilePath:      "",
+				Authentication: Authentication{
+					BasicAuthentication: BasicAuthentication{
+						Username:         "user",
+						Password:         "secret",
+						PasswordFilePath: "",
+					},
+				},
+				LogLevel: "debug",
 				BulkProcessing: BulkProcessing{
 					Size: -1, // disable bulk; we want immediate flush
 				},
@@ -135,10 +139,14 @@ func TestNewClient(t *testing.T) {
 			config: &Configuration{
 				Servers:               []string{testServer.URL},
 				AllowTokenFromContext: true,
-				Password:              "secret",
-				LogLevel:              "debug",
-				Username:              "user",
-				PasswordFilePath:      "",
+				Authentication: Authentication{
+					BasicAuthentication: BasicAuthentication{
+						Username:         "user",
+						Password:         "secret",
+						PasswordFilePath: "",
+					},
+				},
+				LogLevel: "debug",
 				BulkProcessing: BulkProcessing{
 					Size: -1, // disable bulk; we want immediate flush
 				},
@@ -152,10 +160,14 @@ func TestNewClient(t *testing.T) {
 			config: &Configuration{
 				Servers:               []string{testServer.URL},
 				AllowTokenFromContext: true,
-				Password:              "secret",
-				LogLevel:              "debug",
-				Username:              "user",
-				PasswordFilePath:      "",
+				Authentication: Authentication{
+					BasicAuthentication: BasicAuthentication{
+						Username:         "user",
+						Password:         "secret",
+						PasswordFilePath: "",
+					},
+				},
+				LogLevel: "debug",
 				BulkProcessing: BulkProcessing{
 					Size: -1, // disable bulk; we want immediate flush
 				},
@@ -175,10 +187,14 @@ func TestNewClient(t *testing.T) {
 			config: &Configuration{
 				Servers:               []string{testServer8.URL},
 				AllowTokenFromContext: true,
-				Password:              "secret",
-				LogLevel:              "debug",
-				Username:              "user",
-				PasswordFilePath:      "",
+				Authentication: Authentication{
+					BasicAuthentication: BasicAuthentication{
+						Username:         "user",
+						Password:         "secret",
+						PasswordFilePath: "",
+					},
+				},
+				LogLevel: "debug",
 				BulkProcessing: BulkProcessing{
 					Size: -1, // disable bulk; we want immediate flush
 				},
@@ -191,10 +207,14 @@ func TestNewClient(t *testing.T) {
 			config: &Configuration{
 				Servers:               []string{testServer1.URL},
 				AllowTokenFromContext: true,
-				Password:              "secret",
-				LogLevel:              "debug",
-				Username:              "user",
-				PasswordFilePath:      "",
+				Authentication: Authentication{
+					BasicAuthentication: BasicAuthentication{
+						Username:         "user",
+						Password:         "secret",
+						PasswordFilePath: "",
+					},
+				},
+				LogLevel: "debug",
 				BulkProcessing: BulkProcessing{
 					Size: -1, // disable bulk; we want immediate flush
 				},
@@ -206,10 +226,14 @@ func TestNewClient(t *testing.T) {
 			config: &Configuration{
 				Servers:               []string{testServer2.URL},
 				AllowTokenFromContext: true,
-				Password:              "secret",
-				LogLevel:              "debug",
-				Username:              "user",
-				PasswordFilePath:      "",
+				Authentication: Authentication{
+					BasicAuthentication: BasicAuthentication{
+						Username:         "user",
+						Password:         "secret",
+						PasswordFilePath: "",
+					},
+				},
+				LogLevel: "debug",
 				BulkProcessing: BulkProcessing{
 					Size: -1, // disable bulk; we want immediate flush
 				},
@@ -221,10 +245,14 @@ func TestNewClient(t *testing.T) {
 			config: &Configuration{
 				Servers:               []string{testServer.URL},
 				AllowTokenFromContext: true,
-				Password:              "",
-				LogLevel:              "debug",
-				Username:              "user",
-				PasswordFilePath:      pwdFile,
+				Authentication: Authentication{
+					BasicAuthentication: BasicAuthentication{
+						Username:         "user",
+						Password:         "",
+						PasswordFilePath: pwdFile,
+					},
+				},
+				LogLevel: "debug",
 				BulkProcessing: BulkProcessing{
 					Size: -1, // disable bulk; we want immediate flush
 				},
@@ -236,10 +264,14 @@ func TestNewClient(t *testing.T) {
 			config: &Configuration{
 				Servers:               []string{testServer.URL},
 				AllowTokenFromContext: true,
-				Password:              "secret",
-				LogLevel:              "debug",
-				Username:              "user",
-				PasswordFilePath:      pwdFile,
+				Authentication: Authentication{
+					BasicAuthentication: BasicAuthentication{
+						Username:         "user",
+						Password:         "secret",
+						PasswordFilePath: pwdFile,
+					},
+				},
+				LogLevel: "debug",
 				BulkProcessing: BulkProcessing{
 					Size: -1, // disable bulk; we want immediate flush
 				},
@@ -251,10 +283,14 @@ func TestNewClient(t *testing.T) {
 			config: &Configuration{
 				Servers:               []string{},
 				AllowTokenFromContext: true,
-				Password:              "secret",
-				LogLevel:              "debug",
-				Username:              "user",
-				PasswordFilePath:      "",
+				Authentication: Authentication{
+					BasicAuthentication: BasicAuthentication{
+						Username:         "user",
+						Password:         "secret",
+						PasswordFilePath: "",
+					},
+				},
+				LogLevel: "debug",
 				BulkProcessing: BulkProcessing{
 					Size: -1, // disable bulk; we want immediate flush
 				},
@@ -266,10 +302,14 @@ func TestNewClient(t *testing.T) {
 			config: &Configuration{
 				Servers:               []string{testServer.URL},
 				AllowTokenFromContext: true,
-				Password:              "secret",
-				LogLevel:              "invalid",
-				Username:              "user",
-				PasswordFilePath:      "",
+				Authentication: Authentication{
+					BasicAuthentication: BasicAuthentication{
+						Username:         "user",
+						Password:         "secret",
+						PasswordFilePath: "",
+					},
+				},
+				LogLevel: "invalid",
 				BulkProcessing: BulkProcessing{
 					Size: -1, // disable bulk; we want immediate flush
 				},
@@ -281,10 +321,14 @@ func TestNewClient(t *testing.T) {
 			config: &Configuration{
 				Servers:               []string{testServer.URL},
 				AllowTokenFromContext: true,
-				Password:              "secret",
-				LogLevel:              "invalid",
-				Username:              "user",
-				PasswordFilePath:      "",
+				Authentication: Authentication{
+					BasicAuthentication: BasicAuthentication{
+						Username:         "user",
+						Password:         "secret",
+						PasswordFilePath: "",
+					},
+				},
+				LogLevel: "invalid",
 				BulkProcessing: BulkProcessing{
 					Workers: 0,
 					Size:    -1, // disable bulk; we want immediate flush
@@ -297,10 +341,14 @@ func TestNewClient(t *testing.T) {
 			config: &Configuration{
 				Servers:               []string{testServer.URL},
 				AllowTokenFromContext: true,
-				Password:              "secret",
-				LogLevel:              "info",
-				Username:              "user",
-				PasswordFilePath:      "",
+				Authentication: Authentication{
+					BasicAuthentication: BasicAuthentication{
+						Username:         "user",
+						Password:         "secret",
+						PasswordFilePath: "",
+					},
+				},
+				LogLevel: "info",
 				BulkProcessing: BulkProcessing{
 					Workers: 0,
 					Size:    -1, // disable bulk; we want immediate flush
@@ -313,10 +361,14 @@ func TestNewClient(t *testing.T) {
 			config: &Configuration{
 				Servers:               []string{testServer.URL},
 				AllowTokenFromContext: true,
-				Password:              "secret",
-				LogLevel:              "error",
-				Username:              "user",
-				PasswordFilePath:      "",
+				Authentication: Authentication{
+					BasicAuthentication: BasicAuthentication{
+						Username:         "user",
+						Password:         "secret",
+						PasswordFilePath: "",
+					},
+				},
+				LogLevel: "error",
 				BulkProcessing: BulkProcessing{
 					Size: -1, // disable bulk; we want immediate flush
 				},
@@ -347,8 +399,12 @@ func TestNewClient(t *testing.T) {
 func TestApplyDefaults(t *testing.T) {
 	source := &Configuration{
 		RemoteReadClusters: []string{"cluster1", "cluster2"},
-		Username:           "sourceUser",
-		Password:           "sourcePass",
+		Authentication: Authentication{
+			BasicAuthentication: BasicAuthentication{
+				Username: "sourceUser",
+				Password: "sourcePass",
+			},
+		},
 		Sniffing: Sniffing{
 			Enabled:  true,
 			UseHTTPS: true,
@@ -406,7 +462,11 @@ func TestApplyDefaults(t *testing.T) {
 			name: "Some Defaults Applied",
 			target: &Configuration{
 				RemoteReadClusters: []string{"customCluster"},
-				Username:           "customUser",
+				Authentication: Authentication{
+					BasicAuthentication: BasicAuthentication{
+						Username: "customUser",
+					},
+				},
 				Indices: Indices{
 					Spans: IndexOptions{
 						Priority: 10,
@@ -422,8 +482,12 @@ func TestApplyDefaults(t *testing.T) {
 			},
 			expected: &Configuration{
 				RemoteReadClusters: []string{"customCluster"},
-				Username:           "customUser",
-				Password:           "sourcePass",
+				Authentication: Authentication{
+					BasicAuthentication: BasicAuthentication{
+						Username: "customUser",
+						Password: "sourcePass",
+					},
+				},
 				Sniffing: Sniffing{
 					Enabled:  true,
 					UseHTTPS: true,
@@ -464,8 +528,12 @@ func TestApplyDefaults(t *testing.T) {
 			name: "No Defaults Applied",
 			target: &Configuration{
 				RemoteReadClusters: []string{"cluster1", "cluster2"},
-				Username:           "sourceUser",
-				Password:           "sourcePass",
+				Authentication: Authentication{
+					BasicAuthentication: BasicAuthentication{
+						Username: "sourceUser",
+						Password: "sourcePass",
+					},
+				},
 				Sniffing: Sniffing{
 					Enabled:  true,
 					UseHTTPS: true,
