@@ -112,7 +112,7 @@ func newStorageExt(config *Config, telset component.TelemetrySettings) *storageE
 	}
 }
 
-func (s *storageExt) Start(_ context.Context, _ component.Host) error {
+func (s *storageExt) Start(_ context.Context, host component.Host) error {
 	baseFactory := otelmetrics.NewFactory(s.telset.MeterProvider)
 	mf := baseFactory.Namespace(metrics.NSOptions{Name: "jaeger"})
 	for storageName, cfg := range s.config.Backends {
@@ -126,7 +126,7 @@ func (s *storageExt) Start(_ context.Context, _ component.Host) error {
 			factory, err = badger.NewFactoryWithConfig(*cfg.Badger, mf, s.telset.Logger)
 		case cfg.GRPC != nil:
 			//nolint: contextcheck
-			factory, err = grpc.NewFactoryWithConfig(*cfg.GRPC, mf, s.telset.Logger)
+			factory, err = grpc.NewFactoryWithConfig(*cfg.GRPC, mf, s.telset.Logger, host)
 		case cfg.Cassandra != nil:
 			factory, err = cassandra.NewFactoryWithConfig(*cfg.Cassandra, mf, s.telset.Logger)
 		case cfg.Elasticsearch != nil:
