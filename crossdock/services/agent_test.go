@@ -7,6 +7,7 @@ package services
 import (
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -14,6 +15,7 @@ import (
 	"go.uber.org/zap"
 
 	p2json "github.com/jaegertracing/jaeger/model/converter/json"
+	"github.com/jaegertracing/jaeger/ports"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 )
 
@@ -82,11 +84,14 @@ func TestGetSamplingRate(t *testing.T) {
 	defer server.Close()
 
 	// Test with no http server
+	host := "0.0.0.0"
+	port := ports.CollectorHTTP
+	collectorURL := "http://" + host + ":" + strconv.Itoa(port)
 	agent := NewAgentService("", zap.NewNop())
 	_, err := agent.GetSamplingRate("svc", "op")
 	require.Error(t, err)
 
-	agent = NewAgentService(server.URL, zap.NewNop())
+	agent = NewAgentService(collectorURL, zap.NewNop())
 	rate, err := agent.GetSamplingRate("svc", "op")
 	require.NoError(t, err)
 	assert.InDelta(t, 1.0, rate, 0.01)

@@ -29,15 +29,15 @@ type agentService struct {
 }
 
 // NewAgentService returns an instance of AgentService.
-func NewAgentService(url string, logger *zap.Logger) AgentService {
+func NewAgentService(collectorURL string, logger *zap.Logger) AgentService {
 	return &agentService{
-		url:    url,
+		url:    collectorURL,
 		logger: logger,
 	}
 }
 
 func getSamplingURL(url string) string {
-	return url + "/sampling?service=%s"
+	return url + "/api/sampling?service=%s"
 }
 
 // GetSamplingRate returns the sampling rate for the service-operation from the agent service.
