@@ -98,6 +98,7 @@ func TestMappingTypeFromString(t *testing.T) {
 			result, err := MappingTypeFromString(tt.input)
 			if tt.hasError {
 				assert.Error(t, err)
+        assert.Equal(t, "unknown", result.String())
 			} else {
 				assert.NoError(t, err)
 				assert.Equal(t, tt.expected, result)
