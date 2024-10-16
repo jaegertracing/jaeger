@@ -6,6 +6,7 @@ package bearertoken
 import (
 	"context"
 	"fmt"
+
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 )
@@ -37,10 +38,10 @@ func getValidBearerToken(ctx context.Context, bearerHeader string) (string, erro
 func tokenFromMetadata(md metadata.MD, bearerHeader string) (string, error) {
 	bearerToken := md.Get(bearerHeader)
 	if len(bearerToken) < 1 {
-		return "", fmt.Errorf("malformed token: no token found")
+		return "", nil
 	}
 	if len(bearerToken) > 1 {
-		return "",	fmt.Errorf("malformed token: multiple tokens found")
+		return "", fmt.Errorf("malformed token: multiple tokens found")
 	}
 	return bearerToken[0], nil
 }
@@ -84,14 +85,13 @@ func NewUnaryClientInterceptor() grpc.UnaryClientInterceptor {
 		invoker grpc.UnaryInvoker,
 		opts ...grpc.CallOption,
 	) error {
-
 		md, _ := metadata.FromOutgoingContext(ctx)
-		if len(md[Key]) == 0 { 
+		if len(md[Key]) == 0 {
 			bearerToken, err := GetBearerToken(ctx)
-			if err != false {
+			if err {
 				return invoker(ctx, method, req, reply, cc, opts...) // Proceed without a token if there's an error
 			}
-			
+
 			if bearerToken != "" {
 				ctx = metadata.AppendToOutgoingContext(ctx, Key, bearerToken)
 			}
@@ -100,6 +100,7 @@ func NewUnaryClientInterceptor() grpc.UnaryClientInterceptor {
 		return invoker(ctx, method, req, reply, cc, opts...)
 	})
 }
+
 // NewStreamClientInterceptor injects the bearer token header into gRPC request metadata.
 func NewStreamClientInterceptor() grpc.StreamClientInterceptor {
 	return grpc.StreamClientInterceptor(func(
@@ -113,10 +114,10 @@ func NewStreamClientInterceptor() grpc.StreamClientInterceptor {
 		md, _ := metadata.FromOutgoingContext(ctx)
 		if len(md[Key]) == 0 {
 			bearerToken, err := GetBearerToken(ctx)
-			if err != false {
-				return streamer(ctx, desc, cc, method, opts...) 
+			if err {
+				return streamer(ctx, desc, cc, method, opts...)
 			}
-			
+
 			if bearerToken != "" {
 				ctx = metadata.AppendToOutgoingContext(ctx, Key, bearerToken)
 			}
