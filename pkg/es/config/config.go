@@ -39,15 +39,26 @@ const (
 
 // IndexOptions describes the index format and rollover frequency
 type IndexOptions struct {
-	Priority          int64  `mapstructure:"priority"`
-	DateLayout        string `mapstructure:"date_layout"`
-	Shards            int64  `mapstructure:"shards"`
-	Replicas          int64  `mapstructure:"replicas"`
+	// Priority contains the of index template (ESv8 only).
+	Priority   int64  `mapstructure:"priority"`
+	DateLayout string `mapstructure:"date_layout"`
+	// Shards is the number of shards per index in Elasticsearch.
+	Shards int64 `mapstructure:"shards"`
+	// Replicas is the number of replicas per index in Elasticsearch.
+	Replicas int64 `mapstructure:"replicas"`
+	// RolloverFrequency rotates indices over the given period. For example, "day" creates
+	// "jaeger-{index_type}-yyyy-MM-dd" every day after UTC 12AM.
+	// Valid configuration options are: [hour, day].
+	// This does not delete old indices.
+	// For details on complete index management solutions supported by Jaeger,
+	// refer to: https://www.jaegertracing.io/docs/deployment/#elasticsearch-rollover
 	RolloverFrequency string `mapstructure:"rollover_frequency"` // "hour" or "day"
 }
 
 // Indices describes different configuration options for each index type
 type Indices struct {
+	// IndexPrefix is an optional prefix to prepend to Jaeger indices.
+	// For example, sett this field to "production" creates "production-jaeger-*".
 	IndexPrefix  IndexPrefix  `mapstructure:"index_prefix"`
 	Spans        IndexOptions `mapstructure:"spans"`
 	Services     IndexOptions `mapstructure:"services"`
@@ -70,30 +81,56 @@ func (p IndexPrefix) Apply(indexName string) string {
 
 // Configuration describes the configuration properties needed to connect to an ElasticSearch cluster
 type Configuration struct {
-	Servers               []string       `mapstructure:"server_urls" valid:"required,url"`
-	RemoteReadClusters    []string       `mapstructure:"remote_read_clusters"`
-	Authentication        Authentication `mapstructure:"auth"`
-	TokenFilePath         string         `mapstructure:"token_file"`
-	AllowTokenFromContext bool           `mapstructure:"allow_token_from_context"`
-	Sniffing              Sniffing       `mapstructure:"sniffing"`
-	// MaxDocCount Defines maximum number of results to fetch from storage per query
+	// Servers is a list of Elasticsearch servers. The strings must must contain full URLs
+	// (i.e. http://localhost:9200).
+	Servers []string `mapstructure:"server_urls" valid:"required,url"`
+	// RemoteReadClusters is a list of Elasticsearch remote cluster names for cross-cluster
+	// querying.
+	RemoteReadClusters []string       `mapstructure:"remote_read_clusters"`
+	Authentication     Authentication `mapstructure:"auth"`
+	// TokenFilePath contains the path to a file containing a bearer token.
+	// This flag also loads CA if it is specified.
+	TokenFilePath string `mapstructure:"token_file"`
+	// AllowTokenFromContext, if set to true, enables reading bearer token from the context.
+	AllowTokenFromContext bool     `mapstructure:"allow_token_from_context"`
+	Sniffing              Sniffing `mapstructure:"sniffing"`
+	// MaxDocCount Defines maximum number of results to fetch from storage per query.
 	MaxDocCount int `mapstructure:"max_doc_count"`
-	// MaxSpanAge configures the maximum lookback on span reads
-	MaxSpanAge               time.Duration          `mapstructure:"max_span_age"`
-	Timeout                  time.Duration          `mapstructure:"timeout"`
-	BulkProcessing           BulkProcessing         `mapstructure:"bulk_processing"`
-	Indices                  Indices                `mapstructure:"indices"`
-	ServiceCacheTTL          time.Duration          `mapstructure:"service_cache_ttl"`
-	AdaptiveSamplingLookback time.Duration          `mapstructure:"adaptive_sampling_lookback"`
-	Tags                     TagsAsFields           `mapstructure:"tags_as_fields"`
-	Enabled                  bool                   `mapstructure:"enable"`
-	TLS                      configtls.ClientConfig `mapstructure:"tls"`
-	UseReadWriteAliases      bool                   `mapstructure:"use_aliases"`
-	CreateIndexTemplates     bool                   `mapstructure:"create_mappings"`
-	UseILM                   bool                   `mapstructure:"use_ilm"`
-	Version                  uint                   `mapstructure:"version"`
-	LogLevel                 string                 `mapstructure:"log_level"`
-	SendGetBodyAs            string                 `mapstructure:"send_get_body_as"`
+	// MaxSpanAge configures the maximum lookback on span reads.
+	MaxSpanAge time.Duration `mapstructure:"max_span_age"`
+	// Timeout contains the timeout used for queries. A timeout of zero means no timeout.
+	Timeout        time.Duration  `mapstructure:"timeout"`
+	BulkProcessing BulkProcessing `mapstructure:"bulk_processing"`
+	Indices        Indices        `mapstructure:"indices"`
+	// ServiceCacheTTL contains the TTL for the cache of known service names
+	ServiceCacheTTL time.Duration `mapstructure:"service_cache_ttl"`
+	// AdaptiveSamplingLookback contains the duration to look back for the
+	// latest adaptive sampling probabilities.
+	AdaptiveSamplingLookback time.Duration `mapstructure:"adaptive_sampling_lookback"`
+	Tags                     TagsAsFields  `mapstructure:"tags_as_fields"`
+	// Enabled, if set to true, enables the namespace for storage pointed to by this configuration.
+	Enabled bool `mapstructure:"enable"`
+	// TLS contains the TLS configuration for the connection to the ElasticSearch clusters.
+	TLS configtls.ClientConfig `mapstructure:"tls"`
+	// UseReadWriteAliases, if set to true, will use read and write aliases for indices.
+	// Use this option with Elasticsearch rollover API. It requires an external component
+	// to create aliases before startup and then performing its management.
+	UseReadWriteAliases bool `mapstructure:"use_aliases"`
+	// CreateIndexTemplates, if set to true, creates index templates at application startup.
+	// This configuration should be set to false when templates are installed manually.
+	CreateIndexTemplates bool `mapstructure:"create_mappings"`
+	// Option to enable Index Lifecycle Management (ILM) for Jaeger span and service indices.
+	// Read more about ILM at
+	// https://www.elastic.co/guide/en/elasticsearch/reference/current/index-lifecycle-management.html.
+	UseILM bool `mapstructure:"use_ilm"`
+	// Version contains the major Elasticsearch version. If this field is not specified,
+	// the value will be auto-detected from Elasticsearch.
+	Version uint `mapstructure:"version"`
+	// LogLevel contains the Elasticsearch client log-level. Valid values for this field
+	// are: [debug, info, error]
+	LogLevel string `mapstructure:"log_level"`
+	// SendGetBodyAs is the HTTP verb to use for requests that contain a body.
+	SendGetBodyAs string `mapstructure:"send_get_body_as"`
 }
 
 // TagsAsFields holds configuration for tag schema.
@@ -117,7 +154,7 @@ type Sniffing struct {
 	// Enabled, if set to true, enables sniffing for the ElasticSearch client.
 	Enabled bool `mapstructure:"enabled"`
 	// UseHTTPS, if set to true, sets the HTTP scheme to HTTPS when performing sniffing.
-	UseHTTPS bool `mapstructure:"tls_enabled"`
+	UseHTTPS bool `mapstructure:"use_https"`
 }
 
 type BulkProcessing struct {
@@ -136,8 +173,12 @@ type Authentication struct {
 }
 
 type BasicAuthentication struct {
-	Username         string `mapstructure:"username"`
-	Password         string `mapstructure:"password" json:"-"`
+	// Username contains the username required to connect to Elasticsearch.
+	Username string `mapstructure:"username"`
+	// Password contains The password required by Elasticsearch
+	Password string `mapstructure:"password" json:"-"`
+	// PasswordFilePath contains the path to a file containing password.
+	// This file is watched for changes.
 	PasswordFilePath string `mapstructure:"password_file"`
 }
 
