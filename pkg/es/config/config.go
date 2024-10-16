@@ -39,7 +39,7 @@ const (
 
 // IndexOptions describes the index format and rollover frequency
 type IndexOptions struct {
-	// Priority contains the of index template (ESv8 only).
+	// Priority contains the priority of index template (ESv8 only).
 	Priority   int64  `mapstructure:"priority"`
 	DateLayout string `mapstructure:"date_layout"`
 	// Shards is the number of shards per index in Elasticsearch.
@@ -58,7 +58,7 @@ type IndexOptions struct {
 // Indices describes different configuration options for each index type
 type Indices struct {
 	// IndexPrefix is an optional prefix to prepend to Jaeger indices.
-	// For example, sett this field to "production" creates "production-jaeger-*".
+	// For example, setting this field to "production" creates "production-jaeger-*".
 	IndexPrefix  IndexPrefix  `mapstructure:"index_prefix"`
 	Spans        IndexOptions `mapstructure:"spans"`
 	Services     IndexOptions `mapstructure:"services"`
@@ -158,14 +158,14 @@ type Sniffing struct {
 }
 
 type BulkProcessing struct {
-	// Size, contains the number of bytes which specifies when to flush.
-	Size int `mapstructure:"size"`
-	// Workers contains the number of concurrent workers allowed to be executed.
-	Workers int `mapstructure:"workers"`
-	// Actions contain the number of added actions which specifies when to flush.
-	Actions int `mapstructure:"actions"`
+	// MaxBytes, contains the number of bytes which specifies when to flush.
+	MaxBytes int `mapstructure:"max_bytes"`
 	// FlushInterval is the interval at the end of which a flush occurs.
 	FlushInterval time.Duration `mapstructure:"flush_interval"`
+	// Workers contains the number of concurrent workers allowed to be executed.
+	Workers int `mapstructure:"workers"`
+	// MaxActions contain the number of added actions which specifies when to flush.
+	MaxActions int `mapstructure:"max_actions"`
 }
 
 type Authentication struct {
@@ -239,9 +239,9 @@ func NewClient(c *Configuration, logger *zap.Logger, metricsFactory metrics.Fact
 					zap.Any("response", response))
 			}
 		}).
-		BulkSize(c.BulkProcessing.Size).
+		BulkSize(c.BulkProcessing.MaxBytes).
 		Workers(c.BulkProcessing.Workers).
-		BulkActions(c.BulkProcessing.Actions).
+		BulkActions(c.BulkProcessing.MaxActions).
 		FlushInterval(c.BulkProcessing.FlushInterval).
 		Do(context.Background())
 	if err != nil {
@@ -349,14 +349,14 @@ func (c *Configuration) ApplyDefaults(source *Configuration) {
 	setDefaultIndexOptions(&c.Indices.Services, &source.Indices.Services)
 	setDefaultIndexOptions(&c.Indices.Dependencies, &source.Indices.Dependencies)
 
-	if c.BulkProcessing.Size == 0 {
-		c.BulkProcessing.Size = source.BulkProcessing.Size
+	if c.BulkProcessing.MaxBytes == 0 {
+		c.BulkProcessing.MaxBytes = source.BulkProcessing.MaxBytes
 	}
 	if c.BulkProcessing.Workers == 0 {
 		c.BulkProcessing.Workers = source.BulkProcessing.Workers
 	}
-	if c.BulkProcessing.Actions == 0 {
-		c.BulkProcessing.Actions = source.BulkProcessing.Actions
+	if c.BulkProcessing.MaxActions == 0 {
+		c.BulkProcessing.MaxActions = source.BulkProcessing.MaxActions
 	}
 	if c.BulkProcessing.FlushInterval == 0 {
 		c.BulkProcessing.FlushInterval = source.BulkProcessing.FlushInterval

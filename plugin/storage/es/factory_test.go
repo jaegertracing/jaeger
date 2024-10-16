@@ -380,7 +380,7 @@ func testPasswordFromFile(t *testing.T, f *Factory, getClient func() es.Client, 
 			},
 		},
 		BulkProcessing: escfg.BulkProcessing{
-			Size: -1, // disable bulk; we want immediate flush
+			MaxBytes: -1, // disable bulk; we want immediate flush
 		},
 	}
 	f.archiveConfig = &escfg.Configuration{
@@ -394,7 +394,7 @@ func testPasswordFromFile(t *testing.T, f *Factory, getClient func() es.Client, 
 			},
 		},
 		BulkProcessing: escfg.BulkProcessing{
-			Size: -1, // disable bulk; we want immediate flush
+			MaxBytes: -1, // disable bulk; we want immediate flush
 		},
 	}
 	require.NoError(t, f.Initialize(metrics.NullFactory, zaptest.NewLogger(t)))

@@ -193,7 +193,7 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		"Priority of jaeger-dependecies index template (ESv8 only)")
 	flagSet.Int(
 		nsConfig.namespace+suffixBulkSize,
-		nsConfig.BulkProcessing.Size,
+		nsConfig.BulkProcessing.MaxBytes,
 		"The number of bytes that the bulk requests can take up before the bulk processor decides to commit")
 	flagSet.Int(
 		nsConfig.namespace+suffixBulkWorkers,
@@ -201,7 +201,7 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		"The number of workers that are able to receive bulk requests and eventually commit them to Elasticsearch")
 	flagSet.Int(
 		nsConfig.namespace+suffixBulkActions,
-		nsConfig.BulkProcessing.Actions,
+		nsConfig.BulkProcessing.MaxActions,
 		"The number of requests that can be enqueued before the bulk processor decides to commit")
 	flagSet.Duration(
 		nsConfig.namespace+suffixBulkFlushInterval,
@@ -336,9 +336,9 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	// cfg.Indices.Sampling does not have a separate flag
 	cfg.Indices.Dependencies.Priority = v.GetInt64(cfg.namespace + suffixPriorityDependenciesTemplate)
 
-	cfg.BulkProcessing.Size = v.GetInt(cfg.namespace + suffixBulkSize)
+	cfg.BulkProcessing.MaxBytes = v.GetInt(cfg.namespace + suffixBulkSize)
 	cfg.BulkProcessing.Workers = v.GetInt(cfg.namespace + suffixBulkWorkers)
-	cfg.BulkProcessing.Actions = v.GetInt(cfg.namespace + suffixBulkActions)
+	cfg.BulkProcessing.MaxActions = v.GetInt(cfg.namespace + suffixBulkActions)
 	cfg.BulkProcessing.FlushInterval = v.GetDuration(cfg.namespace + suffixBulkFlushInterval)
 	cfg.Timeout = v.GetDuration(cfg.namespace + suffixTimeout)
 	cfg.ServiceCacheTTL = v.GetDuration(cfg.namespace + suffixServiceCacheTTL)
@@ -434,9 +434,9 @@ func DefaultConfig() config.Configuration {
 		MaxSpanAge:               72 * time.Hour,
 		AdaptiveSamplingLookback: 72 * time.Hour,
 		BulkProcessing: config.BulkProcessing{
-			Size:          5 * 1000 * 1000,
+			MaxBytes:      5 * 1000 * 1000,
 			Workers:       1,
-			Actions:       1000,
+			MaxActions:    1000,
 			FlushInterval: time.Millisecond * 200,
 		},
 		Tags: config.TagsAsFields{
