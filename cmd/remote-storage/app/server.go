@@ -97,23 +97,23 @@ func createGRPCServer(opts *Options, tm *tenancy.Manager, handler *shared.GRPCHa
 		creds := credentials.NewTLS(tlsCfg)
 		grpcOpts = append(grpcOpts, grpc.Creds(creds))
 	}
-	if tm.Enabled {
-		grpcOpts = append(grpcOpts,
-			grpc.ChainUnaryInterceptor(
-				tenancy.NewGuardingUnaryInterceptor(tm),
-				bearertoken.NewUnaryServerInterceptor(),
-			),
-			grpc.ChainStreamInterceptor(
-				tenancy.NewGuardingStreamInterceptor(tm),
-				bearertoken.NewStreamServerInterceptor(),
-			),
-		)
-	} else {
-		grpcOpts = append(grpcOpts,
-			grpc.UnaryInterceptor(bearertoken.NewUnaryServerInterceptor()),
-			grpc.StreamInterceptor(bearertoken.NewStreamServerInterceptor()),
-		)
+
+
+	unaryInterceptors := []grpc.UnaryServerInterceptor{
+		bearertoken.NewUnaryServerInterceptor(),
 	}
+	streamInterceptors := []grpc.StreamServerInterceptor{
+		bearertoken.NewStreamServerInterceptor(),
+	}
+	if tm.Enabled {
+		unaryInterceptors = append(unaryInterceptors, tenancy.NewGuardingUnaryInterceptor(tm))
+		streamInterceptors = append(streamInterceptors, tenancy.NewGuardingStreamInterceptor(tm))
+	}
+
+	grpcOpts = append(grpcOpts,
+		grpc.ChainUnaryInterceptor(unaryInterceptors...),
+		grpc.ChainStreamInterceptor(streamInterceptors...),
+	)
 
 	server := grpc.NewServer(grpcOpts...)
 	healthServer := health.NewServer()
