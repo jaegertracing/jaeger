@@ -98,7 +98,6 @@ func createGRPCServer(opts *Options, tm *tenancy.Manager, handler *shared.GRPCHa
 		grpcOpts = append(grpcOpts, grpc.Creds(creds))
 	}
 
-
 	unaryInterceptors := []grpc.UnaryServerInterceptor{
 		bearertoken.NewUnaryServerInterceptor(),
 	}
