@@ -5,7 +5,11 @@
 
 set -euf -o pipefail
 
-# Prints usage information
+JAEGER_QUERY_URL="http://localhost:16686"
+EXPECTED_SPANS=35
+MAX_RETRIES=30
+SLEEP_INTERVAL=3
+
 print_help() {
   echo "Usage: $0 [-h] [-l] [-o] [-p platforms] [-d | -k]"
   echo "-h: Print help"
@@ -17,7 +21,6 @@ print_help() {
   exit 1
 }
 
-# Dumps the logs for docker compose
 dump_logs() {
   local compose_file=$1
   echo "::group:: Hotrod logs"
@@ -25,7 +28,17 @@ dump_logs() {
   echo "::endgroup::"
 }
 
-# Teardown logic for Docker
+teardown() {
+  if [[ "${TEST_MODE:-}" == "docker" ]]; then
+    teardown_docker
+  elif [[ "${TEST_MODE:-}" == "k8s" ]]; then
+    teardown_k8s
+  else
+    teardown_docker
+    teardown_k8s
+  fi
+}
+
 teardown_docker() {
   echo "Tearing down Docker..."
   if [[ "$success" == "false" ]]; then
@@ -34,61 +47,54 @@ teardown_docker() {
   docker compose -f "$docker_compose_file" down
 }
 
-# Teardown logic for Kubernetes
 teardown_k8s() {
   echo "Cleaning up Kubernetes resources..."
-  kill $HOTROD_PORT_FWD_PID || true
-  kill $JAEGER_PORT_FWD_PID || true
-  kustomize build /examples/hotrod/kubernetes | kubectl delete -f - || true
+  if [[ -n "${HOTROD_PORT_FWD_PID:-}" ]]; then
+    kill $HOTROD_PORT_FWD_PID || true
+  fi
+  if [[ -n "${JAEGER_PORT_FWD_PID:-}" ]]; then
+    kill $JAEGER_PORT_FWD_PID || true
+  fi
+  kubectl delete namespace example-hotrod --ignore-not-found=true
 }
 
-# Function to build binaries for the given platforms
-build_binaries_for_platforms() {
+build_setup() {
   local platforms=$1
+  
+  make prepare-docker-buildx
+  make create-baseimg LINUX_PLATFORMS="$platforms"
+  
+  # Build hotrod binary for each target platform
   for platform in $(echo "$platforms" | tr ',' ' '); do
-    os=${platform%%/*}   # Extract OS
-    arch=${platform##*/} # Extract architecture
+    local os=${platform%%/*}
+    local arch=${platform##*/}
     make build-examples GOOS="${os}" GOARCH="${arch}"
   done
+  
+  # Build local images for testing
+  bash scripts/build-upload-a-docker-image.sh -l -c example-hotrod -d examples/hotrod -p "${current_platform}"
+  make build-all-in-one
+  bash scripts/build-upload-a-docker-image.sh -l -b -c all-in-one -d cmd/all-in-one -p "${current_platform}" -t release
 }
 
-# Function to run Docker tests
-run_docker_tests() {
-  echo "Running Docker tests..."
-
-  run_docker_compose
-
-  check_web_app
-  check_home_page
-
-  TRACE_ID=$(get_trace_id)
-
-  wait_for_trace "$TRACE_ID"
-
-  success="true"
-}
-
-# Sets up docker-compose and waits for services to be ready
-run_docker_compose() {
-  echo '::group:: docker compose'
-  JAEGER_VERSION=$GITHUB_SHA REGISTRY="localhost:5000/" docker compose -f "$docker_compose_file" up -d
-  echo '::endgroup::'
-}
-
-# Checks if the web app is running
 check_web_app() {
-  i=0
+  local i=0
   while [[ "$(curl -s -o /dev/null -w '%{http_code}' localhost:8080)" != "200" && $i -lt 30 ]]; do
     sleep 1
     i=$((i+1))
   done
+  
+  if [[ $i -eq 30 ]]; then
+    echo "Timeout waiting for web app to become available"
+    exit 1
+  fi
 }
 
-# Verifies if the hotrod app's home page contains the expected string
-check_home_page() {
+verify_home_page() {
   echo '::group:: check HTML'
   echo 'Check that home page contains text Rides On Demand'
-  body=$(curl localhost:8080)
+  local body
+  body=$(curl -s localhost:8080)
   if [[ $body != *"Rides On Demand"* ]]; then
     echo "String \"Rides On Demand\" is not present on the index page"
     exit 1
@@ -96,119 +102,121 @@ check_home_page() {
   echo '::endgroup::'
 }
 
-# Extracts the trace ID from the POST response
 get_trace_id() {
-  local response=$(curl -i -X POST "http://localhost:8080/dispatch?customer=123")
-  local trace_id=$(echo "$response" | grep -Fi "Traceresponse:" | awk '{print $2}' | cut -d '-' -f 2)
-  if [ -n "$trace_id" ]; then
-    echo "TRACE_ID is not empty: $trace_id"
-  else
-    echo "TRACE_ID is empty"
+  local response
+  local trace_id
+  
+  response=$(curl -s -i -X POST "http://localhost:8080/dispatch?customer=123")
+  trace_id=$(echo "$response" | grep -Fi "Traceresponse:" | awk '{print $2}' | cut -d '-' -f 2)
+  
+  if [ -z "$trace_id" ]; then
+    echo "Failed to get trace ID" >&2
     exit 1
   fi
+  
   echo "$trace_id"
 }
 
-# Polls Jaeger for trace data
-poll_jaeger() {
-  local trace_id=$1
-  local url="${JAEGER_QUERY_URL}/api/traces/${trace_id}"
-  curl -s "${url}" | jq '.data[0].spans | length' || echo "0"
-}
-
-# Waits until Jaeger trace contains the expected number of spans
-wait_for_trace() {
+verify_trace() {
   local trace_id=$1
   local span_count=0
-
+  
   for ((i=1; i<=MAX_RETRIES; i++)); do
-    span_count=$(poll_jaeger "${trace_id}")
+    span_count=$(curl -s "${JAEGER_QUERY_URL}/api/traces/${trace_id}" | jq '.data[0].spans | length' || echo "0")
+    
     if [[ "$span_count" -ge "$EXPECTED_SPANS" ]]; then
       echo "Trace found with $span_count spans."
-      break
+      return 0
     fi
-    echo "Retry $i/$MAX_RETRIES: Trace not found or insufficient spans ($span_count/$EXPECTED_SPANS). Retrying in $SLEEP_INTERVAL seconds..."
+    
+    echo "Retry $i/$MAX_RETRIES: Found $span_count/$EXPECTED_SPANS spans. Retrying in $SLEEP_INTERVAL seconds..."
     sleep $SLEEP_INTERVAL
   done
-
-  if [[ "$span_count" -lt "$EXPECTED_SPANS" ]]; then
-    echo "Failed to find the trace with the expected number of spans within the timeout period."
-    exit 1
-  fi
+  
+  echo "Failed to find trace with expected number of spans within timeout period"
+  return 1
 }
 
-# Deploy Kubernetes resources for HotROD and Jaeger
-deploy_k8s_resources() {
-  echo "Deploying HotROD and Jaeger to Kubernetes..."
-  kustomize build /examples/hotrod/kubernetes | kubectl apply -f -
-
-  # Wait for services to be ready
-  kubectl wait --for=condition=available --timeout=180s deployment/example-hotrod -n example-hotrod
-  kubectl wait --for=condition=available --timeout=180s deployment/jaeger -n example-hotrod
-
-  # Port-forward HotROD and Jaeger services for local access
-  kubectl port-forward -n example-hotrod svc/example-hotrod 8080:frontend &
-  HOTROD_PORT_FWD_PID=$!
-  kubectl port-forward -n example-hotrod svc/jaeger 16686:frontend &
-  JAEGER_PORT_FWD_PID=$!
+run_docker_tests() {
+  TEST_MODE="docker"
+  echo "Running Docker tests..."
+  
+  JAEGER_VERSION=$GITHUB_SHA REGISTRY="localhost:5000/" docker compose -f "$docker_compose_file" up -d
+  
+  check_web_app
+  verify_home_page
+  
+  local trace_id
+  trace_id=$(get_trace_id)
+  verify_trace "$trace_id"
 }
 
-# Run Kubernetes integration tests
 run_k8s_tests() {
+  TEST_MODE="k8s"
   echo "Running Kubernetes tests..."
   
-  deploy_k8s_resources
+  # Create namespace and deploy resources
+  kubectl create namespace example-hotrod --dry-run=client -o yaml | kubectl apply -f -
+  kustomize build ./examples/hotrod/kubernetes | kubectl apply -n example-hotrod -f -
+  
+  # Wait for deployments
+  kubectl wait --for=condition=available --timeout=180s -n example-hotrod deployment/example-hotrod
+  kubectl wait --for=condition=available --timeout=180s -n example-hotrod deployment/jaeger
+  
+  # Setup port forwarding
+  kubectl port-forward -n example-hotrod svc/example-hotrod 8080:8080 &
+  HOTROD_PORT_FWD_PID=$!
+  kubectl port-forward -n example-hotrod svc/jaeger 16686:16686 &
+  JAEGER_PORT_FWD_PID=$!
+  
+  # Wait for port-forward to be ready
+  sleep 5
+  
   check_web_app
-  check_home_page
-
-  TRACE_ID=$(get_trace_id)
-  wait_for_trace "$TRACE_ID"
-
-  success="true"
+  verify_home_page
+  
+  local trace_id
+  trace_id=$(get_trace_id)
+  verify_trace "$trace_id"
 }
 
-# Main script execution
 main() {
   docker_compose_file="./examples/hotrod/docker-compose.yml"
   platforms="$(make echo-linux-platforms)"
   current_platform="$(go env GOOS)/$(go env GOARCH)"
   FLAGS=()
   success="false"
-
+  
+  trap teardown EXIT
+  
+  local run_docker=true
+  local run_kubernetes=true
+  
   while getopts "hlop:dk" opt; do
     case "${opt}" in
-      l)
-        FLAGS=("${FLAGS[@]}" -l)
-        ;;
-      o)
-        FLAGS=("${FLAGS[@]}" -o)
-        ;;
-      p)
-        platforms=${OPTARG}
-        ;;
-      d)
-        run_docker_tests
-        exit 0
-        ;;
-      k)
-        run_k8s_tests
-        exit 0
-        ;;
-      *)
-        print_help
-        ;;
+      l) FLAGS=("${FLAGS[@]}" -l) ;;
+      o) FLAGS=("${FLAGS[@]}" -o) ;;
+      p) platforms=${OPTARG} ;;
+      d) run_kubernetes=false ;;
+      k) run_docker=false ;;
+      *) print_help ;;
     esac
   done
-
-  # If no specific option was provided, run both Docker and Kubernetes tests
-  make prepare-docker-buildx
-  make create-baseimg LINUX_PLATFORMS="$platforms"
-  build_binaries_for_platforms "$platforms"
   
-  run_docker_tests
-  run_k8s_tests
-
+  build_setup "$platforms"
+  
+  if [[ "$run_docker" == "true" ]]; then
+    run_docker_tests
+  fi
+  
+  if [[ "$run_kubernetes" == "true" ]]; then
+    run_k8s_tests
+  fi
+  
   success="true"
+  
+  # Build and upload the final image
+  bash scripts/build-upload-a-docker-image.sh "${FLAGS[@]}" -c example-hotrod -d examples/hotrod -p "${platforms}"
 }
 
 main "$@"
