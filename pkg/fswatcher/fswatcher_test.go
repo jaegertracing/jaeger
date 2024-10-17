@@ -20,6 +20,7 @@ import (
 )
 
 func createTestFiles(t *testing.T) (file1 string, file2 string, file3 string) {
+	t.Helper()
 	testDir1 := t.TempDir()
 
 	file1 = filepath.Join(testDir1, "test1.doc")
@@ -222,6 +223,7 @@ func (df delayedFormat) String() string {
 }
 
 func assertLogs(t *testing.T, f func() bool, errorMsg string, logObserver *observer.ObservedLogs) {
+	t.Helper()
 	assert.Eventuallyf(t, f,
 		10*time.Second, 10*time.Millisecond,
 		errorMsg,

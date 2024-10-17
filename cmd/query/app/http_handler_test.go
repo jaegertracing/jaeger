@@ -93,6 +93,7 @@ type structuredTraceResponse struct {
 }
 
 func initializeTestServerWithHandler(t *testing.T, queryOptions querysvc.QueryServiceOptions, options ...HandlerOption) *testServer {
+	t.Helper()
 	return initializeTestServerWithOptions(
 		t,
 		&tenancy.Manager{},
@@ -116,6 +117,7 @@ func initializeTestServerWithOptions(
 	queryOptions querysvc.QueryServiceOptions,
 	options ...HandlerOption,
 ) *testServer {
+	t.Helper()
 	options = append(options, HandlerOptions.Logger(zaptest.NewLogger(t)))
 	readStorage := &spanstoremocks.Reader{}
 	dependencyStorage := &depsmocks.Reader{}
@@ -136,6 +138,7 @@ func initializeTestServerWithOptions(
 }
 
 func initializeTestServer(t *testing.T, options ...HandlerOption) *testServer {
+	t.Helper()
 	return initializeTestServerWithHandler(t, querysvc.QueryServiceOptions{}, options...)
 }
 
@@ -147,6 +150,7 @@ type testServer struct {
 }
 
 func withTestServer(t *testing.T, doTest func(s *testServer), queryOptions querysvc.QueryServiceOptions, options ...HandlerOption) {
+	t.Helper()
 	ts := initializeTestServerWithOptions(t, &tenancy.Manager{}, queryOptions, options...)
 	doTest(ts)
 }
@@ -265,6 +269,7 @@ func TestGetTrace(t *testing.T) {
 	}
 
 	makeMockTrace := func(t *testing.T) *model.Trace {
+		t.Helper()
 		out := new(bytes.Buffer)
 		err := new(jsonpb.Marshaler).Marshal(out, mockTrace)
 		require.NoError(t, err)
@@ -277,6 +282,7 @@ func TestGetTrace(t *testing.T) {
 	}
 
 	extractTraces := func(t *testing.T, response *structuredResponse) []ui.Trace {
+		t.Helper()
 		var traces []ui.Trace
 		bytes, err := json.Marshal(response.Data)
 		require.NoError(t, err)
@@ -475,6 +481,7 @@ func TestSearchFailures(t *testing.T) {
 }
 
 func testIndividualSearchFailures(t *testing.T, urlStr, errMsg string) {
+	t.Helper()
 	ts := initializeTestServer(t)
 	ts.spanReader.On("Query", mock.AnythingOfType("spanstore.TraceQueryParameters")).
 		Return([]*model.Trace{}, nil).Once()

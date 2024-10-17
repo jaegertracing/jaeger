@@ -86,15 +86,18 @@ func TestFromDomainEmbedProcess(t *testing.T) {
 }
 
 func loadFixturesUI(t *testing.T, i int) ([]byte, []byte) {
+	t.Helper()
 	return loadFixtures(t, i, false)
 }
 
 func loadFixturesES(t *testing.T, i int) ([]byte, []byte) {
+	t.Helper()
 	return loadFixtures(t, i, true)
 }
 
 // Loads and returns domain model and JSON model fixtures with given number i.
 func loadFixtures(t *testing.T, i int, processEmbedded bool) ([]byte, []byte) {
+	t.Helper()
 	var in string
 	if processEmbedded {
 		in = fmt.Sprintf("fixtures/domain_es_%02d.json", i)
@@ -115,6 +118,7 @@ func loadFixtures(t *testing.T, i int, processEmbedded bool) ([]byte, []byte) {
 }
 
 func testJSONEncoding(t *testing.T, i int, expectedStr []byte, object any, processEmbedded bool) {
+	t.Helper()
 	buf := &bytes.Buffer{}
 	enc := json.NewEncoder(buf)
 	enc.SetIndent("", "  ")

@@ -65,6 +65,7 @@ func TestAllInOne(t *testing.T) {
 }
 
 func healthCheck(t *testing.T) {
+	t.Helper()
 	require.Eventuallyf(t,
 		func() bool {
 			resp, err := http.Get(queryAddr + "/")
@@ -100,6 +101,7 @@ func healthCheckV2(t *testing.T) {
 }
 
 func httpGet(t *testing.T, url string) (*http.Response, []byte) {
+	t.Helper()
 	t.Logf("Executing HTTP GET %s", url)
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	require.NoError(t, err)

@@ -88,6 +88,7 @@ func (ts *TailSamplingIntegration) testTailSamplingProccessor(t *testing.T) {
 
 // generateTraces generates 5 traces using `tracegen` with one service per trace
 func (*TailSamplingIntegration) generateTraces(t *testing.T) {
+	t.Helper()
 	tracegenCmd := exec.Command("go", "run", "../../../../cmd/tracegen", "-traces", "5", "-services", "5")
 	out, err := tracegenCmd.CombinedOutput()
 	require.NoError(t, err)

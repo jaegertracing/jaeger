@@ -72,6 +72,7 @@ func TestAgentMetricsEndpoint(t *testing.T) {
 }
 
 func withRunningAgent(t *testing.T, testcase func(string, chan error)) {
+	t.Helper()
 	resetDefaultPrometheusRegistry()
 	cfg := Builder{
 		Processors: []ProcessorConfiguration{

@@ -295,6 +295,7 @@ type grpcClient struct {
 }
 
 func newGRPCClient(t *testing.T, addr string, creds credentials.TransportCredentials, tm *tenancy.Manager) *grpcClient {
+	t.Helper()
 	dialOpts := []grpc.DialOption{
 		grpc.WithUnaryInterceptor(tenancy.NewClientUnaryInterceptor(tm)),
 	}
@@ -407,6 +408,7 @@ func TestServerHandlesPortZero(t *testing.T) {
 }
 
 func validateGRPCServer(t *testing.T, hostPort string) {
+	t.Helper()
 	grpctest.ReflectionServiceValidator{
 		HostPort: hostPort,
 		ExpectedServices: []string{

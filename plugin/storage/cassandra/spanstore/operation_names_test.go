@@ -36,6 +36,7 @@ func withOperationNamesStorage(t *testing.T,
 	schemaVersion schemaVersion,
 	fn func(s *operationNameStorageTest),
 ) {
+	t.Helper()
 	session := &mocks.Session{}
 	logger, logBuffer := testutils.NewLogger()
 	metricsFactory := metricstest.NewFactory(0)

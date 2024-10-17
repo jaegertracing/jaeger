@@ -24,6 +24,7 @@ func TestMain(m *testing.M) {
 }
 
 func newTestFactory(t *testing.T, registry *promReg.Registry) metrics.Factory {
+	t.Helper()
 	exporter, err := prometheus.New(prometheus.WithRegisterer(registry), prometheus.WithoutScopeInfo())
 	require.NoError(t, err)
 	meterProvider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(exporter))
@@ -31,6 +32,7 @@ func newTestFactory(t *testing.T, registry *promReg.Registry) metrics.Factory {
 }
 
 func findMetric(t *testing.T, registry *promReg.Registry, name string) *promModel.MetricFamily {
+	t.Helper()
 	metricFamilies, err := registry.Gather()
 	require.NoError(t, err)
 

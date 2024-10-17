@@ -163,6 +163,7 @@ func TestExporter(t *testing.T) {
 }
 
 func makeStorageExtension(t *testing.T, memstoreName string) component.Host {
+	t.Helper()
 	telemetrySettings := component.TelemetrySettings{
 		Logger:         zaptest.NewLogger(t),
 		TracerProvider: nooptrace.NewTracerProvider(),

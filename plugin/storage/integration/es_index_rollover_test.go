@@ -47,6 +47,7 @@ func TestIndexRollover_CreateIndicesWithILM(t *testing.T) {
 }
 
 func runCreateIndicesWithILM(t *testing.T, ilmPolicyName string) {
+	t.Helper()
 	client, err := createESClient()
 	require.NoError(t, err)
 	esVersion, err := getVersion(client)
@@ -75,6 +76,7 @@ func runCreateIndicesWithILM(t *testing.T, ilmPolicyName string) {
 }
 
 func runIndexRolloverWithILMTest(t *testing.T, client *elastic.Client, prefix string, expectedIndices, envVars []string, ilmPolicyName string, adaptiveSampling bool) {
+	t.Helper()
 	writeAliases := []string{"jaeger-service-write", "jaeger-span-write", "jaeger-dependencies-write"}
 	if adaptiveSampling {
 		writeAliases = append(writeAliases, "jaeger-sampling-write")
@@ -140,6 +142,7 @@ func createILMPolicy(client *elastic.Client, policyName string) error {
 }
 
 func cleanES(t *testing.T, client *elastic.Client, policyName string) {
+	t.Helper()
 	_, err := client.DeleteIndex("*").Do(context.Background())
 	require.NoError(t, err)
 	esVersion, err := getVersion(client)

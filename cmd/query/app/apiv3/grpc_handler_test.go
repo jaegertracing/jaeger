@@ -31,6 +31,7 @@ var (
 )
 
 func newGrpcServer(t *testing.T, handler *Handler) (*grpc.Server, net.Addr) {
+	t.Helper()
 	server := grpc.NewServer()
 	api_v3.RegisterQueryServiceServer(server, handler)
 
@@ -52,6 +53,7 @@ type testServerClient struct {
 }
 
 func newTestServerClient(t *testing.T) *testServerClient {
+	t.Helper()
 	tsc := &testServerClient{
 		reader: &spanstoremocks.Reader{},
 	}

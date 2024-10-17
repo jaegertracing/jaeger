@@ -36,6 +36,7 @@ import (
 )
 
 func makeStorageExtension(t *testing.T, memstoreName string) component.Host {
+	t.Helper()
 	telemetrySettings := component.TelemetrySettings{
 		Logger:         zaptest.NewLogger(t),
 		TracerProvider: nooptrace.NewTracerProvider(),
@@ -66,6 +67,7 @@ func makeStorageExtension(t *testing.T, memstoreName string) component.Host {
 }
 
 func makeRemoteSamplingExtension(t *testing.T, cfg component.Config) component.Host {
+	t.Helper()
 	extensionFactory := NewFactory()
 	samplingExtension, err := extensionFactory.CreateExtension(
 		context.Background(),

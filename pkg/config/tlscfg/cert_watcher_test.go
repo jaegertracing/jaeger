@@ -30,6 +30,7 @@ const (
 )
 
 func copyToTempFile(t *testing.T, pattern string, filename string) (file *os.File, closeFn func()) {
+	t.Helper()
 	tempFile, err := os.CreateTemp("", pattern+"_")
 	require.NoError(t, err)
 
@@ -47,6 +48,7 @@ func copyToTempFile(t *testing.T, pattern string, filename string) (file *os.Fil
 }
 
 func copyFile(t *testing.T, dest string, src string) {
+	t.Helper()
 	certData, err := os.ReadFile(src)
 	require.NoError(t, err)
 	err = syncWrite(dest, certData, 0o644)
@@ -341,6 +343,7 @@ func assertLogs(t *testing.T,
 	logMsg string,
 	fields [][2]string,
 ) {
+	t.Helper()
 	errMsg := "Expecting log '" + logMsg + "'"
 	for _, field := range fields {
 		errMsg = errMsg + " " + field[0] + "=" + field[1]

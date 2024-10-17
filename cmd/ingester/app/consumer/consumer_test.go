@@ -81,6 +81,7 @@ func newConsumer(
 	processor processor.SpanProcessor,
 	consumer consumer.Consumer,
 ) *Consumer {
+	t.Helper()
 	logger, _ := zap.NewDevelopment()
 	consumerParams := Params{
 		MetricsFactory:   metricsFactory,

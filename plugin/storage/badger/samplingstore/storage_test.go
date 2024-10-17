@@ -22,6 +22,7 @@ func newTestSamplingStore(db *badger.DB) *SamplingStore {
 
 func TestInsertThroughput(t *testing.T) {
 	runWithBadger(t, func(t *testing.T, store *SamplingStore) {
+		t.Helper()
 		throughputs := []*samplemodel.Throughput{
 			{Service: "my-svc", Operation: "op"},
 			{Service: "our-svc", Operation: "op2"},
@@ -33,6 +34,7 @@ func TestInsertThroughput(t *testing.T) {
 
 func TestGetThroughput(t *testing.T) {
 	runWithBadger(t, func(t *testing.T, store *SamplingStore) {
+		t.Helper()
 		start := time.Now()
 		expected := []*samplemodel.Throughput{
 			{Service: "my-svc", Operation: "op"},
@@ -49,6 +51,7 @@ func TestGetThroughput(t *testing.T) {
 
 func TestInsertProbabilitiesAndQPS(t *testing.T) {
 	runWithBadger(t, func(t *testing.T, store *SamplingStore) {
+		t.Helper()
 		err := store.InsertProbabilitiesAndQPS(
 			"dell11eg843d",
 			samplemodel.ServiceOperationProbabilities{"new-srv": {"op": 0.1}},
@@ -60,6 +63,7 @@ func TestInsertProbabilitiesAndQPS(t *testing.T) {
 
 func TestGetLatestProbabilities(t *testing.T) {
 	runWithBadger(t, func(t *testing.T, store *SamplingStore) {
+		t.Helper()
 		err := store.InsertProbabilitiesAndQPS(
 			"dell11eg843d",
 			samplemodel.ServiceOperationProbabilities{"new-srv": {"op": 0.1}},
@@ -114,6 +118,7 @@ func TestDecodeThroughtputValue(t *testing.T) {
 }
 
 func runWithBadger(t *testing.T, test func(t *testing.T, store *SamplingStore)) {
+	t.Helper()
 	opts := badger.DefaultOptions("")
 
 	opts.SyncWrites = false

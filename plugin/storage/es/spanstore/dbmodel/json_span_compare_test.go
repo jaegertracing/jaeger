@@ -15,6 +15,7 @@ import (
 )
 
 func CompareJSONSpans(t *testing.T, expected *Span, actual *Span) {
+	t.Helper()
 	sortJSONSpan(expected)
 	sortJSONSpan(actual)
 

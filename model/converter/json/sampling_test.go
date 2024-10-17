@@ -69,6 +69,7 @@ func TestSamplingStrategyResponseToJSON(t *testing.T) {
 }
 
 func compareProtoAndThriftJSON(t *testing.T, thriftObj *api_v1.SamplingStrategyResponse) {
+	t.Helper()
 	protoObj, err := thriftconv.ConvertSamplingResponseToDomain(thriftObj)
 	require.NoError(t, err)
 

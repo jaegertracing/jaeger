@@ -36,5 +36,6 @@ func VerifyGoLeaks(m *testing.M) {
 //
 //	defer testutils.VerifyGoLeaksOnce(t)
 func VerifyGoLeaksOnce(t *testing.T) {
+	t.Helper()
 	goleak.VerifyNone(t, IgnoreGlogFlushDaemonLeak(), IgnoreOpenCensusWorkerLeak())
 }

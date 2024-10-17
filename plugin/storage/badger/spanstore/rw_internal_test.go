@@ -20,7 +20,8 @@ import (
 
 func TestEncodingTypes(t *testing.T) {
 	// JSON encoding
-	runWithBadger(t, func(store *badger.DB, t *testing.T) {
+	runWithBadger(t, func(t *testing.T, store *badger.DB) {
+		t.Helper()
 		testSpan := createDummySpan()
 
 		cache := NewCacheStore(store, time.Duration(1*time.Hour), true)
@@ -37,7 +38,8 @@ func TestEncodingTypes(t *testing.T) {
 	})
 
 	// Unknown encoding write
-	runWithBadger(t, func(store *badger.DB, t *testing.T) {
+	runWithBadger(t, func(t *testing.T, store *badger.DB) {
+		t.Helper()
 		testSpan := createDummySpan()
 
 		cache := NewCacheStore(store, time.Duration(1*time.Hour), true)
@@ -50,7 +52,8 @@ func TestEncodingTypes(t *testing.T) {
 	})
 
 	// Unknown encoding reader
-	runWithBadger(t, func(store *badger.DB, t *testing.T) {
+	runWithBadger(t, func(t *testing.T, store *badger.DB) {
+		t.Helper()
 		testSpan := createDummySpan()
 
 		cache := NewCacheStore(store, time.Duration(1*time.Hour), true)
@@ -90,7 +93,8 @@ func TestDecodeErrorReturns(t *testing.T) {
 }
 
 func TestDuplicateTraceIDDetection(t *testing.T) {
-	runWithBadger(t, func(store *badger.DB, t *testing.T) {
+	runWithBadger(t, func(t *testing.T, store *badger.DB) {
+		t.Helper()
 		testSpan := createDummySpan()
 		cache := NewCacheStore(store, time.Duration(1*time.Hour), true)
 		sw := NewSpanWriter(store, cache, time.Duration(1*time.Hour))

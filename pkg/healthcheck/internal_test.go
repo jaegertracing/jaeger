@@ -52,6 +52,7 @@ func TestHttpCall(t *testing.T) {
 }
 
 func parseHealthCheckResponse(t *testing.T, resp *http.Response) healthCheckResponse {
+	t.Helper()
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 	var hr healthCheckResponse

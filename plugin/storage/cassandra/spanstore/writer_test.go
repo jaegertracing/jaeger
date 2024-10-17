@@ -35,6 +35,7 @@ type spanWriterTest struct {
 
 func withSpanWriter(t *testing.T, writeCacheTTL time.Duration, fn func(w *spanWriterTest), options ...Option,
 ) {
+	t.Helper()
 	session := &mocks.Session{}
 	query := &mocks.Query{}
 	session.On("Query",

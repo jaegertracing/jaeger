@@ -16,6 +16,7 @@ import (
 
 // CompareSliceOfTraces compares two trace slices
 func CompareSliceOfTraces(t *testing.T, expected []*model.Trace, actual []*model.Trace) {
+	t.Helper()
 	require.Equal(t, len(expected), len(actual), "Unequal number of expected vs. actual traces")
 	model.SortTraces(expected)
 	model.SortTraces(actual)
@@ -52,6 +53,7 @@ func dedupeSpans(trace *model.Trace) {
 
 // CompareTraces compares two traces
 func CompareTraces(t *testing.T, expected *model.Trace, actual *model.Trace) {
+	t.Helper()
 	if expected.Spans == nil {
 		require.Nil(t, actual.Spans)
 		return
@@ -82,6 +84,7 @@ func CompareTraces(t *testing.T, expected *model.Trace, actual *model.Trace) {
 }
 
 func checkSize(t *testing.T, expected *model.Trace, actual *model.Trace) {
+	t.Helper()
 	require.Equal(t, len(expected.Spans), len(actual.Spans))
 	for i := range expected.Spans {
 		expectedSpan := expected.Spans[i]

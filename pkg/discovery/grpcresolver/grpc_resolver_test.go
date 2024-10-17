@@ -53,6 +53,7 @@ func (d erroredDiscoverer) Instances() ([]string, error) {
 }
 
 func startTestServers(t *testing.T, count int) *test {
+	t.Helper()
 	testInstance := &test{}
 	for i := 0; i < count; i++ {
 		lis, err := net.Listen("tcp", "localhost:0")
@@ -71,6 +72,7 @@ func startTestServers(t *testing.T, count int) *test {
 }
 
 func makeSureConnectionsUp(t *testing.T, count int, testc grpc_testing.TestServiceClient) {
+	t.Helper()
 	var p peer.Peer
 	addrs := make(map[string]struct{})
 	// Make sure connections to all servers are up.
@@ -96,6 +98,7 @@ func makeSureConnectionsUp(t *testing.T, count int, testc grpc_testing.TestServi
 }
 
 func assertRoundRobinCall(t *testing.T, connections int, testc grpc_testing.TestServiceClient) {
+	t.Helper()
 	addrs := make(map[string]struct{})
 	var p peer.Peer
 	for i := 0; i < connections; i++ {

@@ -32,6 +32,7 @@ type RemoteMemoryStorage struct {
 }
 
 func StartNewRemoteMemoryStorage(t *testing.T) *RemoteMemoryStorage {
+	t.Helper()
 	logger := zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller()))
 	opts := &app.Options{
 		GRPCHostPort: ports.PortToHostPort(ports.RemoteStorageGRPC),
@@ -83,6 +84,7 @@ func StartNewRemoteMemoryStorage(t *testing.T) *RemoteMemoryStorage {
 }
 
 func (s *RemoteMemoryStorage) Close(t *testing.T) {
+	t.Helper()
 	require.NoError(t, s.server.Close())
 	require.NoError(t, s.storageFactory.Close())
 }

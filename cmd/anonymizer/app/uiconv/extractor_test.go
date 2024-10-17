@@ -90,6 +90,7 @@ func TestExtractorTraceScanError(t *testing.T) {
 }
 
 func loadJSON(t *testing.T, fileName string, i any) {
+	t.Helper()
 	b, err := os.ReadFile(fileName)
 	require.NoError(t, err)
 	err = json.Unmarshal(b, i)

@@ -56,6 +56,7 @@ var mockEsServerResponseWithVersion8 = []byte(`
 `)
 
 func copyToTempFile(t *testing.T, pattern string, filename string) (file *os.File) {
+	t.Helper()
 	tempDir := t.TempDir()
 	tempFilePath := tempDir + "/" + pattern
 	tempFile, err := os.Create(tempFilePath)

@@ -54,6 +54,7 @@ func addFlags(flagSet *flag.FlagSet) {
 }
 
 func setConfig(t *testing.T) *viper.Viper {
+	t.Helper()
 	v, command := config.Viperize(addFlags, tenancy.AddFlags)
 	err := command.ParseFlags([]string{
 		"--test-plugin.binary=noop-test-plugin",
@@ -67,7 +68,8 @@ func setConfig(t *testing.T) *viper.Viper {
 	return v
 }
 
-func runPrintConfigCommand(v *viper.Viper, t *testing.T, allFlag bool) string {
+func runPrintConfigCommand(t *testing.T, v *viper.Viper, allFlag bool) string {
+	t.Helper()
 	buf := new(bytes.Buffer)
 	printCmd := Command(v)
 	printCmd.SetOut(buf)
@@ -105,7 +107,7 @@ func TestAllFlag(t *testing.T) {
 `
 
 	v := setConfig(t)
-	actual := runPrintConfigCommand(v, t, true)
+	actual := runPrintConfigCommand(t, v, true)
 	assert.Equal(t, expected, actual)
 }
 
@@ -124,7 +126,7 @@ func TestPrintConfigCommand(t *testing.T) {
 -----------------------------------------------------------------
 `
 	v := setConfig(t)
-	actual := runPrintConfigCommand(v, t, false)
+	actual := runPrintConfigCommand(t, v, false)
 	assert.Equal(t, expected, actual)
 }
 

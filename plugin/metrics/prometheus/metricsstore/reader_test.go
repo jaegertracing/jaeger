@@ -55,6 +55,7 @@ var defaultConfig = config.Configuration{
 }
 
 func tracerProvider(t *testing.T) (trace.TracerProvider, *tracetest.InMemoryExporter, func()) {
+	t.Helper()
 	exporter := tracetest.NewInMemoryExporter()
 	tp := sdktrace.NewTracerProvider(
 		sdktrace.WithSampler(sdktrace.AlwaysSample()),
@@ -713,6 +714,7 @@ type fakePromServer struct {
 }
 
 func newFakePromServer(t *testing.T) *fakePromServer {
+	t.Helper()
 	s := &fakePromServer{}
 	s.Server = httptest.NewServer(
 		http.HandlerFunc(
@@ -869,6 +871,7 @@ func TestInvalidCertFile(t *testing.T) {
 }
 
 func startMockPrometheusServer(t *testing.T, wantPromQlQuery string, wantWarnings []string) *httptest.Server {
+	t.Helper()
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if len(wantWarnings) > 0 {
 			sendResponse(t, w, "testdata/warning_response.json")
@@ -894,6 +897,7 @@ func startMockPrometheusServer(t *testing.T, wantPromQlQuery string, wantWarning
 }
 
 func sendResponse(t *testing.T, w http.ResponseWriter, responseFile string) {
+	t.Helper()
 	bytes, err := os.ReadFile(responseFile)
 	require.NoError(t, err)
 
@@ -919,6 +923,7 @@ func buildTestBaseQueryParametersFrom(tc metricsTestCase) metricsstore.BaseQuery
 }
 
 func prepareMetricsReaderAndServer(t *testing.T, config config.Configuration, wantPromQlQuery string, wantWarnings []string, tracer trace.TracerProvider) (metricsstore.Reader, *httptest.Server) {
+	t.Helper()
 	mockPrometheus := startMockPrometheusServer(t, wantPromQlQuery, wantWarnings)
 
 	logger := zap.NewNop()
@@ -934,6 +939,7 @@ func prepareMetricsReaderAndServer(t *testing.T, config config.Configuration, wa
 }
 
 func assertMetrics(t *testing.T, gotMetrics *metrics.MetricFamily, wantLabels map[string]string, wantName, wantDescription string) {
+	t.Helper()
 	assert.Len(t, gotMetrics.Metrics, 1)
 	assert.Equal(t, wantName, gotMetrics.Name)
 	assert.Equal(t, wantDescription, gotMetrics.Help)

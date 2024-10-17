@@ -65,6 +65,7 @@ type spanWriterTest struct {
 var _ spanstore.Writer = &SpanWriter{}
 
 func withSpanWriter(t *testing.T, fn func(span *model.Span, w *spanWriterTest)) {
+	t.Helper()
 	serviceMetrics := metricstest.NewFactory(100 * time.Millisecond)
 	defer serviceMetrics.Stop()
 	saramaConfig := sarama.NewConfig()

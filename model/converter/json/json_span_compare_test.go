@@ -17,6 +17,7 @@ import (
 )
 
 func CompareJSONSpans(t *testing.T, expected *esJson.Span, actual *esJson.Span) {
+	t.Helper()
 	sortJSONSpan(expected)
 	sortJSONSpan(actual)
 

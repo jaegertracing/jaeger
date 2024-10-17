@@ -37,6 +37,7 @@ type spanReaderTest struct {
 }
 
 func tracerProvider(t *testing.T) (trace.TracerProvider, *tracetest.InMemoryExporter, func()) {
+	t.Helper()
 	exporter := tracetest.NewInMemoryExporter()
 	tp := sdktrace.NewTracerProvider(
 		sdktrace.WithSampler(sdktrace.AlwaysSample()),
@@ -49,6 +50,7 @@ func tracerProvider(t *testing.T) (trace.TracerProvider, *tracetest.InMemoryExpo
 }
 
 func withSpanReader(t *testing.T, fn func(r *spanReaderTest)) {
+	t.Helper()
 	session := &mocks.Session{}
 	query := &mocks.Query{}
 	session.On("Query",

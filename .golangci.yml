@@ -102,6 +102,9 @@ linters:
     # Checks usage of github.com/stretchr/testify.
     - testifylint
 
+    # Thelper detects tests helpers which is not start with t.Helper() method.
+    - thelper
+
     # TODO consider adding more linters, cf. https://olegk.dev/go-linters-configuration-the-right-version
 
 linters-settings:

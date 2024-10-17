@@ -24,6 +24,7 @@ import (
 // We want to test the overflow behavior, so we block the consumer
 // by holding a startLock before submitting items to the queue.
 func helper(t *testing.T, startConsumers func(q *BoundedQueue, consumerFn func(item any))) {
+	t.Helper()
 	mFact := metricstest.NewFactory(0)
 	counter := mFact.Counter(metrics.Options{Name: "dropped", Tags: nil})
 	gauge := mFact.Gauge(metrics.Options{Name: "size", Tags: nil})
@@ -121,6 +122,7 @@ type consumerState struct {
 }
 
 func newConsumerState(t *testing.T) *consumerState {
+	t.Helper()
 	return &consumerState{
 		t:        t,
 		consumed: make(map[string]bool),

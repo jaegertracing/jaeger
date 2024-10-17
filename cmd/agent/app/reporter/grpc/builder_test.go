@@ -365,6 +365,7 @@ func (f *fakeInterceptor) intercept(ctx context.Context, method string, req, rep
 }
 
 func (f *fakeInterceptor) assertCalled(t *testing.T) {
+	t.Helper()
 	assert.True(t, f.isCalled)
 }
 

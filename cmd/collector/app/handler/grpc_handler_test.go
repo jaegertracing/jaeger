@@ -85,6 +85,7 @@ func (*mockSpanProcessor) Close() error {
 }
 
 func initializeGRPCTestServer(t *testing.T, beforeServe func(s *grpc.Server)) (*grpc.Server, net.Addr) {
+	t.Helper()
 	server := grpc.NewServer()
 	beforeServe(server)
 	lis, err := net.Listen("tcp", "localhost:0")
@@ -97,6 +98,7 @@ func initializeGRPCTestServer(t *testing.T, beforeServe func(s *grpc.Server)) (*
 }
 
 func newClient(t *testing.T, addr net.Addr) (api_v2.CollectorServiceClient, *grpc.ClientConn) {
+	t.Helper()
 	conn, err := grpc.NewClient(addr.String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	require.NoError(t, err)
 	return api_v2.NewCollectorServiceClient(conn), conn
@@ -203,7 +205,7 @@ func TestPostSpansWithError(t *testing.T) {
 }
 
 // withMetadata returns a Context with metadata for outbound (client) calls
-func withMetadata(ctx context.Context, headerName, headerValue string, t *testing.T) context.Context {
+func withMetadata(ctx context.Context, t *testing.T, headerName, headerValue string) context.Context {
 	t.Helper()
 
 	md := metadata.New(map[string]string{headerName: headerValue})
@@ -228,15 +230,15 @@ func TestPostTenantedSpans(t *testing.T) {
 	client, conn := newClient(t, addr)
 	defer conn.Close()
 
-	ctxWithTenant := withMetadata(context.Background(), tenantHeader, dummyTenant, t)
+	ctxWithTenant := withMetadata(context.Background(), t, tenantHeader, dummyTenant)
 	ctxNoTenant := context.Background()
 	mdTwoTenants := metadata.Pairs()
 	mdTwoTenants.Set(tenantHeader, "a", "b")
 	ctxTwoTenants := metadata.NewOutgoingContext(context.Background(), mdTwoTenants)
-	ctxBadTenant := withMetadata(context.Background(), tenantHeader, "invalid-tenant", t)
+	ctxBadTenant := withMetadata(context.Background(), t, tenantHeader, "invalid-tenant")
 
-	withMetadata(context.Background(),
-		tenantHeader, dummyTenant, t)
+	withMetadata(context.Background(), t,
+		tenantHeader, dummyTenant)
 
 	tests := []struct {
 		name            string
@@ -304,7 +306,7 @@ func TestPostTenantedSpans(t *testing.T) {
 }
 
 // withIncomingMetadata returns a Context with metadata for a server to receive
-func withIncomingMetadata(ctx context.Context, headerName, headerValue string, t *testing.T) context.Context {
+func withIncomingMetadata(ctx context.Context, t *testing.T, headerName, headerValue string) context.Context {
 	t.Helper()
 
 	md := metadata.New(map[string]string{headerName: headerValue})
@@ -327,7 +329,7 @@ func TestGetTenant(t *testing.T) {
 	}{
 		{
 			name:     "valid tenant",
-			ctx:      withIncomingMetadata(context.TODO(), tenantHeader, "acme", t),
+			ctx:      withIncomingMetadata(context.TODO(), t, tenantHeader, "acme"),
 			mustFail: false,
 			tenant:   "acme",
 		},
@@ -345,7 +347,7 @@ func TestGetTenant(t *testing.T) {
 		},
 		{
 			name:     "invalid tenant",
-			ctx:      withIncomingMetadata(context.TODO(), tenantHeader, "an-invalid-tenant", t),
+			ctx:      withIncomingMetadata(context.TODO(), t, tenantHeader, "an-invalid-tenant"),
 			mustFail: true,
 			tenant:   "",
 		},
