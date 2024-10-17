@@ -85,18 +85,27 @@ func NewUnaryClientInterceptor() grpc.UnaryClientInterceptor {
 		invoker grpc.UnaryInvoker,
 		opts ...grpc.CallOption,
 	) error {
-		md, _ := metadata.FromOutgoingContext(ctx)
-		if len(md[Key]) == 0 {
-			bearerToken, err := GetBearerToken(ctx)
-			if err {
-				return invoker(ctx, method, req, reply, cc, opts...) // Proceed without a token if there's an error
+		var token string
+		if md, ok := metadata.FromIncomingContext(ctx); ok {
+			tokens := md.Get(Key)
+			if len(tokens) > 1 {
+				return fmt.Errorf("malformed token: multiple tokens found")
 			}
-
-			if bearerToken != "" {
-				ctx = metadata.AppendToOutgoingContext(ctx, Key, bearerToken)
+			if len(tokens) == 1 && tokens[0] != "" {
+				token = tokens[0]
 			}
 		}
 
+		if token == "" {
+			bearerToken, ok := GetBearerToken(ctx)
+			if ok && bearerToken != "" {
+				token = bearerToken
+			}
+		}
+
+		if token != "" {
+			ctx = metadata.AppendToOutgoingContext(ctx, Key, token)
+		}
 		return invoker(ctx, method, req, reply, cc, opts...)
 	})
 }
@@ -111,18 +120,27 @@ func NewStreamClientInterceptor() grpc.StreamClientInterceptor {
 		streamer grpc.Streamer,
 		opts ...grpc.CallOption,
 	) (grpc.ClientStream, error) {
-		md, _ := metadata.FromOutgoingContext(ctx)
-		if len(md[Key]) == 0 {
-			bearerToken, err := GetBearerToken(ctx)
-			if err {
-				return streamer(ctx, desc, cc, method, opts...)
+		var token string
+		if md, ok := metadata.FromIncomingContext(ctx); ok {
+			tokens := md.Get(Key)
+			if len(tokens) > 1 {
+				return nil, fmt.Errorf("malformed token: multiple tokens found")
 			}
-
-			if bearerToken != "" {
-				ctx = metadata.AppendToOutgoingContext(ctx, Key, bearerToken)
+			if len(tokens) == 1 && tokens[0] != "" {
+				token = tokens[0]
 			}
 		}
 
+		if token == "" {
+			bearerToken, ok := GetBearerToken(ctx)
+			if ok && bearerToken != "" {
+				token = bearerToken
+			}
+		}
+
+		if token != "" {
+			ctx = metadata.AppendToOutgoingContext(ctx, Key, token)
+		}
 		return streamer(ctx, desc, cc, method, opts...)
 	})
 }
