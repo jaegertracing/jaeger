@@ -7,11 +7,10 @@ set -euxf -o pipefail
 
 cd jaeger-ui
 
-git fetch --all --tags
-is_shallow_repo=$(git rev-parse --is-shallow-repository)
-if [[ "$is_shallow_repo" == "true" ]]; then
+if [[ "$(git rev-parse --is-shallow-repository)" == "true" ]]; then
     git fetch --unshallow
 fi
+git fetch --all --tags
 git log --oneline --decorate=full -n 10 | cat
 
 last_tag=$(git describe --tags --dirty 2>/dev/null)
