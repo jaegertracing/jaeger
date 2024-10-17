@@ -97,10 +97,10 @@ func TestMappingTypeFromString(t *testing.T) {
 		t.Run(tt.input, func(t *testing.T) {
 			result, err := MappingTypeFromString(tt.input)
 			if tt.hasError {
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Equal(t, "unknown", result.String())
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.Equal(t, tt.expected, result)
 			}
 		})
