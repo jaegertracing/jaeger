@@ -117,13 +117,15 @@ func TestNewClient(t *testing.T) {
 		{
 			name: "success with valid configuration",
 			config: &Configuration{
-				Servers:               []string{testServer.URL},
-				AllowTokenFromContext: true,
+				Servers: []string{testServer.URL},
 				Authentication: Authentication{
 					BasicAuthentication: BasicAuthentication{
 						Username:         "user",
 						Password:         "secret",
 						PasswordFilePath: "",
+					},
+					BearerAuthentication: BearerAuthentication{
+						FromContext: true,
 					},
 				},
 				LogLevel: "debug",
@@ -137,13 +139,15 @@ func TestNewClient(t *testing.T) {
 		{
 			name: "success with valid configuration and tls enabled",
 			config: &Configuration{
-				Servers:               []string{testServer.URL},
-				AllowTokenFromContext: true,
+				Servers: []string{testServer.URL},
 				Authentication: Authentication{
 					BasicAuthentication: BasicAuthentication{
 						Username:         "user",
 						Password:         "secret",
 						PasswordFilePath: "",
+					},
+					BearerAuthentication: BearerAuthentication{
+						FromContext: true,
 					},
 				},
 				LogLevel: "debug",
@@ -158,13 +162,16 @@ func TestNewClient(t *testing.T) {
 		{
 			name: "success with valid configuration and reading token and certicate from file",
 			config: &Configuration{
-				Servers:               []string{testServer.URL},
-				AllowTokenFromContext: true,
+				Servers: []string{testServer.URL},
 				Authentication: Authentication{
 					BasicAuthentication: BasicAuthentication{
 						Username:         "user",
 						Password:         "secret",
 						PasswordFilePath: "",
+					},
+					BearerAuthentication: BearerAuthentication{
+						FromContext: true,
+						FilePath:    pwdtokenFile,
 					},
 				},
 				LogLevel: "debug",
@@ -178,20 +185,21 @@ func TestNewClient(t *testing.T) {
 						CAFile: certFilePath.Name(),
 					},
 				},
-				TokenFilePath: pwdtokenFile,
 			},
 			expectedError: false,
 		},
 		{
 			name: "succes with invalid configuration of version higher than 8",
 			config: &Configuration{
-				Servers:               []string{testServer8.URL},
-				AllowTokenFromContext: true,
+				Servers: []string{testServer8.URL},
 				Authentication: Authentication{
 					BasicAuthentication: BasicAuthentication{
 						Username:         "user",
 						Password:         "secret",
 						PasswordFilePath: "",
+					},
+					BearerAuthentication: BearerAuthentication{
+						FromContext: true,
 					},
 				},
 				LogLevel: "debug",
@@ -205,13 +213,15 @@ func TestNewClient(t *testing.T) {
 		{
 			name: "success with valid configuration with version 1",
 			config: &Configuration{
-				Servers:               []string{testServer1.URL},
-				AllowTokenFromContext: true,
+				Servers: []string{testServer1.URL},
 				Authentication: Authentication{
 					BasicAuthentication: BasicAuthentication{
 						Username:         "user",
 						Password:         "secret",
 						PasswordFilePath: "",
+					},
+					BearerAuthentication: BearerAuthentication{
+						FromContext: true,
 					},
 				},
 				LogLevel: "debug",
@@ -224,13 +234,15 @@ func TestNewClient(t *testing.T) {
 		{
 			name: "success with valid configuration with version 2",
 			config: &Configuration{
-				Servers:               []string{testServer2.URL},
-				AllowTokenFromContext: true,
+				Servers: []string{testServer2.URL},
 				Authentication: Authentication{
 					BasicAuthentication: BasicAuthentication{
 						Username:         "user",
 						Password:         "secret",
 						PasswordFilePath: "",
+					},
+					BearerAuthentication: BearerAuthentication{
+						FromContext: true,
 					},
 				},
 				LogLevel: "debug",
@@ -243,13 +255,15 @@ func TestNewClient(t *testing.T) {
 		{
 			name: "success with valid configuration password from file",
 			config: &Configuration{
-				Servers:               []string{testServer.URL},
-				AllowTokenFromContext: true,
+				Servers: []string{testServer.URL},
 				Authentication: Authentication{
 					BasicAuthentication: BasicAuthentication{
 						Username:         "user",
 						Password:         "",
 						PasswordFilePath: pwdFile,
+					},
+					BearerAuthentication: BearerAuthentication{
+						FromContext: true,
 					},
 				},
 				LogLevel: "debug",
@@ -262,13 +276,15 @@ func TestNewClient(t *testing.T) {
 		{
 			name: "fali with configuration password and password from file are set",
 			config: &Configuration{
-				Servers:               []string{testServer.URL},
-				AllowTokenFromContext: true,
+				Servers: []string{testServer.URL},
 				Authentication: Authentication{
 					BasicAuthentication: BasicAuthentication{
 						Username:         "user",
 						Password:         "secret",
 						PasswordFilePath: pwdFile,
+					},
+					BearerAuthentication: BearerAuthentication{
+						FromContext: true,
 					},
 				},
 				LogLevel: "debug",
@@ -281,13 +297,15 @@ func TestNewClient(t *testing.T) {
 		{
 			name: "fail with missing server",
 			config: &Configuration{
-				Servers:               []string{},
-				AllowTokenFromContext: true,
+				Servers: []string{},
 				Authentication: Authentication{
 					BasicAuthentication: BasicAuthentication{
 						Username:         "user",
 						Password:         "secret",
 						PasswordFilePath: "",
+					},
+					BearerAuthentication: BearerAuthentication{
+						FromContext: true,
 					},
 				},
 				LogLevel: "debug",
@@ -300,13 +318,15 @@ func TestNewClient(t *testing.T) {
 		{
 			name: "fail with invalid configuration invalid loglevel",
 			config: &Configuration{
-				Servers:               []string{testServer.URL},
-				AllowTokenFromContext: true,
+				Servers: []string{testServer.URL},
 				Authentication: Authentication{
 					BasicAuthentication: BasicAuthentication{
 						Username:         "user",
 						Password:         "secret",
 						PasswordFilePath: "",
+					},
+					BearerAuthentication: BearerAuthentication{
+						FromContext: true,
 					},
 				},
 				LogLevel: "invalid",
@@ -319,13 +339,15 @@ func TestNewClient(t *testing.T) {
 		{
 			name: "fail with invalid configuration invalid bulkworkers number",
 			config: &Configuration{
-				Servers:               []string{testServer.URL},
-				AllowTokenFromContext: true,
+				Servers: []string{testServer.URL},
 				Authentication: Authentication{
 					BasicAuthentication: BasicAuthentication{
 						Username:         "user",
 						Password:         "secret",
 						PasswordFilePath: "",
+					},
+					BearerAuthentication: BearerAuthentication{
+						FromContext: true,
 					},
 				},
 				LogLevel: "invalid",
@@ -339,13 +361,15 @@ func TestNewClient(t *testing.T) {
 		{
 			name: "success with valid configuration and info log level",
 			config: &Configuration{
-				Servers:               []string{testServer.URL},
-				AllowTokenFromContext: true,
+				Servers: []string{testServer.URL},
 				Authentication: Authentication{
 					BasicAuthentication: BasicAuthentication{
 						Username:         "user",
 						Password:         "secret",
 						PasswordFilePath: "",
+					},
+					BearerAuthentication: BearerAuthentication{
+						FromContext: true,
 					},
 				},
 				LogLevel: "info",
@@ -359,13 +383,15 @@ func TestNewClient(t *testing.T) {
 		{
 			name: "success with valid configuration and error log level",
 			config: &Configuration{
-				Servers:               []string{testServer.URL},
-				AllowTokenFromContext: true,
+				Servers: []string{testServer.URL},
 				Authentication: Authentication{
 					BasicAuthentication: BasicAuthentication{
 						Username:         "user",
 						Password:         "secret",
 						PasswordFilePath: "",
+					},
+					BearerAuthentication: BearerAuthentication{
+						FromContext: true,
 					},
 				},
 				LogLevel: "error",

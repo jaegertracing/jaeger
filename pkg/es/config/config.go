@@ -88,12 +88,7 @@ type Configuration struct {
 	// querying.
 	RemoteReadClusters []string       `mapstructure:"remote_read_clusters"`
 	Authentication     Authentication `mapstructure:"auth"`
-	// TokenFilePath contains the path to a file containing a bearer token.
-	// This flag also loads CA if it is specified.
-	TokenFilePath string `mapstructure:"token_file"`
-	// AllowTokenFromContext, if set to true, enables reading bearer token from the context.
-	AllowTokenFromContext bool     `mapstructure:"allow_token_from_context"`
-	Sniffing              Sniffing `mapstructure:"sniffing"`
+	Sniffing           Sniffing       `mapstructure:"sniffing"`
 	// MaxDocCount Defines maximum number of results to fetch from storage per query.
 	MaxDocCount int `mapstructure:"max_doc_count"`
 	// MaxSpanAge configures the maximum lookback on span reads.
@@ -160,16 +155,17 @@ type Sniffing struct {
 type BulkProcessing struct {
 	// MaxBytes, contains the number of bytes which specifies when to flush.
 	MaxBytes int `mapstructure:"max_bytes"`
+	// MaxActions contain the number of added actions which specifies when to flush.
+	MaxActions int `mapstructure:"max_actions"`
 	// FlushInterval is the interval at the end of which a flush occurs.
 	FlushInterval time.Duration `mapstructure:"flush_interval"`
 	// Workers contains the number of concurrent workers allowed to be executed.
 	Workers int `mapstructure:"workers"`
-	// MaxActions contain the number of added actions which specifies when to flush.
-	MaxActions int `mapstructure:"max_actions"`
 }
 
 type Authentication struct {
-	BasicAuthentication BasicAuthentication `mapstructure:"basic"`
+	BasicAuthentication  BasicAuthentication  `mapstructure:"basic"`
+	BearerAuthentication BearerAuthentication `mapstructure:"bearer"`
 }
 
 type BasicAuthentication struct {
@@ -180,6 +176,17 @@ type BasicAuthentication struct {
 	// PasswordFilePath contains the path to a file containing password.
 	// This file is watched for changes.
 	PasswordFilePath string `mapstructure:"password_file"`
+}
+
+// BearerAuthentication contains the configuration for attaching bearer tokens
+// when making HTTP requests. Note that TokenFilePath and AllowTokenFromContext
+// should not both be enabled. If both TokenFilePath and AllowTokenFromContext are set,
+// the TokenFilePath will be ignored.
+type BearerAuthentication struct {
+	// FilePath contains the path to a file containing a bearer token.
+	FilePath string `mapstructure:"file_path"`
+	// AllowTokenFromContext, if set to true, enables reading bearer token from the context.
+	FromContext bool `mapstructure:"from_context"`
 }
 
 // NewClient creates a new ElasticSearch client
@@ -431,9 +438,9 @@ func (c *Configuration) getConfigOptions(logger *zap.Logger) ([]elastic.ClientOp
 	options := []elastic.ClientOptionFunc{
 		elastic.SetURL(c.Servers...), elastic.SetSniff(c.Sniffing.Enabled),
 		// Disable health check when token from context is allowed, this is because at this time
-		// we don' have a valid token to do the check ad if we don't disable the check the service that
+		// we don'r have a valid token to do the check ad if we don't disable the check the service that
 		// uses this won't start.
-		elastic.SetHealthcheck(!c.AllowTokenFromContext),
+		elastic.SetHealthcheck(!c.Authentication.BearerAuthentication.FromContext),
 	}
 	if c.Sniffing.UseHTTPS {
 		options = append(options, elastic.SetScheme("https"))
@@ -533,20 +540,20 @@ func GetHTTPRoundTripper(c *Configuration, logger *zap.Logger) (http.RoundTrippe
 	}
 
 	token := ""
-	if c.TokenFilePath != "" {
-		if c.AllowTokenFromContext {
+	if c.Authentication.BearerAuthentication.FilePath != "" {
+		if c.Authentication.BearerAuthentication.FromContext {
 			logger.Warn("Token file and token propagation are both enabled, token from file won't be used")
 		}
-		tokenFromFile, err := loadTokenFromFile(c.TokenFilePath)
+		tokenFromFile, err := loadTokenFromFile(c.Authentication.BearerAuthentication.FilePath)
 		if err != nil {
 			return nil, err
 		}
 		token = tokenFromFile
 	}
-	if token != "" || c.AllowTokenFromContext {
+	if token != "" || c.Authentication.BearerAuthentication.FromContext {
 		transport = bearertoken.RoundTripper{
 			Transport:       httpTransport,
-			OverrideFromCtx: c.AllowTokenFromContext,
+			OverrideFromCtx: c.Authentication.BearerAuthentication.FromContext,
 			StaticToken:     token,
 		}
 	}

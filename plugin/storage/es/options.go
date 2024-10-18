@@ -143,7 +143,7 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		"The password required by Elasticsearch")
 	flagSet.String(
 		nsConfig.namespace+suffixTokenPath,
-		nsConfig.TokenFilePath,
+		nsConfig.Authentication.BearerAuthentication.FilePath,
 		"Path to a file containing bearer token. This flag also loads CA if it is specified.")
 	flagSet.String(
 		nsConfig.namespace+suffixPasswordPath,
@@ -313,7 +313,7 @@ func (opt *Options) InitFromViper(v *viper.Viper) {
 func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	cfg.Authentication.BasicAuthentication.Username = v.GetString(cfg.namespace + suffixUsername)
 	cfg.Authentication.BasicAuthentication.Password = v.GetString(cfg.namespace + suffixPassword)
-	cfg.TokenFilePath = v.GetString(cfg.namespace + suffixTokenPath)
+	cfg.Authentication.BearerAuthentication.FilePath = v.GetString(cfg.namespace + suffixTokenPath)
 	cfg.Authentication.BasicAuthentication.PasswordFilePath = v.GetString(cfg.namespace + suffixPasswordPath)
 	cfg.Sniffing.Enabled = v.GetBool(cfg.namespace + suffixSniffer)
 	cfg.Sniffing.UseHTTPS = v.GetBool(cfg.namespace + suffixSnifferTLSEnabled)
@@ -361,7 +361,7 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	cfg.UseILM = v.GetBool(cfg.namespace + suffixUseILM)
 
 	// TODO: Need to figure out a better way for do this.
-	cfg.AllowTokenFromContext = v.GetBool(bearertoken.StoragePropagationKey)
+	cfg.Authentication.BearerAuthentication.FromContext = v.GetBool(bearertoken.StoragePropagationKey)
 
 	remoteReadClusters := stripWhiteSpace(v.GetString(cfg.namespace + suffixRemoteReadClusters))
 	if len(remoteReadClusters) > 0 {
