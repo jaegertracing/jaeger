@@ -149,6 +149,7 @@ run_docker_tests() {
   local trace_id
   trace_id=$(get_trace_id)
   verify_trace "$trace_id"
+  teardown_docker
 }
 
 verify_cluster() {
@@ -169,17 +170,14 @@ run_k8s_tests() {
   verify_cluster || exit 1
   
   # Create namespace and deploy resources
-  kubectl create namespace example-hotrod --dry-run=client -o yaml | kubectl apply -f -
   kustomize build ./examples/hotrod/kubernetes | kubectl apply -n example-hotrod -f -
   
-  # Wait for deployments
-  kubectl wait --for=condition=available --timeout=180s -n example-hotrod deployment/example-hotrod
-  kubectl wait --for=condition=available --timeout=180s -n example-hotrod deployment/jaeger
-  
+  # # Wait for deployments
+  kubectl wait --for=condition=available --timeout=180s -n example-hotrod deployment/example-hotrod  
   # Setup port forwarding
-  kubectl port-forward -n example-hotrod svc/example-hotrod 8080:8080 &
+  kubectl port-forward -n example-hotrod service/example-hotrod 8080:frontend &
   HOTROD_PORT_FWD_PID=$!
-  kubectl port-forward -n example-hotrod svc/jaeger 16686:16686 &
+  kubectl port-forward -n example-hotrod service/jaeger 16686:frontend &
   JAEGER_PORT_FWD_PID=$!
   
   # Wait for port-forward to be ready
@@ -191,6 +189,7 @@ run_k8s_tests() {
   local trace_id
   trace_id=$(get_trace_id)
   verify_trace "$trace_id"
+  teardown_k8s
 }
 
 main() {
@@ -200,7 +199,7 @@ main() {
   FLAGS=()
   success="false"
   
-  trap teardown EXIT
+  # trap teardown EXIT
   
   local run_docker=true
   local run_kubernetes=true
