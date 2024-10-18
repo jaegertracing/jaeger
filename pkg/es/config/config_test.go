@@ -124,8 +124,8 @@ func TestNewClient(t *testing.T) {
 						Password:         "secret",
 						PasswordFilePath: "",
 					},
-					BearerAuthentication: BearerAuthentication{
-						FromContext: true,
+					BearerTokenAuthentication: BearerTokenAuthentication{
+						AllowFromContext: true,
 					},
 				},
 				LogLevel: "debug",
@@ -146,8 +146,8 @@ func TestNewClient(t *testing.T) {
 						Password:         "secret",
 						PasswordFilePath: "",
 					},
-					BearerAuthentication: BearerAuthentication{
-						FromContext: true,
+					BearerTokenAuthentication: BearerTokenAuthentication{
+						AllowFromContext: true,
 					},
 				},
 				LogLevel: "debug",
@@ -169,9 +169,9 @@ func TestNewClient(t *testing.T) {
 						Password:         "secret",
 						PasswordFilePath: "",
 					},
-					BearerAuthentication: BearerAuthentication{
-						FromContext: true,
-						FilePath:    pwdtokenFile,
+					BearerTokenAuthentication: BearerTokenAuthentication{
+						AllowFromContext: true,
+						FilePath:         pwdtokenFile,
 					},
 				},
 				LogLevel: "debug",
@@ -198,8 +198,8 @@ func TestNewClient(t *testing.T) {
 						Password:         "secret",
 						PasswordFilePath: "",
 					},
-					BearerAuthentication: BearerAuthentication{
-						FromContext: true,
+					BearerTokenAuthentication: BearerTokenAuthentication{
+						AllowFromContext: true,
 					},
 				},
 				LogLevel: "debug",
@@ -220,8 +220,8 @@ func TestNewClient(t *testing.T) {
 						Password:         "secret",
 						PasswordFilePath: "",
 					},
-					BearerAuthentication: BearerAuthentication{
-						FromContext: true,
+					BearerTokenAuthentication: BearerTokenAuthentication{
+						AllowFromContext: true,
 					},
 				},
 				LogLevel: "debug",
@@ -241,8 +241,8 @@ func TestNewClient(t *testing.T) {
 						Password:         "secret",
 						PasswordFilePath: "",
 					},
-					BearerAuthentication: BearerAuthentication{
-						FromContext: true,
+					BearerTokenAuthentication: BearerTokenAuthentication{
+						AllowFromContext: true,
 					},
 				},
 				LogLevel: "debug",
@@ -262,8 +262,8 @@ func TestNewClient(t *testing.T) {
 						Password:         "",
 						PasswordFilePath: pwdFile,
 					},
-					BearerAuthentication: BearerAuthentication{
-						FromContext: true,
+					BearerTokenAuthentication: BearerTokenAuthentication{
+						AllowFromContext: true,
 					},
 				},
 				LogLevel: "debug",
@@ -283,8 +283,8 @@ func TestNewClient(t *testing.T) {
 						Password:         "secret",
 						PasswordFilePath: pwdFile,
 					},
-					BearerAuthentication: BearerAuthentication{
-						FromContext: true,
+					BearerTokenAuthentication: BearerTokenAuthentication{
+						AllowFromContext: true,
 					},
 				},
 				LogLevel: "debug",
@@ -304,8 +304,8 @@ func TestNewClient(t *testing.T) {
 						Password:         "secret",
 						PasswordFilePath: "",
 					},
-					BearerAuthentication: BearerAuthentication{
-						FromContext: true,
+					BearerTokenAuthentication: BearerTokenAuthentication{
+						AllowFromContext: true,
 					},
 				},
 				LogLevel: "debug",
@@ -325,8 +325,8 @@ func TestNewClient(t *testing.T) {
 						Password:         "secret",
 						PasswordFilePath: "",
 					},
-					BearerAuthentication: BearerAuthentication{
-						FromContext: true,
+					BearerTokenAuthentication: BearerTokenAuthentication{
+						AllowFromContext: true,
 					},
 				},
 				LogLevel: "invalid",
@@ -346,8 +346,8 @@ func TestNewClient(t *testing.T) {
 						Password:         "secret",
 						PasswordFilePath: "",
 					},
-					BearerAuthentication: BearerAuthentication{
-						FromContext: true,
+					BearerTokenAuthentication: BearerTokenAuthentication{
+						AllowFromContext: true,
 					},
 				},
 				LogLevel: "invalid",
@@ -368,8 +368,8 @@ func TestNewClient(t *testing.T) {
 						Password:         "secret",
 						PasswordFilePath: "",
 					},
-					BearerAuthentication: BearerAuthentication{
-						FromContext: true,
+					BearerTokenAuthentication: BearerTokenAuthentication{
+						AllowFromContext: true,
 					},
 				},
 				LogLevel: "info",
@@ -390,8 +390,8 @@ func TestNewClient(t *testing.T) {
 						Password:         "secret",
 						PasswordFilePath: "",
 					},
-					BearerAuthentication: BearerAuthentication{
-						FromContext: true,
+					BearerTokenAuthentication: BearerTokenAuthentication{
+						AllowFromContext: true,
 					},
 				},
 				LogLevel: "error",

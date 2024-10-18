@@ -46,13 +46,12 @@ type IndexOptions struct {
 	Shards int64 `mapstructure:"shards"`
 	// Replicas is the number of replicas per index in Elasticsearch.
 	Replicas int64 `mapstructure:"replicas"`
-	// RolloverFrequency rotates indices over the given period. For example, "day" creates
-	// "jaeger-{index_type}-yyyy-MM-dd" every day after UTC 12AM.
+	// RolloverFrequency contains the rollover frequency setting used to fetch
+	// indices from elasticsearch.
 	// Valid configuration options are: [hour, day].
-	// This does not delete old indices.
-	// For details on complete index management solutions supported by Jaeger,
-	// refer to: https://www.jaegertracing.io/docs/deployment/#elasticsearch-rollover
-	RolloverFrequency string `mapstructure:"rollover_frequency"` // "hour" or "day"
+	// This setting does not affect the index rotation and is simply used for
+	// fetching indices.
+	RolloverFrequency string `mapstructure:"rollover_frequency"`
 }
 
 // Indices describes different configuration options for each index type
@@ -81,6 +80,7 @@ func (p IndexPrefix) Apply(indexName string) string {
 
 // Configuration describes the configuration properties needed to connect to an ElasticSearch cluster
 type Configuration struct {
+	// ---- connection related configs ----
 	// Servers is a list of Elasticsearch servers. The strings must must contain full URLs
 	// (i.e. http://localhost:9200).
 	Servers []string `mapstructure:"server_urls" valid:"required,url"`
@@ -93,9 +93,10 @@ type Configuration struct {
 	Sniffing Sniffing               `mapstructure:"sniffing"`
 	// SendGetBodyAs is the HTTP verb to use for requests that contain a body.
 	SendGetBodyAs string `mapstructure:"send_get_body_as"`
-	// Timeout contains the timeout used for queries. A timeout of zero means no timeout.
-	Timeout time.Duration `mapstructure:"timeout"`
+	// QueryTimeout contains the timeout used for queries. A timeout of zero means no timeout.
+	QueryTimeout time.Duration `mapstructure:"query_timeout"`
 
+	// ---- elasticsearch client related configs ----
 	BulkProcessing BulkProcessing `mapstructure:"bulk_processing"`
 	// Version contains the major Elasticsearch version. If this field is not specified,
 	// the value will be auto-detected from Elasticsearch.
@@ -104,6 +105,7 @@ type Configuration struct {
 	// are: [debug, info, error]
 	LogLevel string `mapstructure:"log_level"`
 
+	// ---- index related configs ----
 	Indices Indices `mapstructure:"indices"`
 	// UseReadWriteAliases, if set to true, will use read and write aliases for indices.
 	// Use this option with Elasticsearch rollover API. It requires an external component
@@ -114,9 +116,10 @@ type Configuration struct {
 	CreateIndexTemplates bool `mapstructure:"create_mappings"`
 	// Option to enable Index Lifecycle Management (ILM) for Jaeger span and service indices.
 	// Read more about ILM at
-	// https://www.elastic.co/guide/en/elasticsearch/reference/current/index-lifecycle-management.html.
+	// https://www.jaegertracing.io/docs/deployment/#enabling-ilm-support
 	UseILM bool `mapstructure:"use_ilm"`
 
+	// ---- jaeger-specific configs ----
 	// MaxDocCount Defines maximum number of results to fetch from storage per query.
 	MaxDocCount int `mapstructure:"max_doc_count"`
 	// MaxSpanAge configures the maximum lookback on span reads.
@@ -128,7 +131,7 @@ type Configuration struct {
 	AdaptiveSamplingLookback time.Duration `mapstructure:"adaptive_sampling_lookback"`
 	Tags                     TagsAsFields  `mapstructure:"tags_as_fields"`
 	// Enabled, if set to true, enables the namespace for storage pointed to by this configuration.
-	Enabled bool `mapstructure:"enable"`
+	Enabled bool `mapstructure:"-"`
 }
 
 // TagsAsFields holds configuration for tag schema.
@@ -167,8 +170,8 @@ type BulkProcessing struct {
 }
 
 type Authentication struct {
-	BasicAuthentication  BasicAuthentication  `mapstructure:"basic"`
-	BearerAuthentication BearerAuthentication `mapstructure:"bearer"`
+	BasicAuthentication       BasicAuthentication       `mapstructure:"basic"`
+	BearerTokenAuthentication BearerTokenAuthentication `mapstructure:"bearer_token"`
 }
 
 type BasicAuthentication struct {
@@ -181,15 +184,15 @@ type BasicAuthentication struct {
 	PasswordFilePath string `mapstructure:"password_file"`
 }
 
-// BearerAuthentication contains the configuration for attaching bearer tokens
+// BearerTokenAuthentication contains the configuration for attaching bearer tokens
 // when making HTTP requests. Note that TokenFilePath and AllowTokenFromContext
 // should not both be enabled. If both TokenFilePath and AllowTokenFromContext are set,
 // the TokenFilePath will be ignored.
-type BearerAuthentication struct {
+type BearerTokenAuthentication struct {
 	// FilePath contains the path to a file containing a bearer token.
 	FilePath string `mapstructure:"file_path"`
 	// AllowTokenFromContext, if set to true, enables reading bearer token from the context.
-	FromContext bool `mapstructure:"from_context"`
+	AllowFromContext bool `mapstructure:"from_context"`
 }
 
 // NewClient creates a new ElasticSearch client
@@ -443,13 +446,13 @@ func (c *Configuration) getConfigOptions(logger *zap.Logger) ([]elastic.ClientOp
 		// Disable health check when token from context is allowed, this is because at this time
 		// we don'r have a valid token to do the check ad if we don't disable the check the service that
 		// uses this won't start.
-		elastic.SetHealthcheck(!c.Authentication.BearerAuthentication.FromContext),
+		elastic.SetHealthcheck(!c.Authentication.BearerTokenAuthentication.AllowFromContext),
 	}
 	if c.Sniffing.UseHTTPS {
 		options = append(options, elastic.SetScheme("https"))
 	}
 	httpClient := &http.Client{
-		Timeout: c.Timeout,
+		Timeout: c.QueryTimeout,
 	}
 	options = append(options, elastic.SetHttpClient(httpClient))
 
@@ -543,20 +546,20 @@ func GetHTTPRoundTripper(c *Configuration, logger *zap.Logger) (http.RoundTrippe
 	}
 
 	token := ""
-	if c.Authentication.BearerAuthentication.FilePath != "" {
-		if c.Authentication.BearerAuthentication.FromContext {
+	if c.Authentication.BearerTokenAuthentication.FilePath != "" {
+		if c.Authentication.BearerTokenAuthentication.AllowFromContext {
 			logger.Warn("Token file and token propagation are both enabled, token from file won't be used")
 		}
-		tokenFromFile, err := loadTokenFromFile(c.Authentication.BearerAuthentication.FilePath)
+		tokenFromFile, err := loadTokenFromFile(c.Authentication.BearerTokenAuthentication.FilePath)
 		if err != nil {
 			return nil, err
 		}
 		token = tokenFromFile
 	}
-	if token != "" || c.Authentication.BearerAuthentication.FromContext {
+	if token != "" || c.Authentication.BearerTokenAuthentication.AllowFromContext {
 		transport = bearertoken.RoundTripper{
 			Transport:       httpTransport,
-			OverrideFromCtx: c.Authentication.BearerAuthentication.FromContext,
+			OverrideFromCtx: c.Authentication.BearerTokenAuthentication.AllowFromContext,
 			StaticToken:     token,
 		}
 	}

@@ -76,7 +76,7 @@ func runQueryService(t *testing.T, esURL string) *Server {
 	}))
 	f.InitFromViper(v, flagsSvc.Logger)
 	// set AllowTokenFromContext manually because we don't register the respective CLI flag from query svc
-	f.Options.Primary.Authentication.BearerAuthentication.FromContext = true
+	f.Options.Primary.Authentication.BearerTokenAuthentication.AllowFromContext = true
 	require.NoError(t, f.Initialize(metrics.NullFactory, flagsSvc.Logger))
 	defer f.Close()
 

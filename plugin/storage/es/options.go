@@ -143,7 +143,7 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		"The password required by Elasticsearch")
 	flagSet.String(
 		nsConfig.namespace+suffixTokenPath,
-		nsConfig.Authentication.BearerAuthentication.FilePath,
+		nsConfig.Authentication.BearerTokenAuthentication.FilePath,
 		"Path to a file containing bearer token. This flag also loads CA if it is specified.")
 	flagSet.String(
 		nsConfig.namespace+suffixPasswordPath,
@@ -164,7 +164,7 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 			"See Elasticsearch remote clusters and cross-cluster query api.")
 	flagSet.Duration(
 		nsConfig.namespace+suffixTimeout,
-		nsConfig.Timeout,
+		nsConfig.QueryTimeout,
 		"Timeout used for queries. A Timeout of zero means no timeout")
 	flagSet.Int64(
 		nsConfig.namespace+suffixNumShards,
@@ -313,7 +313,7 @@ func (opt *Options) InitFromViper(v *viper.Viper) {
 func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	cfg.Authentication.BasicAuthentication.Username = v.GetString(cfg.namespace + suffixUsername)
 	cfg.Authentication.BasicAuthentication.Password = v.GetString(cfg.namespace + suffixPassword)
-	cfg.Authentication.BearerAuthentication.FilePath = v.GetString(cfg.namespace + suffixTokenPath)
+	cfg.Authentication.BearerTokenAuthentication.FilePath = v.GetString(cfg.namespace + suffixTokenPath)
 	cfg.Authentication.BasicAuthentication.PasswordFilePath = v.GetString(cfg.namespace + suffixPasswordPath)
 	cfg.Sniffing.Enabled = v.GetBool(cfg.namespace + suffixSniffer)
 	cfg.Sniffing.UseHTTPS = v.GetBool(cfg.namespace + suffixSnifferTLSEnabled)
@@ -340,7 +340,7 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	cfg.BulkProcessing.Workers = v.GetInt(cfg.namespace + suffixBulkWorkers)
 	cfg.BulkProcessing.MaxActions = v.GetInt(cfg.namespace + suffixBulkActions)
 	cfg.BulkProcessing.FlushInterval = v.GetDuration(cfg.namespace + suffixBulkFlushInterval)
-	cfg.Timeout = v.GetDuration(cfg.namespace + suffixTimeout)
+	cfg.QueryTimeout = v.GetDuration(cfg.namespace + suffixTimeout)
 	cfg.ServiceCacheTTL = v.GetDuration(cfg.namespace + suffixServiceCacheTTL)
 	indexPrefix := v.GetString(cfg.namespace + suffixIndexPrefix)
 
@@ -361,7 +361,7 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	cfg.UseILM = v.GetBool(cfg.namespace + suffixUseILM)
 
 	// TODO: Need to figure out a better way for do this.
-	cfg.Authentication.BearerAuthentication.FromContext = v.GetBool(bearertoken.StoragePropagationKey)
+	cfg.Authentication.BearerTokenAuthentication.AllowFromContext = v.GetBool(bearertoken.StoragePropagationKey)
 
 	remoteReadClusters := stripWhiteSpace(v.GetString(cfg.namespace + suffixRemoteReadClusters))
 	if len(remoteReadClusters) > 0 {
