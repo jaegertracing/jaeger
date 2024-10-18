@@ -50,6 +50,28 @@ jobs:
             ;;
         esac
 
+    - name: Install kubectl
+      uses: azure/setup-kubectl@v3
+      with:
+        version: 'latest'
+
+    - name: Install Kind
+      uses: helm/kind-action@v1.8.0
+      with:
+        config: |
+          kind: Cluster
+          apiVersion: kind.x-k8s.io/v1alpha4
+          nodes:
+          - role: control-plane
+            extraPortMappings:
+            - containerPort: 8080
+              hostPort: 8080
+            - containerPort: 16686
+              hostPort: 16686
+
+    - name: Install Kustomize
+      uses: imranismail/setup-kustomize@v2
+
     - name: Build, test, and publish hotrod image
       run: bash scripts/build-hotrod-image.sh ${{ env.BUILD_FLAGS }}
       env:
