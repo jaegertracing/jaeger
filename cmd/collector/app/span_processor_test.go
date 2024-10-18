@@ -71,6 +71,7 @@ func TestBySvcMetrics(t *testing.T) {
 	}
 
 	testFn := func(t *testing.T, test TestCase) {
+		t.Helper()
 		mb := metricstest.NewFactory(time.Hour)
 		defer mb.Backend.Stop()
 		logger := zap.NewNop()

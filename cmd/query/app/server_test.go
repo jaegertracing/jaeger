@@ -460,6 +460,7 @@ func TestServerHTTPTLS(t *testing.T) {
 }
 
 func newGRPCClientWithTLS(t *testing.T, addr string, creds credentials.TransportCredentials) *grpcClient {
+	t.Helper()
 	var conn *grpc.ClientConn
 	var err error
 

@@ -175,30 +175,35 @@ func TestValidateBase64Values(t *testing.T) {
 }
 
 func loadZipkinSpans(t *testing.T, file string) []*z.Span {
+	t.Helper()
 	var zSpans []*z.Span
 	loadJSON(t, file, &zSpans)
 	return zSpans
 }
 
 func loadJaegerTrace(t *testing.T, file string) *model.Trace {
+	t.Helper()
 	var trace model.Trace
 	loadJSONPB(t, file, &trace)
 	return &trace
 }
 
 func loadJSONPB(t *testing.T, fileName string, obj proto.Message) {
+	t.Helper()
 	jsonFile, err := os.Open(fileName)
 	require.NoError(t, err, "Failed to open json fixture file %s", fileName)
 	require.NoError(t, jsonpb.Unmarshal(jsonFile, obj), fileName)
 }
 
 func getZipkinSpans(t *testing.T, s string) []*z.Span {
+	t.Helper()
 	var zSpans []*z.Span
 	require.NoError(t, json.Unmarshal([]byte(s), &zSpans))
 	return zSpans
 }
 
 func loadJSON(t *testing.T, fileName string, i any) {
+	t.Helper()
 	jsonFile, err := os.Open(fileName)
 	require.NoError(t, err, "Failed to load json fixture file %s", fileName)
 	jsonParser := json.NewDecoder(jsonFile)

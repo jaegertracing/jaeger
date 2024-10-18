@@ -44,6 +44,7 @@ var (
 )
 
 func createProcessor(t *testing.T, mFactory metrics.Factory, tFactory thrift.TProtocolFactory, handler AgentProcessor) (string, Processor) {
+	t.Helper()
 	transport, err := thriftudp.NewTUDPServerTransport("127.0.0.1:0")
 	require.NoError(t, err)
 
@@ -70,6 +71,7 @@ func createProcessor(t *testing.T, mFactory metrics.Factory, tFactory thrift.TPr
 
 // revive:disable-next-line function-result-limit
 func initCollectorAndReporter(t *testing.T) (*metricstest.Factory, *testutils.GrpcCollector, reporter.Reporter, *grpc.ClientConn) {
+	t.Helper()
 	grpcCollector := testutils.StartGRPCCollector(t)
 	conn, err := grpc.NewClient(grpcCollector.Listener().Addr().String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	require.NoError(t, err)
@@ -177,6 +179,7 @@ func TestJaegerProcessor(t *testing.T) {
 }
 
 func assertJaegerProcessorCorrectness(t *testing.T, collector *testutils.GrpcCollector, metricsFactory *metricstest.Factory) {
+	t.Helper()
 	sizeF := func() int {
 		return len(collector.GetJaegerBatches())
 	}
@@ -187,6 +190,7 @@ func assertJaegerProcessorCorrectness(t *testing.T, collector *testutils.GrpcCol
 }
 
 func assertZipkinProcessorCorrectness(t *testing.T, collector *testutils.GrpcCollector, metricsFactory *metricstest.Factory) {
+	t.Helper()
 	sizeF := func() int {
 		return len(collector.GetJaegerBatches())
 	}
@@ -205,6 +209,7 @@ func assertCollectorReceivedData(
 	nameF func() string,
 	format string,
 ) {
+	t.Helper()
 	require.Eventually(t,
 		func() bool { return sizeF() == 1 },
 		5*time.Second,

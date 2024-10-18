@@ -86,6 +86,7 @@ func makeMockServices() *ClientPluginServices {
 }
 
 func makeFactory(t *testing.T) *Factory {
+	t.Helper()
 	f := NewFactory()
 	f.InitFromViper(viper.New(), zap.NewNop())
 	require.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))

@@ -31,6 +31,7 @@ type UDTTestCase struct {
 
 // Run runs a test case
 func (testCase UDTTestCase) Run(t *testing.T) {
+	t.Helper()
 	for _, ff := range testCase.Fields {
 		field := ff // capture loop var
 		t.Run(testCase.ObjName+"-"+field.Name, func(t *testing.T) {

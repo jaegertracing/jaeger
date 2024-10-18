@@ -56,6 +56,7 @@ func (*mockSamplingHandler) GetSamplingStrategy(context.Context, *api_v2.Samplin
 }
 
 func initializeGRPCTestServer(t *testing.T, beforeServe func(server *grpc.Server)) (*grpc.Server, net.Addr) {
+	t.Helper()
 	server := grpc.NewServer()
 	lis, err := net.Listen("tcp", "localhost:0")
 	require.NoError(t, err)

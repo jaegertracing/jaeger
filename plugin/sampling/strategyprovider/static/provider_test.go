@@ -63,6 +63,7 @@ func strategiesJSON(probability float32) string {
 // Returns strategies in JSON format. Used for testing
 // URL option for sampling strategies.
 func mockStrategyServer(t *testing.T) (*httptest.Server, *atomic.Pointer[string]) {
+	t.Helper()
 	var strategy atomic.Pointer[string]
 	value := strategiesJSON(0.8)
 	strategy.Store(&value)

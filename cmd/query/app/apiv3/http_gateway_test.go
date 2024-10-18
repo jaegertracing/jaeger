@@ -63,6 +63,7 @@ func setupHTTPGateway(
 	basePath string,
 	tenancyOptions tenancy.Options,
 ) *testGateway {
+	t.Helper()
 	gw := setupHTTPGatewayNoServer(t, basePath, tenancyOptions)
 
 	httpServer := httptest.NewServer(gw.router)

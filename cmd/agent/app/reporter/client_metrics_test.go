@@ -28,6 +28,7 @@ type clientMetricsTest struct {
 }
 
 func (tr *clientMetricsTest) assertLog(t *testing.T, msg, clientUUID string) {
+	t.Helper()
 	logs := tr.logs.FilterMessageSnippet(msg)
 	if clientUUID == "" {
 		assert.Equal(t, 0, logs.Len(), "not expecting log '%s", msg)

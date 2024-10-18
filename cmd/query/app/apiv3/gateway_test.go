@@ -47,6 +47,7 @@ type testGateway struct {
 }
 
 func (gw *testGateway) execRequest(t *testing.T, url string) ([]byte, int) {
+	t.Helper()
 	req, err := http.NewRequest(http.MethodGet, gw.url+url, nil)
 	require.NoError(t, err)
 	req.Header.Set("Content-Type", "application/json")
@@ -60,6 +61,7 @@ func (gw *testGateway) execRequest(t *testing.T, url string) ([]byte, int) {
 }
 
 func (*testGateway) verifySnapshot(t *testing.T, body []byte) []byte {
+	t.Helper()
 	// reformat JSON body with indentation, to make diffing easier
 	var data any
 	require.NoError(t, json.Unmarshal(body, &data), "response: %s", string(body))
@@ -78,6 +80,7 @@ func (*testGateway) verifySnapshot(t *testing.T, body []byte) []byte {
 }
 
 func parseResponse(t *testing.T, body []byte, obj gogoproto.Message) {
+	t.Helper()
 	require.NoError(t, gogojsonpb.Unmarshal(bytes.NewBuffer(body), obj))
 }
 
@@ -104,6 +107,7 @@ func runGatewayTests(
 	tenancyOptions tenancy.Options,
 	setupRequest func(*http.Request),
 ) {
+	t.Helper()
 	gw := setupHTTPGateway(t, basePath, tenancyOptions)
 	gw.setupRequest = setupRequest
 	t.Run("GetServices", gw.runGatewayGetServices)
@@ -157,6 +161,7 @@ func (gw *testGateway) runGatewayFindTraces(t *testing.T) {
 }
 
 func (gw *testGateway) getTracesAndVerify(t *testing.T, url string, expectedTraceID model.TraceID) {
+	t.Helper()
 	body, statusCode := gw.execRequest(t, url)
 	require.Equal(t, http.StatusOK, statusCode, "response=%s", string(body))
 	body = gw.verifySnapshot(t, body)

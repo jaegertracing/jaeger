@@ -37,10 +37,12 @@ func newCassandraStorageIntegration() *CassandraStorageIntegration {
 }
 
 func (s *CassandraStorageIntegration) cleanUp(t *testing.T) {
+	t.Helper()
 	require.NoError(t, s.factory.Purge(context.Background()))
 }
 
 func (*CassandraStorageIntegration) initializeCassandraFactory(t *testing.T, flags []string) *cassandra.Factory {
+	t.Helper()
 	logger := zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller()))
 	f := cassandra.NewFactory()
 	v, command := config.Viperize(f.AddFlags)
@@ -51,6 +53,7 @@ func (*CassandraStorageIntegration) initializeCassandraFactory(t *testing.T, fla
 }
 
 func (s *CassandraStorageIntegration) initializeCassandra(t *testing.T) {
+	t.Helper()
 	username := os.Getenv("CASSANDRA_USERNAME")
 	password := os.Getenv("CASSANDRA_USERNAME")
 	f := s.initializeCassandraFactory(t, []string{
@@ -84,6 +87,7 @@ func (s *CassandraStorageIntegration) initializeCassandra(t *testing.T) {
 }
 
 func (s *CassandraStorageIntegration) initializeDependencyReaderAndWriter(t *testing.T, f *cassandra.Factory) {
+	t.Helper()
 	var (
 		err error
 		ok  bool

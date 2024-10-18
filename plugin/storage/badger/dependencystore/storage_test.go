@@ -23,6 +23,7 @@ import (
 
 // Opens a badger db and runs a test on it.
 func runFactoryTest(tb testing.TB, test func(tb testing.TB, sw spanstore.Writer, dr dependencystore.Reader)) {
+	tb.Helper()
 	f := badger.NewFactory()
 	defer func() {
 		require.NoError(tb, f.Close())

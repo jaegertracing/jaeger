@@ -60,24 +60,28 @@ func TestToDomain(t *testing.T) {
 }
 
 func loadSpans(t *testing.T, file string) []*model.Span {
+	t.Helper()
 	var trace model.Trace
 	loadJSONPB(t, file, &trace)
 	return trace.Spans
 }
 
 func loadJSONPB(t *testing.T, fileName string, obj proto.Message) {
+	t.Helper()
 	jsonFile, err := os.Open(fileName)
 	require.NoError(t, err, "Failed to open json fixture file %s", fileName)
 	require.NoError(t, jsonpb.Unmarshal(jsonFile, obj), fileName)
 }
 
 func loadBatch(t *testing.T, file string) *jaeger.Batch {
+	t.Helper()
 	var batch jaeger.Batch
 	loadJSON(t, file, &batch)
 	return &batch
 }
 
 func loadJSON(t *testing.T, fileName string, obj any) {
+	t.Helper()
 	jsonFile, err := os.Open(fileName)
 	require.NoError(t, err, "Failed to load json fixture file %s", fileName)
 	jsonParser := json.NewDecoder(jsonFile)

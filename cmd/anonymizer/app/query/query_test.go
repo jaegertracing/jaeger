@@ -54,6 +54,7 @@ type testServer struct {
 }
 
 func newTestServer(t *testing.T) *testServer {
+	t.Helper()
 	spanReader := &spanstoremocks.Reader{}
 	metricsReader, err := disabled.NewMetricsReader()
 	require.NoError(t, err)

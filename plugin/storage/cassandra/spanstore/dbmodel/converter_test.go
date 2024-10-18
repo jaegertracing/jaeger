@@ -235,6 +235,7 @@ func TestFailingFromDBSpanBadRefs(t *testing.T) {
 }
 
 func failingDBSpanTransform(t *testing.T, dbSpan *Span, errMsg string) {
+	t.Helper()
 	jSpan, err := ToDomain(dbSpan)
 	assert.Nil(t, jSpan)
 	require.Error(t, err)

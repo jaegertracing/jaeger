@@ -396,6 +396,7 @@ func TestHistogramDefaultBuckets(t *testing.T) {
 }
 
 func findMetric(t *testing.T, snapshot []*promModel.MetricFamily, name string, tags map[string]string) *promModel.Metric {
+	t.Helper()
 	for _, mf := range snapshot {
 		if mf.GetName() != name {
 			continue

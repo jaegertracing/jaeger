@@ -342,6 +342,7 @@ func TestPasswordFromFile(t *testing.T) {
 }
 
 func testPasswordFromFile(t *testing.T, f *Factory, getClient func() es.Client, getWriter func() (spanstore.Writer, error)) {
+	t.Helper()
 	const (
 		pwd1 = "first password"
 		pwd2 = "second password"

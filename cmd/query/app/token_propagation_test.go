@@ -55,6 +55,7 @@ func (*elasticsearchHandlerMock) ServeHTTP(w http.ResponseWriter, r *http.Reques
 }
 
 func runMockElasticsearchServer(t *testing.T) *httptest.Server {
+	t.Helper()
 	handler := &elasticsearchHandlerMock{
 		test: t,
 	}
@@ -64,6 +65,7 @@ func runMockElasticsearchServer(t *testing.T) *httptest.Server {
 }
 
 func runQueryService(t *testing.T, esURL string) *Server {
+	t.Helper()
 	flagsSvc := flags.NewService(ports.QueryAdminHTTP)
 	flagsSvc.Logger = zaptest.NewLogger(t)
 

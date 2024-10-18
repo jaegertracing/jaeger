@@ -27,6 +27,7 @@ func setupPrometheusFactory() metrics.Factory {
 }
 
 func setupOTELFactory(b *testing.B) metrics.Factory {
+	b.Helper()
 	registry := prometheus.NewRegistry()
 	exporter, err := promExporter.New(promExporter.WithRegisterer(registry))
 	require.NoError(b, err)
@@ -37,6 +38,7 @@ func setupOTELFactory(b *testing.B) metrics.Factory {
 }
 
 func benchmarkCounter(b *testing.B, factory metrics.Factory) {
+	b.Helper()
 	counter := factory.Counter(metrics.Options{
 		Name: "test_counter",
 		Tags: map[string]string{"tag1": "value1"},
@@ -48,6 +50,7 @@ func benchmarkCounter(b *testing.B, factory metrics.Factory) {
 }
 
 func benchmarkGauge(b *testing.B, factory metrics.Factory) {
+	b.Helper()
 	gauge := factory.Gauge(metrics.Options{
 		Name: "test_gauge",
 		Tags: map[string]string{"tag1": "value1"},
@@ -59,6 +62,7 @@ func benchmarkGauge(b *testing.B, factory metrics.Factory) {
 }
 
 func benchmarkTimer(b *testing.B, factory metrics.Factory) {
+	b.Helper()
 	timer := factory.Timer(metrics.TimerOptions{
 		Name: "test_timer",
 		Tags: map[string]string{"tag1": "value1"},
@@ -70,6 +74,7 @@ func benchmarkTimer(b *testing.B, factory metrics.Factory) {
 }
 
 func benchmarkHistogram(b *testing.B, factory metrics.Factory) {
+	b.Helper()
 	histogram := factory.Histogram(metrics.HistogramOptions{
 		Name: "test_histogram",
 		Tags: map[string]string{"tag1": "value1"},

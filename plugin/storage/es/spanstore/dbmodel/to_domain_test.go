@@ -28,6 +28,7 @@ func TestToDomain(t *testing.T) {
 }
 
 func testToDomain(t *testing.T, testParentSpanID bool) {
+	t.Helper()
 	for i := 1; i <= NumberOfFixtures; i++ {
 		span, err := loadESSpanFixture(i)
 		require.NoError(t, err)
@@ -60,12 +61,14 @@ func loadESSpanFixture(i int) (Span, error) {
 }
 
 func failingSpanTransform(t *testing.T, embeddedSpan *Span, errMsg string) {
+	t.Helper()
 	domainSpan, err := NewToDomain(":").SpanToDomain(embeddedSpan)
 	assert.Nil(t, domainSpan)
 	require.EqualError(t, err, errMsg)
 }
 
 func failingSpanTransformAnyMsg(t *testing.T, embeddedSpan *Span) {
+	t.Helper()
 	domainSpan, err := NewToDomain(":").SpanToDomain(embeddedSpan)
 	assert.Nil(t, domainSpan)
 	require.Error(t, err)
@@ -286,6 +289,7 @@ func TestFailureBadProcessFieldTag(t *testing.T) {
 }
 
 func CompareModelSpans(t *testing.T, expected *model.Span, actual *model.Span) {
+	t.Helper()
 	model.SortSpan(expected)
 	model.SortSpan(actual)
 

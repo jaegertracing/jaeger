@@ -61,6 +61,7 @@ type Binary struct {
 }
 
 func (b *Binary) Start(t *testing.T) {
+	t.Helper()
 	outFile, err := os.OpenFile(
 		filepath.Join(t.TempDir(), "output_logs.txt"),
 		os.O_CREATE|os.O_WRONLY,
@@ -113,6 +114,7 @@ func (b *Binary) Start(t *testing.T) {
 // it also initialize the SpanWriter and SpanReader below.
 // This function should be called before any of the tests start.
 func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
+	t.Helper()
 	// set environment variable overrides
 	for key, value := range s.EnvVarOverrides {
 		t.Setenv(key, value)
@@ -160,6 +162,7 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
 }
 
 func (s *E2EStorageIntegration) doHealthCheck(t *testing.T) bool {
+	t.Helper()
 	healthCheckEndpoint := s.HealthCheckEndpoint
 	if healthCheckEndpoint == "" {
 		healthCheckEndpoint = "http://localhost:13133/status"
@@ -212,11 +215,13 @@ func (s *E2EStorageIntegration) doHealthCheck(t *testing.T) bool {
 // e2eCleanUp closes the SpanReader and SpanWriter gRPC connection.
 // This function should be called after all the tests are finished.
 func (s *E2EStorageIntegration) e2eCleanUp(t *testing.T) {
+	t.Helper()
 	require.NoError(t, s.SpanReader.(io.Closer).Close())
 	require.NoError(t, s.SpanWriter.(io.Closer).Close())
 }
 
 func createStorageCleanerConfig(t *testing.T, configFile string, storage string) string {
+	t.Helper()
 	data, err := os.ReadFile(configFile)
 	require.NoError(t, err)
 	var config map[string]any
@@ -271,6 +276,7 @@ func createStorageCleanerConfig(t *testing.T, configFile string, storage string)
 }
 
 func purge(t *testing.T) {
+	t.Helper()
 	addr := fmt.Sprintf("http://0.0.0.0:%s%s", storagecleaner.Port, storagecleaner.URL)
 	t.Logf("Purging storage via %s", addr)
 	r, err := http.NewRequestWithContext(context.Background(), http.MethodPost, addr, nil)

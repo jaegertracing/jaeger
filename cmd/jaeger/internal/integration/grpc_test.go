@@ -18,10 +18,12 @@ type GRPCStorageIntegration struct {
 }
 
 func (s *GRPCStorageIntegration) initialize(t *testing.T) {
+	t.Helper()
 	s.remoteStorage = integration.StartNewRemoteMemoryStorage(t)
 }
 
 func (s *GRPCStorageIntegration) cleanUp(t *testing.T) {
+	t.Helper()
 	s.remoteStorage.Close(t)
 	s.initialize(t)
 }

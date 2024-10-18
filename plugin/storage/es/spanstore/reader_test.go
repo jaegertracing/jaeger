@@ -85,6 +85,7 @@ type spanReaderTest struct {
 }
 
 func tracerProvider(t *testing.T) (trace.TracerProvider, *tracetest.InMemoryExporter, func()) {
+	t.Helper()
 	exporter := tracetest.NewInMemoryExporter()
 	tp := sdktrace.NewTracerProvider(
 		sdktrace.WithSampler(sdktrace.AlwaysSample()),
@@ -97,6 +98,7 @@ func tracerProvider(t *testing.T) (trace.TracerProvider, *tracetest.InMemoryExpo
 }
 
 func withSpanReader(t *testing.T, fn func(r *spanReaderTest)) {
+	t.Helper()
 	client := &mocks.Client{}
 	tracer, exp, closer := tracerProvider(t)
 	defer closer()
@@ -119,6 +121,7 @@ func withSpanReader(t *testing.T, fn func(r *spanReaderTest)) {
 }
 
 func withArchiveSpanReader(t *testing.T, readAlias bool, fn func(r *spanReaderTest)) {
+	t.Helper()
 	client := &mocks.Client{}
 	tracer, exp, closer := tracerProvider(t)
 	defer closer()
@@ -622,7 +625,8 @@ func TestSpanReader_indexWithDate(t *testing.T) {
 	})
 }
 
-func testGet(typ string, t *testing.T) {
+func testGet(t *testing.T, typ string) {
+	t.Helper()
 	goodAggregations := make(map[string]*json.RawMessage)
 	rawMessage := []byte(`{"buckets": [{"key": "123","doc_count": 16}]}`)
 	goodAggregations[typ] = (*json.RawMessage)(&rawMessage)
@@ -965,7 +969,7 @@ func TestFindTraceIDs(t *testing.T) {
 	}
 	for _, testCase := range testCases {
 		t.Run(testCase.aggregrationID, func(t *testing.T) {
-			testGet(testCase.aggregrationID, t)
+			testGet(t, testCase.aggregrationID)
 		})
 	}
 }

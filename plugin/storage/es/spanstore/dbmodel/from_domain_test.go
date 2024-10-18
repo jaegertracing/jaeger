@@ -43,6 +43,7 @@ func TestFromDomainEmbedProcess(t *testing.T) {
 
 // Loads and returns domain model and JSON model fixtures with given number i.
 func loadFixtures(t *testing.T, i int) ([]byte, []byte) {
+	t.Helper()
 	in := fmt.Sprintf("fixtures/domain_%02d.json", i)
 	inStr, err := os.ReadFile(in)
 	require.NoError(t, err)
@@ -53,6 +54,7 @@ func loadFixtures(t *testing.T, i int) ([]byte, []byte) {
 }
 
 func testJSONEncoding(t *testing.T, i int, expectedStr []byte, object any) {
+	t.Helper()
 	buf := &bytes.Buffer{}
 	enc := json.NewEncoder(buf)
 	enc.SetIndent("", "  ")

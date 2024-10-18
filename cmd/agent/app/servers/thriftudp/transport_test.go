@@ -219,6 +219,7 @@ func TestResetInFlush(t *testing.T) {
 }
 
 func withLocalServer(t *testing.T, f func(addr string)) {
+	t.Helper()
 	conn, err := net.ListenUDP(localListenAddr.Network(), localListenAddr)
 	require.NoError(t, err, "ListenUDP failed")
 

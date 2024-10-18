@@ -37,6 +37,7 @@ func newRecordingCore() (zapcore.Core, *Buffer) {
 
 // NewEchoLogger is similar to NewLogger, but the logs are also echoed to t.Log.
 func NewEchoLogger(t *testing.T) (*zap.Logger, *Buffer) {
+	t.Helper()
 	core, buf := newRecordingCore()
 	echo := zaptest.NewLogger(t).Core()
 	logger := zap.New(zapcore.NewTee(core, echo))

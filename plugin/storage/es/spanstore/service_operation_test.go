@@ -82,11 +82,11 @@ func TestWriteServiceError(*testing.T) {
 }
 
 func TestSpanReader_GetServices(t *testing.T) {
-	testGet(servicesAggregation, t)
+	testGet(t, servicesAggregation)
 }
 
 func TestSpanReader_GetOperations(t *testing.T) {
-	testGet(operationsAggregation, t)
+	testGet(t, operationsAggregation)
 }
 
 func TestSpanReader_GetServicesEmptyIndex(t *testing.T) {

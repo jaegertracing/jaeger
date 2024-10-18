@@ -24,6 +24,7 @@ type GRPCStorageIntegrationTestSuite struct {
 }
 
 func (s *GRPCStorageIntegrationTestSuite) initialize(t *testing.T) {
+	t.Helper()
 	logger := zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller()))
 	s.remoteStorage = StartNewRemoteMemoryStorage(t)
 
@@ -50,11 +51,13 @@ func (s *GRPCStorageIntegrationTestSuite) initialize(t *testing.T) {
 }
 
 func (s *GRPCStorageIntegrationTestSuite) close(t *testing.T) {
+	t.Helper()
 	require.NoError(t, s.factory.Close())
 	s.remoteStorage.Close(t)
 }
 
 func (s *GRPCStorageIntegrationTestSuite) cleanUp(t *testing.T) {
+	t.Helper()
 	s.close(t)
 	s.initialize(t)
 }

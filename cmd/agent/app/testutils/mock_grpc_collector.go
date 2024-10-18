@@ -28,6 +28,7 @@ var _ api_v2.CollectorServiceServer = (*GrpcCollector)(nil)
 
 // StartGRPCCollector starts GRPC collector on a random port
 func StartGRPCCollector(t *testing.T) *GrpcCollector {
+	t.Helper()
 	server := grpc.NewServer()
 	lis, err := net.Listen("tcp", "localhost:0")
 	require.NoError(t, err)

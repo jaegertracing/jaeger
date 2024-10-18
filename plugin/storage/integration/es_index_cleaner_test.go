@@ -133,6 +133,7 @@ func TestIndexCleaner(t *testing.T) {
 }
 
 func runIndexCleanerTest(t *testing.T, client *elastic.Client, v8Client *elasticsearch8.Client, prefix string, expectedIndices, envVars []string, adaptiveSampling bool) {
+	t.Helper()
 	// make sure ES is clean
 	_, err := client.DeleteIndex("*").Do(context.Background())
 	require.NoError(t, err)
@@ -237,6 +238,7 @@ func createESV8Client() (*elasticsearch8.Client, error) {
 }
 
 func cleanESIndexTemplates(t *testing.T, client *elastic.Client, v8Client *elasticsearch8.Client, prefix string) {
+	t.Helper()
 	s := &ESStorageIntegration{
 		client:   client,
 		v8Client: v8Client,

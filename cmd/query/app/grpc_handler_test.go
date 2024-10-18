@@ -135,6 +135,7 @@ type grpcClient struct {
 }
 
 func newGRPCServer(t *testing.T, q *querysvc.QueryService, mq querysvc.MetricsQueryService, logger *zap.Logger, tracer *jtracer.JTracer, tenancyMgr *tenancy.Manager) (*grpc.Server, net.Addr) {
+	t.Helper()
 	lis, _ := net.Listen("tcp", ":0")
 	var grpcOpts []grpc.ServerOption
 	if tenancyMgr.Enabled {
@@ -163,6 +164,7 @@ func newGRPCServer(t *testing.T, q *querysvc.QueryService, mq querysvc.MetricsQu
 }
 
 func newGRPCClient(t *testing.T, addr string) *grpcClient {
+	t.Helper()
 	conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	require.NoError(t, err)
 
@@ -188,6 +190,7 @@ func withMetricsQuery() testOption {
 }
 
 func withServerAndClient(t *testing.T, actualTest func(server *grpcServer, client *grpcClient), options ...testOption) {
+	t.Helper()
 	server := initializeTenantedTestServerGRPCWithOptions(t, &tenancy.Manager{}, options...)
 	client := newGRPCClient(t, server.lisAddr.String())
 	defer server.server.Stop()
@@ -213,6 +216,7 @@ func TestGetTraceSuccessGRPC(t *testing.T) {
 }
 
 func assertGRPCError(t *testing.T, err error, code codes.Code, msg string) {
+	t.Helper()
 	s, ok := status.FromError(err)
 	require.True(t, ok, "expecting gRPC status")
 	assert.Equal(t, code, s.Code())
@@ -893,6 +897,7 @@ func TestMetricsQueryNilRequestGRPC(t *testing.T) {
 }
 
 func initializeTenantedTestServerGRPCWithOptions(t *testing.T, tm *tenancy.Manager, options ...testOption) *grpcServer {
+	t.Helper()
 	archiveSpanReader := &spanstoremocks.Reader{}
 	archiveSpanWriter := &spanstoremocks.Writer{}
 
@@ -934,6 +939,7 @@ func initializeTenantedTestServerGRPCWithOptions(t *testing.T, tm *tenancy.Manag
 }
 
 func withTenantedServerAndClient(t *testing.T, tm *tenancy.Manager, actualTest func(server *grpcServer, client *grpcClient), options ...testOption) {
+	t.Helper()
 	server := initializeTenantedTestServerGRPCWithOptions(t, tm, options...)
 	client := newGRPCClient(t, server.lisAddr.String())
 	defer server.server.Stop()

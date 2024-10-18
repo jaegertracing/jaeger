@@ -23,6 +23,7 @@ func TestJSONMarshallerAndUnmarshaller(t *testing.T) {
 }
 
 func testMarshallerAndUnmarshaller(t *testing.T, marshaller Marshaller, unmarshaller Unmarshaller) {
+	t.Helper()
 	bytes, err := marshaller.Marshal(sampleSpan)
 
 	require.NoError(t, err)

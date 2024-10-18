@@ -19,7 +19,8 @@ import (
 */
 
 func TestExpiredItems(t *testing.T) {
-	runWithBadger(t, func(store *badger.DB, t *testing.T) {
+	runWithBadger(t, func(t *testing.T, store *badger.DB) {
+		t.Helper()
 		cache := NewCacheStore(store, time.Duration(-1*time.Hour), false)
 
 		expireTime := uint64(time.Now().Add(cache.ttl).Unix())
@@ -56,7 +57,8 @@ func TestExpiredItems(t *testing.T) {
 }
 
 func TestOldReads(t *testing.T) {
-	runWithBadger(t, func(store *badger.DB, t *testing.T) {
+	runWithBadger(t, func(t *testing.T, store *badger.DB) {
+		t.Helper()
 		timeNow := model.TimeAsEpochMicroseconds(time.Now())
 		s1Key := createIndexKey(serviceNameIndexKey, []byte("service1"), timeNow, model.TraceID{High: 0, Low: 0})
 		s1o1Key := createIndexKey(operationNameIndexKey, []byte("service1operation1"), timeNow, model.TraceID{High: 0, Low: 0})
@@ -95,7 +97,8 @@ func TestOldReads(t *testing.T) {
 }
 
 // func runFactoryTest(tb testing.TB, test func(tb testing.TB, sw spanstore.Writer, sr spanstore.Reader)) {
-func runWithBadger(t *testing.T, test func(store *badger.DB, t *testing.T)) {
+func runWithBadger(t *testing.T, test func(t *testing.T, store *badger.DB)) {
+	t.Helper()
 	opts := badger.DefaultOptions("")
 
 	opts.SyncWrites = false
@@ -110,5 +113,5 @@ func runWithBadger(t *testing.T, test func(store *badger.DB, t *testing.T)) {
 
 	require.NoError(t, err)
 
-	test(store, t)
+	test(t, store)
 }

@@ -32,6 +32,7 @@ type KafkaIntegrationTestSuite struct {
 }
 
 func (s *KafkaIntegrationTestSuite) initialize(t *testing.T) {
+	t.Helper()
 	logger := zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller()))
 	const encoding = "json"
 	const groupID = "kafka-integration-test"

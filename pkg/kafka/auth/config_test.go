@@ -77,7 +77,8 @@ func Test_InitFromViper(t *testing.T) {
 }
 
 // Test plaintext with different mechanisms
-func testPlaintext(v *viper.Viper, t *testing.T, configPrefix string, logger *zap.Logger, mechanism string, saramaConfig *sarama.Config) {
+func testPlaintext(t *testing.T, v *viper.Viper, configPrefix string, logger *zap.Logger, mechanism string, saramaConfig *sarama.Config) {
+	t.Helper()
 	v.Set(configPrefix+plainTextPrefix+suffixPlainTextMechanism, mechanism)
 	authConfig := &AuthenticationConfig{}
 	err := authConfig.InitFromViper(configPrefix, v)
@@ -159,7 +160,7 @@ func TestSetConfiguration(t *testing.T) {
 
 			if len(tt.plainTextMechanisms) > 0 {
 				for _, mechanism := range tt.plainTextMechanisms {
-					testPlaintext(v, t, configPrefix, logger, mechanism, saramaConfig)
+					testPlaintext(t, v, configPrefix, logger, mechanism, saramaConfig)
 				}
 			} else {
 				err = authConfig.SetConfiguration(saramaConfig, logger)

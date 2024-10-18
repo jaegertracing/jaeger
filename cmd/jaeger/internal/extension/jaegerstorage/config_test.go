@@ -15,6 +15,7 @@ import (
 )
 
 func loadConf(t *testing.T, config string) *confmap.Conf {
+	t.Helper()
 	d := t.TempDir()
 	f := filepath.Join(d, "config.yaml")
 	require.NoError(t, os.WriteFile(f, []byte(config), 0o644))

@@ -368,6 +368,7 @@ func TestPersist(t *testing.T) {
 	dir := t.TempDir()
 
 	p := func(t *testing.T, dir string, test func(t *testing.T, sw spanstore.Writer, sr spanstore.Reader)) {
+		t.Helper()
 		f := badger.NewFactory()
 		defer func() {
 			require.NoError(t, f.Close())
@@ -400,6 +401,7 @@ func TestPersist(t *testing.T) {
 	}
 
 	p(t, dir, func(t *testing.T, sw spanstore.Writer, _ spanstore.Reader) {
+		t.Helper()
 		s := model.Span{
 			TraceID: model.TraceID{
 				Low:  uint64(1),
@@ -418,6 +420,7 @@ func TestPersist(t *testing.T) {
 	})
 
 	p(t, dir, func(t *testing.T, _ spanstore.Writer, sr spanstore.Reader) {
+		t.Helper()
 		trace, err := sr.GetTrace(context.Background(), model.TraceID{
 			Low:  uint64(1),
 			High: 1,
@@ -433,6 +436,7 @@ func TestPersist(t *testing.T) {
 
 // Opens a badger db and runs a test on it.
 func runFactoryTest(tb testing.TB, test func(tb testing.TB, sw spanstore.Writer, sr spanstore.Reader)) {
+	tb.Helper()
 	f := badger.NewFactory()
 	defer func() {
 		require.NoError(tb, f.Close())
@@ -528,6 +532,7 @@ func makeWriteSupports(tagsCount, spans int) ([]model.KeyValue, []string, []stri
 }
 
 func makeReadBenchmark(b *testing.B, _ time.Time, params *spanstore.TraceQueryParameters, outputFile string) {
+	b.Helper()
 	runLargeFactoryTest(b, func(_ testing.TB, sw spanstore.Writer, sr spanstore.Reader) {
 		tid := time.Now()
 
@@ -596,6 +601,7 @@ func BenchmarkServiceIndexLimitFetch(b *testing.B) {
 
 // Opens a badger db and runs a test on it.
 func runLargeFactoryTest(tb testing.TB, test func(tb testing.TB, sw spanstore.Writer, sr spanstore.Reader)) {
+	tb.Helper()
 	assertion := require.New(tb)
 	f := badger.NewFactory()
 	cfg := badger.DefaultConfig()

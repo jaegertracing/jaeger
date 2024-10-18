@@ -197,6 +197,7 @@ func TestMetricsStorageStartError(t *testing.T) {
 }
 
 func testElasticsearchOrOpensearch(t *testing.T, cfg Backend) {
+	t.Helper()
 	ext := makeStorageExtenion(t, &Config{
 		Backends: map[string]Backend{
 			"foo": cfg,
@@ -264,6 +265,7 @@ func noopTelemetrySettings() component.TelemetrySettings {
 }
 
 func makeStorageExtenion(t *testing.T, config *Config) component.Component {
+	t.Helper()
 	extensionFactory := NewFactory()
 	ctx := context.Background()
 	ext, err := extensionFactory.CreateExtension(ctx,
@@ -279,6 +281,7 @@ func makeStorageExtenion(t *testing.T, config *Config) component.Component {
 }
 
 func startStorageExtension(t *testing.T, memstoreName string, promstoreName string) component.Component {
+	t.Helper()
 	config := &Config{
 		Backends: map[string]Backend{
 			memstoreName: {

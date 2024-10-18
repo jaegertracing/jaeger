@@ -21,6 +21,7 @@ func TestIndexFilter_prefix(t *testing.T) {
 }
 
 func testIndexFilter(t *testing.T, prefix string) {
+	t.Helper()
 	time20200807 := time.Date(2020, time.August, 0o6, 0, 0, 0, 0, time.UTC).AddDate(0, 0, 1)
 	indices := []client.Index{
 		{

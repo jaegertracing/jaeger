@@ -72,6 +72,7 @@ func (s *ESStorageIntegration) getVersion() (uint, error) {
 }
 
 func (s *ESStorageIntegration) initializeES(t *testing.T, allTagsAsFields bool) {
+	t.Helper()
 	rawClient, err := elastic.NewClient(
 		elastic.SetURL(queryURL),
 		elastic.SetSniff(false))
@@ -87,16 +88,19 @@ func (s *ESStorageIntegration) initializeES(t *testing.T, allTagsAsFields bool) 
 	s.initSpanstore(t, allTagsAsFields)
 
 	s.CleanUp = func(t *testing.T) {
+		t.Helper()
 		s.esCleanUp(t)
 	}
 	s.esCleanUp(t)
 }
 
 func (s *ESStorageIntegration) esCleanUp(t *testing.T) {
+	t.Helper()
 	require.NoError(t, s.factory.Purge(context.Background()))
 }
 
 func (*ESStorageIntegration) initializeESFactory(t *testing.T, allTagsAsFields bool) *es.Factory {
+	t.Helper()
 	logger := zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller()))
 	f := es.NewFactory()
 	v, command := config.Viperize(f.AddFlags)
@@ -124,6 +128,7 @@ func (*ESStorageIntegration) initializeESFactory(t *testing.T, allTagsAsFields b
 }
 
 func (s *ESStorageIntegration) initSpanstore(t *testing.T, allTagsAsFields bool) {
+	t.Helper()
 	f := s.initializeESFactory(t, allTagsAsFields)
 	s.factory = f
 	var err error
@@ -155,6 +160,7 @@ func healthCheck() error {
 }
 
 func testElasticsearchStorage(t *testing.T, allTagsAsFields bool) {
+	t.Helper()
 	SkipUnlessEnv(t, "elasticsearch", "opensearch")
 	if err := healthCheck(); err != nil {
 		t.Fatal(err)
@@ -209,6 +215,7 @@ func TestElasticsearchStorage_IndexTemplates(t *testing.T) {
 }
 
 func (s *ESStorageIntegration) cleanESIndexTemplates(t *testing.T, prefix string) error {
+	t.Helper()
 	version, err := s.getVersion()
 	require.NoError(t, err)
 	if version > 7 {
