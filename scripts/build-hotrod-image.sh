@@ -50,10 +50,10 @@ teardown_docker() {
 teardown_k8s() {
   echo "Cleaning up Kubernetes resources..."
   if [[ -n "${HOTROD_PORT_FWD_PID:-}" ]]; then
-    kill $HOTROD_PORT_FWD_PID || true
+    kill "$HOTROD_PORT_FWD_PID" || true
   fi
   if [[ -n "${JAEGER_PORT_FWD_PID:-}" ]]; then
-    kill $JAEGER_PORT_FWD_PID || true
+    kill "$JAEGER_PORT_FWD_PID" || true
   fi
   kubectl delete namespace example-hotrod --ignore-not-found=true
 }
