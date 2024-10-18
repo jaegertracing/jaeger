@@ -918,16 +918,16 @@ func buildTestBaseQueryParametersFrom(tc metricsTestCase) metricsstore.BaseQuery
 	}
 }
 
-func prepareMetricsReaderAndServer(t *testing.T, config config.Configuration, wantPromQlQuery string, wantWarnings []string, tracer trace.TracerProvider) (metricsstore.Reader, *httptest.Server) {
+func prepareMetricsReaderAndServer(t *testing.T, cfg config.Configuration, wantPromQlQuery string, wantWarnings []string, tracer trace.TracerProvider) (metricsstore.Reader, *httptest.Server) {
 	mockPrometheus := startMockPrometheusServer(t, wantPromQlQuery, wantWarnings)
 
 	logger := zap.NewNop()
 	address := mockPrometheus.Listener.Addr().String()
 
-	config.ServerURL = "http://" + address
-	config.ConnectTimeout = defaultTimeout
+	cfg.ServerURL = "http://" + address
+	cfg.ConnectTimeout = defaultTimeout
 
-	reader, err := NewMetricsReader(config, logger, tracer)
+	reader, err := NewMetricsReader(cfg, logger, tracer)
 	require.NoError(t, err)
 
 	return reader, mockPrometheus

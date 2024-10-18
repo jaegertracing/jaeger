@@ -185,11 +185,11 @@ func TestBadgerMetrics(t *testing.T) {
 
 func TestConfigure(t *testing.T) {
 	f := NewFactory()
-	config := &Config{
+	badgerConfig := &Config{
 		MaintenanceInterval: 42 * time.Second,
 	}
-	f.configure(config)
-	assert.Equal(t, config, f.Config)
+	f.configure(badgerConfig)
+	assert.Equal(t, badgerConfig, f.Config)
 }
 
 func TestBadgerStorageFactoryWithConfig(t *testing.T) {
