@@ -151,9 +151,9 @@ func (s *SpanReader) readTrace(ctx context.Context, traceID dbmodel.TraceID) (*m
 	defer span.End()
 	span.SetAttributes(attribute.Key("trace_id").String(traceID.String()))
 
-	trace, err := s.readTraceInSpan(ctx, traceID)
+	spanTrace, err := s.readTraceInSpan(ctx, traceID)
 	logErrorToSpan(span, err)
-	return trace, err
+	return spanTrace, err
 }
 
 func (s *SpanReader) readTraceInSpan(_ context.Context, traceID dbmodel.TraceID) (*model.Trace, error) {

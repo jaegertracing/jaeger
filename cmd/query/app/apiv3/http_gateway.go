@@ -143,11 +143,11 @@ func (h *HTTPGateway) getTrace(w http.ResponseWriter, r *http.Request) {
 	if h.tryParamError(w, err, paramTraceID) {
 		return
 	}
-	trace, err := h.QueryService.GetTrace(r.Context(), traceID)
+	queriedTrace, err := h.QueryService.GetTrace(r.Context(), traceID)
 	if h.tryHandleError(w, err, http.StatusInternalServerError) {
 		return
 	}
-	h.returnSpans(trace.Spans, w)
+	h.returnSpans(queriedTrace.Spans, w)
 }
 
 func (h *HTTPGateway) findTraces(w http.ResponseWriter, r *http.Request) {
@@ -162,8 +162,8 @@ func (h *HTTPGateway) findTraces(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var spans []*model.Span
-	for _, trace := range traces {
-		spans = append(spans, trace.Spans...)
+	for _, t := range traces {
+		spans = append(spans, t.Spans...)
 	}
 	h.returnSpans(spans, w)
 }
