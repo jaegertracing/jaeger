@@ -169,7 +169,7 @@ run_k8s_tests() {
   verify_cluster || exit 1
   
   # Create namespace and deploy resources
-  kubectl create namespace example-hotrod --dry-run=client -o yaml | kubectl apply --validate-false -f -
+  kubectl create namespace example-hotrod --dry-run=client -o yaml | kubectl apply -f -
   kustomize build ./examples/hotrod/kubernetes | kubectl apply -n example-hotrod -f -
   
   # Wait for deployments
