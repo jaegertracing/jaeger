@@ -55,20 +55,6 @@ jobs:
       with:
         version: 'latest'
 
-    - name: Install Kind
-      uses: helm/kind-action@v1.8.0
-      with:
-        config: |
-          kind: Cluster
-          apiVersion: kind.x-k8s.io/v1alpha4
-          nodes:
-          - role: control-plane
-            extraPortMappings:
-            - containerPort: 8080
-              hostPort: 8080
-            - containerPort: 16686
-              hostPort: 16686
-
     - name: Install Kustomize
       uses: imranismail/setup-kustomize@v2
 
