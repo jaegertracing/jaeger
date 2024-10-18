@@ -151,12 +151,25 @@ run_docker_tests() {
   verify_trace "$trace_id"
 }
 
+verify_cluster() {
+    echo "Verifying cluster connection..."
+    if ! kubectl cluster-info >/dev/null 2>&1; then
+        echo "Error: Cannot connect to Kubernetes cluster"
+        echo "Please check:"
+        echo "  1. Cluster is running (minikube status)"
+        echo "  2. kubectl is properly configured (kubectl config current-context)"
+        return 1
+    fi
+}
+
 run_k8s_tests() {
   TEST_MODE="k8s"
   echo "Running Kubernetes tests..."
+
+  verify_cluster || exit 1
   
   # Create namespace and deploy resources
-  kubectl create namespace example-hotrod --dry-run=client -o yaml | kubectl apply -f -
+  kubectl create namespace example-hotrod --dry-run=client -o yaml | kubectl apply --validate-false -f -
   kustomize build ./examples/hotrod/kubernetes | kubectl apply -n example-hotrod -f -
   
   # Wait for deployments
