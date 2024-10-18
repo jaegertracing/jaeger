@@ -88,25 +88,23 @@ type Configuration struct {
 	// querying.
 	RemoteReadClusters []string       `mapstructure:"remote_read_clusters"`
 	Authentication     Authentication `mapstructure:"auth"`
-	Sniffing           Sniffing       `mapstructure:"sniffing"`
-	// MaxDocCount Defines maximum number of results to fetch from storage per query.
-	MaxDocCount int `mapstructure:"max_doc_count"`
-	// MaxSpanAge configures the maximum lookback on span reads.
-	MaxSpanAge time.Duration `mapstructure:"max_span_age"`
-	// Timeout contains the timeout used for queries. A timeout of zero means no timeout.
-	Timeout        time.Duration  `mapstructure:"timeout"`
-	BulkProcessing BulkProcessing `mapstructure:"bulk_processing"`
-	Indices        Indices        `mapstructure:"indices"`
-	// ServiceCacheTTL contains the TTL for the cache of known service names
-	ServiceCacheTTL time.Duration `mapstructure:"service_cache_ttl"`
-	// AdaptiveSamplingLookback contains the duration to look back for the
-	// latest adaptive sampling probabilities.
-	AdaptiveSamplingLookback time.Duration `mapstructure:"adaptive_sampling_lookback"`
-	Tags                     TagsAsFields  `mapstructure:"tags_as_fields"`
-	// Enabled, if set to true, enables the namespace for storage pointed to by this configuration.
-	Enabled bool `mapstructure:"enable"`
 	// TLS contains the TLS configuration for the connection to the ElasticSearch clusters.
-	TLS configtls.ClientConfig `mapstructure:"tls"`
+	TLS      configtls.ClientConfig `mapstructure:"tls"`
+	Sniffing Sniffing               `mapstructure:"sniffing"`
+	// SendGetBodyAs is the HTTP verb to use for requests that contain a body.
+	SendGetBodyAs string `mapstructure:"send_get_body_as"`
+	// Timeout contains the timeout used for queries. A timeout of zero means no timeout.
+	Timeout time.Duration `mapstructure:"timeout"`
+
+	BulkProcessing BulkProcessing `mapstructure:"bulk_processing"`
+	// Version contains the major Elasticsearch version. If this field is not specified,
+	// the value will be auto-detected from Elasticsearch.
+	Version uint `mapstructure:"version"`
+	// LogLevel contains the Elasticsearch client log-level. Valid values for this field
+	// are: [debug, info, error]
+	LogLevel string `mapstructure:"log_level"`
+
+	Indices Indices `mapstructure:"indices"`
 	// UseReadWriteAliases, if set to true, will use read and write aliases for indices.
 	// Use this option with Elasticsearch rollover API. It requires an external component
 	// to create aliases before startup and then performing its management.
@@ -118,14 +116,19 @@ type Configuration struct {
 	// Read more about ILM at
 	// https://www.elastic.co/guide/en/elasticsearch/reference/current/index-lifecycle-management.html.
 	UseILM bool `mapstructure:"use_ilm"`
-	// Version contains the major Elasticsearch version. If this field is not specified,
-	// the value will be auto-detected from Elasticsearch.
-	Version uint `mapstructure:"version"`
-	// LogLevel contains the Elasticsearch client log-level. Valid values for this field
-	// are: [debug, info, error]
-	LogLevel string `mapstructure:"log_level"`
-	// SendGetBodyAs is the HTTP verb to use for requests that contain a body.
-	SendGetBodyAs string `mapstructure:"send_get_body_as"`
+
+	// MaxDocCount Defines maximum number of results to fetch from storage per query.
+	MaxDocCount int `mapstructure:"max_doc_count"`
+	// MaxSpanAge configures the maximum lookback on span reads.
+	MaxSpanAge time.Duration `mapstructure:"max_span_age"`
+	// ServiceCacheTTL contains the TTL for the cache of known service names.
+	ServiceCacheTTL time.Duration `mapstructure:"service_cache_ttl"`
+	// AdaptiveSamplingLookback contains the duration to look back for the
+	// latest adaptive sampling probabilities.
+	AdaptiveSamplingLookback time.Duration `mapstructure:"adaptive_sampling_lookback"`
+	Tags                     TagsAsFields  `mapstructure:"tags_as_fields"`
+	// Enabled, if set to true, enables the namespace for storage pointed to by this configuration.
+	Enabled bool `mapstructure:"enable"`
 }
 
 // TagsAsFields holds configuration for tag schema.
