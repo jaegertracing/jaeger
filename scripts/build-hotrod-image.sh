@@ -202,10 +202,7 @@ main() {
   
   # trap teardown EXIT
   
-  local run_docker=true
-  local run_kubernetes=true
-  
-  while getopts "hlop:dk" opt; do
+  while getopts "hlop:r:h" opt; do
     case "${opt}" in
       l) FLAGS=("${FLAGS[@]}" -l) ;;
       o) FLAGS=("${FLAGS[@]}" -o) ;;
