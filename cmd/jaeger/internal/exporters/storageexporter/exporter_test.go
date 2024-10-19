@@ -157,6 +157,9 @@ func TestExporter(t *testing.T) {
 	requiredTrace, err := spanReader.GetTrace(ctx, requiredTraceID)
 	require.NoError(t, err)
 	assert.Equal(t, spanID.String(), requiredTrace.Spans[0].SpanID.String())
+
+	// check that the service name attribute was added by the sanitizer
+	require.Equal(t, "missing-service-name", requiredTrace.Spans[0].Process.ServiceName)
 }
 
 func makeStorageExtension(t *testing.T, memstoreName string) component.Host {

@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/viper"
 
 	"github.com/jaegertracing/jaeger/cmd/es-rollover/app"
+	cfg "github.com/jaegertracing/jaeger/pkg/es/config"
 )
 
 const (
@@ -21,14 +22,10 @@ const (
 )
 
 // Config holds configuration for index cleaner binary.
+// Config.IndexPrefix supersedes Indices.IndexPrefix
 type Config struct {
 	app.Config
-	Shards                       int
-	Replicas                     int
-	PrioritySpanTemplate         int
-	PriorityServiceTemplate      int
-	PriorityDependenciesTemplate int
-	PrioritySamplingTemplate     int
+	cfg.Indices
 }
 
 // AddFlags adds flags for TLS to the FlagSet.
@@ -43,10 +40,18 @@ func (*Config) AddFlags(flags *flag.FlagSet) {
 
 // InitFromViper initializes config from viper.Viper.
 func (c *Config) InitFromViper(v *viper.Viper) {
-	c.Shards = v.GetInt(shards)
-	c.Replicas = v.GetInt(replicas)
-	c.PrioritySpanTemplate = v.GetInt(prioritySpanTemplate)
-	c.PriorityServiceTemplate = v.GetInt(priorityServiceTemplate)
-	c.PriorityDependenciesTemplate = v.GetInt(priorityDependenciesTemplate)
-	c.PrioritySamplingTemplate = v.GetInt(prioritySamplingTemplate)
+	c.Indices.Spans.Shards = v.GetInt64(shards)
+	c.Indices.Services.Shards = v.GetInt64(shards)
+	c.Indices.Dependencies.Shards = v.GetInt64(shards)
+	c.Indices.Sampling.Shards = v.GetInt64(shards)
+
+	c.Indices.Spans.Replicas = v.GetInt64(replicas)
+	c.Indices.Services.Replicas = v.GetInt64(replicas)
+	c.Indices.Dependencies.Replicas = v.GetInt64(replicas)
+	c.Indices.Sampling.Replicas = v.GetInt64(replicas)
+
+	c.Indices.Spans.Priority = v.GetInt64(prioritySpanTemplate)
+	c.Indices.Services.Priority = v.GetInt64(priorityServiceTemplate)
+	c.Indices.Dependencies.Priority = v.GetInt64(priorityDependenciesTemplate)
+	c.Indices.Sampling.Priority = v.GetInt64(prioritySamplingTemplate)
 }

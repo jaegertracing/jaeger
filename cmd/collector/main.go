@@ -52,8 +52,8 @@ func main() {
 	v := viper.New()
 	command := &cobra.Command{
 		Use:   "jaeger-collector",
-		Short: "Jaeger collector receives and processes traces from Jaeger agents and clients",
-		Long:  `Jaeger collector receives traces from Jaeger agents and runs them through a processing pipeline.`,
+		Short: "Jaeger collector receives and stores traces",
+		Long:  `Jaeger collector receives traces and runs them through a processing pipeline.`,
 		RunE: func(_ *cobra.Command, _ /* args */ []string) error {
 			if err := svc.Start(v); err != nil {
 				return err

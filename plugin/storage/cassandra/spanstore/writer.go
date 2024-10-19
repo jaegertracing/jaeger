@@ -96,9 +96,12 @@ func NewSpanWriter(
 	metricsFactory metrics.Factory,
 	logger *zap.Logger,
 	options ...Option,
-) *SpanWriter {
+) (*SpanWriter, error) {
 	serviceNamesStorage := NewServiceNamesStorage(session, writeCacheTTL, metricsFactory, logger)
-	operationNamesStorage := NewOperationNamesStorage(session, writeCacheTTL, metricsFactory, logger)
+	operationNamesStorage, err := NewOperationNamesStorage(session, writeCacheTTL, metricsFactory, logger)
+	if err != nil {
+		return nil, err
+	}
 	tagIndexSkipped := metricsFactory.Counter(metrics.Options{Name: "tag_index_skipped", Tags: nil})
 	opts := applyOptions(options...)
 	return &SpanWriter{
@@ -117,7 +120,7 @@ func NewSpanWriter(
 		tagFilter:       opts.tagFilter,
 		storageMode:     opts.storageMode,
 		indexFilter:     opts.indexFilter,
-	}
+	}, nil
 }
 
 // Close closes SpanWriter

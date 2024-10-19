@@ -1,5 +1,5 @@
 {
-  "priority": {{ .PrioritySpanTemplate}},
+  "priority": {{ .Priority }},
   "index_patterns": "{{ .IndexPrefix }}jaeger-span-*",
   "template": {
 

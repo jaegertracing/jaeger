@@ -81,10 +81,6 @@ build-jaeger: build-ui _build-a-binary-jaeger$(SUFFIX)-$(GOOS)-$(GOARCH)
 build-all-in-one: BIN_NAME = all-in-one
 build-all-in-one: build-ui _build-a-binary-all-in-one$(SUFFIX)-$(GOOS)-$(GOARCH)
 
-.PHONY: build-agent
-build-agent: BIN_NAME = agent
-build-agent: _build-a-binary-agent$(SUFFIX)-$(GOOS)-$(GOARCH)
-
 .PHONY: build-query
 build-query: BIN_NAME = query
 build-query: build-ui _build-a-binary-query$(SUFFIX)-$(GOOS)-$(GOARCH)
@@ -135,7 +131,6 @@ build-binaries-linux-ppc64le:
 # build all binaries for one specific platform GOOS/GOARCH
 .PHONY: _build-platform-binaries
 _build-platform-binaries: \
-		build-agent \
 		build-all-in-one \
 		build-collector \
 		build-query \
@@ -155,7 +150,6 @@ _build-platform-binaries: \
 .PHONY: _build-platform-binaries-debug
 _build-platform-binaries-debug:
 _build-platform-binaries-debug: \
-	build-agent \
 	build-collector \
 	build-query \
 	build-ingester \

@@ -1,5 +1,5 @@
 {
-  "priority": {{ .PriorityDependenciesTemplate }},
+  "priority": {{ .Priority }},
   "index_patterns": "{{ .IndexPrefix }}jaeger-dependencies-*",
   "template": {
     {{- if .UseILM }}

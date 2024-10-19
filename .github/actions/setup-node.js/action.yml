@@ -11,5 +11,5 @@ runs:
     - uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b # v4.0.3
       with:
         node-version: ${{ env.JAEGER_UI_NODE_JS_VERSION }}
-        cache: 'yarn'
-        cache-dependency-path: jaeger-ui/yarn.lock
+        cache: 'npm'
+        cache-dependency-path: jaeger-ui/package-lock.json

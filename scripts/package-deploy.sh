@@ -42,7 +42,6 @@ function stage-platform-files-v1 {
     local -r FILE_EXTENSION=${3:-}
 
     cp "./cmd/all-in-one/all-in-one-${PLATFORM}"  "${PACKAGE_STAGING_DIR}/jaeger-all-in-one${FILE_EXTENSION}"
-    cp "./cmd/agent/agent-${PLATFORM}"            "${PACKAGE_STAGING_DIR}/jaeger-agent${FILE_EXTENSION}"
     cp "./cmd/query/query-${PLATFORM}"            "${PACKAGE_STAGING_DIR}/jaeger-query${FILE_EXTENSION}"
     cp "./cmd/collector/collector-${PLATFORM}"    "${PACKAGE_STAGING_DIR}/jaeger-collector${FILE_EXTENSION}"
     cp "./cmd/ingester/ingester-${PLATFORM}"      "${PACKAGE_STAGING_DIR}/jaeger-ingester${FILE_EXTENSION}"
