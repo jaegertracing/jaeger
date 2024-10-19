@@ -6,9 +6,11 @@
 set -euf -o pipefail
 
 JAEGER_QUERY_URL="http://localhost:16686"
-EXPECTED_SPANS=35
-MAX_RETRIES=30
-SLEEP_INTERVAL=3
+expected_spans=35
+max_retries=30
+sleep_interval=3
+runtime="docker"  # Set docker runtime
+
 
 print_help() {
   echo "Usage: $0 [-h] [-l] [-o] [-p platforms] [-d | -k]"
@@ -16,8 +18,7 @@ print_help() {
   echo "-l: Enable local-only mode that only pushes images to local registry"
   echo "-o: Overwrite image in the target remote repository even if the semver tag already exists"
   echo "-p: Comma-separated list of platforms to build for (default: all supported)"
-  echo "-d: Run Docker tests only"
-  echo "-k: Run Kubernetes tests only"
+  echo "-r: Runtime to test with (docker|k8s, default: docker)"
   exit 1
 }
 
@@ -121,16 +122,16 @@ verify_trace() {
   local trace_id=$1
   local span_count=0
   
-  for ((i=1; i<=MAX_RETRIES; i++)); do
+  for ((i=1; i<=max_retries; i++)); do
     span_count=$(curl -s "${JAEGER_QUERY_URL}/api/traces/${trace_id}" | jq '.data[0].spans | length' || echo "0")
     
-    if [[ "$span_count" -ge "$EXPECTED_SPANS" ]]; then
+    if [[ "$span_count" -ge "$expected_spans" ]]; then
       echo "Trace found with $span_count spans."
       return 0
     fi
     
-    echo "Retry $i/$MAX_RETRIES: Found $span_count/$EXPECTED_SPANS spans. Retrying in $SLEEP_INTERVAL seconds..."
-    sleep $SLEEP_INTERVAL
+    echo "Retry $i/$max_retries: Found $span_count/$expected_spans spans. Retrying in $sleep_interval seconds..."
+    sleep $sleep_interval
   done
   
   echo "Failed to find trace with expected number of spans within timeout period"
@@ -209,21 +210,20 @@ main() {
       l) FLAGS=("${FLAGS[@]}" -l) ;;
       o) FLAGS=("${FLAGS[@]}" -o) ;;
       p) platforms=${OPTARG} ;;
-      d) run_kubernetes=false ;;
-      k) run_docker=false ;;
+      r) case "${OPTARG}" in
+           docker|k8s) runtime="${OPTARG}" ;;
+           *) echo "Invalid runtime: ${OPTARG}. Use 'docker' or 'k8s'" >&2; exit 1 ;;
+         esac ;;
       *) print_help ;;
     esac
   done
   
   build_setup "$platforms"
   
-  if [[ "$run_docker" == "true" ]]; then
-    run_docker_tests
-  fi
-  
-  if [[ "$run_kubernetes" == "true" ]]; then
-    run_k8s_tests
-  fi
+  case "${runtime}" in
+    docker) run_docker_tests ;;
+    k8s) run_k8s_tests ;;
+  esac
   
   success="true"
   
