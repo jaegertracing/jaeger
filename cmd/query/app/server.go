@@ -107,12 +107,22 @@ func createGRPCServer(querySvc *querysvc.QueryService, metricsQuerySvc querysvc.
 
 		grpcOpts = append(grpcOpts, grpc.Creds(creds))
 	}
-	if tm.Enabled {
-		grpcOpts = append(grpcOpts,
-			grpc.StreamInterceptor(tenancy.NewGuardingStreamInterceptor(tm)),
-			grpc.UnaryInterceptor(tenancy.NewGuardingUnaryInterceptor(tm)),
-		)
+
+	unaryInterceptors := []grpc.UnaryServerInterceptor{
+		bearertoken.NewUnaryServerInterceptor(),
 	}
+	streamInterceptors := []grpc.StreamServerInterceptor{
+		bearertoken.NewStreamServerInterceptor(),
+	}
+	if tm.Enabled {
+		unaryInterceptors = append(unaryInterceptors, tenancy.NewGuardingUnaryInterceptor(tm))
+		streamInterceptors = append(streamInterceptors, tenancy.NewGuardingStreamInterceptor(tm))
+	}
+
+	grpcOpts = append(grpcOpts,
+		grpc.ChainUnaryInterceptor(unaryInterceptors...),
+		grpc.ChainStreamInterceptor(streamInterceptors...),
+	)
 
 	server := grpc.NewServer(grpcOpts...)
 	reflection.Register(server)
