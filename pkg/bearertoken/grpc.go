@@ -31,19 +31,14 @@ func getValidBearerToken(ctx context.Context, bearerHeader string) (string, erro
 		return "", nil
 	}
 
-	return tokenFromMetadata(md, bearerHeader)
-}
-
-// tokenFromMetadata extracts the bearer token from the metadata.
-func tokenFromMetadata(md metadata.MD, bearerHeader string) (string, error) {
-	bearerToken := md.Get(bearerHeader)
-	if len(bearerToken) < 1 {
+	tokens := md.Get(bearerHeader)
+	if len(tokens) < 1 {
 		return "", nil
 	}
-	if len(bearerToken) > 1 {
+	if len(tokens) > 1 {
 		return "", fmt.Errorf("malformed token: multiple tokens found")
 	}
-	return bearerToken[0], nil
+	return tokens[0], nil
 }
 
 // NewStreamServerInterceptor creates a new stream interceptor that injects the bearer token into the context if available.
