@@ -29,12 +29,12 @@ type Agent struct {
 
 // NewAgent creates the new Agent.
 func NewAgent(
-	processorList []processors.Processor,
+	procs []processors.Processor,
 	httpServer *http.Server,
 	logger *zap.Logger,
 ) *Agent {
 	a := &Agent{
-		processors: processorList,
+		processors: procs,
 		httpServer: httpServer,
 		logger:     logger,
 	}

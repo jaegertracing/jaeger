@@ -95,14 +95,14 @@ func (b *Builder) WithReporter(r ...reporter.Reporter) *Builder {
 // CreateAgent creates the Agent
 func (b *Builder) CreateAgent(primaryProxy CollectorProxy, logger *zap.Logger, mFactory metrics.Factory) (*Agent, error) {
 	r := b.getReporter(primaryProxy)
-	processorList, err := b.getProcessors(r, mFactory, logger)
+	procs, err := b.getProcessors(r, mFactory, logger)
 	if err != nil {
 		return nil, fmt.Errorf("cannot create processors: %w", err)
 	}
 	server := b.HTTPServer.getHTTPServer(primaryProxy.GetManager(), mFactory, logger)
 	b.publishOpts()
 
-	return NewAgent(processorList, server, logger), nil
+	return NewAgent(procs, server, logger), nil
 }
 
 func (b *Builder) getReporter(primaryProxy CollectorProxy) reporter.Reporter {

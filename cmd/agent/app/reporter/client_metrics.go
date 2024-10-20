@@ -175,12 +175,12 @@ func (r *ClientMetricsReporter) updateClientMetrics(batch *jaeger.Batch) {
 func (s *lastReceivedClientStats) update(
 	batchSeqNo int64,
 	stats *jaeger.ClientStats,
-	clientMetricsData *clientMetrics,
+	cMetrics *clientMetrics,
 ) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
-	clientMetricsData.BatchesReceived.Inc(1)
+	cMetrics.BatchesReceived.Inc(1)
 
 	if s.batchSeqNo >= batchSeqNo {
 		// Ignore out of order batches. Once we receive a batch with a larger-than-seen number,
@@ -191,11 +191,11 @@ func (s *lastReceivedClientStats) update(
 	// do not update counters on the first batch, because it may cause a huge spike in totals
 	// if the client has been running for a while already, but the agent just started.
 	if s.batchSeqNo > 0 {
-		clientMetricsData.BatchesSent.Inc(batchSeqNo - s.batchSeqNo)
+		cMetrics.BatchesSent.Inc(batchSeqNo - s.batchSeqNo)
 		if stats != nil {
-			clientMetricsData.FailedToEmitSpans.Inc(stats.FailedToEmitSpans - s.failedToEmitSpans)
-			clientMetricsData.TooLargeDroppedSpans.Inc(stats.TooLargeDroppedSpans - s.tooLargeDroppedSpans)
-			clientMetricsData.FullQueueDroppedSpans.Inc(stats.FullQueueDroppedSpans - s.fullQueueDroppedSpans)
+			cMetrics.FailedToEmitSpans.Inc(stats.FailedToEmitSpans - s.failedToEmitSpans)
+			cMetrics.TooLargeDroppedSpans.Inc(stats.TooLargeDroppedSpans - s.tooLargeDroppedSpans)
+			cMetrics.FullQueueDroppedSpans.Inc(stats.FullQueueDroppedSpans - s.fullQueueDroppedSpans)
 		}
 	}
 

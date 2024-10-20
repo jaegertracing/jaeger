@@ -127,12 +127,12 @@ func TestGauge(t *testing.T) {
 
 	testGauge := findMetric(t, registry, "test_gauge")
 
-	gaugeMetrics := testGauge.GetMetric()
-	assert.InDelta(t, float64(2), gaugeMetrics[0].GetGauge().GetValue(), 0.01)
+	metricData := testGauge.GetMetric()
+	assert.InDelta(t, float64(2), metricData[0].GetGauge().GetValue(), 0.01)
 	expectedLabels := map[string]string{
 		"tag1": "value1",
 	}
-	assert.Equal(t, expectedLabels, promLabelsToMap(gaugeMetrics[0].GetLabel()))
+	assert.Equal(t, expectedLabels, promLabelsToMap(metricData[0].GetLabel()))
 }
 
 func TestHistogram(t *testing.T) {
@@ -147,12 +147,12 @@ func TestHistogram(t *testing.T) {
 
 	testHistogram := findMetric(t, registry, "test_histogram")
 
-	histogramMetrics := testHistogram.GetMetric()
-	assert.InDelta(t, float64(1), histogramMetrics[0].GetHistogram().GetSampleSum(), 0.01)
+	metricData := testHistogram.GetMetric()
+	assert.InDelta(t, float64(1), metricData[0].GetHistogram().GetSampleSum(), 0.01)
 	expectedLabels := map[string]string{
 		"tag1": "value1",
 	}
-	assert.Equal(t, expectedLabels, promLabelsToMap(histogramMetrics[0].GetLabel()))
+	assert.Equal(t, expectedLabels, promLabelsToMap(metricData[0].GetLabel()))
 }
 
 func TestTimer(t *testing.T) {
@@ -167,12 +167,12 @@ func TestTimer(t *testing.T) {
 
 	testTimer := findMetric(t, registry, "test_timer_seconds")
 
-	timerMetrics := testTimer.GetMetric()
-	assert.InDelta(t, float64(0.1), timerMetrics[0].GetHistogram().GetSampleSum(), 0.01)
+	metricData := testTimer.GetMetric()
+	assert.InDelta(t, float64(0.1), metricData[0].GetHistogram().GetSampleSum(), 0.01)
 	expectedLabels := map[string]string{
 		"tag1": "value1",
 	}
-	assert.Equal(t, expectedLabels, promLabelsToMap(timerMetrics[0].GetLabel()))
+	assert.Equal(t, expectedLabels, promLabelsToMap(metricData[0].GetLabel()))
 }
 
 func TestNamespace(t *testing.T) {
@@ -262,6 +262,6 @@ func TestNormalization(t *testing.T) {
 
 	testGauge := findMetric(t, registry, "My_Namespace_My_Gauge")
 
-	gaugeMetrics := testGauge.GetMetric()
-	assert.InDelta(t, float64(1), gaugeMetrics[0].GetGauge().GetValue(), 0.01)
+	metricData := testGauge.GetMetric()
+	assert.InDelta(t, float64(1), metricData[0].GetGauge().GetValue(), 0.01)
 }

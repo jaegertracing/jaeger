@@ -79,7 +79,7 @@ func PropagateError(b bool) RetryOption {
 
 // NewRetryingProcessor returns a processor that retries failures using an exponential backoff
 // with jitter.
-func NewRetryingProcessor(f metrics.Factory, spanProcessor processor.SpanProcessor, opts ...RetryOption) processor.SpanProcessor {
+func NewRetryingProcessor(f metrics.Factory, proc processor.SpanProcessor, opts ...RetryOption) processor.SpanProcessor {
 	options := defaultOpts
 	for _, opt := range opts {
 		opt(&options)
@@ -89,7 +89,7 @@ func NewRetryingProcessor(f metrics.Factory, spanProcessor processor.SpanProcess
 	return &retryDecorator{
 		retryAttempts: m.Counter(metrics.Options{Name: "retry-attempts", Tags: nil}),
 		exhausted:     m.Counter(metrics.Options{Name: "retry-exhausted", Tags: nil}),
-		processor:     spanProcessor,
+		processor:     proc,
 		options:       options,
 	}
 }
