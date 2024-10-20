@@ -363,16 +363,16 @@ func (aH *APIHandler) metrics(w http.ResponseWriter, r *http.Request, getMetrics
 	aH.writeJSON(w, r, m)
 }
 
-func (aH *APIHandler) convertModelToUI(modelTrace *model.Trace, adjust bool) (*ui.Trace, *structuredError) {
+func (aH *APIHandler) convertModelToUI(trc *model.Trace, adjust bool) (*ui.Trace, *structuredError) {
 	var errs []error
 	if adjust {
 		var err error
-		modelTrace, err = aH.queryService.Adjust(modelTrace)
+		trc, err = aH.queryService.Adjust(trc)
 		if err != nil {
 			errs = append(errs, err)
 		}
 	}
-	uiTrace := uiconv.FromDomain(modelTrace)
+	uiTrace := uiconv.FromDomain(trc)
 	var uiError *structuredError
 	if err := errors.Join(errs...); err != nil {
 		uiError = &structuredError{

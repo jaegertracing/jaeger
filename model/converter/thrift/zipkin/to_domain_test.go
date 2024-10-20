@@ -96,10 +96,10 @@ func TestToDomainWithDurationFromClientAnnotations(t *testing.T) {
 	{"value": "cs", "timestamp": 1, "host": {"service_name": "bar", "ipv4": 23456}},
 	{"value": "cr", "timestamp": 10, "host": {"service_name": "bar", "ipv4": 23456}}
 	]}]`)
-	domainTrace, err := ToDomain(zSpans)
+	trc, err := ToDomain(zSpans)
 	require.NoError(t, err)
-	assert.Equal(t, 1000, int(domainTrace.Spans[0].StartTime.Nanosecond()))
-	assert.Equal(t, 9000, int(domainTrace.Spans[0].Duration))
+	assert.Equal(t, 1000, int(trc.Spans[0].StartTime.Nanosecond()))
+	assert.Equal(t, 9000, int(trc.Spans[0].Duration))
 }
 
 func TestToDomainMultipleSpanKinds(t *testing.T) {
