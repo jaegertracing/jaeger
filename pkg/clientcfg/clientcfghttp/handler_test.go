@@ -59,9 +59,9 @@ func withServer(
 		handler.RegisterRoutes(r)
 		server = httptest.NewServer(r)
 	} else {
-		mux := http.NewServeMux()
-		handler.RegisterRoutesWithHTTP(mux)
-		server = httptest.NewServer(mux)
+		httpMux := http.NewServeMux()
+		handler.RegisterRoutesWithHTTP(httpMux)
+		server = httptest.NewServer(httpMux)
 	}
 
 	defer server.Close()

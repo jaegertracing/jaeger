@@ -157,7 +157,7 @@ func createDummySpan() model.Span {
 }
 
 func TestMergeJoin(t *testing.T) {
-	assert := assert.New(t)
+	chk := assert.New(t)
 
 	// Test equals
 
@@ -173,19 +173,19 @@ func TestMergeJoin(t *testing.T) {
 	}
 
 	merged := mergeJoinIds(left, right)
-	assert.Len(merged, 16)
+	chk.Len(merged, 16)
 
 	// Check order
-	assert.Equal(uint32(15), binary.BigEndian.Uint32(merged[15]))
+	chk.Equal(uint32(15), binary.BigEndian.Uint32(merged[15]))
 
 	// Test simple non-equality different size
 
 	merged = mergeJoinIds(left[1:2], right[13:])
-	assert.Empty(merged)
+	chk.Empty(merged)
 
 	// Different size, some equalities
 
 	merged = mergeJoinIds(left[0:3], right[1:7])
-	assert.Len(merged, 2)
-	assert.Equal(uint32(2), binary.BigEndian.Uint32(merged[1]))
+	chk.Len(merged, 2)
+	chk.Equal(uint32(2), binary.BigEndian.Uint32(merged[1]))
 }

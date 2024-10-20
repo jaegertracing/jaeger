@@ -53,51 +53,51 @@ func newZipkinTrace() *model.Trace {
 }
 
 func TestZipkinSpanIDUniquifierTriggered(t *testing.T) {
-	trace := newZipkinTrace()
+	trc := newZipkinTrace()
 	deduper := ZipkinSpanIDUniquifier()
-	trace, err := deduper.Adjust(trace)
+	trc, err := deduper.Adjust(trc)
 	require.NoError(t, err)
 
-	clientSpan := trace.Spans[0]
+	clientSpan := trc.Spans[0]
 	assert.Equal(t, clientSpanID, clientSpan.SpanID, "client span ID should not change")
 
-	serverSpan := trace.Spans[1]
+	serverSpan := trc.Spans[1]
 	assert.Equal(t, clientSpanID+1, serverSpan.SpanID, "server span ID should be reassigned")
 	assert.Equal(t, clientSpan.SpanID, serverSpan.ParentSpanID(), "client span should be server span's parent")
 
-	thirdSpan := trace.Spans[2]
+	thirdSpan := trc.Spans[2]
 	assert.Equal(t, anotherSpanID, thirdSpan.SpanID, "3rd span ID should not change")
 	assert.Equal(t, serverSpan.SpanID, thirdSpan.ParentSpanID(), "server span should be 3rd span's parent")
 }
 
 func TestZipkinSpanIDUniquifierNotTriggered(t *testing.T) {
-	trace := newZipkinTrace()
-	trace.Spans = trace.Spans[1:] // remove client span
+	trc := newZipkinTrace()
+	trc.Spans = trc.Spans[1:] // remove client span
 
 	deduper := ZipkinSpanIDUniquifier()
-	trace, err := deduper.Adjust(trace)
+	trc, err := deduper.Adjust(trc)
 	require.NoError(t, err)
 
 	serverSpanID := clientSpanID // for better readability
-	serverSpan := trace.Spans[0]
+	serverSpan := trc.Spans[0]
 	assert.Equal(t, serverSpanID, serverSpan.SpanID, "server span ID should be unchanged")
 
-	thirdSpan := trace.Spans[1]
+	thirdSpan := trc.Spans[1]
 	assert.Equal(t, anotherSpanID, thirdSpan.SpanID, "3rd span ID should not change")
 	assert.Equal(t, serverSpan.SpanID, thirdSpan.ParentSpanID(), "server span should be 3rd span's parent")
 }
 
 func TestZipkinSpanIDUniquifierError(t *testing.T) {
-	trace := newZipkinTrace()
+	trc := newZipkinTrace()
 
 	maxID := int64(-1)
 	assert.Equal(t, maxSpanID, model.NewSpanID(uint64(maxID)), "maxSpanID must be 2^64-1")
 
-	deduper := &spanIDDeduper{trace: trace}
+	deduper := &spanIDDeduper{trace: trc}
 	deduper.groupSpansByID()
 	deduper.maxUsedID = maxSpanID - 1
 	deduper.uniquifyServerSpanIDs()
-	if assert.Len(t, trace.Spans[1].Warnings, 1) {
-		assert.Equal(t, "cannot assign unique span ID, too many spans in the trace", trace.Spans[1].Warnings[0])
+	if assert.Len(t, trc.Spans[1].Warnings, 1) {
+		assert.Equal(t, "cannot assign unique span ID, too many spans in the trace", trc.Spans[1].Warnings[0])
 	}
 }

@@ -66,7 +66,7 @@ func (s *ServiceOperationStorage) Write(indexName string, jsonSpan *dbmodel.Span
 	}
 }
 
-func (s *ServiceOperationStorage) getServices(context context.Context, indices []string, maxDocCount int) ([]string, error) {
+func (s *ServiceOperationStorage) getServices(ctx context.Context, indices []string, maxDocCount int) ([]string, error) {
 	serviceAggregation := getServicesAggregation(maxDocCount)
 
 	searchService := s.client().Search(indices...).
@@ -74,7 +74,7 @@ func (s *ServiceOperationStorage) getServices(context context.Context, indices [
 		IgnoreUnavailable(true).
 		Aggregation(servicesAggregation, serviceAggregation)
 
-	searchResult, err := searchService.Do(context)
+	searchResult, err := searchService.Do(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("search services failed: %w", es.DetailedError(err))
 	}
@@ -95,7 +95,7 @@ func getServicesAggregation(maxDocCount int) elastic.Query {
 		Size(maxDocCount) // ES deprecated size omission for aggregating all. https://github.com/elastic/elasticsearch/issues/18838
 }
 
-func (s *ServiceOperationStorage) getOperations(context context.Context, indices []string, service string, maxDocCount int) ([]string, error) {
+func (s *ServiceOperationStorage) getOperations(ctx context.Context, indices []string, service string, maxDocCount int) ([]string, error) {
 	serviceQuery := elastic.NewTermQuery(serviceName, service)
 	serviceFilter := getOperationsAggregation(maxDocCount)
 
@@ -105,7 +105,7 @@ func (s *ServiceOperationStorage) getOperations(context context.Context, indices
 		IgnoreUnavailable(true).
 		Aggregation(operationsAggregation, serviceFilter)
 
-	searchResult, err := searchService.Do(context)
+	searchResult, err := searchService.Do(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("search operations failed: %w", es.DetailedError(err))
 	}

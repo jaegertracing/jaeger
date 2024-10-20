@@ -73,8 +73,8 @@ func (fileInfo) Sys() any { return nil }
 
 // New wraps underlying fs that is expected to contain gzipped files
 // and presents an unzipped view of it.
-func New(fs fs.FS) fs.FS {
-	return fileSystem{fs}
+func New(fileSys fs.FS) fs.FS {
+	return fileSystem{fileSys}
 }
 
 func (cfs fileSystem) Open(path string) (fs.File, error) {

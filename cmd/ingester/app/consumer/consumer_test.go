@@ -78,19 +78,19 @@ func newConsumer(
 	t *testing.T,
 	metricsFactory metrics.Factory,
 	_ string, /* topic */
-	processor processor.SpanProcessor,
-	consumer consumer.Consumer,
+	proc processor.SpanProcessor,
+	cons consumer.Consumer,
 ) *Consumer {
 	logger, _ := zap.NewDevelopment()
 	consumerParams := Params{
 		MetricsFactory:   metricsFactory,
 		Logger:           logger,
-		InternalConsumer: consumer,
+		InternalConsumer: cons,
 		ProcessorFactory: ProcessorFactory{
-			consumer:       consumer,
+			consumer:       cons,
 			metricsFactory: metricsFactory,
 			logger:         logger,
-			baseProcessor:  processor,
+			baseProcessor:  proc,
 			parallelism:    1,
 		},
 	}

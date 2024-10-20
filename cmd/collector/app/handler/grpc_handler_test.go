@@ -103,9 +103,9 @@ func newClient(t *testing.T, addr net.Addr) (api_v2.CollectorServiceClient, *grp
 }
 
 func TestPostSpans(t *testing.T) {
-	processor := &mockSpanProcessor{}
+	proc := &mockSpanProcessor{}
 	server, addr := initializeGRPCTestServer(t, func(s *grpc.Server) {
-		handler := NewGRPCHandler(zap.NewNop(), processor, &tenancy.Manager{})
+		handler := NewGRPCHandler(zap.NewNop(), proc, &tenancy.Manager{})
 		api_v2.RegisterCollectorServiceServer(s, handler)
 	})
 	defer server.Stop()
@@ -130,17 +130,17 @@ func TestPostSpans(t *testing.T) {
 			Batch: test.batch,
 		})
 		require.NoError(t, err)
-		got := processor.getSpans()
+		got := proc.getSpans()
 		require.Equal(t, len(test.batch.GetSpans()), len(got))
 		assert.Equal(t, test.expected, got)
-		processor.reset()
+		proc.reset()
 	}
 }
 
 func TestGRPCCompressionEnabled(t *testing.T) {
-	processor := &mockSpanProcessor{}
+	proc := &mockSpanProcessor{}
 	server, addr := initializeGRPCTestServer(t, func(s *grpc.Server) {
-		handler := NewGRPCHandler(zap.NewNop(), processor, &tenancy.Manager{})
+		handler := NewGRPCHandler(zap.NewNop(), proc, &tenancy.Manager{})
 		api_v2.RegisterCollectorServiceServer(s, handler)
 	})
 	defer server.Stop()
@@ -214,9 +214,9 @@ func TestPostTenantedSpans(t *testing.T) {
 	tenantHeader := "x-tenant"
 	dummyTenant := "grpc-test-tenant"
 
-	processor := &mockSpanProcessor{}
+	proc := &mockSpanProcessor{}
 	server, addr := initializeGRPCTestServer(t, func(s *grpc.Server) {
-		handler := NewGRPCHandler(zap.NewNop(), processor,
+		handler := NewGRPCHandler(zap.NewNop(), proc,
 			tenancy.NewManager(&tenancy.Options{
 				Enabled: true,
 				Header:  tenantHeader,
@@ -296,9 +296,9 @@ func TestPostTenantedSpans(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 			}
-			assert.Equal(t, test.expected, processor.getSpans())
-			assert.Equal(t, test.expectedTenants, processor.getTenants())
-			processor.reset()
+			assert.Equal(t, test.expected, proc.getSpans())
+			assert.Equal(t, test.expectedTenants, proc.getTenants())
+			proc.reset()
 		})
 	}
 }
@@ -351,8 +351,8 @@ func TestGetTenant(t *testing.T) {
 		},
 	}
 
-	processor := &mockSpanProcessor{}
-	handler := NewGRPCHandler(zap.NewNop(), processor,
+	proc := &mockSpanProcessor{}
+	handler := NewGRPCHandler(zap.NewNop(), proc,
 		tenancy.NewManager(&tenancy.Options{
 			Enabled: true,
 			Header:  tenantHeader,

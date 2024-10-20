@@ -71,9 +71,9 @@ func (options) PreProcessSpans(preProcessSpans ProcessSpans) Option {
 }
 
 // Sanitizer creates an Option that initializes the sanitizer function
-func (options) Sanitizer(sanitizer sanitizer.SanitizeSpan) Option {
+func (options) Sanitizer(spanSanitizer sanitizer.SanitizeSpan) Option {
 	return func(b *options) {
-		b.sanitizer = sanitizer
+		b.sanitizer = spanSanitizer
 	}
 }
 
