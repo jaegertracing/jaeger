@@ -21,8 +21,10 @@ patches:
           name: jaeger
           ports:
             - containerPort: 6831
+              protocol: UDP
               name: tracing-jaeger
             - containerPort: 16686
+              protocol: TCP
               name: frontend-jaeger
           resources:
             limits:
