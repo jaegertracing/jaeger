@@ -275,7 +275,7 @@ func (aH *APIHandler) tracesByIDs(ctx context.Context, traceIDs []model.TraceID)
 	var traceErrors []structuredError
 	retMe := make([]*model.Trace, 0, len(traceIDs))
 	for _, traceID := range traceIDs {
-		if queriedTrace, err := aH.queryService.GetTrace(ctx, traceID); err != nil {
+		if trc, err := aH.queryService.GetTrace(ctx, traceID); err != nil {
 			if !errors.Is(err, spanstore.ErrTraceNotFound) {
 				return nil, nil, err
 			}
@@ -284,7 +284,7 @@ func (aH *APIHandler) tracesByIDs(ctx context.Context, traceIDs []model.TraceID)
 				TraceID: ui.TraceID(traceID.String()),
 			})
 		} else {
-			retMe = append(retMe, queriedTrace)
+			retMe = append(retMe, trc)
 		}
 	}
 	return retMe, traceErrors, nil
@@ -438,7 +438,7 @@ func (aH *APIHandler) getTrace(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	queriedTrace, err := aH.queryService.GetTrace(r.Context(), traceID)
+	trc, err := aH.queryService.GetTrace(r.Context(), traceID)
 	if errors.Is(err, spanstore.ErrTraceNotFound) {
 		aH.handleError(w, err, http.StatusNotFound)
 		return
@@ -448,7 +448,7 @@ func (aH *APIHandler) getTrace(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var uiErrors []structuredError
-	structuredRes := aH.tracesToResponse([]*model.Trace{queriedTrace}, shouldAdjust(r), uiErrors)
+	structuredRes := aH.tracesToResponse([]*model.Trace{trc}, shouldAdjust(r), uiErrors)
 	aH.writeJSON(w, r, structuredRes)
 }
 

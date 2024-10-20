@@ -178,18 +178,18 @@ func TestPerOperationSamplingStrategies(t *testing.T) {
 		assert.Equal(t, *expected.ProbabilisticSampling, *s.ProbabilisticSampling)
 
 		require.NotNil(t, s.OperationSampling)
-		operationSampling := s.OperationSampling
-		assert.InDelta(t, 0.8, operationSampling.DefaultSamplingProbability, 0.01)
-		require.Len(t, operationSampling.PerOperationStrategies, 4)
+		opSampling := s.OperationSampling
+		assert.InDelta(t, 0.8, opSampling.DefaultSamplingProbability, 0.01)
+		require.Len(t, opSampling.PerOperationStrategies, 4)
 
-		assert.Equal(t, "op6", operationSampling.PerOperationStrategies[0].Operation)
-		assert.InDelta(t, 0.5, operationSampling.PerOperationStrategies[0].ProbabilisticSampling.SamplingRate, 0.01)
-		assert.Equal(t, "op1", operationSampling.PerOperationStrategies[1].Operation)
-		assert.InDelta(t, 0.2, operationSampling.PerOperationStrategies[1].ProbabilisticSampling.SamplingRate, 0.01)
-		assert.Equal(t, "op0", operationSampling.PerOperationStrategies[2].Operation)
-		assert.InDelta(t, 0.2, operationSampling.PerOperationStrategies[2].ProbabilisticSampling.SamplingRate, 0.01)
-		assert.Equal(t, "op7", operationSampling.PerOperationStrategies[3].Operation)
-		assert.InDelta(t, 1.0, operationSampling.PerOperationStrategies[3].ProbabilisticSampling.SamplingRate, 0.01)
+		assert.Equal(t, "op6", opSampling.PerOperationStrategies[0].Operation)
+		assert.InDelta(t, 0.5, opSampling.PerOperationStrategies[0].ProbabilisticSampling.SamplingRate, 0.01)
+		assert.Equal(t, "op1", opSampling.PerOperationStrategies[1].Operation)
+		assert.InDelta(t, 0.2, opSampling.PerOperationStrategies[1].ProbabilisticSampling.SamplingRate, 0.01)
+		assert.Equal(t, "op0", opSampling.PerOperationStrategies[2].Operation)
+		assert.InDelta(t, 0.2, opSampling.PerOperationStrategies[2].ProbabilisticSampling.SamplingRate, 0.01)
+		assert.Equal(t, "op7", opSampling.PerOperationStrategies[3].Operation)
+		assert.InDelta(t, 1.0, opSampling.PerOperationStrategies[3].ProbabilisticSampling.SamplingRate, 0.01)
 
 		expected = makeResponse(api_v2.SamplingStrategyType_RATE_LIMITING, 5)
 
@@ -199,19 +199,19 @@ func TestPerOperationSamplingStrategies(t *testing.T) {
 		assert.Equal(t, *expected.RateLimitingSampling, *s.RateLimitingSampling)
 
 		require.NotNil(t, s.OperationSampling)
-		operationSampling = s.OperationSampling
-		assert.InDelta(t, 0.001, operationSampling.DefaultSamplingProbability, 1e-4)
-		require.Len(t, operationSampling.PerOperationStrategies, 5)
-		assert.Equal(t, "op3", operationSampling.PerOperationStrategies[0].Operation)
-		assert.InDelta(t, 0.3, operationSampling.PerOperationStrategies[0].ProbabilisticSampling.SamplingRate, 0.01)
-		assert.Equal(t, "op5", operationSampling.PerOperationStrategies[1].Operation)
-		assert.InDelta(t, 0.4, operationSampling.PerOperationStrategies[1].ProbabilisticSampling.SamplingRate, 0.01)
-		assert.Equal(t, "op0", operationSampling.PerOperationStrategies[2].Operation)
-		assert.InDelta(t, 0.2, operationSampling.PerOperationStrategies[2].ProbabilisticSampling.SamplingRate, 0.01)
-		assert.Equal(t, "op6", operationSampling.PerOperationStrategies[3].Operation)
-		assert.InDelta(t, 0.0, operationSampling.PerOperationStrategies[3].ProbabilisticSampling.SamplingRate, 0.01)
-		assert.Equal(t, "op7", operationSampling.PerOperationStrategies[4].Operation)
-		assert.InDelta(t, 1.0, operationSampling.PerOperationStrategies[4].ProbabilisticSampling.SamplingRate, 0.01)
+		opSampling = s.OperationSampling
+		assert.InDelta(t, 0.001, opSampling.DefaultSamplingProbability, 1e-4)
+		require.Len(t, opSampling.PerOperationStrategies, 5)
+		assert.Equal(t, "op3", opSampling.PerOperationStrategies[0].Operation)
+		assert.InDelta(t, 0.3, opSampling.PerOperationStrategies[0].ProbabilisticSampling.SamplingRate, 0.01)
+		assert.Equal(t, "op5", opSampling.PerOperationStrategies[1].Operation)
+		assert.InDelta(t, 0.4, opSampling.PerOperationStrategies[1].ProbabilisticSampling.SamplingRate, 0.01)
+		assert.Equal(t, "op0", opSampling.PerOperationStrategies[2].Operation)
+		assert.InDelta(t, 0.2, opSampling.PerOperationStrategies[2].ProbabilisticSampling.SamplingRate, 0.01)
+		assert.Equal(t, "op6", opSampling.PerOperationStrategies[3].Operation)
+		assert.InDelta(t, 0.0, opSampling.PerOperationStrategies[3].ProbabilisticSampling.SamplingRate, 0.01)
+		assert.Equal(t, "op7", opSampling.PerOperationStrategies[4].Operation)
+		assert.InDelta(t, 1.0, opSampling.PerOperationStrategies[4].ProbabilisticSampling.SamplingRate, 0.01)
 
 		s, err = provider.GetSamplingStrategy(context.Background(), "default")
 		require.NoError(t, err)
@@ -257,11 +257,11 @@ func TestMissingServiceSamplingStrategyTypes(t *testing.T) {
 	assert.Equal(t, *expected.ProbabilisticSampling, *s.ProbabilisticSampling)
 
 	require.NotNil(t, s.OperationSampling)
-	operationSampling := s.OperationSampling
-	assert.InDelta(t, defaultSamplingProbability, operationSampling.DefaultSamplingProbability, 1e-4)
-	require.Len(t, operationSampling.PerOperationStrategies, 1)
-	assert.Equal(t, "op1", operationSampling.PerOperationStrategies[0].Operation)
-	assert.InDelta(t, 0.2, operationSampling.PerOperationStrategies[0].ProbabilisticSampling.SamplingRate, 0.001)
+	opSampling := s.OperationSampling
+	assert.InDelta(t, defaultSamplingProbability, opSampling.DefaultSamplingProbability, 1e-4)
+	require.Len(t, opSampling.PerOperationStrategies, 1)
+	assert.Equal(t, "op1", opSampling.PerOperationStrategies[0].Operation)
+	assert.InDelta(t, 0.2, opSampling.PerOperationStrategies[0].ProbabilisticSampling.SamplingRate, 0.001)
 
 	expected = makeResponse(api_v2.SamplingStrategyType_PROBABILISTIC, defaultSamplingProbability)
 
@@ -271,13 +271,13 @@ func TestMissingServiceSamplingStrategyTypes(t *testing.T) {
 	assert.Equal(t, *expected.ProbabilisticSampling, *s.ProbabilisticSampling)
 
 	require.NotNil(t, s.OperationSampling)
-	operationSampling = s.OperationSampling
-	assert.InDelta(t, 0.001, operationSampling.DefaultSamplingProbability, 1e-4)
-	require.Len(t, operationSampling.PerOperationStrategies, 2)
-	assert.Equal(t, "op3", operationSampling.PerOperationStrategies[0].Operation)
-	assert.InDelta(t, 0.3, operationSampling.PerOperationStrategies[0].ProbabilisticSampling.SamplingRate, 0.01)
-	assert.Equal(t, "op5", operationSampling.PerOperationStrategies[1].Operation)
-	assert.InDelta(t, 0.4, operationSampling.PerOperationStrategies[1].ProbabilisticSampling.SamplingRate, 0.01)
+	opSampling = s.OperationSampling
+	assert.InDelta(t, 0.001, opSampling.DefaultSamplingProbability, 1e-4)
+	require.Len(t, opSampling.PerOperationStrategies, 2)
+	assert.Equal(t, "op3", opSampling.PerOperationStrategies[0].Operation)
+	assert.InDelta(t, 0.3, opSampling.PerOperationStrategies[0].ProbabilisticSampling.SamplingRate, 0.01)
+	assert.Equal(t, "op5", opSampling.PerOperationStrategies[1].Operation)
+	assert.InDelta(t, 0.4, opSampling.PerOperationStrategies[1].ProbabilisticSampling.SamplingRate, 0.01)
 
 	s, err = provider.GetSamplingStrategy(context.Background(), "default")
 	require.NoError(t, err)

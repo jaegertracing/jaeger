@@ -54,8 +54,8 @@ func (s *queryService) GetTraces(serviceName, operation string, tags map[string]
 	for k, v := range tags {
 		values.Add("tag", k+":"+v)
 	}
-	formattedURL := fmt.Sprintf(getTraceURL(s.url), values.Encode())
-	resp, err := http.Get(formattedURL)
+	fmtURL := fmt.Sprintf(getTraceURL(s.url), values.Encode())
+	resp, err := http.Get(fmtURL)
 	if err != nil {
 		return nil, err
 	}
@@ -64,7 +64,7 @@ func (s *queryService) GetTraces(serviceName, operation string, tags map[string]
 	if err != nil {
 		return nil, err
 	}
-	s.logger.Info("GetTraces: received response from query", zap.String("body", string(body)), zap.String("url", formattedURL))
+	s.logger.Info("GetTraces: received response from query", zap.String("body", string(body)), zap.String("url", fmtURL))
 
 	var queryResponse response
 	if err = json.Unmarshal(body, &queryResponse); err != nil {

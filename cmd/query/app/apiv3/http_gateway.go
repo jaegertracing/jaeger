@@ -143,11 +143,11 @@ func (h *HTTPGateway) getTrace(w http.ResponseWriter, r *http.Request) {
 	if h.tryParamError(w, err, paramTraceID) {
 		return
 	}
-	queriedTrace, err := h.QueryService.GetTrace(r.Context(), traceID)
+	trc, err := h.QueryService.GetTrace(r.Context(), traceID)
 	if h.tryHandleError(w, err, http.StatusInternalServerError) {
 		return
 	}
-	h.returnSpans(queriedTrace.Spans, w)
+	h.returnSpans(trc.Spans, w)
 }
 
 func (h *HTTPGateway) findTraces(w http.ResponseWriter, r *http.Request) {

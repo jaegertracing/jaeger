@@ -50,8 +50,8 @@ func NewProcessorFactory(params ProcessorFactoryParams) (*ProcessorFactory, erro
 func (c *ProcessorFactory) new(topic string, partition int32, minOffset int64) processor.SpanProcessor {
 	c.logger.Info("Creating new processors", zap.Int32("partition", partition))
 
-	markOffset := func(offsetValue int64) {
-		c.consumer.MarkPartitionOffset(topic, partition, offsetValue, "")
+	markOffset := func(offsetVal int64) {
+		c.consumer.MarkPartitionOffset(topic, partition, offsetVal, "")
 	}
 
 	om := offset.NewManager(minOffset, markOffset, topic, partition, c.metricsFactory)
