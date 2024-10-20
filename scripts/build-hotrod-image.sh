@@ -5,13 +5,6 @@
 
 set -euf -o pipefail
 
-JAEGER_QUERY_URL="http://localhost:16686"
-expected_spans=35
-max_retries=30
-sleep_interval=3
-runtime="docker"  # Set docker runtime
-
-
 print_help() {
   echo "Usage: $0 [-h] [-l] [-o] [-p platforms] [-d | -k]"
   echo "-h: Print help"
@@ -21,6 +14,31 @@ print_help() {
   echo "-r: Runtime to test with (docker|k8s, default: docker)"
   exit 1
 }
+
+JAEGER_QUERY_URL="http://localhost:16686"
+expected_spans=35
+max_retries=30
+sleep_interval=3
+runtime="docker"  # Set docker runtime
+docker_compose_file="./examples/hotrod/docker-compose.yml"
+platforms="$(make echo-linux-platforms)"
+current_platform="$(go env GOOS)/$(go env GOARCH)"
+FLAGS=()
+success="false"
+    
+while getopts "hlop:r:h" opt; do
+  case "${opt}" in
+    l) FLAGS=("${FLAGS[@]}" -l) ;;
+    o) FLAGS=("${FLAGS[@]}" -o) ;;
+    p) platforms=${OPTARG} ;;
+    r) case "${OPTARG}" in
+         docker|k8s) runtime="${OPTARG}" ;;
+         *) echo "Invalid runtime: ${OPTARG}. Use 'docker' or 'k8s'" >&2; exit 1 ;;
+       esac ;;
+    *) print_help ;;
+  esac
+done
+
 
 dump_logs() {
   local compose_file=$1
@@ -194,27 +212,7 @@ run_k8s_tests() {
 }
 
 main() {
-  docker_compose_file="./examples/hotrod/docker-compose.yml"
-  platforms="$(make echo-linux-platforms)"
-  current_platform="$(go env GOOS)/$(go env GOARCH)"
-  FLAGS=()
-  success="false"
-  
-  # trap teardown EXIT
-  
-  while getopts "hlop:r:h" opt; do
-    case "${opt}" in
-      l) FLAGS=("${FLAGS[@]}" -l) ;;
-      o) FLAGS=("${FLAGS[@]}" -o) ;;
-      p) platforms=${OPTARG} ;;
-      r) case "${OPTARG}" in
-           docker|k8s) runtime="${OPTARG}" ;;
-           *) echo "Invalid runtime: ${OPTARG}. Use 'docker' or 'k8s'" >&2; exit 1 ;;
-         esac ;;
-      *) print_help ;;
-    esac
-  done
-  
+
   build_setup "$platforms"
   
   case "${runtime}" in
