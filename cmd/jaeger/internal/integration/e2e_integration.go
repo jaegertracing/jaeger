@@ -13,7 +13,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
@@ -187,11 +186,6 @@ func (s *E2EStorageIntegration) doHealthCheck(t *testing.T) bool {
 		t.Logf("HTTP response not OK: %v", string(body))
 		return false
 	}
-	// for backwards compatibility with other healthchecks
-	if !strings.HasSuffix(healthCheckEndpoint, "/status") {
-		t.Logf("OK HTTP from endpoint that is not healthcheckv2")
-		return true
-	}
 
 	var healthResponse struct {
 		Status string `json:"status"`
@@ -207,7 +201,7 @@ func (s *E2EStorageIntegration) doHealthCheck(t *testing.T) bool {
 		return false
 	}
 
-	// @nocommit: this is a temporary hack to introduce a delay
+	// @nocommit: this is a temporary hack to ensure reproducible failure
 	t.Logf("%s is ready, but let's sleep a bit", s.BinaryName)
 	time.Sleep(30*time.Second + 3*time.Second)
 
