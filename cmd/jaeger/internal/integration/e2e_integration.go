@@ -44,7 +44,7 @@ type E2EStorageIntegration struct {
 	SkipStorageCleaner bool
 	ConfigFile         string
 	BinaryName         string
-	HealthCheckPort    int // overridable for Kafka tests which has two binaries and needs different ports
+	HealthCheckPort    int // overridable for Kafka tests which run two binaries and need different ports
 
 	// EnvVarOverrides contains a map of environment variables to set.
 	// The key in the map is the environment variable to override and the value
