@@ -58,7 +58,7 @@ func TestServerError(t *testing.T) {
 			HTTP: confighttp.ServerConfig{Endpoint: ":-1"},
 		},
 	}
-	require.Error(t, srv.Start())
+	require.Error(t, srv.Start(context.Background()))
 }
 
 func TestCreateTLSServerSinglePortError(t *testing.T) {
@@ -74,7 +74,7 @@ func TestCreateTLSServerSinglePortError(t *testing.T) {
 	_, err := NewServer(context.Background(), &querysvc.QueryService{}, nil,
 		&QueryOptions{
 			HTTP: confighttp.ServerConfig{Endpoint: ":8080", TLSSetting: &tlsCfg},
-			GRPC: configgrpc.ServerConfig{NetAddr: confignet.AddrConfig{Endpoint: ":8080"}, TLSSetting: &tlsCfg},
+			GRPC: configgrpc.ServerConfig{NetAddr: confignet.AddrConfig{Endpoint: ":8080", Transport: confignet.TransportTypeTCP}, TLSSetting: &tlsCfg},
 		},
 		tenancy.NewManager(&tenancy.Options{}), telset)
 	require.Error(t, err)
@@ -92,7 +92,7 @@ func TestCreateTLSGrpcServerError(t *testing.T) {
 	_, err := NewServer(context.Background(), &querysvc.QueryService{}, nil,
 		&QueryOptions{
 			HTTP: confighttp.ServerConfig{Endpoint: ":8080"},
-			GRPC: configgrpc.ServerConfig{NetAddr: confignet.AddrConfig{Endpoint: ":8081"}, TLSSetting: &tlsCfg},
+			GRPC: configgrpc.ServerConfig{NetAddr: confignet.AddrConfig{Endpoint: ":8081", Transport: confignet.TransportTypeTCP}, TLSSetting: &tlsCfg},
 		},
 		tenancy.NewManager(&tenancy.Options{}), telset)
 	require.Error(t, err)
@@ -110,7 +110,7 @@ func TestCreateTLSHttpServerError(t *testing.T) {
 	_, err := NewServer(context.Background(), &querysvc.QueryService{}, nil,
 		&QueryOptions{
 			HTTP: confighttp.ServerConfig{Endpoint: ":8080", TLSSetting: &tlsCfg},
-			GRPC: configgrpc.ServerConfig{NetAddr: confignet.AddrConfig{Endpoint: ":8081"}},
+			GRPC: configgrpc.ServerConfig{NetAddr: confignet.AddrConfig{Endpoint: ":8081", Transport: confignet.TransportTypeTCP}},
 		}, tenancy.NewManager(&tenancy.Options{}), telset)
 	require.Error(t, err)
 }
@@ -382,7 +382,8 @@ func TestServerHTTPTLS(t *testing.T) {
 				},
 				GRPC: configgrpc.ServerConfig{
 					NetAddr: confignet.AddrConfig{
-						Endpoint: ":0",
+						Endpoint:  ":0",
+						Transport: confignet.TransportTypeTCP,
 					},
 					TLSSetting: tlsGrpc,
 				},
@@ -395,7 +396,7 @@ func TestServerHTTPTLS(t *testing.T) {
 				nil, serverOptions, tenancy.NewManager(&tenancy.Options{}),
 				telset)
 			require.NoError(t, err)
-			require.NoError(t, server.Start())
+			require.NoError(t, server.Start(context.Background()))
 			t.Cleanup(func() {
 				require.NoError(t, server.Close())
 			})
@@ -519,7 +520,8 @@ func TestServerGRPCTLS(t *testing.T) {
 				},
 				GRPC: configgrpc.ServerConfig{
 					NetAddr: confignet.AddrConfig{
-						Endpoint: ":0",
+						Endpoint:  ":0",
+						Transport: confignet.TransportTypeTCP,
 					},
 					TLSSetting: test.TLS,
 				},
@@ -533,7 +535,7 @@ func TestServerGRPCTLS(t *testing.T) {
 				nil, serverOptions, tenancy.NewManager(&tenancy.Options{}),
 				telset)
 			require.NoError(t, err)
-			require.NoError(t, server.Start())
+			require.NoError(t, server.Start(context.Background()))
 			t.Cleanup(func() {
 				require.NoError(t, server.Close())
 			})
@@ -579,7 +581,8 @@ func TestServerBadHostPort(t *testing.T) {
 			},
 			GRPC: configgrpc.ServerConfig{
 				NetAddr: confignet.AddrConfig{
-					Endpoint: "127.0.0.1:8081",
+					Endpoint:  "127.0.0.1:8081",
+					Transport: confignet.TransportTypeTCP,
 				},
 			},
 		},
@@ -595,7 +598,8 @@ func TestServerBadHostPort(t *testing.T) {
 			},
 			GRPC: configgrpc.ServerConfig{
 				NetAddr: confignet.AddrConfig{
-					Endpoint: "9123", // bad string, not :port
+					Endpoint:  "9123", // bad string, not :port
+					Transport: confignet.TransportTypeTCP,
 				},
 			},
 		},
@@ -632,7 +636,8 @@ func TestServerInUseHostPort(t *testing.T) {
 					},
 					GRPC: configgrpc.ServerConfig{
 						NetAddr: confignet.AddrConfig{
-							Endpoint: tc.grpcHostPort,
+							Endpoint:  tc.grpcHostPort,
+							Transport: confignet.TransportTypeTCP,
 						},
 					},
 				},
@@ -640,7 +645,7 @@ func TestServerInUseHostPort(t *testing.T) {
 				telset,
 			)
 			require.NoError(t, err)
-			require.Error(t, server.Start())
+			require.Error(t, server.Start(context.Background()))
 			server.Close()
 		})
 	}
@@ -660,14 +665,15 @@ func TestServerSinglePort(t *testing.T) {
 			},
 			GRPC: configgrpc.ServerConfig{
 				NetAddr: confignet.AddrConfig{
-					Endpoint: hostPort,
+					Endpoint:  hostPort,
+					Transport: confignet.TransportTypeTCP,
 				},
 			},
 		},
 		tenancy.NewManager(&tenancy.Options{}),
 		telset)
 	require.NoError(t, err)
-	require.NoError(t, server.Start())
+	require.NoError(t, server.Start(context.Background()))
 	t.Cleanup(func() {
 		require.NoError(t, server.Close())
 	})
@@ -704,13 +710,14 @@ func TestServerGracefulExit(t *testing.T) {
 			},
 			GRPC: configgrpc.ServerConfig{
 				NetAddr: confignet.AddrConfig{
-					Endpoint: hostPort,
+					Endpoint:  hostPort,
+					Transport: confignet.TransportTypeTCP,
 				},
 			},
 		},
 		tenancy.NewManager(&tenancy.Options{}), telset)
 	require.NoError(t, err)
-	require.NoError(t, server.Start())
+	require.NoError(t, server.Start(context.Background()))
 
 	// Wait for servers to come up before we can call .Close()
 	{
@@ -746,14 +753,15 @@ func TestServerHandlesPortZero(t *testing.T) {
 			},
 			GRPC: configgrpc.ServerConfig{
 				NetAddr: confignet.AddrConfig{
-					Endpoint: ":0",
+					Endpoint:  ":0",
+					Transport: confignet.TransportTypeTCP,
 				},
 			},
 		},
 		tenancy.NewManager(&tenancy.Options{}),
 		telset)
 	require.NoError(t, err)
-	require.NoError(t, server.Start())
+	require.NoError(t, server.Start(context.Background()))
 	defer server.Close()
 
 	message := logs.FilterMessage("Query server started")
@@ -797,7 +805,8 @@ func TestServerHTTPTenancy(t *testing.T) {
 		},
 		GRPC: configgrpc.ServerConfig{
 			NetAddr: confignet.AddrConfig{
-				Endpoint: ":8080",
+				Endpoint:  ":8080",
+				Transport: confignet.TransportTypeTCP,
 			},
 		},
 	}
@@ -808,7 +817,7 @@ func TestServerHTTPTenancy(t *testing.T) {
 	server, err := NewServer(context.Background(), querySvc.qs,
 		nil, serverOptions, tenancyMgr, telset)
 	require.NoError(t, err)
-	require.NoError(t, server.Start())
+	require.NoError(t, server.Start(context.Background()))
 	t.Cleanup(func() {
 		require.NoError(t, server.Close())
 	})

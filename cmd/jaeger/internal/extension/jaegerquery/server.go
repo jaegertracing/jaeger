@@ -116,7 +116,7 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 		return fmt.Errorf("could not create jaeger-query: %w", err)
 	}
 
-	if err := s.server.Start(); err != nil {
+	if err := s.server.Start(ctx); err != nil {
 		return fmt.Errorf("could not start jaeger-query: %w", err)
 	}
 

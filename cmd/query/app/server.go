@@ -262,10 +262,10 @@ func (hS httpServer) Close() error {
 }
 
 // initListener initialises listeners of the server
-func (s *Server) initListener() (cmux.CMux, error) {
+func (s *Server) initListener(ctx context.Context) (cmux.CMux, error) {
 	if s.separatePorts { // use separate ports and listeners each for gRPC and HTTP requests
 		var err error
-		s.grpcConn, err = net.Listen("tcp", s.queryOptions.GRPC.NetAddr.Endpoint)
+		s.grpcConn, err = s.queryOptions.GRPC.NetAddr.Listen(ctx)
 		if err != nil {
 			return nil, err
 		}
@@ -313,8 +313,8 @@ func (s *Server) initListener() (cmux.CMux, error) {
 }
 
 // Start http, GRPC and cmux servers concurrently
-func (s *Server) Start() error {
-	cmuxServer, err := s.initListener()
+func (s *Server) Start(ctx context.Context) error {
+	cmuxServer, err := s.initListener(ctx)
 	if err != nil {
 		return fmt.Errorf("query server failed to initialize listener: %w", err)
 	}

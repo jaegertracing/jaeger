@@ -224,7 +224,7 @@ func startQuery(
 	if err != nil {
 		svc.Logger.Fatal("Could not create jaeger-query", zap.Error(err))
 	}
-	if err := server.Start(); err != nil {
+	if err := server.Start(context.Background()); err != nil {
 		svc.Logger.Fatal("Could not start jaeger-query", zap.Error(err))
 	}
 

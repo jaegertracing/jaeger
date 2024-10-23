@@ -98,7 +98,8 @@ func runQueryService(t *testing.T, esURL string) *Server {
 			},
 			GRPC: configgrpc.ServerConfig{
 				NetAddr: confignet.AddrConfig{
-					Endpoint: ":0",
+					Endpoint:  ":0",
+					Transport: confignet.TransportTypeTCP,
 				},
 			},
 		},
@@ -106,7 +107,7 @@ func runQueryService(t *testing.T, esURL string) *Server {
 		telset,
 	)
 	require.NoError(t, err)
-	require.NoError(t, server.Start())
+	require.NoError(t, server.Start(context.Background()))
 	return server
 }
 
