@@ -96,12 +96,12 @@ func TestCounter(t *testing.T) {
 	counter.Inc(1)
 
 	testCounter := findMetric(t, registry, "test_counter_total")
-	metrics := testCounter.GetMetric()
-	assert.InDelta(t, float64(2), metrics[0].GetCounter().GetValue(), 0.01)
+	metricData := testCounter.GetMetric()
+	assert.InDelta(t, float64(2), metricData[0].GetCounter().GetValue(), 0.01)
 	expectedLabels := map[string]string{
 		"tag1": "value1",
 	}
-	assert.Equal(t, expectedLabels, promLabelsToMap(metrics[0].GetLabel()))
+	assert.Equal(t, expectedLabels, promLabelsToMap(metricData[0].GetLabel()))
 }
 
 func TestCounterNamingConvention(t *testing.T) {
@@ -127,12 +127,12 @@ func TestGauge(t *testing.T) {
 
 	testGauge := findMetric(t, registry, "test_gauge")
 
-	metrics := testGauge.GetMetric()
-	assert.InDelta(t, float64(2), metrics[0].GetGauge().GetValue(), 0.01)
+	metricData := testGauge.GetMetric()
+	assert.InDelta(t, float64(2), metricData[0].GetGauge().GetValue(), 0.01)
 	expectedLabels := map[string]string{
 		"tag1": "value1",
 	}
-	assert.Equal(t, expectedLabels, promLabelsToMap(metrics[0].GetLabel()))
+	assert.Equal(t, expectedLabels, promLabelsToMap(metricData[0].GetLabel()))
 }
 
 func TestHistogram(t *testing.T) {
@@ -147,12 +147,12 @@ func TestHistogram(t *testing.T) {
 
 	testHistogram := findMetric(t, registry, "test_histogram")
 
-	metrics := testHistogram.GetMetric()
-	assert.InDelta(t, float64(1), metrics[0].GetHistogram().GetSampleSum(), 0.01)
+	metricData := testHistogram.GetMetric()
+	assert.InDelta(t, float64(1), metricData[0].GetHistogram().GetSampleSum(), 0.01)
 	expectedLabels := map[string]string{
 		"tag1": "value1",
 	}
-	assert.Equal(t, expectedLabels, promLabelsToMap(metrics[0].GetLabel()))
+	assert.Equal(t, expectedLabels, promLabelsToMap(metricData[0].GetLabel()))
 }
 
 func TestTimer(t *testing.T) {
@@ -167,12 +167,12 @@ func TestTimer(t *testing.T) {
 
 	testTimer := findMetric(t, registry, "test_timer_seconds")
 
-	metrics := testTimer.GetMetric()
-	assert.InDelta(t, float64(0.1), metrics[0].GetHistogram().GetSampleSum(), 0.01)
+	metricData := testTimer.GetMetric()
+	assert.InDelta(t, float64(0.1), metricData[0].GetHistogram().GetSampleSum(), 0.01)
 	expectedLabels := map[string]string{
 		"tag1": "value1",
 	}
-	assert.Equal(t, expectedLabels, promLabelsToMap(metrics[0].GetLabel()))
+	assert.Equal(t, expectedLabels, promLabelsToMap(metricData[0].GetLabel()))
 }
 
 func TestNamespace(t *testing.T) {
@@ -262,6 +262,6 @@ func TestNormalization(t *testing.T) {
 
 	testGauge := findMetric(t, registry, "My_Namespace_My_Gauge")
 
-	metrics := testGauge.GetMetric()
-	assert.InDelta(t, float64(1), metrics[0].GetGauge().GetValue(), 0.01)
+	metricData := testGauge.GetMetric()
+	assert.InDelta(t, float64(1), metricData[0].GetGauge().GetValue(), 0.01)
 }
