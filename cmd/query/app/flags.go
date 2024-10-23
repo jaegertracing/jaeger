@@ -100,6 +100,9 @@ func AddFlags(flagSet *flag.FlagSet) {
 func (qOpts *QueryOptions) InitFromViper(v *viper.Viper, logger *zap.Logger) (*QueryOptions, error) {
 	qOpts.HTTP.Endpoint = v.GetString(queryHTTPHostPort)
 	qOpts.GRPC.NetAddr.Endpoint = v.GetString(queryGRPCHostPort)
+	if qOpts.HTTP.Endpoint == qOpts.GRPC.NetAddr.Endpoint {
+		logger.Warn("using the same port for gRPC and HTTP is deprecated; please use dedicated ports instead")
+	}
 	tlsGrpc, err := tlsGRPCFlagsConfig.InitFromViper(v)
 	if err != nil {
 		return qOpts, fmt.Errorf("failed to process gRPC TLS options: %w", err)
