@@ -18,19 +18,19 @@ import (
 
 var errSamplingRateMissing = errors.New("sampling rate is missing")
 
-// AgentService is the service used to report traces to the collector.
-type AgentService interface {
+// CollectorService is the service used to report traces to the collector.
+type CollectorService interface {
 	GetSamplingRate(service, operation string) (float64, error)
 }
 
-type agentService struct {
+type collectorService struct {
 	url    string
 	logger *zap.Logger
 }
 
-// NewAgentService returns an instance of AgentService.
-func NewAgentService(url string, logger *zap.Logger) AgentService {
-	return &agentService{
+// NewCollectorService returns an instance of CollectorService.
+func NewCollectorService(url string, logger *zap.Logger) CollectorService {
+	return &collectorService{
 		url:    url,
 		logger: logger,
 	}
@@ -41,7 +41,7 @@ func getSamplingURL(url string) string {
 }
 
 // GetSamplingRate returns the sampling rate for the service-operation from the agent service.
-func (s *agentService) GetSamplingRate(service, operation string) (float64, error) {
+func (s *collectorService) GetSamplingRate(service, operation string) (float64, error) {
 	url := fmt.Sprintf(getSamplingURL(s.url), getTracerServiceName(service))
 	resp, err := http.Get(url)
 	if err != nil {

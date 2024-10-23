@@ -19,7 +19,7 @@ import (
 const (
 	behaviorEndToEnd = "endtoend"
 
-	envCollectorSamplingHostPort = "JAEGER_COLLECTOR_SAMPLING_HOST_PORT"
+	envCollectorSamplingHostPort = "JAEGER_COLLECTOR_HC_HOST_PORT"
 	envQueryHostPort             = "JAEGER_QUERY_HOST_PORT"
 
 	envQueryHealthcheckHostPort     = "JAEGER_QUERY_HC_HOST_PORT"
@@ -78,7 +78,7 @@ func (h *clientHandler) initialize() {
 	httpHealthCheck(logger, "jaeger-collector", "http://"+collectorHealthcheckHostPort)
 
 	queryService := services.NewQueryService("http://"+queryHostPort, logger)
-	samplingService := services.NewAgentService("http://"+collectorSamplingHostPort, logger)
+	samplingService := services.NewCollectorService("http://"+collectorSamplingHostPort, logger)
 
 	traceHandler := services.NewTraceHandler(queryService, samplingService, logger)
 	behaviors := crossdock.Behaviors{
