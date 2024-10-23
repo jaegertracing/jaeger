@@ -81,11 +81,16 @@ func NewServer(
 		return nil, errors.New("server with TLS enabled can not use same host ports for gRPC and HTTP.  Use dedicated HTTP and gRPC host ports instead")
 	}
 
-	legacy := !separatePorts
-	grpcServer, err := createGRPCServer(ctx, legacy, querySvc, metricsQuerySvc, options, tm, telset)
+	var grpcServer *grpc.Server
+	if separatePorts {
+		grpcServer, err = createGRPCServerLegacy(ctx, options, tm)
+	} else {
+		grpcServer, err = createGRPCServerOTEL(ctx, options, tm, telset)
+	}
 	if err != nil {
 		return nil, err
 	}
+	registerGRPCServer(grpcServer, querySvc, metricsQuerySvc, telset)
 
 	httpServer, err := createHTTPServer(ctx, querySvc, metricsQuerySvc, options, tm, telset)
 	if err != nil {
@@ -100,55 +105,6 @@ func NewServer(
 		separatePorts: separatePorts,
 		Setting:       telset,
 	}, nil
-}
-
-func registerGRPCServer(
-	server *grpc.Server,
-	querySvc *querysvc.QueryService,
-	metricsQuerySvc querysvc.MetricsQueryService,
-	telset telemetery.Setting,
-) {
-	reflection.Register(server)
-	handler := NewGRPCHandler(querySvc, metricsQuerySvc, GRPCHandlerOptions{
-		Logger: telset.Logger,
-	})
-	healthServer := health.NewServer()
-
-	api_v2.RegisterQueryServiceServer(server, handler)
-	metrics.RegisterMetricsQueryServiceServer(server, handler)
-	api_v3.RegisterQueryServiceServer(server, &apiv3.Handler{QueryService: querySvc})
-
-	healthServer.SetServingStatus("jaeger.api_v2.QueryService", grpc_health_v1.HealthCheckResponse_SERVING)
-	healthServer.SetServingStatus("jaeger.api_v2.metrics.MetricsQueryService", grpc_health_v1.HealthCheckResponse_SERVING)
-	healthServer.SetServingStatus("jaeger.api_v3.QueryService", grpc_health_v1.HealthCheckResponse_SERVING)
-
-	grpc_health_v1.RegisterHealthServer(server, healthServer)
-}
-
-func createGRPCServer(
-	ctx context.Context,
-	legacy bool,
-	querySvc *querysvc.QueryService,
-	metricsQuerySvc querysvc.MetricsQueryService,
-	options *QueryOptions,
-	tm *tenancy.Manager,
-	telset telemetery.Setting,
-) (*grpc.Server, error) {
-	if legacy {
-		grpcServer, err := createGRPCServerLegacy(ctx, options, tm)
-		if err != nil {
-			return nil, err
-		}
-		registerGRPCServer(grpcServer, querySvc, metricsQuerySvc, telset)
-		return grpcServer, nil
-	}
-
-	grpcServer, err := createGRPCServerOTEL(ctx, options, tm, telset)
-	if err != nil {
-		return nil, err
-	}
-	registerGRPCServer(grpcServer, querySvc, metricsQuerySvc, telset)
-	return grpcServer, nil
 }
 
 func createGRPCServerLegacy(
@@ -180,6 +136,29 @@ func createGRPCServerLegacy(
 	return server, nil
 }
 
+func registerGRPCServer(
+	server *grpc.Server,
+	querySvc *querysvc.QueryService,
+	metricsQuerySvc querysvc.MetricsQueryService,
+	telset telemetery.Setting,
+) {
+	reflection.Register(server)
+	handler := NewGRPCHandler(querySvc, metricsQuerySvc, GRPCHandlerOptions{
+		Logger: telset.Logger,
+	})
+	healthServer := health.NewServer()
+
+	api_v2.RegisterQueryServiceServer(server, handler)
+	metrics.RegisterMetricsQueryServiceServer(server, handler)
+	api_v3.RegisterQueryServiceServer(server, &apiv3.Handler{QueryService: querySvc})
+
+	healthServer.SetServingStatus("jaeger.api_v2.QueryService", grpc_health_v1.HealthCheckResponse_SERVING)
+	healthServer.SetServingStatus("jaeger.api_v2.metrics.MetricsQueryService", grpc_health_v1.HealthCheckResponse_SERVING)
+	healthServer.SetServingStatus("jaeger.api_v3.QueryService", grpc_health_v1.HealthCheckResponse_SERVING)
+
+	grpc_health_v1.RegisterHealthServer(server, healthServer)
+}
+
 func createGRPCServerOTEL(
 	ctx context.Context,
 	options *QueryOptions,
@@ -194,7 +173,7 @@ func createGRPCServerOTEL(
 			configgrpc.WithGrpcServerOption(grpc.UnaryInterceptor(tenancy.NewGuardingUnaryInterceptor(tm))),
 		)
 	}
-	server, err := options.GRPC.ToServer(
+	return options.GRPC.ToServer(
 		ctx,
 		telset.Host,
 		component.TelemetrySettings{
@@ -205,11 +184,6 @@ func createGRPCServerOTEL(
 			},
 		},
 		grpcOpts...)
-	if err != nil {
-		return nil, err
-	}
-
-	return server, nil
 }
 
 type httpServer struct {
