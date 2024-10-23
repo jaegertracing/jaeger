@@ -52,9 +52,9 @@ func TestKafkaStorage(t *testing.T) {
 			t.Log("Collector initialized")
 
 			ingester := &E2EStorageIntegration{
-				BinaryName:          "jaeger-v2-ingester",
-				ConfigFile:          "../../config-kafka-ingester.yaml",
-				HealthCheckEndpoint: "http://localhost:14133/status",
+				BinaryName:      "jaeger-v2-ingester",
+				ConfigFile:      "../../config-kafka-ingester.yaml",
+				HealthCheckPort: 14133,
 				StorageIntegration: integration.StorageIntegration{
 					CleanUp:                      purge,
 					GetDependenciesReturnsSource: true,
