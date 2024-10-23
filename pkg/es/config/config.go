@@ -40,7 +40,11 @@ const (
 // IndexOptions describes the index format and rollover frequency
 type IndexOptions struct {
 	// Priority contains the priority of index template (ESv8 only).
-	Priority   int64  `mapstructure:"priority"`
+	Priority int64 `mapstructure:"priority"`
+	// DateLayout contains the format string used to format current time to part of the index name.
+	// For example, "2006-01-02" layout will result in "jaeger-spans-yyyy-mm-dd".
+	// If not specified, the default value is "2006-01-02".
+	// See https://pkg.go.dev/time#Layout for more details on the syntax.
 	DateLayout string `mapstructure:"date_layout"`
 	// Shards is the number of shards per index in Elasticsearch.
 	Shards int64 `mapstructure:"shards"`
