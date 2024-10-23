@@ -90,7 +90,7 @@ func NewServer(
 	if err != nil {
 		return nil, err
 	}
-	registerGRPCServer(grpcServer, querySvc, metricsQuerySvc, telset)
+	registerGRPCHandlers(grpcServer, querySvc, metricsQuerySvc, telset)
 
 	httpServer, err := createHTTPServer(ctx, querySvc, metricsQuerySvc, options, tm, telset)
 	if err != nil {
@@ -136,7 +136,7 @@ func createGRPCServerLegacy(
 	return server, nil
 }
 
-func registerGRPCServer(
+func registerGRPCHandlers(
 	server *grpc.Server,
 	querySvc *querysvc.QueryService,
 	metricsQuerySvc querysvc.MetricsQueryService,

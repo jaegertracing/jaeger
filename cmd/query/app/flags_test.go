@@ -198,6 +198,6 @@ func TestQueryOptions_SamePortsLogsWarning(t *testing.T) {
 	require.Contains(
 		t,
 		logBuf.String(),
-		"using the same port for gRPC and HTTP is deprecated; please use dedicated ports instead",
+		"using the same port for gRPC and HTTP is deprecated",
 	)
 }
