@@ -21,7 +21,6 @@ import (
 	"go.opentelemetry.io/collector/exporter/otlpexporter"
 	"go.opentelemetry.io/collector/exporter/otlphttpexporter"
 	"go.opentelemetry.io/collector/extension"
-	"go.opentelemetry.io/collector/extension/ballastextension"
 	"go.opentelemetry.io/collector/extension/zpagesextension"
 	"go.opentelemetry.io/collector/otelcol"
 	"go.opentelemetry.io/collector/processor"
@@ -63,7 +62,6 @@ func (b builders) build() (otelcol.Factories, error) {
 
 	factories.Extensions, err = b.extension(
 		// standard
-		ballastextension.NewFactory(),
 		zpagesextension.NewFactory(),
 		healthcheckv2extension.NewFactory(),
 		// add-ons
