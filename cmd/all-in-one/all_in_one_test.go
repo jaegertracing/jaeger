@@ -166,7 +166,7 @@ func getAPITrace(t *testing.T) {
 	}
 
 	require.Len(t, queryResponse.Data, 1)
-	require.Len(t, queryResponse.Data[0].Spans, 1)
+	require.Len(t, queryResponse.Data[0].Spans, 2)
 }
 
 func getSamplingStrategy(t *testing.T) {
