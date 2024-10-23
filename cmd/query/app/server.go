@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"github.com/gorilla/handlers"
-	"github.com/gorilla/mux"
 	"github.com/soheilhy/cmux"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componentstatus"
@@ -88,7 +87,7 @@ func NewServer(
 		return nil, err
 	}
 
-	httpServer, err := createHTTPServer(ctx, legacy, querySvc, metricsQuerySvc, options, tm, telset)
+	httpServer, err := createHTTPServer(querySvc, metricsQuerySvc, options, tm, telset)
 	if err != nil {
 		return nil, err
 	}
@@ -194,25 +193,24 @@ type httpServer struct {
 
 var _ io.Closer = (*httpServer)(nil)
 
-func createHTTPRouter(
+func createHTTPServer(
 	querySvc *querysvc.QueryService,
 	metricsQuerySvc querysvc.MetricsQueryService,
 	queryOpts *QueryOptions,
 	tm *tenancy.Manager,
 	telset telemetery.Setting,
-) *mux.Router {
+) (*httpServer, error) {
 	apiHandlerOptions := []HandlerOption{
 		HandlerOptions.Logger(telset.Logger),
 		HandlerOptions.Tracer(telset.TracerProvider),
 		HandlerOptions.MetricsQueryService(metricsQuerySvc),
 	}
+
 	apiHandler := NewAPIHandler(
 		querySvc,
 		tm,
 		apiHandlerOptions...)
-
 	r := NewRouter()
-
 	if queryOpts.BasePath != "/" {
 		r = r.PathPrefix(queryOpts.BasePath).Subrouter()
 	}
@@ -223,77 +221,33 @@ func createHTTPRouter(
 		Logger:       telset.Logger,
 		Tracer:       telset.TracerProvider,
 	}).RegisterRoutes(r)
+
 	apiHandler.RegisterRoutes(r)
-
-	return r
-}
-
-func createHTTPServer(
-	ctx context.Context,
-	legacy bool,
-	querySvc *querysvc.QueryService,
-	metricsQuerySvc querysvc.MetricsQueryService,
-	queryOpts *QueryOptions,
-	tm *tenancy.Manager,
-	telset telemetery.Setting,
-) (*httpServer, error) {
-	r := createHTTPRouter(querySvc, metricsQuerySvc, queryOpts, tm, telset)
 	var handler http.Handler = r
+	handler = responseHeadersHandler(handler, queryOpts.HTTP.ResponseHeaders)
 	if queryOpts.BearerTokenPropagation {
 		handler = bearertoken.PropagationHandler(telset.Logger, handler)
 	}
+	handler = handlers.CompressHandler(handler)
 	recoveryHandler := recoveryhandler.NewRecoveryHandler(telset.Logger, true)
-	handler = recoveryHandler(handler)
-	var server *httpServer
-	if legacy {
-		handler = responseHeadersHandler(handler, queryOpts.HTTP.ResponseHeaders)
-		handler = handlers.CompressHandler(handler)
 
-		errorLog, _ := zap.NewStdLogAt(telset.Logger, zapcore.ErrorLevel)
-		server = &httpServer{
-			Server: &http.Server{
-				Handler:           handler,
-				ErrorLog:          errorLog,
-				ReadHeaderTimeout: 2 * time.Second,
-			},
-		}
+	errorLog, _ := zap.NewStdLogAt(telset.Logger, zapcore.ErrorLevel)
+	server := &httpServer{
+		Server: &http.Server{
+			Handler:           recoveryHandler(handler),
+			ErrorLog:          errorLog,
+			ReadHeaderTimeout: 2 * time.Second,
+		},
+	}
 
-		if queryOpts.HTTP.TLSSetting != nil {
-			tlsCfg, err := queryOpts.HTTP.TLSSetting.LoadTLSConfig(ctx) // This checks if the certificates are correctly provided
-			if err != nil {
-				return nil, err
-			}
-			server.TLSConfig = tlsCfg
-		}
-	} else {
-		s, err := queryOpts.HTTP.ToServer(
-			ctx,
-			telset.Host,
-			component.TelemetrySettings{
-				Logger:         telset.Logger,
-				TracerProvider: telset.TracerProvider,
-				LeveledMeterProvider: func(_ configtelemetry.Level) metric.MeterProvider {
-					return noop.NewMeterProvider()
-				},
-			},
-			handler,
-		)
+	if queryOpts.HTTP.TLSSetting != nil {
+		tlsCfg, err := queryOpts.HTTP.TLSSetting.LoadTLSConfig(context.Background()) // This checks if the certificates are correctly provided
 		if err != nil {
 			return nil, err
 		}
-		server = &httpServer{
-			Server: s,
-		}
-
-		// TODO: remove after ToListener is implemented
-		if queryOpts.HTTP.TLSSetting != nil {
-			tlsCfg, err := queryOpts.HTTP.TLSSetting.LoadTLSConfig(ctx) // This checks if the certificates are correctly provided
-			if err != nil {
-				return nil, err
-			}
-			server.TLSConfig = tlsCfg
-		}
+		server.TLSConfig = tlsCfg
 	}
+
 	server.staticHandlerCloser = RegisterStaticHandler(r, telset.Logger, queryOpts, querySvc.GetCapabilities())
 
 	return server, nil
