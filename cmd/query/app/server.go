@@ -87,7 +87,7 @@ func NewServer(
 		return nil, err
 	}
 
-	httpServer, err := createHTTPServer(querySvc, metricsQuerySvc, options, tm, telset)
+	httpServer, err := createHTTPServer(ctx, querySvc, metricsQuerySvc, options, tm, telset)
 	if err != nil {
 		return nil, err
 	}
@@ -194,6 +194,7 @@ type httpServer struct {
 var _ io.Closer = (*httpServer)(nil)
 
 func createHTTPServer(
+	_ context.Context,
 	querySvc *querysvc.QueryService,
 	metricsQuerySvc querysvc.MetricsQueryService,
 	queryOpts *QueryOptions,
