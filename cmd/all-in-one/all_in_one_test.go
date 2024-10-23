@@ -7,6 +7,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -20,24 +21,25 @@ import (
 	"github.com/stretchr/testify/require"
 
 	ui "github.com/jaegertracing/jaeger/model/json"
+	"github.com/jaegertracing/jaeger/ports"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 )
 
 // These tests are only run when the environment variable TEST_MODE=integration is set.
 
 const (
-	host       = "0.0.0.0"
-	queryPort  = "16686"
-	agentPort  = "5778"
-	healthPort = "13133"
-	queryAddr  = "http://" + host + ":" + queryPort
-	agentAddr  = "http://" + host + ":" + agentPort
-	healthAddr = "http://" + host + ":" + healthPort + "/status"
+	host = "0.0.0.0"
 
 	getServicesURL         = "/api/services"
 	getTraceURL            = "/api/traces/"
 	getServicesAPIV3URL    = "/api/v3/services"
-	getSamplingStrategyURL = "/sampling?service=whatever"
+	getSamplingStrategyURL = "/api/sampling?service=whatever"
+)
+
+var (
+	queryAddr    = fmt.Sprintf("http://%s:%d", host, ports.QueryHTTP)
+	samplingAddr = fmt.Sprintf("http://%s:%d", host, ports.CollectorHTTP)
+	healthAddr   = fmt.Sprintf("http://%s:%d/status", host, ports.CollectorV2HealthChecks)
 )
 
 var traceID string // stores state exchanged between createTrace and getAPITrace
@@ -170,7 +172,7 @@ func getAPITrace(t *testing.T) {
 func getSamplingStrategy(t *testing.T) {
 	// TODO should we test refreshing the strategy file?
 
-	r, body := httpGet(t, agentAddr+getSamplingStrategyURL)
+	r, body := httpGet(t, samplingAddr+getSamplingStrategyURL)
 	t.Logf("Sampling strategy response: %s", string(body))
 	require.EqualValues(t, http.StatusOK, r.StatusCode)
 

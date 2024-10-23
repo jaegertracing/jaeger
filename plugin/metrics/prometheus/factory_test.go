@@ -42,7 +42,7 @@ func TestWithDefaultConfiguration(t *testing.T) {
 	assert.Equal(t, "http://localhost:9090", f.options.ServerURL)
 	assert.Equal(t, 30*time.Second, f.options.ConnectTimeout)
 
-	assert.Empty(t, f.options.MetricNamespace)
+	assert.Equal(t, "traces_span_metrics", f.options.MetricNamespace)
 	assert.Equal(t, "ms", f.options.LatencyUnit)
 }
 

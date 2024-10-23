@@ -4,46 +4,24 @@
 package grpc
 
 import (
-	"time"
-
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
 
-	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared"
 )
 
-// Configuration describes the options to customize the storage behavior.
-type Configuration struct {
-	RemoteServerAddr     string `yaml:"server" mapstructure:"server"`
-	RemoteTLS            tlscfg.Options
-	RemoteConnectTimeout time.Duration `yaml:"connection-timeout" mapstructure:"connection-timeout"`
-	TenancyOpts          tenancy.Options
+// Config describes the options to customize the storage behavior
+type Config struct {
+	Tenancy                      tenancy.Options `mapstructure:"multi_tenancy"`
+	configgrpc.ClientConfig      `mapstructure:",squash"`
+	exporterhelper.TimeoutConfig `mapstructure:",squash"`
 }
 
-type ConfigV2 struct {
-	Tenancy                        tenancy.Options `mapstructure:"multi_tenancy"`
-	configgrpc.ClientConfig        `mapstructure:",squash"`
-	exporterhelper.TimeoutSettings `mapstructure:",squash"`
-}
-
-func DefaultConfigV2() ConfigV2 {
-	return ConfigV2{
-		TimeoutSettings: exporterhelper.TimeoutSettings{
+func DefaultConfig() Config {
+	return Config{
+		TimeoutConfig: exporterhelper.TimeoutConfig{
 			Timeout: defaultConnectionTimeout,
-		},
-	}
-}
-
-func (c *Configuration) TranslateToConfigV2() *ConfigV2 {
-	return &ConfigV2{
-		ClientConfig: configgrpc.ClientConfig{
-			Endpoint:   c.RemoteServerAddr,
-			TLSSetting: c.RemoteTLS.ToOtelClientConfig(),
-		},
-		TimeoutSettings: exporterhelper.TimeoutSettings{
-			Timeout: c.RemoteConnectTimeout,
 		},
 	}
 }

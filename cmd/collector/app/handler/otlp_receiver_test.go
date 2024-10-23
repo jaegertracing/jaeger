@@ -14,11 +14,11 @@ import (
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+	"go.opentelemetry.io/collector/pipeline"
 	"go.opentelemetry.io/collector/receiver"
 	"go.opentelemetry.io/collector/receiver/otlpreceiver"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/flags"
-	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/config/corscfg"
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
@@ -99,7 +99,7 @@ func TestStartOtlpReceiver_Error(t *testing.T) {
 		return nil, errors.New("mock error")
 	}
 	f := otlpreceiver.NewFactory()
-	_, err = startOTLPReceiver(opts, logger, spanProcessor, &tenancy.Manager{}, f, newTraces, f.CreateTracesReceiver)
+	_, err = startOTLPReceiver(opts, logger, spanProcessor, &tenancy.Manager{}, f, newTraces, f.CreateTraces)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "could not create the OTLP consumer")
 
@@ -111,17 +111,6 @@ func TestStartOtlpReceiver_Error(t *testing.T) {
 	_, err = startOTLPReceiver(opts, logger, spanProcessor, &tenancy.Manager{}, f, consumer.NewTraces, createTracesReceiver)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "could not create the OTLP receiver")
-}
-
-func TestProtoFromTracesError(t *testing.T) {
-	mockErr := errors.New("mock error")
-	c := &consumerDelegate{
-		protoFromTraces: func(_ ptrace.Traces) ([]*model.Batch, error) {
-			return nil, mockErr
-		},
-	}
-	err := c.consume(context.Background(), ptrace.Traces{})
-	assert.Equal(t, mockErr, err)
 }
 
 func TestOtelHost_ReportFatalError(t *testing.T) {
@@ -138,7 +127,7 @@ func TestOtelHost_ReportFatalError(t *testing.T) {
 
 func TestOtelHost(t *testing.T) {
 	host := &otelHost{}
-	assert.Nil(t, host.GetFactory(component.KindReceiver, component.DataTypeTraces))
+	assert.Nil(t, host.GetFactory(component.KindReceiver, pipeline.SignalTraces))
 	assert.Nil(t, host.GetExtensions())
 	assert.Nil(t, host.GetExporters())
 }

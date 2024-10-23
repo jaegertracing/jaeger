@@ -12,8 +12,10 @@ extensions:
     http:
 
   jaeger_query:
-    trace_storage: some-storage
-    ui_config: ./cmd/jaeger/config-ui.json
+    storage:
+      traces: some-storage
+    ui:
+      config_file: ./cmd/jaeger/config-ui.json
 
   jaeger_storage:
     backends:

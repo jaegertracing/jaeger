@@ -72,7 +72,7 @@ func (_m *StreamingSpanWriterPlugin_WriteSpanStreamServer) Recv() (*storage_v1.W
 }
 
 // RecvMsg provides a mock function with given fields: m
-func (_m *StreamingSpanWriterPlugin_WriteSpanStreamServer) RecvMsg(m interface{}) error {
+func (_m *StreamingSpanWriterPlugin_WriteSpanStreamServer) RecvMsg(m any) error {
 	ret := _m.Called(m)
 
 	if len(ret) == 0 {
@@ -80,7 +80,7 @@ func (_m *StreamingSpanWriterPlugin_WriteSpanStreamServer) RecvMsg(m interface{}
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(interface{}) error); ok {
+	if rf, ok := ret.Get(0).(func(any) error); ok {
 		r0 = rf(m)
 	} else {
 		r0 = ret.Error(0)
@@ -126,7 +126,7 @@ func (_m *StreamingSpanWriterPlugin_WriteSpanStreamServer) SendHeader(_a0 metada
 }
 
 // SendMsg provides a mock function with given fields: m
-func (_m *StreamingSpanWriterPlugin_WriteSpanStreamServer) SendMsg(m interface{}) error {
+func (_m *StreamingSpanWriterPlugin_WriteSpanStreamServer) SendMsg(m any) error {
 	ret := _m.Called(m)
 
 	if len(ret) == 0 {
@@ -134,7 +134,7 @@ func (_m *StreamingSpanWriterPlugin_WriteSpanStreamServer) SendMsg(m interface{}
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(interface{}) error); ok {
+	if rf, ok := ret.Get(0).(func(any) error); ok {
 		r0 = rf(m)
 	} else {
 		r0 = ret.Error(0)

@@ -55,9 +55,9 @@ func (s *server) Start(_ context.Context, host component.Host) error {
 	mf := otelmetrics.NewFactory(s.telset.MeterProvider)
 	baseFactory := mf.Namespace(metrics.NSOptions{Name: "jaeger"})
 	queryMetricsFactory := baseFactory.Namespace(metrics.NSOptions{Name: "query"})
-	f, err := jaegerstorage.GetStorageFactory(s.config.TraceStoragePrimary, host)
+	f, err := jaegerstorage.GetStorageFactory(s.config.Storage.TracesPrimary, host)
 	if err != nil {
-		return fmt.Errorf("cannot find primary storage %s: %w", s.config.TraceStoragePrimary, err)
+		return fmt.Errorf("cannot find primary storage %s: %w", s.config.Storage.TracesPrimary, err)
 	}
 
 	spanReader, err := f.CreateSpanReader()
@@ -108,7 +108,7 @@ func (s *server) Start(_ context.Context, host component.Host) error {
 		// TODO propagate healthcheck updates up to the collector's runtime
 		qs,
 		mqs,
-		s.makeQueryOptions(),
+		&s.config.QueryOptions,
 		tm,
 		telset,
 	)
@@ -124,12 +124,12 @@ func (s *server) Start(_ context.Context, host component.Host) error {
 }
 
 func (s *server) addArchiveStorage(opts *querysvc.QueryServiceOptions, host component.Host) error {
-	if s.config.TraceStorageArchive == "" {
+	if s.config.Storage.TracesArchive == "" {
 		s.telset.Logger.Info("Archive storage not configured")
 		return nil
 	}
 
-	f, err := jaegerstorage.GetStorageFactory(s.config.TraceStorageArchive, host)
+	f, err := jaegerstorage.GetStorageFactory(s.config.Storage.TracesArchive, host)
 	if err != nil {
 		return fmt.Errorf("cannot find archive storage factory: %w", err)
 	}
@@ -141,12 +141,12 @@ func (s *server) addArchiveStorage(opts *querysvc.QueryServiceOptions, host comp
 }
 
 func (s *server) createMetricReader(host component.Host) (metricsstore.Reader, error) {
-	if s.config.MetricStorage == "" {
+	if s.config.Storage.Metrics == "" {
 		s.telset.Logger.Info("Metric storage not configured")
 		return disabled.NewMetricsReader()
 	}
 
-	mf, err := jaegerstorage.GetMetricsFactory(s.config.MetricStorage, host)
+	mf, err := jaegerstorage.GetMetricsFactory(s.config.Storage.Metrics, host)
 	if err != nil {
 		return nil, fmt.Errorf("cannot find metrics storage factory: %w", err)
 	}
@@ -156,17 +156,6 @@ func (s *server) createMetricReader(host component.Host) (metricsstore.Reader, e
 		return nil, fmt.Errorf("cannot create metrics reader %w", err)
 	}
 	return metricsReader, err
-}
-
-func (s *server) makeQueryOptions() *queryApp.QueryOptions {
-	return &queryApp.QueryOptions{
-		QueryOptionsBase: s.config.QueryOptionsBase,
-
-		// TODO utilize OTEL helpers for creating HTTP/GRPC servers
-		HTTPHostPort: s.config.HTTP.Endpoint,
-		GRPCHostPort: s.config.GRPC.NetAddr.Endpoint,
-		// TODO handle TLS
-	}
 }
 
 func (s *server) Shutdown(ctx context.Context) error {

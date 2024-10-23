@@ -17,9 +17,11 @@ extensions:
   #   endpoint: 0.0.0.0:55679
 
   jaeger_query:
-    trace_storage: some_store
-    trace_storage_archive: another_store
-    ui_config: ./cmd/jaeger/config-ui.json
+    storage:
+      traces: some_store
+      traces_archive: another_store
+    ui:
+      config_file: ./cmd/jaeger/config-ui.json
 
   jaeger_storage:
     backends:

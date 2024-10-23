@@ -20,7 +20,7 @@ var (
 	keySpanKind   = "span.kind"
 )
 
-func newTrace() *model.Trace {
+func newZipkinTrace() *model.Trace {
 	traceID := model.NewTraceID(0, 42)
 	return &model.Trace{
 		Spans: []*model.Span{
@@ -52,9 +52,9 @@ func newTrace() *model.Trace {
 	}
 }
 
-func TestSpanIDDeduperTriggered(t *testing.T) {
-	trace := newTrace()
-	deduper := SpanIDDeduper()
+func TestZipkinSpanIDUniquifierTriggered(t *testing.T) {
+	trace := newZipkinTrace()
+	deduper := ZipkinSpanIDUniquifier()
 	trace, err := deduper.Adjust(trace)
 	require.NoError(t, err)
 
@@ -70,11 +70,11 @@ func TestSpanIDDeduperTriggered(t *testing.T) {
 	assert.Equal(t, serverSpan.SpanID, thirdSpan.ParentSpanID(), "server span should be 3rd span's parent")
 }
 
-func TestSpanIDDeduperNotTriggered(t *testing.T) {
-	trace := newTrace()
+func TestZipkinSpanIDUniquifierNotTriggered(t *testing.T) {
+	trace := newZipkinTrace()
 	trace.Spans = trace.Spans[1:] // remove client span
 
-	deduper := SpanIDDeduper()
+	deduper := ZipkinSpanIDUniquifier()
 	trace, err := deduper.Adjust(trace)
 	require.NoError(t, err)
 
@@ -87,8 +87,8 @@ func TestSpanIDDeduperNotTriggered(t *testing.T) {
 	assert.Equal(t, serverSpan.SpanID, thirdSpan.ParentSpanID(), "server span should be 3rd span's parent")
 }
 
-func TestSpanIDDeduperError(t *testing.T) {
-	trace := newTrace()
+func TestZipkinSpanIDUniquifierError(t *testing.T) {
+	trace := newZipkinTrace()
 
 	maxID := int64(-1)
 	assert.Equal(t, maxSpanID, model.NewSpanID(uint64(maxID)), "maxSpanID must be 2^64-1")
@@ -96,7 +96,7 @@ func TestSpanIDDeduperError(t *testing.T) {
 	deduper := &spanIDDeduper{trace: trace}
 	deduper.groupSpansByID()
 	deduper.maxUsedID = maxSpanID - 1
-	deduper.dedupeSpanIDs()
+	deduper.uniquifyServerSpanIDs()
 	if assert.Len(t, trace.Spans[1].Warnings, 1) {
 		assert.Equal(t, "cannot assign unique span ID, too many spans in the trace", trace.Spans[1].Warnings[0])
 	}

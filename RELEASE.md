@@ -23,7 +23,7 @@
         cd jaeger-ui
         git checkout main
         git pull
-        git checkout {new_ui_version} //e.g. v1.5.0
+        git checkout {new_ui_version} # e.g. v1.5.0
         ```
       * If there are only dependency bumps, indicate this with "Dependencies upgrades only" ([example](https://github.com/jaegertracing/jaeger-ui/pull/2431/files)).
       * If there are no changes, indicate this with "No changes" ([example](https://github.com/jaegertracing/jaeger/pull/4131/files)).
@@ -79,8 +79,8 @@ Here are the release managers for future versions with the tentative release dat
 
 | Version | Release Manager | Tentative release date |
 |---------|-----------------|------------------------|
-| 1.62.0  | @albertteoh     | 2 October 2024         |
 | 1.63.0  | @pavolloffay    | 5 November 2024        |
 | 1.64.0  | @joe-elliott    | 4 December 2024        |
 | 1.65.0  | @jkowall        | 8 January 2025         |
-| 1.66.0  | @yurishkuro     | 3 February 2024        |
+| 1.66.0  | @yurishkuro     | 3 February 2025        |
+| 1.67.0  | @albertteoh     | 5 March 2025           |

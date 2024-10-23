@@ -35,13 +35,13 @@ func createDefaultConfig() component.Config {
 func createTracesExporter(ctx context.Context, set exporter.Settings, config component.Config) (exporter.Traces, error) {
 	cfg := config.(*Config)
 	ex := newExporter(cfg, set.TelemetrySettings)
-	return exporterhelper.NewTracesExporter(ctx, set, cfg,
+	return exporterhelper.NewTraces(ctx, set, cfg,
 		ex.pushTraces,
 		exporterhelper.WithCapabilities(consumer.Capabilities{MutatesData: false}),
-		// Disable Timeout/RetryOnFailure and SendingQueue
-		exporterhelper.WithTimeout(exporterhelper.TimeoutSettings{Timeout: 0}),
+		// Disable Timeout/RetryOnFailure
+		exporterhelper.WithTimeout(exporterhelper.TimeoutConfig{Timeout: 0}),
 		exporterhelper.WithRetry(configretry.BackOffConfig{Enabled: false}),
-		exporterhelper.WithQueue(exporterhelper.QueueSettings{Enabled: false}),
+		exporterhelper.WithQueue(cfg.QueueConfig),
 		exporterhelper.WithStart(ex.start),
 		exporterhelper.WithShutdown(ex.close),
 	)

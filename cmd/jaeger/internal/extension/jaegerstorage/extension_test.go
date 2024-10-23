@@ -143,7 +143,7 @@ func TestGRPC(t *testing.T) {
 	ext := makeStorageExtenion(t, &Config{
 		Backends: map[string]Backend{
 			"foo": {
-				GRPC: &grpc.ConfigV2{
+				GRPC: &grpc.Config{
 					ClientConfig: configgrpc.ClientConfig{
 						Endpoint: "localhost:12345",
 					},
@@ -266,7 +266,7 @@ func noopTelemetrySettings() component.TelemetrySettings {
 func makeStorageExtenion(t *testing.T, config *Config) component.Component {
 	extensionFactory := NewFactory()
 	ctx := context.Background()
-	ext, err := extensionFactory.CreateExtension(ctx,
+	ext, err := extensionFactory.Create(ctx,
 		extension.Settings{
 			ID:                ID,
 			TelemetrySettings: noopTelemetrySettings(),

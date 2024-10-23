@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestDefaultConfigV2(t *testing.T) {
-	cfg := DefaultConfigV2()
+func TestDefaultConfig(t *testing.T) {
+	cfg := DefaultConfig()
 	assert.NotEmpty(t, cfg.Timeout)
 }

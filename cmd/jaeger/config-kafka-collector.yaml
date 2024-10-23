@@ -35,5 +35,5 @@ exporters:
   kafka:
     brokers:
       - localhost:9092
-    topic: "jaeger-spans"
-    encoding: otlp_proto
+    topic: ${env:KAFKA_TOPIC:-jaeger-spans}
+    encoding: ${env:KAFKA_ENCODING:-otlp_proto}

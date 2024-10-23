@@ -12,22 +12,36 @@ extensions:
     http:
 
   jaeger_query:
-    trace_storage: some_storage
-    trace_storage_archive: another_storage
-    ui_config: ./cmd/jaeger/config-ui.json
+    storage:
+      traces: some_storage
+      traces_archive: another_storage
+    ui:
+      config_file: ./cmd/jaeger/config-ui.json
 
   jaeger_storage:
     backends:
       some_storage:
         cassandra:
-          keyspace: "jaeger_v1_dc1"
-          username: "cassandra"
-          password: "cassandra"
+          schema: 
+            keyspace: "jaeger_v1_dc1"
+          connection:
+            auth: 
+              basic:
+                username: "cassandra"
+                password: "cassandra"
+            tls:
+              insecure: true
       another_storage:
         cassandra:
-          keyspace: "jaeger_v1_dc1"
-          username: "cassandra"
-          password: "cassandra"
+          schema: 
+            keyspace: "jaeger_v1_dc1"
+          connection: 
+            auth:
+              basic: 
+                username: "cassandra"
+                password: "cassandra"
+            tls:
+              insecure: true
 receivers:
   otlp:
     protocols:

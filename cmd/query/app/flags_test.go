@@ -5,13 +5,13 @@
 package app
 
 import (
-	"net/http"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/config/configopaque"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/config"
@@ -35,16 +35,16 @@ func TestQueryBuilderFlags(t *testing.T) {
 	})
 	qOpts, err := new(QueryOptions).InitFromViper(v, zap.NewNop())
 	require.NoError(t, err)
-	assert.Equal(t, "/dev/null", qOpts.StaticAssets.Path)
-	assert.True(t, qOpts.StaticAssets.LogAccess)
-	assert.Equal(t, "some.json", qOpts.UIConfig)
+	assert.Equal(t, "/dev/null", qOpts.UIConfig.AssetsPath)
+	assert.True(t, qOpts.UIConfig.LogAccess)
+	assert.Equal(t, "some.json", qOpts.UIConfig.ConfigFile)
 	assert.Equal(t, "/jaeger", qOpts.BasePath)
-	assert.Equal(t, "127.0.0.1:8080", qOpts.HTTPHostPort)
-	assert.Equal(t, "127.0.0.1:8081", qOpts.GRPCHostPort)
-	assert.Equal(t, http.Header{
-		"Access-Control-Allow-Origin": []string{"blerg"},
-		"Whatever":                    []string{"thing"},
-	}, qOpts.AdditionalHeaders)
+	assert.Equal(t, "127.0.0.1:8080", qOpts.HTTP.Endpoint)
+	assert.Equal(t, "127.0.0.1:8081", qOpts.GRPC.NetAddr.Endpoint)
+	assert.Equal(t, map[string]configopaque.String{
+		"Access-Control-Allow-Origin": "blerg",
+		"Whatever":                    "thing",
+	}, qOpts.HTTP.ResponseHeaders)
 	assert.Equal(t, 10*time.Second, qOpts.MaxClockSkewAdjust)
 }
 
@@ -55,7 +55,7 @@ func TestQueryBuilderBadHeadersFlags(t *testing.T) {
 	})
 	qOpts, err := new(QueryOptions).InitFromViper(v, zap.NewNop())
 	require.NoError(t, err)
-	assert.Nil(t, qOpts.AdditionalHeaders)
+	assert.Nil(t, qOpts.HTTP.ResponseHeaders)
 }
 
 func TestStringSliceAsHeader(t *testing.T) {
@@ -161,8 +161,8 @@ func TestQueryOptionsPortAllocationFromFlags(t *testing.T) {
 			qOpts, err := new(QueryOptions).InitFromViper(v, zap.NewNop())
 			require.NoError(t, err)
 
-			assert.Equal(t, test.expectedHTTPHostPort, qOpts.HTTPHostPort)
-			assert.Equal(t, test.expectedGRPCHostPort, qOpts.GRPCHostPort)
+			assert.Equal(t, test.expectedHTTPHostPort, qOpts.HTTP.Endpoint)
+			assert.Equal(t, test.expectedGRPCHostPort, qOpts.GRPC.NetAddr.Endpoint)
 		})
 	}
 }

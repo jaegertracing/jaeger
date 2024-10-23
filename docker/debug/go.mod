@@ -2,7 +2,7 @@ module debug-delve
 
 go 1.23.0
 
-require github.com/go-delve/delve v1.23.0
+require github.com/go-delve/delve v1.23.1
 
 require (
 	github.com/cilium/ebpf v0.11.0 // indirect

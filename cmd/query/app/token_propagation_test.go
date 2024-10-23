@@ -13,6 +13,9 @@ import (
 	"github.com/olivere/elastic"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/config/configgrpc"
+	"go.opentelemetry.io/collector/config/confighttp"
+	"go.opentelemetry.io/collector/config/confignet"
 	"go.uber.org/zap/zaptest"
 
 	"github.com/jaegertracing/jaeger/cmd/internal/flags"
@@ -73,7 +76,7 @@ func runQueryService(t *testing.T, esURL string) *Server {
 	}))
 	f.InitFromViper(v, flagsSvc.Logger)
 	// set AllowTokenFromContext manually because we don't register the respective CLI flag from query svc
-	f.Options.Primary.AllowTokenFromContext = true
+	f.Options.Primary.Authentication.BearerTokenAuthentication.AllowFromContext = true
 	require.NoError(t, f.Initialize(metrics.NullFactory, flagsSvc.Logger))
 	defer f.Close()
 
@@ -88,10 +91,14 @@ func runQueryService(t *testing.T, esURL string) *Server {
 	}
 	server, err := NewServer(querySvc, nil,
 		&QueryOptions{
-			GRPCHostPort: ":0",
-			HTTPHostPort: ":0",
-			QueryOptionsBase: QueryOptionsBase{
-				BearerTokenPropagation: true,
+			BearerTokenPropagation: true,
+			HTTP: confighttp.ServerConfig{
+				Endpoint: ":0",
+			},
+			GRPC: configgrpc.ServerConfig{
+				NetAddr: confignet.AddrConfig{
+					Endpoint: ":0",
+				},
 			},
 		},
 		tenancy.NewManager(&tenancy.Options{}),

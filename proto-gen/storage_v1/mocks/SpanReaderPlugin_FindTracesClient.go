@@ -120,7 +120,7 @@ func (_m *SpanReaderPlugin_FindTracesClient) Recv() (*storage_v1.SpansResponseCh
 }
 
 // RecvMsg provides a mock function with given fields: m
-func (_m *SpanReaderPlugin_FindTracesClient) RecvMsg(m interface{}) error {
+func (_m *SpanReaderPlugin_FindTracesClient) RecvMsg(m any) error {
 	ret := _m.Called(m)
 
 	if len(ret) == 0 {
@@ -128,7 +128,7 @@ func (_m *SpanReaderPlugin_FindTracesClient) RecvMsg(m interface{}) error {
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(interface{}) error); ok {
+	if rf, ok := ret.Get(0).(func(any) error); ok {
 		r0 = rf(m)
 	} else {
 		r0 = ret.Error(0)
@@ -138,7 +138,7 @@ func (_m *SpanReaderPlugin_FindTracesClient) RecvMsg(m interface{}) error {
 }
 
 // SendMsg provides a mock function with given fields: m
-func (_m *SpanReaderPlugin_FindTracesClient) SendMsg(m interface{}) error {
+func (_m *SpanReaderPlugin_FindTracesClient) SendMsg(m any) error {
 	ret := _m.Called(m)
 
 	if len(ret) == 0 {
@@ -146,7 +146,7 @@ func (_m *SpanReaderPlugin_FindTracesClient) SendMsg(m interface{}) error {
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(interface{}) error); ok {
+	if rf, ok := ret.Get(0).(func(any) error); ok {
 		r0 = rf(m)
 	} else {
 		r0 = ret.Error(0)

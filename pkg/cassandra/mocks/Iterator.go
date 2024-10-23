@@ -33,7 +33,7 @@ func (_m *Iterator) Close() error {
 }
 
 // Scan provides a mock function with given fields: dest
-func (_m *Iterator) Scan(dest ...interface{}) bool {
+func (_m *Iterator) Scan(dest ...any) bool {
 	ret := _m.Called(dest)
 
 	if len(ret) == 0 {
@@ -41,7 +41,7 @@ func (_m *Iterator) Scan(dest ...interface{}) bool {
 	}
 
 	var r0 bool
-	if rf, ok := ret.Get(0).(func(...interface{}) bool); ok {
+	if rf, ok := ret.Get(0).(func(...any) bool); ok {
 		r0 = rf(dest...)
 	} else {
 		r0 = ret.Get(0).(bool)

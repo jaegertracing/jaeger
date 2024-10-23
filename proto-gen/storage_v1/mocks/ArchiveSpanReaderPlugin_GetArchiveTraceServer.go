@@ -42,7 +42,7 @@ func (_m *ArchiveSpanReaderPlugin_GetArchiveTraceServer) Context() context.Conte
 }
 
 // RecvMsg provides a mock function with given fields: m
-func (_m *ArchiveSpanReaderPlugin_GetArchiveTraceServer) RecvMsg(m interface{}) error {
+func (_m *ArchiveSpanReaderPlugin_GetArchiveTraceServer) RecvMsg(m any) error {
 	ret := _m.Called(m)
 
 	if len(ret) == 0 {
@@ -50,7 +50,7 @@ func (_m *ArchiveSpanReaderPlugin_GetArchiveTraceServer) RecvMsg(m interface{}) 
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(interface{}) error); ok {
+	if rf, ok := ret.Get(0).(func(any) error); ok {
 		r0 = rf(m)
 	} else {
 		r0 = ret.Error(0)
@@ -96,7 +96,7 @@ func (_m *ArchiveSpanReaderPlugin_GetArchiveTraceServer) SendHeader(_a0 metadata
 }
 
 // SendMsg provides a mock function with given fields: m
-func (_m *ArchiveSpanReaderPlugin_GetArchiveTraceServer) SendMsg(m interface{}) error {
+func (_m *ArchiveSpanReaderPlugin_GetArchiveTraceServer) SendMsg(m any) error {
 	ret := _m.Called(m)
 
 	if len(ret) == 0 {
@@ -104,7 +104,7 @@ func (_m *ArchiveSpanReaderPlugin_GetArchiveTraceServer) SendMsg(m interface{}) 
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(interface{}) error); ok {
+	if rf, ok := ret.Get(0).(func(any) error); ok {
 		r0 = rf(m)
 	} else {
 		r0 = ret.Error(0)

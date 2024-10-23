@@ -13,6 +13,7 @@ import (
 	"github.com/spf13/viper"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componenttest"
+	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/config/configtelemetry"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"go.opentelemetry.io/otel"
@@ -43,29 +44,29 @@ type Factory struct {
 	metricsFactory metrics.Factory
 	logger         *zap.Logger
 	tracerProvider trace.TracerProvider
-
-	// configV1 is used for backward compatibility. it will be removed in v2.
-	// In the main initialization logic, only configV2 is used.
-	configV1 Configuration
-	configV2 *ConfigV2
-
-	services   *ClientPluginServices
-	remoteConn *grpc.ClientConn
+	config         Config
+	services       *ClientPluginServices
+	remoteConn     *grpc.ClientConn
+	host           component.Host
 }
 
 // NewFactory creates a new Factory.
 func NewFactory() *Factory {
-	return &Factory{}
+	return &Factory{
+		host: componenttest.NewNopHost(),
+	}
 }
 
 // NewFactoryWithConfig is used from jaeger(v2).
 func NewFactoryWithConfig(
-	cfg ConfigV2,
+	cfg Config,
 	metricsFactory metrics.Factory,
 	logger *zap.Logger,
+	host component.Host,
 ) (*Factory, error) {
 	f := NewFactory()
-	f.configV2 = &cfg
+	f.config = cfg
+	f.host = host
 	if err := f.Initialize(metricsFactory, logger); err != nil {
 		return nil, err
 	}
@@ -74,12 +75,12 @@ func NewFactoryWithConfig(
 
 // AddFlags implements plugin.Configurable
 func (*Factory) AddFlags(flagSet *flag.FlagSet) {
-	v1AddFlags(flagSet)
+	addFlags(flagSet)
 }
 
 // InitFromViper implements plugin.Configurable
 func (f *Factory) InitFromViper(v *viper.Viper, logger *zap.Logger) {
-	if err := v1InitFromViper(&f.configV1, v); err != nil {
+	if err := initFromViper(&f.config, v); err != nil {
 		logger.Fatal("unable to initialize gRPC storage factory", zap.Error(err))
 	}
 }
@@ -88,10 +89,6 @@ func (f *Factory) InitFromViper(v *viper.Viper, logger *zap.Logger) {
 func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
 	f.metricsFactory, f.logger = metricsFactory, logger
 	f.tracerProvider = otel.GetTracerProvider()
-
-	if f.configV2 == nil {
-		f.configV2 = f.configV1.TranslateToConfigV2()
-	}
 
 	telset := component.TelemetrySettings{
 		Logger:         logger,
@@ -102,7 +99,11 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 		},
 	}
 	newClientFn := func(opts ...grpc.DialOption) (conn *grpc.ClientConn, err error) {
-		return f.configV2.ToClientConn(context.Background(), componenttest.NewNopHost(), telset, opts...)
+		clientOpts := make([]configgrpc.ToClientConnOption, 0)
+		for _, opt := range opts {
+			clientOpts = append(clientOpts, configgrpc.WithGrpcDialOption(opt))
+		}
+		return f.config.ToClientConn(context.Background(), f.host, telset, clientOpts...)
 	}
 
 	var err error
@@ -110,14 +111,14 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 	if err != nil {
 		return fmt.Errorf("grpc storage builder failed to create a store: %w", err)
 	}
-	logger.Info("Remote storage configuration", zap.Any("configuration", f.configV2))
+	logger.Info("Remote storage configuration", zap.Any("configuration", f.config))
 	return nil
 }
 
 type newClientFn func(opts ...grpc.DialOption) (*grpc.ClientConn, error)
 
 func (f *Factory) newRemoteStorage(telset component.TelemetrySettings, newClient newClientFn) (*ClientPluginServices, error) {
-	c := f.configV2
+	c := f.config
 	opts := []grpc.DialOption{
 		grpc.WithStatsHandler(otelgrpc.NewClientHandler(otelgrpc.WithTracerProvider(telset.TracerProvider))),
 	}
@@ -203,6 +204,5 @@ func (f *Factory) Close() error {
 	if f.remoteConn != nil {
 		errs = append(errs, f.remoteConn.Close())
 	}
-	errs = append(errs, f.configV1.RemoteTLS.Close())
 	return errors.Join(errs...)
 }
