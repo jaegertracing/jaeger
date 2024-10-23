@@ -13,6 +13,15 @@ import (
 	"google.golang.org/grpc/metadata"
 )
 
+type mockServerStream struct {
+	ctx context.Context
+	grpc.ServerStream
+}
+
+func (s *mockServerStream) Context() context.Context {
+	return s.ctx
+}
+
 func TestBearerTokenInterceptors(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -90,6 +99,91 @@ func TestBearerTokenInterceptors(t *testing.T) {
 	}
 }
 
+func TestServerInterceptors(t *testing.T) {
+	tests := []struct {
+		name        string
+		ctx         context.Context
+		expectedErr string
+		wantToken   string
+	}{
+		{
+			name:        "no token in context",
+			ctx:         context.Background(),
+			expectedErr: "",
+			wantToken:   "",
+		},
+		{
+			name:        "token in context",
+			ctx:         ContextWithBearerToken(context.Background(), "test-token"),
+			expectedErr: "",
+			wantToken:   "test-token",
+		},
+		{
+			name: "multiple tokens in metadata",
+			ctx: metadata.NewIncomingContext(context.Background(), metadata.MD{
+				Key: []string{"token1", "token2"},
+			}),
+			expectedErr: "malformed token: multiple tokens found",
+			wantToken:   "",
+		},
+		{
+			name: "valid token in metadata",
+			ctx: metadata.NewIncomingContext(context.Background(), metadata.MD{
+				Key: []string{"valid-token"},
+			}),
+			expectedErr: "",
+			wantToken:   "valid-token",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// Test unary server interceptor
+			unaryInterceptor := NewUnaryServerInterceptor()
+			unaryHandler := func(ctx context.Context, _ any) (any, error) {
+				token, ok := GetBearerToken(ctx)
+				if test.wantToken == "" {
+					assert.False(t, ok, "expected no token")
+				} else {
+					assert.True(t, ok, "expected token to be present")
+					assert.Equal(t, test.wantToken, token)
+				}
+				return nil, nil
+			}
+
+			_, err := unaryInterceptor(test.ctx, nil, &grpc.UnaryServerInfo{}, unaryHandler)
+			if test.expectedErr == "" {
+				require.NoError(t, err)
+			} else {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), test.expectedErr)
+			}
+
+			// Test stream server interceptor
+			streamInterceptor := NewStreamServerInterceptor()
+			mockStream := &mockServerStream{ctx: test.ctx}
+			streamHandler := func(_ any, stream grpc.ServerStream) error {
+				token, ok := GetBearerToken(stream.Context())
+				if test.wantToken == "" {
+					assert.False(t, ok, "expected no token")
+				} else {
+					assert.True(t, ok, "expected token to be present")
+					assert.Equal(t, test.wantToken, token)
+				}
+				return nil
+			}
+
+			err = streamInterceptor(nil, mockStream, &grpc.StreamServerInfo{}, streamHandler)
+			if test.expectedErr == "" {
+				require.NoError(t, err)
+			} else {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), test.expectedErr)
+			}
+		})
+	}
+}
+
 func TestClientUnaryInterceptorWithBearerToken(t *testing.T) {
 	interceptor := NewUnaryClientInterceptor()
 
@@ -126,6 +220,41 @@ func TestClientStreamInterceptorWithBearerToken(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestServerUnaryInterceptorWithBearerToken(t *testing.T) {
+	interceptor := NewUnaryServerInterceptor()
+	testToken := "test-token"
+
+	// Test with token in context
+	handler := func(ctx context.Context, _ any) (any, error) {
+		token, ok := GetBearerToken(ctx)
+		require.True(t, ok)
+		assert.Equal(t, testToken, token)
+		return nil, nil
+	}
+
+	ctx := ContextWithBearerToken(context.Background(), testToken)
+	_, err := interceptor(ctx, nil, &grpc.UnaryServerInfo{}, handler)
+	require.NoError(t, err)
+}
+
+func TestServerStreamInterceptorWithBearerToken(t *testing.T) {
+	interceptor := NewStreamServerInterceptor()
+	testToken := "test-token"
+
+	// Test with token in context
+	handler := func(_ any, stream grpc.ServerStream) error {
+		token, ok := GetBearerToken(stream.Context())
+		require.True(t, ok)
+		assert.Equal(t, testToken, token)
+		return nil
+	}
+
+	ctx := ContextWithBearerToken(context.Background(), testToken)
+	mockStream := &mockServerStream{ctx: ctx}
+	err := interceptor(nil, mockStream, &grpc.StreamServerInfo{}, handler)
+	require.NoError(t, err)
+}
+
 func TestMalformedToken(t *testing.T) {
 	// Context with multiple tokens
 	ctx := metadata.NewIncomingContext(context.Background(), metadata.MD{
@@ -149,4 +278,20 @@ func TestMalformedToken(t *testing.T) {
 	_, err = streamInterceptor(ctx, &grpc.StreamDesc{}, nil, "method", streamInvoker)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "malformed token: multiple tokens found")
+}
+
+func TestTokenatedServerStream(t *testing.T) {
+	originalCtx := context.Background()
+	testToken := "test-token"
+	newCtx := ContextWithBearerToken(originalCtx, testToken)
+
+	stream := &tokenatedServerStream{
+		ServerStream: &mockServerStream{ctx: originalCtx},
+		context:      newCtx,
+	}
+
+	// Verify that Context() returns the modified context
+	token, ok := GetBearerToken(stream.Context())
+	require.True(t, ok)
+	assert.Equal(t, testToken, token)
 }

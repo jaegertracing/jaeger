@@ -18,6 +18,10 @@ type tokenatedServerStream struct {
 	context context.Context
 }
 
+func (tss *tokenatedServerStream) Context() context.Context {
+	return tss.context
+}
+
 // getValidBearerToken attempts to retrieve the bearer token from the context.
 // It does not return an error if the token is missing.
 func getValidBearerToken(ctx context.Context, bearerHeader string) (string, error) {
@@ -52,6 +56,11 @@ func streamServerInterceptor(srv any, ss grpc.ServerStream, _ *grpc.StreamServer
 		return err
 	}
 	// Upgrade the bearer token to be part of the context.
+
+	if token, _ := GetBearerToken(ss.Context()); token != "" {
+		return handler(srv, ss)
+	}
+
 	return handler(srv, &tokenatedServerStream{
 		ServerStream: ss,
 		context:      ContextWithBearerToken(ss.Context(), bearerToken),
@@ -64,6 +73,10 @@ func NewUnaryServerInterceptor() grpc.UnaryServerInterceptor {
 		bearerToken, err := getValidBearerToken(ctx, Key)
 		if err != nil {
 			return nil, err
+		}
+
+		if token, _ := GetBearerToken(ctx); token != "" {
+			return handler(ctx, req)
 		}
 
 		return handler(ContextWithBearerToken(ctx, bearerToken), req)
