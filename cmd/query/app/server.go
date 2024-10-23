@@ -135,7 +135,7 @@ func createGRPCServer(
 	telset telemetery.Setting,
 ) (*grpc.Server, error) {
 	if legacy {
-		grpcServer, err := createGRPCServerLegacy(options, tm)
+		grpcServer, err := createGRPCServerLegacy(ctx, options, tm)
 		if err != nil {
 			return nil, err
 		}
@@ -152,12 +152,14 @@ func createGRPCServer(
 }
 
 func createGRPCServerLegacy(
+	ctx context.Context,
 	options *QueryOptions,
-	tm *tenancy.Manager) (*grpc.Server, error) {
+	tm *tenancy.Manager,
+) (*grpc.Server, error) {
 	var grpcOpts []grpc.ServerOption
 
 	if options.GRPC.TLSSetting != nil {
-		tlsCfg, err := options.GRPC.TLSSetting.LoadTLSConfig(context.Background())
+		tlsCfg, err := options.GRPC.TLSSetting.LoadTLSConfig(ctx)
 		if err != nil {
 			return nil, err
 		}
@@ -168,6 +170,7 @@ func createGRPCServerLegacy(
 	}
 	if tm.Enabled {
 		grpcOpts = append(grpcOpts,
+			//nolint:contextcheck
 			grpc.StreamInterceptor(tenancy.NewGuardingStreamInterceptor(tm)),
 			grpc.UnaryInterceptor(tenancy.NewGuardingUnaryInterceptor(tm)),
 		)
@@ -186,7 +189,7 @@ func createGRPCServerOTEL(
 	var grpcOpts []configgrpc.ToServerOption
 	if tm.Enabled {
 		grpcOpts = append(grpcOpts,
-			//nolint
+			//nolint:contextcheck
 			configgrpc.WithGrpcServerOption(grpc.StreamInterceptor(tenancy.NewGuardingStreamInterceptor(tm))),
 			configgrpc.WithGrpcServerOption(grpc.UnaryInterceptor(tenancy.NewGuardingUnaryInterceptor(tm))),
 		)
