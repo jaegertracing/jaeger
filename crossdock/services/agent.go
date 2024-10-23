@@ -30,6 +30,8 @@ type collectorService struct {
 
 // NewCollectorService returns an instance of CollectorService.
 func NewCollectorService(url string, logger *zap.Logger) CollectorService {
+	logger.Info("Initializing CollectorService",
+		zap.String("url", url))
 	return &collectorService{
 		url:    url,
 		logger: logger,
@@ -37,11 +39,17 @@ func NewCollectorService(url string, logger *zap.Logger) CollectorService {
 }
 
 func getSamplingURL(url string) string {
-	return url + "/api/sampling?service=%s"
+	// return url + "/api/sampling?service=%s"
+	return url + "/sampling?service=%s"
+
 }
 
 // GetSamplingRate returns the sampling rate for the service-operation from the agent service.
 func (s *collectorService) GetSamplingRate(service, operation string) (float64, error) {
+	s.logger.Info("Getting sampling rate",
+		zap.String("url", s.url),
+		zap.String("service", service),
+		zap.String("operation", operation))
 	url := fmt.Sprintf(getSamplingURL(s.url), getTracerServiceName(service))
 	resp, err := http.Get(url)
 	if err != nil {
