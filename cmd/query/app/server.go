@@ -194,7 +194,7 @@ type httpServer struct {
 var _ io.Closer = (*httpServer)(nil)
 
 func createHTTPServer(
-	_ context.Context,
+	ctx context.Context,
 	querySvc *querysvc.QueryService,
 	metricsQuerySvc querysvc.MetricsQueryService,
 	queryOpts *QueryOptions,
@@ -242,7 +242,7 @@ func createHTTPServer(
 	}
 
 	if queryOpts.HTTP.TLSSetting != nil {
-		tlsCfg, err := queryOpts.HTTP.TLSSetting.LoadTLSConfig(context.Background()) // This checks if the certificates are correctly provided
+		tlsCfg, err := queryOpts.HTTP.TLSSetting.LoadTLSConfig(ctx) // This checks if the certificates are correctly provided
 		if err != nil {
 			return nil, err
 		}
