@@ -37,7 +37,7 @@ func NewAgentService(url string, logger *zap.Logger) AgentService {
 }
 
 func getSamplingURL(url string) string {
-	return url + "/sampling?service=%s"
+	return url + "/api/sampling?service=%s"
 }
 
 // GetSamplingRate returns the sampling rate for the service-operation from the agent service.
