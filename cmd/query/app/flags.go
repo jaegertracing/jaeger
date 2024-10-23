@@ -105,7 +105,7 @@ func (qOpts *QueryOptions) InitFromViper(v *viper.Viper, logger *zap.Logger) (*Q
 	// TODO: drop support for same host ports
 	// https://github.com/jaegertracing/jaeger/issues/6117
 	if qOpts.HTTP.Endpoint == qOpts.GRPC.NetAddr.Endpoint {
-		logger.Warn("using the same port for gRPC and HTTP is deprecated; please use dedicated ports instead; Support for shared port will be removed in Feb 2025")
+		logger.Warn("using the same port for gRPC and HTTP is deprecated; please use dedicated ports instead; support for shared port will be removed in Feb 2025")
 	}
 	tlsGrpc, err := tlsGRPCFlagsConfig.InitFromViper(v)
 	if err != nil {
