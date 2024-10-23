@@ -134,56 +134,79 @@ func createGRPCServer(
 	tm *tenancy.Manager,
 	telset telemetery.Setting,
 ) (*grpc.Server, error) {
-	var grpcServer *grpc.Server
 	if legacy {
-		var grpcOpts []grpc.ServerOption
-		if options.GRPC.TLSSetting != nil {
-			tlsCfg, err := options.GRPC.TLSSetting.LoadTLSConfig(ctx)
-			if err != nil {
-				return nil, err
-			}
-
-			creds := credentials.NewTLS(tlsCfg)
-
-			grpcOpts = append(grpcOpts, grpc.Creds(creds))
-		}
-		if tm.Enabled {
-			grpcOpts = append(grpcOpts,
-				//nolint
-				grpc.StreamInterceptor(tenancy.NewGuardingStreamInterceptor(tm)),
-				grpc.UnaryInterceptor(tenancy.NewGuardingUnaryInterceptor(tm)),
-			)
-		}
-
-		grpcServer = grpc.NewServer(grpcOpts...)
-	} else {
-		var grpcOpts []configgrpc.ToServerOption
-		if tm.Enabled {
-			grpcOpts = append(grpcOpts,
-				//nolint
-				configgrpc.WithGrpcServerOption(grpc.StreamInterceptor(tenancy.NewGuardingStreamInterceptor(tm))),
-				configgrpc.WithGrpcServerOption(grpc.UnaryInterceptor(tenancy.NewGuardingUnaryInterceptor(tm))),
-			)
-		}
-		var err error
-		grpcServer, err = options.GRPC.ToServer(
-			ctx,
-			telset.Host,
-			component.TelemetrySettings{
-				Logger:         telset.Logger,
-				TracerProvider: telset.TracerProvider,
-				LeveledMeterProvider: func(_ configtelemetry.Level) metric.MeterProvider {
-					return noop.NewMeterProvider()
-				},
-			},
-			grpcOpts...)
+		grpcServer, err := createGRPCServerLegacy(options, tm)
 		if err != nil {
 			return nil, err
 		}
+		registerGRPCServer(grpcServer, querySvc, metricsQuerySvc, telset)
+		return grpcServer, nil
+	}
+
+	grpcServer, err := createGRPCServerOTEL(ctx, options, tm, telset)
+	if err != nil {
+		return nil, err
 	}
 	registerGRPCServer(grpcServer, querySvc, metricsQuerySvc, telset)
-
 	return grpcServer, nil
+}
+
+func createGRPCServerLegacy(
+	options *QueryOptions,
+	tm *tenancy.Manager) (*grpc.Server, error) {
+	var grpcOpts []grpc.ServerOption
+
+	if options.GRPC.TLSSetting != nil {
+		tlsCfg, err := options.GRPC.TLSSetting.LoadTLSConfig(context.Background())
+		if err != nil {
+			return nil, err
+		}
+
+		creds := credentials.NewTLS(tlsCfg)
+
+		grpcOpts = append(grpcOpts, grpc.Creds(creds))
+	}
+	if tm.Enabled {
+		grpcOpts = append(grpcOpts,
+			grpc.StreamInterceptor(tenancy.NewGuardingStreamInterceptor(tm)),
+			grpc.UnaryInterceptor(tenancy.NewGuardingUnaryInterceptor(tm)),
+		)
+	}
+
+	server := grpc.NewServer(grpcOpts...)
+	return server, nil
+}
+
+func createGRPCServerOTEL(
+	ctx context.Context,
+	options *QueryOptions,
+	tm *tenancy.Manager,
+	telset telemetery.Setting,
+) (*grpc.Server, error) {
+	var grpcOpts []configgrpc.ToServerOption
+	if tm.Enabled {
+		grpcOpts = append(grpcOpts,
+			//nolint
+			configgrpc.WithGrpcServerOption(grpc.StreamInterceptor(tenancy.NewGuardingStreamInterceptor(tm))),
+			configgrpc.WithGrpcServerOption(grpc.UnaryInterceptor(tenancy.NewGuardingUnaryInterceptor(tm))),
+		)
+	}
+	server, err := options.GRPC.ToServer(
+		ctx,
+		telset.Host,
+		component.TelemetrySettings{
+			Logger:         telset.Logger,
+			TracerProvider: telset.TracerProvider,
+			LeveledMeterProvider: func(_ configtelemetry.Level) metric.MeterProvider {
+				return noop.NewMeterProvider()
+			},
+		},
+		grpcOpts...)
+	if err != nil {
+		return nil, err
+	}
+
+	return server, nil
 }
 
 type httpServer struct {
