@@ -15,6 +15,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/pkg/cassandra"
 	gocqlw "github.com/jaegertracing/jaeger/pkg/cassandra/gocql"
+	"github.com/jaegertracing/jaeger/plugin/storage/cassandra/schema"
 )
 
 // Configuration describes the configuration properties needed to connect to a Cassandra cluster.
@@ -144,6 +145,7 @@ func (c *Configuration) NewSession() (cassandra.Session, error) {
 	if err != nil {
 		return nil, err
 	}
+	mappings.SchemaInit(session)
 	return gocqlw.WrapCQLSession(session), nil
 }
 
