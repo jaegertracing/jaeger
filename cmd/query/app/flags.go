@@ -99,8 +99,6 @@ func AddFlags(flagSet *flag.FlagSet) {
 
 // InitFromViper initializes QueryOptions with properties from viper
 func (qOpts *QueryOptions) InitFromViper(v *viper.Viper, logger *zap.Logger) (*QueryOptions, error) {
-	defaultOptions := DefaultQueryOptions()
-	qOpts = &defaultOptions
 	qOpts.HTTP.Endpoint = v.GetString(queryHTTPHostPort)
 	qOpts.GRPC.NetAddr.Endpoint = v.GetString(queryGRPCHostPort)
 	// TODO: drop support for same host ports

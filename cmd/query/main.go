@@ -64,7 +64,8 @@ func main() {
 			metricsFactory := baseFactory.Namespace(metrics.NSOptions{Name: "query"})
 			version.NewInfoMetrics(metricsFactory)
 
-			queryOpts, err := new(app.QueryOptions).InitFromViper(v, logger)
+			defaultOpts := app.DefaultQueryOptions()
+			queryOpts, err := defaultOpts.InitFromViper(v, logger)
 			if err != nil {
 				logger.Fatal("Failed to configure query service", zap.Error(err))
 			}

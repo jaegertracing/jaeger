@@ -133,7 +133,8 @@ by default uses only in-memory database.`,
 			if err != nil {
 				logger.Fatal("Failed to initialize collector", zap.Error(err))
 			}
-			qOpts, err := new(queryApp.QueryOptions).InitFromViper(v, logger)
+			defaultOpts := queryApp.DefaultQueryOptions()
+			qOpts, err := defaultOpts.InitFromViper(v, logger)
 			if err != nil {
 				logger.Fatal("Failed to configure query service", zap.Error(err))
 			}

@@ -125,8 +125,8 @@ func createGRPCServerLegacy(
 		grpcOpts = append(grpcOpts, grpc.Creds(creds))
 	}
 	if tm.Enabled {
+		//nolint:contextcheck
 		grpcOpts = append(grpcOpts,
-			//nolint:contextcheck
 			grpc.StreamInterceptor(tenancy.NewGuardingStreamInterceptor(tm)),
 			grpc.UnaryInterceptor(tenancy.NewGuardingUnaryInterceptor(tm)),
 		)
@@ -167,8 +167,8 @@ func createGRPCServerOTEL(
 ) (*grpc.Server, error) {
 	var grpcOpts []configgrpc.ToServerOption
 	if tm.Enabled {
+		//nolint:contextcheck
 		grpcOpts = append(grpcOpts,
-			//nolint:contextcheck
 			configgrpc.WithGrpcServerOption(grpc.StreamInterceptor(tenancy.NewGuardingStreamInterceptor(tm))),
 			configgrpc.WithGrpcServerOption(grpc.UnaryInterceptor(tenancy.NewGuardingUnaryInterceptor(tm))),
 		)
