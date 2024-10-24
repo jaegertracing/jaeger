@@ -20,8 +20,9 @@ func TestOptionsWithDefaultFlags(t *testing.T) {
 
 	assert.Equal(t, "", o.Mapping)
 	assert.Equal(t, uint(7), o.EsVersion)
-	assert.Equal(t, int64(5), o.Shards)
-	assert.Equal(t, int64(1), o.Replicas)
+	assert.EqualValues(t, 5, o.Shards)
+	assert.EqualValues(t, 1, o.Replicas)
+
 	assert.Equal(t, "", o.IndexPrefix)
 	assert.Equal(t, "false", o.UseILM)
 	assert.Equal(t, "jaeger-ilm-policy", o.ILMPolicyName)

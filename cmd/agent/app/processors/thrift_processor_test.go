@@ -75,8 +75,8 @@ func initCollectorAndReporter(t *testing.T) (*metricstest.Factory, *testutils.Gr
 	require.NoError(t, err)
 	rep := grpcrep.NewReporter(conn, map[string]string{}, zaptest.NewLogger(t))
 	metricsFactory := metricstest.NewFactory(0)
-	reporter := reporter.WrapWithMetrics(rep, metricsFactory)
-	return metricsFactory, grpcCollector, reporter, conn
+	metricsReporter := reporter.WrapWithMetrics(rep, metricsFactory)
+	return metricsFactory, grpcCollector, metricsReporter, conn
 }
 
 func TestNewThriftProcessor_ZeroCount(t *testing.T) {
@@ -85,11 +85,11 @@ func TestNewThriftProcessor_ZeroCount(t *testing.T) {
 }
 
 func TestProcessorWithCompactZipkin(t *testing.T) {
-	metricsFactory, collector, reporter, conn := initCollectorAndReporter(t)
+	metricsFactory, collector, metricsReporter, conn := initCollectorAndReporter(t)
 	defer conn.Close()
 	defer collector.Close()
 
-	hostPort, processor := createProcessor(t, metricsFactory, compactFactory, agent.NewAgentProcessor(reporter))
+	hostPort, processor := createProcessor(t, metricsFactory, compactFactory, agent.NewAgentProcessor(metricsReporter))
 	defer processor.Stop()
 
 	client, clientCloser, err := testutils.NewZipkinThriftUDPClient(hostPort)

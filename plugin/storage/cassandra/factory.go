@@ -157,7 +157,7 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 
 // CreateSpanReader implements storage.Factory
 func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
-	return cSpanStore.NewSpanReader(f.primarySession, f.primaryMetricsFactory, f.logger, f.tracer.Tracer("cSpanStore.SpanReader")), nil
+	return cSpanStore.NewSpanReader(f.primarySession, f.primaryMetricsFactory, f.logger, f.tracer.Tracer("cSpanStore.SpanReader"))
 }
 
 // CreateSpanWriter implements storage.Factory
@@ -166,7 +166,7 @@ func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
 	if err != nil {
 		return nil, err
 	}
-	return cSpanStore.NewSpanWriter(f.primarySession, f.Options.SpanStoreWriteCacheTTL, f.primaryMetricsFactory, f.logger, options...), nil
+	return cSpanStore.NewSpanWriter(f.primarySession, f.Options.SpanStoreWriteCacheTTL, f.primaryMetricsFactory, f.logger, options...)
 }
 
 // CreateDependencyReader implements storage.Factory
@@ -180,7 +180,7 @@ func (f *Factory) CreateArchiveSpanReader() (spanstore.Reader, error) {
 	if f.archiveSession == nil {
 		return nil, storage.ErrArchiveStorageNotConfigured
 	}
-	return cSpanStore.NewSpanReader(f.archiveSession, f.archiveMetricsFactory, f.logger, f.tracer.Tracer("cSpanStore.SpanReader")), nil
+	return cSpanStore.NewSpanReader(f.archiveSession, f.archiveMetricsFactory, f.logger, f.tracer.Tracer("cSpanStore.SpanReader"))
 }
 
 // CreateArchiveSpanWriter implements storage.ArchiveFactory
@@ -192,18 +192,18 @@ func (f *Factory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
 	if err != nil {
 		return nil, err
 	}
-	return cSpanStore.NewSpanWriter(f.archiveSession, f.Options.SpanStoreWriteCacheTTL, f.archiveMetricsFactory, f.logger, options...), nil
+	return cSpanStore.NewSpanWriter(f.archiveSession, f.Options.SpanStoreWriteCacheTTL, f.archiveMetricsFactory, f.logger, options...)
 }
 
 // CreateLock implements storage.SamplingStoreFactory
 func (f *Factory) CreateLock() (distributedlock.Lock, error) {
-	hostname, err := hostname.AsIdentifier()
+	hostId, err := hostname.AsIdentifier()
 	if err != nil {
 		return nil, err
 	}
-	f.logger.Info("Using unique participantName in the distributed lock", zap.String("participantName", hostname))
+	f.logger.Info("Using unique participantName in the distributed lock", zap.String("participantName", hostId))
 
-	return cLock.NewLock(f.primarySession, hostname), nil
+	return cLock.NewLock(f.primarySession, hostId), nil
 }
 
 // CreateSamplingStore implements storage.SamplingStoreFactory

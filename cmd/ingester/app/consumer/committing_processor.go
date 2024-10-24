@@ -21,9 +21,9 @@ type offsetMarker interface {
 }
 
 // NewCommittingProcessor returns a processor that commits message offsets to Kafka
-func NewCommittingProcessor(processor processor.SpanProcessor, marker offsetMarker) processor.SpanProcessor {
+func NewCommittingProcessor(proc processor.SpanProcessor, marker offsetMarker) processor.SpanProcessor {
 	return &comittingProcessor{
-		processor: processor,
+		processor: proc,
 		marker:    marker,
 	}
 }

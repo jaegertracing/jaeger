@@ -181,9 +181,6 @@ linters-settings:
         # wtf: "you have exceeded the maximum number of public struct declarations"
         - name: max-public-structs
           disabled: true
-        # probably a good one to enable after cleanup
-        - name: import-shadowing
-          disabled: true
         # TBD - often triggered in tests
         - name: unhandled-error
           disabled: true

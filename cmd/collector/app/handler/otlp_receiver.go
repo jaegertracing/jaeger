@@ -27,7 +27,6 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/flags"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
-	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 )
@@ -157,20 +156,15 @@ func newConsumerDelegate(logger *zap.Logger, spanProcessor processor.SpanProcess
 			processor.UnknownTransport, // could be gRPC or HTTP
 			processor.OTLPSpanFormat,
 			tm),
-		protoFromTraces: otlp2jaeger.ProtoFromTraces,
 	}
 }
 
 type consumerDelegate struct {
-	batchConsumer   batchConsumer
-	protoFromTraces func(td ptrace.Traces) ([]*model.Batch, error)
+	batchConsumer batchConsumer
 }
 
 func (c *consumerDelegate) consume(ctx context.Context, td ptrace.Traces) error {
-	batches, err := c.protoFromTraces(td)
-	if err != nil {
-		return err
-	}
+	batches := otlp2jaeger.ProtoFromTraces(td)
 	for _, batch := range batches {
 		err := c.batchConsumer.consume(ctx, batch)
 		if err != nil {

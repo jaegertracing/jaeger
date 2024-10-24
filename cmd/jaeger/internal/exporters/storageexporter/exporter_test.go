@@ -69,12 +69,12 @@ func TestExporterStartBadNameError(t *testing.T) {
 	host := storagetest.NewStorageHost()
 	host.WithExtension(jaegerstorage.ID, &mockStorageExt{name: "foo"})
 
-	exporter := &storageExporter{
+	exp := &storageExporter{
 		config: &Config{
 			TraceStorage: "bar",
 		},
 	}
-	err := exporter.start(context.Background(), host)
+	err := exp.start(context.Background(), host)
 	require.Error(t, err)
 	require.ErrorContains(t, err, "cannot find storage factory")
 }
@@ -89,12 +89,12 @@ func TestExporterStartBadSpanstoreError(t *testing.T) {
 		factory: factory,
 	})
 
-	exporter := &storageExporter{
+	exp := &storageExporter{
 		config: &Config{
 			TraceStorage: "foo",
 		},
 	}
-	err := exporter.start(context.Background(), host)
+	err := exp.start(context.Background(), host)
 	require.Error(t, err)
 	require.ErrorContains(t, err, "mocked error")
 }
@@ -119,7 +119,7 @@ func TestExporter(t *testing.T) {
 	err := config.Validate()
 	require.NoError(t, err)
 
-	tracesExporter, err := exporterFactory.CreateTracesExporter(ctx, exporter.Settings{
+	tracesExporter, err := exporterFactory.CreateTraces(ctx, exporter.Settings{
 		ID:                ID,
 		TelemetrySettings: telemetrySettings,
 		BuildInfo:         component.NewDefaultBuildInfo(),
@@ -157,6 +157,9 @@ func TestExporter(t *testing.T) {
 	requiredTrace, err := spanReader.GetTrace(ctx, requiredTraceID)
 	require.NoError(t, err)
 	assert.Equal(t, spanID.String(), requiredTrace.Spans[0].SpanID.String())
+
+	// check that the service name attribute was added by the sanitizer
+	require.Equal(t, "missing-service-name", requiredTrace.Spans[0].Process.ServiceName)
 }
 
 func makeStorageExtension(t *testing.T, memstoreName string) component.Host {
@@ -169,7 +172,7 @@ func makeStorageExtension(t *testing.T, memstoreName string) component.Host {
 		MeterProvider: noopmetric.NewMeterProvider(),
 	}
 	extensionFactory := jaegerstorage.NewFactory()
-	storageExtension, err := extensionFactory.CreateExtension(
+	storageExtension, err := extensionFactory.Create(
 		context.Background(),
 		extension.Settings{
 			TelemetrySettings: telemetrySettings,

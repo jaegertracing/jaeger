@@ -7,6 +7,9 @@ set -euxf -o pipefail
 
 cd jaeger-ui
 
+if [[ "$(git rev-parse --is-shallow-repository)" == "true" ]]; then
+    git fetch --unshallow
+fi
 git fetch --all --tags
 git log --oneline --decorate=full -n 10 | cat
 
@@ -32,4 +35,4 @@ if [[ "$last_tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]];  then
 fi
 
 # do a regular full build
-yarn install --frozen-lockfile && cd packages/jaeger-ui && yarn build
+npm ci && cd packages/jaeger-ui && npm run build

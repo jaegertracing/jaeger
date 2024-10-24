@@ -48,11 +48,14 @@ type Factory struct {
 	config         Config
 	services       *ClientPluginServices
 	remoteConn     *grpc.ClientConn
+	host           component.Host
 }
 
 // NewFactory creates a new Factory.
 func NewFactory() *Factory {
-	return &Factory{}
+	return &Factory{
+		host: componenttest.NewNopHost(),
+	}
 }
 
 // NewFactoryWithConfig is used from jaeger(v2).
@@ -60,9 +63,11 @@ func NewFactoryWithConfig(
 	cfg Config,
 	metricsFactory metrics.Factory,
 	logger *zap.Logger,
+	host component.Host,
 ) (*Factory, error) {
 	f := NewFactory()
 	f.config = cfg
+	f.host = host
 	if err := f.Initialize(metricsFactory, logger); err != nil {
 		return nil, err
 	}
@@ -99,7 +104,7 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 		for _, opt := range opts {
 			clientOpts = append(clientOpts, configgrpc.WithGrpcDialOption(opt))
 		}
-		return f.config.ToClientConn(context.Background(), componenttest.NewNopHost(), telset, clientOpts...)
+		return f.config.ToClientConn(context.Background(), f.host, telset, clientOpts...)
 	}
 
 	var err error

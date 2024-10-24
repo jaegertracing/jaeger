@@ -4,6 +4,7 @@
 package app
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -76,7 +77,7 @@ func runQueryService(t *testing.T, esURL string) *Server {
 	}))
 	f.InitFromViper(v, flagsSvc.Logger)
 	// set AllowTokenFromContext manually because we don't register the respective CLI flag from query svc
-	f.Options.Primary.AllowTokenFromContext = true
+	f.Options.Primary.Authentication.BearerTokenAuthentication.AllowFromContext = true
 	require.NoError(t, f.Initialize(metrics.NullFactory, flagsSvc.Logger))
 	defer f.Close()
 
@@ -89,7 +90,7 @@ func runQueryService(t *testing.T, esURL string) *Server {
 		TracerProvider: jtracer.NoOp().OTEL,
 		ReportStatus:   telemetery.HCAdapter(flagsSvc.HC()),
 	}
-	server, err := NewServer(querySvc, nil,
+	server, err := NewServer(context.Background(), querySvc, nil,
 		&QueryOptions{
 			BearerTokenPropagation: true,
 			HTTP: confighttp.ServerConfig{
@@ -97,7 +98,8 @@ func runQueryService(t *testing.T, esURL string) *Server {
 			},
 			GRPC: configgrpc.ServerConfig{
 				NetAddr: confignet.AddrConfig{
-					Endpoint: ":0",
+					Endpoint:  ":0",
+					Transport: confignet.TransportTypeTCP,
 				},
 			},
 		},
@@ -105,7 +107,7 @@ func runQueryService(t *testing.T, esURL string) *Server {
 		telset,
 	)
 	require.NoError(t, err)
-	require.NoError(t, server.Start())
+	require.NoError(t, server.Start(context.Background()))
 	return server
 }
 

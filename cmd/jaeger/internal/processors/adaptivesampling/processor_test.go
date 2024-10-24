@@ -37,7 +37,7 @@ func makeStorageExtension(t *testing.T, memstoreName string) component.Host {
 		MeterProvider: noopmetric.NewMeterProvider(),
 	}
 	extensionFactory := jaegerstorage.NewFactory()
-	storageExtension, err := extensionFactory.CreateExtension(
+	storageExtension, err := extensionFactory.Create(
 		context.Background(),
 		extension.Settings{
 			TelemetrySettings: telemetrySettings,
@@ -61,7 +61,7 @@ var _ component.Config = (*Config)(nil)
 
 func makeRemoteSamplingExtension(t *testing.T, cfg component.Config) component.Host {
 	extensionFactory := remotesampling.NewFactory()
-	samplingExtension, err := extensionFactory.CreateExtension(
+	samplingExtension, err := extensionFactory.Create(
 		context.Background(),
 		extension.Settings{
 			TelemetrySettings: component.TelemetrySettings{
