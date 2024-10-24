@@ -30,9 +30,9 @@ dockerhub_response=$(curl -s -o /dev/null -w "%{http_code}" -X PATCH "$dockerhub
     -H "Authorization: JWT $DOCKERHUB_TOKEN" \
     -d "$body")
 
-dockerhub_status_code=$(echo "$dockerhub_response")
+dockerhub_status_code="$dockerhub_response"
 
-if [ $dockerhub_status_code -eq 200 ]; then
+if [ "$dockerhub_status_code" -eq 200 ]; then
   echo "Successfully updated Docker Hub README for $dockerhub_repository"
 else
   echo "Failed to update Docker Hub README for $dockerhub_repository with status code $dockerhub_status_code"
