@@ -99,9 +99,10 @@ func AddFlags(flagSet *flag.FlagSet) {
 
 // InitFromViper initializes QueryOptions with properties from viper
 func (qOpts *QueryOptions) InitFromViper(v *viper.Viper, logger *zap.Logger) (*QueryOptions, error) {
+	defaultOptions := DefaultQueryOptions()
+	qOpts = &defaultOptions
 	qOpts.HTTP.Endpoint = v.GetString(queryHTTPHostPort)
 	qOpts.GRPC.NetAddr.Endpoint = v.GetString(queryGRPCHostPort)
-	qOpts.GRPC.NetAddr.Transport = confignet.TransportTypeTCP
 	// TODO: drop support for same host ports
 	// https://github.com/jaegertracing/jaeger/issues/6117
 	if qOpts.HTTP.Endpoint == qOpts.GRPC.NetAddr.Endpoint {
@@ -175,4 +176,18 @@ func mapHTTPHeaderToOTELHeaders(h http.Header) map[string]configopaque.String {
 	}
 
 	return otelHeaders
+}
+
+func DefaultQueryOptions() QueryOptions {
+	return QueryOptions{
+		HTTP: confighttp.ServerConfig{
+			Endpoint: ports.PortToHostPort(ports.QueryHTTP),
+		},
+		GRPC: configgrpc.ServerConfig{
+			NetAddr: confignet.AddrConfig{
+				Endpoint:  ports.PortToHostPort(ports.QueryGRPC),
+				Transport: confignet.TransportTypeTCP,
+			},
+		},
+	}
 }
