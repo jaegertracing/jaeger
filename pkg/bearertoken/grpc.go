@@ -22,14 +22,8 @@ func (tss *tokenatedServerStream) Context() context.Context {
 	return tss.context
 }
 
-// getValidBearerToken attempts to retrieve the bearer token from the context.
-// It does not return an error if the token is missing.
-func getValidBearerToken(ctx context.Context, bearerHeader string) (string, error) {
-	bearerToken, ok := GetBearerToken(ctx)
-	if ok && bearerToken != "" {
-		return bearerToken, nil
-	}
-
+// extract bearer token from the metadata
+func ValidTokenFromGRPCMetadata(ctx context.Context, bearerHeader string) (string, error) {
 	md, ok := metadata.FromIncomingContext(ctx)
 	if !ok {
 		return "", nil
@@ -47,36 +41,33 @@ func getValidBearerToken(ctx context.Context, bearerHeader string) (string, erro
 
 // NewStreamServerInterceptor creates a new stream interceptor that injects the bearer token into the context if available.
 func NewStreamServerInterceptor() grpc.StreamServerInterceptor {
-	return streamServerInterceptor
-}
+	return func(srv any, ss grpc.ServerStream, _ *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+		if token, _ := GetBearerToken(ss.Context()); token != "" {
+			return handler(srv, ss)
+		}
 
-func streamServerInterceptor(srv any, ss grpc.ServerStream, _ *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
-	bearerToken, err := getValidBearerToken(ss.Context(), Key)
-	if err != nil {
-		return err
+		bearerToken, err := ValidTokenFromGRPCMetadata(ss.Context(), Key)
+		if err != nil {
+			return err
+		}
+
+		return handler(srv, &tokenatedServerStream{
+			ServerStream: ss,
+			context:      ContextWithBearerToken(ss.Context(), bearerToken),
+		})
 	}
-	// Upgrade the bearer token to be part of the context.
-
-	if token, _ := GetBearerToken(ss.Context()); token != "" {
-		return handler(srv, ss)
-	}
-
-	return handler(srv, &tokenatedServerStream{
-		ServerStream: ss,
-		context:      ContextWithBearerToken(ss.Context(), bearerToken),
-	})
 }
 
 // NewUnaryServerInterceptor creates a new unary interceptor that injects the bearer token into the context if available.
 func NewUnaryServerInterceptor() grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req any, _ *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
-		bearerToken, err := getValidBearerToken(ctx, Key)
-		if err != nil {
-			return nil, err
-		}
-
 		if token, _ := GetBearerToken(ctx); token != "" {
 			return handler(ctx, req)
+		}
+
+		bearerToken, err := ValidTokenFromGRPCMetadata(ctx, Key)
+		if err != nil {
+			return nil, err
 		}
 
 		return handler(ContextWithBearerToken(ctx, bearerToken), req)
@@ -94,14 +85,9 @@ func NewUnaryClientInterceptor() grpc.UnaryClientInterceptor {
 		opts ...grpc.CallOption,
 	) error {
 		var token string
-		if md, ok := metadata.FromIncomingContext(ctx); ok {
-			tokens := md.Get(Key)
-			if len(tokens) > 1 {
-				return fmt.Errorf("malformed token: multiple tokens found")
-			}
-			if len(tokens) == 1 && tokens[0] != "" {
-				token = tokens[0]
-			}
+		token, err := ValidTokenFromGRPCMetadata(ctx, Key)
+		if err != nil {
+			return err
 		}
 
 		if token == "" {
@@ -129,14 +115,9 @@ func NewStreamClientInterceptor() grpc.StreamClientInterceptor {
 		opts ...grpc.CallOption,
 	) (grpc.ClientStream, error) {
 		var token string
-		if md, ok := metadata.FromIncomingContext(ctx); ok {
-			tokens := md.Get(Key)
-			if len(tokens) > 1 {
-				return nil, fmt.Errorf("malformed token: multiple tokens found")
-			}
-			if len(tokens) == 1 && tokens[0] != "" {
-				token = tokens[0]
-			}
+		token, err := ValidTokenFromGRPCMetadata(ctx, Key)
+		if err != nil {
+			return nil, err
 		}
 
 		if token == "" {
