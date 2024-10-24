@@ -1,4 +1,4 @@
-# TITLE
+# OPENSEARCH METRICS
 ### Combined Metrics
 
 | V1 Metric | V1 Parameters | V2 Metric | V2 Parameters |

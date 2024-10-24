@@ -1,7 +1,7 @@
-# TITLE
+# ALL-IN-ONE METRICS
 ### Combined Metrics
 
-| V1 Metric | V1 Parameters | V2 Metric | V2 Parameters |
+| V1 Metric | V1 Labels | V2 Metric | V2 Labels |
 |-----------|---------------|-----------|---------------|
 | jaeger_query_latency | operation, result | jaeger_query_latency | operation, result |
 | jaeger_query_responses | operation | jaeger_query_responses | operation |
@@ -80,7 +80,7 @@
 | N/A | N/A | target_info | service_instance_id, service_name, service_version |
 ### Equivalent Metrics
 
-| V1 Metric | V1 Parameters | V2 Metric | V2 Parameters |
+| V1 Metric | V1 Labels | V2 Metric | V2 Labels |
 |-----------|---------------|-----------|---------------|
 | jaeger_collector_spans_rejected_total | debug, format, svc, transport | receiver_refused_spans | receiver, service_instance_id, service_name, service_version, transport |
 | jaeger_build_info | build_date, revision,  version | target_info | service_instance_id, service_name, service_version |
