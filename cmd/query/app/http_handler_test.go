@@ -164,9 +164,9 @@ func TestGetTraceSuccess(t *testing.T) {
 
 func extractTraces(t *testing.T, response *structuredResponse) []ui.Trace {
 	var traces []ui.Trace
-	bytes, err := json.Marshal(response.Data)
+	b, err := json.Marshal(response.Data)
 	require.NoError(t, err)
-	err = json.Unmarshal(bytes, &traces)
+	err = json.Unmarshal(b, &traces)
 	require.NoError(t, err)
 	return traces
 }
