@@ -131,6 +131,7 @@ func createGRPCServerLegacy(
 	streamInterceptors := []grpc.StreamServerInterceptor{
 		bearertoken.NewStreamServerInterceptor(),
 	}
+	//nolint:contextcheck
 	if tm.Enabled {
 		unaryInterceptors = append(unaryInterceptors, tenancy.NewGuardingUnaryInterceptor(tm))
 		streamInterceptors = append(streamInterceptors, tenancy.NewGuardingStreamInterceptor(tm))
