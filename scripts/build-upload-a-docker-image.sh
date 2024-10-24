@@ -107,6 +107,7 @@ else
 	    if [[ "$overwrite" == 'N' ]]; then
 	      check_overwrite "${IMAGE_TAGS[@]}"
 	    fi
+	    bash scripts/upload-docker-readme.sh ${component_name} ${dir_arg}/README.md
     else
 	    echo 'skipping docker images upload, because not on tagged release or main branch'
 	    PUSHTAG="type=image,push=false"
