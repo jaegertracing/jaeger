@@ -82,7 +82,7 @@ func NewServer(
 	}
 
 	var grpcServer *grpc.Server
-	if separatePorts {
+	if !separatePorts {
 		grpcServer, err = createGRPCServerLegacy(ctx, options, tm)
 	} else {
 		grpcServer, err = createGRPCServerOTEL(ctx, options, tm, telset)
