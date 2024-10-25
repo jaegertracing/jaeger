@@ -3,11 +3,22 @@
 # Copyright (c) 2024 The Jaeger Authors.
 # SPDX-License-Identifier: Apache-2.0
 set -euxf -o pipefail
+
+usage() {
+  echo "Usage: $0 <repository_name> <file_path>"
+  exit 1
+}
+
+if [ "$#" -ne 2 ]; then
+  echo "Error: Missing arguments."
+  usage
+fi
+
 repo="$1"
 readme_path="$2"
 abs_readme_path=$(realpath "$readme_path")
 
-DOCKERHUB_TOKEN=${DOCKERHUB_TOKEN:-}
+DOCKERHUB_TOKEN=${DOCKERHUB_TOKEN:?'missing Docker Hub token'}
 dockerhub_repository="jaegertracing/$repo"
 dockerhub_url="https://hub.docker.com/v2/repositories/$dockerhub_repository/"
 
@@ -25,16 +36,17 @@ body=$(jq -n \
   --arg full_desc "$readme_content" \
   '{full_description: $full_desc}')
 
-dockerhub_response=$(curl -s -o /dev/null -w "%{http_code}" -X PATCH "$dockerhub_url" \
+dockerhub_response=$(curl -s -w "%{http_code}" -X PATCH "$dockerhub_url" \
     -H "Content-Type: application/json" \
     -H "Authorization: JWT $DOCKERHUB_TOKEN" \
     -d "$body")
 
-dockerhub_status_code="$dockerhub_response"
+http_code="${dockerhub_response: -3}"
+response_body="${dockerhub_response:0:${#dockerhub_response}-3}"
 
-if [ "$dockerhub_status_code" -eq 200 ]; then
+if [ "$http_code" -eq 200 ]; then
   echo "Successfully updated Docker Hub README for $dockerhub_repository"
 else
-  echo "Failed to update Docker Hub README for $dockerhub_repository with status code $dockerhub_status_code"
-  echo "Full response: $dockerhub_response"
+  echo "Failed to update Docker Hub README for $dockerhub_repository with status code $http_code"
+  echo "Full response: $response_body"
 fi

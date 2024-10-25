@@ -26,6 +26,7 @@ local_test_only='N'
 platforms="linux/amd64"
 namespace="jaegertracing"
 overwrite='N'
+upload_success='N'
 
 while getopts "bc:d:f:hlop:t:" opt; do
 	# shellcheck disable=SC2220 # we don't need a *) case
@@ -107,7 +108,7 @@ else
 	    if [[ "$overwrite" == 'N' ]]; then
 	      check_overwrite "${IMAGE_TAGS[@]}"
 	    fi
-	    bash scripts/upload-docker-readme.sh "${component_name}" "${dir_arg}"/README.md
+	    upload_success='Y'
     else
 	    echo 'skipping docker images upload, because not on tagged release or main branch'
 	    PUSHTAG="type=image,push=false"
@@ -127,6 +128,10 @@ docker buildx build --output "${PUSHTAG}" ${target_arg} ${base_debug_img_arg} \
 	"${dir_arg}"
 echo "::endgroup::"
 echo "Finished building${upload_comment} ${component_name} =============="
+
+if [[ "$upload_success" == "Y" ]]; then
+  bash scripts/upload-docker-readme.sh "${component_name}" "${dir_arg}"/README.md
+fi
 
 echo "::group:: docker prune"
 df -h /
