@@ -17,10 +17,13 @@ fi
 repo="$1"
 readme_path="$2"
 abs_readme_path=$(realpath "$readme_path")
+repository="jaegertracing/$repo"
 
 DOCKERHUB_TOKEN=${DOCKERHUB_TOKEN:?'missing Docker Hub token'}
-dockerhub_repository="jaegertracing/$repo"
-dockerhub_url="https://hub.docker.com/v2/repositories/$dockerhub_repository/"
+QUAY_TOKEN=${QUAY_TOKEN:?'missing Quay token'}
+
+dockerhub_url="https://hub.docker.com/v2/repositories/$repository/"
+quay_url="https://quay.io/api/v1/repository/${repository}"
 
 if [ ! -f "$abs_readme_path" ]; then
   echo "Warning: the dedicated README file for Docker image $repo was not found at path $abs_readme_path"
@@ -32,6 +35,8 @@ readme_content=$(<"$abs_readme_path")
 
 set +x
 
+# Handling DockerHUB upload
+# encode readme as properly escaped JSON
 body=$(jq -n \
   --arg full_desc "$readme_content" \
   '{full_description: $full_desc}')
@@ -45,8 +50,29 @@ http_code="${dockerhub_response: -3}"
 response_body="${dockerhub_response:0:${#dockerhub_response}-3}"
 
 if [ "$http_code" -eq 200 ]; then
-  echo "Successfully updated Docker Hub README for $dockerhub_repository"
+  echo "Successfully updated Docker Hub README for $repository"
 else
-  echo "Failed to update Docker Hub README for $dockerhub_repository with status code $http_code"
+  echo "Failed to update Docker Hub README for $repository with status code $http_code"
   echo "Full response: $response_body"
+fi
+
+# Handling Quay upload
+# encode readme as properly escaped JSON
+quay_body=$(jq -n \
+  --arg full_desc "$readme_content" \
+  '{description: $full_desc}') 
+
+quay_response=$(curl -s -w "%{http_code}" -X PUT "$quay_url" \
+    -H "Content-Type: application/json" \
+    -H "Authorization: Bearer $QUAY_TOKEN" \
+    -d "$quay_body")
+
+quay_http_code="${quay_response: -3}"
+quay_response_body="${quay_response:0:${#quay_response}-3}"
+
+if [ "$quay_http_code" -eq 200 ]; then
+  echo "Successfully updated Quay.io README for $repository"
+else
+  echo "Failed to update Quay.io README for $repository with status code $quay_http_code"
+  echo "Full response: $quay_response_body"
 fi
