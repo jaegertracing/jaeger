@@ -16,7 +16,6 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/gorilla/mux"
 	"go.opentelemetry.io/collector/pdata/ptrace"
-	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
@@ -72,11 +71,7 @@ func (h *HTTPGateway) addRoute(
 	if h.TenancyMgr.Enabled {
 		handler = tenancy.ExtractTenantHTTPHandler(h.TenancyMgr, handler)
 	}
-	traceMiddleware := otelhttp.NewHandler(
-		otelhttp.WithRouteTag(route, handler),
-		route,
-		otelhttp.WithTracerProvider(h.Tracer))
-	return router.HandleFunc(route, traceMiddleware.ServeHTTP)
+	return router.HandleFunc(route, handler.ServeHTTP)
 }
 
 // tryHandleError checks if the passed error is not nil and handles it by writing
