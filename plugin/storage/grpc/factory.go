@@ -120,12 +120,30 @@ func (f *Factory) newRemoteStorage(
 	newClient newClientFn,
 ) (*ClientPluginServices, error) {
 	c := f.config
-	remoteConn, err := getRemoteConnection(telset, c, newClient)
+	if c.Auth != nil {
+		return nil, fmt.Errorf("authenticator is not supported")
+	}
+	tenancyMgr := tenancy.NewManager(&c.Tenancy)
+	baseOpts := []grpc.DialOption{}
+	if tenancyMgr.Enabled {
+		baseOpts = append(baseOpts, grpc.WithUnaryInterceptor(tenancy.NewClientUnaryInterceptor(tenancyMgr)))
+		baseOpts = append(baseOpts, grpc.WithStreamInterceptor(tenancy.NewClientStreamInterceptor(tenancyMgr)))
+	}
+
+	baseOpts = append(baseOpts, grpc.WithUnaryInterceptor(bearertoken.NewUnaryClientInterceptor()))
+	baseOpts = append(baseOpts, grpc.WithStreamInterceptor(bearertoken.NewStreamClientInterceptor()))
+	opts := append(baseOpts, grpc.WithStatsHandler(otelgrpc.NewClientHandler(otelgrpc.WithTracerProvider(telset.TracerProvider))))
+	remoteConn, err := newClient(telset, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("error creating remote storage client: %w", err)
 	}
 	f.remoteConn = remoteConn
-	noTracingRemoteConn, err := getRemoteConnection(noTracingTelset, c, newClient)
+	noTracingOpts := append(
+		baseOpts,
+		grpc.WithStatsHandler(
+			otelgrpc.NewClientHandler(
+				otelgrpc.WithTracerProvider(noTracingTelset.TracerProvider))))
+	noTracingRemoteConn, err := newClient(telset, noTracingOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("error creating remote storage client without tracing: %w", err)
 	}
@@ -212,28 +230,4 @@ func getTelset(logger *zap.Logger, tracerProvider trace.TracerProvider) componen
 			return noopmetric.NewMeterProvider()
 		},
 	}
-}
-
-func getRemoteConnection(
-	telset component.TelemetrySettings,
-	c Config,
-	newClient newClientFn,
-) (*grpc.ClientConn, error) {
-	opts := []grpc.DialOption{
-		grpc.WithStatsHandler(otelgrpc.NewClientHandler(otelgrpc.WithTracerProvider(telset.TracerProvider))),
-	}
-	if c.Auth != nil {
-		return nil, fmt.Errorf("authenticator is not supported")
-	}
-
-	tenancyMgr := tenancy.NewManager(&c.Tenancy)
-	if tenancyMgr.Enabled {
-		opts = append(opts, grpc.WithUnaryInterceptor(tenancy.NewClientUnaryInterceptor(tenancyMgr)))
-		opts = append(opts, grpc.WithStreamInterceptor(tenancy.NewClientStreamInterceptor(tenancyMgr)))
-	}
-
-	opts = append(opts, grpc.WithUnaryInterceptor(bearertoken.NewUnaryClientInterceptor()))
-	opts = append(opts, grpc.WithStreamInterceptor(bearertoken.NewStreamClientInterceptor()))
-
-	return newClient(telset, opts...)
 }
