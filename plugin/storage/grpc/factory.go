@@ -132,14 +132,19 @@ func (f *Factory) newRemoteStorage(
 
 	baseOpts = append(baseOpts, grpc.WithUnaryInterceptor(bearertoken.NewUnaryClientInterceptor()))
 	baseOpts = append(baseOpts, grpc.WithStreamInterceptor(bearertoken.NewStreamClientInterceptor()))
-	opts := append(baseOpts, grpc.WithStatsHandler(otelgrpc.NewClientHandler(otelgrpc.WithTracerProvider(tracedTelset.TracerProvider))))
+	opts := make([]grpc.DialOption, len(baseOpts))
+	copy(opts, baseOpts)
+	opts = append(opts, grpc.WithStatsHandler(otelgrpc.NewClientHandler(otelgrpc.WithTracerProvider(tracedTelset.TracerProvider))))
+
 	tracedRemoteConn, err := newClient(tracedTelset, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("error creating traced remote storage client: %w", err)
 	}
 	f.tracedRemoteConn = tracedRemoteConn
-	untracedOpts := append(
-		baseOpts,
+	untracedOpts := make([]grpc.DialOption, len(baseOpts))
+	copy(untracedOpts, baseOpts)
+	untracedOpts = append(
+		untracedOpts,
 		grpc.WithStatsHandler(
 			otelgrpc.NewClientHandler(
 				otelgrpc.WithTracerProvider(untracedTelset.TracerProvider))))
