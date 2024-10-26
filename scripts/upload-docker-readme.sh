@@ -1,7 +1,7 @@
 #!/bin/bash
-
 # Copyright (c) 2024 The Jaeger Authors.
 # SPDX-License-Identifier: Apache-2.0
+
 set -euxf -o pipefail
 
 usage() {
@@ -26,7 +26,7 @@ dockerhub_url="https://hub.docker.com/v2/repositories/$repository/"
 quay_url="https://quay.io/api/v1/repository/${repository}"
 
 if [ ! -f "$abs_readme_path" ]; then
-  echo "Warning: the dedicated README file for Docker image $repo was not found at path $abs_readme_path"
+  echo "❗Warning: no README file found at path $abs_readme_path"
   echo "It is recommended to have a dedicated README file for each Docker image"
   exit 0
 fi
@@ -52,7 +52,7 @@ response_body="${dockerhub_response:0:${#dockerhub_response}-3}"
 if [ "$http_code" -eq 200 ]; then
   echo "Successfully updated Docker Hub README for $repository"
 else
-  echo "Failed to update Docker Hub README for $repository with status code $http_code"
+  echo "🛑 Failed to update Docker Hub README for $repository with status code $http_code"
   echo "Full response: $response_body"
 fi
 

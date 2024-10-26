@@ -129,11 +129,11 @@ docker buildx build --output "${PUSHTAG}" ${target_arg} ${base_debug_img_arg} \
 echo "::endgroup::"
 echo "Finished building${upload_comment} ${component_name} =============="
 
-echo "::group:: docker upload ${dir_arg}/README.md"
 if [[ "$upload_readme" == "Y" ]]; then
+  echo "::group:: docker upload ${dir_arg}/README.md"
   bash scripts/upload-docker-readme.sh "${component_name}" "${dir_arg}"/README.md
+  echo "::endgroup::"
 fi
-echo "::endgroup::"
 
 echo "::group:: docker prune"
 df -h /
