@@ -17,6 +17,7 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/gorilla/mux"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
@@ -138,6 +139,7 @@ func (aH *APIHandler) handleFunc(
 		handler = tenancy.ExtractTenantHTTPHandler(aH.tenancyMgr, handler)
 	}
 	handler = traceResponseHandler(handler)
+	handler = otelhttp.WithRouteTag(route, handler)
 	return router.HandleFunc(route, handler.ServeHTTP)
 }
 
