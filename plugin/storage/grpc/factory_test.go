@@ -130,7 +130,7 @@ func TestNewFactoryError(t *testing.T) {
 		}
 		_, err = f.newRemoteStorage(component.TelemetrySettings{}, component.TelemetrySettings{}, newClientFn)
 		require.Error(t, err)
-		require.Contains(t, err.Error(), "error creating remote storage client")
+		require.Contains(t, err.Error(), "error creating untraced remote storage client")
 	})
 }
 

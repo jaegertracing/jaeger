@@ -43,14 +43,14 @@ var ( // interface comformance checks
 
 // Factory implements storage.Factory and creates storage components backed by a storage plugin.
 type Factory struct {
-	metricsFactory      metrics.Factory
-	logger              *zap.Logger
-	tracerProvider      trace.TracerProvider
-	config              Config
-	services            *ClientPluginServices
-	remoteConn          *grpc.ClientConn
-	noTracingRemoteConn *grpc.ClientConn
-	host                component.Host
+	metricsFactory     metrics.Factory
+	logger             *zap.Logger
+	tracerProvider     trace.TracerProvider
+	config             Config
+	services           *ClientPluginServices
+	tracedRemoteConn   *grpc.ClientConn
+	untracedRemoteConn *grpc.ClientConn
+	host               component.Host
 }
 
 // NewFactory creates a new Factory.
@@ -93,8 +93,8 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 	f.metricsFactory, f.logger = metricsFactory, logger
 	f.tracerProvider = otel.GetTracerProvider()
 
-	telset := getTelset(logger, f.tracerProvider)
-	noTracingTelset := getTelset(logger, noop.NewTracerProvider())
+	tracedTelset := getTelset(logger, f.tracerProvider)
+	untracedTelset := getTelset(logger, noop.NewTracerProvider())
 	newClientFn := func(telset component.TelemetrySettings, opts ...grpc.DialOption) (conn *grpc.ClientConn, err error) {
 		clientOpts := make([]configgrpc.ToClientConnOption, 0)
 		for _, opt := range opts {
@@ -104,7 +104,7 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 	}
 
 	var err error
-	f.services, err = f.newRemoteStorage(telset, noTracingTelset, newClientFn)
+	f.services, err = f.newRemoteStorage(tracedTelset, untracedTelset, newClientFn)
 	if err != nil {
 		return fmt.Errorf("grpc storage builder failed to create a store: %w", err)
 	}
@@ -115,8 +115,8 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 type newClientFn func(telset component.TelemetrySettings, opts ...grpc.DialOption) (*grpc.ClientConn, error)
 
 func (f *Factory) newRemoteStorage(
-	telset component.TelemetrySettings,
-	noTracingTelset component.TelemetrySettings,
+	tracedTelset component.TelemetrySettings,
+	untracedTelset component.TelemetrySettings,
 	newClient newClientFn,
 ) (*ClientPluginServices, error) {
 	c := f.config
@@ -132,23 +132,23 @@ func (f *Factory) newRemoteStorage(
 
 	baseOpts = append(baseOpts, grpc.WithUnaryInterceptor(bearertoken.NewUnaryClientInterceptor()))
 	baseOpts = append(baseOpts, grpc.WithStreamInterceptor(bearertoken.NewStreamClientInterceptor()))
-	opts := append(baseOpts, grpc.WithStatsHandler(otelgrpc.NewClientHandler(otelgrpc.WithTracerProvider(telset.TracerProvider))))
-	remoteConn, err := newClient(telset, opts...)
+	opts := append(baseOpts, grpc.WithStatsHandler(otelgrpc.NewClientHandler(otelgrpc.WithTracerProvider(tracedTelset.TracerProvider))))
+	tracedRemoteConn, err := newClient(tracedTelset, opts...)
 	if err != nil {
-		return nil, fmt.Errorf("error creating remote storage client: %w", err)
+		return nil, fmt.Errorf("error creating traced remote storage client: %w", err)
 	}
-	f.remoteConn = remoteConn
-	noTracingOpts := append(
+	f.tracedRemoteConn = tracedRemoteConn
+	untracedOpts := append(
 		baseOpts,
 		grpc.WithStatsHandler(
 			otelgrpc.NewClientHandler(
-				otelgrpc.WithTracerProvider(noTracingTelset.TracerProvider))))
-	noTracingRemoteConn, err := newClient(telset, noTracingOpts...)
+				otelgrpc.WithTracerProvider(untracedTelset.TracerProvider))))
+	untracedRemoteConn, err := newClient(tracedTelset, untracedOpts...)
 	if err != nil {
-		return nil, fmt.Errorf("error creating remote storage client without tracing: %w", err)
+		return nil, fmt.Errorf("error creating untraced remote storage client: %w", err)
 	}
-	f.noTracingRemoteConn = noTracingRemoteConn
-	grpcClient := shared.NewGRPCClient(remoteConn, noTracingRemoteConn)
+	f.untracedRemoteConn = untracedRemoteConn
+	grpcClient := shared.NewGRPCClient(tracedRemoteConn, untracedRemoteConn)
 	return &ClientPluginServices{
 		PluginServices: shared.PluginServices{
 			Store:               grpcClient,
@@ -212,11 +212,11 @@ func (f *Factory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
 // Close closes the resources held by the factory
 func (f *Factory) Close() error {
 	var errs []error
-	if f.remoteConn != nil {
-		errs = append(errs, f.remoteConn.Close())
+	if f.tracedRemoteConn != nil {
+		errs = append(errs, f.tracedRemoteConn.Close())
 	}
-	if f.noTracingRemoteConn != nil {
-		errs = append(errs, f.noTracingRemoteConn.Close())
+	if f.untracedRemoteConn != nil {
+		errs = append(errs, f.untracedRemoteConn.Close())
 	}
 	return errors.Join(errs...)
 }
