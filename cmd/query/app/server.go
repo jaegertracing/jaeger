@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/gorilla/handlers"
+	"github.com/gorilla/mux"
 	"github.com/soheilhy/cmux"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componentstatus"
@@ -91,8 +92,12 @@ func NewServer(
 		return nil, err
 	}
 	registerGRPCHandlers(grpcServer, querySvc, metricsQuerySvc, telset)
-
-	httpServer, err := createHTTPServer(ctx, querySvc, metricsQuerySvc, options, tm, telset)
+	var httpServer *httpServer
+	if !separatePorts {
+		httpServer, err = createHTTPServerLegacy(ctx, querySvc, metricsQuerySvc, options, tm, telset)
+	} else {
+		httpServer, err = createHTTPServerOTEL(ctx, querySvc, metricsQuerySvc, options, tm, telset)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -203,14 +208,13 @@ type httpServer struct {
 
 var _ io.Closer = (*httpServer)(nil)
 
-func createHTTPServer(
-	ctx context.Context,
+func createHTTPRouter(
 	querySvc *querysvc.QueryService,
 	metricsQuerySvc querysvc.MetricsQueryService,
 	queryOpts *QueryOptions,
 	tm *tenancy.Manager,
 	telset telemetery.Setting,
-) (*httpServer, error) {
+) (http.Handler, *mux.Router) {
 	apiHandlerOptions := []HandlerOption{
 		HandlerOptions.Logger(telset.Logger),
 		HandlerOptions.Tracer(telset.TracerProvider),
@@ -235,20 +239,76 @@ func createHTTPServer(
 
 	apiHandler.RegisterRoutes(r)
 	var handler http.Handler = r
-	handler = responseHeadersHandler(handler, queryOpts.HTTP.ResponseHeaders)
 	if queryOpts.BearerTokenPropagation {
 		handler = bearertoken.PropagationHandler(telset.Logger, handler)
 	}
-	handler = handlers.CompressHandler(handler)
 	recoveryHandler := recoveryhandler.NewRecoveryHandler(telset.Logger, true)
+	handler = recoveryHandler(handler)
+
+	return handler, r
+}
+
+func createHTTPServerLegacy(
+	ctx context.Context,
+	querySvc *querysvc.QueryService,
+	metricsQuerySvc querysvc.MetricsQueryService,
+	queryOpts *QueryOptions,
+	tm *tenancy.Manager,
+	telset telemetery.Setting,
+) (*httpServer, error) {
+	handler, r := createHTTPRouter(querySvc, metricsQuerySvc, queryOpts, tm, telset)
+	handler = responseHeadersHandler(handler, queryOpts.HTTP.ResponseHeaders)
+	handler = handlers.CompressHandler(handler)
 
 	errorLog, _ := zap.NewStdLogAt(telset.Logger, zapcore.ErrorLevel)
 	server := &httpServer{
 		Server: &http.Server{
-			Handler:           recoveryHandler(handler),
+			Handler:           handler,
 			ErrorLog:          errorLog,
 			ReadHeaderTimeout: 2 * time.Second,
 		},
+	}
+
+	if queryOpts.HTTP.TLSSetting != nil {
+		tlsCfg, err := queryOpts.HTTP.TLSSetting.LoadTLSConfig(ctx) // This checks if the certificates are correctly provided
+		if err != nil {
+			return nil, err
+		}
+		server.TLSConfig = tlsCfg
+	}
+
+	server.staticHandlerCloser = RegisterStaticHandler(r, telset.Logger, queryOpts, querySvc.GetCapabilities())
+
+	return server, nil
+}
+
+func createHTTPServerOTEL(
+	ctx context.Context,
+	querySvc *querysvc.QueryService,
+	metricsQuerySvc querysvc.MetricsQueryService,
+	queryOpts *QueryOptions,
+	tm *tenancy.Manager,
+	telset telemetery.Setting,
+) (*httpServer, error) {
+	handler, r := createHTTPRouter(querySvc, metricsQuerySvc, queryOpts, tm, telset)
+
+	s, err := queryOpts.HTTP.ToServer(
+		ctx,
+		telset.Host,
+		component.TelemetrySettings{
+			Logger:         telset.Logger,
+			TracerProvider: telset.TracerProvider,
+			LeveledMeterProvider: func(_ configtelemetry.Level) metric.MeterProvider {
+				return noop.NewMeterProvider()
+			},
+		},
+		handler,
+	)
+	if err != nil {
+		return nil, err
+	}
+	server := &httpServer{
+		Server: s,
 	}
 
 	if queryOpts.HTTP.TLSSetting != nil {
@@ -280,7 +340,7 @@ func (s *Server) initListener(ctx context.Context) (cmux.CMux, error) {
 			return nil, err
 		}
 
-		s.httpConn, err = net.Listen("tcp", s.queryOptions.HTTP.Endpoint)
+		s.httpConn, err = s.queryOptions.HTTP.ToListener(ctx)
 		if err != nil {
 			return nil, err
 		}
