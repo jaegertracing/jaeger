@@ -207,7 +207,7 @@ func initRouter(
 	querySvc *querysvc.QueryService,
 	metricsQuerySvc querysvc.MetricsQueryService,
 	queryOpts *QueryOptions,
-	tm *tenancy.Manager,
+	tenancyMgr *tenancy.Manager,
 	telset telemetery.Setting,
 ) (http.Handler, io.Closer) {
 	apiHandlerOptions := []HandlerOption{
@@ -218,7 +218,6 @@ func initRouter(
 
 	apiHandler := NewAPIHandler(
 		querySvc,
-		tm,
 		apiHandlerOptions...)
 	r := NewRouter()
 	if queryOpts.BasePath != "/" {
@@ -227,7 +226,6 @@ func initRouter(
 
 	(&apiv3.HTTPGateway{
 		QueryService: querySvc,
-		TenancyMgr:   tm,
 		Logger:       telset.Logger,
 		Tracer:       telset.TracerProvider,
 	}).RegisterRoutes(r)
@@ -238,6 +236,9 @@ func initRouter(
 	var handler http.Handler = r
 	if queryOpts.BearerTokenPropagation {
 		handler = bearertoken.PropagationHandler(telset.Logger, handler)
+	}
+	if tenancyMgr.Enabled {
+		handler = tenancy.ExtractTenantHTTPHandler(tenancyMgr, handler)
 	}
 	// TODO add tenancy handler
 	return handler, staticHandlerCloser
