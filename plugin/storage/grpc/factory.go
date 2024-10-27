@@ -124,14 +124,22 @@ func (f *Factory) newRemoteStorage(
 		return nil, fmt.Errorf("authenticator is not supported")
 	}
 	tenancyMgr := tenancy.NewManager(&c.Tenancy)
-	baseOpts := []grpc.DialOption{}
+	unaryInterceptors := []grpc.UnaryClientInterceptor{
+		bearertoken.NewUnaryClientInterceptor(),
+	}
+	streamInterceptors := []grpc.StreamClientInterceptor{
+		tenancy.NewClientStreamInterceptor(tenancyMgr),
+	}
 	if tenancyMgr.Enabled {
-		baseOpts = append(baseOpts, grpc.WithUnaryInterceptor(tenancy.NewClientUnaryInterceptor(tenancyMgr)))
-		baseOpts = append(baseOpts, grpc.WithStreamInterceptor(tenancy.NewClientStreamInterceptor(tenancyMgr)))
+		unaryInterceptors = append(unaryInterceptors, tenancy.NewClientUnaryInterceptor(tenancyMgr))
+		streamInterceptors = append(streamInterceptors, tenancy.NewClientStreamInterceptor(tenancyMgr))
 	}
 
-	baseOpts = append(baseOpts, grpc.WithUnaryInterceptor(bearertoken.NewUnaryClientInterceptor()))
-	baseOpts = append(baseOpts, grpc.WithStreamInterceptor(bearertoken.NewStreamClientInterceptor()))
+	baseOpts := append(
+		[]grpc.DialOption{},
+		grpc.WithChainUnaryInterceptor(unaryInterceptors...),
+		grpc.WithChainStreamInterceptor(streamInterceptors...),
+	)
 	opts := append([]grpc.DialOption{}, baseOpts...)
 	opts = append(opts, grpc.WithStatsHandler(otelgrpc.NewClientHandler(otelgrpc.WithTracerProvider(tracedTelset.TracerProvider))))
 
