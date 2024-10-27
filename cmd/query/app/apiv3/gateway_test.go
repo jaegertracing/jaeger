@@ -22,6 +22,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/query/app/internal/api_v3"
 	"github.com/jaegertracing/jaeger/model"
 	_ "github.com/jaegertracing/jaeger/pkg/gogocodec" // force gogo codec registration
+	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	spanstoremocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
 )
@@ -41,12 +42,15 @@ type testGateway struct {
 	reader *spanstoremocks.Reader
 	url    string
 	router *mux.Router
+	// used to set a tenancy header when executing requests
+	setupRequest func(*http.Request)
 }
 
 func (gw *testGateway) execRequest(t *testing.T, url string) ([]byte, int) {
 	req, err := http.NewRequest(http.MethodGet, gw.url+url, nil)
 	require.NoError(t, err)
 	req.Header.Set("Content-Type", "application/json")
+	gw.setupRequest(req)
 	response, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
 	body, err := io.ReadAll(response.Body)
@@ -97,8 +101,11 @@ func makeTestTrace() (*model.Trace, model.TraceID) {
 func runGatewayTests(
 	t *testing.T,
 	basePath string,
+	tenancyOptions tenancy.Options,
+	setupRequest func(*http.Request),
 ) {
-	gw := setupHTTPGateway(t, basePath)
+	gw := setupHTTPGateway(t, basePath, tenancyOptions)
+	gw.setupRequest = setupRequest
 	t.Run("GetServices", gw.runGatewayGetServices)
 	t.Run("GetOperations", gw.runGatewayGetOperations)
 	t.Run("GetTrace", gw.runGatewayGetTrace)
