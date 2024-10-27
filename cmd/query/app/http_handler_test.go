@@ -121,13 +121,13 @@ func initializeTestServerWithOptions(
 	dependencyStorage := &depsmocks.Reader{}
 	qs := querysvc.NewQueryService(readStorage, dependencyStorage, queryOptions)
 	r := NewRouter()
-	handler := NewAPIHandler(qs, tenancyMgr, options...)
-	handler.RegisterRoutes(r)
+	apiHandler := NewAPIHandler(qs, options...)
+	apiHandler.RegisterRoutes(r)
 	ts := &testServer{
 		server:           httptest.NewServer(tenancy.ExtractTenantHTTPHandler(tenancyMgr, r)),
 		spanReader:       readStorage,
 		dependencyReader: dependencyStorage,
-		handler:          handler,
+		handler:          apiHandler,
 	}
 	t.Cleanup(func() {
 		ts.server.Close()
@@ -195,7 +195,7 @@ func TestLogOnServerError(t *testing.T) {
 	readStorage := &spanstoremocks.Reader{}
 	dependencyStorage := &depsmocks.Reader{}
 	qs := querysvc.NewQueryService(readStorage, dependencyStorage, querysvc.QueryServiceOptions{})
-	h := NewAPIHandler(qs, &tenancy.Manager{}, HandlerOptions.Logger(logger))
+	h := NewAPIHandler(qs, HandlerOptions.Logger(logger))
 	e := errors.New("test error")
 	h.handleError(&httptest.ResponseRecorder{}, e, http.StatusInternalServerError)
 	require.Len(t, logs.All(), 1)

@@ -82,7 +82,7 @@ func NewServer(
 	}
 
 	var grpcServer *grpc.Server
-	if separatePorts {
+	if !separatePorts {
 		grpcServer, err = createGRPCServerLegacy(ctx, options, tm)
 	} else {
 		grpcServer, err = createGRPCServerOTEL(ctx, options, tm, telset)
@@ -124,13 +124,23 @@ func createGRPCServerLegacy(
 
 		grpcOpts = append(grpcOpts, grpc.Creds(creds))
 	}
-	if tm.Enabled {
-		//nolint:contextcheck
-		grpcOpts = append(grpcOpts,
-			grpc.StreamInterceptor(tenancy.NewGuardingStreamInterceptor(tm)),
-			grpc.UnaryInterceptor(tenancy.NewGuardingUnaryInterceptor(tm)),
-		)
+
+	unaryInterceptors := []grpc.UnaryServerInterceptor{
+		bearertoken.NewUnaryServerInterceptor(),
 	}
+	streamInterceptors := []grpc.StreamServerInterceptor{
+		bearertoken.NewStreamServerInterceptor(),
+	}
+	//nolint:contextcheck
+	if tm.Enabled {
+		unaryInterceptors = append(unaryInterceptors, tenancy.NewGuardingUnaryInterceptor(tm))
+		streamInterceptors = append(streamInterceptors, tenancy.NewGuardingStreamInterceptor(tm))
+	}
+
+	grpcOpts = append(grpcOpts,
+		grpc.ChainUnaryInterceptor(unaryInterceptors...),
+		grpc.ChainStreamInterceptor(streamInterceptors...),
+	)
 
 	server := grpc.NewServer(grpcOpts...)
 	return server, nil
@@ -193,14 +203,13 @@ type httpServer struct {
 
 var _ io.Closer = (*httpServer)(nil)
 
-func createHTTPServer(
-	ctx context.Context,
+func initRouter(
 	querySvc *querysvc.QueryService,
 	metricsQuerySvc querysvc.MetricsQueryService,
 	queryOpts *QueryOptions,
-	tm *tenancy.Manager,
+	tenancyMgr *tenancy.Manager,
 	telset telemetery.Setting,
-) (*httpServer, error) {
+) (http.Handler, io.Closer) {
 	apiHandlerOptions := []HandlerOption{
 		HandlerOptions.Logger(telset.Logger),
 		HandlerOptions.Tracer(telset.TracerProvider),
@@ -209,7 +218,6 @@ func createHTTPServer(
 
 	apiHandler := NewAPIHandler(
 		querySvc,
-		tm,
 		apiHandlerOptions...)
 	r := NewRouter()
 	if queryOpts.BasePath != "/" {
@@ -218,17 +226,33 @@ func createHTTPServer(
 
 	(&apiv3.HTTPGateway{
 		QueryService: querySvc,
-		TenancyMgr:   tm,
 		Logger:       telset.Logger,
 		Tracer:       telset.TracerProvider,
 	}).RegisterRoutes(r)
 
 	apiHandler.RegisterRoutes(r)
+	staticHandlerCloser := RegisterStaticHandler(r, telset.Logger, queryOpts, querySvc.GetCapabilities())
+
 	var handler http.Handler = r
-	handler = responseHeadersHandler(handler, queryOpts.HTTP.ResponseHeaders)
 	if queryOpts.BearerTokenPropagation {
 		handler = bearertoken.PropagationHandler(telset.Logger, handler)
 	}
+	if tenancyMgr.Enabled {
+		handler = tenancy.ExtractTenantHTTPHandler(tenancyMgr, handler)
+	}
+	return handler, staticHandlerCloser
+}
+
+func createHTTPServer(
+	ctx context.Context,
+	querySvc *querysvc.QueryService,
+	metricsQuerySvc querysvc.MetricsQueryService,
+	queryOpts *QueryOptions,
+	tm *tenancy.Manager,
+	telset telemetery.Setting,
+) (*httpServer, error) {
+	handler, staticHandlerCloser := initRouter(querySvc, metricsQuerySvc, queryOpts, tm, telset)
+	handler = responseHeadersHandler(handler, queryOpts.HTTP.ResponseHeaders)
 	handler = handlers.CompressHandler(handler)
 	recoveryHandler := recoveryhandler.NewRecoveryHandler(telset.Logger, true)
 
@@ -239,17 +263,16 @@ func createHTTPServer(
 			ErrorLog:          errorLog,
 			ReadHeaderTimeout: 2 * time.Second,
 		},
+		staticHandlerCloser: staticHandlerCloser,
 	}
 
 	if queryOpts.HTTP.TLSSetting != nil {
 		tlsCfg, err := queryOpts.HTTP.TLSSetting.LoadTLSConfig(ctx) // This checks if the certificates are correctly provided
 		if err != nil {
-			return nil, err
+			return nil, errors.Join(err, staticHandlerCloser.Close())
 		}
 		server.TLSConfig = tlsCfg
 	}
-
-	server.staticHandlerCloser = RegisterStaticHandler(r, telset.Logger, queryOpts, querySvc.GetCapabilities())
 
 	return server, nil
 }
