@@ -4,6 +4,7 @@
 package app
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"fmt"
@@ -12,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gogo/protobuf/jsonpb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -20,6 +22,8 @@ import (
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/confignet"
 	"go.opentelemetry.io/collector/config/configtls"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 	"go.uber.org/zap/zaptest/observer"
@@ -854,4 +858,63 @@ func TestServerHTTPTenancy(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestServerHTTP_TracesRequest(t *testing.T) {
+	serverOptions := &QueryOptions{
+		HTTP: confighttp.ServerConfig{
+			Endpoint: ":8080",
+		},
+		GRPC: configgrpc.ServerConfig{
+			NetAddr: confignet.AddrConfig{
+				Endpoint:  ":8081",
+				Transport: confignet.TransportTypeTCP,
+			},
+		},
+	}
+
+	makeMockTrace := func(t *testing.T) *model.Trace {
+		out := new(bytes.Buffer)
+		err := new(jsonpb.Marshaler).Marshal(out, mockTrace)
+		require.NoError(t, err)
+		var trace model.Trace
+		require.NoError(t, jsonpb.Unmarshal(out, &trace))
+		trace.Spans[1].References = []model.SpanRef{
+			{TraceID: model.NewTraceID(0, 0)},
+		}
+		return &trace
+	}
+
+	exporter := tracetest.NewInMemoryExporter()
+	tracerProvider := sdktrace.NewTracerProvider(
+		sdktrace.WithSyncer(exporter),
+		sdktrace.WithSampler(sdktrace.AlwaysSample()),
+	)
+	tracer := jtracer.JTracer{OTEL: tracerProvider}
+
+	tenancyMgr := tenancy.NewManager(&serverOptions.Tenancy)
+	querySvc := makeQuerySvc()
+	querySvc.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), model.NewTraceID(0, 0x123456abc)).
+		Return(makeMockTrace(t), nil).Once()
+	telset := initTelSet(zaptest.NewLogger(t), &tracer, healthcheck.New())
+
+	server, err := NewServer(context.Background(), querySvc.qs,
+		nil, serverOptions, tenancyMgr, telset)
+	require.NoError(t, err)
+	require.NoError(t, server.Start(context.Background()))
+	t.Cleanup(func() {
+		require.NoError(t, server.Close())
+	})
+
+	queryString := "/api/traces/123456aBC"
+	req, err := http.NewRequest(http.MethodGet, "http://localhost:8080"+queryString, nil)
+	require.NoError(t, err)
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	require.NoError(t, err)
+
+	assert.Len(t, exporter.GetSpans(), 1, "HTTP request was traced and span reported")
+	assert.Equal(t, "/api/traces/{traceID}", exporter.GetSpans()[0].Name)
+	require.NoError(t, resp.Body.Close())
 }

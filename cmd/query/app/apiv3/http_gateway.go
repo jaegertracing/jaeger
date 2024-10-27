@@ -68,6 +68,7 @@ func (*HTTPGateway) addRoute(
 ) *mux.Route {
 	var handler http.Handler = http.HandlerFunc(f)
 	handler = otelhttp.WithRouteTag(route, handler)
+	handler = spanNameHandler(route, handler)
 	return router.HandleFunc(route, handler.ServeHTTP)
 }
 
@@ -238,4 +239,12 @@ func (h *HTTPGateway) getOperations(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	h.marshalResponse(&api_v3.GetOperationsResponse{Operations: apiOperations}, w)
+}
+
+func spanNameHandler(spanName string, handler http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		span := trace.SpanFromContext(r.Context())
+		span.SetName(spanName)
+		handler.ServeHTTP(w, r)
+	})
 }
