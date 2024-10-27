@@ -35,7 +35,6 @@ import (
 	"github.com/jaegertracing/jaeger/model/adjuster"
 	ui "github.com/jaegertracing/jaeger/model/json"
 	"github.com/jaegertracing/jaeger/pkg/jtracer"
-	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/plugin/metrics/disabled"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2/metrics"
 	depsmocks "github.com/jaegertracing/jaeger/storage/dependencystore/mocks"
@@ -95,7 +94,6 @@ type structuredTraceResponse struct {
 func initializeTestServerWithHandler(t *testing.T, queryOptions querysvc.QueryServiceOptions, options ...HandlerOption) *testServer {
 	return initializeTestServerWithOptions(
 		t,
-		&tenancy.Manager{},
 		queryOptions,
 		append(
 			[]HandlerOption{
@@ -112,7 +110,6 @@ func initializeTestServerWithHandler(t *testing.T, queryOptions querysvc.QuerySe
 
 func initializeTestServerWithOptions(
 	t *testing.T,
-	tenancyMgr *tenancy.Manager,
 	queryOptions querysvc.QueryServiceOptions,
 	options ...HandlerOption,
 ) *testServer {
@@ -121,10 +118,10 @@ func initializeTestServerWithOptions(
 	dependencyStorage := &depsmocks.Reader{}
 	qs := querysvc.NewQueryService(readStorage, dependencyStorage, queryOptions)
 	r := NewRouter()
-	handler := NewAPIHandler(qs, tenancyMgr, options...)
+	handler := NewAPIHandler(qs, options...)
 	handler.RegisterRoutes(r)
 	ts := &testServer{
-		server:           httptest.NewServer(tenancy.ExtractTenantHTTPHandler(tenancyMgr, r)),
+		server:           httptest.NewServer(r),
 		spanReader:       readStorage,
 		dependencyReader: dependencyStorage,
 		handler:          handler,
@@ -147,7 +144,7 @@ type testServer struct {
 }
 
 func withTestServer(t *testing.T, doTest func(s *testServer), queryOptions querysvc.QueryServiceOptions, options ...HandlerOption) {
-	ts := initializeTestServerWithOptions(t, &tenancy.Manager{}, queryOptions, options...)
+	ts := initializeTestServerWithOptions(t, queryOptions, options...)
 	doTest(ts)
 }
 
@@ -168,7 +165,7 @@ func TestLogOnServerError(t *testing.T) {
 	readStorage := &spanstoremocks.Reader{}
 	dependencyStorage := &depsmocks.Reader{}
 	qs := querysvc.NewQueryService(readStorage, dependencyStorage, querysvc.QueryServiceOptions{})
-	h := NewAPIHandler(qs, &tenancy.Manager{}, HandlerOptions.Logger(logger))
+	h := NewAPIHandler(qs, HandlerOptions.Logger(logger))
 	e := errors.New("test error")
 	h.handleError(&httptest.ResponseRecorder{}, e, http.StatusInternalServerError)
 	require.Len(t, logs.All(), 1)
@@ -385,7 +382,7 @@ func TestSearchByTraceIDSuccess(t *testing.T) {
 
 func TestSearchByTraceIDSuccessWithArchive(t *testing.T) {
 	archiveReadMock := &spanstoremocks.Reader{}
-	ts := initializeTestServerWithOptions(t, &tenancy.Manager{}, querysvc.QueryServiceOptions{
+	ts := initializeTestServerWithOptions(t, querysvc.QueryServiceOptions{
 		ArchiveSpanReader: archiveReadMock,
 	})
 	ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
@@ -426,7 +423,6 @@ func TestSearchByTraceIDFailure(t *testing.T) {
 func TestSearchModelConversionFailure(t *testing.T) {
 	ts := initializeTestServerWithOptions(
 		t,
-		&tenancy.Manager{},
 		querysvc.QueryServiceOptions{
 			Adjuster: adjuster.Func(func(trace *model.Trace) (*model.Trace, error) {
 				return trace, errAdjustment
@@ -882,95 +878,4 @@ func execJSON(req *http.Request, additionalHeaders map[string]string, out any) e
 // Generates a JSON response that the server should produce given a certain error code and error.
 func parsedError(code int, err string) string {
 	return fmt.Sprintf(`%d error from server: {"data":null,"total":0,"limit":0,"offset":0,"errors":[{"code":%d,"msg":"%s"}]}`+"\n", code, code, err)
-}
-
-func TestSearchTenancyHTTP(t *testing.T) {
-	tenancyOptions := tenancy.Options{
-		Enabled: true,
-	}
-	ts := initializeTestServerWithOptions(t,
-		tenancy.NewManager(&tenancyOptions),
-		querysvc.QueryServiceOptions{})
-	ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
-		Return(mockTrace, nil).Twice()
-
-	var response structuredResponse
-	err := getJSON(ts.server.URL+`/api/traces?traceID=1&traceID=2`, &response)
-	require.Error(t, err)
-	assert.Equal(t, "401 error from server: missing tenant header", err.Error())
-	assert.Empty(t, response.Errors)
-	assert.Nil(t, response.Data)
-
-	err = getJSONCustomHeaders(
-		ts.server.URL+`/api/traces?traceID=1&traceID=2`,
-		map[string]string{"x-tenant": "acme"},
-		&response)
-	require.NoError(t, err)
-	assert.Empty(t, response.Errors)
-	assert.Len(t, response.Data, 2)
-}
-
-func TestSearchTenancyRejectionHTTP(t *testing.T) {
-	tenancyOptions := tenancy.Options{
-		Enabled: true,
-	}
-	ts := initializeTestServerWithOptions(t, tenancy.NewManager(&tenancyOptions), querysvc.QueryServiceOptions{})
-	ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
-		Return(mockTrace, nil).Twice()
-
-	req, err := http.NewRequest(http.MethodGet, ts.server.URL+`/api/traces?traceID=1&traceID=2`, nil)
-	require.NoError(t, err)
-	req.Header.Add("Accept", "application/json")
-	// We don't set tenant header
-	resp, err := httpClient.Do(req)
-	require.NoError(t, err)
-	defer resp.Body.Close()
-	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
-
-	tm := tenancy.NewManager(&tenancyOptions)
-	req.Header.Set(tm.Header, "acme")
-	resp, err = http.DefaultClient.Do(req)
-	require.NoError(t, err)
-	defer resp.Body.Close()
-	require.Equal(t, http.StatusOK, resp.StatusCode)
-	// Skip unmarshal of response; it is enough that it succeeded
-}
-
-func TestSearchTenancyFlowTenantHTTP(t *testing.T) {
-	tenancyOptions := tenancy.Options{
-		Enabled: true,
-	}
-	ts := initializeTestServerWithOptions(t, tenancy.NewManager(&tenancyOptions), querysvc.QueryServiceOptions{})
-	ts.spanReader.On("GetTrace", mock.MatchedBy(func(v any) bool {
-		ctx, ok := v.(context.Context)
-		if !ok || tenancy.GetTenant(ctx) != "acme" {
-			return false
-		}
-		return true
-	}), mock.AnythingOfType("model.TraceID")).Return(mockTrace, nil).Twice()
-	ts.spanReader.On("GetTrace", mock.MatchedBy(func(v any) bool {
-		ctx, ok := v.(context.Context)
-		if !ok || tenancy.GetTenant(ctx) != "megacorp" {
-			return false
-		}
-		return true
-	}), mock.AnythingOfType("model.TraceID")).Return(nil, errStorage).Once()
-
-	var responseAcme structuredResponse
-	err := getJSONCustomHeaders(
-		ts.server.URL+`/api/traces?traceID=1&traceID=2`,
-		map[string]string{"x-tenant": "acme"},
-		&responseAcme)
-	require.NoError(t, err)
-	assert.Empty(t, responseAcme.Errors)
-	assert.Len(t, responseAcme.Data, 2)
-
-	var responseMegacorp structuredResponse
-	err = getJSONCustomHeaders(
-		ts.server.URL+`/api/traces?traceID=1&traceID=2`,
-		map[string]string{"x-tenant": "megacorp"},
-		&responseMegacorp)
-	assert.Contains(t, err.Error(), "storage error")
-	assert.Empty(t, responseMegacorp.Errors)
-	assert.Nil(t, responseMegacorp.Data)
 }

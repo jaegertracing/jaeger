@@ -212,7 +212,6 @@ func createHTTPRouter(
 	querySvc *querysvc.QueryService,
 	metricsQuerySvc querysvc.MetricsQueryService,
 	queryOpts *QueryOptions,
-	tm *tenancy.Manager,
 	telset telemetery.Setting,
 ) *mux.Router {
 	apiHandlerOptions := []HandlerOption{
@@ -223,7 +222,6 @@ func createHTTPRouter(
 
 	apiHandler := NewAPIHandler(
 		querySvc,
-		tm,
 		apiHandlerOptions...)
 	r := NewRouter()
 	if queryOpts.BasePath != "/" {
@@ -232,7 +230,6 @@ func createHTTPRouter(
 
 	(&apiv3.HTTPGateway{
 		QueryService: querySvc,
-		TenancyMgr:   tm,
 		Logger:       telset.Logger,
 		Tracer:       telset.TracerProvider,
 	}).RegisterRoutes(r)
@@ -249,8 +246,11 @@ func createHTTPServerLegacy(
 	tm *tenancy.Manager,
 	telset telemetery.Setting,
 ) (*httpServer, error) {
-	r := createHTTPRouter(querySvc, metricsQuerySvc, queryOpts, tm, telset)
+	r := createHTTPRouter(querySvc, metricsQuerySvc, queryOpts, telset)
 	var handler http.Handler = r
+	if tm.Enabled {
+		handler = tenancy.ExtractTenantHTTPHandler(tm, handler)
+	}
 	handler = responseHeadersHandler(handler, queryOpts.HTTP.ResponseHeaders)
 	if queryOpts.BearerTokenPropagation {
 		handler = bearertoken.PropagationHandler(telset.Logger, handler)
@@ -274,8 +274,11 @@ func createHTTPServerOTEL(
 	tm *tenancy.Manager,
 	telset telemetery.Setting,
 ) (*httpServer, error) {
-	r := createHTTPRouter(querySvc, metricsQuerySvc, queryOpts, tm, telset)
+	r := createHTTPRouter(querySvc, metricsQuerySvc, queryOpts, telset)
 	var handler http.Handler = r
+	if tm.Enabled {
+		handler = tenancy.ExtractTenantHTTPHandler(tm, handler)
+	}
 	if queryOpts.BearerTokenPropagation {
 		handler = bearertoken.PropagationHandler(telset.Logger, handler)
 	}

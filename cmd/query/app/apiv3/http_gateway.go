@@ -23,7 +23,6 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/query/app/internal/api_v3"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	"github.com/jaegertracing/jaeger/model"
-	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
@@ -46,7 +45,6 @@ const (
 // HTTPGateway exposes APIv3 HTTP endpoints.
 type HTTPGateway struct {
 	QueryService *querysvc.QueryService
-	TenancyMgr   *tenancy.Manager
 	Logger       *zap.Logger
 	Tracer       trace.TracerProvider
 }
@@ -62,16 +60,13 @@ func (h *HTTPGateway) RegisterRoutes(router *mux.Router) {
 
 // addRoute adds a new endpoint to the router with given path and handler function.
 // This code is mostly copied from ../http_handler.
-func (h *HTTPGateway) addRoute(
+func (*HTTPGateway) addRoute(
 	router *mux.Router,
 	f func(http.ResponseWriter, *http.Request),
 	route string,
 	_ ...any, /* args */
 ) *mux.Route {
 	var handler http.Handler = http.HandlerFunc(f)
-	if h.TenancyMgr.Enabled {
-		handler = tenancy.ExtractTenantHTTPHandler(h.TenancyMgr, handler)
-	}
 	handler = otelhttp.WithRouteTag(route, handler)
 	return router.HandleFunc(route, handler.ServeHTTP)
 }
