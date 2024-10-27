@@ -60,7 +60,7 @@ func (h *HTTPGateway) RegisterRoutes(router *mux.Router) {
 
 // addRoute adds a new endpoint to the router with given path and handler function.
 // This code is mostly copied from ../http_handler.
-func (h *HTTPGateway) addRoute(
+func (*HTTPGateway) addRoute(
 	router *mux.Router,
 	f func(http.ResponseWriter, *http.Request),
 	route string,
