@@ -214,7 +214,7 @@ func createHTTPRouter(
 	queryOpts *QueryOptions,
 	tm *tenancy.Manager,
 	telset telemetery.Setting,
-) (http.Handler, *mux.Router) {
+) *mux.Router {
 	apiHandlerOptions := []HandlerOption{
 		HandlerOptions.Logger(telset.Logger),
 		HandlerOptions.Tracer(telset.TracerProvider),
@@ -238,14 +238,7 @@ func createHTTPRouter(
 	}).RegisterRoutes(r)
 
 	apiHandler.RegisterRoutes(r)
-	var handler http.Handler = r
-	if queryOpts.BearerTokenPropagation {
-		handler = bearertoken.PropagationHandler(telset.Logger, handler)
-	}
-	recoveryHandler := recoveryhandler.NewRecoveryHandler(telset.Logger, true)
-	handler = recoveryHandler(handler)
-
-	return handler, r
+	return r
 }
 
 func createHTTPServerLegacy(
@@ -256,14 +249,19 @@ func createHTTPServerLegacy(
 	tm *tenancy.Manager,
 	telset telemetery.Setting,
 ) (*httpServer, error) {
-	handler, r := createHTTPRouter(querySvc, metricsQuerySvc, queryOpts, tm, telset)
+	r := createHTTPRouter(querySvc, metricsQuerySvc, queryOpts, tm, telset)
+	var handler http.Handler = r
 	handler = responseHeadersHandler(handler, queryOpts.HTTP.ResponseHeaders)
+	if queryOpts.BearerTokenPropagation {
+		handler = bearertoken.PropagationHandler(telset.Logger, handler)
+	}
 	handler = handlers.CompressHandler(handler)
+	recoveryHandler := recoveryhandler.NewRecoveryHandler(telset.Logger, true)
 
 	errorLog, _ := zap.NewStdLogAt(telset.Logger, zapcore.ErrorLevel)
 	server := &httpServer{
 		Server: &http.Server{
-			Handler:           handler,
+			Handler:           recoveryHandler(handler),
 			ErrorLog:          errorLog,
 			ReadHeaderTimeout: 2 * time.Second,
 		},
@@ -290,7 +288,12 @@ func createHTTPServerOTEL(
 	tm *tenancy.Manager,
 	telset telemetery.Setting,
 ) (*httpServer, error) {
-	handler, r := createHTTPRouter(querySvc, metricsQuerySvc, queryOpts, tm, telset)
+	r := createHTTPRouter(querySvc, metricsQuerySvc, queryOpts, tm, telset)
+	var handler http.Handler = r
+	if queryOpts.BearerTokenPropagation {
+		handler = bearertoken.PropagationHandler(telset.Logger, handler)
+	}
+	recoveryHandler := recoveryhandler.NewRecoveryHandler(telset.Logger, true)
 
 	s, err := queryOpts.HTTP.ToServer(
 		ctx,
@@ -302,7 +305,7 @@ func createHTTPServerOTEL(
 				return noop.NewMeterProvider()
 			},
 		},
-		handler,
+		recoveryHandler(handler),
 	)
 	if err != nil {
 		return nil, err
