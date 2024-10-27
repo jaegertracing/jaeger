@@ -954,7 +954,7 @@ func TestServerHTTP_TracesRequest(t *testing.T) {
 				assert.Len(t, exporter.GetSpans(), 1, "HTTP request was traced and span reported")
 				assert.Equal(t, test.expectedTrace, exporter.GetSpans()[0].Name)
 			} else {
-				assert.Len(t, exporter.GetSpans(), 0, "HTTP request was not traced")
+				assert.Empty(t, exporter.GetSpans(), "HTTP request was not traced")
 			}
 			require.NoError(t, resp.Body.Close())
 		})
