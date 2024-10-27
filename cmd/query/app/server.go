@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"github.com/gorilla/handlers"
-	"github.com/gorilla/mux"
 	"github.com/soheilhy/cmux"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componentstatus"
@@ -259,11 +258,11 @@ func createHTTPServerLegacy(
 	handler, staticHandlerCloser := initRouter(querySvc, metricsQuerySvc, queryOpts, tm, telset)
 	handler = responseHeadersHandler(handler, queryOpts.HTTP.ResponseHeaders)
 	handler = handlers.CompressHandler(handler)
-  handler = recoveryhandler.NewRecoveryHandler(telset.Logger, true)(handler)
+	handler = recoveryhandler.NewRecoveryHandler(telset.Logger, true)(handler)
 	errorLog, _ := zap.NewStdLogAt(telset.Logger, zapcore.ErrorLevel)
 	server := &httpServer{
 		Server: &http.Server{
-			Handler:           recoveryHandler(handler),
+			Handler:           handler,
 			ErrorLog:          errorLog,
 			ReadHeaderTimeout: 2 * time.Second,
 		},
@@ -289,7 +288,7 @@ func createHTTPServerOTEL(
 	telset telemetery.Setting,
 ) (*httpServer, error) {
 	handler, staticHandlerCloser := initRouter(querySvc, metricsQuerySvc, queryOpts, tm, telset)
-  handler = recoveryhandler.NewRecoveryHandler(telset.Logger, true)(handler)
+	handler = recoveryhandler.NewRecoveryHandler(telset.Logger, true)(handler)
 	hs, err := queryOpts.HTTP.ToServer(
 		ctx,
 		telset.Host,
@@ -300,15 +299,17 @@ func createHTTPServerOTEL(
 				return noop.NewMeterProvider()
 			},
 		},
-  }
+		handler,
+	)
 	if err != nil {
 		return nil, errors.Join(err, staticHandlerCloser.Close())
 	}
 	server := &httpServer{
-		Server: hs,
+		Server:              hs,
 		staticHandlerCloser: staticHandlerCloser,
 	}
 
+	// TODO why doesn't OTEL helper do that already?
 	if queryOpts.HTTP.TLSSetting != nil {
 		tlsCfg, err := queryOpts.HTTP.TLSSetting.LoadTLSConfig(ctx) // This checks if the certificates are correctly provided
 		if err != nil {
@@ -316,7 +317,7 @@ func createHTTPServerOTEL(
 		}
 		server.TLSConfig = tlsCfg
 	}
-    
+
 	return server, nil
 }
 
