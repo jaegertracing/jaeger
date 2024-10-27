@@ -1,5 +1,7 @@
 # Jaeger Agent
 
+🛑🛑🛑 DEPRECATED 🛑🛑🛑 See [issues/4739](https://github.com/jaegertracing/jaeger/issues/4739).
+
 `jaeger-agent` is a daemon program that runs on every host and receives
 tracing information submitted by applications via Jaeger client 
 libraries.
