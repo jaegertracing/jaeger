@@ -257,27 +257,13 @@ func createHTTPServerLegacy(
 	}
 	handler = handlers.CompressHandler(handler)
 	recoveryHandler := recoveryhandler.NewRecoveryHandler(telset.Logger, true)
-
 	errorLog, _ := zap.NewStdLogAt(telset.Logger, zapcore.ErrorLevel)
-	server := &httpServer{
-		Server: &http.Server{
-			Handler:           recoveryHandler(handler),
-			ErrorLog:          errorLog,
-			ReadHeaderTimeout: 2 * time.Second,
-		},
+	s := &http.Server{
+		Handler:           recoveryHandler(handler),
+		ErrorLog:          errorLog,
+		ReadHeaderTimeout: 2 * time.Second,
 	}
-
-	if queryOpts.HTTP.TLSSetting != nil {
-		tlsCfg, err := queryOpts.HTTP.TLSSetting.LoadTLSConfig(ctx) // This checks if the certificates are correctly provided
-		if err != nil {
-			return nil, err
-		}
-		server.TLSConfig = tlsCfg
-	}
-
-	server.staticHandlerCloser = RegisterStaticHandler(r, telset.Logger, queryOpts, querySvc.GetCapabilities())
-
-	return server, nil
+	return createHTTPServer(ctx, querySvc, queryOpts, telset, s, r)
 }
 
 func createHTTPServerOTEL(
@@ -294,7 +280,6 @@ func createHTTPServerOTEL(
 		handler = bearertoken.PropagationHandler(telset.Logger, handler)
 	}
 	recoveryHandler := recoveryhandler.NewRecoveryHandler(telset.Logger, true)
-
 	s, err := queryOpts.HTTP.ToServer(
 		ctx,
 		telset.Host,
@@ -310,8 +295,18 @@ func createHTTPServerOTEL(
 	if err != nil {
 		return nil, err
 	}
-	server := &httpServer{
-		Server: s,
+	return createHTTPServer(ctx, querySvc, queryOpts, telset, s, r)
+}
+
+func createHTTPServer(
+	ctx context.Context,
+	querySvc *querysvc.QueryService,
+	queryOpts *QueryOptions,
+	telset telemetery.Setting,
+	server *http.Server,
+	r *mux.Router) (*httpServer, error) {
+	s := &httpServer{
+		Server: server,
 	}
 
 	if queryOpts.HTTP.TLSSetting != nil {
@@ -322,9 +317,9 @@ func createHTTPServerOTEL(
 		server.TLSConfig = tlsCfg
 	}
 
-	server.staticHandlerCloser = RegisterStaticHandler(r, telset.Logger, queryOpts, querySvc.GetCapabilities())
+	s.staticHandlerCloser = RegisterStaticHandler(r, telset.Logger, queryOpts, querySvc.GetCapabilities())
 
-	return server, nil
+	return s, nil
 }
 
 func (hS httpServer) Close() error {
