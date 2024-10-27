@@ -2,7 +2,7 @@
 # Copyright (c) 2024 The Jaeger Authors.
 # SPDX-License-Identifier: Apache-2.0
 
-set -euxf -o pipefail
+set -euf -o pipefail
 
 usage() {
   echo "Usage: $0 <repository_name> <file_path>"
@@ -10,7 +10,7 @@ usage() {
 }
 
 if [ "$#" -ne 2 ]; then
-  echo "Error: Missing arguments."
+  echo "🛑 Error: Missing arguments."
   usage
 fi
 
@@ -26,13 +26,14 @@ dockerhub_url="https://hub.docker.com/v2/repositories/$repository/"
 quay_url="https://quay.io/api/v1/repository/${repository}"
 
 if [ ! -f "$abs_readme_path" ]; then
-  echo "❗Warning: no README file found at path $abs_readme_path"
-  echo "It is recommended to have a dedicated README file for each Docker image"
+  echo "🟡 Warning: no README file found at path $abs_readme_path"
+  echo "🟡 It is recommended to have a dedicated README file for each Docker image"
   exit 0
 fi
 
 readme_content=$(<"$abs_readme_path")
 
+# do not echo commands as they contain tokens
 set +x
 
 # Handling DockerHUB upload
@@ -43,17 +44,17 @@ body=$(jq -n \
 
 dockerhub_response=$(curl -s -w "%{http_code}" -X PATCH "$dockerhub_url" \
     -H "Content-Type: application/json" \
-    -H "Authorization: JWT $DOCKERHUB_TOKEN" \
+    -H "Authorization: Bearer $DOCKERHUB_TOKEN" \
     -d "$body")
 
 http_code="${dockerhub_response: -3}"
 response_body="${dockerhub_response:0:${#dockerhub_response}-3}"
 
 if [ "$http_code" -eq 200 ]; then
-  echo "Successfully updated Docker Hub README for $repository"
+  echo "✅ Successfully updated Docker Hub README for $repository"
 else
   echo "🛑 Failed to update Docker Hub README for $repository with status code $http_code"
-  echo "Full response: $response_body"
+  echo "🛑 Full response: $response_body"
 fi
 
 # Handling Quay upload
@@ -71,8 +72,8 @@ quay_http_code="${quay_response: -3}"
 quay_response_body="${quay_response:0:${#quay_response}-3}"
 
 if [ "$quay_http_code" -eq 200 ]; then
-  echo "Successfully updated Quay.io README for $repository"
+  echo "✅ Successfully updated Quay.io README for $repository"
 else
-  echo "Failed to update Quay.io README for $repository with status code $quay_http_code"
-  echo "Full response: $quay_response_body"
+  echo "🛑 Failed to update Quay.io README for $repository with status code $quay_http_code"
+  echo "🛑 Full response: $quay_response_body"
 fi
