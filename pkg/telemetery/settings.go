@@ -6,6 +6,7 @@ package telemetery
 import (
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componentstatus"
+	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
@@ -16,6 +17,7 @@ import (
 type Setting struct {
 	Logger         *zap.Logger
 	TracerProvider trace.TracerProvider
+	MeterProvider  metric.MeterProvider
 	Metrics        metrics.Factory
 	ReportStatus   func(*componentstatus.Event)
 	Host           component.Host
