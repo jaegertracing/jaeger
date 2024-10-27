@@ -240,7 +240,6 @@ func initRouter(
 	if tenancyMgr.Enabled {
 		handler = tenancy.ExtractTenantHTTPHandler(tenancyMgr, handler)
 	}
-	// TODO add tenancy handler
 	return handler, staticHandlerCloser
 }
 
