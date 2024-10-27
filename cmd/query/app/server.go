@@ -304,7 +304,8 @@ func createHTTPServer(
 	queryOpts *QueryOptions,
 	telset telemetery.Setting,
 	server *http.Server,
-	r *mux.Router) (*httpServer, error) {
+	r *mux.Router,
+) (*httpServer, error) {
 	s := &httpServer{
 		Server: server,
 	}
