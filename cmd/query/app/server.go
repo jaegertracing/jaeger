@@ -208,13 +208,13 @@ type httpServer struct {
 
 var _ io.Closer = (*httpServer)(nil)
 
-func createHTTPRouter(
+func initRouter(
 	querySvc *querysvc.QueryService,
 	metricsQuerySvc querysvc.MetricsQueryService,
 	queryOpts *QueryOptions,
-	tm *tenancy.Manager,
+	tenancyMgr *tenancy.Manager,
 	telset telemetery.Setting,
-) *mux.Router {
+) (http.Handler, io.Closer) {
 	apiHandlerOptions := []HandlerOption{
 		HandlerOptions.Logger(telset.Logger),
 		HandlerOptions.Tracer(telset.TracerProvider),
@@ -223,7 +223,6 @@ func createHTTPRouter(
 
 	apiHandler := NewAPIHandler(
 		querySvc,
-		tm,
 		apiHandlerOptions...)
 	r := NewRouter()
 	if queryOpts.BasePath != "/" {
@@ -232,13 +231,21 @@ func createHTTPRouter(
 
 	(&apiv3.HTTPGateway{
 		QueryService: querySvc,
-		TenancyMgr:   tm,
 		Logger:       telset.Logger,
 		Tracer:       telset.TracerProvider,
 	}).RegisterRoutes(r)
 
 	apiHandler.RegisterRoutes(r)
-	return r
+	staticHandlerCloser := RegisterStaticHandler(r, telset.Logger, queryOpts, querySvc.GetCapabilities())
+
+	var handler http.Handler = r
+	if queryOpts.BearerTokenPropagation {
+		handler = bearertoken.PropagationHandler(telset.Logger, handler)
+	}
+	if tenancyMgr.Enabled {
+		handler = tenancy.ExtractTenantHTTPHandler(tenancyMgr, handler)
+	}
+	return handler, staticHandlerCloser
 }
 
 func createHTTPServerLegacy(
@@ -249,21 +256,28 @@ func createHTTPServerLegacy(
 	tm *tenancy.Manager,
 	telset telemetery.Setting,
 ) (*httpServer, error) {
-	r := createHTTPRouter(querySvc, metricsQuerySvc, queryOpts, tm, telset)
-	var handler http.Handler = r
+	handler, staticHandlerCloser := initRouter(querySvc, metricsQuerySvc, queryOpts, tm, telset)
 	handler = responseHeadersHandler(handler, queryOpts.HTTP.ResponseHeaders)
-	if queryOpts.BearerTokenPropagation {
-		handler = bearertoken.PropagationHandler(telset.Logger, handler)
-	}
 	handler = handlers.CompressHandler(handler)
-	recoveryHandler := recoveryhandler.NewRecoveryHandler(telset.Logger, true)
+  handler = recoveryhandler.NewRecoveryHandler(telset.Logger, true)(handler)
 	errorLog, _ := zap.NewStdLogAt(telset.Logger, zapcore.ErrorLevel)
-	s := &http.Server{
-		Handler:           recoveryHandler(handler),
-		ErrorLog:          errorLog,
-		ReadHeaderTimeout: 2 * time.Second,
+	server := &httpServer{
+		Server: &http.Server{
+			Handler:           recoveryHandler(handler),
+			ErrorLog:          errorLog,
+			ReadHeaderTimeout: 2 * time.Second,
+		},
+		staticHandlerCloser: staticHandlerCloser,
 	}
-	return createHTTPServer(ctx, querySvc, queryOpts, telset, s, r)
+
+	if queryOpts.HTTP.TLSSetting != nil {
+		tlsCfg, err := queryOpts.HTTP.TLSSetting.LoadTLSConfig(ctx) // This checks if the certificates are correctly provided
+		if err != nil {
+			return nil, errors.Join(err, staticHandlerCloser.Close())
+		}
+		server.TLSConfig = tlsCfg
+	}
+	return server, nil
 }
 
 func createHTTPServerOTEL(
@@ -274,13 +288,9 @@ func createHTTPServerOTEL(
 	tm *tenancy.Manager,
 	telset telemetery.Setting,
 ) (*httpServer, error) {
-	r := createHTTPRouter(querySvc, metricsQuerySvc, queryOpts, tm, telset)
-	var handler http.Handler = r
-	if queryOpts.BearerTokenPropagation {
-		handler = bearertoken.PropagationHandler(telset.Logger, handler)
-	}
-	recoveryHandler := recoveryhandler.NewRecoveryHandler(telset.Logger, true)
-	s, err := queryOpts.HTTP.ToServer(
+	handler, staticHandlerCloser := initRouter(querySvc, metricsQuerySvc, queryOpts, tm, telset)
+  handler = recoveryhandler.NewRecoveryHandler(telset.Logger, true)(handler)
+	hs, err := queryOpts.HTTP.ToServer(
 		ctx,
 		telset.Host,
 		component.TelemetrySettings{
@@ -290,37 +300,24 @@ func createHTTPServerOTEL(
 				return noop.NewMeterProvider()
 			},
 		},
-		recoveryHandler(handler),
-	)
+  }
 	if err != nil {
-		return nil, err
+		return nil, errors.Join(err, staticHandlerCloser.Close())
 	}
-	return createHTTPServer(ctx, querySvc, queryOpts, telset, s, r)
-}
-
-func createHTTPServer(
-	ctx context.Context,
-	querySvc *querysvc.QueryService,
-	queryOpts *QueryOptions,
-	telset telemetery.Setting,
-	server *http.Server,
-	r *mux.Router,
-) (*httpServer, error) {
-	s := &httpServer{
-		Server: server,
+	server := &httpServer{
+		Server: hs,
+		staticHandlerCloser: staticHandlerCloser,
 	}
 
 	if queryOpts.HTTP.TLSSetting != nil {
 		tlsCfg, err := queryOpts.HTTP.TLSSetting.LoadTLSConfig(ctx) // This checks if the certificates are correctly provided
 		if err != nil {
-			return nil, err
+			return nil, errors.Join(err, staticHandlerCloser.Close())
 		}
 		server.TLSConfig = tlsCfg
 	}
-
-	s.staticHandlerCloser = RegisterStaticHandler(r, telset.Logger, queryOpts, querySvc.GetCapabilities())
-
-	return s, nil
+    
+	return server, nil
 }
 
 func (hS httpServer) Close() error {
