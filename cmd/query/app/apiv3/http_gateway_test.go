@@ -71,9 +71,7 @@ func setupHTTPGateway(
 }
 
 func TestHTTPGateway(t *testing.T) {
-	runGatewayTests(t, "/",
-		func(req *http.Request) {
-		})
+	runGatewayTests(t, "/", func(_ *http.Request) {})
 }
 
 func TestHTTPGatewayTryHandleError(t *testing.T) {
