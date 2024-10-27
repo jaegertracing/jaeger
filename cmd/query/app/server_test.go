@@ -861,18 +861,6 @@ func TestServerHTTPTenancy(t *testing.T) {
 }
 
 func TestServerHTTP_TracesRequest(t *testing.T) {
-	serverOptions := &QueryOptions{
-		HTTP: confighttp.ServerConfig{
-			Endpoint: ":8080",
-		},
-		GRPC: configgrpc.ServerConfig{
-			NetAddr: confignet.AddrConfig{
-				Endpoint:  ":8081",
-				Transport: confignet.TransportTypeTCP,
-			},
-		},
-	}
-
 	makeMockTrace := func(t *testing.T) *model.Trace {
 		out := new(bytes.Buffer)
 		err := new(jsonpb.Marshaler).Marshal(out, mockTrace)
@@ -885,36 +873,90 @@ func TestServerHTTP_TracesRequest(t *testing.T) {
 		return &trace
 	}
 
-	exporter := tracetest.NewInMemoryExporter()
-	tracerProvider := sdktrace.NewTracerProvider(
-		sdktrace.WithSyncer(exporter),
-		sdktrace.WithSampler(sdktrace.AlwaysSample()),
-	)
-	tracer := jtracer.JTracer{OTEL: tracerProvider}
+	tests := []struct {
+		name          string
+		httpEndpoint  string
+		grpcEndpoint  string
+		queryString   string
+		expectedTrace string
+	}{
+		{
+			name:          "different ports (OTEL implementation)",
+			httpEndpoint:  ":8080",
+			grpcEndpoint:  ":8081",
+			queryString:   "/api/traces/123456aBC",
+			expectedTrace: "/api/traces/{traceID}",
+		},
+		{
+			name:          "different ports (OTEL implementation) for v3 api",
+			httpEndpoint:  ":8080",
+			grpcEndpoint:  ":8081",
+			queryString:   "/api/v3/traces/123456aBC",
+			expectedTrace: "/api/v3/traces/{trace_id}",
+		},
+		{
+			name:         "same ports (legacy implementation)",
+			httpEndpoint: ":8080",
+			grpcEndpoint: ":8080",
+			queryString:  "/api/traces/123456aBC",
+		},
+		{
+			name:         "same ports (legacy implementation) for v3 api",
+			httpEndpoint: ":8080",
+			grpcEndpoint: ":8080",
+			queryString:  "/api/v3/traces/123456aBC",
+		},
+	}
 
-	tenancyMgr := tenancy.NewManager(&serverOptions.Tenancy)
-	querySvc := makeQuerySvc()
-	querySvc.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), model.NewTraceID(0, 0x123456abc)).
-		Return(makeMockTrace(t), nil).Once()
-	telset := initTelSet(zaptest.NewLogger(t), &tracer, healthcheck.New())
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			serverOptions := &QueryOptions{
+				HTTP: confighttp.ServerConfig{
+					Endpoint: test.httpEndpoint,
+				},
+				GRPC: configgrpc.ServerConfig{
+					NetAddr: confignet.AddrConfig{
+						Endpoint:  test.grpcEndpoint,
+						Transport: confignet.TransportTypeTCP,
+					},
+				},
+			}
 
-	server, err := NewServer(context.Background(), querySvc.qs,
-		nil, serverOptions, tenancyMgr, telset)
-	require.NoError(t, err)
-	require.NoError(t, server.Start(context.Background()))
-	t.Cleanup(func() {
-		require.NoError(t, server.Close())
-	})
+			exporter := tracetest.NewInMemoryExporter()
+			tracerProvider := sdktrace.NewTracerProvider(
+				sdktrace.WithSyncer(exporter),
+				sdktrace.WithSampler(sdktrace.AlwaysSample()),
+			)
+			tracer := jtracer.JTracer{OTEL: tracerProvider}
 
-	queryString := "/api/traces/123456aBC"
-	req, err := http.NewRequest(http.MethodGet, "http://localhost:8080"+queryString, nil)
-	require.NoError(t, err)
+			tenancyMgr := tenancy.NewManager(&serverOptions.Tenancy)
+			querySvc := makeQuerySvc()
+			querySvc.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), model.NewTraceID(0, 0x123456abc)).
+				Return(makeMockTrace(t), nil).Once()
+			telset := initTelSet(zaptest.NewLogger(t), &tracer, healthcheck.New())
 
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	require.NoError(t, err)
+			server, err := NewServer(context.Background(), querySvc.qs,
+				nil, serverOptions, tenancyMgr, telset)
+			require.NoError(t, err)
+			require.NoError(t, server.Start(context.Background()))
+			t.Cleanup(func() {
+				require.NoError(t, server.Close())
+			})
 
-	assert.Len(t, exporter.GetSpans(), 1, "HTTP request was traced and span reported")
-	assert.Equal(t, "/api/traces/{traceID}", exporter.GetSpans()[0].Name)
-	require.NoError(t, resp.Body.Close())
+			req, err := http.NewRequest(http.MethodGet, "http://localhost:8080"+test.queryString, nil)
+			require.NoError(t, err)
+
+			client := &http.Client{}
+			resp, err := client.Do(req)
+			require.NoError(t, err)
+
+			if test.expectedTrace != "" {
+				assert.Len(t, exporter.GetSpans(), 1, "HTTP request was traced and span reported")
+				assert.Equal(t, test.expectedTrace, exporter.GetSpans()[0].Name)
+			} else {
+				assert.Len(t, exporter.GetSpans(), 0, "HTTP request was not traced")
+			}
+			require.NoError(t, resp.Body.Close())
+		})
+	}
 }
