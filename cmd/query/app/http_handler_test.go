@@ -171,6 +171,8 @@ func extractTraces(t *testing.T, response *structuredResponse) []ui.Trace {
 	return traces
 }
 
+// TestGetTraceDedupeSuccess partially verifies that the standard adjusteres
+// are defined in correct order.
 func TestGetTraceDedupeSuccess(t *testing.T) {
 	dupedMockTrace := &model.Trace{
 		Spans:    append(mockTrace.Spans, mockTrace.Spans...),
@@ -187,6 +189,9 @@ func TestGetTraceDedupeSuccess(t *testing.T) {
 	assert.Empty(t, response.Errors)
 	traces := extractTraces(t, &response)
 	assert.Len(t, traces[0].Spans, 2)
+	for _, span := range traces[0].Spans {
+		assert.Empty(t, span.Warnings, "clock skew adjuster would've complained about dupes")
+	}
 }
 
 func TestLogOnServerError(t *testing.T) {
