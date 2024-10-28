@@ -114,7 +114,6 @@ func TestNewGRPCClient(t *testing.T) {
 	assert.Implements(t, (*storage_v1.StreamingSpanWriterPluginClient)(nil), client.streamWriterClient)
 }
 
-
 func TestGRPCClientGetServices(t *testing.T) {
 	withGRPCClient(func(r *grpcClientTest) {
 		r.spanReader.On("GetServices", mock.Anything, &storage_v1.GetServicesRequest{}).

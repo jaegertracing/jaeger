@@ -182,8 +182,9 @@ func createGRPCServerOTEL(
 	streamInterceptors := []grpc.StreamServerInterceptor{
 		bearertoken.NewStreamServerInterceptor(),
 	}
+
+	//nolint:contextcheck
 	if tm.Enabled {
-		//nolint:contextcheck
 		unaryInterceptors = append(unaryInterceptors, tenancy.NewGuardingUnaryInterceptor(tm))
 		streamInterceptors = append(streamInterceptors, tenancy.NewGuardingStreamInterceptor(tm))
 	}
