@@ -174,8 +174,7 @@ func (c *Configuration) NewSession() (cassandra.Session, error) {
 // NewCluster creates a new gocql cluster from the configuration
 func (c *Configuration) NewCluster() (*gocql.ClusterConfig, error) {
 	cluster := gocql.NewCluster(c.Connection.Servers...)
-	// Removing this, since keyspace would be created post builing connection
-	// cluster.Keyspace = c.Schema.Keyspace
+	cluster.Keyspace = c.Schema.Keyspace
 	cluster.NumConns = c.Connection.ConnectionsPerHost
 	cluster.ConnectTimeout = c.Connection.Timeout
 	cluster.ReconnectInterval = c.Connection.ReconnectInterval
