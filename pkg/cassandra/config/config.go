@@ -104,7 +104,13 @@ type BasicAuthenticator struct {
 func DefaultConfiguration() Configuration {
 	return Configuration{
 		Schema: Schema{
-			Keyspace: "jaeger_v1_test",
+			Keyspace:          "jaeger_v1_test",
+			Datacenter:        "test",
+			TraceTTL:          172800,
+			DependenciesTTL:   172800,
+			ReplicationFactor: 1,
+			CasVersion:        4,
+			CompactionWindow:  "1m",
 		},
 		Connection: Connection{
 			Servers:            []string{"127.0.0.1"},
