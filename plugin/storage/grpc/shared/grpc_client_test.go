@@ -15,11 +15,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
 	"github.com/jaegertracing/jaeger/model"
-	"github.com/jaegertracing/jaeger/pkg/bearertoken"
 	"github.com/jaegertracing/jaeger/proto-gen/storage_v1"
 	grpcMocks "github.com/jaegertracing/jaeger/proto-gen/storage_v1/mocks"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
@@ -116,21 +114,6 @@ func TestNewGRPCClient(t *testing.T) {
 	assert.Implements(t, (*storage_v1.StreamingSpanWriterPluginClient)(nil), client.streamWriterClient)
 }
 
-func TestContextUpgradeWithToken(t *testing.T) {
-	testBearerToken := "test-bearer-token"
-	ctx := bearertoken.ContextWithBearerToken(context.Background(), testBearerToken)
-	upgradedToken := upgradeContextWithBearerToken(ctx)
-	md, ok := metadata.FromOutgoingContext(upgradedToken)
-	assert.Truef(t, ok, "Expected metadata in context")
-	bearerTokenFromMetadata := md.Get(BearerTokenKey)
-	assert.Equal(t, []string{testBearerToken}, bearerTokenFromMetadata)
-}
-
-func TestContextUpgradeWithoutToken(t *testing.T) {
-	upgradedToken := upgradeContextWithBearerToken(context.Background())
-	_, ok := metadata.FromOutgoingContext(upgradedToken)
-	assert.Falsef(t, ok, "Expected no metadata in context")
-}
 
 func TestGRPCClientGetServices(t *testing.T) {
 	withGRPCClient(func(r *grpcClientTest) {

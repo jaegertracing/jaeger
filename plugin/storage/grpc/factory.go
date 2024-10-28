@@ -128,7 +128,7 @@ func (f *Factory) newRemoteStorage(
 		bearertoken.NewUnaryClientInterceptor(),
 	}
 	streamInterceptors := []grpc.StreamClientInterceptor{
-		tenancy.NewClientStreamInterceptor(tenancyMgr),
+		bearertoken.NewStreamClientInterceptor(),
 	}
 	if tenancyMgr.Enabled {
 		unaryInterceptors = append(unaryInterceptors, tenancy.NewClientUnaryInterceptor(tenancyMgr))
