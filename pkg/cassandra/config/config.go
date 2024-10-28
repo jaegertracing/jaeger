@@ -51,18 +51,6 @@ type Connection struct {
 	ProtoVersion int `mapstructure:"proto_version"`
 }
 
-type SchemaConfig struct {
-	Datacenter           string `mapstructure:"datacenter" valid:"optional"`
-	TraceTTL             int    `mapstructure:"trace_ttl" valid:"optional"`
-	DependenciesTTL      int    `mapstructure:"dependencies_ttl" valid:"optional"`
-	ReplicationFactor    int    `mapstructure:"replication_factor" valid:"optional"`
-	CasVersion           int    `mapstructure:"cas_version" valid:"optional"`
-	CompactionWindow     string `mapstructure:"compaction_window" valid:"optional"`
-	Replication          string `mapstructure:"replication" valid:"optional"`
-	CompactionWindowSize int    `mapstructure:"compaction_window_size" valid:"optional"`
-	CompactionWindowUnit string `mapstructure:"compaction_window_unit" valid:"optional"`
-}
-
 type Schema struct {
 	// Keyspace contains the namespace where Jaeger data will be stored.
 	Keyspace string `mapstructure:"keyspace"`
@@ -70,7 +58,24 @@ type Schema struct {
 	// while connecting to the Cassandra Cluster. This is useful for connecting to clusters, like Azure Cosmos DB,
 	// that do not support SnappyCompression.
 	DisableCompression bool `mapstructure:"disable_compression"`
-	SchemaConfig
+	//Datacenter is the name for network topology
+	Datacenter string `mapstructure:"datacenter" valid:"optional"`
+	// TraceTTL is Time To Live (TTL) for the trace data in seconds
+	TraceTTL int `mapstructure:"trace_ttl" valid:"optional"`
+	// DependenciesTTL is Time To Live (TTL) for dependencies data in seconds
+	DependenciesTTL int `mapstructure:"dependencies_ttl" valid:"optional"`
+	// Replication factor for the db
+	ReplicationFactor int `mapstructure:"replication_factor" valid:"optional"`
+	// CasVersion is version of cassandra used
+	CasVersion int `mapstructure:"cas_version" valid:"optional"`
+	// CompactionWindow of format "^[0-9]+[mhd]$" tells the compaction window of the db
+	CompactionWindow string `mapstructure:"compaction_window" valid:"optional"`
+	// Replication is the replication strategy used
+	Replication string `mapstructure:"replication" valid:"optional"`
+	// CompactionWindowSize is the numberical part of CompactionWindow. Extracted from CompactionWindow
+	CompactionWindowSize int `mapstructure:"compaction_window_size" valid:"optional"`
+	// CompactionWindowUnit is the time unit of the CompactionWindow. Extracted from CompactionWindow
+	CompactionWindowUnit string `mapstructure:"compaction_window_unit" valid:"optional"`
 }
 
 type Query struct {

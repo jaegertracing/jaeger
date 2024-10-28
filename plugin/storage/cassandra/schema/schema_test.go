@@ -11,7 +11,7 @@ import (
 )
 
 func TestTemplateRendering(t *testing.T) {
-	cfg := DefaultSchemaConfig()
+	cfg := DefaultSchema()
 	res, err := getQueryFileAsBytes(`v004-go-tmpl-test.cql.tmpl`, &cfg)
 	require.NoError(t, err)
 

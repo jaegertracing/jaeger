@@ -19,21 +19,19 @@ import (
 //go:embed v004-go-tmpl-test.cql.tmpl
 var schemaFile embed.FS
 
-func DefaultSchemaConfig() config.Schema {
+func DefaultSchema() config.Schema {
 	return config.Schema{
-		Keyspace: "jaeger_v2_test",
-		SchemaConfig: config.SchemaConfig{
-			Datacenter:        "test",
-			TraceTTL:          172800,
-			DependenciesTTL:   0,
-			ReplicationFactor: 1,
-			CasVersion:        4,
-		},
+		Keyspace:          "jaeger_v2_test",
+		Datacenter:        "test",
+		TraceTTL:          172800,
+		DependenciesTTL:   0,
+		ReplicationFactor: 1,
+		CasVersion:        4,
 	}
 }
 
 func applyDefaults(cfg *config.Schema) {
-	defaultSchema := DefaultSchemaConfig()
+	defaultSchema := DefaultSchema()
 
 	if cfg.Keyspace == "" {
 		cfg.Keyspace = defaultSchema.Keyspace
@@ -57,7 +55,7 @@ func applyDefaults(cfg *config.Schema) {
 }
 
 // Applies defaults for the configs and contructs other optional parameters from it
-func constructCompleteSchemaConfig(cfg *config.Schema) error {
+func constructCompleteSchema(cfg *config.Schema) error {
 	applyDefaults(cfg)
 
 	cfg.Replication = fmt.Sprintf("{'class': 'NetworkTopologyStrategy', '%s': '%v' }", cfg.Datacenter, cfg.ReplicationFactor)
@@ -164,7 +162,7 @@ func getCassandraQueriesFromQueryStrings(session cassandra.Session, queries []st
 }
 
 func contructSchemaQueries(session cassandra.Session, cfg *config.Schema) ([]cassandra.Query, error) {
-	err := constructCompleteSchemaConfig(cfg)
+	err := constructCompleteSchema(cfg)
 	if err != nil {
 		return nil, err
 	}
