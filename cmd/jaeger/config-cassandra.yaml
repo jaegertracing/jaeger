@@ -34,6 +34,12 @@ extensions:
         cassandra:
           schema: 
             keyspace: "jaeger_v1_dc1"
+            datacenter: "test"
+            trace_ttl: 172800
+            dependencies_ttl: 172800
+            replication_factor: 1
+            cas_version: 4
+            compaction_window: "1m"
           connection:
             auth: 
               basic:
@@ -45,6 +51,12 @@ extensions:
         cassandra:
           schema: 
             keyspace: "jaeger_v1_dc1"
+            datacenter: "test"
+            trace_ttl: 172800
+            dependencies_ttl: 172800
+            replication_factor: 1
+            cas_version: 4
+            compaction_window: "1m"
           connection: 
             auth:
               basic: 
