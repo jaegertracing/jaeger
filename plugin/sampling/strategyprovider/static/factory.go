@@ -47,7 +47,7 @@ func (f *Factory) Initialize(_ metrics.Factory, _ storage.SamplingStoreFactory, 
 	return nil
 }
 
-// CreateStrategyStore implements samplingstrategy.Factory
+// CreateStrategyProvider implements samplingstrategy.Factory
 func (f *Factory) CreateStrategyProvider() (samplingstrategy.Provider, samplingstrategy.Aggregator, error) {
 	s, err := NewProvider(*f.options, f.logger)
 	if err != nil {
