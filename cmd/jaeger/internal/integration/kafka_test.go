@@ -19,7 +19,7 @@ func TestKafkaStorage(t *testing.T) {
 		skip     string
 	}{
 		{encoding: "otlp_proto"},
-		{encoding: "otlp_json", skip: "not supported: https://github.com/open-telemetry/opentelemetry-collector-contrib/issues/33627"},
+		{encoding: "otlp_json"},
 		{encoding: "jaeger_proto"},
 		{encoding: "jaeger_json"},
 	}

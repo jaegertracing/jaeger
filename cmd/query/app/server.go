@@ -16,7 +16,12 @@ import (
 
 	"github.com/gorilla/handlers"
 	"github.com/soheilhy/cmux"
+	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componentstatus"
+	"go.opentelemetry.io/collector/config/configgrpc"
+	"go.opentelemetry.io/collector/config/configtelemetry"
+	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/metric/noop"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"google.golang.org/grpc"
@@ -54,7 +59,9 @@ type Server struct {
 }
 
 // NewServer creates and initializes Server
-func NewServer(querySvc *querysvc.QueryService,
+func NewServer(
+	ctx context.Context,
+	querySvc *querysvc.QueryService,
 	metricsQuerySvc querysvc.MetricsQueryService,
 	options *QueryOptions,
 	tm *tenancy.Manager,
@@ -74,12 +81,18 @@ func NewServer(querySvc *querysvc.QueryService,
 		return nil, errors.New("server with TLS enabled can not use same host ports for gRPC and HTTP.  Use dedicated HTTP and gRPC host ports instead")
 	}
 
-	grpcServer, err := createGRPCServer(querySvc, metricsQuerySvc, options, tm, telset)
+	var grpcServer *grpc.Server
+	if !separatePorts {
+		grpcServer, err = createGRPCServerLegacy(ctx, options, tm)
+	} else {
+		grpcServer, err = createGRPCServerOTEL(ctx, options, tm, telset)
+	}
 	if err != nil {
 		return nil, err
 	}
+	registerGRPCHandlers(grpcServer, querySvc, metricsQuerySvc, telset)
 
-	httpServer, err := createHTTPServer(querySvc, metricsQuerySvc, options, tm, telset)
+	httpServer, err := createHTTPServer(ctx, querySvc, metricsQuerySvc, options, tm, telset)
 	if err != nil {
 		return nil, err
 	}
@@ -94,11 +107,15 @@ func NewServer(querySvc *querysvc.QueryService,
 	}, nil
 }
 
-func createGRPCServer(querySvc *querysvc.QueryService, metricsQuerySvc querysvc.MetricsQueryService, options *QueryOptions, tm *tenancy.Manager, telset telemetery.Setting) (*grpc.Server, error) {
+func createGRPCServerLegacy(
+	ctx context.Context,
+	options *QueryOptions,
+	tm *tenancy.Manager,
+) (*grpc.Server, error) {
 	var grpcOpts []grpc.ServerOption
 
 	if options.GRPC.TLSSetting != nil {
-		tlsCfg, err := options.GRPC.TLSSetting.LoadTLSConfig(context.Background())
+		tlsCfg, err := options.GRPC.TLSSetting.LoadTLSConfig(ctx)
 		if err != nil {
 			return nil, err
 		}
@@ -107,16 +124,35 @@ func createGRPCServer(querySvc *querysvc.QueryService, metricsQuerySvc querysvc.
 
 		grpcOpts = append(grpcOpts, grpc.Creds(creds))
 	}
+
+	unaryInterceptors := []grpc.UnaryServerInterceptor{
+		bearertoken.NewUnaryServerInterceptor(),
+	}
+	streamInterceptors := []grpc.StreamServerInterceptor{
+		bearertoken.NewStreamServerInterceptor(),
+	}
+	//nolint:contextcheck
 	if tm.Enabled {
-		grpcOpts = append(grpcOpts,
-			grpc.StreamInterceptor(tenancy.NewGuardingStreamInterceptor(tm)),
-			grpc.UnaryInterceptor(tenancy.NewGuardingUnaryInterceptor(tm)),
-		)
+		unaryInterceptors = append(unaryInterceptors, tenancy.NewGuardingUnaryInterceptor(tm))
+		streamInterceptors = append(streamInterceptors, tenancy.NewGuardingStreamInterceptor(tm))
 	}
 
-	server := grpc.NewServer(grpcOpts...)
-	reflection.Register(server)
+	grpcOpts = append(grpcOpts,
+		grpc.ChainUnaryInterceptor(unaryInterceptors...),
+		grpc.ChainStreamInterceptor(streamInterceptors...),
+	)
 
+	server := grpc.NewServer(grpcOpts...)
+	return server, nil
+}
+
+func registerGRPCHandlers(
+	server *grpc.Server,
+	querySvc *querysvc.QueryService,
+	metricsQuerySvc querysvc.MetricsQueryService,
+	telset telemetery.Setting,
+) {
+	reflection.Register(server)
 	handler := NewGRPCHandler(querySvc, metricsQuerySvc, GRPCHandlerOptions{
 		Logger: telset.Logger,
 	})
@@ -131,7 +167,33 @@ func createGRPCServer(querySvc *querysvc.QueryService, metricsQuerySvc querysvc.
 	healthServer.SetServingStatus("jaeger.api_v3.QueryService", grpc_health_v1.HealthCheckResponse_SERVING)
 
 	grpc_health_v1.RegisterHealthServer(server, healthServer)
-	return server, nil
+}
+
+func createGRPCServerOTEL(
+	ctx context.Context,
+	options *QueryOptions,
+	tm *tenancy.Manager,
+	telset telemetery.Setting,
+) (*grpc.Server, error) {
+	var grpcOpts []configgrpc.ToServerOption
+	if tm.Enabled {
+		//nolint:contextcheck
+		grpcOpts = append(grpcOpts,
+			configgrpc.WithGrpcServerOption(grpc.StreamInterceptor(tenancy.NewGuardingStreamInterceptor(tm))),
+			configgrpc.WithGrpcServerOption(grpc.UnaryInterceptor(tenancy.NewGuardingUnaryInterceptor(tm))),
+		)
+	}
+	return options.GRPC.ToServer(
+		ctx,
+		telset.Host,
+		component.TelemetrySettings{
+			Logger:         telset.Logger,
+			TracerProvider: telset.TracerProvider,
+			LeveledMeterProvider: func(_ configtelemetry.Level) metric.MeterProvider {
+				return noop.NewMeterProvider()
+			},
+		},
+		grpcOpts...)
 }
 
 type httpServer struct {
@@ -141,13 +203,13 @@ type httpServer struct {
 
 var _ io.Closer = (*httpServer)(nil)
 
-func createHTTPServer(
+func initRouter(
 	querySvc *querysvc.QueryService,
 	metricsQuerySvc querysvc.MetricsQueryService,
 	queryOpts *QueryOptions,
-	tm *tenancy.Manager,
+	tenancyMgr *tenancy.Manager,
 	telset telemetery.Setting,
-) (*httpServer, error) {
+) (http.Handler, io.Closer) {
 	apiHandlerOptions := []HandlerOption{
 		HandlerOptions.Logger(telset.Logger),
 		HandlerOptions.Tracer(telset.TracerProvider),
@@ -156,7 +218,6 @@ func createHTTPServer(
 
 	apiHandler := NewAPIHandler(
 		querySvc,
-		tm,
 		apiHandlerOptions...)
 	r := NewRouter()
 	if queryOpts.BasePath != "/" {
@@ -165,17 +226,33 @@ func createHTTPServer(
 
 	(&apiv3.HTTPGateway{
 		QueryService: querySvc,
-		TenancyMgr:   tm,
 		Logger:       telset.Logger,
 		Tracer:       telset.TracerProvider,
 	}).RegisterRoutes(r)
 
 	apiHandler.RegisterRoutes(r)
+	staticHandlerCloser := RegisterStaticHandler(r, telset.Logger, queryOpts, querySvc.GetCapabilities())
+
 	var handler http.Handler = r
-	handler = responseHeadersHandler(handler, queryOpts.HTTP.ResponseHeaders)
 	if queryOpts.BearerTokenPropagation {
 		handler = bearertoken.PropagationHandler(telset.Logger, handler)
 	}
+	if tenancyMgr.Enabled {
+		handler = tenancy.ExtractTenantHTTPHandler(tenancyMgr, handler)
+	}
+	return handler, staticHandlerCloser
+}
+
+func createHTTPServer(
+	ctx context.Context,
+	querySvc *querysvc.QueryService,
+	metricsQuerySvc querysvc.MetricsQueryService,
+	queryOpts *QueryOptions,
+	tm *tenancy.Manager,
+	telset telemetery.Setting,
+) (*httpServer, error) {
+	handler, staticHandlerCloser := initRouter(querySvc, metricsQuerySvc, queryOpts, tm, telset)
+	handler = responseHeadersHandler(handler, queryOpts.HTTP.ResponseHeaders)
 	handler = handlers.CompressHandler(handler)
 	recoveryHandler := recoveryhandler.NewRecoveryHandler(telset.Logger, true)
 
@@ -186,17 +263,16 @@ func createHTTPServer(
 			ErrorLog:          errorLog,
 			ReadHeaderTimeout: 2 * time.Second,
 		},
+		staticHandlerCloser: staticHandlerCloser,
 	}
 
 	if queryOpts.HTTP.TLSSetting != nil {
-		tlsCfg, err := queryOpts.HTTP.TLSSetting.LoadTLSConfig(context.Background()) // This checks if the certificates are correctly provided
+		tlsCfg, err := queryOpts.HTTP.TLSSetting.LoadTLSConfig(ctx) // This checks if the certificates are correctly provided
 		if err != nil {
-			return nil, err
+			return nil, errors.Join(err, staticHandlerCloser.Close())
 		}
 		server.TLSConfig = tlsCfg
 	}
-
-	server.staticHandlerCloser = RegisterStaticHandler(r, telset.Logger, queryOpts, querySvc.GetCapabilities())
 
 	return server, nil
 }
@@ -209,10 +285,10 @@ func (hS httpServer) Close() error {
 }
 
 // initListener initialises listeners of the server
-func (s *Server) initListener() (cmux.CMux, error) {
+func (s *Server) initListener(ctx context.Context) (cmux.CMux, error) {
 	if s.separatePorts { // use separate ports and listeners each for gRPC and HTTP requests
 		var err error
-		s.grpcConn, err = net.Listen("tcp", s.queryOptions.GRPC.NetAddr.Endpoint)
+		s.grpcConn, err = s.queryOptions.GRPC.NetAddr.Listen(ctx)
 		if err != nil {
 			return nil, err
 		}
@@ -260,8 +336,8 @@ func (s *Server) initListener() (cmux.CMux, error) {
 }
 
 // Start http, GRPC and cmux servers concurrently
-func (s *Server) Start() error {
-	cmuxServer, err := s.initListener()
+func (s *Server) Start(ctx context.Context) error {
+	cmuxServer, err := s.initListener(ctx)
 	if err != nil {
 		return fmt.Errorf("query server failed to initialize listener: %w", err)
 	}

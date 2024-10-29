@@ -15,6 +15,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/config"
+	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/ports"
 	"github.com/jaegertracing/jaeger/storage/mocks"
 	spanstore_mocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
@@ -182,4 +183,28 @@ func TestQueryOptions_FailedTLSFlags(t *testing.T) {
 			assert.Contains(t, err.Error(), "failed to process "+test+" TLS options")
 		})
 	}
+}
+
+func TestQueryOptions_SamePortsLogsWarning(t *testing.T) {
+	logger, logBuf := testutils.NewLogger()
+	v, command := config.Viperize(AddFlags)
+	command.ParseFlags([]string{
+		"--query.http-server.host-port=127.0.0.1:8081",
+		"--query.grpc-server.host-port=127.0.0.1:8081",
+	})
+	_, err := new(QueryOptions).InitFromViper(v, logger)
+	require.NoError(t, err)
+
+	require.Contains(
+		t,
+		logBuf.String(),
+		"using the same port for gRPC and HTTP is deprecated",
+	)
+}
+
+func TestDefaultQueryOptions(t *testing.T) {
+	qo := DefaultQueryOptions()
+	require.Equal(t, ":16686", qo.HTTP.Endpoint)
+	require.Equal(t, ":16685", qo.GRPC.NetAddr.Endpoint)
+	require.EqualValues(t, "tcp", qo.GRPC.NetAddr.Transport)
 }

@@ -23,7 +23,6 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/query/app/internal/api_v3"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	"github.com/jaegertracing/jaeger/model"
-	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
@@ -46,7 +45,6 @@ const (
 // HTTPGateway exposes APIv3 HTTP endpoints.
 type HTTPGateway struct {
 	QueryService *querysvc.QueryService
-	TenancyMgr   *tenancy.Manager
 	Logger       *zap.Logger
 	Tracer       trace.TracerProvider
 }
@@ -69,9 +67,6 @@ func (h *HTTPGateway) addRoute(
 	_ ...any, /* args */
 ) *mux.Route {
 	var handler http.Handler = http.HandlerFunc(f)
-	if h.TenancyMgr.Enabled {
-		handler = tenancy.ExtractTenantHTTPHandler(h.TenancyMgr, handler)
-	}
 	traceMiddleware := otelhttp.NewHandler(
 		otelhttp.WithRouteTag(route, handler),
 		route,
@@ -143,11 +138,11 @@ func (h *HTTPGateway) getTrace(w http.ResponseWriter, r *http.Request) {
 	if h.tryParamError(w, err, paramTraceID) {
 		return
 	}
-	trace, err := h.QueryService.GetTrace(r.Context(), traceID)
+	trc, err := h.QueryService.GetTrace(r.Context(), traceID)
 	if h.tryHandleError(w, err, http.StatusInternalServerError) {
 		return
 	}
-	h.returnSpans(trace.Spans, w)
+	h.returnSpans(trc.Spans, w)
 }
 
 func (h *HTTPGateway) findTraces(w http.ResponseWriter, r *http.Request) {
@@ -162,8 +157,8 @@ func (h *HTTPGateway) findTraces(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var spans []*model.Span
-	for _, trace := range traces {
-		spans = append(spans, trace.Spans...)
+	for _, t := range traces {
+		spans = append(spans, t.Spans...)
 	}
 	h.returnSpans(spans, w)
 }

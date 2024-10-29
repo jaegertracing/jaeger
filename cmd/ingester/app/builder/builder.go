@@ -37,7 +37,7 @@ func CreateConsumer(logger *zap.Logger, metricsFactory metrics.Factory, spanWrit
 		Writer:       spanWriter,
 		Unmarshaller: unmarshaller,
 	}
-	spanProcessor := processor.NewSpanProcessor(spParams)
+	proc := processor.NewSpanProcessor(spParams)
 
 	consumerConfig := kafkaConsumer.Configuration{
 		Brokers:              options.Brokers,
@@ -58,7 +58,7 @@ func CreateConsumer(logger *zap.Logger, metricsFactory metrics.Factory, spanWrit
 	factoryParams := consumer.ProcessorFactoryParams{
 		Parallelism:    options.Parallelism,
 		SaramaConsumer: saramaConsumer,
-		BaseProcessor:  spanProcessor,
+		BaseProcessor:  proc,
 		Logger:         logger,
 		Factory:        metricsFactory,
 	}

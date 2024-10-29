@@ -27,7 +27,6 @@ import (
 	uiconv "github.com/jaegertracing/jaeger/model/converter/json"
 	ui "github.com/jaegertracing/jaeger/model/json"
 	"github.com/jaegertracing/jaeger/pkg/jtracer"
-	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/plugin/metrics/disabled"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2/metrics"
 	"github.com/jaegertracing/jaeger/storage/metricsstore"
@@ -76,7 +75,6 @@ type APIHandler struct {
 	queryService        *querysvc.QueryService
 	metricsQueryService querysvc.MetricsQueryService
 	queryParser         queryParser
-	tenancyMgr          *tenancy.Manager
 	basePath            string
 	apiPrefix           string
 	logger              *zap.Logger
@@ -84,14 +82,13 @@ type APIHandler struct {
 }
 
 // NewAPIHandler returns an APIHandler
-func NewAPIHandler(queryService *querysvc.QueryService, tm *tenancy.Manager, options ...HandlerOption) *APIHandler {
+func NewAPIHandler(queryService *querysvc.QueryService, options ...HandlerOption) *APIHandler {
 	aH := &APIHandler{
 		queryService: queryService,
 		queryParser: queryParser{
 			traceQueryLookbackDuration: defaultTraceQueryLookbackDuration,
 			timeNow:                    time.Now,
 		},
-		tenancyMgr: tm,
 	}
 
 	for _, option := range options {
@@ -135,9 +132,6 @@ func (aH *APIHandler) handleFunc(
 ) *mux.Route {
 	route := aH.formatRoute(routeFmt, args...)
 	var handler http.Handler = http.HandlerFunc(f)
-	if aH.tenancyMgr.Enabled {
-		handler = tenancy.ExtractTenantHTTPHandler(aH.tenancyMgr, handler)
-	}
 	traceMiddleware := otelhttp.NewHandler(
 		otelhttp.WithRouteTag(route, traceResponseHandler(handler)),
 		route,
@@ -275,7 +269,7 @@ func (aH *APIHandler) tracesByIDs(ctx context.Context, traceIDs []model.TraceID)
 	var traceErrors []structuredError
 	retMe := make([]*model.Trace, 0, len(traceIDs))
 	for _, traceID := range traceIDs {
-		if trace, err := aH.queryService.GetTrace(ctx, traceID); err != nil {
+		if trc, err := aH.queryService.GetTrace(ctx, traceID); err != nil {
 			if !errors.Is(err, spanstore.ErrTraceNotFound) {
 				return nil, nil, err
 			}
@@ -284,7 +278,7 @@ func (aH *APIHandler) tracesByIDs(ctx context.Context, traceIDs []model.TraceID)
 				TraceID: ui.TraceID(traceID.String()),
 			})
 		} else {
-			retMe = append(retMe, trace)
+			retMe = append(retMe, trc)
 		}
 	}
 	return retMe, traceErrors, nil
@@ -363,16 +357,16 @@ func (aH *APIHandler) metrics(w http.ResponseWriter, r *http.Request, getMetrics
 	aH.writeJSON(w, r, m)
 }
 
-func (aH *APIHandler) convertModelToUI(trace *model.Trace, adjust bool) (*ui.Trace, *structuredError) {
+func (aH *APIHandler) convertModelToUI(trc *model.Trace, adjust bool) (*ui.Trace, *structuredError) {
 	var errs []error
 	if adjust {
 		var err error
-		trace, err = aH.queryService.Adjust(trace)
+		trc, err = aH.queryService.Adjust(trc)
 		if err != nil {
 			errs = append(errs, err)
 		}
 	}
-	uiTrace := uiconv.FromDomain(trace)
+	uiTrace := uiconv.FromDomain(trc)
 	var uiError *structuredError
 	if err := errors.Join(errs...); err != nil {
 		uiError = &structuredError{
@@ -438,7 +432,7 @@ func (aH *APIHandler) getTrace(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	trace, err := aH.queryService.GetTrace(r.Context(), traceID)
+	trc, err := aH.queryService.GetTrace(r.Context(), traceID)
 	if errors.Is(err, spanstore.ErrTraceNotFound) {
 		aH.handleError(w, err, http.StatusNotFound)
 		return
@@ -448,7 +442,7 @@ func (aH *APIHandler) getTrace(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var uiErrors []structuredError
-	structuredRes := aH.tracesToResponse([]*model.Trace{trace}, shouldAdjust(r), uiErrors)
+	structuredRes := aH.tracesToResponse([]*model.Trace{trc}, shouldAdjust(r), uiErrors)
 	aH.writeJSON(w, r, structuredRes)
 }
 

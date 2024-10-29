@@ -22,7 +22,6 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/query/app/internal/api_v3"
 	"github.com/jaegertracing/jaeger/model"
 	_ "github.com/jaegertracing/jaeger/pkg/gogocodec" // force gogo codec registration
-	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	spanstoremocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
 )
@@ -101,10 +100,9 @@ func makeTestTrace() (*model.Trace, model.TraceID) {
 func runGatewayTests(
 	t *testing.T,
 	basePath string,
-	tenancyOptions tenancy.Options,
 	setupRequest func(*http.Request),
 ) {
-	gw := setupHTTPGateway(t, basePath, tenancyOptions)
+	gw := setupHTTPGateway(t, basePath)
 	gw.setupRequest = setupRequest
 	t.Run("GetServices", gw.runGatewayGetServices)
 	t.Run("GetOperations", gw.runGatewayGetOperations)

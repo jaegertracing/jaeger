@@ -15,11 +15,11 @@ import (
 func StandardAdjusters(maxClockSkewAdjust time.Duration) []adjuster.Adjuster {
 	return []adjuster.Adjuster{
 		adjuster.ZipkinSpanIDUniquifier(),
-		adjuster.ClockSkew(maxClockSkewAdjust),
+		adjuster.SortTagsAndLogFields(),
+		adjuster.DedupeBySpanHash(),            // requires SortTagsAndLogFields for deterministic results
+		adjuster.ClockSkew(maxClockSkewAdjust), // adds warnings (which affect SpanHash) on dupe span IDs
 		adjuster.IPTagAdjuster(),
 		adjuster.OTelTagAdjuster(),
-		adjuster.SortTagsAndLogFields(),
-		adjuster.DedupeBySpanHash(), // requires SortTagsAndLogFields for deterministic results
 		adjuster.SpanReferences(),
 		adjuster.ParentReference(),
 	}

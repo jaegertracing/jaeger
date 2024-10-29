@@ -121,13 +121,13 @@ func initializeTestServerWithOptions(
 	dependencyStorage := &depsmocks.Reader{}
 	qs := querysvc.NewQueryService(readStorage, dependencyStorage, queryOptions)
 	r := NewRouter()
-	handler := NewAPIHandler(qs, tenancyMgr, options...)
-	handler.RegisterRoutes(r)
+	apiHandler := NewAPIHandler(qs, options...)
+	apiHandler.RegisterRoutes(r)
 	ts := &testServer{
 		server:           httptest.NewServer(tenancy.ExtractTenantHTTPHandler(tenancyMgr, r)),
 		spanReader:       readStorage,
 		dependencyReader: dependencyStorage,
-		handler:          handler,
+		handler:          apiHandler,
 	}
 	t.Cleanup(func() {
 		ts.server.Close()
@@ -162,13 +162,45 @@ func TestGetTraceSuccess(t *testing.T) {
 	assert.Empty(t, response.Errors)
 }
 
+func extractTraces(t *testing.T, response *structuredResponse) []ui.Trace {
+	var traces []ui.Trace
+	b, err := json.Marshal(response.Data)
+	require.NoError(t, err)
+	err = json.Unmarshal(b, &traces)
+	require.NoError(t, err)
+	return traces
+}
+
+// TestGetTraceDedupeSuccess partially verifies that the standard adjusteres
+// are defined in correct order.
+func TestGetTraceDedupeSuccess(t *testing.T) {
+	dupedMockTrace := &model.Trace{
+		Spans:    append(mockTrace.Spans, mockTrace.Spans...),
+		Warnings: []string{},
+	}
+
+	ts := initializeTestServer(t)
+	ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
+		Return(dupedMockTrace, nil).Once()
+
+	var response structuredResponse
+	err := getJSON(ts.server.URL+`/api/traces/123456`, &response)
+	require.NoError(t, err)
+	assert.Empty(t, response.Errors)
+	traces := extractTraces(t, &response)
+	assert.Len(t, traces[0].Spans, 2)
+	for _, span := range traces[0].Spans {
+		assert.Empty(t, span.Warnings, "clock skew adjuster would've complained about dupes")
+	}
+}
+
 func TestLogOnServerError(t *testing.T) {
 	zapCore, logs := observer.New(zap.InfoLevel)
 	logger := zap.New(zapCore)
 	readStorage := &spanstoremocks.Reader{}
 	dependencyStorage := &depsmocks.Reader{}
 	qs := querysvc.NewQueryService(readStorage, dependencyStorage, querysvc.QueryServiceOptions{})
-	h := NewAPIHandler(qs, &tenancy.Manager{}, HandlerOptions.Logger(logger))
+	h := NewAPIHandler(qs, HandlerOptions.Logger(logger))
 	e := errors.New("test error")
 	h.handleError(&httptest.ResponseRecorder{}, e, http.StatusInternalServerError)
 	require.Len(t, logs.All(), 1)
@@ -274,15 +306,6 @@ func TestGetTrace(t *testing.T) {
 			{TraceID: model.NewTraceID(0, 0)},
 		}
 		return &trace
-	}
-
-	extractTraces := func(t *testing.T, response *structuredResponse) []ui.Trace {
-		var traces []ui.Trace
-		bytes, err := json.Marshal(response.Data)
-		require.NoError(t, err)
-		err = json.Unmarshal(bytes, &traces)
-		require.NoError(t, err)
-		return traces
 	}
 
 	for _, tc := range testCases {
