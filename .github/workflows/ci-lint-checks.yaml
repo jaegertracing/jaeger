@@ -24,7 +24,6 @@ jobs:
         egress-policy: audit # TODO: change to 'egress-policy: block' after a couple of runs
 
     - uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938 # v4.2.0
-      depth: 0
 
     - uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5.0.2
       with:
@@ -48,7 +47,10 @@ jobs:
 
     - uses: ./.github/actions/block-pr-from-main-branch
 
-    - run: make lint-nocommit
+    - run: |
+        git remote --verbose
+        git fetch origin main
+        make lint-nocommit
 
   dco-check:
     runs-on: ubuntu-latest
