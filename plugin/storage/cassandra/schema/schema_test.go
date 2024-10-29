@@ -11,8 +11,8 @@ import (
 )
 
 func TestQueryCreationFromTemplate(t *testing.T) {
-	cfg := DefaultSchema()
-	res, err := getQueryFileAsBytes(`v004-go-tmpl-test.cql.tmpl`, &cfg)
+	params := DefaultParams()
+	res, err := getQueryFileAsBytes(`v004-go-tmpl-test.cql.tmpl`, params)
 	require.NoError(t, err)
 
 	queryStrings, err := getQueriesFromBytes(res)

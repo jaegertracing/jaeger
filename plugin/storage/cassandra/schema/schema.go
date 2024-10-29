@@ -19,92 +19,107 @@ import (
 //go:embed v004-go-tmpl-test.cql.tmpl
 var schemaFile embed.FS
 
-func DefaultSchema() config.Schema {
-	return config.Schema{
-		Keyspace:          "jaeger_v2_test",
-		Datacenter:        "test",
-		TraceTTL:          172800,
-		DependenciesTTL:   0,
-		ReplicationFactor: 1,
-		CasVersion:        4,
+type TemplateParams struct {
+	config.Schema
+	// Replication is the replication strategy used
+	Replication string `mapstructure:"replication" valid:"optional"`
+	// CompactionWindowSize is the numberical part of CompactionWindow. Extracted from CompactionWindow
+	CompactionWindowSize int `mapstructure:"compaction_window_size" valid:"optional"`
+	// CompactionWindowUnit is the time unit of the CompactionWindow. Extracted from CompactionWindow
+	CompactionWindowUnit string `mapstructure:"compaction_window_unit" valid:"optional"`
+}
+
+func DefaultParams() TemplateParams {
+	return TemplateParams{
+		Schema: config.Schema{
+			Keyspace:          "jaeger_v2_test",
+			Datacenter:        "test",
+			TraceTTL:          172800,
+			DependenciesTTL:   0,
+			ReplicationFactor: 1,
+			CasVersion:        4,
+		},
 	}
 }
 
-func applyDefaults(cfg *config.Schema) {
-	defaultSchema := DefaultSchema()
+func applyDefaults(params *TemplateParams) {
+	defaultSchema := DefaultParams()
 
-	if cfg.Keyspace == "" {
-		cfg.Keyspace = defaultSchema.Keyspace
+	if params.Keyspace == "" {
+		params.Keyspace = defaultSchema.Keyspace
 	}
 
-	if cfg.Datacenter == "" {
-		cfg.Datacenter = defaultSchema.Datacenter
+	if params.Datacenter == "" {
+		params.Datacenter = defaultSchema.Datacenter
 	}
 
-	if cfg.TraceTTL == 0 {
-		cfg.TraceTTL = defaultSchema.TraceTTL
+	if params.TraceTTL == 0 {
+		params.TraceTTL = defaultSchema.TraceTTL
 	}
 
-	if cfg.ReplicationFactor == 0 {
-		cfg.ReplicationFactor = defaultSchema.ReplicationFactor
+	if params.ReplicationFactor == 0 {
+		params.ReplicationFactor = defaultSchema.ReplicationFactor
 	}
 
-	if cfg.CasVersion == 0 {
-		cfg.CasVersion = 4
+	if params.CasVersion == 0 {
+		params.CasVersion = 4
 	}
 }
 
 // Applies defaults for the configs and contructs other optional parameters from it
-func constructCompleteSchema(cfg *config.Schema) error {
-	applyDefaults(cfg)
+func constructTemplateParams(cfg config.Schema) (TemplateParams, error) {
+	params := TemplateParams{
+		Schema: config.Schema{},
+	}
+	applyDefaults(&params)
 
-	cfg.Replication = fmt.Sprintf("{'class': 'NetworkTopologyStrategy', '%s': '%v' }", cfg.Datacenter, cfg.ReplicationFactor)
+	params.Replication = fmt.Sprintf("{'class': 'NetworkTopologyStrategy', '%s': '%v' }", params.Datacenter, params.ReplicationFactor)
 
 	if cfg.CompactionWindow != "" {
-		isMatch, err := regexp.MatchString("^[0-9]+[mhd]$", cfg.CompactionWindow)
+		isMatch, err := regexp.MatchString("^[0-9]+[mhd]$", params.CompactionWindow)
 		if err != nil {
-			return err
+			return TemplateParams{}, err
 		}
 
 		if !isMatch {
-			return fmt.Errorf("Invalid compaction window size format. Please use numeric value followed by 'm' for minutes, 'h' for hours, or 'd' for days")
+			return TemplateParams{}, fmt.Errorf("Invalid compaction window size format. Please use numeric value followed by 'm' for minutes, 'h' for hours, or 'd' for days")
 		}
 
-		cfg.CompactionWindowSize, err = strconv.Atoi(cfg.CompactionWindow[:len(cfg.CompactionWindow)-1])
+		params.CompactionWindowSize, err = strconv.Atoi(params.CompactionWindow[:len(params.CompactionWindow)-1])
 		if err != nil {
-			return err
+			return TemplateParams{}, err
 		}
 
-		cfg.CompactionWindowUnit = cfg.CompactionWindow[len(cfg.CompactionWindow)-1:]
+		params.CompactionWindowUnit = params.CompactionWindow[len(params.CompactionWindow)-1:]
 	} else {
 		traceTTLMinutes := cfg.TraceTTL / 60
 
-		cfg.CompactionWindowSize = (traceTTLMinutes + 30 - 1) / 30
-		cfg.CompactionWindowUnit = "m"
+		params.CompactionWindowSize = (traceTTLMinutes + 30 - 1) / 30
+		params.CompactionWindowUnit = "m"
 	}
 
-	switch cfg.CompactionWindowUnit {
+	switch params.CompactionWindowUnit {
 	case `m`:
-		cfg.CompactionWindowUnit = `MINUTES`
+		params.CompactionWindowUnit = `MINUTES`
 	case `h`:
-		cfg.CompactionWindowUnit = `HOURS`
+		params.CompactionWindowUnit = `HOURS`
 	case `d`:
-		cfg.CompactionWindowUnit = `DAYS`
+		params.CompactionWindowUnit = `DAYS`
 	default:
-		return fmt.Errorf("Invalid compaction window unit. If can be among {m|h|d}")
+		return TemplateParams{}, fmt.Errorf("Invalid compaction window unit. If can be among {m|h|d}")
 	}
 
-	return nil
+	return params, nil
 }
 
-func getQueryFileAsBytes(fileName string, cfg *config.Schema) ([]byte, error) {
+func getQueryFileAsBytes(fileName string, params TemplateParams) ([]byte, error) {
 	tmpl, err := template.ParseFS(schemaFile, fileName)
 	if err != nil {
 		return nil, err
 	}
 
 	var result bytes.Buffer
-	err = tmpl.Execute(&result, cfg)
+	err = tmpl.Execute(&result, params)
 	if err != nil {
 		return nil, err
 	}
@@ -162,12 +177,12 @@ func getCassandraQueriesFromQueryStrings(session cassandra.Session, queries []st
 }
 
 func contructSchemaQueries(session cassandra.Session, cfg *config.Schema) ([]cassandra.Query, error) {
-	err := constructCompleteSchema(cfg)
+	params, err := constructTemplateParams(*cfg)
 	if err != nil {
 		return nil, err
 	}
 
-	queryFile, err := getQueryFileAsBytes(`v004-go-tmpl.cql.tmpl`, cfg)
+	queryFile, err := getQueryFileAsBytes(`v004-go-tmpl.cql.tmpl`, params)
 	if err != nil {
 		return nil, err
 	}

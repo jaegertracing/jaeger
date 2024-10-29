@@ -70,12 +70,6 @@ type Schema struct {
 	CasVersion int `mapstructure:"cas_version" valid:"optional"`
 	// CompactionWindow of format "^[0-9]+[mhd]$" tells the compaction window of the db
 	CompactionWindow string `mapstructure:"compaction_window" valid:"optional"`
-	// Replication is the replication strategy used
-	Replication string `mapstructure:"replication" valid:"optional"`
-	// CompactionWindowSize is the numberical part of CompactionWindow. Extracted from CompactionWindow
-	CompactionWindowSize int `mapstructure:"compaction_window_size" valid:"optional"`
-	// CompactionWindowUnit is the time unit of the CompactionWindow. Extracted from CompactionWindow
-	CompactionWindowUnit string `mapstructure:"compaction_window_unit" valid:"optional"`
 }
 
 type Query struct {
