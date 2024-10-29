@@ -34,9 +34,9 @@ while getopts "hlop:" opt; do
 	p)
 		platforms=${OPTARG}
 		;;
-  v)
-    jaeger_version=${OPTARG}
-    ;;
+	v)
+		jaeger_version=${OPTARG}
+		;;
 	*)
 		print_help
 		;;
