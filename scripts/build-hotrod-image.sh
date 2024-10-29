@@ -88,11 +88,11 @@ bash scripts/build-upload-a-docker-image.sh -l -c example-hotrod -d examples/hot
 # Build all-in-one (for v1) or jaeger (for v2) image locally (-l) for integration test
 if [[ "$BINARY" == "all-in-one" ]]; then
     # Build all-in-one image for v1
-    make build BINARY="$BINARY"
+    make build-all-in-one
     bash scripts/build-upload-a-docker-image.sh -l -b -c all-in-one -d cmd/all-in-one -p "${current_platform}" -t release
 else
     # Build jaeger image for v2
-    make build BINARY="$BINARY"
+    make build-jaeger
     bash scripts/build-upload-a-docker-image.sh -l -b -c jaeger -d cmd/jaeger -p "${current_platform}" -t release
 fi
 
