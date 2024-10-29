@@ -6,17 +6,19 @@
 set -euf -o pipefail
 
 print_help() {
-  echo "Usage: $0 [-h] [-l] [-o] [-p platforms]"
+  echo "Usage: $0 [-h] [-l] [-o] [-p platforms] [-v jaeger_version]"
   echo "-h: Print help"
   echo "-l: Enable local-only mode that only pushes images to local registry"
   echo "-o: overwrite image in the target remote repository even if the semver tag already exists"
   echo "-p: Comma-separated list of platforms to build for (default: all supported)"
+  echo "-v: Jaeger version to use for the hotrod image (v1 or v2, default: v1)"
   exit 1
 }
 
 docker_compose_file="./examples/hotrod/docker-compose.yml"
 platforms="$(make echo-linux-platforms)"
 current_platform="$(go env GOOS)/$(go env GOARCH)"
+jaeger_version="v1"
 FLAGS=()
 success="false"
 
@@ -32,11 +34,21 @@ while getopts "hlop:" opt; do
 	p)
 		platforms=${OPTARG}
 		;;
+  v)
+    jaeger_version=${OPTARG}
+    ;;
 	*)
 		print_help
 		;;
 	esac
 done
+
+if [[ "$jaeger_version" != "v1" && "$jaeger_version" != "v2" ]]; then
+  echo "Invalid Jaeger version: $jaeger_version"
+  print_help
+elif [[ "$jaeger_version" == "v2" ]]; then
+  docker_compose_file="./examples/hotrod/docker-compose-v2.yml"
+fi
 
 set -x
 
