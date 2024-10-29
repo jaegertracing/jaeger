@@ -22,7 +22,7 @@ jaeger_version="v1"
 FLAGS=()
 success="false"
 
-while getopts "hlop:" opt; do
+while getopts "hlop:v:" opt; do
 	case "${opt}" in
 	l)
 		# in the local-only mode the images will only be pushed to local registry
