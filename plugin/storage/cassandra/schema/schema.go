@@ -137,7 +137,7 @@ func getQueriesFromBytes(queryFile []byte) ([]string, error) {
 	// Construct individual queries strings
 	var queryString string
 	for _, line := range extractedLines {
-		queryString += string(line)
+		queryString += string(line) + "\n"
 		if bytes.HasSuffix(line, []byte(";")) {
 			queries = append(queries, queryString)
 			queryString = ""
