@@ -14,6 +14,7 @@ import (
 )
 
 func TestNewLogger(t *testing.T) {
+	t.Parallel()
 	logger, log := NewLogger()
 	logger.Warn("hello", zap.String("x", "y"))
 
@@ -26,11 +27,13 @@ func TestNewLogger(t *testing.T) {
 }
 
 func TestNewEchoLogger(t *testing.T) {
+	t.Parallel()
 	logger, _ := NewEchoLogger(t)
 	logger.Warn("hello", zap.String("x", "y"))
 }
 
 func TestJSONLineError(t *testing.T) {
+	t.Parallel()
 	log := &Buffer{}
 	log.WriteString("bad-json\n")
 	_, ok := log.JSONLine(0)["error"]
@@ -64,6 +67,7 @@ func TestRaceCondition(*testing.T) {
 }
 
 func TestLogMatcher(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		occurrences int
 		subStr      string
@@ -80,6 +84,7 @@ func TestLogMatcher(t *testing.T) {
 	for i, tt := range tests {
 		test := tt
 		t.Run(fmt.Sprintf("%v", i), func(t *testing.T) {
+			t.Parallel()
 			match, errMsg := LogMatcher(test.occurrences, test.subStr, test.logs)
 			assert.Equal(t, test.expected, match)
 			assert.Equal(t, test.errMsg, errMsg)
