@@ -48,7 +48,6 @@ jobs:
     - uses: ./.github/actions/block-pr-from-main-branch
 
     - run: |
-        git remote --verbose
         git fetch origin main
         make lint-nocommit
 

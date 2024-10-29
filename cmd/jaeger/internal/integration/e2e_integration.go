@@ -201,11 +201,6 @@ func (s *E2EStorageIntegration) doHealthCheck(t *testing.T) bool {
 		t.Logf("Received non-OK status %s: %s", healthResponse.Status, string(body))
 		return false
 	}
-
-	// @nocommit: this is a temporary hack to ensure reproducible failure
-	t.Logf("%s is ready, but let's sleep a bit", s.BinaryName)
-	time.Sleep(30*time.Second + 3*time.Second)
-
 	return true
 }
 
