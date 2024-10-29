@@ -1,6 +1,4 @@
--- There are total 9 queries here
-
-CREATE KEYSPACE IF NOT EXISTS {{.Keyspace}} WITH replication = {{.Replication}};
+-- There are total 4 queries here
 
 CREATE TYPE IF NOT EXISTS {{.Keyspace}}.keyvalue (
     key             text,
@@ -17,17 +15,6 @@ CREATE TYPE IF NOT EXISTS {{.Keyspace}}.log (
     fields  frozen<list<frozen<{{.Keyspace}}.keyvalue>>>
 );
 
-CREATE TYPE IF NOT EXISTS {{.Keyspace}}.span_ref (
-    ref_type        text,
-    trace_id        blob,
-    span_id         bigint
-);
-
-CREATE TYPE IF NOT EXISTS {{.Keyspace}}.process (
-    service_name    text,
-    tags            frozen<list<frozen<{{.Keyspace}}.keyvalue>>>
-);
-
 CREATE TABLE IF NOT EXISTS {{.Keyspace}}.service_names (
     service_name text,
     PRIMARY KEY (service_name)
@@ -40,34 +27,6 @@ CREATE TABLE IF NOT EXISTS {{.Keyspace}}.service_names (
     AND default_time_to_live = {{.TraceTTL}}
     AND speculative_retry = 'NONE'
     AND gc_grace_seconds = 10800; -- 3 hours of downtime acceptable on nodes
-
--- a bucketing strategy may have to be added for tag queries
--- we can make this table even better by adding a timestamp to it
-CREATE TABLE IF NOT EXISTS {{.Keyspace}}.tag_index (
-    service_name    text,
-    tag_key         text,
-    tag_value       text,
-    start_time      bigint, -- microseconds since epoch
-    trace_id        blob,
-    span_id         bigint,
-    PRIMARY KEY ((service_name, tag_key, tag_value), start_time, trace_id, span_id)
-)
-    WITH CLUSTERING ORDER BY (start_time DESC)
-    AND compaction = {
-        'compaction_window_size': '1',
-        'compaction_window_unit': 'HOURS',
-        'class': 'org.apache.cassandra.db.compaction.TimeWindowCompactionStrategy'
-    }
-    AND default_time_to_live = {{.TraceTTL}}
-    AND speculative_retry = 'NONE'
-    AND gc_grace_seconds = 10800; -- 3 hours of downtime acceptable on nodes
-
-CREATE TYPE IF NOT EXISTS {{.Keyspace}}.dependency (
-    parent          text,
-    child           text,
-    call_count      bigint,
-    source          text
-);
 
 -- compaction strategy is intentionally different as compared to other tables due to the size of dependencies data
 CREATE TABLE IF NOT EXISTS {{.Keyspace}}.dependencies_v2 (
