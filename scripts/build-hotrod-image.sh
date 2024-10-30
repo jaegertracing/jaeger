@@ -6,23 +6,23 @@
 set -euf -o pipefail
 
 print_help() {
-  echo "Usage: $0 [-h] [-l] [-o] [-p platforms] [-b binary]"
+  echo "Usage: $0 [-h] [-l] [-o] [-p platforms] [-v jaeger_version]"
   echo "-h: Print help"
   echo "-l: Enable local-only mode that only pushes images to local registry"
   echo "-o: overwrite image in the target remote repository even if the semver tag already exists"
   echo "-p: Comma-separated list of platforms to build for (default: all supported)"
-  echo "-b: Which binary to build: 'all-in-one' (v1) (default) or 'jaeger' (v2)"
+  echo "-v: Jaeger version to use for hotrod image (v1 or v2, default: v1)"
   exit 1
 }
 
 docker_compose_file="./examples/hotrod/docker-compose.yml"
 platforms="$(make echo-linux-platforms)"
 current_platform="$(go env GOOS)/$(go env GOARCH)"
-BINARY="all-in-one"
+jaeger_version="v1"
 FLAGS=()
 success="false"
 
-while getopts "hlop:b:" opt; do
+while getopts "hlop:v:" opt; do
 	case "${opt}" in
 	l)
 		# in the local-only mode the images will only be pushed to local registry
@@ -34,8 +34,8 @@ while getopts "hlop:b:" opt; do
 	p)
 		platforms=${OPTARG}
 		;;
-	b)
-    BINARY=${OPTARG}
+	v)
+		jaeger_version=${OPTARG}
 		;;
 	*)
 		print_help
@@ -43,10 +43,10 @@ while getopts "hlop:b:" opt; do
 	esac
 done
 
-if [[ "$BINARY" != "all-in-one" && "$BINARY" != "jaeger" ]]; then
-  echo "Invalid binary type provided: $BINARY"
+if [[ "$jaeger_version" != "v1" && "$jaeger_version" != "v2" ]]; then
+  echo "Invalid Jaeger version provided: $jaeger_version"
   print_help
-elif [[ "$BINARY" == "jaeger" ]]; then
+elif [[ "$jaeger_version" == "v2" ]]; then
   docker_compose_file="./examples/hotrod/docker-compose-v2.yml"
 fi
 
@@ -86,7 +86,7 @@ done
 bash scripts/build-upload-a-docker-image.sh -l -c example-hotrod -d examples/hotrod -p "${current_platform}"
 
 # Build all-in-one (for v1) or jaeger (for v2) image locally (-l) for integration test
-if [[ "$BINARY" == "all-in-one" ]]; then
+if [[ "$jaeger_version" == "v1" ]]; then
     # Build all-in-one image for v1
     make build-all-in-one
     bash scripts/build-upload-a-docker-image.sh -l -b -c all-in-one -d cmd/all-in-one -p "${current_platform}" -t release
