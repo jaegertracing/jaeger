@@ -153,9 +153,9 @@ lint-license:
 
 .PHONY: lint-nocommit
 lint-nocommit:
-	@if git diff main | grep '@no''commit' ; then \
+	@if git diff origin/main | grep '@no''commit' ; then \
 		echo "❌ Cannot merge PR that contains @no""commit string" ; \
-		GIT_PAGER=cat git diff -G '@no''commit' main ; \
+		GIT_PAGER=cat git diff -G '@no''commit' origin/main ; \
 		false ; \
 	else \
 		echo "✅ Changes do not contain @no""commit string" ; \

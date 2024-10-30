@@ -47,7 +47,9 @@ jobs:
 
     - uses: ./.github/actions/block-pr-from-main-branch
 
-    - run: make lint-nocommit
+    - run: |
+        git fetch origin main
+        make lint-nocommit
 
   dco-check:
     runs-on: ubuntu-latest
