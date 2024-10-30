@@ -12,9 +12,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
-	"time"
 
-	"github.com/gorilla/handlers"
 	"github.com/soheilhy/cmux"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componentstatus"
@@ -23,7 +21,6 @@ import (
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/metric/noop"
 	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/health"
@@ -91,12 +88,7 @@ func NewServer(
 		return nil, err
 	}
 	registerGRPCHandlers(grpcServer, querySvc, metricsQuerySvc, telset)
-	var httpServer *httpServer
-	if !separatePorts {
-		httpServer, err = createHTTPServerLegacy(ctx, querySvc, metricsQuerySvc, options, tm, telset)
-	} else {
-		httpServer, err = createHTTPServerOTEL(ctx, querySvc, metricsQuerySvc, options, tm, telset)
-	}
+	httpServer, err := createHTTPServer(ctx, querySvc, metricsQuerySvc, options, tm, telset)
 	if err != nil {
 		return nil, err
 	}
@@ -247,39 +239,7 @@ func initRouter(
 	return handler, staticHandlerCloser
 }
 
-func createHTTPServerLegacy(
-	ctx context.Context,
-	querySvc *querysvc.QueryService,
-	metricsQuerySvc querysvc.MetricsQueryService,
-	queryOpts *QueryOptions,
-	tm *tenancy.Manager,
-	telset telemetery.Setting,
-) (*httpServer, error) {
-	handler, staticHandlerCloser := initRouter(querySvc, metricsQuerySvc, queryOpts, tm, telset)
-	handler = responseHeadersHandler(handler, queryOpts.HTTP.ResponseHeaders)
-	handler = handlers.CompressHandler(handler)
-	handler = recoveryhandler.NewRecoveryHandler(telset.Logger, true)(handler)
-	errorLog, _ := zap.NewStdLogAt(telset.Logger, zapcore.ErrorLevel)
-	server := &httpServer{
-		Server: &http.Server{
-			Handler:           handler,
-			ErrorLog:          errorLog,
-			ReadHeaderTimeout: 2 * time.Second,
-		},
-		staticHandlerCloser: staticHandlerCloser,
-	}
-
-	if queryOpts.HTTP.TLSSetting != nil {
-		tlsCfg, err := queryOpts.HTTP.TLSSetting.LoadTLSConfig(ctx) // This checks if the certificates are correctly provided
-		if err != nil {
-			return nil, errors.Join(err, staticHandlerCloser.Close())
-		}
-		server.TLSConfig = tlsCfg
-	}
-	return server, nil
-}
-
-func createHTTPServerOTEL(
+func createHTTPServer(
 	ctx context.Context,
 	querySvc *querysvc.QueryService,
 	metricsQuerySvc querysvc.MetricsQueryService,

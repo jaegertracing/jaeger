@@ -895,16 +895,18 @@ func TestServerHTTP_TracesRequest(t *testing.T) {
 			expectedTrace: "/api/v3/traces/{trace_id}",
 		},
 		{
-			name:         "same port (legacy implementation) [no tracing]",
-			httpEndpoint: ":8080",
-			grpcEndpoint: ":8080",
-			queryString:  "/api/traces/123456aBC",
+			name:          "same port (legacy implementation) [no tracing]",
+			httpEndpoint:  ":8080",
+			grpcEndpoint:  ":8080",
+			queryString:   "/api/traces/123456aBC",
+			expectedTrace: "/api/traces/{traceID}",
 		},
 		{
-			name:         "same port (legacy implementation) for v3 api [no tracing]",
-			httpEndpoint: ":8080",
-			grpcEndpoint: ":8080",
-			queryString:  "/api/v3/traces/123456aBC",
+			name:          "same port (legacy implementation) for v3 api [no tracing]",
+			httpEndpoint:  ":8080",
+			grpcEndpoint:  ":8080",
+			queryString:   "/api/v3/traces/123456aBC",
+			expectedTrace: "/api/v3/traces/{trace_id}",
 		},
 	}
 
