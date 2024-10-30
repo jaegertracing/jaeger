@@ -12,9 +12,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
-	"time"
 
-	"github.com/gorilla/handlers"
 	"github.com/soheilhy/cmux"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componentstatus"
@@ -23,7 +21,6 @@ import (
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/metric/noop"
 	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/health"
@@ -91,7 +88,6 @@ func NewServer(
 		return nil, err
 	}
 	registerGRPCHandlers(grpcServer, querySvc, metricsQuerySvc, telset)
-
 	httpServer, err := createHTTPServer(ctx, querySvc, metricsQuerySvc, options, tm, telset)
 	if err != nil {
 		return nil, err
@@ -262,20 +258,28 @@ func createHTTPServer(
 	telset telemetery.Setting,
 ) (*httpServer, error) {
 	handler, staticHandlerCloser := initRouter(querySvc, metricsQuerySvc, queryOpts, tm, telset)
-	handler = responseHeadersHandler(handler, queryOpts.HTTP.ResponseHeaders)
-	handler = handlers.CompressHandler(handler)
-	recoveryHandler := recoveryhandler.NewRecoveryHandler(telset.Logger, true)
-
-	errorLog, _ := zap.NewStdLogAt(telset.Logger, zapcore.ErrorLevel)
-	server := &httpServer{
-		Server: &http.Server{
-			Handler:           recoveryHandler(handler),
-			ErrorLog:          errorLog,
-			ReadHeaderTimeout: 2 * time.Second,
+	handler = recoveryhandler.NewRecoveryHandler(telset.Logger, true)(handler)
+	hs, err := queryOpts.HTTP.ToServer(
+		ctx,
+		telset.Host,
+		component.TelemetrySettings{
+			Logger:         telset.Logger,
+			TracerProvider: telset.TracerProvider,
+			LeveledMeterProvider: func(_ configtelemetry.Level) metric.MeterProvider {
+				return noop.NewMeterProvider()
+			},
 		},
+		handler,
+	)
+	if err != nil {
+		return nil, errors.Join(err, staticHandlerCloser.Close())
+	}
+	server := &httpServer{
+		Server:              hs,
 		staticHandlerCloser: staticHandlerCloser,
 	}
 
+	// TODO why doesn't OTEL helper do that already?
 	if queryOpts.HTTP.TLSSetting != nil {
 		tlsCfg, err := queryOpts.HTTP.TLSSetting.LoadTLSConfig(ctx) // This checks if the certificates are correctly provided
 		if err != nil {
@@ -303,7 +307,7 @@ func (s *Server) initListener(ctx context.Context) (cmux.CMux, error) {
 			return nil, err
 		}
 
-		s.httpConn, err = net.Listen("tcp", s.queryOptions.HTTP.Endpoint)
+		s.httpConn, err = s.queryOptions.HTTP.ToListener(ctx)
 		if err != nil {
 			return nil, err
 		}
