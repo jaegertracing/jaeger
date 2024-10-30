@@ -123,13 +123,13 @@ func (f *Factory) newRemoteStorage(
 	if c.Auth != nil {
 		return nil, fmt.Errorf("authenticator is not supported")
 	}
-	tenancyMgr := tenancy.NewManager(&c.Tenancy)
 	unaryInterceptors := []grpc.UnaryClientInterceptor{
 		bearertoken.NewUnaryClientInterceptor(),
 	}
 	streamInterceptors := []grpc.StreamClientInterceptor{
-		tenancy.NewClientStreamInterceptor(tenancyMgr),
+		bearertoken.NewStreamClientInterceptor(),
 	}
+	tenancyMgr := tenancy.NewManager(&c.Tenancy)
 	if tenancyMgr.Enabled {
 		unaryInterceptors = append(unaryInterceptors, tenancy.NewClientUnaryInterceptor(tenancyMgr))
 		streamInterceptors = append(streamInterceptors, tenancy.NewClientStreamInterceptor(tenancyMgr))

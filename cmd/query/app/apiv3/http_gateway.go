@@ -60,18 +60,16 @@ func (h *HTTPGateway) RegisterRoutes(router *mux.Router) {
 
 // addRoute adds a new endpoint to the router with given path and handler function.
 // This code is mostly copied from ../http_handler.
-func (h *HTTPGateway) addRoute(
+func (*HTTPGateway) addRoute(
 	router *mux.Router,
 	f func(http.ResponseWriter, *http.Request),
 	route string,
 	_ ...any, /* args */
 ) *mux.Route {
 	var handler http.Handler = http.HandlerFunc(f)
-	traceMiddleware := otelhttp.NewHandler(
-		otelhttp.WithRouteTag(route, handler),
-		route,
-		otelhttp.WithTracerProvider(h.Tracer))
-	return router.HandleFunc(route, traceMiddleware.ServeHTTP)
+	handler = otelhttp.WithRouteTag(route, handler)
+	handler = spanNameHandler(route, handler)
+	return router.HandleFunc(route, handler.ServeHTTP)
 }
 
 // tryHandleError checks if the passed error is not nil and handles it by writing
@@ -241,4 +239,12 @@ func (h *HTTPGateway) getOperations(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	h.marshalResponse(&api_v3.GetOperationsResponse{Operations: apiOperations}, w)
+}
+
+func spanNameHandler(spanName string, handler http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		span := trace.SpanFromContext(r.Context())
+		span.SetName(spanName)
+		handler.ServeHTTP(w, r)
+	})
 }
