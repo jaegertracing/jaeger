@@ -881,28 +881,28 @@ func TestServerHTTP_TracesRequest(t *testing.T) {
 		expectedTrace string
 	}{
 		{
-			name:          "different ports (OTEL implementation)",
+			name:          "different ports",
 			httpEndpoint:  ":8080",
 			grpcEndpoint:  ":8081",
 			queryString:   "/api/traces/123456aBC",
 			expectedTrace: "/api/traces/{traceID}",
 		},
 		{
-			name:          "different ports (OTEL implementation) for v3 api",
+			name:          "different ports for v3 api",
 			httpEndpoint:  ":8080",
 			grpcEndpoint:  ":8081",
 			queryString:   "/api/v3/traces/123456aBC",
 			expectedTrace: "/api/v3/traces/{trace_id}",
 		},
 		{
-			name:          "same port (legacy implementation) [no tracing]",
+			name:          "same port",
 			httpEndpoint:  ":8080",
 			grpcEndpoint:  ":8080",
 			queryString:   "/api/traces/123456aBC",
 			expectedTrace: "/api/traces/{traceID}",
 		},
 		{
-			name:          "same port (legacy implementation) for v3 api [no tracing]",
+			name:          "same port for v3 api",
 			httpEndpoint:  ":8080",
 			grpcEndpoint:  ":8080",
 			queryString:   "/api/v3/traces/123456aBC",
