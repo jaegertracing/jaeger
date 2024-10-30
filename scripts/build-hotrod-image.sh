@@ -19,6 +19,7 @@ docker_compose_file="./examples/hotrod/docker-compose.yml"
 platforms="$(make echo-linux-platforms)"
 current_platform="$(go env GOOS)/$(go env GOARCH)"
 jaeger_version="v1"
+binary="all-in-one"
 FLAGS=()
 success="false"
 
@@ -43,12 +44,20 @@ while getopts "hlop:v:" opt; do
 	esac
 done
 
-if [[ "$jaeger_version" != "v1" && "$jaeger_version" != "v2" ]]; then
-  echo "Invalid Jaeger version provided: $jaeger_version"
-  print_help
-elif [[ "$jaeger_version" == "v2" ]]; then
-  docker_compose_file="./examples/hotrod/docker-compose-v2.yml"
-fi
+case "$jaeger_version" in
+  v1)
+    docker_compose_file="./examples/hotrod/docker-compose.yml"
+    binary="all-in-one"
+    ;;
+  v2)
+    docker_compose_file="./examples/hotrod/docker-compose-v2.yml"
+    binary="jaeger"
+    ;;
+  *)
+    echo "Invalid Jaeger version provided: $jaeger_version" 
+    print_help
+    ;;
+esac
 
 set -x
 
@@ -86,15 +95,8 @@ done
 bash scripts/build-upload-a-docker-image.sh -l -c example-hotrod -d examples/hotrod -p "${current_platform}"
 
 # Build all-in-one (for v1) or jaeger (for v2) image locally (-l) for integration test
-if [[ "$jaeger_version" == "v1" ]]; then
-    # Build all-in-one image for v1
-    make build-all-in-one
-    bash scripts/build-upload-a-docker-image.sh -l -b -c all-in-one -d cmd/all-in-one -p "${current_platform}" -t release
-else
-    # Build jaeger image for v2
-    make build-jaeger
-    bash scripts/build-upload-a-docker-image.sh -l -b -c jaeger -d cmd/jaeger -p "${current_platform}" -t release
-fi
+make build-${binary}
+bash scripts/build-upload-a-docker-image.sh -l -b -c "${binary}" -d cmd/"${binary}" -p "${current_platform}" -t release
 
 echo '::group:: docker compose'
 JAEGER_VERSION=$GITHUB_SHA REGISTRY="localhost:5000/" docker compose -f "$docker_compose_file" up -d
