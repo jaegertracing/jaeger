@@ -18,6 +18,11 @@ permissions:
 jobs:
   hotrod:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        jaeger-version: [v1, v2]
+          
     steps:
     - uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
       with:
@@ -53,7 +58,7 @@ jobs:
         esac
 
     - name: Build, test, and publish hotrod image
-      run: bash scripts/build-hotrod-image.sh ${{ env.BUILD_FLAGS }}
+      run: bash scripts/build-hotrod-image.sh ${{ env.BUILD_FLAGS }} -v ${{ matrix.jaeger-version }}
       env:
         DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
