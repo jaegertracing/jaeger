@@ -5,7 +5,6 @@
 package main
 
 import (
-	"fmt"
 	"net/http"
 	"os"
 	"sync/atomic"
@@ -20,7 +19,7 @@ import (
 const (
 	behaviorEndToEnd = "endtoend"
 
-	envCollectorSamplingHostPort    = "JAEGER_COLLECTOR_HC_HOST_PORT"
+	envCollectorSamplingHostPort    = "JAEGER_COLLECTOR_HOST_PORT"
 	envQueryHostPort                = "JAEGER_QUERY_HOST_PORT"
 	envAgentHostPort                = "JAEGER_AGENT_HOST_PORT"
 	envQueryHealthcheckHostPort     = "JAEGER_QUERY_HC_HOST_PORT"
@@ -32,7 +31,6 @@ var (
 
 	collectorSamplingHostPort    string
 	queryHostPort                string
-	agentHostPort                string
 	queryHealthcheckHostPort     string
 	collectorHealthcheckHostPort string
 )
@@ -45,7 +43,6 @@ type clientHandler struct {
 }
 
 func main() {
-	agentHostPort = getEnv(envAgentHostPort, "jaeger-agent:5778")
 	collectorSamplingHostPort = getEnv(envCollectorSamplingHostPort, "jaeger-collector:14268")
 	queryHostPort = getEnv(envQueryHostPort, "jaeger-query:16686")
 	queryHealthcheckHostPort = getEnv(envQueryHealthcheckHostPort, "jaeger-query:16687")
@@ -80,13 +77,9 @@ func (h *clientHandler) initialize() {
 	httpHealthCheck(logger, "jaeger-collector", "http://"+collectorHealthcheckHostPort)
 
 	queryService := services.NewQueryService("http://"+queryHostPort, logger)
-	if collectorService := services.NewCollectorService("http://"+collectorSamplingHostPort, logger); collectorService != nil {
-		fmt.Printf("hw")
-		// testing for agent service logs
-	}
-	agentService := services.NewCollectorService("http://"+agentHostPort, logger)
+	collectorService := services.NewCollectorService("http://"+collectorSamplingHostPort, logger)
 
-	traceHandler := services.NewTraceHandler(queryService, agentService, logger)
+	traceHandler := services.NewTraceHandler(queryService, collectorService, logger)
 	behaviors := crossdock.Behaviors{
 		behaviorEndToEnd: traceHandler.EndToEndTest,
 	}
