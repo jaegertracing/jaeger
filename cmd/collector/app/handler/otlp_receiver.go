@@ -28,6 +28,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/collector/app/flags"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
+	"github.com/jaegertracing/jaeger/pkg/telemetery"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 )
 
@@ -68,15 +69,16 @@ func startOTLPReceiver(
 		// TODO this could be wired into changing healthcheck.HealthCheck
 		logger.Info("OTLP receiver status change", zap.Stringer("status", ev.Status()))
 	}
+	settings := telemetery.InitializeNewMeterProvider()
 	otlpReceiverSettings := receiver.Settings{
 		TelemetrySettings: component.TelemetrySettings{
 			Logger:         logger,
 			TracerProvider: nooptrace.NewTracerProvider(),
 			// TODO wire this with jaegerlib metrics?
 			LeveledMeterProvider: func(_ configtelemetry.Level) metric.MeterProvider {
-				return noopmetric.NewMeterProvider()
+				return settings.MeterProvider
 			},
-			MeterProvider: noopmetric.NewMeterProvider(),
+			MeterProvider: settings.MeterProvider,
 		},
 	}
 

@@ -26,6 +26,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/pkg/bearertoken"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/pkg/telemetery"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/plugin"
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared"
@@ -238,7 +239,8 @@ func getTelset(logger *zap.Logger, tracerProvider trace.TracerProvider) componen
 		TracerProvider: tracerProvider,
 		// TODO needs to be joined with the metricsFactory
 		LeveledMeterProvider: func(_ configtelemetry.Level) metric.MeterProvider {
-			return noopmetric.NewMeterProvider()
+			settings := telemetery.InitializeNewMeterProvider()
+			return settings.MeterProvider
 		},
 	}
 }

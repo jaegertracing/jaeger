@@ -6,6 +6,7 @@ package telemetery
 import (
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componentstatus"
+	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
@@ -19,6 +20,7 @@ type Setting struct {
 	Metrics        metrics.Factory
 	ReportStatus   func(*componentstatus.Event)
 	Host           component.Host
+	MeterProvider  metric.MeterProvider
 }
 
 func HCAdapter(hc *healthcheck.HealthCheck) func(*componentstatus.Event) {
@@ -38,5 +40,12 @@ func HCAdapter(hc *healthcheck.HealthCheck) func(*componentstatus.Event) {
 			hcStatus = healthcheck.Broken
 		}
 		hc.Set(hcStatus)
+	}
+}
+
+func InitializeNewMeterProvider() *Setting {
+	meterProvider := metric.NewMeterProvider()
+	return &Setting{
+		MeterProvider: meterProvider,
 	}
 }
