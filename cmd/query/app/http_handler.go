@@ -132,11 +132,10 @@ func (aH *APIHandler) handleFunc(
 ) *mux.Route {
 	route := aH.formatRoute(routeFmt, args...)
 	var handler http.Handler = http.HandlerFunc(f)
-	traceMiddleware := otelhttp.NewHandler(
-		otelhttp.WithRouteTag(route, traceResponseHandler(handler)),
-		route,
-		otelhttp.WithTracerProvider(aH.tracer))
-	return router.HandleFunc(route, traceMiddleware.ServeHTTP)
+	handler = traceResponseHandler(handler)
+	handler = otelhttp.WithRouteTag(route, handler)
+	handler = spanNameHandler(route, handler)
+	return router.HandleFunc(route, handler.ServeHTTP)
 }
 
 func (aH *APIHandler) formatRoute(route string, args ...any) string {
@@ -529,6 +528,14 @@ func traceResponseHandler(handler http.Handler) http.Handler {
 		carrier := make(map[string]string)
 		prop.Inject(r.Context(), propagation.MapCarrier(carrier))
 		w.Header().Add("traceresponse", carrier["traceparent"])
+		handler.ServeHTTP(w, r)
+	})
+}
+
+func spanNameHandler(spanName string, handler http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		span := trace.SpanFromContext(r.Context())
+		span.SetName(spanName)
 		handler.ServeHTTP(w, r)
 	})
 }
