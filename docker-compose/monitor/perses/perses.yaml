@@ -21,8 +21,8 @@ frontend:
     enable: true
 
   important_dashboards:
-    - project: "perses"
-      dashboard: "NodeExporterFull"
+    - project: "jaeger"
+      dashboard: "monitor"
 
   information: |-
     # Welcome to the Demo instance of Perses!
