@@ -78,7 +78,7 @@ docker compose up
 - Let the application run for a couple of minutes to ensure there is enough time series data to plot in the dashboard.
 - Navigate to Jaeger UI at http://localhost:16686/ and inspect the Monitor tab. Select `redis` service from the dropdown to see more than one endpoint.
 - To visualize the raw metrics stored on the Prometheus server (for debugging and local development use cases), a Grafana server is included in the docker-compose config, which is preconfigured to read metrics from the Prometheus server.
-  To access Grafana, navigate to http://localhost:3000/, click on the "Explore" and click the "Select metric" dropdown then select `calls_total`, for example.
+  To access Grafana, navigate to http://localhost:3000/, click on the "Explore" and click the "Select metric" dropdown then select `traces_span_metrics_calls_total`, for example.
 
 **Warning:** The included [docker-compose.yml](./docker-compose.yml) file uses the `latest` version of Jaeger and other components. If your local Docker registry already contains older versions, which may still be tagged as `latest`, you may want to delete those images before running the full set, to ensure consistent behavior:
 
