@@ -1,0 +1,67 @@
+{
+  "kind": "Dashboard",
+  "metadata": {
+    "name": "monitor",
+    "createdAt": "2024-11-01T10:33:05.237682703Z",
+    "updatedAt": "2024-11-01T10:33:05.237682703Z",
+    "version": 0,
+    "project": "jaeger"
+  },
+  "spec": {
+    "display": {
+      "name": "monitor"
+    },
+    "panels": {
+      "calls": {
+        "kind": "Panel",
+        "spec": {
+          "display": {
+            "name": "calls"
+          },
+          "plugin": {
+            "kind": "TimeSeriesChart",
+            "spec": {}
+          },
+          "queries": [
+            {
+              "kind": "TimeSeriesQuery",
+              "spec": {
+                "plugin": {
+                  "kind": "PrometheusTimeSeriesQuery",
+                  "spec": {
+                    "query": "traces_span_metrics_calls_total"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "layouts": [
+      {
+        "kind": "Grid",
+        "spec": {
+          "display": {
+            "title": "Panel Group",
+            "collapse": {
+              "open": true
+            }
+          },
+          "items": [
+            {
+              "x": 0,
+              "y": 0,
+              "width": 12,
+              "height": 6,
+              "content": {
+                "$ref": "#/spec/panels/calls"
+              }
+            }
+          ]
+        }
+      }
+    ],
+    "duration": "1h"
+  }
+}

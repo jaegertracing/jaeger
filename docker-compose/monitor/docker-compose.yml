@@ -64,5 +64,16 @@ services:
     ports:
       - "3000:3000"
 
+  perses:
+    networks:
+      - backend
+    image: persesdev/perses:v0.49
+    command: "--config=/etc/perses.yaml"
+    volumes:
+      - ./perses:/etc/perses/provisioning
+      - ./perses/perses.yaml:/etc/perses.yaml
+    ports:
+      - "8080:8080"
+
 networks:
   backend:
