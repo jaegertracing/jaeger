@@ -1,4 +1,3 @@
-# percli describe gdts prometheus -o json | jq
 {
   "kind": "GlobalDatasource",
   "metadata": {
