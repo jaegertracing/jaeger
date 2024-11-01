@@ -4,46 +4,40 @@
 package app
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
-
-	"github.com/jaegertracing/jaeger/pkg/jtracer"
 )
 
 func TestTraceResponseHandler(t *testing.T) {
-	exporter := tracetest.NewInMemoryExporter()
-	tracerProvider := sdktrace.NewTracerProvider(
-		sdktrace.WithSyncer(exporter),
-		sdktrace.WithSampler(sdktrace.AlwaysSample()),
-	)
-	jTracer := jtracer.JTracer{OTEL: tracerProvider}
-	tracer := jTracer.OTEL.Tracer("instrumentation/trace_response_handler_test")
-
-	emptyHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})
-	handlerWithTracing := traceResponseHandler(emptyHandler)
-	hanlderWithInstrumentation := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_, span := tracer.Start(r.Context(), "operation")
-		defer span.End()
-
-		handlerWithTracing.ServeHTTP(w, r)
+	emptyHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Write([]byte{})
 	})
+	handler := traceResponseHandler(emptyHandler)
 
-	server := httptest.NewServer(hanlderWithInstrumentation)
-	defer server.Close()
+	exporter := tracetest.NewInMemoryExporter()
+	tracerProvider := trace.NewTracerProvider(
+		trace.WithSyncer(exporter),
+		trace.WithSampler(trace.AlwaysSample()),
+	)
+	tracer := tracerProvider.Tracer("test-tracer")
+	ctx, span := tracer.Start(context.Background(), "test-span")
+	defer span.End()
 
-	req, err := http.NewRequest(http.MethodGet, server.URL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://localhost:8080", nil)
 	require.NoError(t, err)
 
-	resp, err := server.Client().Do(req)
-	require.NoError(t, err)
+	w := httptest.NewRecorder()
 
-	traceResponse := resp.Header.Get("traceresponse")
+	handler.ServeHTTP(w, req)
 
-	// TODO: why isn't this populated?
-	require.Equal(t, "", traceResponse)
+	traceResponse := w.Header().Get("traceresponse")
+	parts := strings.Split(traceResponse, "-")
+	require.Len(t, parts, 4)
 }
