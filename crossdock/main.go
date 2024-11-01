@@ -21,7 +21,6 @@ const (
 
 	envCollectorSamplingHostPort    = "JAEGER_COLLECTOR_HOST_PORT"
 	envQueryHostPort                = "JAEGER_QUERY_HOST_PORT"
-	envAgentHostPort                = "JAEGER_AGENT_HOST_PORT"
 	envQueryHealthcheckHostPort     = "JAEGER_QUERY_HC_HOST_PORT"
 	envCollectorHealthcheckHostPort = "JAEGER_COLLECTOR_HC_HOST_PORT"
 )
