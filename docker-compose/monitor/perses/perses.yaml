@@ -1,0 +1,32 @@
+database:
+  file:
+    extension: "json"
+    folder: "/perses"
+    case_sensitive: false
+schemas:
+  panels_path: "/etc/perses/cue/schemas/panels"
+  queries_path: "/etc/perses/cue/schemas/queries"
+  datasources_path: "/etc/perses/cue/schemas/datasources"
+  variables_path: "/etc/perses/cue/schemas/variables"
+  interval: "5m"
+
+
+provisioning:
+  interval: "12h"
+  folders:
+    - "/etc/perses/provisioning"
+
+frontend:
+  explorer:
+    enable: true
+
+  important_dashboards:
+    - project: "perses"
+      dashboard: "NodeExporterFull"
+
+  information: |-
+    # Welcome to the Demo instance of Perses!
+
+    This public demo instance is here to show you what Perses looks like
+    and what's possible to do with it. You can have a look at the example
+    dashboards, or create your own ones!

@@ -1,0 +1,54 @@
+# percli describe gdts prometheus -o json | jq
+{
+  "kind": "GlobalDatasource",
+  "metadata": {
+    "name": "prometheus",
+    "createdAt": "2024-11-01T10:31:22.358795716Z",
+    "updatedAt": "2024-11-01T10:31:22.358795716Z",
+    "version": 0
+  },
+  "spec": {
+    "default": true,
+    "plugin": {
+      "kind": "PrometheusDatasource",
+      "spec": {
+        "proxy": {
+          "kind": "HTTPProxy",
+          "spec": {
+            "allowedEndpoints": [
+              {
+                "endpointPattern": "/api/v1/labels",
+                "method": "POST"
+              },
+              {
+                "endpointPattern": "/api/v1/series",
+                "method": "POST"
+              },
+              {
+                "endpointPattern": "/api/v1/metadata",
+                "method": "GET"
+              },
+              {
+                "endpointPattern": "/api/v1/query",
+                "method": "POST"
+              },
+              {
+                "endpointPattern": "/api/v1/query_range",
+                "method": "POST"
+              },
+              {
+                "endpointPattern": "/api/v1/label/([a-zA-Z0-9_-]+)/values",
+                "method": "GET"
+              },
+              {
+                "endpointPattern": "/api/v1/parse_query",
+                "method": "POST"
+              }
+            ],
+            "url": "http://prometheus:9090"
+          }
+        }
+      }
+    }
+  }
+}

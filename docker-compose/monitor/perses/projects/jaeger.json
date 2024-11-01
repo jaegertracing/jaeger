@@ -1,0 +1,14 @@
+{
+  "kind": "Project",
+  "metadata": {
+    "name": "jaeger",
+    "createdAt": "2024-11-01T10:25:06.797226244Z",
+    "updatedAt": "2024-11-01T10:25:06.797226244Z",
+    "version": 0
+  },
+  "spec": {
+    "display": {
+      "name": "jaeger"
+    }
+  }
+}
