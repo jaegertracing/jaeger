@@ -329,6 +329,9 @@ func TestGetTrace(t *testing.T) {
 			require.NoError(t, err)
 			assert.Empty(t, response.Errors)
 
+			assert.Len(t, exporter.GetSpans(), 1, "HTTP request was traced and span reported")
+			assert.Equal(t, "/api/traces/{traceID}", exporter.GetSpans()[0].Name)
+
 			traces := extractTraces(t, &response)
 			assert.Len(t, traces[0].Spans, 2)
 			assert.Len(t, traces[0].Spans[1].References, testCase.numSpanRefs)
