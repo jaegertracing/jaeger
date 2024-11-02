@@ -12,9 +12,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
-	"time"
 
-	"github.com/gorilla/handlers"
 	"github.com/soheilhy/cmux"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componentstatus"
@@ -23,9 +21,7 @@ import (
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/metric/noop"
 	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/health"
 	"google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/reflection"
@@ -81,17 +77,11 @@ func NewServer(
 		return nil, errors.New("server with TLS enabled can not use same host ports for gRPC and HTTP.  Use dedicated HTTP and gRPC host ports instead")
 	}
 
-	var grpcServer *grpc.Server
-	if !separatePorts {
-		grpcServer, err = createGRPCServerLegacy(ctx, options, tm)
-	} else {
-		grpcServer, err = createGRPCServerOTEL(ctx, options, tm, telset)
-	}
+	grpcServer, err := createGRPCServer(ctx, options, tm, telset)
 	if err != nil {
 		return nil, err
 	}
 	registerGRPCHandlers(grpcServer, querySvc, metricsQuerySvc, telset)
-
 	httpServer, err := createHTTPServer(ctx, querySvc, metricsQuerySvc, options, tm, telset)
 	if err != nil {
 		return nil, err
@@ -105,45 +95,6 @@ func NewServer(
 		separatePorts: separatePorts,
 		Setting:       telset,
 	}, nil
-}
-
-func createGRPCServerLegacy(
-	ctx context.Context,
-	options *QueryOptions,
-	tm *tenancy.Manager,
-) (*grpc.Server, error) {
-	var grpcOpts []grpc.ServerOption
-
-	if options.GRPC.TLSSetting != nil {
-		tlsCfg, err := options.GRPC.TLSSetting.LoadTLSConfig(ctx)
-		if err != nil {
-			return nil, err
-		}
-
-		creds := credentials.NewTLS(tlsCfg)
-
-		grpcOpts = append(grpcOpts, grpc.Creds(creds))
-	}
-
-	unaryInterceptors := []grpc.UnaryServerInterceptor{
-		bearertoken.NewUnaryServerInterceptor(),
-	}
-	streamInterceptors := []grpc.StreamServerInterceptor{
-		bearertoken.NewStreamServerInterceptor(),
-	}
-	//nolint:contextcheck
-	if tm.Enabled {
-		unaryInterceptors = append(unaryInterceptors, tenancy.NewGuardingUnaryInterceptor(tm))
-		streamInterceptors = append(streamInterceptors, tenancy.NewGuardingStreamInterceptor(tm))
-	}
-
-	grpcOpts = append(grpcOpts,
-		grpc.ChainUnaryInterceptor(unaryInterceptors...),
-		grpc.ChainStreamInterceptor(streamInterceptors...),
-	)
-
-	server := grpc.NewServer(grpcOpts...)
-	return server, nil
 }
 
 func registerGRPCHandlers(
@@ -169,20 +120,30 @@ func registerGRPCHandlers(
 	grpc_health_v1.RegisterHealthServer(server, healthServer)
 }
 
-func createGRPCServerOTEL(
+func createGRPCServer(
 	ctx context.Context,
 	options *QueryOptions,
 	tm *tenancy.Manager,
 	telset telemetery.Setting,
 ) (*grpc.Server, error) {
 	var grpcOpts []configgrpc.ToServerOption
-	if tm.Enabled {
-		//nolint:contextcheck
-		grpcOpts = append(grpcOpts,
-			configgrpc.WithGrpcServerOption(grpc.StreamInterceptor(tenancy.NewGuardingStreamInterceptor(tm))),
-			configgrpc.WithGrpcServerOption(grpc.UnaryInterceptor(tenancy.NewGuardingUnaryInterceptor(tm))),
-		)
+	unaryInterceptors := []grpc.UnaryServerInterceptor{
+		bearertoken.NewUnaryServerInterceptor(),
 	}
+	streamInterceptors := []grpc.StreamServerInterceptor{
+		bearertoken.NewStreamServerInterceptor(),
+	}
+
+	//nolint:contextcheck
+	if tm.Enabled {
+		unaryInterceptors = append(unaryInterceptors, tenancy.NewGuardingUnaryInterceptor(tm))
+		streamInterceptors = append(streamInterceptors, tenancy.NewGuardingStreamInterceptor(tm))
+	}
+
+	grpcOpts = append(grpcOpts,
+		configgrpc.WithGrpcServerOption(grpc.ChainUnaryInterceptor(unaryInterceptors...)),
+		configgrpc.WithGrpcServerOption(grpc.ChainStreamInterceptor(streamInterceptors...)),
+	)
 	return options.GRPC.ToServer(
 		ctx,
 		telset.Host,
@@ -240,6 +201,7 @@ func initRouter(
 	if tenancyMgr.Enabled {
 		handler = tenancy.ExtractTenantHTTPHandler(tenancyMgr, handler)
 	}
+	handler = traceResponseHandler(handler)
 	return handler, staticHandlerCloser
 }
 
@@ -252,20 +214,28 @@ func createHTTPServer(
 	telset telemetery.Setting,
 ) (*httpServer, error) {
 	handler, staticHandlerCloser := initRouter(querySvc, metricsQuerySvc, queryOpts, tm, telset)
-	handler = responseHeadersHandler(handler, queryOpts.HTTP.ResponseHeaders)
-	handler = handlers.CompressHandler(handler)
-	recoveryHandler := recoveryhandler.NewRecoveryHandler(telset.Logger, true)
-
-	errorLog, _ := zap.NewStdLogAt(telset.Logger, zapcore.ErrorLevel)
-	server := &httpServer{
-		Server: &http.Server{
-			Handler:           recoveryHandler(handler),
-			ErrorLog:          errorLog,
-			ReadHeaderTimeout: 2 * time.Second,
+	handler = recoveryhandler.NewRecoveryHandler(telset.Logger, true)(handler)
+	hs, err := queryOpts.HTTP.ToServer(
+		ctx,
+		telset.Host,
+		component.TelemetrySettings{
+			Logger:         telset.Logger,
+			TracerProvider: telset.TracerProvider,
+			LeveledMeterProvider: func(_ configtelemetry.Level) metric.MeterProvider {
+				return noop.NewMeterProvider()
+			},
 		},
+		handler,
+	)
+	if err != nil {
+		return nil, errors.Join(err, staticHandlerCloser.Close())
+	}
+	server := &httpServer{
+		Server:              hs,
 		staticHandlerCloser: staticHandlerCloser,
 	}
 
+	// TODO why doesn't OTEL helper do that already?
 	if queryOpts.HTTP.TLSSetting != nil {
 		tlsCfg, err := queryOpts.HTTP.TLSSetting.LoadTLSConfig(ctx) // This checks if the certificates are correctly provided
 		if err != nil {
@@ -293,7 +263,7 @@ func (s *Server) initListener(ctx context.Context) (cmux.CMux, error) {
 			return nil, err
 		}
 
-		s.httpConn, err = net.Listen("tcp", s.queryOptions.HTTP.Endpoint)
+		s.httpConn, err = s.queryOptions.HTTP.ToListener(ctx)
 		if err != nil {
 			return nil, err
 		}
