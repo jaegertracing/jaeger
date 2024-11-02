@@ -201,6 +201,7 @@ func initRouter(
 	if tenancyMgr.Enabled {
 		handler = tenancy.ExtractTenantHTTPHandler(tenancyMgr, handler)
 	}
+	handler = traceResponseHandler(handler)
 	return handler, staticHandlerCloser
 }
 
