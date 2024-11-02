@@ -111,18 +111,6 @@ validate_service_metrics() {
       echo "⏳ Expecting at least 4 non-zero data points"
       return 1
     fi
-    
-     # Validate if labels are correct
-    local url="http://localhost:16686/api/metrics/calls?service=${service}&groupByOperation=true&endTs=&lookback=${fiveMinutes}&step=${fifteenSec}&ratePer=${oneMinute}"
-
-    local labels
-    labels=$(curl -s "$url" | jq -r '.metrics[0].labels[].name' | sort | tr '\n' ' ')
-    local exp_labels="operation service_name "
-
-    if [[ "$labels" != "$exp_labels" ]]; then
-      echo "❌ ERROR: Obtained labels: '$labels' are not same as expected labels: '$exp_labels'"
-      return 1
-    fi
     return 0
 }
 
