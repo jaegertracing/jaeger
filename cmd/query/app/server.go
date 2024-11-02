@@ -203,46 +203,6 @@ type httpServer struct {
 
 var _ io.Closer = (*httpServer)(nil)
 
-func initRouter(
-	querySvc *querysvc.QueryService,
-	metricsQuerySvc querysvc.MetricsQueryService,
-	queryOpts *QueryOptions,
-	tenancyMgr *tenancy.Manager,
-	telset telemetery.Setting,
-) (http.Handler, io.Closer) {
-	apiHandlerOptions := []HandlerOption{
-		HandlerOptions.Logger(telset.Logger),
-		HandlerOptions.Tracer(telset.TracerProvider),
-		HandlerOptions.MetricsQueryService(metricsQuerySvc),
-	}
-
-	apiHandler := NewAPIHandler(
-		querySvc,
-		apiHandlerOptions...)
-	r := NewRouter()
-	if queryOpts.BasePath != "/" {
-		r = r.PathPrefix(queryOpts.BasePath).Subrouter()
-	}
-
-	(&apiv3.HTTPGateway{
-		QueryService: querySvc,
-		Logger:       telset.Logger,
-		Tracer:       telset.TracerProvider,
-	}).RegisterRoutes(r)
-
-	apiHandler.RegisterRoutes(r)
-	staticHandlerCloser := RegisterStaticHandler(r, telset.Logger, queryOpts, querySvc.GetCapabilities())
-
-	var handler http.Handler = r
-	if queryOpts.BearerTokenPropagation {
-		handler = bearertoken.PropagationHandler(telset.Logger, handler)
-	}
-	if tenancyMgr.Enabled {
-		handler = tenancy.ExtractTenantHTTPHandler(tenancyMgr, handler)
-	}
-	return handler, staticHandlerCloser
-}
-
 func createHTTPServer(
 	ctx context.Context,
 	querySvc *querysvc.QueryService,
@@ -251,8 +211,34 @@ func createHTTPServer(
 	tm *tenancy.Manager,
 	telset telemetery.Setting,
 ) (*httpServer, error) {
-	handler, staticHandlerCloser := initRouter(querySvc, metricsQuerySvc, queryOpts, tm, telset)
+	apiHandlerOptions := []HandlerOption{
+		HandlerOptions.Logger(telset.Logger),
+		HandlerOptions.Tracer(telset.TracerProvider),
+		HandlerOptions.MetricsQueryService(metricsQuerySvc),
+	}
+
+	apiHandler := NewAPIHandler(
+		querySvc,
+		tm,
+		apiHandlerOptions...)
+	r := NewRouter()
+	if queryOpts.BasePath != "/" {
+		r = r.PathPrefix(queryOpts.BasePath).Subrouter()
+	}
+
+	(&apiv3.HTTPGateway{
+		QueryService: querySvc,
+		TenancyMgr:   tm,
+		Logger:       telset.Logger,
+		Tracer:       telset.TracerProvider,
+	}).RegisterRoutes(r)
+
+	apiHandler.RegisterRoutes(r)
+	var handler http.Handler = r
 	handler = responseHeadersHandler(handler, queryOpts.HTTP.ResponseHeaders)
+	if queryOpts.BearerTokenPropagation {
+		handler = bearertoken.PropagationHandler(telset.Logger, handler)
+	}
 	handler = handlers.CompressHandler(handler)
 	recoveryHandler := recoveryhandler.NewRecoveryHandler(telset.Logger, true)
 
@@ -263,16 +249,17 @@ func createHTTPServer(
 			ErrorLog:          errorLog,
 			ReadHeaderTimeout: 2 * time.Second,
 		},
-		staticHandlerCloser: staticHandlerCloser,
 	}
 
 	if queryOpts.HTTP.TLSSetting != nil {
 		tlsCfg, err := queryOpts.HTTP.TLSSetting.LoadTLSConfig(ctx) // This checks if the certificates are correctly provided
 		if err != nil {
-			return nil, errors.Join(err, staticHandlerCloser.Close())
+			return nil, err
 		}
 		server.TLSConfig = tlsCfg
 	}
+
+	server.staticHandlerCloser = RegisterStaticHandler(r, telset.Logger, queryOpts, querySvc.GetCapabilities())
 
 	return server, nil
 }
