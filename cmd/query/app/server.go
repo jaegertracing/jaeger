@@ -124,23 +124,13 @@ func createGRPCServerLegacy(
 
 		grpcOpts = append(grpcOpts, grpc.Creds(creds))
 	}
-
-	unaryInterceptors := []grpc.UnaryServerInterceptor{
-		bearertoken.NewUnaryServerInterceptor(),
-	}
-	streamInterceptors := []grpc.StreamServerInterceptor{
-		bearertoken.NewStreamServerInterceptor(),
-	}
-	//nolint:contextcheck
 	if tm.Enabled {
-		unaryInterceptors = append(unaryInterceptors, tenancy.NewGuardingUnaryInterceptor(tm))
-		streamInterceptors = append(streamInterceptors, tenancy.NewGuardingStreamInterceptor(tm))
+		//nolint:contextcheck
+		grpcOpts = append(grpcOpts,
+			grpc.StreamInterceptor(tenancy.NewGuardingStreamInterceptor(tm)),
+			grpc.UnaryInterceptor(tenancy.NewGuardingUnaryInterceptor(tm)),
+		)
 	}
-
-	grpcOpts = append(grpcOpts,
-		grpc.ChainUnaryInterceptor(unaryInterceptors...),
-		grpc.ChainStreamInterceptor(streamInterceptors...),
-	)
 
 	server := grpc.NewServer(grpcOpts...)
 	return server, nil
