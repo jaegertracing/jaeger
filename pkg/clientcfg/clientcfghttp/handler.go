@@ -119,9 +119,9 @@ func (h *HTTPHandler) serviceFromRequest(w http.ResponseWriter, r *http.Request)
 	return services[0], nil
 }
 
-func (h *HTTPHandler) writeJSON(w http.ResponseWriter, jsonData []byte) error {
+func (h *HTTPHandler) writeJSON(w http.ResponseWriter, json []byte) error {
 	w.Header().Add("Content-Type", mimeTypeApplicationJSON)
-	if _, err := w.Write(jsonData); err != nil {
+	if _, err := w.Write(json); err != nil {
 		h.metrics.WriteFailures.Inc(1)
 		return err
 	}
@@ -213,8 +213,8 @@ var samplingStrategyTypes = []api_v2.SamplingStrategyType{
 //
 // Thrift 0.9.3 classes generate this JSON:
 // {"strategyType":"PROBABILISTIC","probabilisticSampling":{"samplingRate":0.5}}
-func (*HTTPHandler) encodeThriftEnums092(jsonData []byte) []byte {
-	str := string(jsonData)
+func (*HTTPHandler) encodeThriftEnums092(json []byte) []byte {
+	str := string(json)
 	for _, strategyType := range samplingStrategyTypes {
 		str = strings.Replace(
 			str,

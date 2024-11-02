@@ -29,15 +29,15 @@ type queryService struct {
 }
 
 // NewQueryService returns an instance of QueryService.
-func NewQueryService(serviceURL string, logger *zap.Logger) QueryService {
+func NewQueryService(url string, logger *zap.Logger) QueryService {
 	return &queryService{
-		url:    serviceURL,
+		url:    url,
 		logger: logger,
 	}
 }
 
-func getTraceURL(traceURL string) string {
-	return traceURL + "/api/traces?%s"
+func getTraceURL(url string) string {
+	return url + "/api/traces?%s"
 }
 
 type response struct {
@@ -54,8 +54,8 @@ func (s *queryService) GetTraces(serviceName, operation string, tags map[string]
 	for k, v := range tags {
 		values.Add("tag", k+":"+v)
 	}
-	fmtURL := fmt.Sprintf(getTraceURL(s.url), values.Encode())
-	resp, err := http.Get(fmtURL)
+	url := fmt.Sprintf(getTraceURL(s.url), values.Encode())
+	resp, err := http.Get(url)
 	if err != nil {
 		return nil, err
 	}
@@ -64,7 +64,7 @@ func (s *queryService) GetTraces(serviceName, operation string, tags map[string]
 	if err != nil {
 		return nil, err
 	}
-	s.logger.Info("GetTraces: received response from query", zap.String("body", string(body)), zap.String("url", fmtURL))
+	s.logger.Info("GetTraces: received response from query", zap.String("body", string(body)), zap.String("url", url))
 
 	var queryResponse response
 	if err = json.Unmarshal(body, &queryResponse); err != nil {

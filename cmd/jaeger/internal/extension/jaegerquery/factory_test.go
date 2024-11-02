@@ -23,8 +23,8 @@ func Test_CreateExtension(t *testing.T) {
 		ID: ID,
 	}
 	cfg := createDefaultConfig()
-	ext, err := createExtension(context.Background(), set, cfg)
+	extension, err := createExtension(context.Background(), set, cfg)
 
 	require.NoError(t, err)
-	assert.NotNil(t, ext)
+	assert.NotNil(t, extension)
 }

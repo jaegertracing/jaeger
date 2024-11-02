@@ -73,37 +73,37 @@ func getSpanIDs(spans []*model.Span) []int {
 }
 
 func TestDedupeBySpanHashTriggers(t *testing.T) {
-	trc := newDuplicatedSpansTrace()
+	trace := newDuplicatedSpansTrace()
 	deduper := DedupeBySpanHash()
-	trc, err := deduper.Adjust(trc)
+	trace, err := deduper.Adjust(trace)
 	require.NoError(t, err)
 
-	assert.Len(t, trc.Spans, 2, "should dedupe spans")
+	assert.Len(t, trace.Spans, 2, "should dedupe spans")
 
-	ids := getSpanIDs(trc.Spans)
+	ids := getSpanIDs(trace.Spans)
 	assert.ElementsMatch(t, []int{int(clientSpanID), int(anotherSpanID)}, ids, "should keep unique span IDs")
 }
 
 func TestDedupeBySpanHashNotTriggered(t *testing.T) {
-	trc := newUniqueSpansTrace()
+	trace := newUniqueSpansTrace()
 	deduper := DedupeBySpanHash()
-	trc, err := deduper.Adjust(trc)
+	trace, err := deduper.Adjust(trace)
 	require.NoError(t, err)
 
-	assert.Len(t, trc.Spans, 2, "should not dedupe spans")
+	assert.Len(t, trace.Spans, 2, "should not dedupe spans")
 
-	ids := getSpanIDs(trc.Spans)
+	ids := getSpanIDs(trace.Spans)
 	assert.ElementsMatch(t, []int{int(anotherSpanID), int(anotherSpanID)}, ids, "should keep unique span IDs")
-	assert.NotEqual(t, trc.Spans[0], trc.Spans[1], "should keep unique hashcodes")
+	assert.NotEqual(t, trace.Spans[0], trace.Spans[1], "should keep unique hashcodes")
 }
 
 func TestDedupeBySpanHashEmpty(t *testing.T) {
-	trc := &model.Trace{}
+	trace := &model.Trace{}
 	deduper := DedupeBySpanHash()
-	trc, err := deduper.Adjust(trc)
+	trace, err := deduper.Adjust(trace)
 	require.NoError(t, err)
 
-	assert.Empty(t, trc.Spans, "should be empty")
+	assert.Empty(t, trace.Spans, "should be empty")
 }
 
 func TestDedupeBySpanHashManyManySpans(t *testing.T) {
@@ -116,13 +116,13 @@ func TestDedupeBySpanHashManyManySpans(t *testing.T) {
 			SpanID:  model.SpanID(i % distinctSpanIDs),
 		})
 	}
-	trc := &model.Trace{Spans: spans}
+	trace := &model.Trace{Spans: spans}
 	deduper := DedupeBySpanHash()
-	trc, err := deduper.Adjust(trc)
+	trace, err := deduper.Adjust(trace)
 	require.NoError(t, err)
 
-	assert.Len(t, trc.Spans, distinctSpanIDs, "should dedupe spans")
+	assert.Len(t, trace.Spans, distinctSpanIDs, "should dedupe spans")
 
-	ids := getSpanIDs(trc.Spans)
+	ids := getSpanIDs(trace.Spans)
 	assert.ElementsMatch(t, []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}, ids, "should keep unique span IDs")
 }

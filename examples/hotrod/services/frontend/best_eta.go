@@ -60,13 +60,13 @@ func newBestETA(tracer trace.TracerProvider, logger log.Factory, options ConfigO
 }
 
 func (eta *bestETA) Get(ctx context.Context, customerID int) (*Response, error) {
-	cust, err := eta.customer.Get(ctx, customerID)
+	customer, err := eta.customer.Get(ctx, customerID)
 	if err != nil {
 		return nil, err
 	}
-	eta.logger.For(ctx).Info("Found customer", zap.Any("customer", cust))
+	eta.logger.For(ctx).Info("Found customer", zap.Any("customer", customer))
 
-	m, err := baggage.NewMember("customer", cust.Name)
+	m, err := baggage.NewMember("customer", customer.Name)
 	if err != nil {
 		eta.logger.For(ctx).Error("cannot create baggage member", zap.Error(err))
 	}
@@ -77,13 +77,13 @@ func (eta *bestETA) Get(ctx context.Context, customerID int) (*Response, error) 
 	}
 	ctx = baggage.ContextWithBaggage(ctx, bag)
 
-	drivers, err := eta.driver.FindNearest(ctx, cust.Location)
+	drivers, err := eta.driver.FindNearest(ctx, customer.Location)
 	if err != nil {
 		return nil, err
 	}
 	eta.logger.For(ctx).Info("Found drivers", zap.Any("drivers", drivers))
 
-	results := eta.getRoutes(ctx, cust, drivers)
+	results := eta.getRoutes(ctx, customer, drivers)
 	eta.logger.For(ctx).Info("Found routes", zap.Any("routes", results))
 
 	resp := &Response{ETA: math.MaxInt64}
@@ -111,19 +111,19 @@ type routeResult struct {
 }
 
 // getRoutes calls Route service for each (customer, driver) pair
-func (eta *bestETA) getRoutes(ctx context.Context, cust *customer.Customer, drivers []driver.Driver) []routeResult {
+func (eta *bestETA) getRoutes(ctx context.Context, customer *customer.Customer, drivers []driver.Driver) []routeResult {
 	results := make([]routeResult, 0, len(drivers))
 	wg := sync.WaitGroup{}
 	routesLock := sync.Mutex{}
 	for _, dd := range drivers {
 		wg.Add(1)
-		drv := dd // capture loop var
+		driver := dd // capture loop var
 		// Use worker pool to (potentially) execute requests in parallel
 		eta.pool.Execute(func() {
-			route, err := eta.route.FindRoute(ctx, drv.Location, cust.Location)
+			route, err := eta.route.FindRoute(ctx, driver.Location, customer.Location)
 			routesLock.Lock()
 			results = append(results, routeResult{
-				driver: drv.DriverID,
+				driver: driver.DriverID,
 				route:  route,
 				err:    err,
 			})

@@ -444,8 +444,8 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []model.TraceID, st
 	}
 
 	var traces []*model.Trace
-	for _, t := range tracesMap {
-		traces = append(traces, t)
+	for _, trace := range tracesMap {
+		traces = append(traces, trace)
 	}
 	return traces, nil
 }

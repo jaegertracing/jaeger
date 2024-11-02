@@ -118,9 +118,9 @@ func NewOptions(primaryNamespace string, otherNamespaces ...string) *Options {
 	return options
 }
 
-func (cfg *namespaceConfig) getTLSFlagsConfig() tlscfg.ClientFlagsConfig {
+func (config *namespaceConfig) getTLSFlagsConfig() tlscfg.ClientFlagsConfig {
 	return tlscfg.ClientFlagsConfig{
-		Prefix: cfg.namespace,
+		Prefix: config.namespace,
 	}
 }
 

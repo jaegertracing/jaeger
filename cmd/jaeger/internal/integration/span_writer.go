@@ -48,17 +48,17 @@ func createSpanWriter(logger *zap.Logger, port int) (*spanWriter, error) {
 	set := exportertest.NewNopSettings()
 	set.Logger = logger
 
-	exp, err := factory.CreateTraces(context.Background(), set, cfg)
+	exporter, err := factory.CreateTraces(context.Background(), set, cfg)
 	if err != nil {
 		return nil, err
 	}
-	if err := exp.Start(context.Background(), componenttest.NewNopHost()); err != nil {
+	if err := exporter.Start(context.Background(), componenttest.NewNopHost()); err != nil {
 		return nil, err
 	}
 
 	return &spanWriter{
 		logger:   logger,
-		exporter: exp,
+		exporter: exporter,
 	}, nil
 }
 

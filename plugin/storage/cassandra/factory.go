@@ -197,13 +197,13 @@ func (f *Factory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
 
 // CreateLock implements storage.SamplingStoreFactory
 func (f *Factory) CreateLock() (distributedlock.Lock, error) {
-	hostId, err := hostname.AsIdentifier()
+	hostname, err := hostname.AsIdentifier()
 	if err != nil {
 		return nil, err
 	}
-	f.logger.Info("Using unique participantName in the distributed lock", zap.String("participantName", hostId))
+	f.logger.Info("Using unique participantName in the distributed lock", zap.String("participantName", hostname))
 
-	return cLock.NewLock(f.primarySession, hostId), nil
+	return cLock.NewLock(f.primarySession, hostname), nil
 }
 
 // CreateSamplingStore implements storage.SamplingStoreFactory

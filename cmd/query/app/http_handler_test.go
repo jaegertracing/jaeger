@@ -278,9 +278,9 @@ func TestGetTrace(t *testing.T) {
 
 	extractTraces := func(t *testing.T, response *structuredResponse) []ui.Trace {
 		var traces []ui.Trace
-		resBytes, err := json.Marshal(response.Data)
+		bytes, err := json.Marshal(response.Data)
 		require.NoError(t, err)
-		err = json.Unmarshal(resBytes, &traces)
+		err = json.Unmarshal(bytes, &traces)
 		require.NoError(t, err)
 		return traces
 	}

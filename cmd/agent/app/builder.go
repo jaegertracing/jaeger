@@ -95,14 +95,14 @@ func (b *Builder) WithReporter(r ...reporter.Reporter) *Builder {
 // CreateAgent creates the Agent
 func (b *Builder) CreateAgent(primaryProxy CollectorProxy, logger *zap.Logger, mFactory metrics.Factory) (*Agent, error) {
 	r := b.getReporter(primaryProxy)
-	procs, err := b.getProcessors(r, mFactory, logger)
+	processors, err := b.getProcessors(r, mFactory, logger)
 	if err != nil {
 		return nil, fmt.Errorf("cannot create processors: %w", err)
 	}
 	server := b.HTTPServer.getHTTPServer(primaryProxy.GetManager(), mFactory, logger)
 	b.publishOpts()
 
-	return NewAgent(procs, server, logger), nil
+	return NewAgent(processors, server, logger), nil
 }
 
 func (b *Builder) getReporter(primaryProxy CollectorProxy) reporter.Reporter {
@@ -140,11 +140,11 @@ func (b *Builder) getProcessors(rep reporter.Reporter, mFactory metrics.Factory,
 		default:
 			return nil, fmt.Errorf("cannot find agent processor for data model %v", cfg.Model)
 		}
-		metricsNamespace := mFactory.Namespace(metrics.NSOptions{Name: "", Tags: map[string]string{
+		metrics := mFactory.Namespace(metrics.NSOptions{Name: "", Tags: map[string]string{
 			"protocol": string(cfg.Protocol),
 			"model":    string(cfg.Model),
 		}})
-		processor, err := cfg.GetThriftProcessor(metricsNamespace, protoFactory, handler, logger)
+		processor, err := cfg.GetThriftProcessor(metrics, protoFactory, handler, logger)
 		if err != nil {
 			return nil, fmt.Errorf("cannot create Thrift Processor: %w", err)
 		}

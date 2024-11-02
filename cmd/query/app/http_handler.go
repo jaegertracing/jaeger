@@ -275,7 +275,7 @@ func (aH *APIHandler) tracesByIDs(ctx context.Context, traceIDs []model.TraceID)
 	var traceErrors []structuredError
 	retMe := make([]*model.Trace, 0, len(traceIDs))
 	for _, traceID := range traceIDs {
-		if trc, err := aH.queryService.GetTrace(ctx, traceID); err != nil {
+		if trace, err := aH.queryService.GetTrace(ctx, traceID); err != nil {
 			if !errors.Is(err, spanstore.ErrTraceNotFound) {
 				return nil, nil, err
 			}
@@ -284,7 +284,7 @@ func (aH *APIHandler) tracesByIDs(ctx context.Context, traceIDs []model.TraceID)
 				TraceID: ui.TraceID(traceID.String()),
 			})
 		} else {
-			retMe = append(retMe, trc)
+			retMe = append(retMe, trace)
 		}
 	}
 	return retMe, traceErrors, nil
@@ -363,16 +363,16 @@ func (aH *APIHandler) metrics(w http.ResponseWriter, r *http.Request, getMetrics
 	aH.writeJSON(w, r, m)
 }
 
-func (aH *APIHandler) convertModelToUI(trc *model.Trace, adjust bool) (*ui.Trace, *structuredError) {
+func (aH *APIHandler) convertModelToUI(trace *model.Trace, adjust bool) (*ui.Trace, *structuredError) {
 	var errs []error
 	if adjust {
 		var err error
-		trc, err = aH.queryService.Adjust(trc)
+		trace, err = aH.queryService.Adjust(trace)
 		if err != nil {
 			errs = append(errs, err)
 		}
 	}
-	uiTrace := uiconv.FromDomain(trc)
+	uiTrace := uiconv.FromDomain(trace)
 	var uiError *structuredError
 	if err := errors.Join(errs...); err != nil {
 		uiError = &structuredError{
@@ -438,7 +438,7 @@ func (aH *APIHandler) getTrace(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	trc, err := aH.queryService.GetTrace(r.Context(), traceID)
+	trace, err := aH.queryService.GetTrace(r.Context(), traceID)
 	if errors.Is(err, spanstore.ErrTraceNotFound) {
 		aH.handleError(w, err, http.StatusNotFound)
 		return
@@ -448,7 +448,7 @@ func (aH *APIHandler) getTrace(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var uiErrors []structuredError
-	structuredRes := aH.tracesToResponse([]*model.Trace{trc}, shouldAdjust(r), uiErrors)
+	structuredRes := aH.tracesToResponse([]*model.Trace{trace}, shouldAdjust(r), uiErrors)
 	aH.writeJSON(w, r, structuredRes)
 }
 

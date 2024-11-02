@@ -81,7 +81,7 @@ type toDomain struct{}
 func (td toDomain) ToDomain(zSpans []*zipkincore.Span) (*model.Trace, error) {
 	var errs []error
 	processes := newProcessHashtable()
-	trc := &model.Trace{}
+	trace := &model.Trace{}
 	for _, zSpan := range zSpans {
 		jSpans, err := td.ToDomainSpans(zSpan)
 		if err != nil {
@@ -90,10 +90,10 @@ func (td toDomain) ToDomain(zSpans []*zipkincore.Span) (*model.Trace, error) {
 		for _, jSpan := range jSpans {
 			// remove duplicate Process instances
 			jSpan.Process = processes.add(jSpan.Process)
-			trc.Spans = append(trc.Spans, jSpan)
+			trace.Spans = append(trace.Spans, jSpan)
 		}
 	}
-	return trc, errors.Join(errs...)
+	return trace, errors.Join(errs...)
 }
 
 func (td toDomain) ToDomainSpans(zSpan *zipkincore.Span) ([]*model.Span, error) {

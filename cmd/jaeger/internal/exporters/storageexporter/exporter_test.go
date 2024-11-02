@@ -69,12 +69,12 @@ func TestExporterStartBadNameError(t *testing.T) {
 	host := storagetest.NewStorageHost()
 	host.WithExtension(jaegerstorage.ID, &mockStorageExt{name: "foo"})
 
-	exp := &storageExporter{
+	exporter := &storageExporter{
 		config: &Config{
 			TraceStorage: "bar",
 		},
 	}
-	err := exp.start(context.Background(), host)
+	err := exporter.start(context.Background(), host)
 	require.Error(t, err)
 	require.ErrorContains(t, err, "cannot find storage factory")
 }
@@ -89,12 +89,12 @@ func TestExporterStartBadSpanstoreError(t *testing.T) {
 		factory: factory,
 	})
 
-	exp := &storageExporter{
+	exporter := &storageExporter{
 		config: &Config{
 			TraceStorage: "foo",
 		},
 	}
-	err := exp.start(context.Background(), host)
+	err := exporter.start(context.Background(), host)
 	require.Error(t, err)
 	require.ErrorContains(t, err, "mocked error")
 }

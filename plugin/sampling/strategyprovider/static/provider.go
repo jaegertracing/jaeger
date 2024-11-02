@@ -84,13 +84,13 @@ func NewProvider(options Options, logger *zap.Logger) (ss.Provider, error) {
 
 // GetSamplingStrategy implements StrategyStore#GetSamplingStrategy.
 func (h *samplingProvider) GetSamplingStrategy(_ context.Context, serviceName string) (*api_v2.SamplingStrategyResponse, error) {
-	storedStrategies := h.storedStrategies.Load().(*storedStrategies)
-	serviceStrategies := storedStrategies.serviceStrategies
+	ss := h.storedStrategies.Load().(*storedStrategies)
+	serviceStrategies := ss.serviceStrategies
 	if strategy, ok := serviceStrategies[serviceName]; ok {
 		return strategy, nil
 	}
 	h.logger.Debug("sampling strategy not found, using default", zap.String("service", serviceName))
-	return storedStrategies.defaultStrategy, nil
+	return ss.defaultStrategy, nil
 }
 
 // Close stops updating the strategies
@@ -99,12 +99,12 @@ func (h *samplingProvider) Close() error {
 	return nil
 }
 
-func (h *samplingProvider) downloadSamplingStrategies(samplingURL string) ([]byte, error) {
-	h.logger.Info("Downloading sampling strategies", zap.String("url", samplingURL))
+func (h *samplingProvider) downloadSamplingStrategies(url string) ([]byte, error) {
+	h.logger.Info("Downloading sampling strategies", zap.String("url", url))
 
 	ctx, cx := context.WithTimeout(context.Background(), time.Second)
 	defer cx()
-	req, err := http.NewRequestWithContext(ctx, "GET", samplingURL, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("cannot construct HTTP request: %w", err)
 	}
@@ -185,13 +185,13 @@ func (h *samplingProvider) reloadSamplingStrategy(loadFn strategyLoader, lastVal
 	return string(newValue)
 }
 
-func (h *samplingProvider) updateSamplingStrategy(dataBytes []byte) error {
+func (h *samplingProvider) updateSamplingStrategy(bytes []byte) error {
 	var strategies strategies
-	if err := json.Unmarshal(dataBytes, &strategies); err != nil {
+	if err := json.Unmarshal(bytes, &strategies); err != nil {
 		return fmt.Errorf("failed to unmarshal sampling strategies: %w", err)
 	}
 	h.parseStrategies(&strategies)
-	h.logger.Info("Updated sampling strategies:" + string(dataBytes))
+	h.logger.Info("Updated sampling strategies:" + string(bytes))
 	return nil
 }
 

@@ -132,10 +132,10 @@ func (w *FSWatcher) Close() error {
 }
 
 // isModified returns true if the file has been modified since the last check.
-func (w *FSWatcher) isModified(filePathName string, previousHash string) (bool, string) {
-	hash, err := hashFile(filePathName)
+func (w *FSWatcher) isModified(filepath string, previousHash string) (bool, string) {
+	hash, err := hashFile(filepath)
 	if err != nil {
-		w.logger.Warn("Unable to read the file", zap.String("file", filePathName), zap.Error(err))
+		w.logger.Warn("Unable to read the file", zap.String("file", filepath), zap.Error(err))
 		return true, ""
 	}
 	return previousHash != hash, hash
