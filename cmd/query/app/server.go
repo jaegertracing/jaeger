@@ -22,6 +22,7 @@ import (
 	"go.opentelemetry.io/otel/metric/noop"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/health"
 	"google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/reflection"
@@ -77,7 +78,12 @@ func NewServer(
 		return nil, errors.New("server with TLS enabled can not use same host ports for gRPC and HTTP.  Use dedicated HTTP and gRPC host ports instead")
 	}
 
-	grpcServer, err := createGRPCServer(ctx, options, tm, telset)
+	var grpcServer *grpc.Server
+	if !separatePorts {
+		grpcServer, err = createGRPCServerLegacy(ctx, options, tm)
+	} else {
+		grpcServer, err = createGRPCServerOTEL(ctx, options, tm, telset)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -95,6 +101,45 @@ func NewServer(
 		separatePorts: separatePorts,
 		Setting:       telset,
 	}, nil
+}
+
+func createGRPCServerLegacy(
+	ctx context.Context,
+	options *QueryOptions,
+	tm *tenancy.Manager,
+) (*grpc.Server, error) {
+	var grpcOpts []grpc.ServerOption
+
+	if options.GRPC.TLSSetting != nil {
+		tlsCfg, err := options.GRPC.TLSSetting.LoadTLSConfig(ctx)
+		if err != nil {
+			return nil, err
+		}
+
+		creds := credentials.NewTLS(tlsCfg)
+
+		grpcOpts = append(grpcOpts, grpc.Creds(creds))
+	}
+
+	unaryInterceptors := []grpc.UnaryServerInterceptor{
+		bearertoken.NewUnaryServerInterceptor(),
+	}
+	streamInterceptors := []grpc.StreamServerInterceptor{
+		bearertoken.NewStreamServerInterceptor(),
+	}
+	//nolint:contextcheck
+	if tm.Enabled {
+		unaryInterceptors = append(unaryInterceptors, tenancy.NewGuardingUnaryInterceptor(tm))
+		streamInterceptors = append(streamInterceptors, tenancy.NewGuardingStreamInterceptor(tm))
+	}
+
+	grpcOpts = append(grpcOpts,
+		grpc.ChainUnaryInterceptor(unaryInterceptors...),
+		grpc.ChainStreamInterceptor(streamInterceptors...),
+	)
+
+	server := grpc.NewServer(grpcOpts...)
+	return server, nil
 }
 
 func registerGRPCHandlers(
@@ -120,7 +165,7 @@ func registerGRPCHandlers(
 	grpc_health_v1.RegisterHealthServer(server, healthServer)
 }
 
-func createGRPCServer(
+func createGRPCServerOTEL(
 	ctx context.Context,
 	options *QueryOptions,
 	tm *tenancy.Manager,
