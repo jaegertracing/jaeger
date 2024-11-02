@@ -282,26 +282,21 @@ func TestUTF8Sanitizer_SanitizesMultipleAttributesWithInvalidKeys(t *testing.T) 
 
 	sanitizer := NewUTF8Sanitizer()
 	sanitized := sanitizer(traces)
-	got := sanitized.
+	value, ok := sanitized.
 		ResourceSpans().
 		At(0).
 		Resource().
-		Attributes()
-	require.Equal(t, 2, got.Len())
-
-	expectedValues := []pcommon.Value{
-		getBytesValueFromString(fmt.Sprintf("%s:v1", k1)),
-		getBytesValueFromString(fmt.Sprintf("%s:v2", k2)),
-	}
-	value, ok := got.
+		Attributes().
 		Get("invalid-tag-key-1")
 	require.True(t, ok)
-	require.Contains(t, expectedValues, value)
-	checked := value
+	require.EqualValues(t, getBytesValueFromString(fmt.Sprintf("%s:v1", k1)), value)
 
-	value, ok = got.
+	value, ok = sanitized.
+		ResourceSpans().
+		At(0).
+		Resource().
+		Attributes().
 		Get("invalid-tag-key-2")
 	require.True(t, ok)
-	require.NotEqual(t, checked, value)
-	require.Contains(t, expectedValues, value)
+	require.EqualValues(t, getBytesValueFromString(fmt.Sprintf("%s:v2", k2)), value)
 }
