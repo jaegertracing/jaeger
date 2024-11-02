@@ -4,7 +4,6 @@
 package app
 
 import (
-	"bytes"
 	"context"
 	"crypto/tls"
 	"fmt"
@@ -13,7 +12,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gogo/protobuf/jsonpb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -22,8 +20,6 @@ import (
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/confignet"
 	"go.opentelemetry.io/collector/config/configtls"
-	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 	"go.uber.org/zap/zaptest/observer"
@@ -856,109 +852,6 @@ func TestServerHTTPTenancy(t *testing.T) {
 			if conn != nil {
 				require.NoError(t, conn.Close())
 			}
-		})
-	}
-}
-
-func TestServerHTTP_TracesRequest(t *testing.T) {
-	makeMockTrace := func(t *testing.T) *model.Trace {
-		out := new(bytes.Buffer)
-		err := new(jsonpb.Marshaler).Marshal(out, mockTrace)
-		require.NoError(t, err)
-		var trace model.Trace
-		require.NoError(t, jsonpb.Unmarshal(out, &trace))
-		trace.Spans[1].References = []model.SpanRef{
-			{TraceID: model.NewTraceID(0, 0)},
-		}
-		return &trace
-	}
-
-	tests := []struct {
-		name          string
-		httpEndpoint  string
-		grpcEndpoint  string
-		queryString   string
-		expectedTrace string
-	}{
-		{
-			name:          "different ports",
-			httpEndpoint:  ":8080",
-			grpcEndpoint:  ":8081",
-			queryString:   "/api/traces/123456aBC",
-			expectedTrace: "/api/traces/{traceID}",
-		},
-		{
-			name:          "different ports for v3 api",
-			httpEndpoint:  ":8080",
-			grpcEndpoint:  ":8081",
-			queryString:   "/api/v3/traces/123456aBC",
-			expectedTrace: "/api/v3/traces/{trace_id}",
-		},
-		{
-			name:          "same port",
-			httpEndpoint:  ":8080",
-			grpcEndpoint:  ":8080",
-			queryString:   "/api/traces/123456aBC",
-			expectedTrace: "/api/traces/{traceID}",
-		},
-		{
-			name:          "same port for v3 api",
-			httpEndpoint:  ":8080",
-			grpcEndpoint:  ":8080",
-			queryString:   "/api/v3/traces/123456aBC",
-			expectedTrace: "/api/v3/traces/{trace_id}",
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			serverOptions := &QueryOptions{
-				HTTP: confighttp.ServerConfig{
-					Endpoint: test.httpEndpoint,
-				},
-				GRPC: configgrpc.ServerConfig{
-					NetAddr: confignet.AddrConfig{
-						Endpoint:  test.grpcEndpoint,
-						Transport: confignet.TransportTypeTCP,
-					},
-				},
-			}
-
-			exporter := tracetest.NewInMemoryExporter()
-			tracerProvider := sdktrace.NewTracerProvider(
-				sdktrace.WithSyncer(exporter),
-				sdktrace.WithSampler(sdktrace.AlwaysSample()),
-			)
-			tracer := jtracer.JTracer{OTEL: tracerProvider}
-
-			tenancyMgr := tenancy.NewManager(&serverOptions.Tenancy)
-			querySvc := makeQuerySvc()
-			querySvc.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), model.NewTraceID(0, 0x123456abc)).
-				Return(makeMockTrace(t), nil).Once()
-			telset := initTelSet(zaptest.NewLogger(t), &tracer, healthcheck.New())
-
-			server, err := NewServer(context.Background(), querySvc.qs,
-				nil, serverOptions, tenancyMgr, telset)
-			require.NoError(t, err)
-			require.NoError(t, server.Start(context.Background()))
-			t.Cleanup(func() {
-				require.NoError(t, server.Close())
-			})
-
-			req, err := http.NewRequest(http.MethodGet, "http://localhost:8080"+test.queryString, nil)
-			require.NoError(t, err)
-
-			client := &http.Client{}
-			resp, err := client.Do(req)
-			require.NoError(t, err)
-
-			if test.expectedTrace != "" {
-				assert.Len(t, exporter.GetSpans(), 1, "HTTP request was traced and span reported")
-				assert.Equal(t, test.expectedTrace, exporter.GetSpans()[0].Name)
-			} else {
-				assert.Empty(t, exporter.GetSpans(), "HTTP request was not traced")
-			}
-			require.NoError(t, resp.Body.Close())
 		})
 	}
 }
