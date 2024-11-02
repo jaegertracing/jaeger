@@ -51,7 +51,7 @@ func (*server) Dependencies() []component.ID {
 	return []component.ID{jaegerstorage.ID}
 }
 
-func (s *server) Start(ctx context.Context, host component.Host) error {
+func (s *server) Start(_ context.Context, host component.Host) error {
 	mf := otelmetrics.NewFactory(s.telset.MeterProvider)
 	baseFactory := mf.Namespace(metrics.NSOptions{Name: "jaeger"})
 	queryMetricsFactory := baseFactory.Namespace(metrics.NSOptions{Name: "query"})
@@ -100,11 +100,11 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 		ReportStatus: func(event *componentstatus.Event) {
 			componentstatus.ReportStatus(host, event)
 		},
-		Host: host,
 	}
 
+	// TODO contextcheck linter complains about next line that context is not passed. It is not wrong.
+	//nolint
 	s.server, err = queryApp.NewServer(
-		ctx,
 		// TODO propagate healthcheck updates up to the collector's runtime
 		qs,
 		mqs,
@@ -116,7 +116,7 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 		return fmt.Errorf("could not create jaeger-query: %w", err)
 	}
 
-	if err := s.server.Start(ctx); err != nil {
+	if err := s.server.Start(); err != nil {
 		return fmt.Errorf("could not start jaeger-query: %w", err)
 	}
 

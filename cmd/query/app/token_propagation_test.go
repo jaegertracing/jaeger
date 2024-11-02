@@ -4,7 +4,6 @@
 package app
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -90,7 +89,7 @@ func runQueryService(t *testing.T, esURL string) *Server {
 		TracerProvider: jtracer.NoOp().OTEL,
 		ReportStatus:   telemetery.HCAdapter(flagsSvc.HC()),
 	}
-	server, err := NewServer(context.Background(), querySvc, nil,
+	server, err := NewServer(querySvc, nil,
 		&QueryOptions{
 			BearerTokenPropagation: true,
 			HTTP: confighttp.ServerConfig{
@@ -98,8 +97,7 @@ func runQueryService(t *testing.T, esURL string) *Server {
 			},
 			GRPC: configgrpc.ServerConfig{
 				NetAddr: confignet.AddrConfig{
-					Endpoint:  ":0",
-					Transport: confignet.TransportTypeTCP,
+					Endpoint: ":0",
 				},
 			},
 		},
@@ -107,7 +105,7 @@ func runQueryService(t *testing.T, esURL string) *Server {
 		telset,
 	)
 	require.NoError(t, err)
-	require.NoError(t, server.Start(context.Background()))
+	require.NoError(t, server.Start())
 	return server
 }
 
