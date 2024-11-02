@@ -135,23 +135,23 @@ func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
 func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 	flagSet.String(
 		nsConfig.namespace+suffixUsername,
-		nsConfig.Authentication.BasicAuthentication.Username,
+		nsConfig.Username,
 		"The username required by Elasticsearch. The basic authentication also loads CA if it is specified.")
 	flagSet.String(
 		nsConfig.namespace+suffixPassword,
-		nsConfig.Authentication.BasicAuthentication.Password,
+		nsConfig.Password,
 		"The password required by Elasticsearch")
 	flagSet.String(
 		nsConfig.namespace+suffixTokenPath,
-		nsConfig.Authentication.BearerTokenAuthentication.FilePath,
+		nsConfig.TokenFilePath,
 		"Path to a file containing bearer token. This flag also loads CA if it is specified.")
 	flagSet.String(
 		nsConfig.namespace+suffixPasswordPath,
-		nsConfig.Authentication.BasicAuthentication.PasswordFilePath,
+		nsConfig.PasswordFilePath,
 		"Path to a file containing password. This file is watched for changes.")
 	flagSet.Bool(
 		nsConfig.namespace+suffixSniffer,
-		nsConfig.Sniffing.Enabled,
+		nsConfig.Sniffer,
 		"The sniffer config for Elasticsearch; client uses sniffing process to find all nodes automatically, disable if not required")
 	flagSet.String(
 		nsConfig.namespace+suffixServerURLs,
@@ -164,7 +164,7 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 			"See Elasticsearch remote clusters and cross-cluster query api.")
 	flagSet.Duration(
 		nsConfig.namespace+suffixTimeout,
-		nsConfig.QueryTimeout,
+		nsConfig.Timeout,
 		"Timeout used for queries. A Timeout of zero means no timeout")
 	flagSet.Int64(
 		nsConfig.namespace+suffixNumShards,
@@ -193,19 +193,19 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		"Priority of jaeger-dependecies index template (ESv8 only)")
 	flagSet.Int(
 		nsConfig.namespace+suffixBulkSize,
-		nsConfig.BulkProcessing.MaxBytes,
+		nsConfig.BulkSize,
 		"The number of bytes that the bulk requests can take up before the bulk processor decides to commit")
 	flagSet.Int(
 		nsConfig.namespace+suffixBulkWorkers,
-		nsConfig.BulkProcessing.Workers,
+		nsConfig.BulkWorkers,
 		"The number of workers that are able to receive bulk requests and eventually commit them to Elasticsearch")
 	flagSet.Int(
 		nsConfig.namespace+suffixBulkActions,
-		nsConfig.BulkProcessing.MaxActions,
+		nsConfig.BulkActions,
 		"The number of requests that can be enqueued before the bulk processor decides to commit")
 	flagSet.Duration(
 		nsConfig.namespace+suffixBulkFlushInterval,
-		nsConfig.BulkProcessing.FlushInterval,
+		nsConfig.BulkFlushInterval,
 		"A time.Duration after which bulk requests are committed, regardless of other thresholds. Set to zero to disable. By default, this is disabled.")
 	flagSet.String(
 		nsConfig.namespace+suffixIndexPrefix,
@@ -217,17 +217,17 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		"Optional date separator of Jaeger indices. For example \".\" creates \"jaeger-span-2020.11.20\".")
 	flagSet.String(
 		nsConfig.namespace+suffixIndexRolloverFrequencySpans,
-		nsConfig.Indices.Spans.RolloverFrequency,
+		defaultIndexRolloverFrequency,
 		"Rotates jaeger-span indices over the given period. For example \"day\" creates \"jaeger-span-yyyy-MM-dd\" every day after UTC 12AM. Valid options: [hour, day]. "+
 			"This does not delete old indices. For details on complete index management solutions supported by Jaeger, refer to: https://www.jaegertracing.io/docs/deployment/#elasticsearch-rollover")
 	flagSet.String(
 		nsConfig.namespace+suffixIndexRolloverFrequencyServices,
-		nsConfig.Indices.Services.RolloverFrequency,
+		defaultIndexRolloverFrequency,
 		"Rotates jaeger-service indices over the given period. For example \"day\" creates \"jaeger-service-yyyy-MM-dd\" every day after UTC 12AM. Valid options: [hour, day]. "+
 			"This does not delete old indices. For details on complete index management solutions supported by Jaeger, refer to: https://www.jaegertracing.io/docs/deployment/#elasticsearch-rollover")
 	flagSet.String(
 		nsConfig.namespace+suffixIndexRolloverFrequencySampling,
-		nsConfig.Indices.Sampling.RolloverFrequency,
+		defaultIndexRolloverFrequency,
 		"Rotates jaeger-sampling indices over the given period. For example \"day\" creates \"jaeger-sampling-yyyy-MM-dd\" every day after UTC 12AM. Valid options: [hour, day]. "+
 			"This does not delete old indices. For details on complete index management solutions supported by Jaeger, refer to: https://www.jaegertracing.io/docs/deployment/#elasticsearch-rollover")
 	flagSet.Bool(
@@ -268,7 +268,7 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		"The major Elasticsearch version. If not specified, the value will be auto-detected from Elasticsearch.")
 	flagSet.Bool(
 		nsConfig.namespace+suffixSnifferTLSEnabled,
-		nsConfig.Sniffing.UseHTTPS,
+		nsConfig.SnifferTLSEnabled,
 		"Option to enable TLS when sniffing an Elasticsearch Cluster ; client uses sniffing process to find all nodes automatically, disabled by default")
 	flagSet.Int(
 		nsConfig.namespace+suffixMaxDocCount,
@@ -311,12 +311,12 @@ func (opt *Options) InitFromViper(v *viper.Viper) {
 }
 
 func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
-	cfg.Authentication.BasicAuthentication.Username = v.GetString(cfg.namespace + suffixUsername)
-	cfg.Authentication.BasicAuthentication.Password = v.GetString(cfg.namespace + suffixPassword)
-	cfg.Authentication.BearerTokenAuthentication.FilePath = v.GetString(cfg.namespace + suffixTokenPath)
-	cfg.Authentication.BasicAuthentication.PasswordFilePath = v.GetString(cfg.namespace + suffixPasswordPath)
-	cfg.Sniffing.Enabled = v.GetBool(cfg.namespace + suffixSniffer)
-	cfg.Sniffing.UseHTTPS = v.GetBool(cfg.namespace + suffixSnifferTLSEnabled)
+	cfg.Username = v.GetString(cfg.namespace + suffixUsername)
+	cfg.Password = v.GetString(cfg.namespace + suffixPassword)
+	cfg.TokenFilePath = v.GetString(cfg.namespace + suffixTokenPath)
+	cfg.PasswordFilePath = v.GetString(cfg.namespace + suffixPasswordPath)
+	cfg.Sniffer = v.GetBool(cfg.namespace + suffixSniffer)
+	cfg.SnifferTLSEnabled = v.GetBool(cfg.namespace + suffixSnifferTLSEnabled)
 	cfg.Servers = strings.Split(stripWhiteSpace(v.GetString(cfg.namespace+suffixServerURLs)), ",")
 	cfg.MaxSpanAge = v.GetDuration(cfg.namespace + suffixMaxSpanAge)
 	cfg.AdaptiveSamplingLookback = v.GetDuration(cfg.namespace + suffixAdaptiveSamplingLookback)
@@ -336,11 +336,11 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	// cfg.Indices.Sampling does not have a separate flag
 	cfg.Indices.Dependencies.Priority = v.GetInt64(cfg.namespace + suffixPriorityDependenciesTemplate)
 
-	cfg.BulkProcessing.MaxBytes = v.GetInt(cfg.namespace + suffixBulkSize)
-	cfg.BulkProcessing.Workers = v.GetInt(cfg.namespace + suffixBulkWorkers)
-	cfg.BulkProcessing.MaxActions = v.GetInt(cfg.namespace + suffixBulkActions)
-	cfg.BulkProcessing.FlushInterval = v.GetDuration(cfg.namespace + suffixBulkFlushInterval)
-	cfg.QueryTimeout = v.GetDuration(cfg.namespace + suffixTimeout)
+	cfg.BulkSize = v.GetInt(cfg.namespace + suffixBulkSize)
+	cfg.BulkWorkers = v.GetInt(cfg.namespace + suffixBulkWorkers)
+	cfg.BulkActions = v.GetInt(cfg.namespace + suffixBulkActions)
+	cfg.BulkFlushInterval = v.GetDuration(cfg.namespace + suffixBulkFlushInterval)
+	cfg.Timeout = v.GetDuration(cfg.namespace + suffixTimeout)
 	cfg.ServiceCacheTTL = v.GetDuration(cfg.namespace + suffixServiceCacheTTL)
 	indexPrefix := v.GetString(cfg.namespace + suffixIndexPrefix)
 
@@ -361,7 +361,7 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	cfg.UseILM = v.GetBool(cfg.namespace + suffixUseILM)
 
 	// TODO: Need to figure out a better way for do this.
-	cfg.Authentication.BearerTokenAuthentication.AllowFromContext = v.GetBool(bearertoken.StoragePropagationKey)
+	cfg.AllowTokenFromContext = v.GetBool(bearertoken.StoragePropagationKey)
 
 	remoteReadClusters := stripWhiteSpace(v.GetString(cfg.namespace + suffixRemoteReadClusters))
 	if len(remoteReadClusters) > 0 {
@@ -422,23 +422,15 @@ func initDateLayout(rolloverFreq, sep string) string {
 
 func DefaultConfig() config.Configuration {
 	return config.Configuration{
-		Authentication: config.Authentication{
-			BasicAuthentication: config.BasicAuthentication{
-				Username: "",
-				Password: "",
-			},
-		},
-		Sniffing: config.Sniffing{
-			Enabled: false,
-		},
+		Username:                 "",
+		Password:                 "",
+		Sniffer:                  false,
 		MaxSpanAge:               72 * time.Hour,
 		AdaptiveSamplingLookback: 72 * time.Hour,
-		BulkProcessing: config.BulkProcessing{
-			MaxBytes:      5 * 1000 * 1000,
-			Workers:       1,
-			MaxActions:    1000,
-			FlushInterval: time.Millisecond * 200,
-		},
+		BulkSize:                 5 * 1000 * 1000,
+		BulkWorkers:              1,
+		BulkActions:              1000,
+		BulkFlushInterval:        time.Millisecond * 200,
 		Tags: config.TagsAsFields{
 			DotReplacement: "@",
 		},

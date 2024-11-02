@@ -39,25 +39,15 @@ const (
 
 // IndexOptions describes the index format and rollover frequency
 type IndexOptions struct {
-	// Priority contains the priority of index template (ESv8 only).
-	Priority   int64  `mapstructure:"priority"`
-	DateLayout string `mapstructure:"date_layout"`
-	// Shards is the number of shards per index in Elasticsearch.
-	Shards int64 `mapstructure:"shards"`
-	// Replicas is the number of replicas per index in Elasticsearch.
-	Replicas int64 `mapstructure:"replicas"`
-	// RolloverFrequency contains the rollover frequency setting used to fetch
-	// indices from elasticsearch.
-	// Valid configuration options are: [hour, day].
-	// This setting does not affect the index rotation and is simply used for
-	// fetching indices.
-	RolloverFrequency string `mapstructure:"rollover_frequency"`
+	Priority          int64  `mapstructure:"priority"`
+	DateLayout        string `mapstructure:"date_layout"`
+	Shards            int64  `mapstructure:"shards"`
+	Replicas          int64  `mapstructure:"replicas"`
+	RolloverFrequency string `mapstructure:"rollover_frequency"` // "hour" or "day"
 }
 
 // Indices describes different configuration options for each index type
 type Indices struct {
-	// IndexPrefix is an optional prefix to prepend to Jaeger indices.
-	// For example, setting this field to "production" creates "production-jaeger-*".
 	IndexPrefix  IndexPrefix  `mapstructure:"index_prefix"`
 	Spans        IndexOptions `mapstructure:"spans"`
 	Services     IndexOptions `mapstructure:"services"`
@@ -80,58 +70,34 @@ func (p IndexPrefix) Apply(indexName string) string {
 
 // Configuration describes the configuration properties needed to connect to an ElasticSearch cluster
 type Configuration struct {
-	// ---- connection related configs ----
-	// Servers is a list of Elasticsearch servers. The strings must must contain full URLs
-	// (i.e. http://localhost:9200).
-	Servers []string `mapstructure:"server_urls" valid:"required,url"`
-	// RemoteReadClusters is a list of Elasticsearch remote cluster names for cross-cluster
-	// querying.
-	RemoteReadClusters []string       `mapstructure:"remote_read_clusters"`
-	Authentication     Authentication `mapstructure:"auth"`
-	// TLS contains the TLS configuration for the connection to the ElasticSearch clusters.
-	TLS      configtls.ClientConfig `mapstructure:"tls"`
-	Sniffing Sniffing               `mapstructure:"sniffing"`
-	// SendGetBodyAs is the HTTP verb to use for requests that contain a body.
-	SendGetBodyAs string `mapstructure:"send_get_body_as"`
-	// QueryTimeout contains the timeout used for queries. A timeout of zero means no timeout.
-	QueryTimeout time.Duration `mapstructure:"query_timeout"`
-
-	// ---- elasticsearch client related configs ----
-	BulkProcessing BulkProcessing `mapstructure:"bulk_processing"`
-	// Version contains the major Elasticsearch version. If this field is not specified,
-	// the value will be auto-detected from Elasticsearch.
-	Version uint `mapstructure:"version"`
-	// LogLevel contains the Elasticsearch client log-level. Valid values for this field
-	// are: [debug, info, error]
-	LogLevel string `mapstructure:"log_level"`
-
-	// ---- index related configs ----
-	Indices Indices `mapstructure:"indices"`
-	// UseReadWriteAliases, if set to true, will use read and write aliases for indices.
-	// Use this option with Elasticsearch rollover API. It requires an external component
-	// to create aliases before startup and then performing its management.
-	UseReadWriteAliases bool `mapstructure:"use_aliases"`
-	// CreateIndexTemplates, if set to true, creates index templates at application startup.
-	// This configuration should be set to false when templates are installed manually.
-	CreateIndexTemplates bool `mapstructure:"create_mappings"`
-	// Option to enable Index Lifecycle Management (ILM) for Jaeger span and service indices.
-	// Read more about ILM at
-	// https://www.jaegertracing.io/docs/deployment/#enabling-ilm-support
-	UseILM bool `mapstructure:"use_ilm"`
-
-	// ---- jaeger-specific configs ----
-	// MaxDocCount Defines maximum number of results to fetch from storage per query.
-	MaxDocCount int `mapstructure:"max_doc_count"`
-	// MaxSpanAge configures the maximum lookback on span reads.
-	MaxSpanAge time.Duration `mapstructure:"max_span_age"`
-	// ServiceCacheTTL contains the TTL for the cache of known service names.
-	ServiceCacheTTL time.Duration `mapstructure:"service_cache_ttl"`
-	// AdaptiveSamplingLookback contains the duration to look back for the
-	// latest adaptive sampling probabilities.
-	AdaptiveSamplingLookback time.Duration `mapstructure:"adaptive_sampling_lookback"`
-	Tags                     TagsAsFields  `mapstructure:"tags_as_fields"`
-	// Enabled, if set to true, enables the namespace for storage pointed to by this configuration.
-	Enabled bool `mapstructure:"-"`
+	Servers                  []string               `mapstructure:"server_urls" valid:"required,url"`
+	RemoteReadClusters       []string               `mapstructure:"remote_read_clusters"`
+	Username                 string                 `mapstructure:"username"`
+	Password                 string                 `mapstructure:"password" json:"-"`
+	TokenFilePath            string                 `mapstructure:"token_file"`
+	PasswordFilePath         string                 `mapstructure:"password_file"`
+	AllowTokenFromContext    bool                   `mapstructure:"-"`
+	Sniffer                  bool                   `mapstructure:"sniffer"` // https://github.com/olivere/elastic/wiki/Sniffing
+	SnifferTLSEnabled        bool                   `mapstructure:"sniffer_tls_enabled"`
+	MaxDocCount              int                    `mapstructure:"-"` // Defines maximum number of results to fetch from storage per query
+	MaxSpanAge               time.Duration          `mapstructure:"-"` // configures the maximum lookback on span reads
+	Timeout                  time.Duration          `mapstructure:"-"`
+	BulkSize                 int                    `mapstructure:"-"`
+	BulkWorkers              int                    `mapstructure:"-"`
+	BulkActions              int                    `mapstructure:"-"`
+	BulkFlushInterval        time.Duration          `mapstructure:"-"`
+	Indices                  Indices                `mapstructure:"indices"`
+	ServiceCacheTTL          time.Duration          `mapstructure:"service_cache_ttl"`
+	AdaptiveSamplingLookback time.Duration          `mapstructure:"-"`
+	Tags                     TagsAsFields           `mapstructure:"tags_as_fields"`
+	Enabled                  bool                   `mapstructure:"-"`
+	TLS                      configtls.ClientConfig `mapstructure:"tls"`
+	UseReadWriteAliases      bool                   `mapstructure:"use_aliases"`
+	CreateIndexTemplates     bool                   `mapstructure:"create_mappings"`
+	UseILM                   bool                   `mapstructure:"use_ilm"`
+	Version                  uint                   `mapstructure:"version"`
+	LogLevel                 string                 `mapstructure:"log_level"`
+	SendGetBodyAs            string                 `mapstructure:"send_get_body_as"`
 }
 
 // TagsAsFields holds configuration for tag schema.
@@ -146,53 +112,6 @@ type TagsAsFields struct {
 	File string `mapstructure:"config_file"`
 	// Comma delimited list of tags to store as object fields
 	Include string `mapstructure:"include"`
-}
-
-// Sniffing sets the sniffing configuration for the ElasticSearch client, which is the process
-// of finding all the nodes of your cluster. Read more about sniffing at
-// https://github.com/olivere/elastic/wiki/Sniffing.
-type Sniffing struct {
-	// Enabled, if set to true, enables sniffing for the ElasticSearch client.
-	Enabled bool `mapstructure:"enabled"`
-	// UseHTTPS, if set to true, sets the HTTP scheme to HTTPS when performing sniffing.
-	UseHTTPS bool `mapstructure:"use_https"`
-}
-
-type BulkProcessing struct {
-	// MaxBytes, contains the number of bytes which specifies when to flush.
-	MaxBytes int `mapstructure:"max_bytes"`
-	// MaxActions contain the number of added actions which specifies when to flush.
-	MaxActions int `mapstructure:"max_actions"`
-	// FlushInterval is the interval at the end of which a flush occurs.
-	FlushInterval time.Duration `mapstructure:"flush_interval"`
-	// Workers contains the number of concurrent workers allowed to be executed.
-	Workers int `mapstructure:"workers"`
-}
-
-type Authentication struct {
-	BasicAuthentication       BasicAuthentication       `mapstructure:"basic"`
-	BearerTokenAuthentication BearerTokenAuthentication `mapstructure:"bearer_token"`
-}
-
-type BasicAuthentication struct {
-	// Username contains the username required to connect to Elasticsearch.
-	Username string `mapstructure:"username"`
-	// Password contains The password required by Elasticsearch
-	Password string `mapstructure:"password" json:"-"`
-	// PasswordFilePath contains the path to a file containing password.
-	// This file is watched for changes.
-	PasswordFilePath string `mapstructure:"password_file"`
-}
-
-// BearerTokenAuthentication contains the configuration for attaching bearer tokens
-// when making HTTP requests. Note that TokenFilePath and AllowTokenFromContext
-// should not both be enabled. If both TokenFilePath and AllowTokenFromContext are set,
-// the TokenFilePath will be ignored.
-type BearerTokenAuthentication struct {
-	// FilePath contains the path to a file containing a bearer token.
-	FilePath string `mapstructure:"file_path"`
-	// AllowTokenFromContext, if set to true, enables reading bearer token from the context.
-	AllowFromContext bool `mapstructure:"from_context"`
 }
 
 // NewClient creates a new ElasticSearch client
@@ -252,10 +171,10 @@ func NewClient(c *Configuration, logger *zap.Logger, metricsFactory metrics.Fact
 					zap.Any("response", response))
 			}
 		}).
-		BulkSize(c.BulkProcessing.MaxBytes).
-		Workers(c.BulkProcessing.Workers).
-		BulkActions(c.BulkProcessing.MaxActions).
-		FlushInterval(c.BulkProcessing.FlushInterval).
+		BulkSize(c.BulkSize).
+		Workers(c.BulkWorkers).
+		BulkActions(c.BulkActions).
+		FlushInterval(c.BulkFlushInterval).
 		Do(context.Background())
 	if err != nil {
 		return nil, err
@@ -301,9 +220,9 @@ func NewClient(c *Configuration, logger *zap.Logger, metricsFactory metrics.Fact
 func newElasticsearchV8(c *Configuration, logger *zap.Logger) (*esV8.Client, error) {
 	var options esV8.Config
 	options.Addresses = c.Servers
-	options.Username = c.Authentication.BasicAuthentication.Username
-	options.Password = c.Authentication.BasicAuthentication.Password
-	options.DiscoverNodesOnStart = c.Sniffing.Enabled
+	options.Username = c.Username
+	options.Password = c.Password
+	options.DiscoverNodesOnStart = c.Sniffer
 	transport, err := GetHTTPRoundTripper(c, logger)
 	if err != nil {
 		return nil, err
@@ -339,14 +258,14 @@ func (c *Configuration) ApplyDefaults(source *Configuration) {
 	if len(c.RemoteReadClusters) == 0 {
 		c.RemoteReadClusters = source.RemoteReadClusters
 	}
-	if c.Authentication.BasicAuthentication.Username == "" {
-		c.Authentication.BasicAuthentication.Username = source.Authentication.BasicAuthentication.Username
+	if c.Username == "" {
+		c.Username = source.Username
 	}
-	if c.Authentication.BasicAuthentication.Password == "" {
-		c.Authentication.BasicAuthentication.Password = source.Authentication.BasicAuthentication.Password
+	if c.Password == "" {
+		c.Password = source.Password
 	}
-	if !c.Sniffing.Enabled {
-		c.Sniffing.Enabled = source.Sniffing.Enabled
+	if !c.Sniffer {
+		c.Sniffer = source.Sniffer
 	}
 	if c.MaxSpanAge == 0 {
 		c.MaxSpanAge = source.MaxSpanAge
@@ -362,20 +281,20 @@ func (c *Configuration) ApplyDefaults(source *Configuration) {
 	setDefaultIndexOptions(&c.Indices.Services, &source.Indices.Services)
 	setDefaultIndexOptions(&c.Indices.Dependencies, &source.Indices.Dependencies)
 
-	if c.BulkProcessing.MaxBytes == 0 {
-		c.BulkProcessing.MaxBytes = source.BulkProcessing.MaxBytes
+	if c.BulkSize == 0 {
+		c.BulkSize = source.BulkSize
 	}
-	if c.BulkProcessing.Workers == 0 {
-		c.BulkProcessing.Workers = source.BulkProcessing.Workers
+	if c.BulkWorkers == 0 {
+		c.BulkWorkers = source.BulkWorkers
 	}
-	if c.BulkProcessing.MaxActions == 0 {
-		c.BulkProcessing.MaxActions = source.BulkProcessing.MaxActions
+	if c.BulkActions == 0 {
+		c.BulkActions = source.BulkActions
 	}
-	if c.BulkProcessing.FlushInterval == 0 {
-		c.BulkProcessing.FlushInterval = source.BulkProcessing.FlushInterval
+	if c.BulkFlushInterval == 0 {
+		c.BulkFlushInterval = source.BulkFlushInterval
 	}
-	if !c.Sniffing.UseHTTPS {
-		c.Sniffing.UseHTTPS = source.Sniffing.UseHTTPS
+	if !c.SnifferTLSEnabled {
+		c.SnifferTLSEnabled = source.SnifferTLSEnabled
 	}
 	if !c.Tags.AllAsFields {
 		c.Tags.AllAsFields = source.Tags.AllAsFields
@@ -442,31 +361,31 @@ func (c *Configuration) TagKeysAsFields() ([]string, error) {
 // getConfigOptions wraps the configs to feed to the ElasticSearch client init
 func (c *Configuration) getConfigOptions(logger *zap.Logger) ([]elastic.ClientOptionFunc, error) {
 	options := []elastic.ClientOptionFunc{
-		elastic.SetURL(c.Servers...), elastic.SetSniff(c.Sniffing.Enabled),
+		elastic.SetURL(c.Servers...), elastic.SetSniff(c.Sniffer),
 		// Disable health check when token from context is allowed, this is because at this time
-		// we don'r have a valid token to do the check ad if we don't disable the check the service that
+		// we don' have a valid token to do the check ad if we don't disable the check the service that
 		// uses this won't start.
-		elastic.SetHealthcheck(!c.Authentication.BearerTokenAuthentication.AllowFromContext),
+		elastic.SetHealthcheck(!c.AllowTokenFromContext),
 	}
-	if c.Sniffing.UseHTTPS {
+	if c.SnifferTLSEnabled {
 		options = append(options, elastic.SetScheme("https"))
 	}
 	httpClient := &http.Client{
-		Timeout: c.QueryTimeout,
+		Timeout: c.Timeout,
 	}
 	options = append(options, elastic.SetHttpClient(httpClient))
 
-	if c.Authentication.BasicAuthentication.Password != "" && c.Authentication.BasicAuthentication.PasswordFilePath != "" {
+	if c.Password != "" && c.PasswordFilePath != "" {
 		return nil, fmt.Errorf("both Password and PasswordFilePath are set")
 	}
-	if c.Authentication.BasicAuthentication.PasswordFilePath != "" {
-		passwordFromFile, err := loadTokenFromFile(c.Authentication.BasicAuthentication.PasswordFilePath)
+	if c.PasswordFilePath != "" {
+		passwordFromFile, err := loadTokenFromFile(c.PasswordFilePath)
 		if err != nil {
 			return nil, fmt.Errorf("failed to load password from file: %w", err)
 		}
-		c.Authentication.BasicAuthentication.Password = passwordFromFile
+		c.Password = passwordFromFile
 	}
-	options = append(options, elastic.SetBasicAuth(c.Authentication.BasicAuthentication.Username, c.Authentication.BasicAuthentication.Password))
+	options = append(options, elastic.SetBasicAuth(c.Username, c.Password))
 
 	if c.SendGetBodyAs != "" {
 		options = append(options, elastic.SetSendGetBodyAs(c.SendGetBodyAs))
@@ -546,20 +465,20 @@ func GetHTTPRoundTripper(c *Configuration, logger *zap.Logger) (http.RoundTrippe
 	}
 
 	token := ""
-	if c.Authentication.BearerTokenAuthentication.FilePath != "" {
-		if c.Authentication.BearerTokenAuthentication.AllowFromContext {
+	if c.TokenFilePath != "" {
+		if c.AllowTokenFromContext {
 			logger.Warn("Token file and token propagation are both enabled, token from file won't be used")
 		}
-		tokenFromFile, err := loadTokenFromFile(c.Authentication.BearerTokenAuthentication.FilePath)
+		tokenFromFile, err := loadTokenFromFile(c.TokenFilePath)
 		if err != nil {
 			return nil, err
 		}
 		token = tokenFromFile
 	}
-	if token != "" || c.Authentication.BearerTokenAuthentication.AllowFromContext {
+	if token != "" || c.AllowTokenFromContext {
 		transport = bearertoken.RoundTripper{
 			Transport:       httpTransport,
-			OverrideFromCtx: c.Authentication.BearerTokenAuthentication.AllowFromContext,
+			OverrideFromCtx: c.AllowTokenFromContext,
 			StaticToken:     token,
 		}
 	}
