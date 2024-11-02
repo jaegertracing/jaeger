@@ -45,7 +45,7 @@ func makeStorageExtension(t *testing.T, memstoreName string) component.Host {
 		MeterProvider: noopmetric.NewMeterProvider(),
 	}
 	extensionFactory := jaegerstorage.NewFactory()
-	storageExtension, err := extensionFactory.Create(
+	storageExtension, err := extensionFactory.CreateExtension(
 		context.Background(),
 		extension.Settings{
 			TelemetrySettings: telemetrySettings,
@@ -67,7 +67,7 @@ func makeStorageExtension(t *testing.T, memstoreName string) component.Host {
 
 func makeRemoteSamplingExtension(t *testing.T, cfg component.Config) component.Host {
 	extensionFactory := NewFactory()
-	samplingExtension, err := extensionFactory.Create(
+	samplingExtension, err := extensionFactory.CreateExtension(
 		context.Background(),
 		extension.Settings{
 			TelemetrySettings: component.TelemetrySettings{
@@ -95,7 +95,7 @@ func TestStartFileBasedProvider(t *testing.T) {
 	cfg.GRPC = nil
 	require.NoError(t, cfg.Validate())
 
-	ext, err := factory.Create(context.Background(), extension.Settings{
+	ext, err := factory.CreateExtension(context.Background(), extension.Settings{
 		TelemetrySettings: componenttest.NewNopTelemetrySettings(),
 	}, cfg)
 	require.NoError(t, err)
@@ -115,7 +115,7 @@ func TestStartHTTP(t *testing.T) {
 	cfg.GRPC = nil
 	require.NoError(t, cfg.Validate())
 
-	ext, err := factory.Create(context.Background(), extension.Settings{
+	ext, err := factory.CreateExtension(context.Background(), extension.Settings{
 		TelemetrySettings: componenttest.NewNopTelemetrySettings(),
 	}, cfg)
 	require.NoError(t, err)
@@ -155,7 +155,7 @@ func TestStartGRPC(t *testing.T) {
 	}
 	require.NoError(t, cfg.Validate())
 
-	ext, err := factory.Create(context.Background(), extension.Settings{
+	ext, err := factory.CreateExtension(context.Background(), extension.Settings{
 		TelemetrySettings: componenttest.NewNopTelemetrySettings(),
 	}, cfg)
 	require.NoError(t, err)
@@ -183,7 +183,7 @@ func TestStartAdaptiveProvider(t *testing.T) {
 	cfg.GRPC = nil
 	require.NoError(t, cfg.Validate())
 
-	ext, err := factory.Create(context.Background(), extension.Settings{
+	ext, err := factory.CreateExtension(context.Background(), extension.Settings{
 		TelemetrySettings: componenttest.NewNopTelemetrySettings(),
 	}, cfg)
 	require.NoError(t, err)
@@ -249,7 +249,7 @@ func TestGetAdaptiveSamplingComponentsErrors(t *testing.T) {
 func TestDependencies(t *testing.T) {
 	factory := NewFactory()
 	cfg := factory.CreateDefaultConfig().(*Config)
-	ext, err := factory.Create(context.Background(), extension.Settings{
+	ext, err := factory.CreateExtension(context.Background(), extension.Settings{
 		TelemetrySettings: componenttest.NewNopTelemetrySettings(),
 	}, cfg)
 	require.NoError(t, err)

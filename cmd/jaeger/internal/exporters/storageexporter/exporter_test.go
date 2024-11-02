@@ -119,7 +119,7 @@ func TestExporter(t *testing.T) {
 	err := config.Validate()
 	require.NoError(t, err)
 
-	tracesExporter, err := exporterFactory.CreateTraces(ctx, exporter.Settings{
+	tracesExporter, err := exporterFactory.CreateTracesExporter(ctx, exporter.Settings{
 		ID:                ID,
 		TelemetrySettings: telemetrySettings,
 		BuildInfo:         component.NewDefaultBuildInfo(),
@@ -172,7 +172,7 @@ func makeStorageExtension(t *testing.T, memstoreName string) component.Host {
 		MeterProvider: noopmetric.NewMeterProvider(),
 	}
 	extensionFactory := jaegerstorage.NewFactory()
-	storageExtension, err := extensionFactory.Create(
+	storageExtension, err := extensionFactory.CreateExtension(
 		context.Background(),
 		extension.Settings{
 			TelemetrySettings: telemetrySettings,
