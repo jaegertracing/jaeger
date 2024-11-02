@@ -176,23 +176,13 @@ func createGRPCServerOTEL(
 	telset telemetery.Setting,
 ) (*grpc.Server, error) {
 	var grpcOpts []configgrpc.ToServerOption
-	unaryInterceptors := []grpc.UnaryServerInterceptor{
-		bearertoken.NewUnaryServerInterceptor(),
-	}
-	streamInterceptors := []grpc.StreamServerInterceptor{
-		bearertoken.NewStreamServerInterceptor(),
-	}
-
-	//nolint:contextcheck
 	if tm.Enabled {
-		unaryInterceptors = append(unaryInterceptors, tenancy.NewGuardingUnaryInterceptor(tm))
-		streamInterceptors = append(streamInterceptors, tenancy.NewGuardingStreamInterceptor(tm))
+		//nolint:contextcheck
+		grpcOpts = append(grpcOpts,
+			configgrpc.WithGrpcServerOption(grpc.StreamInterceptor(tenancy.NewGuardingStreamInterceptor(tm))),
+			configgrpc.WithGrpcServerOption(grpc.UnaryInterceptor(tenancy.NewGuardingUnaryInterceptor(tm))),
+		)
 	}
-
-	grpcOpts = append(grpcOpts,
-		configgrpc.WithGrpcServerOption(grpc.ChainUnaryInterceptor(unaryInterceptors...)),
-		configgrpc.WithGrpcServerOption(grpc.ChainStreamInterceptor(streamInterceptors...)),
-	)
 	return options.GRPC.ToServer(
 		ctx,
 		telset.Host,

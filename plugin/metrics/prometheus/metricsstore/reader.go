@@ -342,7 +342,7 @@ func getHTTPRoundTripper(c *config.Configuration, logger *zap.Logger) (rt http.R
 		}
 		token = tokenFromFile
 	}
-	return &bearertoken.RoundTripper{
+	return bearertoken.RoundTripper{
 		Transport:       httpTransport,
 		OverrideFromCtx: c.TokenOverrideFromContext,
 		StaticToken:     token,
