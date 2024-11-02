@@ -14,7 +14,6 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/esmapping-generator/app/renderer"
 	"github.com/jaegertracing/jaeger/pkg/es"
 	"github.com/jaegertracing/jaeger/pkg/version"
-	"github.com/jaegertracing/jaeger/plugin/storage/es/mappings"
 )
 
 func main() {
@@ -25,7 +24,7 @@ func main() {
 		Short: "Jaeger esmapping-generator prints rendered mappings as string",
 		Long:  `Jaeger esmapping-generator renders passed templates with provided values and prints rendered output to stdout`,
 		Run: func(_ *cobra.Command, _ /* args */ []string) {
-			if _, err := mappings.MappingTypeFromString(options.Mapping); err != nil {
+			if !renderer.IsValidOption(options.Mapping) {
 				logger.Fatal("please pass either 'jaeger-service' or 'jaeger-span' as argument")
 			}
 

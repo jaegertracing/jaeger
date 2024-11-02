@@ -28,7 +28,7 @@ type Action struct {
 	ILMClient     client.IndexManagementLifecycleAPI
 }
 
-func (c Action) getMapping(version uint, mappingType mappings.MappingType) (string, error) {
+func (c Action) getMapping(version uint, templateName string) (string, error) {
 	c.Config.Indices.IndexPrefix = config.IndexPrefix(c.Config.Config.IndexPrefix)
 	mappingBuilder := mappings.MappingBuilder{
 		TemplateBuilder: es.TextTemplateBuilder{},
@@ -38,7 +38,7 @@ func (c Action) getMapping(version uint, mappingType mappings.MappingType) (stri
 		EsVersion:       version,
 	}
 
-	return mappingBuilder.GetMapping(mappingType)
+	return mappingBuilder.GetMapping(templateName)
 }
 
 // Do the init action
@@ -96,16 +96,10 @@ func createIndexIfNotExist(c client.IndexAPI, index string) error {
 }
 
 func (c Action) init(version uint, indexopt app.IndexOption) error {
-	mappingType, err := mappings.MappingTypeFromString(indexopt.Mapping)
+	mapping, err := c.getMapping(version, indexopt.Mapping)
 	if err != nil {
 		return err
 	}
-
-	mapping, err := c.getMapping(version, mappingType)
-	if err != nil {
-		return err
-	}
-
 	err = c.IndicesClient.CreateTemplate(mapping, indexopt.TemplateName())
 	if err != nil {
 		return err
