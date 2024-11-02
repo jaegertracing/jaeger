@@ -26,9 +26,10 @@ To become a maintainer you need to demonstrate the following:
 
 A new maintainer must be proposed by an existing maintainer by sending a message to the
 [jaeger-tracing@googlegroups.com](https://groups.google.com/forum/#!forum/jaeger-tracing)
-mailing list, or by opening an issue on GitHub, containing the following information:
+mailing list containing the following information:
 
-  * nominee's first and last name and GitHub user name,
+  * nominee's first and last name,
+  * nominee's email address and GitHub user name,
   * an explanation of why the nominee should be a committer,
   * a list of links to non-trivial pull requests (top 10) authored by the nominee.
 
