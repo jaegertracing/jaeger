@@ -100,7 +100,8 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 		ReportStatus: func(event *componentstatus.Event) {
 			componentstatus.ReportStatus(host, event)
 		},
-		Host: host,
+		Host:                 host,
+		LeveledMeterProvider: s.telset.LeveledMeterProvider,
 	}
 
 	s.server, err = queryApp.NewServer(
