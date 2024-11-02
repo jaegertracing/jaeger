@@ -155,7 +155,6 @@ type Sniffing struct {
 	// Enabled, if set to true, enables sniffing for the ElasticSearch client.
 	Enabled bool `mapstructure:"enabled"`
 	// UseHTTPS, if set to true, sets the HTTP scheme to HTTPS when performing sniffing.
-	// For ESV8, the scheme is set to HTTPS by default, so this configuration is ignored.
 	UseHTTPS bool `mapstructure:"use_https"`
 }
 
@@ -189,8 +188,6 @@ type BasicAuthentication struct {
 // when making HTTP requests. Note that TokenFilePath and AllowTokenFromContext
 // should not both be enabled. If both TokenFilePath and AllowTokenFromContext are set,
 // the TokenFilePath will be ignored.
-// For more information about token-based authentication in elasticsearch, check out
-// https://www.elastic.co/guide/en/elasticsearch/reference/current/token-authentication-services.html.
 type BearerTokenAuthentication struct {
 	// FilePath contains the path to a file containing a bearer token.
 	FilePath string `mapstructure:"file_path"`
