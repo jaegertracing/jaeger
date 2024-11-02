@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -41,10 +42,10 @@ const otlpPort = 4317
 type E2EStorageIntegration struct {
 	integration.StorageIntegration
 
-	SkipStorageCleaner bool
-	ConfigFile         string
-	BinaryName         string
-	HealthCheckPort    int // overridable for Kafka tests which run two binaries and need different ports
+	SkipStorageCleaner  bool
+	ConfigFile          string
+	BinaryName          string
+	HealthCheckEndpoint string
 
 	// EnvVarOverrides contains a map of environment variables to set.
 	// The key in the map is the environment variable to override and the value
@@ -159,11 +160,10 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
 }
 
 func (s *E2EStorageIntegration) doHealthCheck(t *testing.T) bool {
-	healthCheckPort := s.HealthCheckPort
-	if healthCheckPort == 0 {
-		healthCheckPort = ports.CollectorV2HealthChecks
+	healthCheckEndpoint := s.HealthCheckEndpoint
+	if healthCheckEndpoint == "" {
+		healthCheckEndpoint = "http://localhost:13133/status"
 	}
-	healthCheckEndpoint := fmt.Sprintf("http://localhost:%d/status", healthCheckPort)
 	t.Logf("Checking if %s is available on %s", s.BinaryName, healthCheckEndpoint)
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
@@ -187,6 +187,11 @@ func (s *E2EStorageIntegration) doHealthCheck(t *testing.T) bool {
 		t.Logf("HTTP response not OK: %v", string(body))
 		return false
 	}
+	// for backwards compatibility with other healthchecks
+	if !strings.HasSuffix(healthCheckEndpoint, "/status") {
+		t.Logf("OK HTTP from endpoint that is not healthcheckv2")
+		return true
+	}
 
 	var healthResponse struct {
 		Status string `json:"status"`
@@ -198,7 +203,7 @@ func (s *E2EStorageIntegration) doHealthCheck(t *testing.T) bool {
 
 	// Check if the status field in the JSON is "StatusOK"
 	if healthResponse.Status != "StatusOK" {
-		t.Logf("Received non-OK status %s: %s", healthResponse.Status, string(body))
+		t.Logf("Received non-K status %s: %s", healthResponse.Status, string(body))
 		return false
 	}
 	return true
