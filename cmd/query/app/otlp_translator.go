@@ -18,7 +18,9 @@ func otlp2traces(otlpSpans []byte) ([]*model.Trace, error) {
 	if err != nil {
 		return nil, fmt.Errorf("cannot unmarshal OTLP : %w", err)
 	}
-	jaegerBatches := model2otel.ProtoFromTraces(otlpTraces)
+	jaegerBatches, _ := model2otel.ProtoFromTraces(otlpTraces)
+	// ProtoFromTraces will not give an error
+
 	var traces []*model.Trace
 	traceMap := make(map[model.TraceID]*model.Trace)
 	for _, batch := range jaegerBatches {

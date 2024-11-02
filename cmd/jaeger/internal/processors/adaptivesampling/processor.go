@@ -65,7 +65,11 @@ func (tp *traceProcessor) close(context.Context) error {
 }
 
 func (tp *traceProcessor) processTraces(_ context.Context, td ptrace.Traces) (ptrace.Traces, error) {
-	batches := otlp2jaeger.ProtoFromTraces(td)
+	batches, err := otlp2jaeger.ProtoFromTraces(td)
+	if err != nil {
+		return td, fmt.Errorf("cannot transform OTLP traces to Jaeger format: %w", err)
+	}
+
 	for _, batch := range batches {
 		for _, span := range batch.Spans {
 			if span.Process == nil {

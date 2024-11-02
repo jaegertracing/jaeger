@@ -6,6 +6,7 @@ package factoryadapter
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	otlp2jaeger "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger"
 	"go.opentelemetry.io/collector/pdata/ptrace"
@@ -26,7 +27,10 @@ func NewTraceWriter(spanWriter spanstore_v1.Writer) spanstore.Writer {
 
 // WriteTraces implements spanstore.Writer.
 func (t *TraceWriter) WriteTraces(ctx context.Context, td ptrace.Traces) error {
-	batches := otlp2jaeger.ProtoFromTraces(td)
+	batches, err := otlp2jaeger.ProtoFromTraces(td)
+	if err != nil {
+		return fmt.Errorf("cannot transform OTLP traces to Jaeger format: %w", err)
+	}
 	var errs []error
 	for _, batch := range batches {
 		for _, span := range batch.Spans {
