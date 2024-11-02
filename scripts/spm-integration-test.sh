@@ -115,7 +115,8 @@ validate_service_metrics() {
      # Validate if labels are correct
     local url="http://localhost:16686/api/metrics/calls?service=${service}&groupByOperation=true&endTs=&lookback=${fiveMinutes}&step=${fifteenSec}&ratePer=${oneMinute}"
 
-    local labels=$(curl -s $url | jq -r '.metrics[0].labels[].name' | sort | tr '\n' ' ')
+    local labels
+    labels=$(curl -s "$url" | jq -r '.metrics[0].labels[].name' | sort | tr '\n' ' ')
     local exp_labels="operation service_name "
 
     if [[ "$labels" != "$exp_labels" ]]; then
