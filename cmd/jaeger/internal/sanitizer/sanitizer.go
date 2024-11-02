@@ -15,7 +15,6 @@ type Func func(traces ptrace.Traces) ptrace.Traces
 func NewStandardSanitizers() []Func {
 	return []Func{
 		NewEmptyServiceNameSanitizer(),
-		NewUTF8Sanitizer(),
 	}
 }
 
