@@ -3,21 +3,48 @@ services:
         image: crossdock/crossdock
         links:
             - test_driver
+            - go
+            - node
+            - java
+            - python
             - zipkin-brave-thrift
             - zipkin-brave-json
             - zipkin-brave-json-v2
             - zipkin-brave-proto
 
         environment:
-            - WAIT_FOR=test_driver,zipkin-brave-thrift,zipkin-brave-json,zipkin-brave-json-v2,zipkin-brave-proto
+            - WAIT_FOR=test_driver,go,node,java,python,zipkin-brave-thrift,zipkin-brave-json,zipkin-brave-json-v2,zipkin-brave-proto
             - WAIT_FOR_TIMEOUT=240s
 
             - CALL_TIMEOUT=60s
 
             - AXIS_CLIENT=test_driver
-            - AXIS_SERVICES=zipkin-brave-thrift,zipkin-brave-json,zipkin-brave-json-v2,zipkin-brave-proto
+            - AXIS_SERVICES=go,node,java,python,zipkin-brave-thrift,zipkin-brave-json,zipkin-brave-json-v2,zipkin-brave-proto
 
             - BEHAVIOR_ENDTOEND=client,services
+
+    go:
+        image: jaegertracing/xdock-go
+        ports:
+            - "8080-8082"
+
+    node:
+        image: jaegertracing/xdock-node
+        ports:
+            - "8080-8082"
+
+    java:
+        image: jaegertracing/xdock-java
+        ports:
+            - "8080-8082"
+        depends_on:
+            # UDP sender needs to know agent's address
+            - jaeger-agent
+
+    python:
+        image: jaegertracing/xdock-py
+        ports:
+            - "8080-8082"
 
     zipkin-brave-thrift:
         image: jaegertracing/xdock-zipkin-brave
@@ -58,3 +85,4 @@ services:
         depends_on:
             - jaeger-query
             - jaeger-collector
+            - jaeger-agent

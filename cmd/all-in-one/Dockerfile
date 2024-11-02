@@ -8,6 +8,18 @@ FROM $base_image AS release
 ARG TARGETARCH
 ARG USER_UID=10001
 
+# Agent zipkin.thrift compact
+EXPOSE 5775/udp
+
+# Agent jaeger.thrift compact
+EXPOSE 6831/udp
+
+# Agent jaeger.thrift binary
+EXPOSE 6832/udp
+
+# Agent config HTTP
+EXPOSE 5778
+
 # Collector OTLP gRPC
 EXPOSE 4317
 
@@ -39,6 +51,18 @@ USER ${USER_UID}
 FROM $debug_image AS debug
 ARG TARGETARCH=amd64
 ARG USER_UID=10001
+
+# Agent zipkin.thrift compact
+EXPOSE 5775/udp
+
+# Agent jaeger.thrift compact
+EXPOSE 6831/udp
+
+# Agent jaeger.thrift binary
+EXPOSE 6832/udp
+
+# Agent config HTTP
+EXPOSE 5778
 
 # Collector OTLP gRPC
 EXPOSE 4317

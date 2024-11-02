@@ -23,6 +23,7 @@ function gen {
 
 set -ex
 
+gen agent      nostorage
 gen collector  cassandra elasticsearch memory kafka badger grpc
 gen query      cassandra elasticsearch memory badger grpc
 gen ingester   cassandra elasticsearch memory badger grpc

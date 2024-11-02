@@ -22,6 +22,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/agent/app/servers/thriftudp"
 	"github.com/jaegertracing/jaeger/internal/safeexpvar"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/ports"
 	agentThrift "github.com/jaegertracing/jaeger/thrift-gen/agent"
 )
 
@@ -37,7 +38,7 @@ const (
 	binaryProtocol  Protocol = "binary"
 )
 
-var defaultHTTPServerHostPort = ":" + strconv.Itoa(AgentConfigServerHTTP)
+var defaultHTTPServerHostPort = ":" + strconv.Itoa(ports.AgentConfigServerHTTP)
 
 // Model used to distinguish the data transfer model
 type Model string

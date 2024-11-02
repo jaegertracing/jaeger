@@ -23,6 +23,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/version"
+	"github.com/jaegertracing/jaeger/ports"
 )
 
 func main() {
@@ -30,7 +31,7 @@ func main() {
 	println("*** WARNING jaeger-agent is deprecated. See https://github.com/jaegertracing/jaeger/issues/4739 ***")
 	println("***************************************************************************************************")
 
-	svc := flags.NewService(app.AgentAdminHTTP)
+	svc := flags.NewService(ports.AgentAdminHTTP)
 	svc.NoStorage = true
 
 	v := viper.New()
@@ -91,7 +92,7 @@ func main() {
 
 	command.AddCommand(version.Command())
 	command.AddCommand(docs.Command(v))
-	command.AddCommand(status.Command(v, app.AgentAdminHTTP))
+	command.AddCommand(status.Command(v, ports.AgentAdminHTTP))
 
 	config.AddFlags(
 		v,
