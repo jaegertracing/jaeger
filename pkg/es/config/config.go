@@ -40,7 +40,11 @@ const (
 // IndexOptions describes the index format and rollover frequency
 type IndexOptions struct {
 	// Priority contains the priority of index template (ESv8 only).
-	Priority   int64  `mapstructure:"priority"`
+	Priority int64 `mapstructure:"priority"`
+	// DateLayout contains the format string used to format current time to part of the index name.
+	// For example, "2006-01-02" layout will result in "jaeger-spans-yyyy-mm-dd".
+	// If not specified, the default value is "2006-01-02".
+	// See https://pkg.go.dev/time#Layout for more details on the syntax.
 	DateLayout string `mapstructure:"date_layout"`
 	// Shards is the number of shards per index in Elasticsearch.
 	Shards int64 `mapstructure:"shards"`
@@ -155,6 +159,7 @@ type Sniffing struct {
 	// Enabled, if set to true, enables sniffing for the ElasticSearch client.
 	Enabled bool `mapstructure:"enabled"`
 	// UseHTTPS, if set to true, sets the HTTP scheme to HTTPS when performing sniffing.
+	// For ESV8, the scheme is set to HTTPS by default, so this configuration is ignored.
 	UseHTTPS bool `mapstructure:"use_https"`
 }
 
@@ -188,6 +193,8 @@ type BasicAuthentication struct {
 // when making HTTP requests. Note that TokenFilePath and AllowTokenFromContext
 // should not both be enabled. If both TokenFilePath and AllowTokenFromContext are set,
 // the TokenFilePath will be ignored.
+// For more information about token-based authentication in elasticsearch, check out
+// https://www.elastic.co/guide/en/elasticsearch/reference/current/token-authentication-services.html.
 type BearerTokenAuthentication struct {
 	// FilePath contains the path to a file containing a bearer token.
 	FilePath string `mapstructure:"file_path"`

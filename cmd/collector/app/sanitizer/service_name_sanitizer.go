@@ -10,8 +10,8 @@ import (
 )
 
 // NewServiceNameSanitizer creates a service name sanitizer.
-func NewServiceNameSanitizer(cache cache.Cache) SanitizeSpan {
-	sanitizer := serviceNameSanitizer{cache: cache}
+func NewServiceNameSanitizer(c cache.Cache) SanitizeSpan {
+	sanitizer := serviceNameSanitizer{cache: c}
 	return sanitizer.Sanitize
 }
 

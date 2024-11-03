@@ -146,12 +146,10 @@ func TestSpanWriter_WriteSpan(t *testing.T) {
 		expectedLogs       []string
 	}{
 		{
-			caption: "span insertion error",
-
+			caption:            "span insertion error",
 			serviceIndexExists: false,
-
-			expectedError: "",
-			expectedLogs:  []string{},
+			expectedError:      "",
+			expectedLogs:       []string{"Wrote span to ES index"},
 		},
 	}
 	for _, tc := range testCases {

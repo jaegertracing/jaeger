@@ -6,21 +6,24 @@
 set -euf -o pipefail
 
 print_help() {
-  echo "Usage: $0 [-h] [-l] [-o] [-p platforms]"
+  echo "Usage: $0 [-h] [-l] [-o] [-p platforms] [-v jaeger_version]"
   echo "-h: Print help"
   echo "-l: Enable local-only mode that only pushes images to local registry"
   echo "-o: overwrite image in the target remote repository even if the semver tag already exists"
   echo "-p: Comma-separated list of platforms to build for (default: all supported)"
+  echo "-v: Jaeger version to use for hotrod image (v1 or v2, default: v1)"
   exit 1
 }
 
 docker_compose_file="./examples/hotrod/docker-compose.yml"
 platforms="$(make echo-linux-platforms)"
 current_platform="$(go env GOOS)/$(go env GOARCH)"
+jaeger_version="v1"
+binary="all-in-one"
 FLAGS=()
 success="false"
 
-while getopts "hlop:" opt; do
+while getopts "hlop:v:" opt; do
 	case "${opt}" in
 	l)
 		# in the local-only mode the images will only be pushed to local registry
@@ -32,11 +35,29 @@ while getopts "hlop:" opt; do
 	p)
 		platforms=${OPTARG}
 		;;
+	v)
+		jaeger_version=${OPTARG}
+		;;
 	*)
 		print_help
 		;;
 	esac
 done
+
+case "$jaeger_version" in
+  v1)
+    docker_compose_file="./examples/hotrod/docker-compose.yml"
+    binary="all-in-one"
+    ;;
+  v2)
+    docker_compose_file="./examples/hotrod/docker-compose-v2.yml"
+    binary="jaeger"
+    ;;
+  *)
+    echo "Invalid Jaeger version provided: $jaeger_version" 
+    print_help
+    ;;
+esac
 
 set -x
 
@@ -73,9 +94,9 @@ done
 # so we do not pass flags like -b and -t.
 bash scripts/build-upload-a-docker-image.sh -l -c example-hotrod -d examples/hotrod -p "${current_platform}"
 
-# Build all-in-one image locally (-l) for integration test
-make build-all-in-one
-bash scripts/build-upload-a-docker-image.sh -l -b -c all-in-one -d cmd/all-in-one -p "${current_platform}" -t release
+# Build all-in-one (for v1) or jaeger (for v2) image locally (-l) for integration test
+make build-${binary}
+bash scripts/build-upload-a-docker-image.sh -l -b -c "${binary}" -d cmd/"${binary}" -p "${current_platform}" -t release
 
 echo '::group:: docker compose'
 JAEGER_VERSION=$GITHUB_SHA REGISTRY="localhost:5000/" docker compose -f "$docker_compose_file" up -d

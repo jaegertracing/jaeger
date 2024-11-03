@@ -135,18 +135,32 @@ func NewSpanReader(p SpanReaderParams) *SpanReader {
 		spanIndex:               p.SpanIndex,
 		serviceIndex:            p.ServiceIndex,
 		spanConverter:           dbmodel.NewToDomain(p.TagDotReplacement),
-		timeRangeIndices:        getTimeRangeIndexFn(p.Archive, p.UseReadWriteAliases, p.RemoteReadClusters),
-		sourceFn:                getSourceFn(p.Archive, p.MaxDocCount),
-		maxDocCount:             p.MaxDocCount,
-		useReadWriteAliases:     p.UseReadWriteAliases,
-		logger:                  p.Logger,
-		tracer:                  p.Tracer,
+		timeRangeIndices: getLoggingTimeRangeIndexFn(
+			p.Logger,
+			getTimeRangeIndexFn(p.Archive, p.UseReadWriteAliases, p.RemoteReadClusters),
+		),
+		sourceFn:            getSourceFn(p.Archive, p.MaxDocCount),
+		maxDocCount:         p.MaxDocCount,
+		useReadWriteAliases: p.UseReadWriteAliases,
+		logger:              p.Logger,
+		tracer:              p.Tracer,
 	}
 }
 
 type timeRangeIndexFn func(indexName string, indexDateLayout string, startTime time.Time, endTime time.Time, reduceDuration time.Duration) []string
 
 type sourceFn func(query elastic.Query, nextTime uint64) *elastic.SearchSource
+
+func getLoggingTimeRangeIndexFn(logger *zap.Logger, fn timeRangeIndexFn) timeRangeIndexFn {
+	if !logger.Core().Enabled(zap.DebugLevel) {
+		return fn
+	}
+	return func(indexName string, indexDateLayout string, startTime time.Time, endTime time.Time, reduceDuration time.Duration) []string {
+		indices := fn(indexName, indexDateLayout, startTime, endTime, reduceDuration)
+		logger.Debug("Reading from ES indices", zap.Strings("index", indices))
+		return indices
+	}
+}
 
 func getTimeRangeIndexFn(archive, useReadWriteAliases bool, remoteReadClusters []string) timeRangeIndexFn {
 	if archive {
@@ -444,8 +458,8 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []model.TraceID, st
 	}
 
 	var traces []*model.Trace
-	for _, trace := range tracesMap {
-		traces = append(traces, trace)
+	for _, t := range tracesMap {
+		traces = append(traces, t)
 	}
 	return traces, nil
 }
