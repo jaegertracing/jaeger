@@ -14,8 +14,7 @@ import (
 )
 
 var ( // interface comformance checks
-	_ storage.Factory        = (*Factory)(nil)
-	_ storage.ArchiveFactory = (*Factory)(nil)
+	_ storage.Factory = (*Factory)(nil)
 )
 
 // Factory implements storage.Factory and creates blackhole storage components.
@@ -45,16 +44,6 @@ func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
 
 // CreateSpanWriter implements storage.Factory
 func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
-	return f.store, nil
-}
-
-// CreateArchiveSpanReader implements storage.ArchiveFactory
-func (f *Factory) CreateArchiveSpanReader() (spanstore.Reader, error) {
-	return f.store, nil
-}
-
-// CreateArchiveSpanWriter implements storage.ArchiveFactory
-func (f *Factory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
 	return f.store, nil
 }
 
