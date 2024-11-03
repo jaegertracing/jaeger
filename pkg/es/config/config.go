@@ -136,6 +136,8 @@ type Configuration struct {
 	Tags                     TagsAsFields  `mapstructure:"tags_as_fields"`
 	// Enabled, if set to true, enables the namespace for storage pointed to by this configuration.
 	Enabled bool `mapstructure:"-"`
+	// TODO: revisit if this needed
+	IsArchive bool
 }
 
 // TagsAsFields holds configuration for tag schema.
