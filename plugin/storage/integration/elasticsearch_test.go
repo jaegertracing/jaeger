@@ -98,7 +98,7 @@ func (s *ESStorageIntegration) esCleanUp(t *testing.T) {
 
 func (*ESStorageIntegration) initializeESFactory(t *testing.T, allTagsAsFields bool) *es.Factory {
 	logger := zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller()))
-	f := es.NewFactory()
+	f := es.NewFactory(es.PrimaryNamespace)
 	v, command := config.Viperize(f.AddFlags)
 	args := []string{
 		fmt.Sprintf("--es.num-shards=%v", 5),
@@ -130,10 +130,6 @@ func (s *ESStorageIntegration) initSpanstore(t *testing.T, allTagsAsFields bool)
 	s.SpanWriter, err = f.CreateSpanWriter()
 	require.NoError(t, err)
 	s.SpanReader, err = f.CreateSpanReader()
-	require.NoError(t, err)
-	s.ArchiveSpanReader, err = f.CreateArchiveSpanReader()
-	require.NoError(t, err)
-	s.ArchiveSpanWriter, err = f.CreateArchiveSpanWriter()
 	require.NoError(t, err)
 
 	s.DependencyReader, err = f.CreateDependencyReader()
