@@ -201,31 +201,28 @@ func (s *SpanWriter) WriteSpan(ctx context.Context, span *model.Span) error {
 	// Write with retries
 	var lastErr error
 	for i := 0; i < 3; i++ {
-		if err := s.writeSpanWithResult(ctx, spanIndexName, jsonSpan); err == nil {
-			s.logger.Debug("Successfully wrote span",
-				zap.String("trace_id", span.TraceID.String()),
-				zap.String("span_id", span.SpanID.String()),
-				zap.String("index", spanIndexName))
+		err := s.writeSpanWithResult(ctx, spanIndexName, jsonSpan)
+		if err == nil {
 			return nil
-		} else {
-			lastErr = err
-			s.logger.Debug("Retrying span write",
-				zap.String("index", spanIndexName),
-				zap.Int("attempt", i+1),
-				zap.Error(lastErr))
 		}
+		lastErr = err
+		s.logger.Debug("Retrying span write",
+			zap.String("index", spanIndexName),
+			zap.Int("attempt", i+1),
+			zap.Error(lastErr))
 		time.Sleep(time.Duration(i+1) * 100 * time.Millisecond)
 	}
 
 	return fmt.Errorf("failed to write span after retries: %w", lastErr)
 }
 
-func (s *SpanWriter) writeSpanWithResult(ctx context.Context, indexName string, jsonSpan *dbmodel.Span) error {
-	s.client().Index().
+func (s *SpanWriter) writeSpanWithResult(_ context.Context, indexName string, jsonSpan *dbmodel.Span) error {
+	indexService := s.client().Index().
 		Index(indexName).
 		Type(spanType).
-		BodyJson(jsonSpan).
-		Add()
+		BodyJson(jsonSpan)
+
+	indexService.Add()
 	return nil
 }
 
