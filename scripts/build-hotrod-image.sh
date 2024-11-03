@@ -25,7 +25,7 @@ FLAGS=()
 success="false"
 runtime="docker"
 
-while getopts "hlop:v:" opt; do
+while getopts "hlop:v:r" opt; do
 	case "${opt}" in
 	l)
 		# in the local-only mode the images will only be pushed to local registry
