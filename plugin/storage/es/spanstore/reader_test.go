@@ -22,6 +22,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest"
 
 	"github.com/jaegertracing/jaeger/internal/metricstest"
 	"github.com/jaegertracing/jaeger/model"
@@ -167,7 +168,9 @@ func TestNewSpanReader(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			reader := NewSpanReader(test.params)
+			params := test.params
+			params.Logger = zaptest.NewLogger(t)
+			reader := NewSpanReader(params)
 			require.NotNil(t, reader)
 			assert.Equal(t, test.maxSpanAge, reader.maxSpanAge)
 		})

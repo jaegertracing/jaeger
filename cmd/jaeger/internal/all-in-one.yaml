@@ -11,6 +11,8 @@ service:
     metrics:
       level: detailed
       address: 0.0.0.0:8888
+    logs:
+      level: info
     # TODO Initialize telemetery tracer once OTEL released new feature.
     # https://github.com/open-telemetry/opentelemetry-collector/issues/10663
 
