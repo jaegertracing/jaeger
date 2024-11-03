@@ -23,7 +23,7 @@ jaeger_version="v1"
 binary="all-in-one"
 FLAGS=()
 success="false"
-runtime="k8s"
+runtime="docker"
 
 while getopts "hlop:v:" opt; do
 	case "${opt}" in
