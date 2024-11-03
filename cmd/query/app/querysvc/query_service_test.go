@@ -320,6 +320,7 @@ func (f *fakeStorageFactory2) CreateSpanWriter() (spanstore.Writer, error) { ret
 
 var (
 	_ storage.Factory = new(fakeStorageFactory1)
+	_ storage.Factory = new(fakeStorageFactory2)
 )
 
 func TestInitArchiveStorageErrors(t *testing.T) {

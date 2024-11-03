@@ -13,9 +13,8 @@ import (
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
-var ( // interface comformance checks
-	_ storage.Factory = (*Factory)(nil)
-)
+// interface comformance checks
+var _ storage.Factory = (*Factory)(nil)
 
 // Factory implements storage.Factory and creates blackhole storage components.
 type Factory struct {
