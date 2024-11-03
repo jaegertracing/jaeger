@@ -56,6 +56,16 @@ jobs:
             echo "BUILD_FLAGS=" >> ${GITHUB_ENV}
             ;;
         esac
+    - name: Install kubectl
+      uses: azure/setup-kubectl@v3
+      with:
+        version: 'latest'
+  
+    - name: Install Kustomize
+      uses: imranismail/setup-kustomize@v2
+
+    - name: Create k8s Kind Cluster
+      uses: helm/kind-action@v1
 
     - name: Build, test, and publish hotrod image
       run: bash scripts/build-hotrod-image.sh ${{ env.BUILD_FLAGS }} -v ${{ matrix.jaeger-version }}
