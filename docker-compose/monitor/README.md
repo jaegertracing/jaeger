@@ -17,7 +17,6 @@ This environment consists the following backend components:
 - [Jaeger All-in-one](https://www.jaegertracing.io/docs/1.24/getting-started/#all-in-one): the full Jaeger stack in a single container image.
 - [OpenTelemetry Collector](https://opentelemetry.io/docs/collector/): vendor agnostic integration layer for traces and metrics. Its main role in this particular development environment is to receive Jaeger spans, forward these spans untouched to Jaeger All-in-one while simultaneously aggregating metrics out of this span data. To learn more about span metrics aggregation, please refer to the [spanmetrics connector documentation][spanmetricsconnectorreadme].
 - [Prometheus](https://prometheus.io/): a metrics collection and query engine, used to scrape metrics computed by OpenTelemetry Collector, and presents an API for Jaeger All-in-one to query these metrics.
-- [Grafana](https://grafana.com/): a metrics visualization, analytics & monitoring solution supporting multiple metrics databases.
 
 
 The following diagram illustrates the relationship between these components:
@@ -74,16 +73,33 @@ It uses the latest image tags from both Jaeger and OpenTelemetry.
 docker compose up
 ```
 
+**Jaeger v2**
+
+```shell
+docker compose -f docker-compose-v2.yml up
+```
+
 **Tips:**
 - Let the application run for a couple of minutes to ensure there is enough time series data to plot in the dashboard.
 - Navigate to Jaeger UI at http://localhost:16686/ and inspect the Monitor tab. Select `redis` service from the dropdown to see more than one endpoint.
-- To visualize the raw metrics stored on the Prometheus server (for debugging and local development use cases), a Grafana server is included in the docker-compose config, which is preconfigured to read metrics from the Prometheus server.
-  To access Grafana, navigate to http://localhost:3000/, click on the "Explore" and click the "Select metric" dropdown then select `calls_total`, for example.
+- To visualize the raw metrics stored on the Prometheus server (for debugging and local development use cases), use the built-in Prometheus UI at http://localhost:9090/graph. For example, http://localhost:9090/graph?g0.expr=traces_span_metrics_calls_total&g0.tab=0&g0.range_input=5m
 
 **Warning:** The included [docker-compose.yml](./docker-compose.yml) file uses the `latest` version of Jaeger and other components. If your local Docker registry already contains older versions, which may still be tagged as `latest`, you may want to delete those images before running the full set, to ensure consistent behavior:
 
 ```bash
 make clean-all
+```
+
+To use an official published image of Jaeger, specify the version via environment variable:
+
+```shell
+JAEGER_IMAGE_TAG=1.62.0 docker compose up
+```
+
+or for Jaeger v2:
+
+```shell
+JAEGER_IMAGE_TAG=2.0.0-rc2 docker compose -f docker-compose-v2.yml up
 ```
 
 ## Development
