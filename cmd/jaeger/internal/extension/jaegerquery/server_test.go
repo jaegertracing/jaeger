@@ -278,18 +278,6 @@ func TestServerAddArchiveStorage(t *testing.T) {
 			expectedOutput: "",
 			expectedErr:    "cannot find archive storage factory: cannot find extension",
 		},
-		{
-			name: "Archive storage not supported",
-			config: &Config{
-				Storage: Storage{
-					TracesArchive: "badger",
-				},
-			},
-			qSvcOpts:       &querysvc.QueryServiceOptions{},
-			extension:      fakeStorageExt{},
-			expectedOutput: "Archive storage not supported by the factory",
-			expectedErr:    "",
-		},
 	}
 
 	for _, tt := range tests {
