@@ -67,7 +67,7 @@ func TestElasticsearchFactory(t *testing.T) {
 	f.InitFromViper(v, zap.NewNop())
 
 	f.newClientFn = (&mockClientBuilder{err: errors.New("made-up error")}).NewClient
-	require.EqualError(t, f.Initialize(metrics.NullFactory, zap.NewNop()), "failed to create primary Elasticsearch client: made-up error")
+	require.EqualError(t, f.Initialize(metrics.NullFactory, zap.NewNop()), "failed to create Elasticsearch client: made-up error")
 
 	f.newClientFn = (&mockClientBuilder{}).NewClient
 	require.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
@@ -269,7 +269,7 @@ func TestESStorageFactoryWithConfigError(t *testing.T) {
 	}
 	_, err := NewFactoryWithConfig(cfg, metrics.NullFactory, zap.NewNop())
 	require.Error(t, err)
-	require.ErrorContains(t, err, "failed to create primary Elasticsearch client")
+	require.ErrorContains(t, err, "failed to create Elasticsearch client")
 }
 
 func TestPasswordFromFile(t *testing.T) {
