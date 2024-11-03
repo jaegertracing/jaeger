@@ -315,29 +315,19 @@ func (*fakeStorageFactory1) CreateSpanReader() (spanstore.Reader, error)        
 func (*fakeStorageFactory1) CreateSpanWriter() (spanstore.Writer, error)             { return nil, nil }
 func (*fakeStorageFactory1) CreateDependencyReader() (dependencystore.Reader, error) { return nil, nil }
 
-func (f *fakeStorageFactory2) CreateArchiveSpanReader() (spanstore.Reader, error) { return f.r, f.rErr }
-func (f *fakeStorageFactory2) CreateArchiveSpanWriter() (spanstore.Writer, error) { return f.w, f.wErr }
+func (f *fakeStorageFactory2) CreateSpanReader() (spanstore.Reader, error) { return f.r, f.rErr }
+func (f *fakeStorageFactory2) CreateSpanWriter() (spanstore.Writer, error) { return f.w, f.wErr }
 
 var (
-	_ storage.Factory        = new(fakeStorageFactory1)
-	_ storage.ArchiveFactory = new(fakeStorageFactory2)
+	_ storage.Factory = new(fakeStorageFactory1)
 )
 
 func TestInitArchiveStorageErrors(t *testing.T) {
 	opts := &QueryServiceOptions{}
 	logger := zap.NewNop()
 
-	assert.False(t, opts.InitArchiveStorage(new(fakeStorageFactory1), logger))
-	assert.False(t, opts.InitArchiveStorage(
-		&fakeStorageFactory2{rErr: storage.ErrArchiveStorageNotConfigured},
-		logger,
-	))
 	assert.False(t, opts.InitArchiveStorage(
 		&fakeStorageFactory2{rErr: errors.New("error")},
-		logger,
-	))
-	assert.False(t, opts.InitArchiveStorage(
-		&fakeStorageFactory2{wErr: storage.ErrArchiveStorageNotConfigured},
 		logger,
 	))
 	assert.False(t, opts.InitArchiveStorage(
