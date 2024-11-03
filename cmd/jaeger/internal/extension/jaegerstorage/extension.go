@@ -130,9 +130,9 @@ func (s *storageExt) Start(_ context.Context, host component.Host) error {
 		case cfg.Cassandra != nil:
 			factory, err = cassandra.NewFactoryWithConfig(*cfg.Cassandra, mf, s.telset.Logger)
 		case cfg.Elasticsearch != nil:
-			factory, err = es.NewFactoryWithConfig(*cfg.Elasticsearch, mf, s.telset.Logger)
+			factory, err = es.NewFactoryWithConfig(*cfg.Elasticsearch, es.PrimaryNamespace, mf, s.telset.Logger)
 		case cfg.Opensearch != nil:
-			factory, err = es.NewFactoryWithConfig(*cfg.Opensearch, mf, s.telset.Logger)
+			factory, err = es.NewFactoryWithConfig(*cfg.Opensearch, es.PrimaryNamespace, mf, s.telset.Logger)
 		}
 		if err != nil {
 			return fmt.Errorf("failed to initialize storage '%s': %w", storageName, err)
