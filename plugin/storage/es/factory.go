@@ -75,7 +75,6 @@ func NewFactory(namespace string) *Factory {
 
 func NewFactoryWithConfig(
 	cfg config.Configuration,
-	namespace string,
 	metricsFactory metrics.Factory,
 	logger *zap.Logger,
 ) (*Factory, error) {
@@ -86,13 +85,11 @@ func NewFactoryWithConfig(
 	defaultConfig := DefaultConfig()
 	cfg.ApplyDefaults(&defaultConfig)
 
-	f := NewFactory(namespace)
-	f.configureFromOptions(&Options{
-		Primary: namespaceConfig{
-			Configuration: cfg,
-			namespace:     namespace,
-		},
-	})
+	f := &Factory{
+		config:      &cfg,
+		newClientFn: config.NewClient,
+		tracer:      otel.GetTracerProvider(),
+	}
 	err := f.Initialize(metricsFactory, logger)
 	if err != nil {
 		return nil, err
