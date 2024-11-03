@@ -59,7 +59,9 @@ func TestArchiveReader_GetTrace(t *testing.T) {
 	}).Return(traceClient, nil)
 	reader := &archiveReader{client: archiveSpanReader}
 
-	trace, err := reader.GetTrace(context.Background(), mockTraceID)
+	trace, err := reader.GetTrace(context.Background(), spanstore.TraceGetParameters{
+		TraceID: mockTraceID,
+	})
 	require.NoError(t, err)
 	assert.Equal(t, expected, trace)
 }
@@ -73,7 +75,9 @@ func TestArchiveReaderGetTrace_NoTrace(t *testing.T) {
 	}).Return(nil, status.Errorf(codes.NotFound, ""))
 	reader := &archiveReader{client: archiveSpanReader}
 
-	_, err := reader.GetTrace(context.Background(), mockTraceID)
+	_, err := reader.GetTrace(context.Background(), spanstore.TraceGetParameters{
+		TraceID: mockTraceID,
+	})
 	assert.Equal(t, spanstore.ErrTraceNotFound, err)
 }
 

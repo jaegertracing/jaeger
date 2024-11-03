@@ -36,7 +36,7 @@ func (*Store) WriteSpan(context.Context, *model.Span) error {
 }
 
 // GetTrace gets nothing.
-func (*Store) GetTrace(context.Context, model.TraceID) (*model.Trace, error) {
+func (*Store) GetTrace(context.Context, spanstore.TraceGetParameters) (*model.Trace, error) {
 	return nil, spanstore.ErrTraceNotFound
 }
 

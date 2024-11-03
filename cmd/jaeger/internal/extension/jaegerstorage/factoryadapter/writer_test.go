@@ -16,6 +16,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/plugin/storage/memory"
+	"github.com/jaegertracing/jaeger/storage/spanstore"
 	spanstoreMocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
 )
 
@@ -32,7 +33,8 @@ func TestWriteTraces(t *testing.T) {
 	tdID := td.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).TraceID()
 	traceID, err := model.TraceIDFromBytes(tdID[:])
 	require.NoError(t, err)
-	trace, err := memstore.GetTrace(context.Background(), traceID)
+	query := spanstore.TraceGetParameters{TraceID: traceID}
+	trace, err := memstore.GetTrace(context.Background(), query)
 	require.NoError(t, err)
 	require.NotNil(t, trace)
 	assert.Len(t, trace.Spans, 1)

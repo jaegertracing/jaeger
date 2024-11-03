@@ -85,6 +85,39 @@ func newDurationUnitsParser(units time.Duration) durationParser {
 	}
 }
 
+// parseTraceGetParams takes a request and constructs a model of parameters.
+// These parameters are optional
+//
+// Why start/end parameters are expressed in microseconds:
+// Span searches operate on span latencies, which are expressed as microseconds in the data model, hence why
+// support for high accuracy in search query parameters is required.
+// Microsecond precision is a legacy artifact from zipkin origins where timestamps and durations
+// are in microseconds (see: https://zipkin.io/pages/instrumenting.html).
+//
+// Trace get syntax:
+//
+//	query ::= param | param '&' query
+//	param ::= start | end
+//	start ::= 'start=' intValue in unix microseconds
+//	end ::= 'end=' intValue in unix microseconds
+func (p *queryParser) parseTraceGetParams(r *http.Request, param *spanstore.TraceGetParameters) error {
+	startTime, err := p.parseTime(r, startTimeParam, time.Microsecond, true)
+	if err != nil {
+		return err
+	}
+	if startTime != nil {
+		param.StartTime = startTime
+	}
+	endTime, err := p.parseTime(r, endTimeParam, time.Microsecond, true)
+	if err != nil {
+		return err
+	}
+	if endTime != nil {
+		param.EndTime = endTime
+	}
+	return nil
+}
+
 // parseTraceQueryParams takes a request and constructs a model of parameters.
 //
 // Why start/end parameters are expressed in microseconds:
@@ -117,11 +150,11 @@ func (p *queryParser) parseTraceQueryParams(r *http.Request) (*traceQueryParamet
 	service := r.FormValue(serviceParam)
 	operation := r.FormValue(operationParam)
 
-	startTime, err := p.parseTime(r, startTimeParam, time.Microsecond)
+	startTime, err := p.parseTime(r, startTimeParam, time.Microsecond, false)
 	if err != nil {
 		return nil, err
 	}
-	endTime, err := p.parseTime(r, endTimeParam, time.Microsecond)
+	endTime, err := p.parseTime(r, endTimeParam, time.Microsecond, false)
 	if err != nil {
 		return nil, err
 	}
@@ -165,8 +198,8 @@ func (p *queryParser) parseTraceQueryParams(r *http.Request) (*traceQueryParamet
 		TraceQueryParameters: spanstore.TraceQueryParameters{
 			ServiceName:   service,
 			OperationName: operation,
-			StartTimeMin:  startTime,
-			StartTimeMax:  endTime,
+			StartTimeMin:  *startTime,
+			StartTimeMax:  *endTime,
 			Tags:          tags,
 			NumTraces:     limit,
 			DurationMin:   minDuration,
@@ -187,10 +220,11 @@ func (p *queryParser) parseTraceQueryParams(r *http.Request) (*traceQueryParamet
 // and the typical backend granularity of those is on the order of 15min or more. As such, microseconds aren't
 // useful in this domain and milliseconds are sufficient for both times and durations.
 func (p *queryParser) parseDependenciesQueryParams(r *http.Request) (dqp dependenciesQueryParameters, err error) {
-	dqp.endTs, err = p.parseTime(r, endTsParam, time.Millisecond)
+	endTs, err := p.parseTime(r, endTsParam, time.Millisecond, false)
 	if err != nil {
 		return dqp, err
 	}
+	dqp.endTs = *endTs
 
 	dqp.lookback, err = parseDuration(r, lookbackParam, newDurationUnitsParser(time.Millisecond), defaultDependencyLookbackDuration)
 	return dqp, err
@@ -248,7 +282,7 @@ func (p *queryParser) parseMetricsQueryParams(r *http.Request) (bqp metricsstore
 	if err != nil {
 		return bqp, err
 	}
-	endTs, err := p.parseTime(r, endTsParam, time.Millisecond)
+	endTs, err := p.parseTime(r, endTsParam, time.Millisecond, false)
 	if err != nil {
 		return bqp, err
 	}
@@ -265,7 +299,7 @@ func (p *queryParser) parseMetricsQueryParams(r *http.Request) (bqp metricsstore
 	if err != nil {
 		return bqp, err
 	}
-	bqp.EndTime = &endTs
+	bqp.EndTime = endTs
 	bqp.Lookback = &lookback
 	bqp.Step = &step
 	bqp.RatePer = &ratePer
@@ -273,20 +307,29 @@ func (p *queryParser) parseMetricsQueryParams(r *http.Request) (bqp metricsstore
 }
 
 // parseTime parses the time parameter of an HTTP request that is represented the number of "units" since epoch.
-// If the time parameter is empty, the current time will be returned.
-func (p *queryParser) parseTime(r *http.Request, paramName string, units time.Duration) (time.Time, error) {
+// If the time parameter is empty, and allowNil is false, the current time will be returned.
+func (p *queryParser) parseTime(r *http.Request, paramName string, units time.Duration, allowNil bool) (*time.Time, error) {
 	formValue := r.FormValue(paramName)
+	var t time.Time
 	if formValue == "" {
-		if paramName == startTimeParam {
-			return p.timeNow().Add(-1 * p.traceQueryLookbackDuration), nil
+		if allowNil {
+			return nil, nil
 		}
-		return p.timeNow(), nil
+		if paramName == startTimeParam {
+			t = p.timeNow().Add(-1 * p.traceQueryLookbackDuration)
+		} else {
+			t = p.timeNow()
+		}
+		return &t, nil
 	}
-	t, err := strconv.ParseInt(formValue, 10, 64)
+	parsed_time, err := strconv.ParseInt(formValue, 10, 64)
 	if err != nil {
-		return time.Time{}, newParseError(err, paramName)
+		t = time.Time{}
+		err = newParseError(err, paramName)
+	} else {
+		t = time.Unix(0, 0).Add(time.Duration(parsed_time) * units)
 	}
-	return time.Unix(0, 0).Add(time.Duration(t) * units), nil
+	return &t, err
 }
 
 // parseDuration parses the duration parameter of an HTTP request using the provided durationParser.

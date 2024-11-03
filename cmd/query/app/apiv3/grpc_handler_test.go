@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net"
 	"testing"
+	"time"
 
 	"github.com/gogo/protobuf/types"
 	"github.com/stretchr/testify/assert"
@@ -26,8 +27,8 @@ import (
 )
 
 var (
-	matchContext = mock.AnythingOfType("*context.valueCtx")
-	matchTraceID = mock.AnythingOfType("model.TraceID")
+	matchContext            = mock.AnythingOfType("*context.valueCtx")
+	matchTraceGetParameters = mock.AnythingOfType("spanstore.TraceGetParameters")
 )
 
 func newGrpcServer(t *testing.T, handler *Handler) (*grpc.Server, net.Addr) {
@@ -79,7 +80,17 @@ func newTestServerClient(t *testing.T) *testServerClient {
 
 func TestGetTrace(t *testing.T) {
 	tsc := newTestServerClient(t)
-	tsc.reader.On("GetTrace", matchContext, matchTraceID).Return(
+	traceIdLiteral := "156"
+	traceId, _ := model.TraceIDFromString(traceIdLiteral)
+	startTime := time.Date(2020, time.January, 1, 13, 0, 0, 0, time.UTC)
+	endTime := time.Date(2020, time.January, 1, 14, 0, 0, 0, time.UTC)
+
+	expectedTraceGetParameters := spanstore.TraceGetParameters{
+		TraceID:   traceId,
+		StartTime: &startTime,
+		EndTime:   &endTime,
+	}
+	tsc.reader.On("GetTrace", matchContext, expectedTraceGetParameters).Return(
 		&model.Trace{
 			Spans: []*model.Span{
 				{
@@ -90,7 +101,9 @@ func TestGetTrace(t *testing.T) {
 
 	getTraceStream, err := tsc.client.GetTrace(context.Background(),
 		&api_v3.GetTraceRequest{
-			TraceId: "156",
+			TraceId:   traceIdLiteral,
+			StartTime: &startTime,
+			EndTime:   &endTime,
 		},
 	)
 	require.NoError(t, err)
@@ -104,7 +117,7 @@ func TestGetTrace(t *testing.T) {
 
 func TestGetTraceStorageError(t *testing.T) {
 	tsc := newTestServerClient(t)
-	tsc.reader.On("GetTrace", matchContext, matchTraceID).Return(
+	tsc.reader.On("GetTrace", matchContext, matchTraceGetParameters).Return(
 		nil, fmt.Errorf("storage_error")).Once()
 
 	getTraceStream, err := tsc.client.GetTrace(context.Background(), &api_v3.GetTraceRequest{
@@ -119,7 +132,7 @@ func TestGetTraceStorageError(t *testing.T) {
 
 func TestGetTraceTraceIDError(t *testing.T) {
 	tsc := newTestServerClient(t)
-	tsc.reader.On("GetTrace", matchContext, matchTraceID).Return(
+	tsc.reader.On("GetTrace", matchContext, matchTraceGetParameters).Return(
 		&model.Trace{
 			Spans: []*model.Span{},
 		}, nil).Once()

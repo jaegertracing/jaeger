@@ -141,9 +141,9 @@ func (_m *Reader) GetServices(ctx context.Context) ([]string, error) {
 	return r0, r1
 }
 
-// GetTrace provides a mock function with given fields: ctx, traceID
-func (_m *Reader) GetTrace(ctx context.Context, traceID model.TraceID) (*model.Trace, error) {
-	ret := _m.Called(ctx, traceID)
+// GetTrace provides a mock function with given fields: ctx, query
+func (_m *Reader) GetTrace(ctx context.Context, query spanstore.TraceGetParameters) (*model.Trace, error) {
+	ret := _m.Called(ctx, query)
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetTrace")
@@ -151,19 +151,19 @@ func (_m *Reader) GetTrace(ctx context.Context, traceID model.TraceID) (*model.T
 
 	var r0 *model.Trace
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, model.TraceID) (*model.Trace, error)); ok {
-		return rf(ctx, traceID)
+	if rf, ok := ret.Get(0).(func(context.Context, spanstore.TraceGetParameters) (*model.Trace, error)); ok {
+		return rf(ctx, query)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, model.TraceID) *model.Trace); ok {
-		r0 = rf(ctx, traceID)
+	if rf, ok := ret.Get(0).(func(context.Context, spanstore.TraceGetParameters) *model.Trace); ok {
+		r0 = rf(ctx, query)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*model.Trace)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, model.TraceID) error); ok {
-		r1 = rf(ctx, traceID)
+	if rf, ok := ret.Get(1).(func(context.Context, spanstore.TraceGetParameters) error); ok {
+		r1 = rf(ctx, query)
 	} else {
 		r1 = ret.Error(1)
 	}

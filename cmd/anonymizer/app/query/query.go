@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"time"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -49,15 +50,27 @@ func unwrapNotFoundErr(err error) error {
 }
 
 // QueryTrace queries for a trace and returns all spans inside it
-func (q *Query) QueryTrace(traceID string) ([]model.Span, error) {
+func (q *Query) QueryTrace(traceID string, startTime int64, endTime int64) ([]model.Span, error) {
 	mTraceID, err := model.TraceIDFromString(traceID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert the provided trace id: %w", err)
 	}
 
-	stream, err := q.client.GetTrace(context.Background(), &api_v2.GetTraceRequest{
+	request := api_v2.GetTraceRequest{
 		TraceID: mTraceID,
-	})
+	}
+
+	if startTime != -1 {
+		t := time.UnixMicro(startTime)
+		request.StartTime = &t
+	}
+
+	if endTime != -1 {
+		t := time.UnixMicro(endTime)
+		request.EndTime = &t
+	}
+
+	stream, err := q.client.GetTrace(context.Background(), &request)
 	if err != nil {
 		return nil, unwrapNotFoundErr(err)
 	}

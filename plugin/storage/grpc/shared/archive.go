@@ -32,9 +32,11 @@ type archiveWriter struct {
 }
 
 // GetTrace takes a traceID and returns a Trace associated with that traceID from Archive Storage
-func (r *archiveReader) GetTrace(ctx context.Context, traceID model.TraceID) (*model.Trace, error) {
+func (r *archiveReader) GetTrace(ctx context.Context, q spanstore.TraceGetParameters) (*model.Trace, error) {
 	stream, err := r.client.GetArchiveTrace(ctx, &storage_v1.GetTraceRequest{
-		TraceID: traceID,
+		TraceID:   q.TraceID,
+		StartTime: q.StartTime,
+		EndTime:   q.EndTime,
 	})
 	if status.Code(err) == codes.NotFound {
 		return nil, spanstore.ErrTraceNotFound

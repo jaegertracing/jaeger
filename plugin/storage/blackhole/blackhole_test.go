@@ -37,7 +37,7 @@ func TestStoreWriteSpan(t *testing.T) {
 
 func TestStoreGetTrace(t *testing.T) {
 	withBlackhole(func(store *Store) {
-		trace, err := store.GetTrace(context.Background(), model.NewTraceID(1, 2))
+		trace, err := store.GetTrace(context.Background(), spanstore.TraceGetParameters{TraceID: model.NewTraceID(1, 2)})
 		require.Error(t, err)
 		assert.Nil(t, trace)
 	})

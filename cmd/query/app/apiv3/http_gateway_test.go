@@ -118,12 +118,38 @@ func TestHTTPGatewayGetTraceErrors(t *testing.T) {
 	// error from span reader
 	const simErr = "simulated error"
 	gw.reader.
-		On("GetTrace", matchContext, matchTraceID).
+		On("GetTrace", matchContext, matchTraceGetParameters).
 		Return(nil, errors.New(simErr)).Once()
 
 	r, err = http.NewRequest(http.MethodGet, "/api/v3/traces/123", nil)
 	require.NoError(t, err)
 	w = httptest.NewRecorder()
+	gw.router.ServeHTTP(w, r)
+	assert.Contains(t, w.Body.String(), simErr)
+}
+
+func TestHTTPGatewayGetTraceWithTimeWindowErrors(t *testing.T) {
+	gw := setupHTTPGatewayNoServer(t, "")
+
+	// error from span reader
+	const simErr = "simulated error"
+	startTime := time.Date(2020, time.January, 1, 12, 0, 0, 0, time.UTC)
+	endTime := time.Date(2020, time.January, 1, 13, 0, 0, 0, time.UTC)
+	expectedTraceGetParameters := spanstore.TraceGetParameters{
+		TraceID:   model.TraceID{High: 0, Low: 0x123},
+		StartTime: &startTime,
+		EndTime:   &endTime,
+	}
+	gw.reader.
+		On("GetTrace", matchContext, expectedTraceGetParameters).
+		Return(nil, errors.New(simErr)).Once()
+
+	q := url.Values{}
+	q.Set(paramStartTime, startTime.Format(time.RFC3339Nano))
+	q.Set(paramEndTime, endTime.Format(time.RFC3339Nano))
+	r, err := http.NewRequest(http.MethodGet, "/api/v3/traces/123?"+q.Encode(), nil)
+	require.NoError(t, err)
+	w := httptest.NewRecorder()
 	gw.router.ServeHTTP(w, r)
 	assert.Contains(t, w.Body.String(), simErr)
 }

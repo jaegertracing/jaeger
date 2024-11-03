@@ -53,7 +53,7 @@ func main() {
 				logger.Fatal("error while creating query object", zap.Error(err))
 			}
 
-			spans, err := query.QueryTrace(options.TraceID)
+			spans, err := query.QueryTrace(options.TraceID, options.StartTime, options.EndTime)
 			if err != nil {
 				logger.Fatal("error while querying for trace", zap.Error(err))
 			}

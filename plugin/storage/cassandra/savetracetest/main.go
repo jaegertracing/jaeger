@@ -59,7 +59,7 @@ func main() {
 		logger.Info("Saved span", zap.String("spanID", getSomeSpan().SpanID.String()))
 	}
 	s := getSomeSpan()
-	trace, err := spanReader.GetTrace(ctx, s.TraceID)
+	trace, err := spanReader.GetTrace(ctx, spanstore.TraceGetParameters{TraceID: s.TraceID})
 	if err != nil {
 		logger.Fatal("Failed to read", zap.Error(err))
 	} else {
