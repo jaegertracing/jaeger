@@ -18,7 +18,6 @@ This environment consists the following backend components:
 - [OpenTelemetry Collector](https://opentelemetry.io/docs/collector/): vendor agnostic integration layer for traces and metrics. Its main role in this particular development environment is to receive Jaeger spans, forward these spans untouched to Jaeger All-in-one while simultaneously aggregating metrics out of this span data. To learn more about span metrics aggregation, please refer to the [spanmetrics connector documentation][spanmetricsconnectorreadme].
 - [Prometheus](https://prometheus.io/): a metrics collection and query engine, used to scrape metrics computed by OpenTelemetry Collector, and presents an API for Jaeger All-in-one to query these metrics.
 
-
 The following diagram illustrates the relationship between these components:
 
 ![SPM diagram](./diagram.png)
