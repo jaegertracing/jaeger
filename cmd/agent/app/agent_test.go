@@ -44,7 +44,7 @@ func TestAgentSamplingEndpoint(t *testing.T) {
 			}
 			select {
 			case err := <-errorch:
-				require.NoErrorf(t, err, "error from agent")
+				require.NoError(t, err, "error from agent")
 				break wait_loop
 			default:
 				time.Sleep(time.Millisecond)
