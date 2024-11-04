@@ -6,6 +6,7 @@ package storagecleaner
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/http"
 	"sync/atomic"
 	"testing"
@@ -90,9 +91,12 @@ func TestStorageCleanerExtension(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			port := getFreePort()
+			portStr := fmt.Sprintf("%d", port)
 			config := &Config{
 				TraceStorage: "storage",
-				Port:         Port,
+				Port:         portStr,
 			}
 			s := newStorageCleaner(config, component.TelemetrySettings{
 				Logger: zaptest.NewLogger(t),
@@ -106,8 +110,9 @@ func TestStorageCleanerExtension(t *testing.T) {
 			require.NoError(t, s.Start(context.Background(), host))
 			defer s.Shutdown(context.Background())
 
-			addr := fmt.Sprintf("http://0.0.0.0:%s%s", Port, URL)
+			addr := fmt.Sprintf("http://0.0.0.0:%s%s", portStr, URL)
 			client := &http.Client{}
+
 			require.Eventually(t, func() bool {
 				r, err := http.NewRequest(http.MethodPost, addr, nil)
 				require.NoError(t, err)
@@ -170,4 +175,13 @@ type testHost struct {
 
 func (h *testHost) Report(event *componentstatus.Event) {
 	h.reportFunc(event)
+}
+
+func getFreePort() int {
+	listener, err := net.Listen("tcp", ":0")
+	if err != nil {
+		panic(fmt.Sprintf("Failed to get a free port: %v", err))
+	}
+	defer listener.Close()
+	return listener.Addr().(*net.TCPAddr).Port
 }
