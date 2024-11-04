@@ -34,6 +34,7 @@ func (*testQueryHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func TestGetTraces(t *testing.T) {
+	t.Parallel()
 	handler := &testQueryHandler{}
 	server := httptest.NewServer(handler)
 	defer server.Close()
@@ -54,6 +55,7 @@ func TestGetTraces(t *testing.T) {
 }
 
 func TestGetTracesReadAllErr(t *testing.T) {
+	t.Parallel()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Length", "1")
 	}))
