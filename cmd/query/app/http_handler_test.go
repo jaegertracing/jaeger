@@ -152,6 +152,7 @@ func withTestServer(t *testing.T, doTest func(s *testServer), queryOptions query
 }
 
 func TestGetTraceSuccess(t *testing.T) {
+	t.Parallel()
 	ts := initializeTestServer(t)
 	ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
 		Return(mockTrace, nil).Once()
@@ -174,6 +175,7 @@ func extractTraces(t *testing.T, response *structuredResponse) []ui.Trace {
 // TestGetTraceDedupeSuccess partially verifies that the standard adjusteres
 // are defined in correct order.
 func TestGetTraceDedupeSuccess(t *testing.T) {
+	t.Parallel()
 	dupedMockTrace := &model.Trace{
 		Spans:    append(mockTrace.Spans, mockTrace.Spans...),
 		Warnings: []string{},
@@ -195,6 +197,7 @@ func TestGetTraceDedupeSuccess(t *testing.T) {
 }
 
 func TestLogOnServerError(t *testing.T) {
+	t.Parallel()
 	zapCore, logs := observer.New(zap.InfoLevel)
 	logger := zap.New(zapCore)
 	readStorage := &spanstoremocks.Reader{}
@@ -222,6 +225,7 @@ func (*httpResponseErrWriter) Header() http.Header {
 }
 
 func TestWriteJSON(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		name         string
 		data         any
@@ -267,7 +271,9 @@ func TestWriteJSON(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
+		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
 			apiHandler := &APIHandler{
 				logger: zap.NewNop(),
 			}
@@ -287,6 +293,7 @@ func TestWriteJSON(t *testing.T) {
 }
 
 func TestGetTrace(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		suffix      string
 		numSpanRefs int
@@ -337,6 +344,7 @@ func TestGetTrace(t *testing.T) {
 }
 
 func TestGetTraceDBFailure(t *testing.T) {
+	t.Parallel()
 	ts := initializeTestServer(t)
 	ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
 		Return(nil, errStorage).Once()
@@ -347,6 +355,7 @@ func TestGetTraceDBFailure(t *testing.T) {
 }
 
 func TestGetTraceNotFound(t *testing.T) {
+	t.Parallel()
 	ts := initializeTestServer(t)
 	ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
 		Return(nil, spanstore.ErrTraceNotFound).Once()
@@ -357,6 +366,7 @@ func TestGetTraceNotFound(t *testing.T) {
 }
 
 func TestGetTraceAdjustmentFailure(t *testing.T) {
+	t.Parallel()
 	ts := initializeTestServerWithHandler(
 		t,
 		querysvc.QueryServiceOptions{
@@ -376,6 +386,7 @@ func TestGetTraceAdjustmentFailure(t *testing.T) {
 }
 
 func TestGetTraceBadTraceID(t *testing.T) {
+	t.Parallel()
 	ts := initializeTestServer(t)
 
 	var response structuredResponse
@@ -384,6 +395,7 @@ func TestGetTraceBadTraceID(t *testing.T) {
 }
 
 func TestSearchSuccess(t *testing.T) {
+	t.Parallel()
 	ts := initializeTestServer(t)
 	ts.spanReader.On("FindTraces", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("*spanstore.TraceQueryParameters")).
 		Return([]*model.Trace{mockTrace}, nil).Once()
@@ -395,6 +407,7 @@ func TestSearchSuccess(t *testing.T) {
 }
 
 func TestSearchByTraceIDSuccess(t *testing.T) {
+	t.Parallel()
 	ts := initializeTestServer(t)
 	ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
 		Return(mockTrace, nil).Twice()
@@ -407,6 +420,7 @@ func TestSearchByTraceIDSuccess(t *testing.T) {
 }
 
 func TestSearchByTraceIDSuccessWithArchive(t *testing.T) {
+	t.Parallel()
 	archiveReadMock := &spanstoremocks.Reader{}
 	ts := initializeTestServerWithOptions(t, &tenancy.Manager{}, querysvc.QueryServiceOptions{
 		ArchiveSpanReader: archiveReadMock,
@@ -424,6 +438,7 @@ func TestSearchByTraceIDSuccessWithArchive(t *testing.T) {
 }
 
 func TestSearchByTraceIDNotFound(t *testing.T) {
+	t.Parallel()
 	ts := initializeTestServer(t)
 	ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
 		Return(nil, spanstore.ErrTraceNotFound).Once()
@@ -436,6 +451,7 @@ func TestSearchByTraceIDNotFound(t *testing.T) {
 }
 
 func TestSearchByTraceIDFailure(t *testing.T) {
+	t.Parallel()
 	ts := initializeTestServer(t)
 	whatsamattayou := "whatsamattayou"
 	ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
@@ -447,6 +463,7 @@ func TestSearchByTraceIDFailure(t *testing.T) {
 }
 
 func TestSearchModelConversionFailure(t *testing.T) {
+	t.Parallel()
 	ts := initializeTestServerWithOptions(
 		t,
 		&tenancy.Manager{},
@@ -466,6 +483,7 @@ func TestSearchModelConversionFailure(t *testing.T) {
 }
 
 func TestSearchDBFailure(t *testing.T) {
+	t.Parallel()
 	ts := initializeTestServer(t)
 	ts.spanReader.On("FindTraces", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("*spanstore.TraceQueryParameters")).
 		Return(nil, fmt.Errorf("whatsamattayou")).Once()
@@ -476,6 +494,7 @@ func TestSearchDBFailure(t *testing.T) {
 }
 
 func TestSearchFailures(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		urlStr string
 		errMsg string
@@ -505,6 +524,7 @@ func testIndividualSearchFailures(t *testing.T, urlStr, errMsg string) {
 }
 
 func TestGetServicesSuccess(t *testing.T) {
+	t.Parallel()
 	ts := initializeTestServer(t)
 	expectedServices := []string{"trifle", "bling"}
 	ts.spanReader.On("GetServices", mock.AnythingOfType("*context.valueCtx")).Return(expectedServices, nil).Once()
@@ -520,6 +540,7 @@ func TestGetServicesSuccess(t *testing.T) {
 }
 
 func TestGetServicesStorageFailure(t *testing.T) {
+	t.Parallel()
 	ts := initializeTestServer(t)
 	ts.spanReader.On("GetServices", mock.AnythingOfType("*context.valueCtx")).Return(nil, errStorage).Once()
 
@@ -529,6 +550,7 @@ func TestGetServicesStorageFailure(t *testing.T) {
 }
 
 func TestGetOperationsSuccess(t *testing.T) {
+	t.Parallel()
 	ts := initializeTestServer(t)
 	expectedOperations := []spanstore.Operation{{Name: ""}, {Name: "get", SpanKind: "server"}}
 	ts.spanReader.On(
@@ -558,6 +580,7 @@ func TestGetOperationsSuccess(t *testing.T) {
 }
 
 func TestGetOperationsNoServiceName(t *testing.T) {
+	t.Parallel()
 	ts := initializeTestServer(t)
 	var response structuredResponse
 	err := getJSON(ts.server.URL+"/api/operations", &response)
@@ -565,6 +588,7 @@ func TestGetOperationsNoServiceName(t *testing.T) {
 }
 
 func TestGetOperationsStorageFailure(t *testing.T) {
+	t.Parallel()
 	ts := initializeTestServer(t)
 	ts.spanReader.On(
 		"GetOperations",
@@ -577,6 +601,7 @@ func TestGetOperationsStorageFailure(t *testing.T) {
 }
 
 func TestGetOperationsLegacySuccess(t *testing.T) {
+	t.Parallel()
 	ts := initializeTestServer(t)
 	expectedOperationNames := []string{"", "get"}
 	expectedOperations := []spanstore.Operation{
@@ -598,6 +623,7 @@ func TestGetOperationsLegacySuccess(t *testing.T) {
 }
 
 func TestGetOperationsLegacyStorageFailure(t *testing.T) {
+	t.Parallel()
 	ts := initializeTestServer(t)
 	ts.spanReader.On(
 		"GetOperations",
@@ -609,6 +635,7 @@ func TestGetOperationsLegacyStorageFailure(t *testing.T) {
 }
 
 func TestTransformOTLPSuccess(t *testing.T) {
+	t.Parallel()
 	reformat := func(in []byte) []byte {
 		obj := new(any)
 		require.NoError(t, json.Unmarshal(in, obj))
@@ -637,6 +664,7 @@ func TestTransformOTLPSuccess(t *testing.T) {
 }
 
 func TestTransformOTLPReadError(t *testing.T) {
+	t.Parallel()
 	withTestServer(t, func(ts *testServer) {
 		bytesReader := &IoReaderMock{}
 		bytesReader.On("Read", mock.AnythingOfType("[]uint8")).Return(0, errors.New("Mocked error"))
@@ -646,6 +674,7 @@ func TestTransformOTLPReadError(t *testing.T) {
 }
 
 func TestTransformOTLPBadPayload(t *testing.T) {
+	t.Parallel()
 	withTestServer(t, func(ts *testServer) {
 		response := new(any)
 		request := "Bad Payload"
@@ -655,6 +684,7 @@ func TestTransformOTLPBadPayload(t *testing.T) {
 }
 
 func TestGetMetricsSuccess(t *testing.T) {
+	t.Parallel()
 	mr := &metricsmocks.Reader{}
 	apiHandlerOptions := []HandlerOption{
 		HandlerOptions.MetricsQueryService(mr),
@@ -740,6 +770,7 @@ func TestGetMetricsSuccess(t *testing.T) {
 }
 
 func TestMetricsReaderError(t *testing.T) {
+	t.Parallel()
 	metricsReader := &metricsmocks.Reader{}
 	ts := initializeTestServer(t, HandlerOptions.MetricsQueryService(metricsReader))
 
@@ -786,6 +817,7 @@ func TestMetricsReaderError(t *testing.T) {
 }
 
 func TestMetricsQueryDisabled(t *testing.T) {
+	t.Parallel()
 	disabledReader, err := disabled.NewMetricsReader()
 	require.NoError(t, err)
 
@@ -821,6 +853,7 @@ func TestMetricsQueryDisabled(t *testing.T) {
 }
 
 func TestGetMinStep(t *testing.T) {
+	t.Parallel()
 	metricsReader := &metricsmocks.Reader{}
 	ts := initializeTestServer(t, HandlerOptions.MetricsQueryService(metricsReader))
 	defer ts.server.Close()
@@ -908,6 +941,7 @@ func parsedError(code int, err string) string {
 }
 
 func TestSearchTenancyHTTP(t *testing.T) {
+	t.Parallel()
 	tenancyOptions := tenancy.Options{
 		Enabled: true,
 	}
@@ -934,6 +968,7 @@ func TestSearchTenancyHTTP(t *testing.T) {
 }
 
 func TestSearchTenancyRejectionHTTP(t *testing.T) {
+	t.Parallel()
 	tenancyOptions := tenancy.Options{
 		Enabled: true,
 	}
@@ -960,6 +995,7 @@ func TestSearchTenancyRejectionHTTP(t *testing.T) {
 }
 
 func TestSearchTenancyFlowTenantHTTP(t *testing.T) {
+	t.Parallel()
 	tenancyOptions := tenancy.Options{
 		Enabled: true,
 	}

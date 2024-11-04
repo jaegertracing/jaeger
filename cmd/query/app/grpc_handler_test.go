@@ -197,6 +197,7 @@ func withServerAndClient(t *testing.T, actualTest func(server *grpcServer, clien
 }
 
 func TestGetTraceSuccessGRPC(t *testing.T) {
+	t.Parallel()
 	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
 		server.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
 			Return(mockTrace, nil).Once()
@@ -220,6 +221,7 @@ func assertGRPCError(t *testing.T, err error, code codes.Code, msg string) {
 }
 
 func TestGetTraceEmptyTraceIDFailure_GRPC(t *testing.T) {
+	t.Parallel()
 	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
 		server.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
 			Return(mockTrace, nil).Once()
@@ -237,6 +239,7 @@ func TestGetTraceEmptyTraceIDFailure_GRPC(t *testing.T) {
 }
 
 func TestGetTraceDBFailureGRPC(t *testing.T) {
+	t.Parallel()
 	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
 		server.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
 			Return(nil, errStorageGRPC).Once()
@@ -253,6 +256,7 @@ func TestGetTraceDBFailureGRPC(t *testing.T) {
 }
 
 func TestGetTraceNotFoundGRPC(t *testing.T) {
+	t.Parallel()
 	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
 		server.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
 			Return(nil, spanstore.ErrTraceNotFound).Once()
@@ -278,6 +282,7 @@ func TestGetTraceNilRequestOnHandlerGRPC(t *testing.T) {
 }
 
 func TestArchiveTraceSuccessGRPC(t *testing.T) {
+	t.Parallel()
 	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
 		server.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
 			Return(mockTrace, nil).Once()
@@ -293,6 +298,7 @@ func TestArchiveTraceSuccessGRPC(t *testing.T) {
 }
 
 func TestArchiveTraceNotFoundGRPC(t *testing.T) {
+	t.Parallel()
 	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
 		server.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
 			Return(nil, spanstore.ErrTraceNotFound).Once()
@@ -308,6 +314,7 @@ func TestArchiveTraceNotFoundGRPC(t *testing.T) {
 }
 
 func TestArchiveTraceEmptyTraceFailureGRPC(t *testing.T) {
+	t.Parallel()
 	withServerAndClient(t, func(_ *grpcServer, client *grpcClient) {
 		_, err := client.ArchiveTrace(context.Background(), &api_v2.ArchiveTraceRequest{
 			TraceID: model.TraceID{},
@@ -324,6 +331,7 @@ func TestArchiveTraceNilRequestOnHandlerGRPC(t *testing.T) {
 }
 
 func TestArchiveTraceFailureGRPC(t *testing.T) {
+	t.Parallel()
 	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
 		server.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
 			Return(mockTrace, nil).Once()
@@ -366,6 +374,7 @@ func TestFindTracesSuccessGRPC(t *testing.T) {
 }
 
 func TestFindTracesSuccess_SpanStreamingGRPC(t *testing.T) {
+	t.Parallel()
 	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
 		server.spanReader.On("FindTraces", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("*spanstore.TraceQueryParameters")).
 			Return([]*model.Trace{mockLargeTraceGRPC}, nil).Once()
@@ -393,6 +402,7 @@ func TestFindTracesSuccess_SpanStreamingGRPC(t *testing.T) {
 }
 
 func TestFindTracesMissingQuery_GRPC(t *testing.T) {
+	t.Parallel()
 	withServerAndClient(t, func(_ *grpcServer, client *grpcClient) {
 		res, err := client.FindTraces(context.Background(), &api_v2.FindTracesRequest{
 			Query: nil,
@@ -406,6 +416,7 @@ func TestFindTracesMissingQuery_GRPC(t *testing.T) {
 }
 
 func TestFindTracesFailure_GRPC(t *testing.T) {
+	t.Parallel()
 	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
 		mockErrorGRPC := fmt.Errorf("whatsamattayou")
 
@@ -433,12 +444,14 @@ func TestFindTracesFailure_GRPC(t *testing.T) {
 
 // test from GRPCHandler and not grpcClient as Generated Go client panics with `nil` request
 func TestFindTracesNilRequestOnHandlerGRPC(t *testing.T) {
+	t.Parallel()
 	grpcHandler := &GRPCHandler{}
 	err := grpcHandler.FindTraces(nil, nil)
 	require.EqualError(t, err, errNilRequest.Error())
 }
 
 func TestGetServicesSuccessGRPC(t *testing.T) {
+	t.Parallel()
 	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
 		expectedServices := []string{"trifle", "bling"}
 		server.spanReader.On("GetServices", mock.AnythingOfType("*context.valueCtx")).Return(expectedServices, nil).Once()
@@ -451,6 +464,7 @@ func TestGetServicesSuccessGRPC(t *testing.T) {
 }
 
 func TestGetServicesFailureGRPC(t *testing.T) {
+	t.Parallel()
 	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
 		server.spanReader.On("GetServices", mock.AnythingOfType("*context.valueCtx")).Return(nil, errStorageGRPC).Once()
 		_, err := client.GetServices(context.Background(), &api_v2.GetServicesRequest{})
@@ -460,6 +474,7 @@ func TestGetServicesFailureGRPC(t *testing.T) {
 }
 
 func TestGetOperationsSuccessGRPC(t *testing.T) {
+	t.Parallel()
 	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
 		expectedOperations := []spanstore.Operation{
 			{Name: ""},
@@ -486,6 +501,7 @@ func TestGetOperationsSuccessGRPC(t *testing.T) {
 }
 
 func TestGetOperationsFailureGRPC(t *testing.T) {
+	t.Parallel()
 	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
 		server.spanReader.On("GetOperations",
 			mock.AnythingOfType("*context.valueCtx"),
@@ -508,6 +524,7 @@ func TestGetOperationsNilRequestOnHandlerGRPC(t *testing.T) {
 }
 
 func TestGetDependenciesSuccessGRPC(t *testing.T) {
+	t.Parallel()
 	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
 		expectedDependencies := []model.DependencyLink{{Parent: "killer", Child: "queen", CallCount: 12}}
 		endTs := time.Now().UTC()
@@ -527,6 +544,7 @@ func TestGetDependenciesSuccessGRPC(t *testing.T) {
 }
 
 func TestGetDependenciesFailureGRPC(t *testing.T) {
+	t.Parallel()
 	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
 		endTs := time.Now().UTC()
 		server.depReader.On(
@@ -545,6 +563,7 @@ func TestGetDependenciesFailureGRPC(t *testing.T) {
 }
 
 func TestGetDependenciesFailureUninitializedTimeGRPC(t *testing.T) {
+	t.Parallel()
 	timeInputs := []struct {
 		startTime time.Time
 		endTime   time.Time
@@ -589,6 +608,7 @@ func TestSendSpanChunksError(t *testing.T) {
 }
 
 func TestGetMetricsSuccessGRPC(t *testing.T) {
+	t.Parallel()
 	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
 		baseQueryParam := &metrics.MetricsQueryBaseRequest{
 			ServiceNames: []string{"foo"},
@@ -635,6 +655,7 @@ func TestGetMetricsSuccessGRPC(t *testing.T) {
 }
 
 func TestGetMetricsReaderDisabledGRPC(t *testing.T) {
+	t.Parallel()
 	withServerAndClient(t, func(_ *grpcServer, client *grpcClient) {
 		baseQueryParam := &metrics.MetricsQueryBaseRequest{
 			ServiceNames: []string{"foo"},
@@ -674,6 +695,7 @@ func TestGetMetricsReaderDisabledGRPC(t *testing.T) {
 }
 
 func TestGetMetricsUseDefaultParamsGRPC(t *testing.T) {
+	t.Parallel()
 	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
 		baseQueryParam := &metrics.MetricsQueryBaseRequest{
 			ServiceNames: []string{"foo"},
@@ -703,6 +725,7 @@ func TestGetMetricsUseDefaultParamsGRPC(t *testing.T) {
 }
 
 func TestGetMetricsOverrideDefaultParamsGRPC(t *testing.T) {
+	t.Parallel()
 	loc, _ := time.LoadLocation("UTC")
 	endTime := time.Now().In(loc)
 	lookback := time.Minute
@@ -744,6 +767,7 @@ func TestGetMetricsOverrideDefaultParamsGRPC(t *testing.T) {
 }
 
 func TestGetMetricsFailureGRPC(t *testing.T) {
+	t.Parallel()
 	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
 		baseQueryParam := &metrics.MetricsQueryBaseRequest{
 			ServiceNames: []string{"foo"},
@@ -795,6 +819,7 @@ func TestGetMetricsFailureGRPC(t *testing.T) {
 }
 
 func TestGetMinStepDurationSuccessGRPC(t *testing.T) {
+	t.Parallel()
 	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
 		m := server.metricsQueryService.(*metricsmocks.Reader)
 		m.On("GetMinStepDuration", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("*metricsstore.MinStepDurationQueryParameters")).
@@ -807,6 +832,7 @@ func TestGetMinStepDurationSuccessGRPC(t *testing.T) {
 }
 
 func TestGetMinStepDurationFailureGRPC(t *testing.T) {
+	t.Parallel()
 	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
 		m := server.metricsQueryService.(*metricsmocks.Reader)
 		m.On("GetMinStepDuration", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("*metricsstore.MinStepDurationQueryParameters")).
@@ -821,6 +847,7 @@ func TestGetMinStepDurationFailureGRPC(t *testing.T) {
 }
 
 func TestGetMetricsInvalidParametersGRPC(t *testing.T) {
+	t.Parallel()
 	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
 		for _, tc := range []struct {
 			name          string
@@ -886,6 +913,7 @@ func TestGetMetricsInvalidParametersGRPC(t *testing.T) {
 }
 
 func TestMetricsQueryNilRequestGRPC(t *testing.T) {
+	t.Parallel()
 	grpcHandler := &GRPCHandler{}
 	bqp, err := grpcHandler.newBaseQueryParameters(nil)
 	assert.Empty(t, bqp)
@@ -952,6 +980,7 @@ func withOutgoingMetadata(t *testing.T, ctx context.Context, headerName, headerV
 }
 
 func TestSearchTenancyGRPC(t *testing.T) {
+	t.Parallel()
 	tm := tenancy.NewManager(&tenancy.Options{
 		Enabled: true,
 	})
@@ -988,6 +1017,7 @@ func TestSearchTenancyGRPC(t *testing.T) {
 }
 
 func TestServicesTenancyGRPC(t *testing.T) {
+	t.Parallel()
 	tm := tenancy.NewManager(&tenancy.Options{
 		Enabled: true,
 	})
@@ -1007,6 +1037,7 @@ func TestServicesTenancyGRPC(t *testing.T) {
 }
 
 func TestSearchTenancyGRPCExplicitList(t *testing.T) {
+	t.Parallel()
 	tm := tenancy.NewManager(&tenancy.Options{
 		Enabled: true,
 		Header:  "non-standard-tenant-header",
@@ -1089,6 +1120,7 @@ func TestSearchTenancyGRPCExplicitList(t *testing.T) {
 }
 
 func TestTenancyContextFlowGRPC(t *testing.T) {
+	t.Parallel()
 	tm := tenancy.NewManager(&tenancy.Options{
 		Enabled: true,
 	})
@@ -1162,6 +1194,7 @@ func TestTenancyContextFlowGRPC(t *testing.T) {
 }
 
 func TestNewGRPCHandlerWithEmptyOptions(t *testing.T) {
+	t.Parallel()
 	disabledReader, err := disabled.NewMetricsReader()
 	require.NoError(t, err)
 

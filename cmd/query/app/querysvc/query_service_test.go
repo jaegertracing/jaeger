@@ -106,6 +106,7 @@ func initializeTestService(optionAppliers ...testOption) *testQueryService {
 
 // Test QueryService.GetTrace()
 func TestGetTraceSuccess(t *testing.T) {
+	t.Parallel()
 	tqs := initializeTestService()
 	tqs.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
 		Return(mockTrace, nil).Once()
@@ -119,6 +120,7 @@ func TestGetTraceSuccess(t *testing.T) {
 
 // Test QueryService.GetTrace() without ArchiveSpanReader
 func TestGetTraceNotFound(t *testing.T) {
+	t.Parallel()
 	tqs := initializeTestService()
 	tqs.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
 		Return(nil, spanstore.ErrTraceNotFound).Once()
@@ -131,6 +133,7 @@ func TestGetTraceNotFound(t *testing.T) {
 
 // Test QueryService.GetTrace() with ArchiveSpanReader
 func TestGetTraceFromArchiveStorage(t *testing.T) {
+	t.Parallel()
 	tqs := initializeTestService(withArchiveSpanReader())
 	tqs.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
 		Return(nil, spanstore.ErrTraceNotFound).Once()
@@ -146,6 +149,7 @@ func TestGetTraceFromArchiveStorage(t *testing.T) {
 
 // Test QueryService.GetServices() for success.
 func TestGetServices(t *testing.T) {
+	t.Parallel()
 	tqs := initializeTestService()
 	expectedServices := []string{"trifle", "bling"}
 	tqs.spanReader.On("GetServices", mock.AnythingOfType("*context.valueCtx")).Return(expectedServices, nil).Once()
@@ -159,6 +163,7 @@ func TestGetServices(t *testing.T) {
 
 // Test QueryService.GetOperations() for success.
 func TestGetOperations(t *testing.T) {
+	t.Parallel()
 	tqs := initializeTestService()
 	expectedOperations := []spanstore.Operation{{Name: "", SpanKind: ""}, {Name: "get", SpanKind: ""}}
 	operationQuery := spanstore.OperationQueryParameters{ServiceName: "abc/trifle"}
@@ -177,6 +182,7 @@ func TestGetOperations(t *testing.T) {
 
 // Test QueryService.FindTraces() for success.
 func TestFindTraces(t *testing.T) {
+	t.Parallel()
 	tqs := initializeTestService()
 	tqs.spanReader.On("FindTraces", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("*spanstore.TraceQueryParameters")).
 		Return([]*model.Trace{mockTrace}, nil).Once()
@@ -198,6 +204,7 @@ func TestFindTraces(t *testing.T) {
 
 // Test QueryService.ArchiveTrace() with no ArchiveSpanWriter.
 func TestArchiveTraceNoOptions(t *testing.T) {
+	t.Parallel()
 	tqs := initializeTestService()
 
 	type contextKey string
@@ -208,6 +215,7 @@ func TestArchiveTraceNoOptions(t *testing.T) {
 
 // Test QueryService.ArchiveTrace() with ArchiveSpanWriter but invalid traceID.
 func TestArchiveTraceWithInvalidTraceID(t *testing.T) {
+	t.Parallel()
 	tqs := initializeTestService(withArchiveSpanReader(), withArchiveSpanWriter())
 	tqs.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
 		Return(nil, spanstore.ErrTraceNotFound).Once()
@@ -222,6 +230,7 @@ func TestArchiveTraceWithInvalidTraceID(t *testing.T) {
 
 // Test QueryService.ArchiveTrace(), save error with ArchiveSpanWriter.
 func TestArchiveTraceWithArchiveWriterError(t *testing.T) {
+	t.Parallel()
 	tqs := initializeTestService(withArchiveSpanWriter())
 	tqs.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
 		Return(mockTrace, nil).Once()
@@ -237,6 +246,7 @@ func TestArchiveTraceWithArchiveWriterError(t *testing.T) {
 
 // Test QueryService.ArchiveTrace() with correctly configured ArchiveSpanWriter.
 func TestArchiveTraceSuccess(t *testing.T) {
+	t.Parallel()
 	tqs := initializeTestService(withArchiveSpanWriter())
 	tqs.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
 		Return(mockTrace, nil).Once()
@@ -251,6 +261,7 @@ func TestArchiveTraceSuccess(t *testing.T) {
 
 // Test QueryService.Adjust()
 func TestTraceAdjustmentFailure(t *testing.T) {
+	t.Parallel()
 	tqs := initializeTestService(withAdjuster())
 
 	_, err := tqs.queryService.Adjust(mockTrace)
@@ -260,6 +271,7 @@ func TestTraceAdjustmentFailure(t *testing.T) {
 
 // Test QueryService.GetDependencies()
 func TestGetDependencies(t *testing.T) {
+	t.Parallel()
 	tqs := initializeTestService()
 	expectedDependencies := []model.DependencyLink{
 		{
@@ -282,6 +294,7 @@ func TestGetDependencies(t *testing.T) {
 
 // Test QueryService.GetCapacities()
 func TestGetCapabilities(t *testing.T) {
+	t.Parallel()
 	tqs := initializeTestService()
 	expectedStorageCapabilities := StorageCapabilities{
 		ArchiveStorage: false,
@@ -290,6 +303,7 @@ func TestGetCapabilities(t *testing.T) {
 }
 
 func TestGetCapabilitiesWithSupportsArchive(t *testing.T) {
+	t.Parallel()
 	tqs := initializeTestService(withArchiveSpanReader(), withArchiveSpanWriter())
 
 	expectedStorageCapabilities := StorageCapabilities{
