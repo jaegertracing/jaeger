@@ -268,7 +268,6 @@ func TestESStorageFactoryWithConfigError(t *testing.T) {
 		LogLevel: "error",
 	}
 	_, err := NewFactoryWithConfig(cfg, metrics.NullFactory, zap.NewNop())
-	require.Error(t, err)
 	require.ErrorContains(t, err, "failed to create Elasticsearch client")
 }
 

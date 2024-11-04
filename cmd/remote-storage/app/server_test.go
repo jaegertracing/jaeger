@@ -55,16 +55,13 @@ func TestNewServer_CreateStorageErrors(t *testing.T) {
 		)
 	}
 	_, err := f()
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "no reader")
+	require.ErrorContains(t, err, "no reader")
 
 	_, err = f()
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "no writer")
+	require.ErrorContains(t, err, "no writer")
 
 	_, err = f()
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "no deps")
+	require.ErrorContains(t, err, "no deps")
 
 	s, err := f()
 	require.NoError(t, err)
@@ -127,8 +124,7 @@ func TestNewServer_TLSConfigError(t *testing.T) {
 		tenancy.NewManager(&tenancy.Options{}),
 		telset,
 	)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "invalid TLS config")
+	assert.ErrorContains(t, err, "invalid TLS config")
 }
 
 func TestCreateGRPCHandler(t *testing.T) {
@@ -138,8 +134,7 @@ func TestCreateGRPCHandler(t *testing.T) {
 
 	storageMocks.writer.On("WriteSpan", mock.Anything, mock.Anything).Return(errors.New("writer error"))
 	_, err = h.WriteSpan(context.Background(), &storage_v1.WriteSpanRequest{})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "writer error")
+	require.ErrorContains(t, err, "writer error")
 
 	storageMocks.depReader.On(
 		"GetDependencies",
@@ -148,20 +143,16 @@ func TestCreateGRPCHandler(t *testing.T) {
 		mock.Anything, // lookback
 	).Return(nil, errors.New("deps error"))
 	_, err = h.GetDependencies(context.Background(), &storage_v1.GetDependenciesRequest{})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "deps error")
+	require.ErrorContains(t, err, "deps error")
 
 	err = h.GetArchiveTrace(nil, nil)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "not implemented")
+	require.ErrorContains(t, err, "not implemented")
 
 	_, err = h.WriteArchiveSpan(context.Background(), nil)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "not implemented")
+	require.ErrorContains(t, err, "not implemented")
 
 	err = h.WriteSpanStream(nil)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "not implemented")
+	assert.ErrorContains(t, err, "not implemented")
 }
 
 var testCases = []struct {

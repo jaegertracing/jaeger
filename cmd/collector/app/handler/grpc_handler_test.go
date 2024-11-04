@@ -193,9 +193,8 @@ func TestPostSpansWithError(t *testing.T) {
 					},
 				},
 			})
-			require.Error(t, err)
+			require.ErrorContains(t, err, test.expectedError)
 			require.Nil(t, r)
-			assert.Contains(t, err.Error(), test.expectedError)
 			assert.Contains(t, logBuf.String(), test.expectedLog)
 			assert.Len(t, processor.getSpans(), 1)
 		})

@@ -167,8 +167,7 @@ func TestQueryOptions_FailedTLSFlags(t *testing.T) {
 			})
 			require.NoError(t, err)
 			_, err = new(QueryOptions).InitFromViper(v, zap.NewNop())
-			require.Error(t, err)
-			assert.Contains(t, err.Error(), "failed to process "+test+" TLS options")
+			assert.ErrorContains(t, err, "failed to process "+test+" TLS options")
 		})
 	}
 }

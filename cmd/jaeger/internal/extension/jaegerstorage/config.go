@@ -4,6 +4,7 @@
 package jaegerstorage
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 	"time"
@@ -96,7 +97,7 @@ func (cfg *Backend) Unmarshal(conf *confmap.Conf) error {
 
 func (cfg *Config) Validate() error {
 	if len(cfg.Backends) == 0 {
-		return fmt.Errorf("at least one storage is required")
+		return errors.New("at least one storage is required")
 	}
 	for name, b := range cfg.Backends {
 		empty := Backend{}

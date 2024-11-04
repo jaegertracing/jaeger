@@ -55,6 +55,7 @@ services:
             - "8080"
         environment:
             - JAEGER_COLLECTOR_HC_HOST_PORT=jaeger-collector:${JAEGER_COLLECTOR_HC_PORT}
+            - JAEGER_COLLECTOR_HOST_PORT=jaeger-collector:${JAEGER_COLLECTOR_HOST_PORT}
         depends_on:
             - jaeger-query
             - jaeger-collector

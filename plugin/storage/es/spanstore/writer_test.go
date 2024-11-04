@@ -146,12 +146,10 @@ func TestSpanWriter_WriteSpan(t *testing.T) {
 		expectedLogs       []string
 	}{
 		{
-			caption: "span insertion error",
-
+			caption:            "span insertion error",
 			serviceIndexExists: false,
-
-			expectedError: "",
-			expectedLogs:  []string{},
+			expectedError:      "",
+			expectedLogs:       []string{"Wrote span to ES index"},
 		},
 	}
 	for _, tc := range testCases {
@@ -206,7 +204,7 @@ func TestSpanWriter_WriteSpan(t *testing.T) {
 				}
 
 				for _, expectedLog := range testCase.expectedLogs {
-					assert.True(t, strings.Contains(w.logBuffer.String(), expectedLog), "Log must contain %s, but was %s", expectedLog, w.logBuffer.String())
+					assert.Contains(t, w.logBuffer.String(), expectedLog, "Log must contain %s, but was %s", expectedLog, w.logBuffer.String())
 				}
 				if len(testCase.expectedLogs) == 0 {
 					assert.Equal(t, "", w.logBuffer.String())

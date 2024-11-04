@@ -5,6 +5,7 @@ package jaegerquery
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"testing"
@@ -42,28 +43,28 @@ type fakeFactory struct {
 
 func (ff fakeFactory) CreateDependencyReader() (dependencystore.Reader, error) {
 	if ff.name == "need-dependency-reader-error" {
-		return nil, fmt.Errorf("test-error")
+		return nil, errors.New("test-error")
 	}
 	return &depsmocks.Reader{}, nil
 }
 
 func (ff fakeFactory) CreateSpanReader() (spanstore.Reader, error) {
 	if ff.name == "need-span-reader-error" {
-		return nil, fmt.Errorf("test-error")
+		return nil, errors.New("test-error")
 	}
 	return &spanstoremocks.Reader{}, nil
 }
 
 func (ff fakeFactory) CreateSpanWriter() (spanstore.Writer, error) {
 	if ff.name == "need-span-writer-error" {
-		return nil, fmt.Errorf("test-error")
+		return nil, errors.New("test-error")
 	}
 	return &spanstoremocks.Writer{}, nil
 }
 
 func (ff fakeFactory) Initialize(metrics.Factory, *zap.Logger) error {
 	if ff.name == "need-initialize-error" {
-		return fmt.Errorf("test-error")
+		return errors.New("test-error")
 	}
 	return nil
 }
@@ -75,14 +76,14 @@ type fakeMetricsFactory struct {
 // Initialize implements storage.MetricsFactory.
 func (fmf fakeMetricsFactory) Initialize(*zap.Logger) error {
 	if fmf.name == "need-initialize-error" {
-		return fmt.Errorf("test-error")
+		return errors.New("test-error")
 	}
 	return nil
 }
 
 func (fmf fakeMetricsFactory) CreateMetricsReader() (metricsstore.Reader, error) {
 	if fmf.name == "need-metrics-reader-error" {
-		return nil, fmt.Errorf("test-error")
+		return nil, errors.New("test-error")
 	}
 	return &metricsstoremocks.Reader{}, nil
 }

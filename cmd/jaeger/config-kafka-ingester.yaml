@@ -6,8 +6,11 @@ service:
       processors: [batch]
       exporters: [jaeger_storage_exporter]
   telemetry:
+    resource:
+      service.name: jaeger
     metrics:
-      address: 0.0.0.0:8889
+      level: detailed
+      address: 0.0.0.0:8888
     logs:
       level: debug
 

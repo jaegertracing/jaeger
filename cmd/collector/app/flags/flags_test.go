@@ -65,8 +65,7 @@ func TestCollectorOptionsWithFailedTLSFlags(t *testing.T) {
 			})
 			require.NoError(t, err)
 			_, err = c.InitFromViper(v, zap.NewNop())
-			require.Error(t, err)
-			assert.Contains(t, err.Error(), "failed to parse")
+			assert.ErrorContains(t, err, "failed to parse")
 		})
 	}
 }
@@ -91,8 +90,7 @@ func TestCollectorOptionsWithFlags_CheckTLSReloadInterval(t *testing.T) {
 				prefix + ".tls.reload-interval=24h",
 			})
 			if _, ok := otlpPrefixes[prefix]; !ok {
-				require.Error(t, err)
-				assert.Contains(t, err.Error(), "unknown flag")
+				assert.ErrorContains(t, err, "unknown flag")
 			} else {
 				require.NoError(t, err)
 			}

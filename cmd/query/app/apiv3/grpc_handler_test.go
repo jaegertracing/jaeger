@@ -5,7 +5,7 @@ package apiv3
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"net"
 	"testing"
 
@@ -105,15 +105,14 @@ func TestGetTrace(t *testing.T) {
 func TestGetTraceStorageError(t *testing.T) {
 	tsc := newTestServerClient(t)
 	tsc.reader.On("GetTrace", matchContext, matchTraceID).Return(
-		nil, fmt.Errorf("storage_error")).Once()
+		nil, errors.New("storage_error")).Once()
 
 	getTraceStream, err := tsc.client.GetTrace(context.Background(), &api_v3.GetTraceRequest{
 		TraceId: "156",
 	})
 	require.NoError(t, err)
 	recv, err := getTraceStream.Recv()
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "storage_error")
+	require.ErrorContains(t, err, "storage_error")
 	assert.Nil(t, recv)
 }
 
@@ -129,8 +128,7 @@ func TestGetTraceTraceIDError(t *testing.T) {
 	})
 	require.NoError(t, err)
 	recv, err := getTraceStream.Recv()
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "strconv.ParseUint:")
+	require.ErrorContains(t, err, "strconv.ParseUint:")
 	assert.Nil(t, recv)
 }
 
@@ -170,8 +168,7 @@ func TestFindTracesQueryNil(t *testing.T) {
 	responseStream, err := tsc.client.FindTraces(context.Background(), &api_v3.FindTracesRequest{})
 	require.NoError(t, err)
 	recv, err := responseStream.Recv()
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "missing query")
+	require.ErrorContains(t, err, "missing query")
 	assert.Nil(t, recv)
 
 	responseStream, err = tsc.client.FindTraces(context.Background(), &api_v3.FindTracesRequest{
@@ -182,15 +179,14 @@ func TestFindTracesQueryNil(t *testing.T) {
 	})
 	require.NoError(t, err)
 	recv, err = responseStream.Recv()
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "start time min and max are required parameters")
+	require.ErrorContains(t, err, "start time min and max are required parameters")
 	assert.Nil(t, recv)
 }
 
 func TestFindTracesStorageError(t *testing.T) {
 	tsc := newTestServerClient(t)
 	tsc.reader.On("FindTraces", matchContext, mock.AnythingOfType("*spanstore.TraceQueryParameters")).Return(
-		nil, fmt.Errorf("storage_error"), nil).Once()
+		nil, errors.New("storage_error"), nil).Once()
 
 	responseStream, err := tsc.client.FindTraces(context.Background(), &api_v3.FindTracesRequest{
 		Query: &api_v3.TraceQueryParameters{
@@ -202,8 +198,7 @@ func TestFindTracesStorageError(t *testing.T) {
 	})
 	require.NoError(t, err)
 	recv, err := responseStream.Recv()
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "storage_error")
+	require.ErrorContains(t, err, "storage_error")
 	assert.Nil(t, recv)
 }
 
@@ -220,11 +215,10 @@ func TestGetServices(t *testing.T) {
 func TestGetServicesStorageError(t *testing.T) {
 	tsc := newTestServerClient(t)
 	tsc.reader.On("GetServices", matchContext).Return(
-		nil, fmt.Errorf("storage_error")).Once()
+		nil, errors.New("storage_error")).Once()
 
 	response, err := tsc.client.GetServices(context.Background(), &api_v3.GetServicesRequest{})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "storage_error")
+	require.ErrorContains(t, err, "storage_error")
 	assert.Nil(t, response)
 }
 
@@ -249,10 +243,9 @@ func TestGetOperations(t *testing.T) {
 func TestGetOperationsStorageError(t *testing.T) {
 	tsc := newTestServerClient(t)
 	tsc.reader.On("GetOperations", matchContext, mock.AnythingOfType("spanstore.OperationQueryParameters")).Return(
-		nil, fmt.Errorf("storage_error")).Once()
+		nil, errors.New("storage_error")).Once()
 
 	response, err := tsc.client.GetOperations(context.Background(), &api_v3.GetOperationsRequest{})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "storage_error")
+	require.ErrorContains(t, err, "storage_error")
 	assert.Nil(t, response)
 }

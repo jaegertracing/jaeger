@@ -7,7 +7,6 @@ package dependencystore
 import (
 	"context"
 	"errors"
-	"strings"
 	"testing"
 	"time"
 
@@ -233,7 +232,7 @@ func TestDependencyStoreGetDependencies(t *testing.T) {
 					require.EqualError(t, err, testCase.expectedError)
 				}
 				for _, expectedLog := range testCase.expectedLogs {
-					assert.True(t, strings.Contains(s.logBuffer.String(), expectedLog), "Log must contain %s, but was %s", expectedLog, s.logBuffer.String())
+					assert.Contains(t, s.logBuffer.String(), expectedLog, "Log must contain %s, but was %s", expectedLog, s.logBuffer.String())
 				}
 				if len(testCase.expectedLogs) == 0 {
 					assert.Equal(t, "", s.logBuffer.String())

@@ -466,7 +466,7 @@ func (c *Configuration) getConfigOptions(logger *zap.Logger) ([]elastic.ClientOp
 	options = append(options, elastic.SetHttpClient(httpClient))
 
 	if c.Authentication.BasicAuthentication.Password != "" && c.Authentication.BasicAuthentication.PasswordFilePath != "" {
-		return nil, fmt.Errorf("both Password and PasswordFilePath are set")
+		return nil, errors.New("both Password and PasswordFilePath are set")
 	}
 	if c.Authentication.BasicAuthentication.PasswordFilePath != "" {
 		passwordFromFile, err := loadTokenFromFile(c.Authentication.BasicAuthentication.PasswordFilePath)
