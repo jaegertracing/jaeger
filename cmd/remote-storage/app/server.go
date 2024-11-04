@@ -78,7 +78,7 @@ func createGRPCHandler(f storage.Factory, logger *zap.Logger) (*shared.GRPCHandl
 	// borrow code from Query service for archive storage
 	qOpts := &querysvc.QueryServiceOptions{}
 	// when archive storage not initialized (returns false), the reader/writer will be nil
-	_ = qOpts.InitArchiveStorage(f, logger)
+	// _ = qOpts.InitArchiveStorage(f, logger)
 	impl.ArchiveSpanReader = func() spanstore.Reader { return qOpts.ArchiveSpanReader }
 	impl.ArchiveSpanWriter = func() spanstore.Writer { return qOpts.ArchiveSpanWriter }
 
