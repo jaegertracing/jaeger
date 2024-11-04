@@ -6,6 +6,7 @@ package app
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -309,7 +310,7 @@ type fakeFile struct {
 }
 
 func (*fakeFile) Read([]byte) (n int, err error) {
-	return 0, fmt.Errorf("read error")
+	return 0, errors.New("read error")
 }
 
 func TestLoadIndexHTMLReadError(t *testing.T) {

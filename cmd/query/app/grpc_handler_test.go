@@ -7,7 +7,6 @@ package app
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net"
 	"testing"
 	"time"
@@ -407,7 +406,7 @@ func TestFindTracesMissingQuery_GRPC(t *testing.T) {
 
 func TestFindTracesFailure_GRPC(t *testing.T) {
 	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
-		mockErrorGRPC := fmt.Errorf("whatsamattayou")
+		mockErrorGRPC := errors.New("whatsamattayou")
 
 		server.spanReader.On("FindTraces", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("*spanstore.TraceQueryParameters")).
 			Return(nil, mockErrorGRPC).Once()

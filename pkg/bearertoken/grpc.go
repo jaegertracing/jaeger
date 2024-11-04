@@ -5,7 +5,7 @@ package bearertoken
 
 import (
 	"context"
-	"fmt"
+	"errors"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
@@ -34,7 +34,7 @@ func ValidTokenFromGRPCMetadata(ctx context.Context, bearerHeader string) (strin
 		return "", nil
 	}
 	if len(tokens) > 1 {
-		return "", fmt.Errorf("malformed token: multiple tokens found")
+		return "", errors.New("malformed token: multiple tokens found")
 	}
 	return tokens[0], nil
 }

@@ -49,7 +49,7 @@ func (c Action) Do() error {
 	}
 	if c.Config.UseILM {
 		if version < ilmVersionSupport {
-			return fmt.Errorf("ILM is supported only for ES version 7+")
+			return errors.New("ILM is supported only for ES version 7+")
 		}
 		policyExist, err := c.ILMClient.Exists(c.Config.ILMPolicyName)
 		if err != nil {

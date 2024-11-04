@@ -174,7 +174,7 @@ func validateAdaptiveSamplingTraces(expected *traceRequest, actual []*ui.Trace) 
 			return fmt.Errorf("%s tag value should be '%s'", samplerTypeKey, jaeger.SamplerTypeProbabilistic)
 		}
 		if isDefaultProbability(probability) {
-			return fmt.Errorf("adaptive sampling probability not used")
+			return errors.New("adaptive sampling probability not used")
 		}
 	}
 	return nil
@@ -201,7 +201,7 @@ func (h *TraceHandler) createAndRetrieveTraces(service string, request *traceReq
 	}
 	traces := h.getTraces(service, request.Operation, request.Tags)
 	if len(traces) == 0 {
-		return nil, fmt.Errorf("could not retrieve traces from query service")
+		return nil, errors.New("could not retrieve traces from query service")
 	}
 	return traces, nil
 }
@@ -261,7 +261,7 @@ func validateTraces(expected *traceRequest, actual []*ui.Trace) error {
 		}
 		tags := convertTagsIntoMap(trace.Spans[0].Tags)
 		if !expectedTagsExist(expected.Tags, tags) {
-			return fmt.Errorf("expected tags not found")
+			return errors.New("expected tags not found")
 		}
 	}
 	return nil
