@@ -75,7 +75,6 @@ func TestExporterStartBadNameError(t *testing.T) {
 		},
 	}
 	err := exp.start(context.Background(), host)
-	require.Error(t, err)
 	require.ErrorContains(t, err, "cannot find storage factory")
 }
 
@@ -95,7 +94,6 @@ func TestExporterStartBadSpanstoreError(t *testing.T) {
 		},
 	}
 	err := exp.start(context.Background(), host)
-	require.Error(t, err)
 	require.ErrorContains(t, err, "mocked error")
 }
 

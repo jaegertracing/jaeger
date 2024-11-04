@@ -5,7 +5,6 @@ package docs
 
 import (
 	"os"
-	"strings"
 	"testing"
 
 	"github.com/spf13/cobra"
@@ -36,7 +35,7 @@ func TestOutputFormats(t *testing.T) {
 		if err == nil {
 			f, err := os.ReadFile(test.file)
 			require.NoError(t, err)
-			assert.True(t, strings.Contains(string(f), "documentation"))
+			assert.Contains(t, string(f), "documentation")
 		} else {
 			assert.Equal(t, test.err, err.Error())
 		}
@@ -55,7 +54,7 @@ func TestDocsForParent(t *testing.T) {
 	require.NoError(t, err)
 	f, err := os.ReadFile("root_command.md")
 	require.NoError(t, err)
-	assert.True(t, strings.Contains(string(f), "some description"))
+	assert.Contains(t, string(f), "some description")
 }
 
 func TestMain(m *testing.M) {

@@ -46,7 +46,7 @@ func TestModule_TraceNonExistent(t *testing.T) {
 		TraceID:      "2be38093ead7a083",
 	}
 	err := Extract(config, zap.NewNop())
-	require.Contains(t, err.Error(), "cannot open captured file")
+	require.ErrorContains(t, err, "cannot open captured file")
 }
 
 func TestModule_TraceOutputFileError(t *testing.T) {
@@ -65,5 +65,5 @@ func TestModule_TraceOutputFileError(t *testing.T) {
 	defer os.Chmod("fixtures", 0o755)
 
 	err = Extract(config, zap.NewNop())
-	require.Contains(t, err.Error(), "cannot create output file")
+	require.ErrorContains(t, err, "cannot create output file")
 }

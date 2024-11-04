@@ -39,7 +39,7 @@ func TestReaderTraceSuccess(t *testing.T) {
 func TestReaderTraceNonExistent(t *testing.T) {
 	inputFile := "fixtures/trace_non_existent.json"
 	_, err := newSpanReader(inputFile, zap.NewNop())
-	require.Contains(t, err.Error(), "cannot open captured file")
+	require.ErrorContains(t, err, "cannot open captured file")
 }
 
 func TestReaderTraceEmpty(t *testing.T) {
@@ -48,7 +48,7 @@ func TestReaderTraceEmpty(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = r.NextSpan()
-	require.Contains(t, err.Error(), "cannot read file")
+	require.ErrorContains(t, err, "cannot read file")
 	assert.Equal(t, 0, r.spansRead)
 	assert.True(t, r.eofReached)
 }
@@ -70,7 +70,7 @@ func TestReaderTraceInvalidJson(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = r.NextSpan()
-	require.Contains(t, err.Error(), "cannot unmarshal span")
+	require.ErrorContains(t, err, "cannot unmarshal span")
 	assert.Equal(t, 0, r.spansRead)
 	assert.True(t, r.eofReached)
 }

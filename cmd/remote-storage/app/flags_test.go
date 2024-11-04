@@ -31,6 +31,5 @@ func TestFailedTLSFlags(t *testing.T) {
 	})
 	require.NoError(t, err)
 	_, err = new(Options).InitFromViper(v, zap.NewNop())
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to process gRPC TLS options")
+	assert.ErrorContains(t, err, "failed to process gRPC TLS options")
 }
