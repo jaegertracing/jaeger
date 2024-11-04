@@ -7,6 +7,7 @@ package dbmodel
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"os"
@@ -313,7 +314,7 @@ func TestTagsMap(t *testing.T) {
 		{fieldTags: map[string]any{"float:float": float64(123)}, expected: []model.KeyValue{model.Float64("float.float", float64(123))}},
 		{fieldTags: map[string]any{"json_number:int": json.Number("123")}, expected: []model.KeyValue{model.Int64("json_number.int", 123)}},
 		{fieldTags: map[string]any{"json_number:float": json.Number("123.0")}, expected: []model.KeyValue{model.Float64("json_number.float", float64(123.0))}},
-		{fieldTags: map[string]any{"json_number:err": json.Number("foo")}, err: fmt.Errorf("invalid tag type in foo: strconv.ParseFloat: parsing \"foo\": invalid syntax")},
+		{fieldTags: map[string]any{"json_number:err": json.Number("foo")}, err: errors.New("invalid tag type in foo: strconv.ParseFloat: parsing \"foo\": invalid syntax")},
 		{fieldTags: map[string]any{"str": "foo"}, expected: []model.KeyValue{model.String("str", "foo")}},
 		{fieldTags: map[string]any{"str:str": "foo"}, expected: []model.KeyValue{model.String("str.str", "foo")}},
 		{fieldTags: map[string]any{"binary": []byte("foo")}, expected: []model.KeyValue{model.Binary("binary", []byte("foo"))}},

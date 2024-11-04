@@ -5,6 +5,7 @@ package main
 
 import (
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -33,7 +34,7 @@ func main() {
 		Long:  "Jaeger es-index-cleaner removes Jaeger indices",
 		RunE: func(_ *cobra.Command, args []string) error {
 			if len(args) != 2 {
-				return fmt.Errorf("wrong number of arguments")
+				return errors.New("wrong number of arguments")
 			}
 			numOfDays, err := strconv.Atoi(args[0])
 			if err != nil {

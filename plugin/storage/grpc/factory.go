@@ -121,7 +121,7 @@ func (f *Factory) newRemoteStorage(
 ) (*ClientPluginServices, error) {
 	c := f.config
 	if c.Auth != nil {
-		return nil, fmt.Errorf("authenticator is not supported")
+		return nil, errors.New("authenticator is not supported")
 	}
 	unaryInterceptors := []grpc.UnaryClientInterceptor{
 		bearertoken.NewUnaryClientInterceptor(),

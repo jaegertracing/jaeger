@@ -214,7 +214,7 @@ func TestLogOnServerError(t *testing.T) {
 type httpResponseErrWriter struct{}
 
 func (*httpResponseErrWriter) Write([]byte) (int, error) {
-	return 0, fmt.Errorf("failed to write")
+	return 0, errors.New("failed to write")
 }
 func (*httpResponseErrWriter) WriteHeader(int /* statusCode */) {}
 func (*httpResponseErrWriter) Header() http.Header {
@@ -468,7 +468,7 @@ func TestSearchModelConversionFailure(t *testing.T) {
 func TestSearchDBFailure(t *testing.T) {
 	ts := initializeTestServer(t)
 	ts.spanReader.On("FindTraces", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("*spanstore.TraceQueryParameters")).
-		Return(nil, fmt.Errorf("whatsamattayou")).Once()
+		Return(nil, errors.New("whatsamattayou")).Once()
 
 	var response structuredResponse
 	err := getJSON(ts.server.URL+`/api/traces?service=service&start=0&end=0&operation=operation&limit=200&minDuration=20ms`, &response)
