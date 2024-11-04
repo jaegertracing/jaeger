@@ -25,7 +25,7 @@ FLAGS=()
 success="false"
 runtime="docker"
 
-while getopts "hlop:v:r" opt; do
+while getopts "hlop:v:r:" opt; do
 	case "${opt}" in
 	l)
 		# in the local-only mode the images will only be pushed to local registry
@@ -77,7 +77,7 @@ dump_logs() {
 }
 
 teardown() {
-  echo "Tearing down..."
+  echo "::group::Tearing down..."
   if [[ "${runtime}" == "k8s" ]]; then
     if [[ -n "${HOTROD_PORT_FWD_PID:-}" ]]; then
       kill "$HOTROD_PORT_FWD_PID" || true
@@ -87,11 +87,12 @@ teardown() {
     fi
     kubectl delete namespace example-hotrod --ignore-not-found=true
   else
-    if [[ "$success" == "false" ]]; then
-      dump_logs "${docker_compose_file}"
-    fi
     docker compose -f "$docker_compose_file" down
   fi
+  if [[ "$success" == "false" ]]; then
+      dump_logs "${docker_compose_file}"
+  fi
+  echo "::endgroup::"
 }
 trap teardown EXIT
 
@@ -121,7 +122,8 @@ if [[ "${runtime}" == "k8s" ]]; then
     echo "Error: Cannot connect to Kubernetes cluster"
     exit 1
   fi
-  
+
+  echo '::group:: run on Kubernetes'
   kustomize build ./examples/hotrod/kubernetes | kubectl apply -n example-hotrod -f -
   kubectl wait --for=condition=available --timeout=180s -n example-hotrod deployment/example-hotrod
   
@@ -129,8 +131,8 @@ if [[ "${runtime}" == "k8s" ]]; then
   HOTROD_PORT_FWD_PID=$!
   kubectl port-forward -n example-hotrod service/jaeger 16686:frontend &
   JAEGER_PORT_FWD_PID=$!
-  
-  sleep 5
+  echo '::endgroup::'
+
 else
   echo '::group:: docker compose'
   JAEGER_VERSION=$GITHUB_SHA REGISTRY="localhost:5000/" docker compose -f "$docker_compose_file" up -d
