@@ -156,9 +156,8 @@ func healthCheck() error {
 
 func testElasticsearchStorage(t *testing.T, allTagsAsFields bool) {
 	SkipUnlessEnv(t, "elasticsearch", "opensearch")
-	if err := healthCheck(); err != nil {
-		t.Fatal(err)
-	}
+	err := healthCheck()
+	require.NoError(t, err)
 	s := &ESStorageIntegration{
 		StorageIntegration: StorageIntegration{
 			Fixtures:        LoadAndParseQueryTestCases(t, "fixtures/queries_es.json"),
@@ -182,9 +181,8 @@ func TestElasticsearchStorage_AllTagsAsObjectFields(t *testing.T) {
 
 func TestElasticsearchStorage_IndexTemplates(t *testing.T) {
 	SkipUnlessEnv(t, "elasticsearch", "opensearch")
-	if err := healthCheck(); err != nil {
-		t.Fatal(err)
-	}
+	err := healthCheck()
+	require.NoError(t, err)
 	s := &ESStorageIntegration{}
 	s.initializeES(t, true)
 	esVersion, err := s.getVersion()
