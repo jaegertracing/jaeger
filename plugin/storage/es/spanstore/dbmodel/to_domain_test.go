@@ -188,8 +188,7 @@ func TestRevertKeyValueOfType(t *testing.T) {
 		t.Run(test.err, func(t *testing.T) {
 			tag := test.kv
 			_, err := td.convertKeyValue(tag)
-			require.Error(t, err)
-			assert.Contains(t, err.Error(), test.err)
+			assert.ErrorContains(t, err, test.err)
 		})
 	}
 }

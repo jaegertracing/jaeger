@@ -131,8 +131,7 @@ func TestGetStorageFactoryError(t *testing.T) {
 		factory: nil,
 	})
 	err := s.Start(context.Background(), host)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "cannot find storage factory")
+	require.ErrorContains(t, err, "cannot find storage factory")
 }
 
 func TestStorageExtensionStartError(t *testing.T) {
@@ -160,7 +159,7 @@ func TestStorageExtensionStartError(t *testing.T) {
 	assert.Eventually(t, func() bool {
 		return startStatus.Load() != nil
 	}, 5*time.Second, 100*time.Millisecond)
-	require.Contains(t, startStatus.Load().Err().Error(), "error starting cleaner server")
+	require.ErrorContains(t, startStatus.Load().Err(), "error starting cleaner server")
 }
 
 type testHost struct {

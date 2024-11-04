@@ -33,8 +33,7 @@ func TestSpanRefTypeToFromJSON(t *testing.T) {
 	assert.Equal(t, sr, sr2)
 	var sr3 model.SpanRef
 	err = jsonpb.Unmarshal(bytes.NewReader([]byte(`{"refType":"BAD"}`)), &sr3)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "unknown value")
+	assert.ErrorContains(t, err, "unknown value")
 }
 
 func TestMaybeAddParentSpanID(t *testing.T) {

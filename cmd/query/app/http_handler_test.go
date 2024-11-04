@@ -779,8 +779,7 @@ func TestMetricsReaderError(t *testing.T) {
 			err := getJSON(ts.server.URL+tc.urlPath, &response)
 
 			// Verify
-			require.Error(t, err)
-			assert.Contains(t, err.Error(), tc.wantErrorMessage)
+			assert.ErrorContains(t, err, tc.wantErrorMessage)
 		})
 	}
 }
@@ -814,8 +813,7 @@ func TestMetricsQueryDisabled(t *testing.T) {
 			err := getJSON(ts.server.URL+tc.urlPath, &response)
 
 			// Verify
-			require.Error(t, err)
-			assert.Contains(t, err.Error(), tc.wantErrorMessage)
+			assert.ErrorContains(t, err, tc.wantErrorMessage)
 		})
 	}
 }
@@ -993,7 +991,7 @@ func TestSearchTenancyFlowTenantHTTP(t *testing.T) {
 		ts.server.URL+`/api/traces?traceID=1&traceID=2`,
 		map[string]string{"x-tenant": "megacorp"},
 		&responseMegacorp)
-	assert.Contains(t, err.Error(), "storage error")
+	require.ErrorContains(t, err, "storage error")
 	assert.Empty(t, responseMegacorp.Errors)
 	assert.Nil(t, responseMegacorp.Data)
 }

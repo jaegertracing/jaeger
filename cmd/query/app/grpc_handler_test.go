@@ -1152,7 +1152,7 @@ func TestTenancyContextFlowGRPC(t *testing.T) {
 					assert.Equal(t, expected.expectedTrace.Spans[0].TraceID, spanResChunk.Spans[0].TraceID)
 				}
 				if expected.expectedTraceErr != nil {
-					assert.Contains(t, err.Error(), expected.expectedTraceErr.Error())
+					assert.ErrorContains(t, err, expected.expectedTraceErr.Error())
 				}
 			})
 		}

@@ -128,8 +128,7 @@ func TestBuilderWithCollectors(t *testing.T) {
 					assert.Equal(t, conn.Target(), test.target)
 				}
 			} else {
-				require.Error(t, err)
-				assert.Contains(t, err.Error(), test.expectedError)
+				assert.ErrorContains(t, err, test.expectedError)
 			}
 		})
 	}
