@@ -153,8 +153,7 @@ func TestStartStopRace(t *testing.T) {
 	// Before the bug was fixed this test was failing as expected when
 	// run with -race flag.
 
-	err = agent.Run()
-	require.NoErrorf(t, err, "error from agent.Run()")
+	require.NoError(t, agent.Run())
 
 	t.Log("stopping agent")
 	agent.Stop()
@@ -189,8 +188,7 @@ func TestStartStopWithSocketBufferSet(t *testing.T) {
 	agent, err := cfg.CreateAgent(fakeCollectorProxy{}, zap.NewNop(), metricsFactory)
 	require.NoError(t, err)
 
-	err = agent.Run()
-	require.NoErrorf(t, err, "error from agent.Run()")
+	require.NoError(t, agent.Run())
 
 	t.Log("stopping agent")
 	agent.Stop()
