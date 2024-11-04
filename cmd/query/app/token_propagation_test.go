@@ -68,7 +68,7 @@ func runQueryService(t *testing.T, esURL string) *Server {
 	flagsSvc := flags.NewService(ports.QueryAdminHTTP)
 	flagsSvc.Logger = zaptest.NewLogger(t)
 
-	f := es.NewFactory(es.PrimaryNamespace)
+	f := es.NewFactory(false)
 	v, command := config.Viperize(f.AddFlags)
 	require.NoError(t, command.ParseFlags([]string{
 		"--es.tls.enabled=false",

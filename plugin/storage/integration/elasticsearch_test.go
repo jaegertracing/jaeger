@@ -100,13 +100,7 @@ func (s *ESStorageIntegration) esCleanUp(t *testing.T) {
 
 func (*ESStorageIntegration) initializeESFactory(t *testing.T, allTagsAsFields bool, isArchive bool) *es.Factory {
 	logger := zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller()))
-	var namespace string
-	if isArchive {
-		namespace = es.ArchiveNamespace
-	} else {
-		namespace = es.PrimaryNamespace
-	}
-	f := es.NewFactory(namespace)
+	f := es.NewFactory(isArchive)
 	v, command := config.Viperize(f.AddFlags)
 	var args []string
 	if isArchive {

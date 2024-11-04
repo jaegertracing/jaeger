@@ -61,7 +61,7 @@ func (m *mockClientBuilder) NewClient(*escfg.Configuration, *zap.Logger, metrics
 }
 
 func TestElasticsearchFactory(t *testing.T) {
-	f := NewFactory(PrimaryNamespace)
+	f := NewFactory(false)
 	v, command := config.Viperize(f.AddFlags)
 	command.ParseFlags([]string{})
 	f.InitFromViper(v, zap.NewNop())
@@ -88,7 +88,7 @@ func TestElasticsearchFactory(t *testing.T) {
 }
 
 func TestElasticsearchTagsFileDoNotExist(t *testing.T) {
-	f := NewFactory(PrimaryNamespace)
+	f := NewFactory(false)
 	f.config = &escfg.Configuration{
 		Tags: escfg.TagsAsFields{
 			File: "fixtures/file-does-not-exist.txt",
@@ -103,7 +103,7 @@ func TestElasticsearchTagsFileDoNotExist(t *testing.T) {
 }
 
 func TestElasticsearchILMUsedWithoutReadWriteAliases(t *testing.T) {
-	f := NewFactory(ArchiveNamespace)
+	f := NewFactory(false)
 	f.config = &escfg.Configuration{
 		UseILM: true,
 	}
@@ -177,7 +177,7 @@ func TestTagKeysAsFields(t *testing.T) {
 }
 
 func TestCreateTemplateError(t *testing.T) {
-	f := NewFactory(PrimaryNamespace)
+	f := NewFactory(false)
 	f.config = &escfg.Configuration{CreateIndexTemplates: true}
 	f.newClientFn = (&mockClientBuilder{createTemplateError: errors.New("template-error")}).NewClient
 	err := f.Initialize(metrics.NullFactory, zap.NewNop())
@@ -194,7 +194,7 @@ func TestCreateTemplateError(t *testing.T) {
 }
 
 func TestILMDisableTemplateCreation(t *testing.T) {
-	f := NewFactory(PrimaryNamespace)
+	f := NewFactory(false)
 	f.config = &escfg.Configuration{UseILM: true, UseReadWriteAliases: true, CreateIndexTemplates: true}
 	f.newClientFn = (&mockClientBuilder{createTemplateError: errors.New("template-error")}).NewClient
 	err := f.Initialize(metrics.NullFactory, zap.NewNop())
@@ -205,7 +205,7 @@ func TestILMDisableTemplateCreation(t *testing.T) {
 }
 
 func TestConfigureFromOptions(t *testing.T) {
-	f := NewFactory(ArchiveNamespace)
+	f := NewFactory(false)
 	o := &Options{
 		Primary: namespaceConfig{Configuration: escfg.Configuration{Servers: []string{"server"}}},
 	}
@@ -275,7 +275,7 @@ func TestESStorageFactoryWithConfigError(t *testing.T) {
 func TestPasswordFromFile(t *testing.T) {
 	defer testutils.VerifyGoLeaksOnce(t)
 	t.Run("primary client", func(t *testing.T) {
-		f := NewFactory(PrimaryNamespace)
+		f := NewFactory(false)
 		testPasswordFromFile(t, f, f.getClient, f.CreateSpanWriter)
 	})
 
@@ -388,7 +388,7 @@ func TestPasswordFromFileErrors(t *testing.T) {
 	pwdFile := filepath.Join(t.TempDir(), "pwd")
 	require.NoError(t, os.WriteFile(pwdFile, []byte("first password"), 0o600))
 
-	f := NewFactory(PrimaryNamespace)
+	f := NewFactory(false)
 	f.config = &escfg.Configuration{
 		Servers:  []string{server.URL},
 		LogLevel: "debug",

@@ -36,8 +36,8 @@ import (
 )
 
 const (
-	PrimaryNamespace = "es"
-	ArchiveNamespace = "es-archive"
+	primaryNamespace = "es"
+	archiveNamespace = "es-archive"
 )
 
 var ( // interface comformance checks
@@ -65,9 +65,16 @@ type Factory struct {
 }
 
 // NewFactory creates a new Factory.
-func NewFactory(namespace string) *Factory {
+func NewFactory(isArchive bool) *Factory {
+	var options *Options
+	if isArchive {
+		options = NewOptions(archiveNamespace)
+		options.Primary.IsArchive = true
+	} else {
+		options = NewOptions(primaryNamespace)
+	}
 	return &Factory{
-		Options:     NewOptions(namespace),
+		Options:     options,
 		newClientFn: config.NewClient,
 		tracer:      otel.GetTracerProvider(),
 	}

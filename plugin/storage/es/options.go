@@ -271,7 +271,7 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		nsConfig.namespace+suffixAdaptiveSamplingLookback,
 		nsConfig.AdaptiveSamplingLookback,
 		"How far back to look for the latest adaptive sampling probabilities")
-	if nsConfig.namespace == ArchiveNamespace {
+	if nsConfig.namespace == archiveNamespace {
 		flagSet.Bool(
 			nsConfig.namespace+suffixEnabled,
 			nsConfig.Enabled,
