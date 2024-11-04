@@ -180,8 +180,7 @@ func TestElasticsearchStorage_AllTagsAsObjectFields(t *testing.T) {
 
 func TestElasticsearchStorage_IndexTemplates(t *testing.T) {
 	SkipUnlessEnv(t, "elasticsearch", "opensearch")
-	err := healthCheck()
-	require.NoError(t, err)
+	require.NoError(t, healthCheck())
 	s := &ESStorageIntegration{}
 	s.initializeES(t, true)
 	esVersion, err := s.getVersion()
