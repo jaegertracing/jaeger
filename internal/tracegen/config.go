@@ -4,8 +4,8 @@
 package tracegen
 
 import (
+	"errors"
 	"flag"
-	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -54,7 +54,7 @@ func Run(c *Config, tracers []trace.Tracer, logger *zap.Logger) error {
 	if c.Duration > 0 {
 		c.Traces = 0
 	} else if c.Traces <= 0 {
-		return fmt.Errorf("either `traces` or `duration` must be greater than 0")
+		return errors.New("either `traces` or `duration` must be greater than 0")
 	}
 
 	wg := sync.WaitGroup{}
