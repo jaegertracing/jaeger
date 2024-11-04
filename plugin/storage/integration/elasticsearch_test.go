@@ -109,9 +109,10 @@ func (*ESStorageIntegration) initializeESFactory(t *testing.T, allTagsAsFields b
 		fmt.Sprintf("--es.tags-as-fields.all=%v", allTagsAsFields),
 		fmt.Sprintf("--es.bulk.actions=%v", 1),
 		fmt.Sprintf("--es.bulk.flush-interval=%v", time.Nanosecond),
-		"--es-archive.enabled=true",
-		fmt.Sprintf("--es-archive.tags-as-fields.all=%v", allTagsAsFields),
-		fmt.Sprintf("--es-archive.index-prefix=%v", indexPrefix),
+		// TODO: are these flags being used at the moment?
+		// "--es-archive.enabled=true",
+		// fmt.Sprintf("--es-archive.tags-as-fields.all=%v", allTagsAsFields),
+		// fmt.Sprintf("--es-archive.index-prefix=%v", indexPrefix),
 	}
 	require.NoError(t, command.ParseFlags(args))
 	f.InitFromViper(v, logger)
