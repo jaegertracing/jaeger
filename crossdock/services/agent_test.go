@@ -32,23 +32,29 @@ var testResponse = &api_v2.SamplingStrategyResponse{
 
 func TestGetSamplingRateInternal(t *testing.T) {
 	tests := []struct {
+		name      string
 		operation string
 		response  *api_v2.SamplingStrategyResponse
 		shouldErr bool
 		rate      float64
 	}{
-		{"op", &api_v2.SamplingStrategyResponse{}, true, 0},
-		{"op", &api_v2.SamplingStrategyResponse{OperationSampling: &api_v2.PerOperationSamplingStrategies{}}, true, 0},
-		{"op", testResponse, false, 0.01},
-		{"nop", testResponse, true, 0},
+		{"EmptyResponse", "op", &api_v2.SamplingStrategyResponse{}, true, 0},
+		{"EmptyOperationSampling", "op", &api_v2.SamplingStrategyResponse{OperationSampling: &api_v2.PerOperationSamplingStrategies{}}, true, 0},
+		{"ValidResponse", "op", testResponse, false, 0.01},
+		{"MissingOperation", "nop", testResponse, true, 0},
 	}
 
 	for _, test := range tests {
-		rate, err := getSamplingRate(test.operation, test.response)
-		if test.shouldErr {
-			require.EqualError(t, err, errSamplingRateMissing.Error())
-		}
-		assert.InDelta(t, test.rate, rate, 0.01)
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel() // Run each subtest in parallel
+			rate, err := getSamplingRate(test.operation, test.response)
+			if test.shouldErr {
+				require.EqualError(t, err, errSamplingRateMissing.Error())
+			} else {
+				require.NoError(t, err)
+				assert.InDelta(t, test.rate, rate, 0.01)
+			}
+		})
 	}
 }
 
