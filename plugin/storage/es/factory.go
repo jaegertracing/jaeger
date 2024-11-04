@@ -156,7 +156,7 @@ func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
 
 // CreateSpanWriter implements storage.Factory
 func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
-	return createSpanWriter(f.getClient, f.config, false, f.metricsFactory, f.logger)
+	return createSpanWriter(f.getClient, f.config, f.metricsFactory, f.logger)
 }
 
 // CreateDependencyReader implements storage.Factory
@@ -194,7 +194,6 @@ func createSpanReader(
 func createSpanWriter(
 	clientFn func() es.Client,
 	cfg *config.Configuration,
-	archive bool,
 	mFactory metrics.Factory,
 	logger *zap.Logger,
 ) (spanstore.Writer, error) {
@@ -216,7 +215,7 @@ func createSpanWriter(
 		AllTagsAsFields:     cfg.Tags.AllAsFields,
 		TagKeysAsFields:     tags,
 		TagDotReplacement:   cfg.Tags.DotReplacement,
-		Archive:             archive,
+		Archive:             cfg.IsArchive,
 		UseReadWriteAliases: cfg.UseReadWriteAliases,
 		Logger:              logger,
 		MetricsFactory:      mFactory,
