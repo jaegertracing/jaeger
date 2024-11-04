@@ -66,7 +66,7 @@ func TestExtractorTraceOutputFileError(t *testing.T) {
 		reader,
 		zap.NewNop(),
 	)
-	require.Contains(t, err.Error(), "cannot create output file")
+	require.ErrorContains(t, err, "cannot create output file")
 }
 
 func TestExtractorTraceScanError(t *testing.T) {
@@ -86,7 +86,7 @@ func TestExtractorTraceScanError(t *testing.T) {
 	require.NoError(t, err)
 
 	err = extractor.Run()
-	require.Contains(t, err.Error(), "failed when scanning the file")
+	require.ErrorContains(t, err, "failed when scanning the file")
 }
 
 func loadJSON(t *testing.T, fileName string, i any) {

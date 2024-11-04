@@ -305,8 +305,7 @@ func TestParameterErrors(t *testing.T) {
 			err := getJSON(ts.server.URL+tc.urlPath, &response)
 
 			// Verify
-			require.Error(t, err)
-			assert.Contains(t, err.Error(), tc.wantErrorMessage)
+			assert.ErrorContains(t, err, tc.wantErrorMessage)
 		})
 	}
 }

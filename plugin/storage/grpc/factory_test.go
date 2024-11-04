@@ -107,8 +107,7 @@ func TestNewFactoryError(t *testing.T) {
 	}
 	t.Run("with_config", func(t *testing.T) {
 		_, err := NewFactoryWithConfig(*cfg, metrics.NullFactory, zap.NewNop(), componenttest.NewNopHost())
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "authenticator")
+		assert.ErrorContains(t, err, "authenticator")
 	})
 
 	t.Run("viper", func(t *testing.T) {
@@ -116,8 +115,7 @@ func TestNewFactoryError(t *testing.T) {
 		f.InitFromViper(viper.New(), zap.NewNop())
 		f.config = *cfg
 		err := f.Initialize(metrics.NullFactory, zap.NewNop())
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "authenticator")
+		assert.ErrorContains(t, err, "authenticator")
 	})
 
 	t.Run("client", func(t *testing.T) {
@@ -129,8 +127,7 @@ func TestNewFactoryError(t *testing.T) {
 			return nil, errors.New("test error")
 		}
 		_, err = f.newRemoteStorage(component.TelemetrySettings{}, component.TelemetrySettings{}, newClientFn)
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "error creating traced remote storage client")
+		assert.ErrorContains(t, err, "error creating traced remote storage client")
 	})
 }
 
@@ -282,8 +279,7 @@ func TestStreamingSpanWriterFactory_CapabilitiesNil(t *testing.T) {
 	writer, err := f.CreateSpanWriter()
 	require.NoError(t, err)
 	err = writer.WriteSpan(context.Background(), nil)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "not streaming writer")
+	assert.ErrorContains(t, err, "not streaming writer")
 }
 
 func TestStreamingSpanWriterFactory_Capabilities(t *testing.T) {
@@ -307,18 +303,15 @@ func TestStreamingSpanWriterFactory_Capabilities(t *testing.T) {
 	writer, err := f.CreateSpanWriter()
 	require.NoError(t, err)
 	err = writer.WriteSpan(context.Background(), nil)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "not streaming writer", "unary writer when Capabilities return error")
+	require.ErrorContains(t, err, "not streaming writer", "unary writer when Capabilities return error")
 
 	writer, err = f.CreateSpanWriter()
 	require.NoError(t, err)
 	err = writer.WriteSpan(context.Background(), nil)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "not streaming writer", "unary writer when Capabilities return false")
+	require.ErrorContains(t, err, "not streaming writer", "unary writer when Capabilities return false")
 
 	writer, err = f.CreateSpanWriter()
 	require.NoError(t, err)
 	err = writer.WriteSpan(context.Background(), nil)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "I am streaming writer", "streaming writer when Capabilities return true")
+	assert.ErrorContains(t, err, "I am streaming writer", "streaming writer when Capabilities return true")
 }

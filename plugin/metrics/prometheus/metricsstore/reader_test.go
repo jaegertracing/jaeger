@@ -86,8 +86,7 @@ func TestNewMetricsReaderInvalidAddress(t *testing.T) {
 		ServerURL:      "\n",
 		ConnectTimeout: defaultTimeout,
 	}, logger, tracer)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to initialize prometheus client")
+	require.ErrorContains(t, err, "failed to initialize prometheus client")
 	assert.Nil(t, reader)
 }
 
@@ -142,8 +141,7 @@ func TestMetricsServerError(t *testing.T) {
 	require.NoError(t, err)
 	m, err := reader.GetCallRates(context.Background(), &params)
 	assert.NotNil(t, m)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "failed executing metrics query")
+	require.ErrorContains(t, err, "failed executing metrics query")
 	require.Len(t, exp.GetSpans(), 1, "HTTP request was traced and span reported")
 	assert.Equal(t, codes.Error, exp.GetSpans()[0].Status.Code)
 }
@@ -848,8 +846,7 @@ func TestGetRoundTripperTokenError(t *testing.T) {
 	_, err := getHTTPRoundTripper(&config.Configuration{
 		TokenFilePath: tokenFilePath,
 	}, nil)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to get token from file")
+	assert.ErrorContains(t, err, "failed to get token from file")
 }
 
 func TestInvalidCertFile(t *testing.T) {

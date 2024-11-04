@@ -103,8 +103,7 @@ func TestFS(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			f, err := testFS.Open(c.path)
 			if c.expectedErr != "" {
-				require.Error(t, err)
-				assert.Contains(t, err.Error(), c.expectedErr)
+				require.ErrorContains(t, err, c.expectedErr)
 				return
 			}
 			require.NoError(t, err)

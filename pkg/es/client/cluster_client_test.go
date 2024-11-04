@@ -224,8 +224,7 @@ func TestVersion(t *testing.T) {
 			}
 			result, err := c.Version()
 			if test.errContains != "" {
-				require.Error(t, err)
-				assert.Contains(t, err.Error(), test.errContains)
+				require.ErrorContains(t, err, test.errContains)
 				return
 			}
 			require.NoError(t, err)
