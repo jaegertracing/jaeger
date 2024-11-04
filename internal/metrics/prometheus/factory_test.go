@@ -401,7 +401,7 @@ func findMetric(t *testing.T, snapshot []*promModel.MetricFamily, name string, t
 			continue
 		}
 		for _, m := range mf.GetMetric() {
-			require.Equalf(t, len(m.GetLabel()), len(tags), "Mismatching labels for metric %v: want %v, have %v", name, tags, m.GetLabel())
+			require.Lenf(t, m.GetLabel(), len(tags), "Mismatching labels for metric %v: want %v, have %v", name, tags, m.GetLabel())
 			match := true
 			for _, l := range m.GetLabel() {
 				if v, ok := tags[l.GetName()]; !ok || v != l.GetValue() {
