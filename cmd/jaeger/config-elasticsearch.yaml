@@ -58,6 +58,7 @@ extensions:
         elasticsearch:
           indices:
             index_prefix: "jaeger-archive"
+          is_archive: true
 
 receivers:
   otlp:
