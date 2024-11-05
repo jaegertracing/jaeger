@@ -237,7 +237,6 @@ func TestNewFactoryWithConfig(t *testing.T) {
 	t.Run("invalid configuration", func(t *testing.T) {
 		cfg := Options{}
 		_, err := NewFactoryWithConfig(cfg, metrics.NullFactory, zap.NewNop())
-		require.Error(t, err)
 		require.ErrorContains(t, err, "Servers: non zero value required")
 	})
 }

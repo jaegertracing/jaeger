@@ -156,8 +156,7 @@ func TestOptionsToConfig(t *testing.T) {
 			}
 			cfg, err := test.options.Config(zap.NewNop())
 			if test.expectError != "" {
-				require.Error(t, err)
-				assert.Contains(t, err.Error(), test.expectError)
+				require.ErrorContains(t, err, test.expectError)
 			} else {
 				require.NoError(t, err)
 				assert.NotNil(t, cfg)

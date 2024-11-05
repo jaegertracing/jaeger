@@ -57,6 +57,5 @@ func TestBindTLSFlagFailure(t *testing.T) {
 	})
 	require.NoError(t, err)
 	_, err = new(ConnBuilder).InitFromViper(v)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to process TLS options")
+	assert.ErrorContains(t, err, "failed to process TLS options")
 }

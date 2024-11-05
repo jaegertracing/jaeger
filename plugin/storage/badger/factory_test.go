@@ -195,7 +195,6 @@ func TestConfigure(t *testing.T) {
 func TestBadgerStorageFactoryWithConfig(t *testing.T) {
 	cfg := Config{}
 	_, err := NewFactoryWithConfig(cfg, metrics.NullFactory, zap.NewNop())
-	require.Error(t, err)
 	require.ErrorContains(t, err, "Error Creating Dir")
 
 	tmp := os.TempDir()

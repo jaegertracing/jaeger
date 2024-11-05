@@ -92,16 +92,14 @@ func TestStartOtlpReceiver_Error(t *testing.T) {
 	opts := optionsWithPorts(":-1")
 	tm := &tenancy.Manager{}
 	_, err := StartOTLPReceiver(opts, logger, spanProcessor, tm)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "could not start the OTLP receiver")
+	require.ErrorContains(t, err, "could not start the OTLP receiver")
 
 	newTraces := func(consumer.ConsumeTracesFunc, ...consumer.Option) (consumer.Traces, error) {
 		return nil, errors.New("mock error")
 	}
 	f := otlpreceiver.NewFactory()
 	_, err = startOTLPReceiver(opts, logger, spanProcessor, &tenancy.Manager{}, f, newTraces, f.CreateTraces)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "could not create the OTLP consumer")
+	require.ErrorContains(t, err, "could not create the OTLP consumer")
 
 	createTracesReceiver := func(
 		context.Context, receiver.Settings, component.Config, consumer.Traces,
@@ -109,8 +107,7 @@ func TestStartOtlpReceiver_Error(t *testing.T) {
 		return nil, errors.New("mock error")
 	}
 	_, err = startOTLPReceiver(opts, logger, spanProcessor, &tenancy.Manager{}, f, consumer.NewTraces, createTracesReceiver)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "could not create the OTLP receiver")
+	assert.ErrorContains(t, err, "could not create the OTLP receiver")
 }
 
 func TestOtelHost_ReportFatalError(t *testing.T) {

@@ -32,8 +32,7 @@ func TestNotExistingUiConfig(t *testing.T) {
 	handler, err := NewStaticAssetsHandler("/foo/bar", StaticAssetsHandlerOptions{
 		Logger: zap.NewNop(),
 	})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "no such file or directory")
+	require.ErrorContains(t, err, "no such file or directory")
 	assert.Nil(t, handler)
 }
 
@@ -169,8 +168,7 @@ func TestNewStaticAssetsHandlerErrors(t *testing.T) {
 			BasePath: base,
 			Logger:   zap.NewNop(),
 		})
-		require.Errorf(t, err, "basePath=%s", base)
-		assert.Contains(t, err.Error(), "invalid base path")
+		assert.ErrorContainsf(t, err, "invalid base path", "basePath=%s", base)
 	}
 }
 
