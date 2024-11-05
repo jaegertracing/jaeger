@@ -5,6 +5,7 @@ package storagecleaner
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -79,7 +80,7 @@ func TestStorageCleanerExtension(t *testing.T) {
 		},
 		{
 			name:    "good storage with error",
-			factory: &PurgerFactory{err: fmt.Errorf("error")},
+			factory: &PurgerFactory{err: errors.New("error")},
 			status:  http.StatusInternalServerError,
 		},
 		{

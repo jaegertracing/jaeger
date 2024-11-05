@@ -6,7 +6,7 @@ package jaegerstorage
 import (
 	"context"
 	"encoding/json"
-	"fmt"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -88,7 +88,7 @@ func TestStorageExtensionType(t *testing.T) {
 }
 
 func TestStorageFactoryBadShutdownError(t *testing.T) {
-	shutdownError := fmt.Errorf("shutdown error")
+	shutdownError := errors.New("shutdown error")
 	ext := storageExt{
 		factories: map[string]storage.Factory{
 			"foo": errorFactory{closeErr: shutdownError},

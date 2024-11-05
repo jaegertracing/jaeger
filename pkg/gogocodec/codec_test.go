@@ -97,9 +97,7 @@ func BenchmarkCodecUnmarshal25Spans(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		var trace model.Trace
 		err := c.Unmarshal(bytes, &trace)
-		if err != nil {
-			b.Fatal(err)
-		}
+		require.NoError(b, err)
 	}
 }
 
