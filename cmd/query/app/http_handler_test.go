@@ -354,7 +354,6 @@ func TestGetTraceDBFailure(t *testing.T) {
 }
 
 func TestGetTraceNotFound(t *testing.T) {
-	t.Parallel()
 	ts := initializeTestServer(t)
 	ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
 		Return(nil, spanstore.ErrTraceNotFound).Once()
@@ -365,7 +364,6 @@ func TestGetTraceNotFound(t *testing.T) {
 }
 
 func TestGetTraceAdjustmentFailure(t *testing.T) {
-	t.Parallel()
 	ts := initializeTestServerWithHandler(
 		t,
 		querysvc.QueryServiceOptions{
@@ -385,7 +383,6 @@ func TestGetTraceAdjustmentFailure(t *testing.T) {
 }
 
 func TestGetTraceBadTraceID(t *testing.T) {
-	t.Parallel()
 	ts := initializeTestServer(t)
 
 	var response structuredResponse
@@ -419,7 +416,6 @@ func TestSearchByTraceIDSuccess(t *testing.T) {
 }
 
 func TestSearchByTraceIDSuccessWithArchive(t *testing.T) {
-	t.Parallel()
 	archiveReadMock := &spanstoremocks.Reader{}
 	ts := initializeTestServerWithOptions(t, &tenancy.Manager{}, querysvc.QueryServiceOptions{
 		ArchiveSpanReader: archiveReadMock,

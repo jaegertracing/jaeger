@@ -120,7 +120,6 @@ func TestGetTraceSuccess(t *testing.T) {
 
 // Test QueryService.GetTrace() without ArchiveSpanReader
 func TestGetTraceNotFound(t *testing.T) {
-	t.Parallel()
 	tqs := initializeTestService()
 	tqs.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
 		Return(nil, spanstore.ErrTraceNotFound).Once()
