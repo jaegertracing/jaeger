@@ -92,8 +92,7 @@ func TestStorageCleanerExtension(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			port := getFreePort()
-			portStr := fmt.Sprintf("%d", port)
+			portStr := getFreePort(t)
 			config := &Config{
 				TraceStorage: "storage",
 				Port:         portStr,
@@ -177,11 +176,9 @@ func (h *testHost) Report(event *componentstatus.Event) {
 	h.reportFunc(event)
 }
 
-func getFreePort() int {
+func getFreePort(t *testing.T) string {
 	listener, err := net.Listen("tcp", ":0")
-	if err != nil {
-		panic(fmt.Sprintf("Failed to get a free port: %v", err))
-	}
+	require.NoError(t, err, "Failed to get a free port")
 	defer listener.Close()
-	return listener.Addr().(*net.TCPAddr).Port
+	return fmt.Sprintf("%d", listener.Addr().(*net.TCPAddr).Port)
 }
