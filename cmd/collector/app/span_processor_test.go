@@ -6,6 +6,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"reflect"
@@ -250,7 +251,7 @@ func TestSpanProcessor(t *testing.T) {
 func TestSpanProcessorErrors(t *testing.T) {
 	logger, logBuf := testutils.NewLogger()
 	w := &fakeSpanWriter{
-		err: fmt.Errorf("some-error"),
+		err: errors.New("some-error"),
 	}
 	mb := metricstest.NewFactory(time.Hour)
 	defer mb.Backend.Stop()

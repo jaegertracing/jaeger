@@ -6,6 +6,7 @@ package uiconv
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 
@@ -14,7 +15,7 @@ import (
 	uimodel "github.com/jaegertracing/jaeger/model/json"
 )
 
-var errNoMoreSpans = fmt.Errorf("no more spans")
+var errNoMoreSpans = errors.New("no more spans")
 
 // spanReader loads previously captured spans from a file.
 type spanReader struct {
@@ -53,7 +54,7 @@ func (r *spanReader) NextSpan() (*uimodel.Span, error) {
 		}
 		if b != '[' {
 			r.eofReached = true
-			return nil, fmt.Errorf("file must begin with '['")
+			return nil, errors.New("file must begin with '['")
 		}
 	}
 	s, err := r.reader.ReadString('\n')

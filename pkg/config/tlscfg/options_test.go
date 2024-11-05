@@ -6,7 +6,7 @@ package tlscfg
 import (
 	"crypto/tls"
 	"crypto/x509"
-	"fmt"
+	"errors"
 	"path/filepath"
 	"testing"
 	"time"
@@ -148,7 +148,7 @@ func TestOptionsToConfig(t *testing.T) {
 			if test.fakeSysPool {
 				saveSystemCertPool := systemCertPool
 				systemCertPool = func() (*x509.CertPool, error) {
-					return nil, fmt.Errorf("fake system pool")
+					return nil, errors.New("fake system pool")
 				}
 				defer func() {
 					systemCertPool = saveSystemCertPool

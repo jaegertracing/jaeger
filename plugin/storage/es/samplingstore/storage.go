@@ -6,6 +6,7 @@ package samplingstore
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -165,7 +166,7 @@ func getLatestIndices(indexPrefix, indexDateLayout string, clientFn es.Client, r
 			return []string{currentIndex}, nil
 		}
 		if currentIndex == earliestIndex {
-			return nil, fmt.Errorf("falied to find latest index")
+			return nil, errors.New("falied to find latest index")
 		}
 		now = now.Add(rollover) // rollover is negative
 	}

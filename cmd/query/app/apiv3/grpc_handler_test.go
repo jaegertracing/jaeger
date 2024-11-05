@@ -5,7 +5,7 @@ package apiv3
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"net"
 	"testing"
 
@@ -105,7 +105,7 @@ func TestGetTrace(t *testing.T) {
 func TestGetTraceStorageError(t *testing.T) {
 	tsc := newTestServerClient(t)
 	tsc.reader.On("GetTrace", matchContext, matchTraceID).Return(
-		nil, fmt.Errorf("storage_error")).Once()
+		nil, errors.New("storage_error")).Once()
 
 	getTraceStream, err := tsc.client.GetTrace(context.Background(), &api_v3.GetTraceRequest{
 		TraceId: "156",
@@ -186,7 +186,7 @@ func TestFindTracesQueryNil(t *testing.T) {
 func TestFindTracesStorageError(t *testing.T) {
 	tsc := newTestServerClient(t)
 	tsc.reader.On("FindTraces", matchContext, mock.AnythingOfType("*spanstore.TraceQueryParameters")).Return(
-		nil, fmt.Errorf("storage_error"), nil).Once()
+		nil, errors.New("storage_error"), nil).Once()
 
 	responseStream, err := tsc.client.FindTraces(context.Background(), &api_v3.FindTracesRequest{
 		Query: &api_v3.TraceQueryParameters{
@@ -215,7 +215,7 @@ func TestGetServices(t *testing.T) {
 func TestGetServicesStorageError(t *testing.T) {
 	tsc := newTestServerClient(t)
 	tsc.reader.On("GetServices", matchContext).Return(
-		nil, fmt.Errorf("storage_error")).Once()
+		nil, errors.New("storage_error")).Once()
 
 	response, err := tsc.client.GetServices(context.Background(), &api_v3.GetServicesRequest{})
 	require.ErrorContains(t, err, "storage_error")
@@ -243,7 +243,7 @@ func TestGetOperations(t *testing.T) {
 func TestGetOperationsStorageError(t *testing.T) {
 	tsc := newTestServerClient(t)
 	tsc.reader.On("GetOperations", matchContext, mock.AnythingOfType("spanstore.OperationQueryParameters")).Return(
-		nil, fmt.Errorf("storage_error")).Once()
+		nil, errors.New("storage_error")).Once()
 
 	response, err := tsc.client.GetOperations(context.Background(), &api_v3.GetOperationsRequest{})
 	require.ErrorContains(t, err, "storage_error")

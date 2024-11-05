@@ -67,7 +67,7 @@ func (s *streamingSpanWriter) getStream(ctx context.Context) (storage_v1.Streami
 		if ok {
 			return st, nil
 		}
-		return nil, fmt.Errorf("plugin is closed")
+		return nil, errors.New("plugin is closed")
 	default:
 		return s.client.WriteSpanStream(ctx)
 	}

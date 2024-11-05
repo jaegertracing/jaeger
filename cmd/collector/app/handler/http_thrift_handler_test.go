@@ -7,7 +7,7 @@ package handler
 import (
 	"bytes"
 	"context"
-	"fmt"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -79,7 +79,7 @@ func TestThriftFormat(t *testing.T) {
 	assert.EqualValues(t, http.StatusAccepted, statusCode)
 	assert.EqualValues(t, "", resBodyStr)
 
-	handler.jaegerBatchesHandler.(*mockJaegerHandler).err = fmt.Errorf("Bad times ahead")
+	handler.jaegerBatchesHandler.(*mockJaegerHandler).err = errors.New("Bad times ahead")
 	statusCode, resBodyStr, err = postBytes("application/vnd.apache.thrift.binary", server.URL+`/api/traces`, someBytes)
 	require.NoError(t, err)
 	assert.EqualValues(t, http.StatusInternalServerError, statusCode)
@@ -161,7 +161,7 @@ func TestCannotReadBodyFromRequest(t *testing.T) {
 type errReader struct{}
 
 func (*errReader) Read([]byte) (int, error) {
-	return 0, fmt.Errorf("Simulated error reading body")
+	return 0, errors.New("Simulated error reading body")
 }
 
 type dummyResponseWriter struct {
