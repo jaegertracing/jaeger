@@ -92,7 +92,7 @@ func (c *Client) request(esRequest elasticRequest) ([]byte, error) {
 
 func (c *Client) setAuthorization(r *http.Request) {
 	if c.BasicAuth != "" {
-		r.Header.Add("Authorization", fmt.Sprintf("Basic %s", c.BasicAuth))
+		r.Header.Add("Authorization", "Basic "+c.BasicAuth)
 	}
 }
 

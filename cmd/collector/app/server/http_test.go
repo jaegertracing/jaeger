@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 	"time"
 
@@ -207,7 +208,7 @@ func TestSpanCollectorHTTPS(t *testing.T) {
 			defer test.clientTLS.Close()
 			require.NoError(t, err0)
 			dialer := &net.Dialer{Timeout: 2 * time.Second}
-			conn, clientError := tls.DialWithDialer(dialer, "tcp", "localhost:"+fmt.Sprintf("%d", ports.CollectorHTTP), clientTLSCfg)
+			conn, clientError := tls.DialWithDialer(dialer, "tcp", "localhost:"+strconv.Itoa(ports.CollectorHTTP), clientTLSCfg)
 			var clientClose func() error
 			clientClose = nil
 			if conn != nil {
@@ -230,7 +231,7 @@ func TestSpanCollectorHTTPS(t *testing.T) {
 				},
 			}
 
-			response, requestError := client.Post("https://localhost:"+fmt.Sprintf("%d", ports.CollectorHTTP), "", nil)
+			response, requestError := client.Post("https://localhost:"+strconv.Itoa(ports.CollectorHTTP), "", nil)
 
 			if test.expectClientError {
 				require.Error(t, requestError)
