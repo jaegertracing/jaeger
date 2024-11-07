@@ -21,7 +21,7 @@ type Setting struct {
 	Metrics              metrics.Factory
 	ReportStatus         func(*componentstatus.Event)
 	Host                 component.Host
-	LeveledMeterProvider func(_ configtelemetry.Level) metric.MeterProvider
+	LeveledMeterProvider func(configtelemetry.Level) metric.MeterProvider
 }
 
 func HCAdapter(hc *healthcheck.HealthCheck) func(*componentstatus.Event) {
