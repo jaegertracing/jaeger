@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/olivere/elastic"
@@ -474,7 +475,7 @@ func buildTraceByIDQuery(traceID model.TraceID) elastic.Query {
 	// TODO remove in newer versions, added in Jaeger 1.16
 	var legacyTraceID string
 	if traceID.High == 0 {
-		legacyTraceID = fmt.Sprintf("%x", traceID.Low)
+		legacyTraceID = strconv.FormatUint(traceID.Low, 16)
 	} else {
 		legacyTraceID = fmt.Sprintf("%x%016x", traceID.High, traceID.Low)
 	}

@@ -7,6 +7,7 @@ package model_test
 import (
 	"bytes"
 	"fmt"
+	"strconv"
 	"testing"
 	"time"
 
@@ -482,7 +483,7 @@ func TestGetSamplerParams(t *testing.T) {
 
 	for i, test := range tests {
 		tt := test
-		t.Run(fmt.Sprintf("%d", i), func(t *testing.T) {
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			span := &model.Span{}
 			span.Tags = tt.tags
 			actualType, actualParam := span.GetSamplerParams(logger)

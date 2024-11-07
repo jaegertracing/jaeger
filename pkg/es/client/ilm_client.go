@@ -20,7 +20,7 @@ type ILMClient struct {
 // Exists verify if a ILM policy exists
 func (i ILMClient) Exists(name string) (bool, error) {
 	_, err := i.request(elasticRequest{
-		endpoint: fmt.Sprintf("_ilm/policy/%s", name),
+		endpoint: "_ilm/policy/" + name,
 		method:   http.MethodGet,
 	})
 

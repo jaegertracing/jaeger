@@ -6,6 +6,7 @@ package log
 
 import (
 	"fmt"
+	"strconv"
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -138,11 +139,11 @@ func (e *bridgeFieldEncoder) AddTime(key string, value time.Time) {
 }
 
 func (e *bridgeFieldEncoder) AddUint(key string, value uint) {
-	e.pairs = append(e.pairs, attribute.String(key, fmt.Sprintf("%d", value)))
+	e.pairs = append(e.pairs, attribute.String(key, strconv.FormatUint(uint64(value), 10)))
 }
 
 func (e *bridgeFieldEncoder) AddUint64(key string, value uint64) {
-	e.pairs = append(e.pairs, attribute.String(key, fmt.Sprintf("%d", value)))
+	e.pairs = append(e.pairs, attribute.String(key, strconv.FormatUint(value, 10)))
 }
 
 func (e *bridgeFieldEncoder) AddUint32(key string, value uint32) {
