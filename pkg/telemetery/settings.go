@@ -6,6 +6,8 @@ package telemetery
 import (
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componentstatus"
+	"go.opentelemetry.io/collector/config/configtelemetry"
+	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
@@ -14,11 +16,12 @@ import (
 )
 
 type Setting struct {
-	Logger         *zap.Logger
-	TracerProvider trace.TracerProvider
-	Metrics        metrics.Factory
-	ReportStatus   func(*componentstatus.Event)
-	Host           component.Host
+	Logger               *zap.Logger
+	TracerProvider       trace.TracerProvider
+	Metrics              metrics.Factory
+	ReportStatus         func(*componentstatus.Event)
+	Host                 component.Host
+	LeveledMeterProvider func(_ configtelemetry.Level) metric.MeterProvider
 }
 
 func HCAdapter(hc *healthcheck.HealthCheck) func(*componentstatus.Event) {

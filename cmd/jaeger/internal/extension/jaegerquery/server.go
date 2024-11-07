@@ -10,8 +10,11 @@ import (
 
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componentstatus"
+	"go.opentelemetry.io/collector/config/configtelemetry"
 	"go.opentelemetry.io/collector/extension"
 	"go.opentelemetry.io/collector/extension/extensioncapabilities"
+	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/metric/noop"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
 	queryApp "github.com/jaegertracing/jaeger/cmd/query/app"
@@ -52,7 +55,13 @@ func (*server) Dependencies() []component.ID {
 }
 
 func (s *server) Start(ctx context.Context, host component.Host) error {
-	mf := otelmetrics.NewFactory(s.telset.MeterProvider)
+	var meterProvider metric.MeterProvider
+	if s.telset.LeveledMeterProvider != nil {
+		meterProvider = s.telset.LeveledMeterProvider(configtelemetry.LevelNormal)
+	} else {
+		meterProvider = noop.NewMeterProvider()
+	}
+	mf := otelmetrics.NewFactory(meterProvider)
 	baseFactory := mf.Namespace(metrics.NSOptions{Name: "jaeger"})
 	queryMetricsFactory := baseFactory.Namespace(metrics.NSOptions{Name: "query"})
 	f, err := jaegerstorage.GetStorageFactory(s.config.Storage.TracesPrimary, host)
@@ -100,7 +109,8 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 		ReportStatus: func(event *componentstatus.Event) {
 			componentstatus.ReportStatus(host, event)
 		},
-		Host: host,
+		LeveledMeterProvider: s.telset.LeveledMeterProvider,
+		Host:                 host,
 	}
 
 	s.server, err = queryApp.NewServer(
