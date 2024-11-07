@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/olivere/elastic"
@@ -135,18 +136,32 @@ func NewSpanReader(p SpanReaderParams) *SpanReader {
 		spanIndex:               p.SpanIndex,
 		serviceIndex:            p.ServiceIndex,
 		spanConverter:           dbmodel.NewToDomain(p.TagDotReplacement),
-		timeRangeIndices:        getTimeRangeIndexFn(p.Archive, p.UseReadWriteAliases, p.RemoteReadClusters),
-		sourceFn:                getSourceFn(p.Archive, p.MaxDocCount),
-		maxDocCount:             p.MaxDocCount,
-		useReadWriteAliases:     p.UseReadWriteAliases,
-		logger:                  p.Logger,
-		tracer:                  p.Tracer,
+		timeRangeIndices: getLoggingTimeRangeIndexFn(
+			p.Logger,
+			getTimeRangeIndexFn(p.Archive, p.UseReadWriteAliases, p.RemoteReadClusters),
+		),
+		sourceFn:            getSourceFn(p.Archive, p.MaxDocCount),
+		maxDocCount:         p.MaxDocCount,
+		useReadWriteAliases: p.UseReadWriteAliases,
+		logger:              p.Logger,
+		tracer:              p.Tracer,
 	}
 }
 
 type timeRangeIndexFn func(indexName string, indexDateLayout string, startTime time.Time, endTime time.Time, reduceDuration time.Duration) []string
 
 type sourceFn func(query elastic.Query, nextTime uint64) *elastic.SearchSource
+
+func getLoggingTimeRangeIndexFn(logger *zap.Logger, fn timeRangeIndexFn) timeRangeIndexFn {
+	if !logger.Core().Enabled(zap.DebugLevel) {
+		return fn
+	}
+	return func(indexName string, indexDateLayout string, startTime time.Time, endTime time.Time, reduceDuration time.Duration) []string {
+		indices := fn(indexName, indexDateLayout, startTime, endTime, reduceDuration)
+		logger.Debug("Reading from ES indices", zap.Strings("index", indices))
+		return indices
+	}
+}
 
 func getTimeRangeIndexFn(archive, useReadWriteAliases bool, remoteReadClusters []string) timeRangeIndexFn {
 	if archive {
@@ -460,7 +475,7 @@ func buildTraceByIDQuery(traceID model.TraceID) elastic.Query {
 	// TODO remove in newer versions, added in Jaeger 1.16
 	var legacyTraceID string
 	if traceID.High == 0 {
-		legacyTraceID = fmt.Sprintf("%x", traceID.Low)
+		legacyTraceID = strconv.FormatUint(traceID.Low, 16)
 	} else {
 		legacyTraceID = fmt.Sprintf("%x%016x", traceID.High, traceID.Low)
 	}

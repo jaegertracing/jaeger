@@ -306,15 +306,13 @@ func TestEncodeErrors(t *testing.T) {
 			_, err := server.handler.encodeThriftLegacy(&api_v2.SamplingStrategyResponse{
 				StrategyType: -1,
 			})
-			require.Error(t, err)
-			assert.Contains(t, err.Error(), "ConvertSamplingResponseFromDomain failed")
+			require.ErrorContains(t, err, "ConvertSamplingResponseFromDomain failed")
 			server.metricsFactory.AssertCounterMetrics(t, []metricstest.ExpectedMetric{
 				{Name: "http-server.errors", Tags: map[string]string{"source": "thrift", "status": "5xx"}, Value: 1},
 			}...)
 
 			_, err = server.handler.encodeProto(nil)
-			require.Error(t, err)
-			assert.Contains(t, err.Error(), "SamplingStrategyResponseToJSON failed")
+			require.ErrorContains(t, err, "SamplingStrategyResponseToJSON failed")
 			server.metricsFactory.AssertCounterMetrics(t, []metricstest.ExpectedMetric{
 				{Name: "http-server.errors", Tags: map[string]string{"source": "proto", "status": "5xx"}, Value: 1},
 			}...)

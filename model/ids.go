@@ -7,6 +7,7 @@ package model
 import (
 	"encoding/base64"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"strconv"
 
@@ -76,19 +77,19 @@ func TraceIDFromBytes(data []byte) (TraceID, error) {
 	case len(data) == traceIDShortBytesLen:
 		t.Low = binary.BigEndian.Uint64(data)
 	default:
-		return TraceID{}, fmt.Errorf("invalid length for TraceID")
+		return TraceID{}, errors.New("invalid length for TraceID")
 	}
 	return t, nil
 }
 
 // MarshalText is called by encoding/json, which we do not want people to use.
 func (TraceID) MarshalText() ([]byte, error) {
-	return nil, fmt.Errorf("unsupported method TraceID.MarshalText; please use github.com/gogo/protobuf/jsonpb for marshalling")
+	return nil, errors.New("unsupported method TraceID.MarshalText; please use github.com/gogo/protobuf/jsonpb for marshalling")
 }
 
 // UnmarshalText is called by encoding/json, which we do not want people to use.
 func (*TraceID) UnmarshalText([]byte /* text */) error {
-	return fmt.Errorf("unsupported method TraceID.UnmarshalText; please use github.com/gogo/protobuf/jsonpb for marshalling")
+	return errors.New("unsupported method TraceID.UnmarshalText; please use github.com/gogo/protobuf/jsonpb for marshalling")
 }
 
 // Size returns the size of this datum in protobuf. It is always 16 bytes.
@@ -113,7 +114,7 @@ func (t *TraceID) Unmarshal(data []byte) error {
 
 func marshalBytes(dst []byte, src []byte) (n int, err error) {
 	if len(dst) < len(src) {
-		return 0, fmt.Errorf("buffer is too short")
+		return 0, errors.New("buffer is too short")
 	}
 	return copy(dst, src), nil
 }
@@ -170,19 +171,19 @@ func SpanIDFromString(s string) (SpanID, error) {
 // SpanIDFromBytes creates a SpandID from list of bytes
 func SpanIDFromBytes(data []byte) (SpanID, error) {
 	if len(data) != traceIDShortBytesLen {
-		return SpanID(0), fmt.Errorf("invalid length for SpanID")
+		return SpanID(0), errors.New("invalid length for SpanID")
 	}
 	return NewSpanID(binary.BigEndian.Uint64(data)), nil
 }
 
 // MarshalText is called by encoding/json, which we do not want people to use.
 func (SpanID) MarshalText() ([]byte, error) {
-	return nil, fmt.Errorf("unsupported method SpanID.MarshalText; please use github.com/gogo/protobuf/jsonpb for marshalling")
+	return nil, errors.New("unsupported method SpanID.MarshalText; please use github.com/gogo/protobuf/jsonpb for marshalling")
 }
 
 // UnmarshalText is called by encoding/json, which we do not want people to use.
 func (*SpanID) UnmarshalText([]byte /* text */) error {
-	return fmt.Errorf("unsupported method SpanID.UnmarshalText; please use github.com/gogo/protobuf/jsonpb for marshalling")
+	return errors.New("unsupported method SpanID.UnmarshalText; please use github.com/gogo/protobuf/jsonpb for marshalling")
 }
 
 // Size returns the size of this datum in protobuf. It is always 8 bytes.

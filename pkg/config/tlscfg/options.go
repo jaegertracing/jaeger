@@ -6,6 +6,7 @@ package tlscfg
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -64,7 +65,7 @@ func (o *Options) Config(logger *zap.Logger) (*tls.Config, error) {
 
 	if o.MinVersion != "" && o.MaxVersion != "" {
 		if minVersionId > maxVersionId {
-			return nil, fmt.Errorf("minimum tls version can't be greater than maximum tls version")
+			return nil, errors.New("minimum tls version can't be greater than maximum tls version")
 		}
 	}
 
@@ -94,7 +95,7 @@ func (o *Options) Config(logger *zap.Logger) (*tls.Config, error) {
 	o.certWatcher = certWatcher
 
 	if (o.CertPath == "" && o.KeyPath != "") || (o.CertPath != "" && o.KeyPath == "") {
-		return nil, fmt.Errorf("for client auth via TLS, either both client certificate and key must be supplied, or neither")
+		return nil, errors.New("for client auth via TLS, either both client certificate and key must be supplied, or neither")
 	}
 	if o.CertPath != "" && o.KeyPath != "" {
 		tlsCfg.GetCertificate = func(*tls.ClientHelloInfo) (*tls.Certificate, error) {

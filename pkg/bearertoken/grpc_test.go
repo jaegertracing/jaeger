@@ -75,7 +75,6 @@ func TestClientInterceptors(t *testing.T) {
 			if test.expectedErr == "" {
 				require.NoError(t, err)
 			} else {
-				require.Error(t, err)
 				require.ErrorContains(t, err, test.expectedErr)
 			}
 
@@ -91,7 +90,6 @@ func TestClientInterceptors(t *testing.T) {
 			if test.expectedErr == "" {
 				require.NoError(t, err)
 			} else {
-				require.Error(t, err)
 				assert.ErrorContains(t, err, test.expectedErr)
 			}
 		})
@@ -157,7 +155,6 @@ func TestServerInterceptors(t *testing.T) {
 			if test.expectedErr == "" {
 				require.NoError(t, err)
 			} else {
-				require.Error(t, err)
 				require.ErrorContains(t, err, test.expectedErr)
 			}
 
@@ -172,7 +169,6 @@ func TestServerInterceptors(t *testing.T) {
 			if test.expectedErr == "" {
 				require.NoError(t, err)
 			} else {
-				require.Error(t, err)
 				assert.ErrorContains(t, err, test.expectedErr)
 			}
 		})

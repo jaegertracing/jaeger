@@ -330,8 +330,7 @@ func TestAddCertsToWatch_err(t *testing.T) {
 	}
 	for _, test := range tests {
 		watcher, err := newCertWatcher(test.opts, nil, nil, nil)
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "no such file or directory")
+		require.ErrorContains(t, err, "no such file or directory")
 		assert.Nil(t, watcher)
 	}
 }

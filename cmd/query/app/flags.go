@@ -161,7 +161,7 @@ func stringSliceAsHeader(slice []string) (http.Header, error) {
 
 	header, err := tp.ReadMIMEHeader()
 	if err != nil && !errors.Is(err, io.EOF) {
-		return nil, fmt.Errorf("failed to parse headers")
+		return nil, errors.New("failed to parse headers")
 	}
 
 	return http.Header(header), nil

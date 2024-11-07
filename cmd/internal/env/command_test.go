@@ -5,7 +5,6 @@ package env
 
 import (
 	"bytes"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -18,8 +17,8 @@ func TestCommand(t *testing.T) {
 	buf := new(bytes.Buffer)
 	cmd.SetOut(buf)
 	cmd.Run(cmd, nil)
-	assert.True(t, strings.Contains(buf.String(), "METRICS_BACKEND"))
-	assert.True(t, strings.Contains(buf.String(), "SPAN_STORAGE"))
+	assert.Contains(t, buf.String(), "METRICS_BACKEND")
+	assert.Contains(t, buf.String(), "SPAN_STORAGE")
 }
 
 func TestMain(m *testing.M) {

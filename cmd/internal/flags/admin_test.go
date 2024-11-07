@@ -95,8 +95,7 @@ func TestAdminWithFailedFlags(t *testing.T) {
 	})
 	require.NoError(t, err)
 	err = adminServer.initFromViper(v, logger)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to parse admin server TLS options")
+	assert.ErrorContains(t, err, "failed to parse admin server TLS options")
 }
 
 func TestAdminServerTLS(t *testing.T) {

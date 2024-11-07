@@ -67,9 +67,6 @@ wait_for_services() {
   echo "Waiting for services to be up and running..."
   check_service_health "Jaeger" "http://localhost:16686"
   check_service_health "Prometheus" "http://localhost:9090/graph"
-  # Grafana is not actually important for the functional test,
-  # but we still validate that the docker-compose file is correct.
-  check_service_health "Grafana" "http://localhost:3000"
 }
 
 # Function to validate the service metrics
@@ -111,7 +108,7 @@ validate_service_metrics() {
       echo "⏳ Expecting at least 4 non-zero data points"
       return 1
     fi
-    
+
      # Validate if labels are correct
     local url="http://localhost:16686/api/metrics/calls?service=${service}&groupByOperation=true&endTs=&lookback=${fiveMinutes}&step=${fifteenSec}&ratePer=${oneMinute}"
 

@@ -4,10 +4,6 @@
 
 package services
 
-import (
-	"fmt"
-)
-
 func getTracerServiceName(service string) string {
-	return fmt.Sprintf("crossdock-%s", service)
+	return "crossdock-" + service
 }
