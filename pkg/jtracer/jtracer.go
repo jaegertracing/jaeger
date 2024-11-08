@@ -5,6 +5,8 @@ package jtracer
 
 import (
 	"context"
+	"os"
+	"strings"
 	"sync"
 
 	"go.opentelemetry.io/otel"
@@ -109,9 +111,18 @@ func otelResource(ctx context.Context, svc string) (*resource.Resource, error) {
 	)
 }
 
+func defaultGRPCOptions() []otlptracegrpc.Option {
+	var options []otlptracegrpc.Option
+	if strings.HasPrefix(os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT"), "https://") ||
+		strings.ToLower(os.Getenv("OTEL_EXPORTER_OTLP_INSECURE")) == "false" {
+		options = append(options, otlptracegrpc.WithInsecure())
+	}
+	return options
+}
+
 func otelExporter(ctx context.Context) (sdktrace.SpanExporter, error) {
 	client := otlptracegrpc.NewClient(
-		otlptracegrpc.WithInsecure(),
+		defaultGRPCOptions()...,
 	)
 	return otlptrace.New(ctx, client)
 }
