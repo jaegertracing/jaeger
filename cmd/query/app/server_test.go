@@ -21,7 +21,9 @@ import (
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/confignet"
+	"go.opentelemetry.io/collector/config/configtelemetry"
 	"go.opentelemetry.io/collector/config/configtls"
+	"go.opentelemetry.io/otel/metric"
 	noopmetric "go.opentelemetry.io/otel/metric/noop"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
@@ -50,11 +52,13 @@ var testCertKeyLocation = "../../../pkg/config/tlscfg/testdata"
 
 func initTelSet(logger *zap.Logger, tracerProvider *jtracer.JTracer, hc *healthcheck.HealthCheck) telemetery.Setting {
 	return telemetery.Setting{
-		Logger:               logger,
-		TracerProvider:       tracerProvider.OTEL,
-		ReportStatus:         telemetery.HCAdapter(hc),
-		Host:                 componenttest.NewNopHost(),
-		LeveledMeterProvider: noopmetric.NewMeterProvider(),
+		Logger:         logger,
+		TracerProvider: tracerProvider.OTEL,
+		ReportStatus:   telemetery.HCAdapter(hc),
+		Host:           componenttest.NewNopHost(),
+		LeveledMeterProvider: func(_ configtelemetry.Level) metric.MeterProvider {
+			return noopmetric.NewMeterProvider()
+		},
 	}
 }
 
