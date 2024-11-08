@@ -20,6 +20,7 @@ import (
 	"go.opentelemetry.io/collector/config/configauth"
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
+	"go.opentelemetry.io/otel/metric/noop"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 
@@ -106,7 +107,7 @@ func TestNewFactoryError(t *testing.T) {
 		},
 	}
 	t.Run("with_config", func(t *testing.T) {
-		_, err := NewFactoryWithConfig(*cfg, metrics.NullFactory, zap.NewNop(), componenttest.NewNopHost())
+		_, err := NewFactoryWithConfig(*cfg, metrics.NullFactory, zap.NewNop(), componenttest.NewNopHost(), noop.NewMeterProvider())
 		assert.ErrorContains(t, err, "authenticator")
 	})
 
@@ -120,7 +121,7 @@ func TestNewFactoryError(t *testing.T) {
 
 	t.Run("client", func(t *testing.T) {
 		// this is a silly test to verify handling of error from grpc.NewClient, which cannot be induced via params.
-		f, err := NewFactoryWithConfig(Config{}, metrics.NullFactory, zap.NewNop(), componenttest.NewNopHost())
+		f, err := NewFactoryWithConfig(Config{}, metrics.NullFactory, zap.NewNop(), componenttest.NewNopHost(), noop.NewMeterProvider())
 		require.NoError(t, err)
 		t.Cleanup(func() { require.NoError(t, f.Close()) })
 		newClientFn := func(_ component.TelemetrySettings, _ ...grpc.DialOption) (conn *grpc.ClientConn, err error) {
@@ -171,7 +172,7 @@ func TestGRPCStorageFactoryWithConfig(t *testing.T) {
 			Enabled: true,
 		},
 	}
-	f, err := NewFactoryWithConfig(cfg, metrics.NullFactory, zap.NewNop(), componenttest.NewNopHost())
+	f, err := NewFactoryWithConfig(cfg, metrics.NullFactory, zap.NewNop(), componenttest.NewNopHost(), noop.NewMeterProvider())
 	require.NoError(t, err)
 	require.NoError(t, f.Close())
 }
