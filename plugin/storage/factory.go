@@ -116,7 +116,7 @@ func NewFactory(config FactoryConfig) (*Factory, error) {
 func (*Factory) getFactoryOfType(factoryType string) (storage.Factory, error) {
 	switch factoryType {
 	case cassandraStorageType:
-		return cassandra.NewFactory(), nil
+		return cassandra.NewFactory(false), nil
 	case elasticsearchStorageType, opensearchStorageType:
 		return es.NewFactory(false), nil
 	case memoryStorageType:
