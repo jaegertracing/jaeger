@@ -21,7 +21,8 @@ import (
 
 type CassandraStorageIntegration struct {
 	StorageIntegration
-	factory *cassandra.Factory
+	factory        *cassandra.Factory
+	archiveFactory *cassandra.Factory
 }
 
 func newCassandraStorageIntegration() *CassandraStorageIntegration {
@@ -38,11 +39,15 @@ func newCassandraStorageIntegration() *CassandraStorageIntegration {
 
 func (s *CassandraStorageIntegration) cleanUp(t *testing.T) {
 	require.NoError(t, s.factory.Purge(context.Background()))
+	require.NoError(t, s.archiveFactory.Purge(context.Background()))
 }
 
-func (*CassandraStorageIntegration) initializeCassandraFactory(t *testing.T, flags []string) *cassandra.Factory {
+func (*CassandraStorageIntegration) initializeCassandraFactory(
+	t *testing.T,
+	flags []string,
+	isArchive bool) *cassandra.Factory {
 	logger := zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller()))
-	f := cassandra.NewFactory(false)
+	f := cassandra.NewFactory(isArchive)
 	v, command := config.Viperize(f.AddFlags)
 	require.NoError(t, command.ParseFlags(flags))
 	f.InitFromViper(v, logger)
@@ -58,12 +63,25 @@ func (s *CassandraStorageIntegration) initializeCassandra(t *testing.T) {
 		"--cassandra.password=" + password,
 		"--cassandra.username=" + username,
 		"--cassandra.keyspace=jaeger_v1_dc1",
-	})
+	}, false)
+	af := s.initializeCassandraFactory(t, []string{
+		"--cassandra-archive.keyspace=jaeger_v1_dc1_archive",
+		"--cassandra-archive.enabled=true",
+		"--cassandra-archive.servers=127.0.0.1",
+		"--cassandra-archive.basic.allowed-authenticators=org.apache.cassandra.auth.PasswordAuthenticator",
+		"--cassandra-archive.password=" + password,
+		"--cassandra-archive.username=" + username,
+	}, true)
 	s.factory = f
+	s.archiveFactory = af
 	var err error
 	s.SpanWriter, err = f.CreateSpanWriter()
 	require.NoError(t, err)
 	s.SpanReader, err = f.CreateSpanReader()
+	require.NoError(t, err)
+	s.ArchiveSpanReader, err = af.CreateSpanReader()
+	require.NoError(t, err)
+	s.ArchiveSpanWriter, err = af.CreateSpanWriter()
 	require.NoError(t, err)
 	s.SamplingStore, err = f.CreateSamplingStore(0)
 	require.NoError(t, err)
