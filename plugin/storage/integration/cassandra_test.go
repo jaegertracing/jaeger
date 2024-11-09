@@ -45,7 +45,8 @@ func (s *CassandraStorageIntegration) cleanUp(t *testing.T) {
 func (*CassandraStorageIntegration) initializeCassandraFactory(
 	t *testing.T,
 	flags []string,
-	isArchive bool) *cassandra.Factory {
+	isArchive bool,
+) *cassandra.Factory {
 	logger := zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller()))
 	f := cassandra.NewFactory(isArchive)
 	v, command := config.Viperize(f.AddFlags)
