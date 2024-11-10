@@ -43,7 +43,7 @@ var utf8EncodingTests = []struct {
 		key:           invalidUTF8(),
 		value:         "value",
 		expectedKey:   "invalid-tag-key-1",
-		expectedValue: getBytesValueFromString(fmt.Sprintf("%s:value", invalidUTF8())),
+		expectedValue: getBytesValueFromString(invalidUTF8() + ":value"),
 	},
 	{
 		name:          "valid key + invalid value",
@@ -264,7 +264,7 @@ func TestUTF8Sanitizer_SanitizesNonStringAttributeValueWithInvalidKey(t *testing
 		Attributes().
 		Get("invalid-tag-key-1")
 	require.True(t, ok)
-	require.EqualValues(t, getBytesValueFromString(fmt.Sprintf("%s:99", invalidUTF8())), value)
+	require.EqualValues(t, getBytesValueFromString(invalidUTF8()+":99"), value)
 }
 
 func TestUTF8Sanitizer_SanitizesMultipleAttributesWithInvalidKeys(t *testing.T) {
@@ -290,8 +290,8 @@ func TestUTF8Sanitizer_SanitizesMultipleAttributesWithInvalidKeys(t *testing.T) 
 	require.Equal(t, 2, got.Len())
 
 	expectedValues := []pcommon.Value{
-		getBytesValueFromString(fmt.Sprintf("%s:v1", k1)),
-		getBytesValueFromString(fmt.Sprintf("%s:v2", k2)),
+		getBytesValueFromString(k1 + ":v1"),
+		getBytesValueFromString(k2 + ":v2"),
 	}
 	value, ok := got.
 		Get("invalid-tag-key-1")

@@ -5,7 +5,6 @@ package badger
 
 import (
 	"expvar"
-	"fmt"
 	"io"
 	"os"
 	"testing"
@@ -24,8 +23,8 @@ func TestInitializationErrors(t *testing.T) {
 	f := NewFactory()
 	v, command := config.Viperize(f.AddFlags)
 	dir := "/root/this_should_fail" // If this test fails, you have some issues in your system
-	keyParam := fmt.Sprintf("--badger.directory-key=%s", dir)
-	valueParam := fmt.Sprintf("--badger.directory-value=%s", dir)
+	keyParam := "--badger.directory-key=" + dir
+	valueParam := "--badger.directory-value=" + dir
 
 	command.ParseFlags([]string{
 		"--badger.ephemeral=false",
