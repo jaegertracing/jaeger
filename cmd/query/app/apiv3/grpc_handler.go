@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/gogo/protobuf/types"
 	"google.golang.org/grpc/codes"
@@ -32,11 +33,21 @@ func (h *Handler) GetTrace(request *api_v3.GetTraceRequest, stream api_v3.QueryS
 	if err != nil {
 		return fmt.Errorf("malform trace ID: %w", err)
 	}
+	var startTime time.Time
+	var endTime time.Time
+	reqStartTime := request.GetStartTime()
+	if reqStartTime != nil {
+		startTime = time.Unix(request.GetStartTime().GetSeconds(), int64(request.GetStartTime().GetNanos()))
+	}
+	reqEndTime := request.GetEndTime()
+	if reqEndTime != nil {
+		endTime = time.Unix(request.GetEndTime().GetSeconds(), int64(request.GetEndTime().GetNanos()))
+	}
 
 	query := spanstore.TraceGetParameters{
 		TraceID:   traceID,
-		StartTime: request.GetStartTime(),
-		EndTime:   request.GetEndTime(),
+		StartTime: &startTime,
+		EndTime:   &endTime,
 	}
 	trace, err := h.QueryService.GetTrace(stream.Context(), query)
 	if err != nil {

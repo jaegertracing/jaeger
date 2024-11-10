@@ -82,13 +82,16 @@ func TestGetTrace(t *testing.T) {
 	tsc := newTestServerClient(t)
 	traceIdLiteral := "156"
 	traceId, _ := model.TraceIDFromString(traceIdLiteral)
-	startTime := time.Date(2020, time.January, 1, 13, 0, 0, 0, time.UTC)
-	endTime := time.Date(2020, time.January, 1, 14, 0, 0, 0, time.UTC)
+	startTime := types.Timestamp{Seconds: 1, Nanos: 2}
+	endTime := types.Timestamp{Seconds: 3, Nanos: 4}
+
+	traceGetStartTime := time.Unix(startTime.GetSeconds(), int64(startTime.GetNanos()))
+	traceGetEndTime := time.Unix(endTime.GetSeconds(), int64(endTime.GetNanos()))
 
 	expectedTraceGetParameters := spanstore.TraceGetParameters{
 		TraceID:   traceId,
-		StartTime: &startTime,
-		EndTime:   &endTime,
+		StartTime: &traceGetStartTime,
+		EndTime:   &traceGetEndTime,
 	}
 	tsc.reader.On("GetTrace", matchContext, expectedTraceGetParameters).Return(
 		&model.Trace{
