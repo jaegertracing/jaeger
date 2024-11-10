@@ -82,16 +82,44 @@ func TestGetTrace(t *testing.T) {
 	tsc := newTestServerClient(t)
 	traceIdLiteral := "156"
 	traceId, _ := model.TraceIDFromString(traceIdLiteral)
-	startTime := types.Timestamp{Seconds: 1, Nanos: 2}
-	endTime := types.Timestamp{Seconds: 3, Nanos: 4}
-
-	traceGetStartTime := time.Unix(startTime.GetSeconds(), int64(startTime.GetNanos()))
-	traceGetEndTime := time.Unix(endTime.GetSeconds(), int64(endTime.GetNanos()))
 
 	expectedTraceGetParameters := spanstore.TraceGetParameters{
+		TraceID: traceId,
+	}
+	tsc.reader.On("GetTrace", matchContext, expectedTraceGetParameters).Return(
+		&model.Trace{
+			Spans: []*model.Span{
+				{
+					OperationName: "foobar",
+				},
+			},
+		}, nil).Once()
+
+	getTraceStream, err := tsc.client.GetTrace(context.Background(),
+		&api_v3.GetTraceRequest{
+			TraceId: traceIdLiteral,
+		},
+	)
+	require.NoError(t, err)
+	recv, err := getTraceStream.Recv()
+	require.NoError(t, err)
+	td := recv.ToTraces()
+	require.EqualValues(t, 1, td.SpanCount())
+	assert.Equal(t, "foobar",
+		td.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).Name())
+}
+
+func TestGetTraceWithTimeWindow(t *testing.T) {
+	tsc := newTestServerClient(t)
+	traceIdLiteral := "156"
+	traceId, _ := model.TraceIDFromString(traceIdLiteral)
+
+	start_ts := time.Unix(1, 2)
+	end_ts := time.Unix(3, 4)
+	expectedTraceGetParameters := spanstore.TraceGetParameters{
 		TraceID:   traceId,
-		StartTime: &traceGetStartTime,
-		EndTime:   &traceGetEndTime,
+		StartTime: &start_ts,
+		EndTime:   &end_ts,
 	}
 	tsc.reader.On("GetTrace", matchContext, expectedTraceGetParameters).Return(
 		&model.Trace{
@@ -105,8 +133,8 @@ func TestGetTrace(t *testing.T) {
 	getTraceStream, err := tsc.client.GetTrace(context.Background(),
 		&api_v3.GetTraceRequest{
 			TraceId:   traceIdLiteral,
-			StartTime: &startTime,
-			EndTime:   &endTime,
+			StartTime: &types.Timestamp{Seconds: 1, Nanos: 2},
+			EndTime:   &types.Timestamp{Seconds: 3, Nanos: 4},
 		},
 	)
 	require.NoError(t, err)

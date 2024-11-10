@@ -33,22 +33,22 @@ func (h *Handler) GetTrace(request *api_v3.GetTraceRequest, stream api_v3.QueryS
 	if err != nil {
 		return fmt.Errorf("malform trace ID: %w", err)
 	}
-	var startTime time.Time
-	var endTime time.Time
-	reqStartTime := request.GetStartTime()
-	if reqStartTime != nil {
-		startTime = time.Unix(request.GetStartTime().GetSeconds(), int64(request.GetStartTime().GetNanos()))
-	}
-	reqEndTime := request.GetEndTime()
-	if reqEndTime != nil {
-		endTime = time.Unix(request.GetEndTime().GetSeconds(), int64(request.GetEndTime().GetNanos()))
-	}
 
 	query := spanstore.TraceGetParameters{
-		TraceID:   traceID,
-		StartTime: &startTime,
-		EndTime:   &endTime,
+		TraceID: traceID,
 	}
+
+	startTime := request.GetStartTime()
+	if startTime != nil {
+		ts := time.Unix(startTime.GetSeconds(), int64(startTime.GetNanos()))
+		query.StartTime = &ts
+	}
+	endTime := request.GetEndTime()
+	if endTime != nil {
+		ts := time.Unix(endTime.GetSeconds(), int64(endTime.GetNanos()))
+		query.EndTime = &ts
+	}
+
 	trace, err := h.QueryService.GetTrace(stream.Context(), query)
 	if err != nil {
 		return fmt.Errorf("cannot retrieve trace: %w", err)
