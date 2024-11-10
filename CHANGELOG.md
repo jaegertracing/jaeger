@@ -24,6 +24,8 @@ copy from UI changelog
 v1.63.0 / v2.0.0 (2024-11-10)
 -------------------------------
 
+Jaeger v2 is here! 🎉 🎉 🎉 
+
 ### Backend Changes
 
 #### ⛔ Breaking Changes
