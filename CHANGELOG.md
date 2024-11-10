@@ -21,6 +21,66 @@ copy from UI changelog
 
 </details>
 
+v1.63.0 / v2.0.0 (2024-11-10)
+-------------------------------
+
+### Backend Changes
+
+#### ⛔ Breaking Changes
+
+* Remove jaeger-agent from distributions ([@yurishkuro](https://github.com/yurishkuro) in [#6081](https://github.com/jaegertracing/jaeger/pull/6081))
+
+#### 🐞 Bug fixes, Minor Improvements
+
+* Fix possible null pointer deference ([@vaidikcode](https://github.com/vaidikcode) in [#6184](https://github.com/jaegertracing/jaeger/pull/6184))
+* Chore: enable all rules of perfsprint linter ([@mmorel-35](https://github.com/mmorel-35) in [#6164](https://github.com/jaegertracing/jaeger/pull/6164))
+* Chore: enable err-error and errorf rules from perfsprint linter ([@mmorel-35](https://github.com/mmorel-35) in [#6160](https://github.com/jaegertracing/jaeger/pull/6160))
+* [query] move trace handler to server level ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#6147](https://github.com/jaegertracing/jaeger/pull/6147))
+* [fix][query] remove bifurcation for grpc query server ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#6145](https://github.com/jaegertracing/jaeger/pull/6145))
+* [jaeger-v2] add hotrod integration test for jaeger-v2 ([@Saumya40-codes](https://github.com/Saumya40-codes) in [#6138](https://github.com/jaegertracing/jaeger/pull/6138))
+* [query] use otel's helpers for http server ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#6121](https://github.com/jaegertracing/jaeger/pull/6121))
+* Use grpc interceptors instead of explicit context wrappers ([@chahatsagarmain](https://github.com/chahatsagarmain) in [#6133](https://github.com/jaegertracing/jaeger/pull/6133))
+* Fix command in v2 example ([@haoqixu](https://github.com/haoqixu) in [#6134](https://github.com/jaegertracing/jaeger/pull/6134))
+* Fix span deduplication via correct ordering of adjusters ([@cdanis](https://github.com/cdanis) in [#6116](https://github.com/jaegertracing/jaeger/pull/6116))
+* Move all query service http handlers into one function ([@yurishkuro](https://github.com/yurishkuro) in [#6128](https://github.com/jaegertracing/jaeger/pull/6128))
+* [fix][grpc] disable tracing in grpc storage writer clients ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#6125](https://github.com/jaegertracing/jaeger/pull/6125))
+* Feat: automatically publish readme to docker hub ([@inosmeet](https://github.com/inosmeet) in [#6118](https://github.com/jaegertracing/jaeger/pull/6118))
+* Use grpc interceptors for bearer token ([@chahatsagarmain](https://github.com/chahatsagarmain) in [#6063](https://github.com/jaegertracing/jaeger/pull/6063))
+* [fix][query] correct query server legacy condition ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#6120](https://github.com/jaegertracing/jaeger/pull/6120))
+* [query] use otel's helpers for grpc server ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#6055](https://github.com/jaegertracing/jaeger/pull/6055))
+* Enable lint rule: import-shadowing ([@inosmeet](https://github.com/inosmeet) in [#6102](https://github.com/jaegertracing/jaeger/pull/6102))
+* [refractor] switch to enums for es mappings ([@Saumya40-codes](https://github.com/Saumya40-codes) in [#6091](https://github.com/jaegertracing/jaeger/pull/6091))
+* Fix rebuild-ui.sh script ([@andreasgerstmayr](https://github.com/andreasgerstmayr) in [#6098](https://github.com/jaegertracing/jaeger/pull/6098))
+* Use otel component host instead of no op host for prod code ([@chahatsagarmain](https://github.com/chahatsagarmain) in [#6085](https://github.com/jaegertracing/jaeger/pull/6085))
+* [cassandra] prevent fallback to old schema for operation names table in case of db issues ([@arunvelsriram](https://github.com/arunvelsriram) in [#6061](https://github.com/jaegertracing/jaeger/pull/6061))
+
+#### 🚧 Experimental Features
+
+* Add otlp json support for kafka e2e integration tests ([@joeyyy09](https://github.com/joeyyy09) in [#5935](https://github.com/jaegertracing/jaeger/pull/5935))
+* [v2] add es config comments ([@yurishkuro](https://github.com/yurishkuro) in [#6110](https://github.com/jaegertracing/jaeger/pull/6110))
+* [chore][docs] add documentation to elasticsearch configuration ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#6103](https://github.com/jaegertracing/jaeger/pull/6103))
+* [jaeger-v2] refactor elasticsearch/opensearch configurations to have more logical groupings ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#6090](https://github.com/jaegertracing/jaeger/pull/6090))
+* [jaeger-v2] implement utf-8 sanitizer for otlp ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#6078](https://github.com/jaegertracing/jaeger/pull/6078))
+* [jaeger-v2] migrate elasticsearch/opensearch to use otel's tls configuration ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#6079](https://github.com/jaegertracing/jaeger/pull/6079))
+* [jaeger-v2] enable queueing configuration in storage exporter ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#6080](https://github.com/jaegertracing/jaeger/pull/6080))
+* [jaeger-v2] implement empty service name sanitizer for otlp ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#6077](https://github.com/jaegertracing/jaeger/pull/6077))
+* [jaeger-v2] refactor elasticsearch/opensearch storage configurations ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#6060](https://github.com/jaegertracing/jaeger/pull/6060))
+
+#### 👷 CI Improvements
+
+* [v2] use health check in grpc e2e test ([@yurishkuro](https://github.com/yurishkuro) in [#6113](https://github.com/jaegertracing/jaeger/pull/6113))
+* Update node.js github action to use npm lockfile, switch to latest jaeger ui ([@andreasgerstmayr](https://github.com/andreasgerstmayr) in [#6074](https://github.com/jaegertracing/jaeger/pull/6074))
+
+### 📊 UI Changes
+
+#### 🐞 Bug fixes, Minor Improvements
+
+* Migrate from yarn v1 to npm ([@andreasgerstmayr](https://github.com/andreasgerstmayr) in [#2462](https://github.com/jaegertracing/jaeger-ui/pull/2462))
+
+#### 👷 CI Improvements
+
+* Run s390x build on push to main only ([@andreasgerstmayr](https://github.com/andreasgerstmayr) in [#2481](https://github.com/jaegertracing/jaeger-ui/pull/2481))
+
 1.62.0 / 2.0.0-rc2 (2024-10-06)
 -------------------------------
 
