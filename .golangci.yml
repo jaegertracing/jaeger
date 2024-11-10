@@ -96,6 +96,9 @@ linters:
     # Reports ill-formed or insufficient nolint directives.
     - nolintlint
 
+    # Checks that fmt.Sprintf can be replaced with a faster alternative.
+    - perfsprint
+
     # Fast, configurable, extensible, flexible, and beautiful linter for Go. Drop-in replacement of golint.
     - revive
 
@@ -153,6 +156,17 @@ linters-settings:
       - fieldalignment
       # Disable shadow
       - shadow
+  perfsprint:
+    # Optimizes even if it requires an int or uint type cast.
+    int-conversion: true
+    # Optimizes into `err.Error()` even if it is only equivalent for non-nil errors.
+    err-error: true
+    # Optimizes `fmt.Errorf`.
+    errorf: true
+    # Optimizes `fmt.Sprintf` with only one argument.
+    sprintf1: true
+    # Optimizes into strings concatenation.
+    strconcat: true
   revive:
       ignore-generated-header: true
       severity: error

@@ -104,8 +104,7 @@ func TestCollector_StartErrors(t *testing.T) {
 				TenancyMgr:       tm,
 			})
 			err := c.Start(options)
-			require.Error(t, err)
-			assert.Contains(t, err.Error(), expErr)
+			require.ErrorContains(t, err, expErr)
 			require.NoError(t, c.Close())
 		})
 	}

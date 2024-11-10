@@ -10,7 +10,6 @@ import (
 	"expvar"
 	"flag"
 	"fmt"
-	"strings"
 	"testing"
 	"time"
 
@@ -150,9 +149,9 @@ func TestBuilderWithProcessorErrors(t *testing.T) {
 		_, err := cfg.CreateAgent(&fakeCollectorProxy{}, zap.NewNop(), metrics.NullFactory)
 		require.Error(t, err)
 		if testCase.err != "" {
-			assert.Contains(t, err.Error(), testCase.err)
+			assert.ErrorContains(t, err, testCase.err)
 		} else if testCase.errContains != "" {
-			assert.True(t, strings.Contains(err.Error(), testCase.errContains), "error must contain %s", testCase.errContains)
+			assert.ErrorContains(t, err, testCase.errContains, "error must contain %s", testCase.errContains)
 		}
 	}
 }

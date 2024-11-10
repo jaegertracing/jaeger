@@ -4,7 +4,7 @@
 package es
 
 import (
-	"fmt"
+	"errors"
 	"testing"
 
 	"github.com/olivere/elastic"
@@ -12,7 +12,7 @@ import (
 )
 
 func TestDetailedError(t *testing.T) {
-	require.ErrorContains(t, fmt.Errorf("some err"), "some err", "no panic")
+	require.ErrorContains(t, errors.New("some err"), "some err", "no panic")
 
 	esErr := &elastic.Error{
 		Status: 400,

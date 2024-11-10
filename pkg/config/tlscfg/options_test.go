@@ -6,7 +6,7 @@ package tlscfg
 import (
 	"crypto/tls"
 	"crypto/x509"
-	"fmt"
+	"errors"
 	"path/filepath"
 	"testing"
 	"time"
@@ -148,7 +148,7 @@ func TestOptionsToConfig(t *testing.T) {
 			if test.fakeSysPool {
 				saveSystemCertPool := systemCertPool
 				systemCertPool = func() (*x509.CertPool, error) {
-					return nil, fmt.Errorf("fake system pool")
+					return nil, errors.New("fake system pool")
 				}
 				defer func() {
 					systemCertPool = saveSystemCertPool
@@ -156,8 +156,7 @@ func TestOptionsToConfig(t *testing.T) {
 			}
 			cfg, err := test.options.Config(zap.NewNop())
 			if test.expectError != "" {
-				require.Error(t, err)
-				assert.Contains(t, err.Error(), test.expectError)
+				require.ErrorContains(t, err, test.expectError)
 			} else {
 				require.NoError(t, err)
 				assert.NotNil(t, cfg)

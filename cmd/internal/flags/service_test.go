@@ -70,8 +70,7 @@ func TestStartErrors(t *testing.T) {
 			require.NoError(t, err)
 			err = s.Start(v)
 			if test.expErr != "" {
-				require.Error(t, err)
-				assert.Contains(t, err.Error(), test.expErr)
+				require.ErrorContains(t, err, test.expErr)
 				return
 			}
 			require.NoError(t, err)

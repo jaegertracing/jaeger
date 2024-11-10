@@ -7,6 +7,7 @@ package model_test
 import (
 	"bytes"
 	"fmt"
+	"strconv"
 	"testing"
 	"time"
 
@@ -83,14 +84,11 @@ func TestTraceIDUnmarshalJSONPBErrors(t *testing.T) {
 	// for code coverage
 	var id model.TraceID
 	_, err := id.MarshalText()
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "unsupported method")
+	require.ErrorContains(t, err, "unsupported method")
 	err = id.UnmarshalText(nil)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "unsupported method")
+	require.ErrorContains(t, err, "unsupported method")
 	_, err = id.MarshalTo(make([]byte, 1))
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "buffer is too short")
+	assert.ErrorContains(t, err, "buffer is too short")
 }
 
 var (
@@ -156,18 +154,14 @@ func TestSpanIDUnmarshalJSONErrors(t *testing.T) {
 	// for code coverage
 	var id model.SpanID
 	_, err := id.MarshalText()
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "unsupported method")
+	require.ErrorContains(t, err, "unsupported method")
 	err = id.UnmarshalText(nil)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "unsupported method")
+	require.ErrorContains(t, err, "unsupported method")
 
 	err = id.UnmarshalJSONPB(nil, []byte(""))
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "invalid length for SpanID")
+	require.ErrorContains(t, err, "invalid length for SpanID")
 	err = id.UnmarshalJSONPB(nil, []byte("123"))
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "illegal base64 data")
+	assert.ErrorContains(t, err, "illegal base64 data")
 }
 
 func TestIsRPCClientServer(t *testing.T) {
@@ -489,7 +483,7 @@ func TestGetSamplerParams(t *testing.T) {
 
 	for i, test := range tests {
 		tt := test
-		t.Run(fmt.Sprintf("%d", i), func(t *testing.T) {
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			span := &model.Span{}
 			span.Tags = tt.tags
 			actualType, actualParam := span.GetSamplerParams(logger)

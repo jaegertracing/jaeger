@@ -237,8 +237,7 @@ func TestFailingFromDBSpanBadRefs(t *testing.T) {
 func failingDBSpanTransform(t *testing.T, dbSpan *Span, errMsg string) {
 	jSpan, err := ToDomain(dbSpan)
 	assert.Nil(t, jSpan)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), errMsg)
+	assert.ErrorContains(t, err, errMsg)
 }
 
 func TestFailingFromDBLogs(t *testing.T) {
@@ -255,13 +254,12 @@ func TestFailingFromDBLogs(t *testing.T) {
 	}
 	jLogs, err := converter{}.fromDBLogs(someDBLogs)
 	assert.Nil(t, jLogs)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), notValidTagTypeErrStr)
+	assert.ErrorContains(t, err, notValidTagTypeErrStr)
 }
 
 func TestDBTagTypeError(t *testing.T) {
 	_, err := converter{}.fromDBTag(&KeyValue{ValueType: "x"})
-	assert.Contains(t, err.Error(), notValidTagTypeErrStr)
+	assert.ErrorContains(t, err, notValidTagTypeErrStr)
 }
 
 func TestGenerateHashCode(t *testing.T) {

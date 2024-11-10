@@ -177,8 +177,7 @@ func TestSpanReaderGetTrace(t *testing.T) {
 					require.NoError(t, err)
 					assert.NotNil(t, trace)
 				} else {
-					require.Error(t, err)
-					assert.Contains(t, err.Error(), testCase.expectedErr)
+					require.ErrorContains(t, err, testCase.expectedErr)
 					assert.Nil(t, trace)
 				}
 			})

@@ -5,8 +5,8 @@ package leaderelection
 
 import (
 	"errors"
-	"fmt"
 	"io"
+	"strconv"
 	"testing"
 	"time"
 
@@ -42,7 +42,7 @@ func TestAcquireLock(t *testing.T) {
 	}
 
 	for i, test := range tests {
-		t.Run(fmt.Sprintf("%v", i), func(t *testing.T) {
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			logger, logBuffer := testutils.NewLogger()
 			mockLock := &lmocks.Lock{}
 			mockLock.On("Acquire", "sampling_lock", followerInterval).Return(test.acquiredLock, test.err)

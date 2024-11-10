@@ -376,8 +376,8 @@ func TestPersist(t *testing.T) {
 		cfg := badger.DefaultConfig()
 		v, command := config.Viperize(cfg.AddFlags)
 
-		keyParam := fmt.Sprintf("--badger.directory-key=%s", dir)
-		valueParam := fmt.Sprintf("--badger.directory-value=%s", dir)
+		keyParam := "--badger.directory-key=" + dir
+		valueParam := "--badger.directory-value=" + dir
 
 		command.ParseFlags([]string{
 			"--badger.ephemeral=false",
@@ -604,8 +604,8 @@ func runLargeFactoryTest(tb testing.TB, test func(tb testing.TB, sw spanstore.Wr
 	dir := filepath.Join(tb.TempDir(), "badger-testRun")
 	err := os.MkdirAll(dir, 0o700)
 	assertion.NoError(err)
-	keyParam := fmt.Sprintf("--badger.directory-key=%s", dir)
-	valueParam := fmt.Sprintf("--badger.directory-value=%s", dir)
+	keyParam := "--badger.directory-key=" + dir
+	valueParam := "--badger.directory-value=" + dir
 
 	command.ParseFlags([]string{
 		"--badger.ephemeral=false",
