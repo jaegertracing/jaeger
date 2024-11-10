@@ -12,7 +12,7 @@ generic_release_header_pattern = re.compile(
 )
 
 jaeger_release_header_pattern = re.compile(
-    r".*(1\.\d+\.\d+) */ *(2\.\d+\.\d+-rc\d+) \(\d{4}-\d{2}-\d{2}\)", flags=0
+    r".*(1\.\d+\.\d+) */ *(2\.\d+\.\d+) \(\d{4}-\d{2}-\d{2}\)", flags=0
 )
 
 underline_pattern = re.compile(r"^[-]+$", flags=0)
