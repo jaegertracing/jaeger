@@ -223,6 +223,7 @@ func TestCreateCollectorProxy(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run("", func(t *testing.T) {
+			t.Parallel()
 			flags := &flag.FlagSet{}
 			grpc.AddFlags(flags)
 			reporter.AddFlags(flags)
