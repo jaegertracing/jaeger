@@ -11,7 +11,9 @@
     "gomodTidy",
     "gomodUpdateImportPaths"
   ],
-  "suppressNotifications": ["prEditedNotification"],
+  "suppressNotifications": [
+    "prEditedNotification"
+  ],
   "packageRules": [
     {
       "matchFileNames": [
@@ -27,17 +29,30 @@
         "docker-compose/opensearch/v2/docker-compose.yml",
         "plugin/storage/scylladb/docker-compose.yml"
       ],
-      "matchUpdateTypes": ["major", "patch", "digest"],
+      "matchUpdateTypes": [
+        "major",
+        "patch",
+        "digest"
+      ],
       "enabled": false
     },
     {
-      "matchManagers": ["github-actions"],
+      "matchManagers": [
+        "github-actions"
+      ],
       "groupName": "github-actions deps",
-      "schedule": ["on the first day of the month"]
+      "schedule": [
+        "on the first day of the month"
+      ]
     },
     {
-      "matchManagers": ["github-actions"],
-      "matchUpdateTypes": ["patch", "digest"],
+      "matchManagers": [
+        "github-actions"
+      ],
+      "matchUpdateTypes": [
+        "patch",
+        "digest"
+      ],
       "enabled": false
     },
     {
@@ -53,31 +68,49 @@
       ]
     },
     {
-      "matchManagers": ["gomod"],
-      "matchPackagePrefixes": ["go.opentelemetry.io/collector"],
-      "groupName": "All OTEL Collector packages"
-    },
-    {
-      "matchManagers": ["gomod"],
-      "matchPackagePrefixes": [
-        "github.com/open-telemetry/opentelemetry-collector-contrib"
+      "groupName": "All OTEL Collector packages",
+      "matchManagers": [
+        "gomod"
       ],
-      "groupName": "All OTEL Collector contrib packages"
+      "matchPackageNames": [
+        "go.opentelemetry.io/collector{/,}**"
+      ]
     },
     {
-      "matchManagers": ["gomod"],
-      "matchSourceUrlPrefixes": ["google.golang.org"],
-      "groupName": "All google.golang.org packages"
+      "groupName": "All OTEL Collector contrib packages",
+      "matchManagers": [
+        "gomod"
+      ],
+      "matchPackageNames": [
+        "github.com/open-telemetry/opentelemetry-collector-contrib{/,}**"
+      ]
     },
     {
-      "matchManagers": ["gomod"],
-      "matchPackagePrefixes": ["golang.org/x"],
-      "groupName": "All golang.org/x packages"
+      "groupName": "All google.golang.org packages",
+      "matchManagers": [
+        "gomod"
+      ],
+      "matchSourceUrls": [
+        "google.golang.org{/,}**"
+      ]
     },
     {
-      "matchManagers": ["gomod"],
-      "matchPackagePrefixes": ["github.com/prometheus"],
-      "groupName": "All github.com/prometheus packages"
+      "groupName": "All golang.org/x packages",
+      "matchManagers": [
+        "gomod"
+      ],
+      "matchPackageNames": [
+        "golang.org/x{/,}**"
+      ]
+    },
+    {
+      "groupName": "All github.com/prometheus packages",
+      "matchManagers": [
+        "gomod"
+      ],
+      "matchPackageNames": [
+        "github.com/prometheus{/,}**"
+      ]
     }
   ]
 }
