@@ -8,11 +8,11 @@ import re
 import subprocess
 
 generic_release_header_pattern = re.compile(
-    r".*(1\.\d+\.\d+)", flags=0
+    r".*v?(1\.\d+\.\d+)", flags=0
 )
 
 jaeger_release_header_pattern = re.compile(
-    r".*(1\.\d+\.\d+) */ *(2\.\d+\.\d+) \(\d{4}-\d{2}-\d{2}\)", flags=0
+    r".*v?(1\.\d+\.\d+) */ *v?(2\.\d+\.\d+) \(\d{4}-\d{2}-\d{2}\)", flags=0
 )
 
 underline_pattern = re.compile(r"^[-]+$", flags=0)
