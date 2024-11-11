@@ -18,7 +18,7 @@ func TestRegisterHandler(t *testing.T) {
 	commitSHA = "foobar"
 	latestVersion = "v1.2.3"
 	date = "2024-01-04"
-	expectedJSON := []byte(`{"gitCommit":"foobar","gitVersion":"v1.2.3","buildDate":"2024-01-04"}`)
+	expectedJSON := `{"gitCommit":"foobar","gitVersion":"v1.2.3","buildDate":"2024-01-04"}`
 
 	mockLogger := zap.NewNop()
 	mux := http.NewServeMux()
@@ -33,5 +33,5 @@ func TestRegisterHandler(t *testing.T) {
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 	resp.Body.Close()
-	assert.Equal(t, expectedJSON, body)
+	assert.JSONEq(t, expectedJSON, string(body))
 }
