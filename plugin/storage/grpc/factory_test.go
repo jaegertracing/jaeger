@@ -88,7 +88,7 @@ func makeMockServices() *ClientPluginServices {
 func makeFactory(t *testing.T) *Factory {
 	f := NewFactory()
 	f.InitFromViper(viper.New(), zap.NewNop())
-	f.config.ClientConfig.Endpoint = "test"
+	f.config.ClientConfig.Endpoint = ":0"
 	require.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
 
 	t.Cleanup(func() {
@@ -123,7 +123,7 @@ func TestNewFactoryError(t *testing.T) {
 		// this is a silly test to verify handling of error from grpc.NewClient, which cannot be induced via params.
 		f, err := NewFactoryWithConfig(Config{
 			ClientConfig: configgrpc.ClientConfig{
-				Endpoint: "test",
+				Endpoint: ":0",
 			},
 		}, metrics.NullFactory, zap.NewNop(), componenttest.NewNopHost())
 		require.NoError(t, err)
