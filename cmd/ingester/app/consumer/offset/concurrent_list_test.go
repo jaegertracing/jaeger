@@ -19,8 +19,8 @@ func insert(list *ConcurrentList, offsets ...int64) {
 
 func TestInsert(t *testing.T) {
 	for _, testCase := range generatePermutations([]int64{1, 2, 3}) {
-		min, toInsert := extractMin(testCase)
-		s := newConcurrentList(min)
+		m, toInsert := extractMin(testCase)
+		s := newConcurrentList(m)
 		insert(s, toInsert...)
 		assert.ElementsMatch(t, testCase, s.offsets)
 	}
@@ -62,8 +62,8 @@ func TestGetHighestAndReset(t *testing.T) {
 	for _, testCase := range testCases {
 		for _, input := range generatePermutations(testCase.input) {
 			t.Run(fmt.Sprintf("%v", input), func(t *testing.T) {
-				min, input := extractMin(input)
-				s := newConcurrentList(min)
+				m, input := extractMin(input)
+				s := newConcurrentList(m)
 				insert(s, input...)
 				actualOffset := s.setToHighestContiguous()
 				assert.ElementsMatch(t, testCase.expectedList, s.offsets)

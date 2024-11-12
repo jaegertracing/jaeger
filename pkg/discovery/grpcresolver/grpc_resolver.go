@@ -133,13 +133,6 @@ func (r *Resolver) rendezvousHash(addresses []string) []string {
 	return topN
 }
 
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
 func hashAddr(hasher hash.Hash32, node, saltKey []byte) uint32 {
 	hasher.Reset()
 	hasher.Write(saltKey)
