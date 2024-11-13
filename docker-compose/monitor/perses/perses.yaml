@@ -22,7 +22,7 @@ frontend:
 
   important_dashboards:
     - project: "jaeger"
-      dashboard: "monitor"
+      dashboard: "spm"
 
   information: |-
     # Welcome to the Demo instance of Perses!

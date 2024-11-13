@@ -73,7 +73,7 @@ services:
       - ./perses:/etc/perses/provisioning
       - ./perses/perses.yaml:/etc/perses.yaml
     ports:
-      - "8080:8080"
+      - "8085:8080"
 
 networks:
   backend:
