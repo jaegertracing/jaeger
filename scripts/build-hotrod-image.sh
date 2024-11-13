@@ -54,7 +54,7 @@ case "$jaeger_version" in
     binary="jaeger"
     ;;
   *)
-    echo "Invalid Jaeger version provided: $jaeger_version" 
+    echo "Invalid Jaeger version provided: $jaeger_version"
     print_help
     ;;
 esac
@@ -99,7 +99,10 @@ make build-${binary}
 bash scripts/build-upload-a-docker-image.sh -l -b -c "${binary}" -d cmd/"${binary}" -p "${current_platform}" -t release
 
 echo '::group:: docker compose'
-JAEGER_VERSION=$GITHUB_SHA REGISTRY="localhost:5000/" docker compose -f "$docker_compose_file" up -d
+JAEGER_VERSION=$GITHUB_SHA \
+  HOTROD_VERSION=$GITHUB_SHA \
+  REGISTRY="localhost:5000/" \
+  docker compose -f "$docker_compose_file" up -d
 echo '::endgroup::'
 
 i=0
