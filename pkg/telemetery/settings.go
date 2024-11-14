@@ -17,11 +17,11 @@ import (
 
 type Setting struct {
 	Logger               *zap.Logger
-	TracerProvider       trace.TracerProvider
 	Metrics              metrics.Factory
+	LeveledMeterProvider func(configtelemetry.Level) metric.MeterProvider
+	TracerProvider       trace.TracerProvider
 	ReportStatus         func(*componentstatus.Event)
 	Host                 component.Host
-	LeveledMeterProvider func(configtelemetry.Level) metric.MeterProvider
 }
 
 func HCAdapter(hc *healthcheck.HealthCheck) func(*componentstatus.Event) {
