@@ -107,8 +107,12 @@ func TestNewFactoryError(t *testing.T) {
 			Auth: &configauth.Authentication{},
 		},
 	}
+	telset := component.TelemetrySettings{
+		Logger:        zap.NewNop(),
+		MeterProvider: noop.NewMeterProvider(),
+	}
 	t.Run("with_config", func(t *testing.T) {
-		_, err := NewFactoryWithConfig(*cfg, metrics.NullFactory, zap.NewNop(), componenttest.NewNopHost(), noop.NewMeterProvider())
+		_, err := NewFactoryWithConfig(*cfg, componenttest.NewNopHost(), metrics.NullFactory, telset)
 		assert.ErrorContains(t, err, "authenticator")
 	})
 
@@ -126,7 +130,7 @@ func TestNewFactoryError(t *testing.T) {
 			ClientConfig: configgrpc.ClientConfig{
 				Endpoint: ":0",
 			},
-		}, metrics.NullFactory, zap.NewNop(), componenttest.NewNopHost())
+		}, componenttest.NewNopHost(), metrics.NullFactory, telset)
 		require.NoError(t, err)
 		t.Cleanup(func() { require.NoError(t, f.Close()) })
 		newClientFn := func(_ component.TelemetrySettings, _ ...grpc.DialOption) (conn *grpc.ClientConn, err error) {
@@ -177,7 +181,11 @@ func TestGRPCStorageFactoryWithConfig(t *testing.T) {
 			Enabled: true,
 		},
 	}
-	f, err := NewFactoryWithConfig(cfg, metrics.NullFactory, zap.NewNop(), componenttest.NewNopHost(), noop.NewMeterProvider())
+	telset := component.TelemetrySettings{
+		Logger:        zap.NewNop(),
+		MeterProvider: noop.NewMeterProvider(),
+	}
+	f, err := NewFactoryWithConfig(cfg, componenttest.NewNopHost(), metrics.NullFactory, telset)
 	require.NoError(t, err)
 	require.NoError(t, f.Close())
 }

@@ -63,16 +63,15 @@ func NewFactory() *Factory {
 // NewFactoryWithConfig is used from jaeger(v2).
 func NewFactoryWithConfig(
 	cfg Config,
-	metricsFactory metrics.Factory,
-	logger *zap.Logger,
 	host component.Host,
-	meterProvider metric.MeterProvider,
+	metricsFactory metrics.Factory,
+	telset component.TelemetrySettings,
 ) (*Factory, error) {
 	f := NewFactory()
 	f.config = cfg
 	f.host = host
-	f.meterProvider = meterProvider
-	if err := f.Initialize(metricsFactory, logger); err != nil {
+	f.meterProvider = telset.MeterProvider
+	if err := f.Initialize(metricsFactory, telset.Logger); err != nil {
 		return nil, err
 	}
 	return f, nil
@@ -238,7 +237,6 @@ func getTelset(logger *zap.Logger, tracerProvider trace.TracerProvider, meterPro
 	return component.TelemetrySettings{
 		Logger:         logger,
 		TracerProvider: tracerProvider,
-		// TODO needs to be joined with the metricsFactory
 		LeveledMeterProvider: func(_ configtelemetry.Level) metric.MeterProvider {
 			return meterProvider
 		},
