@@ -5,7 +5,7 @@ package fswatcher
 
 import (
 	"crypto/sha256"
-	"fmt"
+	"encoding/hex"
 	"io"
 	"os"
 	"path"
@@ -154,5 +154,5 @@ func hashFile(file string) (string, error) {
 		return "", err
 	}
 
-	return fmt.Sprintf("%x", h.Sum(nil)), nil
+	return hex.EncodeToString(h.Sum(nil)), nil
 }

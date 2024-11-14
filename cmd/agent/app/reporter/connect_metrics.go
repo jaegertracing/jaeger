@@ -5,6 +5,7 @@ package reporter
 
 import (
 	"expvar"
+	"sync"
 
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
@@ -23,17 +24,21 @@ type ConnectMetrics struct {
 	target  *expvar.String
 }
 
+var (
+	gRPCTarget     *expvar.String
+	gRPCTargetOnce sync.Once
+)
+
 // NewConnectMetrics will be initialize ConnectMetrics
 func NewConnectMetrics(mf metrics.Factory) *ConnectMetrics {
 	cm := &ConnectMetrics{}
 	metrics.MustInit(&cm.metrics, mf.Namespace(metrics.NSOptions{Name: "connection_status"}), nil)
 
-	if r := expvar.Get("gRPCTarget"); r == nil {
-		cm.target = expvar.NewString("gRPCTarget")
-	} else {
-		cm.target = r.(*expvar.String)
-	}
-
+	// expvar.String is not thread-safe, so we need to initialize it only once
+	gRPCTargetOnce.Do(func() {
+		gRPCTarget = expvar.NewString("gRPCTarget")
+	})
+	cm.target = gRPCTarget
 	return cm
 }
 

@@ -28,5 +28,5 @@ func TestBindFlags(t *testing.T) {
 	require.NoError(t, err)
 
 	c.InitFromViper(v)
-	assert.Equal(t, "{\"max_age\": \"20000d\"}", c.Conditions)
+	assert.JSONEq(t, `{"max_age": "20000d"}`, c.Conditions)
 }
