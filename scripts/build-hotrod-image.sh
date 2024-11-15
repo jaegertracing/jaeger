@@ -70,14 +70,24 @@ esac
 set -x
 
 dump_logs() {
-  local compose_file=$1
-  echo "::group:: Hotrod logs"
-  docker compose -f "${compose_file}" logs
+  local runtime=$1
+  local compose_file=$2
+
+  echo "::group:: Logs"
+  if [ "$runtime" == "k8s" ]; then
+    kubectl logs -n example-hotrod -l app=example-hotrod
+    kubectl logs -n example-hotrod -l app=jaeger
+  else
+    docker compose -f "$compose_file" logs
+  fi
   echo "::endgroup::"
 }
 
 teardown() {
   echo "::group::Tearing down..."
+  if [[ "$success" == "false" ]]; then
+      dump_logs "${runtime}" "${docker_compose_file}"
+  fi
   if [[ "${runtime}" == "k8s" ]]; then
     if [[ -n "${HOTROD_PORT_FWD_PID:-}" ]]; then
       kill "$HOTROD_PORT_FWD_PID" || true
@@ -89,9 +99,7 @@ teardown() {
   else
     docker compose -f "$docker_compose_file" down
   fi
-  if [[ "$success" == "false" ]]; then
-      dump_logs "${docker_compose_file}"
-  fi
+  
   echo "::endgroup::"
 }
 trap teardown EXIT
