@@ -143,7 +143,7 @@ if [[ "${runtime}" == "k8s" ]]; then
 
 else
   echo '::group:: docker compose'
-  JAEGER_VERSION=$GITHUB_SHA REGISTRY="localhost:5000/" docker compose -f "$docker_compose_file" up -d
+  JAEGER_VERSION=$GITHUB_SHA HOTROD_VERSION=$GITHUB_SHA REGISTRY="localhost:5000/" docker compose -f "$docker_compose_file" up -d
   echo '::endgroup::'
 fi
 
