@@ -10,11 +10,14 @@ import (
 	"io"
 
 	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/config/configtelemetry"
 	"go.opentelemetry.io/collector/extension"
+	"go.opentelemetry.io/otel/metric"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage/factoryadapter"
 	"github.com/jaegertracing/jaeger/internal/metrics/otelmetrics"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/pkg/telemetery"
 	"github.com/jaegertracing/jaeger/plugin/metrics/prometheus"
 	"github.com/jaegertracing/jaeger/plugin/storage/badger"
 	"github.com/jaegertracing/jaeger/plugin/storage/cassandra"
@@ -125,8 +128,16 @@ func (s *storageExt) Start(_ context.Context, host component.Host) error {
 		case cfg.Badger != nil:
 			factory, err = badger.NewFactoryWithConfig(*cfg.Badger, mf, s.telset.Logger)
 		case cfg.GRPC != nil:
+			telset := telemetery.Setting{
+				Logger:  s.telset.Logger,
+				Host:    host,
+				Metrics: mf,
+				LeveledMeterProvider: func(_ configtelemetry.Level) metric.MeterProvider {
+					return s.telset.MeterProvider
+				},
+			}
 			//nolint: contextcheck
-			factory, err = grpc.NewFactoryWithConfig(*cfg.GRPC, host, mf, s.telset)
+			factory, err = grpc.NewFactoryWithConfig(*cfg.GRPC, telset)
 		case cfg.Cassandra != nil:
 			factory, err = cassandra.NewFactoryWithConfig(*cfg.Cassandra, mf, s.telset.Logger)
 		case cfg.Elasticsearch != nil:
