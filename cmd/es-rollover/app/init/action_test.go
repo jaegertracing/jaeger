@@ -6,7 +6,6 @@ package init
 import (
 	"errors"
 	"net/http"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -69,7 +68,7 @@ func TestIndexCreateIfNotExist(t *testing.T) {
 			indexClient.On("CreateIndex", "jaeger-span").Return(test.returnErr)
 			err := createIndexIfNotExist(indexClient, "jaeger-span")
 			if test.containsError != "" {
-				assert.True(t, strings.Contains(err.Error(), test.containsError))
+				assert.ErrorContains(t, err, test.containsError)
 			} else {
 				assert.Equal(t, test.expectedErr, err)
 			}

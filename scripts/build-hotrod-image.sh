@@ -62,7 +62,7 @@ case "$jaeger_version" in
     binary="jaeger"
     ;;
   *)
-    echo "Invalid Jaeger version provided: $jaeger_version" 
+    echo "Invalid Jaeger version provided: $jaeger_version"
     print_help
     ;;
 esac

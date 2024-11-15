@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"hash/fnv"
+	"strconv"
 	"time"
 
 	"github.com/olivere/elastic"
@@ -130,5 +131,5 @@ func hashCode(s dbmodel.Service) string {
 	h := fnv.New64a()
 	h.Write([]byte(s.ServiceName))
 	h.Write([]byte(s.OperationName))
-	return fmt.Sprintf("%x", h.Sum64())
+	return strconv.FormatUint(h.Sum64(), 16)
 }

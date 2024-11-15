@@ -26,7 +26,7 @@ type Cache interface {
 
 	// CompareAndSwap adds an element to the cache if the existing entry matches the old value.
 	// It returns the element in cache after function is executed and true if the element was replaced, false otherwise.
-	CompareAndSwap(key string, old, new any) (any, bool)
+	CompareAndSwap(key string, oldEntry, newEntry any) (any, bool)
 }
 
 // Options control the behavior of the cache

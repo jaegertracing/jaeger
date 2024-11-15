@@ -5,7 +5,7 @@
 package testutils
 
 import (
-	"fmt"
+	"strconv"
 	"sync"
 	"testing"
 
@@ -17,7 +17,7 @@ func TestNewLogger(t *testing.T) {
 	logger, log := NewLogger()
 	logger.Warn("hello", zap.String("x", "y"))
 
-	assert.Equal(t, `{"level":"warn","msg":"hello","x":"y"}`, log.Lines()[0])
+	assert.JSONEq(t, `{"level":"warn","msg":"hello","x":"y"}`, log.Lines()[0])
 	assert.Equal(t, map[string]string{
 		"level": "warn",
 		"msg":   "hello",
@@ -79,7 +79,7 @@ func TestLogMatcher(t *testing.T) {
 	}
 	for i, tt := range tests {
 		test := tt
-		t.Run(fmt.Sprintf("%v", i), func(t *testing.T) {
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			match, errMsg := LogMatcher(test.occurrences, test.subStr, test.logs)
 			assert.Equal(t, test.expected, match)
 			assert.Equal(t, test.errMsg, errMsg)

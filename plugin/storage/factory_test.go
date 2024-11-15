@@ -8,7 +8,6 @@ import (
 	"errors"
 	"expvar"
 	"flag"
-	"fmt"
 	"io"
 	"reflect"
 	"strings"
@@ -73,7 +72,7 @@ func TestNewFactory(t *testing.T) {
 
 func TestClose(t *testing.T) {
 	storageType := "foo"
-	err := fmt.Errorf("some error")
+	err := errors.New("some error")
 	f := Factory{
 		factories: map[string]storage.Factory{
 			storageType: &errorFactory{closeErr: err},

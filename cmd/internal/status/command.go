@@ -58,7 +58,7 @@ func flags(flagSet *flag.FlagSet, adminPort int) *flag.FlagSet {
 
 func convert(httpHostPort string) string {
 	if strings.HasPrefix(httpHostPort, ":") {
-		return fmt.Sprintf("http://127.0.0.1%s", httpHostPort)
+		return "http://127.0.0.1" + httpHostPort
 	}
-	return fmt.Sprintf("http://%s", httpHostPort)
+	return "http://" + httpHostPort
 }

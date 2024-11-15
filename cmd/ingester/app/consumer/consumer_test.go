@@ -5,7 +5,7 @@ package consumer
 
 import (
 	"errors"
-	"fmt"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -163,7 +163,7 @@ func TestSaramaConsumerWrapper_start_Messages(t *testing.T) {
 
 	tags := map[string]string{
 		"topic":     topic,
-		"partition": fmt.Sprint(partition),
+		"partition": strconv.Itoa(int(partition)),
 	}
 	localFactory.AssertCounterMetrics(t, metricstest.ExpectedMetric{
 		Name:  "sarama-consumer.messages",
@@ -217,7 +217,7 @@ func TestSaramaConsumerWrapper_start_Errors(t *testing.T) {
 
 		tags := map[string]string{
 			"topic":     topic,
-			"partition": fmt.Sprint(partition),
+			"partition": strconv.Itoa(int(partition)),
 		}
 		localFactory.AssertCounterMetrics(t, metricstest.ExpectedMetric{
 			Name:  "sarama-consumer.errors",

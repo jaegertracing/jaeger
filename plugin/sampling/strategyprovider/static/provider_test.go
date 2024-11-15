@@ -95,7 +95,7 @@ func mockStrategyServer(t *testing.T) (*httptest.Server, *atomic.Pointer[string]
 
 func TestStrategyStoreWithFile(t *testing.T) {
 	_, err := NewProvider(Options{StrategiesFile: "fileNotFound.json"}, zap.NewNop())
-	assert.Contains(t, err.Error(), "failed to read strategies file fileNotFound.json")
+	require.ErrorContains(t, err, "failed to read strategies file fileNotFound.json")
 
 	_, err = NewProvider(Options{StrategiesFile: "fixtures/bad_strategies.json"}, zap.NewNop())
 	require.EqualError(t, err,
@@ -495,7 +495,7 @@ func TestServiceNoPerOperationStrategies(t *testing.T) {
 			expectedServiceResponse, err := os.ReadFile(snapshotFile)
 			require.NoError(t, err)
 
-			assert.Equal(t, string(expectedServiceResponse), string(strategyJson),
+			assert.JSONEq(t, string(expectedServiceResponse), string(strategyJson),
 				"comparing against stored snapshot. Use REGENERATE_SNAPSHOTS=true to rebuild snapshots.")
 
 			if regenerateSnapshots {
@@ -527,7 +527,7 @@ func TestServiceNoPerOperationStrategiesDeprecatedBehavior(t *testing.T) {
 			expectedServiceResponse, err := os.ReadFile(snapshotFile)
 			require.NoError(t, err)
 
-			assert.Equal(t, string(expectedServiceResponse), string(strategyJson),
+			assert.JSONEq(t, string(expectedServiceResponse), string(strategyJson),
 				"comparing against stored snapshot. Use REGENERATE_SNAPSHOTS=true to rebuild snapshots.")
 
 			if regenerateSnapshots {
@@ -542,13 +542,13 @@ func TestSamplingStrategyLoader(t *testing.T) {
 	// invalid file path
 	loader := provider.samplingStrategyLoader("not-exists")
 	_, err := loader()
-	assert.Contains(t, err.Error(), "failed to read strategies file not-exists")
+	require.ErrorContains(t, err, "failed to read strategies file not-exists")
 
 	// status code other than 200
 	mockServer, _ := mockStrategyServer(t)
 	loader = provider.samplingStrategyLoader(mockServer.URL + "/bad-status")
 	_, err = loader()
-	assert.Contains(t, err.Error(), "receiving 404 Not Found while downloading strategies file")
+	require.ErrorContains(t, err, "receiving 404 Not Found while downloading strategies file")
 
 	// should download content from URL
 	loader = provider.samplingStrategyLoader(mockServer.URL + "/bad-content")

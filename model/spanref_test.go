@@ -27,14 +27,13 @@ func TestSpanRefTypeToFromJSON(t *testing.T) {
 	out := new(bytes.Buffer)
 	err := new(jsonpb.Marshaler).Marshal(out, &sr)
 	require.NoError(t, err)
-	assert.Equal(t, `{"traceId":"AAAAAAAAAAAAAAAAAAAAQg==","spanId":"AAAAAAAAAEM=","refType":"FOLLOWS_FROM"}`, out.String())
+	assert.JSONEq(t, `{"traceId":"AAAAAAAAAAAAAAAAAAAAQg==","spanId":"AAAAAAAAAEM=","refType":"FOLLOWS_FROM"}`, out.String())
 	var sr2 model.SpanRef
 	require.NoError(t, jsonpb.Unmarshal(out, &sr2))
 	assert.Equal(t, sr, sr2)
 	var sr3 model.SpanRef
 	err = jsonpb.Unmarshal(bytes.NewReader([]byte(`{"refType":"BAD"}`)), &sr3)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "unknown value")
+	assert.ErrorContains(t, err, "unknown value")
 }
 
 func TestMaybeAddParentSpanID(t *testing.T) {

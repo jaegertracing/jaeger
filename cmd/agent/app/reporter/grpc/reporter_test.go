@@ -123,8 +123,7 @@ func TestReporter_SendFailure(t *testing.T) {
 	defer conn.Close()
 	rep := NewReporter(conn, nil, zap.NewNop())
 	err = rep.send(context.Background(), nil, nil)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to export spans:")
+	assert.ErrorContains(t, err, "failed to export spans:")
 }
 
 func TestReporter_AddProcessTags_EmptyTags(t *testing.T) {
@@ -211,6 +210,6 @@ func TestReporter_MultitenantEmitBatch(t *testing.T) {
 	}
 	for _, test := range tests {
 		err = rep.EmitBatch(context.Background(), test.in)
-		assert.Contains(t, err.Error(), test.err)
+		assert.ErrorContains(t, err, test.err)
 	}
 }

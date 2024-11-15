@@ -88,6 +88,7 @@ func makeMockServices() *ClientPluginServices {
 func makeFactory(t *testing.T) *Factory {
 	f := NewFactory()
 	f.InitFromViper(viper.New(), zap.NewNop())
+	f.config.ClientConfig.Endpoint = ":0"
 	require.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
 
 	t.Cleanup(func() {
@@ -107,8 +108,7 @@ func TestNewFactoryError(t *testing.T) {
 	}
 	t.Run("with_config", func(t *testing.T) {
 		_, err := NewFactoryWithConfig(*cfg, metrics.NullFactory, zap.NewNop(), componenttest.NewNopHost())
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "authenticator")
+		assert.ErrorContains(t, err, "authenticator")
 	})
 
 	t.Run("viper", func(t *testing.T) {
@@ -116,21 +116,23 @@ func TestNewFactoryError(t *testing.T) {
 		f.InitFromViper(viper.New(), zap.NewNop())
 		f.config = *cfg
 		err := f.Initialize(metrics.NullFactory, zap.NewNop())
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "authenticator")
+		assert.ErrorContains(t, err, "authenticator")
 	})
 
 	t.Run("client", func(t *testing.T) {
 		// this is a silly test to verify handling of error from grpc.NewClient, which cannot be induced via params.
-		f, err := NewFactoryWithConfig(Config{}, metrics.NullFactory, zap.NewNop(), componenttest.NewNopHost())
+		f, err := NewFactoryWithConfig(Config{
+			ClientConfig: configgrpc.ClientConfig{
+				Endpoint: ":0",
+			},
+		}, metrics.NullFactory, zap.NewNop(), componenttest.NewNopHost())
 		require.NoError(t, err)
 		t.Cleanup(func() { require.NoError(t, f.Close()) })
 		newClientFn := func(_ component.TelemetrySettings, _ ...grpc.DialOption) (conn *grpc.ClientConn, err error) {
 			return nil, errors.New("test error")
 		}
 		_, err = f.newRemoteStorage(component.TelemetrySettings{}, component.TelemetrySettings{}, newClientFn)
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "error creating traced remote storage client")
+		assert.ErrorContains(t, err, "error creating traced remote storage client")
 	})
 }
 
@@ -282,8 +284,7 @@ func TestStreamingSpanWriterFactory_CapabilitiesNil(t *testing.T) {
 	writer, err := f.CreateSpanWriter()
 	require.NoError(t, err)
 	err = writer.WriteSpan(context.Background(), nil)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "not streaming writer")
+	assert.ErrorContains(t, err, "not streaming writer")
 }
 
 func TestStreamingSpanWriterFactory_Capabilities(t *testing.T) {
@@ -307,18 +308,15 @@ func TestStreamingSpanWriterFactory_Capabilities(t *testing.T) {
 	writer, err := f.CreateSpanWriter()
 	require.NoError(t, err)
 	err = writer.WriteSpan(context.Background(), nil)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "not streaming writer", "unary writer when Capabilities return error")
+	require.ErrorContains(t, err, "not streaming writer", "unary writer when Capabilities return error")
 
 	writer, err = f.CreateSpanWriter()
 	require.NoError(t, err)
 	err = writer.WriteSpan(context.Background(), nil)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "not streaming writer", "unary writer when Capabilities return false")
+	require.ErrorContains(t, err, "not streaming writer", "unary writer when Capabilities return false")
 
 	writer, err = f.CreateSpanWriter()
 	require.NoError(t, err)
 	err = writer.WriteSpan(context.Background(), nil)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "I am streaming writer", "streaming writer when Capabilities return true")
+	assert.ErrorContains(t, err, "I am streaming writer", "streaming writer when Capabilities return true")
 }
