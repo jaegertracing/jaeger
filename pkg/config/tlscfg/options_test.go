@@ -7,7 +7,11 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -302,5 +306,110 @@ func TestToOtelServerConfig(t *testing.T) {
 			actual := tc.options.ToOtelServerConfig()
 			assert.Equal(t, tc.expected, actual)
 		})
+	}
+}
+
+func TestCertificateRaceCondition(t *testing.T) {
+	// Create initial TLS options
+	options := Options{
+		Enabled:  true,
+		CAPath:   testCertKeyLocation + "/example-CA-cert.pem",
+		CertPath: testCertKeyLocation + "/example-client-cert.pem",
+		KeyPath:  testCertKeyLocation + "/example-client-key.pem",
+	}
+
+	// Create initial TLS config
+	tlsConfig, err := options.Config(zap.NewNop())
+	require.NoError(t, err)
+	defer options.Close()
+
+	// Create a test server using our TLS config 
+	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintln(w, "OK")
+	}))
+	server.TLS = tlsConfig
+	server.StartTLS()
+	defer server.Close()
+
+	// Test multiple concurrent connections
+	var wg sync.WaitGroup
+	errChan := make(chan error, 10)
+
+	for i := 0 ; i < 5 ; i++{
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for i := 0; i < 5; i++ {
+				// Simulate certificate reload by creating new config
+				newOptions := Options{
+					Enabled:  true,
+					CAPath:   testCertKeyLocation + "/example-CA-cert.pem",
+					CertPath: testCertKeyLocation + "/example-client-cert.pem",
+					KeyPath:  testCertKeyLocation + "/example-client-key.pem",
+				}
+				defer newOptions.Close()
+				newConfig, err := newOptions.Config(zap.NewNop())
+				if err != nil {
+					errChan <- fmt.Errorf("failed to create new config: %v", err)
+					return
+				}
+	
+				// Update the server's TLS config
+				server.TLS = newConfig
+				time.Sleep(10 * time.Millisecond) // Small delay between updates
+			}
+		}()
+	}
+	
+
+	for i := 0; i < 3; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			
+			client := &http.Client{
+				Transport: &http.Transport{
+					TLSClientConfig: &tls.Config{
+						RootCAs: tlsConfig.RootCAs,
+						// For testing concurrent connections only
+						InsecureSkipVerify: true,
+					},
+				},
+			}
+
+			resp, err := client.Get(server.URL)
+			if err != nil {
+				errChan <- fmt.Errorf("request failed: %v", err)
+				return
+			}
+			defer resp.Body.Close()
+
+			if resp.StatusCode != http.StatusOK {
+				errChan <- fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+			}
+		}()
+	}
+
+	// Wait for all requests to complete
+	done := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+
+	select {
+	// case <-done:
+		// Success - all requests completed
+	case err := <-errChan:
+		t.Fatalf("Test failed: %v", err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("Test timed out")
+	}
+
+	close(errChan)
+
+	// Drain any remaining errors
+	for err := range errChan {
+		t.Errorf("Additional error: %v", err)
 	}
 }
