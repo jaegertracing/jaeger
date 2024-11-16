@@ -31,7 +31,7 @@ healthcheck_cassandra() {
   local container_name="cassandra-${cas_version}"
   local status="unhealthy"
   while [[ ${status} != "healthy" ]]; do
-    status=$(docker inspect -f '{{ .State.Health.Status }}' ${container_name})
+    status=$(docker inspect -f '{{ .State.Health.Status }}' "${container_name}")
     echo "healthcheck status=${status}"
     # Since the healthcheck in cassandra is done at the interval of 30s
     sleep 30;
