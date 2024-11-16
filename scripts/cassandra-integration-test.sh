@@ -26,6 +26,19 @@ setup_cassandra() {
   docker compose -f "$compose_file" up -d
 }
 
+healthcheck_cassandra() {
+  local cas_version=$1
+  local container_name="cassandra-${cas_version}"
+  local status="unhealthy"
+  while [[ ${status} != "healthy" ]]; do
+    status=$(docker inspect -f '{{ .State.Health.Status }}' ${container_name})
+    echo "healthcheck status=${status}"
+    # Since the healthcheck in cassandra is done at the interval of 30s
+    sleep 30;
+  done;
+  echo "cassandra is up"
+}
+
 dump_logs() {
   local compose_file=$1
   echo "::group::🚧 🚧 🚧 Cassandra logs"
@@ -70,6 +83,8 @@ run_integration_test() {
   local compose_file="docker-compose/cassandra/v$major_version/docker-compose.yaml"
 
   setup_cassandra "${compose_file}"
+
+  healthcheck_cassandra "${major_version}"
 
   # shellcheck disable=SC2064
   trap "teardown_cassandra ${compose_file}" EXIT
