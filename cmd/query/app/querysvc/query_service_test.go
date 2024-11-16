@@ -23,6 +23,7 @@ import (
 	depsmocks "github.com/jaegertracing/jaeger/storage/dependencystore/mocks"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	spanstoremocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
+	"github.com/jaegertracing/jaeger/storage_v2/factoryadapter"
 )
 
 const millisToNanosMultiplier = int64(time.Millisecond / time.Nanosecond)
@@ -87,6 +88,7 @@ func withAdjuster() testOption {
 
 func initializeTestService(optionAppliers ...testOption) *testQueryService {
 	readStorage := &spanstoremocks.Reader{}
+	traceReader := factoryadapter.NewTraceReader(readStorage)
 	dependencyStorage := &depsmocks.Reader{}
 
 	options := QueryServiceOptions{}
@@ -100,7 +102,7 @@ func initializeTestService(optionAppliers ...testOption) *testQueryService {
 		optApplier(&tqs, &options)
 	}
 
-	tqs.queryService = NewQueryService(readStorage, dependencyStorage, options)
+	tqs.queryService = NewQueryService(traceReader, dependencyStorage, options)
 	return &tqs
 }
 

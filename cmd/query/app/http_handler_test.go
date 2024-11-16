@@ -42,6 +42,7 @@ import (
 	metricsmocks "github.com/jaegertracing/jaeger/storage/metricsstore/mocks"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	spanstoremocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
+	"github.com/jaegertracing/jaeger/storage_v2/factoryadapter"
 )
 
 const millisToNanosMultiplier = int64(time.Millisecond / time.Nanosecond)
@@ -119,7 +120,8 @@ func initializeTestServerWithOptions(
 	options = append(options, HandlerOptions.Logger(zaptest.NewLogger(t)))
 	readStorage := &spanstoremocks.Reader{}
 	dependencyStorage := &depsmocks.Reader{}
-	qs := querysvc.NewQueryService(readStorage, dependencyStorage, queryOptions)
+	traceReader := factoryadapter.NewTraceReader(readStorage)
+	qs := querysvc.NewQueryService(traceReader, dependencyStorage, queryOptions)
 	r := NewRouter()
 	apiHandler := NewAPIHandler(qs, options...)
 	apiHandler.RegisterRoutes(r)
@@ -198,8 +200,9 @@ func TestLogOnServerError(t *testing.T) {
 	zapCore, logs := observer.New(zap.InfoLevel)
 	logger := zap.New(zapCore)
 	readStorage := &spanstoremocks.Reader{}
+	traceReader := factoryadapter.NewTraceReader(readStorage)
 	dependencyStorage := &depsmocks.Reader{}
-	qs := querysvc.NewQueryService(readStorage, dependencyStorage, querysvc.QueryServiceOptions{})
+	qs := querysvc.NewQueryService(traceReader, dependencyStorage, querysvc.QueryServiceOptions{})
 	h := NewAPIHandler(qs, HandlerOptions.Logger(logger))
 	e := errors.New("test error")
 	h.handleError(&httptest.ResponseRecorder{}, e, http.StatusInternalServerError)

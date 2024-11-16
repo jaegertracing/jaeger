@@ -32,6 +32,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/plugin/storage/es"
 	"github.com/jaegertracing/jaeger/ports"
+	"github.com/jaegertracing/jaeger/storage_v2/factoryadapter"
 )
 
 const (
@@ -86,8 +87,9 @@ func runQueryService(t *testing.T, esURL string) *Server {
 
 	spanReader, err := f.CreateSpanReader()
 	require.NoError(t, err)
+	traceReader := factoryadapter.NewTraceReader(spanReader)
 
-	querySvc := querysvc.NewQueryService(spanReader, nil, querysvc.QueryServiceOptions{})
+	querySvc := querysvc.NewQueryService(traceReader, nil, querysvc.QueryServiceOptions{})
 	telset := telemetery.Setting{
 		Logger:         flagsSvc.Logger,
 		TracerProvider: jtracer.NoOp().OTEL,
