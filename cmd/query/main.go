@@ -37,6 +37,7 @@ import (
 	"github.com/jaegertracing/jaeger/ports"
 	metricsstoreMetrics "github.com/jaegertracing/jaeger/storage/metricsstore/metrics"
 	spanstoreMetrics "github.com/jaegertracing/jaeger/storage/spanstore/metrics"
+	"github.com/jaegertracing/jaeger/storage_v2/factoryadapter"
 )
 
 func main() {
@@ -92,6 +93,7 @@ func main() {
 				logger.Fatal("Failed to create span reader", zap.Error(err))
 			}
 			spanReader = spanstoreMetrics.NewReadMetricsDecorator(spanReader, metricsFactory)
+			traceReader := factoryadapter.NewTraceReader(spanReader)
 			dependencyReader, err := storageFactory.CreateDependencyReader()
 			if err != nil {
 				logger.Fatal("Failed to create dependency reader", zap.Error(err))
@@ -103,7 +105,7 @@ func main() {
 			}
 			queryServiceOptions := queryOpts.BuildQueryServiceOptions(storageFactory, logger)
 			queryService := querysvc.NewQueryService(
-				spanReader,
+				traceReader,
 				dependencyReader,
 				*queryServiceOptions)
 			tm := tenancy.NewManager(&queryOpts.Tenancy)

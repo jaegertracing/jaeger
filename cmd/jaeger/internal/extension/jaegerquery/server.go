@@ -24,6 +24,7 @@ import (
 	"github.com/jaegertracing/jaeger/plugin/metrics/disabled"
 	"github.com/jaegertracing/jaeger/storage/metricsstore"
 	storageMetrics "github.com/jaegertracing/jaeger/storage/spanstore/metrics"
+	"github.com/jaegertracing/jaeger/storage_v2/factoryadapter"
 )
 
 var (
@@ -66,6 +67,7 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 	}
 
 	spanReader = storageMetrics.NewReadMetricsDecorator(spanReader, queryMetricsFactory)
+	traceReader := factoryadapter.NewTraceReader(spanReader)
 
 	depReader, err := f.CreateDependencyReader()
 	if err != nil {
@@ -76,7 +78,7 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 	if err := s.addArchiveStorage(&opts, host); err != nil {
 		return err
 	}
-	qs := querysvc.NewQueryService(spanReader, depReader, opts)
+	qs := querysvc.NewQueryService(traceReader, depReader, opts)
 
 	mqs, err := s.createMetricReader(host)
 	if err != nil {
