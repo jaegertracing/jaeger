@@ -10,6 +10,9 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/config/configtelemetry"
+	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/metric/noop"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 	"google.golang.org/grpc"
@@ -51,6 +54,9 @@ func StartNewRemoteMemoryStorage(t *testing.T) *RemoteMemoryStorage {
 	telset := telemetery.Setting{
 		Logger:       logger,
 		ReportStatus: telemetery.HCAdapter(healthcheck.New()),
+		LeveledMeterProvider: func(_ configtelemetry.Level) metric.MeterProvider {
+			return noop.NewMeterProvider()
+		},
 	}
 	server, err := app.NewServer(opts, storageFactory, tm, telset)
 	require.NoError(t, err)
