@@ -1,6 +1,7 @@
 services:
   cassandra:
     image: cassandra:5.0
+    container_name: "cassandra-5"
     ports:
       - "9042:9042"
       - "9160:9160"
@@ -11,7 +12,7 @@ services:
     networks:
       - cassandra-net
     healthcheck:
-      test: ["CMD", "cqlsh", "-e", "describe keyspaces"]
+      test: ["CMD", "cqlsh", "-u", "cassandra", "-p", "cassandra", "-e", "describe keyspaces"]
       interval: 30s
       timeout: 10s
       retries: 5
