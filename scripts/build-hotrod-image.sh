@@ -12,6 +12,7 @@ print_help() {
   echo "-o: overwrite image in the target remote repository even if the semver tag already exists"
   echo "-p: Comma-separated list of platforms to build for (default: all supported)"
   echo "-v: Jaeger version to use for hotrod image (v1 or v2, default: v1)"
+  echo "-r: Runtime to test with (docker|k8s, default: docker)"
   exit 1
 }
 
@@ -22,8 +23,9 @@ jaeger_version="v1"
 binary="all-in-one"
 FLAGS=()
 success="false"
+runtime="docker"
 
-while getopts "hlop:v:" opt; do
+while getopts "hlop:v:r:" opt; do
 	case "${opt}" in
 	l)
 		# in the local-only mode the images will only be pushed to local registry
@@ -37,6 +39,12 @@ while getopts "hlop:v:" opt; do
 		;;
 	v)
 		jaeger_version=${OPTARG}
+		;;
+  r)
+		case "${OPTARG}" in
+			docker|k8s) runtime="${OPTARG}" ;;
+			*) echo "Invalid runtime: ${OPTARG}. Use 'docker' or 'k8s'" >&2; exit 1 ;;
+		esac
 		;;
 	*)
 		print_help
@@ -62,18 +70,37 @@ esac
 set -x
 
 dump_logs() {
-  local compose_file=$1
-  echo "::group:: Hotrod logs"
-  docker compose -f "${compose_file}" logs
+  local runtime=$1
+  local compose_file=$2
+
+  echo "::group:: Logs"
+  if [ "$runtime" == "k8s" ]; then
+    kubectl logs -n example-hotrod -l app=example-hotrod
+    kubectl logs -n example-hotrod -l app=jaeger
+  else
+    docker compose -f "$compose_file" logs
+  fi
   echo "::endgroup::"
 }
 
 teardown() {
-  echo "Tearing down..."
+  echo "::group::Tearing down..."
   if [[ "$success" == "false" ]]; then
-    dump_logs "${docker_compose_file}"
+      dump_logs "${runtime}" "${docker_compose_file}"
   fi
-  docker compose -f "$docker_compose_file" down
+  if [[ "${runtime}" == "k8s" ]]; then
+    if [[ -n "${HOTROD_PORT_FWD_PID:-}" ]]; then
+      kill "$HOTROD_PORT_FWD_PID" || true
+    fi
+    if [[ -n "${JAEGER_PORT_FWD_PID:-}" ]]; then
+      kill "$JAEGER_PORT_FWD_PID" || true
+    fi
+    kubectl delete namespace example-hotrod --ignore-not-found=true
+  else
+    docker compose -f "$docker_compose_file" down
+  fi
+  
+  echo "::endgroup::"
 }
 trap teardown EXIT
 
@@ -98,12 +125,27 @@ bash scripts/build-upload-a-docker-image.sh -l -c example-hotrod -d examples/hot
 make build-${binary}
 bash scripts/build-upload-a-docker-image.sh -l -b -c "${binary}" -d cmd/"${binary}" -p "${current_platform}" -t release
 
-echo '::group:: docker compose'
-JAEGER_VERSION=$GITHUB_SHA \
-  HOTROD_VERSION=$GITHUB_SHA \
-  REGISTRY="localhost:5000/" \
-  docker compose -f "$docker_compose_file" up -d
-echo '::endgroup::'
+if [[ "${runtime}" == "k8s" ]]; then
+  if ! kubectl cluster-info >/dev/null 2>&1; then
+    echo "Error: Cannot connect to Kubernetes cluster"
+    exit 1
+  fi
+
+  echo '::group:: run on Kubernetes'
+  kustomize build ./examples/hotrod/kubernetes | kubectl apply -n example-hotrod -f -
+  kubectl wait --for=condition=available --timeout=180s -n example-hotrod deployment/example-hotrod
+  
+  kubectl port-forward -n example-hotrod service/example-hotrod 8080:frontend &
+  HOTROD_PORT_FWD_PID=$!
+  kubectl port-forward -n example-hotrod service/jaeger 16686:frontend &
+  JAEGER_PORT_FWD_PID=$!
+  echo '::endgroup::'
+
+else
+  echo '::group:: docker compose'
+  JAEGER_VERSION=$GITHUB_SHA HOTROD_VERSION=$GITHUB_SHA REGISTRY="localhost:5000/" docker compose -f "$docker_compose_file" up -d
+  echo '::endgroup::'
+fi
 
 i=0
 while [[ "$(curl -s -o /dev/null -w '%{http_code}' localhost:8080)" != "200" && $i -lt 30 ]]; do
