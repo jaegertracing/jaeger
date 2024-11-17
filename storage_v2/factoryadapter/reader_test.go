@@ -50,7 +50,7 @@ func (*fakeReader) FindTraceIDs(_ context.Context, _ spanstore.TraceQueryParamet
 func TestGetV1Reader_Error(t *testing.T) {
 	fr := &fakeReader{}
 	_, err := GetV1Reader(fr)
-	require.ErrorIs(t, err, ErrV1ReaderNotAvailable)
+	require.ErrorIs(t, err, errV1ReaderNotAvailable)
 }
 
 func TestTraceReader_GetTracePanics(t *testing.T) {

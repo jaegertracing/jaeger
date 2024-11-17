@@ -14,7 +14,7 @@ import (
 	"github.com/jaegertracing/jaeger/storage_v2/spanstore"
 )
 
-var ErrV1ReaderNotAvailable = errors.New("v1 reader is not available")
+var errV1ReaderNotAvailable = errors.New("spanstore.Reader is not a wrapper around v1 reader")
 
 type TraceReader struct {
 	spanReader spanstore_v1.Reader
@@ -24,7 +24,7 @@ func GetV1Reader(reader spanstore.Reader) (spanstore_v1.Reader, error) {
 	if tr, ok := reader.(*TraceReader); ok {
 		return tr.spanReader, nil
 	}
-	return nil, ErrV1ReaderNotAvailable
+	return nil, errV1ReaderNotAvailable
 }
 
 func NewTraceReader(spanReader spanstore_v1.Reader) *TraceReader {
