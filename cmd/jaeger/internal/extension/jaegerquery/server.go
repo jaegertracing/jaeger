@@ -23,8 +23,6 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/plugin/metrics/disabled"
 	"github.com/jaegertracing/jaeger/storage/metricsstore"
-	storageMetrics "github.com/jaegertracing/jaeger/storage/spanstore/metrics"
-	"github.com/jaegertracing/jaeger/storage_v2/factoryadapter"
 )
 
 var (
@@ -56,20 +54,24 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 	mf := otelmetrics.NewFactory(s.telset.MeterProvider)
 	baseFactory := mf.Namespace(metrics.NSOptions{Name: "jaeger"})
 	queryMetricsFactory := baseFactory.Namespace(metrics.NSOptions{Name: "query"})
-	f, err := jaegerstorage.GetStorageFactory(s.config.Storage.TracesPrimary, host)
+	v1Factory, err := jaegerstorage.GetStorageFactory(s.config.Storage.TracesPrimary, host)
 	if err != nil {
-		return fmt.Errorf("cannot find primary storage %s: %w", s.config.Storage.TracesPrimary, err)
+		return fmt.Errorf("cannot find primary storage from v1 factory %s: %w", s.config.Storage.TracesPrimary, err)
+	}
+	v2Factory, err := jaegerstorage.GetStorageFactoryV2(s.config.Storage.TracesPrimary, host)
+	if err != nil {
+		return fmt.Errorf("cannot find primary storage from v2 factory %s: %w", s.config.Storage.TracesPrimary, err)
 	}
 
-	spanReader, err := f.CreateSpanReader()
+	v1Factory.CreateSpanReader()
+	traceReader, err := v2Factory.CreateTraceReader()
 	if err != nil {
 		return fmt.Errorf("cannot create span reader: %w", err)
 	}
 
-	spanReader = storageMetrics.NewReadMetricsDecorator(spanReader, queryMetricsFactory)
-	traceReader := factoryadapter.NewTraceReader(spanReader)
+	// TODO: decorate trace reader with metrics
 
-	depReader, err := f.CreateDependencyReader()
+	depReader, err := v1Factory.CreateDependencyReader()
 	if err != nil {
 		return fmt.Errorf("cannot create dependencies reader: %w", err)
 	}

@@ -42,9 +42,8 @@ import (
 	"github.com/jaegertracing/jaeger/ports"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	metricsstoreMetrics "github.com/jaegertracing/jaeger/storage/metricsstore/metrics"
-	"github.com/jaegertracing/jaeger/storage/spanstore"
-	storageMetrics "github.com/jaegertracing/jaeger/storage/spanstore/metrics"
 	"github.com/jaegertracing/jaeger/storage_v2/factoryadapter"
+	"github.com/jaegertracing/jaeger/storage_v2/spanstore"
 )
 
 // all-in-one/main is a standalone full-stack jaeger backend, backed by a memory store
@@ -60,6 +59,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Cannot initialize storage factory: %v", err)
 	}
+	v2Factory := factoryadapter.NewFactory(storageFactory)
 	samplingStrategyFactoryConfig, err := ss.FactoryConfigFromEnv()
 	if err != nil {
 		log.Fatalf("Cannot initialize sampling strategy factory config: %v", err)
@@ -101,7 +101,7 @@ by default uses only in-memory database.`,
 				logger.Fatal("Failed to init storage factory", zap.Error(err))
 			}
 
-			spanReader, err := storageFactory.CreateSpanReader()
+			traceReader, err := v2Factory.CreateTraceReader()
 			if err != nil {
 				logger.Fatal("Failed to create span reader", zap.Error(err))
 			}
@@ -172,7 +172,7 @@ by default uses only in-memory database.`,
 			// query
 			querySrv := startQuery(
 				svc, qOpts, qOpts.BuildQueryServiceOptions(storageFactory, logger),
-				spanReader, dependencyReader, metricsQueryService,
+				traceReader, dependencyReader, metricsQueryService,
 				tm, telset,
 			)
 
@@ -219,14 +219,13 @@ func startQuery(
 	svc *flags.Service,
 	qOpts *queryApp.QueryOptions,
 	queryOpts *querysvc.QueryServiceOptions,
-	spanReader spanstore.Reader,
+	traceReader spanstore.Reader,
 	depReader dependencystore.Reader,
 	metricsQueryService querysvc.MetricsQueryService,
 	tm *tenancy.Manager,
 	telset telemetery.Setting,
 ) *queryApp.Server {
-	spanReader = storageMetrics.NewReadMetricsDecorator(spanReader, telset.Metrics)
-	traceReader := factoryadapter.NewTraceReader(spanReader)
+	// TODO: decorate trace reader with metrics
 	qs := querysvc.NewQueryService(traceReader, depReader, *queryOpts)
 
 	server, err := queryApp.NewServer(context.Background(), qs, metricsQueryService, qOpts, tm, telset)

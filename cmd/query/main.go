@@ -36,7 +36,6 @@ import (
 	"github.com/jaegertracing/jaeger/plugin/storage"
 	"github.com/jaegertracing/jaeger/ports"
 	metricsstoreMetrics "github.com/jaegertracing/jaeger/storage/metricsstore/metrics"
-	spanstoreMetrics "github.com/jaegertracing/jaeger/storage/spanstore/metrics"
 	"github.com/jaegertracing/jaeger/storage_v2/factoryadapter"
 )
 
@@ -47,6 +46,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Cannot initialize storage factory: %v", err)
 	}
+	v2Factory := factoryadapter.NewFactory(storageFactory)
 
 	fc := metricsPlugin.FactoryConfigFromEnv()
 	metricsReaderFactory, err := metricsPlugin.NewFactory(fc)
@@ -88,12 +88,11 @@ func main() {
 			if err := storageFactory.Initialize(baseFactory, logger); err != nil {
 				logger.Fatal("Failed to init storage factory", zap.Error(err))
 			}
-			spanReader, err := storageFactory.CreateSpanReader()
+			traceReader, err := v2Factory.CreateTraceReader()
 			if err != nil {
-				logger.Fatal("Failed to create span reader", zap.Error(err))
+				logger.Fatal("Failed to create trace reader", zap.Error(err))
 			}
-			spanReader = spanstoreMetrics.NewReadMetricsDecorator(spanReader, metricsFactory)
-			traceReader := factoryadapter.NewTraceReader(spanReader)
+			// TODO: decorate trace reader with metrics
 			dependencyReader, err := storageFactory.CreateDependencyReader()
 			if err != nil {
 				logger.Fatal("Failed to create dependency reader", zap.Error(err))
