@@ -8,6 +8,8 @@ set -euxf -o pipefail
 export CASSANDRA_USERNAME="cassandra"
 export CASSANDRA_PASSWORD="cassandra"
 success="false"
+timeout=600
+end_time=$((SECONDS + timeout))
 
 usage() {
   echo $"Usage: $0 <cassandra_version> <schema_version>"
@@ -29,14 +31,21 @@ setup_cassandra() {
 healthcheck_cassandra() {
   local cas_version=$1
   local container_name="cassandra-${cas_version}"
-  local status="unhealthy"
-  while [[ ${status} != "healthy" ]]; do
+  # Since the healthcheck in cassandra is done at the interval of 30s
+  local wait_seconds=30
+
+  while [ $SECONDS -lt $end_time ]; do
     status=$(docker inspect -f '{{ .State.Health.Status }}' "${container_name}")
-    echo "healthcheck status=${status}"
-    # Since the healthcheck in cassandra is done at the interval of 30s
-    sleep 30;
-  done;
-  echo "cassandra is up"
+    if [[ ${status} == "healthy" ]]; then
+      echo "✅ $container_name is healthy"
+      return 0
+    fi
+    echo "Waiting for $container_name to be healthy. Current status: $status"
+    sleep $wait_seconds
+  done
+
+  echo "❌ ERROR: $container_name did not become healthy in time"
+  exit 1
 }
 
 dump_logs() {
@@ -84,10 +93,10 @@ run_integration_test() {
 
   setup_cassandra "${compose_file}"
 
-  healthcheck_cassandra "${major_version}"
-
   # shellcheck disable=SC2064
   trap "teardown_cassandra ${compose_file}" EXIT
+
+  healthcheck_cassandra "${major_version}"
 
   apply_schema "$schema_version" "$primaryKeyspace"
   apply_schema "$schema_version" "$archiveKeyspace"
