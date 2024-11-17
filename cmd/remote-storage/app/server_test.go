@@ -13,6 +13,9 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component/componentstatus"
+	"go.opentelemetry.io/collector/config/configtelemetry"
+	"go.opentelemetry.io/otel/metric"
+	noopmetric "go.opentelemetry.io/otel/metric/noop"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest/observer"
 	"google.golang.org/grpc"
@@ -45,6 +48,9 @@ func TestNewServer_CreateStorageErrors(t *testing.T) {
 	telset := telemetery.Setting{
 		Logger:       zap.NewNop(),
 		ReportStatus: func(*componentstatus.Event) {},
+		LeveledMeterProvider: func(_ configtelemetry.Level) metric.MeterProvider {
+			return noopmetric.NewMeterProvider()
+		},
 	}
 	f := func() (*Server, error) {
 		return NewServer(
@@ -116,6 +122,9 @@ func TestNewServer_TLSConfigError(t *testing.T) {
 	telset := telemetery.Setting{
 		Logger:       zap.NewNop(),
 		ReportStatus: telemetery.HCAdapter(healthcheck.New()),
+		LeveledMeterProvider: func(_ configtelemetry.Level) metric.MeterProvider {
+			return noopmetric.NewMeterProvider()
+		},
 	}
 	storageMocks := newStorageMocks()
 	_, err := NewServer(
@@ -324,6 +333,9 @@ func TestServerGRPCTLS(t *testing.T) {
 			telset := telemetery.Setting{
 				Logger:       flagsSvc.Logger,
 				ReportStatus: telemetery.HCAdapter(flagsSvc.HC()),
+				LeveledMeterProvider: func(_ configtelemetry.Level) metric.MeterProvider {
+					return noopmetric.NewMeterProvider()
+				},
 			}
 			server, err := NewServer(
 				serverOptions,
@@ -373,6 +385,9 @@ func TestServerHandlesPortZero(t *testing.T) {
 	telset := telemetery.Setting{
 		Logger:       flagsSvc.Logger,
 		ReportStatus: telemetery.HCAdapter(flagsSvc.HC()),
+		LeveledMeterProvider: func(_ configtelemetry.Level) metric.MeterProvider {
+			return noopmetric.NewMeterProvider()
+		},
 	}
 	server, err := NewServer(
 		&Options{GRPCHostPort: ":0"},
