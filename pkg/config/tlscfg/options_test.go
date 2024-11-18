@@ -4,10 +4,15 @@
 package tlscfg
 
 import (
+	"crypto/rand"
+	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/pem"
 	"errors"
 	"fmt"
+	"math/big"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -310,86 +315,106 @@ func TestToOtelServerConfig(t *testing.T) {
 }
 
 func TestCertificateRaceCondition(t *testing.T) {
-	// Create initial TLS options
-	options := Options{
+	// Synchronization mechanisms
+	var tlsUpdateMutex sync.Mutex
+	var wg sync.WaitGroup
+	errChan := make(chan error, 10)
+
+	// Function to generate a random TLS configuration with self-signed certificates
+	generateRandomTLSConfig := func() (*tls.Config, func(), error) {
+		cert, key, err := generateSelfSignedCert()
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to generate certificates: %w", err)
+		}
+
+		tlsCert, err := tls.X509KeyPair(cert, key)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to create X509 key pair: %w", err)
+		}
+
+		config := &tls.Config{
+			Certificates: []tls.Certificate{tlsCert},
+		}
+
+		// Cleanup function to release resources if necessary
+		cleanup := func() {}
+
+		return config, cleanup, nil
+	}
+
+	// Create initial TLS config
+	options := &Options{
 		Enabled:  true,
 		CAPath:   testCertKeyLocation + "/example-CA-cert.pem",
 		CertPath: testCertKeyLocation + "/example-client-cert.pem",
 		KeyPath:  testCertKeyLocation + "/example-client-key.pem",
 	}
-
-	// Create initial TLS config
-	tlsConfig, err := options.Config(zap.NewNop())
+	initialTLSConfig, err := options.Config(zap.NewNop())	
 	require.NoError(t, err)
-	defer options.Close()
 
-	// Create a test server using our TLS config
+	// Create a test server using the initial TLS config
 	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		fmt.Fprintln(w, "OK")
 	}))
-	server.TLS = tlsConfig
+	server.TLS = initialTLSConfig
 	server.StartTLS()
 	defer server.Close()
 
-	// Test multiple concurrent connections
-	var wg sync.WaitGroup
-	errChan := make(chan error, 10)
-
+	// Goroutine for updating TLS config
 	for i := 0; i < 5; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			for i := 0; i < 5; i++ {
-				// Simulate certificate reload by creating new config
-				newOptions := Options{
-					Enabled:  true,
-					CAPath:   testCertKeyLocation + "/example-CA-cert.pem",
-					CertPath: testCertKeyLocation + "/example-client-cert.pem",
-					KeyPath:  testCertKeyLocation + "/example-client-key.pem",
-				}
-				defer newOptions.Close()
-				newConfig, err := newOptions.Config(zap.NewNop())
+			for j := 0; j < 5; j++ {
+				newTLSConfig, cleanup, err := generateRandomTLSConfig()
 				if err != nil {
-					errChan <- fmt.Errorf("failed to create new config: %w", err)
+					errChan <- fmt.Errorf("failed to create random TLS config: %w", err)
 					return
 				}
+				defer cleanup()
 
 				// Update the server's TLS config
-				server.TLS = newConfig
-				time.Sleep(10 * time.Millisecond) // Small delay between updates
+				tlsUpdateMutex.Lock()
+				server.TLS = newTLSConfig
+				tlsUpdateMutex.Unlock()
+				time.Sleep(10 * time.Millisecond) // Simulate delay between updates
 			}
 		}()
 	}
 
+	// Goroutine for sending concurrent requests
 	for i := 0; i < 3; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 
+			clientOptions := options
+			clientOptions.SkipHostVerify = false
+			clientCfg, err := clientOptions.Config(zap.NewNop())
+			require.NoError(t, err)
+			assert.NotNil(t, clientCfg)
 			client := &http.Client{
 				Transport: &http.Transport{
-					TLSClientConfig: &tls.Config{
-						RootCAs: tlsConfig.RootCAs,
-						// For testing concurrent connections only
-						InsecureSkipVerify: true,
-					},
+					TLSClientConfig: clientCfg,
 				},
 			}
 
-			resp, err := client.Get(server.URL)
-			if err != nil {
-				errChan <- fmt.Errorf("request failed: %w", err)
-				return
-			}
-			defer resp.Body.Close()
+			for j := 0; j < 5; j++ {
+				resp, err := client.Get(server.URL)
+				if err != nil {
+					errChan <- fmt.Errorf("request failed: %w", err)
+					return
+				}
+				defer resp.Body.Close()
 
-			if resp.StatusCode != http.StatusOK {
-				errChan <- fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+				if resp.StatusCode != http.StatusOK {
+					errChan <- fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+				}
 			}
 		}()
 	}
 
-	// Wait for all requests to complete
+	// Wait for all goroutines to finish
 	done := make(chan struct{})
 	go func() {
 		wg.Wait()
@@ -398,17 +423,49 @@ func TestCertificateRaceCondition(t *testing.T) {
 
 	select {
 	case <-done:
-		// success
+		// Test completed successfully
 	case err := <-errChan:
-		fmt.Printf("Test failed: %v", err)
+		t.Errorf("Test failed: %v", err)
 	case <-time.After(5 * time.Second):
-		fmt.Printf("Test timed out")
+		t.Error("Test timed out")
 	}
 
 	close(errChan)
 
-	// Drain any remaining errors
+	// Drain remaining errors
 	for err := range errChan {
-		fmt.Printf("Additional error: %v", err)
+		t.Errorf("Additional error: %v", err)
 	}
+}
+
+// generateSelfSignedCert dynamically creates a self-signed certificate and key
+func generateSelfSignedCert() ([]byte, []byte, error) {
+	priv, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to generate private key: %w", err)
+	}
+
+	template := x509.Certificate{
+		SerialNumber: big.NewInt(time.Now().UnixNano()),
+		Subject: pkix.Name{
+			Organization: []string{"Test Org"},
+		},
+		NotBefore: time.Now(),
+		NotAfter:  time.Now().Add(1 * time.Hour), // Short-lived for test purposes
+		KeyUsage:  x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
+		ExtKeyUsage: []x509.ExtKeyUsage{
+			x509.ExtKeyUsageServerAuth,
+		},
+		BasicConstraintsValid: true,
+	}
+
+	certBytes, err := x509.CreateCertificate(rand.Reader, &template, &template, &priv.PublicKey, priv)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to create certificate: %w", err)
+	}
+
+	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certBytes})
+	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(priv)})
+
+	return certPEM, keyPEM, nil
 }
