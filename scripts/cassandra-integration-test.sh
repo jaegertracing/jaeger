@@ -11,13 +11,25 @@ success="false"
 timeout=600
 end_time=$((SECONDS + timeout))
 
+SKIP_APPLY_SCHEMA="false"
+
+while getopts "s" opt; do
+	case "${opt}" in
+	s)
+    SKIP_APPLY_SCHEMA="true"
+		;;
+  *)
+		;;
+	esac
+done
+
 usage() {
   echo $"Usage: $0 <cassandra_version> <schema_version>"
   exit 1
 }
 
 check_arg() {
-  if [ ! $# -eq 3 ]; then
+  if [ ! $# -ge 3 ]; then
     echo "ERROR: need exactly three arguments, <cassandra_version> <schema_version> <jaeger_version>"
     usage
   fi
@@ -98,8 +110,12 @@ run_integration_test() {
 
   healthcheck_cassandra "${major_version}"
 
-  apply_schema "$schema_version" "$primaryKeyspace"
-  apply_schema "$schema_version" "$archiveKeyspace"
+  healthcheck_cassandra "${major_version}"
+
+  if [ "${SKIP_APPLY_SCHEMA}" = "true" ]; then
+    apply_schema "$schema_version" "$primaryKeyspace"
+    apply_schema "$schema_version" "$archiveKeyspace"
+  fi
 
   if [ "${jaegerVersion}" = "v1" ]; then
     STORAGE=cassandra make storage-integration-test

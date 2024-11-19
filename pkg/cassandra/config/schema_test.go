@@ -1,7 +1,7 @@
 // Copyright (c) 2024 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
-package schema
+package config
 
 import (
 	"testing"
@@ -19,7 +19,7 @@ func TestQueryCreationFromTemplate(t *testing.T) {
 	require.NoError(t, err)
 
 	expOutputQueries := []string{
-		`CREATE TYPE IF NOT EXISTS jaeger_v2_test.keyvalue (
+		`CREATE TYPE IF NOT EXISTS jaeger_v1_dc1.keyvalue (
 key             text,
 value_type      text,
 value_string    text,
@@ -29,12 +29,12 @@ value_double    double,
 value_binary    blob
 );
 `,
-		`CREATE TYPE IF NOT EXISTS jaeger_v2_test.log (
+		`CREATE TYPE IF NOT EXISTS jaeger_v1_dc1.log (
 ts      bigint,
-fields  frozen<list<frozen<jaeger_v2_test.keyvalue>>>
+fields  frozen<list<frozen<jaeger_v1_dc1.keyvalue>>>
 );
 `,
-		`CREATE TABLE IF NOT EXISTS jaeger_v2_test.service_names (
+		`CREATE TABLE IF NOT EXISTS jaeger_v1_dc1.service_names (
 service_name text,
 PRIMARY KEY (service_name)
 )
@@ -47,7 +47,7 @@ AND default_time_to_live = 172800
 AND speculative_retry = 'NONE'
 AND gc_grace_seconds = 10800;
 `,
-		`CREATE TABLE IF NOT EXISTS jaeger_v2_test.dependencies_v2 (
+		`CREATE TABLE IF NOT EXISTS jaeger_v1_dc1.dependencies_v2 (
 ts_bucket    timestamp,
 ts           timestamp,
 dependencies list<frozen<dependency>>,

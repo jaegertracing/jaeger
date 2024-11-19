@@ -58,7 +58,7 @@ type Schema struct {
 	// while connecting to the Cassandra Cluster. This is useful for connecting to clusters, like Azure Cosmos DB,
 	// that do not support SnappyCompression.
 	DisableCompression bool `mapstructure:"disable_compression"`
-	//Datacenter is the name for network topology
+	// Datacenter is the name for network topology
 	Datacenter string `mapstructure:"datacenter" valid:"optional"`
 	// TraceTTL is Time To Live (TTL) for the trace data in seconds
 	TraceTTL int `mapstructure:"trace_ttl" valid:"optional"`
@@ -98,7 +98,7 @@ type BasicAuthenticator struct {
 func DefaultConfiguration() Configuration {
 	return Configuration{
 		Schema: Schema{
-			Keyspace:          "jaeger_v1_test",
+			Keyspace:          "jaeger_v1_dc1",
 			Datacenter:        "test",
 			TraceTTL:          172800,
 			DependenciesTTL:   172800,
@@ -124,6 +124,31 @@ func (c *Configuration) ApplyDefaults(source *Configuration) {
 	if c.Schema.Keyspace == "" {
 		c.Schema.Keyspace = source.Schema.Keyspace
 	}
+
+	if c.Schema.Datacenter == "" {
+		c.Schema.Datacenter = source.Schema.Datacenter
+	}
+
+	if c.Schema.TraceTTL == 0 {
+		c.Schema.TraceTTL = source.Schema.TraceTTL
+	}
+
+	if c.Schema.DependenciesTTL == 0 {
+		c.Schema.DependenciesTTL = source.Schema.DependenciesTTL
+	}
+
+	if c.Schema.ReplicationFactor == 0 {
+		c.Schema.ReplicationFactor = source.Schema.ReplicationFactor
+	}
+
+	if c.Schema.CasVersion == 0 {
+		c.Schema.CasVersion = source.Schema.CasVersion
+	}
+
+	if c.Schema.CompactionWindow == "" {
+		c.Schema.CompactionWindow = source.Schema.CompactionWindow
+	}
+
 	if c.Connection.ConnectionsPerHost == 0 {
 		c.Connection.ConnectionsPerHost = source.Connection.ConnectionsPerHost
 	}
@@ -152,8 +177,32 @@ type SessionBuilder interface {
 	NewSession() (cassandra.Session, error)
 }
 
+func (c *Configuration) newSessionPrerequisites() error {
+	cluster, err := c.NewCluster()
+	if err != nil {
+		return err
+	}
+
+	cluster.Keyspace = ""
+
+	session, err := cluster.CreateSession()
+	if err != nil {
+		return err
+	}
+
+	wSession := gocqlw.WrapCQLSession(session)
+	defer wSession.Close()
+
+	return GenerateSchemaIfNotPresent(wSession, &c.Schema)
+}
+
 // NewSession creates a new Cassandra session
 func (c *Configuration) NewSession() (cassandra.Session, error) {
+	err := c.newSessionPrerequisites()
+	if err != nil {
+		return nil, err
+	}
+
 	cluster, err := c.NewCluster()
 	if err != nil {
 		return nil, err

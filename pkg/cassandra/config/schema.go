@@ -1,18 +1,18 @@
 // Copyright (c) 2024 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
-package schema
+package config
 
 import (
 	"bytes"
 	"embed"
+	"errors"
 	"fmt"
 	"regexp"
 	"strconv"
 	"text/template"
 
 	"github.com/jaegertracing/jaeger/pkg/cassandra"
-	"github.com/jaegertracing/jaeger/pkg/cassandra/config"
 )
 
 //go:embed v004-go-tmpl.cql.tmpl
@@ -20,7 +20,7 @@ import (
 var schemaFile embed.FS
 
 type TemplateParams struct {
-	config.Schema
+	Schema
 	// Replication is the replication strategy used
 	Replication string `mapstructure:"replication" valid:"optional"`
 	// CompactionWindowSize is the numberical part of CompactionWindow. Extracted from CompactionWindow
@@ -31,8 +31,8 @@ type TemplateParams struct {
 
 func DefaultParams() TemplateParams {
 	return TemplateParams{
-		Schema: config.Schema{
-			Keyspace:          "jaeger_v2_test",
+		Schema: Schema{
+			Keyspace:          "jaeger_v1_dc1",
 			Datacenter:        "test",
 			TraceTTL:          172800,
 			DependenciesTTL:   0,
@@ -67,30 +67,31 @@ func applyDefaults(params *TemplateParams) {
 }
 
 // Applies defaults for the configs and contructs other optional parameters from it
-func constructTemplateParams(cfg config.Schema) (TemplateParams, error) {
+func constructTemplateParams(cfg Schema) (TemplateParams, error) {
 	params := TemplateParams{
-		Schema: config.Schema{},
+		Schema: cfg,
 	}
 	applyDefaults(&params)
 
-	params.Replication = fmt.Sprintf("{'class': 'NetworkTopologyStrategy', '%s': '%v' }", params.Datacenter, params.ReplicationFactor)
+	params.Replication = fmt.Sprintf("{'class': 'NetworkTopologyStrategy', 'replication_factor': '%v' }", params.ReplicationFactor)
 
-	if cfg.CompactionWindow != "" {
-		isMatch, err := regexp.MatchString("^[0-9]+[mhd]$", params.CompactionWindow)
+	if params.CompactionWindow != "" {
+		var err error
+		isMatch, err := regexp.MatchString("[0-9]+[mhd]", params.CompactionWindow)
 		if err != nil {
 			return TemplateParams{}, err
 		}
 
 		if !isMatch {
-			return TemplateParams{}, fmt.Errorf("Invalid compaction window size format. Please use numeric value followed by 'm' for minutes, 'h' for hours, or 'd' for days")
+			return TemplateParams{}, fmt.Errorf("invalid compaction window size format: %s. Please use numeric value followed by 'm' for minutes, 'h' for hours, or 'd' for days", cfg.CompactionWindow)
 		}
 
-		params.CompactionWindowSize, err = strconv.Atoi(params.CompactionWindow[:len(params.CompactionWindow)-1])
+		params.CompactionWindowSize, err = strconv.Atoi(params.CompactionWindow[0 : len(params.CompactionWindow)-1])
 		if err != nil {
 			return TemplateParams{}, err
 		}
 
-		params.CompactionWindowUnit = params.CompactionWindow[len(params.CompactionWindow)-1:]
+		params.CompactionWindowUnit = params.CompactionWindow[len(params.CompactionWindow)-1 : len(params.CompactionWindow)]
 	} else {
 		traceTTLMinutes := cfg.TraceTTL / 60
 
@@ -106,7 +107,7 @@ func constructTemplateParams(cfg config.Schema) (TemplateParams, error) {
 	case `d`:
 		params.CompactionWindowUnit = `DAYS`
 	default:
-		return TemplateParams{}, fmt.Errorf("Invalid compaction window unit. If can be among {m|h|d}")
+		return TemplateParams{}, errors.New("Invalid compaction window unit. If can be among {m|h|d}")
 	}
 
 	return params, nil
@@ -160,7 +161,7 @@ func getQueriesFromBytes(queryFile []byte) ([]string, error) {
 	}
 
 	if len(queryString) > 0 {
-		return nil, fmt.Errorf(`Invalid template`)
+		return nil, errors.New(`Invalid template`)
 	}
 
 	return queries, nil
@@ -176,7 +177,7 @@ func getCassandraQueriesFromQueryStrings(session cassandra.Session, queries []st
 	return casQueries
 }
 
-func contructSchemaQueries(session cassandra.Session, cfg *config.Schema) ([]cassandra.Query, error) {
+func contructSchemaQueries(session cassandra.Session, cfg *Schema) ([]cassandra.Query, error) {
 	params, err := constructTemplateParams(*cfg)
 	if err != nil {
 		return nil, err
@@ -197,7 +198,7 @@ func contructSchemaQueries(session cassandra.Session, cfg *config.Schema) ([]cas
 	return casQueries, nil
 }
 
-func GenerateSchemaIfNotPresent(session cassandra.Session, cfg *config.Schema) error {
+func GenerateSchemaIfNotPresent(session cassandra.Session, cfg *Schema) error {
 	casQueries, err := contructSchemaQueries(session, cfg)
 	if err != nil {
 		return err

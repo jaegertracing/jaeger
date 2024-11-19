@@ -24,7 +24,6 @@ import (
 	cLock "github.com/jaegertracing/jaeger/plugin/pkg/distributedlock/cassandra"
 	cDepStore "github.com/jaegertracing/jaeger/plugin/storage/cassandra/dependencystore"
 	cSamplingStore "github.com/jaegertracing/jaeger/plugin/storage/cassandra/samplingstore"
-	"github.com/jaegertracing/jaeger/plugin/storage/cassandra/schema"
 	cSpanStore "github.com/jaegertracing/jaeger/plugin/storage/cassandra/spanstore"
 	"github.com/jaegertracing/jaeger/plugin/storage/cassandra/spanstore/dbmodel"
 	"github.com/jaegertracing/jaeger/storage"
@@ -132,10 +131,6 @@ func (f *Factory) configureFromOptions(o *Options) {
 	}
 }
 
-func (f *Factory) initializeDB(session cassandra.Session, cfg *config.Schema) error {
-	return schema.GenerateSchemaIfNotPresent(session, cfg)
-}
-
 // Initialize implements storage.Factory
 func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
 	f.primaryMetricsFactory = metricsFactory.Namespace(metrics.NSOptions{Name: "cassandra", Tags: nil})
@@ -148,21 +143,12 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 	}
 	f.primarySession = primarySession
 
-	// After creating a session, execute commands to initialize the setup if not already present
-	if err := f.initializeDB(primarySession, &f.Options.Primary.Schema); err != nil {
-		return err
-	}
-
 	if f.archiveConfig != nil {
 		archiveSession, err := f.archiveConfig.NewSession()
 		if err != nil {
 			return err
 		}
 		f.archiveSession = archiveSession
-
-		if err := f.initializeDB(archiveSession, &f.Options.Primary.Schema); err != nil {
-			return err
-		}
 	} else {
 		logger.Info("Cassandra archive storage configuration is empty, skipping")
 	}
