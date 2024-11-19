@@ -16,7 +16,6 @@ import (
 )
 
 //go:embed v004-go-tmpl.cql.tmpl
-//go:embed v004-go-tmpl-test.cql.tmpl
 var schemaFile embed.FS
 
 type TemplateParams struct {
