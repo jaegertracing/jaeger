@@ -14,14 +14,17 @@ end_time=$((SECONDS + timeout))
 SKIP_APPLY_SCHEMA="false"
 
 while getopts "s" opt; do
-	case "${opt}" in
-	s)
+  case "${opt}" in
+  s)
     SKIP_APPLY_SCHEMA="true"
-		;;
+    ;;
   *)
-		;;
-	esac
+    ;;
+  esac
 done
+
+# remove flags, leave only positional args
+shift $((OPTIND - 1))
 
 usage() {
   echo $"Usage: $0 <cassandra_version> <schema_version>"
@@ -29,7 +32,7 @@ usage() {
 }
 
 check_arg() {
-  if [ ! $# -ge 3 ]; then
+  if [ ! $# -eq 3 ]; then
     echo "ERROR: need exactly three arguments, <cassandra_version> <schema_version> <jaeger_version>"
     usage
   fi
@@ -110,7 +113,7 @@ run_integration_test() {
 
   healthcheck_cassandra "${major_version}"
 
-  if [ "${SKIP_APPLY_SCHEMA}" = "true" ]; then
+  if [ "${SKIP_APPLY_SCHEMA}" = "false" ]; then
     apply_schema "$schema_version" "$primaryKeyspace"
     apply_schema "$schema_version" "$archiveKeyspace"
   fi
