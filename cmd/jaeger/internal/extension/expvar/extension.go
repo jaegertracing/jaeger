@@ -45,13 +45,11 @@ func (c *expvarExtension) Start(ctx context.Context, host component.Host) error 
 		return err
 	}
 	c.server = server
-	c.telset.Logger.Info("Starting expvar server", zap.String("addr", c.server.Addr))
-
 	var hln net.Listener
 	if hln, err = c.config.ToListener(ctx); err != nil {
 		return err
 	}
-
+	c.telset.Logger.Info("Starting expvar server", zap.String("addr", hln.Addr().String()))
 	c.shutdownWG.Add(1)
 	go func() {
 		defer c.shutdownWG.Done()
