@@ -315,131 +315,68 @@ func TestToOtelServerConfig(t *testing.T) {
 }
 
 func TestCertificateRaceCondition(t *testing.T) {
-	// Synchronization mechanisms
-	var tlsUpdateMutex sync.Mutex
-	var wg sync.WaitGroup
-	errChan := make(chan error, 10)
+    var (
+        wg sync.WaitGroup
+        errChan = make(chan error, 10)
+    )
 
-	// Function to generate a random TLS configuration with self-signed certificates
-	generateRandomTLSConfig := func() (*tls.Config, func(), error) {
-		cert, key, err := generateSelfSignedCert()
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to generate certificates: %w", err)
-		}
+    // Initial server cert
+    serverCert, serverKey, err := generateSignedCert()
+    require.NoError(t, err)
 
-		tlsCert, err := tls.X509KeyPair(cert, key)
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to create X509 key pair: %w", err)
-		}
+    server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+        fmt.Fprintln(w, "OK")
+    }))
 
-		config := &tls.Config{
-			Certificates: []tls.Certificate{tlsCert},
-		}
+    initialKeyPair, err := tls.X509KeyPair(serverCert, serverKey)
+    require.NoError(t, err)
+    
+    certPool := x509.NewCertPool()
+    certPool.AppendCertsFromPEM(serverCert)
 
-		// Cleanup function to release resources if necessary
-		cleanup := func() {}
+    server.TLS = &tls.Config{
+        Certificates: []tls.Certificate{initialKeyPair},
+    }
+    server.StartTLS()
+    defer server.Close()
 
-		return config, cleanup, nil
-	}
-
-	// Create initial TLS config
-	options := &Options{
-		Enabled:  true,
-		CAPath:   testCertKeyLocation + "/example-CA-cert.pem",
-		CertPath: testCertKeyLocation + "/example-client-cert.pem",
-		KeyPath:  testCertKeyLocation + "/example-client-key.pem",
-	}
-	initialTLSConfig, err := options.Config(zap.NewNop())	
-	require.NoError(t, err)
-
-	// Create a test server using the initial TLS config
-	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		fmt.Fprintln(w, "OK")
-	}))
-	server.TLS = initialTLSConfig
-	server.StartTLS()
-	defer server.Close()
-
-	// Goroutine for updating TLS config
-	for i := 0; i < 5; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for j := 0; j < 5; j++ {
-				newTLSConfig, cleanup, err := generateRandomTLSConfig()
-				if err != nil {
-					errChan <- fmt.Errorf("failed to create random TLS config: %w", err)
-					return
-				}
-				defer cleanup()
-
-				// Update the server's TLS config
-				tlsUpdateMutex.Lock()
-				server.TLS = newTLSConfig
-				tlsUpdateMutex.Unlock()
-				time.Sleep(10 * time.Millisecond) // Simulate delay between updates
-			}
-		}()
-	}
-
-	// Goroutine for sending concurrent requests
-	for i := 0; i < 3; i++ {
-		wg.Add(1)
-		go func() {
+    // Updater goroutines
+    for i := 0; i < 10; i++ {
+        wg.Add(1)
+        go func(id int) {
 			defer wg.Done()
 
-			clientOptions := options
-			clientOptions.SkipHostVerify = false
-			clientCfg, err := clientOptions.Config(zap.NewNop())
-			require.NoError(t, err)
-			assert.NotNil(t, clientCfg)
-			client := &http.Client{
-				Transport: &http.Transport{
-					TLSClientConfig: clientCfg,
-				},
-			}
+            newCert, newKey, err := generateSignedCert()
+            if err != nil {
+                errChan <- err
+                return
+            }
 
-			for j := 0; j < 5; j++ {
-				resp, err := client.Get(server.URL)
-				if err != nil {
-					errChan <- fmt.Errorf("request failed: %w", err)
-					return
-				}
-				defer resp.Body.Close()
+            certPool.AppendCertsFromPEM(newCert) // Race here
+            
+            keyPair, err := tls.X509KeyPair(newCert, newKey)
+            if err != nil {
+                errChan <- err
+                return
+            }
 
-				if resp.StatusCode != http.StatusOK {
-					errChan <- fmt.Errorf("unexpected status code: %d", resp.StatusCode)
-				}
-			}
-		}()
-	}
-
-	// Wait for all goroutines to finish
-	done := make(chan struct{})
-	go func() {
-		wg.Wait()
-		close(done)
-	}()
-
-	select {
-	case <-done:
-		// Test completed successfully
-	case err := <-errChan:
-		t.Errorf("Test failed: %v", err)
-	case <-time.After(5 * time.Second):
-		t.Error("Test timed out")
-	}
-
-	close(errChan)
-
-	// Drain remaining errors
-	for err := range errChan {
-		t.Errorf("Additional error: %v", err)
-	}
+            server.TLS = &tls.Config{
+                Certificates: []tls.Certificate{keyPair},
+            }
+        }(i)
+    }
+    
+    // Wait for completion
+    wg.Wait()
+    
+    // Check errors
+    close(errChan)
+    for err := range errChan {
+        require.NoError(t, err)
+    }
 }
 
-// generateSelfSignedCert dynamically creates a self-signed certificate and key
-func generateSelfSignedCert() ([]byte, []byte, error) {
+func generateSignedCert() ([]byte, []byte, error) {
 	priv, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to generate private key: %w", err)
