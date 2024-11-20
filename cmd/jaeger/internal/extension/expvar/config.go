@@ -9,7 +9,7 @@ import (
 )
 
 type Config struct {
-	confighttp.ServerConfig `mapstructure:"embed"`
+	confighttp.ServerConfig `mapstructure:",squash"`
 }
 
 func (cfg *Config) Validate() error {
