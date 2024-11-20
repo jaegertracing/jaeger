@@ -113,8 +113,6 @@ run_integration_test() {
 
   healthcheck_cassandra "${major_version}"
 
-  read -n 1
-
   if [ "${SKIP_APPLY_SCHEMA}" = "false" ]; then
     apply_schema "$schema_version" "$primaryKeyspace"
     apply_schema "$schema_version" "$archiveKeyspace"
