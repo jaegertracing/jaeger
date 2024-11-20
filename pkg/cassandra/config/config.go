@@ -60,16 +60,16 @@ type Schema struct {
 	DisableCompression bool `mapstructure:"disable_compression"`
 	// Datacenter is the name for network topology
 	Datacenter string `mapstructure:"datacenter" valid:"optional"`
-	// TraceTTL is Time To Live (TTL) for the trace data in seconds
-	TraceTTL int `mapstructure:"trace_ttl" valid:"optional"`
-	// DependenciesTTL is Time To Live (TTL) for dependencies data in seconds
-	DependenciesTTL int `mapstructure:"dependencies_ttl" valid:"optional"`
+	// TraceTTL is Time To Live (TTL) for the trace data
+	TraceTTL time.Duration `mapstructure:"trace_ttl" valid:"optional,cassandraTTLValidation"`
+	// DependenciesTTL is Time To Live (TTL) for dependencies data
+	DependenciesTTL time.Duration `mapstructure:"dependencies_ttl" valid:"optional,cassandraTTLValidation"`
 	// Replication factor for the db
 	ReplicationFactor int `mapstructure:"replication_factor" valid:"optional"`
 	// CasVersion is version of cassandra used
 	CasVersion int `mapstructure:"cas_version" valid:"optional"`
 	// CompactionWindow of format "^[0-9]+[mhd]$" tells the compaction window of the db
-	CompactionWindow string `mapstructure:"compaction_window" valid:"optional"`
+	CompactionWindow time.Duration `mapstructure:"compaction_window" valid:"optional,isDurationGreaterThanOrEqualMinute"`
 }
 
 type Query struct {
@@ -100,11 +100,11 @@ func DefaultConfiguration() Configuration {
 		Schema: Schema{
 			Keyspace:          "jaeger_v1_dc1",
 			Datacenter:        "test",
-			TraceTTL:          172800,
-			DependenciesTTL:   172800,
+			TraceTTL:          172800 * time.Second,
+			DependenciesTTL:   172800 * time.Second,
 			ReplicationFactor: 1,
 			CasVersion:        4,
-			CompactionWindow:  "1m",
+			CompactionWindow:  time.Minute,
 		},
 		Connection: Connection{
 			Servers:            []string{"127.0.0.1"},
@@ -145,7 +145,7 @@ func (c *Configuration) ApplyDefaults(source *Configuration) {
 		c.Schema.CasVersion = source.Schema.CasVersion
 	}
 
-	if c.Schema.CompactionWindow == "" {
+	if c.Schema.CompactionWindow == 0 {
 		c.Schema.CompactionWindow = source.Schema.CompactionWindow
 	}
 
@@ -278,6 +278,23 @@ func (c *Configuration) String() string {
 }
 
 func (c *Configuration) Validate() error {
+	govalidator.CustomTypeTagMap.Set("cassandraTTLValidation", func(i interface{}, _ interface{}) bool {
+		duration, ok := i.(time.Duration)
+		if !ok {
+			return false
+		}
+		// Either set to no-expiry using 0 or if set should be greater than or equal to second
+		return duration == 0 || duration >= time.Second
+	})
+
+	govalidator.CustomTypeTagMap.Set("isDurationGreaterThanOrEqualMinute", func(i interface{}, _ interface{}) bool {
+		duration, ok := i.(time.Duration)
+		if !ok {
+			return false
+		}
+		return duration >= time.Minute
+	})
+
 	_, err := govalidator.ValidateStruct(c)
 	return err
 }

@@ -5,6 +5,7 @@ package config
 
 import (
 	"testing"
+	"time"
 
 	"github.com/gocql/gocql"
 	"github.com/stretchr/testify/assert"
@@ -93,4 +94,19 @@ func TestToString(t *testing.T) {
 	cfg.Schema.Keyspace = "test"
 	s := cfg.String()
 	assert.Contains(t, s, "Keyspace:test")
+}
+
+func TestConfigSchemaValidation(t *testing.T) {
+	cfg := DefaultConfiguration()
+	err := cfg.Validate()
+	require.NoError(t, err)
+
+	cfg.Schema.TraceTTL = time.Millisecond
+	err = cfg.Validate()
+	require.Error(t, err)
+
+	cfg.Schema.TraceTTL = time.Second
+	cfg.Schema.CompactionWindow = time.Minute - 1
+	err = cfg.Validate()
+	require.Error(t, err)
 }

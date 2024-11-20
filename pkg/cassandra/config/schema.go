@@ -8,9 +8,8 @@ import (
 	"embed"
 	"errors"
 	"fmt"
-	"regexp"
-	"strconv"
 	"text/template"
+	"time"
 
 	"github.com/jaegertracing/jaeger/pkg/cassandra"
 )
@@ -23,46 +22,13 @@ type TemplateParams struct {
 	// Replication is the replication strategy used
 	Replication string `mapstructure:"replication" valid:"optional"`
 	// CompactionWindowSize is the numberical part of CompactionWindow. Extracted from CompactionWindow
-	CompactionWindowSize int `mapstructure:"compaction_window_size" valid:"optional"`
+	CompactionWindowInMinutes int64 `mapstructure:"compaction_window_size"`
 	// CompactionWindowUnit is the time unit of the CompactionWindow. Extracted from CompactionWindow
-	CompactionWindowUnit string `mapstructure:"compaction_window_unit" valid:"optional"`
-}
+	CompactionWindowUnit string `mapstructure:"compaction_window_unit"`
 
-func DefaultParams() TemplateParams {
-	return TemplateParams{
-		Schema: Schema{
-			Keyspace:          "jaeger_v1_dc1",
-			Datacenter:        "test",
-			TraceTTL:          172800,
-			DependenciesTTL:   0,
-			ReplicationFactor: 1,
-			CasVersion:        4,
-		},
-	}
-}
+	TraceTTLInSeconds int64
 
-func applyDefaults(params *TemplateParams) {
-	defaultSchema := DefaultParams()
-
-	if params.Keyspace == "" {
-		params.Keyspace = defaultSchema.Keyspace
-	}
-
-	if params.Datacenter == "" {
-		params.Datacenter = defaultSchema.Datacenter
-	}
-
-	if params.TraceTTL == 0 {
-		params.TraceTTL = defaultSchema.TraceTTL
-	}
-
-	if params.ReplicationFactor == 0 {
-		params.ReplicationFactor = defaultSchema.ReplicationFactor
-	}
-
-	if params.CasVersion == 0 {
-		params.CasVersion = 4
-	}
+	DependenciesTTLInSeconds int64
 }
 
 // Applies defaults for the configs and contructs other optional parameters from it
@@ -70,44 +36,12 @@ func constructTemplateParams(cfg Schema) (TemplateParams, error) {
 	params := TemplateParams{
 		Schema: cfg,
 	}
-	applyDefaults(&params)
 
 	params.Replication = fmt.Sprintf("{'class': 'NetworkTopologyStrategy', 'replication_factor': '%v' }", params.ReplicationFactor)
-
-	if params.CompactionWindow != "" {
-		var err error
-		isMatch, err := regexp.MatchString("[0-9]+[mhd]", params.CompactionWindow)
-		if err != nil {
-			return TemplateParams{}, err
-		}
-
-		if !isMatch {
-			return TemplateParams{}, fmt.Errorf("invalid compaction window size format: %s. Please use numeric value followed by 'm' for minutes, 'h' for hours, or 'd' for days", cfg.CompactionWindow)
-		}
-
-		params.CompactionWindowSize, err = strconv.Atoi(params.CompactionWindow[0 : len(params.CompactionWindow)-1])
-		if err != nil {
-			return TemplateParams{}, err
-		}
-
-		params.CompactionWindowUnit = params.CompactionWindow[len(params.CompactionWindow)-1 : len(params.CompactionWindow)]
-	} else {
-		traceTTLMinutes := cfg.TraceTTL / 60
-
-		params.CompactionWindowSize = (traceTTLMinutes + 30 - 1) / 30
-		params.CompactionWindowUnit = "m"
-	}
-
-	switch params.CompactionWindowUnit {
-	case `m`:
-		params.CompactionWindowUnit = `MINUTES`
-	case `h`:
-		params.CompactionWindowUnit = `HOURS`
-	case `d`:
-		params.CompactionWindowUnit = `DAYS`
-	default:
-		return TemplateParams{}, errors.New("Invalid compaction window unit. If can be among {m|h|d}")
-	}
+	params.CompactionWindowInMinutes = int64(params.CompactionWindow / time.Minute)
+	params.CompactionWindowUnit = "MINUTES"
+	params.TraceTTLInSeconds = int64(params.TraceTTL / time.Second)
+	params.DependenciesTTLInSeconds = int64(params.DependenciesTTL / time.Second)
 
 	return params, nil
 }
@@ -160,7 +94,7 @@ func getQueriesFromBytes(queryFile []byte) ([]string, error) {
 	}
 
 	if len(queryString) > 0 {
-		return nil, errors.New(`Invalid template`)
+		return nil, errors.New(`invalid template`)
 	}
 
 	return queries, nil

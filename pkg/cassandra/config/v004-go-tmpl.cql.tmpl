@@ -45,11 +45,11 @@ CREATE TABLE IF NOT EXISTS {{.Keyspace}}.traces (
     PRIMARY KEY (trace_id, span_id, span_hash)
 )
     WITH compaction = {
-        'compaction_window_size': '{{.CompactionWindowSize}}',
+        'compaction_window_size': '{{.CompactionWindowInMinutes}}',
         'compaction_window_unit': '{{.CompactionWindowUnit}}',
         'class': 'org.apache.cassandra.db.compaction.TimeWindowCompactionStrategy'
     }
-    AND default_time_to_live = {{.TraceTTL}}
+    AND default_time_to_live = {{.TraceTTLInSeconds}}
     AND speculative_retry = 'NONE'
     AND gc_grace_seconds = 10800; -- 3 hours of downtime acceptable on nodes
 
@@ -62,7 +62,7 @@ CREATE TABLE IF NOT EXISTS {{.Keyspace}}.service_names (
         'max_threshold': '32',
         'class': 'org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy'
     }
-    AND default_time_to_live = {{.TraceTTL}}
+    AND default_time_to_live = {{.TraceTTLInSeconds}}
     AND speculative_retry = 'NONE'
     AND gc_grace_seconds = 10800; -- 3 hours of downtime acceptable on nodes
 
@@ -77,7 +77,7 @@ CREATE TABLE IF NOT EXISTS {{.Keyspace}}.operation_names_v2 (
         'max_threshold': '32',
         'class': 'org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy'
     }
-    AND default_time_to_live = {{.TraceTTL}}
+    AND default_time_to_live = {{.TraceTTLInSeconds}}
     AND speculative_retry = 'NONE'
     AND gc_grace_seconds = 10800; -- 3 hours of downtime acceptable on nodes
 
@@ -94,7 +94,7 @@ CREATE TABLE IF NOT EXISTS {{.Keyspace}}.service_operation_index (
         'compaction_window_unit': 'HOURS',
         'class': 'org.apache.cassandra.db.compaction.TimeWindowCompactionStrategy'
     }
-    AND default_time_to_live = {{.TraceTTL}}
+    AND default_time_to_live = {{.TraceTTLInSeconds}}
     AND speculative_retry = 'NONE'
     AND gc_grace_seconds = 10800; -- 3 hours of downtime acceptable on nodes
 
@@ -110,7 +110,7 @@ CREATE TABLE IF NOT EXISTS {{.Keyspace}}.service_name_index (
         'compaction_window_unit': 'HOURS',
         'class': 'org.apache.cassandra.db.compaction.TimeWindowCompactionStrategy'
     }
-    AND default_time_to_live = {{.TraceTTL}}
+    AND default_time_to_live = {{.TraceTTLInSeconds}}
     AND speculative_retry = 'NONE'
     AND gc_grace_seconds = 10800; -- 3 hours of downtime acceptable on nodes
 
@@ -128,7 +128,7 @@ CREATE TABLE IF NOT EXISTS {{.Keyspace}}.duration_index (
         'compaction_window_unit': 'HOURS',
         'class': 'org.apache.cassandra.db.compaction.TimeWindowCompactionStrategy'
     }
-    AND default_time_to_live = {{.TraceTTL}}
+    AND default_time_to_live = {{.TraceTTLInSeconds}}
     AND speculative_retry = 'NONE'
     AND gc_grace_seconds = 10800; -- 3 hours of downtime acceptable on nodes
 
@@ -149,7 +149,7 @@ CREATE TABLE IF NOT EXISTS {{.Keyspace}}.tag_index (
         'compaction_window_unit': 'HOURS',
         'class': 'org.apache.cassandra.db.compaction.TimeWindowCompactionStrategy'
     }
-    AND default_time_to_live = {{.TraceTTL}}
+    AND default_time_to_live = {{.TraceTTLInSeconds}}
     AND speculative_retry = 'NONE'
     AND gc_grace_seconds = 10800; -- 3 hours of downtime acceptable on nodes
 
@@ -172,7 +172,7 @@ CREATE TABLE IF NOT EXISTS {{.Keyspace}}.dependencies_v2 (
         'max_threshold': '32',
         'class': 'org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy'
     }
-    AND default_time_to_live = {{.DependenciesTTL}};
+    AND default_time_to_live = {{.DependenciesTTLInSeconds}};
 
 -- adaptive sampling tables
 -- ./plugin/storage/cassandra/samplingstore/storage.go
