@@ -35,7 +35,9 @@ extensions:
     #   sampling_store: some_store
     #   initial_sampling_probability: 0.1
     http:
+      endpoint: "0.0.0.0:5778"
     grpc:
+      endpoint: "0.0.0.0:5779"
 
   healthcheckv2:
     use_v2: true
@@ -50,16 +52,19 @@ receivers:
   otlp:
     protocols:
       grpc:
+        endpoint: "0.0.0.0:4317"
       http:
+        endpoint: "0.0.0.0:4318"
 
   jaeger:
     protocols:
       grpc:
-      thrift_binary:
-      thrift_compact:
+        endpoint: "0.0.0.0:14250"
       thrift_http:
+        endpoint: "0.0.0.0:14268"
 
   zipkin:
+    endpoint: "0.0.0.0:9411"
 
 processors:
   batch:
