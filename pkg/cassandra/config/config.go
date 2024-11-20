@@ -60,15 +60,15 @@ type Schema struct {
 	DisableCompression bool `mapstructure:"disable_compression"`
 	// Datacenter is the name for network topology
 	Datacenter string `mapstructure:"datacenter" valid:"optional"`
-	// TraceTTL is Time To Live (TTL) for the trace data
+	// TraceTTL is Time To Live (TTL) for the trace data. Should at least be 1 second
 	TraceTTL time.Duration `mapstructure:"trace_ttl" valid:"optional,cassandraTTLValidation"`
-	// DependenciesTTL is Time To Live (TTL) for dependencies data
+	// DependenciesTTL is Time To Live (TTL) for dependencies data. Should at least be 1 second
 	DependenciesTTL time.Duration `mapstructure:"dependencies_ttl" valid:"optional,cassandraTTLValidation"`
 	// Replication factor for the db
 	ReplicationFactor int `mapstructure:"replication_factor" valid:"optional"`
 	// CasVersion is version of cassandra used
 	CasVersion int `mapstructure:"cas_version" valid:"optional"`
-	// CompactionWindow of format "^[0-9]+[mhd]$" tells the compaction window of the db
+	// CompactionWindow of format tells the compaction window of the db. Should atleast be 1 minute
 	CompactionWindow time.Duration `mapstructure:"compaction_window" valid:"optional,isDurationGreaterThanOrEqualMinute"`
 }
 
@@ -100,8 +100,8 @@ func DefaultConfiguration() Configuration {
 		Schema: Schema{
 			Keyspace:          "jaeger_v1_dc1",
 			Datacenter:        "test",
-			TraceTTL:          172800 * time.Second,
-			DependenciesTTL:   172800 * time.Second,
+			TraceTTL:          2 * 24 * time.Hour,
+			DependenciesTTL:   2 * 24 * time.Hour,
 			ReplicationFactor: 1,
 			CasVersion:        4,
 			CompactionWindow:  time.Minute,

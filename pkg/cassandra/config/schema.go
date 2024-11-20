@@ -21,17 +21,16 @@ type TemplateParams struct {
 	Schema
 	// Replication is the replication strategy used
 	Replication string `mapstructure:"replication" valid:"optional"`
-	// CompactionWindowSize is the numberical part of CompactionWindow. Extracted from CompactionWindow
+	// CompactionWindowInMinutes is constructed from CompactionWindow for using in template
 	CompactionWindowInMinutes int64 `mapstructure:"compaction_window_size"`
 	// CompactionWindowUnit is the time unit of the CompactionWindow. Extracted from CompactionWindow
 	CompactionWindowUnit string `mapstructure:"compaction_window_unit"`
-
+	// TraceTTLInSeconds is constructed from TraceTTL for using in template
 	TraceTTLInSeconds int64
-
+	// DependenciesTTLInSeconds is constructed from DependenciesTTL for using in template
 	DependenciesTTLInSeconds int64
 }
 
-// Applies defaults for the configs and contructs other optional parameters from it
 func constructTemplateParams(cfg Schema) (TemplateParams, error) {
 	params := TemplateParams{
 		Schema: cfg,
