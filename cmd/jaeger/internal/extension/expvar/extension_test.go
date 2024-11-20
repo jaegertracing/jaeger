@@ -13,6 +13,7 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/storage/storagetest"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/config/confighttp"
 	"go.uber.org/zap/zaptest"
 )
 
@@ -30,7 +31,9 @@ func TestExpvarExtension(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			config := &Config{
-				Port: Port,
+				ServerConfig: confighttp.ServerConfig{
+					Endpoint: "0.0.0.0:27777",
+				},
 			}
 			s := newExtension(config, component.TelemetrySettings{
 				Logger: zaptest.NewLogger(t),

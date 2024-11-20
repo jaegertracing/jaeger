@@ -5,10 +5,11 @@ package expvar
 
 import (
 	"github.com/asaskevich/govalidator"
+	"go.opentelemetry.io/collector/config/confighttp"
 )
 
 type Config struct {
-	Port int `mapstructure:"port"`
+	confighttp.ServerConfig `mapstructure:"embed"`
 }
 
 func (cfg *Config) Validate() error {
