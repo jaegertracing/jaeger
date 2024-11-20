@@ -8,6 +8,7 @@ import (
 	"errors"
 	"net"
 	"testing"
+	"time"
 
 	"github.com/gogo/protobuf/types"
 	"github.com/stretchr/testify/assert"
@@ -125,6 +126,8 @@ func TestGetTraceTraceIDError(t *testing.T) {
 
 	getTraceStream, err := tsc.client.GetTrace(context.Background(), &api_v3.GetTraceRequest{
 		TraceId: "Z",
+		StartTime: time.Unix(1, 2),
+		EndTime: time.Unix(3, 4),
 	})
 	require.NoError(t, err)
 	recv, err := getTraceStream.Recv()
