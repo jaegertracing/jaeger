@@ -91,8 +91,8 @@ func (g *GRPCHandler) GetTrace(r *api_v2.GetTraceRequest, stream api_v2.QuerySer
 	}
 	query := spanstore.TraceGetParameters{
 		TraceID:   r.TraceID,
-		StartTime: r.StartTime,
-		EndTime:   r.EndTime,
+		StartTime: &r.StartTime,
+		EndTime:   &r.EndTime,
 	}
 	trace, err := g.queryService.GetTrace(stream.Context(), query)
 	if errors.Is(err, spanstore.ErrTraceNotFound) {

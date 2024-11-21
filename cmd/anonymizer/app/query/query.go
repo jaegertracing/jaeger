@@ -61,13 +61,11 @@ func (q *Query) QueryTrace(traceID string, startTime int64, endTime int64) ([]mo
 	}
 
 	if startTime != -1 {
-		t := time.UnixMicro(startTime)
-		request.StartTime = &t
+		request.StartTime = time.UnixMicro(startTime)
 	}
 
 	if endTime != -1 {
-		t := time.UnixMicro(endTime)
-		request.EndTime = &t
+		request.EndTime = time.UnixMicro(endTime)
 	}
 
 	stream, err := q.client.GetTrace(context.Background(), &request)

@@ -209,8 +209,8 @@ func TestGetTraceSuccessGRPC(t *testing.T) {
 
 		res, err := client.GetTrace(context.Background(), &api_v2.GetTraceRequest{
 			TraceID:   mockTraceID,
-			StartTime: &startTime,
-			EndTime:   &endTime,
+			StartTime: startTime,
+			EndTime:   endTime,
 		})
 
 		spanResChunk, _ := res.Recv()

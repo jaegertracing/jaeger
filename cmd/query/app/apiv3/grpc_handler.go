@@ -7,7 +7,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -38,15 +37,9 @@ func (h *Handler) GetTrace(request *api_v3.GetTraceRequest, stream api_v3.QueryS
 	}
 
 	startTime := request.GetStartTime()
-	if startTime != nil {
-		ts := time.Unix(startTime.GetSeconds(), int64(startTime.GetNanos()))
-		query.StartTime = &ts
-	}
+	query.StartTime = &startTime
 	endTime := request.GetEndTime()
-	if endTime != nil {
-		ts := time.Unix(endTime.GetSeconds(), int64(endTime.GetNanos()))
-		query.EndTime = &ts
-	}
+	query.EndTime = &endTime
 
 	trace, err := h.QueryService.GetTrace(stream.Context(), query)
 	if err != nil {
