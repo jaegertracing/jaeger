@@ -66,7 +66,7 @@ check_service_health() {
 wait_for_services() {
   echo "Waiting for services to be up and running..."
   check_service_health "Jaeger" "http://localhost:16686"
-  check_service_health "Prometheus" "http://localhost:9090/graph"
+  check_service_health "Prometheus" "http://localhost:9090/query"
 }
 
 # Function to validate the service metrics

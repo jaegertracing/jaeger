@@ -17,7 +17,7 @@ func TestNewLogger(t *testing.T) {
 	logger, log := NewLogger()
 	logger.Warn("hello", zap.String("x", "y"))
 
-	assert.Equal(t, `{"level":"warn","msg":"hello","x":"y"}`, log.Lines()[0])
+	assert.JSONEq(t, `{"level":"warn","msg":"hello","x":"y"}`, log.Lines()[0])
 	assert.Equal(t, map[string]string{
 		"level": "warn",
 		"msg":   "hello",

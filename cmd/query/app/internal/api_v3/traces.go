@@ -33,9 +33,18 @@ func (td *TracesData) Marshal() ([]byte, error) {
 }
 
 // MarshalTo implements gogocodec.CustomType.
-func (*TracesData) MarshalTo([]byte /* data */) (n int, err error) {
-	// TODO unclear when this might be called, perhaps when type is embedded inside other structs.
-	panic("unimplemented")
+func (td *TracesData) MarshalTo(buf []byte) (n int, err error) {
+	return td.MarshalToSizedBuffer(buf)
+}
+
+// MarshalToSizedBuffer is used by Gogo.
+func (td *TracesData) MarshalToSizedBuffer(buf []byte) (int, error) {
+	data, err := td.Marshal()
+	if err != nil {
+		return 0, err
+	}
+	n := copy(buf, data)
+	return n, nil
 }
 
 // MarshalJSONPB implements gogocodec.CustomType.

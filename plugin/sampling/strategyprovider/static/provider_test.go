@@ -495,7 +495,7 @@ func TestServiceNoPerOperationStrategies(t *testing.T) {
 			expectedServiceResponse, err := os.ReadFile(snapshotFile)
 			require.NoError(t, err)
 
-			assert.Equal(t, string(expectedServiceResponse), string(strategyJson),
+			assert.JSONEq(t, string(expectedServiceResponse), string(strategyJson),
 				"comparing against stored snapshot. Use REGENERATE_SNAPSHOTS=true to rebuild snapshots.")
 
 			if regenerateSnapshots {
@@ -527,7 +527,7 @@ func TestServiceNoPerOperationStrategiesDeprecatedBehavior(t *testing.T) {
 			expectedServiceResponse, err := os.ReadFile(snapshotFile)
 			require.NoError(t, err)
 
-			assert.Equal(t, string(expectedServiceResponse), string(strategyJson),
+			assert.JSONEq(t, string(expectedServiceResponse), string(strategyJson),
 				"comparing against stored snapshot. Use REGENERATE_SNAPSHOTS=true to rebuild snapshots.")
 
 			if regenerateSnapshots {

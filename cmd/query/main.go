@@ -12,6 +12,9 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"go.opentelemetry.io/collector/config/configtelemetry"
+	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/metric/noop"
 	_ "go.uber.org/automaxprocs"
 	"go.uber.org/zap"
 
@@ -108,6 +111,9 @@ func main() {
 				Logger:         logger,
 				TracerProvider: jt.OTEL,
 				ReportStatus:   telemetery.HCAdapter(svc.HC()),
+				LeveledMeterProvider: func(_ configtelemetry.Level) metric.MeterProvider {
+					return noop.NewMeterProvider()
+				},
 			}
 			server, err := app.NewServer(context.Background(), queryService, metricsQueryService, queryOpts, tm, telset)
 			if err != nil {

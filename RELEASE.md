@@ -1,7 +1,6 @@
 # Jaeger Overall Release Process
 
-1. Determine new version numbers for v1.x.x and v2.x.x-rcN
-    * v2 version is currently in the form v2.0.0-rcN where N is the next number since the last release.
+1. Determine new version numbers for v1.x.x and v2.x.x
 2. Perform UI release according to https://github.com/jaegertracing/jaeger-ui/blob/main/RELEASE.md
 3. Perform Backend release (see below)
 4. [Publish documentation](https://github.com/jaegertracing/documentation/blob/main/RELEASE.md) for the new version on `jaegertracing.io`.
@@ -11,8 +10,8 @@
 
 # Jaeger Backend Release Process
 
-1. Create a PR "Prepare release 1.x.x / 2.x.x-rcN" against main or maintenance branch ([example](https://github.com/jaegertracing/jaeger/pull/543/files)) by updating CHANGELOG.md to include:
-    * A new section with the header `1.x.x / 2.x.x-rcN (YYYY-MM-DD)` (copy the template at the top)
+1. Create a PR "Prepare release 1.x.x / 2.x.x" against main or maintenance branch ([example](https://github.com/jaegertracing/jaeger/pull/543/files)) by updating CHANGELOG.md to include:
+    * A new section with the header `1.x.x / 2.x.x (YYYY-MM-DD)` (copy the template at the top)
     * A curated list of notable changes and links to PRs. Do not simply dump git log, select the changes that affect the users.
       To obtain the list of all changes run `make changelog`.
     * The section can be split into sub-section if necessary, e.g. UI Changes, Backend Changes, Bug Fixes, etc.
@@ -41,7 +40,7 @@
     * Automated:
        * `make draft-release`
     * Manual:
-       * Title "Release 1.x.x / 2.x.x-rcN"
+       * Title "Release 1.x.x / 2.x.x"
        * Tag `v1.x.x` (note the `v` prefix) and choose appropriate branch (usually `main`)
        * Copy the new CHANGELOG.md section into the release notes
        * Extra: GitHub has a button "generate release notes". Those are not formatted as we want,
@@ -79,8 +78,8 @@ Here are the release managers for future versions with the tentative release dat
 
 | Version | Release Manager | Tentative release date |
 |---------|-----------------|------------------------|
-| 1.63.0  | @pavolloffay    | 5 November 2024        |
 | 1.64.0  | @joe-elliott    | 4 December 2024        |
 | 1.65.0  | @jkowall        | 8 January 2025         |
 | 1.66.0  | @yurishkuro     | 3 February 2025        |
 | 1.67.0  | @albertteoh     | 5 March 2025           |
+| 1.68.0  | @pavolloffay    | 5 April 2025           |
