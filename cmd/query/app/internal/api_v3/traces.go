@@ -43,8 +43,8 @@ func (td *TracesData) MarshalToSizedBuffer(buf []byte) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	copy(buf, data)
-	return len(data), nil
+	n := copy(buf, data)
+	return n, nil
 }
 
 // MarshalJSONPB implements gogocodec.CustomType.
