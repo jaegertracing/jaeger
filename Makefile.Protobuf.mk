@@ -138,7 +138,6 @@ patch-api-v3:
 .PHONY: proto-api-v3
 proto-api-v3: patch-api-v3
 	$(call proto_compile, $(API_V3_PATH), $(API_V3_PATCHED), -I$(API_V3_PATCHED_DIR) -Iidl/opentelemetry-proto)
-	#$(call proto_compile, $(API_V3_PATH), query_service.proto, -I$(API_V3_PATCHED_DIR) -Iidl/opentelemetry-proto)
 	@echo "🏗️  replace TracesData with internal custom type"
 	$(SED) -i 's/v1.TracesData/TracesData/g' $(API_V3_PATH)/query_service.pb.go
 	@echo "🏗️  remove OTEL import because we're not using any other OTLP types"
