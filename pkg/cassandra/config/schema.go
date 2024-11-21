@@ -134,8 +134,7 @@ func GenerateSchemaIfNotPresent(session cassandra.Session, cfg *Schema) error {
 	}
 
 	for _, query := range casQueries {
-		err := query.Exec()
-		if err != nil {
+		if err := query.Exec(); err != nil {
 			return err
 		}
 	}
