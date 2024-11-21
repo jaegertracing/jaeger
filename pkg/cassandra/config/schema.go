@@ -19,12 +19,10 @@ var schemaFile embed.FS
 
 type TemplateParams struct {
 	Schema
-	// Replication is the replication strategy used
-	Replication string `mapstructure:"replication" valid:"optional"`
+	// Replication is the replication strategy used. Ex: "{'class': 'NetworkTopologyStrategy', 'replication_factor': '1' }"
+	Replication string
 	// CompactionWindowInMinutes is constructed from CompactionWindow for using in template
-	CompactionWindowInMinutes int64 `mapstructure:"compaction_window_size"`
-	// CompactionWindowUnit is the time unit of the CompactionWindow. Extracted from CompactionWindow
-	CompactionWindowUnit string `mapstructure:"compaction_window_unit"`
+	CompactionWindowInMinutes int64
 	// TraceTTLInSeconds is constructed from TraceTTL for using in template
 	TraceTTLInSeconds int64
 	// DependenciesTTLInSeconds is constructed from DependenciesTTL for using in template
@@ -38,7 +36,6 @@ func constructTemplateParams(cfg Schema) (TemplateParams, error) {
 
 	params.Replication = fmt.Sprintf("{'class': 'NetworkTopologyStrategy', 'replication_factor': '%v' }", params.ReplicationFactor)
 	params.CompactionWindowInMinutes = int64(params.CompactionWindow / time.Minute)
-	params.CompactionWindowUnit = "MINUTES"
 	params.TraceTTLInSeconds = int64(params.TraceTTL / time.Second)
 	params.DependenciesTTLInSeconds = int64(params.DependenciesTTL / time.Second)
 

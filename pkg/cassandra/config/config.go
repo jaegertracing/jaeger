@@ -58,6 +58,8 @@ type Schema struct {
 	// while connecting to the Cassandra Cluster. This is useful for connecting to clusters, like Azure Cosmos DB,
 	// that do not support SnappyCompression.
 	DisableCompression bool `mapstructure:"disable_compression"`
+	// CreateSchema tells if the schema ahould be created during session initialization based on the configs provided
+	CreateSchema bool `mapstructure:"create" valid:"optional"`
 	// Datacenter is the name for network topology
 	Datacenter string `mapstructure:"datacenter" valid:"optional"`
 	// TraceTTL is Time To Live (TTL) for the trace data. Should at least be 1 second
@@ -98,6 +100,7 @@ type BasicAuthenticator struct {
 func DefaultConfiguration() Configuration {
 	return Configuration{
 		Schema: Schema{
+			CreateSchema:      false,
 			Keyspace:          "jaeger_v1_dc1",
 			Datacenter:        "test",
 			TraceTTL:          2 * 24 * time.Hour,
@@ -178,10 +181,10 @@ type SessionBuilder interface {
 }
 
 func (c *Configuration) newSessionPrerequisites() error {
-	cluster, err := c.NewCluster()
-	if err != nil {
-		return err
+	if !c.Schema.CreateSchema {
+		return nil
 	}
+	cluster, err := c.NewCluster()
 
 	cluster.Keyspace = ""
 

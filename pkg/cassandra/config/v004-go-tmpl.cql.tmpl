@@ -46,7 +46,7 @@ CREATE TABLE IF NOT EXISTS {{.Keyspace}}.traces (
 )
     WITH compaction = {
         'compaction_window_size': '{{.CompactionWindowInMinutes}}',
-        'compaction_window_unit': '{{.CompactionWindowUnit}}',
+        'compaction_window_unit': 'MINUTES',
         'class': 'org.apache.cassandra.db.compaction.TimeWindowCompactionStrategy'
     }
     AND default_time_to_live = {{.TraceTTLInSeconds}}
