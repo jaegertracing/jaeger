@@ -46,7 +46,7 @@ extensions:
     grpc:
 
   expvar:
-    endpoint: "0.0.0.0:27777"
+    endpoint: "${env:JAEGER_LISTEN_HOST:-localhost}:27777"
 
 receivers:
   otlp:
