@@ -13,6 +13,7 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/storage/storagetest"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/config/configauth"
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.uber.org/zap/zaptest"
 )
@@ -53,4 +54,22 @@ func TestExpvarExtension(t *testing.T) {
 			}, 5*time.Second, 100*time.Millisecond)
 		})
 	}
+}
+
+func TestExpvarExtension_StartError(t *testing.T) {
+	config := &Config{
+		ServerConfig: confighttp.ServerConfig{
+			Endpoint: "0.0.0.0:27777",
+			Auth: &confighttp.AuthConfig{
+				Authentication: configauth.Authentication{
+					AuthenticatorID: component.MustNewID("invalid_auth"),
+				},
+			},
+		},
+	}
+	s := newExtension(config, component.TelemetrySettings{
+		Logger: zaptest.NewLogger(t),
+	})
+	err := s.Start(context.Background(), storagetest.NewStorageHost())
+	require.ErrorContains(t, err, "invalid_auth")
 }
