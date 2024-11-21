@@ -15,7 +15,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/pkg/es/client"
 )
 
@@ -74,10 +73,10 @@ func TestExecuteAction(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			v := viper.New()
-			tlsFlags := tlscfg.ClientFlagsConfig{Prefix: "es"}
+			tlfConfig := &ClientConfig{}
 			command := cobra.Command{}
 			flags := &flag.FlagSet{}
-			tlsFlags.AddFlags(flags)
+			tlfConfig.AddFlags(flags)
 			command.PersistentFlags().AddGoFlagSet(flags)
 			v.BindPFlags(command.PersistentFlags())
 			cmdLine := append([]string{"--es.tls.enabled=true"}, test.flags...)
@@ -85,10 +84,10 @@ func TestExecuteAction(t *testing.T) {
 			require.NoError(t, err)
 			executedAction := false
 			err = ExecuteAction(ActionExecuteOptions{
-				Args:     args,
-				Viper:    v,
-				Logger:   logger,
-				TLSFlags: tlsFlags,
+				Args:      args,
+				Viper:     v,
+				Logger:    logger,
+				TLSConfig: tlfConfig,
 			}, func(c client.Client, _ Config) Action {
 				assert.Equal(t, "https://localhost:9300", c.Endpoint)
 				transport, ok := c.Client.Transport.(*http.Transport)
