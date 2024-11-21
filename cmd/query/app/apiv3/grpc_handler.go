@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/gogo/protobuf/types"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -51,8 +50,8 @@ func (h *Handler) FindTraces(request *api_v3.FindTracesRequest, stream api_v3.Qu
 	if query == nil {
 		return status.Error(codes.InvalidArgument, "missing query")
 	}
-	if query.GetStartTimeMin() == nil ||
-		query.GetStartTimeMax() == nil {
+	if query.GetStartTimeMin().IsZero() ||
+		query.GetStartTimeMax().IsZero() {
 		return errors.New("start time min and max are required parameters")
 	}
 
@@ -60,35 +59,19 @@ func (h *Handler) FindTraces(request *api_v3.FindTracesRequest, stream api_v3.Qu
 		ServiceName:   query.GetServiceName(),
 		OperationName: query.GetOperationName(),
 		Tags:          query.GetAttributes(),
-		NumTraces:     int(query.GetNumTraces()),
+		NumTraces:     int(query.GetSearchDepth()),
 	}
-	if query.GetStartTimeMin() != nil {
-		startTimeMin, err := types.TimestampFromProto(query.GetStartTimeMin())
-		if err != nil {
-			return err
-		}
-		queryParams.StartTimeMin = startTimeMin
+	if ts := query.GetStartTimeMin(); !ts.IsZero() {
+		queryParams.StartTimeMin = ts
 	}
-	if query.GetStartTimeMax() != nil {
-		startTimeMax, err := types.TimestampFromProto(query.GetStartTimeMax())
-		if err != nil {
-			return err
-		}
-		queryParams.StartTimeMax = startTimeMax
+	if ts := query.GetStartTimeMax(); !ts.IsZero() {
+		queryParams.StartTimeMax = ts
 	}
-	if query.GetDurationMin() != nil {
-		durationMin, err := types.DurationFromProto(query.GetDurationMin())
-		if err != nil {
-			return err
-		}
-		queryParams.DurationMin = durationMin
+	if d := query.GetDurationMin(); d != 0 {
+		queryParams.DurationMin = d
 	}
-	if query.GetDurationMax() != nil {
-		durationMax, err := types.DurationFromProto(query.GetDurationMax())
-		if err != nil {
-			return err
-		}
-		queryParams.DurationMax = durationMax
+	if d := query.GetDurationMax(); d != 0 {
+		queryParams.DurationMax = d
 	}
 
 	traces, err := h.QueryService.FindTraces(stream.Context(), queryParams)
