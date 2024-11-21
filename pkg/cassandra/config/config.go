@@ -68,8 +68,6 @@ type Schema struct {
 	DependenciesTTL time.Duration `mapstructure:"dependencies_ttl" valid:"optional,cassandraTTLValidation"`
 	// Replication factor for the db
 	ReplicationFactor int `mapstructure:"replication_factor" valid:"optional"`
-	// CasVersion is version of cassandra used
-	CasVersion int `mapstructure:"cas_version" valid:"optional"`
 	// CompactionWindow of format tells the compaction window of the db. Should atleast be 1 minute
 	CompactionWindow time.Duration `mapstructure:"compaction_window" valid:"optional,isDurationGreaterThanOrEqualMinute"`
 }
@@ -106,7 +104,6 @@ func DefaultConfiguration() Configuration {
 			TraceTTL:          2 * 24 * time.Hour,
 			DependenciesTTL:   2 * 24 * time.Hour,
 			ReplicationFactor: 1,
-			CasVersion:        4,
 			CompactionWindow:  time.Minute,
 		},
 		Connection: Connection{
@@ -142,10 +139,6 @@ func (c *Configuration) ApplyDefaults(source *Configuration) {
 
 	if c.Schema.ReplicationFactor == 0 {
 		c.Schema.ReplicationFactor = source.Schema.ReplicationFactor
-	}
-
-	if c.Schema.CasVersion == 0 {
-		c.Schema.CasVersion = source.Schema.CasVersion
 	}
 
 	if c.Schema.CompactionWindow == 0 {
