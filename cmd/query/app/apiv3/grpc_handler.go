@@ -60,7 +60,7 @@ func (h *Handler) FindTraces(request *api_v3.FindTracesRequest, stream api_v3.Qu
 		ServiceName:   query.GetServiceName(),
 		OperationName: query.GetOperationName(),
 		Tags:          query.GetAttributes(),
-		NumTraces:     int(query.GetNumTraces()),
+		NumTraces:     int(query.GetSearchDepth()),
 	}
 	if query.GetStartTimeMin() != nil {
 		startTimeMin, err := types.TimestampFromProto(query.GetStartTimeMin())
