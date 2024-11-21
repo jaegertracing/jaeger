@@ -127,7 +127,7 @@ func contructSchemaQueries(session cassandra.Session, cfg *Schema) ([]cassandra.
 	return casQueries, nil
 }
 
-func GenerateSchemaIfNotPresent(session cassandra.Session, cfg *Schema) error {
+func generateSchemaIfNotPresent(session cassandra.Session, cfg *Schema) error {
 	casQueries, err := contructSchemaQueries(session, cfg)
 	if err != nil {
 		return err

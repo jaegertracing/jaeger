@@ -196,7 +196,7 @@ func (c *Configuration) newSessionPrerequisites() error {
 	wSession := gocqlw.WrapCQLSession(session)
 	defer wSession.Close()
 
-	return GenerateSchemaIfNotPresent(wSession, &c.Schema)
+	return generateSchemaIfNotPresent(wSession, &c.Schema)
 }
 
 // NewSession creates a new Cassandra session
