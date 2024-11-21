@@ -38,6 +38,16 @@ func (*TracesData) MarshalTo([]byte /* data */) (n int, err error) {
 	panic("unimplemented")
 }
 
+// MarshalToSizedBuffer is used by Gogo.
+func (td *TracesData) MarshalToSizedBuffer(buf []byte) (int, error) {
+	data, err := td.Marshal()
+	if err != nil {
+		return 0, err
+	}
+	copy(buf, data)
+	return len(data), nil
+}
+
 // MarshalJSONPB implements gogocodec.CustomType.
 func (td *TracesData) MarshalJSONPB(*jsonpb.Marshaler) ([]byte, error) {
 	return new(ptrace.JSONMarshaler).MarshalTraces(td.ToTraces())
