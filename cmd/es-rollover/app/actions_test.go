@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/cmd/agent/app"
 	"github.com/jaegertracing/jaeger/pkg/es/client"
 )
 
@@ -76,7 +77,7 @@ func TestExecuteAction(t *testing.T) {
 			tlfConfig := &ClientConfig{}
 			command := cobra.Command{}
 			flags := &flag.FlagSet{}
-			tlfConfig.AddFlags(flags)
+			app.AddFlags(flags)
 			command.PersistentFlags().AddGoFlagSet(flags)
 			v.BindPFlags(command.PersistentFlags())
 			cmdLine := append([]string{"--es.tls.enabled=true"}, test.flags...)

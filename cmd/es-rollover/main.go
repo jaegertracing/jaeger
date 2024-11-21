@@ -128,7 +128,7 @@ func main() {
 		},
 	}
 
-	addPersistentFlags(v, rootCmd, tlsConfig.AddFlags, app.AddFlags)
+	addPersistentFlags(v, rootCmd, app.AddFlags)
 	addSubCommand(v, rootCmd, initCommand, initCfg.AddFlags)
 	addSubCommand(v, rootCmd, rolloverCommand, rolloverCfg.AddFlags)
 	addSubCommand(v, rootCmd, lookbackCommand, lookbackCfg.AddFlags)

@@ -7,6 +7,8 @@ import (
 	"flag"
 
 	"github.com/spf13/viper"
+
+	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 )
 
 const (
@@ -35,6 +37,8 @@ type Config struct {
 	AdaptiveSampling bool
 }
 
+var tlsFlagsConfig = tlscfg.ClientFlagsConfig{Prefix: "es"}
+
 // AddFlags adds flags
 func AddFlags(flags *flag.FlagSet) {
 	flags.String(indexPrefix, "", "Index prefix")
@@ -46,6 +50,7 @@ func AddFlags(flags *flag.FlagSet) {
 	flags.Int(timeout, 120, "Number of seconds to wait for master node response")
 	flags.Bool(skipDependencies, false, "Disable rollover for dependencies index")
 	flags.Bool(adaptiveSampling, false, "Enable rollover for adaptive sampling index")
+	tlsFlagsConfig.AddFlags(flags)
 }
 
 // InitFromViper initializes config from viper.Viper.

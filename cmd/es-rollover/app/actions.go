@@ -6,7 +6,6 @@ package app
 import (
 	"context"
 	"crypto/tls"
-	"flag"
 	"net/http"
 	"time"
 
@@ -40,15 +39,6 @@ type Action interface {
 type ClientConfig struct {
 	configtls.ClientConfig `mapstructure:",squash"`
 	Enabled                bool
-}
-
-func (c *ClientConfig) AddFlags(flags *flag.FlagSet) {
-	flags.BoolVar(&c.Enabled, "es.tls.enabled", false, "Enable TLS when talking to the remote server(s)")
-	flags.StringVar(&c.CAFile, "es.tls.ca", "", "Path to a TLS CA (Certification Authority) file used to verify the remote server(s) (by default will use the system truststore)")
-	flags.StringVar(&c.CertFile, "es.tls.cert", "", "Path to a TLS Certificate file, used to identify this process to the remote server(s)")
-	flags.StringVar(&c.KeyFile, "es.tls.key", "", "Path to a TLS Private Key file, used to identify this process to the remote server(s)")
-	flags.StringVar(&c.ServerName, "es.tls.server-name", "", "Override the TLS server name we expect in the certificate of the remote server(s)")
-	flags.BoolVar(&c.InsecureSkipVerify, "es.tls.skip-host-verify", false, "(insecure) Skip server's certificate chain and host name verification")
 }
 
 // ActionExecuteOptions are the options passed to the execute action function
