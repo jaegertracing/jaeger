@@ -201,8 +201,7 @@ func (c *Configuration) newSessionPrerequisites() error {
 
 // NewSession creates a new Cassandra session
 func (c *Configuration) NewSession() (cassandra.Session, error) {
-	err := c.newSessionPrerequisites()
-	if err != nil {
+	if err := c.newSessionPrerequisites(); err != nil {
 		return nil, err
 	}
 
