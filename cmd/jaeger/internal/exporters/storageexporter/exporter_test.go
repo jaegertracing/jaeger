@@ -27,6 +27,7 @@ import (
 	"github.com/jaegertracing/jaeger/plugin/storage/memory"
 	"github.com/jaegertracing/jaeger/storage"
 	factoryMocks "github.com/jaegertracing/jaeger/storage/mocks"
+	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
 type mockStorageExt struct {
@@ -152,7 +153,7 @@ func TestExporter(t *testing.T) {
 	spanReader, err := storageFactory.CreateSpanReader()
 	require.NoError(t, err)
 	requiredTraceID := model.NewTraceID(0, 1) // 00000000000000000000000000000001
-	requiredTrace, err := spanReader.GetTrace(ctx, requiredTraceID)
+	requiredTrace, err := spanReader.GetTrace(ctx, spanstore.GetTraceParameters{TraceID: requiredTraceID})
 	require.NoError(t, err)
 	assert.Equal(t, spanID.String(), requiredTrace.Spans[0].SpanID.String())
 

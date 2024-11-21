@@ -60,13 +60,13 @@ func NewQueryService(spanReader spanstore.Reader, dependencyReader dependencysto
 }
 
 // GetTrace is the queryService implementation of spanstore.Reader.GetTrace
-func (qs QueryService) GetTrace(ctx context.Context, traceID model.TraceID) (*model.Trace, error) {
-	trace, err := qs.spanReader.GetTrace(ctx, traceID)
+func (qs QueryService) GetTrace(ctx context.Context, query spanstore.GetTraceParameters) (*model.Trace, error) {
+	trace, err := qs.spanReader.GetTrace(ctx, query)
 	if errors.Is(err, spanstore.ErrTraceNotFound) {
 		if qs.options.ArchiveSpanReader == nil {
 			return nil, err
 		}
-		trace, err = qs.options.ArchiveSpanReader.GetTrace(ctx, traceID)
+		trace, err = qs.options.ArchiveSpanReader.GetTrace(ctx, query)
 	}
 	return trace, err
 }
@@ -90,11 +90,11 @@ func (qs QueryService) FindTraces(ctx context.Context, query *spanstore.TraceQue
 }
 
 // ArchiveTrace is the queryService utility to archive traces.
-func (qs QueryService) ArchiveTrace(ctx context.Context, traceID model.TraceID) error {
+func (qs QueryService) ArchiveTrace(ctx context.Context, query spanstore.GetTraceParameters) error {
 	if qs.options.ArchiveSpanWriter == nil {
 		return errNoArchiveSpanStorage
 	}
-	trace, err := qs.GetTrace(ctx, traceID)
+	trace, err := qs.GetTrace(ctx, query)
 	if err != nil {
 		return err
 	}
