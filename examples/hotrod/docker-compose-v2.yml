@@ -4,6 +4,9 @@
 services:
   jaeger:
     image: ${REGISTRY:-}jaegertracing/jaeger:${JAEGER_VERSION:-latest}
+    command:
+      - --set=receivers.otlp.protocols.grpc.endpoint="0.0.0.0:4317"
+      - --set=receivers.otlp.protocols.http.endpoint="0.0.0.0:4318"
     ports:
       - "16686:16686"
       - "4317:4317"
