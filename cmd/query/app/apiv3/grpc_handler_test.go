@@ -83,7 +83,9 @@ func TestGetTrace(t *testing.T) {
 	traceId, _ := model.TraceIDFromString(traceIdLiteral)
 
 	expectedTraceGetParameters := spanstore.TraceGetParameters{
-		TraceID: traceId,
+		TraceID:   traceId,
+		StartTime: &time.Time{},
+		EndTime:   &time.Time{},
 	}
 	tsc.reader.On("GetTrace", matchContext, expectedTraceGetParameters).Return(
 		&model.Trace{
@@ -113,8 +115,8 @@ func TestGetTraceWithTimeWindow(t *testing.T) {
 	traceIdLiteral := "156"
 	traceId, _ := model.TraceIDFromString(traceIdLiteral)
 
-	start_ts := time.Unix(1, 2)
-	end_ts := time.Unix(3, 4)
+	start_ts := time.Unix(1, 2).UTC()
+	end_ts := time.Unix(3, 4).UTC()
 	expectedTraceGetParameters := spanstore.TraceGetParameters{
 		TraceID:   traceId,
 		StartTime: &start_ts,
@@ -132,8 +134,8 @@ func TestGetTraceWithTimeWindow(t *testing.T) {
 	getTraceStream, err := tsc.client.GetTrace(context.Background(),
 		&api_v3.GetTraceRequest{
 			TraceId:   traceIdLiteral,
-			StartTime: &types.Timestamp{Seconds: 1, Nanos: 2},
-			EndTime:   &types.Timestamp{Seconds: 3, Nanos: 4},
+			StartTime: start_ts,
+			EndTime:   end_ts,
 		},
 	)
 	require.NoError(t, err)
