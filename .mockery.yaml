@@ -5,6 +5,8 @@ dir: "{{.InterfaceDir}}/mocks/"
 mockname: "{{.InterfaceName}}"
 filename: "{{.InterfaceName}}.go"
 boilerplate-file: .mockery.header.txt
+issue-845-fix: true
+resolve-type-alias: false
 packages:
   github.com/jaegertracing/jaeger/cmd/collector/app/sanitizer/cache:
     interfaces:
