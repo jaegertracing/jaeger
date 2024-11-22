@@ -567,8 +567,8 @@ github.com/uudashr/gocognit v1.1.3 h1:l+a111VcDbKfynh+airAy/DJQKaXh2m9vkoysMPSZy
 github.com/uudashr/gocognit v1.1.3/go.mod h1:aKH8/e8xbTRBwjbCkwZ8qt4l2EpKXl31KMHgSS+lZ2U=
 github.com/uudashr/iface v1.2.0 h1:ECJjh5q/1Zmnv/2yFpWV6H3oMg5+Mo+vL0aqw9Gjazo=
 github.com/uudashr/iface v1.2.0/go.mod h1:Ux/7d/rAF3owK4m53cTVXL4YoVHKNqnoOeQHn2xrlp0=
-github.com/vektra/mockery/v2 v2.47.0 h1:/OgQNNsUxwKCC8rt6cRXxvfj7/f9mYrCbX4m/tcZpFQ=
-github.com/vektra/mockery/v2 v2.47.0/go.mod h1:xO2DeYemEPC2tCzIZ+a1tifZ/7Laf/Chxg3vlc+oDsI=
+github.com/vektra/mockery/v2 v2.49.0 h1:KFJKqRa0zd4h+ntM+JFr9Z6fIz++CUgAAogPWnwTwJY=
+github.com/vektra/mockery/v2 v2.49.0/go.mod h1:xO2DeYemEPC2tCzIZ+a1tifZ/7Laf/Chxg3vlc+oDsI=
 github.com/xen0n/gosmopolitan v1.2.2 h1:/p2KTnMzwRexIW8GlKawsTWOxn7UHA+jCMF/V8HHtvU=
 github.com/xen0n/gosmopolitan v1.2.2/go.mod h1:7XX7Mj61uLYrj0qmeN0zi7XDon9JRAEhYQqAPLVNTeg=
 github.com/yagipy/maintidx v1.0.0 h1:h5NvIsCz+nRDapQ0exNv4aJ0yXSI0420omVANTv3GJM=

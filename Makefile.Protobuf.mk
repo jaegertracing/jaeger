@@ -22,7 +22,6 @@ PATCHED_OTEL_PROTO_DIR = proto-gen/.patched-otel-proto
 
 PROTO_INCLUDES := \
 	-Iidl/proto/api_v2 \
-	-Iidl/proto/api_v3 \
 	-Imodel/proto/metrics \
 	-I/usr/include/github.com/gogo/protobuf
 
@@ -127,9 +126,18 @@ proto-zipkin:
 # Note that the .pb.go types must be generated into the same internal package $(API_V3_PATH)
 # where a manually defined traces.go file is located.
 API_V3_PATH=cmd/query/app/internal/api_v3
+API_V3_PATCHED_DIR=proto-gen/.patched/api_v3
+API_V3_PATCHED=$(API_V3_PATCHED_DIR)/query_service.proto
+.PHONY: patch-api-v3
+patch-api-v3:
+	mkdir -p $(API_V3_PATCHED_DIR)
+	cat idl/proto/api_v3/query_service.proto | \
+		$(SED) -f ./proto-gen/patch-api-v3.sed \
+		> $(API_V3_PATCHED)
+
 .PHONY: proto-api-v3
-proto-api-v3:
-	$(call proto_compile, $(API_V3_PATH), idl/proto/api_v3/query_service.proto, -Iidl/opentelemetry-proto)
+proto-api-v3: patch-api-v3
+	$(call proto_compile, $(API_V3_PATH), $(API_V3_PATCHED), -I$(API_V3_PATCHED_DIR) -Iidl/opentelemetry-proto)
 	@echo "🏗️  replace TracesData with internal custom type"
 	$(SED) -i 's/v1.TracesData/TracesData/g' $(API_V3_PATH)/query_service.pb.go
 	@echo "🏗️  remove OTEL import because we're not using any other OTLP types"

@@ -5,8 +5,10 @@ package expvar
 
 import (
 	"context"
+	"fmt"
 
 	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/extension"
 )
 
@@ -27,7 +29,9 @@ func NewFactory() extension.Factory {
 
 func createDefaultConfig() component.Config {
 	return &Config{
-		Port: Port,
+		ServerConfig: confighttp.ServerConfig{
+			Endpoint: fmt.Sprintf("0.0.0.0:%d", Port),
+		},
 	}
 }
 
