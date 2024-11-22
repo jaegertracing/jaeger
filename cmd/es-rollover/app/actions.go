@@ -71,6 +71,7 @@ func getTLSConfig(tlsConfig *ClientConfig, logger *zap.Logger) (*tls.Config, err
 func ExecuteAction(opts ActionExecuteOptions, createAction ActionCreatorFunction) error {
 	cfg := Config{}
 	cfg.InitFromViper(opts.Viper)
+	opts.TLSConfig.InitFromViper(opts.Viper)
 	tlsCfg, err := getTLSConfig(opts.TLSConfig, opts.Logger)
 	if err != nil {
 		return err
