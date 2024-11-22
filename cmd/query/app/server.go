@@ -18,6 +18,7 @@ import (
 	"go.opentelemetry.io/collector/component/componentstatus"
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.uber.org/zap"
+	"golang.org/x/net/http2"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health"
 	"google.golang.org/grpc/health/grpc_health_v1"
@@ -235,6 +236,7 @@ func createHTTPServer(
 			return nil, errors.Join(err, staticHandlerCloser.Close())
 		}
 		server.TLSConfig = tlsCfg
+		server.TLSConfig.NextProtos = []string{http2.NextProtoTLS, "http/1.1"}
 	}
 
 	return server, nil
@@ -327,12 +329,7 @@ func (s *Server) Start(ctx context.Context) error {
 	go func() {
 		defer s.bgFinished.Done()
 		s.Logger.Info("Starting HTTP server", zap.Int("port", httpPort), zap.String("addr", s.queryOptions.HTTP.Endpoint))
-		var err error
-		if s.queryOptions.HTTP.TLSSetting != nil {
-			err = s.httpServer.ServeTLS(s.httpConn, "", "")
-		} else {
-			err = s.httpServer.Serve(s.httpConn)
-		}
+		err := s.httpServer.Serve(s.httpConn)
 		if err != nil && !errors.Is(err, http.ErrServerClosed) && !errors.Is(err, cmux.ErrListenerClosed) && !errors.Is(err, cmux.ErrServerClosed) {
 			s.Logger.Error("Could not start HTTP server", zap.Error(err))
 			s.ReportStatus(componentstatus.NewFatalErrorEvent(err))
