@@ -18,7 +18,6 @@ import (
 	"go.opentelemetry.io/collector/component/componentstatus"
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.uber.org/zap"
-	"golang.org/x/net/http2"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health"
 	"google.golang.org/grpc/health/grpc_health_v1"
@@ -227,16 +226,6 @@ func createHTTPServer(
 	server := &httpServer{
 		Server:              hs,
 		staticHandlerCloser: staticHandlerCloser,
-	}
-
-	// TODO why doesn't OTEL helper do that already?
-	if queryOpts.HTTP.TLSSetting != nil {
-		tlsCfg, err := queryOpts.HTTP.TLSSetting.LoadTLSConfig(ctx) // This checks if the certificates are correctly provided
-		if err != nil {
-			return nil, errors.Join(err, staticHandlerCloser.Close())
-		}
-		server.TLSConfig = tlsCfg
-		server.TLSConfig.NextProtos = []string{http2.NextProtoTLS, "http/1.1"}
 	}
 
 	return server, nil
