@@ -73,10 +73,10 @@ func TestExecuteAction(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			v := viper.New()
-			tlsConfig := &ClientConfig{}
 			command := cobra.Command{}
 			flags := &flag.FlagSet{}
-			tlsConfig.AddFlags(flags)
+			AddTLSFlags(flags)
+			AddFlags(flags)
 			command.PersistentFlags().AddGoFlagSet(flags)
 			v.BindPFlags(command.PersistentFlags())
 			cmdLine := append([]string{"--es.tls.enabled=true"}, test.flags...)
@@ -84,10 +84,9 @@ func TestExecuteAction(t *testing.T) {
 			require.NoError(t, err)
 			executedAction := false
 			err = ExecuteAction(ActionExecuteOptions{
-				Args:      args,
-				Viper:     v,
-				Logger:    logger,
-				TLSConfig: tlsConfig,
+				Args:   args,
+				Viper:  v,
+				Logger: logger,
 			}, func(c client.Client, _ Config) Action {
 				assert.Equal(t, "https://localhost:9300", c.Endpoint)
 				transport, ok := c.Client.Transport.(*http.Transport)

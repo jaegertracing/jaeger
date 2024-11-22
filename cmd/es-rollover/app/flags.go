@@ -7,6 +7,7 @@ import (
 	"flag"
 
 	"github.com/spf13/viper"
+	"go.opentelemetry.io/collector/config/configtls"
 
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 )
@@ -37,6 +38,7 @@ type Config struct {
 	Timeout          int
 	SkipDependencies bool
 	AdaptiveSampling bool
+	TLSConfig        configtls.ClientConfig
 }
 
 // AddFlags adds flags
@@ -52,12 +54,12 @@ func AddFlags(flags *flag.FlagSet) {
 	flags.Bool(adaptiveSampling, false, "Enable rollover for adaptive sampling index")
 }
 
-func (ClientConfig) AddFlags(flags *flag.FlagSet) {
+func AddTLSFlags(flags *flag.FlagSet) {
 	tlsFlagsCfg.AddFlags(flags)
 }
 
 // InitFromViper initializes config from viper.Viper.
-func (c *Config) InitFromViper(v *viper.Viper) {
+func (c *Config) InitFromViper(v *viper.Viper) error {
 	c.IndexPrefix = v.GetString(indexPrefix)
 	if c.IndexPrefix != "" {
 		c.IndexPrefix += "-"
@@ -70,17 +72,10 @@ func (c *Config) InitFromViper(v *viper.Viper) {
 	c.Timeout = v.GetInt(timeout)
 	c.SkipDependencies = v.GetBool(skipDependencies)
 	c.AdaptiveSampling = v.GetBool(adaptiveSampling)
-}
-
-func (c *ClientConfig) InitFromViper(v *viper.Viper) error {
 	opts, err := tlsFlagsCfg.InitFromViper(v)
 	if err != nil {
 		return err
 	}
-	c.CAFile = opts.CAPath
-	c.CertFile = opts.CertPath
-	c.KeyFile = opts.KeyPath
-	c.ServerName = opts.ServerName
-	c.InsecureSkipVerify = opts.SkipHostVerify
+    c.TLSConfig = opts.ToOtelClientConfig()
 	return nil
 }
