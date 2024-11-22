@@ -461,15 +461,18 @@ func TestServerHTTPTLS(t *testing.T) {
 				require.NoError(t, err)
 				req.Header.Add("Accept", "application/json")
 
-				resp, err2 := client.Do(req)
-				if err2 == nil {
-					resp.Body.Close()
-				}
+				resp, err := client.Do(req)
+				t.Cleanup(func() {
+					if err == nil {
+						resp.Body.Close()
+					}
+				})
 
 				if test.expectClientError {
-					require.Error(t, err2)
+					require.Error(t, err)
 				} else {
-					require.NoError(t, err2)
+					require.NoError(t, err)
+					require.Equal(t, resp.StatusCode, http.StatusOK)
 				}
 			}
 		})
