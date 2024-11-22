@@ -108,7 +108,7 @@ func TestCreateTLSGrpcServerError(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestCreateTLSHttpServerError(t *testing.T) {
+func TestStartTLSHttpServerError(t *testing.T) {
 	tlsCfg := configtls.ServerConfig{
 		ClientCAFile: "invalid/path",
 		Config: configtls.Config{
@@ -117,12 +117,16 @@ func TestCreateTLSHttpServerError(t *testing.T) {
 		},
 	}
 	telset := initTelSet(zaptest.NewLogger(t), jtracer.NoOp(), healthcheck.New())
-	_, err := NewServer(context.Background(), &querysvc.QueryService{}, nil,
+	s, err := NewServer(context.Background(), &querysvc.QueryService{}, nil,
 		&QueryOptions{
 			HTTP: confighttp.ServerConfig{Endpoint: ":8080", TLSSetting: &tlsCfg},
 			GRPC: configgrpc.ServerConfig{NetAddr: confignet.AddrConfig{Endpoint: ":8081", Transport: confignet.TransportTypeTCP}},
 		}, tenancy.NewManager(&tenancy.Options{}), telset)
-	require.Error(t, err)
+	require.NoError(t, err)
+	require.Error(t, s.Start(context.Background()))
+	t.Cleanup(func() {
+		require.NoError(t, s.Close())
+	})
 }
 
 var testCases = []struct {
