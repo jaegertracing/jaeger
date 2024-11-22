@@ -18,7 +18,8 @@ import (
 var schemaFile embed.FS
 
 type TemplateParams struct {
-	Schema
+	// Keyspace in which tables and types will be created for storage
+	Keyspace string
 	// Replication is the replication strategy used. Ex: "{'class': 'NetworkTopologyStrategy', 'replication_factor': '1' }"
 	Replication string
 	// CompactionWindowInMinutes is constructed from CompactionWindow for using in template
@@ -29,17 +30,14 @@ type TemplateParams struct {
 	DependenciesTTLInSeconds int64
 }
 
-func constructTemplateParams(cfg Schema) (TemplateParams, error) {
-	params := TemplateParams{
-		Schema: cfg,
+func constructTemplateParams(cfg Schema) TemplateParams {
+	return TemplateParams{
+		Keyspace:                  cfg.Keyspace,
+		Replication:               fmt.Sprintf("{'class': 'NetworkTopologyStrategy', 'replication_factor': '%v' }", cfg.ReplicationFactor),
+		CompactionWindowInMinutes: int64(cfg.CompactionWindow / time.Minute),
+		TraceTTLInSeconds:         int64(cfg.TraceTTL / time.Second),
+		DependenciesTTLInSeconds:  int64(cfg.DependenciesTTL / time.Second),
 	}
-
-	params.Replication = fmt.Sprintf("{'class': 'NetworkTopologyStrategy', 'replication_factor': '%v' }", params.ReplicationFactor)
-	params.CompactionWindowInMinutes = int64(params.CompactionWindow / time.Minute)
-	params.TraceTTLInSeconds = int64(params.TraceTTL / time.Second)
-	params.DependenciesTTLInSeconds = int64(params.DependenciesTTL / time.Second)
-
-	return params, nil
 }
 
 func getQueryFileAsBytes(fileName string, params TemplateParams) ([]byte, error) {
@@ -107,10 +105,7 @@ func getCassandraQueriesFromQueryStrings(session cassandra.Session, queries []st
 }
 
 func contructSchemaQueries(session cassandra.Session, cfg *Schema) ([]cassandra.Query, error) {
-	params, err := constructTemplateParams(*cfg)
-	if err != nil {
-		return nil, err
-	}
+	params := constructTemplateParams(*cfg)
 
 	queryFile, err := getQueryFileAsBytes(`v004-go-tmpl.cql.tmpl`, params)
 	if err != nil {

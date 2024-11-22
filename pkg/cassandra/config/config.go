@@ -6,6 +6,7 @@ package config
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -63,13 +64,13 @@ type Schema struct {
 	// Datacenter is the name for network topology
 	Datacenter string `mapstructure:"datacenter" valid:"optional"`
 	// TraceTTL is Time To Live (TTL) for the trace data. Should at least be 1 second
-	TraceTTL time.Duration `mapstructure:"trace_ttl" valid:"optional,cassandraTTLValidation"`
+	TraceTTL time.Duration `mapstructure:"trace_ttl" valid:"optional"`
 	// DependenciesTTL is Time To Live (TTL) for dependencies data. Should at least be 1 second
-	DependenciesTTL time.Duration `mapstructure:"dependencies_ttl" valid:"optional,cassandraTTLValidation"`
+	DependenciesTTL time.Duration `mapstructure:"dependencies_ttl" valid:"optional"`
 	// Replication factor for the db
 	ReplicationFactor int `mapstructure:"replication_factor" valid:"optional"`
 	// CompactionWindow of format tells the compaction window of the db. Should atleast be 1 minute
-	CompactionWindow time.Duration `mapstructure:"compaction_window" valid:"optional,isDurationGreaterThanOrEqualMinute"`
+	CompactionWindow time.Duration `mapstructure:"compaction_window" valid:"optional"`
 }
 
 type Query struct {
@@ -272,23 +273,22 @@ func (c *Configuration) String() string {
 	return fmt.Sprintf("%+v", *c)
 }
 
-func (c *Configuration) Validate() error {
-	govalidator.CustomTypeTagMap.Set("cassandraTTLValidation", func(i interface{}, _ interface{}) bool {
-		duration, ok := i.(time.Duration)
-		if !ok {
-			return false
-		}
-		// Either set to no-expiry using 0 or if set should be greater than or equal to second
-		return duration == 0 || duration >= time.Second
-	})
+func isValidTTL(duration time.Duration) bool {
+	return duration == 0 || duration >= time.Second
+}
 
-	govalidator.CustomTypeTagMap.Set("isDurationGreaterThanOrEqualMinute", func(i interface{}, _ interface{}) bool {
-		duration, ok := i.(time.Duration)
-		if !ok {
-			return false
-		}
-		return duration >= time.Minute
-	})
+func (c *Configuration) Validate() error {
+	if !isValidTTL(c.Schema.TraceTTL) {
+		return errors.New("trace_ttl can either be 0 or greater than or equal to 1 second")
+	}
+
+	if !isValidTTL(c.Schema.DependenciesTTL) {
+		return errors.New("dependencies_ttl can either be 0 or greater than or equal to 1 second")
+	}
+
+	if c.Schema.CompactionWindow < time.Minute {
+		return errors.New("compaction_window should at least be 1 minute")
+	}
 
 	_, err := govalidator.ValidateStruct(c)
 	return err
