@@ -449,7 +449,7 @@ func TestServerHTTPTLS(t *testing.T) {
 				require.NoError(t, clientClose())
 			}
 
-			if test.HTTPTLSEnabled && test.TLS.ClientCAFile != "" {
+			if test.HTTPTLSEnabled {
 				client := &http.Client{
 					Transport: &http.Transport{
 						TLSClientConfig: clientTLSCfg,
