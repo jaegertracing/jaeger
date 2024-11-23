@@ -10,6 +10,7 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
@@ -31,9 +32,15 @@ func TestGetTraceRequestMarshalProto(t *testing.T) {
 	}
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			ref1 := storage_v1.GetTraceRequest{TraceID: model.NewTraceID(2, 3)}
+			ref1 := storage_v1.GetTraceRequest{
+				TraceID:   model.NewTraceID(2, 3),
+				StartTime: time.Unix(1, 2).UTC(),
+				EndTime:   time.Unix(3, 4).UTC(),
+			}
 			ref2 := storageprototest.GetTraceRequest{
-				TraceId: []byte{0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 3},
+				TraceId:   []byte{0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 3},
+				StartTime: timestamppb.New(time.Unix(1, 2).UTC()),
+				EndTime:   timestamppb.New(time.Unix(3, 4).UTC()),
 			}
 			d1, err := testCase.marshal(&ref1)
 			require.NoError(t, err)
