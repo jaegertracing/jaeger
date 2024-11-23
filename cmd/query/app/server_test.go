@@ -403,10 +403,9 @@ func TestServerHTTPTLS(t *testing.T) {
 				require.NoError(t, server.Close())
 			})
 
-			clientTLSCfg, err := test.clientTLS.LoadTLSConfig(context.Background())
-			require.NoError(t, err)
-
 			if test.HTTPTLSEnabled {
+				clientTLSCfg, err := test.clientTLS.LoadTLSConfig(context.Background())
+				require.NoError(t, err)
 				client := &http.Client{
 					Transport: &http.Transport{
 						TLSClientConfig: clientTLSCfg,
