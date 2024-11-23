@@ -40,7 +40,6 @@ const (
 var ( // interface comformance checks
 	_ storage.Factory              = (*Factory)(nil)
 	_ storage.Purger               = (*Factory)(nil)
-	_ storage.ArchiveFactory       = (*Factory)(nil)
 	_ storage.SamplingStoreFactory = (*Factory)(nil)
 	_ io.Closer                    = (*Factory)(nil)
 	_ plugin.Configurable          = (*Factory)(nil)
@@ -50,22 +49,26 @@ var ( // interface comformance checks
 type Factory struct {
 	Options *Options
 
-	primaryMetricsFactory metrics.Factory
-	archiveMetricsFactory metrics.Factory
-	logger                *zap.Logger
-	tracer                trace.TracerProvider
+	metricsFactory metrics.Factory
+	logger         *zap.Logger
+	tracer         trace.TracerProvider
 
-	primaryConfig  config.SessionBuilder
-	primarySession cassandra.Session
-	archiveConfig  config.SessionBuilder
-	archiveSession cassandra.Session
+	config  config.SessionBuilder
+	session cassandra.Session
 }
 
 // NewFactory creates a new Factory.
-func NewFactory() *Factory {
+func NewFactory(isArchive bool) *Factory {
+	var options *Options
+	if isArchive {
+		options = NewOptions(archiveStorageConfig)
+		options.IsArchive = true
+	} else {
+		options = NewOptions(primaryStorageConfig)
+	}
 	return &Factory{
 		tracer:  otel.GetTracerProvider(),
-		Options: NewOptions(primaryStorageConfig, archiveStorageConfig),
+		Options: options,
 	}
 }
 
@@ -75,7 +78,7 @@ func NewFactoryWithConfig(
 	metricsFactory metrics.Factory,
 	logger *zap.Logger,
 ) (*Factory, error) {
-	f := NewFactory()
+	f := NewFactory(opts.IsArchive)
 	// use this to help with testing
 	b := &withConfigBuilder{
 		f:              f,
@@ -121,43 +124,30 @@ func (f *Factory) InitFromViper(v *viper.Viper, _ *zap.Logger) {
 // InitFromOptions initializes factory from options.
 func (f *Factory) configureFromOptions(o *Options) {
 	f.Options = o
-	// TODO this is a hack because we do not define defaults in Options
-	if o.others == nil {
-		o.others = make(map[string]*NamespaceConfig)
-	}
-	f.primaryConfig = o.GetPrimary()
-	if cfg := f.Options.Get(archiveStorageConfig); cfg != nil {
-		f.archiveConfig = cfg // this is so stupid - see https://golang.org/doc/faq#nil_error
-	}
+	f.config = o.GetPrimary()
 }
 
 // Initialize implements storage.Factory
 func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
-	f.primaryMetricsFactory = metricsFactory.Namespace(metrics.NSOptions{Name: "cassandra", Tags: nil})
-	f.archiveMetricsFactory = metricsFactory.Namespace(metrics.NSOptions{Name: "cassandra-archive", Tags: nil})
+	metricsNamespace := "cassandra"
+	if f.Options.IsArchive {
+		metricsNamespace = "cassandra-archive"
+	}
+	f.metricsFactory = metricsFactory.Namespace(metrics.NSOptions{Name: metricsNamespace, Tags: nil})
 	f.logger = logger
 
-	primarySession, err := f.primaryConfig.NewSession()
+	primarySession, err := f.config.NewSession()
 	if err != nil {
 		return err
 	}
-	f.primarySession = primarySession
+	f.session = primarySession
 
-	if f.archiveConfig != nil {
-		archiveSession, err := f.archiveConfig.NewSession()
-		if err != nil {
-			return err
-		}
-		f.archiveSession = archiveSession
-	} else {
-		logger.Info("Cassandra archive storage configuration is empty, skipping")
-	}
 	return nil
 }
 
 // CreateSpanReader implements storage.Factory
 func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
-	return cSpanStore.NewSpanReader(f.primarySession, f.primaryMetricsFactory, f.logger, f.tracer.Tracer("cSpanStore.SpanReader"))
+	return cSpanStore.NewSpanReader(f.session, f.metricsFactory, f.logger, f.tracer.Tracer("cSpanStore.SpanReader"))
 }
 
 // CreateSpanWriter implements storage.Factory
@@ -166,33 +156,13 @@ func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
 	if err != nil {
 		return nil, err
 	}
-	return cSpanStore.NewSpanWriter(f.primarySession, f.Options.SpanStoreWriteCacheTTL, f.primaryMetricsFactory, f.logger, options...)
+	return cSpanStore.NewSpanWriter(f.session, f.Options.SpanStoreWriteCacheTTL, f.metricsFactory, f.logger, options...)
 }
 
 // CreateDependencyReader implements storage.Factory
 func (f *Factory) CreateDependencyReader() (dependencystore.Reader, error) {
-	version := cDepStore.GetDependencyVersion(f.primarySession)
-	return cDepStore.NewDependencyStore(f.primarySession, f.primaryMetricsFactory, f.logger, version)
-}
-
-// CreateArchiveSpanReader implements storage.ArchiveFactory
-func (f *Factory) CreateArchiveSpanReader() (spanstore.Reader, error) {
-	if f.archiveSession == nil {
-		return nil, storage.ErrArchiveStorageNotConfigured
-	}
-	return cSpanStore.NewSpanReader(f.archiveSession, f.archiveMetricsFactory, f.logger, f.tracer.Tracer("cSpanStore.SpanReader"))
-}
-
-// CreateArchiveSpanWriter implements storage.ArchiveFactory
-func (f *Factory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
-	if f.archiveSession == nil {
-		return nil, storage.ErrArchiveStorageNotConfigured
-	}
-	options, err := writerOptions(f.Options)
-	if err != nil {
-		return nil, err
-	}
-	return cSpanStore.NewSpanWriter(f.archiveSession, f.Options.SpanStoreWriteCacheTTL, f.archiveMetricsFactory, f.logger, options...)
+	version := cDepStore.GetDependencyVersion(f.session)
+	return cDepStore.NewDependencyStore(f.session, f.metricsFactory, f.logger, version)
 }
 
 // CreateLock implements storage.SamplingStoreFactory
@@ -203,12 +173,12 @@ func (f *Factory) CreateLock() (distributedlock.Lock, error) {
 	}
 	f.logger.Info("Using unique participantName in the distributed lock", zap.String("participantName", hostId))
 
-	return cLock.NewLock(f.primarySession, hostId), nil
+	return cLock.NewLock(f.session, hostId), nil
 }
 
 // CreateSamplingStore implements storage.SamplingStoreFactory
 func (f *Factory) CreateSamplingStore(int /* maxBuckets */) (samplingstore.Store, error) {
-	return cSamplingStore.New(f.primarySession, f.primaryMetricsFactory, f.logger), nil
+	return cSamplingStore.New(f.session, f.metricsFactory, f.logger), nil
 }
 
 func writerOptions(opts *Options) ([]cSpanStore.Option, error) {
@@ -244,16 +214,13 @@ var _ io.Closer = (*Factory)(nil)
 
 // Close closes the resources held by the factory
 func (f *Factory) Close() error {
-	if f.primarySession != nil {
-		f.primarySession.Close()
-	}
-	if f.archiveSession != nil {
-		f.archiveSession.Close()
+	if f.session != nil {
+		f.session.Close()
 	}
 
 	return nil
 }
 
 func (f *Factory) Purge(_ context.Context) error {
-	return f.primarySession.Query("TRUNCATE traces").Exec()
+	return f.session.Query("TRUNCATE traces").Exec()
 }

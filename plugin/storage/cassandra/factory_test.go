@@ -39,15 +39,14 @@ func (m *mockSessionBuilder) NewSession() (cassandra.Session, error) {
 }
 
 func TestCassandraFactory(t *testing.T) {
-	logger, logBuf := testutils.NewLogger()
-	f := NewFactory()
-	v, command := config.Viperize(f.AddFlags)
-	command.ParseFlags([]string{"--cassandra-archive.enabled=true"})
+	logger, _ := testutils.NewLogger()
+	f := NewFactory(false)
+	v, _ := config.Viperize(f.AddFlags)
 	f.InitFromViper(v, zap.NewNop())
 
 	// after InitFromViper, f.primaryConfig points to a real session builder that will fail in unit tests,
 	// so we override it with a mock.
-	f.primaryConfig = newMockSessionBuilder(nil, errors.New("made-up error"))
+	f.config = newMockSessionBuilder(nil, errors.New("made-up error"))
 	require.EqualError(t, f.Initialize(metrics.NullFactory, zap.NewNop()), "made-up error")
 
 	var (
@@ -57,13 +56,11 @@ func TestCassandraFactory(t *testing.T) {
 	session.On("Query", mock.AnythingOfType("string"), mock.Anything).Return(query)
 	session.On("Close").Return()
 	query.On("Exec").Return(nil)
-	f.primaryConfig = newMockSessionBuilder(session, nil)
-	f.archiveConfig = newMockSessionBuilder(nil, errors.New("made-up error"))
+	f.config = newMockSessionBuilder(nil, errors.New("made-up error"))
 	require.EqualError(t, f.Initialize(metrics.NullFactory, zap.NewNop()), "made-up error")
 
-	f.archiveConfig = nil
+	f.config = newMockSessionBuilder(session, nil)
 	require.NoError(t, f.Initialize(metrics.NullFactory, logger))
-	assert.Contains(t, logBuf.String(), "Cassandra archive storage configuration is empty, skipping")
 
 	_, err := f.CreateSpanReader()
 	require.NoError(t, err)
@@ -72,21 +69,6 @@ func TestCassandraFactory(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = f.CreateDependencyReader()
-	require.NoError(t, err)
-
-	_, err = f.CreateArchiveSpanReader()
-	require.EqualError(t, err, "archive storage not configured")
-
-	_, err = f.CreateArchiveSpanWriter()
-	require.EqualError(t, err, "archive storage not configured")
-
-	f.archiveConfig = newMockSessionBuilder(session, nil)
-	require.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
-
-	_, err = f.CreateArchiveSpanReader()
-	require.NoError(t, err)
-
-	_, err = f.CreateArchiveSpanWriter()
 	require.NoError(t, err)
 
 	_, err = f.CreateLock()
@@ -99,11 +81,9 @@ func TestCassandraFactory(t *testing.T) {
 }
 
 func TestExclusiveWhitelistBlacklist(t *testing.T) {
-	logger, logBuf := testutils.NewLogger()
-	f := NewFactory()
+	f := NewFactory(false)
 	v, command := config.Viperize(f.AddFlags)
 	command.ParseFlags([]string{
-		"--cassandra-archive.enabled=true",
 		"--cassandra.index.tag-whitelist=a,b,c",
 		"--cassandra.index.tag-blacklist=a,b,c",
 	})
@@ -111,7 +91,7 @@ func TestExclusiveWhitelistBlacklist(t *testing.T) {
 
 	// after InitFromViper, f.primaryConfig points to a real session builder that will fail in unit tests,
 	// so we override it with a mock.
-	f.primaryConfig = newMockSessionBuilder(nil, errors.New("made-up error"))
+	f.config = newMockSessionBuilder(nil, errors.New("made-up error"))
 	require.EqualError(t, f.Initialize(metrics.NullFactory, zap.NewNop()), "made-up error")
 
 	var (
@@ -120,21 +100,9 @@ func TestExclusiveWhitelistBlacklist(t *testing.T) {
 	)
 	session.On("Query", mock.AnythingOfType("string"), mock.Anything).Return(query)
 	query.On("Exec").Return(nil)
-	f.primaryConfig = newMockSessionBuilder(session, nil)
-	f.archiveConfig = newMockSessionBuilder(nil, errors.New("made-up error"))
-	require.EqualError(t, f.Initialize(metrics.NullFactory, zap.NewNop()), "made-up error")
-
-	f.archiveConfig = nil
-	require.NoError(t, f.Initialize(metrics.NullFactory, logger))
-	assert.Contains(t, logBuf.String(), "Cassandra archive storage configuration is empty, skipping")
+	f.config = newMockSessionBuilder(session, nil)
 
 	_, err := f.CreateSpanWriter()
-	require.EqualError(t, err, "only one of TagIndexBlacklist and TagIndexWhitelist can be specified")
-
-	f.archiveConfig = &mockSessionBuilder{}
-	require.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
-
-	_, err = f.CreateArchiveSpanWriter()
 	require.EqualError(t, err, "only one of TagIndexBlacklist and TagIndexWhitelist can be specified")
 }
 
@@ -181,13 +149,11 @@ func TestWriterOptions(t *testing.T) {
 }
 
 func TestConfigureFromOptions(t *testing.T) {
-	f := NewFactory()
-	o := NewOptions("foo", archiveStorageConfig)
-	o.others[archiveStorageConfig].Enabled = true
+	f := NewFactory(false)
+	o := NewOptions("foo")
 	f.configureFromOptions(o)
 	assert.Equal(t, o, f.Options)
-	assert.Equal(t, o.GetPrimary(), f.primaryConfig)
-	assert.Equal(t, o.Get(archiveStorageConfig), f.archiveConfig)
+	assert.Equal(t, o.GetPrimary(), f.config)
 }
 
 func TestNewFactoryWithConfig(t *testing.T) {
@@ -201,7 +167,7 @@ func TestNewFactoryWithConfig(t *testing.T) {
 				},
 			},
 		}
-		f := NewFactory()
+		f := NewFactory(false)
 		b := &withConfigBuilder{
 			f:              f,
 			opts:           opts,
@@ -223,7 +189,7 @@ func TestNewFactoryWithConfig(t *testing.T) {
 				},
 			},
 		}
-		f := NewFactory()
+		f := NewFactory(false)
 		b := &withConfigBuilder{
 			f:              f,
 			opts:           opts,
@@ -242,14 +208,14 @@ func TestNewFactoryWithConfig(t *testing.T) {
 }
 
 func TestFactory_Purge(t *testing.T) {
-	f := NewFactory()
+	f := NewFactory(false)
 	var (
 		session = &mocks.Session{}
 		query   = &mocks.Query{}
 	)
 	session.On("Query", mock.AnythingOfType("string"), mock.Anything).Return(query)
 	query.On("Exec").Return(nil)
-	f.primarySession = session
+	f.session = session
 
 	err := f.Purge(context.Background())
 	require.NoError(t, err)

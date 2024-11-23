@@ -52,6 +52,7 @@ extensions:
                 password: "cassandra"
             tls:
               insecure: true
+          is_archive: true
 receivers:
   otlp:
     protocols:

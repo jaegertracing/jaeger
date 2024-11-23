@@ -92,24 +92,12 @@ func TestBuildQueryServiceOptions(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotNil(t, qOpts)
 
-	qSvcOpts := qOpts.BuildQueryServiceOptions(&mocks.Factory{}, zap.NewNop())
-	assert.NotNil(t, qSvcOpts)
-	assert.NotNil(t, qSvcOpts.Adjuster)
-	assert.Nil(t, qSvcOpts.ArchiveSpanReader)
-	assert.Nil(t, qSvcOpts.ArchiveSpanWriter)
+	factory := &mocks.Factory{}
 
-	comboFactory := struct {
-		*mocks.Factory
-		*mocks.ArchiveFactory
-	}{
-		&mocks.Factory{},
-		&mocks.ArchiveFactory{},
-	}
+	factory.On("CreateSpanReader").Return(&spanstore_mocks.Reader{}, nil)
+	factory.On("CreateSpanWriter").Return(&spanstore_mocks.Writer{}, nil)
 
-	comboFactory.ArchiveFactory.On("CreateArchiveSpanReader").Return(&spanstore_mocks.Reader{}, nil)
-	comboFactory.ArchiveFactory.On("CreateArchiveSpanWriter").Return(&spanstore_mocks.Writer{}, nil)
-
-	qSvcOpts = qOpts.BuildQueryServiceOptions(comboFactory, zap.NewNop())
+	qSvcOpts := qOpts.BuildQueryServiceOptions(factory, zap.NewNop())
 	assert.NotNil(t, qSvcOpts)
 	assert.NotNil(t, qSvcOpts.Adjuster)
 	assert.NotNil(t, qSvcOpts.ArchiveSpanReader)
