@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/spf13/viper"
-	"go.opentelemetry.io/collector/config/configtls"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/es/client"
@@ -39,37 +38,28 @@ type Action interface {
 
 // ActionExecuteOptions are the options passed to the execute action function
 type ActionExecuteOptions struct {
-	Args      []string
-	Viper     *viper.Viper
-	Logger    *zap.Logger
-	TLSConfig configtls.ClientConfig
+	Args   []string
+	Viper  *viper.Viper
+	Logger *zap.Logger
 }
 
 // ActionCreatorFunction type is the function type in charge of create the action to be executed
 type ActionCreatorFunction func(client.Client, Config) Action
 
-func getTLSConfig(tlsConfig configtls.ClientConfig, logger *zap.Logger) (*tls.Config, error) {
-    if tlsConfig.Insecure {
-        logger.Info("TLS is disabled")
-        return nil, nil
-    }
-
-    ctx := context.Background()
-    tlsCfg, err := tlsConfig.LoadTLSConfig(ctx)
-    if err != nil {
-        logger.Error("Failed to load TLS configuration", zap.Error(err))
-        return nil, fmt.Errorf("error loading TLS config: %w", err)
-    }
-    return tlsCfg, nil
-}
-
 // ExecuteAction execute the action returned by the createAction function
 func ExecuteAction(opts ActionExecuteOptions, createAction ActionCreatorFunction) error {
 	cfg := Config{}
-	cfg.InitFromViper(opts.Viper)
-	tlsCfg, err := getTLSConfig(opts.TLSConfig, opts.Logger)
+	if err := cfg.InitFromViper(opts.Viper); err != nil {
+		opts.Logger.Error("Failed to initialize config from viper",
+			zap.Error(err),
+		)
+		return fmt.Errorf("failed to initialize config: %w", err)
+	}
+
+	ctx := context.Background()
+	tlsCfg, err := cfg.TLSConfig.LoadTLSConfig(ctx)
 	if err != nil {
-		return err
+		return fmt.Errorf("TLS configuration failed: %w", err)
 	}
 
 	esClient := newESClient(opts.Args[0], &cfg, tlsCfg)

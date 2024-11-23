@@ -75,7 +75,6 @@ func TestExecuteAction(t *testing.T) {
 			v := viper.New()
 			command := cobra.Command{}
 			flags := &flag.FlagSet{}
-			AddTLSFlags(flags)
 			AddFlags(flags)
 			command.PersistentFlags().AddGoFlagSet(flags)
 			v.BindPFlags(command.PersistentFlags())
@@ -99,7 +98,6 @@ func TestExecuteAction(t *testing.T) {
 					},
 				}
 			})
-
 			assert.Equal(t, test.expectedExecuteAction, executedAction)
 			if test.configError {
 				require.Error(t, err)

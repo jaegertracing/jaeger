@@ -52,9 +52,6 @@ func AddFlags(flags *flag.FlagSet) {
 	flags.Int(timeout, 120, "Number of seconds to wait for master node response")
 	flags.Bool(skipDependencies, false, "Disable rollover for dependencies index")
 	flags.Bool(adaptiveSampling, false, "Enable rollover for adaptive sampling index")
-}
-
-func AddTLSFlags(flags *flag.FlagSet) {
 	tlsFlagsCfg.AddFlags(flags)
 }
 
@@ -76,6 +73,7 @@ func (c *Config) InitFromViper(v *viper.Viper) error {
 	if err != nil {
 		return err
 	}
-    c.TLSConfig = opts.ToOtelClientConfig()
+	c.TLSConfig = opts.ToOtelClientConfig()
+
 	return nil
 }
