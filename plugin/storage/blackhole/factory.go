@@ -11,6 +11,7 @@ import (
 	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
+	storageMetrics "github.com/jaegertracing/jaeger/storage/spanstore/metrics"
 )
 
 var ( // interface comformance checks
@@ -40,7 +41,7 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 
 // CreateSpanReader implements storage.Factory
 func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
-	return f.store, nil
+	return storageMetrics.NewReadMetricsDecorator(f.store, f.metricsFactory), nil
 }
 
 // CreateSpanWriter implements storage.Factory
@@ -50,7 +51,7 @@ func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
 
 // CreateArchiveSpanReader implements storage.ArchiveFactory
 func (f *Factory) CreateArchiveSpanReader() (spanstore.Reader, error) {
-	return f.store, nil
+	return storageMetrics.NewReadMetricsDecorator(f.store, f.metricsFactory), nil
 }
 
 // CreateArchiveSpanWriter implements storage.ArchiveFactory
