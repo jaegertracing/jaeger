@@ -40,6 +40,9 @@ func (*Config) AddFlags(flags *flag.FlagSet) {
 
 // InitFromViper initializes config from viper.Viper.
 func (c *Config) InitFromViper(v *viper.Viper) {
+	if v == nil {
+		panic("viper instance cannot be nil")
+	}
 	c.Indices.Spans.Shards = v.GetInt64(shards)
 	c.Indices.Services.Shards = v.GetInt64(shards)
 	c.Indices.Dependencies.Shards = v.GetInt64(shards)
