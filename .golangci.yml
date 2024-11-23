@@ -213,9 +213,6 @@ linters-settings:
         # maybe enable, needs invesitgation of the impact
         - name: import-alias-naming
           disabled: true
-        # maybe enable, needs invesitgation of the impact
-        - name: get-return
-          disabled: true
         # investigate, could be real bugs. But didn't recent Go version changed loop variables semantics?
         - name: range-val-address
           disabled: true

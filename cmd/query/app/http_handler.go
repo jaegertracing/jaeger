@@ -107,14 +107,14 @@ func NewAPIHandler(queryService *querysvc.QueryService, options ...HandlerOption
 
 // RegisterRoutes registers routes for this handler on the given router
 func (aH *APIHandler) RegisterRoutes(router *mux.Router) {
-	aH.handleFunc(router, aH.getTrace, "/traces/{%s}", traceIDParam).Methods(http.MethodGet)
+	aH.handleFunc(router, aH.extractTrace, "/traces/{%s}", traceIDParam).Methods(http.MethodGet)
 	aH.handleFunc(router, aH.archiveTrace, "/archive/{%s}", traceIDParam).Methods(http.MethodPost)
 	aH.handleFunc(router, aH.search, "/traces").Methods(http.MethodGet)
-	aH.handleFunc(router, aH.getServices, "/services").Methods(http.MethodGet)
+	aH.handleFunc(router, aH.extractServices, "/services").Methods(http.MethodGet)
 	// TODO change the UI to use this endpoint. Requires ?service= parameter.
-	aH.handleFunc(router, aH.getOperations, "/operations").Methods(http.MethodGet)
+	aH.handleFunc(router, aH.extractOperations, "/operations").Methods(http.MethodGet)
 	// TODO - remove this when UI catches up
-	aH.handleFunc(router, aH.getOperationsLegacy, "/services/{%s}/operations", serviceParam).Methods(http.MethodGet)
+	aH.handleFunc(router, aH.extractOperationsLegacy, "/services/{%s}/operations", serviceParam).Methods(http.MethodGet)
 	aH.handleFunc(router, aH.transformOTLP, "/transform").Methods(http.MethodPost)
 	aH.handleFunc(router, aH.dependencies, "/dependencies").Methods(http.MethodGet)
 	aH.handleFunc(router, aH.latencies, "/metrics/latencies").Methods(http.MethodGet)
@@ -141,7 +141,7 @@ func (aH *APIHandler) formatRoute(route string, args ...any) string {
 	return fmt.Sprintf("/%s"+route, args...)
 }
 
-func (aH *APIHandler) getServices(w http.ResponseWriter, r *http.Request) {
+func (aH *APIHandler) extractServices(w http.ResponseWriter, r *http.Request) {
 	services, err := aH.queryService.GetServices(r.Context())
 	if aH.handleError(w, err, http.StatusInternalServerError) {
 		return
@@ -153,7 +153,7 @@ func (aH *APIHandler) getServices(w http.ResponseWriter, r *http.Request) {
 	aH.writeJSON(w, r, &structuredRes)
 }
 
-func (aH *APIHandler) getOperationsLegacy(w http.ResponseWriter, r *http.Request) {
+func (aH *APIHandler) extractOperationsLegacy(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	// given how getOperationsLegacy is bound to URL route, serviceParam cannot be empty
 	service, _ := url.QueryUnescape(vars[serviceParam])
@@ -192,7 +192,7 @@ func (aH *APIHandler) transformOTLP(w http.ResponseWriter, r *http.Request) {
 	aH.writeJSON(w, r, structuredRes)
 }
 
-func (aH *APIHandler) getOperations(w http.ResponseWriter, r *http.Request) {
+func (aH *APIHandler) extractOperations(w http.ResponseWriter, r *http.Request) {
 	service := r.FormValue(serviceParam)
 	if service == "" {
 		if aH.handleError(w, errServiceParameterRequired, http.StatusBadRequest) {
@@ -421,10 +421,10 @@ func (aH *APIHandler) parseTraceID(w http.ResponseWriter, r *http.Request) (mode
 	return traceID, true
 }
 
-// getTrace implements the REST API /traces/{trace-id}
+// extractTrace implements the REST API /traces/{trace-id}
 // It parses trace ID from the path, fetches the trace from QueryService,
 // formats it in the UI JSON format, and responds to the client.
-func (aH *APIHandler) getTrace(w http.ResponseWriter, r *http.Request) {
+func (aH *APIHandler) extractTrace(w http.ResponseWriter, r *http.Request) {
 	traceID, ok := aH.parseTraceID(w, r)
 	if !ok {
 		return

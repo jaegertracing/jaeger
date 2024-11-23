@@ -52,10 +52,10 @@ type HTTPGateway struct {
 // RegisterRoutes registers HTTP endpoints for APIv3 into provided mux.
 // The called can create a subrouter if it needs to prepend a base path.
 func (h *HTTPGateway) RegisterRoutes(router *mux.Router) {
-	h.addRoute(router, h.getTrace, routeGetTrace).Methods(http.MethodGet)
+	h.addRoute(router, h.extractTrace, routeGetTrace).Methods(http.MethodGet)
 	h.addRoute(router, h.findTraces, routeFindTraces).Methods(http.MethodGet)
-	h.addRoute(router, h.getServices, routeGetServices).Methods(http.MethodGet)
-	h.addRoute(router, h.getOperations, routeGetOperations).Methods(http.MethodGet)
+	h.addRoute(router, h.extractServices, routeGetServices).Methods(http.MethodGet)
+	h.addRoute(router, h.extractOperations, routeGetOperations).Methods(http.MethodGet)
 }
 
 // addRoute adds a new endpoint to the router with given path and handler function.
@@ -129,7 +129,7 @@ func (*HTTPGateway) marshalResponse(response proto.Message, w http.ResponseWrite
 	_ = new(jsonpb.Marshaler).Marshal(w, response)
 }
 
-func (h *HTTPGateway) getTrace(w http.ResponseWriter, r *http.Request) {
+func (h *HTTPGateway) extractTrace(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	traceIDVar := vars[paramTraceID]
 	traceID, err := model.TraceIDFromString(traceIDVar)
@@ -211,7 +211,7 @@ func (h *HTTPGateway) parseFindTracesQuery(q url.Values, w http.ResponseWriter) 
 	return queryParams, false
 }
 
-func (h *HTTPGateway) getServices(w http.ResponseWriter, r *http.Request) {
+func (h *HTTPGateway) extractServices(w http.ResponseWriter, r *http.Request) {
 	services, err := h.QueryService.GetServices(r.Context())
 	if h.tryHandleError(w, err, http.StatusInternalServerError) {
 		return
@@ -221,7 +221,7 @@ func (h *HTTPGateway) getServices(w http.ResponseWriter, r *http.Request) {
 	}, w)
 }
 
-func (h *HTTPGateway) getOperations(w http.ResponseWriter, r *http.Request) {
+func (h *HTTPGateway) extractOperations(w http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query()
 	queryParams := spanstore.OperationQueryParameters{
 		ServiceName: query.Get("service"),

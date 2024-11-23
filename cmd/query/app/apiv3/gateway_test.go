@@ -142,7 +142,7 @@ func (gw *testGateway) runGatewayGetOperations(t *testing.T) {
 func (gw *testGateway) runGatewayGetTrace(t *testing.T) {
 	trace, traceID := makeTestTrace()
 	gw.reader.On("GetTrace", matchContext, traceID).Return(trace, nil).Once()
-	gw.getTracesAndVerify(t, "/api/v3/traces/"+traceID.String(), traceID)
+	gw.extractTracesAndVerify(t, "/api/v3/traces/"+traceID.String(), traceID)
 }
 
 func (gw *testGateway) runGatewayFindTraces(t *testing.T) {
@@ -151,10 +151,10 @@ func (gw *testGateway) runGatewayFindTraces(t *testing.T) {
 	gw.reader.
 		On("FindTraces", matchContext, qp).
 		Return([]*model.Trace{trace}, nil).Once()
-	gw.getTracesAndVerify(t, "/api/v3/traces?"+q.Encode(), traceID)
+	gw.extractTracesAndVerify(t, "/api/v3/traces?"+q.Encode(), traceID)
 }
 
-func (gw *testGateway) getTracesAndVerify(t *testing.T, url string, expectedTraceID model.TraceID) {
+func (gw *testGateway) extractTracesAndVerify(t *testing.T, url string, expectedTraceID model.TraceID) {
 	body, statusCode := gw.execRequest(t, url)
 	require.Equal(t, http.StatusOK, statusCode, "response=%s", string(body))
 	body = gw.verifySnapshot(t, body)
