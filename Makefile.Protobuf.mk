@@ -14,9 +14,10 @@
 # instead of the go_package's declared by the imported protof files.
 #
 
+DOCKER=docker
 DOCKER_PROTOBUF_VERSION=0.5.0
 DOCKER_PROTOBUF=jaegertracing/protobuf:$(DOCKER_PROTOBUF_VERSION)
-PROTOC := docker run --rm -u ${shell id -u} -v${PWD}:${PWD} -w${PWD} ${DOCKER_PROTOBUF} --proto_path=${PWD}
+PROTOC := ${DOCKER} run --rm -u ${shell id -u} -v${PWD}:${PWD} -w${PWD} ${DOCKER_PROTOBUF} --proto_path=${PWD}
 
 PATCHED_OTEL_PROTO_DIR = proto-gen/.patched-otel-proto
 
