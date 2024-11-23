@@ -152,7 +152,7 @@ func (a *aggregator) HandleRootSpan(span *span_model.Span, logger *zap.Logger) {
 	}
 	samplerType, samplerParam := span.GetSamplerParams(logger)
 	if samplerType == span_model.SamplerTypeUnrecognized {
-		return
+		samplerType = span_model.SamplerTypeProbabilistic
 	}
 	a.RecordThroughput(service, span.OperationName, samplerType, samplerParam)
 }

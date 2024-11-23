@@ -5,16 +5,95 @@
 
 set -euf -o pipefail
 
-# This script is currently a placeholder.
+compose_file=docker-compose/adaptive-sampling/docker-compose.yml
 
-# Commands to run integration test:
-#   SAMPLING_STORAGE_TYPE=memory SAMPLING_CONFIG_TYPE=adaptive go run -tags=ui ./cmd/all-in-one --log-level=debug
-#   go run ./cmd/tracegen -adaptive-sampling=http://localhost:14268/api/sampling -pause=10ms -duration=60m
+set -x
 
-# Check how strategy is changing
-#   curl 'http://localhost:14268/api/sampling?service=tracegen' | jq .
+timeout=600
+end_time=$((SECONDS + timeout))
+success="false"
 
-# Issues
-# - SDK does not report sampling probability in the tags the way Jaeger SDKs did
-# - Server probably does not recognize spans as having adaptive sampling without sampler info
-# - There is no way to modify target traces-per-second dynamically, must restart collector.
+threshold=0.5
+
+dump_logs() {
+    echo "::group:: docker logs"
+    docker compose -f $compose_file logs
+    echo "::endgroup::"
+}
+
+teardown_services() {
+    if [[ "$success" == "false" ]]; then
+        dump_logs
+    fi
+    docker compose -f $compose_file down
+}
+
+check_service_health() {
+    local service_name=$1
+    local url=$2
+    echo "Checking health of service: $service_name at $url"
+
+    local wait_seconds=3
+    local curl_params=(
+        --silent
+        --output
+        /dev/null
+        --write-out
+        "%{http_code}"
+    )
+    while [ $SECONDS -lt $end_time ]; do
+        if [[ "$(curl "${curl_params[@]}" "${url}")" == "200" ]]; then
+            echo "✅ $service_name is healthy"
+            return 0
+        fi
+        echo "Waiting for $service_name to be healthy..."
+        sleep $wait_seconds
+    done
+
+    echo "❌ ERROR: $service_name did not become healthy in time"
+    return 1
+}
+
+wait_for_services() {
+    echo "Waiting for services to be up and running..."
+    check_service_health "Jaeger" "http://localhost:16686"
+}
+
+check_tracegen_probability() {
+    local url="http://localhost:5778/api/sampling?service=tracegen"
+    response=$(curl -s "$url")
+    probability=$(echo "$response" | jq .operationSampling | jq -r '.perOperationStrategies[] | select(.operation=="lets-go")' | jq .probabilisticSampling.samplingRate)
+    if [ -n "$probability" ]; then
+        if (( $(echo "$probability < $threshold" |bc -l) )); then
+            return 0
+        fi
+    fi
+    return 1
+}
+
+check_adaptive_sampling() {
+    local wait_seconds=10
+    while [ $SECONDS -lt $end_time ]; do
+        if check_tracegen_probability; then
+            success="true"
+            break
+        fi
+        sleep $wait_seconds
+    done
+      if [[ "$success" == "false" ]]; then
+        echo "❌ ERROR: Adaptive sampling probability did not drop below $threshold."
+        exit 1
+      else
+        echo "✅ Adaptive sampling probability integration test passed"
+      fi
+}
+
+main() {
+    (cd docker-compose/adaptive-sampling && make build && make dev DOCKER_COMPOSE_ARGS="-d")
+    wait_for_services
+    check_adaptive_sampling
+}
+
+trap teardown_services EXIT INT
+
+main

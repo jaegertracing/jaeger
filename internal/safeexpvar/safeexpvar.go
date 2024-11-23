@@ -24,3 +24,11 @@ func SetInt(name string, value int64) {
 	}
 	v.(*expvar.Int).Set(value)
 }
+
+func SetString(name string, value string) {
+	v := expvar.Get(name)
+	if v == nil {
+		v = expvar.NewString(name)
+	}
+	v.(*expvar.String).Set(value)
+}
