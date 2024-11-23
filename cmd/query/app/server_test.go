@@ -428,7 +428,7 @@ func TestServerHTTPTLS(t *testing.T) {
 					require.Error(t, err)
 				} else {
 					require.NoError(t, err)
-					require.Equal(t, resp.StatusCode, http.StatusOK)
+					require.Equal(t, http.StatusOK, resp.StatusCode)
 				}
 			}
 		})
