@@ -6,7 +6,6 @@ package app
 import (
 	"bytes"
 	"context"
-	"crypto/tls"
 	"fmt"
 	"net"
 	"net/http"
@@ -135,7 +134,6 @@ var testCases = []struct {
 	HTTPTLSEnabled    bool
 	GRPCTLSEnabled    bool
 	clientTLS         configtls.ClientConfig
-	expectError       bool
 	expectClientError bool
 	expectServerFail  bool
 }{
@@ -147,7 +145,6 @@ var testCases = []struct {
 		clientTLS: configtls.ClientConfig{
 			Insecure: true,
 		},
-		expectError:       false,
 		expectClientError: false,
 		expectServerFail:  false,
 	},
@@ -165,7 +162,6 @@ var testCases = []struct {
 			Insecure:   true,
 			ServerName: "example.com",
 		},
-		expectError:       true,
 		expectClientError: true,
 		expectServerFail:  false,
 	},
@@ -186,7 +182,6 @@ var testCases = []struct {
 				CAFile: testCertKeyLocation + "/example-CA-cert.pem",
 			},
 		},
-		expectError:       true,
 		expectClientError: true,
 		expectServerFail:  false,
 	},
@@ -207,7 +202,6 @@ var testCases = []struct {
 				CAFile: testCertKeyLocation + "/example-CA-cert.pem",
 			},
 		},
-		expectError:       false,
 		expectClientError: false,
 		expectServerFail:  false,
 	},
@@ -229,7 +223,6 @@ var testCases = []struct {
 				CAFile: testCertKeyLocation + "/example-CA-cert.pem",
 			},
 		},
-		expectError:       false,
 		expectServerFail:  false,
 		expectClientError: true,
 	},
@@ -253,7 +246,6 @@ var testCases = []struct {
 				KeyFile:  testCertKeyLocation + "/example-client-key.pem",
 			},
 		},
-		expectError:       false,
 		expectServerFail:  false,
 		expectClientError: false,
 	},
@@ -278,7 +270,6 @@ var testCases = []struct {
 				KeyFile:  testCertKeyLocation + "/example-client-key.pem",
 			},
 		},
-		expectError:       false,
 		expectServerFail:  false,
 		expectClientError: true,
 	},
@@ -302,7 +293,6 @@ var testCases = []struct {
 				KeyFile:  testCertKeyLocation + "/example-client-key.pem",
 			},
 		},
-		expectError:       false,
 		expectServerFail:  false,
 		expectClientError: false,
 	},
@@ -326,7 +316,6 @@ var testCases = []struct {
 				KeyFile:  testCertKeyLocation + "/example-client-key.pem",
 			},
 		},
-		expectError:       false,
 		expectServerFail:  false,
 		expectClientError: false,
 	},
@@ -362,7 +351,6 @@ func TestServerHTTPTLS(t *testing.T) {
 		HTTPTLSEnabled    bool
 		GRPCTLSEnabled    bool
 		clientTLS         configtls.ClientConfig
-		expectError       bool
 		expectClientError bool
 		expectServerFail  bool
 	}, testlen)
@@ -415,41 +403,9 @@ func TestServerHTTPTLS(t *testing.T) {
 				require.NoError(t, server.Close())
 			})
 
-			var clientError error
-			var clientClose func() error
-			var clientTLSCfg *tls.Config
-
-			if serverOptions.HTTP.TLSSetting != nil {
-				var err0 error
-				clientTLSCfg, err0 = test.clientTLS.LoadTLSConfig(context.Background())
-
-				require.NoError(t, err0)
-				dialer := &net.Dialer{Timeout: 2 * time.Second}
-				conn, err1 := tls.DialWithDialer(dialer, "tcp", server.HTTPAddr(), clientTLSCfg)
-				clientError = err1
-				clientClose = nil
-				if conn != nil {
-					clientClose = conn.Close
-				}
-			} else {
-				conn, err1 := net.DialTimeout("tcp", server.HTTPAddr(), 2*time.Second)
-				clientError = err1
-				clientClose = nil
-				if conn != nil {
-					clientClose = conn.Close
-				}
-			}
-
-			if test.expectError {
-				require.Error(t, clientError)
-			} else {
-				require.NoError(t, clientError)
-			}
-			if clientClose != nil {
-				require.NoError(t, clientClose())
-			}
-
-			if test.HTTPTLSEnabled && test.TLS.ClientCAFile != "" {
+			if test.HTTPTLSEnabled {
+				clientTLSCfg, err := test.clientTLS.LoadTLSConfig(context.Background())
+				require.NoError(t, err)
 				client := &http.Client{
 					Transport: &http.Transport{
 						TLSClientConfig: clientTLSCfg,
@@ -461,15 +417,18 @@ func TestServerHTTPTLS(t *testing.T) {
 				require.NoError(t, err)
 				req.Header.Add("Accept", "application/json")
 
-				resp, err2 := client.Do(req)
-				if err2 == nil {
-					resp.Body.Close()
-				}
+				resp, err := client.Do(req)
+				t.Cleanup(func() {
+					if err == nil {
+						resp.Body.Close()
+					}
+				})
 
 				if test.expectClientError {
-					require.Error(t, err2)
+					require.Error(t, err)
 				} else {
-					require.NoError(t, err2)
+					require.NoError(t, err)
+					require.Equal(t, http.StatusOK, resp.StatusCode)
 				}
 			}
 		})
@@ -502,7 +461,6 @@ func TestServerGRPCTLS(t *testing.T) {
 		HTTPTLSEnabled    bool
 		GRPCTLSEnabled    bool
 		clientTLS         configtls.ClientConfig
-		expectError       bool
 		expectClientError bool
 		expectServerFail  bool
 	}, testlen)
