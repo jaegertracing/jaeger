@@ -26,6 +26,7 @@ import (
 	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
+	storageMetrics "github.com/jaegertracing/jaeger/storage/spanstore/metrics"
 )
 
 const (
@@ -153,7 +154,12 @@ func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
 	if !ok {
 		return nil, fmt.Errorf("no %s backend registered for span store", f.SpanReaderType)
 	}
-	return factory.CreateSpanReader()
+	sr, err := factory.CreateSpanReader()
+	if err != nil {
+		return nil, err
+	}
+	queryMetricsFactory := f.metricsFactory.Namespace(metrics.NSOptions{Name: "query"})
+	return storageMetrics.NewReadMetricsDecorator(sr, queryMetricsFactory), nil
 }
 
 // CreateSpanWriter implements storage.Factory.
