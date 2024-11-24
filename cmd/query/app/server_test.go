@@ -760,12 +760,12 @@ func TestServerHTTPTenancy(t *testing.T) {
 		{
 			name: "no tenant",
 			// no value for tenant header
-			status: 401,
+			status: http.StatusUnauthorized,
 		},
 		{
 			name:   "tenant",
 			tenant: "acme",
-			status: 200,
+			status: http.StatusOK,
 		},
 	}
 
