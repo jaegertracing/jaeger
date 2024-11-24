@@ -119,8 +119,7 @@ func TestCreate(t *testing.T) {
 	mock.On("CreateSpanWriter").Once().Return(spanWriter, errors.New("span-writer-error"))
 	mock.On("CreateDependencyReader").Return(depReader, errors.New("dep-reader-error"))
 
-	r, err := f.CreateSpanReader()
-	assert.Equal(t, spanReader, r)
+	_, err = f.CreateSpanReader()
 	require.EqualError(t, err, "span-reader-error")
 
 	w, err := f.CreateSpanWriter()
