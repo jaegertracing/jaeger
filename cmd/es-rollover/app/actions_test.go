@@ -5,16 +5,14 @@ package app
 
 import (
 	"errors"
-	"flag"
 	"net/http"
 	"testing"
 
-	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/es/client"
 )
 
@@ -72,17 +70,11 @@ func TestExecuteAction(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			v := viper.New()
-			command := cobra.Command{}
-			flags := &flag.FlagSet{}
-			AddFlags(flags)
-			command.PersistentFlags().AddGoFlagSet(flags)
-			v.BindPFlags(command.PersistentFlags())
+			v, command := config.Viperize(AddFlags)
 			cmdLine := append([]string{"--es.tls.enabled=true"}, test.flags...)
-			err := command.ParseFlags(cmdLine)
-			require.NoError(t, err)
+			require.NoError(t, command.ParseFlags(cmdLine))
 			executedAction := false
-			err = ExecuteAction(ActionExecuteOptions{
+			err := ExecuteAction(ActionExecuteOptions{
 				Args:   args,
 				Viper:  v,
 				Logger: logger,
