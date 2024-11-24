@@ -4,6 +4,7 @@
 package writer
 
 import (
+	"net/http"
 	"testing"
 	"time"
 
@@ -15,7 +16,7 @@ import (
 
 var tags = []model.KeyValue{
 	model.Bool("error", true),
-	model.String("http.method", "POST"),
+	model.String("http.method", http.MethodPost),
 	model.Bool("foobar", true),
 }
 
