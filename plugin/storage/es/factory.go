@@ -33,6 +33,7 @@ import (
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/samplingstore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
+	storageMetrics "github.com/jaegertracing/jaeger/storage/spanstore/metrics"
 )
 
 const (
@@ -180,7 +181,12 @@ func (f *Factory) getArchiveClient() es.Client {
 
 // CreateSpanReader implements storage.Factory
 func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
-	return createSpanReader(f.getPrimaryClient, f.primaryConfig, false, f.metricsFactory, f.logger, f.tracer)
+	sr, err := createSpanReader(f.getPrimaryClient, f.primaryConfig, false, f.metricsFactory, f.logger, f.tracer)
+	if err != nil {
+		return nil, err
+	}
+	queryMetricsFactory := f.metricsFactory.Namespace(metrics.NSOptions{Name: "query"})
+	return storageMetrics.NewReadMetricsDecorator(sr, queryMetricsFactory), nil
 }
 
 // CreateSpanWriter implements storage.Factory
