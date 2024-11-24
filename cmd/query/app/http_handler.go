@@ -266,6 +266,7 @@ func (aH *APIHandler) tracesByIDs(ctx context.Context, traceIDs []model.TraceID)
 	var traceErrors []structuredError
 	retMe := make([]*model.Trace, 0, len(traceIDs))
 	for _, traceID := range traceIDs {
+		// TODO: add start time & end time
 		query := spanstore.GetTraceParameters{
 			TraceID: traceID,
 		}
@@ -432,6 +433,7 @@ func (aH *APIHandler) getTrace(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	// TODO: add start time & end time
 	query := spanstore.GetTraceParameters{
 		TraceID: traceID,
 	}
