@@ -174,7 +174,8 @@ func (f *Factory) newRemoteStorage(
 // CreateSpanReader implements storage.Factory
 func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
 	sr := f.services.Store.SpanReader()
-	return storageMetrics.NewReadMetricsDecorator(sr, f.metricsFactory), nil
+	queryMetricsFactory := f.metricsFactory.Namespace(metrics.NSOptions{Name: "query"})
+	return storageMetrics.NewReadMetricsDecorator(sr, queryMetricsFactory), nil
 }
 
 // CreateSpanWriter implements storage.Factory
@@ -204,9 +205,7 @@ func (f *Factory) CreateArchiveSpanReader() (spanstore.Reader, error) {
 	if capabilities == nil || !capabilities.ArchiveSpanReader {
 		return nil, storage.ErrArchiveStorageNotSupported
 	}
-	// TODO: use different metrics factory
-	sr := f.services.ArchiveStore.ArchiveSpanReader()
-	return storageMetrics.NewReadMetricsDecorator(sr, f.metricsFactory), nil
+	return f.services.ArchiveStore.ArchiveSpanReader(), nil
 }
 
 // CreateArchiveSpanWriter implements storage.ArchiveFactory
