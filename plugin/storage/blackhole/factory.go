@@ -41,7 +41,8 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 
 // CreateSpanReader implements storage.Factory
 func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
-	return storageMetrics.NewReadMetricsDecorator(f.store, f.metricsFactory), nil
+	queryMetricsFactory := f.metricsFactory.Namespace(metrics.NSOptions{Name: "query"})
+	return storageMetrics.NewReadMetricsDecorator(f.store, queryMetricsFactory), nil
 }
 
 // CreateSpanWriter implements storage.Factory
