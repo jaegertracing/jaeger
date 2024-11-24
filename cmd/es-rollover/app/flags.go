@@ -56,7 +56,7 @@ func AddFlags(flags *flag.FlagSet) {
 }
 
 // InitFromViper initializes config from viper.Viper.
-func (c *Config) InitFromViper(v *viper.Viper) error {
+func (c *Config) InitFromViper(v *viper.Viper) {
 	c.IndexPrefix = v.GetString(indexPrefix)
 	if c.IndexPrefix != "" {
 		c.IndexPrefix += "-"
@@ -71,9 +71,7 @@ func (c *Config) InitFromViper(v *viper.Viper) error {
 	c.AdaptiveSampling = v.GetBool(adaptiveSampling)
 	opts, err := tlsFlagsCfg.InitFromViper(v)
 	if err != nil {
-		return err
+		panic(err)
 	}
 	c.TLSConfig = opts.ToOtelClientConfig()
-
-	return nil
 }

@@ -49,12 +49,7 @@ type ActionCreatorFunction func(client.Client, Config) Action
 // ExecuteAction execute the action returned by the createAction function
 func ExecuteAction(opts ActionExecuteOptions, createAction ActionCreatorFunction) error {
 	cfg := Config{}
-	if err := cfg.InitFromViper(opts.Viper); err != nil {
-		opts.Logger.Error("Failed to initialize config from viper",
-			zap.Error(err),
-		)
-		return fmt.Errorf("failed to initialize config: %w", err)
-	}
+	cfg.InitFromViper(opts.Viper)
 
 	ctx := context.Background()
 	tlsCfg, err := cfg.TLSConfig.LoadTLSConfig(ctx)
