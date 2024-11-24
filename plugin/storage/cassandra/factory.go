@@ -51,6 +51,7 @@ var ( // interface comformance checks
 type Factory struct {
 	Options *Options
 
+	metricsFactory        metrics.Factory
 	primaryMetricsFactory metrics.Factory
 	archiveMetricsFactory metrics.Factory
 	logger                *zap.Logger
@@ -134,6 +135,7 @@ func (f *Factory) configureFromOptions(o *Options) {
 
 // Initialize implements storage.Factory
 func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
+	f.metricsFactory = metricsFactory
 	f.primaryMetricsFactory = metricsFactory.Namespace(metrics.NSOptions{Name: "cassandra", Tags: nil})
 	f.archiveMetricsFactory = metricsFactory.Namespace(metrics.NSOptions{Name: "cassandra-archive", Tags: nil})
 	f.logger = logger
@@ -162,7 +164,8 @@ func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
 	if err != nil {
 		return nil, err
 	}
-	return storageMetrics.NewReadMetricsDecorator(sr, f.primaryMetricsFactory), nil
+	queryMetricsFactory := f.metricsFactory.Namespace(metrics.NSOptions{Name: "query"})
+	return storageMetrics.NewReadMetricsDecorator(sr, queryMetricsFactory), nil
 }
 
 // CreateSpanWriter implements storage.Factory
@@ -185,11 +188,7 @@ func (f *Factory) CreateArchiveSpanReader() (spanstore.Reader, error) {
 	if f.archiveSession == nil {
 		return nil, storage.ErrArchiveStorageNotConfigured
 	}
-	sr, err := cSpanStore.NewSpanReader(f.archiveSession, f.archiveMetricsFactory, f.logger, f.tracer.Tracer("cSpanStore.SpanReader"))
-	if err != nil {
-		return nil, err
-	}
-	return storageMetrics.NewReadMetricsDecorator(sr, f.archiveMetricsFactory), nil
+	return cSpanStore.NewSpanReader(f.archiveSession, f.archiveMetricsFactory, f.logger, f.tracer.Tracer("cSpanStore.SpanReader"))
 }
 
 // CreateArchiveSpanWriter implements storage.ArchiveFactory
