@@ -53,8 +53,8 @@ type Reader interface {
 // GetTraceParameters contains parameters of a trace get.
 type GetTraceParameters struct {
 	TraceID   model.TraceID
-	StartTime time.Time
-	EndTime   time.Time
+	StartTime time.Time // optional
+	EndTime   time.Time // optional
 }
 
 // TraceQueryParameters contains parameters of a trace query.
