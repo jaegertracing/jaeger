@@ -197,6 +197,25 @@ func withServerAndClient(t *testing.T, actualTest func(server *grpcServer, clien
 
 func TestGetTraceSuccessGRPC(t *testing.T) {
 	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
+		expectedTraceGetParameters := spanstore.GetTraceParameters{
+			TraceID: mockTraceID,
+		}
+		server.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), expectedTraceGetParameters).
+			Return(mockTrace, nil).Once()
+
+		res, err := client.GetTrace(context.Background(), &api_v2.GetTraceRequest{
+			TraceID: mockTraceID,
+		})
+
+		spanResChunk, _ := res.Recv()
+
+		require.NoError(t, err)
+		assert.Equal(t, spanResChunk.Spans[0].TraceID, mockTraceID)
+	})
+}
+
+func TestGetTraceWithTimeWindowSuccessGRPC(t *testing.T) {
+	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
 		startTime := time.Date(2020, time.January, 1, 13, 0, 0, 0, time.UTC)
 		endTime := time.Date(2020, time.January, 1, 14, 0, 0, 0, time.UTC)
 		expectedTraceGetParameters := spanstore.GetTraceParameters{
