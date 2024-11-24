@@ -19,6 +19,7 @@ import (
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/samplingstore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
+	storageMetrics "github.com/jaegertracing/jaeger/storage/spanstore/metrics"
 )
 
 var ( // interface comformance checks
@@ -81,7 +82,9 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 
 // CreateSpanReader implements storage.Factory
 func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
-	return f.store, nil
+	sr := f.store
+	queryMetricsFactory := f.metricsFactory.Namespace(metrics.NSOptions{Name: "query"})
+	return storageMetrics.NewReadMetricsDecorator(sr, queryMetricsFactory), nil
 }
 
 // CreateSpanWriter implements storage.Factory
