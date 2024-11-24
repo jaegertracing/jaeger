@@ -197,11 +197,20 @@ func withServerAndClient(t *testing.T, actualTest func(server *grpcServer, clien
 
 func TestGetTraceSuccessGRPC(t *testing.T) {
 	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
-		server.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
+		startTime := time.Date(2020, time.January, 1, 13, 0, 0, 0, time.UTC)
+		endTime := time.Date(2020, time.January, 1, 14, 0, 0, 0, time.UTC)
+		expectedTraceGetParameters := spanstore.GetTraceParameters{
+			TraceID:   mockTraceID,
+			StartTime: startTime,
+			EndTime:   endTime,
+		}
+		server.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), expectedTraceGetParameters).
 			Return(mockTrace, nil).Once()
 
 		res, err := client.GetTrace(context.Background(), &api_v2.GetTraceRequest{
-			TraceID: mockTraceID,
+			TraceID:   mockTraceID,
+			StartTime: startTime,
+			EndTime:   endTime,
 		})
 
 		spanResChunk, _ := res.Recv()
@@ -220,7 +229,7 @@ func assertGRPCError(t *testing.T, err error, code codes.Code, msg string) {
 
 func TestGetTraceEmptyTraceIDFailure_GRPC(t *testing.T) {
 	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
-		server.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
+		server.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("spanstore.GetTraceParameters")).
 			Return(mockTrace, nil).Once()
 
 		res, err := client.GetTrace(context.Background(), &api_v2.GetTraceRequest{
@@ -237,7 +246,7 @@ func TestGetTraceEmptyTraceIDFailure_GRPC(t *testing.T) {
 
 func TestGetTraceDBFailureGRPC(t *testing.T) {
 	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
-		server.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
+		server.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("spanstore.GetTraceParameters")).
 			Return(nil, errStorageGRPC).Once()
 
 		res, err := client.GetTrace(context.Background(), &api_v2.GetTraceRequest{
@@ -253,10 +262,10 @@ func TestGetTraceDBFailureGRPC(t *testing.T) {
 
 func TestGetTraceNotFoundGRPC(t *testing.T) {
 	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
-		server.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
+		server.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("spanstore.GetTraceParameters")).
 			Return(nil, spanstore.ErrTraceNotFound).Once()
 
-		server.archiveSpanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
+		server.archiveSpanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("spanstore.GetTraceParameters")).
 			Return(nil, spanstore.ErrTraceNotFound).Once()
 
 		res, err := client.GetTrace(context.Background(), &api_v2.GetTraceRequest{
@@ -278,7 +287,7 @@ func TestGetTraceNilRequestOnHandlerGRPC(t *testing.T) {
 
 func TestArchiveTraceSuccessGRPC(t *testing.T) {
 	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
-		server.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
+		server.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("spanstore.GetTraceParameters")).
 			Return(mockTrace, nil).Once()
 		server.archiveSpanWriter.On("WriteSpan", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("*model.Span")).
 			Return(nil).Times(2)
@@ -293,9 +302,9 @@ func TestArchiveTraceSuccessGRPC(t *testing.T) {
 
 func TestArchiveTraceNotFoundGRPC(t *testing.T) {
 	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
-		server.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
+		server.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("spanstore.GetTraceParameters")).
 			Return(nil, spanstore.ErrTraceNotFound).Once()
-		server.archiveSpanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
+		server.archiveSpanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("spanstore.GetTraceParameters")).
 			Return(nil, spanstore.ErrTraceNotFound).Once()
 
 		_, err := client.ArchiveTrace(context.Background(), &api_v2.ArchiveTraceRequest{
@@ -324,7 +333,7 @@ func TestArchiveTraceNilRequestOnHandlerGRPC(t *testing.T) {
 
 func TestArchiveTraceFailureGRPC(t *testing.T) {
 	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
-		server.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
+		server.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("spanstore.GetTraceParameters")).
 			Return(mockTrace, nil).Once()
 		server.archiveSpanWriter.On("WriteSpan", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("*model.Span")).
 			Return(errStorageGRPC).Times(2)
@@ -955,7 +964,7 @@ func TestSearchTenancyGRPC(t *testing.T) {
 		Enabled: true,
 	})
 	withTenantedServerAndClient(t, tm, func(server *grpcServer, client *grpcClient) {
-		server.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
+		server.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("spanstore.GetTraceParameters")).
 			Return(mockTrace, nil).Once()
 
 		// First try without tenancy header
@@ -1012,7 +1021,7 @@ func TestSearchTenancyGRPCExplicitList(t *testing.T) {
 		Tenants: []string{"mercury", "venus", "mars"},
 	})
 	withTenantedServerAndClient(t, tm, func(server *grpcServer, client *grpcClient) {
-		server.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
+		server.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("spanstore.GetTraceParameters")).
 			Return(mockTrace, nil).Once()
 
 		for _, tc := range []struct {
@@ -1124,7 +1133,7 @@ func TestTenancyContextFlowGRPC(t *testing.T) {
 					return false
 				}
 				return true
-			}), mock.AnythingOfType("model.TraceID")).Return(trace, err).Once()
+			}), mock.AnythingOfType("spanstore.GetTraceParameters")).Return(trace, err).Once()
 		}
 
 		for tenant, expected := range allExpectedResults {

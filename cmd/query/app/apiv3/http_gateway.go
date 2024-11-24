@@ -27,7 +27,9 @@ import (
 )
 
 const (
-	paramTraceID       = "trace_id"           // get trace by ID
+	paramTraceID       = "trace_id" // get trace by ID
+	paramStartTime     = "start_time"
+	paramEndTime       = "end_time"
 	paramServiceName   = "query.service_name" // find traces
 	paramOperationName = "query.operation_name"
 	paramTimeMin       = "query.start_time_min"
@@ -136,7 +138,11 @@ func (h *HTTPGateway) getTrace(w http.ResponseWriter, r *http.Request) {
 	if h.tryParamError(w, err, paramTraceID) {
 		return
 	}
-	trc, err := h.QueryService.GetTrace(r.Context(), traceID)
+	// TODO: add start time & end time
+	request := spanstore.GetTraceParameters{
+		TraceID: traceID,
+	}
+	trc, err := h.QueryService.GetTrace(r.Context(), request)
 	if h.tryHandleError(w, err, http.StatusInternalServerError) {
 		return
 	}

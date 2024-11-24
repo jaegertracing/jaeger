@@ -54,10 +54,12 @@ func (q *Query) QueryTrace(traceID string) ([]model.Span, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert the provided trace id: %w", err)
 	}
-
-	stream, err := q.client.GetTrace(context.Background(), &api_v2.GetTraceRequest{
+	// TODO: add start time & end time
+	request := api_v2.GetTraceRequest{
 		TraceID: mTraceID,
-	})
+	}
+
+	stream, err := q.client.GetTrace(context.Background(), &request)
 	if err != nil {
 		return nil, unwrapNotFoundErr(err)
 	}

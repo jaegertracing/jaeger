@@ -118,7 +118,7 @@ func TestHTTPGatewayGetTraceErrors(t *testing.T) {
 	// error from span reader
 	const simErr = "simulated error"
 	gw.reader.
-		On("GetTrace", matchContext, matchTraceID).
+		On("GetTrace", matchContext, matchGetTraceParameters).
 		Return(nil, errors.New(simErr)).Once()
 
 	r, err = http.NewRequest(http.MethodGet, "/api/v3/traces/123", nil)

@@ -44,6 +44,7 @@ import (
 	"github.com/jaegertracing/jaeger/ports"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 	depsmocks "github.com/jaegertracing/jaeger/storage/dependencystore/mocks"
+	"github.com/jaegertracing/jaeger/storage/spanstore"
 	spanstoremocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
 )
 
@@ -901,7 +902,7 @@ func TestServerHTTP_TracesRequest(t *testing.T) {
 
 			tenancyMgr := tenancy.NewManager(&serverOptions.Tenancy)
 			querySvc := makeQuerySvc()
-			querySvc.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), model.NewTraceID(0, 0x123456abc)).
+			querySvc.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), spanstore.GetTraceParameters{TraceID: model.NewTraceID(0, 0x123456abc)}).
 				Return(makeMockTrace(t), nil).Once()
 			telset := initTelSet(zaptest.NewLogger(t), &tracer, healthcheck.New())
 

@@ -26,8 +26,8 @@ import (
 )
 
 var (
-	matchContext = mock.AnythingOfType("*context.valueCtx")
-	matchTraceID = mock.AnythingOfType("model.TraceID")
+	matchContext            = mock.AnythingOfType("*context.valueCtx")
+	matchGetTraceParameters = mock.AnythingOfType("spanstore.GetTraceParameters")
 )
 
 func newGrpcServer(t *testing.T, handler *Handler) (*grpc.Server, net.Addr) {
@@ -79,7 +79,15 @@ func newTestServerClient(t *testing.T) *testServerClient {
 
 func TestGetTrace(t *testing.T) {
 	tsc := newTestServerClient(t)
-	tsc.reader.On("GetTrace", matchContext, matchTraceID).Return(
+	traceIdLiteral := "156"
+	traceId, _ := model.TraceIDFromString(traceIdLiteral)
+
+	expectedTraceGetParameters := spanstore.GetTraceParameters{
+		TraceID:   traceId,
+		StartTime: time.Time{},
+		EndTime:   time.Time{},
+	}
+	tsc.reader.On("GetTrace", matchContext, expectedTraceGetParameters).Return(
 		&model.Trace{
 			Spans: []*model.Span{
 				{
@@ -90,7 +98,44 @@ func TestGetTrace(t *testing.T) {
 
 	getTraceStream, err := tsc.client.GetTrace(context.Background(),
 		&api_v3.GetTraceRequest{
-			TraceId: "156",
+			TraceId: traceIdLiteral,
+		},
+	)
+	require.NoError(t, err)
+	recv, err := getTraceStream.Recv()
+	require.NoError(t, err)
+	td := recv.ToTraces()
+	require.EqualValues(t, 1, td.SpanCount())
+	assert.Equal(t, "foobar",
+		td.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).Name())
+}
+
+func TestGetTraceWithTimeWindow(t *testing.T) {
+	tsc := newTestServerClient(t)
+	traceIdLiteral := "156"
+	traceId, _ := model.TraceIDFromString(traceIdLiteral)
+
+	start_ts := time.Unix(1, 2).UTC()
+	end_ts := time.Unix(3, 4).UTC()
+	expectedTraceGetParameters := spanstore.GetTraceParameters{
+		TraceID:   traceId,
+		StartTime: start_ts,
+		EndTime:   end_ts,
+	}
+	tsc.reader.On("GetTrace", matchContext, expectedTraceGetParameters).Return(
+		&model.Trace{
+			Spans: []*model.Span{
+				{
+					OperationName: "foobar",
+				},
+			},
+		}, nil).Once()
+
+	getTraceStream, err := tsc.client.GetTrace(context.Background(),
+		&api_v3.GetTraceRequest{
+			TraceId:   traceIdLiteral,
+			StartTime: start_ts,
+			EndTime:   end_ts,
 		},
 	)
 	require.NoError(t, err)
@@ -104,7 +149,7 @@ func TestGetTrace(t *testing.T) {
 
 func TestGetTraceStorageError(t *testing.T) {
 	tsc := newTestServerClient(t)
-	tsc.reader.On("GetTrace", matchContext, matchTraceID).Return(
+	tsc.reader.On("GetTrace", matchContext, matchGetTraceParameters).Return(
 		nil, errors.New("storage_error")).Once()
 
 	getTraceStream, err := tsc.client.GetTrace(context.Background(), &api_v3.GetTraceRequest{
@@ -118,7 +163,7 @@ func TestGetTraceStorageError(t *testing.T) {
 
 func TestGetTraceTraceIDError(t *testing.T) {
 	tsc := newTestServerClient(t)
-	tsc.reader.On("GetTrace", matchContext, matchTraceID).Return(
+	tsc.reader.On("GetTrace", matchContext, matchGetTraceParameters).Return(
 		&model.Trace{
 			Spans: []*model.Span{},
 		}, nil).Once()
