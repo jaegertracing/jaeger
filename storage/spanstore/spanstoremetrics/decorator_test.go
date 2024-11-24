@@ -30,7 +30,7 @@ func TestSuccessfulUnderlyingCalls(t *testing.T) {
 		Return([]spanstore.Operation{}, nil)
 	mrs.GetOperations(context.Background(), operationQuery)
 	mockReader.On("GetTrace", context.Background(), spanstore.GetTraceParameters{TraceID: model.TraceID{}}).Return(&model.Trace{}, nil)
-	mrs.GetTrace(context.Background(), spanstore.GetTraceParameters{TraceID: model.TraceID{}})
+	mrs.GetTrace(context.Background(), spanstore.GetTraceParameters{})
 	mockReader.On("FindTraces", context.Background(), &spanstore.TraceQueryParameters{}).
 		Return([]*model.Trace{}, nil)
 	mrs.FindTraces(context.Background(), &spanstore.TraceQueryParameters{})
