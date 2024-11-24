@@ -1277,7 +1277,7 @@ func TestSpanReader_ArchiveTraces(t *testing.T) {
 			Return(&elastic.MultiSearchResult{
 				Responses: []*elastic.SearchResult{},
 			}, nil)
-		query := spanstore.GetTraceParameters{TraceID: model.TraceID{}}
+		query := spanstore.GetTraceParameters{}
 		trace, err := r.reader.GetTrace(context.Background(), query)
 		require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
 		require.Nil(t, trace)
@@ -1294,7 +1294,7 @@ func TestSpanReader_ArchiveTraces_ReadAlias(t *testing.T) {
 				Responses: []*elastic.SearchResult{},
 			}, nil)
 
-		query := spanstore.GetTraceParameters{TraceID: model.TraceID{}}
+		query := spanstore.GetTraceParameters{}
 		trace, err := r.reader.GetTrace(context.Background(), query)
 		require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
 		require.Nil(t, trace)

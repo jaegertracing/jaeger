@@ -65,6 +65,8 @@ var (
 	}
 
 	mockTraceID = model.NewTraceID(0, 123456)
+	startTime   = time.Date(2020, time.January, 1, 13, 0, 0, 0, time.UTC)
+	endTime     = time.Date(2020, time.January, 1, 14, 0, 0, 0, time.UTC)
 	mockTrace   = &model.Trace{
 		Spans: []*model.Span{
 			{

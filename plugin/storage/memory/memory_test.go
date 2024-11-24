@@ -227,7 +227,7 @@ func TestStoreGetTraceError(t *testing.T) {
 
 func TestStoreGetTraceFailure(t *testing.T) {
 	withPopulatedMemoryStore(func(store *Store) {
-		query := spanstore.GetTraceParameters{TraceID: model.TraceID{}}
+		query := spanstore.GetTraceParameters{}
 		trace, err := store.GetTrace(context.Background(), query)
 		require.EqualError(t, err, spanstore.ErrTraceNotFound.Error())
 		assert.Nil(t, trace)
