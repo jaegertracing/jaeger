@@ -300,6 +300,30 @@ func TestArchiveTraceSuccessGRPC(t *testing.T) {
 	})
 }
 
+func TestArchiveTraceWithTimeWindowSuccessGRPC(t *testing.T) {
+	startTime := time.Unix(1, 2).UTC()
+	endTime := time.Unix(3, 4).UTC()
+	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
+		expectedGetTraceParameters := spanstore.GetTraceParameters{
+			TraceID:   mockTraceID,
+			StartTime: startTime,
+			EndTime:   endTime,
+		}
+		server.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), expectedGetTraceParameters).
+			Return(mockTrace, nil).Once()
+		server.archiveSpanWriter.On("WriteSpan", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("*model.Span")).
+			Return(nil).Times(2)
+
+		_, err := client.ArchiveTrace(context.Background(), &api_v2.ArchiveTraceRequest{
+			TraceID:   mockTraceID,
+			StartTime: &startTime,
+			EndTime:   &endTime,
+		})
+
+		require.NoError(t, err)
+	})
+}
+
 func TestArchiveTraceNotFoundGRPC(t *testing.T) {
 	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
 		server.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("spanstore.GetTraceParameters")).
