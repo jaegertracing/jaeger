@@ -35,8 +35,12 @@ func (f *Factory) Close(_ context.Context) error {
 }
 
 // CreateTraceReader implements spanstore.Factory.
-func (*Factory) CreateTraceReader() (spanstore.Reader, error) {
-	panic("not implemented")
+func (f *Factory) CreateTraceReader() (spanstore.Reader, error) {
+	spanReader, err := f.ss.CreateSpanReader()
+	if err != nil {
+		return nil, err
+	}
+	return NewTraceReader(spanReader), nil
 }
 
 // CreateTraceWriter implements spanstore.Factory.

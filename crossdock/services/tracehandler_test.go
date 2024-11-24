@@ -7,10 +7,10 @@ package services
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -414,7 +414,7 @@ func TestAdaptiveSamplingTestInternal(t *testing.T) {
 	}
 
 	for i, test := range tests {
-		t.Run(fmt.Sprintf("%d", i), func(t *testing.T) {
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			query := &mocks.QueryService{}
 			agent := &mocks.AgentService{}
 

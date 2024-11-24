@@ -24,13 +24,19 @@ var logger, _ = zap.NewDevelopment()
 func main() {
 	noScope := metrics.NullFactory
 	cConfig := &cascfg.Configuration{
-		Servers:            []string{"127.0.0.1"},
-		ConnectionsPerHost: 10,
-		Timeout:            time.Millisecond * 750,
-		ProtoVersion:       4,
-		Keyspace:           "jaeger_v1_test",
+		Schema: cascfg.Schema{
+			Keyspace: "jaeger_v1_test",
+		},
+		Connection: cascfg.Connection{
+			Servers:            []string{"127.0.0.1"},
+			ConnectionsPerHost: 10,
+			ProtoVersion:       4,
+		},
+		Query: cascfg.Query{
+			Timeout: time.Millisecond * 750,
+		},
 	}
-	cqlSession, err := cConfig.NewSession(logger)
+	cqlSession, err := cConfig.NewSession()
 	if err != nil {
 		logger.Fatal("Cannot create Cassandra session", zap.Error(err))
 	}
@@ -38,8 +44,14 @@ func main() {
 	if err != nil {
 		logger.Fatal("Failed to initialize tracer", zap.Error(err))
 	}
-	spanStore := cSpanStore.NewSpanWriter(cqlSession, time.Hour*12, noScope, logger)
-	spanReader := cSpanStore.NewSpanReader(cqlSession, noScope, logger, tracer.OTEL.Tracer("cSpanStore.SpanReader"))
+	spanStore, err := cSpanStore.NewSpanWriter(cqlSession, time.Hour*12, noScope, logger)
+	if err != nil {
+		logger.Fatal("Failed to create span writer", zap.Error(err))
+	}
+	spanReader, err := cSpanStore.NewSpanReader(cqlSession, noScope, logger, tracer.OTEL.Tracer("cSpanStore.SpanReader"))
+	if err != nil {
+		logger.Fatal("Failed to create span reader", zap.Error(err))
+	}
 	ctx := context.Background()
 	if err = spanStore.WriteSpan(ctx, getSomeSpan()); err != nil {
 		logger.Fatal("Failed to save", zap.Error(err))

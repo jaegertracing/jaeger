@@ -109,10 +109,13 @@ func NewSpanReader(
 	metricsFactory metrics.Factory,
 	logger *zap.Logger,
 	tracer trace.Tracer,
-) *SpanReader {
+) (*SpanReader, error) {
 	readFactory := metricsFactory.Namespace(metrics.NSOptions{Name: "read", Tags: nil})
 	serviceNamesStorage := NewServiceNamesStorage(session, 0, metricsFactory, logger)
-	operationNamesStorage := NewOperationNamesStorage(session, 0, metricsFactory, logger)
+	operationNamesStorage, err := NewOperationNamesStorage(session, 0, metricsFactory, logger)
+	if err != nil {
+		return nil, err
+	}
 	return &SpanReader{
 		session:              session,
 		serviceNamesReader:   serviceNamesStorage.GetServices,
@@ -127,7 +130,7 @@ func NewSpanReader(
 		},
 		logger: logger,
 		tracer: tracer,
-	}
+	}, nil
 }
 
 // GetServices returns all services traced by Jaeger
@@ -148,9 +151,9 @@ func (s *SpanReader) readTrace(ctx context.Context, traceID dbmodel.TraceID) (*m
 	defer span.End()
 	span.SetAttributes(attribute.Key("trace_id").String(traceID.String()))
 
-	trace, err := s.readTraceInSpan(ctx, traceID)
+	trc, err := s.readTraceInSpan(ctx, traceID)
 	logErrorToSpan(span, err)
-	return trace, err
+	return trc, err
 }
 
 func (s *SpanReader) readTraceInSpan(_ context.Context, traceID dbmodel.TraceID) (*model.Trace, error) {

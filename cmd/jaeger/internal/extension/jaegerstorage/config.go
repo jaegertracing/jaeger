@@ -4,6 +4,7 @@
 package jaegerstorage
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 	"time"
@@ -41,7 +42,7 @@ type Config struct {
 type Backend struct {
 	Memory        *memory.Configuration `mapstructure:"memory"`
 	Badger        *badger.Config        `mapstructure:"badger"`
-	GRPC          *grpc.ConfigV2        `mapstructure:"grpc"`
+	GRPC          *grpc.Config          `mapstructure:"grpc"`
 	Cassandra     *cassandra.Options    `mapstructure:"cassandra"`
 	Elasticsearch *esCfg.Configuration  `mapstructure:"elasticsearch"`
 	Opensearch    *esCfg.Configuration  `mapstructure:"opensearch"`
@@ -66,7 +67,7 @@ func (cfg *Backend) Unmarshal(conf *confmap.Conf) error {
 		cfg.Badger = v
 	}
 	if conf.IsSet("grpc") {
-		v := grpc.DefaultConfigV2()
+		v := grpc.DefaultConfig()
 		cfg.GRPC = &v
 	}
 	if conf.IsSet("cassandra") {
@@ -96,7 +97,7 @@ func (cfg *Backend) Unmarshal(conf *confmap.Conf) error {
 
 func (cfg *Config) Validate() error {
 	if len(cfg.Backends) == 0 {
-		return fmt.Errorf("at least one storage is required")
+		return errors.New("at least one storage is required")
 	}
 	for name, b := range cfg.Backends {
 		empty := Backend{}

@@ -5,6 +5,16 @@ service:
       receivers: [otlp]
       processors: [batch]
       exporters: [jaeger_storage_exporter]
+  telemetry:
+    resource:
+      service.name: jaeger
+    metrics:
+      level: detailed
+      address: 0.0.0.0:8888
+    logs:
+      level: debug
+    # TODO Initialize telemetery tracer once OTEL released new feature.
+    # https://github.com/open-telemetry/opentelemetry-collector/issues/10663
 
 extensions:
   healthcheckv2:
@@ -12,19 +22,42 @@ extensions:
     http:
 
   jaeger_query:
-    trace_storage: some_storage
-    trace_storage_archive: another_storage
-    ui_config: ./cmd/jaeger/config-ui.json
+    storage:
+      traces: some_storage
+      traces_archive: another_storage
+    ui:
+      config_file: ./cmd/jaeger/config-ui.json
 
   jaeger_storage:
     backends:
       some_storage:
         opensearch:
-          index_prefix: "jaeger-main"
-
+          indices:
+            index_prefix: "jaeger-main"
+            spans:
+              date_layout: "2006-01-02"
+              rollover_frequency: "day"
+              shards: 5
+              replicas: 1
+            services:
+              date_layout: "2006-01-02"
+              rollover_frequency: "day"
+              shards: 5
+              replicas: 1
+            dependencies:
+              date_layout: "2006-01-02"
+              rollover_frequency: "day"
+              shards: 5
+              replicas: 1
+            sampling:
+              date_layout: "2006-01-02"
+              rollover_frequency: "day"
+              shards: 5
+              replicas: 1
       another_storage:
         opensearch:
-          index_prefix: "jaeger-main"
+          indices:
+            index_prefix: "jaeger-archive"
 
 receivers:
   otlp:

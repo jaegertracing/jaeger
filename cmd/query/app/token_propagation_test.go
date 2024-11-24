@@ -4,6 +4,7 @@
 package app
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -13,6 +14,12 @@ import (
 	"github.com/olivere/elastic"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/config/configgrpc"
+	"go.opentelemetry.io/collector/config/confighttp"
+	"go.opentelemetry.io/collector/config/confignet"
+	"go.opentelemetry.io/collector/config/configtelemetry"
+	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/metric/noop"
 	"go.uber.org/zap/zaptest"
 
 	"github.com/jaegertracing/jaeger/cmd/internal/flags"
@@ -73,7 +80,7 @@ func runQueryService(t *testing.T, esURL string) *Server {
 	}))
 	f.InitFromViper(v, flagsSvc.Logger)
 	// set AllowTokenFromContext manually because we don't register the respective CLI flag from query svc
-	f.Options.Primary.AllowTokenFromContext = true
+	f.Options.Primary.Authentication.BearerTokenAuthentication.AllowFromContext = true
 	require.NoError(t, f.Initialize(metrics.NullFactory, flagsSvc.Logger))
 	defer f.Close()
 
@@ -85,20 +92,28 @@ func runQueryService(t *testing.T, esURL string) *Server {
 		Logger:         flagsSvc.Logger,
 		TracerProvider: jtracer.NoOp().OTEL,
 		ReportStatus:   telemetery.HCAdapter(flagsSvc.HC()),
+		LeveledMeterProvider: func(_ configtelemetry.Level) metric.MeterProvider {
+			return noop.NewMeterProvider()
+		},
 	}
-	server, err := NewServer(querySvc, nil,
+	server, err := NewServer(context.Background(), querySvc, nil,
 		&QueryOptions{
-			GRPCHostPort: ":0",
-			HTTPHostPort: ":0",
-			QueryOptionsBase: QueryOptionsBase{
-				BearerTokenPropagation: true,
+			BearerTokenPropagation: true,
+			HTTP: confighttp.ServerConfig{
+				Endpoint: ":0",
+			},
+			GRPC: configgrpc.ServerConfig{
+				NetAddr: confignet.AddrConfig{
+					Endpoint:  ":0",
+					Transport: confignet.TransportTypeTCP,
+				},
 			},
 		},
 		tenancy.NewManager(&tenancy.Options{}),
 		telset,
 	)
 	require.NoError(t, err)
-	require.NoError(t, server.Start())
+	require.NoError(t, server.Start(context.Background()))
 	return server
 }
 

@@ -13,13 +13,19 @@ import (
 	"github.com/spf13/viper"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componenttest"
+	"go.opentelemetry.io/collector/config/configgrpc"
+	"go.opentelemetry.io/collector/config/configtelemetry"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
+	"go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 
+	"github.com/jaegertracing/jaeger/pkg/bearertoken"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/pkg/telemetery"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/plugin"
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared"
@@ -37,33 +43,34 @@ var ( // interface comformance checks
 
 // Factory implements storage.Factory and creates storage components backed by a storage plugin.
 type Factory struct {
-	metricsFactory metrics.Factory
-	logger         *zap.Logger
-	tracerProvider trace.TracerProvider
-
-	// configV1 is used for backward compatibility. it will be removed in v2.
-	// In the main initialization logic, only configV2 is used.
-	configV1 Configuration
-	configV2 *ConfigV2
-
-	services   *ClientPluginServices
-	remoteConn *grpc.ClientConn
+	metricsFactory     metrics.Factory
+	logger             *zap.Logger
+	tracerProvider     trace.TracerProvider
+	config             Config
+	services           *ClientPluginServices
+	tracedRemoteConn   *grpc.ClientConn
+	untracedRemoteConn *grpc.ClientConn
+	host               component.Host
+	meterProvider      metric.MeterProvider
 }
 
 // NewFactory creates a new Factory.
 func NewFactory() *Factory {
-	return &Factory{}
+	return &Factory{
+		host: componenttest.NewNopHost(),
+	}
 }
 
 // NewFactoryWithConfig is used from jaeger(v2).
 func NewFactoryWithConfig(
-	cfg ConfigV2,
-	metricsFactory metrics.Factory,
-	logger *zap.Logger,
+	cfg Config,
+	telset telemetery.Setting,
 ) (*Factory, error) {
 	f := NewFactory()
-	f.configV2 = &cfg
-	if err := f.Initialize(metricsFactory, logger); err != nil {
+	f.config = cfg
+	f.host = telset.Host
+	f.meterProvider = telset.LeveledMeterProvider(configtelemetry.LevelNone)
+	if err := f.Initialize(telset.Metrics, telset.Logger); err != nil {
 		return nil, err
 	}
 	return f, nil
@@ -71,12 +78,12 @@ func NewFactoryWithConfig(
 
 // AddFlags implements plugin.Configurable
 func (*Factory) AddFlags(flagSet *flag.FlagSet) {
-	v1AddFlags(flagSet)
+	addFlags(flagSet)
 }
 
 // InitFromViper implements plugin.Configurable
 func (f *Factory) InitFromViper(v *viper.Viper, logger *zap.Logger) {
-	if err := v1InitFromViper(&f.configV1, v); err != nil {
+	if err := initFromViper(&f.config, v); err != nil {
 		logger.Fatal("unable to initialize gRPC storage factory", zap.Error(err))
 	}
 }
@@ -86,50 +93,73 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 	f.metricsFactory, f.logger = metricsFactory, logger
 	f.tracerProvider = otel.GetTracerProvider()
 
-	if f.configV2 == nil {
-		f.configV2 = f.configV1.TranslateToConfigV2()
-	}
-
-	telset := component.TelemetrySettings{
-		Logger:         logger,
-		TracerProvider: f.tracerProvider,
-	}
-	newClientFn := func(opts ...grpc.DialOption) (conn *grpc.ClientConn, err error) {
-		return f.configV2.ToClientConn(context.Background(), componenttest.NewNopHost(), telset, opts...)
+	tracedTelset := getTelset(logger, f.tracerProvider, f.meterProvider)
+	untracedTelset := getTelset(logger, noop.NewTracerProvider(), f.meterProvider)
+	newClientFn := func(telset component.TelemetrySettings, opts ...grpc.DialOption) (conn *grpc.ClientConn, err error) {
+		clientOpts := make([]configgrpc.ToClientConnOption, 0)
+		for _, opt := range opts {
+			clientOpts = append(clientOpts, configgrpc.WithGrpcDialOption(opt))
+		}
+		return f.config.ToClientConn(context.Background(), f.host, telset, clientOpts...)
 	}
 
 	var err error
-	f.services, err = f.newRemoteStorage(telset, newClientFn)
+	f.services, err = f.newRemoteStorage(tracedTelset, untracedTelset, newClientFn)
 	if err != nil {
 		return fmt.Errorf("grpc storage builder failed to create a store: %w", err)
 	}
-	logger.Info("Remote storage configuration", zap.Any("configuration", f.configV2))
+	logger.Info("Remote storage configuration", zap.Any("configuration", f.config))
 	return nil
 }
 
-type newClientFn func(opts ...grpc.DialOption) (*grpc.ClientConn, error)
+type newClientFn func(telset component.TelemetrySettings, opts ...grpc.DialOption) (*grpc.ClientConn, error)
 
-func (f *Factory) newRemoteStorage(telset component.TelemetrySettings, newClient newClientFn) (*ClientPluginServices, error) {
-	c := f.configV2
-	opts := []grpc.DialOption{
-		grpc.WithStatsHandler(otelgrpc.NewClientHandler(otelgrpc.WithTracerProvider(telset.TracerProvider))),
-	}
+func (f *Factory) newRemoteStorage(
+	tracedTelset component.TelemetrySettings,
+	untracedTelset component.TelemetrySettings,
+	newClient newClientFn,
+) (*ClientPluginServices, error) {
+	c := f.config
 	if c.Auth != nil {
-		return nil, fmt.Errorf("authenticator is not supported")
+		return nil, errors.New("authenticator is not supported")
 	}
-
+	unaryInterceptors := []grpc.UnaryClientInterceptor{
+		bearertoken.NewUnaryClientInterceptor(),
+	}
+	streamInterceptors := []grpc.StreamClientInterceptor{
+		bearertoken.NewStreamClientInterceptor(),
+	}
 	tenancyMgr := tenancy.NewManager(&c.Tenancy)
 	if tenancyMgr.Enabled {
-		opts = append(opts, grpc.WithUnaryInterceptor(tenancy.NewClientUnaryInterceptor(tenancyMgr)))
-		opts = append(opts, grpc.WithStreamInterceptor(tenancy.NewClientStreamInterceptor(tenancyMgr)))
+		unaryInterceptors = append(unaryInterceptors, tenancy.NewClientUnaryInterceptor(tenancyMgr))
+		streamInterceptors = append(streamInterceptors, tenancy.NewClientStreamInterceptor(tenancyMgr))
 	}
 
-	remoteConn, err := newClient(opts...)
+	baseOpts := append(
+		[]grpc.DialOption{},
+		grpc.WithChainUnaryInterceptor(unaryInterceptors...),
+		grpc.WithChainStreamInterceptor(streamInterceptors...),
+	)
+	opts := append([]grpc.DialOption{}, baseOpts...)
+	opts = append(opts, grpc.WithStatsHandler(otelgrpc.NewClientHandler(otelgrpc.WithTracerProvider(tracedTelset.TracerProvider))))
+
+	tracedRemoteConn, err := newClient(tracedTelset, opts...)
 	if err != nil {
-		return nil, fmt.Errorf("error creating remote storage client: %w", err)
+		return nil, fmt.Errorf("error creating traced remote storage client: %w", err)
 	}
-	f.remoteConn = remoteConn
-	grpcClient := shared.NewGRPCClient(remoteConn)
+	f.tracedRemoteConn = tracedRemoteConn
+	untracedOpts := append([]grpc.DialOption{}, baseOpts...)
+	untracedOpts = append(
+		untracedOpts,
+		grpc.WithStatsHandler(
+			otelgrpc.NewClientHandler(
+				otelgrpc.WithTracerProvider(untracedTelset.TracerProvider))))
+	untracedRemoteConn, err := newClient(tracedTelset, untracedOpts...)
+	if err != nil {
+		return nil, fmt.Errorf("error creating untraced remote storage client: %w", err)
+	}
+	f.untracedRemoteConn = untracedRemoteConn
+	grpcClient := shared.NewGRPCClient(tracedRemoteConn, untracedRemoteConn)
 	return &ClientPluginServices{
 		PluginServices: shared.PluginServices{
 			Store:               grpcClient,
@@ -193,9 +223,21 @@ func (f *Factory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
 // Close closes the resources held by the factory
 func (f *Factory) Close() error {
 	var errs []error
-	if f.remoteConn != nil {
-		errs = append(errs, f.remoteConn.Close())
+	if f.tracedRemoteConn != nil {
+		errs = append(errs, f.tracedRemoteConn.Close())
 	}
-	errs = append(errs, f.configV1.RemoteTLS.Close())
+	if f.untracedRemoteConn != nil {
+		errs = append(errs, f.untracedRemoteConn.Close())
+	}
 	return errors.Join(errs...)
+}
+
+func getTelset(logger *zap.Logger, tracerProvider trace.TracerProvider, meterProvider metric.MeterProvider) component.TelemetrySettings {
+	return component.TelemetrySettings{
+		Logger:         logger,
+		TracerProvider: tracerProvider,
+		LeveledMeterProvider: func(_ configtelemetry.Level) metric.MeterProvider {
+			return meterProvider
+		},
+	}
 }

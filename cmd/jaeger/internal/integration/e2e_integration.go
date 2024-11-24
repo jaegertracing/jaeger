@@ -13,7 +13,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
@@ -42,10 +41,16 @@ const otlpPort = 4317
 type E2EStorageIntegration struct {
 	integration.StorageIntegration
 
-	SkipStorageCleaner  bool
-	ConfigFile          string
-	BinaryName          string
-	HealthCheckEndpoint string
+	SkipStorageCleaner bool
+	ConfigFile         string
+	BinaryName         string
+	HealthCheckPort    int // overridable for Kafka tests which run two binaries and need different ports
+
+	// EnvVarOverrides contains a map of environment variables to set.
+	// The key in the map is the environment variable to override and the value
+	// is the value of the environment variable to set.
+	// These variables are set upon initialization and are unset upon cleanup.
+	EnvVarOverrides map[string]string
 }
 
 // Binary is a wrapper around exec.Cmd to help running binaries in tests.
@@ -107,6 +112,10 @@ func (b *Binary) Start(t *testing.T) {
 // it also initialize the SpanWriter and SpanReader below.
 // This function should be called before any of the tests start.
 func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
+	// set environment variable overrides
+	for key, value := range s.EnvVarOverrides {
+		t.Setenv(key, value)
+	}
 	logger := zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller()))
 	if s.BinaryName == "" {
 		s.BinaryName = "jaeger-v2"
@@ -126,7 +135,7 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
 			Path: "./cmd/jaeger/jaeger",
 			Args: []string{"jaeger", "--config", configFile},
 			// Change the working directory to the root of this project
-			// since the binary config file jaeger_query's ui_config points to
+			// since the binary config file jaeger_query's ui.config_file points to
 			// "./cmd/jaeger/config-ui.json"
 			Dir: "../../../..",
 		},
@@ -150,10 +159,11 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
 }
 
 func (s *E2EStorageIntegration) doHealthCheck(t *testing.T) bool {
-	healthCheckEndpoint := s.HealthCheckEndpoint
-	if healthCheckEndpoint == "" {
-		healthCheckEndpoint = "http://localhost:13133/status"
+	healthCheckPort := s.HealthCheckPort
+	if healthCheckPort == 0 {
+		healthCheckPort = ports.CollectorV2HealthChecks
 	}
+	healthCheckEndpoint := fmt.Sprintf("http://localhost:%d/status", healthCheckPort)
 	t.Logf("Checking if %s is available on %s", s.BinaryName, healthCheckEndpoint)
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
@@ -177,11 +187,6 @@ func (s *E2EStorageIntegration) doHealthCheck(t *testing.T) bool {
 		t.Logf("HTTP response not OK: %v", string(body))
 		return false
 	}
-	// for backwards compatibility with other healthchecks
-	if !strings.HasSuffix(healthCheckEndpoint, "/status") {
-		t.Logf("OK HTTP from endpoint that is not healthcheckv2")
-		return true
-	}
 
 	var healthResponse struct {
 		Status string `json:"status"`
@@ -193,7 +198,7 @@ func (s *E2EStorageIntegration) doHealthCheck(t *testing.T) bool {
 
 	// Check if the status field in the JSON is "StatusOK"
 	if healthResponse.Status != "StatusOK" {
-		t.Logf("Received non-K status %s: %s", healthResponse.Status, string(body))
+		t.Logf("Received non-OK status %s: %s", healthResponse.Status, string(body))
 		return false
 	}
 	return true
@@ -223,7 +228,9 @@ func createStorageCleanerConfig(t *testing.T, configFile string, storage string)
 	extensions := extensionsAny.(map[string]any)
 	queryAny, ok := extensions["jaeger_query"]
 	require.True(t, ok)
-	traceStorageAny, ok := queryAny.(map[string]any)["trace_storage"]
+	storageAny, ok := queryAny.(map[string]any)["storage"]
+	require.True(t, ok)
+	traceStorageAny, ok := storageAny.(map[string]any)["traces"]
 	require.True(t, ok)
 	traceStorage := traceStorageAny.(string)
 	extensions["storage_cleaner"] = map[string]string{"trace_storage": traceStorage}

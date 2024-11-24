@@ -15,9 +15,7 @@ set -u
 
 BASE_BUILD_IMAGE=${1:?'expecting Docker image name as argument, such as jaegertracing/jaeger'}
 BRANCH=${BRANCH:?'expecting BRANCH env var'}
-GITHUB_SHA=${GITHUB_SHA:?'expecting GITHUB_SHA env var'}
-# allow substituting for ggrep on Mac, since its default grep doesn't grok -P flag.
-GREP=${GREP:-"grep"}
+GITHUB_SHA=${GITHUB_SHA:-$(git rev-parse HEAD)}
 
 # accumulate output in this variable
 IMAGE_TAGS=""
@@ -33,17 +31,14 @@ tags() {
 
 ## If we are on a release tag, let's extract the version number.
 ## The other possible values are 'main' or another branch name.
-if [[ $BRANCH =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-    MAJOR_MINOR_PATCH=$(echo "${BRANCH}" | ${GREP} -Po "([\d\.]+)")
-    MAJOR_MINOR=$(echo "${MAJOR_MINOR_PATCH}" | awk -F. '{print $1"."$2}')
-    MAJOR=$(echo "${MAJOR_MINOR_PATCH}" | awk -F. '{print $1}')
-
+if [[ $BRANCH =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-rc[0-9]+)?$ ]]; then
+    MAJOR_MINOR_PATCH=${BRANCH#v}
     tags "${BASE_BUILD_IMAGE}:${MAJOR_MINOR_PATCH}"
-    tags "${BASE_BUILD_IMAGE}:${MAJOR_MINOR}"
-    tags "${BASE_BUILD_IMAGE}:${MAJOR}"
     tags "${BASE_BUILD_IMAGE}:latest"
 elif [[ $BRANCH != "main" ]]; then
-    tags "${BASE_BUILD_IMAGE}:latest"
+    # not on release tag nor on main - no tags are needed since we won't publish
+    echo ""
+    exit
 fi
 
 tags "${BASE_BUILD_IMAGE}-snapshot:${GITHUB_SHA}"

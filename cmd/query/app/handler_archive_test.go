@@ -35,7 +35,6 @@ func TestGetArchivedTrace_NotFound(t *testing.T) {
 			reader: mockReader,
 		},
 	} {
-		tc := tc // capture loop var
 		t.Run(tc.name, func(t *testing.T) {
 			withTestServer(t, func(ts *testServer) {
 				ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).

@@ -112,8 +112,9 @@ func (s *DependencyStore) GetDependencies(_ context.Context, endTs time.Time, lo
 	for iter.Scan(&ts, &dependencies) {
 		for _, dependency := range dependencies {
 			dl := model.DependencyLink{
-				Parent:    dependency.Parent,
-				Child:     dependency.Child,
+				Parent: dependency.Parent,
+				Child:  dependency.Child,
+				//nolint: gosec // G115
 				CallCount: uint64(dependency.CallCount),
 				Source:    dependency.Source,
 			}.ApplyDefaults()

@@ -5,6 +5,7 @@ package jaegerquery
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"testing"
@@ -15,7 +16,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componenttest"
-	noopMeter "go.opentelemetry.io/otel/metric/noop"
+	"go.opentelemetry.io/collector/config/confignet"
+	"go.opentelemetry.io/collector/config/configtelemetry"
+	"go.opentelemetry.io/otel/metric"
+	noopmetric "go.opentelemetry.io/otel/metric/noop"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 
@@ -39,28 +43,28 @@ type fakeFactory struct {
 
 func (ff fakeFactory) CreateDependencyReader() (dependencystore.Reader, error) {
 	if ff.name == "need-dependency-reader-error" {
-		return nil, fmt.Errorf("test-error")
+		return nil, errors.New("test-error")
 	}
 	return &depsmocks.Reader{}, nil
 }
 
 func (ff fakeFactory) CreateSpanReader() (spanstore.Reader, error) {
 	if ff.name == "need-span-reader-error" {
-		return nil, fmt.Errorf("test-error")
+		return nil, errors.New("test-error")
 	}
 	return &spanstoremocks.Reader{}, nil
 }
 
 func (ff fakeFactory) CreateSpanWriter() (spanstore.Writer, error) {
 	if ff.name == "need-span-writer-error" {
-		return nil, fmt.Errorf("test-error")
+		return nil, errors.New("test-error")
 	}
 	return &spanstoremocks.Writer{}, nil
 }
 
 func (ff fakeFactory) Initialize(metrics.Factory, *zap.Logger) error {
 	if ff.name == "need-initialize-error" {
-		return fmt.Errorf("test-error")
+		return errors.New("test-error")
 	}
 	return nil
 }
@@ -72,14 +76,14 @@ type fakeMetricsFactory struct {
 // Initialize implements storage.MetricsFactory.
 func (fmf fakeMetricsFactory) Initialize(*zap.Logger) error {
 	if fmf.name == "need-initialize-error" {
-		return fmt.Errorf("test-error")
+		return errors.New("test-error")
 	}
 	return nil
 }
 
 func (fmf fakeMetricsFactory) CreateMetricsReader() (metricsstore.Reader, error) {
 	if fmf.name == "need-metrics-reader-error" {
-		return nil, fmt.Errorf("test-error")
+		return nil, errors.New("test-error")
 	}
 	return &metricsstoremocks.Reader{}, nil
 }
@@ -132,53 +136,67 @@ func TestServerStart(t *testing.T) {
 		{
 			name: "Non-empty config with fake storage host",
 			config: &Config{
-				TraceStorageArchive: "jaeger_storage",
-				TraceStoragePrimary: "jaeger_storage",
-				MetricStorage:       "jaeger_metrics_storage",
+				Storage: Storage{
+					TracesArchive: "jaeger_storage",
+					TracesPrimary: "jaeger_storage",
+					Metrics:       "jaeger_metrics_storage",
+				},
 			},
 		},
 		{
 			name: "factory error",
 			config: &Config{
-				TraceStoragePrimary: "need-factory-error",
+				Storage: Storage{
+					TracesPrimary: "need-factory-error",
+				},
 			},
 			expectedErr: "cannot find primary storage",
 		},
 		{
 			name: "span reader error",
 			config: &Config{
-				TraceStoragePrimary: "need-span-reader-error",
+				Storage: Storage{
+					TracesPrimary: "need-span-reader-error",
+				},
 			},
 			expectedErr: "cannot create span reader",
 		},
 		{
 			name: "dependency error",
 			config: &Config{
-				TraceStoragePrimary: "need-dependency-reader-error",
+				Storage: Storage{
+					TracesPrimary: "need-dependency-reader-error",
+				},
 			},
 			expectedErr: "cannot create dependencies reader",
 		},
 		{
 			name: "storage archive error",
 			config: &Config{
-				TraceStorageArchive: "need-factory-error",
-				TraceStoragePrimary: "jaeger_storage",
+				Storage: Storage{
+					TracesArchive: "need-factory-error",
+					TracesPrimary: "jaeger_storage",
+				},
 			},
 			expectedErr: "cannot find archive storage factory",
 		},
 		{
 			name: "metrics storage error",
 			config: &Config{
-				MetricStorage:       "need-factory-error",
-				TraceStoragePrimary: "jaeger_storage",
+				Storage: Storage{
+					Metrics:       "need-factory-error",
+					TracesPrimary: "jaeger_storage",
+				},
 			},
 			expectedErr: "cannot find metrics storage factory",
 		},
 		{
 			name: " metrics reader error",
 			config: &Config{
-				MetricStorage:       "need-metrics-reader-error",
-				TraceStoragePrimary: "jaeger_storage",
+				Storage: Storage{
+					Metrics:       "need-metrics-reader-error",
+					TracesPrimary: "jaeger_storage",
+				},
 			},
 			expectedErr: "cannot create metrics reader",
 		},
@@ -187,11 +205,15 @@ func TestServerStart(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			telemetrySettings := component.TelemetrySettings{
-				Logger:        zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller())),
-				MeterProvider: noopMeter.NewMeterProvider(),
+				Logger: zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller())),
+				LeveledMeterProvider: func(_ configtelemetry.Level) metric.MeterProvider {
+					return noopmetric.NewMeterProvider()
+				},
+				MeterProvider: noopmetric.NewMeterProvider(),
 			}
 			tt.config.HTTP.Endpoint = ":0"
 			tt.config.GRPC.NetAddr.Endpoint = ":0"
+			tt.config.GRPC.NetAddr.Transport = confignet.TransportTypeTCP
 			server := newServer(tt.config, telemetrySettings)
 			err := server.Start(context.Background(), host)
 			if tt.expectedErr == "" {
@@ -249,7 +271,9 @@ func TestServerAddArchiveStorage(t *testing.T) {
 		{
 			name: "Archive storage set",
 			config: &Config{
-				TraceStorageArchive: "random-value",
+				Storage: Storage{
+					TracesArchive: "random-value",
+				},
 			},
 			qSvcOpts:       &querysvc.QueryServiceOptions{},
 			expectedOutput: "",
@@ -258,7 +282,9 @@ func TestServerAddArchiveStorage(t *testing.T) {
 		{
 			name: "Archive storage not supported",
 			config: &Config{
-				TraceStorageArchive: "badger",
+				Storage: Storage{
+					TracesArchive: "badger",
+				},
 			},
 			qSvcOpts:       &querysvc.QueryServiceOptions{},
 			extension:      fakeStorageExt{},
@@ -308,7 +334,9 @@ func TestServerAddMetricsStorage(t *testing.T) {
 		{
 			name: "Metrics storage set",
 			config: &Config{
-				MetricStorage: "random-value",
+				Storage: Storage{
+					Metrics: "random-value",
+				},
 			},
 			expectedOutput: "",
 			expectedErr:    "cannot find metrics storage factory: cannot find extension",

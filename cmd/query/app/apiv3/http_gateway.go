@@ -23,7 +23,6 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/query/app/internal/api_v3"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	"github.com/jaegertracing/jaeger/model"
-	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
@@ -46,7 +45,6 @@ const (
 // HTTPGateway exposes APIv3 HTTP endpoints.
 type HTTPGateway struct {
 	QueryService *querysvc.QueryService
-	TenancyMgr   *tenancy.Manager
 	Logger       *zap.Logger
 	Tracer       trace.TracerProvider
 }
@@ -62,21 +60,16 @@ func (h *HTTPGateway) RegisterRoutes(router *mux.Router) {
 
 // addRoute adds a new endpoint to the router with given path and handler function.
 // This code is mostly copied from ../http_handler.
-func (h *HTTPGateway) addRoute(
+func (*HTTPGateway) addRoute(
 	router *mux.Router,
 	f func(http.ResponseWriter, *http.Request),
 	route string,
 	_ ...any, /* args */
 ) *mux.Route {
 	var handler http.Handler = http.HandlerFunc(f)
-	if h.TenancyMgr.Enabled {
-		handler = tenancy.ExtractTenantHTTPHandler(h.TenancyMgr, handler)
-	}
-	traceMiddleware := otelhttp.NewHandler(
-		otelhttp.WithRouteTag(route, handler),
-		route,
-		otelhttp.WithTracerProvider(h.Tracer))
-	return router.HandleFunc(route, traceMiddleware.ServeHTTP)
+	handler = otelhttp.WithRouteTag(route, handler)
+	handler = spanNameHandler(route, handler)
+	return router.HandleFunc(route, handler.ServeHTTP)
 }
 
 // tryHandleError checks if the passed error is not nil and handles it by writing
@@ -143,11 +136,11 @@ func (h *HTTPGateway) getTrace(w http.ResponseWriter, r *http.Request) {
 	if h.tryParamError(w, err, paramTraceID) {
 		return
 	}
-	trace, err := h.QueryService.GetTrace(r.Context(), traceID)
+	trc, err := h.QueryService.GetTrace(r.Context(), traceID)
 	if h.tryHandleError(w, err, http.StatusInternalServerError) {
 		return
 	}
-	h.returnSpans(trace.Spans, w)
+	h.returnSpans(trc.Spans, w)
 }
 
 func (h *HTTPGateway) findTraces(w http.ResponseWriter, r *http.Request) {
@@ -162,8 +155,8 @@ func (h *HTTPGateway) findTraces(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var spans []*model.Span
-	for _, trace := range traces {
-		spans = append(spans, trace.Spans...)
+	for _, t := range traces {
+		spans = append(spans, t.Spans...)
 	}
 	h.returnSpans(spans, w)
 }
@@ -246,4 +239,12 @@ func (h *HTTPGateway) getOperations(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	h.marshalResponse(&api_v3.GetOperationsResponse{Operations: apiOperations}, w)
+}
+
+func spanNameHandler(spanName string, handler http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		span := trace.SpanFromContext(r.Context())
+		span.SetName(spanName)
+		handler.ServeHTTP(w, r)
+	})
 }

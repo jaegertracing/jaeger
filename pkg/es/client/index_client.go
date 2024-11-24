@@ -57,7 +57,7 @@ func (i *IndicesClient) GetJaegerIndices(prefix string) ([]Index, error) {
 	prefix += "jaeger-*"
 
 	body, err := i.request(elasticRequest{
-		endpoint: fmt.Sprintf("%s?flat_settings=true&filter_path=*.aliases,*.settings", prefix),
+		endpoint: prefix + "?flat_settings=true&filter_path=*.aliases,*.settings",
 		method:   http.MethodGet,
 	})
 	if err != nil {
@@ -101,7 +101,7 @@ func (i *IndicesClient) indexDeleteRequest(concatIndices string) error {
 		var responseError ResponseError
 		if errors.As(err, &responseError) {
 			if responseError.StatusCode != http.StatusOK {
-				return responseError.prefixMessage(fmt.Sprintf("failed to delete indices: %s", concatIndices))
+				return responseError.prefixMessage("failed to delete indices: " + concatIndices)
 			}
 		}
 		return fmt.Errorf("failed to delete indices: %w", err)
@@ -146,7 +146,7 @@ func (i *IndicesClient) CreateIndex(index string) error {
 		var responseError ResponseError
 		if errors.As(err, &responseError) {
 			if responseError.StatusCode != http.StatusOK {
-				return responseError.prefixMessage(fmt.Sprintf("failed to create index: %s", index))
+				return responseError.prefixMessage("failed to create index: " + index)
 			}
 		}
 		return fmt.Errorf("failed to create index: %w", err)
@@ -161,7 +161,7 @@ func (i *IndicesClient) CreateAlias(aliases []Alias) error {
 		var responseError ResponseError
 		if errors.As(err, &responseError) {
 			if responseError.StatusCode != http.StatusOK {
-				return responseError.prefixMessage(fmt.Sprintf("failed to create aliases: %s", i.aliasesString(aliases)))
+				return responseError.prefixMessage("failed to create aliases: " + i.aliasesString(aliases))
 			}
 		}
 		return fmt.Errorf("failed to create aliases: %w", err)
@@ -176,7 +176,7 @@ func (i *IndicesClient) DeleteAlias(aliases []Alias) error {
 		var responseError ResponseError
 		if errors.As(err, &responseError) {
 			if responseError.StatusCode != http.StatusOK {
-				return responseError.prefixMessage(fmt.Sprintf("failed to delete aliases: %s", i.aliasesString(aliases)))
+				return responseError.prefixMessage("failed to delete aliases: " + i.aliasesString(aliases))
 			}
 		}
 		return fmt.Errorf("failed to delete aliases: %w", err)
@@ -247,7 +247,7 @@ func (i IndicesClient) CreateTemplate(template, name string) error {
 		var responseError ResponseError
 		if errors.As(err, &responseError) {
 			if responseError.StatusCode != http.StatusOK {
-				return responseError.prefixMessage(fmt.Sprintf("failed to create template: %s", name))
+				return responseError.prefixMessage("failed to create template: " + name)
 			}
 		}
 		return fmt.Errorf("failed to create template: %w", err)
@@ -258,7 +258,7 @@ func (i IndicesClient) CreateTemplate(template, name string) error {
 // Rollover create a rollover for certain index/alias
 func (i IndicesClient) Rollover(rolloverTarget string, conditions map[string]any) error {
 	esReq := elasticRequest{
-		endpoint: fmt.Sprintf("%s/_rollover/", rolloverTarget),
+		endpoint: rolloverTarget + "/_rollover/",
 		method:   http.MethodPost,
 	}
 	if len(conditions) > 0 {
@@ -276,7 +276,7 @@ func (i IndicesClient) Rollover(rolloverTarget string, conditions map[string]any
 		var responseError ResponseError
 		if errors.As(err, &responseError) {
 			if responseError.StatusCode != http.StatusOK {
-				return responseError.prefixMessage(fmt.Sprintf("failed to create rollover target: %s", rolloverTarget))
+				return responseError.prefixMessage("failed to create rollover target: " + rolloverTarget)
 			}
 		}
 		return fmt.Errorf("failed to create rollover: %w", err)

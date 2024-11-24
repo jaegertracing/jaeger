@@ -14,5 +14,5 @@ func TestCalculateFunc(t *testing.T) {
 		return targetQPS
 	})
 	val := 1.0
-	assert.Equal(t, val, c.Calculate(val, 0, 0))
+	assert.InDelta(t, val, c.Calculate(val, 0, 0), 0.01)
 }

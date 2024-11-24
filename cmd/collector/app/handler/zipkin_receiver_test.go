@@ -141,16 +141,14 @@ func TestStartZipkinReceiver_Error(t *testing.T) {
 	opts.Zipkin.HTTPHostPort = ":-1"
 
 	_, err := StartZipkinReceiver(opts, logger, spanProcessor, tm)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "could not start Zipkin receiver")
+	require.ErrorContains(t, err, "could not start Zipkin receiver")
 
 	newTraces := func(consumer.ConsumeTracesFunc, ...consumer.Option) (consumer.Traces, error) {
 		return nil, errors.New("mock error")
 	}
 	f := zipkinreceiver.NewFactory()
-	_, err = startZipkinReceiver(opts, logger, spanProcessor, tm, f, newTraces, f.CreateTracesReceiver)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "could not create Zipkin consumer")
+	_, err = startZipkinReceiver(opts, logger, spanProcessor, tm, f, newTraces, f.CreateTraces)
+	require.ErrorContains(t, err, "could not create Zipkin consumer")
 
 	createTracesReceiver := func(
 		context.Context, receiver.Settings, component.Config, consumer.Traces,
@@ -158,6 +156,5 @@ func TestStartZipkinReceiver_Error(t *testing.T) {
 		return nil, errors.New("mock error")
 	}
 	_, err = startZipkinReceiver(opts, logger, spanProcessor, tm, f, consumer.NewTraces, createTracesReceiver)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "could not create Zipkin receiver")
+	assert.ErrorContains(t, err, "could not create Zipkin receiver")
 }

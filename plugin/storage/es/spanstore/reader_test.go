@@ -22,10 +22,12 @@ import (
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest"
 
 	"github.com/jaegertracing/jaeger/internal/metricstest"
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/es"
+	"github.com/jaegertracing/jaeger/pkg/es/config"
 	"github.com/jaegertracing/jaeger/pkg/es/mocks"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/plugin/storage/es/spanstore/dbmodel"
@@ -110,7 +112,6 @@ func withSpanReader(t *testing.T, fn func(r *spanReaderTest)) {
 			Logger:            zap.NewNop(),
 			Tracer:            tracer.Tracer("test"),
 			MaxSpanAge:        0,
-			IndexPrefix:       "",
 			TagDotReplacement: "@",
 			MaxDocCount:       defaultMaxDocCount,
 		}),
@@ -133,7 +134,6 @@ func withArchiveSpanReader(t *testing.T, readAlias bool, fn func(r *spanReaderTe
 			Logger:              zap.NewNop(),
 			Tracer:              tracer.Tracer("test"),
 			MaxSpanAge:          0,
-			IndexPrefix:         "",
 			TagDotReplacement:   "@",
 			Archive:             true,
 			UseReadWriteAliases: readAlias,
@@ -168,7 +168,9 @@ func TestNewSpanReader(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			reader := NewSpanReader(test.params)
+			params := test.params
+			params.Logger = zaptest.NewLogger(t)
+			reader := NewSpanReader(params)
 			require.NotNil(t, reader)
 			assert.Equal(t, test.maxSpanAge, reader.maxSpanAge)
 		})
@@ -179,14 +181,19 @@ func TestSpanReaderIndices(t *testing.T) {
 	client := &mocks.Client{}
 	clientFn := func() es.Client { return client }
 	date := time.Date(2019, 10, 10, 5, 0, 0, 0, time.UTC)
+
 	spanDataLayout := "2006-01-02-15"
 	serviceDataLayout := "2006-01-02"
 	spanDataLayoutFormat := date.UTC().Format(spanDataLayout)
 	serviceDataLayoutFormat := date.UTC().Format(serviceDataLayout)
+
 	metricsFactory := metricstest.NewFactory(0)
 	logger, _ := testutils.NewLogger()
 	tracer, _, closer := tracerProvider(t)
 	defer closer()
+
+	spanIndexOpts := config.IndexOptions{DateLayout: spanDataLayout}
+	serviceIndexOpts := config.IndexOptions{DateLayout: serviceDataLayout}
 
 	testCases := []struct {
 		indices []string
@@ -194,96 +201,104 @@ func TestSpanReaderIndices(t *testing.T) {
 	}{
 		{
 			params: SpanReaderParams{
-				IndexPrefix: "", Archive: false, SpanIndexDateLayout: spanDataLayout, ServiceIndexDateLayout: serviceDataLayout,
+				Archive:      false,
+				SpanIndex:    spanIndexOpts,
+				ServiceIndex: serviceIndexOpts,
 			},
-			indices: []string{spanIndex + spanDataLayoutFormat, serviceIndex + serviceDataLayoutFormat},
+			indices: []string{spanIndexBaseName + spanDataLayoutFormat, serviceIndexBaseName + serviceDataLayoutFormat},
 		},
 		{
 			params: SpanReaderParams{
-				IndexPrefix: "", UseReadWriteAliases: true,
+				UseReadWriteAliases: true,
 			},
-			indices: []string{spanIndex + "read", serviceIndex + "read"},
+			indices: []string{spanIndexBaseName + "read", serviceIndexBaseName + "read"},
 		},
 		{
 			params: SpanReaderParams{
-				IndexPrefix: "foo:", Archive: false, SpanIndexDateLayout: spanDataLayout, ServiceIndexDateLayout: serviceDataLayout,
+				Archive:      false,
+				SpanIndex:    spanIndexOpts,
+				ServiceIndex: serviceIndexOpts,
+				IndexPrefix:  "foo:",
 			},
-			indices: []string{"foo:" + indexPrefixSeparator + spanIndex + spanDataLayoutFormat, "foo:" + indexPrefixSeparator + serviceIndex + serviceDataLayoutFormat},
+			indices: []string{"foo:" + config.IndexPrefixSeparator + spanIndexBaseName + spanDataLayoutFormat, "foo:" + config.IndexPrefixSeparator + serviceIndexBaseName + serviceDataLayoutFormat},
 		},
 		{
 			params: SpanReaderParams{
-				IndexPrefix: "foo:", UseReadWriteAliases: true,
+				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts, IndexPrefix: "foo:", UseReadWriteAliases: true,
 			},
-			indices: []string{"foo:-" + spanIndex + "read", "foo:-" + serviceIndex + "read"},
+			indices: []string{"foo:-" + spanIndexBaseName + "read", "foo:-" + serviceIndexBaseName + "read"},
 		},
 		{
 			params: SpanReaderParams{
-				IndexPrefix: "", Archive: true,
+				Archive: true,
 			},
-			indices: []string{spanIndex + archiveIndexSuffix, serviceIndex + archiveIndexSuffix},
+			indices: []string{spanIndexBaseName + archiveIndexSuffix, serviceIndexBaseName + archiveIndexSuffix},
 		},
 		{
 			params: SpanReaderParams{
-				IndexPrefix: "foo:", Archive: true,
+				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts, IndexPrefix: "foo:", Archive: true,
 			},
-			indices: []string{"foo:" + indexPrefixSeparator + spanIndex + archiveIndexSuffix, "foo:" + indexPrefixSeparator + serviceIndex + archiveIndexSuffix},
+			indices: []string{"foo:" + config.IndexPrefixSeparator + spanIndexBaseName + archiveIndexSuffix, "foo:" + config.IndexPrefixSeparator + serviceIndexBaseName + archiveIndexSuffix},
 		},
 		{
 			params: SpanReaderParams{
-				IndexPrefix: "foo:", Archive: true, UseReadWriteAliases: true,
+				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts, IndexPrefix: "foo:", Archive: true, UseReadWriteAliases: true,
 			},
-			indices: []string{"foo:" + indexPrefixSeparator + spanIndex + archiveReadIndexSuffix, "foo:" + indexPrefixSeparator + serviceIndex + archiveReadIndexSuffix},
+			indices: []string{"foo:" + config.IndexPrefixSeparator + spanIndexBaseName + archiveReadIndexSuffix, "foo:" + config.IndexPrefixSeparator + serviceIndexBaseName + archiveReadIndexSuffix},
 		},
 		{
 			params: SpanReaderParams{
-				IndexPrefix: "", Archive: false, RemoteReadClusters: []string{"cluster_one", "cluster_two"}, SpanIndexDateLayout: spanDataLayout, ServiceIndexDateLayout: serviceDataLayout,
+				SpanIndex:          spanIndexOpts,
+				ServiceIndex:       serviceIndexOpts,
+				Archive:            false,
+				RemoteReadClusters: []string{"cluster_one", "cluster_two"},
 			},
 			indices: []string{
-				spanIndex + spanDataLayoutFormat,
-				"cluster_one:" + spanIndex + spanDataLayoutFormat,
-				"cluster_two:" + spanIndex + spanDataLayoutFormat,
-				serviceIndex + serviceDataLayoutFormat,
-				"cluster_one:" + serviceIndex + serviceDataLayoutFormat,
-				"cluster_two:" + serviceIndex + serviceDataLayoutFormat,
+				spanIndexBaseName + spanDataLayoutFormat,
+				"cluster_one:" + spanIndexBaseName + spanDataLayoutFormat,
+				"cluster_two:" + spanIndexBaseName + spanDataLayoutFormat,
+				serviceIndexBaseName + serviceDataLayoutFormat,
+				"cluster_one:" + serviceIndexBaseName + serviceDataLayoutFormat,
+				"cluster_two:" + serviceIndexBaseName + serviceDataLayoutFormat,
 			},
 		},
 		{
 			params: SpanReaderParams{
-				IndexPrefix: "", Archive: true, RemoteReadClusters: []string{"cluster_one", "cluster_two"},
+				Archive: true, RemoteReadClusters: []string{"cluster_one", "cluster_two"},
 			},
 			indices: []string{
-				spanIndex + archiveIndexSuffix,
-				"cluster_one:" + spanIndex + archiveIndexSuffix,
-				"cluster_two:" + spanIndex + archiveIndexSuffix,
-				serviceIndex + archiveIndexSuffix,
-				"cluster_one:" + serviceIndex + archiveIndexSuffix,
-				"cluster_two:" + serviceIndex + archiveIndexSuffix,
+				spanIndexBaseName + archiveIndexSuffix,
+				"cluster_one:" + spanIndexBaseName + archiveIndexSuffix,
+				"cluster_two:" + spanIndexBaseName + archiveIndexSuffix,
+				serviceIndexBaseName + archiveIndexSuffix,
+				"cluster_one:" + serviceIndexBaseName + archiveIndexSuffix,
+				"cluster_two:" + serviceIndexBaseName + archiveIndexSuffix,
 			},
 		},
 		{
 			params: SpanReaderParams{
-				IndexPrefix: "", Archive: false, UseReadWriteAliases: true, RemoteReadClusters: []string{"cluster_one", "cluster_two"},
+				Archive: false, UseReadWriteAliases: true, RemoteReadClusters: []string{"cluster_one", "cluster_two"},
 			},
 			indices: []string{
-				spanIndex + "read",
-				"cluster_one:" + spanIndex + "read",
-				"cluster_two:" + spanIndex + "read",
-				serviceIndex + "read",
-				"cluster_one:" + serviceIndex + "read",
-				"cluster_two:" + serviceIndex + "read",
+				spanIndexBaseName + "read",
+				"cluster_one:" + spanIndexBaseName + "read",
+				"cluster_two:" + spanIndexBaseName + "read",
+				serviceIndexBaseName + "read",
+				"cluster_one:" + serviceIndexBaseName + "read",
+				"cluster_two:" + serviceIndexBaseName + "read",
 			},
 		},
 		{
 			params: SpanReaderParams{
-				IndexPrefix: "", Archive: true, UseReadWriteAliases: true, RemoteReadClusters: []string{"cluster_one", "cluster_two"},
+				Archive: true, UseReadWriteAliases: true, RemoteReadClusters: []string{"cluster_one", "cluster_two"},
 			},
 			indices: []string{
-				spanIndex + archiveReadIndexSuffix,
-				"cluster_one:" + spanIndex + archiveReadIndexSuffix,
-				"cluster_two:" + spanIndex + archiveReadIndexSuffix,
-				serviceIndex + archiveReadIndexSuffix,
-				"cluster_one:" + serviceIndex + archiveReadIndexSuffix,
-				"cluster_two:" + serviceIndex + archiveReadIndexSuffix,
+				spanIndexBaseName + archiveReadIndexSuffix,
+				"cluster_one:" + spanIndexBaseName + archiveReadIndexSuffix,
+				"cluster_two:" + spanIndexBaseName + archiveReadIndexSuffix,
+				serviceIndexBaseName + archiveReadIndexSuffix,
+				"cluster_one:" + serviceIndexBaseName + archiveReadIndexSuffix,
+				"cluster_two:" + serviceIndexBaseName + archiveReadIndexSuffix,
 			},
 		},
 	}
@@ -294,8 +309,8 @@ func TestSpanReaderIndices(t *testing.T) {
 		testCase.params.Tracer = tracer.Tracer("test")
 		r := NewSpanReader(testCase.params)
 
-		actualSpan := r.timeRangeIndices(r.spanIndexPrefix, r.spanIndexDateLayout, date, date, -1*time.Hour)
-		actualService := r.timeRangeIndices(r.serviceIndexPrefix, r.serviceIndexDateLayout, date, date, -24*time.Hour)
+		actualSpan := r.timeRangeIndices(r.spanIndexPrefix, r.spanIndex.DateLayout, date, date, -1*time.Hour)
+		actualService := r.timeRangeIndices(r.serviceIndexPrefix, r.serviceIndex.DateLayout, date, date, -24*time.Hour)
 		assert.Equal(t, testCase.indices, append(actualSpan, actualService...))
 	}
 }
@@ -574,30 +589,30 @@ func TestSpanReaderFindIndices(t *testing.T) {
 			startTime: today.Add(-time.Millisecond),
 			endTime:   today,
 			expected: []string{
-				indexWithDate(spanIndex, dateLayout, today),
+				indexWithDate(spanIndexBaseName, dateLayout, today),
 			},
 		},
 		{
 			startTime: today.Add(-13 * time.Hour),
 			endTime:   today,
 			expected: []string{
-				indexWithDate(spanIndex, dateLayout, today),
-				indexWithDate(spanIndex, dateLayout, yesterday),
+				indexWithDate(spanIndexBaseName, dateLayout, today),
+				indexWithDate(spanIndexBaseName, dateLayout, yesterday),
 			},
 		},
 		{
 			startTime: today.Add(-48 * time.Hour),
 			endTime:   today,
 			expected: []string{
-				indexWithDate(spanIndex, dateLayout, today),
-				indexWithDate(spanIndex, dateLayout, yesterday),
-				indexWithDate(spanIndex, dateLayout, twoDaysAgo),
+				indexWithDate(spanIndexBaseName, dateLayout, today),
+				indexWithDate(spanIndexBaseName, dateLayout, yesterday),
+				indexWithDate(spanIndexBaseName, dateLayout, twoDaysAgo),
 			},
 		},
 	}
 	withSpanReader(t, func(r *spanReaderTest) {
 		for _, testCase := range testCases {
-			actual := r.reader.timeRangeIndices(spanIndex, dateLayout, testCase.startTime, testCase.endTime, -24*time.Hour)
+			actual := r.reader.timeRangeIndices(spanIndexBaseName, dateLayout, testCase.startTime, testCase.endTime, -24*time.Hour)
 			assert.EqualValues(t, testCase.expected, actual)
 		}
 	})
@@ -605,7 +620,7 @@ func TestSpanReaderFindIndices(t *testing.T) {
 
 func TestSpanReader_indexWithDate(t *testing.T) {
 	withSpanReader(t, func(_ *spanReaderTest) {
-		actual := indexWithDate(spanIndex, "2006-01-02", time.Date(1995, time.April, 21, 4, 21, 19, 95, time.UTC))
+		actual := indexWithDate(spanIndexBaseName, "2006-01-02", time.Date(1995, time.April, 21, 4, 21, 19, 95, time.UTC))
 		assert.Equal(t, "jaeger-span-1995-04-21", actual)
 	})
 }

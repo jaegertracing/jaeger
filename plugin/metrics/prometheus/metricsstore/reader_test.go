@@ -86,8 +86,7 @@ func TestNewMetricsReaderInvalidAddress(t *testing.T) {
 		ServerURL:      "\n",
 		ConnectTimeout: defaultTimeout,
 	}, logger, tracer)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to initialize prometheus client")
+	require.ErrorContains(t, err, "failed to initialize prometheus client")
 	assert.Nil(t, reader)
 }
 
@@ -142,8 +141,7 @@ func TestMetricsServerError(t *testing.T) {
 	require.NoError(t, err)
 	m, err := reader.GetCallRates(context.Background(), &params)
 	assert.NotNil(t, m)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "failed executing metrics query")
+	require.ErrorContains(t, err, "failed executing metrics query")
 	require.Len(t, exp.GetSpans(), 1, "HTTP request was traced and span reported")
 	assert.Equal(t, codes.Error, exp.GetSpans()[0].Status.Code)
 }
@@ -501,13 +499,13 @@ func TestGetErrorRatesZero(t *testing.T) {
 		defer r.Body.Close()
 
 		u, err := url.Parse("http://" + r.Host + r.RequestURI + "?" + string(body))
-		require.NoError(t, err)
-
-		q := u.Query()
-		promQuery := q.Get("query")
-		assert.Equal(t, wantPromQLQueries[callCount], promQuery)
-		sendResponse(t, w, responses[callCount])
-		callCount++
+		if assert.NoError(t, err) {
+			q := u.Query()
+			promQuery := q.Get("query")
+			assert.Equal(t, wantPromQLQueries[callCount], promQuery)
+			sendResponse(t, w, responses[callCount])
+			callCount++
+		}
 	}))
 
 	logger := zap.NewNop()
@@ -564,7 +562,7 @@ func TestGetErrorRatesNull(t *testing.T) {
 		defer r.Body.Close()
 
 		u, err := url.Parse("http://" + r.Host + r.RequestURI + "?" + string(body))
-		require.NoError(t, err)
+		assert.NoError(t, err)
 
 		q := u.Query()
 		promQuery := q.Get("query")
@@ -635,7 +633,7 @@ func TestGetErrorRatesErrors(t *testing.T) {
 				defer r.Body.Close()
 
 				u, err := url.Parse("http://" + r.Host + r.RequestURI + "?" + string(body))
-				require.NoError(t, err)
+				assert.NoError(t, err)
 
 				q := u.Query()
 				promQuery := q.Get("query")
@@ -848,8 +846,7 @@ func TestGetRoundTripperTokenError(t *testing.T) {
 	_, err := getHTTPRoundTripper(&config.Configuration{
 		TokenFilePath: tokenFilePath,
 	}, nil)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to get token from file")
+	assert.ErrorContains(t, err, "failed to get token from file")
 }
 
 func TestInvalidCertFile(t *testing.T) {
@@ -879,7 +876,7 @@ func startMockPrometheusServer(t *testing.T, wantPromQlQuery string, wantWarning
 		defer r.Body.Close()
 
 		u, err := url.Parse("http://" + r.Host + r.RequestURI + "?" + string(body))
-		require.NoError(t, err)
+		assert.NoError(t, err)
 
 		q := u.Query()
 		promQuery := q.Get("query")
@@ -918,16 +915,16 @@ func buildTestBaseQueryParametersFrom(tc metricsTestCase) metricsstore.BaseQuery
 	}
 }
 
-func prepareMetricsReaderAndServer(t *testing.T, config config.Configuration, wantPromQlQuery string, wantWarnings []string, tracer trace.TracerProvider) (metricsstore.Reader, *httptest.Server) {
+func prepareMetricsReaderAndServer(t *testing.T, cfg config.Configuration, wantPromQlQuery string, wantWarnings []string, tracer trace.TracerProvider) (metricsstore.Reader, *httptest.Server) {
 	mockPrometheus := startMockPrometheusServer(t, wantPromQlQuery, wantWarnings)
 
 	logger := zap.NewNop()
 	address := mockPrometheus.Listener.Addr().String()
 
-	config.ServerURL = "http://" + address
-	config.ConnectTimeout = defaultTimeout
+	cfg.ServerURL = "http://" + address
+	cfg.ConnectTimeout = defaultTimeout
 
-	reader, err := NewMetricsReader(config, logger, tracer)
+	reader, err := NewMetricsReader(cfg, logger, tracer)
 	require.NoError(t, err)
 
 	return reader, mockPrometheus
@@ -961,7 +958,7 @@ func assertMetrics(t *testing.T, gotMetrics *metrics.MetricFamily, wantLabels ma
 	assert.Equal(t, int64(1620351786), mps[0].Timestamp.GetSeconds())
 
 	actualVal := mps[0].Value.(*metrics.MetricPoint_GaugeValue).GaugeValue.Value.(*metrics.GaugeValue_DoubleValue).DoubleValue
-	assert.Equal(t, float64(9223372036854), actualVal)
+	assert.InDelta(t, float64(9223372036854), actualVal, 0.01)
 }
 
 func TestMain(m *testing.M) {

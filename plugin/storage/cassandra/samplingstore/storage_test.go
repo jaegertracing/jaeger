@@ -6,6 +6,7 @@ package samplingstore
 
 import (
 	"errors"
+	"net/http"
 	"testing"
 	"time"
 
@@ -268,7 +269,7 @@ func TestGetLatestProbabilities(t *testing.T) {
 
 				if testCase.expectedError == "" {
 					require.NoError(t, err)
-					assert.Equal(t, 0.84, probabilities["svc"]["op"])
+					assert.InDelta(t, 0.84, probabilities["svc"]["op"], 0.01)
 				} else {
 					require.EqualError(t, err, testCase.expectedError)
 				}
@@ -329,12 +330,12 @@ func TestStringToThroughput(t *testing.T) {
 func TestProbabilitiesAndQPSToString(t *testing.T) {
 	probabilities := model.ServiceOperationProbabilities{
 		"svc,1": map[string]float64{
-			"GET": 0.001,
+			http.MethodGet: 0.001,
 		},
 	}
 	qps := model.ServiceOperationQPS{
 		"svc,1": map[string]float64{
-			"GET": 62.3,
+			http.MethodGet: 62.3,
 		},
 	}
 	str := probabilitiesAndQPSToString(probabilities, qps)
@@ -348,17 +349,17 @@ func TestStringToProbabilitiesAndQPS(t *testing.T) {
 
 	assert.Len(t, probabilities, 2)
 	assert.Equal(t, map[string]*model.ProbabilityAndQPS{
-		"GET": {
+		http.MethodGet: {
 			Probability: 0.001,
 			QPS:         63.2,
 		},
-		"PUT": {
+		http.MethodPut: {
 			Probability: 0.002,
 			QPS:         0.0,
 		},
 	}, probabilities["svc1"])
 	assert.Equal(t, map[string]*model.ProbabilityAndQPS{
-		"GET": {
+		http.MethodGet: {
 			Probability: 0.5,
 			QPS:         34.2,
 		},
@@ -371,8 +372,8 @@ func TestStringToProbabilities(t *testing.T) {
 	probabilities := s.stringToProbabilities(testStr)
 
 	assert.Len(t, probabilities, 2)
-	assert.Equal(t, map[string]float64{"GET": 0.001, "PUT": 0.002}, probabilities["svc1"])
-	assert.Equal(t, map[string]float64{"GET": 0.5}, probabilities["svc2"])
+	assert.Equal(t, map[string]float64{http.MethodGet: 0.001, http.MethodPut: 0.002}, probabilities["svc1"])
+	assert.Equal(t, map[string]float64{http.MethodGet: 0.5}, probabilities["svc2"])
 }
 
 func TestProbabilitiesSetToString(t *testing.T) {

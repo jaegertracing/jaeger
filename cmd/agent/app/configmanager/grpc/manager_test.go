@@ -38,8 +38,7 @@ func TestSamplingManager_GetSamplingStrategy_error(t *testing.T) {
 	manager := NewConfigManager(conn)
 	resp, err := manager.GetSamplingStrategy(context.Background(), "any")
 	require.Nil(t, resp)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to get sampling strategy")
+	assert.ErrorContains(t, err, "failed to get sampling strategy")
 }
 
 func TestSamplingManager_GetBaggageRestrictions(t *testing.T) {
@@ -62,7 +61,7 @@ func initializeGRPCTestServer(t *testing.T, beforeServe func(server *grpc.Server
 	beforeServe(server)
 	go func() {
 		err := server.Serve(lis)
-		require.NoError(t, err)
+		assert.NoError(t, err)
 	}()
 	return server, lis.Addr()
 }

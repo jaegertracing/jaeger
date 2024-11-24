@@ -12,6 +12,9 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"go.opentelemetry.io/collector/config/configtelemetry"
+	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/metric/noop"
 	_ "go.uber.org/automaxprocs"
 	"go.uber.org/zap"
 
@@ -64,7 +67,8 @@ func main() {
 			metricsFactory := baseFactory.Namespace(metrics.NSOptions{Name: "query"})
 			version.NewInfoMetrics(metricsFactory)
 
-			queryOpts, err := new(app.QueryOptions).InitFromViper(v, logger)
+			defaultOpts := app.DefaultQueryOptions()
+			queryOpts, err := defaultOpts.InitFromViper(v, logger)
 			if err != nil {
 				logger.Fatal("Failed to configure query service", zap.Error(err))
 			}
@@ -107,13 +111,16 @@ func main() {
 				Logger:         logger,
 				TracerProvider: jt.OTEL,
 				ReportStatus:   telemetery.HCAdapter(svc.HC()),
+				LeveledMeterProvider: func(_ configtelemetry.Level) metric.MeterProvider {
+					return noop.NewMeterProvider()
+				},
 			}
-			server, err := app.NewServer(queryService, metricsQueryService, queryOpts, tm, telset)
+			server, err := app.NewServer(context.Background(), queryService, metricsQueryService, queryOpts, tm, telset)
 			if err != nil {
 				logger.Fatal("Failed to create server", zap.Error(err))
 			}
 
-			if err := server.Start(); err != nil {
+			if err := server.Start(context.Background()); err != nil {
 				logger.Fatal("Could not start servers", zap.Error(err))
 			}
 

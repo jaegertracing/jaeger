@@ -317,7 +317,6 @@ func TestESStorageFactoryWithConfigError(t *testing.T) {
 		LogLevel: "error",
 	}
 	_, err := NewFactoryWithConfig(cfg, metrics.NullFactory, zap.NewNop())
-	require.Error(t, err)
 	require.ErrorContains(t, err, "failed to create primary Elasticsearch client")
 }
 
@@ -354,10 +353,12 @@ func testPasswordFromFile(t *testing.T, f *Factory, getClient func() es.Client, 
 		t.Logf("request to fake ES server: %v", r)
 		// epecting header in the form Authorization:[Basic OmZpcnN0IHBhc3N3b3Jk]
 		h := strings.Split(r.Header.Get("Authorization"), " ")
-		require.Len(t, h, 2)
-		require.Equal(t, "Basic", h[0])
+		if !assert.Len(t, h, 2) {
+			return
+		}
+		assert.Equal(t, "Basic", h[0])
 		authBytes, err := base64.StdEncoding.DecodeString(h[1])
-		require.NoError(t, err, "header: %s", h)
+		assert.NoError(t, err, "header: %s", h)
 		auth := string(authBytes)
 		authReceived.Store(auth, auth)
 		t.Logf("request to fake ES server contained auth=%s", auth)
@@ -369,19 +370,31 @@ func testPasswordFromFile(t *testing.T, f *Factory, getClient func() es.Client, 
 	require.NoError(t, os.WriteFile(pwdFile, []byte(pwd1), 0o600))
 
 	f.primaryConfig = &escfg.Configuration{
-		Servers:          []string{server.URL},
-		LogLevel:         "debug",
-		Username:         "user",
-		PasswordFilePath: pwdFile,
-		BulkSize:         -1, // disable bulk; we want immediate flush
+		Servers:  []string{server.URL},
+		LogLevel: "debug",
+		Authentication: escfg.Authentication{
+			BasicAuthentication: escfg.BasicAuthentication{
+				Username:         "user",
+				PasswordFilePath: pwdFile,
+			},
+		},
+		BulkProcessing: escfg.BulkProcessing{
+			MaxBytes: -1, // disable bulk; we want immediate flush
+		},
 	}
 	f.archiveConfig = &escfg.Configuration{
-		Enabled:          true,
-		Servers:          []string{server.URL},
-		LogLevel:         "debug",
-		Username:         "user",
-		PasswordFilePath: pwdFile,
-		BulkSize:         -1, // disable bulk; we want immediate flush
+		Enabled:  true,
+		Servers:  []string{server.URL},
+		LogLevel: "debug",
+		Authentication: escfg.Authentication{
+			BasicAuthentication: escfg.BasicAuthentication{
+				Username:         "user",
+				PasswordFilePath: pwdFile,
+			},
+		},
+		BulkProcessing: escfg.BulkProcessing{
+			MaxBytes: -1, // disable bulk; we want immediate flush
+		},
 	}
 	require.NoError(t, f.Initialize(metrics.NullFactory, zaptest.NewLogger(t)))
 	defer f.Close()
@@ -445,14 +458,22 @@ func TestPasswordFromFileErrors(t *testing.T) {
 
 	f := NewFactory()
 	f.primaryConfig = &escfg.Configuration{
-		Servers:          []string{server.URL},
-		LogLevel:         "debug",
-		PasswordFilePath: pwdFile,
+		Servers:  []string{server.URL},
+		LogLevel: "debug",
+		Authentication: escfg.Authentication{
+			BasicAuthentication: escfg.BasicAuthentication{
+				PasswordFilePath: pwdFile,
+			},
+		},
 	}
 	f.archiveConfig = &escfg.Configuration{
-		Servers:          []string{server.URL},
-		LogLevel:         "debug",
-		PasswordFilePath: pwdFile,
+		Servers:  []string{server.URL},
+		LogLevel: "debug",
+		Authentication: escfg.Authentication{
+			BasicAuthentication: escfg.BasicAuthentication{
+				PasswordFilePath: pwdFile,
+			},
+		},
 	}
 
 	logger, buf := testutils.NewEchoLogger(t)

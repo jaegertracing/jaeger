@@ -6,6 +6,7 @@ package tlscfg
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -64,7 +65,7 @@ func (o *Options) Config(logger *zap.Logger) (*tls.Config, error) {
 
 	if o.MinVersion != "" && o.MaxVersion != "" {
 		if minVersionId > maxVersionId {
-			return nil, fmt.Errorf("minimum tls version can't be greater than maximum tls version")
+			return nil, errors.New("minimum tls version can't be greater than maximum tls version")
 		}
 	}
 
@@ -94,7 +95,7 @@ func (o *Options) Config(logger *zap.Logger) (*tls.Config, error) {
 	o.certWatcher = certWatcher
 
 	if (o.CertPath == "" && o.KeyPath != "") || (o.CertPath != "" && o.KeyPath == "") {
-		return nil, fmt.Errorf("for client auth via TLS, either both client certificate and key must be supplied, or neither")
+		return nil, errors.New("for client auth via TLS, either both client certificate and key must be supplied, or neither")
 	}
 	if o.CertPath != "" && o.KeyPath != "" {
 		tlsCfg.GetCertificate = func(*tls.ClientHelloInfo) (*tls.Certificate, error) {
@@ -140,6 +141,32 @@ func (o *Options) ToOtelClientConfig() configtls.ClientConfig {
 			ReloadInterval: o.ReloadInterval,
 		},
 	}
+}
+
+// ToOtelServerConfig provides a mapping between from Options to OTEL's TLS Server Configuration.
+func (o *Options) ToOtelServerConfig() *configtls.ServerConfig {
+	if !o.Enabled {
+		return nil
+	}
+
+	cfg := &configtls.ServerConfig{
+		ClientCAFile: o.ClientCAPath,
+		Config: configtls.Config{
+			CAFile:         o.CAPath,
+			CertFile:       o.CertPath,
+			KeyFile:        o.KeyPath,
+			CipherSuites:   o.CipherSuites,
+			MinVersion:     o.MinVersion,
+			MaxVersion:     o.MaxVersion,
+			ReloadInterval: o.ReloadInterval,
+		},
+	}
+
+	if o.ReloadInterval > 0 {
+		cfg.ReloadClientCAFile = true
+	}
+
+	return cfg
 }
 
 func addCertToPool(caPath string, certPool *x509.CertPool) error {

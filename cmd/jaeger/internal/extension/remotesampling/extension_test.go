@@ -19,7 +19,9 @@ import (
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/confignet"
+	"go.opentelemetry.io/collector/config/configtelemetry"
 	"go.opentelemetry.io/collector/extension"
+	"go.opentelemetry.io/otel/metric"
 	noopmetric "go.opentelemetry.io/otel/metric/noop"
 	nooptrace "go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/zap"
@@ -37,10 +39,13 @@ func makeStorageExtension(t *testing.T, memstoreName string) component.Host {
 	telemetrySettings := component.TelemetrySettings{
 		Logger:         zaptest.NewLogger(t),
 		TracerProvider: nooptrace.NewTracerProvider(),
-		MeterProvider:  noopmetric.NewMeterProvider(),
+		LeveledMeterProvider: func(_ configtelemetry.Level) metric.MeterProvider {
+			return noopmetric.NewMeterProvider()
+		},
+		MeterProvider: noopmetric.NewMeterProvider(),
 	}
 	extensionFactory := jaegerstorage.NewFactory()
-	storageExtension, err := extensionFactory.CreateExtension(
+	storageExtension, err := extensionFactory.Create(
 		context.Background(),
 		extension.Settings{
 			TelemetrySettings: telemetrySettings,
@@ -62,7 +67,7 @@ func makeStorageExtension(t *testing.T, memstoreName string) component.Host {
 
 func makeRemoteSamplingExtension(t *testing.T, cfg component.Config) component.Host {
 	extensionFactory := NewFactory()
-	samplingExtension, err := extensionFactory.CreateExtension(
+	samplingExtension, err := extensionFactory.Create(
 		context.Background(),
 		extension.Settings{
 			TelemetrySettings: component.TelemetrySettings{
@@ -90,7 +95,7 @@ func TestStartFileBasedProvider(t *testing.T) {
 	cfg.GRPC = nil
 	require.NoError(t, cfg.Validate())
 
-	ext, err := factory.CreateExtension(context.Background(), extension.Settings{
+	ext, err := factory.Create(context.Background(), extension.Settings{
 		TelemetrySettings: componenttest.NewNopTelemetrySettings(),
 	}, cfg)
 	require.NoError(t, err)
@@ -110,7 +115,7 @@ func TestStartHTTP(t *testing.T) {
 	cfg.GRPC = nil
 	require.NoError(t, cfg.Validate())
 
-	ext, err := factory.CreateExtension(context.Background(), extension.Settings{
+	ext, err := factory.Create(context.Background(), extension.Settings{
 		TelemetrySettings: componenttest.NewNopTelemetrySettings(),
 	}, cfg)
 	require.NoError(t, err)
@@ -150,7 +155,7 @@ func TestStartGRPC(t *testing.T) {
 	}
 	require.NoError(t, cfg.Validate())
 
-	ext, err := factory.CreateExtension(context.Background(), extension.Settings{
+	ext, err := factory.Create(context.Background(), extension.Settings{
 		TelemetrySettings: componenttest.NewNopTelemetrySettings(),
 	}, cfg)
 	require.NoError(t, err)
@@ -164,7 +169,7 @@ func TestStartGRPC(t *testing.T) {
 	c := api_v2.NewSamplingManagerClient(conn)
 	response, err := c.GetSamplingStrategy(context.Background(), &api_v2.SamplingStrategyParameters{ServiceName: "foo"})
 	require.NoError(t, err)
-	require.Equal(t, 0.8, response.ProbabilisticSampling.SamplingRate)
+	require.InDelta(t, 0.8, response.ProbabilisticSampling.SamplingRate, 0.01)
 
 	require.NoError(t, ext.Shutdown(context.Background()))
 }
@@ -178,7 +183,7 @@ func TestStartAdaptiveProvider(t *testing.T) {
 	cfg.GRPC = nil
 	require.NoError(t, cfg.Validate())
 
-	ext, err := factory.CreateExtension(context.Background(), extension.Settings{
+	ext, err := factory.Create(context.Background(), extension.Settings{
 		TelemetrySettings: componenttest.NewNopTelemetrySettings(),
 	}, cfg)
 	require.NoError(t, err)
@@ -244,7 +249,7 @@ func TestGetAdaptiveSamplingComponentsErrors(t *testing.T) {
 func TestDependencies(t *testing.T) {
 	factory := NewFactory()
 	cfg := factory.CreateDefaultConfig().(*Config)
-	ext, err := factory.CreateExtension(context.Background(), extension.Settings{
+	ext, err := factory.Create(context.Background(), extension.Settings{
 		TelemetrySettings: componenttest.NewNopTelemetrySettings(),
 	}, cfg)
 	require.NoError(t, err)

@@ -11,7 +11,7 @@ import (
 	"github.com/jaegertracing/jaeger/model"
 )
 
-// SpanIDDeduper returns an adjuster that changes span ids for server
+// ZipkinSpanIDUniquifier returns an adjuster that changes span ids for server
 // spans (i.e. spans with tag: span.kind == server) if there is another
 // client span that shares the same span ID. This is needed to deal with
 // Zipkin-style clients that reuse the same span ID for both client and server
@@ -19,11 +19,11 @@ import (
 //
 // This adjuster never returns any errors. Instead it records any issues
 // it encounters in Span.Warnings.
-func SpanIDDeduper() Adjuster {
+func ZipkinSpanIDUniquifier() Adjuster {
 	return Func(func(trace *model.Trace) (*model.Trace, error) {
 		deduper := &spanIDDeduper{trace: trace}
 		deduper.groupSpansByID()
-		deduper.dedupeSpanIDs()
+		deduper.uniquifyServerSpanIDs()
 		return deduper.trace, nil
 	})
 }
@@ -63,7 +63,7 @@ func (d *spanIDDeduper) isSharedWithClientSpan(spanID model.SpanID) bool {
 	return false
 }
 
-func (d *spanIDDeduper) dedupeSpanIDs() {
+func (d *spanIDDeduper) uniquifyServerSpanIDs() {
 	oldToNewSpanIDs := make(map[model.SpanID]model.SpanID)
 	for _, span := range d.trace.Spans {
 		// only replace span IDs for server-side spans that share the ID with something else
@@ -82,7 +82,7 @@ func (d *spanIDDeduper) dedupeSpanIDs() {
 }
 
 // swapParentIDs corrects ParentSpanID of all spans that are children of the server
-// spans whose IDs we deduped.
+// spans whose IDs we made unique.
 func (d *spanIDDeduper) swapParentIDs(oldToNewSpanIDs map[model.SpanID]model.SpanID) {
 	for _, span := range d.trace.Spans {
 		if parentID, ok := oldToNewSpanIDs[span.ParentSpanID()]; ok {

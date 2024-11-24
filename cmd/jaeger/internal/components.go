@@ -8,6 +8,7 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/kafkaexporter"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/prometheusexporter"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckv2extension"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/attributesprocessor"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/tailsamplingprocessor"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kafkareceiver"
@@ -20,7 +21,6 @@ import (
 	"go.opentelemetry.io/collector/exporter/otlpexporter"
 	"go.opentelemetry.io/collector/exporter/otlphttpexporter"
 	"go.opentelemetry.io/collector/extension"
-	"go.opentelemetry.io/collector/extension/ballastextension"
 	"go.opentelemetry.io/collector/extension/zpagesextension"
 	"go.opentelemetry.io/collector/otelcol"
 	"go.opentelemetry.io/collector/processor"
@@ -30,6 +30,7 @@ import (
 	"go.opentelemetry.io/collector/receiver/otlpreceiver"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/exporters/storageexporter"
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/expvar"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/remotesampling"
@@ -61,7 +62,6 @@ func (b builders) build() (otelcol.Factories, error) {
 
 	factories.Extensions, err = b.extension(
 		// standard
-		ballastextension.NewFactory(),
 		zpagesextension.NewFactory(),
 		healthcheckv2extension.NewFactory(),
 		// add-ons
@@ -69,6 +69,7 @@ func (b builders) build() (otelcol.Factories, error) {
 		jaegerstorage.NewFactory(),
 		storagecleaner.NewFactory(),
 		remotesampling.NewFactory(),
+		expvar.NewFactory(),
 	)
 	if err != nil {
 		return otelcol.Factories{}, err
@@ -106,6 +107,7 @@ func (b builders) build() (otelcol.Factories, error) {
 		batchprocessor.NewFactory(),
 		memorylimiterprocessor.NewFactory(),
 		tailsamplingprocessor.NewFactory(),
+		attributesprocessor.NewFactory(),
 		// add-ons
 		adaptivesampling.NewFactory(),
 	)

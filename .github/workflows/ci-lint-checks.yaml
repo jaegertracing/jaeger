@@ -19,54 +19,49 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-    - name: Harden Runner
-      uses: step-security/harden-runner@0d381219ddf674d61a7572ddd19d7941e271515c # v2.9.0
+    - uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
       with:
         egress-policy: audit # TODO: change to 'egress-policy: block' after a couple of runs
 
-    - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+    - uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938 # v4.2.0
 
-    - uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5.0.2
+    - uses: actions/setup-go@41dfa10bad2bb2ae585af6ee5bb4d7d973ad74ed # v5.1.0
       with:
         go-version: 1.23.x
 
     - name: Print Jaeger version for no reason
       run: make echo-v1 echo-v2
 
-    - name: Install tools
-      run: make install-test-tools
+    - run: make install-test-tools
 
-    - name: Lint
-      run: make lint
+    - run: make lint
 
   pull-request-preconditions:
     runs-on: ubuntu-latest
     steps:
-    - name: Harden Runner
-      uses: step-security/harden-runner@0d381219ddf674d61a7572ddd19d7941e271515c # v2.9.0
+    - uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
       with:
         egress-policy: audit # TODO: change to 'egress-policy: block' after a couple of runs
 
-    - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+    - uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938 # v4.2.0
 
-    - name: Ensure PR is not on main branch
-      uses: ./.github/actions/block-pr-not-on-main
+    - uses: ./.github/actions/block-pr-from-main-branch
 
-    - name: lint-nocommit
-      run: make lint-nocommit
+    - run: |
+        git fetch origin main
+        make lint-nocommit
 
   dco-check:
     runs-on: ubuntu-latest
     steps:
-    - name: Harden Runner
-      uses: step-security/harden-runner@0d381219ddf674d61a7572ddd19d7941e271515c # v2.9.0
+    - uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
       with:
         egress-policy: audit # TODO: change to 'egress-policy: block' after a couple of runs
 
-    - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+    - uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938 # v4.2.0
 
     - name: Set up Python 3.x for DCO check
-      uses: actions/setup-python@f677139bbe7f9c59b41e40162b753c062f5d49a3 # v5.2.0
+      uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
       with:
         python-version: '3.x'
 
@@ -78,16 +73,15 @@ jobs:
   generated-files-check:
     runs-on: ubuntu-latest
     steps:
-    - name: Harden Runner
-      uses: step-security/harden-runner@0d381219ddf674d61a7572ddd19d7941e271515c # v2.9.0
+    - uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
       with:
         egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
 
-    - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+    - uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938 # v4.2.0
       with:
         submodules: recursive
 
-    - uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5.0.2
+    - uses: actions/setup-go@41dfa10bad2bb2ae585af6ee5bb4d7d973ad74ed # v5.1.0
       with:
         go-version: 1.23.x
 
@@ -104,22 +98,18 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Harden Runner
-      uses: step-security/harden-runner@0d381219ddf674d61a7572ddd19d7941e271515c # v2.9.0
+    - uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
       with:
         egress-policy: audit
 
-    - name: Check out code
-      uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+    - uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938 # v4.2.0
 
-    - name: Install shellcheck
-      run: sudo apt-get install shellcheck
+    - run: sudo apt-get install shellcheck
 
-    - name: Run shellcheck
-      run: shellcheck scripts/*.sh
+    - run: shellcheck scripts/*.sh
 
-    - name: Install shunit2
-      uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+    - name: Install shunit2 for shell unit tests
+      uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938 # v4.2.0
       with:
         repository: kward/shunit2
         path: .tools/shunit2

@@ -22,7 +22,6 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/agent/app/servers/thriftudp"
 	"github.com/jaegertracing/jaeger/internal/safeexpvar"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
-	"github.com/jaegertracing/jaeger/ports"
 	agentThrift "github.com/jaegertracing/jaeger/thrift-gen/agent"
 )
 
@@ -38,7 +37,7 @@ const (
 	binaryProtocol  Protocol = "binary"
 )
 
-var defaultHTTPServerHostPort = ":" + strconv.Itoa(ports.AgentConfigServerHTTP)
+var defaultHTTPServerHostPort = ":" + strconv.Itoa(AgentConfigServerHTTP)
 
 // Model used to distinguish the data transfer model
 type Model string
@@ -96,14 +95,14 @@ func (b *Builder) WithReporter(r ...reporter.Reporter) *Builder {
 // CreateAgent creates the Agent
 func (b *Builder) CreateAgent(primaryProxy CollectorProxy, logger *zap.Logger, mFactory metrics.Factory) (*Agent, error) {
 	r := b.getReporter(primaryProxy)
-	processors, err := b.getProcessors(r, mFactory, logger)
+	procs, err := b.getProcessors(r, mFactory, logger)
 	if err != nil {
 		return nil, fmt.Errorf("cannot create processors: %w", err)
 	}
 	server := b.HTTPServer.getHTTPServer(primaryProxy.GetManager(), mFactory, logger)
 	b.publishOpts()
 
-	return NewAgent(processors, server, logger), nil
+	return NewAgent(procs, server, logger), nil
 }
 
 func (b *Builder) getReporter(primaryProxy CollectorProxy) reporter.Reporter {
@@ -141,11 +140,11 @@ func (b *Builder) getProcessors(rep reporter.Reporter, mFactory metrics.Factory,
 		default:
 			return nil, fmt.Errorf("cannot find agent processor for data model %v", cfg.Model)
 		}
-		metrics := mFactory.Namespace(metrics.NSOptions{Name: "", Tags: map[string]string{
+		metricsNamespace := mFactory.Namespace(metrics.NSOptions{Name: "", Tags: map[string]string{
 			"protocol": string(cfg.Protocol),
 			"model":    string(cfg.Model),
 		}})
-		processor, err := cfg.GetThriftProcessor(metrics, protoFactory, handler, logger)
+		processor, err := cfg.GetThriftProcessor(metricsNamespace, protoFactory, handler, logger)
 		if err != nil {
 			return nil, fmt.Errorf("cannot create Thrift Processor: %w", err)
 		}

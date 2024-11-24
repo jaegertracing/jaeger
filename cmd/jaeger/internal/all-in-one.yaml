@@ -1,5 +1,5 @@
 service:
-  extensions: [jaeger_storage, jaeger_query, remote_sampling, healthcheckv2]
+  extensions: [jaeger_storage, jaeger_query, remote_sampling, healthcheckv2, expvar]
   pipelines:
     traces:
       receivers: [otlp, jaeger, zipkin]
@@ -10,13 +10,16 @@ service:
       service.name: jaeger
     metrics:
       level: detailed
-      address: 0.0.0.0:8888
+      address: "${env:JAEGER_LISTEN_HOST:-localhost}:8888"
+    logs:
+      level: info
     # TODO Initialize telemetery tracer once OTEL released new feature.
     # https://github.com/open-telemetry/opentelemetry-collector/issues/10663
 
 extensions:
   jaeger_query:
-    trace_storage: some_storage
+    storage:
+      traces: some_storage
 
   jaeger_storage:
     backends:
@@ -32,28 +35,36 @@ extensions:
     #   sampling_store: some_store
     #   initial_sampling_probability: 0.1
     http:
+      endpoint: "${env:JAEGER_LISTEN_HOST:-localhost}:5778"
     grpc:
-  
+      endpoint: "${env:JAEGER_LISTEN_HOST:-localhost}:5779"
+
   healthcheckv2:
     use_v2: true
     http:
-      endpoint: "0.0.0.0:13133"
+      endpoint: "${env:JAEGER_LISTEN_HOST:-localhost}:13133"
     grpc:
+
+  expvar:
+    endpoint: "${env:JAEGER_LISTEN_HOST:-localhost}:27777"
 
 receivers:
   otlp:
     protocols:
       grpc:
+        endpoint: "${env:JAEGER_LISTEN_HOST:-localhost}:4317"
       http:
+        endpoint: "${env:JAEGER_LISTEN_HOST:-localhost}:4318"
 
   jaeger:
     protocols:
       grpc:
-      thrift_binary:
-      thrift_compact:
+        endpoint: "${env:JAEGER_LISTEN_HOST:-localhost}:14250"
       thrift_http:
+        endpoint: "${env:JAEGER_LISTEN_HOST:-localhost}:14268"
 
   zipkin:
+    endpoint: "${env:JAEGER_LISTEN_HOST:-localhost}:9411"
 
 processors:
   batch:

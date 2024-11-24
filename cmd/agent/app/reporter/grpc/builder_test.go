@@ -128,8 +128,7 @@ func TestBuilderWithCollectors(t *testing.T) {
 					assert.Equal(t, conn.Target(), test.target)
 				}
 			} else {
-				require.Error(t, err)
-				assert.Contains(t, err.Error(), test.expectedError)
+				assert.ErrorContains(t, err, test.expectedError)
 			}
 		})
 	}
@@ -301,10 +300,12 @@ func TestProxyClientTLS(t *testing.T) {
 			expectError: false,
 		},
 	}
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
 			var opts []grpc.ServerOption
 			if test.serverTLS.Enabled {
 				tlsCfg, err := test.serverTLS.Config(zap.NewNop())

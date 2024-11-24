@@ -6,15 +6,23 @@ service:
       processors: [tail_sampling]
       exporters: [jaeger_storage_exporter]
   telemetry:
+    resource:
+      service.name: jaeger
+    metrics:
+      level: detailed
+      address: 0.0.0.0:8888
     logs:
-      level: DEBUG
+      level: debug
+    # TODO Initialize telemetery tracer once OTEL released new feature.
+    # https://github.com/open-telemetry/opentelemetry-collector/issues/10663
 
 extensions:
   healthcheckv2:
     use_v2: true
     http:
   jaeger_query:
-    trace_storage: some_storage
+    storage:
+      traces: some_storage
   jaeger_storage:
     backends:
       some_storage:

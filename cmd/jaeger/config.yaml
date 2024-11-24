@@ -5,6 +5,16 @@ service:
       receivers: [otlp, jaeger, zipkin]
       processors: [batch, adaptive_sampling]
       exporters: [jaeger_storage_exporter]
+  telemetry:
+    resource:
+      service.name: jaeger
+    metrics:
+      level: detailed
+      address: 0.0.0.0:8888
+    logs:
+      level: debug
+    # TODO Initialize telemetery tracer once OTEL released new feature.
+    # https://github.com/open-telemetry/opentelemetry-collector/issues/10663
 
 extensions:
   healthcheckv2:
@@ -17,9 +27,11 @@ extensions:
   #   endpoint: 0.0.0.0:55679
 
   jaeger_query:
-    trace_storage: some_store
-    trace_storage_archive: another_store
-    ui_config: ./cmd/jaeger/config-ui.json
+    storage:
+      traces: some_store
+      traces_archive: another_store
+    ui:
+      config_file: ./cmd/jaeger/config-ui.json
 
   jaeger_storage:
     backends:

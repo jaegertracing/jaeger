@@ -59,17 +59,47 @@ func withSpanReader(t *testing.T, fn func(r *spanReaderTest)) {
 	metricsFactory := metricstest.NewFactory(0)
 	tracer, exp, closer := tracerProvider(t)
 	defer closer()
+	reader, err := NewSpanReader(session, metricsFactory, logger, tracer.Tracer("test"))
+	require.NoError(t, err)
 	r := &spanReaderTest{
 		session:     session,
 		logger:      logger,
 		logBuffer:   logBuffer,
 		traceBuffer: exp,
-		reader:      NewSpanReader(session, metricsFactory, logger, tracer.Tracer("test")),
+		reader:      reader,
 	}
 	fn(r)
 }
 
 var _ spanstore.Reader = &SpanReader{} // check API conformance
+
+func TestNewSpanReader(t *testing.T) {
+	t.Run("test span reader creation", func(t *testing.T) {
+		withSpanReader(t, func(r *spanReaderTest) {
+			assert.NotNil(t, r.reader)
+		})
+	})
+
+	t.Run("test span reader creation error", func(t *testing.T) {
+		session := &mocks.Session{}
+		query := &mocks.Query{}
+		session.On("Query",
+			fmt.Sprintf(tableCheckStmt, schemas[latestVersion].tableName),
+			mock.Anything).Return(query)
+		session.On("Query",
+			fmt.Sprintf(tableCheckStmt, schemas[previousVersion].tableName),
+			mock.Anything).Return(query)
+		query.On("Exec").Return(errors.New("table does not exist"))
+		logger, _ := testutils.NewLogger()
+		metricsFactory := metricstest.NewFactory(0)
+		tracer, _, closer := tracerProvider(t)
+		defer closer()
+
+		_, err := NewSpanReader(session, metricsFactory, logger, tracer.Tracer("test"))
+
+		require.EqualError(t, err, "neither table operation_names_v2 nor operation_names exist")
+	})
+}
 
 func TestSpanReaderGetServices(t *testing.T) {
 	withSpanReader(t, func(r *spanReaderTest) {
@@ -147,8 +177,7 @@ func TestSpanReaderGetTrace(t *testing.T) {
 					require.NoError(t, err)
 					assert.NotNil(t, trace)
 				} else {
-					require.Error(t, err)
-					assert.Contains(t, err.Error(), testCase.expectedErr)
+					require.ErrorContains(t, err, testCase.expectedErr)
 					assert.Nil(t, trace)
 				}
 			})

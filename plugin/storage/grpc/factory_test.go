@@ -16,14 +16,19 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/config/configauth"
 	"go.opentelemetry.io/collector/config/configgrpc"
+	"go.opentelemetry.io/collector/config/configtelemetry"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
+	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/metric/noop"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/pkg/telemetery"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared"
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared/mocks"
@@ -87,6 +92,7 @@ func makeMockServices() *ClientPluginServices {
 func makeFactory(t *testing.T) *Factory {
 	f := NewFactory()
 	f.InitFromViper(viper.New(), zap.NewNop())
+	f.config.ClientConfig.Endpoint = ":0"
 	require.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
 
 	t.Cleanup(func() {
@@ -98,38 +104,47 @@ func makeFactory(t *testing.T) *Factory {
 }
 
 func TestNewFactoryError(t *testing.T) {
-	cfg := &ConfigV2{
+	cfg := &Config{
 		ClientConfig: configgrpc.ClientConfig{
 			// non-empty Auth is currently not supported
 			Auth: &configauth.Authentication{},
 		},
 	}
+	telset := telemetery.Setting{
+		Logger: zap.NewNop(),
+		LeveledMeterProvider: func(_ configtelemetry.Level) metric.MeterProvider {
+			return noop.NewMeterProvider()
+		},
+		Host:    componenttest.NewNopHost(),
+		Metrics: metrics.NullFactory,
+	}
 	t.Run("with_config", func(t *testing.T) {
-		_, err := NewFactoryWithConfig(*cfg, metrics.NullFactory, zap.NewNop())
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "authenticator")
+		_, err := NewFactoryWithConfig(*cfg, telset)
+		assert.ErrorContains(t, err, "authenticator")
 	})
 
 	t.Run("viper", func(t *testing.T) {
 		f := NewFactory()
 		f.InitFromViper(viper.New(), zap.NewNop())
-		f.configV2 = cfg
+		f.config = *cfg
 		err := f.Initialize(metrics.NullFactory, zap.NewNop())
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "authenticator")
+		assert.ErrorContains(t, err, "authenticator")
 	})
 
 	t.Run("client", func(t *testing.T) {
 		// this is a silly test to verify handling of error from grpc.NewClient, which cannot be induced via params.
-		f, err := NewFactoryWithConfig(ConfigV2{}, metrics.NullFactory, zap.NewNop())
+		f, err := NewFactoryWithConfig(Config{
+			ClientConfig: configgrpc.ClientConfig{
+				Endpoint: ":0",
+			},
+		}, telset)
 		require.NoError(t, err)
 		t.Cleanup(func() { require.NoError(t, f.Close()) })
-		newClientFn := func(_ ...grpc.DialOption) (conn *grpc.ClientConn, err error) {
+		newClientFn := func(_ component.TelemetrySettings, _ ...grpc.DialOption) (conn *grpc.ClientConn, err error) {
 			return nil, errors.New("test error")
 		}
-		_, err = f.newRemoteStorage(component.TelemetrySettings{}, newClientFn)
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "error creating remote storage client")
+		_, err = f.newRemoteStorage(component.TelemetrySettings{}, component.TelemetrySettings{}, newClientFn)
+		assert.ErrorContains(t, err, "error creating traced remote storage client")
 	})
 }
 
@@ -162,18 +177,26 @@ func TestGRPCStorageFactoryWithConfig(t *testing.T) {
 	}()
 	defer s.Stop()
 
-	cfg := ConfigV2{
+	cfg := Config{
 		ClientConfig: configgrpc.ClientConfig{
 			Endpoint: lis.Addr().String(),
 		},
-		TimeoutSettings: exporterhelper.TimeoutSettings{
+		TimeoutConfig: exporterhelper.TimeoutConfig{
 			Timeout: 1 * time.Second,
 		},
 		Tenancy: tenancy.Options{
 			Enabled: true,
 		},
 	}
-	f, err := NewFactoryWithConfig(cfg, metrics.NullFactory, zap.NewNop())
+	telset := telemetery.Setting{
+		Logger: zap.NewNop(),
+		LeveledMeterProvider: func(_ configtelemetry.Level) metric.MeterProvider {
+			return noop.NewMeterProvider()
+		},
+		Host:    componenttest.NewNopHost(),
+		Metrics: metrics.NullFactory,
+	}
+	f, err := NewFactoryWithConfig(cfg, telset)
 	require.NoError(t, err)
 	require.NoError(t, f.Close())
 }
@@ -265,7 +288,7 @@ func TestWithCLIFlags(t *testing.T) {
 	})
 	require.NoError(t, err)
 	f.InitFromViper(v, zap.NewNop())
-	assert.Equal(t, "foo:1234", f.configV1.RemoteServerAddr)
+	assert.Equal(t, "foo:1234", f.config.ClientConfig.Endpoint)
 	require.NoError(t, f.Close())
 }
 
@@ -281,8 +304,7 @@ func TestStreamingSpanWriterFactory_CapabilitiesNil(t *testing.T) {
 	writer, err := f.CreateSpanWriter()
 	require.NoError(t, err)
 	err = writer.WriteSpan(context.Background(), nil)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "not streaming writer")
+	assert.ErrorContains(t, err, "not streaming writer")
 }
 
 func TestStreamingSpanWriterFactory_Capabilities(t *testing.T) {
@@ -306,18 +328,15 @@ func TestStreamingSpanWriterFactory_Capabilities(t *testing.T) {
 	writer, err := f.CreateSpanWriter()
 	require.NoError(t, err)
 	err = writer.WriteSpan(context.Background(), nil)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "not streaming writer", "unary writer when Capabilities return error")
+	require.ErrorContains(t, err, "not streaming writer", "unary writer when Capabilities return error")
 
 	writer, err = f.CreateSpanWriter()
 	require.NoError(t, err)
 	err = writer.WriteSpan(context.Background(), nil)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "not streaming writer", "unary writer when Capabilities return false")
+	require.ErrorContains(t, err, "not streaming writer", "unary writer when Capabilities return false")
 
 	writer, err = f.CreateSpanWriter()
 	require.NoError(t, err)
 	err = writer.WriteSpan(context.Background(), nil)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "I am streaming writer", "streaming writer when Capabilities return true")
+	assert.ErrorContains(t, err, "I am streaming writer", "streaming writer when Capabilities return true")
 }

@@ -6,7 +6,7 @@ package tlscfg
 import (
 	"crypto/tls"
 	"crypto/x509"
-	"fmt"
+	"errors"
 	"path/filepath"
 	"testing"
 	"time"
@@ -148,7 +148,7 @@ func TestOptionsToConfig(t *testing.T) {
 			if test.fakeSysPool {
 				saveSystemCertPool := systemCertPool
 				systemCertPool = func() (*x509.CertPool, error) {
-					return nil, fmt.Errorf("fake system pool")
+					return nil, errors.New("fake system pool")
 				}
 				defer func() {
 					systemCertPool = saveSystemCertPool
@@ -156,8 +156,7 @@ func TestOptionsToConfig(t *testing.T) {
 			}
 			cfg, err := test.options.Config(zap.NewNop())
 			if test.expectError != "" {
-				require.Error(t, err)
-				assert.Contains(t, err.Error(), test.expectError)
+				require.ErrorContains(t, err, test.expectError)
 			} else {
 				require.NoError(t, err)
 				assert.NotNil(t, cfg)
@@ -227,6 +226,80 @@ func TestToOtelClientConfig(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			actual := tc.options.ToOtelClientConfig()
+			assert.Equal(t, tc.expected, actual)
+		})
+	}
+}
+
+func TestToOtelServerConfig(t *testing.T) {
+	testCases := []struct {
+		name     string
+		options  Options
+		expected *configtls.ServerConfig
+	}{
+		{
+			name: "not enabled",
+			options: Options{
+				Enabled: false,
+			},
+			expected: nil,
+		},
+		{
+			name: "default mapping",
+			options: Options{
+				Enabled:      true,
+				ClientCAPath: "path/to/client/ca.pem",
+				CAPath:       "path/to/ca.pem",
+				CertPath:     "path/to/cert.pem",
+				KeyPath:      "path/to/key.pem",
+				CipherSuites: []string{"TLS_RSA_WITH_AES_128_CBC_SHA"},
+				MinVersion:   "1.2",
+				MaxVersion:   "1.3",
+			},
+			expected: &configtls.ServerConfig{
+				ClientCAFile: "path/to/client/ca.pem",
+				Config: configtls.Config{
+					CAFile:       "path/to/ca.pem",
+					CertFile:     "path/to/cert.pem",
+					KeyFile:      "path/to/key.pem",
+					CipherSuites: []string{"TLS_RSA_WITH_AES_128_CBC_SHA"},
+					MinVersion:   "1.2",
+					MaxVersion:   "1.3",
+				},
+			},
+		},
+		{
+			name: "with reload interval",
+			options: Options{
+				Enabled:        true,
+				ClientCAPath:   "path/to/client/ca.pem",
+				CAPath:         "path/to/ca.pem",
+				CertPath:       "path/to/cert.pem",
+				KeyPath:        "path/to/key.pem",
+				CipherSuites:   []string{"TLS_RSA_WITH_AES_128_CBC_SHA"},
+				MinVersion:     "1.2",
+				MaxVersion:     "1.3",
+				ReloadInterval: 24 * time.Hour,
+			},
+			expected: &configtls.ServerConfig{
+				ClientCAFile:       "path/to/client/ca.pem",
+				ReloadClientCAFile: true,
+				Config: configtls.Config{
+					CAFile:         "path/to/ca.pem",
+					CertFile:       "path/to/cert.pem",
+					KeyFile:        "path/to/key.pem",
+					CipherSuites:   []string{"TLS_RSA_WITH_AES_128_CBC_SHA"},
+					MinVersion:     "1.2",
+					MaxVersion:     "1.3",
+					ReloadInterval: 24 * time.Hour,
+				},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			actual := tc.options.ToOtelServerConfig()
 			assert.Equal(t, tc.expected, actual)
 		})
 	}

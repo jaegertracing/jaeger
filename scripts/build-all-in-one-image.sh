@@ -6,31 +6,35 @@
 set -euf -o pipefail
 
 print_help() {
-  echo "Usage: $0 [-b binary] [-D] [-l] [-p platforms]"
-  echo "-b: Which binary to build: 'all-in-one' (default) or 'jaeger' (v2)"
-  echo "-D: Disable building of images with debugger"
-  echo "-h: Print help"
-  echo "-l: Enable local-only mode that only pushes images to local registry"
-  echo "-p: Comma-separated list of platforms to build for (default: all supported)"
+  echo "Usage: $0 [-b binary] [-D] [-h] [-l] [-o] [-p platforms] <jaeger_version>"
+  echo "  -D: Disable building of images with debugger"
+  echo "  -h: Print help"
+  echo "  -l: Enable local-only mode that only pushes images to local registry"
+  echo "  -o: overwrite image in the target remote repository even if the semver tag already exists"
+  echo "  -p: Comma-separated list of platforms to build for (default: all supported)"
+  echo "  jaeger_version:  major version, v1 | v2"
   exit 1
 }
 
 add_debugger='Y'
 platforms="$(make echo-linux-platforms)"
-LOCAL_FLAG=''
-BINARY='all-in-one'
+FLAGS=()
 
-while getopts "b:Dhlp:" opt; do
+# this script doesn't use BRANCH and GITHUB_SHA itself, but its dependency scripts do.
+export BRANCH=${BRANCH?'env var is required'}
+export GITHUB_SHA=${GITHUB_SHA:-$(git rev-parse HEAD)}
+
+while getopts "Dhlop:" opt; do
 	case "${opt}" in
-	b)
-		BINARY=${OPTARG}
-		;;
 	D)
 		add_debugger='N'
 		;;
 	l)
 		# in the local-only mode the images will only be pushed to local registry
-		LOCAL_FLAG='-l'
+		FLAGS=("${FLAGS[@]}" -l)
+		;;
+	o)
+		FLAGS=("${FLAGS[@]}" -o)
 		;;
 	p)
 		platforms=${OPTARG}
@@ -40,6 +44,30 @@ while getopts "b:Dhlp:" opt; do
 		;;
 	esac
 done
+
+# remove flags, leave only positional args
+shift $((OPTIND - 1))
+
+if [[ $# -eq 0 ]]; then
+  echo "Jaeger major version is required as argument"
+  print_help
+fi
+
+case $1 in
+  v1)
+    BINARY='all-in-one'
+    sampling_port=14268
+    export HEALTHCHECK_V2=false
+    ;;
+  v2)
+    BINARY='jaeger'
+    sampling_port=5778
+    export HEALTHCHECK_V2=true
+    ;;
+  *)
+    echo "Jaeger major version is required as argument"
+    print_help
+esac
 
 set -x
 
@@ -65,7 +93,7 @@ make build-ui
 
 run_integration_test() {
   local image_name="$1"
-  CID=$(docker run -d -p 16686:16686 -p 5778:5778 -p13133:13133 "${image_name}:${GITHUB_SHA}")
+  CID=$(docker run -d -p 16686:16686 -p 13133:13133 -p "14268:${sampling_port}" "${image_name}:${GITHUB_SHA}")
 
   if ! make all-in-one-integration-test ; then
       echo "---- integration test failed unexpectedly ----"
@@ -85,19 +113,19 @@ for platform in $(echo "$platforms" | tr ',' ' '); do
   make "build-${BINARY}" GOOS=linux GOARCH="${arch}"
 done
 
+baseimg_target='create-baseimg-debugimg'
 if [[ "${add_debugger}" == "N" ]]; then
-  make create-baseimg
-else
-  make create-baseimg-debugimg
+  baseimg_target='create-baseimg'
 fi
+make "$baseimg_target" LINUX_PLATFORMS="$platforms"
 
-# build all-in-one image locally for integration test (the -l switch)
+# build all-in-one image locally for integration test (the explicit -l switch)
 bash scripts/build-upload-a-docker-image.sh -l -b -c "${BINARY}" -d "cmd/${BINARY}" -p "${platforms}" -t release
 
 run_integration_test "localhost:5000/$repo"
 
 # build all-in-one image and upload to dockerhub/quay.io
-bash scripts/build-upload-a-docker-image.sh ${LOCAL_FLAG} -b -c "${BINARY}" -d "cmd/${BINARY}" -p "${platforms}" -t release
+bash scripts/build-upload-a-docker-image.sh "${FLAGS[@]}" -b -c "${BINARY}" -d "cmd/${BINARY}" -p "${platforms}" -t release
 
 # build debug image if requested
 if [[ "${add_debugger}" == "Y" ]]; then
@@ -109,5 +137,5 @@ if [[ "${add_debugger}" == "Y" ]]; then
   run_integration_test "localhost:5000/$repo"
 
   # build & upload official image
-  bash scripts/build-upload-a-docker-image.sh ${LOCAL_FLAG} -b -c "${BINARY}-debug" -d "cmd/${BINARY}" -t debug
+  bash scripts/build-upload-a-docker-image.sh "${FLAGS[@]}" -b -c "${BINARY}-debug" -d "cmd/${BINARY}" -t debug
 fi

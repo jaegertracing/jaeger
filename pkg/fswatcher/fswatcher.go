@@ -5,7 +5,7 @@ package fswatcher
 
 import (
 	"crypto/sha256"
-	"fmt"
+	"encoding/hex"
 	"io"
 	"os"
 	"path"
@@ -132,10 +132,10 @@ func (w *FSWatcher) Close() error {
 }
 
 // isModified returns true if the file has been modified since the last check.
-func (w *FSWatcher) isModified(filepath string, previousHash string) (bool, string) {
-	hash, err := hashFile(filepath)
+func (w *FSWatcher) isModified(filePathName string, previousHash string) (bool, string) {
+	hash, err := hashFile(filePathName)
 	if err != nil {
-		w.logger.Warn("Unable to read the file", zap.String("file", filepath), zap.Error(err))
+		w.logger.Warn("Unable to read the file", zap.String("file", filePathName), zap.Error(err))
 		return true, ""
 	}
 	return previousHash != hash, hash
@@ -154,5 +154,5 @@ func hashFile(file string) (string, error) {
 		return "", err
 	}
 
-	return fmt.Sprintf("%x", h.Sum(nil)), nil
+	return hex.EncodeToString(h.Sum(nil)), nil
 }

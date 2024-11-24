@@ -5,7 +5,6 @@ package reporter
 
 import (
 	"flag"
-	"fmt"
 
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
@@ -33,10 +32,10 @@ type Options struct {
 }
 
 // AddFlags adds flags for Options.
-func AddFlags(flags *flag.FlagSet) {
-	flags.String(reporterType, string(GRPC), fmt.Sprintf("Reporter type to use e.g. %s", string(GRPC)))
+func AddFlags(flagSet *flag.FlagSet) {
+	flagSet.String(reporterType, string(GRPC), "Reporter type to use e.g. "+string(GRPC))
 	if !setupcontext.IsAllInOne() {
-		flags.String(agentTags, "", "One or more tags to be added to the Process tags of all spans passing through this agent. Ex: key1=value1,key2=${envVar:defaultValue}")
+		flagSet.String(agentTags, "", "One or more tags to be added to the Process tags of all spans passing through this agent. Ex: key1=value1,key2=${envVar:defaultValue}")
 	}
 }
 

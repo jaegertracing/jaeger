@@ -13,6 +13,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/es-rollover/app"
 	"github.com/jaegertracing/jaeger/pkg/es"
 	"github.com/jaegertracing/jaeger/pkg/es/client"
+	"github.com/jaegertracing/jaeger/pkg/es/config"
 	"github.com/jaegertracing/jaeger/pkg/es/filter"
 	"github.com/jaegertracing/jaeger/plugin/storage/es/mappings"
 )
@@ -27,21 +28,17 @@ type Action struct {
 	ILMClient     client.IndexManagementLifecycleAPI
 }
 
-func (c Action) getMapping(version uint, templateName string) (string, error) {
+func (c Action) getMapping(version uint, mappingType mappings.MappingType) (string, error) {
+	c.Config.Indices.IndexPrefix = config.IndexPrefix(c.Config.Config.IndexPrefix)
 	mappingBuilder := mappings.MappingBuilder{
-		TemplateBuilder:              es.TextTemplateBuilder{},
-		PrioritySpanTemplate:         int64(c.Config.PrioritySpanTemplate),
-		PriorityServiceTemplate:      int64(c.Config.PriorityServiceTemplate),
-		PriorityDependenciesTemplate: int64(c.Config.PriorityDependenciesTemplate),
-		PrioritySamplingTemplate:     int64(c.Config.PrioritySamplingTemplate),
-		Shards:                       int64(c.Config.Shards),
-		Replicas:                     int64(c.Config.Replicas),
-		IndexPrefix:                  c.Config.IndexPrefix,
-		UseILM:                       c.Config.UseILM,
-		ILMPolicyName:                c.Config.ILMPolicyName,
-		EsVersion:                    version,
+		TemplateBuilder: es.TextTemplateBuilder{},
+		Indices:         c.Config.Indices,
+		UseILM:          c.Config.UseILM,
+		ILMPolicyName:   c.Config.ILMPolicyName,
+		EsVersion:       version,
 	}
-	return mappingBuilder.GetMapping(templateName)
+
+	return mappingBuilder.GetMapping(mappingType)
 }
 
 // Do the init action
@@ -52,7 +49,7 @@ func (c Action) Do() error {
 	}
 	if c.Config.UseILM {
 		if version < ilmVersionSupport {
-			return fmt.Errorf("ILM is supported only for ES version 7+")
+			return errors.New("ILM is supported only for ES version 7+")
 		}
 		policyExist, err := c.ILMClient.Exists(c.Config.ILMPolicyName)
 		if err != nil {
@@ -62,7 +59,7 @@ func (c Action) Do() error {
 			return fmt.Errorf("ILM policy %s doesn't exist in Elasticsearch. Please create it and re-run init", c.Config.ILMPolicyName)
 		}
 	}
-	rolloverIndices := app.RolloverIndices(c.Config.Archive, c.Config.SkipDependencies, c.Config.AdaptiveSampling, c.Config.IndexPrefix)
+	rolloverIndices := app.RolloverIndices(c.Config.Archive, c.Config.SkipDependencies, c.Config.AdaptiveSampling, c.Config.Config.IndexPrefix)
 	for _, indexName := range rolloverIndices {
 		if err := c.init(version, indexName); err != nil {
 			return err
@@ -99,10 +96,16 @@ func createIndexIfNotExist(c client.IndexAPI, index string) error {
 }
 
 func (c Action) init(version uint, indexopt app.IndexOption) error {
-	mapping, err := c.getMapping(version, indexopt.Mapping)
+	mappingType, err := mappings.MappingTypeFromString(indexopt.Mapping)
 	if err != nil {
 		return err
 	}
+
+	mapping, err := c.getMapping(version, mappingType)
+	if err != nil {
+		return err
+	}
+
 	err = c.IndicesClient.CreateTemplate(mapping, indexopt.TemplateName())
 	if err != nil {
 		return err
@@ -114,7 +117,7 @@ func (c Action) init(version uint, indexopt app.IndexOption) error {
 		return err
 	}
 
-	jaegerIndices, err := c.IndicesClient.GetJaegerIndices(c.Config.IndexPrefix)
+	jaegerIndices, err := c.IndicesClient.GetJaegerIndices(c.Config.Config.IndexPrefix)
 	if err != nil {
 		return err
 	}

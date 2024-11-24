@@ -61,7 +61,7 @@ linters:
     - errorlint
 
     # Checks for pointers to enclosing loop variables.
-    - exportloopref
+    - copyloopvar
 
     - gocritic
     - gofmt
@@ -96,11 +96,17 @@ linters:
     # Reports ill-formed or insufficient nolint directives.
     - nolintlint
 
+    # Checks that fmt.Sprintf can be replaced with a faster alternative.
+    - perfsprint
+
     # Fast, configurable, extensible, flexible, and beautiful linter for Go. Drop-in replacement of golint.
     - revive
 
     # Checks usage of github.com/stretchr/testify.
     - testifylint
+
+    # Detects the possibility to use variables/constants from the Go standard library.
+    - usestdlibvars
 
     # TODO consider adding more linters, cf. https://olegk.dev/go-linters-configuration-the-right-version
 
@@ -153,6 +159,17 @@ linters-settings:
       - fieldalignment
       # Disable shadow
       - shadow
+  perfsprint:
+    # Optimizes even if it requires an int or uint type cast.
+    int-conversion: true
+    # Optimizes into `err.Error()` even if it is only equivalent for non-nil errors.
+    err-error: true
+    # Optimizes `fmt.Errorf`.
+    errorf: true
+    # Optimizes `fmt.Sprintf` with only one argument.
+    sprintf1: true
+    # Optimizes into strings concatenation.
+    strconcat: true
   revive:
       ignore-generated-header: true
       severity: error
@@ -180,9 +197,6 @@ linters-settings:
           disabled: true
         # wtf: "you have exceeded the maximum number of public struct declarations"
         - name: max-public-structs
-          disabled: true
-        # probably a good one to enable after cleanup
-        - name: import-shadowing
           disabled: true
         # TBD - often triggered in tests
         - name: unhandled-error
@@ -221,20 +235,7 @@ linters-settings:
         - name: comment-spacings
           disabled: true
   testifylint:
-    disable:
-      - float-compare
-      - go-require
-    enable:
-      - bool-compare
-      - compares
-      - empty
-      - error-is-as
-      - error-nil
-      - expected-actual
-      - len
-      - require-error
-      - suite-dont-use-pkg
-      - suite-extra-assert-call
+    enable-all: true
 
 run:
   go: "1.22"

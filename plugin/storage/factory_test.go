@@ -8,7 +8,6 @@ import (
 	"errors"
 	"expvar"
 	"flag"
-	"fmt"
 	"io"
 	"reflect"
 	"strings"
@@ -73,7 +72,7 @@ func TestNewFactory(t *testing.T) {
 
 func TestClose(t *testing.T) {
 	storageType := "foo"
-	err := fmt.Errorf("some error")
+	err := errors.New("some error")
 	f := Factory{
 		factories: map[string]storage.Factory{
 			storageType: &errorFactory{closeErr: err},
@@ -366,7 +365,7 @@ func TestParsingDownsamplingRatio(t *testing.T) {
 	require.NoError(t, err)
 	f.InitFromViper(v, zap.NewNop())
 
-	assert.Equal(t, 1.0, f.FactoryConfig.DownsamplingRatio)
+	assert.InDelta(t, 1.0, f.FactoryConfig.DownsamplingRatio, 0.01)
 	assert.Equal(t, "jaeger", f.FactoryConfig.DownsamplingHashSalt)
 
 	err = command.ParseFlags([]string{
@@ -374,7 +373,7 @@ func TestParsingDownsamplingRatio(t *testing.T) {
 	})
 	require.NoError(t, err)
 	f.InitFromViper(v, zap.NewNop())
-	assert.Equal(t, 0.5, f.FactoryConfig.DownsamplingRatio)
+	assert.InDelta(t, 0.5, f.FactoryConfig.DownsamplingRatio, 0.01)
 }
 
 func TestDefaultDownsamplingWithAddFlags(t *testing.T) {
@@ -384,7 +383,7 @@ func TestDefaultDownsamplingWithAddFlags(t *testing.T) {
 	require.NoError(t, err)
 	f.InitFromViper(v, zap.NewNop())
 
-	assert.Equal(t, defaultDownsamplingRatio, f.FactoryConfig.DownsamplingRatio)
+	assert.InDelta(t, defaultDownsamplingRatio, f.FactoryConfig.DownsamplingRatio, 0.01)
 	assert.Equal(t, defaultDownsamplingHashSalt, f.FactoryConfig.DownsamplingHashSalt)
 
 	err = command.ParseFlags([]string{

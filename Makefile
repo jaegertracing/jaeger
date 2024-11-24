@@ -153,9 +153,9 @@ lint-license:
 
 .PHONY: lint-nocommit
 lint-nocommit:
-	@if git diff main | grep '@no''commit' ; then \
+	@if git diff origin/main | grep '@no''commit' ; then \
 		echo "❌ Cannot merge PR that contains @no""commit string" ; \
-		GIT_PAGER=cat git diff -G '@no''commit' main ; \
+		GIT_PAGER=cat git diff -G '@no''commit' origin/main ; \
 		false ; \
 	else \
 		echo "✅ Changes do not contain @no""commit string" ; \
@@ -206,10 +206,8 @@ init-submodules:
 
 MOCKERY_FLAGS := --all --disable-version-string
 .PHONY: generate-mocks
-# TODO remove GODEBUG=gotypesalias=0
-# once this is fixed: https://github.com/vektra/mockery/issues/803
 generate-mocks: $(MOCKERY)
-	GODEBUG=gotypesalias=0 $(MOCKERY)
+	$(MOCKERY)
 
 .PHONY: certs
 certs:

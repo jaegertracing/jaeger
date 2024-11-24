@@ -150,8 +150,7 @@ func TestClientGetIndices(t *testing.T) {
 
 			indices, err := c.GetJaegerIndices(test.prefix)
 			if test.errContains != "" {
-				require.Error(t, err)
-				assert.Contains(t, err.Error(), test.errContains)
+				require.ErrorContains(t, err, test.errContains)
 				assert.Nil(t, indices)
 			} else {
 				require.NoError(t, err)
@@ -269,8 +268,7 @@ func TestClientDeleteIndices(t *testing.T) {
 			assert.Equal(t, test.triggerAPI, apiTriggered)
 
 			if test.errContains != "" {
-				require.Error(t, err)
-				assert.Contains(t, err.Error(), test.errContains)
+				assert.ErrorContains(t, err, test.errContains)
 			} else {
 				assert.Len(t, test.indices, deletedIndicesCount)
 			}
@@ -341,8 +339,7 @@ func TestClientCreateIndex(t *testing.T) {
 			}
 			err := c.CreateIndex(indexName)
 			if test.errContains != "" {
-				require.Error(t, err)
-				assert.Contains(t, err.Error(), test.errContains)
+				assert.ErrorContains(t, err, test.errContains)
 			}
 		})
 	}
@@ -385,10 +382,11 @@ func TestClientCreateAliases(t *testing.T) {
 				assert.Equal(t, http.MethodPost, req.Method)
 				assert.Equal(t, "Basic foobar", req.Header.Get("Authorization"))
 				body, err := io.ReadAll(req.Body)
-				require.NoError(t, err)
-				assert.Equal(t, expectedRequestBody, string(body))
-				res.WriteHeader(test.responseCode)
-				res.Write([]byte(test.response))
+				if assert.NoError(t, err) {
+					assert.Equal(t, expectedRequestBody, string(body))
+					res.WriteHeader(test.responseCode)
+					res.Write([]byte(test.response))
+				}
 			}))
 			defer testServer.Close()
 
@@ -401,8 +399,7 @@ func TestClientCreateAliases(t *testing.T) {
 			}
 			err := c.CreateAlias(aliases)
 			if test.errContains != "" {
-				require.Error(t, err)
-				assert.Contains(t, err.Error(), test.errContains)
+				assert.ErrorContains(t, err, test.errContains)
 			}
 		})
 	}
@@ -445,7 +442,7 @@ func TestClientDeleteAliases(t *testing.T) {
 				assert.Equal(t, http.MethodPost, req.Method)
 				assert.Equal(t, "Basic foobar", req.Header.Get("Authorization"))
 				body, err := io.ReadAll(req.Body)
-				require.NoError(t, err)
+				assert.NoError(t, err)
 				assert.Equal(t, expectedRequestBody, string(body))
 				res.WriteHeader(test.responseCode)
 				res.Write([]byte(test.response))
@@ -461,8 +458,7 @@ func TestClientDeleteAliases(t *testing.T) {
 			}
 			err := c.DeleteAlias(aliases)
 			if test.errContains != "" {
-				require.Error(t, err)
-				assert.Contains(t, err.Error(), test.errContains)
+				assert.ErrorContains(t, err, test.errContains)
 			}
 		})
 	}
@@ -508,7 +504,7 @@ func TestClientCreateTemplate(t *testing.T) {
 				assert.Equal(t, http.MethodPut, req.Method)
 				assert.Equal(t, "Basic foobar", req.Header.Get("Authorization"))
 				body, err := io.ReadAll(req.Body)
-				require.NoError(t, err)
+				assert.NoError(t, err)
 				assert.Equal(t, templateContent, string(body))
 
 				res.WriteHeader(test.responseCode)
@@ -525,8 +521,7 @@ func TestClientCreateTemplate(t *testing.T) {
 			}
 			err := c.CreateTemplate(templateContent, templateName)
 			if test.errContains != "" {
-				require.Error(t, err)
-				assert.Contains(t, err.Error(), test.errContains)
+				assert.ErrorContains(t, err, test.errContains)
 			}
 		})
 	}
@@ -562,7 +557,7 @@ func TestRollover(t *testing.T) {
 				assert.Equal(t, http.MethodPost, req.Method)
 				assert.Equal(t, "Basic foobar", req.Header.Get("Authorization"))
 				body, err := io.ReadAll(req.Body)
-				require.NoError(t, err)
+				assert.NoError(t, err)
 				assert.Equal(t, expectedRequestBody, string(body))
 
 				res.WriteHeader(test.responseCode)
@@ -579,8 +574,7 @@ func TestRollover(t *testing.T) {
 			}
 			err := c.Rollover("jaeger-span", mapConditions)
 			if test.errContains != "" {
-				require.Error(t, err)
-				assert.Contains(t, err.Error(), test.errContains)
+				assert.ErrorContains(t, err, test.errContains)
 			}
 		})
 	}

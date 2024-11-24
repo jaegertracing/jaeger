@@ -19,39 +19,31 @@ jobs:
   all-in-one:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
-        mode:
-        - name: v1
-          binary: all-in-one
-        - name: v2
-          binary: jaeger
+        jaeger_version: [v1, v2]
 
     steps:
-    - name: Harden Runner
-      uses: step-security/harden-runner@0d381219ddf674d61a7572ddd19d7941e271515c # v2.9.0
+    - uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
       with:
         egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
 
-    - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+    - uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938 # v4.2.0
       with:
         submodules: true
 
     - name: Fetch git tags
-      run: |
-        git fetch --prune --unshallow --tags
+      run: git fetch --prune --unshallow --tags
 
-    - uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5.0.2
+    - uses: actions/setup-go@41dfa10bad2bb2ae585af6ee5bb4d7d973ad74ed # v5.1.0
       with:
         go-version: 1.23.x
 
-    - name: Setup Node.js version
-      uses: ./.github/actions/setup-node.js
+    - uses: ./.github/actions/setup-node.js
 
-    - name: Export BRANCH variable
-      uses: ./.github/actions/setup-branch
+    - uses: ./.github/actions/setup-branch
 
-    - name: Install tools
-      run: make install-ci
+    - run: make install-ci
 
     - uses: docker/setup-qemu-action@49b3bc8e6bdd4a60e6116a5414239cba5943d3cf # v3.2.0
 
@@ -66,21 +58,11 @@ jobs:
             ;;
         esac
 
-    - name: Determine healthcheck setting
-      id: healthcheck
-      run: |
-        if [[ "${{ matrix.mode.name }}" == "v1" ]]; then
-          echo "HEALTHCHECK_V2=false" >> $GITHUB_ENV
-        elif [[ "${{ matrix.mode.name }}" == "v2" ]]; then
-          echo "HEALTHCHECK_V2=true" >> $GITHUB_ENV
-        fi
-
     - name: Build, test, and publish all-in-one image
       run: |
         bash scripts/build-all-in-one-image.sh \
           ${{ env.BUILD_FLAGS }} \
-          -b ${{ matrix.mode.binary }}
+          "${{ matrix.jaeger_version }}"
       env:
         DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
-        HEALTHCHECK_V2: ${{ env.HEALTHCHECK_V2 }}

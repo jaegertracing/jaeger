@@ -4,6 +4,7 @@
 package adaptive
 
 import (
+	"net/http"
 	"testing"
 	"time"
 
@@ -37,12 +38,12 @@ func TestAggregator(t *testing.T) {
 
 	a, err := NewAggregator(testOpts, logger, metricsFactory, mockEP, mockStorage)
 	require.NoError(t, err)
-	a.RecordThroughput("A", "GET", model.SamplerTypeProbabilistic, 0.001)
-	a.RecordThroughput("B", "POST", model.SamplerTypeProbabilistic, 0.001)
-	a.RecordThroughput("C", "GET", model.SamplerTypeProbabilistic, 0.001)
-	a.RecordThroughput("A", "POST", model.SamplerTypeProbabilistic, 0.001)
-	a.RecordThroughput("A", "GET", model.SamplerTypeProbabilistic, 0.001)
-	a.RecordThroughput("A", "GET", model.SamplerTypeLowerBound, 0.001)
+	a.RecordThroughput("A", http.MethodGet, model.SamplerTypeProbabilistic, 0.001)
+	a.RecordThroughput("B", http.MethodPost, model.SamplerTypeProbabilistic, 0.001)
+	a.RecordThroughput("C", http.MethodGet, model.SamplerTypeProbabilistic, 0.001)
+	a.RecordThroughput("A", http.MethodPost, model.SamplerTypeProbabilistic, 0.001)
+	a.RecordThroughput("A", http.MethodGet, model.SamplerTypeProbabilistic, 0.001)
+	a.RecordThroughput("A", http.MethodGet, model.SamplerTypeLowerBound, 0.001)
 
 	a.Start()
 	defer a.Close()
@@ -74,17 +75,17 @@ func TestIncrementThroughput(t *testing.T) {
 	require.NoError(t, err)
 	// 20 different probabilities
 	for i := 0; i < 20; i++ {
-		a.RecordThroughput("A", "GET", model.SamplerTypeProbabilistic, 0.001*float64(i))
+		a.RecordThroughput("A", http.MethodGet, model.SamplerTypeProbabilistic, 0.001*float64(i))
 	}
-	assert.Len(t, a.(*aggregator).currentThroughput["A"]["GET"].Probabilities, 10)
+	assert.Len(t, a.(*aggregator).currentThroughput["A"][http.MethodGet].Probabilities, 10)
 
 	a, err = NewAggregator(testOpts, logger, metricsFactory, mockEP, mockStorage)
 	require.NoError(t, err)
 	// 20 of the same probabilities
 	for i := 0; i < 20; i++ {
-		a.RecordThroughput("A", "GET", model.SamplerTypeProbabilistic, 0.001)
+		a.RecordThroughput("A", http.MethodGet, model.SamplerTypeProbabilistic, 0.001)
 	}
-	assert.Len(t, a.(*aggregator).currentThroughput["A"]["GET"].Probabilities, 1)
+	assert.Len(t, a.(*aggregator).currentThroughput["A"][http.MethodGet].Probabilities, 1)
 }
 
 func TestLowerboundThroughput(t *testing.T) {
@@ -100,9 +101,9 @@ func TestLowerboundThroughput(t *testing.T) {
 
 	a, err := NewAggregator(testOpts, logger, metricsFactory, mockEP, mockStorage)
 	require.NoError(t, err)
-	a.RecordThroughput("A", "GET", model.SamplerTypeLowerBound, 0.001)
-	assert.EqualValues(t, 0, a.(*aggregator).currentThroughput["A"]["GET"].Count)
-	assert.Empty(t, a.(*aggregator).currentThroughput["A"]["GET"].Probabilities["0.001000"])
+	a.RecordThroughput("A", http.MethodGet, model.SamplerTypeLowerBound, 0.001)
+	assert.EqualValues(t, 0, a.(*aggregator).currentThroughput["A"][http.MethodGet].Count)
+	assert.Empty(t, a.(*aggregator).currentThroughput["A"][http.MethodGet].Probabilities["0.001000"])
 }
 
 func TestRecordThroughput(t *testing.T) {
@@ -132,7 +133,7 @@ func TestRecordThroughput(t *testing.T) {
 	require.Empty(t, a.(*aggregator).currentThroughput)
 
 	// Testing span with service name and operation but no probabilistic sampling tags
-	span.OperationName = "GET"
+	span.OperationName = http.MethodGet
 	a.HandleRootSpan(span, logger)
 	require.Empty(t, a.(*aggregator).currentThroughput)
 
@@ -142,7 +143,7 @@ func TestRecordThroughput(t *testing.T) {
 		model.String("sampler.param", "0.001"),
 	}
 	a.HandleRootSpan(span, logger)
-	assert.EqualValues(t, 1, a.(*aggregator).currentThroughput["A"]["GET"].Count)
+	assert.EqualValues(t, 1, a.(*aggregator).currentThroughput["A"][http.MethodGet].Count)
 }
 
 func TestRecordThroughputFunc(t *testing.T) {
@@ -161,7 +162,7 @@ func TestRecordThroughputFunc(t *testing.T) {
 
 	// Testing non-root span
 	span := &model.Span{References: []model.SpanRef{{SpanID: model.NewSpanID(1), RefType: model.ChildOf}}}
-	RecordThroughput(a, span, logger)
+	a.HandleRootSpan(span, logger)
 	require.Empty(t, a.(*aggregator).currentThroughput)
 
 	// Testing span with service name but no operation
@@ -169,12 +170,12 @@ func TestRecordThroughputFunc(t *testing.T) {
 	span.Process = &model.Process{
 		ServiceName: "A",
 	}
-	RecordThroughput(a, span, logger)
+	a.HandleRootSpan(span, logger)
 	require.Empty(t, a.(*aggregator).currentThroughput)
 
 	// Testing span with service name and operation but no probabilistic sampling tags
-	span.OperationName = "GET"
-	RecordThroughput(a, span, logger)
+	span.OperationName = http.MethodGet
+	a.HandleRootSpan(span, logger)
 	require.Empty(t, a.(*aggregator).currentThroughput)
 
 	// Testing span with service name, operation, and probabilistic sampling tags
@@ -182,6 +183,6 @@ func TestRecordThroughputFunc(t *testing.T) {
 		model.String("sampler.type", "probabilistic"),
 		model.String("sampler.param", "0.001"),
 	}
-	RecordThroughput(a, span, logger)
-	assert.EqualValues(t, 1, a.(*aggregator).currentThroughput["A"]["GET"].Count)
+	a.HandleRootSpan(span, logger)
+	assert.EqualValues(t, 1, a.(*aggregator).currentThroughput["A"][http.MethodGet].Count)
 }

@@ -30,7 +30,7 @@ func Command(v *viper.Viper, adminPort int) *cobra.Command {
 			url := convert(v.GetString(statusHTTPHostPort))
 			ctx, cx := context.WithTimeout(context.Background(), time.Second)
 			defer cx()
-			req, _ := http.NewRequestWithContext(ctx, "GET", url, nil)
+			req, _ := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 			resp, err := http.DefaultClient.Do(req)
 			if err != nil {
 				return err
@@ -58,7 +58,7 @@ func flags(flagSet *flag.FlagSet, adminPort int) *flag.FlagSet {
 
 func convert(httpHostPort string) string {
 	if strings.HasPrefix(httpHostPort, ":") {
-		return fmt.Sprintf("http://127.0.0.1%s", httpHostPort)
+		return "http://127.0.0.1" + httpHostPort
 	}
-	return fmt.Sprintf("http://%s", httpHostPort)
+	return "http://" + httpHostPort
 }

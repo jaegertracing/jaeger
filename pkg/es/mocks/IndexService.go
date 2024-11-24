@@ -23,7 +23,7 @@ func (_m *IndexService) Add() {
 }
 
 // BodyJson provides a mock function with given fields: body
-func (_m *IndexService) BodyJson(body interface{}) es.IndexService {
+func (_m *IndexService) BodyJson(body any) es.IndexService {
 	ret := _m.Called(body)
 
 	if len(ret) == 0 {
@@ -31,7 +31,7 @@ func (_m *IndexService) BodyJson(body interface{}) es.IndexService {
 	}
 
 	var r0 es.IndexService
-	if rf, ok := ret.Get(0).(func(interface{}) es.IndexService); ok {
+	if rf, ok := ret.Get(0).(func(any) es.IndexService); ok {
 		r0 = rf(body)
 	} else {
 		if ret.Get(0) != nil {

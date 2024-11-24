@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger/pkg/es"
+	"github.com/jaegertracing/jaeger/pkg/es/config"
 	"github.com/jaegertracing/jaeger/pkg/es/mocks"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 )
@@ -25,47 +26,83 @@ import (
 var FIXTURES embed.FS
 
 func TestMappingBuilderGetMapping(t *testing.T) {
-	const (
-		jaegerSpan         = "jaeger-span"
-		jaegerService      = "jaeger-service"
-		jaegerDependencies = "jaeger-dependencies"
-	)
 	tests := []struct {
-		mapping   string
+		mapping   MappingType
 		esVersion uint
 	}{
-		{mapping: jaegerSpan, esVersion: 8},
-		{mapping: jaegerSpan, esVersion: 7},
-		{mapping: jaegerSpan, esVersion: 6},
-		{mapping: jaegerService, esVersion: 8},
-		{mapping: jaegerService, esVersion: 7},
-		{mapping: jaegerService, esVersion: 6},
-		{mapping: jaegerDependencies, esVersion: 8},
-		{mapping: jaegerDependencies, esVersion: 7},
-		{mapping: jaegerDependencies, esVersion: 6},
+		{mapping: SpanMapping, esVersion: 8},
+		{mapping: SpanMapping, esVersion: 7},
+		{mapping: SpanMapping, esVersion: 6},
+		{mapping: ServiceMapping, esVersion: 8},
+		{mapping: ServiceMapping, esVersion: 7},
+		{mapping: ServiceMapping, esVersion: 6},
+		{mapping: DependenciesMapping, esVersion: 8},
+		{mapping: DependenciesMapping, esVersion: 7},
+		{mapping: DependenciesMapping, esVersion: 6},
 	}
 	for _, tt := range tests {
-		t.Run(tt.mapping, func(t *testing.T) {
+		templateName := tt.mapping.String()
+
+		t.Run(templateName, func(t *testing.T) {
+			defaultOpts := func(p int64) config.IndexOptions {
+				return config.IndexOptions{
+					Shards:   3,
+					Replicas: 3,
+					Priority: p,
+				}
+			}
+			serviceOps := defaultOpts(501)
+			dependenciesOps := defaultOpts(502)
+			samplingOps := defaultOpts(503)
+
 			mb := &MappingBuilder{
-				TemplateBuilder:              es.TextTemplateBuilder{},
-				Shards:                       3,
-				Replicas:                     3,
-				PrioritySpanTemplate:         500,
-				PriorityServiceTemplate:      501,
-				PriorityDependenciesTemplate: 502,
-				EsVersion:                    tt.esVersion,
-				IndexPrefix:                  "test-",
-				UseILM:                       true,
-				ILMPolicyName:                "jaeger-test-policy",
+				TemplateBuilder: es.TextTemplateBuilder{},
+				Indices: config.Indices{
+					IndexPrefix:  "test-",
+					Spans:        defaultOpts(500),
+					Services:     serviceOps,
+					Dependencies: dependenciesOps,
+					Sampling:     samplingOps,
+				},
+				EsVersion:     tt.esVersion,
+				UseILM:        true,
+				ILMPolicyName: "jaeger-test-policy",
 			}
 			got, err := mb.GetMapping(tt.mapping)
 			require.NoError(t, err)
 			var wantbytes []byte
 			fileSuffix := fmt.Sprintf("-%d", tt.esVersion)
-			wantbytes, err = FIXTURES.ReadFile("fixtures/" + tt.mapping + fileSuffix + ".json")
+			wantbytes, err = FIXTURES.ReadFile("fixtures/" + templateName + fileSuffix + ".json")
 			require.NoError(t, err)
 			want := string(wantbytes)
 			assert.Equal(t, want, got)
+		})
+	}
+}
+
+func TestMappingTypeFromString(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected MappingType
+		hasError bool
+	}{
+		{"jaeger-span", SpanMapping, false},
+		{"jaeger-service", ServiceMapping, false},
+		{"jaeger-dependencies", DependenciesMapping, false},
+		{"jaeger-sampling", SamplingMapping, false},
+		{"invalid", MappingType(-1), true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			result, err := MappingTypeFromString(tt.input)
+			if tt.hasError {
+				require.Error(t, err)
+				assert.Equal(t, "unknown", result.String())
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, tt.expected, result)
+			}
 		})
 	}
 }
@@ -137,16 +174,24 @@ func TestMappingBuilderFixMapping(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			indexTemOps := config.IndexOptions{
+				Shards:   3,
+				Replicas: 5,
+				Priority: 500,
+			}
 			mappingBuilder := MappingBuilder{
 				TemplateBuilder: test.templateBuilderMockFunc(),
-				Shards:          3,
-				Replicas:        5,
-				EsVersion:       7,
-				IndexPrefix:     "test",
-				UseILM:          true,
-				ILMPolicyName:   "jaeger-test-policy",
+				Indices: config.Indices{
+					Spans:        indexTemOps,
+					Services:     indexTemOps,
+					Dependencies: indexTemOps,
+					Sampling:     indexTemOps,
+				},
+				EsVersion:     7,
+				UseILM:        true,
+				ILMPolicyName: "jaeger-test-policy",
 			}
-			_, err := mappingBuilder.fixMapping("test")
+			_, err := mappingBuilder.renderMapping("test", mappingBuilder.getMappingTemplateOptions(SpanMapping))
 			if test.err != "" {
 				require.EqualError(t, err, test.err)
 			} else {
@@ -158,8 +203,6 @@ func TestMappingBuilderFixMapping(t *testing.T) {
 
 func TestMappingBuilderGetSpanServiceMappings(t *testing.T) {
 	type args struct {
-		shards        int64
-		replicas      int64
 		esVersion     uint
 		indexPrefix   string
 		useILM        bool
@@ -174,8 +217,6 @@ func TestMappingBuilderGetSpanServiceMappings(t *testing.T) {
 		{
 			name: "ES Version 7",
 			args: args{
-				shards:        3,
-				replicas:      3,
 				esVersion:     7,
 				indexPrefix:   "test",
 				useILM:        true,
@@ -193,8 +234,6 @@ func TestMappingBuilderGetSpanServiceMappings(t *testing.T) {
 		{
 			name: "ES Version 7 Service Error",
 			args: args{
-				shards:        3,
-				replicas:      3,
 				esVersion:     7,
 				indexPrefix:   "test",
 				useILM:        true,
@@ -214,8 +253,6 @@ func TestMappingBuilderGetSpanServiceMappings(t *testing.T) {
 		{
 			name: "ES Version < 7",
 			args: args{
-				shards:        3,
-				replicas:      3,
 				esVersion:     6,
 				indexPrefix:   "test",
 				useILM:        true,
@@ -233,8 +270,6 @@ func TestMappingBuilderGetSpanServiceMappings(t *testing.T) {
 		{
 			name: "ES Version < 7 Service Error",
 			args: args{
-				shards:        3,
-				replicas:      3,
 				esVersion:     6,
 				indexPrefix:   "test",
 				useILM:        true,
@@ -253,8 +288,6 @@ func TestMappingBuilderGetSpanServiceMappings(t *testing.T) {
 		{
 			name: "ES Version < 7 Span Error",
 			args: args{
-				shards:        3,
-				replicas:      3,
 				esVersion:     6,
 				indexPrefix:   "test",
 				useILM:        true,
@@ -272,8 +305,6 @@ func TestMappingBuilderGetSpanServiceMappings(t *testing.T) {
 		{
 			name: "ES Version  7 Span Error",
 			args: args{
-				shards:        3,
-				replicas:      3,
 				esVersion:     7,
 				indexPrefix:   "test",
 				useILM:        true,
@@ -291,14 +322,22 @@ func TestMappingBuilderGetSpanServiceMappings(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			indexTemOps := config.IndexOptions{
+				Shards:   3,
+				Replicas: 3,
+			}
+
 			mappingBuilder := MappingBuilder{
 				TemplateBuilder: test.mockNewTextTemplateBuilder(),
-				Shards:          test.args.shards,
-				Replicas:        test.args.replicas,
-				EsVersion:       test.args.esVersion,
-				IndexPrefix:     test.args.indexPrefix,
-				UseILM:          test.args.useILM,
-				ILMPolicyName:   test.args.ilmPolicyName,
+				Indices: config.Indices{
+					Spans:        indexTemOps,
+					Services:     indexTemOps,
+					Dependencies: indexTemOps,
+					Sampling:     indexTemOps,
+				},
+				EsVersion:     test.args.esVersion,
+				UseILM:        test.args.useILM,
+				ILMPolicyName: test.args.ilmPolicyName,
 			}
 			_, _, err := mappingBuilder.GetSpanServiceMappings()
 			if test.err != "" {

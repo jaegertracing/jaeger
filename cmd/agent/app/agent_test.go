@@ -44,9 +44,7 @@ func TestAgentSamplingEndpoint(t *testing.T) {
 			}
 			select {
 			case err := <-errorch:
-				if err != nil {
-					t.Fatalf("error from agent: %s", err)
-				}
+				require.NoError(t, err, "error from agent")
 				break wait_loop
 			default:
 				time.Sleep(time.Millisecond)
@@ -155,9 +153,7 @@ func TestStartStopRace(t *testing.T) {
 	// Before the bug was fixed this test was failing as expected when
 	// run with -race flag.
 
-	if err := agent.Run(); err != nil {
-		t.Fatalf("error from agent.Run(): %s", err)
-	}
+	require.NoError(t, agent.Run())
 
 	t.Log("stopping agent")
 	agent.Stop()
@@ -192,9 +188,7 @@ func TestStartStopWithSocketBufferSet(t *testing.T) {
 	agent, err := cfg.CreateAgent(fakeCollectorProxy{}, zap.NewNop(), metricsFactory)
 	require.NoError(t, err)
 
-	if err := agent.Run(); err != nil {
-		t.Fatalf("error from agent.Run(): %s", err)
-	}
+	require.NoError(t, agent.Run())
 
 	t.Log("stopping agent")
 	agent.Stop()

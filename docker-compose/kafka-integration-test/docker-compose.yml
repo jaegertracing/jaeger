@@ -1,6 +1,6 @@
 services:
   kafka:
-    image: bitnami/kafka:3.8.0
+    image: bitnami/kafka:3.9.0
     ports:
       - "9092:9092"
     environment:

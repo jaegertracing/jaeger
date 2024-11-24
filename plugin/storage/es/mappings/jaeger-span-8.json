@@ -1,5 +1,5 @@
 {
-  "priority": {{ .PrioritySpanTemplate}},
+  "priority": {{ .Priority }},
   "index_patterns": "{{ .IndexPrefix }}jaeger-span-*",
   "template": {
 
@@ -90,7 +90,7 @@
                   "type": "keyword",
                   "ignore_above": 256
                 },
-                "tagType": {
+                "type": {
                   "type": "keyword",
                   "ignore_above": 256
                 }
@@ -119,7 +119,7 @@
                   "type": "keyword",
                   "ignore_above": 256
                 },
-                "tagType": {
+                "type": {
                   "type": "keyword",
                   "ignore_above": 256
                 }
@@ -160,7 +160,7 @@
               "type": "keyword",
               "ignore_above": 256
             },
-            "tagType": {
+            "type": {
               "type": "keyword",
               "ignore_above": 256
             }

@@ -137,8 +137,8 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 	}
 	f.primaryClient.Store(&primaryClient)
 
-	if f.primaryConfig.PasswordFilePath != "" {
-		primaryWatcher, err := fswatcher.New([]string{f.primaryConfig.PasswordFilePath}, f.onPrimaryPasswordChange, f.logger)
+	if f.primaryConfig.Authentication.BasicAuthentication.PasswordFilePath != "" {
+		primaryWatcher, err := fswatcher.New([]string{f.primaryConfig.Authentication.BasicAuthentication.PasswordFilePath}, f.onPrimaryPasswordChange, f.logger)
 		if err != nil {
 			return fmt.Errorf("failed to create watcher for primary ES client's password: %w", err)
 		}
@@ -152,8 +152,8 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 		}
 		f.archiveClient.Store(&archiveClient)
 
-		if f.archiveConfig.PasswordFilePath != "" {
-			archiveWatcher, err := fswatcher.New([]string{f.archiveConfig.PasswordFilePath}, f.onArchivePasswordChange, f.logger)
+		if f.archiveConfig.Authentication.BasicAuthentication.PasswordFilePath != "" {
+			archiveWatcher, err := fswatcher.New([]string{f.archiveConfig.Authentication.BasicAuthentication.PasswordFilePath}, f.onArchivePasswordChange, f.logger)
 			if err != nil {
 				return fmt.Errorf("failed to create watcher for archive ES client's password: %w", err)
 			}
@@ -218,24 +218,22 @@ func createSpanReader(
 	tp trace.TracerProvider,
 ) (spanstore.Reader, error) {
 	if cfg.UseILM && !cfg.UseReadWriteAliases {
-		return nil, fmt.Errorf("--es.use-ilm must always be used in conjunction with --es.use-aliases to ensure ES writers and readers refer to the single index mapping")
+		return nil, errors.New("--es.use-ilm must always be used in conjunction with --es.use-aliases to ensure ES writers and readers refer to the single index mapping")
 	}
 	return esSpanStore.NewSpanReader(esSpanStore.SpanReaderParams{
-		Client:                        clientFn,
-		MaxDocCount:                   cfg.MaxDocCount,
-		MaxSpanAge:                    cfg.MaxSpanAge,
-		IndexPrefix:                   cfg.IndexPrefix,
-		SpanIndexDateLayout:           cfg.IndexDateLayoutSpans,
-		ServiceIndexDateLayout:        cfg.IndexDateLayoutServices,
-		SpanIndexRolloverFrequency:    cfg.GetIndexRolloverFrequencySpansDuration(),
-		ServiceIndexRolloverFrequency: cfg.GetIndexRolloverFrequencyServicesDuration(),
-		TagDotReplacement:             cfg.Tags.DotReplacement,
-		UseReadWriteAliases:           cfg.UseReadWriteAliases,
-		Archive:                       archive,
-		RemoteReadClusters:            cfg.RemoteReadClusters,
-		Logger:                        logger,
-		MetricsFactory:                mFactory,
-		Tracer:                        tp.Tracer("esSpanStore.SpanReader"),
+		Client:              clientFn,
+		MaxDocCount:         cfg.MaxDocCount,
+		MaxSpanAge:          cfg.MaxSpanAge,
+		IndexPrefix:         cfg.Indices.IndexPrefix,
+		SpanIndex:           cfg.Indices.Spans,
+		ServiceIndex:        cfg.Indices.Services,
+		TagDotReplacement:   cfg.Tags.DotReplacement,
+		UseReadWriteAliases: cfg.UseReadWriteAliases,
+		Archive:             archive,
+		RemoteReadClusters:  cfg.RemoteReadClusters,
+		Logger:              logger,
+		MetricsFactory:      mFactory,
+		Tracer:              tp.Tracer("esSpanStore.SpanReader"),
 	}), nil
 }
 
@@ -249,7 +247,7 @@ func createSpanWriter(
 	var tags []string
 	var err error
 	if cfg.UseILM && !cfg.UseReadWriteAliases {
-		return nil, fmt.Errorf("--es.use-ilm must always be used in conjunction with --es.use-aliases to ensure ES writers and readers refer to the single index mapping")
+		return nil, errors.New("--es.use-ilm must always be used in conjunction with --es.use-aliases to ensure ES writers and readers refer to the single index mapping")
 	}
 	if tags, err = cfg.TagKeysAsFields(); err != nil {
 		logger.Error("failed to get tag keys", zap.Error(err))
@@ -257,18 +255,18 @@ func createSpanWriter(
 	}
 
 	writer := esSpanStore.NewSpanWriter(esSpanStore.SpanWriterParams{
-		Client:                 clientFn,
-		IndexPrefix:            cfg.IndexPrefix,
-		SpanIndexDateLayout:    cfg.IndexDateLayoutSpans,
-		ServiceIndexDateLayout: cfg.IndexDateLayoutServices,
-		AllTagsAsFields:        cfg.Tags.AllAsFields,
-		TagKeysAsFields:        tags,
-		TagDotReplacement:      cfg.Tags.DotReplacement,
-		Archive:                archive,
-		UseReadWriteAliases:    cfg.UseReadWriteAliases,
-		Logger:                 logger,
-		MetricsFactory:         mFactory,
-		ServiceCacheTTL:        cfg.ServiceCacheTTL,
+		Client:              clientFn,
+		IndexPrefix:         cfg.Indices.IndexPrefix,
+		SpanIndex:           cfg.Indices.Spans,
+		ServiceIndex:        cfg.Indices.Services,
+		AllTagsAsFields:     cfg.Tags.AllAsFields,
+		TagKeysAsFields:     tags,
+		TagDotReplacement:   cfg.Tags.DotReplacement,
+		Archive:             archive,
+		UseReadWriteAliases: cfg.UseReadWriteAliases,
+		Logger:              logger,
+		MetricsFactory:      mFactory,
+		ServiceCacheTTL:     cfg.ServiceCacheTTL,
 	})
 
 	// Creating a template here would conflict with the one created for ILM resulting to no index rollover
@@ -278,7 +276,7 @@ func createSpanWriter(
 		if err != nil {
 			return nil, err
 		}
-		if err := writer.CreateTemplates(spanMapping, serviceMapping, cfg.IndexPrefix); err != nil {
+		if err := writer.CreateTemplates(spanMapping, serviceMapping, cfg.Indices.IndexPrefix); err != nil {
 			return nil, err
 		}
 	}
@@ -289,9 +287,9 @@ func (f *Factory) CreateSamplingStore(int /* maxBuckets */) (samplingstore.Store
 	params := esSampleStore.Params{
 		Client:                 f.getPrimaryClient,
 		Logger:                 f.logger,
-		IndexPrefix:            f.primaryConfig.IndexPrefix,
-		IndexDateLayout:        f.primaryConfig.IndexDateLayoutSampling,
-		IndexRolloverFrequency: f.primaryConfig.GetIndexRolloverFrequencySamplingDuration(),
+		IndexPrefix:            f.primaryConfig.Indices.IndexPrefix,
+		IndexDateLayout:        f.primaryConfig.Indices.Sampling.DateLayout,
+		IndexRolloverFrequency: config.RolloverFrequencyAsNegativeDuration(f.primaryConfig.Indices.Sampling.RolloverFrequency),
 		Lookback:               f.primaryConfig.AdaptiveSamplingLookback,
 		MaxDocCount:            f.primaryConfig.MaxDocCount,
 	}
@@ -313,15 +311,10 @@ func (f *Factory) CreateSamplingStore(int /* maxBuckets */) (samplingstore.Store
 
 func mappingBuilderFromConfig(cfg *config.Configuration) mappings.MappingBuilder {
 	return mappings.MappingBuilder{
-		TemplateBuilder:              es.TextTemplateBuilder{},
-		Shards:                       cfg.NumShards,
-		Replicas:                     cfg.NumReplicas,
-		EsVersion:                    cfg.Version,
-		IndexPrefix:                  cfg.IndexPrefix,
-		UseILM:                       cfg.UseILM,
-		PrioritySpanTemplate:         cfg.PrioritySpanTemplate,
-		PriorityServiceTemplate:      cfg.PriorityServiceTemplate,
-		PriorityDependenciesTemplate: cfg.PriorityDependenciesTemplate,
+		TemplateBuilder: es.TextTemplateBuilder{},
+		Indices:         cfg.Indices,
+		EsVersion:       cfg.Version,
+		UseILM:          cfg.UseILM,
 	}
 }
 
@@ -333,8 +326,8 @@ func createDependencyReader(
 	reader := esDepStore.NewDependencyStore(esDepStore.Params{
 		Client:              clientFn,
 		Logger:              logger,
-		IndexPrefix:         cfg.IndexPrefix,
-		IndexDateLayout:     cfg.IndexDateLayoutDependencies,
+		IndexPrefix:         cfg.Indices.IndexPrefix,
+		IndexDateLayout:     cfg.Indices.Dependencies.DateLayout,
 		MaxDocCount:         cfg.MaxDocCount,
 		UseReadWriteAliases: cfg.UseReadWriteAliases,
 	})
@@ -350,10 +343,6 @@ func (f *Factory) Close() error {
 	for _, w := range f.watchers {
 		errs = append(errs, w.Close())
 	}
-	if cfg := f.Options.Get(archiveNamespace); cfg != nil {
-		errs = append(errs, cfg.TLS.Close())
-	}
-	errs = append(errs, f.Options.GetPrimary().TLS.Close())
 	errs = append(errs, f.getPrimaryClient().Close())
 	if client := f.getArchiveClient(); client != nil {
 		errs = append(errs, client.Close())
@@ -371,15 +360,15 @@ func (f *Factory) onArchivePasswordChange() {
 }
 
 func (f *Factory) onClientPasswordChange(cfg *config.Configuration, client *atomic.Pointer[es.Client]) {
-	newPassword, err := loadTokenFromFile(cfg.PasswordFilePath)
+	newPassword, err := loadTokenFromFile(cfg.Authentication.BasicAuthentication.PasswordFilePath)
 	if err != nil {
 		f.logger.Error("failed to reload password for Elasticsearch client", zap.Error(err))
 		return
 	}
 	f.logger.Sugar().Infof("loaded new password of length %d from file", len(newPassword))
 	newCfg := *cfg // copy by value
-	newCfg.Password = newPassword
-	newCfg.PasswordFilePath = "" // avoid error that both are set
+	newCfg.Authentication.BasicAuthentication.Password = newPassword
+	newCfg.Authentication.BasicAuthentication.PasswordFilePath = "" // avoid error that both are set
 
 	newClient, err := f.newClientFn(&newCfg, f.logger, f.metricsFactory)
 	if err != nil {

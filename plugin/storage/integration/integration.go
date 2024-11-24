@@ -144,7 +144,10 @@ func (s *StorageIntegration) testGetServices(t *testing.T) {
 	found := s.waitForCondition(t, func(t *testing.T) bool {
 		var err error
 		actual, err = s.SpanReader.GetServices(context.Background())
-		require.NoError(t, err)
+		if err != nil {
+			t.Log(err)
+			return false
+		}
 		sort.Strings(actual)
 		t.Logf("Retrieved services: %v", actual)
 		if len(actual) > len(expected) {
@@ -246,7 +249,10 @@ func (s *StorageIntegration) testGetOperations(t *testing.T) {
 		var err error
 		actual, err = s.SpanReader.GetOperations(context.Background(),
 			spanstore.OperationQueryParameters{ServiceName: "example-service-1"})
-		require.NoError(t, err)
+		if err != nil {
+			t.Log(err)
+			return false
+		}
 		sort.Slice(actual, func(i, j int) bool {
 			return actual[i].Name < actual[j].Name
 		})
@@ -327,7 +333,10 @@ func (s *StorageIntegration) findTracesByQuery(t *testing.T, query *spanstore.Tr
 	found := s.waitForCondition(t, func(t *testing.T) bool {
 		var err error
 		traces, err = s.SpanReader.FindTraces(context.Background(), query)
-		require.NoError(t, err)
+		if err != nil {
+			t.Log(err)
+			return false
+		}
 		if len(expected) != len(traces) {
 			t.Logf("Expecting certain number of traces: expected: %d, actual: %d", len(expected), len(traces))
 			return false
@@ -365,6 +374,7 @@ func (s *StorageIntegration) loadParseAndWriteLargeTrace(t *testing.T) *model.Tr
 	for i := 1; i < 10008; i++ {
 		s := new(model.Span)
 		*s = *span
+		//nolint: gosec // G115
 		s.SpanID = model.SpanID(i)
 		s.StartTime = s.StartTime.Add(time.Second * time.Duration(i+1))
 		trace.Spans = append(trace.Spans, s)
@@ -408,8 +418,8 @@ func loadAndParseJSON(t *testing.T, path string, object any) {
 }
 
 // required, because we want to only query on recent traces, so we replace all the dates with recent dates.
-func correctTime(json []byte) []byte {
-	jsonString := string(json)
+func correctTime(jsonData []byte) []byte {
+	jsonString := string(jsonData)
 	now := time.Now().UTC()
 	yesterday := now.AddDate(0, 0, -1).Format("2006-01-02")
 	twoDaysAgo := now.AddDate(0, 0, -2).Format("2006-01-02")
@@ -463,7 +473,10 @@ func (s *StorageIntegration) testGetDependencies(t *testing.T) {
 	found := s.waitForCondition(t, func(t *testing.T) bool {
 		var err error
 		actual, err = s.DependencyReader.GetDependencies(context.Background(), time.Now(), 5*time.Minute)
-		require.NoError(t, err)
+		if err != nil {
+			t.Log(err)
+			return false
+		}
 		sort.Slice(actual, func(i, j int) bool {
 			return actual[i].Parent < actual[j].Parent
 		})
@@ -494,7 +507,10 @@ func (s *StorageIntegration) testGetThroughput(t *testing.T) {
 	_ = s.waitForCondition(t, func(t *testing.T) bool {
 		var err error
 		actual, err = s.SamplingStore.GetThroughput(start, start.Add(time.Second*time.Duration(10)))
-		require.NoError(t, err)
+		if err != nil {
+			t.Log(err)
+			return false
+		}
 		return assert.ObjectsAreEqualValues(expected, len(actual))
 	})
 	assert.Len(t, actual, expected)
@@ -516,7 +532,10 @@ func (s *StorageIntegration) testGetLatestProbability(t *testing.T) {
 	found := s.waitForCondition(t, func(t *testing.T) bool {
 		var err error
 		actual, err = s.SamplingStore.GetLatestProbabilities()
-		require.NoError(t, err)
+		if err != nil {
+			t.Log(err)
+			return false
+		}
 		return assert.ObjectsAreEqualValues(expected, actual)
 	})
 	if !assert.True(t, found) {

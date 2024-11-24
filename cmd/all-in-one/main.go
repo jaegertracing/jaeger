@@ -6,6 +6,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -13,12 +14,12 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"go.opentelemetry.io/collector/config/configtelemetry"
+	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/metric/noop"
 	_ "go.uber.org/automaxprocs"
 	"go.uber.org/zap"
 
-	agentApp "github.com/jaegertracing/jaeger/cmd/agent/app"
-	agentRep "github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
-	agentGrpcRep "github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
 	"github.com/jaegertracing/jaeger/cmd/all-in-one/setupcontext"
 	collectorApp "github.com/jaegertracing/jaeger/cmd/collector/app"
 	collectorFlags "github.com/jaegertracing/jaeger/cmd/collector/app/flags"
@@ -76,8 +77,8 @@ func main() {
 	v := viper.New()
 	command := &cobra.Command{
 		Use:   "jaeger-all-in-one",
-		Short: "Jaeger all-in-one distribution with agent, collector and query in one process.",
-		Long: `Jaeger all-in-one distribution with agent, collector and query. Use with caution this version
+		Short: "Jaeger all-in-one distribution with collector and query in one process.",
+		Long: `Jaeger all-in-one distribution with collector and query. Use with caution: this version
 by default uses only in-memory database.`,
 		RunE: func(_ *cobra.Command, _ /* args */ []string) error {
 			if err := svc.Start(v); err != nil {
@@ -86,7 +87,6 @@ by default uses only in-memory database.`,
 			logger := svc.Logger // shortcut
 			baseFactory := svc.MetricsFactory.Namespace(metrics.NSOptions{Name: "jaeger"})
 			version.NewInfoMetrics(baseFactory)
-			agentMetricsFactory := baseFactory.Namespace(metrics.NSOptions{Name: "agent"})
 			collectorMetricsFactory := baseFactory.Namespace(metrics.NSOptions{Name: "collector"})
 			queryMetricsFactory := baseFactory.Namespace(metrics.NSOptions{Name: "query"})
 
@@ -132,17 +132,12 @@ by default uses only in-memory database.`,
 				logger.Fatal("Failed to create sampling strategy provider", zap.Error(err))
 			}
 
-			aOpts := new(agentApp.Builder).InitFromViper(v)
-			repOpts := new(agentRep.Options).InitFromViper(v, logger)
-			grpcBuilder, err := agentGrpcRep.NewConnBuilder().InitFromViper(v)
-			if err != nil {
-				logger.Fatal("Failed to configure connection for grpc", zap.Error(err))
-			}
 			cOpts, err := new(collectorFlags.CollectorOptions).InitFromViper(v, logger)
 			if err != nil {
 				logger.Fatal("Failed to initialize collector", zap.Error(err))
 			}
-			qOpts, err := new(queryApp.QueryOptions).InitFromViper(v, logger)
+			defaultOpts := queryApp.DefaultQueryOptions()
+			qOpts, err := defaultOpts.InitFromViper(v, logger)
 			if err != nil {
 				logger.Fatal("Failed to configure query service", zap.Error(err))
 			}
@@ -164,30 +159,14 @@ by default uses only in-memory database.`,
 				log.Fatal(err)
 			}
 
-			// agent
-			// if the agent reporter grpc host:port was not explicitly set then use whatever the collector is listening on
-			if len(grpcBuilder.CollectorHostPorts) == 0 {
-				grpcBuilder.CollectorHostPorts = append(grpcBuilder.CollectorHostPorts, cOpts.GRPC.HostPort)
-			}
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
-			builders := map[agentRep.Type]agentApp.CollectorProxyBuilder{
-				agentRep.GRPC: agentApp.GRPCCollectorProxyBuilder(grpcBuilder),
-			}
-			cp, err := agentApp.CreateCollectorProxy(ctx, agentApp.ProxyBuilderOptions{
-				Options: *repOpts,
-				Logger:  logger,
-				Metrics: agentMetricsFactory,
-			}, builders)
-			if err != nil {
-				logger.Fatal("Could not create collector proxy", zap.Error(err))
-			}
-			agent := startAgent(cp, aOpts, logger, agentMetricsFactory)
 			telset := telemetery.Setting{
 				Logger:         svc.Logger,
 				TracerProvider: tracer.OTEL,
 				Metrics:        queryMetricsFactory,
 				ReportStatus:   telemetery.HCAdapter(svc.HC()),
+				LeveledMeterProvider: func(_ configtelemetry.Level) metric.MeterProvider {
+					return noop.NewMeterProvider()
+				},
 			}
 			// query
 			querySrv := startQuery(
@@ -197,20 +176,16 @@ by default uses only in-memory database.`,
 			)
 
 			svc.RunAndThen(func() {
-				agent.Stop()
-				_ = cp.Close()
-				_ = c.Close()
-				_ = querySrv.Close()
+				var errs []error
+				errs = append(errs, c.Close())
+				errs = append(errs, querySrv.Close())
 				if closer, ok := spanWriter.(io.Closer); ok {
-					if err := closer.Close(); err != nil {
-						logger.Error("Failed to close span writer", zap.Error(err))
-					}
+					errs = append(errs, closer.Close())
 				}
-				if err := storageFactory.Close(); err != nil {
-					logger.Error("Failed to close storage factory", zap.Error(err))
-				}
-				if err := tracer.Close(context.Background()); err != nil {
-					logger.Error("Error shutting down tracer provider", zap.Error(err))
+				errs = append(errs, storageFactory.Close())
+				errs = append(errs, tracer.Close(context.Background()))
+				if err := errors.Join(errs...); err != nil {
+					logger.Error("Failed to close services", zap.Error(err))
 				}
 			})
 			return nil
@@ -228,9 +203,6 @@ by default uses only in-memory database.`,
 		command,
 		svc.AddFlags,
 		storageFactory.AddPipelineFlags,
-		agentApp.AddFlags,
-		agentRep.AddFlags,
-		agentGrpcRep.AddFlags,
 		collectorFlags.AddFlags,
 		queryApp.AddFlags,
 		samplingStrategyFactory.AddFlags,
@@ -240,25 +212,6 @@ by default uses only in-memory database.`,
 	if err := command.Execute(); err != nil {
 		log.Fatal(err)
 	}
-}
-
-func startAgent(
-	cp agentApp.CollectorProxy,
-	b *agentApp.Builder,
-	logger *zap.Logger,
-	baseFactory metrics.Factory,
-) *agentApp.Agent {
-	agent, err := b.CreateAgent(cp, logger, baseFactory)
-	if err != nil {
-		logger.Fatal("Unable to initialize Jaeger Agent", zap.Error(err))
-	}
-
-	logger.Info("Starting agent")
-	if err := agent.Run(); err != nil {
-		logger.Fatal("Failed to run the agent", zap.Error(err))
-	}
-
-	return agent
 }
 
 func startQuery(
@@ -274,11 +227,11 @@ func startQuery(
 	spanReader = storageMetrics.NewReadMetricsDecorator(spanReader, telset.Metrics)
 	qs := querysvc.NewQueryService(spanReader, depReader, *queryOpts)
 
-	server, err := queryApp.NewServer(qs, metricsQueryService, qOpts, tm, telset)
+	server, err := queryApp.NewServer(context.Background(), qs, metricsQueryService, qOpts, tm, telset)
 	if err != nil {
 		svc.Logger.Fatal("Could not create jaeger-query", zap.Error(err))
 	}
-	if err := server.Start(); err != nil {
+	if err := server.Start(context.Background()); err != nil {
 		svc.Logger.Fatal("Could not start jaeger-query", zap.Error(err))
 	}
 

@@ -10,14 +10,7 @@ FROM $base_image AS release
 ARG TARGETARCH
 ARG USER_UID=10001
 
-# Agent zipkin.thrift compact
-EXPOSE 5775/udp
-
-# Agent jaeger.thrift compact
-EXPOSE 6831/udp
-
-# Agent jaeger.thrift binary
-EXPOSE 6832/udp
+ENV JAEGER_LISTEN_HOST=0.0.0.0
 
 # Sampling config HTTP
 EXPOSE 5778
@@ -62,14 +55,7 @@ FROM $debug_image AS debug
 ARG TARGETARCH=amd64
 ARG USER_UID=10001
 
-# Agent zipkin.thrift compact
-EXPOSE 5775/udp
-
-# Agent jaeger.thrift compact
-EXPOSE 6831/udp
-
-# Agent jaeger.thrift binary
-EXPOSE 6832/udp
+ENV JAEGER_LISTEN_HOST=0.0.0.0
 
 # Sampling config HTTP
 EXPOSE 5778

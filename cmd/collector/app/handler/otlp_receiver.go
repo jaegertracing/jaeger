@@ -12,19 +12,21 @@ import (
 	"go.opentelemetry.io/collector/component/componentstatus"
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/config/confighttp"
+	"go.opentelemetry.io/collector/config/configtelemetry"
 	"go.opentelemetry.io/collector/config/configtls"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/extension"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+	"go.opentelemetry.io/collector/pipeline"
 	"go.opentelemetry.io/collector/receiver"
 	"go.opentelemetry.io/collector/receiver/otlpreceiver"
+	"go.opentelemetry.io/otel/metric"
 	noopmetric "go.opentelemetry.io/otel/metric/noop"
 	nooptrace "go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/flags"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
-	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 )
@@ -41,7 +43,7 @@ func StartOTLPReceiver(options *flags.CollectorOptions, logger *zap.Logger, span
 		tm,
 		otlpFactory,
 		consumer.NewTraces,
-		otlpFactory.CreateTracesReceiver,
+		otlpFactory.CreateTraces,
 	)
 }
 
@@ -70,7 +72,11 @@ func startOTLPReceiver(
 		TelemetrySettings: component.TelemetrySettings{
 			Logger:         logger,
 			TracerProvider: nooptrace.NewTracerProvider(),
-			MeterProvider:  noopmetric.NewMeterProvider(), // TODO wire this with jaegerlib metrics?
+			// TODO wire this with jaegerlib metrics?
+			LeveledMeterProvider: func(_ configtelemetry.Level) metric.MeterProvider {
+				return noopmetric.NewMeterProvider()
+			},
+			MeterProvider: noopmetric.NewMeterProvider(),
 		},
 	}
 
@@ -103,7 +109,7 @@ func applyGRPCSettings(cfg *configgrpc.ServerConfig, opts *flags.GRPCOptions) {
 		cfg.TLSSetting = applyTLSSettings(&opts.TLS)
 	}
 	if opts.MaxReceiveMessageLength > 0 {
-		cfg.MaxRecvMsgSizeMiB = uint64(opts.MaxReceiveMessageLength / (1024 * 1024))
+		cfg.MaxRecvMsgSizeMiB = int(opts.MaxReceiveMessageLength / (1024 * 1024))
 	}
 	if opts.MaxConnectionAge != 0 || opts.MaxConnectionAgeGrace != 0 {
 		cfg.Keepalive = &configgrpc.KeepaliveServerConfig{
@@ -150,20 +156,15 @@ func newConsumerDelegate(logger *zap.Logger, spanProcessor processor.SpanProcess
 			processor.UnknownTransport, // could be gRPC or HTTP
 			processor.OTLPSpanFormat,
 			tm),
-		protoFromTraces: otlp2jaeger.ProtoFromTraces,
 	}
 }
 
 type consumerDelegate struct {
-	batchConsumer   batchConsumer
-	protoFromTraces func(td ptrace.Traces) ([]*model.Batch, error)
+	batchConsumer batchConsumer
 }
 
 func (c *consumerDelegate) consume(ctx context.Context, td ptrace.Traces) error {
-	batches, err := c.protoFromTraces(td)
-	if err != nil {
-		return err
-	}
+	batches := otlp2jaeger.ProtoFromTraces(td)
 	for _, batch := range batches {
 		err := c.batchConsumer.consume(ctx, batch)
 		if err != nil {
@@ -186,7 +187,7 @@ func (h *otelHost) ReportFatalError(err error) {
 	h.logger.Fatal("OTLP receiver error", zap.Error(err))
 }
 
-func (*otelHost) GetFactory(_ component.Kind, _ component.Type) component.Factory {
+func (*otelHost) GetFactory(_ component.Kind, _ pipeline.Signal) component.Factory {
 	return nil
 }
 
@@ -194,7 +195,7 @@ func (*otelHost) GetExtensions() map[component.ID]extension.Extension {
 	return nil
 }
 
-func (*otelHost) GetExporters() map[component.DataType]map[component.ID]component.Component {
+func (*otelHost) GetExporters() map[pipeline.Signal]map[component.ID]component.Component {
 	return nil
 }
 

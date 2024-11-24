@@ -10,7 +10,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 )
@@ -24,13 +23,13 @@ func TestAsIdentifier(t *testing.T) {
 	go func() {
 		var err error
 		hostname1, err = AsIdentifier()
-		require.NoError(t, err)
+		assert.NoError(t, err)
 		wg.Done()
 	}()
 	go func() {
 		var err error
 		hostname2, err = AsIdentifier()
-		require.NoError(t, err)
+		assert.NoError(t, err)
 		wg.Done()
 	}()
 	wg.Wait()

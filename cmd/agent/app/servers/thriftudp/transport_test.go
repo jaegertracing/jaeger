@@ -96,7 +96,7 @@ func TestTUDPServerTransportIsOpen(t *testing.T) {
 	go func() {
 		time.Sleep(2 * time.Millisecond)
 		err = trans.Close()
-		require.NoError(t, err)
+		assert.NoError(t, err)
 		wg.Done()
 	}()
 

@@ -136,43 +136,43 @@ func addFlags(flagSet *flag.FlagSet, nsConfig NamespaceConfig) {
 	}
 	flagSet.Int(
 		nsConfig.namespace+suffixConnPerHost,
-		nsConfig.ConnectionsPerHost,
+		nsConfig.Connection.ConnectionsPerHost,
 		"The number of Cassandra connections from a single backend instance")
 	flagSet.Int(
 		nsConfig.namespace+suffixMaxRetryAttempts,
-		nsConfig.MaxRetryAttempts,
+		nsConfig.Query.MaxRetryAttempts,
 		"The number of attempts when reading from Cassandra")
 	flagSet.Duration(
 		nsConfig.namespace+suffixTimeout,
-		nsConfig.Timeout,
+		nsConfig.Query.Timeout,
 		"Timeout used for queries. A Timeout of zero means no timeout")
 	flagSet.Duration(
 		nsConfig.namespace+suffixConnectTimeout,
-		nsConfig.ConnectTimeout,
+		nsConfig.Connection.Timeout,
 		"Timeout used for connections to Cassandra Servers")
 	flagSet.Duration(
 		nsConfig.namespace+suffixReconnectInterval,
-		nsConfig.ReconnectInterval,
+		nsConfig.Connection.ReconnectInterval,
 		"Reconnect interval to retry connecting to downed hosts")
 	flagSet.String(
 		nsConfig.namespace+suffixServers,
-		strings.Join(nsConfig.Servers, ","),
+		strings.Join(nsConfig.Connection.Servers, ","),
 		"The comma-separated list of Cassandra servers")
 	flagSet.Int(
 		nsConfig.namespace+suffixPort,
-		nsConfig.Port,
+		nsConfig.Connection.Port,
 		"The port for cassandra")
 	flagSet.String(
 		nsConfig.namespace+suffixKeyspace,
-		nsConfig.Keyspace,
+		nsConfig.Schema.Keyspace,
 		"The Cassandra keyspace for Jaeger data")
 	flagSet.String(
 		nsConfig.namespace+suffixDC,
-		nsConfig.LocalDC,
+		nsConfig.Connection.LocalDC,
 		"The name of the Cassandra local data center for DC Aware host selection")
 	flagSet.String(
 		nsConfig.namespace+suffixConsistency,
-		nsConfig.Consistency,
+		nsConfig.Query.Consistency,
 		"The Cassandra consistency level, e.g. ANY, ONE, TWO, THREE, QUORUM, ALL, LOCAL_QUORUM, EACH_QUORUM, LOCAL_ONE (default LOCAL_ONE)")
 	flagSet.Bool(
 		nsConfig.namespace+suffixDisableCompression,
@@ -180,19 +180,19 @@ func addFlags(flagSet *flag.FlagSet, nsConfig NamespaceConfig) {
 		"Disables the use of the default Snappy Compression while connecting to the Cassandra Cluster if set to true. This is useful for connecting to Cassandra Clusters(like Azure Cosmos Db with Cassandra API) that do not support SnappyCompression")
 	flagSet.Int(
 		nsConfig.namespace+suffixProtoVer,
-		nsConfig.ProtoVersion,
+		nsConfig.Connection.ProtoVersion,
 		"The Cassandra protocol version")
 	flagSet.Duration(
 		nsConfig.namespace+suffixSocketKeepAlive,
-		nsConfig.SocketKeepAlive,
+		nsConfig.Connection.SocketKeepAlive,
 		"Cassandra's keepalive period to use, enabled if > 0")
 	flagSet.String(
 		nsConfig.namespace+suffixUsername,
-		nsConfig.Authenticator.Basic.Username,
+		nsConfig.Connection.Authenticator.Basic.Username,
 		"Username for password authentication for Cassandra")
 	flagSet.String(
 		nsConfig.namespace+suffixPassword,
-		nsConfig.Authenticator.Basic.Password,
+		nsConfig.Connection.Authenticator.Basic.Password,
 		"Password for password authentication for Cassandra")
 	flagSet.String(
 		nsConfig.namespace+suffixAuth,
@@ -228,30 +228,31 @@ func (cfg *NamespaceConfig) initFromViper(v *viper.Viper) {
 	if cfg.namespace != primaryStorageConfig {
 		cfg.Enabled = v.GetBool(cfg.namespace + suffixEnabled)
 	}
-	cfg.ConnectionsPerHost = v.GetInt(cfg.namespace + suffixConnPerHost)
-	cfg.MaxRetryAttempts = v.GetInt(cfg.namespace + suffixMaxRetryAttempts)
-	cfg.Timeout = v.GetDuration(cfg.namespace + suffixTimeout)
-	cfg.ConnectTimeout = v.GetDuration(cfg.namespace + suffixConnectTimeout)
-	cfg.ReconnectInterval = v.GetDuration(cfg.namespace + suffixReconnectInterval)
+	cfg.Connection.ConnectionsPerHost = v.GetInt(cfg.namespace + suffixConnPerHost)
+	cfg.Query.MaxRetryAttempts = v.GetInt(cfg.namespace + suffixMaxRetryAttempts)
+	cfg.Query.Timeout = v.GetDuration(cfg.namespace + suffixTimeout)
+	cfg.Connection.Timeout = v.GetDuration(cfg.namespace + suffixConnectTimeout)
+	cfg.Connection.ReconnectInterval = v.GetDuration(cfg.namespace + suffixReconnectInterval)
 	servers := stripWhiteSpace(v.GetString(cfg.namespace + suffixServers))
-	cfg.Servers = strings.Split(servers, ",")
-	cfg.Port = v.GetInt(cfg.namespace + suffixPort)
-	cfg.Keyspace = v.GetString(cfg.namespace + suffixKeyspace)
-	cfg.LocalDC = v.GetString(cfg.namespace + suffixDC)
-	cfg.Consistency = v.GetString(cfg.namespace + suffixConsistency)
-	cfg.ProtoVersion = v.GetInt(cfg.namespace + suffixProtoVer)
-	cfg.SocketKeepAlive = v.GetDuration(cfg.namespace + suffixSocketKeepAlive)
-	cfg.Authenticator.Basic.Username = v.GetString(cfg.namespace + suffixUsername)
-	cfg.Authenticator.Basic.Password = v.GetString(cfg.namespace + suffixPassword)
+	cfg.Connection.Servers = strings.Split(servers, ",")
+	cfg.Connection.Port = v.GetInt(cfg.namespace + suffixPort)
+	cfg.Schema.Keyspace = v.GetString(cfg.namespace + suffixKeyspace)
+	cfg.Connection.LocalDC = v.GetString(cfg.namespace + suffixDC)
+	cfg.Query.Consistency = v.GetString(cfg.namespace + suffixConsistency)
+	cfg.Connection.ProtoVersion = v.GetInt(cfg.namespace + suffixProtoVer)
+	cfg.Connection.SocketKeepAlive = v.GetDuration(cfg.namespace + suffixSocketKeepAlive)
+	cfg.Connection.Authenticator.Basic.Username = v.GetString(cfg.namespace + suffixUsername)
+	cfg.Connection.Authenticator.Basic.Password = v.GetString(cfg.namespace + suffixPassword)
 	authentication := stripWhiteSpace(v.GetString(cfg.namespace + suffixAuth))
-	cfg.Authenticator.Basic.AllowedAuthenticators = strings.Split(authentication, ",")
-	cfg.DisableCompression = v.GetBool(cfg.namespace + suffixDisableCompression)
+	cfg.Connection.Authenticator.Basic.AllowedAuthenticators = strings.Split(authentication, ",")
+	cfg.Schema.DisableCompression = v.GetBool(cfg.namespace + suffixDisableCompression)
 	var err error
-	cfg.TLS, err = tlsFlagsConfig.InitFromViper(v)
+	tlsCfg, err := tlsFlagsConfig.InitFromViper(v)
 	if err != nil {
 		// TODO refactor to be able to return error
 		log.Fatal(err)
 	}
+	cfg.Connection.TLS = tlsCfg.ToOtelClientConfig()
 }
 
 // GetPrimary returns primary configuration.
@@ -270,8 +271,8 @@ func (opt *Options) Get(namespace string) *config.Configuration {
 		return nil
 	}
 	nsCfg.Configuration.ApplyDefaults(&opt.Primary.Configuration)
-	if len(nsCfg.Servers) == 0 {
-		nsCfg.Servers = opt.Primary.Servers
+	if len(nsCfg.Connection.Servers) == 0 {
+		nsCfg.Connection.Servers = opt.Primary.Connection.Servers
 	}
 	return &nsCfg.Configuration
 }

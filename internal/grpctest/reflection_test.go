@@ -7,6 +7,7 @@ import (
 	"net"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
@@ -24,7 +25,7 @@ func TestReflectionServiceValidator(t *testing.T) {
 
 	go func() {
 		err := server.Serve(listener)
-		require.NoError(t, err)
+		assert.NoError(t, err)
 	}()
 	defer server.Stop()
 

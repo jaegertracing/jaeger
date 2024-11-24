@@ -72,8 +72,8 @@ updates:
         update-types: [ "version-update:semver-major" ]
   - package-ecosystem: docker
     directories:
-      - /docker-compose/cassandra/v3
       - /docker-compose/cassandra/v4
+      - /docker-compose/cassandra/v5
     schedule:
       interval: daily
     ignore:

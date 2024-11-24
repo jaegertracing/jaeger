@@ -6,8 +6,11 @@ service:
       processors: [batch]
       exporters: [jaeger_storage_exporter]
   telemetry:
+    resource:
+      service.name: jaeger
     metrics:
-      address: 0.0.0.0:8889
+      level: detailed
+      address: 0.0.0.0:8888
     logs:
       level: debug
 
@@ -19,7 +22,8 @@ extensions:
       endpoint: 0.0.0.0:14133
 
   jaeger_query:
-    trace_storage: some_storage
+    storage:
+      traces: some_storage
 
   jaeger_storage:
     backends:
@@ -31,8 +35,8 @@ receivers:
   kafka:
     brokers:
       - localhost:9092
-    topic: "jaeger-spans"
-    encoding: otlp_proto
+    topic: ${env:KAFKA_TOPIC:-jaeger-spans}
+    encoding: ${env:KAFKA_ENCODING:-otlp_proto}
     initial_offset: earliest
 
 processors:

@@ -73,15 +73,15 @@ func mockStrategyServer(t *testing.T) (*httptest.Server, *atomic.Pointer[string]
 			return
 
 		case "/bad-status":
-			w.WriteHeader(404)
+			w.WriteHeader(http.StatusNotFound)
 			return
 
 		case "/service-unavailable":
-			w.WriteHeader(503)
+			w.WriteHeader(http.StatusServiceUnavailable)
 			return
 
 		default:
-			w.WriteHeader(200)
+			w.WriteHeader(http.StatusOK)
 			w.Header().Set("Content-Type", "application/json")
 			w.Write([]byte(*strategy.Load()))
 		}
@@ -95,7 +95,7 @@ func mockStrategyServer(t *testing.T) (*httptest.Server, *atomic.Pointer[string]
 
 func TestStrategyStoreWithFile(t *testing.T) {
 	_, err := NewProvider(Options{StrategiesFile: "fileNotFound.json"}, zap.NewNop())
-	assert.Contains(t, err.Error(), "failed to read strategies file fileNotFound.json")
+	require.ErrorContains(t, err, "failed to read strategies file fileNotFound.json")
 
 	_, err = NewProvider(Options{StrategiesFile: "fixtures/bad_strategies.json"}, zap.NewNop())
 	require.EqualError(t, err,
@@ -178,18 +178,18 @@ func TestPerOperationSamplingStrategies(t *testing.T) {
 		assert.Equal(t, *expected.ProbabilisticSampling, *s.ProbabilisticSampling)
 
 		require.NotNil(t, s.OperationSampling)
-		os := s.OperationSampling
-		assert.EqualValues(t, 0.8, os.DefaultSamplingProbability)
-		require.Len(t, os.PerOperationStrategies, 4)
+		opSampling := s.OperationSampling
+		assert.InDelta(t, 0.8, opSampling.DefaultSamplingProbability, 0.01)
+		require.Len(t, opSampling.PerOperationStrategies, 4)
 
-		assert.Equal(t, "op6", os.PerOperationStrategies[0].Operation)
-		assert.EqualValues(t, 0.5, os.PerOperationStrategies[0].ProbabilisticSampling.SamplingRate)
-		assert.Equal(t, "op1", os.PerOperationStrategies[1].Operation)
-		assert.EqualValues(t, 0.2, os.PerOperationStrategies[1].ProbabilisticSampling.SamplingRate)
-		assert.Equal(t, "op0", os.PerOperationStrategies[2].Operation)
-		assert.EqualValues(t, 0.2, os.PerOperationStrategies[2].ProbabilisticSampling.SamplingRate)
-		assert.Equal(t, "op7", os.PerOperationStrategies[3].Operation)
-		assert.EqualValues(t, 1, os.PerOperationStrategies[3].ProbabilisticSampling.SamplingRate)
+		assert.Equal(t, "op6", opSampling.PerOperationStrategies[0].Operation)
+		assert.InDelta(t, 0.5, opSampling.PerOperationStrategies[0].ProbabilisticSampling.SamplingRate, 0.01)
+		assert.Equal(t, "op1", opSampling.PerOperationStrategies[1].Operation)
+		assert.InDelta(t, 0.2, opSampling.PerOperationStrategies[1].ProbabilisticSampling.SamplingRate, 0.01)
+		assert.Equal(t, "op0", opSampling.PerOperationStrategies[2].Operation)
+		assert.InDelta(t, 0.2, opSampling.PerOperationStrategies[2].ProbabilisticSampling.SamplingRate, 0.01)
+		assert.Equal(t, "op7", opSampling.PerOperationStrategies[3].Operation)
+		assert.InDelta(t, 1.0, opSampling.PerOperationStrategies[3].ProbabilisticSampling.SamplingRate, 0.01)
 
 		expected = makeResponse(api_v2.SamplingStrategyType_RATE_LIMITING, 5)
 
@@ -199,19 +199,19 @@ func TestPerOperationSamplingStrategies(t *testing.T) {
 		assert.Equal(t, *expected.RateLimitingSampling, *s.RateLimitingSampling)
 
 		require.NotNil(t, s.OperationSampling)
-		os = s.OperationSampling
-		assert.EqualValues(t, 0.001, os.DefaultSamplingProbability)
-		require.Len(t, os.PerOperationStrategies, 5)
-		assert.Equal(t, "op3", os.PerOperationStrategies[0].Operation)
-		assert.EqualValues(t, 0.3, os.PerOperationStrategies[0].ProbabilisticSampling.SamplingRate)
-		assert.Equal(t, "op5", os.PerOperationStrategies[1].Operation)
-		assert.EqualValues(t, 0.4, os.PerOperationStrategies[1].ProbabilisticSampling.SamplingRate)
-		assert.Equal(t, "op0", os.PerOperationStrategies[2].Operation)
-		assert.EqualValues(t, 0.2, os.PerOperationStrategies[2].ProbabilisticSampling.SamplingRate)
-		assert.Equal(t, "op6", os.PerOperationStrategies[3].Operation)
-		assert.EqualValues(t, 0, os.PerOperationStrategies[3].ProbabilisticSampling.SamplingRate)
-		assert.Equal(t, "op7", os.PerOperationStrategies[4].Operation)
-		assert.EqualValues(t, 1, os.PerOperationStrategies[4].ProbabilisticSampling.SamplingRate)
+		opSampling = s.OperationSampling
+		assert.InDelta(t, 0.001, opSampling.DefaultSamplingProbability, 1e-4)
+		require.Len(t, opSampling.PerOperationStrategies, 5)
+		assert.Equal(t, "op3", opSampling.PerOperationStrategies[0].Operation)
+		assert.InDelta(t, 0.3, opSampling.PerOperationStrategies[0].ProbabilisticSampling.SamplingRate, 0.01)
+		assert.Equal(t, "op5", opSampling.PerOperationStrategies[1].Operation)
+		assert.InDelta(t, 0.4, opSampling.PerOperationStrategies[1].ProbabilisticSampling.SamplingRate, 0.01)
+		assert.Equal(t, "op0", opSampling.PerOperationStrategies[2].Operation)
+		assert.InDelta(t, 0.2, opSampling.PerOperationStrategies[2].ProbabilisticSampling.SamplingRate, 0.01)
+		assert.Equal(t, "op6", opSampling.PerOperationStrategies[3].Operation)
+		assert.InDelta(t, 0.0, opSampling.PerOperationStrategies[3].ProbabilisticSampling.SamplingRate, 0.01)
+		assert.Equal(t, "op7", opSampling.PerOperationStrategies[4].Operation)
+		assert.InDelta(t, 1.0, opSampling.PerOperationStrategies[4].ProbabilisticSampling.SamplingRate, 0.01)
 
 		s, err = provider.GetSamplingStrategy(context.Background(), "default")
 		require.NoError(t, err)
@@ -257,11 +257,11 @@ func TestMissingServiceSamplingStrategyTypes(t *testing.T) {
 	assert.Equal(t, *expected.ProbabilisticSampling, *s.ProbabilisticSampling)
 
 	require.NotNil(t, s.OperationSampling)
-	os := s.OperationSampling
-	assert.EqualValues(t, defaultSamplingProbability, os.DefaultSamplingProbability)
-	require.Len(t, os.PerOperationStrategies, 1)
-	assert.Equal(t, "op1", os.PerOperationStrategies[0].Operation)
-	assert.EqualValues(t, 0.2, os.PerOperationStrategies[0].ProbabilisticSampling.SamplingRate)
+	opSampling := s.OperationSampling
+	assert.InDelta(t, defaultSamplingProbability, opSampling.DefaultSamplingProbability, 1e-4)
+	require.Len(t, opSampling.PerOperationStrategies, 1)
+	assert.Equal(t, "op1", opSampling.PerOperationStrategies[0].Operation)
+	assert.InDelta(t, 0.2, opSampling.PerOperationStrategies[0].ProbabilisticSampling.SamplingRate, 0.001)
 
 	expected = makeResponse(api_v2.SamplingStrategyType_PROBABILISTIC, defaultSamplingProbability)
 
@@ -271,13 +271,13 @@ func TestMissingServiceSamplingStrategyTypes(t *testing.T) {
 	assert.Equal(t, *expected.ProbabilisticSampling, *s.ProbabilisticSampling)
 
 	require.NotNil(t, s.OperationSampling)
-	os = s.OperationSampling
-	assert.EqualValues(t, 0.001, os.DefaultSamplingProbability)
-	require.Len(t, os.PerOperationStrategies, 2)
-	assert.Equal(t, "op3", os.PerOperationStrategies[0].Operation)
-	assert.EqualValues(t, 0.3, os.PerOperationStrategies[0].ProbabilisticSampling.SamplingRate)
-	assert.Equal(t, "op5", os.PerOperationStrategies[1].Operation)
-	assert.EqualValues(t, 0.4, os.PerOperationStrategies[1].ProbabilisticSampling.SamplingRate)
+	opSampling = s.OperationSampling
+	assert.InDelta(t, 0.001, opSampling.DefaultSamplingProbability, 1e-4)
+	require.Len(t, opSampling.PerOperationStrategies, 2)
+	assert.Equal(t, "op3", opSampling.PerOperationStrategies[0].Operation)
+	assert.InDelta(t, 0.3, opSampling.PerOperationStrategies[0].ProbabilisticSampling.SamplingRate, 0.01)
+	assert.Equal(t, "op5", opSampling.PerOperationStrategies[1].Operation)
+	assert.InDelta(t, 0.4, opSampling.PerOperationStrategies[1].ProbabilisticSampling.SamplingRate, 0.01)
 
 	s, err = provider.GetSamplingStrategy(context.Background(), "default")
 	require.NoError(t, err)
@@ -495,7 +495,7 @@ func TestServiceNoPerOperationStrategies(t *testing.T) {
 			expectedServiceResponse, err := os.ReadFile(snapshotFile)
 			require.NoError(t, err)
 
-			assert.Equal(t, string(expectedServiceResponse), string(strategyJson),
+			assert.JSONEq(t, string(expectedServiceResponse), string(strategyJson),
 				"comparing against stored snapshot. Use REGENERATE_SNAPSHOTS=true to rebuild snapshots.")
 
 			if regenerateSnapshots {
@@ -527,7 +527,7 @@ func TestServiceNoPerOperationStrategiesDeprecatedBehavior(t *testing.T) {
 			expectedServiceResponse, err := os.ReadFile(snapshotFile)
 			require.NoError(t, err)
 
-			assert.Equal(t, string(expectedServiceResponse), string(strategyJson),
+			assert.JSONEq(t, string(expectedServiceResponse), string(strategyJson),
 				"comparing against stored snapshot. Use REGENERATE_SNAPSHOTS=true to rebuild snapshots.")
 
 			if regenerateSnapshots {
@@ -542,13 +542,13 @@ func TestSamplingStrategyLoader(t *testing.T) {
 	// invalid file path
 	loader := provider.samplingStrategyLoader("not-exists")
 	_, err := loader()
-	assert.Contains(t, err.Error(), "failed to read strategies file not-exists")
+	require.ErrorContains(t, err, "failed to read strategies file not-exists")
 
 	// status code other than 200
 	mockServer, _ := mockStrategyServer(t)
 	loader = provider.samplingStrategyLoader(mockServer.URL + "/bad-status")
 	_, err = loader()
-	assert.Contains(t, err.Error(), "receiving 404 Not Found while downloading strategies file")
+	require.ErrorContains(t, err, "receiving 404 Not Found while downloading strategies file")
 
 	// should download content from URL
 	loader = provider.samplingStrategyLoader(mockServer.URL + "/bad-content")

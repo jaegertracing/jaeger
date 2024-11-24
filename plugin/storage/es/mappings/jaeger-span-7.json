@@ -87,7 +87,7 @@
                 "type":"keyword",
                 "ignore_above":256
               },
-              "tagType":{
+              "type":{
                 "type":"keyword",
                 "ignore_above":256
               }
@@ -116,7 +116,7 @@
                 "type":"keyword",
                 "ignore_above":256
               },
-              "tagType":{
+              "type":{
                 "type":"keyword",
                 "ignore_above":256
               }
@@ -157,7 +157,7 @@
             "type":"keyword",
             "ignore_above":256
           },
-          "tagType":{
+          "type":{
             "type":"keyword",
             "ignore_above":256
           }

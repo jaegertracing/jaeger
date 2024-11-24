@@ -20,7 +20,6 @@ func setSocketBuffer(conn *net.UDPConn, bufferSize int) error {
 
 	var syscallErr error
 	controlErr := rawConn.Control(func(fd uintptr) {
-		//nolint: gosec // G115
 		syscallErr = syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, syscall.SO_RCVBUF, bufferSize)
 	})
 	if controlErr != nil {

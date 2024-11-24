@@ -59,9 +59,9 @@ func withServer(
 		handler.RegisterRoutes(r)
 		server = httptest.NewServer(r)
 	} else {
-		mux := http.NewServeMux()
-		handler.RegisterRoutesWithHTTP(mux)
-		server = httptest.NewServer(mux)
+		httpMux := http.NewServeMux()
+		handler.RegisterRoutesWithHTTP(httpMux)
+		server = httptest.NewServer(httpMux)
 	}
 
 	defer server.Close()
@@ -283,14 +283,14 @@ func TestHTTPHandlerErrors(t *testing.T) {
 			withServer("", probabilistic(0.001), restrictions("luggage", 10), withGorilla, func(ts *testServer) {
 				handler := ts.handler
 
-				req := httptest.NewRequest("GET", "http://localhost:80/?service=X", nil)
+				req := httptest.NewRequest(http.MethodGet, "http://localhost:80/?service=X", nil)
 				w := &mockWriter{header: make(http.Header)}
 				handler.serveSamplingHTTP(w, req, handler.encodeThriftLegacy)
 
 				ts.metricsFactory.AssertCounterMetrics(t,
 					metricstest.ExpectedMetric{Name: "http-server.errors", Tags: map[string]string{"source": "write", "status": "5xx"}, Value: 1})
 
-				req = httptest.NewRequest("GET", "http://localhost:80/baggageRestrictions?service=X", nil)
+				req = httptest.NewRequest(http.MethodGet, "http://localhost:80/baggageRestrictions?service=X", nil)
 				handler.serveBaggageHTTP(w, req)
 
 				ts.metricsFactory.AssertCounterMetrics(t,
@@ -306,15 +306,13 @@ func TestEncodeErrors(t *testing.T) {
 			_, err := server.handler.encodeThriftLegacy(&api_v2.SamplingStrategyResponse{
 				StrategyType: -1,
 			})
-			require.Error(t, err)
-			assert.Contains(t, err.Error(), "ConvertSamplingResponseFromDomain failed")
+			require.ErrorContains(t, err, "ConvertSamplingResponseFromDomain failed")
 			server.metricsFactory.AssertCounterMetrics(t, []metricstest.ExpectedMetric{
 				{Name: "http-server.errors", Tags: map[string]string{"source": "thrift", "status": "5xx"}, Value: 1},
 			}...)
 
 			_, err = server.handler.encodeProto(nil)
-			require.Error(t, err)
-			assert.Contains(t, err.Error(), "SamplingStrategyResponseToJSON failed")
+			require.ErrorContains(t, err, "SamplingStrategyResponseToJSON failed")
 			server.metricsFactory.AssertCounterMetrics(t, []metricstest.ExpectedMetric{
 				{Name: "http-server.errors", Tags: map[string]string{"source": "proto", "status": "5xx"}, Value: 1},
 			}...)

@@ -10,11 +10,13 @@ import (
 	"io"
 
 	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/config/configtelemetry"
 	"go.opentelemetry.io/collector/extension"
+	"go.opentelemetry.io/otel/metric"
 
-	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage/factoryadapter"
 	"github.com/jaegertracing/jaeger/internal/metrics/otelmetrics"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/pkg/telemetery"
 	"github.com/jaegertracing/jaeger/plugin/metrics/prometheus"
 	"github.com/jaegertracing/jaeger/plugin/storage/badger"
 	"github.com/jaegertracing/jaeger/plugin/storage/cassandra"
@@ -22,6 +24,7 @@ import (
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc"
 	"github.com/jaegertracing/jaeger/plugin/storage/memory"
 	"github.com/jaegertracing/jaeger/storage"
+	"github.com/jaegertracing/jaeger/storage_v2/factoryadapter"
 	"github.com/jaegertracing/jaeger/storage_v2/spanstore"
 )
 
@@ -112,7 +115,7 @@ func newStorageExt(config *Config, telset component.TelemetrySettings) *storageE
 	}
 }
 
-func (s *storageExt) Start(_ context.Context, _ component.Host) error {
+func (s *storageExt) Start(_ context.Context, host component.Host) error {
 	baseFactory := otelmetrics.NewFactory(s.telset.MeterProvider)
 	mf := baseFactory.Namespace(metrics.NSOptions{Name: "jaeger"})
 	for storageName, cfg := range s.config.Backends {
@@ -125,8 +128,16 @@ func (s *storageExt) Start(_ context.Context, _ component.Host) error {
 		case cfg.Badger != nil:
 			factory, err = badger.NewFactoryWithConfig(*cfg.Badger, mf, s.telset.Logger)
 		case cfg.GRPC != nil:
+			telset := telemetery.Setting{
+				Logger:  s.telset.Logger,
+				Host:    host,
+				Metrics: mf,
+				LeveledMeterProvider: func(_ configtelemetry.Level) metric.MeterProvider {
+					return s.telset.MeterProvider
+				},
+			}
 			//nolint: contextcheck
-			factory, err = grpc.NewFactoryWithConfig(*cfg.GRPC, mf, s.telset.Logger)
+			factory, err = grpc.NewFactoryWithConfig(*cfg.GRPC, telset)
 		case cfg.Cassandra != nil:
 			factory, err = cassandra.NewFactoryWithConfig(*cfg.Cassandra, mf, s.telset.Logger)
 		case cfg.Elasticsearch != nil:

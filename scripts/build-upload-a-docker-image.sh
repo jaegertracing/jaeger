@@ -6,25 +6,29 @@
 set -euf -o pipefail
 
 print_help() {
-  echo "Usage: $0 [-c] [-D] [-h] [-l] [-p platforms]"
+  echo "Usage: $0 [-c] [-D] [-h] [-l] [-o] [-p platforms]"
   echo "-h: Print help"
   echo "-b: add base_image and debug_image arguments to the build command"
   echo "-c: name of the component to build"
   echo "-d: directory for the Dockerfile"
   echo "-f: override the name of the Dockerfile (-d still respected)"
+  echo "-o: overwrite image in the target remote repository even if the semver tag already exists"
   echo "-p: Comma-separated list of platforms to build for (default: all supported)"
   echo "-t: Release target (release|debug) if required by the Dockerfile"
   exit 1
 }
 
+echo "BRANCH=${BRANCH:?'expecting BRANCH env var'}"
 base_debug_img_arg=""
 docker_file_arg="Dockerfile"
 target_arg=""
 local_test_only='N'
 platforms="linux/amd64"
 namespace="jaegertracing"
+overwrite='N'
+upload_readme='N'
 
-while getopts "bc:d:f:hlp:t:" opt; do
+while getopts "bc:d:f:hlop:t:" opt; do
 	# shellcheck disable=SC2220 # we don't need a *) case
 	case "${opt}" in
 	b)
@@ -41,6 +45,9 @@ while getopts "bc:d:f:hlp:t:" opt; do
 		;;
 	l)
 		local_test_only='Y'
+		;;
+	o)
+		overwrite='Y'
 		;;
 	p)
 		platforms=${OPTARG}
@@ -62,26 +69,53 @@ fi
 
 docker_file_arg="${dir_arg}/${docker_file_arg}"
 
-# shellcheck disable=SC2086
-IFS=" " read -r -a IMAGE_TAGS <<< "$(bash scripts/compute-tags.sh ${namespace}/${component_name})"
-upload_flag=""
+check_overwrite() {
+  for image in "$@"; do
+    if [[ "$image" == "--tag" ]]; then
+      continue
+    fi
+    if [[ $image =~ -snapshot ]]; then
+      continue
+    fi
+    tag=${image#*:}
+    if [[ $tag =~ ^[0-9]+\.[0-9]+\.[0-9]+(-rc[0-9]+)?$ ]]; then
+      echo "Checking if image $image already exists"
+      if docker manifest inspect "$image" >/dev/null 2>&1; then
+        echo "❌ ERROR: Image $image already exists and overwrite=$overwrite"
+        exit 1
+      fi
+    fi
+  done
+}
+
+upload_comment=""
 
 if [[ "${local_test_only}" = "Y" ]]; then
     IMAGE_TAGS=("--tag" "localhost:5000/${namespace}/${component_name}:${GITHUB_SHA}")
-    PUSHTAG="type=image, push=true"
+    PUSHTAG="type=image,push=true"
 else
-    # Only push multi-arch images to dockerhub/quay.io for main branch or for release tags vM.N.P
-    if [[ "$BRANCH" == "main" || $BRANCH =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-	    echo "build docker images and upload to dockerhub/quay.io, BRANCH=$BRANCH"
+    echo "::group:: compute tags ${component_name}"
+    # shellcheck disable=SC2086
+    IFS=" " read -r -a IMAGE_TAGS <<< "$(bash scripts/compute-tags.sh ${namespace}/${component_name})"
+    echo "::endgroup::"
+
+    # Only push multi-arch images to dockerhub/quay.io for main branch or for release tags vM.N.P{-rcX}
+    if [[ "$BRANCH" == "main" || $BRANCH =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-rc[0-9]+)?$ ]]; then
+	    echo "will build docker images and upload to dockerhub/quay.io, BRANCH=$BRANCH"
 	    bash scripts/docker-login.sh
-	    PUSHTAG="type=image, push=true"
-	    upload_flag=" and uploading"
+	    PUSHTAG="type=image,push=true"
+	    upload_comment=" and uploading"
+	    if [[ "$overwrite" == 'N' ]]; then
+	      check_overwrite "${IMAGE_TAGS[@]}"
+	    fi
+	    upload_readme='Y'
     else
 	    echo 'skipping docker images upload, because not on tagged release or main branch'
-	    PUSHTAG="type=image, push=false"
+	    PUSHTAG="type=image,push=false"
     fi
 fi
 
+echo "::group:: docker build ${component_name}"
 # Some of the variables can be blank and should not produce extra arguments,
 # so we need to disable the linter checks for quoting.
 # TODO: collect arguments into an array and add optional once conditionally
@@ -92,10 +126,18 @@ docker buildx build --output "${PUSHTAG}" ${target_arg} ${base_debug_img_arg} \
 	--file "${docker_file_arg}" \
 	"${IMAGE_TAGS[@]}" \
 	"${dir_arg}"
+echo "::endgroup::"
+echo "Finished building${upload_comment} ${component_name} =============="
 
-echo "Finished building${upload_flag} ${component_name} =============="
+if [[ "$upload_readme" == "Y" ]]; then
+  echo "::group:: docker upload ${dir_arg}/README.md"
+  bash scripts/upload-docker-readme.sh "${component_name}" "${dir_arg}"/README.md
+  echo "::endgroup::"
+fi
 
+echo "::group:: docker prune"
 df -h /
 docker buildx prune --all --force
 docker system prune --force
 df -h /
+echo "::endgroup::"
