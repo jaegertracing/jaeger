@@ -176,8 +176,9 @@ func initializeDir(path string) {
 
 // CreateSpanReader implements storage.Factory
 func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
+	queryMetricsFactory := f.metricsFactory.Namespace(metrics.NSOptions{Name: "query"})
 	sr := badgerStore.NewTraceReader(f.store, f.cache)
-	return storageMetrics.NewReadMetricsDecorator(sr, f.metricsFactory), nil
+	return storageMetrics.NewReadMetricsDecorator(sr, queryMetricsFactory), nil
 }
 
 // CreateSpanWriter implements storage.Factory
