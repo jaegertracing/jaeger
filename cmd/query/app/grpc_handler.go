@@ -115,13 +115,9 @@ func (g *GRPCHandler) ArchiveTrace(ctx context.Context, r *api_v2.ArchiveTraceRe
 		return nil, errUninitializedTraceID
 	}
 	query := spanstore.GetTraceParameters{
-		TraceID: r.TraceID,
-	}
-	if r.StartTime != nil {
-		query.StartTime = *r.StartTime
-	}
-	if r.EndTime != nil {
-		query.EndTime = *r.EndTime
+		TraceID:   r.TraceID,
+		StartTime: r.StartTime,
+		EndTime:   r.EndTime,
 	}
 	err := g.queryService.ArchiveTrace(ctx, query)
 	if errors.Is(err, spanstore.ErrTraceNotFound) {

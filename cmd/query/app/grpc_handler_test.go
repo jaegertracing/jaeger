@@ -315,8 +315,8 @@ func TestArchiveTraceSuccessGRPC(t *testing.T) {
 			},
 			api_v2.ArchiveTraceRequest{
 				TraceID:   mockTraceID,
-				StartTime: &startTime,
-				EndTime:   &endTime,
+				StartTime: startTime,
+				EndTime:   endTime,
 			},
 		},
 	}
