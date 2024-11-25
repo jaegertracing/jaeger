@@ -224,11 +224,11 @@ func (s *StorageIntegration) testGetLargeSpan(t *testing.T) {
 	}
 }
 
-func (s *StorageIntegration) testGetLargeSpanWithDuplicateIds(t *testing.T) {
+func (s *StorageIntegration) testGetLargeSpanWithDuplicateIDs(t *testing.T) {
 	s.skipIfNeeded(t)
 	defer s.cleanUp(t)
 
-	t.Log("Testing Large Trace over 10K with duplicate ids...")
+	t.Log("Testing Large Trace over 10K with duplicate IDs...")
 
 	expected := s.loadParseAndWriteLargeTraceWithDuplicateSpanIds(t)
 	expectedTraceID := expected.Spans[0].TraceID
@@ -239,20 +239,23 @@ func (s *StorageIntegration) testGetLargeSpanWithDuplicateIds(t *testing.T) {
 		actual, err = s.SpanReader.GetTrace(context.Background(), expectedTraceID)
 		return err == nil && len(actual.Spans) >= len(expected.Spans)
 	})
+
 	if !assert.True(t, found) {
 		CompareTraces(t, expected, actual)
-	} else {
-		duplicateCount := 0
-		seenIDs := make(map[model.SpanID]int)
-
-		for _, span := range actual.Spans {
-			seenIDs[span.SpanID]++
-			if seenIDs[span.SpanID] > 1 {
-				duplicateCount++
-			}
-		}
-		assert.Greater(t, duplicateCount, 0, "Duplicate SpanIDs should be present in the trace")
+		return
 	}
+
+	duplicateCount := 0
+	seenIDs := make(map[model.SpanID]int)
+
+	for _, span := range actual.Spans {
+		seenIDs[span.SpanID]++
+		if seenIDs[span.SpanID] > 1 {
+			duplicateCount++
+		}
+	}
+
+	assert.Greater(t, duplicateCount, 0, "Duplicate SpanIDs should be present in the trace")
 }
 
 func (s *StorageIntegration) testGetOperations(t *testing.T) {
