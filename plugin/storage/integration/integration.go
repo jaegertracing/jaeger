@@ -255,7 +255,7 @@ func (s *StorageIntegration) testGetLargeSpanWithDuplicateIDs(t *testing.T) {
 		}
 	}
 
-	assert.Greater(t, duplicateCount, 0, "Duplicate SpanIDs should be present in the trace")
+	assert.Positivef(t, duplicateCount, "Duplicate SpanIDs should be present in the trace")
 }
 
 func (s *StorageIntegration) testGetOperations(t *testing.T) {
@@ -428,15 +428,19 @@ func (s *StorageIntegration) loadParseAndWriteLargeTraceWithDuplicateSpanIds(t *
 	for i := 1; i < 10008; i++ {
 		s := new(model.Span)
 		*s = *span
-		if i%1000 == 0 {
+		switch {
+		case i%1000 == 0:
 			s.SpanID = span.SpanID
-		} else if i%100 == 0 && i%1000 != 0 {
+
+		case i%100 == 0 && i%1000 != 0:
 			s.SpanID = span.SpanID
-		} else {
+
+		default:
 			s.SpanID = model.SpanID(i)
+
+			s.StartTime = s.StartTime.Add(time.Second * time.Duration(i+1))
+			trace.Spans = append(trace.Spans, s)
 		}
-		s.StartTime = s.StartTime.Add(time.Second * time.Duration(i+1))
-		trace.Spans = append(trace.Spans, s)
 	}
 	s.writeTrace(t, trace)
 	return trace
@@ -627,5 +631,6 @@ func (s *StorageIntegration) RunSpanStoreTests(t *testing.T) {
 	t.Run("GetOperations", s.testGetOperations)
 	t.Run("GetTrace", s.testGetTrace)
 	t.Run("GetLargeSpans", s.testGetLargeSpan)
+	t.Run("GetLargeSpansWithDuplicateIDs", s.testGetLargeSpanWithDuplicateIDs)
 	t.Run("FindTraces", s.testFindTraces)
 }
