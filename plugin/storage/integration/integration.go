@@ -437,10 +437,10 @@ func (s *StorageIntegration) loadParseAndWriteLargeTraceWithDuplicateSpanIds(t *
 
 		default:
 			s.SpanID = model.SpanID(i)
-
-			s.StartTime = s.StartTime.Add(time.Second * time.Duration(i+1))
-			trace.Spans = append(trace.Spans, s)
 		}
+		s.StartTime = s.StartTime.Add(time.Second * time.Duration(i+1))
+		trace.Spans = append(trace.Spans, s)
+
 	}
 	s.writeTrace(t, trace)
 	return trace
