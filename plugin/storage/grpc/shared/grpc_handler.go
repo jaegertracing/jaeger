@@ -151,7 +151,16 @@ func (s *GRPCHandler) Close(context.Context, *storage_v1.CloseWriterRequest) (*s
 
 // GetTrace takes a traceID and streams a Trace associated with that traceID
 func (s *GRPCHandler) GetTrace(r *storage_v1.GetTraceRequest, stream storage_v1.SpanReaderPlugin_GetTraceServer) error {
-	trace, err := s.impl.SpanReader().GetTrace(stream.Context(), r.TraceID)
+	query := spanstore.GetTraceParameters{
+		TraceID: r.TraceID,
+	}
+	if r.StartTime != nil {
+		query.StartTime = *r.StartTime
+	}
+	if r.EndTime != nil {
+		query.EndTime = *r.EndTime
+	}
+	trace, err := s.impl.SpanReader().GetTrace(stream.Context(), query)
 	if errors.Is(err, spanstore.ErrTraceNotFound) {
 		return status.Error(codes.NotFound, spanstore.ErrTraceNotFound.Error())
 	}
@@ -276,7 +285,16 @@ func (s *GRPCHandler) GetArchiveTrace(r *storage_v1.GetTraceRequest, stream stor
 	if reader == nil {
 		return status.Error(codes.Unimplemented, "not implemented")
 	}
-	trace, err := reader.GetTrace(stream.Context(), r.TraceID)
+	query := spanstore.GetTraceParameters{
+		TraceID: r.TraceID,
+	}
+	if r.StartTime != nil {
+		query.StartTime = *r.StartTime
+	}
+	if r.EndTime != nil {
+		query.EndTime = *r.EndTime
+	}
+	trace, err := reader.GetTrace(stream.Context(), query)
 	if errors.Is(err, spanstore.ErrTraceNotFound) {
 		return status.Error(codes.NotFound, spanstore.ErrTraceNotFound.Error())
 	}

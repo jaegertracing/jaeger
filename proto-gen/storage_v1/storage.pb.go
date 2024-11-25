@@ -217,6 +217,9 @@ func (m *WriteSpanResponse) XXX_Size() int {
 	return m.Size()
 }
 func (m *WriteSpanResponse) XXX_DiscardUnknown() {
+  
+  
+  
 	xxx_messageInfo_WriteSpanResponse.DiscardUnknown(m)
 }
 
@@ -1166,7 +1169,11 @@ func _SpanWriterPlugin_WriteSpan_Handler(srv interface{}, ctx context.Context, d
 	if err := dec(in); err != nil {
 		return nil, err
 	}
-	if interceptor == nil {
+	if interceptor 
+  
+  
+  
+  nil {
 		return srv.(SpanWriterPluginServer).WriteSpan(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{

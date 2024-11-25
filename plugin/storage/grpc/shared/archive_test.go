@@ -7,6 +7,7 @@ import (
 	"context"
 	"io"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -55,11 +56,15 @@ func TestArchiveReader_GetTrace(t *testing.T) {
 
 	archiveSpanReader := new(mocks.ArchiveSpanReaderPluginClient)
 	archiveSpanReader.On("GetArchiveTrace", mock.Anything, &storage_v1.GetTraceRequest{
-		TraceID: mockTraceID,
+		TraceID:   mockTraceID,
+		StartTime: &time.Time{},
+		EndTime:   &time.Time{},
 	}).Return(traceClient, nil)
 	reader := &archiveReader{client: archiveSpanReader}
 
-	trace, err := reader.GetTrace(context.Background(), mockTraceID)
+	trace, err := reader.GetTrace(context.Background(), spanstore.GetTraceParameters{
+		TraceID: mockTraceID,
+	})
 	require.NoError(t, err)
 	assert.Equal(t, expected, trace)
 }
@@ -69,11 +74,15 @@ func TestArchiveReaderGetTrace_NoTrace(t *testing.T) {
 
 	archiveSpanReader := new(mocks.ArchiveSpanReaderPluginClient)
 	archiveSpanReader.On("GetArchiveTrace", mock.Anything, &storage_v1.GetTraceRequest{
-		TraceID: mockTraceID,
+		TraceID:   mockTraceID,
+		StartTime: &time.Time{},
+		EndTime:   &time.Time{},
 	}).Return(nil, status.Errorf(codes.NotFound, ""))
 	reader := &archiveReader{client: archiveSpanReader}
 
-	_, err := reader.GetTrace(context.Background(), mockTraceID)
+	_, err := reader.GetTrace(context.Background(), spanstore.GetTraceParameters{
+		TraceID: mockTraceID,
+	})
 	assert.Equal(t, spanstore.ErrTraceNotFound, err)
 }
 
