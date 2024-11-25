@@ -48,7 +48,7 @@ func (c *HTTPClient) GetJSON(ctx context.Context, _ string /* endpoint */, url s
 
 	defer res.Body.Close()
 
-	if res.StatusCode >= 400 {
+	if res.StatusCode >= http.StatusBadRequest {
 		body, err := io.ReadAll(res.Body)
 		if err != nil {
 			return err

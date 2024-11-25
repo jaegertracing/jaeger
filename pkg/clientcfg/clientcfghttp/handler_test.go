@@ -283,14 +283,14 @@ func TestHTTPHandlerErrors(t *testing.T) {
 			withServer("", probabilistic(0.001), restrictions("luggage", 10), withGorilla, func(ts *testServer) {
 				handler := ts.handler
 
-				req := httptest.NewRequest("GET", "http://localhost:80/?service=X", nil)
+				req := httptest.NewRequest(http.MethodGet, "http://localhost:80/?service=X", nil)
 				w := &mockWriter{header: make(http.Header)}
 				handler.serveSamplingHTTP(w, req, handler.encodeThriftLegacy)
 
 				ts.metricsFactory.AssertCounterMetrics(t,
 					metricstest.ExpectedMetric{Name: "http-server.errors", Tags: map[string]string{"source": "write", "status": "5xx"}, Value: 1})
 
-				req = httptest.NewRequest("GET", "http://localhost:80/baggageRestrictions?service=X", nil)
+				req = httptest.NewRequest(http.MethodGet, "http://localhost:80/baggageRestrictions?service=X", nil)
 				handler.serveBaggageHTTP(w, req)
 
 				ts.metricsFactory.AssertCounterMetrics(t,

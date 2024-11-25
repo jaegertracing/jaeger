@@ -78,7 +78,7 @@ func TestRoundTripper(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			server := httptest.NewServer(nil)
 			defer server.Close()
-			req, err := http.NewRequestWithContext(tc.requestContext, "GET", server.URL, nil)
+			req, err := http.NewRequestWithContext(tc.requestContext, http.MethodGet, server.URL, nil)
 			require.NoError(t, err)
 
 			tr := RoundTripper{

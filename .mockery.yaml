@@ -5,6 +5,12 @@ dir: "{{.InterfaceDir}}/mocks/"
 mockname: "{{.InterfaceName}}"
 filename: "{{.InterfaceName}}.go"
 boilerplate-file: .mockery.header.txt
+
+# Flags for future v3 compatibility.
+# See https://github.com/vektra/mockery/issues/848
+issue-845-fix: true
+resolve-type-alias: false
+
 packages:
   github.com/jaegertracing/jaeger/cmd/collector/app/sanitizer/cache:
     interfaces:

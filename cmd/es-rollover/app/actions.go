@@ -4,14 +4,15 @@
 package app
 
 import (
+	"context"
 	"crypto/tls"
+	"fmt"
 	"net/http"
 	"time"
 
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/pkg/es/client"
 )
 
@@ -37,10 +38,9 @@ type Action interface {
 
 // ActionExecuteOptions are the options passed to the execute action function
 type ActionExecuteOptions struct {
-	Args     []string
-	Viper    *viper.Viper
-	Logger   *zap.Logger
-	TLSFlags tlscfg.ClientFlagsConfig
+	Args   []string
+	Viper  *viper.Viper
+	Logger *zap.Logger
 }
 
 // ActionCreatorFunction type is the function type in charge of create the action to be executed
@@ -50,15 +50,12 @@ type ActionCreatorFunction func(client.Client, Config) Action
 func ExecuteAction(opts ActionExecuteOptions, createAction ActionCreatorFunction) error {
 	cfg := Config{}
 	cfg.InitFromViper(opts.Viper)
-	tlsOpts, err := opts.TLSFlags.InitFromViper(opts.Viper)
+
+	ctx := context.Background()
+	tlsCfg, err := cfg.TLSConfig.LoadTLSConfig(ctx)
 	if err != nil {
-		return err
+		return fmt.Errorf("TLS configuration failed: %w", err)
 	}
-	tlsCfg, err := tlsOpts.Config(opts.Logger)
-	if err != nil {
-		return err
-	}
-	defer tlsOpts.Close()
 
 	esClient := newESClient(opts.Args[0], &cfg, tlsCfg)
 	action := createAction(esClient, cfg)

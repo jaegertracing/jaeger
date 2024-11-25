@@ -5,6 +5,7 @@
 package es
 
 import (
+	"net/http"
 	"testing"
 	"time"
 
@@ -117,7 +118,7 @@ func TestOptionsWithFlags(t *testing.T) {
 	assert.Equal(t, "2006.01.02", aux.Indices.Services.DateLayout)
 	assert.Equal(t, "2006.01.02.15", aux.Indices.Spans.DateLayout)
 	assert.True(t, primary.UseILM)
-	assert.Equal(t, "POST", aux.SendGetBodyAs)
+	assert.Equal(t, http.MethodPost, aux.SendGetBodyAs)
 }
 
 func TestEmptyRemoteReadClusters(t *testing.T) {

@@ -30,7 +30,7 @@ func Command(v *viper.Viper, adminPort int) *cobra.Command {
 			url := convert(v.GetString(statusHTTPHostPort))
 			ctx, cx := context.WithTimeout(context.Background(), time.Second)
 			defer cx()
-			req, _ := http.NewRequestWithContext(ctx, "GET", url, nil)
+			req, _ := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 			resp, err := http.DefaultClient.Do(req)
 			if err != nil {
 				return err

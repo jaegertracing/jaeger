@@ -5,17 +5,14 @@ package app
 
 import (
 	"errors"
-	"flag"
 	"net/http"
 	"testing"
 
-	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
+	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/es/client"
 )
 
@@ -73,22 +70,14 @@ func TestExecuteAction(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			v := viper.New()
-			tlsFlags := tlscfg.ClientFlagsConfig{Prefix: "es"}
-			command := cobra.Command{}
-			flags := &flag.FlagSet{}
-			tlsFlags.AddFlags(flags)
-			command.PersistentFlags().AddGoFlagSet(flags)
-			v.BindPFlags(command.PersistentFlags())
+			v, command := config.Viperize(AddFlags)
 			cmdLine := append([]string{"--es.tls.enabled=true"}, test.flags...)
-			err := command.ParseFlags(cmdLine)
-			require.NoError(t, err)
+			require.NoError(t, command.ParseFlags(cmdLine))
 			executedAction := false
-			err = ExecuteAction(ActionExecuteOptions{
-				Args:     args,
-				Viper:    v,
-				Logger:   logger,
-				TLSFlags: tlsFlags,
+			err := ExecuteAction(ActionExecuteOptions{
+				Args:   args,
+				Viper:  v,
+				Logger: logger,
 			}, func(c client.Client, _ Config) Action {
 				assert.Equal(t, "https://localhost:9300", c.Endpoint)
 				transport, ok := c.Client.Transport.(*http.Transport)
@@ -101,7 +90,6 @@ func TestExecuteAction(t *testing.T) {
 					},
 				}
 			})
-
 			assert.Equal(t, test.expectedExecuteAction, executedAction)
 			if test.configError {
 				require.Error(t, err)

@@ -74,11 +74,11 @@ message GetTraceRequest {
     ];
     google.protobuf.Timestamp start_time = 2 [
       (gogoproto.stdtime) = true,
-      (gogoproto.nullable) = true
+      (gogoproto.nullable) = false
     ];
     google.protobuf.Timestamp end_time = 3 [
       (gogoproto.stdtime) = true,
-      (gogoproto.nullable) = true
+      (gogoproto.nullable) = false
     ];
 }
 

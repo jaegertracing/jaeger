@@ -5,6 +5,7 @@
 package adjuster
 
 import (
+	"net/http"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -88,7 +89,7 @@ func TestSortTagsAndLogFieldsDoesSortFields(t *testing.T) {
 func TestSortTagsAndLogFieldsDoesSortTags(t *testing.T) {
 	testCases := []model.KeyValues{
 		{
-			model.String("http.method", "GET"),
+			model.String("http.method", http.MethodGet),
 			model.String("http.url", "http://wikipedia.org"),
 			model.Int64("http.status_code", 200),
 			model.String("guid:x-request-id", "f61defd2-7a77-11ef-b54f-4fbb67a6d181"),

@@ -73,15 +73,15 @@ func mockStrategyServer(t *testing.T) (*httptest.Server, *atomic.Pointer[string]
 			return
 
 		case "/bad-status":
-			w.WriteHeader(404)
+			w.WriteHeader(http.StatusNotFound)
 			return
 
 		case "/service-unavailable":
-			w.WriteHeader(503)
+			w.WriteHeader(http.StatusServiceUnavailable)
 			return
 
 		default:
-			w.WriteHeader(200)
+			w.WriteHeader(http.StatusOK)
 			w.Header().Set("Content-Type", "application/json")
 			w.Write([]byte(*strategy.Load()))
 		}

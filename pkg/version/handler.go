@@ -18,7 +18,7 @@ func RegisterHandler(mu *http.ServeMux, logger *zap.Logger) {
 		logger.Fatal("Could not get Jaeger version", zap.Error(err))
 	}
 	mu.HandleFunc("/version", func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(200)
+		w.WriteHeader(http.StatusOK)
 		w.Write(jsonData)
 	})
 }

@@ -5,6 +5,7 @@ package adaptive
 
 import (
 	"context"
+	"net/http"
 	"testing"
 	"time"
 
@@ -68,10 +69,10 @@ func TestProviderRealisticRunCalculationLoop(t *testing.T) {
 	logger := zap.NewNop()
 	// NB: This is an extremely long test since it uses near realistic (1/6th scale) processor config values
 	testThroughputs := []*model.Throughput{
-		{Service: "svcA", Operation: "GET", Count: 10},
-		{Service: "svcA", Operation: "POST", Count: 9},
-		{Service: "svcA", Operation: "PUT", Count: 5},
-		{Service: "svcA", Operation: "DELETE", Count: 20},
+		{Service: "svcA", Operation: http.MethodGet, Count: 10},
+		{Service: "svcA", Operation: http.MethodPost, Count: 9},
+		{Service: "svcA", Operation: http.MethodPut, Count: 5},
+		{Service: "svcA", Operation: http.MethodDelete, Count: 20},
 	}
 	mockStorage := &smocks.Store{}
 	mockStorage.On("GetThroughput", mock.AnythingOfType("time.Time"), mock.AnythingOfType("time.Time")).
@@ -110,16 +111,16 @@ func TestProviderRealisticRunCalculationLoop(t *testing.T) {
 
 	for _, s := range strategies {
 		switch s.Operation {
-		case "GET":
+		case http.MethodGet:
 			assert.InDelta(t, 0.001, s.ProbabilisticSampling.SamplingRate, 1e-4,
 				"Already at 1QPS, no probability change")
-		case "POST":
+		case http.MethodPost:
 			assert.InDelta(t, 0.001, s.ProbabilisticSampling.SamplingRate, 1e-4,
 				"Within epsilon of 1QPS, no probability change")
-		case "PUT":
+		case http.MethodPut:
 			assert.InEpsilon(t, 0.002, s.ProbabilisticSampling.SamplingRate, 0.025,
 				"Under sampled, double probability")
-		case "DELETE":
+		case http.MethodDelete:
 			assert.InEpsilon(t, 0.0005, s.ProbabilisticSampling.SamplingRate, 0.025,
 				"Over sampled, halve probability")
 		}
@@ -129,7 +130,7 @@ func TestProviderRealisticRunCalculationLoop(t *testing.T) {
 func TestProviderGenerateStrategyResponses(t *testing.T) {
 	probabilities := model.ServiceOperationProbabilities{
 		"svcA": map[string]float64{
-			"GET": 0.5,
+			http.MethodGet: 0.5,
 		},
 	}
 	p := &Provider{
@@ -149,7 +150,7 @@ func TestProviderGenerateStrategyResponses(t *testing.T) {
 				DefaultLowerBoundTracesPerSecond: 0.0001,
 				PerOperationStrategies: []*api_v2.OperationSamplingStrategy{
 					{
-						Operation: "GET",
+						Operation: http.MethodGet,
 						ProbabilisticSampling: &api_v2.ProbabilisticSamplingStrategy{
 							SamplingRate: 0.5,
 						},
