@@ -23,7 +23,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/plugin/metrics/disabled"
 	"github.com/jaegertracing/jaeger/storage/metricsstore"
-	storageMetrics "github.com/jaegertracing/jaeger/storage/spanstore/metrics"
+	"github.com/jaegertracing/jaeger/storage/spanstore/spanstoremetrics"
 )
 
 var (
@@ -65,7 +65,7 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 		return fmt.Errorf("cannot create span reader: %w", err)
 	}
 
-	spanReader = storageMetrics.NewReadMetricsDecorator(spanReader, queryMetricsFactory)
+	spanReader = spanstoremetrics.NewReadMetricsDecorator(spanReader, queryMetricsFactory)
 
 	depReader, err := f.CreateDependencyReader()
 	if err != nil {

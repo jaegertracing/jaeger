@@ -17,7 +17,7 @@ import (
 	cfg "github.com/jaegertracing/jaeger/pkg/es/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/plugin/storage/es/spanstore/dbmodel"
-	storageMetrics "github.com/jaegertracing/jaeger/storage/spanstore/metrics"
+	"github.com/jaegertracing/jaeger/storage/spanstore/spanstoremetrics"
 )
 
 const (
@@ -28,7 +28,7 @@ const (
 )
 
 type spanWriterMetrics struct {
-	indexCreate *storageMetrics.WriteMetrics
+	indexCreate *spanstoremetrics.WriteMetrics
 }
 
 type serviceWriter func(string, *dbmodel.Span)
@@ -72,7 +72,7 @@ func NewSpanWriter(p SpanWriterParams) *SpanWriter {
 		client: p.Client,
 		logger: p.Logger,
 		writerMetrics: spanWriterMetrics{
-			indexCreate: storageMetrics.NewWriteMetrics(p.MetricsFactory, "index_create"),
+			indexCreate: spanstoremetrics.NewWriteMetrics(p.MetricsFactory, "index_create"),
 		},
 		serviceWriter:    serviceOperationStorage.Write,
 		spanConverter:    dbmodel.NewFromDomain(p.AllTagsAsFields, p.TagKeysAsFields, p.TagDotReplacement),

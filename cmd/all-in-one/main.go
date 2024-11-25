@@ -43,7 +43,7 @@ import (
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	metricsstoreMetrics "github.com/jaegertracing/jaeger/storage/metricsstore/metrics"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
-	storageMetrics "github.com/jaegertracing/jaeger/storage/spanstore/metrics"
+	"github.com/jaegertracing/jaeger/storage/spanstore/spanstoremetrics"
 )
 
 // all-in-one/main is a standalone full-stack jaeger backend, backed by a memory store
@@ -224,7 +224,7 @@ func startQuery(
 	tm *tenancy.Manager,
 	telset telemetery.Setting,
 ) *queryApp.Server {
-	spanReader = storageMetrics.NewReadMetricsDecorator(spanReader, telset.Metrics)
+	spanReader = spanstoremetrics.NewReadMetricsDecorator(spanReader, telset.Metrics)
 	qs := querysvc.NewQueryService(spanReader, depReader, *queryOpts)
 
 	server, err := queryApp.NewServer(context.Background(), qs, metricsQueryService, qOpts, tm, telset)

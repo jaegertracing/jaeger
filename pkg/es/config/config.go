@@ -30,7 +30,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/es"
 	eswrapper "github.com/jaegertracing/jaeger/pkg/es/wrapper"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
-	storageMetrics "github.com/jaegertracing/jaeger/storage/spanstore/metrics"
+	"github.com/jaegertracing/jaeger/storage/spanstore/spanstoremetrics"
 )
 
 const (
@@ -217,7 +217,7 @@ func NewClient(c *Configuration, logger *zap.Logger, metricsFactory metrics.Fact
 		return nil, err
 	}
 
-	sm := storageMetrics.NewWriteMetrics(metricsFactory, "bulk_index")
+	sm := spanstoremetrics.NewWriteMetrics(metricsFactory, "bulk_index")
 	m := sync.Map{}
 
 	bulkProc, err := rawClient.BulkProcessor().

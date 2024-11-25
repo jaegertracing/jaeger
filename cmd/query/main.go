@@ -36,7 +36,7 @@ import (
 	"github.com/jaegertracing/jaeger/plugin/storage"
 	"github.com/jaegertracing/jaeger/ports"
 	metricsstoreMetrics "github.com/jaegertracing/jaeger/storage/metricsstore/metrics"
-	spanstoreMetrics "github.com/jaegertracing/jaeger/storage/spanstore/metrics"
+	"github.com/jaegertracing/jaeger/storage/spanstore/spanstoremetrics"
 )
 
 func main() {
@@ -91,7 +91,7 @@ func main() {
 			if err != nil {
 				logger.Fatal("Failed to create span reader", zap.Error(err))
 			}
-			spanReader = spanstoreMetrics.NewReadMetricsDecorator(spanReader, metricsFactory)
+			spanReader = spanstoremetrics.NewReadMetricsDecorator(spanReader, metricsFactory)
 			dependencyReader, err := storageFactory.CreateDependencyReader()
 			if err != nil {
 				logger.Fatal("Failed to create dependency reader", zap.Error(err))
