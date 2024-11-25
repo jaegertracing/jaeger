@@ -78,73 +78,54 @@ func newTestServerClient(t *testing.T) *testServerClient {
 }
 
 func TestGetTrace(t *testing.T) {
-	tsc := newTestServerClient(t)
 	traceIdLiteral := "156"
 	traceId, _ := model.TraceIDFromString(traceIdLiteral)
-
-	expectedTraceGetParameters := spanstore.GetTraceParameters{
-		TraceID:   traceId,
-		StartTime: time.Time{},
-		EndTime:   time.Time{},
-	}
-	tsc.reader.On("GetTrace", matchContext, expectedTraceGetParameters).Return(
-		&model.Trace{
-			Spans: []*model.Span{
-				{
-					OperationName: "foobar",
-				},
+	inputs := []struct {
+		expectedQuery spanstore.GetTraceParameters
+		request       api_v3.GetTraceRequest
+	}{
+		{
+			spanstore.GetTraceParameters{
+				TraceID:   traceId,
+				StartTime: time.Time{},
+				EndTime:   time.Time{},
 			},
-		}, nil).Once()
-
-	getTraceStream, err := tsc.client.GetTrace(context.Background(),
-		&api_v3.GetTraceRequest{
-			TraceId: traceIdLiteral,
+			api_v3.GetTraceRequest{TraceId: traceIdLiteral},
 		},
-	)
-	require.NoError(t, err)
-	recv, err := getTraceStream.Recv()
-	require.NoError(t, err)
-	td := recv.ToTraces()
-	require.EqualValues(t, 1, td.SpanCount())
-	assert.Equal(t, "foobar",
-		td.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).Name())
-}
-
-func TestGetTraceWithTimeWindow(t *testing.T) {
-	tsc := newTestServerClient(t)
-	traceIdLiteral := "156"
-	traceId, _ := model.TraceIDFromString(traceIdLiteral)
-
-	start_ts := time.Unix(1, 2).UTC()
-	end_ts := time.Unix(3, 4).UTC()
-	expectedTraceGetParameters := spanstore.GetTraceParameters{
-		TraceID:   traceId,
-		StartTime: start_ts,
-		EndTime:   end_ts,
-	}
-	tsc.reader.On("GetTrace", matchContext, expectedTraceGetParameters).Return(
-		&model.Trace{
-			Spans: []*model.Span{
-				{
-					OperationName: "foobar",
-				},
+		{
+			spanstore.GetTraceParameters{
+				TraceID:   traceId,
+				StartTime: time.Unix(1, 2).UTC(),
+				EndTime:   time.Unix(3, 4).UTC(),
 			},
-		}, nil).Once()
-
-	getTraceStream, err := tsc.client.GetTrace(context.Background(),
-		&api_v3.GetTraceRequest{
-			TraceId:   traceIdLiteral,
-			StartTime: start_ts,
-			EndTime:   end_ts,
+			api_v3.GetTraceRequest{
+				TraceId:   traceIdLiteral,
+				StartTime: time.Unix(1, 2).UTC(),
+				EndTime:   time.Unix(3, 4).UTC(),
+			},
 		},
-	)
-	require.NoError(t, err)
-	recv, err := getTraceStream.Recv()
-	require.NoError(t, err)
-	td := recv.ToTraces()
-	require.EqualValues(t, 1, td.SpanCount())
-	assert.Equal(t, "foobar",
-		td.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).Name())
+	}
+
+	for _, input := range inputs {
+		tsc := newTestServerClient(t)
+		tsc.reader.On("GetTrace", matchContext, input.expectedQuery).Return(
+			&model.Trace{
+				Spans: []*model.Span{
+					{
+						OperationName: "foobar",
+					},
+				},
+			}, nil).Once()
+
+		getTraceStream, err := tsc.client.GetTrace(context.Background(), &input.request)
+		require.NoError(t, err)
+		recv, err := getTraceStream.Recv()
+		require.NoError(t, err)
+		td := recv.ToTraces()
+		require.EqualValues(t, 1, td.SpanCount())
+		assert.Equal(t, "foobar",
+			td.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).Name())
+	}
 }
 
 func TestGetTraceStorageError(t *testing.T) {
