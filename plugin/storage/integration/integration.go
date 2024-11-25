@@ -210,7 +210,7 @@ func (s *StorageIntegration) testGetLargeSpan(t *testing.T) {
 	defer s.cleanUp(t)
 
 	t.Log("Testing Large Trace over 10K ...")
-	expected := s.loadParseAndWriteLargeTrace(t)
+	expected := s.loadParseAndWriteLargeTraceWithUniqueSpanIds(t)
 	expectedTraceID := expected.Spans[0].TraceID
 
 	var actual *model.Trace
@@ -221,6 +221,37 @@ func (s *StorageIntegration) testGetLargeSpan(t *testing.T) {
 	})
 	if !assert.True(t, found) {
 		CompareTraces(t, expected, actual)
+	}
+}
+
+func (s *StorageIntegration) testGetLargeSpanWithDuplicateIds(t *testing.T) {
+	s.skipIfNeeded(t)
+	defer s.cleanUp(t)
+
+	t.Log("Testing Large Trace over 10K with duplicate ids...")
+
+	expected := s.loadParseAndWriteLargeTraceWithDuplicateSpanIds(t)
+	expectedTraceID := expected.Spans[0].TraceID
+
+	var actual *model.Trace
+	found := s.waitForCondition(t, func(_ *testing.T) bool {
+		var err error
+		actual, err = s.SpanReader.GetTrace(context.Background(), expectedTraceID)
+		return err == nil && len(actual.Spans) >= len(expected.Spans)
+	})
+	if !assert.True(t, found) {
+		CompareTraces(t, expected, actual)
+	} else {
+		duplicateCount := 0
+		seenIDs := make(map[model.SpanID]int)
+
+		for _, span := range actual.Spans {
+			seenIDs[span.SpanID]++
+			if seenIDs[span.SpanID] > 1 {
+				duplicateCount++
+			}
+		}
+		assert.Greater(t, duplicateCount, 0, "Duplicate SpanIDs should be present in the trace")
 	}
 }
 
@@ -365,9 +396,10 @@ func (s *StorageIntegration) loadParseAndWriteExampleTrace(t *testing.T) *model.
 	return trace
 }
 
-func (s *StorageIntegration) loadParseAndWriteLargeTrace(t *testing.T) *model.Trace {
+func (s *StorageIntegration) loadParseAndWriteLargeTraceWithUniqueSpanIds(t *testing.T) *model.Trace {
 	trace := s.getTraceFixture(t, "example_trace")
 	span := trace.Spans[0]
+	span.SpanID = model.SpanID(0)
 	spns := make([]*model.Span, 1, 10008)
 	trace.Spans = spns
 	trace.Spans[0] = span
@@ -376,6 +408,30 @@ func (s *StorageIntegration) loadParseAndWriteLargeTrace(t *testing.T) *model.Tr
 		*s = *span
 		//nolint: gosec // G115
 		s.SpanID = model.SpanID(i)
+		s.StartTime = s.StartTime.Add(time.Second * time.Duration(i+1))
+		trace.Spans = append(trace.Spans, s)
+	}
+	s.writeTrace(t, trace)
+	return trace
+}
+
+func (s *StorageIntegration) loadParseAndWriteLargeTraceWithDuplicateSpanIds(t *testing.T) *model.Trace {
+	trace := s.getTraceFixture(t, "example_trace")
+	span := trace.Spans[0]
+	span.SpanID = model.SpanID(0)
+	spns := make([]*model.Span, 1, 10008)
+	trace.Spans = spns
+	trace.Spans[0] = span
+	for i := 1; i < 10008; i++ {
+		s := new(model.Span)
+		*s = *span
+		if i%1000 == 0 {
+			s.SpanID = span.SpanID
+		} else if i%100 == 0 && i%1000 != 0 {
+			s.SpanID = span.SpanID
+		} else {
+			s.SpanID = model.SpanID(i)
+		}
 		s.StartTime = s.StartTime.Add(time.Second * time.Duration(i+1))
 		trace.Spans = append(trace.Spans, s)
 	}
