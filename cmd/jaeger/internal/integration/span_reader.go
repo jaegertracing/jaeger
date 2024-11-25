@@ -27,7 +27,7 @@ var (
 	_ io.Closer        = (*spanReader)(nil)
 )
 
-// SpanReader retrieve span data from Jaeger-v2 query with api_v2.QueryServiceClient.
+// spanReader retrieve span data from Jaeger-v2 query with api_v2.QueryServiceClient.
 type spanReader struct {
 	logger     *zap.Logger
 	clientConn *grpc.ClientConn
