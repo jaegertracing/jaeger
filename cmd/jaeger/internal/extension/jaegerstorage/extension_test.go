@@ -71,13 +71,13 @@ func TestStorageFactoryBadNameError(t *testing.T) {
 }
 
 func TestMetricsFactoryBadHostError(t *testing.T) {
-	_, err := GetMetricsFactory("something", componenttest.NewNopHost())
+	_, err := GetMetricStorageFactory("something", componenttest.NewNopHost())
 	require.ErrorContains(t, err, "cannot find extension")
 }
 
 func TestMetricsFactoryBadNameError(t *testing.T) {
 	host := storagetest.NewStorageHost().WithExtension(ID, startStorageExtension(t, "", "foo"))
-	_, err := GetMetricsFactory("bar", host)
+	_, err := GetMetricStorageFactory("bar", host)
 	require.ErrorContains(t, err, "cannot find metric storage 'bar'")
 }
 
@@ -116,7 +116,7 @@ func TestGetFactory(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, f2)
 
-	f3, err := GetMetricsFactory(metricname, host)
+	f3, err := GetMetricStorageFactory(metricname, host)
 	require.NoError(t, err)
 	require.NotNil(t, f3)
 }

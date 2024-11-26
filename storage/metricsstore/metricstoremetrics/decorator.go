@@ -1,7 +1,7 @@
 // Copyright (c) 2022 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
-package metrics
+package metricstoremetrics
 
 import (
 	"context"
@@ -39,7 +39,7 @@ func (q *queryMetrics) emit(err error, latency time.Duration) {
 }
 
 // NewReadMetricsDecorator returns a new ReadMetricsDecorator.
-func NewReadMetricsDecorator(reader metricsstore.Reader, metricsFactory metrics.Factory) *ReadMetricsDecorator {
+func NewReaderDecorator(reader metricsstore.Reader, metricsFactory metrics.Factory) *ReadMetricsDecorator {
 	return &ReadMetricsDecorator{
 		reader:                    reader,
 		getLatenciesMetrics:       buildQueryMetrics("get_latencies", metricsFactory),

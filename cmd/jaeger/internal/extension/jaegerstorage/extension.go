@@ -43,7 +43,8 @@ type storageExt struct {
 	metricsFactories map[string]storage.MetricsFactory
 }
 
-// GetStorageFactory locates the extension in Host and retrieves a storage factory from it with the given name.
+// GetStorageFactory locates the extension in Host and retrieves
+// a trace storage factory from it with the given name.
 func GetStorageFactory(name string, host component.Host) (storage.Factory, error) {
 	ext, err := findExtension(host)
 	if err != nil {
@@ -59,8 +60,9 @@ func GetStorageFactory(name string, host component.Host) (storage.Factory, error
 	return f, nil
 }
 
-// GetMetricsFactory locates the extension in Host and retrieves a metrics factory from it with the given name.
-func GetMetricsFactory(name string, host component.Host) (storage.MetricsFactory, error) {
+// GetMetricStorageFactory locates the extension in Host and retrieves
+// a metric storage factory from it with the given name.
+func GetMetricStorageFactory(name string, host component.Host) (storage.MetricsFactory, error) {
 	ext, err := findExtension(host)
 	if err != nil {
 		return nil, err
