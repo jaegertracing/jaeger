@@ -41,7 +41,7 @@ import (
 	"github.com/jaegertracing/jaeger/plugin/storage"
 	"github.com/jaegertracing/jaeger/ports"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
-	metricsstoreMetrics "github.com/jaegertracing/jaeger/storage/metricsstore/metrics"
+	"github.com/jaegertracing/jaeger/storage/metricsstore/metricstoremetrics"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	"github.com/jaegertracing/jaeger/storage/spanstore/spanstoremetrics"
 )
@@ -256,5 +256,5 @@ func createMetricsQueryService(
 	}
 
 	// Decorate the metrics reader with metrics instrumentation.
-	return metricsstoreMetrics.NewReadMetricsDecorator(reader, metricsReaderMetricsFactory), nil
+	return metricstoremetrics.NewReadMetricsDecorator(reader, metricsReaderMetricsFactory), nil
 }
