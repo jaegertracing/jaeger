@@ -387,8 +387,6 @@ func (s *StorageIntegration) writeLargeTraceWithDuplicateSpanIds(t *testing.T) *
 		newSpan := new(model.Span)
 		*newSpan = *repeatedSpan
 		switch {
-		case i == 0:
-			newSpan.SpanID = repeatedSpan.SpanID
 		case i%1000 == 0 || i%100 == 0:
 			newSpan.SpanID = repeatedSpan.SpanID
 		default:
