@@ -72,7 +72,7 @@ func NewSpanWriter(p SpanWriterParams) *SpanWriter {
 		client: p.Client,
 		logger: p.Logger,
 		writerMetrics: spanWriterMetrics{
-			indexCreate: spanstoremetrics.NewWriteMetrics(p.MetricsFactory, "index_create"),
+			indexCreate: spanstoremetrics.NewWriterDecorator(p.MetricsFactory, "index_create"),
 		},
 		serviceWriter:    serviceOperationStorage.Write,
 		spanConverter:    dbmodel.NewFromDomain(p.AllTagsAsFields, p.TagKeysAsFields, p.TagDotReplacement),

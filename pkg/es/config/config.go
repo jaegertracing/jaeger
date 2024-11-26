@@ -217,7 +217,7 @@ func NewClient(c *Configuration, logger *zap.Logger, metricsFactory metrics.Fact
 		return nil, err
 	}
 
-	sm := spanstoremetrics.NewWriteMetrics(metricsFactory, "bulk_index")
+	sm := spanstoremetrics.NewWriterDecorator(metricsFactory, "bulk_index")
 	m := sync.Map{}
 
 	bulkProc, err := rawClient.BulkProcessor().

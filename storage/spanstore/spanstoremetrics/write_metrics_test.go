@@ -53,7 +53,7 @@ func TestTableEmit(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		mf := metricstest.NewFactory(time.Second)
-		tm := NewWriteMetrics(mf, "a_table")
+		tm := NewWriterDecorator(mf, "a_table")
 		tm.Emit(tc.err, 50*time.Millisecond)
 		counts, gauges := mf.Snapshot()
 		assert.Equal(t, tc.counts, counts)
