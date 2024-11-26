@@ -100,7 +100,7 @@ func DefaultConfiguration() Configuration {
 	return Configuration{
 		Schema: Schema{
 			CreateSchema:      false,
-			Keyspace:          "jaeger_v1_dc1",
+			Keyspace:          "jaeger_dc1",
 			Datacenter:        "test",
 			TraceTTL:          2 * 24 * time.Hour,
 			DependenciesTTL:   2 * 24 * time.Hour,
