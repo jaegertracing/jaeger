@@ -224,7 +224,7 @@ func startQuery(
 	tm *tenancy.Manager,
 	telset telemetery.Setting,
 ) *queryApp.Server {
-	spanReader = spanstoremetrics.NewReadMetricsDecorator(spanReader, telset.Metrics)
+	spanReader = spanstoremetrics.NewReaderDecorator(spanReader, telset.Metrics)
 	qs := querysvc.NewQueryService(spanReader, depReader, *queryOpts)
 
 	server, err := queryApp.NewServer(context.Background(), qs, metricsQueryService, qOpts, tm, telset)

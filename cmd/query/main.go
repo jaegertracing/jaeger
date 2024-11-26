@@ -91,7 +91,7 @@ func main() {
 			if err != nil {
 				logger.Fatal("Failed to create span reader", zap.Error(err))
 			}
-			spanReader = spanstoremetrics.NewReadMetricsDecorator(spanReader, metricsFactory)
+			spanReader = spanstoremetrics.NewReaderDecorator(spanReader, metricsFactory)
 			dependencyReader, err := storageFactory.CreateDependencyReader()
 			if err != nil {
 				logger.Fatal("Failed to create dependency reader", zap.Error(err))

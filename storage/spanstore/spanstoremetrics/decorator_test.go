@@ -22,7 +22,7 @@ func TestSuccessfulUnderlyingCalls(t *testing.T) {
 	mf := metricstest.NewFactory(0)
 
 	mockReader := mocks.Reader{}
-	mrs := spanstoremetrics.NewReadMetricsDecorator(&mockReader, mf)
+	mrs := spanstoremetrics.NewReaderDecorator(&mockReader, mf)
 	mockReader.On("GetServices", context.Background()).Return([]string{}, nil)
 	mrs.GetServices(context.Background())
 	operationQuery := spanstore.OperationQueryParameters{ServiceName: "something"}
@@ -89,7 +89,7 @@ func TestFailingUnderlyingCalls(t *testing.T) {
 	mf := metricstest.NewFactory(0)
 
 	mockReader := mocks.Reader{}
-	mrs := spanstoremetrics.NewReadMetricsDecorator(&mockReader, mf)
+	mrs := spanstoremetrics.NewReaderDecorator(&mockReader, mf)
 	mockReader.On("GetServices", context.Background()).
 		Return(nil, errors.New("Failure"))
 	mrs.GetServices(context.Background())

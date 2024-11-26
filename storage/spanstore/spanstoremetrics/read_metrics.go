@@ -42,8 +42,8 @@ func (q *queryMetrics) emit(err error, latency time.Duration, responses int) {
 	}
 }
 
-// NewReadMetricsDecorator returns a new ReadMetricsDecorator.
-func NewReadMetricsDecorator(spanReader spanstore.Reader, metricsFactory metrics.Factory) *ReadMetricsDecorator {
+// NewReaderDecorator returns a new ReadMetricsDecorator.
+func NewReaderDecorator(spanReader spanstore.Reader, metricsFactory metrics.Factory) *ReadMetricsDecorator {
 	return &ReadMetricsDecorator{
 		spanReader:           spanReader,
 		findTracesMetrics:    buildQueryMetrics("find_traces", metricsFactory),

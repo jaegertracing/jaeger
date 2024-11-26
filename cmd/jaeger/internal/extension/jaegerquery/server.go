@@ -65,7 +65,7 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 		return fmt.Errorf("cannot create span reader: %w", err)
 	}
 
-	spanReader = spanstoremetrics.NewReadMetricsDecorator(spanReader, queryMetricsFactory)
+	spanReader = spanstoremetrics.NewReaderDecorator(spanReader, queryMetricsFactory)
 
 	depReader, err := f.CreateDependencyReader()
 	if err != nil {
