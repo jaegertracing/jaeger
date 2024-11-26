@@ -209,7 +209,8 @@ func (s *StorageIntegration) testGetLargeSpan(t *testing.T) {
 	s.skipIfNeeded(t)
 	defer s.cleanUp(t)
 
-	t.Log("Testing Large Trace over 10K ...")
+	t.Log("Testing Large Trace over 10K with duplicate ids...")
+
 	expected := s.loadParseAndWriteLargeTraceWithDuplicateSpanIds(t)
 	expectedTraceID := expected.Spans[0].TraceID
 
@@ -219,11 +220,14 @@ func (s *StorageIntegration) testGetLargeSpan(t *testing.T) {
 		actual, err = s.SpanReader.GetTrace(context.Background(), expectedTraceID)
 		return err == nil && len(actual.Spans) >= len(expected.Spans)
 	})
-	if !assert.True(t, found) {
+
+	if !assert.True(t, found, "Failed to retrieve the large trace") {
+		t.Log("Condition not met for trace retrieval. Comparing expected and actual traces.")
 		CompareTraces(t, expected, actual)
 		return
 	}
 
+	assert.NotNil(t, actual, "Retrieved trace should not be nil")
 	assert.Len(t, actual.Spans, len(expected.Spans), "Number of spans should match the expected")
 
 	duplicateCount := 0
@@ -234,7 +238,7 @@ func (s *StorageIntegration) testGetLargeSpan(t *testing.T) {
 			duplicateCount++
 		}
 	}
-
+	t.Logf("Duplicate Span ID count: %d", duplicateCount)
 	assert.Positive(t, duplicateCount, "Duplicate SpanIDs should be present in the trace")
 }
 
