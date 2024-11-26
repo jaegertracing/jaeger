@@ -148,7 +148,7 @@ func (h *HTTPGateway) getTrace(w http.ResponseWriter, r *http.Request) {
 		if h.tryParamError(w, err, paramStartTime) {
 			return
 		}
-		request.StartTime = timeParsed
+		request.StartTime = timeParsed.UTC()
 	}
 	endTime := http_query.Get(paramEndTime)
 	if endTime != "" {
@@ -156,7 +156,7 @@ func (h *HTTPGateway) getTrace(w http.ResponseWriter, r *http.Request) {
 		if h.tryParamError(w, err, paramEndTime) {
 			return
 		}
-		request.EndTime = timeParsed
+		request.EndTime = timeParsed.UTC()
 	}
 	trc, err := h.QueryService.GetTrace(r.Context(), request)
 	if h.tryHandleError(w, err, http.StatusInternalServerError) {
