@@ -194,11 +194,7 @@ func TestNewFactoryWithConfig(t *testing.T) {
 	t.Run("valid configuration", func(t *testing.T) {
 		opts := &Options{
 			Primary: NamespaceConfig{
-				Configuration: cassandraCfg.Configuration{
-					Connection: cassandraCfg.Connection{
-						Servers: []string{"localhost:9200"},
-					},
-				},
+				Configuration: cassandraCfg.DefaultConfiguration(),
 			},
 		}
 		f := NewFactory()
@@ -216,11 +212,7 @@ func TestNewFactoryWithConfig(t *testing.T) {
 		expErr := errors.New("made-up error")
 		opts := &Options{
 			Primary: NamespaceConfig{
-				Configuration: cassandraCfg.Configuration{
-					Connection: cassandraCfg.Connection{
-						Servers: []string{"localhost:9200"},
-					},
-				},
+				Configuration: cassandraCfg.DefaultConfiguration(),
 			},
 		}
 		f := NewFactory()

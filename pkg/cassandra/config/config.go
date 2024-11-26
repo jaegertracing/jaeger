@@ -174,40 +174,44 @@ type SessionBuilder interface {
 	NewSession() (cassandra.Session, error)
 }
 
-func (c *Configuration) newSessionPrerequisites() error {
+// createSession creates session from a configuration
+func createSession(c *Configuration) (cassandra.Session, error) {
+	cluster, err := c.NewCluster()
+	if err != nil {
+		return nil, err
+	}
+
+	session, err := cluster.CreateSession()
+	if err != nil {
+		return nil, err
+	}
+
+	return gocqlw.WrapCQLSession(session), nil
+}
+
+// newSessionPrerequisites creates tables and types before creating a session
+func newSessionPrerequisites(c Configuration) error {
 	if !c.Schema.CreateSchema {
 		return nil
 	}
-	cluster, err := c.NewCluster()
 
-	cluster.Keyspace = ""
+	c.Schema.Keyspace = ""
 
-	session, err := cluster.CreateSession()
+	session, err := createSession(&c)
 	if err != nil {
 		return err
 	}
 
-	wSession := gocqlw.WrapCQLSession(session)
-	defer wSession.Close()
-
-	return generateSchemaIfNotPresent(wSession, &c.Schema)
+	return generateSchemaIfNotPresent(session, &c.Schema)
 }
 
 // NewSession creates a new Cassandra session
 func (c *Configuration) NewSession() (cassandra.Session, error) {
-	if err := c.newSessionPrerequisites(); err != nil {
+	if err := newSessionPrerequisites(*c); err != nil {
 		return nil, err
 	}
 
-	cluster, err := c.NewCluster()
-	if err != nil {
-		return nil, err
-	}
-	session, err := cluster.CreateSession()
-	if err != nil {
-		return nil, err
-	}
-	return gocqlw.WrapCQLSession(session), nil
+	return createSession(c)
 }
 
 // NewCluster creates a new gocql cluster from the configuration
@@ -278,6 +282,11 @@ func isValidTTL(duration time.Duration) bool {
 }
 
 func (c *Configuration) Validate() error {
+	_, err := govalidator.ValidateStruct(c)
+	if err != nil {
+		return err
+	}
+
 	if !isValidTTL(c.Schema.TraceTTL) {
 		return errors.New("trace_ttl can either be 0 or greater than or equal to 1 second")
 	}
@@ -290,6 +299,5 @@ func (c *Configuration) Validate() error {
 		return errors.New("compaction_window should at least be 1 minute")
 	}
 
-	_, err := govalidator.ValidateStruct(c)
-	return err
+	return nil
 }
