@@ -66,9 +66,11 @@ func unwrapNotFoundErr(err error) error {
 	return err
 }
 
-func (r *spanReader) GetTrace(ctx context.Context, traceID model.TraceID) (*model.Trace, error) {
+func (r *spanReader) GetTrace(ctx context.Context, query spanstore.GetTraceParameters) (*model.Trace, error) {
 	stream, err := r.client.GetTrace(ctx, &api_v2.GetTraceRequest{
-		TraceID: traceID,
+		TraceID:   query.TraceID,
+		StartTime: query.StartTime,
+		EndTime:   query.EndTime,
 	})
 	if err != nil {
 		return nil, unwrapNotFoundErr(err)

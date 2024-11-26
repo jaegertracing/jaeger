@@ -107,12 +107,13 @@ func initializeTestService(optionAppliers ...testOption) *testQueryService {
 // Test QueryService.GetTrace()
 func TestGetTraceSuccess(t *testing.T) {
 	tqs := initializeTestService()
-	tqs.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
+	tqs.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("spanstore.GetTraceParameters")).
 		Return(mockTrace, nil).Once()
 
 	type contextKey string
 	ctx := context.Background()
-	res, err := tqs.queryService.GetTrace(context.WithValue(ctx, contextKey("foo"), "bar"), mockTraceID)
+	query := spanstore.GetTraceParameters{TraceID: mockTraceID}
+	res, err := tqs.queryService.GetTrace(context.WithValue(ctx, contextKey("foo"), "bar"), query)
 	require.NoError(t, err)
 	assert.Equal(t, res, mockTrace)
 }
@@ -120,26 +121,28 @@ func TestGetTraceSuccess(t *testing.T) {
 // Test QueryService.GetTrace() without ArchiveSpanReader
 func TestGetTraceNotFound(t *testing.T) {
 	tqs := initializeTestService()
-	tqs.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
+	tqs.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("spanstore.GetTraceParameters")).
 		Return(nil, spanstore.ErrTraceNotFound).Once()
 
 	type contextKey string
 	ctx := context.Background()
-	_, err := tqs.queryService.GetTrace(context.WithValue(ctx, contextKey("foo"), "bar"), mockTraceID)
+	query := spanstore.GetTraceParameters{TraceID: mockTraceID}
+	_, err := tqs.queryService.GetTrace(context.WithValue(ctx, contextKey("foo"), "bar"), query)
 	assert.Equal(t, err, spanstore.ErrTraceNotFound)
 }
 
 // Test QueryService.GetTrace() with ArchiveSpanReader
 func TestGetTraceFromArchiveStorage(t *testing.T) {
 	tqs := initializeTestService(withArchiveSpanReader())
-	tqs.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
+	tqs.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("spanstore.GetTraceParameters")).
 		Return(nil, spanstore.ErrTraceNotFound).Once()
-	tqs.archiveSpanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
+	tqs.archiveSpanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("spanstore.GetTraceParameters")).
 		Return(mockTrace, nil).Once()
 
 	type contextKey string
 	ctx := context.Background()
-	res, err := tqs.queryService.GetTrace(context.WithValue(ctx, contextKey("foo"), "bar"), mockTraceID)
+	query := spanstore.GetTraceParameters{TraceID: mockTraceID}
+	res, err := tqs.queryService.GetTrace(context.WithValue(ctx, contextKey("foo"), "bar"), query)
 	require.NoError(t, err)
 	assert.Equal(t, res, mockTrace)
 }
@@ -202,35 +205,38 @@ func TestArchiveTraceNoOptions(t *testing.T) {
 
 	type contextKey string
 	ctx := context.Background()
-	err := tqs.queryService.ArchiveTrace(context.WithValue(ctx, contextKey("foo"), "bar"), mockTraceID)
+	query := spanstore.GetTraceParameters{TraceID: mockTraceID}
+	err := tqs.queryService.ArchiveTrace(context.WithValue(ctx, contextKey("foo"), "bar"), query)
 	assert.Equal(t, errNoArchiveSpanStorage, err)
 }
 
 // Test QueryService.ArchiveTrace() with ArchiveSpanWriter but invalid traceID.
 func TestArchiveTraceWithInvalidTraceID(t *testing.T) {
 	tqs := initializeTestService(withArchiveSpanReader(), withArchiveSpanWriter())
-	tqs.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
+	tqs.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("spanstore.GetTraceParameters")).
 		Return(nil, spanstore.ErrTraceNotFound).Once()
-	tqs.archiveSpanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
+	tqs.archiveSpanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("spanstore.GetTraceParameters")).
 		Return(nil, spanstore.ErrTraceNotFound).Once()
 
 	type contextKey string
 	ctx := context.Background()
-	err := tqs.queryService.ArchiveTrace(context.WithValue(ctx, contextKey("foo"), "bar"), mockTraceID)
+	query := spanstore.GetTraceParameters{TraceID: mockTraceID}
+	err := tqs.queryService.ArchiveTrace(context.WithValue(ctx, contextKey("foo"), "bar"), query)
 	assert.Equal(t, spanstore.ErrTraceNotFound, err)
 }
 
 // Test QueryService.ArchiveTrace(), save error with ArchiveSpanWriter.
 func TestArchiveTraceWithArchiveWriterError(t *testing.T) {
 	tqs := initializeTestService(withArchiveSpanWriter())
-	tqs.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
+	tqs.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("spanstore.GetTraceParameters")).
 		Return(mockTrace, nil).Once()
 	tqs.archiveSpanWriter.On("WriteSpan", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("*model.Span")).
 		Return(errors.New("cannot save")).Times(2)
 
 	type contextKey string
 	ctx := context.Background()
-	joinErr := tqs.queryService.ArchiveTrace(context.WithValue(ctx, contextKey("foo"), "bar"), mockTraceID)
+	query := spanstore.GetTraceParameters{TraceID: mockTraceID}
+	joinErr := tqs.queryService.ArchiveTrace(context.WithValue(ctx, contextKey("foo"), "bar"), query)
 	// There are two spans in the mockTrace, ArchiveTrace should return a wrapped error.
 	require.EqualError(t, joinErr, "cannot save\ncannot save")
 }
@@ -238,14 +244,15 @@ func TestArchiveTraceWithArchiveWriterError(t *testing.T) {
 // Test QueryService.ArchiveTrace() with correctly configured ArchiveSpanWriter.
 func TestArchiveTraceSuccess(t *testing.T) {
 	tqs := initializeTestService(withArchiveSpanWriter())
-	tqs.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
+	tqs.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("spanstore.GetTraceParameters")).
 		Return(mockTrace, nil).Once()
 	tqs.archiveSpanWriter.On("WriteSpan", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("*model.Span")).
 		Return(nil).Times(2)
 
 	type contextKey string
 	ctx := context.Background()
-	err := tqs.queryService.ArchiveTrace(context.WithValue(ctx, contextKey("foo"), "bar"), mockTraceID)
+	query := spanstore.GetTraceParameters{TraceID: mockTraceID}
+	err := tqs.queryService.ArchiveTrace(context.WithValue(ctx, contextKey("foo"), "bar"), query)
 	require.NoError(t, err)
 }
 
