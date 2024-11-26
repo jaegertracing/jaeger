@@ -118,7 +118,7 @@ func newStorageExt(config *Config, telset component.TelemetrySettings) *storageE
 func (s *storageExt) Start(_ context.Context, host component.Host) error {
 	baseFactory := otelmetrics.NewFactory(s.telset.MeterProvider)
 	mf := baseFactory.Namespace(metrics.NSOptions{Name: "jaeger"})
-	for storageName, cfg := range s.config.Backends {
+	for storageName, cfg := range s.config.TraceBackends {
 		s.telset.Logger.Sugar().Infof("Initializing storage '%s'", storageName)
 		var factory storage.Factory
 		var err error = errors.New("empty configuration")

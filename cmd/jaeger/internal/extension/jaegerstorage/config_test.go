@@ -50,7 +50,7 @@ backends:
 `)
 	cfg := createDefaultConfig().(*Config)
 	require.NoError(t, conf.Unmarshal(cfg))
-	assert.NotEmpty(t, cfg.Backends["some_storage"].Memory.MaxTraces)
+	assert.NotEmpty(t, cfg.TraceBackends["some_storage"].Memory.MaxTraces)
 }
 
 func TestConfigDefaultBadger(t *testing.T) {
@@ -61,7 +61,7 @@ backends:
 `)
 	cfg := createDefaultConfig().(*Config)
 	require.NoError(t, conf.Unmarshal(cfg))
-	assert.NotEmpty(t, cfg.Backends["some_storage"].Badger.TTL.Spans)
+	assert.NotEmpty(t, cfg.TraceBackends["some_storage"].Badger.TTL.Spans)
 }
 
 func TestConfigDefaultGRPC(t *testing.T) {
@@ -72,7 +72,7 @@ backends:
 `)
 	cfg := createDefaultConfig().(*Config)
 	require.NoError(t, conf.Unmarshal(cfg))
-	assert.NotEmpty(t, cfg.Backends["some_storage"].GRPC.Timeout)
+	assert.NotEmpty(t, cfg.TraceBackends["some_storage"].GRPC.Timeout)
 }
 
 func TestConfigDefaultCassandra(t *testing.T) {
@@ -83,7 +83,7 @@ backends:
 `)
 	cfg := createDefaultConfig().(*Config)
 	require.NoError(t, conf.Unmarshal(cfg))
-	assert.NotEmpty(t, cfg.Backends["some_storage"].Cassandra.Primary.Connection.Servers)
+	assert.NotEmpty(t, cfg.TraceBackends["some_storage"].Cassandra.Primary.Connection.Servers)
 }
 
 func TestConfigDefaultElasticsearch(t *testing.T) {
@@ -94,7 +94,7 @@ backends:
 `)
 	cfg := createDefaultConfig().(*Config)
 	require.NoError(t, conf.Unmarshal(cfg))
-	assert.NotEmpty(t, cfg.Backends["some_storage"].Elasticsearch.Servers)
+	assert.NotEmpty(t, cfg.TraceBackends["some_storage"].Elasticsearch.Servers)
 }
 
 func TestConfigDefaultOpensearch(t *testing.T) {
@@ -105,7 +105,7 @@ backends:
 `)
 	cfg := createDefaultConfig().(*Config)
 	require.NoError(t, conf.Unmarshal(cfg))
-	assert.NotEmpty(t, cfg.Backends["some_storage"].Opensearch.Servers)
+	assert.NotEmpty(t, cfg.TraceBackends["some_storage"].Opensearch.Servers)
 }
 
 func TestConfigDefaultPrometheus(t *testing.T) {
