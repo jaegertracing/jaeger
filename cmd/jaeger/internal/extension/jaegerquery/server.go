@@ -23,6 +23,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/plugin/metrics/disabled"
 	"github.com/jaegertracing/jaeger/storage/metricsstore"
+	"github.com/jaegertracing/jaeger/storage/metricsstore/metricstoremetrics"
 	"github.com/jaegertracing/jaeger/storage/spanstore/spanstoremetrics"
 )
 
@@ -147,16 +148,20 @@ func (s *server) createMetricReader(host component.Host) (metricsstore.Reader, e
 		return disabled.NewMetricsReader()
 	}
 
-	mf, err := jaegerstorage.GetMetricsFactory(s.config.Storage.Metrics, host)
+	msf, err := jaegerstorage.GetMetricStorageFactory(s.config.Storage.Metrics, host)
 	if err != nil {
 		return nil, fmt.Errorf("cannot find metrics storage factory: %w", err)
 	}
 
-	metricsReader, err := mf.CreateMetricsReader()
+	metricsReader, err := msf.CreateMetricsReader()
 	if err != nil {
 		return nil, fmt.Errorf("cannot create metrics reader %w", err)
 	}
-	return metricsReader, err
+
+	// Decorate the metrics reader with metrics instrumentation.
+	mf := otelmetrics.NewFactory(s.telset.MeterProvider)
+	mf = mf.Namespace(metrics.NSOptions{Name: "metricstore"})
+	return metricstoremetrics.NewReadMetricsDecorator(metricsReader, mf), nil
 }
 
 func (s *server) Shutdown(ctx context.Context) error {

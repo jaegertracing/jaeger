@@ -1,7 +1,7 @@
 // Copyright (c) 2022 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
-package metrics
+package metricstoremetrics
 
 import (
 	"context"
