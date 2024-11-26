@@ -211,7 +211,7 @@ func (s *StorageIntegration) testGetLargeSpan(t *testing.T) {
 
 	t.Log("Testing Large Trace over 10K with duplicate IDs...")
 
-	expected := s.loadParseAndWriteLargeTraceWithDuplicateSpanIds(t)
+	expected := s.writeLargeTraceWithDuplicateSpanIds(t)
 	expectedTraceID := expected.Spans[0].TraceID
 
 	var actual *model.Trace
@@ -379,28 +379,23 @@ func (s *StorageIntegration) loadParseAndWriteExampleTrace(t *testing.T) *model.
 	return trace
 }
 
-func (s *StorageIntegration) loadParseAndWriteLargeTraceWithDuplicateSpanIds(t *testing.T) *model.Trace {
+func (s *StorageIntegration) writeLargeTraceWithDuplicateSpanIds(t *testing.T) *model.Trace {
 	trace := s.getTraceFixture(t, "example_trace")
-	span := trace.Spans[0]
-	span.SpanID = model.SpanID(0)
-	spns := make([]*model.Span, 1, 10008)
-	trace.Spans = spns
-	trace.Spans[0] = span
-	for i := 1; i < 10008; i++ {
-		s := new(model.Span)
-		*s = *span
+	repeatedSpan := trace.Spans[0]
+	trace.Spans = make([]*model.Span, 0, 10008)
+	for i := 0; i < 10008; i++ {
+		newSpan := new(model.Span)
+		*newSpan = *repeatedSpan
 		switch {
-		case i%1000 == 0:
-			s.SpanID = span.SpanID
-
-		case i%100 == 0 && i%1000 != 0:
-			s.SpanID = span.SpanID
-
+		case i == 0:
+			newSpan.SpanID = repeatedSpan.SpanID
+		case i%1000 == 0 || i%100 == 0:
+			newSpan.SpanID = repeatedSpan.SpanID
 		default:
-			s.SpanID = model.SpanID(i)
+			newSpan.SpanID = model.SpanID(i)
 		}
-		s.StartTime = s.StartTime.Add(time.Second * time.Duration(i+1))
-		trace.Spans = append(trace.Spans, s)
+		newSpan.StartTime = newSpan.StartTime.Add(time.Second * time.Duration(i+1))
+		trace.Spans = append(trace.Spans, newSpan)
 	}
 	s.writeTrace(t, trace)
 	return trace
