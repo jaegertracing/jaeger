@@ -7,6 +7,9 @@ import (
 	"flag"
 
 	"github.com/spf13/viper"
+	"go.opentelemetry.io/collector/config/configtls"
+
+	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 )
 
 const (
@@ -19,6 +22,8 @@ const (
 	password           = "es.password"
 )
 
+var tlsFlagsCfg = tlscfg.ClientFlagsConfig{Prefix: "es"}
+
 // Config holds configuration for index cleaner binary.
 type Config struct {
 	IndexPrefix              string
@@ -29,6 +34,7 @@ type Config struct {
 	Username                 string
 	Password                 string
 	TLSEnabled               bool
+	TLSConfig                configtls.ClientConfig
 }
 
 // AddFlags adds flags for TLS to the FlagSet.
@@ -40,6 +46,7 @@ func (*Config) AddFlags(flags *flag.FlagSet) {
 	flags.String(indexDateSeparator, "-", "Index date separator")
 	flags.String(username, "", "The username required by storage")
 	flags.String(password, "", "The password required by storage")
+	tlsFlagsCfg.AddFlags(flags)
 }
 
 // InitFromViper initializes config from viper.Viper.
@@ -55,4 +62,9 @@ func (c *Config) InitFromViper(v *viper.Viper) {
 	c.IndexDateSeparator = v.GetString(indexDateSeparator)
 	c.Username = v.GetString(username)
 	c.Password = v.GetString(password)
+	opts, err := tlsFlagsCfg.InitFromViper(v)
+	if err != nil {
+		panic(err)
+	}
+	c.TLSConfig = opts.ToOtelClientConfig()
 }
