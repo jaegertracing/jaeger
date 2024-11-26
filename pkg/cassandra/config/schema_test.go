@@ -16,7 +16,8 @@ query1-finished; --
 query2;
 query-3 query-3-continue query-3-finished;
 `
-	expGeneratedQueries := []string{`query1
+	expGeneratedQueries := []string{
+		`query1
 query1-continue
 query1-finished;
 `,
@@ -42,8 +43,8 @@ func TestInvalidQueryTemplate(t *testing.T) {
 	query1 -- comment (this should be removed)
 	query1-continue
 	query1-finished; --
-	
-	
+
+
 	query2;
 	query-3 query-3-continue query-3-finished -- missing semicolon
 	`
