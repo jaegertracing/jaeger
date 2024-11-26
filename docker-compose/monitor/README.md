@@ -98,7 +98,7 @@ JAEGER_IMAGE_TAG=1.62.0 docker compose up
 or for Jaeger v2:
 
 ```shell
-JAEGER_IMAGE_TAG=2.0.0-rc2 docker compose -f docker-compose-v2.yml up
+JAEGER_IMAGE_TAG=2.0.0 docker compose -f docker-compose-v2.yml up
 ```
 
 ## Development
