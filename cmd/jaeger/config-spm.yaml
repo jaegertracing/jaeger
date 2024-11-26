@@ -9,6 +9,11 @@ service:
       receivers: [spanmetrics]
       exporters: [prometheus]
   telemetry:
+    resource:
+      service.name: jaeger
+    metrics:
+      level: detailed
+      address: 0.0.0.0:8888
     logs:
       level: DEBUG
 
