@@ -101,7 +101,7 @@ func DefaultConfiguration() Configuration {
 		Schema: Schema{
 			CreateSchema:      false,
 			Keyspace:          "jaeger_dc1",
-			Datacenter:        "test",
+			Datacenter:        "dc1",
 			TraceTTL:          2 * 24 * time.Hour,
 			DependenciesTTL:   2 * 24 * time.Hour,
 			ReplicationFactor: 1,
