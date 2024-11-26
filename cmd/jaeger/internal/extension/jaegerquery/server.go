@@ -160,7 +160,7 @@ func (s *server) createMetricReader(host component.Host) (metricsstore.Reader, e
 
 	// Decorate the metrics reader with metrics instrumentation.
 	mf := otelmetrics.NewFactory(s.telset.MeterProvider)
-	mf = mf.Namespace(metrics.NSOptions{Name: "metricstore"})
+	mf = mf.Namespace(metrics.NSOptions{Name: "jaeger_metricstore"})
 	return metricstoremetrics.NewReadMetricsDecorator(metricsReader, mf), nil
 }
 
