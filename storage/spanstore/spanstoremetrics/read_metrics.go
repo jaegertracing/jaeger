@@ -78,9 +78,9 @@ func (m *ReadMetricsDecorator) FindTraceIDs(ctx context.Context, traceQuery *spa
 }
 
 // GetTrace implements spanstore.Reader#GetTrace
-func (m *ReadMetricsDecorator) GetTrace(ctx context.Context, traceID model.TraceID) (*model.Trace, error) {
+func (m *ReadMetricsDecorator) GetTrace(ctx context.Context, query spanstore.GetTraceParameters) (*model.Trace, error) {
 	start := time.Now()
-	retMe, err := m.spanReader.GetTrace(ctx, traceID)
+	retMe, err := m.spanReader.GetTrace(ctx, query)
 	m.getTraceMetrics.emit(err, time.Since(start), 1)
 	return retMe, err
 }

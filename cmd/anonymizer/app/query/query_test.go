@@ -24,8 +24,8 @@ import (
 )
 
 var (
-	matchContext = mock.AnythingOfType("*context.valueCtx")
-	matchTraceID = mock.AnythingOfType("model.TraceID")
+	matchContext            = mock.AnythingOfType("*context.valueCtx")
+	matchGetTraceParameters = mock.AnythingOfType("spanstore.GetTraceParameters")
 
 	mockInvalidTraceID = "xyz"
 	mockTraceID        = model.NewTraceID(0, 123456)
@@ -106,7 +106,7 @@ func TestQueryTrace(t *testing.T) {
 	defer q.Close()
 
 	t.Run("No error", func(t *testing.T) {
-		s.spanReader.On("GetTrace", matchContext, matchTraceID).Return(
+		s.spanReader.On("GetTrace", matchContext, matchGetTraceParameters).Return(
 			mockTraceGRPC, nil).Once()
 
 		spans, err := q.QueryTrace(mockTraceID.String())
@@ -120,7 +120,7 @@ func TestQueryTrace(t *testing.T) {
 	})
 
 	t.Run("Trace not found", func(t *testing.T) {
-		s.spanReader.On("GetTrace", matchContext, matchTraceID).Return(
+		s.spanReader.On("GetTrace", matchContext, matchGetTraceParameters).Return(
 			nil, spanstore.ErrTraceNotFound).Once()
 
 		spans, err := q.QueryTrace(mockTraceID.String())
