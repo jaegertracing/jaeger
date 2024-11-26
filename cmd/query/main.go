@@ -178,5 +178,5 @@ func createMetricsQueryService(
 	}
 
 	// Decorate the metrics reader with metrics instrumentation.
-	return metricstoremetrics.NewReadMetricsDecorator(reader, metricsReaderMetricsFactory), nil
+	return metricstoremetrics.NewReaderDecorator(reader, metricsReaderMetricsFactory), nil
 }

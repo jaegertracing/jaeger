@@ -23,7 +23,7 @@ func TestSuccessfulUnderlyingCalls(t *testing.T) {
 	mf := metricstest.NewFactory(0)
 
 	mockReader := mocks.Reader{}
-	mrs := metricstoremetrics.NewReadMetricsDecorator(&mockReader, mf)
+	mrs := metricstoremetrics.NewReaderDecorator(&mockReader, mf)
 	glParams := &metricsstore.LatenciesQueryParameters{}
 	mockReader.On("GetLatencies", context.Background(), glParams).
 		Return(&protometrics.MetricFamily{}, nil)
@@ -96,7 +96,7 @@ func TestFailingUnderlyingCalls(t *testing.T) {
 	mf := metricstest.NewFactory(0)
 
 	mockReader := mocks.Reader{}
-	mrs := metricstoremetrics.NewReadMetricsDecorator(&mockReader, mf)
+	mrs := metricstoremetrics.NewReaderDecorator(&mockReader, mf)
 	glParams := &metricsstore.LatenciesQueryParameters{}
 	mockReader.On("GetLatencies", context.Background(), glParams).
 		Return(&protometrics.MetricFamily{}, errors.New("failure"))
