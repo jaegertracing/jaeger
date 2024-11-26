@@ -190,7 +190,9 @@ func createSession(c *Configuration) (cassandra.Session, error) {
 }
 
 // newSessionPrerequisites creates tables and types before creating a session
-func newSessionPrerequisites(c Configuration) error {
+func (c *Configuration) newSessionPrerequisites() error {
+  cfg := *c // clone because we need to connect without specifying a keyspace
+  cfg.Schema.Keyspace = ""
 	if !c.Schema.CreateSchema {
 		return nil
 	}
