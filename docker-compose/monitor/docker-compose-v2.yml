@@ -11,6 +11,7 @@ services:
     command: ["--config", "/etc/jaeger/config.yml"]
     ports:
       - "16686:16686"
+      - "8888:8888"
       - "8889:8889"
       - "4317:4317"
       - "4318:4318"
