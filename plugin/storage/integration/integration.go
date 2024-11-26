@@ -235,7 +235,6 @@ func (s *StorageIntegration) testGetLargeSpan(t *testing.T) {
 			duplicateCount++
 		}
 	}
-
 	assert.Positive(t, duplicateCount, "Duplicate SpanIDs should be present in the trace")
 }
 
