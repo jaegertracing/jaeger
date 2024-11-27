@@ -44,6 +44,9 @@ func TestValidate_DoesNotReturnErrorWhenRequiredFieldsSet(t *testing.T) {
 		Connection: Connection{
 			Servers: []string{"localhost:9200"},
 		},
+		Schema: Schema{
+			CompactionWindow: time.Minute,
+		},
 	}
 
 	err := cfg.Validate()
