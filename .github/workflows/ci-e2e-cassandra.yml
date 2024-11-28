@@ -31,6 +31,7 @@ jobs:
           major: 5.x
           schema: v004
         exclude:
+        # Exclude v1 as create schema on fly is available for v2 only
         - jaeger-version: v1
           skip-apply-schema: true
     name: ${{ matrix.version.distribution }} ${{ matrix.version.major }} ${{ matrix.jaeger-version }}

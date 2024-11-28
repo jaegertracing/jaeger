@@ -30,8 +30,9 @@ query1-finished;
 `,
 	}
 
+	sc := schemaCreator{}
 	queriesAsBytes := []byte(queriesAsString)
-	queries, err := getQueriesFromBytes(queriesAsBytes)
+	queries, err := sc.getQueriesFromBytes(queriesAsBytes)
 	require.NoError(t, err)
 
 	require.Equal(t, len(expGeneratedQueries), len(queries))
@@ -51,8 +52,8 @@ func TestInvalidQueryTemplate(t *testing.T) {
 	query2;
 	query-3 query-3-continue query-3-finished -- missing semicolon
 	`
-
+	sc := schemaCreator{}
 	queriesAsBytes := []byte(queriesAsString)
-	_, err := getQueriesFromBytes(queriesAsBytes)
+	_, err := sc.getQueriesFromBytes(queriesAsBytes)
 	require.ErrorContains(t, err, "invalid template")
 }
