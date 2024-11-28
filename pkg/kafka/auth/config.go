@@ -88,7 +88,6 @@ func (config *AuthenticationConfig) InitFromViper(configPrefix string, v *viper.
 		opts.Enabled = true
 		config.TLS = opts.ToOtelClientConfig()
 	}
-	fmt.Printf("%v \n", opts.Enabled)
 	config.PlainText.Username = v.GetString(configPrefix + plainTextPrefix + suffixPlainTextUsername)
 	config.PlainText.Password = v.GetString(configPrefix + plainTextPrefix + suffixPlainTextPassword)
 	config.PlainText.Mechanism = v.GetString(configPrefix + plainTextPrefix + suffixPlainTextMechanism)
