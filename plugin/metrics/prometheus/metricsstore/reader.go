@@ -315,12 +315,12 @@ func logErrorToSpan(span trace.Span, err error) {
 	span.SetStatus(codes.Error, err.Error())
 }
 
-func getHTTPRoundTripper(c *config.Configuration, logger *zap.Logger) (rt http.RoundTripper, err error) {
+func getHTTPRoundTripper(c *config.Configuration, _ *zap.Logger) (rt http.RoundTripper, err error) {
 	var ctlsConfig *tls.Config
-	if c.TLS.Enabled {
-		if ctlsConfig, err = c.TLS.Config(logger); err != nil {
-			return nil, err
-		}
+	ctx := context.Background()
+	ctlsConfig, err = c.TLS.LoadTLSConfig(ctx)
+	if err != nil {
+		return nil, err
 	}
 	// KeepAlive and TLSHandshake timeouts are kept to existing Prometheus client's
 	// DefaultRoundTripper to simplify user configuration and may be made configurable when required.
