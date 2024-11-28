@@ -14,7 +14,6 @@ import (
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
-	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 	"go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/zap"
@@ -44,7 +43,6 @@ type Factory struct {
 	services           *ClientPluginServices
 	tracedRemoteConn   *grpc.ClientConn
 	untracedRemoteConn *grpc.ClientConn
-	meterProvider      metric.MeterProvider
 }
 
 // NewFactory creates a new Factory.
