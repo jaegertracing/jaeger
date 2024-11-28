@@ -17,7 +17,7 @@ import (
 //go:embed v004-go-tmpl.cql.tmpl
 var schemaFile embed.FS
 
-type TemplateParams struct {
+type templateParams struct {
 	// Keyspace in which tables and types will be created for storage
 	Keyspace string
 	// Replication is the replication strategy used. Ex: "{'class': 'NetworkTopologyStrategy', 'replication_factor': '1' }"
@@ -35,8 +35,8 @@ type schemaCreator struct {
 	schema  Schema
 }
 
-func (sc *schemaCreator) constructTemplateParams() TemplateParams {
-	return TemplateParams{
+func (sc *schemaCreator) constructTemplateParams() templateParams {
+	return templateParams{
 		Keyspace:                  sc.schema.Keyspace,
 		Replication:               fmt.Sprintf("{'class': 'NetworkTopologyStrategy', 'replication_factor': '%v' }", sc.schema.ReplicationFactor),
 		CompactionWindowInMinutes: int64(sc.schema.CompactionWindow / time.Minute),
@@ -45,7 +45,7 @@ func (sc *schemaCreator) constructTemplateParams() TemplateParams {
 	}
 }
 
-func (sc *schemaCreator) getQueryFileAsBytes(fileName string, params TemplateParams) ([]byte, error) {
+func (sc *schemaCreator) getQueryFileAsBytes(fileName string, params templateParams) ([]byte, error) {
 	tmpl, err := template.ParseFS(schemaFile, fileName)
 	if err != nil {
 		return nil, err
