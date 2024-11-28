@@ -317,8 +317,7 @@ func logErrorToSpan(span trace.Span, err error) {
 
 func getHTTPRoundTripper(c *config.Configuration, _ *zap.Logger) (rt http.RoundTripper, err error) {
 	var ctlsConfig *tls.Config
-	ctx := context.Background()
-	ctlsConfig, err = c.TLS.LoadTLSConfig(ctx)
+	ctlsConfig, err := c.TLS.LoadTLSConfig(context.Background())
 	if err != nil {
 		return nil, err
 	}
