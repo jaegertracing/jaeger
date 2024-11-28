@@ -13,9 +13,9 @@ type DecoratorFactory struct {
 	metricsFactory metrics.Factory
 }
 
-func NewDecoratorFactory(sf Factory, mf metrics.Factory) *DecoratorFactory {
+func NewDecoratorFactory(f Factory, mf metrics.Factory) *DecoratorFactory {
 	return &DecoratorFactory{
-		delegate:       sf,
+		delegate:       f,
 		metricsFactory: mf,
 	}
 }
