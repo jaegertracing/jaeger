@@ -203,7 +203,7 @@ func (c *Configuration) newSessionPrerequisites() error {
 		return err
 	}
 
-	return generateSchemaIfNotPresent(session, &cfg.Schema)
+	return generateSchemaIfNotPresent(session, &c.Schema)
 }
 
 // NewSession creates a new Cassandra session
