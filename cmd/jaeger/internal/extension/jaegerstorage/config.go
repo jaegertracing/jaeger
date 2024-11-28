@@ -55,10 +55,15 @@ type MetricBackend struct {
 	Prometheus *promCfg.Configuration `mapstructure:"prometheus"`
 }
 
+// Roles defines the mapping of each storage roles to their respective backend.
+// Each field represents a specific role that can be assigned to a backend.
 type Roles struct {
-	Traces        string `mapstructure:"traces"`
+	// Traces contains the name of the backend store that will be storing traces.
+	Traces string `mapstructure:"traces"`
+	// TracesArchive contains the name of the backend store that will be storing archived traces.
 	TracesArchive string `mapstructure:"traces_archive"`
-	Metrics       string `mapstructure:"metrics"`
+	// Metrics contains the name of the backend store that will be storing metrics.
+	Metrics string `mapstructure:"metrics"`
 }
 
 // Unmarshal implements confmap.Unmarshaler. This allows us to provide
@@ -114,6 +119,7 @@ func (cfg *Config) Validate() error {
 			return fmt.Errorf("empty backend configuration for storage '%s'", name)
 		}
 	}
+	// TODO: implement validation for roles
 	return nil
 }
 
