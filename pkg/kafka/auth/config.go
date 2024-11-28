@@ -9,6 +9,7 @@ import (
 
 	"github.com/Shopify/sarama"
 	"github.com/spf13/viper"
+	"go.opentelemetry.io/collector/config/configtls"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
@@ -30,10 +31,10 @@ var authTypes = []string{
 
 // AuthenticationConfig describes the configuration properties needed authenticate with kafka cluster
 type AuthenticationConfig struct {
-	Authentication string          `mapstructure:"type"`
-	Kerberos       KerberosConfig  `mapstructure:"kerberos"`
-	TLS            tlscfg.Options  `mapstructure:"tls"`
-	PlainText      PlainTextConfig `mapstructure:"plaintext"`
+	Authentication string                 `mapstructure:"type"`
+	Kerberos       KerberosConfig         `mapstructure:"kerberos"`
+	TLS            configtls.ClientConfig `mapstructure:"tls"`
+	PlainText      PlainTextConfig        `mapstructure:"plaintext"`
 }
 
 // SetConfiguration set configure authentication into sarama config structure
@@ -42,7 +43,7 @@ func (config *AuthenticationConfig) SetConfiguration(saramaConfig *sarama.Config
 	if strings.Trim(authentication, " ") == "" {
 		authentication = none
 	}
-	if config.Authentication == tls || config.TLS.Enabled {
+	if config.Authentication == tls {
 		err := setTLSConfiguration(&config.TLS, saramaConfig, logger)
 		if err != nil {
 			return err
@@ -79,15 +80,15 @@ func (config *AuthenticationConfig) InitFromViper(configPrefix string, v *viper.
 		Prefix: configPrefix,
 	}
 
-	var err error
-	config.TLS, err = tlsClientConfig.InitFromViper(v)
+	opts, err := tlsClientConfig.InitFromViper(v)
 	if err != nil {
 		return fmt.Errorf("failed to process Kafka TLS options: %w", err)
 	}
 	if config.Authentication == tls {
-		config.TLS.Enabled = true
+		opts.Enabled = true
+		config.TLS = opts.ToOtelClientConfig()
 	}
-
+	fmt.Printf("%v \n", opts.Enabled)
 	config.PlainText.Username = v.GetString(configPrefix + plainTextPrefix + suffixPlainTextUsername)
 	config.PlainText.Password = v.GetString(configPrefix + plainTextPrefix + suffixPlainTextPassword)
 	config.PlainText.Mechanism = v.GetString(configPrefix + plainTextPrefix + suffixPlainTextMechanism)

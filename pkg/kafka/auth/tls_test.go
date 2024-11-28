@@ -9,20 +9,16 @@ import (
 	"github.com/Shopify/sarama"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/config/configtls"
 	"go.uber.org/zap/zaptest"
-
-	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 )
 
 func TestSetTLSConfiguration(t *testing.T) {
 	logger := zaptest.NewLogger(t)
 	saramaConfig := sarama.NewConfig()
-	tlsConfig := &tlscfg.Options{
-		Enabled: true,
-	}
+	tlsConfig := &configtls.ClientConfig{}
 	err := setTLSConfiguration(tlsConfig, saramaConfig, logger)
 	require.NoError(t, err)
 	assert.True(t, saramaConfig.Net.TLS.Enable)
 	assert.NotNil(t, saramaConfig.Net.TLS.Config)
-	defer tlsConfig.Close()
 }
