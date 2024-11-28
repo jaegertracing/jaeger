@@ -55,14 +55,14 @@ type MetricBackend struct {
 	Prometheus *promCfg.Configuration `mapstructure:"prometheus"`
 }
 
-// Roles defines the mapping of each storage roles to their respective backend.
-// Each field represents a specific role that can be assigned to a backend.
+// Roles defines the association between storage roles and their corresponding backends.
+// Each field specifies the name of the backend responsible for handling a particular role.
 type Roles struct {
-	// Traces contains the name of the backend store that will be storing traces.
+	// Traces specifies the name of the backend responsible for storing traces.
 	Traces string `mapstructure:"traces"`
-	// TracesArchive contains the name of the backend store that will be storing archived traces.
+	// TracesArchive specifies the name of the backend responsible for storing archived traces.
 	TracesArchive string `mapstructure:"traces_archive"`
-	// Metrics contains the name of the backend store that will be storing metrics.
+	// Metrics specifies the name of the backend responsible for storing metrics.
 	Metrics string `mapstructure:"metrics"`
 }
 
