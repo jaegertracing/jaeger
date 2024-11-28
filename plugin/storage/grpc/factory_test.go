@@ -28,7 +28,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
-	"github.com/jaegertracing/jaeger/pkg/telemetery"
+	"github.com/jaegertracing/jaeger/pkg/telemetry"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared"
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared/mocks"
@@ -110,7 +110,7 @@ func TestNewFactoryError(t *testing.T) {
 			Auth: &configauth.Authentication{},
 		},
 	}
-	telset := telemetery.Setting{
+	telset := telemetry.Setting{
 		Logger: zap.NewNop(),
 		LeveledMeterProvider: func(_ configtelemetry.Level) metric.MeterProvider {
 			return noop.NewMeterProvider()
@@ -188,7 +188,7 @@ func TestGRPCStorageFactoryWithConfig(t *testing.T) {
 			Enabled: true,
 		},
 	}
-	telset := telemetery.Setting{
+	telset := telemetry.Setting{
 		Logger: zap.NewNop(),
 		LeveledMeterProvider: func(_ configtelemetry.Level) metric.MeterProvider {
 			return noop.NewMeterProvider()

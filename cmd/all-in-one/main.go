@@ -33,7 +33,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/jtracer"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
-	"github.com/jaegertracing/jaeger/pkg/telemetery"
+	"github.com/jaegertracing/jaeger/pkg/telemetry"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/pkg/version"
 	metricsPlugin "github.com/jaegertracing/jaeger/plugin/metrics"
@@ -159,11 +159,11 @@ by default uses only in-memory database.`,
 				log.Fatal(err)
 			}
 
-			telset := telemetery.Setting{
+			telset := telemetry.Setting{
 				Logger:         svc.Logger,
 				TracerProvider: tracer.OTEL,
 				Metrics:        queryMetricsFactory,
-				ReportStatus:   telemetery.HCAdapter(svc.HC()),
+				ReportStatus:   telemetry.HCAdapter(svc.HC()),
 				LeveledMeterProvider: func(_ configtelemetry.Level) metric.MeterProvider {
 					return noop.NewMeterProvider()
 				},
@@ -222,7 +222,7 @@ func startQuery(
 	depReader dependencystore.Reader,
 	metricsQueryService querysvc.MetricsQueryService,
 	tm *tenancy.Manager,
-	telset telemetery.Setting,
+	telset telemetry.Setting,
 ) *queryApp.Server {
 	spanReader = spanstoremetrics.NewReaderDecorator(spanReader, telset.Metrics)
 	qs := querysvc.NewQueryService(spanReader, depReader, *queryOpts)

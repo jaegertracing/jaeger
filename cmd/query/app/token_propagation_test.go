@@ -28,7 +28,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/jtracer"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
-	"github.com/jaegertracing/jaeger/pkg/telemetery"
+	"github.com/jaegertracing/jaeger/pkg/telemetry"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/plugin/storage/es"
 	"github.com/jaegertracing/jaeger/ports"
@@ -88,10 +88,10 @@ func runQueryService(t *testing.T, esURL string) *Server {
 	require.NoError(t, err)
 
 	querySvc := querysvc.NewQueryService(spanReader, nil, querysvc.QueryServiceOptions{})
-	telset := telemetery.Setting{
+	telset := telemetry.Setting{
 		Logger:         flagsSvc.Logger,
 		TracerProvider: jtracer.NoOp().OTEL,
-		ReportStatus:   telemetery.HCAdapter(flagsSvc.HC()),
+		ReportStatus:   telemetry.HCAdapter(flagsSvc.HC()),
 		LeveledMeterProvider: func(_ configtelemetry.Level) metric.MeterProvider {
 			return noop.NewMeterProvider()
 		},

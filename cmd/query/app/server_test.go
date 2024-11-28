@@ -39,7 +39,7 @@ import (
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	"github.com/jaegertracing/jaeger/pkg/jtracer"
-	"github.com/jaegertracing/jaeger/pkg/telemetery"
+	"github.com/jaegertracing/jaeger/pkg/telemetry"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/ports"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
@@ -49,11 +49,11 @@ import (
 
 var testCertKeyLocation = "../../../pkg/config/tlscfg/testdata"
 
-func initTelSet(logger *zap.Logger, tracerProvider *jtracer.JTracer, hc *healthcheck.HealthCheck) telemetery.Setting {
-	return telemetery.Setting{
+func initTelSet(logger *zap.Logger, tracerProvider *jtracer.JTracer, hc *healthcheck.HealthCheck) telemetry.Setting {
+	return telemetry.Setting{
 		Logger:         logger,
 		TracerProvider: tracerProvider.OTEL,
-		ReportStatus:   telemetery.HCAdapter(hc),
+		ReportStatus:   telemetry.HCAdapter(hc),
 		Host:           componenttest.NewNopHost(),
 		LeveledMeterProvider: func(_ configtelemetry.Level) metric.MeterProvider {
 			return noop.NewMeterProvider()
