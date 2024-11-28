@@ -12,7 +12,6 @@ require (
 	github.com/bsm/sarama-cluster v2.1.13+incompatible
 	github.com/crossdock/crossdock-go v0.0.0-20160816171116-049aabb0122b
 	github.com/dgraph-io/badger/v4 v4.4.0
-	github.com/docker/docker v27.3.1+incompatible
 	github.com/elastic/go-elasticsearch/v8 v8.16.0
 	github.com/fsnotify/fsnotify v1.8.0
 	github.com/go-logr/zapr v1.3.0
@@ -103,27 +102,12 @@ require (
 )
 
 require (
-	github.com/Azure/go-ansiterm v0.0.0-20210617225240-d185dfc1b5a1 // indirect
-	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/antchfx/xmlquery v1.4.2 // indirect
 	github.com/antchfx/xpath v1.3.2 // indirect
-	github.com/containerd/fifo v1.1.0 // indirect
-	github.com/containerd/log v0.1.0 // indirect
 	github.com/dgraph-io/ristretto/v2 v2.0.0 // indirect
-	github.com/distribution/reference v0.6.0 // indirect
-	github.com/docker/go-connections v0.5.0 // indirect
-	github.com/docker/go-metrics v0.0.1 // indirect
-	github.com/docker/go-units v0.5.0 // indirect
 	github.com/ebitengine/purego v0.8.1 // indirect
 	github.com/expr-lang/expr v1.16.9 // indirect
-	github.com/moby/docker-image-spec v1.3.1 // indirect
-	github.com/moby/sys/userns v0.1.0 // indirect
-	github.com/moby/term v0.5.0 // indirect
-	github.com/morikuni/aec v1.0.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/status v0.114.0 // indirect
-	github.com/opencontainers/go-digest v1.0.0 // indirect
-	github.com/opencontainers/image-spec v1.1.0 // indirect
-	github.com/sirupsen/logrus v1.9.3 // indirect
 	go.opentelemetry.io/collector/connector/connectortest v0.114.0 // indirect
 	go.opentelemetry.io/collector/consumer/consumererror v0.114.0 // indirect
 	go.opentelemetry.io/collector/consumer/consumererror/consumererrorprofiles v0.114.0 // indirect
@@ -134,8 +118,6 @@ require (
 	go.opentelemetry.io/collector/pipeline/pipelineprofiles v0.114.0 // indirect
 	go.opentelemetry.io/collector/receiver/receivertest v0.114.0 // indirect
 	go.opentelemetry.io/contrib/bridges/otelzap v0.6.0 // indirect
-	golang.org/x/time v0.5.0 // indirect
-	gotest.tools/v3 v3.5.1 // indirect
 )
 
 require (
@@ -267,7 +249,7 @@ require (
 	go.opentelemetry.io/collector/processor/processorprofiles v0.114.0 // indirect
 	go.opentelemetry.io/collector/receiver/receiverprofiles v0.114.0 // indirect
 	go.opentelemetry.io/collector/semconv v0.114.0 // indirect
-	go.opentelemetry.io/collector/service v0.114.0
+	go.opentelemetry.io/collector/service v0.114.0 // indirect
 	go.opentelemetry.io/contrib/config v0.10.0 // indirect
 	go.opentelemetry.io/contrib/propagators/b3 v1.31.0 // indirect
 	go.opentelemetry.io/contrib/zpages v0.56.0 // indirect
