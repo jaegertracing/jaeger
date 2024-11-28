@@ -31,10 +31,10 @@ var authTypes = []string{
 
 // AuthenticationConfig describes the configuration properties needed authenticate with kafka cluster
 type AuthenticationConfig struct {
-	Authentication string                 `mapstructure:"type"`
-	Kerberos       KerberosConfig         `mapstructure:"kerberos"`
-	TLS            configtls.ClientConfig `mapstructure:"tls"`
-	PlainText      PlainTextConfig        `mapstructure:"plaintext"`
+	Authentication string
+	Kerberos       KerberosConfig
+	TLS            configtls.ClientConfig
+	PlainText      PlainTextConfig
 }
 
 // SetConfiguration set configure authentication into sarama config structure
@@ -44,8 +44,7 @@ func (config *AuthenticationConfig) SetConfiguration(saramaConfig *sarama.Config
 		authentication = none
 	}
 	if config.Authentication == tls {
-		err := setTLSConfiguration(&config.TLS, saramaConfig, logger)
-		if err != nil {
+		if err := setTLSConfiguration(&config.TLS, saramaConfig, logger); err != nil {
 			return err
 		}
 	}
@@ -80,13 +79,13 @@ func (config *AuthenticationConfig) InitFromViper(configPrefix string, v *viper.
 		Prefix: configPrefix,
 	}
 
-	opts, err := tlsClientConfig.InitFromViper(v)
+	tlsOpts, err := tlsClientConfig.InitFromViper(v)
 	if err != nil {
 		return fmt.Errorf("failed to process Kafka TLS options: %w", err)
 	}
 	if config.Authentication == tls {
-		opts.Enabled = true
-		config.TLS = opts.ToOtelClientConfig()
+		tlsOpts.Enabled = true
+		config.TLS = tlsOpts.ToOtelClientConfig()
 	}
 	config.PlainText.Username = v.GetString(configPrefix + plainTextPrefix + suffixPlainTextUsername)
 	config.PlainText.Password = v.GetString(configPrefix + plainTextPrefix + suffixPlainTextPassword)

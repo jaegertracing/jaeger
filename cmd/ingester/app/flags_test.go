@@ -10,7 +10,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.opentelemetry.io/collector/config/configtls"
 
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/kafka/auth"
@@ -64,15 +63,15 @@ func TestTLSFlags(t *testing.T) {
 		},
 		{
 			flags:    []string{"--kafka.consumer.authentication=kerberos", "--kafka.consumer.tls.enabled=true"},
-			expected: auth.AuthenticationConfig{Authentication: "kerberos", Kerberos: kerb, TLS: configtls.ClientConfig{}, PlainText: plain},
+			expected: auth.AuthenticationConfig{Authentication: "kerberos", Kerberos: kerb, PlainText: plain},
 		},
 		{
 			flags:    []string{"--kafka.consumer.authentication=tls"},
-			expected: auth.AuthenticationConfig{Authentication: "tls", Kerberos: kerb, TLS: configtls.ClientConfig{}, PlainText: plain},
+			expected: auth.AuthenticationConfig{Authentication: "tls", Kerberos: kerb, PlainText: plain},
 		},
 		{
 			flags:    []string{"--kafka.consumer.authentication=tls", "--kafka.consumer.tls.enabled=false"},
-			expected: auth.AuthenticationConfig{Authentication: "tls", Kerberos: kerb, TLS: configtls.ClientConfig{}, PlainText: plain},
+			expected: auth.AuthenticationConfig{Authentication: "tls", Kerberos: kerb, PlainText: plain},
 		},
 	}
 
