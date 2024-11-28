@@ -22,9 +22,9 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/telemetery"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/plugin/metrics/disabled"
-	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/metricsstore"
 	"github.com/jaegertracing/jaeger/storage/metricsstore/metricstoremetrics"
+	"github.com/jaegertracing/jaeger/storage/storagemetrics"
 )
 
 var (
@@ -60,7 +60,7 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 	if err != nil {
 		return fmt.Errorf("cannot find primary storage %s: %w", s.config.Storage.TracesPrimary, err)
 	}
-	f = storage.NewDecoratorFactory(f, queryMetricsFactory)
+	f = storagemetrics.NewDecoratorFactory(f, queryMetricsFactory)
 
 	spanReader, err := f.CreateSpanReader()
 	if err != nil {
