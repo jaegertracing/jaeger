@@ -30,6 +30,9 @@ jobs:
         - distribution: cassandra
           major: 5.x
           schema: v004
+        exclude:
+        - jaeger-version: v1
+          skip-apply-schema: true
     name: ${{ matrix.version.distribution }} ${{ matrix.version.major }} ${{ matrix.jaeger-version }}
     steps:
     - name: Harden Runner
