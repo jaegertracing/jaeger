@@ -34,6 +34,7 @@ extensions:
         cassandra:
           schema: 
             keyspace: "jaeger_v1_dc1"
+            create: "${env:SKIP_APPLY_SCHEMA:-false}"
           connection:
             auth: 
               basic:
@@ -45,6 +46,7 @@ extensions:
         cassandra:
           schema: 
             keyspace: "jaeger_v1_dc1"
+            create: "${env:SKIP_APPLY_SCHEMA:-false}"
           connection: 
             auth:
               basic: 
