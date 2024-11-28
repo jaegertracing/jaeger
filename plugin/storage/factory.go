@@ -75,7 +75,7 @@ func AllSamplingStorageTypes() []string {
 }
 
 var ( // interface comformance checks
-	_ storage.Factory        = (*Factory)(nil)
+	_ storage.BaseFactory    = (*Factory)(nil)
 	_ storage.ArchiveFactory = (*Factory)(nil)
 	_ io.Closer              = (*Factory)(nil)
 	_ plugin.Configurable    = (*Factory)(nil)
@@ -84,38 +84,64 @@ var ( // interface comformance checks
 // Factory implements storage.Factory interface as a meta-factory for storage components.
 type Factory struct {
 	FactoryConfig
-	telset telemetry.Setting
-
+	telset                 telemetry.Setting
 	factories              map[string]storage.Factory
 	downsamplingFlagsAdded bool
 }
 
 // NewFactory creates the meta-factory.
-func NewFactory(config FactoryConfig, telset telemetry.Setting) (*Factory, error) {
+// The factories map is populated with relevant keys but nil values.
+func NewFactory(config FactoryConfig) *Factory {
 	f := &Factory{
 		FactoryConfig: config,
-		telset:        telset,
+		factories: map[string]storage.Factory{
+			config.SpanReaderType:          nil,
+			config.DependenciesStorageType: nil,
+		},
 	}
-	uniqueTypes := map[string]struct{}{
-		f.SpanReaderType:          {},
-		f.DependenciesStorageType: {},
-	}
-	for _, storageType := range f.SpanWriterTypes {
-		uniqueTypes[storageType] = struct{}{}
+	for _, storageType := range config.SpanWriterTypes {
+		f.factories[storageType] = nil
 	}
 	// skip SamplingStorageType if it is empty. See CreateSamplingStoreFactory for details
 	if f.SamplingStorageType != "" {
-		uniqueTypes[f.SamplingStorageType] = struct{}{}
+		f.factories[f.SamplingStorageType] = nil
 	}
+	return f
+}
+
+// Initialize initializes the meta-factory.
+func (f *Factory) Initialize(telset telemetry.Setting) error {
+	f.telset = telset
+	f.publishOpts()
+	if err := f.buildFactories(); err != nil {
+		return err
+	}
+	return f.initFactories()
+}
+
+func (f *Factory) buildFactories() error {
+	// reinitialize f.factories map with actual factories
+	uniqueTypes := f.factories
 	f.factories = make(map[string]storage.Factory)
-	for t := range uniqueTypes {
-		ff, err := f.getFactoryOfType(t)
+	for kind := range uniqueTypes {
+		ff, err := f.getFactoryOfType(kind)
 		if err != nil {
-			return nil, err
+			return err
 		}
-		f.factories[t] = ff
+		f.factories[kind] = ff
 	}
-	return f, nil
+	return nil
+}
+
+// initFactories initializes all factories. It is split from InitWithTelemetry()
+// to make testing easier.
+func (f *Factory) initFactories() error {
+	for _, factory := range f.factories {
+		if err := factory.Initialize(); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (f *Factory) getFactoryOfType(factoryType string) (storage.Factory, error) {
@@ -137,18 +163,6 @@ func (f *Factory) getFactoryOfType(factoryType string) (storage.Factory, error) 
 	default:
 		return nil, fmt.Errorf("unknown storage type %s. Valid types are %v", factoryType, AllStorageTypes)
 	}
-}
-
-// Initialize implements storage.Factory.
-func (f *Factory) Initialize() error {
-	for _, factory := range f.factories {
-		if err := factory.Initialize(); err != nil {
-			return err
-		}
-	}
-	f.publishOpts()
-
-	return nil
 }
 
 // CreateSpanReader implements storage.Factory.

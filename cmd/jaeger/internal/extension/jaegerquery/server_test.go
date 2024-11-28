@@ -26,7 +26,6 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	"github.com/jaegertracing/jaeger/internal/grpctest"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
@@ -62,7 +61,7 @@ func (ff fakeFactory) CreateSpanWriter() (spanstore.Writer, error) {
 	return &spanstoremocks.Writer{}, nil
 }
 
-func (ff fakeFactory) Initialize(metrics.Factory, *zap.Logger) error {
+func (ff fakeFactory) Initialize() error {
 	if ff.name == "need-initialize-error" {
 		return errors.New("test-error")
 	}

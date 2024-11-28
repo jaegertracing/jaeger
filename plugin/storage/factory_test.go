@@ -38,38 +38,37 @@ func defaultCfg() FactoryConfig {
 	}
 }
 
+// template function
+func assertNonEmptyKey[T any](t *testing.T, m map[string]T, key string) {
+	require.NotEmpty(t, m)
+	_, ok := m[key]
+	assert.True(t, ok, "key %s is expected ", key)
+}
+
 func TestNewFactory(t *testing.T) {
-	f, err := NewFactory(defaultCfg(), telemetry.NoopSettings())
-	require.NoError(t, err)
-	assert.NotEmpty(t, f.factories)
-	assert.NotEmpty(t, f.factories[cassandraStorageType])
+	f := NewFactory(defaultCfg())
 	assert.Equal(t, cassandraStorageType, f.SpanWriterTypes[0])
 	assert.Equal(t, cassandraStorageType, f.SpanReaderType)
 	assert.Equal(t, cassandraStorageType, f.DependenciesStorageType)
+	assertNonEmptyKey(t, f.factories, cassandraStorageType)
 
-	f, err = NewFactory(FactoryConfig{
+	f = NewFactory(FactoryConfig{
 		SpanWriterTypes:         []string{cassandraStorageType, kafkaStorageType, badgerStorageType},
 		SpanReaderType:          elasticsearchStorageType,
 		DependenciesStorageType: memoryStorageType,
-	}, telemetry.NoopSettings())
-	require.NoError(t, err)
-	assert.NotEmpty(t, f.factories)
-	assert.NotEmpty(t, f.factories[cassandraStorageType])
-	assert.NotNil(t, f.factories[kafkaStorageType])
-	assert.NotEmpty(t, f.factories[elasticsearchStorageType])
-	assert.NotNil(t, f.factories[memoryStorageType])
+	})
+	assertNonEmptyKey(t, f.factories, cassandraStorageType)
+	assertNonEmptyKey(t, f.factories, kafkaStorageType)
+	assertNonEmptyKey(t, f.factories, badgerStorageType)
+	assertNonEmptyKey(t, f.factories, elasticsearchStorageType)
+	assertNonEmptyKey(t, f.factories, memoryStorageType)
 	assert.Equal(t, []string{cassandraStorageType, kafkaStorageType, badgerStorageType}, f.SpanWriterTypes)
 	assert.Equal(t, elasticsearchStorageType, f.SpanReaderType)
 	assert.Equal(t, memoryStorageType, f.DependenciesStorageType)
 
-	_, err = NewFactory(
-		FactoryConfig{SpanWriterTypes: []string{"x"}, DependenciesStorageType: "y", SpanReaderType: "z"},
-		telemetry.NoopSettings(),
-	)
-	require.Error(t, err)
-	expected := "unknown storage type" // could be 'x' or 'y' since code iterates through map.
-	assert.Equal(t, expected, err.Error()[0:len(expected)])
-
+	f = NewFactory(FactoryConfig{SpanWriterTypes: []string{"x"}, DependenciesStorageType: "y", SpanReaderType: "z"})
+	err := f.Initialize(telemetry.NoopSettings())
+	require.ErrorContains(t, err, "unknown storage type")
 	require.NoError(t, f.Close())
 }
 
@@ -86,39 +85,36 @@ func TestClose(t *testing.T) {
 }
 
 func TestInitialize(t *testing.T) {
-	f, err := NewFactory(defaultCfg(), telemetry.NoopSettings())
+	f := NewFactory(defaultCfg())
+	f.telset = telemetry.NoopSettings()
+	assertNonEmptyKey(t, f.factories, cassandraStorageType)
+
+	stub := new(mocks.Factory)
+	f.factories[cassandraStorageType] = stub
+	stub.On("Initialize").Return(nil)
+	err := f.initFactories()
 	require.NoError(t, err)
-	assert.NotEmpty(t, f.factories)
-	assert.NotEmpty(t, f.factories[cassandraStorageType])
 
-	mock := new(mocks.Factory)
-	f.factories[cassandraStorageType] = mock
-
-	mock.On("Initialize").Return(nil)
-	require.NoError(t, f.Initialize())
-
-	mock = new(mocks.Factory)
-	f.factories[cassandraStorageType] = mock
-	mock.On("Initialize").Return(errors.New("init-error"))
-	require.EqualError(t, f.Initialize(), "init-error")
+	stub = new(mocks.Factory)
+	f.factories[cassandraStorageType] = stub
+	stub.On("Initialize").Return(errors.New("init-error"))
+	err = f.initFactories()
+	require.ErrorContains(t, err, "init-error")
 }
 
 func TestCreate(t *testing.T) {
-	f, err := NewFactory(defaultCfg(), telemetry.NoopSettings())
-	require.NoError(t, err)
-	assert.NotEmpty(t, f.factories)
-	assert.NotEmpty(t, f.factories[cassandraStorageType])
+	f := NewFactory(defaultCfg())
 
-	mock := new(mocks.Factory)
-	f.factories[cassandraStorageType] = mock
+	stub := new(mocks.Factory)
+	f.factories[cassandraStorageType] = stub
 
 	spanReader := new(spanStoreMocks.Reader)
 	spanWriter := new(spanStoreMocks.Writer)
 	depReader := new(depStoreMocks.Reader)
 
-	mock.On("CreateSpanReader").Return(spanReader, errors.New("span-reader-error"))
-	mock.On("CreateSpanWriter").Once().Return(spanWriter, errors.New("span-writer-error"))
-	mock.On("CreateDependencyReader").Return(depReader, errors.New("dep-reader-error"))
+	stub.On("CreateSpanReader").Return(spanReader, errors.New("span-reader-error"))
+	stub.On("CreateSpanWriter").Once().Return(spanWriter, errors.New("span-writer-error"))
+	stub.On("CreateDependencyReader").Return(depReader, errors.New("dep-reader-error"))
 
 	r, err := f.CreateSpanReader()
 	assert.Equal(t, spanReader, r)
@@ -138,18 +134,18 @@ func TestCreate(t *testing.T) {
 	_, err = f.CreateArchiveSpanWriter()
 	require.EqualError(t, err, "archive storage not supported")
 
-	mock.On("CreateSpanWriter").Return(spanWriter, nil)
-	mock.On("Initialize").Return(nil)
-	f.Initialize()
+	stub.On("Initialize").Return(nil)
+	stub.On("CreateSpanWriter").Return(spanWriter, nil)
+	f.initFactories()
 	w, err = f.CreateSpanWriter()
 	require.NoError(t, err)
 	assert.Equal(t, spanWriter, w)
 }
 
 func TestCreateDownsamplingWriter(t *testing.T) {
-	f, err := NewFactory(defaultCfg(), telemetry.NoopSettings())
-	require.NoError(t, err)
-	assert.NotEmpty(t, f.factories[cassandraStorageType])
+	f := NewFactory(defaultCfg())
+	f.telset = telemetry.NoopSettings()
+
 	mock := new(mocks.Factory)
 	f.factories[cassandraStorageType] = mock
 	spanWriter := new(spanStoreMocks.Writer)
@@ -167,7 +163,7 @@ func TestCreateDownsamplingWriter(t *testing.T) {
 	for _, param := range testParams {
 		t.Run(param.writerType, func(t *testing.T) {
 			f.DownsamplingRatio = param.ratio
-			f.Initialize()
+			f.initFactories()
 			newWriter, err := f.CreateSpanWriter()
 			require.NoError(t, err)
 			// Currently directly assertEqual doesn't work since DownsamplingWriter initializes with different
@@ -180,8 +176,7 @@ func TestCreateDownsamplingWriter(t *testing.T) {
 func TestCreateMulti(t *testing.T) {
 	cfg := defaultCfg()
 	cfg.SpanWriterTypes = append(cfg.SpanWriterTypes, elasticsearchStorageType)
-	f, err := NewFactory(cfg, telemetry.NoopSettings())
-	require.NoError(t, err)
+	f := NewFactory(cfg)
 
 	mock := new(mocks.Factory)
 	mock2 := new(mocks.Factory)
@@ -199,18 +194,17 @@ func TestCreateMulti(t *testing.T) {
 
 	mock.On("CreateSpanWriter").Return(spanWriter, nil)
 	mock2.On("CreateSpanWriter").Return(spanWriter2, nil)
+
 	mock.On("Initialize").Return(nil)
 	mock2.On("Initialize").Return(nil)
-	f.Initialize()
+	f.initFactories()
 	w, err = f.CreateSpanWriter()
 	require.NoError(t, err)
 	assert.Equal(t, spanstore.NewCompositeWriter(spanWriter, spanWriter2), w)
 }
 
 func TestCreateArchive(t *testing.T) {
-	f, err := NewFactory(defaultCfg(), telemetry.NoopSettings())
-	require.NoError(t, err)
-	assert.NotEmpty(t, f.factories[cassandraStorageType])
+	f := NewFactory(defaultCfg())
 
 	mock := &struct {
 		mocks.Factory
@@ -234,10 +228,7 @@ func TestCreateArchive(t *testing.T) {
 }
 
 func TestCreateError(t *testing.T) {
-	f, err := NewFactory(defaultCfg(), telemetry.NoopSettings())
-	require.NoError(t, err)
-	assert.NotEmpty(t, f.factories)
-	assert.NotEmpty(t, f.factories[cassandraStorageType])
+	f := NewFactory(defaultCfg())
 	delete(f.factories, cassandraStorageType)
 
 	expectedErr := "no cassandra backend registered for span store"
@@ -278,10 +269,7 @@ func TestAllSamplingStorageTypes(t *testing.T) {
 }
 
 func TestCreateSamplingStoreFactory(t *testing.T) {
-	f, err := NewFactory(defaultCfg(), telemetry.NoopSettings())
-	require.NoError(t, err)
-	assert.NotEmpty(t, f.factories)
-	assert.NotEmpty(t, f.factories[cassandraStorageType])
+	f := NewFactory(defaultCfg())
 
 	// if not specified sampling store is chosen from available factories
 	ssFactory, err := f.CreateSamplingStoreFactory()
@@ -297,16 +285,16 @@ func TestCreateSamplingStoreFactory(t *testing.T) {
 	// if an incompatible factory is specified return err
 	cfg := defaultCfg()
 	cfg.SamplingStorageType = "elasticsearch"
-	f, err = NewFactory(cfg, telemetry.NoopSettings())
-	require.NoError(t, err)
+	f = NewFactory(cfg)
+	require.NoError(t, f.buildFactories())
 	ssFactory, err = f.CreateSamplingStoreFactory()
 	assert.Nil(t, ssFactory)
 	require.EqualError(t, err, "storage factory of type elasticsearch does not support sampling store")
 
 	// if a compatible factory is specified then return it
 	cfg.SamplingStorageType = "cassandra"
-	f, err = NewFactory(cfg, telemetry.NoopSettings())
-	require.NoError(t, err)
+	f = NewFactory(cfg)
+	require.NoError(t, f.buildFactories())
 	ssFactory, err = f.CreateSamplingStoreFactory()
 	assert.Equal(t, ssFactory, f.factories["cassandra"])
 	require.NoError(t, err)
@@ -331,10 +319,7 @@ func (f *configurable) InitFromViper(v *viper.Viper, logger *zap.Logger) {
 }
 
 func TestConfigurable(t *testing.T) {
-	f, err := NewFactory(defaultCfg(), telemetry.NoopSettings())
-	require.NoError(t, err)
-	assert.NotEmpty(t, f.factories)
-	assert.NotEmpty(t, f.factories[cassandraStorageType])
+	f := NewFactory(defaultCfg())
 
 	mock := new(configurable)
 	f.factories[cassandraStorageType] = mock
@@ -387,10 +372,8 @@ func TestDefaultDownsamplingWithAddFlags(t *testing.T) {
 }
 
 func TestPublishOpts(t *testing.T) {
-	f, err := NewFactory(defaultCfg(), telemetry.NoopSettings())
-	require.NoError(t, err)
+	f := NewFactory(defaultCfg())
 	f.publishOpts()
-
 	assert.EqualValues(t, 1, expvar.Get(downsamplingRatio).(*expvar.Int).Value())
 	assert.EqualValues(t, 1, expvar.Get(spanStorageType+"-"+f.SpanReaderType).(*expvar.Int).Value())
 }

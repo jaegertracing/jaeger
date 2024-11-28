@@ -17,17 +17,9 @@ import (
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
-// Factory defines an interface for a factory that can create implementations of different storage components.
-// Implementations are also encouraged to implement plugin.Configurable interface.
-//
-// # See also
-//
-// plugin.Configurable
-type Factory interface {
-	// Initialize performs internal initialization of the factory, such as opening connections to the backend store.
-	// It is called after all configuration of the factory itself has been done.
-	Initialize() error
-
+// Same as Factory, but without the Initialize method.
+// It was a design mistake originally to add Initialize to the Factory interface.
+type BaseFactory interface {
 	// CreateSpanReader creates a spanstore.Reader.
 	CreateSpanReader() (spanstore.Reader, error)
 
@@ -36,6 +28,19 @@ type Factory interface {
 
 	// CreateDependencyReader creates a dependencystore.Reader.
 	CreateDependencyReader() (dependencystore.Reader, error)
+}
+
+// Factory defines an interface for a factory that can create implementations of different storage components.
+// Implementations are also encouraged to implement plugin.Configurable interface.
+//
+// # See also
+//
+// plugin.Configurable
+type Factory interface {
+	BaseFactory
+	// Initialize performs internal initialization of the factory, such as opening connections to the backend store.
+	// It is called after all configuration of the factory itself has been done.
+	Initialize() error
 }
 
 // Purger defines an interface that is capable of purging the storage.

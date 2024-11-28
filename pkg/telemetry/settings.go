@@ -13,6 +13,7 @@ import (
 	nooptrace "go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/internal/metrics/otelmetrics"
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
@@ -22,7 +23,7 @@ type Setting struct {
 	Metrics        metrics.Factory
 	MeterProvider  metric.MeterProvider
 	TracerProvider trace.TracerProvider
-	ReportStatus   func(*componentstatus.Event)
+	ReportStatus   func(*componentstatus.Event) // TODO remove this
 	Host           component.Host
 }
 
@@ -54,5 +55,18 @@ func NoopSettings() Setting {
 		TracerProvider: nooptrace.NewTracerProvider(),
 		ReportStatus:   func(*componentstatus.Event) {},
 		Host:           componenttest.NewNopHost(),
+	}
+}
+
+func FromOtelComponent(telset component.TelemetrySettings, host component.Host) Setting {
+	return Setting{
+		Logger:         telset.Logger,
+		Metrics:        otelmetrics.NewFactory(telset.MeterProvider),
+		MeterProvider:  telset.MeterProvider,
+		TracerProvider: telset.TracerProvider,
+		ReportStatus: func(event *componentstatus.Event) {
+			componentstatus.ReportStatus(host, event)
+		},
+		Host: host,
 	}
 }

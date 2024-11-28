@@ -40,12 +40,11 @@ func StartNewRemoteMemoryStorage(t *testing.T) *RemoteMemoryStorage {
 		},
 	}
 	tm := tenancy.NewManager(&opts.Tenancy)
-	storageFactory, err := storage.NewFactory(storage.FactoryConfigFromEnvAndCLI(os.Args, os.Stderr), telset)
-	require.NoError(t, err)
+	storageFactory := storage.NewFactory(storage.FactoryConfigFromEnvAndCLI(os.Args, os.Stderr))
 
 	v, _ := config.Viperize(storageFactory.AddFlags)
 	storageFactory.InitFromViper(v, telset.Logger)
-	require.NoError(t, storageFactory.Initialize())
+	require.NoError(t, storageFactory.Initialize(telset))
 
 	t.Logf("Starting in-process remote storage server on %s", opts.GRPCHostPort)
 	telset.ReportStatus = telemetry.HCAdapter(healthcheck.New())

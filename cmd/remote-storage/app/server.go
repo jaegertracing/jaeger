@@ -36,7 +36,7 @@ type Server struct {
 }
 
 // NewServer creates and initializes Server.
-func NewServer(options *Options, storageFactory storage.Factory, tm *tenancy.Manager, telset telemetry.Setting) (*Server, error) {
+func NewServer(options *Options, storageFactory storage.BaseFactory, tm *tenancy.Manager, telset telemetry.Setting) (*Server, error) {
 	handler, err := createGRPCHandler(storageFactory, telset.Logger)
 	if err != nil {
 		return nil, err
@@ -54,7 +54,7 @@ func NewServer(options *Options, storageFactory storage.Factory, tm *tenancy.Man
 	}, nil
 }
 
-func createGRPCHandler(f storage.Factory, logger *zap.Logger) (*shared.GRPCHandler, error) {
+func createGRPCHandler(f storage.BaseFactory, logger *zap.Logger) (*shared.GRPCHandler, error) {
 	reader, err := f.CreateSpanReader()
 	if err != nil {
 		return nil, err

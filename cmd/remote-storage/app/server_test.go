@@ -12,10 +12,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
-	"go.opentelemetry.io/collector/component/componentstatus"
-	"go.opentelemetry.io/collector/config/configtelemetry"
-	"go.opentelemetry.io/otel/metric"
-	"go.opentelemetry.io/otel/metric/noop"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest/observer"
 	"google.golang.org/grpc"
@@ -45,19 +41,12 @@ func TestNewServer_CreateStorageErrors(t *testing.T) {
 	factory.On("CreateSpanWriter").Return(nil, nil)
 	factory.On("CreateDependencyReader").Return(nil, errors.New("no deps")).Once()
 	factory.On("CreateDependencyReader").Return(nil, nil)
-	telset := telemetry.Setting{
-		Logger:       zap.NewNop(),
-		ReportStatus: func(*componentstatus.Event) {},
-		LeveledMeterProvider: func(_ configtelemetry.Level) metric.MeterProvider {
-			return noop.NewMeterProvider()
-		},
-	}
 	f := func() (*Server, error) {
 		return NewServer(
 			&Options{GRPCHostPort: ":0"},
 			factory,
 			tenancy.NewManager(&tenancy.Options{}),
-			telset,
+			telemetry.NoopSettings(),
 		)
 	}
 	_, err := f()

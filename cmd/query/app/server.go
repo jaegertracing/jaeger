@@ -145,9 +145,9 @@ func createGRPCServer(
 		ctx,
 		telset.Host,
 		component.TelemetrySettings{
-			Logger:               telset.Logger,
-			TracerProvider:       telset.TracerProvider,
-			LeveledMeterProvider: telset.LeveledMeterProvider,
+			Logger:         telset.Logger,
+			TracerProvider: telset.TracerProvider,
+			MeterProvider:  telset.MeterProvider,
 		},
 		grpcOpts...)
 }
@@ -214,9 +214,9 @@ func createHTTPServer(
 		ctx,
 		telset.Host,
 		component.TelemetrySettings{
-			Logger:               telset.Logger,
-			TracerProvider:       telset.TracerProvider,
-			LeveledMeterProvider: telset.LeveledMeterProvider,
+			Logger:         telset.Logger,
+			TracerProvider: telset.TracerProvider,
+			MeterProvider:  telset.MeterProvider,
 		},
 		handler,
 	)
