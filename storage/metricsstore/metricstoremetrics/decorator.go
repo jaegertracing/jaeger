@@ -38,7 +38,7 @@ func (q *queryMetrics) emit(err error, latency time.Duration) {
 	}
 }
 
-// NewReadMetricsDecorator returns a new ReadMetricsDecorator.
+// NewReaderDecorator returns a new ReadMetricsDecorator.
 func NewReaderDecorator(reader metricsstore.Reader, metricsFactory metrics.Factory) *ReadMetricsDecorator {
 	return &ReadMetricsDecorator{
 		reader:                    reader,
