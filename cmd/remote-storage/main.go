@@ -24,7 +24,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/remote-storage/app"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
-	"github.com/jaegertracing/jaeger/pkg/telemetery"
+	"github.com/jaegertracing/jaeger/pkg/telemetry"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/pkg/version"
 	"github.com/jaegertracing/jaeger/plugin/storage"
@@ -70,9 +70,9 @@ func main() {
 			}
 
 			tm := tenancy.NewManager(&opts.Tenancy)
-			telset := telemetery.Setting{
+			telset := telemetry.Setting{
 				Logger:       svc.Logger,
-				ReportStatus: telemetery.HCAdapter(svc.HC()),
+				ReportStatus: telemetry.HCAdapter(svc.HC()),
 				LeveledMeterProvider: func(_ configtelemetry.Level) metric.MeterProvider {
 					return noop.NewMeterProvider()
 				},

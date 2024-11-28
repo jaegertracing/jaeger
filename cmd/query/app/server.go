@@ -29,7 +29,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/bearertoken"
 	"github.com/jaegertracing/jaeger/pkg/netutils"
 	"github.com/jaegertracing/jaeger/pkg/recoveryhandler"
-	"github.com/jaegertracing/jaeger/pkg/telemetery"
+	"github.com/jaegertracing/jaeger/pkg/telemetry"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2/metrics"
@@ -48,7 +48,7 @@ type Server struct {
 	httpServer    *httpServer
 	separatePorts bool
 	bgFinished    sync.WaitGroup
-	telemetery.Setting
+	telemetry.Setting
 }
 
 // NewServer creates and initializes Server
@@ -58,7 +58,7 @@ func NewServer(
 	metricsQuerySvc querysvc.MetricsQueryService,
 	options *QueryOptions,
 	tm *tenancy.Manager,
-	telset telemetery.Setting,
+	telset telemetry.Setting,
 ) (*Server, error) {
 	_, httpPort, err := net.SplitHostPort(options.HTTP.Endpoint)
 	if err != nil {
@@ -98,7 +98,7 @@ func registerGRPCHandlers(
 	server *grpc.Server,
 	querySvc *querysvc.QueryService,
 	metricsQuerySvc querysvc.MetricsQueryService,
-	telset telemetery.Setting,
+	telset telemetry.Setting,
 ) {
 	reflection.Register(server)
 	handler := NewGRPCHandler(querySvc, metricsQuerySvc, GRPCHandlerOptions{
@@ -121,7 +121,7 @@ func createGRPCServer(
 	ctx context.Context,
 	options *QueryOptions,
 	tm *tenancy.Manager,
-	telset telemetery.Setting,
+	telset telemetry.Setting,
 ) (*grpc.Server, error) {
 	var grpcOpts []configgrpc.ToServerOption
 	unaryInterceptors := []grpc.UnaryServerInterceptor{
@@ -164,7 +164,7 @@ func initRouter(
 	metricsQuerySvc querysvc.MetricsQueryService,
 	queryOpts *QueryOptions,
 	tenancyMgr *tenancy.Manager,
-	telset telemetery.Setting,
+	telset telemetry.Setting,
 ) (http.Handler, io.Closer) {
 	apiHandlerOptions := []HandlerOption{
 		HandlerOptions.Logger(telset.Logger),
@@ -206,7 +206,7 @@ func createHTTPServer(
 	metricsQuerySvc querysvc.MetricsQueryService,
 	queryOpts *QueryOptions,
 	tm *tenancy.Manager,
-	telset telemetery.Setting,
+	telset telemetry.Setting,
 ) (*httpServer, error) {
 	handler, staticHandlerCloser := initRouter(querySvc, metricsQuerySvc, queryOpts, tm, telset)
 	handler = recoveryhandler.NewRecoveryHandler(telset.Logger, true)(handler)
