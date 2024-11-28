@@ -11,20 +11,7 @@ success="false"
 timeout=600
 end_time=$((SECONDS + timeout))
 
-SKIP_APPLY_SCHEMA="false"
-
-while getopts "s" opt; do
-  case "${opt}" in
-  s)
-    SKIP_APPLY_SCHEMA="true"
-    ;;
-  *)
-    ;;
-  esac
-done
-
-# remove flags, leave only positional args
-shift $((OPTIND - 1))
+SKIP_APPLY_SCHEMA=${SKIP_APPLY_SCHEMA:-"false"}
 
 usage() {
   echo $"Usage: $0 <cassandra_version> <schema_version>"
