@@ -8,9 +8,10 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/jaegertracing/jaeger/plugin/storage/integration"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
+
+	"github.com/jaegertracing/jaeger/plugin/storage/integration"
 )
 
 func addCreateSchemaConfig(t *testing.T, configFile string) string {
