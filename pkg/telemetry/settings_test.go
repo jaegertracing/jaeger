@@ -1,7 +1,7 @@
 // Copyright (c) 2024 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
-package telemetery_test
+package telemetry_test
 
 import (
 	"testing"
@@ -10,7 +10,7 @@ import (
 	"go.opentelemetry.io/collector/component/componentstatus"
 
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
-	"github.com/jaegertracing/jaeger/pkg/telemetery"
+	"github.com/jaegertracing/jaeger/pkg/telemetry"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 )
 
@@ -65,7 +65,7 @@ func TestHCAdapter(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			hc := healthcheck.New()
-			hcAdapter := telemetery.HCAdapter(hc)
+			hcAdapter := telemetry.HCAdapter(hc)
 			event := componentstatus.NewEvent(tt.status)
 			hcAdapter(event)
 			assert.Equal(t, tt.expectedHC, hc.Get())

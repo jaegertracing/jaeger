@@ -16,7 +16,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/internal/metrics/otelmetrics"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
-	"github.com/jaegertracing/jaeger/pkg/telemetery"
+	"github.com/jaegertracing/jaeger/pkg/telemetry"
 	"github.com/jaegertracing/jaeger/plugin/metrics/prometheus"
 	"github.com/jaegertracing/jaeger/plugin/storage/badger"
 	"github.com/jaegertracing/jaeger/plugin/storage/cassandra"
@@ -130,7 +130,7 @@ func (s *storageExt) Start(_ context.Context, host component.Host) error {
 		case cfg.Badger != nil:
 			factory, err = badger.NewFactoryWithConfig(*cfg.Badger, mf, s.telset.Logger)
 		case cfg.GRPC != nil:
-			telset := telemetery.Setting{
+			telset := telemetry.Setting{
 				Logger:  s.telset.Logger,
 				Host:    host,
 				Metrics: mf,

@@ -17,7 +17,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	"github.com/jaegertracing/jaeger/pkg/bearertoken"
-	"github.com/jaegertracing/jaeger/pkg/telemetery"
+	"github.com/jaegertracing/jaeger/pkg/telemetry"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared"
 	"github.com/jaegertracing/jaeger/storage"
@@ -32,11 +32,11 @@ type Server struct {
 	grpcConn   net.Listener
 	grpcServer *grpc.Server
 	wg         sync.WaitGroup
-	telemetery.Setting
+	telemetry.Setting
 }
 
 // NewServer creates and initializes Server.
-func NewServer(options *Options, storageFactory storage.Factory, tm *tenancy.Manager, telset telemetery.Setting) (*Server, error) {
+func NewServer(options *Options, storageFactory storage.Factory, tm *tenancy.Manager, telset telemetry.Setting) (*Server, error) {
 	handler, err := createGRPCHandler(storageFactory, telset.Logger)
 	if err != nil {
 		return nil, err

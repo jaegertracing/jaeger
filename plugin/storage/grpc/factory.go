@@ -25,7 +25,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/pkg/bearertoken"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
-	"github.com/jaegertracing/jaeger/pkg/telemetery"
+	"github.com/jaegertracing/jaeger/pkg/telemetry"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/plugin"
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared"
@@ -64,7 +64,7 @@ func NewFactory() *Factory {
 // NewFactoryWithConfig is used from jaeger(v2).
 func NewFactoryWithConfig(
 	cfg Config,
-	telset telemetery.Setting,
+	telset telemetry.Setting,
 ) (*Factory, error) {
 	f := NewFactory()
 	f.config = cfg

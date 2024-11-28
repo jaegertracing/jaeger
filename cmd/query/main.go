@@ -29,7 +29,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/jtracer"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
-	"github.com/jaegertracing/jaeger/pkg/telemetery"
+	"github.com/jaegertracing/jaeger/pkg/telemetry"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/pkg/version"
 	metricsPlugin "github.com/jaegertracing/jaeger/plugin/metrics"
@@ -107,10 +107,10 @@ func main() {
 				dependencyReader,
 				*queryServiceOptions)
 			tm := tenancy.NewManager(&queryOpts.Tenancy)
-			telset := telemetery.Setting{
+			telset := telemetry.Setting{
 				Logger:         logger,
 				TracerProvider: jt.OTEL,
-				ReportStatus:   telemetery.HCAdapter(svc.HC()),
+				ReportStatus:   telemetry.HCAdapter(svc.HC()),
 				LeveledMeterProvider: func(_ configtelemetry.Level) metric.MeterProvider {
 					return noop.NewMeterProvider()
 				},

@@ -19,7 +19,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/metrics/otelmetrics"
 	"github.com/jaegertracing/jaeger/pkg/jtracer"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
-	"github.com/jaegertracing/jaeger/pkg/telemetery"
+	"github.com/jaegertracing/jaeger/pkg/telemetry"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/plugin/metrics/disabled"
 	"github.com/jaegertracing/jaeger/storage/metricsstore"
@@ -93,7 +93,7 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 		return fmt.Errorf("could not initialize a tracer: %w", err)
 	}
 	s.closeTracer = tracerProvider.Close
-	telset := telemetery.Setting{
+	telset := telemetry.Setting{
 		Logger:         s.telset.Logger,
 		TracerProvider: tracerProvider.OTEL,
 		Metrics:        queryMetricsFactory,
