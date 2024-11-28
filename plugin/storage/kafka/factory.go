@@ -13,7 +13,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/kafka/producer"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/pkg/telemetry"
 	"github.com/jaegertracing/jaeger/plugin"
 	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
@@ -29,9 +29,7 @@ var ( // interface comformance checks
 // Factory implements storage.Factory and creates write-only storage components backed by kafka.
 type Factory struct {
 	options Options
-
-	metricsFactory metrics.Factory
-	logger         *zap.Logger
+	telset  telemetry.Setting
 
 	producer   sarama.AsyncProducer
 	marshaller Marshaller
@@ -39,8 +37,8 @@ type Factory struct {
 }
 
 // NewFactory creates a new Factory.
-func NewFactory() *Factory {
-	return &Factory{}
+func NewFactory(telset telemetry.Setting) *Factory {
+	return &Factory{telset: telset}
 }
 
 // AddFlags implements plugin.Configurable
@@ -61,9 +59,8 @@ func (f *Factory) configureFromOptions(o Options) {
 }
 
 // Initialize implements storage.Factory
-func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
-	f.metricsFactory, f.logger = metricsFactory, logger
-	logger.Info("Kafka factory",
+func (f *Factory) Initialize() error {
+	f.telset.Logger.Info("Kafka factory",
 		zap.Any("producer builder", f.Builder),
 		zap.Any("topic", f.options.Topic))
 	switch f.options.Encoding {
@@ -74,7 +71,7 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 	default:
 		return errors.New("kafka encoding is not one of '" + EncodingJSON + "' or '" + EncodingProto + "'")
 	}
-	p, err := f.NewProducer(logger)
+	p, err := f.NewProducer(f.telset.Logger)
 	if err != nil {
 		return err
 	}
@@ -89,7 +86,7 @@ func (*Factory) CreateSpanReader() (spanstore.Reader, error) {
 
 // CreateSpanWriter implements storage.Factory
 func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
-	return NewSpanWriter(f.producer, f.marshaller, f.options.Topic, f.metricsFactory, f.logger), nil
+	return NewSpanWriter(f.producer, f.marshaller, f.options.Topic, f.telset.Metrics, f.telset.Logger), nil
 }
 
 // CreateDependencyReader implements storage.Factory

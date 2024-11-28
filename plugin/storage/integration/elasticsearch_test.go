@@ -22,7 +22,7 @@ import (
 	"go.uber.org/zap/zaptest"
 
 	"github.com/jaegertracing/jaeger/pkg/config"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/pkg/telemetry"
 	"github.com/jaegertracing/jaeger/plugin/storage/es"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 )
@@ -97,8 +97,9 @@ func (s *ESStorageIntegration) esCleanUp(t *testing.T) {
 }
 
 func (*ESStorageIntegration) initializeESFactory(t *testing.T, allTagsAsFields bool) *es.Factory {
-	logger := zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller()))
-	f := es.NewFactory()
+	telset := telemetry.NoopSettings()
+	telset.Logger = zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller()))
+	f := es.NewFactory(telset)
 	v, command := config.Viperize(f.AddFlags)
 	args := []string{
 		fmt.Sprintf("--es.num-shards=%v", 5),
@@ -114,8 +115,8 @@ func (*ESStorageIntegration) initializeESFactory(t *testing.T, allTagsAsFields b
 		fmt.Sprintf("--es-archive.index-prefix=%v", indexPrefix),
 	}
 	require.NoError(t, command.ParseFlags(args))
-	f.InitFromViper(v, logger)
-	require.NoError(t, f.Initialize(metrics.NullFactory, logger))
+	f.InitFromViper(v, telset.Logger)
+	require.NoError(t, f.Initialize())
 
 	t.Cleanup(func() {
 		require.NoError(t, f.Close())

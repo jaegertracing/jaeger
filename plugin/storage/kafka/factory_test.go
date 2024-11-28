@@ -17,7 +17,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/pkg/config"
 	kafkaConfig "github.com/jaegertracing/jaeger/pkg/kafka/producer"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/pkg/telemetry"
 )
 
 type mockProducerBuilder struct {
@@ -34,7 +34,7 @@ func (m *mockProducerBuilder) NewProducer(*zap.Logger) (sarama.AsyncProducer, er
 }
 
 func TestKafkaFactory(t *testing.T) {
-	f := NewFactory()
+	f := NewFactory(telemetry.NoopSettings())
 	v, command := config.Viperize(f.AddFlags)
 	command.ParseFlags([]string{})
 	f.InitFromViper(v, zap.NewNop())
@@ -43,10 +43,10 @@ func TestKafkaFactory(t *testing.T) {
 		err: errors.New("made-up error"),
 		t:   t,
 	}
-	require.EqualError(t, f.Initialize(metrics.NullFactory, zap.NewNop()), "made-up error")
+	require.EqualError(t, f.Initialize(), "made-up error")
 
 	f.Builder = &mockProducerBuilder{t: t}
-	require.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
+	require.NoError(t, f.Initialize())
 	assert.IsType(t, &protobufMarshaller{}, f.marshaller)
 
 	_, err := f.CreateSpanWriter()
@@ -71,14 +71,14 @@ func TestKafkaFactoryEncoding(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.encoding, func(t *testing.T) {
-			f := NewFactory()
+			f := NewFactory(telemetry.NoopSettings())
 			v, command := config.Viperize(f.AddFlags)
 			err := command.ParseFlags([]string{"--kafka.producer.encoding=" + test.encoding})
 			require.NoError(t, err)
 			f.InitFromViper(v, zap.NewNop())
 
 			f.Builder = &mockProducerBuilder{t: t}
-			require.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
+			require.NoError(t, f.Initialize())
 			assert.IsType(t, test.marshaller, f.marshaller)
 			require.NoError(t, f.Close())
 		})
@@ -86,13 +86,13 @@ func TestKafkaFactoryEncoding(t *testing.T) {
 }
 
 func TestKafkaFactoryMarshallerErr(t *testing.T) {
-	f := NewFactory()
+	f := NewFactory(telemetry.NoopSettings())
 	v, command := config.Viperize(f.AddFlags)
 	command.ParseFlags([]string{"--kafka.producer.encoding=bad-input"})
 	f.InitFromViper(v, zap.NewNop())
 
 	f.Builder = &mockProducerBuilder{t: t}
-	require.Error(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
+	require.Error(t, f.Initialize())
 }
 
 func TestKafkaFactoryDoesNotLogPassword(t *testing.T) {
@@ -122,7 +122,7 @@ func TestKafkaFactoryDoesNotLogPassword(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			f := NewFactory()
+			f := NewFactory(telemetry.NoopSettings())
 			v, command := config.Viperize(f.AddFlags)
 			err := command.ParseFlags(test.flags)
 			require.NoError(t, err)
@@ -137,7 +137,7 @@ func TestKafkaFactoryDoesNotLogPassword(t *testing.T) {
 				zapcore.AddSync(logbuf),
 				zap.NewAtomicLevel(),
 			))
-			err = f.Initialize(metrics.NullFactory, logger)
+			err = f.Initialize()
 			require.NoError(t, err)
 			logger.Sync()
 
@@ -148,7 +148,7 @@ func TestKafkaFactoryDoesNotLogPassword(t *testing.T) {
 }
 
 func TestConfigureFromOptions(t *testing.T) {
-	f := NewFactory()
+	f := NewFactory(telemetry.NoopSettings())
 	o := Options{Topic: "testTopic", Config: kafkaConfig.Configuration{Brokers: []string{"host"}}}
 	f.configureFromOptions(o)
 	assert.Equal(t, o, f.options)

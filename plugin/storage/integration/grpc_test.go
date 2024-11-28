@@ -12,7 +12,7 @@ import (
 	"go.uber.org/zap/zaptest"
 
 	"github.com/jaegertracing/jaeger/pkg/config"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/pkg/telemetry"
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc"
 )
 
@@ -24,15 +24,16 @@ type GRPCStorageIntegrationTestSuite struct {
 }
 
 func (s *GRPCStorageIntegrationTestSuite) initialize(t *testing.T) {
-	logger := zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller()))
+	telset := telemetry.NoopSettings()
+	telset.Logger = zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller()))
 	s.remoteStorage = StartNewRemoteMemoryStorage(t)
 
-	f := grpc.NewFactory()
+	f := grpc.NewFactory(telset)
 	v, command := config.Viperize(f.AddFlags)
 	err := command.ParseFlags(s.flags)
 	require.NoError(t, err)
-	f.InitFromViper(v, logger)
-	require.NoError(t, f.Initialize(metrics.NullFactory, logger))
+	f.InitFromViper(v, telset.Logger)
+	require.NoError(t, f.Initialize())
 	s.factory = f
 
 	s.SpanWriter, err = f.CreateSpanWriter()

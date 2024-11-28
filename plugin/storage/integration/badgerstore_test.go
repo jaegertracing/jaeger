@@ -11,7 +11,7 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 
-	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/pkg/telemetry"
 	"github.com/jaegertracing/jaeger/plugin/storage/badger"
 )
 
@@ -21,11 +21,12 @@ type BadgerIntegrationStorage struct {
 }
 
 func (s *BadgerIntegrationStorage) initialize(t *testing.T) {
-	s.factory = badger.NewFactory()
+	telset := telemetry.NoopSettings()
+	telset.Logger = zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller()))
+	s.factory = badger.NewFactory(telset)
 	s.factory.Config.Ephemeral = false
 
-	logger := zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller()))
-	err := s.factory.Initialize(metrics.NullFactory, logger)
+	err := s.factory.Initialize()
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		s.factory.Close()
