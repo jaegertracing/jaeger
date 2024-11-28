@@ -21,7 +21,7 @@ type DecoratorFactory struct {
 func NewDecoratorFactory(f storage.Factory, mf metrics.Factory) *DecoratorFactory {
 	return &DecoratorFactory{
 		delegate:       f,
-		metricsFactory: mf.Namespace(metrics.NSOptions{Name: "query"}),
+		metricsFactory: mf.Namespace(metrics.NSOptions{Name: "storage"}),
 	}
 }
 
