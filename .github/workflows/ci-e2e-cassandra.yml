@@ -34,7 +34,7 @@ jobs:
         # Exclude v1 as create schema on fly is available for v2 only
         - jaeger-version: v1
           skip-apply-schema: true
-    name: ${{ matrix.version.distribution }} ${{ matrix.version.major }} ${{ matrix.jaeger-version }} ${{ matrix.skip-apply-schema == 'true' && 'auto' || 'manual' }}
+    name: ${{ matrix.version.distribution }} ${{ matrix.version.major }} ${{ matrix.jaeger-version }} ${{ matrix.skip-apply-schema == true && 'auto' || 'manual' }}
     steps:
     - name: Harden Runner
       uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
