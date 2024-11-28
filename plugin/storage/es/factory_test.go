@@ -21,7 +21,6 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
-	"go.uber.org/zap/zaptest"
 
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/config"
@@ -29,6 +28,7 @@ import (
 	escfg "github.com/jaegertracing/jaeger/pkg/es/config"
 	"github.com/jaegertracing/jaeger/pkg/es/mocks"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/pkg/telemetry"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
@@ -61,13 +61,13 @@ func (m *mockClientBuilder) NewClient(*escfg.Configuration, *zap.Logger, metrics
 }
 
 func TestElasticsearchFactory(t *testing.T) {
-	f := NewFactory()
+	f := NewFactory(telemetry.NoopSettings())
 	v, command := config.Viperize(f.AddFlags)
 	command.ParseFlags([]string{})
 	f.InitFromViper(v, zap.NewNop())
 
 	f.newClientFn = (&mockClientBuilder{err: errors.New("made-up error")}).NewClient
-	require.EqualError(t, f.Initialize(metrics.NullFactory, zap.NewNop()), "failed to create primary Elasticsearch client: made-up error")
+	require.EqualError(t, f.Initialize(), "failed to create primary Elasticsearch client: made-up error")
 
 	f.archiveConfig.Enabled = true
 	f.newClientFn = func(c *escfg.Configuration, logger *zap.Logger, metricsFactory metrics.Factory) (es.Client, error) {
@@ -76,10 +76,10 @@ func TestElasticsearchFactory(t *testing.T) {
 		f.newClientFn = (&mockClientBuilder{err: errors.New("made-up error2")}).NewClient
 		return (&mockClientBuilder{}).NewClient(c, logger, metricsFactory)
 	}
-	require.EqualError(t, f.Initialize(metrics.NullFactory, zap.NewNop()), "failed to create archive Elasticsearch client: made-up error2")
+	require.EqualError(t, f.Initialize(), "failed to create archive Elasticsearch client: made-up error2")
 
 	f.newClientFn = (&mockClientBuilder{}).NewClient
-	require.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
+	require.NoError(t, f.Initialize())
 
 	_, err := f.CreateSpanReader()
 	require.NoError(t, err)
@@ -103,7 +103,7 @@ func TestElasticsearchFactory(t *testing.T) {
 }
 
 func TestElasticsearchTagsFileDoNotExist(t *testing.T) {
-	f := NewFactory()
+	f := NewFactory(telemetry.NoopSettings())
 	f.primaryConfig = &escfg.Configuration{
 		Tags: escfg.TagsAsFields{
 			File: "fixtures/file-does-not-exist.txt",
@@ -111,7 +111,7 @@ func TestElasticsearchTagsFileDoNotExist(t *testing.T) {
 	}
 	f.archiveConfig = &escfg.Configuration{}
 	f.newClientFn = (&mockClientBuilder{}).NewClient
-	require.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
+	require.NoError(t, f.Initialize())
 	defer f.Close()
 	r, err := f.CreateSpanWriter()
 	require.Error(t, err)
@@ -119,13 +119,13 @@ func TestElasticsearchTagsFileDoNotExist(t *testing.T) {
 }
 
 func TestElasticsearchILMUsedWithoutReadWriteAliases(t *testing.T) {
-	f := NewFactory()
+	f := NewFactory(telemetry.NoopSettings())
 	f.primaryConfig = &escfg.Configuration{
 		UseILM: true,
 	}
 	f.archiveConfig = &escfg.Configuration{}
 	f.newClientFn = (&mockClientBuilder{}).NewClient
-	require.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
+	require.NoError(t, f.Initialize())
 	defer f.Close()
 	w, err := f.CreateSpanWriter()
 	require.EqualError(t, err, "--es.use-ilm must always be used in conjunction with --es.use-aliases to ensure ES writers and readers refer to the single index mapping")
@@ -194,11 +194,11 @@ func TestTagKeysAsFields(t *testing.T) {
 }
 
 func TestCreateTemplateError(t *testing.T) {
-	f := NewFactory()
+	f := NewFactory(telemetry.NoopSettings())
 	f.primaryConfig = &escfg.Configuration{CreateIndexTemplates: true}
 	f.archiveConfig = &escfg.Configuration{}
 	f.newClientFn = (&mockClientBuilder{createTemplateError: errors.New("template-error")}).NewClient
-	err := f.Initialize(metrics.NullFactory, zap.NewNop())
+	err := f.Initialize()
 	require.NoError(t, err)
 	defer f.Close()
 
@@ -212,11 +212,11 @@ func TestCreateTemplateError(t *testing.T) {
 }
 
 func TestILMDisableTemplateCreation(t *testing.T) {
-	f := NewFactory()
+	f := NewFactory(telemetry.NoopSettings())
 	f.primaryConfig = &escfg.Configuration{UseILM: true, UseReadWriteAliases: true, CreateIndexTemplates: true}
 	f.archiveConfig = &escfg.Configuration{}
 	f.newClientFn = (&mockClientBuilder{createTemplateError: errors.New("template-error")}).NewClient
-	err := f.Initialize(metrics.NullFactory, zap.NewNop())
+	err := f.Initialize()
 	defer f.Close()
 	require.NoError(t, err)
 	_, err = f.CreateSpanWriter()
@@ -224,7 +224,7 @@ func TestILMDisableTemplateCreation(t *testing.T) {
 }
 
 func TestArchiveDisabled(t *testing.T) {
-	f := NewFactory()
+	f := NewFactory(telemetry.NoopSettings())
 	f.archiveConfig = &escfg.Configuration{Enabled: false}
 	f.newClientFn = (&mockClientBuilder{}).NewClient
 	w, err := f.CreateArchiveSpanWriter()
@@ -236,11 +236,11 @@ func TestArchiveDisabled(t *testing.T) {
 }
 
 func TestArchiveEnabled(t *testing.T) {
-	f := NewFactory()
+	f := NewFactory(telemetry.NoopSettings())
 	f.primaryConfig = &escfg.Configuration{}
 	f.archiveConfig = &escfg.Configuration{Enabled: true}
 	f.newClientFn = (&mockClientBuilder{}).NewClient
-	err := f.Initialize(metrics.NullFactory, zap.NewNop())
+	err := f.Initialize()
 	require.NoError(t, err)
 	defer f.Close() // Ensure resources are cleaned up if initialization is successful
 	w, err := f.CreateArchiveSpanWriter()
@@ -252,7 +252,7 @@ func TestArchiveEnabled(t *testing.T) {
 }
 
 func TestConfigureFromOptions(t *testing.T) {
-	f := NewFactory()
+	f := NewFactory(telemetry.NoopSettings())
 	o := &Options{
 		Primary: namespaceConfig{Configuration: escfg.Configuration{Servers: []string{"server"}}},
 		others:  map[string]*namespaceConfig{"es-archive": {Configuration: escfg.Configuration{Servers: []string{"server2"}}}},
@@ -271,7 +271,7 @@ func TestESStorageFactoryWithConfig(t *testing.T) {
 		Servers:  []string{server.URL},
 		LogLevel: "error",
 	}
-	factory, err := NewFactoryWithConfig(cfg, metrics.NullFactory, zap.NewNop())
+	factory, err := NewFactoryWithConfig(cfg, telemetry.NoopSettings())
 	require.NoError(t, err)
 	defer factory.Close()
 }
@@ -300,7 +300,7 @@ func TestConfigurationValidation(t *testing.T) {
 			err := test.cfg.Validate()
 			if test.wantErr {
 				require.Error(t, err)
-				_, err = NewFactoryWithConfig(test.cfg, metrics.NullFactory, zap.NewNop())
+				_, err = NewFactoryWithConfig(test.cfg, telemetry.NoopSettings())
 				require.Error(t, err)
 			} else {
 				require.NoError(t, err)
@@ -316,19 +316,19 @@ func TestESStorageFactoryWithConfigError(t *testing.T) {
 		Servers:  []string{"http://127.0.0.1:65535"},
 		LogLevel: "error",
 	}
-	_, err := NewFactoryWithConfig(cfg, metrics.NullFactory, zap.NewNop())
+	_, err := NewFactoryWithConfig(cfg, telemetry.NoopSettings())
 	require.ErrorContains(t, err, "failed to create primary Elasticsearch client")
 }
 
 func TestPasswordFromFile(t *testing.T) {
 	defer testutils.VerifyGoLeaksOnce(t)
 	t.Run("primary client", func(t *testing.T) {
-		f := NewFactory()
+		f := NewFactory(telemetry.NoopSettings())
 		testPasswordFromFile(t, f, f.getPrimaryClient, f.CreateSpanWriter)
 	})
 
 	t.Run("archive client", func(t *testing.T) {
-		f2 := NewFactory()
+		f2 := NewFactory(telemetry.NoopSettings())
 		testPasswordFromFile(t, f2, f2.getArchiveClient, f2.CreateArchiveSpanWriter)
 	})
 
@@ -396,7 +396,7 @@ func testPasswordFromFile(t *testing.T, f *Factory, getClient func() es.Client, 
 			MaxBytes: -1, // disable bulk; we want immediate flush
 		},
 	}
-	require.NoError(t, f.Initialize(metrics.NullFactory, zaptest.NewLogger(t)))
+	require.NoError(t, f.Initialize())
 	defer f.Close()
 
 	writer, err := getWriter()
@@ -456,7 +456,10 @@ func TestPasswordFromFileErrors(t *testing.T) {
 	pwdFile := filepath.Join(t.TempDir(), "pwd")
 	require.NoError(t, os.WriteFile(pwdFile, []byte("first password"), 0o600))
 
-	f := NewFactory()
+	logger, buf := testutils.NewEchoLogger(t)
+	telset := telemetry.NoopSettings()
+	telset.Logger = logger
+	f := NewFactory(telset)
 	f.primaryConfig = &escfg.Configuration{
 		Servers:  []string{server.URL},
 		LogLevel: "debug",
@@ -476,8 +479,7 @@ func TestPasswordFromFileErrors(t *testing.T) {
 		},
 	}
 
-	logger, buf := testutils.NewEchoLogger(t)
-	require.NoError(t, f.Initialize(metrics.NullFactory, logger))
+	require.NoError(t, f.Initialize())
 	defer f.Close()
 
 	f.primaryConfig.Servers = []string{}

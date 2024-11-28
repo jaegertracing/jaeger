@@ -19,6 +19,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/cassandra/mocks"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/pkg/telemetry"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 )
 
@@ -40,7 +41,9 @@ func (m *mockSessionBuilder) NewSession() (cassandra.Session, error) {
 
 func TestCassandraFactory(t *testing.T) {
 	logger, logBuf := testutils.NewLogger()
-	f := NewFactory()
+	telset := telemetry.NoopSettings()
+	telset.Logger = logger
+	f := NewFactory(telset)
 	v, command := config.Viperize(f.AddFlags)
 	command.ParseFlags([]string{"--cassandra-archive.enabled=true"})
 	f.InitFromViper(v, zap.NewNop())
@@ -48,7 +51,7 @@ func TestCassandraFactory(t *testing.T) {
 	// after InitFromViper, f.primaryConfig points to a real session builder that will fail in unit tests,
 	// so we override it with a mock.
 	f.primaryConfig = newMockSessionBuilder(nil, errors.New("made-up error"))
-	require.EqualError(t, f.Initialize(metrics.NullFactory, zap.NewNop()), "made-up error")
+	require.EqualError(t, f.Initialize(), "made-up error")
 
 	var (
 		session = &mocks.Session{}
@@ -59,10 +62,10 @@ func TestCassandraFactory(t *testing.T) {
 	query.On("Exec").Return(nil)
 	f.primaryConfig = newMockSessionBuilder(session, nil)
 	f.archiveConfig = newMockSessionBuilder(nil, errors.New("made-up error"))
-	require.EqualError(t, f.Initialize(metrics.NullFactory, zap.NewNop()), "made-up error")
+	require.EqualError(t, f.Initialize(), "made-up error")
 
 	f.archiveConfig = nil
-	require.NoError(t, f.Initialize(metrics.NullFactory, logger))
+	require.NoError(t, f.Initialize())
 	assert.Contains(t, logBuf.String(), "Cassandra archive storage configuration is empty, skipping")
 
 	_, err := f.CreateSpanReader()
@@ -81,7 +84,7 @@ func TestCassandraFactory(t *testing.T) {
 	require.EqualError(t, err, "archive storage not configured")
 
 	f.archiveConfig = newMockSessionBuilder(session, nil)
-	require.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
+	require.NoError(t, f.Initialize())
 
 	_, err = f.CreateArchiveSpanReader()
 	require.NoError(t, err)
@@ -100,7 +103,9 @@ func TestCassandraFactory(t *testing.T) {
 
 func TestExclusiveWhitelistBlacklist(t *testing.T) {
 	logger, logBuf := testutils.NewLogger()
-	f := NewFactory()
+	telset := telemetry.NoopSettings()
+	telset.Logger = logger
+	f := NewFactory(telset)
 	v, command := config.Viperize(f.AddFlags)
 	command.ParseFlags([]string{
 		"--cassandra-archive.enabled=true",
@@ -112,7 +117,7 @@ func TestExclusiveWhitelistBlacklist(t *testing.T) {
 	// after InitFromViper, f.primaryConfig points to a real session builder that will fail in unit tests,
 	// so we override it with a mock.
 	f.primaryConfig = newMockSessionBuilder(nil, errors.New("made-up error"))
-	require.EqualError(t, f.Initialize(metrics.NullFactory, zap.NewNop()), "made-up error")
+	require.EqualError(t, f.Initialize(), "made-up error")
 
 	var (
 		session = &mocks.Session{}
@@ -122,17 +127,17 @@ func TestExclusiveWhitelistBlacklist(t *testing.T) {
 	query.On("Exec").Return(nil)
 	f.primaryConfig = newMockSessionBuilder(session, nil)
 	f.archiveConfig = newMockSessionBuilder(nil, errors.New("made-up error"))
-	require.EqualError(t, f.Initialize(metrics.NullFactory, zap.NewNop()), "made-up error")
+	require.EqualError(t, f.Initialize(), "made-up error")
 
 	f.archiveConfig = nil
-	require.NoError(t, f.Initialize(metrics.NullFactory, logger))
+	require.NoError(t, f.Initialize())
 	assert.Contains(t, logBuf.String(), "Cassandra archive storage configuration is empty, skipping")
 
 	_, err := f.CreateSpanWriter()
 	require.EqualError(t, err, "only one of TagIndexBlacklist and TagIndexWhitelist can be specified")
 
 	f.archiveConfig = &mockSessionBuilder{}
-	require.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
+	require.NoError(t, f.Initialize())
 
 	_, err = f.CreateArchiveSpanWriter()
 	require.EqualError(t, err, "only one of TagIndexBlacklist and TagIndexWhitelist can be specified")
@@ -181,7 +186,7 @@ func TestWriterOptions(t *testing.T) {
 }
 
 func TestConfigureFromOptions(t *testing.T) {
-	f := NewFactory()
+	f := NewFactory(telemetry.NoopSettings())
 	o := NewOptions("foo", archiveStorageConfig)
 	o.others[archiveStorageConfig].Enabled = true
 	f.configureFromOptions(o)
@@ -191,6 +196,7 @@ func TestConfigureFromOptions(t *testing.T) {
 }
 
 func TestNewFactoryWithConfig(t *testing.T) {
+	telset := telemetry.NoopSettings()
 	t.Run("valid configuration", func(t *testing.T) {
 		opts := &Options{
 			Primary: NamespaceConfig{
@@ -201,13 +207,13 @@ func TestNewFactoryWithConfig(t *testing.T) {
 				},
 			},
 		}
-		f := NewFactory()
+		f := NewFactory(telset)
 		b := &withConfigBuilder{
 			f:              f,
 			opts:           opts,
 			metricsFactory: metrics.NullFactory,
 			logger:         zap.NewNop(),
-			initializer:    func(_ metrics.Factory, _ *zap.Logger) error { return nil },
+			initializer:    func() error { return nil },
 		}
 		_, err := b.build()
 		require.NoError(t, err)
@@ -223,26 +229,24 @@ func TestNewFactoryWithConfig(t *testing.T) {
 				},
 			},
 		}
-		f := NewFactory()
+		f := NewFactory(telset)
 		b := &withConfigBuilder{
-			f:              f,
-			opts:           opts,
-			metricsFactory: metrics.NullFactory,
-			logger:         zap.NewNop(),
-			initializer:    func(_ metrics.Factory, _ *zap.Logger) error { return expErr },
+			f:           f,
+			opts:        opts,
+			initializer: func() error { return expErr },
 		}
 		_, err := b.build()
 		require.ErrorIs(t, err, expErr)
 	})
 	t.Run("invalid configuration", func(t *testing.T) {
 		cfg := Options{}
-		_, err := NewFactoryWithConfig(cfg, metrics.NullFactory, zap.NewNop())
+		_, err := NewFactoryWithConfig(cfg, telset)
 		require.ErrorContains(t, err, "Servers: non zero value required")
 	})
 }
 
 func TestFactory_Purge(t *testing.T) {
-	f := NewFactory()
+	f := NewFactory(telemetry.NoopSettings())
 	var (
 		session = &mocks.Session{}
 		query   = &mocks.Query{}

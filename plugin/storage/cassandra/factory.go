@@ -18,7 +18,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/distributedlock"
 	"github.com/jaegertracing/jaeger/pkg/hostname"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
-	"github.com/jaegertracing/jaeger/pkg/telemetery"
+	"github.com/jaegertracing/jaeger/pkg/telemetry"
 	"github.com/jaegertracing/jaeger/plugin"
 	cLock "github.com/jaegertracing/jaeger/plugin/pkg/distributedlock/cassandra"
 	cDepStore "github.com/jaegertracing/jaeger/plugin/storage/cassandra/dependencystore"
@@ -48,7 +48,7 @@ var ( // interface comformance checks
 // Factory implements storage.Factory for Cassandra backend.
 type Factory struct {
 	Options *Options
-	telset  telemetry.Settings
+	telset  telemetry.Setting
 
 	primaryMetricsFactory metrics.Factory
 	archiveMetricsFactory metrics.Factory
@@ -60,7 +60,7 @@ type Factory struct {
 }
 
 // NewFactory creates a new Factory.
-func NewFactory(telset telemetry.Settings) *Factory {
+func NewFactory(telset telemetry.Setting) *Factory {
 	return &Factory{
 		telset:  telset,
 		Options: NewOptions(primaryStorageConfig, archiveStorageConfig),
@@ -70,17 +70,14 @@ func NewFactory(telset telemetry.Settings) *Factory {
 // NewFactoryWithConfig initializes factory with Config.
 func NewFactoryWithConfig(
 	opts Options,
-	metricsFactory metrics.Factory,
-	logger *zap.Logger,
+	telset telemetry.Setting,
 ) (*Factory, error) {
-	f := NewFactory()
+	f := NewFactory(telset)
 	// use this to help with testing
 	b := &withConfigBuilder{
-		f:              f,
-		opts:           &opts,
-		metricsFactory: metricsFactory,
-		logger:         logger,
-		initializer:    f.Initialize, // this can be mocked in tests
+		f:           f,
+		opts:        &opts,
+		initializer: f.Initialize, // this can be mocked in tests
 	}
 	return b.build()
 }
@@ -168,13 +165,24 @@ func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
 	if err != nil {
 		return nil, err
 	}
-	return cSpanStore.NewSpanWriter(f.primarySession, f.Options.SpanStoreWriteCacheTTL, f.primaryMetricsFactory, f.logger, options...)
+	return cSpanStore.NewSpanWriter(
+		f.primarySession,
+		f.Options.SpanStoreWriteCacheTTL,
+		f.primaryMetricsFactory,
+		f.telset.Logger,
+		options...,
+	)
 }
 
 // CreateDependencyReader implements storage.Factory
 func (f *Factory) CreateDependencyReader() (dependencystore.Reader, error) {
 	version := cDepStore.GetDependencyVersion(f.primarySession)
-	return cDepStore.NewDependencyStore(f.primarySession, f.primaryMetricsFactory, f.logger, version)
+	return cDepStore.NewDependencyStore(
+		f.primarySession,
+		f.primaryMetricsFactory,
+		f.telset.Logger,
+		version,
+	)
 }
 
 // CreateArchiveSpanReader implements storage.ArchiveFactory
@@ -199,7 +207,13 @@ func (f *Factory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
 	if err != nil {
 		return nil, err
 	}
-	return cSpanStore.NewSpanWriter(f.archiveSession, f.Options.SpanStoreWriteCacheTTL, f.archiveMetricsFactory, f.logger, options...)
+	return cSpanStore.NewSpanWriter(
+		f.archiveSession,
+		f.Options.SpanStoreWriteCacheTTL,
+		f.archiveMetricsFactory,
+		f.telset.Logger,
+		options...,
+	)
 }
 
 // CreateLock implements storage.SamplingStoreFactory

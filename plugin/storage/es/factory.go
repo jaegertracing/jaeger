@@ -16,14 +16,13 @@ import (
 	"sync/atomic"
 
 	"github.com/spf13/viper"
-	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/es"
 	"github.com/jaegertracing/jaeger/pkg/es/config"
 	"github.com/jaegertracing/jaeger/pkg/fswatcher"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/pkg/telemetry"
 	"github.com/jaegertracing/jaeger/plugin"
 	esDepStore "github.com/jaegertracing/jaeger/plugin/storage/es/dependencystore"
 	"github.com/jaegertracing/jaeger/plugin/storage/es/mappings"
@@ -51,10 +50,7 @@ var ( // interface comformance checks
 // Factory implements storage.Factory for Elasticsearch backend.
 type Factory struct {
 	Options *Options
-
-	metricsFactory metrics.Factory
-	logger         *zap.Logger
-	tracer         trace.TracerProvider
+	telset  telemetry.Setting
 
 	newClientFn func(c *config.Configuration, logger *zap.Logger, metricsFactory metrics.Factory) (es.Client, error)
 
@@ -68,18 +64,17 @@ type Factory struct {
 }
 
 // NewFactory creates a new Factory.
-func NewFactory() *Factory {
+func NewFactory(telset telemetry.Setting) *Factory {
 	return &Factory{
 		Options:     NewOptions(primaryNamespace, archiveNamespace),
 		newClientFn: config.NewClient,
-		tracer:      otel.GetTracerProvider(),
+		telset:      telset,
 	}
 }
 
 func NewFactoryWithConfig(
 	cfg config.Configuration,
-	metricsFactory metrics.Factory,
-	logger *zap.Logger,
+	telset telemetry.Setting,
 ) (*Factory, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err
@@ -94,7 +89,7 @@ func NewFactoryWithConfig(
 		namespace:     archiveNamespace,
 	}
 
-	f := NewFactory()
+	f := NewFactory(telset)
 	f.configureFromOptions(&Options{
 		Primary: namespaceConfig{
 			Configuration: cfg,
@@ -102,7 +97,7 @@ func NewFactoryWithConfig(
 		},
 		others: archive,
 	})
-	err := f.Initialize(metricsFactory, logger)
+	err := f.Initialize()
 	if err != nil {
 		return nil, err
 	}
@@ -128,17 +123,19 @@ func (f *Factory) configureFromOptions(o *Options) {
 }
 
 // Initialize implements storage.Factory.
-func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
-	f.metricsFactory, f.logger = metricsFactory, logger
-
-	primaryClient, err := f.newClientFn(f.primaryConfig, logger, metricsFactory)
+func (f *Factory) Initialize() error {
+	primaryClient, err := f.newClientFn(f.primaryConfig, f.telset.Logger, f.telset.Metrics)
 	if err != nil {
 		return fmt.Errorf("failed to create primary Elasticsearch client: %w", err)
 	}
 	f.primaryClient.Store(&primaryClient)
 
 	if f.primaryConfig.Authentication.BasicAuthentication.PasswordFilePath != "" {
-		primaryWatcher, err := fswatcher.New([]string{f.primaryConfig.Authentication.BasicAuthentication.PasswordFilePath}, f.onPrimaryPasswordChange, f.logger)
+		primaryWatcher, err := fswatcher.New(
+			[]string{f.primaryConfig.Authentication.BasicAuthentication.PasswordFilePath},
+			f.onPrimaryPasswordChange,
+			f.telset.Logger,
+		)
 		if err != nil {
 			return fmt.Errorf("failed to create watcher for primary ES client's password: %w", err)
 		}
@@ -146,14 +143,18 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 	}
 
 	if f.archiveConfig.Enabled {
-		archiveClient, err := f.newClientFn(f.archiveConfig, logger, metricsFactory)
+		archiveClient, err := f.newClientFn(f.archiveConfig, f.telset.Logger, f.telset.Metrics)
 		if err != nil {
 			return fmt.Errorf("failed to create archive Elasticsearch client: %w", err)
 		}
 		f.archiveClient.Store(&archiveClient)
 
 		if f.archiveConfig.Authentication.BasicAuthentication.PasswordFilePath != "" {
-			archiveWatcher, err := fswatcher.New([]string{f.archiveConfig.Authentication.BasicAuthentication.PasswordFilePath}, f.onArchivePasswordChange, f.logger)
+			archiveWatcher, err := fswatcher.New(
+				[]string{f.archiveConfig.Authentication.BasicAuthentication.PasswordFilePath},
+				f.onArchivePasswordChange,
+				f.telset.Logger,
+			)
 			if err != nil {
 				return fmt.Errorf("failed to create watcher for archive ES client's password: %w", err)
 			}
@@ -180,17 +181,17 @@ func (f *Factory) getArchiveClient() es.Client {
 
 // CreateSpanReader implements storage.Factory
 func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
-	return createSpanReader(f.getPrimaryClient, f.primaryConfig, false, f.metricsFactory, f.logger, f.tracer)
+	return createSpanReader(f.getPrimaryClient, f.primaryConfig, false, f.telset)
 }
 
 // CreateSpanWriter implements storage.Factory
 func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
-	return createSpanWriter(f.getPrimaryClient, f.primaryConfig, false, f.metricsFactory, f.logger)
+	return createSpanWriter(f.getPrimaryClient, f.primaryConfig, false, f.telset)
 }
 
 // CreateDependencyReader implements storage.Factory
 func (f *Factory) CreateDependencyReader() (dependencystore.Reader, error) {
-	return createDependencyReader(f.getPrimaryClient, f.primaryConfig, f.logger)
+	return createDependencyReader(f.getPrimaryClient, f.primaryConfig, f.telset)
 }
 
 // CreateArchiveSpanReader implements storage.ArchiveFactory
@@ -198,7 +199,7 @@ func (f *Factory) CreateArchiveSpanReader() (spanstore.Reader, error) {
 	if !f.archiveConfig.Enabled {
 		return nil, nil
 	}
-	return createSpanReader(f.getArchiveClient, f.archiveConfig, true, f.metricsFactory, f.logger, f.tracer)
+	return createSpanReader(f.getArchiveClient, f.archiveConfig, true, f.telset)
 }
 
 // CreateArchiveSpanWriter implements storage.ArchiveFactory
@@ -206,16 +207,14 @@ func (f *Factory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
 	if !f.archiveConfig.Enabled {
 		return nil, nil
 	}
-	return createSpanWriter(f.getArchiveClient, f.archiveConfig, true, f.metricsFactory, f.logger)
+	return createSpanWriter(f.getArchiveClient, f.archiveConfig, true, f.telset)
 }
 
 func createSpanReader(
 	clientFn func() es.Client,
 	cfg *config.Configuration,
 	archive bool,
-	mFactory metrics.Factory,
-	logger *zap.Logger,
-	tp trace.TracerProvider,
+	telset telemetry.Setting,
 ) (spanstore.Reader, error) {
 	if cfg.UseILM && !cfg.UseReadWriteAliases {
 		return nil, errors.New("--es.use-ilm must always be used in conjunction with --es.use-aliases to ensure ES writers and readers refer to the single index mapping")
@@ -231,9 +230,9 @@ func createSpanReader(
 		UseReadWriteAliases: cfg.UseReadWriteAliases,
 		Archive:             archive,
 		RemoteReadClusters:  cfg.RemoteReadClusters,
-		Logger:              logger,
-		MetricsFactory:      mFactory,
-		Tracer:              tp.Tracer("esSpanStore.SpanReader"),
+		Logger:              telset.Logger,
+		MetricsFactory:      telset.Metrics,
+		Tracer:              telset.TracerProvider.Tracer("esSpanStore.SpanReader"),
 	}), nil
 }
 
@@ -241,8 +240,7 @@ func createSpanWriter(
 	clientFn func() es.Client,
 	cfg *config.Configuration,
 	archive bool,
-	mFactory metrics.Factory,
-	logger *zap.Logger,
+	telset telemetry.Setting,
 ) (spanstore.Writer, error) {
 	var tags []string
 	var err error
@@ -250,7 +248,7 @@ func createSpanWriter(
 		return nil, errors.New("--es.use-ilm must always be used in conjunction with --es.use-aliases to ensure ES writers and readers refer to the single index mapping")
 	}
 	if tags, err = cfg.TagKeysAsFields(); err != nil {
-		logger.Error("failed to get tag keys", zap.Error(err))
+		telset.Logger.Error("failed to get tag keys", zap.Error(err))
 		return nil, err
 	}
 
@@ -264,8 +262,8 @@ func createSpanWriter(
 		TagDotReplacement:   cfg.Tags.DotReplacement,
 		Archive:             archive,
 		UseReadWriteAliases: cfg.UseReadWriteAliases,
-		Logger:              logger,
-		MetricsFactory:      mFactory,
+		Logger:              telset.Logger,
+		MetricsFactory:      telset.Metrics,
 		ServiceCacheTTL:     cfg.ServiceCacheTTL,
 	})
 
@@ -286,7 +284,7 @@ func createSpanWriter(
 func (f *Factory) CreateSamplingStore(int /* maxBuckets */) (samplingstore.Store, error) {
 	params := esSampleStore.Params{
 		Client:                 f.getPrimaryClient,
-		Logger:                 f.logger,
+		Logger:                 f.telset.Logger,
 		IndexPrefix:            f.primaryConfig.Indices.IndexPrefix,
 		IndexDateLayout:        f.primaryConfig.Indices.Sampling.DateLayout,
 		IndexRolloverFrequency: config.RolloverFrequencyAsNegativeDuration(f.primaryConfig.Indices.Sampling.RolloverFrequency),
@@ -321,11 +319,11 @@ func mappingBuilderFromConfig(cfg *config.Configuration) mappings.MappingBuilder
 func createDependencyReader(
 	clientFn func() es.Client,
 	cfg *config.Configuration,
-	logger *zap.Logger,
+	telset telemetry.Setting,
 ) (dependencystore.Reader, error) {
 	reader := esDepStore.NewDependencyStore(esDepStore.Params{
 		Client:              clientFn,
-		Logger:              logger,
+		Logger:              telset.Logger,
 		IndexPrefix:         cfg.Indices.IndexPrefix,
 		IndexDateLayout:     cfg.Indices.Dependencies.DateLayout,
 		MaxDocCount:         cfg.MaxDocCount,
@@ -362,22 +360,22 @@ func (f *Factory) onArchivePasswordChange() {
 func (f *Factory) onClientPasswordChange(cfg *config.Configuration, client *atomic.Pointer[es.Client]) {
 	newPassword, err := loadTokenFromFile(cfg.Authentication.BasicAuthentication.PasswordFilePath)
 	if err != nil {
-		f.logger.Error("failed to reload password for Elasticsearch client", zap.Error(err))
+		f.telset.Logger.Error("failed to reload password for Elasticsearch client", zap.Error(err))
 		return
 	}
-	f.logger.Sugar().Infof("loaded new password of length %d from file", len(newPassword))
+	f.telset.Logger.Sugar().Infof("loaded new password of length %d from file", len(newPassword))
 	newCfg := *cfg // copy by value
 	newCfg.Authentication.BasicAuthentication.Password = newPassword
 	newCfg.Authentication.BasicAuthentication.PasswordFilePath = "" // avoid error that both are set
 
-	newClient, err := f.newClientFn(&newCfg, f.logger, f.metricsFactory)
+	newClient, err := f.newClientFn(&newCfg, f.telset.Logger, f.telset.Metrics)
 	if err != nil {
-		f.logger.Error("failed to recreate Elasticsearch client with new password", zap.Error(err))
+		f.telset.Logger.Error("failed to recreate Elasticsearch client with new password", zap.Error(err))
 		return
 	}
 	if oldClient := *client.Swap(&newClient); oldClient != nil {
 		if err := oldClient.Close(); err != nil {
-			f.logger.Error("failed to close Elasticsearch client", zap.Error(err))
+			f.telset.Logger.Error("failed to close Elasticsearch client", zap.Error(err))
 		}
 	}
 }

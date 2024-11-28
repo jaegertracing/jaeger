@@ -15,7 +15,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/internal/safeexpvar"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
-	"github.com/jaegertracing/jaeger/pkg/telemetery"
+	"github.com/jaegertracing/jaeger/pkg/telemetry"
 	"github.com/jaegertracing/jaeger/plugin"
 	"github.com/jaegertracing/jaeger/plugin/storage/badger"
 	"github.com/jaegertracing/jaeger/plugin/storage/blackhole"
@@ -84,14 +84,14 @@ var ( // interface comformance checks
 // Factory implements storage.Factory interface as a meta-factory for storage components.
 type Factory struct {
 	FactoryConfig
-	telset telemetery.Setting
+	telset telemetry.Setting
 
 	factories              map[string]storage.Factory
 	downsamplingFlagsAdded bool
 }
 
 // NewFactory creates the meta-factory.
-func NewFactory(config FactoryConfig, telset telemetery.Setting) (*Factory, error) {
+func NewFactory(config FactoryConfig, telset telemetry.Setting) (*Factory, error) {
 	f := &Factory{
 		FactoryConfig: config,
 		telset:        telset,
