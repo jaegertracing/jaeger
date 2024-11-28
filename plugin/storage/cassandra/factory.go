@@ -11,8 +11,6 @@ import (
 	"io"
 
 	"github.com/spf13/viper"
-	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/cassandra"
@@ -20,6 +18,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/distributedlock"
 	"github.com/jaegertracing/jaeger/pkg/hostname"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/pkg/telemetery"
 	"github.com/jaegertracing/jaeger/plugin"
 	cLock "github.com/jaegertracing/jaeger/plugin/pkg/distributedlock/cassandra"
 	cDepStore "github.com/jaegertracing/jaeger/plugin/storage/cassandra/dependencystore"
@@ -49,11 +48,10 @@ var ( // interface comformance checks
 // Factory implements storage.Factory for Cassandra backend.
 type Factory struct {
 	Options *Options
+	telset  telemetry.Settings
 
 	primaryMetricsFactory metrics.Factory
 	archiveMetricsFactory metrics.Factory
-	logger                *zap.Logger
-	tracer                trace.TracerProvider
 
 	primaryConfig  config.SessionBuilder
 	primarySession cassandra.Session
@@ -62,9 +60,9 @@ type Factory struct {
 }
 
 // NewFactory creates a new Factory.
-func NewFactory() *Factory {
+func NewFactory(telset telemetry.Settings) *Factory {
 	return &Factory{
-		tracer:  otel.GetTracerProvider(),
+		telset:  telset,
 		Options: NewOptions(primaryStorageConfig, archiveStorageConfig),
 	}
 }
@@ -92,7 +90,7 @@ type withConfigBuilder struct {
 	opts           *Options
 	metricsFactory metrics.Factory
 	logger         *zap.Logger
-	initializer    func(metricsFactory metrics.Factory, logger *zap.Logger) error
+	initializer    func() error
 }
 
 func (b *withConfigBuilder) build() (*Factory, error) {
@@ -100,7 +98,7 @@ func (b *withConfigBuilder) build() (*Factory, error) {
 	if err := b.opts.Primary.Validate(); err != nil {
 		return nil, err
 	}
-	err := b.initializer(b.metricsFactory, b.logger)
+	err := b.initializer()
 	if err != nil {
 		return nil, err
 	}
@@ -132,10 +130,9 @@ func (f *Factory) configureFromOptions(o *Options) {
 }
 
 // Initialize implements storage.Factory
-func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
-	f.primaryMetricsFactory = metricsFactory.Namespace(metrics.NSOptions{Name: "cassandra", Tags: nil})
-	f.archiveMetricsFactory = metricsFactory.Namespace(metrics.NSOptions{Name: "cassandra-archive", Tags: nil})
-	f.logger = logger
+func (f *Factory) Initialize() error {
+	f.primaryMetricsFactory = f.telset.Metrics.Namespace(metrics.NSOptions{Name: "cassandra", Tags: nil})
+	f.archiveMetricsFactory = f.telset.Metrics.Namespace(metrics.NSOptions{Name: "cassandra-archive", Tags: nil})
 
 	primarySession, err := f.primaryConfig.NewSession()
 	if err != nil {
@@ -150,14 +147,19 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 		}
 		f.archiveSession = archiveSession
 	} else {
-		logger.Info("Cassandra archive storage configuration is empty, skipping")
+		f.telset.Logger.Info("Cassandra archive storage configuration is empty, skipping")
 	}
 	return nil
 }
 
 // CreateSpanReader implements storage.Factory
 func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
-	return cSpanStore.NewSpanReader(f.primarySession, f.primaryMetricsFactory, f.logger, f.tracer.Tracer("cSpanStore.SpanReader"))
+	return cSpanStore.NewSpanReader(
+		f.primarySession,
+		f.primaryMetricsFactory,
+		f.telset.Logger,
+		f.telset.TracerProvider.Tracer("cSpanStore.SpanReader"),
+	)
 }
 
 // CreateSpanWriter implements storage.Factory
@@ -180,7 +182,12 @@ func (f *Factory) CreateArchiveSpanReader() (spanstore.Reader, error) {
 	if f.archiveSession == nil {
 		return nil, storage.ErrArchiveStorageNotConfigured
 	}
-	return cSpanStore.NewSpanReader(f.archiveSession, f.archiveMetricsFactory, f.logger, f.tracer.Tracer("cSpanStore.SpanReader"))
+	return cSpanStore.NewSpanReader(
+		f.archiveSession,
+		f.archiveMetricsFactory,
+		f.telset.Logger,
+		f.telset.TracerProvider.Tracer("cSpanStore.SpanReader"),
+	)
 }
 
 // CreateArchiveSpanWriter implements storage.ArchiveFactory
@@ -201,14 +208,14 @@ func (f *Factory) CreateLock() (distributedlock.Lock, error) {
 	if err != nil {
 		return nil, err
 	}
-	f.logger.Info("Using unique participantName in the distributed lock", zap.String("participantName", hostId))
+	f.telset.Logger.Info("Using unique participantName in the distributed lock", zap.String("participantName", hostId))
 
 	return cLock.NewLock(f.primarySession, hostId), nil
 }
 
 // CreateSamplingStore implements storage.SamplingStoreFactory
 func (f *Factory) CreateSamplingStore(int /* maxBuckets */) (samplingstore.Store, error) {
-	return cSamplingStore.New(f.primarySession, f.primaryMetricsFactory, f.logger), nil
+	return cSamplingStore.New(f.primarySession, f.primaryMetricsFactory, f.telset.Logger), nil
 }
 
 func writerOptions(opts *Options) ([]cSpanStore.Option, error) {

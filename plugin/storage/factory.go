@@ -15,6 +15,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/internal/safeexpvar"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/pkg/telemetery"
 	"github.com/jaegertracing/jaeger/plugin"
 	"github.com/jaegertracing/jaeger/plugin/storage/badger"
 	"github.com/jaegertracing/jaeger/plugin/storage/blackhole"
@@ -83,14 +84,18 @@ var ( // interface comformance checks
 // Factory implements storage.Factory interface as a meta-factory for storage components.
 type Factory struct {
 	FactoryConfig
-	metricsFactory         metrics.Factory
+	telset telemetery.Setting
+
 	factories              map[string]storage.Factory
 	downsamplingFlagsAdded bool
 }
 
 // NewFactory creates the meta-factory.
-func NewFactory(config FactoryConfig) (*Factory, error) {
-	f := &Factory{FactoryConfig: config}
+func NewFactory(config FactoryConfig, telset telemetery.Setting) (*Factory, error) {
+	f := &Factory{
+		FactoryConfig: config,
+		telset:        telset,
+	}
 	uniqueTypes := map[string]struct{}{
 		f.SpanReaderType:          {},
 		f.DependenciesStorageType: {},
@@ -113,32 +118,31 @@ func NewFactory(config FactoryConfig) (*Factory, error) {
 	return f, nil
 }
 
-func (*Factory) getFactoryOfType(factoryType string) (storage.Factory, error) {
+func (f *Factory) getFactoryOfType(factoryType string) (storage.Factory, error) {
 	switch factoryType {
 	case cassandraStorageType:
-		return cassandra.NewFactory(), nil
+		return cassandra.NewFactory(f.telset), nil
 	case elasticsearchStorageType, opensearchStorageType:
-		return es.NewFactory(), nil
+		return es.NewFactory(f.telset), nil
 	case memoryStorageType:
-		return memory.NewFactory(), nil
+		return memory.NewFactory(f.telset), nil
 	case kafkaStorageType:
-		return kafka.NewFactory(), nil
+		return kafka.NewFactory(f.telset), nil
 	case badgerStorageType:
-		return badger.NewFactory(), nil
+		return badger.NewFactory(f.telset), nil
 	case grpcStorageType:
-		return grpc.NewFactory(), nil
+		return grpc.NewFactory(f.telset), nil
 	case blackholeStorageType:
-		return blackhole.NewFactory(), nil
+		return blackhole.NewFactory(f.telset), nil
 	default:
 		return nil, fmt.Errorf("unknown storage type %s. Valid types are %v", factoryType, AllStorageTypes)
 	}
 }
 
 // Initialize implements storage.Factory.
-func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
-	f.metricsFactory = metricsFactory
+func (f *Factory) Initialize() error {
 	for _, factory := range f.factories {
-		if err := factory.Initialize(metricsFactory, logger); err != nil {
+		if err := factory.Initialize(); err != nil {
 			return err
 		}
 	}
@@ -183,7 +187,7 @@ func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
 	return spanstore.NewDownsamplingWriter(spanWriter, spanstore.DownsamplingOptions{
 		Ratio:          f.DownsamplingRatio,
 		HashSalt:       f.DownsamplingHashSalt,
-		MetricsFactory: f.metricsFactory.Namespace(metrics.NSOptions{Name: "downsampling_writer"}),
+		MetricsFactory: f.telset.Metrics.Namespace(metrics.NSOptions{Name: "downsampling_writer"}),
 	}), nil
 }
 
