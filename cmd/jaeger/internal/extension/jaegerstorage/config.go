@@ -37,6 +37,7 @@ var (
 type Config struct {
 	TraceBackends  map[string]TraceBackend  `mapstructure:"backends"`
 	MetricBackends map[string]MetricBackend `mapstructure:"metric_backends"`
+	Roles          Roles                    `mapstructure:"roles"`
 }
 
 // TraceBackend contains configuration for a single trace storage backend.
@@ -52,6 +53,12 @@ type TraceBackend struct {
 // MetricBackend contains configuration for a single metric storage backend.
 type MetricBackend struct {
 	Prometheus *promCfg.Configuration `mapstructure:"prometheus"`
+}
+
+type Roles struct {
+	Traces        string `mapstructure:"traces"`
+	TracesArchive string `mapstructure:"traces_archive"`
+	Metrics       string `mapstructure:"metrics"`
 }
 
 // Unmarshal implements confmap.Unmarshaler. This allows us to provide
