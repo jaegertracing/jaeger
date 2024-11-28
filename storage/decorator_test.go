@@ -1,3 +1,6 @@
+// Copyright (c) 2024 The Jaeger Authors.
+// SPDX-License-Identifier: Apache-2.0
+
 package storage
 
 import (
@@ -5,12 +8,13 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
+
 	"github.com/jaegertracing/jaeger/internal/metricstest"
 	depstoremocks "github.com/jaegertracing/jaeger/storage/dependencystore/mocks"
 	"github.com/jaegertracing/jaeger/storage/mocks"
 	spanstoremocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 )
 
 func TestInitialize_DelegatesUnderlyingResponse(t *testing.T) {

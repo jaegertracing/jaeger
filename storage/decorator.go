@@ -1,11 +1,15 @@
+// Copyright (c) 2024 The Jaeger Authors.
+// SPDX-License-Identifier: Apache-2.0
+
 package storage
 
 import (
+	"go.uber.org/zap"
+
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	"github.com/jaegertracing/jaeger/storage/spanstore/spanstoremetrics"
-	"go.uber.org/zap"
 )
 
 type DecoratorFactory struct {
