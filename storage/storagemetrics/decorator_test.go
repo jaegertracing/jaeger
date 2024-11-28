@@ -57,7 +57,7 @@ func TestCreateSpanReader_ReturnsDecoratedReader(t *testing.T) {
 	expectedReader.On("GetServices", context.Background()).Return([]string{}, nil)
 	r.GetServices(context.Background())
 	counters, _ := mf.Snapshot()
-	require.EqualValues(t, map[string]int64{"requests|operation=get_services|result=ok": 1}, counters)
+	require.EqualValues(t, map[string]int64{"query.requests|operation=get_services|result=ok": 1}, counters)
 }
 
 func TestCreateSpanWriter_DelegatesUnderlyingResponse(t *testing.T) {
