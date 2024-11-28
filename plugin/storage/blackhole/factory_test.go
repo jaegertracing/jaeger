@@ -9,17 +9,16 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/pkg/telemetry"
 	"github.com/jaegertracing/jaeger/storage"
 )
 
 var _ storage.Factory = new(Factory)
 
 func TestStorageFactory(t *testing.T) {
-	f := NewFactory()
-	require.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
+	f := NewFactory(telemetry.NoopSettings())
+	require.NoError(t, f.Initialize())
 	assert.NotNil(t, f.store)
 	reader, err := f.CreateSpanReader()
 	require.NoError(t, err)

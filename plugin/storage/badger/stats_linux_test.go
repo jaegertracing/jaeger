@@ -12,10 +12,14 @@ import (
 
 	"github.com/jaegertracing/jaeger/internal/metricstest"
 	"github.com/jaegertracing/jaeger/pkg/config"
+	"github.com/jaegertracing/jaeger/pkg/telemetry"
 )
 
 func TestDiskStatisticsUpdate(t *testing.T) {
-	f := NewFactory()
+	telset := telemetry.NoopSettings()
+	mFactory := metricstest.NewFactory(0)
+	telset.Metrics = mFactory
+	f := NewFactory(telset)
 	cfg := DefaultConfig()
 	v, command := config.Viperize(cfg.AddFlags)
 	command.ParseFlags([]string{
@@ -23,8 +27,7 @@ func TestDiskStatisticsUpdate(t *testing.T) {
 		"--badger.consistency=false",
 	})
 	f.InitFromViper(v, zap.NewNop())
-	mFactory := metricstest.NewFactory(0)
-	err := f.Initialize(mFactory, zap.NewNop())
+	err := f.Initialize()
 	require.NoError(t, err)
 	defer f.Close()
 

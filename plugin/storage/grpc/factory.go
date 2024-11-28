@@ -12,11 +12,8 @@ import (
 
 	"github.com/spf13/viper"
 	"go.opentelemetry.io/collector/component"
-	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/config/configgrpc"
-	"go.opentelemetry.io/collector/config/configtelemetry"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
-	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 	"go.opentelemetry.io/otel/trace/noop"
@@ -24,7 +21,6 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/jaegertracing/jaeger/pkg/bearertoken"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/telemetry"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/plugin"
@@ -43,21 +39,18 @@ var ( // interface comformance checks
 
 // Factory implements storage.Factory and creates storage components backed by a storage plugin.
 type Factory struct {
-	metricsFactory     metrics.Factory
-	logger             *zap.Logger
-	tracerProvider     trace.TracerProvider
+	telset             telemetry.Setting
 	config             Config
 	services           *ClientPluginServices
 	tracedRemoteConn   *grpc.ClientConn
 	untracedRemoteConn *grpc.ClientConn
-	host               component.Host
 	meterProvider      metric.MeterProvider
 }
 
 // NewFactory creates a new Factory.
-func NewFactory() *Factory {
+func NewFactory(telset telemetry.Setting) *Factory {
 	return &Factory{
-		host: componenttest.NewNopHost(),
+		telset: telset,
 	}
 }
 
@@ -66,11 +59,9 @@ func NewFactoryWithConfig(
 	cfg Config,
 	telset telemetry.Setting,
 ) (*Factory, error) {
-	f := NewFactory()
+	f := NewFactory(telset)
 	f.config = cfg
-	f.host = telset.Host
-	f.meterProvider = telset.LeveledMeterProvider(configtelemetry.LevelNone)
-	if err := f.Initialize(telset.Metrics, telset.Logger); err != nil {
+	if err := f.Initialize(); err != nil {
 		return nil, err
 	}
 	return f, nil
@@ -89,18 +80,15 @@ func (f *Factory) InitFromViper(v *viper.Viper, logger *zap.Logger) {
 }
 
 // Initialize implements storage.Factory
-func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
-	f.metricsFactory, f.logger = metricsFactory, logger
-	f.tracerProvider = otel.GetTracerProvider()
-
-	tracedTelset := getTelset(logger, f.tracerProvider, f.meterProvider)
-	untracedTelset := getTelset(logger, noop.NewTracerProvider(), f.meterProvider)
+func (f *Factory) Initialize() error {
+	tracedTelset := getOtelTelset(f.telset, f.telset.TracerProvider)
+	untracedTelset := getOtelTelset(f.telset, noop.NewTracerProvider())
 	newClientFn := func(telset component.TelemetrySettings, opts ...grpc.DialOption) (conn *grpc.ClientConn, err error) {
 		clientOpts := make([]configgrpc.ToClientConnOption, 0)
 		for _, opt := range opts {
 			clientOpts = append(clientOpts, configgrpc.WithGrpcDialOption(opt))
 		}
-		return f.config.ToClientConn(context.Background(), f.host, telset, clientOpts...)
+		return f.config.ToClientConn(context.Background(), f.telset.Host, telset, clientOpts...)
 	}
 
 	var err error
@@ -108,7 +96,7 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 	if err != nil {
 		return fmt.Errorf("grpc storage builder failed to create a store: %w", err)
 	}
-	logger.Info("Remote storage configuration", zap.Any("configuration", f.config))
+	f.telset.Logger.Info("Remote storage configuration", zap.Any("configuration", f.config))
 	return nil
 }
 
@@ -232,12 +220,10 @@ func (f *Factory) Close() error {
 	return errors.Join(errs...)
 }
 
-func getTelset(logger *zap.Logger, tracerProvider trace.TracerProvider, meterProvider metric.MeterProvider) component.TelemetrySettings {
+func getOtelTelset(telset telemetry.Setting, tracerProvider trace.TracerProvider) component.TelemetrySettings {
 	return component.TelemetrySettings{
-		Logger:         logger,
+		Logger:         telset.Logger,
 		TracerProvider: tracerProvider,
-		LeveledMeterProvider: func(_ configtelemetry.Level) metric.MeterProvider {
-			return meterProvider
-		},
+		MeterProvider:  telset.MeterProvider,
 	}
 }

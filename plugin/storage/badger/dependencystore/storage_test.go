@@ -15,7 +15,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/config"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/pkg/telemetry"
 	"github.com/jaegertracing/jaeger/plugin/storage/badger"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
@@ -23,7 +23,7 @@ import (
 
 // Opens a badger db and runs a test on it.
 func runFactoryTest(tb testing.TB, test func(tb testing.TB, sw spanstore.Writer, dr dependencystore.Reader)) {
-	f := badger.NewFactory()
+	f := badger.NewFactory(telemetry.NoopSettings())
 	defer func() {
 		require.NoError(tb, f.Close())
 	}()
@@ -36,7 +36,7 @@ func runFactoryTest(tb testing.TB, test func(tb testing.TB, sw spanstore.Writer,
 	})
 	f.InitFromViper(v, zap.NewNop())
 
-	err := f.Initialize(metrics.NullFactory, zap.NewNop())
+	err := f.Initialize()
 	require.NoError(tb, err)
 
 	sw, err := f.CreateSpanWriter()

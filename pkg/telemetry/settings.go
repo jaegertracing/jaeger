@@ -6,7 +6,7 @@ package telemetry
 import (
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componentstatus"
-	"go.opentelemetry.io/collector/config/configtelemetry"
+	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/otel/metric"
 	noopmetric "go.opentelemetry.io/otel/metric/noop"
 	"go.opentelemetry.io/otel/trace"
@@ -18,12 +18,12 @@ import (
 )
 
 type Setting struct {
-	Logger               *zap.Logger
-	Metrics              metrics.Factory
-	LeveledMeterProvider func(configtelemetry.Level) metric.MeterProvider
-	TracerProvider       trace.TracerProvider
-	ReportStatus         func(*componentstatus.Event)
-	Host                 component.Host
+	Logger         *zap.Logger
+	Metrics        metrics.Factory
+	MeterProvider  metric.MeterProvider
+	TracerProvider trace.TracerProvider
+	ReportStatus   func(*componentstatus.Event)
+	Host           component.Host
 }
 
 func HCAdapter(hc *healthcheck.HealthCheck) func(*componentstatus.Event) {
@@ -48,11 +48,11 @@ func HCAdapter(hc *healthcheck.HealthCheck) func(*componentstatus.Event) {
 
 func NoopSettings() Setting {
 	return Setting{
-		Logger:  zap.NewNop(),
-		Metrics: metrics.NullFactory,
-		LeveledMeterProvider: func(_ configtelemetry.Level) metric.MeterProvider {
-			return noopmetric.NewMeterProvider()
-		},
+		Logger:         zap.NewNop(),
+		Metrics:        metrics.NullFactory,
+		MeterProvider:  noopmetric.NewMeterProvider(),
 		TracerProvider: nooptrace.NewTracerProvider(),
+		ReportStatus:   func(*componentstatus.Event) {},
+		Host:           componenttest.NewNopHost(),
 	}
 }

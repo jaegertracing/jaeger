@@ -16,18 +16,13 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
-	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/config/configauth"
 	"go.opentelemetry.io/collector/config/configgrpc"
-	"go.opentelemetry.io/collector/config/configtelemetry"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
-	"go.opentelemetry.io/otel/metric"
-	"go.opentelemetry.io/otel/metric/noop"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 
 	"github.com/jaegertracing/jaeger/pkg/config"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/telemetry"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared"
@@ -90,10 +85,10 @@ func makeMockServices() *ClientPluginServices {
 }
 
 func makeFactory(t *testing.T) *Factory {
-	f := NewFactory()
+	f := NewFactory(telemetry.NoopSettings())
 	f.InitFromViper(viper.New(), zap.NewNop())
 	f.config.ClientConfig.Endpoint = ":0"
-	require.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
+	require.NoError(t, f.Initialize())
 
 	t.Cleanup(func() {
 		f.Close()
@@ -110,24 +105,16 @@ func TestNewFactoryError(t *testing.T) {
 			Auth: &configauth.Authentication{},
 		},
 	}
-	telset := telemetry.Setting{
-		Logger: zap.NewNop(),
-		LeveledMeterProvider: func(_ configtelemetry.Level) metric.MeterProvider {
-			return noop.NewMeterProvider()
-		},
-		Host:    componenttest.NewNopHost(),
-		Metrics: metrics.NullFactory,
-	}
 	t.Run("with_config", func(t *testing.T) {
-		_, err := NewFactoryWithConfig(*cfg, telset)
+		_, err := NewFactoryWithConfig(*cfg, telemetry.NoopSettings())
 		assert.ErrorContains(t, err, "authenticator")
 	})
 
 	t.Run("viper", func(t *testing.T) {
-		f := NewFactory()
+		f := NewFactory(telemetry.NoopSettings())
 		f.InitFromViper(viper.New(), zap.NewNop())
 		f.config = *cfg
-		err := f.Initialize(metrics.NullFactory, zap.NewNop())
+		err := f.Initialize()
 		assert.ErrorContains(t, err, "authenticator")
 	})
 
@@ -137,7 +124,7 @@ func TestNewFactoryError(t *testing.T) {
 			ClientConfig: configgrpc.ClientConfig{
 				Endpoint: ":0",
 			},
-		}, telset)
+		}, telemetry.NoopSettings())
 		require.NoError(t, err)
 		t.Cleanup(func() { require.NoError(t, f.Close()) })
 		newClientFn := func(_ component.TelemetrySettings, _ ...grpc.DialOption) (conn *grpc.ClientConn, err error) {
@@ -188,15 +175,7 @@ func TestGRPCStorageFactoryWithConfig(t *testing.T) {
 			Enabled: true,
 		},
 	}
-	telset := telemetry.Setting{
-		Logger: zap.NewNop(),
-		LeveledMeterProvider: func(_ configtelemetry.Level) metric.MeterProvider {
-			return noop.NewMeterProvider()
-		},
-		Host:    componenttest.NewNopHost(),
-		Metrics: metrics.NullFactory,
-	}
-	f, err := NewFactoryWithConfig(cfg, telset)
+	f, err := NewFactoryWithConfig(cfg, telemetry.NoopSettings())
 	require.NoError(t, err)
 	require.NoError(t, f.Close())
 }
@@ -281,7 +260,7 @@ func TestGRPCStorageFactory_CapabilitiesNil(t *testing.T) {
 }
 
 func TestWithCLIFlags(t *testing.T) {
-	f := NewFactory()
+	f := NewFactory(telemetry.NoopSettings())
 	v, command := config.Viperize(f.AddFlags)
 	err := command.ParseFlags([]string{
 		"--grpc-storage.server=foo:1234",

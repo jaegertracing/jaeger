@@ -14,6 +14,7 @@ import (
 	"go.uber.org/zap/zaptest/observer"
 
 	"github.com/jaegertracing/jaeger/pkg/config"
+	"github.com/jaegertracing/jaeger/pkg/telemetry"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 )
 
@@ -71,7 +72,7 @@ func TestFailedTLSFlags(t *testing.T) {
 		"--grpc-storage.tls.cert=blah", // invalid unless tls.enabled=true
 	})
 	require.NoError(t, err)
-	f := NewFactory()
+	f := NewFactory(telemetry.NoopSettings())
 	core, logs := observer.New(zap.NewAtomicLevelAt(zapcore.ErrorLevel))
 	logger := zap.New(core, zap.WithFatalHook(zapcore.WriteThenPanic))
 	require.Panics(t, func() { f.InitFromViper(v, logger) })

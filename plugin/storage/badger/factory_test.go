@@ -16,11 +16,11 @@ import (
 
 	"github.com/jaegertracing/jaeger/internal/metricstest"
 	"github.com/jaegertracing/jaeger/pkg/config"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/pkg/telemetry"
 )
 
 func TestInitializationErrors(t *testing.T) {
-	f := NewFactory()
+	f := NewFactory(telemetry.NoopSettings())
 	v, command := config.Viperize(f.AddFlags)
 	dir := "/root/this_should_fail" // If this test fails, you have some issues in your system
 	keyParam := "--badger.directory-key=" + dir
@@ -34,17 +34,17 @@ func TestInitializationErrors(t *testing.T) {
 	})
 	f.InitFromViper(v, zap.NewNop())
 
-	err := f.Initialize(metrics.NullFactory, zap.NewNop())
+	err := f.Initialize()
 	require.Error(t, err)
 }
 
 func TestForCodecov(t *testing.T) {
 	// These tests are testing our vendor packages and are intended to satisfy Codecov.
-	f := NewFactory()
+	f := NewFactory(telemetry.NoopSettings())
 	v, _ := config.Viperize(f.AddFlags)
 	f.InitFromViper(v, zap.NewNop())
 
-	err := f.Initialize(metrics.NullFactory, zap.NewNop())
+	err := f.Initialize()
 	require.NoError(t, err)
 
 	// Get all the writers, readers, etc
@@ -71,8 +71,10 @@ func TestForCodecov(t *testing.T) {
 }
 
 func TestMaintenanceRun(t *testing.T) {
-	// For Codecov - this does not test anything
-	f := NewFactory()
+	telset := telemetry.NoopSettings()
+	mFactory := metricstest.NewFactory(0)
+	telset.Metrics = mFactory
+	f := NewFactory(telset)
 	v, command := config.Viperize(f.AddFlags)
 	// Lets speed up the maintenance ticker..
 	command.ParseFlags([]string{
@@ -80,10 +82,9 @@ func TestMaintenanceRun(t *testing.T) {
 	})
 	f.InitFromViper(v, zap.NewNop())
 	// Safeguard
-	mFactory := metricstest.NewFactory(0)
 	_, gs := mFactory.Snapshot()
 	assert.Equal(t, int64(0), gs[lastMaintenanceRunName])
-	f.Initialize(mFactory, zap.NewNop())
+	f.Initialize()
 
 	waiter := func(previousValue int64) int64 {
 		sleeps := 0
@@ -117,15 +118,14 @@ func TestMaintenanceRun(t *testing.T) {
 // TestMaintenanceCodecov this test is not intended to test anything, but hopefully increase coverage by triggering a log line
 func TestMaintenanceCodecov(t *testing.T) {
 	// For Codecov - this does not test anything
-	f := NewFactory()
+	f := NewFactory(telemetry.NoopSettings())
 	v, command := config.Viperize(f.AddFlags)
 	// Lets speed up the maintenance ticker..
 	command.ParseFlags([]string{
 		"--badger.maintenance-interval=10ms",
 	})
 	f.InitFromViper(v, zap.NewNop())
-	mFactory := metricstest.NewFactory(0)
-	f.Initialize(mFactory, zap.NewNop())
+	f.Initialize()
 	defer f.Close()
 
 	waiter := func() {
@@ -145,14 +145,16 @@ func TestBadgerMetrics(t *testing.T) {
 	eMap := expvar.Get("badger_size_bytes_lsm").(*expvar.Map)
 	eMap.Init()
 
-	f := NewFactory()
+	telset := telemetry.NoopSettings()
+	mFactory := metricstest.NewFactory(0)
+	telset.Metrics = mFactory
+	f := NewFactory(telset)
 	v, command := config.Viperize(f.AddFlags)
 	command.ParseFlags([]string{
 		"--badger.metrics-update-interval=10ms",
 	})
 	f.InitFromViper(v, zap.NewNop())
-	mFactory := metricstest.NewFactory(0)
-	f.Initialize(mFactory, zap.NewNop())
+	f.Initialize()
 	assert.NotNil(t, f.metrics.badgerMetrics)
 	_, found := f.metrics.badgerMetrics["badger_get_num_memtable"]
 	assert.True(t, found)
@@ -183,7 +185,7 @@ func TestBadgerMetrics(t *testing.T) {
 }
 
 func TestConfigure(t *testing.T) {
-	f := NewFactory()
+	f := NewFactory(telemetry.NoopSettings())
 	cfg := &Config{
 		MaintenanceInterval: 42 * time.Second,
 	}
@@ -193,7 +195,7 @@ func TestConfigure(t *testing.T) {
 
 func TestBadgerStorageFactoryWithConfig(t *testing.T) {
 	cfg := Config{}
-	_, err := NewFactoryWithConfig(cfg, metrics.NullFactory, zap.NewNop())
+	_, err := NewFactoryWithConfig(cfg, telemetry.NoopSettings())
 	require.ErrorContains(t, err, "Error Creating Dir")
 
 	tmp := os.TempDir()
@@ -207,7 +209,7 @@ func TestBadgerStorageFactoryWithConfig(t *testing.T) {
 		MaintenanceInterval:   5,
 		MetricsUpdateInterval: 10,
 	}
-	factory, err := NewFactoryWithConfig(cfg, metrics.NullFactory, zap.NewNop())
+	factory, err := NewFactoryWithConfig(cfg, telemetry.NoopSettings())
 	require.NoError(t, err)
 	defer factory.Close()
 }
