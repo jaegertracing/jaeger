@@ -4,6 +4,8 @@
 package storagemetrics
 
 import (
+	"io"
+
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/metrics"
@@ -21,7 +23,7 @@ type DecoratorFactory struct {
 func NewDecoratorFactory(f storage.Factory, mf metrics.Factory) *DecoratorFactory {
 	return &DecoratorFactory{
 		delegate:       f,
-		metricsFactory: mf.Namespace(metrics.NSOptions{Name: "storage"}),
+		metricsFactory: mf,
 	}
 }
 
@@ -44,4 +46,11 @@ func (df *DecoratorFactory) CreateSpanWriter() (spanstore.Writer, error) {
 
 func (df *DecoratorFactory) CreateDependencyReader() (dependencystore.Reader, error) {
 	return df.delegate.CreateDependencyReader()
+}
+
+func (df *DecoratorFactory) Close() error {
+	if closer, ok := df.delegate.(io.Closer); ok {
+		return closer.Close()
+	}
+	return nil
 }
