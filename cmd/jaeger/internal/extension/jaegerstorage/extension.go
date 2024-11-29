@@ -149,7 +149,17 @@ func (s *storageExt) Start(_ context.Context, host component.Host) error {
 			//nolint: contextcheck
 			factory, err = grpc.NewFactoryWithConfig(*cfg.GRPC, telset)
 		case cfg.Cassandra != nil:
-			factory, err = cassandra.NewFactoryWithConfig(*cfg.Cassandra, telset.Metrics, s.telset.Logger)
+			factory, err = cassandra.NewFactoryWithConfig(
+				*cfg.Cassandra,
+				telset.Metrics.Namespace(metrics.NSOptions{
+					Name: "storage",
+					Tags: map[string]string{
+						"name": storageName,
+						"kind": "cassandra",
+					},
+				}),
+				s.telset.Logger,
+			)
 		case cfg.Elasticsearch != nil:
 			factory, err = es.NewFactoryWithConfig(*cfg.Elasticsearch, telset.Metrics, s.telset.Logger)
 		case cfg.Opensearch != nil:
