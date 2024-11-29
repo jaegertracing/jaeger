@@ -45,7 +45,7 @@ extensions:
       another_storage:
         cassandra:
           schema: 
-            keyspace: "jaeger_archive_v1_dc1"
+            keyspace: "jaeger_v1_dc1_archive"
             create: "${env:CASSANDRA_CREATE_SCHEMA:-false}"
           connection: 
             auth:
