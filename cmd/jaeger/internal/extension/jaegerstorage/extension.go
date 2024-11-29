@@ -146,8 +146,18 @@ func (s *storageExt) Start(_ context.Context, host component.Host) error {
 				}),
 				s.telset.Logger)
 		case cfg.GRPC != nil:
+			grpcTelset := telset
+			grpcTelset.Metrics = grpcTelset.Metrics.Namespace(
+				metrics.NSOptions{
+					Name: "storage",
+					Tags: map[string]string{
+						"name": storageName,
+						"kind": "grpc",
+					},
+				},
+			)
 			//nolint: contextcheck
-			factory, err = grpc.NewFactoryWithConfig(*cfg.GRPC, telset)
+			factory, err = grpc.NewFactoryWithConfig(*cfg.GRPC, grpcTelset)
 		case cfg.Cassandra != nil:
 			factory, err = cassandra.NewFactoryWithConfig(
 				*cfg.Cassandra,
@@ -173,7 +183,17 @@ func (s *storageExt) Start(_ context.Context, host component.Host) error {
 				s.telset.Logger,
 			)
 		case cfg.Opensearch != nil:
-			factory, err = es.NewFactoryWithConfig(*cfg.Opensearch, telset.Metrics, s.telset.Logger)
+			factory, err = es.NewFactoryWithConfig(
+				*cfg.Opensearch,
+				telset.Metrics.Namespace(metrics.NSOptions{
+					Name: "storage",
+					Tags: map[string]string{
+						"name": storageName,
+						"kind": "opensearch",
+					},
+				}),
+				s.telset.Logger,
+			)
 		}
 		if err != nil {
 			return fmt.Errorf("failed to initialize storage '%s': %w", storageName, err)
