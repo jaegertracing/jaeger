@@ -334,6 +334,22 @@ func TestConfigurable(t *testing.T) {
 	assert.Equal(t, v, mock.viper)
 }
 
+func TestConfigurablePanic(t *testing.T) {
+	cfg := FactoryConfig{
+		SpanWriterTypes:         []string{"x"},
+		SpanReaderType:          "x",
+		DependenciesStorageType: "x",
+		DownsamplingRatio:       1.0,
+		DownsamplingHashSalt:    "",
+	}
+	f := NewFactory(cfg)
+	var flagSet flag.FlagSet
+	assert.PanicsWithError(t,
+		"unknown storage type x. Valid types are [cassandra opensearch elasticsearch memory kafka badger blackhole grpc]",
+		func() { f.AddFlags(&flagSet) },
+	)
+}
+
 func TestParsingDownsamplingRatio(t *testing.T) {
 	f := Factory{}
 	v, command := config.Viperize(f.AddPipelineFlags)

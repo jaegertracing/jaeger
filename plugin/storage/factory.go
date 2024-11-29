@@ -66,7 +66,7 @@ func AllSamplingStorageTypes() []string {
 	f := &Factory{}
 	var backends []string
 	for _, st := range AllStorageTypes {
-		f, _ := f.getFactoryOfType(st) // no errors since we're looping through supported types
+		f, _ := f.createFactoryOfType(st) // no errors since we're looping through supported types
 		if _, ok := f.(storage.SamplingStoreFactory); ok {
 			backends = append(backends, st)
 		}
@@ -124,7 +124,7 @@ func (f *Factory) buildFactories() error {
 	uniqueTypes := f.factories
 	f.factories = make(map[string]storage.Factory)
 	for kind := range uniqueTypes {
-		ff, err := f.getFactoryOfType(kind)
+		ff, err := f.createFactoryOfType(kind)
 		if err != nil {
 			return err
 		}
@@ -133,7 +133,7 @@ func (f *Factory) buildFactories() error {
 	return nil
 }
 
-func (f *Factory) getFactoryOfType(factoryType string) (storage.Factory, error) {
+func (f *Factory) createFactoryOfType(factoryType string) (storage.Factory, error) {
 	switch factoryType {
 	case cassandraStorageType:
 		return cassandra.NewFactory(f.telset), nil
@@ -244,11 +244,23 @@ func (f *Factory) CreateDependencyReader() (dependencystore.Reader, error) {
 
 // AddFlags implements plugin.Configurable
 func (f *Factory) AddFlags(flagSet *flag.FlagSet) {
+	// This function is called from main before the telemetry is initialized.
+	// Since underlying NewFactory() functions require telemetry, we temporarily
+	// build the factories here with a noop-telemetry and discard them.
+	savedFactories := f.factories
+	f.telset = telemetry.NoopSettings()
+	err := f.buildFactories()
+	if err != nil {
+		panic(err)
+	}
+
 	for _, factory := range f.factories {
 		if conf, ok := factory.(plugin.Configurable); ok {
 			conf.AddFlags(flagSet)
 		}
 	}
+
+	f.factories = savedFactories
 }
 
 // AddPipelineFlags adds all the standard flags as well as the downsampling
