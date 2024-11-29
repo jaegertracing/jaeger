@@ -123,7 +123,17 @@ func (s *storageExt) Start(_ context.Context, host component.Host) error {
 		var err error = errors.New("empty configuration")
 		switch {
 		case cfg.Memory != nil:
-			factory, err = memory.NewFactoryWithConfig(*cfg.Memory, telset.Metrics, s.telset.Logger), nil
+			factory, err = memory.NewFactoryWithConfig(
+				*cfg.Memory,
+				telset.Metrics.Namespace(metrics.NSOptions{
+					Name: "storage",
+					Tags: map[string]string{
+						"name": storageName,
+						"kind": "memory",
+					},
+				}),
+				s.telset.Logger,
+			), nil
 		case cfg.Badger != nil:
 			factory, err = badger.NewFactoryWithConfig(*cfg.Badger, telset.Metrics, s.telset.Logger)
 		case cfg.GRPC != nil:
