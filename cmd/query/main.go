@@ -43,6 +43,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Cannot initialize storage factory: %v", err)
 	}
+
 	fc := metricsPlugin.FactoryConfigFromEnv()
 	metricsReaderFactory, err := metricsPlugin.NewFactory(fc)
 	if err != nil {
@@ -83,13 +84,11 @@ func main() {
 				TracerProvider: jt.OTEL,
 				ReportStatus:   telemetry.HCAdapter(svc.HC()),
 			}
-			telset := baseTelset
-			telset.Metrics = metricsFactory
 
 			// TODO: Need to figure out set enable/disable propagation on storage plugins.
 			v.Set(bearertoken.StoragePropagationKey, queryOpts.BearerTokenPropagation)
 			storageFactory.InitFromViper(v, logger)
-			if err := storageFactory.Initialize(baseFactory, logger); err != nil {
+			if err := storageFactory.Initialize(baseTelset.Metrics, baseTelset.Logger); err != nil {
 				logger.Fatal("Failed to init storage factory", zap.Error(err))
 			}
 			spanReader, err := storageFactory.CreateSpanReader()
@@ -112,6 +111,8 @@ func main() {
 				dependencyReader,
 				*queryServiceOptions)
 			tm := tenancy.NewManager(&queryOpts.Tenancy)
+			telset := baseTelset // copy
+			telset.Metrics = metricsFactory
 			server, err := app.NewServer(
 				context.Background(),
 				queryService,

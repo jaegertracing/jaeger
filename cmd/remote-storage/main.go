@@ -42,6 +42,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Cannot initialize storage factory: %v", err)
 	}
+
 	v := viper.New()
 	command := &cobra.Command{
 		Use:   serviceName,
@@ -67,15 +68,15 @@ func main() {
 				ReportStatus:  telemetry.HCAdapter(svc.HC()),
 				MeterProvider: noop.NewMeterProvider(), // TODO
 			}
-			telset := baseTelset
-			telset.Metrics = metricsFactory
 
 			storageFactory.InitFromViper(v, logger)
-			if err := storageFactory.Initialize(baseFactory, logger); err != nil {
+			if err := storageFactory.Initialize(baseTelset.Metrics, baseTelset.Logger); err != nil {
 				logger.Fatal("Failed to init storage factory", zap.Error(err))
 			}
 
 			tm := tenancy.NewManager(&opts.Tenancy)
+			telset := baseTelset // copy
+			telset.Metrics = metricsFactory
 			server, err := app.NewServer(opts, storageFactory, tm, telset)
 			if err != nil {
 				logger.Fatal("Failed to create server", zap.Error(err))
