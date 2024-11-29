@@ -5,7 +5,9 @@
 package blackhole
 
 import (
-	"github.com/jaegertracing/jaeger/pkg/telemetry"
+	"go.uber.org/zap"
+
+	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
@@ -18,19 +20,21 @@ var ( // interface comformance checks
 
 // Factory implements storage.Factory and creates blackhole storage components.
 type Factory struct {
-	telset telemetry.Setting
-	store  *Store
+	metricsFactory metrics.Factory
+	logger         *zap.Logger
+	store          *Store
 }
 
 // NewFactory creates a new Factory.
-func NewFactory(telset telemetry.Setting) *Factory {
-	return &Factory{telset: telset}
+func NewFactory() *Factory {
+	return &Factory{}
 }
 
 // Initialize implements storage.Factory
-func (f *Factory) Initialize() error {
+func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
+	f.metricsFactory, f.logger = metricsFactory, logger
 	f.store = NewStore()
-	f.telset.Logger.Info("Blackhole storage initialized")
+	logger.Info("Blackhole storage initialized")
 	return nil
 }
 

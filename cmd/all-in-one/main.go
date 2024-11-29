@@ -52,7 +52,10 @@ func main() {
 	if os.Getenv(storage.SpanStorageTypeEnvVar) == "" {
 		os.Setenv(storage.SpanStorageTypeEnvVar, "memory") // other storage types default to SpanStorage
 	}
-	storageFactory := storage.NewFactory(storage.FactoryConfigFromEnvAndCLI(os.Args, os.Stderr))
+	storageFactory, err := storage.NewFactory(storage.FactoryConfigFromEnvAndCLI(os.Args, os.Stderr))
+	if err != nil {
+		log.Fatalf("Cannot initialize storage factory: %v", err)
+	}
 	samplingStrategyFactoryConfig, err := ss.FactoryConfigFromEnv()
 	if err != nil {
 		log.Fatalf("Cannot initialize sampling strategy factory config: %v", err)
@@ -97,7 +100,7 @@ by default uses only in-memory database.`,
 			}
 
 			storageFactory.InitFromViper(v, logger)
-			if err := storageFactory.Initialize(baseTelset); err != nil {
+			if err := storageFactory.Initialize(baseFactory, logger); err != nil {
 				logger.Fatal("Failed to init storage factory", zap.Error(err))
 			}
 

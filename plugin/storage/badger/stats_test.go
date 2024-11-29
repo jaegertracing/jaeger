@@ -13,11 +13,11 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/config"
-	"github.com/jaegertracing/jaeger/pkg/telemetry"
+	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
 func TestDiskStatisticsUpdate(t *testing.T) {
-	f := NewFactory(telemetry.NoopSettings())
+	f := NewFactory()
 	cfg := DefaultConfig()
 	v, command := config.Viperize(cfg.AddFlags)
 	command.ParseFlags([]string{
@@ -25,7 +25,7 @@ func TestDiskStatisticsUpdate(t *testing.T) {
 		"--badger.consistency=false",
 	})
 	f.InitFromViper(v, zap.NewNop())
-	err := f.Initialize()
+	err := f.Initialize(metrics.NullFactory, zap.NewNop())
 	require.NoError(t, err)
 	defer f.Close()
 

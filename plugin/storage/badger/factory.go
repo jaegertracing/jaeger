@@ -19,7 +19,6 @@ import (
 
 	"github.com/jaegertracing/jaeger/pkg/distributedlock"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
-	"github.com/jaegertracing/jaeger/pkg/telemetry"
 	"github.com/jaegertracing/jaeger/plugin"
 	depStore "github.com/jaegertracing/jaeger/plugin/storage/badger/dependencystore"
 	badgerSampling "github.com/jaegertracing/jaeger/plugin/storage/badger/samplingstore"
@@ -52,10 +51,9 @@ var ( // interface comformance checks
 // Factory implements storage.Factory for Badger backend.
 type Factory struct {
 	Config *Config
-	telset telemetry.Setting
-
-	store *badger.DB
-	cache *badgerStore.CacheStore
+	store  *badger.DB
+	cache  *badgerStore.CacheStore
+	logger *zap.Logger
 
 	tmpDir          string
 	maintenanceDone chan bool
@@ -77,21 +75,21 @@ type Factory struct {
 }
 
 // NewFactory creates a new Factory.
-func NewFactory(telset telemetry.Setting) *Factory {
+func NewFactory() *Factory {
 	return &Factory{
 		Config:          DefaultConfig(),
 		maintenanceDone: make(chan bool),
-		telset:          telset,
 	}
 }
 
 func NewFactoryWithConfig(
 	cfg Config,
-	telset telemetry.Setting,
+	metricsFactory metrics.Factory,
+	logger *zap.Logger,
 ) (*Factory, error) {
-	f := NewFactory(telset)
+	f := NewFactory()
 	f.configure(&cfg)
-	err := f.Initialize()
+	err := f.Initialize(metricsFactory, logger)
 	if err != nil {
 		return nil, err
 	}
@@ -115,7 +113,9 @@ func (f *Factory) configure(config *Config) {
 }
 
 // Initialize implements storage.Factory
-func (f *Factory) Initialize() error {
+func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
+	f.logger = logger
+
 	opts := badger.DefaultOptions("")
 
 	if f.Config.Ephemeral {
@@ -149,17 +149,17 @@ func (f *Factory) Initialize() error {
 
 	f.cache = badgerStore.NewCacheStore(f.store, f.Config.TTL.Spans, true)
 
-	f.metrics.ValueLogSpaceAvailable = f.telset.Metrics.Gauge(metrics.Options{Name: valueLogSpaceAvailableName})
-	f.metrics.KeyLogSpaceAvailable = f.telset.Metrics.Gauge(metrics.Options{Name: keyLogSpaceAvailableName})
-	f.metrics.LastMaintenanceRun = f.telset.Metrics.Gauge(metrics.Options{Name: lastMaintenanceRunName})
-	f.metrics.LastValueLogCleaned = f.telset.Metrics.Gauge(metrics.Options{Name: lastValueLogCleanedName})
+	f.metrics.ValueLogSpaceAvailable = metricsFactory.Gauge(metrics.Options{Name: valueLogSpaceAvailableName})
+	f.metrics.KeyLogSpaceAvailable = metricsFactory.Gauge(metrics.Options{Name: keyLogSpaceAvailableName})
+	f.metrics.LastMaintenanceRun = metricsFactory.Gauge(metrics.Options{Name: lastMaintenanceRunName})
+	f.metrics.LastValueLogCleaned = metricsFactory.Gauge(metrics.Options{Name: lastValueLogCleanedName})
 
-	f.registerBadgerExpvarMetrics(f.telset.Metrics)
+	f.registerBadgerExpvarMetrics(metricsFactory)
 
 	go f.maintenance()
 	go f.metricsCopier()
 
-	f.telset.Logger.Info("Badger storage configuration", zap.Any("configuration", opts))
+	logger.Info("Badger storage configuration", zap.Any("configuration", opts))
 
 	return nil
 }
@@ -234,7 +234,7 @@ func (f *Factory) maintenance() {
 			if errors.Is(err, badger.ErrNoRewrite) {
 				f.metrics.LastValueLogCleaned.Update(t.UnixNano())
 			} else {
-				f.telset.Logger.Error("Failed to run ValueLogGC", zap.Error(err))
+				f.logger.Error("Failed to run ValueLogGC", zap.Error(err))
 			}
 
 			f.metrics.LastMaintenanceRun.Update(t.UnixNano())

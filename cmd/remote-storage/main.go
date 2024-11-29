@@ -5,6 +5,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -37,7 +38,10 @@ func main() {
 		os.Setenv(storage.SpanStorageTypeEnvVar, "memory")
 		// other storage types default to the same type as SpanStorage
 	}
-	storageFactory := storage.NewFactory(storage.FactoryConfigFromEnvAndCLI(os.Args, os.Stderr))
+	storageFactory, err := storage.NewFactory(storage.FactoryConfigFromEnvAndCLI(os.Args, os.Stderr))
+	if err != nil {
+		log.Fatalf("Cannot initialize storage factory: %v", err)
+	}
 	v := viper.New()
 	command := &cobra.Command{
 		Use:   serviceName,
@@ -59,7 +63,7 @@ func main() {
 
 			baseTelset := telemetry.Setting{
 				Logger:        svc.Logger,
-				Metrics:       metricsFactory,
+				Metrics:       baseFactory,
 				ReportStatus:  telemetry.HCAdapter(svc.HC()),
 				MeterProvider: noop.NewMeterProvider(), // TODO
 			}
@@ -67,7 +71,7 @@ func main() {
 			telset.Metrics = metricsFactory
 
 			storageFactory.InitFromViper(v, logger)
-			if err := storageFactory.Initialize(baseTelset); err != nil {
+			if err := storageFactory.Initialize(baseFactory, logger); err != nil {
 				logger.Fatal("Failed to init storage factory", zap.Error(err))
 			}
 

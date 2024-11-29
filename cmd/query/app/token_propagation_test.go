@@ -70,7 +70,7 @@ func runQueryService(t *testing.T, esURL string) *Server {
 	telset.Logger = flagsSvc.Logger
 	telset.ReportStatus = telemetry.HCAdapter(flagsSvc.HC())
 
-	f := es.NewFactory(telset)
+	f := es.NewFactory()
 	v, command := config.Viperize(f.AddFlags)
 	require.NoError(t, command.ParseFlags([]string{
 		"--es.tls.enabled=false",
@@ -80,7 +80,7 @@ func runQueryService(t *testing.T, esURL string) *Server {
 	f.InitFromViper(v, flagsSvc.Logger)
 	// set AllowTokenFromContext manually because we don't register the respective CLI flag from query svc
 	f.Options.Primary.Authentication.BearerTokenAuthentication.AllowFromContext = true
-	require.NoError(t, f.Initialize())
+	require.NoError(t, f.Initialize(telset.Metrics, telset.Logger))
 	defer f.Close()
 
 	spanReader, err := f.CreateSpanReader()

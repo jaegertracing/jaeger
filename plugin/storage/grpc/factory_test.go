@@ -23,6 +23,7 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/jaegertracing/jaeger/pkg/config"
+	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/telemetry"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared"
@@ -85,10 +86,10 @@ func makeMockServices() *ClientPluginServices {
 }
 
 func makeFactory(t *testing.T) *Factory {
-	f := NewFactory(telemetry.NoopSettings())
+	f := NewFactory()
 	f.InitFromViper(viper.New(), zap.NewNop())
 	f.config.ClientConfig.Endpoint = ":0"
-	require.NoError(t, f.Initialize())
+	require.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
 
 	t.Cleanup(func() {
 		f.Close()
@@ -105,16 +106,17 @@ func TestNewFactoryError(t *testing.T) {
 			Auth: &configauth.Authentication{},
 		},
 	}
+	telset := telemetry.NoopSettings()
 	t.Run("with_config", func(t *testing.T) {
-		_, err := NewFactoryWithConfig(*cfg, telemetry.NoopSettings())
+		_, err := NewFactoryWithConfig(*cfg, telset)
 		assert.ErrorContains(t, err, "authenticator")
 	})
 
 	t.Run("viper", func(t *testing.T) {
-		f := NewFactory(telemetry.NoopSettings())
+		f := NewFactory()
 		f.InitFromViper(viper.New(), zap.NewNop())
 		f.config = *cfg
-		err := f.Initialize()
+		err := f.Initialize(metrics.NullFactory, zap.NewNop())
 		assert.ErrorContains(t, err, "authenticator")
 	})
 
@@ -124,7 +126,7 @@ func TestNewFactoryError(t *testing.T) {
 			ClientConfig: configgrpc.ClientConfig{
 				Endpoint: ":0",
 			},
-		}, telemetry.NoopSettings())
+		}, telset)
 		require.NoError(t, err)
 		t.Cleanup(func() { require.NoError(t, f.Close()) })
 		newClientFn := func(_ component.TelemetrySettings, _ ...grpc.DialOption) (conn *grpc.ClientConn, err error) {
@@ -175,7 +177,8 @@ func TestGRPCStorageFactoryWithConfig(t *testing.T) {
 			Enabled: true,
 		},
 	}
-	f, err := NewFactoryWithConfig(cfg, telemetry.NoopSettings())
+	telset := telemetry.NoopSettings()
+	f, err := NewFactoryWithConfig(cfg, telset)
 	require.NoError(t, err)
 	require.NoError(t, f.Close())
 }
@@ -260,7 +263,7 @@ func TestGRPCStorageFactory_CapabilitiesNil(t *testing.T) {
 }
 
 func TestWithCLIFlags(t *testing.T) {
-	f := NewFactory(telemetry.NoopSettings())
+	f := NewFactory()
 	v, command := config.Viperize(f.AddFlags)
 	err := command.ParseFlags([]string{
 		"--grpc-storage.server=foo:1234",

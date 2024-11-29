@@ -13,15 +13,15 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/config"
-	"github.com/jaegertracing/jaeger/pkg/telemetry"
+	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/storage"
 )
 
 var _ storage.Factory = new(Factory)
 
 func TestMemoryStorageFactory(t *testing.T) {
-	f := NewFactory(telemetry.NoopSettings())
-	require.NoError(t, f.Initialize())
+	f := NewFactory()
+	require.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
 	assert.NotNil(t, f.store)
 	reader, err := f.CreateSpanReader()
 	require.NoError(t, err)
@@ -41,7 +41,7 @@ func TestMemoryStorageFactory(t *testing.T) {
 }
 
 func TestWithConfiguration(t *testing.T) {
-	f := NewFactory(telemetry.NoopSettings())
+	f := NewFactory()
 	v, command := config.Viperize(f.AddFlags)
 	command.ParseFlags([]string{"--memory.max-traces=100"})
 	f.InitFromViper(v, zap.NewNop())
@@ -52,16 +52,16 @@ func TestNewFactoryWithConfig(t *testing.T) {
 	cfg := Configuration{
 		MaxTraces: 42,
 	}
-	f := NewFactoryWithConfig(cfg, telemetry.NoopSettings())
+	f := NewFactoryWithConfig(cfg, metrics.NullFactory, zap.NewNop())
 	assert.Equal(t, cfg, f.options.Configuration)
 }
 
 func TestPublishOpts(t *testing.T) {
-	f := NewFactory(telemetry.NoopSettings())
+	f := NewFactory()
 	v, command := config.Viperize(f.AddFlags)
 	command.ParseFlags([]string{"--memory.max-traces=100"})
 	f.InitFromViper(v, zap.NewNop())
 
-	require.NoError(t, f.Initialize())
+	require.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
 	assert.EqualValues(t, 100, expvar.Get("jaeger_storage_memory_max_traces").(*expvar.Int).Value())
 }

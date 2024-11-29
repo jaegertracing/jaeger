@@ -24,6 +24,7 @@ import (
 	"go.uber.org/zap"
 
 	esCfg "github.com/jaegertracing/jaeger/pkg/es/config"
+	"github.com/jaegertracing/jaeger/pkg/metrics"
 	promCfg "github.com/jaegertracing/jaeger/pkg/prometheus/config"
 	"github.com/jaegertracing/jaeger/plugin/storage/badger"
 	"github.com/jaegertracing/jaeger/plugin/storage/cassandra"
@@ -38,7 +39,7 @@ type errorFactory struct {
 	closeErr error
 }
 
-func (errorFactory) Initialize() error {
+func (errorFactory) Initialize(_ metrics.Factory, _ *zap.Logger) error {
 	panic("not implemented")
 }
 

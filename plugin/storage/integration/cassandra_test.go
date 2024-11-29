@@ -14,7 +14,7 @@ import (
 	"go.uber.org/zap/zaptest"
 
 	"github.com/jaegertracing/jaeger/pkg/config"
-	"github.com/jaegertracing/jaeger/pkg/telemetry"
+	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/plugin/storage/cassandra"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 )
@@ -41,13 +41,12 @@ func (s *CassandraStorageIntegration) cleanUp(t *testing.T) {
 }
 
 func (*CassandraStorageIntegration) initializeCassandraFactory(t *testing.T, flags []string) *cassandra.Factory {
-	telset := telemetry.NoopSettings()
-	telset.Logger = zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller()))
-	f := cassandra.NewFactory(telset)
+	logger := zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller()))
+	f := cassandra.NewFactory()
 	v, command := config.Viperize(f.AddFlags)
 	require.NoError(t, command.ParseFlags(flags))
-	f.InitFromViper(v, telset.Logger)
-	require.NoError(t, f.Initialize())
+	f.InitFromViper(v, logger)
+	require.NoError(t, f.Initialize(metrics.NullFactory, logger))
 	return f
 }
 

@@ -6,6 +6,7 @@ package main
 import (
 	"fmt"
 	"io"
+	"log"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -31,7 +32,10 @@ import (
 func main() {
 	svc := flags.NewService(ports.IngesterAdminHTTP)
 
-	storageFactory := storage.NewFactory(storage.FactoryConfigFromEnvAndCLI(os.Args, os.Stderr))
+	storageFactory, err := storage.NewFactory(storage.FactoryConfigFromEnvAndCLI(os.Args, os.Stderr))
+	if err != nil {
+		log.Fatalf("Cannot initialize storage factory: %v", err)
+	}
 
 	v := viper.New()
 	command := &cobra.Command{
@@ -53,7 +57,7 @@ func main() {
 			baseTelset.ReportStatus = telemetry.HCAdapter(svc.HC())
 
 			storageFactory.InitFromViper(v, logger)
-			if err := storageFactory.Initialize(baseTelset); err != nil {
+			if err := storageFactory.Initialize(baseFactory, logger); err != nil {
 				logger.Fatal("Failed to init storage factory", zap.Error(err))
 			}
 			spanWriter, err := storageFactory.CreateSpanWriter()

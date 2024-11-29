@@ -19,7 +19,7 @@ import (
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/kafka/consumer"
-	"github.com/jaegertracing/jaeger/pkg/telemetry"
+	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/plugin/storage/kafka"
 	"github.com/jaegertracing/jaeger/plugin/storage/memory"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
@@ -32,15 +32,14 @@ type KafkaIntegrationTestSuite struct {
 }
 
 func (s *KafkaIntegrationTestSuite) initialize(t *testing.T) {
-	telset := telemetry.NoopSettings()
-	telset.Logger = zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller()))
+	logger := zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller()))
 	const encoding = "json"
 	const groupID = "kafka-integration-test"
 	const clientID = "kafka-integration-test"
 	// A new topic is generated per execution to avoid data overlap
 	topic := "jaeger-kafka-integration-test-" + strconv.FormatInt(time.Now().UnixNano(), 10)
 
-	f := kafka.NewFactory(telset)
+	f := kafka.NewFactory()
 	v, command := config.Viperize(f.AddFlags)
 	err := command.ParseFlags([]string{
 		"--kafka.producer.topic",
@@ -51,8 +50,8 @@ func (s *KafkaIntegrationTestSuite) initialize(t *testing.T) {
 		encoding,
 	})
 	require.NoError(t, err)
-	f.InitFromViper(v, telset.Logger)
-	err = f.Initialize()
+	f.InitFromViper(v, logger)
+	err = f.Initialize(metrics.NullFactory, logger)
 	require.NoError(t, err)
 
 	spanWriter, err := f.CreateSpanWriter()
@@ -81,7 +80,7 @@ func (s *KafkaIntegrationTestSuite) initialize(t *testing.T) {
 	}
 	options.InitFromViper(v)
 	traceStore := memory.NewStore()
-	spanConsumer, err := builder.CreateConsumer(telset.Logger, telset.Metrics, traceStore, options)
+	spanConsumer, err := builder.CreateConsumer(logger, metrics.NullFactory, traceStore, options)
 	require.NoError(t, err)
 	spanConsumer.Start()
 

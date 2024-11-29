@@ -20,7 +20,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/config"
-	"github.com/jaegertracing/jaeger/pkg/telemetry"
+	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/plugin/storage/badger"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
@@ -368,7 +368,7 @@ func TestPersist(t *testing.T) {
 	dir := t.TempDir()
 
 	p := func(t *testing.T, dir string, test func(t *testing.T, sw spanstore.Writer, sr spanstore.Reader)) {
-		f := badger.NewFactory(telemetry.NoopSettings())
+		f := badger.NewFactory()
 		defer func() {
 			require.NoError(t, f.Close())
 		}()
@@ -387,7 +387,7 @@ func TestPersist(t *testing.T) {
 		})
 		f.InitFromViper(v, zap.NewNop())
 
-		err := f.Initialize()
+		err := f.Initialize(metrics.NullFactory, zap.NewNop())
 		require.NoError(t, err)
 
 		sw, err := f.CreateSpanWriter()
@@ -433,7 +433,7 @@ func TestPersist(t *testing.T) {
 
 // Opens a badger db and runs a test on it.
 func runFactoryTest(tb testing.TB, test func(tb testing.TB, sw spanstore.Writer, sr spanstore.Reader)) {
-	f := badger.NewFactory(telemetry.NoopSettings())
+	f := badger.NewFactory()
 	defer func() {
 		require.NoError(tb, f.Close())
 	}()
@@ -446,7 +446,7 @@ func runFactoryTest(tb testing.TB, test func(tb testing.TB, sw spanstore.Writer,
 	})
 	f.InitFromViper(v, zap.NewNop())
 
-	err := f.Initialize()
+	err := f.Initialize(metrics.NullFactory, zap.NewNop())
 	require.NoError(tb, err)
 
 	sw, err := f.CreateSpanWriter()
@@ -597,7 +597,7 @@ func BenchmarkServiceIndexLimitFetch(b *testing.B) {
 // Opens a badger db and runs a test on it.
 func runLargeFactoryTest(tb testing.TB, test func(tb testing.TB, sw spanstore.Writer, sr spanstore.Reader)) {
 	assertion := require.New(tb)
-	f := badger.NewFactory(telemetry.NoopSettings())
+	f := badger.NewFactory()
 	cfg := badger.DefaultConfig()
 	v, command := config.Viperize(cfg.AddFlags)
 
@@ -616,7 +616,7 @@ func runLargeFactoryTest(tb testing.TB, test func(tb testing.TB, sw spanstore.Wr
 
 	f.InitFromViper(v, zap.NewNop())
 
-	err = f.Initialize()
+	err = f.Initialize(metrics.NullFactory, zap.NewNop())
 	assertion.NoError(err)
 
 	sw, err := f.CreateSpanWriter()

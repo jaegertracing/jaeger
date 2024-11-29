@@ -13,7 +13,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/internal/safeexpvar"
 	"github.com/jaegertracing/jaeger/pkg/distributedlock"
-	"github.com/jaegertracing/jaeger/pkg/telemetry"
+	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/plugin"
 	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
@@ -31,26 +31,26 @@ var ( // interface comformance checks
 
 // Factory implements storage.Factory and creates storage components backed by memory store.
 type Factory struct {
-	options Options
-	telset  telemetry.Setting
-	store   *Store
+	options        Options
+	metricsFactory metrics.Factory
+	logger         *zap.Logger
+	store          *Store
 }
 
 // NewFactory creates a new Factory.
-func NewFactory(telset telemetry.Setting) *Factory {
-	return &Factory{
-		telset: telset,
-	}
+func NewFactory() *Factory {
+	return &Factory{}
 }
 
 // NewFactoryWithConfig is used from jaeger(v2).
 func NewFactoryWithConfig(
 	cfg Configuration,
-	telset telemetry.Setting,
+	metricsFactory metrics.Factory,
+	logger *zap.Logger,
 ) *Factory {
-	f := NewFactory(telset)
+	f := NewFactory()
 	f.configureFromOptions(Options{Configuration: cfg})
-	_ = f.Initialize()
+	_ = f.Initialize(metricsFactory, logger)
 	return f
 }
 
@@ -70,9 +70,10 @@ func (f *Factory) configureFromOptions(opts Options) {
 }
 
 // Initialize implements storage.Factory
-func (f *Factory) Initialize() error {
+func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
+	f.metricsFactory, f.logger = metricsFactory, logger
 	f.store = WithConfiguration(f.options.Configuration)
-	f.telset.Logger.Info("Memory storage initialized", zap.Any("configuration", f.store.defaultConfig))
+	logger.Info("Memory storage initialized", zap.Any("configuration", f.store.defaultConfig))
 	f.publishOpts()
 
 	return nil

@@ -16,6 +16,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/model/adjuster"
+	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
@@ -307,7 +308,7 @@ type fakeStorageFactory2 struct {
 	wErr error
 }
 
-func (*fakeStorageFactory1) Initialize() error {
+func (*fakeStorageFactory1) Initialize(metrics.Factory, *zap.Logger) error {
 	return nil
 }
 func (*fakeStorageFactory1) CreateSpanReader() (spanstore.Reader, error)             { return nil, nil }

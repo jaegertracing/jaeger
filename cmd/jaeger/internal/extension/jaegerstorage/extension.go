@@ -123,18 +123,18 @@ func (s *storageExt) Start(_ context.Context, host component.Host) error {
 		var err error = errors.New("empty configuration")
 		switch {
 		case cfg.Memory != nil:
-			factory, err = memory.NewFactoryWithConfig(*cfg.Memory, telset), nil
+			factory, err = memory.NewFactoryWithConfig(*cfg.Memory, telset.Metrics, s.telset.Logger), nil
 		case cfg.Badger != nil:
-			factory, err = badger.NewFactoryWithConfig(*cfg.Badger, telset)
+			factory, err = badger.NewFactoryWithConfig(*cfg.Badger, telset.Metrics, s.telset.Logger)
 		case cfg.GRPC != nil:
 			//nolint: contextcheck
 			factory, err = grpc.NewFactoryWithConfig(*cfg.GRPC, telset)
 		case cfg.Cassandra != nil:
-			factory, err = cassandra.NewFactoryWithConfig(*cfg.Cassandra, telset)
+			factory, err = cassandra.NewFactoryWithConfig(*cfg.Cassandra, telset.Metrics, s.telset.Logger)
 		case cfg.Elasticsearch != nil:
-			factory, err = es.NewFactoryWithConfig(*cfg.Elasticsearch, telset)
+			factory, err = es.NewFactoryWithConfig(*cfg.Elasticsearch, telset.Metrics, s.telset.Logger)
 		case cfg.Opensearch != nil:
-			factory, err = es.NewFactoryWithConfig(*cfg.Opensearch, telset)
+			factory, err = es.NewFactoryWithConfig(*cfg.Opensearch, telset.Metrics, s.telset.Logger)
 		}
 		if err != nil {
 			return fmt.Errorf("failed to initialize storage '%s': %w", storageName, err)

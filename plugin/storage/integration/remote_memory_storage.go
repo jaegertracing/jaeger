@@ -19,6 +19,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/remote-storage/app"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
+	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/telemetry"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/plugin/storage"
@@ -31,8 +32,7 @@ type RemoteMemoryStorage struct {
 }
 
 func StartNewRemoteMemoryStorage(t *testing.T) *RemoteMemoryStorage {
-	telset := telemetry.NoopSettings()
-	telset.Logger = zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller()))
+	logger := zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller()))
 	opts := &app.Options{
 		GRPCHostPort: ports.PortToHostPort(ports.RemoteStorageGRPC),
 		Tenancy: tenancy.Options{
@@ -40,13 +40,16 @@ func StartNewRemoteMemoryStorage(t *testing.T) *RemoteMemoryStorage {
 		},
 	}
 	tm := tenancy.NewManager(&opts.Tenancy)
-	storageFactory := storage.NewFactory(storage.FactoryConfigFromEnvAndCLI(os.Args, os.Stderr))
+	storageFactory, err := storage.NewFactory(storage.FactoryConfigFromEnvAndCLI(os.Args, os.Stderr))
+	require.NoError(t, err)
 
 	v, _ := config.Viperize(storageFactory.AddFlags)
-	storageFactory.InitFromViper(v, telset.Logger)
-	require.NoError(t, storageFactory.Initialize(telset))
+	storageFactory.InitFromViper(v, logger)
+	require.NoError(t, storageFactory.Initialize(metrics.NullFactory, logger))
 
 	t.Logf("Starting in-process remote storage server on %s", opts.GRPCHostPort)
+	telset := telemetry.NoopSettings()
+	telset.Logger = logger
 	telset.ReportStatus = telemetry.HCAdapter(healthcheck.New())
 	server, err := app.NewServer(opts, storageFactory, tm, telset)
 	require.NoError(t, err)

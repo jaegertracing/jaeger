@@ -37,7 +37,10 @@ const serviceName = "jaeger-collector"
 func main() {
 	svc := cmdFlags.NewService(ports.CollectorAdminHTTP)
 
-	storageFactory := storage.NewFactory(storage.FactoryConfigFromEnvAndCLI(os.Args, os.Stderr))
+	storageFactory, err := storage.NewFactory(storage.FactoryConfigFromEnvAndCLI(os.Args, os.Stderr))
+	if err != nil {
+		log.Fatalf("Cannot initialize storage factory: %v", err)
+	}
 	samplingStrategyFactoryConfig, err := ss.FactoryConfigFromEnv()
 	if err != nil {
 		log.Fatalf("Cannot initialize sampling strategy store factory config: %v", err)
@@ -67,7 +70,7 @@ func main() {
 			baseTelset.ReportStatus = telemetry.HCAdapter(svc.HC())
 
 			storageFactory.InitFromViper(v, logger)
-			if err := storageFactory.Initialize(baseTelset); err != nil {
+			if err := storageFactory.Initialize(baseFactory, logger); err != nil {
 				logger.Fatal("Failed to init storage factory", zap.Error(err))
 			}
 			spanWriter, err := storageFactory.CreateSpanWriter()

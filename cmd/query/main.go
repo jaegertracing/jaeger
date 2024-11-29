@@ -39,7 +39,10 @@ import (
 func main() {
 	svc := flags.NewService(ports.QueryAdminHTTP)
 
-	storageFactory := storage.NewFactory(storage.FactoryConfigFromEnvAndCLI(os.Args, os.Stderr))
+	storageFactory, err := storage.NewFactory(storage.FactoryConfigFromEnvAndCLI(os.Args, os.Stderr))
+	if err != nil {
+		log.Fatalf("Cannot initialize storage factory: %v", err)
+	}
 	fc := metricsPlugin.FactoryConfigFromEnv()
 	metricsReaderFactory, err := metricsPlugin.NewFactory(fc)
 	if err != nil {
@@ -86,7 +89,7 @@ func main() {
 			// TODO: Need to figure out set enable/disable propagation on storage plugins.
 			v.Set(bearertoken.StoragePropagationKey, queryOpts.BearerTokenPropagation)
 			storageFactory.InitFromViper(v, logger)
-			if err := storageFactory.Initialize(baseTelset); err != nil {
+			if err := storageFactory.Initialize(baseFactory, logger); err != nil {
 				logger.Fatal("Failed to init storage factory", zap.Error(err))
 			}
 			spanReader, err := storageFactory.CreateSpanReader()

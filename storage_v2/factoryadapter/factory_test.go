@@ -10,7 +10,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/jaegertracing/jaeger/pkg/telemetry"
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc"
 	factoryMocks "github.com/jaegertracing/jaeger/storage/mocks"
 	spanstoreMocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
@@ -33,7 +32,7 @@ func TestAdapterCloseNotOk(t *testing.T) {
 }
 
 func TestAdapterClose(t *testing.T) {
-	f := NewFactory(grpc.NewFactory(telemetry.NoopSettings()))
+	f := NewFactory(grpc.NewFactory())
 	require.NoError(t, f.Close(context.Background()))
 }
 
