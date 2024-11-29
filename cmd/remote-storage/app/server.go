@@ -32,11 +32,11 @@ type Server struct {
 	grpcConn   net.Listener
 	grpcServer *grpc.Server
 	wg         sync.WaitGroup
-	telemetry.Setting
+	telset     telemetry.Settings
 }
 
 // NewServer creates and initializes Server.
-func NewServer(options *Options, storageFactory storage.Factory, tm *tenancy.Manager, telset telemetry.Setting) (*Server, error) {
+func NewServer(options *Options, storageFactory storage.BaseFactory, tm *tenancy.Manager, telset telemetry.Settings) (*Server, error) {
 	handler, err := createGRPCHandler(storageFactory, telset.Logger)
 	if err != nil {
 		return nil, err
@@ -50,11 +50,11 @@ func NewServer(options *Options, storageFactory storage.Factory, tm *tenancy.Man
 	return &Server{
 		opts:       options,
 		grpcServer: grpcServer,
-		Setting:    telset,
+		telset:     telset,
 	}, nil
 }
 
-func createGRPCHandler(f storage.Factory, logger *zap.Logger) (*shared.GRPCHandler, error) {
+func createGRPCHandler(f storage.BaseFactory, logger *zap.Logger) (*shared.GRPCHandler, error) {
 	reader, err := f.CreateSpanReader()
 	if err != nil {
 		return nil, err
@@ -128,14 +128,14 @@ func (s *Server) Start() error {
 	if err != nil {
 		return err
 	}
-	s.Logger.Info("Starting GRPC server", zap.Stringer("addr", listener.Addr()))
+	s.telset.Logger.Info("Starting GRPC server", zap.Stringer("addr", listener.Addr()))
 	s.grpcConn = listener
 	s.wg.Add(1)
 	go func() {
 		defer s.wg.Done()
 		if err := s.grpcServer.Serve(s.grpcConn); err != nil {
-			s.Logger.Error("GRPC server exited", zap.Error(err))
-			s.ReportStatus(componentstatus.NewFatalErrorEvent(err))
+			s.telset.Logger.Error("GRPC server exited", zap.Error(err))
+			s.telset.ReportStatus(componentstatus.NewFatalErrorEvent(err))
 		}
 	}()
 
@@ -148,6 +148,6 @@ func (s *Server) Close() error {
 	s.grpcConn.Close()
 	s.opts.TLSGRPC.Close()
 	s.wg.Wait()
-	s.ReportStatus(componentstatus.NewEvent(componentstatus.StatusStopped))
+	s.telset.ReportStatus(componentstatus.NewEvent(componentstatus.StatusStopped))
 	return nil
 }

@@ -16,14 +16,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
-	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/confignet"
-	"go.opentelemetry.io/collector/config/configtelemetry"
 	"go.opentelemetry.io/collector/config/configtls"
-	"go.opentelemetry.io/otel/metric"
-	"go.opentelemetry.io/otel/metric/noop"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"go.uber.org/zap"
@@ -49,16 +45,12 @@ import (
 
 var testCertKeyLocation = "../../../pkg/config/tlscfg/testdata"
 
-func initTelSet(logger *zap.Logger, tracerProvider *jtracer.JTracer, hc *healthcheck.HealthCheck) telemetry.Setting {
-	return telemetry.Setting{
-		Logger:         logger,
-		TracerProvider: tracerProvider.OTEL,
-		ReportStatus:   telemetry.HCAdapter(hc),
-		Host:           componenttest.NewNopHost(),
-		LeveledMeterProvider: func(_ configtelemetry.Level) metric.MeterProvider {
-			return noop.NewMeterProvider()
-		},
-	}
+func initTelSet(logger *zap.Logger, tracerProvider *jtracer.JTracer, hc *healthcheck.HealthCheck) telemetry.Settings {
+	telset := telemetry.NoopSettings()
+	telset.Logger = logger
+	telset.TracerProvider = tracerProvider.OTEL
+	telset.ReportStatus = telemetry.HCAdapter(hc)
+	return telset
 }
 
 func TestServerError(t *testing.T) {

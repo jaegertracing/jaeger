@@ -12,9 +12,6 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"go.opentelemetry.io/collector/config/configtelemetry"
-	"go.opentelemetry.io/otel/metric"
-	"go.opentelemetry.io/otel/metric/noop"
 	_ "go.uber.org/automaxprocs"
 	"go.uber.org/zap"
 
@@ -81,10 +78,17 @@ func main() {
 				}
 			}
 
+			baseTelset := telemetry.Settings{
+				Logger:         logger,
+				Metrics:        baseFactory,
+				TracerProvider: jt.OTEL,
+				ReportStatus:   telemetry.HCAdapter(svc.HC()),
+			}
+
 			// TODO: Need to figure out set enable/disable propagation on storage plugins.
 			v.Set(bearertoken.StoragePropagationKey, queryOpts.BearerTokenPropagation)
 			storageFactory.InitFromViper(v, logger)
-			if err := storageFactory.Initialize(baseFactory, logger); err != nil {
+			if err := storageFactory.Initialize(baseTelset.Metrics, baseTelset.Logger); err != nil {
 				logger.Fatal("Failed to init storage factory", zap.Error(err))
 			}
 			spanReader, err := storageFactory.CreateSpanReader()
@@ -107,15 +111,16 @@ func main() {
 				dependencyReader,
 				*queryServiceOptions)
 			tm := tenancy.NewManager(&queryOpts.Tenancy)
-			telset := telemetry.Setting{
-				Logger:         logger,
-				TracerProvider: jt.OTEL,
-				ReportStatus:   telemetry.HCAdapter(svc.HC()),
-				LeveledMeterProvider: func(_ configtelemetry.Level) metric.MeterProvider {
-					return noop.NewMeterProvider()
-				},
-			}
-			server, err := app.NewServer(context.Background(), queryService, metricsQueryService, queryOpts, tm, telset)
+			telset := baseTelset // copy
+			telset.Metrics = metricsFactory
+			server, err := app.NewServer(
+				context.Background(),
+				queryService,
+				metricsQueryService,
+				queryOpts,
+				tm,
+				telset,
+			)
 			if err != nil {
 				logger.Fatal("Failed to create server", zap.Error(err))
 			}

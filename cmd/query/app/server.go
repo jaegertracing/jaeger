@@ -48,7 +48,7 @@ type Server struct {
 	httpServer    *httpServer
 	separatePorts bool
 	bgFinished    sync.WaitGroup
-	telemetry.Setting
+	telset        telemetry.Settings
 }
 
 // NewServer creates and initializes Server
@@ -58,7 +58,7 @@ func NewServer(
 	metricsQuerySvc querysvc.MetricsQueryService,
 	options *QueryOptions,
 	tm *tenancy.Manager,
-	telset telemetry.Setting,
+	telset telemetry.Settings,
 ) (*Server, error) {
 	_, httpPort, err := net.SplitHostPort(options.HTTP.Endpoint)
 	if err != nil {
@@ -90,7 +90,7 @@ func NewServer(
 		grpcServer:    grpcServer,
 		httpServer:    httpServer,
 		separatePorts: separatePorts,
-		Setting:       telset,
+		telset:        telset,
 	}, nil
 }
 
@@ -98,7 +98,7 @@ func registerGRPCHandlers(
 	server *grpc.Server,
 	querySvc *querysvc.QueryService,
 	metricsQuerySvc querysvc.MetricsQueryService,
-	telset telemetry.Setting,
+	telset telemetry.Settings,
 ) {
 	reflection.Register(server)
 	handler := NewGRPCHandler(querySvc, metricsQuerySvc, GRPCHandlerOptions{
@@ -121,7 +121,7 @@ func createGRPCServer(
 	ctx context.Context,
 	options *QueryOptions,
 	tm *tenancy.Manager,
-	telset telemetry.Setting,
+	telset telemetry.Settings,
 ) (*grpc.Server, error) {
 	var grpcOpts []configgrpc.ToServerOption
 	unaryInterceptors := []grpc.UnaryServerInterceptor{
@@ -145,9 +145,9 @@ func createGRPCServer(
 		ctx,
 		telset.Host,
 		component.TelemetrySettings{
-			Logger:               telset.Logger,
-			TracerProvider:       telset.TracerProvider,
-			LeveledMeterProvider: telset.LeveledMeterProvider,
+			Logger:         telset.Logger,
+			TracerProvider: telset.TracerProvider,
+			MeterProvider:  telset.MeterProvider,
 		},
 		grpcOpts...)
 }
@@ -164,7 +164,7 @@ func initRouter(
 	metricsQuerySvc querysvc.MetricsQueryService,
 	queryOpts *QueryOptions,
 	tenancyMgr *tenancy.Manager,
-	telset telemetry.Setting,
+	telset telemetry.Settings,
 ) (http.Handler, io.Closer) {
 	apiHandlerOptions := []HandlerOption{
 		HandlerOptions.Logger(telset.Logger),
@@ -206,7 +206,7 @@ func createHTTPServer(
 	metricsQuerySvc querysvc.MetricsQueryService,
 	queryOpts *QueryOptions,
 	tm *tenancy.Manager,
-	telset telemetry.Setting,
+	telset telemetry.Settings,
 ) (*httpServer, error) {
 	handler, staticHandlerCloser := initRouter(querySvc, metricsQuerySvc, queryOpts, tm, telset)
 	handler = recoveryhandler.NewRecoveryHandler(telset.Logger, true)(handler)
@@ -214,9 +214,9 @@ func createHTTPServer(
 		ctx,
 		telset.Host,
 		component.TelemetrySettings{
-			Logger:               telset.Logger,
-			TracerProvider:       telset.TracerProvider,
-			LeveledMeterProvider: telset.LeveledMeterProvider,
+			Logger:         telset.Logger,
+			TracerProvider: telset.TracerProvider,
+			MeterProvider:  telset.MeterProvider,
 		},
 		handler,
 	)
@@ -251,7 +251,7 @@ func (s *Server) initListener(ctx context.Context) (cmux.CMux, error) {
 		if err != nil {
 			return nil, err
 		}
-		s.Logger.Info(
+		s.telset.Logger.Info(
 			"Query server started",
 			zap.String("http_addr", s.HTTPAddr()),
 			zap.String("grpc_addr", s.GRPCAddr()),
@@ -272,7 +272,7 @@ func (s *Server) initListener(ctx context.Context) (cmux.CMux, error) {
 		tcpPort = port
 	}
 
-	s.Logger.Info(
+	s.telset.Logger.Info(
 		"Query server started",
 		zap.Int("port", tcpPort),
 		zap.String("addr", s.queryOptions.HTTP.Endpoint))
@@ -317,29 +317,29 @@ func (s *Server) Start(ctx context.Context) error {
 	s.bgFinished.Add(1)
 	go func() {
 		defer s.bgFinished.Done()
-		s.Logger.Info("Starting HTTP server", zap.Int("port", httpPort), zap.String("addr", s.queryOptions.HTTP.Endpoint))
+		s.telset.Logger.Info("Starting HTTP server", zap.Int("port", httpPort), zap.String("addr", s.queryOptions.HTTP.Endpoint))
 		err := s.httpServer.Serve(s.httpConn)
 		if err != nil && !errors.Is(err, http.ErrServerClosed) && !errors.Is(err, cmux.ErrListenerClosed) && !errors.Is(err, cmux.ErrServerClosed) {
-			s.Logger.Error("Could not start HTTP server", zap.Error(err))
-			s.ReportStatus(componentstatus.NewFatalErrorEvent(err))
+			s.telset.Logger.Error("Could not start HTTP server", zap.Error(err))
+			s.telset.ReportStatus(componentstatus.NewFatalErrorEvent(err))
 			return
 		}
-		s.Logger.Info("HTTP server stopped", zap.Int("port", httpPort), zap.String("addr", s.queryOptions.HTTP.Endpoint))
+		s.telset.Logger.Info("HTTP server stopped", zap.Int("port", httpPort), zap.String("addr", s.queryOptions.HTTP.Endpoint))
 	}()
 
 	// Start GRPC server concurrently
 	s.bgFinished.Add(1)
 	go func() {
 		defer s.bgFinished.Done()
-		s.Logger.Info("Starting GRPC server", zap.Int("port", grpcPort), zap.String("addr", s.queryOptions.GRPC.NetAddr.Endpoint))
+		s.telset.Logger.Info("Starting GRPC server", zap.Int("port", grpcPort), zap.String("addr", s.queryOptions.GRPC.NetAddr.Endpoint))
 
 		err := s.grpcServer.Serve(s.grpcConn)
 		if err != nil && !errors.Is(err, cmux.ErrListenerClosed) && !errors.Is(err, cmux.ErrServerClosed) {
-			s.Logger.Error("Could not start GRPC server", zap.Error(err))
-			s.ReportStatus(componentstatus.NewFatalErrorEvent(err))
+			s.telset.Logger.Error("Could not start GRPC server", zap.Error(err))
+			s.telset.ReportStatus(componentstatus.NewFatalErrorEvent(err))
 			return
 		}
-		s.Logger.Info("GRPC server stopped", zap.Int("port", grpcPort), zap.String("addr", s.queryOptions.GRPC.NetAddr.Endpoint))
+		s.telset.Logger.Info("GRPC server stopped", zap.Int("port", grpcPort), zap.String("addr", s.queryOptions.GRPC.NetAddr.Endpoint))
 	}()
 
 	// Start cmux server concurrently.
@@ -347,16 +347,16 @@ func (s *Server) Start(ctx context.Context) error {
 		s.bgFinished.Add(1)
 		go func() {
 			defer s.bgFinished.Done()
-			s.Logger.Info("Starting CMUX server", zap.Int("port", tcpPort), zap.String("addr", s.queryOptions.HTTP.Endpoint))
+			s.telset.Logger.Info("Starting CMUX server", zap.Int("port", tcpPort), zap.String("addr", s.queryOptions.HTTP.Endpoint))
 
 			err := cmuxServer.Serve()
 			// TODO: find a way to avoid string comparison. Even though cmux has ErrServerClosed, it's not returned here.
 			if err != nil && !strings.Contains(err.Error(), "use of closed network connection") {
-				s.Logger.Error("Could not start multiplexed server", zap.Error(err))
-				s.ReportStatus(componentstatus.NewFatalErrorEvent(err))
+				s.telset.Logger.Error("Could not start multiplexed server", zap.Error(err))
+				s.telset.ReportStatus(componentstatus.NewFatalErrorEvent(err))
 				return
 			}
-			s.Logger.Info("CMUX server stopped", zap.Int("port", tcpPort), zap.String("addr", s.queryOptions.HTTP.Endpoint))
+			s.telset.Logger.Info("CMUX server stopped", zap.Int("port", tcpPort), zap.String("addr", s.queryOptions.HTTP.Endpoint))
 		}()
 	}
 	return nil
@@ -374,20 +374,20 @@ func (s *Server) GRPCAddr() string {
 func (s *Server) Close() error {
 	var errs []error
 
-	s.Logger.Info("Closing HTTP server")
+	s.telset.Logger.Info("Closing HTTP server")
 	if err := s.httpServer.Close(); err != nil {
 		errs = append(errs, fmt.Errorf("failed to close HTTP server: %w", err))
 	}
 
-	s.Logger.Info("Stopping gRPC server")
+	s.telset.Logger.Info("Stopping gRPC server")
 	s.grpcServer.Stop()
 
 	if !s.separatePorts {
-		s.Logger.Info("Closing CMux server")
+		s.telset.Logger.Info("Closing CMux server")
 		s.cmuxServer.Close()
 	}
 	s.bgFinished.Wait()
 
-	s.Logger.Info("Server stopped")
+	s.telset.Logger.Info("Server stopped")
 	return errors.Join(errs...)
 }

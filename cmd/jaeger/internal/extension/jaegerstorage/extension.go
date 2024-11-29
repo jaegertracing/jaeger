@@ -10,11 +10,8 @@ import (
 	"io"
 
 	"go.opentelemetry.io/collector/component"
-	"go.opentelemetry.io/collector/config/configtelemetry"
 	"go.opentelemetry.io/collector/extension"
-	"go.opentelemetry.io/otel/metric"
 
-	"github.com/jaegertracing/jaeger/internal/metrics/otelmetrics"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/telemetry"
 	"github.com/jaegertracing/jaeger/plugin/metrics/prometheus"
@@ -118,34 +115,26 @@ func newStorageExt(config *Config, telset component.TelemetrySettings) *storageE
 }
 
 func (s *storageExt) Start(_ context.Context, host component.Host) error {
-	baseFactory := otelmetrics.NewFactory(s.telset.MeterProvider)
-	mf := baseFactory.Namespace(metrics.NSOptions{Name: "jaeger"})
+	telset := telemetry.FromOtelComponent(s.telset, host)
+	telset.Metrics = telset.Metrics.Namespace(metrics.NSOptions{Name: "jaeger"})
 	for storageName, cfg := range s.config.TraceBackends {
 		s.telset.Logger.Sugar().Infof("Initializing storage '%s'", storageName)
 		var factory storage.Factory
 		var err error = errors.New("empty configuration")
 		switch {
 		case cfg.Memory != nil:
-			factory, err = memory.NewFactoryWithConfig(*cfg.Memory, mf, s.telset.Logger), nil
+			factory, err = memory.NewFactoryWithConfig(*cfg.Memory, telset.Metrics, s.telset.Logger), nil
 		case cfg.Badger != nil:
-			factory, err = badger.NewFactoryWithConfig(*cfg.Badger, mf, s.telset.Logger)
+			factory, err = badger.NewFactoryWithConfig(*cfg.Badger, telset.Metrics, s.telset.Logger)
 		case cfg.GRPC != nil:
-			telset := telemetry.Setting{
-				Logger:  s.telset.Logger,
-				Host:    host,
-				Metrics: mf,
-				LeveledMeterProvider: func(_ configtelemetry.Level) metric.MeterProvider {
-					return s.telset.MeterProvider
-				},
-			}
 			//nolint: contextcheck
 			factory, err = grpc.NewFactoryWithConfig(*cfg.GRPC, telset)
 		case cfg.Cassandra != nil:
-			factory, err = cassandra.NewFactoryWithConfig(*cfg.Cassandra, mf, s.telset.Logger)
+			factory, err = cassandra.NewFactoryWithConfig(*cfg.Cassandra, telset.Metrics, s.telset.Logger)
 		case cfg.Elasticsearch != nil:
-			factory, err = es.NewFactoryWithConfig(*cfg.Elasticsearch, mf, s.telset.Logger)
+			factory, err = es.NewFactoryWithConfig(*cfg.Elasticsearch, telset.Metrics, s.telset.Logger)
 		case cfg.Opensearch != nil:
-			factory, err = es.NewFactoryWithConfig(*cfg.Opensearch, mf, s.telset.Logger)
+			factory, err = es.NewFactoryWithConfig(*cfg.Opensearch, telset.Metrics, s.telset.Logger)
 		}
 		if err != nil {
 			return fmt.Errorf("failed to initialize storage '%s': %w", storageName, err)

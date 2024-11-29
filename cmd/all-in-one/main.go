@@ -14,9 +14,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"go.opentelemetry.io/collector/config/configtelemetry"
-	"go.opentelemetry.io/otel/metric"
-	"go.opentelemetry.io/otel/metric/noop"
+	noopmetric "go.opentelemetry.io/otel/metric/noop"
 	_ "go.uber.org/automaxprocs"
 	"go.uber.org/zap"
 
@@ -95,8 +93,16 @@ by default uses only in-memory database.`,
 				logger.Fatal("Failed to initialize tracer", zap.Error(err))
 			}
 
+			baseTelset := telemetry.Settings{
+				Logger:         svc.Logger,
+				TracerProvider: tracer.OTEL,
+				Metrics:        baseFactory,
+				MeterProvider:  noopmetric.NewMeterProvider(),
+				ReportStatus:   telemetry.HCAdapter(svc.HC()),
+			}
+
 			storageFactory.InitFromViper(v, logger)
-			if err := storageFactory.Initialize(baseFactory, logger); err != nil {
+			if err := storageFactory.Initialize(baseTelset.Metrics, baseTelset.Logger); err != nil {
 				logger.Fatal("Failed to init storage factory", zap.Error(err))
 			}
 
@@ -159,20 +165,13 @@ by default uses only in-memory database.`,
 				log.Fatal(err)
 			}
 
-			telset := telemetry.Setting{
-				Logger:         svc.Logger,
-				TracerProvider: tracer.OTEL,
-				Metrics:        queryMetricsFactory,
-				ReportStatus:   telemetry.HCAdapter(svc.HC()),
-				LeveledMeterProvider: func(_ configtelemetry.Level) metric.MeterProvider {
-					return noop.NewMeterProvider()
-				},
-			}
 			// query
+			queryTelset := baseTelset // copy
+			queryTelset.Metrics = queryMetricsFactory
 			querySrv := startQuery(
 				svc, qOpts, qOpts.BuildQueryServiceOptions(storageFactory, logger),
 				spanReader, dependencyReader, metricsQueryService,
-				tm, telset,
+				tm, queryTelset,
 			)
 
 			svc.RunAndThen(func() {
@@ -222,7 +221,7 @@ func startQuery(
 	depReader dependencystore.Reader,
 	metricsQueryService querysvc.MetricsQueryService,
 	tm *tenancy.Manager,
-	telset telemetry.Setting,
+	telset telemetry.Settings,
 ) *queryApp.Server {
 	spanReader = spanstoremetrics.NewReaderDecorator(spanReader, telset.Metrics)
 	qs := querysvc.NewQueryService(spanReader, depReader, *queryOpts)

@@ -9,7 +9,6 @@ import (
 	"fmt"
 
 	"go.opentelemetry.io/collector/component"
-	"go.opentelemetry.io/collector/component/componentstatus"
 	"go.opentelemetry.io/collector/extension"
 	"go.opentelemetry.io/collector/extension/extensioncapabilities"
 
@@ -53,9 +52,29 @@ func (*server) Dependencies() []component.ID {
 }
 
 func (s *server) Start(ctx context.Context, host component.Host) error {
-	mf := otelmetrics.NewFactory(s.telset.MeterProvider)
-	baseFactory := mf.Namespace(metrics.NSOptions{Name: "jaeger"})
-	queryMetricsFactory := baseFactory.Namespace(metrics.NSOptions{Name: "query"})
+	// TODO OTel-collector does not initialize the tracer currently
+	// https://github.com/open-telemetry/opentelemetry-collector/issues/7532
+	//nolint
+	tracerProvider, err := jtracer.New("jaeger")
+	if err != nil {
+		return fmt.Errorf("could not initialize a tracer: %w", err)
+	}
+	// make sure to close the tracer if subsequent code exists with error
+	success := false
+	defer func(ctx context.Context) {
+		if success {
+			s.closeTracer = tracerProvider.Close
+		} else {
+			tracerProvider.Close(ctx)
+		}
+	}(ctx)
+
+	telset := telemetry.FromOtelComponent(s.telset, host)
+	telset.TracerProvider = tracerProvider.OTEL
+	telset.Metrics = telset.Metrics.
+		Namespace(metrics.NSOptions{Name: "jaeger"}).
+		Namespace(metrics.NSOptions{Name: "query"})
+
 	f, err := jaegerstorage.GetStorageFactory(s.config.Storage.TracesPrimary, host)
 	if err != nil {
 		return fmt.Errorf("cannot find primary storage %s: %w", s.config.Storage.TracesPrimary, err)
@@ -66,7 +85,7 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 		return fmt.Errorf("cannot create span reader: %w", err)
 	}
 
-	spanReader = spanstoremetrics.NewReaderDecorator(spanReader, queryMetricsFactory)
+	spanReader = spanstoremetrics.NewReaderDecorator(spanReader, telset.Metrics)
 
 	depReader, err := f.CreateDependencyReader()
 	if err != nil {
@@ -86,25 +105,6 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 
 	tm := tenancy.NewManager(&s.config.Tenancy)
 
-	// TODO OTel-collector does not initialize the tracer currently
-	// https://github.com/open-telemetry/opentelemetry-collector/issues/7532
-	//nolint
-	tracerProvider, err := jtracer.New("jaeger")
-	if err != nil {
-		return fmt.Errorf("could not initialize a tracer: %w", err)
-	}
-	s.closeTracer = tracerProvider.Close
-	telset := telemetry.Setting{
-		Logger:         s.telset.Logger,
-		TracerProvider: tracerProvider.OTEL,
-		Metrics:        queryMetricsFactory,
-		ReportStatus: func(event *componentstatus.Event) {
-			componentstatus.ReportStatus(host, event)
-		},
-		LeveledMeterProvider: s.telset.LeveledMeterProvider,
-		Host:                 host,
-	}
-
 	s.server, err = queryApp.NewServer(
 		ctx,
 		// TODO propagate healthcheck updates up to the collector's runtime
@@ -122,6 +122,7 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 		return fmt.Errorf("could not start jaeger-query: %w", err)
 	}
 
+	success = true
 	return nil
 }
 
