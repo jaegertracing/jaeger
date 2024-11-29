@@ -108,7 +108,7 @@ func TestNewServer_TLSConfigError(t *testing.T) {
 		KeyPath:      "invalid/path",
 		ClientCAPath: "invalid/path",
 	}
-	telset := telemetry.Setting{
+	telset := telemetry.Settings{
 		Logger:       zap.NewNop(),
 		ReportStatus: telemetry.HCAdapter(healthcheck.New()),
 	}
@@ -316,7 +316,7 @@ func TestServerGRPCTLS(t *testing.T) {
 			storageMocks.reader.On("GetServices", mock.AnythingOfType("*context.valueCtx")).Return(expectedServices, nil)
 
 			tm := tenancy.NewManager(&tenancy.Options{Enabled: true})
-			telset := telemetry.Setting{
+			telset := telemetry.Settings{
 				Logger:       flagsSvc.Logger,
 				ReportStatus: telemetry.HCAdapter(flagsSvc.HC()),
 			}
@@ -365,7 +365,7 @@ func TestServerHandlesPortZero(t *testing.T) {
 	zapCore, logs := observer.New(zap.InfoLevel)
 	flagsSvc.Logger = zap.New(zapCore)
 	storageMocks := newStorageMocks()
-	telset := telemetry.Setting{
+	telset := telemetry.Settings{
 		Logger:       flagsSvc.Logger,
 		ReportStatus: telemetry.HCAdapter(flagsSvc.HC()),
 	}

@@ -62,7 +62,7 @@ func main() {
 				logger.Fatal("Failed to parse options", zap.Error(err))
 			}
 
-			baseTelset := telemetry.Setting{
+			baseTelset := telemetry.Settings{
 				Logger:        svc.Logger,
 				Metrics:       baseFactory,
 				ReportStatus:  telemetry.HCAdapter(svc.HC()),

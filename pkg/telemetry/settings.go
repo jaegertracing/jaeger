@@ -18,7 +18,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
-type Setting struct {
+type Settings struct {
 	Logger         *zap.Logger
 	Metrics        metrics.Factory
 	MeterProvider  metric.MeterProvider
@@ -47,8 +47,8 @@ func HCAdapter(hc *healthcheck.HealthCheck) func(*componentstatus.Event) {
 	}
 }
 
-func NoopSettings() Setting {
-	return Setting{
+func NoopSettings() Settings {
+	return Settings{
 		Logger:         zap.NewNop(),
 		Metrics:        metrics.NullFactory,
 		MeterProvider:  noopmetric.NewMeterProvider(),
@@ -58,8 +58,8 @@ func NoopSettings() Setting {
 	}
 }
 
-func FromOtelComponent(telset component.TelemetrySettings, host component.Host) Setting {
-	return Setting{
+func FromOtelComponent(telset component.TelemetrySettings, host component.Host) Settings {
+	return Settings{
 		Logger:         telset.Logger,
 		Metrics:        otelmetrics.NewFactory(telset.MeterProvider),
 		MeterProvider:  telset.MeterProvider,

@@ -43,7 +43,7 @@ var ( // interface comformance checks
 // Factory implements storage.Factory and creates storage components backed by a storage plugin.
 type Factory struct {
 	config             Config
-	telset             telemetry.Setting
+	telset             telemetry.Settings
 	services           *ClientPluginServices
 	tracedRemoteConn   *grpc.ClientConn
 	untracedRemoteConn *grpc.ClientConn
@@ -59,7 +59,7 @@ func NewFactory() *Factory {
 // NewFactoryWithConfig is used from jaeger(v2).
 func NewFactoryWithConfig(
 	cfg Config,
-	telset telemetry.Setting,
+	telset telemetry.Settings,
 ) (*Factory, error) {
 	f := NewFactory()
 	f.config = cfg

@@ -45,7 +45,7 @@ import (
 
 var testCertKeyLocation = "../../../pkg/config/tlscfg/testdata"
 
-func initTelSet(logger *zap.Logger, tracerProvider *jtracer.JTracer, hc *healthcheck.HealthCheck) telemetry.Setting {
+func initTelSet(logger *zap.Logger, tracerProvider *jtracer.JTracer, hc *healthcheck.HealthCheck) telemetry.Settings {
 	telset := telemetry.NoopSettings()
 	telset.Logger = logger
 	telset.TracerProvider = tracerProvider.OTEL

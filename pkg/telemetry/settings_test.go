@@ -79,7 +79,7 @@ func TestHCAdapter(t *testing.T) {
 	}
 }
 
-func TestNoopSettings(t *testing.T) {
+func TestNoopSettingss(t *testing.T) {
 	telset := telemetry.NoopSettings()
 	assert.NotNil(t, telset.Logger)
 	assert.NotNil(t, telset.Metrics)

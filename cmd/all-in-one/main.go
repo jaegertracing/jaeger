@@ -92,7 +92,7 @@ by default uses only in-memory database.`,
 				logger.Fatal("Failed to initialize tracer", zap.Error(err))
 			}
 
-			baseTelset := telemetry.Setting{
+			baseTelset := telemetry.Settings{
 				Logger:         svc.Logger,
 				TracerProvider: tracer.OTEL,
 				Metrics:        baseFactory,
@@ -219,7 +219,7 @@ func startQuery(
 	depReader dependencystore.Reader,
 	metricsQueryService querysvc.MetricsQueryService,
 	tm *tenancy.Manager,
-	telset telemetry.Setting,
+	telset telemetry.Settings,
 ) *queryApp.Server {
 	spanReader = spanstoremetrics.NewReaderDecorator(spanReader, telset.Metrics)
 	qs := querysvc.NewQueryService(spanReader, depReader, *queryOpts)

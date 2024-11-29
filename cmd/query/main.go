@@ -78,7 +78,7 @@ func main() {
 				}
 			}
 
-			baseTelset := telemetry.Setting{
+			baseTelset := telemetry.Settings{
 				Logger:         logger,
 				Metrics:        baseFactory,
 				TracerProvider: jt.OTEL,
