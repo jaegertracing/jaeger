@@ -24,6 +24,7 @@ import (
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc"
 	"github.com/jaegertracing/jaeger/plugin/storage/memory"
 	"github.com/jaegertracing/jaeger/storage"
+	"github.com/jaegertracing/jaeger/storage/storagemetrics"
 	"github.com/jaegertracing/jaeger/storage_v2/factoryadapter"
 	"github.com/jaegertracing/jaeger/storage_v2/spanstore"
 )
@@ -150,7 +151,15 @@ func (s *storageExt) Start(_ context.Context, host component.Host) error {
 		if err != nil {
 			return fmt.Errorf("failed to initialize storage '%s': %w", storageName, err)
 		}
-		s.factories[storageName] = factory
+		storageMetricsFactory := mf.Namespace(
+			metrics.NSOptions{
+				Name: "storage",
+				Tags: map[string]string{
+					"kind": storageName,
+				},
+			},
+		)
+		s.factories[storageName] = storagemetrics.NewDecoratorFactory(factory, storageMetricsFactory)
 	}
 
 	for metricStorageName, cfg := range s.config.MetricBackends {
