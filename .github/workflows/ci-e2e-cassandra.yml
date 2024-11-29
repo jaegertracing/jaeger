@@ -22,7 +22,7 @@ jobs:
       fail-fast: false
       matrix:
         jaeger-version: [v1, v2]
-        skip-apply-schema: [true, false]
+        create-schema: [manual, auto]
         version:
         - distribution: cassandra
           major: 4.x
@@ -34,7 +34,7 @@ jobs:
         # Exclude v1 as create schema on fly is available for v2 only
         - jaeger-version: v1
           skip-apply-schema: true
-    name: ${{ matrix.version.distribution }} ${{ matrix.version.major }} ${{ matrix.jaeger-version }} ${{ matrix.skip-apply-schema == true && 'auto' || 'manual' }}
+    name: ${{ matrix.version.distribution }} ${{ matrix.version.major }} ${{ matrix.jaeger-version }} ${{ matrix.create-schema }} 
     steps:
     - name: Harden Runner
       uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
@@ -51,7 +51,8 @@ jobs:
       id: test-execution
       run: bash scripts/cassandra-integration-test.sh ${{ matrix.version.major }} ${{ matrix.version.schema }} ${{ matrix.jaeger-version }}
       env:
-        CASSANDRA_CREATE_SCHEMA: ${{ matrix.skip-apply-schema }}
+        CASSANDRA_CREATE_SCHEMA: ${{ matrix.create-schema == 'auto' && true || false }}
+        SKIP_APPLY_SCHEMA: ${{ matrix.create-schema == 'auto' && true || false }}
 
     - name: Upload coverage to codecov
       uses: ./.github/actions/upload-codecov

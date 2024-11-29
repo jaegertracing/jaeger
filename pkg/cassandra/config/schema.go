@@ -95,7 +95,7 @@ func (*schemaCreator) getQueriesFromBytes(queryFile []byte) ([]string, error) {
 	}
 
 	if len(queryString) > 0 {
-		return nil, errors.New(`invalid template`)
+		return nil, errors.New(`query exists in template without ";"`)
 	}
 
 	return queries, nil

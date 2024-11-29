@@ -112,4 +112,9 @@ func TestConfigSchemaValidation(t *testing.T) {
 	cfg.Schema.CompactionWindow = time.Minute - 1
 	err = cfg.Validate()
 	require.Error(t, err)
+
+	cfg.Schema.CompactionWindow = time.Minute
+	cfg.Schema.DependenciesTTL = time.Second - 1
+	err = cfg.Validate()
+	require.Error(t, err)
 }
