@@ -4,6 +4,7 @@
 package server
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"time"
@@ -54,7 +55,7 @@ func StartGRPCServer(params *GRPCServerParams) (*grpc.Server, error) {
 
 	if params.TLSConfig.Enabled {
 		// user requested a server with TLS, setup creds
-		tlsCfg, err := params.TLSConfig.Config(params.Logger)
+		tlsCfg, err := params.TLSConfig.ToOtelServerConfig().LoadTLSConfig(context.Background())
 		if err != nil {
 			return nil, err
 		}

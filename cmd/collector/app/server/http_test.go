@@ -4,6 +4,7 @@
 package server
 
 import (
+	"context"
 	"crypto/tls"
 	"fmt"
 	"net"
@@ -54,7 +55,6 @@ func TestCreateTLSHTTPServerError(t *testing.T) {
 	}
 	_, err := StartHTTPServer(params)
 	require.Error(t, err)
-	defer params.TLSConfig.Close()
 }
 
 func TestSpanCollectorHTTP(t *testing.T) {
@@ -196,7 +196,6 @@ func TestSpanCollectorHTTPS(t *testing.T) {
 				Logger:           logger,
 				TLSConfig:        test.TLS,
 			}
-			defer params.TLSConfig.Close()
 
 			server, err := StartHTTPServer(params)
 			require.NoError(t, err)
@@ -204,8 +203,7 @@ func TestSpanCollectorHTTPS(t *testing.T) {
 				require.NoError(t, server.Close())
 			}()
 
-			clientTLSCfg, err0 := test.clientTLS.Config(logger)
-			defer test.clientTLS.Close()
+			clientTLSCfg, err0 := test.clientTLS.ToOtelClientConfig().LoadTLSConfig(context.Background())
 			require.NoError(t, err0)
 			dialer := &net.Dialer{Timeout: 2 * time.Second}
 			conn, clientError := tls.DialWithDialer(dialer, "tcp", "localhost:"+strconv.Itoa(ports.CollectorHTTP), clientTLSCfg)

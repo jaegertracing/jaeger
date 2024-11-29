@@ -13,7 +13,6 @@ import (
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/configtelemetry"
-	"go.opentelemetry.io/collector/config/configtls"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/extension"
 	"go.opentelemetry.io/collector/pdata/ptrace"
@@ -27,7 +26,6 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/flags"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
-	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 )
 
@@ -106,7 +104,7 @@ func applyGRPCSettings(cfg *configgrpc.ServerConfig, opts *flags.GRPCOptions) {
 		cfg.NetAddr.Endpoint = opts.HostPort
 	}
 	if opts.TLS.Enabled {
-		cfg.TLSSetting = applyTLSSettings(&opts.TLS)
+		cfg.TLSSetting = opts.TLS.ToOtelServerConfig()
 	}
 	if opts.MaxReceiveMessageLength > 0 {
 		cfg.MaxRecvMsgSizeMiB = int(opts.MaxReceiveMessageLength / (1024 * 1024))
@@ -126,26 +124,12 @@ func applyHTTPSettings(cfg *confighttp.ServerConfig, opts *flags.HTTPOptions) {
 		cfg.Endpoint = opts.HostPort
 	}
 	if opts.TLS.Enabled {
-		cfg.TLSSetting = applyTLSSettings(&opts.TLS)
+		cfg.TLSSetting = opts.TLS.ToOtelServerConfig()
 	}
 
 	cfg.CORS = &confighttp.CORSConfig{
 		AllowedOrigins: opts.CORS.AllowedOrigins,
 		AllowedHeaders: opts.CORS.AllowedHeaders,
-	}
-}
-
-func applyTLSSettings(opts *tlscfg.Options) *configtls.ServerConfig {
-	return &configtls.ServerConfig{
-		Config: configtls.Config{
-			CAFile:         opts.CAPath,
-			CertFile:       opts.CertPath,
-			KeyFile:        opts.KeyPath,
-			MinVersion:     opts.MinVersion,
-			MaxVersion:     opts.MaxVersion,
-			ReloadInterval: opts.ReloadInterval,
-		},
-		ClientCAFile: opts.ClientCAPath,
 	}
 }
 

@@ -4,6 +4,7 @@
 package server
 
 import (
+	"context"
 	"net"
 	"net/http"
 	"time"
@@ -53,7 +54,7 @@ func StartHTTPServer(params *HTTPServerParams) (*http.Server, error) {
 		ErrorLog:          errorLog,
 	}
 	if params.TLSConfig.Enabled {
-		tlsCfg, err := params.TLSConfig.Config(params.Logger) // This checks if the certificates are correctly provided
+		tlsCfg, err := params.TLSConfig.ToOtelServerConfig().LoadTLSConfig(context.Background())
 		if err != nil {
 			return nil, err
 		}
