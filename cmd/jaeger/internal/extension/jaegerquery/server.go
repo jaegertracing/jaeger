@@ -7,7 +7,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
 
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/extension"
@@ -62,15 +61,13 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 	}
 	// make sure to close the tracer if subsequent code exists with error
 	success := false
-	defer func() {
+	defer func(ctx context.Context) {
 		if success {
 			s.closeTracer = tracerProvider.Close
 		} else {
-			ctx, cx := context.WithTimeout(context.Background(), 10*time.Second)
 			tracerProvider.Close(ctx)
-			cx()
 		}
-	}()
+	}(ctx)
 
 	telset := telemetry.FromOtelComponent(s.telset, host)
 	telset.TracerProvider = tracerProvider.OTEL
