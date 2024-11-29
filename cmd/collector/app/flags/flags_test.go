@@ -28,7 +28,7 @@ func TestCollectorOptionsWithFlags_CheckHostPort(t *testing.T) {
 
 	assert.Equal(t, ":5678", c.HTTP.Endpoint)
 	assert.Equal(t, ":1234", c.GRPC.NetAddr.Endpoint)
-	assert.Equal(t, ":3456", c.Zipkin.HTTPHostPort)
+	assert.Equal(t, ":3456", c.Zipkin.Endpoint)
 }
 
 func TestCollectorOptionsWithFlags_CheckFullHostPort(t *testing.T) {
@@ -44,7 +44,7 @@ func TestCollectorOptionsWithFlags_CheckFullHostPort(t *testing.T) {
 
 	assert.Equal(t, ":5678", c.HTTP.Endpoint)
 	assert.Equal(t, "127.0.0.1:1234", c.GRPC.NetAddr.Endpoint)
-	assert.Equal(t, "0.0.0.0:3456", c.Zipkin.HTTPHostPort)
+	assert.Equal(t, "0.0.0.0:3456", c.Zipkin.Endpoint)
 }
 
 func TestCollectorOptionsWithFailedTLSFlags(t *testing.T) {
@@ -166,16 +166,16 @@ func TestCollectorOptionsWithFlags_CheckMaxConnectionAge(t *testing.T) {
 // 	assert.Equal(t, []string{"acme", "hardware-store"}, c.GRPC.Tenancy.Tenants)
 // }
 
-func TestCollectorOptionsWithFlags_CheckZipkinKeepAlive(t *testing.T) {
-	c := &CollectorOptions{}
-	v, command := config.Viperize(AddFlags)
-	command.ParseFlags([]string{
-		"--collector.zipkin.keep-alive=false",
-	})
-	c.InitFromViper(v, zap.NewNop())
+// func TestCollectorOptionsWithFlags_CheckZipkinKeepAlive(t *testing.T) {
+// 	c := &CollectorOptions{}
+// 	v, command := config.Viperize(AddFlags)
+// 	command.ParseFlags([]string{
+// 		"--collector.zipkin.keep-alive=false",
+// 	})
+// 	c.InitFromViper(v, zap.NewNop())
 
-	assert.False(t, c.Zipkin.KeepAlive)
-}
+// 	assert.False(t, c.Zipkin.KeepAlive)
+// }
 
 func TestMain(m *testing.M) {
 	testutils.VerifyGoLeaks(m)

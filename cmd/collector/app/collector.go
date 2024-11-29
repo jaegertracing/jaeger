@@ -127,7 +127,7 @@ func (c *Collector) Start(options *flags.CollectorOptions) error {
 	}
 	c.hServer = httpServer
 
-	if options.Zipkin.HTTPHostPort == "" {
+	if options.Zipkin.Endpoint == "" {
 		c.logger.Info("Not listening for Zipkin HTTP traffic, port not configured")
 	} else {
 		zipkinReceiver, err := handler.StartZipkinReceiver(options, c.logger, c.spanProcessor, c.tenancyMgr)

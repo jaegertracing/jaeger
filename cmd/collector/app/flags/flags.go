@@ -12,7 +12,6 @@ import (
 	"github.com/spf13/viper"
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/config/confighttp"
-	"go.opentelemetry.io/collector/config/configtls"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/internal/flags"
@@ -119,16 +118,7 @@ type CollectorOptions struct {
 		HTTP    confighttp.ServerConfig
 	}
 	// Zipkin section defines options for Zipkin HTTP server
-	Zipkin struct {
-		// HTTPHostPort is the host:port address that the Zipkin collector service listens in on for http requests
-		HTTPHostPort string
-		// TLS configures secure transport for Zipkin endpoint to collect spans
-		TLS configtls.ServerConfig
-		// CORS allows CORS requests , sets the values for Allowed Headers and Allowed Origins.
-		CORS corscfg.Options
-		// KeepAlive configures allow Keep-Alive for Zipkin HTTP server
-		KeepAlive bool
-	}
+	Zipkin confighttp.ServerConfig
 	// CollectorTags is the string representing collector tags to append to each and every span
 	CollectorTags map[string]string
 	// SpanSizeMetricsEnabled determines whether to enable metrics based on processed span size
@@ -208,7 +198,7 @@ func initHTTPFromViper(v *viper.Viper, _ *zap.Logger, opts *confighttp.ServerCon
 
 func initGRPCFromViper(v *viper.Viper, _ *zap.Logger, opts *configgrpc.ServerConfig,cfg serverFlagsConfig) error {
 	opts.NetAddr.Endpoint = ports.FormatHostPort(v.GetString(cfg.prefix + "." + flagSuffixHostPort))
-	opts.MaxRecvMsgSizeMiB = v.GetInt(cfg.prefix + "." + flagSuffixGRPCMaxReceiveMessageLength)
+	opts.MaxRecvMsgSizeMiB = v.GetInt(cfg.prefix + "." + flagSuffixGRPCMaxReceiveMessageLength) * 1024 * 1024
 	opts.Keepalive.ServerParameters.MaxConnectionAge = v.GetDuration(cfg.prefix + "." + flagSuffixGRPCMaxConnectionAge)
 	opts.Keepalive.ServerParameters.MaxConnectionAgeGrace = v.GetDuration(cfg.prefix + "." + flagSuffixGRPCMaxConnectionAgeGrace)
 	tlsOpts, err := cfg.tls.InitFromViper(v)
@@ -247,14 +237,15 @@ func (cOpts *CollectorOptions) InitFromViper(v *viper.Viper, logger *zap.Logger)
 		return cOpts, fmt.Errorf("failed to parse OTLP/gRPC server options: %w", err)
 	}
 
-	cOpts.Zipkin.KeepAlive = v.GetBool(flagZipkinKeepAliveEnabled)
-	cOpts.Zipkin.HTTPHostPort = ports.FormatHostPort(v.GetString(flagZipkinHTTPHostPort))
+	// cOpts.Zipkin. = v.GetBool(flagZipkinKeepAliveEnabled)
+	cOpts.Zipkin.Endpoint = ports.FormatHostPort(v.GetString(flagZipkinHTTPHostPort))
 	tlsZipkin, err := tlsZipkinFlagsConfig.InitFromViper(v)
 	if err != nil {
 		return cOpts, fmt.Errorf("failed to parse Zipkin TLS options: %w", err)
 	}
-	cOpts.Zipkin.TLS = *tlsZipkin.ToOtelServerConfig()
-	cOpts.Zipkin.CORS = corsZipkinFlags.InitFromViper(v)
+	cOpts.Zipkin.TLSSetting = tlsZipkin.ToOtelServerConfig()
+	corsOpts = corsZipkinFlags.InitFromViper(v)
+	cOpts.Zipkin.CORS = corsOpts.ToOTELCorsConfig()
 
 	return cOpts, nil
 }

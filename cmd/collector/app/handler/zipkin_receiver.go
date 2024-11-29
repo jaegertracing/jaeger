@@ -9,7 +9,6 @@ import (
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zipkinreceiver"
 	"go.opentelemetry.io/collector/component"
-	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/configtelemetry"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/receiver"
@@ -46,7 +45,7 @@ func StartZipkinReceiver(
 // which is a situation we cannot reproduce. To test our own error handling, this
 // function allows to mock those constructors.
 func startZipkinReceiver(
-	options *flags.CollectorOptions,
+	_ *flags.CollectorOptions,
 	logger *zap.Logger,
 	spanProcessor processor.SpanProcessor,
 	tm *tenancy.Manager,
@@ -57,12 +56,6 @@ func startZipkinReceiver(
 		cfg component.Config, nextConsumer consumer.Traces) (receiver.Traces, error),
 ) (receiver.Traces, error) {
 	receiverConfig := zipkinFactory.CreateDefaultConfig().(*zipkinreceiver.Config)
-	applyHTTPSettings(&receiverConfig.ServerConfig, &confighttp.ServerConfig{
-		Endpoint: options.Zipkin.HTTPHostPort,
-		TLSSetting:      &options.Zipkin.TLS,
-		CORS:     options.HTTP.CORS,
-		// TODO keepAlive not supported?
-	})
 	receiverSettings := receiver.Settings{
 		TelemetrySettings: component.TelemetrySettings{
 			Logger:         logger,

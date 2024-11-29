@@ -37,7 +37,7 @@ func TestZipkinReceiver(t *testing.T) {
 	tm := &tenancy.Manager{}
 
 	opts := &flags.CollectorOptions{}
-	opts.Zipkin.HTTPHostPort = ":11911"
+	opts.Zipkin.Endpoint = ":11911"
 
 	rec, err := StartZipkinReceiver(opts, logger, spanProcessor, tm)
 	require.NoError(t, err)
@@ -138,7 +138,7 @@ func TestStartZipkinReceiver_Error(t *testing.T) {
 	tm := &tenancy.Manager{}
 
 	opts := &flags.CollectorOptions{}
-	opts.Zipkin.HTTPHostPort = ":-1"
+	opts.Zipkin.Endpoint = ":-1"
 
 	_, err := StartZipkinReceiver(opts, logger, spanProcessor, tm)
 	require.ErrorContains(t, err, "could not start Zipkin receiver")

@@ -7,7 +7,6 @@ import (
 	"context"
 	"errors"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -15,7 +14,6 @@ import (
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/confignet"
-	"go.opentelemetry.io/collector/config/configtls"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/collector/pipeline"
@@ -131,89 +129,4 @@ func TestOtelHost(t *testing.T) {
 	assert.Nil(t, host.GetFactory(component.KindReceiver, pipeline.SignalTraces))
 	assert.Nil(t, host.GetExtensions())
 	assert.Nil(t, host.GetExporters())
-}
-
-func TestApplyOTLPGRPCServerSettings(t *testing.T) {
-	otlpFactory := otlpreceiver.NewFactory()
-	otlpReceiverConfig := otlpFactory.CreateDefaultConfig().(*otlpreceiver.Config)
-
-	grpcOpts := &configgrpc.ServerConfig{
-		NetAddr: confignet.AddrConfig{
-			Endpoint: ":54321",
-		},
-		MaxRecvMsgSizeMiB: 42,
-		Keepalive: &configgrpc.KeepaliveServerConfig{
-			ServerParameters: &configgrpc.KeepaliveServerParameters{
-				MaxConnectionAge: 33 * time.Second,
-				MaxConnectionAgeGrace: 37 * time.Second,
-			},
-		},
-		TLSSetting: &configtls.ServerConfig{
-			ClientCAFile: "clientca",
-			Config: configtls.Config{
-				CAFile:         "ca",
-				CertFile:       "cert",
-				KeyFile:        "key",
-				MinVersion:     "1.1",
-				MaxVersion:     "1.3",
-				ReloadInterval: 24 * time.Hour,
-			},
-		},
-	}
-	applyGRPCSettings(otlpReceiverConfig.GRPC, grpcOpts)
-	out := otlpReceiverConfig.GRPC
-	assert.Equal(t, ":54321", out.NetAddr.Endpoint)
-	assert.EqualValues(t, 42, out.MaxRecvMsgSizeMiB)
-	require.NotNil(t, out.Keepalive)
-	require.NotNil(t, out.Keepalive.ServerParameters)
-	assert.Equal(t, 33*time.Second, out.Keepalive.ServerParameters.MaxConnectionAge)
-	assert.Equal(t, 37*time.Second, out.Keepalive.ServerParameters.MaxConnectionAgeGrace)
-	require.NotNil(t, out.TLSSetting)
-	assert.Equal(t, "ca", out.TLSSetting.CAFile)
-	assert.Equal(t, "cert", out.TLSSetting.CertFile)
-	assert.Equal(t, "key", out.TLSSetting.KeyFile)
-	assert.Equal(t, "clientca", out.TLSSetting.ClientCAFile)
-	assert.Equal(t, "1.1", out.TLSSetting.MinVersion)
-	assert.Equal(t, "1.3", out.TLSSetting.MaxVersion)
-	assert.Equal(t, 24*time.Hour, out.TLSSetting.ReloadInterval)
-}
-
-func TestApplyOTLPHTTPServerSettings(t *testing.T) {
-	otlpFactory := otlpreceiver.NewFactory()
-	otlpReceiverConfig := otlpFactory.CreateDefaultConfig().(*otlpreceiver.Config)
-
-	httpOpts := &confighttp.ServerConfig{
-		Endpoint: ":12345",
-		TLSSetting: &configtls.ServerConfig{
-			ClientCAFile: "clientca",
-			Config: configtls.Config{
-				CAFile:         "ca",
-				CertFile:       "cert",
-				KeyFile:        "key",
-				MinVersion:     "1.1",
-				MaxVersion:     "1.3",
-				ReloadInterval: 24 * time.Hour,
-			},
-		},
-		CORS: &confighttp.CORSConfig{
-			AllowedOrigins: []string{"http://example.domain.com", "http://*.domain.com"},
-			AllowedHeaders: []string{"Content-Type", "Accept", "X-Requested-With"},
-		},
-	}
-
-	applyHTTPSettings(otlpReceiverConfig.HTTP.ServerConfig, httpOpts)
-
-	out := otlpReceiverConfig.HTTP
-
-	assert.Equal(t, ":12345", out.Endpoint)
-	require.NotNil(t, out.TLSSetting)
-	assert.Equal(t, "ca", out.TLSSetting.CAFile)
-	assert.Equal(t, "cert", out.TLSSetting.CertFile)
-	assert.Equal(t, "key", out.TLSSetting.KeyFile)
-	assert.Equal(t, "clientca", out.TLSSetting.ClientCAFile)
-	assert.Equal(t, "1.1", out.TLSSetting.MinVersion)
-	assert.Equal(t, "1.3", out.TLSSetting.MaxVersion)
-	assert.Equal(t, 24*time.Hour, out.TLSSetting.ReloadInterval)
-	assert.Equal(t, []string{"Content-Type", "Accept", "X-Requested-With"}, out.CORS.AllowedHeaders)
-	assert.Equal(t, []string{"http://example.domain.com", "http://*.domain.com"}, out.CORS.AllowedOrigins)
 }

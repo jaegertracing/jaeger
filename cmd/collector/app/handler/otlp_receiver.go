@@ -10,8 +10,6 @@ import (
 	otlp2jaeger "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componentstatus"
-	"go.opentelemetry.io/collector/config/configgrpc"
-	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/configtelemetry"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/extension"
@@ -60,8 +58,6 @@ func startOTLPReceiver(
 		cfg component.Config, nextConsumer consumer.Traces) (receiver.Traces, error),
 ) (receiver.Traces, error) {
 	otlpReceiverConfig := otlpFactory.CreateDefaultConfig().(*otlpreceiver.Config)
-	applyGRPCSettings(otlpReceiverConfig.GRPC, &options.OTLP.GRPC)
-	applyHTTPSettings(otlpReceiverConfig.HTTP.ServerConfig, &options.OTLP.HTTP)
 	statusReporter := func(ev *componentstatus.Event) {
 		// TODO this could be wired into changing healthcheck.HealthCheck
 		logger.Info("OTLP receiver status change", zap.Stringer("status", ev.Status()))
@@ -97,40 +93,6 @@ func startOTLPReceiver(
 		return nil, fmt.Errorf("could not start the OTLP receiver: %w", err)
 	}
 	return otlpReceiver, nil
-}
-
-func applyGRPCSettings(cfg *configgrpc.ServerConfig, opts *configgrpc.ServerConfig) {
-	if opts.NetAddr.Endpoint != "" {
-		cfg.NetAddr.Endpoint = opts.NetAddr.Endpoint
-	}
-	if opts.TLSSetting != nil {
-		cfg.TLSSetting = opts.TLSSetting
-	}
-	if opts.MaxRecvMsgSizeMiB > 0 {
-		cfg.MaxRecvMsgSizeMiB = opts.MaxRecvMsgSizeMiB
-	}
-	if opts.Keepalive.ServerParameters.MaxConnectionAge != 0 || opts.Keepalive.ServerParameters.MaxConnectionAgeGrace != 0 {
-		cfg.Keepalive = &configgrpc.KeepaliveServerConfig{
-			ServerParameters: &configgrpc.KeepaliveServerParameters{
-				MaxConnectionAge:      opts.Keepalive.ServerParameters.MaxConnectionAge,
-				MaxConnectionAgeGrace: opts.Keepalive.ServerParameters.MaxConnectionAgeGrace,
-			},
-		}
-	}
-}
-
-func applyHTTPSettings(cfg *confighttp.ServerConfig, opts *confighttp.ServerConfig) {
-	if opts.Endpoint != "" {
-		cfg.Endpoint = opts.Endpoint
-	}
-	if opts.TLSSetting != nil {
-		cfg.TLSSetting = opts.TLSSetting
-	}
-
-	cfg.CORS = &confighttp.CORSConfig{
-		AllowedOrigins: opts.CORS.AllowedOrigins,
-		AllowedHeaders: opts.CORS.AllowedHeaders,
-	}
 }
 
 func newConsumerDelegate(logger *zap.Logger, spanProcessor processor.SpanProcessor, tm *tenancy.Manager) *consumerDelegate {
