@@ -45,7 +45,7 @@ func (sc *schemaCreator) constructTemplateParams() templateParams {
 	}
 }
 
-func (sc *schemaCreator) getQueryFileAsBytes(fileName string, params templateParams) ([]byte, error) {
+func (_ *schemaCreator) getQueryFileAsBytes(fileName string, params templateParams) ([]byte, error) {
 	tmpl, err := template.ParseFS(schemaFile, fileName)
 	if err != nil {
 		return nil, err
@@ -60,7 +60,7 @@ func (sc *schemaCreator) getQueryFileAsBytes(fileName string, params templatePar
 	return result.Bytes(), nil
 }
 
-func (sc *schemaCreator) getQueriesFromBytes(queryFile []byte) ([]string, error) {
+func (_ *schemaCreator) getQueriesFromBytes(queryFile []byte) ([]string, error) {
 	lines := bytes.Split(queryFile, []byte("\n"))
 
 	var extractedLines [][]byte
