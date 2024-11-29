@@ -161,7 +161,17 @@ func (s *storageExt) Start(_ context.Context, host component.Host) error {
 				s.telset.Logger,
 			)
 		case cfg.Elasticsearch != nil:
-			factory, err = es.NewFactoryWithConfig(*cfg.Elasticsearch, telset.Metrics, s.telset.Logger)
+			factory, err = es.NewFactoryWithConfig(
+				*cfg.Elasticsearch,
+				telset.Metrics.Namespace(metrics.NSOptions{
+					Name: "storage",
+					Tags: map[string]string{
+						"name": storageName,
+						"kind": "elasticsearch",
+					},
+				}),
+				s.telset.Logger,
+			)
 		case cfg.Opensearch != nil:
 			factory, err = es.NewFactoryWithConfig(*cfg.Opensearch, telset.Metrics, s.telset.Logger)
 		}
