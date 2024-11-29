@@ -57,15 +57,17 @@ func main() {
 				logger.Fatal("Failed to parse options", zap.Error(err))
 			}
 
-			telset := telemetry.Setting{
+			baseTelset := telemetry.Setting{
 				Logger:        svc.Logger,
 				Metrics:       metricsFactory,
 				ReportStatus:  telemetry.HCAdapter(svc.HC()),
 				MeterProvider: noop.NewMeterProvider(), // TODO
 			}
+			telset := baseTelset
+			telset.Metrics = metricsFactory
 
 			storageFactory.InitFromViper(v, logger)
-			if err := storageFactory.Initialize(telset); err != nil {
+			if err := storageFactory.Initialize(baseTelset); err != nil {
 				logger.Fatal("Failed to init storage factory", zap.Error(err))
 			}
 

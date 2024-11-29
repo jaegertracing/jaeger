@@ -133,17 +133,6 @@ func (f *Factory) buildFactories() error {
 	return nil
 }
 
-// initFactories initializes all factories. It is split from InitWithTelemetry()
-// to make testing easier.
-func (f *Factory) initFactories() error {
-	for _, factory := range f.factories {
-		if err := factory.Initialize(); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 func (f *Factory) getFactoryOfType(factoryType string) (storage.Factory, error) {
 	switch factoryType {
 	case cassandraStorageType:
@@ -163,6 +152,17 @@ func (f *Factory) getFactoryOfType(factoryType string) (storage.Factory, error) 
 	default:
 		return nil, fmt.Errorf("unknown storage type %s. Valid types are %v", factoryType, AllStorageTypes)
 	}
+}
+
+// initFactories initializes all factories.
+// It is split from Initialize() to make testing easier.
+func (f *Factory) initFactories() error {
+	for _, factory := range f.factories {
+		if err := factory.Initialize(); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // CreateSpanReader implements storage.Factory.

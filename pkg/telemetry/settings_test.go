@@ -4,6 +4,7 @@
 package telemetry_test
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -78,6 +79,17 @@ func TestHCAdapter(t *testing.T) {
 	}
 }
 
+func TestNoopSettings(t *testing.T) {
+	telset := telemetry.NoopSettings()
+	assert.NotNil(t, telset.Logger)
+	assert.NotNil(t, telset.Metrics)
+	assert.NotNil(t, telset.MeterProvider)
+	assert.NotNil(t, telset.TracerProvider)
+	assert.NotNil(t, telset.ReportStatus)
+	assert.NotNil(t, telset.Host)
+	telset.ReportStatus(componentstatus.NewFatalErrorEvent(errors.New("foobar")))
+}
+
 func TestFromOtelComponent(t *testing.T) {
 	otelTelset := component.TelemetrySettings{
 		Logger:         zap.NewNop(),
@@ -91,6 +103,7 @@ func TestFromOtelComponent(t *testing.T) {
 	assert.Equal(t, otelTelset.TracerProvider, telset.TracerProvider)
 	assert.Equal(t, host, telset.Host)
 	assert.NotNil(t, telset.ReportStatus)
+	telset.ReportStatus(componentstatus.NewFatalErrorEvent(errors.New("foobar")))
 }
 
 func TestMain(m *testing.M) {
