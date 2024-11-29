@@ -27,6 +27,7 @@ import (
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/samplingstore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
+	"github.com/jaegertracing/jaeger/storage/spanstore/spanstoremetrics"
 )
 
 const (
@@ -50,10 +51,11 @@ var ( // interface comformance checks
 
 // Factory implements storage.Factory for Badger backend.
 type Factory struct {
-	Config *Config
-	store  *badger.DB
-	cache  *badgerStore.CacheStore
-	logger *zap.Logger
+	Config         *Config
+	store          *badger.DB
+	cache          *badgerStore.CacheStore
+	logger         *zap.Logger
+	metricsFactory metrics.Factory
 
 	tmpDir          string
 	maintenanceDone chan bool
@@ -115,6 +117,7 @@ func (f *Factory) configure(config *Config) {
 // Initialize implements storage.Factory
 func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
 	f.logger = logger
+	f.metricsFactory = metricsFactory
 
 	opts := badger.DefaultOptions("")
 
@@ -173,7 +176,8 @@ func initializeDir(path string) {
 
 // CreateSpanReader implements storage.Factory
 func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
-	return badgerStore.NewTraceReader(f.store, f.cache), nil
+	tr := badgerStore.NewTraceReader(f.store, f.cache)
+	return spanstoremetrics.NewReaderDecorator(tr, f.metricsFactory), nil
 }
 
 // CreateSpanWriter implements storage.Factory

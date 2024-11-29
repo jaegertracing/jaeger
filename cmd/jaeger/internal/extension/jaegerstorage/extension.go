@@ -135,7 +135,16 @@ func (s *storageExt) Start(_ context.Context, host component.Host) error {
 				s.telset.Logger,
 			), nil
 		case cfg.Badger != nil:
-			factory, err = badger.NewFactoryWithConfig(*cfg.Badger, telset.Metrics, s.telset.Logger)
+			factory, err = badger.NewFactoryWithConfig(
+				*cfg.Badger,
+				telset.Metrics.Namespace(metrics.NSOptions{
+					Name: "storage",
+					Tags: map[string]string{
+						"name": storageName,
+						"kind": "badger",
+					},
+				}),
+				s.telset.Logger)
 		case cfg.GRPC != nil:
 			//nolint: contextcheck
 			factory, err = grpc.NewFactoryWithConfig(*cfg.GRPC, telset)
