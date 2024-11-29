@@ -3,7 +3,16 @@
 
 package corscfg
 
+import "go.opentelemetry.io/collector/config/confighttp"
+
 type Options struct {
 	AllowedOrigins []string
 	AllowedHeaders []string
+}
+
+func (o *Options)	ToOTELCorsConfig() *confighttp.CORSConfig{
+	return &confighttp.CORSConfig{
+		AllowedOrigins: o.AllowedOrigins,
+		AllowedHeaders: o.AllowedHeaders,
+	}
 }

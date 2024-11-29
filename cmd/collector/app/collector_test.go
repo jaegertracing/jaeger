@@ -28,11 +28,11 @@ var _ (io.Closer) = (*Collector)(nil)
 
 func optionsForEphemeralPorts() *flags.CollectorOptions {
 	collectorOpts := &flags.CollectorOptions{}
-	collectorOpts.GRPC.HostPort = ":0"
-	collectorOpts.HTTP.HostPort = ":0"
+	collectorOpts.GRPC.NetAddr.Endpoint = ":0"
+	collectorOpts.HTTP.Endpoint = ":0"
 	collectorOpts.OTLP.Enabled = true
-	collectorOpts.OTLP.GRPC.HostPort = ":0"
-	collectorOpts.OTLP.HTTP.HostPort = ":0"
+	collectorOpts.OTLP.GRPC.NetAddr.Endpoint = ":0"
+	collectorOpts.OTLP.HTTP.Endpoint = ":0"
 	collectorOpts.Zipkin.HTTPHostPort = ":0"
 	return collectorOpts
 }
@@ -112,11 +112,11 @@ func TestCollector_StartErrors(t *testing.T) {
 	var options *flags.CollectorOptions
 
 	options = optionsForEphemeralPorts()
-	options.GRPC.HostPort = ":-1"
+	options.GRPC.NetAddr.Endpoint = ":-1"
 	run("gRPC", options, "could not start gRPC server")
 
 	options = optionsForEphemeralPorts()
-	options.HTTP.HostPort = ":-1"
+	options.HTTP.Endpoint = ":-1"
 	run("HTTP", options, "could not start HTTP server")
 
 	options = optionsForEphemeralPorts()
@@ -124,11 +124,11 @@ func TestCollector_StartErrors(t *testing.T) {
 	run("Zipkin", options, "could not start Zipkin receiver")
 
 	options = optionsForEphemeralPorts()
-	options.OTLP.GRPC.HostPort = ":-1"
+	options.OTLP.GRPC.NetAddr.Endpoint = ":-1"
 	run("OTLP/GRPC", options, "could not start OTLP receiver")
 
 	options = optionsForEphemeralPorts()
-	options.OTLP.HTTP.HostPort = ":-1"
+	options.OTLP.HTTP.Endpoint = ":-1"
 	run("OTLP/HTTP", options, "could not start OTLP receiver")
 }
 

@@ -12,6 +12,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/config/configgrpc"
+	"go.opentelemetry.io/collector/config/confighttp"
+	"go.opentelemetry.io/collector/config/confignet"
 	"go.opentelemetry.io/collector/config/configtls"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/pdata/ptrace"
@@ -20,18 +23,19 @@ import (
 	"go.opentelemetry.io/collector/receiver/otlpreceiver"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/flags"
-	"github.com/jaegertracing/jaeger/pkg/config/corscfg"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 )
 
 func optionsWithPorts(port string) *flags.CollectorOptions {
 	opts := &flags.CollectorOptions{}
-	opts.OTLP.GRPC = flags.GRPCOptions{
-		HostPort: port,
+	opts.OTLP.HTTP = confighttp.ServerConfig{
+		Endpoint: port,
 	}
-	opts.OTLP.HTTP = flags.HTTPOptions{
-		HostPort: port,
+	opts.OTLP.GRPC = configgrpc.ServerConfig{
+		NetAddr: confignet.AddrConfig{
+			Endpoint: port,
+		},
 	}
 	return opts
 }
@@ -133,12 +137,18 @@ func TestApplyOTLPGRPCServerSettings(t *testing.T) {
 	otlpFactory := otlpreceiver.NewFactory()
 	otlpReceiverConfig := otlpFactory.CreateDefaultConfig().(*otlpreceiver.Config)
 
-	grpcOpts := &flags.GRPCOptions{
-		HostPort:                ":54321",
-		MaxReceiveMessageLength: 42 * 1024 * 1024,
-		MaxConnectionAge:        33 * time.Second,
-		MaxConnectionAgeGrace:   37 * time.Second,
-		TLS: &configtls.ServerConfig{
+	grpcOpts := &configgrpc.ServerConfig{
+		NetAddr: confignet.AddrConfig{
+			Endpoint: ":54321",
+		},
+		MaxRecvMsgSizeMiB: 42,
+		Keepalive: &configgrpc.KeepaliveServerConfig{
+			ServerParameters: &configgrpc.KeepaliveServerParameters{
+				MaxConnectionAge: 33 * time.Second,
+				MaxConnectionAgeGrace: 37 * time.Second,
+			},
+		},
+		TLSSetting: &configtls.ServerConfig{
 			ClientCAFile: "clientca",
 			Config: configtls.Config{
 				CAFile:         "ca",
@@ -172,9 +182,9 @@ func TestApplyOTLPHTTPServerSettings(t *testing.T) {
 	otlpFactory := otlpreceiver.NewFactory()
 	otlpReceiverConfig := otlpFactory.CreateDefaultConfig().(*otlpreceiver.Config)
 
-	httpOpts := &flags.HTTPOptions{
-		HostPort: ":12345",
-		TLS: &configtls.ServerConfig{
+	httpOpts := &confighttp.ServerConfig{
+		Endpoint: ":12345",
+		TLSSetting: &configtls.ServerConfig{
 			ClientCAFile: "clientca",
 			Config: configtls.Config{
 				CAFile:         "ca",
@@ -185,7 +195,7 @@ func TestApplyOTLPHTTPServerSettings(t *testing.T) {
 				ReloadInterval: 24 * time.Hour,
 			},
 		},
-		CORS: corscfg.Options{
+		CORS: &confighttp.CORSConfig{
 			AllowedOrigins: []string{"http://example.domain.com", "http://*.domain.com"},
 			AllowedHeaders: []string{"Content-Type", "Accept", "X-Requested-With"},
 		},

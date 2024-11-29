@@ -99,32 +99,32 @@ func startOTLPReceiver(
 	return otlpReceiver, nil
 }
 
-func applyGRPCSettings(cfg *configgrpc.ServerConfig, opts *flags.GRPCOptions) {
-	if opts.HostPort != "" {
-		cfg.NetAddr.Endpoint = opts.HostPort
+func applyGRPCSettings(cfg *configgrpc.ServerConfig, opts *configgrpc.ServerConfig) {
+	if opts.NetAddr.Endpoint != "" {
+		cfg.NetAddr.Endpoint = opts.NetAddr.Endpoint
 	}
-	if opts.TLS != nil {
-		cfg.TLSSetting = opts.TLS
+	if opts.TLSSetting != nil {
+		cfg.TLSSetting = opts.TLSSetting
 	}
-	if opts.MaxReceiveMessageLength > 0 {
-		cfg.MaxRecvMsgSizeMiB = int(opts.MaxReceiveMessageLength / (1024 * 1024))
+	if opts.MaxRecvMsgSizeMiB > 0 {
+		cfg.MaxRecvMsgSizeMiB = opts.MaxRecvMsgSizeMiB
 	}
-	if opts.MaxConnectionAge != 0 || opts.MaxConnectionAgeGrace != 0 {
+	if opts.Keepalive.ServerParameters.MaxConnectionAge != 0 || opts.Keepalive.ServerParameters.MaxConnectionAgeGrace != 0 {
 		cfg.Keepalive = &configgrpc.KeepaliveServerConfig{
 			ServerParameters: &configgrpc.KeepaliveServerParameters{
-				MaxConnectionAge:      opts.MaxConnectionAge,
-				MaxConnectionAgeGrace: opts.MaxConnectionAgeGrace,
+				MaxConnectionAge:      opts.Keepalive.ServerParameters.MaxConnectionAge,
+				MaxConnectionAgeGrace: opts.Keepalive.ServerParameters.MaxConnectionAgeGrace,
 			},
 		}
 	}
 }
 
-func applyHTTPSettings(cfg *confighttp.ServerConfig, opts *flags.HTTPOptions) {
-	if opts.HostPort != "" {
-		cfg.Endpoint = opts.HostPort
+func applyHTTPSettings(cfg *confighttp.ServerConfig, opts *confighttp.ServerConfig) {
+	if opts.Endpoint != "" {
+		cfg.Endpoint = opts.Endpoint
 	}
-	if opts.TLS != nil {
-		cfg.TLSSetting = opts.TLS
+	if opts.TLSSetting != nil {
+		cfg.TLSSetting = opts.TLSSetting
 	}
 
 	cfg.CORS = &confighttp.CORSConfig{

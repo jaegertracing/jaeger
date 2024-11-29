@@ -99,14 +99,14 @@ func (c *Collector) Start(options *flags.CollectorOptions) error {
 	c.spanHandlers = handlerBuilder.BuildHandlers(c.spanProcessor)
 
 	grpcServer, err := server.StartGRPCServer(&server.GRPCServerParams{
-		HostPort:                options.GRPC.HostPort,
+		HostPort:                options.GRPC.NetAddr.Endpoint,
 		Handler:                 c.spanHandlers.GRPCHandler,
-		TLSConfig:               options.GRPC.TLS,
+		TLSConfig:               options.GRPC.TLSSetting,
 		SamplingProvider:        c.samplingProvider,
 		Logger:                  c.logger,
-		MaxReceiveMessageLength: options.GRPC.MaxReceiveMessageLength,
-		MaxConnectionAge:        options.GRPC.MaxConnectionAge,
-		MaxConnectionAgeGrace:   options.GRPC.MaxConnectionAgeGrace,
+		MaxReceiveMessageLength: options.GRPC.MaxRecvMsgSizeMiB,
+		MaxConnectionAge:        options.GRPC.Keepalive.ServerParameters.MaxConnectionAge,
+		MaxConnectionAgeGrace:   options.GRPC.Keepalive.ServerParameters.MaxConnectionAgeGrace,
 	})
 	if err != nil {
 		return fmt.Errorf("could not start gRPC server: %w", err)
@@ -114,9 +114,9 @@ func (c *Collector) Start(options *flags.CollectorOptions) error {
 	c.grpcServer = grpcServer
 
 	httpServer, err := server.StartHTTPServer(&server.HTTPServerParams{
-		HostPort:         options.HTTP.HostPort,
+		HostPort:         options.HTTP.Endpoint,
 		Handler:          c.spanHandlers.JaegerBatchesHandler,
-		TLSConfig:        options.HTTP.TLS,
+		TLSConfig:        options.HTTP.TLSSetting,
 		HealthCheck:      c.hCheck,
 		MetricsFactory:   c.metricsFactory,
 		SamplingProvider: c.samplingProvider,

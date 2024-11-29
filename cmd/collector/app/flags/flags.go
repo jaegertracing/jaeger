@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/spf13/viper"
+	"go.opentelemetry.io/collector/config/configgrpc"
+	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/configtls"
 	"go.uber.org/zap"
 
@@ -107,21 +109,21 @@ type CollectorOptions struct {
 	// NumWorkers is the number of internal workers in a collector
 	NumWorkers int
 	// HTTP section defines options for HTTP server
-	HTTP HTTPOptions
+	HTTP confighttp.ServerConfig
 	// GRPC section defines options for gRPC server
-	GRPC GRPCOptions
+	GRPC configgrpc.ServerConfig
 	// OTLP section defines options for servers accepting OpenTelemetry OTLP format
 	OTLP struct {
 		Enabled bool
-		GRPC    GRPCOptions
-		HTTP    HTTPOptions
+		GRPC    configgrpc.ServerConfig
+		HTTP    confighttp.ServerConfig
 	}
 	// Zipkin section defines options for Zipkin HTTP server
 	Zipkin struct {
 		// HTTPHostPort is the host:port address that the Zipkin collector service listens in on for http requests
 		HTTPHostPort string
 		// TLS configures secure transport for Zipkin endpoint to collect spans
-		TLS *configtls.ServerConfig
+		TLS configtls.ServerConfig
 		// CORS allows CORS requests , sets the values for Allowed Headers and Allowed Origins.
 		CORS corscfg.Options
 		// KeepAlive configures allow Keep-Alive for Zipkin HTTP server
@@ -138,39 +140,6 @@ type serverFlagsConfig struct {
 	tls    tlscfg.ServerFlagsConfig
 }
 
-// HTTPOptions defines options for an HTTP server
-type HTTPOptions struct {
-	// HostPort is the host:port address that the server listens on
-	HostPort string
-	// TLS configures secure transport for HTTP endpoint
-	TLS *configtls.ServerConfig
-	// ReadTimeout sets the respective parameter of http.Server
-	ReadTimeout time.Duration
-	// ReadHeaderTimeout sets the respective parameter of http.Server
-	ReadHeaderTimeout time.Duration
-	// IdleTimeout sets the respective parameter of http.Server
-	IdleTimeout time.Duration
-	// CORS allows CORS requests , sets the values for Allowed Headers and Allowed Origins.
-	CORS corscfg.Options
-}
-
-// GRPCOptions defines options for a gRPC server
-type GRPCOptions struct {
-	// HostPort is the host:port address that the collector service listens in on for gRPC requests
-	HostPort string
-	// TLS configures secure transport for gRPC endpoint to collect spans
-	TLS *configtls.ServerConfig
-	// MaxReceiveMessageLength is the maximum message size receivable by the gRPC Collector.
-	MaxReceiveMessageLength int
-	// MaxConnectionAge is a duration for the maximum amount of time a connection may exist.
-	// See gRPC's keepalive.ServerParameters#MaxConnectionAge.
-	MaxConnectionAge time.Duration
-	// MaxConnectionAgeGrace is an additive period after MaxConnectionAge after which the connection will be forcibly closed.
-	// See gRPC's keepalive.ServerParameters#MaxConnectionAgeGrace.
-	MaxConnectionAgeGrace time.Duration
-	// Tenancy configures tenancy for endpoints that collect spans
-	Tenancy tenancy.Options
-}
 
 // AddFlags adds flags for CollectorOptions
 func AddFlags(flagSet *flag.FlagSet) {
@@ -224,8 +193,8 @@ func addGRPCFlags(flagSet *flag.FlagSet, cfg serverFlagsConfig, defaultHostPort 
 	cfg.tls.AddFlags(flagSet)
 }
 
-func (opts *HTTPOptions) initFromViper(v *viper.Viper, _ *zap.Logger, cfg serverFlagsConfig) error {
-	opts.HostPort = ports.FormatHostPort(v.GetString(cfg.prefix + "." + flagSuffixHostPort))
+func initHTTPFromViper(v *viper.Viper, _ *zap.Logger, opts *confighttp.ServerConfig,cfg serverFlagsConfig) error {
+	opts.Endpoint = ports.FormatHostPort(v.GetString(cfg.prefix + "." + flagSuffixHostPort))
 	opts.IdleTimeout = v.GetDuration(cfg.prefix + "." + flagSuffixHTTPIdleTimeout)
 	opts.ReadTimeout = v.GetDuration(cfg.prefix + "." + flagSuffixHTTPReadTimeout)
 	opts.ReadHeaderTimeout = v.GetDuration(cfg.prefix + "." + flagSuffixHTTPReadHeaderTimeout)
@@ -233,21 +202,21 @@ func (opts *HTTPOptions) initFromViper(v *viper.Viper, _ *zap.Logger, cfg server
 	if err != nil {
 		return fmt.Errorf("failed to parse HTTP TLS options: %w", err)
 	}
-	opts.TLS = tlsOpts.ToOtelServerConfig()
+	opts.TLSSetting = tlsOpts.ToOtelServerConfig()
 	return nil
 }
 
-func (opts *GRPCOptions) initFromViper(v *viper.Viper, _ *zap.Logger, cfg serverFlagsConfig) error {
-	opts.HostPort = ports.FormatHostPort(v.GetString(cfg.prefix + "." + flagSuffixHostPort))
-	opts.MaxReceiveMessageLength = v.GetInt(cfg.prefix + "." + flagSuffixGRPCMaxReceiveMessageLength)
-	opts.MaxConnectionAge = v.GetDuration(cfg.prefix + "." + flagSuffixGRPCMaxConnectionAge)
-	opts.MaxConnectionAgeGrace = v.GetDuration(cfg.prefix + "." + flagSuffixGRPCMaxConnectionAgeGrace)
+func initGRPCFromViper(v *viper.Viper, _ *zap.Logger, opts *configgrpc.ServerConfig,cfg serverFlagsConfig) error {
+	opts.NetAddr.Endpoint = ports.FormatHostPort(v.GetString(cfg.prefix + "." + flagSuffixHostPort))
+	opts.MaxRecvMsgSizeMiB = v.GetInt(cfg.prefix + "." + flagSuffixGRPCMaxReceiveMessageLength)
+	opts.Keepalive.ServerParameters.MaxConnectionAge = v.GetDuration(cfg.prefix + "." + flagSuffixGRPCMaxConnectionAge)
+	opts.Keepalive.ServerParameters.MaxConnectionAgeGrace = v.GetDuration(cfg.prefix + "." + flagSuffixGRPCMaxConnectionAgeGrace)
 	tlsOpts, err := cfg.tls.InitFromViper(v)
 	if err != nil {
 		return fmt.Errorf("failed to parse gRPC TLS options: %w", err)
 	}
-	opts.TLS = tlsOpts.ToOtelServerConfig()
-	opts.Tenancy = tenancy.InitFromViper(v)
+	opts.TLSSetting = tlsOpts.ToOtelServerConfig()
+	// opts.Tenancy = tenancy.InitFromViper(v)
 
 	return nil
 }
@@ -260,20 +229,21 @@ func (cOpts *CollectorOptions) InitFromViper(v *viper.Viper, logger *zap.Logger)
 	cOpts.DynQueueSizeMemory = v.GetUint(flagDynQueueSizeMemory) * 1024 * 1024 // we receive in MiB and store in bytes
 	cOpts.SpanSizeMetricsEnabled = v.GetBool(flagSpanSizeMetricsEnabled)
 
-	if err := cOpts.HTTP.initFromViper(v, logger, httpServerFlagsCfg); err != nil {
+	if err := initHTTPFromViper(v, logger, &cOpts.HTTP,httpServerFlagsCfg); err != nil {
 		return cOpts, fmt.Errorf("failed to parse HTTP server options: %w", err)
 	}
 
-	if err := cOpts.GRPC.initFromViper(v, logger, grpcServerFlagsCfg); err != nil {
+	if err := initGRPCFromViper(v, logger, &cOpts.GRPC,grpcServerFlagsCfg); err != nil {
 		return cOpts, fmt.Errorf("failed to parse gRPC server options: %w", err)
 	}
 
 	cOpts.OTLP.Enabled = v.GetBool(flagCollectorOTLPEnabled)
-	if err := cOpts.OTLP.HTTP.initFromViper(v, logger, otlpServerFlagsCfg.HTTP); err != nil {
+	if err := initHTTPFromViper(v, logger, &cOpts.OTLP.HTTP,otlpServerFlagsCfg.HTTP); err != nil {
 		return cOpts, fmt.Errorf("failed to parse OTLP/HTTP server options: %w", err)
 	}
-	cOpts.OTLP.HTTP.CORS = corsOTLPFlags.InitFromViper(v)
-	if err := cOpts.OTLP.GRPC.initFromViper(v, logger, otlpServerFlagsCfg.GRPC); err != nil {
+	corsOpts := corsOTLPFlags.InitFromViper(v)
+	cOpts.OTLP.HTTP.CORS = corsOpts.ToOTELCorsConfig()
+	if err := initGRPCFromViper(v, logger, &cOpts.GRPC,otlpServerFlagsCfg.GRPC); err != nil {
 		return cOpts, fmt.Errorf("failed to parse OTLP/gRPC server options: %w", err)
 	}
 
@@ -283,7 +253,7 @@ func (cOpts *CollectorOptions) InitFromViper(v *viper.Viper, logger *zap.Logger)
 	if err != nil {
 		return cOpts, fmt.Errorf("failed to parse Zipkin TLS options: %w", err)
 	}
-	cOpts.Zipkin.TLS = tlsZipkin.ToOtelServerConfig()
+	cOpts.Zipkin.TLS = *tlsZipkin.ToOtelServerConfig()
 	cOpts.Zipkin.CORS = corsZipkinFlags.InitFromViper(v)
 
 	return cOpts, nil
