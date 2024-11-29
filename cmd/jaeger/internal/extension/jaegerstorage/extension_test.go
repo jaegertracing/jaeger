@@ -39,7 +39,7 @@ type errorFactory struct {
 	closeErr error
 }
 
-func (errorFactory) Initialize(_ metrics.Factory, _ *zap.Logger) error {
+func (errorFactory) Initialize(metrics.Factory, *zap.Logger) error {
 	panic("not implemented")
 }
 

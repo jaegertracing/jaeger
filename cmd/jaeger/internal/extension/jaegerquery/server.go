@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/extension"
@@ -59,7 +60,17 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 	if err != nil {
 		return fmt.Errorf("could not initialize a tracer: %w", err)
 	}
-	s.closeTracer = tracerProvider.Close
+	// make sure to close the tracer if subsequent code exists with error
+	success := false
+	defer func() {
+		if success {
+			s.closeTracer = tracerProvider.Close
+		} else {
+			ctx, cx := context.WithTimeout(context.Background(), 10*time.Second)
+			tracerProvider.Close(ctx)
+			cx()
+		}
+	}()
 
 	telset := telemetry.FromOtelComponent(s.telset, host)
 	telset.TracerProvider = tracerProvider.OTEL
@@ -114,6 +125,7 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 		return fmt.Errorf("could not start jaeger-query: %w", err)
 	}
 
+	success = true
 	return nil
 }
 
