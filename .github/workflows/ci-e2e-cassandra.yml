@@ -51,7 +51,7 @@ jobs:
       id: test-execution
       run: bash scripts/cassandra-integration-test.sh ${{ matrix.version.major }} ${{ matrix.version.schema }} ${{ matrix.jaeger-version }}
       env:
-        SKIP_APPLY_SCHEMA: ${{ matrix.skip-apply-schema }}
+        CASSANDRA_CREATE_SCHEMA: ${{ matrix.skip-apply-schema }}
 
     - name: Upload coverage to codecov
       uses: ./.github/actions/upload-codecov
