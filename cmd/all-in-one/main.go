@@ -14,6 +14,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	noopmetric "go.opentelemetry.io/otel/metric/noop"
 	_ "go.uber.org/automaxprocs"
 	"go.uber.org/zap"
 
@@ -96,6 +97,7 @@ by default uses only in-memory database.`,
 				Logger:         svc.Logger,
 				TracerProvider: tracer.OTEL,
 				Metrics:        baseFactory,
+				MeterProvider:  noopmetric.NewMeterProvider(),
 				ReportStatus:   telemetry.HCAdapter(svc.HC()),
 			}
 
@@ -164,12 +166,12 @@ by default uses only in-memory database.`,
 			}
 
 			// query
-			qyeryTelset := baseTelset // copy
-			qyeryTelset.Metrics = queryMetricsFactory
+			queryTelset := baseTelset // copy
+			queryTelset.Metrics = queryMetricsFactory
 			querySrv := startQuery(
 				svc, qOpts, qOpts.BuildQueryServiceOptions(storageFactory, logger),
 				spanReader, dependencyReader, metricsQueryService,
-				tm, qyeryTelset,
+				tm, queryTelset,
 			)
 
 			svc.RunAndThen(func() {

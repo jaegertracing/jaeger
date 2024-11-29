@@ -18,7 +18,7 @@ import (
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
-// Same as Factory, but without the Initialize method.
+// BaseFactory is the same as Factory, but without the Initialize method.
 // It was a design mistake originally to add Initialize to the Factory interface.
 type BaseFactory interface {
 	// CreateSpanReader creates a spanstore.Reader.
