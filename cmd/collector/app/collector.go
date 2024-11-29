@@ -6,7 +6,6 @@ package app
 import (
 	"context"
 	"fmt"
-	"io"
 	"net/http"
 	"time"
 
@@ -47,13 +46,10 @@ type Collector struct {
 	tenancyMgr         *tenancy.Manager
 
 	// state, read only
-	hServer                    *http.Server
-	grpcServer                 *grpc.Server
-	otlpReceiver               receiver.Traces
-	zipkinReceiver             receiver.Traces
-	tlsGRPCCertWatcherCloser   io.Closer
-	tlsHTTPCertWatcherCloser   io.Closer
-	tlsZipkinCertWatcherCloser io.Closer
+	hServer        *http.Server
+	grpcServer     *grpc.Server
+	otlpReceiver   receiver.Traces
+	zipkinReceiver receiver.Traces
 }
 
 // CollectorParams to construct a new Jaeger Collector.
@@ -131,10 +127,6 @@ func (c *Collector) Start(options *flags.CollectorOptions) error {
 	}
 	c.hServer = httpServer
 
-	c.tlsGRPCCertWatcherCloser = &options.GRPC.TLS
-	c.tlsHTTPCertWatcherCloser = &options.HTTP.TLS
-	c.tlsZipkinCertWatcherCloser = &options.Zipkin.TLS
-
 	if options.Zipkin.HTTPHostPort == "" {
 		c.logger.Info("Not listening for Zipkin HTTP traffic, port not configured")
 	} else {
@@ -207,17 +199,6 @@ func (c *Collector) Close() error {
 		if err := c.samplingAggregator.Close(); err != nil {
 			c.logger.Error("failed to close aggregator.", zap.Error(err))
 		}
-	}
-
-	// watchers actually never return errors from Close
-	if c.tlsGRPCCertWatcherCloser != nil {
-		_ = c.tlsGRPCCertWatcherCloser.Close()
-	}
-	if c.tlsHTTPCertWatcherCloser != nil {
-		_ = c.tlsHTTPCertWatcherCloser.Close()
-	}
-	if c.tlsZipkinCertWatcherCloser != nil {
-		_ = c.tlsZipkinCertWatcherCloser.Close()
 	}
 
 	return nil

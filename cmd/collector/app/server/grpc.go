@@ -9,6 +9,7 @@ import (
 	"net"
 	"time"
 
+	"go.opentelemetry.io/collector/config/configtls"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -20,13 +21,12 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/collector/app/handler"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/samplingstrategy"
-	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 )
 
 // GRPCServerParams to construct a new Jaeger Collector gRPC Server
 type GRPCServerParams struct {
-	TLSConfig               tlscfg.Options
+	TLSConfig               *configtls.ServerConfig
 	HostPort                string
 	Handler                 *handler.GRPCHandler
 	SamplingProvider        samplingstrategy.Provider
@@ -53,9 +53,9 @@ func StartGRPCServer(params *GRPCServerParams) (*grpc.Server, error) {
 		MaxConnectionAgeGrace: params.MaxConnectionAgeGrace,
 	}))
 
-	if params.TLSConfig.Enabled {
+	if params.TLSConfig != nil {
 		// user requested a server with TLS, setup creds
-		tlsCfg, err := params.TLSConfig.ToOtelServerConfig().LoadTLSConfig(context.Background())
+		tlsCfg, err := params.TLSConfig.LoadTLSConfig(context.Background())
 		if err != nil {
 			return nil, err
 		}

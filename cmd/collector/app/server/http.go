@@ -10,13 +10,13 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+	"go.opentelemetry.io/collector/config/configtls"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/handler"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/samplingstrategy"
 	clientcfgHandler "github.com/jaegertracing/jaeger/pkg/clientcfg/clientcfghttp"
-	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	"github.com/jaegertracing/jaeger/pkg/httpmetrics"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
@@ -25,7 +25,7 @@ import (
 
 // HTTPServerParams to construct a new Jaeger Collector HTTP Server
 type HTTPServerParams struct {
-	TLSConfig        tlscfg.Options
+	TLSConfig        *configtls.ServerConfig
 	HostPort         string
 	Handler          handler.JaegerBatchesHandler
 	SamplingProvider samplingstrategy.Provider
@@ -53,8 +53,8 @@ func StartHTTPServer(params *HTTPServerParams) (*http.Server, error) {
 		IdleTimeout:       params.IdleTimeout,
 		ErrorLog:          errorLog,
 	}
-	if params.TLSConfig.Enabled {
-		tlsCfg, err := params.TLSConfig.ToOtelServerConfig().LoadTLSConfig(context.Background())
+	if params.TLSConfig != nil {
+		tlsCfg, err := params.TLSConfig.LoadTLSConfig(context.Background())
 		if err != nil {
 			return nil, err
 		}
@@ -91,7 +91,7 @@ func serveHTTP(server *http.Server, listener net.Listener, params *HTTPServerPar
 	server.Handler = httpmetrics.Wrap(recoveryHandler(r), params.MetricsFactory, params.Logger)
 	go func() {
 		var err error
-		if params.TLSConfig.Enabled {
+		if params.TLSConfig != nil {
 			err = server.ServeTLS(listener, "", "")
 		} else {
 			err = server.Serve(listener)

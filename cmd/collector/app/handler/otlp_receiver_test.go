@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/config/configtls"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/collector/pipeline"
@@ -20,7 +21,6 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/flags"
 	"github.com/jaegertracing/jaeger/pkg/config/corscfg"
-	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 )
@@ -138,15 +138,16 @@ func TestApplyOTLPGRPCServerSettings(t *testing.T) {
 		MaxReceiveMessageLength: 42 * 1024 * 1024,
 		MaxConnectionAge:        33 * time.Second,
 		MaxConnectionAgeGrace:   37 * time.Second,
-		TLS: tlscfg.Options{
-			Enabled:        true,
-			CAPath:         "ca",
-			CertPath:       "cert",
-			KeyPath:        "key",
-			ClientCAPath:   "clientca",
-			MinVersion:     "1.1",
-			MaxVersion:     "1.3",
-			ReloadInterval: 24 * time.Hour,
+		TLS: &configtls.ServerConfig{
+			ClientCAFile: "clientca",
+			Config: configtls.Config{
+				CAFile:         "ca",
+				CertFile:       "cert",
+				KeyFile:        "key",
+				MinVersion:     "1.1",
+				MaxVersion:     "1.3",
+				ReloadInterval: 24 * time.Hour,
+			},
 		},
 	}
 	applyGRPCSettings(otlpReceiverConfig.GRPC, grpcOpts)
@@ -173,15 +174,16 @@ func TestApplyOTLPHTTPServerSettings(t *testing.T) {
 
 	httpOpts := &flags.HTTPOptions{
 		HostPort: ":12345",
-		TLS: tlscfg.Options{
-			Enabled:        true,
-			CAPath:         "ca",
-			CertPath:       "cert",
-			KeyPath:        "key",
-			ClientCAPath:   "clientca",
-			MinVersion:     "1.1",
-			MaxVersion:     "1.3",
-			ReloadInterval: 24 * time.Hour,
+		TLS: &configtls.ServerConfig{
+			ClientCAFile: "clientca",
+			Config: configtls.Config{
+				CAFile:         "ca",
+				CertFile:       "cert",
+				KeyFile:        "key",
+				MinVersion:     "1.1",
+				MaxVersion:     "1.3",
+				ReloadInterval: 24 * time.Hour,
+			},
 		},
 		CORS: corscfg.Options{
 			AllowedOrigins: []string{"http://example.domain.com", "http://*.domain.com"},

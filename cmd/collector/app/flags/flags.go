@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/spf13/viper"
+	"go.opentelemetry.io/collector/config/configtls"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/internal/flags"
@@ -120,7 +121,7 @@ type CollectorOptions struct {
 		// HTTPHostPort is the host:port address that the Zipkin collector service listens in on for http requests
 		HTTPHostPort string
 		// TLS configures secure transport for Zipkin endpoint to collect spans
-		TLS tlscfg.Options
+		TLS *configtls.ServerConfig
 		// CORS allows CORS requests , sets the values for Allowed Headers and Allowed Origins.
 		CORS corscfg.Options
 		// KeepAlive configures allow Keep-Alive for Zipkin HTTP server
@@ -142,7 +143,7 @@ type HTTPOptions struct {
 	// HostPort is the host:port address that the server listens on
 	HostPort string
 	// TLS configures secure transport for HTTP endpoint
-	TLS tlscfg.Options
+	TLS *configtls.ServerConfig
 	// ReadTimeout sets the respective parameter of http.Server
 	ReadTimeout time.Duration
 	// ReadHeaderTimeout sets the respective parameter of http.Server
@@ -158,7 +159,7 @@ type GRPCOptions struct {
 	// HostPort is the host:port address that the collector service listens in on for gRPC requests
 	HostPort string
 	// TLS configures secure transport for gRPC endpoint to collect spans
-	TLS tlscfg.Options
+	TLS *configtls.ServerConfig
 	// MaxReceiveMessageLength is the maximum message size receivable by the gRPC Collector.
 	MaxReceiveMessageLength int
 	// MaxConnectionAge is a duration for the maximum amount of time a connection may exist.
@@ -232,7 +233,7 @@ func (opts *HTTPOptions) initFromViper(v *viper.Viper, _ *zap.Logger, cfg server
 	if err != nil {
 		return fmt.Errorf("failed to parse HTTP TLS options: %w", err)
 	}
-	opts.TLS = tlsOpts
+	opts.TLS = tlsOpts.ToOtelServerConfig()
 	return nil
 }
 
@@ -245,7 +246,7 @@ func (opts *GRPCOptions) initFromViper(v *viper.Viper, _ *zap.Logger, cfg server
 	if err != nil {
 		return fmt.Errorf("failed to parse gRPC TLS options: %w", err)
 	}
-	opts.TLS = tlsOpts
+	opts.TLS = tlsOpts.ToOtelServerConfig()
 	opts.Tenancy = tenancy.InitFromViper(v)
 
 	return nil
@@ -282,7 +283,7 @@ func (cOpts *CollectorOptions) InitFromViper(v *viper.Viper, logger *zap.Logger)
 	if err != nil {
 		return cOpts, fmt.Errorf("failed to parse Zipkin TLS options: %w", err)
 	}
-	cOpts.Zipkin.TLS = tlsZipkin
+	cOpts.Zipkin.TLS = tlsZipkin.ToOtelServerConfig()
 	cOpts.Zipkin.CORS = corsZipkinFlags.InitFromViper(v)
 
 	return cOpts, nil

@@ -87,16 +87,17 @@ func TestSpanCollector(t *testing.T) {
 
 func TestCollectorStartWithTLS(t *testing.T) {
 	logger, _ := zap.NewDevelopment()
+	opts := tlscfg.Options{
+		Enabled:      true,
+		CertPath:     testCertKeyLocation + "/example-server-cert.pem",
+		KeyPath:      testCertKeyLocation + "/example-server-key.pem",
+		ClientCAPath: testCertKeyLocation + "/example-CA-cert.pem",
+	}
 	params := &GRPCServerParams{
 		Handler:          handler.NewGRPCHandler(logger, &mockSpanProcessor{}, &tenancy.Manager{}),
 		SamplingProvider: &mockSamplingProvider{},
 		Logger:           logger,
-		TLSConfig: tlscfg.Options{
-			Enabled:      true,
-			CertPath:     testCertKeyLocation + "/example-server-cert.pem",
-			KeyPath:      testCertKeyLocation + "/example-server-key.pem",
-			ClientCAPath: testCertKeyLocation + "/example-CA-cert.pem",
-		},
+		TLSConfig:        opts.ToOtelServerConfig(),
 	}
 	server, err := StartGRPCServer(params)
 	require.NoError(t, err)

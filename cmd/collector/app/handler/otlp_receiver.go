@@ -103,8 +103,8 @@ func applyGRPCSettings(cfg *configgrpc.ServerConfig, opts *flags.GRPCOptions) {
 	if opts.HostPort != "" {
 		cfg.NetAddr.Endpoint = opts.HostPort
 	}
-	if opts.TLS.Enabled {
-		cfg.TLSSetting = opts.TLS.ToOtelServerConfig()
+	if opts.TLS != nil {
+		cfg.TLSSetting = opts.TLS
 	}
 	if opts.MaxReceiveMessageLength > 0 {
 		cfg.MaxRecvMsgSizeMiB = int(opts.MaxReceiveMessageLength / (1024 * 1024))
@@ -123,8 +123,8 @@ func applyHTTPSettings(cfg *confighttp.ServerConfig, opts *flags.HTTPOptions) {
 	if opts.HostPort != "" {
 		cfg.Endpoint = opts.HostPort
 	}
-	if opts.TLS.Enabled {
-		cfg.TLSSetting = opts.TLS.ToOtelServerConfig()
+	if opts.TLS != nil {
+		cfg.TLSSetting = opts.TLS
 	}
 
 	cfg.CORS = &confighttp.CORSConfig{

@@ -51,7 +51,7 @@ func TestCreateTLSHTTPServerError(t *testing.T) {
 		HostPort:    fmt.Sprintf(":%d", ports.CollectorHTTP),
 		HealthCheck: healthcheck.New(),
 		Logger:      logger,
-		TLSConfig:   tlsCfg,
+		TLSConfig:   tlsCfg.ToOtelServerConfig(),
 	}
 	_, err := StartHTTPServer(params)
 	require.Error(t, err)
@@ -194,7 +194,7 @@ func TestSpanCollectorHTTPS(t *testing.T) {
 				MetricsFactory:   mFact,
 				HealthCheck:      healthcheck.New(),
 				Logger:           logger,
-				TLSConfig:        test.TLS,
+				TLSConfig:        test.TLS.ToOtelServerConfig(),
 			}
 
 			server, err := StartHTTPServer(params)
