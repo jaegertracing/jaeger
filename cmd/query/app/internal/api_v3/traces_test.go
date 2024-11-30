@@ -24,7 +24,8 @@ func TestTracesData(t *testing.T) {
 	require.NoError(t, err)
 
 	// Test MarshalTo
-	assert.Panics(t, func() { td.MarshalTo(nil) })
+	_, err = td.MarshalTo(make([]byte, td.Size()))
+	require.NoError(t, err)
 
 	// Test MarshalJSONPB
 	_, err = td.MarshalJSONPB(nil)

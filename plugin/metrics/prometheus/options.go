@@ -44,6 +44,8 @@ type Options struct {
 	config.Configuration `mapstructure:",squash"`
 }
 
+var tlsFlagsCfg = tlscfg.ClientFlagsConfig{Prefix: prefix}
+
 func DefaultConfig() config.Configuration {
 	return config.Configuration{
 		ServerURL:      defaultServerURL,
@@ -64,7 +66,7 @@ func NewOptions() *Options {
 }
 
 // AddFlags from this storage to the CLI.
-func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
+func (*Options) AddFlags(flagSet *flag.FlagSet) {
 	flagSet.String(prefix+suffixServerURL, defaultServerURL,
 		"The Prometheus server's URL, must include the protocol scheme e.g. http://localhost:9090")
 	flagSet.Duration(prefix+suffixConnectTimeout, defaultConnectTimeout,
@@ -92,7 +94,7 @@ func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
 			`For example: `+
 			`"duration_bucket" (not normalized) -> "duration_milliseconds_bucket (normalized)"`)
 
-	opt.getTLSFlagsConfig().AddFlags(flagSet)
+	tlsFlagsCfg.AddFlags(flagSet)
 }
 
 // InitFromViper initializes the options struct with values from Viper.
@@ -113,17 +115,12 @@ func (opt *Options) InitFromViper(v *viper.Viper) error {
 	}
 
 	var err error
-	opt.TLS, err = opt.getTLSFlagsConfig().InitFromViper(v)
+	tlsOpts, err := tlsFlagsCfg.InitFromViper(v)
 	if err != nil {
 		return fmt.Errorf("failed to process Prometheus TLS options: %w", err)
 	}
+	opt.TLS = tlsOpts.ToOtelClientConfig()
 	return nil
-}
-
-func (*Options) getTLSFlagsConfig() tlscfg.ClientFlagsConfig {
-	return tlscfg.ClientFlagsConfig{
-		Prefix: prefix,
-	}
 }
 
 // stripWhiteSpace removes all whitespace characters from a string.

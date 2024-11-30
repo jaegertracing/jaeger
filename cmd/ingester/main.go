@@ -23,6 +23,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/internal/status"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/pkg/telemetry"
 	"github.com/jaegertracing/jaeger/pkg/version"
 	"github.com/jaegertracing/jaeger/plugin/storage"
 	"github.com/jaegertracing/jaeger/ports"
@@ -50,8 +51,12 @@ func main() {
 			metricsFactory := baseFactory.Namespace(metrics.NSOptions{Name: "ingester"})
 			version.NewInfoMetrics(metricsFactory)
 
+			baseTelset := telemetry.NoopSettings()
+			baseTelset.Logger = svc.Logger
+			baseTelset.Metrics = baseFactory
+
 			storageFactory.InitFromViper(v, logger)
-			if err := storageFactory.Initialize(baseFactory, logger); err != nil {
+			if err := storageFactory.Initialize(baseTelset.Metrics, baseTelset.Logger); err != nil {
 				logger.Fatal("Failed to init storage factory", zap.Error(err))
 			}
 			spanWriter, err := storageFactory.CreateSpanWriter()
@@ -68,9 +73,6 @@ func main() {
 			consumer.Start()
 
 			svc.RunAndThen(func() {
-				if err := options.TLS.Close(); err != nil {
-					logger.Error("Failed to close TLS certificates watcher", zap.Error(err))
-				}
 				if err = consumer.Close(); err != nil {
 					logger.Error("Failed to close consumer", zap.Error(err))
 				}

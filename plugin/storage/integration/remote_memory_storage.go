@@ -10,9 +10,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
-	"go.opentelemetry.io/collector/config/configtelemetry"
-	"go.opentelemetry.io/otel/metric"
-	"go.opentelemetry.io/otel/metric/noop"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 	"google.golang.org/grpc"
@@ -23,7 +20,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
-	"github.com/jaegertracing/jaeger/pkg/telemetery"
+	"github.com/jaegertracing/jaeger/pkg/telemetry"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/plugin/storage"
 	"github.com/jaegertracing/jaeger/ports"
@@ -51,13 +48,9 @@ func StartNewRemoteMemoryStorage(t *testing.T) *RemoteMemoryStorage {
 	require.NoError(t, storageFactory.Initialize(metrics.NullFactory, logger))
 
 	t.Logf("Starting in-process remote storage server on %s", opts.GRPCHostPort)
-	telset := telemetery.Setting{
-		Logger:       logger,
-		ReportStatus: telemetery.HCAdapter(healthcheck.New()),
-		LeveledMeterProvider: func(_ configtelemetry.Level) metric.MeterProvider {
-			return noop.NewMeterProvider()
-		},
-	}
+	telset := telemetry.NoopSettings()
+	telset.Logger = logger
+	telset.ReportStatus = telemetry.HCAdapter(healthcheck.New())
 	server, err := app.NewServer(opts, storageFactory, tm, telset)
 	require.NoError(t, err)
 	require.NoError(t, server.Start())

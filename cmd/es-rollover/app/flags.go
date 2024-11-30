@@ -7,7 +7,12 @@ import (
 	"flag"
 
 	"github.com/spf13/viper"
+	"go.opentelemetry.io/collector/config/configtls"
+
+	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 )
+
+var tlsFlagsCfg = tlscfg.ClientFlagsConfig{Prefix: "es"}
 
 const (
 	indexPrefix      = "index-prefix"
@@ -33,6 +38,7 @@ type Config struct {
 	Timeout          int
 	SkipDependencies bool
 	AdaptiveSampling bool
+	TLSConfig        configtls.ClientConfig
 }
 
 // AddFlags adds flags
@@ -46,6 +52,7 @@ func AddFlags(flags *flag.FlagSet) {
 	flags.Int(timeout, 120, "Number of seconds to wait for master node response")
 	flags.Bool(skipDependencies, false, "Disable rollover for dependencies index")
 	flags.Bool(adaptiveSampling, false, "Enable rollover for adaptive sampling index")
+	tlsFlagsCfg.AddFlags(flags)
 }
 
 // InitFromViper initializes config from viper.Viper.
@@ -62,4 +69,9 @@ func (c *Config) InitFromViper(v *viper.Viper) {
 	c.Timeout = v.GetInt(timeout)
 	c.SkipDependencies = v.GetBool(skipDependencies)
 	c.AdaptiveSampling = v.GetBool(adaptiveSampling)
+	opts, err := tlsFlagsCfg.InitFromViper(v)
+	if err != nil {
+		panic(err)
+	}
+	c.TLSConfig = opts.ToOtelClientConfig()
 }

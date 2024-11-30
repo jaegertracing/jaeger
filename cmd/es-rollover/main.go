@@ -16,7 +16,6 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/es-rollover/app/lookback"
 	"github.com/jaegertracing/jaeger/cmd/es-rollover/app/rollover"
 	"github.com/jaegertracing/jaeger/pkg/config"
-	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/pkg/es/client"
 )
 
@@ -30,8 +29,6 @@ func main() {
 		Long:  "Jaeger es-rollover manages Jaeger indices",
 	}
 
-	tlsFlags := tlscfg.ClientFlagsConfig{Prefix: "es"}
-
 	// Init command
 	initCfg := &initialize.Config{}
 	initCommand := &cobra.Command{
@@ -42,10 +39,9 @@ func main() {
 		SilenceUsage: true,
 		RunE: func(_ *cobra.Command, args []string) error {
 			return app.ExecuteAction(app.ActionExecuteOptions{
-				Args:     args,
-				Viper:    v,
-				Logger:   logger,
-				TLSFlags: tlsFlags,
+				Args:   args,
+				Viper:  v,
+				Logger: logger,
 			}, func(c client.Client, cfg app.Config) app.Action {
 				initCfg.Config = cfg
 				initCfg.InitFromViper(v)
@@ -80,10 +76,9 @@ func main() {
 		RunE: func(_ *cobra.Command, args []string) error {
 			rolloverCfg.InitFromViper(v)
 			return app.ExecuteAction(app.ActionExecuteOptions{
-				Args:     args,
-				Viper:    v,
-				Logger:   logger,
-				TLSFlags: tlsFlags,
+				Args:   args,
+				Viper:  v,
+				Logger: logger,
 			}, func(c client.Client, cfg app.Config) app.Action {
 				rolloverCfg.Config = cfg
 				rolloverCfg.InitFromViper(v)
@@ -109,10 +104,9 @@ func main() {
 		RunE: func(_ *cobra.Command, args []string) error {
 			lookbackCfg.InitFromViper(v)
 			return app.ExecuteAction(app.ActionExecuteOptions{
-				Args:     args,
-				Viper:    v,
-				Logger:   logger,
-				TLSFlags: tlsFlags,
+				Args:   args,
+				Viper:  v,
+				Logger: logger,
 			}, func(c client.Client, cfg app.Config) app.Action {
 				lookbackCfg.Config = cfg
 				lookbackCfg.InitFromViper(v)
@@ -129,7 +123,7 @@ func main() {
 		},
 	}
 
-	addPersistentFlags(v, rootCmd, tlsFlags.AddFlags, app.AddFlags)
+	addPersistentFlags(v, rootCmd, app.AddFlags)
 	addSubCommand(v, rootCmd, initCommand, initCfg.AddFlags)
 	addSubCommand(v, rootCmd, rolloverCommand, rolloverCfg.AddFlags)
 	addSubCommand(v, rootCmd, lookbackCommand, lookbackCfg.AddFlags)

@@ -71,13 +71,13 @@ func TestStorageFactoryBadNameError(t *testing.T) {
 }
 
 func TestMetricsFactoryBadHostError(t *testing.T) {
-	_, err := GetMetricsFactory("something", componenttest.NewNopHost())
+	_, err := GetMetricStorageFactory("something", componenttest.NewNopHost())
 	require.ErrorContains(t, err, "cannot find extension")
 }
 
 func TestMetricsFactoryBadNameError(t *testing.T) {
 	host := storagetest.NewStorageHost().WithExtension(ID, startStorageExtension(t, "", "foo"))
-	_, err := GetMetricsFactory("bar", host)
+	_, err := GetMetricStorageFactory("bar", host)
 	require.ErrorContains(t, err, "cannot find metric storage 'bar'")
 }
 
@@ -116,14 +116,14 @@ func TestGetFactory(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, f2)
 
-	f3, err := GetMetricsFactory(metricname, host)
+	f3, err := GetMetricStorageFactory(metricname, host)
 	require.NoError(t, err)
 	require.NotNil(t, f3)
 }
 
 func TestBadger(t *testing.T) {
 	ext := makeStorageExtenion(t, &Config{
-		Backends: map[string]Backend{
+		TraceBackends: map[string]TraceBackend{
 			"foo": {
 				Badger: &badger.Config{
 					Ephemeral:             true,
@@ -141,7 +141,7 @@ func TestBadger(t *testing.T) {
 
 func TestGRPC(t *testing.T) {
 	ext := makeStorageExtenion(t, &Config{
-		Backends: map[string]Backend{
+		TraceBackends: map[string]TraceBackend{
 			"foo": {
 				GRPC: &grpc.Config{
 					ClientConfig: configgrpc.ClientConfig{
@@ -159,7 +159,7 @@ func TestGRPC(t *testing.T) {
 
 func TestPrometheus(t *testing.T) {
 	ext := makeStorageExtenion(t, &Config{
-		MetricBackends: map[string]MetricBackends{
+		MetricBackends: map[string]MetricBackend{
 			"foo": {
 				Prometheus: &promCfg.Configuration{
 					ServerURL: "localhost:12345",
@@ -175,7 +175,7 @@ func TestPrometheus(t *testing.T) {
 
 func TestStartError(t *testing.T) {
 	ext := makeStorageExtenion(t, &Config{
-		Backends: map[string]Backend{
+		TraceBackends: map[string]TraceBackend{
 			"foo": {},
 		},
 	})
@@ -186,7 +186,7 @@ func TestStartError(t *testing.T) {
 
 func TestMetricsStorageStartError(t *testing.T) {
 	ext := makeStorageExtenion(t, &Config{
-		MetricBackends: map[string]MetricBackends{
+		MetricBackends: map[string]MetricBackend{
 			"foo": {
 				Prometheus: &promCfg.Configuration{},
 			},
@@ -196,9 +196,9 @@ func TestMetricsStorageStartError(t *testing.T) {
 	require.ErrorContains(t, err, "failed to initialize metrics storage 'foo'")
 }
 
-func testElasticsearchOrOpensearch(t *testing.T, cfg Backend) {
+func testElasticsearchOrOpensearch(t *testing.T, cfg TraceBackend) {
 	ext := makeStorageExtenion(t, &Config{
-		Backends: map[string]Backend{
+		TraceBackends: map[string]TraceBackend{
 			"foo": cfg,
 		},
 	})
@@ -220,7 +220,7 @@ func TestXYZsearch(t *testing.T) {
 	}))
 	defer server.Close()
 	t.Run("Elasticsearch", func(t *testing.T) {
-		testElasticsearchOrOpensearch(t, Backend{
+		testElasticsearchOrOpensearch(t, TraceBackend{
 			Elasticsearch: &esCfg.Configuration{
 				Servers:  []string{server.URL},
 				LogLevel: "error",
@@ -228,7 +228,7 @@ func TestXYZsearch(t *testing.T) {
 		})
 	})
 	t.Run("OpenSearch", func(t *testing.T) {
-		testElasticsearchOrOpensearch(t, Backend{
+		testElasticsearchOrOpensearch(t, TraceBackend{
 			Opensearch: &esCfg.Configuration{
 				Servers:  []string{server.URL},
 				LogLevel: "error",
@@ -241,7 +241,7 @@ func TestCassandraError(t *testing.T) {
 	// since we cannot successfully create storage factory for Cassandra
 	// without running a Cassandra server, we only test the error case.
 	ext := makeStorageExtenion(t, &Config{
-		Backends: map[string]Backend{
+		TraceBackends: map[string]TraceBackend{
 			"cassandra": {
 				Cassandra: &cassandra.Options{},
 			},
@@ -280,14 +280,14 @@ func makeStorageExtenion(t *testing.T, config *Config) component.Component {
 
 func startStorageExtension(t *testing.T, memstoreName string, promstoreName string) component.Component {
 	config := &Config{
-		Backends: map[string]Backend{
+		TraceBackends: map[string]TraceBackend{
 			memstoreName: {
 				Memory: &memory.Configuration{
 					MaxTraces: 10000,
 				},
 			},
 		},
-		MetricBackends: map[string]MetricBackends{
+		MetricBackends: map[string]MetricBackend{
 			promstoreName: {
 				Prometheus: &promCfg.Configuration{
 					ServerURL: "localhost:12345",

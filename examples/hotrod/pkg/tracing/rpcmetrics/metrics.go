@@ -5,6 +5,7 @@
 package rpcmetrics
 
 import (
+	"net/http"
 	"sync"
 
 	"github.com/jaegertracing/jaeger/pkg/metrics"
@@ -45,13 +46,13 @@ type Metrics struct {
 
 func (m *Metrics) recordHTTPStatusCode(statusCode int64) {
 	switch {
-	case statusCode >= 200 && statusCode < 300:
+	case statusCode >= http.StatusOK && statusCode < http.StatusMultipleChoices:
 		m.HTTPStatusCode2xx.Inc(1)
-	case statusCode >= 300 && statusCode < 400:
+	case statusCode >= http.StatusMultipleChoices && statusCode < http.StatusBadRequest:
 		m.HTTPStatusCode3xx.Inc(1)
-	case statusCode >= 400 && statusCode < 500:
+	case statusCode >= http.StatusBadRequest && statusCode < http.StatusInternalServerError:
 		m.HTTPStatusCode4xx.Inc(1)
-	case statusCode >= 500 && statusCode < 600:
+	case statusCode >= http.StatusInternalServerError && statusCode < 600:
 		m.HTTPStatusCode5xx.Inc(1)
 	}
 }

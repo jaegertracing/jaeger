@@ -2,7 +2,7 @@
 // Copyright (c) 2017 Uber Technologies, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-package metrics_test
+package spanstoremetrics_test
 
 import (
 	"context"
@@ -14,15 +14,15 @@ import (
 	"github.com/jaegertracing/jaeger/internal/metricstest"
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
-	"github.com/jaegertracing/jaeger/storage/spanstore/metrics"
 	"github.com/jaegertracing/jaeger/storage/spanstore/mocks"
+	"github.com/jaegertracing/jaeger/storage/spanstore/spanstoremetrics"
 )
 
 func TestSuccessfulUnderlyingCalls(t *testing.T) {
 	mf := metricstest.NewFactory(0)
 
 	mockReader := mocks.Reader{}
-	mrs := metrics.NewReadMetricsDecorator(&mockReader, mf)
+	mrs := spanstoremetrics.NewReaderDecorator(&mockReader, mf)
 	mockReader.On("GetServices", context.Background()).Return([]string{}, nil)
 	mrs.GetServices(context.Background())
 	operationQuery := spanstore.OperationQueryParameters{ServiceName: "something"}
@@ -89,7 +89,7 @@ func TestFailingUnderlyingCalls(t *testing.T) {
 	mf := metricstest.NewFactory(0)
 
 	mockReader := mocks.Reader{}
-	mrs := metrics.NewReadMetricsDecorator(&mockReader, mf)
+	mrs := spanstoremetrics.NewReaderDecorator(&mockReader, mf)
 	mockReader.On("GetServices", context.Background()).
 		Return(nil, errors.New("Failure"))
 	mrs.GetServices(context.Background())

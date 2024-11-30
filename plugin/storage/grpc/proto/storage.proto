@@ -72,6 +72,14 @@ message GetTraceRequest {
       (gogoproto.customtype) = "github.com/jaegertracing/jaeger/model.TraceID",
       (gogoproto.customname) = "TraceID"
     ];
+    google.protobuf.Timestamp start_time = 2 [
+      (gogoproto.stdtime) = true,
+      (gogoproto.nullable) = false
+    ];
+    google.protobuf.Timestamp end_time = 3 [
+      (gogoproto.stdtime) = true,
+      (gogoproto.nullable) = false
+    ];
 }
 
 message GetServicesRequest {}

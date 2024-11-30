@@ -18,6 +18,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/config/configtls"
 	"go.opentelemetry.io/otel/codes"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
@@ -25,7 +26,6 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/bearertoken"
-	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/pkg/prometheus/config"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2/metrics"
@@ -739,13 +739,10 @@ func TestGetRoundTripperTLSConfig(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			logger := zap.NewNop()
 			config := &config.Configuration{
-				ConnectTimeout: 9 * time.Millisecond,
-				TLS: tlscfg.Options{
-					Enabled: tc.tlsEnabled,
-				},
+				ConnectTimeout:           9 * time.Millisecond,
+				TLS:                      configtls.ClientConfig{},
 				TokenOverrideFromContext: true,
 			}
-			defer config.TLS.Close()
 			rt, err := getHTTPRoundTripper(config, logger)
 			require.NoError(t, err)
 
@@ -856,9 +853,10 @@ func TestInvalidCertFile(t *testing.T) {
 	reader, err := NewMetricsReader(config.Configuration{
 		ServerURL:      "https://localhost:1234",
 		ConnectTimeout: defaultTimeout,
-		TLS: tlscfg.Options{
-			Enabled: true,
-			CAPath:  "foo",
+		TLS: configtls.ClientConfig{
+			Config: configtls.Config{
+				CAFile: "foo",
+			},
 		},
 	}, logger, tracer)
 	require.Error(t, err)
