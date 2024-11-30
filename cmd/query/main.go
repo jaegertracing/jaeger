@@ -43,7 +43,6 @@ func main() {
 	if err != nil {
 		log.Fatalf("Cannot initialize storage factory: %v", err)
 	}
-	v2Factory := factoryadapter.NewFactory(storageFactory)
 
 	fc := metricsPlugin.FactoryConfigFromEnv()
 	metricsReaderFactory, err := metricsPlugin.NewFactory(fc)
@@ -92,6 +91,8 @@ func main() {
 			if err := storageFactory.Initialize(baseTelset.Metrics, baseTelset.Logger); err != nil {
 				logger.Fatal("Failed to init storage factory", zap.Error(err))
 			}
+
+			v2Factory := factoryadapter.NewFactory(storageFactory)
 			traceReader, err := v2Factory.CreateTraceReader()
 			if err != nil {
 				logger.Fatal("Failed to create trace reader", zap.Error(err))

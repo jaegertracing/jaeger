@@ -57,7 +57,6 @@ func main() {
 	if err != nil {
 		log.Fatalf("Cannot initialize storage factory: %v", err)
 	}
-	v2Factory := factoryadapter.NewFactory(storageFactory)
 	samplingStrategyFactoryConfig, err := ss.FactoryConfigFromEnv()
 	if err != nil {
 		log.Fatalf("Cannot initialize sampling strategy factory config: %v", err)
@@ -107,6 +106,7 @@ by default uses only in-memory database.`,
 				logger.Fatal("Failed to init storage factory", zap.Error(err))
 			}
 
+			v2Factory := factoryadapter.NewFactory(storageFactory)
 			traceReader, err := v2Factory.CreateTraceReader()
 			if err != nil {
 				logger.Fatal("Failed to create span reader", zap.Error(err))
