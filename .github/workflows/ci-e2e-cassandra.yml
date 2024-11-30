@@ -33,7 +33,7 @@ jobs:
         exclude:
         # Exclude v1 as create schema on fly is available for v2 only
         - jaeger-version: v1
-          skip-apply-schema: true
+          create-schema: auto
     name: ${{ matrix.version.distribution }} ${{ matrix.version.major }} ${{ matrix.jaeger-version }} ${{ matrix.create-schema }} 
     steps:
     - name: Harden Runner
