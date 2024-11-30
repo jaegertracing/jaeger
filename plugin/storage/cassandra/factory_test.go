@@ -12,43 +12,55 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/config/configtls"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/cassandra"
+	"github.com/jaegertracing/jaeger/pkg/cassandra/config"
 	cassandraCfg "github.com/jaegertracing/jaeger/pkg/cassandra/config"
 	"github.com/jaegertracing/jaeger/pkg/cassandra/mocks"
-	"github.com/jaegertracing/jaeger/pkg/config"
+	viperize "github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 )
 
 type mockSessionBuilder struct {
-	session *mocks.Session
-	err     error
+	index    int
+	sessions []*mocks.Session
+	errors   []error
 }
 
-func newMockSessionBuilder(session *mocks.Session, err error) *mockSessionBuilder {
-	return &mockSessionBuilder{
-		session: session,
-		err:     err,
+func (m *mockSessionBuilder) add(session *mocks.Session, err error) *mockSessionBuilder {
+	m.sessions = append(m.sessions, session)
+	m.errors = append(m.errors, err)
+	return m
+}
+
+func (m *mockSessionBuilder) build(*config.Configuration) (cassandra.Session, error) {
+	if m.index >= len(m.sessions) {
+		return nil, errors.New("no more sessions")
 	}
+	session := m.sessions[m.index]
+	err := m.errors[m.index]
+	m.index++
+	return session, err
 }
 
-func (m *mockSessionBuilder) NewSession() (cassandra.Session, error) {
-	return m.session, m.err
-}
+// func newMockSessionBuilder(session *mocks.Session, err error) func(*config.Configuration) (cassandra.Session, error) {
+// 	return func(*config.Configuration) (cassandra.Session, error) {
+// 		return session, err
+// 	}
+// }
 
 func TestCassandraFactory(t *testing.T) {
 	logger, logBuf := testutils.NewLogger()
 	f := NewFactory()
-	v, command := config.Viperize(f.AddFlags)
+	v, command := viperize.Viperize(f.AddFlags)
 	command.ParseFlags([]string{"--cassandra-archive.enabled=true"})
 	f.InitFromViper(v, zap.NewNop())
 
-	// after InitFromViper, f.primaryConfig points to a real session builder that will fail in unit tests,
-	// so we override it with a mock.
-	f.primaryConfig = newMockSessionBuilder(nil, errors.New("made-up error"))
-	require.EqualError(t, f.Initialize(metrics.NullFactory, zap.NewNop()), "made-up error")
+	f.sessionBuilderFn = new(mockSessionBuilder).add(nil, errors.New("made-up primary error")).build
+	require.EqualError(t, f.Initialize(metrics.NullFactory, zap.NewNop()), "made-up primary error")
 
 	var (
 		session = &mocks.Session{}
@@ -57,11 +69,13 @@ func TestCassandraFactory(t *testing.T) {
 	session.On("Query", mock.AnythingOfType("string"), mock.Anything).Return(query)
 	session.On("Close").Return()
 	query.On("Exec").Return(nil)
-	f.primaryConfig = newMockSessionBuilder(session, nil)
-	f.archiveConfig = newMockSessionBuilder(nil, errors.New("made-up error"))
-	require.EqualError(t, f.Initialize(metrics.NullFactory, zap.NewNop()), "made-up error")
+	f.sessionBuilderFn = new(mockSessionBuilder).
+		add(session, nil).
+		add(nil, errors.New("made-up archive error")).build
+	require.EqualError(t, f.Initialize(metrics.NullFactory, zap.NewNop()), "made-up archive error")
 
 	f.archiveConfig = nil
+	f.sessionBuilderFn = new(mockSessionBuilder).add(session, nil).build
 	require.NoError(t, f.Initialize(metrics.NullFactory, logger))
 	assert.Contains(t, logBuf.String(), "Cassandra archive storage configuration is empty, skipping")
 
@@ -80,7 +94,8 @@ func TestCassandraFactory(t *testing.T) {
 	_, err = f.CreateArchiveSpanWriter()
 	require.EqualError(t, err, "archive storage not configured")
 
-	f.archiveConfig = newMockSessionBuilder(session, nil)
+	f.archiveConfig = &config.Configuration{}
+	f.sessionBuilderFn = new(mockSessionBuilder).add(session, nil).add(session, nil).build
 	require.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
 
 	_, err = f.CreateArchiveSpanReader()
@@ -99,9 +114,8 @@ func TestCassandraFactory(t *testing.T) {
 }
 
 func TestExclusiveWhitelistBlacklist(t *testing.T) {
-	logger, logBuf := testutils.NewLogger()
 	f := NewFactory()
-	v, command := config.Viperize(f.AddFlags)
+	v, command := viperize.Viperize(f.AddFlags)
 	command.ParseFlags([]string{
 		"--cassandra-archive.enabled=true",
 		"--cassandra.index.tag-whitelist=a,b,c",
@@ -109,29 +123,25 @@ func TestExclusiveWhitelistBlacklist(t *testing.T) {
 	})
 	f.InitFromViper(v, zap.NewNop())
 
-	// after InitFromViper, f.primaryConfig points to a real session builder that will fail in unit tests,
-	// so we override it with a mock.
-	f.primaryConfig = newMockSessionBuilder(nil, errors.New("made-up error"))
-	require.EqualError(t, f.Initialize(metrics.NullFactory, zap.NewNop()), "made-up error")
-
 	var (
 		session = &mocks.Session{}
 		query   = &mocks.Query{}
 	)
 	session.On("Query", mock.AnythingOfType("string"), mock.Anything).Return(query)
 	query.On("Exec").Return(nil)
-	f.primaryConfig = newMockSessionBuilder(session, nil)
-	f.archiveConfig = newMockSessionBuilder(nil, errors.New("made-up error"))
-	require.EqualError(t, f.Initialize(metrics.NullFactory, zap.NewNop()), "made-up error")
+	f.sessionBuilderFn = new(mockSessionBuilder).add(session, nil).build
+	// f.sessionBuilderFn = newMockSessionBuilder(session, nil)
+	// require.EqualError(t, f.Initialize(metrics.NullFactory, zap.NewNop()), "made-up error")
 
-	f.archiveConfig = nil
-	require.NoError(t, f.Initialize(metrics.NullFactory, logger))
-	assert.Contains(t, logBuf.String(), "Cassandra archive storage configuration is empty, skipping")
+	// f.archiveConfig = nil
+	// require.NoError(t, f.Initialize(metrics.NullFactory, logger))
+	// assert.Contains(t, logBuf.String(), "Cassandra archive storage configuration is empty, skipping")
 
 	_, err := f.CreateSpanWriter()
 	require.EqualError(t, err, "only one of TagIndexBlacklist and TagIndexWhitelist can be specified")
 
-	f.archiveConfig = &mockSessionBuilder{}
+	f.archiveConfig = &config.Configuration{}
+	f.sessionBuilderFn = new(mockSessionBuilder).add(session, nil).add(session, nil).build
 	require.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
 
 	_, err = f.CreateArchiveSpanWriter()
@@ -140,7 +150,7 @@ func TestExclusiveWhitelistBlacklist(t *testing.T) {
 
 func TestWriterOptions(t *testing.T) {
 	opts := NewOptions("cassandra")
-	v, command := config.Viperize(opts.AddFlags)
+	v, command := viperize.Viperize(opts.AddFlags)
 	command.ParseFlags([]string{"--cassandra.index.tag-whitelist=a,b,c"})
 	opts.InitFromViper(v)
 
@@ -148,7 +158,7 @@ func TestWriterOptions(t *testing.T) {
 	assert.Len(t, options, 1)
 
 	opts = NewOptions("cassandra")
-	v, command = config.Viperize(opts.AddFlags)
+	v, command = viperize.Viperize(opts.AddFlags)
 	command.ParseFlags([]string{"--cassandra.index.tag-blacklist=a,b,c"})
 	opts.InitFromViper(v)
 
@@ -156,7 +166,7 @@ func TestWriterOptions(t *testing.T) {
 	assert.Len(t, options, 1)
 
 	opts = NewOptions("cassandra")
-	v, command = config.Viperize(opts.AddFlags)
+	v, command = viperize.Viperize(opts.AddFlags)
 	command.ParseFlags([]string{"--cassandra.index.tags=false"})
 	opts.InitFromViper(v)
 
@@ -164,7 +174,7 @@ func TestWriterOptions(t *testing.T) {
 	assert.Len(t, options, 1)
 
 	opts = NewOptions("cassandra")
-	v, command = config.Viperize(opts.AddFlags)
+	v, command = viperize.Viperize(opts.AddFlags)
 	command.ParseFlags([]string{"--cassandra.index.tags=false", "--cassandra.index.tag-blacklist=a,b,c"})
 	opts.InitFromViper(v)
 
@@ -172,7 +182,7 @@ func TestWriterOptions(t *testing.T) {
 	assert.Len(t, options, 1)
 
 	opts = NewOptions("cassandra")
-	v, command = config.Viperize(opts.AddFlags)
+	v, command = viperize.Viperize(opts.AddFlags)
 	command.ParseFlags([]string{""})
 	opts.InitFromViper(v)
 
@@ -248,4 +258,34 @@ func TestFactory_Purge(t *testing.T) {
 
 	session.AssertCalled(t, "Query", mock.AnythingOfType("string"), mock.Anything)
 	query.AssertCalled(t, "Exec")
+}
+
+func TestNewSessionErrors(t *testing.T) {
+	t.Run("NewCluster error", func(t *testing.T) {
+		cfg := &config.Configuration{
+			Connection: config.Connection{
+				TLS: configtls.ClientConfig{
+					Config: configtls.Config{
+						CAFile: "foobar",
+					},
+				},
+			},
+		}
+		_, err := newSession(cfg)
+		require.ErrorContains(t, err, "failed to load TLS config")
+	})
+	t.Run("CreateSession error", func(t *testing.T) {
+		cfg := &config.Configuration{}
+		_, err := newSession(cfg)
+		require.ErrorContains(t, err, "no hosts provided")
+	})
+	t.Run("CreateSession error with schema", func(t *testing.T) {
+		cfg := &config.Configuration{
+			Schema: config.Schema{
+				CreateSchema: true,
+			},
+		}
+		_, err := newSession(cfg)
+		require.ErrorContains(t, err, "no hosts provided")
+	})
 }

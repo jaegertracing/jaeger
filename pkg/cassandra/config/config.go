@@ -13,9 +13,6 @@ import (
 	"github.com/asaskevich/govalidator"
 	"github.com/gocql/gocql"
 	"go.opentelemetry.io/collector/config/configtls"
-
-	"github.com/jaegertracing/jaeger/pkg/cassandra"
-	gocqlw "github.com/jaegertracing/jaeger/pkg/cassandra/gocql"
 )
 
 // Configuration describes the configuration properties needed to connect to a Cassandra cluster.
@@ -168,57 +165,6 @@ func (c *Configuration) ApplyDefaults(source *Configuration) {
 	if c.Query.Timeout == 0 {
 		c.Query.Timeout = source.Query.Timeout
 	}
-}
-
-// SessionBuilder creates new cassandra.Session
-type SessionBuilder interface {
-	NewSession() (cassandra.Session, error)
-}
-
-// createSession creates session from a configuration
-func createSession(c *Configuration) (cassandra.Session, error) {
-	cluster, err := c.NewCluster()
-	if err != nil {
-		return nil, err
-	}
-
-	session, err := cluster.CreateSession()
-	if err != nil {
-		return nil, err
-	}
-
-	return gocqlw.WrapCQLSession(session), nil
-}
-
-// newSessionPrerequisites creates tables and types before creating a session
-func (c *Configuration) newSessionPrerequisites() error {
-	if !c.Schema.CreateSchema {
-		return nil
-	}
-
-	cfg := *c // clone because we need to connect without specifying a keyspace
-	cfg.Schema.Keyspace = ""
-
-	session, err := createSession(&cfg)
-	if err != nil {
-		return err
-	}
-
-	sc := schemaCreator{
-		session: session,
-		schema:  c.Schema,
-	}
-
-	return sc.createSchemaIfNotPresent()
-}
-
-// NewSession creates a new Cassandra session
-func (c *Configuration) NewSession() (cassandra.Session, error) {
-	if err := c.newSessionPrerequisites(); err != nil {
-		return nil, err
-	}
-
-	return createSession(c)
 }
 
 // NewCluster creates a new gocql cluster from the configuration

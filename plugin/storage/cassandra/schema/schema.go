@@ -1,7 +1,7 @@
 // Copyright (c) 2024 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
-package config
+package schema
 
 import (
 	"bytes"
@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/jaegertracing/jaeger/pkg/cassandra"
+	"github.com/jaegertracing/jaeger/pkg/cassandra/config"
 )
 
 //go:embed v004-go-tmpl.cql.tmpl
@@ -30,12 +31,20 @@ type templateParams struct {
 	DependenciesTTLInSeconds int64
 }
 
-type schemaCreator struct {
+type SchemaCreator struct {
 	session cassandra.Session
-	schema  Schema
+	schema  config.Schema
 }
 
-func (sc *schemaCreator) constructTemplateParams() templateParams {
+// NewSchemaCreator returns a new SchemaCreator
+func NewSchemaCreator(session cassandra.Session, schema config.Schema) *SchemaCreator {
+	return &SchemaCreator{
+		session: session,
+		schema:  schema,
+	}
+}
+
+func (sc *SchemaCreator) constructTemplateParams() templateParams {
 	return templateParams{
 		Keyspace:                  sc.schema.Keyspace,
 		Replication:               fmt.Sprintf("{'class': 'NetworkTopologyStrategy', 'replication_factor': '%v' }", sc.schema.ReplicationFactor),
@@ -45,7 +54,7 @@ func (sc *schemaCreator) constructTemplateParams() templateParams {
 	}
 }
 
-func (*schemaCreator) getQueryFileAsBytes(fileName string, params templateParams) ([]byte, error) {
+func (*SchemaCreator) getQueryFileAsBytes(fileName string, params templateParams) ([]byte, error) {
 	tmpl, err := template.ParseFS(schemaFile, fileName)
 	if err != nil {
 		return nil, err
@@ -60,7 +69,7 @@ func (*schemaCreator) getQueryFileAsBytes(fileName string, params templateParams
 	return result.Bytes(), nil
 }
 
-func (*schemaCreator) getQueriesFromBytes(queryFile []byte) ([]string, error) {
+func (*SchemaCreator) getQueriesFromBytes(queryFile []byte) ([]string, error) {
 	lines := bytes.Split(queryFile, []byte("\n"))
 
 	var extractedLines [][]byte
@@ -101,7 +110,7 @@ func (*schemaCreator) getQueriesFromBytes(queryFile []byte) ([]string, error) {
 	return queries, nil
 }
 
-func (sc *schemaCreator) getCassandraQueriesFromQueryStrings(queries []string) []cassandra.Query {
+func (sc *SchemaCreator) getCassandraQueriesFromQueryStrings(queries []string) []cassandra.Query {
 	var casQueries []cassandra.Query
 
 	for _, query := range queries {
@@ -111,7 +120,7 @@ func (sc *schemaCreator) getCassandraQueriesFromQueryStrings(queries []string) [
 	return casQueries
 }
 
-func (sc *schemaCreator) contructSchemaQueries() ([]cassandra.Query, error) {
+func (sc *SchemaCreator) contructSchemaQueries() ([]cassandra.Query, error) {
 	params := sc.constructTemplateParams()
 
 	queryFile, err := sc.getQueryFileAsBytes(`v004-go-tmpl.cql.tmpl`, params)
@@ -129,7 +138,7 @@ func (sc *schemaCreator) contructSchemaQueries() ([]cassandra.Query, error) {
 	return casQueries, nil
 }
 
-func (sc *schemaCreator) createSchemaIfNotPresent() error {
+func (sc *SchemaCreator) CreateSchemaIfNotPresent() error {
 	casQueries, err := sc.contructSchemaQueries()
 	if err != nil {
 		return err

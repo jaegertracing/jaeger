@@ -1,7 +1,7 @@
 // Copyright (c) 2024 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
-package config
+package schema
 
 import (
 	"testing"
@@ -30,7 +30,7 @@ query1-finished;
 `,
 	}
 
-	sc := schemaCreator{}
+	sc := SchemaCreator{}
 	queriesAsBytes := []byte(queriesAsString)
 	queries, err := sc.getQueriesFromBytes(queriesAsBytes)
 	require.NoError(t, err)
@@ -52,7 +52,7 @@ func TestInvalidQueryTemplate(t *testing.T) {
 	query2;
 	query-3 query-3-continue query-3-finished -- missing semicolon
 	`
-	sc := schemaCreator{}
+	sc := SchemaCreator{}
 	queriesAsBytes := []byte(queriesAsString)
 	_, err := sc.getQueriesFromBytes(queriesAsBytes)
 	require.Error(t, err)
