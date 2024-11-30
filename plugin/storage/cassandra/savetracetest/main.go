@@ -14,6 +14,7 @@ import (
 	cascfg "github.com/jaegertracing/jaeger/pkg/cassandra/config"
 	"github.com/jaegertracing/jaeger/pkg/jtracer"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/plugin/storage/cassandra"
 	cSpanStore "github.com/jaegertracing/jaeger/plugin/storage/cassandra/spanstore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
@@ -36,7 +37,7 @@ func main() {
 			Timeout: time.Millisecond * 750,
 		},
 	}
-	cqlSession, err := cConfig.NewSession()
+	cqlSession, err := cassandra.NewSession(cConfig)
 	if err != nil {
 		logger.Fatal("Cannot create Cassandra session", zap.Error(err))
 	}
