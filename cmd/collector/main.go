@@ -89,7 +89,7 @@ func main() {
 			if err != nil {
 				logger.Fatal("Failed to initialize collector", zap.Error(err))
 			}
-			tm := tenancy.NewManager(&collectorOpts.GRPC.Tenancy)
+			tm := tenancy.NewManager(&collectorOpts.Tenancy)
 
 			collector := app.New(&app.CollectorParams{
 				ServiceName:        serviceName,

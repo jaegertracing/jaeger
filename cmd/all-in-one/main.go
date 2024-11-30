@@ -142,7 +142,7 @@ by default uses only in-memory database.`,
 				logger.Fatal("Failed to configure query service", zap.Error(err))
 			}
 
-			tm := tenancy.NewManager(&cOpts.GRPC.Tenancy)
+			tm := tenancy.NewManager(&cOpts.Tenancy)
 
 			// collector
 			c := collectorApp.New(&collectorApp.CollectorParams{

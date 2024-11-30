@@ -130,41 +130,41 @@ func TestCollectorOptionsWithFlags_CheckMaxConnectionAge(t *testing.T) {
 	assert.Equal(t, 5*time.Second, c.HTTP.ReadHeaderTimeout)
 }
 
-// func TestCollectorOptionsWithFlags_CheckNoTenancy(t *testing.T) {
-// 	c := &CollectorOptions{}
-// 	v, command := config.Viperize(AddFlags)
-// 	command.ParseFlags([]string{})
-// 	c.InitFromViper(v, zap.NewNop())
+func TestCollectorOptionsWithFlags_CheckNoTenancy(t *testing.T) {
+	c := &CollectorOptions{}
+	v, command := config.Viperize(AddFlags)
+	command.ParseFlags([]string{})
+	c.InitFromViper(v, zap.NewNop())
 
-// 	assert.False(t, c.GRPC.Tenancy.Enabled)
-// }
+	assert.False(t, c.Tenancy.Enabled)
+}
 
-// func TestCollectorOptionsWithFlags_CheckSimpleTenancy(t *testing.T) {
-// 	c := &CollectorOptions{}
-// 	v, command := config.Viperize(AddFlags)
-// 	command.ParseFlags([]string{
-// 		"--multi-tenancy.enabled=true",
-// 	})
-// 	c.InitFromViper(v, zap.NewNop())
+func TestCollectorOptionsWithFlags_CheckSimpleTenancy(t *testing.T) {
+	c := &CollectorOptions{}
+	v, command := config.Viperize(AddFlags)
+	command.ParseFlags([]string{
+		"--multi-tenancy.enabled=true",
+	})
+	c.InitFromViper(v, zap.NewNop())
 
-// 	assert.True(t, c.GRPC.Tenancy.Enabled)
-// 	assert.Equal(t, "x-tenant", c.GRPC.Tenancy.Header)
-// }
+	assert.True(t, c.Tenancy.Enabled)
+	assert.Equal(t, "x-tenant", c.Tenancy.Header)
+}
 
-// func TestCollectorOptionsWithFlags_CheckFullTenancy(t *testing.T) {
-// 	c := &CollectorOptions{}
-// 	v, command := config.Viperize(AddFlags)
-// 	command.ParseFlags([]string{
-// 		"--multi-tenancy.enabled=true",
-// 		"--multi-tenancy.header=custom-tenant-header",
-// 		"--multi-tenancy.tenants=acme,hardware-store",
-// 	})
-// 	c.InitFromViper(v, zap.NewNop())
+func TestCollectorOptionsWithFlags_CheckFullTenancy(t *testing.T) {
+	c := &CollectorOptions{}
+	v, command := config.Viperize(AddFlags)
+	command.ParseFlags([]string{
+		"--multi-tenancy.enabled=true",
+		"--multi-tenancy.header=custom-tenant-header",
+		"--multi-tenancy.tenants=acme,hardware-store",
+	})
+	c.InitFromViper(v, zap.NewNop())
 
-// 	assert.True(t, c.GRPC.Tenancy.Enabled)
-// 	assert.Equal(t, "custom-tenant-header", c.GRPC.Tenancy.Header)
-// 	assert.Equal(t, []string{"acme", "hardware-store"}, c.GRPC.Tenancy.Tenants)
-// }
+	assert.True(t, c.Tenancy.Enabled)
+	assert.Equal(t, "custom-tenant-header", c.Tenancy.Header)
+	assert.Equal(t, []string{"acme", "hardware-store"}, c.Tenancy.Tenants)
+}
 
 // func TestCollectorOptionsWithFlags_CheckZipkinKeepAlive(t *testing.T) {
 // 	c := &CollectorOptions{}

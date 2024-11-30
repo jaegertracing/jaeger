@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"time"
 
+	"go.opentelemetry.io/collector/config/configgrpc"
+	"go.opentelemetry.io/collector/config/confignet"
 	"go.opentelemetry.io/collector/receiver"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -97,22 +99,24 @@ func (c *Collector) Start(options *flags.CollectorOptions) error {
 
 	c.spanProcessor = handlerBuilder.BuildSpanProcessor(additionalProcessors...)
 	c.spanHandlers = handlerBuilder.BuildHandlers(c.spanProcessor)
-
+	// fmt.Printf("%v \n",options.GRPC.NetAddr.Endpoint)
 	grpcServer, err := server.StartGRPCServer(&server.GRPCServerParams{
-		HostPort:                options.GRPC.NetAddr.Endpoint,
-		Handler:                 c.spanHandlers.GRPCHandler,
-		TLSConfig:               options.GRPC.TLSSetting,
-		SamplingProvider:        c.samplingProvider,
-		Logger:                  c.logger,
-		MaxReceiveMessageLength: options.GRPC.MaxRecvMsgSizeMiB,
-		MaxConnectionAge:        options.GRPC.Keepalive.ServerParameters.MaxConnectionAge,
-		MaxConnectionAgeGrace:   options.GRPC.Keepalive.ServerParameters.MaxConnectionAgeGrace,
+		Handler:          c.spanHandlers.GRPCHandler,
+		SamplingProvider: c.samplingProvider,
+		Logger:           c.logger,
+		ServerConfig: &configgrpc.ServerConfig{
+			NetAddr: confignet.AddrConfig{
+				Endpoint: options.GRPC.NetAddr.Endpoint,
+			},
+			TLSSetting:        options.GRPC.TLSSetting,
+			MaxRecvMsgSizeMiB: options.GRPC.MaxRecvMsgSizeMiB,
+			Keepalive:         options.GRPC.Keepalive,
+		},
 	})
 	if err != nil {
 		return fmt.Errorf("could not start gRPC server: %w", err)
 	}
 	c.grpcServer = grpcServer
-
 	httpServer, err := server.StartHTTPServer(&server.HTTPServerParams{
 		HostPort:         options.HTTP.Endpoint,
 		Handler:          c.spanHandlers.JaegerBatchesHandler,
@@ -130,6 +134,7 @@ func (c *Collector) Start(options *flags.CollectorOptions) error {
 	if options.Zipkin.Endpoint == "" {
 		c.logger.Info("Not listening for Zipkin HTTP traffic, port not configured")
 	} else {
+		fmt.Printf("%v zipkin\n", options.Zipkin.Endpoint)
 		zipkinReceiver, err := handler.StartZipkinReceiver(options, c.logger, c.spanProcessor, c.tenancyMgr)
 		if err != nil {
 			return fmt.Errorf("could not start Zipkin receiver: %w", err)
@@ -138,6 +143,7 @@ func (c *Collector) Start(options *flags.CollectorOptions) error {
 	}
 
 	if options.OTLP.Enabled {
+		fmt.Printf("otlp enabled \n")
 		otlpReceiver, err := handler.StartOTLPReceiver(options, c.logger, c.spanProcessor, c.tenancyMgr)
 		if err != nil {
 			return fmt.Errorf("could not start OTLP receiver: %w", err)

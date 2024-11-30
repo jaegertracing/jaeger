@@ -6,6 +6,7 @@ package app
 import (
 	"context"
 	"expvar"
+	"fmt"
 	"io"
 	"sync/atomic"
 	"testing"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/flags"
@@ -29,11 +31,22 @@ var _ (io.Closer) = (*Collector)(nil)
 func optionsForEphemeralPorts() *flags.CollectorOptions {
 	collectorOpts := &flags.CollectorOptions{}
 	collectorOpts.GRPC.NetAddr.Endpoint = ":0"
+	collectorOpts.GRPC.Keepalive = &configgrpc.KeepaliveServerConfig{
+		ServerParameters: &configgrpc.KeepaliveServerParameters{
+			MaxConnectionIdle: 10,
+		},
+	}
 	collectorOpts.HTTP.Endpoint = ":0"
 	collectorOpts.OTLP.Enabled = true
 	collectorOpts.OTLP.GRPC.NetAddr.Endpoint = ":0"
+	collectorOpts.OTLP.GRPC.Keepalive = &configgrpc.KeepaliveServerConfig{
+		ServerParameters: &configgrpc.KeepaliveServerParameters{
+			MaxConnectionIdle: 10,
+		},
+	}
 	collectorOpts.OTLP.HTTP.Endpoint = ":0"
 	collectorOpts.Zipkin.Endpoint = ":0"
+	collectorOpts.Tenancy = tenancy.Options{}
 	return collectorOpts
 }
 
@@ -78,6 +91,8 @@ func TestNewCollector(t *testing.T) {
 	})
 
 	collectorOpts := optionsForEphemeralPorts()
+	fmt.Printf("Collector Options: %+v\n", collectorOpts.OTLP.GRPC)
+	fmt.Print(collectorOpts.OTLP.HTTP.Endpoint)
 	require.NoError(t, c.Start(collectorOpts))
 	assert.NotNil(t, c.SpanHandlers())
 	require.NoError(t, c.Close())

@@ -45,7 +45,7 @@ func StartZipkinReceiver(
 // which is a situation we cannot reproduce. To test our own error handling, this
 // function allows to mock those constructors.
 func startZipkinReceiver(
-	_ *flags.CollectorOptions,
+	options *flags.CollectorOptions,
 	logger *zap.Logger,
 	spanProcessor processor.SpanProcessor,
 	tm *tenancy.Manager,
@@ -56,6 +56,7 @@ func startZipkinReceiver(
 		cfg component.Config, nextConsumer consumer.Traces) (receiver.Traces, error),
 ) (receiver.Traces, error) {
 	receiverConfig := zipkinFactory.CreateDefaultConfig().(*zipkinreceiver.Config)
+	receiverConfig.ServerConfig = options.Zipkin
 	receiverSettings := receiver.Settings{
 		TelemetrySettings: component.TelemetrySettings{
 			Logger:         logger,

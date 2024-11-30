@@ -10,6 +10,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/config/configgrpc"
+	"go.opentelemetry.io/collector/config/confignet"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest/observer"
@@ -28,7 +30,11 @@ import (
 func TestFailToListen(t *testing.T) {
 	logger, _ := zap.NewDevelopment()
 	server, err := StartGRPCServer(&GRPCServerParams{
-		HostPort:         ":-1",
+		ServerConfig: &configgrpc.ServerConfig{
+			NetAddr: confignet.AddrConfig{
+				Endpoint: ":-1",
+			},
+		},
 		Handler:          handler.NewGRPCHandler(logger, &mockSpanProcessor{}, &tenancy.Manager{}),
 		SamplingProvider: &mockSamplingProvider{},
 		Logger:           logger,
@@ -63,10 +69,12 @@ func TestFailServe(t *testing.T) {
 func TestSpanCollector(t *testing.T) {
 	logger, _ := zap.NewDevelopment()
 	params := &GRPCServerParams{
-		Handler:                 handler.NewGRPCHandler(logger, &mockSpanProcessor{}, &tenancy.Manager{}),
-		SamplingProvider:        &mockSamplingProvider{},
-		Logger:                  logger,
-		MaxReceiveMessageLength: 1024 * 1024,
+		Handler:          handler.NewGRPCHandler(logger, &mockSpanProcessor{}, &tenancy.Manager{}),
+		SamplingProvider: &mockSamplingProvider{},
+		Logger:           logger,
+		ServerConfig: &configgrpc.ServerConfig{
+			MaxRecvMsgSizeMiB: 1,
+		},
 	}
 
 	server, err := StartGRPCServer(params)
@@ -97,7 +105,9 @@ func TestCollectorStartWithTLS(t *testing.T) {
 		Handler:          handler.NewGRPCHandler(logger, &mockSpanProcessor{}, &tenancy.Manager{}),
 		SamplingProvider: &mockSamplingProvider{},
 		Logger:           logger,
-		TLSConfig:        opts.ToOtelServerConfig(),
+		ServerConfig: &configgrpc.ServerConfig{
+			TLSSetting: opts.ToOtelServerConfig(),
+		},
 	}
 	server, err := StartGRPCServer(params)
 	require.NoError(t, err)

@@ -10,7 +10,7 @@ type Options struct {
 	AllowedHeaders []string
 }
 
-func (o *Options)	ToOTELCorsConfig() *confighttp.CORSConfig{
+func (o *Options) ToOTELCorsConfig() *confighttp.CORSConfig {
 	return &confighttp.CORSConfig{
 		AllowedOrigins: o.AllowedOrigins,
 		AllowedHeaders: o.AllowedHeaders,

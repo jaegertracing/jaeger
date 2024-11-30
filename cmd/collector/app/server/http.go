@@ -5,7 +5,6 @@ package server
 
 import (
 	"context"
-	"io"
 	"net"
 	"net/http"
 	"time"
@@ -40,11 +39,6 @@ type HTTPServerParams struct {
 	ReadHeaderTimeout time.Duration
 	// IdleTimeout sets the respective parameter of http.Server
 	IdleTimeout time.Duration
-}
-
-type httpServer struct {
-	*http.Server
-	staticHandlerCloser io.Closer
 }
 
 // StartHTTPServer based on the given parameters

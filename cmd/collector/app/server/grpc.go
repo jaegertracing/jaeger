@@ -7,9 +7,8 @@ import (
 	"context"
 	"fmt"
 	"net"
-	"time"
 
-	"go.opentelemetry.io/collector/config/configtls"
+	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -26,15 +25,11 @@ import (
 
 // GRPCServerParams to construct a new Jaeger Collector gRPC Server
 type GRPCServerParams struct {
-	TLSConfig               *configtls.ServerConfig
-	HostPort                string
-	Handler                 *handler.GRPCHandler
-	SamplingProvider        samplingstrategy.Provider
-	Logger                  *zap.Logger
-	OnError                 func(error)
-	MaxReceiveMessageLength int
-	MaxConnectionAge        time.Duration
-	MaxConnectionAgeGrace   time.Duration
+	*configgrpc.ServerConfig
+	Handler          *handler.GRPCHandler
+	SamplingProvider samplingstrategy.Provider
+	Logger           *zap.Logger
+	OnError          func(error)
 
 	// Set by the server to indicate the actual host:port of the server.
 	HostPortActual string
@@ -45,17 +40,19 @@ func StartGRPCServer(params *GRPCServerParams) (*grpc.Server, error) {
 	var server *grpc.Server
 	var grpcOpts []grpc.ServerOption
 
-	if params.MaxReceiveMessageLength > 0 {
-		grpcOpts = append(grpcOpts, grpc.MaxRecvMsgSize(params.MaxReceiveMessageLength))
+	if params.MaxRecvMsgSizeMiB > 0 {
+		grpcOpts = append(grpcOpts, grpc.MaxRecvMsgSize(params.MaxRecvMsgSizeMiB))
 	}
-	grpcOpts = append(grpcOpts, grpc.KeepaliveParams(keepalive.ServerParameters{
-		MaxConnectionAge:      params.MaxConnectionAge,
-		MaxConnectionAgeGrace: params.MaxConnectionAgeGrace,
-	}))
+	if params.Keepalive != nil {
+		grpcOpts = append(grpcOpts, grpc.KeepaliveParams(keepalive.ServerParameters{
+			MaxConnectionAge:      params.Keepalive.ServerParameters.MaxConnectionAge,
+			MaxConnectionAgeGrace: params.Keepalive.ServerParameters.MaxConnectionAgeGrace,
+		}))
+	}
 
-	if params.TLSConfig != nil {
+	if params.TLSSetting != nil {
 		// user requested a server with TLS, setup creds
-		tlsCfg, err := params.TLSConfig.LoadTLSConfig(context.Background())
+		tlsCfg, err := params.TLSSetting.LoadTLSConfig(context.Background())
 		if err != nil {
 			return nil, err
 		}
@@ -66,8 +63,8 @@ func StartGRPCServer(params *GRPCServerParams) (*grpc.Server, error) {
 
 	server = grpc.NewServer(grpcOpts...)
 	reflection.Register(server)
-
-	listener, err := net.Listen("tcp", params.HostPort)
+	fmt.Printf("grpc endpoint %v \n", params.NetAddr.Endpoint)
+	listener, err := net.Listen("tcp", params.NetAddr.Endpoint)
 	if err != nil {
 		return nil, fmt.Errorf("failed to listen on gRPC port: %w", err)
 	}
