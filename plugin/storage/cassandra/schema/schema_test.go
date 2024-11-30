@@ -30,7 +30,7 @@ query1-finished;
 `,
 	}
 
-	sc := SchemaCreator{}
+	sc := Creator{}
 	queriesAsBytes := []byte(queriesAsString)
 	queries, err := sc.getQueriesFromBytes(queriesAsBytes)
 	require.NoError(t, err)
@@ -52,7 +52,7 @@ func TestInvalidQueryTemplate(t *testing.T) {
 	query2;
 	query-3 query-3-continue query-3-finished -- missing semicolon
 	`
-	sc := SchemaCreator{}
+	sc := Creator{}
 	queriesAsBytes := []byte(queriesAsString)
 	_, err := sc.getQueriesFromBytes(queriesAsBytes)
 	require.Error(t, err)

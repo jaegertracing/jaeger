@@ -31,20 +31,20 @@ type templateParams struct {
 	DependenciesTTLInSeconds int64
 }
 
-type SchemaCreator struct {
+type Creator struct {
 	session cassandra.Session
 	schema  config.Schema
 }
 
 // NewSchemaCreator returns a new SchemaCreator
-func NewSchemaCreator(session cassandra.Session, schema config.Schema) *SchemaCreator {
-	return &SchemaCreator{
+func NewSchemaCreator(session cassandra.Session, schema config.Schema) *Creator {
+	return &Creator{
 		session: session,
 		schema:  schema,
 	}
 }
 
-func (sc *SchemaCreator) constructTemplateParams() templateParams {
+func (sc *Creator) constructTemplateParams() templateParams {
 	return templateParams{
 		Keyspace:                  sc.schema.Keyspace,
 		Replication:               fmt.Sprintf("{'class': 'NetworkTopologyStrategy', 'replication_factor': '%v' }", sc.schema.ReplicationFactor),
@@ -54,7 +54,7 @@ func (sc *SchemaCreator) constructTemplateParams() templateParams {
 	}
 }
 
-func (*SchemaCreator) getQueryFileAsBytes(fileName string, params templateParams) ([]byte, error) {
+func (*Creator) getQueryFileAsBytes(fileName string, params templateParams) ([]byte, error) {
 	tmpl, err := template.ParseFS(schemaFile, fileName)
 	if err != nil {
 		return nil, err
@@ -69,7 +69,7 @@ func (*SchemaCreator) getQueryFileAsBytes(fileName string, params templateParams
 	return result.Bytes(), nil
 }
 
-func (*SchemaCreator) getQueriesFromBytes(queryFile []byte) ([]string, error) {
+func (*Creator) getQueriesFromBytes(queryFile []byte) ([]string, error) {
 	lines := bytes.Split(queryFile, []byte("\n"))
 
 	var extractedLines [][]byte
@@ -110,7 +110,7 @@ func (*SchemaCreator) getQueriesFromBytes(queryFile []byte) ([]string, error) {
 	return queries, nil
 }
 
-func (sc *SchemaCreator) getCassandraQueriesFromQueryStrings(queries []string) []cassandra.Query {
+func (sc *Creator) getCassandraQueriesFromQueryStrings(queries []string) []cassandra.Query {
 	var casQueries []cassandra.Query
 
 	for _, query := range queries {
@@ -120,7 +120,7 @@ func (sc *SchemaCreator) getCassandraQueriesFromQueryStrings(queries []string) [
 	return casQueries
 }
 
-func (sc *SchemaCreator) contructSchemaQueries() ([]cassandra.Query, error) {
+func (sc *Creator) contructSchemaQueries() ([]cassandra.Query, error) {
 	params := sc.constructTemplateParams()
 
 	queryFile, err := sc.getQueryFileAsBytes(`v004-go-tmpl.cql.tmpl`, params)
@@ -138,7 +138,7 @@ func (sc *SchemaCreator) contructSchemaQueries() ([]cassandra.Query, error) {
 	return casQueries, nil
 }
 
-func (sc *SchemaCreator) CreateSchemaIfNotPresent() error {
+func (sc *Creator) CreateSchemaIfNotPresent() error {
 	casQueries, err := sc.contructSchemaQueries()
 	if err != nil {
 		return err
