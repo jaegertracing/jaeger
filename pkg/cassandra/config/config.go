@@ -69,7 +69,8 @@ type Schema struct {
 	DependenciesTTL time.Duration `mapstructure:"dependencies_ttl" valid:"optional"`
 	// Replication factor for the db
 	ReplicationFactor int `mapstructure:"replication_factor" valid:"optional"`
-	// CompactionWindow of format tells the compaction window of the db. Should atleast be 1 minute
+	// CompactionWindow is the size of the window for TimeWindowCompactionStrategy.
+	// All SSTables within that window are grouped together into one SSTable.
 	CompactionWindow time.Duration `mapstructure:"compaction_window" valid:"optional"`
 }
 
