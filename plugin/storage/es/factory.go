@@ -181,16 +181,30 @@ func (f *Factory) getArchiveClient() es.Client {
 
 // CreateSpanReader implements storage.Factory
 func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
-	sr, err := createSpanReader(f.getPrimaryClient, f.primaryConfig, false, f.metricsFactory, f.logger, f.tracer)
+	primaryMetricsFactory := f.metricsFactory.Namespace(
+		metrics.NSOptions{
+			Tags: map[string]string{
+				"role": "primary",
+			},
+		},
+	)
+	sr, err := createSpanReader(f.getPrimaryClient, f.primaryConfig, false, primaryMetricsFactory, f.logger, f.tracer)
 	if err != nil {
 		return sr, err
 	}
-	return spanstoremetrics.NewReaderDecorator(sr, f.metricsFactory), nil
+	return spanstoremetrics.NewReaderDecorator(sr, primaryMetricsFactory), nil
 }
 
 // CreateSpanWriter implements storage.Factory
 func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
-	return createSpanWriter(f.getPrimaryClient, f.primaryConfig, false, f.metricsFactory, f.logger)
+	primaryMetricsFactory := f.metricsFactory.Namespace(
+		metrics.NSOptions{
+			Tags: map[string]string{
+				"role": "primary",
+			},
+		},
+	)
+	return createSpanWriter(f.getPrimaryClient, f.primaryConfig, false, primaryMetricsFactory, f.logger)
 }
 
 // CreateDependencyReader implements storage.Factory
@@ -203,7 +217,18 @@ func (f *Factory) CreateArchiveSpanReader() (spanstore.Reader, error) {
 	if !f.archiveConfig.Enabled {
 		return nil, nil
 	}
-	return createSpanReader(f.getArchiveClient, f.archiveConfig, true, f.metricsFactory, f.logger, f.tracer)
+	archiveMetricsFactory := f.metricsFactory.Namespace(
+		metrics.NSOptions{
+			Tags: map[string]string{
+				"role": "archive",
+			},
+		},
+	)
+	sr, err := createSpanReader(f.getArchiveClient, f.archiveConfig, true, archiveMetricsFactory, f.logger, f.tracer)
+	if err != nil {
+		return sr, err
+	}
+	return spanstoremetrics.NewReaderDecorator(sr, archiveMetricsFactory), nil
 }
 
 // CreateArchiveSpanWriter implements storage.ArchiveFactory
@@ -211,7 +236,14 @@ func (f *Factory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
 	if !f.archiveConfig.Enabled {
 		return nil, nil
 	}
-	return createSpanWriter(f.getArchiveClient, f.archiveConfig, true, f.metricsFactory, f.logger)
+	archiveMetricsFactory := f.metricsFactory.Namespace(
+		metrics.NSOptions{
+			Tags: map[string]string{
+				"role": "archive",
+			},
+		},
+	)
+	return createSpanWriter(f.getArchiveClient, f.archiveConfig, true, archiveMetricsFactory, f.logger)
 }
 
 func createSpanReader(
