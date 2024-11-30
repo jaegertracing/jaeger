@@ -11,11 +11,11 @@ import (
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/config/configtls"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 
 	"github.com/jaegertracing/jaeger/pkg/config"
-	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 )
 
 func addFlags(flags *flag.FlagSet) {
@@ -64,9 +64,7 @@ func Test_InitFromViper(t *testing.T) {
 			KeyTabPath:      "/path/to/keytab",
 			DisablePAFXFast: true,
 		},
-		TLS: tlscfg.Options{
-			Enabled: true,
-		},
+		TLS: configtls.ClientConfig{},
 		PlainText: PlainTextConfig{
 			Username:  "user",
 			Password:  "password",
@@ -139,7 +137,7 @@ func TestSetConfiguration(t *testing.T) {
 		{
 			name:          "TLS authentication with invalid cipher suite",
 			authType:      "tls",
-			expectedError: "error loading tls config: failed to get cipher suite ids from cipher suite names: cipher suite fail not supported or doesn't exist",
+			expectedError: "error loading tls config: failed to load TLS config: invalid TLS cipher suite: \"fail\"",
 		},
 	}
 
@@ -149,7 +147,6 @@ func TestSetConfiguration(t *testing.T) {
 				"--kafka.auth.authentication=" + tt.authType,
 			})
 			authConfig := &AuthenticationConfig{}
-			defer authConfig.TLS.Close()
 			err := authConfig.InitFromViper(configPrefix, v)
 			require.NoError(t, err)
 

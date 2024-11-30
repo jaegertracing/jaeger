@@ -52,7 +52,7 @@ func main() {
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		// when method is HEAD, report back with a 200 when ready to run tests
-		if r.Method == "HEAD" {
+		if r.Method == http.MethodHead {
 			if !handler.isInitialized() {
 				http.Error(w, "Components not ready", http.StatusServiceUnavailable)
 			}
@@ -92,13 +92,15 @@ func (h *clientHandler) isInitialized() bool {
 }
 
 func is2xxStatusCode(statusCode int) bool {
-	return statusCode >= 200 && statusCode <= 299
+	return statusCode >= http.StatusOK && statusCode < http.StatusMultipleChoices
 }
 
 func httpHealthCheck(logger *zap.Logger, service, healthURL string) {
 	for i := 0; i < 240; i++ {
 		res, err := http.Get(healthURL)
-		res.Body.Close()
+		if err == nil {
+			res.Body.Close()
+		}
 		if err == nil && is2xxStatusCode(res.StatusCode) {
 			logger.Info("Health check successful", zap.String("service", service))
 			return

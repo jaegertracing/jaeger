@@ -2,7 +2,7 @@
 // Copyright (c) 2017 Uber Technologies, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-package metrics
+package spanstoremetrics
 
 import (
 	"time"
@@ -19,8 +19,8 @@ type WriteMetrics struct {
 	LatencyErr metrics.Timer   `metric:"latency-err"`
 }
 
-// NewWriteMetrics takes a metrics scope and creates a metrics struct
-func NewWriteMetrics(factory metrics.Factory, tableName string) *WriteMetrics {
+// NewWriter takes a metrics scope and creates a metrics struct
+func NewWriter(factory metrics.Factory, tableName string) *WriteMetrics {
 	t := &WriteMetrics{}
 	metrics.Init(t, factory.Namespace(metrics.NSOptions{Name: tableName, Tags: nil}), nil)
 	return t

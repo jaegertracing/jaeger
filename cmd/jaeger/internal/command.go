@@ -30,7 +30,7 @@ func Command() *cobra.Command {
 	info := component.BuildInfo{
 		Command:     "jaeger",
 		Description: description,
-		Version:     version.Get().String(),
+		Version:     version.Get().GitVersion,
 	}
 
 	settings := otelcol.CollectorSettings{

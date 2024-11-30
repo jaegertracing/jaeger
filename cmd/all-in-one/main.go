@@ -14,9 +14,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"go.opentelemetry.io/collector/config/configtelemetry"
-	"go.opentelemetry.io/otel/metric"
-	"go.opentelemetry.io/otel/metric/noop"
+	noopmetric "go.opentelemetry.io/otel/metric/noop"
 	_ "go.uber.org/automaxprocs"
 	"go.uber.org/zap"
 
@@ -33,7 +31,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/jtracer"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
-	"github.com/jaegertracing/jaeger/pkg/telemetery"
+	"github.com/jaegertracing/jaeger/pkg/telemetry"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/pkg/version"
 	metricsPlugin "github.com/jaegertracing/jaeger/plugin/metrics"
@@ -41,9 +39,11 @@ import (
 	"github.com/jaegertracing/jaeger/plugin/storage"
 	"github.com/jaegertracing/jaeger/ports"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
-	metricsstoreMetrics "github.com/jaegertracing/jaeger/storage/metricsstore/metrics"
 	"github.com/jaegertracing/jaeger/storage_v2/factoryadapter"
 	"github.com/jaegertracing/jaeger/storage_v2/spanstore"
+	"github.com/jaegertracing/jaeger/storage/metricsstore/metricstoremetrics"
+	"github.com/jaegertracing/jaeger/storage/spanstore"
+	"github.com/jaegertracing/jaeger/storage/spanstore/spanstoremetrics"
 )
 
 // all-in-one/main is a standalone full-stack jaeger backend, backed by a memory store
@@ -96,8 +96,16 @@ by default uses only in-memory database.`,
 				logger.Fatal("Failed to initialize tracer", zap.Error(err))
 			}
 
+			baseTelset := telemetry.Settings{
+				Logger:         svc.Logger,
+				TracerProvider: tracer.OTEL,
+				Metrics:        baseFactory,
+				MeterProvider:  noopmetric.NewMeterProvider(),
+				ReportStatus:   telemetry.HCAdapter(svc.HC()),
+			}
+
 			storageFactory.InitFromViper(v, logger)
-			if err := storageFactory.Initialize(baseFactory, logger); err != nil {
+			if err := storageFactory.Initialize(baseTelset.Metrics, baseTelset.Logger); err != nil {
 				logger.Fatal("Failed to init storage factory", zap.Error(err))
 			}
 
@@ -160,20 +168,13 @@ by default uses only in-memory database.`,
 				log.Fatal(err)
 			}
 
-			telset := telemetery.Setting{
-				Logger:         svc.Logger,
-				TracerProvider: tracer.OTEL,
-				Metrics:        queryMetricsFactory,
-				ReportStatus:   telemetery.HCAdapter(svc.HC()),
-				LeveledMeterProvider: func(_ configtelemetry.Level) metric.MeterProvider {
-					return noop.NewMeterProvider()
-				},
-			}
 			// query
+			queryTelset := baseTelset // copy
+			queryTelset.Metrics = queryMetricsFactory
 			querySrv := startQuery(
 				svc, qOpts, qOpts.BuildQueryServiceOptions(storageFactory, logger),
 				traceReader, dependencyReader, metricsQueryService,
-				tm, telset,
+				tm, queryTelset,
 			)
 
 			svc.RunAndThen(func() {
@@ -223,10 +224,10 @@ func startQuery(
 	depReader dependencystore.Reader,
 	metricsQueryService querysvc.MetricsQueryService,
 	tm *tenancy.Manager,
-	telset telemetery.Setting,
+	telset telemetry.Settings,
 ) *queryApp.Server {
-	// TODO: decorate trace reader with metrics
-	qs := querysvc.NewQueryService(traceReader, depReader, *queryOpts)
+	spanReader = spanstoremetrics.NewReaderDecorator(spanReader, telset.Metrics)
+	qs := querysvc.NewQueryService(spanReader, depReader, *queryOpts)
 
 	server, err := queryApp.NewServer(context.Background(), qs, metricsQueryService, qOpts, tm, telset)
 	if err != nil {
@@ -257,5 +258,5 @@ func createMetricsQueryService(
 	}
 
 	// Decorate the metrics reader with metrics instrumentation.
-	return metricsstoreMetrics.NewReadMetricsDecorator(reader, metricsReaderMetricsFactory), nil
+	return metricstoremetrics.NewReaderDecorator(reader, metricsReaderMetricsFactory), nil
 }

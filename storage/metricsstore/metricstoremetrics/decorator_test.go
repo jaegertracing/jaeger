@@ -1,7 +1,7 @@
 // Copyright (c) 2022 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
-package metrics_test
+package metricstoremetrics_test
 
 import (
 	"context"
@@ -15,7 +15,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 	protometrics "github.com/jaegertracing/jaeger/proto-gen/api_v2/metrics"
 	"github.com/jaegertracing/jaeger/storage/metricsstore"
-	"github.com/jaegertracing/jaeger/storage/metricsstore/metrics"
+	"github.com/jaegertracing/jaeger/storage/metricsstore/metricstoremetrics"
 	"github.com/jaegertracing/jaeger/storage/metricsstore/mocks"
 )
 
@@ -23,7 +23,7 @@ func TestSuccessfulUnderlyingCalls(t *testing.T) {
 	mf := metricstest.NewFactory(0)
 
 	mockReader := mocks.Reader{}
-	mrs := metrics.NewReadMetricsDecorator(&mockReader, mf)
+	mrs := metricstoremetrics.NewReaderDecorator(&mockReader, mf)
 	glParams := &metricsstore.LatenciesQueryParameters{}
 	mockReader.On("GetLatencies", context.Background(), glParams).
 		Return(&protometrics.MetricFamily{}, nil)
@@ -96,7 +96,7 @@ func TestFailingUnderlyingCalls(t *testing.T) {
 	mf := metricstest.NewFactory(0)
 
 	mockReader := mocks.Reader{}
-	mrs := metrics.NewReadMetricsDecorator(&mockReader, mf)
+	mrs := metricstoremetrics.NewReaderDecorator(&mockReader, mf)
 	glParams := &metricsstore.LatenciesQueryParameters{}
 	mockReader.On("GetLatencies", context.Background(), glParams).
 		Return(&protometrics.MetricFamily{}, errors.New("failure"))

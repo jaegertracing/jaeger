@@ -7,6 +7,7 @@ package eswrapper
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"strings"
 
 	esV8 "github.com/elastic/go-elasticsearch/v8"
@@ -193,7 +194,7 @@ func (c TemplateCreatorWrapperV8) Do(context.Context) (*elastic.IndicesPutTempla
 	if err != nil {
 		return nil, fmt.Errorf("error creating index template %s: %w", c.templateName, err)
 	}
-	if resp.StatusCode != 200 {
+	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("error creating index template %s: %s", c.templateName, resp)
 	}
 	return nil, nil // no response expected by span writer

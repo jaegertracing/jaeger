@@ -12,9 +12,6 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"go.opentelemetry.io/collector/config/configtelemetry"
-	"go.opentelemetry.io/otel/metric"
-	"go.opentelemetry.io/otel/metric/noop"
 	_ "go.uber.org/automaxprocs"
 	"go.uber.org/zap"
 
@@ -29,14 +26,15 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/jtracer"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
-	"github.com/jaegertracing/jaeger/pkg/telemetery"
+	"github.com/jaegertracing/jaeger/pkg/telemetry"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/pkg/version"
 	metricsPlugin "github.com/jaegertracing/jaeger/plugin/metrics"
 	"github.com/jaegertracing/jaeger/plugin/storage"
 	"github.com/jaegertracing/jaeger/ports"
-	metricsstoreMetrics "github.com/jaegertracing/jaeger/storage/metricsstore/metrics"
 	"github.com/jaegertracing/jaeger/storage_v2/factoryadapter"
+	"github.com/jaegertracing/jaeger/storage/metricsstore/metricstoremetrics"
+	"github.com/jaegertracing/jaeger/storage/spanstore/spanstoremetrics"
 )
 
 func main() {
@@ -82,17 +80,24 @@ func main() {
 				}
 			}
 
+			baseTelset := telemetry.Settings{
+				Logger:         logger,
+				Metrics:        baseFactory,
+				TracerProvider: jt.OTEL,
+				ReportStatus:   telemetry.HCAdapter(svc.HC()),
+			}
+
 			// TODO: Need to figure out set enable/disable propagation on storage plugins.
 			v.Set(bearertoken.StoragePropagationKey, queryOpts.BearerTokenPropagation)
 			storageFactory.InitFromViper(v, logger)
-			if err := storageFactory.Initialize(baseFactory, logger); err != nil {
+			if err := storageFactory.Initialize(baseTelset.Metrics, baseTelset.Logger); err != nil {
 				logger.Fatal("Failed to init storage factory", zap.Error(err))
 			}
 			traceReader, err := v2Factory.CreateTraceReader()
 			if err != nil {
 				logger.Fatal("Failed to create trace reader", zap.Error(err))
 			}
-			// TODO: decorate trace reader with metrics
+			spanReader = spanstoremetrics.NewReaderDecorator(spanReader, metricsFactory)
 			dependencyReader, err := storageFactory.CreateDependencyReader()
 			if err != nil {
 				logger.Fatal("Failed to create dependency reader", zap.Error(err))
@@ -108,15 +113,16 @@ func main() {
 				dependencyReader,
 				*queryServiceOptions)
 			tm := tenancy.NewManager(&queryOpts.Tenancy)
-			telset := telemetery.Setting{
-				Logger:         logger,
-				TracerProvider: jt.OTEL,
-				ReportStatus:   telemetery.HCAdapter(svc.HC()),
-				LeveledMeterProvider: func(_ configtelemetry.Level) metric.MeterProvider {
-					return noop.NewMeterProvider()
-				},
-			}
-			server, err := app.NewServer(context.Background(), queryService, metricsQueryService, queryOpts, tm, telset)
+			telset := baseTelset // copy
+			telset.Metrics = metricsFactory
+			server, err := app.NewServer(
+				context.Background(),
+				queryService,
+				metricsQueryService,
+				queryOpts,
+				tm,
+				telset,
+			)
 			if err != nil {
 				logger.Fatal("Failed to create server", zap.Error(err))
 			}
@@ -179,5 +185,5 @@ func createMetricsQueryService(
 	}
 
 	// Decorate the metrics reader with metrics instrumentation.
-	return metricsstoreMetrics.NewReadMetricsDecorator(reader, metricsReaderMetricsFactory), nil
+	return metricstoremetrics.NewReaderDecorator(reader, metricsReaderMetricsFactory), nil
 }

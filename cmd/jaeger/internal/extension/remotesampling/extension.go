@@ -22,6 +22,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/samplingstrategy"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
+	"github.com/jaegertracing/jaeger/internal/metrics/otelmetrics"
 	"github.com/jaegertracing/jaeger/pkg/clientcfg/clientcfghttp"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/plugin/sampling/leaderelection"
@@ -223,11 +224,13 @@ func (ext *rsExtension) startAdaptiveStrategyProvider(host component.Host) error
 }
 
 func (ext *rsExtension) startHTTPServer(ctx context.Context, host component.Host) error {
+	mf := otelmetrics.NewFactory(ext.telemetry.MeterProvider)
+	mf = mf.Namespace(metrics.NSOptions{Name: "jaeger_remote_sampling"})
 	handler := clientcfghttp.NewHTTPHandler(clientcfghttp.HTTPHandlerParams{
 		ConfigManager: &clientcfghttp.ConfigManager{
 			SamplingProvider: ext.strategyProvider,
 		},
-		MetricsFactory: metrics.NullFactory,
+		MetricsFactory: mf,
 
 		// In v1 the sampling endpoint in the collector was at /api/sampling, because
 		// the collector reused the same port for multiple services. In v2, the extension

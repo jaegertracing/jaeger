@@ -17,9 +17,8 @@ import (
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/config/confignet"
-	"go.opentelemetry.io/collector/config/configtelemetry"
-	"go.opentelemetry.io/otel/metric"
 	noopmetric "go.opentelemetry.io/otel/metric/noop"
+	nooptrace "go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 
@@ -134,7 +133,7 @@ func TestServerStart(t *testing.T) {
 		expectedErr string
 	}{
 		{
-			name: "Non-empty config with fake storage host",
+			name: "Real server with non-empty config",
 			config: &Config{
 				Storage: Storage{
 					TracesArchive: "jaeger_storage",
@@ -204,15 +203,16 @@ func TestServerStart(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// Despite using Noop Tracer below, query service also creates jtracer.
+			// We want to prevent that tracer from sampling anything in this test.
+			t.Setenv("OTEL_TRACES_SAMPLER", "always_off")
 			telemetrySettings := component.TelemetrySettings{
-				Logger: zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller())),
-				LeveledMeterProvider: func(_ configtelemetry.Level) metric.MeterProvider {
-					return noopmetric.NewMeterProvider()
-				},
-				MeterProvider: noopmetric.NewMeterProvider(),
+				Logger:         zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller())),
+				MeterProvider:  noopmetric.NewMeterProvider(),
+				TracerProvider: nooptrace.NewTracerProvider(),
 			}
-			tt.config.HTTP.Endpoint = ":0"
-			tt.config.GRPC.NetAddr.Endpoint = ":0"
+			tt.config.HTTP.Endpoint = "localhost:0"
+			tt.config.GRPC.NetAddr.Endpoint = "localhost:0"
 			tt.config.GRPC.NetAddr.Transport = confignet.TransportTypeTCP
 			server := newServer(tt.config, telemetrySettings)
 			err := server.Start(context.Background(), host)
@@ -297,7 +297,9 @@ func TestServerAddArchiveStorage(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			logger, buf := testutils.NewLogger()
 			telemetrySettings := component.TelemetrySettings{
-				Logger: logger,
+				Logger:         logger,
+				MeterProvider:  noopmetric.NewMeterProvider(),
+				TracerProvider: nooptrace.NewTracerProvider(),
 			}
 			server := newServer(tt.config, telemetrySettings)
 			if tt.extension != nil {
@@ -347,7 +349,9 @@ func TestServerAddMetricsStorage(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			logger, buf := testutils.NewLogger()
 			telemetrySettings := component.TelemetrySettings{
-				Logger: logger,
+				Logger:         logger,
+				MeterProvider:  noopmetric.NewMeterProvider(),
+				TracerProvider: nooptrace.NewTracerProvider(),
 			}
 			server := newServer(tt.config, telemetrySettings)
 			if tt.extension != nil {

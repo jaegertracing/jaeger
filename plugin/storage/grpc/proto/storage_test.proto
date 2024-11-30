@@ -18,6 +18,10 @@ package storageprototest;
 
 option go_package = "./storageprototest";
 
+import "google/protobuf/timestamp.proto";
+
 message GetTraceRequest {
     bytes trace_id = 1;
+    google.protobuf.Timestamp start_time = 2;
+    google.protobuf.Timestamp end_time = 3;
 }

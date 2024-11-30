@@ -105,6 +105,5 @@ func (f *Factory) Close() error {
 	if f.producer != nil {
 		errs = append(errs, f.producer.Close())
 	}
-	errs = append(errs, f.options.Config.TLS.Close())
 	return errors.Join(errs...)
 }

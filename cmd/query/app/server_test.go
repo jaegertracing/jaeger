@@ -6,7 +6,6 @@ package app
 import (
 	"bytes"
 	"context"
-	"crypto/tls"
 	"fmt"
 	"net"
 	"net/http"
@@ -17,14 +16,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
-	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/confignet"
-	"go.opentelemetry.io/collector/config/configtelemetry"
 	"go.opentelemetry.io/collector/config/configtls"
-	"go.opentelemetry.io/otel/metric"
-	"go.opentelemetry.io/otel/metric/noop"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"go.uber.org/zap"
@@ -40,7 +35,7 @@ import (
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	"github.com/jaegertracing/jaeger/pkg/jtracer"
-	"github.com/jaegertracing/jaeger/pkg/telemetery"
+	"github.com/jaegertracing/jaeger/pkg/telemetry"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/ports"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
@@ -51,16 +46,12 @@ import (
 
 var testCertKeyLocation = "../../../pkg/config/tlscfg/testdata"
 
-func initTelSet(logger *zap.Logger, tracerProvider *jtracer.JTracer, hc *healthcheck.HealthCheck) telemetery.Setting {
-	return telemetery.Setting{
-		Logger:         logger,
-		TracerProvider: tracerProvider.OTEL,
-		ReportStatus:   telemetery.HCAdapter(hc),
-		Host:           componenttest.NewNopHost(),
-		LeveledMeterProvider: func(_ configtelemetry.Level) metric.MeterProvider {
-			return noop.NewMeterProvider()
-		},
-	}
+func initTelSet(logger *zap.Logger, tracerProvider *jtracer.JTracer, hc *healthcheck.HealthCheck) telemetry.Settings {
+	telset := telemetry.NoopSettings()
+	telset.Logger = logger
+	telset.TracerProvider = tracerProvider.OTEL
+	telset.ReportStatus = telemetry.HCAdapter(hc)
+	return telset
 }
 
 func TestServerError(t *testing.T) {
@@ -109,7 +100,7 @@ func TestCreateTLSGrpcServerError(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestCreateTLSHttpServerError(t *testing.T) {
+func TestStartTLSHttpServerError(t *testing.T) {
 	tlsCfg := configtls.ServerConfig{
 		ClientCAFile: "invalid/path",
 		Config: configtls.Config{
@@ -118,12 +109,16 @@ func TestCreateTLSHttpServerError(t *testing.T) {
 		},
 	}
 	telset := initTelSet(zaptest.NewLogger(t), jtracer.NoOp(), healthcheck.New())
-	_, err := NewServer(context.Background(), &querysvc.QueryService{}, nil,
+	s, err := NewServer(context.Background(), &querysvc.QueryService{}, nil,
 		&QueryOptions{
 			HTTP: confighttp.ServerConfig{Endpoint: ":8080", TLSSetting: &tlsCfg},
 			GRPC: configgrpc.ServerConfig{NetAddr: confignet.AddrConfig{Endpoint: ":8081", Transport: confignet.TransportTypeTCP}},
 		}, tenancy.NewManager(&tenancy.Options{}), telset)
-	require.Error(t, err)
+	require.NoError(t, err)
+	require.Error(t, s.Start(context.Background()))
+	t.Cleanup(func() {
+		require.NoError(t, s.Close())
+	})
 }
 
 var testCases = []struct {
@@ -132,7 +127,6 @@ var testCases = []struct {
 	HTTPTLSEnabled    bool
 	GRPCTLSEnabled    bool
 	clientTLS         configtls.ClientConfig
-	expectError       bool
 	expectClientError bool
 	expectServerFail  bool
 }{
@@ -144,7 +138,6 @@ var testCases = []struct {
 		clientTLS: configtls.ClientConfig{
 			Insecure: true,
 		},
-		expectError:       false,
 		expectClientError: false,
 		expectServerFail:  false,
 	},
@@ -162,7 +155,6 @@ var testCases = []struct {
 			Insecure:   true,
 			ServerName: "example.com",
 		},
-		expectError:       true,
 		expectClientError: true,
 		expectServerFail:  false,
 	},
@@ -183,7 +175,6 @@ var testCases = []struct {
 				CAFile: testCertKeyLocation + "/example-CA-cert.pem",
 			},
 		},
-		expectError:       true,
 		expectClientError: true,
 		expectServerFail:  false,
 	},
@@ -204,7 +195,6 @@ var testCases = []struct {
 				CAFile: testCertKeyLocation + "/example-CA-cert.pem",
 			},
 		},
-		expectError:       false,
 		expectClientError: false,
 		expectServerFail:  false,
 	},
@@ -226,7 +216,6 @@ var testCases = []struct {
 				CAFile: testCertKeyLocation + "/example-CA-cert.pem",
 			},
 		},
-		expectError:       false,
 		expectServerFail:  false,
 		expectClientError: true,
 	},
@@ -250,7 +239,6 @@ var testCases = []struct {
 				KeyFile:  testCertKeyLocation + "/example-client-key.pem",
 			},
 		},
-		expectError:       false,
 		expectServerFail:  false,
 		expectClientError: false,
 	},
@@ -275,7 +263,6 @@ var testCases = []struct {
 				KeyFile:  testCertKeyLocation + "/example-client-key.pem",
 			},
 		},
-		expectError:       false,
 		expectServerFail:  false,
 		expectClientError: true,
 	},
@@ -299,7 +286,6 @@ var testCases = []struct {
 				KeyFile:  testCertKeyLocation + "/example-client-key.pem",
 			},
 		},
-		expectError:       false,
 		expectServerFail:  false,
 		expectClientError: false,
 	},
@@ -323,7 +309,6 @@ var testCases = []struct {
 				KeyFile:  testCertKeyLocation + "/example-client-key.pem",
 			},
 		},
-		expectError:       false,
 		expectServerFail:  false,
 		expectClientError: false,
 	},
@@ -360,7 +345,6 @@ func TestServerHTTPTLS(t *testing.T) {
 		HTTPTLSEnabled    bool
 		GRPCTLSEnabled    bool
 		clientTLS         configtls.ClientConfig
-		expectError       bool
 		expectClientError bool
 		expectServerFail  bool
 	}, testlen)
@@ -413,41 +397,9 @@ func TestServerHTTPTLS(t *testing.T) {
 				require.NoError(t, server.Close())
 			})
 
-			var clientError error
-			var clientClose func() error
-			var clientTLSCfg *tls.Config
-
-			if serverOptions.HTTP.TLSSetting != nil {
-				var err0 error
-				clientTLSCfg, err0 = test.clientTLS.LoadTLSConfig(context.Background())
-
-				require.NoError(t, err0)
-				dialer := &net.Dialer{Timeout: 2 * time.Second}
-				conn, err1 := tls.DialWithDialer(dialer, "tcp", server.HTTPAddr(), clientTLSCfg)
-				clientError = err1
-				clientClose = nil
-				if conn != nil {
-					clientClose = conn.Close
-				}
-			} else {
-				conn, err1 := net.DialTimeout("tcp", server.HTTPAddr(), 2*time.Second)
-				clientError = err1
-				clientClose = nil
-				if conn != nil {
-					clientClose = conn.Close
-				}
-			}
-
-			if test.expectError {
-				require.Error(t, clientError)
-			} else {
-				require.NoError(t, clientError)
-			}
-			if clientClose != nil {
-				require.NoError(t, clientClose())
-			}
-
-			if test.HTTPTLSEnabled && test.TLS.ClientCAFile != "" {
+			if test.HTTPTLSEnabled {
+				clientTLSCfg, err := test.clientTLS.LoadTLSConfig(context.Background())
+				require.NoError(t, err)
 				client := &http.Client{
 					Transport: &http.Transport{
 						TLSClientConfig: clientTLSCfg,
@@ -459,15 +411,18 @@ func TestServerHTTPTLS(t *testing.T) {
 				require.NoError(t, err)
 				req.Header.Add("Accept", "application/json")
 
-				resp, err2 := client.Do(req)
-				if err2 == nil {
-					resp.Body.Close()
-				}
+				resp, err := client.Do(req)
+				t.Cleanup(func() {
+					if err == nil {
+						resp.Body.Close()
+					}
+				})
 
 				if test.expectClientError {
-					require.Error(t, err2)
+					require.Error(t, err)
 				} else {
-					require.NoError(t, err2)
+					require.NoError(t, err)
+					require.Equal(t, http.StatusOK, resp.StatusCode)
 				}
 			}
 		})
@@ -500,7 +455,6 @@ func TestServerGRPCTLS(t *testing.T) {
 		HTTPTLSEnabled    bool
 		GRPCTLSEnabled    bool
 		clientTLS         configtls.ClientConfig
-		expectError       bool
 		expectClientError bool
 		expectServerFail  bool
 	}, testlen)
@@ -800,12 +754,12 @@ func TestServerHTTPTenancy(t *testing.T) {
 		{
 			name: "no tenant",
 			// no value for tenant header
-			status: 401,
+			status: http.StatusUnauthorized,
 		},
 		{
 			name:   "tenant",
 			tenant: "acme",
-			status: 200,
+			status: http.StatusOK,
 		},
 	}
 

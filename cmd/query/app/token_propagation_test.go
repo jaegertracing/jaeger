@@ -17,18 +17,13 @@ import (
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/confignet"
-	"go.opentelemetry.io/collector/config/configtelemetry"
-	"go.opentelemetry.io/otel/metric"
-	"go.opentelemetry.io/otel/metric/noop"
 	"go.uber.org/zap/zaptest"
 
 	"github.com/jaegertracing/jaeger/cmd/internal/flags"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	"github.com/jaegertracing/jaeger/pkg/bearertoken"
 	"github.com/jaegertracing/jaeger/pkg/config"
-	"github.com/jaegertracing/jaeger/pkg/jtracer"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
-	"github.com/jaegertracing/jaeger/pkg/telemetery"
+	"github.com/jaegertracing/jaeger/pkg/telemetry"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/plugin/storage/es"
 	"github.com/jaegertracing/jaeger/ports"
@@ -72,6 +67,10 @@ func runQueryService(t *testing.T, esURL string) *Server {
 	flagsSvc := flags.NewService(ports.QueryAdminHTTP)
 	flagsSvc.Logger = zaptest.NewLogger(t)
 
+	telset := telemetry.NoopSettings()
+	telset.Logger = flagsSvc.Logger
+	telset.ReportStatus = telemetry.HCAdapter(flagsSvc.HC())
+
 	f := es.NewFactory()
 	v, command := config.Viperize(f.AddFlags)
 	require.NoError(t, command.ParseFlags([]string{
@@ -82,22 +81,14 @@ func runQueryService(t *testing.T, esURL string) *Server {
 	f.InitFromViper(v, flagsSvc.Logger)
 	// set AllowTokenFromContext manually because we don't register the respective CLI flag from query svc
 	f.Options.Primary.Authentication.BearerTokenAuthentication.AllowFromContext = true
-	require.NoError(t, f.Initialize(metrics.NullFactory, flagsSvc.Logger))
+	require.NoError(t, f.Initialize(telset.Metrics, telset.Logger))
 	defer f.Close()
 
 	spanReader, err := f.CreateSpanReader()
 	require.NoError(t, err)
 	traceReader := factoryadapter.NewTraceReader(spanReader)
 
-	querySvc := querysvc.NewQueryService(traceReader, nil, querysvc.QueryServiceOptions{})
-	telset := telemetery.Setting{
-		Logger:         flagsSvc.Logger,
-		TracerProvider: jtracer.NoOp().OTEL,
-		ReportStatus:   telemetery.HCAdapter(flagsSvc.HC()),
-		LeveledMeterProvider: func(_ configtelemetry.Level) metric.MeterProvider {
-			return noop.NewMeterProvider()
-		},
-	}
+	querySvc := querysvc.NewQueryService(spanReader, nil, querysvc.QueryServiceOptions{})
 	server, err := NewServer(context.Background(), querySvc, nil,
 		&QueryOptions{
 			BearerTokenPropagation: true,

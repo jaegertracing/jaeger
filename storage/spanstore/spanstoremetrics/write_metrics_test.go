@@ -2,7 +2,7 @@
 // Copyright (c) 2017 Uber Technologies, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-package metrics
+package spanstoremetrics
 
 import (
 	"errors"
@@ -53,7 +53,7 @@ func TestTableEmit(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		mf := metricstest.NewFactory(time.Second)
-		tm := NewWriteMetrics(mf, "a_table")
+		tm := NewWriter(mf, "a_table")
 		tm.Emit(tc.err, 50*time.Millisecond)
 		counts, gauges := mf.Snapshot()
 		assert.Equal(t, tc.counts, counts)

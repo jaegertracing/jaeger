@@ -8,8 +8,8 @@ import (
 	"errors"
 	"net"
 	"testing"
+	"time"
 
-	"github.com/gogo/protobuf/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -125,7 +125,9 @@ func TestGetTraceTraceIDError(t *testing.T) {
 		}, nil).Once()
 
 	getTraceStream, err := tsc.client.GetTrace(context.Background(), &api_v3.GetTraceRequest{
-		TraceId: "Z",
+		TraceId:   "Z",
+		StartTime: time.Now().Add(-2 * time.Hour),
+		EndTime:   time.Now(),
 	})
 	require.NoError(t, err)
 	recv, err := getTraceStream.Recv()
@@ -151,10 +153,8 @@ func TestFindTraces(t *testing.T) {
 			ServiceName:   "myservice",
 			OperationName: "opname",
 			Attributes:    map[string]string{"foo": "bar"},
-			StartTimeMin:  &types.Timestamp{},
-			StartTimeMax:  &types.Timestamp{},
-			DurationMin:   &types.Duration{},
-			DurationMax:   &types.Duration{},
+			StartTimeMin:  time.Now().Add(-2 * time.Hour),
+			StartTimeMax:  time.Now(),
 		},
 	})
 	require.NoError(t, err)
@@ -173,10 +173,7 @@ func TestFindTracesQueryNil(t *testing.T) {
 	assert.Nil(t, recv)
 
 	responseStream, err = tsc.client.FindTraces(context.Background(), &api_v3.FindTracesRequest{
-		Query: &api_v3.TraceQueryParameters{
-			StartTimeMin: nil,
-			StartTimeMax: nil,
-		},
+		Query: &api_v3.TraceQueryParameters{},
 	})
 	require.NoError(t, err)
 	recv, err = responseStream.Recv()
@@ -191,10 +188,8 @@ func TestFindTracesStorageError(t *testing.T) {
 
 	responseStream, err := tsc.client.FindTraces(context.Background(), &api_v3.FindTracesRequest{
 		Query: &api_v3.TraceQueryParameters{
-			StartTimeMin: &types.Timestamp{},
-			StartTimeMax: &types.Timestamp{},
-			DurationMin:  &types.Duration{},
-			DurationMax:  &types.Duration{},
+			StartTimeMin: time.Now().Add(-2 * time.Hour),
+			StartTimeMax: time.Now(),
 		},
 	})
 	require.NoError(t, err)
