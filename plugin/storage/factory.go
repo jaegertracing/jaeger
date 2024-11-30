@@ -137,8 +137,14 @@ func (*Factory) getFactoryOfType(factoryType string) (storage.Factory, error) {
 // Initialize implements storage.Factory.
 func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
 	f.metricsFactory = metricsFactory
-	for _, factory := range f.factories {
-		if err := factory.Initialize(metricsFactory, logger); err != nil {
+	for kind, factory := range f.factories {
+		mf := metricsFactory.Namespace(metrics.NSOptions{
+			Name: "storage",
+			Tags: map[string]string{
+				"kind": kind,
+			},
+		})
+		if err := factory.Initialize(mf, logger); err != nil {
 			return err
 		}
 	}

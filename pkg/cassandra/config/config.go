@@ -6,15 +6,13 @@ package config
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/asaskevich/govalidator"
 	"github.com/gocql/gocql"
 	"go.opentelemetry.io/collector/config/configtls"
-
-	"github.com/jaegertracing/jaeger/pkg/cassandra"
-	gocqlw "github.com/jaegertracing/jaeger/pkg/cassandra/gocql"
 )
 
 // Configuration describes the configuration properties needed to connect to a Cassandra cluster.
@@ -58,6 +56,19 @@ type Schema struct {
 	// while connecting to the Cassandra Cluster. This is useful for connecting to clusters, like Azure Cosmos DB,
 	// that do not support SnappyCompression.
 	DisableCompression bool `mapstructure:"disable_compression"`
+	// CreateSchema tells if the schema ahould be created during session initialization based on the configs provided
+	CreateSchema bool `mapstructure:"create" valid:"optional"`
+	// Datacenter is the name for network topology
+	Datacenter string `mapstructure:"datacenter" valid:"optional"`
+	// TraceTTL is Time To Live (TTL) for the trace data. Should at least be 1 second
+	TraceTTL time.Duration `mapstructure:"trace_ttl" valid:"optional"`
+	// DependenciesTTL is Time To Live (TTL) for dependencies data. Should at least be 1 second
+	DependenciesTTL time.Duration `mapstructure:"dependencies_ttl" valid:"optional"`
+	// Replication factor for the db
+	ReplicationFactor int `mapstructure:"replication_factor" valid:"optional"`
+	// CompactionWindow is the size of the window for TimeWindowCompactionStrategy.
+	// All SSTables within that window are grouped together into one SSTable.
+	CompactionWindow time.Duration `mapstructure:"compaction_window" valid:"optional"`
 }
 
 type Query struct {
@@ -86,7 +97,13 @@ type BasicAuthenticator struct {
 func DefaultConfiguration() Configuration {
 	return Configuration{
 		Schema: Schema{
-			Keyspace: "jaeger_v1_test",
+			CreateSchema:      false,
+			Keyspace:          "jaeger_dc1",
+			Datacenter:        "dc1",
+			TraceTTL:          2 * 24 * time.Hour,
+			DependenciesTTL:   2 * 24 * time.Hour,
+			ReplicationFactor: 1,
+			CompactionWindow:  time.Minute,
 		},
 		Connection: Connection{
 			Servers:            []string{"127.0.0.1"},
@@ -106,6 +123,27 @@ func (c *Configuration) ApplyDefaults(source *Configuration) {
 	if c.Schema.Keyspace == "" {
 		c.Schema.Keyspace = source.Schema.Keyspace
 	}
+
+	if c.Schema.Datacenter == "" {
+		c.Schema.Datacenter = source.Schema.Datacenter
+	}
+
+	if c.Schema.TraceTTL == 0 {
+		c.Schema.TraceTTL = source.Schema.TraceTTL
+	}
+
+	if c.Schema.DependenciesTTL == 0 {
+		c.Schema.DependenciesTTL = source.Schema.DependenciesTTL
+	}
+
+	if c.Schema.ReplicationFactor == 0 {
+		c.Schema.ReplicationFactor = source.Schema.ReplicationFactor
+	}
+
+	if c.Schema.CompactionWindow == 0 {
+		c.Schema.CompactionWindow = source.Schema.CompactionWindow
+	}
+
 	if c.Connection.ConnectionsPerHost == 0 {
 		c.Connection.ConnectionsPerHost = source.Connection.ConnectionsPerHost
 	}
@@ -127,24 +165,6 @@ func (c *Configuration) ApplyDefaults(source *Configuration) {
 	if c.Query.Timeout == 0 {
 		c.Query.Timeout = source.Query.Timeout
 	}
-}
-
-// SessionBuilder creates new cassandra.Session
-type SessionBuilder interface {
-	NewSession() (cassandra.Session, error)
-}
-
-// NewSession creates a new Cassandra session
-func (c *Configuration) NewSession() (cassandra.Session, error) {
-	cluster, err := c.NewCluster()
-	if err != nil {
-		return nil, err
-	}
-	session, err := cluster.CreateSession()
-	if err != nil {
-		return nil, err
-	}
-	return gocqlw.WrapCQLSession(session), nil
 }
 
 // NewCluster creates a new gocql cluster from the configuration
@@ -210,7 +230,27 @@ func (c *Configuration) String() string {
 	return fmt.Sprintf("%+v", *c)
 }
 
+func isValidTTL(duration time.Duration) bool {
+	return duration == 0 || duration >= time.Second
+}
+
 func (c *Configuration) Validate() error {
 	_, err := govalidator.ValidateStruct(c)
-	return err
+	if err != nil {
+		return err
+	}
+
+	if !isValidTTL(c.Schema.TraceTTL) {
+		return errors.New("trace_ttl can either be 0 or greater than or equal to 1 second")
+	}
+
+	if !isValidTTL(c.Schema.DependenciesTTL) {
+		return errors.New("dependencies_ttl can either be 0 or greater than or equal to 1 second")
+	}
+
+	if c.Schema.CompactionWindow < time.Minute {
+		return errors.New("compaction_window should at least be 1 minute")
+	}
+
+	return nil
 }

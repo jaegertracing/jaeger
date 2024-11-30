@@ -31,6 +31,7 @@ import (
 	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
+	"github.com/jaegertracing/jaeger/storage/spanstore/spanstoremetrics"
 )
 
 var ( // interface comformance checks
@@ -167,7 +168,14 @@ func (f *Factory) newRemoteStorage(
 
 // CreateSpanReader implements storage.Factory
 func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
-	return f.services.Store.SpanReader(), nil
+	primaryMetricsFactory := f.telset.Metrics.Namespace(
+		metrics.NSOptions{
+			Tags: map[string]string{
+				"role": "primary",
+			},
+		},
+	)
+	return spanstoremetrics.NewReaderDecorator(f.services.Store.SpanReader(), primaryMetricsFactory), nil
 }
 
 // CreateSpanWriter implements storage.Factory
@@ -197,7 +205,14 @@ func (f *Factory) CreateArchiveSpanReader() (spanstore.Reader, error) {
 	if capabilities == nil || !capabilities.ArchiveSpanReader {
 		return nil, storage.ErrArchiveStorageNotSupported
 	}
-	return f.services.ArchiveStore.ArchiveSpanReader(), nil
+	archiveMetricsFactory := f.telset.Metrics.Namespace(
+		metrics.NSOptions{
+			Tags: map[string]string{
+				"role": "archive",
+			},
+		},
+	)
+	return spanstoremetrics.NewReaderDecorator(f.services.ArchiveStore.ArchiveSpanReader(), archiveMetricsFactory), nil
 }
 
 // CreateArchiveSpanWriter implements storage.ArchiveFactory

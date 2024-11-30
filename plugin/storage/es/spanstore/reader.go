@@ -22,7 +22,6 @@ import (
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/es"
 	cfg "github.com/jaegertracing/jaeger/pkg/es/config"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/plugin/storage/es/spanstore/dbmodel"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
@@ -113,7 +112,6 @@ type SpanReaderParams struct {
 	Archive             bool
 	UseReadWriteAliases bool
 	RemoteReadClusters  []string
-	MetricsFactory      metrics.Factory
 	Logger              *zap.Logger
 	Tracer              trace.Tracer
 }

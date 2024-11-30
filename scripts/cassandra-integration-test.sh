@@ -11,6 +11,9 @@ success="false"
 timeout=600
 end_time=$((SECONDS + timeout))
 
+SKIP_APPLY_SCHEMA=${SKIP_APPLY_SCHEMA:-"false"}
+export CASSANDRA_CREATE_SCHEMA=${SKIP_APPLY_SCHEMA}
+
 usage() {
   echo $"Usage: $0 <cassandra_version> <schema_version>"
   exit 1
@@ -98,8 +101,10 @@ run_integration_test() {
 
   healthcheck_cassandra "${major_version}"
 
-  apply_schema "$schema_version" "$primaryKeyspace"
-  apply_schema "$schema_version" "$archiveKeyspace"
+  if [ "${SKIP_APPLY_SCHEMA}" = "false" ]; then
+    apply_schema "$schema_version" "$primaryKeyspace"
+    apply_schema "$schema_version" "$archiveKeyspace"
+  fi
 
   if [ "${jaegerVersion}" = "v1" ]; then
     STORAGE=cassandra make storage-integration-test
