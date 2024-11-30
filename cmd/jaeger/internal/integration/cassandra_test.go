@@ -11,7 +11,6 @@ import (
 
 func TestCassandraStorage(t *testing.T) {
 	integration.SkipUnlessEnv(t, "cassandra")
-
 	s := &E2EStorageIntegration{
 		ConfigFile: "../../config-cassandra.yaml",
 		StorageIntegration: integration.StorageIntegration{
