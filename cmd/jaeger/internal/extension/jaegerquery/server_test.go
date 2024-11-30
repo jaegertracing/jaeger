@@ -158,7 +158,7 @@ func TestServerStart(t *testing.T) {
 					TracesPrimary: "need-span-reader-error",
 				},
 			},
-			expectedErr: "cannot create span reader",
+			expectedErr: "cannot create trace reader",
 		},
 		{
 			name: "dependency error",

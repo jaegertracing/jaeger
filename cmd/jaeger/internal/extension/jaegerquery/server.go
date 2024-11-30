@@ -23,7 +23,6 @@ import (
 	"github.com/jaegertracing/jaeger/plugin/metrics/disabled"
 	"github.com/jaegertracing/jaeger/storage/metricsstore"
 	"github.com/jaegertracing/jaeger/storage/metricsstore/metricstoremetrics"
-	"github.com/jaegertracing/jaeger/storage/spanstore/spanstoremetrics"
 )
 
 var (
@@ -52,10 +51,6 @@ func (*server) Dependencies() []component.ID {
 }
 
 func (s *server) Start(ctx context.Context, host component.Host) error {
-	mf := otelmetrics.NewFactory(s.telset.MeterProvider)
-	baseFactory := mf.Namespace(metrics.NSOptions{Name: "jaeger"})
-	queryMetricsFactory := baseFactory.Namespace(metrics.NSOptions{Name: "query"})
-	v1Factory, err := jaegerstorage.GetStorageFactory(s.config.Storage.TracesPrimary, host)
 	// TODO OTel-collector does not initialize the tracer currently
 	// https://github.com/open-telemetry/opentelemetry-collector/issues/7532
 	//nolint
@@ -79,22 +74,19 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 		Namespace(metrics.NSOptions{Name: "jaeger"}).
 		Namespace(metrics.NSOptions{Name: "query"})
 
-	f, err := jaegerstorage.GetStorageFactory(s.config.Storage.TracesPrimary, host)
+	v1Factory, err := jaegerstorage.GetStorageFactory(s.config.Storage.TracesPrimary, host)
 	if err != nil {
 		return fmt.Errorf("cannot find primary storage from v1 factory %s: %w", s.config.Storage.TracesPrimary, err)
 	}
-	v2Factory, err := jaegerstorage.GetStorageFactoryV2(s.config.Storage.TracesPrimary, host)
+	f, err := jaegerstorage.GetStorageFactoryV2(s.config.Storage.TracesPrimary, host)
 	if err != nil {
 		return fmt.Errorf("cannot find primary storage from v2 factory %s: %w", s.config.Storage.TracesPrimary, err)
 	}
 
-	v1Factory.CreateSpanReader()
-	traceReader, err := v2Factory.CreateTraceReader()
+	traceReader, err := f.CreateTraceReader()
 	if err != nil {
-		return fmt.Errorf("cannot create span reader: %w", err)
+		return fmt.Errorf("cannot create trace reader: %w", err)
 	}
-
-	spanReader = spanstoremetrics.NewReaderDecorator(spanReader, telset.Metrics)
 
 	depReader, err := v1Factory.CreateDependencyReader()
 	if err != nil {

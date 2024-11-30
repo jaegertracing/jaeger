@@ -88,7 +88,7 @@ func runQueryService(t *testing.T, esURL string) *Server {
 	require.NoError(t, err)
 	traceReader := factoryadapter.NewTraceReader(spanReader)
 
-	querySvc := querysvc.NewQueryService(spanReader, nil, querysvc.QueryServiceOptions{})
+	querySvc := querysvc.NewQueryService(traceReader, nil, querysvc.QueryServiceOptions{})
 	server, err := NewServer(context.Background(), querySvc, nil,
 		&QueryOptions{
 			BearerTokenPropagation: true,
