@@ -63,7 +63,7 @@ type Factory struct {
 	primarySession cassandra.Session
 	archiveSession cassandra.Session
 
-	// test can override this
+	// tests can override this
 	sessionBuilderFn func(*config.Configuration) (cassandra.Session, error)
 }
 
@@ -134,6 +134,7 @@ func (f *Factory) configureFromOptions(o *Options) {
 	}
 	f.primaryConfig = o.GetPrimary()
 	if cfg := f.Options.Get(archiveStorageConfig); cfg != nil {
+		// avoid typed nil, see https://golang.org/doc/faq#nil_error
 		f.archiveConfig = cfg
 	}
 }

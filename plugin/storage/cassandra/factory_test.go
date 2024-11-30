@@ -45,12 +45,6 @@ func (m *mockSessionBuilder) build(*config.Configuration) (cassandra.Session, er
 	return session, err
 }
 
-// func newMockSessionBuilder(session *mocks.Session, err error) func(*config.Configuration) (cassandra.Session, error) {
-// 	return func(*config.Configuration) (cassandra.Session, error) {
-// 		return session, err
-// 	}
-// }
-
 func TestCassandraFactory(t *testing.T) {
 	logger, logBuf := testutils.NewLogger()
 	f := NewFactory()
@@ -129,12 +123,6 @@ func TestExclusiveWhitelistBlacklist(t *testing.T) {
 	session.On("Query", mock.AnythingOfType("string"), mock.Anything).Return(query)
 	query.On("Exec").Return(nil)
 	f.sessionBuilderFn = new(mockSessionBuilder).add(session, nil).build
-	// f.sessionBuilderFn = newMockSessionBuilder(session, nil)
-	// require.EqualError(t, f.Initialize(metrics.NullFactory, zap.NewNop()), "made-up error")
-
-	// f.archiveConfig = nil
-	// require.NoError(t, f.Initialize(metrics.NullFactory, logger))
-	// assert.Contains(t, logBuf.String(), "Cassandra archive storage configuration is empty, skipping")
 
 	_, err := f.CreateSpanWriter()
 	require.EqualError(t, err, "only one of TagIndexBlacklist and TagIndexWhitelist can be specified")
