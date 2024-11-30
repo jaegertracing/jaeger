@@ -141,8 +141,9 @@ func TestInitFactory(t *testing.T) {
 	f := makeFactory(t)
 	f.services.Capabilities = nil
 
-	_, err := f.CreateSpanReader()
+	reader, err := f.CreateSpanReader()
 	require.NoError(t, err)
+	assert.NotNil(t, reader)
 
 	writer, err := f.CreateSpanWriter()
 	require.NoError(t, err)
