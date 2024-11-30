@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync/atomic"
+	"time"
 
 	"github.com/spf13/viper"
 	"go.opentelemetry.io/otel"
@@ -185,7 +186,9 @@ func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
 
 // CreateSpanWriter implements storage.Factory
 func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
-	return createSpanWriter(f.getPrimaryClient, f.primaryConfig, false, f.metricsFactory, f.logger)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	return createSpanWriter(ctx, f.getPrimaryClient, f.primaryConfig, false, f.metricsFactory, f.logger)
 }
 
 // CreateDependencyReader implements storage.Factory
@@ -238,6 +241,7 @@ func createSpanReader(
 }
 
 func createSpanWriter(
+	ctx context.Context,
 	clientFn func() es.Client,
 	cfg *config.Configuration,
 	archive bool,
@@ -276,11 +280,34 @@ func createSpanWriter(
 		if err != nil {
 			return nil, err
 		}
-		if err := writer.CreateTemplates(spanMapping, serviceMapping, cfg.Indices.IndexPrefix); err != nil {
+		if err := CreateTemplatesWithRetry(ctx, writer, spanMapping, serviceMapping, cfg.Indices.IndexPrefix, logger); err != nil {
 			return nil, err
 		}
 	}
 	return writer, nil
+}
+
+func CreateTemplatesWithRetry(
+	ctx context.Context,
+	writer *esSpanStore.SpanWriter,
+	spanMapping string,
+	serviceMapping string,
+	indexPrefix cfg.IndexPrefix,
+	logger *zap.Logger,
+) error {
+	for i := 0; i < 3; i++ {
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("template creation timeout: %w", ctx.Err())
+		default:
+			if err := writer.CreateTemplates(ctx, spanMapping, serviceMapping, indexPrefix); err == nil {
+				return nil
+			}
+			logger.Warn("Template creation failed, retrying", zap.Int("attempt", i+1))
+			time.Sleep(time.Duration(100*(1<<i)) * time.Millisecond)
+		}
+	}
+	return errors.New("failed to create templates after retries")
 }
 
 func (f *Factory) CreateSamplingStore(int /* maxBuckets */) (samplingstore.Store, error) {
