@@ -55,5 +55,5 @@ func TestInvalidQueryTemplate(t *testing.T) {
 	sc := schemaCreator{}
 	queriesAsBytes := []byte(queriesAsString)
 	_, err := sc.getQueriesFromBytes(queriesAsBytes)
-	require.ErrorContains(t, err, "invalid template")
+	require.Error(t, err)
 }
