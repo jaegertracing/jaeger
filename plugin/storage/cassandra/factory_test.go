@@ -17,7 +17,6 @@ import (
 
 	"github.com/jaegertracing/jaeger/pkg/cassandra"
 	"github.com/jaegertracing/jaeger/pkg/cassandra/config"
-	cassandraCfg "github.com/jaegertracing/jaeger/pkg/cassandra/config"
 	"github.com/jaegertracing/jaeger/pkg/cassandra/mocks"
 	viperize "github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
@@ -204,7 +203,7 @@ func TestNewFactoryWithConfig(t *testing.T) {
 	t.Run("valid configuration", func(t *testing.T) {
 		opts := &Options{
 			Primary: NamespaceConfig{
-				Configuration: cassandraCfg.DefaultConfiguration(),
+				Configuration: config.DefaultConfiguration(),
 			},
 		}
 		f := NewFactory()
@@ -222,7 +221,7 @@ func TestNewFactoryWithConfig(t *testing.T) {
 		expErr := errors.New("made-up error")
 		opts := &Options{
 			Primary: NamespaceConfig{
-				Configuration: cassandraCfg.DefaultConfiguration(),
+				Configuration: config.DefaultConfiguration(),
 			},
 		}
 		f := NewFactory()
