@@ -258,12 +258,12 @@ func TestNewSessionErrors(t *testing.T) {
 				},
 			},
 		}
-		_, err := newSession(cfg)
+		_, err := NewSession(cfg)
 		require.ErrorContains(t, err, "failed to load TLS config")
 	})
 	t.Run("CreateSession error", func(t *testing.T) {
 		cfg := &config.Configuration{}
-		_, err := newSession(cfg)
+		_, err := NewSession(cfg)
 		require.ErrorContains(t, err, "no hosts provided")
 	})
 	t.Run("CreateSession error with schema", func(t *testing.T) {
@@ -272,7 +272,7 @@ func TestNewSessionErrors(t *testing.T) {
 				CreateSchema: true,
 			},
 		}
-		_, err := newSession(cfg)
+		_, err := NewSession(cfg)
 		require.ErrorContains(t, err, "no hosts provided")
 	})
 }

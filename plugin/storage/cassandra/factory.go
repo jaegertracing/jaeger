@@ -72,7 +72,7 @@ func NewFactory() *Factory {
 	return &Factory{
 		tracer:           otel.GetTracerProvider(),
 		Options:          NewOptions(primaryStorageConfig, archiveStorageConfig),
-		sessionBuilderFn: newSession,
+		sessionBuilderFn: NewSession,
 	}
 }
 
@@ -194,7 +194,7 @@ func newSessionPrerequisites(c *config.Configuration) error {
 }
 
 // NewSession creates a new Cassandra session
-func newSession(c *config.Configuration) (cassandra.Session, error) {
+func NewSession(c *config.Configuration) (cassandra.Session, error) {
 	if err := newSessionPrerequisites(c); err != nil {
 		return nil, err
 	}
