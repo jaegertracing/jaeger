@@ -209,8 +209,9 @@ func (s *StorageIntegration) testGetLargeSpan(t *testing.T) {
 	s.skipIfNeeded(t)
 	defer s.cleanUp(t)
 
-	t.Log("Testing Large Trace over 10K ...")
-	expected := s.loadParseAndWriteLargeTrace(t)
+	t.Log("Testing Large Trace over 10K with duplicate IDs...")
+
+	expected := s.writeLargeTraceWithDuplicateSpanIds(t)
 	expectedTraceID := expected.Spans[0].TraceID
 
 	var actual *model.Trace
@@ -219,9 +220,22 @@ func (s *StorageIntegration) testGetLargeSpan(t *testing.T) {
 		actual, err = s.SpanReader.GetTrace(context.Background(), expectedTraceID)
 		return err == nil && len(actual.Spans) >= len(expected.Spans)
 	})
+
 	if !assert.True(t, found) {
 		CompareTraces(t, expected, actual)
+		return
 	}
+
+	duplicateCount := 0
+	seenIDs := make(map[model.SpanID]int)
+
+	for _, span := range actual.Spans {
+		seenIDs[span.SpanID]++
+		if seenIDs[span.SpanID] > 1 {
+			duplicateCount++
+		}
+	}
+	assert.Positive(t, duplicateCount, "Duplicate SpanIDs should be present in the trace")
 }
 
 func (s *StorageIntegration) testGetOperations(t *testing.T) {
@@ -365,19 +379,21 @@ func (s *StorageIntegration) loadParseAndWriteExampleTrace(t *testing.T) *model.
 	return trace
 }
 
-func (s *StorageIntegration) loadParseAndWriteLargeTrace(t *testing.T) *model.Trace {
+func (s *StorageIntegration) writeLargeTraceWithDuplicateSpanIds(t *testing.T) *model.Trace {
 	trace := s.getTraceFixture(t, "example_trace")
-	span := trace.Spans[0]
-	spns := make([]*model.Span, 1, 10008)
-	trace.Spans = spns
-	trace.Spans[0] = span
-	for i := 1; i < 10008; i++ {
-		s := new(model.Span)
-		*s = *span
-		//nolint: gosec // G115
-		s.SpanID = model.SpanID(i)
-		s.StartTime = s.StartTime.Add(time.Second * time.Duration(i+1))
-		trace.Spans = append(trace.Spans, s)
+	repeatedSpan := trace.Spans[0]
+	trace.Spans = make([]*model.Span, 0, 10008)
+	for i := 0; i < 10008; i++ {
+		newSpan := new(model.Span)
+		*newSpan = *repeatedSpan
+		switch {
+		case i%100 == 0:
+			newSpan.SpanID = repeatedSpan.SpanID
+		default:
+			newSpan.SpanID = model.SpanID(i)
+		}
+		newSpan.StartTime = newSpan.StartTime.Add(time.Second * time.Duration(i+1))
+		trace.Spans = append(trace.Spans, newSpan)
 	}
 	s.writeTrace(t, trace)
 	return trace
