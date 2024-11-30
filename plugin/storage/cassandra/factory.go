@@ -51,6 +51,7 @@ var ( // interface comformance checks
 type Factory struct {
 	Options *Options
 
+	metricsFactory        metrics.Factory
 	primaryMetricsFactory metrics.Factory
 	archiveMetricsFactory metrics.Factory
 	logger                *zap.Logger
@@ -134,6 +135,7 @@ func (f *Factory) configureFromOptions(o *Options) {
 
 // Initialize implements storage.Factory
 func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
+	f.metricsFactory = metricsFactory
 	f.primaryMetricsFactory = metricsFactory.Namespace(
 		metrics.NSOptions{
 			Tags: map[string]string{
@@ -229,7 +231,14 @@ func (f *Factory) CreateLock() (distributedlock.Lock, error) {
 
 // CreateSamplingStore implements storage.SamplingStoreFactory
 func (f *Factory) CreateSamplingStore(int /* maxBuckets */) (samplingstore.Store, error) {
-	return cSamplingStore.New(f.primarySession, f.primaryMetricsFactory, f.logger), nil
+	samplingMetricsFactory := f.metricsFactory.Namespace(
+		metrics.NSOptions{
+			Tags: map[string]string{
+				"role": "sampling",
+			},
+		},
+	)
+	return cSamplingStore.New(f.primarySession, samplingMetricsFactory, f.logger), nil
 }
 
 func writerOptions(opts *Options) ([]cSpanStore.Option, error) {
