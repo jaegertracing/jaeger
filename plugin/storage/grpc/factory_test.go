@@ -143,7 +143,7 @@ func TestInitFactory(t *testing.T) {
 
 	reader, err := f.CreateSpanReader()
 	require.NoError(t, err)
-	assert.Equal(t, f.services.Store.SpanReader(), reader)
+	assert.NotNil(t, reader)
 
 	writer, err := f.CreateSpanWriter()
 	require.NoError(t, err)

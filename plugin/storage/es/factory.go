@@ -33,6 +33,7 @@ import (
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/samplingstore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
+	"github.com/jaegertracing/jaeger/storage/spanstore/spanstoremetrics"
 )
 
 const (
@@ -52,9 +53,10 @@ var ( // interface comformance checks
 type Factory struct {
 	Options *Options
 
-	metricsFactory metrics.Factory
-	logger         *zap.Logger
-	tracer         trace.TracerProvider
+	primaryMetricsFactory metrics.Factory
+	archiveMetricsFactory metrics.Factory
+	logger                *zap.Logger
+	tracer                trace.TracerProvider
 
 	newClientFn func(c *config.Configuration, logger *zap.Logger, metricsFactory metrics.Factory) (es.Client, error)
 
@@ -129,7 +131,21 @@ func (f *Factory) configureFromOptions(o *Options) {
 
 // Initialize implements storage.Factory.
 func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
-	f.metricsFactory, f.logger = metricsFactory, logger
+	f.primaryMetricsFactory = metricsFactory.Namespace(
+		metrics.NSOptions{
+			Tags: map[string]string{
+				"role": "primary",
+			},
+		},
+	)
+	f.archiveMetricsFactory = metricsFactory.Namespace(
+		metrics.NSOptions{
+			Tags: map[string]string{
+				"role": "archive",
+			},
+		},
+	)
+	f.logger = logger
 
 	primaryClient, err := f.newClientFn(f.primaryConfig, logger, metricsFactory)
 	if err != nil {
@@ -180,12 +196,16 @@ func (f *Factory) getArchiveClient() es.Client {
 
 // CreateSpanReader implements storage.Factory
 func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
-	return createSpanReader(f.getPrimaryClient, f.primaryConfig, false, f.metricsFactory, f.logger, f.tracer)
+	sr, err := createSpanReader(f.getPrimaryClient, f.primaryConfig, false, f.logger, f.tracer)
+	if err != nil {
+		return sr, err
+	}
+	return spanstoremetrics.NewReaderDecorator(sr, f.primaryMetricsFactory), nil
 }
 
 // CreateSpanWriter implements storage.Factory
 func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
-	return createSpanWriter(f.getPrimaryClient, f.primaryConfig, false, f.metricsFactory, f.logger)
+	return createSpanWriter(f.getPrimaryClient, f.primaryConfig, false, f.primaryMetricsFactory, f.logger)
 }
 
 // CreateDependencyReader implements storage.Factory
@@ -198,7 +218,11 @@ func (f *Factory) CreateArchiveSpanReader() (spanstore.Reader, error) {
 	if !f.archiveConfig.Enabled {
 		return nil, nil
 	}
-	return createSpanReader(f.getArchiveClient, f.archiveConfig, true, f.metricsFactory, f.logger, f.tracer)
+	sr, err := createSpanReader(f.getArchiveClient, f.archiveConfig, true, f.logger, f.tracer)
+	if err != nil {
+		return sr, err
+	}
+	return spanstoremetrics.NewReaderDecorator(sr, f.archiveMetricsFactory), nil
 }
 
 // CreateArchiveSpanWriter implements storage.ArchiveFactory
@@ -206,14 +230,13 @@ func (f *Factory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
 	if !f.archiveConfig.Enabled {
 		return nil, nil
 	}
-	return createSpanWriter(f.getArchiveClient, f.archiveConfig, true, f.metricsFactory, f.logger)
+	return createSpanWriter(f.getArchiveClient, f.archiveConfig, true, f.archiveMetricsFactory, f.logger)
 }
 
 func createSpanReader(
 	clientFn func() es.Client,
 	cfg *config.Configuration,
 	archive bool,
-	mFactory metrics.Factory,
 	logger *zap.Logger,
 	tp trace.TracerProvider,
 ) (spanstore.Reader, error) {
@@ -232,7 +255,6 @@ func createSpanReader(
 		Archive:             archive,
 		RemoteReadClusters:  cfg.RemoteReadClusters,
 		Logger:              logger,
-		MetricsFactory:      mFactory,
 		Tracer:              tp.Tracer("esSpanStore.SpanReader"),
 	}), nil
 }
@@ -352,14 +374,14 @@ func (f *Factory) Close() error {
 }
 
 func (f *Factory) onPrimaryPasswordChange() {
-	f.onClientPasswordChange(f.primaryConfig, &f.primaryClient)
+	f.onClientPasswordChange(f.primaryConfig, &f.primaryClient, f.primaryMetricsFactory)
 }
 
 func (f *Factory) onArchivePasswordChange() {
-	f.onClientPasswordChange(f.archiveConfig, &f.archiveClient)
+	f.onClientPasswordChange(f.archiveConfig, &f.archiveClient, f.archiveMetricsFactory)
 }
 
-func (f *Factory) onClientPasswordChange(cfg *config.Configuration, client *atomic.Pointer[es.Client]) {
+func (f *Factory) onClientPasswordChange(cfg *config.Configuration, client *atomic.Pointer[es.Client], mf metrics.Factory) {
 	newPassword, err := loadTokenFromFile(cfg.Authentication.BasicAuthentication.PasswordFilePath)
 	if err != nil {
 		f.logger.Error("failed to reload password for Elasticsearch client", zap.Error(err))
@@ -370,7 +392,7 @@ func (f *Factory) onClientPasswordChange(cfg *config.Configuration, client *atom
 	newCfg.Authentication.BasicAuthentication.Password = newPassword
 	newCfg.Authentication.BasicAuthentication.PasswordFilePath = "" // avoid error that both are set
 
-	newClient, err := f.newClientFn(&newCfg, f.logger, f.metricsFactory)
+	newClient, err := f.newClientFn(&newCfg, f.logger, mf)
 	if err != nil {
 		f.logger.Error("failed to recreate Elasticsearch client with new password", zap.Error(err))
 		return

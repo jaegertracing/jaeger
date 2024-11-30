@@ -32,6 +32,7 @@ import (
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/samplingstore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
+	"github.com/jaegertracing/jaeger/storage/spanstore/spanstoremetrics"
 )
 
 const (
@@ -52,6 +53,7 @@ var ( // interface comformance checks
 type Factory struct {
 	Options *Options
 
+	metricsFactory        metrics.Factory
 	primaryMetricsFactory metrics.Factory
 	archiveMetricsFactory metrics.Factory
 	logger                *zap.Logger
@@ -138,8 +140,21 @@ func (f *Factory) configureFromOptions(o *Options) {
 
 // Initialize implements storage.Factory
 func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
-	f.primaryMetricsFactory = metricsFactory.Namespace(metrics.NSOptions{Name: "cassandra", Tags: nil})
-	f.archiveMetricsFactory = metricsFactory.Namespace(metrics.NSOptions{Name: "cassandra-archive", Tags: nil})
+	f.metricsFactory = metricsFactory
+	f.primaryMetricsFactory = metricsFactory.Namespace(
+		metrics.NSOptions{
+			Tags: map[string]string{
+				"role": "primary",
+			},
+		},
+	)
+	f.archiveMetricsFactory = metricsFactory.Namespace(
+		metrics.NSOptions{
+			Tags: map[string]string{
+				"role": "archive",
+			},
+		},
+	)
 	f.logger = logger
 
 	primarySession, err := f.sessionBuilderFn(&f.primaryConfig)
@@ -204,7 +219,11 @@ func NewSession(c *config.Configuration) (cassandra.Session, error) {
 
 // CreateSpanReader implements storage.Factory
 func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
-	return cSpanStore.NewSpanReader(f.primarySession, f.primaryMetricsFactory, f.logger, f.tracer.Tracer("cSpanStore.SpanReader"))
+	sr, err := cSpanStore.NewSpanReader(f.primarySession, f.primaryMetricsFactory, f.logger, f.tracer.Tracer("cSpanStore.SpanReader"))
+	if err != nil {
+		return sr, err
+	}
+	return spanstoremetrics.NewReaderDecorator(sr, f.primaryMetricsFactory), nil
 }
 
 // CreateSpanWriter implements storage.Factory
@@ -227,7 +246,11 @@ func (f *Factory) CreateArchiveSpanReader() (spanstore.Reader, error) {
 	if f.archiveSession == nil {
 		return nil, storage.ErrArchiveStorageNotConfigured
 	}
-	return cSpanStore.NewSpanReader(f.archiveSession, f.archiveMetricsFactory, f.logger, f.tracer.Tracer("cSpanStore.SpanReader"))
+	sr, err := cSpanStore.NewSpanReader(f.archiveSession, f.archiveMetricsFactory, f.logger, f.tracer.Tracer("cSpanStore.SpanReader"))
+	if err != nil {
+		return sr, err
+	}
+	return spanstoremetrics.NewReaderDecorator(sr, f.archiveMetricsFactory), nil
 }
 
 // CreateArchiveSpanWriter implements storage.ArchiveFactory
@@ -255,7 +278,14 @@ func (f *Factory) CreateLock() (distributedlock.Lock, error) {
 
 // CreateSamplingStore implements storage.SamplingStoreFactory
 func (f *Factory) CreateSamplingStore(int /* maxBuckets */) (samplingstore.Store, error) {
-	return cSamplingStore.New(f.primarySession, f.primaryMetricsFactory, f.logger), nil
+	samplingMetricsFactory := f.metricsFactory.Namespace(
+		metrics.NSOptions{
+			Tags: map[string]string{
+				"role": "sampling",
+			},
+		},
+	)
+	return cSamplingStore.New(f.primarySession, samplingMetricsFactory, f.logger), nil
 }
 
 func writerOptions(opts *Options) ([]cSpanStore.Option, error) {
