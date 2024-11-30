@@ -12,7 +12,7 @@ timeout=600
 end_time=$((SECONDS + timeout))
 
 SKIP_APPLY_SCHEMA=${SKIP_APPLY_SCHEMA:-"false"}
-export CASSANDRA_CREATE_SCHEMA=SKIP_APPLY_SCHEMA
+export CASSANDRA_CREATE_SCHEMA=${SKIP_APPLY_SCHEMA}
 
 usage() {
   echo $"Usage: $0 <cassandra_version> <schema_version>"
