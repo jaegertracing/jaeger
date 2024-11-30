@@ -133,10 +133,7 @@ func (f *Factory) configureFromOptions(o *Options) {
 		o.others = make(map[string]*NamespaceConfig)
 	}
 	f.primaryConfig = o.GetPrimary()
-	if cfg := f.Options.Get(archiveStorageConfig); cfg != nil {
-		// avoid typed nil, see https://golang.org/doc/faq#nil_error
-		f.archiveConfig = cfg
-	}
+	f.archiveConfig = f.Options.Get(archiveStorageConfig)
 }
 
 // Initialize implements storage.Factory
