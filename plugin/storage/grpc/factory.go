@@ -168,7 +168,14 @@ func (f *Factory) newRemoteStorage(
 
 // CreateSpanReader implements storage.Factory
 func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
-	return spanstoremetrics.NewReaderDecorator(f.services.Store.SpanReader(), f.telset.Metrics), nil
+	primaryMetricsFactory := f.telset.Metrics.Namespace(
+		metrics.NSOptions{
+			Tags: map[string]string{
+				"role": "primary",
+			},
+		},
+	)
+	return spanstoremetrics.NewReaderDecorator(f.services.Store.SpanReader(), primaryMetricsFactory), nil
 }
 
 // CreateSpanWriter implements storage.Factory
@@ -198,7 +205,14 @@ func (f *Factory) CreateArchiveSpanReader() (spanstore.Reader, error) {
 	if capabilities == nil || !capabilities.ArchiveSpanReader {
 		return nil, storage.ErrArchiveStorageNotSupported
 	}
-	return f.services.ArchiveStore.ArchiveSpanReader(), nil
+	archiveMetricsFactory := f.telset.Metrics.Namespace(
+		metrics.NSOptions{
+			Tags: map[string]string{
+				"role": "archive",
+			},
+		},
+	)
+	return spanstoremetrics.NewReaderDecorator(f.services.ArchiveStore.ArchiveSpanReader(), archiveMetricsFactory), nil
 }
 
 // CreateArchiveSpanWriter implements storage.ArchiveFactory
