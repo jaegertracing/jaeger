@@ -12,6 +12,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/pdata/pcommon"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/model"
@@ -24,6 +26,7 @@ import (
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	spanstoremocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
 	"github.com/jaegertracing/jaeger/storage_v2/factoryadapter"
+	v2spanstore "github.com/jaegertracing/jaeger/storage_v2/spanstore"
 )
 
 const millisToNanosMultiplier = int64(time.Millisecond / time.Nanosecond)
@@ -106,6 +109,28 @@ func initializeTestService(optionAppliers ...testOption) *testQueryService {
 	return &tqs
 }
 
+type fakeReader struct{}
+
+func (*fakeReader) GetTrace(_ context.Context, _ pcommon.TraceID) (ptrace.Traces, error) {
+	panic("not implemented")
+}
+
+func (*fakeReader) GetServices(_ context.Context) ([]string, error) {
+	panic("not implemented")
+}
+
+func (*fakeReader) GetOperations(_ context.Context, _ v2spanstore.OperationQueryParameters) ([]v2spanstore.Operation, error) {
+	panic("not implemented")
+}
+
+func (*fakeReader) FindTraces(_ context.Context, _ v2spanstore.TraceQueryParameters) ([]ptrace.Traces, error) {
+	panic("not implemented")
+}
+
+func (*fakeReader) FindTraceIDs(_ context.Context, _ v2spanstore.TraceQueryParameters) ([]pcommon.TraceID, error) {
+	panic("not implemented")
+}
+
 // Test QueryService.GetTrace()
 func TestGetTraceSuccess(t *testing.T) {
 	tqs := initializeTestService()
@@ -129,6 +154,15 @@ func TestGetTraceNotFound(t *testing.T) {
 	ctx := context.Background()
 	_, err := tqs.queryService.GetTrace(context.WithValue(ctx, contextKey("foo"), "bar"), mockTraceID)
 	assert.Equal(t, err, spanstore.ErrTraceNotFound)
+}
+
+func TestGetTrace_V1ReaderNotFound(t *testing.T) {
+	fr := &fakeReader{}
+	qs := QueryService{
+		traceReader: fr,
+	}
+	_, err := qs.GetTrace(context.Background(), mockTraceID)
+	require.Error(t, err)
 }
 
 // Test QueryService.GetTrace() with ArchiveSpanReader
@@ -159,6 +193,15 @@ func TestGetServices(t *testing.T) {
 	assert.Equal(t, expectedServices, actualServices)
 }
 
+func TestGetServices_V1ReaderNotFound(t *testing.T) {
+	fr := &fakeReader{}
+	qs := QueryService{
+		traceReader: fr,
+	}
+	_, err := qs.GetServices(context.Background())
+	require.Error(t, err)
+}
+
 // Test QueryService.GetOperations() for success.
 func TestGetOperations(t *testing.T) {
 	tqs := initializeTestService()
@@ -175,6 +218,16 @@ func TestGetOperations(t *testing.T) {
 	actualOperations, err := tqs.queryService.GetOperations(context.WithValue(ctx, contextKey("foo"), "bar"), operationQuery)
 	require.NoError(t, err)
 	assert.Equal(t, expectedOperations, actualOperations)
+}
+
+func TestGetOperations_V1ReaderNotFound(t *testing.T) {
+	fr := &fakeReader{}
+	qs := QueryService{
+		traceReader: fr,
+	}
+	operationQuery := spanstore.OperationQueryParameters{ServiceName: "abc/trifle"}
+	_, err := qs.GetOperations(context.Background(), operationQuery)
+	require.Error(t, err)
 }
 
 // Test QueryService.FindTraces() for success.
@@ -196,6 +249,24 @@ func TestFindTraces(t *testing.T) {
 	traces, err := tqs.queryService.FindTraces(context.WithValue(ctx, contextKey("foo"), "bar"), params)
 	require.NoError(t, err)
 	assert.Len(t, traces, 1)
+}
+
+func TestFindTraces_V1ReaderNotFound(t *testing.T) {
+	fr := &fakeReader{}
+	qs := QueryService{
+		traceReader: fr,
+	}
+	duration, err := time.ParseDuration("20ms")
+	require.NoError(t, err)
+	params := &spanstore.TraceQueryParameters{
+		ServiceName:   "service",
+		OperationName: "operation",
+		StartTimeMax:  time.Now(),
+		DurationMin:   duration,
+		NumTraces:     200,
+	}
+	_, err = qs.FindTraces(context.Background(), params)
+	require.Error(t, err)
 }
 
 // Test QueryService.ArchiveTrace() with no ArchiveSpanWriter.
