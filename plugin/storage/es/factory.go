@@ -181,6 +181,10 @@ func (f *Factory) getArchiveClient() es.Client {
 
 // CreateSpanReader implements storage.Factory
 func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
+	sr, err := createSpanReader(f.getPrimaryClient, f.primaryConfig, false, f.logger, f.tracer)
+	if err != nil {
+		return sr, err
+	}
 	primaryMetricsFactory := f.metricsFactory.Namespace(
 		metrics.NSOptions{
 			Tags: map[string]string{
@@ -188,10 +192,6 @@ func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
 			},
 		},
 	)
-	sr, err := createSpanReader(f.getPrimaryClient, f.primaryConfig, false, primaryMetricsFactory, f.logger, f.tracer)
-	if err != nil {
-		return sr, err
-	}
 	return spanstoremetrics.NewReaderDecorator(sr, primaryMetricsFactory), nil
 }
 
@@ -217,6 +217,10 @@ func (f *Factory) CreateArchiveSpanReader() (spanstore.Reader, error) {
 	if !f.archiveConfig.Enabled {
 		return nil, nil
 	}
+	sr, err := createSpanReader(f.getArchiveClient, f.archiveConfig, true, f.logger, f.tracer)
+	if err != nil {
+		return sr, err
+	}
 	archiveMetricsFactory := f.metricsFactory.Namespace(
 		metrics.NSOptions{
 			Tags: map[string]string{
@@ -224,10 +228,6 @@ func (f *Factory) CreateArchiveSpanReader() (spanstore.Reader, error) {
 			},
 		},
 	)
-	sr, err := createSpanReader(f.getArchiveClient, f.archiveConfig, true, archiveMetricsFactory, f.logger, f.tracer)
-	if err != nil {
-		return sr, err
-	}
 	return spanstoremetrics.NewReaderDecorator(sr, archiveMetricsFactory), nil
 }
 
@@ -250,7 +250,6 @@ func createSpanReader(
 	clientFn func() es.Client,
 	cfg *config.Configuration,
 	archive bool,
-	mFactory metrics.Factory,
 	logger *zap.Logger,
 	tp trace.TracerProvider,
 ) (spanstore.Reader, error) {
@@ -269,7 +268,6 @@ func createSpanReader(
 		Archive:             archive,
 		RemoteReadClusters:  cfg.RemoteReadClusters,
 		Logger:              logger,
-		MetricsFactory:      mFactory,
 		Tracer:              tp.Tracer("esSpanStore.SpanReader"),
 	}), nil
 }
