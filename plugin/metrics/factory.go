@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/plugin"
 	"github.com/jaegertracing/jaeger/plugin/metrics/disabled"
 	"github.com/jaegertracing/jaeger/plugin/metrics/prometheus"
@@ -63,9 +64,15 @@ func (*Factory) getFactoryOfType(factoryType string) (storage.MetricsFactory, er
 }
 
 // Initialize implements storage.MetricsFactory.
-func (f *Factory) Initialize(logger *zap.Logger) error {
-	for _, factory := range f.factories {
-		factory.Initialize(logger)
+func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
+	for kind, factory := range f.factories {
+		mf := metricsFactory.Namespace(metrics.NSOptions{
+			Name: "storage",
+			Tags: map[string]string{
+				"kind": kind,
+			},
+		})
+		factory.Initialize(mf, logger)
 	}
 	return nil
 }

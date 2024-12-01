@@ -11,19 +11,22 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/prometheus/config"
 	"github.com/jaegertracing/jaeger/plugin"
 	prometheusstore "github.com/jaegertracing/jaeger/plugin/metrics/prometheus/metricsstore"
 	"github.com/jaegertracing/jaeger/storage/metricsstore"
+	"github.com/jaegertracing/jaeger/storage/metricsstore/metricstoremetrics"
 )
 
 var _ plugin.Configurable = (*Factory)(nil)
 
 // Factory implements storage.Factory and creates storage components backed by memory store.
 type Factory struct {
-	options *Options
-	logger  *zap.Logger
-	tracer  trace.TracerProvider
+	options        *Options
+	logger         *zap.Logger
+	tracer         trace.TracerProvider
+	metricsFactory metrics.Factory
 }
 
 // NewFactory creates a new Factory.
@@ -47,18 +50,23 @@ func (f *Factory) InitFromViper(v *viper.Viper, logger *zap.Logger) {
 }
 
 // Initialize implements storage.MetricsFactory.
-func (f *Factory) Initialize(logger *zap.Logger) error {
-	f.logger = logger
+func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
+	f.metricsFactory, f.logger = metricsFactory, logger
 	return nil
 }
 
 // CreateMetricsReader implements storage.MetricsFactory.
 func (f *Factory) CreateMetricsReader() (metricsstore.Reader, error) {
-	return prometheusstore.NewMetricsReader(f.options.Configuration, f.logger, f.tracer)
+	mr, err := prometheusstore.NewMetricsReader(f.options.Configuration, f.logger, f.tracer)
+	if err != nil {
+		return mr, err
+	}
+	return metricstoremetrics.NewReaderDecorator(mr, f.metricsFactory), nil
 }
 
 func NewFactoryWithConfig(
 	cfg config.Configuration,
+	metricsFactory metrics.Factory,
 	logger *zap.Logger,
 ) (*Factory, error) {
 	if err := cfg.Validate(); err != nil {
@@ -68,6 +76,6 @@ func NewFactoryWithConfig(
 	f.options = &Options{
 		Configuration: cfg,
 	}
-	f.Initialize(logger)
+	f.Initialize(metricsFactory, logger)
 	return f, nil
 }

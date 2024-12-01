@@ -39,7 +39,6 @@ import (
 	"github.com/jaegertracing/jaeger/plugin/storage"
 	"github.com/jaegertracing/jaeger/ports"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
-	"github.com/jaegertracing/jaeger/storage/metricsstore/metricstoremetrics"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
@@ -118,7 +117,7 @@ by default uses only in-memory database.`,
 				logger.Fatal("Failed to create dependency reader", zap.Error(err))
 			}
 
-			metricsQueryService, err := createMetricsQueryService(metricsReaderFactory, v, logger, queryMetricsFactory)
+			metricsQueryService, err := createMetricsQueryService(metricsReaderFactory, v, logger, baseFactory)
 			if err != nil {
 				logger.Fatal("Failed to create metrics reader", zap.Error(err))
 			}
@@ -241,7 +240,7 @@ func createMetricsQueryService(
 	logger *zap.Logger,
 	metricsReaderMetricsFactory metrics.Factory,
 ) (querysvc.MetricsQueryService, error) {
-	if err := metricsReaderFactory.Initialize(logger); err != nil {
+	if err := metricsReaderFactory.Initialize(metricsReaderMetricsFactory, logger); err != nil {
 		return nil, fmt.Errorf("failed to init metrics reader factory: %w", err)
 	}
 
@@ -252,6 +251,5 @@ func createMetricsQueryService(
 		return nil, fmt.Errorf("failed to create metrics reader: %w", err)
 	}
 
-	// Decorate the metrics reader with metrics instrumentation.
-	return metricstoremetrics.NewReaderDecorator(reader, metricsReaderMetricsFactory), nil
+	return reader, nil
 }

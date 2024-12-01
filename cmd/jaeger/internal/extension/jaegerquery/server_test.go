@@ -73,7 +73,7 @@ type fakeMetricsFactory struct {
 }
 
 // Initialize implements storage.MetricsFactory.
-func (fmf fakeMetricsFactory) Initialize(*zap.Logger) error {
+func (fmf fakeMetricsFactory) Initialize(metrics.Factory, *zap.Logger) error {
 	if fmf.name == "need-initialize-error" {
 		return errors.New("test-error")
 	}
