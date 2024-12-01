@@ -13,8 +13,8 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/config"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 	promCfg "github.com/jaegertracing/jaeger/pkg/prometheus/config"
+	"github.com/jaegertracing/jaeger/pkg/telemetry"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/storage"
 )
@@ -23,8 +23,8 @@ var _ storage.MetricsFactory = new(Factory)
 
 func TestPrometheusFactory(t *testing.T) {
 	f := NewFactory()
-	require.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
-	assert.NotNil(t, f.logger)
+	require.NoError(t, f.Initialize(telemetry.NoopSettings()))
+	assert.NotNil(t, f.telset)
 
 	listener, err := net.Listen("tcp", "localhost:")
 	require.NoError(t, err)
@@ -127,7 +127,7 @@ func TestFailedTLSOptions(t *testing.T) {
 
 func TestEmptyFactoryConfig(t *testing.T) {
 	cfg := promCfg.Configuration{}
-	_, err := NewFactoryWithConfig(cfg, metrics.NullFactory, zap.NewNop())
+	_, err := NewFactoryWithConfig(cfg, telemetry.NoopSettings())
 	require.Error(t, err)
 }
 
@@ -135,7 +135,7 @@ func TestFactoryConfig(t *testing.T) {
 	cfg := promCfg.Configuration{
 		ServerURL: "localhost:1234",
 	}
-	_, err := NewFactoryWithConfig(cfg, metrics.NullFactory, zap.NewNop())
+	_, err := NewFactoryWithConfig(cfg, telemetry.NoopSettings())
 	require.NoError(t, err)
 }
 

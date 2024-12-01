@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/pkg/telemetry"
 	"github.com/jaegertracing/jaeger/plugin/metrics/disabled"
 	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/mocks"
@@ -54,7 +54,7 @@ func TestCreateMetricsReader(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, f)
 
-	require.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
+	require.NoError(t, f.Initialize(telemetry.NoopSettings()))
 
 	reader, err := f.CreateMetricsReader()
 	require.NoError(t, err)

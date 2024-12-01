@@ -117,7 +117,7 @@ by default uses only in-memory database.`,
 				logger.Fatal("Failed to create dependency reader", zap.Error(err))
 			}
 
-			metricsQueryService, err := createMetricsQueryService(metricsReaderFactory, v, logger, baseFactory)
+			metricsQueryService, err := createMetricsQueryService(metricsReaderFactory, v, baseTelset)
 			if err != nil {
 				logger.Fatal("Failed to create metrics reader", zap.Error(err))
 			}
@@ -237,15 +237,14 @@ func startQuery(
 func createMetricsQueryService(
 	metricsReaderFactory *metricsPlugin.Factory,
 	v *viper.Viper,
-	logger *zap.Logger,
-	metricsReaderMetricsFactory metrics.Factory,
+	telset telemetry.Settings,
 ) (querysvc.MetricsQueryService, error) {
-	if err := metricsReaderFactory.Initialize(metricsReaderMetricsFactory, logger); err != nil {
+	if err := metricsReaderFactory.Initialize(telset); err != nil {
 		return nil, fmt.Errorf("failed to init metrics reader factory: %w", err)
 	}
 
 	// Ensure default parameter values are loaded correctly.
-	metricsReaderFactory.InitFromViper(v, logger)
+	metricsReaderFactory.InitFromViper(v, telset.Logger)
 	reader, err := metricsReaderFactory.CreateMetricsReader()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create metrics reader: %w", err)

@@ -12,6 +12,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/pkg/distributedlock"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/pkg/telemetry"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/metricsstore"
 	"github.com/jaegertracing/jaeger/storage/samplingstore"
@@ -86,7 +87,7 @@ type ArchiveFactory interface {
 type MetricsFactory interface {
 	// Initialize performs internal initialization of the factory, such as opening connections to the backend store.
 	// It is called after all configuration of the factory itself has been done.
-	Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error
+	Initialize(telset telemetry.Settings) error
 
 	// CreateMetricsReader creates a metricsstore.Reader.
 	CreateMetricsReader() (metricsstore.Reader, error)

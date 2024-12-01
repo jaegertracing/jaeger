@@ -177,10 +177,11 @@ func (s *storageExt) Start(_ context.Context, host component.Host) error {
 		var metricsFactory storage.MetricsFactory
 		var err error
 		if cfg.Prometheus != nil {
+			promTelset := telset
+			promTelset.Metrics = scopedMetricsFactory(metricStorageName, "prometheus")
 			metricsFactory, err = prometheus.NewFactoryWithConfig(
 				*cfg.Prometheus,
-				scopedMetricsFactory(metricStorageName, "prometheus"),
-				s.telset.Logger)
+				promTelset)
 		}
 		if err != nil {
 			return fmt.Errorf("failed to initialize metrics storage '%s': %w", metricStorageName, err)
