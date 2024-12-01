@@ -117,7 +117,7 @@ func newStorageExt(config *Config, telset component.TelemetrySettings) *storageE
 func (s *storageExt) Start(_ context.Context, host component.Host) error {
 	telset := telemetry.FromOtelComponent(s.telset, host)
 	telset.Metrics = telset.Metrics.Namespace(metrics.NSOptions{Name: "jaeger"})
-	getMetricsFactory := func(name, kind string) metrics.Factory {
+	scopedMetricsFactory := func(name, kind string) metrics.Factory {
 		return telset.Metrics.Namespace(metrics.NSOptions{
 			Name: "storage",
 			Tags: map[string]string{
@@ -134,35 +134,35 @@ func (s *storageExt) Start(_ context.Context, host component.Host) error {
 		case cfg.Memory != nil:
 			factory, err = memory.NewFactoryWithConfig(
 				*cfg.Memory,
-				getMetricsFactory(storageName, "memory"),
+				scopedMetricsFactory(storageName, "memory"),
 				s.telset.Logger,
 			), nil
 		case cfg.Badger != nil:
 			factory, err = badger.NewFactoryWithConfig(
 				*cfg.Badger,
-				getMetricsFactory(storageName, "badger"),
+				scopedMetricsFactory(storageName, "badger"),
 				s.telset.Logger)
 		case cfg.GRPC != nil:
 			grpcTelset := telset
-			grpcTelset.Metrics = getMetricsFactory(storageName, "grpc")
+			grpcTelset.Metrics = scopedMetricsFactory(storageName, "grpc")
 			//nolint: contextcheck
 			factory, err = grpc.NewFactoryWithConfig(*cfg.GRPC, grpcTelset)
 		case cfg.Cassandra != nil:
 			factory, err = cassandra.NewFactoryWithConfig(
 				*cfg.Cassandra,
-				getMetricsFactory(storageName, "cassandra"),
+				scopedMetricsFactory(storageName, "cassandra"),
 				s.telset.Logger,
 			)
 		case cfg.Elasticsearch != nil:
 			factory, err = es.NewFactoryWithConfig(
 				*cfg.Elasticsearch,
-				getMetricsFactory(storageName, "elasticsearch"),
+				scopedMetricsFactory(storageName, "elasticsearch"),
 				s.telset.Logger,
 			)
 		case cfg.Opensearch != nil:
 			factory, err = es.NewFactoryWithConfig(
 				*cfg.Opensearch,
-				getMetricsFactory(storageName, "opensearch"),
+				scopedMetricsFactory(storageName, "opensearch"),
 				s.telset.Logger,
 			)
 		}
@@ -179,7 +179,7 @@ func (s *storageExt) Start(_ context.Context, host component.Host) error {
 		if cfg.Prometheus != nil {
 			metricsFactory, err = prometheus.NewFactoryWithConfig(
 				*cfg.Prometheus,
-				getMetricsFactory(metricStorageName, "prometheus"),
+				scopedMetricsFactory(metricStorageName, "prometheus"),
 				s.telset.Logger)
 		}
 		if err != nil {
