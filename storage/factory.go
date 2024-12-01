@@ -86,7 +86,7 @@ type ArchiveFactory interface {
 type MetricsFactory interface {
 	// Initialize performs internal initialization of the factory, such as opening connections to the backend store.
 	// It is called after all configuration of the factory itself has been done.
-	Initialize(logger *zap.Logger) error
+	Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error
 
 	// CreateMetricsReader creates a metricsstore.Reader.
 	CreateMetricsReader() (metricsstore.Reader, error)
