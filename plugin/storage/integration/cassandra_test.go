@@ -52,7 +52,7 @@ func (*CassandraStorageIntegration) initializeCassandraFactory(t *testing.T, fla
 
 func (s *CassandraStorageIntegration) initializeCassandra(t *testing.T) {
 	username := os.Getenv("CASSANDRA_USERNAME")
-	password := os.Getenv("CASSANDRA_USERNAME")
+	password := os.Getenv("CASSANDRA_PASSWORD")
 	f := s.initializeCassandraFactory(t, []string{
 		"--cassandra.basic.allowed-authenticators=org.apache.cassandra.auth.PasswordAuthenticator",
 		"--cassandra.password=" + password,
