@@ -56,7 +56,7 @@ func (f *Factory) Initialize(telset telemetry.Settings) error {
 func (f *Factory) CreateMetricsReader() (metricsstore.Reader, error) {
 	mr, err := prometheusstore.NewMetricsReader(f.options.Configuration, f.telset.Logger, f.telset.TracerProvider)
 	if err != nil {
-		return mr, err
+		return nil, err
 	}
 	return metricstoremetrics.NewReaderDecorator(mr, f.telset.Metrics), nil
 }

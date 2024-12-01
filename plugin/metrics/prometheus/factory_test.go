@@ -38,6 +38,15 @@ func TestPrometheusFactory(t *testing.T) {
 	assert.NotNil(t, reader)
 }
 
+func TestCreateMetricsReaderError(t *testing.T) {
+	f := NewFactory()
+	f.options.TLS.CAFile = "/does/not/exist"
+	require.NoError(t, f.Initialize(telemetry.NoopSettings()))
+	reader, err := f.CreateMetricsReader()
+	require.Error(t, err)
+	require.Nil(t, reader)
+}
+
 func TestWithDefaultConfiguration(t *testing.T) {
 	f := NewFactory()
 	assert.Equal(t, "http://localhost:9090", f.options.ServerURL)
