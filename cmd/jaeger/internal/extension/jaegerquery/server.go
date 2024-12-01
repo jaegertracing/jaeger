@@ -15,14 +15,12 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
 	queryApp "github.com/jaegertracing/jaeger/cmd/query/app"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
-	"github.com/jaegertracing/jaeger/internal/metrics/otelmetrics"
 	"github.com/jaegertracing/jaeger/pkg/jtracer"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/telemetry"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/plugin/metrics/disabled"
 	"github.com/jaegertracing/jaeger/storage/metricsstore"
-	"github.com/jaegertracing/jaeger/storage/metricsstore/metricstoremetrics"
 )
 
 var (
@@ -156,10 +154,7 @@ func (s *server) createMetricReader(host component.Host) (metricsstore.Reader, e
 		return nil, fmt.Errorf("cannot create metrics reader %w", err)
 	}
 
-	// Decorate the metrics reader with metrics instrumentation.
-	mf := otelmetrics.NewFactory(s.telset.MeterProvider)
-	mf = mf.Namespace(metrics.NSOptions{Name: "jaeger_metricstore"})
-	return metricstoremetrics.NewReaderDecorator(metricsReader, mf), nil
+	return metricsReader, nil
 }
 
 func (s *server) Shutdown(ctx context.Context) error {

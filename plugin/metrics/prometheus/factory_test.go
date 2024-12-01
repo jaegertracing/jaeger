@@ -14,6 +14,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/pkg/config"
 	promCfg "github.com/jaegertracing/jaeger/pkg/prometheus/config"
+	"github.com/jaegertracing/jaeger/pkg/telemetry"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/storage"
 )
@@ -22,8 +23,8 @@ var _ storage.MetricsFactory = new(Factory)
 
 func TestPrometheusFactory(t *testing.T) {
 	f := NewFactory()
-	require.NoError(t, f.Initialize(zap.NewNop()))
-	assert.NotNil(t, f.logger)
+	require.NoError(t, f.Initialize(telemetry.NoopSettings()))
+	assert.NotNil(t, f.telset)
 
 	listener, err := net.Listen("tcp", "localhost:")
 	require.NoError(t, err)
@@ -35,6 +36,15 @@ func TestPrometheusFactory(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.NotNil(t, reader)
+}
+
+func TestCreateMetricsReaderError(t *testing.T) {
+	f := NewFactory()
+	f.options.TLS.CAFile = "/does/not/exist"
+	require.NoError(t, f.Initialize(telemetry.NoopSettings()))
+	reader, err := f.CreateMetricsReader()
+	require.Error(t, err)
+	require.Nil(t, reader)
 }
 
 func TestWithDefaultConfiguration(t *testing.T) {
@@ -126,7 +136,7 @@ func TestFailedTLSOptions(t *testing.T) {
 
 func TestEmptyFactoryConfig(t *testing.T) {
 	cfg := promCfg.Configuration{}
-	_, err := NewFactoryWithConfig(cfg, zap.NewNop())
+	_, err := NewFactoryWithConfig(cfg, telemetry.NoopSettings())
 	require.Error(t, err)
 }
 
@@ -134,7 +144,7 @@ func TestFactoryConfig(t *testing.T) {
 	cfg := promCfg.Configuration{
 		ServerURL: "localhost:1234",
 	}
-	_, err := NewFactoryWithConfig(cfg, zap.NewNop())
+	_, err := NewFactoryWithConfig(cfg, telemetry.NoopSettings())
 	require.NoError(t, err)
 }
 

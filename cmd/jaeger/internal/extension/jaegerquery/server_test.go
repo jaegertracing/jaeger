@@ -26,6 +26,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	"github.com/jaegertracing/jaeger/internal/grpctest"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/pkg/telemetry"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
@@ -73,7 +74,7 @@ type fakeMetricsFactory struct {
 }
 
 // Initialize implements storage.MetricsFactory.
-func (fmf fakeMetricsFactory) Initialize(*zap.Logger) error {
+func (fmf fakeMetricsFactory) Initialize(telemetry.Settings) error {
 	if fmf.name == "need-initialize-error" {
 		return errors.New("test-error")
 	}
