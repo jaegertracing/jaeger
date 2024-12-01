@@ -8,7 +8,9 @@
 package mocks
 
 import (
+	metrics "github.com/jaegertracing/jaeger/pkg/metrics"
 	metricsstore "github.com/jaegertracing/jaeger/storage/metricsstore"
+
 	mock "github.com/stretchr/testify/mock"
 
 	zap "go.uber.org/zap"
@@ -49,17 +51,17 @@ func (_m *MetricsFactory) CreateMetricsReader() (metricsstore.Reader, error) {
 	return r0, r1
 }
 
-// Initialize provides a mock function with given fields: logger
-func (_m *MetricsFactory) Initialize(logger *zap.Logger) error {
-	ret := _m.Called(logger)
+// Initialize provides a mock function with given fields: metricsFactory, logger
+func (_m *MetricsFactory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
+	ret := _m.Called(metricsFactory, logger)
 
 	if len(ret) == 0 {
 		panic("no return value specified for Initialize")
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(*zap.Logger) error); ok {
-		r0 = rf(logger)
+	if rf, ok := ret.Get(0).(func(metrics.Factory, *zap.Logger) error); ok {
+		r0 = rf(metricsFactory, logger)
 	} else {
 		r0 = ret.Error(0)
 	}
