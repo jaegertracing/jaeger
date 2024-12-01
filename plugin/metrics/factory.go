@@ -72,6 +72,7 @@ func (f *Factory) Initialize(telset telemetry.Settings) error {
 			Name: "storage",
 			Tags: map[string]string{
 				"kind": kind,
+				"role": "metricstore",
 			},
 		})
 		factory.Initialize(scopedTelset)
