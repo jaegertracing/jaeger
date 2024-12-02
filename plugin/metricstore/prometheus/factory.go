@@ -12,7 +12,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/prometheus/config"
 	"github.com/jaegertracing/jaeger/pkg/telemetry"
 	"github.com/jaegertracing/jaeger/plugin"
-	prometheusstore "github.com/jaegertracing/jaeger/plugin/metrics/prometheus/metricstore"
+	prometheusstore "github.com/jaegertracing/jaeger/plugin/metricstore/prometheus/metricstore"
 	"github.com/jaegertracing/jaeger/storage/metricsstore"
 	"github.com/jaegertracing/jaeger/storage/metricsstore/metricstoremetrics"
 )

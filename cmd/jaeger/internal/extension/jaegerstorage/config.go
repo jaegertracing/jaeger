@@ -15,7 +15,7 @@ import (
 	casCfg "github.com/jaegertracing/jaeger/pkg/cassandra/config"
 	esCfg "github.com/jaegertracing/jaeger/pkg/es/config"
 	promCfg "github.com/jaegertracing/jaeger/pkg/prometheus/config"
-	"github.com/jaegertracing/jaeger/plugin/metrics/prometheus"
+	"github.com/jaegertracing/jaeger/plugin/metricstore/prometheus"
 	"github.com/jaegertracing/jaeger/plugin/storage/badger"
 	"github.com/jaegertracing/jaeger/plugin/storage/cassandra"
 	"github.com/jaegertracing/jaeger/plugin/storage/es"
