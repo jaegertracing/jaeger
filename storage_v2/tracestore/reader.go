@@ -1,7 +1,7 @@
 // Copyright (c) 2024 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
-package spanstore
+package tracestore
 
 import (
 	"context"
@@ -10,11 +10,11 @@ import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
-	spanstore_v1 "github.com/jaegertracing/jaeger/storage/spanstore"
+	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
 // ErrTraceNotFound is returned by Reader's GetTrace if no data is found for given trace ID.
-var ErrTraceNotFound = spanstore_v1.ErrTraceNotFound
+var ErrTraceNotFound = spanstore.ErrTraceNotFound
 
 // Reader finds and loads traces and other data from storage.
 type Reader interface {
