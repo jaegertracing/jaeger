@@ -221,7 +221,7 @@ func NewSession(c *config.Configuration) (cassandra.Session, error) {
 func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
 	sr, err := cSpanStore.NewSpanReader(f.primarySession, f.primaryMetricsFactory, f.logger, f.tracer.Tracer("cSpanStore.SpanReader"))
 	if err != nil {
-		return sr, err
+		return nil, err
 	}
 	return spanstoremetrics.NewReaderDecorator(sr, f.primaryMetricsFactory), nil
 }
@@ -248,7 +248,7 @@ func (f *Factory) CreateArchiveSpanReader() (spanstore.Reader, error) {
 	}
 	sr, err := cSpanStore.NewSpanReader(f.archiveSession, f.archiveMetricsFactory, f.logger, f.tracer.Tracer("cSpanStore.SpanReader"))
 	if err != nil {
-		return sr, err
+		return nil, err
 	}
 	return spanstoremetrics.NewReaderDecorator(sr, f.archiveMetricsFactory), nil
 }
