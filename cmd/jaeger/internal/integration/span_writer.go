@@ -26,7 +26,7 @@ var (
 	_ io.Closer        = (*spanWriter)(nil)
 )
 
-// SpanWriter utilizes the OTLP exporter to send span data to the Jaeger-v2 receiver
+// spanWriter utilizes the OTLP exporter to send span data to the Jaeger-v2 receiver
 type spanWriter struct {
 	logger   *zap.Logger
 	exporter exporter.Traces

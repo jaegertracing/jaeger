@@ -29,7 +29,7 @@ type Alias struct {
 	Index string
 	// Alias name.
 	Name string
-	// IsWritedIndex option
+	// IsWriteIndex option
 	IsWriteIndex bool
 }
 
