@@ -32,7 +32,7 @@ import (
 type mockStorageExt struct {
 	name           string
 	factory        *factoryMocks.Factory
-	metricsFactory *factoryMocks.MetricsFactory
+	metricsFactory *factoryMocks.MetricStoreFactory
 }
 
 var _ jaegerstorage.Extension = (*mockStorageExt)(nil)
