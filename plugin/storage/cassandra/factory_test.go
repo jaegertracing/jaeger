@@ -117,7 +117,8 @@ func TestCreateSpanReaderError(t *testing.T) {
 		mock.Anything).Return(query)
 	query.On("Exec").Return(errors.New("table does not exist"))
 	f := NewFactory()
-	f.sessionBuilderFn = new(mockSessionBuilder).add(session, nil).build
+	f.archiveConfig = &config.Configuration{}
+	f.sessionBuilderFn = new(mockSessionBuilder).add(session, nil).add(session, nil).build
 	require.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
 	r, err := f.CreateSpanReader()
 	require.Error(t, err)
