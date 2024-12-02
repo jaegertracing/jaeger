@@ -13,13 +13,13 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/sanitizer"
-	"github.com/jaegertracing/jaeger/storage_v2/spanstore"
+	"github.com/jaegertracing/jaeger/storage_v2/tracestore"
 )
 
 type storageExporter struct {
 	config      *Config
 	logger      *zap.Logger
-	traceWriter spanstore.Writer
+	traceWriter tracestore.Writer
 	sanitizer   sanitizer.Func
 }
 
