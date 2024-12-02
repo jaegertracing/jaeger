@@ -106,6 +106,27 @@ func TestCassandraFactory(t *testing.T) {
 	require.NoError(t, f.Close())
 }
 
+func TestCreateSpanReaderError(t *testing.T) {
+	session := &mocks.Session{}
+	query := &mocks.Query{}
+	session.On("Query",
+		mock.AnythingOfType("string"),
+		mock.Anything).Return(query)
+	session.On("Query",
+		mock.AnythingOfType("string"),
+		mock.Anything).Return(query)
+	query.On("Exec").Return(errors.New("table does not exist"))
+	f := NewFactory()
+	f.sessionBuilderFn = new(mockSessionBuilder).add(session, nil).build
+	require.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
+	r, err := f.CreateSpanReader()
+	require.Error(t, err)
+	require.Nil(t, r)
+	ar, err := f.CreateArchiveSpanReader()
+	require.Error(t, err)
+	require.Nil(t, ar)
+}
+
 func TestExclusiveWhitelistBlacklist(t *testing.T) {
 	f := NewFactory()
 	v, command := viperize.Viperize(f.AddFlags)
