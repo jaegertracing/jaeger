@@ -69,7 +69,7 @@ func TestCreateMetricsReader(t *testing.T) {
 }
 
 type configurable struct {
-	mocks.MetricsFactory
+	mocks.MetricStoreFactory
 	flagSet *flag.FlagSet
 	viper   *viper.Viper
 	logger  *zap.Logger
