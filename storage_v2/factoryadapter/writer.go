@@ -10,15 +10,15 @@ import (
 	otlp2jaeger "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
-	spanstore_v1 "github.com/jaegertracing/jaeger/storage/spanstore"
+	"github.com/jaegertracing/jaeger/storage/spanstore"
 	"github.com/jaegertracing/jaeger/storage_v2/tracestore"
 )
 
 type TraceWriter struct {
-	spanWriter spanstore_v1.Writer
+	spanWriter spanstore.Writer
 }
 
-func NewTraceWriter(spanWriter spanstore_v1.Writer) tracestore.Writer {
+func NewTraceWriter(spanWriter spanstore.Writer) tracestore.Writer {
 	return &TraceWriter{
 		spanWriter: spanWriter,
 	}

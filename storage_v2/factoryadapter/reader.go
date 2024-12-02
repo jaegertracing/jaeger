@@ -10,24 +10,24 @@ import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
-	spanstore_v1 "github.com/jaegertracing/jaeger/storage/spanstore"
+	"github.com/jaegertracing/jaeger/storage/spanstore"
 	"github.com/jaegertracing/jaeger/storage_v2/tracestore"
 )
 
 var errV1ReaderNotAvailable = errors.New("spanstore.Reader is not a wrapper around v1 reader")
 
 type TraceReader struct {
-	spanReader spanstore_v1.Reader
+	spanReader spanstore.Reader
 }
 
-func GetV1Reader(reader tracestore.Reader) (spanstore_v1.Reader, error) {
+func GetV1Reader(reader tracestore.Reader) (spanstore.Reader, error) {
 	if tr, ok := reader.(*TraceReader); ok {
 		return tr.spanReader, nil
 	}
 	return nil, errV1ReaderNotAvailable
 }
 
-func NewTraceReader(spanReader spanstore_v1.Reader) *TraceReader {
+func NewTraceReader(spanReader spanstore.Reader) *TraceReader {
 	return &TraceReader{
 		spanReader: spanReader,
 	}
