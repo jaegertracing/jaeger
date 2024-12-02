@@ -26,7 +26,7 @@ import (
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	spanstoremocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
 	"github.com/jaegertracing/jaeger/storage_v2/factoryadapter"
-	v2spanstore "github.com/jaegertracing/jaeger/storage_v2/spanstore"
+	"github.com/jaegertracing/jaeger/storage_v2/tracestore"
 )
 
 const millisToNanosMultiplier = int64(time.Millisecond / time.Nanosecond)
@@ -119,15 +119,15 @@ func (*fakeReader) GetServices(_ context.Context) ([]string, error) {
 	panic("not implemented")
 }
 
-func (*fakeReader) GetOperations(_ context.Context, _ v2spanstore.OperationQueryParameters) ([]v2spanstore.Operation, error) {
+func (*fakeReader) GetOperations(_ context.Context, _ tracestore.OperationQueryParameters) ([]tracestore.Operation, error) {
 	panic("not implemented")
 }
 
-func (*fakeReader) FindTraces(_ context.Context, _ v2spanstore.TraceQueryParameters) ([]ptrace.Traces, error) {
+func (*fakeReader) FindTraces(_ context.Context, _ tracestore.TraceQueryParameters) ([]ptrace.Traces, error) {
 	panic("not implemented")
 }
 
-func (*fakeReader) FindTraceIDs(_ context.Context, _ v2spanstore.TraceQueryParameters) ([]pcommon.TraceID, error) {
+func (*fakeReader) FindTraceIDs(_ context.Context, _ tracestore.TraceQueryParameters) ([]pcommon.TraceID, error) {
 	panic("not implemented")
 }
 

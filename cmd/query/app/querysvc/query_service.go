@@ -14,9 +14,9 @@ import (
 	"github.com/jaegertracing/jaeger/model/adjuster"
 	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
-	spanstore_v1 "github.com/jaegertracing/jaeger/storage/spanstore"
+	"github.com/jaegertracing/jaeger/storage/spanstore"
 	"github.com/jaegertracing/jaeger/storage_v2/factoryadapter"
-	"github.com/jaegertracing/jaeger/storage_v2/spanstore"
+	"github.com/jaegertracing/jaeger/storage_v2/tracestore"
 )
 
 var errNoArchiveSpanStorage = errors.New("archive span storage was not configured")
@@ -27,8 +27,8 @@ const (
 
 // QueryServiceOptions has optional members of QueryService
 type QueryServiceOptions struct {
-	ArchiveSpanReader spanstore_v1.Reader
-	ArchiveSpanWriter spanstore_v1.Writer
+	ArchiveSpanReader spanstore.Reader
+	ArchiveSpanWriter spanstore.Writer
 	Adjuster          adjuster.Adjuster
 }
 
@@ -42,13 +42,13 @@ type StorageCapabilities struct {
 
 // QueryService contains span utils required by the query-service.
 type QueryService struct {
-	traceReader      spanstore.Reader
+	traceReader      tracestore.Reader
 	dependencyReader dependencystore.Reader
 	options          QueryServiceOptions
 }
 
 // NewQueryService returns a new QueryService.
-func NewQueryService(traceReader spanstore.Reader, dependencyReader dependencystore.Reader, options QueryServiceOptions) *QueryService {
+func NewQueryService(traceReader tracestore.Reader, dependencyReader dependencystore.Reader, options QueryServiceOptions) *QueryService {
 	qsvc := &QueryService{
 		traceReader:      traceReader,
 		dependencyReader: dependencyReader,
@@ -89,8 +89,8 @@ func (qs QueryService) GetServices(ctx context.Context) ([]string, error) {
 // GetOperations is the queryService implementation of spanstore.Reader.GetOperations
 func (qs QueryService) GetOperations(
 	ctx context.Context,
-	query spanstore_v1.OperationQueryParameters,
-) ([]spanstore_v1.Operation, error) {
+	query spanstore.OperationQueryParameters,
+) ([]spanstore.Operation, error) {
 	spanReader, err := factoryadapter.GetV1Reader(qs.traceReader)
 	if err != nil {
 		return nil, err
@@ -99,7 +99,7 @@ func (qs QueryService) GetOperations(
 }
 
 // FindTraces is the queryService implementation of spanstore.Reader.FindTraces
-func (qs QueryService) FindTraces(ctx context.Context, query *spanstore_v1.TraceQueryParameters) ([]*model.Trace, error) {
+func (qs QueryService) FindTraces(ctx context.Context, query *spanstore.TraceQueryParameters) ([]*model.Trace, error) {
 	spanReader, err := factoryadapter.GetV1Reader(qs.traceReader)
 	if err != nil {
 		return nil, err

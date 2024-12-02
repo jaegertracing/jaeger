@@ -40,7 +40,7 @@ import (
 	"github.com/jaegertracing/jaeger/ports"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage_v2/factoryadapter"
-	"github.com/jaegertracing/jaeger/storage_v2/spanstore"
+	"github.com/jaegertracing/jaeger/storage_v2/tracestore"
 )
 
 // all-in-one/main is a standalone full-stack jaeger backend, backed by a memory store
@@ -217,7 +217,7 @@ func startQuery(
 	svc *flags.Service,
 	qOpts *queryApp.QueryOptions,
 	queryOpts *querysvc.QueryServiceOptions,
-	traceReader spanstore.Reader,
+	traceReader tracestore.Reader,
 	depReader dependencystore.Reader,
 	metricsQueryService querysvc.MetricsQueryService,
 	tm *tenancy.Manager,
