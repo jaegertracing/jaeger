@@ -31,8 +31,8 @@ import (
 	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	depsmocks "github.com/jaegertracing/jaeger/storage/dependencystore/mocks"
-	"github.com/jaegertracing/jaeger/storage/metricsstore"
-	metricsstoremocks "github.com/jaegertracing/jaeger/storage/metricsstore/mocks"
+	"github.com/jaegertracing/jaeger/storage/metricstore"
+	metricstoremocks "github.com/jaegertracing/jaeger/storage/metricstore/mocks"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	spanstoremocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
 )
@@ -81,11 +81,11 @@ func (fmf fakeMetricsFactory) Initialize(telemetry.Settings) error {
 	return nil
 }
 
-func (fmf fakeMetricsFactory) CreateMetricsReader() (metricsstore.Reader, error) {
+func (fmf fakeMetricsFactory) CreateMetricsReader() (metricstore.Reader, error) {
 	if fmf.name == "need-metrics-reader-error" {
 		return nil, errors.New("test-error")
 	}
-	return &metricsstoremocks.Reader{}, nil
+	return &metricstoremocks.Reader{}, nil
 }
 
 type fakeStorageExt struct{}
@@ -99,7 +99,7 @@ func (fakeStorageExt) TraceStorageFactory(name string) (storage.Factory, bool) {
 	return fakeFactory{name: name}, true
 }
 
-func (fakeStorageExt) MetricStorageFactory(name string) (storage.MetricsFactory, bool) {
+func (fakeStorageExt) MetricStorageFactory(name string) (storage.MetricStoreFactory, bool) {
 	if name == "need-factory-error" {
 		return nil, false
 	}

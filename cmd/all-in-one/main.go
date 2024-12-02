@@ -34,7 +34,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/telemetry"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/pkg/version"
-	metricsPlugin "github.com/jaegertracing/jaeger/plugin/metrics"
+	"github.com/jaegertracing/jaeger/plugin/metricstore"
 	ss "github.com/jaegertracing/jaeger/plugin/sampling/strategyprovider"
 	"github.com/jaegertracing/jaeger/plugin/storage"
 	"github.com/jaegertracing/jaeger/ports"
@@ -64,8 +64,8 @@ func main() {
 		log.Fatalf("Cannot initialize sampling strategy factory: %v", err)
 	}
 
-	fc := metricsPlugin.FactoryConfigFromEnv()
-	metricsReaderFactory, err := metricsPlugin.NewFactory(fc)
+	fc := metricstore.FactoryConfigFromEnv()
+	metricsReaderFactory, err := metricstore.NewFactory(fc)
 	if err != nil {
 		log.Fatalf("Cannot initialize metrics store factory: %v", err)
 	}
@@ -235,7 +235,7 @@ func startQuery(
 }
 
 func createMetricsQueryService(
-	metricsReaderFactory *metricsPlugin.Factory,
+	metricsReaderFactory *metricstore.Factory,
 	v *viper.Viper,
 	telset telemetry.Settings,
 ) (querysvc.MetricsQueryService, error) {
