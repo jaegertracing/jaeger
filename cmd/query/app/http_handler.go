@@ -28,7 +28,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/jtracer"
 	"github.com/jaegertracing/jaeger/plugin/metricstore/disabled"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2/metrics"
-	"github.com/jaegertracing/jaeger/storage/metricsstore"
+	"github.com/jaegertracing/jaeger/storage/metricstore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
@@ -306,8 +306,8 @@ func (aH *APIHandler) latencies(w http.ResponseWriter, r *http.Request) {
 		aH.handleError(w, newParseError(err, quantileParam), http.StatusBadRequest)
 		return
 	}
-	aH.metrics(w, r, func(ctx context.Context, baseParams metricsstore.BaseQueryParameters) (*metrics.MetricFamily, error) {
-		return aH.metricsQueryService.GetLatencies(ctx, &metricsstore.LatenciesQueryParameters{
+	aH.metrics(w, r, func(ctx context.Context, baseParams metricstore.BaseQueryParameters) (*metrics.MetricFamily, error) {
+		return aH.metricsQueryService.GetLatencies(ctx, &metricstore.LatenciesQueryParameters{
 			BaseQueryParameters: baseParams,
 			Quantile:            q,
 		})
@@ -315,23 +315,23 @@ func (aH *APIHandler) latencies(w http.ResponseWriter, r *http.Request) {
 }
 
 func (aH *APIHandler) calls(w http.ResponseWriter, r *http.Request) {
-	aH.metrics(w, r, func(ctx context.Context, baseParams metricsstore.BaseQueryParameters) (*metrics.MetricFamily, error) {
-		return aH.metricsQueryService.GetCallRates(ctx, &metricsstore.CallRateQueryParameters{
+	aH.metrics(w, r, func(ctx context.Context, baseParams metricstore.BaseQueryParameters) (*metrics.MetricFamily, error) {
+		return aH.metricsQueryService.GetCallRates(ctx, &metricstore.CallRateQueryParameters{
 			BaseQueryParameters: baseParams,
 		})
 	})
 }
 
 func (aH *APIHandler) errors(w http.ResponseWriter, r *http.Request) {
-	aH.metrics(w, r, func(ctx context.Context, baseParams metricsstore.BaseQueryParameters) (*metrics.MetricFamily, error) {
-		return aH.metricsQueryService.GetErrorRates(ctx, &metricsstore.ErrorRateQueryParameters{
+	aH.metrics(w, r, func(ctx context.Context, baseParams metricstore.BaseQueryParameters) (*metrics.MetricFamily, error) {
+		return aH.metricsQueryService.GetErrorRates(ctx, &metricstore.ErrorRateQueryParameters{
 			BaseQueryParameters: baseParams,
 		})
 	})
 }
 
 func (aH *APIHandler) minStep(w http.ResponseWriter, r *http.Request) {
-	minStep, err := aH.metricsQueryService.GetMinStepDuration(r.Context(), &metricsstore.MinStepDurationQueryParameters{})
+	minStep, err := aH.metricsQueryService.GetMinStepDuration(r.Context(), &metricstore.MinStepDurationQueryParameters{})
 	if aH.handleError(w, err, http.StatusInternalServerError) {
 		return
 	}
@@ -342,7 +342,7 @@ func (aH *APIHandler) minStep(w http.ResponseWriter, r *http.Request) {
 	aH.writeJSON(w, r, &structuredRes)
 }
 
-func (aH *APIHandler) metrics(w http.ResponseWriter, r *http.Request, getMetrics func(context.Context, metricsstore.BaseQueryParameters) (*metrics.MetricFamily, error)) {
+func (aH *APIHandler) metrics(w http.ResponseWriter, r *http.Request, getMetrics func(context.Context, metricstore.BaseQueryParameters) (*metrics.MetricFamily, error)) {
 	requestParams, err := aH.queryParser.parseMetricsQueryParams(r)
 	if aH.handleError(w, err, http.StatusBadRequest) {
 		return
