@@ -9,8 +9,9 @@ import (
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/pkg/telemetry"
 	"github.com/jaegertracing/jaeger/plugin"
-	"github.com/jaegertracing/jaeger/storage/metricsstore"
+	"github.com/jaegertracing/jaeger/storage/metricstore"
 )
 
 var _ plugin.Configurable = (*Factory)(nil)
@@ -30,11 +31,11 @@ func (*Factory) AddFlags(_ *flag.FlagSet) {}
 func (*Factory) InitFromViper(_ *viper.Viper, _ *zap.Logger) {}
 
 // Initialize implements storage.MetricsFactory.
-func (*Factory) Initialize(_ *zap.Logger) error {
+func (*Factory) Initialize(_ telemetry.Settings) error {
 	return nil
 }
 
 // CreateMetricsReader implements storage.MetricsFactory.
-func (*Factory) CreateMetricsReader() (metricsstore.Reader, error) {
+func (*Factory) CreateMetricsReader() (metricstore.Reader, error) {
 	return NewMetricsReader()
 }

@@ -15,7 +15,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2/metrics"
-	"github.com/jaegertracing/jaeger/storage/metricsstore"
+	"github.com/jaegertracing/jaeger/storage/metricstore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
@@ -232,7 +232,7 @@ func (p *queryParser) parseDependenciesQueryParams(r *http.Request) (dqp depende
 //	spanKinds ::= spanKind | spanKind '&' spanKinds
 //	spanKind ::= 'spanKind=' spanKindType
 //	spanKindType ::= "unspecified" | "internal" | "server" | "client" | "producer" | "consumer"
-func (p *queryParser) parseMetricsQueryParams(r *http.Request) (bqp metricsstore.BaseQueryParameters, err error) {
+func (p *queryParser) parseMetricsQueryParams(r *http.Request) (bqp metricstore.BaseQueryParameters, err error) {
 	query := r.URL.Query()
 	services, ok := query[serviceParam]
 	if !ok {

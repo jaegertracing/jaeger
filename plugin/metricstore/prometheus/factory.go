@@ -7,14 +7,14 @@ import (
 	"flag"
 
 	"github.com/spf13/viper"
-	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/prometheus/config"
+	"github.com/jaegertracing/jaeger/pkg/telemetry"
 	"github.com/jaegertracing/jaeger/plugin"
-	prometheusstore "github.com/jaegertracing/jaeger/plugin/metrics/prometheus/metricsstore"
-	"github.com/jaegertracing/jaeger/storage/metricsstore"
+	prometheusstore "github.com/jaegertracing/jaeger/plugin/metricstore/prometheus/metricstore"
+	"github.com/jaegertracing/jaeger/storage/metricstore"
+	"github.com/jaegertracing/jaeger/storage/metricstore/metricstoremetrics"
 )
 
 var _ plugin.Configurable = (*Factory)(nil)
@@ -22,14 +22,14 @@ var _ plugin.Configurable = (*Factory)(nil)
 // Factory implements storage.Factory and creates storage components backed by memory store.
 type Factory struct {
 	options *Options
-	logger  *zap.Logger
-	tracer  trace.TracerProvider
+	telset  telemetry.Settings
 }
 
 // NewFactory creates a new Factory.
 func NewFactory() *Factory {
+	telset := telemetry.NoopSettings()
 	return &Factory{
-		tracer:  otel.GetTracerProvider(),
+		telset:  telset,
 		options: NewOptions(),
 	}
 }
@@ -47,19 +47,23 @@ func (f *Factory) InitFromViper(v *viper.Viper, logger *zap.Logger) {
 }
 
 // Initialize implements storage.MetricsFactory.
-func (f *Factory) Initialize(logger *zap.Logger) error {
-	f.logger = logger
+func (f *Factory) Initialize(telset telemetry.Settings) error {
+	f.telset = telset
 	return nil
 }
 
 // CreateMetricsReader implements storage.MetricsFactory.
-func (f *Factory) CreateMetricsReader() (metricsstore.Reader, error) {
-	return prometheusstore.NewMetricsReader(f.options.Configuration, f.logger, f.tracer)
+func (f *Factory) CreateMetricsReader() (metricstore.Reader, error) {
+	mr, err := prometheusstore.NewMetricsReader(f.options.Configuration, f.telset.Logger, f.telset.TracerProvider)
+	if err != nil {
+		return nil, err
+	}
+	return metricstoremetrics.NewReaderDecorator(mr, f.telset.Metrics), nil
 }
 
 func NewFactoryWithConfig(
 	cfg config.Configuration,
-	logger *zap.Logger,
+	telset telemetry.Settings,
 ) (*Factory, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err
@@ -68,6 +72,6 @@ func NewFactoryWithConfig(
 	f.options = &Options{
 		Configuration: cfg,
 	}
-	f.Initialize(logger)
+	f.Initialize(telset)
 	return f, nil
 }

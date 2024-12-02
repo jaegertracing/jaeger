@@ -64,7 +64,7 @@ packages:
   github.com/jaegertracing/jaeger/storage/dependencystore:
     interfaces:
       Reader:
-  github.com/jaegertracing/jaeger/storage/metricsstore:
+  github.com/jaegertracing/jaeger/storage/metricstore:
     config:
       all: true
   github.com/jaegertracing/jaeger/storage/samplingstore:

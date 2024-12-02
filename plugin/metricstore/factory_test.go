@@ -1,7 +1,7 @@
 // Copyright (c) 2021 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
-package metrics
+package metricstore
 
 import (
 	"flag"
@@ -12,12 +12,13 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/plugin/metrics/disabled"
+	"github.com/jaegertracing/jaeger/pkg/telemetry"
+	"github.com/jaegertracing/jaeger/plugin/metricstore/disabled"
 	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/mocks"
 )
 
-var _ storage.MetricsFactory = new(Factory)
+var _ storage.MetricStoreFactory = new(Factory)
 
 func withConfig(storageType string) FactoryConfig {
 	return FactoryConfig{
@@ -53,7 +54,7 @@ func TestCreateMetricsReader(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, f)
 
-	require.NoError(t, f.Initialize(zap.NewNop()))
+	require.NoError(t, f.Initialize(telemetry.NoopSettings()))
 
 	reader, err := f.CreateMetricsReader()
 	require.NoError(t, err)

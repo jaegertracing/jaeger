@@ -103,7 +103,7 @@ func DefaultConfiguration() Configuration {
 			TraceTTL:          2 * 24 * time.Hour,
 			DependenciesTTL:   2 * 24 * time.Hour,
 			ReplicationFactor: 1,
-			CompactionWindow:  time.Minute,
+			CompactionWindow:  2 * time.Hour,
 		},
 		Connection: Connection{
 			Servers:            []string{"127.0.0.1"},

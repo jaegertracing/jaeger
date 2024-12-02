@@ -34,12 +34,12 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/telemetry"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/pkg/version"
-	metricsPlugin "github.com/jaegertracing/jaeger/plugin/metrics"
+	"github.com/jaegertracing/jaeger/plugin/metricstore"
 	ss "github.com/jaegertracing/jaeger/plugin/sampling/strategyprovider"
 	"github.com/jaegertracing/jaeger/plugin/storage"
 	"github.com/jaegertracing/jaeger/ports"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
-	"github.com/jaegertracing/jaeger/storage/metricsstore/metricstoremetrics"
+	"github.com/jaegertracing/jaeger/storage/metricstore/metricstoremetrics"
 	"github.com/jaegertracing/jaeger/storage_v2/factoryadapter"
 	"github.com/jaegertracing/jaeger/storage_v2/spanstore"
 )
@@ -66,8 +66,8 @@ func main() {
 		log.Fatalf("Cannot initialize sampling strategy factory: %v", err)
 	}
 
-	fc := metricsPlugin.FactoryConfigFromEnv()
-	metricsReaderFactory, err := metricsPlugin.NewFactory(fc)
+	fc := metricstore.FactoryConfigFromEnv()
+	metricsReaderFactory, err := metricstore.NewFactory(fc)
 	if err != nil {
 		log.Fatalf("Cannot initialize metrics store factory: %v", err)
 	}
@@ -120,7 +120,7 @@ by default uses only in-memory database.`,
 				logger.Fatal("Failed to create dependency reader", zap.Error(err))
 			}
 
-			metricsQueryService, err := createMetricsQueryService(metricsReaderFactory, v, logger, queryMetricsFactory)
+			metricsQueryService, err := createMetricsQueryService(metricsReaderFactory, v, baseTelset)
 			if err != nil {
 				logger.Fatal("Failed to create metrics reader", zap.Error(err))
 			}
@@ -238,22 +238,20 @@ func startQuery(
 }
 
 func createMetricsQueryService(
-	metricsReaderFactory *metricsPlugin.Factory,
+	metricsReaderFactory *metricstore.Factory,
 	v *viper.Viper,
-	logger *zap.Logger,
-	metricsReaderMetricsFactory metrics.Factory,
+	telset telemetry.Settings,
 ) (querysvc.MetricsQueryService, error) {
-	if err := metricsReaderFactory.Initialize(logger); err != nil {
+	if err := metricsReaderFactory.Initialize(telset); err != nil {
 		return nil, fmt.Errorf("failed to init metrics reader factory: %w", err)
 	}
 
 	// Ensure default parameter values are loaded correctly.
-	metricsReaderFactory.InitFromViper(v, logger)
+	metricsReaderFactory.InitFromViper(v, telset.Logger)
 	reader, err := metricsReaderFactory.CreateMetricsReader()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create metrics reader: %w", err)
 	}
 
-	// Decorate the metrics reader with metrics instrumentation.
-	return metricstoremetrics.NewReaderDecorator(reader, metricsReaderMetricsFactory), nil
+	return reader, nil
 }

@@ -10,16 +10,17 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/pkg/telemetry"
 	"github.com/jaegertracing/jaeger/storage"
 )
 
-var _ storage.MetricsFactory = new(Factory)
+var _ storage.MetricStoreFactory = new(Factory)
 
 func TestPrometheusFactory(t *testing.T) {
 	f := NewFactory()
-	require.NoError(t, f.Initialize(zap.NewNop()))
+	require.NoError(t, f.Initialize(telemetry.NoopSettings()))
 
-	err := f.Initialize(nil)
+	err := f.Initialize(telemetry.NoopSettings())
 	require.NoError(t, err)
 
 	f.AddFlags(nil)
