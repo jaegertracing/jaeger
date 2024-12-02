@@ -30,14 +30,14 @@ var _ Extension = (*storageExt)(nil)
 type Extension interface {
 	extension.Extension
 	TraceStorageFactory(name string) (storage.Factory, bool)
-	MetricStorageFactory(name string) (storage.MetricsFactory, bool)
+	MetricStorageFactory(name string) (storage.MetricStoreFactory, bool)
 }
 
 type storageExt struct {
 	config           *Config
 	telset           component.TelemetrySettings
 	factories        map[string]storage.Factory
-	metricsFactories map[string]storage.MetricsFactory
+	metricsFactories map[string]storage.MetricStoreFactory
 }
 
 // GetStorageFactory locates the extension in Host and retrieves
@@ -59,7 +59,7 @@ func GetStorageFactory(name string, host component.Host) (storage.Factory, error
 
 // GetMetricStorageFactory locates the extension in Host and retrieves
 // a metric storage factory from it with the given name.
-func GetMetricStorageFactory(name string, host component.Host) (storage.MetricsFactory, error) {
+func GetMetricStorageFactory(name string, host component.Host) (storage.MetricStoreFactory, error) {
 	ext, err := findExtension(host)
 	if err != nil {
 		return nil, err
@@ -110,7 +110,7 @@ func newStorageExt(config *Config, telset component.TelemetrySettings) *storageE
 		config:           config,
 		telset:           telset,
 		factories:        make(map[string]storage.Factory),
-		metricsFactories: make(map[string]storage.MetricsFactory),
+		metricsFactories: make(map[string]storage.MetricStoreFactory),
 	}
 }
 
@@ -175,7 +175,7 @@ func (s *storageExt) Start(_ context.Context, host component.Host) error {
 
 	for metricStorageName, cfg := range s.config.MetricBackends {
 		s.telset.Logger.Sugar().Infof("Initializing metrics storage '%s'", metricStorageName)
-		var metricsFactory storage.MetricsFactory
+		var metricsFactory storage.MetricStoreFactory
 		var err error
 		if cfg.Prometheus != nil {
 			promTelset := telset
@@ -211,7 +211,7 @@ func (s *storageExt) TraceStorageFactory(name string) (storage.Factory, bool) {
 	return f, ok
 }
 
-func (s *storageExt) MetricStorageFactory(name string) (storage.MetricsFactory, bool) {
+func (s *storageExt) MetricStorageFactory(name string) (storage.MetricStoreFactory, bool) {
 	mf, ok := s.metricsFactories[name]
 	return mf, ok
 }
