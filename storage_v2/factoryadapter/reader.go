@@ -11,7 +11,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	spanstore_v1 "github.com/jaegertracing/jaeger/storage/spanstore"
-	"github.com/jaegertracing/jaeger/storage_v2/spanstore"
+	"github.com/jaegertracing/jaeger/storage_v2/tracestore"
 )
 
 var errV1ReaderNotAvailable = errors.New("spanstore.Reader is not a wrapper around v1 reader")
@@ -20,7 +20,7 @@ type TraceReader struct {
 	spanReader spanstore_v1.Reader
 }
 
-func GetV1Reader(reader spanstore.Reader) (spanstore_v1.Reader, error) {
+func GetV1Reader(reader tracestore.Reader) (spanstore_v1.Reader, error) {
 	if tr, ok := reader.(*TraceReader); ok {
 		return tr.spanReader, nil
 	}
@@ -41,14 +41,14 @@ func (*TraceReader) GetServices(_ context.Context) ([]string, error) {
 	panic("not implemented")
 }
 
-func (*TraceReader) GetOperations(_ context.Context, _ spanstore.OperationQueryParameters) ([]spanstore.Operation, error) {
+func (*TraceReader) GetOperations(_ context.Context, _ tracestore.OperationQueryParameters) ([]tracestore.Operation, error) {
 	panic("not implemented")
 }
 
-func (*TraceReader) FindTraces(_ context.Context, _ spanstore.TraceQueryParameters) ([]ptrace.Traces, error) {
+func (*TraceReader) FindTraces(_ context.Context, _ tracestore.TraceQueryParameters) ([]ptrace.Traces, error) {
 	panic("not implemented")
 }
 
-func (*TraceReader) FindTraceIDs(_ context.Context, _ spanstore.TraceQueryParameters) ([]pcommon.TraceID, error) {
+func (*TraceReader) FindTraceIDs(_ context.Context, _ tracestore.TraceQueryParameters) ([]pcommon.TraceID, error) {
 	panic("not implemented")
 }

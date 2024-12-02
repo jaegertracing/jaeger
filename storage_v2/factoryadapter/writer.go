@@ -11,20 +11,20 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	spanstore_v1 "github.com/jaegertracing/jaeger/storage/spanstore"
-	"github.com/jaegertracing/jaeger/storage_v2/spanstore"
+	"github.com/jaegertracing/jaeger/storage_v2/tracestore"
 )
 
 type TraceWriter struct {
 	spanWriter spanstore_v1.Writer
 }
 
-func NewTraceWriter(spanWriter spanstore_v1.Writer) spanstore.Writer {
+func NewTraceWriter(spanWriter spanstore_v1.Writer) tracestore.Writer {
 	return &TraceWriter{
 		spanWriter: spanWriter,
 	}
 }
 
-// WriteTraces implements spanstore.Writer.
+// WriteTraces implements tracestore.Writer.
 func (t *TraceWriter) WriteTraces(ctx context.Context, td ptrace.Traces) error {
 	batches := otlp2jaeger.ProtoFromTraces(td)
 	var errs []error
