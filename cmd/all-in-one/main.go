@@ -39,7 +39,6 @@ import (
 	"github.com/jaegertracing/jaeger/plugin/storage"
 	"github.com/jaegertracing/jaeger/ports"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
-	"github.com/jaegertracing/jaeger/storage/metricstore/metricstoremetrics"
 	"github.com/jaegertracing/jaeger/storage_v2/factoryadapter"
 	"github.com/jaegertracing/jaeger/storage_v2/spanstore"
 )

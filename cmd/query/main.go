@@ -32,7 +32,6 @@ import (
 	metricsPlugin "github.com/jaegertracing/jaeger/plugin/metricstore"
 	"github.com/jaegertracing/jaeger/plugin/storage"
 	"github.com/jaegertracing/jaeger/ports"
-	"github.com/jaegertracing/jaeger/storage/metricstore/metricstoremetrics"
 	"github.com/jaegertracing/jaeger/storage_v2/factoryadapter"
 )
 
