@@ -12,7 +12,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger/plugin/storage/memory"
-	"github.com/jaegertracing/jaeger/storage_v2/spanstore"
+	"github.com/jaegertracing/jaeger/storage_v2/tracestore"
 )
 
 func TestGetV1Reader_NoError(t *testing.T) {
@@ -35,15 +35,15 @@ func (*fakeReader) GetServices(_ context.Context) ([]string, error) {
 	panic("not implemented")
 }
 
-func (*fakeReader) GetOperations(_ context.Context, _ spanstore.OperationQueryParameters) ([]spanstore.Operation, error) {
+func (*fakeReader) GetOperations(_ context.Context, _ tracestore.OperationQueryParameters) ([]tracestore.Operation, error) {
 	panic("not implemented")
 }
 
-func (*fakeReader) FindTraces(_ context.Context, _ spanstore.TraceQueryParameters) ([]ptrace.Traces, error) {
+func (*fakeReader) FindTraces(_ context.Context, _ tracestore.TraceQueryParameters) ([]ptrace.Traces, error) {
 	panic("not implemented")
 }
 
-func (*fakeReader) FindTraceIDs(_ context.Context, _ spanstore.TraceQueryParameters) ([]pcommon.TraceID, error) {
+func (*fakeReader) FindTraceIDs(_ context.Context, _ tracestore.TraceQueryParameters) ([]pcommon.TraceID, error) {
 	panic("not implemented")
 }
 
@@ -76,7 +76,7 @@ func TestTraceReader_GetOperationsPanics(t *testing.T) {
 	}
 	require.Panics(
 		t,
-		func() { traceReader.GetOperations(context.Background(), spanstore.OperationQueryParameters{}) },
+		func() { traceReader.GetOperations(context.Background(), tracestore.OperationQueryParameters{}) },
 	)
 }
 
@@ -87,7 +87,7 @@ func TestTraceReader_FindTracesPanics(t *testing.T) {
 	}
 	require.Panics(
 		t,
-		func() { traceReader.FindTraces(context.Background(), spanstore.TraceQueryParameters{}) },
+		func() { traceReader.FindTraces(context.Background(), tracestore.TraceQueryParameters{}) },
 	)
 }
 
@@ -98,6 +98,6 @@ func TestTraceReader_FindTraceIDsPanics(t *testing.T) {
 	}
 	require.Panics(
 		t,
-		func() { traceReader.FindTraceIDs(context.Background(), spanstore.TraceQueryParameters{}) },
+		func() { traceReader.FindTraceIDs(context.Background(), tracestore.TraceQueryParameters{}) },
 	)
 }
