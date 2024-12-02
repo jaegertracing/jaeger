@@ -799,3 +799,33 @@ func TestApplyForIndexPrefix(t *testing.T) {
 func TestMain(m *testing.M) {
 	testutils.VerifyGoLeaks(m)
 }
+
+func TestCleanerValidate(t *testing.T) {
+	tests := []struct {
+		name    string
+		cleaner *Cleaner
+		wantErr bool
+	}{
+		{
+			name:    "Valid Cleaner",
+			cleaner: &Cleaner{Enabled: true, Frequency: time.Minute, IncludeArchive: true},
+			wantErr: false,
+		},
+		{
+			name:    "Invalid Frequency",
+			cleaner: &Cleaner{Enabled: true, Frequency: 0, IncludeArchive: true},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.cleaner.Validate()
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}

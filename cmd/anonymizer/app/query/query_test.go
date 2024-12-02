@@ -7,6 +7,7 @@ import (
 	"net"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -77,6 +78,7 @@ func newTestServer(t *testing.T) *testServer {
 		assert.NoError(t, server.Serve(lis))
 		exited.Done()
 	}()
+	time.Sleep(time.Second)
 	t.Cleanup(func() {
 		server.Stop()
 		exited.Wait() // don't allow test to finish before server exits
