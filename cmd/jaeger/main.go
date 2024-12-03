@@ -24,8 +24,6 @@ func main() {
 		command,
 	)
 
-	internal.StartCleaner(v)
-
 	if err := command.Execute(); err != nil {
 		log.Fatal(err)
 	}
