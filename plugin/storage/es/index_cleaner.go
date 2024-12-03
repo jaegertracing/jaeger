@@ -9,11 +9,11 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/es/config"
 )
 
-type ConfigWrapper struct {
+type CleanerConfigWrapper struct {
 	*config.Configuration
 }
 
-func (cfg *ConfigWrapper) RunCleaner() {
+func (cfg *CleanerConfigWrapper) RunCleaner() {
 	if !cfg.IndexCleaner.Enabled {
 		log.Println("Cleaner is disabled, skipping...")
 		return
@@ -34,7 +34,7 @@ func (cfg *ConfigWrapper) RunCleaner() {
 }
 
 // runESIndexCleaner runs the cmd/es-index-cleaner command.
-func (cfg *ConfigWrapper) runESIndexCleaner() error {
+func (cfg *CleanerConfigWrapper) runESIndexCleaner() error {
 	cmd := exec.Command("./cmd/es-index-cleaner")
 	cmd.Args = append(cmd.Args, "--max-span-age", cfg.MaxSpanAge.String())
 

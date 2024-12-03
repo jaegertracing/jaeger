@@ -43,6 +43,13 @@ type IndexCleaner struct {
 	Frequency time.Duration `mapstructure:"frequency" validate:"gt=0"`
 }
 
+// Rollover struct for configuring roll over
+type Rollover struct {
+	Enabled      bool          `mapstructure:"enabled" valid:"required"`
+	IndexPattern string        `mapstructure:"index_pattern" valid:"required"`
+	Frequency    time.Duration `mapstructure:"frequency" validate:"gt=0"`
+}
+
 // IndexOptions describes the index format and rollover frequency
 type IndexOptions struct {
 	// Priority contains the priority of index template (ESv8 only).
@@ -146,6 +153,8 @@ type Configuration struct {
 	// ---- ES-specific config ----
 	// IndexCleaner holds the configuration for the Elasticsearch index Cleaner.
 	IndexCleaner IndexCleaner `mapstructure:"index_cleaner"`
+	// Rollover holds the configuration for the Elasticsearh roll over.
+	Rollover Rollover `mapstructure:"roll_over"`
 }
 
 // TagsAsFields holds configuration for tag schema.
