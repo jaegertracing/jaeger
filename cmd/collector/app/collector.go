@@ -161,11 +161,11 @@ func (c *Collector) Close() error {
 
 	// Stop HTTP server
 	if c.hServer != nil {
-		// timeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		if err := c.hServer.Close(); err != nil {
+		timeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		if err := c.hServer.Shutdown(timeout); err != nil {
 			c.logger.Fatal("failed to stop the main HTTP server", zap.Error(err))
 		}
-		// defer cancel()
+		defer cancel()
 	}
 
 	// Stop Zipkin receiver
