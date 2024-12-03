@@ -30,9 +30,10 @@ import (
 func TestFailToListen(t *testing.T) {
 	logger, _ := zap.NewDevelopment()
 	server, err := StartGRPCServer(&GRPCServerParams{
-		ServerConfig: &configgrpc.ServerConfig{
+		ServerConfig: configgrpc.ServerConfig{
 			NetAddr: confignet.AddrConfig{
-				Endpoint: ":-1",
+				Endpoint:  ":-1",
+				Transport: confignet.TransportTypeTCP,
 			},
 		},
 		Handler:          handler.NewGRPCHandler(logger, &mockSpanProcessor{}, &tenancy.Manager{}),
@@ -72,8 +73,11 @@ func TestSpanCollector(t *testing.T) {
 		Handler:          handler.NewGRPCHandler(logger, &mockSpanProcessor{}, &tenancy.Manager{}),
 		SamplingProvider: &mockSamplingProvider{},
 		Logger:           logger,
-		ServerConfig: &configgrpc.ServerConfig{
-			MaxRecvMsgSizeMiB: 1,
+		ServerConfig: configgrpc.ServerConfig{
+			MaxRecvMsgSizeMiB: 2,
+			NetAddr: confignet.AddrConfig{
+				Transport: confignet.TransportTypeTCP,
+			},
 		},
 	}
 
@@ -105,7 +109,10 @@ func TestCollectorStartWithTLS(t *testing.T) {
 		Handler:          handler.NewGRPCHandler(logger, &mockSpanProcessor{}, &tenancy.Manager{}),
 		SamplingProvider: &mockSamplingProvider{},
 		Logger:           logger,
-		ServerConfig: &configgrpc.ServerConfig{
+		ServerConfig: configgrpc.ServerConfig{
+			NetAddr: confignet.AddrConfig{
+				Transport: confignet.TransportTypeTCP,
+			},
 			TLSSetting: opts.ToOtelServerConfig(),
 		},
 	}
@@ -120,6 +127,11 @@ func TestCollectorReflection(t *testing.T) {
 		Handler:          handler.NewGRPCHandler(logger, &mockSpanProcessor{}, &tenancy.Manager{}),
 		SamplingProvider: &mockSamplingProvider{},
 		Logger:           logger,
+		ServerConfig: configgrpc.ServerConfig{
+			NetAddr: confignet.AddrConfig{
+				Transport: confignet.TransportTypeTCP,
+			},
+		},
 	}
 
 	server, err := StartGRPCServer(params)

@@ -107,7 +107,7 @@ func TestCollectorOptionsWithFlags_CheckMaxReceiveMessageLength(t *testing.T) {
 	_, err := c.InitFromViper(v, zap.NewNop())
 	require.NoError(t, err)
 
-	assert.Equal(t, 8388608, c.GRPC.MaxRecvMsgSizeMiB)
+	assert.Equal(t, 8, c.GRPC.MaxRecvMsgSizeMiB)
 }
 
 func TestCollectorOptionsWithFlags_CheckMaxConnectionAge(t *testing.T) {
@@ -174,7 +174,7 @@ func TestCollectorOptionsWithFlags_CheckFullTenancy(t *testing.T) {
 // 	})
 // 	c.InitFromViper(v, zap.NewNop())
 
-// 	assert.False(t, c.Zipkin.KeepAlive)
+// 	assert.False(t, c.Zipkin.)
 // }
 
 func TestMain(m *testing.M) {

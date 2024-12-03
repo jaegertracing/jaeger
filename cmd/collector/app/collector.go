@@ -9,8 +9,6 @@ import (
 	"net/http"
 	"time"
 
-	"go.opentelemetry.io/collector/config/configgrpc"
-	"go.opentelemetry.io/collector/config/confignet"
 	"go.opentelemetry.io/collector/receiver"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -104,23 +102,15 @@ func (c *Collector) Start(options *flags.CollectorOptions) error {
 		Handler:          c.spanHandlers.GRPCHandler,
 		SamplingProvider: c.samplingProvider,
 		Logger:           c.logger,
-		ServerConfig: &configgrpc.ServerConfig{
-			NetAddr: confignet.AddrConfig{
-				Endpoint: options.GRPC.NetAddr.Endpoint,
-			},
-			TLSSetting:        options.GRPC.TLSSetting,
-			MaxRecvMsgSizeMiB: options.GRPC.MaxRecvMsgSizeMiB,
-			Keepalive:         options.GRPC.Keepalive,
-		},
+		ServerConfig:     options.GRPC,
 	})
 	if err != nil {
 		return fmt.Errorf("could not start gRPC server: %w", err)
 	}
 	c.grpcServer = grpcServer
 	httpServer, err := server.StartHTTPServer(&server.HTTPServerParams{
-		HostPort:         options.HTTP.Endpoint,
+		ServerConfig:     options.HTTP,
 		Handler:          c.spanHandlers.JaegerBatchesHandler,
-		TLSConfig:        options.HTTP.TLSSetting,
 		HealthCheck:      c.hCheck,
 		MetricsFactory:   c.metricsFactory,
 		SamplingProvider: c.samplingProvider,
@@ -171,11 +161,11 @@ func (c *Collector) Close() error {
 
 	// Stop HTTP server
 	if c.hServer != nil {
-		timeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		if err := c.hServer.Shutdown(timeout); err != nil {
+		// timeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		if err := c.hServer.Close(); err != nil {
 			c.logger.Fatal("failed to stop the main HTTP server", zap.Error(err))
 		}
-		defer cancel()
+		// defer cancel()
 	}
 
 	// Stop Zipkin receiver

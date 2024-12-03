@@ -87,8 +87,15 @@ var otlpServerFlagsCfg = struct {
 	},
 }
 
-var tlsZipkinFlagsConfig = tlscfg.ServerFlagsConfig{
-	Prefix: "collector.zipkin",
+var zipkinServerFlagsCfg = struct {
+	HTTP serverFlagsConfig
+}{
+	HTTP: serverFlagsConfig{
+		prefix: "collector.zipkin",
+		tls: tlscfg.ServerFlagsConfig{
+			Prefix: "collector.zipkin",
+		},
+	},
 }
 
 var corsZipkinFlags = corscfg.Flags{
@@ -150,7 +157,7 @@ func AddFlags(flagSet *flag.FlagSet) {
 
 	flagSet.String(flagZipkinHTTPHostPort, "", "The host:port (e.g. 127.0.0.1:9411 or :9411) of the collector's Zipkin server (disabled by default)")
 	flagSet.Bool(flagZipkinKeepAliveEnabled, true, "KeepAlive configures allow Keep-Alive for Zipkin HTTP server (enabled by default)")
-	tlsZipkinFlagsConfig.AddFlags(flagSet)
+	zipkinServerFlagsCfg.HTTP.tls.AddFlags(flagSet)
 	corsZipkinFlags.AddFlags(flagSet)
 
 	tenancy.AddFlags(flagSet)
@@ -205,7 +212,7 @@ func initGRPCFromViper(v *viper.Viper, _ *zap.Logger, opts *configgrpc.ServerCon
 	}
 	opts.TLSSetting = tlsOpts.ToOtelServerConfig()
 	opts.NetAddr.Endpoint = ports.FormatHostPort(v.GetString(cfg.prefix + "." + flagSuffixHostPort))
-	opts.MaxRecvMsgSizeMiB = v.GetInt(cfg.prefix+"."+flagSuffixGRPCMaxReceiveMessageLength) * 1024 * 1024
+	opts.MaxRecvMsgSizeMiB = v.GetInt(cfg.prefix+"."+flagSuffixGRPCMaxReceiveMessageLength) / (1024 * 1024)
 	opts.Keepalive = &configgrpc.KeepaliveServerConfig{
 		ServerParameters: &configgrpc.KeepaliveServerParameters{
 			MaxConnectionAge:      v.GetDuration(cfg.prefix + "." + flagSuffixGRPCMaxConnectionAge),
@@ -239,17 +246,15 @@ func (cOpts *CollectorOptions) InitFromViper(v *viper.Viper, logger *zap.Logger)
 	}
 	corsOpts := corsOTLPFlags.InitFromViper(v)
 	cOpts.OTLP.HTTP.CORS = corsOpts.ToOTELCorsConfig()
-	if err := initGRPCFromViper(v, logger, &cOpts.GRPC, otlpServerFlagsCfg.GRPC); err != nil {
+	if err := initGRPCFromViper(v, logger, &cOpts.OTLP.GRPC, otlpServerFlagsCfg.GRPC); err != nil {
 		return cOpts, fmt.Errorf("failed to parse OTLP/gRPC server options: %w", err)
 	}
 
 	// cOpts.Zipkin. = v.GetBool(flagZipkinKeepAliveEnabled)
-	cOpts.Zipkin.Endpoint = ports.FormatHostPort(v.GetString(flagZipkinHTTPHostPort))
-	tlsZipkin, err := tlsZipkinFlagsConfig.InitFromViper(v)
-	if err != nil {
-		return cOpts, fmt.Errorf("failed to parse Zipkin TLS options: %w", err)
+
+	if err := initHTTPFromViper(v, logger, &cOpts.Zipkin, zipkinServerFlagsCfg.HTTP); err != nil {
+		return cOpts, fmt.Errorf("failed to parse Zipkin server options: %w", err)
 	}
-	cOpts.Zipkin.TLSSetting = tlsZipkin.ToOtelServerConfig()
 	corsOpts = corsZipkinFlags.InitFromViper(v)
 	cOpts.Zipkin.CORS = corsOpts.ToOTELCorsConfig()
 

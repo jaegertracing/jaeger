@@ -8,7 +8,11 @@ import (
 	"fmt"
 	"net"
 
+	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/configgrpc"
+	"go.opentelemetry.io/collector/config/configtelemetry"
+	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/metric/noop"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -25,7 +29,7 @@ import (
 
 // GRPCServerParams to construct a new Jaeger Collector gRPC Server
 type GRPCServerParams struct {
-	*configgrpc.ServerConfig
+	configgrpc.ServerConfig
 	Handler          *handler.GRPCHandler
 	SamplingProvider samplingstrategy.Provider
 	Logger           *zap.Logger
@@ -38,16 +42,16 @@ type GRPCServerParams struct {
 // StartGRPCServer based on the given parameters
 func StartGRPCServer(params *GRPCServerParams) (*grpc.Server, error) {
 	var server *grpc.Server
-	var grpcOpts []grpc.ServerOption
+	var grpcOpts []configgrpc.ToServerOption
 
 	if params.MaxRecvMsgSizeMiB > 0 {
-		grpcOpts = append(grpcOpts, grpc.MaxRecvMsgSize(params.MaxRecvMsgSizeMiB))
+		grpcOpts = append(grpcOpts, configgrpc.WithGrpcServerOption(grpc.MaxRecvMsgSize(params.MaxRecvMsgSizeMiB)))
 	}
 	if params.Keepalive != nil {
-		grpcOpts = append(grpcOpts, grpc.KeepaliveParams(keepalive.ServerParameters{
+		grpcOpts = append(grpcOpts, configgrpc.WithGrpcServerOption(grpc.KeepaliveParams(keepalive.ServerParameters{
 			MaxConnectionAge:      params.Keepalive.ServerParameters.MaxConnectionAge,
 			MaxConnectionAgeGrace: params.Keepalive.ServerParameters.MaxConnectionAgeGrace,
-		}))
+		})))
 	}
 
 	if params.TLSSetting != nil {
@@ -58,13 +62,20 @@ func StartGRPCServer(params *GRPCServerParams) (*grpc.Server, error) {
 		}
 
 		creds := credentials.NewTLS(tlsCfg)
-		grpcOpts = append(grpcOpts, grpc.Creds(creds))
+		grpcOpts = append(grpcOpts, configgrpc.WithGrpcServerOption(grpc.Creds(creds)))
 	}
 
-	server = grpc.NewServer(grpcOpts...)
+	server, err := params.ToServer(context.Background(), nil, component.TelemetrySettings{
+		Logger: params.Logger,
+		LeveledMeterProvider: func(_ configtelemetry.Level) metric.MeterProvider {
+			return noop.NewMeterProvider()
+		},
+	}, grpcOpts...)
+	if err != nil {
+		return nil, err
+	}
 	reflection.Register(server)
-	fmt.Printf("grpc endpoint %v \n", params.NetAddr.Endpoint)
-	listener, err := net.Listen("tcp", params.NetAddr.Endpoint)
+	listener, err := params.NetAddr.Listen(context.Background())
 	if err != nil {
 		return nil, fmt.Errorf("failed to listen on gRPC port: %w", err)
 	}

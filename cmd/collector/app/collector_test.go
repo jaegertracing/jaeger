@@ -15,6 +15,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/config/configgrpc"
+	"go.opentelemetry.io/collector/config/confighttp"
+	"go.opentelemetry.io/collector/config/confignet"
+	"go.opentelemetry.io/collector/config/configtls"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/flags"
@@ -36,7 +39,11 @@ func optionsForEphemeralPorts() *flags.CollectorOptions {
 			MaxConnectionIdle: 10,
 		},
 	}
-	collectorOpts.HTTP.Endpoint = ":0"
+	collectorOpts.GRPC.NetAddr.Transport = confignet.TransportTypeTCP
+	collectorOpts.HTTP = confighttp.ServerConfig{
+		Endpoint:   ":0",
+		TLSSetting: &configtls.ServerConfig{},
+	}
 	collectorOpts.OTLP.Enabled = true
 	collectorOpts.OTLP.GRPC.NetAddr.Endpoint = ":0"
 	collectorOpts.OTLP.GRPC.Keepalive = &configgrpc.KeepaliveServerConfig{
@@ -44,7 +51,12 @@ func optionsForEphemeralPorts() *flags.CollectorOptions {
 			MaxConnectionIdle: 10,
 		},
 	}
-	collectorOpts.OTLP.HTTP.Endpoint = ":0"
+	collectorOpts.OTLP.GRPC.NetAddr.Transport = confignet.TransportTypeTCP
+
+	collectorOpts.OTLP.HTTP = confighttp.ServerConfig{
+		Endpoint:   ":0",
+		TLSSetting: &configtls.ServerConfig{},
+	}
 	collectorOpts.Zipkin.Endpoint = ":0"
 	collectorOpts.Tenancy = tenancy.Options{}
 	return collectorOpts

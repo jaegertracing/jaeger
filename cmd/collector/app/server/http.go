@@ -7,10 +7,13 @@ import (
 	"context"
 	"net"
 	"net/http"
-	"time"
 
 	"github.com/gorilla/mux"
-	"go.opentelemetry.io/collector/config/configtls"
+	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/config/confighttp"
+	"go.opentelemetry.io/collector/config/configtelemetry"
+	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/metric/noop"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
@@ -25,43 +28,31 @@ import (
 
 // HTTPServerParams to construct a new Jaeger Collector HTTP Server
 type HTTPServerParams struct {
-	TLSConfig        *configtls.ServerConfig
-	HostPort         string
+	confighttp.ServerConfig
 	Handler          handler.JaegerBatchesHandler
 	SamplingProvider samplingstrategy.Provider
 	MetricsFactory   metrics.Factory
 	HealthCheck      *healthcheck.HealthCheck
 	Logger           *zap.Logger
-
-	// ReadTimeout sets the respective parameter of http.Server
-	ReadTimeout time.Duration
-	// ReadHeaderTimeout sets the respective parameter of http.Server
-	ReadHeaderTimeout time.Duration
-	// IdleTimeout sets the respective parameter of http.Server
-	IdleTimeout time.Duration
 }
 
 // StartHTTPServer based on the given parameters
 func StartHTTPServer(params *HTTPServerParams) (*http.Server, error) {
-	params.Logger.Info("Starting jaeger-collector HTTP server", zap.String("http host-port", params.HostPort))
+	params.Logger.Info("Starting jaeger-collector HTTP server", zap.String("http host-port", params.Endpoint))
 
 	errorLog, _ := zap.NewStdLogAt(params.Logger, zapcore.ErrorLevel)
-	server := &http.Server{
-		Addr:              params.HostPort,
-		ReadTimeout:       params.ReadTimeout,
-		ReadHeaderTimeout: params.ReadHeaderTimeout,
-		IdleTimeout:       params.IdleTimeout,
-		ErrorLog:          errorLog,
-	}
-	if params.TLSConfig != nil {
-		tlsCfg, err := params.TLSConfig.LoadTLSConfig(context.Background())
-		if err != nil {
-			return nil, err
-		}
-		server.TLSConfig = tlsCfg
+	server, err := params.ToServer(context.Background(), nil, component.TelemetrySettings{
+		Logger: params.Logger,
+		LeveledMeterProvider: func(_ configtelemetry.Level) metric.MeterProvider {
+			return noop.NewMeterProvider()
+		},
+	}, nil)
+	server.ErrorLog = errorLog
+	if err != nil {
+		return nil, err
 	}
 
-	listener, err := net.Listen("tcp", params.HostPort)
+	listener, err := params.ToListener(context.Background())
 	if err != nil {
 		return nil, err
 	}
@@ -91,8 +82,8 @@ func serveHTTP(server *http.Server, listener net.Listener, params *HTTPServerPar
 	server.Handler = httpmetrics.Wrap(recoveryHandler(r), params.MetricsFactory, params.Logger)
 	go func() {
 		var err error
-		if params.TLSConfig != nil {
-			err = server.ServeTLS(listener, "", "")
+		if params.TLSSetting != nil {
+			err = server.ServeTLS(listener,params.TLSSetting.CertFile, params.TLSSetting.KeyFile)
 		} else {
 			err = server.Serve(listener)
 		}

@@ -16,6 +16,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/config/confighttp"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/handler"
@@ -31,8 +32,10 @@ var testCertKeyLocation = "../../../../pkg/config/tlscfg/testdata"
 func TestFailToListenHTTP(t *testing.T) {
 	logger, _ := zap.NewDevelopment()
 	server, err := StartHTTPServer(&HTTPServerParams{
-		HostPort: ":-1",
-		Logger:   logger,
+		ServerConfig: confighttp.ServerConfig{
+			Endpoint: ":-1",
+		},
+		Logger: logger,
 	})
 	assert.Nil(t, server)
 	require.EqualError(t, err, "listen tcp: address -1: invalid port")
@@ -48,10 +51,12 @@ func TestCreateTLSHTTPServerError(t *testing.T) {
 	}
 
 	params := &HTTPServerParams{
-		HostPort:    fmt.Sprintf(":%d", ports.CollectorHTTP),
+		ServerConfig: confighttp.ServerConfig{
+			Endpoint:   fmt.Sprintf(":%d", ports.CollectorHTTP),
+			TLSSetting: tlsCfg.ToOtelServerConfig(),
+		},
 		HealthCheck: healthcheck.New(),
 		Logger:      logger,
-		TLSConfig:   tlsCfg.ToOtelServerConfig(),
 	}
 	_, err := StartHTTPServer(params)
 	require.Error(t, err)
@@ -188,13 +193,15 @@ func TestSpanCollectorHTTPS(t *testing.T) {
 			mFact := metricstest.NewFactory(time.Hour)
 			defer mFact.Backend.Stop()
 			params := &HTTPServerParams{
-				HostPort:         fmt.Sprintf(":%d", ports.CollectorHTTP),
+				ServerConfig: confighttp.ServerConfig{
+					Endpoint:   fmt.Sprintf(":%d", ports.CollectorHTTP),
+					TLSSetting: test.TLS.ToOtelServerConfig(),
+				},
 				Handler:          handler.NewJaegerSpanHandler(logger, &mockSpanProcessor{}),
 				SamplingProvider: &mockSamplingProvider{},
 				MetricsFactory:   mFact,
 				HealthCheck:      healthcheck.New(),
 				Logger:           logger,
-				TLSConfig:        test.TLS.ToOtelServerConfig(),
 			}
 
 			server, err := StartHTTPServer(params)
@@ -248,15 +255,17 @@ func TestStartHTTPServerParams(t *testing.T) {
 	mFact := metricstest.NewFactory(time.Hour)
 	defer mFact.Stop()
 	params := &HTTPServerParams{
-		HostPort:          fmt.Sprintf(":%d", ports.CollectorHTTP),
-		Handler:           handler.NewJaegerSpanHandler(logger, &mockSpanProcessor{}),
-		SamplingProvider:  &mockSamplingProvider{},
-		MetricsFactory:    mFact,
-		HealthCheck:       healthcheck.New(),
-		Logger:            logger,
-		IdleTimeout:       5 * time.Minute,
-		ReadTimeout:       6 * time.Minute,
-		ReadHeaderTimeout: 7 * time.Second,
+		ServerConfig: confighttp.ServerConfig{
+			Endpoint:          fmt.Sprintf(":%d", ports.CollectorHTTP),
+			IdleTimeout:       5 * time.Minute,
+			ReadTimeout:       6 * time.Minute,
+			ReadHeaderTimeout: 7 * time.Second,
+		},
+		Handler:          handler.NewJaegerSpanHandler(logger, &mockSpanProcessor{}),
+		SamplingProvider: &mockSamplingProvider{},
+		MetricsFactory:   mFact,
+		HealthCheck:      healthcheck.New(),
+		Logger:           logger,
 	}
 
 	server, err := StartHTTPServer(params)

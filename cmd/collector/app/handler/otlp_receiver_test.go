@@ -35,6 +35,7 @@ func optionsWithPorts(port string) *flags.CollectorOptions {
 			Endpoint: port,
 		},
 	}
+	opts.OTLP.GRPC.NetAddr.Transport = confignet.TransportTypeTCP
 	return opts
 }
 
