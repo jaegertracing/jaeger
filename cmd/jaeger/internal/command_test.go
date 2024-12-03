@@ -24,6 +24,11 @@ func TestCommand(t *testing.T) {
 	cmd.ParseFlags([]string{"--config", "bad-file-name"})
 	err := cmd.Execute()
 	require.ErrorContains(t, err, "bad-file-name")
+
+	t.Run("Should have es-mappings command", func(t *testing.T) {
+		_, _, subCommand := cmd.Find([]string{"es-mappings"})
+		assert.NotNil(t, subCommand)
+	})
 }
 
 func TestCheckConfigAndRun_DefaultConfig(t *testing.T) {
@@ -50,4 +55,15 @@ func TestCheckConfigAndRun_DefaultConfig(t *testing.T) {
 	}
 	err = checkConfigAndRun(cmd, nil, getCfgErr, runE)
 	require.ErrorIs(t, err, errGetCfg)
+
+	t.Run("Should load custom config if provided", func(t *testing.T) {
+		cmd.Flags().Set("config", "custom-config.yaml")
+		getCfg := func(name string) ([]byte, error) {
+			assert.Equal(t, "custom-config.yaml", name)
+			return []byte("custom-config"), nil
+		}
+
+		err := checkConfigAndRun(cmd, nil, getCfg, runE)
+		require.NoError(t, err)
+	})
 }

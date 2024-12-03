@@ -19,6 +19,7 @@ import (
 	"go.opentelemetry.io/collector/otelcol"
 
 	"github.com/jaegertracing/jaeger/pkg/version"
+	"github.com/jaegertracing/jaeger/plugin/storage/es"
 )
 
 //go:embed all-in-one.yaml
@@ -58,6 +59,8 @@ func Command() *cobra.Command {
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
 		return checkConfigAndRun(cmd, args, yamlAllInOne.ReadFile, otelRunE)
 	}
+
+	cmd.AddCommand(es.NewEsMappingsCommand())
 
 	cmd.Short = description
 	cmd.Long = description
