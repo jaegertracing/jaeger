@@ -224,6 +224,10 @@ func TestXYZsearch(t *testing.T) {
 			Elasticsearch: &esCfg.Configuration{
 				Servers:  []string{server.URL},
 				LogLevel: "error",
+				Rollover: esCfg.Rollover{
+					Enabled:      true,
+					IndexPattern: "index-*",
+				},
 			},
 		})
 	})
@@ -232,6 +236,10 @@ func TestXYZsearch(t *testing.T) {
 			Opensearch: &esCfg.Configuration{
 				Servers:  []string{server.URL},
 				LogLevel: "error",
+				Rollover: esCfg.Rollover{
+					Enabled:      true,
+					IndexPattern: "index-*",
+				},
 			},
 		})
 	})

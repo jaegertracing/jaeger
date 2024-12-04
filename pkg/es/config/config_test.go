@@ -733,6 +733,10 @@ func TestValidate(t *testing.T) {
 			name: "All valid input are set",
 			config: &Configuration{
 				Servers: []string{"localhost:8000/dummyserver"},
+				Rollover: Rollover{
+					Enabled:      true,
+					IndexPattern: "index-*",
+				},
 			},
 			expectedError: false,
 		},

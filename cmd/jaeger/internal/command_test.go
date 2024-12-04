@@ -23,11 +23,13 @@ func TestCommand(t *testing.T) {
 
 	cmd.ParseFlags([]string{"--config", "bad-file-name"})
 	err := cmd.Execute()
+	require.Error(t, err)
 	require.ErrorContains(t, err, "bad-file-name")
 
 	t.Run("Should have es-mappings command", func(t *testing.T) {
-		_, _, subCommand := cmd.Find([]string{"es-mappings"})
-		assert.NotNil(t, subCommand)
+		foundCmd, _, _ := cmd.Find([]string{"es-mappings"})
+		assert.NotNil(t, foundCmd, "es-mappings command should be present")
+		assert.Equal(t, "es-mappings", foundCmd.Use, "Found command should match 'es-mappings'")
 	})
 }
 
