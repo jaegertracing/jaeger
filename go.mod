@@ -23,17 +23,17 @@ require (
 	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.1.0
 	github.com/kr/pretty v0.3.1
 	github.com/olivere/elastic v6.2.37+incompatible
-	github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector v0.114.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/kafkaexporter v0.114.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/prometheusexporter v0.114.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckv2extension v0.114.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/extension/storage v0.114.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger v0.114.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/processor/attributesprocessor v0.114.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/processor/tailsamplingprocessor v0.114.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver v0.114.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kafkareceiver v0.114.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zipkinreceiver v0.114.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector v0.115.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/kafkaexporter v0.115.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/prometheusexporter v0.115.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckv2extension v0.115.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/extension/storage v0.115.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger v0.115.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/processor/attributesprocessor v0.115.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/processor/tailsamplingprocessor v0.115.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver v0.115.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kafkareceiver v0.115.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zipkinreceiver v0.115.0
 	github.com/prometheus/client_golang v1.20.5
 	github.com/prometheus/client_model v0.6.1
 	github.com/prometheus/common v0.60.1
@@ -107,7 +107,7 @@ require (
 	github.com/dgraph-io/ristretto/v2 v2.0.0 // indirect
 	github.com/ebitengine/purego v0.8.1 // indirect
 	github.com/expr-lang/expr v1.16.9 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/status v0.114.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/status v0.115.0 // indirect
 	go.opentelemetry.io/collector/connector/connectortest v0.115.0 // indirect
 	go.opentelemetry.io/collector/consumer/consumererror v0.115.0 // indirect
 	go.opentelemetry.io/collector/consumer/consumererror/consumererrorprofiles v0.115.0 // indirect
@@ -185,19 +185,19 @@ require (
 	github.com/mostynb/go-grpc-compression v1.2.3 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/onsi/ginkgo v1.16.5 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/internal/common v0.114.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal v0.114.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/internal/filter v0.114.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/internal/kafka v0.114.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/internal/pdatautil v0.114.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/batchpersignal v0.114.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/kafka/topic v0.114.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl v0.114.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatautil v0.114.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry v0.114.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/azure v0.114.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/prometheus v0.114.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/zipkin v0.114.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/internal/common v0.115.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal v0.115.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/internal/filter v0.115.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/internal/kafka v0.115.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/internal/pdatautil v0.115.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/batchpersignal v0.115.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/kafka/topic v0.115.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl v0.115.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatautil v0.115.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry v0.115.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/azure v0.115.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/prometheus v0.115.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/zipkin v0.115.0 // indirect
 	github.com/opentracing/opentracing-go v1.2.0 // indirect
 	github.com/openzipkin/zipkin-go v0.4.3 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.2 // indirect
@@ -208,7 +208,7 @@ require (
 	github.com/power-devops/perfstat v0.0.0-20220216144756-c35f1ee13d7c // indirect
 	github.com/prometheus/procfs v0.15.1 // indirect
 	github.com/rcrowley/go-metrics v0.0.0-20201227073835-cf1acfcdf475 // indirect
-	github.com/relvacode/iso8601 v1.5.0 // indirect
+	github.com/relvacode/iso8601 v1.6.0 // indirect
 	github.com/rogpeppe/go-internal v1.13.1 // indirect
 	github.com/rs/cors v1.11.1 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
