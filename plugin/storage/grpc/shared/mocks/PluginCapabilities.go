@@ -17,7 +17,7 @@ type PluginCapabilities struct {
 	mock.Mock
 }
 
-// Capabilities provides a mock function with given fields:
+// Capabilities provides a mock function with no fields
 func (_m *PluginCapabilities) Capabilities() (*shared.Capabilities, error) {
 	ret := _m.Called()
 
