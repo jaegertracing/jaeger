@@ -60,7 +60,7 @@ require (
 	go.opentelemetry.io/collector/confmap/provider/yamlprovider v1.20.0
 	go.opentelemetry.io/collector/connector v0.114.0
 	go.opentelemetry.io/collector/connector/forwardconnector v0.114.0
-	go.opentelemetry.io/collector/consumer v0.114.0
+	go.opentelemetry.io/collector/consumer v1.21.0
 	go.opentelemetry.io/collector/consumer/consumertest v0.114.0
 	go.opentelemetry.io/collector/exporter v0.114.0
 	go.opentelemetry.io/collector/exporter/exportertest v0.114.0
