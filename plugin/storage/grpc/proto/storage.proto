@@ -148,6 +148,21 @@ message FindTraceIDsResponse {
     ];
 }
 
+message Throughput {
+  string Service = 1;
+  string Operation = 2;
+  int64 Count = 3;
+  string Probabilities = 4;
+}
+
+message InsertThroughputRequest {
+  repeated Throughput throughput = 1;
+}
+
+message InsertThroughputResponse {
+  string status = 1;
+}
+
 service SpanWriterPlugin {
     // spanstore/Writer
     rpc WriteSpan(WriteSpanRequest) returns (WriteSpanResponse);
@@ -180,6 +195,19 @@ service ArchiveSpanReaderPlugin {
 service DependenciesReaderPlugin {
     // dependencystore/Reader
     rpc GetDependencies(GetDependenciesRequest) returns (GetDependenciesResponse);
+}
+
+service SamplingStorePlugin{
+    rpc InsertThroughput(InsertThroughputRequest) returns (InsertThroughputResponse);
+
+    // InsertProbabilitiesAndQPS inserts calculated sampling probabilities and measured qps into storage.
+    //   rpc InsertProbabilitiesAndQPS(hostname string, probabilities model.ServiceOperationProbabilities, qps model.ServiceOperationQPS) error
+
+    // // GetThroughput retrieves aggregated throughput for operations within a time range.
+    // GetThroughput(start, end time.Time) ([]*model.Throughput, error)
+
+    // // GetLatestProbabilities retrieves the latest sampling probabilities.
+    // GetLatestProbabilities() (model.ServiceOperationProbabilities, error)
 }
 
 // empty; extensible in the future

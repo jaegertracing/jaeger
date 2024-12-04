@@ -5,6 +5,7 @@ package shared
 
 import (
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
+	"github.com/jaegertracing/jaeger/storage/samplingstore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
@@ -26,6 +27,10 @@ type StreamingSpanWriterPlugin interface {
 	StreamingSpanWriter() spanstore.Writer
 }
 
+type SamplingStorePlugin interface {
+	SamplingStoreRW() samplingstore.Store
+}
+
 // PluginCapabilities allow expose plugin its capabilities.
 type PluginCapabilities interface {
 	Capabilities() (*Capabilities, error)
@@ -43,4 +48,5 @@ type PluginServices struct {
 	Store               StoragePlugin
 	ArchiveStore        ArchiveStoragePlugin
 	StreamingSpanWriter StreamingSpanWriterPlugin
+	SamplingStore       SamplingStorePlugin
 }
