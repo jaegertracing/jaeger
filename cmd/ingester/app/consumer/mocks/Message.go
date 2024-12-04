@@ -14,7 +14,7 @@ type Message struct {
 	mock.Mock
 }
 
-// Key provides a mock function with given fields:
+// Key provides a mock function with no fields
 func (_m *Message) Key() []byte {
 	ret := _m.Called()
 
@@ -34,7 +34,7 @@ func (_m *Message) Key() []byte {
 	return r0
 }
 
-// Offset provides a mock function with given fields:
+// Offset provides a mock function with no fields
 func (_m *Message) Offset() int64 {
 	ret := _m.Called()
 
@@ -52,7 +52,7 @@ func (_m *Message) Offset() int64 {
 	return r0
 }
 
-// Partition provides a mock function with given fields:
+// Partition provides a mock function with no fields
 func (_m *Message) Partition() int32 {
 	ret := _m.Called()
 
@@ -70,7 +70,7 @@ func (_m *Message) Partition() int32 {
 	return r0
 }
 
-// Topic provides a mock function with given fields:
+// Topic provides a mock function with no fields
 func (_m *Message) Topic() string {
 	ret := _m.Called()
 
@@ -88,7 +88,7 @@ func (_m *Message) Topic() string {
 	return r0
 }
 
-// Value provides a mock function with given fields:
+// Value provides a mock function with no fields
 func (_m *Message) Value() []byte {
 	ret := _m.Called()
 

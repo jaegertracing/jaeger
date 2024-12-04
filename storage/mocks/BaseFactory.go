@@ -19,7 +19,7 @@ type BaseFactory struct {
 	mock.Mock
 }
 
-// CreateDependencyReader provides a mock function with given fields:
+// CreateDependencyReader provides a mock function with no fields
 func (_m *BaseFactory) CreateDependencyReader() (dependencystore.Reader, error) {
 	ret := _m.Called()
 
@@ -49,7 +49,7 @@ func (_m *BaseFactory) CreateDependencyReader() (dependencystore.Reader, error) 
 	return r0, r1
 }
 
-// CreateSpanReader provides a mock function with given fields:
+// CreateSpanReader provides a mock function with no fields
 func (_m *BaseFactory) CreateSpanReader() (spanstore.Reader, error) {
 	ret := _m.Called()
 
@@ -79,7 +79,7 @@ func (_m *BaseFactory) CreateSpanReader() (spanstore.Reader, error) {
 	return r0, r1
 }
 
-// CreateSpanWriter provides a mock function with given fields:
+// CreateSpanWriter provides a mock function with no fields
 func (_m *BaseFactory) CreateSpanWriter() (spanstore.Writer, error) {
 	ret := _m.Called()
 
