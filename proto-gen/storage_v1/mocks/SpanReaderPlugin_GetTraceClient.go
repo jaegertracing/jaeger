@@ -21,7 +21,7 @@ type SpanReaderPlugin_GetTraceClient struct {
 	mock.Mock
 }
 
-// CloseSend provides a mock function with given fields:
+// CloseSend provides a mock function with no fields
 func (_m *SpanReaderPlugin_GetTraceClient) CloseSend() error {
 	ret := _m.Called()
 
@@ -39,7 +39,7 @@ func (_m *SpanReaderPlugin_GetTraceClient) CloseSend() error {
 	return r0
 }
 
-// Context provides a mock function with given fields:
+// Context provides a mock function with no fields
 func (_m *SpanReaderPlugin_GetTraceClient) Context() context.Context {
 	ret := _m.Called()
 
@@ -59,7 +59,7 @@ func (_m *SpanReaderPlugin_GetTraceClient) Context() context.Context {
 	return r0
 }
 
-// Header provides a mock function with given fields:
+// Header provides a mock function with no fields
 func (_m *SpanReaderPlugin_GetTraceClient) Header() (metadata.MD, error) {
 	ret := _m.Called()
 
@@ -89,7 +89,7 @@ func (_m *SpanReaderPlugin_GetTraceClient) Header() (metadata.MD, error) {
 	return r0, r1
 }
 
-// Recv provides a mock function with given fields:
+// Recv provides a mock function with no fields
 func (_m *SpanReaderPlugin_GetTraceClient) Recv() (*storage_v1.SpansResponseChunk, error) {
 	ret := _m.Called()
 
@@ -155,7 +155,7 @@ func (_m *SpanReaderPlugin_GetTraceClient) SendMsg(m any) error {
 	return r0
 }
 
-// Trailer provides a mock function with given fields:
+// Trailer provides a mock function with no fields
 func (_m *SpanReaderPlugin_GetTraceClient) Trailer() metadata.MD {
 	ret := _m.Called()
 

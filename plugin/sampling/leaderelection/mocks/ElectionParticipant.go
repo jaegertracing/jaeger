@@ -14,7 +14,7 @@ type ElectionParticipant struct {
 	mock.Mock
 }
 
-// Close provides a mock function with given fields:
+// Close provides a mock function with no fields
 func (_m *ElectionParticipant) Close() error {
 	ret := _m.Called()
 
@@ -32,7 +32,7 @@ func (_m *ElectionParticipant) Close() error {
 	return r0
 }
 
-// IsLeader provides a mock function with given fields:
+// IsLeader provides a mock function with no fields
 func (_m *ElectionParticipant) IsLeader() bool {
 	ret := _m.Called()
 
@@ -50,7 +50,7 @@ func (_m *ElectionParticipant) IsLeader() bool {
 	return r0
 }
 
-// Start provides a mock function with given fields:
+// Start provides a mock function with no fields
 func (_m *ElectionParticipant) Start() error {
 	ret := _m.Called()
 
