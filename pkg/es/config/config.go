@@ -138,6 +138,19 @@ type Configuration struct {
 	Enabled bool `mapstructure:"-"`
 }
 
+type Cleaner struct {
+	// Separator between date fragments.
+	IndexDateSeparator string
+	// Whether to filter archive indices.
+	Archive bool
+	// Whether to filter rollover indices.
+	Rollover bool
+	// Indices created before this date will be deleted.
+	DeleteBeforeThisDate time.Time
+	// If the cleaner is enabled
+	Enabled bool
+}
+
 // TagsAsFields holds configuration for tag schema.
 // By default Jaeger stores tags in an array of nested objects.
 // This configurations allows to store tags as object fields for better Kibana support.
