@@ -16,25 +16,26 @@ permissions:
 
 jobs:
   badger:
-    uses: ./.github/actions/e2e/cit-badger.yml
+    uses: ./.github/actions/e2e/ci-e2e-badger.yaml@main
 
   cassandra:
-    uses: ./.github/actions/e2e/cit-cassandra.yml
+    uses: ./.github/actions/e2e/ci-e2e-cassandra.yml@main
 
   elasticsearch:
-    uses: ./.github/actions/e2e/cit-elasticsearch.yml
+    uses: ./.github/actions/e2e/ci-e2e-elasticsearch.yml@main
 
   grpc:
-    uses: ./.github/actions/e2e/cit-grpc.yml
+    uses: ./.github/actions/e2e/ci-e2e-grpc.yml@main
 
   kafka:
-    uses: ./.github/actions/e2e/cit-kafka.yml
+    uses: ./.github/actions/e2e/ci-e2e-kafka.yml@main
 
   memory:
-    uses: ./.github/actions/e2e/cit-memory.yml
+    uses: ./.github/actions/e2e/ci-e2e-memory.yaml@main
 
   opensearch:
-    uses: ./.github/actions/e2e/cit-opensearch.yml
+    uses: ./.github/actions/e2e/ci-e2e-opensearch.yml@main
+
 
 
 
