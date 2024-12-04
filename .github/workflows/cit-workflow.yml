@@ -8,11 +8,12 @@ on:
     branches: [main]
 
 concurrency:
-  group: ${{ github.workflow }}-${{ (github.event.pull_request && github.event.pull_request.number) || github.ref || github.run_id }}
+  group: combined-cit-${{ github.run_id }}
   cancel-in-progress: true
 
 permissions:
   contents: read
+  workflows: write
 
 jobs:
   badger:
