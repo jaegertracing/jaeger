@@ -13,7 +13,6 @@ concurrency:
 
 permissions:
   contents: read
-  workflows: write
 
 jobs:
   badger:
