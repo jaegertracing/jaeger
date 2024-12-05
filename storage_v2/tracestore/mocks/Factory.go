@@ -37,7 +37,7 @@ func (_m *Factory) Close(ctx context.Context) error {
 	return r0
 }
 
-// CreateTraceReader provides a mock function with given fields:
+// CreateTraceReader provides a mock function with no fields
 func (_m *Factory) CreateTraceReader() (tracestore.Reader, error) {
 	ret := _m.Called()
 
@@ -67,7 +67,7 @@ func (_m *Factory) CreateTraceReader() (tracestore.Reader, error) {
 	return r0, r1
 }
 
-// CreateTraceWriter provides a mock function with given fields:
+// CreateTraceWriter provides a mock function with no fields
 func (_m *Factory) CreateTraceWriter() (tracestore.Writer, error) {
 	ret := _m.Called()
 
