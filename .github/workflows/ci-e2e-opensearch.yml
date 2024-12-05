@@ -4,8 +4,8 @@ on:
   workflow_call:
 
 concurrency:
-  group: cit-opensearch-${{ github.workflow }}-${{ github.event.workflow_run.id }}
-  cancel-in-progress: false
+  group: cit-opensearch-${{ (github.event.pull_request && github.event.pull_request.number) || github.ref }}
+  cancel-in-progress: true
 
 # See https://github.com/ossf/scorecard/blob/main/docs/checks.md#token-permissions
 permissions:  # added using https://github.com/step-security/secure-workflows
