@@ -39,15 +39,19 @@ const (
 
 // IndexCleaner struct for configuring index cleaning
 type IndexCleaner struct {
-	Enabled   bool          `mapstructure:"enabled"`
+	// Enabled specifies whether the index cleaner functionality is enabled.
+	// when set to true, the index cleaner will periodically run based on the specified frequency.
+	Enabled bool `mapstructure:"enabled"`
+	// Frequency defines the interval at which the index cleaner runs.
 	Frequency time.Duration `mapstructure:"frequency" validate:"gt=0"`
 }
 
 // Rollover struct for configuring roll over
 type Rollover struct {
-	Enabled      bool          `mapstructure:"enabled" valid:"required"`
-	IndexPattern string        `mapstructure:"index_pattern" valid:"required"`
-	Frequency    time.Duration `mapstructure:"frequency" validate:"gt=0"`
+	// Enabled specifies whether the rollover functionality is enabled.
+	Enabled bool `mapstructure:"enabled" valid:"required"`
+	// Frequency specifies the interval at which the rollover process runs.
+	Frequency time.Duration `mapstructure:"frequency" validate:"gt=0"`
 }
 
 // IndexOptions describes the index format and rollover frequency

@@ -16,6 +16,7 @@ type RolloverConfigWrapper struct {
 	*config.Configuration
 }
 
+// RunRollover schedules and runs the rollover process based on the configured frequency.
 func (cfg *RolloverConfigWrapper) RunRollover() {
 	if !cfg.Rollover.Enabled {
 		log.Println("Rollover is disabled, skipping...")
@@ -35,9 +36,9 @@ func (cfg *RolloverConfigWrapper) RunRollover() {
 	}
 }
 
+// runEsRollover executes the rollover tool.
 func (cfg *RolloverConfigWrapper) runEsRollover() error {
 	cmd := exec.Command("./cmd/es-rollover")
-	cmd.Args = append(cmd.Args, "--index-pattern", cfg.Rollover.IndexPattern)
 
 	err := cmd.Run()
 	if err != nil {

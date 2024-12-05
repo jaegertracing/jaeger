@@ -734,8 +734,7 @@ func TestValidate(t *testing.T) {
 			config: &Configuration{
 				Servers: []string{"localhost:8000/dummyserver"},
 				Rollover: Rollover{
-					Enabled:      true,
-					IndexPattern: "index-*",
+					Enabled: true,
 				},
 			},
 			expectedError: false,

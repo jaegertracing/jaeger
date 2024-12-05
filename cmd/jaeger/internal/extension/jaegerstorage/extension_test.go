@@ -225,8 +225,7 @@ func TestXYZsearch(t *testing.T) {
 				Servers:  []string{server.URL},
 				LogLevel: "error",
 				Rollover: esCfg.Rollover{
-					Enabled:      true,
-					IndexPattern: "index-*",
+					Enabled: true,
 				},
 			},
 		})
@@ -237,8 +236,7 @@ func TestXYZsearch(t *testing.T) {
 				Servers:  []string{server.URL},
 				LogLevel: "error",
 				Rollover: esCfg.Rollover{
-					Enabled:      true,
-					IndexPattern: "index-*",
+					Enabled: true,
 				},
 			},
 		})

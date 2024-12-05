@@ -272,8 +272,7 @@ func TestESStorageFactoryWithConfig(t *testing.T) {
 		Servers:  []string{server.URL},
 		LogLevel: "error",
 		Rollover: escfg.Rollover{
-			Enabled:      true,
-			IndexPattern: "index-*",
+			Enabled: true,
 		},
 	}
 	factory, err := NewFactoryWithConfig(cfg, metrics.NullFactory, zap.NewNop())
@@ -292,8 +291,7 @@ func TestConfigurationValidation(t *testing.T) {
 			cfg: escfg.Configuration{
 				Servers: []string{"http://localhost:9200"},
 				Rollover: escfg.Rollover{
-					Enabled:      true,
-					IndexPattern: "index-*",
+					Enabled: true,
 				},
 			},
 			wantErr: false,
@@ -302,8 +300,7 @@ func TestConfigurationValidation(t *testing.T) {
 			name: "missing servers",
 			cfg: escfg.Configuration{
 				Rollover: escfg.Rollover{
-					Enabled:      true,
-					IndexPattern: "index-*",
+					Enabled: true,
 				},
 			},
 			wantErr: true,
@@ -337,8 +334,7 @@ func TestESStorageFactoryWithConfigError(t *testing.T) {
 		Servers:  []string{"http://127.0.0.1:65535"},
 		LogLevel: "error",
 		Rollover: escfg.Rollover{
-			Enabled:      true,
-			IndexPattern: "index-*",
+			Enabled: true,
 		},
 	}
 	_, err := NewFactoryWithConfig(cfg, metrics.NullFactory, zap.NewNop())
