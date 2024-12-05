@@ -72,13 +72,14 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 		Namespace(metrics.NSOptions{Name: "jaeger"}).
 		Namespace(metrics.NSOptions{Name: "query"})
 
+	// TODO currently v1 is still needed because of dependency storage
 	v1Factory, err := jaegerstorage.GetStorageFactory(s.config.Storage.TracesPrimary, host)
 	if err != nil {
-		return fmt.Errorf("cannot find primary storage from v1 factory %s: %w", s.config.Storage.TracesPrimary, err)
+		return fmt.Errorf("cannot find v1 factory for primary storage %s: %w", s.config.Storage.TracesPrimary, err)
 	}
 	f, err := jaegerstorage.GetStorageFactoryV2(s.config.Storage.TracesPrimary, host)
 	if err != nil {
-		return fmt.Errorf("cannot find primary storage from v2 factory %s: %w", s.config.Storage.TracesPrimary, err)
+		return fmt.Errorf("cannot find v2 factory for primary storage %s: %w", s.config.Storage.TracesPrimary, err)
 	}
 
 	traceReader, err := f.CreateTraceReader()
@@ -92,6 +93,7 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 	}
 
 	var opts querysvc.QueryServiceOptions
+	// TODO archive storage still uses v1 factory
 	if err := s.addArchiveStorage(&opts, host); err != nil {
 		return err
 	}
