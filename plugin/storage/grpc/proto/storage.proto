@@ -184,8 +184,14 @@ message InsertProbabilitiesAndQPSResponse {
 }
 
 message GetThroughputRequest {
-  google.protobuf.Timestamp start_time = 1;
-  google.protobuf.Timestamp end_time = 2;
+  google.protobuf.Timestamp start_time = 1[
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false
+  ];
+  google.protobuf.Timestamp end_time = 2 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false
+  ];
 }
 
 message GetThroughputResponse {
