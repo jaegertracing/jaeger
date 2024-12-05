@@ -198,7 +198,7 @@ func (f *Factory) getArchiveClient() es.Client {
 func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
 	sr, err := createSpanReader(f.getPrimaryClient, f.primaryConfig, false, f.logger, f.tracer)
 	if err != nil {
-		return sr, err
+		return nil, err
 	}
 	return spanstoremetrics.NewReaderDecorator(sr, f.primaryMetricsFactory), nil
 }
@@ -220,7 +220,7 @@ func (f *Factory) CreateArchiveSpanReader() (spanstore.Reader, error) {
 	}
 	sr, err := createSpanReader(f.getArchiveClient, f.archiveConfig, true, f.logger, f.tracer)
 	if err != nil {
-		return sr, err
+		return nil, err
 	}
 	return spanstoremetrics.NewReaderDecorator(sr, f.archiveMetricsFactory), nil
 }

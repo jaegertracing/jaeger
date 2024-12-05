@@ -17,7 +17,7 @@ type IndexService struct {
 	mock.Mock
 }
 
-// Add provides a mock function with given fields:
+// Add provides a mock function with no fields
 func (_m *IndexService) Add() {
 	_m.Called()
 }
