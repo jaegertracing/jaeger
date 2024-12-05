@@ -4,7 +4,7 @@ on:
   workflow_call:
 
 concurrency:
-  group: cit-cassandra-${{ github.run_id }}
+  group: cit-cassandra-${{ github.workflow }}-${{ github.event.workflow_run.id }}
   cancel-in-progress: false
 
 # See https://github.com/ossf/scorecard/blob/main/docs/checks.md#token-permissions
