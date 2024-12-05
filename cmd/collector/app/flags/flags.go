@@ -125,7 +125,10 @@ type CollectorOptions struct {
 		HTTP    confighttp.ServerConfig
 	}
 	// Zipkin section defines options for Zipkin HTTP server
-	Zipkin confighttp.ServerConfig
+	Zipkin struct {
+		confighttp.ServerConfig
+		KeepAlive bool `mapstructure:"keep-alive"` // Add keepalive setting
+	}
 	// CollectorTags is the string representing collector tags to append to each and every span
 	CollectorTags map[string]string
 	// SpanSizeMetricsEnabled determines whether to enable metrics based on processed span size
@@ -250,9 +253,9 @@ func (cOpts *CollectorOptions) InitFromViper(v *viper.Viper, logger *zap.Logger)
 		return cOpts, fmt.Errorf("failed to parse OTLP/gRPC server options: %w", err)
 	}
 
-	// cOpts.Zipkin. = v.GetBool(flagZipkinKeepAliveEnabled)
+	cOpts.Zipkin.KeepAlive = v.GetBool(flagZipkinKeepAliveEnabled)
 
-	if err := initHTTPFromViper(v, logger, &cOpts.Zipkin, zipkinServerFlagsCfg.HTTP); err != nil {
+	if err := initHTTPFromViper(v, logger, &cOpts.Zipkin.ServerConfig, zipkinServerFlagsCfg.HTTP); err != nil {
 		return cOpts, fmt.Errorf("failed to parse Zipkin server options: %w", err)
 	}
 	corsOpts = corsZipkinFlags.InitFromViper(v)

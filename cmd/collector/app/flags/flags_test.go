@@ -166,16 +166,16 @@ func TestCollectorOptionsWithFlags_CheckFullTenancy(t *testing.T) {
 	assert.Equal(t, []string{"acme", "hardware-store"}, c.Tenancy.Tenants)
 }
 
-// func TestCollectorOptionsWithFlags_CheckZipkinKeepAlive(t *testing.T) {
-// 	c := &CollectorOptions{}
-// 	v, command := config.Viperize(AddFlags)
-// 	command.ParseFlags([]string{
-// 		"--collector.zipkin.keep-alive=false",
-// 	})
-// 	c.InitFromViper(v, zap.NewNop())
+func TestCollectorOptionsWithFlags_CheckZipkinKeepAlive(t *testing.T) {
+	c := &CollectorOptions{}
+	v, command := config.Viperize(AddFlags)
+	command.ParseFlags([]string{
+		"--collector.zipkin.keep-alive=false",
+	})
+	c.InitFromViper(v, zap.NewNop())
 
-// 	assert.False(t, c.Zipkin.)
-// }
+	assert.False(t, c.Zipkin.KeepAlive)
+}
 
 func TestMain(m *testing.M) {
 	testutils.VerifyGoLeaks(m)

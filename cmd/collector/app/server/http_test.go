@@ -9,13 +9,13 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"net/http/httptest"
 	"strconv"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.uber.org/zap"
 
@@ -52,7 +52,7 @@ func TestCreateTLSHTTPServerError(t *testing.T) {
 
 	params := &HTTPServerParams{
 		ServerConfig: confighttp.ServerConfig{
-			Endpoint:   fmt.Sprintf(":%d", ports.CollectorHTTP),
+			Endpoint:   ":0",
 			TLSSetting: tlsCfg.ToOtelServerConfig(),
 		},
 		HealthCheck: healthcheck.New(),
@@ -74,11 +74,15 @@ func TestSpanCollectorHTTP(t *testing.T) {
 		Logger:           logger,
 	}
 
-	server := httptest.NewServer(nil)
+	server, _ := params.ToServer(context.Background(), nil, component.TelemetrySettings{}, nil)
+	listener, _ := params.ToListener(context.Background())
 
-	serveHTTP(server.Config, server.Listener, params)
-
-	response, err := http.Post(server.URL, "", nil)
+	serveHTTP(server, listener, params)
+	addr := listener.Addr().String()
+	host, port, err := net.SplitHostPort(addr)
+	require.NoError(t, err)
+	url := fmt.Sprintf("http://%s:%s", host, port)
+	response, err := http.Post(url, "", nil)
 	require.NoError(t, err)
 	assert.NotNil(t, response)
 	defer response.Body.Close()

@@ -56,7 +56,7 @@ func startZipkinReceiver(
 		cfg component.Config, nextConsumer consumer.Traces) (receiver.Traces, error),
 ) (receiver.Traces, error) {
 	receiverConfig := zipkinFactory.CreateDefaultConfig().(*zipkinreceiver.Config)
-	receiverConfig.ServerConfig = options.Zipkin
+	receiverConfig.ServerConfig = options.Zipkin.ServerConfig
 	receiverSettings := receiver.Settings{
 		TelemetrySettings: component.TelemetrySettings{
 			Logger:         logger,

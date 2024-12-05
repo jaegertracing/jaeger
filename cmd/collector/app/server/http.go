@@ -39,7 +39,10 @@ type HTTPServerParams struct {
 // StartHTTPServer based on the given parameters
 func StartHTTPServer(params *HTTPServerParams) (*http.Server, error) {
 	params.Logger.Info("Starting jaeger-collector HTTP server", zap.String("http host-port", params.Endpoint))
-
+	listener, err := params.ToListener(context.Background())
+	if err != nil {
+		return nil, err
+	}
 	errorLog, _ := zap.NewStdLogAt(params.Logger, zapcore.ErrorLevel)
 	server, err := params.ToServer(context.Background(), nil, component.TelemetrySettings{
 		Logger: params.Logger,
@@ -47,12 +50,8 @@ func StartHTTPServer(params *HTTPServerParams) (*http.Server, error) {
 			return noop.NewMeterProvider()
 		},
 	}, nil)
-	server.ErrorLog = errorLog
-	if err != nil {
-		return nil, err
-	}
 
-	listener, err := params.ToListener(context.Background())
+	server.ErrorLog = errorLog
 	if err != nil {
 		return nil, err
 	}
@@ -83,7 +82,7 @@ func serveHTTP(server *http.Server, listener net.Listener, params *HTTPServerPar
 	go func() {
 		var err error
 		if params.TLSSetting != nil {
-			err = server.ServeTLS(listener,params.TLSSetting.CertFile, params.TLSSetting.KeyFile)
+			err = server.ServeTLS(listener, params.TLSSetting.CertFile, params.TLSSetting.KeyFile)
 		} else {
 			err = server.Serve(listener)
 		}

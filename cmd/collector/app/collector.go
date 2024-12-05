@@ -97,7 +97,6 @@ func (c *Collector) Start(options *flags.CollectorOptions) error {
 
 	c.spanProcessor = handlerBuilder.BuildSpanProcessor(additionalProcessors...)
 	c.spanHandlers = handlerBuilder.BuildHandlers(c.spanProcessor)
-	// fmt.Printf("%v \n",options.GRPC.NetAddr.Endpoint)
 	grpcServer, err := server.StartGRPCServer(&server.GRPCServerParams{
 		Handler:          c.spanHandlers.GRPCHandler,
 		SamplingProvider: c.samplingProvider,

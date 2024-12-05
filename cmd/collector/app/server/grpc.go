@@ -15,10 +15,8 @@ import (
 	"go.opentelemetry.io/otel/metric/noop"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/health"
 	"google.golang.org/grpc/health/grpc_health_v1"
-	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/reflection"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/handler"
@@ -44,27 +42,6 @@ func StartGRPCServer(params *GRPCServerParams) (*grpc.Server, error) {
 	var server *grpc.Server
 	var grpcOpts []configgrpc.ToServerOption
 
-	if params.MaxRecvMsgSizeMiB > 0 {
-		grpcOpts = append(grpcOpts, configgrpc.WithGrpcServerOption(grpc.MaxRecvMsgSize(params.MaxRecvMsgSizeMiB)))
-	}
-	if params.Keepalive != nil {
-		grpcOpts = append(grpcOpts, configgrpc.WithGrpcServerOption(grpc.KeepaliveParams(keepalive.ServerParameters{
-			MaxConnectionAge:      params.Keepalive.ServerParameters.MaxConnectionAge,
-			MaxConnectionAgeGrace: params.Keepalive.ServerParameters.MaxConnectionAgeGrace,
-		})))
-	}
-
-	if params.TLSSetting != nil {
-		// user requested a server with TLS, setup creds
-		tlsCfg, err := params.TLSSetting.LoadTLSConfig(context.Background())
-		if err != nil {
-			return nil, err
-		}
-
-		creds := credentials.NewTLS(tlsCfg)
-		grpcOpts = append(grpcOpts, configgrpc.WithGrpcServerOption(grpc.Creds(creds)))
-	}
-
 	server, err := params.ToServer(context.Background(), nil, component.TelemetrySettings{
 		Logger: params.Logger,
 		LeveledMeterProvider: func(_ configtelemetry.Level) metric.MeterProvider {
@@ -75,6 +52,7 @@ func StartGRPCServer(params *GRPCServerParams) (*grpc.Server, error) {
 		return nil, err
 	}
 	reflection.Register(server)
+
 	listener, err := params.NetAddr.Listen(context.Background())
 	if err != nil {
 		return nil, fmt.Errorf("failed to listen on gRPC port: %w", err)
