@@ -152,7 +152,7 @@ message Throughput {
   string Service = 1;
   string Operation = 2;
   int64 Count = 3;
-  string Probabilities = 4;
+  repeated double Probabilities = 4;
 }
 
 message InsertThroughputRequest {
@@ -160,7 +160,43 @@ message InsertThroughputRequest {
 }
 
 message InsertThroughputResponse {
-  string status = 1;
+}
+
+message StringFloatMap {
+  map<string, double> stringFloatMap = 1;
+}
+
+message ServiceOperationProbabilities {
+  map<string, StringFloatMap> serviceOperationProbabilities = 1;
+}
+
+message ServiceOperationQPS {
+  map<string, StringFloatMap> serviceOperationQPS = 1;
+}
+
+message InsertProbabilitiesAndQPSRequest {
+  string hostname = 1;
+  ServiceOperationProbabilities probabilities = 2;
+  ServiceOperationQPS qps = 3;
+}
+
+message InsertProbabilitiesAndQPSResponse {
+}
+
+message GetThroughputRequest {
+  google.protobuf.Timestamp start_time = 1;
+  google.protobuf.Timestamp end_time = 2;
+}
+
+message GetThroughputResponse {
+  repeated Throughput throughput = 1;
+}
+
+message GetLatestProbabilitiesRequest {
+}
+
+message GetLatestProbabilitiesResponse {
+  ServiceOperationProbabilities serviceOperationProbabilities = 1;
 }
 
 service SpanWriterPlugin {
@@ -200,14 +236,11 @@ service DependenciesReaderPlugin {
 service SamplingStorePlugin{
     rpc InsertThroughput(InsertThroughputRequest) returns (InsertThroughputResponse);
 
-    // InsertProbabilitiesAndQPS inserts calculated sampling probabilities and measured qps into storage.
-    //   rpc InsertProbabilitiesAndQPS(hostname string, probabilities model.ServiceOperationProbabilities, qps model.ServiceOperationQPS) error
+    rpc InsertProbabilitiesAndQPS(InsertProbabilitiesAndQPSRequest) returns (InsertProbabilitiesAndQPSResponse);
 
-    // // GetThroughput retrieves aggregated throughput for operations within a time range.
-    // GetThroughput(start, end time.Time) ([]*model.Throughput, error)
+    rpc GetThroughput(GetThroughputRequest) returns (GetThroughputResponse);
 
-    // // GetLatestProbabilities retrieves the latest sampling probabilities.
-    // GetLatestProbabilities() (model.ServiceOperationProbabilities, error)
+    rpc GetLatestProbabilities(GetLatestProbabilitiesRequest) returns (GetLatestProbabilitiesResponse);
 }
 
 // empty; extensible in the future
