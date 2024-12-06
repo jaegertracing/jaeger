@@ -21,6 +21,72 @@ copy from UI changelog
 
 </details>
 
+v1.64.0 / v2.1.0 (2024-12-06)
+-------------------------------
+
+### Backend Changes
+
+### Backend Changes
+
+#### ⛔ Breaking Changes
+
+* [metrics][storage] move metrics reader decorator to metrics storage factory ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#6287](https://github.com/jaegertracing/jaeger/pull/6287))
+* [v2][storage] move span reader decorator to storage factories ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#6280](https://github.com/jaegertracing/jaeger/pull/6280))
+
+#### ✨ New Features
+
+* [v2][storage] implement read path for v2 storage interface ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#6170](https://github.com/jaegertracing/jaeger/pull/6170))
+* Create cassandra db schema on session initialization ([@akstron](https://github.com/akstron) in [#5922](https://github.com/jaegertracing/jaeger/pull/5922))
+
+#### 🐞 Bug fixes, Minor Improvements
+
+* Fix password in integration test ([@akstron](https://github.com/akstron) in [#6284](https://github.com/jaegertracing/jaeger/pull/6284))
+* [cassandra] change compaction window default to 2hrs ([@yurishkuro](https://github.com/yurishkuro) in [#6282](https://github.com/jaegertracing/jaeger/pull/6282))
+* Improve telemetry.settings ([@yurishkuro](https://github.com/yurishkuro) in [#6275](https://github.com/jaegertracing/jaeger/pull/6275))
+* [kafka] otel helper instead of tlscfg package ([@chahatsagarmain](https://github.com/chahatsagarmain) in [#6270](https://github.com/jaegertracing/jaeger/pull/6270))
+* [refactor] fix package misspelling: telemetery->telemetry ([@yurishkuro](https://github.com/yurishkuro) in [#6269](https://github.com/jaegertracing/jaeger/pull/6269))
+* [prometheus] use otel helper instead of tlscfg package ([@chahatsagarmain](https://github.com/chahatsagarmain) in [#6266](https://github.com/jaegertracing/jaeger/pull/6266))
+* [fix] use metrics decorator around metricstorage ([@yurishkuro](https://github.com/yurishkuro) in [#6262](https://github.com/jaegertracing/jaeger/pull/6262))
+* Use real metrics factory instead of nullfactory ([@yurishkuro](https://github.com/yurishkuro) in [#6261](https://github.com/jaegertracing/jaeger/pull/6261))
+* [v2] use only version number for buildinfo ([@yurishkuro](https://github.com/yurishkuro) in [#6260](https://github.com/jaegertracing/jaeger/pull/6260))
+* [refactor] move spm v2 config to cmd/jaeger/ with all other configs ([@yurishkuro](https://github.com/yurishkuro) in [#6256](https://github.com/jaegertracing/jaeger/pull/6256))
+* [es-index-cleaner] use otel helper instead of tlscfg ([@chahatsagarmain](https://github.com/chahatsagarmain) in [#6259](https://github.com/jaegertracing/jaeger/pull/6259))
+* [api_v2] change time fields in archivetracerequest to non-nullable ([@rim99](https://github.com/rim99) in [#6251](https://github.com/jaegertracing/jaeger/pull/6251))
+* [es-rollover] use otel helpers for tls config instead of tlscfg ([@chahatsagarmain](https://github.com/chahatsagarmain) in [#6238](https://github.com/jaegertracing/jaeger/pull/6238))
+* Enable usestdlibvars linter ([@mmorel-35](https://github.com/mmorel-35) in [#6249](https://github.com/jaegertracing/jaeger/pull/6249))
+* [storage_v1] add time window to gettracerequest ([@rim99](https://github.com/rim99) in [#6244](https://github.com/jaegertracing/jaeger/pull/6244))
+* [fix][query] fix misconfiguration in tls settings from using otel http helper ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#6239](https://github.com/jaegertracing/jaeger/pull/6239))
+* Auto-generate gogo annotations for api_v3 ([@yurishkuro](https://github.com/yurishkuro) in [#6233](https://github.com/jaegertracing/jaeger/pull/6233))
+* Use confighttp in expvar extension ([@yurishkuro](https://github.com/yurishkuro) in [#6227](https://github.com/jaegertracing/jaeger/pull/6227))
+* Parameterize listen host and override when in container ([@yurishkuro](https://github.com/yurishkuro) in [#6231](https://github.com/jaegertracing/jaeger/pull/6231))
+* Remove 0.0.0.0 overrides in hotrod ci ([@yurishkuro](https://github.com/yurishkuro) in [#6226](https://github.com/jaegertracing/jaeger/pull/6226))
+* [storage][v2] add reader adapter that just exposes the underlying v1 reader ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#6221](https://github.com/jaegertracing/jaeger/pull/6221))
+* Change start/end time in gettrace request to not be pointers ([@yurishkuro](https://github.com/yurishkuro) in [#6218](https://github.com/jaegertracing/jaeger/pull/6218))
+* Pass real meterprovider to components ([@chahatsagarmain](https://github.com/chahatsagarmain) in [#6173](https://github.com/jaegertracing/jaeger/pull/6173))
+* [v2] update versions in readme ([@yurishkuro](https://github.com/yurishkuro) in [#6206](https://github.com/jaegertracing/jaeger/pull/6206))
+* Fix: testcreatecollectorproxy unit test failing on go-tip ([@Saumya40-codes](https://github.com/Saumya40-codes) in [#6204](https://github.com/jaegertracing/jaeger/pull/6204))
+* Respect environment variables when creating internal tracer ([@akstron](https://github.com/akstron) in [#6179](https://github.com/jaegertracing/jaeger/pull/6179))
+
+#### 🚧 Experimental Features
+
+* [v2]add script for metrics markdown table ([@vvs-personalstash](https://github.com/vvs-personalstash) in [#5941](https://github.com/jaegertracing/jaeger/pull/5941))
+
+#### 👷 CI Improvements
+
+* Allow using different container runtime ([@rim99](https://github.com/rim99) in [#6247](https://github.com/jaegertracing/jaeger/pull/6247))
+* K8s integration test for hotrod ([@chahatsagarmain](https://github.com/chahatsagarmain) in [#6155](https://github.com/jaegertracing/jaeger/pull/6155))
+* Pass username/password to cassandra docker-compose health check ([@akstron](https://github.com/akstron) in [#6214](https://github.com/jaegertracing/jaeger/pull/6214))
+* [fix][ci] change the prometheus healthcheck endpoint ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#6217](https://github.com/jaegertracing/jaeger/pull/6217))
+
+### 📊 UI Changes
+
+#### 🐞 Bug fixes, Minor Improvements
+
+* Add new formatting function "add" ([@drewcorlin1](https://github.com/drewcorlin1) in [#2507](https://github.com/jaegertracing/jaeger-ui/pull/2507))
+* Add pad_start link formatting function #2505 ([@drewcorlin1](https://github.com/drewcorlin1) in [#2504](https://github.com/jaegertracing/jaeger-ui/pull/2504))
+* Allow formatting link parameter values as iso date #2487 ([@drewcorlin1](https://github.com/drewcorlin1) in [#2501](https://github.com/jaegertracing/jaeger-ui/pull/2501))
+
+
 v1.63.0 / v2.0.0 (2024-11-10)
 -------------------------------
 
