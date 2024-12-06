@@ -10,7 +10,10 @@ import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
+	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
+	"github.com/jaegertracing/jaeger/storage_v2/depstore"
 	"github.com/jaegertracing/jaeger/storage_v2/tracestore"
 )
 
@@ -51,4 +54,20 @@ func (*TraceReader) FindTraces(_ context.Context, _ tracestore.TraceQueryParamet
 
 func (*TraceReader) FindTraceIDs(_ context.Context, _ tracestore.TraceQueryParameters) ([]pcommon.TraceID, error) {
 	panic("not implemented")
+}
+
+type DependencyReader struct {
+	reader dependencystore.Reader
+}
+
+func NewDependencyReader(reader dependencystore.Reader) *DependencyReader {
+	return &DependencyReader{
+		reader: reader,
+	}
+}
+
+func (dr *DependencyReader) GetDependencies(
+	ctx context.Context,
+	query depstore.QueryParameters) ([]model.DependencyLink, error) {
+	return dr.reader.GetDependencies(ctx, query.EndTime, query.EndTime.Sub(query.StartTime))
 }

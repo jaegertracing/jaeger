@@ -6,12 +6,17 @@ package factoryadapter
 import (
 	"context"
 	"testing"
+	"time"
 
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
+	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/plugin/storage/memory"
+	dependencyStoreMocks "github.com/jaegertracing/jaeger/storage/dependencystore/mocks"
+	"github.com/jaegertracing/jaeger/storage_v2/depstore"
 	"github.com/jaegertracing/jaeger/storage_v2/tracestore"
 )
 
@@ -100,4 +105,20 @@ func TestTraceReader_FindTraceIDsPanics(t *testing.T) {
 		t,
 		func() { traceReader.FindTraceIDs(context.Background(), tracestore.TraceQueryParameters{}) },
 	)
+}
+
+func TestDependencyReader_GetDependencies(t *testing.T) {
+	end := time.Now()
+	start := end.Add(-1 * time.Minute)
+	query := depstore.QueryParameters{
+		StartTime: start,
+		EndTime:   end,
+	}
+	expectedDeps := []model.DependencyLink{{Parent: "parent", Child: "child", CallCount: 12}}
+	mr := new(dependencyStoreMocks.Reader)
+	mr.On("GetDependencies", mock.Anything, end, time.Minute).Return(expectedDeps, nil)
+	dr := NewDependencyReader(mr)
+	deps, err := dr.GetDependencies(context.Background(), query)
+	require.NoError(t, err)
+	require.Equal(t, expectedDeps, deps)
 }
