@@ -73,3 +73,6 @@ packages:
   github.com/jaegertracing/jaeger/storage/spanstore:
     config:
       all: true
+  github.com/jaegertracing/jaeger/storage_v2/tracestore:
+    config:
+      all: true

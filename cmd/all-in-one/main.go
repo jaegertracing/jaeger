@@ -39,7 +39,8 @@ import (
 	"github.com/jaegertracing/jaeger/plugin/storage"
 	"github.com/jaegertracing/jaeger/ports"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
-	"github.com/jaegertracing/jaeger/storage/spanstore"
+	"github.com/jaegertracing/jaeger/storage_v2/factoryadapter"
+	"github.com/jaegertracing/jaeger/storage_v2/tracestore"
 )
 
 // all-in-one/main is a standalone full-stack jaeger backend, backed by a memory store
@@ -104,7 +105,8 @@ by default uses only in-memory database.`,
 				logger.Fatal("Failed to init storage factory", zap.Error(err))
 			}
 
-			spanReader, err := storageFactory.CreateSpanReader()
+			v2Factory := factoryadapter.NewFactory(storageFactory)
+			traceReader, err := v2Factory.CreateTraceReader()
 			if err != nil {
 				logger.Fatal("Failed to create span reader", zap.Error(err))
 			}
@@ -168,7 +170,7 @@ by default uses only in-memory database.`,
 			queryTelset.Metrics = queryMetricsFactory
 			querySrv := startQuery(
 				svc, qOpts, qOpts.BuildQueryServiceOptions(storageFactory, logger),
-				spanReader, dependencyReader, metricsQueryService,
+				traceReader, dependencyReader, metricsQueryService,
 				tm, queryTelset,
 			)
 
@@ -215,13 +217,13 @@ func startQuery(
 	svc *flags.Service,
 	qOpts *queryApp.QueryOptions,
 	queryOpts *querysvc.QueryServiceOptions,
-	spanReader spanstore.Reader,
+	traceReader tracestore.Reader,
 	depReader dependencystore.Reader,
 	metricsQueryService querysvc.MetricsQueryService,
 	tm *tenancy.Manager,
 	telset telemetry.Settings,
 ) *queryApp.Server {
-	qs := querysvc.NewQueryService(spanReader, depReader, *queryOpts)
+	qs := querysvc.NewQueryService(traceReader, depReader, *queryOpts)
 
 	server, err := queryApp.NewServer(context.Background(), qs, metricsQueryService, qOpts, tm, telset)
 	if err != nil {
