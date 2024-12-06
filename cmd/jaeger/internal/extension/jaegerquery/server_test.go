@@ -150,7 +150,7 @@ func TestServerStart(t *testing.T) {
 					TracesPrimary: "need-factory-error",
 				},
 			},
-			expectedErr: "cannot find v1 factory for primary storage",
+			expectedErr: "cannot find factory for primary storage",
 		},
 		{
 			name: "span reader error",

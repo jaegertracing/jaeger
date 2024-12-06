@@ -20,9 +20,9 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	"github.com/jaegertracing/jaeger/model"
 	_ "github.com/jaegertracing/jaeger/pkg/gogocodec" // force gogo codec registration
-	dependencyStoreMocks "github.com/jaegertracing/jaeger/storage/dependencystore/mocks"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	spanstoremocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
+	dependencyStoreMocks "github.com/jaegertracing/jaeger/storage_v2/depstore/mocks"
 	"github.com/jaegertracing/jaeger/storage_v2/factoryadapter"
 )
 
