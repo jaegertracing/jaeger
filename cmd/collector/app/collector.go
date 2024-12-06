@@ -132,7 +132,6 @@ func (c *Collector) Start(options *flags.CollectorOptions) error {
 	}
 
 	if options.OTLP.Enabled {
-		fmt.Printf("otlp enabled \n")
 		otlpReceiver, err := handler.StartOTLPReceiver(options, c.logger, c.spanProcessor, c.tenancyMgr)
 		if err != nil {
 			return fmt.Errorf("could not start OTLP receiver: %w", err)

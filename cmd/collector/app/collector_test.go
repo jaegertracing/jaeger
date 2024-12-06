@@ -32,33 +32,60 @@ import (
 var _ (io.Closer) = (*Collector)(nil)
 
 func optionsForEphemeralPorts() *flags.CollectorOptions {
-	collectorOpts := &flags.CollectorOptions{}
+	collectorOpts := &flags.CollectorOptions{
+		HTTP: confighttp.ServerConfig{
+			Endpoint:   ":0",
+			TLSSetting: &configtls.ServerConfig{},
+		},
+		GRPC: configgrpc.ServerConfig{
+			NetAddr: confignet.AddrConfig{
+				Endpoint:  ":0",
+				Transport: confignet.TransportTypeTCP,
+			},
+			Keepalive: &configgrpc.KeepaliveServerConfig{
+				ServerParameters: &configgrpc.KeepaliveServerParameters{
+					MaxConnectionIdle: 10,
+				},
+			},
+		},
+		OTLP: struct {
+			Enabled bool
+			GRPC    configgrpc.ServerConfig
+			HTTP    confighttp.ServerConfig
+		}{
+			Enabled: true,
+			HTTP: confighttp.ServerConfig{
+				Endpoint:   ":0",
+				TLSSetting: &configtls.ServerConfig{},
+			},
+			GRPC: configgrpc.ServerConfig{
+				NetAddr: confignet.AddrConfig{
+					Endpoint:  ":0",
+					Transport: confignet.TransportTypeTCP,
+				},
+				Keepalive: &configgrpc.KeepaliveServerConfig{
+					ServerParameters: &configgrpc.KeepaliveServerParameters{
+						MaxConnectionIdle: 10,
+					},
+				},
+			},
+		},
+		Zipkin: struct {
+			confighttp.ServerConfig
+			KeepAlive bool
+		}{
+			ServerConfig: confighttp.ServerConfig{
+				Endpoint: ":0",
+			},
+		},
+		Tenancy: tenancy.Options{},
+	}
 	collectorOpts.GRPC.NetAddr.Endpoint = ":0"
 	collectorOpts.GRPC.Keepalive = &configgrpc.KeepaliveServerConfig{
 		ServerParameters: &configgrpc.KeepaliveServerParameters{
 			MaxConnectionIdle: 10,
 		},
 	}
-	collectorOpts.GRPC.NetAddr.Transport = confignet.TransportTypeTCP
-	collectorOpts.HTTP = confighttp.ServerConfig{
-		Endpoint:   ":0",
-		TLSSetting: &configtls.ServerConfig{},
-	}
-	collectorOpts.OTLP.Enabled = true
-	collectorOpts.OTLP.GRPC.NetAddr.Endpoint = ":0"
-	collectorOpts.OTLP.GRPC.Keepalive = &configgrpc.KeepaliveServerConfig{
-		ServerParameters: &configgrpc.KeepaliveServerParameters{
-			MaxConnectionIdle: 10,
-		},
-	}
-	collectorOpts.OTLP.GRPC.NetAddr.Transport = confignet.TransportTypeTCP
-
-	collectorOpts.OTLP.HTTP = confighttp.ServerConfig{
-		Endpoint:   ":0",
-		TLSSetting: &configtls.ServerConfig{},
-	}
-	collectorOpts.Zipkin.Endpoint = ":0"
-	collectorOpts.Tenancy = tenancy.Options{}
 	return collectorOpts
 }
 

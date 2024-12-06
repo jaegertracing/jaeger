@@ -26,16 +26,24 @@ import (
 )
 
 func optionsWithPorts(port string) *flags.CollectorOptions {
-	opts := &flags.CollectorOptions{}
-	opts.OTLP.HTTP = confighttp.ServerConfig{
-		Endpoint: port,
-	}
-	opts.OTLP.GRPC = configgrpc.ServerConfig{
-		NetAddr: confignet.AddrConfig{
-			Endpoint: port,
+	opts := &flags.CollectorOptions{
+		OTLP: struct {
+			Enabled bool
+			GRPC    configgrpc.ServerConfig
+			HTTP    confighttp.ServerConfig
+		}{
+			Enabled: true,
+			HTTP: confighttp.ServerConfig{
+				Endpoint: port,
+			},
+			GRPC: configgrpc.ServerConfig{
+				NetAddr: confignet.AddrConfig{
+					Endpoint:  port,
+					Transport: confignet.TransportTypeTCP,
+				},
+			},
 		},
 	}
-	opts.OTLP.GRPC.NetAddr.Transport = confignet.TransportTypeTCP
 	return opts
 }
 

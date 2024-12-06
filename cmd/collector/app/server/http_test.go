@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/confighttp"
+	"go.opentelemetry.io/collector/config/configtls"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/handler"
@@ -43,17 +44,17 @@ func TestFailToListenHTTP(t *testing.T) {
 
 func TestCreateTLSHTTPServerError(t *testing.T) {
 	logger, _ := zap.NewDevelopment()
-	tlsCfg := tlscfg.Options{
-		Enabled:      true,
-		CertPath:     "invalid/path",
-		KeyPath:      "invalid/path",
-		ClientCAPath: "invalid/path",
-	}
 
 	params := &HTTPServerParams{
 		ServerConfig: confighttp.ServerConfig{
-			Endpoint:   ":0",
-			TLSSetting: tlsCfg.ToOtelServerConfig(),
+			Endpoint: ":0",
+			TLSSetting: &configtls.ServerConfig{
+				Config: configtls.Config{
+					CertFile: "invalid/path",
+					KeyFile:  "invalid/path",
+					CAFile:   "invalid/path",
+				},
+			},
 		},
 		HealthCheck: healthcheck.New(),
 		Logger:      logger,

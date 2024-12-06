@@ -60,8 +60,6 @@ func startOTLPReceiver(
 	otlpReceiverConfig := otlpFactory.CreateDefaultConfig().(*otlpreceiver.Config)
 	otlpReceiverConfig.GRPC = &options.OTLP.GRPC
 	otlpReceiverConfig.HTTP.ServerConfig = &options.OTLP.HTTP
-	fmt.Printf("OTLP HTTP Endpoint: %s\n", otlpReceiverConfig.HTTP.ServerConfig.Endpoint)
-	fmt.Printf("OTLP GRPC Endpoint: %s\n", otlpReceiverConfig.GRPC.NetAddr.Endpoint)
 	statusReporter := func(ev *componentstatus.Event) {
 		// TODO this could be wired into changing healthcheck.HealthCheck
 		logger.Info("OTLP receiver status change", zap.Stringer("status", ev.Status()))

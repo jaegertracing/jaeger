@@ -194,8 +194,6 @@ func TestSpanCollectorZipkinTLS(t *testing.T) {
 			}
 
 			response, requestError := client.Post(fmt.Sprintf("https://localhost:%d", ports.CollectorZipkin), "", nil)
-			fmt.Print(response)
-			fmt.Print(requestError)
 			if test.expectZipkinClientErr {
 				require.Error(t, requestError)
 			} else {

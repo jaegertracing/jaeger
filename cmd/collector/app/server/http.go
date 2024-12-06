@@ -80,12 +80,7 @@ func serveHTTP(server *http.Server, listener net.Listener, params *HTTPServerPar
 	recoveryHandler := recoveryhandler.NewRecoveryHandler(params.Logger, true)
 	server.Handler = httpmetrics.Wrap(recoveryHandler(r), params.MetricsFactory, params.Logger)
 	go func() {
-		var err error
-		if params.TLSSetting != nil {
-			err = server.ServeTLS(listener, params.TLSSetting.CertFile, params.TLSSetting.KeyFile)
-		} else {
-			err = server.Serve(listener)
-		}
+		err := server.Serve(listener)
 		if err != nil {
 			if err != http.ErrServerClosed {
 				params.Logger.Error("Could not start HTTP collector", zap.Error(err))
