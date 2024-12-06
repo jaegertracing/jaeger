@@ -34,27 +34,27 @@ extensions:
         elasticsearch:
           rollover:
             enabled: true
-            frequency: "week"
+            frequency:  "168h"
           indices:
             index_prefix: "jaeger-main"
             spans:
               date_layout: "2006-01-02"
-              rollover_frequency: "day"
+              rollover_frequency: "1day"
               shards: 5
               replicas: 1
             services:
               date_layout: "2006-01-02"
-              rollover_frequency: "day"
+              rollover_frequency: "1day"
               shards: 5
               replicas: 1
             dependencies:
               date_layout: "2006-01-02"
-              rollover_frequency: "day"
+              rollover_frequency: "1day"
               shards: 5
               replicas: 1
             sampling:
               date_layout: "2006-01-02"
-              rollover_frequency: "day"
+              rollover_frequency: "1day"
               shards: 5
               replicas: 1
       another_storage:
