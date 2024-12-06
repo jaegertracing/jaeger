@@ -14,7 +14,7 @@ type ClusterAPI struct {
 	mock.Mock
 }
 
-// Version provides a mock function with given fields:
+// Version provides a mock function with no fields
 func (_m *ClusterAPI) Version() (uint, error) {
 	ret := _m.Called()
 

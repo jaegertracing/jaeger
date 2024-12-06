@@ -21,7 +21,7 @@ type SpanReaderPlugin_FindTracesServer struct {
 	mock.Mock
 }
 
-// Context provides a mock function with given fields:
+// Context provides a mock function with no fields
 func (_m *SpanReaderPlugin_FindTracesServer) Context() context.Context {
 	ret := _m.Called()
 
