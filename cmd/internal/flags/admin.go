@@ -9,7 +9,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"io"
 	"net"
 	"net/http"
 	"net/http/pprof"
@@ -35,13 +34,12 @@ var tlsAdminHTTPFlagsConfig = tlscfg.ServerFlagsConfig{
 
 // AdminServer runs an HTTP server with admin endpoints, such as healthcheck at /, /metrics, etc.
 type AdminServer struct {
-	logger               *zap.Logger
-	adminHostPort        string
-	hc                   *healthcheck.HealthCheck
-	mux                  *http.ServeMux
-	server               *http.Server
-	tlsCfg               *tls.Config
-	tlsCertWatcherCloser io.Closer
+	logger        *zap.Logger
+	adminHostPort string
+	hc            *healthcheck.HealthCheck
+	mux           *http.ServeMux
+	server        *http.Server
+	tlsCfg        *tls.Config
 }
 
 // NewAdminServer creates a new admin server.
@@ -76,20 +74,17 @@ func (s *AdminServer) initFromViper(v *viper.Viper, logger *zap.Logger) error {
 	s.setLogger(logger)
 
 	s.adminHostPort = v.GetString(adminHTTPHostPort)
-	var tlsAdminHTTP tlscfg.Options
 	tlsAdminHTTP, err := tlsAdminHTTPFlagsConfig.InitFromViper(v)
+	tlsAdminHTTPConfig := tlsAdminHTTP.ToOtelServerConfig()
 	if err != nil {
 		return fmt.Errorf("failed to parse admin server TLS options: %w", err)
 	}
-	if tlsAdminHTTP.Enabled {
-		tlsCfg, err := tlsAdminHTTP.Config(s.logger) // This checks if the certificates are correctly provided
+	if tlsAdminHTTPConfig != nil {
+		tlsCfg, err := tlsAdminHTTPConfig.LoadTLSConfig(context.Background()) // This checks if the certificates are correctly provided
 		if err != nil {
 			return err
 		}
 		s.tlsCfg = tlsCfg
-		s.tlsCertWatcherCloser = &tlsAdminHTTP
-	} else {
-		s.tlsCertWatcherCloser = io.NopCloser(nil)
 	}
 	return nil
 }
@@ -160,7 +155,6 @@ func (s *AdminServer) registerPprofHandlers() {
 // Close stops the HTTP server
 func (s *AdminServer) Close() error {
 	return errors.Join(
-		s.tlsCertWatcherCloser.Close(),
 		s.server.Shutdown(context.Background()),
 	)
 }
