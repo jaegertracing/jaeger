@@ -49,7 +49,7 @@ type IndexCleaner struct {
 // Rollover struct for configuring roll over
 type Rollover struct {
 	// Enabled specifies whether the rollover functionality is enabled.
-	Enabled bool `mapstructure:"enabled" valid:"required"`
+	Enabled bool `mapstructure:"enabled"`
 	// Frequency specifies the interval at which the rollover process runs.
 	Frequency time.Duration `mapstructure:"frequency" validate:"gt=0"`
 }
