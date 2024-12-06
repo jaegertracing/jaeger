@@ -32,6 +32,7 @@ import (
 	metricsPlugin "github.com/jaegertracing/jaeger/plugin/metricstore"
 	"github.com/jaegertracing/jaeger/plugin/storage"
 	"github.com/jaegertracing/jaeger/ports"
+	"github.com/jaegertracing/jaeger/storage_v2/factoryadapter"
 )
 
 func main() {
@@ -89,9 +90,11 @@ func main() {
 			if err := storageFactory.Initialize(baseTelset.Metrics, baseTelset.Logger); err != nil {
 				logger.Fatal("Failed to init storage factory", zap.Error(err))
 			}
-			spanReader, err := storageFactory.CreateSpanReader()
+
+			v2Factory := factoryadapter.NewFactory(storageFactory)
+			traceReader, err := v2Factory.CreateTraceReader()
 			if err != nil {
-				logger.Fatal("Failed to create span reader", zap.Error(err))
+				logger.Fatal("Failed to create trace reader", zap.Error(err))
 			}
 			dependencyReader, err := storageFactory.CreateDependencyReader()
 			if err != nil {
@@ -104,7 +107,7 @@ func main() {
 			}
 			queryServiceOptions := queryOpts.BuildQueryServiceOptions(storageFactory, logger)
 			queryService := querysvc.NewQueryService(
-				spanReader,
+				traceReader,
 				dependencyReader,
 				*queryServiceOptions)
 			tm := tenancy.NewManager(&queryOpts.Tenancy)

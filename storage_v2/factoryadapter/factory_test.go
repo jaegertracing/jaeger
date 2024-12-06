@@ -40,6 +40,7 @@ func TestAdapterClose(t *testing.T) {
 func TestAdapterCreateTraceReader(t *testing.T) {
 	f1 := new(factoryMocks.Factory)
 	f1.On("CreateSpanReader").Return(new(spanstoreMocks.Reader), nil)
+
 	f := NewFactory(f1)
 	_, err := f.CreateTraceReader()
 	require.NoError(t, err)
@@ -48,6 +49,7 @@ func TestAdapterCreateTraceReader(t *testing.T) {
 func TestAdapterCreateTraceReaderError(t *testing.T) {
 	f1 := new(factoryMocks.Factory)
 	f1.On("CreateSpanReader").Return(nil, errors.New("mock error"))
+
 	f := NewFactory(f1)
 	_, err := f.CreateTraceReader()
 	require.ErrorContains(t, err, "mock error")
