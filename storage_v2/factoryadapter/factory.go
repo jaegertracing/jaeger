@@ -55,5 +55,9 @@ func (f *Factory) CreateTraceWriter() (tracestore.Writer, error) {
 
 // CreateDependencyReader implements depstore.Factory.
 func (f *Factory) CreateDependencyReader() (depstore.Reader, error) {
-	return f.ss.CreateDependencyReader()
+	dr, err := f.ss.CreateDependencyReader()
+	if err != nil {
+		return nil, err
+	}
+	return NewDependencyReader(dr), nil
 }

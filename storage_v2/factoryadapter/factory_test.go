@@ -87,6 +87,7 @@ func TestAdapterCreateDependencyReaderError(t *testing.T) {
 	f1.On("CreateDependencyReader").Return(nil, testErr)
 
 	f := NewFactory(f1)
-	_, err := f.CreateDependencyReader()
+	r, err := f.CreateDependencyReader()
 	require.ErrorIs(t, err, testErr)
+	require.Nil(t, r)
 }
