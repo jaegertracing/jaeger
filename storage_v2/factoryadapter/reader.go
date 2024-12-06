@@ -68,6 +68,7 @@ func NewDependencyReader(reader dependencystore.Reader) *DependencyReader {
 
 func (dr *DependencyReader) GetDependencies(
 	ctx context.Context,
-	query depstore.QueryParameters) ([]model.DependencyLink, error) {
+	query depstore.QueryParameters,
+) ([]model.DependencyLink, error) {
 	return dr.reader.GetDependencies(ctx, query.EndTime, query.EndTime.Sub(query.StartTime))
 }
