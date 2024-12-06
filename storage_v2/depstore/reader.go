@@ -10,7 +10,13 @@ import (
 	"github.com/jaegertracing/jaeger/model"
 )
 
+// QueryParameters contains the parameters that can be used to query dependencies.
+type QueryParameters struct {
+	StartTime time.Time
+	EndTime   time.Time
+}
+
 // Reader can load service dependencies from storage.
 type Reader interface {
-	GetDependencies(ctx context.Context, endTs time.Time, lookback time.Duration) ([]model.DependencyLink, error)
+	GetDependencies(ctx context.Context, query QueryParameters) ([]model.DependencyLink, error)
 }
