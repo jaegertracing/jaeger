@@ -32,9 +32,6 @@ extensions:
     backends:
       some_storage:
         elasticsearch:
-          rollover:
-            enabled: true
-            frequency:  "168h"
           indices:
             index_prefix: "jaeger-main"
             spans:

@@ -297,19 +297,8 @@ func TestConfigurationValidation(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "missing servers",
-			cfg: escfg.Configuration{
-				Rollover: escfg.Rollover{
-					Enabled: true,
-				},
-			},
-			wantErr: true,
-		},
-		{
-			name: "missing rollover config",
-			cfg: escfg.Configuration{
-				Servers: []string{"http://localhost:9200"},
-			},
+			name:    "missing servers",
+			cfg:     escfg.Configuration{},
 			wantErr: true,
 		},
 	}
