@@ -26,8 +26,6 @@ v1.64.0 / v2.1.0 (2024-12-06)
 
 ### Backend Changes
 
-### Backend Changes
-
 #### ⛔ Breaking Changes
 
 * [metrics][storage] move metrics reader decorator to metrics storage factory ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#6287](https://github.com/jaegertracing/jaeger/pull/6287))
