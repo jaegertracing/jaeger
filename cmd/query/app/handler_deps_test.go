@@ -15,6 +15,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/model"
 	ui "github.com/jaegertracing/jaeger/model/json"
+	"github.com/jaegertracing/jaeger/storage_v2/depstore"
 )
 
 func TestDeduplicateDependencies(t *testing.T) {
@@ -304,8 +305,10 @@ func TestGetDependenciesSuccess(t *testing.T) {
 	endTs := time.Unix(0, 1476374248550*millisToNanosMultiplier)
 	ts.dependencyReader.On("GetDependencies",
 		mock.Anything, // context
-		endTs,
-		defaultDependencyLookbackDuration,
+		depstore.QueryParameters{
+			StartTime: endTs.Add(-defaultDependencyLookbackDuration),
+			EndTime:   endTs,
+		},
 	).Return(expectedDependencies, nil).Times(1)
 
 	var response structuredResponse
@@ -324,8 +327,11 @@ func TestGetDependenciesCassandraFailure(t *testing.T) {
 	endTs := time.Unix(0, 1476374248550*millisToNanosMultiplier)
 	ts.dependencyReader.On("GetDependencies",
 		mock.Anything, // context
-		endTs,
-		defaultDependencyLookbackDuration).Return(nil, errStorage).Times(1)
+		depstore.QueryParameters{
+			StartTime: endTs.Add(-defaultDependencyLookbackDuration),
+			EndTime:   endTs,
+		},
+	).Return(nil, errStorage).Times(1)
 
 	var response structuredResponse
 	err := getJSON(ts.server.URL+"/api/dependencies?endTs=1476374248550&service=testing", &response)
