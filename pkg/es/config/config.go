@@ -158,7 +158,7 @@ type Configuration struct {
 	// IndexCleaner holds the configuration for the Elasticsearch index Cleaner.
 	IndexCleaner IndexCleaner `mapstructure:"index_cleaner"`
 	// Rollover holds the configuration for the Elasticsearh roll over.
-	Rollover Rollover `mapstructure:"roll_over"`
+	Rollover Rollover `mapstructure:"rollover"`
 }
 
 // TagsAsFields holds configuration for tag schema.

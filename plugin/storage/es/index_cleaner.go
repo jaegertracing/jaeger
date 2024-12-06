@@ -4,6 +4,7 @@
 package es
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"os/exec"
@@ -39,14 +40,10 @@ func (cfg *CleanerConfigWrapper) RunCleaner() {
 // runESIndexCleaner runs the cmd/es-index-cleaner command.
 func (cfg *CleanerConfigWrapper) runESIndexCleaner() error {
 	if len(cfg.Servers) == 0 {
-		return fmt.Errorf("elasticsearch server URL is missing in configuration")
+		return errors.New("elasticsearch server URL is missing in configuration")
 	}
 
-	esURL := cfg.Servers[0]
-	numOfDays := int(cfg.MaxSpanAge.Hours() / 24)
-
-	cmd := exec.Command("./cmd/es-index-cleaner", fmt.Sprintf("%d", numOfDays), esURL)
-	cmd.Args = append(cmd.Args, "--max-span-age", cfg.MaxSpanAge.String())
+	cmd := exec.Command("./cmd/es-index-cleaner")
 
 	err := cmd.Run()
 	if err != nil {

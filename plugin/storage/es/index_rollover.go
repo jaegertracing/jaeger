@@ -4,7 +4,6 @@
 package es
 
 import (
-	"fmt"
 	"log"
 	"os/exec"
 	"time"
@@ -29,22 +28,13 @@ func (cfg *RolloverConfigWrapper) RunRollover() {
 	for range ticker.C {
 		log.Println("Running index rollover...")
 
-		err := cfg.runEsRollover()
+		cmd := exec.Command("./cmd/es-rollover")
+		err := cmd.Run()
+
 		if err != nil {
 			log.Printf("Error running es-rollover: %v", err)
+		} else {
+			log.Println("Index rollover executed successfully.")
 		}
 	}
-}
-
-// runEsRollover executes the rollover tool.
-func (cfg *RolloverConfigWrapper) runEsRollover() error {
-	cmd := exec.Command("./cmd/es-rollover")
-
-	err := cmd.Run()
-	if err != nil {
-		return fmt.Errorf("failed to run es-rollover: %w", err)
-	}
-
-	log.Println("Index rollover executed successfully")
-	return nil
 }
