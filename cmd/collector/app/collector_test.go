@@ -80,12 +80,6 @@ func optionsForEphemeralPorts() *flags.CollectorOptions {
 		},
 		Tenancy: tenancy.Options{},
 	}
-	collectorOpts.GRPC.NetAddr.Endpoint = ":0"
-	collectorOpts.GRPC.Keepalive = &configgrpc.KeepaliveServerConfig{
-		ServerParameters: &configgrpc.KeepaliveServerParameters{
-			MaxConnectionIdle: 10,
-		},
-	}
 	return collectorOpts
 }
 
