@@ -82,4 +82,4 @@ Here are the release managers for future versions with the tentative release dat
 | 1.66.0  | @yurishkuro     | 3 February 2025        |
 | 1.67.0  | @albertteoh     | 5 March 2025           |
 | 1.68.0  | @pavolloffay    | 5 April 2025           |
-| 1.69.0  | @joe-elliott    | 7 April 2025           |
+| 1.69.0  | @joe-elliott    | 7 May   2025           |
