@@ -96,7 +96,7 @@ func main() {
 			if err != nil {
 				logger.Fatal("Failed to create trace reader", zap.Error(err))
 			}
-			dependencyReader, err := storageFactory.CreateDependencyReader()
+			dependencyReader, err := v2Factory.CreateDependencyReader()
 			if err != nil {
 				logger.Fatal("Failed to create dependency reader", zap.Error(err))
 			}
