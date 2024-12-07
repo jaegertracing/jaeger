@@ -17,6 +17,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/pkg/cassandra"
 	"github.com/jaegertracing/jaeger/pkg/cassandra/config"
+	gocqlw "github.com/jaegertracing/jaeger/pkg/cassandra/gocql"
 	"github.com/jaegertracing/jaeger/pkg/distributedlock"
 	"github.com/jaegertracing/jaeger/pkg/hostname"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
@@ -24,12 +25,14 @@ import (
 	cLock "github.com/jaegertracing/jaeger/plugin/pkg/distributedlock/cassandra"
 	cDepStore "github.com/jaegertracing/jaeger/plugin/storage/cassandra/dependencystore"
 	cSamplingStore "github.com/jaegertracing/jaeger/plugin/storage/cassandra/samplingstore"
+	"github.com/jaegertracing/jaeger/plugin/storage/cassandra/schema"
 	cSpanStore "github.com/jaegertracing/jaeger/plugin/storage/cassandra/spanstore"
 	"github.com/jaegertracing/jaeger/plugin/storage/cassandra/spanstore/dbmodel"
 	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/samplingstore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
+	"github.com/jaegertracing/jaeger/storage/spanstore/spanstoremetrics"
 )
 
 const (
@@ -50,22 +53,28 @@ var ( // interface comformance checks
 type Factory struct {
 	Options *Options
 
+	metricsFactory        metrics.Factory
 	primaryMetricsFactory metrics.Factory
 	archiveMetricsFactory metrics.Factory
 	logger                *zap.Logger
 	tracer                trace.TracerProvider
 
-	primaryConfig  config.SessionBuilder
+	primaryConfig config.Configuration
+	archiveConfig *config.Configuration
+
 	primarySession cassandra.Session
-	archiveConfig  config.SessionBuilder
 	archiveSession cassandra.Session
+
+	// tests can override this
+	sessionBuilderFn func(*config.Configuration) (cassandra.Session, error)
 }
 
 // NewFactory creates a new Factory.
 func NewFactory() *Factory {
 	return &Factory{
-		tracer:  otel.GetTracerProvider(),
-		Options: NewOptions(primaryStorageConfig, archiveStorageConfig),
+		tracer:           otel.GetTracerProvider(),
+		Options:          NewOptions(primaryStorageConfig, archiveStorageConfig),
+		sessionBuilderFn: NewSession,
 	}
 }
 
@@ -126,25 +135,36 @@ func (f *Factory) configureFromOptions(o *Options) {
 		o.others = make(map[string]*NamespaceConfig)
 	}
 	f.primaryConfig = o.GetPrimary()
-	if cfg := f.Options.Get(archiveStorageConfig); cfg != nil {
-		f.archiveConfig = cfg // this is so stupid - see https://golang.org/doc/faq#nil_error
-	}
+	f.archiveConfig = f.Options.Get(archiveStorageConfig)
 }
 
 // Initialize implements storage.Factory
 func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
-	f.primaryMetricsFactory = metricsFactory.Namespace(metrics.NSOptions{Name: "cassandra", Tags: nil})
-	f.archiveMetricsFactory = metricsFactory.Namespace(metrics.NSOptions{Name: "cassandra-archive", Tags: nil})
+	f.metricsFactory = metricsFactory
+	f.primaryMetricsFactory = metricsFactory.Namespace(
+		metrics.NSOptions{
+			Tags: map[string]string{
+				"role": "primary",
+			},
+		},
+	)
+	f.archiveMetricsFactory = metricsFactory.Namespace(
+		metrics.NSOptions{
+			Tags: map[string]string{
+				"role": "archive",
+			},
+		},
+	)
 	f.logger = logger
 
-	primarySession, err := f.primaryConfig.NewSession()
+	primarySession, err := f.sessionBuilderFn(&f.primaryConfig)
 	if err != nil {
 		return err
 	}
 	f.primarySession = primarySession
 
 	if f.archiveConfig != nil {
-		archiveSession, err := f.archiveConfig.NewSession()
+		archiveSession, err := f.sessionBuilderFn(f.archiveConfig)
 		if err != nil {
 			return err
 		}
@@ -155,9 +175,55 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 	return nil
 }
 
+// createSession creates session from a configuration
+func createSession(c *config.Configuration) (cassandra.Session, error) {
+	cluster, err := c.NewCluster()
+	if err != nil {
+		return nil, err
+	}
+
+	session, err := cluster.CreateSession()
+	if err != nil {
+		return nil, err
+	}
+
+	return gocqlw.WrapCQLSession(session), nil
+}
+
+// newSessionPrerequisites creates tables and types before creating a session
+func newSessionPrerequisites(c *config.Configuration) error {
+	if !c.Schema.CreateSchema {
+		return nil
+	}
+
+	cfg := *c // clone because we need to connect without specifying a keyspace
+	cfg.Schema.Keyspace = ""
+
+	session, err := createSession(&cfg)
+	if err != nil {
+		return err
+	}
+
+	sc := schema.NewSchemaCreator(session, c.Schema)
+	return sc.CreateSchemaIfNotPresent()
+}
+
+// NewSession creates a new Cassandra session
+func NewSession(c *config.Configuration) (cassandra.Session, error) {
+	if err := newSessionPrerequisites(c); err != nil {
+		return nil, err
+	}
+
+	return createSession(c)
+}
+
 // CreateSpanReader implements storage.Factory
 func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
-	return cSpanStore.NewSpanReader(f.primarySession, f.primaryMetricsFactory, f.logger, f.tracer.Tracer("cSpanStore.SpanReader"))
+	sr, err := cSpanStore.NewSpanReader(f.primarySession, f.primaryMetricsFactory, f.logger, f.tracer.Tracer("cSpanStore.SpanReader"))
+	if err != nil {
+		return nil, err
+	}
+	return spanstoremetrics.NewReaderDecorator(sr, f.primaryMetricsFactory), nil
 }
 
 // CreateSpanWriter implements storage.Factory
@@ -180,7 +246,11 @@ func (f *Factory) CreateArchiveSpanReader() (spanstore.Reader, error) {
 	if f.archiveSession == nil {
 		return nil, storage.ErrArchiveStorageNotConfigured
 	}
-	return cSpanStore.NewSpanReader(f.archiveSession, f.archiveMetricsFactory, f.logger, f.tracer.Tracer("cSpanStore.SpanReader"))
+	sr, err := cSpanStore.NewSpanReader(f.archiveSession, f.archiveMetricsFactory, f.logger, f.tracer.Tracer("cSpanStore.SpanReader"))
+	if err != nil {
+		return nil, err
+	}
+	return spanstoremetrics.NewReaderDecorator(sr, f.archiveMetricsFactory), nil
 }
 
 // CreateArchiveSpanWriter implements storage.ArchiveFactory
@@ -208,7 +278,14 @@ func (f *Factory) CreateLock() (distributedlock.Lock, error) {
 
 // CreateSamplingStore implements storage.SamplingStoreFactory
 func (f *Factory) CreateSamplingStore(int /* maxBuckets */) (samplingstore.Store, error) {
-	return cSamplingStore.New(f.primarySession, f.primaryMetricsFactory, f.logger), nil
+	samplingMetricsFactory := f.metricsFactory.Namespace(
+		metrics.NSOptions{
+			Tags: map[string]string{
+				"role": "sampling",
+			},
+		},
+	)
+	return cSamplingStore.New(f.primarySession, samplingMetricsFactory, f.logger), nil
 }
 
 func writerOptions(opts *Options) ([]cSpanStore.Option, error) {

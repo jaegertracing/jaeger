@@ -9,6 +9,7 @@ import (
 
 	"github.com/Shopify/sarama"
 	"github.com/spf13/viper"
+	"go.opentelemetry.io/collector/config/configtls"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
@@ -30,10 +31,10 @@ var authTypes = []string{
 
 // AuthenticationConfig describes the configuration properties needed authenticate with kafka cluster
 type AuthenticationConfig struct {
-	Authentication string          `mapstructure:"type"`
-	Kerberos       KerberosConfig  `mapstructure:"kerberos"`
-	TLS            tlscfg.Options  `mapstructure:"tls"`
-	PlainText      PlainTextConfig `mapstructure:"plaintext"`
+	Authentication string
+	Kerberos       KerberosConfig
+	TLS            configtls.ClientConfig
+	PlainText      PlainTextConfig
 }
 
 // SetConfiguration set configure authentication into sarama config structure
@@ -42,9 +43,8 @@ func (config *AuthenticationConfig) SetConfiguration(saramaConfig *sarama.Config
 	if strings.Trim(authentication, " ") == "" {
 		authentication = none
 	}
-	if config.Authentication == tls || config.TLS.Enabled {
-		err := setTLSConfiguration(&config.TLS, saramaConfig, logger)
-		if err != nil {
+	if config.Authentication == tls {
+		if err := setTLSConfiguration(&config.TLS, saramaConfig, logger); err != nil {
 			return err
 		}
 	}
@@ -79,15 +79,14 @@ func (config *AuthenticationConfig) InitFromViper(configPrefix string, v *viper.
 		Prefix: configPrefix,
 	}
 
-	var err error
-	config.TLS, err = tlsClientConfig.InitFromViper(v)
+	tlsOpts, err := tlsClientConfig.InitFromViper(v)
 	if err != nil {
 		return fmt.Errorf("failed to process Kafka TLS options: %w", err)
 	}
 	if config.Authentication == tls {
-		config.TLS.Enabled = true
+		tlsOpts.Enabled = true
+		config.TLS = tlsOpts.ToOtelClientConfig()
 	}
-
 	config.PlainText.Username = v.GetString(configPrefix + plainTextPrefix + suffixPlainTextUsername)
 	config.PlainText.Password = v.GetString(configPrefix + plainTextPrefix + suffixPlainTextPassword)
 	config.PlainText.Mechanism = v.GetString(configPrefix + plainTextPrefix + suffixPlainTextMechanism)

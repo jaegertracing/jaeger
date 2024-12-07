@@ -17,7 +17,7 @@ type Client struct {
 	mock.Mock
 }
 
-// Close provides a mock function with given fields:
+// Close provides a mock function with no fields
 func (_m *Client) Close() error {
 	ret := _m.Called()
 
@@ -95,7 +95,7 @@ func (_m *Client) DeleteIndex(index string) es.IndicesDeleteService {
 	return r0
 }
 
-// GetVersion provides a mock function with given fields:
+// GetVersion provides a mock function with no fields
 func (_m *Client) GetVersion() uint {
 	ret := _m.Called()
 
@@ -113,7 +113,7 @@ func (_m *Client) GetVersion() uint {
 	return r0
 }
 
-// Index provides a mock function with given fields:
+// Index provides a mock function with no fields
 func (_m *Client) Index() es.IndexService {
 	ret := _m.Called()
 
@@ -153,7 +153,7 @@ func (_m *Client) IndexExists(index string) es.IndicesExistsService {
 	return r0
 }
 
-// MultiSearch provides a mock function with given fields:
+// MultiSearch provides a mock function with no fields
 func (_m *Client) MultiSearch() es.MultiSearchService {
 	ret := _m.Called()
 

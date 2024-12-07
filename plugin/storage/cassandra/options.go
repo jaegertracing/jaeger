@@ -256,8 +256,8 @@ func (cfg *NamespaceConfig) initFromViper(v *viper.Viper) {
 }
 
 // GetPrimary returns primary configuration.
-func (opt *Options) GetPrimary() *config.Configuration {
-	return &opt.Primary.Configuration
+func (opt *Options) GetPrimary() config.Configuration {
+	return opt.Primary.Configuration
 }
 
 // Get returns auxiliary named configuration.

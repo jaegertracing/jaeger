@@ -12,23 +12,16 @@ import (
 
 	"github.com/jaegertracing/jaeger/pkg/distributedlock"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/pkg/telemetry"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
-	"github.com/jaegertracing/jaeger/storage/metricsstore"
+	"github.com/jaegertracing/jaeger/storage/metricstore"
 	"github.com/jaegertracing/jaeger/storage/samplingstore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
-// Factory defines an interface for a factory that can create implementations of different storage components.
-// Implementations are also encouraged to implement plugin.Configurable interface.
-//
-// # See also
-//
-// plugin.Configurable
-type Factory interface {
-	// Initialize performs internal initialization of the factory, such as opening connections to the backend store.
-	// It is called after all configuration of the factory itself has been done.
-	Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error
-
+// BaseFactory is the same as Factory, but without the Initialize method.
+// It was a design mistake originally to add Initialize to the Factory interface.
+type BaseFactory interface {
 	// CreateSpanReader creates a spanstore.Reader.
 	CreateSpanReader() (spanstore.Reader, error)
 
@@ -37,6 +30,19 @@ type Factory interface {
 
 	// CreateDependencyReader creates a dependencystore.Reader.
 	CreateDependencyReader() (dependencystore.Reader, error)
+}
+
+// Factory defines an interface for a factory that can create implementations of different storage components.
+// Implementations are also encouraged to implement plugin.Configurable interface.
+//
+// # See also
+//
+// plugin.Configurable
+type Factory interface {
+	BaseFactory
+	// Initialize performs internal initialization of the factory, such as opening connections to the backend store.
+	// It is called after all configuration of the factory itself has been done.
+	Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error
 }
 
 // Purger defines an interface that is capable of purging the storage.
@@ -72,17 +78,17 @@ type ArchiveFactory interface {
 	CreateArchiveSpanWriter() (spanstore.Writer, error)
 }
 
-// MetricsFactory defines an interface for a factory that can create implementations of different metrics storage components.
+// MetricStoreFactory defines an interface for a factory that can create implementations of different metrics storage components.
 // Implementations are also encouraged to implement plugin.Configurable interface.
 //
 // # See also
 //
 // plugin.Configurable
-type MetricsFactory interface {
+type MetricStoreFactory interface {
 	// Initialize performs internal initialization of the factory, such as opening connections to the backend store.
 	// It is called after all configuration of the factory itself has been done.
-	Initialize(logger *zap.Logger) error
+	Initialize(telset telemetry.Settings) error
 
-	// CreateMetricsReader creates a metricsstore.Reader.
-	CreateMetricsReader() (metricsstore.Reader, error)
+	// CreateMetricsReader creates a metricstore.Reader.
+	CreateMetricsReader() (metricstore.Reader, error)
 }

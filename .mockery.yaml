@@ -64,12 +64,15 @@ packages:
   github.com/jaegertracing/jaeger/storage/dependencystore:
     interfaces:
       Reader:
-  github.com/jaegertracing/jaeger/storage/metricsstore:
+  github.com/jaegertracing/jaeger/storage/metricstore:
     config:
       all: true
   github.com/jaegertracing/jaeger/storage/samplingstore:
     config:
       all: true
   github.com/jaegertracing/jaeger/storage/spanstore:
+    config:
+      all: true
+  github.com/jaegertracing/jaeger/storage_v2/tracestore:
     config:
       all: true
