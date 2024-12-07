@@ -38,10 +38,10 @@ jobs:
       run: |
         case ${{ matrix.version }} in
           v1)
-            SPAN_STORAGE_TYPE=memory make grpc-storage-integration-test
+            SAMPLING_STORAGE_TYPE=memory SPAN_STORAGE_TYPE=memory make grpc-storage-integration-test
             ;;
           v2)
-            STORAGE=grpc SPAN_STORAGE_TYPE=memory make jaeger-v2-storage-integration-test
+            SAMPLING_STORAGE_TYPE=memory STORAGE=grpc SPAN_STORAGE_TYPE=memory make jaeger-v2-storage-integration-test
             ;;
         esac
 

@@ -47,6 +47,7 @@ func TestNewServer_CreateStorageErrors(t *testing.T) {
 			factory,
 			tenancy.NewManager(&tenancy.Options{}),
 			telemetry.NoopSettings(),
+			nil,
 		)
 	}
 	_, err := f()
@@ -118,13 +119,14 @@ func TestNewServer_TLSConfigError(t *testing.T) {
 		storageMocks.factory,
 		tenancy.NewManager(&tenancy.Options{}),
 		telset,
+		nil,
 	)
 	assert.ErrorContains(t, err, "invalid TLS config")
 }
 
 func TestCreateGRPCHandler(t *testing.T) {
 	storageMocks := newStorageMocks()
-	h, err := createGRPCHandler(storageMocks.factory, zap.NewNop())
+	h, err := createGRPCHandler(storageMocks.factory, nil, zap.NewNop())
 	require.NoError(t, err)
 
 	storageMocks.writer.On("WriteSpan", mock.Anything, mock.Anything).Return(errors.New("writer error"))
@@ -325,6 +327,7 @@ func TestServerGRPCTLS(t *testing.T) {
 				storageMocks.factory,
 				tm,
 				telset,
+				nil,
 			)
 			require.NoError(t, err)
 			require.NoError(t, server.Start())
@@ -374,6 +377,7 @@ func TestServerHandlesPortZero(t *testing.T) {
 		storageMocks.factory,
 		tenancy.NewManager(&tenancy.Options{}),
 		telset,
+		nil,
 	)
 	require.NoError(t, err)
 

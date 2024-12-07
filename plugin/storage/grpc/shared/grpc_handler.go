@@ -330,7 +330,7 @@ func (s *GRPCHandler) GetThroughput(_ context.Context, r *storage_v1.GetThroughp
 	if err != nil {
 		return nil, err
 	}
-	storageV1Throughput, err := samplingStoreThroughpusToStorageV1Throughputs(throughput)
+	storageV1Throughput, err := samplingStoreThroughputsToStorageV1Throughputs(throughput)
 	if err != nil {
 		return nil, err
 	}

@@ -277,7 +277,7 @@ func readTrace(stream storage_v1.SpanReaderPlugin_GetTraceClient) (*model.Trace,
 
 func (c *GRPCClient) InsertThroughput(throughputs []*samplingStoreModel.Throughput) error {
 	ctx := context.Background()
-	storageV1Throughput, err := samplingStoreThroughpusToStorageV1Throughputs(throughputs)
+	storageV1Throughput, err := samplingStoreThroughputsToStorageV1Throughputs(throughputs)
 	if err != nil {
 		return err
 	}
