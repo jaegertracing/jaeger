@@ -57,7 +57,7 @@ Former maintainers can be reinstated to full maintainer status through the same 
 
 ## Emeritus Maintainers
 
-Former maintainers are recognized with an honorary _Emeritus Maintainer_ status, and have their names permanently listed in the [README](./README.md#emeritus-maintainers) as a form of gratitude for their contributions.
+Former maintainers are recognized with an honorary _Emeritus Maintainer_ status, and have their names permanently listed in the [MAINTAINERS](./MAINTAINERS.md#emeritus-maintainers) file as a form of gratitude for their contributions.
 
 ## GitHub Project Administration
 
