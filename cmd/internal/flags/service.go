@@ -46,7 +46,7 @@ func PrintV1EOL() {
 	println(`
 *******************************************************************************
 
-******** WARNING: End-of-life Notice for Jaeger v1
+🛑  WARNING: End-of-life Notice for Jaeger v1
 
 You are currently running a v1 version of Jaeger, which is deprecated and will
 reach end-of-life on December 31st, 2025. This means there will be no further
@@ -60,7 +60,7 @@ documentation:  https://www.jaegertracing.io/docs/latest/migration/
 
 Tracking issue: https://github.com/jaegertracing/jaeger/issues/6321
 
-******** WARNING: End-of-life Notice for Jaeger v1
+🛑  WARNING: End-of-life Notice for Jaeger v1
 
 *******************************************************************************
 `)
