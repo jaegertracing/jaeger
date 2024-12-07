@@ -6,7 +6,6 @@ package app
 import (
 	"context"
 	"expvar"
-	"fmt"
 	"io"
 	"sync/atomic"
 	"testing"
@@ -124,8 +123,6 @@ func TestNewCollector(t *testing.T) {
 	})
 
 	collectorOpts := optionsForEphemeralPorts()
-	fmt.Printf("Collector Options: %+v\n", collectorOpts.OTLP.GRPC)
-	fmt.Print(collectorOpts.OTLP.HTTP.Endpoint)
 	require.NoError(t, c.Start(collectorOpts))
 	assert.NotNil(t, c.SpanHandlers())
 	require.NoError(t, c.Close())

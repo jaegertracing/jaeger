@@ -42,7 +42,6 @@ type GRPCServerParams struct {
 func StartGRPCServer(params *GRPCServerParams) (*grpc.Server, error) {
 	var server *grpc.Server
 	var grpcOpts []configgrpc.ToServerOption
-	// explicitly setting tranport type
 	params.NetAddr.Transport = confignet.TransportTypeTCP
 	server, err := params.ToServer(context.Background(), nil, component.TelemetrySettings{
 		Logger: params.Logger,

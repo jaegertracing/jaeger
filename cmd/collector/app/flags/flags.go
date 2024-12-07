@@ -190,7 +190,7 @@ func addGRPCFlags(flagSet *flag.FlagSet, cfg serverFlagsConfig, defaultHostPort 
 	cfg.tls.AddFlags(flagSet)
 }
 
-func initHTTPFromViper(v *viper.Viper, _ *zap.Logger, opts *confighttp.ServerConfig, corsOpts *corscfg.Options, cfg serverFlagsConfig) error {
+func initHTTPFromViper(v *viper.Viper, _ *zap.Logger, opts *confighttp.ServerConfig, corsOpts *confighttp.CORSConfig, cfg serverFlagsConfig) error {
 	tlsOpts, err := cfg.tls.InitFromViper(v)
 	if err != nil {
 		return fmt.Errorf("failed to parse HTTP TLS options: %w", err)
@@ -201,7 +201,7 @@ func initHTTPFromViper(v *viper.Viper, _ *zap.Logger, opts *confighttp.ServerCon
 	opts.ReadTimeout = v.GetDuration(cfg.prefix + "." + flagSuffixHTTPReadTimeout)
 	opts.ReadHeaderTimeout = v.GetDuration(cfg.prefix + "." + flagSuffixHTTPReadHeaderTimeout)
 	if corsOpts != nil {
-		opts.CORS = corsOpts.ToOTELCorsConfig()
+		opts.CORS = corsOpts
 	}
 
 	return nil
@@ -245,7 +245,7 @@ func (cOpts *CollectorOptions) InitFromViper(v *viper.Viper, logger *zap.Logger)
 	cOpts.OTLP.Enabled = v.GetBool(flagCollectorOTLPEnabled)
 	corsOpts := corsOTLPFlags.InitFromViper(v)
 
-	if err := initHTTPFromViper(v, logger, &cOpts.OTLP.HTTP, &corsOpts, otlpServerFlagsCfg.HTTP); err != nil {
+	if err := initHTTPFromViper(v, logger, &cOpts.OTLP.HTTP, corsOpts, otlpServerFlagsCfg.HTTP); err != nil {
 		return cOpts, fmt.Errorf("failed to parse OTLP/HTTP server options: %w", err)
 	}
 	if err := initGRPCFromViper(v, logger, &cOpts.OTLP.GRPC, otlpServerFlagsCfg.GRPC); err != nil {
@@ -255,7 +255,7 @@ func (cOpts *CollectorOptions) InitFromViper(v *viper.Viper, logger *zap.Logger)
 	cOpts.Zipkin.KeepAlive = v.GetBool(flagZipkinKeepAliveEnabled)
 	corsOpts = corsZipkinFlags.InitFromViper(v)
 
-	if err := initHTTPFromViper(v, logger, &cOpts.Zipkin.ServerConfig, &corsOpts, zipkinServerFlagsCfg); err != nil {
+	if err := initHTTPFromViper(v, logger, &cOpts.Zipkin.ServerConfig, corsOpts, zipkinServerFlagsCfg); err != nil {
 		return cOpts, fmt.Errorf("failed to parse Zipkin server options: %w", err)
 	}
 

@@ -123,7 +123,6 @@ func (c *Collector) Start(options *flags.CollectorOptions) error {
 	if options.Zipkin.Endpoint == "" {
 		c.logger.Info("Not listening for Zipkin HTTP traffic, port not configured")
 	} else {
-		fmt.Printf("%v zipkin\n", options.Zipkin.Endpoint)
 		zipkinReceiver, err := handler.StartZipkinReceiver(options, c.logger, c.spanProcessor, c.tenancyMgr)
 		if err != nil {
 			return fmt.Errorf("could not start Zipkin receiver: %w", err)
