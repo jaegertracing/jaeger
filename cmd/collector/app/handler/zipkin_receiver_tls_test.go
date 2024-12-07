@@ -143,6 +143,28 @@ func TestSpanCollectorZipkinTLS(t *testing.T) {
 			expectZipkinClientErr: true,
 			expectServerFail:      false,
 		},
+		{
+			name: "should fail with TLS client with cert to trusted TLS server with incorrect TLS min",
+			serverTLS: configtls.ServerConfig{
+				ClientCAFile: testCertKeyLocation + "/example-CA-cert.pem",
+				Config: configtls.Config{
+					CertFile:   testCertKeyLocation + "/example-server-cert.pem",
+					KeyFile:    testCertKeyLocation + "/example-server-key.pem",
+					MinVersion: "1.5",
+				},
+			},
+			clientTLS: configtls.ClientConfig{
+				Config: configtls.Config{
+					CAFile:   testCertKeyLocation + "/example-CA-cert.pem",
+					CertFile: testCertKeyLocation + "/example-client-cert.pem",
+					KeyFile:  testCertKeyLocation + "/example-client-key.pem",
+				},
+				ServerName: "example.com",
+			},
+			expectTLSClientErr:    true,
+			expectServerFail:      true,
+			expectZipkinClientErr: false,
+		},
 	}
 
 	for _, test := range testCases {
