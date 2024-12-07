@@ -10,6 +10,7 @@ import (
 	otlp2jaeger "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componentstatus"
+	"go.opentelemetry.io/collector/config/confignet"
 	"go.opentelemetry.io/collector/config/configtelemetry"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/extension"
@@ -59,6 +60,7 @@ func startOTLPReceiver(
 ) (receiver.Traces, error) {
 	otlpReceiverConfig := otlpFactory.CreateDefaultConfig().(*otlpreceiver.Config)
 	otlpReceiverConfig.GRPC = &options.OTLP.GRPC
+	otlpReceiverConfig.GRPC.NetAddr.Transport = confignet.TransportTypeTCP
 	otlpReceiverConfig.HTTP.ServerConfig = &options.OTLP.HTTP
 	statusReporter := func(ev *componentstatus.Event) {
 		// TODO this could be wired into changing healthcheck.HealthCheck
