@@ -513,7 +513,7 @@ func TestGetDependenciesSuccessGRPC(t *testing.T) {
 		endTs := time.Now().UTC()
 		server.depReader.On("GetDependencies",
 			mock.Anything, // context.Context
-			endTs.Add(time.Duration(-1)*defaultDependencyLookbackDuration),
+			endTs,
 			defaultDependencyLookbackDuration,
 		).Return(expectedDependencies, nil).Times(1)
 
@@ -532,7 +532,7 @@ func TestGetDependenciesFailureGRPC(t *testing.T) {
 		server.depReader.On(
 			"GetDependencies",
 			mock.Anything, // context.Context
-			endTs.Add(time.Duration(-1)*defaultDependencyLookbackDuration),
+			endTs,
 			defaultDependencyLookbackDuration).Return(nil, errStorageGRPC).Times(1)
 
 		_, err := client.GetDependencies(context.Background(), &api_v2.GetDependenciesRequest{
