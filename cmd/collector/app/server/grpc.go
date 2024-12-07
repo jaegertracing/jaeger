@@ -10,6 +10,7 @@ import (
 
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/configgrpc"
+	"go.opentelemetry.io/collector/config/confignet"
 	"go.opentelemetry.io/collector/config/configtelemetry"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/metric/noop"
@@ -41,6 +42,8 @@ type GRPCServerParams struct {
 func StartGRPCServer(params *GRPCServerParams) (*grpc.Server, error) {
 	var server *grpc.Server
 	var grpcOpts []configgrpc.ToServerOption
+	// explicitly setting tranport type
+	params.NetAddr.Transport = confignet.TransportTypeTCP
 	server, err := params.ToServer(context.Background(), nil, component.TelemetrySettings{
 		Logger: params.Logger,
 		LeveledMeterProvider: func(_ configtelemetry.Level) metric.MeterProvider {
