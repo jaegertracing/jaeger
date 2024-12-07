@@ -36,6 +36,7 @@ import (
 )
 
 func main() {
+	flags.PrintV1EOL()
 	svc := flags.NewService(ports.QueryAdminHTTP)
 
 	storageFactory, err := storage.NewFactory(storage.FactoryConfigFromEnvAndCLI(os.Args, os.Stderr))
