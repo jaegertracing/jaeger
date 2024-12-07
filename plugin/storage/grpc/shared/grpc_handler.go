@@ -19,6 +19,7 @@ import (
 	_ "github.com/jaegertracing/jaeger/pkg/gogocodec" // force gogo codec registration
 	"github.com/jaegertracing/jaeger/proto-gen/storage_v1"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
+	"github.com/jaegertracing/jaeger/storage/samplingstore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
@@ -42,6 +43,8 @@ type GRPCHandlerStorageImpl struct {
 	ArchiveSpanWriter func() spanstore.Writer
 
 	StreamingSpanWriter func() spanstore.Writer
+
+	SamplingStore func() samplingstore.Store
 }
 
 // NewGRPCHandler creates a handler given individual storage implementations.
@@ -83,6 +86,7 @@ func (s *GRPCHandler) Register(ss *grpc.Server, hs *health.Server) error {
 	storage_v1.RegisterPluginCapabilitiesServer(ss, s)
 	storage_v1.RegisterDependenciesReaderPluginServer(ss, s)
 	storage_v1.RegisterStreamingSpanWriterPluginServer(ss, s)
+	storage_v1.RegisterSamplingStorePluginServer(ss, s)
 
 	hs.SetServingStatus("jaeger.storage.v1.SpanReaderPlugin", grpc_health_v1.HealthCheckResponse_SERVING)
 	hs.SetServingStatus("jaeger.storage.v1.SpanWriterPlugin", grpc_health_v1.HealthCheckResponse_SERVING)
@@ -91,6 +95,7 @@ func (s *GRPCHandler) Register(ss *grpc.Server, hs *health.Server) error {
 	hs.SetServingStatus("jaeger.storage.v1.PluginCapabilities", grpc_health_v1.HealthCheckResponse_SERVING)
 	hs.SetServingStatus("jaeger.storage.v1.DependenciesReaderPlugin", grpc_health_v1.HealthCheckResponse_SERVING)
 	hs.SetServingStatus("jaeger.storage.v1.StreamingSpanWriterPlugin", grpc_health_v1.HealthCheckResponse_SERVING)
+	hs.SetServingStatus("jaeger.storage.v1.SamplingStorePlugin", grpc_health_v1.HealthCheckResponse_SERVING)
 	grpc_health_v1.RegisterHealthServer(ss, hs)
 
 	return nil
@@ -302,4 +307,47 @@ func (s *GRPCHandler) WriteArchiveSpan(ctx context.Context, r *storage_v1.WriteS
 		return nil, err
 	}
 	return &storage_v1.WriteSpanResponse{}, nil
+}
+
+func (s *GRPCHandler) InsertThroughput(_ context.Context, r *storage_v1.InsertThroughputRequest) (*storage_v1.InsertThroughputResponse, error) {
+	err := s.impl.SamplingStore().InsertThroughput(storageV1ThroughputsToSamplingStoreThroughputs(r.Throughput))
+	if err != nil {
+		return nil, err
+	}
+	return &storage_v1.InsertThroughputResponse{}, nil
+}
+
+func (s *GRPCHandler) InsertProbabilitiesAndQPS(_ context.Context, r *storage_v1.InsertProbabilitiesAndQPSRequest) (*storage_v1.InsertProbabilitiesAndQPSResponse, error) {
+	err := s.impl.SamplingStore().InsertProbabilitiesAndQPS(r.Hostname, storageV1SSFloatMapToSSFloatMap(r.Probabilities.ServiceOperationProbabilities), storageV1SSFloatMapToSSFloatMap(r.Qps.ServiceOperationQPS))
+	if err != nil {
+		return nil, err
+	}
+	return &storage_v1.InsertProbabilitiesAndQPSResponse{}, nil
+}
+
+func (s *GRPCHandler) GetThroughput(_ context.Context, r *storage_v1.GetThroughputRequest) (*storage_v1.GetThroughputResponse, error) {
+	throughput, err := s.impl.SamplingStore().GetThroughput(r.StartTime, r.EndTime)
+	if err != nil {
+		return nil, err
+	}
+	storageV1Throughput, err := samplingStoreThroughpusToStorageV1Throughputs(throughput)
+	if err != nil {
+		return nil, err
+	}
+
+	return &storage_v1.GetThroughputResponse{
+		Throughput: storageV1Throughput,
+	}, nil
+}
+
+func (s *GRPCHandler) GetLatestProbabilities(context.Context, *storage_v1.GetLatestProbabilitiesRequest) (*storage_v1.GetLatestProbabilitiesResponse, error) {
+	probabilities, err := s.impl.SamplingStore().GetLatestProbabilities()
+	if err != nil {
+		return nil, err
+	}
+	return &storage_v1.GetLatestProbabilitiesResponse{
+		ServiceOperationProbabilities: &storage_v1.ServiceOperationProbabilities{
+			ServiceOperationProbabilities: sSFloatMapToStorageV1SSFloatMap(probabilities),
+		},
+	}, nil
 }

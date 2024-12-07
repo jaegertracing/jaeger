@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"strconv"
 	"time"
 
 	"google.golang.org/grpc"
@@ -278,26 +277,12 @@ func readTrace(stream storage_v1.SpanReaderPlugin_GetTraceClient) (*model.Trace,
 
 func (c *GRPCClient) InsertThroughput(throughputs []*samplingStoreModel.Throughput) error {
 	ctx := context.Background()
-	storageV1Throughput := []*storage_v1.Throughput{}
-	for _, throughput := range throughputs {
-		probsAsArray := []float64{}
-		for prob := range throughput.Probabilities {
-			probInFloat, err := strconv.ParseFloat(prob, 64)
-			if err != nil {
-				return err
-			}
-			probsAsArray = append(probsAsArray, probInFloat)
-		}
-
-		storageV1Throughput = append(storageV1Throughput, &storage_v1.Throughput{
-			Service:       throughput.Service,
-			Operation:     throughput.Operation,
-			Count:         throughput.Count,
-			Probabilities: probsAsArray,
-		})
+	storageV1Throughput, err := samplingStoreThroughpusToStorageV1Throughputs(throughputs)
+	if err != nil {
+		return err
 	}
 
-	_, err := c.samplingStoreClient.InsertThroughput(ctx, &storage_v1.InsertThroughputRequest{
+	_, err = c.samplingStoreClient.InsertThroughput(ctx, &storage_v1.InsertThroughputRequest{
 		Throughput: storageV1Throughput,
 	})
 	if err != nil {
@@ -309,27 +294,14 @@ func (c *GRPCClient) InsertThroughput(throughputs []*samplingStoreModel.Throughp
 
 func (c *GRPCClient) InsertProbabilitiesAndQPS(hostname string, probabilities samplingStoreModel.ServiceOperationProbabilities, qps samplingStoreModel.ServiceOperationQPS) error {
 	ctx := context.Background()
-	stringFloatMapToV1StringFloatMap := func(in map[string]float64) *storage_v1.StringFloatMap {
-		return &storage_v1.StringFloatMap{
-			StringFloatMap: in,
-		}
-	}
-
-	convertToV1Map := func(in map[string]map[string]float64) map[string]*storage_v1.StringFloatMap {
-		res := make(map[string]*storage_v1.StringFloatMap)
-		for k, v := range in {
-			res[k] = stringFloatMapToV1StringFloatMap(v)
-		}
-		return res
-	}
 
 	_, err := c.samplingStoreClient.InsertProbabilitiesAndQPS(ctx, &storage_v1.InsertProbabilitiesAndQPSRequest{
 		Hostname: hostname,
 		Probabilities: &storage_v1.ServiceOperationProbabilities{
-			ServiceOperationProbabilities: convertToV1Map(probabilities),
+			ServiceOperationProbabilities: sSFloatMapToStorageV1SSFloatMap(probabilities),
 		},
 		Qps: &storage_v1.ServiceOperationQPS{
-			ServiceOperationQPS: convertToV1Map(qps),
+			ServiceOperationQPS: sSFloatMapToStorageV1SSFloatMap(qps),
 		},
 	})
 	if err != nil {
@@ -349,23 +321,7 @@ func (c *GRPCClient) GetThroughput(start, end time.Time) ([]*samplingStoreModel.
 		return nil, fmt.Errorf("plugin error: %w", err)
 	}
 
-	resThroughput := []*samplingStoreModel.Throughput{}
-
-	for _, throughput := range resp.Throughput {
-		probsAsSet := make(map[string]struct{})
-		for _, prob := range throughput.Probabilities {
-			probsAsSet[strconv.FormatFloat(prob, 'E', -1, 64)] = struct{}{}
-		}
-
-		resThroughput = append(resThroughput, &samplingStoreModel.Throughput{
-			Service:       throughput.Service,
-			Operation:     throughput.Operation,
-			Count:         throughput.Count,
-			Probabilities: probsAsSet,
-		})
-	}
-
-	return resThroughput, nil
+	return storageV1ThroughputsToSamplingStoreThroughputs(resp.Throughput), nil
 }
 
 func (c *GRPCClient) GetLatestProbabilities() (samplingStoreModel.ServiceOperationProbabilities, error) {
@@ -375,17 +331,5 @@ func (c *GRPCClient) GetLatestProbabilities() (samplingStoreModel.ServiceOperati
 		return nil, fmt.Errorf("plugin error: %w", err)
 	}
 
-	v1StringFloatMapToStringFloatMap := func(in *storage_v1.StringFloatMap) map[string]float64 {
-		return in.StringFloatMap
-	}
-
-	convertToMap := func(in map[string]*storage_v1.StringFloatMap) map[string]map[string]float64 {
-		res := make(map[string]map[string]float64)
-		for k, v := range in {
-			res[k] = v1StringFloatMapToStringFloatMap(v)
-		}
-		return res
-	}
-
-	return convertToMap(resp.ServiceOperationProbabilities.ServiceOperationProbabilities), nil
+	return storageV1SSFloatMapToSSFloatMap(resp.ServiceOperationProbabilities.ServiceOperationProbabilities), nil
 }

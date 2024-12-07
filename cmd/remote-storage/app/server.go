@@ -22,6 +22,7 @@ import (
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared"
 	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
+	"github.com/jaegertracing/jaeger/storage/samplingstore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
@@ -36,8 +37,8 @@ type Server struct {
 }
 
 // NewServer creates and initializes Server.
-func NewServer(options *Options, storageFactory storage.BaseFactory, tm *tenancy.Manager, telset telemetry.Settings) (*Server, error) {
-	handler, err := createGRPCHandler(storageFactory, telset.Logger)
+func NewServer(options *Options, storageFactory storage.BaseFactory, tm *tenancy.Manager, telset telemetry.Settings, samplingStoreFactory storage.SamplingStoreFactory) (*Server, error) {
+	handler, err := createGRPCHandler(storageFactory, samplingStoreFactory, telset.Logger)
 	if err != nil {
 		return nil, err
 	}
@@ -54,7 +55,7 @@ func NewServer(options *Options, storageFactory storage.BaseFactory, tm *tenancy
 	}, nil
 }
 
-func createGRPCHandler(f storage.BaseFactory, logger *zap.Logger) (*shared.GRPCHandler, error) {
+func createGRPCHandler(f storage.BaseFactory, samplingStoreFactory storage.SamplingStoreFactory, logger *zap.Logger) (*shared.GRPCHandler, error) {
 	reader, err := f.CreateSpanReader()
 	if err != nil {
 		return nil, err
@@ -67,12 +68,17 @@ func createGRPCHandler(f storage.BaseFactory, logger *zap.Logger) (*shared.GRPCH
 	if err != nil {
 		return nil, err
 	}
+	samplingStore, err := samplingStoreFactory.CreateSamplingStore(1)
+	if err != nil {
+		return nil, err
+	}
 
 	impl := &shared.GRPCHandlerStorageImpl{
 		SpanReader:          func() spanstore.Reader { return reader },
 		SpanWriter:          func() spanstore.Writer { return writer },
 		DependencyReader:    func() dependencystore.Reader { return depReader },
 		StreamingSpanWriter: func() spanstore.Writer { return nil },
+		SamplingStore:       func() samplingstore.Store { return samplingStore },
 	}
 
 	// borrow code from Query service for archive storage

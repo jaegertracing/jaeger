@@ -77,7 +77,7 @@ func main() {
 			tm := tenancy.NewManager(&opts.Tenancy)
 			telset := baseTelset // copy
 			telset.Metrics = metricsFactory
-			server, err := app.NewServer(opts, storageFactory, tm, telset)
+			server, err := app.NewServer(opts, storageFactory, tm, telset, nil)
 			if err != nil {
 				logger.Fatal("Failed to create server", zap.Error(err))
 			}
