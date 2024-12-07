@@ -18,7 +18,7 @@ type Consumer struct {
 	mock.Mock
 }
 
-// Close provides a mock function with given fields:
+// Close provides a mock function with no fields
 func (_m *Consumer) Close() error {
 	ret := _m.Called()
 
@@ -41,7 +41,7 @@ func (_m *Consumer) MarkPartitionOffset(topic string, partition int32, offset in
 	_m.Called(topic, partition, offset, metadata)
 }
 
-// Partitions provides a mock function with given fields:
+// Partitions provides a mock function with no fields
 func (_m *Consumer) Partitions() <-chan cluster.PartitionConsumer {
 	ret := _m.Called()
 

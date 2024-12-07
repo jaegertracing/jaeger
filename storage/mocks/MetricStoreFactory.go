@@ -19,7 +19,7 @@ type MetricStoreFactory struct {
 	mock.Mock
 }
 
-// CreateMetricsReader provides a mock function with given fields:
+// CreateMetricsReader provides a mock function with no fields
 func (_m *MetricStoreFactory) CreateMetricsReader() (metricstore.Reader, error) {
 	ret := _m.Called()
 

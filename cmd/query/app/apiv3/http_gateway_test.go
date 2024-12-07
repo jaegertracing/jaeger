@@ -25,6 +25,7 @@ import (
 	dependencyStoreMocks "github.com/jaegertracing/jaeger/storage/dependencystore/mocks"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	spanstoremocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
+	"github.com/jaegertracing/jaeger/storage_v2/factoryadapter"
 )
 
 func setupHTTPGatewayNoServer(
@@ -35,7 +36,7 @@ func setupHTTPGatewayNoServer(
 		reader: &spanstoremocks.Reader{},
 	}
 
-	q := querysvc.NewQueryService(gw.reader,
+	q := querysvc.NewQueryService(factoryadapter.NewTraceReader(gw.reader),
 		&dependencyStoreMocks.Reader{},
 		querysvc.QueryServiceOptions{},
 	)

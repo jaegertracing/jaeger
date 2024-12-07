@@ -17,7 +17,7 @@ type ArchiveFactory struct {
 	mock.Mock
 }
 
-// CreateArchiveSpanReader provides a mock function with given fields:
+// CreateArchiveSpanReader provides a mock function with no fields
 func (_m *ArchiveFactory) CreateArchiveSpanReader() (spanstore.Reader, error) {
 	ret := _m.Called()
 
@@ -47,7 +47,7 @@ func (_m *ArchiveFactory) CreateArchiveSpanReader() (spanstore.Reader, error) {
 	return r0, r1
 }
 
-// CreateArchiveSpanWriter provides a mock function with given fields:
+// CreateArchiveSpanWriter provides a mock function with no fields
 func (_m *ArchiveFactory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
 	ret := _m.Called()
 
