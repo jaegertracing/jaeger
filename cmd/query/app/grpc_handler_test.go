@@ -512,12 +512,11 @@ func TestGetDependenciesSuccessGRPC(t *testing.T) {
 	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
 		expectedDependencies := []model.DependencyLink{{Parent: "killer", Child: "queen", CallCount: 12}}
 		endTs := time.Now().UTC()
-		expectedEndTs := endTs.Add(time.Duration(-1) * defaultDependencyLookbackDuration)
 		server.depReader.On("GetDependencies",
 			mock.Anything, // context.Context
 			depstore.QueryParameters{
-				StartTime: expectedEndTs.Add(-defaultDependencyLookbackDuration),
-				EndTime:   expectedEndTs,
+				StartTime: endTs.Add(-defaultDependencyLookbackDuration),
+				EndTime:   endTs,
 			},
 		).Return(expectedDependencies, nil).Times(1)
 
@@ -533,12 +532,11 @@ func TestGetDependenciesSuccessGRPC(t *testing.T) {
 func TestGetDependenciesFailureGRPC(t *testing.T) {
 	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
 		endTs := time.Now().UTC()
-		expectedEndTs := endTs.Add(time.Duration(-1) * defaultDependencyLookbackDuration)
 		server.depReader.On("GetDependencies",
 			mock.Anything, // context.Context
 			depstore.QueryParameters{
-				StartTime: expectedEndTs.Add(-defaultDependencyLookbackDuration),
-				EndTime:   expectedEndTs,
+				StartTime: endTs.Add(-defaultDependencyLookbackDuration),
+				EndTime:   endTs,
 			},
 		).Return(nil, errStorageGRPC).Times(1)
 
