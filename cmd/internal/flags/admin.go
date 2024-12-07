@@ -5,7 +5,6 @@ package flags
 
 import (
 	"context"
-	"crypto/tls"
 	"errors"
 	"flag"
 	"fmt"
@@ -15,6 +14,7 @@ import (
 	"time"
 
 	"github.com/spf13/viper"
+	"go.opentelemetry.io/collector/config/confighttp"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
@@ -34,21 +34,22 @@ var tlsAdminHTTPFlagsConfig = tlscfg.ServerFlagsConfig{
 
 // AdminServer runs an HTTP server with admin endpoints, such as healthcheck at /, /metrics, etc.
 type AdminServer struct {
-	logger        *zap.Logger
-	adminHostPort string
-	hc            *healthcheck.HealthCheck
-	mux           *http.ServeMux
-	server        *http.Server
-	tlsCfg        *tls.Config
+	logger    *zap.Logger
+	hc        *healthcheck.HealthCheck
+	mux       *http.ServeMux
+	server    *http.Server
+	serverCfg *confighttp.ServerConfig
 }
 
 // NewAdminServer creates a new admin server.
 func NewAdminServer(hostPort string) *AdminServer {
 	return &AdminServer{
-		adminHostPort: hostPort,
-		logger:        zap.NewNop(),
-		hc:            healthcheck.New(),
-		mux:           http.NewServeMux(),
+		logger: zap.NewNop(),
+		hc:     healthcheck.New(),
+		mux:    http.NewServeMux(),
+		serverCfg: &confighttp.ServerConfig{
+			Endpoint: hostPort,
+		},
 	}
 }
 
@@ -65,7 +66,7 @@ func (s *AdminServer) setLogger(logger *zap.Logger) {
 
 // AddFlags registers CLI flags.
 func (s *AdminServer) AddFlags(flagSet *flag.FlagSet) {
-	flagSet.String(adminHTTPHostPort, s.adminHostPort, fmt.Sprintf("The host:port (e.g. 127.0.0.1%s or %s) for the admin server, including health check, /metrics, etc.", s.adminHostPort, s.adminHostPort))
+	flagSet.String(adminHTTPHostPort, s.serverCfg.Endpoint, fmt.Sprintf("The host:port (e.g. 127.0.0.1%s or %s) for the admin server, including health check, /metrics, etc.", s.serverCfg.Endpoint, s.serverCfg.Endpoint))
 	tlsAdminHTTPFlagsConfig.AddFlags(flagSet)
 }
 
@@ -73,18 +74,18 @@ func (s *AdminServer) AddFlags(flagSet *flag.FlagSet) {
 func (s *AdminServer) initFromViper(v *viper.Viper, logger *zap.Logger) error {
 	s.setLogger(logger)
 
-	s.adminHostPort = v.GetString(adminHTTPHostPort)
+	s.serverCfg.Endpoint = v.GetString(adminHTTPHostPort)
 	tlsAdminHTTP, err := tlsAdminHTTPFlagsConfig.InitFromViper(v)
 	tlsAdminHTTPConfig := tlsAdminHTTP.ToOtelServerConfig()
 	if err != nil {
 		return fmt.Errorf("failed to parse admin server TLS options: %w", err)
 	}
 	if tlsAdminHTTPConfig != nil {
-		tlsCfg, err := tlsAdminHTTPConfig.LoadTLSConfig(context.Background()) // This checks if the certificates are correctly provided
+		s.serverCfg.TLSSetting = tlsAdminHTTPConfig
+		_, err = s.serverCfg.TLSSetting.LoadTLSConfig(context.Background())
 		if err != nil {
 			return err
 		}
-		s.tlsCfg = tlsCfg
 	}
 	return nil
 }
@@ -96,7 +97,7 @@ func (s *AdminServer) Handle(path string, handler http.Handler) {
 
 // Serve starts HTTP server.
 func (s *AdminServer) Serve() error {
-	l, err := net.Listen("tcp", s.adminHostPort)
+	l, err := net.Listen("tcp", s.serverCfg.Endpoint)
 	if err != nil {
 		s.logger.Error("Admin server failed to listen", zap.Error(err))
 		return err
@@ -122,13 +123,18 @@ func (s *AdminServer) serveWithListener(l net.Listener) {
 		ErrorLog:          errorLog,
 		ReadHeaderTimeout: 2 * time.Second,
 	}
-	if s.tlsCfg != nil {
-		s.server.TLSConfig = s.tlsCfg
+	if s.serverCfg.TLSSetting != nil {
+		tlsConfig, err := s.serverCfg.TLSSetting.LoadTLSConfig(context.Background())
+		if err != nil {
+			s.logger.Error("failed to load tls config", zap.Error(err))
+			s.hc.Set(healthcheck.Broken)
+		}
+		s.server.TLSConfig = tlsConfig
 	}
-	s.logger.Info("Starting admin HTTP server", zap.String("http-addr", s.adminHostPort))
+	s.logger.Info("Starting admin HTTP server", zap.String("http-addr", s.serverCfg.Endpoint))
 	go func() {
 		var err error
-		if s.tlsCfg != nil {
+		if s.serverCfg.TLSSetting != nil {
 			err = s.server.ServeTLS(l, "", "")
 		} else {
 			err = s.server.Serve(l)
