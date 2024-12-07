@@ -21,7 +21,6 @@ import (
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc"
 	"github.com/jaegertracing/jaeger/plugin/storage/memory"
 	"github.com/jaegertracing/jaeger/storage"
-	"github.com/jaegertracing/jaeger/storage_v2/depstore"
 	"github.com/jaegertracing/jaeger/storage_v2/factoryadapter"
 	"github.com/jaegertracing/jaeger/storage_v2/tracestore"
 )
@@ -76,14 +75,6 @@ func GetMetricStorageFactory(name string, host component.Host) (storage.MetricSt
 }
 
 func GetTraceStoreFactory(name string, host component.Host) (tracestore.Factory, error) {
-	return getV2FactoryAdapter(name, host)
-}
-
-func GetDependencyStoreFactory(name string, host component.Host) (depstore.Factory, error) {
-	return getV2FactoryAdapter(name, host)
-}
-
-func getV2FactoryAdapter(name string, host component.Host) (*factoryadapter.Factory, error) {
 	f, err := GetStorageFactory(name, host)
 	if err != nil {
 		return nil, err

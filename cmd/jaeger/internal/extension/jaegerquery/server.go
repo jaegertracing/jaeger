@@ -21,6 +21,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/plugin/metricstore/disabled"
 	"github.com/jaegertracing/jaeger/storage/metricstore"
+	"github.com/jaegertracing/jaeger/storage_v2/depstore"
 )
 
 var (
@@ -80,8 +81,8 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 		return fmt.Errorf("cannot create trace reader: %w", err)
 	}
 
-	df, err := jaegerstorage.GetDependencyStoreFactory(s.config.Storage.TracesPrimary, host)
-	if err != nil {
+	df, ok := tf.(depstore.Factory)
+	if !ok {
 		return fmt.Errorf("cannot find factory for dependency storage %s: %w", s.config.Storage.TracesPrimary, err)
 	}
 	depReader, err := df.CreateDependencyReader()
