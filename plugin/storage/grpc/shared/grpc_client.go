@@ -20,6 +20,7 @@ import (
 	_ "github.com/jaegertracing/jaeger/pkg/gogocodec" // force gogo codec registration
 	"github.com/jaegertracing/jaeger/proto-gen/storage_v1"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
+	"github.com/jaegertracing/jaeger/storage/samplingstore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
@@ -53,6 +54,7 @@ func NewGRPCClient(tracedConn *grpc.ClientConn, untracedConn *grpc.ClientConn) *
 		capabilitiesClient:  storage_v1.NewPluginCapabilitiesClient(tracedConn),
 		depsReaderClient:    storage_v1.NewDependenciesReaderPluginClient(tracedConn),
 		streamWriterClient:  storage_v1.NewStreamingSpanWriterPluginClient(untracedConn),
+		samplingStoreClient: storage_v1.NewSamplingStorePluginClient(untracedConn),
 	}
 }
 
@@ -68,6 +70,10 @@ func (c *GRPCClient) SpanReader() spanstore.Reader {
 
 // SpanWriter implements shared.StoragePlugin.
 func (c *GRPCClient) SpanWriter() spanstore.Writer {
+	return c
+}
+
+func (c *GRPCClient) SamplingStore() samplingstore.Store {
 	return c
 }
 
@@ -270,7 +276,8 @@ func readTrace(stream storage_v1.SpanReaderPlugin_GetTraceClient) (*model.Trace,
 	return &trace, nil
 }
 
-func (c *GRPCClient) InsertThroughput(ctx context.Context, throughputs []*samplingStoreModel.Throughput) error {
+func (c *GRPCClient) InsertThroughput(throughputs []*samplingStoreModel.Throughput) error {
+	ctx := context.Background()
 	storageV1Throughput := []*storage_v1.Throughput{}
 	for _, throughput := range throughputs {
 		probsAsArray := []float64{}
@@ -300,7 +307,8 @@ func (c *GRPCClient) InsertThroughput(ctx context.Context, throughputs []*sampli
 	return nil
 }
 
-func (c *GRPCClient) InsertProbabilitiesAndQPS(ctx context.Context, hostname string, probabilities samplingStoreModel.ServiceOperationProbabilities, qps samplingStoreModel.ServiceOperationQPS) error {
+func (c *GRPCClient) InsertProbabilitiesAndQPS(hostname string, probabilities samplingStoreModel.ServiceOperationProbabilities, qps samplingStoreModel.ServiceOperationQPS) error {
+	ctx := context.Background()
 	stringFloatMapToV1StringFloatMap := func(in map[string]float64) *storage_v1.StringFloatMap {
 		return &storage_v1.StringFloatMap{
 			StringFloatMap: in,
@@ -331,7 +339,8 @@ func (c *GRPCClient) InsertProbabilitiesAndQPS(ctx context.Context, hostname str
 	return nil
 }
 
-func (c *GRPCClient) GetThroughput(ctx context.Context, start, end time.Time) ([]*samplingStoreModel.Throughput, error) {
+func (c *GRPCClient) GetThroughput(start, end time.Time) ([]*samplingStoreModel.Throughput, error) {
+	ctx := context.Background()
 	resp, err := c.samplingStoreClient.GetThroughput(ctx, &storage_v1.GetThroughputRequest{
 		StartTime: start,
 		EndTime:   end,
@@ -359,7 +368,8 @@ func (c *GRPCClient) GetThroughput(ctx context.Context, start, end time.Time) ([
 	return resThroughput, nil
 }
 
-func (c *GRPCClient) GetLatestProbabilities(ctx context.Context) (samplingStoreModel.ServiceOperationProbabilities, error) {
+func (c *GRPCClient) GetLatestProbabilities() (samplingStoreModel.ServiceOperationProbabilities, error) {
+	ctx := context.Background()
 	resp, err := c.samplingStoreClient.GetLatestProbabilities(ctx, &storage_v1.GetLatestProbabilitiesRequest{})
 	if err != nil {
 		return nil, fmt.Errorf("plugin error: %w", err)

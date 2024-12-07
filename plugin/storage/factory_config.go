@@ -68,6 +68,9 @@ func FactoryConfigFromEnvAndCLI(args []string, log io.Writer) FactoryConfig {
 		depStorageType = spanWriterTypes[0]
 	}
 	samplingStorageType := os.Getenv(SamplingStorageTypeEnvVar)
+	if samplingStorageType == "" {
+		samplingStorageType = cassandraStorageType
+	}
 	// TODO support explicit configuration for readers
 	return FactoryConfig{
 		SpanWriterTypes:         spanWriterTypes,

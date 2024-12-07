@@ -28,7 +28,7 @@ type StreamingSpanWriterPlugin interface {
 }
 
 type SamplingStorePlugin interface {
-	SamplingStoreRW() samplingstore.Store
+	SamplingStore() samplingstore.Store
 }
 
 // PluginCapabilities allow expose plugin its capabilities.
