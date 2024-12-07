@@ -71,17 +71,20 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 	telset.Metrics = telset.Metrics.
 		Namespace(metrics.NSOptions{Name: "jaeger"}).
 		Namespace(metrics.NSOptions{Name: "query"})
-	f, err := jaegerstorage.GetStorageFactoryV2(s.config.Storage.TracesPrimary, host)
+	tf, err := jaegerstorage.GetTraceStoreFactory(s.config.Storage.TracesPrimary, host)
 	if err != nil {
-		return fmt.Errorf("cannot find factory for primary storage %s: %w", s.config.Storage.TracesPrimary, err)
+		return fmt.Errorf("cannot find factory for trace storage %s: %w", s.config.Storage.TracesPrimary, err)
 	}
-
-	traceReader, err := f.CreateTraceReader()
+	traceReader, err := tf.CreateTraceReader()
 	if err != nil {
 		return fmt.Errorf("cannot create trace reader: %w", err)
 	}
 
-	depReader, err := f.CreateDependencyReader()
+	df, err := jaegerstorage.GetDependencyStoreFactory(s.config.Storage.TracesPrimary, host)
+	if err != nil {
+		return fmt.Errorf("cannot find factory for dependency storage %s: %w", s.config.Storage.TracesPrimary, err)
+	}
+	depReader, err := df.CreateDependencyReader()
 	if err != nil {
 		return fmt.Errorf("cannot create dependencies reader: %w", err)
 	}

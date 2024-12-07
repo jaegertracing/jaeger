@@ -34,7 +34,7 @@ func newExporter(config *Config, otel component.TelemetrySettings) *storageExpor
 }
 
 func (exp *storageExporter) start(_ context.Context, host component.Host) error {
-	f, err := jaegerstorage.GetStorageFactoryV2(exp.config.TraceStorage, host)
+	f, err := jaegerstorage.GetTraceStoreFactory(exp.config.TraceStorage, host)
 	if err != nil {
 		return fmt.Errorf("cannot find storage factory: %w", err)
 	}
