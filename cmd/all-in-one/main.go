@@ -38,7 +38,7 @@ import (
 	ss "github.com/jaegertracing/jaeger/plugin/sampling/strategyprovider"
 	"github.com/jaegertracing/jaeger/plugin/storage"
 	"github.com/jaegertracing/jaeger/ports"
-	"github.com/jaegertracing/jaeger/storage/dependencystore"
+	"github.com/jaegertracing/jaeger/storage_v2/depstore"
 	"github.com/jaegertracing/jaeger/storage_v2/factoryadapter"
 	"github.com/jaegertracing/jaeger/storage_v2/tracestore"
 )
@@ -115,7 +115,7 @@ by default uses only in-memory database.`,
 			if err != nil {
 				logger.Fatal("Failed to create span writer", zap.Error(err))
 			}
-			dependencyReader, err := storageFactory.CreateDependencyReader()
+			dependencyReader, err := v2Factory.CreateDependencyReader()
 			if err != nil {
 				logger.Fatal("Failed to create dependency reader", zap.Error(err))
 			}
@@ -219,7 +219,7 @@ func startQuery(
 	qOpts *queryApp.QueryOptions,
 	queryOpts *querysvc.QueryServiceOptions,
 	traceReader tracestore.Reader,
-	depReader dependencystore.Reader,
+	depReader depstore.Reader,
 	metricsQueryService querysvc.MetricsQueryService,
 	tm *tenancy.Manager,
 	telset telemetry.Settings,

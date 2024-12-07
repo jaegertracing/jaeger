@@ -13,8 +13,8 @@ import (
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/model/adjuster"
 	"github.com/jaegertracing/jaeger/storage"
-	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
+	"github.com/jaegertracing/jaeger/storage_v2/depstore"
 	"github.com/jaegertracing/jaeger/storage_v2/factoryadapter"
 	"github.com/jaegertracing/jaeger/storage_v2/tracestore"
 )
@@ -43,12 +43,12 @@ type StorageCapabilities struct {
 // QueryService contains span utils required by the query-service.
 type QueryService struct {
 	traceReader      tracestore.Reader
-	dependencyReader dependencystore.Reader
+	dependencyReader depstore.Reader
 	options          QueryServiceOptions
 }
 
 // NewQueryService returns a new QueryService.
-func NewQueryService(traceReader tracestore.Reader, dependencyReader dependencystore.Reader, options QueryServiceOptions) *QueryService {
+func NewQueryService(traceReader tracestore.Reader, dependencyReader depstore.Reader, options QueryServiceOptions) *QueryService {
 	qsvc := &QueryService{
 		traceReader:      traceReader,
 		dependencyReader: dependencyReader,
@@ -134,7 +134,10 @@ func (qs QueryService) Adjust(trace *model.Trace) (*model.Trace, error) {
 
 // GetDependencies implements dependencystore.Reader.GetDependencies
 func (qs QueryService) GetDependencies(ctx context.Context, endTs time.Time, lookback time.Duration) ([]model.DependencyLink, error) {
-	return qs.dependencyReader.GetDependencies(ctx, endTs, lookback)
+	return qs.dependencyReader.GetDependencies(ctx, depstore.QueryParameters{
+		StartTime: endTs.Add(-lookback),
+		EndTime:   endTs,
+	})
 }
 
 // GetCapabilities returns the features supported by the query service.
