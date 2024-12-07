@@ -45,6 +45,7 @@ import (
 
 // all-in-one/main is a standalone full-stack jaeger backend, backed by a memory store
 func main() {
+	flags.PrintV1EOL()
 	setupcontext.SetAllInOne()
 
 	svc := flags.NewService(ports.CollectorAdminHTTP)
