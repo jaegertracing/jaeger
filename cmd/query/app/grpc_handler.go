@@ -223,7 +223,7 @@ func (g *GRPCHandler) GetDependencies(ctx context.Context, r *api_v2.GetDependen
 		return nil, status.Errorf(codes.InvalidArgument, "StartTime and EndTime must be initialized.")
 	}
 
-	dependencies, err := g.queryService.GetDependencies(ctx, startTime, endTime.Sub(startTime))
+	dependencies, err := g.queryService.GetDependencies(ctx, endTime, endTime.Sub(startTime))
 	if err != nil {
 		g.logger.Error("failed to fetch dependencies", zap.Error(err))
 		return nil, status.Errorf(codes.Internal, "failed to fetch dependencies: %v", err)
