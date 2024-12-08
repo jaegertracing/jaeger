@@ -40,12 +40,23 @@ func (*TraceReader) GetTrace(_ context.Context, _ pcommon.TraceID) (ptrace.Trace
 	panic("not implemented")
 }
 
-func (*TraceReader) GetServices(_ context.Context) ([]string, error) {
-	panic("not implemented")
+func (tr *TraceReader) GetServices(ctx context.Context) ([]string, error) {
+	return tr.spanReader.GetServices(ctx)
 }
 
-func (*TraceReader) GetOperations(_ context.Context, _ tracestore.OperationQueryParameters) ([]tracestore.Operation, error) {
-	panic("not implemented")
+func (tr *TraceReader) GetOperations(ctx context.Context, query tracestore.OperationQueryParameters) ([]tracestore.Operation, error) {
+	o, err := tr.spanReader.GetOperations(ctx, spanstore.OperationQueryParameters{
+		ServiceName: query.ServiceName,
+		SpanKind:    query.SpanKind,
+	})
+	var operations []tracestore.Operation
+	for _, operation := range o {
+		operations = append(operations, tracestore.Operation{
+			Name:     operation.Name,
+			SpanKind: operation.SpanKind,
+		})
+	}
+	return operations, err
 }
 
 func (*TraceReader) FindTraces(_ context.Context, _ tracestore.TraceQueryParameters) ([]ptrace.Traces, error) {

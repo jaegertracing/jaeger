@@ -5,6 +5,7 @@ package factoryadapter
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -16,6 +17,8 @@ import (
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/plugin/storage/memory"
 	dependencyStoreMocks "github.com/jaegertracing/jaeger/storage/dependencystore/mocks"
+	"github.com/jaegertracing/jaeger/storage/spanstore"
+	spanStoreMocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
 	"github.com/jaegertracing/jaeger/storage_v2/depstore"
 	"github.com/jaegertracing/jaeger/storage_v2/tracestore"
 )
@@ -66,23 +69,83 @@ func TestTraceReader_GetTracePanics(t *testing.T) {
 	require.Panics(t, func() { traceReader.GetTrace(context.Background(), pcommon.NewTraceIDEmpty()) })
 }
 
-func TestTraceReader_GetServicesPanics(t *testing.T) {
-	memstore := memory.NewStore()
+func TestTraceReader_GetServicesDelegatesToSpanReader(t *testing.T) {
+	sr := new(spanStoreMocks.Reader)
+	expectedServices := []string{"service-a", "service-b"}
+	sr.On("GetServices", mock.Anything).Return(expectedServices, nil)
 	traceReader := &TraceReader{
-		spanReader: memstore,
+		spanReader: sr,
 	}
-	require.Panics(t, func() { traceReader.GetServices(context.Background()) })
+	services, err := traceReader.GetServices(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, expectedServices, services)
 }
 
-func TestTraceReader_GetOperationsPanics(t *testing.T) {
-	memstore := memory.NewStore()
-	traceReader := &TraceReader{
-		spanReader: memstore,
+func TestTraceReader_GetOperationsDelegatesResponse(t *testing.T) {
+	tests := []struct {
+		name               string
+		operations         []spanstore.Operation
+		expectedOperations []tracestore.Operation
+		err                error
+	}{
+		{
+			name: "successful response",
+			operations: []spanstore.Operation{
+				{
+					Name:     "operation-a",
+					SpanKind: "server",
+				},
+				{
+					Name:     "operation-b",
+					SpanKind: "server",
+				},
+			},
+			expectedOperations: []tracestore.Operation{
+				{
+					Name:     "operation-a",
+					SpanKind: "server",
+				},
+				{
+					Name:     "operation-b",
+					SpanKind: "server",
+				},
+			},
+		},
+		{
+			name:               "nil response",
+			operations:         nil,
+			expectedOperations: nil,
+		},
+		{
+			name:               "error response",
+			operations:         nil,
+			expectedOperations: nil,
+			err:                errors.New("test error"),
+		},
 	}
-	require.Panics(
-		t,
-		func() { traceReader.GetOperations(context.Background(), tracestore.OperationQueryParameters{}) },
-	)
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			sr := new(spanStoreMocks.Reader)
+			sr.On("GetOperations",
+				mock.Anything,
+				spanstore.OperationQueryParameters{
+					ServiceName: "service-a",
+					SpanKind:    "server",
+				}).Return(test.operations, test.err)
+			traceReader := &TraceReader{
+				spanReader: sr,
+			}
+			operations, err := traceReader.GetOperations(
+				context.Background(),
+				tracestore.OperationQueryParameters{
+					ServiceName: "service-a",
+					SpanKind:    "server",
+				})
+			require.ErrorIs(t, err, test.err)
+			require.Equal(t, test.expectedOperations, operations)
+		})
+	}
 }
 
 func TestTraceReader_FindTracesPanics(t *testing.T) {
