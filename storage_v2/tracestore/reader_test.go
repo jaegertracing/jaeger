@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/crossdock/crossdock-go/require"
+	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
