@@ -13,6 +13,10 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/config/configgrpc"
+	"go.opentelemetry.io/collector/config/confighttp"
+	"go.opentelemetry.io/collector/config/confignet"
+	"go.opentelemetry.io/collector/config/configtls"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/flags"
@@ -27,13 +31,54 @@ import (
 var _ (io.Closer) = (*Collector)(nil)
 
 func optionsForEphemeralPorts() *flags.CollectorOptions {
-	collectorOpts := &flags.CollectorOptions{}
-	collectorOpts.GRPC.HostPort = ":0"
-	collectorOpts.HTTP.HostPort = ":0"
-	collectorOpts.OTLP.Enabled = true
-	collectorOpts.OTLP.GRPC.HostPort = ":0"
-	collectorOpts.OTLP.HTTP.HostPort = ":0"
-	collectorOpts.Zipkin.HTTPHostPort = ":0"
+	collectorOpts := &flags.CollectorOptions{
+		HTTP: confighttp.ServerConfig{
+			Endpoint:   ":0",
+			TLSSetting: &configtls.ServerConfig{},
+		},
+		GRPC: configgrpc.ServerConfig{
+			NetAddr: confignet.AddrConfig{
+				Endpoint:  ":0",
+				Transport: confignet.TransportTypeTCP,
+			},
+			Keepalive: &configgrpc.KeepaliveServerConfig{
+				ServerParameters: &configgrpc.KeepaliveServerParameters{
+					MaxConnectionIdle: 10,
+				},
+			},
+		},
+		OTLP: struct {
+			Enabled bool
+			GRPC    configgrpc.ServerConfig
+			HTTP    confighttp.ServerConfig
+		}{
+			Enabled: true,
+			HTTP: confighttp.ServerConfig{
+				Endpoint:   ":0",
+				TLSSetting: &configtls.ServerConfig{},
+			},
+			GRPC: configgrpc.ServerConfig{
+				NetAddr: confignet.AddrConfig{
+					Endpoint:  ":0",
+					Transport: confignet.TransportTypeTCP,
+				},
+				Keepalive: &configgrpc.KeepaliveServerConfig{
+					ServerParameters: &configgrpc.KeepaliveServerParameters{
+						MaxConnectionIdle: 10,
+					},
+				},
+			},
+		},
+		Zipkin: struct {
+			confighttp.ServerConfig
+			KeepAlive bool
+		}{
+			ServerConfig: confighttp.ServerConfig{
+				Endpoint: ":0",
+			},
+		},
+		Tenancy: tenancy.Options{},
+	}
 	return collectorOpts
 }
 
@@ -112,23 +157,23 @@ func TestCollector_StartErrors(t *testing.T) {
 	var options *flags.CollectorOptions
 
 	options = optionsForEphemeralPorts()
-	options.GRPC.HostPort = ":-1"
+	options.GRPC.NetAddr.Endpoint = ":-1"
 	run("gRPC", options, "could not start gRPC server")
 
 	options = optionsForEphemeralPorts()
-	options.HTTP.HostPort = ":-1"
+	options.HTTP.Endpoint = ":-1"
 	run("HTTP", options, "could not start HTTP server")
 
 	options = optionsForEphemeralPorts()
-	options.Zipkin.HTTPHostPort = ":-1"
+	options.Zipkin.Endpoint = ":-1"
 	run("Zipkin", options, "could not start Zipkin receiver")
 
 	options = optionsForEphemeralPorts()
-	options.OTLP.GRPC.HostPort = ":-1"
+	options.OTLP.GRPC.NetAddr.Endpoint = ":-1"
 	run("OTLP/GRPC", options, "could not start OTLP receiver")
 
 	options = optionsForEphemeralPorts()
-	options.OTLP.HTTP.HostPort = ":-1"
+	options.OTLP.HTTP.Endpoint = ":-1"
 	run("OTLP/HTTP", options, "could not start OTLP receiver")
 }
 
