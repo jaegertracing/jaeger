@@ -74,10 +74,7 @@ func (tr *TraceReader) FindTraces(
 	otelTraces := []ptrace.Traces{}
 	for _, trace := range t {
 		batch := &model.Batch{Spans: trace.GetSpans()}
-		otelTrace, err := model2otel.ProtoToTraces([]*model.Batch{batch})
-		if err != nil {
-			return nil, err
-		}
+		otelTrace, _ := model2otel.ProtoToTraces([]*model.Batch{batch})
 		otelTraces = append(otelTraces, otelTrace)
 	}
 	return otelTraces, nil
