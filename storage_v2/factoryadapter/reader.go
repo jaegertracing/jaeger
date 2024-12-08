@@ -49,9 +49,6 @@ func (tr *TraceReader) GetOperations(ctx context.Context, query tracestore.Opera
 		ServiceName: query.ServiceName,
 		SpanKind:    query.SpanKind,
 	})
-	if err != nil {
-		return nil, err
-	}
 	var operations []tracestore.Operation
 	for _, operation := range o {
 		operations = append(operations, tracestore.Operation{
@@ -59,7 +56,7 @@ func (tr *TraceReader) GetOperations(ctx context.Context, query tracestore.Opera
 			SpanKind: operation.SpanKind,
 		})
 	}
-	return operations, nil
+	return operations, err
 }
 
 func (*TraceReader) FindTraces(_ context.Context, _ tracestore.TraceQueryParameters) ([]ptrace.Traces, error) {

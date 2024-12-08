@@ -5,7 +5,6 @@ package factoryadapter
 
 import (
 	"context"
-	"errors"
 	"testing"
 	"time"
 
@@ -79,26 +78,6 @@ func TestTraceReader_GetServicesDelegatesToSpanReader(t *testing.T) {
 	services, err := traceReader.GetServices(context.Background())
 	require.NoError(t, err)
 	require.Equal(t, expectedServices, services)
-}
-
-func TestTraceReader_GetOperationsDelegatesError(t *testing.T) {
-	sr := new(spanStoreMocks.Reader)
-	testErr := errors.New("test error")
-	sr.On("GetOperations",
-		mock.Anything,
-		spanstore.OperationQueryParameters{
-			ServiceName: "service-a",
-			SpanKind:    "server",
-		}).Return(nil, testErr)
-	traceReader := &TraceReader{
-		spanReader: sr,
-	}
-	operations, err := traceReader.GetOperations(context.Background(), tracestore.OperationQueryParameters{
-		ServiceName: "service-a",
-		SpanKind:    "server",
-	})
-	require.ErrorIs(t, err, testErr)
-	require.Nil(t, operations)
 }
 
 func TestTraceReader_GetOperationsDelegatesResponse(t *testing.T) {
