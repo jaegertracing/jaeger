@@ -5,6 +5,7 @@ package factoryadapter
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -81,41 +82,70 @@ func TestTraceReader_GetServicesDelegatesToSpanReader(t *testing.T) {
 }
 
 func TestTraceReader_GetOperationsDelegatesResponse(t *testing.T) {
-	sr := new(spanStoreMocks.Reader)
-	o := []spanstore.Operation{
+	tests := []struct {
+		name               string
+		operations         []spanstore.Operation
+		expectedOperations []tracestore.Operation
+		err                error
+	}{
 		{
-			Name:     "operation-a",
-			SpanKind: "server",
+			name: "successful response",
+			operations: []spanstore.Operation{
+				{
+					Name:     "operation-a",
+					SpanKind: "server",
+				},
+				{
+					Name:     "operation-b",
+					SpanKind: "server",
+				},
+			},
+			expectedOperations: []tracestore.Operation{
+				{
+					Name:     "operation-a",
+					SpanKind: "server",
+				},
+				{
+					Name:     "operation-b",
+					SpanKind: "server",
+				},
+			},
 		},
 		{
-			Name:     "operation-b",
-			SpanKind: "server",
+			name:               "nil response",
+			operations:         nil,
+			expectedOperations: nil,
+		},
+		{
+			name:               "error response",
+			operations:         nil,
+			expectedOperations: nil,
+			err:                errors.New("test error"),
 		},
 	}
-	sr.On("GetOperations",
-		mock.Anything,
-		spanstore.OperationQueryParameters{
-			ServiceName: "service-a",
-			SpanKind:    "server",
-		}).Return(o, nil)
-	traceReader := &TraceReader{
-		spanReader: sr,
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			sr := new(spanStoreMocks.Reader)
+			sr.On("GetOperations",
+				mock.Anything,
+				spanstore.OperationQueryParameters{
+					ServiceName: "service-a",
+					SpanKind:    "server",
+				}).Return(test.operations, test.err)
+			traceReader := &TraceReader{
+				spanReader: sr,
+			}
+			operations, err := traceReader.GetOperations(
+				context.Background(),
+				tracestore.OperationQueryParameters{
+					ServiceName: "service-a",
+					SpanKind:    "server",
+				})
+			require.ErrorIs(t, err, test.err)
+			require.Equal(t, test.expectedOperations, operations)
+		})
 	}
-	operations, err := traceReader.GetOperations(context.Background(), tracestore.OperationQueryParameters{
-		ServiceName: "service-a",
-		SpanKind:    "server",
-	})
-	require.NoError(t, err)
-	require.Equal(t, []tracestore.Operation{
-		{
-			Name:     "operation-a",
-			SpanKind: "server",
-		},
-		{
-			Name:     "operation-b",
-			SpanKind: "server",
-		},
-	}, operations)
 }
 
 func TestTraceReader_FindTracesPanics(t *testing.T) {
