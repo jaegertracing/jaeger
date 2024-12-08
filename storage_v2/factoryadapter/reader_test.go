@@ -114,12 +114,12 @@ func TestTraceReader_GetOperationsDelegatesResponse(t *testing.T) {
 		{
 			name:               "nil response",
 			operations:         nil,
-			expectedOperations: []tracestore.Operation{},
+			expectedOperations: nil,
 		},
 		{
 			name:               "error response",
 			operations:         nil,
-			expectedOperations: []tracestore.Operation{},
+			expectedOperations: nil,
 			err:                errors.New("test error"),
 		},
 	}
@@ -185,12 +185,12 @@ func TestTraceReader_FindTraceIDsDelegatesResponse(t *testing.T) {
 		{
 			name:             "nil response",
 			modelTraceIDs:    nil,
-			expectedTraceIDs: []pcommon.TraceID{},
+			expectedTraceIDs: nil,
 		},
 		{
 			name:             "error response",
 			modelTraceIDs:    nil,
-			expectedTraceIDs: []pcommon.TraceID{},
+			expectedTraceIDs: nil,
 			err:              errors.New("test error"),
 		},
 	}

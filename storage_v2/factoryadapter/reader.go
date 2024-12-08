@@ -49,6 +49,9 @@ func (tr *TraceReader) GetOperations(ctx context.Context, query tracestore.Opera
 		ServiceName: query.ServiceName,
 		SpanKind:    query.SpanKind,
 	})
+	if err != nil || o == nil {
+		return nil, err
+	}
 	operations := []tracestore.Operation{}
 	for _, operation := range o {
 		operations = append(operations, tracestore.Operation{
@@ -56,7 +59,7 @@ func (tr *TraceReader) GetOperations(ctx context.Context, query tracestore.Opera
 			SpanKind: operation.SpanKind,
 		})
 	}
-	return operations, err
+	return operations, nil
 }
 
 func (*TraceReader) FindTraces(_ context.Context, _ tracestore.TraceQueryParameters) ([]ptrace.Traces, error) {
@@ -74,11 +77,14 @@ func (tr *TraceReader) FindTraceIDs(ctx context.Context, query tracestore.TraceQ
 		DurationMax:   query.DurationMax,
 		NumTraces:     query.NumTraces,
 	})
+	if err != nil || t == nil {
+		return nil, err
+	}
 	traceIDs := []pcommon.TraceID{}
 	for _, traceID := range t {
 		traceIDs = append(traceIDs, traceID.ToOTELTraceID())
 	}
-	return traceIDs, err
+	return traceIDs, nil
 }
 
 type DependencyReader struct {
