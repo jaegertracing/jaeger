@@ -63,17 +63,11 @@ func (tr *TraceReader) GetOperations(ctx context.Context, query tracestore.Opera
 	return operations, nil
 }
 
-func (tr *TraceReader) FindTraces(ctx context.Context, query tracestore.TraceQueryParameters) ([]ptrace.Traces, error) {
-	t, err := tr.spanReader.FindTraces(ctx, &spanstore.TraceQueryParameters{
-		ServiceName:   query.ServiceName,
-		OperationName: query.OperationName,
-		Tags:          query.Tags,
-		StartTimeMin:  query.StartTimeMin,
-		StartTimeMax:  query.StartTimeMax,
-		DurationMin:   query.DurationMin,
-		DurationMax:   query.DurationMax,
-		NumTraces:     query.NumTraces,
-	})
+func (tr *TraceReader) FindTraces(
+	ctx context.Context,
+	query tracestore.TraceQueryParameters,
+) ([]ptrace.Traces, error) {
+	t, err := tr.spanReader.FindTraces(ctx, query.ToSpanStoreQueryParameters())
 	if err != nil || t == nil {
 		return nil, err
 	}
@@ -90,16 +84,7 @@ func (tr *TraceReader) FindTraces(ctx context.Context, query tracestore.TraceQue
 }
 
 func (tr *TraceReader) FindTraceIDs(ctx context.Context, query tracestore.TraceQueryParameters) ([]pcommon.TraceID, error) {
-	t, err := tr.spanReader.FindTraceIDs(ctx, &spanstore.TraceQueryParameters{
-		ServiceName:   query.ServiceName,
-		OperationName: query.OperationName,
-		Tags:          query.Tags,
-		StartTimeMin:  query.StartTimeMin,
-		StartTimeMax:  query.StartTimeMax,
-		DurationMin:   query.DurationMin,
-		DurationMax:   query.DurationMax,
-		NumTraces:     query.NumTraces,
-	})
+	t, err := tr.spanReader.FindTraceIDs(ctx, query.ToSpanStoreQueryParameters())
 	if err != nil || t == nil {
 		return nil, err
 	}
