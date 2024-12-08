@@ -146,6 +146,9 @@ func (t *TraceID) UnmarshalJSON(data []byte) error {
 	return t.Unmarshal(b)
 }
 
+// ToOTELTraceID converts the TraceID to OTEL's representation of a trace identitfier.
+// This was taken from
+// https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/internal/coreinternal/idutils/big_endian_converter.go.
 func (t *TraceID) ToOTELTraceID() pcommon.TraceID {
 	traceID := [16]byte{}
 	binary.BigEndian.PutUint64(traceID[:8], t.High)
