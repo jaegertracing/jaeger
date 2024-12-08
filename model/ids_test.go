@@ -12,6 +12,7 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/pdata/pcommon"
 
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/model/prototest"
@@ -116,4 +117,14 @@ func TestTraceIDFromBytes(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, test.expected, traceID)
 	}
+}
+
+func TestToOTELTraceID(t *testing.T) {
+	modelTraceID := model.TraceID{
+		Low:  3,
+		High: 2,
+	}
+	otelTraceID := modelTraceID.ToOTELTraceID()
+	expected := []byte{0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 3}
+	require.Equal(t, pcommon.TraceID(expected), otelTraceID)
 }

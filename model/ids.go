@@ -12,6 +12,7 @@ import (
 	"strconv"
 
 	"github.com/gogo/protobuf/jsonpb"
+	"go.opentelemetry.io/collector/pdata/pcommon"
 )
 
 const (
@@ -143,6 +144,13 @@ func (t *TraceID) UnmarshalJSON(data []byte) error {
 		return fmt.Errorf("cannot unmarshal TraceID from string '%s': %w", string(data), err)
 	}
 	return t.Unmarshal(b)
+}
+
+func (t *TraceID) ToOTELTraceID() pcommon.TraceID {
+	traceID := [16]byte{}
+	binary.BigEndian.PutUint64(traceID[:8], t.High)
+	binary.BigEndian.PutUint64(traceID[8:], t.Low)
+	return traceID
 }
 
 // ------- SpanID -------
