@@ -63,8 +63,22 @@ func (*TraceReader) FindTraces(_ context.Context, _ tracestore.TraceQueryParamet
 	panic("not implemented")
 }
 
-func (*TraceReader) FindTraceIDs(_ context.Context, _ tracestore.TraceQueryParameters) ([]pcommon.TraceID, error) {
-	panic("not implemented")
+func (tr *TraceReader) FindTraceIDs(ctx context.Context, query tracestore.TraceQueryParameters) ([]pcommon.TraceID, error) {
+	t, err := tr.spanReader.FindTraceIDs(ctx, &spanstore.TraceQueryParameters{
+		ServiceName:   query.ServiceName,
+		OperationName: query.OperationName,
+		Tags:          query.Tags,
+		StartTimeMin:  query.StartTimeMin,
+		StartTimeMax:  query.StartTimeMax,
+		DurationMin:   query.DurationMin,
+		DurationMax:   query.DurationMax,
+		NumTraces:     query.NumTraces,
+	})
+	var traceIDs []pcommon.TraceID
+	for _, traceID := range t {
+		traceIDs = append(traceIDs, traceID.ToOTELTraceID())
+	}
+	return traceIDs, err
 }
 
 type DependencyReader struct {
