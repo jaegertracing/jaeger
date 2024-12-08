@@ -43,6 +43,9 @@ func StartNewRemoteMemoryStorage(t *testing.T) *RemoteMemoryStorage {
 	storageFactory, err := storage.NewFactory(storage.FactoryConfigFromEnvAndCLI(os.Args, os.Stderr))
 	require.NoError(t, err)
 
+	samplingStoreFactory, err := storageFactory.CreateSamplingStoreFactory()
+	require.NoError(t, err)
+
 	v, _ := config.Viperize(storageFactory.AddFlags)
 	storageFactory.InitFromViper(v, logger)
 	require.NoError(t, storageFactory.Initialize(metrics.NullFactory, logger))
@@ -51,7 +54,7 @@ func StartNewRemoteMemoryStorage(t *testing.T) *RemoteMemoryStorage {
 	telset := telemetry.NoopSettings()
 	telset.Logger = logger
 	telset.ReportStatus = telemetry.HCAdapter(healthcheck.New())
-	server, err := app.NewServer(opts, storageFactory, tm, telset)
+	server, err := app.NewServer(opts, storageFactory, tm, telset, samplingStoreFactory)
 	require.NoError(t, err)
 	require.NoError(t, server.Start())
 
