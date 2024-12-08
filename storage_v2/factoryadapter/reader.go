@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 
+	model2otel "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
@@ -62,21 +63,25 @@ func (tr *TraceReader) GetOperations(ctx context.Context, query tracestore.Opera
 	return operations, nil
 }
 
-func (*TraceReader) FindTraces(_ context.Context, _ tracestore.TraceQueryParameters) ([]ptrace.Traces, error) {
-	panic("not implemented")
+func (tr *TraceReader) FindTraces(
+	ctx context.Context,
+	query tracestore.TraceQueryParameters,
+) ([]ptrace.Traces, error) {
+	t, err := tr.spanReader.FindTraces(ctx, query.ToSpanStoreQueryParameters())
+	if err != nil || t == nil {
+		return nil, err
+	}
+	otelTraces := []ptrace.Traces{}
+	for _, trace := range t {
+		batch := &model.Batch{Spans: trace.GetSpans()}
+		otelTrace, _ := model2otel.ProtoToTraces([]*model.Batch{batch})
+		otelTraces = append(otelTraces, otelTrace)
+	}
+	return otelTraces, nil
 }
 
 func (tr *TraceReader) FindTraceIDs(ctx context.Context, query tracestore.TraceQueryParameters) ([]pcommon.TraceID, error) {
-	t, err := tr.spanReader.FindTraceIDs(ctx, &spanstore.TraceQueryParameters{
-		ServiceName:   query.ServiceName,
-		OperationName: query.OperationName,
-		Tags:          query.Tags,
-		StartTimeMin:  query.StartTimeMin,
-		StartTimeMax:  query.StartTimeMax,
-		DurationMin:   query.DurationMin,
-		DurationMax:   query.DurationMax,
-		NumTraces:     query.NumTraces,
-	})
+	t, err := tr.spanReader.FindTraceIDs(ctx, query.ToSpanStoreQueryParameters())
 	if err != nil || t == nil {
 		return nil, err
 	}
