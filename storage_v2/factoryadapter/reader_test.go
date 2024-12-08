@@ -159,15 +159,79 @@ func TestTraceReader_FindTracesPanics(t *testing.T) {
 	)
 }
 
-func TestTraceReader_FindTraceIDsPanics(t *testing.T) {
-	memstore := memory.NewStore()
-	traceReader := &TraceReader{
-		spanReader: memstore,
+func TestTraceReader_FindTraceIDsDelegatesResponse(t *testing.T) {
+	tests := []struct {
+		name             string
+		modelTraceIDs    []model.TraceID
+		expectedTraceIDs []pcommon.TraceID
+		err              error
+	}{
+		{
+			name: "successful response",
+			modelTraceIDs: []model.TraceID{
+				{Low: 3, High: 2},
+				{Low: 4, High: 3},
+			},
+			expectedTraceIDs: []pcommon.TraceID{
+				pcommon.TraceID([]byte{0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 3}),
+				pcommon.TraceID([]byte{0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 4}),
+			},
+		},
+		{
+			name:             "empty response",
+			modelTraceIDs:    []model.TraceID{},
+			expectedTraceIDs: []pcommon.TraceID{},
+		},
+		{
+			name:             "nil response",
+			modelTraceIDs:    nil,
+			expectedTraceIDs: nil,
+		},
+		{
+			name:             "error response",
+			modelTraceIDs:    nil,
+			expectedTraceIDs: nil,
+			err:              errors.New("test error"),
+		},
 	}
-	require.Panics(
-		t,
-		func() { traceReader.FindTraceIDs(context.Background(), tracestore.TraceQueryParameters{}) },
-	)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			sr := new(spanStoreMocks.Reader)
+			now := time.Now()
+			sr.On(
+				"FindTraceIDs",
+				mock.Anything,
+				&spanstore.TraceQueryParameters{
+					ServiceName:   "service",
+					OperationName: "operation",
+					Tags:          map[string]string{"tag-a": "val-a"},
+					StartTimeMin:  now,
+					StartTimeMax:  now.Add(time.Minute),
+					DurationMin:   time.Minute,
+					DurationMax:   time.Hour,
+					NumTraces:     10,
+				},
+			).Return(test.modelTraceIDs, test.err)
+			traceReader := &TraceReader{
+				spanReader: sr,
+			}
+			traceIDs, err := traceReader.FindTraceIDs(
+				context.Background(),
+				tracestore.TraceQueryParameters{
+					ServiceName:   "service",
+					OperationName: "operation",
+					Tags:          map[string]string{"tag-a": "val-a"},
+					StartTimeMin:  now,
+					StartTimeMax:  now.Add(time.Minute),
+					DurationMin:   time.Minute,
+					DurationMax:   time.Hour,
+					NumTraces:     10,
+				},
+			)
+			require.ErrorIs(t, err, test.err)
+			require.Equal(t, test.expectedTraceIDs, traceIDs)
+		})
+	}
 }
 
 func TestDependencyReader_GetDependencies(t *testing.T) {

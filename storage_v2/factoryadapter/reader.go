@@ -49,22 +49,42 @@ func (tr *TraceReader) GetOperations(ctx context.Context, query tracestore.Opera
 		ServiceName: query.ServiceName,
 		SpanKind:    query.SpanKind,
 	})
-	var operations []tracestore.Operation
+	if err != nil || o == nil {
+		return nil, err
+	}
+	operations := []tracestore.Operation{}
 	for _, operation := range o {
 		operations = append(operations, tracestore.Operation{
 			Name:     operation.Name,
 			SpanKind: operation.SpanKind,
 		})
 	}
-	return operations, err
+	return operations, nil
 }
 
 func (*TraceReader) FindTraces(_ context.Context, _ tracestore.TraceQueryParameters) ([]ptrace.Traces, error) {
 	panic("not implemented")
 }
 
-func (*TraceReader) FindTraceIDs(_ context.Context, _ tracestore.TraceQueryParameters) ([]pcommon.TraceID, error) {
-	panic("not implemented")
+func (tr *TraceReader) FindTraceIDs(ctx context.Context, query tracestore.TraceQueryParameters) ([]pcommon.TraceID, error) {
+	t, err := tr.spanReader.FindTraceIDs(ctx, &spanstore.TraceQueryParameters{
+		ServiceName:   query.ServiceName,
+		OperationName: query.OperationName,
+		Tags:          query.Tags,
+		StartTimeMin:  query.StartTimeMin,
+		StartTimeMax:  query.StartTimeMax,
+		DurationMin:   query.DurationMin,
+		DurationMax:   query.DurationMax,
+		NumTraces:     query.NumTraces,
+	})
+	if err != nil || t == nil {
+		return nil, err
+	}
+	traceIDs := []pcommon.TraceID{}
+	for _, traceID := range t {
+		traceIDs = append(traceIDs, traceID.ToOTELTraceID())
+	}
+	return traceIDs, nil
 }
 
 type DependencyReader struct {
