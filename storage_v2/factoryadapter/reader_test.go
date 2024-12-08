@@ -213,42 +213,17 @@ func TestTraceReader_FindTracesDelegatesSuccessResponse(t *testing.T) {
 	)
 	require.NoError(t, err)
 	require.Len(t, traces, len(modelTraces))
-	require.EqualValues(
-		t,
-		[]byte{0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 3},
-		traces[0].ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).TraceID())
-	require.EqualValues(
-		t,
-		[]byte{0, 0, 0, 0, 0, 0, 0, 1},
-		traces[0].ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).SpanID())
-	require.Equal(
-		t,
-		"operation-a",
-		traces[0].ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).Name())
-	require.EqualValues(
-		t,
-		[]byte{0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 5},
-		traces[0].ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(1).TraceID())
-	require.EqualValues(
-		t,
-		[]byte{0, 0, 0, 0, 0, 0, 0, 2},
-		traces[0].ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(1).SpanID())
-	require.Equal(
-		t,
-		"operation-b",
-		traces[0].ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(1).Name())
-	require.EqualValues(
-		t,
-		[]byte{0, 0, 0, 0, 0, 0, 0, 6, 0, 0, 0, 0, 0, 0, 0, 7},
-		traces[1].ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).TraceID())
-	require.EqualValues(
-		t,
-		[]byte{0, 0, 0, 0, 0, 0, 0, 3},
-		traces[1].ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).SpanID())
-	require.Equal(
-		t,
-		"operation-c",
-		traces[1].ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).Name())
+	traceASpans := traces[0].ResourceSpans().At(0).ScopeSpans().At(0).Spans()
+	traceBSpans := traces[1].ResourceSpans().At(0).ScopeSpans().At(0).Spans()
+	require.EqualValues(t, []byte{0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 3}, traceASpans.At(0).TraceID())
+	require.EqualValues(t, []byte{0, 0, 0, 0, 0, 0, 0, 1}, traceASpans.At(0).SpanID())
+	require.Equal(t, "operation-a", traceASpans.At(0).Name())
+	require.EqualValues(t, []byte{0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 5}, traceASpans.At(1).TraceID())
+	require.EqualValues(t, []byte{0, 0, 0, 0, 0, 0, 0, 2}, traceASpans.At(1).SpanID())
+	require.Equal(t, "operation-b", traceASpans.At(1).Name())
+	require.EqualValues(t, []byte{0, 0, 0, 0, 0, 0, 0, 6, 0, 0, 0, 0, 0, 0, 0, 7}, traceBSpans.At(0).TraceID())
+	require.EqualValues(t, []byte{0, 0, 0, 0, 0, 0, 0, 3}, traceBSpans.At(0).SpanID())
+	require.Equal(t, "operation-c", traceBSpans.At(0).Name())
 }
 
 func TestTraceReader_FindTracesEdgeCases(t *testing.T) {
