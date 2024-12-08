@@ -148,15 +148,147 @@ func TestTraceReader_GetOperationsDelegatesResponse(t *testing.T) {
 	}
 }
 
-func TestTraceReader_FindTracesPanics(t *testing.T) {
-	memstore := memory.NewStore()
-	traceReader := &TraceReader{
-		spanReader: memstore,
+func TestTraceReader_FindTracesDelegatesSuccessResponse(t *testing.T) {
+	modelTraces := []*model.Trace{
+		{
+			Spans: []*model.Span{
+				{
+					TraceID:       model.NewTraceID(2, 3),
+					SpanID:        model.SpanID(1),
+					OperationName: "operation-a",
+				},
+				{
+					TraceID:       model.NewTraceID(4, 5),
+					SpanID:        model.SpanID(2),
+					OperationName: "operation-b",
+				},
+			},
+		},
+		{
+			Spans: []*model.Span{
+				{
+					TraceID:       model.NewTraceID(6, 7),
+					SpanID:        model.SpanID(3),
+					OperationName: "operation-c",
+				},
+			},
+		},
 	}
-	require.Panics(
-		t,
-		func() { traceReader.FindTraces(context.Background(), tracestore.TraceQueryParameters{}) },
+	sr := new(spanStoreMocks.Reader)
+	now := time.Now()
+	sr.On(
+		"FindTraces",
+		mock.Anything,
+		&spanstore.TraceQueryParameters{
+			ServiceName:   "service",
+			OperationName: "operation",
+			Tags:          map[string]string{"tag-a": "val-a"},
+			StartTimeMin:  now,
+			StartTimeMax:  now.Add(time.Minute),
+			DurationMin:   time.Minute,
+			DurationMax:   time.Hour,
+			NumTraces:     10,
+		},
+	).Return(modelTraces, nil)
+	traceReader := &TraceReader{
+		spanReader: sr,
+	}
+	traces, err := traceReader.FindTraces(
+		context.Background(),
+		tracestore.TraceQueryParameters{
+			ServiceName:   "service",
+			OperationName: "operation",
+			Tags:          map[string]string{"tag-a": "val-a"},
+			StartTimeMin:  now,
+			StartTimeMax:  now.Add(time.Minute),
+			DurationMin:   time.Minute,
+			DurationMax:   time.Hour,
+			NumTraces:     10,
+		},
 	)
+	require.NoError(t, err)
+	require.Len(t, traces, len(modelTraces))
+	require.EqualValues(
+		t,
+		[]byte{0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 3},
+		traces[0].ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).TraceID())
+	require.EqualValues(
+		t,
+		[]byte{0, 0, 0, 0, 0, 0, 0, 1},
+		traces[0].ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).SpanID())
+	require.Equal(
+		t,
+		"operation-a",
+		traces[0].ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).Name())
+	require.EqualValues(
+		t,
+		[]byte{0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 5},
+		traces[0].ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(1).TraceID())
+	require.EqualValues(
+		t,
+		[]byte{0, 0, 0, 0, 0, 0, 0, 2},
+		traces[0].ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(1).SpanID())
+	require.Equal(
+		t,
+		"operation-b",
+		traces[0].ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(1).Name())
+	require.EqualValues(
+		t,
+		[]byte{0, 0, 0, 0, 0, 0, 0, 6, 0, 0, 0, 0, 0, 0, 0, 7},
+		traces[1].ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).TraceID())
+	require.EqualValues(
+		t,
+		[]byte{0, 0, 0, 0, 0, 0, 0, 3},
+		traces[1].ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).SpanID())
+	require.Equal(
+		t,
+		"operation-c",
+		traces[1].ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).Name())
+}
+
+func TestTraceReader_FindTracesEdgeCases(t *testing.T) {
+	tests := []struct {
+		name           string
+		modelTraces    []*model.Trace
+		expectedTraces []ptrace.Traces
+		err            error
+	}{
+		{
+			name:           "nil response",
+			modelTraces:    nil,
+			expectedTraces: nil,
+		},
+		{
+			name:           "empty response",
+			modelTraces:    []*model.Trace{},
+			expectedTraces: []ptrace.Traces{},
+		},
+		{
+			name:           "error response",
+			modelTraces:    nil,
+			expectedTraces: nil,
+			err:            errors.New("test error"),
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			sr := new(spanStoreMocks.Reader)
+			sr.On(
+				"FindTraces",
+				mock.Anything,
+				mock.Anything,
+			).Return(test.modelTraces, test.err)
+			traceReader := &TraceReader{
+				spanReader: sr,
+			}
+			traces, err := traceReader.FindTraces(
+				context.Background(),
+				tracestore.TraceQueryParameters{},
+			)
+			require.ErrorIs(t, err, test.err)
+			require.Equal(t, test.expectedTraces, traces)
+		})
+	}
 }
 
 func TestTraceReader_FindTraceIDsDelegatesResponse(t *testing.T) {
