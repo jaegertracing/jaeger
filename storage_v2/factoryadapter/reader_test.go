@@ -16,6 +16,7 @@ import (
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/plugin/storage/memory"
 	dependencyStoreMocks "github.com/jaegertracing/jaeger/storage/dependencystore/mocks"
+	spanStoreMocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
 	"github.com/jaegertracing/jaeger/storage_v2/depstore"
 	"github.com/jaegertracing/jaeger/storage_v2/tracestore"
 )
@@ -66,12 +67,16 @@ func TestTraceReader_GetTracePanics(t *testing.T) {
 	require.Panics(t, func() { traceReader.GetTrace(context.Background(), pcommon.NewTraceIDEmpty()) })
 }
 
-func TestTraceReader_GetServicesPanics(t *testing.T) {
-	memstore := memory.NewStore()
+func TestTraceReader_GetServicesDelegatesToSpanReader(t *testing.T) {
+	sr := new(spanStoreMocks.Reader)
+	expectedServices := []string{"service-a", "service-b"}
+	sr.On("GetServices", mock.Anything).Return(expectedServices, nil)
 	traceReader := &TraceReader{
-		spanReader: memstore,
+		spanReader: sr,
 	}
-	require.Panics(t, func() { traceReader.GetServices(context.Background()) })
+	services, err := traceReader.GetServices(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, expectedServices, services)
 }
 
 func TestTraceReader_GetOperationsPanics(t *testing.T) {
