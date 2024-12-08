@@ -117,6 +117,11 @@ func TestTraceReader_GetOperationsDelegatesResponse(t *testing.T) {
 			expectedOperations: nil,
 		},
 		{
+			name:               "empty response",
+			operations:         []spanstore.Operation{},
+			expectedOperations: []tracestore.Operation{},
+		},
+		{
 			name:               "error response",
 			operations:         nil,
 			expectedOperations: nil,
