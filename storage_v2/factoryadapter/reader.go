@@ -74,7 +74,7 @@ func (tr *TraceReader) FindTraceIDs(ctx context.Context, query tracestore.TraceQ
 		DurationMax:   query.DurationMax,
 		NumTraces:     query.NumTraces,
 	})
-	var traceIDs []pcommon.TraceID
+	traceIDs := []pcommon.TraceID{}
 	for _, traceID := range t {
 		traceIDs = append(traceIDs, traceID.ToOTELTraceID())
 	}
