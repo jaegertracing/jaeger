@@ -49,7 +49,7 @@ func (tr *TraceReader) GetOperations(ctx context.Context, query tracestore.Opera
 		ServiceName: query.ServiceName,
 		SpanKind:    query.SpanKind,
 	})
-	var operations []tracestore.Operation
+	operations := []tracestore.Operation{}
 	for _, operation := range o {
 		operations = append(operations, tracestore.Operation{
 			Name:     operation.Name,

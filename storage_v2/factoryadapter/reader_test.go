@@ -114,12 +114,12 @@ func TestTraceReader_GetOperationsDelegatesResponse(t *testing.T) {
 		{
 			name:               "nil response",
 			operations:         nil,
-			expectedOperations: nil,
+			expectedOperations: []tracestore.Operation{},
 		},
 		{
 			name:               "error response",
 			operations:         nil,
-			expectedOperations: nil,
+			expectedOperations: []tracestore.Operation{},
 			err:                errors.New("test error"),
 		},
 	}
