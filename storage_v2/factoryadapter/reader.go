@@ -38,8 +38,7 @@ func NewTraceReader(spanReader spanstore.Reader) *TraceReader {
 }
 
 func (tr *TraceReader) GetTrace(ctx context.Context, traceID pcommon.TraceID) (ptrace.Traces, error) {
-	tid, _ := model.TraceIDFromBytes(traceID[:])
-	t, err := tr.spanReader.GetTrace(ctx, tid)
+	t, err := tr.spanReader.GetTrace(ctx, model.TraceIDFromOTEL(traceID))
 	if err != nil {
 		return ptrace.NewTraces(), err
 	}
