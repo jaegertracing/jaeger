@@ -41,13 +41,14 @@ func TestNewServer_CreateStorageErrors(t *testing.T) {
 	factory.On("CreateSpanWriter").Return(nil, nil)
 	factory.On("CreateDependencyReader").Return(nil, errors.New("no deps")).Once()
 	factory.On("CreateDependencyReader").Return(nil, nil)
+	samplingStoreFactoryMocks := factoryMocks.NewSamplingStoreFactory(t)
 	f := func() (*Server, error) {
 		return NewServer(
 			&Options{GRPCHostPort: ":0"},
 			factory,
 			tenancy.NewManager(&tenancy.Options{}),
 			telemetry.NoopSettings(),
-			nil,
+			samplingStoreFactoryMocks,
 		)
 	}
 	_, err := f()
@@ -114,12 +115,14 @@ func TestNewServer_TLSConfigError(t *testing.T) {
 		ReportStatus: telemetry.HCAdapter(healthcheck.New()),
 	}
 	storageMocks := newStorageMocks()
+	samplingStoreFactoryMocks := factoryMocks.NewSamplingStoreFactory(t)
+
 	_, err := NewServer(
 		&Options{GRPCHostPort: ":8081", TLSGRPC: tlsCfg},
 		storageMocks.factory,
 		tenancy.NewManager(&tenancy.Options{}),
 		telset,
-		nil,
+		samplingStoreFactoryMocks,
 	)
 	assert.ErrorContains(t, err, "invalid TLS config")
 }
@@ -322,12 +325,15 @@ func TestServerGRPCTLS(t *testing.T) {
 				Logger:       flagsSvc.Logger,
 				ReportStatus: telemetry.HCAdapter(flagsSvc.HC()),
 			}
+
+			samplingStoreFactoryMocks := factoryMocks.NewSamplingStoreFactory(t)
+
 			server, err := NewServer(
 				serverOptions,
 				storageMocks.factory,
 				tm,
 				telset,
-				nil,
+				samplingStoreFactoryMocks,
 			)
 			require.NoError(t, err)
 			require.NoError(t, server.Start())
@@ -372,12 +378,15 @@ func TestServerHandlesPortZero(t *testing.T) {
 		Logger:       flagsSvc.Logger,
 		ReportStatus: telemetry.HCAdapter(flagsSvc.HC()),
 	}
+
+	samplingStoreFactoryMocks := factoryMocks.NewSamplingStoreFactory(t)
+
 	server, err := NewServer(
 		&Options{GRPCHostPort: ":0"},
 		storageMocks.factory,
 		tenancy.NewManager(&tenancy.Options{}),
 		telset,
-		nil,
+		samplingStoreFactoryMocks,
 	)
 	require.NoError(t, err)
 

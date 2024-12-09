@@ -112,7 +112,7 @@ func TestNewGRPCClient(t *testing.T) {
 	assert.Implements(t, (*storage_v1.PluginCapabilitiesClient)(nil), client.capabilitiesClient)
 	assert.Implements(t, (*storage_v1.DependenciesReaderPluginClient)(nil), client.depsReaderClient)
 	assert.Implements(t, (*storage_v1.StreamingSpanWriterPluginClient)(nil), client.streamWriterClient)
-	assert.Implements(t, (*storage_v1.SamplingStorePluginClient)(nil), client.samplingStoreClient)
+	assert.Implements(t, (*storage_v1.SamplingStorePluginClient)(nil), client.streamWriterClient)
 }
 
 func TestGRPCClientGetServices(t *testing.T) {

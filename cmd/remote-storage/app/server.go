@@ -26,6 +26,10 @@ import (
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
+const (
+	DEFAULT_MAX_BUCKET_SIZE = 1
+)
+
 // Server runs a gRPC server
 type Server struct {
 	opts *Options
@@ -68,7 +72,8 @@ func createGRPCHandler(f storage.BaseFactory, samplingStoreFactory storage.Sampl
 	if err != nil {
 		return nil, err
 	}
-	samplingStore, err := samplingStoreFactory.CreateSamplingStore(1)
+	// TODO: Update this to use bucket size from config
+	samplingStore, err := samplingStoreFactory.CreateSamplingStore(DEFAULT_MAX_BUCKET_SIZE)
 	if err != nil {
 		return nil, err
 	}

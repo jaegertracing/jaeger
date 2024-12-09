@@ -74,10 +74,15 @@ func main() {
 				logger.Fatal("Failed to init storage factory", zap.Error(err))
 			}
 
+			samplingStoreFactory, err := storageFactory.CreateSamplingStoreFactory()
+			if err != nil {
+				logger.Fatal("Failed to init sampling storage factory", zap.Error(err))
+			}
+
 			tm := tenancy.NewManager(&opts.Tenancy)
 			telset := baseTelset // copy
 			telset.Metrics = metricsFactory
-			server, err := app.NewServer(opts, storageFactory, tm, telset, nil)
+			server, err := app.NewServer(opts, storageFactory, tm, telset, samplingStoreFactory)
 			if err != nil {
 				logger.Fatal("Failed to create server", zap.Error(err))
 			}
