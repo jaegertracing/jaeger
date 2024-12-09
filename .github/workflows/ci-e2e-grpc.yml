@@ -41,6 +41,17 @@ jobs:
             ;;
         esac
 
+    - name: Scrape Metrics
+      run: |
+            bash scripts/scrape-metrics.sh -t grpc-${{ matrix.version }}
+            
+    - name: Upload Metrics Artifact
+      uses: actions/upload-artifact@v3
+      with:
+              name: grpc-metrics-${{ matrix.version }}
+              path: ./metrics/grpc-${{ matrix.version }}_metrics.txt
+              retention-days: 7
+
     - name: Upload coverage to codecov
       uses: ./.github/actions/upload-codecov
       with:

@@ -58,7 +58,18 @@ jobs:
     - name: Run ${{ matrix.version.distribution }} integration tests
       id: test-execution
       run: bash scripts/es-integration-test.sh ${{ matrix.version.distribution }} ${{ matrix.version.major }} ${{ matrix.version.jaeger }}
-
+    
+    - name: Scrape Metrics
+      run: |
+          bash scripts/scrape-metrics.sh -t es-${{ matrix.version }}
+          
+    - name: Upload Metrics Artifact
+      uses: actions/upload-artifact@v3
+      with:
+            name: es-metrics-${{ matrix.version }}
+            path: ./metrics/es-${{ matrix.version }}_metrics.txt
+            retention-days: 7     
+   
     - name: Upload coverage to codecov
       uses: ./.github/actions/upload-codecov
       with:

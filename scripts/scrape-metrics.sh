@@ -6,30 +6,25 @@
 set -euf -o pipefail
 
 print_help() {
-  echo "Usage: $0 [-c component] [-o output_dir]"
-  echo "  -c: Jaeger component (agent, collector, query, ingester, all-in-one)"
+  echo "Usage: $0 [-t test_type] [-p port] [-o output directory]"
+  echo "  -t: Test type (badger, cassandra, etc.)"
+  echo "  -p: Metrics port (default: 8888)"
   echo "  -o: Output directory for metrics files"
   exit 1
 }
 
-# Default values
-component=""
+test_type=""
+port=8888
 output_dir="./metrics"
 
-# Jaeger component metrics ports
-declare -A COMPONENT_PORTS=(
-    ["agent"]=14271
-    ["collector"]=14269
-    ["query"]=16687
-    ["ingester"]=14270
-    ["all-in-one"]=14269
-)
-
 # Parse arguments
-while getopts "c:o:" opt; do
+while getopts "t:p:o:" opt; do
     case "${opt}" in
-    c)
-        component="${OPTARG}"
+    t)
+        test_type="${OPTARG}"
+        ;;
+    p)
+        port="${OPTARG}"
         ;;
     o)
         output_dir="${OPTARG}"
@@ -42,26 +37,30 @@ done
 
 # Metrics scraping function
 scrape_metrics() {
-    local component=$1
-    local port=${COMPONENT_PORTS[$component]}
-    local output_file="${output_dir}/jaeger_${component}_metrics.txt"
+    local test_type=$1
+    local port=$2
+    local output_file="${output_dir}/${test_type}_metrics.txt"
     
-    if [ -z "$port" ]; then
-        echo "Unknown Jaeger component: $component"
-        exit 1
-    fi
-
     # Create output directory if it doesn't exist
     mkdir -p "$output_dir"
 
-    curl -s "http://localhost:$port/metrics" > "$output_file"
-    echo "Metrics for $component saved to $output_file"
+    if [ -z "$test_type" ]; then
+        echo "Test type is required"
+        exit 1
+    fi
+
+    if ! curl -s "http://localhost:$port/metrics" > "$output_file"; then
+        echo "Failed to scrape metrics for $test_type from port $port"
+        exit 1
+    fi
+
+    echo "Metrics for $test_type saved to $output_file"
 }
 
-
-if [ -z "$component" ]; then
-    echo "Component is required"
+if [ -z "$test_type" ]; then
+    echo "Test type is required"
     print_help
 fi
 
-scrape_metrics "$component"
+# Scrape metrics
+scrape_metrics "$test_type" "$port"

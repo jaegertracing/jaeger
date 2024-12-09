@@ -36,22 +36,3 @@ jobs:
   opensearch:
     uses: ./.github/workflows/ci-e2e-opensearch.yml
 
-  metrics-collection:
-    needs: [badger, cassandra, elasticsearch, grpc, kafka, memory, opensearch]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      
-      - name: Scrape Jaeger metrics
-        run: |
-          bash scripts/scrape-metrics.sh -c collector -o metrics
-          bash scripts/scrape-metrics.sh -c query -o metrics
-      
-      - name: Upload metrics artifacts
-        uses: actions/upload-artifact@v3
-        with:
-          name: jaeger-metrics
-          path: metrics/
-          retention-days: 7
-
-
