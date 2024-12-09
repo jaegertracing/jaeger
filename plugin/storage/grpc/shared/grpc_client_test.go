@@ -68,6 +68,7 @@ type grpcClientTest struct {
 	capabilities  *grpcMocks.PluginCapabilitiesClient
 	depsReader    *grpcMocks.DependenciesReaderPluginClient
 	streamWriter  *grpcMocks.StreamingSpanWriterPluginClient
+	samplingStore *grpcMocks.SamplingStorePluginClient
 }
 
 func withGRPCClient(fn func(r *grpcClientTest)) {
@@ -78,6 +79,7 @@ func withGRPCClient(fn func(r *grpcClientTest)) {
 	depReader := new(grpcMocks.DependenciesReaderPluginClient)
 	streamWriter := new(grpcMocks.StreamingSpanWriterPluginClient)
 	capabilities := new(grpcMocks.PluginCapabilitiesClient)
+	samplingStore := new(grpcMocks.SamplingStorePluginClient)
 
 	r := &grpcClientTest{
 		client: &GRPCClient{
@@ -88,6 +90,7 @@ func withGRPCClient(fn func(r *grpcClientTest)) {
 			capabilitiesClient:  capabilities,
 			depsReaderClient:    depReader,
 			streamWriterClient:  streamWriter,
+			samplingStoreClient: samplingStore,
 		},
 		spanReader:    spanReader,
 		spanWriter:    spanWriter,
@@ -96,6 +99,7 @@ func withGRPCClient(fn func(r *grpcClientTest)) {
 		depsReader:    depReader,
 		capabilities:  capabilities,
 		streamWriter:  streamWriter,
+		samplingStore: samplingStore,
 	}
 	fn(r)
 }
