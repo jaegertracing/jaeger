@@ -1,14 +1,10 @@
 name: CIT Kafka
 
 on:
-  push:
-    branches: [main]
-
-  pull_request:
-    branches: [main]
+  workflow_call:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ (github.event.pull_request && github.event.pull_request.number) || github.ref || github.run_id }}
+  group: cit-kafka-${{ github.workflow }}-${{ (github.event.pull_request && github.event.pull_request.number) || github.ref || github.run_id }}
   cancel-in-progress: true
 
 # See https://github.com/ossf/scorecard/blob/main/docs/checks.md#token-permissions
@@ -22,7 +18,7 @@ jobs:
       fail-fast: false
       matrix:
         jaeger-version: [v1, v2]  # Adjust if there are specific versions of Jaeger
-    name: Kafka Integration Tests ${{ matrix.jaeger-version }}
+    name: kafka ${{ matrix.jaeger-version }}
     steps:
     - name: Harden Runner
       uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1

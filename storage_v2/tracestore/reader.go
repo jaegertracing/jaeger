@@ -58,6 +58,19 @@ type TraceQueryParameters struct {
 	NumTraces     int
 }
 
+func (t *TraceQueryParameters) ToSpanStoreQueryParameters() *spanstore.TraceQueryParameters {
+	return &spanstore.TraceQueryParameters{
+		ServiceName:   t.ServiceName,
+		OperationName: t.OperationName,
+		Tags:          t.Tags,
+		StartTimeMin:  t.StartTimeMin,
+		StartTimeMax:  t.StartTimeMax,
+		DurationMin:   t.DurationMin,
+		DurationMax:   t.DurationMax,
+		NumTraces:     t.NumTraces,
+	}
+}
+
 // OperationQueryParameters contains parameters of query operations, empty spanKind means get operations for all kinds of span.
 type OperationQueryParameters struct {
 	ServiceName string

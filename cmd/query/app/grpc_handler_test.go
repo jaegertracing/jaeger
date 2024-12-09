@@ -28,11 +28,13 @@ import (
 	"github.com/jaegertracing/jaeger/plugin/metricstore/disabled"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2/metrics"
-	depsmocks "github.com/jaegertracing/jaeger/storage/dependencystore/mocks"
 	"github.com/jaegertracing/jaeger/storage/metricstore"
 	metricsmocks "github.com/jaegertracing/jaeger/storage/metricstore/mocks"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	spanstoremocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
+	"github.com/jaegertracing/jaeger/storage_v2/depstore"
+	depsmocks "github.com/jaegertracing/jaeger/storage_v2/depstore/mocks"
+	"github.com/jaegertracing/jaeger/storage_v2/factoryadapter"
 )
 
 var (
@@ -512,8 +514,10 @@ func TestGetDependenciesSuccessGRPC(t *testing.T) {
 		endTs := time.Now().UTC()
 		server.depReader.On("GetDependencies",
 			mock.Anything, // context.Context
-			endTs.Add(time.Duration(-1)*defaultDependencyLookbackDuration),
-			defaultDependencyLookbackDuration,
+			depstore.QueryParameters{
+				StartTime: endTs.Add(-defaultDependencyLookbackDuration),
+				EndTime:   endTs,
+			},
 		).Return(expectedDependencies, nil).Times(1)
 
 		res, err := client.GetDependencies(context.Background(), &api_v2.GetDependenciesRequest{
@@ -528,11 +532,13 @@ func TestGetDependenciesSuccessGRPC(t *testing.T) {
 func TestGetDependenciesFailureGRPC(t *testing.T) {
 	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
 		endTs := time.Now().UTC()
-		server.depReader.On(
-			"GetDependencies",
+		server.depReader.On("GetDependencies",
 			mock.Anything, // context.Context
-			endTs.Add(time.Duration(-1)*defaultDependencyLookbackDuration),
-			defaultDependencyLookbackDuration).Return(nil, errStorageGRPC).Times(1)
+			depstore.QueryParameters{
+				StartTime: endTs.Add(-defaultDependencyLookbackDuration),
+				EndTime:   endTs,
+			},
+		).Return(nil, errStorageGRPC).Times(1)
 
 		_, err := client.GetDependencies(context.Background(), &api_v2.GetDependenciesRequest{
 			StartTime: endTs.Add(time.Duration(-1) * defaultDependencyLookbackDuration),
@@ -901,7 +907,7 @@ func initializeTenantedTestServerGRPCWithOptions(t *testing.T, tm *tenancy.Manag
 	require.NoError(t, err)
 
 	q := querysvc.NewQueryService(
-		spanReader,
+		factoryadapter.NewTraceReader(spanReader),
 		dependencyReader,
 		querysvc.QueryServiceOptions{
 			ArchiveSpanReader: archiveSpanReader,
@@ -1165,7 +1171,7 @@ func TestNewGRPCHandlerWithEmptyOptions(t *testing.T) {
 	require.NoError(t, err)
 
 	q := querysvc.NewQueryService(
-		&spanstoremocks.Reader{},
+		factoryadapter.NewTraceReader(&spanstoremocks.Reader{}),
 		&depsmocks.Reader{},
 		querysvc.QueryServiceOptions{})
 

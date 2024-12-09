@@ -21,7 +21,7 @@ type StreamingSpanWriterPlugin_WriteSpanStreamServer struct {
 	mock.Mock
 }
 
-// Context provides a mock function with given fields:
+// Context provides a mock function with no fields
 func (_m *StreamingSpanWriterPlugin_WriteSpanStreamServer) Context() context.Context {
 	ret := _m.Called()
 
@@ -41,7 +41,7 @@ func (_m *StreamingSpanWriterPlugin_WriteSpanStreamServer) Context() context.Con
 	return r0
 }
 
-// Recv provides a mock function with given fields:
+// Recv provides a mock function with no fields
 func (_m *StreamingSpanWriterPlugin_WriteSpanStreamServer) Recv() (*storage_v1.WriteSpanRequest, error) {
 	ret := _m.Called()
 

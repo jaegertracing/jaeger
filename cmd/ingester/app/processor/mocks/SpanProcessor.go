@@ -17,7 +17,7 @@ type SpanProcessor struct {
 	mock.Mock
 }
 
-// Close provides a mock function with given fields:
+// Close provides a mock function with no fields
 func (_m *SpanProcessor) Close() error {
 	ret := _m.Called()
 

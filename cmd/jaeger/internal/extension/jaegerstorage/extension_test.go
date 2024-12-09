@@ -100,7 +100,7 @@ func TestStorageFactoryBadShutdownError(t *testing.T) {
 
 func TestGetFactoryV2Error(t *testing.T) {
 	host := componenttest.NewNopHost()
-	_, err := GetStorageFactoryV2("something", host)
+	_, err := GetTraceStoreFactory("something", host)
 	require.ErrorContains(t, err, "cannot find extension")
 }
 
@@ -112,7 +112,7 @@ func TestGetFactory(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, f)
 
-	f2, err := GetStorageFactoryV2(name, host)
+	f2, err := GetTraceStoreFactory(name, host)
 	require.NoError(t, err)
 	require.NotNil(t, f2)
 

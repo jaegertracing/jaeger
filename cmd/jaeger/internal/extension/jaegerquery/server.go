@@ -21,6 +21,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/plugin/metricstore/disabled"
 	"github.com/jaegertracing/jaeger/storage/metricstore"
+	"github.com/jaegertracing/jaeger/storage_v2/depstore"
 )
 
 var (
@@ -71,27 +72,30 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 	telset.Metrics = telset.Metrics.
 		Namespace(metrics.NSOptions{Name: "jaeger"}).
 		Namespace(metrics.NSOptions{Name: "query"})
-
-	f, err := jaegerstorage.GetStorageFactory(s.config.Storage.TracesPrimary, host)
+	tf, err := jaegerstorage.GetTraceStoreFactory(s.config.Storage.TracesPrimary, host)
 	if err != nil {
-		return fmt.Errorf("cannot find primary storage %s: %w", s.config.Storage.TracesPrimary, err)
+		return fmt.Errorf("cannot find factory for trace storage %s: %w", s.config.Storage.TracesPrimary, err)
+	}
+	traceReader, err := tf.CreateTraceReader()
+	if err != nil {
+		return fmt.Errorf("cannot create trace reader: %w", err)
 	}
 
-	spanReader, err := f.CreateSpanReader()
-	if err != nil {
-		return fmt.Errorf("cannot create span reader: %w", err)
+	df, ok := tf.(depstore.Factory)
+	if !ok {
+		return fmt.Errorf("cannot find factory for dependency storage %s: %w", s.config.Storage.TracesPrimary, err)
 	}
-
-	depReader, err := f.CreateDependencyReader()
+	depReader, err := df.CreateDependencyReader()
 	if err != nil {
 		return fmt.Errorf("cannot create dependencies reader: %w", err)
 	}
 
 	var opts querysvc.QueryServiceOptions
+	// TODO archive storage still uses v1 factory
 	if err := s.addArchiveStorage(&opts, host); err != nil {
 		return err
 	}
-	qs := querysvc.NewQueryService(spanReader, depReader, opts)
+	qs := querysvc.NewQueryService(traceReader, depReader, opts)
 
 	mqs, err := s.createMetricReader(host)
 	if err != nil {

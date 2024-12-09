@@ -18,9 +18,10 @@ import (
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/plugin/metricstore/disabled"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
-	dependencyStoreMocks "github.com/jaegertracing/jaeger/storage/dependencystore/mocks"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	spanstoremocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
+	dependencyStoreMocks "github.com/jaegertracing/jaeger/storage_v2/depstore/mocks"
+	"github.com/jaegertracing/jaeger/storage_v2/factoryadapter"
 )
 
 var (
@@ -55,11 +56,12 @@ type testServer struct {
 
 func newTestServer(t *testing.T) *testServer {
 	spanReader := &spanstoremocks.Reader{}
+	traceReader := factoryadapter.NewTraceReader(spanReader)
 	metricsReader, err := disabled.NewMetricsReader()
 	require.NoError(t, err)
 
 	q := querysvc.NewQueryService(
-		spanReader,
+		traceReader,
 		&dependencyStoreMocks.Reader{},
 		querysvc.QueryServiceOptions{},
 	)

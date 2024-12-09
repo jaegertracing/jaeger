@@ -150,7 +150,7 @@ func TestServerStart(t *testing.T) {
 					TracesPrimary: "need-factory-error",
 				},
 			},
-			expectedErr: "cannot find primary storage",
+			expectedErr: "cannot find factory for trace storage",
 		},
 		{
 			name: "span reader error",
@@ -159,7 +159,7 @@ func TestServerStart(t *testing.T) {
 					TracesPrimary: "need-span-reader-error",
 				},
 			},
-			expectedErr: "cannot create span reader",
+			expectedErr: "cannot create trace reader",
 		},
 		{
 			name: "dependency error",
