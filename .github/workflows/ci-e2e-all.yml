@@ -44,7 +44,6 @@ jobs:
       
       - name: Scrape Jaeger metrics
         run: |
-          mkdir -p metrics
           ./scrape_metrics.sh -c collector -o metrics
           ./scrape_metrics.sh -c query -o metrics
       
