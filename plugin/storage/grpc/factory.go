@@ -30,6 +30,7 @@ import (
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared"
 	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
+	"github.com/jaegertracing/jaeger/storage/samplingstore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	"github.com/jaegertracing/jaeger/storage/spanstore/spanstoremetrics"
 )
@@ -161,6 +162,7 @@ func (f *Factory) newRemoteStorage(
 			Store:               grpcClient,
 			ArchiveStore:        grpcClient,
 			StreamingSpanWriter: grpcClient,
+			SamplingStore:       grpcClient,
 		},
 		Capabilities: grpcClient,
 	}, nil
@@ -228,6 +230,10 @@ func (f *Factory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
 		return nil, storage.ErrArchiveStorageNotSupported
 	}
 	return f.services.ArchiveStore.ArchiveSpanWriter(), nil
+}
+
+func (f *Factory) CreateSamplingStore() (samplingstore.Store, error) {
+	return f.services.SamplingStore.SamplingStore(), nil
 }
 
 // Close closes the resources held by the factory
