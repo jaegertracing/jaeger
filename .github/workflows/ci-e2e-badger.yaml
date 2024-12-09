@@ -40,6 +40,17 @@ jobs:
             STORAGE=badger make jaeger-v2-storage-integration-test
             ;;
         esac
+        
+    - name: Scrape Metrics
+      run: |
+          bash scripts/scrape-metrics.sh -t badger-${{ matrix.version }}
+          
+    - name: Upload Metrics Artifact
+      uses: actions/upload-artifact@v3
+      with:
+            name: badger-metrics-${{ matrix.version }}
+            path: ./metrics/badger-${{ matrix.version }}_metrics.txt
+            retention-days: 7
 
     - name: Upload coverage to codecov
       uses: ./.github/actions/upload-codecov
