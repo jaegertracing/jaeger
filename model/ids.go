@@ -157,8 +157,10 @@ func (t *TraceID) ToOTELTraceID() pcommon.TraceID {
 }
 
 func TraceIDFromOTEL(traceID pcommon.TraceID) TraceID {
-	tid, _ := TraceIDFromBytes(traceID[:])
-	return tid
+	return TraceID{
+		High: binary.BigEndian.Uint64(traceID[:traceIDShortBytesLen]),
+		Low:  binary.BigEndian.Uint64(traceID[traceIDShortBytesLen:]),
+	}
 }
 
 // ------- SpanID -------
