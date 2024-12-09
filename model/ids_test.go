@@ -128,3 +128,12 @@ func TestToOTELTraceID(t *testing.T) {
 	expected := []byte{0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 3}
 	require.Equal(t, pcommon.TraceID(expected), otelTraceID)
 }
+
+func TestTraceIDFromOTEL(t *testing.T) {
+	otelTraceID := pcommon.TraceID([]byte{0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 3})
+	expected := model.TraceID{
+		Low:  3,
+		High: 2,
+	}
+	require.Equal(t, expected, model.TraceIDFromOTEL(otelTraceID))
+}

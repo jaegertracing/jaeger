@@ -156,6 +156,13 @@ func (t *TraceID) ToOTELTraceID() pcommon.TraceID {
 	return traceID
 }
 
+func TraceIDFromOTEL(traceID pcommon.TraceID) TraceID {
+	return TraceID{
+		High: binary.BigEndian.Uint64(traceID[:traceIDShortBytesLen]),
+		Low:  binary.BigEndian.Uint64(traceID[traceIDShortBytesLen:]),
+	}
+}
+
 // ------- SpanID -------
 
 // NewSpanID creates a new SpanID from a 64bit unsigned int.

@@ -61,12 +61,53 @@ func TestGetV1Reader_Error(t *testing.T) {
 	require.ErrorIs(t, err, errV1ReaderNotAvailable)
 }
 
-func TestTraceReader_GetTracePanics(t *testing.T) {
-	memstore := memory.NewStore()
-	traceReader := &TraceReader{
-		spanReader: memstore,
+func TestTraceReader_GetTraceDelegatesSuccessResponse(t *testing.T) {
+	sr := new(spanStoreMocks.Reader)
+	modelTrace := &model.Trace{
+		Spans: []*model.Span{
+			{
+				TraceID:       model.NewTraceID(2, 3),
+				SpanID:        model.SpanID(1),
+				OperationName: "operation-a",
+			},
+			{
+				TraceID:       model.NewTraceID(2, 3),
+				SpanID:        model.SpanID(2),
+				OperationName: "operation-b",
+			},
+		},
 	}
-	require.Panics(t, func() { traceReader.GetTrace(context.Background(), pcommon.NewTraceIDEmpty()) })
+	sr.On("GetTrace", mock.Anything, model.NewTraceID(2, 3)).Return(modelTrace, nil)
+	traceReader := &TraceReader{
+		spanReader: sr,
+	}
+	trace, err := traceReader.GetTrace(
+		context.Background(),
+		pcommon.TraceID([]byte{0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 3}),
+	)
+	require.NoError(t, err)
+	traceSpans := trace.ResourceSpans().At(0).ScopeSpans().At(0).Spans()
+	require.EqualValues(t, []byte{0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 3}, traceSpans.At(0).TraceID())
+	require.EqualValues(t, []byte{0, 0, 0, 0, 0, 0, 0, 1}, traceSpans.At(0).SpanID())
+	require.Equal(t, "operation-a", traceSpans.At(0).Name())
+	require.EqualValues(t, []byte{0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 3}, traceSpans.At(1).TraceID())
+	require.EqualValues(t, []byte{0, 0, 0, 0, 0, 0, 0, 2}, traceSpans.At(1).SpanID())
+	require.Equal(t, "operation-b", traceSpans.At(1).Name())
+}
+
+func TestTraceReader_GetTraceErrorResponse(t *testing.T) {
+	sr := new(spanStoreMocks.Reader)
+	testErr := errors.New("test error")
+	sr.On("GetTrace", mock.Anything, mock.Anything).Return(nil, testErr)
+	traceReader := &TraceReader{
+		spanReader: sr,
+	}
+	trace, err := traceReader.GetTrace(
+		context.Background(),
+		pcommon.TraceID([]byte{0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 3}),
+	)
+	require.ErrorIs(t, err, testErr)
+	require.Equal(t, ptrace.NewTraces(), trace)
 }
 
 func TestTraceReader_GetServicesDelegatesToSpanReader(t *testing.T) {

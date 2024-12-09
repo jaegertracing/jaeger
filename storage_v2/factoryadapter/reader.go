@@ -37,8 +37,13 @@ func NewTraceReader(spanReader spanstore.Reader) *TraceReader {
 	}
 }
 
-func (*TraceReader) GetTrace(_ context.Context, _ pcommon.TraceID) (ptrace.Traces, error) {
-	panic("not implemented")
+func (tr *TraceReader) GetTrace(ctx context.Context, traceID pcommon.TraceID) (ptrace.Traces, error) {
+	t, err := tr.spanReader.GetTrace(ctx, model.TraceIDFromOTEL(traceID))
+	if err != nil {
+		return ptrace.NewTraces(), err
+	}
+	batch := &model.Batch{Spans: t.GetSpans()}
+	return model2otel.ProtoToTraces([]*model.Batch{batch})
 }
 
 func (tr *TraceReader) GetServices(ctx context.Context) ([]string, error) {
