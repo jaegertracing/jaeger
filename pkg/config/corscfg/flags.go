@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/spf13/viper"
+	"go.opentelemetry.io/collector/config/confighttp"
 )
 
 const (
@@ -25,8 +26,8 @@ func (c Flags) AddFlags(flags *flag.FlagSet) {
 	flags.String(c.Prefix+corsAllowedOrigins, "", "Comma-separated CORS allowed origins. See https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Allow-Origin")
 }
 
-func (c Flags) InitFromViper(v *viper.Viper) Options {
-	var p Options
+func (c Flags) InitFromViper(v *viper.Viper) *confighttp.CORSConfig {
+	var p confighttp.CORSConfig
 
 	allowedHeaders := v.GetString(c.Prefix + corsAllowedHeaders)
 	allowedOrigins := v.GetString(c.Prefix + corsAllowedOrigins)
@@ -34,5 +35,5 @@ func (c Flags) InitFromViper(v *viper.Viper) Options {
 	p.AllowedOrigins = strings.Split(strings.ReplaceAll(allowedOrigins, " ", ""), ",")
 	p.AllowedHeaders = strings.Split(strings.ReplaceAll(allowedHeaders, " ", ""), ",")
 
-	return p
+	return &p
 }

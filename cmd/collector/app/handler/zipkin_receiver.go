@@ -56,12 +56,7 @@ func startZipkinReceiver(
 		cfg component.Config, nextConsumer consumer.Traces) (receiver.Traces, error),
 ) (receiver.Traces, error) {
 	receiverConfig := zipkinFactory.CreateDefaultConfig().(*zipkinreceiver.Config)
-	applyHTTPSettings(&receiverConfig.ServerConfig, &flags.HTTPOptions{
-		HostPort: options.Zipkin.HTTPHostPort,
-		TLS:      options.Zipkin.TLS,
-		CORS:     options.HTTP.CORS,
-		// TODO keepAlive not supported?
-	})
+	receiverConfig.ServerConfig = options.Zipkin.ServerConfig
 	receiverSettings := receiver.Settings{
 		TelemetrySettings: component.TelemetrySettings{
 			Logger:         logger,
