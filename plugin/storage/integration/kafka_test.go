@@ -20,6 +20,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/kafka/consumer"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/plugin/storage/kafka"
 	"github.com/jaegertracing/jaeger/plugin/storage/memory"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
@@ -56,7 +57,6 @@ func (s *KafkaIntegrationTestSuite) initialize(t *testing.T) {
 
 	spanWriter, err := f.CreateSpanWriter()
 	require.NoError(t, err)
-
 	v, command = config.Viperize(app.AddFlags)
 	err = command.ParseFlags([]string{
 		"--kafka.consumer.topic",
@@ -88,6 +88,11 @@ func (s *KafkaIntegrationTestSuite) initialize(t *testing.T) {
 	s.SpanReader = &ingester{traceStore}
 	s.CleanUp = func(_ *testing.T) {}
 	s.SkipArchiveTest = true
+	t.Cleanup(func() {
+		require.NoError(t, f.Close())
+		require.NoError(t, spanConsumer.Close())
+		testutils.VerifyGoLeaksOnce(t)
+	})
 }
 
 // The ingester consumes spans from kafka and writes them to an in-memory traceStore

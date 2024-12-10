@@ -15,6 +15,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/plugin/storage/cassandra"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 )
@@ -80,6 +81,7 @@ func (s *CassandraStorageIntegration) initializeCassandra(t *testing.T) {
 	s.initializeDependencyReaderAndWriter(t, f)
 	t.Cleanup(func() {
 		require.NoError(t, f.Close())
+		testutils.VerifyGoLeaksOnce(t)
 	})
 }
 
