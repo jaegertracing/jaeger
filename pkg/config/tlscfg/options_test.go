@@ -190,6 +190,9 @@ func TestToOtelClientConfig(t *testing.T) {
 			},
 			expected: configtls.ClientConfig{
 				Insecure: true,
+				Config: configtls.Config{
+					IncludeSystemCACertsPool: true,
+				},
 			},
 		},
 		{

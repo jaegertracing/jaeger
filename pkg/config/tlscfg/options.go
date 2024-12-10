@@ -139,6 +139,10 @@ func (o *Options) ToOtelClientConfig() configtls.ClientConfig {
 			MinVersion:     o.MinVersion,
 			MaxVersion:     o.MaxVersion,
 			ReloadInterval: o.ReloadInterval,
+
+			// when no truststore given, use SystemCertPool
+			// https://github.com/jaegertracing/jaeger/issues/6334
+			IncludeSystemCACertsPool: len(o.CAPath) == 0,
 		},
 	}
 }
