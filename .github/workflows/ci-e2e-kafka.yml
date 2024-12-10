@@ -35,6 +35,17 @@ jobs:
       id: test-execution
       run: bash scripts/kafka-integration-test.sh -j ${{ matrix.jaeger-version }}
 
+    - name: Scrape Metrics
+      run: |
+            bash scripts/scrape-metrics.sh -t kafka-${{ matrix.version }}
+            
+    - name: Upload Metrics Artifact
+      uses: actions/upload-artifact@v3
+      with:
+              name: kafka-metrics-${{ matrix.version }}
+              path: ./metrics/kafka-${{ matrix.version }}_metrics.txt
+              retention-days: 7
+
     - name: Upload coverage to codecov
       uses: ./.github/actions/upload-codecov
       with:
