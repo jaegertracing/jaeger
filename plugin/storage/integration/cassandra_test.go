@@ -81,6 +81,7 @@ func (s *CassandraStorageIntegration) initializeCassandra(t *testing.T) *cassand
 	s.initializeDependencyReaderAndWriter(t, f)
 	t.Cleanup(func() {
 		require.NoError(t, f.Close())
+		testutils.VerifyGoLeaksOnce(t)
 	})
 	return f
 }
@@ -100,10 +101,8 @@ func (s *CassandraStorageIntegration) initializeDependencyReaderAndWriter(t *tes
 }
 
 func TestCassandraStorage(t *testing.T) {
-	defer testutils.VerifyGoLeaksOnce(t)
 	SkipUnlessEnv(t, "cassandra")
 	s := newCassandraStorageIntegration()
-	f := s.initializeCassandra(t)
+	s.initializeCassandra(t)
 	s.RunAll(t)
-	require.NoError(t, f.Close())
 }

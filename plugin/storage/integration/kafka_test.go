@@ -16,7 +16,6 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/ingester/app"
 	"github.com/jaegertracing/jaeger/cmd/ingester/app/builder"
-	cn "github.com/jaegertracing/jaeger/cmd/ingester/app/consumer"
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/kafka/consumer"
@@ -33,7 +32,7 @@ type KafkaIntegrationTestSuite struct {
 	StorageIntegration
 }
 
-func (s *KafkaIntegrationTestSuite) initialize(t *testing.T) (*kafka.Factory, *cn.Consumer) {
+func (s *KafkaIntegrationTestSuite) initialize(t *testing.T) {
 	logger := zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller()))
 	const encoding = "json"
 	const groupID = "kafka-integration-test"
@@ -89,7 +88,11 @@ func (s *KafkaIntegrationTestSuite) initialize(t *testing.T) (*kafka.Factory, *c
 	s.SpanReader = &ingester{traceStore}
 	s.CleanUp = func(_ *testing.T) {}
 	s.SkipArchiveTest = true
-	return f, spanConsumer
+	t.Cleanup(func() {
+		require.NoError(t, f.Close())
+		require.NoError(t, spanConsumer.Close())
+		testutils.VerifyGoLeaksOnce(t)
+	})
 }
 
 // The ingester consumes spans from kafka and writes them to an in-memory traceStore
@@ -121,13 +124,8 @@ func (*ingester) FindTraceIDs(context.Context, *spanstore.TraceQueryParameters) 
 }
 
 func TestKafkaStorage(t *testing.T) {
-	defer testutils.VerifyGoLeaksOnce(t)
 	SkipUnlessEnv(t, "kafka")
 	s := &KafkaIntegrationTestSuite{}
-	f, c := s.initialize(t)
+	s.initialize(t)
 	t.Run("GetTrace", s.testGetTrace)
-	err := f.Close()
-	require.NoError(t, err)
-	err = c.Close()
-	require.NoError(t, err)
 }
