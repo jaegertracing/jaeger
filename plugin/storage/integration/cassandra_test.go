@@ -15,6 +15,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/plugin/storage/cassandra"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 )
@@ -50,7 +51,7 @@ func (*CassandraStorageIntegration) initializeCassandraFactory(t *testing.T, fla
 	return f
 }
 
-func (s *CassandraStorageIntegration) initializeCassandra(t *testing.T) {
+func (s *CassandraStorageIntegration) initializeCassandra(t *testing.T) *cassandra.Factory {
 	username := os.Getenv("CASSANDRA_USERNAME")
 	password := os.Getenv("CASSANDRA_USERNAME")
 	f := s.initializeCassandraFactory(t, []string{
@@ -81,6 +82,7 @@ func (s *CassandraStorageIntegration) initializeCassandra(t *testing.T) {
 	t.Cleanup(func() {
 		require.NoError(t, f.Close())
 	})
+	return f
 }
 
 func (s *CassandraStorageIntegration) initializeDependencyReaderAndWriter(t *testing.T, f *cassandra.Factory) {
@@ -98,8 +100,10 @@ func (s *CassandraStorageIntegration) initializeDependencyReaderAndWriter(t *tes
 }
 
 func TestCassandraStorage(t *testing.T) {
+	defer testutils.VerifyGoLeaksOnce(t)
 	SkipUnlessEnv(t, "cassandra")
 	s := newCassandraStorageIntegration()
-	s.initializeCassandra(t)
+	f := s.initializeCassandra(t)
 	s.RunAll(t)
+	require.NoError(t, f.Close())
 }
