@@ -1,0 +1,42 @@
+name: E2E Tests
+
+on:
+  push:
+    branches: [main]
+
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: combined-cit-${{ github.workflow }}-${{ (github.event.pull_request && github.event.pull_request.number) || github.ref || github.run_id }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  badger:
+    uses: ./.github/workflows/ci-e2e-badger.yaml
+
+  cassandra:
+    uses: ./.github/workflows/ci-e2e-cassandra.yml
+
+  elasticsearch:
+    uses: ./.github/workflows/ci-e2e-elasticsearch.yml
+
+  grpc:
+    uses: ./.github/workflows/ci-e2e-grpc.yml
+
+  kafka:
+    uses: ./.github/workflows/ci-e2e-kafka.yml
+
+  memory:
+    uses: ./.github/workflows/ci-e2e-memory.yaml
+
+  opensearch:
+    uses: ./.github/workflows/ci-e2e-opensearch.yml
+
+
+
+
+

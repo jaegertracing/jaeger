@@ -22,9 +22,10 @@ import (
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/jtracer"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
-	dependencyStoreMocks "github.com/jaegertracing/jaeger/storage/dependencystore/mocks"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	spanstoremocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
+	dependencyStoreMocks "github.com/jaegertracing/jaeger/storage_v2/depstore/mocks"
+	"github.com/jaegertracing/jaeger/storage_v2/factoryadapter"
 )
 
 func setupHTTPGatewayNoServer(
@@ -35,7 +36,7 @@ func setupHTTPGatewayNoServer(
 		reader: &spanstoremocks.Reader{},
 	}
 
-	q := querysvc.NewQueryService(gw.reader,
+	q := querysvc.NewQueryService(factoryadapter.NewTraceReader(gw.reader),
 		&dependencyStoreMocks.Reader{},
 		querysvc.QueryServiceOptions{},
 	)

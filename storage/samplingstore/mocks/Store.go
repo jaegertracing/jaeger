@@ -19,7 +19,7 @@ type Store struct {
 	mock.Mock
 }
 
-// GetLatestProbabilities provides a mock function with given fields:
+// GetLatestProbabilities provides a mock function with no fields
 func (_m *Store) GetLatestProbabilities() (model.ServiceOperationProbabilities, error) {
 	ret := _m.Called()
 

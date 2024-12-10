@@ -16,14 +16,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
-	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/confignet"
-	"go.opentelemetry.io/collector/config/configtelemetry"
 	"go.opentelemetry.io/collector/config/configtls"
-	"go.opentelemetry.io/otel/metric"
-	"go.opentelemetry.io/otel/metric/noop"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"go.uber.org/zap"
@@ -43,22 +39,19 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/ports"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
-	depsmocks "github.com/jaegertracing/jaeger/storage/dependencystore/mocks"
 	spanstoremocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
+	depsmocks "github.com/jaegertracing/jaeger/storage_v2/depstore/mocks"
+	"github.com/jaegertracing/jaeger/storage_v2/factoryadapter"
 )
 
 var testCertKeyLocation = "../../../pkg/config/tlscfg/testdata"
 
-func initTelSet(logger *zap.Logger, tracerProvider *jtracer.JTracer, hc *healthcheck.HealthCheck) telemetry.Setting {
-	return telemetry.Setting{
-		Logger:         logger,
-		TracerProvider: tracerProvider.OTEL,
-		ReportStatus:   telemetry.HCAdapter(hc),
-		Host:           componenttest.NewNopHost(),
-		LeveledMeterProvider: func(_ configtelemetry.Level) metric.MeterProvider {
-			return noop.NewMeterProvider()
-		},
-	}
+func initTelSet(logger *zap.Logger, tracerProvider *jtracer.JTracer, hc *healthcheck.HealthCheck) telemetry.Settings {
+	telset := telemetry.NoopSettings()
+	telset.Logger = logger
+	telset.TracerProvider = tracerProvider.OTEL
+	telset.ReportStatus = telemetry.HCAdapter(hc)
+	return telset
 }
 
 func TestServerError(t *testing.T) {
@@ -330,10 +323,11 @@ type fakeQueryService struct {
 
 func makeQuerySvc() *fakeQueryService {
 	spanReader := &spanstoremocks.Reader{}
+	traceReader := factoryadapter.NewTraceReader(spanReader)
 	dependencyReader := &depsmocks.Reader{}
 	expectedServices := []string{"test"}
 	spanReader.On("GetServices", mock.AnythingOfType("*context.valueCtx")).Return(expectedServices, nil)
-	qs := querysvc.NewQueryService(spanReader, dependencyReader, querysvc.QueryServiceOptions{})
+	qs := querysvc.NewQueryService(traceReader, dependencyReader, querysvc.QueryServiceOptions{})
 	return &fakeQueryService{
 		qs:               qs,
 		spanReader:       spanReader,

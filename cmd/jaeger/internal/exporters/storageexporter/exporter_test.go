@@ -32,7 +32,7 @@ import (
 type mockStorageExt struct {
 	name           string
 	factory        *factoryMocks.Factory
-	metricsFactory *factoryMocks.MetricsFactory
+	metricsFactory *factoryMocks.MetricStoreFactory
 }
 
 var _ jaegerstorage.Extension = (*mockStorageExt)(nil)
@@ -52,7 +52,7 @@ func (m *mockStorageExt) TraceStorageFactory(name string) (storage.Factory, bool
 	return nil, false
 }
 
-func (m *mockStorageExt) MetricStorageFactory(name string) (storage.MetricsFactory, bool) {
+func (m *mockStorageExt) MetricStorageFactory(name string) (storage.MetricStoreFactory, bool) {
 	if m.name == name {
 		return m.metricsFactory, true
 	}

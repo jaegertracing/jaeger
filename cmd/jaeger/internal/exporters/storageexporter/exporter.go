@@ -13,13 +13,13 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/sanitizer"
-	"github.com/jaegertracing/jaeger/storage_v2/spanstore"
+	"github.com/jaegertracing/jaeger/storage_v2/tracestore"
 )
 
 type storageExporter struct {
 	config      *Config
 	logger      *zap.Logger
-	traceWriter spanstore.Writer
+	traceWriter tracestore.Writer
 	sanitizer   sanitizer.Func
 }
 
@@ -34,7 +34,7 @@ func newExporter(config *Config, otel component.TelemetrySettings) *storageExpor
 }
 
 func (exp *storageExporter) start(_ context.Context, host component.Host) error {
-	f, err := jaegerstorage.GetStorageFactoryV2(exp.config.TraceStorage, host)
+	f, err := jaegerstorage.GetTraceStoreFactory(exp.config.TraceStorage, host)
 	if err != nil {
 		return fmt.Errorf("cannot find storage factory: %w", err)
 	}

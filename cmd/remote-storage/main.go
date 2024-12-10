@@ -10,8 +10,6 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"go.opentelemetry.io/collector/config/configtelemetry"
-	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/metric/noop"
 	_ "go.uber.org/automaxprocs"
 	"go.uber.org/zap"
@@ -64,19 +62,21 @@ func main() {
 				logger.Fatal("Failed to parse options", zap.Error(err))
 			}
 
+			baseTelset := telemetry.Settings{
+				Logger:        svc.Logger,
+				Metrics:       baseFactory,
+				ReportStatus:  telemetry.HCAdapter(svc.HC()),
+				MeterProvider: noop.NewMeterProvider(), // TODO
+			}
+
 			storageFactory.InitFromViper(v, logger)
-			if err := storageFactory.Initialize(baseFactory, logger); err != nil {
+			if err := storageFactory.Initialize(baseTelset.Metrics, baseTelset.Logger); err != nil {
 				logger.Fatal("Failed to init storage factory", zap.Error(err))
 			}
 
 			tm := tenancy.NewManager(&opts.Tenancy)
-			telset := telemetry.Setting{
-				Logger:       svc.Logger,
-				ReportStatus: telemetry.HCAdapter(svc.HC()),
-				LeveledMeterProvider: func(_ configtelemetry.Level) metric.MeterProvider {
-					return noop.NewMeterProvider()
-				},
-			}
+			telset := baseTelset // copy
+			telset.Metrics = metricsFactory
 			server, err := app.NewServer(opts, storageFactory, tm, telset)
 			if err != nil {
 				logger.Fatal("Failed to create server", zap.Error(err))

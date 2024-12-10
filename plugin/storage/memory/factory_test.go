@@ -25,7 +25,7 @@ func TestMemoryStorageFactory(t *testing.T) {
 	assert.NotNil(t, f.store)
 	reader, err := f.CreateSpanReader()
 	require.NoError(t, err)
-	assert.Equal(t, f.store, reader)
+	require.NotNil(t, reader)
 	writer, err := f.CreateSpanWriter()
 	require.NoError(t, err)
 	assert.Equal(t, f.store, writer)

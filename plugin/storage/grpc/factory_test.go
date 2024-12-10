@@ -16,13 +16,9 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
-	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/config/configauth"
 	"go.opentelemetry.io/collector/config/configgrpc"
-	"go.opentelemetry.io/collector/config/configtelemetry"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
-	"go.opentelemetry.io/otel/metric"
-	"go.opentelemetry.io/otel/metric/noop"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 
@@ -110,14 +106,7 @@ func TestNewFactoryError(t *testing.T) {
 			Auth: &configauth.Authentication{},
 		},
 	}
-	telset := telemetry.Setting{
-		Logger: zap.NewNop(),
-		LeveledMeterProvider: func(_ configtelemetry.Level) metric.MeterProvider {
-			return noop.NewMeterProvider()
-		},
-		Host:    componenttest.NewNopHost(),
-		Metrics: metrics.NullFactory,
-	}
+	telset := telemetry.NoopSettings()
 	t.Run("with_config", func(t *testing.T) {
 		_, err := NewFactoryWithConfig(*cfg, telset)
 		assert.ErrorContains(t, err, "authenticator")
@@ -154,7 +143,7 @@ func TestInitFactory(t *testing.T) {
 
 	reader, err := f.CreateSpanReader()
 	require.NoError(t, err)
-	assert.Equal(t, f.services.Store.SpanReader(), reader)
+	assert.NotNil(t, reader)
 
 	writer, err := f.CreateSpanWriter()
 	require.NoError(t, err)
@@ -188,14 +177,7 @@ func TestGRPCStorageFactoryWithConfig(t *testing.T) {
 			Enabled: true,
 		},
 	}
-	telset := telemetry.Setting{
-		Logger: zap.NewNop(),
-		LeveledMeterProvider: func(_ configtelemetry.Level) metric.MeterProvider {
-			return noop.NewMeterProvider()
-		},
-		Host:    componenttest.NewNopHost(),
-		Metrics: metrics.NullFactory,
-	}
+	telset := telemetry.NoopSettings()
 	f, err := NewFactoryWithConfig(cfg, telset)
 	require.NoError(t, err)
 	require.NoError(t, f.Close())

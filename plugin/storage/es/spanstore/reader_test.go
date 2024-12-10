@@ -24,7 +24,6 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 
-	"github.com/jaegertracing/jaeger/internal/metricstest"
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/es"
 	"github.com/jaegertracing/jaeger/pkg/es/config"
@@ -187,7 +186,6 @@ func TestSpanReaderIndices(t *testing.T) {
 	spanDataLayoutFormat := date.UTC().Format(spanDataLayout)
 	serviceDataLayoutFormat := date.UTC().Format(serviceDataLayout)
 
-	metricsFactory := metricstest.NewFactory(0)
 	logger, _ := testutils.NewLogger()
 	tracer, _, closer := tracerProvider(t)
 	defer closer()
@@ -305,7 +303,6 @@ func TestSpanReaderIndices(t *testing.T) {
 	for _, testCase := range testCases {
 		testCase.params.Client = clientFn
 		testCase.params.Logger = logger
-		testCase.params.MetricsFactory = metricsFactory
 		testCase.params.Tracer = tracer.Tracer("test")
 		r := NewSpanReader(testCase.params)
 
