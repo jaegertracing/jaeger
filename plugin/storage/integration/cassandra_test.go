@@ -51,7 +51,7 @@ func (*CassandraStorageIntegration) initializeCassandraFactory(t *testing.T, fla
 	return f
 }
 
-func (s *CassandraStorageIntegration) initializeCassandra(t *testing.T) *cassandra.Factory {
+func (s *CassandraStorageIntegration) initializeCassandra(t *testing.T) {
 	username := os.Getenv("CASSANDRA_USERNAME")
 	password := os.Getenv("CASSANDRA_PASSWORD")
 	f := s.initializeCassandraFactory(t, []string{
@@ -83,7 +83,6 @@ func (s *CassandraStorageIntegration) initializeCassandra(t *testing.T) *cassand
 		require.NoError(t, f.Close())
 		testutils.VerifyGoLeaksOnce(t)
 	})
-	return f
 }
 
 func (s *CassandraStorageIntegration) initializeDependencyReaderAndWriter(t *testing.T, f *cassandra.Factory) {
