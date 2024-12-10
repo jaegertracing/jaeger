@@ -23,12 +23,13 @@ func IgnoreOpenCensusWorkerLeak() goleak.Option {
 	return goleak.IgnoreTopFunction("go.opencensus.io/stats/view.(*worker).start")
 }
 
-// IgnoreGoMetricsMeterLeak prevents the leak created by go-metrics which is being used by Sarama (Kafka Client) in Jaeger v1. This reason of this leak is
+// IgnoreGoMetricsMeterLeak prevents the leak created by go-metrics which is
+// used by Sarama (Kafka Client) in Jaeger v1. This reason of this leak is
 // not Jaeger but the go-metrics used by Samara.
 // See these issues for the context
-// https://github.com/IBM/sarama/issues/1321,
-// https://github.com/IBM/sarama/issues/1340, and
-// https://github.com/IBM/sarama/issues/2832
+// - https://github.com/IBM/sarama/issues/1321
+// - https://github.com/IBM/sarama/issues/1340
+// - https://github.com/IBM/sarama/issues/2832
 func IgnoreGoMetricsMeterLeak() goleak.Option {
 	return goleak.IgnoreTopFunction("github.com/rcrowley/go-metrics.(*meterArbiter).tick")
 }
