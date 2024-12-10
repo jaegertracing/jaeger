@@ -184,12 +184,31 @@ func TestTLSFlags(t *testing.T) {
 			expected: auth.AuthenticationConfig{Authentication: "kerberos", Kerberos: kerb, TLS: configtls.ClientConfig{}, PlainText: plain},
 		},
 		{
-			flags:    []string{"--kafka.producer.authentication=tls"},
-			expected: auth.AuthenticationConfig{Authentication: "tls", Kerberos: kerb, TLS: configtls.ClientConfig{}, PlainText: plain},
+			flags: []string{"--kafka.producer.authentication=tls"},
+			expected: auth.AuthenticationConfig{
+				Authentication: "tls",
+				Kerberos:       kerb,
+				TLS: configtls.ClientConfig{
+					Config: configtls.Config{
+						IncludeSystemCACertsPool: true,
+					},
+				},
+				PlainText: plain,
+			},
 		},
 		{
-			flags:    []string{"--kafka.producer.authentication=tls", "--kafka.producer.tls.enabled=false"},
-			expected: auth.AuthenticationConfig{Authentication: "tls", Kerberos: kerb, TLS: configtls.ClientConfig{}, PlainText: plain},
+			flags: []string{"--kafka.producer.authentication=tls", "--kafka.producer.tls.enabled=false"},
+			expected: auth.AuthenticationConfig{
+				Authentication: "tls",
+				Kerberos:       kerb,
+				// TODO this test is unclear - if tls.enabled=false, why is it not tls.Insecure=true?
+				TLS: configtls.ClientConfig{
+					Config: configtls.Config{
+						IncludeSystemCACertsPool: true,
+					},
+				},
+				PlainText: plain,
+			},
 		},
 	}
 
