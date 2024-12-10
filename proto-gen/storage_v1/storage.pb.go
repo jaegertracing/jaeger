@@ -5,6 +5,7 @@ package storage_v1
 
 import (
 	context "context"
+	encoding_binary "encoding/binary"
 	fmt "fmt"
 	_ "github.com/gogo/protobuf/gogoproto"
 	proto "github.com/gogo/protobuf/proto"
@@ -893,6 +894,594 @@ func (m *FindTraceIDsResponse) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_FindTraceIDsResponse proto.InternalMessageInfo
 
+type Throughput struct {
+	Service              string    `protobuf:"bytes,1,opt,name=Service,proto3" json:"Service,omitempty"`
+	Operation            string    `protobuf:"bytes,2,opt,name=Operation,proto3" json:"Operation,omitempty"`
+	Count                int64     `protobuf:"varint,3,opt,name=Count,proto3" json:"Count,omitempty"`
+	Probabilities        []float64 `protobuf:"fixed64,4,rep,packed,name=Probabilities,proto3" json:"Probabilities,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}  `json:"-"`
+	XXX_unrecognized     []byte    `json:"-"`
+	XXX_sizecache        int32     `json:"-"`
+}
+
+func (m *Throughput) Reset()         { *m = Throughput{} }
+func (m *Throughput) String() string { return proto.CompactTextString(m) }
+func (*Throughput) ProtoMessage()    {}
+func (*Throughput) Descriptor() ([]byte, []int) {
+	return fileDescriptor_0d2c4ccf1453ffdb, []int{17}
+}
+func (m *Throughput) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *Throughput) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_Throughput.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *Throughput) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_Throughput.Merge(m, src)
+}
+func (m *Throughput) XXX_Size() int {
+	return m.Size()
+}
+func (m *Throughput) XXX_DiscardUnknown() {
+	xxx_messageInfo_Throughput.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_Throughput proto.InternalMessageInfo
+
+func (m *Throughput) GetService() string {
+	if m != nil {
+		return m.Service
+	}
+	return ""
+}
+
+func (m *Throughput) GetOperation() string {
+	if m != nil {
+		return m.Operation
+	}
+	return ""
+}
+
+func (m *Throughput) GetCount() int64 {
+	if m != nil {
+		return m.Count
+	}
+	return 0
+}
+
+func (m *Throughput) GetProbabilities() []float64 {
+	if m != nil {
+		return m.Probabilities
+	}
+	return nil
+}
+
+type InsertThroughputRequest struct {
+	Throughput           []*Throughput `protobuf:"bytes,1,rep,name=throughput,proto3" json:"throughput,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}      `json:"-"`
+	XXX_unrecognized     []byte        `json:"-"`
+	XXX_sizecache        int32         `json:"-"`
+}
+
+func (m *InsertThroughputRequest) Reset()         { *m = InsertThroughputRequest{} }
+func (m *InsertThroughputRequest) String() string { return proto.CompactTextString(m) }
+func (*InsertThroughputRequest) ProtoMessage()    {}
+func (*InsertThroughputRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_0d2c4ccf1453ffdb, []int{18}
+}
+func (m *InsertThroughputRequest) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *InsertThroughputRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_InsertThroughputRequest.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *InsertThroughputRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_InsertThroughputRequest.Merge(m, src)
+}
+func (m *InsertThroughputRequest) XXX_Size() int {
+	return m.Size()
+}
+func (m *InsertThroughputRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_InsertThroughputRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_InsertThroughputRequest proto.InternalMessageInfo
+
+func (m *InsertThroughputRequest) GetThroughput() []*Throughput {
+	if m != nil {
+		return m.Throughput
+	}
+	return nil
+}
+
+type InsertThroughputResponse struct {
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *InsertThroughputResponse) Reset()         { *m = InsertThroughputResponse{} }
+func (m *InsertThroughputResponse) String() string { return proto.CompactTextString(m) }
+func (*InsertThroughputResponse) ProtoMessage()    {}
+func (*InsertThroughputResponse) Descriptor() ([]byte, []int) {
+	return fileDescriptor_0d2c4ccf1453ffdb, []int{19}
+}
+func (m *InsertThroughputResponse) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *InsertThroughputResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_InsertThroughputResponse.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *InsertThroughputResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_InsertThroughputResponse.Merge(m, src)
+}
+func (m *InsertThroughputResponse) XXX_Size() int {
+	return m.Size()
+}
+func (m *InsertThroughputResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_InsertThroughputResponse.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_InsertThroughputResponse proto.InternalMessageInfo
+
+type StringFloatMap struct {
+	StringFloatMap       map[string]float64 `protobuf:"bytes,1,rep,name=stringFloatMap,proto3" json:"stringFloatMap,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"fixed64,2,opt,name=value,proto3"`
+	XXX_NoUnkeyedLiteral struct{}           `json:"-"`
+	XXX_unrecognized     []byte             `json:"-"`
+	XXX_sizecache        int32              `json:"-"`
+}
+
+func (m *StringFloatMap) Reset()         { *m = StringFloatMap{} }
+func (m *StringFloatMap) String() string { return proto.CompactTextString(m) }
+func (*StringFloatMap) ProtoMessage()    {}
+func (*StringFloatMap) Descriptor() ([]byte, []int) {
+	return fileDescriptor_0d2c4ccf1453ffdb, []int{20}
+}
+func (m *StringFloatMap) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *StringFloatMap) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_StringFloatMap.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *StringFloatMap) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_StringFloatMap.Merge(m, src)
+}
+func (m *StringFloatMap) XXX_Size() int {
+	return m.Size()
+}
+func (m *StringFloatMap) XXX_DiscardUnknown() {
+	xxx_messageInfo_StringFloatMap.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_StringFloatMap proto.InternalMessageInfo
+
+func (m *StringFloatMap) GetStringFloatMap() map[string]float64 {
+	if m != nil {
+		return m.StringFloatMap
+	}
+	return nil
+}
+
+type ServiceOperationProbabilities struct {
+	ServiceOperationProbabilities map[string]*StringFloatMap `protobuf:"bytes,1,rep,name=serviceOperationProbabilities,proto3" json:"serviceOperationProbabilities,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	XXX_NoUnkeyedLiteral          struct{}                   `json:"-"`
+	XXX_unrecognized              []byte                     `json:"-"`
+	XXX_sizecache                 int32                      `json:"-"`
+}
+
+func (m *ServiceOperationProbabilities) Reset()         { *m = ServiceOperationProbabilities{} }
+func (m *ServiceOperationProbabilities) String() string { return proto.CompactTextString(m) }
+func (*ServiceOperationProbabilities) ProtoMessage()    {}
+func (*ServiceOperationProbabilities) Descriptor() ([]byte, []int) {
+	return fileDescriptor_0d2c4ccf1453ffdb, []int{21}
+}
+func (m *ServiceOperationProbabilities) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *ServiceOperationProbabilities) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_ServiceOperationProbabilities.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *ServiceOperationProbabilities) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ServiceOperationProbabilities.Merge(m, src)
+}
+func (m *ServiceOperationProbabilities) XXX_Size() int {
+	return m.Size()
+}
+func (m *ServiceOperationProbabilities) XXX_DiscardUnknown() {
+	xxx_messageInfo_ServiceOperationProbabilities.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_ServiceOperationProbabilities proto.InternalMessageInfo
+
+func (m *ServiceOperationProbabilities) GetServiceOperationProbabilities() map[string]*StringFloatMap {
+	if m != nil {
+		return m.ServiceOperationProbabilities
+	}
+	return nil
+}
+
+type ServiceOperationQPS struct {
+	ServiceOperationQPS  map[string]*StringFloatMap `protobuf:"bytes,1,rep,name=serviceOperationQPS,proto3" json:"serviceOperationQPS,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	XXX_NoUnkeyedLiteral struct{}                   `json:"-"`
+	XXX_unrecognized     []byte                     `json:"-"`
+	XXX_sizecache        int32                      `json:"-"`
+}
+
+func (m *ServiceOperationQPS) Reset()         { *m = ServiceOperationQPS{} }
+func (m *ServiceOperationQPS) String() string { return proto.CompactTextString(m) }
+func (*ServiceOperationQPS) ProtoMessage()    {}
+func (*ServiceOperationQPS) Descriptor() ([]byte, []int) {
+	return fileDescriptor_0d2c4ccf1453ffdb, []int{22}
+}
+func (m *ServiceOperationQPS) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *ServiceOperationQPS) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_ServiceOperationQPS.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *ServiceOperationQPS) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ServiceOperationQPS.Merge(m, src)
+}
+func (m *ServiceOperationQPS) XXX_Size() int {
+	return m.Size()
+}
+func (m *ServiceOperationQPS) XXX_DiscardUnknown() {
+	xxx_messageInfo_ServiceOperationQPS.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_ServiceOperationQPS proto.InternalMessageInfo
+
+func (m *ServiceOperationQPS) GetServiceOperationQPS() map[string]*StringFloatMap {
+	if m != nil {
+		return m.ServiceOperationQPS
+	}
+	return nil
+}
+
+type InsertProbabilitiesAndQPSRequest struct {
+	Hostname             string                         `protobuf:"bytes,1,opt,name=hostname,proto3" json:"hostname,omitempty"`
+	Probabilities        *ServiceOperationProbabilities `protobuf:"bytes,2,opt,name=probabilities,proto3" json:"probabilities,omitempty"`
+	Qps                  *ServiceOperationQPS           `protobuf:"bytes,3,opt,name=qps,proto3" json:"qps,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}                       `json:"-"`
+	XXX_unrecognized     []byte                         `json:"-"`
+	XXX_sizecache        int32                          `json:"-"`
+}
+
+func (m *InsertProbabilitiesAndQPSRequest) Reset()         { *m = InsertProbabilitiesAndQPSRequest{} }
+func (m *InsertProbabilitiesAndQPSRequest) String() string { return proto.CompactTextString(m) }
+func (*InsertProbabilitiesAndQPSRequest) ProtoMessage()    {}
+func (*InsertProbabilitiesAndQPSRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_0d2c4ccf1453ffdb, []int{23}
+}
+func (m *InsertProbabilitiesAndQPSRequest) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *InsertProbabilitiesAndQPSRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_InsertProbabilitiesAndQPSRequest.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *InsertProbabilitiesAndQPSRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_InsertProbabilitiesAndQPSRequest.Merge(m, src)
+}
+func (m *InsertProbabilitiesAndQPSRequest) XXX_Size() int {
+	return m.Size()
+}
+func (m *InsertProbabilitiesAndQPSRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_InsertProbabilitiesAndQPSRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_InsertProbabilitiesAndQPSRequest proto.InternalMessageInfo
+
+func (m *InsertProbabilitiesAndQPSRequest) GetHostname() string {
+	if m != nil {
+		return m.Hostname
+	}
+	return ""
+}
+
+func (m *InsertProbabilitiesAndQPSRequest) GetProbabilities() *ServiceOperationProbabilities {
+	if m != nil {
+		return m.Probabilities
+	}
+	return nil
+}
+
+func (m *InsertProbabilitiesAndQPSRequest) GetQps() *ServiceOperationQPS {
+	if m != nil {
+		return m.Qps
+	}
+	return nil
+}
+
+type InsertProbabilitiesAndQPSResponse struct {
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *InsertProbabilitiesAndQPSResponse) Reset()         { *m = InsertProbabilitiesAndQPSResponse{} }
+func (m *InsertProbabilitiesAndQPSResponse) String() string { return proto.CompactTextString(m) }
+func (*InsertProbabilitiesAndQPSResponse) ProtoMessage()    {}
+func (*InsertProbabilitiesAndQPSResponse) Descriptor() ([]byte, []int) {
+	return fileDescriptor_0d2c4ccf1453ffdb, []int{24}
+}
+func (m *InsertProbabilitiesAndQPSResponse) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *InsertProbabilitiesAndQPSResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_InsertProbabilitiesAndQPSResponse.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *InsertProbabilitiesAndQPSResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_InsertProbabilitiesAndQPSResponse.Merge(m, src)
+}
+func (m *InsertProbabilitiesAndQPSResponse) XXX_Size() int {
+	return m.Size()
+}
+func (m *InsertProbabilitiesAndQPSResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_InsertProbabilitiesAndQPSResponse.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_InsertProbabilitiesAndQPSResponse proto.InternalMessageInfo
+
+type GetThroughputRequest struct {
+	StartTime            time.Time `protobuf:"bytes,1,opt,name=start_time,json=startTime,proto3,stdtime" json:"start_time"`
+	EndTime              time.Time `protobuf:"bytes,2,opt,name=end_time,json=endTime,proto3,stdtime" json:"end_time"`
+	XXX_NoUnkeyedLiteral struct{}  `json:"-"`
+	XXX_unrecognized     []byte    `json:"-"`
+	XXX_sizecache        int32     `json:"-"`
+}
+
+func (m *GetThroughputRequest) Reset()         { *m = GetThroughputRequest{} }
+func (m *GetThroughputRequest) String() string { return proto.CompactTextString(m) }
+func (*GetThroughputRequest) ProtoMessage()    {}
+func (*GetThroughputRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_0d2c4ccf1453ffdb, []int{25}
+}
+func (m *GetThroughputRequest) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *GetThroughputRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_GetThroughputRequest.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *GetThroughputRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_GetThroughputRequest.Merge(m, src)
+}
+func (m *GetThroughputRequest) XXX_Size() int {
+	return m.Size()
+}
+func (m *GetThroughputRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_GetThroughputRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_GetThroughputRequest proto.InternalMessageInfo
+
+func (m *GetThroughputRequest) GetStartTime() time.Time {
+	if m != nil {
+		return m.StartTime
+	}
+	return time.Time{}
+}
+
+func (m *GetThroughputRequest) GetEndTime() time.Time {
+	if m != nil {
+		return m.EndTime
+	}
+	return time.Time{}
+}
+
+type GetThroughputResponse struct {
+	Throughput           []*Throughput `protobuf:"bytes,1,rep,name=throughput,proto3" json:"throughput,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}      `json:"-"`
+	XXX_unrecognized     []byte        `json:"-"`
+	XXX_sizecache        int32         `json:"-"`
+}
+
+func (m *GetThroughputResponse) Reset()         { *m = GetThroughputResponse{} }
+func (m *GetThroughputResponse) String() string { return proto.CompactTextString(m) }
+func (*GetThroughputResponse) ProtoMessage()    {}
+func (*GetThroughputResponse) Descriptor() ([]byte, []int) {
+	return fileDescriptor_0d2c4ccf1453ffdb, []int{26}
+}
+func (m *GetThroughputResponse) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *GetThroughputResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_GetThroughputResponse.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *GetThroughputResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_GetThroughputResponse.Merge(m, src)
+}
+func (m *GetThroughputResponse) XXX_Size() int {
+	return m.Size()
+}
+func (m *GetThroughputResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_GetThroughputResponse.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_GetThroughputResponse proto.InternalMessageInfo
+
+func (m *GetThroughputResponse) GetThroughput() []*Throughput {
+	if m != nil {
+		return m.Throughput
+	}
+	return nil
+}
+
+type GetLatestProbabilitiesRequest struct {
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *GetLatestProbabilitiesRequest) Reset()         { *m = GetLatestProbabilitiesRequest{} }
+func (m *GetLatestProbabilitiesRequest) String() string { return proto.CompactTextString(m) }
+func (*GetLatestProbabilitiesRequest) ProtoMessage()    {}
+func (*GetLatestProbabilitiesRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_0d2c4ccf1453ffdb, []int{27}
+}
+func (m *GetLatestProbabilitiesRequest) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *GetLatestProbabilitiesRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_GetLatestProbabilitiesRequest.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *GetLatestProbabilitiesRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_GetLatestProbabilitiesRequest.Merge(m, src)
+}
+func (m *GetLatestProbabilitiesRequest) XXX_Size() int {
+	return m.Size()
+}
+func (m *GetLatestProbabilitiesRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_GetLatestProbabilitiesRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_GetLatestProbabilitiesRequest proto.InternalMessageInfo
+
+type GetLatestProbabilitiesResponse struct {
+	ServiceOperationProbabilities *ServiceOperationProbabilities `protobuf:"bytes,1,opt,name=serviceOperationProbabilities,proto3" json:"serviceOperationProbabilities,omitempty"`
+	XXX_NoUnkeyedLiteral          struct{}                       `json:"-"`
+	XXX_unrecognized              []byte                         `json:"-"`
+	XXX_sizecache                 int32                          `json:"-"`
+}
+
+func (m *GetLatestProbabilitiesResponse) Reset()         { *m = GetLatestProbabilitiesResponse{} }
+func (m *GetLatestProbabilitiesResponse) String() string { return proto.CompactTextString(m) }
+func (*GetLatestProbabilitiesResponse) ProtoMessage()    {}
+func (*GetLatestProbabilitiesResponse) Descriptor() ([]byte, []int) {
+	return fileDescriptor_0d2c4ccf1453ffdb, []int{28}
+}
+func (m *GetLatestProbabilitiesResponse) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *GetLatestProbabilitiesResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_GetLatestProbabilitiesResponse.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *GetLatestProbabilitiesResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_GetLatestProbabilitiesResponse.Merge(m, src)
+}
+func (m *GetLatestProbabilitiesResponse) XXX_Size() int {
+	return m.Size()
+}
+func (m *GetLatestProbabilitiesResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_GetLatestProbabilitiesResponse.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_GetLatestProbabilitiesResponse proto.InternalMessageInfo
+
+func (m *GetLatestProbabilitiesResponse) GetServiceOperationProbabilities() *ServiceOperationProbabilities {
+	if m != nil {
+		return m.ServiceOperationProbabilities
+	}
+	return nil
+}
+
 // empty; extensible in the future
 type CapabilitiesRequest struct {
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
@@ -904,7 +1493,7 @@ func (m *CapabilitiesRequest) Reset()         { *m = CapabilitiesRequest{} }
 func (m *CapabilitiesRequest) String() string { return proto.CompactTextString(m) }
 func (*CapabilitiesRequest) ProtoMessage()    {}
 func (*CapabilitiesRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_0d2c4ccf1453ffdb, []int{17}
+	return fileDescriptor_0d2c4ccf1453ffdb, []int{29}
 }
 func (m *CapabilitiesRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -946,7 +1535,7 @@ func (m *CapabilitiesResponse) Reset()         { *m = CapabilitiesResponse{} }
 func (m *CapabilitiesResponse) String() string { return proto.CompactTextString(m) }
 func (*CapabilitiesResponse) ProtoMessage()    {}
 func (*CapabilitiesResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_0d2c4ccf1453ffdb, []int{18}
+	return fileDescriptor_0d2c4ccf1453ffdb, []int{30}
 }
 func (m *CapabilitiesResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1015,6 +1604,21 @@ func init() {
 	proto.RegisterType((*SpansResponseChunk)(nil), "jaeger.storage.v1.SpansResponseChunk")
 	proto.RegisterType((*FindTraceIDsRequest)(nil), "jaeger.storage.v1.FindTraceIDsRequest")
 	proto.RegisterType((*FindTraceIDsResponse)(nil), "jaeger.storage.v1.FindTraceIDsResponse")
+	proto.RegisterType((*Throughput)(nil), "jaeger.storage.v1.Throughput")
+	proto.RegisterType((*InsertThroughputRequest)(nil), "jaeger.storage.v1.InsertThroughputRequest")
+	proto.RegisterType((*InsertThroughputResponse)(nil), "jaeger.storage.v1.InsertThroughputResponse")
+	proto.RegisterType((*StringFloatMap)(nil), "jaeger.storage.v1.StringFloatMap")
+	proto.RegisterMapType((map[string]float64)(nil), "jaeger.storage.v1.StringFloatMap.StringFloatMapEntry")
+	proto.RegisterType((*ServiceOperationProbabilities)(nil), "jaeger.storage.v1.ServiceOperationProbabilities")
+	proto.RegisterMapType((map[string]*StringFloatMap)(nil), "jaeger.storage.v1.ServiceOperationProbabilities.ServiceOperationProbabilitiesEntry")
+	proto.RegisterType((*ServiceOperationQPS)(nil), "jaeger.storage.v1.ServiceOperationQPS")
+	proto.RegisterMapType((map[string]*StringFloatMap)(nil), "jaeger.storage.v1.ServiceOperationQPS.ServiceOperationQPSEntry")
+	proto.RegisterType((*InsertProbabilitiesAndQPSRequest)(nil), "jaeger.storage.v1.InsertProbabilitiesAndQPSRequest")
+	proto.RegisterType((*InsertProbabilitiesAndQPSResponse)(nil), "jaeger.storage.v1.InsertProbabilitiesAndQPSResponse")
+	proto.RegisterType((*GetThroughputRequest)(nil), "jaeger.storage.v1.GetThroughputRequest")
+	proto.RegisterType((*GetThroughputResponse)(nil), "jaeger.storage.v1.GetThroughputResponse")
+	proto.RegisterType((*GetLatestProbabilitiesRequest)(nil), "jaeger.storage.v1.GetLatestProbabilitiesRequest")
+	proto.RegisterType((*GetLatestProbabilitiesResponse)(nil), "jaeger.storage.v1.GetLatestProbabilitiesResponse")
 	proto.RegisterType((*CapabilitiesRequest)(nil), "jaeger.storage.v1.CapabilitiesRequest")
 	proto.RegisterType((*CapabilitiesResponse)(nil), "jaeger.storage.v1.CapabilitiesResponse")
 }
@@ -1022,78 +1626,105 @@ func init() {
 func init() { proto.RegisterFile("storage.proto", fileDescriptor_0d2c4ccf1453ffdb) }
 
 var fileDescriptor_0d2c4ccf1453ffdb = []byte{
-	// 1128 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xac, 0x57, 0x4f, 0x73, 0xdb, 0x44,
-	0x14, 0x47, 0xb1, 0xdd, 0xd8, 0xcf, 0x4e, 0x9b, 0xac, 0x5d, 0xaa, 0x0a, 0x9a, 0x04, 0x41, 0x93,
-	0xc0, 0x80, 0xdc, 0x98, 0x03, 0x0c, 0x94, 0x81, 0xe6, 0x4f, 0x33, 0x01, 0x0a, 0x45, 0xc9, 0xb4,
-	0x33, 0x14, 0xe2, 0x59, 0x47, 0x8b, 0x22, 0x62, 0xad, 0x5c, 0x69, 0xe5, 0x49, 0x86, 0xe1, 0xc6,
-	0x07, 0xe0, 0xc8, 0x89, 0x13, 0x33, 0x7c, 0x0f, 0x4e, 0x3d, 0x72, 0xe6, 0x10, 0x98, 0x5c, 0xb9,
-	0xf2, 0x01, 0x18, 0xed, 0xae, 0x14, 0xfd, 0x9b, 0x24, 0x4d, 0x73, 0xf3, 0xbe, 0xf7, 0xdb, 0xdf,
-	0xfb, 0xbb, 0xef, 0xc9, 0x30, 0x15, 0x30, 0xcf, 0xc7, 0x36, 0x31, 0x46, 0xbe, 0xc7, 0x3c, 0x34,
-	0xf3, 0x3d, 0x26, 0x36, 0xf1, 0x8d, 0x58, 0x3a, 0x5e, 0xd6, 0x3a, 0xb6, 0x67, 0x7b, 0x5c, 0xdb,
-	0x8d, 0x7e, 0x09, 0xa0, 0x36, 0x67, 0x7b, 0x9e, 0x3d, 0x24, 0x5d, 0x7e, 0x1a, 0x84, 0xdf, 0x75,
-	0x99, 0xe3, 0x92, 0x80, 0x61, 0x77, 0x24, 0x01, 0xb3, 0x79, 0x80, 0x15, 0xfa, 0x98, 0x39, 0x1e,
-	0x95, 0xfa, 0xa6, 0xeb, 0x59, 0x64, 0x28, 0x0e, 0xfa, 0xaf, 0x0a, 0xbc, 0xbc, 0x41, 0xd8, 0x1a,
-	0x19, 0x11, 0x6a, 0x11, 0xba, 0xeb, 0x90, 0xc0, 0x24, 0x4f, 0x43, 0x12, 0x30, 0xb4, 0x0a, 0x10,
-	0x30, 0xec, 0xb3, 0x7e, 0x64, 0x40, 0x55, 0xe6, 0x95, 0xa5, 0x66, 0x4f, 0x33, 0x04, 0xb9, 0x11,
-	0x93, 0x1b, 0xdb, 0xb1, 0xf5, 0x95, 0xfa, 0xb3, 0xa3, 0xb9, 0x97, 0x7e, 0xfe, 0x7b, 0x4e, 0x31,
-	0x1b, 0xfc, 0x5e, 0xa4, 0x41, 0x1f, 0x43, 0x9d, 0x50, 0x4b, 0x50, 0x4c, 0x3c, 0x07, 0xc5, 0x24,
-	0xa1, 0x56, 0x24, 0xd7, 0x07, 0x70, 0xa3, 0xe0, 0x5f, 0x30, 0xf2, 0x68, 0x40, 0xd0, 0x06, 0xb4,
-	0xac, 0x94, 0x5c, 0x55, 0xe6, 0x2b, 0x4b, 0xcd, 0xde, 0x2d, 0x43, 0x66, 0x12, 0x8f, 0x9c, 0xfe,
-	0xb8, 0x67, 0x24, 0x57, 0x0f, 0x3f, 0x77, 0xe8, 0xfe, 0x4a, 0x35, 0x32, 0x61, 0x66, 0x2e, 0xea,
-	0x1f, 0xc2, 0xf4, 0x63, 0xdf, 0x61, 0x64, 0x6b, 0x84, 0x69, 0x1c, 0xfd, 0x22, 0x54, 0x83, 0x11,
-	0xa6, 0x32, 0xee, 0x76, 0x8e, 0x94, 0x23, 0x39, 0x40, 0x6f, 0xc3, 0x4c, 0xea, 0xb2, 0x70, 0x4d,
-	0xef, 0x00, 0x5a, 0x1d, 0x7a, 0x01, 0xe1, 0x1a, 0x5f, 0x72, 0xea, 0xd7, 0xa1, 0x9d, 0x91, 0x4a,
-	0xf0, 0x7f, 0x0a, 0x5c, 0xdb, 0x20, 0x6c, 0xdb, 0xc7, 0xbb, 0x24, 0x36, 0xff, 0x04, 0xea, 0x2c,
-	0x3a, 0xf7, 0x1d, 0x8b, 0xbb, 0xd0, 0x5a, 0xf9, 0x24, 0x72, 0xfc, 0xaf, 0xa3, 0xb9, 0x77, 0x6c,
-	0x87, 0xed, 0x85, 0x03, 0x63, 0xd7, 0x73, 0xbb, 0xc2, 0xa9, 0x08, 0xe8, 0x50, 0x5b, 0x9e, 0xba,
-	0xa2, 0xbc, 0x9c, 0x6d, 0x73, 0xed, 0xf8, 0x68, 0x6e, 0x52, 0xfe, 0x34, 0x27, 0x39, 0xe3, 0xa6,
-	0x95, 0xab, 0xec, 0xc4, 0x8b, 0x57, 0xb6, 0x72, 0x91, 0xca, 0x76, 0x00, 0x6d, 0x10, 0xb6, 0x45,
-	0xfc, 0xb1, 0xb3, 0x9b, 0x74, 0x9d, 0xbe, 0x0c, 0xed, 0x8c, 0x54, 0xd6, 0x5a, 0x83, 0x7a, 0x20,
-	0x65, 0xbc, 0xce, 0x0d, 0x33, 0x39, 0xeb, 0x0f, 0xa0, 0xb3, 0x41, 0xd8, 0x97, 0x23, 0x22, 0xda,
-	0x3c, 0x69, 0x60, 0x15, 0x26, 0x25, 0x86, 0xa7, 0xb0, 0x61, 0xc6, 0x47, 0xf4, 0x0a, 0x34, 0xa2,
-	0xda, 0xf5, 0xf7, 0x1d, 0x6a, 0xf1, 0xf8, 0x23, 0xba, 0x11, 0xa6, 0x9f, 0x39, 0xd4, 0xd2, 0xef,
-	0x42, 0x23, 0xe1, 0x42, 0x08, 0xaa, 0x14, 0xbb, 0x31, 0x01, 0xff, 0x7d, 0xfa, 0xed, 0x1f, 0xe1,
-	0x7a, 0xce, 0x19, 0x19, 0xc1, 0x02, 0x5c, 0xf5, 0x62, 0xe9, 0x17, 0xd8, 0x4d, 0xe2, 0xc8, 0x49,
-	0xd1, 0x5d, 0x80, 0x44, 0x12, 0xa8, 0x13, 0xbc, 0xa7, 0x5f, 0x35, 0x0a, 0xd3, 0xc1, 0x48, 0x4c,
-	0x98, 0x29, 0xbc, 0xfe, 0x7b, 0x15, 0x3a, 0xbc, 0xde, 0x5f, 0x85, 0xc4, 0x3f, 0x7c, 0x88, 0x7d,
-	0xec, 0x12, 0x46, 0xfc, 0x00, 0xbd, 0x06, 0x2d, 0x19, 0x7d, 0x3f, 0x15, 0x50, 0x53, 0xca, 0x22,
-	0xd3, 0xe8, 0x76, 0xca, 0x43, 0x01, 0x12, 0xc1, 0x4d, 0x65, 0x3c, 0x44, 0xeb, 0x50, 0x65, 0xd8,
-	0x0e, 0xd4, 0x0a, 0x77, 0x6d, 0xb9, 0xc4, 0xb5, 0x32, 0x07, 0x8c, 0x6d, 0x6c, 0x07, 0xeb, 0x94,
-	0xf9, 0x87, 0x26, 0xbf, 0x8e, 0x3e, 0x85, 0xab, 0x27, 0x4d, 0xd8, 0x77, 0x1d, 0xaa, 0x56, 0x9f,
-	0xa3, 0x8b, 0x5a, 0x49, 0x23, 0x3e, 0x70, 0x68, 0x9e, 0x0b, 0x1f, 0xa8, 0xb5, 0x8b, 0x71, 0xe1,
-	0x03, 0x74, 0x1f, 0x5a, 0xf1, 0xc0, 0xe4, 0x5e, 0x5d, 0xe1, 0x4c, 0x37, 0x0b, 0x4c, 0x6b, 0x12,
-	0x24, 0x88, 0x7e, 0x89, 0x88, 0x9a, 0xf1, 0xc5, 0xc8, 0xa7, 0x0c, 0x0f, 0x3e, 0x50, 0x27, 0x2f,
-	0xc2, 0x83, 0x0f, 0xd0, 0x2d, 0x00, 0x1a, 0xba, 0x7d, 0xfe, 0x76, 0x03, 0xb5, 0x3e, 0xaf, 0x2c,
-	0xd5, 0xcc, 0x06, 0x0d, 0x5d, 0x9e, 0xe4, 0x40, 0x7b, 0x0f, 0x1a, 0x49, 0x66, 0xd1, 0x34, 0x54,
-	0xf6, 0xc9, 0xa1, 0xac, 0x6d, 0xf4, 0x13, 0x75, 0xa0, 0x36, 0xc6, 0xc3, 0x30, 0x2e, 0xa5, 0x38,
-	0x7c, 0x30, 0xf1, 0xbe, 0xa2, 0x9b, 0x30, 0x73, 0xdf, 0xa1, 0x96, 0xa0, 0x89, 0x9f, 0xcc, 0x47,
-	0x50, 0x7b, 0x1a, 0xd5, 0x4d, 0x8e, 0xbd, 0xc5, 0x73, 0x16, 0xd7, 0x14, 0xb7, 0xf4, 0x75, 0x40,
-	0xd1, 0x18, 0x4c, 0x9a, 0x7e, 0x75, 0x2f, 0xa4, 0xfb, 0xa8, 0x0b, 0xb5, 0xe8, 0x79, 0xc4, 0x03,
-	0xba, 0x6c, 0x96, 0xca, 0xb1, 0x2c, 0x70, 0xfa, 0x36, 0xb4, 0x13, 0xd7, 0x36, 0xd7, 0x2e, 0xcb,
-	0xb9, 0x31, 0x74, 0xb2, 0xac, 0xf2, 0x61, 0xee, 0x40, 0x23, 0x1e, 0xb5, 0xc2, 0xc5, 0xd6, 0xca,
-	0xbd, 0x8b, 0xce, 0xda, 0x7a, 0xc2, 0x5e, 0x97, 0xc3, 0x36, 0xe0, 0x53, 0x1f, 0x8f, 0xf0, 0xc0,
-	0x19, 0x3a, 0xec, 0x64, 0xbd, 0xea, 0xbf, 0x29, 0xd0, 0xc9, 0xca, 0xa5, 0x3f, 0x6f, 0xc3, 0x0c,
-	0xf6, 0x77, 0xf7, 0x9c, 0xb1, 0x5c, 0x29, 0xd8, 0x22, 0x3e, 0x0f, 0xb9, 0x6e, 0x16, 0x15, 0x39,
-	0xb4, 0xd8, 0x2c, 0xbc, 0xd8, 0x59, 0xb4, 0x50, 0xa0, 0x3b, 0xd0, 0x0e, 0x98, 0x4f, 0xb0, 0xeb,
-	0x50, 0x3b, 0x85, 0xaf, 0x70, 0x7c, 0x99, 0xaa, 0xf7, 0x87, 0x02, 0xd3, 0x27, 0xc7, 0x87, 0xc3,
-	0xd0, 0x76, 0x28, 0x7a, 0x04, 0x8d, 0x64, 0xe7, 0xa1, 0xd7, 0x4b, 0xea, 0x90, 0x5f, 0xa7, 0xda,
-	0x1b, 0xa7, 0x83, 0x64, 0xe8, 0x8f, 0xa0, 0xc6, 0x17, 0x24, 0xba, 0x5d, 0x02, 0x2f, 0x2e, 0x54,
-	0x6d, 0xe1, 0x2c, 0x98, 0xe0, 0xed, 0xfd, 0x00, 0x37, 0xb7, 0x8a, 0xb1, 0xc9, 0x60, 0x76, 0xe0,
-	0x5a, 0xe2, 0x89, 0x40, 0x5d, 0x62, 0x48, 0x4b, 0x4a, 0xef, 0xdf, 0x8a, 0xc8, 0xa0, 0x28, 0x98,
-	0x34, 0xfa, 0x18, 0xea, 0xf1, 0xca, 0x47, 0x7a, 0x09, 0x51, 0xee, 0x7b, 0x40, 0x2b, 0x4b, 0x48,
-	0xf1, 0xa9, 0xdd, 0x51, 0xd0, 0x37, 0xd0, 0x4c, 0xed, 0xcf, 0xd2, 0x44, 0x16, 0xb7, 0x6e, 0x69,
-	0x22, 0xcb, 0xd6, 0xf0, 0x00, 0xa6, 0x32, 0xdb, 0x0d, 0x2d, 0x96, 0x5f, 0x2c, 0x2c, 0x63, 0x6d,
-	0xe9, 0x6c, 0xa0, 0xb4, 0xf1, 0x04, 0xe0, 0x64, 0x30, 0xa1, 0xb2, 0x2c, 0x17, 0xe6, 0xd6, 0xf9,
-	0xd3, 0xd3, 0x87, 0x56, 0x7a, 0x08, 0xa0, 0x85, 0xd3, 0xe8, 0x4f, 0x66, 0x8f, 0xb6, 0x78, 0x26,
-	0x4e, 0xb6, 0xda, 0x01, 0xdc, 0xb8, 0x97, 0x7f, 0x76, 0xb2, 0xe6, 0xdf, 0xca, 0xcf, 0xcc, 0x94,
-	0xfe, 0x12, 0x3b, 0xad, 0x77, 0x98, 0xb1, 0x9c, 0xe9, 0xb6, 0x1d, 0xfe, 0x81, 0x29, 0xb5, 0x97,
-	0xdf, 0x74, 0xbd, 0x9f, 0x14, 0x50, 0xb3, 0x9f, 0xe8, 0x29, 0xe3, 0x7b, 0xdc, 0x78, 0x5a, 0x8d,
-	0xde, 0x2c, 0x37, 0x5e, 0xf2, 0x2f, 0x44, 0x7b, 0xeb, 0x3c, 0x50, 0x99, 0x81, 0x10, 0x90, 0xb0,
-	0x99, 0x9e, 0xab, 0x51, 0xc9, 0x33, 0xe7, 0xd2, 0xa1, 0x51, 0x1c, 0xd0, 0xa5, 0x25, 0x2f, 0x1b,
-	0xd8, 0x2b, 0xea, 0xb3, 0xe3, 0x59, 0xe5, 0xcf, 0xe3, 0x59, 0xe5, 0x9f, 0xe3, 0x59, 0xe5, 0x6b,
-	0x90, 0xf0, 0xfe, 0x78, 0x79, 0x70, 0x85, 0x6f, 0xf9, 0x77, 0xff, 0x0f, 0x00, 0x00, 0xff, 0xff,
-	0x4d, 0x42, 0xc0, 0x41, 0xec, 0x0d, 0x00, 0x00,
+	// 1561 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xcc, 0x58, 0xcf, 0x6f, 0x1b, 0xc5,
+	0x17, 0xff, 0x6e, 0x9c, 0x34, 0xf6, 0x4b, 0xd2, 0x26, 0x63, 0xf7, 0x5b, 0x77, 0x69, 0x7e, 0x74,
+	0xdb, 0x26, 0xe1, 0x97, 0x93, 0xb8, 0xa0, 0x56, 0x50, 0x54, 0xf2, 0xa3, 0x8d, 0x02, 0x2d, 0x24,
+	0xeb, 0x28, 0x45, 0x94, 0xd6, 0x9a, 0xc4, 0xc3, 0x7a, 0x89, 0xbd, 0xbb, 0xd9, 0x9d, 0xb5, 0x12,
+	0xa1, 0x4a, 0x1c, 0x10, 0x67, 0x8e, 0x45, 0x42, 0x9c, 0x90, 0xb8, 0x22, 0xfe, 0x04, 0x4e, 0x3d,
+	0xf6, 0xcc, 0xa1, 0xa0, 0x5c, 0x91, 0xb8, 0xc0, 0x1f, 0x80, 0x76, 0x66, 0x76, 0xbd, 0xbf, 0x6c,
+	0x27, 0x69, 0x0e, 0xdc, 0x76, 0xde, 0xbc, 0xf7, 0x79, 0x3f, 0xe7, 0xcd, 0xbc, 0x85, 0x11, 0x87,
+	0x9a, 0x36, 0xd6, 0x48, 0xc9, 0xb2, 0x4d, 0x6a, 0xa2, 0xb1, 0x2f, 0x30, 0xd1, 0x88, 0x5d, 0xf2,
+	0xa9, 0xad, 0x05, 0xb9, 0xa0, 0x99, 0x9a, 0xc9, 0x76, 0xe7, 0xbc, 0x2f, 0xce, 0x28, 0x4f, 0x6a,
+	0xa6, 0xa9, 0x35, 0xc8, 0x1c, 0x5b, 0x6d, 0xbb, 0x9f, 0xcf, 0x51, 0xbd, 0x49, 0x1c, 0x8a, 0x9b,
+	0x96, 0x60, 0x98, 0x88, 0x33, 0xd4, 0x5c, 0x1b, 0x53, 0xdd, 0x34, 0xc4, 0xfe, 0x50, 0xd3, 0xac,
+	0x91, 0x06, 0x5f, 0x28, 0x3f, 0x48, 0xf0, 0xff, 0x55, 0x42, 0x57, 0x88, 0x45, 0x8c, 0x1a, 0x31,
+	0x76, 0x74, 0xe2, 0xa8, 0x64, 0xcf, 0x25, 0x0e, 0x45, 0xcb, 0x00, 0x0e, 0xc5, 0x36, 0xad, 0x7a,
+	0x0a, 0x8a, 0xd2, 0x94, 0x34, 0x3b, 0x54, 0x96, 0x4b, 0x1c, 0xbc, 0xe4, 0x83, 0x97, 0x36, 0x7d,
+	0xed, 0x4b, 0xd9, 0x67, 0x2f, 0x26, 0xff, 0xf7, 0xed, 0xef, 0x93, 0x92, 0x9a, 0x63, 0x72, 0xde,
+	0x0e, 0xba, 0x0d, 0x59, 0x62, 0xd4, 0x38, 0x44, 0xdf, 0x31, 0x20, 0x06, 0x89, 0x51, 0xf3, 0xe8,
+	0xca, 0x36, 0x5c, 0x48, 0xd8, 0xe7, 0x58, 0xa6, 0xe1, 0x10, 0xb4, 0x0a, 0xc3, 0xb5, 0x10, 0xbd,
+	0x28, 0x4d, 0x65, 0x66, 0x87, 0xca, 0xe3, 0x25, 0x11, 0x49, 0x6c, 0xe9, 0xd5, 0x56, 0xb9, 0x14,
+	0x88, 0x1e, 0xdc, 0xd3, 0x8d, 0xdd, 0xa5, 0x7e, 0x4f, 0x85, 0x1a, 0x11, 0x54, 0xde, 0x85, 0xd1,
+	0x07, 0xb6, 0x4e, 0x49, 0xc5, 0xc2, 0x86, 0xef, 0xfd, 0x0c, 0xf4, 0x3b, 0x16, 0x36, 0x84, 0xdf,
+	0xf9, 0x18, 0x28, 0xe3, 0x64, 0x0c, 0x4a, 0x1e, 0xc6, 0x42, 0xc2, 0xdc, 0x34, 0xa5, 0x00, 0x68,
+	0xb9, 0x61, 0x3a, 0x84, 0xed, 0xd8, 0x02, 0x53, 0x39, 0x0f, 0xf9, 0x08, 0x55, 0x30, 0xff, 0x23,
+	0xc1, 0xb9, 0x55, 0x42, 0x37, 0x6d, 0xbc, 0x43, 0x7c, 0xf5, 0x0f, 0x21, 0x4b, 0xbd, 0x75, 0x55,
+	0xaf, 0x31, 0x13, 0x86, 0x97, 0xde, 0xf7, 0x0c, 0xff, 0xed, 0xc5, 0xe4, 0x9b, 0x9a, 0x4e, 0xeb,
+	0xee, 0x76, 0x69, 0xc7, 0x6c, 0xce, 0x71, 0xa3, 0x3c, 0x46, 0xdd, 0xd0, 0xc4, 0x6a, 0x8e, 0xa7,
+	0x97, 0xa1, 0xad, 0xad, 0x1c, 0xbe, 0x98, 0x1c, 0x14, 0x9f, 0xea, 0x20, 0x43, 0x5c, 0xab, 0xc5,
+	0x32, 0xdb, 0xf7, 0xf2, 0x99, 0xcd, 0x9c, 0x24, 0xb3, 0x05, 0x40, 0xab, 0x84, 0x56, 0x88, 0xdd,
+	0xd2, 0x77, 0x82, 0xaa, 0x53, 0x16, 0x20, 0x1f, 0xa1, 0x8a, 0x5c, 0xcb, 0x90, 0x75, 0x04, 0x8d,
+	0xe5, 0x39, 0xa7, 0x06, 0x6b, 0xe5, 0x3e, 0x14, 0x56, 0x09, 0xfd, 0xd8, 0x22, 0xbc, 0xcc, 0x83,
+	0x02, 0x2e, 0xc2, 0xa0, 0xe0, 0x61, 0x21, 0xcc, 0xa9, 0xfe, 0x12, 0xbd, 0x02, 0x39, 0x2f, 0x77,
+	0xd5, 0x5d, 0xdd, 0xa8, 0x31, 0xff, 0x3d, 0x38, 0x0b, 0x1b, 0x1f, 0xea, 0x46, 0x4d, 0xb9, 0x05,
+	0xb9, 0x00, 0x0b, 0x21, 0xe8, 0x37, 0x70, 0xd3, 0x07, 0x60, 0xdf, 0xdd, 0xa5, 0x9f, 0xc0, 0xf9,
+	0x98, 0x31, 0xc2, 0x83, 0x69, 0x38, 0x6b, 0xfa, 0xd4, 0x8f, 0x70, 0x33, 0xf0, 0x23, 0x46, 0x45,
+	0xb7, 0x00, 0x02, 0x8a, 0x53, 0xec, 0x63, 0x35, 0x7d, 0xa9, 0x94, 0xe8, 0x0e, 0xa5, 0x40, 0x85,
+	0x1a, 0xe2, 0x57, 0x7e, 0xea, 0x87, 0x02, 0xcb, 0xf7, 0x86, 0x4b, 0xec, 0x83, 0x75, 0x6c, 0xe3,
+	0x26, 0xa1, 0xc4, 0x76, 0xd0, 0x65, 0x18, 0x16, 0xde, 0x57, 0x43, 0x0e, 0x0d, 0x09, 0x9a, 0xa7,
+	0x1a, 0x5d, 0x0b, 0x59, 0xc8, 0x99, 0xb8, 0x73, 0x23, 0x11, 0x0b, 0xd1, 0x1d, 0xe8, 0xa7, 0x58,
+	0x73, 0x8a, 0x19, 0x66, 0xda, 0x42, 0x8a, 0x69, 0x69, 0x06, 0x94, 0x36, 0xb1, 0xe6, 0xdc, 0x31,
+	0xa8, 0x7d, 0xa0, 0x32, 0x71, 0xf4, 0x01, 0x9c, 0x6d, 0x17, 0x61, 0xb5, 0xa9, 0x1b, 0xc5, 0xfe,
+	0x63, 0x54, 0xd1, 0x70, 0x50, 0x88, 0xf7, 0x75, 0x23, 0x8e, 0x85, 0xf7, 0x8b, 0x03, 0x27, 0xc3,
+	0xc2, 0xfb, 0xe8, 0x2e, 0x0c, 0xfb, 0x0d, 0x93, 0x59, 0x75, 0x86, 0x21, 0x5d, 0x4c, 0x20, 0xad,
+	0x08, 0x26, 0x0e, 0xf4, 0xd4, 0x03, 0x1a, 0xf2, 0x05, 0x3d, 0x9b, 0x22, 0x38, 0x78, 0xbf, 0x38,
+	0x78, 0x12, 0x1c, 0xbc, 0x8f, 0xc6, 0x01, 0x0c, 0xb7, 0x59, 0x65, 0x67, 0xd7, 0x29, 0x66, 0xa7,
+	0xa4, 0xd9, 0x01, 0x35, 0x67, 0xb8, 0x4d, 0x16, 0x64, 0x47, 0xbe, 0x01, 0xb9, 0x20, 0xb2, 0x68,
+	0x14, 0x32, 0xbb, 0xe4, 0x40, 0xe4, 0xd6, 0xfb, 0x44, 0x05, 0x18, 0x68, 0xe1, 0x86, 0xeb, 0xa7,
+	0x92, 0x2f, 0xde, 0xe9, 0xbb, 0x29, 0x29, 0x2a, 0x8c, 0xdd, 0xd5, 0x8d, 0x1a, 0x87, 0xf1, 0x8f,
+	0xcc, 0x7b, 0x30, 0xb0, 0xe7, 0xe5, 0x4d, 0xb4, 0xbd, 0x99, 0x23, 0x26, 0x57, 0xe5, 0x52, 0xca,
+	0x1d, 0x40, 0x5e, 0x1b, 0x0c, 0x8a, 0x7e, 0xb9, 0xee, 0x1a, 0xbb, 0x68, 0x0e, 0x06, 0xbc, 0xe3,
+	0xe1, 0x37, 0xe8, 0xb4, 0x5e, 0x2a, 0xda, 0x32, 0xe7, 0x53, 0x36, 0x21, 0x1f, 0x98, 0xb6, 0xb6,
+	0x72, 0x5a, 0xc6, 0xb5, 0xa0, 0x10, 0x45, 0x15, 0x07, 0xf3, 0x31, 0xe4, 0xfc, 0x56, 0xcb, 0x4d,
+	0x1c, 0x5e, 0x5a, 0x3c, 0x69, 0xaf, 0xcd, 0x06, 0xe8, 0x59, 0xd1, 0x6c, 0x1d, 0xe5, 0x2b, 0x09,
+	0x60, 0xb3, 0x6e, 0x9b, 0xae, 0x56, 0xb7, 0x5c, 0xd6, 0x95, 0x2a, 0xd1, 0xae, 0x24, 0x96, 0xe8,
+	0x52, 0xa8, 0xf1, 0x88, 0x7c, 0x85, 0x3a, 0x51, 0x01, 0x06, 0x96, 0x4d, 0xd7, 0xa0, 0xac, 0xd9,
+	0x66, 0x54, 0xbe, 0x40, 0x57, 0x61, 0x64, 0xdd, 0x36, 0xb7, 0xf1, 0xb6, 0xde, 0xd0, 0xa9, 0x77,
+	0x09, 0xf6, 0x4f, 0x65, 0x66, 0x25, 0x35, 0x4a, 0x54, 0x3e, 0x81, 0x0b, 0x6b, 0x86, 0x43, 0x6c,
+	0xda, 0xb6, 0xa3, 0x1d, 0x54, 0xa0, 0x01, 0x31, 0x7e, 0x85, 0x86, 0x23, 0xdb, 0x96, 0x0c, 0x09,
+	0x28, 0x32, 0x14, 0x93, 0xc8, 0xe2, 0x5e, 0xfb, 0x45, 0x82, 0xb3, 0x15, 0x6a, 0xeb, 0x86, 0x76,
+	0xb7, 0x61, 0x62, 0x7a, 0x1f, 0x5b, 0xe8, 0x91, 0x77, 0x50, 0xc3, 0x14, 0xa1, 0xf1, 0xed, 0x14,
+	0x8d, 0x51, 0xd1, 0xd8, 0x92, 0x77, 0x92, 0x18, 0x98, 0xbc, 0x08, 0xf9, 0x14, 0xb6, 0x5e, 0xc7,
+	0x42, 0x0a, 0x1f, 0x8b, 0x9f, 0xfb, 0x60, 0x5c, 0x24, 0x24, 0x88, 0x7d, 0x24, 0x98, 0xe8, 0x3b,
+	0x09, 0xc6, 0x9d, 0x6e, 0x1c, 0xc2, 0xa7, 0x4a, 0x9a, 0x4f, 0xdd, 0xe4, 0xba, 0xef, 0x72, 0x8f,
+	0xbb, 0x6b, 0x96, 0x1d, 0x50, 0x7a, 0x83, 0xa4, 0xc4, 0xe3, 0x46, 0x38, 0x1e, 0x43, 0xe5, 0xcb,
+	0x3d, 0xd3, 0x11, 0x0e, 0xd9, 0xdf, 0x12, 0xe4, 0xe3, 0x5a, 0x37, 0xd6, 0x2b, 0x68, 0x0f, 0xf2,
+	0x4e, 0x92, 0x2c, 0xa2, 0x73, 0xfb, 0x08, 0xd1, 0xd9, 0x58, 0xaf, 0xa4, 0xd1, 0x78, 0x24, 0xd2,
+	0xb0, 0x65, 0x1d, 0x8a, 0x9d, 0x04, 0x4e, 0xdb, 0xeb, 0xe7, 0x12, 0x4c, 0xf1, 0xd2, 0x8f, 0x44,
+	0x78, 0xd1, 0xa8, 0x6d, 0xac, 0x57, 0xfc, 0xd3, 0x25, 0x43, 0xb6, 0x6e, 0x3a, 0x34, 0x74, 0xe3,
+	0x06, 0x6b, 0xb4, 0x05, 0x23, 0x56, 0xa4, 0x6c, 0xb8, 0x15, 0xf3, 0xc7, 0x2d, 0x1b, 0x35, 0x0a,
+	0x83, 0x6e, 0x42, 0x66, 0xcf, 0x72, 0xc4, 0x9b, 0x6c, 0xfa, 0x68, 0x61, 0x56, 0x3d, 0x11, 0xe5,
+	0x0a, 0x5c, 0xee, 0xe2, 0x91, 0x38, 0xd5, 0xdf, 0x4b, 0xec, 0xb9, 0x95, 0xec, 0x24, 0xff, 0x8d,
+	0x79, 0x61, 0x8b, 0xbd, 0xbf, 0x92, 0xdd, 0xe8, 0x65, 0x1b, 0xdd, 0x24, 0x8c, 0xaf, 0x12, 0x7a,
+	0x0f, 0x53, 0xe2, 0x44, 0xc3, 0xe3, 0x3f, 0x5c, 0x9f, 0x4a, 0x30, 0xd1, 0x89, 0x43, 0x98, 0xd0,
+	0xea, 0xdd, 0x38, 0x4e, 0x56, 0x01, 0xdd, 0x61, 0xd9, 0xdc, 0x81, 0xad, 0x84, 0xc5, 0x3f, 0x4a,
+	0x50, 0x88, 0xd2, 0x85, 0x9d, 0x6f, 0xc0, 0x18, 0xb6, 0x77, 0xea, 0x7a, 0x4b, 0x0c, 0x35, 0xb8,
+	0x46, 0x6c, 0x66, 0x5b, 0x56, 0x4d, 0x6e, 0xc4, 0xb8, 0xf9, 0x6c, 0xc3, 0x72, 0x17, 0xe5, 0xe6,
+	0x1b, 0x68, 0x1e, 0xf2, 0x0e, 0xb5, 0x09, 0x6e, 0xea, 0x86, 0x16, 0xe2, 0xcf, 0x30, 0xfe, 0xb4,
+	0xad, 0xf2, 0xaf, 0x12, 0x8c, 0xb6, 0x97, 0xeb, 0x0d, 0x57, 0xd3, 0x0d, 0xb4, 0x05, 0xb9, 0x60,
+	0xea, 0x42, 0x57, 0x52, 0x02, 0x16, 0x1f, 0xe8, 0xe4, 0xab, 0xdd, 0x99, 0x84, 0xeb, 0x5b, 0x30,
+	0xc0, 0x46, 0x34, 0x74, 0x2d, 0x85, 0x3d, 0x39, 0xd2, 0xc9, 0xd3, 0xbd, 0xd8, 0x38, 0x6e, 0xf9,
+	0x4b, 0xb8, 0x58, 0x49, 0xfa, 0x26, 0x9c, 0x79, 0x0c, 0xe7, 0x02, 0x4b, 0x38, 0xd7, 0x29, 0xba,
+	0x34, 0x2b, 0x95, 0xff, 0xcc, 0xf0, 0x08, 0xf2, 0x84, 0x09, 0xa5, 0x0f, 0x20, 0xeb, 0x0f, 0x9d,
+	0x48, 0x49, 0x01, 0x8a, 0x4d, 0xa4, 0x72, 0x5a, 0x40, 0x92, 0x8f, 0xbd, 0x79, 0x09, 0x7d, 0x06,
+	0x43, 0xa1, 0x09, 0x2e, 0x35, 0x90, 0xc9, 0xb9, 0x2f, 0x35, 0x90, 0x69, 0x83, 0xe0, 0x36, 0x8c,
+	0x44, 0xe6, 0x2b, 0x34, 0x93, 0x2e, 0x98, 0x18, 0x07, 0xe5, 0xd9, 0xde, 0x8c, 0x42, 0xc7, 0x43,
+	0x80, 0xf6, 0xd3, 0x18, 0xa5, 0x45, 0x39, 0xf1, 0x72, 0x3e, 0x7a, 0x78, 0xaa, 0x30, 0x1c, 0x7e,
+	0x86, 0xa2, 0xe9, 0x6e, 0xf0, 0xed, 0xd7, 0xaf, 0x3c, 0xd3, 0x93, 0x4f, 0x94, 0xda, 0x3e, 0x5c,
+	0x58, 0x8c, 0x1f, 0x3b, 0x91, 0xf3, 0x47, 0xe2, 0x47, 0x47, 0x68, 0xff, 0x14, 0x2b, 0xad, 0x7c,
+	0x10, 0xd1, 0x1c, 0xa9, 0xb6, 0xc7, 0xec, 0x17, 0x87, 0xd8, 0x3d, 0xfd, 0xa2, 0x2b, 0x7f, 0x2d,
+	0x41, 0x31, 0xfa, 0x93, 0x28, 0xa4, 0xbc, 0xce, 0x94, 0x87, 0xb7, 0xd1, 0xab, 0xe9, 0xca, 0x53,
+	0xfe, 0x83, 0xc9, 0xaf, 0x1d, 0x85, 0x55, 0x44, 0xe0, 0xaf, 0x0c, 0xe4, 0x2b, 0xb8, 0x69, 0x35,
+	0xbc, 0x63, 0x4e, 0x4d, 0x9b, 0x08, 0x0b, 0x76, 0x61, 0x34, 0xfe, 0x4c, 0x46, 0x69, 0xb8, 0x1d,
+	0x5e, 0xe9, 0xf2, 0xeb, 0x47, 0xe2, 0x15, 0xe5, 0xfb, 0x8d, 0x04, 0x17, 0x3b, 0xde, 0xe3, 0xe8,
+	0x7a, 0x47, 0xa8, 0xce, 0xef, 0x18, 0xf9, 0xad, 0xe3, 0x09, 0x45, 0xce, 0x6a, 0xc8, 0xe5, 0x0e,
+	0x67, 0x35, 0xe9, 0xef, 0x6c, 0x6f, 0x46, 0xa1, 0xe3, 0x09, 0xfb, 0x7f, 0x99, 0x72, 0xeb, 0xa2,
+	0xf9, 0x74, 0x8c, 0xce, 0x57, 0xb8, 0xbc, 0x70, 0x0c, 0x09, 0x91, 0x70, 0x17, 0x10, 0x4f, 0x71,
+	0xf8, 0x22, 0xf5, 0xce, 0x78, 0x64, 0x9d, 0x7a, 0x4b, 0x24, 0x6f, 0xe4, 0xd4, 0x33, 0x9e, 0x76,
+	0x43, 0x2f, 0x15, 0x9f, 0x1d, 0x4e, 0x48, 0xcf, 0x0f, 0x27, 0xa4, 0x3f, 0x0e, 0x27, 0xa4, 0x4f,
+	0x41, 0xb0, 0x57, 0x5b, 0x0b, 0xdb, 0x67, 0xd8, 0x33, 0xe9, 0xfa, 0xbf, 0x01, 0x00, 0x00, 0xff,
+	0xff, 0x96, 0xfe, 0xee, 0x48, 0x5f, 0x16, 0x00, 0x00,
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -1836,6 +2467,186 @@ var _DependenciesReaderPlugin_serviceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetDependencies",
 			Handler:    _DependenciesReaderPlugin_GetDependencies_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "storage.proto",
+}
+
+// SamplingStorePluginClient is the client API for SamplingStorePlugin service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://godoc.org/google.golang.org/grpc#ClientConn.NewStream.
+type SamplingStorePluginClient interface {
+	InsertThroughput(ctx context.Context, in *InsertThroughputRequest, opts ...grpc.CallOption) (*InsertThroughputResponse, error)
+	InsertProbabilitiesAndQPS(ctx context.Context, in *InsertProbabilitiesAndQPSRequest, opts ...grpc.CallOption) (*InsertProbabilitiesAndQPSResponse, error)
+	GetThroughput(ctx context.Context, in *GetThroughputRequest, opts ...grpc.CallOption) (*GetThroughputResponse, error)
+	GetLatestProbabilities(ctx context.Context, in *GetLatestProbabilitiesRequest, opts ...grpc.CallOption) (*GetLatestProbabilitiesResponse, error)
+}
+
+type samplingStorePluginClient struct {
+	cc *grpc.ClientConn
+}
+
+func NewSamplingStorePluginClient(cc *grpc.ClientConn) SamplingStorePluginClient {
+	return &samplingStorePluginClient{cc}
+}
+
+func (c *samplingStorePluginClient) InsertThroughput(ctx context.Context, in *InsertThroughputRequest, opts ...grpc.CallOption) (*InsertThroughputResponse, error) {
+	out := new(InsertThroughputResponse)
+	err := c.cc.Invoke(ctx, "/jaeger.storage.v1.SamplingStorePlugin/InsertThroughput", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *samplingStorePluginClient) InsertProbabilitiesAndQPS(ctx context.Context, in *InsertProbabilitiesAndQPSRequest, opts ...grpc.CallOption) (*InsertProbabilitiesAndQPSResponse, error) {
+	out := new(InsertProbabilitiesAndQPSResponse)
+	err := c.cc.Invoke(ctx, "/jaeger.storage.v1.SamplingStorePlugin/InsertProbabilitiesAndQPS", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *samplingStorePluginClient) GetThroughput(ctx context.Context, in *GetThroughputRequest, opts ...grpc.CallOption) (*GetThroughputResponse, error) {
+	out := new(GetThroughputResponse)
+	err := c.cc.Invoke(ctx, "/jaeger.storage.v1.SamplingStorePlugin/GetThroughput", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *samplingStorePluginClient) GetLatestProbabilities(ctx context.Context, in *GetLatestProbabilitiesRequest, opts ...grpc.CallOption) (*GetLatestProbabilitiesResponse, error) {
+	out := new(GetLatestProbabilitiesResponse)
+	err := c.cc.Invoke(ctx, "/jaeger.storage.v1.SamplingStorePlugin/GetLatestProbabilities", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// SamplingStorePluginServer is the server API for SamplingStorePlugin service.
+type SamplingStorePluginServer interface {
+	InsertThroughput(context.Context, *InsertThroughputRequest) (*InsertThroughputResponse, error)
+	InsertProbabilitiesAndQPS(context.Context, *InsertProbabilitiesAndQPSRequest) (*InsertProbabilitiesAndQPSResponse, error)
+	GetThroughput(context.Context, *GetThroughputRequest) (*GetThroughputResponse, error)
+	GetLatestProbabilities(context.Context, *GetLatestProbabilitiesRequest) (*GetLatestProbabilitiesResponse, error)
+}
+
+// UnimplementedSamplingStorePluginServer can be embedded to have forward compatible implementations.
+type UnimplementedSamplingStorePluginServer struct {
+}
+
+func (*UnimplementedSamplingStorePluginServer) InsertThroughput(ctx context.Context, req *InsertThroughputRequest) (*InsertThroughputResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method InsertThroughput not implemented")
+}
+func (*UnimplementedSamplingStorePluginServer) InsertProbabilitiesAndQPS(ctx context.Context, req *InsertProbabilitiesAndQPSRequest) (*InsertProbabilitiesAndQPSResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method InsertProbabilitiesAndQPS not implemented")
+}
+func (*UnimplementedSamplingStorePluginServer) GetThroughput(ctx context.Context, req *GetThroughputRequest) (*GetThroughputResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetThroughput not implemented")
+}
+func (*UnimplementedSamplingStorePluginServer) GetLatestProbabilities(ctx context.Context, req *GetLatestProbabilitiesRequest) (*GetLatestProbabilitiesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetLatestProbabilities not implemented")
+}
+
+func RegisterSamplingStorePluginServer(s *grpc.Server, srv SamplingStorePluginServer) {
+	s.RegisterService(&_SamplingStorePlugin_serviceDesc, srv)
+}
+
+func _SamplingStorePlugin_InsertThroughput_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(InsertThroughputRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SamplingStorePluginServer).InsertThroughput(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/jaeger.storage.v1.SamplingStorePlugin/InsertThroughput",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SamplingStorePluginServer).InsertThroughput(ctx, req.(*InsertThroughputRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SamplingStorePlugin_InsertProbabilitiesAndQPS_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(InsertProbabilitiesAndQPSRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SamplingStorePluginServer).InsertProbabilitiesAndQPS(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/jaeger.storage.v1.SamplingStorePlugin/InsertProbabilitiesAndQPS",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SamplingStorePluginServer).InsertProbabilitiesAndQPS(ctx, req.(*InsertProbabilitiesAndQPSRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SamplingStorePlugin_GetThroughput_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetThroughputRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SamplingStorePluginServer).GetThroughput(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/jaeger.storage.v1.SamplingStorePlugin/GetThroughput",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SamplingStorePluginServer).GetThroughput(ctx, req.(*GetThroughputRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SamplingStorePlugin_GetLatestProbabilities_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetLatestProbabilitiesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SamplingStorePluginServer).GetLatestProbabilities(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/jaeger.storage.v1.SamplingStorePlugin/GetLatestProbabilities",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SamplingStorePluginServer).GetLatestProbabilities(ctx, req.(*GetLatestProbabilitiesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+var _SamplingStorePlugin_serviceDesc = grpc.ServiceDesc{
+	ServiceName: "jaeger.storage.v1.SamplingStorePlugin",
+	HandlerType: (*SamplingStorePluginServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "InsertThroughput",
+			Handler:    _SamplingStorePlugin_InsertThroughput_Handler,
+		},
+		{
+			MethodName: "InsertProbabilitiesAndQPS",
+			Handler:    _SamplingStorePlugin_InsertProbabilitiesAndQPS_Handler,
+		},
+		{
+			MethodName: "GetThroughput",
+			Handler:    _SamplingStorePlugin_GetThroughput_Handler,
+		},
+		{
+			MethodName: "GetLatestProbabilities",
+			Handler:    _SamplingStorePlugin_GetLatestProbabilities_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
@@ -2623,6 +3434,516 @@ func (m *FindTraceIDsResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	return len(dAtA) - i, nil
 }
 
+func (m *Throughput) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *Throughput) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *Throughput) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.Probabilities) > 0 {
+		for iNdEx := len(m.Probabilities) - 1; iNdEx >= 0; iNdEx-- {
+			f12 := math.Float64bits(float64(m.Probabilities[iNdEx]))
+			i -= 8
+			encoding_binary.LittleEndian.PutUint64(dAtA[i:], uint64(f12))
+		}
+		i = encodeVarintStorage(dAtA, i, uint64(len(m.Probabilities)*8))
+		i--
+		dAtA[i] = 0x22
+	}
+	if m.Count != 0 {
+		i = encodeVarintStorage(dAtA, i, uint64(m.Count))
+		i--
+		dAtA[i] = 0x18
+	}
+	if len(m.Operation) > 0 {
+		i -= len(m.Operation)
+		copy(dAtA[i:], m.Operation)
+		i = encodeVarintStorage(dAtA, i, uint64(len(m.Operation)))
+		i--
+		dAtA[i] = 0x12
+	}
+	if len(m.Service) > 0 {
+		i -= len(m.Service)
+		copy(dAtA[i:], m.Service)
+		i = encodeVarintStorage(dAtA, i, uint64(len(m.Service)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *InsertThroughputRequest) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *InsertThroughputRequest) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *InsertThroughputRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.Throughput) > 0 {
+		for iNdEx := len(m.Throughput) - 1; iNdEx >= 0; iNdEx-- {
+			{
+				size, err := m.Throughput[iNdEx].MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = encodeVarintStorage(dAtA, i, uint64(size))
+			}
+			i--
+			dAtA[i] = 0xa
+		}
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *InsertThroughputResponse) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *InsertThroughputResponse) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *InsertThroughputResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *StringFloatMap) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *StringFloatMap) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *StringFloatMap) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.StringFloatMap) > 0 {
+		for k := range m.StringFloatMap {
+			v := m.StringFloatMap[k]
+			baseI := i
+			i -= 8
+			encoding_binary.LittleEndian.PutUint64(dAtA[i:], uint64(math.Float64bits(float64(v))))
+			i--
+			dAtA[i] = 0x11
+			i -= len(k)
+			copy(dAtA[i:], k)
+			i = encodeVarintStorage(dAtA, i, uint64(len(k)))
+			i--
+			dAtA[i] = 0xa
+			i = encodeVarintStorage(dAtA, i, uint64(baseI-i))
+			i--
+			dAtA[i] = 0xa
+		}
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *ServiceOperationProbabilities) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *ServiceOperationProbabilities) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *ServiceOperationProbabilities) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.ServiceOperationProbabilities) > 0 {
+		for k := range m.ServiceOperationProbabilities {
+			v := m.ServiceOperationProbabilities[k]
+			baseI := i
+			if v != nil {
+				{
+					size, err := v.MarshalToSizedBuffer(dAtA[:i])
+					if err != nil {
+						return 0, err
+					}
+					i -= size
+					i = encodeVarintStorage(dAtA, i, uint64(size))
+				}
+				i--
+				dAtA[i] = 0x12
+			}
+			i -= len(k)
+			copy(dAtA[i:], k)
+			i = encodeVarintStorage(dAtA, i, uint64(len(k)))
+			i--
+			dAtA[i] = 0xa
+			i = encodeVarintStorage(dAtA, i, uint64(baseI-i))
+			i--
+			dAtA[i] = 0xa
+		}
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *ServiceOperationQPS) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *ServiceOperationQPS) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *ServiceOperationQPS) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.ServiceOperationQPS) > 0 {
+		for k := range m.ServiceOperationQPS {
+			v := m.ServiceOperationQPS[k]
+			baseI := i
+			if v != nil {
+				{
+					size, err := v.MarshalToSizedBuffer(dAtA[:i])
+					if err != nil {
+						return 0, err
+					}
+					i -= size
+					i = encodeVarintStorage(dAtA, i, uint64(size))
+				}
+				i--
+				dAtA[i] = 0x12
+			}
+			i -= len(k)
+			copy(dAtA[i:], k)
+			i = encodeVarintStorage(dAtA, i, uint64(len(k)))
+			i--
+			dAtA[i] = 0xa
+			i = encodeVarintStorage(dAtA, i, uint64(baseI-i))
+			i--
+			dAtA[i] = 0xa
+		}
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *InsertProbabilitiesAndQPSRequest) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *InsertProbabilitiesAndQPSRequest) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *InsertProbabilitiesAndQPSRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if m.Qps != nil {
+		{
+			size, err := m.Qps.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintStorage(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x1a
+	}
+	if m.Probabilities != nil {
+		{
+			size, err := m.Probabilities.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintStorage(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x12
+	}
+	if len(m.Hostname) > 0 {
+		i -= len(m.Hostname)
+		copy(dAtA[i:], m.Hostname)
+		i = encodeVarintStorage(dAtA, i, uint64(len(m.Hostname)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *InsertProbabilitiesAndQPSResponse) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *InsertProbabilitiesAndQPSResponse) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *InsertProbabilitiesAndQPSResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *GetThroughputRequest) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *GetThroughputRequest) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *GetThroughputRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	n17, err17 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.EndTime, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.EndTime):])
+	if err17 != nil {
+		return 0, err17
+	}
+	i -= n17
+	i = encodeVarintStorage(dAtA, i, uint64(n17))
+	i--
+	dAtA[i] = 0x12
+	n18, err18 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.StartTime, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.StartTime):])
+	if err18 != nil {
+		return 0, err18
+	}
+	i -= n18
+	i = encodeVarintStorage(dAtA, i, uint64(n18))
+	i--
+	dAtA[i] = 0xa
+	return len(dAtA) - i, nil
+}
+
+func (m *GetThroughputResponse) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *GetThroughputResponse) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *GetThroughputResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.Throughput) > 0 {
+		for iNdEx := len(m.Throughput) - 1; iNdEx >= 0; iNdEx-- {
+			{
+				size, err := m.Throughput[iNdEx].MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = encodeVarintStorage(dAtA, i, uint64(size))
+			}
+			i--
+			dAtA[i] = 0xa
+		}
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *GetLatestProbabilitiesRequest) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *GetLatestProbabilitiesRequest) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *GetLatestProbabilitiesRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *GetLatestProbabilitiesResponse) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *GetLatestProbabilitiesResponse) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *GetLatestProbabilitiesResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if m.ServiceOperationProbabilities != nil {
+		{
+			size, err := m.ServiceOperationProbabilities.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintStorage(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
 func (m *CapabilitiesRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
@@ -3016,6 +4337,230 @@ func (m *FindTraceIDsResponse) Size() (n int) {
 			l = e.Size()
 			n += 1 + l + sovStorage(uint64(l))
 		}
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *Throughput) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.Service)
+	if l > 0 {
+		n += 1 + l + sovStorage(uint64(l))
+	}
+	l = len(m.Operation)
+	if l > 0 {
+		n += 1 + l + sovStorage(uint64(l))
+	}
+	if m.Count != 0 {
+		n += 1 + sovStorage(uint64(m.Count))
+	}
+	if len(m.Probabilities) > 0 {
+		n += 1 + sovStorage(uint64(len(m.Probabilities)*8)) + len(m.Probabilities)*8
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *InsertThroughputRequest) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if len(m.Throughput) > 0 {
+		for _, e := range m.Throughput {
+			l = e.Size()
+			n += 1 + l + sovStorage(uint64(l))
+		}
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *InsertThroughputResponse) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *StringFloatMap) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if len(m.StringFloatMap) > 0 {
+		for k, v := range m.StringFloatMap {
+			_ = k
+			_ = v
+			mapEntrySize := 1 + len(k) + sovStorage(uint64(len(k))) + 1 + 8
+			n += mapEntrySize + 1 + sovStorage(uint64(mapEntrySize))
+		}
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *ServiceOperationProbabilities) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if len(m.ServiceOperationProbabilities) > 0 {
+		for k, v := range m.ServiceOperationProbabilities {
+			_ = k
+			_ = v
+			l = 0
+			if v != nil {
+				l = v.Size()
+				l += 1 + sovStorage(uint64(l))
+			}
+			mapEntrySize := 1 + len(k) + sovStorage(uint64(len(k))) + l
+			n += mapEntrySize + 1 + sovStorage(uint64(mapEntrySize))
+		}
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *ServiceOperationQPS) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if len(m.ServiceOperationQPS) > 0 {
+		for k, v := range m.ServiceOperationQPS {
+			_ = k
+			_ = v
+			l = 0
+			if v != nil {
+				l = v.Size()
+				l += 1 + sovStorage(uint64(l))
+			}
+			mapEntrySize := 1 + len(k) + sovStorage(uint64(len(k))) + l
+			n += mapEntrySize + 1 + sovStorage(uint64(mapEntrySize))
+		}
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *InsertProbabilitiesAndQPSRequest) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.Hostname)
+	if l > 0 {
+		n += 1 + l + sovStorage(uint64(l))
+	}
+	if m.Probabilities != nil {
+		l = m.Probabilities.Size()
+		n += 1 + l + sovStorage(uint64(l))
+	}
+	if m.Qps != nil {
+		l = m.Qps.Size()
+		n += 1 + l + sovStorage(uint64(l))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *InsertProbabilitiesAndQPSResponse) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *GetThroughputRequest) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = github_com_gogo_protobuf_types.SizeOfStdTime(m.StartTime)
+	n += 1 + l + sovStorage(uint64(l))
+	l = github_com_gogo_protobuf_types.SizeOfStdTime(m.EndTime)
+	n += 1 + l + sovStorage(uint64(l))
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *GetThroughputResponse) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if len(m.Throughput) > 0 {
+		for _, e := range m.Throughput {
+			l = e.Size()
+			n += 1 + l + sovStorage(uint64(l))
+		}
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *GetLatestProbabilitiesRequest) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *GetLatestProbabilitiesResponse) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.ServiceOperationProbabilities != nil {
+		l = m.ServiceOperationProbabilities.Size()
+		n += 1 + l + sovStorage(uint64(l))
 	}
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
@@ -4848,6 +6393,1393 @@ func (m *FindTraceIDsResponse) Unmarshal(dAtA []byte) error {
 			var v github_com_jaegertracing_jaeger_model.TraceID
 			m.TraceIDs = append(m.TraceIDs, v)
 			if err := m.TraceIDs[len(m.TraceIDs)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipStorage(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthStorage
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *Throughput) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowStorage
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: Throughput: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: Throughput: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Service", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowStorage
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthStorage
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthStorage
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Service = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Operation", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowStorage
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthStorage
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthStorage
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Operation = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 3:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Count", wireType)
+			}
+			m.Count = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowStorage
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.Count |= int64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 4:
+			if wireType == 1 {
+				var v uint64
+				if (iNdEx + 8) > l {
+					return io.ErrUnexpectedEOF
+				}
+				v = uint64(encoding_binary.LittleEndian.Uint64(dAtA[iNdEx:]))
+				iNdEx += 8
+				v2 := float64(math.Float64frombits(v))
+				m.Probabilities = append(m.Probabilities, v2)
+			} else if wireType == 2 {
+				var packedLen int
+				for shift := uint(0); ; shift += 7 {
+					if shift >= 64 {
+						return ErrIntOverflowStorage
+					}
+					if iNdEx >= l {
+						return io.ErrUnexpectedEOF
+					}
+					b := dAtA[iNdEx]
+					iNdEx++
+					packedLen |= int(b&0x7F) << shift
+					if b < 0x80 {
+						break
+					}
+				}
+				if packedLen < 0 {
+					return ErrInvalidLengthStorage
+				}
+				postIndex := iNdEx + packedLen
+				if postIndex < 0 {
+					return ErrInvalidLengthStorage
+				}
+				if postIndex > l {
+					return io.ErrUnexpectedEOF
+				}
+				var elementCount int
+				elementCount = packedLen / 8
+				if elementCount != 0 && len(m.Probabilities) == 0 {
+					m.Probabilities = make([]float64, 0, elementCount)
+				}
+				for iNdEx < postIndex {
+					var v uint64
+					if (iNdEx + 8) > l {
+						return io.ErrUnexpectedEOF
+					}
+					v = uint64(encoding_binary.LittleEndian.Uint64(dAtA[iNdEx:]))
+					iNdEx += 8
+					v2 := float64(math.Float64frombits(v))
+					m.Probabilities = append(m.Probabilities, v2)
+				}
+			} else {
+				return fmt.Errorf("proto: wrong wireType = %d for field Probabilities", wireType)
+			}
+		default:
+			iNdEx = preIndex
+			skippy, err := skipStorage(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthStorage
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *InsertThroughputRequest) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowStorage
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: InsertThroughputRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: InsertThroughputRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Throughput", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowStorage
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthStorage
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthStorage
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Throughput = append(m.Throughput, &Throughput{})
+			if err := m.Throughput[len(m.Throughput)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipStorage(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthStorage
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *InsertThroughputResponse) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowStorage
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: InsertThroughputResponse: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: InsertThroughputResponse: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		default:
+			iNdEx = preIndex
+			skippy, err := skipStorage(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthStorage
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *StringFloatMap) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowStorage
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: StringFloatMap: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: StringFloatMap: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field StringFloatMap", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowStorage
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthStorage
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthStorage
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.StringFloatMap == nil {
+				m.StringFloatMap = make(map[string]float64)
+			}
+			var mapkey string
+			var mapvalue float64
+			for iNdEx < postIndex {
+				entryPreIndex := iNdEx
+				var wire uint64
+				for shift := uint(0); ; shift += 7 {
+					if shift >= 64 {
+						return ErrIntOverflowStorage
+					}
+					if iNdEx >= l {
+						return io.ErrUnexpectedEOF
+					}
+					b := dAtA[iNdEx]
+					iNdEx++
+					wire |= uint64(b&0x7F) << shift
+					if b < 0x80 {
+						break
+					}
+				}
+				fieldNum := int32(wire >> 3)
+				if fieldNum == 1 {
+					var stringLenmapkey uint64
+					for shift := uint(0); ; shift += 7 {
+						if shift >= 64 {
+							return ErrIntOverflowStorage
+						}
+						if iNdEx >= l {
+							return io.ErrUnexpectedEOF
+						}
+						b := dAtA[iNdEx]
+						iNdEx++
+						stringLenmapkey |= uint64(b&0x7F) << shift
+						if b < 0x80 {
+							break
+						}
+					}
+					intStringLenmapkey := int(stringLenmapkey)
+					if intStringLenmapkey < 0 {
+						return ErrInvalidLengthStorage
+					}
+					postStringIndexmapkey := iNdEx + intStringLenmapkey
+					if postStringIndexmapkey < 0 {
+						return ErrInvalidLengthStorage
+					}
+					if postStringIndexmapkey > l {
+						return io.ErrUnexpectedEOF
+					}
+					mapkey = string(dAtA[iNdEx:postStringIndexmapkey])
+					iNdEx = postStringIndexmapkey
+				} else if fieldNum == 2 {
+					var mapvaluetemp uint64
+					if (iNdEx + 8) > l {
+						return io.ErrUnexpectedEOF
+					}
+					mapvaluetemp = uint64(encoding_binary.LittleEndian.Uint64(dAtA[iNdEx:]))
+					iNdEx += 8
+					mapvalue = math.Float64frombits(mapvaluetemp)
+				} else {
+					iNdEx = entryPreIndex
+					skippy, err := skipStorage(dAtA[iNdEx:])
+					if err != nil {
+						return err
+					}
+					if (skippy < 0) || (iNdEx+skippy) < 0 {
+						return ErrInvalidLengthStorage
+					}
+					if (iNdEx + skippy) > postIndex {
+						return io.ErrUnexpectedEOF
+					}
+					iNdEx += skippy
+				}
+			}
+			m.StringFloatMap[mapkey] = mapvalue
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipStorage(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthStorage
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *ServiceOperationProbabilities) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowStorage
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: ServiceOperationProbabilities: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: ServiceOperationProbabilities: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ServiceOperationProbabilities", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowStorage
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthStorage
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthStorage
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.ServiceOperationProbabilities == nil {
+				m.ServiceOperationProbabilities = make(map[string]*StringFloatMap)
+			}
+			var mapkey string
+			var mapvalue *StringFloatMap
+			for iNdEx < postIndex {
+				entryPreIndex := iNdEx
+				var wire uint64
+				for shift := uint(0); ; shift += 7 {
+					if shift >= 64 {
+						return ErrIntOverflowStorage
+					}
+					if iNdEx >= l {
+						return io.ErrUnexpectedEOF
+					}
+					b := dAtA[iNdEx]
+					iNdEx++
+					wire |= uint64(b&0x7F) << shift
+					if b < 0x80 {
+						break
+					}
+				}
+				fieldNum := int32(wire >> 3)
+				if fieldNum == 1 {
+					var stringLenmapkey uint64
+					for shift := uint(0); ; shift += 7 {
+						if shift >= 64 {
+							return ErrIntOverflowStorage
+						}
+						if iNdEx >= l {
+							return io.ErrUnexpectedEOF
+						}
+						b := dAtA[iNdEx]
+						iNdEx++
+						stringLenmapkey |= uint64(b&0x7F) << shift
+						if b < 0x80 {
+							break
+						}
+					}
+					intStringLenmapkey := int(stringLenmapkey)
+					if intStringLenmapkey < 0 {
+						return ErrInvalidLengthStorage
+					}
+					postStringIndexmapkey := iNdEx + intStringLenmapkey
+					if postStringIndexmapkey < 0 {
+						return ErrInvalidLengthStorage
+					}
+					if postStringIndexmapkey > l {
+						return io.ErrUnexpectedEOF
+					}
+					mapkey = string(dAtA[iNdEx:postStringIndexmapkey])
+					iNdEx = postStringIndexmapkey
+				} else if fieldNum == 2 {
+					var mapmsglen int
+					for shift := uint(0); ; shift += 7 {
+						if shift >= 64 {
+							return ErrIntOverflowStorage
+						}
+						if iNdEx >= l {
+							return io.ErrUnexpectedEOF
+						}
+						b := dAtA[iNdEx]
+						iNdEx++
+						mapmsglen |= int(b&0x7F) << shift
+						if b < 0x80 {
+							break
+						}
+					}
+					if mapmsglen < 0 {
+						return ErrInvalidLengthStorage
+					}
+					postmsgIndex := iNdEx + mapmsglen
+					if postmsgIndex < 0 {
+						return ErrInvalidLengthStorage
+					}
+					if postmsgIndex > l {
+						return io.ErrUnexpectedEOF
+					}
+					mapvalue = &StringFloatMap{}
+					if err := mapvalue.Unmarshal(dAtA[iNdEx:postmsgIndex]); err != nil {
+						return err
+					}
+					iNdEx = postmsgIndex
+				} else {
+					iNdEx = entryPreIndex
+					skippy, err := skipStorage(dAtA[iNdEx:])
+					if err != nil {
+						return err
+					}
+					if (skippy < 0) || (iNdEx+skippy) < 0 {
+						return ErrInvalidLengthStorage
+					}
+					if (iNdEx + skippy) > postIndex {
+						return io.ErrUnexpectedEOF
+					}
+					iNdEx += skippy
+				}
+			}
+			m.ServiceOperationProbabilities[mapkey] = mapvalue
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipStorage(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthStorage
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *ServiceOperationQPS) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowStorage
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: ServiceOperationQPS: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: ServiceOperationQPS: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ServiceOperationQPS", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowStorage
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthStorage
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthStorage
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.ServiceOperationQPS == nil {
+				m.ServiceOperationQPS = make(map[string]*StringFloatMap)
+			}
+			var mapkey string
+			var mapvalue *StringFloatMap
+			for iNdEx < postIndex {
+				entryPreIndex := iNdEx
+				var wire uint64
+				for shift := uint(0); ; shift += 7 {
+					if shift >= 64 {
+						return ErrIntOverflowStorage
+					}
+					if iNdEx >= l {
+						return io.ErrUnexpectedEOF
+					}
+					b := dAtA[iNdEx]
+					iNdEx++
+					wire |= uint64(b&0x7F) << shift
+					if b < 0x80 {
+						break
+					}
+				}
+				fieldNum := int32(wire >> 3)
+				if fieldNum == 1 {
+					var stringLenmapkey uint64
+					for shift := uint(0); ; shift += 7 {
+						if shift >= 64 {
+							return ErrIntOverflowStorage
+						}
+						if iNdEx >= l {
+							return io.ErrUnexpectedEOF
+						}
+						b := dAtA[iNdEx]
+						iNdEx++
+						stringLenmapkey |= uint64(b&0x7F) << shift
+						if b < 0x80 {
+							break
+						}
+					}
+					intStringLenmapkey := int(stringLenmapkey)
+					if intStringLenmapkey < 0 {
+						return ErrInvalidLengthStorage
+					}
+					postStringIndexmapkey := iNdEx + intStringLenmapkey
+					if postStringIndexmapkey < 0 {
+						return ErrInvalidLengthStorage
+					}
+					if postStringIndexmapkey > l {
+						return io.ErrUnexpectedEOF
+					}
+					mapkey = string(dAtA[iNdEx:postStringIndexmapkey])
+					iNdEx = postStringIndexmapkey
+				} else if fieldNum == 2 {
+					var mapmsglen int
+					for shift := uint(0); ; shift += 7 {
+						if shift >= 64 {
+							return ErrIntOverflowStorage
+						}
+						if iNdEx >= l {
+							return io.ErrUnexpectedEOF
+						}
+						b := dAtA[iNdEx]
+						iNdEx++
+						mapmsglen |= int(b&0x7F) << shift
+						if b < 0x80 {
+							break
+						}
+					}
+					if mapmsglen < 0 {
+						return ErrInvalidLengthStorage
+					}
+					postmsgIndex := iNdEx + mapmsglen
+					if postmsgIndex < 0 {
+						return ErrInvalidLengthStorage
+					}
+					if postmsgIndex > l {
+						return io.ErrUnexpectedEOF
+					}
+					mapvalue = &StringFloatMap{}
+					if err := mapvalue.Unmarshal(dAtA[iNdEx:postmsgIndex]); err != nil {
+						return err
+					}
+					iNdEx = postmsgIndex
+				} else {
+					iNdEx = entryPreIndex
+					skippy, err := skipStorage(dAtA[iNdEx:])
+					if err != nil {
+						return err
+					}
+					if (skippy < 0) || (iNdEx+skippy) < 0 {
+						return ErrInvalidLengthStorage
+					}
+					if (iNdEx + skippy) > postIndex {
+						return io.ErrUnexpectedEOF
+					}
+					iNdEx += skippy
+				}
+			}
+			m.ServiceOperationQPS[mapkey] = mapvalue
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipStorage(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthStorage
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *InsertProbabilitiesAndQPSRequest) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowStorage
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: InsertProbabilitiesAndQPSRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: InsertProbabilitiesAndQPSRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Hostname", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowStorage
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthStorage
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthStorage
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Hostname = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Probabilities", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowStorage
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthStorage
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthStorage
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Probabilities == nil {
+				m.Probabilities = &ServiceOperationProbabilities{}
+			}
+			if err := m.Probabilities.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Qps", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowStorage
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthStorage
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthStorage
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Qps == nil {
+				m.Qps = &ServiceOperationQPS{}
+			}
+			if err := m.Qps.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipStorage(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthStorage
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *InsertProbabilitiesAndQPSResponse) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowStorage
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: InsertProbabilitiesAndQPSResponse: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: InsertProbabilitiesAndQPSResponse: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		default:
+			iNdEx = preIndex
+			skippy, err := skipStorage(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthStorage
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *GetThroughputRequest) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowStorage
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: GetThroughputRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: GetThroughputRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field StartTime", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowStorage
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthStorage
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthStorage
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := github_com_gogo_protobuf_types.StdTimeUnmarshal(&m.StartTime, dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field EndTime", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowStorage
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthStorage
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthStorage
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := github_com_gogo_protobuf_types.StdTimeUnmarshal(&m.EndTime, dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipStorage(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthStorage
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *GetThroughputResponse) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowStorage
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: GetThroughputResponse: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: GetThroughputResponse: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Throughput", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowStorage
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthStorage
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthStorage
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Throughput = append(m.Throughput, &Throughput{})
+			if err := m.Throughput[len(m.Throughput)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipStorage(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthStorage
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *GetLatestProbabilitiesRequest) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowStorage
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: GetLatestProbabilitiesRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: GetLatestProbabilitiesRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		default:
+			iNdEx = preIndex
+			skippy, err := skipStorage(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthStorage
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *GetLatestProbabilitiesResponse) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowStorage
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: GetLatestProbabilitiesResponse: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: GetLatestProbabilitiesResponse: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ServiceOperationProbabilities", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowStorage
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthStorage
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthStorage
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.ServiceOperationProbabilities == nil {
+				m.ServiceOperationProbabilities = &ServiceOperationProbabilities{}
+			}
+			if err := m.ServiceOperationProbabilities.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
 			iNdEx = postIndex

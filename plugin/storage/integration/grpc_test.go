@@ -43,6 +43,8 @@ func (s *GRPCStorageIntegrationTestSuite) initialize(t *testing.T) {
 	require.NoError(t, err)
 	s.ArchiveSpanWriter, err = f.CreateArchiveSpanWriter()
 	require.NoError(t, err)
+	s.SamplingStore, err = f.CreateSamplingStore()
+	require.NoError(t, err)
 
 	// TODO DependencyWriter is not implemented in grpc store
 
