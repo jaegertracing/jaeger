@@ -32,6 +32,11 @@ extensions:
     backends:
       some_storage:
         elasticsearch:
+        server_urls: "http://your es ip:9200"
+          auth:
+            basic:
+              username: "your es username"
+              password: "your es password"
           indices:
             index_prefix: "jaeger-main"
             spans:
