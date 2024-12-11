@@ -9,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/config/confighttp"
 
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
@@ -31,10 +32,10 @@ func TestCORSFlags(t *testing.T) {
 		corsOpts := flagCfg.InitFromViper(v)
 		fmt.Println(corsOpts)
 
-		assert.Equal(t, Options{
+		assert.Equal(t, confighttp.CORSConfig{
 			AllowedHeaders: []string{"Content-Type", "Accept", "X-Requested-With"},
 			AllowedOrigins: []string{"http://example.domain.com", "http://*.domain.com"},
-		}, corsOpts)
+		}, *corsOpts)
 	})
 }
 

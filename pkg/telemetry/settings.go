@@ -70,3 +70,11 @@ func FromOtelComponent(telset component.TelemetrySettings, host component.Host) 
 		Host: host,
 	}
 }
+
+func (s Settings) ToOtelComponent() component.TelemetrySettings {
+	return component.TelemetrySettings{
+		Logger:         s.Logger,
+		MeterProvider:  s.MeterProvider,
+		TracerProvider: s.TracerProvider,
+	}
+}

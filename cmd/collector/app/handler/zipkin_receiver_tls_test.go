@@ -13,10 +13,9 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
+	"go.opentelemetry.io/collector/config/configtls"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/flags"
-	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/ports"
@@ -26,21 +25,21 @@ func TestSpanCollectorZipkinTLS(t *testing.T) {
 	const testCertKeyLocation = "../../../../pkg/config/tlscfg/testdata"
 	testCases := []struct {
 		name                  string
-		serverTLS             tlscfg.Options
-		clientTLS             tlscfg.Options
+		serverTLS             configtls.ServerConfig
+		clientTLS             configtls.ClientConfig
 		expectTLSClientErr    bool
 		expectZipkinClientErr bool
 		expectServerFail      bool
 	}{
 		{
 			name: "should fail with TLS client to untrusted TLS server",
-			serverTLS: tlscfg.Options{
-				Enabled:  true,
-				CertPath: testCertKeyLocation + "/example-server-cert.pem",
-				KeyPath:  testCertKeyLocation + "/example-server-key.pem",
+			serverTLS: configtls.ServerConfig{
+				Config: configtls.Config{
+					CertFile: testCertKeyLocation + "/example-server-cert.pem",
+					KeyFile:  testCertKeyLocation + "/example-server-key.pem",
+				},
 			},
-			clientTLS: tlscfg.Options{
-				Enabled:    true,
+			clientTLS: configtls.ClientConfig{
 				ServerName: "example.com",
 			},
 			expectTLSClientErr:    true,
@@ -49,14 +48,16 @@ func TestSpanCollectorZipkinTLS(t *testing.T) {
 		},
 		{
 			name: "should fail with TLS client to trusted TLS server with incorrect hostname",
-			serverTLS: tlscfg.Options{
-				Enabled:  true,
-				CertPath: testCertKeyLocation + "/example-server-cert.pem",
-				KeyPath:  testCertKeyLocation + "/example-server-key.pem",
+			serverTLS: configtls.ServerConfig{
+				Config: configtls.Config{
+					CertFile: testCertKeyLocation + "/example-server-cert.pem",
+					KeyFile:  testCertKeyLocation + "/example-server-key.pem",
+				},
 			},
-			clientTLS: tlscfg.Options{
-				Enabled:    true,
-				CAPath:     testCertKeyLocation + "/example-CA-cert.pem",
+			clientTLS: configtls.ClientConfig{
+				Config: configtls.Config{
+					CAFile: testCertKeyLocation + "/example-CA-cert.pem",
+				},
 				ServerName: "nonEmpty",
 			},
 			expectTLSClientErr:    true,
@@ -65,14 +66,16 @@ func TestSpanCollectorZipkinTLS(t *testing.T) {
 		},
 		{
 			name: "should pass with TLS client to trusted TLS server with correct hostname",
-			serverTLS: tlscfg.Options{
-				Enabled:  true,
-				CertPath: testCertKeyLocation + "/example-server-cert.pem",
-				KeyPath:  testCertKeyLocation + "/example-server-key.pem",
+			serverTLS: configtls.ServerConfig{
+				Config: configtls.Config{
+					CertFile: testCertKeyLocation + "/example-server-cert.pem",
+					KeyFile:  testCertKeyLocation + "/example-server-key.pem",
+				},
 			},
-			clientTLS: tlscfg.Options{
-				Enabled:    true,
-				CAPath:     testCertKeyLocation + "/example-CA-cert.pem",
+			clientTLS: configtls.ClientConfig{
+				Config: configtls.Config{
+					CAFile: testCertKeyLocation + "/example-CA-cert.pem",
+				},
 				ServerName: "example.com",
 			},
 			expectTLSClientErr:    false,
@@ -81,74 +84,82 @@ func TestSpanCollectorZipkinTLS(t *testing.T) {
 		},
 		{
 			name: "should fail with TLS client without cert to trusted TLS server requiring cert",
-			serverTLS: tlscfg.Options{
-				Enabled:      true,
-				CertPath:     testCertKeyLocation + "/example-server-cert.pem",
-				KeyPath:      testCertKeyLocation + "/example-server-key.pem",
-				ClientCAPath: testCertKeyLocation + "/example-CA-cert.pem",
+			serverTLS: configtls.ServerConfig{
+				ClientCAFile: testCertKeyLocation + "/example-CA-cert.pem",
+				Config: configtls.Config{
+					CertFile: testCertKeyLocation + "/example-server-cert.pem",
+					KeyFile:  testCertKeyLocation + "/example-server-key.pem",
+				},
 			},
-			clientTLS: tlscfg.Options{
-				Enabled:    true,
-				CAPath:     testCertKeyLocation + "/example-CA-cert.pem",
+			clientTLS: configtls.ClientConfig{
+				Config: configtls.Config{
+					CAFile: testCertKeyLocation + "/example-CA-cert.pem",
+				},
 				ServerName: "example.com",
 			},
 			expectTLSClientErr:    false,
-			expectServerFail:      false,
 			expectZipkinClientErr: true,
+			expectServerFail:      false,
 		},
 		{
 			name: "should pass with TLS client with cert to trusted TLS server requiring cert",
-			serverTLS: tlscfg.Options{
-				Enabled:      true,
-				CertPath:     testCertKeyLocation + "/example-server-cert.pem",
-				KeyPath:      testCertKeyLocation + "/example-server-key.pem",
-				ClientCAPath: testCertKeyLocation + "/example-CA-cert.pem",
+			serverTLS: configtls.ServerConfig{
+				ClientCAFile: testCertKeyLocation + "/example-CA-cert.pem",
+				Config: configtls.Config{
+					CertFile: testCertKeyLocation + "/example-server-cert.pem",
+					KeyFile:  testCertKeyLocation + "/example-server-key.pem",
+				},
 			},
-			clientTLS: tlscfg.Options{
-				Enabled:    true,
-				CAPath:     testCertKeyLocation + "/example-CA-cert.pem",
+			clientTLS: configtls.ClientConfig{
+				Config: configtls.Config{
+					CAFile:   testCertKeyLocation + "/example-CA-cert.pem",
+					CertFile: testCertKeyLocation + "/example-client-cert.pem",
+					KeyFile:  testCertKeyLocation + "/example-client-key.pem",
+				},
 				ServerName: "example.com",
-				CertPath:   testCertKeyLocation + "/example-client-cert.pem",
-				KeyPath:    testCertKeyLocation + "/example-client-key.pem",
 			},
 			expectTLSClientErr:    false,
-			expectServerFail:      false,
 			expectZipkinClientErr: false,
+			expectServerFail:      false,
 		},
 		{
-			name: "should fail with TLS client without cert to trusted TLS server requiring cert from a different CA",
-			serverTLS: tlscfg.Options{
-				Enabled:      true,
-				CertPath:     testCertKeyLocation + "/example-server-cert.pem",
-				KeyPath:      testCertKeyLocation + "/example-server-key.pem",
-				ClientCAPath: testCertKeyLocation + "/wrong-CA-cert.pem", // NB: wrong CA
+			name: "should fail with TLS client without cert to trusted TLS server requiring cert from different CA",
+			serverTLS: configtls.ServerConfig{
+				ClientCAFile: testCertKeyLocation + "/wrong-CA-cert.pem",
+				Config: configtls.Config{
+					CertFile: testCertKeyLocation + "/example-server-cert.pem",
+					KeyFile:  testCertKeyLocation + "/example-server-key.pem",
+				},
 			},
-			clientTLS: tlscfg.Options{
-				Enabled:    true,
-				CAPath:     testCertKeyLocation + "/example-CA-cert.pem",
+			clientTLS: configtls.ClientConfig{
+				Config: configtls.Config{
+					CAFile:   testCertKeyLocation + "/example-CA-cert.pem",
+					CertFile: testCertKeyLocation + "/example-client-cert.pem",
+					KeyFile:  testCertKeyLocation + "/example-client-key.pem",
+				},
 				ServerName: "example.com",
-				CertPath:   testCertKeyLocation + "/example-client-cert.pem",
-				KeyPath:    testCertKeyLocation + "/example-client-key.pem",
 			},
 			expectTLSClientErr:    false,
-			expectServerFail:      false,
 			expectZipkinClientErr: true,
+			expectServerFail:      false,
 		},
 		{
 			name: "should fail with TLS client with cert to trusted TLS server with incorrect TLS min",
-			serverTLS: tlscfg.Options{
-				Enabled:      true,
-				CertPath:     testCertKeyLocation + "/example-server-cert.pem",
-				KeyPath:      testCertKeyLocation + "/example-server-key.pem",
-				ClientCAPath: testCertKeyLocation + "/example-CA-cert.pem",
-				MinVersion:   "1.5",
+			serverTLS: configtls.ServerConfig{
+				ClientCAFile: testCertKeyLocation + "/example-CA-cert.pem",
+				Config: configtls.Config{
+					CertFile:   testCertKeyLocation + "/example-server-cert.pem",
+					KeyFile:    testCertKeyLocation + "/example-server-key.pem",
+					MinVersion: "1.5",
+				},
 			},
-			clientTLS: tlscfg.Options{
-				Enabled:    true,
-				CAPath:     testCertKeyLocation + "/example-CA-cert.pem",
+			clientTLS: configtls.ClientConfig{
+				Config: configtls.Config{
+					CAFile:   testCertKeyLocation + "/example-CA-cert.pem",
+					CertFile: testCertKeyLocation + "/example-client-cert.pem",
+					KeyFile:  testCertKeyLocation + "/example-client-key.pem",
+				},
 				ServerName: "example.com",
-				CertPath:   testCertKeyLocation + "/example-client-cert.pem",
-				KeyPath:    testCertKeyLocation + "/example-client-key.pem",
 			},
 			expectTLSClientErr:    true,
 			expectServerFail:      true,
@@ -163,9 +174,8 @@ func TestSpanCollectorZipkinTLS(t *testing.T) {
 			tm := &tenancy.Manager{}
 
 			opts := &flags.CollectorOptions{}
-			opts.Zipkin.HTTPHostPort = ports.PortToHostPort(ports.CollectorZipkin)
-			opts.Zipkin.TLS = test.serverTLS
-			defer test.serverTLS.Close()
+			opts.Zipkin.Endpoint = ports.PortToHostPort(ports.CollectorZipkin)
+			opts.Zipkin.TLSSetting = &test.serverTLS
 
 			server, err := StartZipkinReceiver(opts, logger, spanProcessor, tm)
 			if test.expectServerFail {
@@ -177,8 +187,7 @@ func TestSpanCollectorZipkinTLS(t *testing.T) {
 				require.NoError(t, server.Shutdown(context.Background()))
 			}()
 
-			clientTLSCfg, err0 := test.clientTLS.Config(zap.NewNop())
-			defer test.clientTLS.Close()
+			clientTLSCfg, err0 := test.clientTLS.LoadTLSConfig(context.Background())
 			require.NoError(t, err0)
 			dialer := &net.Dialer{Timeout: 2 * time.Second}
 			conn, clientError := tls.DialWithDialer(dialer, "tcp", fmt.Sprintf("localhost:%d", ports.CollectorZipkin), clientTLSCfg)
@@ -197,7 +206,6 @@ func TestSpanCollectorZipkinTLS(t *testing.T) {
 			}
 
 			response, requestError := client.Post(fmt.Sprintf("https://localhost:%d", ports.CollectorZipkin), "", nil)
-
 			if test.expectZipkinClientErr {
 				require.Error(t, requestError)
 			} else {
