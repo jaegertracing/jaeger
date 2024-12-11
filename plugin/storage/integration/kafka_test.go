@@ -42,9 +42,6 @@ func (s *KafkaIntegrationTestSuite) initialize(t *testing.T) {
 	topic := "jaeger-kafka-integration-test-" + strconv.FormatInt(time.Now().UnixNano(), 10)
 
 	f := kafka.NewFactory()
-	t.Cleanup(func() {
-		assert.NoError(t, f.Close())
-	})
 	v, command := config.Viperize(f.AddFlags)
 	err := command.ParseFlags([]string{
 		"--kafka.producer.topic",
@@ -58,7 +55,9 @@ func (s *KafkaIntegrationTestSuite) initialize(t *testing.T) {
 	f.InitFromViper(v, logger)
 	err = f.Initialize(metrics.NullFactory, logger)
 	require.NoError(t, err)
-
+	t.Cleanup(func() {
+		assert.NoError(t, f.Close())
+	})
 	spanWriter, err := f.CreateSpanWriter()
 	require.NoError(t, err)
 	v, command = config.Viperize(app.AddFlags)
