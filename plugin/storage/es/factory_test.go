@@ -274,9 +274,13 @@ func TestESStorageFactoryWithConfig(t *testing.T) {
 		w.Write(mockEsServerResponse)
 	}))
 	defer server.Close()
+
 	cfg := escfg.Configuration{
 		Servers:  []string{server.URL},
 		LogLevel: "error",
+		Rollover: escfg.Rollover{
+			Enabled: true,
+		},
 	}
 	factory, err := NewFactoryWithConfig(cfg, metrics.NullFactory, zap.NewNop())
 	require.NoError(t, err)
@@ -293,6 +297,9 @@ func TestConfigurationValidation(t *testing.T) {
 			name: "valid configuration",
 			cfg: escfg.Configuration{
 				Servers: []string{"http://localhost:9200"},
+				Rollover: escfg.Rollover{
+					Enabled: true,
+				},
 			},
 			wantErr: false,
 		},
@@ -322,6 +329,9 @@ func TestESStorageFactoryWithConfigError(t *testing.T) {
 	cfg := escfg.Configuration{
 		Servers:  []string{"http://127.0.0.1:65535"},
 		LogLevel: "error",
+		Rollover: escfg.Rollover{
+			Enabled: true,
+		},
 	}
 	_, err := NewFactoryWithConfig(cfg, metrics.NullFactory, zap.NewNop())
 	require.ErrorContains(t, err, "failed to create primary Elasticsearch client")
