@@ -8,7 +8,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/http"
 	"strconv"
 	"strings"
 	"testing"
@@ -73,13 +72,7 @@ func (s *ESStorageIntegration) getVersion() (uint, error) {
 }
 
 func (s *ESStorageIntegration) initializeES(t *testing.T, allTagsAsFields bool) {
-	tr := &http.Transport{}
-	t.Cleanup(func() {
-		tr.CloseIdleConnections()
-	})
-	c := &http.Client{
-		Transport: tr,
-	}
+	c := getESHttpClient(t)
 	rawClient, err := elastic.NewClient(
 		elastic.SetURL(queryURL),
 		elastic.SetSniff(false),
@@ -89,14 +82,10 @@ func (s *ESStorageIntegration) initializeES(t *testing.T, allTagsAsFields bool) 
 		rawClient.Stop()
 	})
 	s.client = rawClient
-	v8tr := &http.Transport{}
-	t.Cleanup(func() {
-		v8tr.CloseIdleConnections()
-	})
 	s.v8Client, err = elasticsearch8.NewClient(elasticsearch8.Config{
 		Addresses:            []string{queryURL},
 		DiscoverNodesOnStart: false,
-		Transport:            v8tr,
+		Transport:            c.Transport,
 	})
 	require.NoError(t, err)
 
@@ -160,12 +149,8 @@ func (s *ESStorageIntegration) initSpanstore(t *testing.T, allTagsAsFields bool)
 	require.NoError(t, err)
 }
 
-func healthCheck() error {
-	t := &http.Transport{}
-	defer t.CloseIdleConnections()
-	c := http.Client{
-		Transport: t,
-	}
+func healthCheck(t *testing.T) error {
+	c := getESHttpClient(t)
 	for i := 0; i < 200; i++ {
 		if resp, err := c.Get(queryURL); err == nil {
 			return resp.Body.Close()
@@ -180,7 +165,7 @@ func testElasticsearchStorage(t *testing.T, allTagsAsFields bool) {
 	t.Cleanup(func() {
 		testutils.VerifyGoLeaksOnce(t)
 	})
-	require.NoError(t, healthCheck())
+	require.NoError(t, healthCheck(t))
 	s := &ESStorageIntegration{
 		StorageIntegration: StorageIntegration{
 			Fixtures:        LoadAndParseQueryTestCases(t, "fixtures/queries_es.json"),
@@ -204,7 +189,7 @@ func TestElasticsearchStorage_AllTagsAsObjectFields(t *testing.T) {
 
 func TestElasticsearchStorage_IndexTemplates(t *testing.T) {
 	SkipUnlessEnv(t, "elasticsearch", "opensearch")
-	require.NoError(t, healthCheck())
+	require.NoError(t, healthCheck(t))
 	s := &ESStorageIntegration{}
 	s.initializeES(t, true)
 	esVersion, err := s.getVersion()

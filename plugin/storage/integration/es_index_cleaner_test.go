@@ -29,7 +29,7 @@ const (
 
 func TestIndexCleaner_doNotFailOnEmptyStorage(t *testing.T) {
 	SkipUnlessEnv(t, "elasticsearch", "opensearch")
-	client, err := createESClient(t)
+	client, err := createESClient(t, getESHttpClient(t))
 	require.NoError(t, err)
 	_, err = client.DeleteIndex("*").Do(context.Background())
 	require.NoError(t, err)
@@ -49,7 +49,7 @@ func TestIndexCleaner_doNotFailOnEmptyStorage(t *testing.T) {
 
 func TestIndexCleaner_doNotFailOnFullStorage(t *testing.T) {
 	SkipUnlessEnv(t, "elasticsearch", "opensearch")
-	client, err := createESClient(t)
+	client, err := createESClient(t, getESHttpClient(t))
 	require.NoError(t, err)
 	tests := []struct {
 		envs []string
@@ -71,9 +71,10 @@ func TestIndexCleaner_doNotFailOnFullStorage(t *testing.T) {
 
 func TestIndexCleaner(t *testing.T) {
 	SkipUnlessEnv(t, "elasticsearch", "opensearch")
-	client, err := createESClient(t)
+	hcl := getESHttpClient(t)
+	client, err := createESClient(t, hcl)
 	require.NoError(t, err)
-	v8Client, err := createESV8Client(t)
+	v8Client, err := createESV8Client(hcl.Transport)
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -224,11 +225,11 @@ func runEsRollover(action string, envs []string, adaptiveSampling bool) error {
 	return err
 }
 
-func createESClient(t *testing.T) (*elastic.Client, error) {
+func createESClient(t *testing.T, hcl *http.Client) (*elastic.Client, error) {
 	cl, err := elastic.NewClient(
 		elastic.SetURL(queryURL),
 		elastic.SetSniff(false),
-		elastic.SetHttpClient(&http.Client{Transport: getESHttpTransport(t)}),
+		elastic.SetHttpClient(hcl),
 	)
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -237,11 +238,11 @@ func createESClient(t *testing.T) (*elastic.Client, error) {
 	return cl, nil
 }
 
-func createESV8Client(t *testing.T) (*elasticsearch8.Client, error) {
+func createESV8Client(tr http.RoundTripper) (*elasticsearch8.Client, error) {
 	return elasticsearch8.NewClient(elasticsearch8.Config{
 		Addresses:            []string{queryURL},
 		DiscoverNodesOnStart: false,
-		Transport:            getESHttpTransport(t),
+		Transport:            tr,
 	})
 }
 
@@ -253,10 +254,10 @@ func cleanESIndexTemplates(t *testing.T, client *elastic.Client, v8Client *elast
 	s.cleanESIndexTemplates(t, prefix)
 }
 
-func getESHttpTransport(t *testing.T) *http.Transport {
+func getESHttpClient(t *testing.T) *http.Client {
 	tr := &http.Transport{}
 	t.Cleanup(func() {
 		tr.CloseIdleConnections()
 	})
-	return tr
+	return &http.Client{Transport: tr}
 }
