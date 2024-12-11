@@ -11,7 +11,6 @@ import (
 	"net"
 	"net/http"
 	"net/http/pprof"
-	"time"
 
 	"github.com/spf13/viper"
 	"go.opentelemetry.io/collector/config/confighttp"
@@ -21,6 +20,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	"github.com/jaegertracing/jaeger/pkg/recoveryhandler"
+	"github.com/jaegertracing/jaeger/pkg/telemetry"
 	"github.com/jaegertracing/jaeger/pkg/version"
 )
 
@@ -97,12 +97,14 @@ func (s *AdminServer) Handle(path string, handler http.Handler) {
 
 // Serve starts HTTP server.
 func (s *AdminServer) Serve() error {
-	l, err := net.Listen("tcp", s.serverCfg.Endpoint)
+	l, err := s.serverCfg.ToListener(context.Background())
 	if err != nil {
 		s.logger.Error("Admin server failed to listen", zap.Error(err))
 		return err
 	}
-	s.serveWithListener(l)
+	if err = s.serveWithListener(l); err != nil {
+		return err
+	}
 
 	s.logger.Info(
 		"Admin server started",
@@ -111,18 +113,20 @@ func (s *AdminServer) Serve() error {
 	return nil
 }
 
-func (s *AdminServer) serveWithListener(l net.Listener) {
+func (s *AdminServer) serveWithListener(l net.Listener) (err error) {
 	s.logger.Info("Mounting health check on admin server", zap.String("route", "/"))
 	s.mux.Handle("/", s.hc.Handler())
 	version.RegisterHandler(s.mux, s.logger)
 	s.registerPprofHandlers()
 	recoveryHandler := recoveryhandler.NewRecoveryHandler(s.logger, true)
 	errorLog, _ := zap.NewStdLogAt(s.logger, zapcore.ErrorLevel)
-	s.server = &http.Server{
-		Handler:           recoveryHandler(s.mux),
-		ErrorLog:          errorLog,
-		ReadHeaderTimeout: 2 * time.Second,
+	s.server, err = s.serverCfg.ToServer(context.Background(), nil, telemetry.NoopSettings().ToOtelComponent(),
+		recoveryHandler(s.mux))
+	if err != nil {
+		return err
 	}
+	s.server.ErrorLog = errorLog
+
 	if s.serverCfg.TLSSetting != nil {
 		tlsConfig, err := s.serverCfg.TLSSetting.LoadTLSConfig(context.Background())
 		if err != nil {
@@ -133,17 +137,14 @@ func (s *AdminServer) serveWithListener(l net.Listener) {
 	}
 	s.logger.Info("Starting admin HTTP server", zap.String("http-addr", s.serverCfg.Endpoint))
 	go func() {
-		var err error
-		if s.serverCfg.TLSSetting != nil {
-			err = s.server.ServeTLS(l, "", "")
-		} else {
-			err = s.server.Serve(l)
-		}
+		err := s.server.Serve(l)
 		if err != nil && !errors.Is(err, http.ErrServerClosed) {
 			s.logger.Error("failed to serve", zap.Error(err))
 			s.hc.Set(healthcheck.Broken)
 		}
 	}()
+
+	return nil
 }
 
 func (s *AdminServer) registerPprofHandlers() {
