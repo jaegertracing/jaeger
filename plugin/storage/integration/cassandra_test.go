@@ -49,6 +49,9 @@ func (*CassandraStorageIntegration) initializeCassandraFactory(t *testing.T, fla
 	require.NoError(t, command.ParseFlags(flags))
 	f.InitFromViper(v, logger)
 	require.NoError(t, f.Initialize(metrics.NullFactory, logger))
+	t.Cleanup(func() {
+		assert.NoError(t, f.Close())
+	})
 	return f
 }
 
@@ -66,9 +69,6 @@ func (s *CassandraStorageIntegration) initializeCassandra(t *testing.T) {
 		"--cassandra-archive.basic.allowed-authenticators=org.apache.cassandra.auth.PasswordAuthenticator",
 		"--cassandra-archive.password=" + password,
 		"--cassandra-archive.username=" + username,
-	})
-	t.Cleanup(func() {
-		assert.NoError(t, f.Close())
 	})
 	s.factory = f
 	var err error
