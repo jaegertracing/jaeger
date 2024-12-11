@@ -39,8 +39,8 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/ports"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
-	depsmocks "github.com/jaegertracing/jaeger/storage/dependencystore/mocks"
 	spanstoremocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
+	depsmocks "github.com/jaegertracing/jaeger/storage_v2/depstore/mocks"
 	"github.com/jaegertracing/jaeger/storage_v2/factoryadapter"
 )
 

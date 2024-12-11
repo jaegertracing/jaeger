@@ -36,6 +36,7 @@ import (
 )
 
 func main() {
+	flags.PrintV1EOL()
 	svc := flags.NewService(ports.QueryAdminHTTP)
 
 	storageFactory, err := storage.NewFactory(storage.FactoryConfigFromEnvAndCLI(os.Args, os.Stderr))
@@ -96,7 +97,7 @@ func main() {
 			if err != nil {
 				logger.Fatal("Failed to create trace reader", zap.Error(err))
 			}
-			dependencyReader, err := storageFactory.CreateDependencyReader()
+			dependencyReader, err := v2Factory.CreateDependencyReader()
 			if err != nil {
 				logger.Fatal("Failed to create dependency reader", zap.Error(err))
 			}

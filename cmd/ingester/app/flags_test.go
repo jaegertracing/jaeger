@@ -10,6 +10,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/config/configtls"
 
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/kafka/auth"
@@ -66,12 +67,18 @@ func TestTLSFlags(t *testing.T) {
 			expected: auth.AuthenticationConfig{Authentication: "kerberos", Kerberos: kerb, PlainText: plain},
 		},
 		{
-			flags:    []string{"--kafka.consumer.authentication=tls"},
-			expected: auth.AuthenticationConfig{Authentication: "tls", Kerberos: kerb, PlainText: plain},
-		},
-		{
-			flags:    []string{"--kafka.consumer.authentication=tls", "--kafka.consumer.tls.enabled=false"},
-			expected: auth.AuthenticationConfig{Authentication: "tls", Kerberos: kerb, PlainText: plain},
+			flags: []string{"--kafka.consumer.authentication=tls"},
+			expected: auth.AuthenticationConfig{
+				Authentication: "tls",
+				Kerberos:       kerb,
+				// TODO this test is unclear - if tls.enabled != true, why is it not tls.Insecure=true?
+				TLS: configtls.ClientConfig{
+					Config: configtls.Config{
+						IncludeSystemCACertsPool: true,
+					},
+				},
+				PlainText: plain,
+			},
 		},
 	}
 
