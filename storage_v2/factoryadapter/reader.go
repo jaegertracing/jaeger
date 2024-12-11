@@ -7,10 +7,14 @@ import (
 	"context"
 	"errors"
 
+	model2otel "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
+	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
+	"github.com/jaegertracing/jaeger/storage_v2/depstore"
 	"github.com/jaegertracing/jaeger/storage_v2/tracestore"
 )
 
@@ -33,22 +37,79 @@ func NewTraceReader(spanReader spanstore.Reader) *TraceReader {
 	}
 }
 
-func (*TraceReader) GetTrace(_ context.Context, _ pcommon.TraceID) (ptrace.Traces, error) {
-	panic("not implemented")
+func (tr *TraceReader) GetTrace(ctx context.Context, traceID pcommon.TraceID) (ptrace.Traces, error) {
+	t, err := tr.spanReader.GetTrace(ctx, model.TraceIDFromOTEL(traceID))
+	if err != nil {
+		return ptrace.NewTraces(), err
+	}
+	batch := &model.Batch{Spans: t.GetSpans()}
+	return model2otel.ProtoToTraces([]*model.Batch{batch})
 }
 
-func (*TraceReader) GetServices(_ context.Context) ([]string, error) {
-	panic("not implemented")
+func (tr *TraceReader) GetServices(ctx context.Context) ([]string, error) {
+	return tr.spanReader.GetServices(ctx)
 }
 
-func (*TraceReader) GetOperations(_ context.Context, _ tracestore.OperationQueryParameters) ([]tracestore.Operation, error) {
-	panic("not implemented")
+func (tr *TraceReader) GetOperations(ctx context.Context, query tracestore.OperationQueryParameters) ([]tracestore.Operation, error) {
+	o, err := tr.spanReader.GetOperations(ctx, spanstore.OperationQueryParameters{
+		ServiceName: query.ServiceName,
+		SpanKind:    query.SpanKind,
+	})
+	if err != nil || o == nil {
+		return nil, err
+	}
+	operations := []tracestore.Operation{}
+	for _, operation := range o {
+		operations = append(operations, tracestore.Operation{
+			Name:     operation.Name,
+			SpanKind: operation.SpanKind,
+		})
+	}
+	return operations, nil
 }
 
-func (*TraceReader) FindTraces(_ context.Context, _ tracestore.TraceQueryParameters) ([]ptrace.Traces, error) {
-	panic("not implemented")
+func (tr *TraceReader) FindTraces(
+	ctx context.Context,
+	query tracestore.TraceQueryParameters,
+) ([]ptrace.Traces, error) {
+	t, err := tr.spanReader.FindTraces(ctx, query.ToSpanStoreQueryParameters())
+	if err != nil || t == nil {
+		return nil, err
+	}
+	otelTraces := []ptrace.Traces{}
+	for _, trace := range t {
+		batch := &model.Batch{Spans: trace.GetSpans()}
+		otelTrace, _ := model2otel.ProtoToTraces([]*model.Batch{batch})
+		otelTraces = append(otelTraces, otelTrace)
+	}
+	return otelTraces, nil
 }
 
-func (*TraceReader) FindTraceIDs(_ context.Context, _ tracestore.TraceQueryParameters) ([]pcommon.TraceID, error) {
-	panic("not implemented")
+func (tr *TraceReader) FindTraceIDs(ctx context.Context, query tracestore.TraceQueryParameters) ([]pcommon.TraceID, error) {
+	t, err := tr.spanReader.FindTraceIDs(ctx, query.ToSpanStoreQueryParameters())
+	if err != nil || t == nil {
+		return nil, err
+	}
+	traceIDs := []pcommon.TraceID{}
+	for _, traceID := range t {
+		traceIDs = append(traceIDs, traceID.ToOTELTraceID())
+	}
+	return traceIDs, nil
+}
+
+type DependencyReader struct {
+	reader dependencystore.Reader
+}
+
+func NewDependencyReader(reader dependencystore.Reader) *DependencyReader {
+	return &DependencyReader{
+		reader: reader,
+	}
+}
+
+func (dr *DependencyReader) GetDependencies(
+	ctx context.Context,
+	query depstore.QueryParameters,
+) ([]model.DependencyLink, error) {
+	return dr.reader.GetDependencies(ctx, query.EndTime, query.EndTime.Sub(query.StartTime))
 }

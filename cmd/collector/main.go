@@ -35,6 +35,7 @@ import (
 const serviceName = "jaeger-collector"
 
 func main() {
+	cmdFlags.PrintV1EOL()
 	svc := cmdFlags.NewService(ports.CollectorAdminHTTP)
 
 	storageFactory, err := storage.NewFactory(storage.FactoryConfigFromEnvAndCLI(os.Args, os.Stderr))

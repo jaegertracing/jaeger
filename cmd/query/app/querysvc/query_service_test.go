@@ -22,9 +22,10 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
-	depsmocks "github.com/jaegertracing/jaeger/storage/dependencystore/mocks"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	spanstoremocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
+	"github.com/jaegertracing/jaeger/storage_v2/depstore"
+	depsmocks "github.com/jaegertracing/jaeger/storage_v2/depstore/mocks"
 	"github.com/jaegertracing/jaeger/storage_v2/factoryadapter"
 	"github.com/jaegertracing/jaeger/storage_v2/tracestore"
 )
@@ -345,8 +346,10 @@ func TestGetDependencies(t *testing.T) {
 	tqs.depsReader.On(
 		"GetDependencies",
 		mock.Anything, // context.Context
-		endTs,
-		defaultDependencyLookbackDuration).Return(expectedDependencies, nil).Times(1)
+		depstore.QueryParameters{
+			StartTime: endTs.Add(-defaultDependencyLookbackDuration),
+			EndTime:   endTs,
+		}).Return(expectedDependencies, nil).Times(1)
 
 	actualDependencies, err := tqs.queryService.GetDependencies(context.Background(), time.Unix(0, 1476374248550*millisToNanosMultiplier), defaultDependencyLookbackDuration)
 	require.NoError(t, err)

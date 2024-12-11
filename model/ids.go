@@ -12,6 +12,7 @@ import (
 	"strconv"
 
 	"github.com/gogo/protobuf/jsonpb"
+	"go.opentelemetry.io/collector/pdata/pcommon"
 )
 
 const (
@@ -143,6 +144,23 @@ func (t *TraceID) UnmarshalJSON(data []byte) error {
 		return fmt.Errorf("cannot unmarshal TraceID from string '%s': %w", string(data), err)
 	}
 	return t.Unmarshal(b)
+}
+
+// ToOTELTraceID converts the TraceID to OTEL's representation of a trace identitfier.
+// This was taken from
+// https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/internal/coreinternal/idutils/big_endian_converter.go.
+func (t *TraceID) ToOTELTraceID() pcommon.TraceID {
+	traceID := [16]byte{}
+	binary.BigEndian.PutUint64(traceID[:8], t.High)
+	binary.BigEndian.PutUint64(traceID[8:], t.Low)
+	return traceID
+}
+
+func TraceIDFromOTEL(traceID pcommon.TraceID) TraceID {
+	return TraceID{
+		High: binary.BigEndian.Uint64(traceID[:traceIDShortBytesLen]),
+		Low:  binary.BigEndian.Uint64(traceID[traceIDShortBytesLen:]),
+	}
 }
 
 // ------- SpanID -------

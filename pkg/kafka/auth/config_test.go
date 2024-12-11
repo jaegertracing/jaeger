@@ -37,20 +37,18 @@ func Test_InitFromViper(t *testing.T) {
 		"--kafka.auth.kerberos.keytab-file=/path/to/keytab",
 		"--kafka.auth.kerberos.disable-fast-negotiation=true",
 		"--kafka.auth.tls.enabled=false",
+		"--kafka.auth.tls.ca=/not/allowed/if/tls/is/disabled",
 		"--kafka.auth.plaintext.username=user",
 		"--kafka.auth.plaintext.password=password",
 		"--kafka.auth.plaintext.mechanism=SCRAM-SHA-256",
-		"--kafka.auth.tls.ca=failing",
 	})
 
 	authConfig := &AuthenticationConfig{}
 	err := authConfig.InitFromViper(configPrefix, v)
-	require.EqualError(t, err, "failed to process Kafka TLS options: kafka.auth.tls.* options cannot be used when kafka.auth.tls.enabled is false")
+	require.ErrorContains(t, err, "kafka.auth.tls.* options cannot be used when kafka.auth.tls.enabled is false")
 
-	command.ParseFlags([]string{"--kafka.auth.tls.ca="})
-	v.BindPFlags(command.Flags())
-	err = authConfig.InitFromViper(configPrefix, v)
-	require.NoError(t, err)
+	command.ParseFlags([]string{"--kafka.auth.tls.ca="}) // incrementally update authConfig
+	require.NoError(t, authConfig.InitFromViper(configPrefix, v))
 
 	expectedConfig := &AuthenticationConfig{
 		Authentication: "tls",
@@ -64,7 +62,11 @@ func Test_InitFromViper(t *testing.T) {
 			KeyTabPath:      "/path/to/keytab",
 			DisablePAFXFast: true,
 		},
-		TLS: configtls.ClientConfig{},
+		TLS: configtls.ClientConfig{
+			Config: configtls.Config{
+				IncludeSystemCACertsPool: true,
+			},
+		},
 		PlainText: PlainTextConfig{
 			Username:  "user",
 			Password:  "password",

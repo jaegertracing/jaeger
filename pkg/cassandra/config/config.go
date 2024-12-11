@@ -68,6 +68,8 @@ type Schema struct {
 	ReplicationFactor int `mapstructure:"replication_factor" valid:"optional"`
 	// CompactionWindow is the size of the window for TimeWindowCompactionStrategy.
 	// All SSTables within that window are grouped together into one SSTable.
+	// Ideally, operators should select a compaction window size that produces approximately less than 50 windows.
+	// For example, if writing with a 90 day TTL, a 3 day window would be a reasonable choice.
 	CompactionWindow time.Duration `mapstructure:"compaction_window" valid:"optional"`
 }
 
