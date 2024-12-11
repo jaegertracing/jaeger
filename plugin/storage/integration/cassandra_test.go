@@ -9,6 +9,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
@@ -66,6 +67,9 @@ func (s *CassandraStorageIntegration) initializeCassandra(t *testing.T) {
 		"--cassandra-archive.password=" + password,
 		"--cassandra-archive.username=" + username,
 	})
+	t.Cleanup(func() {
+		assert.NoError(t, f.Close())
+	})
 	s.factory = f
 	var err error
 	s.SpanWriter, err = f.CreateSpanWriter()
@@ -79,10 +83,6 @@ func (s *CassandraStorageIntegration) initializeCassandra(t *testing.T) {
 	s.SamplingStore, err = f.CreateSamplingStore(0)
 	require.NoError(t, err)
 	s.initializeDependencyReaderAndWriter(t, f)
-	t.Cleanup(func() {
-		require.NoError(t, f.Close())
-		testutils.VerifyGoLeaksOnce(t)
-	})
 }
 
 func (s *CassandraStorageIntegration) initializeDependencyReaderAndWriter(t *testing.T, f *cassandra.Factory) {
@@ -100,6 +100,9 @@ func (s *CassandraStorageIntegration) initializeDependencyReaderAndWriter(t *tes
 }
 
 func TestCassandraStorage(t *testing.T) {
+	t.Cleanup(func() {
+		testutils.VerifyGoLeaksOnce(t)
+	})
 	SkipUnlessEnv(t, "cassandra")
 	s := newCassandraStorageIntegration()
 	s.initializeCassandra(t)

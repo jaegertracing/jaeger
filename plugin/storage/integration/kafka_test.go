@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/Shopify/sarama"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
@@ -41,6 +42,9 @@ func (s *KafkaIntegrationTestSuite) initialize(t *testing.T) {
 	topic := "jaeger-kafka-integration-test-" + strconv.FormatInt(time.Now().UnixNano(), 10)
 
 	f := kafka.NewFactory()
+	t.Cleanup(func() {
+		assert.NoError(t, f.Close())
+	})
 	v, command := config.Viperize(f.AddFlags)
 	err := command.ParseFlags([]string{
 		"--kafka.producer.topic",
@@ -82,17 +86,15 @@ func (s *KafkaIntegrationTestSuite) initialize(t *testing.T) {
 	traceStore := memory.NewStore()
 	spanConsumer, err := builder.CreateConsumer(logger, metrics.NullFactory, traceStore, options)
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		assert.NoError(t, spanConsumer.Close())
+	})
 	spanConsumer.Start()
 
 	s.SpanWriter = spanWriter
 	s.SpanReader = &ingester{traceStore}
 	s.CleanUp = func(_ *testing.T) {}
 	s.SkipArchiveTest = true
-	t.Cleanup(func() {
-		require.NoError(t, f.Close())
-		require.NoError(t, spanConsumer.Close())
-		testutils.VerifyGoLeaksOnce(t)
-	})
 }
 
 // The ingester consumes spans from kafka and writes them to an in-memory traceStore
@@ -124,6 +126,9 @@ func (*ingester) FindTraceIDs(context.Context, *spanstore.TraceQueryParameters) 
 }
 
 func TestKafkaStorage(t *testing.T) {
+	t.Cleanup(func() {
+		testutils.VerifyGoLeaksOnce(t)
+	})
 	SkipUnlessEnv(t, "kafka")
 	s := &KafkaIntegrationTestSuite{}
 	s.initialize(t)
