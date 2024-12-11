@@ -125,10 +125,10 @@ func (*ingester) FindTraceIDs(context.Context, *spanstore.TraceQueryParameters) 
 }
 
 func TestKafkaStorage(t *testing.T) {
+	SkipUnlessEnv(t, "kafka")
 	t.Cleanup(func() {
 		testutils.VerifyGoLeaksOnce(t)
 	})
-	SkipUnlessEnv(t, "kafka")
 	s := &KafkaIntegrationTestSuite{}
 	s.initialize(t)
 	t.Run("GetTrace", s.testGetTrace)
