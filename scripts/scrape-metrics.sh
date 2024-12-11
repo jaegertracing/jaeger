@@ -49,7 +49,7 @@ scrape_metrics() {
         exit 1
     fi
 
-    if ! curl -s "http://localhost:$port/metrics" > "$output_file"; then
+    if ! curl "http://jaeger-collector:$port/metrics" > "$output_file"; then
         echo "Failed to scrape metrics for $test_type from port $port"
         exit 1
     fi
