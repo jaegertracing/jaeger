@@ -32,7 +32,7 @@ extensions:
     backends:
       some_storage:
         elasticsearch:
-        server_urls: "http://your es ip:9200"
+          server_urls: "http://your es ip:9200"
           auth:
             basic:
               username: "your es username"
