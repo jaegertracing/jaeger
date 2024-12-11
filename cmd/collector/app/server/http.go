@@ -35,7 +35,7 @@ type HTTPServerParams struct {
 
 // StartHTTPServer based on the given parameters
 func StartHTTPServer(params *HTTPServerParams) (*http.Server, error) {
-	params.Logger.Info("Starting jaeger-collector HTTP server", zap.String("http host-port", params.Endpoint))
+	params.Logger.Info("Starting jaeger-collector HTTP server", zap.String("host-port", params.Endpoint))
 	listener, err := params.ToListener(context.Background())
 	if err != nil {
 		return nil, err
