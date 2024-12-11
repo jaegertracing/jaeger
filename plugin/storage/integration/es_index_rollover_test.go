@@ -19,7 +19,7 @@ const (
 
 func TestIndexRollover_FailIfILMNotPresent(t *testing.T) {
 	SkipUnlessEnv(t, "elasticsearch", "opensearch")
-	client, err := createESClient()
+	client, err := createESClient(t)
 	require.NoError(t, err)
 	require.NoError(t, err)
 	// make sure ES is clean
@@ -47,7 +47,7 @@ func TestIndexRollover_CreateIndicesWithILM(t *testing.T) {
 }
 
 func runCreateIndicesWithILM(t *testing.T, ilmPolicyName string) {
-	client, err := createESClient()
+	client, err := createESClient(t)
 	require.NoError(t, err)
 	esVersion, err := getVersion(client)
 	require.NoError(t, err)
@@ -82,7 +82,7 @@ func runIndexRolloverWithILMTest(t *testing.T, client *elastic.Client, prefix st
 	}
 	// make sure ES is cleaned before test
 	cleanES(t, client, ilmPolicyName)
-	v8Client, err := createESV8Client()
+	v8Client, err := createESV8Client(t)
 	require.NoError(t, err)
 	// make sure ES is cleaned after test
 	defer cleanES(t, client, ilmPolicyName)
