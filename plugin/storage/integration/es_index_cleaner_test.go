@@ -238,13 +238,11 @@ func createESClient(t *testing.T) (*elastic.Client, error) {
 }
 
 func createESV8Client(t *testing.T) (*elasticsearch8.Client, error) {
-	cl, err := elasticsearch8.NewClient(elasticsearch8.Config{
+	return elasticsearch8.NewClient(elasticsearch8.Config{
 		Addresses:            []string{queryURL},
 		DiscoverNodesOnStart: false,
 		Transport:            getESHttpTransport(t),
 	})
-	require.NoError(t, err)
-	return cl, nil
 }
 
 func cleanESIndexTemplates(t *testing.T, client *elastic.Client, v8Client *elasticsearch8.Client, prefix string) {
