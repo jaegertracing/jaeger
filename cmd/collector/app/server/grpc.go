@@ -8,12 +8,8 @@ import (
 	"fmt"
 	"net"
 
-	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/config/confignet"
-	"go.opentelemetry.io/collector/config/configtelemetry"
-	"go.opentelemetry.io/otel/metric"
-	"go.opentelemetry.io/otel/metric/noop"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health"
@@ -23,6 +19,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/collector/app/handler"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/samplingstrategy"
+	"github.com/jaegertracing/jaeger/pkg/telemetry"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 )
 
@@ -43,12 +40,9 @@ func StartGRPCServer(params *GRPCServerParams) (*grpc.Server, error) {
 	var server *grpc.Server
 	var grpcOpts []configgrpc.ToServerOption
 	params.NetAddr.Transport = confignet.TransportTypeTCP
-	server, err := params.ToServer(context.Background(), nil, component.TelemetrySettings{
-		Logger: params.Logger,
-		LeveledMeterProvider: func(_ configtelemetry.Level) metric.MeterProvider {
-			return noop.NewMeterProvider()
-		},
-	}, grpcOpts...)
+	server, err := params.ToServer(context.Background(), nil,
+		telemetry.NoopSettings().ToOtelComponent(),
+		grpcOpts...)
 	if err != nil {
 		return nil, err
 	}

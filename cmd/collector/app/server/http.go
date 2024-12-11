@@ -9,11 +9,7 @@ import (
 	"net/http"
 
 	"github.com/gorilla/mux"
-	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/confighttp"
-	"go.opentelemetry.io/collector/config/configtelemetry"
-	"go.opentelemetry.io/otel/metric"
-	"go.opentelemetry.io/otel/metric/noop"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
@@ -24,6 +20,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/httpmetrics"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/recoveryhandler"
+	"github.com/jaegertracing/jaeger/pkg/telemetry"
 )
 
 // HTTPServerParams to construct a new Jaeger Collector HTTP Server
@@ -44,12 +41,8 @@ func StartHTTPServer(params *HTTPServerParams) (*http.Server, error) {
 		return nil, err
 	}
 	errorLog, _ := zap.NewStdLogAt(params.Logger, zapcore.ErrorLevel)
-	server, err := params.ToServer(context.Background(), nil, component.TelemetrySettings{
-		Logger: params.Logger,
-		LeveledMeterProvider: func(_ configtelemetry.Level) metric.MeterProvider {
-			return noop.NewMeterProvider()
-		},
-	}, nil)
+	server, err := params.ToServer(context.Background(), nil, telemetry.NoopSettings().ToOtelComponent(),
+		nil)
 
 	server.ErrorLog = errorLog
 	if err != nil {
