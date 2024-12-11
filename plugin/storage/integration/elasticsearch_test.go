@@ -23,6 +23,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/plugin/storage/es"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 )
@@ -72,15 +73,30 @@ func (s *ESStorageIntegration) getVersion() (uint, error) {
 }
 
 func (s *ESStorageIntegration) initializeES(t *testing.T, allTagsAsFields bool) {
+	tr := &http.Transport{}
+	t.Cleanup(func() {
+		tr.CloseIdleConnections()
+	})
+	c := &http.Client{
+		Transport: tr,
+	}
 	rawClient, err := elastic.NewClient(
 		elastic.SetURL(queryURL),
-		elastic.SetSniff(false))
+		elastic.SetSniff(false),
+		elastic.SetHttpClient(c))
 	require.NoError(t, err)
-
+	t.Cleanup(func() {
+		rawClient.Stop()
+	})
 	s.client = rawClient
+	v8tr := &http.Transport{}
+	t.Cleanup(func() {
+		v8tr.CloseIdleConnections()
+	})
 	s.v8Client, err = elasticsearch8.NewClient(elasticsearch8.Config{
 		Addresses:            []string{queryURL},
 		DiscoverNodesOnStart: false,
+		Transport:            v8tr,
 	})
 	require.NoError(t, err)
 
@@ -145,9 +161,14 @@ func (s *ESStorageIntegration) initSpanstore(t *testing.T, allTagsAsFields bool)
 }
 
 func healthCheck() error {
+	t := &http.Transport{}
+	defer t.CloseIdleConnections()
+	c := http.Client{
+		Transport: t,
+	}
 	for i := 0; i < 200; i++ {
-		if _, err := http.Get(queryURL); err == nil {
-			return nil
+		if resp, err := c.Get(queryURL); err == nil {
+			return resp.Body.Close()
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
@@ -156,6 +177,9 @@ func healthCheck() error {
 
 func testElasticsearchStorage(t *testing.T, allTagsAsFields bool) {
 	SkipUnlessEnv(t, "elasticsearch", "opensearch")
+	t.Cleanup(func() {
+		testutils.VerifyGoLeaksOnce(t)
+	})
 	require.NoError(t, healthCheck())
 	s := &ESStorageIntegration{
 		StorageIntegration: StorageIntegration{
