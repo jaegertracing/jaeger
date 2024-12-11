@@ -65,6 +65,9 @@ var httpServerFlagsCfg = serverFlagsConfig{
 	tls: tlscfg.ServerFlagsConfig{
 		Prefix: "collector.http",
 	},
+	corsCfg: corscfg.Flags{
+		Prefix: "collector.otlp.http",
+	},
 }
 
 var otlpServerFlagsCfg = struct {
@@ -84,6 +87,9 @@ var otlpServerFlagsCfg = struct {
 			Prefix:                   "collector.otlp.http",
 			EnableCertReloadInterval: true,
 		},
+		corsCfg: corscfg.Flags{
+			Prefix: "collector.otlp.http",
+		},
 	},
 }
 
@@ -92,14 +98,9 @@ var zipkinServerFlagsCfg = serverFlagsConfig{
 	tls: tlscfg.ServerFlagsConfig{
 		Prefix: "collector.zipkin",
 	},
-}
-
-var corsZipkinFlags = corscfg.Flags{
-	Prefix: "collector.zipkin",
-}
-
-var corsOTLPFlags = corscfg.Flags{
-	Prefix: "collector.otlp.http",
+	corsCfg: corscfg.Flags{
+		Prefix: "collector.zipkin",
+	},
 }
 
 // CollectorOptions holds configuration for collector
@@ -134,8 +135,9 @@ type CollectorOptions struct {
 }
 
 type serverFlagsConfig struct {
-	prefix string
-	tls    tlscfg.ServerFlagsConfig
+	prefix  string
+	tls     tlscfg.ServerFlagsConfig
+	corsCfg corscfg.Flags
 }
 
 // AddFlags adds flags for CollectorOptions
@@ -151,13 +153,13 @@ func AddFlags(flagSet *flag.FlagSet) {
 
 	flagSet.Bool(flagCollectorOTLPEnabled, true, "Enables OpenTelemetry OTLP receiver on dedicated HTTP and gRPC ports")
 	addHTTPFlags(flagSet, otlpServerFlagsCfg.HTTP, ":4318")
-	corsOTLPFlags.AddFlags(flagSet)
+	otlpServerFlagsCfg.HTTP.corsCfg.AddFlags(flagSet)
 	addGRPCFlags(flagSet, otlpServerFlagsCfg.GRPC, ":4317")
 
 	flagSet.String(flagZipkinHTTPHostPort, "", "The host:port (e.g. 127.0.0.1:9411 or :9411) of the collector's Zipkin server (disabled by default)")
 	flagSet.Bool(flagZipkinKeepAliveEnabled, true, "KeepAlive configures allow Keep-Alive for Zipkin HTTP server (enabled by default)")
 	zipkinServerFlagsCfg.tls.AddFlags(flagSet)
-	corsZipkinFlags.AddFlags(flagSet)
+	zipkinServerFlagsCfg.corsCfg.AddFlags(flagSet)
 
 	tenancy.AddFlags(flagSet)
 }
@@ -190,7 +192,7 @@ func addGRPCFlags(flagSet *flag.FlagSet, cfg serverFlagsConfig, defaultHostPort 
 	cfg.tls.AddFlags(flagSet)
 }
 
-func initHTTPFromViper(v *viper.Viper, _ *zap.Logger, opts *confighttp.ServerConfig, corsOpts *confighttp.CORSConfig, cfg serverFlagsConfig) error {
+func initHTTPFromViper(v *viper.Viper, opts *confighttp.ServerConfig, corsOpts *confighttp.CORSConfig, cfg serverFlagsConfig) error {
 	tlsOpts, err := cfg.tls.InitFromViper(v)
 	if err != nil {
 		return fmt.Errorf("failed to parse HTTP TLS options: %w", err)
@@ -207,7 +209,7 @@ func initHTTPFromViper(v *viper.Viper, _ *zap.Logger, opts *confighttp.ServerCon
 	return nil
 }
 
-func initGRPCFromViper(v *viper.Viper, _ *zap.Logger, opts *configgrpc.ServerConfig, cfg serverFlagsConfig) error {
+func initGRPCFromViper(v *viper.Viper, opts *configgrpc.ServerConfig, cfg serverFlagsConfig) error {
 	tlsOpts, err := cfg.tls.InitFromViper(v)
 	if err != nil {
 		return fmt.Errorf("failed to parse GRPC TLS options: %w", err)
@@ -226,7 +228,7 @@ func initGRPCFromViper(v *viper.Viper, _ *zap.Logger, opts *configgrpc.ServerCon
 }
 
 // InitFromViper initializes CollectorOptions with properties from viper
-func (cOpts *CollectorOptions) InitFromViper(v *viper.Viper, logger *zap.Logger) (*CollectorOptions, error) {
+func (cOpts *CollectorOptions) InitFromViper(v *viper.Viper, _ *zap.Logger) (*CollectorOptions, error) {
 	cOpts.CollectorTags = flags.ParseJaegerTags(v.GetString(flagCollectorTags))
 	cOpts.NumWorkers = v.GetInt(flagNumWorkers)
 	cOpts.QueueSize = v.GetUint(flagQueueSize)
@@ -234,28 +236,30 @@ func (cOpts *CollectorOptions) InitFromViper(v *viper.Viper, logger *zap.Logger)
 	cOpts.SpanSizeMetricsEnabled = v.GetBool(flagSpanSizeMetricsEnabled)
 	cOpts.Tenancy = tenancy.InitFromViper(v)
 
-	if err := initHTTPFromViper(v, logger, &cOpts.HTTP, nil, httpServerFlagsCfg); err != nil {
+	httpCorsOpts := httpServerFlagsCfg.corsCfg.InitFromViper(v)
+
+	if err := initHTTPFromViper(v, &cOpts.HTTP, httpCorsOpts, httpServerFlagsCfg); err != nil {
 		return cOpts, fmt.Errorf("failed to parse HTTP server options: %w", err)
 	}
 
-	if err := initGRPCFromViper(v, logger, &cOpts.GRPC, grpcServerFlagsCfg); err != nil {
+	if err := initGRPCFromViper(v, &cOpts.GRPC, grpcServerFlagsCfg); err != nil {
 		return cOpts, fmt.Errorf("failed to parse gRPC server options: %w", err)
 	}
 
 	cOpts.OTLP.Enabled = v.GetBool(flagCollectorOTLPEnabled)
-	corsOpts := corsOTLPFlags.InitFromViper(v)
+	otlpCorsOpts := otlpServerFlagsCfg.HTTP.corsCfg.InitFromViper(v)
 
-	if err := initHTTPFromViper(v, logger, &cOpts.OTLP.HTTP, corsOpts, otlpServerFlagsCfg.HTTP); err != nil {
+	if err := initHTTPFromViper(v, &cOpts.OTLP.HTTP, otlpCorsOpts, otlpServerFlagsCfg.HTTP); err != nil {
 		return cOpts, fmt.Errorf("failed to parse OTLP/HTTP server options: %w", err)
 	}
-	if err := initGRPCFromViper(v, logger, &cOpts.OTLP.GRPC, otlpServerFlagsCfg.GRPC); err != nil {
+	if err := initGRPCFromViper(v, &cOpts.OTLP.GRPC, otlpServerFlagsCfg.GRPC); err != nil {
 		return cOpts, fmt.Errorf("failed to parse OTLP/gRPC server options: %w", err)
 	}
 
 	cOpts.Zipkin.KeepAlive = v.GetBool(flagZipkinKeepAliveEnabled)
-	corsOpts = corsZipkinFlags.InitFromViper(v)
+	zipkinCorsOpts := zipkinServerFlagsCfg.corsCfg.InitFromViper(v)
 
-	if err := initHTTPFromViper(v, logger, &cOpts.Zipkin.ServerConfig, corsOpts, zipkinServerFlagsCfg); err != nil {
+	if err := initHTTPFromViper(v, &cOpts.Zipkin.ServerConfig, zipkinCorsOpts, zipkinServerFlagsCfg); err != nil {
 		return cOpts, fmt.Errorf("failed to parse Zipkin server options: %w", err)
 	}
 
