@@ -70,7 +70,7 @@ func TestAdminFailToServe(t *testing.T) {
 	require.NoError(t, adminServer.initFromViper(v, logger))
 
 	adminServer.serveWithListener(l)
-	defer adminServer.Close()
+	t.Cleanup(func() { assert.NoError(t, adminServer.Close()) })
 
 	waitForEqual(t, healthcheck.Broken, func() any { return adminServer.HC().Get() })
 

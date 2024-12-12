@@ -115,7 +115,7 @@ func (s *AdminServer) serveWithListener(l net.Listener) (err error) {
 		recoveryHandler(s.mux),
 	)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to create admin server: %w", err)
 	}
 	errorLog, _ := zap.NewStdLogAt(s.logger, zapcore.ErrorLevel)
 	s.server.ErrorLog = errorLog
