@@ -5,23 +5,23 @@ package flags
 
 import (
 	"context"
-	"crypto/tls"
 	"errors"
 	"flag"
 	"fmt"
-	"io"
 	"net"
 	"net/http"
 	"net/http/pprof"
-	"time"
+	"sync"
 
 	"github.com/spf13/viper"
+	"go.opentelemetry.io/collector/config/confighttp"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	"github.com/jaegertracing/jaeger/pkg/recoveryhandler"
+	"github.com/jaegertracing/jaeger/pkg/telemetry"
 	"github.com/jaegertracing/jaeger/pkg/version"
 )
 
@@ -35,22 +35,23 @@ var tlsAdminHTTPFlagsConfig = tlscfg.ServerFlagsConfig{
 
 // AdminServer runs an HTTP server with admin endpoints, such as healthcheck at /, /metrics, etc.
 type AdminServer struct {
-	logger               *zap.Logger
-	adminHostPort        string
-	hc                   *healthcheck.HealthCheck
-	mux                  *http.ServeMux
-	server               *http.Server
-	tlsCfg               *tls.Config
-	tlsCertWatcherCloser io.Closer
+	logger    *zap.Logger
+	hc        *healthcheck.HealthCheck
+	mux       *http.ServeMux
+	server    *http.Server
+	serverCfg confighttp.ServerConfig
+	stopped   sync.WaitGroup
 }
 
 // NewAdminServer creates a new admin server.
 func NewAdminServer(hostPort string) *AdminServer {
 	return &AdminServer{
-		adminHostPort: hostPort,
-		logger:        zap.NewNop(),
-		hc:            healthcheck.New(),
-		mux:           http.NewServeMux(),
+		logger: zap.NewNop(),
+		hc:     healthcheck.New(),
+		mux:    http.NewServeMux(),
+		serverCfg: confighttp.ServerConfig{
+			Endpoint: hostPort,
+		},
 	}
 }
 
@@ -67,7 +68,7 @@ func (s *AdminServer) setLogger(logger *zap.Logger) {
 
 // AddFlags registers CLI flags.
 func (s *AdminServer) AddFlags(flagSet *flag.FlagSet) {
-	flagSet.String(adminHTTPHostPort, s.adminHostPort, fmt.Sprintf("The host:port (e.g. 127.0.0.1%s or %s) for the admin server, including health check, /metrics, etc.", s.adminHostPort, s.adminHostPort))
+	flagSet.String(adminHTTPHostPort, s.serverCfg.Endpoint, fmt.Sprintf("The host:port (e.g. 127.0.0.1%s or %s) for the admin server, including health check, /metrics, etc.", s.serverCfg.Endpoint, s.serverCfg.Endpoint))
 	tlsAdminHTTPFlagsConfig.AddFlags(flagSet)
 }
 
@@ -75,22 +76,13 @@ func (s *AdminServer) AddFlags(flagSet *flag.FlagSet) {
 func (s *AdminServer) initFromViper(v *viper.Viper, logger *zap.Logger) error {
 	s.setLogger(logger)
 
-	s.adminHostPort = v.GetString(adminHTTPHostPort)
-	var tlsAdminHTTP tlscfg.Options
 	tlsAdminHTTP, err := tlsAdminHTTPFlagsConfig.InitFromViper(v)
 	if err != nil {
 		return fmt.Errorf("failed to parse admin server TLS options: %w", err)
 	}
-	if tlsAdminHTTP.Enabled {
-		tlsCfg, err := tlsAdminHTTP.Config(s.logger) // This checks if the certificates are correctly provided
-		if err != nil {
-			return err
-		}
-		s.tlsCfg = tlsCfg
-		s.tlsCertWatcherCloser = &tlsAdminHTTP
-	} else {
-		s.tlsCertWatcherCloser = io.NopCloser(nil)
-	}
+
+	s.serverCfg.Endpoint = v.GetString(adminHTTPHostPort)
+	s.serverCfg.TLSSetting = tlsAdminHTTP.ToOtelServerConfig()
 	return nil
 }
 
@@ -101,48 +93,52 @@ func (s *AdminServer) Handle(path string, handler http.Handler) {
 
 // Serve starts HTTP server.
 func (s *AdminServer) Serve() error {
-	l, err := net.Listen("tcp", s.adminHostPort)
+	l, err := s.serverCfg.ToListener(context.Background())
 	if err != nil {
 		s.logger.Error("Admin server failed to listen", zap.Error(err))
 		return err
 	}
-	s.serveWithListener(l)
 
-	s.logger.Info(
-		"Admin server started",
-		zap.String("http.host-port", l.Addr().String()),
-		zap.Stringer("health-status", s.hc.Get()))
-	return nil
+	return s.serveWithListener(l)
 }
 
-func (s *AdminServer) serveWithListener(l net.Listener) {
+func (s *AdminServer) serveWithListener(l net.Listener) (err error) {
 	s.logger.Info("Mounting health check on admin server", zap.String("route", "/"))
 	s.mux.Handle("/", s.hc.Handler())
 	version.RegisterHandler(s.mux, s.logger)
 	s.registerPprofHandlers()
 	recoveryHandler := recoveryhandler.NewRecoveryHandler(s.logger, true)
+	s.server, err = s.serverCfg.ToServer(
+		context.Background(),
+		nil, // host
+		telemetry.NoopSettings().ToOtelComponent(),
+		recoveryHandler(s.mux),
+	)
+	if err != nil {
+		return fmt.Errorf("failed to create admin server: %w", err)
+	}
 	errorLog, _ := zap.NewStdLogAt(s.logger, zapcore.ErrorLevel)
-	s.server = &http.Server{
-		Handler:           recoveryHandler(s.mux),
-		ErrorLog:          errorLog,
-		ReadHeaderTimeout: 2 * time.Second,
-	}
-	if s.tlsCfg != nil {
-		s.server.TLSConfig = s.tlsCfg
-	}
-	s.logger.Info("Starting admin HTTP server", zap.String("http-addr", s.adminHostPort))
+	s.server.ErrorLog = errorLog
+
+	s.logger.Info("Starting admin HTTP server")
+	var wg sync.WaitGroup
+	wg.Add(1)
+	s.stopped.Add(1)
 	go func() {
-		var err error
-		if s.tlsCfg != nil {
-			err = s.server.ServeTLS(l, "", "")
-		} else {
-			err = s.server.Serve(l)
-		}
+		wg.Done()
+		defer s.stopped.Done()
+		err := s.server.Serve(l)
 		if err != nil && !errors.Is(err, http.ErrServerClosed) {
 			s.logger.Error("failed to serve", zap.Error(err))
 			s.hc.Set(healthcheck.Broken)
 		}
 	}()
+	wg.Wait() // wait for the server to start listening
+	s.logger.Info(
+		"Admin server started",
+		zap.String("http.host-port", l.Addr().String()),
+		zap.Stringer("health-status", s.hc.Get()))
+	return nil
 }
 
 func (s *AdminServer) registerPprofHandlers() {
@@ -159,8 +155,7 @@ func (s *AdminServer) registerPprofHandlers() {
 
 // Close stops the HTTP server
 func (s *AdminServer) Close() error {
-	return errors.Join(
-		s.tlsCertWatcherCloser.Close(),
-		s.server.Shutdown(context.Background()),
-	)
+	err := s.server.Shutdown(context.Background())
+	s.stopped.Wait()
+	return err
 }
