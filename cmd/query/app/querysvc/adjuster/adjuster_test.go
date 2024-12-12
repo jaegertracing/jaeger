@@ -56,8 +56,8 @@ func TestSequences(t *testing.T) {
 			adjTrace, err := test.adjuster.Adjust(trace)
 			adjTraceSpan := adjTrace.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0)
 
-			assert.Equal(t, span, adjTraceSpan, "same trace & span returned")
-			assert.EqualValues(t, test.lastSpanID, span.SpanID(), "expect span ID to be incremented")
+			assert.Equal(t, span, adjTraceSpan)
+			assert.EqualValues(t, test.lastSpanID, span.SpanID())
 			require.EqualError(t, err, test.err)
 		})
 	}
