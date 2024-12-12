@@ -172,7 +172,7 @@ func TestOptionsToConfig(t *testing.T) {
 					assert.Equal(t, &c, cert)
 				}
 			}
-			require.NoError(t, test.options.Close())
+			require.NoError(t, test.options.close())
 		})
 	}
 }

@@ -8,7 +8,6 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"time"
@@ -185,10 +184,10 @@ func addCertToPool(caPath string, certPool *x509.CertPool) error {
 	return nil
 }
 
-var _ io.Closer = (*Options)(nil)
+// var _ io.Closer = (*Options)(nil)
 
 // Close shuts down the embedded certificate watcher.
-func (o *Options) Close() error {
+func (o *Options) close() error {
 	if o.certWatcher != nil {
 		return o.certWatcher.Close()
 	}
