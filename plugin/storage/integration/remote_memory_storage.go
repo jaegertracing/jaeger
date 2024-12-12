@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/config/configgrpc"
+	"go.opentelemetry.io/collector/config/confignet"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 	"google.golang.org/grpc"
@@ -34,7 +36,11 @@ type RemoteMemoryStorage struct {
 func StartNewRemoteMemoryStorage(t *testing.T) *RemoteMemoryStorage {
 	logger := zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller()))
 	opts := &app.Options{
-		GRPCHostPort: ports.PortToHostPort(ports.RemoteStorageGRPC),
+		GRPCCFG: &configgrpc.ServerConfig{
+			NetAddr: confignet.AddrConfig{
+				Endpoint: ports.PortToHostPort(ports.RemoteStorageGRPC),
+			},
+		},
 		Tenancy: tenancy.Options{
 			Enabled: false,
 		},
@@ -47,7 +53,7 @@ func StartNewRemoteMemoryStorage(t *testing.T) *RemoteMemoryStorage {
 	storageFactory.InitFromViper(v, logger)
 	require.NoError(t, storageFactory.Initialize(metrics.NullFactory, logger))
 
-	t.Logf("Starting in-process remote storage server on %s", opts.GRPCHostPort)
+	t.Logf("Starting in-process remote storage server on %s", opts.GRPCCFG.NetAddr.Endpoint)
 	telset := telemetry.NoopSettings()
 	telset.Logger = logger
 	telset.ReportStatus = telemetry.HCAdapter(healthcheck.New())
@@ -56,7 +62,7 @@ func StartNewRemoteMemoryStorage(t *testing.T) *RemoteMemoryStorage {
 	require.NoError(t, server.Start())
 
 	conn, err := grpc.NewClient(
-		opts.GRPCHostPort,
+		opts.GRPCCFG.NetAddr.Endpoint,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	)
 	require.NoError(t, err)

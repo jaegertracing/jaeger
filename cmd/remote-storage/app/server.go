@@ -4,14 +4,15 @@
 package app
 
 import (
-	"fmt"
+	"context"
 	"net"
 	"sync"
 
 	"go.opentelemetry.io/collector/component/componentstatus"
+	"go.opentelemetry.io/collector/config/configgrpc"
+	"go.opentelemetry.io/collector/config/confignet"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/health"
 	"google.golang.org/grpc/reflection"
 
@@ -27,8 +28,7 @@ import (
 
 // Server runs a gRPC server
 type Server struct {
-	opts *Options
-
+	opts       *Options
 	grpcConn   net.Listener
 	grpcServer *grpc.Server
 	wg         sync.WaitGroup
@@ -42,7 +42,7 @@ func NewServer(options *Options, storageFactory storage.BaseFactory, tm *tenancy
 		return nil, err
 	}
 
-	grpcServer, err := createGRPCServer(options, tm, handler, telset.Logger)
+	grpcServer, err := createGRPCServer(options, tm, handler, telset)
 	if err != nil {
 		return nil, err
 	}
@@ -86,17 +86,8 @@ func createGRPCHandler(f storage.BaseFactory, logger *zap.Logger) (*shared.GRPCH
 	return handler, nil
 }
 
-func createGRPCServer(opts *Options, tm *tenancy.Manager, handler *shared.GRPCHandler, logger *zap.Logger) (*grpc.Server, error) {
-	var grpcOpts []grpc.ServerOption
-
-	if opts.TLSGRPC.Enabled {
-		tlsCfg, err := opts.TLSGRPC.Config(logger)
-		if err != nil {
-			return nil, fmt.Errorf("invalid TLS config: %w", err)
-		}
-		creds := credentials.NewTLS(tlsCfg)
-		grpcOpts = append(grpcOpts, grpc.Creds(creds))
-	}
+func createGRPCServer(opts *Options, tm *tenancy.Manager, handler *shared.GRPCHandler, telset telemetry.Settings) (*grpc.Server, error) {
+	var grpcOpts []configgrpc.ToServerOption
 
 	unaryInterceptors := []grpc.UnaryServerInterceptor{
 		bearertoken.NewUnaryServerInterceptor(),
@@ -110,11 +101,17 @@ func createGRPCServer(opts *Options, tm *tenancy.Manager, handler *shared.GRPCHa
 	}
 
 	grpcOpts = append(grpcOpts,
-		grpc.ChainUnaryInterceptor(unaryInterceptors...),
-		grpc.ChainStreamInterceptor(streamInterceptors...),
+		configgrpc.WithGrpcServerOption(grpc.ChainUnaryInterceptor(unaryInterceptors...)),
+		configgrpc.WithGrpcServerOption(grpc.ChainStreamInterceptor(streamInterceptors...)),
 	)
-
-	server := grpc.NewServer(grpcOpts...)
+	opts.GRPCCFG.NetAddr.Transport = confignet.TransportTypeTCP
+	server, err := opts.GRPCCFG.ToServer(context.Background(),
+		nil,
+		telset.ToOtelComponent(),
+		grpcOpts...)
+	if err != nil {
+		return nil, err
+	}
 	healthServer := health.NewServer()
 	reflection.Register(server)
 	handler.Register(server, healthServer)
@@ -124,12 +121,12 @@ func createGRPCServer(opts *Options, tm *tenancy.Manager, handler *shared.GRPCHa
 
 // Start gRPC server concurrently
 func (s *Server) Start() error {
-	listener, err := net.Listen("tcp", s.opts.GRPCHostPort)
+	var err error
+	s.grpcConn, err = s.opts.GRPCCFG.NetAddr.Listen(context.Background())
 	if err != nil {
 		return err
 	}
-	s.telset.Logger.Info("Starting GRPC server", zap.Stringer("addr", listener.Addr()))
-	s.grpcConn = listener
+	s.telset.Logger.Info("Starting GRPC server", zap.Stringer("addr", s.grpcConn.Addr()))
 	s.wg.Add(1)
 	go func() {
 		defer s.wg.Done()
@@ -145,8 +142,6 @@ func (s *Server) Start() error {
 // Close stops http, GRPC servers and closes the port listener.
 func (s *Server) Close() error {
 	s.grpcServer.Stop()
-	s.grpcConn.Close()
-	s.opts.TLSGRPC.Close()
 	s.wg.Wait()
 	s.telset.ReportStatus(componentstatus.NewEvent(componentstatus.StatusStopped))
 	return nil
