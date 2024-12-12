@@ -40,6 +40,7 @@ type AdminServer struct {
 	mux       *http.ServeMux
 	server    *http.Server
 	serverCfg confighttp.ServerConfig
+	stopped   sync.WaitGroup
 }
 
 // NewAdminServer creates a new admin server.
@@ -104,11 +105,7 @@ func (s *AdminServer) Serve() error {
 		return err
 	}
 
-	s.logger.Info(
-		"Admin server started",
-		zap.String("http.host-port", l.Addr().String()),
-		zap.Stringer("health-status", s.hc.Get()))
-	return nil
+	return s.serveWithListener(l)
 }
 
 func (s *AdminServer) serveWithListener(l net.Listener) (err error) {
@@ -117,33 +114,36 @@ func (s *AdminServer) serveWithListener(l net.Listener) (err error) {
 	version.RegisterHandler(s.mux, s.logger)
 	s.registerPprofHandlers()
 	recoveryHandler := recoveryhandler.NewRecoveryHandler(s.logger, true)
-	errorLog, _ := zap.NewStdLogAt(s.logger, zapcore.ErrorLevel)
-	s.server, err = s.serverCfg.ToServer(context.Background(), nil, telemetry.NoopSettings().ToOtelComponent(),
-		recoveryHandler(s.mux))
+	s.server, err = s.serverCfg.ToServer(
+		context.Background(),
+		nil, // host
+		telemetry.NoopSettings().ToOtelComponent(),
+		recoveryHandler(s.mux),
+	)
 	if err != nil {
 		return err
 	}
+	errorLog, _ := zap.NewStdLogAt(s.logger, zapcore.ErrorLevel)
 	s.server.ErrorLog = errorLog
 
-	if s.serverCfg.TLSSetting != nil {
-		s.server.TLSConfig, err = s.serverCfg.TLSSetting.LoadTLSConfig(context.Background())
-		if err != nil {
-			return err
-		}
-	}
-	s.logger.Info("Starting admin HTTP server", zap.String("http-addr", s.serverCfg.Endpoint))
+	s.logger.Info("Starting admin HTTP server")
 	var wg sync.WaitGroup
 	wg.Add(1)
+	s.stopped.Add(1)
 	go func() {
 		wg.Done()
+		defer s.stopped.Done()
 		err := s.server.Serve(l)
 		if err != nil && !errors.Is(err, http.ErrServerClosed) {
 			s.logger.Error("failed to serve", zap.Error(err))
 			s.hc.Set(healthcheck.Broken)
 		}
 	}()
-
-	wg.Wait()
+	wg.Wait() // wait for the server to start listening
+	s.logger.Info(
+		"Admin server started",
+		zap.String("http.host-port", l.Addr().String()),
+		zap.Stringer("health-status", s.hc.Get()))
 	return nil
 }
 
@@ -161,7 +161,7 @@ func (s *AdminServer) registerPprofHandlers() {
 
 // Close stops the HTTP server
 func (s *AdminServer) Close() error {
-	return errors.Join(
-		s.server.Shutdown(context.Background()),
-	)
+	err := s.server.Shutdown(context.Background())
+	s.stopped.Wait()
+	return err
 }
