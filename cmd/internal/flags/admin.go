@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/pprof"
+	"sync"
 
 	"github.com/spf13/viper"
 	"go.opentelemetry.io/collector/config/confighttp"
@@ -76,10 +77,10 @@ func (s *AdminServer) initFromViper(v *viper.Viper, logger *zap.Logger) error {
 
 	s.serverCfg.Endpoint = v.GetString(adminHTTPHostPort)
 	tlsAdminHTTP, err := tlsAdminHTTPFlagsConfig.InitFromViper(v)
-	tlsAdminHTTPConfig := tlsAdminHTTP.ToOtelServerConfig()
 	if err != nil {
 		return fmt.Errorf("failed to parse admin server TLS options: %w", err)
 	}
+	tlsAdminHTTPConfig := tlsAdminHTTP.ToOtelServerConfig()
 	if tlsAdminHTTPConfig != nil {
 		s.serverCfg.TLSSetting = tlsAdminHTTPConfig
 		_, err = s.serverCfg.TLSSetting.LoadTLSConfig(context.Background())
@@ -128,15 +129,16 @@ func (s *AdminServer) serveWithListener(l net.Listener) (err error) {
 	s.server.ErrorLog = errorLog
 
 	if s.serverCfg.TLSSetting != nil {
-		tlsConfig, err := s.serverCfg.TLSSetting.LoadTLSConfig(context.Background())
+		s.server.TLSConfig, err = s.serverCfg.TLSSetting.LoadTLSConfig(context.Background())
 		if err != nil {
-			s.logger.Error("failed to load tls config", zap.Error(err))
-			s.hc.Set(healthcheck.Broken)
+			return err
 		}
-		s.server.TLSConfig = tlsConfig
 	}
 	s.logger.Info("Starting admin HTTP server", zap.String("http-addr", s.serverCfg.Endpoint))
+	var wg sync.WaitGroup
+	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		err := s.server.Serve(l)
 		if err != nil && !errors.Is(err, http.ErrServerClosed) {
 			s.logger.Error("failed to serve", zap.Error(err))
@@ -144,6 +146,9 @@ func (s *AdminServer) serveWithListener(l net.Listener) (err error) {
 		}
 	}()
 
+	go func() {
+		wg.Wait()
+	}()
 	return nil
 }
 
