@@ -1,3 +1,6 @@
+// Copyright (c) 2024 The Jaeger Authors.
+// SPDX-License-Identifier: Apache-2.0
+
 package adjuster_test
 
 import (
@@ -5,11 +8,12 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc/adjuster"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+
+	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc/adjuster"
 )
 
 func TestSequences(t *testing.T) {
