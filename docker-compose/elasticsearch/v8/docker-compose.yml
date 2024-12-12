@@ -1,6 +1,6 @@
 services:
   elasticsearch:
-    image: docker.elastic.co/elasticsearch/elasticsearch:8.16.0
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.17.0
     environment:
       - discovery.type=single-node
       - http.host=0.0.0.0
