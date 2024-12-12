@@ -76,19 +76,13 @@ func (s *AdminServer) AddFlags(flagSet *flag.FlagSet) {
 func (s *AdminServer) initFromViper(v *viper.Viper, logger *zap.Logger) error {
 	s.setLogger(logger)
 
-	s.serverCfg.Endpoint = v.GetString(adminHTTPHostPort)
 	tlsAdminHTTP, err := tlsAdminHTTPFlagsConfig.InitFromViper(v)
 	if err != nil {
 		return fmt.Errorf("failed to parse admin server TLS options: %w", err)
 	}
-	tlsAdminHTTPConfig := tlsAdminHTTP.ToOtelServerConfig()
-	if tlsAdminHTTPConfig != nil {
-		s.serverCfg.TLSSetting = tlsAdminHTTPConfig
-		_, err = s.serverCfg.TLSSetting.LoadTLSConfig(context.Background())
-		if err != nil {
-			return err
-		}
-	}
+
+	s.serverCfg.Endpoint = v.GetString(adminHTTPHostPort)
+	s.serverCfg.TLSSetting = tlsAdminHTTP.ToOtelServerConfig()
 	return nil
 }
 
