@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"strconv"
 	"strings"
 	"testing"
@@ -71,8 +72,7 @@ func (s *ESStorageIntegration) getVersion() (uint, error) {
 	return uint(esVersion), nil
 }
 
-func (s *ESStorageIntegration) initializeES(t *testing.T, allTagsAsFields bool) {
-	c := getESHttpClient(t)
+func (s *ESStorageIntegration) initializeES(t *testing.T, c *http.Client, allTagsAsFields bool) {
 	rawClient, err := elastic.NewClient(
 		elastic.SetURL(queryURL),
 		elastic.SetSniff(false),
@@ -149,8 +149,7 @@ func (s *ESStorageIntegration) initSpanstore(t *testing.T, allTagsAsFields bool)
 	require.NoError(t, err)
 }
 
-func healthCheck(t *testing.T) error {
-	c := getESHttpClient(t)
+func healthCheck(c *http.Client) error {
 	for i := 0; i < 200; i++ {
 		if resp, err := c.Get(queryURL); err == nil {
 			return resp.Body.Close()
@@ -162,10 +161,8 @@ func healthCheck(t *testing.T) error {
 
 func testElasticsearchStorage(t *testing.T, allTagsAsFields bool) {
 	SkipUnlessEnv(t, "elasticsearch", "opensearch")
-	t.Cleanup(func() {
-		testutils.VerifyGoLeaksOnce(t)
-	})
-	require.NoError(t, healthCheck(t))
+	c := getESHttpClient(t)
+	require.NoError(t, healthCheck(c))
 	s := &ESStorageIntegration{
 		StorageIntegration: StorageIntegration{
 			Fixtures:        LoadAndParseQueryTestCases(t, "fixtures/queries_es.json"),
@@ -175,11 +172,14 @@ func testElasticsearchStorage(t *testing.T, allTagsAsFields bool) {
 			GetOperationsMissingSpanKind: true,
 		},
 	}
-	s.initializeES(t, allTagsAsFields)
+	s.initializeES(t, c, allTagsAsFields)
 	s.RunAll(t)
 }
 
 func TestElasticsearchStorage(t *testing.T) {
+	t.Cleanup(func() {
+		testutils.VerifyGoLeaksOnce(t)
+	})
 	testElasticsearchStorage(t, false)
 }
 
@@ -189,9 +189,10 @@ func TestElasticsearchStorage_AllTagsAsObjectFields(t *testing.T) {
 
 func TestElasticsearchStorage_IndexTemplates(t *testing.T) {
 	SkipUnlessEnv(t, "elasticsearch", "opensearch")
-	require.NoError(t, healthCheck(t))
+	c := getESHttpClient(t)
+	require.NoError(t, healthCheck(c))
 	s := &ESStorageIntegration{}
-	s.initializeES(t, true)
+	s.initializeES(t, c, true)
 	esVersion, err := s.getVersion()
 	require.NoError(t, err)
 	// TODO abstract this into pkg/es/client.IndexManagementLifecycleAPI
