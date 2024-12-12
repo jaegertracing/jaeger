@@ -39,7 +39,7 @@ type AdminServer struct {
 	hc        *healthcheck.HealthCheck
 	mux       *http.ServeMux
 	server    *http.Server
-	serverCfg *confighttp.ServerConfig
+	serverCfg confighttp.ServerConfig
 }
 
 // NewAdminServer creates a new admin server.
@@ -48,7 +48,7 @@ func NewAdminServer(hostPort string) *AdminServer {
 		logger: zap.NewNop(),
 		hc:     healthcheck.New(),
 		mux:    http.NewServeMux(),
-		serverCfg: &confighttp.ServerConfig{
+		serverCfg: confighttp.ServerConfig{
 			Endpoint: hostPort,
 		},
 	}
