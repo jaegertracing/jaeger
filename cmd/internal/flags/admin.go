@@ -103,9 +103,6 @@ func (s *AdminServer) Serve() error {
 		s.logger.Error("Admin server failed to listen", zap.Error(err))
 		return err
 	}
-	if err = s.serveWithListener(l); err != nil {
-		return err
-	}
 
 	s.logger.Info(
 		"Admin server started",
@@ -138,7 +135,7 @@ func (s *AdminServer) serveWithListener(l net.Listener) (err error) {
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() {
-		defer wg.Done()
+		wg.Done()
 		err := s.server.Serve(l)
 		if err != nil && !errors.Is(err, http.ErrServerClosed) {
 			s.logger.Error("failed to serve", zap.Error(err))
@@ -146,9 +143,7 @@ func (s *AdminServer) serveWithListener(l net.Listener) (err error) {
 		}
 	}()
 
-	go func() {
-		wg.Wait()
-	}()
+	wg.Wait()
 	return nil
 }
 
