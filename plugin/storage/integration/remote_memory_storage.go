@@ -36,7 +36,7 @@ type RemoteMemoryStorage struct {
 func StartNewRemoteMemoryStorage(t *testing.T) *RemoteMemoryStorage {
 	logger := zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller()))
 	opts := &app.Options{
-		GRPCCFG: &configgrpc.ServerConfig{
+		ServerConfig: &configgrpc.ServerConfig{
 			NetAddr: confignet.AddrConfig{
 				Endpoint: ports.PortToHostPort(ports.RemoteStorageGRPC),
 			},
@@ -53,7 +53,7 @@ func StartNewRemoteMemoryStorage(t *testing.T) *RemoteMemoryStorage {
 	storageFactory.InitFromViper(v, logger)
 	require.NoError(t, storageFactory.Initialize(metrics.NullFactory, logger))
 
-	t.Logf("Starting in-process remote storage server on %s", opts.GRPCCFG.NetAddr.Endpoint)
+	t.Logf("Starting in-process remote storage server on %s", opts.NetAddr.Endpoint)
 	telset := telemetry.NoopSettings()
 	telset.Logger = logger
 	telset.ReportStatus = telemetry.HCAdapter(healthcheck.New())
@@ -62,7 +62,7 @@ func StartNewRemoteMemoryStorage(t *testing.T) *RemoteMemoryStorage {
 	require.NoError(t, server.Start())
 
 	conn, err := grpc.NewClient(
-		opts.GRPCCFG.NetAddr.Endpoint,
+		opts.NetAddr.Endpoint,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	)
 	require.NoError(t, err)

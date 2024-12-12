@@ -19,7 +19,7 @@ func TestFlags(t *testing.T) {
 	})
 	qOpts, err := new(Options).InitFromViper(v)
 	require.NoError(t, err)
-	assert.Equal(t, "127.0.0.1:8081", qOpts.GRPCCFG.NetAddr.Endpoint)
+	assert.Equal(t, "127.0.0.1:8081", qOpts.NetAddr.Endpoint)
 }
 
 func TestFailedTLSFlags(t *testing.T) {

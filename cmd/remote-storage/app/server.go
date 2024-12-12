@@ -104,8 +104,8 @@ func createGRPCServer(opts *Options, tm *tenancy.Manager, handler *shared.GRPCHa
 		configgrpc.WithGrpcServerOption(grpc.ChainUnaryInterceptor(unaryInterceptors...)),
 		configgrpc.WithGrpcServerOption(grpc.ChainStreamInterceptor(streamInterceptors...)),
 	)
-	opts.GRPCCFG.NetAddr.Transport = confignet.TransportTypeTCP
-	server, err := opts.GRPCCFG.ToServer(context.Background(),
+	opts.NetAddr.Transport = confignet.TransportTypeTCP
+	server, err := opts.ToServer(context.Background(),
 		nil,
 		telset.ToOtelComponent(),
 		grpcOpts...)
@@ -122,7 +122,7 @@ func createGRPCServer(opts *Options, tm *tenancy.Manager, handler *shared.GRPCHa
 // Start gRPC server concurrently
 func (s *Server) Start() error {
 	var err error
-	s.grpcConn, err = s.opts.GRPCCFG.NetAddr.Listen(context.Background())
+	s.grpcConn, err = s.opts.NetAddr.Listen(context.Background())
 	if err != nil {
 		return err
 	}

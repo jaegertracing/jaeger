@@ -26,7 +26,7 @@ var tlsGRPCFlagsConfig = tlscfg.ServerFlagsConfig{
 
 // Options holds configuration for remote-storage service.
 type Options struct {
-	GRPCCFG *configgrpc.ServerConfig
+	*configgrpc.ServerConfig
 	// Tenancy configuration
 	Tenancy tenancy.Options
 }
@@ -41,7 +41,7 @@ func AddFlags(flagSet *flag.FlagSet) {
 // InitFromViper initializes Options with properties from CLI flags.
 func (o *Options) InitFromViper(v *viper.Viper) (*Options, error) {
 	grpcEndpoint := v.GetString(flagGRPCHostPort)
-	o.GRPCCFG = &configgrpc.ServerConfig{
+	o.ServerConfig = &configgrpc.ServerConfig{
 		NetAddr: confignet.AddrConfig{
 			Endpoint: grpcEndpoint,
 		},
@@ -50,7 +50,7 @@ func (o *Options) InitFromViper(v *viper.Viper) (*Options, error) {
 	if err != nil {
 		return o, fmt.Errorf("failed to process gRPC TLS options: %w", err)
 	}
-	o.GRPCCFG.TLSSetting = tlsGrpc.ToOtelServerConfig()
+	o.TLSSetting = tlsGrpc.ToOtelServerConfig()
 	o.Tenancy = tenancy.InitFromViper(v)
 	return o, nil
 }
