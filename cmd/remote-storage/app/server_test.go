@@ -47,7 +47,7 @@ func TestNewServer_CreateStorageErrors(t *testing.T) {
 	f := func() (*Server, error) {
 		return NewServer(
 			&Options{
-				ServerConfig: &configgrpc.ServerConfig{
+				ServerConfig: configgrpc.ServerConfig{
 					NetAddr: confignet.AddrConfig{
 						Endpoint: ":0",
 					},
@@ -78,7 +78,7 @@ func TestNewServer_CreateStorageErrors(t *testing.T) {
 func TestServerStart_BadPortErrors(t *testing.T) {
 	srv := &Server{
 		opts: &Options{
-			ServerConfig: &configgrpc.ServerConfig{
+			ServerConfig: configgrpc.ServerConfig{
 				NetAddr: confignet.AddrConfig{
 					Endpoint: ":-1",
 				},
@@ -127,7 +127,7 @@ func TestNewServer_TLSConfigError(t *testing.T) {
 	storageMocks := newStorageMocks()
 	_, err := NewServer(
 		&Options{
-			ServerConfig: &configgrpc.ServerConfig{
+			ServerConfig: configgrpc.ServerConfig{
 				NetAddr: confignet.AddrConfig{
 					Endpoint: ":8081",
 				},
@@ -329,7 +329,7 @@ func TestServerGRPCTLS(t *testing.T) {
 	for _, test := range testCases {
 		t.Run(test.name, func(t *testing.T) {
 			serverOptions := &Options{
-				ServerConfig: &configgrpc.ServerConfig{
+				ServerConfig: configgrpc.ServerConfig{
 					NetAddr: confignet.AddrConfig{
 						Endpoint: ":0",
 					},
@@ -398,7 +398,7 @@ func TestServerHandlesPortZero(t *testing.T) {
 		ReportStatus: telemetry.HCAdapter(flagsSvc.HC()),
 	}
 	server, err := NewServer(
-		&Options{ServerConfig: &configgrpc.ServerConfig{
+		&Options{ServerConfig: configgrpc.ServerConfig{
 			NetAddr: confignet.AddrConfig{Endpoint: ":0"},
 		}},
 		storageMocks.factory,

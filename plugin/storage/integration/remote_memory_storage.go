@@ -36,7 +36,7 @@ type RemoteMemoryStorage struct {
 func StartNewRemoteMemoryStorage(t *testing.T) *RemoteMemoryStorage {
 	logger := zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller()))
 	opts := &app.Options{
-		ServerConfig: &configgrpc.ServerConfig{
+		ServerConfig: configgrpc.ServerConfig{
 			NetAddr: confignet.AddrConfig{
 				Endpoint: ports.PortToHostPort(ports.RemoteStorageGRPC),
 			},
