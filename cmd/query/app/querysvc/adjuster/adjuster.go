@@ -18,11 +18,11 @@ type Adjuster interface {
 }
 
 // Func is a type alias that wraps a function and makes an Adjuster from it.
-type Func func(trace ptrace.Traces) (ptrace.Traces, error)
+type Func func(traces ptrace.Traces) (ptrace.Traces, error)
 
 // Adjust implements Adjuster interface for the Func alias.
-func (f Func) Adjust(trace ptrace.Traces) (ptrace.Traces, error) {
-	return f(trace)
+func (f Func) Adjust(traces ptrace.Traces) (ptrace.Traces, error) {
+	return f(traces)
 }
 
 // Sequence creates an adjuster that combines a series of adjusters
@@ -44,17 +44,17 @@ type sequence struct {
 	failFast  bool
 }
 
-func (c sequence) Adjust(trace ptrace.Traces) (ptrace.Traces, error) {
+func (c sequence) Adjust(traces ptrace.Traces) (ptrace.Traces, error) {
 	var errs []error
 	for _, adjuster := range c.adjusters {
 		var err error
-		trace, err = adjuster.Adjust(trace)
+		traces, err = adjuster.Adjust(traces)
 		if err != nil {
 			if c.failFast {
-				return trace, err
+				return traces, err
 			}
 			errs = append(errs, err)
 		}
 	}
-	return trace, errors.Join(errs...)
+	return traces, errors.Join(errs...)
 }
