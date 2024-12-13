@@ -62,8 +62,8 @@ jobs:
     - name: Upload Metrics Artifact
       uses: actions/upload-artifact@v3
       with:
-            name: es-metrics-${{ matrix.version }}
-            path: ./metrics/es_metrics.txt
+            name: elasticsearch-metrics-${{ matrix.version }}
+            path: ./metrics/elasticsearch_metrics.txt
             retention-days: 7     
    
     - name: Upload coverage to codecov

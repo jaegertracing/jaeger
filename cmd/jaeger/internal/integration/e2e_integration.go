@@ -152,6 +152,14 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
 	s.SpanReader, err = createSpanReader(logger, ports.QueryGRPC)
 	require.NoError(t, err)
 
+	scrapeCmd := exec.Command("./scripts/scrape-metrics.sh", "-t", storage)
+	scrapeCmd.Dir = "../../../.."
+	output, err := scrapeCmd.CombinedOutput()
+	if err != nil {
+		t.Errorf("Failed to scrape metrics: %v", err)
+		t.Log(string(output))
+	}
+
 	t.Cleanup(func() {
 		// Call e2eCleanUp to close the SpanReader and SpanWriter gRPC connection.
 		s.e2eCleanUp(t)

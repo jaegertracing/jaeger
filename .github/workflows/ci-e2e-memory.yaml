@@ -30,15 +30,11 @@ jobs:
       run: |
         STORAGE=memory_v2 make jaeger-v2-storage-integration-test
         
-    - name: Scrape Metrics
-      run: |
-              bash scripts/scrape-metrics.sh -t memory-${{ matrix.version }}
-              
     - name: Upload Metrics Artifact
       uses: actions/upload-artifact@v3
       with:
           name: memory-metrics-${{ matrix.version }}
-          path: ./metrics/memory-${{ matrix.version }}_metrics.txt
+          path: ./metrics/memory_metrics.txt
           retention-days: 7
           
     - name: Upload coverage to codecov
