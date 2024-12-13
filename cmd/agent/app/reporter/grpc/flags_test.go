@@ -41,7 +41,8 @@ func TestBindFlags(t *testing.T) {
 						IncludeSystemCACertsPool: true,
 					},
 				},
-				MaxRetry: defaultMaxRetry, DiscoveryMinPeers: 3},
+				MaxRetry: defaultMaxRetry, DiscoveryMinPeers: 3,
+			},
 		},
 	}
 	for _, test := range tests {
