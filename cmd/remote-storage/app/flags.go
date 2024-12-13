@@ -9,7 +9,6 @@ import (
 
 	"github.com/spf13/viper"
 	"go.opentelemetry.io/collector/config/configgrpc"
-	"go.opentelemetry.io/collector/config/confignet"
 
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
@@ -40,12 +39,7 @@ func AddFlags(flagSet *flag.FlagSet) {
 
 // InitFromViper initializes Options with properties from CLI flags.
 func (o *Options) InitFromViper(v *viper.Viper) (*Options, error) {
-	grpcEndpoint := v.GetString(flagGRPCHostPort)
-	o.ServerConfig = configgrpc.ServerConfig{
-		NetAddr: confignet.AddrConfig{
-			Endpoint: grpcEndpoint,
-		},
-	}
+	o.NetAddr.Endpoint = v.GetString(flagGRPCHostPort)
 	tlsGrpc, err := tlsGRPCFlagsConfig.InitFromViper(v)
 	if err != nil {
 		return o, fmt.Errorf("failed to process gRPC TLS options: %w", err)

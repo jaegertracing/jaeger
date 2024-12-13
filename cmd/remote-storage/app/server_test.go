@@ -69,10 +69,9 @@ func TestNewServer_CreateStorageErrors(t *testing.T) {
 
 	s, err := f()
 	require.NoError(t, err)
-	err = s.Start()
-	require.NoError(t, err)
+	require.NoError(t, s.Start())
 	validateGRPCServer(t, s.grpcConn.Addr().String())
-	s.grpcConn.Close()
+	require.NoError(t, s.grpcConn.Close())
 }
 
 func TestServerStart_BadPortErrors(t *testing.T) {

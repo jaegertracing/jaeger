@@ -5,6 +5,7 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"sync"
 
@@ -31,7 +32,7 @@ type Server struct {
 	opts       *Options
 	grpcConn   net.Listener
 	grpcServer *grpc.Server
-	wg         sync.WaitGroup
+	stopped    sync.WaitGroup
 	telset     telemetry.Settings
 }
 
@@ -87,8 +88,6 @@ func createGRPCHandler(f storage.BaseFactory, logger *zap.Logger) (*shared.GRPCH
 }
 
 func createGRPCServer(opts *Options, tm *tenancy.Manager, handler *shared.GRPCHandler, telset telemetry.Settings) (*grpc.Server, error) {
-	var grpcOpts []configgrpc.ToServerOption
-
 	unaryInterceptors := []grpc.UnaryServerInterceptor{
 		bearertoken.NewUnaryServerInterceptor(),
 	}
@@ -100,17 +99,15 @@ func createGRPCServer(opts *Options, tm *tenancy.Manager, handler *shared.GRPCHa
 		streamInterceptors = append(streamInterceptors, tenancy.NewGuardingStreamInterceptor(tm))
 	}
 
-	grpcOpts = append(grpcOpts,
+	opts.NetAddr.Transport = confignet.TransportTypeTCP
+	server, err := opts.ToServer(context.Background(),
+		telset.Host,
+		telset.ToOtelComponent(),
 		configgrpc.WithGrpcServerOption(grpc.ChainUnaryInterceptor(unaryInterceptors...)),
 		configgrpc.WithGrpcServerOption(grpc.ChainStreamInterceptor(streamInterceptors...)),
 	)
-	opts.NetAddr.Transport = confignet.TransportTypeTCP
-	server, err := opts.ToServer(context.Background(),
-		nil,
-		telset.ToOtelComponent(),
-		grpcOpts...)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create gRPC server: %w", err)
 	}
 	healthServer := health.NewServer()
 	reflection.Register(server)
@@ -124,12 +121,12 @@ func (s *Server) Start() error {
 	var err error
 	s.grpcConn, err = s.opts.NetAddr.Listen(context.Background())
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to listen on gRPC port: %w", err)
 	}
 	s.telset.Logger.Info("Starting GRPC server", zap.Stringer("addr", s.grpcConn.Addr()))
-	s.wg.Add(1)
+	s.stopped.Add(1)
 	go func() {
-		defer s.wg.Done()
+		defer s.stopped.Done()
 		if err := s.grpcServer.Serve(s.grpcConn); err != nil {
 			s.telset.Logger.Error("GRPC server exited", zap.Error(err))
 			s.telset.ReportStatus(componentstatus.NewFatalErrorEvent(err))
@@ -142,7 +139,7 @@ func (s *Server) Start() error {
 // Close stops http, GRPC servers and closes the port listener.
 func (s *Server) Close() error {
 	s.grpcServer.Stop()
-	s.wg.Wait()
+	s.stopped.Wait()
 	s.telset.ReportStatus(componentstatus.NewEvent(componentstatus.StatusStopped))
 	return nil
 }
