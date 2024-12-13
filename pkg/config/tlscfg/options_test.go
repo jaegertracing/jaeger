@@ -4,10 +4,19 @@
 package tlscfg
 
 import (
+	"crypto/rand"
+	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/pem"
 	"errors"
+	"fmt"
+	"math/big"
+	"net/http"
+	"net/http/httptest"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -303,4 +312,97 @@ func TestToOtelServerConfig(t *testing.T) {
 			assert.Equal(t, tc.expected, actual)
 		})
 	}
+}
+
+func TestCertificateRaceCondition(t *testing.T) {
+    var (
+        wg sync.WaitGroup
+        errChan = make(chan error, 10)
+    )
+
+    // Initial server cert
+    serverCert, serverKey, err := generateSignedCert()
+    require.NoError(t, err)
+
+    server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+        fmt.Fprintln(w, "OK")
+    }))
+
+    initialKeyPair, err := tls.X509KeyPair(serverCert, serverKey)
+    require.NoError(t, err)
+    
+    certPool := x509.NewCertPool()
+    certPool.AppendCertsFromPEM(serverCert)
+
+    server.TLS = &tls.Config{
+        Certificates: []tls.Certificate{initialKeyPair},
+    }
+    server.StartTLS()
+    defer server.Close()
+
+    // Updater goroutines
+    for i := 0; i < 10; i++ {
+        wg.Add(1)
+        go func(id int) {
+			defer wg.Done()
+
+            newCert, newKey, err := generateSignedCert()
+            if err != nil {
+                errChan <- err
+                return
+            }
+
+            certPool.AppendCertsFromPEM(newCert) // Race here
+            
+            keyPair, err := tls.X509KeyPair(newCert, newKey)
+            if err != nil {
+                errChan <- err
+                return
+            }
+
+            server.TLS = &tls.Config{
+                Certificates: []tls.Certificate{keyPair},
+            }
+        }(i)
+    }
+    
+    // Wait for completion
+    wg.Wait()
+    
+    // Check errors
+    close(errChan)
+    for err := range errChan {
+        require.NoError(t, err)
+    }
+}
+
+func generateSignedCert() ([]byte, []byte, error) {
+	priv, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to generate private key: %w", err)
+	}
+
+	template := x509.Certificate{
+		SerialNumber: big.NewInt(time.Now().UnixNano()),
+		Subject: pkix.Name{
+			Organization: []string{"Test Org"},
+		},
+		NotBefore: time.Now(),
+		NotAfter:  time.Now().Add(1 * time.Hour), // Short-lived for test purposes
+		KeyUsage:  x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
+		ExtKeyUsage: []x509.ExtKeyUsage{
+			x509.ExtKeyUsageServerAuth,
+		},
+		BasicConstraintsValid: true,
+	}
+
+	certBytes, err := x509.CreateCertificate(rand.Reader, &template, &template, &priv.PublicKey, priv)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to create certificate: %w", err)
+	}
+
+	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certBytes})
+	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(priv)})
+
+	return certPEM, keyPEM, nil
 }
