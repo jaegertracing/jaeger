@@ -1,3 +1,6 @@
+// Copyright (c) 2024 The Jaeger Authors.
+// SPDX-License-Identifier: Apache-2.0
+
 package adjuster
 
 import (
@@ -43,5 +46,4 @@ func TestIPAttributeAdjuster(t *testing.T) {
 	val, ok = attributesB.Get("ip")
 	require.True(t, ok)
 	require.EqualValues(t, "2.2.3.4", val.Str())
-
 }
