@@ -11,6 +11,7 @@ import (
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/config/configtls"
 
 	"github.com/jaegertracing/jaeger/pkg/config"
 )
@@ -31,6 +32,16 @@ func TestBindFlags(t *testing.T) {
 		{
 			cOpts:    []string{"--reporter.grpc.host-port=localhost:1111,localhost:2222", "--reporter.grpc.discovery.min-peers=5"},
 			expected: &ConnBuilder{CollectorHostPorts: []string{"localhost:1111", "localhost:2222"}, MaxRetry: defaultMaxRetry, DiscoveryMinPeers: 5},
+		},
+		{
+			cOpts: []string{"--reporter.grpc.tls.enabled=true"},
+			expected: &ConnBuilder{
+				TLS: &configtls.ClientConfig{
+					Config: configtls.Config{
+						IncludeSystemCACertsPool: true,
+					},
+				},
+				MaxRetry: defaultMaxRetry, DiscoveryMinPeers: 3},
 		},
 	}
 	for _, test := range tests {
