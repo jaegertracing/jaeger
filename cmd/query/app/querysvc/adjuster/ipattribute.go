@@ -60,6 +60,7 @@ func IPAttribute() Adjuster {
 		resourceSpans := traces.ResourceSpans()
 		for i := 0; i < resourceSpans.Len(); i++ {
 			rs := resourceSpans.At(i)
+			adjustAttributes(rs.Resource().Attributes())
 			scopeSpans := rs.ScopeSpans()
 			for j := 0; j < scopeSpans.Len(); j++ {
 				ss := scopeSpans.At(j)
