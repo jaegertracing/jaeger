@@ -11,8 +11,6 @@ import (
 	"go.opentelemetry.io/collector/config/configtls"
 )
 
-// var testCertKeyLocation = "./testdata"
-
 func TestToOtelClientConfig(t *testing.T) {
 	testCases := []struct {
 		name     string
