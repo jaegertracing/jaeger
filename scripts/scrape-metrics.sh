@@ -54,10 +54,10 @@ scrape_metrics() {
 
     while [ $attempts -lt $MAX_ATTEMPTS ]; do
 
-        if curl -sf http://localhost:${port}/metrics > /dev/null; then
+        if curl -sf http://localhost:"${port}"/metrics > /dev/null; then
           echo "Successfully connected to metrics endpoint at port ${port}"
 
-          curl -s http://localhost:${port}/metrics > "$output_file"
+          curl -s http://localhost:"${port}"/metrics > "$output_file"
           echo "Metrics saved to jaeger_metrics.txt"
           return 0
         else
