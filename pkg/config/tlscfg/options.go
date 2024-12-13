@@ -35,7 +35,7 @@ type Options struct {
 var systemCertPool = x509.SystemCertPool // to allow overriding in unit test
 
 // Config loads TLS certificates and returns a TLS Config.
-func (o *Options) Config(logger *zap.Logger) (*tls.Config, error) {
+func (o *Options) config(logger *zap.Logger) (*tls.Config, error) {
 	var minVersionId, maxVersionId uint16
 
 	certPool, err := o.loadCertPool()

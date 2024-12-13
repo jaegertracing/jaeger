@@ -154,7 +154,7 @@ func TestOptionsToConfig(t *testing.T) {
 					systemCertPool = saveSystemCertPool
 				}()
 			}
-			cfg, err := test.options.Config(zap.NewNop())
+			cfg, err := test.options.config(zap.NewNop())
 			if test.expectError != "" {
 				require.ErrorContains(t, err, test.expectError)
 			} else {
