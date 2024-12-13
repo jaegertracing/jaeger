@@ -7,8 +7,8 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 )
 
-// Links creates an adjuster that removes empty span links.
-func Links() Adjuster {
+// SpanLinks creates an adjuster that removes empty span links.
+func SpanLinks() Adjuster {
 	return Func(func(traces ptrace.Traces) (ptrace.Traces, error) {
 		adjuster := linksAdjuster{}
 		resourceSpans := traces.ResourceSpans()
