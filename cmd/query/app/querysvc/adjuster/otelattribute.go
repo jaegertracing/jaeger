@@ -57,7 +57,6 @@ func (otelAttributeAdjuster) adjust(span ptrace.Span, resource pcommon.Resource)
 		if existing, ok := resource.Attributes().Get(k); ok {
 			if existing.AsRaw() != v.AsRaw() {
 				span.Attributes().PutStr(adjusterWarningAttribute, fmt.Sprintf("conflicting attribute values for %s", k))
-				continue
 			}
 		} else {
 			v.CopyTo(resource.Attributes().PutEmpty(k))
