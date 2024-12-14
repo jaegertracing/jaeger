@@ -12,6 +12,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger/pkg/iter"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	"github.com/jaegertracing/jaeger/storage_v2/depstore"
@@ -19,6 +20,8 @@ import (
 )
 
 var errV1ReaderNotAvailable = errors.New("spanstore.Reader is not a wrapper around v1 reader")
+
+var _ tracestore.Reader = (*TraceReader)(nil)
 
 type TraceReader struct {
 	spanReader spanstore.Reader
@@ -37,13 +40,20 @@ func NewTraceReader(spanReader spanstore.Reader) *TraceReader {
 	}
 }
 
-func (tr *TraceReader) GetTrace(ctx context.Context, traceID pcommon.TraceID) (ptrace.Traces, error) {
-	t, err := tr.spanReader.GetTrace(ctx, model.TraceIDFromOTEL(traceID))
-	if err != nil {
-		return ptrace.NewTraces(), err
+func (tr *TraceReader) GetTrace(ctx context.Context, traceID pcommon.TraceID) iter.Seq2[ptrace.Traces, error] {
+	return func(yield func(ptrace.Traces, error) bool) {
+		t, err := tr.spanReader.GetTrace(ctx, model.TraceIDFromOTEL(traceID))
+		if err != nil {
+			// if not found, return an empty iterator, otherwire yield the error.
+			if !errors.Is(err, spanstore.ErrTraceNotFound) {
+				yield(ptrace.NewTraces(), err)
+			}
+			return
+		}
+		batch := &model.Batch{Spans: t.GetSpans()}
+		tr, err := model2otel.ProtoToTraces([]*model.Batch{batch})
+		yield(tr, err)
 	}
-	batch := &model.Batch{Spans: t.GetSpans()}
-	return model2otel.ProtoToTraces([]*model.Batch{batch})
 }
 
 func (tr *TraceReader) GetServices(ctx context.Context) ([]string, error) {
@@ -71,30 +81,39 @@ func (tr *TraceReader) GetOperations(ctx context.Context, query tracestore.Opera
 func (tr *TraceReader) FindTraces(
 	ctx context.Context,
 	query tracestore.TraceQueryParameters,
-) ([]ptrace.Traces, error) {
-	t, err := tr.spanReader.FindTraces(ctx, query.ToSpanStoreQueryParameters())
-	if err != nil || t == nil {
-		return nil, err
+) iter.Seq2[[]ptrace.Traces, error] {
+	return func(yield func([]ptrace.Traces, error) bool) {
+		traces, err := tr.spanReader.FindTraces(ctx, query.ToSpanStoreQueryParameters())
+		if err != nil {
+			yield(nil, err)
+			return
+		}
+		for _, trace := range traces {
+			batch := &model.Batch{Spans: trace.GetSpans()}
+			otelTrace, _ := model2otel.ProtoToTraces([]*model.Batch{batch})
+			if !yield([]ptrace.Traces{otelTrace}, nil) {
+				return
+			}
+		}
 	}
-	otelTraces := []ptrace.Traces{}
-	for _, trace := range t {
-		batch := &model.Batch{Spans: trace.GetSpans()}
-		otelTrace, _ := model2otel.ProtoToTraces([]*model.Batch{batch})
-		otelTraces = append(otelTraces, otelTrace)
-	}
-	return otelTraces, nil
 }
 
-func (tr *TraceReader) FindTraceIDs(ctx context.Context, query tracestore.TraceQueryParameters) ([]pcommon.TraceID, error) {
-	t, err := tr.spanReader.FindTraceIDs(ctx, query.ToSpanStoreQueryParameters())
-	if err != nil || t == nil {
-		return nil, err
+func (tr *TraceReader) FindTraceIDs(
+	ctx context.Context,
+	query tracestore.TraceQueryParameters,
+) iter.Seq2[[]pcommon.TraceID, error] {
+	return func(yield func([]pcommon.TraceID, error) bool) {
+		traceIDs, err := tr.spanReader.FindTraceIDs(ctx, query.ToSpanStoreQueryParameters())
+		if err != nil {
+			yield(nil, err)
+			return
+		}
+		otelIDs := make([]pcommon.TraceID, 0, len(traceIDs))
+		for _, traceID := range traceIDs {
+			otelIDs = append(otelIDs, traceID.ToOTELTraceID())
+		}
+		yield(otelIDs, nil)
 	}
-	traceIDs := []pcommon.TraceID{}
-	for _, traceID := range t {
-		traceIDs = append(traceIDs, traceID.ToOTELTraceID())
-	}
-	return traceIDs, nil
 }
 
 type DependencyReader struct {
