@@ -40,7 +40,10 @@ func NewTraceReader(spanReader spanstore.Reader) *TraceReader {
 	}
 }
 
-func (tr *TraceReader) GetTraces(ctx context.Context, traceIDs ...pcommon.TraceID) iter.Seq2[[]ptrace.Traces, error] {
+func (tr *TraceReader) GetTraces(
+	ctx context.Context,
+	traceIDs ...pcommon.TraceID,
+) iter.Seq2[[]ptrace.Traces, error] {
 	return func(yield func([]ptrace.Traces, error) bool) {
 		for _, traceID := range traceIDs {
 			t, err := tr.spanReader.GetTrace(ctx, model.TraceIDFromOTEL(traceID))
@@ -61,7 +64,10 @@ func (tr *TraceReader) GetServices(ctx context.Context) ([]string, error) {
 	return tr.spanReader.GetServices(ctx)
 }
 
-func (tr *TraceReader) GetOperations(ctx context.Context, query tracestore.OperationQueryParameters) ([]tracestore.Operation, error) {
+func (tr *TraceReader) GetOperations(
+	ctx context.Context,
+	query tracestore.OperationQueryParameters,
+) ([]tracestore.Operation, error) {
 	o, err := tr.spanReader.GetOperations(ctx, spanstore.OperationQueryParameters{
 		ServiceName: query.ServiceName,
 		SpanKind:    query.SpanKind,
