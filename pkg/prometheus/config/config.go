@@ -19,10 +19,11 @@ type Configuration struct {
 	TokenFilePath            string `mapstructure:"token_file_path"`
 	TokenOverrideFromContext bool   `mapstructure:"token_override_from_context"`
 
-	MetricNamespace   string `mapstructure:"metric_namespace"`
-	LatencyUnit       string `mapstructure:"latency_unit"`
-	NormalizeCalls    bool   `mapstructure:"normalize_calls"`
-	NormalizeDuration bool   `mapstructure:"normalize_duration"`
+	MetricNamespace      string            `mapstructure:"metric_namespace"`
+	LatencyUnit          string            `mapstructure:"latency_unit"`
+	NormalizeCalls       bool              `mapstructure:"normalize_calls"`
+	NormalizeDuration    bool              `mapstructure:"normalize_duration"`
+	AdditionalParameters map[string]string `mapstructure:"additional_parameters"`
 }
 
 func (c *Configuration) Validate() error {

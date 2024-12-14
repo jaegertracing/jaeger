@@ -863,6 +863,31 @@ func TestInvalidCertFile(t *testing.T) {
 	assert.Nil(t, reader)
 }
 
+func TestCreatePromClientWithAdditionalParameters(t *testing.T) {
+	expParams := map[string]string{
+		"param1": "value1",
+		"param2": "value2",
+	}
+
+	logger := zap.NewNop()
+	cfg := config.Configuration{
+		ServerURL:            "http://localhost:1234",
+		AdditionalParameters: expParams,
+	}
+
+	customClient, err := createPromClient(logger, cfg)
+	require.NoError(t, err)
+
+	url := customClient.URL("", nil)
+
+	q := url.Query()
+
+	for k, v := range expParams {
+		recV := q.Get(k)
+		require.Equal(t, v, recV)
+	}
+}
+
 func startMockPrometheusServer(t *testing.T, wantPromQlQuery string, wantWarnings []string) *httptest.Server {
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if len(wantWarnings) > 0 {

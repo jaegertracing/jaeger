@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -60,16 +61,32 @@ type (
 		metricDesc        string
 		buildPromQuery    func(p promQueryParams) string
 	}
+
+	promClient struct {
+		api.Client
+		params map[string]string
+	}
 )
 
-// NewMetricsReader returns a new MetricsReader.
-func NewMetricsReader(cfg config.Configuration, logger *zap.Logger, tracer trace.TracerProvider) (*MetricsReader, error) {
-	logger.Info("Creating metrics reader", zap.Any("configuration", cfg))
+// URL decorator enables adding additional query parameters to the request sent to prometheus backend
+func (p promClient) URL(ep string, args map[string]string) *url.URL {
+	url := p.Client.URL(ep, args)
 
+	query := url.Query()
+	for k, v := range p.params {
+		query.Set(k, v)
+	}
+	url.RawQuery = query.Encode()
+
+	return url
+}
+
+func createPromClient(logger *zap.Logger, cfg config.Configuration) (api.Client, error) {
 	roundTripper, err := getHTTPRoundTripper(&cfg, logger)
 	if err != nil {
 		return nil, err
 	}
+
 	client, err := api.NewClient(api.Config{
 		Address:      cfg.ServerURL,
 		RoundTripper: roundTripper,
@@ -78,10 +95,27 @@ func NewMetricsReader(cfg config.Configuration, logger *zap.Logger, tracer trace
 		return nil, fmt.Errorf("failed to initialize prometheus client: %w", err)
 	}
 
+	customClient := promClient{
+		Client: client,
+		params: cfg.AdditionalParameters,
+	}
+
+	return customClient, nil
+}
+
+// NewMetricsReader returns a new MetricsReader.
+func NewMetricsReader(cfg config.Configuration, logger *zap.Logger, tracer trace.TracerProvider) (*MetricsReader, error) {
+	logger.Info("Creating metrics reader", zap.Any("configuration", cfg))
+
 	const operationLabel = "span_name"
 
+	promClient, err := createPromClient(logger, cfg)
+	if err != nil {
+		return nil, err
+	}
+
 	mr := &MetricsReader{
-		client: promapi.NewAPI(client),
+		client: promapi.NewAPI(promClient),
 		logger: logger,
 		tracer: tracer.Tracer("prom-metrics-reader"),
 
