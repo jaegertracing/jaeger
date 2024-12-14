@@ -12,7 +12,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/otelsemconv"
 )
 
-func TestOTELAttributeAdjuster_SpanWithOTELLibraryAttributes(t *testing.T) {
+func TestResourceAttributesAdjuster_SpanWithLibraryAttributes(t *testing.T) {
 	traces := ptrace.NewTraces()
 	rs := traces.ResourceSpans().AppendEmpty()
 	span := rs.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
@@ -24,7 +24,7 @@ func TestOTELAttributeAdjuster_SpanWithOTELLibraryAttributes(t *testing.T) {
 	span.Attributes().PutStr(string(otelsemconv.TelemetryDistroVersionKey), "blah")
 	span.Attributes().PutStr("another_key", "another_value")
 
-	adjuster := OTELAttribute()
+	adjuster := ResourceAttributes()
 	result, err := adjuster.Adjust(traces)
 	require.NoError(t, err)
 
@@ -61,13 +61,13 @@ func TestOTELAttributeAdjuster_SpanWithOTELLibraryAttributes(t *testing.T) {
 	require.Equal(t, "blah", val.Str())
 }
 
-func TestOTELAttributeAdjuster_SpanWithoutOTELLibraryAttributes(t *testing.T) {
+func TestResourceAttributesAdjuster_SpanWithoutLibraryAttributes(t *testing.T) {
 	traces := ptrace.NewTraces()
 	rs := traces.ResourceSpans().AppendEmpty()
 	span := rs.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
 	span.Attributes().PutStr("random_key", "random_value")
 
-	adjuster := OTELAttribute()
+	adjuster := ResourceAttributes()
 	result, err := adjuster.Adjust(traces)
 	require.NoError(t, err)
 
@@ -78,7 +78,7 @@ func TestOTELAttributeAdjuster_SpanWithoutOTELLibraryAttributes(t *testing.T) {
 	require.Equal(t, "random_value", val.Str())
 }
 
-func TestOTELAttributeAdjuster_SpanWithConflictingOTELLibraryAttributes(t *testing.T) {
+func TestResourceAttributesAdjuster_SpanWithConflictingLibraryAttributes(t *testing.T) {
 	traces := ptrace.NewTraces()
 	rs := traces.ResourceSpans().AppendEmpty()
 	rs.Resource().Attributes().PutStr(string(otelsemconv.TelemetrySDKLanguageKey), "Go")
@@ -86,15 +86,20 @@ func TestOTELAttributeAdjuster_SpanWithConflictingOTELLibraryAttributes(t *testi
 	span.Attributes().PutStr("random_key", "random_value")
 	span.Attributes().PutStr(string(otelsemconv.TelemetrySDKLanguageKey), "Java")
 
-	adjuster := OTELAttribute()
+	adjuster := ResourceAttributes()
 	result, err := adjuster.Adjust(traces)
 	require.NoError(t, err)
 
 	resultSpanAttributes := result.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).Attributes()
-	require.Equal(t, 2, resultSpanAttributes.Len())
+	require.Equal(t, 3, resultSpanAttributes.Len())
 	val, ok := resultSpanAttributes.Get("random_key")
 	require.True(t, ok)
 	require.Equal(t, "random_value", val.Str())
+
+	// value remains in the span
+	val, ok = resultSpanAttributes.Get(string(otelsemconv.TelemetrySDKLanguageKey))
+	require.True(t, ok)
+	require.Equal(t, "Java", val.Str())
 
 	val, ok = resultSpanAttributes.Get("jaeger.adjuster.warning")
 	require.True(t, ok)
@@ -108,7 +113,7 @@ func TestOTELAttributeAdjuster_SpanWithConflictingOTELLibraryAttributes(t *testi
 	require.Equal(t, "Go", val.Str())
 }
 
-func TestOTELAttributeAdjuster_SpanWithNonConflictingOTELLibraryAttributes(t *testing.T) {
+func TestResourceAttributesAdjuster_SpanWithNonConflictingLibraryAttributes(t *testing.T) {
 	traces := ptrace.NewTraces()
 	rs := traces.ResourceSpans().AppendEmpty()
 	rs.Resource().Attributes().PutStr(string(otelsemconv.TelemetrySDKLanguageKey), "Go")
@@ -116,7 +121,7 @@ func TestOTELAttributeAdjuster_SpanWithNonConflictingOTELLibraryAttributes(t *te
 	span.Attributes().PutStr("random_key", "random_value")
 	span.Attributes().PutStr(string(otelsemconv.TelemetrySDKLanguageKey), "Go")
 
-	adjuster := OTELAttribute()
+	adjuster := ResourceAttributes()
 	result, err := adjuster.Adjust(traces)
 	require.NoError(t, err)
 

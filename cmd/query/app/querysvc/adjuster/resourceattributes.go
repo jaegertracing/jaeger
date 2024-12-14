@@ -10,7 +10,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/otelsemconv"
 )
 
-var otelLibraryKeys = map[string]struct{}{
+var libraryKeys = map[string]struct{}{
 	string(otelsemconv.TelemetrySDKLanguageKey):   {},
 	string(otelsemconv.TelemetrySDKNameKey):       {},
 	string(otelsemconv.TelemetrySDKVersionKey):    {},
@@ -18,15 +18,17 @@ var otelLibraryKeys = map[string]struct{}{
 	string(otelsemconv.TelemetryDistroVersionKey): {},
 }
 
-// OTELAttribute creates an adjuster that moves the OpenTelemetry library
-// attributes from spans to the parent resource.
-func OTELAttribute() OTELAttributeAdjuster {
-	return OTELAttributeAdjuster{}
+// ResourceAttributes creates an adjuster that moves the OpenTelemetry library
+// attributes from spans to the parent resource so that the UI can
+// display them separately under Process.
+// https://github.com/jaegertracing/jaeger/issues/4534
+func ResourceAttributes() ResourceAttributesAdjuster {
+	return ResourceAttributesAdjuster{}
 }
 
-type OTELAttributeAdjuster struct{}
+type ResourceAttributesAdjuster struct{}
 
-func (o OTELAttributeAdjuster) Adjust(traces ptrace.Traces) (ptrace.Traces, error) {
+func (o ResourceAttributesAdjuster) Adjust(traces ptrace.Traces) (ptrace.Traces, error) {
 	resourceSpans := traces.ResourceSpans()
 	for i := 0; i < resourceSpans.Len(); i++ {
 		rs := resourceSpans.At(i)
@@ -44,23 +46,21 @@ func (o OTELAttributeAdjuster) Adjust(traces ptrace.Traces) (ptrace.Traces, erro
 	return traces, nil
 }
 
-func (OTELAttributeAdjuster) moveAttributes(span ptrace.Span, resource pcommon.Resource) {
+func (ResourceAttributesAdjuster) moveAttributes(span ptrace.Span, resource pcommon.Resource) {
 	replace := make(map[string]pcommon.Value)
 	span.Attributes().Range(func(k string, v pcommon.Value) bool {
-		if _, ok := otelLibraryKeys[k]; ok {
+		if _, ok := libraryKeys[k]; ok {
 			replace[k] = v
 		}
 		return true
 	})
 	for k, v := range replace {
-		if existing, ok := resource.Attributes().Get(k); ok {
-			if existing.AsRaw() != v.AsRaw() {
-				warning := "conflicting attribute values for " + k
-				addWarning(span, warning)
-			}
-		} else {
-			v.CopyTo(resource.Attributes().PutEmpty(k))
+		existing, ok := resource.Attributes().Get(k)
+		if ok && existing.AsRaw() != v.AsRaw() {
+			addWarning(span, "conflicting attribute values for "+k)
+			continue
 		}
+		v.CopyTo(resource.Attributes().PutEmpty(k))
 		span.Attributes().Remove(k)
 	}
 }
