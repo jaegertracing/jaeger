@@ -57,7 +57,7 @@ func (ResourceAttributesAdjuster) moveAttributes(span ptrace.Span, resource pcom
 	for k, v := range replace {
 		existing, ok := resource.Attributes().Get(k)
 		if ok && existing.AsRaw() != v.AsRaw() {
-			addWarning(span, "conflicting attribute values for "+k)
+			addWarning(span, "conflicting values between Span and Resource for attribute "+k)
 			continue
 		}
 		v.CopyTo(resource.Attributes().PutEmpty(k))
