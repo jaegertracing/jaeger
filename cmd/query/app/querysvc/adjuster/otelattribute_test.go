@@ -6,115 +6,128 @@ package adjuster
 import (
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger/pkg/otelsemconv"
 )
 
-func TestOTELAttributeAdjuster(t *testing.T) {
-	tests := []struct {
-		name     string
-		input    ptrace.Traces
-		expected ptrace.Traces
-	}{
-		{
-			name: "span with otel library attributes",
-			input: func() ptrace.Traces {
-				traces := ptrace.NewTraces()
-				rs := traces.ResourceSpans().AppendEmpty()
-				span := rs.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
-				span.Attributes().PutStr("random_key", "random_value")
-				span.Attributes().PutStr(string(otelsemconv.TelemetrySDKLanguageKey), "Go")
-				span.Attributes().PutStr(string(otelsemconv.TelemetrySDKNameKey), "opentelemetry")
-				span.Attributes().PutStr(string(otelsemconv.TelemetrySDKVersionKey), "1.27.0")
-				span.Attributes().PutStr(string(otelsemconv.TelemetryDistroNameKey), "opentelemetry")
-				span.Attributes().PutStr(string(otelsemconv.TelemetryDistroVersionKey), "blah")
-				span.Attributes().PutStr("another_key", "another_value")
-				return traces
-			}(),
-			expected: func() ptrace.Traces {
-				traces := ptrace.NewTraces()
-				rs := traces.ResourceSpans().AppendEmpty()
-				span := rs.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
-				span.Attributes().PutStr("random_key", "random_value")
-				span.Attributes().PutStr("another_key", "another_value")
-				rs.Resource().Attributes().PutStr(string(otelsemconv.TelemetrySDKLanguageKey), "Go")
-				rs.Resource().Attributes().PutStr(string(otelsemconv.TelemetrySDKNameKey), "opentelemetry")
-				rs.Resource().Attributes().PutStr(string(otelsemconv.TelemetrySDKVersionKey), "1.27.0")
-				rs.Resource().Attributes().PutStr(string(otelsemconv.TelemetryDistroNameKey), "opentelemetry")
-				rs.Resource().Attributes().PutStr(string(otelsemconv.TelemetryDistroVersionKey), "blah")
-				return traces
-			}(),
-		},
-		{
-			name: "span without otel library attributes",
-			input: func() ptrace.Traces {
-				traces := ptrace.NewTraces()
-				rs := traces.ResourceSpans().AppendEmpty()
-				span := rs.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
-				span.Attributes().PutStr("random_key", "random_value")
-				return traces
-			}(),
-			expected: func() ptrace.Traces {
-				traces := ptrace.NewTraces()
-				rs := traces.ResourceSpans().AppendEmpty()
-				span := rs.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
-				span.Attributes().PutStr("random_key", "random_value")
-				return traces
-			}(),
-		},
-		{
-			name: "span with conflicting otel library attributes",
-			input: func() ptrace.Traces {
-				traces := ptrace.NewTraces()
-				rs := traces.ResourceSpans().AppendEmpty()
-				rs.Resource().Attributes().PutStr(string(otelsemconv.TelemetrySDKLanguageKey), "Go")
-				span := rs.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
-				span.Attributes().PutStr("random_key", "random_value")
-				span.Attributes().PutStr(string(otelsemconv.TelemetrySDKLanguageKey), "Java")
-				return traces
-			}(),
-			expected: func() ptrace.Traces {
-				traces := ptrace.NewTraces()
-				rs := traces.ResourceSpans().AppendEmpty()
-				span := rs.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
-				span.Attributes().PutStr("random_key", "random_value")
-				span.Attributes().PutStr("jaeger.adjuster.warning", "conflicting attribute values for telemetry.sdk.language")
-				rs.Resource().Attributes().PutStr(string(otelsemconv.TelemetrySDKLanguageKey), "Go")
-				return traces
-			}(),
-		},
-		{
-			name: "span with non-conflicting otel library attributes",
-			input: func() ptrace.Traces {
-				traces := ptrace.NewTraces()
-				rs := traces.ResourceSpans().AppendEmpty()
-				rs.Resource().Attributes().PutStr(string(otelsemconv.TelemetrySDKLanguageKey), "Go")
-				span := rs.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
-				span.Attributes().PutStr("random_key", "random_value")
-				span.Attributes().PutStr(string(otelsemconv.TelemetrySDKLanguageKey), "Go")
-				return traces
-			}(),
-			expected: func() ptrace.Traces {
-				traces := ptrace.NewTraces()
-				rs := traces.ResourceSpans().AppendEmpty()
-				span := rs.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
-				span.Attributes().PutStr("random_key", "random_value")
-				rs.Resource().Attributes().PutStr(string(otelsemconv.TelemetrySDKLanguageKey), "Go")
-				return traces
-			}(),
-		},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			adjuster := OTELAttribute()
-			input := ptrace.NewTraces()
-			test.input.CopyTo(input)
-			result, err := adjuster.Adjust(input)
-			require.NoError(t, err)
-			assert.EqualValues(t, test.expected, result)
-		})
-	}
+func TestOTELAttributeAdjuster_SpanWithOTELLibraryAttributes(t *testing.T) {
+	traces := ptrace.NewTraces()
+	rs := traces.ResourceSpans().AppendEmpty()
+	span := rs.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+	span.Attributes().PutStr("random_key", "random_value")
+	span.Attributes().PutStr(string(otelsemconv.TelemetrySDKLanguageKey), "Go")
+	span.Attributes().PutStr(string(otelsemconv.TelemetrySDKNameKey), "opentelemetry")
+	span.Attributes().PutStr(string(otelsemconv.TelemetrySDKVersionKey), "1.27.0")
+	span.Attributes().PutStr(string(otelsemconv.TelemetryDistroNameKey), "opentelemetry")
+	span.Attributes().PutStr(string(otelsemconv.TelemetryDistroVersionKey), "blah")
+	span.Attributes().PutStr("another_key", "another_value")
+
+	adjuster := OTELAttribute()
+	result, err := adjuster.Adjust(traces)
+	require.NoError(t, err)
+
+	resultSpanAttributes := result.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).Attributes()
+	require.Equal(t, 2, resultSpanAttributes.Len())
+	val, ok := resultSpanAttributes.Get("random_key")
+	require.True(t, ok)
+	require.Equal(t, "random_value", val.Str())
+
+	val, ok = resultSpanAttributes.Get("another_key")
+	require.True(t, ok)
+	require.Equal(t, "another_value", val.Str())
+
+	resultResourceAttributes := result.ResourceSpans().At(0).Resource().Attributes()
+
+	val, ok = resultResourceAttributes.Get(string(otelsemconv.TelemetrySDKLanguageKey))
+	require.True(t, ok)
+	require.Equal(t, "Go", val.Str())
+
+	val, ok = resultResourceAttributes.Get(string(otelsemconv.TelemetrySDKNameKey))
+	require.True(t, ok)
+	require.Equal(t, "opentelemetry", val.Str())
+
+	val, ok = resultResourceAttributes.Get(string(otelsemconv.TelemetrySDKVersionKey))
+	require.True(t, ok)
+	require.Equal(t, "1.27.0", val.Str())
+
+	val, ok = resultResourceAttributes.Get(string(otelsemconv.TelemetryDistroNameKey))
+	require.True(t, ok)
+	require.Equal(t, "opentelemetry", val.Str())
+
+	val, ok = resultResourceAttributes.Get(string(otelsemconv.TelemetryDistroVersionKey))
+	require.True(t, ok)
+	require.Equal(t, "blah", val.Str())
+}
+
+func TestOTELAttributeAdjuster_SpanWithoutOTELLibraryAttributes(t *testing.T) {
+	traces := ptrace.NewTraces()
+	rs := traces.ResourceSpans().AppendEmpty()
+	span := rs.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+	span.Attributes().PutStr("random_key", "random_value")
+
+	adjuster := OTELAttribute()
+	result, err := adjuster.Adjust(traces)
+	require.NoError(t, err)
+
+	resultSpanAttributes := result.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).Attributes()
+	require.Equal(t, 1, resultSpanAttributes.Len())
+	val, ok := resultSpanAttributes.Get("random_key")
+	require.True(t, ok)
+	require.Equal(t, "random_value", val.Str())
+}
+
+func TestOTELAttributeAdjuster_SpanWithConflictingOTELLibraryAttributes(t *testing.T) {
+	traces := ptrace.NewTraces()
+	rs := traces.ResourceSpans().AppendEmpty()
+	rs.Resource().Attributes().PutStr(string(otelsemconv.TelemetrySDKLanguageKey), "Go")
+	span := rs.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+	span.Attributes().PutStr("random_key", "random_value")
+	span.Attributes().PutStr(string(otelsemconv.TelemetrySDKLanguageKey), "Java")
+
+	adjuster := OTELAttribute()
+	result, err := adjuster.Adjust(traces)
+	require.NoError(t, err)
+
+	resultSpanAttributes := result.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).Attributes()
+	require.Equal(t, 2, resultSpanAttributes.Len())
+	val, ok := resultSpanAttributes.Get("random_key")
+	require.True(t, ok)
+	require.Equal(t, "random_value", val.Str())
+
+	val, ok = resultSpanAttributes.Get("jaeger.adjuster.warning")
+	require.True(t, ok)
+	warnings := val.Slice()
+	require.Equal(t, 1, warnings.Len())
+	require.Equal(t, "conflicting attribute values for telemetry.sdk.language", warnings.At(0).Str())
+
+	resultResourceAttributes := result.ResourceSpans().At(0).Resource().Attributes()
+	val, ok = resultResourceAttributes.Get(string(otelsemconv.TelemetrySDKLanguageKey))
+	require.True(t, ok)
+	require.Equal(t, "Go", val.Str())
+}
+
+func TestOTELAttributeAdjuster_SpanWithNonConflictingOTELLibraryAttributes(t *testing.T) {
+	traces := ptrace.NewTraces()
+	rs := traces.ResourceSpans().AppendEmpty()
+	rs.Resource().Attributes().PutStr(string(otelsemconv.TelemetrySDKLanguageKey), "Go")
+	span := rs.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+	span.Attributes().PutStr("random_key", "random_value")
+	span.Attributes().PutStr(string(otelsemconv.TelemetrySDKLanguageKey), "Go")
+
+	adjuster := OTELAttribute()
+	result, err := adjuster.Adjust(traces)
+	require.NoError(t, err)
+
+	resultSpanAttributes := result.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).Attributes()
+	require.Equal(t, 1, resultSpanAttributes.Len())
+	val, ok := resultSpanAttributes.Get("random_key")
+	require.True(t, ok)
+	require.Equal(t, "random_value", val.Str())
+
+	resultResourceAttributes := result.ResourceSpans().At(0).Resource().Attributes()
+	val, ok = resultResourceAttributes.Get(string(otelsemconv.TelemetrySDKLanguageKey))
+	require.True(t, ok)
+	require.Equal(t, "Go", val.Str())
 }

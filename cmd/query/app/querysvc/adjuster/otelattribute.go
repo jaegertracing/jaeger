@@ -18,32 +18,33 @@ var otelLibraryKeys = map[string]struct{}{
 	string(otelsemconv.TelemetryDistroVersionKey): {},
 }
 
-// OTELAttribute creates an adjuster that removes the OpenTelemetry library attributes
-// from spans and adds them to the attributes of a resource.
-func OTELAttribute() Adjuster {
-	return Func(func(traces ptrace.Traces) (ptrace.Traces, error) {
-		adjuster := otelAttributeAdjuster{}
-		resourceSpans := traces.ResourceSpans()
-		for i := 0; i < resourceSpans.Len(); i++ {
-			rs := resourceSpans.At(i)
-			resource := rs.Resource()
-			scopeSpans := rs.ScopeSpans()
-			for j := 0; j < scopeSpans.Len(); j++ {
-				ss := scopeSpans.At(j)
-				spans := ss.Spans()
-				for k := 0; k < spans.Len(); k++ {
-					span := spans.At(k)
-					adjuster.adjust(span, resource)
-				}
-			}
-		}
-		return traces, nil
-	})
+// OTELAttribute creates an adjuster that moves the OpenTelemetry library
+// attributes from spans to the parent resource.
+func OTELAttribute() OTELAttributeAdjuster {
+	return OTELAttributeAdjuster{}
 }
 
-type otelAttributeAdjuster struct{}
+type OTELAttributeAdjuster struct{}
 
-func (otelAttributeAdjuster) adjust(span ptrace.Span, resource pcommon.Resource) {
+func (o OTELAttributeAdjuster) Adjust(traces ptrace.Traces) (ptrace.Traces, error) {
+	resourceSpans := traces.ResourceSpans()
+	for i := 0; i < resourceSpans.Len(); i++ {
+		rs := resourceSpans.At(i)
+		resource := rs.Resource()
+		scopeSpans := rs.ScopeSpans()
+		for j := 0; j < scopeSpans.Len(); j++ {
+			ss := scopeSpans.At(j)
+			spans := ss.Spans()
+			for k := 0; k < spans.Len(); k++ {
+				span := spans.At(k)
+				o.moveAttributes(span, resource)
+			}
+		}
+	}
+	return traces, nil
+}
+
+func (OTELAttributeAdjuster) moveAttributes(span ptrace.Span, resource pcommon.Resource) {
 	replace := make(map[string]pcommon.Value)
 	span.Attributes().Range(func(k string, v pcommon.Value) bool {
 		if _, ok := otelLibraryKeys[k]; ok {
@@ -54,7 +55,8 @@ func (otelAttributeAdjuster) adjust(span ptrace.Span, resource pcommon.Resource)
 	for k, v := range replace {
 		if existing, ok := resource.Attributes().Get(k); ok {
 			if existing.AsRaw() != v.AsRaw() {
-				span.Attributes().PutStr(adjusterWarningAttribute, "conflicting attribute values for "+k)
+				warning := "conflicting attribute values for " + k
+				addWarning(span, warning)
 			}
 		} else {
 			v.CopyTo(resource.Attributes().PutEmpty(k))
