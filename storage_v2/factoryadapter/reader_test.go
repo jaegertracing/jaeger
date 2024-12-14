@@ -22,6 +22,7 @@ import (
 	spanStoreMocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
 	"github.com/jaegertracing/jaeger/storage_v2/depstore"
 	"github.com/jaegertracing/jaeger/storage_v2/tracestore"
+	tracestoremocks "github.com/jaegertracing/jaeger/storage_v2/tracestore/mocks"
 )
 
 func TestGetV1Reader_NoError(t *testing.T) {
@@ -34,30 +35,8 @@ func TestGetV1Reader_NoError(t *testing.T) {
 	require.Equal(t, memstore, v1Reader)
 }
 
-type fakeReader struct{}
-
-func (*fakeReader) GetTrace(_ context.Context, _ pcommon.TraceID) iter.Seq2[ptrace.Traces, error] {
-	panic("not implemented")
-}
-
-func (*fakeReader) GetServices(_ context.Context) ([]string, error) {
-	panic("not implemented")
-}
-
-func (*fakeReader) GetOperations(_ context.Context, _ tracestore.OperationQueryParameters) ([]tracestore.Operation, error) {
-	panic("not implemented")
-}
-
-func (*fakeReader) FindTraces(_ context.Context, _ tracestore.TraceQueryParameters) iter.Seq2[[]ptrace.Traces, error] {
-	panic("not implemented")
-}
-
-func (*fakeReader) FindTraceIDs(_ context.Context, _ tracestore.TraceQueryParameters) iter.Seq2[[]pcommon.TraceID, error] {
-	panic("not implemented")
-}
-
 func TestGetV1Reader_Error(t *testing.T) {
-	fr := &fakeReader{}
+	fr := new(tracestoremocks.Reader)
 	_, err := GetV1Reader(fr)
 	require.ErrorIs(t, err, errV1ReaderNotAvailable)
 }

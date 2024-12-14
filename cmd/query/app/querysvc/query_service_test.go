@@ -108,28 +108,6 @@ func initializeTestService(optionAppliers ...testOption) *testQueryService {
 	return &tqs
 }
 
-// type fakeReader struct{}
-
-// func (*fakeReader) GetTrace(_ context.Context, _ pcommon.TraceID) (ptrace.Traces, error) {
-// 	panic("not implemented")
-// }
-
-// func (*fakeReader) GetServices(_ context.Context) ([]string, error) {
-// 	panic("not implemented")
-// }
-
-// func (*fakeReader) GetOperations(_ context.Context, _ tracestore.OperationQueryParameters) ([]tracestore.Operation, error) {
-// 	panic("not implemented")
-// }
-
-// func (*fakeReader) FindTraces(_ context.Context, _ tracestore.TraceQueryParameters) ([]ptrace.Traces, error) {
-// 	panic("not implemented")
-// }
-
-// func (*fakeReader) FindTraceIDs(_ context.Context, _ tracestore.TraceQueryParameters) ([]pcommon.TraceID, error) {
-// 	panic("not implemented")
-// }
-
 // Test QueryService.GetTrace()
 func TestGetTraceSuccess(t *testing.T) {
 	tqs := initializeTestService()
