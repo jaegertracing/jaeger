@@ -16,7 +16,7 @@ import (
 
 // Reader finds and loads traces and other data from storage.
 type Reader interface {
-	// GetTraces returns an iterator that retrieves all traces with a given IDs.
+	// GetTraces returns an iterator that retrieves all traces with given IDs.
 	// The iterator is single-use: once consumed, it cannot be used again.
 	//
 	// Chunking requirements:
@@ -24,9 +24,9 @@ type Reader interface {
 	// - Large traces MAY be split across multiple, *consecutive* ptrace.Traces chunks.
 	//
 	// Edge cases:
-	// - If no spans are found for any given trace ID, it will be ignored.
+	// - If no spans are found for any given trace ID, the ID is ignored.
 	// - If none of the trace IDs are found in the storage, an empty iterator is returned.
-	// - If an error is encountered, the iterator will return the error and stop.
+	// - If an error is encountered, the iterator returns the error and stops.
 	GetTraces(ctx context.Context, traceIDs ...pcommon.TraceID) iter.Seq2[[]ptrace.Traces, error]
 
 	// GetServices returns all service names known to the backend from spans
@@ -40,9 +40,10 @@ type Reader interface {
 	// FindTraces returns an iterator that retrieves traces matching query parameters.
 	// The iterator is single-use: once consumed, it cannot be used again.
 	//
-	// The chunking behavior is the same as for GetTraces.
+	// The chunking rules is the same as for GetTraces.
 	//
 	// If no matching traces are found, the function returns an empty iterator.
+	// If an error is encountered, the iterator returns the error and stops.
 	//
 	// There's currently an implementation-dependent ambiguity whether all query filters
 	// (such as multiple tags) must apply to the same span within a trace, or can be satisfied
@@ -53,6 +54,7 @@ type Reader interface {
 	// The iterator is single-use: once consumed, it cannot be used again.
 	//
 	// If no matching traces are found, the function returns an empty iterator.
+	// If an error is encountered, the iterator returns the error and stops.
 	//
 	// This function behaves identically to FindTraces, except that it returns only the list
 	// of matching trace IDs. This is useful in some contexts, such as batch jobs, where a
