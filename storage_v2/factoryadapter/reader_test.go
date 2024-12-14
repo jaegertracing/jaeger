@@ -15,6 +15,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger/pkg/iter"
 	"github.com/jaegertracing/jaeger/plugin/storage/memory"
 	dependencyStoreMocks "github.com/jaegertracing/jaeger/storage/dependencystore/mocks"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
@@ -35,7 +36,7 @@ func TestGetV1Reader_NoError(t *testing.T) {
 
 type fakeReader struct{}
 
-func (*fakeReader) GetTrace(_ context.Context, _ pcommon.TraceID) (ptrace.Traces, error) {
+func (*fakeReader) GetTrace(_ context.Context, _ pcommon.TraceID) iter.Seq2[ptrace.Traces, error] {
 	panic("not implemented")
 }
 
@@ -47,11 +48,11 @@ func (*fakeReader) GetOperations(_ context.Context, _ tracestore.OperationQueryP
 	panic("not implemented")
 }
 
-func (*fakeReader) FindTraces(_ context.Context, _ tracestore.TraceQueryParameters) ([]ptrace.Traces, error) {
+func (*fakeReader) FindTraces(_ context.Context, _ tracestore.TraceQueryParameters) iter.Seq2[[]ptrace.Traces, error] {
 	panic("not implemented")
 }
 
-func (*fakeReader) FindTraceIDs(_ context.Context, _ tracestore.TraceQueryParameters) ([]pcommon.TraceID, error) {
+func (*fakeReader) FindTraceIDs(_ context.Context, _ tracestore.TraceQueryParameters) iter.Seq2[[]pcommon.TraceID, error] {
 	panic("not implemented")
 }
 
@@ -81,11 +82,13 @@ func TestTraceReader_GetTraceDelegatesSuccessResponse(t *testing.T) {
 	traceReader := &TraceReader{
 		spanReader: sr,
 	}
-	trace, err := traceReader.GetTrace(
+	traces, err := iter.CollectWithErrors(traceReader.GetTrace(
 		context.Background(),
 		pcommon.TraceID([]byte{0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 3}),
-	)
+	))
 	require.NoError(t, err)
+	require.Len(t, traces, 1)
+	trace := traces[0]
 	traceSpans := trace.ResourceSpans().At(0).ScopeSpans().At(0).Spans()
 	require.EqualValues(t, []byte{0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 3}, traceSpans.At(0).TraceID())
 	require.EqualValues(t, []byte{0, 0, 0, 0, 0, 0, 0, 1}, traceSpans.At(0).SpanID())
@@ -102,12 +105,12 @@ func TestTraceReader_GetTraceErrorResponse(t *testing.T) {
 	traceReader := &TraceReader{
 		spanReader: sr,
 	}
-	trace, err := traceReader.GetTrace(
+	traces, err := iter.CollectWithErrors(traceReader.GetTrace(
 		context.Background(),
 		pcommon.TraceID([]byte{0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 3}),
-	)
+	))
 	require.ErrorIs(t, err, testErr)
-	require.Equal(t, ptrace.NewTraces(), trace)
+	require.Empty(t, traces)
 }
 
 func TestTraceReader_GetServicesDelegatesToSpanReader(t *testing.T) {
@@ -239,7 +242,7 @@ func TestTraceReader_FindTracesDelegatesSuccessResponse(t *testing.T) {
 	traceReader := &TraceReader{
 		spanReader: sr,
 	}
-	traces, err := traceReader.FindTraces(
+	traces, err := iter.FlattenWithErrors(traceReader.FindTraces(
 		context.Background(),
 		tracestore.TraceQueryParameters{
 			ServiceName:   "service",
@@ -251,7 +254,7 @@ func TestTraceReader_FindTracesDelegatesSuccessResponse(t *testing.T) {
 			DurationMax:   time.Hour,
 			NumTraces:     10,
 		},
-	)
+	))
 	require.NoError(t, err)
 	require.Len(t, traces, len(modelTraces))
 	traceASpans := traces[0].ResourceSpans().At(0).ScopeSpans().At(0).Spans()
@@ -282,7 +285,7 @@ func TestTraceReader_FindTracesEdgeCases(t *testing.T) {
 		{
 			name:           "empty response",
 			modelTraces:    []*model.Trace{},
-			expectedTraces: []ptrace.Traces{},
+			expectedTraces: nil,
 		},
 		{
 			name:           "error response",
@@ -302,10 +305,10 @@ func TestTraceReader_FindTracesEdgeCases(t *testing.T) {
 			traceReader := &TraceReader{
 				spanReader: sr,
 			}
-			traces, err := traceReader.FindTraces(
+			traces, err := iter.FlattenWithErrors(traceReader.FindTraces(
 				context.Background(),
 				tracestore.TraceQueryParameters{},
-			)
+			))
 			require.ErrorIs(t, err, test.err)
 			require.Equal(t, test.expectedTraces, traces)
 		})
@@ -333,7 +336,7 @@ func TestTraceReader_FindTraceIDsDelegatesResponse(t *testing.T) {
 		{
 			name:             "empty response",
 			modelTraceIDs:    []model.TraceID{},
-			expectedTraceIDs: []pcommon.TraceID{},
+			expectedTraceIDs: nil,
 		},
 		{
 			name:             "nil response",
@@ -368,7 +371,7 @@ func TestTraceReader_FindTraceIDsDelegatesResponse(t *testing.T) {
 			traceReader := &TraceReader{
 				spanReader: sr,
 			}
-			traceIDs, err := traceReader.FindTraceIDs(
+			traceIDs, err := iter.FlattenWithErrors(traceReader.FindTraceIDs(
 				context.Background(),
 				tracestore.TraceQueryParameters{
 					ServiceName:   "service",
@@ -380,7 +383,7 @@ func TestTraceReader_FindTraceIDsDelegatesResponse(t *testing.T) {
 					DurationMax:   time.Hour,
 					NumTraces:     10,
 				},
-			)
+			))
 			require.ErrorIs(t, err, test.err)
 			require.Equal(t, test.expectedTraceIDs, traceIDs)
 		})

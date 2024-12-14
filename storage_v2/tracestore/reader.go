@@ -10,6 +10,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
+	"github.com/jaegertracing/jaeger/pkg/iter"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
@@ -19,9 +20,9 @@ var ErrTraceNotFound = spanstore.ErrTraceNotFound
 // Reader finds and loads traces and other data from storage.
 type Reader interface {
 	// GetTrace retrieves the trace with a given id.
-	//
+	// If the trace is too large it may be returned in multiple chucks.
 	// If no spans are stored for this trace, it returns ErrTraceNotFound.
-	GetTrace(ctx context.Context, traceID pcommon.TraceID) (ptrace.Traces, error)
+	GetTrace(ctx context.Context, traceID pcommon.TraceID) iter.Seq2[ptrace.Traces, error]
 
 	// GetServices returns all service names known to the backend from spans
 	// within its retention period.
@@ -36,14 +37,18 @@ type Reader interface {
 	// multiple tags) must apply to the same span within a trace, or can be satisfied
 	// by different spans.
 	//
-	// If no matching traces are found, the function returns (nil, nil).
-	FindTraces(ctx context.Context, query TraceQueryParameters) ([]ptrace.Traces, error)
+	// There is no guarantee that all spans for a single trace are returned in a single chunk.
+	// However, there is a guarantees that all spans for a single trace are returned in
+	// one or more consecutive chunks, as if the total output is grouped by trace ID.
+	//
+	// If no matching traces are found, the function returns en empty iterator.
+	FindTraces(ctx context.Context, query TraceQueryParameters) iter.Seq2[[]ptrace.Traces, error]
 
 	// FindTraceIDs does the same search as FindTraces, but returns only the list
 	// of matching trace IDs.
 	//
-	// If no matching traces are found, the function returns (nil, nil).
-	FindTraceIDs(ctx context.Context, query TraceQueryParameters) ([]pcommon.TraceID, error)
+	// If no matching traces are found, the function returns an empty iterator.
+	FindTraceIDs(ctx context.Context, query TraceQueryParameters) iter.Seq2[[]pcommon.TraceID, error]
 }
 
 // TraceQueryParameters contains parameters of a trace query.
