@@ -155,6 +155,9 @@ func TestFindTraces(t *testing.T) {
 			Attributes:    map[string]string{"foo": "bar"},
 			StartTimeMin:  time.Now().Add(-2 * time.Hour),
 			StartTimeMax:  time.Now(),
+			DurationMin:   1 * time.Second,
+			DurationMax:   2 * time.Second,
+			SearchDepth:   10,
 		},
 	})
 	require.NoError(t, err)
@@ -162,6 +165,40 @@ func TestFindTraces(t *testing.T) {
 	require.NoError(t, err)
 	td := recv.ToTraces()
 	require.EqualValues(t, 1, td.SpanCount())
+}
+
+func TestFindTracesSendError(t *testing.T) {
+	reader := new(spanstoremocks.Reader)
+	reader.On("FindTraces", mock.Anything, mock.AnythingOfType("*spanstore.TraceQueryParameters")).Return(
+		[]*model.Trace{
+			{
+				Spans: []*model.Span{
+					{
+						OperationName: "name",
+					},
+				},
+			},
+		}, nil).Once()
+	h := &Handler{
+		QueryService: querysvc.NewQueryService(
+			factoryadapter.NewTraceReader(reader),
+			new(dependencyStoreMocks.Reader),
+			querysvc.QueryServiceOptions{},
+		),
+	}
+	err := h.internalFindTraces(context.Background(),
+		&api_v3.FindTracesRequest{
+			Query: &api_v3.TraceQueryParameters{
+				StartTimeMin: time.Now().Add(-2 * time.Hour),
+				StartTimeMax: time.Now(),
+			},
+		},
+		/* streamSend= */ func(*api_v3.TracesData) error {
+			return errors.New("send_error")
+		},
+	)
+	require.ErrorContains(t, err, "send_error")
+	require.ErrorContains(t, err, "failed to send response")
 }
 
 func TestFindTracesQueryNil(t *testing.T) {
