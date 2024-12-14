@@ -878,9 +878,9 @@ func TestCreatePromClientWithAdditionalParameters(t *testing.T) {
 	customClient, err := createPromClient(logger, cfg)
 	require.NoError(t, err)
 
-	url := customClient.URL("", nil)
+	u := customClient.URL("", nil)
 
-	q := url.Query()
+	q := u.Query()
 
 	for k, v := range expParams {
 		recV := q.Get(k)

@@ -70,15 +70,15 @@ type (
 
 // URL decorator enables adding additional query parameters to the request sent to prometheus backend
 func (p promClient) URL(ep string, args map[string]string) *url.URL {
-	url := p.Client.URL(ep, args)
+	u := p.Client.URL(ep, args)
 
-	query := url.Query()
+	query := u.Query()
 	for k, v := range p.params {
 		query.Set(k, v)
 	}
-	url.RawQuery = query.Encode()
+	u.RawQuery = query.Encode()
 
-	return url
+	return u
 }
 
 func createPromClient(logger *zap.Logger, cfg config.Configuration) (api.Client, error) {
