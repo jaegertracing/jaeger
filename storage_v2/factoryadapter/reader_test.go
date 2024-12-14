@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
@@ -292,6 +293,38 @@ func TestTraceReader_FindTracesEdgeCases(t *testing.T) {
 			require.Equal(t, test.expectedTraces, traces)
 		})
 	}
+}
+
+func TestTraceReader_FindTracesEarlyStop(t *testing.T) {
+	sr := new(spanStoreMocks.Reader)
+	sr.On(
+		"FindTraces",
+		mock.Anything,
+		mock.Anything,
+	).Return([]*model.Trace{{}, {}, {}}, nil).Twice()
+	traceReader := &TraceReader{
+		spanReader: sr,
+	}
+	called := 0
+	traceReader.FindTraces(
+		context.Background(), tracestore.TraceQueryParameters{},
+	)(func(tr []ptrace.Traces, err error) bool {
+		require.NoError(t, err)
+		require.Len(t, tr, 1)
+		called++
+		return true
+	})
+	assert.Equal(t, 3, called)
+	called = 0
+	traceReader.FindTraces(
+		context.Background(), tracestore.TraceQueryParameters{},
+	)(func(tr []ptrace.Traces, err error) bool {
+		require.NoError(t, err)
+		require.Len(t, tr, 1)
+		called++
+		return false // early return
+	})
+	assert.Equal(t, 1, called)
 }
 
 func TestTraceReader_FindTraceIDsDelegatesResponse(t *testing.T) {

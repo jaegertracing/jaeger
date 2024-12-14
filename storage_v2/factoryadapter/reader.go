@@ -44,7 +44,10 @@ func (tr *TraceReader) GetTrace(ctx context.Context, traceID pcommon.TraceID) it
 	return func(yield func(ptrace.Traces, error) bool) {
 		t, err := tr.spanReader.GetTrace(ctx, model.TraceIDFromOTEL(traceID))
 		if err != nil {
-			yield(ptrace.NewTraces(), err)
+			// if not found, return an empty iterator, otherwire yield the error.
+			if !errors.Is(err, spanstore.ErrTraceNotFound) {
+				yield(ptrace.NewTraces(), err)
+			}
 			return
 		}
 		batch := &model.Batch{Spans: t.GetSpans()}
@@ -80,12 +83,12 @@ func (tr *TraceReader) FindTraces(
 	query tracestore.TraceQueryParameters,
 ) iter.Seq2[[]ptrace.Traces, error] {
 	return func(yield func([]ptrace.Traces, error) bool) {
-		t, err := tr.spanReader.FindTraces(ctx, query.ToSpanStoreQueryParameters())
-		if err != nil || t == nil {
+		traces, err := tr.spanReader.FindTraces(ctx, query.ToSpanStoreQueryParameters())
+		if err != nil {
 			yield(nil, err)
 			return
 		}
-		for _, trace := range t {
+		for _, trace := range traces {
 			batch := &model.Batch{Spans: trace.GetSpans()}
 			otelTrace, _ := model2otel.ProtoToTraces([]*model.Batch{batch})
 			if !yield([]ptrace.Traces{otelTrace}, nil) {
@@ -100,16 +103,16 @@ func (tr *TraceReader) FindTraceIDs(
 	query tracestore.TraceQueryParameters,
 ) iter.Seq2[[]pcommon.TraceID, error] {
 	return func(yield func([]pcommon.TraceID, error) bool) {
-		t, err := tr.spanReader.FindTraceIDs(ctx, query.ToSpanStoreQueryParameters())
-		if err != nil || t == nil {
+		traceIDs, err := tr.spanReader.FindTraceIDs(ctx, query.ToSpanStoreQueryParameters())
+		if err != nil {
 			yield(nil, err)
 			return
 		}
-		traceIDs := make([]pcommon.TraceID, 0, len(t))
-		for _, traceID := range t {
-			traceIDs = append(traceIDs, traceID.ToOTELTraceID())
+		otelIDs := make([]pcommon.TraceID, 0, len(traceIDs))
+		for _, traceID := range traceIDs {
+			otelIDs = append(otelIDs, traceID.ToOTELTraceID())
 		}
-		yield(traceIDs, nil)
+		yield(otelIDs, nil)
 	}
 }
 
