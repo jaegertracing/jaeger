@@ -27,7 +27,7 @@ type Reader interface {
 	// - If no spans are found for any given trace ID, the ID is ignored.
 	// - If none of the trace IDs are found in the storage, an empty iterator is returned.
 	// - If an error is encountered, the iterator returns the error and stops.
-	GetTraces(ctx context.Context, traceIDs ...pcommon.TraceID) iter.Seq2[[]ptrace.Traces, error]
+	GetTraces(ctx context.Context, traceIDs ...GetTraceParams) iter.Seq2[[]ptrace.Traces, error]
 
 	// GetServices returns all service names known to the backend from spans
 	// within its retention period.
@@ -48,7 +48,7 @@ type Reader interface {
 	// There's currently an implementation-dependent ambiguity whether all query filters
 	// (such as multiple tags) must apply to the same span within a trace, or can be satisfied
 	// by different spans.
-	FindTraces(ctx context.Context, query TraceQueryParameters) iter.Seq2[[]ptrace.Traces, error]
+	FindTraces(ctx context.Context, query TraceQueryParams) iter.Seq2[[]ptrace.Traces, error]
 
 	// FindTraceIDs returns an iterator that retrieves IDs of traces matching query parameters.
 	// The iterator is single-use: once consumed, it cannot be used again.
@@ -60,11 +60,20 @@ type Reader interface {
 	// of matching trace IDs. This is useful in some contexts, such as batch jobs, where a
 	// large list of trace IDs may be queried first and then the full traces are loaded
 	// in batches.
-	FindTraceIDs(ctx context.Context, query TraceQueryParameters) iter.Seq2[[]pcommon.TraceID, error]
+	FindTraceIDs(ctx context.Context, query TraceQueryParams) iter.Seq2[[]pcommon.TraceID, error]
 }
 
-// TraceQueryParameters contains parameters of a trace query.
-type TraceQueryParameters struct {
+// GetTraceParams contains single-trace parameters for a GetTraces.
+// Some storage backends (e.g. Tempo) perform GetTraces much more efficiently
+// if they know the approximate time range of the trace.
+type GetTraceParams struct {
+	TraceID pcommon.TraceID // required
+	Start   time.Time       // optional
+	End     time.Time       // optional
+}
+
+// TraceQueryParams contains parameters of a trace query.
+type TraceQueryParams struct {
 	ServiceName   string
 	OperationName string
 	Tags          map[string]string
@@ -75,7 +84,7 @@ type TraceQueryParameters struct {
 	NumTraces     int
 }
 
-func (t *TraceQueryParameters) ToSpanStoreQueryParameters() *spanstore.TraceQueryParameters {
+func (t *TraceQueryParams) ToSpanStoreQueryParameters() *spanstore.TraceQueryParameters {
 	return &spanstore.TraceQueryParameters{
 		ServiceName:   t.ServiceName,
 		OperationName: t.OperationName,

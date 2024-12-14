@@ -64,7 +64,9 @@ func TestTraceReader_GetTracesDelegatesSuccessResponse(t *testing.T) {
 	}
 	traces, err := iter.FlattenWithErrors(traceReader.GetTraces(
 		context.Background(),
-		pcommon.TraceID([]byte{0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 3}),
+		tracestore.GetTraceParams{
+			TraceID: pcommon.TraceID([]byte{0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 3}),
+		},
 	))
 	require.NoError(t, err)
 	require.Len(t, traces, 1)
@@ -87,7 +89,9 @@ func TestTraceReader_GetTracesErrorResponse(t *testing.T) {
 	}
 	traces, err := iter.FlattenWithErrors(traceReader.GetTraces(
 		context.Background(),
-		pcommon.TraceID([]byte{0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 3}),
+		tracestore.GetTraceParams{
+			TraceID: pcommon.TraceID([]byte{0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 3}),
+		},
 	))
 	require.ErrorIs(t, err, testErr)
 	require.Empty(t, traces)
@@ -103,8 +107,10 @@ func TestTraceReader_GetTracesEarlyStop(t *testing.T) {
 	traceReader := &TraceReader{
 		spanReader: sr,
 	}
-	traceID := func(i byte) pcommon.TraceID {
-		return pcommon.TraceID([]byte{0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, i})
+	traceID := func(i byte) tracestore.GetTraceParams {
+		return tracestore.GetTraceParams{
+			TraceID: pcommon.TraceID([]byte{0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, i}),
+		}
 	}
 	called := 0
 	traceReader.GetTraces(
@@ -259,7 +265,7 @@ func TestTraceReader_FindTracesDelegatesSuccessResponse(t *testing.T) {
 	}
 	traces, err := iter.FlattenWithErrors(traceReader.FindTraces(
 		context.Background(),
-		tracestore.TraceQueryParameters{
+		tracestore.TraceQueryParams{
 			ServiceName:   "service",
 			OperationName: "operation",
 			Tags:          map[string]string{"tag-a": "val-a"},
@@ -322,7 +328,7 @@ func TestTraceReader_FindTracesEdgeCases(t *testing.T) {
 			}
 			traces, err := iter.FlattenWithErrors(traceReader.FindTraces(
 				context.Background(),
-				tracestore.TraceQueryParameters{},
+				tracestore.TraceQueryParams{},
 			))
 			require.ErrorIs(t, err, test.err)
 			require.Equal(t, test.expectedTraces, traces)
@@ -342,7 +348,7 @@ func TestTraceReader_FindTracesEarlyStop(t *testing.T) {
 	}
 	called := 0
 	traceReader.FindTraces(
-		context.Background(), tracestore.TraceQueryParameters{},
+		context.Background(), tracestore.TraceQueryParams{},
 	)(func(tr []ptrace.Traces, err error) bool {
 		require.NoError(t, err)
 		require.Len(t, tr, 1)
@@ -352,7 +358,7 @@ func TestTraceReader_FindTracesEarlyStop(t *testing.T) {
 	assert.Equal(t, 3, called)
 	called = 0
 	traceReader.FindTraces(
-		context.Background(), tracestore.TraceQueryParameters{},
+		context.Background(), tracestore.TraceQueryParams{},
 	)(func(tr []ptrace.Traces, err error) bool {
 		require.NoError(t, err)
 		require.Len(t, tr, 1)
@@ -420,7 +426,7 @@ func TestTraceReader_FindTraceIDsDelegatesResponse(t *testing.T) {
 			}
 			traceIDs, err := iter.FlattenWithErrors(traceReader.FindTraceIDs(
 				context.Background(),
-				tracestore.TraceQueryParameters{
+				tracestore.TraceQueryParams{
 					ServiceName:   "service",
 					OperationName: "operation",
 					Tags:          map[string]string{"tag-a": "val-a"},

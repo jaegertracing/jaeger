@@ -14,7 +14,7 @@ import (
 
 func TestToSpanStoreQueryParameters(t *testing.T) {
 	now := time.Now()
-	query := &TraceQueryParameters{
+	query := &TraceQueryParams{
 		ServiceName:   "service",
 		OperationName: "operation",
 		Tags:          map[string]string{"tag-a": "val-a"},

@@ -42,11 +42,12 @@ func NewTraceReader(spanReader spanstore.Reader) *TraceReader {
 
 func (tr *TraceReader) GetTraces(
 	ctx context.Context,
-	traceIDs ...pcommon.TraceID,
+	traceIDs ...tracestore.GetTraceParams,
 ) iter.Seq2[[]ptrace.Traces, error] {
 	return func(yield func([]ptrace.Traces, error) bool) {
-		for _, traceID := range traceIDs {
-			t, err := tr.spanReader.GetTrace(ctx, model.TraceIDFromOTEL(traceID))
+		for _, idParams := range traceIDs {
+			// start/end times are not supported by v1 reader
+			t, err := tr.spanReader.GetTrace(ctx, model.TraceIDFromOTEL(idParams.TraceID))
 			if err != nil && !errors.Is(err, spanstore.ErrTraceNotFound) {
 				yield(nil, err)
 				return
@@ -87,7 +88,7 @@ func (tr *TraceReader) GetOperations(
 
 func (tr *TraceReader) FindTraces(
 	ctx context.Context,
-	query tracestore.TraceQueryParameters,
+	query tracestore.TraceQueryParams,
 ) iter.Seq2[[]ptrace.Traces, error] {
 	return func(yield func([]ptrace.Traces, error) bool) {
 		traces, err := tr.spanReader.FindTraces(ctx, query.ToSpanStoreQueryParameters())
@@ -107,7 +108,7 @@ func (tr *TraceReader) FindTraces(
 
 func (tr *TraceReader) FindTraceIDs(
 	ctx context.Context,
-	query tracestore.TraceQueryParameters,
+	query tracestore.TraceQueryParams,
 ) iter.Seq2[[]pcommon.TraceID, error] {
 	return func(yield func([]pcommon.TraceID, error) bool) {
 		traceIDs, err := tr.spanReader.FindTraceIDs(ctx, query.ToSpanStoreQueryParameters())
