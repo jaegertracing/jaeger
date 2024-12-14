@@ -36,7 +36,7 @@ type Reader interface {
 	// The iterator is single-use: once consumed, it cannot be used again.
 	//
 	// There is no guarantee that all spans for a single trace are returned in a single chunk
-	// (same as GetTrace: it the trace is too large it may be returned in multiple chunks).
+	// (same as GetTrace: if the trace is too large, it may be returned in multiple chunks).
 	// However, it is guaranteed that all spans for a single trace are returned in
 	// one or more consecutive chunks, as if the total output is grouped by trace ID.
 	//
