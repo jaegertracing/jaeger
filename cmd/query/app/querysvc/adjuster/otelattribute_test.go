@@ -6,10 +6,11 @@ package adjuster
 import (
 	"testing"
 
-	"github.com/jaegertracing/jaeger/pkg/otelsemconv"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+
+	"github.com/jaegertracing/jaeger/pkg/otelsemconv"
 )
 
 func TestOTELAttributeAdjuster(t *testing.T) {
