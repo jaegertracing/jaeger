@@ -15,11 +15,9 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
-	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/jtracer"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
@@ -90,20 +88,6 @@ func TestHTTPGatewayTryHandleError(t *testing.T) {
 	assert.True(t, gw.tryHandleError(w, errors.New(e), http.StatusInternalServerError))
 	assert.Contains(t, log.String(), e, "logs error if status code is 500")
 	assert.Contains(t, string(w.Body.String()), e, "writes error message to body")
-}
-
-func TestHTTPGatewayOTLPError(t *testing.T) {
-	w := httptest.NewRecorder()
-	gw := &HTTPGateway{
-		Logger: zap.NewNop(),
-	}
-	const simErr = "simulated error"
-	gw.returnSpansTestable(nil, w,
-		func(_ []*model.Span) (ptrace.Traces, error) {
-			return ptrace.Traces{}, errors.New(simErr)
-		},
-	)
-	assert.Contains(t, w.Body.String(), simErr)
 }
 
 func TestHTTPGatewayGetTraceErrors(t *testing.T) {
