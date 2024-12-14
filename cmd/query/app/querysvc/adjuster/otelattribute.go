@@ -60,7 +60,7 @@ func (otelAttributeAdjuster) adjust(span ptrace.Span, resource pcommon.Resource)
 			}
 		} else {
 			v.CopyTo(resource.Attributes().PutEmpty(k))
-			span.Attributes().Remove(k)
 		}
+		span.Attributes().Remove(k)
 	}
 }

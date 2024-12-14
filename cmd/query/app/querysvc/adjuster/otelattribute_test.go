@@ -80,8 +80,27 @@ func TestOTELAttributeAdjuster(t *testing.T) {
 				rs := traces.ResourceSpans().AppendEmpty()
 				span := rs.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
 				span.Attributes().PutStr("random_key", "random_value")
-				span.Attributes().PutStr(string(otelsemconv.TelemetrySDKLanguageKey), "Java")
 				span.Attributes().PutStr("jaeger.adjuster.warning", "conflicting attribute values for telemetry.sdk.language")
+				rs.Resource().Attributes().PutStr(string(otelsemconv.TelemetrySDKLanguageKey), "Go")
+				return traces
+			}(),
+		},
+		{
+			name: "span with non-conflicting otel library attributes",
+			input: func() ptrace.Traces {
+				traces := ptrace.NewTraces()
+				rs := traces.ResourceSpans().AppendEmpty()
+				rs.Resource().Attributes().PutStr(string(otelsemconv.TelemetrySDKLanguageKey), "Go")
+				span := rs.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+				span.Attributes().PutStr("random_key", "random_value")
+				span.Attributes().PutStr(string(otelsemconv.TelemetrySDKLanguageKey), "Go")
+				return traces
+			}(),
+			expected: func() ptrace.Traces {
+				traces := ptrace.NewTraces()
+				rs := traces.ResourceSpans().AppendEmpty()
+				span := rs.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+				span.Attributes().PutStr("random_key", "random_value")
 				rs.Resource().Attributes().PutStr(string(otelsemconv.TelemetrySDKLanguageKey), "Go")
 				return traces
 			}(),
@@ -90,7 +109,9 @@ func TestOTELAttributeAdjuster(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			adjuster := OTELAttribute()
-			result, err := adjuster.Adjust(test.input)
+			input := ptrace.NewTraces()
+			test.input.CopyTo(input)
+			result, err := adjuster.Adjust(input)
 			require.NoError(t, err)
 			assert.EqualValues(t, test.expected, result)
 		})
