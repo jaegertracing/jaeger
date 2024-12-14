@@ -4,8 +4,6 @@
 package adjuster
 
 import (
-	"fmt"
-
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
@@ -56,7 +54,7 @@ func (otelAttributeAdjuster) adjust(span ptrace.Span, resource pcommon.Resource)
 	for k, v := range replace {
 		if existing, ok := resource.Attributes().Get(k); ok {
 			if existing.AsRaw() != v.AsRaw() {
-				span.Attributes().PutStr(adjusterWarningAttribute, fmt.Sprintf("conflicting attribute values for %s", k))
+				span.Attributes().PutStr(adjusterWarningAttribute, "conflicting attribute values for "+k)
 			}
 		} else {
 			v.CopyTo(resource.Attributes().PutEmpty(k))
