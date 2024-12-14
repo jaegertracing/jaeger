@@ -6,11 +6,10 @@ package adjuster
 import (
 	"testing"
 
+	"github.com/jaegertracing/jaeger/pkg/otelsemconv"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/ptrace"
-
-	"github.com/jaegertracing/jaeger/pkg/otelsemconv"
 )
 
 func TestOTELAttributeAdjuster(t *testing.T) {
@@ -65,14 +64,35 @@ func TestOTELAttributeAdjuster(t *testing.T) {
 				return traces
 			}(),
 		},
+		{
+			name: "span with conflicting otel library attributes",
+			input: func() ptrace.Traces {
+				traces := ptrace.NewTraces()
+				rs := traces.ResourceSpans().AppendEmpty()
+				rs.Resource().Attributes().PutStr(string(otelsemconv.TelemetrySDKLanguageKey), "Go")
+				span := rs.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+				span.Attributes().PutStr("random_key", "random_value")
+				span.Attributes().PutStr(string(otelsemconv.TelemetrySDKLanguageKey), "Java")
+				return traces
+			}(),
+			expected: func() ptrace.Traces {
+				traces := ptrace.NewTraces()
+				rs := traces.ResourceSpans().AppendEmpty()
+				span := rs.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+				span.Attributes().PutStr("random_key", "random_value")
+				span.Attributes().PutStr(string(otelsemconv.TelemetrySDKLanguageKey), "Java")
+				span.Attributes().PutStr("jaeger.adjuster.warning", "conflicting attribute values for telemetry.sdk.language")
+				rs.Resource().Attributes().PutStr(string(otelsemconv.TelemetrySDKLanguageKey), "Go")
+				return traces
+			}(),
+		},
 	}
-
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			adjuster := OTELAttribute()
 			result, err := adjuster.Adjust(test.input)
 			require.NoError(t, err)
-			assert.Equal(t, test.expected, result)
+			assert.EqualValues(t, test.expected, result)
 		})
 	}
 }
