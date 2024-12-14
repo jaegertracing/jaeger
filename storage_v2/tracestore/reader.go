@@ -16,13 +16,18 @@ import (
 
 // Reader finds and loads traces and other data from storage.
 type Reader interface {
-	// GetTrace returns an iterator that retrieves all spans of the trace with a given id.
+	// GetTraces returns an iterator that retrieves all traces with a given IDs.
 	// The iterator is single-use: once consumed, it cannot be used again.
 	//
-	// If the trace is too large it may be returned in multiple chunks.
+	// Chunking requirements:
+	// - A single ptrace.Traces chunk MUST NOT contain spans from multiple traces.
+	// - Large traces MAY be split across multiple, *consecutive* ptrace.Traces chunks.
 	//
-	// If no spans are stored for this trace, it returns an empty iterator.
-	GetTrace(ctx context.Context, traceID pcommon.TraceID) iter.Seq2[ptrace.Traces, error]
+	// Edge cases:
+	// - If no spans are found for any given trace ID, it will be ignored.
+	// - If none of the trace IDs are found in the storage, an empty iterator is returned.
+	// - If an error is encountered, the iterator will return the error and stop.
+	GetTraces(ctx context.Context, traceIDs ...pcommon.TraceID) iter.Seq2[[]ptrace.Traces, error]
 
 	// GetServices returns all service names known to the backend from spans
 	// within its retention period.
@@ -35,10 +40,7 @@ type Reader interface {
 	// FindTraces returns an iterator that retrieves traces matching query parameters.
 	// The iterator is single-use: once consumed, it cannot be used again.
 	//
-	// There is no guarantee that all spans for a single trace are returned in a single chunk
-	// (same as GetTrace: if the trace is too large, it may be returned in multiple chunks).
-	// However, it is guaranteed that all spans for a single trace are returned in
-	// one or more consecutive chunks, as if the total output is grouped by trace ID.
+	// The chunking behavior is the same as for GetTraces.
 	//
 	// If no matching traces are found, the function returns an empty iterator.
 	//

@@ -40,19 +40,20 @@ func NewTraceReader(spanReader spanstore.Reader) *TraceReader {
 	}
 }
 
-func (tr *TraceReader) GetTrace(ctx context.Context, traceID pcommon.TraceID) iter.Seq2[ptrace.Traces, error] {
-	return func(yield func(ptrace.Traces, error) bool) {
-		t, err := tr.spanReader.GetTrace(ctx, model.TraceIDFromOTEL(traceID))
-		if err != nil {
-			// if not found, return an empty iterator, otherwire yield the error.
-			if !errors.Is(err, spanstore.ErrTraceNotFound) {
-				yield(ptrace.NewTraces(), err)
+func (tr *TraceReader) GetTraces(ctx context.Context, traceIDs ...pcommon.TraceID) iter.Seq2[[]ptrace.Traces, error] {
+	return func(yield func([]ptrace.Traces, error) bool) {
+		for _, traceID := range traceIDs {
+			t, err := tr.spanReader.GetTrace(ctx, model.TraceIDFromOTEL(traceID))
+			if err != nil && !errors.Is(err, spanstore.ErrTraceNotFound) {
+				yield(nil, err)
+				return
 			}
-			return
+			batch := &model.Batch{Spans: t.GetSpans()}
+			tr, err := model2otel.ProtoToTraces([]*model.Batch{batch})
+			if !yield([]ptrace.Traces{tr}, err) || err != nil {
+				return
+			}
 		}
-		batch := &model.Batch{Spans: t.GetSpans()}
-		tr, err := model2otel.ProtoToTraces([]*model.Batch{batch})
-		yield(tr, err)
 	}
 }
 

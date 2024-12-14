@@ -42,7 +42,7 @@ func TestGetV1Reader_Error(t *testing.T) {
 	require.ErrorIs(t, err, errV1ReaderNotAvailable)
 }
 
-func TestTraceReader_GetTraceDelegatesSuccessResponse(t *testing.T) {
+func TestTraceReader_GetTracesDelegatesSuccessResponse(t *testing.T) {
 	sr := new(spanStoreMocks.Reader)
 	modelTrace := &model.Trace{
 		Spans: []*model.Span{
@@ -62,7 +62,7 @@ func TestTraceReader_GetTraceDelegatesSuccessResponse(t *testing.T) {
 	traceReader := &TraceReader{
 		spanReader: sr,
 	}
-	traces, err := iter.CollectWithErrors(traceReader.GetTrace(
+	traces, err := iter.FlattenWithErrors(traceReader.GetTraces(
 		context.Background(),
 		pcommon.TraceID([]byte{0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 3}),
 	))
@@ -78,19 +78,54 @@ func TestTraceReader_GetTraceDelegatesSuccessResponse(t *testing.T) {
 	require.Equal(t, "operation-b", traceSpans.At(1).Name())
 }
 
-func TestTraceReader_GetTraceErrorResponse(t *testing.T) {
+func TestTraceReader_GetTracesErrorResponse(t *testing.T) {
 	sr := new(spanStoreMocks.Reader)
 	testErr := errors.New("test error")
 	sr.On("GetTrace", mock.Anything, mock.Anything).Return(nil, testErr)
 	traceReader := &TraceReader{
 		spanReader: sr,
 	}
-	traces, err := iter.CollectWithErrors(traceReader.GetTrace(
+	traces, err := iter.FlattenWithErrors(traceReader.GetTraces(
 		context.Background(),
 		pcommon.TraceID([]byte{0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 3}),
 	))
 	require.ErrorIs(t, err, testErr)
 	require.Empty(t, traces)
+}
+
+func TestTraceReader_GetTracesEarlyStop(t *testing.T) {
+	sr := new(spanStoreMocks.Reader)
+	sr.On(
+		"GetTrace",
+		mock.Anything,
+		mock.Anything,
+	).Return(&model.Trace{}, nil)
+	traceReader := &TraceReader{
+		spanReader: sr,
+	}
+	traceID := func(i byte) pcommon.TraceID {
+		return pcommon.TraceID([]byte{0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, i})
+	}
+	called := 0
+	traceReader.GetTraces(
+		context.Background(), traceID(1), traceID(2), traceID(3),
+	)(func(tr []ptrace.Traces, err error) bool {
+		require.NoError(t, err)
+		require.Len(t, tr, 1)
+		called++
+		return true
+	})
+	assert.Equal(t, 3, called)
+	called = 0
+	traceReader.GetTraces(
+		context.Background(), traceID(1), traceID(2), traceID(3),
+	)(func(tr []ptrace.Traces, err error) bool {
+		require.NoError(t, err)
+		require.Len(t, tr, 1)
+		called++
+		return false // early return
+	})
+	assert.Equal(t, 1, called)
 }
 
 func TestTraceReader_GetServicesDelegatesToSpanReader(t *testing.T) {
