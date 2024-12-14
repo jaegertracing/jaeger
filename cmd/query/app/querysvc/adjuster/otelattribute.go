@@ -1,12 +1,13 @@
-// Copyright (c) 2023 The Jaeger Authors.
+// Copyright (c) 2024 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package adjuster
 
 import (
-	"github.com/jaegertracing/jaeger/pkg/otelsemconv"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+
+	"github.com/jaegertracing/jaeger/pkg/otelsemconv"
 )
 
 var otelLibraryKeys = map[string]struct{}{
@@ -42,7 +43,7 @@ func OTELAttribute() Adjuster {
 
 type otelAttributeAdjuster struct{}
 
-func (o otelAttributeAdjuster) adjust(span ptrace.Span, resource pcommon.Resource) {
+func (otelAttributeAdjuster) adjust(span ptrace.Span, resource pcommon.Resource) {
 	replace := make(map[string]pcommon.Value)
 	span.Attributes().Range(func(k string, v pcommon.Value) bool {
 		if _, ok := otelLibraryKeys[k]; ok {
