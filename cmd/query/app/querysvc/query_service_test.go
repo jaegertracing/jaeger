@@ -12,8 +12,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
-	"go.opentelemetry.io/collector/pdata/pcommon"
-	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/model"
@@ -27,7 +25,7 @@ import (
 	"github.com/jaegertracing/jaeger/storage_v2/depstore"
 	depsmocks "github.com/jaegertracing/jaeger/storage_v2/depstore/mocks"
 	"github.com/jaegertracing/jaeger/storage_v2/factoryadapter"
-	"github.com/jaegertracing/jaeger/storage_v2/tracestore"
+	tracestoremocks "github.com/jaegertracing/jaeger/storage_v2/tracestore/mocks"
 )
 
 const millisToNanosMultiplier = int64(time.Millisecond / time.Nanosecond)
@@ -110,27 +108,27 @@ func initializeTestService(optionAppliers ...testOption) *testQueryService {
 	return &tqs
 }
 
-type fakeReader struct{}
+// type fakeReader struct{}
 
-func (*fakeReader) GetTrace(_ context.Context, _ pcommon.TraceID) (ptrace.Traces, error) {
-	panic("not implemented")
-}
+// func (*fakeReader) GetTrace(_ context.Context, _ pcommon.TraceID) (ptrace.Traces, error) {
+// 	panic("not implemented")
+// }
 
-func (*fakeReader) GetServices(_ context.Context) ([]string, error) {
-	panic("not implemented")
-}
+// func (*fakeReader) GetServices(_ context.Context) ([]string, error) {
+// 	panic("not implemented")
+// }
 
-func (*fakeReader) GetOperations(_ context.Context, _ tracestore.OperationQueryParameters) ([]tracestore.Operation, error) {
-	panic("not implemented")
-}
+// func (*fakeReader) GetOperations(_ context.Context, _ tracestore.OperationQueryParameters) ([]tracestore.Operation, error) {
+// 	panic("not implemented")
+// }
 
-func (*fakeReader) FindTraces(_ context.Context, _ tracestore.TraceQueryParameters) ([]ptrace.Traces, error) {
-	panic("not implemented")
-}
+// func (*fakeReader) FindTraces(_ context.Context, _ tracestore.TraceQueryParameters) ([]ptrace.Traces, error) {
+// 	panic("not implemented")
+// }
 
-func (*fakeReader) FindTraceIDs(_ context.Context, _ tracestore.TraceQueryParameters) ([]pcommon.TraceID, error) {
-	panic("not implemented")
-}
+// func (*fakeReader) FindTraceIDs(_ context.Context, _ tracestore.TraceQueryParameters) ([]pcommon.TraceID, error) {
+// 	panic("not implemented")
+// }
 
 // Test QueryService.GetTrace()
 func TestGetTraceSuccess(t *testing.T) {
@@ -158,7 +156,7 @@ func TestGetTraceNotFound(t *testing.T) {
 }
 
 func TestGetTrace_V1ReaderNotFound(t *testing.T) {
-	fr := &fakeReader{}
+	fr := new(tracestoremocks.Reader)
 	qs := QueryService{
 		traceReader: fr,
 	}
@@ -195,7 +193,7 @@ func TestGetServices(t *testing.T) {
 }
 
 func TestGetServices_V1ReaderNotFound(t *testing.T) {
-	fr := &fakeReader{}
+	fr := new(tracestoremocks.Reader)
 	qs := QueryService{
 		traceReader: fr,
 	}
@@ -222,7 +220,7 @@ func TestGetOperations(t *testing.T) {
 }
 
 func TestGetOperations_V1ReaderNotFound(t *testing.T) {
-	fr := &fakeReader{}
+	fr := new(tracestoremocks.Reader)
 	qs := QueryService{
 		traceReader: fr,
 	}
@@ -253,7 +251,7 @@ func TestFindTraces(t *testing.T) {
 }
 
 func TestFindTraces_V1ReaderNotFound(t *testing.T) {
-	fr := &fakeReader{}
+	fr := new(tracestoremocks.Reader)
 	qs := QueryService{
 		traceReader: fr,
 	}
