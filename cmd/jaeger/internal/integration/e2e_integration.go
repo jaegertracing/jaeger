@@ -152,13 +152,27 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
 	s.SpanReader, err = createSpanReader(logger, ports.QueryGRPC)
 	require.NoError(t, err)
 
-	scrapeCmd := exec.Command("./scripts/scrape-metrics.sh", "-t", storage)
-	scrapeCmd.Dir = "../../../.."
-	output, err := scrapeCmd.CombinedOutput()
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "http://localhost:8888/metrics", nil)
+	require.NoError(t, err)
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	err = os.MkdirAll("../../../../metrics", os.ModePerm)
 	if err != nil {
-		t.Errorf("Failed to scrape metrics: %v", err)
-		t.Log(string(output))
+		t.Fatalf("Failed to create directory: %v", err)
 	}
+
+	metricsFile, err := os.Create(fmt.Sprintf("../../../../metrics/%v_metrics.txt", storage))
+	if err != nil {
+		t.Fatalf("Failed to create metrics file: %v", err)
+	}
+	defer metricsFile.Close()
+
+	_, err = io.Copy(metricsFile, resp.Body)
+	require.NoError(t, err)
 
 	t.Cleanup(func() {
 		// Call e2eCleanUp to close the SpanReader and SpanWriter gRPC connection.

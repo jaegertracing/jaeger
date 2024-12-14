@@ -42,11 +42,12 @@ jobs:
         esac
           
     - name: Upload Metrics Artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
+      if: ${{ matrix.version }} == "v2"
       with:
             name: badger-metrics-${{ matrix.version }}
             path: ./metrics/badger_metrics.txt
-            retention-days: 7
+            retention-days: 60
 
     - name: Upload coverage to codecov
       uses: ./.github/actions/upload-codecov

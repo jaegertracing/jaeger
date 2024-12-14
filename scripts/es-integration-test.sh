@@ -130,7 +130,6 @@ main() {
   build_local_img
   if [[ "${j_version}" == "v2" ]]; then
     STORAGE=${distro} SPAN_STORAGE_TYPE=${distro} make jaeger-v2-storage-integration-test
-
   elif [[ "${j_version}" == "v1" ]]; then
     STORAGE=${distro} make storage-integration-test
     make index-cleaner-integration-test

@@ -1,4 +1,4 @@
-name: E2E Tests with meti
+name: E2E Tests
 
 on:
   push:

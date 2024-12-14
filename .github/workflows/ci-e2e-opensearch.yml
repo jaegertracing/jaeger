@@ -53,11 +53,12 @@ jobs:
       run: bash scripts/es-integration-test.sh ${{ matrix.version.distribution }} ${{ matrix.version.major }} ${{ matrix.version.jaeger }}
 
     - name: Upload Metrics Artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
+      if: ${{ matrix.version.major }} == "v2"
       with:
-          name: opensearch-metrics-${{ matrix.version }}
+          name: opensearch-metrics-${{ matrix.version.jaeger }}
           path: ./metrics/opensearch_metrics.txt
-          retention-days: 7
+          retention-days: 60
 
     - name: Upload coverage to codecov
       uses: ./.github/actions/upload-codecov

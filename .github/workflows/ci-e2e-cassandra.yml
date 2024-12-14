@@ -50,11 +50,12 @@ jobs:
         SKIP_APPLY_SCHEMA: ${{ matrix.create-schema == 'auto' && true || false }}
      
     - name: Upload Metrics Artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
+      if: ${{ matrix.jaeger-version }} == "v2"
       with:
               name: cassandra-metrics-${{ matrix.version }}
               path: ./metrics/cassandra_metrics.txt
-              retention-days: 7
+              retention-days: 60
 
     - name: Upload coverage to codecov
       uses: ./.github/actions/upload-codecov
