@@ -3,6 +3,8 @@
 
 package factoryadapter
 
+// add soe bogus comment
+
 import (
 	"context"
 	"errors"
