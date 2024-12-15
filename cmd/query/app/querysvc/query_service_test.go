@@ -24,7 +24,7 @@ import (
 	spanstoremocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
 	"github.com/jaegertracing/jaeger/storage_v2/depstore"
 	depsmocks "github.com/jaegertracing/jaeger/storage_v2/depstore/mocks"
-	"github.com/jaegertracing/jaeger/storage_v2/factoryadapter"
+	"github.com/jaegertracing/jaeger/storage_v2/v1adapter"
 	tracestoremocks "github.com/jaegertracing/jaeger/storage_v2/tracestore/mocks"
 )
 
@@ -90,7 +90,7 @@ func withAdjuster() testOption {
 
 func initializeTestService(optionAppliers ...testOption) *testQueryService {
 	readStorage := &spanstoremocks.Reader{}
-	traceReader := factoryadapter.NewTraceReader(readStorage)
+	traceReader := v1adapter.NewTraceReader(readStorage)
 	dependencyStorage := &depsmocks.Reader{}
 
 	options := QueryServiceOptions{}
