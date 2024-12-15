@@ -42,7 +42,10 @@ func NewTraceReader(spanReader spanstore.Reader) *TraceReader {
 
 func (tr *TraceReader) GetTrace(ctx context.Context, traceID pcommon.TraceID) iter.Seq2[ptrace.Traces, error] {
 	return func(yield func(ptrace.Traces, error) bool) {
-		t, err := tr.spanReader.GetTrace(ctx, model.TraceIDFromOTEL(traceID))
+		query := spanstore.GetTraceParameters{
+			TraceID: model.TraceIDFromOTEL(traceID),
+		}
+		t, err := tr.spanReader.GetTrace(ctx, query)
 		if err != nil {
 			// if not found, return an empty iterator, otherwire yield the error.
 			if !errors.Is(err, spanstore.ErrTraceNotFound) {

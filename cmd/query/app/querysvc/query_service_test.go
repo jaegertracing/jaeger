@@ -140,7 +140,8 @@ func TestGetTrace_V1ReaderNotFound(t *testing.T) {
 	qs := QueryService{
 		traceReader: fr,
 	}
-	_, err := qs.GetTrace(context.Background(), mockTraceID)
+	query := spanstore.GetTraceParameters{TraceID: mockTraceID}
+	_, err := qs.GetTrace(context.Background(), query)
 	require.Error(t, err)
 }
 
