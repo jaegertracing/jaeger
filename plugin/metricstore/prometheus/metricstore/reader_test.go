@@ -863,7 +863,7 @@ func TestInvalidCertFile(t *testing.T) {
 	assert.Nil(t, reader)
 }
 
-func TestCreatePromClientWithAdditionalParameters(t *testing.T) {
+func TestCreatePromClientWithExtraQueryParameters(t *testing.T) {
 	expParams := map[string]string{
 		"param1": "value1",
 		"param2": "value2",
@@ -871,8 +871,8 @@ func TestCreatePromClientWithAdditionalParameters(t *testing.T) {
 
 	logger := zap.NewNop()
 	cfg := config.Configuration{
-		ServerURL:            "http://localhost:1234",
-		AdditionalParameters: expParams,
+		ServerURL:        "http://localhost:1234",
+		ExtraQueryParams: expParams,
 	}
 
 	customClient, err := createPromClient(logger, cfg)

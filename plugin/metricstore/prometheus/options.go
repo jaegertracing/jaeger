@@ -51,11 +51,10 @@ func DefaultConfig() config.Configuration {
 		ServerURL:      defaultServerURL,
 		ConnectTimeout: defaultConnectTimeout,
 
-		MetricNamespace:      defaultMetricNamespace,
-		LatencyUnit:          defaultLatencyUnit,
-		NormalizeCalls:       defaultNormalizeCalls,
-		NormalizeDuration:    defaultNormalizeCalls,
-		AdditionalParameters: nil,
+		MetricNamespace:   defaultMetricNamespace,
+		LatencyUnit:       defaultLatencyUnit,
+		NormalizeCalls:    defaultNormalizeCalls,
+		NormalizeDuration: defaultNormalizeCalls,
 	}
 }
 

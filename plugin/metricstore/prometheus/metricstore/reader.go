@@ -64,7 +64,7 @@ type (
 
 	promClient struct {
 		api.Client
-		params map[string]string
+		extraParams map[string]string
 	}
 )
 
@@ -73,7 +73,7 @@ func (p promClient) URL(ep string, args map[string]string) *url.URL {
 	u := p.Client.URL(ep, args)
 
 	query := u.Query()
-	for k, v := range p.params {
+	for k, v := range p.extraParams {
 		query.Set(k, v)
 	}
 	u.RawQuery = query.Encode()
@@ -96,8 +96,8 @@ func createPromClient(logger *zap.Logger, cfg config.Configuration) (api.Client,
 	}
 
 	customClient := promClient{
-		Client: client,
-		params: cfg.AdditionalParameters,
+		Client:      client,
+		extraParams: cfg.ExtraQueryParams,
 	}
 
 	return customClient, nil
@@ -105,8 +105,6 @@ func createPromClient(logger *zap.Logger, cfg config.Configuration) (api.Client,
 
 // NewMetricsReader returns a new MetricsReader.
 func NewMetricsReader(cfg config.Configuration, logger *zap.Logger, tracer trace.TracerProvider) (*MetricsReader, error) {
-	logger.Info("Creating metrics reader", zap.Any("configuration", cfg))
-
 	const operationLabel = "span_name"
 
 	promClient, err := createPromClient(logger, cfg)
