@@ -49,7 +49,10 @@ func (tr *TraceReader) GetTraces(
 			// TODO start/end times are not supported by v1 reader
 			// https://github.com/jaegertracing/jaeger/pull/6242
 			t, err := tr.spanReader.GetTrace(ctx, model.TraceIDFromOTEL(idParams.TraceID))
-			if err != nil && !errors.Is(err, spanstore.ErrTraceNotFound) {
+			if err != nil {
+				if errors.Is(err, spanstore.ErrTraceNotFound) {
+					continue
+				}
 				yield(nil, err)
 				return
 			}

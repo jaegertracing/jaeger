@@ -63,13 +63,16 @@ type Reader interface {
 	FindTraceIDs(ctx context.Context, query TraceQueryParams) iter.Seq2[[]pcommon.TraceID, error]
 }
 
-// GetTraceParams contains single-trace parameters for a GetTraces.
+// GetTraceParams contains single-trace parameters for a GetTraces request.
 // Some storage backends (e.g. Tempo) perform GetTraces much more efficiently
 // if they know the approximate time range of the trace.
 type GetTraceParams struct {
-	TraceID pcommon.TraceID // required
-	Start   time.Time       // optional
-	End     time.Time       // optional
+	// TraceID is the ID of the trace to retrieve. Required.
+	TraceID pcommon.TraceID
+	// Start of the time interval to search for trace ID. Optional.
+	Start time.Time
+	// End of the time interval to search for trace ID. Optional.
+	End time.Time
 }
 
 // TraceQueryParams contains parameters of a trace query.

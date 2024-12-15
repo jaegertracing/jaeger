@@ -81,20 +81,51 @@ func TestTraceReader_GetTracesDelegatesSuccessResponse(t *testing.T) {
 }
 
 func TestTraceReader_GetTracesErrorResponse(t *testing.T) {
-	sr := new(spanStoreMocks.Reader)
-	testErr := errors.New("test error")
-	sr.On("GetTrace", mock.Anything, mock.Anything).Return(nil, testErr)
-	traceReader := &TraceReader{
-		spanReader: sr,
-	}
-	traces, err := iter.FlattenWithErrors(traceReader.GetTraces(
-		context.Background(),
-		tracestore.GetTraceParams{
-			TraceID: pcommon.TraceID([]byte{0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 3}),
+	testCases := []struct {
+		name          string
+		firstErr      error
+		expectedErr   error
+		expectedIters int
+	}{
+		{
+			name:          "real error aborts iterator",
+			firstErr:      assert.AnError,
+			expectedErr:   assert.AnError,
+			expectedIters: 0, // technically 1 but FlattenWithErrors makes it 0
 		},
-	))
-	require.ErrorIs(t, err, testErr)
-	require.Empty(t, traces)
+		{
+			name:          "trace not found error skips iteration",
+			firstErr:      spanstore.ErrTraceNotFound,
+			expectedErr:   nil,
+			expectedIters: 1,
+		},
+		{
+			name:          "no error produces two iterations",
+			firstErr:      nil,
+			expectedErr:   nil,
+			expectedIters: 2,
+		},
+	}
+	traceID := func(i byte) tracestore.GetTraceParams {
+		return tracestore.GetTraceParams{
+			TraceID: pcommon.TraceID([]byte{0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, i}),
+		}
+	}
+	for _, test := range testCases {
+		t.Run(test.name, func(t *testing.T) {
+			sr := new(spanStoreMocks.Reader)
+			sr.On("GetTrace", mock.Anything, mock.Anything).Return(&model.Trace{}, test.firstErr).Once()
+			sr.On("GetTrace", mock.Anything, mock.Anything).Return(&model.Trace{}, nil).Once()
+			traceReader := &TraceReader{
+				spanReader: sr,
+			}
+			traces, err := iter.FlattenWithErrors(traceReader.GetTraces(
+				context.Background(), traceID(1), traceID(2),
+			))
+			assert.ErrorIs(t, err, test.expectedErr)
+			assert.Len(t, traces, test.expectedIters)
+		})
+	}
 }
 
 func TestTraceReader_GetTracesEarlyStop(t *testing.T) {
