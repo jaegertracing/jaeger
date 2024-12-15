@@ -40,19 +40,28 @@ func NewTraceReader(spanReader spanstore.Reader) *TraceReader {
 	}
 }
 
-func (tr *TraceReader) GetTrace(ctx context.Context, traceID pcommon.TraceID) iter.Seq2[ptrace.Traces, error] {
-	return func(yield func(ptrace.Traces, error) bool) {
-		t, err := tr.spanReader.GetTrace(ctx, model.TraceIDFromOTEL(traceID))
-		if err != nil {
-			// if not found, return an empty iterator, otherwire yield the error.
-			if !errors.Is(err, spanstore.ErrTraceNotFound) {
-				yield(ptrace.NewTraces(), err)
+func (tr *TraceReader) GetTraces(
+	ctx context.Context,
+	traceIDs ...tracestore.GetTraceParams,
+) iter.Seq2[[]ptrace.Traces, error] {
+	return func(yield func([]ptrace.Traces, error) bool) {
+		for _, idParams := range traceIDs {
+			// TODO start/end times are not supported by v1 reader
+			// https://github.com/jaegertracing/jaeger/pull/6242
+			t, err := tr.spanReader.GetTrace(ctx, model.TraceIDFromOTEL(idParams.TraceID))
+			if err != nil {
+				if errors.Is(err, spanstore.ErrTraceNotFound) {
+					continue
+				}
+				yield(nil, err)
+				return
 			}
-			return
+			batch := &model.Batch{Spans: t.GetSpans()}
+			tr, err := model2otel.ProtoToTraces([]*model.Batch{batch})
+			if !yield([]ptrace.Traces{tr}, err) || err != nil {
+				return
+			}
 		}
-		batch := &model.Batch{Spans: t.GetSpans()}
-		tr, err := model2otel.ProtoToTraces([]*model.Batch{batch})
-		yield(tr, err)
 	}
 }
 
@@ -60,7 +69,10 @@ func (tr *TraceReader) GetServices(ctx context.Context) ([]string, error) {
 	return tr.spanReader.GetServices(ctx)
 }
 
-func (tr *TraceReader) GetOperations(ctx context.Context, query tracestore.OperationQueryParameters) ([]tracestore.Operation, error) {
+func (tr *TraceReader) GetOperations(
+	ctx context.Context,
+	query tracestore.OperationQueryParameters,
+) ([]tracestore.Operation, error) {
 	o, err := tr.spanReader.GetOperations(ctx, spanstore.OperationQueryParameters{
 		ServiceName: query.ServiceName,
 		SpanKind:    query.SpanKind,
@@ -80,7 +92,7 @@ func (tr *TraceReader) GetOperations(ctx context.Context, query tracestore.Opera
 
 func (tr *TraceReader) FindTraces(
 	ctx context.Context,
-	query tracestore.TraceQueryParameters,
+	query tracestore.TraceQueryParams,
 ) iter.Seq2[[]ptrace.Traces, error] {
 	return func(yield func([]ptrace.Traces, error) bool) {
 		traces, err := tr.spanReader.FindTraces(ctx, query.ToSpanStoreQueryParameters())
@@ -100,7 +112,7 @@ func (tr *TraceReader) FindTraces(
 
 func (tr *TraceReader) FindTraceIDs(
 	ctx context.Context,
-	query tracestore.TraceQueryParameters,
+	query tracestore.TraceQueryParams,
 ) iter.Seq2[[]pcommon.TraceID, error] {
 	return func(yield func([]pcommon.TraceID, error) bool) {
 		traceIDs, err := tr.spanReader.FindTraceIDs(ctx, query.ToSpanStoreQueryParameters())
