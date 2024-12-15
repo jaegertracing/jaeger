@@ -4,7 +4,6 @@
 package adjuster_test
 
 import (
-	"errors"
 	"fmt"
 	"testing"
 
@@ -16,21 +15,23 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc/adjuster"
 )
 
+type mockAdjuster struct{}
+
+func (mockAdjuster) Adjust(traces ptrace.Traces) (ptrace.Traces, error) {
+	span := traces.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0)
+	spanId := span.SpanID()
+	spanId[7]++
+	span.SetSpanID(spanId)
+	return traces, nil
+}
+
+type mockAdjusterError struct{}
+
+func (mockAdjusterError) Adjust(traces ptrace.Traces) (ptrace.Traces, error) {
+	return traces, assert.AnError
+}
+
 func TestSequences(t *testing.T) {
-	// mock adjuster that increments last byte of span ID
-	adj := adjuster.Func(func(trace ptrace.Traces) (ptrace.Traces, error) {
-		span := trace.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0)
-		spanId := span.SpanID()
-		spanId[7]++
-		span.SetSpanID(spanId)
-		return trace, nil
-	})
-
-	adjErr := errors.New("mock adjuster error")
-	failingAdj := adjuster.Func(func(trace ptrace.Traces) (ptrace.Traces, error) {
-		return trace, adjErr
-	})
-
 	tests := []struct {
 		name       string
 		adjuster   adjuster.Adjuster
@@ -39,14 +40,14 @@ func TestSequences(t *testing.T) {
 	}{
 		{
 			name:       "normal sequence",
-			adjuster:   adjuster.Sequence(adj, failingAdj, adj, failingAdj),
-			err:        fmt.Sprintf("%s\n%s", adjErr, adjErr),
+			adjuster:   adjuster.Sequence(mockAdjuster{}, mockAdjusterError{}, mockAdjuster{}, mockAdjusterError{}),
+			err:        fmt.Sprintf("%s\n%s", assert.AnError, assert.AnError),
 			lastSpanID: [8]byte{0, 0, 0, 0, 0, 0, 0, 2},
 		},
 		{
 			name:       "fail fast sequence",
-			adjuster:   adjuster.FailFastSequence(adj, failingAdj, adj, failingAdj),
-			err:        adjErr.Error(),
+			adjuster:   adjuster.FailFastSequence(mockAdjuster{}, mockAdjusterError{}, mockAdjuster{}, mockAdjusterError{}),
+			err:        assert.AnError.Error(),
 			lastSpanID: [8]byte{0, 0, 0, 0, 0, 0, 0, 1},
 		},
 	}
