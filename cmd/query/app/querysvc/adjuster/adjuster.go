@@ -9,10 +9,11 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 )
 
-// Adjuster defines an interface for modifying a trace object in place.
-// If the adjuster encounters an issue that prevents it from applying
-// modifications, it should return an error. The original trace object
-// is modified directly and not returned.
+// Adjuster is an interface for modifying a trace object in place.
+// If an issue is encountered that prevents modifications, an error should be returned.
+// The original trace object is modified directly and not returned.
+// The caller must ensure that all spans in the ptrace.Traces argument
+// belong to the same trace and represent the complete trace.
 type Adjuster interface {
 	Adjust(ptrace.Traces) error
 }
