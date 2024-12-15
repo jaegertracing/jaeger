@@ -42,7 +42,7 @@ func TestGetV1Reader_Error(t *testing.T) {
 	require.ErrorIs(t, err, errV1ReaderNotAvailable)
 }
 
-func TestTraceReader_GetTraceDelegatesSuccessResponse(t *testing.T) {
+func TestTraceReader_GetTracesDelegatesSuccessResponse(t *testing.T) {
 	sr := new(spanStoreMocks.Reader)
 	modelTrace := &model.Trace{
 		Spans: []*model.Span{
@@ -62,9 +62,11 @@ func TestTraceReader_GetTraceDelegatesSuccessResponse(t *testing.T) {
 	traceReader := &TraceReader{
 		spanReader: sr,
 	}
-	traces, err := iter.CollectWithErrors(traceReader.GetTrace(
+	traces, err := iter.FlattenWithErrors(traceReader.GetTraces(
 		context.Background(),
-		pcommon.TraceID([]byte{0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 3}),
+		tracestore.GetTraceParams{
+			TraceID: pcommon.TraceID([]byte{0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 3}),
+		},
 	))
 	require.NoError(t, err)
 	require.Len(t, traces, 1)
@@ -78,19 +80,89 @@ func TestTraceReader_GetTraceDelegatesSuccessResponse(t *testing.T) {
 	require.Equal(t, "operation-b", traceSpans.At(1).Name())
 }
 
-func TestTraceReader_GetTraceErrorResponse(t *testing.T) {
+func TestTraceReader_GetTracesErrorResponse(t *testing.T) {
+	testCases := []struct {
+		name          string
+		firstErr      error
+		expectedErr   error
+		expectedIters int
+	}{
+		{
+			name:          "real error aborts iterator",
+			firstErr:      assert.AnError,
+			expectedErr:   assert.AnError,
+			expectedIters: 0, // technically 1 but FlattenWithErrors makes it 0
+		},
+		{
+			name:          "trace not found error skips iteration",
+			firstErr:      spanstore.ErrTraceNotFound,
+			expectedErr:   nil,
+			expectedIters: 1,
+		},
+		{
+			name:          "no error produces two iterations",
+			firstErr:      nil,
+			expectedErr:   nil,
+			expectedIters: 2,
+		},
+	}
+	traceID := func(i byte) tracestore.GetTraceParams {
+		return tracestore.GetTraceParams{
+			TraceID: pcommon.TraceID([]byte{0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, i}),
+		}
+	}
+	for _, test := range testCases {
+		t.Run(test.name, func(t *testing.T) {
+			sr := new(spanStoreMocks.Reader)
+			sr.On("GetTrace", mock.Anything, mock.Anything).Return(&model.Trace{}, test.firstErr).Once()
+			sr.On("GetTrace", mock.Anything, mock.Anything).Return(&model.Trace{}, nil).Once()
+			traceReader := &TraceReader{
+				spanReader: sr,
+			}
+			traces, err := iter.FlattenWithErrors(traceReader.GetTraces(
+				context.Background(), traceID(1), traceID(2),
+			))
+			require.ErrorIs(t, err, test.expectedErr)
+			assert.Len(t, traces, test.expectedIters)
+		})
+	}
+}
+
+func TestTraceReader_GetTracesEarlyStop(t *testing.T) {
 	sr := new(spanStoreMocks.Reader)
-	testErr := errors.New("test error")
-	sr.On("GetTrace", mock.Anything, mock.Anything).Return(nil, testErr)
+	sr.On(
+		"GetTrace",
+		mock.Anything,
+		mock.Anything,
+	).Return(&model.Trace{}, nil)
 	traceReader := &TraceReader{
 		spanReader: sr,
 	}
-	traces, err := iter.CollectWithErrors(traceReader.GetTrace(
-		context.Background(),
-		pcommon.TraceID([]byte{0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 3}),
-	))
-	require.ErrorIs(t, err, testErr)
-	require.Empty(t, traces)
+	traceID := func(i byte) tracestore.GetTraceParams {
+		return tracestore.GetTraceParams{
+			TraceID: pcommon.TraceID([]byte{0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, i}),
+		}
+	}
+	called := 0
+	traceReader.GetTraces(
+		context.Background(), traceID(1), traceID(2), traceID(3),
+	)(func(tr []ptrace.Traces, err error) bool {
+		require.NoError(t, err)
+		require.Len(t, tr, 1)
+		called++
+		return true
+	})
+	assert.Equal(t, 3, called)
+	called = 0
+	traceReader.GetTraces(
+		context.Background(), traceID(1), traceID(2), traceID(3),
+	)(func(tr []ptrace.Traces, err error) bool {
+		require.NoError(t, err)
+		require.Len(t, tr, 1)
+		called++
+		return false // early return
+	})
+	assert.Equal(t, 1, called)
 }
 
 func TestTraceReader_GetServicesDelegatesToSpanReader(t *testing.T) {
@@ -224,7 +296,7 @@ func TestTraceReader_FindTracesDelegatesSuccessResponse(t *testing.T) {
 	}
 	traces, err := iter.FlattenWithErrors(traceReader.FindTraces(
 		context.Background(),
-		tracestore.TraceQueryParameters{
+		tracestore.TraceQueryParams{
 			ServiceName:   "service",
 			OperationName: "operation",
 			Tags:          map[string]string{"tag-a": "val-a"},
@@ -287,7 +359,7 @@ func TestTraceReader_FindTracesEdgeCases(t *testing.T) {
 			}
 			traces, err := iter.FlattenWithErrors(traceReader.FindTraces(
 				context.Background(),
-				tracestore.TraceQueryParameters{},
+				tracestore.TraceQueryParams{},
 			))
 			require.ErrorIs(t, err, test.err)
 			require.Equal(t, test.expectedTraces, traces)
@@ -307,7 +379,7 @@ func TestTraceReader_FindTracesEarlyStop(t *testing.T) {
 	}
 	called := 0
 	traceReader.FindTraces(
-		context.Background(), tracestore.TraceQueryParameters{},
+		context.Background(), tracestore.TraceQueryParams{},
 	)(func(tr []ptrace.Traces, err error) bool {
 		require.NoError(t, err)
 		require.Len(t, tr, 1)
@@ -317,7 +389,7 @@ func TestTraceReader_FindTracesEarlyStop(t *testing.T) {
 	assert.Equal(t, 3, called)
 	called = 0
 	traceReader.FindTraces(
-		context.Background(), tracestore.TraceQueryParameters{},
+		context.Background(), tracestore.TraceQueryParams{},
 	)(func(tr []ptrace.Traces, err error) bool {
 		require.NoError(t, err)
 		require.Len(t, tr, 1)
@@ -385,7 +457,7 @@ func TestTraceReader_FindTraceIDsDelegatesResponse(t *testing.T) {
 			}
 			traceIDs, err := iter.FlattenWithErrors(traceReader.FindTraceIDs(
 				context.Background(),
-				tracestore.TraceQueryParameters{
+				tracestore.TraceQueryParams{
 					ServiceName:   "service",
 					OperationName: "operation",
 					Tags:          map[string]string{"tag-a": "val-a"},
