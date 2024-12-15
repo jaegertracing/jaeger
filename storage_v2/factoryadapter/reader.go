@@ -48,8 +48,8 @@ func (tr *TraceReader) GetTraces(
 		for _, idParams := range traceIDs {
 			query := spanstore.GetTraceParameters{
 				TraceID:   model.TraceIDFromOTEL(idParams.TraceID),
-        StartTime: idParams.Start,
-        EndTime:   idParams.End,
+				StartTime: idParams.Start,
+				EndTime:   idParams.End,
 			}
 			t, err := tr.spanReader.GetTrace(ctx, query)
 			if err != nil {
