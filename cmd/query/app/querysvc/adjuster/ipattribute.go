@@ -26,7 +26,7 @@ func IPAttribute() IPAttributeAdjuster {
 
 type IPAttributeAdjuster struct{}
 
-func (ia IPAttributeAdjuster) Adjust(traces ptrace.Traces) (ptrace.Traces, error) {
+func (ia IPAttributeAdjuster) Adjust(traces ptrace.Traces) error {
 	resourceSpans := traces.ResourceSpans()
 	for i := 0; i < resourceSpans.Len(); i++ {
 		rs := resourceSpans.At(i)
@@ -41,7 +41,7 @@ func (ia IPAttributeAdjuster) Adjust(traces ptrace.Traces) (ptrace.Traces, error
 			}
 		}
 	}
-	return traces, nil
+	return nil
 }
 
 func (IPAttributeAdjuster) adjustAttributes(attributes pcommon.Map) {

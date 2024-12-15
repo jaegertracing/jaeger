@@ -17,18 +17,18 @@ import (
 
 type mockAdjuster struct{}
 
-func (mockAdjuster) Adjust(traces ptrace.Traces) (ptrace.Traces, error) {
+func (mockAdjuster) Adjust(traces ptrace.Traces) error {
 	span := traces.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0)
 	spanId := span.SpanID()
 	spanId[7]++
 	span.SetSpanID(spanId)
-	return traces, nil
+	return nil
 }
 
 type mockAdjusterError struct{}
 
-func (mockAdjusterError) Adjust(traces ptrace.Traces) (ptrace.Traces, error) {
-	return traces, assert.AnError
+func (mockAdjusterError) Adjust(ptrace.Traces) error {
+	return assert.AnError
 }
 
 func TestSequences(t *testing.T) {
@@ -58,12 +58,12 @@ func TestSequences(t *testing.T) {
 			span := trace.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans().AppendEmpty()
 			span.SetSpanID([8]byte{0, 0, 0, 0, 0, 0, 0, 0})
 
-			adjTrace, err := test.adjuster.Adjust(trace)
-			adjTraceSpan := adjTrace.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0)
+			err := test.adjuster.Adjust(trace)
+			require.EqualError(t, err, test.err)
 
+			adjTraceSpan := trace.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0)
 			assert.Equal(t, span, adjTraceSpan)
 			assert.EqualValues(t, test.lastSpanID, span.SpanID())
-			require.EqualError(t, err, test.err)
 		})
 	}
 }

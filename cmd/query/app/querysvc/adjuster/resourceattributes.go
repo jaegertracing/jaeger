@@ -28,7 +28,7 @@ func ResourceAttributes() ResourceAttributesAdjuster {
 
 type ResourceAttributesAdjuster struct{}
 
-func (o ResourceAttributesAdjuster) Adjust(traces ptrace.Traces) (ptrace.Traces, error) {
+func (o ResourceAttributesAdjuster) Adjust(traces ptrace.Traces) error {
 	resourceSpans := traces.ResourceSpans()
 	for i := 0; i < resourceSpans.Len(); i++ {
 		rs := resourceSpans.At(i)
@@ -43,7 +43,7 @@ func (o ResourceAttributesAdjuster) Adjust(traces ptrace.Traces) (ptrace.Traces,
 			}
 		}
 	}
-	return traces, nil
+	return nil
 }
 
 func (ResourceAttributesAdjuster) moveAttributes(span ptrace.Span, resource pcommon.Resource) {

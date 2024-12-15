@@ -9,19 +9,19 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 )
 
-// Adjuster defines an interface for modifying a trace object.
-// It returns the adjusted trace object, which is also updated in place.
+// Adjuster defines an interface for modifying a trace object in place.
 // If the adjuster encounters an issue that prevents it from applying
-// modifications, it should return the original trace object along with an error.
+// modifications, it should return an error. The original trace object
+// is modified directly and not returned.
 type Adjuster interface {
-	Adjust(ptrace.Traces) (ptrace.Traces, error)
+	Adjust(ptrace.Traces) error
 }
 
 // // Func is a type alias that wraps a function and makes an Adjuster from it.
 // type Func func(traces ptrace.Traces) (ptrace.Traces, error)
 
 // // Adjust implements Adjuster interface for the Func alias.
-// func (f Func) Adjust(traces ptrace.Traces) (ptrace.Traces, error) {
+// func (f Func) Adjust(traces ptrace.Traces) error {
 // 	return f(traces)
 // }
 
@@ -44,17 +44,16 @@ type sequence struct {
 	failFast  bool
 }
 
-func (c sequence) Adjust(traces ptrace.Traces) (ptrace.Traces, error) {
+func (c sequence) Adjust(traces ptrace.Traces) error {
 	var errs []error
 	for _, adjuster := range c.adjusters {
-		var err error
-		traces, err = adjuster.Adjust(traces)
+		err := adjuster.Adjust(traces)
 		if err != nil {
 			if c.failFast {
-				return traces, err
+				return err
 			}
 			errs = append(errs, err)
 		}
 	}
-	return traces, errors.Join(errs...)
+	return errors.Join(errs...)
 }
