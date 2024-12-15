@@ -122,7 +122,7 @@ func TestTraceReader_GetTracesErrorResponse(t *testing.T) {
 			traces, err := iter.FlattenWithErrors(traceReader.GetTraces(
 				context.Background(), traceID(1), traceID(2),
 			))
-			assert.ErrorIs(t, err, test.expectedErr)
+			require.ErrorIs(t, err, test.expectedErr)
 			assert.Len(t, traces, test.expectedIters)
 		})
 	}
