@@ -1,14 +1,10 @@
 name: CIT Elasticsearch
 
 on:
-  push:
-    branches: [main]
-
-  pull_request:
-    branches: [main]
+  workflow_call:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ (github.event.pull_request && github.event.pull_request.number) || github.ref || github.run_id }}
+  group: cit-elasticsearch-${{ github.workflow }}-${{ (github.event.pull_request && github.event.pull_request.number) || github.ref || github.run_id }}
   cancel-in-progress: true
 
 # See https://github.com/ossf/scorecard/blob/main/docs/checks.md#token-permissions

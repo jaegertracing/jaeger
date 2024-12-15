@@ -123,7 +123,10 @@ func TestElasticsearchILMUsedWithoutReadWriteAliases(t *testing.T) {
 	f.primaryConfig = &escfg.Configuration{
 		UseILM: true,
 	}
-	f.archiveConfig = &escfg.Configuration{}
+	f.archiveConfig = &escfg.Configuration{
+		Enabled: true,
+		UseILM:  true,
+	}
 	f.newClientFn = (&mockClientBuilder{}).NewClient
 	require.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
 	defer f.Close()
@@ -134,6 +137,10 @@ func TestElasticsearchILMUsedWithoutReadWriteAliases(t *testing.T) {
 	r, err := f.CreateSpanReader()
 	require.EqualError(t, err, "--es.use-ilm must always be used in conjunction with --es.use-aliases to ensure ES writers and readers refer to the single index mapping")
 	assert.Nil(t, r)
+
+	ar, err := f.CreateArchiveSpanReader()
+	require.EqualError(t, err, "--es.use-ilm must always be used in conjunction with --es.use-aliases to ensure ES writers and readers refer to the single index mapping")
+	assert.Nil(t, ar)
 }
 
 func TestTagKeysAsFields(t *testing.T) {

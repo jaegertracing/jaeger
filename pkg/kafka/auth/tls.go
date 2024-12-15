@@ -4,17 +4,17 @@
 package auth
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/Shopify/sarama"
+	"go.opentelemetry.io/collector/config/configtls"
 	"go.uber.org/zap"
-
-	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 )
 
-func setTLSConfiguration(config *tlscfg.Options, saramaConfig *sarama.Config, logger *zap.Logger) error {
-	if config.Enabled {
-		tlsConfig, err := config.Config(logger)
+func setTLSConfiguration(config *configtls.ClientConfig, saramaConfig *sarama.Config, _ *zap.Logger) error {
+	if !config.Insecure {
+		tlsConfig, err := config.LoadTLSConfig(context.Background())
 		if err != nil {
 			return fmt.Errorf("error loading tls config: %w", err)
 		}

@@ -14,7 +14,7 @@ type ServiceAliasMappingStorage struct {
 	mock.Mock
 }
 
-// Load provides a mock function with given fields:
+// Load provides a mock function with no fields
 func (_m *ServiceAliasMappingStorage) Load() (map[string]string, error) {
 	ret := _m.Called()
 

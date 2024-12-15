@@ -37,11 +37,10 @@ type Factory struct {
 // NewFactory creates a new Factory.
 func NewFactory() *Factory {
 	return &Factory{
-		options:        &Options{},
-		logger:         zap.NewNop(),
-		metricsFactory: metrics.NullFactory,
-		lock:           nil,
-		store:          nil,
+		options: &Options{},
+		logger:  zap.NewNop(),
+		lock:    nil,
+		store:   nil,
 	}
 }
 

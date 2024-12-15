@@ -8,25 +8,26 @@ import (
 	"io"
 
 	storage_v1 "github.com/jaegertracing/jaeger/storage"
-	"github.com/jaegertracing/jaeger/storage_v2/spanstore"
+	"github.com/jaegertracing/jaeger/storage_v2/depstore"
+	"github.com/jaegertracing/jaeger/storage_v2/tracestore"
 )
 
 type Factory struct {
 	ss storage_v1.Factory
 }
 
-func NewFactory(ss storage_v1.Factory) spanstore.Factory {
+func NewFactory(ss storage_v1.Factory) *Factory {
 	return &Factory{
 		ss: ss,
 	}
 }
 
-// Initialize implements spanstore.Factory.
+// Initialize implements tracestore.Factory.
 func (*Factory) Initialize(_ context.Context) error {
 	panic("not implemented")
 }
 
-// Close implements spanstore.Factory.
+// Close implements tracestore.Factory.
 func (f *Factory) Close(_ context.Context) error {
 	if closer, ok := f.ss.(io.Closer); ok {
 		return closer.Close()
@@ -34,8 +35,8 @@ func (f *Factory) Close(_ context.Context) error {
 	return nil
 }
 
-// CreateTraceReader implements spanstore.Factory.
-func (f *Factory) CreateTraceReader() (spanstore.Reader, error) {
+// CreateTraceReader implements tracestore.Factory.
+func (f *Factory) CreateTraceReader() (tracestore.Reader, error) {
 	spanReader, err := f.ss.CreateSpanReader()
 	if err != nil {
 		return nil, err
@@ -43,11 +44,20 @@ func (f *Factory) CreateTraceReader() (spanstore.Reader, error) {
 	return NewTraceReader(spanReader), nil
 }
 
-// CreateTraceWriter implements spanstore.Factory.
-func (f *Factory) CreateTraceWriter() (spanstore.Writer, error) {
+// CreateTraceWriter implements tracestore.Factory.
+func (f *Factory) CreateTraceWriter() (tracestore.Writer, error) {
 	spanWriter, err := f.ss.CreateSpanWriter()
 	if err != nil {
 		return nil, err
 	}
 	return NewTraceWriter(spanWriter), nil
+}
+
+// CreateDependencyReader implements depstore.Factory.
+func (f *Factory) CreateDependencyReader() (depstore.Reader, error) {
+	dr, err := f.ss.CreateDependencyReader()
+	if err != nil {
+		return nil, err
+	}
+	return NewDependencyReader(dr), nil
 }

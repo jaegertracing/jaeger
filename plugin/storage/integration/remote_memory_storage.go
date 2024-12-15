@@ -10,9 +10,8 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
-	"go.opentelemetry.io/collector/config/configtelemetry"
-	"go.opentelemetry.io/otel/metric"
-	"go.opentelemetry.io/otel/metric/noop"
+	"go.opentelemetry.io/collector/config/configgrpc"
+	"go.opentelemetry.io/collector/config/confignet"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 	"google.golang.org/grpc"
@@ -23,7 +22,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
-	"github.com/jaegertracing/jaeger/pkg/telemetery"
+	"github.com/jaegertracing/jaeger/pkg/telemetry"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/plugin/storage"
 	"github.com/jaegertracing/jaeger/ports"
@@ -37,7 +36,11 @@ type RemoteMemoryStorage struct {
 func StartNewRemoteMemoryStorage(t *testing.T) *RemoteMemoryStorage {
 	logger := zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller()))
 	opts := &app.Options{
-		GRPCHostPort: ports.PortToHostPort(ports.RemoteStorageGRPC),
+		ServerConfig: configgrpc.ServerConfig{
+			NetAddr: confignet.AddrConfig{
+				Endpoint: ports.PortToHostPort(ports.RemoteStorageGRPC),
+			},
+		},
 		Tenancy: tenancy.Options{
 			Enabled: false,
 		},
@@ -50,20 +53,16 @@ func StartNewRemoteMemoryStorage(t *testing.T) *RemoteMemoryStorage {
 	storageFactory.InitFromViper(v, logger)
 	require.NoError(t, storageFactory.Initialize(metrics.NullFactory, logger))
 
-	t.Logf("Starting in-process remote storage server on %s", opts.GRPCHostPort)
-	telset := telemetery.Setting{
-		Logger:       logger,
-		ReportStatus: telemetery.HCAdapter(healthcheck.New()),
-		LeveledMeterProvider: func(_ configtelemetry.Level) metric.MeterProvider {
-			return noop.NewMeterProvider()
-		},
-	}
+	t.Logf("Starting in-process remote storage server on %s", opts.NetAddr.Endpoint)
+	telset := telemetry.NoopSettings()
+	telset.Logger = logger
+	telset.ReportStatus = telemetry.HCAdapter(healthcheck.New())
 	server, err := app.NewServer(opts, storageFactory, tm, telset)
 	require.NoError(t, err)
 	require.NoError(t, server.Start())
 
 	conn, err := grpc.NewClient(
-		opts.GRPCHostPort,
+		opts.NetAddr.Endpoint,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	)
 	require.NoError(t, err)

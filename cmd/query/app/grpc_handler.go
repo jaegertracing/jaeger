@@ -16,10 +16,10 @@ import (
 	"github.com/jaegertracing/jaeger/model"
 	_ "github.com/jaegertracing/jaeger/pkg/gogocodec" // force gogo codec registration
 	"github.com/jaegertracing/jaeger/pkg/jtracer"
-	"github.com/jaegertracing/jaeger/plugin/metrics/disabled"
+	"github.com/jaegertracing/jaeger/plugin/metricstore/disabled"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2/metrics"
-	"github.com/jaegertracing/jaeger/storage/metricsstore"
+	"github.com/jaegertracing/jaeger/storage/metricstore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
@@ -233,7 +233,7 @@ func (g *GRPCHandler) GetDependencies(ctx context.Context, r *api_v2.GetDependen
 		return nil, status.Errorf(codes.InvalidArgument, "StartTime and EndTime must be initialized.")
 	}
 
-	dependencies, err := g.queryService.GetDependencies(ctx, startTime, endTime.Sub(startTime))
+	dependencies, err := g.queryService.GetDependencies(ctx, endTime, endTime.Sub(startTime))
 	if err != nil {
 		g.logger.Error("failed to fetch dependencies", zap.Error(err))
 		return nil, status.Errorf(codes.Internal, "failed to fetch dependencies: %v", err)
@@ -252,7 +252,7 @@ func (g *GRPCHandler) GetLatencies(ctx context.Context, r *metrics.GetLatenciesR
 	if r.Quantile == 0 {
 		return nil, errMissingQuantile
 	}
-	queryParams := metricsstore.LatenciesQueryParameters{
+	queryParams := metricstore.LatenciesQueryParameters{
 		BaseQueryParameters: bqp,
 		Quantile:            r.Quantile,
 	}
@@ -269,7 +269,7 @@ func (g *GRPCHandler) GetCallRates(ctx context.Context, r *metrics.GetCallRatesR
 	if err := g.handleErr("failed to build parameters", err); err != nil {
 		return nil, err
 	}
-	queryParams := metricsstore.CallRateQueryParameters{
+	queryParams := metricstore.CallRateQueryParameters{
 		BaseQueryParameters: bqp,
 	}
 	m, err := g.metricsQueryService.GetCallRates(ctx, &queryParams)
@@ -285,7 +285,7 @@ func (g *GRPCHandler) GetErrorRates(ctx context.Context, r *metrics.GetErrorRate
 	if err := g.handleErr("failed to build parameters", err); err != nil {
 		return nil, err
 	}
-	queryParams := metricsstore.ErrorRateQueryParameters{
+	queryParams := metricstore.ErrorRateQueryParameters{
 		BaseQueryParameters: bqp,
 	}
 	m, err := g.metricsQueryService.GetErrorRates(ctx, &queryParams)
@@ -297,7 +297,7 @@ func (g *GRPCHandler) GetErrorRates(ctx context.Context, r *metrics.GetErrorRate
 
 // GetMinStepDuration is the gRPC handler to fetch the minimum step duration supported by the underlying metrics store.
 func (g *GRPCHandler) GetMinStepDuration(ctx context.Context, _ *metrics.GetMinStepDurationRequest) (*metrics.GetMinStepDurationResponse, error) {
-	minStep, err := g.metricsQueryService.GetMinStepDuration(ctx, &metricsstore.MinStepDurationQueryParameters{})
+	minStep, err := g.metricsQueryService.GetMinStepDuration(ctx, &metricstore.MinStepDurationQueryParameters{})
 	if err := g.handleErr("failed to fetch min step duration", err); err != nil {
 		return nil, err
 	}
@@ -322,7 +322,7 @@ func (g *GRPCHandler) handleErr(msg string, err error) error {
 	return status.Errorf(codes.Internal, "%s: %v", msg, err)
 }
 
-func (g *GRPCHandler) newBaseQueryParameters(r any) (bqp metricsstore.BaseQueryParameters, err error) {
+func (g *GRPCHandler) newBaseQueryParameters(r any) (bqp metricstore.BaseQueryParameters, err error) {
 	if r == nil {
 		return bqp, errNilRequest
 	}

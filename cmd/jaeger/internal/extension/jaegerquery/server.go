@@ -9,21 +9,19 @@ import (
 	"fmt"
 
 	"go.opentelemetry.io/collector/component"
-	"go.opentelemetry.io/collector/component/componentstatus"
 	"go.opentelemetry.io/collector/extension"
 	"go.opentelemetry.io/collector/extension/extensioncapabilities"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
 	queryApp "github.com/jaegertracing/jaeger/cmd/query/app"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
-	"github.com/jaegertracing/jaeger/internal/metrics/otelmetrics"
 	"github.com/jaegertracing/jaeger/pkg/jtracer"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
-	"github.com/jaegertracing/jaeger/pkg/telemetery"
+	"github.com/jaegertracing/jaeger/pkg/telemetry"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
-	"github.com/jaegertracing/jaeger/plugin/metrics/disabled"
-	"github.com/jaegertracing/jaeger/storage/metricsstore"
-	"github.com/jaegertracing/jaeger/storage/spanstore/spanstoremetrics"
+	"github.com/jaegertracing/jaeger/plugin/metricstore/disabled"
+	"github.com/jaegertracing/jaeger/storage/metricstore"
+	"github.com/jaegertracing/jaeger/storage_v2/depstore"
 )
 
 var (
@@ -52,39 +50,6 @@ func (*server) Dependencies() []component.ID {
 }
 
 func (s *server) Start(ctx context.Context, host component.Host) error {
-	mf := otelmetrics.NewFactory(s.telset.MeterProvider)
-	baseFactory := mf.Namespace(metrics.NSOptions{Name: "jaeger"})
-	queryMetricsFactory := baseFactory.Namespace(metrics.NSOptions{Name: "query"})
-	f, err := jaegerstorage.GetStorageFactory(s.config.Storage.TracesPrimary, host)
-	if err != nil {
-		return fmt.Errorf("cannot find primary storage %s: %w", s.config.Storage.TracesPrimary, err)
-	}
-
-	spanReader, err := f.CreateSpanReader()
-	if err != nil {
-		return fmt.Errorf("cannot create span reader: %w", err)
-	}
-
-	spanReader = spanstoremetrics.NewReaderDecorator(spanReader, queryMetricsFactory)
-
-	depReader, err := f.CreateDependencyReader()
-	if err != nil {
-		return fmt.Errorf("cannot create dependencies reader: %w", err)
-	}
-
-	var opts querysvc.QueryServiceOptions
-	if err := s.addArchiveStorage(&opts, host); err != nil {
-		return err
-	}
-	qs := querysvc.NewQueryService(spanReader, depReader, opts)
-
-	mqs, err := s.createMetricReader(host)
-	if err != nil {
-		return err
-	}
-
-	tm := tenancy.NewManager(&s.config.Tenancy)
-
 	// TODO OTel-collector does not initialize the tracer currently
 	// https://github.com/open-telemetry/opentelemetry-collector/issues/7532
 	//nolint
@@ -92,17 +57,52 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 	if err != nil {
 		return fmt.Errorf("could not initialize a tracer: %w", err)
 	}
-	s.closeTracer = tracerProvider.Close
-	telset := telemetery.Setting{
-		Logger:         s.telset.Logger,
-		TracerProvider: tracerProvider.OTEL,
-		Metrics:        queryMetricsFactory,
-		ReportStatus: func(event *componentstatus.Event) {
-			componentstatus.ReportStatus(host, event)
-		},
-		LeveledMeterProvider: s.telset.LeveledMeterProvider,
-		Host:                 host,
+	// make sure to close the tracer if subsequent code exists with error
+	success := false
+	defer func(ctx context.Context) {
+		if success {
+			s.closeTracer = tracerProvider.Close
+		} else {
+			tracerProvider.Close(ctx)
+		}
+	}(ctx)
+
+	telset := telemetry.FromOtelComponent(s.telset, host)
+	telset.TracerProvider = tracerProvider.OTEL
+	telset.Metrics = telset.Metrics.
+		Namespace(metrics.NSOptions{Name: "jaeger"}).
+		Namespace(metrics.NSOptions{Name: "query"})
+	tf, err := jaegerstorage.GetTraceStoreFactory(s.config.Storage.TracesPrimary, host)
+	if err != nil {
+		return fmt.Errorf("cannot find factory for trace storage %s: %w", s.config.Storage.TracesPrimary, err)
 	}
+	traceReader, err := tf.CreateTraceReader()
+	if err != nil {
+		return fmt.Errorf("cannot create trace reader: %w", err)
+	}
+
+	df, ok := tf.(depstore.Factory)
+	if !ok {
+		return fmt.Errorf("cannot find factory for dependency storage %s: %w", s.config.Storage.TracesPrimary, err)
+	}
+	depReader, err := df.CreateDependencyReader()
+	if err != nil {
+		return fmt.Errorf("cannot create dependencies reader: %w", err)
+	}
+
+	var opts querysvc.QueryServiceOptions
+	// TODO archive storage still uses v1 factory
+	if err := s.addArchiveStorage(&opts, host); err != nil {
+		return err
+	}
+	qs := querysvc.NewQueryService(traceReader, depReader, opts)
+
+	mqs, err := s.createMetricReader(host)
+	if err != nil {
+		return err
+	}
+
+	tm := tenancy.NewManager(&s.config.Tenancy)
 
 	s.server, err = queryApp.NewServer(
 		ctx,
@@ -121,6 +121,7 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 		return fmt.Errorf("could not start jaeger-query: %w", err)
 	}
 
+	success = true
 	return nil
 }
 
@@ -141,22 +142,23 @@ func (s *server) addArchiveStorage(opts *querysvc.QueryServiceOptions, host comp
 	return nil
 }
 
-func (s *server) createMetricReader(host component.Host) (metricsstore.Reader, error) {
+func (s *server) createMetricReader(host component.Host) (metricstore.Reader, error) {
 	if s.config.Storage.Metrics == "" {
 		s.telset.Logger.Info("Metric storage not configured")
 		return disabled.NewMetricsReader()
 	}
 
-	mf, err := jaegerstorage.GetMetricsFactory(s.config.Storage.Metrics, host)
+	msf, err := jaegerstorage.GetMetricStorageFactory(s.config.Storage.Metrics, host)
 	if err != nil {
 		return nil, fmt.Errorf("cannot find metrics storage factory: %w", err)
 	}
 
-	metricsReader, err := mf.CreateMetricsReader()
+	metricsReader, err := msf.CreateMetricsReader()
 	if err != nil {
 		return nil, fmt.Errorf("cannot create metrics reader %w", err)
 	}
-	return metricsReader, err
+
+	return metricsReader, nil
 }
 
 func (s *server) Shutdown(ctx context.Context) error {

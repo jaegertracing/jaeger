@@ -10,10 +10,8 @@ import (
 	otlp2jaeger "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componentstatus"
-	"go.opentelemetry.io/collector/config/configgrpc"
-	"go.opentelemetry.io/collector/config/confighttp"
+	"go.opentelemetry.io/collector/config/confignet"
 	"go.opentelemetry.io/collector/config/configtelemetry"
-	"go.opentelemetry.io/collector/config/configtls"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/extension"
 	"go.opentelemetry.io/collector/pdata/ptrace"
@@ -27,7 +25,6 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/flags"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
-	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 )
 
@@ -62,8 +59,9 @@ func startOTLPReceiver(
 		cfg component.Config, nextConsumer consumer.Traces) (receiver.Traces, error),
 ) (receiver.Traces, error) {
 	otlpReceiverConfig := otlpFactory.CreateDefaultConfig().(*otlpreceiver.Config)
-	applyGRPCSettings(otlpReceiverConfig.GRPC, &options.OTLP.GRPC)
-	applyHTTPSettings(otlpReceiverConfig.HTTP.ServerConfig, &options.OTLP.HTTP)
+	otlpReceiverConfig.GRPC = &options.OTLP.GRPC
+	otlpReceiverConfig.GRPC.NetAddr.Transport = confignet.TransportTypeTCP
+	otlpReceiverConfig.HTTP.ServerConfig = &options.OTLP.HTTP
 	statusReporter := func(ev *componentstatus.Event) {
 		// TODO this could be wired into changing healthcheck.HealthCheck
 		logger.Info("OTLP receiver status change", zap.Stringer("status", ev.Status()))
@@ -99,54 +97,6 @@ func startOTLPReceiver(
 		return nil, fmt.Errorf("could not start the OTLP receiver: %w", err)
 	}
 	return otlpReceiver, nil
-}
-
-func applyGRPCSettings(cfg *configgrpc.ServerConfig, opts *flags.GRPCOptions) {
-	if opts.HostPort != "" {
-		cfg.NetAddr.Endpoint = opts.HostPort
-	}
-	if opts.TLS.Enabled {
-		cfg.TLSSetting = applyTLSSettings(&opts.TLS)
-	}
-	if opts.MaxReceiveMessageLength > 0 {
-		cfg.MaxRecvMsgSizeMiB = int(opts.MaxReceiveMessageLength / (1024 * 1024))
-	}
-	if opts.MaxConnectionAge != 0 || opts.MaxConnectionAgeGrace != 0 {
-		cfg.Keepalive = &configgrpc.KeepaliveServerConfig{
-			ServerParameters: &configgrpc.KeepaliveServerParameters{
-				MaxConnectionAge:      opts.MaxConnectionAge,
-				MaxConnectionAgeGrace: opts.MaxConnectionAgeGrace,
-			},
-		}
-	}
-}
-
-func applyHTTPSettings(cfg *confighttp.ServerConfig, opts *flags.HTTPOptions) {
-	if opts.HostPort != "" {
-		cfg.Endpoint = opts.HostPort
-	}
-	if opts.TLS.Enabled {
-		cfg.TLSSetting = applyTLSSettings(&opts.TLS)
-	}
-
-	cfg.CORS = &confighttp.CORSConfig{
-		AllowedOrigins: opts.CORS.AllowedOrigins,
-		AllowedHeaders: opts.CORS.AllowedHeaders,
-	}
-}
-
-func applyTLSSettings(opts *tlscfg.Options) *configtls.ServerConfig {
-	return &configtls.ServerConfig{
-		Config: configtls.Config{
-			CAFile:         opts.CAPath,
-			CertFile:       opts.CertPath,
-			KeyFile:        opts.KeyPath,
-			MinVersion:     opts.MinVersion,
-			MaxVersion:     opts.MaxVersion,
-			ReloadInterval: opts.ReloadInterval,
-		},
-		ClientCAFile: opts.ClientCAPath,
-	}
 }
 
 func newConsumerDelegate(logger *zap.Logger, spanProcessor processor.SpanProcessor, tm *tenancy.Manager) *consumerDelegate {

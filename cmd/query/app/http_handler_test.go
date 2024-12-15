@@ -36,12 +36,13 @@ import (
 	ui "github.com/jaegertracing/jaeger/model/json"
 	"github.com/jaegertracing/jaeger/pkg/jtracer"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
-	"github.com/jaegertracing/jaeger/plugin/metrics/disabled"
+	"github.com/jaegertracing/jaeger/plugin/metricstore/disabled"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2/metrics"
-	depsmocks "github.com/jaegertracing/jaeger/storage/dependencystore/mocks"
-	metricsmocks "github.com/jaegertracing/jaeger/storage/metricsstore/mocks"
+	metricsmocks "github.com/jaegertracing/jaeger/storage/metricstore/mocks"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	spanstoremocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
+	depsmocks "github.com/jaegertracing/jaeger/storage_v2/depstore/mocks"
+	"github.com/jaegertracing/jaeger/storage_v2/factoryadapter"
 )
 
 const millisToNanosMultiplier = int64(time.Millisecond / time.Nanosecond)
@@ -121,7 +122,8 @@ func initializeTestServerWithOptions(
 	options = append(options, HandlerOptions.Logger(zaptest.NewLogger(t)))
 	readStorage := &spanstoremocks.Reader{}
 	dependencyStorage := &depsmocks.Reader{}
-	qs := querysvc.NewQueryService(readStorage, dependencyStorage, queryOptions)
+	traceReader := factoryadapter.NewTraceReader(readStorage)
+	qs := querysvc.NewQueryService(traceReader, dependencyStorage, queryOptions)
 	r := NewRouter()
 	apiHandler := NewAPIHandler(qs, options...)
 	apiHandler.RegisterRoutes(r)
@@ -200,8 +202,9 @@ func TestLogOnServerError(t *testing.T) {
 	zapCore, logs := observer.New(zap.InfoLevel)
 	logger := zap.New(zapCore)
 	readStorage := &spanstoremocks.Reader{}
+	traceReader := factoryadapter.NewTraceReader(readStorage)
 	dependencyStorage := &depsmocks.Reader{}
-	qs := querysvc.NewQueryService(readStorage, dependencyStorage, querysvc.QueryServiceOptions{})
+	qs := querysvc.NewQueryService(traceReader, dependencyStorage, querysvc.QueryServiceOptions{})
 	h := NewAPIHandler(qs, HandlerOptions.Logger(logger))
 	e := errors.New("test error")
 	h.handleError(&httptest.ResponseRecorder{}, e, http.StatusInternalServerError)
@@ -695,31 +698,31 @@ func TestGetMetricsSuccess(t *testing.T) {
 			name:                       "latencies",
 			urlPath:                    "/api/metrics/latencies?service=emailservice&quantile=0.95",
 			mockedQueryMethod:          "GetLatencies",
-			mockedQueryMethodParamType: "*metricsstore.LatenciesQueryParameters",
+			mockedQueryMethodParamType: "*metricstore.LatenciesQueryParameters",
 		},
 		{
 			name:                       "call rates",
 			urlPath:                    "/api/metrics/calls?service=emailservice",
 			mockedQueryMethod:          "GetCallRates",
-			mockedQueryMethodParamType: "*metricsstore.CallRateQueryParameters",
+			mockedQueryMethodParamType: "*metricstore.CallRateQueryParameters",
 		},
 		{
 			name:                       "error rates",
 			urlPath:                    "/api/metrics/errors?service=emailservice",
 			mockedQueryMethod:          "GetErrorRates",
-			mockedQueryMethodParamType: "*metricsstore.ErrorRateQueryParameters",
+			mockedQueryMethodParamType: "*metricstore.ErrorRateQueryParameters",
 		},
 		{
 			name:                       "error rates with pretty print",
 			urlPath:                    "/api/metrics/errors?service=emailservice&prettyPrint=true",
 			mockedQueryMethod:          "GetErrorRates",
-			mockedQueryMethodParamType: "*metricsstore.ErrorRateQueryParameters",
+			mockedQueryMethodParamType: "*metricstore.ErrorRateQueryParameters",
 		},
 		{
 			name:                       "error rates with spanKinds",
 			urlPath:                    "/api/metrics/errors?service=emailservice&spanKind=client",
 			mockedQueryMethod:          "GetErrorRates",
-			mockedQueryMethodParamType: "*metricsstore.ErrorRateQueryParameters",
+			mockedQueryMethodParamType: "*metricstore.ErrorRateQueryParameters",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -756,14 +759,14 @@ func TestMetricsReaderError(t *testing.T) {
 		{
 			urlPath:                    "/api/metrics/calls?service=emailservice",
 			mockedQueryMethod:          "GetCallRates",
-			mockedQueryMethodParamType: "*metricsstore.CallRateQueryParameters",
+			mockedQueryMethodParamType: "*metricstore.CallRateQueryParameters",
 			mockedResponse:             nil,
 			wantErrorMessage:           "error fetching call rates",
 		},
 		{
 			urlPath:                    "/api/metrics/minstep",
 			mockedQueryMethod:          "GetMinStepDuration",
-			mockedQueryMethodParamType: "*metricsstore.MinStepDurationQueryParameters",
+			mockedQueryMethodParamType: "*metricstore.MinStepDurationQueryParameters",
 			mockedResponse:             time.Duration(0),
 			wantErrorMessage:           "error fetching min step duration",
 		},
@@ -828,7 +831,7 @@ func TestGetMinStep(t *testing.T) {
 	metricsReader.On(
 		"GetMinStepDuration",
 		mock.AnythingOfType("*context.valueCtx"),
-		mock.AnythingOfType("*metricsstore.MinStepDurationQueryParameters"),
+		mock.AnythingOfType("*metricstore.MinStepDurationQueryParameters"),
 	).Return(5*time.Millisecond, nil).Once()
 
 	// Test

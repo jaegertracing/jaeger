@@ -15,16 +15,15 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
-	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/jtracer"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
-	dependencyStoreMocks "github.com/jaegertracing/jaeger/storage/dependencystore/mocks"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	spanstoremocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
+	dependencyStoreMocks "github.com/jaegertracing/jaeger/storage_v2/depstore/mocks"
+	"github.com/jaegertracing/jaeger/storage_v2/factoryadapter"
 )
 
 func setupHTTPGatewayNoServer(
@@ -35,7 +34,7 @@ func setupHTTPGatewayNoServer(
 		reader: &spanstoremocks.Reader{},
 	}
 
-	q := querysvc.NewQueryService(gw.reader,
+	q := querysvc.NewQueryService(factoryadapter.NewTraceReader(gw.reader),
 		&dependencyStoreMocks.Reader{},
 		querysvc.QueryServiceOptions{},
 	)
@@ -89,20 +88,6 @@ func TestHTTPGatewayTryHandleError(t *testing.T) {
 	assert.True(t, gw.tryHandleError(w, errors.New(e), http.StatusInternalServerError))
 	assert.Contains(t, log.String(), e, "logs error if status code is 500")
 	assert.Contains(t, string(w.Body.String()), e, "writes error message to body")
-}
-
-func TestHTTPGatewayOTLPError(t *testing.T) {
-	w := httptest.NewRecorder()
-	gw := &HTTPGateway{
-		Logger: zap.NewNop(),
-	}
-	const simErr = "simulated error"
-	gw.returnSpansTestable(nil, w,
-		func(_ []*model.Span) (ptrace.Traces, error) {
-			return ptrace.Traces{}, errors.New(simErr)
-		},
-	)
-	assert.Contains(t, w.Body.String(), simErr)
 }
 
 func TestHTTPGatewayGetTraceErrors(t *testing.T) {

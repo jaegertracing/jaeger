@@ -6,7 +6,6 @@ package app
 import (
 	"context"
 	"fmt"
-	"io"
 	"net/http"
 	"time"
 
@@ -47,13 +46,10 @@ type Collector struct {
 	tenancyMgr         *tenancy.Manager
 
 	// state, read only
-	hServer                    *http.Server
-	grpcServer                 *grpc.Server
-	otlpReceiver               receiver.Traces
-	zipkinReceiver             receiver.Traces
-	tlsGRPCCertWatcherCloser   io.Closer
-	tlsHTTPCertWatcherCloser   io.Closer
-	tlsZipkinCertWatcherCloser io.Closer
+	hServer        *http.Server
+	grpcServer     *grpc.Server
+	otlpReceiver   receiver.Traces
+	zipkinReceiver receiver.Traces
 }
 
 // CollectorParams to construct a new Jaeger Collector.
@@ -101,26 +97,19 @@ func (c *Collector) Start(options *flags.CollectorOptions) error {
 
 	c.spanProcessor = handlerBuilder.BuildSpanProcessor(additionalProcessors...)
 	c.spanHandlers = handlerBuilder.BuildHandlers(c.spanProcessor)
-
 	grpcServer, err := server.StartGRPCServer(&server.GRPCServerParams{
-		HostPort:                options.GRPC.HostPort,
-		Handler:                 c.spanHandlers.GRPCHandler,
-		TLSConfig:               options.GRPC.TLS,
-		SamplingProvider:        c.samplingProvider,
-		Logger:                  c.logger,
-		MaxReceiveMessageLength: options.GRPC.MaxReceiveMessageLength,
-		MaxConnectionAge:        options.GRPC.MaxConnectionAge,
-		MaxConnectionAgeGrace:   options.GRPC.MaxConnectionAgeGrace,
+		Handler:          c.spanHandlers.GRPCHandler,
+		SamplingProvider: c.samplingProvider,
+		Logger:           c.logger,
+		ServerConfig:     options.GRPC,
 	})
 	if err != nil {
 		return fmt.Errorf("could not start gRPC server: %w", err)
 	}
 	c.grpcServer = grpcServer
-
 	httpServer, err := server.StartHTTPServer(&server.HTTPServerParams{
-		HostPort:         options.HTTP.HostPort,
+		ServerConfig:     options.HTTP,
 		Handler:          c.spanHandlers.JaegerBatchesHandler,
-		TLSConfig:        options.HTTP.TLS,
 		HealthCheck:      c.hCheck,
 		MetricsFactory:   c.metricsFactory,
 		SamplingProvider: c.samplingProvider,
@@ -131,11 +120,7 @@ func (c *Collector) Start(options *flags.CollectorOptions) error {
 	}
 	c.hServer = httpServer
 
-	c.tlsGRPCCertWatcherCloser = &options.GRPC.TLS
-	c.tlsHTTPCertWatcherCloser = &options.HTTP.TLS
-	c.tlsZipkinCertWatcherCloser = &options.Zipkin.TLS
-
-	if options.Zipkin.HTTPHostPort == "" {
+	if options.Zipkin.Endpoint == "" {
 		c.logger.Info("Not listening for Zipkin HTTP traffic, port not configured")
 	} else {
 		zipkinReceiver, err := handler.StartZipkinReceiver(options, c.logger, c.spanProcessor, c.tenancyMgr)
@@ -207,17 +192,6 @@ func (c *Collector) Close() error {
 		if err := c.samplingAggregator.Close(); err != nil {
 			c.logger.Error("failed to close aggregator.", zap.Error(err))
 		}
-	}
-
-	// watchers actually never return errors from Close
-	if c.tlsGRPCCertWatcherCloser != nil {
-		_ = c.tlsGRPCCertWatcherCloser.Close()
-	}
-	if c.tlsHTTPCertWatcherCloser != nil {
-		_ = c.tlsHTTPCertWatcherCloser.Close()
-	}
-	if c.tlsZipkinCertWatcherCloser != nil {
-		_ = c.tlsZipkinCertWatcherCloser.Close()
 	}
 
 	return nil

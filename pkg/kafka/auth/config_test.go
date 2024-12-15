@@ -11,11 +11,11 @@ import (
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/config/configtls"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 
 	"github.com/jaegertracing/jaeger/pkg/config"
-	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 )
 
 func addFlags(flags *flag.FlagSet) {
@@ -37,20 +37,18 @@ func Test_InitFromViper(t *testing.T) {
 		"--kafka.auth.kerberos.keytab-file=/path/to/keytab",
 		"--kafka.auth.kerberos.disable-fast-negotiation=true",
 		"--kafka.auth.tls.enabled=false",
+		"--kafka.auth.tls.ca=/not/allowed/if/tls/is/disabled",
 		"--kafka.auth.plaintext.username=user",
 		"--kafka.auth.plaintext.password=password",
 		"--kafka.auth.plaintext.mechanism=SCRAM-SHA-256",
-		"--kafka.auth.tls.ca=failing",
 	})
 
 	authConfig := &AuthenticationConfig{}
 	err := authConfig.InitFromViper(configPrefix, v)
-	require.EqualError(t, err, "failed to process Kafka TLS options: kafka.auth.tls.* options cannot be used when kafka.auth.tls.enabled is false")
+	require.ErrorContains(t, err, "kafka.auth.tls.* options cannot be used when kafka.auth.tls.enabled is false")
 
-	command.ParseFlags([]string{"--kafka.auth.tls.ca="})
-	v.BindPFlags(command.Flags())
-	err = authConfig.InitFromViper(configPrefix, v)
-	require.NoError(t, err)
+	command.ParseFlags([]string{"--kafka.auth.tls.ca="}) // incrementally update authConfig
+	require.NoError(t, authConfig.InitFromViper(configPrefix, v))
 
 	expectedConfig := &AuthenticationConfig{
 		Authentication: "tls",
@@ -64,8 +62,10 @@ func Test_InitFromViper(t *testing.T) {
 			KeyTabPath:      "/path/to/keytab",
 			DisablePAFXFast: true,
 		},
-		TLS: tlscfg.Options{
-			Enabled: true,
+		TLS: configtls.ClientConfig{
+			Config: configtls.Config{
+				IncludeSystemCACertsPool: true,
+			},
 		},
 		PlainText: PlainTextConfig{
 			Username:  "user",
@@ -139,7 +139,7 @@ func TestSetConfiguration(t *testing.T) {
 		{
 			name:          "TLS authentication with invalid cipher suite",
 			authType:      "tls",
-			expectedError: "error loading tls config: failed to get cipher suite ids from cipher suite names: cipher suite fail not supported or doesn't exist",
+			expectedError: "error loading tls config: failed to load TLS config: invalid TLS cipher suite: \"fail\"",
 		},
 	}
 
@@ -149,7 +149,6 @@ func TestSetConfiguration(t *testing.T) {
 				"--kafka.auth.authentication=" + tt.authType,
 			})
 			authConfig := &AuthenticationConfig{}
-			defer authConfig.TLS.Close()
 			err := authConfig.InitFromViper(configPrefix, v)
 			require.NoError(t, err)
 

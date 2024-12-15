@@ -10,8 +10,6 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"go.opentelemetry.io/collector/config/configtelemetry"
-	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/metric/noop"
 	_ "go.uber.org/automaxprocs"
 	"go.uber.org/zap"
@@ -24,7 +22,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/remote-storage/app"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
-	"github.com/jaegertracing/jaeger/pkg/telemetery"
+	"github.com/jaegertracing/jaeger/pkg/telemetry"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/pkg/version"
 	"github.com/jaegertracing/jaeger/plugin/storage"
@@ -59,24 +57,26 @@ func main() {
 			metricsFactory := baseFactory.Namespace(metrics.NSOptions{Name: "remote-storage"})
 			version.NewInfoMetrics(metricsFactory)
 
-			opts, err := new(app.Options).InitFromViper(v, logger)
+			opts, err := new(app.Options).InitFromViper(v)
 			if err != nil {
 				logger.Fatal("Failed to parse options", zap.Error(err))
 			}
 
+			baseTelset := telemetry.Settings{
+				Logger:        svc.Logger,
+				Metrics:       baseFactory,
+				ReportStatus:  telemetry.HCAdapter(svc.HC()),
+				MeterProvider: noop.NewMeterProvider(), // TODO
+			}
+
 			storageFactory.InitFromViper(v, logger)
-			if err := storageFactory.Initialize(baseFactory, logger); err != nil {
+			if err := storageFactory.Initialize(baseTelset.Metrics, baseTelset.Logger); err != nil {
 				logger.Fatal("Failed to init storage factory", zap.Error(err))
 			}
 
 			tm := tenancy.NewManager(&opts.Tenancy)
-			telset := telemetery.Setting{
-				Logger:       svc.Logger,
-				ReportStatus: telemetery.HCAdapter(svc.HC()),
-				LeveledMeterProvider: func(_ configtelemetry.Level) metric.MeterProvider {
-					return noop.NewMeterProvider()
-				},
-			}
+			telset := baseTelset // copy
+			telset.Metrics = metricsFactory
 			server, err := app.NewServer(opts, storageFactory, tm, telset)
 			if err != nil {
 				logger.Fatal("Failed to create server", zap.Error(err))

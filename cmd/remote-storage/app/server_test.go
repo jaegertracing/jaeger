@@ -12,10 +12,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
-	"go.opentelemetry.io/collector/component/componentstatus"
-	"go.opentelemetry.io/collector/config/configtelemetry"
-	"go.opentelemetry.io/otel/metric"
-	"go.opentelemetry.io/otel/metric/noop"
+	"go.opentelemetry.io/collector/config/configgrpc"
+	"go.opentelemetry.io/collector/config/confignet"
+	"go.opentelemetry.io/collector/config/configtls"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest/observer"
 	"google.golang.org/grpc"
@@ -26,7 +25,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/grpctest"
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
-	"github.com/jaegertracing/jaeger/pkg/telemetery"
+	"github.com/jaegertracing/jaeger/pkg/telemetry"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/ports"
 	"github.com/jaegertracing/jaeger/proto-gen/storage_v1"
@@ -45,19 +44,18 @@ func TestNewServer_CreateStorageErrors(t *testing.T) {
 	factory.On("CreateSpanWriter").Return(nil, nil)
 	factory.On("CreateDependencyReader").Return(nil, errors.New("no deps")).Once()
 	factory.On("CreateDependencyReader").Return(nil, nil)
-	telset := telemetery.Setting{
-		Logger:       zap.NewNop(),
-		ReportStatus: func(*componentstatus.Event) {},
-		LeveledMeterProvider: func(_ configtelemetry.Level) metric.MeterProvider {
-			return noop.NewMeterProvider()
-		},
-	}
 	f := func() (*Server, error) {
 		return NewServer(
-			&Options{GRPCHostPort: ":0"},
+			&Options{
+				ServerConfig: configgrpc.ServerConfig{
+					NetAddr: confignet.AddrConfig{
+						Endpoint: ":0",
+					},
+				},
+			},
 			factory,
 			tenancy.NewManager(&tenancy.Options{}),
-			telset,
+			telemetry.NoopSettings(),
 		)
 	}
 	_, err := f()
@@ -71,17 +69,19 @@ func TestNewServer_CreateStorageErrors(t *testing.T) {
 
 	s, err := f()
 	require.NoError(t, err)
-	err = s.Start()
-	require.NoError(t, err)
+	require.NoError(t, s.Start())
 	validateGRPCServer(t, s.grpcConn.Addr().String())
-
-	s.grpcConn.Close() // causes logged error
+	require.NoError(t, s.grpcConn.Close())
 }
 
 func TestServerStart_BadPortErrors(t *testing.T) {
 	srv := &Server{
 		opts: &Options{
-			GRPCHostPort: ":-1",
+			ServerConfig: configgrpc.ServerConfig{
+				NetAddr: confignet.AddrConfig{
+					Endpoint: ":-1",
+				},
+			},
 		},
 	}
 	require.Error(t, srv.Start())
@@ -119,18 +119,25 @@ func TestNewServer_TLSConfigError(t *testing.T) {
 		KeyPath:      "invalid/path",
 		ClientCAPath: "invalid/path",
 	}
-	telset := telemetery.Setting{
+	telset := telemetry.Settings{
 		Logger:       zap.NewNop(),
-		ReportStatus: telemetery.HCAdapter(healthcheck.New()),
+		ReportStatus: telemetry.HCAdapter(healthcheck.New()),
 	}
 	storageMocks := newStorageMocks()
 	_, err := NewServer(
-		&Options{GRPCHostPort: ":8081", TLSGRPC: tlsCfg},
+		&Options{
+			ServerConfig: configgrpc.ServerConfig{
+				NetAddr: confignet.AddrConfig{
+					Endpoint: ":8081",
+				},
+				TLSSetting: tlsCfg.ToOtelServerConfig(),
+			},
+		},
 		storageMocks.factory,
 		tenancy.NewManager(&tenancy.Options{}),
 		telset,
 	)
-	assert.ErrorContains(t, err, "invalid TLS config")
+	assert.ErrorContains(t, err, "failed to load TLS config")
 }
 
 func TestCreateGRPCHandler(t *testing.T) {
@@ -163,19 +170,17 @@ func TestCreateGRPCHandler(t *testing.T) {
 
 var testCases = []struct {
 	name              string
-	TLS               tlscfg.Options
-	clientTLS         tlscfg.Options
+	TLS               *configtls.ServerConfig
+	clientTLS         *configtls.ClientConfig
 	expectError       bool
 	expectClientError bool
 	expectServerFail  bool
 }{
 	{
 		name: "should pass with insecure connection",
-		TLS: tlscfg.Options{
-			Enabled: false,
-		},
-		clientTLS: tlscfg.Options{
-			Enabled: false,
+		TLS:  nil,
+		clientTLS: &configtls.ClientConfig{
+			Insecure: true,
 		},
 		expectError:       false,
 		expectClientError: false,
@@ -183,13 +188,13 @@ var testCases = []struct {
 	},
 	{
 		name: "should fail with TLS client to untrusted TLS server",
-		TLS: tlscfg.Options{
-			Enabled:  true,
-			CertPath: testCertKeyLocation + "/example-server-cert.pem",
-			KeyPath:  testCertKeyLocation + "/example-server-key.pem",
+		TLS: &configtls.ServerConfig{
+			Config: configtls.Config{
+				CertFile: testCertKeyLocation + "/example-server-cert.pem",
+				KeyFile:  testCertKeyLocation + "/example-server-key.pem",
+			},
 		},
-		clientTLS: tlscfg.Options{
-			Enabled:    true,
+		clientTLS: &configtls.ClientConfig{
 			ServerName: "example.com",
 		},
 		expectError:       true,
@@ -198,14 +203,16 @@ var testCases = []struct {
 	},
 	{
 		name: "should fail with TLS client to trusted TLS server with incorrect hostname",
-		TLS: tlscfg.Options{
-			Enabled:  true,
-			CertPath: testCertKeyLocation + "/example-server-cert.pem",
-			KeyPath:  testCertKeyLocation + "/example-server-key.pem",
+		TLS: &configtls.ServerConfig{
+			Config: configtls.Config{
+				CertFile: testCertKeyLocation + "/example-server-cert.pem",
+				KeyFile:  testCertKeyLocation + "/example-server-key.pem",
+			},
 		},
-		clientTLS: tlscfg.Options{
-			Enabled:    true,
-			CAPath:     testCertKeyLocation + "/example-CA-cert.pem",
+		clientTLS: &configtls.ClientConfig{
+			Config: configtls.Config{
+				CAFile: testCertKeyLocation + "/example-CA-cert.pem",
+			},
 			ServerName: "nonEmpty",
 		},
 		expectError:       true,
@@ -214,14 +221,16 @@ var testCases = []struct {
 	},
 	{
 		name: "should pass with TLS client to trusted TLS server with correct hostname",
-		TLS: tlscfg.Options{
-			Enabled:  true,
-			CertPath: testCertKeyLocation + "/example-server-cert.pem",
-			KeyPath:  testCertKeyLocation + "/example-server-key.pem",
+		TLS: &configtls.ServerConfig{
+			Config: configtls.Config{
+				CertFile: testCertKeyLocation + "/example-server-cert.pem",
+				KeyFile:  testCertKeyLocation + "/example-server-key.pem",
+			},
 		},
-		clientTLS: tlscfg.Options{
-			Enabled:    true,
-			CAPath:     testCertKeyLocation + "/example-CA-cert.pem",
+		clientTLS: &configtls.ClientConfig{
+			Config: configtls.Config{
+				CAFile: testCertKeyLocation + "/example-CA-cert.pem",
+			},
 			ServerName: "example.com",
 		},
 		expectError:       false,
@@ -230,15 +239,17 @@ var testCases = []struct {
 	},
 	{
 		name: "should fail with TLS client without cert to trusted TLS server requiring cert",
-		TLS: tlscfg.Options{
-			Enabled:      true,
-			CertPath:     testCertKeyLocation + "/example-server-cert.pem",
-			KeyPath:      testCertKeyLocation + "/example-server-key.pem",
-			ClientCAPath: testCertKeyLocation + "/example-CA-cert.pem",
+		TLS: &configtls.ServerConfig{
+			Config: configtls.Config{
+				CertFile: testCertKeyLocation + "/example-server-cert.pem",
+				KeyFile:  testCertKeyLocation + "/example-server-key.pem",
+			},
+			ClientCAFile: testCertKeyLocation + "/example-CA-cert.pem",
 		},
-		clientTLS: tlscfg.Options{
-			Enabled:    true,
-			CAPath:     testCertKeyLocation + "/example-CA-cert.pem",
+		clientTLS: &configtls.ClientConfig{
+			Config: configtls.Config{
+				CAFile: testCertKeyLocation + "/example-CA-cert.pem",
+			},
 			ServerName: "example.com",
 		},
 		expectError:       false,
@@ -247,18 +258,20 @@ var testCases = []struct {
 	},
 	{
 		name: "should pass with TLS client with cert to trusted TLS server requiring cert",
-		TLS: tlscfg.Options{
-			Enabled:      true,
-			CertPath:     testCertKeyLocation + "/example-server-cert.pem",
-			KeyPath:      testCertKeyLocation + "/example-server-key.pem",
-			ClientCAPath: testCertKeyLocation + "/example-CA-cert.pem",
+		TLS: &configtls.ServerConfig{
+			Config: configtls.Config{
+				CertFile: testCertKeyLocation + "/example-server-cert.pem",
+				KeyFile:  testCertKeyLocation + "/example-server-key.pem",
+			},
+			ClientCAFile: testCertKeyLocation + "/example-CA-cert.pem",
 		},
-		clientTLS: tlscfg.Options{
-			Enabled:    true,
-			CAPath:     testCertKeyLocation + "/example-CA-cert.pem",
+		clientTLS: &configtls.ClientConfig{
+			Config: configtls.Config{
+				CAFile:   testCertKeyLocation + "/example-CA-cert.pem",
+				CertFile: testCertKeyLocation + "/example-client-cert.pem",
+				KeyFile:  testCertKeyLocation + "/example-client-key.pem",
+			},
 			ServerName: "example.com",
-			CertPath:   testCertKeyLocation + "/example-client-cert.pem",
-			KeyPath:    testCertKeyLocation + "/example-client-key.pem",
 		},
 		expectError:       false,
 		expectServerFail:  false,
@@ -266,18 +279,20 @@ var testCases = []struct {
 	},
 	{
 		name: "should fail with TLS client without cert to trusted TLS server requiring cert from a different CA",
-		TLS: tlscfg.Options{
-			Enabled:      true,
-			CertPath:     testCertKeyLocation + "/example-server-cert.pem",
-			KeyPath:      testCertKeyLocation + "/example-server-key.pem",
-			ClientCAPath: testCertKeyLocation + "/wrong-CA-cert.pem", // NB: wrong CA
+		TLS: &configtls.ServerConfig{
+			Config: configtls.Config{
+				CertFile: testCertKeyLocation + "/example-server-cert.pem",
+				KeyFile:  testCertKeyLocation + "/example-server-key.pem",
+			},
+			ClientCAFile: testCertKeyLocation + "/wrong-CA-cert.pem",
 		},
-		clientTLS: tlscfg.Options{
-			Enabled:    true,
-			CAPath:     testCertKeyLocation + "/example-CA-cert.pem",
+		clientTLS: &configtls.ClientConfig{
+			Config: configtls.Config{
+				CAFile:   testCertKeyLocation + "/example-CA-cert.pem",
+				CertFile: testCertKeyLocation + "/example-client-cert.pem",
+				KeyFile:  testCertKeyLocation + "/example-client-key.pem",
+			},
 			ServerName: "example.com",
-			CertPath:   testCertKeyLocation + "/example-client-cert.pem",
-			KeyPath:    testCertKeyLocation + "/example-client-key.pem",
 		},
 		expectError:       false,
 		expectServerFail:  false,
@@ -300,7 +315,6 @@ func newGRPCClient(t *testing.T, addr string, creds credentials.TransportCredent
 	} else {
 		dialOpts = append(dialOpts, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	}
-
 	conn, err := grpc.NewClient(addr, dialOpts...)
 	require.NoError(t, err)
 
@@ -314,11 +328,13 @@ func TestServerGRPCTLS(t *testing.T) {
 	for _, test := range testCases {
 		t.Run(test.name, func(t *testing.T) {
 			serverOptions := &Options{
-				GRPCHostPort: ":0",
-				TLSGRPC:      test.TLS,
+				ServerConfig: configgrpc.ServerConfig{
+					NetAddr: confignet.AddrConfig{
+						Endpoint: ":0",
+					},
+					TLSSetting: test.TLS,
+				},
 			}
-			defer serverOptions.TLSGRPC.Close()
-			defer test.clientTLS.Close()
 			flagsSvc := flags.NewService(ports.QueryAdminHTTP)
 			flagsSvc.Logger = zap.NewNop()
 
@@ -327,9 +343,9 @@ func TestServerGRPCTLS(t *testing.T) {
 			storageMocks.reader.On("GetServices", mock.AnythingOfType("*context.valueCtx")).Return(expectedServices, nil)
 
 			tm := tenancy.NewManager(&tenancy.Options{Enabled: true})
-			telset := telemetery.Setting{
+			telset := telemetry.Settings{
 				Logger:       flagsSvc.Logger,
-				ReportStatus: telemetery.HCAdapter(flagsSvc.HC()),
+				ReportStatus: telemetry.HCAdapter(flagsSvc.HC()),
 			}
 			server, err := NewServer(
 				serverOptions,
@@ -343,8 +359,8 @@ func TestServerGRPCTLS(t *testing.T) {
 			var clientError error
 			var client *grpcClient
 
-			if serverOptions.TLSGRPC.Enabled {
-				clientTLSCfg, err0 := test.clientTLS.Config(zap.NewNop())
+			if serverOptions.TLSSetting != nil {
+				clientTLSCfg, err0 := test.clientTLS.LoadTLSConfig(context.Background())
 				require.NoError(t, err0)
 				creds := credentials.NewTLS(clientTLSCfg)
 				client = newGRPCClient(t, server.grpcConn.Addr().String(), creds, tm)
@@ -376,12 +392,14 @@ func TestServerHandlesPortZero(t *testing.T) {
 	zapCore, logs := observer.New(zap.InfoLevel)
 	flagsSvc.Logger = zap.New(zapCore)
 	storageMocks := newStorageMocks()
-	telset := telemetery.Setting{
+	telset := telemetry.Settings{
 		Logger:       flagsSvc.Logger,
-		ReportStatus: telemetery.HCAdapter(flagsSvc.HC()),
+		ReportStatus: telemetry.HCAdapter(flagsSvc.HC()),
 	}
 	server, err := NewServer(
-		&Options{GRPCHostPort: ":0"},
+		&Options{ServerConfig: configgrpc.ServerConfig{
+			NetAddr: confignet.AddrConfig{Endpoint: ":0"},
+		}},
 		storageMocks.factory,
 		tenancy.NewManager(&tenancy.Options{}),
 		telset,

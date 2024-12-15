@@ -19,7 +19,7 @@ type SamplingStoreFactory struct {
 	mock.Mock
 }
 
-// CreateLock provides a mock function with given fields:
+// CreateLock provides a mock function with no fields
 func (_m *SamplingStoreFactory) CreateLock() (distributedlock.Lock, error) {
 	ret := _m.Called()
 

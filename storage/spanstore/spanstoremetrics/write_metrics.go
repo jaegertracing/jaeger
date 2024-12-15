@@ -19,8 +19,8 @@ type WriteMetrics struct {
 	LatencyErr metrics.Timer   `metric:"latency-err"`
 }
 
-// NewWriterDecorator takes a metrics scope and creates a metrics struct
-func NewWriterDecorator(factory metrics.Factory, tableName string) *WriteMetrics {
+// NewWriter takes a metrics scope and creates a metrics struct
+func NewWriter(factory metrics.Factory, tableName string) *WriteMetrics {
 	t := &WriteMetrics{}
 	metrics.Init(t, factory.Namespace(metrics.NSOptions{Name: tableName, Tags: nil}), nil)
 	return t

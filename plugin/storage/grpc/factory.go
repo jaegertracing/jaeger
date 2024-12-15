@@ -12,7 +12,6 @@ import (
 
 	"github.com/spf13/viper"
 	"go.opentelemetry.io/collector/component"
-	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/config/configtelemetry"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
@@ -25,13 +24,14 @@ import (
 
 	"github.com/jaegertracing/jaeger/pkg/bearertoken"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
-	"github.com/jaegertracing/jaeger/pkg/telemetery"
+	"github.com/jaegertracing/jaeger/pkg/telemetry"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/plugin"
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared"
 	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
+	"github.com/jaegertracing/jaeger/storage/spanstore/spanstoremetrics"
 )
 
 var ( // interface comformance checks
@@ -43,33 +43,28 @@ var ( // interface comformance checks
 
 // Factory implements storage.Factory and creates storage components backed by a storage plugin.
 type Factory struct {
-	metricsFactory     metrics.Factory
-	logger             *zap.Logger
-	tracerProvider     trace.TracerProvider
 	config             Config
+	telset             telemetry.Settings
 	services           *ClientPluginServices
 	tracedRemoteConn   *grpc.ClientConn
 	untracedRemoteConn *grpc.ClientConn
-	host               component.Host
-	meterProvider      metric.MeterProvider
 }
 
 // NewFactory creates a new Factory.
 func NewFactory() *Factory {
 	return &Factory{
-		host: componenttest.NewNopHost(),
+		telset: telemetry.NoopSettings(),
 	}
 }
 
 // NewFactoryWithConfig is used from jaeger(v2).
 func NewFactoryWithConfig(
 	cfg Config,
-	telset telemetery.Setting,
+	telset telemetry.Settings,
 ) (*Factory, error) {
 	f := NewFactory()
 	f.config = cfg
-	f.host = telset.Host
-	f.meterProvider = telset.LeveledMeterProvider(configtelemetry.LevelNone)
+	f.telset = telset
 	if err := f.Initialize(telset.Metrics, telset.Logger); err != nil {
 		return nil, err
 	}
@@ -90,17 +85,18 @@ func (f *Factory) InitFromViper(v *viper.Viper, logger *zap.Logger) {
 
 // Initialize implements storage.Factory
 func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
-	f.metricsFactory, f.logger = metricsFactory, logger
-	f.tracerProvider = otel.GetTracerProvider()
+	f.telset.Metrics = metricsFactory
+	f.telset.Logger = logger
+	f.telset.TracerProvider = otel.GetTracerProvider()
 
-	tracedTelset := getTelset(logger, f.tracerProvider, f.meterProvider)
-	untracedTelset := getTelset(logger, noop.NewTracerProvider(), f.meterProvider)
+	tracedTelset := getTelset(logger, f.telset.TracerProvider, f.telset.MeterProvider)
+	untracedTelset := getTelset(logger, noop.NewTracerProvider(), f.telset.MeterProvider)
 	newClientFn := func(telset component.TelemetrySettings, opts ...grpc.DialOption) (conn *grpc.ClientConn, err error) {
 		clientOpts := make([]configgrpc.ToClientConnOption, 0)
 		for _, opt := range opts {
 			clientOpts = append(clientOpts, configgrpc.WithGrpcDialOption(opt))
 		}
-		return f.config.ToClientConn(context.Background(), f.host, telset, clientOpts...)
+		return f.config.ToClientConn(context.Background(), f.telset.Host, telset, clientOpts...)
 	}
 
 	var err error
@@ -172,7 +168,14 @@ func (f *Factory) newRemoteStorage(
 
 // CreateSpanReader implements storage.Factory
 func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
-	return f.services.Store.SpanReader(), nil
+	primaryMetricsFactory := f.telset.Metrics.Namespace(
+		metrics.NSOptions{
+			Tags: map[string]string{
+				"role": "primary",
+			},
+		},
+	)
+	return spanstoremetrics.NewReaderDecorator(f.services.Store.SpanReader(), primaryMetricsFactory), nil
 }
 
 // CreateSpanWriter implements storage.Factory
@@ -202,7 +205,14 @@ func (f *Factory) CreateArchiveSpanReader() (spanstore.Reader, error) {
 	if capabilities == nil || !capabilities.ArchiveSpanReader {
 		return nil, storage.ErrArchiveStorageNotSupported
 	}
-	return f.services.ArchiveStore.ArchiveSpanReader(), nil
+	archiveMetricsFactory := f.telset.Metrics.Namespace(
+		metrics.NSOptions{
+			Tags: map[string]string{
+				"role": "archive",
+			},
+		},
+	)
+	return spanstoremetrics.NewReaderDecorator(f.services.ArchiveStore.ArchiveSpanReader(), archiveMetricsFactory), nil
 }
 
 // CreateArchiveSpanWriter implements storage.ArchiveFactory

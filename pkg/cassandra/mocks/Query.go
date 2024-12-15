@@ -57,7 +57,7 @@ func (_m *Query) Consistency(level cassandra.Consistency) cassandra.Query {
 	return r0
 }
 
-// Exec provides a mock function with given fields:
+// Exec provides a mock function with no fields
 func (_m *Query) Exec() error {
 	ret := _m.Called()
 
@@ -75,7 +75,7 @@ func (_m *Query) Exec() error {
 	return r0
 }
 
-// Iter provides a mock function with given fields:
+// Iter provides a mock function with no fields
 func (_m *Query) Iter() cassandra.Iterator {
 	ret := _m.Called()
 
@@ -143,7 +143,7 @@ func (_m *Query) ScanCAS(dest ...any) (bool, error) {
 	return r0, r1
 }
 
-// String provides a mock function with given fields:
+// String provides a mock function with no fields
 func (_m *Query) String() string {
 	ret := _m.Called()
 
