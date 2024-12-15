@@ -7,7 +7,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
-	"github.com/jaegertracing/jaeger/internal/jotlp"
+	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/pkg/otelsemconv"
 )
 
@@ -58,7 +58,7 @@ func (ResourceAttributesAdjuster) moveAttributes(span ptrace.Span, resource pcom
 	for k, v := range replace {
 		existing, ok := resource.Attributes().Get(k)
 		if ok && existing.AsRaw() != v.AsRaw() {
-			jotlp.AddWarning(span, "conflicting values between Span and Resource for attribute "+k)
+			jptrace.AddWarning(span, "conflicting values between Span and Resource for attribute "+k)
 			continue
 		}
 		v.CopyTo(resource.Attributes().PutEmpty(k))

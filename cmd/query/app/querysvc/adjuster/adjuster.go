@@ -11,7 +11,6 @@ import (
 
 // Adjuster is an interface for modifying a trace object in place.
 // If an issue is encountered that prevents modifications, an error should be returned.
-// The original trace object is modified directly and not returned.
 // The caller must ensure that all spans in the ptrace.Traces argument
 // belong to the same trace and represent the complete trace.
 type Adjuster interface {

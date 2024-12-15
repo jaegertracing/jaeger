@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
-	"github.com/jaegertracing/jaeger/internal/jotlp"
+	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/pkg/otelsemconv"
 )
 
@@ -102,7 +102,7 @@ func TestResourceAttributesAdjuster_SpanWithConflictingLibraryAttributes(t *test
 	require.True(t, ok)
 	require.Equal(t, "Java", val.Str())
 
-	val, ok = resultSpanAttributes.Get(jotlp.WarningsAttribute)
+	val, ok = resultSpanAttributes.Get(jptrace.WarningsAttribute)
 	require.True(t, ok)
 	warnings := val.Slice()
 	require.Equal(t, 1, warnings.Len())

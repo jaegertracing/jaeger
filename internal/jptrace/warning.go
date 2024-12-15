@@ -1,7 +1,7 @@
 // Copyright (c) 2024 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
-package jotlp
+package jptrace
 
 import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
@@ -9,6 +9,10 @@ import (
 )
 
 const (
+	// WarningsAttribute is the name of the span attribute where we can
+	// store various warnings produced from transformations,
+	// such as inbound sanitizers and outbound adjusters.
+	// The value type of the attribute is a string slice.
 	WarningsAttribute = "jaeger.internal.warnings"
 )
 
