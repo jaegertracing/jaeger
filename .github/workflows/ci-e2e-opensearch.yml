@@ -58,7 +58,7 @@ jobs:
       with:
           name: opensearch-metrics-${{ matrix.version.jaeger }}
           path: ./metrics/opensearch_metrics.txt
-          retention-days: 60
+          retention-days: 7
 
     - name: Upload coverage to codecov
       uses: ./.github/actions/upload-codecov

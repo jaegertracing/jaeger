@@ -63,9 +63,9 @@ jobs:
       uses: actions/upload-artifact@v4
       if: ${{ matrix.version.jaeger }} == "v2"
       with:
-            name: elasticsearch-metrics-${{ matrix.version }}
+            name: elasticsearch-metrics-${{ matrix.version.major }}_${{ matrix.version.jaeger}}
             path: ./metrics/elasticsearch_metrics.txt
-            retention-days: 60
+            retention-days: 7
    
     - name: Upload coverage to codecov
       uses: ./.github/actions/upload-codecov

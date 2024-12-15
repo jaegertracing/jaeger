@@ -152,29 +152,8 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
 	s.SpanReader, err = createSpanReader(logger, ports.QueryGRPC)
 	require.NoError(t, err)
 
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "http://localhost:8888/metrics", nil)
-	require.NoError(t, err)
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	require.NoError(t, err)
-	defer resp.Body.Close()
-
-	err = os.MkdirAll("../../../../metrics", os.ModePerm)
-	if err != nil {
-		t.Fatalf("Failed to create directory: %v", err)
-	}
-
-	metricsFile, err := os.Create(fmt.Sprintf("../../../../metrics/%v_metrics.txt", storage))
-	if err != nil {
-		t.Fatalf("Failed to create metrics file: %v", err)
-	}
-	defer metricsFile.Close()
-
-	_, err = io.Copy(metricsFile, resp.Body)
-	require.NoError(t, err)
-
 	t.Cleanup(func() {
+		scrapeMetrics(t, storage)
 		// Call e2eCleanUp to close the SpanReader and SpanWriter gRPC connection.
 		s.e2eCleanUp(t)
 	})
@@ -231,6 +210,30 @@ func (s *E2EStorageIntegration) doHealthCheck(t *testing.T) bool {
 func (s *E2EStorageIntegration) e2eCleanUp(t *testing.T) {
 	require.NoError(t, s.SpanReader.(io.Closer).Close())
 	require.NoError(t, s.SpanWriter.(io.Closer).Close())
+}
+
+func scrapeMetrics(t *testing.T, storage string) {
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "http://localhost:8888/metrics", nil)
+	require.NoError(t, err)
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	err = os.MkdirAll("../../../../metrics", os.ModePerm)
+	if err != nil {
+		t.Fatalf("Failed to create directory: %v", err)
+	}
+
+	metricsFile, err := os.Create(fmt.Sprintf("../../../../metrics/%v_metrics.txt", storage))
+	if err != nil {
+		t.Fatalf("Failed to create metrics file: %v", err)
+	}
+	defer metricsFile.Close()
+
+	_, err = io.Copy(metricsFile, resp.Body)
+	require.NoError(t, err)
 }
 
 func createStorageCleanerConfig(t *testing.T, configFile string, storage string) string {

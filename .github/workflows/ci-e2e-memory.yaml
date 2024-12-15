@@ -35,7 +35,7 @@ jobs:
       with:
           name: memory-metrics
           path: ./metrics/memory_metrics.txt
-          retention-days: 60
+          retention-days: 7
           
     - name: Upload coverage to codecov
       uses: ./.github/actions/upload-codecov

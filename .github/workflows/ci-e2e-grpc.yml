@@ -47,7 +47,7 @@ jobs:
       with:
               name: grpc-metrics-${{ matrix.version }}
               path: ./metrics/grpc_metrics.txt
-              retention-days: 60
+              retention-days: 7
 
     - name: Upload coverage to codecov
       uses: ./.github/actions/upload-codecov
