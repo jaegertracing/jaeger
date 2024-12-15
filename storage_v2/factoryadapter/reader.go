@@ -46,9 +46,12 @@ func (tr *TraceReader) GetTraces(
 ) iter.Seq2[[]ptrace.Traces, error] {
 	return func(yield func([]ptrace.Traces, error) bool) {
 		for _, idParams := range traceIDs {
-			// TODO start/end times are not supported by v1 reader
-			// https://github.com/jaegertracing/jaeger/pull/6242
-			t, err := tr.spanReader.GetTrace(ctx, model.TraceIDFromOTEL(idParams.TraceID))
+			query := spanstore.GetTraceParameters{
+				TraceID:   model.TraceIDFromOTEL(idParams.TraceID),
+				StartTime: idParams.Start,
+				EndTime:   idParams.End,
+			}
+			t, err := tr.spanReader.GetTrace(ctx, query)
 			if err != nil {
 				if errors.Is(err, spanstore.ErrTraceNotFound) {
 					continue

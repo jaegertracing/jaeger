@@ -58,7 +58,8 @@ func TestTraceReader_GetTracesDelegatesSuccessResponse(t *testing.T) {
 			},
 		},
 	}
-	sr.On("GetTrace", mock.Anything, model.NewTraceID(2, 3)).Return(modelTrace, nil)
+	expectedQuery := spanstore.GetTraceParameters{TraceID: model.NewTraceID(2, 3)}
+	sr.On("GetTrace", mock.Anything, expectedQuery).Return(modelTrace, nil)
 	traceReader := &TraceReader{
 		spanReader: sr,
 	}
