@@ -7,7 +7,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
-	"github.com/jaegertracing/jaeger/cmd/query/app/internal/jotlp"
+	"github.com/jaegertracing/jaeger/internal/jotlp"
 	"github.com/jaegertracing/jaeger/pkg/otelsemconv"
 )
 
