@@ -26,7 +26,7 @@ type Reader struct {
 }
 
 // FindTraceIDs provides a mock function with given fields: ctx, query
-func (_m *Reader) FindTraceIDs(ctx context.Context, query tracestore.TraceQueryParameters) iter.Seq2[[]pcommon.TraceID, error] {
+func (_m *Reader) FindTraceIDs(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[[]pcommon.TraceID, error] {
 	ret := _m.Called(ctx, query)
 
 	if len(ret) == 0 {
@@ -34,7 +34,7 @@ func (_m *Reader) FindTraceIDs(ctx context.Context, query tracestore.TraceQueryP
 	}
 
 	var r0 iter.Seq2[[]pcommon.TraceID, error]
-	if rf, ok := ret.Get(0).(func(context.Context, tracestore.TraceQueryParameters) iter.Seq2[[]pcommon.TraceID, error]); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, tracestore.TraceQueryParams) iter.Seq2[[]pcommon.TraceID, error]); ok {
 		r0 = rf(ctx, query)
 	} else {
 		if ret.Get(0) != nil {
@@ -46,7 +46,7 @@ func (_m *Reader) FindTraceIDs(ctx context.Context, query tracestore.TraceQueryP
 }
 
 // FindTraces provides a mock function with given fields: ctx, query
-func (_m *Reader) FindTraces(ctx context.Context, query tracestore.TraceQueryParameters) iter.Seq2[[]ptrace.Traces, error] {
+func (_m *Reader) FindTraces(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[[]ptrace.Traces, error] {
 	ret := _m.Called(ctx, query)
 
 	if len(ret) == 0 {
@@ -54,7 +54,7 @@ func (_m *Reader) FindTraces(ctx context.Context, query tracestore.TraceQueryPar
 	}
 
 	var r0 iter.Seq2[[]ptrace.Traces, error]
-	if rf, ok := ret.Get(0).(func(context.Context, tracestore.TraceQueryParameters) iter.Seq2[[]ptrace.Traces, error]); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, tracestore.TraceQueryParams) iter.Seq2[[]ptrace.Traces, error]); ok {
 		r0 = rf(ctx, query)
 	} else {
 		if ret.Get(0) != nil {
@@ -125,20 +125,27 @@ func (_m *Reader) GetServices(ctx context.Context) ([]string, error) {
 	return r0, r1
 }
 
-// GetTrace provides a mock function with given fields: ctx, traceID
-func (_m *Reader) GetTrace(ctx context.Context, traceID pcommon.TraceID) iter.Seq2[ptrace.Traces, error] {
-	ret := _m.Called(ctx, traceID)
+// GetTraces provides a mock function with given fields: ctx, traceIDs
+func (_m *Reader) GetTraces(ctx context.Context, traceIDs ...tracestore.GetTraceParams) iter.Seq2[[]ptrace.Traces, error] {
+	_va := make([]interface{}, len(traceIDs))
+	for _i := range traceIDs {
+		_va[_i] = traceIDs[_i]
+	}
+	var _ca []interface{}
+	_ca = append(_ca, ctx)
+	_ca = append(_ca, _va...)
+	ret := _m.Called(_ca...)
 
 	if len(ret) == 0 {
-		panic("no return value specified for GetTrace")
+		panic("no return value specified for GetTraces")
 	}
 
-	var r0 iter.Seq2[ptrace.Traces, error]
-	if rf, ok := ret.Get(0).(func(context.Context, pcommon.TraceID) iter.Seq2[ptrace.Traces, error]); ok {
-		r0 = rf(ctx, traceID)
+	var r0 iter.Seq2[[]ptrace.Traces, error]
+	if rf, ok := ret.Get(0).(func(context.Context, ...tracestore.GetTraceParams) iter.Seq2[[]ptrace.Traces, error]); ok {
+		r0 = rf(ctx, traceIDs...)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(iter.Seq2[ptrace.Traces, error])
+			r0 = ret.Get(0).(iter.Seq2[[]ptrace.Traces, error])
 		}
 	}
 
