@@ -41,13 +41,13 @@ func TestAddWarning(t *testing.T) {
 			span := ptrace.NewSpan()
 			attrs := span.Attributes()
 			if test.existing != nil {
-				warnings := attrs.PutEmptySlice("jaeger.adjuster.warning")
+				warnings := attrs.PutEmptySlice("jaeger.internal.warnings")
 				for _, warn := range test.existing {
 					warnings.AppendEmpty().SetStr(warn)
 				}
 			}
 			AddWarning(span, test.newWarn)
-			warnings, ok := attrs.Get("jaeger.adjuster.warning")
+			warnings, ok := attrs.Get("jaeger.internal.warnings")
 			assert.True(t, ok)
 			assert.Equal(t, len(test.expected), warnings.Slice().Len())
 			for i, expectedWarn := range test.expected {

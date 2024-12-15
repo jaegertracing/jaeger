@@ -9,15 +9,15 @@ import (
 )
 
 const (
-	adjusterWarningAttribute = "jaeger.adjuster.warning"
+	WarningsAttribute = "jaeger.internal.warnings"
 )
 
 func AddWarning(span ptrace.Span, warning string) {
 	var warnings pcommon.Slice
-	if currWarnings, ok := span.Attributes().Get(adjusterWarningAttribute); ok {
+	if currWarnings, ok := span.Attributes().Get(WarningsAttribute); ok {
 		warnings = currWarnings.Slice()
 	} else {
-		warnings = span.Attributes().PutEmptySlice(adjusterWarningAttribute)
+		warnings = span.Attributes().PutEmptySlice(WarningsAttribute)
 	}
 	warnings.AppendEmpty().SetStr(warning)
 }
