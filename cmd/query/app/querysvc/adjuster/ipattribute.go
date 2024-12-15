@@ -20,30 +20,31 @@ var ipAttributesToCorrect = map[string]struct{}{
 // IPAttribute returns an adjuster that replaces numeric "ip" attributes,
 // which usually contain IPv4 packed into uint32, with their string
 // representation (e.g. "8.8.8.8"").
-func IPAttribute() Adjuster {
-	return Func(func(traces ptrace.Traces) (ptrace.Traces, error) {
-		adjuster := ipAttributeAdjuster{}
-		resourceSpans := traces.ResourceSpans()
-		for i := 0; i < resourceSpans.Len(); i++ {
-			rs := resourceSpans.At(i)
-			adjuster.adjust(rs.Resource().Attributes())
-			scopeSpans := rs.ScopeSpans()
-			for j := 0; j < scopeSpans.Len(); j++ {
-				ss := scopeSpans.At(j)
-				spans := ss.Spans()
-				for k := 0; k < spans.Len(); k++ {
-					span := spans.At(k)
-					adjuster.adjust(span.Attributes())
-				}
-			}
-		}
-		return traces, nil
-	})
+func IPAttribute() IPAttributeAdjuster {
+	return IPAttributeAdjuster{}
 }
 
-type ipAttributeAdjuster struct{}
+type IPAttributeAdjuster struct{}
 
-func (ipAttributeAdjuster) adjust(attributes pcommon.Map) {
+func (ia IPAttributeAdjuster) Adjust(traces ptrace.Traces) (ptrace.Traces, error) {
+	resourceSpans := traces.ResourceSpans()
+	for i := 0; i < resourceSpans.Len(); i++ {
+		rs := resourceSpans.At(i)
+		ia.adjustAttributes(rs.Resource().Attributes())
+		scopeSpans := rs.ScopeSpans()
+		for j := 0; j < scopeSpans.Len(); j++ {
+			ss := scopeSpans.At(j)
+			spans := ss.Spans()
+			for k := 0; k < spans.Len(); k++ {
+				span := spans.At(k)
+				ia.adjustAttributes(span.Attributes())
+			}
+		}
+	}
+	return traces, nil
+}
+
+func (IPAttributeAdjuster) adjustAttributes(attributes pcommon.Map) {
 	adjusted := make(map[string]string)
 	attributes.Range(func(k string, v pcommon.Value) bool {
 		if _, ok := ipAttributesToCorrect[k]; !ok {
