@@ -1,7 +1,7 @@
 // Copyright (c) 2024 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
-package adjuster
+package jotlp
 
 import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
@@ -12,7 +12,7 @@ const (
 	adjusterWarningAttribute = "jaeger.adjuster.warning"
 )
 
-func addWarning(span ptrace.Span, warning string) {
+func AddWarning(span ptrace.Span, warning string) {
 	var warnings pcommon.Slice
 	if currWarnings, ok := span.Attributes().Get(adjusterWarningAttribute); ok {
 		warnings = currWarnings.Slice()

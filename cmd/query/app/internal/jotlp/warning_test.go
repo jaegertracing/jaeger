@@ -1,7 +1,7 @@
 // Copyright (c) 2024 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
-package adjuster
+package jotlp
 
 import (
 	"testing"
@@ -46,7 +46,7 @@ func TestAddWarning(t *testing.T) {
 					warnings.AppendEmpty().SetStr(warn)
 				}
 			}
-			addWarning(span, test.newWarn)
+			AddWarning(span, test.newWarn)
 			warnings, ok := attrs.Get("jaeger.adjuster.warning")
 			assert.True(t, ok)
 			assert.Equal(t, len(test.expected), warnings.Slice().Len())
