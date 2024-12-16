@@ -148,6 +148,63 @@ message FindTraceIDsResponse {
     ];
 }
 
+message Throughput {
+  string Service = 1;
+  string Operation = 2;
+  int64 Count = 3;
+  repeated double Probabilities = 4;
+}
+
+message InsertThroughputRequest {
+  repeated Throughput throughput = 1;
+}
+
+message InsertThroughputResponse {
+}
+
+message StringFloatMap {
+  map<string, double> stringFloatMap = 1;
+}
+
+message ServiceOperationProbabilities {
+  map<string, StringFloatMap> serviceOperationProbabilities = 1;
+}
+
+message ServiceOperationQPS {
+  map<string, StringFloatMap> serviceOperationQPS = 1;
+}
+
+message InsertProbabilitiesAndQPSRequest {
+  string hostname = 1;
+  ServiceOperationProbabilities probabilities = 2;
+  ServiceOperationQPS qps = 3;
+}
+
+message InsertProbabilitiesAndQPSResponse {
+}
+
+message GetThroughputRequest {
+  google.protobuf.Timestamp start_time = 1[
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false
+  ];
+  google.protobuf.Timestamp end_time = 2 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false
+  ];
+}
+
+message GetThroughputResponse {
+  repeated Throughput throughput = 1;
+}
+
+message GetLatestProbabilitiesRequest {
+}
+
+message GetLatestProbabilitiesResponse {
+  ServiceOperationProbabilities serviceOperationProbabilities = 1;
+}
+
 service SpanWriterPlugin {
     // spanstore/Writer
     rpc WriteSpan(WriteSpanRequest) returns (WriteSpanResponse);
@@ -180,6 +237,16 @@ service ArchiveSpanReaderPlugin {
 service DependenciesReaderPlugin {
     // dependencystore/Reader
     rpc GetDependencies(GetDependenciesRequest) returns (GetDependenciesResponse);
+}
+
+service SamplingStorePlugin{
+    rpc InsertThroughput(InsertThroughputRequest) returns (InsertThroughputResponse);
+
+    rpc InsertProbabilitiesAndQPS(InsertProbabilitiesAndQPSRequest) returns (InsertProbabilitiesAndQPSResponse);
+
+    rpc GetThroughput(GetThroughputRequest) returns (GetThroughputResponse);
+
+    rpc GetLatestProbabilities(GetLatestProbabilitiesRequest) returns (GetLatestProbabilitiesResponse);
 }
 
 // empty; extensible in the future
