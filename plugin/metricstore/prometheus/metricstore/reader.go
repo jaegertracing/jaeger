@@ -74,15 +74,15 @@ func (p promClient) URL(ep string, args map[string]string) *url.URL {
 
 	query := u.Query()
 	for k, v := range p.extraParams {
-		query.Set(k, v)
+		query.Add(k, v)
 	}
 	u.RawQuery = query.Encode()
 
 	return u
 }
 
-func createPromClient(logger *zap.Logger, cfg config.Configuration) (api.Client, error) {
-	roundTripper, err := getHTTPRoundTripper(&cfg, logger)
+func createPromClient(cfg config.Configuration) (api.Client, error) {
+	roundTripper, err := getHTTPRoundTripper(&cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -107,7 +107,7 @@ func createPromClient(logger *zap.Logger, cfg config.Configuration) (api.Client,
 func NewMetricsReader(cfg config.Configuration, logger *zap.Logger, tracer trace.TracerProvider) (*MetricsReader, error) {
 	const operationLabel = "span_name"
 
-	promClient, err := createPromClient(logger, cfg)
+	promClient, err := createPromClient(cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -346,7 +346,7 @@ func logErrorToSpan(span trace.Span, err error) {
 	span.SetStatus(codes.Error, err.Error())
 }
 
-func getHTTPRoundTripper(c *config.Configuration, _ *zap.Logger) (rt http.RoundTripper, err error) {
+func getHTTPRoundTripper(c *config.Configuration) (rt http.RoundTripper, err error) {
 	ctlsConfig, err := c.TLS.LoadTLSConfig(context.Background())
 	if err != nil {
 		return nil, err

@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"sort"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -737,13 +738,12 @@ func TestGetRoundTripperTLSConfig(t *testing.T) {
 		{"tls disabled", false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			logger := zap.NewNop()
 			config := &config.Configuration{
 				ConnectTimeout:           9 * time.Millisecond,
 				TLS:                      configtls.ClientConfig{},
 				TokenOverrideFromContext: true,
 			}
-			rt, err := getHTTPRoundTripper(config, logger)
+			rt, err := getHTTPRoundTripper(config)
 			require.NoError(t, err)
 
 			server := newFakePromServer(t)
@@ -781,7 +781,7 @@ func TestGetRoundTripperTokenFile(t *testing.T) {
 		ConnectTimeout:           time.Second,
 		TokenFilePath:            file.Name(),
 		TokenOverrideFromContext: false,
-	}, nil)
+	})
 	require.NoError(t, err)
 
 	server := newFakePromServer(t)
@@ -815,7 +815,7 @@ func TestGetRoundTripperTokenFromContext(t *testing.T) {
 		ConnectTimeout:           time.Second,
 		TokenFilePath:            file.Name(),
 		TokenOverrideFromContext: true,
-	}, nil)
+	})
 	require.NoError(t, err)
 
 	server := newFakePromServer(t)
@@ -842,7 +842,7 @@ func TestGetRoundTripperTokenError(t *testing.T) {
 
 	_, err := getHTTPRoundTripper(&config.Configuration{
 		TokenFilePath: tokenFilePath,
-	}, nil)
+	})
 	assert.ErrorContains(t, err, "failed to get token from file")
 }
 
@@ -864,18 +864,22 @@ func TestInvalidCertFile(t *testing.T) {
 }
 
 func TestCreatePromClientWithExtraQueryParameters(t *testing.T) {
-	expParams := map[string]string{
+	extraParams := map[string]string{
 		"param1": "value1",
 		"param2": "value2",
 	}
 
-	logger := zap.NewNop()
 	cfg := config.Configuration{
-		ServerURL:        "http://localhost:1234",
-		ExtraQueryParams: expParams,
+		ServerURL:        "http://localhost:1234?param1=value0",
+		ExtraQueryParams: extraParams,
 	}
 
-	customClient, err := createPromClient(logger, cfg)
+	expParams := map[string][]string{
+		"param1": {"value0", "value1"},
+		"param2": {"value2"},
+	}
+
+	customClient, err := createPromClient(cfg)
 	require.NoError(t, err)
 
 	u := customClient.URL("", nil)
@@ -883,7 +887,8 @@ func TestCreatePromClientWithExtraQueryParameters(t *testing.T) {
 	q := u.Query()
 
 	for k, v := range expParams {
-		recV := q.Get(k)
+		sort.Strings(q[k])
+		recV := q[k]
 		require.Equal(t, v, recV)
 	}
 }
