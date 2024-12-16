@@ -56,6 +56,7 @@ func TestAddWarning(t *testing.T) {
 		})
 	}
 }
+
 func TestGetWarnings(t *testing.T) {
 	tests := []struct {
 		name     string
