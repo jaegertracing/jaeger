@@ -79,12 +79,12 @@ func (o *Options) AddFlags(command *cobra.Command) {
 	command.Flags().Int64Var(
 		&o.StartTime,
 		startTime,
-		-1,
+		0,
 		"The start time of time window for searching trace, timestampe in unix nanoseconds")
 	command.Flags().Int64Var(
 		&o.EndTime,
 		endTime,
-		-1,
+		0,
 		"The end time of time window for searching trace, timestampe in unix nanoseconds")
 
 	// mark traceid flag as mandatory

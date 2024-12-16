@@ -24,8 +24,8 @@ func TestOptionsWithDefaultFlags(t *testing.T) {
 	assert.False(t, o.HashLogs)
 	assert.False(t, o.HashProcess)
 	assert.Equal(t, -1, o.MaxSpansCount)
-	assert.Equal(t, int64(-1), o.StartTime)
-	assert.Equal(t, int64(-1), o.EndTime)
+	assert.Equal(t, int64(0), o.StartTime)
+	assert.Equal(t, int64(0), o.EndTime)
 }
 
 func TestOptionsWithFlags(t *testing.T) {
