@@ -6,7 +6,6 @@ package adjuster
 
 import (
 	"errors"
-	"fmt"
 
 	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"go.opentelemetry.io/collector/pdata/pcommon"
@@ -32,19 +31,18 @@ func SpanIDUniquifier() *SpanIDDeduper {
 }
 
 type SpanIDDeduper struct {
-	spansByID map[pcommon.SpanID][]ptrace.Span
 	maxUsedID pcommon.SpanID
 }
 
 func (d *SpanIDDeduper) Adjust(traces ptrace.Traces) error {
-	d.groupSpansByID(traces)
-	d.uniquifyServerSpanIDs(traces)
+	spansByID := make(map[pcommon.SpanID][]ptrace.Span)
+	d.groupSpansByID(traces, spansByID)
+	d.uniquifyServerSpanIDs(traces, spansByID)
 	return nil
 }
 
 // groupSpansByID groups spans with the same ID returning a map id -> []Span
-func (d *SpanIDDeduper) groupSpansByID(traces ptrace.Traces) {
-	spansByID := make(map[pcommon.SpanID][]ptrace.Span)
+func (d *SpanIDDeduper) groupSpansByID(traces ptrace.Traces, spansByID map[pcommon.SpanID][]ptrace.Span) {
 	resourceSpans := traces.ResourceSpans()
 	for i := 0; i < resourceSpans.Len(); i++ {
 		rs := resourceSpans.At(i)
@@ -63,11 +61,10 @@ func (d *SpanIDDeduper) groupSpansByID(traces ptrace.Traces) {
 			}
 		}
 	}
-	d.spansByID = spansByID
 }
 
-func (d *SpanIDDeduper) isSharedWithClientSpan(spanID pcommon.SpanID) bool {
-	spans := d.spansByID[spanID]
+func (d *SpanIDDeduper) isSharedWithClientSpan(spanID pcommon.SpanID, spansByID map[pcommon.SpanID][]ptrace.Span) bool {
+	spans := spansByID[spanID]
 	for _, span := range spans {
 		if span.Kind() == ptrace.SpanKindClient {
 			return true
@@ -76,7 +73,7 @@ func (d *SpanIDDeduper) isSharedWithClientSpan(spanID pcommon.SpanID) bool {
 	return false
 }
 
-func (d *SpanIDDeduper) uniquifyServerSpanIDs(traces ptrace.Traces) {
+func (d *SpanIDDeduper) uniquifyServerSpanIDs(traces ptrace.Traces, spansByID map[pcommon.SpanID][]ptrace.Span) {
 	oldToNewSpanIDs := make(map[pcommon.SpanID]pcommon.SpanID)
 	resourceSpans := traces.ResourceSpans()
 	for i := 0; i < resourceSpans.Len(); i++ {
@@ -88,8 +85,8 @@ func (d *SpanIDDeduper) uniquifyServerSpanIDs(traces ptrace.Traces) {
 			for k := 0; k < spans.Len(); k++ {
 				span := spans.At(k)
 				// only replace span IDs for server-side spans that share the ID with something else
-				if span.Kind() == ptrace.SpanKindServer && d.isSharedWithClientSpan(span.SpanID()) {
-					newID, err := d.makeUniqueSpanID()
+				if span.Kind() == ptrace.SpanKindServer && d.isSharedWithClientSpan(span.SpanID(), spansByID) {
+					newID, err := d.makeUniqueSpanID(spansByID)
 					if err != nil {
 						jptrace.AddWarning(span, err.Error())
 						continue
@@ -101,7 +98,6 @@ func (d *SpanIDDeduper) uniquifyServerSpanIDs(traces ptrace.Traces) {
 			}
 		}
 	}
-	fmt.Println(oldToNewSpanIDs)
 	d.swapParentIDs(traces, oldToNewSpanIDs)
 }
 
@@ -133,10 +129,10 @@ func (d *SpanIDDeduper) swapParentIDs(
 // makeUniqueSpanID returns a new ID that is not used in the trace,
 // or an error if such ID cannot be generated, which is unlikely,
 // given that the whole space of span IDs is 2^64.
-func (d *SpanIDDeduper) makeUniqueSpanID() (pcommon.SpanID, error) {
+func (d *SpanIDDeduper) makeUniqueSpanID(spansByID map[pcommon.SpanID][]ptrace.Span) (pcommon.SpanID, error) {
 	id := incrementSpanID(d.maxUsedID)
 	for id != pcommon.NewSpanIDEmpty() {
-		if _, exists := d.spansByID[id]; !exists {
+		if _, exists := spansByID[id]; !exists {
 			d.maxUsedID = id
 			return id, nil
 		}
