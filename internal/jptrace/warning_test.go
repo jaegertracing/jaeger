@@ -1,7 +1,7 @@
 // Copyright (c) 2024 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
-package adjuster
+package jptrace
 
 import (
 	"testing"
@@ -41,18 +41,56 @@ func TestAddWarning(t *testing.T) {
 			span := ptrace.NewSpan()
 			attrs := span.Attributes()
 			if test.existing != nil {
-				warnings := attrs.PutEmptySlice("jaeger.adjuster.warning")
+				warnings := attrs.PutEmptySlice("jaeger.internal.warnings")
 				for _, warn := range test.existing {
 					warnings.AppendEmpty().SetStr(warn)
 				}
 			}
-			addWarning(span, test.newWarn)
-			warnings, ok := attrs.Get("jaeger.adjuster.warning")
+			AddWarning(span, test.newWarn)
+			warnings, ok := attrs.Get("jaeger.internal.warnings")
 			assert.True(t, ok)
 			assert.Equal(t, len(test.expected), warnings.Slice().Len())
 			for i, expectedWarn := range test.expected {
 				assert.Equal(t, expectedWarn, warnings.Slice().At(i).Str())
 			}
+		})
+	}
+}
+
+func TestGetWarnings(t *testing.T) {
+	tests := []struct {
+		name     string
+		existing []string
+		expected []string
+	}{
+		{
+			name:     "get from nil warnings",
+			existing: nil,
+			expected: nil,
+		},
+		{
+			name:     "get from empty warnings",
+			existing: []string{},
+			expected: []string{},
+		},
+		{
+			name:     "get from existing warnings",
+			existing: []string{"existing warning 1", "existing warning 2"},
+			expected: []string{"existing warning 1", "existing warning 2"},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			span := ptrace.NewSpan()
+			attrs := span.Attributes()
+			if test.existing != nil {
+				warnings := attrs.PutEmptySlice("jaeger.internal.warnings")
+				for _, warn := range test.existing {
+					warnings.AppendEmpty().SetStr(warn)
+				}
+			}
+			actual := GetWarnings(span)
+			assert.Equal(t, test.expected, actual)
 		})
 	}
 }
