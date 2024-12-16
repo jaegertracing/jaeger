@@ -888,8 +888,7 @@ func TestCreatePromClientWithExtraQueryParameters(t *testing.T) {
 
 	for k, v := range expParams {
 		sort.Strings(q[k])
-		recV := q[k]
-		require.Equal(t, v, recV)
+		require.Equal(t, v, q[k])
 	}
 }
 
