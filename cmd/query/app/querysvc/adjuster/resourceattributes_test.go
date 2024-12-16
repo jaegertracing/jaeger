@@ -26,8 +26,7 @@ func TestResourceAttributesAdjuster_SpanWithLibraryAttributes(t *testing.T) {
 	span.Attributes().PutStr("another_key", "another_value")
 
 	adjuster := ResourceAttributes()
-	err := adjuster.Adjust(traces)
-	require.NoError(t, err)
+	require.NoError(t, adjuster.Adjust(traces))
 
 	resultSpanAttributes := traces.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).Attributes()
 	require.Equal(t, 2, resultSpanAttributes.Len())
@@ -69,8 +68,7 @@ func TestResourceAttributesAdjuster_SpanWithoutLibraryAttributes(t *testing.T) {
 	span.Attributes().PutStr("random_key", "random_value")
 
 	adjuster := ResourceAttributes()
-	err := adjuster.Adjust(traces)
-	require.NoError(t, err)
+	require.NoError(t, adjuster.Adjust(traces))
 
 	resultSpanAttributes := traces.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).Attributes()
 	require.Equal(t, 1, resultSpanAttributes.Len())
@@ -88,10 +86,10 @@ func TestResourceAttributesAdjuster_SpanWithConflictingLibraryAttributes(t *test
 	span.Attributes().PutStr(string(otelsemconv.TelemetrySDKLanguageKey), "Java")
 
 	adjuster := ResourceAttributes()
-	err := adjuster.Adjust(traces)
-	require.NoError(t, err)
+	require.NoError(t, adjuster.Adjust(traces))
 
-	resultSpanAttributes := traces.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).Attributes()
+	resultSpan := traces.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0)
+	resultSpanAttributes := resultSpan.Attributes()
 	require.Equal(t, 3, resultSpanAttributes.Len())
 	val, ok := resultSpanAttributes.Get("random_key")
 	require.True(t, ok)
@@ -102,11 +100,10 @@ func TestResourceAttributesAdjuster_SpanWithConflictingLibraryAttributes(t *test
 	require.True(t, ok)
 	require.Equal(t, "Java", val.Str())
 
-	val, ok = resultSpanAttributes.Get(jptrace.WarningsAttribute)
+	warnings := jptrace.GetWarnings(resultSpan)
 	require.True(t, ok)
-	warnings := val.Slice()
-	require.Equal(t, 1, warnings.Len())
-	require.Equal(t, "conflicting values between Span and Resource for attribute telemetry.sdk.language", warnings.At(0).Str())
+	require.Len(t, warnings, 1)
+	require.Equal(t, "conflicting values between Span and Resource for attribute telemetry.sdk.language", warnings[0])
 
 	resultResourceAttributes := traces.ResourceSpans().At(0).Resource().Attributes()
 	val, ok = resultResourceAttributes.Get(string(otelsemconv.TelemetrySDKLanguageKey))
@@ -123,8 +120,7 @@ func TestResourceAttributesAdjuster_SpanWithNonConflictingLibraryAttributes(t *t
 	span.Attributes().PutStr(string(otelsemconv.TelemetrySDKLanguageKey), "Go")
 
 	adjuster := ResourceAttributes()
-	err := adjuster.Adjust(traces)
-	require.NoError(t, err)
+	require.NoError(t, adjuster.Adjust(traces))
 
 	resultSpanAttributes := traces.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).Attributes()
 	require.Equal(t, 1, resultSpanAttributes.Len())

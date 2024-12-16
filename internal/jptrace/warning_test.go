@@ -56,3 +56,40 @@ func TestAddWarning(t *testing.T) {
 		})
 	}
 }
+func TestGetWarnings(t *testing.T) {
+	tests := []struct {
+		name     string
+		existing []string
+		expected []string
+	}{
+		{
+			name:     "get from nil warnings",
+			existing: nil,
+			expected: nil,
+		},
+		{
+			name:     "get from empty warnings",
+			existing: []string{},
+			expected: []string{},
+		},
+		{
+			name:     "get from existing warnings",
+			existing: []string{"existing warning 1", "existing warning 2"},
+			expected: []string{"existing warning 1", "existing warning 2"},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			span := ptrace.NewSpan()
+			attrs := span.Attributes()
+			if test.existing != nil {
+				warnings := attrs.PutEmptySlice("jaeger.internal.warnings")
+				for _, warn := range test.existing {
+					warnings.AppendEmpty().SetStr(warn)
+				}
+			}
+			actual := GetWarnings(span)
+			assert.Equal(t, test.expected, actual)
+		})
+	}
+}
