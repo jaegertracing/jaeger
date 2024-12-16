@@ -6,6 +6,7 @@ package adjuster
 
 import (
 	"errors"
+	"fmt"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
@@ -97,6 +98,7 @@ func (d *SpanIDDeduper) uniquifyServerSpanIDs(traces ptrace.Traces) {
 			}
 		}
 	}
+	fmt.Println(oldToNewSpanIDs)
 	d.swapParentIDs(traces, oldToNewSpanIDs)
 }
 
