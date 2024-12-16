@@ -42,7 +42,7 @@ import (
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	spanstoremocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
 	depsmocks "github.com/jaegertracing/jaeger/storage_v2/depstore/mocks"
-	"github.com/jaegertracing/jaeger/storage_v2/factoryadapter"
+	"github.com/jaegertracing/jaeger/storage_v2/v1adapter"
 )
 
 var testCertKeyLocation = "../../../pkg/config/tlscfg/testdata"
@@ -324,7 +324,7 @@ type fakeQueryService struct {
 
 func makeQuerySvc() *fakeQueryService {
 	spanReader := &spanstoremocks.Reader{}
-	traceReader := factoryadapter.NewTraceReader(spanReader)
+	traceReader := v1adapter.NewTraceReader(spanReader)
 	dependencyReader := &depsmocks.Reader{}
 	expectedServices := []string{"test"}
 	spanReader.On("GetServices", mock.AnythingOfType("*context.valueCtx")).Return(expectedServices, nil)

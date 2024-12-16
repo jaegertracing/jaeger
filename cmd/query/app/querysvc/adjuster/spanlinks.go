@@ -8,35 +8,36 @@ import (
 )
 
 // SpanLinks creates an adjuster that removes span links with empty trace IDs.
-func SpanLinks() Adjuster {
-	return Func(func(traces ptrace.Traces) (ptrace.Traces, error) {
-		adjuster := linksAdjuster{}
-		resourceSpans := traces.ResourceSpans()
-		for i := 0; i < resourceSpans.Len(); i++ {
-			rs := resourceSpans.At(i)
-			scopeSpans := rs.ScopeSpans()
-			for j := 0; j < scopeSpans.Len(); j++ {
-				ss := scopeSpans.At(j)
-				spans := ss.Spans()
-				for k := 0; k < spans.Len(); k++ {
-					span := spans.At(k)
-					adjuster.adjust(span)
-				}
-			}
-		}
-		return traces, nil
-	})
+func SpanLinks() LinksAdjuster {
+	return LinksAdjuster{}
 }
 
-type linksAdjuster struct{}
+type LinksAdjuster struct{}
+
+func (la LinksAdjuster) Adjust(traces ptrace.Traces) error {
+	resourceSpans := traces.ResourceSpans()
+	for i := 0; i < resourceSpans.Len(); i++ {
+		rs := resourceSpans.At(i)
+		scopeSpans := rs.ScopeSpans()
+		for j := 0; j < scopeSpans.Len(); j++ {
+			ss := scopeSpans.At(j)
+			spans := ss.Spans()
+			for k := 0; k < spans.Len(); k++ {
+				span := spans.At(k)
+				la.adjust(span)
+			}
+		}
+	}
+	return nil
+}
 
 // adjust removes invalid links from a span.
-func (l linksAdjuster) adjust(span ptrace.Span) {
+func (la LinksAdjuster) adjust(span ptrace.Span) {
 	links := span.Links()
 	validLinks := ptrace.NewSpanLinkSlice()
 	for i := 0; i < links.Len(); i++ {
 		link := links.At(i)
-		if l.valid(link) {
+		if la.valid(link) {
 			newLink := validLinks.AppendEmpty()
 			link.CopyTo(newLink)
 		}
@@ -45,6 +46,6 @@ func (l linksAdjuster) adjust(span ptrace.Span) {
 }
 
 // valid checks if a span link's TraceID is not empty.
-func (linksAdjuster) valid(link ptrace.SpanLink) bool {
+func (LinksAdjuster) valid(link ptrace.SpanLink) bool {
 	return !link.TraceID().IsEmpty()
 }
