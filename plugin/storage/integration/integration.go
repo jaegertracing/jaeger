@@ -21,12 +21,14 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	samplemodel "github.com/jaegertracing/jaeger/cmd/collector/app/sampling/model"
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/samplingstore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
+	"github.com/jaegertracing/jaeger/storage_v2/tracestore"
 )
 
 //go:embed fixtures
@@ -43,6 +45,7 @@ var fixtures embed.FS
 type StorageIntegration struct {
 	SpanWriter        spanstore.Writer
 	SpanReader        spanstore.Reader
+	TraceReader       tracestore.Reader
 	ArchiveSpanReader spanstore.Reader
 	ArchiveSpanWriter spanstore.Writer
 	DependencyWriter  dependencystore.Writer
@@ -131,6 +134,48 @@ func (*StorageIntegration) waitForCondition(t *testing.T, predicate func(t *test
 		time.Sleep(time.Second)
 	}
 	return predicate(t)
+}
+
+func (s *StorageIntegration) testGetServicesv2(t *testing.T) {
+	s.skipIfNeeded(t)
+	defer s.cleanUp(t)
+
+	expected := []string{"example-service-1", "example-service-2", "example-service-3"}
+	s.loadParseAndWriteExampleTrace(t)
+
+	var actual []string
+	found := s.waitForCondition(t, func(t *testing.T) bool {
+		var err error
+		actual, err = s.TraceReader.GetServices(context.Background())
+		if err != nil {
+			t.Log(err)
+			return false
+		}
+		sort.Strings(actual)
+		t.Logf("Retrieved services: %v", actual)
+		if len(actual) > len(expected) {
+			t.Log("🛑 Found unexpected services!")
+			for _, service := range actual {
+				traceSeq := s.TraceReader.FindTraces(context.Background(), tracestore.TraceQueryParams{
+					ServiceName: service,
+				})
+				traceSeq(func(traces []ptrace.Traces, err error) bool {
+					if err != nil {
+						t.Log(err)
+					}
+					for _, trace := range traces {
+						t.Log(trace)
+					}
+					return true
+				})
+			}
+		}
+		return assert.ObjectsAreEqualValues(expected, actual)
+	})
+	if !assert.True(t, found) {
+		t.Log("\t Expected:", expected)
+		t.Log("\t Actual  :", actual)
+	}
 }
 
 func (s *StorageIntegration) testGetServices(t *testing.T) {
@@ -581,6 +626,7 @@ func (s *StorageIntegration) RunAll(t *testing.T) {
 // RunTestSpanstore runs only span related integration tests
 func (s *StorageIntegration) RunSpanStoreTests(t *testing.T) {
 	t.Run("GetServices", s.testGetServices)
+	t.Run("GetServicesV2", s.testGetServicesv2)
 	t.Run("GetOperations", s.testGetOperations)
 	t.Run("GetTrace", s.testGetTrace)
 	t.Run("GetLargeSpans", s.testGetLargeSpan)
