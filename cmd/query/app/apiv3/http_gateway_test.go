@@ -18,6 +18,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
+	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/jtracer"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
@@ -90,27 +91,111 @@ func TestHTTPGatewayTryHandleError(t *testing.T) {
 	assert.Contains(t, string(w.Body.String()), e, "writes error message to body")
 }
 
-func TestHTTPGatewayGetTraceErrors(t *testing.T) {
-	gw := setupHTTPGatewayNoServer(t, "")
+func TestHTTPGatewayGetTrace(t *testing.T) {
+	traceId, _ := model.TraceIDFromString("123")
+	testCases := []struct {
+		name          string
+		params        map[string]string
+		expectedQuery spanstore.GetTraceParameters
+	}{
+		{
+			"TestGetTrace",
+			map[string]string{},
+			spanstore.GetTraceParameters{
+				TraceID: traceId,
+			},
+		},
+		{
+			"TestGetTraceWithTimeWindow",
+			map[string]string{
+				"start_time": "2000-01-02T12:30:08.999999998Z",
+				"end_time":   "2000-04-05T21:55:16.999999992+08:00",
+			},
+			spanstore.GetTraceParameters{
+				TraceID:   traceId,
+				StartTime: time.Date(2000, time.January, 0o2, 12, 30, 8, 999999998, time.UTC),
+				EndTime:   time.Date(2000, time.April, 0o5, 13, 55, 16, 999999992, time.UTC),
+			},
+		},
+	}
 
-	// malformed trace id
-	r, err := http.NewRequest(http.MethodGet, "/api/v3/traces/xyz", nil)
+	testUri := "/api/v3/traces/123"
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			gw := setupHTTPGatewayNoServer(t, "")
+			gw.reader.
+				On("GetTrace", matchContext, tc.expectedQuery).
+				Return(&model.Trace{}, nil).Once()
+
+			q := url.Values{}
+			for k, v := range tc.params {
+				q.Set(k, v)
+			}
+			testUrl := testUri
+			if len(tc.params) > 0 {
+				testUrl += "?" + q.Encode()
+			}
+
+			r, err := http.NewRequest(http.MethodGet, testUrl, nil)
+			require.NoError(t, err)
+			w := httptest.NewRecorder()
+			gw.router.ServeHTTP(w, r)
+			gw.reader.AssertCalled(t, "GetTrace", matchContext, tc.expectedQuery)
+		})
+	}
+}
+
+func TestHTTPGatewayGetTraceMalformedInputErrors(t *testing.T) {
+	testCases := []struct {
+		name          string
+		requestUrl    string
+		expectedError string
+	}{
+		{
+			"TestGetTrace",
+			"/api/v3/traces/xyz",
+			"malformed parameter trace_id",
+		},
+		{
+			"TestGetTraceWithInvalidStartTime",
+			"/api/v3/traces/123?start_time=abc",
+			"malformed parameter start_time",
+		},
+		{
+			"TestGetTraceWithInvalidEndTime",
+			"/api/v3/traces/123?end_time=xyz",
+			"malformed parameter end_time",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			gw := setupHTTPGatewayNoServer(t, "")
+			gw.reader.
+				On("GetTrace", matchContext, matchGetTraceParameters).
+				Return(&model.Trace{}, nil).Once()
+
+			r, err := http.NewRequest(http.MethodGet, tc.requestUrl, nil)
+			require.NoError(t, err)
+			w := httptest.NewRecorder()
+			gw.router.ServeHTTP(w, r)
+			assert.Contains(t, w.Body.String(), tc.expectedError)
+		})
+	}
+}
+
+func TestHTTPGatewayGetTraceInternalErrors(t *testing.T) {
+	gw := setupHTTPGatewayNoServer(t, "")
+	gw.reader.
+		On("GetTrace", matchContext, matchGetTraceParameters).
+		Return(nil, assert.AnError).Once()
+
+	r, err := http.NewRequest(http.MethodGet, "/api/v3/traces/123", nil)
 	require.NoError(t, err)
 	w := httptest.NewRecorder()
 	gw.router.ServeHTTP(w, r)
-	assert.Contains(t, w.Body.String(), "malformed parameter trace_id")
-
-	// error from span reader
-	const simErr = "simulated error"
-	gw.reader.
-		On("GetTrace", matchContext, matchGetTraceParameters).
-		Return(nil, errors.New(simErr)).Once()
-
-	r, err = http.NewRequest(http.MethodGet, "/api/v3/traces/123", nil)
-	require.NoError(t, err)
-	w = httptest.NewRecorder()
-	gw.router.ServeHTTP(w, r)
-	assert.Contains(t, w.Body.String(), simErr)
+	assert.Contains(t, w.Body.String(), assert.AnError.Error())
 }
 
 func mockFindQueries() (url.Values, *spanstore.TraceQueryParameters) {
