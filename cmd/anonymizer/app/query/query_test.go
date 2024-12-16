@@ -21,7 +21,7 @@ import (
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	spanstoremocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
 	dependencyStoreMocks "github.com/jaegertracing/jaeger/storage_v2/depstore/mocks"
-	"github.com/jaegertracing/jaeger/storage_v2/factoryadapter"
+	"github.com/jaegertracing/jaeger/storage_v2/v1adapter"
 )
 
 var (
@@ -56,7 +56,7 @@ type testServer struct {
 
 func newTestServer(t *testing.T) *testServer {
 	spanReader := &spanstoremocks.Reader{}
-	traceReader := factoryadapter.NewTraceReader(spanReader)
+	traceReader := v1adapter.NewTraceReader(spanReader)
 	metricsReader, err := disabled.NewMetricsReader()
 	require.NoError(t, err)
 

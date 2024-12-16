@@ -34,7 +34,7 @@ import (
 	spanstoremocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
 	"github.com/jaegertracing/jaeger/storage_v2/depstore"
 	depsmocks "github.com/jaegertracing/jaeger/storage_v2/depstore/mocks"
-	"github.com/jaegertracing/jaeger/storage_v2/factoryadapter"
+	"github.com/jaegertracing/jaeger/storage_v2/v1adapter"
 )
 
 var (
@@ -950,7 +950,7 @@ func initializeTenantedTestServerGRPCWithOptions(t *testing.T, tm *tenancy.Manag
 	require.NoError(t, err)
 
 	q := querysvc.NewQueryService(
-		factoryadapter.NewTraceReader(spanReader),
+		v1adapter.NewTraceReader(spanReader),
 		dependencyReader,
 		querysvc.QueryServiceOptions{
 			ArchiveSpanReader: archiveSpanReader,
@@ -1214,7 +1214,7 @@ func TestNewGRPCHandlerWithEmptyOptions(t *testing.T) {
 	require.NoError(t, err)
 
 	q := querysvc.NewQueryService(
-		factoryadapter.NewTraceReader(&spanstoremocks.Reader{}),
+		v1adapter.NewTraceReader(&spanstoremocks.Reader{}),
 		&depsmocks.Reader{},
 		querysvc.QueryServiceOptions{})
 
