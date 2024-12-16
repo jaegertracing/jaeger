@@ -23,7 +23,7 @@ import (
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	spanstoremocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
 	dependencyStoreMocks "github.com/jaegertracing/jaeger/storage_v2/depstore/mocks"
-	"github.com/jaegertracing/jaeger/storage_v2/factoryadapter"
+	"github.com/jaegertracing/jaeger/storage_v2/v1adapter"
 )
 
 var (
@@ -58,7 +58,7 @@ func newTestServerClient(t *testing.T) *testServerClient {
 	}
 
 	q := querysvc.NewQueryService(
-		factoryadapter.NewTraceReader(tsc.reader),
+		v1adapter.NewTraceReader(tsc.reader),
 		&dependencyStoreMocks.Reader{},
 		querysvc.QueryServiceOptions{},
 	)
@@ -211,7 +211,7 @@ func TestFindTracesSendError(t *testing.T) {
 		}, nil).Once()
 	h := &Handler{
 		QueryService: querysvc.NewQueryService(
-			factoryadapter.NewTraceReader(reader),
+			v1adapter.NewTraceReader(reader),
 			new(dependencyStoreMocks.Reader),
 			querysvc.QueryServiceOptions{},
 		),

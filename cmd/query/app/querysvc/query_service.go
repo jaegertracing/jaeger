@@ -15,8 +15,8 @@ import (
 	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	"github.com/jaegertracing/jaeger/storage_v2/depstore"
-	"github.com/jaegertracing/jaeger/storage_v2/factoryadapter"
 	"github.com/jaegertracing/jaeger/storage_v2/tracestore"
+	"github.com/jaegertracing/jaeger/storage_v2/v1adapter"
 )
 
 var errNoArchiveSpanStorage = errors.New("archive span storage was not configured")
@@ -63,7 +63,7 @@ func NewQueryService(traceReader tracestore.Reader, dependencyReader depstore.Re
 
 // GetTrace is the queryService implementation of spanstore.Reader.GetTrace
 func (qs QueryService) GetTrace(ctx context.Context, query spanstore.GetTraceParameters) (*model.Trace, error) {
-	spanReader, err := factoryadapter.GetV1Reader(qs.traceReader)
+	spanReader, err := v1adapter.GetV1Reader(qs.traceReader)
 	if err != nil {
 		return nil, err
 	}
@@ -79,7 +79,7 @@ func (qs QueryService) GetTrace(ctx context.Context, query spanstore.GetTracePar
 
 // GetServices is the queryService implementation of spanstore.Reader.GetServices
 func (qs QueryService) GetServices(ctx context.Context) ([]string, error) {
-	spanReader, err := factoryadapter.GetV1Reader(qs.traceReader)
+	spanReader, err := v1adapter.GetV1Reader(qs.traceReader)
 	if err != nil {
 		return nil, err
 	}
@@ -91,7 +91,7 @@ func (qs QueryService) GetOperations(
 	ctx context.Context,
 	query spanstore.OperationQueryParameters,
 ) ([]spanstore.Operation, error) {
-	spanReader, err := factoryadapter.GetV1Reader(qs.traceReader)
+	spanReader, err := v1adapter.GetV1Reader(qs.traceReader)
 	if err != nil {
 		return nil, err
 	}
@@ -100,7 +100,7 @@ func (qs QueryService) GetOperations(
 
 // FindTraces is the queryService implementation of spanstore.Reader.FindTraces
 func (qs QueryService) FindTraces(ctx context.Context, query *spanstore.TraceQueryParameters) ([]*model.Trace, error) {
-	spanReader, err := factoryadapter.GetV1Reader(qs.traceReader)
+	spanReader, err := v1adapter.GetV1Reader(qs.traceReader)
 	if err != nil {
 		return nil, err
 	}
