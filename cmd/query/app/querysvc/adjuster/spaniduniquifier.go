@@ -7,9 +7,10 @@ package adjuster
 import (
 	"errors"
 
-	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+
+	"github.com/jaegertracing/jaeger/internal/jptrace"
 )
 
 var _ Adjuster = (*SpanIDDeduper)(nil)
@@ -36,13 +37,14 @@ type SpanIDDeduper struct {
 
 func (d *SpanIDDeduper) Adjust(traces ptrace.Traces) error {
 	spansByID := make(map[pcommon.SpanID][]ptrace.Span)
+	d.maxUsedID = pcommon.NewSpanIDEmpty() // reset maxUsedID for each trace
 	d.groupSpansByID(traces, spansByID)
 	d.uniquifyServerSpanIDs(traces, spansByID)
 	return nil
 }
 
 // groupSpansByID groups spans with the same ID returning a map id -> []Span
-func (d *SpanIDDeduper) groupSpansByID(traces ptrace.Traces, spansByID map[pcommon.SpanID][]ptrace.Span) {
+func (*SpanIDDeduper) groupSpansByID(traces ptrace.Traces, spansByID map[pcommon.SpanID][]ptrace.Span) {
 	resourceSpans := traces.ResourceSpans()
 	for i := 0; i < resourceSpans.Len(); i++ {
 		rs := resourceSpans.At(i)
@@ -63,7 +65,7 @@ func (d *SpanIDDeduper) groupSpansByID(traces ptrace.Traces, spansByID map[pcomm
 	}
 }
 
-func (d *SpanIDDeduper) isSharedWithClientSpan(spanID pcommon.SpanID, spansByID map[pcommon.SpanID][]ptrace.Span) bool {
+func (*SpanIDDeduper) isSharedWithClientSpan(spanID pcommon.SpanID, spansByID map[pcommon.SpanID][]ptrace.Span) bool {
 	spans := spansByID[spanID]
 	for _, span := range spans {
 		if span.Kind() == ptrace.SpanKindClient {
@@ -103,7 +105,7 @@ func (d *SpanIDDeduper) uniquifyServerSpanIDs(traces ptrace.Traces, spansByID ma
 
 // swapParentIDs corrects ParentSpanID of all spans that are children of the server
 // spans whose IDs we made unique.
-func (d *SpanIDDeduper) swapParentIDs(
+func (*SpanIDDeduper) swapParentIDs(
 	traces ptrace.Traces,
 	oldToNewSpanIDs map[pcommon.SpanID]pcommon.SpanID,
 ) {

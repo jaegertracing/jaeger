@@ -7,11 +7,12 @@ package adjuster
 import (
 	"testing"
 
-	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+
+	"github.com/jaegertracing/jaeger/internal/jptrace"
 )
 
 var (
@@ -92,13 +93,18 @@ func TestSpanIDUniquifierNotTriggered(t *testing.T) {
 	assert.Equal(t, anotherSpanID, thirdSpan.SpanID(), "3rd span ID should not change")
 }
 
-func TestSpanIDUniquifierError(t *testing.T) {
+func TestMakeUniqueSpanIDError(t *testing.T) {
 	traces := makeTraces()
 
 	maxID := pcommon.SpanID([8]byte{255, 255, 255, 255, 255, 255, 255, 255})
 
+	sharedSpan := ptrace.NewSpan()
+	sharedSpan.SetKind(ptrace.SpanKindClient)
+
 	deduper := &SpanIDDeduper{maxUsedID: maxID}
-	require.NoError(t, deduper.Adjust(traces))
+	deduper.uniquifyServerSpanIDs(traces, map[pcommon.SpanID][]ptrace.Span{
+		clientSpanID: {sharedSpan},
+	})
 
 	span := traces.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(1)
 	warnings := jptrace.GetWarnings(span)
