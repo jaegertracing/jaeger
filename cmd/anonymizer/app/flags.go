@@ -17,6 +17,8 @@ type Options struct {
 	HashCustomTags    bool
 	HashLogs          bool
 	HashProcess       bool
+	StartTime         int64
+	EndTime           int64
 }
 
 const (
@@ -28,6 +30,8 @@ const (
 	hashLogsFlag          = "hash-logs"
 	hashProcessFlag       = "hash-process"
 	maxSpansCount         = "max-spans-count"
+	startTime             = "start-time"
+	endTime               = "end-time"
 )
 
 // AddFlags adds flags for anonymizer main program
@@ -72,6 +76,16 @@ func (o *Options) AddFlags(command *cobra.Command) {
 		maxSpansCount,
 		-1,
 		"The maximum number of spans to anonymize")
+	command.Flags().Int64Var(
+		&o.StartTime,
+		startTime,
+		-1,
+		"The start time of time window for searching trace, timestampe in unix nanoseconds")
+	command.Flags().Int64Var(
+		&o.EndTime,
+		endTime,
+		-1,
+		"The end time of time window for searching trace, timestampe in unix nanoseconds")
 
 	// mark traceid flag as mandatory
 	command.MarkFlagRequired(traceIDFlag)

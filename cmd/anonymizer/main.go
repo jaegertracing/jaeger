@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
@@ -53,7 +54,9 @@ func main() {
 				logger.Fatal("error while creating query object", zap.Error(err))
 			}
 
-			spans, err := query.QueryTrace(options.TraceID)
+			startTime := time.Unix(0, options.StartTime)
+			endTime := time.Unix(0, options.EndTime)
+			spans, err := query.QueryTrace(options.TraceID, startTime, endTime)
 			if err != nil {
 				logger.Fatal("error while querying for trace", zap.Error(err))
 			}
