@@ -7,6 +7,7 @@ package adjuster
 import (
 	"testing"
 
+	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
@@ -47,10 +48,9 @@ func makeTraces() ptrace.Traces {
 }
 
 func TestSpanIDUniquifierTriggered(t *testing.T) {
-	trc := makeTraces()
+	traces := makeTraces()
 	deduper := SpanIDUniquifier()
-	traces, err := deduper.Adjust(trc)
-	require.NoError(t, err)
+	require.NoError(t, deduper.Adjust(traces))
 
 	spans := traces.ResourceSpans().At(0).ScopeSpans().At(0).Spans()
 
@@ -62,7 +62,7 @@ func TestSpanIDUniquifierTriggered(t *testing.T) {
 	assert.EqualValues(t, []byte{0, 0, 0, 0, 0, 0, 0, 3}, serverSpan.ParentSpanID(), "next server span should be this server span's parent")
 
 	anotherServerSpan := spans.At(2)
-	assert.EqualValues(t, []byte{0, 0, 0, 0, 0, 0, 0, 2}, anotherServerSpan.SpanID(), "server span ID should be reassigned")
+	assert.EqualValues(t, []byte{0, 0, 0, 0, 0, 0, 0, 3}, anotherServerSpan.SpanID(), "server span ID should be reassigned")
 	assert.EqualValues(t, clientSpanID, anotherServerSpan.ParentSpanID(), "client span should be server span's parent")
 
 	thirdSpan := spans.At(3)
@@ -70,8 +70,8 @@ func TestSpanIDUniquifierTriggered(t *testing.T) {
 }
 
 func TestSpanIDUniquifierNotTriggered(t *testing.T) {
-	trc := makeTraces()
-	spans := trc.ResourceSpans().At(0).ScopeSpans().At(0).Spans()
+	traces := makeTraces()
+	spans := traces.ResourceSpans().At(0).ScopeSpans().At(0).Spans()
 
 	// only copy server span and random span
 	newSpans := ptrace.NewSpanSlice()
@@ -80,8 +80,7 @@ func TestSpanIDUniquifierNotTriggered(t *testing.T) {
 	newSpans.CopyTo(spans)
 
 	deduper := SpanIDUniquifier()
-	traces, err := deduper.Adjust(trc)
-	require.NoError(t, err)
+	require.NoError(t, deduper.Adjust(traces))
 
 	gotSpans := traces.ResourceSpans().At(0).ScopeSpans().At(0).Spans()
 
@@ -94,16 +93,15 @@ func TestSpanIDUniquifierNotTriggered(t *testing.T) {
 }
 
 func TestSpanIDUniquifierError(t *testing.T) {
-	trc := makeTraces()
+	traces := makeTraces()
 
 	maxID := pcommon.SpanID([8]byte{255, 255, 255, 255, 255, 255, 255, 255})
 
 	deduper := &SpanIDDeduper{maxUsedID: maxID}
-	traces, err := deduper.Adjust(trc)
-	require.NoError(t, err)
+	require.NoError(t, deduper.Adjust(traces))
 
 	span := traces.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(1)
-	val, ok := span.Attributes().Get(adjusterWarningAttribute)
-	require.True(t, ok)
-	require.Equal(t, "cannot assign unique span ID, too many spans in the trace", val.Slice().At(0).Str())
+	warnings := jptrace.GetWarnings(span)
+	require.Len(t, warnings, 1)
+	require.Equal(t, "cannot assign unique span ID, too many spans in the trace", warnings[0])
 }

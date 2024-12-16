@@ -8,9 +8,12 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 )
+
+var _ Adjuster = (*SpanIDDeduper)(nil)
 
 const (
 	warningTooManySpans = "cannot assign unique span ID, too many spans in the trace"
@@ -33,10 +36,10 @@ type SpanIDDeduper struct {
 	maxUsedID pcommon.SpanID
 }
 
-func (d *SpanIDDeduper) Adjust(traces ptrace.Traces) (ptrace.Traces, error) {
+func (d *SpanIDDeduper) Adjust(traces ptrace.Traces) error {
 	d.groupSpansByID(traces)
 	d.uniquifyServerSpanIDs(traces)
-	return traces, nil
+	return nil
 }
 
 // groupSpansByID groups spans with the same ID returning a map id -> []Span
@@ -88,7 +91,7 @@ func (d *SpanIDDeduper) uniquifyServerSpanIDs(traces ptrace.Traces) {
 				if span.Kind() == ptrace.SpanKindServer && d.isSharedWithClientSpan(span.SpanID()) {
 					newID, err := d.makeUniqueSpanID()
 					if err != nil {
-						addWarning(span, err.Error())
+						jptrace.AddWarning(span, err.Error())
 						continue
 					}
 					oldToNewSpanIDs[span.SpanID()] = newID
