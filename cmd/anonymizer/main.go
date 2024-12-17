@@ -103,8 +103,6 @@ func initTime(ts int64) time.Time {
 	var t time.Time
 	if ts != 0 {
 		t = time.Unix(0, ts)
-	} else {
-		t = time.Time{}
 	}
 	return t
 }
