@@ -54,9 +54,11 @@ func main() {
 				logger.Fatal("error while creating query object", zap.Error(err))
 			}
 
-			startTime := time.Unix(0, options.StartTime)
-			endTime := time.Unix(0, options.EndTime)
-			spans, err := query.QueryTrace(options.TraceID, startTime, endTime)
+			spans, err := query.QueryTrace(
+				options.TraceID,
+				initTime(options.StartTime),
+				initTime(options.EndTime),
+			)
 			if err != nil {
 				logger.Fatal("error while querying for trace", zap.Error(err))
 			}
@@ -95,4 +97,14 @@ func main() {
 		fmt.Println(err.Error())
 		os.Exit(1)
 	}
+}
+
+func initTime(ts int64) time.Time {
+	var t time.Time
+	if ts != 0 {
+		t = time.Unix(0, ts)
+	} else {
+		t = time.Time{}
+	}
+	return t
 }
