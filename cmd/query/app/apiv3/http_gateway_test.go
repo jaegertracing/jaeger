@@ -99,19 +99,19 @@ func TestHTTPGatewayGetTrace(t *testing.T) {
 		expectedQuery spanstore.GetTraceParameters
 	}{
 		{
-			"TestGetTrace",
-			map[string]string{},
-			spanstore.GetTraceParameters{
+			name:   "TestGetTrace",
+			params: map[string]string{},
+			expectedQuery: spanstore.GetTraceParameters{
 				TraceID: traceId,
 			},
 		},
 		{
-			"TestGetTraceWithTimeWindow",
-			map[string]string{
+			name: "TestGetTraceWithTimeWindow",
+			params: map[string]string{
 				"start_time": "2000-01-02T12:30:08.999999998Z",
 				"end_time":   "2000-04-05T21:55:16.999999992+08:00",
 			},
-			spanstore.GetTraceParameters{
+			expectedQuery: spanstore.GetTraceParameters{
 				TraceID:   traceId,
 				StartTime: time.Date(2000, time.January, 0o2, 12, 30, 8, 999999998, time.UTC),
 				EndTime:   time.Date(2000, time.April, 0o5, 13, 55, 16, 999999992, time.UTC),
@@ -153,19 +153,19 @@ func TestHTTPGatewayGetTraceMalformedInputErrors(t *testing.T) {
 		expectedError string
 	}{
 		{
-			"TestGetTrace",
-			"/api/v3/traces/xyz",
-			"malformed parameter trace_id",
+			name:          "TestGetTrace",
+			requestUrl:    "/api/v3/traces/xyz",
+			expectedError: "malformed parameter trace_id",
 		},
 		{
-			"TestGetTraceWithInvalidStartTime",
-			"/api/v3/traces/123?start_time=abc",
-			"malformed parameter start_time",
+			name:          "TestGetTraceWithInvalidStartTime",
+			requestUrl:    "/api/v3/traces/123?start_time=abc",
+			expectedError: "malformed parameter start_time",
 		},
 		{
-			"TestGetTraceWithInvalidEndTime",
-			"/api/v3/traces/123?end_time=xyz",
-			"malformed parameter end_time",
+			name:          "TestGetTraceWithInvalidEndTime",
+			requestUrl:    "/api/v3/traces/123?end_time=xyz",
+			expectedError: "malformed parameter end_time",
 		},
 	}
 
