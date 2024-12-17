@@ -239,7 +239,11 @@ func (r *TraceReader) GetOperations(
 	_ context.Context,
 	query spanstore.OperationQueryParameters,
 ) ([]spanstore.Operation, error) {
-	return r.cache.GetOperations(query.ServiceName)
+	if query.SpanKind == "" {
+		return r.cache.GetOperations(query.ServiceName, nil)
+	}
+	kind := model.GetSpanKindFromKey(query.SpanKind)
+	return r.cache.GetOperations(query.ServiceName, &kind)
 }
 
 // setQueryDefaults alters the query with defaults if certain parameters are not set

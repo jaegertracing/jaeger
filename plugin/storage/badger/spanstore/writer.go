@@ -8,6 +8,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/dgraph-io/badger/v4"
@@ -30,6 +31,7 @@ const (
 	operationNameIndexKey byte = 0x82
 	tagIndexKey           byte = 0x83
 	durationIndexKey      byte = 0x84
+	spanKindIndexKey      byte = 0x85
 	jsonEncoding          byte = 0x01 // Last 4 bits of the meta byte are for encoding type
 	protoEncoding         byte = 0x02 // Last 4 bits of the meta byte are for encoding type
 	defaultEncoding       byte = protoEncoding
@@ -70,7 +72,10 @@ func (w *SpanWriter) WriteSpan(_ context.Context, span *model.Span) error {
 	entriesToStore = append(entriesToStore, trace)
 	entriesToStore = append(entriesToStore, w.createBadgerEntry(createIndexKey(serviceNameIndexKey, []byte(span.Process.ServiceName), startTime, span.TraceID), nil, expireTime))
 	entriesToStore = append(entriesToStore, w.createBadgerEntry(createIndexKey(operationNameIndexKey, []byte(span.Process.ServiceName+span.OperationName), startTime, span.TraceID), nil, expireTime))
-
+	kind, _ := span.GetSpanKind()
+	kindString := strconv.FormatInt(int64(rune(kind)), 10)
+	// This index is only for loading span.kind into cache
+	entriesToStore = append(entriesToStore, w.createBadgerEntry(createIndexKey(spanKindIndexKey, []byte(span.Process.ServiceName+span.OperationName+kindString), startTime, span.TraceID), nil, expireTime))
 	// It doesn't matter if we overwrite Duration index keys, everything is read at Trace level in any case
 	durationValue := make([]byte, 8)
 	binary.BigEndian.PutUint64(durationValue, uint64(model.DurationAsMicroseconds(span.Duration)))
@@ -109,7 +114,7 @@ func (w *SpanWriter) WriteSpan(_ context.Context, span *model.Span) error {
 	})
 
 	// Do cache refresh here to release the transaction earlier
-	w.cache.Update(span.Process.ServiceName, span.OperationName, expireTime)
+	w.cache.Update(span.Process.ServiceName, span.OperationName, kind, expireTime)
 
 	return err
 }

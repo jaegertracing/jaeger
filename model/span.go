@@ -45,6 +45,14 @@ var toSpanKind = map[string]trace.SpanKind{
 	"internal": trace.SpanKindInternal,
 }
 
+var fromSpanKind = map[trace.SpanKind]string{
+	trace.SpanKindClient:   "client",
+	trace.SpanKindServer:   "server",
+	trace.SpanKindProducer: "producer",
+	trace.SpanKindConsumer: "consumer",
+	trace.SpanKindInternal: "internal",
+}
+
 var toSamplerType = map[string]SamplerType{
 	"unrecognized":  SamplerTypeUnrecognized,
 	"probabilistic": SamplerTypeProbabilistic,
@@ -94,6 +102,26 @@ func (s *Span) GetSpanKind() (spanKind trace.SpanKind, found bool) {
 		}
 	}
 	return trace.SpanKindUnspecified, false
+}
+
+func GetSpanKindFromKey(k string) trace.SpanKind {
+	if kind, ok := toSpanKind[k]; ok {
+		return kind
+	}
+	return trace.SpanKindUnspecified
+}
+
+func GetSpanKindFromStringOfSpanKind(s string) trace.SpanKind {
+	kind, err := strconv.Atoi(s)
+	if err != nil {
+		return trace.SpanKindUnspecified
+	}
+	sKind := trace.SpanKind(kind)
+	_, ok := fromSpanKind[sKind]
+	if !ok {
+		return trace.SpanKindUnspecified
+	}
+	return sKind
 }
 
 // GetSamplerType returns the sampler type for span
