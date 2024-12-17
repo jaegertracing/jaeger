@@ -7,8 +7,6 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 )
 
-var _ Adjuster = (*LinksAdjuster)(nil)
-
 // SpanLinks creates an adjuster that removes span links with empty trace IDs.
 func SpanLinks() Adjuster {
 	return LinksAdjuster{}
