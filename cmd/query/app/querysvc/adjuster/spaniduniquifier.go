@@ -13,8 +13,6 @@ import (
 	"github.com/jaegertracing/jaeger/internal/jptrace"
 )
 
-var _ Adjuster = (*SpanIDDeduper)(nil)
-
 const (
 	warningTooManySpans = "cannot assign unique span ID, too many spans in the trace"
 )
@@ -27,24 +25,29 @@ const (
 //
 // This adjuster never returns any errors. Instead it records any issues
 // it encounters in Span.Warnings.
-func SpanIDUniquifier() *SpanIDDeduper {
-	return &SpanIDDeduper{}
+func SpanIDUniquifier() Func {
+	return Func(func(traces ptrace.Traces) error {
+		adjuster := spanIDDeduper{
+			spansByID: make(map[pcommon.SpanID][]ptrace.Span),
+			maxUsedID: pcommon.NewSpanIDEmpty(),
+		}
+		return adjuster.adjust(traces)
+	})
 }
 
-type SpanIDDeduper struct {
+type spanIDDeduper struct {
+	spansByID map[pcommon.SpanID][]ptrace.Span
 	maxUsedID pcommon.SpanID
 }
 
-func (d *SpanIDDeduper) Adjust(traces ptrace.Traces) error {
-	spansByID := make(map[pcommon.SpanID][]ptrace.Span)
-	d.maxUsedID = pcommon.NewSpanIDEmpty() // reset maxUsedID for each trace
-	d.groupSpansByID(traces, spansByID)
-	d.uniquifyServerSpanIDs(traces, spansByID)
+func (d *spanIDDeduper) adjust(traces ptrace.Traces) error {
+	d.groupSpansByID(traces)
+	d.uniquifyServerSpanIDs(traces)
 	return nil
 }
 
 // groupSpansByID groups spans with the same ID returning a map id -> []Span
-func (*SpanIDDeduper) groupSpansByID(traces ptrace.Traces, spansByID map[pcommon.SpanID][]ptrace.Span) {
+func (d *spanIDDeduper) groupSpansByID(traces ptrace.Traces) {
 	resourceSpans := traces.ResourceSpans()
 	for i := 0; i < resourceSpans.Len(); i++ {
 		rs := resourceSpans.At(i)
@@ -54,19 +57,18 @@ func (*SpanIDDeduper) groupSpansByID(traces ptrace.Traces, spansByID map[pcommon
 			spans := ss.Spans()
 			for k := 0; k < spans.Len(); k++ {
 				span := spans.At(k)
-				if spans, ok := spansByID[span.SpanID()]; ok {
-					// TODO maybe return an error if more than 2 spans found
-					spansByID[span.SpanID()] = append(spans, span)
+				if spans, ok := d.spansByID[span.SpanID()]; ok {
+					d.spansByID[span.SpanID()] = append(spans, span)
 				} else {
-					spansByID[span.SpanID()] = []ptrace.Span{span}
+					d.spansByID[span.SpanID()] = []ptrace.Span{span}
 				}
 			}
 		}
 	}
 }
 
-func (*SpanIDDeduper) isSharedWithClientSpan(spanID pcommon.SpanID, spansByID map[pcommon.SpanID][]ptrace.Span) bool {
-	spans := spansByID[spanID]
+func (d *spanIDDeduper) isSharedWithClientSpan(spanID pcommon.SpanID) bool {
+	spans := d.spansByID[spanID]
 	for _, span := range spans {
 		if span.Kind() == ptrace.SpanKindClient {
 			return true
@@ -75,7 +77,7 @@ func (*SpanIDDeduper) isSharedWithClientSpan(spanID pcommon.SpanID, spansByID ma
 	return false
 }
 
-func (d *SpanIDDeduper) uniquifyServerSpanIDs(traces ptrace.Traces, spansByID map[pcommon.SpanID][]ptrace.Span) {
+func (d *spanIDDeduper) uniquifyServerSpanIDs(traces ptrace.Traces) {
 	oldToNewSpanIDs := make(map[pcommon.SpanID]pcommon.SpanID)
 	resourceSpans := traces.ResourceSpans()
 	for i := 0; i < resourceSpans.Len(); i++ {
@@ -87,8 +89,8 @@ func (d *SpanIDDeduper) uniquifyServerSpanIDs(traces ptrace.Traces, spansByID ma
 			for k := 0; k < spans.Len(); k++ {
 				span := spans.At(k)
 				// only replace span IDs for server-side spans that share the ID with something else
-				if span.Kind() == ptrace.SpanKindServer && d.isSharedWithClientSpan(span.SpanID(), spansByID) {
-					newID, err := d.makeUniqueSpanID(spansByID)
+				if span.Kind() == ptrace.SpanKindServer && d.isSharedWithClientSpan(span.SpanID()) {
+					newID, err := d.makeUniqueSpanID()
 					if err != nil {
 						jptrace.AddWarning(span, err.Error())
 						continue
@@ -105,7 +107,7 @@ func (d *SpanIDDeduper) uniquifyServerSpanIDs(traces ptrace.Traces, spansByID ma
 
 // swapParentIDs corrects ParentSpanID of all spans that are children of the server
 // spans whose IDs we made unique.
-func (*SpanIDDeduper) swapParentIDs(
+func (*spanIDDeduper) swapParentIDs(
 	traces ptrace.Traces,
 	oldToNewSpanIDs map[pcommon.SpanID]pcommon.SpanID,
 ) {
@@ -131,10 +133,10 @@ func (*SpanIDDeduper) swapParentIDs(
 // makeUniqueSpanID returns a new ID that is not used in the trace,
 // or an error if such ID cannot be generated, which is unlikely,
 // given that the whole space of span IDs is 2^64.
-func (d *SpanIDDeduper) makeUniqueSpanID(spansByID map[pcommon.SpanID][]ptrace.Span) (pcommon.SpanID, error) {
+func (d *spanIDDeduper) makeUniqueSpanID() (pcommon.SpanID, error) {
 	id := incrementSpanID(d.maxUsedID)
 	for id != pcommon.NewSpanIDEmpty() {
-		if _, exists := spansByID[id]; !exists {
+		if _, exists := d.spansByID[id]; !exists {
 			d.maxUsedID = id
 			return id, nil
 		}

@@ -9,6 +9,8 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 )
 
+var _ Adjuster = (Func)(nil)
+
 // Adjuster is an interface for modifying a trace object in place.
 // If an issue is encountered that prevents modifications, an error should be returned.
 // The caller must ensure that all spans in the ptrace.Traces argument

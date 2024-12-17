@@ -93,18 +93,13 @@ func TestSpanIDUniquifierNotTriggered(t *testing.T) {
 	assert.Equal(t, anotherSpanID, thirdSpan.SpanID(), "3rd span ID should not change")
 }
 
-func TestMakeUniqueSpanIDError(t *testing.T) {
+func TestSpanIDUniquifierError(t *testing.T) {
 	traces := makeTraces()
 
 	maxID := pcommon.SpanID([8]byte{255, 255, 255, 255, 255, 255, 255, 255})
 
-	sharedSpan := ptrace.NewSpan()
-	sharedSpan.SetKind(ptrace.SpanKindClient)
-
-	deduper := &SpanIDDeduper{maxUsedID: maxID}
-	deduper.uniquifyServerSpanIDs(traces, map[pcommon.SpanID][]ptrace.Span{
-		clientSpanID: {sharedSpan},
-	})
+	deduper := &spanIDDeduper{spansByID: make(map[pcommon.SpanID][]ptrace.Span), maxUsedID: maxID}
+	require.NoError(t, deduper.adjust(traces))
 
 	span := traces.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(1)
 	warnings := jptrace.GetWarnings(span)
