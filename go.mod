@@ -50,6 +50,7 @@ require (
 	go.opentelemetry.io/collector/config/configauth v0.116.0
 	go.opentelemetry.io/collector/config/configgrpc v0.116.0
 	go.opentelemetry.io/collector/config/confighttp v0.116.0
+	go.opentelemetry.io/collector/config/confighttp/xconfighttp v0.116.0
 	go.opentelemetry.io/collector/config/configretry v1.22.0
 	go.opentelemetry.io/collector/config/configtls v1.22.0
 	go.opentelemetry.io/collector/confmap v1.22.0
@@ -208,7 +209,7 @@ require (
 	github.com/openzipkin/zipkin-go v0.4.3 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.2 // indirect
 	github.com/pierrec/lz4 v2.6.1+incompatible // indirect
-	github.com/pierrec/lz4/v4 v4.1.21 // indirect
+	github.com/pierrec/lz4/v4 v4.1.22 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/power-devops/perfstat v0.0.0-20220216144756-c35f1ee13d7c // indirect
@@ -239,7 +240,7 @@ require (
 	go.opentelemetry.io/collector/config/configcompression v1.22.0 // indirect
 	go.opentelemetry.io/collector/config/confignet v1.22.0
 	go.opentelemetry.io/collector/config/configopaque v1.22.0
-	go.opentelemetry.io/collector/config/configtelemetry v0.116.0
+	go.opentelemetry.io/collector/config/configtelemetry v0.116.0 // indirect
 	go.opentelemetry.io/collector/config/internal v0.116.0 // indirect
 	go.opentelemetry.io/collector/exporter/debugexporter v0.116.0
 	go.opentelemetry.io/collector/extension/auth v0.116.0 // indirect
@@ -268,7 +269,7 @@ require (
 	golang.org/x/text v0.21.0 // indirect
 	gonum.org/v1/gonum v0.15.1 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20241209162323-e6fa225c2576 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20241209162323-e6fa225c2576 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20241216192217-9240e9c98484 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
