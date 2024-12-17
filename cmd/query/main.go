@@ -32,7 +32,7 @@ import (
 	metricsPlugin "github.com/jaegertracing/jaeger/plugin/metricstore"
 	"github.com/jaegertracing/jaeger/plugin/storage"
 	"github.com/jaegertracing/jaeger/ports"
-	"github.com/jaegertracing/jaeger/storage_v2/factoryadapter"
+	"github.com/jaegertracing/jaeger/storage_v2/v1adapter"
 )
 
 func main() {
@@ -92,7 +92,7 @@ func main() {
 				logger.Fatal("Failed to init storage factory", zap.Error(err))
 			}
 
-			v2Factory := factoryadapter.NewFactory(storageFactory)
+			v2Factory := v1adapter.NewFactory(storageFactory)
 			traceReader, err := v2Factory.CreateTraceReader()
 			if err != nil {
 				logger.Fatal("Failed to create trace reader", zap.Error(err))

@@ -39,8 +39,8 @@ import (
 	"github.com/jaegertracing/jaeger/plugin/storage"
 	"github.com/jaegertracing/jaeger/ports"
 	"github.com/jaegertracing/jaeger/storage_v2/depstore"
-	"github.com/jaegertracing/jaeger/storage_v2/factoryadapter"
 	"github.com/jaegertracing/jaeger/storage_v2/tracestore"
+	"github.com/jaegertracing/jaeger/storage_v2/v1adapter"
 )
 
 // all-in-one/main is a standalone full-stack jaeger backend, backed by a memory store
@@ -106,7 +106,7 @@ by default uses only in-memory database.`,
 				logger.Fatal("Failed to init storage factory", zap.Error(err))
 			}
 
-			v2Factory := factoryadapter.NewFactory(storageFactory)
+			v2Factory := v1adapter.NewFactory(storageFactory)
 			traceReader, err := v2Factory.CreateTraceReader()
 			if err != nil {
 				logger.Fatal("Failed to create span reader", zap.Error(err))

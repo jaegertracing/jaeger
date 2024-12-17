@@ -327,8 +327,8 @@ func TestSpanReader_GetTrace(t *testing.T) {
 					{Hits: searchHits},
 				},
 			}, nil)
-
-		trace, err := r.reader.GetTrace(context.Background(), model.NewTraceID(0, 1))
+		query := spanstore.GetTraceParameters{TraceID: model.NewTraceID(0, 1)}
+		trace, err := r.reader.GetTrace(context.Background(), query)
 		require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
 		require.NoError(t, err)
 		require.NotNil(t, trace)
@@ -443,7 +443,8 @@ func TestSpanReader_SearchAfter(t *testing.T) {
 				},
 			}, nil).Times(2)
 
-		trace, err := r.reader.GetTrace(context.Background(), model.NewTraceID(0, 1))
+		query := spanstore.GetTraceParameters{TraceID: model.NewTraceID(0, 1)}
+		trace, err := r.reader.GetTrace(context.Background(), query)
 		require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
 		require.NoError(t, err)
 		require.NotNil(t, trace)
@@ -463,7 +464,8 @@ func TestSpanReader_GetTraceQueryError(t *testing.T) {
 			Return(&elastic.MultiSearchResult{
 				Responses: []*elastic.SearchResult{},
 			}, nil)
-		trace, err := r.reader.GetTrace(context.Background(), model.NewTraceID(0, 1))
+		query := spanstore.GetTraceParameters{TraceID: model.NewTraceID(0, 1)}
+		trace, err := r.reader.GetTrace(context.Background(), query)
 		require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
 		require.EqualError(t, err, "trace not found")
 		require.Nil(t, trace)
@@ -483,7 +485,8 @@ func TestSpanReader_GetTraceNilHits(t *testing.T) {
 				},
 			}, nil)
 
-		trace, err := r.reader.GetTrace(context.Background(), model.NewTraceID(0, 1))
+		query := spanstore.GetTraceParameters{TraceID: model.NewTraceID(0, 1)}
+		trace, err := r.reader.GetTrace(context.Background(), query)
 		require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
 		require.EqualError(t, err, "trace not found")
 		require.Nil(t, trace)
@@ -507,7 +510,8 @@ func TestSpanReader_GetTraceInvalidSpanError(t *testing.T) {
 				},
 			}, nil)
 
-		trace, err := r.reader.GetTrace(context.Background(), model.NewTraceID(0, 1))
+		query := spanstore.GetTraceParameters{TraceID: model.NewTraceID(0, 1)}
+		trace, err := r.reader.GetTrace(context.Background(), query)
 		require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
 		require.Error(t, err, "invalid span")
 		require.Nil(t, trace)
@@ -532,7 +536,8 @@ func TestSpanReader_GetTraceSpanConversionError(t *testing.T) {
 				},
 			}, nil)
 
-		trace, err := r.reader.GetTrace(context.Background(), model.NewTraceID(0, 1))
+		query := spanstore.GetTraceParameters{TraceID: model.NewTraceID(0, 1)}
+		trace, err := r.reader.GetTrace(context.Background(), query)
 		require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
 		require.Error(t, err, "span conversion error, because lacks elements")
 		require.Nil(t, trace)
@@ -1269,8 +1274,8 @@ func TestSpanReader_ArchiveTraces(t *testing.T) {
 			Return(&elastic.MultiSearchResult{
 				Responses: []*elastic.SearchResult{},
 			}, nil)
-
-		trace, err := r.reader.GetTrace(context.Background(), model.TraceID{})
+		query := spanstore.GetTraceParameters{}
+		trace, err := r.reader.GetTrace(context.Background(), query)
 		require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
 		require.Nil(t, trace)
 		require.EqualError(t, err, "trace not found")
@@ -1286,7 +1291,8 @@ func TestSpanReader_ArchiveTraces_ReadAlias(t *testing.T) {
 				Responses: []*elastic.SearchResult{},
 			}, nil)
 
-		trace, err := r.reader.GetTrace(context.Background(), model.TraceID{})
+		query := spanstore.GetTraceParameters{}
+		trace, err := r.reader.GetTrace(context.Background(), query)
 		require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
 		require.Nil(t, trace)
 		require.EqualError(t, err, "trace not found")

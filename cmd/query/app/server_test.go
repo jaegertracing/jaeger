@@ -39,9 +39,10 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/ports"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
+	"github.com/jaegertracing/jaeger/storage/spanstore"
 	spanstoremocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
 	depsmocks "github.com/jaegertracing/jaeger/storage_v2/depstore/mocks"
-	"github.com/jaegertracing/jaeger/storage_v2/factoryadapter"
+	"github.com/jaegertracing/jaeger/storage_v2/v1adapter"
 )
 
 var testCertKeyLocation = "../../../pkg/config/tlscfg/testdata"
@@ -323,7 +324,7 @@ type fakeQueryService struct {
 
 func makeQuerySvc() *fakeQueryService {
 	spanReader := &spanstoremocks.Reader{}
-	traceReader := factoryadapter.NewTraceReader(spanReader)
+	traceReader := v1adapter.NewTraceReader(spanReader)
 	dependencyReader := &depsmocks.Reader{}
 	expectedServices := []string{"test"}
 	spanReader.On("GetServices", mock.AnythingOfType("*context.valueCtx")).Return(expectedServices, nil)
@@ -895,7 +896,7 @@ func TestServerHTTP_TracesRequest(t *testing.T) {
 
 			tenancyMgr := tenancy.NewManager(&serverOptions.Tenancy)
 			querySvc := makeQuerySvc()
-			querySvc.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), model.NewTraceID(0, 0x123456abc)).
+			querySvc.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), spanstore.GetTraceParameters{TraceID: model.NewTraceID(0, 0x123456abc)}).
 				Return(makeMockTrace(t), nil).Once()
 			telset := initTelSet(zaptest.NewLogger(t), &tracer, healthcheck.New())
 

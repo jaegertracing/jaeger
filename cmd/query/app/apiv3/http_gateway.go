@@ -27,7 +27,9 @@ import (
 )
 
 const (
-	paramTraceID       = "trace_id"           // get trace by ID
+	paramTraceID       = "trace_id" // get trace by ID
+	paramStartTime     = "start_time"
+	paramEndTime       = "end_time"
 	paramServiceName   = "query.service_name" // find traces
 	paramOperationName = "query.operation_name"
 	paramTimeMin       = "query.start_time_min"
@@ -112,12 +114,9 @@ func (h *HTTPGateway) returnSpans(spans []*model.Span, w http.ResponseWriter) {
 func (h *HTTPGateway) returnSpansTestable(
 	spans []*model.Span,
 	w http.ResponseWriter,
-	modelToOTLP func(_ []*model.Span) (ptrace.Traces, error),
+	modelToOTLP func(_ []*model.Span) ptrace.Traces,
 ) {
-	td, err := modelToOTLP(spans)
-	if h.tryHandleError(w, err, http.StatusInternalServerError) {
-		return
-	}
+	td := modelToOTLP(spans)
 	tracesData := api_v3.TracesData(td)
 	response := &api_v3.GRPCGatewayWrapper{
 		Result: &tracesData,
@@ -136,7 +135,11 @@ func (h *HTTPGateway) getTrace(w http.ResponseWriter, r *http.Request) {
 	if h.tryParamError(w, err, paramTraceID) {
 		return
 	}
-	trc, err := h.QueryService.GetTrace(r.Context(), traceID)
+	// TODO: add start time & end time
+	request := spanstore.GetTraceParameters{
+		TraceID: traceID,
+	}
+	trc, err := h.QueryService.GetTrace(r.Context(), request)
 	if h.tryHandleError(w, err, http.StatusInternalServerError) {
 		return
 	}

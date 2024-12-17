@@ -6,7 +6,6 @@ package grpc
 import (
 	"context"
 	"errors"
-	"io"
 
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -19,10 +18,9 @@ import (
 
 // ProxyBuilder holds objects communicating with collector
 type ProxyBuilder struct {
-	reporter  *reporter.ClientMetricsReporter
-	manager   configmanager.ClientConfigManager
-	conn      *grpc.ClientConn
-	tlsCloser io.Closer
+	reporter *reporter.ClientMetricsReporter
+	manager  configmanager.ClientConfigManager
+	conn     *grpc.ClientConn
 }
 
 // NewCollectorProxy creates ProxyBuilder
@@ -40,10 +38,9 @@ func NewCollectorProxy(ctx context.Context, builder *ConnBuilder, agentTags map[
 		MetricsFactory: mFactory,
 	})
 	return &ProxyBuilder{
-		conn:      conn,
-		reporter:  r3,
-		manager:   configmanager.WrapWithMetrics(grpcManager.NewConfigManager(conn), grpcMetrics),
-		tlsCloser: &builder.TLS,
+		conn:     conn,
+		reporter: r3,
+		manager:  configmanager.WrapWithMetrics(grpcManager.NewConfigManager(conn), grpcMetrics),
 	}, nil
 }
 
@@ -66,7 +63,6 @@ func (b ProxyBuilder) GetManager() configmanager.ClientConfigManager {
 func (b ProxyBuilder) Close() error {
 	return errors.Join(
 		b.reporter.Close(),
-		b.tlsCloser.Close(),
 		b.GetConn().Close(),
 	)
 }

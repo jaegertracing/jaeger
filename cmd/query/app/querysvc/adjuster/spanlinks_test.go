@@ -13,8 +13,8 @@ import (
 )
 
 func TestLinksAdjuster(t *testing.T) {
-	trace := ptrace.NewTraces()
-	resourceSpans := trace.ResourceSpans().AppendEmpty()
+	traces := ptrace.NewTraces()
+	resourceSpans := traces.ResourceSpans().AppendEmpty()
 	scopeSpans := resourceSpans.ScopeSpans().AppendEmpty()
 
 	// span with no links
@@ -30,8 +30,8 @@ func TestLinksAdjuster(t *testing.T) {
 	spanB.Links().AppendEmpty().SetTraceID(pcommon.TraceID([]byte{0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0}))
 	spanB.Links().AppendEmpty().SetTraceID(pcommon.TraceID([]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}))
 
-	trace, err := SpanLinks().Adjust(trace)
-	spans := trace.ResourceSpans().At(0).ScopeSpans().At(0).Spans()
+	err := SpanLinks().Adjust(traces)
+	spans := traces.ResourceSpans().At(0).ScopeSpans().At(0).Spans()
 	require.NoError(t, err)
 	assert.Equal(t, 0, spans.At(0).Links().Len())
 	assert.Equal(t, 0, spans.At(1).Links().Len())

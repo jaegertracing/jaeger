@@ -11,14 +11,12 @@ import (
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componentstatus"
 	"go.opentelemetry.io/collector/config/confignet"
-	"go.opentelemetry.io/collector/config/configtelemetry"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/extension"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/collector/pipeline"
 	"go.opentelemetry.io/collector/receiver"
 	"go.opentelemetry.io/collector/receiver/otlpreceiver"
-	"go.opentelemetry.io/otel/metric"
 	noopmetric "go.opentelemetry.io/otel/metric/noop"
 	nooptrace "go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/zap"
@@ -70,11 +68,7 @@ func startOTLPReceiver(
 		TelemetrySettings: component.TelemetrySettings{
 			Logger:         logger,
 			TracerProvider: nooptrace.NewTracerProvider(),
-			// TODO wire this with jaegerlib metrics?
-			LeveledMeterProvider: func(_ configtelemetry.Level) metric.MeterProvider {
-				return noopmetric.NewMeterProvider()
-			},
-			MeterProvider: noopmetric.NewMeterProvider(),
+			MeterProvider:  noopmetric.NewMeterProvider(),
 		},
 	}
 

@@ -15,17 +15,15 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
-	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/jtracer"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	spanstoremocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
 	dependencyStoreMocks "github.com/jaegertracing/jaeger/storage_v2/depstore/mocks"
-	"github.com/jaegertracing/jaeger/storage_v2/factoryadapter"
+	"github.com/jaegertracing/jaeger/storage_v2/v1adapter"
 )
 
 func setupHTTPGatewayNoServer(
@@ -36,7 +34,7 @@ func setupHTTPGatewayNoServer(
 		reader: &spanstoremocks.Reader{},
 	}
 
-	q := querysvc.NewQueryService(factoryadapter.NewTraceReader(gw.reader),
+	q := querysvc.NewQueryService(v1adapter.NewTraceReader(gw.reader),
 		&dependencyStoreMocks.Reader{},
 		querysvc.QueryServiceOptions{},
 	)
@@ -92,20 +90,6 @@ func TestHTTPGatewayTryHandleError(t *testing.T) {
 	assert.Contains(t, string(w.Body.String()), e, "writes error message to body")
 }
 
-func TestHTTPGatewayOTLPError(t *testing.T) {
-	w := httptest.NewRecorder()
-	gw := &HTTPGateway{
-		Logger: zap.NewNop(),
-	}
-	const simErr = "simulated error"
-	gw.returnSpansTestable(nil, w,
-		func(_ []*model.Span) (ptrace.Traces, error) {
-			return ptrace.Traces{}, errors.New(simErr)
-		},
-	)
-	assert.Contains(t, w.Body.String(), simErr)
-}
-
 func TestHTTPGatewayGetTraceErrors(t *testing.T) {
 	gw := setupHTTPGatewayNoServer(t, "")
 
@@ -119,7 +103,7 @@ func TestHTTPGatewayGetTraceErrors(t *testing.T) {
 	// error from span reader
 	const simErr = "simulated error"
 	gw.reader.
-		On("GetTrace", matchContext, matchTraceID).
+		On("GetTrace", matchContext, matchGetTraceParameters).
 		Return(nil, errors.New(simErr)).Once()
 
 	r, err = http.NewRequest(http.MethodGet, "/api/v3/traces/123", nil)

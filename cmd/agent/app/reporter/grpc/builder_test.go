@@ -12,6 +12,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/config/configtls"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -151,9 +152,10 @@ func TestProxyBuilder(t *testing.T) {
 			name: "should fail with secure grpc connection and a CA file which does not exist",
 			grpcBuilder: &ConnBuilder{
 				CollectorHostPorts: []string{"localhost:0000"},
-				TLS: tlscfg.Options{
-					Enabled: true,
-					CAPath:  testCertKeyLocation + "/not/valid",
+				TLS: &configtls.ClientConfig{
+					Config: configtls.Config{
+						CAFile: testCertKeyLocation + "/not/valid",
+					},
 				},
 			},
 			expectError: true,
@@ -162,11 +164,12 @@ func TestProxyBuilder(t *testing.T) {
 			name: "should pass with secure grpc connection and valid TLS Client settings",
 			grpcBuilder: &ConnBuilder{
 				CollectorHostPorts: []string{"localhost:0000"},
-				TLS: tlscfg.Options{
-					Enabled:  true,
-					CAPath:   testCertKeyLocation + "/wrong-CA-cert.pem",
-					CertPath: testCertKeyLocation + "/example-client-cert.pem",
-					KeyPath:  testCertKeyLocation + "/example-client-key.pem",
+				TLS: &configtls.ClientConfig{
+					Config: configtls.Config{
+						CAFile:   testCertKeyLocation + "/wrong-CA-cert.pem",
+						CertFile: testCertKeyLocation + "/example-client-cert.pem",
+						KeyFile:  testCertKeyLocation + "/example-client-key.pem",
+					},
 				},
 			},
 			expectError: false,
@@ -197,7 +200,7 @@ func TestProxyBuilder(t *testing.T) {
 func TestProxyClientTLS(t *testing.T) {
 	tests := []struct {
 		name        string
-		clientTLS   tlscfg.Options
+		clientTLS   *configtls.ClientConfig
 		serverTLS   tlscfg.Options
 		expectError bool
 	}{
@@ -207,7 +210,7 @@ func TestProxyClientTLS(t *testing.T) {
 		},
 		{
 			name:        "should fail with TLS client to non-TLS server",
-			clientTLS:   tlscfg.Options{Enabled: true},
+			clientTLS:   &configtls.ClientConfig{},
 			expectError: true,
 		},
 		{
@@ -217,8 +220,7 @@ func TestProxyClientTLS(t *testing.T) {
 				CertPath: testCertKeyLocation + "/example-server-cert.pem",
 				KeyPath:  testCertKeyLocation + "/example-server-key.pem",
 			},
-			clientTLS: tlscfg.Options{
-				Enabled:    true,
+			clientTLS: &configtls.ClientConfig{
 				ServerName: "example.com",
 			},
 			expectError: true,
@@ -230,9 +232,10 @@ func TestProxyClientTLS(t *testing.T) {
 				CertPath: testCertKeyLocation + "/example-server-cert.pem",
 				KeyPath:  testCertKeyLocation + "/example-server-key.pem",
 			},
-			clientTLS: tlscfg.Options{
-				Enabled: true,
-				CAPath:  testCertKeyLocation + "/example-CA-cert.pem",
+			clientTLS: &configtls.ClientConfig{
+				Config: configtls.Config{
+					CAFile: testCertKeyLocation + "/example-CA-cert.pem",
+				},
 			},
 			expectError: true,
 		},
@@ -243,9 +246,10 @@ func TestProxyClientTLS(t *testing.T) {
 				CertPath: testCertKeyLocation + "/example-server-cert.pem",
 				KeyPath:  testCertKeyLocation + "/example-server-key.pem",
 			},
-			clientTLS: tlscfg.Options{
-				Enabled:    true,
-				CAPath:     testCertKeyLocation + "/example-CA-cert.pem",
+			clientTLS: &configtls.ClientConfig{
+				Config: configtls.Config{
+					CAFile: testCertKeyLocation + "/example-CA-cert.pem",
+				},
 				ServerName: "example.com",
 			},
 			expectError: false,
@@ -258,9 +262,10 @@ func TestProxyClientTLS(t *testing.T) {
 				KeyPath:      testCertKeyLocation + "/example-server-key.pem",
 				ClientCAPath: testCertKeyLocation + "/example-CA-cert.pem",
 			},
-			clientTLS: tlscfg.Options{
-				Enabled:    true,
-				CAPath:     testCertKeyLocation + "/example-CA-cert.pem",
+			clientTLS: &configtls.ClientConfig{
+				Config: configtls.Config{
+					CAFile: testCertKeyLocation + "/example-CA-cert.pem",
+				},
 				ServerName: "example.com",
 			},
 			expectError: true,
@@ -273,12 +278,13 @@ func TestProxyClientTLS(t *testing.T) {
 				KeyPath:      testCertKeyLocation + "/example-server-key.pem",
 				ClientCAPath: testCertKeyLocation + "/wrong-CA-cert.pem", // NB: wrong CA
 			},
-			clientTLS: tlscfg.Options{
-				Enabled:    true,
-				CAPath:     testCertKeyLocation + "/example-CA-cert.pem",
+			clientTLS: &configtls.ClientConfig{
+				Config: configtls.Config{
+					CAFile:   testCertKeyLocation + "/example-CA-cert.pem",
+					CertFile: testCertKeyLocation + "/example-client-cert.pem",
+					KeyFile:  testCertKeyLocation + "/example-client-key.pem",
+				},
 				ServerName: "example.com",
-				CertPath:   testCertKeyLocation + "/example-client-cert.pem",
-				KeyPath:    testCertKeyLocation + "/example-client-key.pem",
 			},
 			expectError: true,
 		},
@@ -290,12 +296,13 @@ func TestProxyClientTLS(t *testing.T) {
 				KeyPath:      testCertKeyLocation + "/example-server-key.pem",
 				ClientCAPath: testCertKeyLocation + "/example-CA-cert.pem",
 			},
-			clientTLS: tlscfg.Options{
-				Enabled:    true,
-				CAPath:     testCertKeyLocation + "/example-CA-cert.pem",
+			clientTLS: &configtls.ClientConfig{
+				Config: configtls.Config{
+					CAFile:   testCertKeyLocation + "/example-CA-cert.pem",
+					CertFile: testCertKeyLocation + "/example-client-cert.pem",
+					KeyFile:  testCertKeyLocation + "/example-client-key.pem",
+				},
 				ServerName: "example.com",
-				CertPath:   testCertKeyLocation + "/example-client-cert.pem",
-				KeyPath:    testCertKeyLocation + "/example-client-key.pem",
 			},
 			expectError: false,
 		},
@@ -308,12 +315,10 @@ func TestProxyClientTLS(t *testing.T) {
 			defer cancel()
 			var opts []grpc.ServerOption
 			if test.serverTLS.Enabled {
-				tlsCfg, err := test.serverTLS.Config(zap.NewNop())
+				tlsCfg, err := test.serverTLS.ToOtelServerConfig().LoadTLSConfig(ctx)
 				require.NoError(t, err)
 				opts = []grpc.ServerOption{grpc.Creds(credentials.NewTLS(tlsCfg))}
 			}
-
-			defer test.serverTLS.Close()
 			spanHandler := &mockSpanHandler{}
 			s, addr := initializeGRPCTestServer(t, func(s *grpc.Server) {
 				api_v2.RegisterCollectorServiceServer(s, spanHandler)
