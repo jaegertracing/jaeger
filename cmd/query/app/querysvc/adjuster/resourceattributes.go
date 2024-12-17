@@ -25,7 +25,7 @@ var libraryKeys = map[string]struct{}{
 // attributes from spans to the parent resource so that the UI can
 // display them separately under Process.
 // https://github.com/jaegertracing/jaeger/issues/4534
-func ResourceAttributes() ResourceAttributesAdjuster {
+func ResourceAttributes() Adjuster {
 	return ResourceAttributesAdjuster{}
 }
 

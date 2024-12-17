@@ -10,7 +10,7 @@ import (
 var _ Adjuster = (*LinksAdjuster)(nil)
 
 // SpanLinks creates an adjuster that removes span links with empty trace IDs.
-func SpanLinks() LinksAdjuster {
+func SpanLinks() Adjuster {
 	return LinksAdjuster{}
 }
 

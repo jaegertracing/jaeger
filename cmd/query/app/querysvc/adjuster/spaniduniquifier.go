@@ -25,7 +25,7 @@ const (
 //
 // This adjuster never returns any errors. Instead it records any issues
 // it encounters in Span.Warnings.
-func SpanIDUniquifier() Func {
+func SpanIDUniquifier() Adjuster {
 	return Func(func(traces ptrace.Traces) error {
 		adjuster := spanIDDeduper{
 			spansByID: make(map[pcommon.SpanID][]ptrace.Span),
