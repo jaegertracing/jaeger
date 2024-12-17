@@ -7,6 +7,7 @@ import (
 	"net"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -108,16 +109,23 @@ func TestQueryTrace(t *testing.T) {
 	defer q.Close()
 
 	t.Run("No error", func(t *testing.T) {
-		s.spanReader.On("GetTrace", matchContext, matchGetTraceParameters).Return(
+		startTime := time.Date(1970, time.January, 1, 0, 0, 0, 1000, time.UTC)
+		endTime := time.Date(1970, time.January, 1, 0, 0, 0, 2000, time.UTC)
+		expectedGetTraceParameters := spanstore.GetTraceParameters{
+			TraceID:   mockTraceID,
+			StartTime: startTime,
+			EndTime:   endTime,
+		}
+		s.spanReader.On("GetTrace", matchContext, expectedGetTraceParameters).Return(
 			mockTraceGRPC, nil).Once()
 
-		spans, err := q.QueryTrace(mockTraceID.String())
+		spans, err := q.QueryTrace(mockTraceID.String(), startTime, endTime)
 		require.NoError(t, err)
 		assert.Equal(t, len(spans), len(mockTraceGRPC.Spans))
 	})
 
 	t.Run("Invalid TraceID", func(t *testing.T) {
-		_, err := q.QueryTrace(mockInvalidTraceID)
+		_, err := q.QueryTrace(mockInvalidTraceID, time.Time{}, time.Time{})
 		assert.ErrorContains(t, err, "failed to convert the provided trace id")
 	})
 
@@ -125,7 +133,7 @@ func TestQueryTrace(t *testing.T) {
 		s.spanReader.On("GetTrace", matchContext, matchGetTraceParameters).Return(
 			nil, spanstore.ErrTraceNotFound).Once()
 
-		spans, err := q.QueryTrace(mockTraceID.String())
+		spans, err := q.QueryTrace(mockTraceID.String(), time.Time{}, time.Time{})
 		assert.Nil(t, spans)
 		assert.ErrorIs(t, err, spanstore.ErrTraceNotFound)
 	})
