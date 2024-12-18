@@ -8,7 +8,7 @@ import (
 	"fmt"
 
 	"github.com/spf13/viper"
-	"go.uber.org/zap"
+	"go.opentelemetry.io/collector/config/configgrpc"
 
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
@@ -25,10 +25,7 @@ var tlsGRPCFlagsConfig = tlscfg.ServerFlagsConfig{
 
 // Options holds configuration for remote-storage service.
 type Options struct {
-	// GRPCHostPort is the host:port address for gRPC server
-	GRPCHostPort string
-	// TLSGRPC configures secure transport
-	TLSGRPC tlscfg.Options
+	configgrpc.ServerConfig
 	// Tenancy configuration
 	Tenancy tenancy.Options
 }
@@ -41,13 +38,13 @@ func AddFlags(flagSet *flag.FlagSet) {
 }
 
 // InitFromViper initializes Options with properties from CLI flags.
-func (o *Options) InitFromViper(v *viper.Viper, _ *zap.Logger) (*Options, error) {
-	o.GRPCHostPort = v.GetString(flagGRPCHostPort)
+func (o *Options) InitFromViper(v *viper.Viper) (*Options, error) {
+	o.NetAddr.Endpoint = v.GetString(flagGRPCHostPort)
 	tlsGrpc, err := tlsGRPCFlagsConfig.InitFromViper(v)
 	if err != nil {
 		return o, fmt.Errorf("failed to process gRPC TLS options: %w", err)
 	}
-	o.TLSGRPC = tlsGrpc
+	o.TLSSetting = tlsGrpc.ToOtelServerConfig()
 	o.Tenancy = tenancy.InitFromViper(v)
 	return o, nil
 }

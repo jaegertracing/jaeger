@@ -10,7 +10,9 @@ package mocks
 import (
 	context "context"
 
+	iter "github.com/jaegertracing/jaeger/pkg/iter"
 	mock "github.com/stretchr/testify/mock"
+
 	pcommon "go.opentelemetry.io/collector/pdata/pcommon"
 
 	ptrace "go.opentelemetry.io/collector/pdata/ptrace"
@@ -24,63 +26,43 @@ type Reader struct {
 }
 
 // FindTraceIDs provides a mock function with given fields: ctx, query
-func (_m *Reader) FindTraceIDs(ctx context.Context, query tracestore.TraceQueryParameters) ([]pcommon.TraceID, error) {
+func (_m *Reader) FindTraceIDs(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[[]pcommon.TraceID, error] {
 	ret := _m.Called(ctx, query)
 
 	if len(ret) == 0 {
 		panic("no return value specified for FindTraceIDs")
 	}
 
-	var r0 []pcommon.TraceID
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, tracestore.TraceQueryParameters) ([]pcommon.TraceID, error)); ok {
-		return rf(ctx, query)
-	}
-	if rf, ok := ret.Get(0).(func(context.Context, tracestore.TraceQueryParameters) []pcommon.TraceID); ok {
+	var r0 iter.Seq2[[]pcommon.TraceID, error]
+	if rf, ok := ret.Get(0).(func(context.Context, tracestore.TraceQueryParams) iter.Seq2[[]pcommon.TraceID, error]); ok {
 		r0 = rf(ctx, query)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]pcommon.TraceID)
+			r0 = ret.Get(0).(iter.Seq2[[]pcommon.TraceID, error])
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, tracestore.TraceQueryParameters) error); ok {
-		r1 = rf(ctx, query)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
+	return r0
 }
 
 // FindTraces provides a mock function with given fields: ctx, query
-func (_m *Reader) FindTraces(ctx context.Context, query tracestore.TraceQueryParameters) ([]ptrace.Traces, error) {
+func (_m *Reader) FindTraces(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[[]ptrace.Traces, error] {
 	ret := _m.Called(ctx, query)
 
 	if len(ret) == 0 {
 		panic("no return value specified for FindTraces")
 	}
 
-	var r0 []ptrace.Traces
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, tracestore.TraceQueryParameters) ([]ptrace.Traces, error)); ok {
-		return rf(ctx, query)
-	}
-	if rf, ok := ret.Get(0).(func(context.Context, tracestore.TraceQueryParameters) []ptrace.Traces); ok {
+	var r0 iter.Seq2[[]ptrace.Traces, error]
+	if rf, ok := ret.Get(0).(func(context.Context, tracestore.TraceQueryParams) iter.Seq2[[]ptrace.Traces, error]); ok {
 		r0 = rf(ctx, query)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]ptrace.Traces)
+			r0 = ret.Get(0).(iter.Seq2[[]ptrace.Traces, error])
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, tracestore.TraceQueryParameters) error); ok {
-		r1 = rf(ctx, query)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
+	return r0
 }
 
 // GetOperations provides a mock function with given fields: ctx, query
@@ -143,32 +125,31 @@ func (_m *Reader) GetServices(ctx context.Context) ([]string, error) {
 	return r0, r1
 }
 
-// GetTrace provides a mock function with given fields: ctx, traceID
-func (_m *Reader) GetTrace(ctx context.Context, traceID pcommon.TraceID) (ptrace.Traces, error) {
-	ret := _m.Called(ctx, traceID)
+// GetTraces provides a mock function with given fields: ctx, traceIDs
+func (_m *Reader) GetTraces(ctx context.Context, traceIDs ...tracestore.GetTraceParams) iter.Seq2[[]ptrace.Traces, error] {
+	_va := make([]interface{}, len(traceIDs))
+	for _i := range traceIDs {
+		_va[_i] = traceIDs[_i]
+	}
+	var _ca []interface{}
+	_ca = append(_ca, ctx)
+	_ca = append(_ca, _va...)
+	ret := _m.Called(_ca...)
 
 	if len(ret) == 0 {
-		panic("no return value specified for GetTrace")
+		panic("no return value specified for GetTraces")
 	}
 
-	var r0 ptrace.Traces
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, pcommon.TraceID) (ptrace.Traces, error)); ok {
-		return rf(ctx, traceID)
-	}
-	if rf, ok := ret.Get(0).(func(context.Context, pcommon.TraceID) ptrace.Traces); ok {
-		r0 = rf(ctx, traceID)
+	var r0 iter.Seq2[[]ptrace.Traces, error]
+	if rf, ok := ret.Get(0).(func(context.Context, ...tracestore.GetTraceParams) iter.Seq2[[]ptrace.Traces, error]); ok {
+		r0 = rf(ctx, traceIDs...)
 	} else {
-		r0 = ret.Get(0).(ptrace.Traces)
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(iter.Seq2[[]ptrace.Traces, error])
+		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, pcommon.TraceID) error); ok {
-		r1 = rf(ctx, traceID)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
+	return r0
 }
 
 // NewReader creates a new instance of Reader. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.

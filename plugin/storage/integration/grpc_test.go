@@ -13,6 +13,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc"
 )
 
@@ -61,6 +62,9 @@ func (s *GRPCStorageIntegrationTestSuite) cleanUp(t *testing.T) {
 
 func TestGRPCRemoteStorage(t *testing.T) {
 	SkipUnlessEnv(t, "grpc")
+	t.Cleanup(func() {
+		testutils.VerifyGoLeaksOnce(t)
+	})
 	s := &GRPCStorageIntegrationTestSuite{
 		flags: []string{
 			"--grpc-storage.server=localhost:17271",

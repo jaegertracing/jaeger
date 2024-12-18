@@ -198,7 +198,7 @@ func (s *StorageIntegration) testArchiveTrace(t *testing.T) {
 	var actual *model.Trace
 	found := s.waitForCondition(t, func(_ *testing.T) bool {
 		var err error
-		actual, err = s.ArchiveSpanReader.GetTrace(context.Background(), tID)
+		actual, err = s.ArchiveSpanReader.GetTrace(context.Background(), spanstore.GetTraceParameters{TraceID: tID})
 		return err == nil && len(actual.Spans) == 1
 	})
 	require.True(t, found)
@@ -217,7 +217,7 @@ func (s *StorageIntegration) testGetLargeSpan(t *testing.T) {
 	var actual *model.Trace
 	found := s.waitForCondition(t, func(_ *testing.T) bool {
 		var err error
-		actual, err = s.SpanReader.GetTrace(context.Background(), expectedTraceID)
+		actual, err = s.SpanReader.GetTrace(context.Background(), spanstore.GetTraceParameters{TraceID: expectedTraceID})
 		return err == nil && len(actual.Spans) >= len(expected.Spans)
 	})
 
@@ -290,7 +290,7 @@ func (s *StorageIntegration) testGetTrace(t *testing.T) {
 	var actual *model.Trace
 	found := s.waitForCondition(t, func(t *testing.T) bool {
 		var err error
-		actual, err = s.SpanReader.GetTrace(context.Background(), expectedTraceID)
+		actual, err = s.SpanReader.GetTrace(context.Background(), spanstore.GetTraceParameters{TraceID: expectedTraceID})
 		if err != nil {
 			t.Log(err)
 		}
@@ -302,7 +302,7 @@ func (s *StorageIntegration) testGetTrace(t *testing.T) {
 
 	t.Run("NotFound error", func(t *testing.T) {
 		fakeTraceID := model.TraceID{High: 0, Low: 1}
-		trace, err := s.SpanReader.GetTrace(context.Background(), fakeTraceID)
+		trace, err := s.SpanReader.GetTrace(context.Background(), spanstore.GetTraceParameters{TraceID: fakeTraceID})
 		assert.Equal(t, spanstore.ErrTraceNotFound, err)
 		assert.Nil(t, trace)
 	})
