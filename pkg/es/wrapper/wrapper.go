@@ -22,9 +22,11 @@ import (
 // ClientWrapper is a wrapper around elastic.Client
 type ClientWrapper struct {
 	client      *elastic.Client
+	transport   *http.Transport
 	bulkService *elastic.BulkProcessor
 	esVersion   uint
 	clientV8    *esV8.Client
+	transportV8 *http.Transport
 }
 
 // GetVersion returns the ElasticSearch Version
@@ -33,12 +35,14 @@ func (c ClientWrapper) GetVersion() uint {
 }
 
 // WrapESClient creates a ESClient out of *elastic.Client.
-func WrapESClient(client *elastic.Client, s *elastic.BulkProcessor, esVersion uint, clientV8 *esV8.Client) ClientWrapper {
+func WrapESClient(client *elastic.Client, transport *http.Transport, s *elastic.BulkProcessor, esVersion uint, clientV8 *esV8.Client, transportV8 *http.Transport) ClientWrapper {
 	return ClientWrapper{
 		client:      client,
+		transport:   transport,
 		bulkService: s,
 		esVersion:   esVersion,
 		clientV8:    clientV8,
+		transportV8: transportV8,
 	}
 }
 
@@ -95,6 +99,10 @@ func (c ClientWrapper) MultiSearch() es.MultiSearchService {
 // Close closes ESClient and flushes all data to the storage.
 func (c ClientWrapper) Close() error {
 	c.client.Stop()
+	c.transport.CloseIdleConnections()
+	if c.transportV8 != nil {
+		c.transportV8.CloseIdleConnections()
+	}
 	return c.bulkService.Close()
 }
 
