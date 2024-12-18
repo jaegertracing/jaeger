@@ -21,15 +21,15 @@ var errTooManySpans = errors.New("cannot assign unique span ID, too many spans i
 // Zipkin-style clients that reuse the same span ID for both client and server
 // side of an RPC call. Jaeger UI expects all spans to have unique IDs.
 //
-// This adjuster never returns any errors. Instead it records any issues
-// it encounters in Span.Warnings.
+// Any issues encountered during adjustment are recorded as warnings in the
+// span.
 func SpanIDUniquifier() Adjuster {
-	return Func(func(traces ptrace.Traces) error {
+	return Func(func(traces ptrace.Traces) {
 		adjuster := spanIDDeduper{
 			spansByID: make(map[pcommon.SpanID][]ptrace.Span),
 			maxUsedID: pcommon.NewSpanIDEmpty(),
 		}
-		return adjuster.adjust(traces)
+		adjuster.adjust(traces)
 	})
 }
 
@@ -38,10 +38,9 @@ type spanIDDeduper struct {
 	maxUsedID pcommon.SpanID
 }
 
-func (d *spanIDDeduper) adjust(traces ptrace.Traces) error {
+func (d *spanIDDeduper) adjust(traces ptrace.Traces) {
 	d.groupSpansByID(traces)
 	d.uniquifyServerSpanIDs(traces)
-	return nil
 }
 
 // groupSpansByID groups spans with the same ID returning a map id -> []Span

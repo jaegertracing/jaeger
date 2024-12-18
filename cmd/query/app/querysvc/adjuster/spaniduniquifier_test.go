@@ -47,7 +47,7 @@ func makeTraces() ptrace.Traces {
 func TestSpanIDUniquifierTriggered(t *testing.T) {
 	traces := makeTraces()
 	deduper := SpanIDUniquifier()
-	require.NoError(t, deduper.Adjust(traces))
+	deduper.Adjust(traces)
 
 	spans := traces.ResourceSpans().At(0).ScopeSpans().At(0).Spans()
 
@@ -74,7 +74,7 @@ func TestSpanIDUniquifierNotTriggered(t *testing.T) {
 	newSpans.CopyTo(spans)
 
 	deduper := SpanIDUniquifier()
-	require.NoError(t, deduper.Adjust(traces))
+	deduper.Adjust(traces)
 
 	gotSpans := traces.ResourceSpans().At(0).ScopeSpans().At(0).Spans()
 
@@ -96,7 +96,7 @@ func TestSpanIDUniquifierError(t *testing.T) {
 		// instead of 0 start at the last possible value to cause an error
 		maxUsedID: maxID,
 	}
-	require.NoError(t, deduper.adjust(traces))
+	deduper.adjust(traces)
 
 	span := traces.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(1)
 	warnings := jptrace.GetWarnings(span)
