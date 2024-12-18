@@ -91,11 +91,14 @@ func TestSpanIDUniquifierError(t *testing.T) {
 
 	maxID := pcommon.SpanID([8]byte{255, 255, 255, 255, 255, 255, 255, 255})
 
-	deduper := &spanIDDeduper{spansByID: make(map[pcommon.SpanID][]ptrace.Span), maxUsedID: maxID}
+	deduper := &spanIDDeduper{
+		spansByID: make(map[pcommon.SpanID][]ptrace.Span),
+		// instead of 0 start at the last possible value to cause an error
+		maxUsedID: maxID,
+	}
 	require.NoError(t, deduper.adjust(traces))
 
 	span := traces.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(1)
 	warnings := jptrace.GetWarnings(span)
-	require.Len(t, warnings, 1)
-	require.Equal(t, "cannot assign unique span ID, too many spans in the trace", warnings[0])
+	require.Equal(t, []string{"cannot assign unique span ID, too many spans in the trace"}, warnings)
 }
