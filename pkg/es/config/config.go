@@ -135,9 +135,7 @@ type Configuration struct {
 	AdaptiveSamplingLookback time.Duration `mapstructure:"adaptive_sampling_lookback"`
 	Tags                     TagsAsFields  `mapstructure:"tags_as_fields"`
 	// Enabled, if set to true, enables the namespace for storage pointed to by this configuration.
-	Enabled     bool `mapstructure:"-"`
-	transport   *http.Transport
-	transportV8 *http.Transport
+	Enabled bool `mapstructure:"-"`
 }
 
 // TagsAsFields holds configuration for tag schema.
@@ -304,7 +302,7 @@ func NewClient(c *Configuration, logger *zap.Logger, metricsFactory metrics.Fact
 		}
 	}
 
-	return eswrapper.WrapESClient(rawClient, c.transport, bulkProc, c.Version, rawClientV8, c.transportV8), nil
+	return eswrapper.WrapESClient(rawClient, bulkProc, c.Version, rawClientV8), nil
 }
 
 func newElasticsearchV8(c *Configuration, logger *zap.Logger) (*esV8.Client, error) {
@@ -313,12 +311,11 @@ func newElasticsearchV8(c *Configuration, logger *zap.Logger) (*esV8.Client, err
 	options.Username = c.Authentication.BasicAuthentication.Username
 	options.Password = c.Authentication.BasicAuthentication.Password
 	options.DiscoverNodesOnStart = c.Sniffing.Enabled
-	transport, transportV8, err := GetHTTPRoundTripper(c, logger)
+	transport, err := GetHTTPRoundTripper(c, logger)
 	if err != nil {
 		return nil, err
 	}
 	options.Transport = transport
-	c.transportV8 = transportV8
 	return esV8.NewClient(options)
 }
 
@@ -486,11 +483,11 @@ func (c *Configuration) getConfigOptions(logger *zap.Logger) ([]elastic.ClientOp
 	if err != nil {
 		return options, err
 	}
-	transport, httpTransport, err := GetHTTPRoundTripper(c, logger)
+
+	transport, err := GetHTTPRoundTripper(c, logger)
 	if err != nil {
 		return nil, err
 	}
-	c.transport = httpTransport
 	httpClient.Transport = transport
 	return options, nil
 }
@@ -529,17 +526,16 @@ func addLoggerOptions(options []elastic.ClientOptionFunc, logLevel string, logge
 }
 
 // GetHTTPRoundTripper returns configured http.RoundTripper
-func GetHTTPRoundTripper(c *Configuration, logger *zap.Logger) (http.RoundTripper, *http.Transport, error) {
+func GetHTTPRoundTripper(c *Configuration, logger *zap.Logger) (http.RoundTripper, error) {
 	if !c.TLS.Insecure {
 		ctlsConfig, err := c.TLS.LoadTLSConfig(context.Background())
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
-		httpTransport := &http.Transport{
+		return &http.Transport{
 			Proxy:           http.ProxyFromEnvironment,
 			TLSClientConfig: ctlsConfig,
-		}
-		return c.transport, httpTransport, nil
+		}, nil
 	}
 	var transport http.RoundTripper
 	httpTransport := &http.Transport{
@@ -550,7 +546,7 @@ func GetHTTPRoundTripper(c *Configuration, logger *zap.Logger) (http.RoundTrippe
 	if c.TLS.CAFile != "" {
 		ctlsConfig, err := c.TLS.LoadTLSConfig(context.Background())
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 		httpTransport.TLSClientConfig = ctlsConfig
 		transport = httpTransport
@@ -563,7 +559,7 @@ func GetHTTPRoundTripper(c *Configuration, logger *zap.Logger) (http.RoundTrippe
 		}
 		tokenFromFile, err := loadTokenFromFile(c.Authentication.BearerTokenAuthentication.FilePath)
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 		token = tokenFromFile
 	}
@@ -574,7 +570,7 @@ func GetHTTPRoundTripper(c *Configuration, logger *zap.Logger) (http.RoundTrippe
 			StaticToken:     token,
 		}
 	}
-	return transport, httpTransport, nil
+	return transport, nil
 }
 
 func loadTokenFromFile(path string) (string, error) {

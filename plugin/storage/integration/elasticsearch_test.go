@@ -23,6 +23,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/plugin/storage/es"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 )
@@ -176,6 +177,9 @@ func testElasticsearchStorage(t *testing.T, allTagsAsFields bool) {
 }
 
 func TestElasticsearchStorage(t *testing.T) {
+	t.Cleanup(func() {
+		testutils.VerifyGoLeaksOnce(t)
+	})
 	testElasticsearchStorage(t, false)
 }
 
