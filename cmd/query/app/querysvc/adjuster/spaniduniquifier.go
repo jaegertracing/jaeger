@@ -13,8 +13,8 @@ import (
 	"github.com/jaegertracing/jaeger/internal/jptrace"
 )
 
-const (
-	warningTooManySpans = "cannot assign unique span ID, too many spans in the trace"
+var (
+	errTooManySpans = errors.New("cannot assign unique span ID, too many spans in the trace")
 )
 
 // SpanIDUniquifier returns an adjuster that changes span ids for server
@@ -142,7 +142,7 @@ func (d *spanIDDeduper) makeUniqueSpanID() (pcommon.SpanID, error) {
 		}
 		id = incrementSpanID(id)
 	}
-	return pcommon.NewSpanIDEmpty(), errors.New(warningTooManySpans)
+	return pcommon.NewSpanIDEmpty(), errTooManySpans
 }
 
 func incrementSpanID(spanID pcommon.SpanID) pcommon.SpanID {
