@@ -28,10 +28,9 @@ We are grateful to our former maintainers for their contributions to the Jaeger 
 Upon approval, the following steps should be taken to onboard the new maintainer:
 
 *   **1. Update Project Documentation**
-    *   **`OWNERS` File:** Merge the PR to add the new maintainer to the `OWNERS` file(s) in the relevant Jaeger repositories.
-    *   **Project Website:** Update the Jaeger website (if applicable) to list the new maintainer.
+    *   **`MAINTAINERS.md` File:** Merge the PR to add the new maintainer to the `MAINTAINERS.md` file(s) in the relevant Jaeger repositories.
 *   **2. Grant Permissions**
-    *   **GitHub:** Add the new maintainer to the `jaeger-maintainer` GitHub team. This grants them write access to the Jaeger repositories.
+    *   **GitHub:** Add the new maintainer to the `@jaegertracing/jaeger-maintainers` GitHub team. This grants them write access to the Jaeger repositories.
     *   **CNCF Mailing List:** Add the new maintainer to the `cncf-jaeger-maintainers@lists.cncf.io` mailing list (and any other relevant Jaeger mailing lists). Contact the existing `cncf-jaeger-maintainers` to find out the precise process for adding to the mailing list, it will likely involve getting in touch with the CNCF.
     *   **CNCF Maintainer Registry:**
         *   Create a PR against the `cncf/foundation` repository to add the new maintainer's information to the `project-maintainers.csv` file. The following fields are required:
@@ -47,7 +46,7 @@ Upon approval, the following steps should be taken to onboard the new maintainer
     *   **Signing Keys:**
         *   Jaeger uses a GPG key for encrypted emails sent to the maintainers. This key is stored in our 1password repository. 
     *   **1Password:** Connect with an existing maintainer to be added to our jaegertracing 1Password team.
-*   **5.4. Announcement**
+*   **3. Announcement**
     *   Announce the new maintainer to the Jaeger community through the mailing list, blog, or other appropriate channels.
 
 ### Maintainer Offboarding
