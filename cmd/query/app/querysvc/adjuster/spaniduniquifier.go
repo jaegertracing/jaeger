@@ -13,9 +13,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/jptrace"
 )
 
-var (
-	errTooManySpans = errors.New("cannot assign unique span ID, too many spans in the trace")
-)
+var errTooManySpans = errors.New("cannot assign unique span ID, too many spans in the trace")
 
 // SpanIDUniquifier returns an adjuster that changes span ids for server
 // spans (i.e. spans with tag: span.kind == server) if there is another
