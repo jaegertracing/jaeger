@@ -11,6 +11,8 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/otelsemconv"
 )
 
+var _ Adjuster = (*ResourceAttributesAdjuster)(nil)
+
 var libraryKeys = map[string]struct{}{
 	string(otelsemconv.TelemetrySDKLanguageKey):   {},
 	string(otelsemconv.TelemetrySDKNameKey):       {},

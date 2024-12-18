@@ -17,6 +17,14 @@ type Adjuster interface {
 	Adjust(ptrace.Traces) error
 }
 
+// Func is a type alias that wraps a function and makes an Adjuster from it.
+type Func func(traces ptrace.Traces) error
+
+// Adjust implements Adjuster interface for the Func alias.
+func (f Func) Adjust(traces ptrace.Traces) error {
+	return f(traces)
+}
+
 // Sequence creates an adjuster that combines a series of adjusters
 // applied in order. Errors from each step are accumulated and returned
 // in the end as a single wrapper error. Errors do not interrupt the
