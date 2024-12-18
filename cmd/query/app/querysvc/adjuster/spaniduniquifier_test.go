@@ -36,14 +36,10 @@ func makeTraces() ptrace.Traces {
 	serverSpan.SetSpanID(clientSpanID) // shared span ID
 	serverSpan.SetKind(ptrace.SpanKindServer)
 
-	anotherServerSpan := spans.AppendEmpty()
-	anotherServerSpan.SetTraceID(traceID)
-	anotherServerSpan.SetSpanID(clientSpanID) // shared span ID
-	anotherServerSpan.SetKind(ptrace.SpanKindServer)
-
 	anotherSpan := spans.AppendEmpty()
 	anotherSpan.SetTraceID(traceID)
 	anotherSpan.SetSpanID(anotherSpanID)
+	anotherSpan.SetParentSpanID(clientSpanID)
 
 	return traces
 }
@@ -60,14 +56,11 @@ func TestSpanIDUniquifierTriggered(t *testing.T) {
 
 	serverSpan := spans.At(1)
 	assert.EqualValues(t, []byte{0, 0, 0, 0, 0, 0, 0, 2}, serverSpan.SpanID(), "server span ID should be reassigned")
-	assert.EqualValues(t, []byte{0, 0, 0, 0, 0, 0, 0, 3}, serverSpan.ParentSpanID(), "next server span should be this server span's parent")
+	assert.EqualValues(t, clientSpanID, serverSpan.ParentSpanID(), "next server span should be this server span's parent")
 
-	anotherServerSpan := spans.At(2)
-	assert.EqualValues(t, []byte{0, 0, 0, 0, 0, 0, 0, 3}, anotherServerSpan.SpanID(), "server span ID should be reassigned")
-	assert.EqualValues(t, clientSpanID, anotherServerSpan.ParentSpanID(), "client span should be server span's parent")
-
-	thirdSpan := spans.At(3)
+	thirdSpan := spans.At(2)
 	assert.Equal(t, anotherSpanID, thirdSpan.SpanID(), "3rd span ID should not change")
+	assert.Equal(t, serverSpan.SpanID(), thirdSpan.ParentSpanID(), "parent of 3rd span should change to new spanID")
 }
 
 func TestSpanIDUniquifierNotTriggered(t *testing.T) {
@@ -77,7 +70,7 @@ func TestSpanIDUniquifierNotTriggered(t *testing.T) {
 	// only copy server span and random span
 	newSpans := ptrace.NewSpanSlice()
 	spans.At(1).CopyTo(newSpans.AppendEmpty())
-	spans.At(3).CopyTo(newSpans.AppendEmpty())
+	spans.At(2).CopyTo(newSpans.AppendEmpty())
 	newSpans.CopyTo(spans)
 
 	deduper := SpanIDUniquifier()
