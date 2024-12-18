@@ -10,7 +10,7 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"regexp"
+	"path"
 	"strings"
 	"sync"
 
@@ -224,8 +224,8 @@ func createHTTPServer(
 		handler,
 		xconfighttp.WithOtelHTTPOptions(
 			otelhttp.WithFilter(func(r *http.Request) bool {
-				ignorePaths := regexp.MustCompile(`^/static/.*`)
-				return !ignorePaths.MatchString(r.URL.Path)
+				ignorePath := path.Join("/", queryOpts.BasePath, "static")
+				return !strings.HasPrefix(r.URL.Path, ignorePath)
 			}),
 		),
 	)
