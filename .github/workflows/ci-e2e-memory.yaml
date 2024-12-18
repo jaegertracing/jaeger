@@ -29,7 +29,14 @@ jobs:
     - name: Run Memory storage integration tests
       run: |
         STORAGE=memory_v2 make jaeger-v2-storage-integration-test
-
+        
+    - name: Upload Metrics Artifact
+      uses: actions/upload-artifact@v4
+      with:
+          name: memory-metrics
+          path: ./metrics/memory_metrics.txt
+          retention-days: 7
+          
     - name: Upload coverage to codecov
       uses: ./.github/actions/upload-codecov
       with:
