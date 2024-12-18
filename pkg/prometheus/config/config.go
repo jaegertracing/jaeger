@@ -25,7 +25,6 @@ type Configuration struct {
 	NormalizeDuration bool   `mapstructure:"normalize_duration"`
 	// ExtraQueryParams is used to provide extra parameters to be appended
 	// to the URL of queries going out to the metrics backend.
-	// is being called for metric read/write
 	ExtraQueryParams map[string]string `mapstructure:"extra_query_parameters"`
 }
 
