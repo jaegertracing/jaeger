@@ -24,6 +24,8 @@ func TestOptionsWithDefaultFlags(t *testing.T) {
 	assert.False(t, o.HashLogs)
 	assert.False(t, o.HashProcess)
 	assert.Equal(t, -1, o.MaxSpansCount)
+	assert.Equal(t, int64(0), o.StartTime)
+	assert.Equal(t, int64(0), o.EndTime)
 }
 
 func TestOptionsWithFlags(t *testing.T) {
@@ -40,6 +42,8 @@ func TestOptionsWithFlags(t *testing.T) {
 		"--hash-logs",
 		"--hash-process",
 		"--max-spans-count=100",
+		"--start-time=1",
+		"--end-time=2",
 	})
 
 	assert.Equal(t, "192.168.1.10:16686", o.QueryGRPCHostPort)
@@ -50,6 +54,8 @@ func TestOptionsWithFlags(t *testing.T) {
 	assert.True(t, o.HashLogs)
 	assert.True(t, o.HashProcess)
 	assert.Equal(t, 100, o.MaxSpansCount)
+	assert.Equal(t, int64(1), o.StartTime)
+	assert.Equal(t, int64(2), o.EndTime)
 }
 
 func TestMain(m *testing.M) {
