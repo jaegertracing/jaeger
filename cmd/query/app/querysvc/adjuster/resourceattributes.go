@@ -11,6 +11,8 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/otelsemconv"
 )
 
+var _ Adjuster = (*ResourceAttributesAdjuster)(nil)
+
 var libraryKeys = map[string]struct{}{
 	string(otelsemconv.TelemetrySDKLanguageKey):   {},
 	string(otelsemconv.TelemetrySDKNameKey):       {},
@@ -23,7 +25,7 @@ var libraryKeys = map[string]struct{}{
 // attributes from spans to the parent resource so that the UI can
 // display them separately under Process.
 // https://github.com/jaegertracing/jaeger/issues/4534
-func ResourceAttributes() Adjuster {
+func ResourceAttributes() ResourceAttributesAdjuster {
 	return ResourceAttributesAdjuster{}
 }
 

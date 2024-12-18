@@ -12,6 +12,8 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 )
 
+var _ Adjuster = (*IPAttributeAdjuster)(nil)
+
 var ipAttributesToCorrect = map[string]struct{}{
 	"ip":        {},
 	"peer.ipv4": {},
@@ -20,7 +22,7 @@ var ipAttributesToCorrect = map[string]struct{}{
 // IPAttribute returns an adjuster that replaces numeric "ip" attributes,
 // which usually contain IPv4 packed into uint32, with their string
 // representation (e.g. "8.8.8.8"").
-func IPAttribute() Adjuster {
+func IPAttribute() IPAttributeAdjuster {
 	return IPAttributeAdjuster{}
 }
 
