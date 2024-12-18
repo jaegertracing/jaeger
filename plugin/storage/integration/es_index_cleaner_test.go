@@ -14,6 +14,8 @@ import (
 	"github.com/olivere/elastic"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/jaegertracing/jaeger/pkg/testutils"
 )
 
 const (
@@ -29,6 +31,9 @@ const (
 
 func TestIndexCleaner_doNotFailOnEmptyStorage(t *testing.T) {
 	SkipUnlessEnv(t, "elasticsearch", "opensearch")
+	t.Cleanup(func() {
+		testutils.VerifyGoLeaksOnceForES(t)
+	})
 	client, err := createESClient(t, getESHttpClient(t))
 	require.NoError(t, err)
 	_, err = client.DeleteIndex("*").Do(context.Background())
@@ -49,6 +54,9 @@ func TestIndexCleaner_doNotFailOnEmptyStorage(t *testing.T) {
 
 func TestIndexCleaner_doNotFailOnFullStorage(t *testing.T) {
 	SkipUnlessEnv(t, "elasticsearch", "opensearch")
+	t.Cleanup(func() {
+		testutils.VerifyGoLeaksOnceForES(t)
+	})
 	client, err := createESClient(t, getESHttpClient(t))
 	require.NoError(t, err)
 	tests := []struct {
@@ -71,6 +79,9 @@ func TestIndexCleaner_doNotFailOnFullStorage(t *testing.T) {
 
 func TestIndexCleaner(t *testing.T) {
 	SkipUnlessEnv(t, "elasticsearch", "opensearch")
+	t.Cleanup(func() {
+		testutils.VerifyGoLeaksOnceForES(t)
+	})
 	hcl := getESHttpClient(t)
 	client, err := createESClient(t, hcl)
 	require.NoError(t, err)

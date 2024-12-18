@@ -11,6 +11,8 @@ import (
 	"github.com/olivere/elastic"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/jaegertracing/jaeger/pkg/testutils"
 )
 
 const (
@@ -19,6 +21,9 @@ const (
 
 func TestIndexRollover_FailIfILMNotPresent(t *testing.T) {
 	SkipUnlessEnv(t, "elasticsearch", "opensearch")
+	t.Cleanup(func() {
+		testutils.VerifyGoLeaksOnceForES(t)
+	})
 	client, err := createESClient(t, getESHttpClient(t))
 	require.NoError(t, err)
 	require.NoError(t, err)
@@ -35,6 +40,9 @@ func TestIndexRollover_FailIfILMNotPresent(t *testing.T) {
 
 func TestIndexRollover_CreateIndicesWithILM(t *testing.T) {
 	SkipUnlessEnv(t, "elasticsearch", "opensearch")
+	t.Cleanup(func() {
+		testutils.VerifyGoLeaksOnceForES(t)
+	})
 	// Test using the default ILM Policy Name, i.e. do not pass the ES_ILM_POLICY_NAME env var to the rollover script.
 	t.Run("DefaultPolicyName", func(t *testing.T) {
 		runCreateIndicesWithILM(t, defaultILMPolicyName)
