@@ -44,7 +44,7 @@ Upon approval, the following steps should be taken to onboard the new maintainer
             *   `modtime`: Timestamp (will be automatically updated)
         *   Reference the PR in the `cncf-jaeger-maintainers` mailing list.
     *   **Signing Keys:**
-        *   Jaeger uses a GPG key for encrypted emails sent to the maintainers. This key is stored in our 1password repository. 
+        *   Jaeger uses a GPG key for encrypted emails sent to the maintainers for security reports along with access to the `maintainers-only` GitHub repository. This key is stored in our 1password repository. 
     *   **1Password:** Connect with an existing maintainer to be added to our jaegertracing 1Password team.
 *   **3. Announcement**
     *   Announce the new maintainer to the Jaeger community through the mailing list, blog, or other appropriate channels.
