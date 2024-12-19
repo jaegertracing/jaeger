@@ -25,6 +25,7 @@ import (
 	"github.com/jaegertracing/jaeger/plugin/storage/kafka"
 	"github.com/jaegertracing/jaeger/plugin/storage/memory"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
+	"github.com/jaegertracing/jaeger/storage_v2/v1adapter"
 )
 
 const defaultLocalKafkaBroker = "127.0.0.1:9092"
@@ -91,7 +92,8 @@ func (s *KafkaIntegrationTestSuite) initialize(t *testing.T) {
 	spanConsumer.Start()
 
 	s.SpanWriter = spanWriter
-	s.SpanReader = &ingester{traceStore}
+	spanReader := &ingester{traceStore}
+	s.TraceReader = v1adapter.NewTraceReader(spanReader)
 	s.CleanUp = func(_ *testing.T) {}
 	s.SkipArchiveTest = true
 }
