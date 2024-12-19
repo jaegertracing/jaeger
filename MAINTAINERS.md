@@ -34,14 +34,6 @@ Upon approval, the following steps should be taken to onboard the new maintainer
     *   **CNCF Mailing List:** Add the new maintainer to the `cncf-jaeger-maintainers@lists.cncf.io` mailing list (and any other relevant Jaeger mailing lists). Contact the existing `cncf-jaeger-maintainers` to find out the precise process for adding to the mailing list, it will likely involve getting in touch with the CNCF.
     *   **CNCF Maintainer Registry:**
         *   Create a PR against the `cncf/foundation` repository to add the new maintainer's information to the `project-maintainers.csv` file. The following fields are required:
-            *   `project`: `jaeger`
-            *   `name`: Full name of the new maintainer
-            *   `github`: GitHub username
-            *   `irc`: IRC nickname (optional)
-            *   `slack`: Slack ID (optional)
-            *   `slack_notifications`: Slack ID for notifications (optional)
-            *   `email`: Email address
-            *   `modtime`: Timestamp (will be automatically updated)
         *   Reference the PR in the `cncf-jaeger-maintainers` mailing list.
     *   **Signing Keys:**
         *   Jaeger uses a GPG key for encrypted emails sent to the maintainers for security reports along with access to the `maintainers-only` GitHub repository. This key is stored in our 1password repository. 
