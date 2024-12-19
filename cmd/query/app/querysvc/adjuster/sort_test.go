@@ -11,7 +11,7 @@ import (
 )
 
 func TestSortAttributesAndEventsAdjuster(t *testing.T) {
-	adjuster := SortAttributesAndEventsAdjuster{}
+	adjuster := SortAttributesAndEvents()
 	input := func() ptrace.Traces {
 		traces := ptrace.NewTraces()
 		rs := traces.ResourceSpans().AppendEmpty()
