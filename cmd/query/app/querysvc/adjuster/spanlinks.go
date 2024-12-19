@@ -22,7 +22,7 @@ func SpanLinks() LinksAdjuster {
 
 type LinksAdjuster struct{}
 
-func (la LinksAdjuster) Adjust(traces ptrace.Traces) error {
+func (la LinksAdjuster) Adjust(traces ptrace.Traces) {
 	resourceSpans := traces.ResourceSpans()
 	for i := 0; i < resourceSpans.Len(); i++ {
 		rs := resourceSpans.At(i)
@@ -36,7 +36,6 @@ func (la LinksAdjuster) Adjust(traces ptrace.Traces) error {
 			}
 		}
 	}
-	return nil
 }
 
 // adjust removes invalid links from a span.
