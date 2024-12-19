@@ -4,8 +4,9 @@
 package spanstore
 
 import (
+	"context"
+	"fmt"
 	"sort"
-	"strconv"
 	"testing"
 	"time"
 
@@ -108,35 +109,44 @@ func TestCacheStore_Update(t *testing.T) {
 	})
 }
 
-func TestCacheStore_Prefill(t *testing.T) {
+func TestCacheStore_WriteSpanAndPrefill(t *testing.T) {
 	runWithBadger(t, func(store *badger.DB, t *testing.T) {
-		timeNow := model.TimeAsEpochMicroseconds(time.Now())
-		serviceName := "service1"
-		operationName := "op1"
-		tid := time.Now().Add(1 * time.Minute)
-		writer := func() {
-			err := store.Update(func(txn *badger.Txn) error {
-				err := txn.SetEntry(&badger.Entry{
-					Key:       createIndexKey(serviceNameIndexKey, []byte(serviceName), timeNow, model.TraceID{High: 0, Low: 0}),
-					ExpiresAt: uint64(tid.Unix()),
-				})
-				require.NoError(t, err)
-				for i := 1; i <= 6; i++ {
-					err := txn.SetEntry(&badger.Entry{
-						Key:       createIndexKey(spanKindIndexKey, []byte(serviceName+operationName+strconv.Itoa(i)), timeNow, model.TraceID{High: 0, Low: 0}),
-						ExpiresAt: uint64(tid.Unix()),
-					})
-					require.NoError(t, err)
-				}
-				return nil
-			})
+		cache := NewCacheStore(store, 1*time.Hour, true)
+		writer := NewSpanWriter(store, cache, 1*time.Hour)
+		for i := 0; i < 6; i++ {
+			tid := time.Now()
+			testSpan := model.Span{
+				TraceID: model.TraceID{
+					Low:  uint64(0),
+					High: 1,
+				},
+				SpanID:        model.SpanID(0),
+				OperationName: fmt.Sprintf("operation%d", i),
+				Process: &model.Process{
+					ServiceName: fmt.Sprintf("service%d", i),
+				},
+				StartTime: tid.Add(1 * time.Millisecond),
+				Duration:  1 * time.Millisecond,
+				Tags: model.KeyValues{
+					model.KeyValue{
+						Key:   "span.kind",
+						VType: model.StringType,
+						VStr:  trace.SpanKind(i).String(),
+					},
+				},
+			}
+			err := writer.WriteSpan(context.Background(), &testSpan)
 			require.NoError(t, err)
 		}
-		writer()
-		cache := NewCacheStore(store, time.Duration(1*time.Hour), true)
-		assert.Equal(t, uint64(tid.Unix()), cache.services[serviceName])
-		for i := 0; i <= 5; i++ {
-			assert.Equal(t, uint64(tid.Unix()), cache.operations[serviceName][trace.SpanKind(i)][operationName])
+		// The old cache can't be used in assert, as it will not fill anything from store
+		// The old cache will get every value from the Update Function called in write span
+		// Therefore we will create a new cache and test prefill there
+		newCache := NewCacheStore(store, 1*time.Hour, true)
+		for i := 0; i < 6; i++ {
+			_, foundService := newCache.services[fmt.Sprintf("service%d", i)]
+			assert.True(t, foundService)
+			_, foundOperation := newCache.operations[fmt.Sprintf("service%d", i)][trace.SpanKind(i)][fmt.Sprintf("operation%d", i)]
+			assert.True(t, foundOperation)
 		}
 	})
 }
@@ -144,17 +154,12 @@ func TestCacheStore_Prefill(t *testing.T) {
 func TestOldReads(t *testing.T) {
 	runWithBadger(t, func(store *badger.DB, t *testing.T) {
 		timeNow := model.TimeAsEpochMicroseconds(time.Now())
-		s1Key := createIndexKey(serviceNameIndexKey, []byte("service1"), timeNow, model.TraceID{High: 0, Low: 0})
-		s1o1Key := createIndexKey(spanKindIndexKey, []byte("service1operation10"), timeNow, model.TraceID{High: 0, Low: 0})
+		s1o1Key := createIndexKey(spanKindIndexKey, []byte("service1operation10080"), timeNow, model.TraceID{High: 0, Low: 0})
 
 		tid := time.Now().Add(1 * time.Minute)
 
 		writer := func() {
 			store.Update(func(txn *badger.Txn) error {
-				txn.SetEntry(&badger.Entry{
-					Key:       s1Key,
-					ExpiresAt: uint64(tid.Unix()),
-				})
 				txn.SetEntry(&badger.Entry{
 					Key:       s1o1Key,
 					ExpiresAt: uint64(tid.Unix()),

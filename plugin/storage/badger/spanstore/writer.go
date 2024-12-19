@@ -35,7 +35,10 @@ const (
 	jsonEncoding          byte = 0x01 // Last 4 bits of the meta byte are for encoding type
 	protoEncoding         byte = 0x02 // Last 4 bits of the meta byte are for encoding type
 	defaultEncoding       byte = protoEncoding
+	maxServiceNameLength  int  = 999
 )
+
+var ErrServiceNameTooLong = fmt.Errorf("service name too long: please keep it under %d", maxServiceNameLength)
 
 // SpanWriter for writing spans to badger
 type SpanWriter struct {
@@ -60,7 +63,9 @@ func (w *SpanWriter) WriteSpan(_ context.Context, span *model.Span) error {
 	//nolint: gosec // G115
 	expireTime := uint64(time.Now().Add(w.ttl).Unix())
 	startTime := model.TimeAsEpochMicroseconds(span.StartTime)
-
+	if len(span.Process.ServiceName) > maxServiceNameLength {
+		return ErrServiceNameTooLong
+	}
 	// Avoid doing as much as possible inside the transaction boundary, create entries here
 	entriesToStore := make([]*badger.Entry, 0, len(span.Tags)+4+len(span.Process.Tags)+len(span.Logs)*4)
 
@@ -74,8 +79,10 @@ func (w *SpanWriter) WriteSpan(_ context.Context, span *model.Span) error {
 	entriesToStore = append(entriesToStore, w.createBadgerEntry(createIndexKey(operationNameIndexKey, []byte(span.Process.ServiceName+span.OperationName), startTime, span.TraceID), nil, expireTime))
 	kind, _ := span.GetSpanKind()
 	kindString := strconv.FormatInt(int64(rune(kind)), 10)
+	// This format will convert length of service name to formatted 3-digit number (string) like for 9 it will change to "009"
+	formattedLengthOfService := fmt.Sprintf("%03d", len(span.Process.ServiceName))
 	// This index is only for loading span.kind into cache
-	entriesToStore = append(entriesToStore, w.createBadgerEntry(createIndexKey(spanKindIndexKey, []byte(span.Process.ServiceName+span.OperationName+kindString), startTime, span.TraceID), nil, expireTime))
+	entriesToStore = append(entriesToStore, w.createBadgerEntry(createIndexKey(spanKindIndexKey, []byte(span.Process.ServiceName+span.OperationName+formattedLengthOfService+kindString), startTime, span.TraceID), nil, expireTime))
 	// It doesn't matter if we overwrite Duration index keys, everything is read at Trace level in any case
 	durationValue := make([]byte, 8)
 	binary.BigEndian.PutUint64(durationValue, uint64(model.DurationAsMicroseconds(span.Duration)))

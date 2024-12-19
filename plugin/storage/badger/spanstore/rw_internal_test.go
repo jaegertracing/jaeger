@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/binary"
 	"math/rand"
+	"strings"
 	"testing"
 	"time"
 
@@ -76,6 +77,46 @@ func TestEncodingTypes(t *testing.T) {
 
 		_, err = rw.GetTrace(context.Background(), spanstore.GetTraceParameters{TraceID: model.TraceID{Low: 0, High: 1}})
 		require.EqualError(t, err, "unknown encoding type: 0x04")
+	})
+}
+
+func TestSpanWriteLongServiceNameError(t *testing.T) {
+	runWithBadger(t, func(store *badger.DB, t *testing.T) {
+		serviceName := strings.Repeat("a", 1000)
+		tid := time.Now()
+
+		dummyKv := []model.KeyValue{
+			{
+				Key:   "key",
+				VType: model.StringType,
+				VStr:  "value",
+			},
+		}
+
+		testSpan := model.Span{
+			TraceID: model.TraceID{
+				Low:  uint64(0),
+				High: 1,
+			},
+			SpanID:        model.SpanID(0),
+			OperationName: "operation",
+			Process: &model.Process{
+				ServiceName: serviceName,
+				Tags:        dummyKv,
+			},
+			StartTime: tid.Add(time.Duration(1 * time.Millisecond)),
+			Duration:  time.Duration(1 * time.Millisecond),
+			Tags:      dummyKv,
+			Logs: []model.Log{
+				{
+					Timestamp: tid,
+					Fields:    dummyKv,
+				},
+			},
+		}
+		cache := NewCacheStore(store, time.Duration(1*time.Hour), true)
+		sw := NewSpanWriter(store, cache, time.Duration(1*time.Hour))
+		require.EqualError(t, sw.WriteSpan(context.Background(), &testSpan), "service name too long: please keep it under 999")
 	})
 }
 

@@ -5,6 +5,7 @@ package spanstore
 
 import (
 	"sort"
+	"strconv"
 	"sync"
 	"time"
 
@@ -44,68 +45,47 @@ func NewCacheStore(db *badger.DB, ttl time.Duration, prefill bool) *CacheStore {
 func (c *CacheStore) populateCaches() {
 	c.cacheLock.Lock()
 	defer c.cacheLock.Unlock()
-
-	c.loadServices()
-
-	for k := range c.services {
-		c.loadOperations(k)
-	}
-}
-
-func (c *CacheStore) loadServices() {
 	c.store.View(func(txn *badger.Txn) error {
 		opts := badger.DefaultIteratorOptions
 		it := txn.NewIterator(opts)
 		defer it.Close()
 
-		serviceKey := []byte{serviceNameIndexKey}
+		serviceKey := []byte{spanKindIndexKey}
 
 		// Seek all the services first
 		for it.Seek(serviceKey); it.ValidForPrefix(serviceKey); it.Next() {
 			timestampStartIndex := len(it.Item().Key()) - (sizeOfTraceID + 8) // 8 = sizeof(uint64)
-			serviceName := string(it.Item().Key()[len(serviceKey):timestampStartIndex])
+			serviceNameWithOperation := string(it.Item().Key()[len(serviceKey):timestampStartIndex])
+			// This string is of type serviceName+operationName+len(serviceName)+spanKind
+			operationKindString := string(serviceNameWithOperation[len(serviceNameWithOperation)-1])
+			serviceNameLengthString := serviceNameWithOperation[(len(serviceNameWithOperation) - 4):(len(serviceNameWithOperation) - 1)]
+			serviceNameLength, err := strconv.Atoi(serviceNameLengthString)
+			if err != nil {
+				// Inconsistency we can't load this in cache, just skip it!
+				continue
+			}
+			serviceName := serviceNameWithOperation[:serviceNameLength]
+			operationName := serviceNameWithOperation[serviceNameLength : len(serviceNameWithOperation)-4]
+			spanKind := model.GetSpanKindFromStringOfSpanKind(operationKindString)
 			keyTTL := it.Item().ExpiresAt()
+			if _, found := c.operations[serviceName]; !found {
+				c.operations[serviceName] = make(map[trace.SpanKind]map[string]uint64)
+			}
+			if _, found := c.operations[serviceName][spanKind]; !found {
+				c.operations[serviceName][spanKind] = make(map[string]uint64)
+			}
 			if v, found := c.services[serviceName]; found {
 				if v > keyTTL {
 					continue
 				}
 			}
 			c.services[serviceName] = keyTTL
-		}
-		return nil
-	})
-}
-
-func (c *CacheStore) loadOperations(service string) {
-	c.store.View(func(txn *badger.Txn) error {
-		opts := badger.DefaultIteratorOptions
-		it := txn.NewIterator(opts)
-		defer it.Close()
-
-		serviceKey := make([]byte, len(service)+1)
-		serviceKey[0] = spanKindIndexKey
-		copy(serviceKey[1:], service)
-
-		// Seek all the services first
-		for it.Seek(serviceKey); it.ValidForPrefix(serviceKey); it.Next() {
-			timestampStartIndex := len(it.Item().Key()) - (sizeOfTraceID + 8) // 8 = sizeof(uint64)
-			operationNameAndKind := string(it.Item().Key()[len(serviceKey):timestampStartIndex])
-			operationName := operationNameAndKind[:len(operationNameAndKind)-1]
-			kind := model.GetSpanKindFromStringOfSpanKind(string(operationNameAndKind[len(operationNameAndKind)-1]))
-			keyTTL := it.Item().ExpiresAt()
-			if _, ok := c.operations[service]; !ok {
-				c.operations[service] = make(map[trace.SpanKind]map[string]uint64)
-			}
-			if _, ok := c.operations[service][kind]; !ok {
-				c.operations[service][kind] = make(map[string]uint64)
-			}
-
-			if v, found := c.operations[service][kind][operationName]; found {
-				if v > keyTTL {
+			if t, found := c.operations[serviceName][spanKind][operationName]; found {
+				if t > keyTTL {
 					continue
 				}
 			}
-			c.operations[service][kind][operationName] = keyTTL
+			c.operations[serviceName][spanKind][operationName] = keyTTL
 		}
 		return nil
 	})
