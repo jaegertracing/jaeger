@@ -58,8 +58,7 @@ func TestIPAttributeAdjuster(t *testing.T) {
 		}
 	}
 
-	err := IPAttribute().Adjust(traces)
-	require.NoError(t, err)
+	IPAttribute().Adjust(traces)
 
 	resourceSpan := traces.ResourceSpans().At(0)
 	assert.Equal(t, 3, resourceSpan.Resource().Attributes().Len())

@@ -5,7 +5,15 @@ package adjuster
 
 import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
+
+	"github.com/jaegertracing/jaeger/internal/jptrace"
 )
+
+const (
+	invalidSpanLinkWarning = "Invalid span link removed"
+)
+
+var _ Adjuster = (*LinksAdjuster)(nil)
 
 // SpanLinks creates an adjuster that removes span links with empty trace IDs.
 func SpanLinks() LinksAdjuster {
@@ -14,7 +22,7 @@ func SpanLinks() LinksAdjuster {
 
 type LinksAdjuster struct{}
 
-func (la LinksAdjuster) Adjust(traces ptrace.Traces) error {
+func (la LinksAdjuster) Adjust(traces ptrace.Traces) {
 	resourceSpans := traces.ResourceSpans()
 	for i := 0; i < resourceSpans.Len(); i++ {
 		rs := resourceSpans.At(i)
@@ -28,7 +36,6 @@ func (la LinksAdjuster) Adjust(traces ptrace.Traces) error {
 			}
 		}
 	}
-	return nil
 }
 
 // adjust removes invalid links from a span.
@@ -40,6 +47,8 @@ func (la LinksAdjuster) adjust(span ptrace.Span) {
 		if la.valid(link) {
 			newLink := validLinks.AppendEmpty()
 			link.CopyTo(newLink)
+		} else {
+			jptrace.AddWarning(span, invalidSpanLinkWarning)
 		}
 	}
 	validLinks.CopyTo(span.Links())

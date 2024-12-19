@@ -12,6 +12,8 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 )
 
+var _ Adjuster = (*IPAttributeAdjuster)(nil)
+
 var ipAttributesToCorrect = map[string]struct{}{
 	"ip":        {},
 	"peer.ipv4": {},
@@ -26,7 +28,7 @@ func IPAttribute() IPAttributeAdjuster {
 
 type IPAttributeAdjuster struct{}
 
-func (ia IPAttributeAdjuster) Adjust(traces ptrace.Traces) error {
+func (ia IPAttributeAdjuster) Adjust(traces ptrace.Traces) {
 	resourceSpans := traces.ResourceSpans()
 	for i := 0; i < resourceSpans.Len(); i++ {
 		rs := resourceSpans.At(i)
@@ -41,7 +43,6 @@ func (ia IPAttributeAdjuster) Adjust(traces ptrace.Traces) error {
 			}
 		}
 	}
-	return nil
 }
 
 func (IPAttributeAdjuster) adjustAttributes(attributes pcommon.Map) {
