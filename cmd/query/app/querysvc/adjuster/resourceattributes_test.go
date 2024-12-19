@@ -26,7 +26,7 @@ func TestResourceAttributesAdjuster_SpanWithLibraryAttributes(t *testing.T) {
 	span.Attributes().PutStr("another_key", "another_value")
 
 	adjuster := ResourceAttributes()
-	require.NoError(t, adjuster.Adjust(traces))
+	adjuster.Adjust(traces)
 
 	resultSpanAttributes := traces.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).Attributes()
 	require.Equal(t, 2, resultSpanAttributes.Len())
@@ -68,7 +68,7 @@ func TestResourceAttributesAdjuster_SpanWithoutLibraryAttributes(t *testing.T) {
 	span.Attributes().PutStr("random_key", "random_value")
 
 	adjuster := ResourceAttributes()
-	require.NoError(t, adjuster.Adjust(traces))
+	adjuster.Adjust(traces)
 
 	resultSpanAttributes := traces.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).Attributes()
 	require.Equal(t, 1, resultSpanAttributes.Len())
@@ -86,7 +86,7 @@ func TestResourceAttributesAdjuster_SpanWithConflictingLibraryAttributes(t *test
 	span.Attributes().PutStr(string(otelsemconv.TelemetrySDKLanguageKey), "Java")
 
 	adjuster := ResourceAttributes()
-	require.NoError(t, adjuster.Adjust(traces))
+	adjuster.Adjust(traces)
 
 	resultSpan := traces.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0)
 	resultSpanAttributes := resultSpan.Attributes()
@@ -120,7 +120,7 @@ func TestResourceAttributesAdjuster_SpanWithNonConflictingLibraryAttributes(t *t
 	span.Attributes().PutStr(string(otelsemconv.TelemetrySDKLanguageKey), "Go")
 
 	adjuster := ResourceAttributes()
-	require.NoError(t, adjuster.Adjust(traces))
+	adjuster.Adjust(traces)
 
 	resultSpanAttributes := traces.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).Attributes()
 	require.Equal(t, 1, resultSpanAttributes.Len())

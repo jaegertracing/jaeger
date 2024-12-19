@@ -8,6 +8,7 @@ set -euo pipefail
 bad_pkgs=0
 total_pkgs=0
 failed_pkgs=0
+invalid_use_pkgs=0
 
 # shellcheck disable=SC2048
 for dir in $*; do
@@ -20,18 +21,25 @@ for dir in $*; do
     continue
   fi
   good=0
+  invalid=0
   for test in ${testFiles}; do
     if grep -q "TestMain" "${test}" && grep -q "testutils.VerifyGoLeaks" "${test}"; then
+      if [ "${dir}" != "./plugin/storage/integration/" ] &&  grep -q "testutils.VerifyGoLeaksForES" "${test}"; then
+          invalid=1
+          break
+      fi
       good=1
       break
     fi
   done
+
   if ((good == 0)); then
-    echo "Error(check-goleak): no goleak check in package ${dir}"
-    ((bad_pkgs+=1))
-    if [[ "${dir}" == "./cmd/jaeger/internal/integration/" || "${dir}" == "./plugin/storage/integration/" ]]; then
-      echo "	... this package is temporarily allowed and will not cause linter failure"
+    if ((invalid == 1)); then
+      echo "Error(check-goleak): VerifyGoLeaksForES should only be used in integration package but it is used in ${dir} also"
+      ((invalid_use_pkgs+=1))
     else
+      echo "Error(check-goleak): no goleak check in package ${dir}"
+      ((bad_pkgs+=1))
       ((failed_pkgs+=1))
     fi
   fi
@@ -43,6 +51,10 @@ function help() {
 
 if ((failed_pkgs > 0)); then
   echo "⛔ Fatal(check-goleak): no goleak check in ${bad_pkgs} package(s), ${failed_pkgs} of which not allowed."
+  help
+  exit 1
+elif ((invalid_use_pkgs > 0)); then
+  echo "⛔ Fatal(check-goleak): use of VerifyGoLeaksForES in package(s) ${invalid_use_pkgs} which is not allowed"
   help
   exit 1
 elif ((bad_pkgs > 0)); then

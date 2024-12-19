@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
@@ -32,9 +31,8 @@ func TestLinksAdjuster(t *testing.T) {
 	spanC.Links().AppendEmpty().SetTraceID(pcommon.TraceID([]byte{0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0}))
 	spanC.Links().AppendEmpty().SetTraceID(pcommon.TraceID([]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}))
 
-	err := SpanLinks().Adjust(traces)
+	SpanLinks().Adjust(traces)
 	spans := traces.ResourceSpans().At(0).ScopeSpans().At(0).Spans()
-	require.NoError(t, err)
 
 	gotSpansA := spans.At(0)
 	assert.Equal(t, 0, gotSpansA.Links().Len())

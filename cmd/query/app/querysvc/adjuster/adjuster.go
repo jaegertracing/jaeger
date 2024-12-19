@@ -4,8 +4,6 @@
 package adjuster
 
 import (
-	"errors"
-
 	"go.opentelemetry.io/collector/pdata/ptrace"
 )
 
@@ -14,15 +12,15 @@ import (
 // The caller must ensure that all spans in the ptrace.Traces argument
 // belong to the same trace and represent the complete trace.
 type Adjuster interface {
-	Adjust(ptrace.Traces) error
+	Adjust(ptrace.Traces)
 }
 
 // Func is a type alias that wraps a function and makes an Adjuster from it.
-type Func func(traces ptrace.Traces) error
+type Func func(traces ptrace.Traces)
 
 // Adjust implements Adjuster interface for the Func alias.
-func (f Func) Adjust(traces ptrace.Traces) error {
-	return f(traces)
+func (f Func) Adjust(traces ptrace.Traces) {
+	f(traces)
 }
 
 // Sequence creates an adjuster that combines a series of adjusters
@@ -33,27 +31,12 @@ func Sequence(adjusters ...Adjuster) Adjuster {
 	return sequence{adjusters: adjusters}
 }
 
-// FailFastSequence is similar to Sequence() but returns immediately
-// if any adjuster returns an error.
-func FailFastSequence(adjusters ...Adjuster) Adjuster {
-	return sequence{adjusters: adjusters, failFast: true}
-}
-
 type sequence struct {
 	adjusters []Adjuster
-	failFast  bool
 }
 
-func (c sequence) Adjust(traces ptrace.Traces) error {
-	var errs []error
+func (c sequence) Adjust(traces ptrace.Traces) {
 	for _, adjuster := range c.adjusters {
-		err := adjuster.Adjust(traces)
-		if err != nil {
-			if c.failFast {
-				return err
-			}
-			errs = append(errs, err)
-		}
+		adjuster.Adjust(traces)
 	}
-	return errors.Join(errs...)
 }

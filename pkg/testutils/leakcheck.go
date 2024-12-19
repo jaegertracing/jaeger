@@ -34,10 +34,31 @@ func IgnoreGoMetricsMeterLeak() goleak.Option {
 	return goleak.IgnoreTopFunction("github.com/rcrowley/go-metrics.(*meterArbiter).tick")
 }
 
+// Don't use this in any other method other than leaks for ElasticSearch and OpenSearch
+// These leaks are from olivere client not from the jaeger
+// See this PR for context: https://github.com/jaegertracing/jaeger/pull/6339
+func ignoreHttpTransportWriteLoopLeak() goleak.Option {
+	return goleak.IgnoreTopFunction("net/http.(*persistConn).writeLoop")
+}
+
+// Don't use this in any other method other than leaks for ElasticSearch and OpenSearch
+// These leaks are from olivere client not from the jaeger
+// See this PR for context: https://github.com/jaegertracing/jaeger/pull/6339
+func ignoreHttpTransportPollRuntimeLeak() goleak.Option {
+	return goleak.IgnoreTopFunction("internal/poll.runtime_pollWait")
+}
+
+// Don't use this in any other method other than leaks for ElasticSearch and OpenSearch
+// These leaks are from olivere client not from the jaeger
+// See this PR for context: https://github.com/jaegertracing/jaeger/pull/6339
+func ignoreHttpTransportReadLoopLeak() goleak.Option {
+	return goleak.IgnoreTopFunction("net/http.(*persistConn).readLoop")
+}
+
 // VerifyGoLeaks verifies that unit tests do not leak any goroutines.
 // It should be called in TestMain.
 func VerifyGoLeaks(m *testing.M) {
-	goleak.VerifyTestMain(m, IgnoreGlogFlushDaemonLeak(), IgnoreOpenCensusWorkerLeak())
+	goleak.VerifyTestMain(m, IgnoreGlogFlushDaemonLeak(), IgnoreOpenCensusWorkerLeak(), IgnoreGoMetricsMeterLeak())
 }
 
 // VerifyGoLeaksOnce verifies that a given unit test does not leak any goroutines.
@@ -48,4 +69,16 @@ func VerifyGoLeaks(m *testing.M) {
 //	defer testutils.VerifyGoLeaksOnce(t)
 func VerifyGoLeaksOnce(t *testing.T) {
 	goleak.VerifyNone(t, IgnoreGlogFlushDaemonLeak(), IgnoreOpenCensusWorkerLeak(), IgnoreGoMetricsMeterLeak())
+}
+
+// VerifyGoLeaksOnceForES is go leak check for ElasticSearch integration tests (v1)
+// This must not be used anywhere else other than integration package for v1
+func VerifyGoLeaksOnceForES(t *testing.T) {
+	goleak.VerifyNone(t, ignoreHttpTransportWriteLoopLeak(), ignoreHttpTransportPollRuntimeLeak(), ignoreHttpTransportReadLoopLeak())
+}
+
+// VerifyGoLeaksForES is go leak check for integration package in ElasticSearch Environment
+// This must not be used anywhere else other than integration package in ES environment for v1
+func VerifyGoLeaksForES(m *testing.M) {
+	goleak.VerifyTestMain(m, ignoreHttpTransportWriteLoopLeak(), ignoreHttpTransportPollRuntimeLeak(), ignoreHttpTransportReadLoopLeak())
 }

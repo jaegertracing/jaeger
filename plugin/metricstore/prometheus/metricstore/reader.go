@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -60,16 +61,32 @@ type (
 		metricDesc        string
 		buildPromQuery    func(p promQueryParams) string
 	}
+
+	promClient struct {
+		api.Client
+		extraParams map[string]string
+	}
 )
 
-// NewMetricsReader returns a new MetricsReader.
-func NewMetricsReader(cfg config.Configuration, logger *zap.Logger, tracer trace.TracerProvider) (*MetricsReader, error) {
-	logger.Info("Creating metrics reader", zap.Any("configuration", cfg))
+// URL decorator enables adding additional query parameters to the request sent to prometheus backend
+func (p promClient) URL(ep string, args map[string]string) *url.URL {
+	u := p.Client.URL(ep, args)
 
-	roundTripper, err := getHTTPRoundTripper(&cfg, logger)
+	query := u.Query()
+	for k, v := range p.extraParams {
+		query.Add(k, v)
+	}
+	u.RawQuery = query.Encode()
+
+	return u
+}
+
+func createPromClient(cfg config.Configuration) (api.Client, error) {
+	roundTripper, err := getHTTPRoundTripper(&cfg)
 	if err != nil {
 		return nil, err
 	}
+
 	client, err := api.NewClient(api.Config{
 		Address:      cfg.ServerURL,
 		RoundTripper: roundTripper,
@@ -78,10 +95,25 @@ func NewMetricsReader(cfg config.Configuration, logger *zap.Logger, tracer trace
 		return nil, fmt.Errorf("failed to initialize prometheus client: %w", err)
 	}
 
+	customClient := promClient{
+		Client:      client,
+		extraParams: cfg.ExtraQueryParams,
+	}
+
+	return customClient, nil
+}
+
+// NewMetricsReader returns a new MetricsReader.
+func NewMetricsReader(cfg config.Configuration, logger *zap.Logger, tracer trace.TracerProvider) (*MetricsReader, error) {
 	const operationLabel = "span_name"
 
+	promClient, err := createPromClient(cfg)
+	if err != nil {
+		return nil, err
+	}
+
 	mr := &MetricsReader{
-		client: promapi.NewAPI(client),
+		client: promapi.NewAPI(promClient),
 		logger: logger,
 		tracer: tracer.Tracer("prom-metrics-reader"),
 
@@ -314,7 +346,7 @@ func logErrorToSpan(span trace.Span, err error) {
 	span.SetStatus(codes.Error, err.Error())
 }
 
-func getHTTPRoundTripper(c *config.Configuration, _ *zap.Logger) (rt http.RoundTripper, err error) {
+func getHTTPRoundTripper(c *config.Configuration) (rt http.RoundTripper, err error) {
 	ctlsConfig, err := c.TLS.LoadTLSConfig(context.Background())
 	if err != nil {
 		return nil, err
