@@ -21,12 +21,14 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	samplemodel "github.com/jaegertracing/jaeger/cmd/collector/app/sampling/model"
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/samplingstore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
+	"github.com/jaegertracing/jaeger/storage_v2/tracestore"
 )
 
 //go:embed fixtures
@@ -43,6 +45,7 @@ var fixtures embed.FS
 type StorageIntegration struct {
 	SpanWriter        spanstore.Writer
 	SpanReader        spanstore.Reader
+	TraceReader       tracestore.Reader
 	ArchiveSpanReader spanstore.Reader
 	ArchiveSpanWriter spanstore.Writer
 	DependencyWriter  dependencystore.Writer
@@ -132,50 +135,102 @@ func (*StorageIntegration) waitForCondition(t *testing.T, predicate func(t *test
 	}
 	return predicate(t)
 }
-
 func (s *StorageIntegration) testGetServices(t *testing.T) {
 	s.skipIfNeeded(t)
 	defer s.cleanUp(t)
-
+  
 	expected := []string{"example-service-1", "example-service-2", "example-service-3"}
 	s.loadParseAndWriteExampleTrace(t)
-
+  
 	var actual []string
 	found := s.waitForCondition(t, func(t *testing.T) bool {
-		var err error
-		actual, err = s.SpanReader.GetServices(context.Background())
-		if err != nil {
-			t.Log(err)
-			return false
-		}
-		sort.Strings(actual)
-		t.Logf("Retrieved services: %v", actual)
-		if len(actual) > len(expected) {
-			// If the storage backend returns more services than expected, let's log traces for those
-			t.Log("🛑 Found unexpected services!")
-			for _, service := range actual {
-				traces, err := s.SpanReader.FindTraces(context.Background(), &spanstore.TraceQueryParameters{
-					ServiceName: service,
-				})
-				if err != nil {
-					t.Log(err)
-					continue
-				}
-				for _, trace := range traces {
-					for _, span := range trace.Spans {
-						t.Logf("span: Service: %s, TraceID: %s, Operation: %s", service, span.TraceID, span.OperationName)
-					}
-				}
+	    var err error
+	    actual, err = s.TraceReader.GetServices(context.Background())
+	    if err != nil {
+		  t.Log(err)
+		  return false
+	    }
+	    sort.Strings(actual)
+	    t.Logf("Retrieved services: %v", actual)
+  
+	    if len(actual) > len(expected) {
+		  t.Log("🛑 Found unexpected services!")
+		  for _, service := range actual {
+			traceSeq := s.TraceReader.FindTraces(context.Background(), tracestore.TraceQueryParams{
+			    ServiceName: service,
+			})
+  
+			hasError := false
+			traceSeq(func(traces []ptrace.Traces, err error) bool {
+			    if err != nil {
+				  t.Log(err)
+				  hasError = true
+				  return false
+			    }
+			    for _, otelTrace := range traces {
+				  t.Logf("Retrieved trace for service '%s': %v", service, otelTrace)
+			    }
+			    return true
+			})
+  
+			if hasError {
+			    t.Logf("Error processing traces for service '%s'", service)
+			    return false
 			}
-		}
-		return assert.ObjectsAreEqualValues(expected, actual)
+		  }
+	    }
+	    return assert.ObjectsAreEqualValues(expected, actual)
 	})
-
+  
 	if !assert.True(t, found) {
-		t.Log("\t Expected:", expected)
-		t.Log("\t Actual  :", actual)
+	    t.Log("\t Expected:", expected)
+	    t.Log("\t Actual  :", actual)
 	}
-}
+  }
+
+// func (s *StorageIntegration) testGetServices(t *testing.T) {
+// 	s.skipIfNeeded(t)
+// 	defer s.cleanUp(t)
+
+// 	expected := []string{"example-service-1", "example-service-2", "example-service-3"}
+// 	s.loadParseAndWriteExampleTrace(t)
+
+// 	var actual []string
+// 	found := s.waitForCondition(t, func(t *testing.T) bool {
+// 		var err error
+// 		actual, err = s.SpanReader.GetServices(context.Background())
+// 		if err != nil {
+// 			t.Log(err)
+// 			return false
+// 		}
+// 		sort.Strings(actual)
+// 		t.Logf("Retrieved services: %v", actual)
+// 		if len(actual) > len(expected) {
+// 			// If the storage backend returns more services than expected, let's log traces for those
+// 			t.Log("🛑 Found unexpected services!")
+// 			for _, service := range actual {
+// 				traces, err := s.SpanReader.FindTraces(context.Background(), &spanstore.TraceQueryParameters{
+// 					ServiceName: service,
+// 				})
+// 				if err != nil {
+// 					t.Log(err)
+// 					continue
+// 				}
+// 				for _, trace := range traces {
+// 					for _, span := range trace.Spans {
+// 						t.Logf("span: Service: %s, TraceID: %s, Operation: %s", service, span.TraceID, span.OperationName)
+// 					}
+// 				}
+// 			}
+// 		}
+// 		return assert.ObjectsAreEqualValues(expected, actual)
+// 	})
+
+// 	if !assert.True(t, found) {
+// 		t.Log("\t Expected:", expected)
+// 		t.Log("\t Actual  :", actual)
+// 	}
+// }
 
 func (s *StorageIntegration) testArchiveTrace(t *testing.T) {
 	s.skipIfNeeded(t)
