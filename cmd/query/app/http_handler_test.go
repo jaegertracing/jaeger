@@ -198,6 +198,22 @@ func TestGetTraceDedupeSuccess(t *testing.T) {
 	}
 }
 
+func TestGetTraceWithTimeWindowSuccess(t *testing.T) {
+	ts := initializeTestServer(t)
+	start_time := time.Date(1970, time.January, 1, 0, 0, 0, 1000, time.UTC).Local()
+	end_time := time.Date(1970, time.January, 1, 0, 0, 0, 2000, time.UTC).Local()
+	ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), spanstore.GetTraceParameters{
+		TraceID:   model.TraceID{High: 0, Low: 0x123456},
+		StartTime: start_time,
+		EndTime:   end_time,
+	}).Return(mockTrace, nil).Once()
+
+	var response structuredResponse
+	err := getJSON(ts.server.URL+`/api/traces/123456?start=1&end=2`, &response)
+	require.NoError(t, err)
+	assert.Empty(t, response.Errors)
+}
+
 func TestLogOnServerError(t *testing.T) {
 	zapCore, logs := observer.New(zap.InfoLevel)
 	logger := zap.New(zapCore)
@@ -411,6 +427,24 @@ func TestSearchByTraceIDSuccess(t *testing.T) {
 	assert.Len(t, response.Data, 2)
 }
 
+func TestSearchByTraceIDWithTimeWindowSuccess(t *testing.T) {
+	ts := initializeTestServer(t)
+	expectedTraceId, _ := model.TraceIDFromString("1")
+	expectedQuery := spanstore.GetTraceParameters{
+		TraceID:   expectedTraceId,
+		StartTime: time.UnixMicro(1),
+		EndTime:   time.UnixMicro(2),
+	}
+	ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), expectedQuery).
+		Return(mockTrace, nil)
+
+	var response structuredResponse
+	err := getJSON(ts.server.URL+`/api/traces?traceID=1&start=1&end=2`, &response)
+	require.NoError(t, err)
+	assert.Empty(t, response.Errors)
+	assert.Len(t, response.Data, 1)
+}
+
 func TestSearchByTraceIDSuccessWithArchive(t *testing.T) {
 	archiveReadMock := &spanstoremocks.Reader{}
 	ts := initializeTestServerWithOptions(t, &tenancy.Manager{}, querysvc.QueryServiceOptions{
@@ -426,6 +460,29 @@ func TestSearchByTraceIDSuccessWithArchive(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, response.Errors)
 	assert.Len(t, response.Data, 2)
+}
+
+func TestSearchByTraceIDSuccessWithArchiveAndTimeWindow(t *testing.T) {
+	archiveReadMock := &spanstoremocks.Reader{}
+	ts := initializeTestServerWithOptions(t, &tenancy.Manager{}, querysvc.QueryServiceOptions{
+		ArchiveSpanReader: archiveReadMock,
+	})
+	expectedTraceId, _ := model.TraceIDFromString("1")
+	expectedQuery := spanstore.GetTraceParameters{
+		TraceID:   expectedTraceId,
+		StartTime: time.UnixMicro(1),
+		EndTime:   time.UnixMicro(2),
+	}
+	ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), expectedQuery).
+		Return(nil, spanstore.ErrTraceNotFound)
+	archiveReadMock.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), expectedQuery).
+		Return(mockTrace, nil)
+
+	var response structuredResponse
+	err := getJSON(ts.server.URL+`/api/traces?traceID=1&start=1&end=2`, &response)
+	require.NoError(t, err)
+	assert.Empty(t, response.Errors)
+	assert.Len(t, response.Data, 1)
 }
 
 func TestSearchByTraceIDNotFound(t *testing.T) {

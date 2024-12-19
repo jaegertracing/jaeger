@@ -231,7 +231,12 @@ func (aH *APIHandler) search(w http.ResponseWriter, r *http.Request) {
 	var uiErrors []structuredError
 	var tracesFromStorage []*model.Trace
 	if len(tQuery.traceIDs) > 0 {
-		tracesFromStorage, uiErrors, err = aH.tracesByIDs(r.Context(), tQuery.traceIDs)
+		tracesFromStorage, uiErrors, err = aH.tracesByIDs(
+			r.Context(),
+			tQuery.traceIDs,
+			tQuery.StartTimeMin,
+			tQuery.StartTimeMax,
+		)
 		if aH.handleError(w, err, http.StatusInternalServerError) {
 			return
 		}
@@ -262,13 +267,14 @@ func (aH *APIHandler) tracesToResponse(traces []*model.Trace, adjust bool, uiErr
 	}
 }
 
-func (aH *APIHandler) tracesByIDs(ctx context.Context, traceIDs []model.TraceID) ([]*model.Trace, []structuredError, error) {
+func (aH *APIHandler) tracesByIDs(ctx context.Context, traceIDs []model.TraceID, startTime time.Time, endTime time.Time) ([]*model.Trace, []structuredError, error) {
 	var traceErrors []structuredError
 	retMe := make([]*model.Trace, 0, len(traceIDs))
 	for _, traceID := range traceIDs {
-		// TODO: add start time & end time
 		query := spanstore.GetTraceParameters{
-			TraceID: traceID,
+			TraceID:   traceID,
+			StartTime: startTime,
+			EndTime:   endTime,
 		}
 		if trc, err := aH.queryService.GetTrace(ctx, query); err != nil {
 			if !errors.Is(err, spanstore.ErrTraceNotFound) {
@@ -433,9 +439,20 @@ func (aH *APIHandler) getTrace(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	// TODO: add start time & end time
 	query := spanstore.GetTraceParameters{
 		TraceID: traceID,
+	}
+	startTime := r.FormValue(startTimeParam)
+	if startTime != "" {
+		// No need to handle err here, since time window is optional
+		t, _ := aH.queryParser.parseTime(r, startTimeParam, time.Microsecond)
+		query.StartTime = t
+	}
+	endTime := r.FormValue(endTimeParam)
+	if endTime != "" {
+		// No need to handle err here, since time window is optional
+		t, _ := aH.queryParser.parseTime(r, endTimeParam, time.Microsecond)
+		query.EndTime = t
 	}
 	trc, err := aH.queryService.GetTrace(r.Context(), query)
 	if errors.Is(err, spanstore.ErrTraceNotFound) {
@@ -466,9 +483,13 @@ func (aH *APIHandler) archiveTrace(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// QueryService.ArchiveTrace can now archive this traceID.
-	// TODO: add start time & end time
+	// No need to handle err here, since time window is optional
+	startTime, _ := aH.queryParser.parseTime(r, startTimeParam, time.Microsecond)
+	endTime, _ := aH.queryParser.parseTime(r, endTimeParam, time.Microsecond)
 	query := spanstore.GetTraceParameters{
-		TraceID: traceID,
+		TraceID:   traceID,
+		StartTime: startTime,
+		EndTime:   endTime,
 	}
 	err := aH.queryService.ArchiveTrace(r.Context(), query)
 	if errors.Is(err, spanstore.ErrTraceNotFound) {
