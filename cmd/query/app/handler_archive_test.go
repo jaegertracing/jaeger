@@ -7,6 +7,7 @@ package app
 import (
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -110,6 +111,25 @@ func TestArchiveTrace_Success(t *testing.T) {
 			Return(mockTrace, nil).Once()
 		var response structuredResponse
 		err := postJSON(ts.server.URL+"/api/archive/"+mockTraceID.String(), []string{}, &response)
+		require.NoError(t, err)
+	}, querysvc.QueryServiceOptions{ArchiveSpanWriter: mockWriter})
+}
+
+func TestArchiveTrace_SucessWithTimeWindow(t *testing.T) {
+	mockWriter := &spanstoremocks.Writer{}
+	mockWriter.On("WriteSpan", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("*model.Span")).
+		Return(nil).Times(2)
+	withTestServer(t, func(ts *testServer) {
+		// make main reader return NotFound
+		expectedQuery := spanstore.GetTraceParameters{
+			TraceID:   mockTraceID,
+			StartTime: time.UnixMicro(1),
+			EndTime:   time.UnixMicro(2),
+		}
+		ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), expectedQuery).
+			Return(mockTrace, nil).Once()
+		var response structuredTraceResponse
+		err := postJSON(ts.server.URL+"/api/archive/"+mockTraceID.String()+"?start=1&end=2", []string{}, &response)
 		require.NoError(t, err)
 	}, querysvc.QueryServiceOptions{ArchiveSpanWriter: mockWriter})
 }
