@@ -21,12 +21,15 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	otlp2jaeger "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger"
 
 	samplemodel "github.com/jaegertracing/jaeger/cmd/collector/app/sampling/model"
 	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger/pkg/iter"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/samplingstore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
+	"github.com/jaegertracing/jaeger/storage_v2/tracestore"
 )
 
 //go:embed fixtures
@@ -41,6 +44,7 @@ var fixtures embed.FS
 // Some implementations may declare multiple tests, with different settings,
 // and RunAll() under different conditions.
 type StorageIntegration struct {
+	StorageIntegrationV2
 	SpanWriter        spanstore.Writer
 	SpanReader        spanstore.Reader
 	ArchiveSpanReader spanstore.Reader
@@ -79,7 +83,7 @@ type StorageIntegration struct {
 // the service name is formatted "query##-service".
 type QueryFixtures struct {
 	Caption          string
-	Query            *spanstore.TraceQueryParameters
+	Query            *tracestore.TraceQueryParams
 	ExpectedFixtures []string
 }
 
@@ -143,7 +147,7 @@ func (s *StorageIntegration) testGetServices(t *testing.T) {
 	var actual []string
 	found := s.waitForCondition(t, func(t *testing.T) bool {
 		var err error
-		actual, err = s.SpanReader.GetServices(context.Background())
+		actual, err = s.TraceReader.GetServices(context.Background())
 		if err != nil {
 			t.Log(err)
 			return false
@@ -154,16 +158,18 @@ func (s *StorageIntegration) testGetServices(t *testing.T) {
 			// If the storage backend returns more services than expected, let's log traces for those
 			t.Log("🛑 Found unexpected services!")
 			for _, service := range actual {
-				traces, err := s.SpanReader.FindTraces(context.Background(), &spanstore.TraceQueryParameters{
+				iterTraces := s.TraceReader.FindTraces(context.Background(), tracestore.TraceQueryParams{
 					ServiceName: service,
 				})
+				traces, err := iter.FlattenWithErrors(iterTraces)
 				if err != nil {
 					t.Log(err)
 					continue
 				}
 				for _, trace := range traces {
-					for _, span := range trace.Spans {
-						t.Logf("span: Service: %s, TraceID: %s, Operation: %s", service, span.TraceID, span.OperationName)
+					spans := extractSpansFromTraces(trace)
+					for _, span := range spans {
+						t.Logf("span: Service: %s, TraceID: %s, Operation: %s", service, span.TraceID(), span.Name())
 					}
 				}
 			}
@@ -213,11 +219,18 @@ func (s *StorageIntegration) testGetLargeSpan(t *testing.T) {
 
 	expected := s.writeLargeTraceWithDuplicateSpanIds(t)
 	expectedTraceID := expected.Spans[0].TraceID
+	expectedOtelTraceID := expectedTraceID.ToOTELTraceID()
 
 	var actual *model.Trace
 	found := s.waitForCondition(t, func(_ *testing.T) bool {
 		var err error
-		actual, err = s.SpanReader.GetTrace(context.Background(), spanstore.GetTraceParameters{TraceID: expectedTraceID})
+		iterTraces := s.TraceReader.GetTraces(context.Background(), tracestore.GetTraceParams{TraceID: expectedOtelTraceID})
+		traces, err := iter.FlattenWithErrors(iterTraces)
+
+		batches := otlp2jaeger.ProtoFromTraces(traces[0])
+		for _, batch := range batches {
+				actual.Spans = append(actual.Spans, batch.Spans...)
+		}
 		return err == nil && len(actual.Spans) >= len(expected.Spans)
 	})
 
@@ -242,15 +255,15 @@ func (s *StorageIntegration) testGetOperations(t *testing.T) {
 	s.skipIfNeeded(t)
 	defer s.cleanUp(t)
 
-	var expected []spanstore.Operation
+	var expected []tracestore.Operation
 	if s.GetOperationsMissingSpanKind {
-		expected = []spanstore.Operation{
+		expected = []tracestore.Operation{
 			{Name: "example-operation-1"},
 			{Name: "example-operation-3"},
 			{Name: "example-operation-4"},
 		}
 	} else {
-		expected = []spanstore.Operation{
+		expected = []tracestore.Operation{
 			{Name: "example-operation-1", SpanKind: ""},
 			{Name: "example-operation-3", SpanKind: "server"},
 			{Name: "example-operation-4", SpanKind: "client"},
@@ -258,11 +271,11 @@ func (s *StorageIntegration) testGetOperations(t *testing.T) {
 	}
 	s.loadParseAndWriteExampleTrace(t)
 
-	var actual []spanstore.Operation
+	var actual []tracestore.Operation
 	found := s.waitForCondition(t, func(t *testing.T) bool {
 		var err error
-		actual, err = s.SpanReader.GetOperations(context.Background(),
-			spanstore.OperationQueryParameters{ServiceName: "example-service-1"})
+		actual, err = s.TraceReader.GetOperations(context.Background(),
+			tracestore.OperationQueryParameters{ServiceName: "example-service-1"})
 		if err != nil {
 			t.Log(err)
 			return false
@@ -286,11 +299,18 @@ func (s *StorageIntegration) testGetTrace(t *testing.T) {
 
 	expected := s.loadParseAndWriteExampleTrace(t)
 	expectedTraceID := expected.Spans[0].TraceID
+	expectedOtelTraceID := expectedTraceID.ToOTELTraceID()
 
 	var actual *model.Trace
 	found := s.waitForCondition(t, func(t *testing.T) bool {
 		var err error
-		actual, err = s.SpanReader.GetTrace(context.Background(), spanstore.GetTraceParameters{TraceID: expectedTraceID})
+		iterTraces := s.TraceReader.GetTraces(context.Background(), tracestore.GetTraceParams{TraceID: expectedOtelTraceID})
+		traces, err := iter.FlattenWithErrors(iterTraces)
+
+		batches := otlp2jaeger.ProtoFromTraces(traces[0])
+		for _, batch := range batches {
+				actual.Spans = append(actual.Spans, batch.Spans...)
+		}
 		if err != nil {
 			t.Log(err)
 		}
@@ -342,15 +362,27 @@ func (s *StorageIntegration) testFindTraces(t *testing.T) {
 	}
 }
 
-func (s *StorageIntegration) findTracesByQuery(t *testing.T, query *spanstore.TraceQueryParameters, expected []*model.Trace) []*model.Trace {
+func (s *StorageIntegration) findTracesByQuery(t *testing.T, query *tracestore.TraceQueryParams, expected []*model.Trace) []*model.Trace {
 	var traces []*model.Trace
 	found := s.waitForCondition(t, func(t *testing.T) bool {
 		var err error
-		traces, err = s.SpanReader.FindTraces(context.Background(), query)
+		iterTraces := s.TraceReader.FindTraces(context.Background(), *query)
+		tracesFound, err := iter.FlattenWithErrors(iterTraces)
 		if err != nil {
 			t.Log(err)
 			return false
 		}
+
+		for _, traceFound := range tracesFound {
+			modelTrace := &model.Trace{}
+			batches := otlp2jaeger.ProtoFromTraces(traceFound)
+			for _, batch := range batches {
+				modelTrace.Spans = append(modelTrace.Spans, batch.Spans...)
+			}
+			traces = append(traces, modelTrace)
+		}
+		
+		
 		if len(expected) != len(traces) {
 			t.Logf("Expecting certain number of traces: expected: %d, actual: %d", len(expected), len(traces))
 			return false
