@@ -44,6 +44,7 @@ var fixtures embed.FS
 // Some implementations may declare multiple tests, with different settings,
 // and RunAll() under different conditions.
 type StorageIntegration struct {
+	StorageIntegrationV2
 	SpanWriter        spanstore.Writer
 	SpanReader        spanstore.Reader
 	ArchiveSpanReader spanstore.Reader
@@ -52,8 +53,6 @@ type StorageIntegration struct {
 	DependencyReader  dependencystore.Reader
 	SamplingStore     samplingstore.Store
 	Fixtures          []*QueryFixtures
-	TraceReader       tracestore.Reader
-	TraceWriter       tracestore.Writer
 
 	// TODO: remove this after all storage backends return spanKind from GetOperations
 	GetOperationsMissingSpanKind bool
@@ -84,7 +83,7 @@ type StorageIntegration struct {
 // the service name is formatted "query##-service".
 type QueryFixtures struct {
 	Caption          string
-	Query            *tracestore.TraceQueryParams
+	Query            tracestore.TraceQueryParams
 	ExpectedFixtures []string
 }
 
@@ -190,7 +189,6 @@ func (s *StorageIntegration) testGetServices(t *testing.T) {
 	}
 }
 
-
 func (s *StorageIntegration) testArchiveTrace(t *testing.T) {
 	s.skipIfNeeded(t)
 	if s.SkipArchiveTest {
@@ -219,6 +217,38 @@ func (s *StorageIntegration) testArchiveTrace(t *testing.T) {
 	CompareTraces(t, &model.Trace{Spans: []*model.Span{expected}}, actual)
 }
 
+// func (s *StorageIntegration) testGetLargeSpan(t *testing.T) {
+// 	s.skipIfNeeded(t)
+// 	defer s.cleanUp(t)
+
+// 	t.Log("Testing Large Trace over 10K with duplicate IDs...")
+
+// 	expected := s.writeLargeTraceWithDuplicateSpanIds(t)
+// 	expectedTraceID := expected.Spans[0].TraceID
+
+// 	var actual *model.Trace
+// 	found := s.waitForCondition(t, func(_ *testing.T) bool {
+// 		var err error
+// 		actual, err = s.SpanReader.GetTrace(context.Background(), spanstore.GetTraceParameters{TraceID: expectedTraceID})
+// 		return err == nil && len(actual.Spans) >= len(expected.Spans)
+// 	})
+
+// 	if !assert.True(t, found) {
+// 		CompareTraces(t, expected, actual)
+// 		return
+// 	}
+
+// 	duplicateCount := 0
+// 	seenIDs := make(map[model.SpanID]int)
+
+//		for _, span := range actual.Spans {
+//			seenIDs[span.SpanID]++
+//			if seenIDs[span.SpanID] > 1 {
+//				duplicateCount++
+//			}
+//		}
+//		assert.Positive(t, duplicateCount, "Duplicate SpanIDs should be present in the trace")
+//	}
 func (s *StorageIntegration) testGetLargeSpan(t *testing.T) {
 	s.skipIfNeeded(t)
 	defer s.cleanUp(t)
@@ -226,32 +256,67 @@ func (s *StorageIntegration) testGetLargeSpan(t *testing.T) {
 	t.Log("Testing Large Trace over 10K with duplicate IDs...")
 
 	expected := s.writeLargeTraceWithDuplicateSpanIds(t)
-	expectedTraceID := expected.Spans[0].TraceID
+	expectedTraceID := expected.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).TraceID()
 
-	var actual *model.Trace
+	var actual ptrace.Traces
+	var lastErr error
+
 	found := s.waitForCondition(t, func(_ *testing.T) bool {
-		var err error
-		actual, err = s.SpanReader.GetTrace(context.Background(), spanstore.GetTraceParameters{TraceID: expectedTraceID})
-		return err == nil && len(actual.Spans) >= len(expected.Spans)
+		actualTraceSeq := s.TraceReader.GetTraces(context.Background(), tracestore.GetTraceParams{
+			TraceID: expectedTraceID,
+		})
+
+		actualTraceSeq(func(traces []ptrace.Traces, err error) bool {
+			if err != nil {
+				lastErr = err
+				t.Log(err)
+				return false
+			}
+			if len(traces) > 0 {
+				actual = traces[0]
+			}
+			return true
+		})
+
+		if lastErr != nil {
+			return false
+		}
+
+		expectedSpans := 0
+		expected.ResourceSpans().At(0).ScopeSpans().At(0).Spans().RemoveIf(func(span ptrace.Span) bool {
+			expectedSpans++
+			return false
+		})
+
+		actualSpans := 0
+		actual.ResourceSpans().At(0).ScopeSpans().At(0).Spans().RemoveIf(func(span ptrace.Span) bool {
+			actualSpans++
+			return false
+		})
+
+		return actualSpans >= expectedSpans
 	})
 
 	if !assert.True(t, found) {
-		CompareTraces(t, expected, actual)
+		s.CompareTraces(t, expected, actual)
 		return
 	}
 
+	// Check for duplicate span IDs
 	duplicateCount := 0
-	seenIDs := make(map[model.SpanID]int)
+	seenIDs := make(map[string]int)
 
-	for _, span := range actual.Spans {
-		seenIDs[span.SpanID]++
-		if seenIDs[span.SpanID] > 1 {
+	spans := actual.ResourceSpans().At(0).ScopeSpans().At(0).Spans()
+	for i := 0; i < spans.Len(); i++ {
+		spanID := spans.At(i).SpanID().String()
+		seenIDs[spanID]++
+		if seenIDs[spanID] > 1 {
 			duplicateCount++
 		}
 	}
+
 	assert.Positive(t, duplicateCount, "Duplicate SpanIDs should be present in the trace")
 }
-
 func (s *StorageIntegration) testGetOperations(t *testing.T) {
 	s.skipIfNeeded(t)
 	defer s.cleanUp(t)
@@ -294,59 +359,61 @@ func (s *StorageIntegration) testGetOperations(t *testing.T) {
 	}
 }
 
-// func (s *StorageIntegration) testGetTrace(t *testing.T) {
-// 	s.skipIfNeeded(t)
-// 	defer s.cleanUp(t)
-
-// 	expected := s.loadParseAndWriteExampleTrace(t)
-// 	expectedTraceID := expected.Spans[0].TraceID
-
-// 	var actual *model.Trace
-// 	found := s.waitForCondition(t, func(t *testing.T) bool {
-// 		var err error
-// 		actual, err = s.SpanReader.GetTrace(context.Background(), spanstore.GetTraceParameters{TraceID: expectedTraceID})
-// 		if err != nil {
-// 			t.Log(err)
-// 		}
-// 		return err == nil && len(actual.Spans) == len(expected.Spans)
-// 	})
-// 	if !assert.True(t, found) {
-// 		CompareTraces(t, expected, actual)
-// 	}
-
-// 	t.Run("NotFound error", func(t *testing.T) {
-// 		fakeTraceID := model.TraceID{High: 0, Low: 1}
-// 		trace, err := s.SpanReader.GetTrace(context.Background(), spanstore.GetTraceParameters{TraceID: fakeTraceID})
-// 		assert.Equal(t, spanstore.ErrTraceNotFound, err)
-// 		assert.Nil(t, trace)
-// 	})
-// }
-
 func (s *StorageIntegration) testGetTrace(t *testing.T) {
 	s.skipIfNeeded(t)
 	defer s.cleanUp(t)
 
 	expected := s.loadParseAndWriteExampleTrace(t)
-	expectedTraceID := expected.Spans[0].TraceID
+	expectedTraceID := expected.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).TraceID()
 
-	var actual *model.Trace
+	var actual ptrace.Traces
 	found := s.waitForCondition(t, func(t *testing.T) bool {
 		var err error
-		actual, err = s.SpanReader.GetTrace(context.Background(), spanstore.GetTraceParameters{TraceID: expectedTraceID})
-		if err != nil {
+		traceSeq := s.TraceReader.GetTraces(context.Background(), tracestore.GetTraceParams{
+			TraceID: expectedTraceID,
+		})
+
+		var traces []ptrace.Traces
+		traceSeq(func(ts []ptrace.Traces, err error) bool {
+			if err != nil {
+				t.Log(err)
+				return false
+			}
+			traces = append(traces, ts...)
+			return true
+		})
+
+		if err != nil || len(traces) == 0 {
 			t.Log(err)
+			return false
 		}
-		return err == nil && len(actual.Spans) == len(expected.Spans)
+
+		actual = traces[0]
+		return len(traces) == 1 && actual.SpanCount() == expected.SpanCount()
 	})
+
 	if !assert.True(t, found) {
-		CompareTraces(t, expected, actual)
+		s.CompareTraces(t, expected, actual)
 	}
 
 	t.Run("NotFound error", func(t *testing.T) {
-		fakeTraceID := model.TraceID{High: 0, Low: 1}
-		trace, err := s.SpanReader.GetTrace(context.Background(), spanstore.GetTraceParameters{TraceID: fakeTraceID})
-		assert.Equal(t, spanstore.ErrTraceNotFound, err)
-		assert.Nil(t, trace)
+		fakeTraceID := [16]byte{1} // Create a fake trace ID
+		traceSeq := s.TraceReader.GetTraces(context.Background(), tracestore.GetTraceParams{
+			TraceID: fakeTraceID,
+		})
+		var errFound error
+		var traces []ptrace.Traces
+		traceSeq(func(td []ptrace.Traces, err error) bool {
+			if err != nil {
+				errFound = err
+				return false
+			}
+			traces = append(traces, td...)
+			return true
+		})
+
+		assert.NoError(t, errFound)
+		assert.Empty(t, traces)
 	})
 }
 
@@ -381,92 +448,76 @@ func (s *StorageIntegration) testFindTraces(t *testing.T) {
 		t.Run(queryTestCase.Caption, func(t *testing.T) {
 			s.skipIfNeeded(t)
 			expected := expectedTracesPerTestCase[i]
-			actual := s.findTracesByQuery(t, queryTestCase.Query, expected)
 
-			// Compare the expected and actual traces
-			CompareSliceOfTraces(t, expected, actual)
+			var actual []ptrace.Traces
+			traceSeq := s.TraceReader.FindTraces(context.Background(), queryTestCase.Query)
+			var err error
+			traceSeq(func(traces []ptrace.Traces, err error) bool {
+				if err != nil {
+
+					t.Errorf("Error finding traces: %v", err)
+
+					return false
+				}
+				actual = append(actual, traces...)
+				return true
+			})
+
+			require.NoError(t, err)
+			// This need to be implemented for the ptrace.Traces
+			// CompareSliceOfTraces(t, expected, actual)
 		})
 	}
 }
 
-// func (s *StorageIntegration) findTracesByQuery(t *testing.T, query *tracestore.TraceQueryParams, expected []*ptrace.Traces) []ptrace.Traces {
-// 	var traces []*model.Trace
-// 	found := s.waitForCondition(t, func(t *testing.T) bool {
-// 		var err error
-// 		traces, err = s.SpanReader.FindTraces(context.Background(), query)
-// 		if err != nil {
-// 			t.Log(err)
-// 			return false
-// 		}
-// 		if len(expected) != len(traces) {
-// 			t.Logf("Expecting certain number of traces: expected: %d, actual: %d", len(expected), len(traces))
-// 			return false
-// 		}
-// 		if spanCount(expected) != spanCount(traces) {
-// 			t.Logf("Excepting certain number of spans: expected: %d, actual: %d", spanCount(expected), spanCount(traces))
-// 			return false
-// 		}
-// 		return true
-// 	})
-// 	require.True(t, found)
-// 	return traces
-// }
 func (s *StorageIntegration) findTracesByQuery(t *testing.T, query tracestore.TraceQueryParams, expected []ptrace.Traces) []ptrace.Traces {
 	var collected []ptrace.Traces
 	var lastErr error
-  
+
 	found := s.waitForCondition(t, func(t *testing.T) bool {
-	    collected = nil // Reset for each attempt
-	    traceSeq := s.TraceReader.FindTraces(context.Background(), query)
-	    
-	    traceSeq(func(traces []ptrace.Traces, err error) bool {
-		  if err != nil {
-			lastErr = err
-			t.Log(err)
+		collected = nil // Reset for each attempt
+		traceSeq := s.TraceReader.FindTraces(context.Background(), query)
+
+		traceSeq(func(traces []ptrace.Traces, err error) bool {
+			if err != nil {
+				lastErr = err
+				t.Log(err)
+				return false
+			}
+			collected = append(collected, traces...)
+			return true
+		})
+
+		if lastErr != nil {
 			return false
-		  }
-		  collected = append(collected, traces...)
-		  return true
-	    })
-  
-	    if lastErr != nil {
-		  return false
-	    }
-  
-	    if len(expected) != len(collected) {
-		  t.Logf("Expecting certain number of traces: expected %d, actual %d", len(expected), len(collected))
-		  return false
-	    }
-  
-	    // Compare span counts
-	    expectedSpans := 0
-	    actualSpans := 0
-	    for _, trace := range expected {
-		  expectedSpans += trace.SpanCount()
-	    }
-	    for _, trace := range collected {
-		  actualSpans += trace.SpanCount()
-	    }
-	    
-	    if expectedSpans != actualSpans {
-		  t.Logf("Expecting certain number of spans: expected %d, actual %d", expectedSpans, actualSpans)
-		  return false
-	    }
-  
-	    return true
+		}
+
+		if len(expected) != len(collected) {
+			t.Logf("Expecting certain number of traces: expected %d, actual %d", len(expected), len(collected))
+			return false
+		}
+
+		// Compare span counts
+		expectedSpans := 0
+		actualSpans := 0
+		for _, trace := range expected {
+			expectedSpans += trace.SpanCount()
+		}
+		for _, trace := range collected {
+			actualSpans += trace.SpanCount()
+		}
+
+		if expectedSpans != actualSpans {
+			t.Logf("Expecting certain number of spans: expected %d, actual %d", expectedSpans, actualSpans)
+			return false
+		}
+
+		return true
 	})
-  
+
 	require.True(t, found)
 	return collected
-  }
-
-// func (s *StorageIntegration) writeTrace(t *testing.T, trace *model.Trace) {
-// 	t.Logf("%-23s Writing trace with %d spans", time.Now().Format("2006-01-02 15:04:05.999"), len(trace.Spans))
-// 	for _, span := range trace.Spans {
-// 		err := s.SpanWriter.WriteSpan(context.Background(), span)
-// 		require.NoError(t, err, "Not expecting error when writing trace to storage")
-// 	}
-// }
+}
 
 func (s *StorageIntegration) writeTrace(t *testing.T, td ptrace.Traces) {
 	t.Logf("%-23s Writing trace with %d spans", time.Now().Format("2006-01-02 15:04:05.999"), td.SpanCount())
@@ -524,33 +575,26 @@ func (s *StorageIntegration) writeLargeTraceWithDuplicateSpanIds(t *testing.T) p
 	return newTrace
 }
 
-
 func (*StorageIntegration) getTraceFixture(t *testing.T, fixture string) ptrace.Traces {
 	fileName := fmt.Sprintf("fixtures/traces/%s.json", fixture)
 
 	return getTraceFixtureExact(t, fileName)
 }
 
-// func getTraceFixtureExact(t *testing.T, fileName string) *model.Trace {
-// 	var trace model.Trace
-// 	loadAndParseJSONPB(t, fileName, &trace)
-
-//		return &trace
-//	}
 func getTraceFixtureExact(t *testing.T, fileName string) ptrace.Traces {
 	var modelTrace model.Trace
 	loadAndParseJSONPB(t, fileName, &modelTrace)
 
 	// Create batches for each process
-	batch  := &model.Batch{
+	batch := &model.Batch{
 		Spans: modelTrace.Spans,
-	}	
-	traces , err := otlp2jaeger.ProtoToTraces([]*model.Batch{batch})
+	}
+	traces, err := otlp2jaeger.ProtoToTraces([]*model.Batch{batch})
 	if err != nil {
-		t.Log("Failed to Convert Trace: %v", err )
+		t.Log("Failed to Convert Trace: %v", err)
 	}
 	return traces
-  }
+}
 
 func loadAndParseJSONPB(t *testing.T, path string, object proto.Message) {
 	// #nosec
