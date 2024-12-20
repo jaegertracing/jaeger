@@ -7,10 +7,11 @@ import (
 	"os"
 	"testing"
 
-	"github.com/jaegertracing/jaeger/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
+
+	"github.com/jaegertracing/jaeger/model"
 )
 
 func TestModule_TraceSuccess(t *testing.T) {
