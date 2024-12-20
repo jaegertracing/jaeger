@@ -442,16 +442,20 @@ func (aH *APIHandler) getTrace(w http.ResponseWriter, r *http.Request) {
 	query := spanstore.GetTraceParameters{
 		TraceID: traceID,
 	}
-	startTime := r.FormValue(startTimeParam)
-	if startTime != "" {
-		// No need to handle err here, since time window is optional
-		t, _ := aH.queryParser.parseTime(r, startTimeParam, time.Microsecond)
+
+	if startTime := r.FormValue(startTimeParam); startTime != "" {
+		t, err := aH.queryParser.parseTime(r, startTimeParam, time.Microsecond)
+		if aH.handleError(w, err, http.StatusBadRequest) {
+			return
+		}
 		query.StartTime = t
 	}
-	endTime := r.FormValue(endTimeParam)
-	if endTime != "" {
-		// No need to handle err here, since time window is optional
-		t, _ := aH.queryParser.parseTime(r, endTimeParam, time.Microsecond)
+
+	if endTime := r.FormValue(endTimeParam); endTime != "" {
+		t, err := aH.queryParser.parseTime(r, endTimeParam, time.Microsecond)
+		if aH.handleError(w, err, http.StatusBadRequest) {
+			return
+		}
 		query.EndTime = t
 	}
 	trc, err := aH.queryService.GetTrace(r.Context(), query)
@@ -483,15 +487,20 @@ func (aH *APIHandler) archiveTrace(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// QueryService.ArchiveTrace can now archive this traceID.
-	// No need to handle err here, since time window is optional
-	startTime, _ := aH.queryParser.parseTime(r, startTimeParam, time.Microsecond)
-	endTime, _ := aH.queryParser.parseTime(r, endTimeParam, time.Microsecond)
+	startTime, err := aH.queryParser.parseTime(r, startTimeParam, time.Microsecond)
+	if aH.handleError(w, err, http.StatusBadRequest) {
+		return
+	}
+	endTime, err := aH.queryParser.parseTime(r, endTimeParam, time.Microsecond)
+	if aH.handleError(w, err, http.StatusBadRequest) {
+		return
+	}
 	query := spanstore.GetTraceParameters{
 		TraceID:   traceID,
 		StartTime: startTime,
 		EndTime:   endTime,
 	}
-	err := aH.queryService.ArchiveTrace(r.Context(), query)
+	err = aH.queryService.ArchiveTrace(r.Context(), query)
 	if errors.Is(err, spanstore.ErrTraceNotFound) {
 		aH.handleError(w, err, http.StatusNotFound)
 		return

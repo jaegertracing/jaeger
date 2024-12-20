@@ -404,6 +404,30 @@ func TestGetTraceBadTraceID(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestGetTraceBadTimeWindow(t *testing.T) {
+	testCases := []struct {
+		name  string
+		query string
+	}{
+		{
+			name:  "Bad start time",
+			query: "start=a",
+		},
+		{
+			name:  "Bad end time",
+			query: "end=b",
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ts := initializeTestServer(t)
+			var response structuredResponse
+			err := getJSON(ts.server.URL+`/api/traces/123456?`+tc.query, &response)
+			require.Error(t, err)
+		})
+	}
+}
+
 func TestSearchSuccess(t *testing.T) {
 	ts := initializeTestServer(t)
 	ts.spanReader.On("FindTraces", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("*spanstore.TraceQueryParameters")).
@@ -443,6 +467,30 @@ func TestSearchByTraceIDWithTimeWindowSuccess(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, response.Errors)
 	assert.Len(t, response.Data, 1)
+}
+
+func TestSearchTraceBadTimeWindow(t *testing.T) {
+	testCases := []struct {
+		name  string
+		query string
+	}{
+		{
+			name:  "Bad start time",
+			query: "start=a",
+		},
+		{
+			name:  "Bad end time",
+			query: "end=b",
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ts := initializeTestServer(t)
+			var response structuredResponse
+			err := getJSON(ts.server.URL+`/api/traces?traceID=1&`+tc.query, &response)
+			require.Error(t, err)
+		})
+	}
 }
 
 func TestSearchByTraceIDSuccessWithArchive(t *testing.T) {

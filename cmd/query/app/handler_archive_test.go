@@ -126,3 +126,34 @@ func TestArchiveTrace_WriteErrors(t *testing.T) {
 		require.EqualError(t, err, `500 error from server: {"data":null,"total":0,"limit":0,"offset":0,"errors":[{"code":500,"msg":"cannot save\ncannot save"}]}`+"\n")
 	}, querysvc.QueryServiceOptions{ArchiveSpanWriter: mockWriter})
 }
+
+func TestArchiveTrace_BadTimeWindow(t *testing.T) {
+	testCases := []struct {
+		name  string
+		query string
+	}{
+		{
+			name:  "Bad start time",
+			query: "start=a",
+		},
+		{
+			name:  "Bad end time",
+			query: "end=b",
+		},
+	}
+	mockWriter := &spanstoremocks.Writer{}
+	mockWriter.On("WriteSpan", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("*model.Span")).
+		Return(nil).Times(2 * len(testCases))
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			withTestServer(t, func(ts *testServer) {
+				// make main reader return NotFound
+				ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("spanstore.GetTraceParameters")).
+					Return(mockTrace, nil).Once()
+				var response structuredTraceResponse
+				err := postJSON(ts.server.URL+"/api/archive/"+mockTraceID.String()+"?"+tc.query, []string{}, &response)
+				require.Error(t, err)
+			}, querysvc.QueryServiceOptions{ArchiveSpanWriter: mockWriter})
+		})
+	}
+}
