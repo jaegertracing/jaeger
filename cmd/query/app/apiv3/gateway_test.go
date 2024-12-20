@@ -90,7 +90,7 @@ func makeTestTrace() (*model.Trace, spanstore.GetTraceParameters) {
 				SpanID:        model.NewSpanID(180),
 				OperationName: "foobar",
 				Tags: []model.KeyValue{
-					model.String("span.kind", "server"),
+					model.SpanKindTag(model.SpanKindServer),
 					model.Bool("error", true),
 				},
 			},
