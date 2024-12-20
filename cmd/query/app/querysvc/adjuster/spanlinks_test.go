@@ -7,9 +7,10 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+
+	"github.com/jaegertracing/jaeger/internal/jptrace"
 )
 
 func TestLinksAdjuster(t *testing.T) {
@@ -21,19 +22,31 @@ func TestLinksAdjuster(t *testing.T) {
 	scopeSpans.Spans().AppendEmpty()
 
 	// span with empty traceID link
-	spanA := scopeSpans.Spans().AppendEmpty()
-	spanA.Links().AppendEmpty().SetTraceID(pcommon.NewTraceIDEmpty())
+	spanB := scopeSpans.Spans().AppendEmpty()
+	spanB.Links().AppendEmpty().SetTraceID(pcommon.NewTraceIDEmpty())
 
 	// span with 2 non-empty traceID links and 1 empty (or zero) traceID link
-	spanB := scopeSpans.Spans().AppendEmpty()
-	spanB.Links().AppendEmpty().SetTraceID(pcommon.TraceID([]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1}))
-	spanB.Links().AppendEmpty().SetTraceID(pcommon.TraceID([]byte{0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0}))
-	spanB.Links().AppendEmpty().SetTraceID(pcommon.TraceID([]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}))
+	spanC := scopeSpans.Spans().AppendEmpty()
+	spanC.Links().AppendEmpty().SetTraceID(pcommon.TraceID([]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1}))
+	spanC.Links().AppendEmpty().SetTraceID(pcommon.TraceID([]byte{0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0}))
+	spanC.Links().AppendEmpty().SetTraceID(pcommon.TraceID([]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}))
 
-	err := SpanLinks().Adjust(traces)
+	SpanLinks().Adjust(traces)
 	spans := traces.ResourceSpans().At(0).ScopeSpans().At(0).Spans()
-	require.NoError(t, err)
-	assert.Equal(t, 0, spans.At(0).Links().Len())
-	assert.Equal(t, 0, spans.At(1).Links().Len())
-	assert.Equal(t, 2, spans.At(2).Links().Len())
+
+	gotSpansA := spans.At(0)
+	assert.Equal(t, 0, gotSpansA.Links().Len())
+	assert.Empty(t, jptrace.GetWarnings(gotSpansA))
+
+	gotSpansB := spans.At(1)
+	assert.Equal(t, 0, gotSpansB.Links().Len())
+	spanBWarnings := jptrace.GetWarnings(gotSpansB)
+	assert.Len(t, spanBWarnings, 1)
+	assert.Equal(t, "Invalid span link removed", spanBWarnings[0])
+
+	gotSpansC := spans.At(2)
+	assert.Equal(t, 2, gotSpansC.Links().Len())
+	spanCWarnings := jptrace.GetWarnings(gotSpansC)
+	assert.Len(t, spanCWarnings, 1)
+	assert.Equal(t, "Invalid span link removed", spanCWarnings[0])
 }

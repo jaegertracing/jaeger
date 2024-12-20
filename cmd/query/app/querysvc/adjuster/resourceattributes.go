@@ -11,6 +11,8 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/otelsemconv"
 )
 
+var _ Adjuster = (*ResourceAttributesAdjuster)(nil)
+
 var libraryKeys = map[string]struct{}{
 	string(otelsemconv.TelemetrySDKLanguageKey):   {},
 	string(otelsemconv.TelemetrySDKNameKey):       {},
@@ -29,7 +31,7 @@ func ResourceAttributes() ResourceAttributesAdjuster {
 
 type ResourceAttributesAdjuster struct{}
 
-func (o ResourceAttributesAdjuster) Adjust(traces ptrace.Traces) error {
+func (o ResourceAttributesAdjuster) Adjust(traces ptrace.Traces) {
 	resourceSpans := traces.ResourceSpans()
 	for i := 0; i < resourceSpans.Len(); i++ {
 		rs := resourceSpans.At(i)
@@ -44,7 +46,6 @@ func (o ResourceAttributesAdjuster) Adjust(traces ptrace.Traces) error {
 			}
 		}
 	}
-	return nil
 }
 
 func (ResourceAttributesAdjuster) moveAttributes(span ptrace.Span, resource pcommon.Resource) {
