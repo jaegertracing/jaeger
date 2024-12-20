@@ -40,6 +40,14 @@ jobs:
             STORAGE=grpc SPAN_STORAGE_TYPE=memory make jaeger-v2-storage-integration-test
             ;;
         esac
+            
+    - name: Upload Metrics Artifact
+      uses: actions/upload-artifact@v4
+      if: ${{ matrix.version }} == "v2"
+      with:
+              name: grpc-metrics-${{ matrix.version }}
+              path: ./metrics/grpc_metrics.txt
+              retention-days: 7
 
     - name: Upload coverage to codecov
       uses: ./.github/actions/upload-codecov

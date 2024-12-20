@@ -34,6 +34,14 @@ jobs:
     - name: Run Kafka integration tests
       id: test-execution
       run: bash scripts/kafka-integration-test.sh -j ${{ matrix.jaeger-version }}
+            
+    - name: Upload Metrics Artifact
+      uses: actions/upload-artifact@v4
+      if: ${{ matrix.jaeger-version }} == "v2"
+      with:
+              name: kafka-metrics-${{ matrix.jaeger-version }}
+              path: ./metrics/kafka_metrics.txt
+              retention-days: 7
 
     - name: Upload coverage to codecov
       uses: ./.github/actions/upload-codecov

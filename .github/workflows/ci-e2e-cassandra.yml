@@ -48,6 +48,14 @@ jobs:
       run: bash scripts/cassandra-integration-test.sh ${{ matrix.version.major }} ${{ matrix.version.schema }} ${{ matrix.jaeger-version }}
       env:
         SKIP_APPLY_SCHEMA: ${{ matrix.create-schema == 'auto' && true || false }}
+     
+    - name: Upload Metrics Artifact
+      uses: actions/upload-artifact@v4
+      if: ${{ matrix.jaeger-version }} == "v2"
+      with:
+          name: cassandra_metrics_${{ matrix.version.major }}_${{ matrix.version.schema }}_${{ matrix.jaeger-version }}
+          path: ./metrics/cassandra_metrics.txt
+          retention-days: 7
 
     - name: Upload coverage to codecov
       uses: ./.github/actions/upload-codecov
