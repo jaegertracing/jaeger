@@ -217,38 +217,6 @@ func (s *StorageIntegration) testArchiveTrace(t *testing.T) {
 	CompareTraces(t, &model.Trace{Spans: []*model.Span{expected}}, actual)
 }
 
-// func (s *StorageIntegration) testGetLargeSpan(t *testing.T) {
-// 	s.skipIfNeeded(t)
-// 	defer s.cleanUp(t)
-
-// 	t.Log("Testing Large Trace over 10K with duplicate IDs...")
-
-// 	expected := s.writeLargeTraceWithDuplicateSpanIds(t)
-// 	expectedTraceID := expected.Spans[0].TraceID
-
-// 	var actual *model.Trace
-// 	found := s.waitForCondition(t, func(_ *testing.T) bool {
-// 		var err error
-// 		actual, err = s.SpanReader.GetTrace(context.Background(), spanstore.GetTraceParameters{TraceID: expectedTraceID})
-// 		return err == nil && len(actual.Spans) >= len(expected.Spans)
-// 	})
-
-// 	if !assert.True(t, found) {
-// 		CompareTraces(t, expected, actual)
-// 		return
-// 	}
-
-// 	duplicateCount := 0
-// 	seenIDs := make(map[model.SpanID]int)
-
-//		for _, span := range actual.Spans {
-//			seenIDs[span.SpanID]++
-//			if seenIDs[span.SpanID] > 1 {
-//				duplicateCount++
-//			}
-//		}
-//		assert.Positive(t, duplicateCount, "Duplicate SpanIDs should be present in the trace")
-//	}
 func (s *StorageIntegration) testGetLargeSpan(t *testing.T) {
 	s.skipIfNeeded(t)
 	defer s.cleanUp(t)
