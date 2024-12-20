@@ -106,8 +106,6 @@ var (
 	}
 )
 
-const keySpanKind = "span.kind"
-
 func TestSpanIDMarshalJSON(t *testing.T) {
 	for _, testCase := range testCasesSpanID {
 		expected := fmt.Sprintf(`{"traceId":"AAAAAAAAAAAAAAAAAAAAAA==","spanId":"%s"}`, testCase.b64)
@@ -167,7 +165,7 @@ func TestSpanIDUnmarshalJSONErrors(t *testing.T) {
 func TestIsRPCClientServer(t *testing.T) {
 	span1 := &model.Span{
 		Tags: model.KeyValues{
-			model.String(keySpanKind, trace.SpanKindClient.String()),
+			model.String(model.SpanKindKey, trace.SpanKindClient.String()),
 		},
 	}
 	assert.True(t, span1.IsRPCClient())
@@ -206,12 +204,12 @@ func TestIsFirehoseEnabled(t *testing.T) {
 func TestGetSpanKind(t *testing.T) {
 	span := makeSpan(model.String("sampler.type", "lowerbound"))
 	spanKind, found := span.GetSpanKind()
-	assert.Equal(t, "unspecified", spanKind.String())
+	assert.Equal(t, model.SpanKindUnspecified, spanKind)
 	assert.False(t, found)
 
-	span = makeSpan(model.String("span.kind", "client"))
+	span = makeSpan(model.SpanKindTag("client"))
 	spanKind, found = span.GetSpanKind()
-	assert.Equal(t, "client", spanKind.String())
+	assert.Equal(t, model.SpanKindClient, spanKind)
 	assert.True(t, found)
 }
 

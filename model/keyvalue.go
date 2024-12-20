@@ -25,7 +25,31 @@ const (
 	Float64Type = ValueType_FLOAT64
 	// BinaryType indicates the value is binary blob stored as a byte array
 	BinaryType = ValueType_BINARY
+
+	SpanKindKey     = "span.kind"
+	SamplerTypeKey  = "sampler.type"
+	SamplerParamKey = "sampler.param"
 )
+
+type SpanKind string
+
+const (
+	SpanKindClient      SpanKind = "client"
+	SpanKindServer      SpanKind = "server"
+	SpanKindProducer    SpanKind = "producer"
+	SpanKindConsumer    SpanKind = "consumer"
+	SpanKindInternal    SpanKind = "internal"
+	SpanKindUnspecified SpanKind = ""
+)
+
+func SpanKindFromString(kind string) (SpanKind, error) {
+	switch SpanKind(kind) {
+	case SpanKindClient, SpanKindServer, SpanKindProducer, SpanKindConsumer, SpanKindInternal, SpanKindUnspecified:
+		return SpanKind(kind), nil
+	default:
+		return SpanKindUnspecified, fmt.Errorf("unknown span kind %q", kind)
+	}
+}
 
 // KeyValues is a type alias that exposes convenience functions like Sort, FindByKey.
 type KeyValues []KeyValue

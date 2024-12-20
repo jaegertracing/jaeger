@@ -67,7 +67,7 @@ func TestReporter_EmitZipkinBatch(t *testing.T) {
 			expected: model.Batch{
 				Spans: []*model.Span{{
 					TraceID: model.NewTraceID(0, 1), SpanID: model.NewSpanID(2), OperationName: "jonatan", Duration: time.Microsecond * 1,
-					Tags:    model.KeyValues{{Key: "span.kind", VStr: "client", VType: model.StringType}},
+					Tags:    model.KeyValues{model.SpanKindTag(model.SpanKindClient)},
 					Process: &model.Process{ServiceName: "spring"}, StartTime: tm.UTC(),
 				}},
 			},

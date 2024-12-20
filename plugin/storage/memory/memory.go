@@ -147,10 +147,10 @@ func (st *Store) WriteSpan(ctx context.Context, span *model.Span) error {
 		m.operations[span.Process.ServiceName] = map[spanstore.Operation]struct{}{}
 	}
 
-	spanKind, _ := span.GetSpanKind()
+	spanKind, _ := span.GetSpanKind() // if not found it returns Unspecified
 	operation := spanstore.Operation{
 		Name:     span.OperationName,
-		SpanKind: spanKind.String(),
+		SpanKind: string(spanKind),
 	}
 
 	if _, ok := m.operations[span.Process.ServiceName][operation]; !ok {
