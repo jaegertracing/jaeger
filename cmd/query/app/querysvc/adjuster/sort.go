@@ -32,11 +32,17 @@ func (s SortAttributesAndEventsAdjuster) Adjust(traces ptrace.Traces) {
 		scopeSpans := rs.ScopeSpans()
 		for j := 0; j < scopeSpans.Len(); j++ {
 			ss := scopeSpans.At(j)
+			s.sortAttributes(ss.Scope().Attributes())
 			spans := ss.Spans()
 			for k := 0; k < spans.Len(); k++ {
 				span := spans.At(k)
 				s.sortAttributes(span.Attributes())
 				s.sortEvents(span.Events())
+				links := span.Links()
+				for l := 0; l < links.Len(); l++ {
+					link := links.At(l)
+					s.sortAttributes(link.Attributes())
+				}
 			}
 		}
 	}
