@@ -37,13 +37,13 @@ func (s *SpanHashDeduper) Adjust(traces ptrace.Traces) {
 			spans := ss.Spans()
 			for k := 0; k < spans.Len(); k++ {
 				span := spans.At(k)
-				hash, err := s.computeHashCode(span)
+				h, err := s.computeHashCode(span)
 				if err != nil {
 					// TODO: what should we do here?
 					continue
 				}
-				if _, ok := spansByHash[hash]; !ok {
-					spansByHash[hash] = span
+				if _, ok := spansByHash[h]; !ok {
+					spansByHash[h] = span
 				}
 			}
 			newSpans := ptrace.NewSpanSlice()
