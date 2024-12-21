@@ -135,3 +135,5 @@ func TestSpanHash_NoDuplicateSpans(t *testing.T) {
 	adjuster.Adjust(i)
 	assert.Equal(t, expected(), i)
 }
+
+// TODO: write tests for error cases
