@@ -455,13 +455,12 @@ func TestSearchByTraceIDSuccess(t *testing.T) {
 
 func TestSearchByTraceIDWithTimeWindowSuccess(t *testing.T) {
 	ts := initializeTestServer(t)
-	traceId1, _ := model.TraceIDFromString("1")
 	expectedQuery1 := spanstore.GetTraceParameters{
-		TraceID:   traceId1,
+		TraceID:   mockTraceID,
 		StartTime: time.UnixMicro(1),
 		EndTime:   time.UnixMicro(2),
 	}
-	traceId2, _ := model.TraceIDFromString("2")
+	traceId2 := model.NewTraceID(0, 456789)
 	expectedQuery2 := spanstore.GetTraceParameters{
 		TraceID:   traceId2,
 		StartTime: time.UnixMicro(1),
@@ -473,7 +472,7 @@ func TestSearchByTraceIDWithTimeWindowSuccess(t *testing.T) {
 		Return(mockTrace, nil)
 
 	var response structuredResponse
-	err := getJSON(ts.server.URL+`/api/traces?traceID=1&traceID=2&start=1&end=2`, &response)
+	err := getJSON(ts.server.URL+`/api/traces?traceID=`+mockTraceID.String()+`&traceID=`+traceId2.String()+`&start=1&end=2`, &response)
 	require.NoError(t, err)
 	assert.Empty(t, response.Errors)
 	assert.Len(t, response.Data, 2)
@@ -527,9 +526,8 @@ func TestSearchByTraceIDSuccessWithArchiveAndTimeWindow(t *testing.T) {
 	ts := initializeTestServerWithOptions(t, &tenancy.Manager{}, querysvc.QueryServiceOptions{
 		ArchiveSpanReader: archiveReadMock,
 	})
-	expectedTraceId, _ := model.TraceIDFromString("1")
 	expectedQuery := spanstore.GetTraceParameters{
-		TraceID:   expectedTraceId,
+		TraceID:   mockTraceID,
 		StartTime: time.UnixMicro(1),
 		EndTime:   time.UnixMicro(2),
 	}
@@ -539,7 +537,7 @@ func TestSearchByTraceIDSuccessWithArchiveAndTimeWindow(t *testing.T) {
 		Return(mockTrace, nil)
 
 	var response structuredResponse
-	err := getJSON(ts.server.URL+`/api/traces?traceID=1&start=1&end=2`, &response)
+	err := getJSON(ts.server.URL+`/api/traces?traceID=`+mockTraceID.String()+`&start=1&end=2`, &response)
 	require.NoError(t, err)
 	assert.Empty(t, response.Errors)
 	assert.Len(t, response.Data, 1)

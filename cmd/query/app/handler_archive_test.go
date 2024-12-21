@@ -120,7 +120,6 @@ func TestArchiveTrace_SucessWithTimeWindow(t *testing.T) {
 	mockWriter.On("WriteSpan", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("*model.Span")).
 		Return(nil).Times(2)
 	withTestServer(t, func(ts *testServer) {
-		// make main reader return NotFound
 		expectedQuery := spanstore.GetTraceParameters{
 			TraceID:   mockTraceID,
 			StartTime: time.UnixMicro(1),
@@ -167,7 +166,6 @@ func TestArchiveTrace_BadTimeWindow(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			withTestServer(t, func(ts *testServer) {
-				// make main reader return NotFound
 				ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("spanstore.GetTraceParameters")).
 					Return(mockTrace, nil).Once()
 				var response structuredTraceResponse
