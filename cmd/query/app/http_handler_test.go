@@ -200,16 +200,14 @@ func TestGetTraceDedupeSuccess(t *testing.T) {
 
 func TestGetTraceWithTimeWindowSuccess(t *testing.T) {
 	ts := initializeTestServer(t)
-	start_time := time.Date(1970, time.January, 1, 0, 0, 0, 1000, time.UTC).Local()
-	end_time := time.Date(1970, time.January, 1, 0, 0, 0, 2000, time.UTC).Local()
 	ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), spanstore.GetTraceParameters{
-		TraceID:   model.TraceID{High: 0, Low: 0x123456},
-		StartTime: start_time,
-		EndTime:   end_time,
+		TraceID:   mockTraceID,
+		StartTime: time.UnixMicro(1),
+		EndTime:   time.UnixMicro(2),
 	}).Return(mockTrace, nil).Once()
 
 	var response structuredResponse
-	err := getJSON(ts.server.URL+`/api/traces/123456?start=1&end=2`, &response)
+	err := getJSON(ts.server.URL+`/api/traces/`+mockTraceID.String()+`?start=1&end=2`, &response)
 	require.NoError(t, err)
 	assert.Empty(t, response.Errors)
 }
