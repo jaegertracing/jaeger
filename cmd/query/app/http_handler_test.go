@@ -424,6 +424,8 @@ func TestGetTraceBadTimeWindow(t *testing.T) {
 			var response structuredResponse
 			err := getJSON(ts.server.URL+`/api/traces/123456?`+tc.query, &response)
 			require.Error(t, err)
+			require.ErrorContains(t, err, "400 error from server")
+			require.ErrorContains(t, err, "unable to parse param")
 		})
 	}
 }
@@ -453,20 +455,28 @@ func TestSearchByTraceIDSuccess(t *testing.T) {
 
 func TestSearchByTraceIDWithTimeWindowSuccess(t *testing.T) {
 	ts := initializeTestServer(t)
-	expectedTraceId, _ := model.TraceIDFromString("1")
-	expectedQuery := spanstore.GetTraceParameters{
-		TraceID:   expectedTraceId,
+	traceId1, _ := model.TraceIDFromString("1")
+	expectedQuery1 := spanstore.GetTraceParameters{
+		TraceID:   traceId1,
 		StartTime: time.UnixMicro(1),
 		EndTime:   time.UnixMicro(2),
 	}
-	ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), expectedQuery).
+	traceId2, _ := model.TraceIDFromString("2")
+	expectedQuery2 := spanstore.GetTraceParameters{
+		TraceID:   traceId2,
+		StartTime: time.UnixMicro(1),
+		EndTime:   time.UnixMicro(2),
+	}
+	ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), expectedQuery1).
+		Return(mockTrace, nil)
+	ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), expectedQuery2).
 		Return(mockTrace, nil)
 
 	var response structuredResponse
-	err := getJSON(ts.server.URL+`/api/traces?traceID=1&start=1&end=2`, &response)
+	err := getJSON(ts.server.URL+`/api/traces?traceID=1&traceID=2&start=1&end=2`, &response)
 	require.NoError(t, err)
 	assert.Empty(t, response.Errors)
-	assert.Len(t, response.Data, 1)
+	assert.Len(t, response.Data, 2)
 }
 
 func TestSearchTraceBadTimeWindow(t *testing.T) {
@@ -487,8 +497,10 @@ func TestSearchTraceBadTimeWindow(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ts := initializeTestServer(t)
 			var response structuredResponse
-			err := getJSON(ts.server.URL+`/api/traces?traceID=1&`+tc.query, &response)
+			err := getJSON(ts.server.URL+`/api/traces?traceID=1&traceID=2&`+tc.query, &response)
 			require.Error(t, err)
+			require.ErrorContains(t, err, "400 error from server")
+			require.ErrorContains(t, err, "unable to parse param")
 		})
 	}
 }

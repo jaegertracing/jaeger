@@ -173,6 +173,8 @@ func TestArchiveTrace_BadTimeWindow(t *testing.T) {
 				var response structuredTraceResponse
 				err := postJSON(ts.server.URL+"/api/archive/"+mockTraceID.String()+"?"+tc.query, []string{}, &response)
 				require.Error(t, err)
+				require.ErrorContains(t, err, "400 error from server")
+				require.ErrorContains(t, err, "unable to parse param")
 			}, querysvc.QueryServiceOptions{ArchiveSpanWriter: mockWriter})
 		})
 	}
