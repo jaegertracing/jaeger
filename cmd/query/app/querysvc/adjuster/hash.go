@@ -4,7 +4,6 @@
 package adjuster
 
 import (
-	"hash"
 	"hash/fnv"
 
 	"go.opentelemetry.io/collector/pdata/ptrace"
@@ -22,16 +21,10 @@ var _ Adjuster = (*SpanHashDeduper)(nil)
 // To ensure consistent hash codes, this adjuster should be executed after
 // SortAttributesAndEvents, which normalizes the order of collections within the span.
 func SpanHash() SpanHashDeduper {
-	return SpanHashDeduper{
-		marshaller: &ptrace.ProtoMarshaler{},
-		hasher:     fnv.New64a(),
-	}
+	return SpanHashDeduper{}
 }
 
-type SpanHashDeduper struct {
-	marshaller ptrace.Marshaler
-	hasher     hash.Hash64
-}
+type SpanHashDeduper struct{}
 
 func (s *SpanHashDeduper) Adjust(traces ptrace.Traces) {
 	resourceSpans := traces.ResourceSpans()
@@ -72,13 +65,15 @@ func (s *SpanHashDeduper) computeHashCode(span ptrace.Span) (uint64, error) {
 		Spans().
 		AppendEmpty()
 	span.CopyTo(newSpan)
-	b, err := s.marshaller.MarshalTraces(traces)
+	marshaller := ptrace.ProtoMarshaler{}
+	b, err := marshaller.MarshalTraces(traces)
 	if err != nil {
 		return 0, err
 	}
-	_, err = s.hasher.Write(b)
+	hasher := fnv.New64a()
+	_, err = hasher.Write(b)
 	if err != nil {
 		return 0, err
 	}
-	return s.hasher.Sum64(), nil
+	return hasher.Sum64(), nil
 }
