@@ -6,6 +6,7 @@ package adjuster
 import (
 	"hash/fnv"
 
+	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 )
 
@@ -35,6 +36,7 @@ func (s *SpanHashDeduper) Adjust(traces ptrace.Traces) {
 	resourceSpans := traces.ResourceSpans()
 	for i := 0; i < resourceSpans.Len(); i++ {
 		rs := resourceSpans.At(i)
+		rs.Resource().Attributes()
 		scopeSpans := rs.ScopeSpans()
 		for j := 0; j < scopeSpans.Len(); j++ {
 			ss := scopeSpans.At(j)
@@ -42,9 +44,13 @@ func (s *SpanHashDeduper) Adjust(traces ptrace.Traces) {
 			newSpans := ptrace.NewSpanSlice()
 			for k := 0; k < spans.Len(); k++ {
 				span := spans.At(k)
-				h, err := s.computeHashCode(span)
+				h, err := s.computeHashCode(
+					span,
+					rs.Resource().Attributes(),
+					ss.Scope().Attributes(),
+				)
 				if err != nil {
-					// TODO: what should we do here?
+					// TODO: Add Warning
 					continue
 				}
 				if _, ok := spansByHash[h]; !ok {
@@ -57,15 +63,17 @@ func (s *SpanHashDeduper) Adjust(traces ptrace.Traces) {
 	}
 }
 
-func (s *SpanHashDeduper) computeHashCode(span ptrace.Span) (uint64, error) {
+func (s *SpanHashDeduper) computeHashCode(
+	span ptrace.Span,
+	resourceAttributes pcommon.Map,
+	scopeAttributes pcommon.Map,
+) (uint64, error) {
 	traces := ptrace.NewTraces()
-	newSpan := traces.
-		ResourceSpans().
-		AppendEmpty().
-		ScopeSpans().
-		AppendEmpty().
-		Spans().
-		AppendEmpty()
+	rs := traces.ResourceSpans().AppendEmpty()
+	resourceAttributes.CopyTo(rs.Resource().Attributes())
+	ss := rs.ScopeSpans().AppendEmpty()
+	scopeAttributes.CopyTo(ss.Scope().Attributes())
+	newSpan := ss.Spans().AppendEmpty()
 	span.CopyTo(newSpan)
 	b, err := s.marshaler.MarshalTraces(traces)
 	if err != nil {
