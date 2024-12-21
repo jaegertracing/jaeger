@@ -51,6 +51,20 @@ func TestSpanHash_RemovesDuplicateSpans(t *testing.T) {
 		span5.SetTraceID([16]byte{3})
 		span5.SetSpanID([8]byte{4})
 
+		rs2 := traces.ResourceSpans().AppendEmpty()
+		ss2 := rs2.ScopeSpans().AppendEmpty()
+		spans2 := ss2.Spans()
+
+		span6 := spans2.AppendEmpty()
+		span6.SetName("span4")
+		span6.SetTraceID([16]byte{5})
+		span6.SetSpanID([8]byte{6})
+
+		span7 := spans2.AppendEmpty()
+		span7.SetName("span3")
+		span7.SetTraceID([16]byte{3})
+		span7.SetSpanID([8]byte{4})
+
 		return traces
 	}
 	expected := func() ptrace.Traces {
@@ -73,6 +87,15 @@ func TestSpanHash_RemovesDuplicateSpans(t *testing.T) {
 		span3.SetName("span3")
 		span3.SetTraceID([16]byte{3})
 		span3.SetSpanID([8]byte{4})
+
+		rs2 := traces.ResourceSpans().AppendEmpty()
+		ss2 := rs2.ScopeSpans().AppendEmpty()
+		spans2 := ss2.Spans()
+
+		span4 := spans2.AppendEmpty()
+		span4.SetName("span4")
+		span4.SetTraceID([16]byte{5})
+		span4.SetSpanID([8]byte{6})
 
 		return traces
 	}
