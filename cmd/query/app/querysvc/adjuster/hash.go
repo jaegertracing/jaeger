@@ -21,10 +21,14 @@ var _ Adjuster = (*SpanHashDeduper)(nil)
 // To ensure consistent hash codes, this adjuster should be executed after
 // SortAttributesAndEvents, which normalizes the order of collections within the span.
 func SpanHash() SpanHashDeduper {
-	return SpanHashDeduper{}
+	return SpanHashDeduper{
+		marshaler: &ptrace.ProtoMarshaler{},
+	}
 }
 
-type SpanHashDeduper struct{}
+type SpanHashDeduper struct {
+	marshaler ptrace.Marshaler
+}
 
 func (s *SpanHashDeduper) Adjust(traces ptrace.Traces) {
 	resourceSpans := traces.ResourceSpans()
@@ -65,8 +69,7 @@ func (s *SpanHashDeduper) computeHashCode(span ptrace.Span) (uint64, error) {
 		Spans().
 		AppendEmpty()
 	span.CopyTo(newSpan)
-	marshaller := ptrace.ProtoMarshaler{}
-	b, err := marshaller.MarshalTraces(traces)
+	b, err := s.marshaler.MarshalTraces(traces)
 	if err != nil {
 		return 0, err
 	}
