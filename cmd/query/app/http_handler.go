@@ -490,6 +490,8 @@ func (aH *APIHandler) archiveTrace(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+
+	// QueryService.ArchiveTrace can now archive this traceID.
 	err := aH.queryService.ArchiveTrace(r.Context(), query)
 	if errors.Is(err, spanstore.ErrTraceNotFound) {
 		aH.handleError(w, err, http.StatusNotFound)
