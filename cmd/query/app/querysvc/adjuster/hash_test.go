@@ -6,6 +6,7 @@ package adjuster
 import (
 	"testing"
 
+	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/stretchr/testify/assert"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 )
@@ -159,5 +160,34 @@ func TestSpanHash_NoDuplicateSpans(t *testing.T) {
 	assert.Equal(t, expected(), i)
 }
 
+type errorMarshaler struct{}
+
+func (e *errorMarshaler) MarshalTraces(traces ptrace.Traces) ([]byte, error) {
+	return nil, assert.AnError
+}
+
+func TestSpanHash_ErrorInMarshaler(t *testing.T) {
+	adjuster := SpanHashDeduper{
+		marshaler: &errorMarshaler{},
+	}
+
+	traces := ptrace.NewTraces()
+	rs := traces.ResourceSpans().AppendEmpty()
+	ss := rs.ScopeSpans().AppendEmpty()
+	spans := ss.Spans()
+
+	span := spans.AppendEmpty()
+	span.SetName("span1")
+
+	adjuster.Adjust(traces)
+
+	gotSpan := traces.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0)
+	assert.Equal(t, "span1", gotSpan.Name())
+
+	warnings := jptrace.GetWarnings(gotSpan)
+	assert.Len(t, warnings, 1)
+	assert.Contains(t, warnings[0], "failed to compute hash code")
+	assert.Contains(t, warnings[0], assert.AnError.Error())
+}
+
 // TODO: write tests for duplicate spans with different outer attributes
-// TODO: write tests for error cases
