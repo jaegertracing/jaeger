@@ -28,6 +28,12 @@ const (
 // inconsistent with their parent spans due to clock differences between hosts.
 // It assumes all spans have unique IDs and should be used after SpanIDUniquifier.
 //
+// The adjuster determines if two spans belong to the same source by deriving a
+// unique string representation of a host based on resource attributes.
+// Specifically, it checks the "ip" attribute of the resource.
+// If two spans have the same host key, they are considered to be from
+// the same source, and no clock skew adjustment is expected between them.
+//
 // Parameters:
 //   - maxDelta: The maximum allowable time adjustment. Adjustments exceeding
 //     this value will be ignored.
