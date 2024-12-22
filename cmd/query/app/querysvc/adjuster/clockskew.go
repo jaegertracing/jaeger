@@ -80,6 +80,7 @@ func hostKey(resource ptrace.ResourceSpans) string {
 		case pcommon.ValueTypeInt:
 			var buf [4]byte
 			ip := buf[:4]
+			//nolint: gosec // G115
 			binary.BigEndian.PutUint32(ip, uint32(attr.Int()))
 			return net.IP(ip).String()
 		case pcommon.ValueTypeBytes:
