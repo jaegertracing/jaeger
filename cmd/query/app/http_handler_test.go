@@ -198,6 +198,20 @@ func TestGetTraceDedupeSuccess(t *testing.T) {
 	}
 }
 
+func TestGetTraceWithTimeWindowSuccess(t *testing.T) {
+	ts := initializeTestServer(t)
+	ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), spanstore.GetTraceParameters{
+		TraceID:   mockTraceID,
+		StartTime: time.UnixMicro(1),
+		EndTime:   time.UnixMicro(2),
+	}).Return(mockTrace, nil).Once()
+
+	var response structuredResponse
+	err := getJSON(ts.server.URL+`/api/traces/`+mockTraceID.String()+`?start=1&end=2`, &response)
+	require.NoError(t, err)
+	assert.Empty(t, response.Errors)
+}
+
 func TestLogOnServerError(t *testing.T) {
 	zapCore, logs := observer.New(zap.InfoLevel)
 	logger := zap.New(zapCore)
@@ -388,6 +402,32 @@ func TestGetTraceBadTraceID(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestGetTraceBadTimeWindow(t *testing.T) {
+	testCases := []struct {
+		name  string
+		query string
+	}{
+		{
+			name:  "Bad start time",
+			query: "start=a",
+		},
+		{
+			name:  "Bad end time",
+			query: "end=b",
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ts := initializeTestServer(t)
+			var response structuredResponse
+			err := getJSON(ts.server.URL+`/api/traces/123456?`+tc.query, &response)
+			require.Error(t, err)
+			require.ErrorContains(t, err, "400 error from server")
+			require.ErrorContains(t, err, "unable to parse param")
+		})
+	}
+}
+
 func TestSearchSuccess(t *testing.T) {
 	ts := initializeTestServer(t)
 	ts.spanReader.On("FindTraces", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("*spanstore.TraceQueryParameters")).
@@ -411,6 +451,57 @@ func TestSearchByTraceIDSuccess(t *testing.T) {
 	assert.Len(t, response.Data, 2)
 }
 
+func TestSearchByTraceIDWithTimeWindowSuccess(t *testing.T) {
+	ts := initializeTestServer(t)
+	expectedQuery1 := spanstore.GetTraceParameters{
+		TraceID:   mockTraceID,
+		StartTime: time.UnixMicro(1),
+		EndTime:   time.UnixMicro(2),
+	}
+	traceId2 := model.NewTraceID(0, 456789)
+	expectedQuery2 := spanstore.GetTraceParameters{
+		TraceID:   traceId2,
+		StartTime: time.UnixMicro(1),
+		EndTime:   time.UnixMicro(2),
+	}
+	ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), expectedQuery1).
+		Return(mockTrace, nil)
+	ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), expectedQuery2).
+		Return(mockTrace, nil)
+
+	var response structuredResponse
+	err := getJSON(ts.server.URL+`/api/traces?traceID=`+mockTraceID.String()+`&traceID=`+traceId2.String()+`&start=1&end=2`, &response)
+	require.NoError(t, err)
+	assert.Empty(t, response.Errors)
+	assert.Len(t, response.Data, 2)
+}
+
+func TestSearchTraceBadTimeWindow(t *testing.T) {
+	testCases := []struct {
+		name  string
+		query string
+	}{
+		{
+			name:  "Bad start time",
+			query: "start=a",
+		},
+		{
+			name:  "Bad end time",
+			query: "end=b",
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ts := initializeTestServer(t)
+			var response structuredResponse
+			err := getJSON(ts.server.URL+`/api/traces?traceID=1&traceID=2&`+tc.query, &response)
+			require.Error(t, err)
+			require.ErrorContains(t, err, "400 error from server")
+			require.ErrorContains(t, err, "unable to parse param")
+		})
+	}
+}
+
 func TestSearchByTraceIDSuccessWithArchive(t *testing.T) {
 	archiveReadMock := &spanstoremocks.Reader{}
 	ts := initializeTestServerWithOptions(t, &tenancy.Manager{}, querysvc.QueryServiceOptions{
@@ -426,6 +517,28 @@ func TestSearchByTraceIDSuccessWithArchive(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, response.Errors)
 	assert.Len(t, response.Data, 2)
+}
+
+func TestSearchByTraceIDSuccessWithArchiveAndTimeWindow(t *testing.T) {
+	archiveReadMock := &spanstoremocks.Reader{}
+	ts := initializeTestServerWithOptions(t, &tenancy.Manager{}, querysvc.QueryServiceOptions{
+		ArchiveSpanReader: archiveReadMock,
+	})
+	expectedQuery := spanstore.GetTraceParameters{
+		TraceID:   mockTraceID,
+		StartTime: time.UnixMicro(1),
+		EndTime:   time.UnixMicro(2),
+	}
+	ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), expectedQuery).
+		Return(nil, spanstore.ErrTraceNotFound)
+	archiveReadMock.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), expectedQuery).
+		Return(mockTrace, nil)
+
+	var response structuredResponse
+	err := getJSON(ts.server.URL+`/api/traces?traceID=`+mockTraceID.String()+`&start=1&end=2`, &response)
+	require.NoError(t, err)
+	assert.Empty(t, response.Errors)
+	assert.Len(t, response.Data, 1)
 }
 
 func TestSearchByTraceIDNotFound(t *testing.T) {
