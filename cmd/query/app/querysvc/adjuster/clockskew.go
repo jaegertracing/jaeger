@@ -16,10 +16,10 @@ import (
 )
 
 const (
-	warningDuplicateSpanID       = "duplicate span IDs; skipping clock skew adjustment"
-	warningFormatInvalidParentID = "invalid parent span IDs=%s; skipping clock skew adjustment"
-	warningMaxDeltaExceeded      = "max clock skew adjustment delta of %v exceeded; not applying calculated delta of %v"
-	warningSkewAdjustDisabled    = "clock skew adjustment disabled; not applying calculated delta of %v"
+	warningDuplicateSpanID     = "duplicate span IDs; skipping clock skew adjustment"
+	warningMissingParentSpanID = "parent span ID=%s is not in the trace; skipping clock skew adjustment"
+	warningMaxDeltaExceeded    = "max clock skew adjustment delta of %v exceeded; not applying calculated delta of %v"
+	warningSkewAdjustDisabled  = "clock skew adjustment disabled; not applying calculated delta of %v"
 )
 
 // ClockSkew returns an Adjuster that corrects span timestamps for clock skew.
@@ -128,7 +128,7 @@ func (a *clockSkewAdjuster) buildSubGraphs() {
 		if p, ok := a.spans[n.span.ParentSpanID()]; ok {
 			p.children = append(p.children, n)
 		} else {
-			warning := fmt.Sprintf(warningFormatInvalidParentID, n.span.ParentSpanID())
+			warning := fmt.Sprintf(warningMissingParentSpanID, n.span.ParentSpanID())
 			jptrace.AddWarning(n.span, warning)
 			// treat spans with invalid parent ID as root spans
 			a.roots[n.span.SpanID()] = n

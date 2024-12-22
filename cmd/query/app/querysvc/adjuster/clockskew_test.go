@@ -69,7 +69,7 @@ func TestClockSkewAdjuster(t *testing.T) {
 			trace: []testSpan{
 				{id: [8]byte{1}, parent: [8]byte{0, 0, 0, 0, 0, 0, 0, 99}, startTime: 0, duration: 100, host: "a", adjusted: 0},
 			},
-			err: "invalid parent span IDs=0000000000000063; skipping clock skew adjustment", // 99 == 0x63
+			err: "parent span ID=0000000000000063 is not in the trace; skipping clock skew adjustment", // 99 == 0x63
 		},
 		{
 			description: "single span with empty host key",
