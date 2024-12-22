@@ -37,18 +37,18 @@ func (s *SpanHashDeduper) Adjust(traces ptrace.Traces) {
 	spansByHash := make(map[uint64]ptrace.Span)
 	resourceSpans := traces.ResourceSpans()
 	for i := 0; i < resourceSpans.Len(); i++ {
-		hashTrace := ptrace.NewTraces()
 		rs := resourceSpans.At(i)
-		hashResourceSpan := hashTrace.ResourceSpans().AppendEmpty()
-		rs.Resource().Attributes().CopyTo(hashResourceSpan.Resource().Attributes())
 		scopeSpans := rs.ScopeSpans()
+		hashTrace := ptrace.NewTraces()
+		hashResourceSpan := hashTrace.ResourceSpans().AppendEmpty()
 		hashScopeSpan := hashResourceSpan.ScopeSpans().AppendEmpty()
+		hashSpan := hashScopeSpan.Spans().AppendEmpty()
+		rs.Resource().Attributes().CopyTo(hashResourceSpan.Resource().Attributes())
 		for j := 0; j < scopeSpans.Len(); j++ {
 			ss := scopeSpans.At(j)
-			ss.Scope().Attributes().CopyTo(hashScopeSpan.Scope().Attributes())
 			spans := ss.Spans()
-			newSpans := ptrace.NewSpanSlice()
-			hashSpan := hashScopeSpan.Spans().AppendEmpty()
+			ss.Scope().Attributes().CopyTo(hashScopeSpan.Scope().Attributes())
+			dedupedSpans := ptrace.NewSpanSlice()
 			for k := 0; k < spans.Len(); k++ {
 				span := spans.At(k)
 				span.CopyTo(hashSpan)
@@ -57,15 +57,15 @@ func (s *SpanHashDeduper) Adjust(traces ptrace.Traces) {
 				)
 				if err != nil {
 					jptrace.AddWarning(span, fmt.Sprintf("failed to compute hash code: %v", err))
-					span.CopyTo(newSpans.AppendEmpty())
+					span.CopyTo(dedupedSpans.AppendEmpty())
 					continue
 				}
 				if _, ok := spansByHash[h]; !ok {
 					spansByHash[h] = span
-					span.CopyTo(newSpans.AppendEmpty())
+					span.CopyTo(dedupedSpans.AppendEmpty())
 				}
 			}
-			newSpans.CopyTo(spans)
+			dedupedSpans.CopyTo(spans)
 		}
 	}
 }
@@ -78,6 +78,6 @@ func (s *SpanHashDeduper) computeHashCode(
 		return 0, err
 	}
 	hasher := fnv.New64a()
-	hasher.Write(b) // never returns an error
+	hasher.Write(b) // the writer in the Hash interface never returns an error
 	return hasher.Sum64(), nil
 }
