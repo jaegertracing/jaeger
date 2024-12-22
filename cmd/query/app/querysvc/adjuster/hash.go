@@ -82,9 +82,6 @@ func (s *SpanHashDeduper) computeHashCode(
 		return 0, err
 	}
 	hasher := fnv.New64a()
-	_, err = hasher.Write(b)
-	if err != nil {
-		return 0, err
-	}
+	hasher.Write(b) // never returns an error
 	return hasher.Sum64(), nil
 }
