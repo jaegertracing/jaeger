@@ -23,8 +23,13 @@ func TestSpanHash_RemovesDuplicateSpans(t *testing.T) {
 	adjuster := SpanHash()
 	input := func() ptrace.Traces {
 		traces := ptrace.NewTraces()
+
 		rs := traces.ResourceSpans().AppendEmpty()
+		rs.Resource().Attributes().PutStr("key1", "value1")
+
 		ss := rs.ScopeSpans().AppendEmpty()
+		ss.Scope().Attributes().PutStr("key2", "value2")
+
 		spans := ss.Spans()
 
 		span1 := spans.AppendEmpty()
@@ -53,7 +58,11 @@ func TestSpanHash_RemovesDuplicateSpans(t *testing.T) {
 		span5.SetSpanID([8]byte{4})
 
 		rs2 := traces.ResourceSpans().AppendEmpty()
+		rs2.Resource().Attributes().PutStr("key1", "value1")
+
 		ss2 := rs2.ScopeSpans().AppendEmpty()
+		ss2.Scope().Attributes().PutStr("key2", "value2")
+
 		spans2 := ss2.Spans()
 
 		span6 := spans2.AppendEmpty()
@@ -70,8 +79,13 @@ func TestSpanHash_RemovesDuplicateSpans(t *testing.T) {
 	}
 	expected := func() ptrace.Traces {
 		traces := ptrace.NewTraces()
+
 		rs := traces.ResourceSpans().AppendEmpty()
+		rs.Resource().Attributes().PutStr("key1", "value1")
+
 		ss := rs.ScopeSpans().AppendEmpty()
+		ss.Scope().Attributes().PutStr("key2", "value2")
+
 		spans := ss.Spans()
 
 		span1 := spans.AppendEmpty()
@@ -90,7 +104,11 @@ func TestSpanHash_RemovesDuplicateSpans(t *testing.T) {
 		span3.SetSpanID([8]byte{4})
 
 		rs2 := traces.ResourceSpans().AppendEmpty()
+		rs2.Resource().Attributes().PutStr("key1", "value1")
+
 		ss2 := rs2.ScopeSpans().AppendEmpty()
+		ss2.Scope().Attributes().PutStr("key2", "value2")
+
 		spans2 := ss2.Spans()
 
 		span4 := spans2.AppendEmpty()
@@ -160,6 +178,116 @@ func TestSpanHash_NoDuplicateSpans(t *testing.T) {
 	assert.Equal(t, expected(), i)
 }
 
+func TestSpanHash_DuplicateSpansDifferentScopeAttributes(t *testing.T) {
+	adjuster := SpanHash()
+	input := func() ptrace.Traces {
+		traces := ptrace.NewTraces()
+		rs := traces.ResourceSpans().AppendEmpty()
+		ss := rs.ScopeSpans().AppendEmpty()
+		ss.Scope().Attributes().PutStr("key", "value1")
+		spans := ss.Spans()
+
+		span1 := spans.AppendEmpty()
+		span1.SetName("span1")
+		span1.SetTraceID([16]byte{1})
+		span1.SetSpanID([8]byte{1})
+
+		ss2 := rs.ScopeSpans().AppendEmpty()
+		ss2.Scope().Attributes().PutStr("key", "value2")
+		spans2 := ss2.Spans()
+
+		span2 := spans2.AppendEmpty()
+		span2.SetName("span1")
+		span2.SetTraceID([16]byte{1})
+		span2.SetSpanID([8]byte{1})
+
+		return traces
+	}
+	expected := func() ptrace.Traces {
+		traces := ptrace.NewTraces()
+		rs := traces.ResourceSpans().AppendEmpty()
+		ss := rs.ScopeSpans().AppendEmpty()
+		ss.Scope().Attributes().PutStr("key", "value1")
+		spans := ss.Spans()
+
+		span1 := spans.AppendEmpty()
+		span1.SetName("span1")
+		span1.SetTraceID([16]byte{1})
+		span1.SetSpanID([8]byte{1})
+
+		ss2 := rs.ScopeSpans().AppendEmpty()
+		ss2.Scope().Attributes().PutStr("key", "value2")
+		spans2 := ss2.Spans()
+
+		span2 := spans2.AppendEmpty()
+		span2.SetName("span1")
+		span2.SetTraceID([16]byte{1})
+		span2.SetSpanID([8]byte{1})
+
+		return traces
+	}
+
+	i := input()
+	adjuster.Adjust(i)
+	assert.Equal(t, expected(), i)
+}
+
+func TestSpanHash_DuplicateSpansDifferentResourceAttributes(t *testing.T) {
+	adjuster := SpanHash()
+	input := func() ptrace.Traces {
+		traces := ptrace.NewTraces()
+		rs := traces.ResourceSpans().AppendEmpty()
+		rs.Resource().Attributes().PutStr("key", "value1")
+		ss := rs.ScopeSpans().AppendEmpty()
+		spans := ss.Spans()
+
+		span1 := spans.AppendEmpty()
+		span1.SetName("span1")
+		span1.SetTraceID([16]byte{1})
+		span1.SetSpanID([8]byte{1})
+
+		rs2 := traces.ResourceSpans().AppendEmpty()
+		rs2.Resource().Attributes().PutStr("key", "value2")
+		ss2 := rs2.ScopeSpans().AppendEmpty()
+		spans2 := ss2.Spans()
+
+		span2 := spans2.AppendEmpty()
+		span2.SetName("span1")
+		span2.SetTraceID([16]byte{1})
+		span2.SetSpanID([8]byte{1})
+
+		return traces
+	}
+	expected := func() ptrace.Traces {
+		traces := ptrace.NewTraces()
+		rs := traces.ResourceSpans().AppendEmpty()
+		rs.Resource().Attributes().PutStr("key", "value1")
+		ss := rs.ScopeSpans().AppendEmpty()
+		spans := ss.Spans()
+
+		span1 := spans.AppendEmpty()
+		span1.SetName("span1")
+		span1.SetTraceID([16]byte{1})
+		span1.SetSpanID([8]byte{1})
+
+		rs2 := traces.ResourceSpans().AppendEmpty()
+		rs2.Resource().Attributes().PutStr("key", "value2")
+		ss2 := rs2.ScopeSpans().AppendEmpty()
+		spans2 := ss2.Spans()
+
+		span2 := spans2.AppendEmpty()
+		span2.SetName("span1")
+		span2.SetTraceID([16]byte{1})
+		span2.SetSpanID([8]byte{1})
+
+		return traces
+	}
+
+	i := input()
+	adjuster.Adjust(i)
+	assert.Equal(t, expected(), i)
+}
+
 type errorMarshaler struct{}
 
 func (e *errorMarshaler) MarshalTraces(traces ptrace.Traces) ([]byte, error) {
@@ -189,5 +317,3 @@ func TestSpanHash_ErrorInMarshaler(t *testing.T) {
 	assert.Contains(t, warnings[0], "failed to compute hash code")
 	assert.Contains(t, warnings[0], assert.AnError.Error())
 }
-
-// TODO: write tests for duplicate spans with different outer attributes
