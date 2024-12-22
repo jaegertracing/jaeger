@@ -444,15 +444,23 @@ func (aH *APIHandler) parseMicroseconds(w http.ResponseWriter, r *http.Request, 
 }
 
 func (aH *APIHandler) parseGetTraceParameters(w http.ResponseWriter, r *http.Request) (spanstore.GetTraceParameters, bool) {
-	traceID, traceIdOk := aH.parseTraceID(w, r)
-	startTime, startTimeOk := aH.parseMicroseconds(w, r, startTimeParam)
-	endTime, endTimeOk := aH.parseMicroseconds(w, r, endTimeParam)
-	query := spanstore.GetTraceParameters{
-		TraceID:   traceID,
-		StartTime: startTime,
-		EndTime:   endTime,
+	query := spanstore.GetTraceParameters{}
+	traceID, ok := aH.parseTraceID(w, r)
+	if !ok {
+		return query, false
 	}
-	return query, traceIdOk && startTimeOk && endTimeOk
+	startTime, ok := aH.parseMicroseconds(w, r, startTimeParam)
+	if !ok {
+		return query, false
+	}
+	endTime, ok := aH.parseMicroseconds(w, r, endTimeParam)
+	if !ok {
+		return query, false
+	}
+	query.TraceID = traceID
+	query.StartTime = startTime
+	query.EndTime = endTime
+	return query, true
 }
 
 // getTrace implements the REST API /traces/{trace-id}
