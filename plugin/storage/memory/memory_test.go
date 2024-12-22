@@ -38,7 +38,7 @@ var childSpan1 = &model.Span{
 	OperationName: "childOperationName",
 	Tags: model.KeyValues{
 		model.String("tagKey", "tagValue"),
-		model.String("span.kind", "server"),
+		model.SpanKindTag(model.SpanKindServer),
 	},
 	Logs: []model.Log{
 		{
@@ -63,7 +63,7 @@ var childSpan2 = &model.Span{
 	OperationName: "childOperationName",
 	Tags: model.KeyValues{
 		model.String("tagKey", "tagValue"),
-		model.String("span.kind", "internal"),
+		model.SpanKindTag(model.SpanKindInternal),
 	},
 	Logs: []model.Log{
 		{
@@ -504,7 +504,7 @@ func makeTestingSpan(traceID model.TraceID, suffix string) *model.Span {
 		OperationName: "operationName" + suffix,
 		Tags: model.KeyValues{
 			model.String("tagKey", "tagValue"+suffix),
-			model.String("span.kind", "client"+suffix),
+			model.SpanKindTag(model.SpanKindClient),
 		},
 		Logs: []model.Log{
 			{

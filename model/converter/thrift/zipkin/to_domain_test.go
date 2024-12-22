@@ -20,7 +20,6 @@ import (
 	"github.com/kr/pretty"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.opentelemetry.io/otel/trace"
 
 	"github.com/jaegertracing/jaeger/model"
 	z "github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
@@ -107,8 +106,8 @@ func TestToDomainMultipleSpanKinds(t *testing.T) {
 		json         string
 		tagFirstKey  string
 		tagSecondKey string
-		tagFirstVal  trace.SpanKind
-		tagSecondVal trace.SpanKind
+		tagFirstVal  model.SpanKind
+		tagSecondVal model.SpanKind
 	}{
 		{
 			json: `[{ "trace_id": -1, "id": 31, "annotations": [
@@ -116,10 +115,10 @@ func TestToDomainMultipleSpanKinds(t *testing.T) {
 		{"value": "sr", "timestamp": 1, "host": {"service_name": "bar", "ipv4": 23456}},
 		{"value": "ss", "timestamp": 2, "host": {"service_name": "bar", "ipv4": 23456}}
 		]}]`,
-			tagFirstKey:  keySpanKind,
-			tagSecondKey: keySpanKind,
-			tagFirstVal:  trace.SpanKindClient,
-			tagSecondVal: trace.SpanKindServer,
+			tagFirstKey:  model.SpanKindKey,
+			tagSecondKey: model.SpanKindKey,
+			tagFirstVal:  model.SpanKindClient,
+			tagSecondVal: model.SpanKindServer,
 		},
 		{
 			json: `[{ "trace_id": -1, "id": 31, "annotations": [
@@ -127,10 +126,10 @@ func TestToDomainMultipleSpanKinds(t *testing.T) {
 		{"value": "cs", "timestamp": 1, "host": {"service_name": "bar", "ipv4": 23456}},
 		{"value": "cr", "timestamp": 2, "host": {"service_name": "bar", "ipv4": 23456}}
 		]}]`,
-			tagFirstKey:  keySpanKind,
-			tagSecondKey: keySpanKind,
-			tagFirstVal:  trace.SpanKindServer,
-			tagSecondVal: trace.SpanKindClient,
+			tagFirstKey:  model.SpanKindKey,
+			tagSecondKey: model.SpanKindKey,
+			tagFirstVal:  model.SpanKindServer,
+			tagSecondVal: model.SpanKindClient,
 		},
 	}
 
@@ -141,12 +140,12 @@ func TestToDomainMultipleSpanKinds(t *testing.T) {
 		assert.Len(t, trc.Spans, 2)
 		assert.Len(t, trc.Spans[0].Tags, 1)
 		assert.Equal(t, test.tagFirstKey, trc.Spans[0].Tags[0].Key)
-		assert.Equal(t, test.tagFirstVal.String(), trc.Spans[0].Tags[0].VStr)
+		assert.EqualValues(t, test.tagFirstVal, trc.Spans[0].Tags[0].VStr)
 
 		assert.Len(t, trc.Spans[1].Tags, 1)
 		assert.Equal(t, test.tagSecondKey, trc.Spans[1].Tags[0].Key)
 		assert.Equal(t, time.Duration(1000), trc.Spans[1].Duration)
-		assert.Equal(t, test.tagSecondVal.String(), trc.Spans[1].Tags[0].VStr)
+		assert.EqualValues(t, test.tagSecondVal, trc.Spans[1].Tags[0].VStr)
 	}
 }
 

@@ -251,7 +251,7 @@ func (s *StorageIntegration) testGetOperations(t *testing.T) {
 		}
 	} else {
 		expected = []spanstore.Operation{
-			{Name: "example-operation-1", SpanKind: "unspecified"},
+			{Name: "example-operation-1", SpanKind: ""},
 			{Name: "example-operation-3", SpanKind: "server"},
 			{Name: "example-operation-4", SpanKind: "client"},
 		}
