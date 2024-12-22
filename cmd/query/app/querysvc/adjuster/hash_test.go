@@ -6,9 +6,10 @@ package adjuster
 import (
 	"testing"
 
-	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/stretchr/testify/assert"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+
+	"github.com/jaegertracing/jaeger/internal/jptrace"
 )
 
 func TestSpanHash_EmptySpans(t *testing.T) {
@@ -290,7 +291,7 @@ func TestSpanHash_DuplicateSpansDifferentResourceAttributes(t *testing.T) {
 
 type errorMarshaler struct{}
 
-func (e *errorMarshaler) MarshalTraces(traces ptrace.Traces) ([]byte, error) {
+func (*errorMarshaler) MarshalTraces(ptrace.Traces) ([]byte, error) {
 	return nil, assert.AnError
 }
 

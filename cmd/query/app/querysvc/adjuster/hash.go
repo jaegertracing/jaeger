@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"hash/fnv"
 
-	"github.com/jaegertracing/jaeger/internal/jptrace"
-	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+
+	"github.com/jaegertracing/jaeger/internal/jptrace"
 )
 
 var _ Adjuster = (*SpanHashDeduper)(nil)
@@ -37,18 +37,23 @@ func (s *SpanHashDeduper) Adjust(traces ptrace.Traces) {
 	spansByHash := make(map[uint64]ptrace.Span)
 	resourceSpans := traces.ResourceSpans()
 	for i := 0; i < resourceSpans.Len(); i++ {
+		hashTrace := ptrace.NewTraces()
 		rs := resourceSpans.At(i)
+		hashResourceSpan := hashTrace.ResourceSpans().AppendEmpty()
+		rs.Resource().Attributes().CopyTo(hashResourceSpan.Resource().Attributes())
 		scopeSpans := rs.ScopeSpans()
+		hashScopeSpan := hashResourceSpan.ScopeSpans().AppendEmpty()
 		for j := 0; j < scopeSpans.Len(); j++ {
 			ss := scopeSpans.At(j)
+			ss.Scope().Attributes().CopyTo(hashScopeSpan.Scope().Attributes())
 			spans := ss.Spans()
 			newSpans := ptrace.NewSpanSlice()
+			hashSpan := hashScopeSpan.Spans().AppendEmpty()
 			for k := 0; k < spans.Len(); k++ {
 				span := spans.At(k)
+				span.CopyTo(hashSpan)
 				h, err := s.computeHashCode(
-					span,
-					rs.Resource().Attributes(),
-					ss.Scope().Attributes(),
+					hashTrace,
 				)
 				if err != nil {
 					jptrace.AddWarning(span, fmt.Sprintf("failed to compute hash code: %v", err))
@@ -66,18 +71,9 @@ func (s *SpanHashDeduper) Adjust(traces ptrace.Traces) {
 }
 
 func (s *SpanHashDeduper) computeHashCode(
-	span ptrace.Span,
-	resourceAttributes pcommon.Map,
-	scopeAttributes pcommon.Map,
+	hashTrace ptrace.Traces,
 ) (uint64, error) {
-	traces := ptrace.NewTraces()
-	rs := traces.ResourceSpans().AppendEmpty()
-	resourceAttributes.CopyTo(rs.Resource().Attributes())
-	ss := rs.ScopeSpans().AppendEmpty()
-	scopeAttributes.CopyTo(ss.Scope().Attributes())
-	newSpan := ss.Spans().AppendEmpty()
-	span.CopyTo(newSpan)
-	b, err := s.marshaler.MarshalTraces(traces)
+	b, err := s.marshaler.MarshalTraces(hashTrace)
 	if err != nil {
 		return 0, err
 	}
