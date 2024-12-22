@@ -4,8 +4,10 @@
 package adjuster
 
 import (
+	"fmt"
 	"hash/fnv"
 
+	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 )
@@ -36,7 +38,6 @@ func (s *SpanHashDeduper) Adjust(traces ptrace.Traces) {
 	resourceSpans := traces.ResourceSpans()
 	for i := 0; i < resourceSpans.Len(); i++ {
 		rs := resourceSpans.At(i)
-		rs.Resource().Attributes()
 		scopeSpans := rs.ScopeSpans()
 		for j := 0; j < scopeSpans.Len(); j++ {
 			ss := scopeSpans.At(j)
@@ -50,7 +51,8 @@ func (s *SpanHashDeduper) Adjust(traces ptrace.Traces) {
 					ss.Scope().Attributes(),
 				)
 				if err != nil {
-					// TODO: Add Warning
+					jptrace.AddWarning(span, fmt.Sprintf("failed to compute hash code: %v", err))
+					span.CopyTo(newSpans.AppendEmpty())
 					continue
 				}
 				if _, ok := spansByHash[h]; !ok {
