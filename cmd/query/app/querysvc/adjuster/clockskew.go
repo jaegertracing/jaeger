@@ -22,13 +22,15 @@ const (
 	warningSkewAdjustDisabled    = "clock skew adjustment disabled; not applying calculated delta of %v"
 )
 
-// ClockSkew returns an adjuster that modifies start time and log timestamps
-// for spans that appear to be "off" with respect to the parent span due to
-// clock skew on different servers. The main condition that it checks is that
-// child spans do not start before or end after their parent spans.
+// ClockSkew returns an Adjuster that corrects span timestamps for clock skew.
 //
-// The algorithm assumes that all spans have unique IDs, so this adjuster should be used after
-// SpanIDUniquifier.
+// This adjuster modifies the start and log timestamps of child spans that are
+// inconsistent with their parent spans due to clock differences between hosts.
+// It assumes all spans have unique IDs and should be used after SpanIDUniquifier.
+//
+// Parameters:
+//   - maxDelta: The maximum allowable time adjustment. Adjustments exceeding
+//     this value will be ignored.
 func ClockSkew(maxDelta time.Duration) Adjuster {
 	return Func(func(traces ptrace.Traces) {
 		adjuster := &clockSkewAdjuster{
@@ -37,9 +39,9 @@ func ClockSkew(maxDelta time.Duration) Adjuster {
 		}
 		adjuster.buildNodesMap()
 		adjuster.buildSubGraphs()
-		for _, n := range adjuster.roots {
-			skew := clockSkew{hostKey: n.hostKey}
-			adjuster.adjustNode(n, nil, skew)
+		for _, root := range adjuster.roots {
+			skew := clockSkew{hostKey: root.hostKey}
+			adjuster.adjustNode(root, nil, skew)
 		}
 	})
 }
@@ -62,23 +64,19 @@ type node struct {
 	hostKey  string
 }
 
-// hostKey returns a string representation of the host identity that can be used
-// to determine if two spans originated from the same host.
-//
-// TODO convert process tags to a canonical format somewhere else
+// hostKey derives a unique string representation of a host based on resource attributes.
+// This is used to determine if two spans are from the same host.
 func hostKey(resource ptrace.ResourceSpans) string {
 	if attr, ok := resource.Resource().Attributes().Get("ip"); ok {
-		if attr.Type() == pcommon.ValueTypeStr {
+		switch attr.Type() {
+		case pcommon.ValueTypeStr:
 			return attr.Str()
-		}
-		if attr.Type() == pcommon.ValueTypeInt {
-			var buf [4]byte // avoid heap allocation
-			ip := buf[0:4]  // utils require a slice, not an array
-			//nolint: gosec // G115
+		case pcommon.ValueTypeInt:
+			var buf [4]byte
+			ip := buf[:4]
 			binary.BigEndian.PutUint32(ip, uint32(attr.Int()))
 			return net.IP(ip).String()
-		}
-		if attr.Type() == pcommon.ValueTypeBytes {
+		case pcommon.ValueTypeBytes:
 			if l := attr.Bytes().Len(); l == 4 || l == 16 {
 				return net.IP(attr.Bytes().AsRaw()).String()
 			}
@@ -87,7 +85,7 @@ func hostKey(resource ptrace.ResourceSpans) string {
 	return ""
 }
 
-// buildNodesMap builds a map of span IDs -> node{}.
+// buildNodesMap creates a mapping of span IDs to their corresponding nodes.
 func (a *clockSkewAdjuster) buildNodesMap() {
 	a.spans = make(map[pcommon.SpanID]*node)
 	resourceSpans := a.traces.ResourceSpans()
@@ -96,11 +94,10 @@ func (a *clockSkewAdjuster) buildNodesMap() {
 		hk := hostKey(resources)
 		scopes := resources.ScopeSpans()
 		for j := 0; j < scopes.Len(); j++ {
-			scope := scopes.At(j)
-			spans := scope.Spans()
+			spans := scopes.At(j).Spans()
 			for k := 0; k < spans.Len(); k++ {
 				span := spans.At(k)
-				if _, ok := a.spans[span.SpanID()]; ok {
+				if _, exists := a.spans[span.SpanID()]; exists {
 					jptrace.AddWarning(span, warningDuplicateSpanID)
 				} else {
 					a.spans[span.SpanID()] = &node{
