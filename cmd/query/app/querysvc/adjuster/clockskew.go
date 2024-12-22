@@ -1,5 +1,4 @@
-// Copyright (c) 2019 The Jaeger Authors.
-// Copyright (c) 2017 Uber Technologies, Inc.
+// Copyright (c) 2024 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package adjuster
@@ -10,9 +9,10 @@ import (
 	"net"
 	"time"
 
-	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+
+	"github.com/jaegertracing/jaeger/internal/jptrace"
 )
 
 const (
@@ -88,11 +88,11 @@ func hostKey(resource ptrace.ResourceSpans) string {
 // buildNodesMap creates a mapping of span IDs to their corresponding nodes.
 func (a *clockSkewAdjuster) buildNodesMap() {
 	a.spans = make(map[pcommon.SpanID]*node)
-	resourceSpans := a.traces.ResourceSpans()
-	for i := 0; i < resourceSpans.Len(); i++ {
-		resources := resourceSpans.At(i)
-		hk := hostKey(resources)
-		scopes := resources.ScopeSpans()
+	resources := a.traces.ResourceSpans()
+	for i := 0; i < resources.Len(); i++ {
+		resource := resources.At(i)
+		hk := hostKey(resource)
+		scopes := resource.ScopeSpans()
 		for j := 0; j < scopes.Len(); j++ {
 			spans := scopes.At(j).Spans()
 			for k := 0; k < spans.Len(); k++ {
