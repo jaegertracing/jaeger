@@ -139,6 +139,14 @@ linters-settings:
         files:
           - "**_test.go"
 
+      # TODO: enable after import is not used anywhere
+      # disallow-otel-contrib-translator:
+      #   deny:
+      #     - pkg: github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger
+      #       desc: "Use jptrace package instead of opentelemetry-collector-contrib/pkg/translator/jaeger"
+      #   files:
+      #     - "!**/jptrace/**"
+
   goimports:
     local-prefixes: github.com/jaegertracing/jaeger
   gosec:
