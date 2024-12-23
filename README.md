@@ -65,20 +65,6 @@ Jaeger is an open source project with open governance. We welcome contributions 
 Jaeger backend is designed to have no single points of failure and to scale with the business needs.
 For example, any given Jaeger installation at Uber is typically processing several billions of spans per day.
 
-### Relationship with OpenTelemetry
-
-The Jaeger and [OpenTelemetry](https://opentelemetry.io) projects have different goals. OpenTelemetry aims to provide APIs, SDKs, and autoinstrumentation in multiple languages to allow applications to export various telemetry data out of the process, to any number of metrics and tracing backends. The Jaeger project is primarily the tracing backend that receives tracing telemetry data and provides processing, aggregation, data mining, and visualizations of that data. For more information please refer to a blog post [Jaeger and OpenTelemetry](https://medium.com/jaegertracing/jaeger-and-opentelemetry-1846f701d9f2).
-
-Jaeger was originally designed to support the [OpenTracing standard](https://opentracing.io/specification/). The terminology is still used in Jaeger UI, but the concepts have direct mapping to the OpenTelemetry data model of traces.
-
-| Capability    | OpenTracing concept | OpenTelemetry concept |
-| ------------- | ------------------- | --------------------- |
-| Represent traces as directed acyclic graphs (not just trees)  | [span references](https://github.com/opentracing/specification/blob/master/specification.md#references-between-spans) | [span links](https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/trace/api.md#span) |
-| Strongly typed span attributes  | span tags | span attributes |
-| Strongly typed events/logs  | span logs | span events |
-
-Jaeger project recommends OpenTelemetry SDKs for instrumentation, instead of [now-deprecated Jaeger SDKs](https://www.jaegertracing.io/docs/latest/client-libraries/#deprecating-jaeger-clients).
-
 ### Multiple storage backends
 
 Jaeger can be used with a growing a number of storage backends:
@@ -124,18 +110,18 @@ of routing the traffic from Zipkin libraries to the Jaeger backend.
 
 ## Version Compatibility Guarantees
 
-Since Jaeger uses many components from the [OpenTelemetry Collector](https://github.com/open-telemetry/opentelemetry-collector/) we try to maintain configuration compatibility between Jaeger releases. Occasionally, configuration elements in Jaeger (or in Jaeger v1 CLI flags) can be deprecated due to usability improvements, new functionality, or changes in our dependencies.
+Since Jaeger uses many components from the [OpenTelemetry Collector](https://github.com/open-telemetry/opentelemetry-collector/) we try to maintain configuration compatibility between Jaeger releases. Occasionally, configuration options in Jaeger (or in Jaeger v1 CLI flags) can be deprecated due to usability improvements, new functionality, or changes in our dependencies.
 In such situations, developers introducing the deprecation are required to follow [these guidelines](./CONTRIBUTING.md#deprecating-cli-flags).
 
-In short, for a deprecated configuration element, you should expect to see the following message in the documentation or release notes:
+In short, for a deprecated configuration option, you should expect to see the following message in the documentation or release notes:
 ```
 (deprecated, will be removed after yyyy-mm-dd or in release vX.Y.Z, whichever is later)
 ```
 
 A grace period of at least **3 months** or **two minor version bumps** (whichever is later) from the first release
-containing the deprecation notice will be provided before the deprecated configuration element _can_ be deleted.
+containing the deprecation notice will be provided before the deprecated configuration option _can_ be deleted.
 
-For example, consider a scenario where v2.0.0 is released on 01-Sep-2024 containing a deprecation notice for a configuration element.
+For example, consider a scenario where v2.0.0 is released on 01-Sep-2024 containing a deprecation notice for a configuration option.
 This configuration option will remain in a deprecated state until the later of 01-Dec-2024 or v2.2.0 where it _can_ be removed on or after either of those events.
 It may remain deprecated for longer than the aforementioned grace period.
 
