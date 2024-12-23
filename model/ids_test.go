@@ -137,6 +137,7 @@ func TestTraceIDFromOTEL(t *testing.T) {
 	}
 	require.Equal(t, expected, model.TraceIDFromOTEL(otelTraceID))
 }
+
 func TestToOTELSpanID(t *testing.T) {
 	tests := []struct {
 		name     string
