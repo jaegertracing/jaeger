@@ -6,6 +6,7 @@ package jptrace
 import (
 	"testing"
 
+	"github.com/jaegertracing/jaeger/model"
 	"github.com/stretchr/testify/assert"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
@@ -20,6 +21,7 @@ func TestProtoFromTraces_AddsWarnings(t *testing.T) {
 	span1.SetSpanID(pcommon.SpanID([8]byte{1, 2, 3, 4, 5, 6, 7, 8}))
 	AddWarning(span1, "test-warning-1")
 	AddWarning(span1, "test-warning-2")
+	span1.Attributes().PutStr("key", "value")
 
 	ss2 := rs1.ScopeSpans().AppendEmpty()
 	span2 := ss2.Spans().AppendEmpty()
@@ -40,7 +42,7 @@ func TestProtoFromTraces_AddsWarnings(t *testing.T) {
 	assert.Len(t, batches[0].Spans, 2)
 	assert.Equal(t, "test-span-1", batches[0].Spans[0].OperationName)
 	assert.Equal(t, []string{"test-warning-1", "test-warning-2"}, batches[0].Spans[0].Warnings)
-	assert.Empty(t, batches[0].Spans[0].Tags)
+	assert.Equal(t, []model.KeyValue{{Key: "key", VStr: "value"}}, batches[0].Spans[0].Tags)
 	assert.Equal(t, "test-span-2", batches[0].Spans[1].OperationName)
 	assert.Empty(t, batches[0].Spans[1].Warnings)
 	assert.Empty(t, batches[0].Spans[1].Tags)
