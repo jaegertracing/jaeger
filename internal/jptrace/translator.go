@@ -37,12 +37,24 @@ func createSpanMapFromTraces(traces ptrace.Traces) map[pcommon.SpanID]ptrace.Spa
 }
 
 func addWarningsToBatches(batches []*model.Batch, spanMap map[pcommon.SpanID]ptrace.Span) {
-	for i, batch := range batches {
-		for j, span := range batch.Spans {
-			if span, ok := spanMap[span.SpanID.ToOTELSpanID()]; ok {
-				warnings := GetWarnings(span)
-				batches[i].Spans[j].Warnings = append(batches[i].Spans[j].Warnings, warnings...)
+	for _, batch := range batches {
+		for _, span := range batch.Spans {
+			if otelSpan, ok := spanMap[span.SpanID.ToOTELSpanID()]; ok {
+				warnings := GetWarnings(otelSpan)
+				span.Warnings = append(span.Warnings, warnings...)
+				// filter out the warning tag
+				span.Tags = filterTags(span.Tags, warningsAttribute)
 			}
 		}
 	}
+}
+
+func filterTags(tags []model.KeyValue, keyToRemove string) []model.KeyValue {
+	var filteredTags []model.KeyValue
+	for _, tag := range tags {
+		if tag.Key != keyToRemove {
+			filteredTags = append(filteredTags, tag)
+		}
+	}
+	return filteredTags
 }

@@ -40,10 +40,13 @@ func TestProtoFromTraces_AddsWarnings(t *testing.T) {
 	assert.Len(t, batches[0].Spans, 2)
 	assert.Equal(t, "test-span-1", batches[0].Spans[0].OperationName)
 	assert.Equal(t, []string{"test-warning-1", "test-warning-2"}, batches[0].Spans[0].Warnings)
+	assert.Empty(t, batches[0].Spans[0].Tags)
 	assert.Equal(t, "test-span-2", batches[0].Spans[1].OperationName)
 	assert.Empty(t, batches[0].Spans[1].Warnings)
+	assert.Empty(t, batches[0].Spans[1].Tags)
 
 	assert.Len(t, batches[1].Spans, 1)
 	assert.Equal(t, "test-span-3", batches[1].Spans[0].OperationName)
 	assert.Equal(t, []string{"test-warning-3"}, batches[1].Spans[0].Warnings)
+	assert.Empty(t, batches[1].Spans[0].Tags)
 }
