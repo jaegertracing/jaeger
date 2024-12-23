@@ -137,3 +137,28 @@ func TestTraceIDFromOTEL(t *testing.T) {
 	}
 	require.Equal(t, expected, model.TraceIDFromOTEL(otelTraceID))
 }
+func TestToOTELSpanID(t *testing.T) {
+	tests := []struct {
+		name     string
+		spanID   model.SpanID
+		expected pcommon.SpanID
+	}{
+		{
+			name:     "zero span ID",
+			spanID:   model.NewSpanID(0),
+			expected: pcommon.NewSpanIDEmpty(),
+		},
+		{
+			name:     "non-zero span ID",
+			spanID:   model.NewSpanID(1),
+			expected: pcommon.SpanID([8]byte{0, 0, 0, 0, 0, 0, 0, 1}),
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			actual := test.spanID.ToOTELSpanID()
+			assert.Equal(t, test.expected, actual)
+		})
+	}
+}
