@@ -13,8 +13,9 @@ func StandardAdjusters(maxClockSkewAdjust time.Duration) []Adjuster {
 	return []Adjuster{
 		DeduplicateClientServerSpanIDs(),
 		SortCollections(),
-		DeduplicateSpans(),                   // requires SortAttributesAndEvents for deterministic results
-		CorrectClockSkew(maxClockSkewAdjust), // adds warnings (which affect SpanHash) on duplicate span IDs
+		// DeduplicateSpans depends on SortCollections running first
+		DeduplicateSpans(),
+		CorrectClockSkew(maxClockSkewAdjust),
 		NormalizeIPAttributes(),
 		MoveLibraryAttributes(),
 		RemoveEmptySpanLinks(),
