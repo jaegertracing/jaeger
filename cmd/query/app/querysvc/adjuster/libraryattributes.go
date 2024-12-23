@@ -21,11 +21,11 @@ var libraryKeys = map[string]struct{}{
 	string(otelsemconv.TelemetryDistroVersionKey): {},
 }
 
-// ResourceAttributes creates an adjuster that moves the OpenTelemetry library
+// MoveLibraryAttributes creates an adjuster that moves the OpenTelemetry library
 // attributes from spans to the parent resource so that the UI can
 // display them separately under Process.
 // https://github.com/jaegertracing/jaeger/issues/4534
-func ResourceAttributes() ResourceAttributesAdjuster {
+func MoveLibraryAttributes() ResourceAttributesAdjuster {
 	return ResourceAttributesAdjuster{}
 }
 

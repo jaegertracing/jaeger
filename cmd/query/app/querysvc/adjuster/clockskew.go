@@ -21,7 +21,7 @@ const (
 	warningSkewAdjustDisabled  = "clock skew adjustment disabled; not applying calculated delta of %v"
 )
 
-// ClockSkew returns an Adjuster that corrects span timestamps for clock skew.
+// CorrectClockSkew returns an Adjuster that corrects span timestamps for clock skew.
 //
 // This adjuster modifies the start and log timestamps of child spans that are
 // inconsistent with their parent spans due to clock differences between hosts.
@@ -36,7 +36,7 @@ const (
 // Parameters:
 //   - maxDelta: The maximum allowable time adjustment. Adjustments exceeding
 //     this value will be ignored.
-func ClockSkew(maxDelta time.Duration) Adjuster {
+func CorrectClockSkew(maxDelta time.Duration) Adjuster {
 	return Func(func(traces ptrace.Traces) {
 		adjuster := &clockSkewAdjuster{
 			traces:   traces,

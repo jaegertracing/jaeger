@@ -15,8 +15,8 @@ const (
 
 var _ Adjuster = (*LinksAdjuster)(nil)
 
-// SpanLinks creates an adjuster that removes span links with empty trace IDs.
-func SpanLinks() LinksAdjuster {
+// RemoveEmptySpanLinks creates an adjuster that removes span links with empty trace IDs.
+func RemoveEmptySpanLinks() LinksAdjuster {
 	return LinksAdjuster{}
 }
 

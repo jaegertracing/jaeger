@@ -15,11 +15,11 @@ func TestStandardAdjusters(t *testing.T) {
 	adjusters := StandardAdjusters(maxClockSkewAdjust)
 
 	assert.Len(t, adjusters, 7, "Expected 7 adjusters")
-	assert.IsType(t, SpanIDUniquifier(), adjusters[0])
-	assert.IsType(t, SortAttributesAndEvents(), adjusters[1])
-	assert.IsType(t, SpanHash(), adjusters[2])
-	assert.IsType(t, ClockSkew(maxClockSkewAdjust), adjusters[3])
-	assert.IsType(t, IPAttribute(), adjusters[4])
-	assert.IsType(t, ResourceAttributes(), adjusters[5])
-	assert.IsType(t, SpanLinks(), adjusters[6])
+	assert.IsType(t, DeduplicateClientServerSpanIDs(), adjusters[0])
+	assert.IsType(t, SortCollections(), adjusters[1])
+	assert.IsType(t, DeduplicateSpans(), adjusters[2])
+	assert.IsType(t, CorrectClockSkew(maxClockSkewAdjust), adjusters[3])
+	assert.IsType(t, NormalizeIPAttributes(), adjusters[4])
+	assert.IsType(t, MoveLibraryAttributes(), adjusters[5])
+	assert.IsType(t, RemoveEmptySpanLinks(), adjusters[6])
 }

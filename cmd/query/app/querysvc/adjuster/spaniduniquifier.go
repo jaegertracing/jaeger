@@ -15,7 +15,7 @@ import (
 
 var errTooManySpans = errors.New("cannot assign unique span ID, too many spans in the trace")
 
-// SpanIDUniquifier returns an adjuster that changes span ids for server
+// DeduplicateClientServerSpanIDs returns an adjuster that changes span ids for server
 // spans (i.e. spans with tag: span.kind == server) if there is another
 // client span that shares the same span ID. This is needed to deal with
 // Zipkin-style clients that reuse the same span ID for both client and server
@@ -23,7 +23,7 @@ var errTooManySpans = errors.New("cannot assign unique span ID, too many spans i
 //
 // Any issues encountered during adjustment are recorded as warnings in the
 // span.
-func SpanIDUniquifier() Adjuster {
+func DeduplicateClientServerSpanIDs() Adjuster {
 	return Func(func(traces ptrace.Traces) {
 		adjuster := spanIDDeduper{
 			spansByID: make(map[pcommon.SpanID][]ptrace.Span),

@@ -14,7 +14,7 @@ import (
 
 var _ Adjuster = (*SpanHashDeduper)(nil)
 
-// SpanHash creates an adjuster that deduplicates spans by removing all but one span
+// DeduplicateSpans creates an adjuster that deduplicates spans by removing all but one span
 // with the same hash code. This is particularly useful for scenarios where spans
 // may be duplicated during archival, such as with ElasticSearch archival.
 //
@@ -23,7 +23,7 @@ var _ Adjuster = (*SpanHashDeduper)(nil)
 //
 // To ensure consistent hash codes, this adjuster should be executed after
 // SortAttributesAndEvents, which normalizes the order of collections within the span.
-func SpanHash() *SpanHashDeduper {
+func DeduplicateSpans() *SpanHashDeduper {
 	return &SpanHashDeduper{
 		marshaler: &ptrace.ProtoMarshaler{},
 	}

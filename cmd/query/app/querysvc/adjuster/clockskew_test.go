@@ -182,7 +182,7 @@ func TestClockSkewAdjuster(t *testing.T) {
 		testCase := tt // capture loop var
 		t.Run(testCase.description, func(t *testing.T) {
 			trace := makeTrace(testCase.trace)
-			adjuster := ClockSkew(tt.maxAdjust)
+			adjuster := CorrectClockSkew(tt.maxAdjust)
 			adjuster.Adjust(trace)
 
 			var gotErr string

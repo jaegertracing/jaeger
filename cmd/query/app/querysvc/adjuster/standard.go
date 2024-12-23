@@ -11,12 +11,12 @@ import (
 // before returning the data to the API clients.
 func StandardAdjusters(maxClockSkewAdjust time.Duration) []Adjuster {
 	return []Adjuster{
-		SpanIDUniquifier(),
-		SortAttributesAndEvents(),
-		SpanHash(),                    // requires SortAttributesAndEvents for deterministic results
-		ClockSkew(maxClockSkewAdjust), // adds warnings (which affect SpanHash) on duplicate span IDs
-		IPAttribute(),
-		ResourceAttributes(),
-		SpanLinks(),
+		DeduplicateClientServerSpanIDs(),
+		SortCollections(),
+		DeduplicateSpans(),                   // requires SortAttributesAndEvents for deterministic results
+		CorrectClockSkew(maxClockSkewAdjust), // adds warnings (which affect SpanHash) on duplicate span IDs
+		NormalizeIPAttributes(),
+		MoveLibraryAttributes(),
+		RemoveEmptySpanLinks(),
 	}
 }
