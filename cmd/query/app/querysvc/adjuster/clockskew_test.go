@@ -50,7 +50,7 @@ func TestClockSkewAdjuster(t *testing.T) {
 			events.CopyTo(span.Events())
 
 			resource := ptrace.NewResourceSpans()
-			resource.Resource().Attributes().PutStr("ip", spanProto.host)
+			resource.Resource().Attributes().PutEmptySlice("host.ip").AppendEmpty().SetStr(spanProto.host)
 
 			span.CopyTo(resource.ScopeSpans().AppendEmpty().Spans().AppendEmpty())
 			resource.CopyTo(trace.ResourceSpans().AppendEmpty())
@@ -226,63 +226,48 @@ func TestHostKey(t *testing.T) {
 		expected string
 	}{
 		{
-			name: "string IP",
+			name: "host.id attribute",
 			resource: func() ptrace.ResourceSpans {
 				rs := ptrace.NewResourceSpans()
-				rs.Resource().Attributes().PutStr("ip", "1.2.3.4")
+				rs.Resource().Attributes().PutStr("host.id", "host-123")
 				return rs
 			}(),
-			expected: "1.2.3.4",
+			expected: "host-123",
 		},
 		{
-			name: "int IP",
+			name: "host.ip attribute",
 			resource: func() ptrace.ResourceSpans {
 				rs := ptrace.NewResourceSpans()
-				rs.Resource().Attributes().PutInt("ip", int64(1<<24|2<<16|3<<8|4))
+				addresses := rs.Resource().Attributes().PutEmptySlice("host.ip")
+				addresses.AppendEmpty().SetStr("192.168.1.1")
+				addresses.AppendEmpty().SetStr("192.168.1.2")
 				return rs
 			}(),
-			expected: "1.2.3.4",
+			expected: "192.168.1.1",
 		},
 		{
-			name: "byte array IP",
+			name: "empty host.ip attribute",
 			resource: func() ptrace.ResourceSpans {
 				rs := ptrace.NewResourceSpans()
-				rs.Resource().Attributes().PutEmptyBytes("ip").FromRaw([]byte{1, 2, 3, 4})
-				return rs
-			}(),
-			expected: "1.2.3.4",
-		},
-		{
-			name: "IPv6 byte array",
-			resource: func() ptrace.ResourceSpans {
-				rs := ptrace.NewResourceSpans()
-				rs.Resource().Attributes().PutEmptyBytes("ip").FromRaw([]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 4})
-				return rs
-			}(),
-			expected: "::102:304",
-		},
-		{
-			name: "invalid byte array",
-			resource: func() ptrace.ResourceSpans {
-				rs := ptrace.NewResourceSpans()
-				rs.Resource().Attributes().PutEmptyBytes("ip").FromRaw([]byte{1, 2, 3, 4, 5})
+				rs.Resource().Attributes().PutEmptySlice("host.ip")
 				return rs
 			}(),
 			expected: "",
 		},
 		{
-			name: "unsupported type",
+			name: "host.name attribute",
 			resource: func() ptrace.ResourceSpans {
 				rs := ptrace.NewResourceSpans()
-				rs.Resource().Attributes().PutDouble("ip", 123.4)
+				rs.Resource().Attributes().PutStr("host.name", "hostname")
 				return rs
 			}(),
-			expected: "",
+			expected: "hostname",
 		},
 		{
-			name: "missing IP attribute",
+			name: "no relevant attributes",
 			resource: func() ptrace.ResourceSpans {
 				rs := ptrace.NewResourceSpans()
+				rs.Resource().Attributes().PutStr("service.name", "service-123")
 				return rs
 			}(),
 			expected: "",

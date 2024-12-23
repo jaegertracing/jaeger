@@ -4,15 +4,14 @@
 package adjuster
 
 import (
-	"encoding/binary"
 	"fmt"
-	"net"
 	"time"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger/internal/jptrace"
+	"github.com/jaegertracing/jaeger/pkg/otelsemconv"
 )
 
 const (
@@ -54,9 +53,9 @@ func ClockSkew(maxDelta time.Duration) Adjuster {
 
 type clockSkewAdjuster struct {
 	traces   ptrace.Traces
+	maxDelta time.Duration
 	spans    map[pcommon.SpanID]*node
 	roots    map[pcommon.SpanID]*node
-	maxDelta time.Duration
 }
 
 type clockSkew struct {
@@ -73,21 +72,17 @@ type node struct {
 // hostKey derives a unique string representation of a host based on resource attributes.
 // This is used to determine if two spans are from the same host.
 func hostKey(resource ptrace.ResourceSpans) string {
-	if attr, ok := resource.Resource().Attributes().Get("ip"); ok {
-		switch attr.Type() {
-		case pcommon.ValueTypeStr:
-			return attr.Str()
-		case pcommon.ValueTypeInt:
-			var buf [4]byte
-			ip := buf[:4]
-			//nolint: gosec // G115
-			binary.BigEndian.PutUint32(ip, uint32(attr.Int()))
-			return net.IP(ip).String()
-		case pcommon.ValueTypeBytes:
-			if l := attr.Bytes().Len(); l == 4 || l == 16 {
-				return net.IP(attr.Bytes().AsRaw()).String()
-			}
+	if attr, ok := resource.Resource().Attributes().Get(string(otelsemconv.HostIDKey)); ok {
+		return attr.Str()
+	}
+	if attr, ok := resource.Resource().Attributes().Get(string(otelsemconv.HostIPKey)); ok {
+		ips := attr.Slice()
+		if ips.Len() > 0 {
+			return ips.At(0).AsString()
 		}
+	}
+	if attr, ok := resource.Resource().Attributes().Get(string(otelsemconv.HostNameKey)); ok {
+		return attr.Str()
 	}
 	return ""
 }
