@@ -13,7 +13,6 @@ import (
 	"github.com/spf13/viper"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/configgrpc"
-	"go.opentelemetry.io/collector/config/configtelemetry"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/metric"
@@ -246,8 +245,6 @@ func getTelset(logger *zap.Logger, tracerProvider trace.TracerProvider, meterPro
 	return component.TelemetrySettings{
 		Logger:         logger,
 		TracerProvider: tracerProvider,
-		LeveledMeterProvider: func(_ configtelemetry.Level) metric.MeterProvider {
-			return meterProvider
-		},
+		MeterProvider:  meterProvider,
 	}
 }

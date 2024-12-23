@@ -8,7 +8,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/config"
 )
@@ -18,9 +17,9 @@ func TestFlags(t *testing.T) {
 	command.ParseFlags([]string{
 		"--grpc.host-port=127.0.0.1:8081",
 	})
-	qOpts, err := new(Options).InitFromViper(v, zap.NewNop())
+	qOpts, err := new(Options).InitFromViper(v)
 	require.NoError(t, err)
-	assert.Equal(t, "127.0.0.1:8081", qOpts.GRPCHostPort)
+	assert.Equal(t, "127.0.0.1:8081", qOpts.NetAddr.Endpoint)
 }
 
 func TestFailedTLSFlags(t *testing.T) {
@@ -30,6 +29,6 @@ func TestFailedTLSFlags(t *testing.T) {
 		"--grpc.tls.cert=blah", // invalid unless tls.enabled
 	})
 	require.NoError(t, err)
-	_, err = new(Options).InitFromViper(v, zap.NewNop())
+	_, err = new(Options).InitFromViper(v)
 	assert.ErrorContains(t, err, "failed to process gRPC TLS options")
 }

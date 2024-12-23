@@ -12,6 +12,7 @@ import (
 	"strconv"
 
 	"github.com/gogo/protobuf/jsonpb"
+	"go.opentelemetry.io/collector/pdata/pcommon"
 )
 
 const (
@@ -145,6 +146,23 @@ func (t *TraceID) UnmarshalJSON(data []byte) error {
 	return t.Unmarshal(b)
 }
 
+// ToOTELTraceID converts the TraceID to OTEL's representation of a trace identitfier.
+// This was taken from
+// https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/internal/coreinternal/idutils/big_endian_converter.go.
+func (t *TraceID) ToOTELTraceID() pcommon.TraceID {
+	traceID := [16]byte{}
+	binary.BigEndian.PutUint64(traceID[:8], t.High)
+	binary.BigEndian.PutUint64(traceID[8:], t.Low)
+	return traceID
+}
+
+func TraceIDFromOTEL(traceID pcommon.TraceID) TraceID {
+	return TraceID{
+		High: binary.BigEndian.Uint64(traceID[:traceIDShortBytesLen]),
+		Low:  binary.BigEndian.Uint64(traceID[traceIDShortBytesLen:]),
+	}
+}
+
 // ------- SpanID -------
 
 // NewSpanID creates a new SpanID from a 64bit unsigned int.
@@ -242,4 +260,20 @@ func (s *SpanID) UnmarshalJSON(data []byte) error {
 // https://github.com/gogo/protobuf/issues/411#issuecomment-393856837
 func (s *SpanID) UnmarshalJSONPB(_ *jsonpb.Unmarshaler, b []byte) error {
 	return s.UnmarshalJSON(b)
+}
+
+// ToOTELSpanID converts the SpanID to OTEL's representation of a span identitfier.
+// This was taken from
+// https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/internal/coreinternal/idutils/big_endian_converter.go.
+func (s SpanID) ToOTELSpanID() pcommon.SpanID {
+	spanID := [8]byte{}
+	binary.BigEndian.PutUint64(spanID[:], uint64(s))
+	return pcommon.SpanID(spanID)
+}
+
+// ToOTELSpanID converts OTEL's SpanID to the model representation of a span identitfier.
+// This was taken from
+// https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/internal/coreinternal/idutils/big_endian_converter.go.
+func SpanIDFromOTEL(spanID pcommon.SpanID) SpanID {
+	return SpanID(binary.BigEndian.Uint64(spanID[:]))
 }

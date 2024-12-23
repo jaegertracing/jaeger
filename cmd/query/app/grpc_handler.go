@@ -89,7 +89,12 @@ func (g *GRPCHandler) GetTrace(r *api_v2.GetTraceRequest, stream api_v2.QuerySer
 	if r.TraceID == (model.TraceID{}) {
 		return errUninitializedTraceID
 	}
-	trace, err := g.queryService.GetTrace(stream.Context(), r.TraceID)
+	query := spanstore.GetTraceParameters{
+		TraceID:   r.TraceID,
+		StartTime: r.StartTime,
+		EndTime:   r.EndTime,
+	}
+	trace, err := g.queryService.GetTrace(stream.Context(), query)
 	if errors.Is(err, spanstore.ErrTraceNotFound) {
 		g.logger.Warn(msgTraceNotFound, zap.Stringer("id", r.TraceID), zap.Error(err))
 		return status.Errorf(codes.NotFound, "%s: %v", msgTraceNotFound, err)
@@ -109,7 +114,12 @@ func (g *GRPCHandler) ArchiveTrace(ctx context.Context, r *api_v2.ArchiveTraceRe
 	if r.TraceID == (model.TraceID{}) {
 		return nil, errUninitializedTraceID
 	}
-	err := g.queryService.ArchiveTrace(ctx, r.TraceID)
+	query := spanstore.GetTraceParameters{
+		TraceID:   r.TraceID,
+		StartTime: r.StartTime,
+		EndTime:   r.EndTime,
+	}
+	err := g.queryService.ArchiveTrace(ctx, query)
 	if errors.Is(err, spanstore.ErrTraceNotFound) {
 		g.logger.Warn(msgTraceNotFound, zap.Stringer("id", r.TraceID), zap.Error(err))
 		return nil, status.Errorf(codes.NotFound, "%s: %v", msgTraceNotFound, err)
@@ -223,7 +233,7 @@ func (g *GRPCHandler) GetDependencies(ctx context.Context, r *api_v2.GetDependen
 		return nil, status.Errorf(codes.InvalidArgument, "StartTime and EndTime must be initialized.")
 	}
 
-	dependencies, err := g.queryService.GetDependencies(ctx, startTime, endTime.Sub(startTime))
+	dependencies, err := g.queryService.GetDependencies(ctx, endTime, endTime.Sub(startTime))
 	if err != nil {
 		g.logger.Error("failed to fetch dependencies", zap.Error(err))
 		return nil, status.Errorf(codes.Internal, "failed to fetch dependencies: %v", err)

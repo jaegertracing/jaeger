@@ -21,8 +21,8 @@ import (
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc"
 	"github.com/jaegertracing/jaeger/plugin/storage/memory"
 	"github.com/jaegertracing/jaeger/storage"
-	"github.com/jaegertracing/jaeger/storage_v2/factoryadapter"
 	"github.com/jaegertracing/jaeger/storage_v2/tracestore"
+	"github.com/jaegertracing/jaeger/storage_v2/v1adapter"
 )
 
 var _ Extension = (*storageExt)(nil)
@@ -74,13 +74,13 @@ func GetMetricStorageFactory(name string, host component.Host) (storage.MetricSt
 	return mf, nil
 }
 
-func GetStorageFactoryV2(name string, host component.Host) (tracestore.Factory, error) {
+func GetTraceStoreFactory(name string, host component.Host) (tracestore.Factory, error) {
 	f, err := GetStorageFactory(name, host)
 	if err != nil {
 		return nil, err
 	}
 
-	return factoryadapter.NewFactory(f), nil
+	return v1adapter.NewFactory(f), nil
 }
 
 func findExtension(host component.Host) (Extension, error) {

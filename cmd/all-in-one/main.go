@@ -38,13 +38,14 @@ import (
 	ss "github.com/jaegertracing/jaeger/plugin/sampling/strategyprovider"
 	"github.com/jaegertracing/jaeger/plugin/storage"
 	"github.com/jaegertracing/jaeger/ports"
-	"github.com/jaegertracing/jaeger/storage/dependencystore"
-	"github.com/jaegertracing/jaeger/storage_v2/factoryadapter"
+	"github.com/jaegertracing/jaeger/storage_v2/depstore"
 	"github.com/jaegertracing/jaeger/storage_v2/tracestore"
+	"github.com/jaegertracing/jaeger/storage_v2/v1adapter"
 )
 
 // all-in-one/main is a standalone full-stack jaeger backend, backed by a memory store
 func main() {
+	flags.PrintV1EOL()
 	setupcontext.SetAllInOne()
 
 	svc := flags.NewService(ports.CollectorAdminHTTP)
@@ -105,7 +106,7 @@ by default uses only in-memory database.`,
 				logger.Fatal("Failed to init storage factory", zap.Error(err))
 			}
 
-			v2Factory := factoryadapter.NewFactory(storageFactory)
+			v2Factory := v1adapter.NewFactory(storageFactory)
 			traceReader, err := v2Factory.CreateTraceReader()
 			if err != nil {
 				logger.Fatal("Failed to create span reader", zap.Error(err))
@@ -114,7 +115,7 @@ by default uses only in-memory database.`,
 			if err != nil {
 				logger.Fatal("Failed to create span writer", zap.Error(err))
 			}
-			dependencyReader, err := storageFactory.CreateDependencyReader()
+			dependencyReader, err := v2Factory.CreateDependencyReader()
 			if err != nil {
 				logger.Fatal("Failed to create dependency reader", zap.Error(err))
 			}
@@ -148,7 +149,7 @@ by default uses only in-memory database.`,
 				logger.Fatal("Failed to configure query service", zap.Error(err))
 			}
 
-			tm := tenancy.NewManager(&cOpts.GRPC.Tenancy)
+			tm := tenancy.NewManager(&cOpts.Tenancy)
 
 			// collector
 			c := collectorApp.New(&collectorApp.CollectorParams{
@@ -218,7 +219,7 @@ func startQuery(
 	qOpts *queryApp.QueryOptions,
 	queryOpts *querysvc.QueryServiceOptions,
 	traceReader tracestore.Reader,
-	depReader dependencystore.Reader,
+	depReader depstore.Reader,
 	metricsQueryService querysvc.MetricsQueryService,
 	tm *tenancy.Manager,
 	telset telemetry.Settings,

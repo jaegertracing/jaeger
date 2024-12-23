@@ -147,10 +147,10 @@ func (st *Store) WriteSpan(ctx context.Context, span *model.Span) error {
 		m.operations[span.Process.ServiceName] = map[spanstore.Operation]struct{}{}
 	}
 
-	spanKind, _ := span.GetSpanKind()
+	spanKind, _ := span.GetSpanKind() // if not found it returns Unspecified
 	operation := spanstore.Operation{
 		Name:     span.OperationName,
-		SpanKind: spanKind.String(),
+		SpanKind: string(spanKind),
 	}
 
 	if _, ok := m.operations[span.Process.ServiceName][operation]; !ok {
@@ -182,11 +182,11 @@ func (st *Store) WriteSpan(ctx context.Context, span *model.Span) error {
 }
 
 // GetTrace gets a trace
-func (st *Store) GetTrace(ctx context.Context, traceID model.TraceID) (*model.Trace, error) {
+func (st *Store) GetTrace(ctx context.Context, query spanstore.GetTraceParameters) (*model.Trace, error) {
 	m := st.getTenant(tenancy.GetTenant(ctx))
 	m.RLock()
 	defer m.RUnlock()
-	trace, ok := m.traces[traceID]
+	trace, ok := m.traces[query.TraceID]
 	if !ok {
 		return nil, spanstore.ErrTraceNotFound
 	}

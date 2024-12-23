@@ -1,7 +1,7 @@
 // Copyright (c) 2024 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
-package factoryadapter
+package v1adapter
 
 import (
 	"context"
@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc"
+	dependencyStoreMocks "github.com/jaegertracing/jaeger/storage/dependencystore/mocks"
 	factoryMocks "github.com/jaegertracing/jaeger/storage/mocks"
 	spanstoreMocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
 )
@@ -70,4 +71,25 @@ func TestAdapterCreateTraceWriter(t *testing.T) {
 	f := NewFactory(f1)
 	_, err := f.CreateTraceWriter()
 	require.NoError(t, err)
+}
+
+func TestAdapterCreateDependencyReader(t *testing.T) {
+	f1 := new(factoryMocks.Factory)
+	f1.On("CreateDependencyReader").Return(new(dependencyStoreMocks.Reader), nil)
+
+	f := NewFactory(f1)
+	r, err := f.CreateDependencyReader()
+	require.NoError(t, err)
+	require.NotNil(t, r)
+}
+
+func TestAdapterCreateDependencyReaderError(t *testing.T) {
+	f1 := new(factoryMocks.Factory)
+	testErr := errors.New("test error")
+	f1.On("CreateDependencyReader").Return(nil, testErr)
+
+	f := NewFactory(f1)
+	r, err := f.CreateDependencyReader()
+	require.ErrorIs(t, err, testErr)
+	require.Nil(t, r)
 }

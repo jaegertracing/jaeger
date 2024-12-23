@@ -1,13 +1,14 @@
 // Copyright (c) 2024 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
-package factoryadapter
+package v1adapter
 
 import (
 	"context"
 	"io"
 
 	storage_v1 "github.com/jaegertracing/jaeger/storage"
+	"github.com/jaegertracing/jaeger/storage_v2/depstore"
 	"github.com/jaegertracing/jaeger/storage_v2/tracestore"
 )
 
@@ -15,7 +16,7 @@ type Factory struct {
 	ss storage_v1.Factory
 }
 
-func NewFactory(ss storage_v1.Factory) tracestore.Factory {
+func NewFactory(ss storage_v1.Factory) *Factory {
 	return &Factory{
 		ss: ss,
 	}
@@ -50,4 +51,13 @@ func (f *Factory) CreateTraceWriter() (tracestore.Writer, error) {
 		return nil, err
 	}
 	return NewTraceWriter(spanWriter), nil
+}
+
+// CreateDependencyReader implements depstore.Factory.
+func (f *Factory) CreateDependencyReader() (depstore.Reader, error) {
+	dr, err := f.ss.CreateDependencyReader()
+	if err != nil {
+		return nil, err
+	}
+	return NewDependencyReader(dr), nil
 }
