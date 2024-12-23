@@ -6,10 +6,11 @@ package jptrace
 import (
 	"testing"
 
-	"github.com/jaegertracing/jaeger/model"
 	"github.com/stretchr/testify/assert"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+
+	"github.com/jaegertracing/jaeger/model"
 )
 
 func TestProtoFromTraces_AddsWarnings(t *testing.T) {
