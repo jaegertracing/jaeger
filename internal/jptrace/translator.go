@@ -1,9 +1,13 @@
+// Copyright (c) 2024 The Jaeger Authors.
+// SPDX-License-Identifier: Apache-2.0
+
 package jptrace
 
 import (
-	"github.com/jaegertracing/jaeger/model"
 	otlp2jaeger "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+
+	"github.com/jaegertracing/jaeger/model"
 )
 
 func ProtoFromTraces(traces ptrace.Traces) []*model.Batch {
