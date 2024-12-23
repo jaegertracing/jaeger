@@ -31,7 +31,7 @@ func TestLinksAdjuster(t *testing.T) {
 	spanC.Links().AppendEmpty().SetTraceID(pcommon.TraceID([]byte{0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0}))
 	spanC.Links().AppendEmpty().SetTraceID(pcommon.TraceID([]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}))
 
-	SpanLinks().Adjust(traces)
+	RemoveEmptySpanLinks().Adjust(traces)
 	spans := traces.ResourceSpans().At(0).ScopeSpans().At(0).Spans()
 
 	gotSpansA := spans.At(0)
