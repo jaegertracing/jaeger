@@ -235,7 +235,16 @@ func TestHostKey(t *testing.T) {
 			expected: "host-123",
 		},
 		{
-			name: "host.ip attribute",
+			name: "string host.ip attribute",
+			resource: func() ptrace.ResourceSpans {
+				rs := ptrace.NewResourceSpans()
+				rs.Resource().Attributes().PutStr("host.ip", "192.168.1.1")
+				return rs
+			}(),
+			expected: "192.168.1.1",
+		},
+		{
+			name: "slice host.ip attribute",
 			resource: func() ptrace.ResourceSpans {
 				rs := ptrace.NewResourceSpans()
 				addresses := rs.Resource().Attributes().PutEmptySlice("host.ip")
@@ -246,7 +255,7 @@ func TestHostKey(t *testing.T) {
 			expected: "192.168.1.1",
 		},
 		{
-			name: "empty host.ip attribute",
+			name: "empty host.ip attribute slice",
 			resource: func() ptrace.ResourceSpans {
 				rs := ptrace.NewResourceSpans()
 				rs.Resource().Attributes().PutEmptySlice("host.ip")

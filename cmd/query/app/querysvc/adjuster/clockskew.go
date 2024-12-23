@@ -76,9 +76,13 @@ func hostKey(resource ptrace.ResourceSpans) string {
 		return attr.Str()
 	}
 	if attr, ok := resource.Resource().Attributes().Get(string(otelsemconv.HostIPKey)); ok {
-		ips := attr.Slice()
-		if ips.Len() > 0 {
-			return ips.At(0).AsString()
+		if attr.Type() == pcommon.ValueTypeStr {
+			return attr.Str()
+		} else if attr.Type() == pcommon.ValueTypeSlice {
+			ips := attr.Slice()
+			if ips.Len() > 0 {
+				return ips.At(0).AsString()
+			}
 		}
 	}
 	if attr, ok := resource.Resource().Attributes().Get(string(otelsemconv.HostNameKey)); ok {
