@@ -16,14 +16,16 @@ const (
 	warningsAttribute = "jaeger.internal.warnings"
 )
 
-func AddWarning(span ptrace.Span, warning string) {
-	var warnings pcommon.Slice
+func AddWarning(span ptrace.Span, warnings ...string) {
+	var w pcommon.Slice
 	if currWarnings, ok := span.Attributes().Get(warningsAttribute); ok {
-		warnings = currWarnings.Slice()
+		w = currWarnings.Slice()
 	} else {
-		warnings = span.Attributes().PutEmptySlice(warningsAttribute)
+		w = span.Attributes().PutEmptySlice(warningsAttribute)
 	}
-	warnings.AppendEmpty().SetStr(warning)
+	for _, warning := range warnings {
+		w.AppendEmpty().SetStr(warning)
+	}
 }
 
 func GetWarnings(span ptrace.Span) []string {

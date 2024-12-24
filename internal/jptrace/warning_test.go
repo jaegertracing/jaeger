@@ -6,6 +6,7 @@ package jptrace
 import (
 	"testing"
 
+	"github.com/crossdock/crossdock-go/require"
 	"github.com/stretchr/testify/assert"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 )
@@ -55,6 +56,15 @@ func TestAddWarning(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestAddWarning_MultipleWarnings(t *testing.T) {
+	span := ptrace.NewSpan()
+	AddWarning(span, "warning-1", "warning-2")
+	warnings, ok := span.Attributes().Get("jaeger.internal.warnings")
+	require.True(t, ok)
+	require.Equal(t, "warning-1", warnings.Slice().At(0).Str())
+	require.Equal(t, "warning-2", warnings.Slice().At(1).Str())
 }
 
 func TestGetWarnings(t *testing.T) {
