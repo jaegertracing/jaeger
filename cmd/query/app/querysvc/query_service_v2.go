@@ -1,5 +1,5 @@
-// // Copyright (c) 2019 The Jaeger Authors.
-// // SPDX-License-Identifier: Apache-2.0
+// Copyright (c) 2024 The Jaeger Authors.
+// SPDX-License-Identifier: Apache-2.0
 
 package querysvc
 
@@ -10,22 +10,19 @@ import (
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
-	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc/adjuster"
 	"github.com/jaegertracing/jaeger/model"
-	"github.com/jaegertracing/jaeger/model/adjuster"
+	"github.com/jaegertracing/jaeger/pkg/iter"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	"github.com/jaegertracing/jaeger/storage_v2/depstore"
 	"github.com/jaegertracing/jaeger/storage_v2/tracestore"
 )
 
-// TODO: Remove query_service.go and rename query_service_v2.go
-// to query_service.go once all components have been migrated to
-// operate on the OTEL data model.
-var errNoArchiveSpanStorageV2 = errors.New("archive span storage was not configured")
+var errNoArchiveSpanStorage = errors.New("archive span storage was not configured")
 
 const (
-	defaultMaxClockSkewAdjustV2 = time.Second
+	defaultMaxClockSkewAdjust = time.Second
 )
 
 // QueryServiceOptions has optional members of QueryService
@@ -51,29 +48,36 @@ type QueryServiceV2 struct {
 }
 
 // NewQueryService returns a new QueryService.
-func NewQueryServiceV2(traceReader tracestore.Reader, dependencyReader depstore.Reader, options QueryServiceOptions) *QueryService {
-	qsvc := &QueryService{
+func NewQueryServiceV2(
+	traceReader tracestore.Reader,
+	dependencyReader depstore.Reader,
+	options QueryServiceOptionsV2,
+) *QueryServiceV2 {
+	qsvc := &QueryServiceV2{
 		traceReader:      traceReader,
 		dependencyReader: dependencyReader,
 		options:          options,
 	}
 
 	if qsvc.options.Adjuster == nil {
-		qsvc.options.Adjuster = adjuster.Sequence(StandardAdjusters(defaultMaxClockSkewAdjustV2)...)
+		qsvc.options.Adjuster = adjuster.Sequence(adjuster.StandardAdjusters(defaultMaxClockSkewAdjust)...)
 	}
 	return qsvc
 }
 
 // GetTrace is the queryService implementation of tracestore.Reader.GetTrace
-func (qs QueryServiceV2) GetTrace(ctx context.Context, traceID pcommon.TraceID) (ptrace.Traces, error) {
-	trace, err := qs.traceReader.GetTrace(ctx, traceID)
+func (qs QueryServiceV2) GetTraces(ctx context.Context, traceIDs ...tracestore.GetTraceParams) iter.Seq2[[]ptrace.Traces, error] {
+	traceIter := qs.traceReader.GetTraces(ctx, traceIDs...)
+	_, err := iter.FlattenWithErrors(traceIter)
 	if errors.Is(err, spanstore.ErrTraceNotFound) {
 		if qs.options.ArchiveTraceReader == nil {
-			return ptrace.NewTraces(), err
+			return func(yield func([]ptrace.Traces, error) bool) {
+				yield(nil, err)
+			}
 		}
-		trace, err = qs.options.ArchiveTraceReader.GetTrace(ctx, traceID)
+		traceIter = qs.options.ArchiveTraceReader.GetTraces(ctx, traceIDs...)
 	}
-	return trace, err
+	return traceIter
 }
 
 // GetServices is the queryService implementation of tracestore.Reader.GetServices
@@ -90,25 +94,29 @@ func (qs QueryServiceV2) GetOperations(
 }
 
 // FindTraces is the queryService implementation of tracestore.Reader.FindTraces
-func (qs QueryServiceV2) FindTraces(ctx context.Context, query tracestore.TraceQueryParameters) ([]ptrace.Traces, error) {
+func (qs QueryServiceV2) FindTraces(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[[]ptrace.Traces, error] {
 	return qs.traceReader.FindTraces(ctx, query)
 }
 
 // ArchiveTrace is the queryService utility to archive traces.
 func (qs QueryServiceV2) ArchiveTrace(ctx context.Context, traceID pcommon.TraceID) error {
 	if qs.options.ArchiveTraceWriter == nil {
-		return errNoArchiveSpanStorageV2
+		return errNoArchiveSpanStorage
 	}
-	trace, err := qs.GetTrace(ctx, traceID)
+	var err error
+	traces, err := iter.FlattenWithErrors(qs.GetTraces(ctx, tracestore.GetTraceParams{TraceID: traceID}))
 	if err != nil {
 		return err
 	}
-	return qs.options.ArchiveTraceWriter.WriteTraces(ctx, trace)
+	for _, trace := range traces {
+		err = errors.Join(err, qs.options.ArchiveTraceWriter.WriteTraces(ctx, trace))
+	}
+	return err
 }
 
 // Adjust applies adjusters to the trace.
-func (qs QueryServiceV2) Adjust(trace *model.Trace) (*model.Trace, error) {
-	return qs.options.Adjuster.Adjust(trace)
+func (qs QueryServiceV2) Adjust(trace ptrace.Traces) {
+	qs.options.Adjuster.Adjust(trace)
 }
 
 // GetDependencies implements depstore.Reader.GetDependencies
@@ -124,15 +132,6 @@ func (qs QueryServiceV2) GetCapabilities() StorageCapabilities {
 	return StorageCapabilities{
 		ArchiveStorage: qs.options.hasArchiveStorage(),
 	}
-}
-
-// InitArchiveStorage tries to initialize archive storage reader/writer if storage factory supports them.
-func (opts *QueryServiceOptionsV2) InitArchiveStorage(
-	archiveReader tracestore.Reader,
-	archiveWriter tracestore.Writer,
-	logger *zap.Logger) {
-	opts.ArchiveTraceReader = archiveReader
-	opts.ArchiveTraceWriter = archiveWriter
 }
 
 // hasArchiveStorage returns true if archive storage reader/writer are initialized.

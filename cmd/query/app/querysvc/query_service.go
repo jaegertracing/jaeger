@@ -19,12 +19,6 @@ import (
 	"github.com/jaegertracing/jaeger/storage_v2/v1adapter"
 )
 
-var errNoArchiveSpanStorage = errors.New("archive span storage was not configured")
-
-const (
-	defaultMaxClockSkewAdjust = time.Second
-)
-
 // QueryServiceOptions has optional members of QueryService
 type QueryServiceOptions struct {
 	ArchiveSpanReader spanstore.Reader
