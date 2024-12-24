@@ -22,14 +22,11 @@ func ProtoFromTraces(traces ptrace.Traces) []*model.Batch {
 
 // ProtoToTraces converts Jaeger model batches ([]*model.Batch)
 // to OpenTelemetry traces (ptrace.Traces).
-func ProtoToTraces(batches []*model.Batch) (ptrace.Traces, error) {
-	traces, err := jaegerTranslator.ProtoToTraces(batches)
-	if err != nil {
-		return ptrace.NewTraces(), err
-	}
+func ProtoToTraces(batches []*model.Batch) ptrace.Traces {
+	traces, _ := jaegerTranslator.ProtoToTraces(batches) // never returns an error
 	spanMap := createSpanMapFromTraces(traces)
 	transferWarningsToOTLPSpans(batches, spanMap)
-	return traces, nil
+	return traces
 }
 
 func createSpanMapFromBatches(batches []*model.Batch) map[model.SpanID]*model.Span {
@@ -67,10 +64,11 @@ func transferWarningsToModelSpans(traces ptrace.Traces, spanMap map[model.SpanID
 			for k := 0; k < spans.Len(); k++ {
 				otelSpan := spans.At(k)
 				warnings := GetWarnings(otelSpan)
-				span := spanMap[model.SpanIDFromOTEL(otelSpan.SpanID())]
-				span.Warnings = append(span.Warnings, warnings...)
-				// filter out the warning tag
-				span.Tags = filterTags(span.Tags, warningsAttribute)
+				if span, ok := spanMap[model.SpanIDFromOTEL(otelSpan.SpanID())]; ok && len(warnings) > 0 {
+					span.Warnings = append(span.Warnings, warnings...)
+					// filter out the warning tag
+					span.Tags = filterTags(span.Tags, warningsAttribute)
+				}
 			}
 		}
 	}
@@ -79,9 +77,8 @@ func transferWarningsToModelSpans(traces ptrace.Traces, spanMap map[model.SpanID
 func transferWarningsToOTLPSpans(batches []*model.Batch, spanMap map[pcommon.SpanID]ptrace.Span) {
 	for _, batch := range batches {
 		for _, span := range batch.Spans {
-			otelSpan := spanMap[span.SpanID.ToOTELSpanID()]
-			for _, warning := range span.Warnings {
-				AddWarning(otelSpan, warning)
+			if otelSpan, ok := spanMap[span.SpanID.ToOTELSpanID()]; ok && len(span.Warnings) > 0 {
+				AddWarning(otelSpan, span.Warnings...)
 			}
 		}
 	}

@@ -68,15 +68,12 @@ func (w *spanWriter) Close() error {
 }
 
 func (w *spanWriter) WriteSpan(ctx context.Context, span *model.Span) error {
-	td, err := jptrace.ProtoToTraces([]*model.Batch{
+	td := jptrace.ProtoToTraces([]*model.Batch{
 		{
 			Spans:   []*model.Span{span},
 			Process: span.Process,
 		},
 	})
-	if err != nil {
-		return err
-	}
 
 	return w.exporter.ConsumeTraces(ctx, td)
 }

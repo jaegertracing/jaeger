@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
@@ -85,8 +84,7 @@ func TestProtoToTraces_AddsWarnings(t *testing.T) {
 		},
 	}
 	batches := []*model.Batch{batch1, batch2}
-	traces, err := ProtoToTraces(batches)
-	require.NoError(t, err)
+	traces := ProtoToTraces(batches)
 
 	assert.Equal(t, 2, traces.ResourceSpans().Len())
 
