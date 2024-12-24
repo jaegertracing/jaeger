@@ -144,8 +144,13 @@ func (qs QueryServiceV2) ArchiveTrace(ctx context.Context, traceID pcommon.Trace
 }
 
 // Adjust applies adjusters to the trace.
-func (qs QueryServiceV2) Adjust(trace ptrace.Traces) {
-	qs.options.Adjuster.Adjust(trace)
+func (qs QueryServiceV2) Adjust(tracesIter iter.Seq[[]ptrace.Traces]) {
+	tracesIter(func(traces []ptrace.Traces) bool {
+		for _, trace := range traces {
+			qs.options.Adjuster.Adjust(trace)
+		}
+		return true
+	})
 }
 
 // GetDependencies implements depstore.Reader.GetDependencies
