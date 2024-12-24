@@ -40,6 +40,29 @@ func TestKeyValuesSort(t *testing.T) {
 	assert.Equal(t, expected, input)
 }
 
+func TestSpanKindFromString(t *testing.T) {
+	testCases := []struct {
+		input  string
+		output model.SpanKind
+		err    string
+	}{
+		{input: "client", output: model.SpanKindClient},
+		{input: "", output: model.SpanKindUnspecified},
+		{input: "foobar", output: model.SpanKindUnspecified, err: "unknown span kind"},
+	}
+	for _, test := range testCases {
+		t.Run(fmt.Sprintf("%+v", test), func(t *testing.T) {
+			v, err := model.SpanKindFromString(test.input)
+			if test.err != "" {
+				require.ErrorContains(t, err, test.err)
+			} else {
+				require.NoError(t, err)
+			}
+			assert.Equal(t, test.output, v)
+		})
+	}
+}
+
 func TestKeyValuesFindByKey(t *testing.T) {
 	input := model.KeyValues{
 		model.String("x", "z"),

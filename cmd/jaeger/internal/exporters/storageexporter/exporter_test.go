@@ -12,12 +12,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
-	"go.opentelemetry.io/collector/config/configtelemetry"
 	"go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/extension"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
-	"go.opentelemetry.io/otel/metric"
 	noopmetric "go.opentelemetry.io/otel/metric/noop"
 	nooptrace "go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/zap/zaptest"
@@ -27,6 +25,7 @@ import (
 	"github.com/jaegertracing/jaeger/plugin/storage/memory"
 	"github.com/jaegertracing/jaeger/storage"
 	factoryMocks "github.com/jaegertracing/jaeger/storage/mocks"
+	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
 type mockStorageExt struct {
@@ -104,10 +103,7 @@ func TestExporter(t *testing.T) {
 	telemetrySettings := component.TelemetrySettings{
 		Logger:         zaptest.NewLogger(t),
 		TracerProvider: nooptrace.NewTracerProvider(),
-		LeveledMeterProvider: func(_ configtelemetry.Level) metric.MeterProvider {
-			return noopmetric.NewMeterProvider()
-		},
-		MeterProvider: noopmetric.NewMeterProvider(),
+		MeterProvider:  noopmetric.NewMeterProvider(),
 	}
 
 	const memstoreName = "memstore"
@@ -152,7 +148,7 @@ func TestExporter(t *testing.T) {
 	spanReader, err := storageFactory.CreateSpanReader()
 	require.NoError(t, err)
 	requiredTraceID := model.NewTraceID(0, 1) // 00000000000000000000000000000001
-	requiredTrace, err := spanReader.GetTrace(ctx, requiredTraceID)
+	requiredTrace, err := spanReader.GetTrace(ctx, spanstore.GetTraceParameters{TraceID: requiredTraceID})
 	require.NoError(t, err)
 	assert.Equal(t, spanID.String(), requiredTrace.Spans[0].SpanID.String())
 
@@ -164,10 +160,7 @@ func makeStorageExtension(t *testing.T, memstoreName string) component.Host {
 	telemetrySettings := component.TelemetrySettings{
 		Logger:         zaptest.NewLogger(t),
 		TracerProvider: nooptrace.NewTracerProvider(),
-		LeveledMeterProvider: func(_ configtelemetry.Level) metric.MeterProvider {
-			return noopmetric.NewMeterProvider()
-		},
-		MeterProvider: noopmetric.NewMeterProvider(),
+		MeterProvider:  noopmetric.NewMeterProvider(),
 	}
 	extensionFactory := jaegerstorage.NewFactory()
 	storageExtension, err := extensionFactory.Create(

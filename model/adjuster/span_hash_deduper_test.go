@@ -8,7 +8,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.opentelemetry.io/otel/trace"
 
 	"github.com/jaegertracing/jaeger/model"
 )
@@ -22,7 +21,7 @@ func newDuplicatedSpansTrace() *model.Trace {
 				SpanID:  clientSpanID,
 				Tags: model.KeyValues{
 					// span.kind = server
-					model.String(keySpanKind, trace.SpanKindServer.String()),
+					model.SpanKindTag(model.SpanKindServer),
 				},
 			},
 			{
@@ -30,7 +29,7 @@ func newDuplicatedSpansTrace() *model.Trace {
 				SpanID:  clientSpanID, // shared span ID
 				Tags: model.KeyValues{
 					// span.kind = server
-					model.String(keySpanKind, trace.SpanKindServer.String()),
+					model.SpanKindTag(model.SpanKindServer),
 				},
 			},
 			{
@@ -52,7 +51,7 @@ func newUniqueSpansTrace() *model.Trace {
 				SpanID:  anotherSpanID,
 				Tags: model.KeyValues{
 					// span.kind = server
-					model.String(keySpanKind, trace.SpanKindServer.String()),
+					model.SpanKindTag(model.SpanKindServer),
 				},
 			},
 			{

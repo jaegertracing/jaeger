@@ -12,6 +12,7 @@ import (
 	"go.uber.org/zap/zaptest"
 
 	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/plugin/storage/badger"
 )
 
@@ -47,6 +48,9 @@ func (s *BadgerIntegrationStorage) cleanUp(t *testing.T) {
 
 func TestBadgerStorage(t *testing.T) {
 	SkipUnlessEnv(t, "badger")
+	t.Cleanup(func() {
+		testutils.VerifyGoLeaksOnce(t)
+	})
 	s := &BadgerIntegrationStorage{
 		StorageIntegration: StorageIntegration{
 			SkipArchiveTest: true,

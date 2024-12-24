@@ -9,12 +9,14 @@ import (
 	"os"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/plugin/storage/cassandra"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 )
@@ -47,6 +49,9 @@ func (*CassandraStorageIntegration) initializeCassandraFactory(t *testing.T, fla
 	require.NoError(t, command.ParseFlags(flags))
 	f.InitFromViper(v, logger)
 	require.NoError(t, f.Initialize(metrics.NullFactory, logger))
+	t.Cleanup(func() {
+		assert.NoError(t, f.Close())
+	})
 	return f
 }
 
@@ -78,9 +83,6 @@ func (s *CassandraStorageIntegration) initializeCassandra(t *testing.T) {
 	s.SamplingStore, err = f.CreateSamplingStore(0)
 	require.NoError(t, err)
 	s.initializeDependencyReaderAndWriter(t, f)
-	t.Cleanup(func() {
-		require.NoError(t, f.Close())
-	})
 }
 
 func (s *CassandraStorageIntegration) initializeDependencyReaderAndWriter(t *testing.T, f *cassandra.Factory) {
@@ -99,6 +101,9 @@ func (s *CassandraStorageIntegration) initializeDependencyReaderAndWriter(t *tes
 
 func TestCassandraStorage(t *testing.T) {
 	SkipUnlessEnv(t, "cassandra")
+	t.Cleanup(func() {
+		testutils.VerifyGoLeaksOnce(t)
+	})
 	s := newCassandraStorageIntegration()
 	s.initializeCassandra(t)
 	s.RunAll(t)

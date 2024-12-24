@@ -4,6 +4,7 @@
 package flags
 
 import (
+	"context"
 	"crypto/tls"
 	"fmt"
 	"net"
@@ -69,7 +70,7 @@ func TestAdminFailToServe(t *testing.T) {
 	require.NoError(t, adminServer.initFromViper(v, logger))
 
 	adminServer.serveWithListener(l)
-	defer adminServer.Close()
+	t.Cleanup(func() { assert.NoError(t, adminServer.Close()) })
 
 	waitForEqual(t, healthcheck.Broken, func() any { return adminServer.HC().Get() })
 
@@ -133,9 +134,8 @@ func TestAdminServerTLS(t *testing.T) {
 			adminServer.Serve()
 			defer adminServer.Close()
 
-			clientTLSCfg, err0 := test.clientTLS.Config(zap.NewNop())
+			clientTLSCfg, err0 := test.clientTLS.ToOtelClientConfig().LoadTLSConfig(context.Background())
 			require.NoError(t, err0)
-			defer test.clientTLS.Close()
 			dialer := &net.Dialer{Timeout: 2 * time.Second}
 			conn, clientError := tls.DialWithDialer(dialer, "tcp", fmt.Sprintf("localhost:%d", ports.CollectorAdminHTTP), clientTLSCfg)
 			require.NoError(t, clientError)

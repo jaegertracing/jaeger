@@ -43,7 +43,7 @@ func TestExtractorTraceSuccess(t *testing.T) {
 
 	for i := range trace.Data {
 		for j := range trace.Data[i].Spans {
-			assert.Equal(t, "span.kind", trace.Data[i].Spans[j].Tags[0].Key)
+			assert.Equal(t, model.SpanKindKey, trace.Data[i].Spans[j].Tags[0].Key)
 		}
 	}
 }

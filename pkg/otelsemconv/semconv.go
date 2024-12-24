@@ -24,6 +24,10 @@ const (
 	DBSystemKey               = semconv.DBSystemKey
 	PeerServiceKey            = semconv.PeerServiceKey
 	HTTPResponseStatusCodeKey = semconv.HTTPResponseStatusCodeKey
+
+	HostIDKey   = semconv.HostIDKey
+	HostIPKey   = semconv.HostIPKey
+	HostNameKey = semconv.HostNameKey
 )
 
 var HTTPResponseStatusCode = semconv.HTTPResponseStatusCode
