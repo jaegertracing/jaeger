@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
@@ -53,6 +54,7 @@ func TestProtoFromTraces_AddsWarnings(t *testing.T) {
 	assert.Equal(t, []string{"test-warning-3"}, batches[1].Spans[0].Warnings)
 	assert.Empty(t, batches[1].Spans[0].Tags)
 }
+
 func TestProtoToTraces_AddsWarnings(t *testing.T) {
 	batch1 := &model.Batch{
 		Process: &model.Process{
@@ -84,7 +86,7 @@ func TestProtoToTraces_AddsWarnings(t *testing.T) {
 	}
 	batches := []*model.Batch{batch1, batch2}
 	traces, err := ProtoToTraces(batches)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	assert.Equal(t, 2, traces.ResourceSpans().Len())
 
@@ -92,10 +94,11 @@ func TestProtoToTraces_AddsWarnings(t *testing.T) {
 	assert.Equal(t, 1, rs1.ScopeSpans().Len())
 	ss1 := rs1.ScopeSpans().At(0)
 	assert.Equal(t, 2, ss1.Spans().Len())
+
 	span1 := ss1.Spans().At(0)
 	assert.Equal(t, "test-span-1", span1.Name())
 	assert.Equal(t, pcommon.SpanID([8]byte{0, 0, 0, 0, 0, 0, 0, 1}), span1.SpanID())
-	assert.ElementsMatch(t, []string{"test-warning-1", "test-warning-2"}, GetWarnings(span1))
+	assert.Equal(t, []string{"test-warning-1", "test-warning-2"}, GetWarnings(span1))
 
 	span2 := ss1.Spans().At(1)
 	assert.Equal(t, "test-span-2", span2.Name())
@@ -110,5 +113,5 @@ func TestProtoToTraces_AddsWarnings(t *testing.T) {
 	span3 := ss3.Spans().At(0)
 	assert.Equal(t, "test-span-3", span3.Name())
 	assert.Equal(t, pcommon.SpanID([8]byte{0, 0, 0, 0, 0, 0, 0, 3}), span3.SpanID())
-	assert.ElementsMatch(t, []string{"test-warning-3"}, GetWarnings(span3))
+	assert.Equal(t, []string{"test-warning-3"}, GetWarnings(span3))
 }
