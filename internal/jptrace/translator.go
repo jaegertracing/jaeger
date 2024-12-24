@@ -5,6 +5,7 @@ package jptrace
 
 import (
 	jaegerTranslator "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger"
+	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger/model"
@@ -15,8 +16,20 @@ import (
 func ProtoFromTraces(traces ptrace.Traces) []*model.Batch {
 	batches := jaegerTranslator.ProtoFromTraces(traces)
 	spanMap := createSpanMapFromBatches(batches)
-	transferWarnings(traces, spanMap)
+	transferWarningsToModelSpans(traces, spanMap)
 	return batches
+}
+
+// ProtoToTraces converts Jaeger model batches ([]*model.Batch)
+// to OpenTelemetry traces (ptrace.Traces).
+func ProtoToTraces(batches []*model.Batch) (ptrace.Traces, error) {
+	traces, err := jaegerTranslator.ProtoToTraces(batches)
+	if err != nil {
+		return ptrace.NewTraces(), err
+	}
+	spanMap := createSpanMapFromTraces(traces)
+	transferWarningsToOTLPSpans(batches, spanMap)
+	return traces, nil
 }
 
 func createSpanMapFromBatches(batches []*model.Batch) map[model.SpanID]*model.Span {
@@ -29,7 +42,23 @@ func createSpanMapFromBatches(batches []*model.Batch) map[model.SpanID]*model.Sp
 	return spanMap
 }
 
-func transferWarnings(traces ptrace.Traces, spanMap map[model.SpanID]*model.Span) {
+func createSpanMapFromTraces(traces ptrace.Traces) map[pcommon.SpanID]ptrace.Span {
+	spanMap := make(map[pcommon.SpanID]ptrace.Span)
+	resources := traces.ResourceSpans()
+	for i := 0; i < resources.Len(); i++ {
+		scopes := resources.At(i).ScopeSpans()
+		for j := 0; j < scopes.Len(); j++ {
+			spans := scopes.At(j).Spans()
+			for k := 0; k < spans.Len(); k++ {
+				span := spans.At(k)
+				spanMap[span.SpanID()] = span
+			}
+		}
+	}
+	return spanMap
+}
+
+func transferWarningsToModelSpans(traces ptrace.Traces, spanMap map[model.SpanID]*model.Span) {
 	resources := traces.ResourceSpans()
 	for i := 0; i < resources.Len(); i++ {
 		scopes := resources.At(i).ScopeSpans()
@@ -42,6 +71,17 @@ func transferWarnings(traces ptrace.Traces, spanMap map[model.SpanID]*model.Span
 				span.Warnings = append(span.Warnings, warnings...)
 				// filter out the warning tag
 				span.Tags = filterTags(span.Tags, warningsAttribute)
+			}
+		}
+	}
+}
+
+func transferWarningsToOTLPSpans(batches []*model.Batch, spanMap map[pcommon.SpanID]ptrace.Span) {
+	for _, batch := range batches {
+		for _, span := range batch.Spans {
+			otelSpan := spanMap[span.SpanID.ToOTELSpanID()]
+			for _, warning := range span.Warnings {
+				AddWarning(otelSpan, warning)
 			}
 		}
 	}
