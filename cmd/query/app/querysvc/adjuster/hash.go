@@ -56,7 +56,7 @@ func (s *SpanHashDeduper) Adjust(traces ptrace.Traces) {
 					hashTrace,
 				)
 				if err != nil {
-					jptrace.AddWarning(span, fmt.Sprintf("failed to compute hash code: %v", err))
+					jptrace.AddWarnings(span, fmt.Sprintf("failed to compute hash code: %v", err))
 					span.CopyTo(dedupedSpans.AppendEmpty())
 					continue
 				}

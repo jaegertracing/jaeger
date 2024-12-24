@@ -64,7 +64,10 @@ func transferWarningsToModelSpans(traces ptrace.Traces, spanMap map[model.SpanID
 			for k := 0; k < spans.Len(); k++ {
 				otelSpan := spans.At(k)
 				warnings := GetWarnings(otelSpan)
-				if span, ok := spanMap[model.SpanIDFromOTEL(otelSpan.SpanID())]; ok && len(warnings) > 0 {
+				if len(warnings) == 0 {
+					continue
+				}
+				if span, ok := spanMap[model.SpanIDFromOTEL(otelSpan.SpanID())]; ok {
 					span.Warnings = append(span.Warnings, warnings...)
 					// filter out the warning tag
 					span.Tags = filterTags(span.Tags, warningsAttribute)
@@ -77,8 +80,11 @@ func transferWarningsToModelSpans(traces ptrace.Traces, spanMap map[model.SpanID
 func transferWarningsToOTLPSpans(batches []*model.Batch, spanMap map[pcommon.SpanID]ptrace.Span) {
 	for _, batch := range batches {
 		for _, span := range batch.Spans {
-			if otelSpan, ok := spanMap[span.SpanID.ToOTELSpanID()]; ok && len(span.Warnings) > 0 {
-				AddWarning(otelSpan, span.Warnings...)
+			if len(span.Warnings) == 0 {
+				continue
+			}
+			if otelSpan, ok := spanMap[span.SpanID.ToOTELSpanID()]; ok {
+				AddWarnings(otelSpan, span.Warnings...)
 			}
 		}
 	}

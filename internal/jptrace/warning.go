@@ -16,7 +16,7 @@ const (
 	warningsAttribute = "jaeger.internal.warnings"
 )
 
-func AddWarning(span ptrace.Span, warnings ...string) {
+func AddWarnings(span ptrace.Span, warnings ...string) {
 	var w pcommon.Slice
 	if currWarnings, ok := span.Attributes().Get(warningsAttribute); ok {
 		w = currWarnings.Slice()

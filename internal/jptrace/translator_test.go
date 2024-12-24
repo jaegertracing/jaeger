@@ -20,8 +20,8 @@ func TestProtoFromTraces_AddsWarnings(t *testing.T) {
 	span1 := ss1.Spans().AppendEmpty()
 	span1.SetName("test-span-1")
 	span1.SetSpanID(pcommon.SpanID([8]byte{1, 2, 3, 4, 5, 6, 7, 8}))
-	AddWarning(span1, "test-warning-1")
-	AddWarning(span1, "test-warning-2")
+	AddWarnings(span1, "test-warning-1")
+	AddWarnings(span1, "test-warning-2")
 	span1.Attributes().PutStr("key", "value")
 
 	ss2 := rs1.ScopeSpans().AppendEmpty()
@@ -34,7 +34,7 @@ func TestProtoFromTraces_AddsWarnings(t *testing.T) {
 	span3 := ss3.Spans().AppendEmpty()
 	span3.SetName("test-span-3")
 	span3.SetSpanID(pcommon.SpanID([8]byte{17, 18, 19, 20, 21, 22, 23, 24}))
-	AddWarning(span3, "test-warning-3")
+	AddWarnings(span3, "test-warning-3")
 
 	batches := ProtoFromTraces(traces)
 
