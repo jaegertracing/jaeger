@@ -48,7 +48,7 @@ func (la LinksAdjuster) adjust(span ptrace.Span) {
 			newLink := validLinks.AppendEmpty()
 			link.CopyTo(newLink)
 		} else {
-			jptrace.AddWarning(span, invalidSpanLinkWarning)
+			jptrace.AddWarnings(span, invalidSpanLinkWarning)
 		}
 	}
 	validLinks.CopyTo(span.Links())
