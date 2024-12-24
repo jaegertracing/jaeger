@@ -14,7 +14,6 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc/adjuster"
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/iter"
-	"github.com/jaegertracing/jaeger/storage/spanstore"
 	"github.com/jaegertracing/jaeger/storage_v2/depstore"
 	"github.com/jaegertracing/jaeger/storage_v2/tracestore"
 )
@@ -67,17 +66,40 @@ func NewQueryServiceV2(
 
 // GetTrace is the queryService implementation of tracestore.Reader.GetTrace
 func (qs QueryServiceV2) GetTraces(ctx context.Context, traceIDs ...tracestore.GetTraceParams) iter.Seq2[[]ptrace.Traces, error] {
-	traceIter := qs.traceReader.GetTraces(ctx, traceIDs...)
-	_, err := iter.FlattenWithErrors(traceIter)
-	if errors.Is(err, spanstore.ErrTraceNotFound) {
-		if qs.options.ArchiveTraceReader == nil {
-			return func(yield func([]ptrace.Traces, error) bool) {
-				yield(nil, err)
+	getTracesIter := qs.traceReader.GetTraces(ctx, traceIDs...)
+	return func(yield func([]ptrace.Traces, error) bool) {
+		foundTraceIDs := make(map[pcommon.TraceID]struct{})
+		getTracesIter(func(traces []ptrace.Traces, err error) bool {
+			if err != nil {
+				return yield(nil, err)
+			}
+			for _, trace := range traces {
+				resources := trace.ResourceSpans()
+				for i := 0; i < resources.Len(); i++ {
+					scopes := resources.At(i).ScopeSpans()
+					for j := 0; j < scopes.Len(); j++ {
+						spans := scopes.At(j).Spans()
+						for k := 0; k < spans.Len(); k++ {
+							span := spans.At(k)
+							foundTraceIDs[span.TraceID()] = struct{}{}
+						}
+					}
+				}
+			}
+			return yield(traces, nil)
+		})
+		if qs.options.ArchiveTraceReader != nil {
+			missingTraceIDs := []tracestore.GetTraceParams{}
+			for _, id := range traceIDs {
+				if _, found := foundTraceIDs[id.TraceID]; !found {
+					missingTraceIDs = append(missingTraceIDs, id)
+				}
+			}
+			if len(missingTraceIDs) > 0 {
+				qs.options.ArchiveTraceReader.GetTraces(ctx, missingTraceIDs...)(yield)
 			}
 		}
-		traceIter = qs.options.ArchiveTraceReader.GetTraces(ctx, traceIDs...)
 	}
-	return traceIter
 }
 
 // GetServices is the queryService implementation of tracestore.Reader.GetServices
@@ -103,15 +125,22 @@ func (qs QueryServiceV2) ArchiveTrace(ctx context.Context, traceID pcommon.Trace
 	if qs.options.ArchiveTraceWriter == nil {
 		return errNoArchiveSpanStorage
 	}
-	var err error
-	traces, err := iter.FlattenWithErrors(qs.GetTraces(ctx, tracestore.GetTraceParams{TraceID: traceID}))
-	if err != nil {
-		return err
-	}
-	for _, trace := range traces {
-		err = errors.Join(err, qs.options.ArchiveTraceWriter.WriteTraces(ctx, trace))
-	}
-	return err
+	getTracesIter := qs.GetTraces(ctx, tracestore.GetTraceParams{TraceID: traceID})
+	var archiveErr error
+	getTracesIter(func(traces []ptrace.Traces, err error) bool {
+		if err != nil {
+			archiveErr = err
+			return false
+		}
+		for _, trace := range traces {
+			err = qs.options.ArchiveTraceWriter.WriteTraces(ctx, trace)
+			if err != nil {
+				return false
+			}
+		}
+		return true
+	})
+	return archiveErr
 }
 
 // Adjust applies adjusters to the trace.
