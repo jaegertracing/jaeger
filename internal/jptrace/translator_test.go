@@ -20,8 +20,8 @@ func TestProtoFromTraces_AddsWarnings(t *testing.T) {
 	span1 := ss1.Spans().AppendEmpty()
 	span1.SetName("test-span-1")
 	span1.SetSpanID(pcommon.SpanID([8]byte{1, 2, 3, 4, 5, 6, 7, 8}))
-	AddWarning(span1, "test-warning-1")
-	AddWarning(span1, "test-warning-2")
+	AddWarnings(span1, "test-warning-1")
+	AddWarnings(span1, "test-warning-2")
 	span1.Attributes().PutStr("key", "value")
 
 	ss2 := rs1.ScopeSpans().AppendEmpty()
@@ -34,7 +34,7 @@ func TestProtoFromTraces_AddsWarnings(t *testing.T) {
 	span3 := ss3.Spans().AppendEmpty()
 	span3.SetName("test-span-3")
 	span3.SetSpanID(pcommon.SpanID([8]byte{17, 18, 19, 20, 21, 22, 23, 24}))
-	AddWarning(span3, "test-warning-3")
+	AddWarnings(span3, "test-warning-3")
 
 	batches := ProtoFromTraces(traces)
 
@@ -52,4 +52,64 @@ func TestProtoFromTraces_AddsWarnings(t *testing.T) {
 	assert.Equal(t, "test-span-3", batches[1].Spans[0].OperationName)
 	assert.Equal(t, []string{"test-warning-3"}, batches[1].Spans[0].Warnings)
 	assert.Empty(t, batches[1].Spans[0].Tags)
+}
+
+func TestProtoToTraces_AddsWarnings(t *testing.T) {
+	batch1 := &model.Batch{
+		Process: &model.Process{
+			ServiceName: "batch-1",
+		},
+		Spans: []*model.Span{
+			{
+				OperationName: "test-span-1",
+				SpanID:        model.NewSpanID(1),
+				Warnings:      []string{"test-warning-1", "test-warning-2"},
+			},
+			{
+				OperationName: "test-span-2",
+				SpanID:        model.NewSpanID(2),
+			},
+		},
+	}
+	batch2 := &model.Batch{
+		Process: &model.Process{
+			ServiceName: "batch-2",
+		},
+		Spans: []*model.Span{
+			{
+				OperationName: "test-span-3",
+				SpanID:        model.NewSpanID(3),
+				Warnings:      []string{"test-warning-3"},
+			},
+		},
+	}
+	batches := []*model.Batch{batch1, batch2}
+	traces := ProtoToTraces(batches)
+
+	assert.Equal(t, 2, traces.ResourceSpans().Len())
+
+	rs1 := traces.ResourceSpans().At(0)
+	assert.Equal(t, 1, rs1.ScopeSpans().Len())
+	ss1 := rs1.ScopeSpans().At(0)
+	assert.Equal(t, 2, ss1.Spans().Len())
+
+	span1 := ss1.Spans().At(0)
+	assert.Equal(t, "test-span-1", span1.Name())
+	assert.Equal(t, pcommon.SpanID([8]byte{0, 0, 0, 0, 0, 0, 0, 1}), span1.SpanID())
+	assert.Equal(t, []string{"test-warning-1", "test-warning-2"}, GetWarnings(span1))
+
+	span2 := ss1.Spans().At(1)
+	assert.Equal(t, "test-span-2", span2.Name())
+	assert.Equal(t, pcommon.SpanID([8]byte{0, 0, 0, 0, 0, 0, 0, 2}), span2.SpanID())
+	assert.Empty(t, GetWarnings(span2))
+
+	rs2 := traces.ResourceSpans().At(1)
+	assert.Equal(t, 1, rs2.ScopeSpans().Len())
+	ss3 := rs2.ScopeSpans().At(0)
+	assert.Equal(t, 1, ss3.Spans().Len())
+
+	span3 := ss3.Spans().At(0)
+	assert.Equal(t, "test-span-3", span3.Name())
+	assert.Equal(t, pcommon.SpanID([8]byte{0, 0, 0, 0, 0, 0, 0, 3}), span3.SpanID())
+	assert.Equal(t, []string{"test-warning-3"}, GetWarnings(span3))
 }

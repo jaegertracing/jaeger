@@ -104,7 +104,7 @@ func (a *clockSkewAdjuster) buildNodesMap() {
 			for k := 0; k < spans.Len(); k++ {
 				span := spans.At(k)
 				if _, exists := a.spans[span.SpanID()]; exists {
-					jptrace.AddWarning(span, warningDuplicateSpanID)
+					jptrace.AddWarnings(span, warningDuplicateSpanID)
 				} else {
 					a.spans[span.SpanID()] = &node{
 						span:    span,
@@ -129,7 +129,7 @@ func (a *clockSkewAdjuster) buildSubGraphs() {
 			p.children = append(p.children, n)
 		} else {
 			warning := fmt.Sprintf(warningMissingParentSpanID, n.span.ParentSpanID())
-			jptrace.AddWarning(n.span, warning)
+			jptrace.AddWarnings(n.span, warning)
 			// treat spans with invalid parent ID as root spans
 			a.roots[n.span.SpanID()] = n
 		}
@@ -185,14 +185,14 @@ func (a *clockSkewAdjuster) adjustTimestamps(n *node, skew clockSkew) {
 	}
 	if absDuration(skew.delta) > a.maxDelta {
 		if a.maxDelta == 0 {
-			jptrace.AddWarning(n.span, fmt.Sprintf(warningSkewAdjustDisabled, skew.delta))
+			jptrace.AddWarnings(n.span, fmt.Sprintf(warningSkewAdjustDisabled, skew.delta))
 			return
 		}
-		jptrace.AddWarning(n.span, fmt.Sprintf(warningMaxDeltaExceeded, a.maxDelta, skew.delta))
+		jptrace.AddWarnings(n.span, fmt.Sprintf(warningMaxDeltaExceeded, a.maxDelta, skew.delta))
 		return
 	}
 	n.span.SetStartTimestamp(pcommon.NewTimestampFromTime(n.span.StartTimestamp().AsTime().Add(skew.delta)))
-	jptrace.AddWarning(n.span, fmt.Sprintf("This span's timestamps were adjusted by %v", skew.delta))
+	jptrace.AddWarnings(n.span, fmt.Sprintf("This span's timestamps were adjusted by %v", skew.delta))
 	for i := 0; i < n.span.Events().Len(); i++ {
 		event := n.span.Events().At(i)
 		event.SetTimestamp(pcommon.NewTimestampFromTime(event.Timestamp().AsTime().Add(skew.delta)))
