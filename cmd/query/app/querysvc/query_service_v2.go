@@ -135,6 +135,7 @@ func (qs QueryServiceV2) ArchiveTrace(ctx context.Context, traceID pcommon.Trace
 		for _, trace := range traces {
 			err = qs.options.ArchiveTraceWriter.WriteTraces(ctx, trace)
 			if err != nil {
+				archiveErr = err
 				return false
 			}
 		}
