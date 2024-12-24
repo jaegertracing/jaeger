@@ -43,9 +43,8 @@ var fixtures embed.FS
 // Some implementations may declare multiple tests, with different settings,
 // and RunAll() under different conditions.
 type StorageIntegration struct {
-	StorageIntegrationV2
 	SpanWriter        spanstore.Writer
-	SpanReader        spanstore.Reader
+	TraceReader       tracestore.Reader
 	ArchiveSpanReader spanstore.Reader
 	ArchiveSpanWriter spanstore.Writer
 	DependencyWriter  dependencystore.Writer
@@ -217,13 +216,12 @@ func (s *StorageIntegration) testGetLargeSpan(t *testing.T) {
 
 	expected := s.writeLargeTraceWithDuplicateSpanIds(t)
 	expectedTraceID := expected.Spans[0].TraceID
-	expectedOtelTraceID := expectedTraceID.ToOTELTraceID()
 
 	var actual *model.Trace
 	found := s.waitForCondition(t, func(_ *testing.T) bool {
-		var err error
-		iterTraces := s.TraceReader.GetTraces(context.Background(), tracestore.GetTraceParams{TraceID: expectedOtelTraceID})
+		iterTraces := s.TraceReader.GetTraces(context.Background(), tracestore.GetTraceParams{TraceID: expectedTraceID.ToOTELTraceID()})
 		traces, err := v1adapter.PTracesSeq2ToModel(iterTraces)
+		require.NotEmpty(t, traces)
 		actual = traces[0]
 		return err == nil && len(actual.Spans) >= len(expected.Spans)
 	})
@@ -293,16 +291,15 @@ func (s *StorageIntegration) testGetTrace(t *testing.T) {
 
 	expected := s.loadParseAndWriteExampleTrace(t)
 	expectedTraceID := expected.Spans[0].TraceID
-	expectedOtelTraceID := expectedTraceID.ToOTELTraceID()
 
 	var actual *model.Trace
 	found := s.waitForCondition(t, func(t *testing.T) bool {
-		var err error
-		iterTraces := s.TraceReader.GetTraces(context.Background(), tracestore.GetTraceParams{TraceID: expectedOtelTraceID})
+		iterTraces := s.TraceReader.GetTraces(context.Background(), tracestore.GetTraceParams{TraceID: expectedTraceID.ToOTELTraceID()})
 		traces, err := v1adapter.PTracesSeq2ToModel(iterTraces)
 		if err != nil {
 			t.Log(err)
 		}
+		require.NotEmpty(t, traces)
 		actual = traces[0]
 		return err == nil && len(actual.Spans) == len(expected.Spans)
 	})
@@ -312,9 +309,10 @@ func (s *StorageIntegration) testGetTrace(t *testing.T) {
 
 	t.Run("NotFound error", func(t *testing.T) {
 		fakeTraceID := model.TraceID{High: 0, Low: 1}
-		trace, err := s.SpanReader.GetTrace(context.Background(), spanstore.GetTraceParameters{TraceID: fakeTraceID})
+		iterTraces := s.TraceReader.GetTraces(context.Background(), tracestore.GetTraceParams{TraceID: fakeTraceID.ToOTELTraceID()})
+		traces, err := v1adapter.PTracesSeq2ToModel(iterTraces)
 		assert.Equal(t, spanstore.ErrTraceNotFound, err)
-		assert.Nil(t, trace)
+		assert.Nil(t, traces)
 	})
 }
 
@@ -357,12 +355,11 @@ func (s *StorageIntegration) findTracesByQuery(t *testing.T, query *tracestore.T
 	found := s.waitForCondition(t, func(t *testing.T) bool {
 		var err error
 		iterTraces := s.TraceReader.FindTraces(context.Background(), *query)
-		traces, err := v1adapter.PTracesSeq2ToModel(iterTraces)
+		traces, err = v1adapter.PTracesSeq2ToModel(iterTraces)
 		if err != nil {
 			t.Log(err)
 			return false
 		}
-		
 		if len(expected) != len(traces) {
 			t.Logf("Expecting certain number of traces: expected: %d, actual: %d", len(expected), len(traces))
 			return false
