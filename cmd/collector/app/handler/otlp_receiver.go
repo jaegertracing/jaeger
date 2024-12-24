@@ -7,7 +7,6 @@ import (
 	"context"
 	"fmt"
 
-	otlp2jaeger "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componentstatus"
 	"go.opentelemetry.io/collector/config/confignet"
@@ -23,6 +22,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/flags"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
+	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 )
 
@@ -108,7 +108,7 @@ type consumerDelegate struct {
 }
 
 func (c *consumerDelegate) consume(ctx context.Context, td ptrace.Traces) error {
-	batches := otlp2jaeger.ProtoFromTraces(td)
+	batches := jptrace.ProtoFromTraces(td)
 	for _, batch := range batches {
 		err := c.batchConsumer.consume(ctx, batch)
 		if err != nil {

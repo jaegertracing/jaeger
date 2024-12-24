@@ -7,9 +7,9 @@ import (
 	"context"
 	"errors"
 
-	otlp2jaeger "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
+	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	"github.com/jaegertracing/jaeger/storage_v2/tracestore"
 )
@@ -26,7 +26,7 @@ func NewTraceWriter(spanWriter spanstore.Writer) tracestore.Writer {
 
 // WriteTraces implements tracestore.Writer.
 func (t *TraceWriter) WriteTraces(ctx context.Context, td ptrace.Traces) error {
-	batches := otlp2jaeger.ProtoFromTraces(td)
+	batches := jptrace.ProtoFromTraces(td)
 	var errs []error
 	for _, batch := range batches {
 		for _, span := range batch.Spans {

@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 )
 
@@ -46,7 +47,7 @@ func TestAddWarning(t *testing.T) {
 					warnings.AppendEmpty().SetStr(warn)
 				}
 			}
-			AddWarning(span, test.newWarn)
+			AddWarnings(span, test.newWarn)
 			warnings, ok := attrs.Get("jaeger.internal.warnings")
 			assert.True(t, ok)
 			assert.Equal(t, len(test.expected), warnings.Slice().Len())
@@ -55,6 +56,15 @@ func TestAddWarning(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestAddWarning_MultipleWarnings(t *testing.T) {
+	span := ptrace.NewSpan()
+	AddWarnings(span, "warning-1", "warning-2")
+	warnings, ok := span.Attributes().Get("jaeger.internal.warnings")
+	require.True(t, ok)
+	require.Equal(t, "warning-1", warnings.Slice().At(0).Str())
+	require.Equal(t, "warning-2", warnings.Slice().At(1).Str())
 }
 
 func TestGetWarnings(t *testing.T) {

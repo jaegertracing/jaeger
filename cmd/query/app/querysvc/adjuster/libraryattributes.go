@@ -21,11 +21,11 @@ var libraryKeys = map[string]struct{}{
 	string(otelsemconv.TelemetryDistroVersionKey): {},
 }
 
-// ResourceAttributes creates an adjuster that moves the OpenTelemetry library
+// MoveLibraryAttributes creates an adjuster that moves the OpenTelemetry library
 // attributes from spans to the parent resource so that the UI can
 // display them separately under Process.
 // https://github.com/jaegertracing/jaeger/issues/4534
-func ResourceAttributes() ResourceAttributesAdjuster {
+func MoveLibraryAttributes() ResourceAttributesAdjuster {
 	return ResourceAttributesAdjuster{}
 }
 
@@ -59,7 +59,7 @@ func (ResourceAttributesAdjuster) moveAttributes(span ptrace.Span, resource pcom
 	for k, v := range replace {
 		existing, ok := resource.Attributes().Get(k)
 		if ok && existing.AsRaw() != v.AsRaw() {
-			jptrace.AddWarning(span, "conflicting values between Span and Resource for attribute "+k)
+			jptrace.AddWarnings(span, "conflicting values between Span and Resource for attribute "+k)
 			continue
 		}
 		v.CopyTo(resource.Attributes().PutEmpty(k))

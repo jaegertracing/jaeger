@@ -15,8 +15,8 @@ const (
 
 var _ Adjuster = (*LinksAdjuster)(nil)
 
-// SpanLinks creates an adjuster that removes span links with empty trace IDs.
-func SpanLinks() LinksAdjuster {
+// RemoveEmptySpanLinks creates an adjuster that removes span links with empty trace IDs.
+func RemoveEmptySpanLinks() LinksAdjuster {
 	return LinksAdjuster{}
 }
 
@@ -48,7 +48,7 @@ func (la LinksAdjuster) adjust(span ptrace.Span) {
 			newLink := validLinks.AppendEmpty()
 			link.CopyTo(newLink)
 		} else {
-			jptrace.AddWarning(span, invalidSpanLinkWarning)
+			jptrace.AddWarnings(span, invalidSpanLinkWarning)
 		}
 	}
 	validLinks.CopyTo(span.Links())

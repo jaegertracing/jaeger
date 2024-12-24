@@ -19,10 +19,10 @@ var ipAttributesToCorrect = map[string]struct{}{
 	"peer.ipv4": {},
 }
 
-// IPAttribute returns an adjuster that replaces numeric "ip" attributes,
+// NormalizeIPAttributes returns an adjuster that replaces numeric "ip" attributes,
 // which usually contain IPv4 packed into uint32, with their string
 // representation (e.g. "8.8.8.8"").
-func IPAttribute() IPAttributeAdjuster {
+func NormalizeIPAttributes() IPAttributeAdjuster {
 	return IPAttributeAdjuster{}
 }
 

@@ -13,7 +13,7 @@ import (
 )
 
 func TestSpanHash_EmptySpans(t *testing.T) {
-	adjuster := SpanHash()
+	adjuster := DeduplicateSpans()
 	input := ptrace.NewTraces()
 	expected := ptrace.NewTraces()
 	adjuster.Adjust(input)
@@ -21,7 +21,7 @@ func TestSpanHash_EmptySpans(t *testing.T) {
 }
 
 func TestSpanHash_RemovesDuplicateSpans(t *testing.T) {
-	adjuster := SpanHash()
+	adjuster := DeduplicateSpans()
 	input := func() ptrace.Traces {
 		traces := ptrace.NewTraces()
 
@@ -126,7 +126,7 @@ func TestSpanHash_RemovesDuplicateSpans(t *testing.T) {
 }
 
 func TestSpanHash_NoDuplicateSpans(t *testing.T) {
-	adjuster := SpanHash()
+	adjuster := DeduplicateSpans()
 	input := func() ptrace.Traces {
 		traces := ptrace.NewTraces()
 		rs := traces.ResourceSpans().AppendEmpty()
@@ -180,7 +180,7 @@ func TestSpanHash_NoDuplicateSpans(t *testing.T) {
 }
 
 func TestSpanHash_DuplicateSpansDifferentScopeAttributes(t *testing.T) {
-	adjuster := SpanHash()
+	adjuster := DeduplicateSpans()
 	input := func() ptrace.Traces {
 		traces := ptrace.NewTraces()
 		rs := traces.ResourceSpans().AppendEmpty()
@@ -234,7 +234,7 @@ func TestSpanHash_DuplicateSpansDifferentScopeAttributes(t *testing.T) {
 }
 
 func TestSpanHash_DuplicateSpansDifferentResourceAttributes(t *testing.T) {
-	adjuster := SpanHash()
+	adjuster := DeduplicateSpans()
 	input := func() ptrace.Traces {
 		traces := ptrace.NewTraces()
 		rs := traces.ResourceSpans().AppendEmpty()

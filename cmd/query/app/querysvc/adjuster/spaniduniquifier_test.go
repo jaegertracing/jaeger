@@ -46,7 +46,7 @@ func makeTraces() ptrace.Traces {
 
 func TestSpanIDUniquifierTriggered(t *testing.T) {
 	traces := makeTraces()
-	deduper := SpanIDUniquifier()
+	deduper := DeduplicateClientServerSpanIDs()
 	deduper.Adjust(traces)
 
 	spans := traces.ResourceSpans().At(0).ScopeSpans().At(0).Spans()
@@ -73,7 +73,7 @@ func TestSpanIDUniquifierNotTriggered(t *testing.T) {
 	spans.At(2).CopyTo(newSpans.AppendEmpty())
 	newSpans.CopyTo(spans)
 
-	deduper := SpanIDUniquifier()
+	deduper := DeduplicateClientServerSpanIDs()
 	deduper.Adjust(traces)
 
 	gotSpans := traces.ResourceSpans().At(0).ScopeSpans().At(0).Spans()

@@ -261,3 +261,19 @@ func (s *SpanID) UnmarshalJSON(data []byte) error {
 func (s *SpanID) UnmarshalJSONPB(_ *jsonpb.Unmarshaler, b []byte) error {
 	return s.UnmarshalJSON(b)
 }
+
+// ToOTELSpanID converts the SpanID to OTEL's representation of a span identitfier.
+// This was taken from
+// https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/internal/coreinternal/idutils/big_endian_converter.go.
+func (s SpanID) ToOTELSpanID() pcommon.SpanID {
+	spanID := [8]byte{}
+	binary.BigEndian.PutUint64(spanID[:], uint64(s))
+	return pcommon.SpanID(spanID)
+}
+
+// ToOTELSpanID converts OTEL's SpanID to the model representation of a span identitfier.
+// This was taken from
+// https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/internal/coreinternal/idutils/big_endian_converter.go.
+func SpanIDFromOTEL(spanID pcommon.SpanID) SpanID {
+	return SpanID(binary.BigEndian.Uint64(spanID[:]))
+}
