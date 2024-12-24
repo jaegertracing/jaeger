@@ -627,33 +627,56 @@ func TestSpanReader_indexWithDate(t *testing.T) {
 	})
 }
 
+type testGetStruct struct {
+	caption        string
+	searchResult   *elastic.SearchResult
+	searchError    error
+	expectedError  func() string
+	expectedOutput map[string]any
+}
+
 func testGet(typ string, t *testing.T) {
+	testGetWithKind(typ, t, false)
+}
+
+func testGetWithKind(typ string, t *testing.T, testKind bool) {
 	goodAggregations := make(map[string]*json.RawMessage)
 	rawMessage := []byte(`{"buckets": [{"key": "123","doc_count": 16}]}`)
 	goodAggregations[typ] = (*json.RawMessage)(&rawMessage)
-
+	var filterRawMessage json.RawMessage
+	if typ == operationsAggregation {
+		if !testKind {
+			filterRawMessage = json.RawMessage(`
+	{
+		"buckets": {
+      		"distinct_operations_without_kind": {
+        		"doc_count": 1,
+        			"operationName": {
+          				"doc_count_error_upper_bound": 0,
+          				"sum_other_doc_count": 0,
+          				"buckets": [
+							{
+								"key": "123",
+								"doc_count": 16
+							}
+					]
+				}
+			}
+		}
+	}
+`)
+		} else {
+			filterRawMessage = rawMessage
+		}
+		goodAggregations[typ] = &filterRawMessage
+	} else {
+		goodAggregations[typ] = (*json.RawMessage)(&rawMessage)
+	}
 	badAggregations := make(map[string]*json.RawMessage)
 	badRawMessage := []byte(`{"buckets": [{bad json]}asdf`)
 	badAggregations[typ] = (*json.RawMessage)(&badRawMessage)
 
-	testCases := []struct {
-		caption        string
-		searchResult   *elastic.SearchResult
-		searchError    error
-		expectedError  func() string
-		expectedOutput map[string]any
-	}{
-		{
-			caption:      typ + " full behavior",
-			searchResult: &elastic.SearchResult{Aggregations: elastic.Aggregations(goodAggregations)},
-			expectedOutput: map[string]any{
-				operationsAggregation: []spanstore.Operation{{Name: "123"}},
-				"default":             []string{"123"},
-			},
-			expectedError: func() string {
-				return ""
-			},
-		},
+	testCases := []testGetStruct{
 		{
 			caption:     typ + " search error",
 			searchError: errors.New("Search failure"),
@@ -672,13 +695,42 @@ func testGet(typ string, t *testing.T) {
 			},
 		},
 	}
+	if testKind {
+		testCases = append(testCases, testGetStruct{
+			caption:      typ + " full behavior with kind",
+			searchResult: &elastic.SearchResult{Aggregations: goodAggregations},
+			expectedOutput: map[string]any{
+				operationsAggregation: []spanstore.Operation{{Name: "123", SpanKind: "server"}},
+				"default":             []string{"123"},
+			},
+			expectedError: func() string {
+				return ""
+			},
+		})
+	} else {
+		testCases = append(testCases, testGetStruct{
+			caption:      typ + " full behavior",
+			searchResult: &elastic.SearchResult{Aggregations: goodAggregations},
+			expectedOutput: map[string]any{
+				operationsAggregation: []spanstore.Operation{{Name: "123"}},
+				"default":             []string{"123"},
+			},
+			expectedError: func() string {
+				return ""
+			},
+		})
+	}
 
 	for _, tc := range testCases {
 		testCase := tc
 		t.Run(testCase.caption, func(t *testing.T) {
 			withSpanReader(t, func(r *spanReaderTest) {
-				mockSearchService(r).Return(testCase.searchResult, testCase.searchError)
-				actual, err := returnSearchFunc(typ, r)
+				if testKind {
+					mockSearchServiceWithSpanKind(r, true).Return(testCase.searchResult, testCase.searchError)
+				} else {
+					mockSearchService(r).Return(testCase.searchResult, testCase.searchError)
+				}
+				actual, err := returnSearchFunc(typ, r, testKind)
 				if testCase.expectedError() != "" {
 					require.EqualError(t, err, testCase.expectedError())
 					assert.Nil(t, actual)
@@ -692,11 +744,17 @@ func testGet(typ string, t *testing.T) {
 	}
 }
 
-func returnSearchFunc(typ string, r *spanReaderTest) (any, error) {
+func returnSearchFunc(typ string, r *spanReaderTest, testKind bool) (any, error) {
 	switch typ {
 	case servicesAggregation:
 		return r.reader.GetServices(context.Background())
 	case operationsAggregation:
+		if testKind {
+			return r.reader.GetOperations(
+				context.Background(),
+				spanstore.OperationQueryParameters{ServiceName: "someservice", SpanKind: "server"},
+			)
+		}
 		return r.reader.GetOperations(
 			context.Background(),
 			spanstore.OperationQueryParameters{ServiceName: "someService"},
@@ -1012,6 +1070,10 @@ func matchTermsAggregation(termsAgg *elastic.TermsAggregation) bool {
 }
 
 func mockSearchService(r *spanReaderTest) *mock.Call {
+	return mockSearchServiceWithSpanKind(r, false)
+}
+
+func mockSearchServiceWithSpanKind(r *spanReaderTest, inputHasSpanKind bool) *mock.Call {
 	searchService := &mocks.SearchService{}
 	searchService.On("Query", mock.Anything).Return(searchService)
 	searchService.On("IgnoreUnavailable", mock.AnythingOfType("bool")).Return(searchService)
@@ -1019,7 +1081,11 @@ func mockSearchService(r *spanReaderTest) *mock.Call {
 		return size == 0 // Aggregations apply size (bucket) limits in their own query objects, and do not apply at the parent query level.
 	})).Return(searchService)
 	searchService.On("Aggregation", stringMatcher(servicesAggregation), mock.MatchedBy(matchTermsAggregation)).Return(searchService)
-	searchService.On("Aggregation", stringMatcher(operationsAggregation), mock.MatchedBy(matchTermsAggregation)).Return(searchService)
+	if inputHasSpanKind {
+		searchService.On("Aggregation", stringMatcher(operationsAggregation), mock.MatchedBy(matchTermsAggregation)).Return(searchService)
+	} else {
+		searchService.On("Aggregation", stringMatcher(operationsAggregation), mock.AnythingOfType("*elastic.FiltersAggregation")).Return(searchService)
+	}
 	searchService.On("Aggregation", stringMatcher(traceIDAggregation), mock.AnythingOfType("*elastic.TermsAggregation")).Return(searchService)
 	r.client.On("Search", mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string")).Return(searchService)
 	return searchService.On("Do", mock.Anything)
