@@ -9,7 +9,6 @@ import (
 	"io"
 	"time"
 
-	jaeger2otlp "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger"
 	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/config/configtls"
 	"go.opentelemetry.io/collector/exporter"
@@ -17,6 +16,7 @@ import (
 	"go.opentelemetry.io/collector/exporter/otlpexporter"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
@@ -68,7 +68,7 @@ func (w *spanWriter) Close() error {
 }
 
 func (w *spanWriter) WriteSpan(ctx context.Context, span *model.Span) error {
-	td, err := jaeger2otlp.ProtoToTraces([]*model.Batch{
+	td, err := jptrace.ProtoToTraces([]*model.Batch{
 		{
 			Spans:   []*model.Span{span},
 			Process: span.Process,
