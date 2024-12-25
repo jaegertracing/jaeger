@@ -1,7 +1,7 @@
 // Copyright (c) 2024 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
-package jptrace
+package v1adapter
 
 import (
 	"testing"
@@ -10,6 +10,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
+	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/model"
 )
 
@@ -20,8 +21,8 @@ func TestProtoFromTraces_AddsWarnings(t *testing.T) {
 	span1 := ss1.Spans().AppendEmpty()
 	span1.SetName("test-span-1")
 	span1.SetSpanID(pcommon.SpanID([8]byte{1, 2, 3, 4, 5, 6, 7, 8}))
-	AddWarnings(span1, "test-warning-1")
-	AddWarnings(span1, "test-warning-2")
+	jptrace.AddWarnings(span1, "test-warning-1")
+	jptrace.AddWarnings(span1, "test-warning-2")
 	span1.Attributes().PutStr("key", "value")
 
 	ss2 := rs1.ScopeSpans().AppendEmpty()
@@ -34,7 +35,7 @@ func TestProtoFromTraces_AddsWarnings(t *testing.T) {
 	span3 := ss3.Spans().AppendEmpty()
 	span3.SetName("test-span-3")
 	span3.SetSpanID(pcommon.SpanID([8]byte{17, 18, 19, 20, 21, 22, 23, 24}))
-	AddWarnings(span3, "test-warning-3")
+	jptrace.AddWarnings(span3, "test-warning-3")
 
 	batches := ProtoFromTraces(traces)
 
@@ -88,19 +89,19 @@ func TestProtoToTraces_AddsWarnings(t *testing.T) {
 
 	assert.Equal(t, 2, traces.ResourceSpans().Len())
 
-	spanMap := SpanMap(traces, func(s ptrace.Span) string {
+	spanMap := jptrace.SpanMap(traces, func(s ptrace.Span) string {
 		return s.Name()
 	})
 
 	span1 := spanMap["test-span-1"]
 	assert.Equal(t, pcommon.SpanID([8]byte{0, 0, 0, 0, 0, 0, 0, 1}), span1.SpanID())
-	assert.Equal(t, []string{"test-warning-1", "test-warning-2"}, GetWarnings(span1))
+	assert.Equal(t, []string{"test-warning-1", "test-warning-2"}, jptrace.GetWarnings(span1))
 
 	span2 := spanMap["test-span-2"]
 	assert.Equal(t, pcommon.SpanID([8]byte{0, 0, 0, 0, 0, 0, 0, 2}), span2.SpanID())
-	assert.Empty(t, GetWarnings(span2))
+	assert.Empty(t, jptrace.GetWarnings(span2))
 
 	span3 := spanMap["test-span-3"]
 	assert.Equal(t, pcommon.SpanID([8]byte{0, 0, 0, 0, 0, 0, 0, 3}), span3.SpanID())
-	assert.Equal(t, []string{"test-warning-3"}, GetWarnings(span3))
+	assert.Equal(t, []string{"test-warning-3"}, jptrace.GetWarnings(span3))
 }

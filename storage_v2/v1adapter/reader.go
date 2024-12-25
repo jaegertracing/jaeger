@@ -10,7 +10,6 @@ import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
-	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/iter"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
@@ -60,7 +59,7 @@ func (tr *TraceReader) GetTraces(
 				return
 			}
 			batch := &model.Batch{Spans: t.GetSpans()}
-			tr := jptrace.ProtoToTraces([]*model.Batch{batch})
+			tr := ProtoToTraces([]*model.Batch{batch})
 			if !yield([]ptrace.Traces{tr}, nil) {
 				return
 			}
@@ -105,7 +104,7 @@ func (tr *TraceReader) FindTraces(
 		}
 		for _, trace := range traces {
 			batch := &model.Batch{Spans: trace.GetSpans()}
-			otelTrace := jptrace.ProtoToTraces([]*model.Batch{batch})
+			otelTrace := ProtoToTraces([]*model.Batch{batch})
 			if !yield([]ptrace.Traces{otelTrace}, nil) {
 				return
 			}
