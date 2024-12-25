@@ -1,13 +1,14 @@
 // Copyright (c) 2024 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
-package jptrace
+package v1adapter
 
 import (
 	jaegerTranslator "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
+	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/model"
 )
 
@@ -20,11 +21,11 @@ func ProtoFromTraces(traces ptrace.Traces) []*model.Batch {
 	return batches
 }
 
-// ProtoToTraces converts Jaeger model batches ([]*model.Batch)
+// V1BatchesToTraces converts Jaeger model batches ([]*model.Batch)
 // to OpenTelemetry traces (ptrace.Traces).
-func ProtoToTraces(batches []*model.Batch) ptrace.Traces {
+func V1BatchesToTraces(batches []*model.Batch) ptrace.Traces {
 	traces, _ := jaegerTranslator.ProtoToTraces(batches) // never returns an error
-	spanMap := SpanMap(traces, func(s ptrace.Span) pcommon.SpanID {
+	spanMap := jptrace.SpanMap(traces, func(s ptrace.Span) pcommon.SpanID {
 		return s.SpanID()
 	})
 	transferWarningsToOTLPSpans(batches, spanMap)
@@ -49,14 +50,14 @@ func transferWarningsToModelSpans(traces ptrace.Traces, spanMap map[model.SpanID
 			spans := scopes.At(j).Spans()
 			for k := 0; k < spans.Len(); k++ {
 				otelSpan := spans.At(k)
-				warnings := GetWarnings(otelSpan)
+				warnings := jptrace.GetWarnings(otelSpan)
 				if len(warnings) == 0 {
 					continue
 				}
 				if span, ok := spanMap[model.SpanIDFromOTEL(otelSpan.SpanID())]; ok {
 					span.Warnings = append(span.Warnings, warnings...)
 					// filter out the warning tag
-					span.Tags = filterTags(span.Tags, warningsAttribute)
+					span.Tags = filterTags(span.Tags, jptrace.WarningsAttribute)
 				}
 			}
 		}
@@ -70,7 +71,7 @@ func transferWarningsToOTLPSpans(batches []*model.Batch, spanMap map[pcommon.Spa
 				continue
 			}
 			if otelSpan, ok := spanMap[span.SpanID.ToOTELSpanID()]; ok {
-				AddWarnings(otelSpan, span.Warnings...)
+				jptrace.AddWarnings(otelSpan, span.Warnings...)
 			}
 		}
 	}
