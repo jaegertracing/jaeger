@@ -24,7 +24,9 @@ func ProtoFromTraces(traces ptrace.Traces) []*model.Batch {
 // to OpenTelemetry traces (ptrace.Traces).
 func ProtoToTraces(batches []*model.Batch) ptrace.Traces {
 	traces, _ := jaegerTranslator.ProtoToTraces(batches) // never returns an error
-	spanMap := createSpanMapFromTraces(traces)
+	spanMap := SpanMap(traces, func(s ptrace.Span) pcommon.SpanID {
+		return s.SpanID()
+	})
 	transferWarningsToOTLPSpans(batches, spanMap)
 	return traces
 }
@@ -34,22 +36,6 @@ func createSpanMapFromBatches(batches []*model.Batch) map[model.SpanID]*model.Sp
 	for _, batch := range batches {
 		for _, span := range batch.Spans {
 			spanMap[span.SpanID] = span
-		}
-	}
-	return spanMap
-}
-
-func createSpanMapFromTraces(traces ptrace.Traces) map[pcommon.SpanID]ptrace.Span {
-	spanMap := make(map[pcommon.SpanID]ptrace.Span)
-	resources := traces.ResourceSpans()
-	for i := 0; i < resources.Len(); i++ {
-		scopes := resources.At(i).ScopeSpans()
-		for j := 0; j < scopes.Len(); j++ {
-			spans := scopes.At(j).Spans()
-			for k := 0; k < spans.Len(); k++ {
-				span := spans.At(k)
-				spanMap[span.SpanID()] = span
-			}
 		}
 	}
 	return spanMap

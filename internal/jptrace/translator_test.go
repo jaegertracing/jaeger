@@ -88,18 +88,9 @@ func TestProtoToTraces_AddsWarnings(t *testing.T) {
 
 	assert.Equal(t, 2, traces.ResourceSpans().Len())
 
-	spanMap := make(map[string]ptrace.Span)
-
-	for i := 0; i < traces.ResourceSpans().Len(); i++ {
-		resource := traces.ResourceSpans().At(i)
-		for j := 0; j < resource.ScopeSpans().Len(); j++ {
-			scope := resource.ScopeSpans().At(j)
-			for k := 0; k < scope.Spans().Len(); k++ {
-				span := scope.Spans().At(k)
-				spanMap[span.Name()] = span
-			}
-		}
-	}
+	spanMap := SpanMap(traces, func(s ptrace.Span) string {
+		return s.Name()
+	})
 
 	span1 := spanMap["test-span-1"]
 	assert.Equal(t, pcommon.SpanID([8]byte{0, 0, 0, 0, 0, 0, 0, 1}), span1.SpanID())
