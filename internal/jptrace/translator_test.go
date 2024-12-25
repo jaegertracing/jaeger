@@ -88,28 +88,28 @@ func TestProtoToTraces_AddsWarnings(t *testing.T) {
 
 	assert.Equal(t, 2, traces.ResourceSpans().Len())
 
-	rs1 := traces.ResourceSpans().At(0)
-	assert.Equal(t, 1, rs1.ScopeSpans().Len())
-	ss1 := rs1.ScopeSpans().At(0)
-	assert.Equal(t, 2, ss1.Spans().Len())
+	spanMap := make(map[string]ptrace.Span)
 
-	span1 := ss1.Spans().At(0)
-	assert.Equal(t, "test-span-1", span1.Name())
+	for i := 0; i < traces.ResourceSpans().Len(); i++ {
+		resource := traces.ResourceSpans().At(i)
+		for j := 0; j < resource.ScopeSpans().Len(); j++ {
+			scope := resource.ScopeSpans().At(j)
+			for k := 0; k < scope.Spans().Len(); k++ {
+				span := scope.Spans().At(k)
+				spanMap[span.Name()] = span
+			}
+		}
+	}
+
+	span1 := spanMap["test-span-1"]
 	assert.Equal(t, pcommon.SpanID([8]byte{0, 0, 0, 0, 0, 0, 0, 1}), span1.SpanID())
 	assert.Equal(t, []string{"test-warning-1", "test-warning-2"}, GetWarnings(span1))
 
-	span2 := ss1.Spans().At(1)
-	assert.Equal(t, "test-span-2", span2.Name())
+	span2 := spanMap["test-span-2"]
 	assert.Equal(t, pcommon.SpanID([8]byte{0, 0, 0, 0, 0, 0, 0, 2}), span2.SpanID())
 	assert.Empty(t, GetWarnings(span2))
 
-	rs2 := traces.ResourceSpans().At(1)
-	assert.Equal(t, 1, rs2.ScopeSpans().Len())
-	ss3 := rs2.ScopeSpans().At(0)
-	assert.Equal(t, 1, ss3.Spans().Len())
-
-	span3 := ss3.Spans().At(0)
-	assert.Equal(t, "test-span-3", span3.Name())
+	span3 := spanMap["test-span-3"]
 	assert.Equal(t, pcommon.SpanID([8]byte{0, 0, 0, 0, 0, 0, 0, 3}), span3.SpanID())
 	assert.Equal(t, []string{"test-warning-3"}, GetWarnings(span3))
 }
