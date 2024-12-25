@@ -146,7 +146,7 @@ linters-settings:
         files:
           - "!**/jptrace/**"
 
-      # TODO: remove once we have upgraded to Go 1.233
+      # TODO: remove once we have upgraded to Go 1.23
       disallow-iter:
         deny:
          - pkg: iter
