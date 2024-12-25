@@ -20,22 +20,29 @@ func TestAggregateTraces_AggregatesSpansWithSameTraceID(t *testing.T) {
 	span1.SetTraceID(pcommon.TraceID([16]byte{1}))
 	span1.SetName("span1")
 
-	trace2 := ptrace.NewTraces()
-	resource2 := trace2.ResourceSpans().AppendEmpty()
+	trace1Continued := ptrace.NewTraces()
+	resource2 := trace1Continued.ResourceSpans().AppendEmpty()
 	scope2 := resource2.ScopeSpans().AppendEmpty()
 	span2 := scope2.Spans().AppendEmpty()
 	span2.SetTraceID(pcommon.TraceID([16]byte{1}))
 	span2.SetName("span2")
 
-	trace3 := ptrace.NewTraces()
-	resource3 := trace3.ResourceSpans().AppendEmpty()
+	trace2 := ptrace.NewTraces()
+	resource3 := trace2.ResourceSpans().AppendEmpty()
 	scope3 := resource3.ScopeSpans().AppendEmpty()
 	span3 := scope3.Spans().AppendEmpty()
 	span3.SetTraceID(pcommon.TraceID([16]byte{2}))
 	span3.SetName("span3")
 
+	trace3 := ptrace.NewTraces()
+	resource4 := trace3.ResourceSpans().AppendEmpty()
+	scope4 := resource4.ScopeSpans().AppendEmpty()
+	span4 := scope4.Spans().AppendEmpty()
+	span4.SetTraceID(pcommon.TraceID([16]byte{3}))
+	span4.SetName("span4")
+
 	tracesSeq := func(yield func([]ptrace.Traces, error) bool) {
-		yield([]ptrace.Traces{trace1, trace2}, nil)
+		yield([]ptrace.Traces{trace1, trace1Continued, trace2}, nil)
 		yield([]ptrace.Traces{trace3}, nil)
 	}
 
@@ -45,10 +52,11 @@ func TestAggregateTraces_AggregatesSpansWithSameTraceID(t *testing.T) {
 		return true
 	})
 
-	require.Len(t, result, 2)
+	require.Len(t, result, 3)
 
 	require.Equal(t, 2, result[0].ResourceSpans().Len())
 	require.Equal(t, 1, result[1].ResourceSpans().Len())
+	require.Equal(t, 1, result[2].ResourceSpans().Len())
 
 	gotSpan1 := result[0].ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0)
 	require.Equal(t, gotSpan1.TraceID(), pcommon.TraceID([16]byte{1}))
@@ -61,6 +69,10 @@ func TestAggregateTraces_AggregatesSpansWithSameTraceID(t *testing.T) {
 	gotSpan3 := result[1].ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0)
 	require.Equal(t, gotSpan3.TraceID(), pcommon.TraceID([16]byte{2}))
 	require.Equal(t, "span3", gotSpan3.Name())
+
+	gotSpan4 := result[2].ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0)
+	require.Equal(t, gotSpan4.TraceID(), pcommon.TraceID([16]byte{3}))
+	require.Equal(t, "span4", gotSpan4.Name())
 }
 
 func TestAggregateTraces_YieldsErrorFromTracesSeq(t *testing.T) {
@@ -72,8 +84,10 @@ func TestAggregateTraces_YieldsErrorFromTracesSeq(t *testing.T) {
 	span1.SetName("span1")
 
 	tracesSeq := func(yield func([]ptrace.Traces, error) bool) {
-		yield([]ptrace.Traces{trace1}, nil)
-		yield(nil, assert.AnError)
+		if !yield(nil, assert.AnError) {
+			return
+		}
+		yield([]ptrace.Traces{trace1}, nil) // should not get here
 	}
 	aggregatedSeq := AggregateTraces(tracesSeq)
 
@@ -88,7 +102,7 @@ func TestAggregateTraces_YieldsErrorFromTracesSeq(t *testing.T) {
 	})
 
 	require.ErrorIs(t, lastErr, assert.AnError)
-	require.Equal(t, trace1, lastResult)
+	require.Equal(t, ptrace.NewTraces(), lastResult)
 }
 
 func TestAggregateTraces_RespectsEarlyReturn(t *testing.T) {
@@ -113,7 +127,7 @@ func TestAggregateTraces_RespectsEarlyReturn(t *testing.T) {
 	aggregatedSeq := AggregateTraces(tracesSeq)
 
 	var lastResult ptrace.Traces
-	aggregatedSeq(func(trace ptrace.Traces, e error) bool {
+	aggregatedSeq(func(trace ptrace.Traces, _ error) bool {
 		lastResult = trace
 		return false
 	})

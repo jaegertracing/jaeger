@@ -12,10 +12,7 @@ import (
 
 // AggregateTraces aggregates a sequence of trace batches into individual traces.
 //
-// The `tracesSeq` input must adhere to the following requirements:
-//   - Each `Traces` object in the sequence must not be empty.
-//   - Each `Traces` object must contain at least one span
-//     (i.e., there must be at least one resource span with one scope span and one span).
+// The `tracesSeq` input must adhere to the chunking requirements of tracestore.Reader.GetTraces.
 func AggregateTraces(tracesSeq iter.Seq2[[]ptrace.Traces, error]) iter.Seq2[ptrace.Traces, error] {
 	return func(yield func(trace ptrace.Traces, err error) bool) {
 		currentTrace := ptrace.NewTraces()
@@ -24,6 +21,7 @@ func AggregateTraces(tracesSeq iter.Seq2[[]ptrace.Traces, error]) iter.Seq2[ptra
 		tracesSeq(func(traces []ptrace.Traces, err error) bool {
 			if err != nil {
 				yield(ptrace.NewTraces(), err)
+				return false
 			}
 			for _, trace := range traces {
 				resources := trace.ResourceSpans()

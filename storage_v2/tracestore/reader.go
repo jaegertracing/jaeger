@@ -22,7 +22,7 @@ type Reader interface {
 	// Chunking requirements:
 	// - A single ptrace.Traces chunk MUST NOT contain spans from multiple traces.
 	// - Large traces MAY be split across multiple, *consecutive* ptrace.Traces chunks.
-	// - Each returned ptrace.Traces object must not be empty.
+	// - Each returned ptrace.Traces object MUST NOT be empty.
 	//
 	// Edge cases:
 	// - If no spans are found for any given trace ID, the ID is ignored.
