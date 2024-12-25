@@ -89,7 +89,7 @@ func (d *spanIDDeduper) uniquifyServerSpanIDs(traces ptrace.Traces) {
 				if span.Kind() == ptrace.SpanKindServer && d.isSharedWithClientSpan(span.SpanID()) {
 					newID, err := d.makeUniqueSpanID()
 					if err != nil {
-						jptrace.AddWarning(span, err.Error())
+						jptrace.AddWarnings(span, err.Error())
 						continue
 					}
 					oldToNewSpanIDs[span.SpanID()] = newID
