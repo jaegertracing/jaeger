@@ -5,37 +5,62 @@
 
 set -euf -o pipefail
 
-compose_file="docker-compose/kafka-integration-test/docker-compose.yml"
+compose_file=""
 jaeger_version=""
+kafka_version=""
 manage_kafka="true"
 success="false"
 
-print_help() {
-  echo "Usage: $0 [-K] -j <jaeger_version>"
+usage() {
+  echo "Usage: $0 [-K] -j <jaeger_version> -v <kafka_version>"
   echo "  -K: do not start or stop Kafka container (useful for local testing)"
   echo "  -j: major version of Jaeger to test (v1|v2)"
+  echo "  -v: kafka major version (3.x|2.x)"
   exit 1
 }
 
+check_arg() {
+  if [ ! $# -eq 3 ]; then
+      echo "ERROR: need exactly three arguments"
+      usage
+    fi
+}
+
 parse_args() {
-  while getopts "j:Kh" opt; do
+  while getopts "j:v:Kh" opt; do
     case "${opt}" in
     j)
       jaeger_version=${OPTARG}
+      ;;
+    v)
+      case ${OPTARG} in
+      3.x)
+        kafka_version="v3"
+        ;;
+      2.x)
+        kafka_version="v2"
+        ;;
+      *)
+        echo "Error: Invalid Kafka version. Valid options are 3.x or 2.x"
+        usage
+        ;;
+      esac
       ;;
     K)
       manage_kafka="false"
       ;;
     *)
-      print_help
+      usage
       ;;
     esac
   done
-  if [ "$jaeger_version" != "v1" ] && [ "$jaeger_version" != "v2" ]; then
+  if [[ "$jaeger_version" != "v1" && "$jaeger_version" != "v2" ]]; then
     echo "Error: Invalid Jaeger version. Valid options are v1 or v2"
-    print_help
+    usage
   fi
+  compose_file="docker-compose/kafka/${kafka_version}/docker-compose.yml"
 }
+
 
 setup_kafka() {
   echo "Starting Kafka using Docker Compose..."
@@ -89,7 +114,7 @@ run_integration_test() {
     make jaeger-v2-storage-integration-test
   else
     echo "Unknown Jaeger version ${jaeger_version}."
-    print_help
+    usage
   fi
 }
 
