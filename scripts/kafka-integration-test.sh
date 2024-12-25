@@ -5,7 +5,7 @@
 
 set -euf -o pipefail
 
-compose_file="docker-compose/kafka-integration-test/v3/docker-compose.yml"
+compose_file=""
 jaeger_version=""
 kafka_version=""
 manage_kafka="true"
@@ -15,7 +15,7 @@ usage() {
   echo "Usage: $0 [-K] -j <jaeger_version> -v <kafka_version>"
   echo "  -K: do not start or stop Kafka container (useful for local testing)"
   echo "  -j: major version of Jaeger to test (v1|v2)"
-  echo "  -v: kafka major version, e.g: 3.9"
+  echo "  -v: kafka major version (3.9|2.8)"
   exit 1
 }
 
@@ -33,7 +33,7 @@ parse_args() {
       jaeger_version=${OPTARG}
       ;;
     v)
-      kafka_version=${OPTARG}
+      kafka_version=${OPTARG%%.*}
       ;;
     K)
       manage_kafka="false"
@@ -47,7 +47,11 @@ parse_args() {
     echo "Error: Invalid Jaeger version. Valid options are v1 or v2"
     usage
   fi
-  compose_file="docker-compose/kafka-integration-test/v${kafka_version%%.*}/docker-compose.yml"
+  if [ "$kafka_version" != "3" ] && [ "$kafka_version" != "2" ]; then
+      echo "Error: Invalid kafka version. Valid options are 3.x or 2.x"
+      usage
+    fi
+  compose_file="docker-compose/kafka/v${kafka_version}/docker-compose.yml"
 }
 
 setup_kafka() {
