@@ -90,3 +90,33 @@ func TestAggregateTraces_YieldsErrorFromTracesSeq(t *testing.T) {
 	require.ErrorIs(t, lastErr, assert.AnError)
 	require.Equal(t, trace1, lastResult)
 }
+
+func TestAggregateTraces_RespectsEarlyReturn(t *testing.T) {
+	trace1 := ptrace.NewTraces()
+	resource1 := trace1.ResourceSpans().AppendEmpty()
+	scope1 := resource1.ScopeSpans().AppendEmpty()
+	span1 := scope1.Spans().AppendEmpty()
+	span1.SetTraceID(pcommon.TraceID([16]byte{1}))
+	span1.SetName("span1")
+
+	trace2 := ptrace.NewTraces()
+	resource2 := trace2.ResourceSpans().AppendEmpty()
+	scope2 := resource2.ScopeSpans().AppendEmpty()
+	span2 := scope2.Spans().AppendEmpty()
+	span2.SetTraceID(pcommon.TraceID([16]byte{2}))
+	span2.SetName("span2")
+
+	tracesSeq := func(yield func([]ptrace.Traces, error) bool) {
+		yield([]ptrace.Traces{trace1}, nil)
+		yield([]ptrace.Traces{trace2}, nil)
+	}
+	aggregatedSeq := AggregateTraces(tracesSeq)
+
+	var lastResult ptrace.Traces
+	aggregatedSeq(func(trace ptrace.Traces, e error) bool {
+		lastResult = trace
+		return false
+	})
+
+	require.Equal(t, trace1, lastResult)
+}
