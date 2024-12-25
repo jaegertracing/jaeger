@@ -205,7 +205,7 @@ func (s *StorageIntegration) testArchiveTrace(t *testing.T) {
 		return err == nil && len(actual.Spans) == 1
 	})
 	require.True(t, found)
-	CompareTraces(t, &model.Trace{Spans: []*model.Span{expected}}, actual)
+	v1adapter.CompareTraces(t, &model.Trace{Spans: []*model.Span{expected}}, actual)
 }
 
 func (s *StorageIntegration) testGetLargeSpan(t *testing.T) {
@@ -227,7 +227,7 @@ func (s *StorageIntegration) testGetLargeSpan(t *testing.T) {
 	})
 
 	if !assert.True(t, found) {
-		CompareTraces(t, expected, actual)
+		v1adapter.CompareTraces(t, expected, actual)
 		return
 	}
 
@@ -304,7 +304,7 @@ func (s *StorageIntegration) testGetTrace(t *testing.T) {
 		return err == nil && len(actual.Spans) == len(expected.Spans)
 	})
 	if !assert.True(t, found) {
-		CompareTraces(t, expected, actual)
+		v1adapter.CompareTraces(t, expected, actual)
 	}
 
 	t.Run("NotFound error", func(t *testing.T) {
@@ -345,7 +345,7 @@ func (s *StorageIntegration) testFindTraces(t *testing.T) {
 			s.skipIfNeeded(t)
 			expected := expectedTracesPerTestCase[i]
 			actual := s.findTracesByQuery(t, queryTestCase.Query, expected)
-			CompareSliceOfTraces(t, expected, actual)
+			v1adapter.CompareSliceOfTraces(t, expected, actual)
 		})
 	}
 }

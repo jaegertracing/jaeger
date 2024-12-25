@@ -12,9 +12,10 @@ import (
 	otel2model "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger"
 )
 
-// PTracesSeq2ToModel consumes an otel trace iterator and returns a model trace.
+// PTracesSeq2ToModel consumes an iterator seqTrace. When necessary,
+// it groups spans from *consecutive* chunks of ptrace.Traces into a single model.Trace
 //
-// When necessary, it groups chunks of a trace into a single model trace
+// Returns nil, and spanstore.ErrTraceNotFound for empty iterators
 func PTracesSeq2ToModel(seqTrace iter.Seq2[[]ptrace.Traces, error]) ([]*model.Trace, error) {
 	var (
 		err         error
@@ -63,7 +64,9 @@ func modelSpansFromOtelTrace(otelTrace ptrace.Traces) []*model.Span {
 	batches := otel2model.ProtoFromTraces(otelTrace)
 	for _, batch := range batches {
 		for _, span := range batch.Spans {
-			span.Process = batch.Process
+			span.Process = &model.Process{}
+			span.Process.ServiceName = batch.GetProcess().GetServiceName()
+			span.Process.Tags = batch.GetProcess().GetTags()
 			spans = append(spans, span)
 		}
 	}
