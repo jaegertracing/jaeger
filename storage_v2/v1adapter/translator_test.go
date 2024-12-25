@@ -85,7 +85,7 @@ func TestProtoToTraces_AddsWarnings(t *testing.T) {
 		},
 	}
 	batches := []*model.Batch{batch1, batch2}
-	traces := ProtoToTraces(batches)
+	traces := V1BatchesToTraces(batches)
 
 	assert.Equal(t, 2, traces.ResourceSpans().Len())
 

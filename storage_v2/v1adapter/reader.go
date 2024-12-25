@@ -59,7 +59,7 @@ func (tr *TraceReader) GetTraces(
 				return
 			}
 			batch := &model.Batch{Spans: t.GetSpans()}
-			tr := ProtoToTraces([]*model.Batch{batch})
+			tr := V1BatchesToTraces([]*model.Batch{batch})
 			if !yield([]ptrace.Traces{tr}, nil) {
 				return
 			}
@@ -104,7 +104,7 @@ func (tr *TraceReader) FindTraces(
 		}
 		for _, trace := range traces {
 			batch := &model.Batch{Spans: trace.GetSpans()}
-			otelTrace := ProtoToTraces([]*model.Batch{batch})
+			otelTrace := V1BatchesToTraces([]*model.Batch{batch})
 			if !yield([]ptrace.Traces{otelTrace}, nil) {
 				return
 			}

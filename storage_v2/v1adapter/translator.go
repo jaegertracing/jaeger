@@ -21,9 +21,9 @@ func ProtoFromTraces(traces ptrace.Traces) []*model.Batch {
 	return batches
 }
 
-// ProtoToTraces converts Jaeger model batches ([]*model.Batch)
+// V1BatchesToTraces converts Jaeger model batches ([]*model.Batch)
 // to OpenTelemetry traces (ptrace.Traces).
-func ProtoToTraces(batches []*model.Batch) ptrace.Traces {
+func V1BatchesToTraces(batches []*model.Batch) ptrace.Traces {
 	traces, _ := jaegerTranslator.ProtoToTraces(batches) // never returns an error
 	spanMap := jptrace.SpanMap(traces, func(s ptrace.Span) pcommon.SpanID {
 		return s.SpanID()

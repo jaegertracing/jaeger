@@ -68,7 +68,7 @@ func (w *spanWriter) Close() error {
 }
 
 func (w *spanWriter) WriteSpan(ctx context.Context, span *model.Span) error {
-	td := v1adapter.ProtoToTraces([]*model.Batch{
+	td := v1adapter.V1BatchesToTraces([]*model.Batch{
 		{
 			Spans:   []*model.Span{span},
 			Process: span.Process,

@@ -12,6 +12,6 @@ import (
 
 func modelToOTLP(spans []*model.Span) ptrace.Traces {
 	batch := &model.Batch{Spans: spans}
-	tr := v1adapter.ProtoToTraces([]*model.Batch{batch})
+	tr := v1adapter.V1BatchesToTraces([]*model.Batch{batch})
 	return tr
 }
