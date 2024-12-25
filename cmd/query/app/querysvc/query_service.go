@@ -26,14 +26,6 @@ type QueryServiceOptions struct {
 	Adjuster          adjuster.Adjuster
 }
 
-// StorageCapabilities is a feature flag for query service
-type StorageCapabilities struct {
-	ArchiveStorage bool `json:"archiveStorage"`
-	// TODO: Maybe add metrics Storage here
-	// SupportRegex     bool
-	// SupportTagFilter bool
-}
-
 // QueryService contains span utils required by the query-service.
 type QueryService struct {
 	traceReader      tracestore.Reader

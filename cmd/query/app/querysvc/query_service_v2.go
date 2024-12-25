@@ -32,7 +32,7 @@ type QueryServiceOptionsV2 struct {
 }
 
 // StorageCapabilities is a feature flag for query service
-type StorageCapabilitiesV2 struct {
+type StorageCapabilities struct {
 	ArchiveStorage bool `json:"archiveStorage"`
 	// TODO: Maybe add metrics Storage here
 	// SupportRegex     bool
@@ -59,13 +59,18 @@ func NewQueryServiceV2(
 	}
 
 	if qsvc.options.Adjuster == nil {
-		qsvc.options.Adjuster = adjuster.Sequence(adjuster.StandardAdjusters(defaultMaxClockSkewAdjust)...)
+		qsvc.options.Adjuster = adjuster.Sequence(
+			adjuster.StandardAdjusters(defaultMaxClockSkewAdjust)...)
 	}
 	return qsvc
 }
 
-// GetTrace is the queryService implementation of tracestore.Reader.GetTrace
-func (qs QueryServiceV2) GetTraces(ctx context.Context, traceIDs ...tracestore.GetTraceParams) iter.Seq2[[]ptrace.Traces, error] {
+// GetTraces retrieves traces with given trace IDs from the primary reader,
+// and if any of them are not found it then queries the archive reader.
+// The iterator is single-use: once consumed, it cannot be used again.
+func (qs QueryServiceV2) GetTraces(
+	ctx context.Context,
+	traceIDs ...tracestore.GetTraceParams) iter.Seq2[[]ptrace.Traces, error] {
 	getTracesIter := qs.traceReader.GetTraces(ctx, traceIDs...)
 	return func(yield func([]ptrace.Traces, error) bool) {
 		foundTraceIDs := make(map[pcommon.TraceID]struct{})
@@ -89,7 +94,7 @@ func (qs QueryServiceV2) GetTraces(ctx context.Context, traceIDs ...tracestore.G
 			return yield(traces, nil)
 		})
 		if qs.options.ArchiveTraceReader != nil {
-			missingTraceIDs := []tracestore.GetTraceParams{}
+			var missingTraceIDs []tracestore.GetTraceParams
 			for _, id := range traceIDs {
 				if _, found := foundTraceIDs[id.TraceID]; !found {
 					missingTraceIDs = append(missingTraceIDs, id)
