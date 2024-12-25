@@ -1,6 +1,6 @@
 services:
   zookeeper:
-    image: bitnami/zookeeper:3.8.4
+    image: bitnami/zookeeper:3.9.3
     ports:
       - "2181:2181"
     environment:
