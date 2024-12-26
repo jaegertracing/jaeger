@@ -221,8 +221,9 @@ func (s *StorageIntegration) testGetLargeSpan(t *testing.T) {
 	found := s.waitForCondition(t, func(_ *testing.T) bool {
 		iterTraces := s.TraceReader.GetTraces(context.Background(), tracestore.GetTraceParams{TraceID: expectedTraceID.ToOTELTraceID()})
 		traces, err := v1adapter.V1TracesFromSeq2(iterTraces)
-		require.NotEmpty(t, traces)
-		actual = traces[0]
+		if len(traces) > 0 {
+			actual = traces[0]
+		}
 		return err == nil && len(actual.Spans) >= len(expected.Spans)
 	})
 
@@ -298,10 +299,12 @@ func (s *StorageIntegration) testGetTrace(t *testing.T) {
 		traces, err := v1adapter.V1TracesFromSeq2(iterTraces)
 		if err != nil {
 			t.Log(err)
+			return false
 		}
-		require.NotEmpty(t, traces)
-		actual = traces[0]
-		return err == nil && len(actual.Spans) == len(expected.Spans)
+		if len(traces) > 0 {
+			actual = traces[0]
+		}
+		return len(actual.Spans) == len(expected.Spans)
 	})
 	if !assert.True(t, found) {
 		CompareTraces(t, expected, actual)
@@ -311,7 +314,7 @@ func (s *StorageIntegration) testGetTrace(t *testing.T) {
 		fakeTraceID := model.TraceID{High: 0, Low: 1}
 		iterTraces := s.TraceReader.GetTraces(context.Background(), tracestore.GetTraceParams{TraceID: fakeTraceID.ToOTELTraceID()})
 		traces, err := v1adapter.V1TracesFromSeq2(iterTraces)
-		assert.NoError(t, err) // v2 TraceReader no longer returns an error for not found
+		require.NoError(t, err) // v2 TraceReader no longer returns an error for not found
 		assert.Empty(t, traces)
 	})
 }
