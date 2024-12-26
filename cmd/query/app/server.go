@@ -27,7 +27,7 @@ import (
 	"google.golang.org/grpc/reflection"
 
 	"github.com/jaegertracing/jaeger/cmd/query/app/apiv3"
-	"github.com/jaegertracing/jaeger/cmd/query/app/internal/api_v3"
+	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	"github.com/jaegertracing/jaeger/pkg/bearertoken"
 	"github.com/jaegertracing/jaeger/pkg/netutils"
