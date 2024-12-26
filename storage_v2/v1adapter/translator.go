@@ -10,15 +10,24 @@ import (
 
 	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger/pkg/iter"
 )
 
-// ProtoFromTraces converts OpenTelemetry traces (ptrace.Traces)
+// V1BatchesFromTraces converts OpenTelemetry traces (ptrace.Traces)
 // to Jaeger model batches ([]*model.Batch).
-func ProtoFromTraces(traces ptrace.Traces) []*model.Batch {
+func V1BatchesFromTraces(traces ptrace.Traces) []*model.Batch {
 	batches := jaegerTranslator.ProtoFromTraces(traces)
 	spanMap := createSpanMapFromBatches(batches)
 	transferWarningsToModelSpans(traces, spanMap)
 	return batches
+}
+
+// ProtoFromTraces converts OpenTelemetry traces (ptrace.Traces)
+// to Jaeger model batches ([]*model.Batch).
+//
+// TODO remove this function in favor of V1BatchesFromTraces
+func ProtoFromTraces(traces ptrace.Traces) []*model.Batch {
+	return V1BatchesFromTraces(traces)
 }
 
 // V1BatchesToTraces converts Jaeger model batches ([]*model.Batch)
@@ -30,6 +39,42 @@ func V1BatchesToTraces(batches []*model.Batch) ptrace.Traces {
 	})
 	transferWarningsToOTLPSpans(batches, spanMap)
 	return traces
+}
+
+// V1TracesFromSeq2 converts an interator of ptrace.Traces chunks into v1 traces.
+func V1TracesFromSeq2(otelSeq iter.Seq2[[]ptrace.Traces, error]) ([]*model.Trace, error) {
+	var (
+		jaegerTraces []*model.Trace
+		iterErr      error
+	)
+	jptrace.AggregateTraces(otelSeq)(func(otelTrace ptrace.Traces, err error) bool {
+		if err != nil {
+			iterErr = err
+			return false
+		}
+		jaegerTraces = append(jaegerTraces, modelTraceFromOtelTrace(otelTrace))
+		return true
+	})
+	if iterErr != nil {
+		return nil, iterErr
+	}
+	return jaegerTraces, nil
+}
+
+// modelTraceFromOtelTrace extracts spans from otel traces
+func modelTraceFromOtelTrace(otelTrace ptrace.Traces) *model.Trace {
+	var spans []*model.Span
+	batches := V1BatchesFromTraces(otelTrace)
+	for _, batch := range batches {
+		for _, span := range batch.Spans {
+			if span.Process == nil {
+				proc := *batch.Process // shallow clone
+				span.Process = &proc
+			}
+			spans = append(spans, span)
+		}
+	}
+	return &model.Trace{Spans: spans}
 }
 
 func createSpanMapFromBatches(batches []*model.Batch) map[model.SpanID]*model.Span {

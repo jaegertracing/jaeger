@@ -26,6 +26,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/plugin/storage/es"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
+	"github.com/jaegertracing/jaeger/storage_v2/v1adapter"
 )
 
 const (
@@ -134,8 +135,9 @@ func (s *ESStorageIntegration) initSpanstore(t *testing.T, allTagsAsFields bool)
 	var err error
 	s.SpanWriter, err = f.CreateSpanWriter()
 	require.NoError(t, err)
-	s.SpanReader, err = f.CreateSpanReader()
+	spanReader, err := f.CreateSpanReader()
 	require.NoError(t, err)
+	s.TraceReader = v1adapter.NewTraceReader(spanReader)
 	s.ArchiveSpanReader, err = f.CreateArchiveSpanReader()
 	require.NoError(t, err)
 	s.ArchiveSpanWriter, err = f.CreateArchiveSpanWriter()
