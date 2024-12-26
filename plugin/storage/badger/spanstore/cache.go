@@ -17,8 +17,19 @@ import (
 // CacheStore saves expensive calculations from the K/V store
 type CacheStore struct {
 	// Given the small amount of data these will store, we use the same structure as the memory store
-	cacheLock  sync.Mutex // write heavy - Mutex is faster than RWMutex for writes
-	services   map[string]uint64
+	cacheLock sync.Mutex // write heavy - Mutex is faster than RWMutex for writes
+	services  map[string]uint64
+	// This map is for the hierarchy: service name, kind and operation name.
+	// Each service contains the span kinds, and then operation names belonging to that kind.
+	// This structure will look like:
+	/*
+		"service1":{
+			SpanKind.unspecified: {
+				"operation1": uint64
+			}
+		}
+	*/
+	// The uint64 value is the expiry time of operation
 	operations map[string]map[model.SpanKind]map[string]uint64
 
 	store *badger.DB
