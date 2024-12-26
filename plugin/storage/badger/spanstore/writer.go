@@ -30,6 +30,7 @@ const (
 	operationNameIndexKey byte = 0x82
 	tagIndexKey           byte = 0x83
 	durationIndexKey      byte = 0x84
+	spanKindIndexKey      byte = 0x85
 	jsonEncoding          byte = 0x01 // Last 4 bits of the meta byte are for encoding type
 	protoEncoding         byte = 0x02 // Last 4 bits of the meta byte are for encoding type
 	defaultEncoding       byte = protoEncoding
@@ -76,6 +77,11 @@ func (w *SpanWriter) WriteSpan(_ context.Context, span *model.Span) error {
 	binary.BigEndian.PutUint64(durationValue, uint64(model.DurationAsMicroseconds(span.Duration)))
 	entriesToStore = append(entriesToStore, w.createBadgerEntry(createIndexKey(durationIndexKey, durationValue, startTime, span.TraceID), nil, expireTime))
 
+	kind, found := span.GetSpanKind()
+	if found {
+		entriesToStore = append(entriesToStore, w.createBadgerEntry(createIndexKey(spanKindIndexKey, []byte(span.Process.ServiceName+span.OperationName), startTime, span.TraceID), []byte(kind), expireTime))
+	}
+
 	for _, kv := range span.Tags {
 		// Convert everything to string since queries are done that way also
 		// KEY: it<serviceName><tagsKey><traceId> VALUE: <tagsValue>
@@ -109,7 +115,7 @@ func (w *SpanWriter) WriteSpan(_ context.Context, span *model.Span) error {
 	})
 
 	// Do cache refresh here to release the transaction earlier
-	w.cache.Update(span.Process.ServiceName, span.OperationName, expireTime)
+	w.cache.Update(span.Process.ServiceName, span.OperationName, kind, expireTime)
 
 	return err
 }
