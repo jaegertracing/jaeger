@@ -2,6 +2,8 @@ name: CIT Elasticsearch
 
 on:
   workflow_call:
+  schedule:
+    - cron "0 0 * * *"
 
 concurrency:
   group: cit-elasticsearch-${{ github.workflow }}-${{ (github.event.pull_request && github.event.pull_request.number) || github.ref || github.run_id }}
@@ -17,20 +19,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        jaeger-version: [ v1, v2 ]
+        es-version: ${{ fromJSON(env.es-version) }}
         version:
-        - major: 6.x
-          distribution: elasticsearch
-          jaeger: v1
-        - major: 7.x
-          distribution: elasticsearch
-          jaeger: v1
-        - major: 8.x
-          distribution: elasticsearch
-          jaeger: v1
-        - major: 8.x
-          distribution: elasticsearch
-          jaeger: v2
-    name: ${{ matrix.version.distribution }} ${{ matrix.version.major }} ${{ matrix.version.jaeger }}
+          - distribution: elasticsearch
+    env:
+      es-version: ${{ github.event_name == 'schedule' && '["8.x", "7.x", "6.x"]' || '["8.x"]' }}
+    name: ${{ matrix.version.distribution }} ${{ matrix.es-version }} ${{ matrix.jaeger-version }}
     steps:
     - name: Harden Runner
       uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
@@ -57,11 +52,11 @@ jobs:
     - uses: docker/setup-qemu-action@49b3bc8e6bdd4a60e6116a5414239cba5943d3cf # v3.2.0
     - name: Run ${{ matrix.version.distribution }} integration tests
       id: test-execution
-      run: bash scripts/es-integration-test.sh ${{ matrix.version.distribution }} ${{ matrix.version.major }} ${{ matrix.version.jaeger }}
+      run: bash scripts/es-integration-test.sh ${{ matrix.version.distribution }} ${{ matrix.es-version }} ${{ matrix.jaeger-version }}
 
     - name: Upload coverage to codecov
       uses: ./.github/actions/upload-codecov
       with:
         files: cover.out,cover-index-cleaner.out,cover-index-rollover.out
-        flags: ${{ matrix.version.distribution }}-${{ matrix.version.major }}-${{ matrix.version.jaeger }}
+        flags: ${{ matrix.version.distribution }}-${{ matrix.es-version }}-${{ matrix.jaeger-version }}
 

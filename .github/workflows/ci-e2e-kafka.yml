@@ -18,8 +18,10 @@ jobs:
       fail-fast: false
       matrix:
         jaeger-version: [v1, v2]
-        kafka-version: ["3.x", "2.x"]
+        kafka-version: ${{ fromJSON(env.kafka-version) }}
     name: kafka ${{matrix.kafka-version }} ${{ matrix.jaeger-version }}
+    env:
+      kafka-version: ${{ github.event_name == 'schedule' && '[3.x, 2.x]' || '[3.x]' }}
     steps:
     - name: Harden Runner
       uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1

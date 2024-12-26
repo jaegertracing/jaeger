@@ -2,6 +2,8 @@ name: CIT OpenSearch
 
 on:
   workflow_call:
+  schedule:
+    - cron "0 0 * * *"
 
 concurrency:
   group: cit-opensearch-${{ github.workflow }}-${{ (github.event.pull_request && github.event.pull_request.number) || github.ref || github.run_id }}
@@ -17,17 +19,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        jaeger-version: [ v1, v2 ]
+        opensearch-version: ${{ fromJSON(env.opensearch-version) }}
         version:
-        - major: 1.x
-          distribution: opensearch
-          jaeger: v1
-        - major: 2.x
-          distribution: opensearch
-          jaeger: v1
-        - major: 2.x
-          distribution: opensearch
-          jaeger: v2
-    name: ${{ matrix.version.distribution }} ${{ matrix.version.major }} ${{ matrix.version.jaeger }}
+        - distribution: opensearch
+    env:
+      opensearch-version: ${{ github.event_name == 'schedule' && '[1.x, 2.x]' || '[2.x]' }}
+    name: ${{ matrix.version.distribution }} ${{ matrix.opensearch-version }} ${{ matrix.jaeger-version }}
     steps:
     - name: Harden Runner
       uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
@@ -50,10 +48,10 @@ jobs:
 
     - name: Run ${{ matrix.version.distribution }} integration tests
       id: test-execution
-      run: bash scripts/es-integration-test.sh ${{ matrix.version.distribution }} ${{ matrix.version.major }} ${{ matrix.version.jaeger }}
+      run: bash scripts/es-integration-test.sh ${{ matrix.version.distribution }} ${{ matrix.opensearch-version }} ${{ matrix.jaeger-version }}
 
     - name: Upload coverage to codecov
       uses: ./.github/actions/upload-codecov
       with:
         files: cover.out,cover-index-cleaner.out,cover-index-rollover.out
-        flags: ${{ matrix.version.distribution }}-${{ matrix.version.major }}-${{ matrix.version.jaeger }}
+        flags: ${{ matrix.version.distribution }}-${{ matrix.opensearch-version }}-${{ matrix.jaeger-version }}

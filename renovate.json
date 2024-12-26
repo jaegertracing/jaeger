@@ -43,7 +43,8 @@
       ],
       "groupName": "github-actions deps",
       "schedule": [
-        "on the first day of the month"
+        "on the first day of the month",
+        "at midnight"
       ]
     },
     {
