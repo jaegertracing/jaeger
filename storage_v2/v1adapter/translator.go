@@ -11,7 +11,6 @@ import (
 	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/iter"
-	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
 // V1BatchesFromTraces converts OpenTelemetry traces (ptrace.Traces)
@@ -43,7 +42,6 @@ func V1BatchesToTraces(batches []*model.Batch) ptrace.Traces {
 }
 
 // V1TracesFromSeq2 converts an interator of ptrace.Traces chunks into v1 traces.
-// Returns spanstore.ErrTraceNotFound for empty iterators.
 func V1TracesFromSeq2(otelSeq iter.Seq2[[]ptrace.Traces, error]) ([]*model.Trace, error) {
 	var (
 		jaegerTraces []*model.Trace
@@ -59,9 +57,6 @@ func V1TracesFromSeq2(otelSeq iter.Seq2[[]ptrace.Traces, error]) ([]*model.Trace
 	})
 	if iterErr != nil {
 		return nil, iterErr
-	}
-	if len(jaegerTraces) == 0 {
-		return nil, spanstore.ErrTraceNotFound
 	}
 	return jaegerTraces, nil
 }

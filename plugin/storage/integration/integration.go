@@ -311,8 +311,8 @@ func (s *StorageIntegration) testGetTrace(t *testing.T) {
 		fakeTraceID := model.TraceID{High: 0, Low: 1}
 		iterTraces := s.TraceReader.GetTraces(context.Background(), tracestore.GetTraceParams{TraceID: fakeTraceID.ToOTELTraceID()})
 		traces, err := v1adapter.V1TracesFromSeq2(iterTraces)
-		assert.Equal(t, spanstore.ErrTraceNotFound, err)
-		assert.Nil(t, traces)
+		assert.NoError(t, err) // v2 TraceReader no longer returns an error for not found
+		assert.Empty(t, traces)
 	})
 }
 

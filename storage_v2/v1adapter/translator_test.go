@@ -16,7 +16,6 @@ import (
 	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/iter"
-	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
 func TestProtoFromTraces_AddsWarnings(t *testing.T) {
@@ -205,9 +204,8 @@ func TestV1TracesFromSeq2(t *testing.T) {
 			// a case that occurs when no trace is contained in the iterator
 			name:                "empty sequence",
 			expectedModelTraces: nil,
-			seqTrace: func(yield func([]ptrace.Traces, error) bool) {
-			},
-			expectedErr: spanstore.ErrTraceNotFound,
+			seqTrace:            func(yield func([]ptrace.Traces, error) bool) {},
+			expectedErr:         nil,
 		},
 		{
 			name:                "sequence containing error",
