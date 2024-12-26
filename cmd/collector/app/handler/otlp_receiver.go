@@ -22,8 +22,8 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/flags"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
-	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
+	"github.com/jaegertracing/jaeger/storage_v2/v1adapter"
 )
 
 var _ component.Host = (*otelHost)(nil) // API check
@@ -108,7 +108,7 @@ type consumerDelegate struct {
 }
 
 func (c *consumerDelegate) consume(ctx context.Context, td ptrace.Traces) error {
-	batches := jptrace.ProtoFromTraces(td)
+	batches := v1adapter.ProtoFromTraces(td)
 	for _, batch := range batches {
 		err := c.batchConsumer.consume(ctx, batch)
 		if err != nil {

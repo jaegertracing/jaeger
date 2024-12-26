@@ -142,9 +142,17 @@ linters-settings:
       disallow-otel-contrib-translator:
         deny:
           - pkg: github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger
-            desc: "Use jptrace package instead of opentelemetry-collector-contrib/pkg/translator/jaeger"
+            desc: "Use v1adapter package instead of opentelemetry-collector-contrib/pkg/translator/jaeger"
         files:
-          - "!**/jptrace/**"
+          - "!**/v1adapter/**"
+
+      # TODO: remove once we have upgraded to Go 1.23
+      disallow-iter:
+        deny:
+         - pkg: iter
+           desc: "Use github.com/jaegertracing/jaeger/pkg/iter"
+        files:
+          - "**"
 
   goimports:
     local-prefixes: github.com/jaegertracing/jaeger

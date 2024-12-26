@@ -13,15 +13,15 @@ const (
 	// store various warnings produced from transformations,
 	// such as inbound sanitizers and outbound adjusters.
 	// The value type of the attribute is a string slice.
-	warningsAttribute = "jaeger.internal.warnings"
+	WarningsAttribute = "jaeger.internal.warnings"
 )
 
 func AddWarnings(span ptrace.Span, warnings ...string) {
 	var w pcommon.Slice
-	if currWarnings, ok := span.Attributes().Get(warningsAttribute); ok {
+	if currWarnings, ok := span.Attributes().Get(WarningsAttribute); ok {
 		w = currWarnings.Slice()
 	} else {
-		w = span.Attributes().PutEmptySlice(warningsAttribute)
+		w = span.Attributes().PutEmptySlice(WarningsAttribute)
 	}
 	for _, warning := range warnings {
 		w.AppendEmpty().SetStr(warning)
@@ -29,7 +29,7 @@ func AddWarnings(span ptrace.Span, warnings ...string) {
 }
 
 func GetWarnings(span ptrace.Span) []string {
-	if w, ok := span.Attributes().Get(warningsAttribute); ok {
+	if w, ok := span.Attributes().Get(WarningsAttribute); ok {
 		warnings := []string{}
 		ws := w.Slice()
 		for i := 0; i < ws.Len(); i++ {

@@ -12,9 +12,9 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/samplingstrategy"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/remotesampling"
-	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/metrics/otelmetrics"
 	"github.com/jaegertracing/jaeger/plugin/sampling/strategyprovider/adaptive"
+	"github.com/jaegertracing/jaeger/storage_v2/v1adapter"
 )
 
 type traceProcessor struct {
@@ -65,7 +65,7 @@ func (tp *traceProcessor) close(context.Context) error {
 }
 
 func (tp *traceProcessor) processTraces(_ context.Context, td ptrace.Traces) (ptrace.Traces, error) {
-	batches := jptrace.ProtoFromTraces(td)
+	batches := v1adapter.ProtoFromTraces(td)
 	for _, batch := range batches {
 		for _, span := range batch.Spans {
 			if span.Process == nil {

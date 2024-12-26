@@ -24,6 +24,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/integration/storagecleaner"
 	"github.com/jaegertracing/jaeger/plugin/storage/integration"
 	"github.com/jaegertracing/jaeger/ports"
+	"github.com/jaegertracing/jaeger/storage_v2/v1adapter"
 )
 
 const otlpPort = 4317
@@ -149,8 +150,9 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
 
 	s.SpanWriter, err = createSpanWriter(logger, otlpPort)
 	require.NoError(t, err)
-	s.SpanReader, err = createSpanReader(logger, ports.QueryGRPC)
+	spanReader, err := createSpanReader(logger, ports.QueryGRPC)
 	require.NoError(t, err)
+	s.TraceReader = v1adapter.NewTraceReader(spanReader)
 
 	t.Cleanup(func() {
 		// Call e2eCleanUp to close the SpanReader and SpanWriter gRPC connection.
@@ -207,7 +209,9 @@ func (s *E2EStorageIntegration) doHealthCheck(t *testing.T) bool {
 // e2eCleanUp closes the SpanReader and SpanWriter gRPC connection.
 // This function should be called after all the tests are finished.
 func (s *E2EStorageIntegration) e2eCleanUp(t *testing.T) {
-	require.NoError(t, s.SpanReader.(io.Closer).Close())
+	spanReader, err := v1adapter.GetV1Reader(s.TraceReader)
+	require.NoError(t, err)
+	require.NoError(t, spanReader.(io.Closer).Close())
 	require.NoError(t, s.SpanWriter.(io.Closer).Close())
 }
 
