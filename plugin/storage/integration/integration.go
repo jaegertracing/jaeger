@@ -217,7 +217,7 @@ func (s *StorageIntegration) testGetLargeSpan(t *testing.T) {
 	expected := s.writeLargeTraceWithDuplicateSpanIds(t)
 	expectedTraceID := expected.Spans[0].TraceID
 
-	var actual *model.Trace
+	actual := &model.Trace{} // no spans
 	found := s.waitForCondition(t, func(_ *testing.T) bool {
 		iterTraces := s.TraceReader.GetTraces(context.Background(), tracestore.GetTraceParams{TraceID: expectedTraceID.ToOTELTraceID()})
 		traces, err := v1adapter.V1TracesFromSeq2(iterTraces)
@@ -293,7 +293,7 @@ func (s *StorageIntegration) testGetTrace(t *testing.T) {
 	expected := s.loadParseAndWriteExampleTrace(t)
 	expectedTraceID := expected.Spans[0].TraceID
 
-	var actual *model.Trace
+	actual := &model.Trace{} // no spans
 	found := s.waitForCondition(t, func(t *testing.T) bool {
 		iterTraces := s.TraceReader.GetTraces(context.Background(), tracestore.GetTraceParams{TraceID: expectedTraceID.ToOTELTraceID()})
 		traces, err := v1adapter.V1TracesFromSeq2(iterTraces)

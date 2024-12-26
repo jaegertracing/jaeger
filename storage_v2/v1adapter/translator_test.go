@@ -112,8 +112,8 @@ func TestProtoToTraces_AddsWarnings(t *testing.T) {
 
 func TestV1TracesFromSeq2(t *testing.T) {
 	var (
-		ProcessNoServiceName string    = "OTLPResourceNoServiceName"
-		StartTime            time.Time = time.Unix(0, 0) // 1970-01-01T00:00:00Z, matches the default for otel span's start time
+		processNoServiceName string    = "OTLPResourceNoServiceName"
+		startTime            time.Time = time.Unix(0, 0) // 1970-01-01T00:00:00Z, matches the default for otel span's start time
 	)
 
 	testCases := []struct {
@@ -131,8 +131,8 @@ func TestV1TracesFromSeq2(t *testing.T) {
 							TraceID:       model.NewTraceID(2, 3),
 							SpanID:        model.NewSpanID(1),
 							OperationName: "op-success-a",
-							Process:       model.NewProcess(ProcessNoServiceName, nil),
-							StartTime:     StartTime,
+							Process:       model.NewProcess(processNoServiceName, nil),
+							StartTime:     startTime,
 						},
 					},
 				},
@@ -164,14 +164,14 @@ func TestV1TracesFromSeq2(t *testing.T) {
 							TraceID:       model.NewTraceID(2, 3),
 							SpanID:        model.NewSpanID(1),
 							OperationName: "op-two-chunks-a",
-							Process:       model.NewProcess(ProcessNoServiceName, nil),
-							StartTime:     StartTime,
+							Process:       model.NewProcess(processNoServiceName, nil),
+							StartTime:     startTime,
 						}, {
 							TraceID:       model.NewTraceID(2, 3),
 							SpanID:        model.NewSpanID(2),
 							OperationName: "op-two-chunks-b",
-							Process:       model.NewProcess(ProcessNoServiceName, nil),
-							StartTime:     StartTime,
+							Process:       model.NewProcess(processNoServiceName, nil),
+							StartTime:     startTime,
 						},
 					},
 				},
@@ -204,7 +204,7 @@ func TestV1TracesFromSeq2(t *testing.T) {
 			// a case that occurs when no trace is contained in the iterator
 			name:                "empty sequence",
 			expectedModelTraces: nil,
-			seqTrace:            func(yield func([]ptrace.Traces, error) bool) {},
+			seqTrace:            func(_ func([]ptrace.Traces, error) bool) {},
 			expectedErr:         nil,
 		},
 		{
