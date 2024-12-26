@@ -7,7 +7,6 @@ import (
 	"context"
 	"io"
 	"net/http"
-	"path/filepath"
 	"testing"
 	"time"
 
@@ -84,7 +83,7 @@ func makeRemoteSamplingExtension(t *testing.T, cfg component.Config) component.H
 func TestStartFileBasedProvider(t *testing.T) {
 	factory := NewFactory()
 	cfg := factory.CreateDefaultConfig().(*Config)
-	cfg.File.Path = filepath.Join("..", "..", "..", "sampling-strategies.json")
+	cfg.File = nil
 	cfg.Adaptive = nil
 	cfg.HTTP = nil
 	cfg.GRPC = nil
@@ -102,7 +101,7 @@ func TestStartFileBasedProvider(t *testing.T) {
 func TestStartHTTP(t *testing.T) {
 	factory := NewFactory()
 	cfg := factory.CreateDefaultConfig().(*Config)
-	cfg.File.Path = filepath.Join("..", "..", "..", "sampling-strategies.json")
+	cfg.File = nil
 	cfg.Adaptive = nil
 	cfg.HTTP = &confighttp.ServerConfig{
 		Endpoint: "0.0.0.0:12345",
@@ -114,6 +113,7 @@ func TestStartHTTP(t *testing.T) {
 		TelemetrySettings: componenttest.NewNopTelemetrySettings(),
 	}, cfg)
 	require.NoError(t, err)
+	// here, the file is using a service hardcoded in the sampling-services.json file
 	host := makeStorageExtension(t, "foobar")
 	require.NoError(t, ext.Start(context.Background(), host))
 
@@ -139,7 +139,7 @@ func TestStartHTTP(t *testing.T) {
 func TestStartGRPC(t *testing.T) {
 	factory := NewFactory()
 	cfg := factory.CreateDefaultConfig().(*Config)
-	cfg.File.Path = filepath.Join("..", "..", "..", "sampling-strategies.json")
+	cfg.File = nil
 	cfg.Adaptive = nil
 	cfg.HTTP = nil
 	cfg.GRPC = &configgrpc.ServerConfig{
@@ -154,6 +154,7 @@ func TestStartGRPC(t *testing.T) {
 		TelemetrySettings: componenttest.NewNopTelemetrySettings(),
 	}, cfg)
 	require.NoError(t, err)
+	// here, the file is using a service hardcoded in the sampling-services.json file
 	host := makeStorageExtension(t, "foobar")
 	require.NoError(t, ext.Start(context.Background(), host))
 

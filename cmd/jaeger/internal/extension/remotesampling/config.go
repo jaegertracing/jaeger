@@ -15,10 +15,7 @@ import (
 	"github.com/jaegertracing/jaeger/plugin/sampling/strategyprovider/adaptive"
 )
 
-var (
-	errNoProvider        = errors.New("no sampling strategy provider specified, expecting 'adaptive' or 'file'")
-	errMultipleProviders = errors.New("only one sampling strategy provider can be specified, 'adaptive' or 'file'")
-)
+var errMultipleProviders = errors.New("only one sampling strategy provider can be specified, 'adaptive' or 'file'")
 
 var (
 	_ component.Config          = (*Config)(nil)
@@ -35,7 +32,7 @@ type Config struct {
 
 type FileConfig struct {
 	// File specifies a local file as the source of sampling strategies.
-	Path string `valid:"required" mapstructure:"path"`
+	Path string `mapstructure:"path"`
 }
 
 type AdaptiveConfig struct {
@@ -78,10 +75,6 @@ func (cfg *Config) Unmarshal(conf *confmap.Conf) error {
 }
 
 func (cfg *Config) Validate() error {
-	if cfg.File == nil && cfg.Adaptive == nil {
-		return errNoProvider
-	}
-
 	if cfg.File != nil && cfg.Adaptive != nil {
 		return errMultipleProviders
 	}
