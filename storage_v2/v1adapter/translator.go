@@ -17,7 +17,10 @@ import (
 // V1BatchesFromTraces converts OpenTelemetry traces (ptrace.Traces)
 // to Jaeger model batches ([]*model.Batch).
 func V1BatchesFromTraces(traces ptrace.Traces) []*model.Batch {
-	return ProtoFromTraces(traces)
+	batches := jaegerTranslator.ProtoFromTraces(traces)
+	spanMap := createSpanMapFromBatches(batches)
+	transferWarningsToModelSpans(traces, spanMap)
+	return batches
 }
 
 // ProtoFromTraces converts OpenTelemetry traces (ptrace.Traces)
@@ -25,10 +28,7 @@ func V1BatchesFromTraces(traces ptrace.Traces) []*model.Batch {
 //
 // TODO remove this function in favor of V1BatchesFromTraces
 func ProtoFromTraces(traces ptrace.Traces) []*model.Batch {
-	batches := jaegerTranslator.ProtoFromTraces(traces)
-	spanMap := createSpanMapFromBatches(batches)
-	transferWarningsToModelSpans(traces, spanMap)
-	return batches
+	return V1BatchesFromTraces(traces)
 }
 
 // V1BatchesToTraces converts Jaeger model batches ([]*model.Batch)
