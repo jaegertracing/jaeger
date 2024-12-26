@@ -18,11 +18,6 @@ func Test_Validate(t *testing.T) {
 		expectedErr string
 	}{
 		{
-			name:        "No provider specified",
-			config:      &Config{},
-			expectedErr: "no sampling strategy provider specified, expecting 'adaptive' or 'file'",
-		},
-		{
 			name: "Both providers specified",
 			config: &Config{
 				File:     &FileConfig{Path: "test-path"},
