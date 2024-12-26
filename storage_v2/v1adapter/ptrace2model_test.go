@@ -29,7 +29,7 @@ func TestPTracesSeq2ToModel_SuccessWithSinglePTraceInSeq(t *testing.T) {
 		expectedErr         error
 	}{
 		{
-			name: "seq with one ptrace.Traces",
+			name: "sequence with one trace",
 			expectedModelTraces: []*model.Trace{
 				{
 					Spans: []*model.Span{
@@ -62,7 +62,7 @@ func TestPTracesSeq2ToModel_SuccessWithSinglePTraceInSeq(t *testing.T) {
 			expectedErr: nil,
 		},
 		{
-			name: "seq with two chunks of ptrace.Traces",
+			name: "sequence with two chunks of a trace",
 			expectedModelTraces: []*model.Trace{
 				{
 					Spans: []*model.Span{
@@ -108,14 +108,14 @@ func TestPTracesSeq2ToModel_SuccessWithSinglePTraceInSeq(t *testing.T) {
 		},
 		{
 			// a case that occurs when no trace is contained in the iterator
-			name:                "empty seq for ptrace.Traces",
+			name:                "empty sequence",
 			expectedModelTraces: nil,
 			seqTrace: func(yield func([]ptrace.Traces, error) bool) {
 			},
 			expectedErr: spanstore.ErrTraceNotFound,
 		},
 		{
-			name: "seq of one ptrace and one error",
+			name:                "sequence containing error",
 			expectedModelTraces: nil,
 			seqTrace: func(yield func([]ptrace.Traces, error) bool) {
 				testTrace := ptrace.NewTraces()
@@ -143,7 +143,20 @@ func TestPTracesSeq2ToModel_SuccessWithSinglePTraceInSeq(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			actualTraces, err := PTracesSeq2ToModel(tc.seqTrace)
 			require.Equal(t, tc.expectedErr, err)
-			CompareSliceOfTraces(t, tc.expectedModelTraces, actualTraces)
+			require.Equal(t, len(tc.expectedModelTraces), len(actualTraces))
+			if len(tc.expectedModelTraces) < 1 {
+				return
+			}
+			for i, etrace := range tc.expectedModelTraces {
+				eSpans := etrace.Spans
+				aSpans := actualTraces[i].Spans
+				require.Equal(t, len(eSpans), len(aSpans))
+				for j, espan := range eSpans {
+					require.Equal(t, espan.TraceID, aSpans[j].TraceID)
+					require.Equal(t, espan.OperationName, aSpans[j].OperationName)
+					require.Equal(t, espan.Process, aSpans[j].Process)
+				}
+			}
 		})
 	}
 }

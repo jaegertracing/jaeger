@@ -6,54 +6,34 @@ package v1adapter
 import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
+	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/iter"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	otel2model "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger"
 )
 
-// PTracesSeq2ToModel consumes an iterator seqTrace. When necessary,
-// it groups spans from *consecutive* chunks of ptrace.Traces into a single model.Trace
+// PTracesSeq2ToModel consumes tracesSeq.
+// When necessary, it groups spans from *consecutive* chunks of ptrace.Traces into a single model.Trace
+// It adheres to the chunking requirement of tracestore.Reader.GetTraces.
 //
+// 
 // Returns nil, and spanstore.ErrTraceNotFound for empty iterators
-func PTracesSeq2ToModel(seqTrace iter.Seq2[[]ptrace.Traces, error]) ([]*model.Trace, error) {
-	var (
-		err         error
-		lastTraceID *model.TraceID
-		lastTrace   *model.Trace
-	)
+func PTracesSeq2ToModel(tracesSeq iter.Seq2[[]ptrace.Traces, error]) ([]*model.Trace, error) {
 	jaegerTraces := []*model.Trace{}
-
-	seqTrace(func(otelTraces []ptrace.Traces, e error) bool {
-		if e != nil {
-			err = e
-			return false
-		}
-
-		for _, otelTrace := range otelTraces {
-			spans := modelSpansFromOtelTrace(otelTrace)
-			if len(spans) == 0 {
-				continue
-			}
-			currentTraceID := spans[0].TraceID
-			if lastTraceID != nil && *lastTraceID == currentTraceID {
-				lastTrace.Spans = append(lastTrace.Spans, spans...)
-			} else {
-				newTrace := &model.Trace{Spans: spans}
-				lastTraceID = &currentTraceID
-				lastTrace = newTrace
-				jaegerTraces = append(jaegerTraces, lastTrace)
-			}
-		}
-		return true
-	})
-
+	otelTraces, err := iter.CollectWithErrors(jptrace.AggregateTraces(tracesSeq))
 	if err != nil {
 		return nil, err
 	}
-
-	if len(jaegerTraces) == 0 {
+	if len(otelTraces) == 0 {
 		return nil, spanstore.ErrTraceNotFound
+	}
+
+	for _, otelTrace := range otelTraces {
+		jTrace := &model.Trace{
+			Spans: modelSpansFromOtelTrace(otelTrace),
+		}
+		jaegerTraces = append(jaegerTraces, jTrace)
 	}
 	return jaegerTraces, nil
 }
@@ -64,9 +44,12 @@ func modelSpansFromOtelTrace(otelTrace ptrace.Traces) []*model.Span {
 	batches := otel2model.ProtoFromTraces(otelTrace)
 	for _, batch := range batches {
 		for _, span := range batch.Spans {
-			span.Process = &model.Process{}
-			span.Process.ServiceName = batch.GetProcess().GetServiceName()
-			span.Process.Tags = batch.GetProcess().GetTags()
+			if span.Process == nil {
+				span.Process = &model.Process{ // give each span it's own process, avoid potential side effects from shared Process objects.
+					ServiceName: batch.Process.ServiceName,
+					Tags:        batch.Process.Tags,
+				}
+			}
 			spans = append(spans, span)
 		}
 	}
