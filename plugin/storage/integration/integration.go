@@ -159,7 +159,7 @@ func (s *StorageIntegration) testGetServices(t *testing.T) {
 				iterTraces := s.TraceReader.FindTraces(context.Background(), tracestore.TraceQueryParams{
 					ServiceName: service,
 				})
-				traces, err := v1adapter.PTracesSeq2ToModel(iterTraces)
+				traces, err := v1adapter.V1TracesFromSeq2(iterTraces)
 				if err != nil {
 					t.Log(err)
 					continue
@@ -220,7 +220,7 @@ func (s *StorageIntegration) testGetLargeSpan(t *testing.T) {
 	var actual *model.Trace
 	found := s.waitForCondition(t, func(_ *testing.T) bool {
 		iterTraces := s.TraceReader.GetTraces(context.Background(), tracestore.GetTraceParams{TraceID: expectedTraceID.ToOTELTraceID()})
-		traces, err := v1adapter.PTracesSeq2ToModel(iterTraces)
+		traces, err := v1adapter.V1TracesFromSeq2(iterTraces)
 		require.NotEmpty(t, traces)
 		actual = traces[0]
 		return err == nil && len(actual.Spans) >= len(expected.Spans)
@@ -295,7 +295,7 @@ func (s *StorageIntegration) testGetTrace(t *testing.T) {
 	var actual *model.Trace
 	found := s.waitForCondition(t, func(t *testing.T) bool {
 		iterTraces := s.TraceReader.GetTraces(context.Background(), tracestore.GetTraceParams{TraceID: expectedTraceID.ToOTELTraceID()})
-		traces, err := v1adapter.PTracesSeq2ToModel(iterTraces)
+		traces, err := v1adapter.V1TracesFromSeq2(iterTraces)
 		if err != nil {
 			t.Log(err)
 		}
@@ -310,7 +310,7 @@ func (s *StorageIntegration) testGetTrace(t *testing.T) {
 	t.Run("NotFound error", func(t *testing.T) {
 		fakeTraceID := model.TraceID{High: 0, Low: 1}
 		iterTraces := s.TraceReader.GetTraces(context.Background(), tracestore.GetTraceParams{TraceID: fakeTraceID.ToOTELTraceID()})
-		traces, err := v1adapter.PTracesSeq2ToModel(iterTraces)
+		traces, err := v1adapter.V1TracesFromSeq2(iterTraces)
 		assert.Equal(t, spanstore.ErrTraceNotFound, err)
 		assert.Nil(t, traces)
 	})
@@ -355,7 +355,7 @@ func (s *StorageIntegration) findTracesByQuery(t *testing.T, query *tracestore.T
 	found := s.waitForCondition(t, func(t *testing.T) bool {
 		var err error
 		iterTraces := s.TraceReader.FindTraces(context.Background(), *query)
-		traces, err = v1adapter.PTracesSeq2ToModel(iterTraces)
+		traces, err = v1adapter.V1TracesFromSeq2(iterTraces)
 		if err != nil {
 			t.Log(err)
 			return false

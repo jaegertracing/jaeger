@@ -39,7 +39,7 @@ func (s *BadgerIntegrationStorage) initialize(t *testing.T) {
 	spanReader, err := s.factory.CreateSpanReader()
 	require.NoError(t, err)
 	s.TraceReader = v1adapter.NewTraceReader(spanReader)
-	
+
 	s.SamplingStore, err = s.factory.CreateSamplingStore(0)
 	require.NoError(t, err)
 }
