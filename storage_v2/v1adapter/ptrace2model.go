@@ -17,7 +17,6 @@ import (
 // When necessary, it groups spans from *consecutive* chunks of ptrace.Traces into a single model.Trace
 // It adheres to the chunking requirement of tracestore.Reader.GetTraces.
 //
-// 
 // Returns nil, and spanstore.ErrTraceNotFound for empty iterators
 func PTracesSeq2ToModel(tracesSeq iter.Seq2[[]ptrace.Traces, error]) ([]*model.Trace, error) {
 	jaegerTraces := []*model.Trace{}
@@ -45,10 +44,8 @@ func modelSpansFromOtelTrace(otelTrace ptrace.Traces) []*model.Span {
 	for _, batch := range batches {
 		for _, span := range batch.Spans {
 			if span.Process == nil {
-				span.Process = &model.Process{ // give each span it's own process, avoid potential side effects from shared Process objects.
-					ServiceName: batch.Process.ServiceName,
-					Tags:        batch.Process.Tags,
-				}
+				proc := *batch.Process // shallow clone
+				span.Process = &proc
 			}
 			spans = append(spans, span)
 		}
