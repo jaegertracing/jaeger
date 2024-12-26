@@ -4,14 +4,18 @@
 package v1adapter
 
 import (
+	"errors"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger/pkg/iter"
 )
 
 func TestProtoFromTraces_AddsWarnings(t *testing.T) {
@@ -104,4 +108,148 @@ func TestProtoToTraces_AddsWarnings(t *testing.T) {
 	span3 := spanMap["test-span-3"]
 	assert.Equal(t, pcommon.SpanID([8]byte{0, 0, 0, 0, 0, 0, 0, 3}), span3.SpanID())
 	assert.Equal(t, []string{"test-warning-3"}, jptrace.GetWarnings(span3))
+}
+
+func TestV1TracesFromSeq2(t *testing.T) {
+	var (
+		processNoServiceName string    = "OTLPResourceNoServiceName"
+		startTime            time.Time = time.Unix(0, 0) // 1970-01-01T00:00:00Z, matches the default for otel span's start time
+	)
+
+	testCases := []struct {
+		name                string
+		expectedModelTraces []*model.Trace
+		seqTrace            iter.Seq2[[]ptrace.Traces, error]
+		expectedErr         error
+	}{
+		{
+			name: "sequence with one trace",
+			expectedModelTraces: []*model.Trace{
+				{
+					Spans: []*model.Span{
+						{
+							TraceID:       model.NewTraceID(2, 3),
+							SpanID:        model.NewSpanID(1),
+							OperationName: "op-success-a",
+							Process:       model.NewProcess(processNoServiceName, nil),
+							StartTime:     startTime,
+						},
+					},
+				},
+			},
+			seqTrace: func(yield func([]ptrace.Traces, error) bool) {
+				testTrace := ptrace.NewTraces()
+				rSpans := testTrace.ResourceSpans().AppendEmpty()
+				sSpans := rSpans.ScopeSpans().AppendEmpty()
+				spans := sSpans.Spans()
+
+				// Add a new span and set attributes
+				modelTraceID := model.NewTraceID(2, 3)
+				span1 := spans.AppendEmpty()
+				span1.SetTraceID(modelTraceID.ToOTELTraceID())
+				span1.SetName("op-success-a")
+				span1.SetSpanID(model.NewSpanID(1).ToOTELSpanID())
+
+				// Yield the test trace
+				yield([]ptrace.Traces{testTrace}, nil)
+			},
+			expectedErr: nil,
+		},
+		{
+			name: "sequence with two chunks of a trace",
+			expectedModelTraces: []*model.Trace{
+				{
+					Spans: []*model.Span{
+						{
+							TraceID:       model.NewTraceID(2, 3),
+							SpanID:        model.NewSpanID(1),
+							OperationName: "op-two-chunks-a",
+							Process:       model.NewProcess(processNoServiceName, nil),
+							StartTime:     startTime,
+						}, {
+							TraceID:       model.NewTraceID(2, 3),
+							SpanID:        model.NewSpanID(2),
+							OperationName: "op-two-chunks-b",
+							Process:       model.NewProcess(processNoServiceName, nil),
+							StartTime:     startTime,
+						},
+					},
+				},
+			},
+			seqTrace: func(yield func([]ptrace.Traces, error) bool) {
+				traceChunk1 := ptrace.NewTraces()
+				rSpans1 := traceChunk1.ResourceSpans().AppendEmpty()
+				sSpans1 := rSpans1.ScopeSpans().AppendEmpty()
+				spans1 := sSpans1.Spans()
+				modelTraceID := model.NewTraceID(2, 3)
+				span1 := spans1.AppendEmpty()
+				span1.SetTraceID(modelTraceID.ToOTELTraceID())
+				span1.SetName("op-two-chunks-a")
+				span1.SetSpanID(model.NewSpanID(1).ToOTELSpanID())
+
+				traceChunk2 := ptrace.NewTraces()
+				rSpans2 := traceChunk2.ResourceSpans().AppendEmpty()
+				sSpans2 := rSpans2.ScopeSpans().AppendEmpty()
+				spans2 := sSpans2.Spans()
+				span2 := spans2.AppendEmpty()
+				span2.SetTraceID(modelTraceID.ToOTELTraceID())
+				span2.SetName("op-two-chunks-b")
+				span2.SetSpanID(model.NewSpanID(2).ToOTELSpanID())
+				// Yield the test trace
+				yield([]ptrace.Traces{traceChunk1, traceChunk2}, nil)
+			},
+			expectedErr: nil,
+		},
+		{
+			// a case that occurs when no trace is contained in the iterator
+			name:                "empty sequence",
+			expectedModelTraces: nil,
+			seqTrace:            func(_ func([]ptrace.Traces, error) bool) {},
+			expectedErr:         nil,
+		},
+		{
+			name:                "sequence containing error",
+			expectedModelTraces: nil,
+			seqTrace: func(yield func([]ptrace.Traces, error) bool) {
+				testTrace := ptrace.NewTraces()
+				rSpans := testTrace.ResourceSpans().AppendEmpty()
+				sSpans := rSpans.ScopeSpans().AppendEmpty()
+				spans := sSpans.Spans()
+
+				modelTraceID := model.NewTraceID(2, 3)
+				span1 := spans.AppendEmpty()
+				span1.SetTraceID(modelTraceID.ToOTELTraceID())
+				span1.SetName("op-error-a")
+				span1.SetSpanID(model.NewSpanID(1).ToOTELSpanID())
+
+				// Yield the test trace
+				if !yield([]ptrace.Traces{testTrace}, nil) {
+					return
+				}
+				yield(nil, errors.New("unexpected-op-err"))
+			},
+			expectedErr: errors.New("unexpected-op-err"),
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			actualTraces, err := V1TracesFromSeq2(tc.seqTrace)
+			require.Equal(t, tc.expectedErr, err)
+			require.Equal(t, len(tc.expectedModelTraces), len(actualTraces))
+			if len(tc.expectedModelTraces) < 1 {
+				return
+			}
+			for i, etrace := range tc.expectedModelTraces {
+				eSpans := etrace.Spans
+				aSpans := actualTraces[i].Spans
+				require.Equal(t, len(eSpans), len(aSpans))
+				for j, espan := range eSpans {
+					assert.Equal(t, espan.TraceID, aSpans[j].TraceID)
+					assert.Equal(t, espan.OperationName, aSpans[j].OperationName)
+					assert.Equal(t, espan.Process, aSpans[j].Process)
+				}
+			}
+		})
+	}
 }

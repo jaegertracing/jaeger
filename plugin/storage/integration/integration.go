@@ -27,6 +27,8 @@ import (
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/samplingstore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
+	"github.com/jaegertracing/jaeger/storage_v2/tracestore"
+	"github.com/jaegertracing/jaeger/storage_v2/v1adapter"
 )
 
 //go:embed fixtures
@@ -42,7 +44,7 @@ var fixtures embed.FS
 // and RunAll() under different conditions.
 type StorageIntegration struct {
 	SpanWriter        spanstore.Writer
-	SpanReader        spanstore.Reader
+	TraceReader       tracestore.Reader
 	ArchiveSpanReader spanstore.Reader
 	ArchiveSpanWriter spanstore.Writer
 	DependencyWriter  dependencystore.Writer
@@ -79,7 +81,7 @@ type StorageIntegration struct {
 // the service name is formatted "query##-service".
 type QueryFixtures struct {
 	Caption          string
-	Query            *spanstore.TraceQueryParameters
+	Query            *tracestore.TraceQueryParams
 	ExpectedFixtures []string
 }
 
@@ -143,7 +145,7 @@ func (s *StorageIntegration) testGetServices(t *testing.T) {
 	var actual []string
 	found := s.waitForCondition(t, func(t *testing.T) bool {
 		var err error
-		actual, err = s.SpanReader.GetServices(context.Background())
+		actual, err = s.TraceReader.GetServices(context.Background())
 		if err != nil {
 			t.Log(err)
 			return false
@@ -154,9 +156,10 @@ func (s *StorageIntegration) testGetServices(t *testing.T) {
 			// If the storage backend returns more services than expected, let's log traces for those
 			t.Log("🛑 Found unexpected services!")
 			for _, service := range actual {
-				traces, err := s.SpanReader.FindTraces(context.Background(), &spanstore.TraceQueryParameters{
+				iterTraces := s.TraceReader.FindTraces(context.Background(), tracestore.TraceQueryParams{
 					ServiceName: service,
 				})
+				traces, err := v1adapter.V1TracesFromSeq2(iterTraces)
 				if err != nil {
 					t.Log(err)
 					continue
@@ -214,10 +217,13 @@ func (s *StorageIntegration) testGetLargeSpan(t *testing.T) {
 	expected := s.writeLargeTraceWithDuplicateSpanIds(t)
 	expectedTraceID := expected.Spans[0].TraceID
 
-	var actual *model.Trace
+	actual := &model.Trace{} // no spans
 	found := s.waitForCondition(t, func(_ *testing.T) bool {
-		var err error
-		actual, err = s.SpanReader.GetTrace(context.Background(), spanstore.GetTraceParameters{TraceID: expectedTraceID})
+		iterTraces := s.TraceReader.GetTraces(context.Background(), tracestore.GetTraceParams{TraceID: expectedTraceID.ToOTELTraceID()})
+		traces, err := v1adapter.V1TracesFromSeq2(iterTraces)
+		if len(traces) > 0 {
+			actual = traces[0]
+		}
 		return err == nil && len(actual.Spans) >= len(expected.Spans)
 	})
 
@@ -242,15 +248,15 @@ func (s *StorageIntegration) testGetOperations(t *testing.T) {
 	s.skipIfNeeded(t)
 	defer s.cleanUp(t)
 
-	var expected []spanstore.Operation
+	var expected []tracestore.Operation
 	if s.GetOperationsMissingSpanKind {
-		expected = []spanstore.Operation{
+		expected = []tracestore.Operation{
 			{Name: "example-operation-1"},
 			{Name: "example-operation-3"},
 			{Name: "example-operation-4"},
 		}
 	} else {
-		expected = []spanstore.Operation{
+		expected = []tracestore.Operation{
 			{Name: "example-operation-1", SpanKind: ""},
 			{Name: "example-operation-3", SpanKind: "server"},
 			{Name: "example-operation-4", SpanKind: "client"},
@@ -258,11 +264,11 @@ func (s *StorageIntegration) testGetOperations(t *testing.T) {
 	}
 	s.loadParseAndWriteExampleTrace(t)
 
-	var actual []spanstore.Operation
+	var actual []tracestore.Operation
 	found := s.waitForCondition(t, func(t *testing.T) bool {
 		var err error
-		actual, err = s.SpanReader.GetOperations(context.Background(),
-			spanstore.OperationQueryParameters{ServiceName: "example-service-1"})
+		actual, err = s.TraceReader.GetOperations(context.Background(),
+			tracestore.OperationQueryParameters{ServiceName: "example-service-1"})
 		if err != nil {
 			t.Log(err)
 			return false
@@ -287,14 +293,18 @@ func (s *StorageIntegration) testGetTrace(t *testing.T) {
 	expected := s.loadParseAndWriteExampleTrace(t)
 	expectedTraceID := expected.Spans[0].TraceID
 
-	var actual *model.Trace
+	actual := &model.Trace{} // no spans
 	found := s.waitForCondition(t, func(t *testing.T) bool {
-		var err error
-		actual, err = s.SpanReader.GetTrace(context.Background(), spanstore.GetTraceParameters{TraceID: expectedTraceID})
+		iterTraces := s.TraceReader.GetTraces(context.Background(), tracestore.GetTraceParams{TraceID: expectedTraceID.ToOTELTraceID()})
+		traces, err := v1adapter.V1TracesFromSeq2(iterTraces)
 		if err != nil {
 			t.Log(err)
+			return false
 		}
-		return err == nil && len(actual.Spans) == len(expected.Spans)
+		if len(traces) > 0 {
+			actual = traces[0]
+		}
+		return len(actual.Spans) == len(expected.Spans)
 	})
 	if !assert.True(t, found) {
 		CompareTraces(t, expected, actual)
@@ -302,9 +312,10 @@ func (s *StorageIntegration) testGetTrace(t *testing.T) {
 
 	t.Run("NotFound error", func(t *testing.T) {
 		fakeTraceID := model.TraceID{High: 0, Low: 1}
-		trace, err := s.SpanReader.GetTrace(context.Background(), spanstore.GetTraceParameters{TraceID: fakeTraceID})
-		assert.Equal(t, spanstore.ErrTraceNotFound, err)
-		assert.Nil(t, trace)
+		iterTraces := s.TraceReader.GetTraces(context.Background(), tracestore.GetTraceParams{TraceID: fakeTraceID.ToOTELTraceID()})
+		traces, err := v1adapter.V1TracesFromSeq2(iterTraces)
+		require.NoError(t, err) // v2 TraceReader no longer returns an error for not found
+		assert.Empty(t, traces)
 	})
 }
 
@@ -342,11 +353,12 @@ func (s *StorageIntegration) testFindTraces(t *testing.T) {
 	}
 }
 
-func (s *StorageIntegration) findTracesByQuery(t *testing.T, query *spanstore.TraceQueryParameters, expected []*model.Trace) []*model.Trace {
+func (s *StorageIntegration) findTracesByQuery(t *testing.T, query *tracestore.TraceQueryParams, expected []*model.Trace) []*model.Trace {
 	var traces []*model.Trace
 	found := s.waitForCondition(t, func(t *testing.T) bool {
 		var err error
-		traces, err = s.SpanReader.FindTraces(context.Background(), query)
+		iterTraces := s.TraceReader.FindTraces(context.Background(), *query)
+		traces, err = v1adapter.V1TracesFromSeq2(iterTraces)
 		if err != nil {
 			t.Log(err)
 			return false

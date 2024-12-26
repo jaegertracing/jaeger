@@ -11,6 +11,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/plugin/storage/memory"
+	"github.com/jaegertracing/jaeger/storage_v2/v1adapter"
 )
 
 type MemStorageIntegrationTestSuite struct {
@@ -24,7 +25,8 @@ func (s *MemStorageIntegrationTestSuite) initialize(_ *testing.T) {
 	store := memory.NewStore()
 	archiveStore := memory.NewStore()
 	s.SamplingStore = memory.NewSamplingStore(2)
-	s.SpanReader = store
+	spanReader := store
+	s.TraceReader = v1adapter.NewTraceReader(spanReader)
 	s.SpanWriter = store
 	s.ArchiveSpanReader = archiveStore
 	s.ArchiveSpanWriter = archiveStore
