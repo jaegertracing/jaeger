@@ -93,7 +93,19 @@ func (c *CacheStore) loadOperations(service string) {
 			if _, found := c.operations[service]; !found {
 				c.operations[service] = make(map[model.SpanKind]map[string]uint64)
 			}
-			kind := getSpanKind(txn, it.Item().Key()[1:])
+			var kind model.SpanKind
+			err := it.Item().Value(func(val []byte) error {
+				if val == nil {
+					kind = model.SpanKindUnspecified
+					return nil
+				}
+				var err error
+				kind, err = model.SpanKindFromString(string(val))
+				return err
+			})
+			if err != nil {
+				kind = model.SpanKindUnspecified
+			}
 			if _, found := c.operations[service][kind]; !found {
 				c.operations[service][kind] = make(map[string]uint64)
 			}
@@ -106,28 +118,6 @@ func (c *CacheStore) loadOperations(service string) {
 		}
 		return nil
 	})
-}
-
-func getSpanKind(txn *badger.Txn, serviceKeyWithoutPrefix []byte) model.SpanKind {
-	spanKindKey := make([]byte, len(serviceKeyWithoutPrefix)+1)
-	spanKindKey[0] = spanKindIndexKey
-	copy(spanKindKey[1:], serviceKeyWithoutPrefix)
-	item, err := txn.Get(spanKindKey)
-	if err != nil {
-		return model.SpanKindUnspecified
-	}
-	var kind model.SpanKind
-	err = item.Value(func(val []byte) error {
-		kind, err = model.SpanKindFromString(string(val))
-		if err != nil {
-			return err
-		}
-		return nil
-	})
-	if err != nil {
-		return model.SpanKindUnspecified
-	}
-	return kind
 }
 
 // Update caches the results of service and service + operation indexes and maintains their TTL

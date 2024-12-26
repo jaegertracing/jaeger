@@ -30,7 +30,6 @@ const (
 	operationNameIndexKey byte = 0x82
 	tagIndexKey           byte = 0x83
 	durationIndexKey      byte = 0x84
-	spanKindIndexKey      byte = 0x85
 	jsonEncoding          byte = 0x01 // Last 4 bits of the meta byte are for encoding type
 	protoEncoding         byte = 0x02 // Last 4 bits of the meta byte are for encoding type
 	defaultEncoding       byte = protoEncoding
@@ -68,19 +67,16 @@ func (w *SpanWriter) WriteSpan(_ context.Context, span *model.Span) error {
 		return err
 	}
 
+	kind, _ := span.GetSpanKind()
+
 	entriesToStore = append(entriesToStore, trace)
 	entriesToStore = append(entriesToStore, w.createBadgerEntry(createIndexKey(serviceNameIndexKey, []byte(span.Process.ServiceName), startTime, span.TraceID), nil, expireTime))
-	entriesToStore = append(entriesToStore, w.createBadgerEntry(createIndexKey(operationNameIndexKey, []byte(span.Process.ServiceName+span.OperationName), startTime, span.TraceID), nil, expireTime))
+	entriesToStore = append(entriesToStore, w.createBadgerEntry(createIndexKey(operationNameIndexKey, []byte(span.Process.ServiceName+span.OperationName), startTime, span.TraceID), []byte(kind), expireTime))
 
 	// It doesn't matter if we overwrite Duration index keys, everything is read at Trace level in any case
 	durationValue := make([]byte, 8)
 	binary.BigEndian.PutUint64(durationValue, uint64(model.DurationAsMicroseconds(span.Duration)))
 	entriesToStore = append(entriesToStore, w.createBadgerEntry(createIndexKey(durationIndexKey, durationValue, startTime, span.TraceID), nil, expireTime))
-
-	kind, found := span.GetSpanKind()
-	if found {
-		entriesToStore = append(entriesToStore, w.createBadgerEntry(createIndexKey(spanKindIndexKey, []byte(span.Process.ServiceName+span.OperationName), startTime, span.TraceID), []byte(kind), expireTime))
-	}
 
 	for _, kv := range span.Tags {
 		// Convert everything to string since queries are done that way also

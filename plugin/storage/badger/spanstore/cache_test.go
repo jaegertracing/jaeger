@@ -179,6 +179,43 @@ func TestCacheStore_Prefill(t *testing.T) {
 	})
 }
 
+// Test Case for old data
+func TestCacheStore_WhenValueIsNil(t *testing.T) {
+	runWithBadger(t, func(store *badger.DB, t *testing.T) {
+		cache := NewCacheStore(store, 1*time.Hour, true)
+		w := NewSpanWriter(store, cache, 1*time.Hour)
+		var entriesToStore []*badger.Entry
+		timeNow := model.TimeAsEpochMicroseconds(time.Now())
+		expireTime := uint64(time.Now().Add(cache.ttl).Unix())
+		entriesToStore = append(entriesToStore, w.createBadgerEntry(createIndexKey(serviceNameIndexKey, []byte("service"), timeNow, model.TraceID{High: 0, Low: 0}), nil, expireTime))
+		entriesToStore = append(entriesToStore, w.createBadgerEntry(createIndexKey(operationNameIndexKey, []byte("serviceoperation"), timeNow, model.TraceID{High: 0, Low: 0}), nil, expireTime))
+		err := store.Update(func(txn *badger.Txn) error {
+			err := txn.SetEntry(entriesToStore[0])
+			require.NoError(t, err)
+			err = txn.SetEntry(entriesToStore[1])
+			require.NoError(t, err)
+			return nil
+		})
+		require.NoError(t, err)
+		newCache := NewCacheStore(store, 1*time.Hour, true)
+		_, foundService := newCache.services["service"]
+		assert.True(t, foundService)
+		_, foundOperation := newCache.operations["service"][model.SpanKindUnspecified]["operation"]
+		assert.True(t, foundOperation)
+	})
+}
+
+func TestCacheStore_GetOperationsThrowError(t *testing.T) {
+	runWithBadger(t, func(store *badger.DB, t *testing.T) {
+		cache := NewCacheStore(store, 1*time.Hour, true)
+		cache.services = make(map[string]uint64)
+		cache.services["service1"] = uint64(time.Now().Unix())
+		operations, err := cache.GetOperations("service1", "a")
+		require.Error(t, err)
+		require.Nil(t, operations)
+	})
+}
+
 // func runFactoryTest(tb testing.TB, test func(tb testing.TB, sw spanstore.Writer, sr spanstore.Reader)) {
 func runWithBadger(t *testing.T, test func(store *badger.DB, t *testing.T)) {
 	opts := badger.DefaultOptions("")
