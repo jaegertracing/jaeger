@@ -138,6 +138,8 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
 			// since the binary config file jaeger_query's ui.config_file points to
 			// "./cmd/jaeger/config-ui.json"
 			Dir: "../../../..",
+			// We don't want self-tracing in Jaeger during the tests.
+			Env: []string{"OTEL_TRACES_SAMPLER=always_off"},
 		},
 	}
 	cmd.Start(t)

@@ -155,13 +155,22 @@ func (r *traceReader) FindTraces(
 				RawTraces:   true,
 			},
 		})
+		// TODO from this point down we could probably use the same code as GetTraces
 		if err != nil {
-			yield(nil, unwrapNotFoundErr(err))
+			err = unwrapNotFoundErr(err)
+			r.logger.Info("Error received", zap.Error(err))
+			if !errors.Is(err, spanstore.ErrTraceNotFound) {
+				yield(nil, err)
+			}
 			return
 		}
 		for received, err := stream.Recv(); !errors.Is(err, io.EOF); received, err = stream.Recv() {
 			if err != nil {
-				yield(nil, unwrapNotFoundErr(err))
+				err = unwrapNotFoundErr(err)
+				r.logger.Info("Error in stream received", zap.Error(err))
+				if !errors.Is(err, spanstore.ErrTraceNotFound) {
+					yield(nil, err)
+				}
 				return
 			}
 			traces := received.ToTraces()
