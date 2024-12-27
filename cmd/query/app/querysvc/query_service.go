@@ -143,8 +143,8 @@ func (qs QueryService) ArchiveTrace(ctx context.Context, query spanstore.GetTrac
 }
 
 // Adjust applies adjusters to the trace.
-func (qs QueryService) adjust(trace *model.Trace) (*model.Trace, error) {
-	return qs.options.Adjuster.Adjust(trace)
+func (qs QueryService) adjust(trace *model.Trace) {
+	qs.options.Adjuster.Adjust(trace)
 }
 
 // GetDependencies implements dependencystore.Reader.GetDependencies

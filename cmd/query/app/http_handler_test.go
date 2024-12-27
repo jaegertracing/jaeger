@@ -32,7 +32,6 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	"github.com/jaegertracing/jaeger/model"
-	"github.com/jaegertracing/jaeger/model/adjuster"
 	ui "github.com/jaegertracing/jaeger/model/json"
 	"github.com/jaegertracing/jaeger/pkg/jtracer"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
@@ -59,7 +58,6 @@ func (m *IoReaderMock) Read(b []byte) (int, error) {
 var (
 	errStorageMsg = "storage error"
 	errStorage    = errors.New(errStorageMsg)
-	errAdjustment = errors.New("adjustment error")
 
 	httpClient = &http.Client{
 		Timeout: 2 * time.Second,
@@ -375,25 +373,6 @@ func TestGetTraceNotFound(t *testing.T) {
 	require.EqualError(t, err, parsedError(404, "trace not found"))
 }
 
-func TestGetTraceAdjustmentFailure(t *testing.T) {
-	ts := initializeTestServerWithHandler(
-		t,
-		querysvc.QueryServiceOptions{
-			Adjuster: adjuster.Func(func(trace *model.Trace) (*model.Trace, error) {
-				return trace, errAdjustment
-			}),
-		},
-	)
-	ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("spanstore.GetTraceParameters")).
-		Return(mockTrace, nil).Once()
-
-	var response structuredResponse
-	err := getJSON(ts.server.URL+`/api/traces/123456`, &response)
-	require.NoError(t, err)
-	assert.Len(t, response.Errors, 1)
-	assert.EqualValues(t, errAdjustment.Error(), response.Errors[0].Msg)
-}
-
 func TestGetTraceBadTraceID(t *testing.T) {
 	ts := initializeTestServer(t)
 
@@ -562,25 +541,6 @@ func TestSearchByTraceIDFailure(t *testing.T) {
 	var response structuredResponse
 	err := getJSON(ts.server.URL+`/api/traces?traceID=1`, &response)
 	require.EqualError(t, err, parsedError(500, whatsamattayou))
-}
-
-func TestSearchModelConversionFailure(t *testing.T) {
-	ts := initializeTestServerWithOptions(
-		t,
-		&tenancy.Manager{},
-		querysvc.QueryServiceOptions{
-			Adjuster: adjuster.Func(func(trace *model.Trace) (*model.Trace, error) {
-				return trace, errAdjustment
-			}),
-		},
-	)
-	ts.spanReader.On("FindTraces", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("*spanstore.TraceQueryParameters")).
-		Return([]*model.Trace{mockTrace}, nil).Once()
-	var response structuredResponse
-	err := getJSON(ts.server.URL+`/api/traces?service=service&start=0&end=0&operation=operation&limit=200&minDuration=20ms`, &response)
-	require.NoError(t, err)
-	assert.Len(t, response.Errors, 1)
-	assert.EqualValues(t, errAdjustment.Error(), response.Errors[0].Msg)
 }
 
 func TestSearchDBFailure(t *testing.T) {

@@ -20,7 +20,7 @@ import (
 // place in the list. This adjuster needs some sort of config describing predefined
 // field names/types and their relative order.
 func SortTagsAndLogFields() Adjuster {
-	return Func(func(trace *model.Trace) (*model.Trace, error) {
+	return Func(func(trace *model.Trace) {
 		for _, span := range trace.Spans {
 			model.KeyValues(span.Tags).Sort()
 			if span.Process != nil {
@@ -45,6 +45,5 @@ func SortTagsAndLogFields() Adjuster {
 				}
 			}
 		}
-		return trace, nil
 	})
 }
