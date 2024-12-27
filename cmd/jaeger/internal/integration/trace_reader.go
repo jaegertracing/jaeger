@@ -75,28 +75,8 @@ func (r *traceReader) GetTraces(
 				StartTime: idParams.Start,
 				EndTime:   idParams.End,
 			})
-			if err != nil {
-				err = unwrapNotFoundErr(err)
-				r.logger.Info("Error received", zap.Error(err))
-				if !errors.Is(err, spanstore.ErrTraceNotFound) {
-					yield(nil, err)
-				}
+			if !r.consumeTraces(yield, stream, err) {
 				return
-			}
-			for received, err := stream.Recv(); !errors.Is(err, io.EOF); received, err = stream.Recv() {
-				r.logger.Info("Stream chunk received")
-				if err != nil {
-					err = unwrapNotFoundErr(err)
-					r.logger.Info("Error in stream received", zap.Error(err))
-					if !errors.Is(err, spanstore.ErrTraceNotFound) {
-						yield(nil, err)
-					}
-					return
-				}
-				traces := received.ToTraces()
-				if !yield([]ptrace.Traces{traces}, nil) {
-					return
-				}
 			}
 		}
 	}
@@ -155,34 +135,50 @@ func (r *traceReader) FindTraces(
 				RawTraces:   true,
 			},
 		})
-		// TODO from this point down we could probably use the same code as GetTraces
-		if err != nil {
-			err = unwrapNotFoundErr(err)
-			r.logger.Info("Error received", zap.Error(err))
-			if !errors.Is(err, spanstore.ErrTraceNotFound) {
-				yield(nil, err)
-			}
-			return
-		}
-		for received, err := stream.Recv(); !errors.Is(err, io.EOF); received, err = stream.Recv() {
-			if err != nil {
-				err = unwrapNotFoundErr(err)
-				r.logger.Info("Error in stream received", zap.Error(err))
-				if !errors.Is(err, spanstore.ErrTraceNotFound) {
-					yield(nil, err)
-				}
-				return
-			}
-			traces := received.ToTraces()
-			if !yield([]ptrace.Traces{traces}, nil) {
-				return
-			}
-		}
+		r.consumeTraces(yield, stream, err)
 	}
 }
 
 func (*traceReader) FindTraceIDs(_ context.Context, _ tracestore.TraceQueryParams) iter.Seq2[[]pcommon.TraceID, error] {
 	panic("not implemented")
+}
+
+type traceStream interface {
+	Recv() (*api_v3.TracesData, error)
+}
+
+// consumeTraces reads the stream and calls yield for each chunk.
+// It also handles NotFound errors by terminating the stream.
+// It returns false if the processing was terminated through error.
+func (r *traceReader) consumeTraces(
+	yield func([]ptrace.Traces, error) bool,
+	stream traceStream,
+	startErr error,
+) bool {
+	handleError := func(err error) bool {
+		if err == nil {
+			return true
+		}
+		err = unwrapNotFoundErr(err)
+		r.logger.Info("Error received", zap.Error(err))
+		if !errors.Is(err, spanstore.ErrTraceNotFound) {
+			yield(nil, err)
+		}
+		return false
+	}
+	if !handleError(startErr) {
+		return false
+	}
+	for chunk, err := stream.Recv(); !errors.Is(err, io.EOF); chunk, err = stream.Recv() {
+		if !handleError(err) {
+			return false
+		}
+		traces := chunk.ToTraces() // unwrap  ptrace.Traces from chunk
+		if !yield([]ptrace.Traces{traces}, nil) {
+			return false
+		}
+	}
+	return true
 }
 
 func unwrapNotFoundErr(err error) error {
