@@ -115,27 +115,31 @@ func (b *Binary) doHealthCheck(t *testing.T) bool {
 	return true
 }
 
+// Special Github markers to create a foldable section in the GitHub Actions runner output.
+// https://docs.github.com/en/actions/using-workflows/workflow-commands-for-github-actions#grouping-log-lines
+const (
+	githubBeginGroup = "::group::"
+	githubEndGroup   = "::endgroup::"
+)
+
 func (b *Binary) dumpLogs(t *testing.T, outFile, errFile *os.File) {
-	// A special annotation to create a foldable section in the GitHub Actions runner output.
-	// https://docs.github.com/en/actions/using-workflows/workflow-commands-for-github-actions#grouping-log-lines
-	fmt.Printf("::group::🚧 🚧 🚧 %s binary logs\n", b.Name)
+	fmt.Printf(githubBeginGroup+" 🚧 🚧 🚧 %s binary logs\n", b.Name)
 	outLogs, err := os.ReadFile(outFile.Name())
 	if err != nil {
 		t.Errorf("Failed to read output logs: %v", err)
 	} else {
-		fmt.Printf("🚧 🚧 🚧 🚧 ⏩ Start %s output logs:\n", b.Name)
+		fmt.Printf("⏩⏩⏩ Start %s output logs:\n", b.Name)
 		fmt.Printf("%s\n", outLogs)
-		fmt.Printf("🚧 🚧 🚧 🚧 ⏸️ End %s output logs.\n", b.Name)
+		fmt.Printf("⏹️⏹️⏹️ End %s output logs.\n", b.Name)
 	}
 
 	errLogs, err := os.ReadFile(errFile.Name())
 	if err != nil {
 		t.Errorf("Failed to read error logs: %v", err)
 	} else {
-		fmt.Printf("🚧 🚧 🚧 🚧 ⏩ Start %s error logs:\n", b.Name)
+		fmt.Printf("⏩⏩⏩ Start %s error logs:\n", b.Name)
 		fmt.Printf("%s\n", errLogs)
-		fmt.Printf("🚧 🚧 🚧 🚧 ⏸️ End %s error logs.\n", b.Name)
+		fmt.Printf("⏹️⏹️⏹️ End %s error logs.\n", b.Name)
 	}
-	// End of Github Actions foldable section annotation.
-	fmt.Println("::endgroup::")
+	fmt.Println(githubEndGroup)
 }
