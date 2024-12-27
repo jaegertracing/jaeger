@@ -92,6 +92,10 @@ func (cfg *Config) Unmarshal(conf *confmap.Conf) error {
 }
 
 func (cfg *Config) Validate() error {
+	if cfg.File == nil && cfg.Adaptive == nil {
+		return errNoProvider
+	}
+
 	if cfg.File != nil && cfg.Adaptive != nil {
 		return errMultipleProviders
 	}
