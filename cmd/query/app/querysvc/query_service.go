@@ -74,6 +74,9 @@ func (qs QueryService) GetTrace(ctx context.Context, query spanstore.GetTracePar
 		}
 		trace, err = qs.options.ArchiveSpanReader.GetTrace(ctx, query)
 	}
+	if err != nil {
+		return nil, err
+	}
 	if !query.RawTraces {
 		trace, err = qs.adjust(trace)
 	}
