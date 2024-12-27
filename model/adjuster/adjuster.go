@@ -8,20 +8,17 @@ import (
 	"github.com/jaegertracing/jaeger/model"
 )
 
-// Adjuster applies certain modifications to a Trace object.
-// It returns adjusted Trace, which can be the same Trace updated in place.
-// If it detects a problem with the trace that prevents it from applying
-// adjustments, it must still return the original trace.
+// Adjuster is an interface for modifying a trace object in place.
 type Adjuster interface {
-	Adjust(trace *model.Trace) *model.Trace
+	Adjust(trace *model.Trace)
 }
 
 // Func wraps a function of appropriate signature and makes an Adjuster from it.
-type Func func(trace *model.Trace) *model.Trace
+type Func func(trace *model.Trace)
 
 // Adjust implements Adjuster interface.
-func (f Func) Adjust(trace *model.Trace) *model.Trace {
-	return f(trace)
+func (f Func) Adjust(trace *model.Trace) {
+	f(trace)
 }
 
 // Sequence creates an adjuster that combines a series of adjusters
@@ -34,9 +31,8 @@ type sequence struct {
 	adjusters []Adjuster
 }
 
-func (c sequence) Adjust(trace *model.Trace) *model.Trace {
+func (c sequence) Adjust(trace *model.Trace) {
 	for _, adjuster := range c.adjusters {
-		trace = adjuster.Adjust(trace)
+		adjuster.Adjust(trace)
 	}
-	return trace
 }

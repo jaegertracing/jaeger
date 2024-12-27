@@ -80,7 +80,7 @@ func TestSortTagsAndLogFieldsDoesSortFields(t *testing.T) {
 				},
 			},
 		}
-		trace = SortTagsAndLogFields().Adjust(trace)
+		SortTagsAndLogFields().Adjust(trace)
 		assert.Equal(t, testCase.expected, model.KeyValues(trace.Spans[0].Logs[0].Fields))
 	}
 }
@@ -108,10 +108,10 @@ func TestSortTagsAndLogFieldsDoesSortTags(t *testing.T) {
 				},
 			},
 		}
-		sorted := SortTagsAndLogFields().Adjust(trace)
-		assert.ElementsMatch(t, tags, sorted.Spans[0].Tags)
-		adjustedKeys := make([]string, len(sorted.Spans[0].Tags))
-		for i, kv := range sorted.Spans[0].Tags {
+		SortTagsAndLogFields().Adjust(trace)
+		assert.ElementsMatch(t, tags, trace.Spans[0].Tags)
+		adjustedKeys := make([]string, len(trace.Spans[0].Tags))
+		for i, kv := range trace.Spans[0].Tags {
 			adjustedKeys[i] = kv.Key
 		}
 		assert.IsIncreasing(t, adjustedKeys)
@@ -133,10 +133,9 @@ func TestSortTagsAndLogFieldsDoesSortProcessTags(t *testing.T) {
 			},
 		},
 	}
-	sorted := SortTagsAndLogFields().Adjust(trace)
-	assert.ElementsMatch(t, trace.Spans[0].Process.Tags, sorted.Spans[0].Process.Tags)
-	adjustedKeys := make([]string, len(sorted.Spans[0].Process.Tags))
-	for i, kv := range sorted.Spans[0].Process.Tags {
+	SortTagsAndLogFields().Adjust(trace)
+	adjustedKeys := make([]string, len(trace.Spans[0].Process.Tags))
+	for i, kv := range trace.Spans[0].Process.Tags {
 		adjustedKeys[i] = kv.Key
 	}
 	assert.IsIncreasing(t, adjustedKeys)
@@ -148,6 +147,10 @@ func TestSortTagsAndLogFieldsHandlesNilProcessTags(t *testing.T) {
 			{},
 		},
 	}
-	gotTrace := SortTagsAndLogFields().Adjust(trace)
-	require.Equal(t, trace, gotTrace)
+	SortTagsAndLogFields().Adjust(trace)
+	require.Equal(t, &model.Trace{
+		Spans: []*model.Span{
+			{},
+		},
+	}, trace)
 }

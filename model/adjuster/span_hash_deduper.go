@@ -11,10 +11,9 @@ import (
 // This is useful for when spans are duplicated in archival storage, as happens with
 // ElasticSearch archival.
 func DedupeBySpanHash() Adjuster {
-	return Func(func(trace *model.Trace) *model.Trace {
+	return Func(func(trace *model.Trace) {
 		deduper := &spanHashDeduper{trace: trace}
 		deduper.groupSpansByHash()
-		return deduper.trace
 	})
 }
 

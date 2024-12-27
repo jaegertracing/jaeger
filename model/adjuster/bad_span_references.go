@@ -12,12 +12,11 @@ import (
 
 // SpanReferences creates an adjuster that removes invalid span references, e.g. with traceID==0
 func SpanReferences() Adjuster {
-	return Func(func(trace *model.Trace) *model.Trace {
+	return Func(func(trace *model.Trace) {
 		adjuster := spanReferenceAdjuster{}
 		for _, span := range trace.Spans {
 			adjuster.adjust(span)
 		}
-		return trace
 	})
 }
 

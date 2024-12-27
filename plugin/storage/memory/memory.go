@@ -89,8 +89,8 @@ func (st *Store) GetDependencies(ctx context.Context, endTs time.Time, lookback 
 	defer m.Unlock()
 	deps := map[string]*model.DependencyLink{}
 	startTs := endTs.Add(-1 * lookback)
-	for _, orig := range m.traces {
-		trace := m.deduper.Adjust(orig)
+	for _, trace := range m.traces {
+		m.deduper.Adjust(trace)
 		if traceIsBetweenStartAndEnd(startTs, endTs, trace) {
 			for _, s := range trace.Spans {
 				parentSpan := findSpan(trace, s.ParentSpanID())

@@ -49,12 +49,11 @@ func IPTagAdjuster() Adjuster {
 		}
 	}
 
-	return Func(func(trace *model.Trace) *model.Trace {
+	return Func(func(trace *model.Trace) {
 		for _, span := range trace.Spans {
 			adjustTags(span.Tags)
 			adjustTags(span.Process.Tags)
 			model.KeyValues(span.Process.Tags).Sort()
 		}
-		return trace
 	})
 }

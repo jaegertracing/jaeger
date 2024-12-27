@@ -20,11 +20,10 @@ import (
 // This adjuster never returns any errors. Instead it records any issues
 // it encounters in Span.Warnings.
 func ZipkinSpanIDUniquifier() Adjuster {
-	return Func(func(trace *model.Trace) *model.Trace {
+	return Func(func(trace *model.Trace) {
 		deduper := &spanIDDeduper{trace: trace}
 		deduper.groupSpansByID()
 		deduper.uniquifyServerSpanIDs()
-		return deduper.trace
 	})
 }
 

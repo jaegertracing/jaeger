@@ -23,7 +23,7 @@ import (
 //
 // Any issues encountered by the adjuster are recorded in Span.Warnings.
 func ClockSkew(maxDelta time.Duration) Adjuster {
-	return Func(func(trace *model.Trace) *model.Trace {
+	return Func(func(trace *model.Trace) {
 		adjuster := &clockSkewAdjuster{
 			trace:    trace,
 			maxDelta: maxDelta,
@@ -34,7 +34,6 @@ func ClockSkew(maxDelta time.Duration) Adjuster {
 			skew := clockSkew{hostKey: n.hostKey}
 			adjuster.adjustNode(n, nil, skew)
 		}
-		return adjuster.trace
 	})
 }
 

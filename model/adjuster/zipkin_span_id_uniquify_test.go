@@ -52,7 +52,7 @@ func newZipkinTrace() *model.Trace {
 func TestZipkinSpanIDUniquifierTriggered(t *testing.T) {
 	trc := newZipkinTrace()
 	deduper := ZipkinSpanIDUniquifier()
-	trc = deduper.Adjust(trc)
+	deduper.Adjust(trc)
 
 	clientSpan := trc.Spans[0]
 	assert.Equal(t, clientSpanID, clientSpan.SpanID, "client span ID should not change")
@@ -71,7 +71,7 @@ func TestZipkinSpanIDUniquifierNotTriggered(t *testing.T) {
 	trc.Spans = trc.Spans[1:] // remove client span
 
 	deduper := ZipkinSpanIDUniquifier()
-	trc = deduper.Adjust(trc)
+	deduper.Adjust(trc)
 
 	serverSpanID := clientSpanID // for better readability
 	serverSpan := trc.Spans[0]

@@ -78,7 +78,7 @@ func TestOTelTagAdjuster(t *testing.T) {
 			trace := &model.Trace{
 				Spans: []*model.Span{testCase.span},
 			}
-			trace = OTelTagAdjuster().Adjust(trace)
+			OTelTagAdjuster().Adjust(trace)
 			assert.Equal(t, testCase.expected.Tags, trace.Spans[0].Tags)
 			assert.Equal(t, testCase.expected.Process.Tags, trace.Spans[0].Process.Tags)
 

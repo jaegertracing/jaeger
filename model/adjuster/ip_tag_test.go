@@ -35,7 +35,7 @@ func TestIPTagAdjuster(t *testing.T) {
 			},
 		},
 	}
-	trace = IPTagAdjuster().Adjust(trace)
+	IPTagAdjuster().Adjust(trace)
 
 	expectedSpanTags := model.KeyValues{
 		model.Int64("a", 42),

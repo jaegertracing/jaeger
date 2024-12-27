@@ -363,7 +363,7 @@ func (aH *APIHandler) metrics(w http.ResponseWriter, r *http.Request, getMetrics
 
 func (aH *APIHandler) convertModelToUI(trc *model.Trace, adjust bool) *ui.Trace {
 	if adjust {
-		trc = aH.queryService.Adjust(trc)
+		aH.queryService.Adjust(trc)
 	}
 	uiTrace := uiconv.FromDomain(trc)
 	return uiTrace

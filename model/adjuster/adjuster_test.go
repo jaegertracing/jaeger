@@ -15,9 +15,8 @@ import (
 
 func TestSequences(t *testing.T) {
 	// mock adjuster that increments span ID
-	adj := adjuster.Func(func(trace *model.Trace) *model.Trace {
+	adj := adjuster.Func(func(trace *model.Trace) {
 		trace.Spans[0].SpanID++
-		return trace
 	})
 
 	seqAdjuster := adjuster.Sequence(adj, adj)
@@ -25,8 +24,8 @@ func TestSequences(t *testing.T) {
 	span := &model.Span{}
 	trace := model.Trace{Spans: []*model.Span{span}}
 
-	adjTrace := seqAdjuster.Adjust(&trace)
+	seqAdjuster.Adjust(&trace)
 
-	assert.Equal(t, span, adjTrace.Spans[0], "same trace & span returned")
+	assert.Equal(t, span, trace.Spans[0], "same trace & span returned")
 	assert.EqualValues(t, 2, span.SpanID, "expect span ID to be incremented")
 }

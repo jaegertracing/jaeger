@@ -95,7 +95,7 @@ func TestParentReference(t *testing.T) {
 					},
 				},
 			}
-			trace = ParentReference().Adjust(trace)
+			ParentReference().Adjust(trace)
 			assert.Equal(t, testCase.expected, trace.Spans[0].References)
 		})
 	}
