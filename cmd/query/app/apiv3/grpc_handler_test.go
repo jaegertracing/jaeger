@@ -62,7 +62,7 @@ func newTestServerClient(t *testing.T) *testServerClient {
 		v1adapter.NewTraceReader(tsc.reader),
 		&dependencyStoreMocks.Reader{},
 		querysvc.QueryServiceOptions{
-			Adjuster: adjuster.Func(func(traces *model.Trace) {
+			Adjuster: adjuster.Func(func(*model.Trace) {
 				// no-op
 			}),
 		},
@@ -230,7 +230,7 @@ func TestFindTracesSendError(t *testing.T) {
 			v1adapter.NewTraceReader(reader),
 			new(dependencyStoreMocks.Reader),
 			querysvc.QueryServiceOptions{
-				Adjuster: adjuster.Func(func(traces *model.Trace) {
+				Adjuster: adjuster.Func(func(*model.Trace) {
 					// no-op
 				}),
 			},
