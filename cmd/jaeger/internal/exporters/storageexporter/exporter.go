@@ -43,8 +43,6 @@ func (exp *storageExporter) start(_ context.Context, host component.Host) error 
 		return fmt.Errorf("cannot create trace writer: %w", err)
 	}
 
-	// Start cleaner here maybe
-
 	return nil
 }
 

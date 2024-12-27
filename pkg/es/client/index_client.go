@@ -12,7 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jaegertracing/jaeger/pkg/es/client"
 	"github.com/jaegertracing/jaeger/pkg/es/config"
 	"go.uber.org/zap"
 )
@@ -65,7 +64,7 @@ func CreateIndicesClient(c *config.Configuration, logger *zap.Logger) (*IndicesC
 		Client: Client{
 			Client:    httpClient,
 			Endpoint:  c.Servers[0],
-			BasicAuth: client.BasicAuth(c.Authentication.BasicAuthentication.Username, c.Authentication.BasicAuthentication.Password),
+			BasicAuth: BasicAuth(c.Authentication.BasicAuthentication.Username, c.Authentication.BasicAuthentication.Password),
 		},
 		MasterTimeoutSeconds: int(c.QueryTimeout) / int(time.Second),
 	}, nil
