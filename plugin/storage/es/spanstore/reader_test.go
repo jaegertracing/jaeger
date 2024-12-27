@@ -29,7 +29,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/es/config"
 	"github.com/jaegertracing/jaeger/pkg/es/mocks"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
-	"github.com/jaegertracing/jaeger/plugin/storage/es/spanstore/dbmodel"
+	dbmodel2 "github.com/jaegertracing/jaeger/plugin/storage/es/spanstore/internal/dbmodel"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
@@ -344,10 +344,10 @@ func TestSpanReader_GetTrace(t *testing.T) {
 func TestSpanReader_multiRead_followUp_query(t *testing.T) {
 	withSpanReader(t, func(r *spanReaderTest) {
 		date := time.Date(2019, 10, 10, 5, 0, 0, 0, time.UTC)
-		spanID1 := dbmodel.Span{SpanID: "0", TraceID: "1", StartTime: model.TimeAsEpochMicroseconds(date)}
+		spanID1 := dbmodel2.Span{SpanID: "0", TraceID: "1", StartTime: model.TimeAsEpochMicroseconds(date)}
 		spanBytesID1, err := json.Marshal(spanID1)
 		require.NoError(t, err)
-		spanID2 := dbmodel.Span{SpanID: "0", TraceID: "2", StartTime: model.TimeAsEpochMicroseconds(date)}
+		spanID2 := dbmodel2.Span{SpanID: "0", TraceID: "2", StartTime: model.TimeAsEpochMicroseconds(date)}
 		spanBytesID2, err := json.Marshal(spanID2)
 		require.NoError(t, err)
 
@@ -411,7 +411,7 @@ func TestSpanReader_multiRead_followUp_query(t *testing.T) {
 		require.NotNil(t, traces)
 		require.Len(t, traces, 2)
 
-		toDomain := dbmodel.NewToDomain("-")
+		toDomain := dbmodel2.NewToDomain("-")
 		sModel1, err := toDomain.SpanToDomain(&spanID1)
 		require.NoError(t, err)
 		sModel2, err := toDomain.SpanToDomain(&spanID2)
@@ -555,7 +555,7 @@ func TestSpanReader_esJSONtoJSONSpanModel(t *testing.T) {
 		span, err := r.reader.unmarshalJSONSpan(esSpanRaw)
 		require.NoError(t, err)
 
-		var expectedSpan dbmodel.Span
+		var expectedSpan dbmodel2.Span
 		require.NoError(t, json.Unmarshal(exampleESSpan, &expectedSpan))
 		assert.EqualValues(t, &expectedSpan, span)
 	})

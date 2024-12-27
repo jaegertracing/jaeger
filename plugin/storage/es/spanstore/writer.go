@@ -16,7 +16,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/es"
 	cfg "github.com/jaegertracing/jaeger/pkg/es/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
-	"github.com/jaegertracing/jaeger/plugin/storage/es/spanstore/dbmodel"
+	dbmodel2 "github.com/jaegertracing/jaeger/plugin/storage/es/spanstore/internal/dbmodel"
 	"github.com/jaegertracing/jaeger/storage/spanstore/spanstoremetrics"
 )
 
@@ -31,7 +31,7 @@ type spanWriterMetrics struct {
 	indexCreate *spanstoremetrics.WriteMetrics
 }
 
-type serviceWriter func(string, *dbmodel.Span)
+type serviceWriter func(string, *dbmodel2.Span)
 
 // SpanWriter is a wrapper around elastic.Client
 type SpanWriter struct {
@@ -40,7 +40,7 @@ type SpanWriter struct {
 	writerMetrics spanWriterMetrics // TODO: build functions to wrap around each Do fn
 	// indexCache       cache.Cache
 	serviceWriter    serviceWriter
-	spanConverter    dbmodel.FromDomain
+	spanConverter    dbmodel2.FromDomain
 	spanServiceIndex spanAndServiceIndexFn
 }
 
@@ -75,7 +75,7 @@ func NewSpanWriter(p SpanWriterParams) *SpanWriter {
 			indexCreate: spanstoremetrics.NewWriter(p.MetricsFactory, "index_create"),
 		},
 		serviceWriter:    serviceOperationStorage.Write,
-		spanConverter:    dbmodel.NewFromDomain(p.AllTagsAsFields, p.TagKeysAsFields, p.TagDotReplacement),
+		spanConverter:    dbmodel2.NewFromDomain(p.AllTagsAsFields, p.TagKeysAsFields, p.TagDotReplacement),
 		spanServiceIndex: getSpanAndServiceIndexFn(p),
 	}
 }
@@ -145,10 +145,10 @@ func writeCache(key string, c cache.Cache) {
 	c.Put(key, key)
 }
 
-func (s *SpanWriter) writeService(indexName string, jsonSpan *dbmodel.Span) {
+func (s *SpanWriter) writeService(indexName string, jsonSpan *dbmodel2.Span) {
 	s.serviceWriter(indexName, jsonSpan)
 }
 
-func (s *SpanWriter) writeSpan(indexName string, jsonSpan *dbmodel.Span) {
+func (s *SpanWriter) writeSpan(indexName string, jsonSpan *dbmodel2.Span) {
 	s.client().Index().Index(indexName).Type(spanType).BodyJson(&jsonSpan).Add()
 }
