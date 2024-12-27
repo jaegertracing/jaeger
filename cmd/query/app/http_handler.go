@@ -251,7 +251,7 @@ func (aH *APIHandler) search(w http.ResponseWriter, r *http.Request) {
 	aH.writeJSON(w, r, structuredRes)
 }
 
-func (aH *APIHandler) tracesToResponse(traces []*model.Trace, uiErrors []structuredError) *structuredResponse {
+func (*APIHandler) tracesToResponse(traces []*model.Trace, uiErrors []structuredError) *structuredResponse {
 	uiTraces := make([]*ui.Trace, len(traces))
 	for i, v := range traces {
 		uiTrace := uiconv.FromDomain(v)
