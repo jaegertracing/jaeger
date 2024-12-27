@@ -9,12 +9,14 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"strings"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/status"
 
 	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
 	"github.com/jaegertracing/jaeger/model"
@@ -66,26 +68,29 @@ func (r *traceReader) GetTraces(
 	return func(yield func([]ptrace.Traces, error) bool) {
 		// api_v3 does not support multi-get, so loop through IDs
 		for _, idParams := range traceIDs {
+			idStr := model.TraceIDFromOTEL(idParams.TraceID).String()
+			r.logger.Info("Calling api_v3.GetTrace", zap.String("trace_id", idStr))
 			stream, err := r.client.GetTrace(ctx, &api_v3.GetTraceRequest{
-				TraceId:   model.TraceIDFromOTEL(idParams.TraceID).String(),
+				TraceId:   idStr,
 				StartTime: idParams.Start,
 				EndTime:   idParams.End,
 			})
 			if err != nil {
 				err = unwrapNotFoundErr(err)
-				if errors.Is(err, spanstore.ErrTraceNotFound) {
-					continue
+				r.logger.Info("Error received", zap.Error(err))
+				if !errors.Is(err, spanstore.ErrTraceNotFound) {
+					yield(nil, err)
 				}
-				yield(nil, err)
 				return
 			}
 			for received, err := stream.Recv(); !errors.Is(err, io.EOF); received, err = stream.Recv() {
+				r.logger.Info("Stream chunk received")
 				if err != nil {
 					err = unwrapNotFoundErr(err)
-					if errors.Is(err, spanstore.ErrTraceNotFound) {
-						continue
+					r.logger.Info("Error in stream received", zap.Error(err))
+					if !errors.Is(err, spanstore.ErrTraceNotFound) {
+						yield(nil, err)
 					}
-					yield(nil, err)
 					return
 				}
 				traces := received.ToTraces()
@@ -132,6 +137,10 @@ func (r *traceReader) FindTraces(
 			yield(nil, fmt.Errorf("NumTraces must not be greater than %d", math.MaxInt32))
 			return
 		}
+		if query.StartTimeMin.IsZero() ||
+			query.StartTimeMax.IsZero() {
+			panic("start time min and max are required parameters")
+		}
 		stream, err := r.client.FindTraces(ctx, &api_v3.FindTracesRequest{
 			Query: &api_v3.TraceQueryParameters{
 				ServiceName:   query.ServiceName,
@@ -163,6 +172,15 @@ func (r *traceReader) FindTraces(
 	}
 }
 
-func (*traceReader) FindTraceIDs(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[[]pcommon.TraceID, error] {
+func (*traceReader) FindTraceIDs(_ context.Context, _ tracestore.TraceQueryParams) iter.Seq2[[]pcommon.TraceID, error] {
 	panic("not implemented")
+}
+
+func unwrapNotFoundErr(err error) error {
+	if s, _ := status.FromError(err); s != nil {
+		if strings.Contains(s.Message(), spanstore.ErrTraceNotFound.Error()) {
+			return spanstore.ErrTraceNotFound
+		}
+	}
+	return err
 }
