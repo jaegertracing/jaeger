@@ -126,7 +126,7 @@ proto-zipkin:
 # only to fields in a struct, so we use regex search/replace to swap it.
 # Note that the .pb.go types must be generated into the same internal package $(API_V3_PATH)
 # where a manually defined traces.go file is located.
-API_V3_PATH=cmd/query/app/internal/api_v3
+API_V3_PATH=internal/proto/api_v3
 API_V3_PATCHED_DIR=proto-gen/.patched/api_v3
 API_V3_PATCHED=$(API_V3_PATCHED_DIR)/query_service.proto
 .PHONY: patch-api-v3
