@@ -171,6 +171,7 @@ func (p *queryParser) parseTraceQueryParams(r *http.Request) (*traceQueryParamet
 			NumTraces:     limit,
 			DurationMin:   minDuration,
 			DurationMax:   maxDuration,
+			RawTraces:     false,
 		},
 		traceIDs: traceIDs,
 	}
