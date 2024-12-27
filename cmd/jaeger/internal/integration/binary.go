@@ -122,14 +122,18 @@ func (b *Binary) dumpLogs(t *testing.T, outFile, errFile *os.File) {
 	if err != nil {
 		t.Errorf("Failed to read output logs: %v", err)
 	} else {
-		fmt.Printf("🚧 🚧 🚧 🚧 %s output logs:\n%s", b.Name, outLogs)
+		fmt.Printf("🚧 🚧 🚧 🚧 ⏩ Start %s output logs:\n", b.Name)
+		fmt.Printf("%s\n", outLogs)
+		fmt.Printf("🚧 🚧 🚧 🚧 ⏸️ End %s output logs.\n", b.Name)
 	}
 
 	errLogs, err := os.ReadFile(errFile.Name())
 	if err != nil {
 		t.Errorf("Failed to read error logs: %v", err)
 	} else {
-		fmt.Printf("🚧 🚧 🚧 🚧 %s error logs:\n%s", b.Name, errLogs)
+		fmt.Printf("🚧 🚧 🚧 🚧 ⏩ Start %s error logs:\n", b.Name)
+		fmt.Printf("%s\n", errLogs)
+		fmt.Printf("🚧 🚧 🚧 🚧 ⏸️ End %s error logs.\n", b.Name)
 	}
 	// End of Github Actions foldable section annotation.
 	fmt.Println("::endgroup::")

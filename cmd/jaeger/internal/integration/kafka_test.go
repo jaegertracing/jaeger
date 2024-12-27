@@ -65,8 +65,6 @@ func TestKafkaStorage(t *testing.T) {
 			ingester.e2eInitialize(t, "kafka")
 			t.Log("Ingester initialized")
 
-			purge(t)
-
 			ingester.RunSpanStoreTests(t)
 		})
 	}
