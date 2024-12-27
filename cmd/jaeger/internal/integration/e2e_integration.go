@@ -150,6 +150,7 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
 
 	s.SpanWriter, err = createSpanWriter(logger, otlpPort)
 	require.NoError(t, err)
+	// TODO upgrade to APIv3 client
 	spanReader, err := createSpanReader(logger, ports.QueryGRPC)
 	require.NoError(t, err)
 	s.TraceReader = v1adapter.NewTraceReader(spanReader)
