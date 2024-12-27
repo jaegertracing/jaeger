@@ -39,7 +39,7 @@ type traceReader struct {
 }
 
 func createTraceReader(logger *zap.Logger, port int) (*traceReader, error) {
-	logger.Info("Creating the span reader", zap.Int("port", port))
+	logger.Info("Creating the trace reader", zap.Int("port", port))
 	opts := []grpc.DialOption{
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	}

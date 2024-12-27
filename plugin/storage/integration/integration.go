@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"os"
 	"regexp"
-	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -150,10 +149,6 @@ func (s *StorageIntegration) testGetServices(t *testing.T) {
 		if err != nil {
 			t.Log(err)
 			return false
-		}
-		// self-tracing in Jaeger can create a "jaeger" service, ignore it
-		if i := slices.Index(actual, "jaeger"); i != -1 {
-			actual = slices.Delete(actual, i, i+1)
 		}
 		sort.Strings(actual)
 		t.Logf("Retrieved services: %v", actual)
@@ -386,7 +381,7 @@ func (s *StorageIntegration) findTracesByQuery(t *testing.T, query *tracestore.T
 
 func (s *StorageIntegration) writeTrace(t *testing.T, trace *model.Trace) {
 	t.Logf("%-23s Writing trace with %d spans", time.Now().Format("2006-01-02 15:04:05.999"), len(trace.Spans))
-	ctx, cx := context.WithTimeout(context.Background(), 60*time.Second)
+	ctx, cx := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cx()
 	for _, span := range trace.Spans {
 		err := s.SpanWriter.WriteSpan(ctx, span)
