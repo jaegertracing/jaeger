@@ -19,6 +19,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
 	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger/model/adjuster"
 	_ "github.com/jaegertracing/jaeger/pkg/gogocodec" // force gogo codec registration
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	spanstoremocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
@@ -60,7 +61,11 @@ func newTestServerClient(t *testing.T) *testServerClient {
 	q := querysvc.NewQueryService(
 		v1adapter.NewTraceReader(tsc.reader),
 		&dependencyStoreMocks.Reader{},
-		querysvc.QueryServiceOptions{},
+		querysvc.QueryServiceOptions{
+			Adjuster: adjuster.Func(func(traces *model.Trace) {
+				// no-op
+			}),
+		},
 	)
 	h := &Handler{
 		QueryService: q,
@@ -86,13 +91,24 @@ func TestGetTrace(t *testing.T) {
 		request       api_v3.GetTraceRequest
 	}{
 		{
-			"TestGetTrace",
+			"TestGetTrace with raw traces",
 			spanstore.GetTraceParameters{
 				TraceID:   traceId,
 				StartTime: time.Time{},
 				EndTime:   time.Time{},
+				RawTraces: true,
 			},
-			api_v3.GetTraceRequest{TraceId: "156"},
+			api_v3.GetTraceRequest{TraceId: "156", RawTraces: true},
+		},
+		{
+			"TestGetTrace with adjusted traces",
+			spanstore.GetTraceParameters{
+				TraceID:   traceId,
+				StartTime: time.Time{},
+				EndTime:   time.Time{},
+				RawTraces: false,
+			},
+			api_v3.GetTraceRequest{TraceId: "156", RawTraces: false},
 		},
 		{
 			"TestGetTraceWithTimeWindow",
@@ -213,7 +229,11 @@ func TestFindTracesSendError(t *testing.T) {
 		QueryService: querysvc.NewQueryService(
 			v1adapter.NewTraceReader(reader),
 			new(dependencyStoreMocks.Reader),
-			querysvc.QueryServiceOptions{},
+			querysvc.QueryServiceOptions{
+				Adjuster: adjuster.Func(func(traces *model.Trace) {
+					// no-op
+				}),
+			},
 		),
 	}
 	err := h.internalFindTraces(context.Background(),
