@@ -15,7 +15,10 @@ import (
 	"github.com/jaegertracing/jaeger/plugin/sampling/strategyprovider/adaptive"
 )
 
-var errMultipleProviders = errors.New("only one sampling strategy provider can be specified, 'adaptive' or 'file'")
+var (
+	errNoProvider        = errors.New("no sampling strategy provider specified, expecting 'adaptive' or 'file'")
+	errMultipleProviders = errors.New("only one sampling strategy provider can be specified, 'adaptive' or 'file'")
+)
 
 var (
 	_ component.Config          = (*Config)(nil)
@@ -75,6 +78,10 @@ func (cfg *Config) Unmarshal(conf *confmap.Conf) error {
 }
 
 func (cfg *Config) Validate() error {
+	if cfg.File == nil && cfg.Adaptive == nil {
+		return errNoProvider
+	}
+
 	if cfg.File != nil && cfg.Adaptive != nil {
 		return errMultipleProviders
 	}
