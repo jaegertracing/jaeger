@@ -117,10 +117,6 @@ func (r *traceReader) FindTraces(
 			yield(nil, fmt.Errorf("NumTraces must not be greater than %d", math.MaxInt32))
 			return
 		}
-		if query.StartTimeMin.IsZero() ||
-			query.StartTimeMax.IsZero() {
-			panic("start time min and max are required parameters")
-		}
 		stream, err := r.client.FindTraces(ctx, &api_v3.FindTracesRequest{
 			Query: &api_v3.TraceQueryParameters{
 				ServiceName:   query.ServiceName,
@@ -139,7 +135,10 @@ func (r *traceReader) FindTraces(
 	}
 }
 
-func (*traceReader) FindTraceIDs(_ context.Context, _ tracestore.TraceQueryParams) iter.Seq2[[]pcommon.TraceID, error] {
+func (*traceReader) FindTraceIDs(
+	_ context.Context,
+	_ tracestore.TraceQueryParams,
+) iter.Seq2[[]pcommon.TraceID, error] {
 	panic("not implemented")
 }
 
