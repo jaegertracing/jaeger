@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger/model"
 )
@@ -53,8 +52,7 @@ func newZipkinTrace() *model.Trace {
 func TestZipkinSpanIDUniquifierTriggered(t *testing.T) {
 	trc := newZipkinTrace()
 	deduper := ZipkinSpanIDUniquifier()
-	trc, err := deduper.Adjust(trc)
-	require.NoError(t, err)
+	trc = deduper.Adjust(trc)
 
 	clientSpan := trc.Spans[0]
 	assert.Equal(t, clientSpanID, clientSpan.SpanID, "client span ID should not change")
@@ -73,8 +71,7 @@ func TestZipkinSpanIDUniquifierNotTriggered(t *testing.T) {
 	trc.Spans = trc.Spans[1:] // remove client span
 
 	deduper := ZipkinSpanIDUniquifier()
-	trc, err := deduper.Adjust(trc)
-	require.NoError(t, err)
+	trc = deduper.Adjust(trc)
 
 	serverSpanID := clientSpanID // for better readability
 	serverSpan := trc.Spans[0]

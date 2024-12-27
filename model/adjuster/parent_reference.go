@@ -11,7 +11,7 @@ import (
 // This is necessary to match jaeger-ui expectations:
 // * https://github.com/jaegertracing/jaeger-ui/issues/966
 func ParentReference() Adjuster {
-	return Func(func(trace *model.Trace) (*model.Trace, error) {
+	return Func(func(trace *model.Trace) *model.Trace {
 		for _, span := range trace.Spans {
 			firstChildOfRef := -1
 			firstOtherRef := -1
@@ -34,6 +34,6 @@ func ParentReference() Adjuster {
 			}
 		}
 
-		return trace, nil
+		return trace
 	})
 }

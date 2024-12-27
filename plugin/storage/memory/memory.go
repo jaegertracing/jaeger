@@ -90,8 +90,7 @@ func (st *Store) GetDependencies(ctx context.Context, endTs time.Time, lookback 
 	deps := map[string]*model.DependencyLink{}
 	startTs := endTs.Add(-1 * lookback)
 	for _, orig := range m.traces {
-		// ZipkinSpanIDUniquifier never returns an err
-		trace, _ := m.deduper.Adjust(orig)
+		trace := m.deduper.Adjust(orig)
 		if traceIsBetweenStartAndEnd(startTs, endTs, trace) {
 			for _, s := range trace.Spans {
 				parentSpan := findSpan(trace, s.ParentSpanID())

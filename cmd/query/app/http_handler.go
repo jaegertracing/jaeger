@@ -254,10 +254,7 @@ func (aH *APIHandler) search(w http.ResponseWriter, r *http.Request) {
 func (aH *APIHandler) tracesToResponse(traces []*model.Trace, adjust bool, uiErrors []structuredError) *structuredResponse {
 	uiTraces := make([]*ui.Trace, len(traces))
 	for i, v := range traces {
-		uiTrace, uiErr := aH.convertModelToUI(v, adjust)
-		if uiErr != nil {
-			uiErrors = append(uiErrors, *uiErr)
-		}
+		uiTrace := aH.convertModelToUI(v, adjust)
 		uiTraces[i] = uiTrace
 	}
 
@@ -364,24 +361,12 @@ func (aH *APIHandler) metrics(w http.ResponseWriter, r *http.Request, getMetrics
 	aH.writeJSON(w, r, m)
 }
 
-func (aH *APIHandler) convertModelToUI(trc *model.Trace, adjust bool) (*ui.Trace, *structuredError) {
-	var errs []error
+func (aH *APIHandler) convertModelToUI(trc *model.Trace, adjust bool) *ui.Trace {
 	if adjust {
-		var err error
-		trc, err = aH.queryService.Adjust(trc)
-		if err != nil {
-			errs = append(errs, err)
-		}
+		trc = aH.queryService.Adjust(trc)
 	}
 	uiTrace := uiconv.FromDomain(trc)
-	var uiError *structuredError
-	if err := errors.Join(errs...); err != nil {
-		uiError = &structuredError{
-			Msg:     err.Error(),
-			TraceID: uiTrace.TraceID,
-		}
-	}
-	return uiTrace, uiError
+	return uiTrace
 }
 
 func (*APIHandler) deduplicateDependencies(dependencies []model.DependencyLink) []ui.DependencyLink {
