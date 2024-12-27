@@ -16,8 +16,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jaegertracing/jaeger/ports"
 	"github.com/stretchr/testify/require"
+
+	"github.com/jaegertracing/jaeger/ports"
 )
 
 // Binary is a wrapper around exec.Cmd to help running binaries in tests.
