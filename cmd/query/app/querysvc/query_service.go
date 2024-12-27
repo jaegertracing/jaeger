@@ -75,7 +75,7 @@ func (qs QueryService) GetTrace(ctx context.Context, query spanstore.GetTracePar
 		trace, err = qs.options.ArchiveSpanReader.GetTrace(ctx, query)
 	}
 	if !query.RawTraces {
-		trace, err = qs.Adjust(trace)
+		trace, err = qs.adjust(trace)
 	}
 	return trace, err
 }
@@ -110,7 +110,7 @@ func (qs QueryService) FindTraces(ctx context.Context, query *spanstore.TraceQue
 	traces, err := spanReader.FindTraces(ctx, query)
 	if !query.RawTraces {
 		for _, trace := range traces {
-			_, err := qs.Adjust(trace)
+			_, err := qs.adjust(trace)
 			if err != nil {
 				return nil, err
 			}
@@ -140,7 +140,7 @@ func (qs QueryService) ArchiveTrace(ctx context.Context, query spanstore.GetTrac
 }
 
 // Adjust applies adjusters to the trace.
-func (qs QueryService) Adjust(trace *model.Trace) (*model.Trace, error) {
+func (qs QueryService) adjust(trace *model.Trace) (*model.Trace, error) {
 	return qs.options.Adjuster.Adjust(trace)
 }
 

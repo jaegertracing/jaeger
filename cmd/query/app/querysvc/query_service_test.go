@@ -311,7 +311,7 @@ func TestArchiveTraceSuccess(t *testing.T) {
 func TestTraceAdjustmentFailure(t *testing.T) {
 	tqs := initializeTestService(withAdjuster())
 
-	_, err := tqs.queryService.Adjust(mockTrace)
+	_, err := tqs.queryService.adjust(mockTrace)
 	require.Error(t, err)
 	assert.EqualValues(t, errAdjustment.Error(), err.Error())
 }
