@@ -74,6 +74,9 @@ func (qs QueryService) GetTrace(ctx context.Context, query spanstore.GetTracePar
 		}
 		trace, err = qs.options.ArchiveSpanReader.GetTrace(ctx, query)
 	}
+	if !query.RawTraces {
+		trace, err = qs.Adjust(trace)
+	}
 	return trace, err
 }
 
@@ -104,7 +107,16 @@ func (qs QueryService) FindTraces(ctx context.Context, query *spanstore.TraceQue
 	if err != nil {
 		return nil, err
 	}
-	return spanReader.FindTraces(ctx, query)
+	traces, err := spanReader.FindTraces(ctx, query)
+	if !query.RawTraces {
+		for _, trace := range traces {
+			_, err := qs.Adjust(trace)
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+	return traces, err
 }
 
 // ArchiveTrace is the queryService utility to archive traces.
