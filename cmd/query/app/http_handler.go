@@ -188,7 +188,7 @@ func (aH *APIHandler) transformOTLP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var uiErrors []structuredError
-	structuredRes := aH.tracesToResponse(traces, false, uiErrors)
+	structuredRes := aH.tracesToResponse(traces, uiErrors)
 	aH.writeJSON(w, r, structuredRes)
 }
 
@@ -247,17 +247,14 @@ func (aH *APIHandler) search(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	structuredRes := aH.tracesToResponse(tracesFromStorage, true, uiErrors)
+	structuredRes := aH.tracesToResponse(tracesFromStorage, uiErrors)
 	aH.writeJSON(w, r, structuredRes)
 }
 
-func (aH *APIHandler) tracesToResponse(traces []*model.Trace, adjust bool, uiErrors []structuredError) *structuredResponse {
+func (aH *APIHandler) tracesToResponse(traces []*model.Trace, uiErrors []structuredError) *structuredResponse {
 	uiTraces := make([]*ui.Trace, len(traces))
 	for i, v := range traces {
-		uiTrace, uiErr := aH.convertModelToUI(v, adjust)
-		if uiErr != nil {
-			uiErrors = append(uiErrors, *uiErr)
-		}
+		uiTrace := uiconv.FromDomain(v)
 		uiTraces[i] = uiTrace
 	}
 
@@ -364,26 +361,6 @@ func (aH *APIHandler) metrics(w http.ResponseWriter, r *http.Request, getMetrics
 	aH.writeJSON(w, r, m)
 }
 
-func (aH *APIHandler) convertModelToUI(trc *model.Trace, adjust bool) (*ui.Trace, *structuredError) {
-	var errs []error
-	if adjust {
-		var err error
-		trc, err = aH.queryService.Adjust(trc)
-		if err != nil {
-			errs = append(errs, err)
-		}
-	}
-	uiTrace := uiconv.FromDomain(trc)
-	var uiError *structuredError
-	if err := errors.Join(errs...); err != nil {
-		uiError = &structuredError{
-			Msg:     err.Error(),
-			TraceID: uiTrace.TraceID,
-		}
-	}
-	return uiTrace, uiError
-}
-
 func (*APIHandler) deduplicateDependencies(dependencies []model.DependencyLink) []ui.DependencyLink {
 	type Key struct {
 		parent string
@@ -460,6 +437,7 @@ func (aH *APIHandler) parseGetTraceParameters(w http.ResponseWriter, r *http.Req
 	query.TraceID = traceID
 	query.StartTime = startTime
 	query.EndTime = endTime
+	query.RawTraces = shouldUseRawTraces(r)
 	return query, true
 }
 
@@ -481,14 +459,14 @@ func (aH *APIHandler) getTrace(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var uiErrors []structuredError
-	structuredRes := aH.tracesToResponse([]*model.Trace{trc}, shouldAdjust(r), uiErrors)
+	structuredRes := aH.tracesToResponse([]*model.Trace{trc}, uiErrors)
 	aH.writeJSON(w, r, structuredRes)
 }
 
-func shouldAdjust(r *http.Request) bool {
+func shouldUseRawTraces(r *http.Request) bool {
 	raw := r.FormValue("raw")
 	isRaw, _ := strconv.ParseBool(raw)
-	return !isRaw
+	return isRaw
 }
 
 // archiveTrace implements the REST API POST:/archive/{trace-id}.
