@@ -78,9 +78,9 @@ func (qs QueryService) GetTrace(ctx context.Context, query spanstore.GetTracePar
 		return nil, err
 	}
 	if !query.RawTraces {
-		trace, err = qs.adjust(trace)
+		qs.adjust(trace)
 	}
-	return trace, err
+	return trace, nil
 }
 
 // GetServices is the queryService implementation of spanstore.Reader.GetServices
@@ -113,10 +113,7 @@ func (qs QueryService) FindTraces(ctx context.Context, query *spanstore.TraceQue
 	traces, err := spanReader.FindTraces(ctx, query)
 	if !query.RawTraces {
 		for _, trace := range traces {
-			_, err := qs.adjust(trace)
-			if err != nil {
-				return nil, err
-			}
+			qs.adjust(trace)
 		}
 	}
 	return traces, err

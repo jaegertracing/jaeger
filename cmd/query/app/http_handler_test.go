@@ -338,7 +338,10 @@ func TestGetTrace(t *testing.T) {
 
 			ts := initializeTestServer(t, HandlerOptions.Tracer(jTracer.OTEL))
 
-			ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), spanstore.GetTraceParameters{TraceID: model.NewTraceID(0, 0x123456abc)}).
+			ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), spanstore.GetTraceParameters{
+				TraceID:   model.NewTraceID(0, 0x123456abc),
+				RawTraces: testCase.suffix == "?raw=true",
+			}).
 				Return(makeMockTrace(t), nil).Once()
 
 			var response structuredResponse
