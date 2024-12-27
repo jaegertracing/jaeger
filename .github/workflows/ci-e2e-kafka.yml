@@ -18,7 +18,7 @@ jobs:
       fail-fast: false
       matrix:
         jaeger-version: [v1, v2]
-        kafka-version: ["3.x", "2.x"]
+        kafka-version: ["3.x"]
     name: kafka ${{matrix.kafka-version }} ${{ matrix.jaeger-version }}
     steps:
     - name: Harden Runner

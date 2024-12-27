@@ -6,28 +6,21 @@
 set -euf -o pipefail
 
 compose_file=""
-jaeger_version=""
-kafka_version=""
+jaeger_version="v2"
+kafka_version="v3"
 manage_kafka="true"
 success="false"
 
 usage() {
-  echo "Usage: $0 [-K] -j <jaeger_version> -v <kafka_version>"
-  echo "  -K: do not start or stop Kafka container (useful for local testing)"
-  echo "  -j: major version of Jaeger to test (v1|v2)"
-  echo "  -v: kafka major version (3.x|2.x)"
+  echo "Usage: $0 [-S] [-j <jaeger_version>] [-v <kafka_version>]"
+  echo "  -S: 'no storage' - do not start or stop Kafka container (useful for local testing)"
+  echo "  -j: major version of Jaeger to test (v1|v2); default: v2"
+  echo "  -v: kafka major version (3.x); default: 3.x"
   exit 1
 }
 
-check_arg() {
-  if [ ! $# -eq 3 ]; then
-      echo "ERROR: need exactly three arguments"
-      usage
-    fi
-}
-
 parse_args() {
-  while getopts "j:v:Kh" opt; do
+  while getopts "j:v:Sh" opt; do
     case "${opt}" in
     j)
       jaeger_version=${OPTARG}
@@ -46,7 +39,7 @@ parse_args() {
         ;;
       esac
       ;;
-    K)
+    S)
       manage_kafka="false"
       ;;
     *)
@@ -60,7 +53,6 @@ parse_args() {
   fi
   compose_file="docker-compose/kafka/${kafka_version}/docker-compose.yml"
 }
-
 
 setup_kafka() {
   echo "Starting Kafka using Docker Compose..."
