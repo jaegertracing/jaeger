@@ -55,13 +55,6 @@ type E2EStorageIntegration struct {
 // it also initialize the SpanWriter and SpanReader below.
 // This function should be called before any of the tests start.
 func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
-	// Set environment variable overrides
-	for key, value := range s.EnvVarOverrides {
-		t.Setenv(key, value)
-	}
-	// We don't want self-tracing in Jaeger during the tests.
-	t.Setenv("OTEL_TRACES_SAMPLER", "always_off")
-
 	logger := zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller()))
 	if s.BinaryName == "" {
 		s.BinaryName = "jaeger-v2"
@@ -79,6 +72,11 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
 	require.NoError(t, err)
 	t.Logf("Config file content:\n%s", string(cfgBytes))
 
+	envVars := []string{"OTEL_TRACES_SAMPLER=always_off"}
+	for key, value := range s.EnvVarOverrides {
+		envVars = append(envVars, fmt.Sprintf("%s=%s", key, value))
+	}
+
 	cmd := Binary{
 		Name:            s.BinaryName,
 		HealthCheckPort: s.HealthCheckPort,
@@ -89,6 +87,7 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
 			// since the binary config file jaeger_query's ui.config_file points to
 			// "./cmd/jaeger/config-ui.json"
 			Dir: "../../../..",
+			Env: envVars,
 		},
 	}
 	cmd.Start(t)
