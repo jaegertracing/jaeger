@@ -73,7 +73,8 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
 
 	t.Logf("Starting %s in the background with config file %s", s.BinaryName, configFile)
 	cmd := Binary{
-		Name: s.BinaryName,
+		Name:            s.BinaryName,
+		HealthCheckPort: s.HealthCheckPort,
 		Cmd: exec.Cmd{
 			Path: "./cmd/jaeger/jaeger",
 			Args: []string{"jaeger", "--config", configFile},
