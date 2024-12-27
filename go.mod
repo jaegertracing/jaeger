@@ -6,7 +6,7 @@ toolchain go1.23.4
 
 require (
 	github.com/HdrHistogram/hdrhistogram-go v1.1.2
-	github.com/Shopify/sarama v1.37.2
+	github.com/Shopify/sarama v1.44.0
 	github.com/apache/thrift v0.21.0
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2
 	github.com/bsm/sarama-cluster v2.1.13+incompatible
@@ -285,4 +285,4 @@ require (
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
 
-replace github.com/Shopify/sarama => github.com/Shopify/sarama v1.33.0
+replace github.com/Shopify/sarama => github.com/Shopify/sarama v1.44.0
