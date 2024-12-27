@@ -136,19 +136,14 @@ type Configuration struct {
 	Tags                     TagsAsFields  `mapstructure:"tags_as_fields"`
 	// Enabled, if set to true, enables the namespace for storage pointed to by this configuration.
 	Enabled bool `mapstructure:"-"`
+
+	// IndexCleaner cleans indices older than MaxSpanAge
+	IndexCleaner IndexCleaner `mapstructure:"index_cleaner"`
 }
 
-type Cleaner struct {
-	// Separator between date fragments.
-	IndexDateSeparator string
-	// Whether to filter archive indices.
-	Archive bool
-	// Whether to filter rollover indices.
-	Rollover bool
-	// Indices created before this date will be deleted.
-	DeleteBeforeThisDate time.Time
-	// If the cleaner is enabled
-	Enabled bool
+type IndexCleaner struct {
+	// Enabled, if set to true, enables the cleaner feature
+	Enabled bool `mapstructure:"enabled"`
 }
 
 // TagsAsFields holds configuration for tag schema.

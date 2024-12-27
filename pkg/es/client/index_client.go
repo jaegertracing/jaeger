@@ -11,6 +11,10 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/jaegertracing/jaeger/pkg/es/client"
+	"github.com/jaegertracing/jaeger/pkg/es/config"
+	"go.uber.org/zap"
 )
 
 // Index represents ES index.
@@ -39,6 +43,32 @@ var _ IndexAPI = (*IndicesClient)(nil)
 type IndicesClient struct {
 	Client
 	MasterTimeoutSeconds int
+}
+
+// Create the indices only client using config.Configuration
+func CreateIndicesClient(c *config.Configuration, logger *zap.Logger) (*IndicesClient, error) {
+	if len(c.Servers) < 1 {
+		return nil, errors.New("no servers specified")
+	}
+
+	httpClient := &http.Client{
+		Timeout: c.QueryTimeout,
+	}
+
+	transport, err := config.GetHTTPRoundTripper(c, logger)
+	if err != nil {
+		return nil, err
+	}
+	httpClient.Transport = transport
+
+	return &IndicesClient{
+		Client: Client{
+			Client:    httpClient,
+			Endpoint:  c.Servers[0],
+			BasicAuth: client.BasicAuth(c.Authentication.BasicAuthentication.Username, c.Authentication.BasicAuthentication.Password),
+		},
+		MasterTimeoutSeconds: int(c.QueryTimeout) / int(time.Second),
+	}, nil
 }
 
 // GetJaegerIndices queries all Jaeger indices including the archive and rollover.
