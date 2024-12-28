@@ -61,7 +61,7 @@ func NewQueryService(traceReader tracestore.Reader, dependencyReader depstore.Re
 	return qsvc
 }
 
-// GetTraceParameters defines the parameters for querying traces from the query service.
+// GetTraceParameters defines the parameters for querying a single trace from the query service.
 type GetTraceParameters struct {
 	spanstore.GetTraceParameters
 }
@@ -103,13 +103,18 @@ func (qs QueryService) GetOperations(
 	return spanReader.GetOperations(ctx, query)
 }
 
+// GetTraceParameters defines the parameters for querying a batch of traces from the query service.
+type TraceQueryParameters struct {
+	spanstore.TraceQueryParameters
+}
+
 // FindTraces is the queryService implementation of spanstore.Reader.FindTraces
-func (qs QueryService) FindTraces(ctx context.Context, query *spanstore.TraceQueryParameters) ([]*model.Trace, error) {
+func (qs QueryService) FindTraces(ctx context.Context, query *TraceQueryParameters) ([]*model.Trace, error) {
 	spanReader, err := v1adapter.GetV1Reader(qs.traceReader)
 	if err != nil {
 		return nil, err
 	}
-	return spanReader.FindTraces(ctx, query)
+	return spanReader.FindTraces(ctx, &query.TraceQueryParameters)
 }
 
 // ArchiveTrace is the queryService utility to archive traces.
