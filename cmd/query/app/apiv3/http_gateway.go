@@ -37,6 +37,7 @@ const (
 	paramNumTraces     = "query.num_traces"
 	paramDurationMin   = "query.duration_min"
 	paramDurationMax   = "query.duration_max"
+	paramRawTraces     = "query.raw_traces"
 
 	routeGetTrace      = "/api/v3/traces/{" + paramTraceID + "}"
 	routeFindTraces    = "/api/v3/traces"
@@ -157,6 +158,13 @@ func (h *HTTPGateway) getTrace(w http.ResponseWriter, r *http.Request) {
 		}
 		request.EndTime = timeParsed.UTC()
 	}
+	if r := http_query.Get(paramRawTraces); r != "" {
+		rawTraces, err := strconv.ParseBool(r)
+		if h.tryParamError(w, err, paramRawTraces) {
+			return
+		}
+		request.RawTraces = rawTraces
+	}
 	trc, err := h.QueryService.GetTrace(r.Context(), request)
 	if h.tryHandleError(w, err, http.StatusInternalServerError) {
 		return
@@ -230,6 +238,13 @@ func (h *HTTPGateway) parseFindTracesQuery(q url.Values, w http.ResponseWriter) 
 			return nil, true
 		}
 		queryParams.DurationMax = dur
+	}
+	if r := q.Get(paramRawTraces); r != "" {
+		rawTraces, err := strconv.ParseBool(r)
+		if h.tryParamError(w, err, paramRawTraces) {
+			return nil, true
+		}
+		queryParams.RawTraces = rawTraces
 	}
 	return queryParams, false
 }

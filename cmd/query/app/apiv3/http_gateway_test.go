@@ -167,6 +167,11 @@ func TestHTTPGatewayGetTraceMalformedInputErrors(t *testing.T) {
 			requestUrl:    "/api/v3/traces/123?end_time=xyz",
 			expectedError: "malformed parameter end_time",
 		},
+		{
+			name:          "TestGetTraceWithInvalidRawTraces",
+			requestUrl:    "/api/v3/traces/123?query.raw_traces=foobar",
+			expectedError: "malformed parameter query.raw_traces",
+		},
 	}
 
 	for _, tc := range testCases {
