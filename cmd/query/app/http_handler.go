@@ -430,7 +430,7 @@ func (aH *APIHandler) parseMicroseconds(w http.ResponseWriter, r *http.Request, 
 	return time.Time{}, true
 }
 
-func (aH *APIHandler) parseBool(w http.ResponseWriter, r *http.Request, boolKey string) (bool, bool) {
+func (aH *APIHandler) parseBool(w http.ResponseWriter, r *http.Request, boolKey string) (value bool, isValid bool) {
 	if boolString := r.FormValue(boolKey); boolString != "" {
 		b, err := parseBool(r, boolKey)
 		if aH.handleError(w, err, http.StatusBadRequest) {
