@@ -383,8 +383,8 @@ func (s *StorageIntegration) writeTrace(t *testing.T, trace *model.Trace) {
 	t.Logf("%-23s Writing trace with %d spans", time.Now().Format("2006-01-02 15:04:05.999"), len(trace.Spans))
 	ctx, cx := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cx()
-	traces := v1adapter.V1TraceToOtelTraces(*trace)
-	err := s.TraceWriter.WriteTraces(ctx, *traces)
+	otelTraces := v1adapter.V1TraceToOtelTrace(*trace)
+	err := s.TraceWriter.WriteTraces(ctx, *otelTraces)
 	require.NoError(t, err, "Not expecting error when writing trace to storage")
 
 	t.Logf("%-23s Finished writing trace with %d spans", time.Now().Format("2006-01-02 15:04:05.999"), len(trace.Spans))
