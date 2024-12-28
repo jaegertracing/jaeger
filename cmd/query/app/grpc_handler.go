@@ -95,6 +95,7 @@ func (g *GRPCHandler) GetTrace(r *api_v2.GetTraceRequest, stream api_v2.QuerySer
 			StartTime: r.StartTime,
 			EndTime:   r.EndTime,
 		},
+		RawTraces: r.RawTraces,
 	}
 	trace, err := g.queryService.GetTrace(stream.Context(), query)
 	if errors.Is(err, spanstore.ErrTraceNotFound) {
@@ -156,6 +157,7 @@ func (g *GRPCHandler) FindTraces(r *api_v2.FindTracesRequest, stream api_v2.Quer
 			DurationMax:   query.DurationMax,
 			NumTraces:     int(query.SearchDepth),
 		},
+		RawTraces: query.RawTraces,
 	}
 	traces, err := g.queryService.FindTraces(stream.Context(), &queryParams)
 	if err != nil {

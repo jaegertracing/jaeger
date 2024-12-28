@@ -38,6 +38,7 @@ func (h *Handler) GetTrace(request *api_v3.GetTraceRequest, stream api_v3.QueryS
 			StartTime: request.GetStartTime(),
 			EndTime:   request.GetEndTime(),
 		},
+		RawTraces: request.GetRawTraces(),
 	}
 	trace, err := h.QueryService.GetTrace(stream.Context(), query)
 	if err != nil {
@@ -75,6 +76,7 @@ func (h *Handler) internalFindTraces(
 			Tags:          query.GetAttributes(),
 			NumTraces:     int(query.GetSearchDepth()),
 		},
+		RawTraces: query.GetRawTraces(),
 	}
 	if ts := query.GetStartTimeMin(); !ts.IsZero() {
 		queryParams.StartTimeMin = ts
