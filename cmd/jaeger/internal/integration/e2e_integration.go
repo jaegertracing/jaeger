@@ -99,16 +99,9 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
 
 	t.Cleanup(func() {
 		scrapeMetrics(t, storage)
-		// Call e2eCleanUp to close the SpanReader and SpanWriter gRPC connection.
-		s.e2eCleanUp(t)
+		require.NoError(t, s.TraceReader.(io.Closer).Close())
+		require.NoError(t, s.SpanWriter.(io.Closer).Close())
 	})
-}
-
-// e2eCleanUp closes the SpanReader and SpanWriter gRPC connection.
-// This function should be called after all the tests are finished.
-func (s *E2EStorageIntegration) e2eCleanUp(t *testing.T) {
-	require.NoError(t, s.TraceReader.(io.Closer).Close())
-	require.NoError(t, s.SpanWriter.(io.Closer).Close())
 }
 
 func scrapeMetrics(t *testing.T, storage string) {

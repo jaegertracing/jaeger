@@ -58,7 +58,7 @@ jobs:
         retention-days: 7
 
     - name: Release Action then cache 
-      if: startsWith(github.ref, 'refs/tags/') && ${{ matrix.jaeger-version }} == "v2"
+      if: contains(github.ref, 'refs/tags/') && ${{ matrix.jaeger-version }} == "v2"
       uses: actions/cache@v4
       with:
         path: ./.metrics/cassandra_metrics.txt
