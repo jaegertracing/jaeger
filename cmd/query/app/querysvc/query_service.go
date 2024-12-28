@@ -47,6 +47,18 @@ type QueryService struct {
 	options          QueryServiceOptions
 }
 
+// GetTraceParameters defines the parameters for querying a single trace from the query service.
+type GetTraceParameters struct {
+	spanstore.GetTraceParameters
+	RawTraces bool
+}
+
+// TraceQueryParameters defines the parameters for querying a batch of traces from the query service.
+type TraceQueryParameters struct {
+	spanstore.TraceQueryParameters
+	RawTraces bool
+}
+
 // NewQueryService returns a new QueryService.
 func NewQueryService(traceReader tracestore.Reader, dependencyReader depstore.Reader, options QueryServiceOptions) *QueryService {
 	qsvc := &QueryService{
@@ -59,12 +71,6 @@ func NewQueryService(traceReader tracestore.Reader, dependencyReader depstore.Re
 		qsvc.options.Adjuster = adjuster.Sequence(StandardAdjusters(defaultMaxClockSkewAdjust)...)
 	}
 	return qsvc
-}
-
-// GetTraceParameters defines the parameters for querying a single trace from the query service.
-type GetTraceParameters struct {
-	spanstore.GetTraceParameters
-	RawTraces bool
 }
 
 // GetTrace is the queryService implementation of spanstore.Reader.GetTrace
@@ -102,12 +108,6 @@ func (qs QueryService) GetOperations(
 		return nil, err
 	}
 	return spanReader.GetOperations(ctx, query)
-}
-
-// TraceQueryParameters defines the parameters for querying a batch of traces from the query service.
-type TraceQueryParameters struct {
-	spanstore.TraceQueryParameters
-	RawTraces bool
 }
 
 // FindTraces is the queryService implementation of spanstore.Reader.FindTraces
