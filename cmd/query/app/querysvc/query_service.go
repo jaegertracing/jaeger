@@ -64,6 +64,7 @@ func NewQueryService(traceReader tracestore.Reader, dependencyReader depstore.Re
 // GetTraceParameters defines the parameters for querying a single trace from the query service.
 type GetTraceParameters struct {
 	spanstore.GetTraceParameters
+	RawTraces bool
 }
 
 // GetTrace is the queryService implementation of spanstore.Reader.GetTrace
@@ -106,6 +107,7 @@ func (qs QueryService) GetOperations(
 // TraceQueryParameters defines the parameters for querying a batch of traces from the query service.
 type TraceQueryParameters struct {
 	spanstore.TraceQueryParameters
+	RawTraces bool
 }
 
 // FindTraces is the queryService implementation of spanstore.Reader.FindTraces
