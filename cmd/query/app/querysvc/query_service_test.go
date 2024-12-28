@@ -265,11 +265,10 @@ func TestArchiveTraceNoOptions(t *testing.T) {
 
 	type contextKey string
 	ctx := context.Background()
-	query := GetTraceParameters{
-		GetTraceParameters: spanstore.GetTraceParameters{
-			TraceID: mockTraceID,
-		},
+	query := spanstore.GetTraceParameters{
+		TraceID: mockTraceID,
 	}
+
 	err := tqs.queryService.ArchiveTrace(context.WithValue(ctx, contextKey("foo"), "bar"), query)
 	assert.Equal(t, errNoArchiveSpanStorage, err)
 }
@@ -284,10 +283,8 @@ func TestArchiveTraceWithInvalidTraceID(t *testing.T) {
 
 	type contextKey string
 	ctx := context.Background()
-	query := GetTraceParameters{
-		GetTraceParameters: spanstore.GetTraceParameters{
-			TraceID: mockTraceID,
-		},
+	query := spanstore.GetTraceParameters{
+		TraceID: mockTraceID,
 	}
 	err := tqs.queryService.ArchiveTrace(context.WithValue(ctx, contextKey("foo"), "bar"), query)
 	assert.Equal(t, spanstore.ErrTraceNotFound, err)
@@ -303,11 +300,10 @@ func TestArchiveTraceWithArchiveWriterError(t *testing.T) {
 
 	type contextKey string
 	ctx := context.Background()
-	query := GetTraceParameters{
-		GetTraceParameters: spanstore.GetTraceParameters{
-			TraceID: mockTraceID,
-		},
+	query := spanstore.GetTraceParameters{
+		TraceID: mockTraceID,
 	}
+
 	joinErr := tqs.queryService.ArchiveTrace(context.WithValue(ctx, contextKey("foo"), "bar"), query)
 	// There are two spans in the mockTrace, ArchiveTrace should return a wrapped error.
 	require.EqualError(t, joinErr, "cannot save\ncannot save")
@@ -323,11 +319,10 @@ func TestArchiveTraceSuccess(t *testing.T) {
 
 	type contextKey string
 	ctx := context.Background()
-	query := GetTraceParameters{
-		GetTraceParameters: spanstore.GetTraceParameters{
-			TraceID: mockTraceID,
-		},
+	query := spanstore.GetTraceParameters{
+		TraceID: mockTraceID,
 	}
+
 	err := tqs.queryService.ArchiveTrace(context.WithValue(ctx, contextKey("foo"), "bar"), query)
 	require.NoError(t, err)
 }

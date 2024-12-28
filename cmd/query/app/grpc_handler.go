@@ -117,13 +117,12 @@ func (g *GRPCHandler) ArchiveTrace(ctx context.Context, r *api_v2.ArchiveTraceRe
 	if r.TraceID == (model.TraceID{}) {
 		return nil, errUninitializedTraceID
 	}
-	query := querysvc.GetTraceParameters{
-		GetTraceParameters: spanstore.GetTraceParameters{
-			TraceID:   r.TraceID,
-			StartTime: r.StartTime,
-			EndTime:   r.EndTime,
-		},
+	query := spanstore.GetTraceParameters{
+		TraceID:   r.TraceID,
+		StartTime: r.StartTime,
+		EndTime:   r.EndTime,
 	}
+
 	err := g.queryService.ArchiveTrace(ctx, query)
 	if errors.Is(err, spanstore.ErrTraceNotFound) {
 		g.logger.Warn(msgTraceNotFound, zap.Stringer("id", r.TraceID), zap.Error(err))
