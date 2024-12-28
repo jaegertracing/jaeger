@@ -31,7 +31,7 @@ var (
 	_ io.Closer         = (*traceReader)(nil)
 )
 
-// traceReader retrieve span data from Jaeger-v2 query with api_v2.QueryServiceClient.
+// traceReader retrieves trace data from the jaeger-v2 query service through the api_v2.QueryServiceClient.
 type traceReader struct {
 	logger     *zap.Logger
 	clientConn *grpc.ClientConn
@@ -172,7 +172,7 @@ func (r *traceReader) consumeTraces(
 		if !handleError(err) {
 			return false
 		}
-		traces := chunk.ToTraces() // unwrap  ptrace.Traces from chunk
+		traces := chunk.ToTraces() // unwrap ptrace.Traces from chunk
 		if !yield([]ptrace.Traces{traces}, nil) {
 			return false
 		}
