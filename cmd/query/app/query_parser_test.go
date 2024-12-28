@@ -155,6 +155,52 @@ func TestParseTraceQuery(t *testing.T) {
 				},
 			},
 		},
+		// raw traces
+		{
+			"x?service=service&start=0&end=0&raw=true", noErr,
+			&traceQueryParameters{
+				TraceQueryParameters: querysvc.TraceQueryParameters{
+					TraceQueryParameters: spanstore.TraceQueryParameters{
+						ServiceName:  "service",
+						StartTimeMin: time.Unix(0, 0),
+						StartTimeMax: time.Unix(0, 0),
+						NumTraces:    100,
+						Tags:         make(map[string]string),
+					},
+					RawTraces: true,
+				},
+			},
+		},
+		{
+			"x?service=service&start=0&end=0&raw=false", noErr,
+			&traceQueryParameters{
+				TraceQueryParameters: querysvc.TraceQueryParameters{
+					TraceQueryParameters: spanstore.TraceQueryParameters{
+						ServiceName:  "service",
+						StartTimeMin: time.Unix(0, 0),
+						StartTimeMax: time.Unix(0, 0),
+						NumTraces:    100,
+						Tags:         make(map[string]string),
+					},
+					RawTraces: false,
+				},
+			},
+		},
+		{
+			"x?service=service&start=0&end=0&raw=foobar", "unable to parse param 'raw'",
+			&traceQueryParameters{
+				TraceQueryParameters: querysvc.TraceQueryParameters{
+					TraceQueryParameters: spanstore.TraceQueryParameters{
+						ServiceName:  "service",
+						StartTimeMin: time.Unix(0, 0),
+						StartTimeMax: time.Unix(0, 0),
+						NumTraces:    100,
+						Tags:         make(map[string]string),
+					},
+					RawTraces: false,
+				},
+			},
+		},
 	}
 	for _, tc := range tests {
 		test := tc // capture loop var

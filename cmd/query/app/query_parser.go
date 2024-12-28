@@ -34,6 +34,7 @@ const (
 	spanKindParam    = "spanKind"
 	endTimeParam     = "end"
 	prettyPrintParam = "prettyPrint"
+	rawParam         = "raw"
 )
 
 var (
@@ -162,6 +163,11 @@ func (p *queryParser) parseTraceQueryParams(r *http.Request) (*traceQueryParamet
 		traceIDs = append(traceIDs, traceID)
 	}
 
+	raw, err := parseBool(r, rawParam)
+	if err != nil {
+		return nil, err
+	}
+
 	traceQuery := &traceQueryParameters{
 		TraceQueryParameters: querysvc.TraceQueryParameters{
 			TraceQueryParameters: spanstore.TraceQueryParameters{
@@ -174,6 +180,7 @@ func (p *queryParser) parseTraceQueryParams(r *http.Request) (*traceQueryParamet
 				DurationMin:   minDuration,
 				DurationMax:   maxDuration,
 			},
+			RawTraces: raw,
 		},
 		traceIDs: traceIDs,
 	}
