@@ -430,6 +430,17 @@ func (aH *APIHandler) parseMicroseconds(w http.ResponseWriter, r *http.Request, 
 	return time.Time{}, true
 }
 
+func (aH *APIHandler) parseBool(w http.ResponseWriter, r *http.Request, boolKey string) (bool, bool) {
+	if boolString := r.FormValue(boolKey); boolString != "" {
+		b, err := parseBool(r, boolKey)
+		if aH.handleError(w, err, http.StatusBadRequest) {
+			return false, false
+		}
+		return b, true
+	}
+	return false, true
+}
+
 func (aH *APIHandler) parseGetTraceParameters(w http.ResponseWriter, r *http.Request) (querysvc.GetTraceParameters, bool) {
 	query := querysvc.GetTraceParameters{}
 	traceID, ok := aH.parseTraceID(w, r)
@@ -444,9 +455,14 @@ func (aH *APIHandler) parseGetTraceParameters(w http.ResponseWriter, r *http.Req
 	if !ok {
 		return query, false
 	}
+	raw, ok := aH.parseBool(w, r, rawParam)
+	if !ok {
+		return query, false
+	}
 	query.TraceID = traceID
 	query.StartTime = startTime
 	query.EndTime = endTime
+	query.RawTraces = raw
 	return query, true
 }
 

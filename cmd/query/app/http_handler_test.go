@@ -407,6 +407,27 @@ func TestGetTraceBadTimeWindow(t *testing.T) {
 	}
 }
 
+func TestGetTraceWithRawTracesSuccess(t *testing.T) {
+	ts := initializeTestServer(t)
+	ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), spanstore.GetTraceParameters{
+		TraceID: mockTraceID,
+	}).Return(mockTrace, nil).Once()
+
+	var response structuredResponse
+	err := getJSON(ts.server.URL+`/api/traces/`+mockTraceID.String()+`?raw=true`, &response)
+	require.NoError(t, err)
+	assert.Empty(t, response.Errors)
+}
+
+func TestGetTraceBadRawTracesFlag(t *testing.T) {
+	ts := initializeTestServer(t)
+	var response structuredResponse
+	err := getJSON(ts.server.URL+`/api/traces/123456?raw=foobar`, &response)
+	require.Error(t, err)
+	require.ErrorContains(t, err, "400 error from server")
+	require.ErrorContains(t, err, "unable to parse param 'raw'")
+}
+
 func TestSearchSuccess(t *testing.T) {
 	ts := initializeTestServer(t)
 	ts.spanReader.On("FindTraces", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("*spanstore.TraceQueryParameters")).
