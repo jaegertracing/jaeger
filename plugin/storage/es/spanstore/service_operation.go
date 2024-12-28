@@ -58,27 +58,16 @@ func NewServiceOperationStorage(
 
 // Write saves a service to operation pair.
 func (s *ServiceOperationStorage) Write(indexName string, jsonSpan *dbmodel.Span, kind model.SpanKind) {
-	// Insert serviceName:operationName document
+	// Insert serviceName:kind:operationName document
 	service := dbmodel.Service{
 		ServiceName:   jsonSpan.Process.ServiceName,
+		Kind:          string(kind),
 		OperationName: jsonSpan.OperationName,
 	}
-	if kind != model.SpanKindUnspecified {
-		serviceWithKind := dbmodel.ServiceWithKind{
-			Service: service,
-			Kind:    string(kind),
-		}
-		cacheKey := hashCodeWithKind(serviceWithKind)
-		if !keyInCache(cacheKey, s.serviceCache) {
-			s.client().Index().Index(indexName).Type(serviceType).Id(cacheKey).BodyJson(serviceWithKind).Add()
-			writeCache(cacheKey, s.serviceCache)
-		}
-	} else {
-		cacheKey := hashCode(service)
-		if !keyInCache(cacheKey, s.serviceCache) {
-			s.client().Index().Index(indexName).Type(serviceType).Id(cacheKey).BodyJson(service).Add()
-			writeCache(cacheKey, s.serviceCache)
-		}
+	cacheKey := hashCode(service)
+	if !keyInCache(cacheKey, s.serviceCache) {
+		s.client().Index().Index(indexName).Type(serviceType).Id(cacheKey).BodyJson(service).Add()
+		writeCache(cacheKey, s.serviceCache)
 	}
 }
 
@@ -137,13 +126,15 @@ func (s *ServiceOperationStorage) getOperations(ctx context.Context, indices []s
 		operationNamesBucket := bucket.Buckets
 		return bucketOfOperationNamesToOperationsArray(operationNamesBucket, kind)
 	}
+	withoutSpanKindQuery := elastic.NewBoolQuery().MustNot(elastic.NewExistsQuery(spanKind))
+	emptySpanKindQuery := elastic.NewTermQuery(spanKind, string(model.SpanKindUnspecified))
 	serviceFilter := elastic.NewFiltersAggregation().
 		FilterWithName(string(model.SpanKindClient), elastic.NewTermQuery(spanKind, string(model.SpanKindClient))).
 		FilterWithName(string(model.SpanKindServer), elastic.NewTermQuery(spanKind, string(model.SpanKindServer))).
 		FilterWithName(string(model.SpanKindProducer), elastic.NewTermQuery(spanKind, string(model.SpanKindProducer))).
 		FilterWithName(string(model.SpanKindConsumer), elastic.NewTermQuery(spanKind, string(model.SpanKindConsumer))).
 		FilterWithName(string(model.SpanKindInternal), elastic.NewTermQuery(spanKind, string(model.SpanKindInternal))).
-		FilterWithName(operationsWithoutKind, elastic.NewBoolQuery().MustNot(elastic.NewExistsQuery(spanKind))).
+		FilterWithName(operationsWithoutKind, elastic.NewBoolQuery().Should(withoutSpanKindQuery, emptySpanKindQuery)).
 		SubAggregation(operationNameField, elastic.NewTermsAggregation().Field(operationNameField).Size(maxDocCount))
 	serviceQuery := elastic.NewTermQuery(serviceName, service)
 	searchService = s.client().Search(indices...).
@@ -230,13 +221,6 @@ func addOperationsFromRawData(raw *json.RawMessage, kind string, result []spanst
 }
 
 func hashCode(s dbmodel.Service) string {
-	h := fnv.New64a()
-	h.Write([]byte(s.ServiceName))
-	h.Write([]byte(s.OperationName))
-	return strconv.FormatUint(h.Sum64(), 16)
-}
-
-func hashCodeWithKind(s dbmodel.ServiceWithKind) string {
 	h := fnv.New64a()
 	h.Write([]byte(s.ServiceName))
 	h.Write([]byte(s.Kind))
