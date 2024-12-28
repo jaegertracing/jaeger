@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger/model"
 )
@@ -74,8 +73,7 @@ func getSpanIDs(spans []*model.Span) []int {
 func TestDedupeBySpanHashTriggers(t *testing.T) {
 	trc := newDuplicatedSpansTrace()
 	deduper := DedupeBySpanHash()
-	trc, err := deduper.Adjust(trc)
-	require.NoError(t, err)
+	deduper.Adjust(trc)
 
 	assert.Len(t, trc.Spans, 2, "should dedupe spans")
 
@@ -86,8 +84,7 @@ func TestDedupeBySpanHashTriggers(t *testing.T) {
 func TestDedupeBySpanHashNotTriggered(t *testing.T) {
 	trc := newUniqueSpansTrace()
 	deduper := DedupeBySpanHash()
-	trc, err := deduper.Adjust(trc)
-	require.NoError(t, err)
+	deduper.Adjust(trc)
 
 	assert.Len(t, trc.Spans, 2, "should not dedupe spans")
 
@@ -99,8 +96,7 @@ func TestDedupeBySpanHashNotTriggered(t *testing.T) {
 func TestDedupeBySpanHashEmpty(t *testing.T) {
 	trc := &model.Trace{}
 	deduper := DedupeBySpanHash()
-	trc, err := deduper.Adjust(trc)
-	require.NoError(t, err)
+	deduper.Adjust(trc)
 
 	assert.Empty(t, trc.Spans, "should be empty")
 }
@@ -117,8 +113,7 @@ func TestDedupeBySpanHashManyManySpans(t *testing.T) {
 	}
 	trc := &model.Trace{Spans: spans}
 	deduper := DedupeBySpanHash()
-	trc, err := deduper.Adjust(trc)
-	require.NoError(t, err)
+	deduper.Adjust(trc)
 
 	assert.Len(t, trc.Spans, distinctSpanIDs, "should dedupe spans")
 

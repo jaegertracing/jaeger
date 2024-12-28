@@ -157,7 +157,9 @@ func (s *StorageIntegration) testGetServices(t *testing.T) {
 			t.Log("🛑 Found unexpected services!")
 			for _, service := range actual {
 				iterTraces := s.TraceReader.FindTraces(context.Background(), tracestore.TraceQueryParams{
-					ServiceName: service,
+					ServiceName:  service,
+					StartTimeMin: time.Now().Add(-2 * time.Hour),
+					StartTimeMax: time.Now(),
 				})
 				traces, err := v1adapter.V1TracesFromSeq2(iterTraces)
 				if err != nil {
@@ -379,10 +381,13 @@ func (s *StorageIntegration) findTracesByQuery(t *testing.T, query *tracestore.T
 
 func (s *StorageIntegration) writeTrace(t *testing.T, trace *model.Trace) {
 	t.Logf("%-23s Writing trace with %d spans", time.Now().Format("2006-01-02 15:04:05.999"), len(trace.Spans))
+	ctx, cx := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cx()
 	for _, span := range trace.Spans {
-		err := s.SpanWriter.WriteSpan(context.Background(), span)
+		err := s.SpanWriter.WriteSpan(ctx, span)
 		require.NoError(t, err, "Not expecting error when writing trace to storage")
 	}
+	t.Logf("%-23s Finished writing trace with %d spans", time.Now().Format("2006-01-02 15:04:05.999"), len(trace.Spans))
 }
 
 func (s *StorageIntegration) loadParseAndWriteExampleTrace(t *testing.T) *model.Trace {
