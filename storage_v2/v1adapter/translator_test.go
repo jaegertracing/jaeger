@@ -254,46 +254,58 @@ func TestV1TracesFromSeq2(t *testing.T) {
 	}
 }
 
-func TestCreateBatchesFromModelTrace(t *testing.T) {
-	testCases := []struct {
-		name            string
-		jtrace          model.Trace
-		expectedbatches []*model.Batch
-	}{
-		{
-			name: "one trace one batch",
-			jtrace: model.Trace{
-				Spans: []*model.Span{
-					{
-						OperationName: "one-trace-success",
-						TraceID:       model.NewTraceID(2, 3),
-						Process:       model.NewProcess("NoServiceName", nil),
-					},
-				},
-			},
-			expectedbatches: []*model.Batch{
-				{
-					Spans: []*model.Span{
-						{
-							OperationName: "one-trace-success",
-							TraceID:       model.NewTraceID(2, 3),
-							Process:       model.NewProcess("NoServiceName", nil),
-						},
-					},
-				},
+func TestV1TraceToOtelTrace_ReturnsExptectedOtelTrace(t *testing.T) {
+	jTrace := &model.Trace{
+		Spans: []*model.Span{
+			{
+				TraceID:       model.NewTraceID(2, 3),
+				SpanID:        model.NewSpanID(1),
+				Process:       model.NewProcess("Service1", nil),
+				OperationName: "two-resources-1",
+			}, {
+				TraceID:       model.NewTraceID(2, 3),
+				SpanID:        model.NewSpanID(2),
+				Process:       model.NewProcess("service2", nil),
+				OperationName: "two-resources-2",
 			},
 		},
-		{
-			name:            "no spans empty batches",
-			jtrace:          model.Trace{},
-			expectedbatches: nil,
-		},
+	}
+	expectedTrace := ptrace.NewTraces()
+
+	for _, jspan := range jTrace.Spans {
+		resource := expectedTrace.ResourceSpans().AppendEmpty()
+		resource.Resource().Attributes().PutStr("service.name", jspan.Process.ServiceName)
+		eSpan := resource.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+		eSpan.SetName(jspan.OperationName)
+		eSpan.SetSpanID(jspan.SpanID.ToOTELSpanID())
+		eSpan.SetTraceID(jspan.TraceID.ToOTELTraceID())
 	}
 
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			batches := createBatchesFromModelTrace(tc.jtrace)
-			require.Equal(t, tc.expectedbatches, batches)
-		})
+	actualTrace := V1TraceToOtelTrace(jTrace)
+
+	require.NotEmpty(t, actualTrace)
+	require.Equal(t, 2, actualTrace.ResourceSpans().Len())
+	for i := range [2]int{} {
+		aServiceName, _ := actualTrace.ResourceSpans().At(i).Resource().Attributes().Get("service.name")
+		eServiceName, _ := expectedTrace.ResourceSpans().At(i).Resource().Attributes().Get("service.name")
+		require.Equal(t, aServiceName, eServiceName)
+
+		aSpans := actualTrace.ResourceSpans().At(i).ScopeSpans().At(0).Spans()
+		eSpans := expectedTrace.ResourceSpans().At(i).ScopeSpans().At(0).Spans()
+		require.Equal(t, aSpans.Len(), eSpans.Len())
+
+		aSpan := aSpans.At(0)
+		eSpan := eSpans.At(0)
+		require.Equal(t, eSpan.Name(), aSpan.Name())
+		require.Equal(t, eSpan.TraceID(), aSpan.TraceID())
+		require.Equal(t, eSpan.SpanID(), aSpan.SpanID())
 	}
+}
+
+func TestV1TraceToOtelTrace_ReturnEmptyOtelTrace(t *testing.T) {
+	jTrace := &model.Trace{}
+	eTrace := ptrace.NewTraces()
+	aTrace := V1TraceToOtelTrace(jTrace)
+
+	require.Equal(t, eTrace.SpanCount(), aTrace.SpanCount(), 0)
 }

@@ -25,10 +25,8 @@ func (s *MemStorageIntegrationTestSuite) initialize(_ *testing.T) {
 	store := memory.NewStore()
 	archiveStore := memory.NewStore()
 	s.SamplingStore = memory.NewSamplingStore(2)
-	spanReader := store
-	s.TraceReader = v1adapter.NewTraceReader(spanReader)
-	spanWriter := store
-	s.TraceWriter = v1adapter.NewTraceWriter(spanWriter)
+	s.TraceReader = v1adapter.NewTraceReader(store)
+	s.TraceWriter = v1adapter.NewTraceWriter(store)
 	s.ArchiveSpanReader = archiveStore
 	s.ArchiveSpanWriter = archiveStore
 

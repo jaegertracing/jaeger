@@ -62,19 +62,20 @@ func V1TracesFromSeq2(otelSeq iter.Seq2[[]ptrace.Traces, error]) ([]*model.Trace
 }
 
 // Returns
-func V1TraceToOtelTrace(jTrace model.Trace) *ptrace.Traces {
+func V1TraceToOtelTrace(jTrace *model.Trace) ptrace.Traces {
 	otelTraces := V1BatchesToTraces(createBatchesFromModelTrace(jTrace))
-	return &otelTraces
+	return otelTraces
 }
 
-func createBatchesFromModelTrace(jTrace model.Trace) []*model.Batch {
+func createBatchesFromModelTrace(jTrace *model.Trace) []*model.Batch {
 	spans := jTrace.Spans
 
 	if len(spans) == 0 {
 		return nil
 	}
-	batch := &model.Batch{}
-	batch.Spans = jTrace.Spans
+	batch := &model.Batch{
+		Spans: jTrace.Spans,
+	}
 	return []*model.Batch{batch}
 }
 
