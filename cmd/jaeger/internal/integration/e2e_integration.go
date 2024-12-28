@@ -221,15 +221,11 @@ func scrapeMetrics(t *testing.T, storage string) {
 	require.NoError(t, err)
 	defer resp.Body.Close()
 
-	err = os.MkdirAll("../../../../metrics", os.ModePerm)
-	if err != nil {
-		t.Fatalf("Failed to create directory: %v", err)
-	}
+	outputDir := "../../../../.metrics"
+	require.NoError(t, os.MkdirAll(outputDir, os.ModePerm))
 
-	metricsFile, err := os.Create(fmt.Sprintf("../../../../metrics/%v_metrics.txt", storage))
-	if err != nil {
-		t.Fatalf("Failed to create metrics file: %v", err)
-	}
+	metricsFile, err := os.Create(fmt.Sprintf("%s/%v_metrics.txt", outputDir, storage))
+	require.NoError(t, err)
 	defer metricsFile.Close()
 
 	_, err = io.Copy(metricsFile, resp.Body)

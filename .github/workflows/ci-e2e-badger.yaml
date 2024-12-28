@@ -45,9 +45,17 @@ jobs:
       uses: actions/upload-artifact@v4
       if: ${{ matrix.version }} == "v2"
       with:
-            name: badger-metrics-${{ matrix.version }}
-            path: ./metrics/badger_metrics.txt
-            retention-days: 7
+        name: badger-metrics-${{ matrix.version }}
+        path: ./.metrics/badger_metrics.txt
+        retention-days: 7
+  
+    - name: Release Action then cache 
+      uses: actions/cache@v4
+      if: startsWith(github.ref, 'refs/tags/')  && ${{ matrix.version }} == "v2"
+      with:
+        path: ./.metrics/badger_metrics.txt
+        key: ${{ github.ref }}_badger_metrics
+      
 
     - name: Upload coverage to codecov
       uses: ./.github/actions/upload-codecov

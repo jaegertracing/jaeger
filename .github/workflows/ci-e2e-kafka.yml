@@ -39,9 +39,16 @@ jobs:
       uses: actions/upload-artifact@v4
       if: ${{ matrix.jaeger-version }} == "v2"
       with:
-              name: kafka-metrics-${{ matrix.jaeger-version }}
-              path: ./metrics/kafka_metrics.txt
-              retention-days: 7
+        name: kafka-metrics-${{ matrix.jaeger-version }}
+        path: ./.metrics/kafka_metrics.txt
+        retention-days: 7
+
+    - name: Release Action then cache 
+      uses: actions/cache@v4
+      if: startsWith(github.ref, 'refs/tags/') && ${{ matrix.jaeger-version }} == "v2"
+      with:
+        path: ./.metrics/kafka_metrics.txt
+        key: ${{ github.ref }}_kafka_metrics
 
     - name: Upload coverage to codecov
       uses: ./.github/actions/upload-codecov

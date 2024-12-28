@@ -45,9 +45,16 @@ jobs:
       uses: actions/upload-artifact@v4
       if: ${{ matrix.version }} == "v2"
       with:
-              name: grpc-metrics-${{ matrix.version }}
-              path: ./metrics/grpc_metrics.txt
-              retention-days: 7
+        name: grpc-metrics-${{ matrix.version }}
+        path: ./.metrics/grpc_metrics.txt
+        retention-days: 7
+
+    - name: Release Action then cache 
+      uses: actions/cache@v4
+      if: startsWith(github.ref, 'refs/tags/') && ${{ matrix.version }} == "v2"
+      with:
+        path: ./.metrics/grpc_metrics.txt
+        key: ${{ github.ref }}_grpc_metrics
 
     - name: Upload coverage to codecov
       uses: ./.github/actions/upload-codecov

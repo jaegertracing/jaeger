@@ -54,11 +54,18 @@ jobs:
 
     - name: Upload Metrics Artifact
       uses: actions/upload-artifact@v4
-      if: ${{ matrix.version.major }} == "v2"
+      if: ${{ matrix.version.jaeger }} == "v2"
       with:
-          name: opensearch-metrics-${{ matrix.version.jaeger }}
-          path: ./metrics/opensearch_metrics.txt
+          name: opensearch-metrics-${{ matrix.version.major }}
+          path: ./.metrics/opensearch_metrics.txt
           retention-days: 7
+
+    - name: Release Action then cache 
+      uses: actions/cache@v4
+      if: startsWith(github.ref, 'refs/tags/') && ${{ matrix.version.jaeger }} == "v2"
+      with:
+        path: ./.metrics/opensearch_metrics.txt
+        key: ${{ github.ref }}_kafka_metrics_${{ matrix.version.major }}
 
     - name: Upload coverage to codecov
       uses: ./.github/actions/upload-codecov

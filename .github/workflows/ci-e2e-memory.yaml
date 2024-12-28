@@ -34,8 +34,15 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
           name: memory-metrics
-          path: ./metrics/memory_metrics.txt
+          path: ./.metrics/memory_metrics.txt
           retention-days: 7
+    
+    - name: Release Action then cache 
+      uses: actions/cache@v4
+      if: startsWith(github.ref, 'refs/tags/')
+      with:
+        path: ./.metrics/memory_metrics.txt
+        key: ${{ github.ref }}_memory_metrics
           
     - name: Upload coverage to codecov
       uses: ./.github/actions/upload-codecov
