@@ -15,7 +15,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/es/mocks"
-	"github.com/jaegertracing/jaeger/plugin/storage/es/spanstore/dbmodel"
+	"github.com/jaegertracing/jaeger/plugin/storage/es/spanstore/internal/dbmodel"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 

@@ -15,7 +15,6 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/model"
-	"github.com/jaegertracing/jaeger/model/adjuster"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/storage"
@@ -31,8 +30,6 @@ import (
 const millisToNanosMultiplier = int64(time.Millisecond / time.Nanosecond)
 
 var (
-	errAdjustment = errors.New("adjustment error")
-
 	defaultDependencyLookbackDuration = time.Hour * 24
 
 	mockTraceID = model.NewTraceID(0, 123456)
@@ -77,14 +74,6 @@ func withArchiveSpanWriter() testOption {
 		r := &spanstoremocks.Writer{}
 		tqs.archiveSpanWriter = r
 		options.ArchiveSpanWriter = r
-	}
-}
-
-func withAdjuster() testOption {
-	return func(_ *testQueryService, options *QueryServiceOptions) {
-		options.Adjuster = adjuster.Func(func(trace *model.Trace) (*model.Trace, error) {
-			return trace, errAdjustment
-		})
 	}
 }
 
@@ -305,15 +294,6 @@ func TestArchiveTraceSuccess(t *testing.T) {
 	query := spanstore.GetTraceParameters{TraceID: mockTraceID}
 	err := tqs.queryService.ArchiveTrace(context.WithValue(ctx, contextKey("foo"), "bar"), query)
 	require.NoError(t, err)
-}
-
-// Test QueryService.Adjust()
-func TestTraceAdjustmentFailure(t *testing.T) {
-	tqs := initializeTestService(withAdjuster())
-
-	_, err := tqs.queryService.Adjust(mockTrace)
-	require.Error(t, err)
-	assert.EqualValues(t, errAdjustment.Error(), err.Error())
 }
 
 // Test QueryService.GetDependencies()

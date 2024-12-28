@@ -5,12 +5,9 @@
 package adjuster_test
 
 import (
-	"errors"
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/model/adjuster"
@@ -18,41 +15,17 @@ import (
 
 func TestSequences(t *testing.T) {
 	// mock adjuster that increments span ID
-	adj := adjuster.Func(func(trace *model.Trace) (*model.Trace, error) {
+	adj := adjuster.Func(func(trace *model.Trace) {
 		trace.Spans[0].SpanID++
-		return trace, nil
 	})
 
-	adjErr := errors.New("mock adjuster error")
-	failingAdj := adjuster.Func(func(trace *model.Trace) (*model.Trace, error) {
-		return trace, adjErr
-	})
+	seqAdjuster := adjuster.Sequence(adj, adj)
 
-	testCases := []struct {
-		adjuster   adjuster.Adjuster
-		err        string
-		lastSpanID int
-	}{
-		{
-			adjuster:   adjuster.Sequence(adj, failingAdj, adj, failingAdj),
-			err:        fmt.Sprintf("%s\n%s", adjErr, adjErr),
-			lastSpanID: 2,
-		},
-		{
-			adjuster:   adjuster.FailFastSequence(adj, failingAdj, adj, failingAdj),
-			err:        adjErr.Error(),
-			lastSpanID: 1,
-		},
-	}
+	span := &model.Span{}
+	trace := model.Trace{Spans: []*model.Span{span}}
 
-	for _, testCase := range testCases {
-		span := &model.Span{}
-		trace := model.Trace{Spans: []*model.Span{span}}
+	seqAdjuster.Adjust(&trace)
 
-		adjTrace, err := testCase.adjuster.Adjust(&trace)
-
-		assert.Equal(t, span, adjTrace.Spans[0], "same trace & span returned")
-		assert.EqualValues(t, testCase.lastSpanID, span.SpanID, "expect span ID to be incremented")
-		require.EqualError(t, err, testCase.err)
-	}
+	assert.Equal(t, span, trace.Spans[0], "same trace & span returned")
+	assert.EqualValues(t, 2, span.SpanID, "expect span ID to be incremented")
 }
