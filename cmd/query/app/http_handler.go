@@ -233,9 +233,7 @@ func (aH *APIHandler) search(w http.ResponseWriter, r *http.Request) {
 	if len(tQuery.traceIDs) > 0 {
 		tracesFromStorage, uiErrors, err = aH.tracesByIDs(
 			r.Context(),
-			tQuery.traceIDs,
-			tQuery.StartTimeMin,
-			tQuery.StartTimeMax,
+			tQuery,
 		)
 		if aH.handleError(w, err, http.StatusInternalServerError) {
 			return
@@ -264,16 +262,17 @@ func (aH *APIHandler) tracesToResponse(traces []*model.Trace, adjust bool, uiErr
 	}
 }
 
-func (aH *APIHandler) tracesByIDs(ctx context.Context, traceIDs []model.TraceID, startTime time.Time, endTime time.Time) ([]*model.Trace, []structuredError, error) {
+func (aH *APIHandler) tracesByIDs(ctx context.Context, traceQuery *traceQueryParameters) ([]*model.Trace, []structuredError, error) {
 	var traceErrors []structuredError
-	retMe := make([]*model.Trace, 0, len(traceIDs))
-	for _, traceID := range traceIDs {
+	retMe := make([]*model.Trace, 0, len(traceQuery.traceIDs))
+	for _, traceID := range traceQuery.traceIDs {
 		query := querysvc.GetTraceParameters{
 			GetTraceParameters: spanstore.GetTraceParameters{
 				TraceID:   traceID,
-				StartTime: startTime,
-				EndTime:   endTime,
+				StartTime: traceQuery.StartTimeMin,
+				EndTime:   traceQuery.StartTimeMax,
 			},
+			RawTraces: traceQuery.RawTraces,
 		}
 		if trc, err := aH.queryService.GetTrace(ctx, query); err != nil {
 			if !errors.Is(err, spanstore.ErrTraceNotFound) {
