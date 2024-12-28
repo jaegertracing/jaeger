@@ -236,12 +236,10 @@ func TestCacheStore_GetOperationsSameKind(t *testing.T) {
 	runWithBadger(t, func(store *badger.DB, t *testing.T) {
 		cache := NewCacheStore(store, 1*time.Hour, true)
 		writer := NewSpanWriter(store, cache, 1*time.Hour)
-		var spans []*model.Span
 		for i := 0; i < 5; i++ {
 			service := "service"
 			operation := fmt.Sprintf("op%d", i)
 			span := createDummySpanWithKind(service, operation, model.SpanKindServer, true)
-			spans = append(spans, span)
 			err := writer.WriteSpan(context.Background(), span)
 			require.NoError(t, err)
 		}
