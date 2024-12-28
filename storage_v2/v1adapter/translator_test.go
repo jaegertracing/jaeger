@@ -253,3 +253,46 @@ func TestV1TracesFromSeq2(t *testing.T) {
 		})
 	}
 }
+
+func TestCreateBatchesFromModelTrace(t *testing.T) {
+	testCases := []struct {
+		name            string
+		jtrace          model.Trace
+		expectedbatches []*model.Batch
+	}{
+		{
+			name: "one trace one batch",
+			jtrace: model.Trace{
+				Spans: []*model.Span{
+					{
+						OperationName: "one-trace-success",
+						TraceID:       model.NewTraceID(2, 3),
+						Process:       model.NewProcess("NoServiceName", nil),
+					},
+				},
+			},
+			expectedbatches: []*model.Batch{
+				{
+					Spans: []*model.Span{
+						{
+							OperationName: "one-trace-success",
+							TraceID: model.NewTraceID(2, 3),
+							Process: model.NewProcess("NoServiceName", nil),
+						},
+					},
+				},
+			} },
+		{
+			name: "no spans empty batches",
+			jtrace: model.Trace{},
+			expectedbatches: nil,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			batches := createBatchesFromModelTrace(tc.jtrace)
+			require.Equal(t, tc.expectedbatches, batches)
+		})
+	}
+}
