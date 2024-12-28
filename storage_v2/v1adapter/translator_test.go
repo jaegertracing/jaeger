@@ -276,15 +276,16 @@ func TestCreateBatchesFromModelTrace(t *testing.T) {
 					Spans: []*model.Span{
 						{
 							OperationName: "one-trace-success",
-							TraceID: model.NewTraceID(2, 3),
-							Process: model.NewProcess("NoServiceName", nil),
+							TraceID:       model.NewTraceID(2, 3),
+							Process:       model.NewProcess("NoServiceName", nil),
 						},
 					},
 				},
-			} },
+			},
+		},
 		{
-			name: "no spans empty batches",
-			jtrace: model.Trace{},
+			name:            "no spans empty batches",
+			jtrace:          model.Trace{},
 			expectedbatches: nil,
 		},
 	}
