@@ -216,6 +216,45 @@ func TestCacheStore_GetOperationsThrowError(t *testing.T) {
 	})
 }
 
+// Code Coverage Test
+func TestCacheStore_WrongSpanKindFromBadger(t *testing.T) {
+	runWithBadger(t, func(store *badger.DB, t *testing.T) {
+		cache := NewCacheStore(store, 1*time.Hour, true)
+		writer := NewSpanWriter(store, cache, 1*time.Hour)
+		span := createDummySpanWithKind("service", "operation", model.SpanKind("New Kind"), true)
+		err := writer.WriteSpan(context.Background(), span)
+		require.NoError(t, err)
+		newCache := NewCacheStore(store, 1*time.Hour, true)
+		_, foundService := newCache.services[span.Process.ServiceName]
+		assert.True(t, foundService)
+		_, foundOperation := newCache.operations[span.Process.ServiceName][model.SpanKindUnspecified][span.OperationName]
+		assert.True(t, foundOperation)
+	})
+}
+
+func TestCacheStore_GetOperationsSameKind(t *testing.T) {
+	runWithBadger(t, func(store *badger.DB, t *testing.T) {
+		cache := NewCacheStore(store, 1*time.Hour, true)
+		writer := NewSpanWriter(store, cache, 1*time.Hour)
+		var spans []*model.Span
+		for i := 0; i < 5; i++ {
+			service := "service"
+			operation := fmt.Sprintf("op%d", i)
+			span := createDummySpanWithKind(service, operation, model.SpanKindServer, true)
+			spans = append(spans, span)
+			err := writer.WriteSpan(context.Background(), span)
+			require.NoError(t, err)
+		}
+		operations, err := cache.GetOperations("service", string(model.SpanKindServer))
+		require.NoError(t, err)
+		assert.Len(t, operations, 5)
+		for i, operation := range operations {
+			assert.Equal(t, fmt.Sprintf("op%d", i), operation.Name)
+			assert.Equal(t, string(model.SpanKindServer), operation.SpanKind)
+		}
+	})
+}
+
 // func runFactoryTest(tb testing.TB, test func(tb testing.TB, sw spanstore.Writer, sr spanstore.Reader)) {
 func runWithBadger(t *testing.T, test func(store *badger.DB, t *testing.T)) {
 	opts := badger.DefaultOptions("")
