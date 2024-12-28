@@ -61,18 +61,23 @@ func NewQueryService(traceReader tracestore.Reader, dependencyReader depstore.Re
 	return qsvc
 }
 
+// GetTraceParameters defines the parameters for querying traces from the query service.
+type GetTraceParameters struct {
+	spanstore.GetTraceParameters
+}
+
 // GetTrace is the queryService implementation of spanstore.Reader.GetTrace
-func (qs QueryService) GetTrace(ctx context.Context, query spanstore.GetTraceParameters) (*model.Trace, error) {
+func (qs QueryService) GetTrace(ctx context.Context, query GetTraceParameters) (*model.Trace, error) {
 	spanReader, err := v1adapter.GetV1Reader(qs.traceReader)
 	if err != nil {
 		return nil, err
 	}
-	trace, err := spanReader.GetTrace(ctx, query)
+	trace, err := spanReader.GetTrace(ctx, query.GetTraceParameters)
 	if errors.Is(err, spanstore.ErrTraceNotFound) {
 		if qs.options.ArchiveSpanReader == nil {
 			return nil, err
 		}
-		trace, err = qs.options.ArchiveSpanReader.GetTrace(ctx, query)
+		trace, err = qs.options.ArchiveSpanReader.GetTrace(ctx, query.GetTraceParameters)
 	}
 	return trace, err
 }
@@ -108,7 +113,7 @@ func (qs QueryService) FindTraces(ctx context.Context, query *spanstore.TraceQue
 }
 
 // ArchiveTrace is the queryService utility to archive traces.
-func (qs QueryService) ArchiveTrace(ctx context.Context, query spanstore.GetTraceParameters) error {
+func (qs QueryService) ArchiveTrace(ctx context.Context, query GetTraceParameters) error {
 	if qs.options.ArchiveSpanWriter == nil {
 		return errNoArchiveSpanStorage
 	}
