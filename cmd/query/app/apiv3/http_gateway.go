@@ -27,17 +27,18 @@ import (
 )
 
 const (
-	paramTraceID       = "trace_id" // get trace by ID
-	paramStartTime     = "start_time"
-	paramEndTime       = "end_time"
-	paramServiceName   = "query.service_name" // find traces
-	paramOperationName = "query.operation_name"
-	paramTimeMin       = "query.start_time_min"
-	paramTimeMax       = "query.start_time_max"
-	paramNumTraces     = "query.num_traces"
-	paramDurationMin   = "query.duration_min"
-	paramDurationMax   = "query.duration_max"
-	paramRawTraces     = "query.raw_traces"
+	paramTraceID        = "trace_id" // get trace by ID
+	paramStartTime      = "start_time"
+	paramEndTime        = "end_time"
+	paramRawTraces      = "raw_traces"
+	paramServiceName    = "query.service_name" // find traces
+	paramOperationName  = "query.operation_name"
+	paramTimeMin        = "query.start_time_min"
+	paramTimeMax        = "query.start_time_max"
+	paramNumTraces      = "query.num_traces"
+	paramDurationMin    = "query.duration_min"
+	paramDurationMax    = "query.duration_max"
+	paramQueryRawTraces = "query.raw_traces"
 
 	routeGetTrace      = "/api/v3/traces/{" + paramTraceID + "}"
 	routeFindTraces    = "/api/v3/traces"
@@ -239,9 +240,9 @@ func (h *HTTPGateway) parseFindTracesQuery(q url.Values, w http.ResponseWriter) 
 		}
 		queryParams.DurationMax = dur
 	}
-	if r := q.Get(paramRawTraces); r != "" {
+	if r := q.Get(paramQueryRawTraces); r != "" {
 		rawTraces, err := strconv.ParseBool(r)
-		if h.tryParamError(w, err, paramRawTraces) {
+		if h.tryParamError(w, err, paramQueryRawTraces) {
 			return nil, true
 		}
 		queryParams.RawTraces = rawTraces

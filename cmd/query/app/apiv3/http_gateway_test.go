@@ -169,8 +169,8 @@ func TestHTTPGatewayGetTraceMalformedInputErrors(t *testing.T) {
 		},
 		{
 			name:          "TestGetTraceWithInvalidRawTraces",
-			requestUrl:    "/api/v3/traces/123?query.raw_traces=foobar",
-			expectedError: "malformed parameter query.raw_traces",
+			requestUrl:    "/api/v3/traces/123?raw_traces=foobar",
+			expectedError: "malformed parameter raw_traces",
 		},
 	}
 
