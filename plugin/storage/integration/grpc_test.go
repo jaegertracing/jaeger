@@ -13,7 +13,9 @@ import (
 
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc"
+	"github.com/jaegertracing/jaeger/storage_v2/v1adapter"
 )
 
 type GRPCStorageIntegrationTestSuite struct {
@@ -37,8 +39,9 @@ func (s *GRPCStorageIntegrationTestSuite) initialize(t *testing.T) {
 
 	s.SpanWriter, err = f.CreateSpanWriter()
 	require.NoError(t, err)
-	s.SpanReader, err = f.CreateSpanReader()
+	spanReader, err := f.CreateSpanReader()
 	require.NoError(t, err)
+	s.TraceReader = v1adapter.NewTraceReader(spanReader)
 	s.ArchiveSpanReader, err = f.CreateArchiveSpanReader()
 	require.NoError(t, err)
 	s.ArchiveSpanWriter, err = f.CreateArchiveSpanWriter()
@@ -61,6 +64,9 @@ func (s *GRPCStorageIntegrationTestSuite) cleanUp(t *testing.T) {
 
 func TestGRPCRemoteStorage(t *testing.T) {
 	SkipUnlessEnv(t, "grpc")
+	t.Cleanup(func() {
+		testutils.VerifyGoLeaksOnce(t)
+	})
 	s := &GRPCStorageIntegrationTestSuite{
 		flags: []string{
 			"--grpc-storage.server=localhost:17271",

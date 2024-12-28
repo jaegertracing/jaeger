@@ -10,6 +10,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"path"
 	"strings"
 	"sync"
 
@@ -17,6 +18,8 @@ import (
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componentstatus"
 	"go.opentelemetry.io/collector/config/configgrpc"
+	"go.opentelemetry.io/collector/config/confighttp/xconfighttp"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health"
@@ -24,8 +27,8 @@ import (
 	"google.golang.org/grpc/reflection"
 
 	"github.com/jaegertracing/jaeger/cmd/query/app/apiv3"
-	"github.com/jaegertracing/jaeger/cmd/query/app/internal/api_v3"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
+	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
 	"github.com/jaegertracing/jaeger/pkg/bearertoken"
 	"github.com/jaegertracing/jaeger/pkg/netutils"
 	"github.com/jaegertracing/jaeger/pkg/recoveryhandler"
@@ -219,6 +222,12 @@ func createHTTPServer(
 			MeterProvider:  telset.MeterProvider,
 		},
 		handler,
+		xconfighttp.WithOtelHTTPOptions(
+			otelhttp.WithFilter(func(r *http.Request) bool {
+				ignorePath := path.Join("/", queryOpts.BasePath, "static")
+				return !strings.HasPrefix(r.URL.Path, ignorePath)
+			}),
+		),
 	)
 	if err != nil {
 		return nil, errors.Join(err, staticHandlerCloser.Close())

@@ -76,7 +76,7 @@ func (ts *TailSamplingIntegration) testTailSamplingProccessor(t *testing.T) {
 	var actual []string
 	assert.Eventually(t, func() bool {
 		var err error
-		actual, err = ts.SpanReader.GetServices(context.Background())
+		actual, err = ts.TraceReader.GetServices(context.Background())
 		require.NoError(t, err)
 		sort.Strings(actual)
 		return assert.ObjectsAreEqualValues(ts.expectedServices, actual)

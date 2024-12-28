@@ -32,7 +32,6 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	"github.com/jaegertracing/jaeger/model"
-	"github.com/jaegertracing/jaeger/model/adjuster"
 	ui "github.com/jaegertracing/jaeger/model/json"
 	"github.com/jaegertracing/jaeger/pkg/jtracer"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
@@ -42,7 +41,7 @@ import (
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	spanstoremocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
 	depsmocks "github.com/jaegertracing/jaeger/storage_v2/depstore/mocks"
-	"github.com/jaegertracing/jaeger/storage_v2/factoryadapter"
+	"github.com/jaegertracing/jaeger/storage_v2/v1adapter"
 )
 
 const millisToNanosMultiplier = int64(time.Millisecond / time.Nanosecond)
@@ -59,13 +58,14 @@ func (m *IoReaderMock) Read(b []byte) (int, error) {
 var (
 	errStorageMsg = "storage error"
 	errStorage    = errors.New(errStorageMsg)
-	errAdjustment = errors.New("adjustment error")
 
 	httpClient = &http.Client{
 		Timeout: 2 * time.Second,
 	}
 
 	mockTraceID = model.NewTraceID(0, 123456)
+	startTime   = time.Date(2020, time.January, 1, 13, 0, 0, 0, time.UTC)
+	endTime     = time.Date(2020, time.January, 1, 14, 0, 0, 0, time.UTC)
 	mockTrace   = &model.Trace{
 		Spans: []*model.Span{
 			{
@@ -120,7 +120,7 @@ func initializeTestServerWithOptions(
 	options = append(options, HandlerOptions.Logger(zaptest.NewLogger(t)))
 	readStorage := &spanstoremocks.Reader{}
 	dependencyStorage := &depsmocks.Reader{}
-	traceReader := factoryadapter.NewTraceReader(readStorage)
+	traceReader := v1adapter.NewTraceReader(readStorage)
 	qs := querysvc.NewQueryService(traceReader, dependencyStorage, queryOptions)
 	r := NewRouter()
 	apiHandler := NewAPIHandler(qs, options...)
@@ -155,7 +155,7 @@ func withTestServer(t *testing.T, doTest func(s *testServer), queryOptions query
 
 func TestGetTraceSuccess(t *testing.T) {
 	ts := initializeTestServer(t)
-	ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
+	ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("spanstore.GetTraceParameters")).
 		Return(mockTrace, nil).Once()
 
 	var response structuredResponse
@@ -182,7 +182,7 @@ func TestGetTraceDedupeSuccess(t *testing.T) {
 	}
 
 	ts := initializeTestServer(t)
-	ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
+	ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("spanstore.GetTraceParameters")).
 		Return(dupedMockTrace, nil).Once()
 
 	var response structuredResponse
@@ -196,11 +196,25 @@ func TestGetTraceDedupeSuccess(t *testing.T) {
 	}
 }
 
+func TestGetTraceWithTimeWindowSuccess(t *testing.T) {
+	ts := initializeTestServer(t)
+	ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), spanstore.GetTraceParameters{
+		TraceID:   mockTraceID,
+		StartTime: time.UnixMicro(1),
+		EndTime:   time.UnixMicro(2),
+	}).Return(mockTrace, nil).Once()
+
+	var response structuredResponse
+	err := getJSON(ts.server.URL+`/api/traces/`+mockTraceID.String()+`?start=1&end=2`, &response)
+	require.NoError(t, err)
+	assert.Empty(t, response.Errors)
+}
+
 func TestLogOnServerError(t *testing.T) {
 	zapCore, logs := observer.New(zap.InfoLevel)
 	logger := zap.New(zapCore)
 	readStorage := &spanstoremocks.Reader{}
-	traceReader := factoryadapter.NewTraceReader(readStorage)
+	traceReader := v1adapter.NewTraceReader(readStorage)
 	dependencyStorage := &depsmocks.Reader{}
 	qs := querysvc.NewQueryService(traceReader, dependencyStorage, querysvc.QueryServiceOptions{})
 	h := NewAPIHandler(qs, HandlerOptions.Logger(logger))
@@ -324,7 +338,7 @@ func TestGetTrace(t *testing.T) {
 
 			ts := initializeTestServer(t, HandlerOptions.Tracer(jTracer.OTEL))
 
-			ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), model.NewTraceID(0, 0x123456abc)).
+			ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), spanstore.GetTraceParameters{TraceID: model.NewTraceID(0, 0x123456abc)}).
 				Return(makeMockTrace(t), nil).Once()
 
 			var response structuredResponse
@@ -341,7 +355,7 @@ func TestGetTrace(t *testing.T) {
 
 func TestGetTraceDBFailure(t *testing.T) {
 	ts := initializeTestServer(t)
-	ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
+	ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("spanstore.GetTraceParameters")).
 		Return(nil, errStorage).Once()
 
 	var response structuredResponse
@@ -351,31 +365,12 @@ func TestGetTraceDBFailure(t *testing.T) {
 
 func TestGetTraceNotFound(t *testing.T) {
 	ts := initializeTestServer(t)
-	ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
+	ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("spanstore.GetTraceParameters")).
 		Return(nil, spanstore.ErrTraceNotFound).Once()
 
 	var response structuredResponse
 	err := getJSON(ts.server.URL+`/api/traces/123456`, &response)
 	require.EqualError(t, err, parsedError(404, "trace not found"))
-}
-
-func TestGetTraceAdjustmentFailure(t *testing.T) {
-	ts := initializeTestServerWithHandler(
-		t,
-		querysvc.QueryServiceOptions{
-			Adjuster: adjuster.Func(func(trace *model.Trace) (*model.Trace, error) {
-				return trace, errAdjustment
-			}),
-		},
-	)
-	ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
-		Return(mockTrace, nil).Once()
-
-	var response structuredResponse
-	err := getJSON(ts.server.URL+`/api/traces/123456`, &response)
-	require.NoError(t, err)
-	assert.Len(t, response.Errors, 1)
-	assert.EqualValues(t, errAdjustment.Error(), response.Errors[0].Msg)
 }
 
 func TestGetTraceBadTraceID(t *testing.T) {
@@ -384,6 +379,32 @@ func TestGetTraceBadTraceID(t *testing.T) {
 	var response structuredResponse
 	err := getJSON(ts.server.URL+`/api/traces/chumbawumba`, &response)
 	require.Error(t, err)
+}
+
+func TestGetTraceBadTimeWindow(t *testing.T) {
+	testCases := []struct {
+		name  string
+		query string
+	}{
+		{
+			name:  "Bad start time",
+			query: "start=a",
+		},
+		{
+			name:  "Bad end time",
+			query: "end=b",
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ts := initializeTestServer(t)
+			var response structuredResponse
+			err := getJSON(ts.server.URL+`/api/traces/123456?`+tc.query, &response)
+			require.Error(t, err)
+			require.ErrorContains(t, err, "400 error from server")
+			require.ErrorContains(t, err, "unable to parse param")
+		})
+	}
 }
 
 func TestSearchSuccess(t *testing.T) {
@@ -399,7 +420,7 @@ func TestSearchSuccess(t *testing.T) {
 
 func TestSearchByTraceIDSuccess(t *testing.T) {
 	ts := initializeTestServer(t)
-	ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
+	ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("spanstore.GetTraceParameters")).
 		Return(mockTrace, nil).Twice()
 
 	var response structuredResponse
@@ -407,6 +428,57 @@ func TestSearchByTraceIDSuccess(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, response.Errors)
 	assert.Len(t, response.Data, 2)
+}
+
+func TestSearchByTraceIDWithTimeWindowSuccess(t *testing.T) {
+	ts := initializeTestServer(t)
+	expectedQuery1 := spanstore.GetTraceParameters{
+		TraceID:   mockTraceID,
+		StartTime: time.UnixMicro(1),
+		EndTime:   time.UnixMicro(2),
+	}
+	traceId2 := model.NewTraceID(0, 456789)
+	expectedQuery2 := spanstore.GetTraceParameters{
+		TraceID:   traceId2,
+		StartTime: time.UnixMicro(1),
+		EndTime:   time.UnixMicro(2),
+	}
+	ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), expectedQuery1).
+		Return(mockTrace, nil)
+	ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), expectedQuery2).
+		Return(mockTrace, nil)
+
+	var response structuredResponse
+	err := getJSON(ts.server.URL+`/api/traces?traceID=`+mockTraceID.String()+`&traceID=`+traceId2.String()+`&start=1&end=2`, &response)
+	require.NoError(t, err)
+	assert.Empty(t, response.Errors)
+	assert.Len(t, response.Data, 2)
+}
+
+func TestSearchTraceBadTimeWindow(t *testing.T) {
+	testCases := []struct {
+		name  string
+		query string
+	}{
+		{
+			name:  "Bad start time",
+			query: "start=a",
+		},
+		{
+			name:  "Bad end time",
+			query: "end=b",
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ts := initializeTestServer(t)
+			var response structuredResponse
+			err := getJSON(ts.server.URL+`/api/traces?traceID=1&traceID=2&`+tc.query, &response)
+			require.Error(t, err)
+			require.ErrorContains(t, err, "400 error from server")
+			require.ErrorContains(t, err, "unable to parse param")
+		})
+	}
 }
 
 func TestSearchByTraceIDSuccessWithArchive(t *testing.T) {
@@ -414,9 +486,9 @@ func TestSearchByTraceIDSuccessWithArchive(t *testing.T) {
 	ts := initializeTestServerWithOptions(t, &tenancy.Manager{}, querysvc.QueryServiceOptions{
 		ArchiveSpanReader: archiveReadMock,
 	})
-	ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
+	ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("spanstore.GetTraceParameters")).
 		Return(nil, spanstore.ErrTraceNotFound).Twice()
-	archiveReadMock.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
+	archiveReadMock.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("spanstore.GetTraceParameters")).
 		Return(mockTrace, nil).Twice()
 
 	var response structuredResponse
@@ -426,9 +498,31 @@ func TestSearchByTraceIDSuccessWithArchive(t *testing.T) {
 	assert.Len(t, response.Data, 2)
 }
 
+func TestSearchByTraceIDSuccessWithArchiveAndTimeWindow(t *testing.T) {
+	archiveReadMock := &spanstoremocks.Reader{}
+	ts := initializeTestServerWithOptions(t, &tenancy.Manager{}, querysvc.QueryServiceOptions{
+		ArchiveSpanReader: archiveReadMock,
+	})
+	expectedQuery := spanstore.GetTraceParameters{
+		TraceID:   mockTraceID,
+		StartTime: time.UnixMicro(1),
+		EndTime:   time.UnixMicro(2),
+	}
+	ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), expectedQuery).
+		Return(nil, spanstore.ErrTraceNotFound)
+	archiveReadMock.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), expectedQuery).
+		Return(mockTrace, nil)
+
+	var response structuredResponse
+	err := getJSON(ts.server.URL+`/api/traces?traceID=`+mockTraceID.String()+`&start=1&end=2`, &response)
+	require.NoError(t, err)
+	assert.Empty(t, response.Errors)
+	assert.Len(t, response.Data, 1)
+}
+
 func TestSearchByTraceIDNotFound(t *testing.T) {
 	ts := initializeTestServer(t)
-	ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
+	ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("spanstore.GetTraceParameters")).
 		Return(nil, spanstore.ErrTraceNotFound).Once()
 
 	var response structuredResponse
@@ -441,31 +535,12 @@ func TestSearchByTraceIDNotFound(t *testing.T) {
 func TestSearchByTraceIDFailure(t *testing.T) {
 	ts := initializeTestServer(t)
 	whatsamattayou := "whatsamattayou"
-	ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
+	ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("spanstore.GetTraceParameters")).
 		Return(nil, errors.New(whatsamattayou)).Once()
 
 	var response structuredResponse
 	err := getJSON(ts.server.URL+`/api/traces?traceID=1`, &response)
 	require.EqualError(t, err, parsedError(500, whatsamattayou))
-}
-
-func TestSearchModelConversionFailure(t *testing.T) {
-	ts := initializeTestServerWithOptions(
-		t,
-		&tenancy.Manager{},
-		querysvc.QueryServiceOptions{
-			Adjuster: adjuster.Func(func(trace *model.Trace) (*model.Trace, error) {
-				return trace, errAdjustment
-			}),
-		},
-	)
-	ts.spanReader.On("FindTraces", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("*spanstore.TraceQueryParameters")).
-		Return([]*model.Trace{mockTrace}, nil).Once()
-	var response structuredResponse
-	err := getJSON(ts.server.URL+`/api/traces?service=service&start=0&end=0&operation=operation&limit=200&minDuration=20ms`, &response)
-	require.NoError(t, err)
-	assert.Len(t, response.Errors, 1)
-	assert.EqualValues(t, errAdjustment.Error(), response.Errors[0].Msg)
 }
 
 func TestSearchDBFailure(t *testing.T) {
@@ -915,7 +990,7 @@ func TestSearchTenancyHTTP(t *testing.T) {
 	ts := initializeTestServerWithOptions(t,
 		tenancy.NewManager(&tenancyOptions),
 		querysvc.QueryServiceOptions{})
-	ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
+	ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("spanstore.GetTraceParameters")).
 		Return(mockTrace, nil).Twice()
 
 	var response structuredResponse
@@ -939,7 +1014,7 @@ func TestSearchTenancyRejectionHTTP(t *testing.T) {
 		Enabled: true,
 	}
 	ts := initializeTestServerWithOptions(t, tenancy.NewManager(&tenancyOptions), querysvc.QueryServiceOptions{})
-	ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
+	ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("spanstore.GetTraceParameters")).
 		Return(mockTrace, nil).Twice()
 
 	req, err := http.NewRequest(http.MethodGet, ts.server.URL+`/api/traces?traceID=1&traceID=2`, nil)
@@ -971,14 +1046,14 @@ func TestSearchTenancyFlowTenantHTTP(t *testing.T) {
 			return false
 		}
 		return true
-	}), mock.AnythingOfType("model.TraceID")).Return(mockTrace, nil).Twice()
+	}), mock.AnythingOfType("spanstore.GetTraceParameters")).Return(mockTrace, nil).Twice()
 	ts.spanReader.On("GetTrace", mock.MatchedBy(func(v any) bool {
 		ctx, ok := v.(context.Context)
 		if !ok || tenancy.GetTenant(ctx) != "megacorp" {
 			return false
 		}
 		return true
-	}), mock.AnythingOfType("model.TraceID")).Return(nil, errStorage).Once()
+	}), mock.AnythingOfType("spanstore.GetTraceParameters")).Return(nil, errStorage).Once()
 
 	var responseAcme structuredResponse
 	err := getJSONCustomHeaders(

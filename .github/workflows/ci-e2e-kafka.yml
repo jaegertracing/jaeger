@@ -17,8 +17,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        jaeger-version: [v1, v2]  # Adjust if there are specific versions of Jaeger
-    name: kafka ${{ matrix.jaeger-version }}
+        jaeger-version: [v1, v2]
+        kafka-version: ["3.x"]
+    name: kafka ${{matrix.kafka-version }} ${{ matrix.jaeger-version }}
     steps:
     - name: Harden Runner
       uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
@@ -31,9 +32,9 @@ jobs:
       with:
         go-version: 1.23.x
 
-    - name: Run Kafka integration tests
+    - name: Run kafka integration tests
       id: test-execution
-      run: bash scripts/kafka-integration-test.sh -j ${{ matrix.jaeger-version }}
+      run: bash scripts/kafka-integration-test.sh -j ${{ matrix.jaeger-version }} -v ${{ matrix.kafka-version }}
             
     - name: Upload Metrics Artifact
       uses: actions/upload-artifact@v4
@@ -54,4 +55,4 @@ jobs:
       uses: ./.github/actions/upload-codecov
       with:
         files: cover.out
-        flags: kafka-${{ matrix.jaeger-version }}
+        flags: kafka-${{ matrix.kafka-version }}-${{ matrix.jaeger-version }}

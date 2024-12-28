@@ -23,8 +23,10 @@ import (
 
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/plugin/storage/es"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
+	"github.com/jaegertracing/jaeger/storage_v2/v1adapter"
 )
 
 const (
@@ -71,16 +73,20 @@ func (s *ESStorageIntegration) getVersion() (uint, error) {
 	return uint(esVersion), nil
 }
 
-func (s *ESStorageIntegration) initializeES(t *testing.T, allTagsAsFields bool) {
+func (s *ESStorageIntegration) initializeES(t *testing.T, c *http.Client, allTagsAsFields bool) {
 	rawClient, err := elastic.NewClient(
 		elastic.SetURL(queryURL),
-		elastic.SetSniff(false))
+		elastic.SetSniff(false),
+		elastic.SetHttpClient(c))
 	require.NoError(t, err)
-
+	t.Cleanup(func() {
+		rawClient.Stop()
+	})
 	s.client = rawClient
 	s.v8Client, err = elasticsearch8.NewClient(elasticsearch8.Config{
 		Addresses:            []string{queryURL},
 		DiscoverNodesOnStart: false,
+		Transport:            c.Transport,
 	})
 	require.NoError(t, err)
 
@@ -129,8 +135,9 @@ func (s *ESStorageIntegration) initSpanstore(t *testing.T, allTagsAsFields bool)
 	var err error
 	s.SpanWriter, err = f.CreateSpanWriter()
 	require.NoError(t, err)
-	s.SpanReader, err = f.CreateSpanReader()
+	spanReader, err := f.CreateSpanReader()
 	require.NoError(t, err)
+	s.TraceReader = v1adapter.NewTraceReader(spanReader)
 	s.ArchiveSpanReader, err = f.CreateArchiveSpanReader()
 	require.NoError(t, err)
 	s.ArchiveSpanWriter, err = f.CreateArchiveSpanWriter()
@@ -144,10 +151,10 @@ func (s *ESStorageIntegration) initSpanstore(t *testing.T, allTagsAsFields bool)
 	require.NoError(t, err)
 }
 
-func healthCheck() error {
+func healthCheck(c *http.Client) error {
 	for i := 0; i < 200; i++ {
-		if _, err := http.Get(queryURL); err == nil {
-			return nil
+		if resp, err := c.Get(queryURL); err == nil {
+			return resp.Body.Close()
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
@@ -156,7 +163,8 @@ func healthCheck() error {
 
 func testElasticsearchStorage(t *testing.T, allTagsAsFields bool) {
 	SkipUnlessEnv(t, "elasticsearch", "opensearch")
-	require.NoError(t, healthCheck())
+	c := getESHttpClient(t)
+	require.NoError(t, healthCheck(c))
 	s := &ESStorageIntegration{
 		StorageIntegration: StorageIntegration{
 			Fixtures:        LoadAndParseQueryTestCases(t, "fixtures/queries_es.json"),
@@ -166,23 +174,33 @@ func testElasticsearchStorage(t *testing.T, allTagsAsFields bool) {
 			GetOperationsMissingSpanKind: true,
 		},
 	}
-	s.initializeES(t, allTagsAsFields)
+	s.initializeES(t, c, allTagsAsFields)
 	s.RunAll(t)
 }
 
 func TestElasticsearchStorage(t *testing.T) {
+	t.Cleanup(func() {
+		testutils.VerifyGoLeaksOnceForES(t)
+	})
 	testElasticsearchStorage(t, false)
 }
 
 func TestElasticsearchStorage_AllTagsAsObjectFields(t *testing.T) {
+	t.Cleanup(func() {
+		testutils.VerifyGoLeaksOnceForES(t)
+	})
 	testElasticsearchStorage(t, true)
 }
 
 func TestElasticsearchStorage_IndexTemplates(t *testing.T) {
 	SkipUnlessEnv(t, "elasticsearch", "opensearch")
-	require.NoError(t, healthCheck())
+	t.Cleanup(func() {
+		testutils.VerifyGoLeaksOnceForES(t)
+	})
+	c := getESHttpClient(t)
+	require.NoError(t, healthCheck(c))
 	s := &ESStorageIntegration{}
-	s.initializeES(t, true)
+	s.initializeES(t, c, true)
 	esVersion, err := s.getVersion()
 	require.NoError(t, err)
 	// TODO abstract this into pkg/es/client.IndexManagementLifecycleAPI

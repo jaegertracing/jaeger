@@ -12,7 +12,9 @@ import (
 	"go.uber.org/zap/zaptest"
 
 	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/plugin/storage/badger"
+	"github.com/jaegertracing/jaeger/storage_v2/v1adapter"
 )
 
 type BadgerIntegrationStorage struct {
@@ -34,8 +36,9 @@ func (s *BadgerIntegrationStorage) initialize(t *testing.T) {
 	s.SpanWriter, err = s.factory.CreateSpanWriter()
 	require.NoError(t, err)
 
-	s.SpanReader, err = s.factory.CreateSpanReader()
+	spanReader, err := s.factory.CreateSpanReader()
 	require.NoError(t, err)
+	s.TraceReader = v1adapter.NewTraceReader(spanReader)
 
 	s.SamplingStore, err = s.factory.CreateSamplingStore(0)
 	require.NoError(t, err)
@@ -47,6 +50,9 @@ func (s *BadgerIntegrationStorage) cleanUp(t *testing.T) {
 
 func TestBadgerStorage(t *testing.T) {
 	SkipUnlessEnv(t, "badger")
+	t.Cleanup(func() {
+		testutils.VerifyGoLeaksOnce(t)
+	})
 	s := &BadgerIntegrationStorage{
 		StorageIntegration: StorageIntegration{
 			SkipArchiveTest: true,

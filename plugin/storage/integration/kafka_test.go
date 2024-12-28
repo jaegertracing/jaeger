@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/Shopify/sarama"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
@@ -20,9 +21,11 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/kafka/consumer"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/plugin/storage/kafka"
 	"github.com/jaegertracing/jaeger/plugin/storage/memory"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
+	"github.com/jaegertracing/jaeger/storage_v2/v1adapter"
 )
 
 const defaultLocalKafkaBroker = "127.0.0.1:9092"
@@ -53,10 +56,11 @@ func (s *KafkaIntegrationTestSuite) initialize(t *testing.T) {
 	f.InitFromViper(v, logger)
 	err = f.Initialize(metrics.NullFactory, logger)
 	require.NoError(t, err)
-
+	t.Cleanup(func() {
+		assert.NoError(t, f.Close())
+	})
 	spanWriter, err := f.CreateSpanWriter()
 	require.NoError(t, err)
-
 	v, command = config.Viperize(app.AddFlags)
 	err = command.ParseFlags([]string{
 		"--kafka.consumer.topic",
@@ -82,10 +86,14 @@ func (s *KafkaIntegrationTestSuite) initialize(t *testing.T) {
 	traceStore := memory.NewStore()
 	spanConsumer, err := builder.CreateConsumer(logger, metrics.NullFactory, traceStore, options)
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		assert.NoError(t, spanConsumer.Close())
+	})
 	spanConsumer.Start()
 
 	s.SpanWriter = spanWriter
-	s.SpanReader = &ingester{traceStore}
+	spanReader := &ingester{traceStore}
+	s.TraceReader = v1adapter.NewTraceReader(spanReader)
 	s.CleanUp = func(_ *testing.T) {}
 	s.SkipArchiveTest = true
 }
@@ -95,8 +103,8 @@ type ingester struct {
 	traceStore *memory.Store
 }
 
-func (r *ingester) GetTrace(ctx context.Context, traceID model.TraceID) (*model.Trace, error) {
-	return r.traceStore.GetTrace(ctx, traceID)
+func (r *ingester) GetTrace(ctx context.Context, query spanstore.GetTraceParameters) (*model.Trace, error) {
+	return r.traceStore.GetTrace(ctx, query)
 }
 
 func (*ingester) GetServices(context.Context) ([]string, error) {
@@ -120,6 +128,9 @@ func (*ingester) FindTraceIDs(context.Context, *spanstore.TraceQueryParameters) 
 
 func TestKafkaStorage(t *testing.T) {
 	SkipUnlessEnv(t, "kafka")
+	t.Cleanup(func() {
+		testutils.VerifyGoLeaksOnce(t)
+	})
 	s := &KafkaIntegrationTestSuite{}
 	s.initialize(t)
 	t.Run("GetTrace", s.testGetTrace)

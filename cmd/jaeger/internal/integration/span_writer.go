@@ -9,7 +9,6 @@ import (
 	"io"
 	"time"
 
-	jaeger2otlp "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger"
 	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/config/configtls"
 	"go.opentelemetry.io/collector/exporter"
@@ -19,6 +18,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
+	"github.com/jaegertracing/jaeger/storage_v2/v1adapter"
 )
 
 var (
@@ -68,15 +68,12 @@ func (w *spanWriter) Close() error {
 }
 
 func (w *spanWriter) WriteSpan(ctx context.Context, span *model.Span) error {
-	td, err := jaeger2otlp.ProtoToTraces([]*model.Batch{
+	td := v1adapter.V1BatchesToTraces([]*model.Batch{
 		{
 			Spans:   []*model.Span{span},
 			Process: span.Process,
 		},
 	})
-	if err != nil {
-		return err
-	}
 
 	return w.exporter.ConsumeTraces(ctx, td)
 }

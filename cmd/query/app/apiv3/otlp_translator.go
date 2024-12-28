@@ -4,13 +4,14 @@
 package apiv3
 
 import (
-	model2otel "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger/storage_v2/v1adapter"
 )
 
-func modelToOTLP(spans []*model.Span) (ptrace.Traces, error) {
+func modelToOTLP(spans []*model.Span) ptrace.Traces {
 	batch := &model.Batch{Spans: spans}
-	return model2otel.ProtoToTraces([]*model.Batch{batch})
+	tr := v1adapter.V1BatchesToTraces([]*model.Batch{batch})
+	return tr
 }

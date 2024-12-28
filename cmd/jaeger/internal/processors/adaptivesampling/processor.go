@@ -7,7 +7,6 @@ import (
 	"context"
 	"fmt"
 
-	otlp2jaeger "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
@@ -15,6 +14,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/remotesampling"
 	"github.com/jaegertracing/jaeger/internal/metrics/otelmetrics"
 	"github.com/jaegertracing/jaeger/plugin/sampling/strategyprovider/adaptive"
+	"github.com/jaegertracing/jaeger/storage_v2/v1adapter"
 )
 
 type traceProcessor struct {
@@ -65,7 +65,7 @@ func (tp *traceProcessor) close(context.Context) error {
 }
 
 func (tp *traceProcessor) processTraces(_ context.Context, td ptrace.Traces) (ptrace.Traces, error) {
-	batches := otlp2jaeger.ProtoFromTraces(td)
+	batches := v1adapter.ProtoFromTraces(td)
 	for _, batch := range batches {
 		for _, span := range batch.Spans {
 			if span.Process == nil {

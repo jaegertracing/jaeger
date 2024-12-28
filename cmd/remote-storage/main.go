@@ -57,7 +57,7 @@ func main() {
 			metricsFactory := baseFactory.Namespace(metrics.NSOptions{Name: "remote-storage"})
 			version.NewInfoMetrics(metricsFactory)
 
-			opts, err := new(app.Options).InitFromViper(v, logger)
+			opts, err := new(app.Options).InitFromViper(v)
 			if err != nil {
 				logger.Fatal("Failed to parse options", zap.Error(err))
 			}

@@ -8,8 +8,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go.opentelemetry.io/otel/trace"
 
 	"github.com/jaegertracing/jaeger/model"
 )
@@ -17,7 +15,6 @@ import (
 var (
 	clientSpanID  = model.NewSpanID(1)
 	anotherSpanID = model.NewSpanID(11)
-	keySpanKind   = "span.kind"
 )
 
 func newZipkinTrace() *model.Trace {
@@ -30,7 +27,7 @@ func newZipkinTrace() *model.Trace {
 				SpanID:  clientSpanID,
 				Tags: model.KeyValues{
 					// span.kind = client
-					model.String(keySpanKind, trace.SpanKindClient.String()),
+					model.SpanKindTag(model.SpanKindClient),
 				},
 			},
 			{
@@ -39,7 +36,7 @@ func newZipkinTrace() *model.Trace {
 				SpanID:  clientSpanID, // shared span ID
 				Tags: model.KeyValues{
 					// span.kind = server
-					model.String(keySpanKind, trace.SpanKindServer.String()),
+					model.SpanKindTag(model.SpanKindServer),
 				},
 			},
 			{
@@ -55,8 +52,7 @@ func newZipkinTrace() *model.Trace {
 func TestZipkinSpanIDUniquifierTriggered(t *testing.T) {
 	trc := newZipkinTrace()
 	deduper := ZipkinSpanIDUniquifier()
-	trc, err := deduper.Adjust(trc)
-	require.NoError(t, err)
+	deduper.Adjust(trc)
 
 	clientSpan := trc.Spans[0]
 	assert.Equal(t, clientSpanID, clientSpan.SpanID, "client span ID should not change")
@@ -75,8 +71,7 @@ func TestZipkinSpanIDUniquifierNotTriggered(t *testing.T) {
 	trc.Spans = trc.Spans[1:] // remove client span
 
 	deduper := ZipkinSpanIDUniquifier()
-	trc, err := deduper.Adjust(trc)
-	require.NoError(t, err)
+	deduper.Adjust(trc)
 
 	serverSpanID := clientSpanID // for better readability
 	serverSpan := trc.Spans[0]

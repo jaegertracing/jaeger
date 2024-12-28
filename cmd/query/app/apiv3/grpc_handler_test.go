@@ -16,19 +16,19 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
-	"github.com/jaegertracing/jaeger/cmd/query/app/internal/api_v3"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
+	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
 	"github.com/jaegertracing/jaeger/model"
 	_ "github.com/jaegertracing/jaeger/pkg/gogocodec" // force gogo codec registration
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	spanstoremocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
 	dependencyStoreMocks "github.com/jaegertracing/jaeger/storage_v2/depstore/mocks"
-	"github.com/jaegertracing/jaeger/storage_v2/factoryadapter"
+	"github.com/jaegertracing/jaeger/storage_v2/v1adapter"
 )
 
 var (
-	matchContext = mock.AnythingOfType("*context.valueCtx")
-	matchTraceID = mock.AnythingOfType("model.TraceID")
+	matchContext            = mock.AnythingOfType("*context.valueCtx")
+	matchGetTraceParameters = mock.AnythingOfType("spanstore.GetTraceParameters")
 )
 
 func newGrpcServer(t *testing.T, handler *Handler) (*grpc.Server, net.Addr) {
@@ -58,7 +58,7 @@ func newTestServerClient(t *testing.T) *testServerClient {
 	}
 
 	q := querysvc.NewQueryService(
-		factoryadapter.NewTraceReader(tsc.reader),
+		v1adapter.NewTraceReader(tsc.reader),
 		&dependencyStoreMocks.Reader{},
 		querysvc.QueryServiceOptions{},
 	)
@@ -79,33 +79,63 @@ func newTestServerClient(t *testing.T) *testServerClient {
 }
 
 func TestGetTrace(t *testing.T) {
-	tsc := newTestServerClient(t)
-	tsc.reader.On("GetTrace", matchContext, matchTraceID).Return(
-		&model.Trace{
-			Spans: []*model.Span{
-				{
-					OperationName: "foobar",
-				},
+	traceId, _ := model.TraceIDFromString("156")
+	testCases := []struct {
+		name          string
+		expectedQuery spanstore.GetTraceParameters
+		request       api_v3.GetTraceRequest
+	}{
+		{
+			"TestGetTrace",
+			spanstore.GetTraceParameters{
+				TraceID:   traceId,
+				StartTime: time.Time{},
+				EndTime:   time.Time{},
 			},
-		}, nil).Once()
-
-	getTraceStream, err := tsc.client.GetTrace(context.Background(),
-		&api_v3.GetTraceRequest{
-			TraceId: "156",
+			api_v3.GetTraceRequest{TraceId: "156"},
 		},
-	)
-	require.NoError(t, err)
-	recv, err := getTraceStream.Recv()
-	require.NoError(t, err)
-	td := recv.ToTraces()
-	require.EqualValues(t, 1, td.SpanCount())
-	assert.Equal(t, "foobar",
-		td.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).Name())
+		{
+			"TestGetTraceWithTimeWindow",
+			spanstore.GetTraceParameters{
+				TraceID:   traceId,
+				StartTime: time.Unix(1, 2).UTC(),
+				EndTime:   time.Unix(3, 4).UTC(),
+			},
+			api_v3.GetTraceRequest{
+				TraceId:   "156",
+				StartTime: time.Unix(1, 2).UTC(),
+				EndTime:   time.Unix(3, 4).UTC(),
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			tsc := newTestServerClient(t)
+			tsc.reader.On("GetTrace", matchContext, tc.expectedQuery).Return(
+				&model.Trace{
+					Spans: []*model.Span{
+						{
+							OperationName: "foobar",
+						},
+					},
+				}, nil).Once()
+
+			getTraceStream, err := tsc.client.GetTrace(context.Background(), &tc.request)
+			require.NoError(t, err)
+			recv, err := getTraceStream.Recv()
+			require.NoError(t, err)
+			td := recv.ToTraces()
+			require.EqualValues(t, 1, td.SpanCount())
+			assert.Equal(t, "foobar",
+				td.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).Name())
+		})
+	}
 }
 
 func TestGetTraceStorageError(t *testing.T) {
 	tsc := newTestServerClient(t)
-	tsc.reader.On("GetTrace", matchContext, matchTraceID).Return(
+	tsc.reader.On("GetTrace", matchContext, matchGetTraceParameters).Return(
 		nil, errors.New("storage_error")).Once()
 
 	getTraceStream, err := tsc.client.GetTrace(context.Background(), &api_v3.GetTraceRequest{
@@ -119,7 +149,7 @@ func TestGetTraceStorageError(t *testing.T) {
 
 func TestGetTraceTraceIDError(t *testing.T) {
 	tsc := newTestServerClient(t)
-	tsc.reader.On("GetTrace", matchContext, matchTraceID).Return(
+	tsc.reader.On("GetTrace", matchContext, matchGetTraceParameters).Return(
 		&model.Trace{
 			Spans: []*model.Span{},
 		}, nil).Once()
@@ -155,6 +185,9 @@ func TestFindTraces(t *testing.T) {
 			Attributes:    map[string]string{"foo": "bar"},
 			StartTimeMin:  time.Now().Add(-2 * time.Hour),
 			StartTimeMax:  time.Now(),
+			DurationMin:   1 * time.Second,
+			DurationMax:   2 * time.Second,
+			SearchDepth:   10,
 		},
 	})
 	require.NoError(t, err)
@@ -162,6 +195,40 @@ func TestFindTraces(t *testing.T) {
 	require.NoError(t, err)
 	td := recv.ToTraces()
 	require.EqualValues(t, 1, td.SpanCount())
+}
+
+func TestFindTracesSendError(t *testing.T) {
+	reader := new(spanstoremocks.Reader)
+	reader.On("FindTraces", mock.Anything, mock.AnythingOfType("*spanstore.TraceQueryParameters")).Return(
+		[]*model.Trace{
+			{
+				Spans: []*model.Span{
+					{
+						OperationName: "name",
+					},
+				},
+			},
+		}, nil).Once()
+	h := &Handler{
+		QueryService: querysvc.NewQueryService(
+			v1adapter.NewTraceReader(reader),
+			new(dependencyStoreMocks.Reader),
+			querysvc.QueryServiceOptions{},
+		),
+	}
+	err := h.internalFindTraces(context.Background(),
+		&api_v3.FindTracesRequest{
+			Query: &api_v3.TraceQueryParameters{
+				StartTimeMin: time.Now().Add(-2 * time.Hour),
+				StartTimeMax: time.Now(),
+			},
+		},
+		/* streamSend= */ func(*api_v3.TracesData) error {
+			return errors.New("send_error")
+		},
+	)
+	require.ErrorContains(t, err, "send_error")
+	require.ErrorContains(t, err, "failed to send response")
 }
 
 func TestFindTracesQueryNil(t *testing.T) {
