@@ -9,31 +9,29 @@ import (
 	"io"
 	"time"
 
+	"github.com/jaegertracing/jaeger/storage_v2/tracestore"
 	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/config/configtls"
 	"go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/exporter/exportertest"
 	"go.opentelemetry.io/collector/exporter/otlpexporter"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.uber.org/zap"
-
-	"github.com/jaegertracing/jaeger/model"
-	"github.com/jaegertracing/jaeger/storage/spanstore"
-	"github.com/jaegertracing/jaeger/storage_v2/v1adapter"
 )
 
 var (
-	_ spanstore.Writer = (*spanWriter)(nil)
-	_ io.Closer        = (*spanWriter)(nil)
+	_ tracestore.Writer = (*traceWriter)(nil)
+	_ io.Closer         = (*traceWriter)(nil)
 )
 
-// SpanWriter utilizes the OTLP exporter to send span data to the Jaeger-v2 receiver
-type spanWriter struct {
+// traceWriter utilizes the OTLP exporter to send span data to the Jaeger-v2 receiver
+type traceWriter struct {
 	logger   *zap.Logger
 	exporter exporter.Traces
 }
 
-func createSpanWriter(logger *zap.Logger, port int) (*spanWriter, error) {
-	logger.Info("Creating the span writer", zap.Int("port", port))
+func createTraceWriter(logger *zap.Logger, port int) (*traceWriter, error) {
+	logger.Info("Creating the trace writer", zap.Int("port", port))
 
 	factory := otlpexporter.NewFactory()
 	cfg := factory.CreateDefaultConfig().(*otlpexporter.Config)
@@ -56,24 +54,17 @@ func createSpanWriter(logger *zap.Logger, port int) (*spanWriter, error) {
 		return nil, err
 	}
 
-	return &spanWriter{
+	return &traceWriter{
 		logger:   logger,
 		exporter: exp,
 	}, nil
 }
 
-func (w *spanWriter) Close() error {
-	w.logger.Info("Closing the span writer")
+func (w *traceWriter) Close() error {
+	w.logger.Info("Closing the trace writer")
 	return w.exporter.Shutdown(context.Background())
 }
 
-func (w *spanWriter) WriteSpan(ctx context.Context, span *model.Span) error {
-	td := v1adapter.V1BatchesToTraces([]*model.Batch{
-		{
-			Spans:   []*model.Span{span},
-			Process: span.Process,
-		},
-	})
-
+func (w *traceWriter) WriteTraces(ctx context.Context, td ptrace.Traces) error {
 	return w.exporter.ConsumeTraces(ctx, td)
 }

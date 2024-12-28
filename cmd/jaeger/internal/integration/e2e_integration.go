@@ -22,7 +22,6 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/integration/storagecleaner"
 	"github.com/jaegertracing/jaeger/plugin/storage/integration"
 	"github.com/jaegertracing/jaeger/ports"
-	"github.com/jaegertracing/jaeger/storage_v2/v1adapter"
 )
 
 const otlpPort = 4317
@@ -93,18 +92,15 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
 	}
 	cmd.Start(t)
 
-	spanWriter, err := createSpanWriter(logger, otlpPort)
+	s.TraceWriter, err = createTraceWriter(logger, otlpPort)
 	require.NoError(t, err)
-	s.TraceWriter = v1adapter.NewTraceWriter(spanWriter)
 
 	s.TraceReader, err = createTraceReader(logger, ports.QueryGRPC)
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
 		require.NoError(t, s.TraceReader.(io.Closer).Close())
-		spanWriter, err := v1adapter.GetV1Writer(s.TraceWriter)
-		require.NoError(t, err)
-		require.NoError(t, spanWriter.(io.Closer).Close())
+		require.NoError(t, s.TraceWriter.(io.Closer).Close())
 	})
 }
 
