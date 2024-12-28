@@ -2,7 +2,16 @@
   "result": {
     "resourceSpans": [
       {
-        "resource": {},
+        "resource": {
+          "attributes": [
+            {
+              "key": "service.name",
+              "value": {
+                "stringValue": "myservice"
+              }
+            }
+          ]
+        },
         "scopeSpans": [
           {
             "scope": {},

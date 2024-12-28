@@ -93,6 +93,9 @@ func makeTestTrace() (*model.Trace, spanstore.GetTraceParameters) {
 					model.SpanKindTag(model.SpanKindServer),
 					model.Bool("error", true),
 				},
+				Process: &model.Process{
+					ServiceName: "myservice",
+				},
 			},
 		},
 	}, query

@@ -19,7 +19,6 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
 	"github.com/jaegertracing/jaeger/model"
-	"github.com/jaegertracing/jaeger/model/adjuster"
 	_ "github.com/jaegertracing/jaeger/pkg/gogocodec" // force gogo codec registration
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	spanstoremocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
@@ -61,11 +60,7 @@ func newTestServerClient(t *testing.T) *testServerClient {
 	q := querysvc.NewQueryService(
 		v1adapter.NewTraceReader(tsc.reader),
 		&dependencyStoreMocks.Reader{},
-		querysvc.QueryServiceOptions{
-			Adjuster: adjuster.Func(func(*model.Trace) {
-				// no-op
-			}),
-		},
+		querysvc.QueryServiceOptions{},
 	)
 	h := &Handler{
 		QueryService: q,
@@ -132,6 +127,9 @@ func TestGetTrace(t *testing.T) {
 				&model.Trace{
 					Spans: []*model.Span{
 						{
+							Process: &model.Process{
+								ServiceName: "myservice",
+							},
 							OperationName: "foobar",
 						},
 					},
@@ -188,6 +186,9 @@ func TestFindTraces(t *testing.T) {
 			{
 				Spans: []*model.Span{
 					{
+						Process: &model.Process{
+							ServiceName: "myservice",
+						},
 						OperationName: "name",
 					},
 				},
@@ -220,6 +221,9 @@ func TestFindTracesSendError(t *testing.T) {
 			{
 				Spans: []*model.Span{
 					{
+						Process: &model.Process{
+							ServiceName: "myservice",
+						},
 						OperationName: "name",
 					},
 				},
@@ -229,11 +233,7 @@ func TestFindTracesSendError(t *testing.T) {
 		QueryService: querysvc.NewQueryService(
 			v1adapter.NewTraceReader(reader),
 			new(dependencyStoreMocks.Reader),
-			querysvc.QueryServiceOptions{
-				Adjuster: adjuster.Func(func(*model.Trace) {
-					// no-op
-				}),
-			},
+			querysvc.QueryServiceOptions{},
 		),
 	}
 	err := h.internalFindTraces(context.Background(),

@@ -19,7 +19,6 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	"github.com/jaegertracing/jaeger/model"
-	"github.com/jaegertracing/jaeger/model/adjuster"
 	"github.com/jaegertracing/jaeger/pkg/jtracer"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
@@ -38,11 +37,7 @@ func setupHTTPGatewayNoServer(
 
 	q := querysvc.NewQueryService(v1adapter.NewTraceReader(gw.reader),
 		&dependencyStoreMocks.Reader{},
-		querysvc.QueryServiceOptions{
-			Adjuster: adjuster.Func(func(*model.Trace) {
-				// no-op
-			}),
-		},
+		querysvc.QueryServiceOptions{},
 	)
 
 	hgw := &HTTPGateway{
