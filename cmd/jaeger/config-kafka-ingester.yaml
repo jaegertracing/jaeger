@@ -12,7 +12,7 @@ service:
       level: detailed
       address: 0.0.0.0:8888
     logs:
-      level: debug
+      level: info
 
 extensions:
   healthcheckv2:
