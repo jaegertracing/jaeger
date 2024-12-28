@@ -32,10 +32,12 @@ func (h *Handler) GetTrace(request *api_v3.GetTraceRequest, stream api_v3.QueryS
 		return fmt.Errorf("malform trace ID: %w", err)
 	}
 
-	query := spanstore.GetTraceParameters{
-		TraceID:   traceID,
-		StartTime: request.GetStartTime(),
-		EndTime:   request.GetEndTime(),
+	query := querysvc.GetTraceParameters{
+		GetTraceParameters: spanstore.GetTraceParameters{
+			TraceID:   traceID,
+			StartTime: request.GetStartTime(),
+			EndTime:   request.GetEndTime(),
+		},
 	}
 	trace, err := h.QueryService.GetTrace(stream.Context(), query)
 	if err != nil {

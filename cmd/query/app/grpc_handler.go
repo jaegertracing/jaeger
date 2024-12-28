@@ -89,10 +89,12 @@ func (g *GRPCHandler) GetTrace(r *api_v2.GetTraceRequest, stream api_v2.QuerySer
 	if r.TraceID == (model.TraceID{}) {
 		return errUninitializedTraceID
 	}
-	query := spanstore.GetTraceParameters{
-		TraceID:   r.TraceID,
-		StartTime: r.StartTime,
-		EndTime:   r.EndTime,
+	query := querysvc.GetTraceParameters{
+		GetTraceParameters: spanstore.GetTraceParameters{
+			TraceID:   r.TraceID,
+			StartTime: r.StartTime,
+			EndTime:   r.EndTime,
+		},
 	}
 	trace, err := g.queryService.GetTrace(stream.Context(), query)
 	if errors.Is(err, spanstore.ErrTraceNotFound) {
@@ -114,10 +116,12 @@ func (g *GRPCHandler) ArchiveTrace(ctx context.Context, r *api_v2.ArchiveTraceRe
 	if r.TraceID == (model.TraceID{}) {
 		return nil, errUninitializedTraceID
 	}
-	query := spanstore.GetTraceParameters{
-		TraceID:   r.TraceID,
-		StartTime: r.StartTime,
-		EndTime:   r.EndTime,
+	query := querysvc.GetTraceParameters{
+		GetTraceParameters: spanstore.GetTraceParameters{
+			TraceID:   r.TraceID,
+			StartTime: r.StartTime,
+			EndTime:   r.EndTime,
+		},
 	}
 	err := g.queryService.ArchiveTrace(ctx, query)
 	if errors.Is(err, spanstore.ErrTraceNotFound) {

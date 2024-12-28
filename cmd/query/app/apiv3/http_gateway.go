@@ -135,8 +135,10 @@ func (h *HTTPGateway) getTrace(w http.ResponseWriter, r *http.Request) {
 	if h.tryParamError(w, err, paramTraceID) {
 		return
 	}
-	request := spanstore.GetTraceParameters{
-		TraceID: traceID,
+	request := querysvc.GetTraceParameters{
+		GetTraceParameters: spanstore.GetTraceParameters{
+			TraceID: traceID,
+		},
 	}
 	http_query := r.URL.Query()
 	startTime := http_query.Get(paramStartTime)

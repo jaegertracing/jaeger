@@ -268,10 +268,12 @@ func (aH *APIHandler) tracesByIDs(ctx context.Context, traceIDs []model.TraceID,
 	var traceErrors []structuredError
 	retMe := make([]*model.Trace, 0, len(traceIDs))
 	for _, traceID := range traceIDs {
-		query := spanstore.GetTraceParameters{
-			TraceID:   traceID,
-			StartTime: startTime,
-			EndTime:   endTime,
+		query := querysvc.GetTraceParameters{
+			GetTraceParameters: spanstore.GetTraceParameters{
+				TraceID:   traceID,
+				StartTime: startTime,
+				EndTime:   endTime,
+			},
 		}
 		if trc, err := aH.queryService.GetTrace(ctx, query); err != nil {
 			if !errors.Is(err, spanstore.ErrTraceNotFound) {
@@ -428,8 +430,8 @@ func (aH *APIHandler) parseMicroseconds(w http.ResponseWriter, r *http.Request, 
 	return time.Time{}, true
 }
 
-func (aH *APIHandler) parseGetTraceParameters(w http.ResponseWriter, r *http.Request) (spanstore.GetTraceParameters, bool) {
-	query := spanstore.GetTraceParameters{}
+func (aH *APIHandler) parseGetTraceParameters(w http.ResponseWriter, r *http.Request) (querysvc.GetTraceParameters, bool) {
+	query := querysvc.GetTraceParameters{}
 	traceID, ok := aH.parseTraceID(w, r)
 	if !ok {
 		return query, false
