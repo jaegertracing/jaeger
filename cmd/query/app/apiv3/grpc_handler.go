@@ -68,11 +68,13 @@ func (h *Handler) internalFindTraces(
 		return errors.New("start time min and max are required parameters")
 	}
 
-	queryParams := &spanstore.TraceQueryParameters{
-		ServiceName:   query.GetServiceName(),
-		OperationName: query.GetOperationName(),
-		Tags:          query.GetAttributes(),
-		NumTraces:     int(query.GetSearchDepth()),
+	queryParams := &querysvc.TraceQueryParameters{
+		TraceQueryParameters: spanstore.TraceQueryParameters{
+			ServiceName:   query.GetServiceName(),
+			OperationName: query.GetOperationName(),
+			Tags:          query.GetAttributes(),
+			NumTraces:     int(query.GetSearchDepth()),
+		},
 	}
 	if ts := query.GetStartTimeMin(); !ts.IsZero() {
 		queryParams.StartTimeMin = ts

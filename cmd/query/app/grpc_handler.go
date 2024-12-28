@@ -145,15 +145,17 @@ func (g *GRPCHandler) FindTraces(r *api_v2.FindTracesRequest, stream api_v2.Quer
 	if query == nil {
 		return status.Errorf(codes.InvalidArgument, "missing query")
 	}
-	queryParams := spanstore.TraceQueryParameters{
-		ServiceName:   query.ServiceName,
-		OperationName: query.OperationName,
-		Tags:          query.Tags,
-		StartTimeMin:  query.StartTimeMin,
-		StartTimeMax:  query.StartTimeMax,
-		DurationMin:   query.DurationMin,
-		DurationMax:   query.DurationMax,
-		NumTraces:     int(query.SearchDepth),
+	queryParams := querysvc.TraceQueryParameters{
+		TraceQueryParameters: spanstore.TraceQueryParameters{
+			ServiceName:   query.ServiceName,
+			OperationName: query.OperationName,
+			Tags:          query.Tags,
+			StartTimeMin:  query.StartTimeMin,
+			StartTimeMax:  query.StartTimeMax,
+			DurationMin:   query.DurationMin,
+			DurationMax:   query.DurationMax,
+			NumTraces:     int(query.SearchDepth),
+		},
 	}
 	traces, err := g.queryService.FindTraces(stream.Context(), &queryParams)
 	if err != nil {

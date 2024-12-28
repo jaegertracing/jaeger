@@ -225,12 +225,14 @@ func TestFindTraces(t *testing.T) {
 	type contextKey string
 	ctx := context.Background()
 	duration, _ := time.ParseDuration("20ms")
-	params := &spanstore.TraceQueryParameters{
-		ServiceName:   "service",
-		OperationName: "operation",
-		StartTimeMax:  time.Now(),
-		DurationMin:   duration,
-		NumTraces:     200,
+	params := &TraceQueryParameters{
+		TraceQueryParameters: spanstore.TraceQueryParameters{
+			ServiceName:   "service",
+			OperationName: "operation",
+			StartTimeMax:  time.Now(),
+			DurationMin:   duration,
+			NumTraces:     200,
+		},
 	}
 	traces, err := tqs.queryService.FindTraces(context.WithValue(ctx, contextKey("foo"), "bar"), params)
 	require.NoError(t, err)
@@ -244,12 +246,14 @@ func TestFindTraces_V1ReaderNotFound(t *testing.T) {
 	}
 	duration, err := time.ParseDuration("20ms")
 	require.NoError(t, err)
-	params := &spanstore.TraceQueryParameters{
-		ServiceName:   "service",
-		OperationName: "operation",
-		StartTimeMax:  time.Now(),
-		DurationMin:   duration,
-		NumTraces:     200,
+	params := &TraceQueryParameters{
+		TraceQueryParameters: spanstore.TraceQueryParameters{
+			ServiceName:   "service",
+			OperationName: "operation",
+			StartTimeMax:  time.Now(),
+			DurationMin:   duration,
+			NumTraces:     200,
+		},
 	}
 	_, err = qs.FindTraces(context.Background(), params)
 	require.Error(t, err)

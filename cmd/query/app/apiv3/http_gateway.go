@@ -182,11 +182,13 @@ func (h *HTTPGateway) findTraces(w http.ResponseWriter, r *http.Request) {
 	h.returnSpans(spans, w)
 }
 
-func (h *HTTPGateway) parseFindTracesQuery(q url.Values, w http.ResponseWriter) (*spanstore.TraceQueryParameters, bool) {
-	queryParams := &spanstore.TraceQueryParameters{
-		ServiceName:   q.Get(paramServiceName),
-		OperationName: q.Get(paramOperationName),
-		Tags:          nil, // most curiously not supported by grpc-gateway
+func (h *HTTPGateway) parseFindTracesQuery(q url.Values, w http.ResponseWriter) (*querysvc.TraceQueryParameters, bool) {
+	queryParams := &querysvc.TraceQueryParameters{
+		TraceQueryParameters: spanstore.TraceQueryParameters{
+			ServiceName:   q.Get(paramServiceName),
+			OperationName: q.Get(paramOperationName),
+			Tags:          nil, // most curiously not supported by grpc-gateway
+		},
 	}
 
 	timeMin := q.Get(paramTimeMin)
