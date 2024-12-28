@@ -103,7 +103,7 @@ func (qs QueryService) GetOperations(
 	return spanReader.GetOperations(ctx, query)
 }
 
-// GetTraceParameters defines the parameters for querying a batch of traces from the query service.
+// TraceQueryParameters defines the parameters for querying a batch of traces from the query service.
 type TraceQueryParameters struct {
 	spanstore.TraceQueryParameters
 }
