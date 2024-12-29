@@ -123,12 +123,15 @@ func (qs QueryService) FindTraces(ctx context.Context, query *TraceQueryParamete
 		return nil, err
 	}
 	traces, err := spanReader.FindTraces(ctx, &query.TraceQueryParameters)
+	if err != nil {
+		return nil, err
+	}
 	if !query.RawTraces {
 		for _, trace := range traces {
 			qs.adjust(trace)
 		}
 	}
-	return traces, err
+	return traces, nil
 }
 
 // ArchiveTrace is the queryService utility to archive traces.
