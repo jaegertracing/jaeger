@@ -233,9 +233,7 @@ func (aH *APIHandler) search(w http.ResponseWriter, r *http.Request) {
 	if len(tQuery.traceIDs) > 0 {
 		tracesFromStorage, uiErrors, err = aH.tracesByIDs(
 			r.Context(),
-			tQuery.traceIDs,
-			tQuery.StartTimeMin,
-			tQuery.StartTimeMax,
+			tQuery,
 		)
 		if aH.handleError(w, err, http.StatusInternalServerError) {
 			return
@@ -264,14 +262,17 @@ func (*APIHandler) tracesToResponse(traces []*model.Trace, uiErrors []structured
 	}
 }
 
-func (aH *APIHandler) tracesByIDs(ctx context.Context, traceIDs []model.TraceID, startTime time.Time, endTime time.Time) ([]*model.Trace, []structuredError, error) {
+func (aH *APIHandler) tracesByIDs(ctx context.Context, traceQuery *traceQueryParameters) ([]*model.Trace, []structuredError, error) {
 	var traceErrors []structuredError
-	retMe := make([]*model.Trace, 0, len(traceIDs))
-	for _, traceID := range traceIDs {
-		query := spanstore.GetTraceParameters{
-			TraceID:   traceID,
-			StartTime: startTime,
-			EndTime:   endTime,
+	retMe := make([]*model.Trace, 0, len(traceQuery.traceIDs))
+	for _, traceID := range traceQuery.traceIDs {
+		query := querysvc.GetTraceParameters{
+			GetTraceParameters: spanstore.GetTraceParameters{
+				TraceID:   traceID,
+				StartTime: traceQuery.StartTimeMin,
+				EndTime:   traceQuery.StartTimeMax,
+			},
+			RawTraces: traceQuery.RawTraces,
 		}
 		if trc, err := aH.queryService.GetTrace(ctx, query); err != nil {
 			if !errors.Is(err, spanstore.ErrTraceNotFound) {
@@ -420,8 +421,19 @@ func (aH *APIHandler) parseMicroseconds(w http.ResponseWriter, r *http.Request, 
 	return time.Time{}, true
 }
 
-func (aH *APIHandler) parseGetTraceParameters(w http.ResponseWriter, r *http.Request) (spanstore.GetTraceParameters, bool) {
-	query := spanstore.GetTraceParameters{}
+func (aH *APIHandler) parseBool(w http.ResponseWriter, r *http.Request, boolKey string) (value bool, isValid bool) {
+	if boolString := r.FormValue(boolKey); boolString != "" {
+		b, err := parseBool(r, boolKey)
+		if aH.handleError(w, err, http.StatusBadRequest) {
+			return false, false
+		}
+		return b, true
+	}
+	return false, true
+}
+
+func (aH *APIHandler) parseGetTraceParameters(w http.ResponseWriter, r *http.Request) (querysvc.GetTraceParameters, bool) {
+	query := querysvc.GetTraceParameters{}
 	traceID, ok := aH.parseTraceID(w, r)
 	if !ok {
 		return query, false
@@ -434,10 +446,14 @@ func (aH *APIHandler) parseGetTraceParameters(w http.ResponseWriter, r *http.Req
 	if !ok {
 		return query, false
 	}
+	raw, ok := aH.parseBool(w, r, rawParam)
+	if !ok {
+		return query, false
+	}
 	query.TraceID = traceID
 	query.StartTime = startTime
 	query.EndTime = endTime
-	query.RawTraces = shouldUseRawTraces(r)
+	query.RawTraces = raw
 	return query, true
 }
 
@@ -478,7 +494,7 @@ func (aH *APIHandler) archiveTrace(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// QueryService.ArchiveTrace can now archive this traceID.
-	err := aH.queryService.ArchiveTrace(r.Context(), query)
+	err := aH.queryService.ArchiveTrace(r.Context(), query.GetTraceParameters)
 	if errors.Is(err, spanstore.ErrTraceNotFound) {
 		aH.handleError(w, err, http.StatusNotFound)
 		return

@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2/metrics"
 	"github.com/jaegertracing/jaeger/storage/metricstore"
@@ -33,6 +34,7 @@ const (
 	spanKindParam    = "spanKind"
 	endTimeParam     = "end"
 	prettyPrintParam = "prettyPrint"
+	rawParam         = "raw"
 )
 
 var (
@@ -59,7 +61,7 @@ type (
 	}
 
 	traceQueryParameters struct {
-		spanstore.TraceQueryParameters
+		querysvc.TraceQueryParameters
 		traceIDs []model.TraceID
 	}
 
@@ -161,17 +163,24 @@ func (p *queryParser) parseTraceQueryParams(r *http.Request) (*traceQueryParamet
 		traceIDs = append(traceIDs, traceID)
 	}
 
+	raw, err := parseBool(r, rawParam)
+	if err != nil {
+		return nil, err
+	}
+
 	traceQuery := &traceQueryParameters{
-		TraceQueryParameters: spanstore.TraceQueryParameters{
-			ServiceName:   service,
-			OperationName: operation,
-			StartTimeMin:  startTime,
-			StartTimeMax:  endTime,
-			Tags:          tags,
-			NumTraces:     limit,
-			DurationMin:   minDuration,
-			DurationMax:   maxDuration,
-			RawTraces:     false,
+		TraceQueryParameters: querysvc.TraceQueryParameters{
+			TraceQueryParameters: spanstore.TraceQueryParameters{
+				ServiceName:   service,
+				OperationName: operation,
+				StartTimeMin:  startTime,
+				StartTimeMax:  endTime,
+				Tags:          tags,
+				NumTraces:     limit,
+				DurationMin:   minDuration,
+				DurationMax:   maxDuration,
+			},
+			RawTraces: raw,
 		},
 		traceIDs: traceIDs,
 	}

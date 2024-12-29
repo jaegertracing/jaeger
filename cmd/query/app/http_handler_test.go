@@ -411,6 +411,43 @@ func TestGetTraceBadTimeWindow(t *testing.T) {
 	}
 }
 
+func TestGetTraceWithRawTracesParameter(t *testing.T) {
+	// TODO: extend the test cases to ensure raw traces are obtained
+	// when the flag is set once the differentiating logic has been implemented
+	tests := []struct {
+		rawTraces bool
+	}{
+		{
+			rawTraces: true,
+		},
+		{
+			rawTraces: false,
+		},
+	}
+	for _, test := range tests {
+		t.Run(fmt.Sprintf("rawTraces=%v", test.rawTraces), func(t *testing.T) {
+			ts := initializeTestServer(t)
+			ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), spanstore.GetTraceParameters{
+				TraceID: mockTraceID,
+			}).Return(mockTrace, nil).Once()
+
+			var response structuredResponse
+			err := getJSON(fmt.Sprintf("%s/api/traces/%s?raw=%v", ts.server.URL, mockTraceID.String(), test.rawTraces), &response)
+			require.NoError(t, err)
+			assert.Empty(t, response.Errors)
+		})
+	}
+}
+
+func TestGetTraceBadRawTracesFlag(t *testing.T) {
+	ts := initializeTestServer(t)
+	var response structuredResponse
+	err := getJSON(ts.server.URL+`/api/traces/123456?raw=foobar`, &response)
+	require.Error(t, err)
+	require.ErrorContains(t, err, "400 error from server")
+	require.ErrorContains(t, err, "unable to parse param 'raw'")
+}
+
 func TestSearchSuccess(t *testing.T) {
 	ts := initializeTestServer(t)
 	ts.spanReader.On("FindTraces", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("*spanstore.TraceQueryParameters")).
