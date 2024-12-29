@@ -479,12 +479,6 @@ func (aH *APIHandler) getTrace(w http.ResponseWriter, r *http.Request) {
 	aH.writeJSON(w, r, structuredRes)
 }
 
-func shouldUseRawTraces(r *http.Request) bool {
-	raw := r.FormValue("raw")
-	isRaw, _ := strconv.ParseBool(raw)
-	return isRaw
-}
-
 // archiveTrace implements the REST API POST:/archive/{trace-id}.
 // It passes the traceID to queryService.ArchiveTrace for writing.
 func (aH *APIHandler) archiveTrace(w http.ResponseWriter, r *http.Request) {
