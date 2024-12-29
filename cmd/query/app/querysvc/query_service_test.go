@@ -15,7 +15,6 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/model"
-	"github.com/jaegertracing/jaeger/model/adjuster"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/storage"
@@ -31,8 +30,6 @@ import (
 const millisToNanosMultiplier = int64(time.Millisecond / time.Nanosecond)
 
 var (
-	errAdjustment = errors.New("adjustment error")
-
 	defaultDependencyLookbackDuration = time.Hour * 24
 
 	mockTraceID = model.NewTraceID(0, 123456)
@@ -80,14 +77,6 @@ func withArchiveSpanWriter() testOption {
 	}
 }
 
-func withAdjuster() testOption {
-	return func(_ *testQueryService, options *QueryServiceOptions) {
-		options.Adjuster = adjuster.Func(func(trace *model.Trace) (*model.Trace, error) {
-			return trace, errAdjustment
-		})
-	}
-}
-
 func initializeTestService(optionAppliers ...testOption) *testQueryService {
 	readStorage := &spanstoremocks.Reader{}
 	traceReader := v1adapter.NewTraceReader(readStorage)
@@ -116,7 +105,11 @@ func TestGetTraceSuccess(t *testing.T) {
 
 	type contextKey string
 	ctx := context.Background()
-	query := spanstore.GetTraceParameters{TraceID: mockTraceID}
+	query := GetTraceParameters{
+		GetTraceParameters: spanstore.GetTraceParameters{
+			TraceID: mockTraceID,
+		},
+	}
 	res, err := tqs.queryService.GetTrace(context.WithValue(ctx, contextKey("foo"), "bar"), query)
 	require.NoError(t, err)
 	assert.Equal(t, res, mockTrace)
@@ -130,7 +123,11 @@ func TestGetTraceNotFound(t *testing.T) {
 
 	type contextKey string
 	ctx := context.Background()
-	query := spanstore.GetTraceParameters{TraceID: mockTraceID}
+	query := GetTraceParameters{
+		GetTraceParameters: spanstore.GetTraceParameters{
+			TraceID: mockTraceID,
+		},
+	}
 	_, err := tqs.queryService.GetTrace(context.WithValue(ctx, contextKey("foo"), "bar"), query)
 	assert.Equal(t, err, spanstore.ErrTraceNotFound)
 }
@@ -140,7 +137,11 @@ func TestGetTrace_V1ReaderNotFound(t *testing.T) {
 	qs := QueryService{
 		traceReader: fr,
 	}
-	query := spanstore.GetTraceParameters{TraceID: mockTraceID}
+	query := GetTraceParameters{
+		GetTraceParameters: spanstore.GetTraceParameters{
+			TraceID: mockTraceID,
+		},
+	}
 	_, err := qs.GetTrace(context.Background(), query)
 	require.Error(t, err)
 }
@@ -155,7 +156,11 @@ func TestGetTraceFromArchiveStorage(t *testing.T) {
 
 	type contextKey string
 	ctx := context.Background()
-	query := spanstore.GetTraceParameters{TraceID: mockTraceID}
+	query := GetTraceParameters{
+		GetTraceParameters: spanstore.GetTraceParameters{
+			TraceID: mockTraceID,
+		},
+	}
 	res, err := tqs.queryService.GetTrace(context.WithValue(ctx, contextKey("foo"), "bar"), query)
 	require.NoError(t, err)
 	assert.Equal(t, res, mockTrace)
@@ -220,12 +225,14 @@ func TestFindTraces(t *testing.T) {
 	type contextKey string
 	ctx := context.Background()
 	duration, _ := time.ParseDuration("20ms")
-	params := &spanstore.TraceQueryParameters{
-		ServiceName:   "service",
-		OperationName: "operation",
-		StartTimeMax:  time.Now(),
-		DurationMin:   duration,
-		NumTraces:     200,
+	params := &TraceQueryParameters{
+		TraceQueryParameters: spanstore.TraceQueryParameters{
+			ServiceName:   "service",
+			OperationName: "operation",
+			StartTimeMax:  time.Now(),
+			DurationMin:   duration,
+			NumTraces:     200,
+		},
 	}
 	traces, err := tqs.queryService.FindTraces(context.WithValue(ctx, contextKey("foo"), "bar"), params)
 	require.NoError(t, err)
@@ -239,12 +246,14 @@ func TestFindTraces_V1ReaderNotFound(t *testing.T) {
 	}
 	duration, err := time.ParseDuration("20ms")
 	require.NoError(t, err)
-	params := &spanstore.TraceQueryParameters{
-		ServiceName:   "service",
-		OperationName: "operation",
-		StartTimeMax:  time.Now(),
-		DurationMin:   duration,
-		NumTraces:     200,
+	params := &TraceQueryParameters{
+		TraceQueryParameters: spanstore.TraceQueryParameters{
+			ServiceName:   "service",
+			OperationName: "operation",
+			StartTimeMax:  time.Now(),
+			DurationMin:   duration,
+			NumTraces:     200,
+		},
 	}
 	_, err = qs.FindTraces(context.Background(), params)
 	require.Error(t, err)
@@ -256,7 +265,10 @@ func TestArchiveTraceNoOptions(t *testing.T) {
 
 	type contextKey string
 	ctx := context.Background()
-	query := spanstore.GetTraceParameters{TraceID: mockTraceID}
+	query := spanstore.GetTraceParameters{
+		TraceID: mockTraceID,
+	}
+
 	err := tqs.queryService.ArchiveTrace(context.WithValue(ctx, contextKey("foo"), "bar"), query)
 	assert.Equal(t, errNoArchiveSpanStorage, err)
 }
@@ -271,7 +283,9 @@ func TestArchiveTraceWithInvalidTraceID(t *testing.T) {
 
 	type contextKey string
 	ctx := context.Background()
-	query := spanstore.GetTraceParameters{TraceID: mockTraceID}
+	query := spanstore.GetTraceParameters{
+		TraceID: mockTraceID,
+	}
 	err := tqs.queryService.ArchiveTrace(context.WithValue(ctx, contextKey("foo"), "bar"), query)
 	assert.Equal(t, spanstore.ErrTraceNotFound, err)
 }
@@ -286,7 +300,10 @@ func TestArchiveTraceWithArchiveWriterError(t *testing.T) {
 
 	type contextKey string
 	ctx := context.Background()
-	query := spanstore.GetTraceParameters{TraceID: mockTraceID}
+	query := spanstore.GetTraceParameters{
+		TraceID: mockTraceID,
+	}
+
 	joinErr := tqs.queryService.ArchiveTrace(context.WithValue(ctx, contextKey("foo"), "bar"), query)
 	// There are two spans in the mockTrace, ArchiveTrace should return a wrapped error.
 	require.EqualError(t, joinErr, "cannot save\ncannot save")
@@ -302,18 +319,12 @@ func TestArchiveTraceSuccess(t *testing.T) {
 
 	type contextKey string
 	ctx := context.Background()
-	query := spanstore.GetTraceParameters{TraceID: mockTraceID}
+	query := spanstore.GetTraceParameters{
+		TraceID: mockTraceID,
+	}
+
 	err := tqs.queryService.ArchiveTrace(context.WithValue(ctx, contextKey("foo"), "bar"), query)
 	require.NoError(t, err)
-}
-
-// Test QueryService.Adjust()
-func TestTraceAdjustmentFailure(t *testing.T) {
-	tqs := initializeTestService(withAdjuster())
-
-	_, err := tqs.queryService.Adjust(mockTrace)
-	require.Error(t, err)
-	assert.EqualValues(t, errAdjustment.Error(), err.Error())
 }
 
 // Test QueryService.GetDependencies()

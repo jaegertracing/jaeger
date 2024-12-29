@@ -89,10 +89,13 @@ func (g *GRPCHandler) GetTrace(r *api_v2.GetTraceRequest, stream api_v2.QuerySer
 	if r.TraceID == (model.TraceID{}) {
 		return errUninitializedTraceID
 	}
-	query := spanstore.GetTraceParameters{
-		TraceID:   r.TraceID,
-		StartTime: r.StartTime,
-		EndTime:   r.EndTime,
+	query := querysvc.GetTraceParameters{
+		GetTraceParameters: spanstore.GetTraceParameters{
+			TraceID:   r.TraceID,
+			StartTime: r.StartTime,
+			EndTime:   r.EndTime,
+		},
+		RawTraces: r.RawTraces,
 	}
 	trace, err := g.queryService.GetTrace(stream.Context(), query)
 	if errors.Is(err, spanstore.ErrTraceNotFound) {
@@ -119,6 +122,7 @@ func (g *GRPCHandler) ArchiveTrace(ctx context.Context, r *api_v2.ArchiveTraceRe
 		StartTime: r.StartTime,
 		EndTime:   r.EndTime,
 	}
+
 	err := g.queryService.ArchiveTrace(ctx, query)
 	if errors.Is(err, spanstore.ErrTraceNotFound) {
 		g.logger.Warn(msgTraceNotFound, zap.Stringer("id", r.TraceID), zap.Error(err))
@@ -141,15 +145,18 @@ func (g *GRPCHandler) FindTraces(r *api_v2.FindTracesRequest, stream api_v2.Quer
 	if query == nil {
 		return status.Errorf(codes.InvalidArgument, "missing query")
 	}
-	queryParams := spanstore.TraceQueryParameters{
-		ServiceName:   query.ServiceName,
-		OperationName: query.OperationName,
-		Tags:          query.Tags,
-		StartTimeMin:  query.StartTimeMin,
-		StartTimeMax:  query.StartTimeMax,
-		DurationMin:   query.DurationMin,
-		DurationMax:   query.DurationMax,
-		NumTraces:     int(query.SearchDepth),
+	queryParams := querysvc.TraceQueryParameters{
+		TraceQueryParameters: spanstore.TraceQueryParameters{
+			ServiceName:   query.ServiceName,
+			OperationName: query.OperationName,
+			Tags:          query.Tags,
+			StartTimeMin:  query.StartTimeMin,
+			StartTimeMax:  query.StartTimeMax,
+			DurationMin:   query.DurationMin,
+			DurationMax:   query.DurationMax,
+			NumTraces:     int(query.SearchDepth),
+		},
+		RawTraces: query.RawTraces,
 	}
 	traces, err := g.queryService.FindTraces(stream.Context(), &queryParams)
 	if err != nil {
