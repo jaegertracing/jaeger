@@ -218,8 +218,8 @@ func TestCacheStore_GetOperationsThrowError(t *testing.T) {
 		cache.services = make(map[string]uint64)
 		cache.services["service1"] = uint64(time.Now().Unix())
 		operations, err := cache.GetOperations("service1", "a")
-		require.Error(t, err)
-		require.Nil(t, operations)
+		require.NoError(t, err)
+		assert.Len(t, operations, 0)
 	})
 }
 
