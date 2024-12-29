@@ -55,7 +55,6 @@ type GetTraceParameters struct {
 	TraceID   model.TraceID
 	StartTime time.Time // optional
 	EndTime   time.Time // optional
-	RawTraces bool      // optional
 }
 
 // TraceQueryParameters contains parameters of a trace query.
@@ -68,7 +67,6 @@ type TraceQueryParameters struct {
 	DurationMin   time.Duration
 	DurationMax   time.Duration
 	NumTraces     int
-	RawTraces     bool
 }
 
 // OperationQueryParameters contains parameters of query operations, empty spanKind means get operations for all kinds of span.
