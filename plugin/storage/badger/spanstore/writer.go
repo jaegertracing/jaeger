@@ -82,7 +82,7 @@ func (w *SpanWriter) WriteSpan(_ context.Context, span *model.Span) error {
 			),
 			[]byte(kind),
 			expireTime),
-		)
+	)
 
 	// It doesn't matter if we overwrite Duration index keys, everything is read at Trace level in any case
 	durationValue := make([]byte, 8)
