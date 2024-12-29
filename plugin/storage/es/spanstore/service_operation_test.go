@@ -20,19 +20,11 @@ import (
 )
 
 func TestWriteService(t *testing.T) {
-	testWriteService(t, "de3b5a8f1a79989d", model.SpanKindUnspecified)
-}
-
-func TestWriteServiceWithKind(t *testing.T) {
-	testWriteService(t, "dff8fa7700d2d554", model.SpanKindServer)
-}
-
-func testWriteService(t *testing.T, hash string, kind model.SpanKind) {
 	withSpanWriter(func(w *spanWriterTest) {
 		indexService := &mocks.IndexService{}
 
 		indexName := "jaeger-1995-04-21"
-		serviceHash := hash
+		serviceHash := "de3b5a8f1a79989d"
 
 		indexService.On("Index", stringMatcher(indexName)).Return(indexService)
 		indexService.On("Type", stringMatcher(serviceType)).Return(indexService)
@@ -51,13 +43,48 @@ func testWriteService(t *testing.T, hash string, kind model.SpanKind) {
 			},
 		}
 
-		w.writer.writeService(indexName, jsonSpan, kind)
+		w.writer.writeService(indexName, jsonSpan, model.SpanKindUnspecified)
 
 		indexService.AssertNumberOfCalls(t, "Add", 1)
 		assert.Equal(t, "", w.logBuffer.String())
 
 		// test that cache works, will call the index service only once.
-		w.writer.writeService(indexName, jsonSpan, kind)
+		w.writer.writeService(indexName, jsonSpan, model.SpanKindUnspecified)
+		indexService.AssertNumberOfCalls(t, "Add", 1)
+	})
+}
+
+func TestWriteServiceWithKind(t *testing.T) {
+	withSpanWriter(func(w *spanWriterTest) {
+		indexService := &mocks.IndexService{}
+
+		indexName := "jaeger-1995-04-21"
+		serviceHash := "dff8fa7700d2d554"
+
+		indexService.On("Index", stringMatcher(indexName)).Return(indexService)
+		indexService.On("Type", stringMatcher(serviceType)).Return(indexService)
+		indexService.On("Id", stringMatcher(serviceHash)).Return(indexService)
+		indexService.On("BodyJson", mock.AnythingOfType("dbmodel.ServiceWithKind")).Return(indexService)
+		indexService.On("Add")
+
+		w.client.On("Index").Return(indexService)
+
+		jsonSpan := &dbmodel.Span{
+			TraceID:       dbmodel.TraceID("1"),
+			SpanID:        dbmodel.SpanID("0"),
+			OperationName: "operation",
+			Process: dbmodel.Process{
+				ServiceName: "service",
+			},
+		}
+
+		w.writer.writeService(indexName, jsonSpan, model.SpanKindServer)
+
+		indexService.AssertNumberOfCalls(t, "Add", 1)
+		assert.Equal(t, "", w.logBuffer.String())
+
+		// test that cache works, will call the index service only once.
+		w.writer.writeService(indexName, jsonSpan, model.SpanKindServer)
 		indexService.AssertNumberOfCalls(t, "Add", 1)
 	})
 }
