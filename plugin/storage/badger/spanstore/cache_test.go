@@ -212,7 +212,7 @@ func TestCacheStore_WhenValueIsNil(t *testing.T) {
 	})
 }
 
-func TestCacheStore_GetOperationsThrowError(t *testing.T) {
+func TestCacheStore_GetOperationsReturnsEmptyOperationsWithWrongSpanKind(t *testing.T) {
 	runWithBadger(t, func(store *badger.DB, t *testing.T) {
 		cache := NewCacheStore(store, 1*time.Hour, true)
 		cache.services = make(map[string]uint64)
