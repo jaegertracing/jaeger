@@ -306,12 +306,11 @@ func TestWriteJSON(t *testing.T) {
 func TestGetTrace(t *testing.T) {
 	testCases := []struct {
 		suffix      string
-		raw         bool
 		numSpanRefs int
 	}{
 		{suffix: "", numSpanRefs: 0},
-		{suffix: "?raw=true", raw: true, numSpanRefs: 1}, // bad span reference is not filtered out
-		{suffix: "?raw=false", raw: false, numSpanRefs: 0},
+		{suffix: "?raw=true", numSpanRefs: 1}, // bad span reference is not filtered out
+		{suffix: "?raw=false", numSpanRefs: 0},
 	}
 
 	makeMockTrace := func(t *testing.T) *model.Trace {
