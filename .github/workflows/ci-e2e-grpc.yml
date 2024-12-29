@@ -49,12 +49,12 @@ jobs:
         path: ./.metrics/grpc_metrics.txt
         retention-days: 7
 
-    - name: Release Action then cache 
+    - name: Cache scraped metrics for tagged release for longer retention
       uses: actions/cache@v4
-      if: startsWith(github.ref, 'refs/tags/') && ${{ matrix.version }} == "v2"
+      if: contains(github.ref,'tags') && ${{ matrix.version }} == "v2"
       with:
         path: ./.metrics/grpc_metrics.txt
-        key: ${{ github.ref }}_grpc_metrics
+        key: ${{ github.ref_name }}_grpc_metrics
 
     - name: Upload coverage to codecov
       uses: ./.github/actions/upload-codecov

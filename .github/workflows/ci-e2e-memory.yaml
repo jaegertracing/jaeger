@@ -37,12 +37,12 @@ jobs:
           path: ./.metrics/memory_metrics.txt
           retention-days: 7
     
-    - name: Release Action then cache 
+    - name: Cache scraped metrics for tagged release for longer retention
       uses: actions/cache@v4
-      if: startsWith(github.ref, 'refs/tags/')
+      if: contains(github.ref,'tags')
       with:
         path: ./.metrics/memory_metrics.txt
-        key: ${{ github.ref }}_memory_metrics
+        key: ${{ github.ref_name }}_memory_metrics
           
     - name: Upload coverage to codecov
       uses: ./.github/actions/upload-codecov

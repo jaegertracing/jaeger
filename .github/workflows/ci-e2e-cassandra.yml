@@ -57,17 +57,24 @@ jobs:
         path: ./.metrics/cassandra_metrics.txt
         retention-days: 7
 
-    - name: Release Action then cache 
+    - name: Cache scraped metrics for tagged release for longer retention
       if: contains(github.ref,'tags') && ${{ matrix.jaeger-version }} == "v2"
       uses: actions/cache@v4
       with:
         path: ./.metrics/cassandra_metrics.txt
-        key: ${{ github.ref }}_cassandra_metrics_${{ matrix.version.major }}_${{ matrix.version.schema }}
-      
-    - name: testing
-      if: contains(github.ref, 'tags')
-      run: echo "I only run if the branch has release in its name!"
-      
+        key: ${{ github.ref_name }}_cassandra_metrics_${{ matrix.version.major }}_${{ matrix.version.schema }}
+    
+    - name: Restore and test cache download 
+      if: ${{ matrix.jaeger-version }} == "v2"
+      id: get-v2-tag
+      run: |
+        echo "v2_tag=$(make echo-v2)" >> $GITHUB_ENV
+        echo "v2_tag=${{ env.v2_tag }}"
+
+    - uses: actions/cache@v4
+      with:
+        path: ./.metrics/cassandra_metrics.txt
+        key: ${{ env.v2_tag }}_cassandra_metrics_${{ matrix.version.major }}_${{ matrix.version.schema }}
 
     - name: Upload coverage to codecov
       uses: ./.github/actions/upload-codecov
