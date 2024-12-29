@@ -70,7 +70,8 @@ func NewQueryServiceV2(
 // The iterator is single-use: once consumed, it cannot be used again.
 func (qs QueryServiceV2) GetTraces(
 	ctx context.Context,
-	traceIDs ...tracestore.GetTraceParams) iter.Seq2[[]ptrace.Traces, error] {
+	traceIDs ...tracestore.GetTraceParams,
+) iter.Seq2[[]ptrace.Traces, error] {
 	getTracesIter := qs.traceReader.GetTraces(ctx, traceIDs...)
 	return func(yield func([]ptrace.Traces, error) bool) {
 		foundTraceIDs := make(map[pcommon.TraceID]struct{})
