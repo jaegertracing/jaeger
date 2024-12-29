@@ -86,24 +86,13 @@ func TestGetTrace(t *testing.T) {
 		request       api_v3.GetTraceRequest
 	}{
 		{
-			"TestGetTrace with raw traces",
+			"TestGetTrace",
 			spanstore.GetTraceParameters{
 				TraceID:   traceId,
 				StartTime: time.Time{},
 				EndTime:   time.Time{},
-				RawTraces: true,
 			},
-			api_v3.GetTraceRequest{TraceId: "156", RawTraces: true},
-		},
-		{
-			"TestGetTrace with adjusted traces",
-			spanstore.GetTraceParameters{
-				TraceID:   traceId,
-				StartTime: time.Time{},
-				EndTime:   time.Time{},
-				RawTraces: false,
-			},
-			api_v3.GetTraceRequest{TraceId: "156", RawTraces: false},
+			api_v3.GetTraceRequest{TraceId: "156"},
 		},
 		{
 			"TestGetTraceWithTimeWindow",
