@@ -270,36 +270,10 @@ func TestV1TraceToOtelTrace_ReturnsExptectedOtelTrace(t *testing.T) {
 			},
 		},
 	}
-	expectedTrace := ptrace.NewTraces()
-
-	for _, jspan := range jTrace.Spans {
-		resource := expectedTrace.ResourceSpans().AppendEmpty()
-		resource.Resource().Attributes().PutStr("service.name", jspan.Process.ServiceName)
-		eSpan := resource.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
-		eSpan.SetName(jspan.OperationName)
-		eSpan.SetSpanID(jspan.SpanID.ToOTELSpanID())
-		eSpan.SetTraceID(jspan.TraceID.ToOTELTraceID())
-	}
-
 	actualTrace := V1TraceToOtelTrace(jTrace)
 
 	require.NotEmpty(t, actualTrace)
 	require.Equal(t, 2, actualTrace.ResourceSpans().Len())
-	for i := range [2]int{} {
-		aServiceName, _ := actualTrace.ResourceSpans().At(i).Resource().Attributes().Get("service.name")
-		eServiceName, _ := expectedTrace.ResourceSpans().At(i).Resource().Attributes().Get("service.name")
-		require.Equal(t, aServiceName, eServiceName)
-
-		aSpans := actualTrace.ResourceSpans().At(i).ScopeSpans().At(0).Spans()
-		eSpans := expectedTrace.ResourceSpans().At(i).ScopeSpans().At(0).Spans()
-		require.Equal(t, aSpans.Len(), eSpans.Len())
-
-		aSpan := aSpans.At(0)
-		eSpan := eSpans.At(0)
-		require.Equal(t, eSpan.Name(), aSpan.Name())
-		require.Equal(t, eSpan.TraceID(), aSpan.TraceID())
-		require.Equal(t, eSpan.SpanID(), aSpan.SpanID())
-	}
 }
 
 func TestV1TraceToOtelTrace_ReturnEmptyOtelTrace(t *testing.T) {

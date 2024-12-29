@@ -61,10 +61,10 @@ func V1TracesFromSeq2(otelSeq iter.Seq2[[]ptrace.Traces, error]) ([]*model.Trace
 	return jaegerTraces, nil
 }
 
-// Returns
+// V1TraceToOtelTrace converts v1 traces (*model.Trace) to Otel traces (ptrace.Traces)
 func V1TraceToOtelTrace(jTrace *model.Trace) ptrace.Traces {
-	otelTraces := V1BatchesToTraces(createBatchesFromModelTrace(jTrace))
-	return otelTraces
+	batches := createBatchesFromModelTrace(jTrace)
+	return V1BatchesToTraces(batches)
 }
 
 func createBatchesFromModelTrace(jTrace *model.Trace) []*model.Batch {
