@@ -58,7 +58,7 @@ jobs:
         retention-days: 7
 
     - name: Cache scraped metrics for tagged release for longer retention
-      if: contains(github.ref,'tags') && ${{ matrix.jaeger-version }} == "v2"
+      if: ${{ contains(github.ref, 'tags') && matrix.jaeger-version == 'v2' }}
       uses: actions/cache@v4
       with:
         path: ./.metrics/cassandra_metrics.txt
@@ -68,8 +68,9 @@ jobs:
       if: ${{ matrix.jaeger-version }} == "v2"
       id: get-v2-tag
       run: |
-        echo "v2_tag=$(make echo-v2)" >> $GITHUB_ENV
-        echo "v2_tag=${{ env.v2_tag }}"
+        v2_tag=$(make echo-v2)"
+        echo "v2_tag=$v2_tag" >> $GITHUB_ENV
+        echo "v2_tag: $v2_tag"
 
     - uses: actions/cache@v4
       with:
