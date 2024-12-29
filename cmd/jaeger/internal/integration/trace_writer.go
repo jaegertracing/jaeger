@@ -9,7 +9,6 @@ import (
 	"io"
 	"time"
 
-	"github.com/jaegertracing/jaeger/storage_v2/tracestore"
 	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/config/configtls"
 	"go.opentelemetry.io/collector/exporter"
@@ -17,6 +16,8 @@ import (
 	"go.opentelemetry.io/collector/exporter/otlpexporter"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.uber.org/zap"
+
+	"github.com/jaegertracing/jaeger/storage_v2/tracestore"
 )
 
 var (
