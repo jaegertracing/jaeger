@@ -27,16 +27,18 @@ import (
 )
 
 const (
-	paramTraceID       = "trace_id" // get trace by ID
-	paramStartTime     = "start_time"
-	paramEndTime       = "end_time"
-	paramServiceName   = "query.service_name" // find traces
-	paramOperationName = "query.operation_name"
-	paramTimeMin       = "query.start_time_min"
-	paramTimeMax       = "query.start_time_max"
-	paramNumTraces     = "query.num_traces"
-	paramDurationMin   = "query.duration_min"
-	paramDurationMax   = "query.duration_max"
+	paramTraceID        = "trace_id" // get trace by ID
+	paramStartTime      = "start_time"
+	paramEndTime        = "end_time"
+	paramRawTraces      = "raw_traces"
+	paramServiceName    = "query.service_name" // find traces
+	paramOperationName  = "query.operation_name"
+	paramTimeMin        = "query.start_time_min"
+	paramTimeMax        = "query.start_time_max"
+	paramNumTraces      = "query.num_traces"
+	paramDurationMin    = "query.duration_min"
+	paramDurationMax    = "query.duration_max"
+	paramQueryRawTraces = "query.raw_traces"
 
 	routeGetTrace      = "/api/v3/traces/{" + paramTraceID + "}"
 	routeFindTraces    = "/api/v3/traces"
@@ -135,8 +137,10 @@ func (h *HTTPGateway) getTrace(w http.ResponseWriter, r *http.Request) {
 	if h.tryParamError(w, err, paramTraceID) {
 		return
 	}
-	request := spanstore.GetTraceParameters{
-		TraceID: traceID,
+	request := querysvc.GetTraceParameters{
+		GetTraceParameters: spanstore.GetTraceParameters{
+			TraceID: traceID,
+		},
 	}
 	http_query := r.URL.Query()
 	startTime := http_query.Get(paramStartTime)
@@ -154,6 +158,13 @@ func (h *HTTPGateway) getTrace(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		request.EndTime = timeParsed.UTC()
+	}
+	if r := http_query.Get(paramRawTraces); r != "" {
+		rawTraces, err := strconv.ParseBool(r)
+		if h.tryParamError(w, err, paramRawTraces) {
+			return
+		}
+		request.RawTraces = rawTraces
 	}
 	trc, err := h.QueryService.GetTrace(r.Context(), request)
 	if h.tryHandleError(w, err, http.StatusInternalServerError) {
@@ -180,11 +191,13 @@ func (h *HTTPGateway) findTraces(w http.ResponseWriter, r *http.Request) {
 	h.returnSpans(spans, w)
 }
 
-func (h *HTTPGateway) parseFindTracesQuery(q url.Values, w http.ResponseWriter) (*spanstore.TraceQueryParameters, bool) {
-	queryParams := &spanstore.TraceQueryParameters{
-		ServiceName:   q.Get(paramServiceName),
-		OperationName: q.Get(paramOperationName),
-		Tags:          nil, // most curiously not supported by grpc-gateway
+func (h *HTTPGateway) parseFindTracesQuery(q url.Values, w http.ResponseWriter) (*querysvc.TraceQueryParameters, bool) {
+	queryParams := &querysvc.TraceQueryParameters{
+		TraceQueryParameters: spanstore.TraceQueryParameters{
+			ServiceName:   q.Get(paramServiceName),
+			OperationName: q.Get(paramOperationName),
+			Tags:          nil, // most curiously not supported by grpc-gateway
+		},
 	}
 
 	timeMin := q.Get(paramTimeMin)
@@ -226,6 +239,13 @@ func (h *HTTPGateway) parseFindTracesQuery(q url.Values, w http.ResponseWriter) 
 			return nil, true
 		}
 		queryParams.DurationMax = dur
+	}
+	if r := q.Get(paramQueryRawTraces); r != "" {
+		rawTraces, err := strconv.ParseBool(r)
+		if h.tryParamError(w, err, paramQueryRawTraces) {
+			return nil, true
+		}
+		queryParams.RawTraces = rawTraces
 	}
 	return queryParams, false
 }
