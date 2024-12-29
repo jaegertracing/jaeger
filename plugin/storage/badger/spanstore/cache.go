@@ -159,43 +159,27 @@ func (c *CacheStore) GetOperations(service string, kind string) ([]spanstore.Ope
 			delete(c.operations, service)
 			return []spanstore.Operation{}, nil // empty slice rather than nil
 		}
-		if kind != "" {
-			spanKind, err := model.SpanKindFromString(kind)
-			if err != nil {
-				return nil, err
+		for sKind := range c.operations[service] {
+			if kind != "" && kind != string(sKind) {
+				continue
 			}
-			for o, e := range c.operations[service][spanKind] {
-				operations = insertAndUpdateOperations(c, operations, service, o, spanKind, currentTime, e)
-				sort.Slice(operations, func(i, j int) bool {
-					return operations[i].Name < operations[j].Name
-				})
-			}
-		} else {
-			for sKind := range c.operations[service] {
-				for o, expiryTimeOfOperation := range c.operations[service][sKind] {
-					operations = insertAndUpdateOperations(c, operations, service, o, sKind, currentTime, expiryTimeOfOperation)
-					sort.Slice(operations, func(i, j int) bool {
-						if operations[i].SpanKind == operations[j].SpanKind {
-							return operations[i].Name < operations[j].Name
-						}
-						return operations[i].SpanKind < operations[j].SpanKind
-					})
+			for o, expiryTimeOfOperation := range c.operations[service][sKind] {
+				if expiryTimeOfOperation > currentTime {
+					op := spanstore.Operation{Name: o, SpanKind: string(sKind)}
+					operations = append(operations, op)
+				} else {
+					delete(c.operations[service][sKind], o)
 				}
+				sort.Slice(operations, func(i, j int) bool {
+					if operations[i].SpanKind == operations[j].SpanKind {
+						return operations[i].Name < operations[j].Name
+					}
+					return operations[i].SpanKind < operations[j].SpanKind
+				})
 			}
 		}
 	}
 	return operations, nil
-}
-
-// insertAndUpdateOperations put the operations into operations array if not expired, if expired then it removes it from the cache!
-func insertAndUpdateOperations(c *CacheStore, operations []spanstore.Operation, service, operation string, kind model.SpanKind, currentTime, expiryTime uint64) []spanstore.Operation {
-	if expiryTime > currentTime {
-		op := spanstore.Operation{Name: operation, SpanKind: string(kind)}
-		operations = append(operations, op)
-		return operations
-	}
-	delete(c.operations[service][kind], operation)
-	return operations
 }
 
 // GetServices returns all services traced by Jaeger
