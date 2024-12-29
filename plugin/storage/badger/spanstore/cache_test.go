@@ -21,7 +21,14 @@ import (
 	Additional cache store tests that need to access internal parts. As such, package must be spanstore and not spanstore_test
 */
 
-var spanKinds = []model.SpanKind{model.SpanKindUnspecified, model.SpanKindInternal, model.SpanKindClient, model.SpanKindServer, model.SpanKindProducer, model.SpanKindConsumer}
+var spanKinds = []model.SpanKind{
+	model.SpanKindUnspecified,
+	model.SpanKindInternal,
+	model.SpanKindClient,
+	model.SpanKindServer,
+	model.SpanKindProducer,
+	model.SpanKindConsumer,
+}
 
 func TestExpiredItems(t *testing.T) {
 	runWithBadger(t, func(store *badger.DB, t *testing.T) {

@@ -149,11 +149,11 @@ func (c *CacheStore) Update(service, operation string, kind model.SpanKind, expi
 func (c *CacheStore) GetOperations(service string, kind string) ([]spanstore.Operation, error) {
 	operations := make([]spanstore.Operation, 0, len(c.services))
 	//nolint: gosec // G115
-	t := uint64(time.Now().Unix())
+	currentTime := uint64(time.Now().Unix())
 	c.cacheLock.Lock()
 	defer c.cacheLock.Unlock()
-	if v, ok := c.services[service]; ok {
-		if v < t {
+	if expiryTimeOfService, ok := c.services[service]; ok {
+		if expiryTimeOfService < currentTime {
 			// Expired, remove
 			delete(c.services, service)
 			delete(c.operations, service)
@@ -165,15 +165,15 @@ func (c *CacheStore) GetOperations(service string, kind string) ([]spanstore.Ope
 				return nil, err
 			}
 			for o, e := range c.operations[service][spanKind] {
-				operations = insertOperations(c, operations, service, o, spanKind, t, e)
+				operations = insertOperations(c, operations, service, o, spanKind, currentTime, e)
 				sort.Slice(operations, func(i, j int) bool {
 					return operations[i].Name < operations[j].Name
 				})
 			}
 		} else {
 			for sKind := range c.operations[service] {
-				for o, e := range c.operations[service][sKind] {
-					operations = insertOperations(c, operations, service, o, sKind, t, e)
+				for o, expiryTimeOfOperation := range c.operations[service][sKind] {
+					operations = insertOperations(c, operations, service, o, sKind, currentTime, expiryTimeOfOperation)
 					sort.Slice(operations, func(i, j int) bool {
 						if operations[i].SpanKind == operations[j].SpanKind {
 							return operations[i].Name < operations[j].Name
@@ -187,8 +187,9 @@ func (c *CacheStore) GetOperations(service string, kind string) ([]spanstore.Ope
 	return operations, nil
 }
 
-func insertOperations(c *CacheStore, operations []spanstore.Operation, service, operation string, kind model.SpanKind, t, e uint64) []spanstore.Operation {
-	if e > t {
+// insertOperations put the operations into operations array if not expired, if expired then it removes it from the cache!
+func insertOperations(c *CacheStore, operations []spanstore.Operation, service, operation string, kind model.SpanKind, currentTime, expiryTime uint64) []spanstore.Operation {
+	if expiryTime > currentTime {
 		op := spanstore.Operation{Name: operation, SpanKind: string(kind)}
 		operations = append(operations, op)
 		return operations
