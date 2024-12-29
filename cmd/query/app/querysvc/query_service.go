@@ -122,7 +122,7 @@ func (qs QueryService) FindTraces(ctx context.Context, query *TraceQueryParamete
 	if err != nil {
 		return nil, err
 	}
-	traces, err := spanReader.FindTraces(ctx, query)
+	traces, err := spanReader.FindTraces(ctx, &query.TraceQueryParameters)
 	if !query.RawTraces {
 		for _, trace := range traces {
 			qs.adjust(trace)
