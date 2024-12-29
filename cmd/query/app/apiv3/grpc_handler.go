@@ -11,8 +11,8 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"github.com/jaegertracing/jaeger/cmd/query/app/internal/api_v3"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
+	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
@@ -32,10 +32,13 @@ func (h *Handler) GetTrace(request *api_v3.GetTraceRequest, stream api_v3.QueryS
 		return fmt.Errorf("malform trace ID: %w", err)
 	}
 
-	query := spanstore.GetTraceParameters{
-		TraceID:   traceID,
-		StartTime: request.GetStartTime(),
-		EndTime:   request.GetEndTime(),
+	query := querysvc.GetTraceParameters{
+		GetTraceParameters: spanstore.GetTraceParameters{
+			TraceID:   traceID,
+			StartTime: request.GetStartTime(),
+			EndTime:   request.GetEndTime(),
+		},
+		RawTraces: request.GetRawTraces(),
 	}
 	trace, err := h.QueryService.GetTrace(stream.Context(), query)
 	if err != nil {
@@ -66,11 +69,14 @@ func (h *Handler) internalFindTraces(
 		return errors.New("start time min and max are required parameters")
 	}
 
-	queryParams := &spanstore.TraceQueryParameters{
-		ServiceName:   query.GetServiceName(),
-		OperationName: query.GetOperationName(),
-		Tags:          query.GetAttributes(),
-		NumTraces:     int(query.GetSearchDepth()),
+	queryParams := &querysvc.TraceQueryParameters{
+		TraceQueryParameters: spanstore.TraceQueryParameters{
+			ServiceName:   query.GetServiceName(),
+			OperationName: query.GetOperationName(),
+			Tags:          query.GetAttributes(),
+			NumTraces:     int(query.GetSearchDepth()),
+		},
+		RawTraces: query.GetRawTraces(),
 	}
 	if ts := query.GetStartTimeMin(); !ts.IsZero() {
 		queryParams.StartTimeMin = ts

@@ -48,19 +48,24 @@ SCRIPTS_SRC = $(shell find . \( -name '*.sh' -o -name '*.py' -o -name '*.mk' -o 
 # ALL_PKGS is used with 'nocover' and 'goleak'
 ALL_PKGS = $(shell echo $(dir $(ALL_SRC)) | tr ' ' '\n' | sort -u)
 
-UNAME := $(shell uname -m)
-ifeq ($(UNAME), s390x)
+GO=go
+GOOS ?= $(shell $(GO) env GOOS)
+GOARCH ?= $(shell $(GO) env GOARCH)
+
 # go test does not support -race flag on s390x architecture
+ifeq ($(GOARCH), s390x)
 	RACE=
 else
 	RACE=-race
 endif
 # sed on Mac does not support the same syntax for in-place updates as sed on Linux
 # When running on MacOS it's best to install gsed and run Makefile with SED=gsed
-SED=sed
-GO=go
-GOOS ?= $(shell $(GO) env GOOS)
-GOARCH ?= $(shell $(GO) env GOARCH)
+ifeq ($(GOOS),darwin)
+	SED=gsed
+else
+	SED=sed
+endif
+
 GOTEST_QUIET=$(GO) test $(RACE)
 GOTEST=$(GOTEST_QUIET) -v
 COVEROUT=cover.out
