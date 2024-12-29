@@ -63,7 +63,7 @@ jobs:
       uses: actions/upload-artifact@v4
       if: ${{ matrix.version.jaeger }} == "v2"
       with:
-        name: elasticsearch-metrics-${{ matrix.version.major }}_${{ matrix.version.jaeger}}
+        name: elasticsearch-metrics-${{ matrix.version.major }}_${{ matrix.version.jaeger}}.txt
         path: ./.metrics/elasticsearch_metrics.txt
         retention-days: 7
 

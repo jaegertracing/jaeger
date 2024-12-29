@@ -45,7 +45,7 @@ jobs:
       uses: actions/upload-artifact@v4
       if: ${{ matrix.version }} == "v2"
       with:
-        name: grpc-metrics-${{ matrix.version }}
+        name: grpc-metrics-${{ matrix.version }}.txt
         path: ./.metrics/grpc_metrics.txt
         retention-days: 7
 

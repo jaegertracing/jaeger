@@ -33,7 +33,7 @@ jobs:
     - name: Upload Metrics Artifact
       uses: actions/upload-artifact@v4
       with:
-          name: memory-metrics
+          name: memory-metrics.txt
           path: ./.metrics/memory_metrics.txt
           retention-days: 7
     

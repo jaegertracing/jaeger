@@ -53,16 +53,21 @@ jobs:
       uses: actions/upload-artifact@v4
       if: ${{ matrix.jaeger-version }} == "v2"
       with:
-        name: cassandra_metrics_${{ matrix.version.major }}_${{ matrix.version.schema }}_${{ matrix.jaeger-version }}_${{ matrix.create-schema }}
+        name: cassandra_metrics_${{ matrix.version.major }}_${{ matrix.version.schema }}_${{ matrix.jaeger-version }}_${{ matrix.create-schema }}.txt
         path: ./.metrics/cassandra_metrics.txt
         retention-days: 7
 
     - name: Release Action then cache 
-      if: contains(github.ref, 'refs/tags/') && ${{ matrix.jaeger-version }} == "v2"
+      if: contains(github.ref,'tags') && ${{ matrix.jaeger-version }} == "v2"
       uses: actions/cache@v4
       with:
         path: ./.metrics/cassandra_metrics.txt
         key: ${{ github.ref }}_cassandra_metrics_${{ matrix.version.major }}_${{ matrix.version.schema }}
+      
+    - name: testing
+      if: contains(github.ref, 'tags')
+      run: echo "I only run if the branch has release in its name!"
+      
 
     - name: Upload coverage to codecov
       uses: ./.github/actions/upload-codecov

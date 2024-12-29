@@ -40,7 +40,7 @@ jobs:
       uses: actions/upload-artifact@v4
       if: ${{ matrix.jaeger-version }} == "v2"
       with:
-        name: kafka-metrics-${{ matrix.jaeger-version }}
+        name: kafka-metrics-${{ matrix.jaeger-version }}.txt
         path: ./.metrics/kafka_metrics.txt
         retention-days: 7
 
