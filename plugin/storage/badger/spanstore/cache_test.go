@@ -219,7 +219,7 @@ func TestCacheStore_GetOperationsReturnsEmptyOperationsWithWrongSpanKind(t *test
 		cache.services["service1"] = uint64(time.Now().Unix())
 		operations, err := cache.GetOperations("service1", "a")
 		require.NoError(t, err)
-		assert.Len(t, operations, 0)
+		assert.Empty(t, operations)
 	})
 }
 
