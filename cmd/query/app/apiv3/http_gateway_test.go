@@ -167,6 +167,11 @@ func TestHTTPGatewayGetTraceMalformedInputErrors(t *testing.T) {
 			requestUrl:    "/api/v3/traces/123?end_time=xyz",
 			expectedError: "malformed parameter end_time",
 		},
+		{
+			name:          "TestGetTraceWithInvalidRawTraces",
+			requestUrl:    "/api/v3/traces/123?raw_traces=foobar",
+			expectedError: "malformed parameter raw_traces",
+		},
 	}
 
 	for _, tc := range testCases {
@@ -227,6 +232,7 @@ func mockFindQueries() (url.Values, *spanstore.TraceQueryParameters) {
 func TestHTTPGatewayFindTracesErrors(t *testing.T) {
 	goodTimeV := time.Now()
 	goodTime := goodTimeV.Format(time.RFC3339Nano)
+	goodDuration := "1s"
 	timeRangeErr := fmt.Sprintf("%s and %s are required", paramTimeMin, paramTimeMax)
 	testCases := []struct {
 		name   string
@@ -271,6 +277,16 @@ func TestHTTPGatewayFindTracesErrors(t *testing.T) {
 			name:   "bad max duration",
 			params: map[string]string{paramTimeMin: goodTime, paramTimeMax: goodTime, paramDurationMax: "NaN"},
 			expErr: paramDurationMax,
+		},
+		{
+			name: "bad raw traces",
+			params: map[string]string{
+				paramTimeMin:        goodTime,
+				paramTimeMax:        goodTime,
+				paramDurationMax:    goodDuration,
+				paramQueryRawTraces: "foobar",
+			},
+			expErr: paramQueryRawTraces,
 		},
 	}
 	for _, tc := range testCases {

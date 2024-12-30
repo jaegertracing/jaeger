@@ -16,8 +16,8 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
-	"github.com/jaegertracing/jaeger/cmd/query/app/internal/api_v3"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
+	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
 	"github.com/jaegertracing/jaeger/model"
 	_ "github.com/jaegertracing/jaeger/pkg/gogocodec" // force gogo codec registration
 	"github.com/jaegertracing/jaeger/storage/spanstore"
@@ -116,6 +116,7 @@ func TestGetTrace(t *testing.T) {
 				&model.Trace{
 					Spans: []*model.Span{
 						{
+							Process:       &model.Process{},
 							OperationName: "foobar",
 						},
 					},
@@ -172,6 +173,7 @@ func TestFindTraces(t *testing.T) {
 			{
 				Spans: []*model.Span{
 					{
+						Process:       &model.Process{},
 						OperationName: "name",
 					},
 				},
@@ -204,6 +206,9 @@ func TestFindTracesSendError(t *testing.T) {
 			{
 				Spans: []*model.Span{
 					{
+						Process: &model.Process{
+							ServiceName: "myservice",
+						},
 						OperationName: "name",
 					},
 				},

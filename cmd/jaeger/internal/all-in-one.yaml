@@ -62,6 +62,10 @@ receivers:
         endpoint: "${env:JAEGER_LISTEN_HOST:-localhost}:14250"
       thrift_http:
         endpoint: "${env:JAEGER_LISTEN_HOST:-localhost}:14268"
+      thrift_binary:
+        endpoint: "${env:JAEGER_LISTEN_HOST:-localhost}:6832"
+      thrift_compact:
+        endpoint: "${env:JAEGER_LISTEN_HOST:-localhost}:6831"
 
   zipkin:
     endpoint: "${env:JAEGER_LISTEN_HOST:-localhost}:9411"
