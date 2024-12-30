@@ -12,6 +12,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc/adjuster"
+	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/iter"
 	"github.com/jaegertracing/jaeger/storage_v2/depstore"
@@ -90,30 +91,29 @@ func (qs QueryServiceV2) GetTraces(
 	params GetTraceParams,
 ) iter.Seq2[[]ptrace.Traces, error] {
 	getTracesIter := qs.traceReader.GetTraces(ctx, params.TraceIDs...)
+	aggregatedTraces := jptrace.AggregateTraces(getTracesIter)
 	// TODO: aggregate the traces
 	return func(yield func([]ptrace.Traces, error) bool) {
 		foundTraceIDs := make(map[pcommon.TraceID]struct{})
-		getTracesIter(func(traces []ptrace.Traces, err error) bool {
+		aggregatedTraces(func(trace ptrace.Traces, err error) bool {
 			if err != nil {
 				return yield(nil, err)
 			}
-			for _, trace := range traces {
-				if !params.RawTraces {
-					qs.options.Adjuster.Adjust(trace)
-				}
-				resources := trace.ResourceSpans()
-				for i := 0; i < resources.Len(); i++ {
-					scopes := resources.At(i).ScopeSpans()
-					for j := 0; j < scopes.Len(); j++ {
-						spans := scopes.At(j).Spans()
-						for k := 0; k < spans.Len(); k++ {
-							span := spans.At(k)
-							foundTraceIDs[span.TraceID()] = struct{}{}
-						}
+			if !params.RawTraces {
+				qs.options.Adjuster.Adjust(trace)
+			}
+			resources := trace.ResourceSpans()
+			for i := 0; i < resources.Len(); i++ {
+				scopes := resources.At(i).ScopeSpans()
+				for j := 0; j < scopes.Len(); j++ {
+					spans := scopes.At(j).Spans()
+					for k := 0; k < spans.Len(); k++ {
+						span := spans.At(k)
+						foundTraceIDs[span.TraceID()] = struct{}{}
 					}
 				}
 			}
-			return yield(traces, nil)
+			return yield([]ptrace.Traces{trace}, nil)
 		})
 		if qs.options.ArchiveTraceReader != nil {
 			var missingTraceIDs []tracestore.GetTraceParams
@@ -124,16 +124,15 @@ func (qs QueryServiceV2) GetTraces(
 			}
 			if len(missingTraceIDs) > 0 {
 				getArchiveTracesIter := qs.options.ArchiveTraceReader.GetTraces(ctx, missingTraceIDs...)
-				getArchiveTracesIter(func(traces []ptrace.Traces, err error) bool {
+				aggregatedArchiveTraces := jptrace.AggregateTraces(getArchiveTracesIter)
+				aggregatedArchiveTraces(func(trace ptrace.Traces, err error) bool {
 					if err != nil {
 						return yield(nil, err)
 					}
-					for _, trace := range traces {
-						if !params.RawTraces {
-							qs.options.Adjuster.Adjust(trace)
-						}
+					if !params.RawTraces {
+						qs.options.Adjuster.Adjust(trace)
 					}
-					return yield(traces, nil)
+					return yield([]ptrace.Traces{trace}, nil)
 				})
 			}
 		}
