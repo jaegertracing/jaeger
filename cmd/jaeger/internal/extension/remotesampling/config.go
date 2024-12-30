@@ -32,10 +32,9 @@ var (
 		"jaeger.sampling.includeDefaultOpStrategies",
 		featuregate.StageBeta, // enabed by default
 		featuregate.WithRegisterFromVersion("v2.2.0"),
+		featuregate.WithRegisterToVersion("v2.5.0"),
 		featuregate.WithRegisterDescription("Forces service strategy to be merged with default strategy, including per-operation overrides."),
 		featuregate.WithRegisterReferenceURL("https://github.com/jaegertracing/jaeger/issues/5270"),
-		// TODO set ToVersion after going to Beta stage
-		// featuregate.WithRegisterToVersion("v0.70.0"),
 	)
 )
 
