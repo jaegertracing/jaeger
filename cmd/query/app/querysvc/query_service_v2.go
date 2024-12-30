@@ -91,25 +91,8 @@ func (qs QueryServiceV2) GetTraces(
 	params GetTraceParams,
 ) iter.Seq2[[]ptrace.Traces, error] {
 	getTracesIter := qs.traceReader.GetTraces(ctx, params.TraceIDs...)
-	aggregatedTraces := jptrace.AggregateTraces(getTracesIter)
 	return func(yield func([]ptrace.Traces, error) bool) {
-		foundTraceIDs := make(map[pcommon.TraceID]struct{})
-		proceed := true
-		aggregatedTraces(func(trace ptrace.Traces, err error) bool {
-			if err != nil {
-				proceed = yield(nil, err)
-				return proceed
-			}
-			if !params.RawTraces {
-				qs.options.Adjuster.Adjust(trace)
-			}
-			jptrace.SpanIter(trace)(func(_ jptrace.SpanIterPos, span ptrace.Span) bool {
-				foundTraceIDs[span.TraceID()] = struct{}{}
-				return true
-			})
-			proceed = yield([]ptrace.Traces{trace}, nil)
-			return proceed
-		})
+		foundTraceIDs, proceed := qs.receiveTraces(getTracesIter, yield, params.RawTraces)
 		if proceed && qs.options.ArchiveTraceReader != nil {
 			var missingTraceIDs []tracestore.GetTraceParams
 			for _, id := range params.TraceIDs {
@@ -119,16 +102,7 @@ func (qs QueryServiceV2) GetTraces(
 			}
 			if len(missingTraceIDs) > 0 {
 				getArchiveTracesIter := qs.options.ArchiveTraceReader.GetTraces(ctx, missingTraceIDs...)
-				aggregatedArchiveTraces := jptrace.AggregateTraces(getArchiveTracesIter)
-				aggregatedArchiveTraces(func(trace ptrace.Traces, err error) bool {
-					if err != nil {
-						return yield(nil, err)
-					}
-					if !params.RawTraces {
-						qs.options.Adjuster.Adjust(trace)
-					}
-					return yield([]ptrace.Traces{trace}, nil)
-				})
+				qs.receiveTraces(getArchiveTracesIter, yield, params.RawTraces)
 			}
 		}
 	}
@@ -154,17 +128,7 @@ func (qs QueryServiceV2) FindTraces(
 ) iter.Seq2[[]ptrace.Traces, error] {
 	return func(yield func([]ptrace.Traces, error) bool) {
 		tracesIter := qs.traceReader.FindTraces(ctx, query.TraceQueryParams)
-		tracesIter(func(traces []ptrace.Traces, err error) bool {
-			if err != nil {
-				return yield(nil, err)
-			}
-			if !query.RawTraces {
-				for _, trace := range traces {
-					qs.options.Adjuster.Adjust(trace)
-				}
-			}
-			return yield(traces, nil)
-		})
+		qs.receiveTraces(tracesIter, yield, query.RawTraces)
 	}
 }
 
@@ -212,4 +176,30 @@ func (qs QueryServiceV2) GetCapabilities() StorageCapabilities {
 // hasArchiveStorage returns true if archive storage reader/writer are initialized.
 func (opts *QueryServiceOptionsV2) hasArchiveStorage() bool {
 	return opts.ArchiveTraceReader != nil && opts.ArchiveTraceWriter != nil
+}
+
+func (qs QueryServiceV2) receiveTraces(
+	seq iter.Seq2[[]ptrace.Traces, error],
+	yield func([]ptrace.Traces, error) bool,
+	rawTraces bool,
+) (map[pcommon.TraceID]struct{}, bool) {
+	aggregatedTraces := jptrace.AggregateTraces(seq)
+	foundTraceIDs := make(map[pcommon.TraceID]struct{})
+	proceed := true
+	aggregatedTraces(func(trace ptrace.Traces, err error) bool {
+		if err != nil {
+			proceed = yield(nil, err)
+			return proceed
+		}
+		if !rawTraces {
+			qs.options.Adjuster.Adjust(trace)
+		}
+		jptrace.SpanIter(trace)(func(_ jptrace.SpanIterPos, span ptrace.Span) bool {
+			foundTraceIDs[span.TraceID()] = struct{}{}
+			return true
+		})
+		proceed = yield([]ptrace.Traces{trace}, nil)
+		return proceed
+	})
+	return foundTraceIDs, proceed
 }
