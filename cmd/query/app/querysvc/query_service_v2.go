@@ -142,7 +142,7 @@ func (qs QueryServiceV2) GetServices(ctx context.Context) ([]string, error) {
 // GetOperations is the queryService implementation of tracestore.Reader.GetOperations
 func (qs QueryServiceV2) GetOperations(
 	ctx context.Context,
-	query tracestore.OperationQueryParameters,
+	query tracestore.OperationQueryParams,
 ) ([]tracestore.Operation, error) {
 	return qs.traceReader.GetOperations(ctx, query)
 }

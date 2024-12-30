@@ -270,7 +270,7 @@ func (s *StorageIntegration) testGetOperations(t *testing.T) {
 	found := s.waitForCondition(t, func(t *testing.T) bool {
 		var err error
 		actual, err = s.TraceReader.GetOperations(context.Background(),
-			tracestore.OperationQueryParameters{ServiceName: "example-service-1"})
+			tracestore.OperationQueryParams{ServiceName: "example-service-1"})
 		if err != nil {
 			t.Log(err)
 			return false

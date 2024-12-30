@@ -55,7 +55,7 @@ func withArchiveTraceWriter() testOptionV2 {
 	}
 }
 
-func initializeTestServiceV2(optionAppliers ...testOptionV2) *testQueryServiceV2 {
+func initializeTestServiceV2(opts ...testOptionV2) *testQueryServiceV2 {
 	traceReader := &tracestoremocks.Reader{}
 	dependencyStorage := &depstoremocks.Reader{}
 
@@ -66,8 +66,8 @@ func initializeTestServiceV2(optionAppliers ...testOptionV2) *testQueryServiceV2
 		depsReader:  dependencyStorage,
 	}
 
-	for _, optApplier := range optionAppliers {
-		optApplier(&tqs, &options)
+	for _, opt := range opts {
+		opt(&tqs, &options)
 	}
 
 	tqs.queryService = NewQueryServiceV2(traceReader, dependencyStorage, options)
@@ -76,31 +76,27 @@ func initializeTestServiceV2(optionAppliers ...testOptionV2) *testQueryServiceV2
 
 func TestGetServicesV2(t *testing.T) {
 	tqs := initializeTestServiceV2()
-	expectedServices := []string{"trifle", "bling"}
-	tqs.traceReader.On("GetServices", mock.AnythingOfType("*context.valueCtx")).Return(expectedServices, nil).Once()
+	expected := []string{"trifle", "bling"}
+	tqs.traceReader.On("GetServices", mock.Anything).Return(expected, nil).Once()
 
-	type contextKey string
-	ctx := context.Background()
-	actualServices, err := tqs.queryService.GetServices(context.WithValue(ctx, contextKey("foo"), "bar"))
+	actualServices, err := tqs.queryService.GetServices(context.Background())
 	require.NoError(t, err)
-	assert.Equal(t, expectedServices, actualServices)
+	assert.Equal(t, expected, actualServices)
 }
 
 func TestGetOperationsV2(t *testing.T) {
 	tqs := initializeTestServiceV2()
-	expectedOperations := []tracestore.Operation{{Name: "", SpanKind: ""}, {Name: "get", SpanKind: ""}}
-	operationQuery := tracestore.OperationQueryParameters{ServiceName: "abc/trifle"}
+	expected := []tracestore.Operation{{Name: "", SpanKind: ""}, {Name: "get", SpanKind: ""}}
+	operationQuery := tracestore.OperationQueryParams{ServiceName: "abc/trifle"}
 	tqs.traceReader.On(
 		"GetOperations",
-		mock.AnythingOfType("*context.valueCtx"),
+		mock.Anything,
 		operationQuery,
-	).Return(expectedOperations, nil).Once()
+	).Return(expected, nil).Once()
 
-	type contextKey string
-	ctx := context.Background()
-	actualOperations, err := tqs.queryService.GetOperations(context.WithValue(ctx, contextKey("foo"), "bar"), operationQuery)
+	actualOperations, err := tqs.queryService.GetOperations(context.Background(), operationQuery)
 	require.NoError(t, err)
-	assert.Equal(t, expectedOperations, actualOperations)
+	assert.Equal(t, expected, actualOperations)
 }
 
 func TestArchiveTraceV2_NoOptions(t *testing.T) {
@@ -118,7 +114,7 @@ func TestArchiveTraceV2_NoOptions(t *testing.T) {
 
 func TestGetDependenciesV2(t *testing.T) {
 	tqs := initializeTestServiceV2()
-	expectedDependencies := []model.DependencyLink{
+	expected := []model.DependencyLink{
 		{
 			Parent:    "killer",
 			Child:     "queen",
@@ -132,26 +128,28 @@ func TestGetDependenciesV2(t *testing.T) {
 		depstore.QueryParameters{
 			StartTime: endTs.Add(-defaultDependencyLookbackDuration),
 			EndTime:   endTs,
-		}).Return(expectedDependencies, nil).Times(1)
+		}).Return(expected, nil).Times(1)
 
-	actualDependencies, err := tqs.queryService.GetDependencies(context.Background(), time.Unix(0, 1476374248550*millisToNanosMultiplier), defaultDependencyLookbackDuration)
+	actualDependencies, err := tqs.queryService.GetDependencies(
+		context.Background(), endTs,
+		defaultDependencyLookbackDuration)
 	require.NoError(t, err)
-	assert.Equal(t, expectedDependencies, actualDependencies)
+	assert.Equal(t, expected, actualDependencies)
 }
 
 func TestGetCapabilitiesV2(t *testing.T) {
 	tqs := initializeTestServiceV2()
-	expectedStorageCapabilities := StorageCapabilities{
+	expected := StorageCapabilities{
 		ArchiveStorage: false,
 	}
-	assert.Equal(t, expectedStorageCapabilities, tqs.queryService.GetCapabilities())
+	assert.Equal(t, expected, tqs.queryService.GetCapabilities())
 }
 
 func TestGetCapabilitiesWithSupportsArchiveV2(t *testing.T) {
 	tqs := initializeTestServiceV2(withArchiveTraceReader(), withArchiveTraceWriter())
 
-	expectedStorageCapabilities := StorageCapabilities{
+	expected := StorageCapabilities{
 		ArchiveStorage: true,
 	}
-	assert.Equal(t, expectedStorageCapabilities, tqs.queryService.GetCapabilities())
+	assert.Equal(t, expected, tqs.queryService.GetCapabilities())
 }
