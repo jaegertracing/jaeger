@@ -101,17 +101,10 @@ func (qs QueryServiceV2) GetTraces(
 			if !params.RawTraces {
 				qs.options.Adjuster.Adjust(trace)
 			}
-			resources := trace.ResourceSpans()
-			for i := 0; i < resources.Len(); i++ {
-				scopes := resources.At(i).ScopeSpans()
-				for j := 0; j < scopes.Len(); j++ {
-					spans := scopes.At(j).Spans()
-					for k := 0; k < spans.Len(); k++ {
-						span := spans.At(k)
-						foundTraceIDs[span.TraceID()] = struct{}{}
-					}
-				}
-			}
+			jptrace.SpanIter(trace)(func(_ jptrace.SpanIterPos, span ptrace.Span) bool {
+				foundTraceIDs[span.TraceID()] = struct{}{}
+				return true
+			})
 			return yield([]ptrace.Traces{trace}, nil)
 		})
 		if qs.options.ArchiveTraceReader != nil {
