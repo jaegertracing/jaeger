@@ -161,14 +161,12 @@ func (qs QueryServiceV2) FindTraces(ctx context.Context, query TraceQueryParams)
 }
 
 // ArchiveTrace is the queryService utility to archive traces.
-func (qs QueryServiceV2) ArchiveTrace(ctx context.Context, traceID pcommon.TraceID) error {
+func (qs QueryServiceV2) ArchiveTrace(ctx context.Context, query tracestore.GetTraceParams) error {
 	if qs.options.ArchiveTraceWriter == nil {
 		return errNoArchiveSpanStorage
 	}
 	getTracesIter := qs.GetTraces(
-		ctx, GetTraceParams{
-			TraceIDs: []tracestore.GetTraceParams{{TraceID: traceID}},
-		},
+		ctx, GetTraceParams{TraceIDs: []tracestore.GetTraceParams{query}},
 	)
 	var archiveErr error
 	getTracesIter(func(traces []ptrace.Traces, err error) bool {
