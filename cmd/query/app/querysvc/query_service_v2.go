@@ -92,7 +92,6 @@ func (qs QueryServiceV2) GetTraces(
 ) iter.Seq2[[]ptrace.Traces, error] {
 	getTracesIter := qs.traceReader.GetTraces(ctx, params.TraceIDs...)
 	aggregatedTraces := jptrace.AggregateTraces(getTracesIter)
-	// TODO: aggregate the traces
 	return func(yield func([]ptrace.Traces, error) bool) {
 		foundTraceIDs := make(map[pcommon.TraceID]struct{})
 		aggregatedTraces(func(trace ptrace.Traces, err error) bool {
@@ -153,7 +152,10 @@ func (qs QueryServiceV2) GetOperations(
 }
 
 // FindTraces is the queryService implementation of tracestore.Reader.FindTraces
-func (qs QueryServiceV2) FindTraces(ctx context.Context, query TraceQueryParams) iter.Seq2[[]ptrace.Traces, error] {
+func (qs QueryServiceV2) FindTraces(
+	ctx context.Context,
+	query TraceQueryParams,
+) iter.Seq2[[]ptrace.Traces, error] {
 	return func(yield func([]ptrace.Traces, error) bool) {
 		tracesIter := qs.traceReader.FindTraces(ctx, query.TraceQueryParams)
 		tracesIter(func(traces []ptrace.Traces, err error) bool {
