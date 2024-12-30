@@ -223,6 +223,132 @@ func TestGetOperationsV2(t *testing.T) {
 	assert.Equal(t, expected, actualOperations)
 }
 
+func TestFindTracesV2(t *testing.T) {
+	responseIter := iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+		yield([]ptrace.Traces{makeTestTrace()}, nil)
+	})
+
+	tqs := initializeTestServiceV2()
+	duration, err := time.ParseDuration("20ms")
+	require.NoError(t, err)
+	now := time.Now()
+	tqs.traceReader.On("FindTraces", mock.Anything, tracestore.TraceQueryParams{
+		ServiceName:   "service",
+		OperationName: "operation",
+		StartTimeMax:  now,
+		DurationMin:   duration,
+		NumTraces:     200,
+	}).
+		Return(responseIter, nil).Once()
+
+	query := TraceQueryParams{
+		TraceQueryParams: tracestore.TraceQueryParams{
+			ServiceName:   "service",
+			OperationName: "operation",
+			StartTimeMax:  now,
+			DurationMin:   duration,
+			NumTraces:     200,
+		},
+	}
+	var gotTraces []ptrace.Traces
+	getTracesIter := tqs.queryService.FindTraces(context.Background(), query)
+	getTracesIter(func(traces []ptrace.Traces, _ error) bool {
+		gotTraces = append(gotTraces, traces...)
+		return true
+	})
+
+	require.Len(t, gotTraces, 1)
+	gotSpans := gotTraces[0].ResourceSpans().At(0).ScopeSpans().At(0).Spans()
+	require.Equal(t, 2, gotSpans.Len())
+	require.Equal(t, testTraceID, gotSpans.At(0).TraceID())
+	require.EqualValues(t, [8]byte{1}, gotSpans.At(0).SpanID())
+	require.Equal(t, testTraceID, gotSpans.At(1).TraceID())
+	require.EqualValues(t, [8]byte{2}, gotSpans.At(1).SpanID())
+}
+
+func TestFindTracesWithRawTracesV2(t *testing.T) {
+	tests := []struct {
+		rawTraces  bool
+		attributes pcommon.Map
+		expected   pcommon.Map
+	}{
+		{
+			// tags should not get sorted by SortTagsAndLogFields adjuster
+			rawTraces: true,
+			attributes: func() pcommon.Map {
+				m := pcommon.NewMap()
+				m.PutStr("z", "key")
+				m.PutStr("a", "key")
+				return m
+			}(),
+			expected: func() pcommon.Map {
+				m := pcommon.NewMap()
+				m.PutStr("z", "key")
+				m.PutStr("a", "key")
+				return m
+			}(),
+		},
+		{
+			// tags should get sorted by SortTagsAndLogFields adjuster
+			rawTraces: false,
+			attributes: func() pcommon.Map {
+				m := pcommon.NewMap()
+				m.PutStr("z", "key")
+				m.PutStr("a", "key")
+				return m
+			}(),
+			expected: func() pcommon.Map {
+				m := pcommon.NewMap()
+				m.PutStr("a", "key")
+				m.PutStr("z", "key")
+				return m
+			}(),
+		},
+	}
+	for _, test := range tests {
+		t.Run(fmt.Sprintf("rawTraces=%v", test.rawTraces), func(t *testing.T) {
+			trace := makeTestTrace()
+			test.attributes.CopyTo(trace.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).Attributes())
+			responseIter := iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+				yield([]ptrace.Traces{trace}, nil)
+			})
+
+			tqs := initializeTestServiceV2()
+			duration, err := time.ParseDuration("20ms")
+			require.NoError(t, err)
+			now := time.Now()
+			tqs.traceReader.On("FindTraces", mock.Anything, tracestore.TraceQueryParams{
+				ServiceName:   "service",
+				OperationName: "operation",
+				StartTimeMax:  now,
+				DurationMin:   duration,
+				NumTraces:     200,
+			}).
+				Return(responseIter, nil).Once()
+
+			query := TraceQueryParams{
+				TraceQueryParams: tracestore.TraceQueryParams{
+					ServiceName:   "service",
+					OperationName: "operation",
+					StartTimeMax:  now,
+					DurationMin:   duration,
+					NumTraces:     200,
+				},
+				RawTraces: test.rawTraces,
+			}
+			var gotTraces []ptrace.Traces
+			getTracesIter := tqs.queryService.FindTraces(context.Background(), query)
+			getTracesIter(func(traces []ptrace.Traces, _ error) bool {
+				gotTraces = append(gotTraces, traces...)
+				return true
+			})
+			require.Len(t, gotTraces, 1)
+			gotAttributes := gotTraces[0].ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).Attributes()
+			require.Equal(t, test.expected, gotAttributes)
+		})
+	}
+}
+
 func TestArchiveTraceV2_NoOptions(t *testing.T) {
 	tqs := initializeTestServiceV2()
 
