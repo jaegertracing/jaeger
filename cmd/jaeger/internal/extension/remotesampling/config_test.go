@@ -45,6 +45,13 @@ func Test_Validate(t *testing.T) {
 			expectedErr: "",
 		},
 		{
+			name: "File provider can have empty file path",
+			config: &Config{
+				File: &FileConfig{Path: ""},
+			},
+			expectedErr: "",
+		},
+		{
 			name: "Invalid Adaptive provider",
 			config: &Config{
 				Adaptive: &AdaptiveConfig{SamplingStore: ""},
