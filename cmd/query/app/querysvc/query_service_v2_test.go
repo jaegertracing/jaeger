@@ -112,7 +112,7 @@ func TestGetTracesSuccess(t *testing.T) {
 	}
 	var gotTraces []ptrace.Traces
 	getTracesIter := tqs.queryService.GetTraces(context.Background(), params)
-	getTracesIter(func(traces []ptrace.Traces, err error) bool {
+	getTracesIter(func(traces []ptrace.Traces, _ error) bool {
 		gotTraces = append(gotTraces, traces...)
 		return true
 	})
@@ -187,7 +187,7 @@ func TestGetTracesWithRawTraces(t *testing.T) {
 			}
 			var gotTraces []ptrace.Traces
 			getTracesIter := tqs.queryService.GetTraces(context.Background(), params)
-			getTracesIter(func(traces []ptrace.Traces, err error) bool {
+			getTracesIter(func(traces []ptrace.Traces, _ error) bool {
 				gotTraces = append(gotTraces, traces...)
 				return true
 			})
