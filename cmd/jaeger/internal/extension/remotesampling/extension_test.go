@@ -7,6 +7,7 @@ import (
 	"context"
 	"io"
 	"net/http"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -83,7 +84,7 @@ func makeRemoteSamplingExtension(t *testing.T, cfg component.Config) component.H
 func TestStartFileBasedProvider(t *testing.T) {
 	factory := NewFactory()
 	cfg := factory.CreateDefaultConfig().(*Config)
-	cfg.File = nil
+	cfg.File.Path = filepath.Join("..", "..", "..", "sampling-strategies.json")
 	cfg.Adaptive = nil
 	cfg.HTTP = nil
 	cfg.GRPC = nil
@@ -101,7 +102,7 @@ func TestStartFileBasedProvider(t *testing.T) {
 func TestStartHTTP(t *testing.T) {
 	factory := NewFactory()
 	cfg := factory.CreateDefaultConfig().(*Config)
-	cfg.File = nil
+	cfg.File.Path = filepath.Join("..", "..", "..", "sampling-strategies.json")
 	cfg.Adaptive = nil
 	cfg.HTTP = &confighttp.ServerConfig{
 		Endpoint: "0.0.0.0:12345",
@@ -139,7 +140,7 @@ func TestStartHTTP(t *testing.T) {
 func TestStartGRPC(t *testing.T) {
 	factory := NewFactory()
 	cfg := factory.CreateDefaultConfig().(*Config)
-	cfg.File = nil
+	cfg.File.Path = filepath.Join("..", "..", "..", "sampling-strategies.json")
 	cfg.Adaptive = nil
 	cfg.HTTP = nil
 	cfg.GRPC = &configgrpc.ServerConfig{
