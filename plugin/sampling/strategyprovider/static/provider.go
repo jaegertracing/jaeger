@@ -146,7 +146,6 @@ func (h *samplingProvider) samplingStrategyLoader(strategiesFile string) strateg
 	}
 
 	return func() ([]byte, error) {
-		h.logger.Info("Loading sampling strategies", zap.String("filename", strategiesFile))
 		currBytes, err := os.ReadFile(filepath.Clean(strategiesFile))
 		if err != nil {
 			return nil, fmt.Errorf("failed to read strategies file %s: %w", strategiesFile, err)
