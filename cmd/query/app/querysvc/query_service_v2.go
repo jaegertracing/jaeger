@@ -94,9 +94,11 @@ func (qs QueryServiceV2) GetTraces(
 	aggregatedTraces := jptrace.AggregateTraces(getTracesIter)
 	return func(yield func([]ptrace.Traces, error) bool) {
 		foundTraceIDs := make(map[pcommon.TraceID]struct{})
+		proceed := true
 		aggregatedTraces(func(trace ptrace.Traces, err error) bool {
 			if err != nil {
-				return yield(nil, err)
+				proceed = yield(nil, err)
+				return proceed
 			}
 			if !params.RawTraces {
 				qs.options.Adjuster.Adjust(trace)
@@ -105,9 +107,10 @@ func (qs QueryServiceV2) GetTraces(
 				foundTraceIDs[span.TraceID()] = struct{}{}
 				return true
 			})
-			return yield([]ptrace.Traces{trace}, nil)
+			proceed = yield([]ptrace.Traces{trace}, nil)
+			return proceed
 		})
-		if qs.options.ArchiveTraceReader != nil {
+		if proceed && qs.options.ArchiveTraceReader != nil {
 			var missingTraceIDs []tracestore.GetTraceParams
 			for _, id := range params.TraceIDs {
 				if _, found := foundTraceIDs[id.TraceID]; !found {
