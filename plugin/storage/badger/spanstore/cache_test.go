@@ -110,15 +110,10 @@ func TestCacheStore_GetOperations(t *testing.T) {
 	runWithBadger(t, func(store *badger.DB, t *testing.T) {
 		cache := NewCacheStore(store, 1*time.Hour, false)
 		expireTime := uint64(time.Now().Add(cache.ttl).Unix())
-		cache.services = make(map[string]uint64)
 		serviceName := "service1"
 		operationName := "op1"
-		cache.services[serviceName] = uint64(time.Now().Unix() + 1e10)
-		cache.operations = make(map[string]map[model.SpanKind]map[string]uint64)
-		cache.operations[serviceName] = make(map[model.SpanKind]map[string]uint64)
 		for i := 0; i <= 5; i++ {
-			cache.operations[serviceName][spanKinds[i]] = make(map[string]uint64)
-			cache.operations[serviceName][spanKinds[i]][operationName] = expireTime
+			cache.Update(serviceName, operationName, spanKinds[i], expireTime)
 		}
 		operations, err := cache.GetOperations(serviceName, "")
 		require.NoError(t, err)
@@ -177,6 +172,7 @@ func TestCacheStore_Prefill(t *testing.T) {
 		}
 		// Create a new cache for testing prefill as old span will consist the data from update called from WriteSpan
 		newCache := NewCacheStore(store, 1*time.Hour, true)
+
 		for i, span := range spans {
 			_, foundService := newCache.services[span.Process.ServiceName]
 			assert.True(t, foundService)
@@ -205,18 +201,22 @@ func TestCacheStore_WhenValueIsNil(t *testing.T) {
 		})
 		require.NoError(t, err)
 		newCache := NewCacheStore(store, 1*time.Hour, true)
-		_, foundService := newCache.services["service"]
-		assert.True(t, foundService)
-		_, foundOperation := newCache.operations["service"][model.SpanKindUnspecified]["operation"]
-		assert.True(t, foundOperation)
+		services, err := newCache.GetServices()
+		require.NoError(t, err)
+		assert.Len(t, services, 1)
+		assert.Equal(t, "service", services[0])
+		operations, err := newCache.GetOperations("service", "")
+		require.NoError(t, err)
+		assert.Len(t, operations, 1)
+		assert.Equal(t, "", operations[0].SpanKind)
+		assert.Equal(t, "operation", operations[0].Name)
 	})
 }
 
 func TestCacheStore_GetOperationsReturnsEmptyOperationsWithWrongSpanKind(t *testing.T) {
 	runWithBadger(t, func(store *badger.DB, t *testing.T) {
 		cache := NewCacheStore(store, 1*time.Hour, true)
-		cache.services = make(map[string]uint64)
-		cache.services["service1"] = uint64(time.Now().Unix())
+		cache.Update("service", "operation", model.SpanKindUnspecified, uint64(time.Now().Unix()))
 		operations, err := cache.GetOperations("service1", "a")
 		require.NoError(t, err)
 		assert.Empty(t, operations)
@@ -232,10 +232,15 @@ func TestCacheStore_WrongSpanKindFromBadger(t *testing.T) {
 		err := writer.WriteSpan(context.Background(), span)
 		require.NoError(t, err)
 		newCache := NewCacheStore(store, 1*time.Hour, true)
-		_, foundService := newCache.services[span.Process.ServiceName]
-		assert.True(t, foundService)
-		_, foundOperation := newCache.operations[span.Process.ServiceName][model.SpanKindUnspecified][span.OperationName]
-		assert.True(t, foundOperation)
+		services, err := newCache.GetServices()
+		require.NoError(t, err)
+		assert.Len(t, services, 1)
+		assert.Equal(t, "service", services[0])
+		operations, err := newCache.GetOperations("service", "")
+		require.NoError(t, err)
+		assert.Len(t, operations, 1)
+		assert.Equal(t, "", operations[0].SpanKind)
+		assert.Equal(t, "operation", operations[0].Name)
 	})
 }
 
