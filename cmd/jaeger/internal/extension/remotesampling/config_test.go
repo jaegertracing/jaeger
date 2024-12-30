@@ -52,7 +52,7 @@ func Test_Validate(t *testing.T) {
 			expectedErr: "File.Path: non zero value required",
 		},
 		{
-			name: "File provider can have empty file path",
+			name: "File provider has negative reload interval",
 			config: &Config{
 				File: &FileConfig{Path: "", ReloadInterval: -1},
 			},
