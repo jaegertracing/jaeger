@@ -123,7 +123,18 @@ func (qs QueryServiceV2) GetTraces(
 				}
 			}
 			if len(missingTraceIDs) > 0 {
-				qs.options.ArchiveTraceReader.GetTraces(ctx, missingTraceIDs...)(yield)
+				getArchiveTracesIter := qs.options.ArchiveTraceReader.GetTraces(ctx, missingTraceIDs...)
+				getArchiveTracesIter(func(traces []ptrace.Traces, err error) bool {
+					if err != nil {
+						return yield(nil, err)
+					}
+					for _, trace := range traces {
+						if !params.RawTraces {
+							qs.options.Adjuster.Adjust(trace)
+						}
+					}
+					return yield(traces, nil)
+				})
 			}
 		}
 	}
