@@ -5,6 +5,7 @@ package querysvc
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -12,8 +13,10 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger/pkg/iter"
 	"github.com/jaegertracing/jaeger/storage_v2/depstore"
 	depstoremocks "github.com/jaegertracing/jaeger/storage_v2/depstore/mocks"
 	"github.com/jaegertracing/jaeger/storage_v2/tracestore"
@@ -72,6 +75,127 @@ func initializeTestServiceV2(opts ...testOptionV2) *testQueryServiceV2 {
 
 	tqs.queryService = NewQueryServiceV2(traceReader, dependencyStorage, options)
 	return &tqs
+}
+
+func makeTestTrace() ptrace.Traces {
+	trace := ptrace.NewTraces()
+	resources := trace.ResourceSpans().AppendEmpty()
+	scopes := resources.ScopeSpans().AppendEmpty()
+
+	spanA := scopes.Spans().AppendEmpty()
+	spanA.SetTraceID(testTraceID)
+	spanA.SetSpanID(pcommon.SpanID([8]byte{1}))
+
+	spanB := scopes.Spans().AppendEmpty()
+	spanB.SetTraceID(testTraceID)
+	spanB.SetSpanID(pcommon.SpanID([8]byte{2}))
+	spanB.Attributes()
+
+	return trace
+}
+
+func TestGetTracesSuccess(t *testing.T) {
+	responseIter := iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+		yield([]ptrace.Traces{makeTestTrace()}, nil)
+	})
+
+	tqs := initializeTestServiceV2()
+	tqs.traceReader.On("GetTraces", mock.Anything, tracestore.GetTraceParams{TraceID: testTraceID}).
+		Return(responseIter, nil).Once()
+
+	params := GetTraceParams{
+		TraceIDs: []tracestore.GetTraceParams{
+			{
+				TraceID: testTraceID,
+			},
+		},
+	}
+	var gotTraces []ptrace.Traces
+	getTracesIter := tqs.queryService.GetTraces(context.Background(), params)
+	getTracesIter(func(traces []ptrace.Traces, err error) bool {
+		gotTraces = append(gotTraces, traces...)
+		return true
+	})
+
+	require.Len(t, gotTraces, 1)
+	gotSpans := gotTraces[0].ResourceSpans().At(0).ScopeSpans().At(0).Spans()
+	require.Equal(t, 2, gotSpans.Len())
+	require.Equal(t, testTraceID, gotSpans.At(0).TraceID())
+	require.EqualValues(t, [8]byte{1}, gotSpans.At(0).SpanID())
+	require.Equal(t, testTraceID, gotSpans.At(1).TraceID())
+	require.EqualValues(t, [8]byte{2}, gotSpans.At(1).SpanID())
+}
+
+func TestGetTracesWithRawTraces(t *testing.T) {
+	tests := []struct {
+		rawTraces  bool
+		attributes pcommon.Map
+		expected   pcommon.Map
+	}{
+		{
+			// tags should not get sorted by SortTagsAndLogFields adjuster
+			rawTraces: true,
+			attributes: func() pcommon.Map {
+				m := pcommon.NewMap()
+				m.PutStr("z", "key")
+				m.PutStr("a", "key")
+				return m
+			}(),
+			expected: func() pcommon.Map {
+				m := pcommon.NewMap()
+				m.PutStr("z", "key")
+				m.PutStr("a", "key")
+				return m
+			}(),
+		},
+		{
+			// tags should get sorted by SortTagsAndLogFields adjuster
+			rawTraces: false,
+			attributes: func() pcommon.Map {
+				m := pcommon.NewMap()
+				m.PutStr("z", "key")
+				m.PutStr("a", "key")
+				return m
+			}(),
+			expected: func() pcommon.Map {
+				m := pcommon.NewMap()
+				m.PutStr("a", "key")
+				m.PutStr("z", "key")
+				return m
+			}(),
+		},
+	}
+	for _, test := range tests {
+		t.Run(fmt.Sprintf("rawTraces=%v", test.rawTraces), func(t *testing.T) {
+			trace := makeTestTrace()
+			test.attributes.CopyTo(trace.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).Attributes())
+			responseIter := iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+				yield([]ptrace.Traces{trace}, nil)
+			})
+
+			tqs := initializeTestServiceV2()
+			tqs.traceReader.On("GetTraces", mock.Anything, tracestore.GetTraceParams{TraceID: testTraceID}).
+				Return(responseIter, nil).Once()
+
+			params := GetTraceParams{
+				TraceIDs: []tracestore.GetTraceParams{
+					{
+						TraceID: testTraceID,
+					},
+				},
+				RawTraces: test.rawTraces,
+			}
+			var gotTraces []ptrace.Traces
+			getTracesIter := tqs.queryService.GetTraces(context.Background(), params)
+			getTracesIter(func(traces []ptrace.Traces, err error) bool {
+				gotTraces = append(gotTraces, traces...)
+				return true
+			})
+			require.Len(t, gotTraces, 1)
+			gotAttributes := gotTraces[0].ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).Attributes()
+			require.Equal(t, test.expected, gotAttributes)
+		})
+	}
 }
 
 func TestGetServicesV2(t *testing.T) {
