@@ -40,7 +40,6 @@ type FileConfig struct {
 	Path string `valid:"required" mapstructure:"path"`
 	// ReloadInterval is the time interval to check and reload sampling strategies file
 	ReloadInterval time.Duration `mapstructure:"reload_interval"`
->>>>>>> Stashed changes
 }
 
 type AdaptiveConfig struct {
