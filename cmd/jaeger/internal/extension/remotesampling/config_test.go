@@ -52,6 +52,13 @@ func Test_Validate(t *testing.T) {
 			expectedErr: "File.Path: non zero value required",
 		},
 		{
+			name: "File provider can have empty file path",
+			config: &Config{
+				File: &FileConfig{Path: "", ReloadInterval: -1},
+			},
+			expectedErr: "must be a positive value",
+		},
+		{
 			name: "Invalid Adaptive provider",
 			config: &Config{
 				Adaptive: &AdaptiveConfig{SamplingStore: ""},
@@ -66,7 +73,7 @@ func Test_Validate(t *testing.T) {
 			if tt.expectedErr == "" {
 				require.NoError(t, err)
 			} else {
-				assert.Equal(t, tt.expectedErr, err.Error())
+				assert.ErrorContains(t, err, tt.expectedErr)
 			}
 		})
 	}

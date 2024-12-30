@@ -5,6 +5,7 @@ package remotesampling
 
 import (
 	"errors"
+	"time"
 
 	"github.com/asaskevich/govalidator"
 	"go.opentelemetry.io/collector/component"
@@ -18,6 +19,7 @@ import (
 var (
 	errNoProvider        = errors.New("no sampling strategy provider specified, expecting 'adaptive' or 'file'")
 	errMultipleProviders = errors.New("only one sampling strategy provider can be specified, 'adaptive' or 'file'")
+	errNegativeInterval  = errors.New("reload interval must be a positive value, or zero to disable automatic reloading")
 )
 
 var (
@@ -36,6 +38,9 @@ type Config struct {
 type FileConfig struct {
 	// File specifies a local file as the source of sampling strategies.
 	Path string `valid:"required" mapstructure:"path"`
+	// ReloadInterval is the time interval to check and reload sampling strategies file
+	ReloadInterval time.Duration `mapstructure:"reload_interval"`
+>>>>>>> Stashed changes
 }
 
 type AdaptiveConfig struct {
@@ -84,6 +89,10 @@ func (cfg *Config) Validate() error {
 
 	if cfg.File != nil && cfg.Adaptive != nil {
 		return errMultipleProviders
+	}
+
+	if cfg.File != nil && cfg.File.ReloadInterval < 0 {
+		return errNegativeInterval
 	}
 
 	_, err := govalidator.ValidateStruct(cfg)
