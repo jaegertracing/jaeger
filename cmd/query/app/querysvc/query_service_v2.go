@@ -46,6 +46,23 @@ type QueryServiceV2 struct {
 	options          QueryServiceOptionsV2
 }
 
+// GetTraceParams defines the parameters for retrieving traces using the GetTraces function.
+type GetTraceParams struct {
+	// TraceIDs is a slice of trace identifiers to fetch.
+	TraceIDs []tracestore.GetTraceParams
+	// RawTraces indicates whether to retrieve raw traces.
+	// If set to false, the traces will be adjusted using QueryServiceOptionsV2.Adjuster.
+	RawTraces bool
+}
+
+// TraceQueryParams represents the parameters for querying a batch of traces.
+type TraceQueryParams struct {
+	tracestore.TraceQueryParams
+	// RawTraces indicates whether to retrieve raw traces.
+	// If set to false, the traces will be adjusted using QueryServiceOptionsV2.Adjuster.
+	RawTraces bool
+}
+
 // NewQueryService returns a new QueryService.
 func NewQueryServiceV2(
 	traceReader tracestore.Reader,
@@ -70,9 +87,10 @@ func NewQueryServiceV2(
 // The iterator is single-use: once consumed, it cannot be used again.
 func (qs QueryServiceV2) GetTraces(
 	ctx context.Context,
-	traceIDs ...tracestore.GetTraceParams,
+	params GetTraceParams,
 ) iter.Seq2[[]ptrace.Traces, error] {
-	getTracesIter := qs.traceReader.GetTraces(ctx, traceIDs...)
+	getTracesIter := qs.traceReader.GetTraces(ctx, params.TraceIDs...)
+	// TODO: aggregate the traces
 	return func(yield func([]ptrace.Traces, error) bool) {
 		foundTraceIDs := make(map[pcommon.TraceID]struct{})
 		getTracesIter(func(traces []ptrace.Traces, err error) bool {
@@ -80,6 +98,9 @@ func (qs QueryServiceV2) GetTraces(
 				return yield(nil, err)
 			}
 			for _, trace := range traces {
+				if !params.RawTraces {
+					qs.options.Adjuster.Adjust(trace)
+				}
 				resources := trace.ResourceSpans()
 				for i := 0; i < resources.Len(); i++ {
 					scopes := resources.At(i).ScopeSpans()
@@ -96,7 +117,7 @@ func (qs QueryServiceV2) GetTraces(
 		})
 		if qs.options.ArchiveTraceReader != nil {
 			var missingTraceIDs []tracestore.GetTraceParams
-			for _, id := range traceIDs {
+			for _, id := range params.TraceIDs {
 				if _, found := foundTraceIDs[id.TraceID]; !found {
 					missingTraceIDs = append(missingTraceIDs, id)
 				}
@@ -122,8 +143,21 @@ func (qs QueryServiceV2) GetOperations(
 }
 
 // FindTraces is the queryService implementation of tracestore.Reader.FindTraces
-func (qs QueryServiceV2) FindTraces(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[[]ptrace.Traces, error] {
-	return qs.traceReader.FindTraces(ctx, query)
+func (qs QueryServiceV2) FindTraces(ctx context.Context, query TraceQueryParams) iter.Seq2[[]ptrace.Traces, error] {
+	return func(yield func([]ptrace.Traces, error) bool) {
+		tracesIter := qs.traceReader.FindTraces(ctx, query.TraceQueryParams)
+		tracesIter(func(traces []ptrace.Traces, err error) bool {
+			if err != nil {
+				return yield(nil, err)
+			}
+			if !query.RawTraces {
+				for _, trace := range traces {
+					qs.options.Adjuster.Adjust(trace)
+				}
+			}
+			return yield(traces, nil)
+		})
+	}
 }
 
 // ArchiveTrace is the queryService utility to archive traces.
@@ -131,7 +165,11 @@ func (qs QueryServiceV2) ArchiveTrace(ctx context.Context, traceID pcommon.Trace
 	if qs.options.ArchiveTraceWriter == nil {
 		return errNoArchiveSpanStorage
 	}
-	getTracesIter := qs.GetTraces(ctx, tracestore.GetTraceParams{TraceID: traceID})
+	getTracesIter := qs.GetTraces(
+		ctx, GetTraceParams{
+			TraceIDs: []tracestore.GetTraceParams{{TraceID: traceID}},
+		},
+	)
 	var archiveErr error
 	getTracesIter(func(traces []ptrace.Traces, err error) bool {
 		if err != nil {
@@ -148,16 +186,6 @@ func (qs QueryServiceV2) ArchiveTrace(ctx context.Context, traceID pcommon.Trace
 		return true
 	})
 	return archiveErr
-}
-
-// Adjust applies adjusters to the trace.
-func (qs QueryServiceV2) Adjust(tracesIter iter.Seq[[]ptrace.Traces]) {
-	tracesIter(func(traces []ptrace.Traces) bool {
-		for _, trace := range traces {
-			qs.options.Adjuster.Adjust(trace)
-		}
-		return true
-	})
 }
 
 // GetDependencies implements depstore.Reader.GetDependencies
