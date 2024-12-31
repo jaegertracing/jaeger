@@ -32,7 +32,7 @@ var (
 )
 
 type testQueryService struct {
-	queryService *QueryServiceV2
+	queryService *QueryService
 	traceReader  *tracestoremocks.Reader
 	depsReader   *depstoremocks.Reader
 
@@ -40,10 +40,10 @@ type testQueryService struct {
 	archiveTraceWriter *tracestoremocks.Writer
 }
 
-type testOption func(*testQueryService, *QueryServiceOptionsV2)
+type testOption func(*testQueryService, *QueryServiceOptions)
 
 func withArchiveTraceReader() testOption {
-	return func(tqs *testQueryService, options *QueryServiceOptionsV2) {
+	return func(tqs *testQueryService, options *QueryServiceOptions) {
 		r := &tracestoremocks.Reader{}
 		tqs.archiveTraceReader = r
 		options.ArchiveTraceReader = r
@@ -51,7 +51,7 @@ func withArchiveTraceReader() testOption {
 }
 
 func withArchiveTraceWriter() testOption {
-	return func(tqs *testQueryService, options *QueryServiceOptionsV2) {
+	return func(tqs *testQueryService, options *QueryServiceOptions) {
 		r := &tracestoremocks.Writer{}
 		tqs.archiveTraceWriter = r
 		options.ArchiveTraceWriter = r
@@ -62,7 +62,7 @@ func initializeTestService(opts ...testOption) *testQueryService {
 	traceReader := &tracestoremocks.Reader{}
 	dependencyStorage := &depstoremocks.Reader{}
 
-	options := QueryServiceOptionsV2{}
+	options := QueryServiceOptions{}
 
 	tqs := testQueryService{
 		traceReader: traceReader,
@@ -73,7 +73,7 @@ func initializeTestService(opts ...testOption) *testQueryService {
 		opt(&tqs, &options)
 	}
 
-	tqs.queryService = NewQueryServiceV2(traceReader, dependencyStorage, options)
+	tqs.queryService = NewQueryService(traceReader, dependencyStorage, options)
 	return &tqs
 }
 

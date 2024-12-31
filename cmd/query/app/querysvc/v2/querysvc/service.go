@@ -25,8 +25,8 @@ const (
 	defaultMaxClockSkewAdjust = time.Second
 )
 
-// QueryServiceOptionsV2 holds the configuration options for the V2 QueryService.
-type QueryServiceOptionsV2 struct {
+// QueryServiceOptions holds the configuration options for the query service.
+type QueryServiceOptions struct {
 	// ArchiveTraceReader is used to read archived traces from the storage.
 	ArchiveTraceReader tracestore.Reader
 	// ArchiveTraceWriter is used to write traces to the archive storage.
@@ -44,11 +44,11 @@ type StorageCapabilities struct {
 	// SupportTagFilter bool
 }
 
-// QueryServiceV2 provides methods to query data from the storage.
-type QueryServiceV2 struct {
+// QueryService provides methods to query data from the storage.
+type QueryService struct {
 	traceReader      tracestore.Reader
 	dependencyReader depstore.Reader
-	options          QueryServiceOptionsV2
+	options          QueryServiceOptions
 }
 
 // GetTraceParams defines the parameters for retrieving traces using the GetTraces function.
@@ -56,7 +56,7 @@ type GetTraceParams struct {
 	// TraceIDs is a slice of trace identifiers to fetch.
 	TraceIDs []tracestore.GetTraceParams
 	// RawTraces indicates whether to retrieve raw traces.
-	// If set to false, the traces will be adjusted using QueryServiceOptionsV2.Adjuster.
+	// If set to false, the traces will be adjusted using QueryServiceOptions.Adjuster.
 	RawTraces bool
 }
 
@@ -64,16 +64,16 @@ type GetTraceParams struct {
 type TraceQueryParams struct {
 	tracestore.TraceQueryParams
 	// RawTraces indicates whether to retrieve raw traces.
-	// If set to false, the traces will be adjusted using QueryServiceOptionsV2.Adjuster.
+	// If set to false, the traces will be adjusted using QueryServiceOptions.Adjuster.
 	RawTraces bool
 }
 
-func NewQueryServiceV2(
+func NewQueryService(
 	traceReader tracestore.Reader,
 	dependencyReader depstore.Reader,
-	options QueryServiceOptionsV2,
-) *QueryServiceV2 {
-	qsvc := &QueryServiceV2{
+	options QueryServiceOptions,
+) *QueryService {
+	qsvc := &QueryService{
 		traceReader:      traceReader,
 		dependencyReader: dependencyReader,
 		options:          options,
@@ -89,7 +89,7 @@ func NewQueryServiceV2(
 // GetTraces retrieves traces with given trace IDs from the primary reader,
 // and if any of them are not found it then queries the archive reader.
 // The iterator is single-use: once consumed, it cannot be used again.
-func (qs QueryServiceV2) GetTraces(
+func (qs QueryService) GetTraces(
 	ctx context.Context,
 	params GetTraceParams,
 ) iter.Seq2[[]ptrace.Traces, error] {
@@ -111,18 +111,18 @@ func (qs QueryServiceV2) GetTraces(
 	}
 }
 
-func (qs QueryServiceV2) GetServices(ctx context.Context) ([]string, error) {
+func (qs QueryService) GetServices(ctx context.Context) ([]string, error) {
 	return qs.traceReader.GetServices(ctx)
 }
 
-func (qs QueryServiceV2) GetOperations(
+func (qs QueryService) GetOperations(
 	ctx context.Context,
 	query tracestore.OperationQueryParams,
 ) ([]tracestore.Operation, error) {
 	return qs.traceReader.GetOperations(ctx, query)
 }
 
-func (qs QueryServiceV2) FindTraces(
+func (qs QueryService) FindTraces(
 	ctx context.Context,
 	query TraceQueryParams,
 ) iter.Seq2[[]ptrace.Traces, error] {
@@ -135,7 +135,7 @@ func (qs QueryServiceV2) FindTraces(
 // ArchiveTrace archives a trace specified by the given query parameters.
 // If the ArchiveTraceWriter is not configured, it returns
 // an error indicating that there is no archive span storage available.
-func (qs QueryServiceV2) ArchiveTrace(ctx context.Context, query tracestore.GetTraceParams) error {
+func (qs QueryService) ArchiveTrace(ctx context.Context, query tracestore.GetTraceParams) error {
 	if qs.options.ArchiveTraceWriter == nil {
 		return errNoArchiveSpanStorage
 	}
@@ -159,24 +159,24 @@ func (qs QueryServiceV2) ArchiveTrace(ctx context.Context, query tracestore.GetT
 	return archiveErr
 }
 
-func (qs QueryServiceV2) GetDependencies(ctx context.Context, endTs time.Time, lookback time.Duration) ([]model.DependencyLink, error) {
+func (qs QueryService) GetDependencies(ctx context.Context, endTs time.Time, lookback time.Duration) ([]model.DependencyLink, error) {
 	return qs.dependencyReader.GetDependencies(ctx, depstore.QueryParameters{
 		StartTime: endTs.Add(-lookback),
 		EndTime:   endTs,
 	})
 }
 
-func (qs QueryServiceV2) GetCapabilities() StorageCapabilities {
+func (qs QueryService) GetCapabilities() StorageCapabilities {
 	return StorageCapabilities{
 		ArchiveStorage: qs.options.hasArchiveStorage(),
 	}
 }
 
-func (opts *QueryServiceOptionsV2) hasArchiveStorage() bool {
+func (opts *QueryServiceOptions) hasArchiveStorage() bool {
 	return opts.ArchiveTraceReader != nil && opts.ArchiveTraceWriter != nil
 }
 
-func (qs QueryServiceV2) receiveTraces(
+func (qs QueryService) receiveTraces(
 	seq iter.Seq2[[]ptrace.Traces, error],
 	yield func([]ptrace.Traces, error) bool,
 	rawTraces bool,
