@@ -90,7 +90,7 @@ func (w *traceWriter) WriteTraces(ctx context.Context, td ptrace.Traces) error {
 //
 // maxChunkSize should always be greater than or equal to 2
 func ChunkTraces(td ptrace.Traces, maxChunkSize int) []ptrace.Traces {
-		var (
+	var (
 		newChunk     ptrace.Traces
 		traceChunks  []ptrace.Traces
 		currentSSpan ptrace.ScopeSpans

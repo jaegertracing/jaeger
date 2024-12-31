@@ -83,7 +83,6 @@ func TestChunkTraces_GetChunkedTracesWithValidInput(t *testing.T) {
 	require.Equal(t, "span5", thirdChunkScope.Spans().At(0).Name())
 }
 
-
 func TestChunkTraces_InvalidInput(t *testing.T) {
 	td := ptrace.NewTraces()
 
