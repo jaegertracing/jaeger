@@ -120,7 +120,7 @@ clean:
 		jaeger-ui/packages/jaeger-ui/build
 	find ./cmd/query/app/ui/actual -type f -name '*.gz' -delete
 	GOCACHE=$(GOCACHE) go clean -cache -testcache
-	bash scripts/clean-binaries.sh
+	bash scripts/build/clean-binaries.sh
 
 .PHONY: test
 test:

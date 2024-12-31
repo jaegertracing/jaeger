@@ -32,7 +32,7 @@ jaeger-ui/packages/jaeger-ui/build/index.html:
 .PHONY: rebuild-ui
 rebuild-ui:
 	@echo "::group::rebuild-ui logs"
-	bash ./scripts/rebuild-ui.sh
+	bash ./scripts/build/rebuild-ui.sh
 	@echo "NOTE: This target only rebuilds the UI assets inside jaeger-ui/packages/jaeger-ui/build/."
 	@echo "NOTE: To make them usable from query-service run 'make build-ui'."
 	@echo "::endgroup::"

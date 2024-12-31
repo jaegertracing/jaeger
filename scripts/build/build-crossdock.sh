@@ -17,6 +17,7 @@ if [[ "$BRANCH" == "main" ]]; then
   IFS=" " read -r -a IMAGE_TAGS <<< "$(bash scripts/compute-tags.sh ${REPO})"
   IMAGE_TAGS+=("--tag" "docker.io/${REPO}:${COMMIT}" "--tag" "quay.io/${REPO}:${COMMIT}")
   bash scripts/docker-login.sh
+
   docker buildx build --push \
     --progress=plain \
     --platform=linux/amd64 \

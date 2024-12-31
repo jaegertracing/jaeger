@@ -60,7 +60,7 @@ jobs:
 
     - name: Build, test, and publish all-in-one image
       run: |
-        bash scripts/build-all-in-one-image.sh \
+        bash scripts/build/build-all-in-one-image.sh \
           ${{ env.BUILD_FLAGS }} \
           "${{ matrix.jaeger_version }}"
       env:

@@ -65,19 +65,19 @@ make "$baseimg_target" LINUX_PLATFORMS="$platforms"
 # build/upload raw and debug images of Jaeger backend components
 for component in collector query ingester remote-storage
 do
-  bash scripts/build-upload-a-docker-image.sh "${FLAGS[@]}" -b -c "jaeger-${component}" -d "cmd/${component}" -p "${platforms}" -t release
+  bash scripts/build/build-upload-a-docker-image.sh "${FLAGS[@]}" -b -c "jaeger-${component}" -d "cmd/${component}" -p "${platforms}" -t release
   # do not need debug image built for PRs
   if [[ "${add_debugger}" == "Y" ]]; then
-    bash scripts/build-upload-a-docker-image.sh "${FLAGS[@]}" -b -c "jaeger-${component}-debug" -d "cmd/${component}" -t debug
+    bash scripts/build/build-upload-a-docker-image.sh "${FLAGS[@]}" -b -c "jaeger-${component}-debug" -d "cmd/${component}" -t debug
   fi
 done
 
-bash scripts/build-upload-a-docker-image.sh "${FLAGS[@]}" -b -c jaeger-es-index-cleaner -d cmd/es-index-cleaner -p "${platforms}" -t release
-bash scripts/build-upload-a-docker-image.sh "${FLAGS[@]}" -b -c jaeger-es-rollover -d cmd/es-rollover  -p "${platforms}" -t release
-bash scripts/build-upload-a-docker-image.sh "${FLAGS[@]}" -c jaeger-cassandra-schema -d plugin/storage/cassandra/ -p "${platforms}"
+bash scripts/build/build-upload-a-docker-image.sh "${FLAGS[@]}" -b -c jaeger-es-index-cleaner -d cmd/es-index-cleaner -p "${platforms}" -t release
+bash scripts/build/build-upload-a-docker-image.sh "${FLAGS[@]}" -b -c jaeger-es-rollover -d cmd/es-rollover  -p "${platforms}" -t release
+bash scripts/build/build-upload-a-docker-image.sh "${FLAGS[@]}" -c jaeger-cassandra-schema -d plugin/storage/cassandra/ -p "${platforms}"
 
 # build/upload images for jaeger-tracegen and jaeger-anonymizer
 for component in tracegen anonymizer
 do
-  bash scripts/build-upload-a-docker-image.sh "${FLAGS[@]}" -c "jaeger-${component}" -d "cmd/${component}" -p "${platforms}"
+  bash scripts/build/build-upload-a-docker-image.sh "${FLAGS[@]}" -c "jaeger-${component}" -d "cmd/${component}" -p "${platforms}"
 done

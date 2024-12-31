@@ -109,7 +109,7 @@ jobs:
 
     - name: Package binaries
       run: |
-        bash scripts/package-deploy.sh \
+        bash scripts/build/package-deploy.sh \
           -p ${{ steps.params.outputs.platforms }} \
           ${{ steps.params.outputs.gpg_key_override }}
 
@@ -133,7 +133,7 @@ jobs:
     - name: Build and upload all container images
       # -B skips building the binaries since we already did that above
       run: |
-        bash scripts/build-upload-docker-images.sh -B \
+        bash scripts/build/build-upload-docker-images.sh -B \
           ${{ steps.params.outputs.docker_flags }}
       env:
         DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
@@ -142,7 +142,7 @@ jobs:
     - name: Build, test, and publish all-in-one v1 image
       run: |
         BRANCH=$(make echo-v1) \
-        bash scripts/build-all-in-one-image.sh \
+        bash scripts/build/build-all-in-one-image.sh \
           ${{ steps.params.outputs.docker_flags }} \
           v1
       env:
@@ -152,7 +152,7 @@ jobs:
     - name: Build, test, and publish v2 image
       run: |
         BRANCH=$(make echo-v2) \
-        bash scripts/build-all-in-one-image.sh \
+        bash scripts/build/build-all-in-one-image.sh \
           ${{ steps.params.outputs.docker_flags }} \
           v2
       env:
@@ -161,7 +161,7 @@ jobs:
 
     - name: Build, test, and publish hotrod image
       run: |
-        bash scripts/build-hotrod-image.sh \
+        bash scripts/build/build-hotrod-image.sh \
           ${{ steps.params.outputs.docker_flags }}
       env:
         DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}

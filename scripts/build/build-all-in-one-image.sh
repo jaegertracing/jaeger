@@ -73,7 +73,7 @@ set -x
 
 # Set default GOARCH variable to the host GOARCH, the target architecture can
 # be overrided by passing architecture value to the script:
-# `GOARCH=<target arch> ./scripts/build-all-in-one-image.sh`.
+# `GOARCH=<target arch> ./scripts/build/build-all-in-one-image.sh`.
 GOARCH=${GOARCH:-$(go env GOARCH)}
 repo="jaegertracing/${BINARY}"
 
@@ -120,12 +120,12 @@ fi
 make "$baseimg_target" LINUX_PLATFORMS="$platforms"
 
 # build all-in-one image locally for integration test (the explicit -l switch)
-bash scripts/build-upload-a-docker-image.sh -l -b -c "${BINARY}" -d "cmd/${BINARY}" -p "${platforms}" -t release
+bash scripts/build/build-upload-a-docker-image.sh -l -b -c "${BINARY}" -d "cmd/${BINARY}" -p "${platforms}" -t release
 
 run_integration_test "localhost:5000/$repo"
 
 # build all-in-one image and upload to dockerhub/quay.io
-bash scripts/build-upload-a-docker-image.sh "${FLAGS[@]}" -b -c "${BINARY}" -d "cmd/${BINARY}" -p "${platforms}" -t release
+bash scripts/build/build-upload-a-docker-image.sh "${FLAGS[@]}" -b -c "${BINARY}" -d "cmd/${BINARY}" -p "${platforms}" -t release
 
 # build debug image if requested
 if [[ "${add_debugger}" == "Y" ]]; then
@@ -133,9 +133,9 @@ if [[ "${add_debugger}" == "Y" ]]; then
   repo="${repo}-debug"
 
   # build locally for integration test (the -l switch)
-  bash scripts/build-upload-a-docker-image.sh -l -b -c "${BINARY}-debug" -d "cmd/${BINARY}" -t debug
+  bash scripts/build/build-upload-a-docker-image.sh -l -b -c "${BINARY}-debug" -d "cmd/${BINARY}" -t debug
   run_integration_test "localhost:5000/$repo"
 
   # build & upload official image
-  bash scripts/build-upload-a-docker-image.sh "${FLAGS[@]}" -b -c "${BINARY}-debug" -d "cmd/${BINARY}" -t debug
+  bash scripts/build/build-upload-a-docker-image.sh "${FLAGS[@]}" -b -c "${BINARY}-debug" -d "cmd/${BINARY}" -t debug
 fi

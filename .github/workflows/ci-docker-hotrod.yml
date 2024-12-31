@@ -72,7 +72,7 @@ jobs:
       uses: helm/kind-action@v1
 
     - name: Build, test, and publish hotrod image
-      run:  bash scripts/build-hotrod-image.sh ${{ env.BUILD_FLAGS }} -v ${{ matrix.jaeger-version }} -r ${{ matrix.runtime }}
+      run:  bash scripts/build/build-hotrod-image.sh ${{ env.BUILD_FLAGS }} -v ${{ matrix.jaeger-version }} -r ${{ matrix.runtime }}
       env:
         DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
