@@ -46,11 +46,11 @@ jobs:
     - name: Build only linux/amd64 container images for a Pull Request
       if: github.ref_name != 'main'
       # -D disables images with debugger
-      run: bash scripts/build-upload-docker-images.sh -D -p linux/amd64
+      run: bash scripts/build/build-upload-docker-images.sh -D -p linux/amd64
 
     - name: Build and upload all container images
       if: github.ref_name == 'main'
-      run: bash scripts/build-upload-docker-images.sh
+      run: bash scripts/build/build-upload-docker-images.sh
       env:
         DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
