@@ -387,7 +387,7 @@ func TestArchiveTrace(t *testing.T) {
 		{
 			name:          "no options",
 			options:       nil,
-			setupMocks:    func(tqs *testQueryService) {},
+			setupMocks:    func(*testQueryService) {},
 			expectedError: querysvc.ErrNoArchiveSpanStorage,
 		},
 		{
