@@ -95,6 +95,25 @@ func makeTestTrace() ptrace.Traces {
 	return trace
 }
 
+func TestGetTraces_ErrorInReader(t *testing.T) {
+	tqs := initializeTestService()
+	tqs.traceReader.On("GetTraces", mock.Anything, tracestore.GetTraceParams{TraceID: testTraceID}).
+		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+			yield(nil, assert.AnError)
+		})).Once()
+
+	params := querysvc.GetTraceParams{
+		TraceIDs: []tracestore.GetTraceParams{
+			{
+				TraceID: testTraceID,
+			},
+		},
+	}
+	getTracesIter := tqs.queryService.GetTraces(context.Background(), params)
+	_, err := iter.FlattenWithErrors(getTracesIter)
+	require.ErrorIs(t, err, assert.AnError)
+}
+
 func TestGetTracesSuccess(t *testing.T) {
 	responseIter := iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
 		yield([]ptrace.Traces{makeTestTrace()}, nil)
