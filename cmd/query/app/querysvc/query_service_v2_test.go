@@ -377,115 +377,121 @@ func TestFindTraces_WithRawTraces(t *testing.T) {
 	}
 }
 
-func TestArchiveTrace_NoOptions(t *testing.T) {
-	tqs := initializeTestService()
-
-	type contextKey string
-	ctx := context.Background()
-	query := tracestore.GetTraceParams{
-		TraceID: testTraceID,
+func TestArchiveTrace(t *testing.T) {
+	tests := []struct {
+		name          string
+		options       []testOption
+		setupMocks    func(tqs *testQueryService)
+		expectedError error
+	}{
+		{
+			name:          "no options",
+			options:       nil,
+			setupMocks:    func(tqs *testQueryService) {},
+			expectedError: querysvc.ErrNoArchiveSpanStorage,
+		},
+		{
+			name:    "get trace error",
+			options: []testOption{withArchiveTraceWriter()},
+			setupMocks: func(tqs *testQueryService) {
+				responseIter := iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+					yield([]ptrace.Traces{}, assert.AnError)
+				})
+				tqs.traceReader.On("GetTraces", mock.Anything, tracestore.GetTraceParams{TraceID: testTraceID}).
+					Return(responseIter).Once()
+			},
+			expectedError: assert.AnError,
+		},
+		{
+			name:    "archive writer error",
+			options: []testOption{withArchiveTraceWriter()},
+			setupMocks: func(tqs *testQueryService) {
+				responseIter := iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+					yield([]ptrace.Traces{makeTestTrace()}, nil)
+				})
+				tqs.traceReader.On("GetTraces", mock.Anything, tracestore.GetTraceParams{TraceID: testTraceID}).
+					Return(responseIter).Once()
+				tqs.archiveTraceWriter.On("WriteTraces", mock.Anything, mock.AnythingOfType("ptrace.Traces")).
+					Return(assert.AnError).Once()
+			},
+			expectedError: assert.AnError,
+		},
+		{
+			name:    "success",
+			options: []testOption{withArchiveTraceWriter()},
+			setupMocks: func(tqs *testQueryService) {
+				responseIter := iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+					yield([]ptrace.Traces{makeTestTrace()}, nil)
+				})
+				tqs.traceReader.On("GetTraces", mock.Anything, tracestore.GetTraceParams{TraceID: testTraceID}).
+					Return(responseIter).Once()
+				tqs.archiveTraceWriter.On("WriteTraces", mock.Anything, mock.AnythingOfType("ptrace.Traces")).
+					Return(nil).Once()
+			},
+			expectedError: nil,
+		},
 	}
 
-	err := tqs.queryService.ArchiveTrace(context.WithValue(ctx, contextKey("foo"), "bar"), query)
-	assert.Equal(t, querysvc.ErrNoArchiveSpanStorage, err)
-}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			tqs := initializeTestService(test.options...)
+			test.setupMocks(tqs)
 
-func TestArchiveTrace_GetTraceError(t *testing.T) {
-	tqs := initializeTestService(withArchiveTraceWriter())
+			query := tracestore.GetTraceParams{
+				TraceID: testTraceID,
+			}
 
-	responseIter := iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
-		yield([]ptrace.Traces{}, assert.AnError)
-	})
-
-	tqs.traceReader.On("GetTraces", mock.Anything, tracestore.GetTraceParams{TraceID: testTraceID}).
-		Return(responseIter).Once()
-
-	query := tracestore.GetTraceParams{
-		TraceID: testTraceID,
+			err := tqs.queryService.ArchiveTrace(context.Background(), query)
+			if test.expectedError != nil {
+				require.ErrorIs(t, err, test.expectedError)
+			} else {
+				require.NoError(t, err)
+			}
+		})
 	}
-
-	err := tqs.queryService.ArchiveTrace(context.Background(), query)
-	require.ErrorIs(t, err, assert.AnError)
-}
-
-func TestArchiveTrace_ArchiveWriterError(t *testing.T) {
-	tqs := initializeTestService(withArchiveTraceWriter())
-
-	responseIter := iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
-		yield([]ptrace.Traces{makeTestTrace()}, nil)
-	})
-
-	tqs.traceReader.On("GetTraces", mock.Anything, tracestore.GetTraceParams{TraceID: testTraceID}).
-		Return(responseIter).Once()
-	tqs.archiveTraceWriter.On("WriteTraces", mock.Anything, mock.AnythingOfType("ptrace.Traces")).
-		Return(assert.AnError).Once()
-
-	query := tracestore.GetTraceParams{
-		TraceID: testTraceID,
-	}
-
-	err := tqs.queryService.ArchiveTrace(context.Background(), query)
-	require.ErrorIs(t, err, assert.AnError)
-}
-
-func TestArchiveTrace_Success(t *testing.T) {
-	tqs := initializeTestService(withArchiveTraceWriter())
-
-	responseIter := iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
-		yield([]ptrace.Traces{makeTestTrace()}, nil)
-	})
-
-	tqs.traceReader.On("GetTraces", mock.Anything, tracestore.GetTraceParams{TraceID: testTraceID}).
-		Return(responseIter).Once()
-	tqs.archiveTraceWriter.On("WriteTraces", mock.Anything, mock.AnythingOfType("ptrace.Traces")).
-		Return(nil).Once()
-
-	query := tracestore.GetTraceParams{
-		TraceID: testTraceID,
-	}
-
-	err := tqs.queryService.ArchiveTrace(context.Background(), query)
-	require.NoError(t, err)
 }
 
 func TestGetDependencies(t *testing.T) {
 	tqs := initializeTestService()
 	expected := []model.DependencyLink{
-		{
-			Parent:    "killer",
-			Child:     "queen",
-			CallCount: 12,
-		},
+		{Parent: "killer", Child: "queen", CallCount: 12},
 	}
 	endTs := time.Unix(0, 1476374248550*millisToNanosMultiplier)
-	tqs.depsReader.On(
-		"GetDependencies",
-		mock.Anything, // context.Context
-		depstore.QueryParameters{
-			StartTime: endTs.Add(-defaultDependencyLookbackDuration),
-			EndTime:   endTs,
-		}).Return(expected, nil).Times(1)
+	tqs.depsReader.On("GetDependencies", mock.Anything, depstore.QueryParameters{
+		StartTime: endTs.Add(-defaultDependencyLookbackDuration),
+		EndTime:   endTs,
+	}).Return(expected, nil).Once()
 
-	actualDependencies, err := tqs.queryService.GetDependencies(
-		context.Background(), endTs,
-		defaultDependencyLookbackDuration)
+	actualDependencies, err := tqs.queryService.GetDependencies(context.Background(), endTs, defaultDependencyLookbackDuration)
 	require.NoError(t, err)
 	assert.Equal(t, expected, actualDependencies)
 }
 
 func TestGetCapabilities(t *testing.T) {
-	tqs := initializeTestService()
-	expected := querysvc.StorageCapabilities{
-		ArchiveStorage: false,
+	tests := []struct {
+		name     string
+		options  []testOption
+		expected querysvc.StorageCapabilities
+	}{
+		{
+			name: "without archive storage",
+			expected: querysvc.StorageCapabilities{
+				ArchiveStorage: false,
+			},
+		},
+		{
+			name:    "with archive storage",
+			options: []testOption{withArchiveTraceReader(), withArchiveTraceWriter()},
+			expected: querysvc.StorageCapabilities{
+				ArchiveStorage: true,
+			},
+		},
 	}
-	assert.Equal(t, expected, tqs.queryService.GetCapabilities())
-}
 
-func TestGetCapabilitiesWithSupportsArchive(t *testing.T) {
-	tqs := initializeTestService(withArchiveTraceReader(), withArchiveTraceWriter())
-
-	expected := querysvc.StorageCapabilities{
-		ArchiveStorage: true,
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			tqs := initializeTestService(test.options...)
+			assert.Equal(t, test.expected, tqs.queryService.GetCapabilities())
+		})
 	}
-	assert.Equal(t, expected, tqs.queryService.GetCapabilities())
 }
