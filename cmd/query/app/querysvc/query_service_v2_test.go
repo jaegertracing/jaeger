@@ -134,7 +134,7 @@ func TestGetTracesWithRawTraces(t *testing.T) {
 		expected   pcommon.Map
 	}{
 		{
-			// tags should not get sorted by SortTagsAndLogFields adjuster
+			// tags should not get sorted by SortCollections adjuster
 			rawTraces: true,
 			attributes: func() pcommon.Map {
 				m := pcommon.NewMap()
@@ -150,7 +150,7 @@ func TestGetTracesWithRawTraces(t *testing.T) {
 			}(),
 		},
 		{
-			// tags should get sorted by SortTagsAndLogFields adjuster
+			// tags should get sorted by SortCollections adjuster
 			rawTraces: false,
 			attributes: func() pcommon.Map {
 				m := pcommon.NewMap()
