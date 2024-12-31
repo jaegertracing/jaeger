@@ -102,7 +102,7 @@ func TestGetTracesSuccess(t *testing.T) {
 
 	tqs := initializeTestService()
 	tqs.traceReader.On("GetTraces", mock.Anything, tracestore.GetTraceParams{TraceID: testTraceID}).
-		Return(responseIter, nil).Once()
+		Return(responseIter).Once()
 
 	params := querysvc.GetTraceParams{
 		TraceIDs: []tracestore.GetTraceParams{
@@ -176,7 +176,7 @@ func TestGetTracesWithRawTraces(t *testing.T) {
 
 			tqs := initializeTestService()
 			tqs.traceReader.On("GetTraces", mock.Anything, tracestore.GetTraceParams{TraceID: testTraceID}).
-				Return(responseIter, nil).Once()
+				Return(responseIter).Once()
 
 			params := querysvc.GetTraceParams{
 				TraceIDs: []tracestore.GetTraceParams{
@@ -210,7 +210,7 @@ func TestGetTraces_TraceInArchiveStorage(t *testing.T) {
 
 	tqs := initializeTestService(withArchiveTraceReader())
 	tqs.traceReader.On("GetTraces", mock.Anything, tracestore.GetTraceParams{TraceID: testTraceID}).
-		Return(responseIter, nil).Once()
+		Return(responseIter).Once()
 	tqs.archiveTraceReader.On("GetTraces", mock.Anything, tracestore.GetTraceParams{TraceID: testTraceID}).
 		Return(archiveResponseIter, nil).Once()
 
@@ -278,7 +278,7 @@ func TestFindTraces(t *testing.T) {
 		DurationMin:   duration,
 		NumTraces:     200,
 	}).
-		Return(responseIter, nil).Once()
+		Return(responseIter).Once()
 
 	query := querysvc.TraceQueryParams{
 		TraceQueryParams: tracestore.TraceQueryParams{
@@ -363,7 +363,7 @@ func TestFindTracesWithRawTraces(t *testing.T) {
 				DurationMin:   duration,
 				NumTraces:     200,
 			}).
-				Return(responseIter, nil).Once()
+				Return(responseIter).Once()
 
 			query := querysvc.TraceQueryParams{
 				TraceQueryParams: tracestore.TraceQueryParams{
@@ -401,6 +401,24 @@ func TestArchiveTrace_NoOptions(t *testing.T) {
 	assert.Equal(t, querysvc.ErrNoArchiveSpanStorage, err)
 }
 
+func TestArchiveTrace_GetTraceError(t *testing.T) {
+	tqs := initializeTestService(withArchiveTraceWriter())
+
+	responseIter := iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+		yield([]ptrace.Traces{}, assert.AnError)
+	})
+
+	tqs.traceReader.On("GetTraces", mock.Anything, tracestore.GetTraceParams{TraceID: testTraceID}).
+		Return(responseIter).Once()
+
+	query := tracestore.GetTraceParams{
+		TraceID: testTraceID,
+	}
+
+	err := tqs.queryService.ArchiveTrace(context.Background(), query)
+	require.ErrorIs(t, err, assert.AnError)
+}
+
 func TestArchiveTrace_ArchiveWriterError(t *testing.T) {
 	tqs := initializeTestService(withArchiveTraceWriter())
 
@@ -409,7 +427,7 @@ func TestArchiveTrace_ArchiveWriterError(t *testing.T) {
 	})
 
 	tqs.traceReader.On("GetTraces", mock.Anything, tracestore.GetTraceParams{TraceID: testTraceID}).
-		Return(responseIter, nil).Once()
+		Return(responseIter).Once()
 	tqs.archiveTraceWriter.On("WriteTraces", mock.Anything, mock.AnythingOfType("ptrace.Traces")).
 		Return(assert.AnError).Once()
 
@@ -429,7 +447,7 @@ func TestArchiveTrace_Success(t *testing.T) {
 	})
 
 	tqs.traceReader.On("GetTraces", mock.Anything, tracestore.GetTraceParams{TraceID: testTraceID}).
-		Return(responseIter, nil).Once()
+		Return(responseIter).Once()
 	tqs.archiveTraceWriter.On("WriteTraces", mock.Anything, mock.AnythingOfType("ptrace.Traces")).
 		Return(nil).Once()
 
