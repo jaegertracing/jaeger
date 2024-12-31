@@ -28,7 +28,11 @@ import (
 	"github.com/jaegertracing/jaeger/storage_v2/v1adapter"
 )
 
+const millisToNanosMultiplier = int64(time.Millisecond / time.Nanosecond)
+
 var (
+	defaultDependencyLookbackDuration = time.Hour * 24
+
 	mockTraceID = model.NewTraceID(0, 123456)
 	mockTrace   = &model.Trace{
 		Spans: []*model.Span{
@@ -398,7 +402,7 @@ func TestArchiveTraceNoOptions(t *testing.T) {
 	}
 
 	err := tqs.queryService.ArchiveTrace(context.WithValue(ctx, contextKey("foo"), "bar"), query)
-	assert.Equal(t, errNoArchiveSpanStorage, err)
+	assert.Equal(t, ErrNoArchiveSpanStorage, err)
 }
 
 // Test QueryService.ArchiveTrace() with ArchiveSpanWriter but invalid traceID.

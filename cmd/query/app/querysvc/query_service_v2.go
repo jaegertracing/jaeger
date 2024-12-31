@@ -19,17 +19,21 @@ import (
 	"github.com/jaegertracing/jaeger/storage_v2/tracestore"
 )
 
-var errNoArchiveSpanStorage = errors.New("archive span storage was not configured")
+var ErrNoArchiveSpanStorage = errors.New("archive span storage was not configured")
 
 const (
 	defaultMaxClockSkewAdjust = time.Second
 )
 
-// QueryServiceOptions has optional members of QueryService
+// QueryServiceOptionsV2 holds the configuration options for the V2 QueryService.
 type QueryServiceOptionsV2 struct {
+	// ArchiveTraceReader is used to read archived traces from the storage.
 	ArchiveTraceReader tracestore.Reader
+	// ArchiveTraceWriter is used to write traces to the archive storage.
 	ArchiveTraceWriter tracestore.Writer
-	Adjuster           adjuster.Adjuster
+	// Adjuster is used to adjust traces before they are returned to the client.
+	// If not set, the default adjuster will be used.
+	Adjuster adjuster.Adjuster
 }
 
 // StorageCapabilities is a feature flag for query service
@@ -40,7 +44,7 @@ type StorageCapabilities struct {
 	// SupportTagFilter bool
 }
 
-// QueryService contains span utils required by the query-service.
+// QueryServiceV2 provides methods to query data from the storage.
 type QueryServiceV2 struct {
 	traceReader      tracestore.Reader
 	dependencyReader depstore.Reader
@@ -64,7 +68,6 @@ type TraceQueryParams struct {
 	RawTraces bool
 }
 
-// NewQueryService returns a new QueryService.
 func NewQueryServiceV2(
 	traceReader tracestore.Reader,
 	dependencyReader depstore.Reader,
@@ -108,12 +111,10 @@ func (qs QueryServiceV2) GetTraces(
 	}
 }
 
-// GetServices is the queryService implementation of tracestore.Reader.GetServices
 func (qs QueryServiceV2) GetServices(ctx context.Context) ([]string, error) {
 	return qs.traceReader.GetServices(ctx)
 }
 
-// GetOperations is the queryService implementation of tracestore.Reader.GetOperations
 func (qs QueryServiceV2) GetOperations(
 	ctx context.Context,
 	query tracestore.OperationQueryParams,
@@ -121,7 +122,6 @@ func (qs QueryServiceV2) GetOperations(
 	return qs.traceReader.GetOperations(ctx, query)
 }
 
-// FindTraces is the queryService implementation of tracestore.Reader.FindTraces
 func (qs QueryServiceV2) FindTraces(
 	ctx context.Context,
 	query TraceQueryParams,
@@ -132,10 +132,12 @@ func (qs QueryServiceV2) FindTraces(
 	}
 }
 
-// ArchiveTrace is the queryService utility to archive traces.
+// ArchiveTrace archives a trace specified by the given query parameters.
+// If the ArchiveTraceWriter is not configured, it returns
+// an error indicating that there is no archive span storage available.
 func (qs QueryServiceV2) ArchiveTrace(ctx context.Context, query tracestore.GetTraceParams) error {
 	if qs.options.ArchiveTraceWriter == nil {
-		return errNoArchiveSpanStorage
+		return ErrNoArchiveSpanStorage
 	}
 	getTracesIter := qs.GetTraces(
 		ctx, GetTraceParams{TraceIDs: []tracestore.GetTraceParams{query}},
@@ -157,7 +159,6 @@ func (qs QueryServiceV2) ArchiveTrace(ctx context.Context, query tracestore.GetT
 	return archiveErr
 }
 
-// GetDependencies implements depstore.Reader.GetDependencies
 func (qs QueryServiceV2) GetDependencies(ctx context.Context, endTs time.Time, lookback time.Duration) ([]model.DependencyLink, error) {
 	return qs.dependencyReader.GetDependencies(ctx, depstore.QueryParameters{
 		StartTime: endTs.Add(-lookback),
@@ -165,14 +166,12 @@ func (qs QueryServiceV2) GetDependencies(ctx context.Context, endTs time.Time, l
 	})
 }
 
-// GetCapabilities returns the features supported by the query service.
 func (qs QueryServiceV2) GetCapabilities() StorageCapabilities {
 	return StorageCapabilities{
 		ArchiveStorage: qs.options.hasArchiveStorage(),
 	}
 }
 
-// hasArchiveStorage returns true if archive storage reader/writer are initialized.
 func (opts *QueryServiceOptionsV2) hasArchiveStorage() bool {
 	return opts.ArchiveTraceReader != nil && opts.ArchiveTraceWriter != nil
 }

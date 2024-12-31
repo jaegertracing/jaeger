@@ -123,7 +123,7 @@ func (qs QueryService) FindTraces(ctx context.Context, query *TraceQueryParamete
 // ArchiveTrace is the queryService utility to archive traces.
 func (qs QueryService) ArchiveTrace(ctx context.Context, query spanstore.GetTraceParameters) error {
 	if qs.options.ArchiveSpanWriter == nil {
-		return errNoArchiveSpanStorage
+		return ErrNoArchiveSpanStorage
 	}
 	trace, err := qs.GetTrace(ctx, GetTraceParameters{GetTraceParameters: query})
 	if err != nil {

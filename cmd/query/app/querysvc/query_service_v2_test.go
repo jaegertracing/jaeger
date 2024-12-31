@@ -1,7 +1,7 @@
 // Copyright (c) 2024 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
-package querysvc
+package querysvc_test
 
 import (
 	"context"
@@ -15,6 +15,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
+	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/iter"
 	"github.com/jaegertracing/jaeger/storage_v2/depstore"
@@ -31,8 +32,8 @@ var (
 	testTraceID = pcommon.TraceID([16]byte{1})
 )
 
-type testQueryServiceV2 struct {
-	queryService *QueryServiceV2
+type testQueryService struct {
+	queryService *querysvc.QueryServiceV2
 	traceReader  *tracestoremocks.Reader
 	depsReader   *depstoremocks.Reader
 
@@ -40,31 +41,31 @@ type testQueryServiceV2 struct {
 	archiveTraceWriter *tracestoremocks.Writer
 }
 
-type testOptionV2 func(*testQueryServiceV2, *QueryServiceOptionsV2)
+type testOption func(*testQueryService, *querysvc.QueryServiceOptionsV2)
 
-func withArchiveTraceReader() testOptionV2 {
-	return func(tqs *testQueryServiceV2, options *QueryServiceOptionsV2) {
+func withArchiveTraceReader() testOption {
+	return func(tqs *testQueryService, options *querysvc.QueryServiceOptionsV2) {
 		r := &tracestoremocks.Reader{}
 		tqs.archiveTraceReader = r
 		options.ArchiveTraceReader = r
 	}
 }
 
-func withArchiveTraceWriter() testOptionV2 {
-	return func(tqs *testQueryServiceV2, options *QueryServiceOptionsV2) {
+func withArchiveTraceWriter() testOption {
+	return func(tqs *testQueryService, options *querysvc.QueryServiceOptionsV2) {
 		r := &tracestoremocks.Writer{}
 		tqs.archiveTraceWriter = r
 		options.ArchiveTraceWriter = r
 	}
 }
 
-func initializeTestServiceV2(opts ...testOptionV2) *testQueryServiceV2 {
+func initializeTestService(opts ...testOption) *testQueryService {
 	traceReader := &tracestoremocks.Reader{}
 	dependencyStorage := &depstoremocks.Reader{}
 
-	options := QueryServiceOptionsV2{}
+	options := querysvc.QueryServiceOptionsV2{}
 
-	tqs := testQueryServiceV2{
+	tqs := testQueryService{
 		traceReader: traceReader,
 		depsReader:  dependencyStorage,
 	}
@@ -73,7 +74,7 @@ func initializeTestServiceV2(opts ...testOptionV2) *testQueryServiceV2 {
 		opt(&tqs, &options)
 	}
 
-	tqs.queryService = NewQueryServiceV2(traceReader, dependencyStorage, options)
+	tqs.queryService = querysvc.NewQueryServiceV2(traceReader, dependencyStorage, options)
 	return &tqs
 }
 
@@ -99,11 +100,11 @@ func TestGetTracesSuccess(t *testing.T) {
 		yield([]ptrace.Traces{makeTestTrace()}, nil)
 	})
 
-	tqs := initializeTestServiceV2()
+	tqs := initializeTestService()
 	tqs.traceReader.On("GetTraces", mock.Anything, tracestore.GetTraceParams{TraceID: testTraceID}).
 		Return(responseIter, nil).Once()
 
-	params := GetTraceParams{
+	params := querysvc.GetTraceParams{
 		TraceIDs: []tracestore.GetTraceParams{
 			{
 				TraceID: testTraceID,
@@ -173,11 +174,11 @@ func TestGetTracesWithRawTraces(t *testing.T) {
 				yield([]ptrace.Traces{trace}, nil)
 			})
 
-			tqs := initializeTestServiceV2()
+			tqs := initializeTestService()
 			tqs.traceReader.On("GetTraces", mock.Anything, tracestore.GetTraceParams{TraceID: testTraceID}).
 				Return(responseIter, nil).Once()
 
-			params := GetTraceParams{
+			params := querysvc.GetTraceParams{
 				TraceIDs: []tracestore.GetTraceParams{
 					{
 						TraceID: testTraceID,
@@ -207,13 +208,13 @@ func TestGetTraces_TraceInArchiveStorage(t *testing.T) {
 		yield([]ptrace.Traces{makeTestTrace()}, nil)
 	})
 
-	tqs := initializeTestServiceV2(withArchiveTraceReader())
+	tqs := initializeTestService(withArchiveTraceReader())
 	tqs.traceReader.On("GetTraces", mock.Anything, tracestore.GetTraceParams{TraceID: testTraceID}).
 		Return(responseIter, nil).Once()
 	tqs.archiveTraceReader.On("GetTraces", mock.Anything, tracestore.GetTraceParams{TraceID: testTraceID}).
 		Return(archiveResponseIter, nil).Once()
 
-	params := GetTraceParams{
+	params := querysvc.GetTraceParams{
 		TraceIDs: []tracestore.GetTraceParams{
 			{
 				TraceID: testTraceID,
@@ -236,8 +237,8 @@ func TestGetTraces_TraceInArchiveStorage(t *testing.T) {
 	require.EqualValues(t, [8]byte{2}, gotSpans.At(1).SpanID())
 }
 
-func TestGetServicesV2(t *testing.T) {
-	tqs := initializeTestServiceV2()
+func TestGetServices(t *testing.T) {
+	tqs := initializeTestService()
 	expected := []string{"trifle", "bling"}
 	tqs.traceReader.On("GetServices", mock.Anything).Return(expected, nil).Once()
 
@@ -246,8 +247,8 @@ func TestGetServicesV2(t *testing.T) {
 	assert.Equal(t, expected, actualServices)
 }
 
-func TestGetOperationsV2(t *testing.T) {
-	tqs := initializeTestServiceV2()
+func TestGetOperations(t *testing.T) {
+	tqs := initializeTestService()
 	expected := []tracestore.Operation{{Name: "", SpanKind: ""}, {Name: "get", SpanKind: ""}}
 	operationQuery := tracestore.OperationQueryParams{ServiceName: "abc/trifle"}
 	tqs.traceReader.On(
@@ -261,12 +262,12 @@ func TestGetOperationsV2(t *testing.T) {
 	assert.Equal(t, expected, actualOperations)
 }
 
-func TestFindTracesV2(t *testing.T) {
+func TestFindTraces(t *testing.T) {
 	responseIter := iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
 		yield([]ptrace.Traces{makeTestTrace()}, nil)
 	})
 
-	tqs := initializeTestServiceV2()
+	tqs := initializeTestService()
 	duration, err := time.ParseDuration("20ms")
 	require.NoError(t, err)
 	now := time.Now()
@@ -279,7 +280,7 @@ func TestFindTracesV2(t *testing.T) {
 	}).
 		Return(responseIter, nil).Once()
 
-	query := TraceQueryParams{
+	query := querysvc.TraceQueryParams{
 		TraceQueryParams: tracestore.TraceQueryParams{
 			ServiceName:   "service",
 			OperationName: "operation",
@@ -304,7 +305,7 @@ func TestFindTracesV2(t *testing.T) {
 	require.EqualValues(t, [8]byte{2}, gotSpans.At(1).SpanID())
 }
 
-func TestFindTracesWithRawTracesV2(t *testing.T) {
+func TestFindTracesWithRawTraces(t *testing.T) {
 	tests := []struct {
 		rawTraces  bool
 		attributes pcommon.Map
@@ -351,7 +352,7 @@ func TestFindTracesWithRawTracesV2(t *testing.T) {
 				yield([]ptrace.Traces{trace}, nil)
 			})
 
-			tqs := initializeTestServiceV2()
+			tqs := initializeTestService()
 			duration, err := time.ParseDuration("20ms")
 			require.NoError(t, err)
 			now := time.Now()
@@ -364,7 +365,7 @@ func TestFindTracesWithRawTracesV2(t *testing.T) {
 			}).
 				Return(responseIter, nil).Once()
 
-			query := TraceQueryParams{
+			query := querysvc.TraceQueryParams{
 				TraceQueryParams: tracestore.TraceQueryParams{
 					ServiceName:   "service",
 					OperationName: "operation",
@@ -387,8 +388,8 @@ func TestFindTracesWithRawTracesV2(t *testing.T) {
 	}
 }
 
-func TestArchiveTraceV2_NoOptions(t *testing.T) {
-	tqs := initializeTestServiceV2()
+func TestArchiveTrace_NoOptions(t *testing.T) {
+	tqs := initializeTestService()
 
 	type contextKey string
 	ctx := context.Background()
@@ -397,11 +398,11 @@ func TestArchiveTraceV2_NoOptions(t *testing.T) {
 	}
 
 	err := tqs.queryService.ArchiveTrace(context.WithValue(ctx, contextKey("foo"), "bar"), query)
-	assert.Equal(t, errNoArchiveSpanStorage, err)
+	assert.Equal(t, querysvc.ErrNoArchiveSpanStorage, err)
 }
 
-func TestArchiveTraceV2_ArchiveWriterError(t *testing.T) {
-	tqs := initializeTestServiceV2(withArchiveTraceWriter())
+func TestArchiveTrace_ArchiveWriterError(t *testing.T) {
+	tqs := initializeTestService(withArchiveTraceWriter())
 
 	responseIter := iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
 		yield([]ptrace.Traces{makeTestTrace()}, nil)
@@ -420,8 +421,8 @@ func TestArchiveTraceV2_ArchiveWriterError(t *testing.T) {
 	require.ErrorIs(t, err, assert.AnError)
 }
 
-func TestArchiveTraceV2_Success(t *testing.T) {
-	tqs := initializeTestServiceV2(withArchiveTraceWriter())
+func TestArchiveTrace_Success(t *testing.T) {
+	tqs := initializeTestService(withArchiveTraceWriter())
 
 	responseIter := iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
 		yield([]ptrace.Traces{makeTestTrace()}, nil)
@@ -440,8 +441,8 @@ func TestArchiveTraceV2_Success(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestGetDependenciesV2(t *testing.T) {
-	tqs := initializeTestServiceV2()
+func TestGetDependencies(t *testing.T) {
+	tqs := initializeTestService()
 	expected := []model.DependencyLink{
 		{
 			Parent:    "killer",
@@ -465,18 +466,18 @@ func TestGetDependenciesV2(t *testing.T) {
 	assert.Equal(t, expected, actualDependencies)
 }
 
-func TestGetCapabilitiesV2(t *testing.T) {
-	tqs := initializeTestServiceV2()
-	expected := StorageCapabilities{
+func TestGetCapabilities(t *testing.T) {
+	tqs := initializeTestService()
+	expected := querysvc.StorageCapabilities{
 		ArchiveStorage: false,
 	}
 	assert.Equal(t, expected, tqs.queryService.GetCapabilities())
 }
 
-func TestGetCapabilitiesWithSupportsArchiveV2(t *testing.T) {
-	tqs := initializeTestServiceV2(withArchiveTraceReader(), withArchiveTraceWriter())
+func TestGetCapabilitiesWithSupportsArchive(t *testing.T) {
+	tqs := initializeTestService(withArchiveTraceReader(), withArchiveTraceWriter())
 
-	expected := StorageCapabilities{
+	expected := querysvc.StorageCapabilities{
 		ArchiveStorage: true,
 	}
 	assert.Equal(t, expected, tqs.queryService.GetCapabilities())
