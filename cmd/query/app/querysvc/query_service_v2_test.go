@@ -114,27 +114,23 @@ func TestGetTraces_ErrorInReader(t *testing.T) {
 	require.ErrorIs(t, err, assert.AnError)
 }
 
-func TestGetTracesSuccess(t *testing.T) {
-	responseIter := iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
-		yield([]ptrace.Traces{makeTestTrace()}, nil)
-	})
-
+func TestGetTraces_Success(t *testing.T) {
 	tqs := initializeTestService()
 	tqs.traceReader.On("GetTraces", mock.Anything, tracestore.GetTraceParams{TraceID: testTraceID}).
-		Return(responseIter).Once()
+		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+			yield([]ptrace.Traces{makeTestTrace()}, nil)
+		})).Once()
 
 	params := querysvc.GetTraceParams{
 		TraceIDs: []tracestore.GetTraceParams{
-			{
-				TraceID: testTraceID,
-			},
+			{TraceID: testTraceID},
 		},
 	}
 	getTracesIter := tqs.queryService.GetTraces(context.Background(), params)
 	gotTraces, err := iter.FlattenWithErrors(getTracesIter)
 	require.NoError(t, err)
-
 	require.Len(t, gotTraces, 1)
+
 	gotSpans := gotTraces[0].ResourceSpans().At(0).ScopeSpans().At(0).Spans()
 	require.Equal(t, 2, gotSpans.Len())
 	require.Equal(t, testTraceID, gotSpans.At(0).TraceID())
@@ -143,7 +139,7 @@ func TestGetTracesSuccess(t *testing.T) {
 	require.EqualValues(t, [8]byte{2}, gotSpans.At(1).SpanID())
 }
 
-func TestGetTracesWithRawTraces(t *testing.T) {
+func TestGetTraces_WithRawTraces(t *testing.T) {
 	tests := []struct {
 		rawTraces  bool
 		attributes pcommon.Map
@@ -214,32 +210,28 @@ func TestGetTracesWithRawTraces(t *testing.T) {
 }
 
 func TestGetTraces_TraceInArchiveStorage(t *testing.T) {
-	responseIter := iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
-		yield([]ptrace.Traces{}, nil)
-	})
-
-	archiveResponseIter := iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
-		yield([]ptrace.Traces{makeTestTrace()}, nil)
-	})
-
 	tqs := initializeTestService(withArchiveTraceReader())
+
 	tqs.traceReader.On("GetTraces", mock.Anything, tracestore.GetTraceParams{TraceID: testTraceID}).
-		Return(responseIter).Once()
+		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+			yield([]ptrace.Traces{}, nil)
+		})).Once()
+
 	tqs.archiveTraceReader.On("GetTraces", mock.Anything, tracestore.GetTraceParams{TraceID: testTraceID}).
-		Return(archiveResponseIter, nil).Once()
+		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+			yield([]ptrace.Traces{makeTestTrace()}, nil)
+		})).Once()
 
 	params := querysvc.GetTraceParams{
 		TraceIDs: []tracestore.GetTraceParams{
-			{
-				TraceID: testTraceID,
-			},
+			{TraceID: testTraceID},
 		},
 	}
 	getTracesIter := tqs.queryService.GetTraces(context.Background(), params)
 	gotTraces, err := iter.FlattenWithErrors(getTracesIter)
 	require.NoError(t, err)
-
 	require.Len(t, gotTraces, 1)
+
 	gotSpans := gotTraces[0].ResourceSpans().At(0).ScopeSpans().At(0).Spans()
 	require.Equal(t, 2, gotSpans.Len())
 	require.Equal(t, testTraceID, gotSpans.At(0).TraceID())
@@ -273,38 +265,29 @@ func TestGetOperations(t *testing.T) {
 	assert.Equal(t, expected, actualOperations)
 }
 
-func TestFindTraces(t *testing.T) {
+func TestFindTraces_Success(t *testing.T) {
+	tqs := initializeTestService()
 	responseIter := iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
 		yield([]ptrace.Traces{makeTestTrace()}, nil)
 	})
 
-	tqs := initializeTestService()
-	duration, err := time.ParseDuration("20ms")
-	require.NoError(t, err)
+	duration := 20 * time.Millisecond
 	now := time.Now()
-	tqs.traceReader.On("FindTraces", mock.Anything, tracestore.TraceQueryParams{
+	queryParams := tracestore.TraceQueryParams{
 		ServiceName:   "service",
 		OperationName: "operation",
 		StartTimeMax:  now,
 		DurationMin:   duration,
 		NumTraces:     200,
-	}).
-		Return(responseIter).Once()
-
-	query := querysvc.TraceQueryParams{
-		TraceQueryParams: tracestore.TraceQueryParams{
-			ServiceName:   "service",
-			OperationName: "operation",
-			StartTimeMax:  now,
-			DurationMin:   duration,
-			NumTraces:     200,
-		},
 	}
+	tqs.traceReader.On("FindTraces", mock.Anything, queryParams).Return(responseIter).Once()
+
+	query := querysvc.TraceQueryParams{TraceQueryParams: queryParams}
 	getTracesIter := tqs.queryService.FindTraces(context.Background(), query)
 	gotTraces, err := iter.FlattenWithErrors(getTracesIter)
 	require.NoError(t, err)
-
 	require.Len(t, gotTraces, 1)
+
 	gotSpans := gotTraces[0].ResourceSpans().At(0).ScopeSpans().At(0).Spans()
 	require.Equal(t, 2, gotSpans.Len())
 	require.Equal(t, testTraceID, gotSpans.At(0).TraceID())
@@ -313,7 +296,7 @@ func TestFindTraces(t *testing.T) {
 	require.EqualValues(t, [8]byte{2}, gotSpans.At(1).SpanID())
 }
 
-func TestFindTracesWithRawTraces(t *testing.T) {
+func TestFindTraces_WithRawTraces(t *testing.T) {
 	tests := []struct {
 		rawTraces  bool
 		attributes pcommon.Map
