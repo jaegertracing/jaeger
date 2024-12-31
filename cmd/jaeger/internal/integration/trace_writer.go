@@ -17,6 +17,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/storage_v2/tracestore"
 )
 
@@ -91,59 +92,50 @@ func (w *traceWriter) WriteTraces(ctx context.Context, td ptrace.Traces) error {
 // maxChunkSize should always be greater than or equal to 2
 func ChunkTraces(td ptrace.Traces, maxChunkSize int) []ptrace.Traces {
 	var (
-		newChunk     ptrace.Traces
-		traceChunks  []ptrace.Traces
-		currentSSpan ptrace.ScopeSpans
-		currentRSpan ptrace.ResourceSpans
+		traceChunks          []ptrace.Traces
+		currentChunk         ptrace.Traces
+		spanCount            int
+		currentResourceIndex int
+		currentScopeIndex    int
 	)
 
-	resources := td.ResourceSpans()
-	currentChunkSize := 0
-	newChunk = ptrace.NewTraces()
+	currentChunk = ptrace.NewTraces()
 
-	for i := 0; i < resources.Len(); i++ {
-		resource := resources.At(i)
-		scopes := resource.ScopeSpans()
-
-		if currentChunkSize > 0 {
-			currentRSpan = newChunk.ResourceSpans().AppendEmpty()
-			resource.Resource().Attributes().CopyTo(currentRSpan.Resource().Attributes())
+	jptrace.SpanIter(td)(func(pos jptrace.SpanIterPos, span ptrace.Span) bool {
+		var scope ptrace.ScopeSpans
+		var resource ptrace.ResourceSpans
+		// Create a new chunk if the current span count reaches maxChunkSize
+		if spanCount == maxChunkSize {
+			traceChunks = append(traceChunks, currentChunk)
+			currentChunk = ptrace.NewTraces()
+			spanCount = 0
 		}
-		for j := 0; j < scopes.Len(); j++ {
-			scope := scopes.At(j)
-			spans := scope.Spans()
 
-			if currentChunkSize > 0 {
-				currentSSpan = currentRSpan.ScopeSpans().AppendEmpty()
-				scope.Scope().Attributes().CopyTo(currentSSpan.Scope().Attributes())
-				currentSSpan.Scope().SetName(scope.Scope().Name())
-				fmt.Println(scope.Scope().Name())
-				currentSSpan.Scope().SetVersion(scope.Scope().Version())
-			}
-			for k := 0; k < spans.Len(); k++ {
-				span := spans.At(k)
-				if currentChunkSize == 0 {
-					currentRSpan = newChunk.ResourceSpans().AppendEmpty()
-					resource.Resource().Attributes().CopyTo(currentRSpan.Resource().Attributes())
-					currentSSpan = currentRSpan.ScopeSpans().AppendEmpty()
-					scope.Scope().Attributes().CopyTo(currentSSpan.Scope().Attributes())
-					currentSSpan.Scope().SetName(scope.Scope().Name())
-					fmt.Println(scope.Scope().Name())
-					currentSSpan.Scope().SetVersion(scope.Scope().Version())
-				}
-				span.CopyTo(currentSSpan.Spans().AppendEmpty())
-				currentChunkSize++
-				if currentChunkSize >= maxChunkSize {
-					traceChunks = append(traceChunks, newChunk)
-					newChunk = ptrace.NewTraces()
-					currentChunkSize = 0
-				}
-			}
+		if currentChunk.ResourceSpans().Len() == 0 || currentResourceIndex != pos.ResourceIndex {
+			resource = currentChunk.ResourceSpans().AppendEmpty()
+			td.ResourceSpans().At(pos.ResourceIndex).Resource().Attributes().CopyTo(resource.Resource().Attributes())
+			currentResourceIndex = pos.ResourceIndex
+		} else {
+			resource = currentChunk.ResourceSpans().At(currentChunk.ResourceSpans().Len() - 1)
 		}
-	}
 
-	if newChunk.ResourceSpans().Len() > 0 {
-		traceChunks = append(traceChunks, newChunk)
+		if resource.ScopeSpans().Len() == 0 || currentScopeIndex != pos.ScopeIndex {
+			scope = resource.ScopeSpans().AppendEmpty()
+			td.ResourceSpans().At(pos.ResourceIndex).ScopeSpans().At(pos.ScopeIndex).Scope().CopyTo(scope.Scope())
+			currentScopeIndex = pos.ScopeIndex
+		} else {
+			scope = resource.ScopeSpans().At(resource.ScopeSpans().Len() - 1)
+		}
+
+		span.CopyTo(scope.Spans().AppendEmpty())
+		spanCount++
+
+		return true
+	})
+
+	// append the last chunk if it has any spans
+	if spanCount > 0 {
+		traceChunks = append(traceChunks, currentChunk)
 	}
 
 	return traceChunks
