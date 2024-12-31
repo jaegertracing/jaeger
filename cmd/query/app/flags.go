@@ -152,36 +152,45 @@ func (qOpts *QueryOptions) BuildQueryServiceOptions(storageFactory storage.BaseF
 
 func (qOpts *QueryOptions) BuildV2QueryServiceOptions(storageFactory storage.BaseFactory, logger *zap.Logger) *v2querysvc.QueryServiceOptions {
 	opts := &v2querysvc.QueryServiceOptions{}
-
-	archiveFactory, ok := storageFactory.(storage.ArchiveFactory)
-	if !ok {
-		logger.Info("Archive storage not supported by the factory")
-	}
-	reader, err := archiveFactory.CreateArchiveSpanReader()
-	if errors.Is(err, storage.ErrArchiveStorageNotConfigured) || errors.Is(err, storage.ErrArchiveStorageNotSupported) {
-		logger.Info("Archive storage not created", zap.String("reason", err.Error()))
-	}
-	if err != nil {
-		logger.Error("Cannot init archive storage reader", zap.Error(err))
-	}
-	writer, err := archiveFactory.CreateArchiveSpanWriter()
-	if errors.Is(err, storage.ErrArchiveStorageNotConfigured) || errors.Is(err, storage.ErrArchiveStorageNotSupported) {
-		logger.Info("Archive storage not created", zap.String("reason", err.Error()))
-	}
-	if err != nil {
-		logger.Error("Cannot init archive storage writer", zap.Error(err))
-	}
-
-	if writer != nil && reader != nil {
-		opts.ArchiveTraceReader = v1adapter.NewTraceReader(reader)
-		opts.ArchiveTraceWriter = v1adapter.NewTraceWriter(writer)
-	} else {
+	if !initializeV2ArchiveStorage(storageFactory, opts, logger) {
 		logger.Info("Archive storage not initialized")
 	}
 
 	opts.Adjuster = v2adjuster.Sequence(v2adjuster.StandardAdjusters(qOpts.MaxClockSkewAdjust)...)
 
 	return opts
+}
+
+func initializeV2ArchiveStorage(
+	storageFactory storage.BaseFactory,
+	opts *v2querysvc.QueryServiceOptions,
+	logger *zap.Logger) bool {
+	archiveFactory, ok := storageFactory.(storage.ArchiveFactory)
+	if !ok {
+		logger.Info("Archive storage not supported by the factory")
+		return false
+	}
+	reader, err := archiveFactory.CreateArchiveSpanReader()
+	if errors.Is(err, storage.ErrArchiveStorageNotConfigured) || errors.Is(err, storage.ErrArchiveStorageNotSupported) {
+		logger.Info("Archive storage not created", zap.String("reason", err.Error()))
+		return false
+	}
+	if err != nil {
+		logger.Error("Cannot init archive storage reader", zap.Error(err))
+		return false
+	}
+	writer, err := archiveFactory.CreateArchiveSpanWriter()
+	if errors.Is(err, storage.ErrArchiveStorageNotConfigured) || errors.Is(err, storage.ErrArchiveStorageNotSupported) {
+		logger.Info("Archive storage not created", zap.String("reason", err.Error()))
+		return false
+	}
+	if err != nil {
+		logger.Error("Cannot init archive storage writer", zap.Error(err))
+		return false
+	}
+	opts.ArchiveTraceReader = v1adapter.NewTraceReader(reader)
+	opts.ArchiveTraceWriter = v1adapter.NewTraceWriter(writer)
+	return true
 }
 
 // stringSliceAsHeader parses a slice of strings and returns a http.Header.

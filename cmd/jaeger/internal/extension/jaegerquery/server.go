@@ -164,33 +164,41 @@ func (s *server) addV2ArchiveStorage(opts *v2querysvc.QueryServiceOptions, host 
 		return fmt.Errorf("cannot find archive storage factory: %w", err)
 	}
 
-	archiveFactory, ok := f.(storage.ArchiveFactory)
+	if !s.initializeV2ArchiveStorage(f, opts) {
+		s.telset.Logger.Info("Archive storage not initialized")
+	}
+	return nil
+}
+
+func (s *server) initializeV2ArchiveStorage(
+	storageFactory storage.Factory,
+	opts *v2querysvc.QueryServiceOptions) bool {
+	archiveFactory, ok := storageFactory.(storage.ArchiveFactory)
 	if !ok {
 		s.telset.Logger.Info("Archive storage not supported by the factory")
+		return false
 	}
 	reader, err := archiveFactory.CreateArchiveSpanReader()
 	if errors.Is(err, storage.ErrArchiveStorageNotConfigured) || errors.Is(err, storage.ErrArchiveStorageNotSupported) {
 		s.telset.Logger.Info("Archive storage not created", zap.String("reason", err.Error()))
+		return false
 	}
 	if err != nil {
 		s.telset.Logger.Error("Cannot init archive storage reader", zap.Error(err))
+		return false
 	}
 	writer, err := archiveFactory.CreateArchiveSpanWriter()
 	if errors.Is(err, storage.ErrArchiveStorageNotConfigured) || errors.Is(err, storage.ErrArchiveStorageNotSupported) {
 		s.telset.Logger.Info("Archive storage not created", zap.String("reason", err.Error()))
+		return false
 	}
 	if err != nil {
 		s.telset.Logger.Error("Cannot init archive storage writer", zap.Error(err))
+		return false
 	}
-
-	if writer != nil && reader != nil {
-		opts.ArchiveTraceReader = v1adapter.NewTraceReader(reader)
-		opts.ArchiveTraceWriter = v1adapter.NewTraceWriter(writer)
-	} else {
-		s.telset.Logger.Info("Archive storage not initialized")
-	}
-
-	return nil
+	opts.ArchiveTraceReader = v1adapter.NewTraceReader(reader)
+	opts.ArchiveTraceWriter = v1adapter.NewTraceWriter(writer)
+	return true
 }
 
 func (s *server) createMetricReader(host component.Host) (metricstore.Reader, error) {
