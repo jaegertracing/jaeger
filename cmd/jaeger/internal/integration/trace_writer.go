@@ -68,10 +68,10 @@ func (w *traceWriter) Close() error {
 
 func (w *traceWriter) WriteTraces(ctx context.Context, td ptrace.Traces) error {
 	var err error
-	MaxChunkSize := 35 // max chunk size otel kafka export can handle safely.
-	if td.SpanCount() > MaxChunkSize {
+	maxChunkSize := 35 // max chunk size otel kafka export can handle safely.
+	if td.SpanCount() > maxChunkSize {
 		w.logger.Info("Chunking traces")
-		traceChunks := ChunkTraces(td, MaxChunkSize)
+		traceChunks := ChunkTraces(td, maxChunkSize)
 		for _, chunk := range traceChunks {
 			err = w.exporter.ConsumeTraces(ctx, chunk)
 			if err != nil {

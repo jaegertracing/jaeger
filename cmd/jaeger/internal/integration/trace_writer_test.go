@@ -6,7 +6,7 @@ package integration
 import (
 	"testing"
 
-	"github.com/crossdock/crossdock-go/require"
+	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 )
@@ -54,9 +54,9 @@ func TestChunkTraces_GetChunkedTracesWithValidInput(t *testing.T) {
 
 	require.Len(t, chunks, 3)
 
-	require.Equal(t, chunks[0].ResourceSpans().Len(), 1) // First chunk has 2 spans from one resource
-	require.Equal(t, chunks[1].ResourceSpans().Len(), 2) // Second chunk has 2 spans from two resources
-	require.Equal(t, chunks[2].ResourceSpans().Len(), 1) // Third chunk has one span from one resource
+	require.Equal(t, 1, chunks[0].ResourceSpans().Len()) // First chunk has 2 spans from one resource
+	require.Equal(t, 2, chunks[1].ResourceSpans().Len()) // Second chunk has 2 spans from two resources
+	require.Equal(t, 1, chunks[2].ResourceSpans().Len()) // Third chunk has one span from one resource
 
 	// First chunk: NoServiceName1 span1 and 2
 	firstChunkResource1 := chunks[0].ResourceSpans().At(0)
@@ -87,5 +87,5 @@ func TestChunkTraces_InvalidInput(t *testing.T) {
 	td := ptrace.NewTraces()
 
 	chunks := ChunkTraces(td, 2)
-	require.Len(t, chunks, 0)
+	require.Empty(t, chunks)
 }
