@@ -198,6 +198,44 @@ func TestGetTracesWithRawTraces(t *testing.T) {
 	}
 }
 
+func TestGetTraces_TraceInArchiveStorage(t *testing.T) {
+	responseIter := iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+		yield([]ptrace.Traces{}, nil)
+	})
+
+	archiveResponseIter := iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+		yield([]ptrace.Traces{makeTestTrace()}, nil)
+	})
+
+	tqs := initializeTestServiceV2(withArchiveTraceReader())
+	tqs.traceReader.On("GetTraces", mock.Anything, tracestore.GetTraceParams{TraceID: testTraceID}).
+		Return(responseIter, nil).Once()
+	tqs.archiveTraceReader.On("GetTraces", mock.Anything, tracestore.GetTraceParams{TraceID: testTraceID}).
+		Return(archiveResponseIter, nil).Once()
+
+	params := GetTraceParams{
+		TraceIDs: []tracestore.GetTraceParams{
+			{
+				TraceID: testTraceID,
+			},
+		},
+	}
+	var gotTraces []ptrace.Traces
+	getTracesIter := tqs.queryService.GetTraces(context.Background(), params)
+	getTracesIter(func(traces []ptrace.Traces, _ error) bool {
+		gotTraces = append(gotTraces, traces...)
+		return true
+	})
+
+	require.Len(t, gotTraces, 1)
+	gotSpans := gotTraces[0].ResourceSpans().At(0).ScopeSpans().At(0).Spans()
+	require.Equal(t, 2, gotSpans.Len())
+	require.Equal(t, testTraceID, gotSpans.At(0).TraceID())
+	require.EqualValues(t, [8]byte{1}, gotSpans.At(0).SpanID())
+	require.Equal(t, testTraceID, gotSpans.At(1).TraceID())
+	require.EqualValues(t, [8]byte{2}, gotSpans.At(1).SpanID())
+}
+
 func TestGetServicesV2(t *testing.T) {
 	tqs := initializeTestServiceV2()
 	expected := []string{"trifle", "bling"}
