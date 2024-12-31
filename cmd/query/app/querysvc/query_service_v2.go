@@ -149,8 +149,7 @@ func (qs QueryServiceV2) ArchiveTrace(ctx context.Context, query tracestore.GetT
 		for _, trace := range traces {
 			err = qs.options.ArchiveTraceWriter.WriteTraces(ctx, trace)
 			if err != nil {
-				archiveErr = err
-				return false
+				archiveErr = errors.Join(archiveErr, err)
 			}
 		}
 		return true

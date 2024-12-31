@@ -5,6 +5,7 @@ package querysvc
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -360,6 +361,26 @@ func TestArchiveTraceV2_NoOptions(t *testing.T) {
 
 	err := tqs.queryService.ArchiveTrace(context.WithValue(ctx, contextKey("foo"), "bar"), query)
 	assert.Equal(t, errNoArchiveSpanStorage, err)
+}
+
+func TestArchiveTraceV2_ArchiveWriterError(t *testing.T) {
+	tqs := initializeTestServiceV2(withArchiveTraceWriter())
+
+	responseIter := iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+		yield([]ptrace.Traces{makeTestTrace()}, nil)
+	})
+
+	tqs.traceReader.On("GetTraces", mock.Anything, tracestore.GetTraceParams{TraceID: testTraceID}).
+		Return(responseIter, nil).Once()
+	tqs.archiveTraceWriter.On("WriteTraces", mock.Anything, mock.AnythingOfType("ptrace.Traces")).
+		Return(errors.New("cannot save")).Twice()
+
+	query := tracestore.GetTraceParams{
+		TraceID: testTraceID,
+	}
+
+	joinErr := tqs.queryService.ArchiveTrace(context.Background(), query)
+	require.EqualError(t, joinErr, "cannot save")
 }
 
 func TestGetDependenciesV2(t *testing.T) {
