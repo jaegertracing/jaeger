@@ -119,11 +119,11 @@ done
 # Build hotrod image locally (-l) for integration test.
 # Note: hotrod's Dockerfile is different from main binaries,
 # so we do not pass flags like -b and -t.
-bash scripts/build-upload-a-docker-image.sh -l -c example-hotrod -d examples/hotrod -p "${current_platform}"
+bash scripts/build/build-upload-a-docker-image.sh -l -c example-hotrod -d examples/hotrod -p "${current_platform}"
 
 # Build all-in-one (for v1) or jaeger (for v2) image locally (-l) for integration test
 make build-${binary}
-bash scripts/build-upload-a-docker-image.sh -l -b -c "${binary}" -d cmd/"${binary}" -p "${current_platform}" -t release
+bash scripts/build/build-upload-a-docker-image.sh -l -b -c "${binary}" -d cmd/"${binary}" -p "${current_platform}" -t release
 
 if [[ "${runtime}" == "k8s" ]]; then
   if ! kubectl cluster-info >/dev/null 2>&1; then
@@ -207,4 +207,4 @@ success="true"
 
 # Ensure the image is published after successful test (maybe with -l flag if on a pull request).
 # This is where all those multi-platform binaries we built earlier are utilized.
-bash scripts/build-upload-a-docker-image.sh "${FLAGS[@]}" -c example-hotrod -d examples/hotrod -p "${platforms}"
+bash scripts/build/build-upload-a-docker-image.sh "${FLAGS[@]}" -c example-hotrod -d examples/hotrod -p "${platforms}"

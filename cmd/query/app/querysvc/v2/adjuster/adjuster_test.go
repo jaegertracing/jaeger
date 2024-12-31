@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
-	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc/adjuster"
+	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc/v2/adjuster"
 )
 
 type mockAdjuster struct{}
