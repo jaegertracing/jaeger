@@ -43,7 +43,7 @@ To locally test the ElasticSearch storage plugin,
 
 All integration tests also run on pull request via GitHub Actions. This integration test is against ElasticSearch v7.x and v8.x.
 
-* The script used in GitHub Actions can be found under `scripts/es-integration-test.sh`,
+* The script used in GitHub Actions can be found under `scripts/e2e/es-integration-test.sh`,
 and that script be run from the top folder to integration test ElasticSearch as well.
 This script requires Docker to be running.
 
