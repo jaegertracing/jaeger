@@ -111,12 +111,9 @@ func TestGetTracesSuccess(t *testing.T) {
 			},
 		},
 	}
-	var gotTraces []ptrace.Traces
 	getTracesIter := tqs.queryService.GetTraces(context.Background(), params)
-	getTracesIter(func(traces []ptrace.Traces, _ error) bool {
-		gotTraces = append(gotTraces, traces...)
-		return true
-	})
+	gotTraces, err := iter.FlattenWithErrors(getTracesIter)
+	require.NoError(t, err)
 
 	require.Len(t, gotTraces, 1)
 	gotSpans := gotTraces[0].ResourceSpans().At(0).ScopeSpans().At(0).Spans()
@@ -186,12 +183,10 @@ func TestGetTracesWithRawTraces(t *testing.T) {
 				},
 				RawTraces: test.rawTraces,
 			}
-			var gotTraces []ptrace.Traces
 			getTracesIter := tqs.queryService.GetTraces(context.Background(), params)
-			getTracesIter(func(traces []ptrace.Traces, _ error) bool {
-				gotTraces = append(gotTraces, traces...)
-				return true
-			})
+			gotTraces, err := iter.FlattenWithErrors(getTracesIter)
+			require.NoError(t, err)
+
 			require.Len(t, gotTraces, 1)
 			gotAttributes := gotTraces[0].ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).Attributes()
 			require.Equal(t, test.expected, gotAttributes)
@@ -221,12 +216,9 @@ func TestGetTraces_TraceInArchiveStorage(t *testing.T) {
 			},
 		},
 	}
-	var gotTraces []ptrace.Traces
 	getTracesIter := tqs.queryService.GetTraces(context.Background(), params)
-	getTracesIter(func(traces []ptrace.Traces, _ error) bool {
-		gotTraces = append(gotTraces, traces...)
-		return true
-	})
+	gotTraces, err := iter.FlattenWithErrors(getTracesIter)
+	require.NoError(t, err)
 
 	require.Len(t, gotTraces, 1)
 	gotSpans := gotTraces[0].ResourceSpans().At(0).ScopeSpans().At(0).Spans()
@@ -289,12 +281,9 @@ func TestFindTraces(t *testing.T) {
 			NumTraces:     200,
 		},
 	}
-	var gotTraces []ptrace.Traces
 	getTracesIter := tqs.queryService.FindTraces(context.Background(), query)
-	getTracesIter(func(traces []ptrace.Traces, _ error) bool {
-		gotTraces = append(gotTraces, traces...)
-		return true
-	})
+	gotTraces, err := iter.FlattenWithErrors(getTracesIter)
+	require.NoError(t, err)
 
 	require.Len(t, gotTraces, 1)
 	gotSpans := gotTraces[0].ResourceSpans().At(0).ScopeSpans().At(0).Spans()
@@ -375,12 +364,10 @@ func TestFindTracesWithRawTraces(t *testing.T) {
 				},
 				RawTraces: test.rawTraces,
 			}
-			var gotTraces []ptrace.Traces
 			getTracesIter := tqs.queryService.FindTraces(context.Background(), query)
-			getTracesIter(func(traces []ptrace.Traces, _ error) bool {
-				gotTraces = append(gotTraces, traces...)
-				return true
-			})
+			gotTraces, err := iter.FlattenWithErrors(getTracesIter)
+			require.NoError(t, err)
+
 			require.Len(t, gotTraces, 1)
 			gotAttributes := gotTraces[0].ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).Attributes()
 			require.Equal(t, test.expected, gotAttributes)
