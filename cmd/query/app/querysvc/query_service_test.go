@@ -402,7 +402,7 @@ func TestArchiveTraceNoOptions(t *testing.T) {
 	}
 
 	err := tqs.queryService.ArchiveTrace(context.WithValue(ctx, contextKey("foo"), "bar"), query)
-	assert.Equal(t, ErrNoArchiveSpanStorage, err)
+	assert.Equal(t, errNoArchiveSpanStorage, err)
 }
 
 // Test QueryService.ArchiveTrace() with ArchiveSpanWriter but invalid traceID.

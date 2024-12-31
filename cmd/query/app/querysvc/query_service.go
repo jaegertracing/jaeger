@@ -19,11 +19,25 @@ import (
 	"github.com/jaegertracing/jaeger/storage_v2/v1adapter"
 )
 
+var errNoArchiveSpanStorage = errors.New("archive span storage was not configured")
+
+const (
+	defaultMaxClockSkewAdjust = time.Second
+)
+
 // QueryServiceOptions has optional members of QueryService
 type QueryServiceOptions struct {
 	ArchiveSpanReader spanstore.Reader
 	ArchiveSpanWriter spanstore.Writer
 	Adjuster          adjuster.Adjuster
+}
+
+// StorageCapabilities is a feature flag for query service
+type StorageCapabilities struct {
+	ArchiveStorage bool `json:"archiveStorage"`
+	// TODO: Maybe add metrics Storage here
+	// SupportRegex     bool
+	// SupportTagFilter bool
 }
 
 // QueryService contains span utils required by the query-service.
@@ -123,7 +137,7 @@ func (qs QueryService) FindTraces(ctx context.Context, query *TraceQueryParamete
 // ArchiveTrace is the queryService utility to archive traces.
 func (qs QueryService) ArchiveTrace(ctx context.Context, query spanstore.GetTraceParameters) error {
 	if qs.options.ArchiveSpanWriter == nil {
-		return ErrNoArchiveSpanStorage
+		return errNoArchiveSpanStorage
 	}
 	trace, err := qs.GetTrace(ctx, GetTraceParameters{GetTraceParameters: query})
 	if err != nil {

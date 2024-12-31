@@ -11,7 +11,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
-	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc/adjuster"
+	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc/v2/adjuster"
 	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/iter"
@@ -19,7 +19,7 @@ import (
 	"github.com/jaegertracing/jaeger/storage_v2/tracestore"
 )
 
-var ErrNoArchiveSpanStorage = errors.New("archive span storage was not configured")
+var errNoArchiveSpanStorage = errors.New("archive span storage was not configured")
 
 const (
 	defaultMaxClockSkewAdjust = time.Second
@@ -137,7 +137,7 @@ func (qs QueryServiceV2) FindTraces(
 // an error indicating that there is no archive span storage available.
 func (qs QueryServiceV2) ArchiveTrace(ctx context.Context, query tracestore.GetTraceParams) error {
 	if qs.options.ArchiveTraceWriter == nil {
-		return ErrNoArchiveSpanStorage
+		return errNoArchiveSpanStorage
 	}
 	getTracesIter := qs.GetTraces(
 		ctx, GetTraceParams{TraceIDs: []tracestore.GetTraceParams{query}},
