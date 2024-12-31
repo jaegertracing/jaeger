@@ -8,13 +8,15 @@ import (
 	"errors"
 	"fmt"
 
+	"go.opentelemetry.io/collector/pdata/ptrace"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
+	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc/v2/querysvc"
 	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
 	"github.com/jaegertracing/jaeger/model"
-	"github.com/jaegertracing/jaeger/storage/spanstore"
+	"github.com/jaegertracing/jaeger/pkg/iter"
+	"github.com/jaegertracing/jaeger/storage_v2/tracestore"
 )
 
 // Handler implements api_v3.QueryServiceServer
@@ -32,20 +34,24 @@ func (h *Handler) GetTrace(request *api_v3.GetTraceRequest, stream api_v3.QueryS
 		return fmt.Errorf("malform trace ID: %w", err)
 	}
 
-	query := querysvc.GetTraceParameters{
-		GetTraceParameters: spanstore.GetTraceParameters{
-			TraceID:   traceID,
-			StartTime: request.GetStartTime(),
-			EndTime:   request.GetEndTime(),
+	query := querysvc.GetTraceParams{
+		TraceIDs: []tracestore.GetTraceParams{
+			{
+				TraceID: traceID.ToOTELTraceID(),
+				Start:   request.GetStartTime(),
+				End:     request.GetEndTime(),
+			},
 		},
 		RawTraces: request.GetRawTraces(),
 	}
-	trace, err := h.QueryService.GetTrace(stream.Context(), query)
+	getTracesIter := h.QueryService.GetTraces(stream.Context(), query)
+	traces, err := iter.FlattenWithErrors(getTracesIter)
 	if err != nil {
 		return fmt.Errorf("cannot retrieve trace: %w", err)
+	} else if len(traces) == 0 {
+		return errors.New("trace not found")
 	}
-	td := modelToOTLP(trace.GetSpans())
-	tracesData := api_v3.TracesData(td)
+	tracesData := api_v3.TracesData(traces[0])
 	return stream.Send(&tracesData)
 }
 
@@ -69,8 +75,8 @@ func (h *Handler) internalFindTraces(
 		return errors.New("start time min and max are required parameters")
 	}
 
-	queryParams := &querysvc.TraceQueryParameters{
-		TraceQueryParameters: spanstore.TraceQueryParameters{
+	queryParams := querysvc.TraceQueryParams{
+		TraceQueryParams: tracestore.TraceQueryParams{
 			ServiceName:   query.GetServiceName(),
 			OperationName: query.GetOperationName(),
 			Tags:          query.GetAttributes(),
@@ -91,19 +97,24 @@ func (h *Handler) internalFindTraces(
 		queryParams.DurationMax = d
 	}
 
-	traces, err := h.QueryService.FindTraces(ctx, queryParams)
-	if err != nil {
-		return err
-	}
-	for _, t := range traces {
-		td := modelToOTLP(t.GetSpans())
-		tracesData := api_v3.TracesData(td)
-		if err := streamSend(&tracesData); err != nil {
-			return status.Error(codes.Internal,
-				fmt.Sprintf("failed to send response stream chunk to client: %v", err))
+	findTracesIter := h.QueryService.FindTraces(ctx, queryParams)
+	var findTracesErr error
+	findTracesIter(func(traces []ptrace.Traces, err error) bool {
+		if err != nil {
+			findTracesErr = err
+			return false
 		}
-	}
-	return nil
+		for _, trace := range traces {
+			tracesData := api_v3.TracesData(trace)
+			if err := streamSend(&tracesData); err != nil {
+				findTracesErr = status.Error(codes.Internal,
+					fmt.Sprintf("failed to send response stream chunk to client: %v", err))
+				return false
+			}
+		}
+		return true
+	})
+	return findTracesErr
 }
 
 // GetServices implements api_v3.QueryServiceServer's GetServices
@@ -119,7 +130,7 @@ func (h *Handler) GetServices(ctx context.Context, _ *api_v3.GetServicesRequest)
 
 // GetOperations implements api_v3.QueryService's GetOperations
 func (h *Handler) GetOperations(ctx context.Context, request *api_v3.GetOperationsRequest) (*api_v3.GetOperationsResponse, error) {
-	operations, err := h.QueryService.GetOperations(ctx, spanstore.OperationQueryParameters{
+	operations, err := h.QueryService.GetOperations(ctx, tracestore.OperationQueryParams{
 		ServiceName: request.GetService(),
 		SpanKind:    request.GetSpanKind(),
 	})
