@@ -22,6 +22,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/internal/status"
 	"github.com/jaegertracing/jaeger/cmd/query/app"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
+	querysvcv2 "github.com/jaegertracing/jaeger/cmd/query/app/querysvc/v2/querysvc"
 	"github.com/jaegertracing/jaeger/pkg/bearertoken"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/jtracer"
@@ -111,12 +112,20 @@ func main() {
 				traceReader,
 				dependencyReader,
 				*queryServiceOptions)
+
+			queryServiceOptionsV2 := queryOpts.BuildV2QueryServiceOptions(storageFactory, logger)
+			queryServiceV2 := querysvcv2.NewQueryService(
+				traceReader,
+				dependencyReader,
+				*queryServiceOptionsV2)
+
 			tm := tenancy.NewManager(&queryOpts.Tenancy)
 			telset := baseTelset // copy
 			telset.Metrics = metricsFactory
 			server, err := app.NewServer(
 				context.Background(),
 				queryService,
+				queryServiceV2,
 				metricsQueryService,
 				queryOpts,
 				tm,

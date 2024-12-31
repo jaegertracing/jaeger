@@ -11,17 +11,21 @@ import (
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/extension"
 	"go.opentelemetry.io/collector/extension/extensioncapabilities"
+	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
 	queryApp "github.com/jaegertracing/jaeger/cmd/query/app"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
+	v2querysvc "github.com/jaegertracing/jaeger/cmd/query/app/querysvc/v2/querysvc"
 	"github.com/jaegertracing/jaeger/pkg/jtracer"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/telemetry"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/plugin/metricstore/disabled"
+	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/metricstore"
 	"github.com/jaegertracing/jaeger/storage_v2/depstore"
+	"github.com/jaegertracing/jaeger/storage_v2/v1adapter"
 )
 
 var (
@@ -97,6 +101,12 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 	}
 	qs := querysvc.NewQueryService(traceReader, depReader, opts)
 
+	var v2opts v2querysvc.QueryServiceOptions
+	if err := s.addV2ArchiveStorage(&v2opts, host); err != nil {
+		return err
+	}
+	v2qs := v2querysvc.NewQueryService(traceReader, depReader, v2opts)
+
 	mqs, err := s.createMetricReader(host)
 	if err != nil {
 		return err
@@ -108,6 +118,7 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 		ctx,
 		// TODO propagate healthcheck updates up to the collector's runtime
 		qs,
+		v2qs,
 		mqs,
 		&s.config.QueryOptions,
 		tm,
@@ -139,6 +150,46 @@ func (s *server) addArchiveStorage(opts *querysvc.QueryServiceOptions, host comp
 	if !opts.InitArchiveStorage(f, s.telset.Logger) {
 		s.telset.Logger.Info("Archive storage not initialized")
 	}
+	return nil
+}
+
+func (s *server) addV2ArchiveStorage(opts *v2querysvc.QueryServiceOptions, host component.Host) error {
+	if s.config.Storage.TracesArchive == "" {
+		s.telset.Logger.Info("Archive storage not configured")
+		return nil
+	}
+
+	f, err := jaegerstorage.GetStorageFactory(s.config.Storage.TracesArchive, host)
+	if err != nil {
+		return fmt.Errorf("cannot find archive storage factory: %w", err)
+	}
+
+	archiveFactory, ok := f.(storage.ArchiveFactory)
+	if !ok {
+		s.telset.Logger.Info("Archive storage not supported by the factory")
+	}
+	reader, err := archiveFactory.CreateArchiveSpanReader()
+	if errors.Is(err, storage.ErrArchiveStorageNotConfigured) || errors.Is(err, storage.ErrArchiveStorageNotSupported) {
+		s.telset.Logger.Info("Archive storage not created", zap.String("reason", err.Error()))
+	}
+	if err != nil {
+		s.telset.Logger.Error("Cannot init archive storage reader", zap.Error(err))
+	}
+	writer, err := archiveFactory.CreateArchiveSpanWriter()
+	if errors.Is(err, storage.ErrArchiveStorageNotConfigured) || errors.Is(err, storage.ErrArchiveStorageNotSupported) {
+		s.telset.Logger.Info("Archive storage not created", zap.String("reason", err.Error()))
+	}
+	if err != nil {
+		s.telset.Logger.Error("Cannot init archive storage writer", zap.Error(err))
+	}
+
+	if writer != nil && reader != nil {
+		opts.ArchiveTraceReader = v1adapter.NewTraceReader(reader)
+		opts.ArchiveTraceWriter = v1adapter.NewTraceWriter(writer)
+	} else {
+		s.telset.Logger.Info("Archive storage not initialized")
+	}
+
 	return nil
 }
 

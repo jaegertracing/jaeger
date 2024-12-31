@@ -23,12 +23,15 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
+	v2adjuster "github.com/jaegertracing/jaeger/cmd/query/app/querysvc/v2/adjuster"
+	v2querysvc "github.com/jaegertracing/jaeger/cmd/query/app/querysvc/v2/querysvc"
 	"github.com/jaegertracing/jaeger/model/adjuster"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/ports"
 	"github.com/jaegertracing/jaeger/storage"
+	"github.com/jaegertracing/jaeger/storage_v2/v1adapter"
 )
 
 const (
@@ -143,6 +146,40 @@ func (qOpts *QueryOptions) BuildQueryServiceOptions(storageFactory storage.BaseF
 	}
 
 	opts.Adjuster = adjuster.Sequence(querysvc.StandardAdjusters(qOpts.MaxClockSkewAdjust)...)
+
+	return opts
+}
+
+func (qOpts *QueryOptions) BuildV2QueryServiceOptions(storageFactory storage.BaseFactory, logger *zap.Logger) *v2querysvc.QueryServiceOptions {
+	opts := &v2querysvc.QueryServiceOptions{}
+
+	archiveFactory, ok := storageFactory.(storage.ArchiveFactory)
+	if !ok {
+		logger.Info("Archive storage not supported by the factory")
+	}
+	reader, err := archiveFactory.CreateArchiveSpanReader()
+	if errors.Is(err, storage.ErrArchiveStorageNotConfigured) || errors.Is(err, storage.ErrArchiveStorageNotSupported) {
+		logger.Info("Archive storage not created", zap.String("reason", err.Error()))
+	}
+	if err != nil {
+		logger.Error("Cannot init archive storage reader", zap.Error(err))
+	}
+	writer, err := archiveFactory.CreateArchiveSpanWriter()
+	if errors.Is(err, storage.ErrArchiveStorageNotConfigured) || errors.Is(err, storage.ErrArchiveStorageNotSupported) {
+		logger.Info("Archive storage not created", zap.String("reason", err.Error()))
+	}
+	if err != nil {
+		logger.Error("Cannot init archive storage writer", zap.Error(err))
+	}
+
+	if writer != nil && reader != nil {
+		opts.ArchiveTraceReader = v1adapter.NewTraceReader(reader)
+		opts.ArchiveTraceWriter = v1adapter.NewTraceWriter(writer)
+	} else {
+		logger.Info("Archive storage not initialized")
+	}
+
+	opts.Adjuster = v2adjuster.Sequence(v2adjuster.StandardAdjusters(qOpts.MaxClockSkewAdjust)...)
 
 	return opts
 }
