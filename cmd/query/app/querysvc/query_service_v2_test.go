@@ -5,7 +5,6 @@ package querysvc
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -373,14 +372,34 @@ func TestArchiveTraceV2_ArchiveWriterError(t *testing.T) {
 	tqs.traceReader.On("GetTraces", mock.Anything, tracestore.GetTraceParams{TraceID: testTraceID}).
 		Return(responseIter, nil).Once()
 	tqs.archiveTraceWriter.On("WriteTraces", mock.Anything, mock.AnythingOfType("ptrace.Traces")).
-		Return(errors.New("cannot save")).Twice()
+		Return(assert.AnError).Once()
 
 	query := tracestore.GetTraceParams{
 		TraceID: testTraceID,
 	}
 
-	joinErr := tqs.queryService.ArchiveTrace(context.Background(), query)
-	require.EqualError(t, joinErr, "cannot save")
+	err := tqs.queryService.ArchiveTrace(context.Background(), query)
+	require.ErrorIs(t, err, assert.AnError)
+}
+
+func TestArchiveTraceV2_Success(t *testing.T) {
+	tqs := initializeTestServiceV2(withArchiveTraceWriter())
+
+	responseIter := iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+		yield([]ptrace.Traces{makeTestTrace()}, nil)
+	})
+
+	tqs.traceReader.On("GetTraces", mock.Anything, tracestore.GetTraceParams{TraceID: testTraceID}).
+		Return(responseIter, nil).Once()
+	tqs.archiveTraceWriter.On("WriteTraces", mock.Anything, mock.AnythingOfType("ptrace.Traces")).
+		Return(nil).Once()
+
+	query := tracestore.GetTraceParams{
+		TraceID: testTraceID,
+	}
+
+	err := tqs.queryService.ArchiveTrace(context.Background(), query)
+	require.NoError(t, err)
 }
 
 func TestGetDependenciesV2(t *testing.T) {
