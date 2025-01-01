@@ -43,67 +43,70 @@ var (
 )
 
 func TestInitializeArchiveStorage(t *testing.T) {
-	logger := zap.NewNop()
+	tests := []struct {
+		name       string
+		factory    storage.Factory
+		wantReader spanstore.Reader
+		wantWriter spanstore.Writer
+	}{
+		{
+			name:       "Archive storage not supported by the factory",
+			factory:    new(fakeStorageFactory1),
+			wantReader: nil,
+			wantWriter: nil,
+		},
+		{
+			name:       "Archive storage not configured",
+			factory:    &fakeStorageFactory2{rErr: storage.ErrArchiveStorageNotConfigured},
+			wantReader: nil,
+			wantWriter: nil,
+		},
+		{
+			name:       "Archive storage not supported for reader",
+			factory:    &fakeStorageFactory2{rErr: storage.ErrArchiveStorageNotSupported},
+			wantReader: nil,
+			wantWriter: nil,
+		},
+		{
+			name:       "Error initializing archive span reader",
+			factory:    &fakeStorageFactory2{rErr: assert.AnError},
+			wantReader: nil,
+			wantWriter: nil,
+		},
+		{
+			name:       "Archive storage not supported for writer",
+			factory:    &fakeStorageFactory2{wErr: storage.ErrArchiveStorageNotSupported},
+			wantReader: nil,
+			wantWriter: nil,
+		},
+		{
+			name:       "Error initializing archive span writer",
+			factory:    &fakeStorageFactory2{wErr: assert.AnError},
+			wantReader: nil,
+			wantWriter: nil,
+		},
+		{
+			name:       "Successfully initialize archive storage",
+			factory:    &fakeStorageFactory2{r: &spanstoremocks.Reader{}, w: &spanstoremocks.Writer{}},
+			wantReader: &spanstoremocks.Reader{},
+			wantWriter: &spanstoremocks.Writer{},
+		},
+	}
 
-	t.Run("Archive storage not supported by the factory", func(t *testing.T) {
-		reader, writer := InitializeArchiveStorage(new(fakeStorageFactory1), logger)
-		require.Nil(t, reader)
-		require.Nil(t, writer)
-	})
-
-	t.Run("Archive storage not configured", func(t *testing.T) {
-		reader, writer := InitializeArchiveStorage(
-			&fakeStorageFactory2{rErr: storage.ErrArchiveStorageNotConfigured},
-			logger,
-		)
-		require.Nil(t, reader)
-		require.Nil(t, writer)
-	})
-
-	t.Run("Archive storage not supported for reader", func(t *testing.T) {
-		reader, writer := InitializeArchiveStorage(
-			&fakeStorageFactory2{rErr: storage.ErrArchiveStorageNotSupported},
-			logger,
-		)
-		require.Nil(t, reader)
-		require.Nil(t, writer)
-	})
-
-	t.Run("Error initializing archive span reader", func(t *testing.T) {
-		reader, writer := InitializeArchiveStorage(
-			&fakeStorageFactory2{rErr: assert.AnError},
-			logger,
-		)
-		require.Nil(t, reader)
-		require.Nil(t, writer)
-	})
-
-	t.Run("Archive storage not supported for writer", func(t *testing.T) {
-		reader, writer := InitializeArchiveStorage(
-			&fakeStorageFactory2{wErr: storage.ErrArchiveStorageNotSupported},
-			logger,
-		)
-		require.Nil(t, reader)
-		require.Nil(t, writer)
-	})
-
-	t.Run("Error initializing archive span writer", func(t *testing.T) {
-		reader, writer := InitializeArchiveStorage(
-			&fakeStorageFactory2{wErr: assert.AnError},
-			logger,
-		)
-		require.Nil(t, reader)
-		require.Nil(t, writer)
-	})
-
-	t.Run("Successfully initialize archive storage", func(t *testing.T) {
-		reader := &spanstoremocks.Reader{}
-		writer := &spanstoremocks.Writer{}
-		traceReader, traceWriter := InitializeArchiveStorage(
-			&fakeStorageFactory2{r: reader, w: writer},
-			logger,
-		)
-		require.Equal(t, reader, traceReader.spanReader)
-		require.Equal(t, writer, traceWriter.spanWriter)
-	})
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			logger := zap.NewNop()
+			reader, writer := InitializeArchiveStorage(test.factory, logger)
+			if test.wantReader != nil {
+				require.Equal(t, test.wantReader, reader.spanReader)
+			} else {
+				require.Nil(t, reader)
+			}
+			if test.wantWriter != nil {
+				require.Equal(t, test.wantWriter, writer.spanWriter)
+			} else {
+				require.Nil(t, writer)
+			}
+		})
+	}
 }
