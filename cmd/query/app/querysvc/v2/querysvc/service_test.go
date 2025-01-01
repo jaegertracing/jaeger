@@ -60,7 +60,7 @@ func withArchiveTraceWriter() testOption {
 }
 
 func withAdjuster(adj adjuster.Adjuster) testOption {
-	return func(tqs *testQueryService, options *QueryServiceOptions) {
+	return func(_ *testQueryService, options *QueryServiceOptions) {
 		options.Adjuster = adj
 	}
 }
