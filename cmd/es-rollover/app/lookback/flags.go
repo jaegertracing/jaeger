@@ -5,34 +5,27 @@ package lookback
 
 import (
 	"flag"
+	"github.com/jaegertracing/jaeger/pkg/esrollover"
 
 	"github.com/spf13/viper"
 
 	"github.com/jaegertracing/jaeger/cmd/es-rollover/app"
 )
 
-const (
-	unit             = "unit"
-	unitCount        = "unit-count"
-	defaultUnit      = "days"
-	defaultUnitCount = 1
-)
-
 // Config holds configuration for index cleaner binary.
 type Config struct {
 	app.Config
-	Unit      string
-	UnitCount int
+	esrollover.LookBackOptions
 }
 
 // AddFlags adds flags for TLS to the FlagSet.
 func (*Config) AddFlags(flags *flag.FlagSet) {
-	flags.String(unit, defaultUnit, "used with lookback to remove indices from read alias e.g, days, weeks, months, years")
-	flags.Int(unitCount, defaultUnitCount, "count of UNITs")
+	cfg := esrollover.EsRolloverFlagConfig{}
+	cfg.AddFlagsForLookBack(flags)
 }
 
 // InitFromViper initializes config from viper.Viper.
 func (c *Config) InitFromViper(v *viper.Viper) {
-	c.Unit = v.GetString(unit)
-	c.UnitCount = v.GetInt(unitCount)
+	cfg := esrollover.EsRolloverFlagConfig{}
+	c.LookBackOptions = *cfg.InitFromViperForLookBack(v)
 }

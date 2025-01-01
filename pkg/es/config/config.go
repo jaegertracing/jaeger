@@ -29,6 +29,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/bearertoken"
 	"github.com/jaegertracing/jaeger/pkg/es"
 	eswrapper "github.com/jaegertracing/jaeger/pkg/es/wrapper"
+	"github.com/jaegertracing/jaeger/pkg/esrollover"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/storage/spanstore/spanstoremetrics"
 )
@@ -134,6 +135,9 @@ type Configuration struct {
 	// latest adaptive sampling probabilities.
 	AdaptiveSamplingLookback time.Duration `mapstructure:"adaptive_sampling_lookback"`
 	Tags                     TagsAsFields  `mapstructure:"tags_as_fields"`
+	// Rollover contains all the information which is required for the rollover process to be performed
+	// It is a cron job whose frequency can be set in the configuration. By default, it is disabled.
+	Rollover Rollover `mapstructure:"rollover"`
 	// Enabled, if set to true, enables the namespace for storage pointed to by this configuration.
 	Enabled bool `mapstructure:"-"`
 }
@@ -200,6 +204,25 @@ type BearerTokenAuthentication struct {
 	FilePath string `mapstructure:"file_path"`
 	// AllowTokenFromContext, if set to true, enables reading bearer token from the context.
 	AllowFromContext bool `mapstructure:"from_context"`
+}
+
+type Rollover struct {
+	// Enabled if set to true will enable the ES Rollover, which will manage the jaeger indices
+	// automatically without manually running the cron job
+	Enabled bool `mapstructure:"enabled"`
+	// Frequency stores the duration after which this job should be performed periodically.
+	Frequency time.Duration `mapstructure:"frequency"`
+	// LookBackEnabled if set to true will enable the look back process in the rollover job. Look-back process
+	// is very similar to Jaeger ES-Cleaner, if cleaning through only ES-Cleaner is required then this
+	// can be set to false. See this section of documentation for more context:
+	// https://www.jaegertracing.io/docs/2.1/elasticsearch/#index-rollover
+	LookBackEnabled bool `mapstructure:"look_back_enabled"`
+	// LookBackOptions store the configuration which will be executed if look back is enabled
+	LookBackOptions esrollover.LookBackOptions `mapstructure:"look_back_options"`
+	// RollBackConditions stores the conditions on which index writing should be performed, for example: "{\"max_age\": \"2d\"}"
+	RollBackConditions esrollover.RollBackConditions `mapstructure:"roll_back_conditions"`
+	// RolloverOptions store the configuration required for setting up the cron job of rolling over indices
+	RolloverOptions esrollover.RolloverOptions `mapstructure:"rollover_options"`
 }
 
 // NewClient creates a new ElasticSearch client
@@ -404,6 +427,9 @@ func (c *Configuration) ApplyDefaults(source *Configuration) {
 	}
 	if c.SendGetBodyAs == "" {
 		c.SendGetBodyAs = source.SendGetBodyAs
+	}
+	if c.Rollover.Frequency == 0 {
+		c.Rollover.Frequency = source.Rollover.Frequency
 	}
 }
 

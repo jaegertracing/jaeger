@@ -6,6 +6,7 @@ package es
 
 import (
 	"flag"
+	"github.com/jaegertracing/jaeger/pkg/esrollover"
 	"log"
 	"strings"
 	"time"
@@ -18,6 +19,7 @@ import (
 )
 
 const (
+	prefixEsRollover					 = ".es-rollover-"
 	suffixUsername                       = ".username"
 	suffixPassword                       = ".password"
 	suffixSniffer                        = ".sniffer"
@@ -57,6 +59,9 @@ const (
 	suffixMaxDocCount                    = ".max-doc-count"
 	suffixLogLevel                       = ".log-level"
 	suffixSendGetBodyAs                  = ".send-get-body-as"
+	suffixEsRolloverEnabled              = prefixEsRollover+"enabled"
+	suffixEsRolloverLookBackEnabled      = prefixEsRollover+"look-back-enabled"
+	suffixEsRolloverFrequency = prefixEsRollover+"frequency"
 	// default number of documents to return from a query (elasticsearch allowed limit)
 	// see search.max_buckets and index.max_result_window
 	defaultMaxDocCount        = 10_000
@@ -299,7 +304,36 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 			nsConfig.MaxSpanAge,
 			"The maximum lookback for spans in Elasticsearch")
 	}
+	flagSet.Bool(
+		nsConfig.namespace+suffixEsRolloverEnabled,
+		nsConfig.Rollover.Enabled,
+		"Enable es-rollover cron job",
+		)
+	flagSet.Bool(
+		nsConfig.namespace+suffixEsRolloverLookBackEnabled,
+		nsConfig.Rollover.LookBackEnabled,
+		"Enable lookback process for es-rollover",
+		)
+	flagSet.Duration(
+		nsConfig.namespace+suffixEsRolloverFrequency,
+		nsConfig.Rollover.Frequency,
+		"The frequency for the es-rollover cron job",
+		)
 	nsConfig.getTLSFlagsConfig().AddFlags(flagSet)
+	nsConfig.addRolloverFlags(flagSet)
+}
+
+func (nsConfig *namespaceConfig) getRolloverFlagsConfig() esrollover.EsRolloverFlagConfig {
+	return esrollover.EsRolloverFlagConfig{
+		Prefix: nsConfig.namespace+prefixEsRollover,
+	}
+}
+
+func (n *namespaceConfig) addRolloverFlags(flagSet *flag.FlagSet) {
+	es := n.getRolloverFlagsConfig()
+	es.AddFlagsForRollBack(flagSet)
+	es.AddFlagsForLookBack(flagSet)
+	es.AddFlagsForRolloverOptions(flagSet)
 }
 
 // InitFromViper initializes Options with properties from viper
@@ -385,6 +419,19 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 		log.Fatal(err)
 	}
 	cfg.TLS = tlsconfig.ToOtelClientConfig()
+	cfg.Rollover = cfg.initRollOverFromViper(v)
+}
+
+func (n *namespaceConfig) initRollOverFromViper(v *viper.Viper) config.Rollover {
+	es := n.getRolloverFlagsConfig()
+	return config.Rollover{
+		Enabled: v.GetBool(n.namespace + suffixEsRolloverEnabled),
+		LookBackEnabled: v.GetBool(n.namespace + suffixEsRolloverLookBackEnabled),
+		Frequency: v.GetDuration(n.namespace + suffixEsRolloverFrequency),
+		RolloverOptions: *es.InitFromViperForRolloverOptions(v),
+		LookBackOptions: *es.InitFromViperForLookBack(v),
+		RollBackConditions: *es.InitFromViperForRollBack(v),
+	}
 }
 
 // GetPrimary returns primary configuration.
@@ -457,6 +504,14 @@ func DefaultConfig() config.Configuration {
 			Services:     defaultIndexOptions,
 			Dependencies: defaultIndexOptions,
 			Sampling:     defaultIndexOptions,
+		},
+		Rollover: config.Rollover{
+			Enabled:            false,
+			Frequency:          24 * time.Hour,
+			LookBackEnabled:    false,
+			LookBackOptions:    esrollover.DefaultLookBackOptions(),
+			RollBackConditions: esrollover.DefaultRollBackConditions(),
+			RolloverOptions:    esrollover.DefaultRolloverOptions(),
 		},
 	}
 }
