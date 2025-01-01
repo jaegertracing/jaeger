@@ -45,8 +45,7 @@ func (h *Handler) GetTrace(request *api_v3.GetTraceRequest, stream api_v3.QueryS
 		RawTraces: request.GetRawTraces(),
 	}
 	getTracesIter := h.QueryService.GetTraces(stream.Context(), query)
-	err = h.recieveTraces(getTracesIter, stream.Send)
-	return err
+	return receiveTraces(getTracesIter, stream.Send)
 }
 
 // FindTraces implements api_v3.QueryServiceServer's FindTraces
@@ -92,8 +91,7 @@ func (h *Handler) internalFindTraces(
 	}
 
 	findTracesIter := h.QueryService.FindTraces(ctx, queryParams)
-	err := h.recieveTraces(findTracesIter, streamSend)
-	return err
+	return receiveTraces(findTracesIter, streamSend)
 }
 
 // GetServices implements api_v3.QueryServiceServer's GetServices
@@ -128,9 +126,10 @@ func (h *Handler) GetOperations(ctx context.Context, request *api_v3.GetOperatio
 	}, nil
 }
 
-func (h *Handler) recieveTraces(
+func receiveTraces(
 	seq iter.Seq2[[]ptrace.Traces, error],
-	sendFn func(*api_v3.TracesData) error) error {
+	sendFn func(*api_v3.TracesData) error,
+) error {
 	var capturedErr error
 	seq(func(traces []ptrace.Traces, err error) bool {
 		if err != nil {
