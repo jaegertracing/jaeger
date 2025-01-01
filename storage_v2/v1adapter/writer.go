@@ -12,8 +12,6 @@ import (
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
-var errV1WriterNotAvailable = errors.New("spanstore.Writer is not a wrapper around v1 writer")
-
 type TraceWriter struct {
 	spanWriter spanstore.Writer
 }
