@@ -62,7 +62,6 @@ func serveHTTP(server *http.Server, listener net.Listener, params *HTTPServerPar
 	cfgHandler := clientcfgHandler.NewHTTPHandler(clientcfgHandler.HTTPHandlerParams{
 		ConfigManager: &clientcfgHandler.ConfigManager{
 			SamplingProvider: params.SamplingProvider,
-			// TODO provide baggage manager
 		},
 		MetricsFactory:         params.MetricsFactory,
 		BasePath:               "/api",
