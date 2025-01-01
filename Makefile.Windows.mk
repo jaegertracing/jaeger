@@ -72,7 +72,6 @@ _build-syso: $(GOVERSIONINFO)
 	$(call _build_syso_macro,Jaeger Tracegen,cmd/tracegen)
 	$(call _build_syso_macro,Jaeger Anonymizer,cmd/anonymizer)
 	$(call _build_syso_macro,Jaeger ES-Index-Cleaner,cmd/es-index-cleaner)
-	$(call _build_syso_macro,Jaeger ES-Rollover,cmd/es-rollover)
 	# TODO in the future this should be in v2
 	$(call _build_syso_macro,Jaeger V2,cmd/jaeger)
 

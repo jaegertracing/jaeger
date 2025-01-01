@@ -32,7 +32,6 @@ updates:
       - /cmd/anonymizer
       - /cmd/collector
       - /cmd/es-index-cleaner
-      - /cmd/es-rollover
       - /cmd/ingester
       - /cmd/jaeger
       - /cmd/query

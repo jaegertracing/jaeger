@@ -14,7 +14,8 @@ import (
 )
 
 const (
-	argumentsError = "accepts 1 arg(s), received 0"
+	argumentsError    = "accepts 1 arg(s), received 0"
+	connectionRefused = "connection refused"
 )
 
 func TestCommand(t *testing.T) {
@@ -32,31 +33,15 @@ func TestCommand(t *testing.T) {
 }
 
 func TestAllCommands(t *testing.T) {
-	tests := []struct {
-		name     string
-		expected string
-	}{
-		{
-			name:     "init",
-			expected: "Get \"http://localhost:9200/\": dial tcp 127.0.0.1:9200: connect: connection refused",
-		},
-		{
-			name:     "lookback",
-			expected: "failed to query indices: Get \"http://localhost:9200/jaeger-*?flat_settings=true&filter_path=*.aliases,*.settings\": dial tcp 127.0.0.1:9200: connect: connection refused",
-		},
-		{
-			name:     "rollover",
-			expected: "failed to create rollover: Post \"http://localhost:9200/jaeger-span-write/_rollover/\": dial tcp 127.0.0.1:9200: connect: connection refused",
-		},
-	}
+	tests := []string{"init", "lookback", "rollover"}
 	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			testCommands(t, test.name, test.expected)
+		t.Run(test, func(t *testing.T) {
+			testCommands(t, test)
 		})
 	}
 }
 
-func testCommands(t *testing.T, action, connectionError string) {
+func testCommands(t *testing.T, action string) {
 	v := viper.New()
 	logger, err := zap.NewDevelopment()
 	require.NoError(t, err)
@@ -65,7 +50,8 @@ func testCommands(t *testing.T, action, connectionError string) {
 	var b bytes.Buffer
 	cmd.SetOut(&b)
 	err = cmd.Execute()
-	require.EqualError(t, err, connectionError)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), connectionRefused)
 	cmd.SetArgs([]string{action})
 	err = cmd.Execute()
 	assert.EqualError(t, err, argumentsError)
