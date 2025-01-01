@@ -15,16 +15,18 @@ import (
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/proto"
 	"github.com/gorilla/mux"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc/v2/querysvc"
+	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
 	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger/pkg/iter"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	"github.com/jaegertracing/jaeger/storage_v2/tracestore"
-	"github.com/jaegertracing/jaeger/storage_v2/v1adapter"
 )
 
 const (
@@ -109,9 +111,8 @@ func (h *HTTPGateway) tryParamError(w http.ResponseWriter, err error, paramName 
 	return h.tryHandleError(w, fmt.Errorf("malformed parameter %s: %w", paramName, err), http.StatusBadRequest)
 }
 
-func (h *HTTPGateway) returnSpans(spans []*model.Span, w http.ResponseWriter) {
-	td := modelToOTLP(spans)
-	tracesData := api_v3.TracesData(td)
+func (h *HTTPGateway) returnTrace(t ptrace.Traces, w http.ResponseWriter) {
+	tracesData := api_v3.TracesData(t)
 	response := &api_v3.GRPCGatewayWrapper{
 		Result: &tracesData,
 	}
@@ -161,7 +162,9 @@ func (h *HTTPGateway) getTrace(w http.ResponseWriter, r *http.Request) {
 		request.RawTraces = rawTraces
 	}
 	getTracesIter := h.QueryService.GetTraces(r.Context(), request)
-	trc, err := v1adapter.V1TracesFromSeq2(getTracesIter)
+	aggrTracesIter := jptrace.AggregateTraces(getTracesIter)
+	trc, err := iter.CollectWithErrors(aggrTracesIter)
+
 	if h.tryHandleError(w, err, http.StatusInternalServerError) {
 		return
 	}
@@ -169,7 +172,7 @@ func (h *HTTPGateway) getTrace(w http.ResponseWriter, r *http.Request) {
 		// TODO: should we return 404 if trace not found?
 		return
 	}
-	h.returnSpans(trc[0].Spans, w)
+	h.returnTrace(trc[0], w)
 }
 
 func (h *HTTPGateway) findTraces(w http.ResponseWriter, r *http.Request) {
@@ -179,16 +182,21 @@ func (h *HTTPGateway) findTraces(w http.ResponseWriter, r *http.Request) {
 	}
 
 	findTracesIter := h.QueryService.FindTraces(r.Context(), *queryParams)
-	traces, err := v1adapter.V1TracesFromSeq2(findTracesIter)
+	aggrTracesIter := jptrace.AggregateTraces(findTracesIter)
+	traces, err := iter.CollectWithErrors(aggrTracesIter)
 	// TODO how do we distinguish internal error from bad parameters for FindTrace?
 	if h.tryHandleError(w, err, http.StatusInternalServerError) {
 		return
 	}
-	var spans []*model.Span
+	combinedTrace := ptrace.NewTraces()
 	for _, t := range traces {
-		spans = append(spans, t.Spans...)
+		resources := t.ResourceSpans()
+		for i := 0; i < resources.Len(); i++ {
+			resource := resources.At(i)
+			resource.CopyTo(combinedTrace.ResourceSpans().AppendEmpty())
+		}
 	}
-	h.returnSpans(spans, w)
+	h.returnTrace(combinedTrace, w)
 }
 
 func (h *HTTPGateway) parseFindTracesQuery(q url.Values, w http.ResponseWriter) (*querysvc.TraceQueryParams, bool) {
