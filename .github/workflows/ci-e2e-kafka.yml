@@ -34,10 +34,11 @@ jobs:
 
     - name: Run kafka integration tests
       id: test-execution
-      run: bash scripts/e2e/kafka-integration-test.sh -j ${{ matrix.jaeger-version }} -v ${{ matrix.kafka-version }}
+      run: bash scripts/e2e/kafka.sh -j ${{ matrix.jaeger-version }} -v ${{ matrix.kafka-version }}
 
     - name: Upload coverage to codecov
       uses: ./.github/actions/upload-codecov
       with:
         files: cover.out
         flags: kafka-${{ matrix.kafka-version }}-${{ matrix.jaeger-version }}
+ 

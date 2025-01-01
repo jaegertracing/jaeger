@@ -49,4 +49,4 @@ jobs:
       uses: ./.github/actions/setup-node.js
       
     - name: Run SPM Test
-      run:  bash scripts/e2e/spm-integration-test.sh  -b ${{ matrix.mode.binary }}
+      run:  bash scripts/e2e/spm.sh  -b ${{ matrix.mode.binary }}

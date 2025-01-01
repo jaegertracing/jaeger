@@ -57,7 +57,7 @@ jobs:
     - uses: docker/setup-qemu-action@49b3bc8e6bdd4a60e6116a5414239cba5943d3cf # v3.2.0
     - name: Run ${{ matrix.version.distribution }} integration tests
       id: test-execution
-      run: bash scripts/e2e/es-integration-test.sh ${{ matrix.version.distribution }} ${{ matrix.version.major }} ${{ matrix.version.jaeger }}
+      run: bash scripts/e2e/elasticsearch.sh ${{ matrix.version.distribution }} ${{ matrix.version.major }} ${{ matrix.version.jaeger }}
 
     - name: Upload coverage to codecov
       uses: ./.github/actions/upload-codecov
