@@ -60,7 +60,7 @@ func TestInitializeArchiveStorage(t *testing.T) {
 		require.Nil(t, writer)
 	})
 
-	t.Run("Archive storage not supported", func(t *testing.T) {
+	t.Run("Archive storage not supported for reader", func(t *testing.T) {
 		reader, writer := InitializeArchiveStorage(
 			&fakeStorageFactory2{rErr: storage.ErrArchiveStorageNotSupported},
 			logger,
@@ -72,6 +72,15 @@ func TestInitializeArchiveStorage(t *testing.T) {
 	t.Run("Error initializing archive span reader", func(t *testing.T) {
 		reader, writer := InitializeArchiveStorage(
 			&fakeStorageFactory2{rErr: assert.AnError},
+			logger,
+		)
+		require.Nil(t, reader)
+		require.Nil(t, writer)
+	})
+
+	t.Run("Archive storage not supported for writer", func(t *testing.T) {
+		reader, writer := InitializeArchiveStorage(
+			&fakeStorageFactory2{wErr: storage.ErrArchiveStorageNotSupported},
 			logger,
 		)
 		require.Nil(t, reader)
