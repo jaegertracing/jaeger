@@ -493,7 +493,7 @@ func TestFindTraces_WithRawTraces_PerformsAggregation(t *testing.T) {
 			getTracesIter := tqs.queryService.FindTraces(context.Background(), query)
 			gotTraces, err := iter.FlattenWithErrors(getTracesIter)
 			require.NoError(t, err)
-			require.EqualValues(t, test.expected, gotTraces)
+			require.Equal(t, test.expected, gotTraces)
 		})
 	}
 }
