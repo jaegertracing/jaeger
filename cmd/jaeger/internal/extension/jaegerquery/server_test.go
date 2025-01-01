@@ -24,6 +24,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
+	v2querysvc "github.com/jaegertracing/jaeger/cmd/query/app/querysvc/v2/querysvc"
 	"github.com/jaegertracing/jaeger/internal/grpctest"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/telemetry"
@@ -62,6 +63,14 @@ func (ff fakeFactory) CreateSpanWriter() (spanstore.Writer, error) {
 	return &spanstoremocks.Writer{}, nil
 }
 
+func (fakeFactory) CreateArchiveSpanReader() (spanstore.Reader, error) {
+	return &spanstoremocks.Reader{}, nil
+}
+
+func (fakeFactory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
+	return &spanstoremocks.Writer{}, nil
+}
+
 func (ff fakeFactory) Initialize(metrics.Factory, *zap.Logger) error {
 	if ff.name == "need-initialize-error" {
 		return errors.New("test-error")
@@ -95,7 +104,13 @@ var _ jaegerstorage.Extension = (*fakeStorageExt)(nil)
 func (fakeStorageExt) TraceStorageFactory(name string) (storage.Factory, bool) {
 	if name == "need-factory-error" {
 		return nil, false
+	} else if name == "no-archive" {
+		f := fakeFactory{name: name}
+		return struct {
+			storage.Factory
+		}{f}, true
 	}
+
 	return fakeFactory{name: name}, true
 }
 
@@ -257,6 +272,7 @@ func TestServerAddArchiveStorage(t *testing.T) {
 	tests := []struct {
 		name           string
 		qSvcOpts       *querysvc.QueryServiceOptions
+		v2qSvcOpts     *v2querysvc.QueryServiceOptions
 		config         *Config
 		extension      component.Component
 		expectedOutput string
@@ -266,6 +282,7 @@ func TestServerAddArchiveStorage(t *testing.T) {
 			name:           "Archive storage unset",
 			config:         &Config{},
 			qSvcOpts:       &querysvc.QueryServiceOptions{},
+			v2qSvcOpts:     &v2querysvc.QueryServiceOptions{},
 			expectedOutput: `{"level":"info","msg":"Archive storage not configured"}` + "\n",
 			expectedErr:    "",
 		},
@@ -277,6 +294,7 @@ func TestServerAddArchiveStorage(t *testing.T) {
 				},
 			},
 			qSvcOpts:       &querysvc.QueryServiceOptions{},
+			v2qSvcOpts:     &v2querysvc.QueryServiceOptions{},
 			expectedOutput: "",
 			expectedErr:    "cannot find archive storage factory: cannot find extension",
 		},
@@ -284,12 +302,26 @@ func TestServerAddArchiveStorage(t *testing.T) {
 			name: "Archive storage not supported",
 			config: &Config{
 				Storage: Storage{
-					TracesArchive: "badger",
+					TracesArchive: "no-archive",
 				},
 			},
 			qSvcOpts:       &querysvc.QueryServiceOptions{},
+			v2qSvcOpts:     &v2querysvc.QueryServiceOptions{},
 			extension:      fakeStorageExt{},
 			expectedOutput: "Archive storage not supported by the factory",
+			expectedErr:    "",
+		},
+		{
+			name: "Archive storage supported",
+			config: &Config{
+				Storage: Storage{
+					TracesArchive: "some-archive-storage",
+				},
+			},
+			qSvcOpts:       &querysvc.QueryServiceOptions{},
+			v2qSvcOpts:     &v2querysvc.QueryServiceOptions{},
+			extension:      fakeStorageExt{},
+			expectedOutput: "",
 			expectedErr:    "",
 		},
 	}
@@ -306,7 +338,7 @@ func TestServerAddArchiveStorage(t *testing.T) {
 			if tt.extension != nil {
 				host = storagetest.NewStorageHost().WithExtension(jaegerstorage.ID, tt.extension)
 			}
-			err := server.addArchiveStorage(tt.qSvcOpts, host)
+			err := server.addArchiveStorage(tt.qSvcOpts, tt.v2qSvcOpts, host)
 			if tt.expectedErr == "" {
 				require.NoError(t, err)
 			} else {

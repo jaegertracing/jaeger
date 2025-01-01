@@ -10,14 +10,13 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger/storage/spanstore"
-	"github.com/jaegertracing/jaeger/storage_v2/tracestore"
 )
 
 type TraceWriter struct {
 	spanWriter spanstore.Writer
 }
 
-func NewTraceWriter(spanWriter spanstore.Writer) tracestore.Writer {
+func NewTraceWriter(spanWriter spanstore.Writer) *TraceWriter {
 	return &TraceWriter{
 		spanWriter: spanWriter,
 	}
