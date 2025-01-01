@@ -15,6 +15,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
+	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc/v2/adjuster"
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/iter"
 	"github.com/jaegertracing/jaeger/storage_v2/depstore"
@@ -55,6 +56,12 @@ func withArchiveTraceWriter() testOption {
 		r := &tracestoremocks.Writer{}
 		tqs.archiveTraceWriter = r
 		options.ArchiveTraceWriter = r
+	}
+}
+
+func withAdjuster(adj adjuster.Adjuster) testOption {
+	return func(tqs *testQueryService, options *QueryServiceOptions) {
+		options.Adjuster = adj
 	}
 }
 
@@ -377,9 +384,10 @@ func TestFindTraces_WithRawTraces_PerformsAdjustment(t *testing.T) {
 
 func TestFindTraces_WithRawTraces_PerformsAggregation(t *testing.T) {
 	tests := []struct {
-		rawTraces bool
-		traces    []ptrace.Traces
-		expected  []ptrace.Traces
+		rawTraces           bool
+		traces              []ptrace.Traces
+		expected            []ptrace.Traces
+		expectedAdjustCalls int
 	}{
 		{
 			rawTraces: true,
@@ -421,6 +429,7 @@ func TestFindTraces_WithRawTraces_PerformsAggregation(t *testing.T) {
 
 				return []ptrace.Traces{traceA, traceB}
 			}(),
+			expectedAdjustCalls: 0,
 		},
 		{
 			rawTraces: false,
@@ -459,6 +468,9 @@ func TestFindTraces_WithRawTraces_PerformsAggregation(t *testing.T) {
 
 				return []ptrace.Traces{traceA}
 			}(),
+			// even though there are 2 input chunks, they are for the same trace,
+			// so we expect only 1 call to Adjuster.
+			expectedAdjustCalls: 1,
 		},
 	}
 	for _, test := range tests {
@@ -466,8 +478,12 @@ func TestFindTraces_WithRawTraces_PerformsAggregation(t *testing.T) {
 			responseIter := iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
 				yield(test.traces, nil)
 			})
+			adjustCalls := 0
+			adj := adjuster.Func(func(_ ptrace.Traces) {
+				adjustCalls++
+			})
 
-			tqs := initializeTestService()
+			tqs := initializeTestService(withAdjuster(adj))
 			duration, err := time.ParseDuration("20ms")
 			require.NoError(t, err)
 			now := time.Now()
@@ -493,7 +509,8 @@ func TestFindTraces_WithRawTraces_PerformsAggregation(t *testing.T) {
 			getTracesIter := tqs.queryService.FindTraces(context.Background(), query)
 			gotTraces, err := iter.FlattenWithErrors(getTracesIter)
 			require.NoError(t, err)
-			require.Equal(t, test.expected, gotTraces)
+			assert.Equal(t, test.expected, gotTraces)
+			assert.Equal(t, test.expectedAdjustCalls, adjustCalls)
 		})
 	}
 }
