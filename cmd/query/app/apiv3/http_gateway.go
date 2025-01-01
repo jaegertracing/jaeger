@@ -19,10 +19,12 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
+	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc/v2/querysvc"
 	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
+	"github.com/jaegertracing/jaeger/storage_v2/tracestore"
+	"github.com/jaegertracing/jaeger/storage_v2/v1adapter"
 )
 
 const (
@@ -127,9 +129,11 @@ func (h *HTTPGateway) getTrace(w http.ResponseWriter, r *http.Request) {
 	if h.tryParamError(w, err, paramTraceID) {
 		return
 	}
-	request := querysvc.GetTraceParameters{
-		GetTraceParameters: spanstore.GetTraceParameters{
-			TraceID: traceID,
+	request := querysvc.GetTraceParams{
+		TraceIDs: []tracestore.GetTraceParams{
+			{
+				TraceID: traceID.ToOTELTraceID(),
+			},
 		},
 	}
 	http_query := r.URL.Query()
@@ -139,7 +143,7 @@ func (h *HTTPGateway) getTrace(w http.ResponseWriter, r *http.Request) {
 		if h.tryParamError(w, err, paramStartTime) {
 			return
 		}
-		request.StartTime = timeParsed.UTC()
+		request.TraceIDs[0].Start = timeParsed.UTC()
 	}
 	endTime := http_query.Get(paramEndTime)
 	if endTime != "" {
@@ -147,7 +151,7 @@ func (h *HTTPGateway) getTrace(w http.ResponseWriter, r *http.Request) {
 		if h.tryParamError(w, err, paramEndTime) {
 			return
 		}
-		request.EndTime = timeParsed.UTC()
+		request.TraceIDs[0].End = timeParsed.UTC()
 	}
 	if r := http_query.Get(paramRawTraces); r != "" {
 		rawTraces, err := strconv.ParseBool(r)
@@ -156,11 +160,16 @@ func (h *HTTPGateway) getTrace(w http.ResponseWriter, r *http.Request) {
 		}
 		request.RawTraces = rawTraces
 	}
-	trc, err := h.QueryService.GetTrace(r.Context(), request)
+	getTracesIter := h.QueryService.GetTraces(r.Context(), request)
+	trc, err := v1adapter.V1TracesFromSeq2(getTracesIter)
 	if h.tryHandleError(w, err, http.StatusInternalServerError) {
 		return
 	}
-	h.returnSpans(trc.Spans, w)
+	if len(trc) == 0 {
+		// TODO: should we return 404 if trace not found?
+		return
+	}
+	h.returnSpans(trc[0].Spans, w)
 }
 
 func (h *HTTPGateway) findTraces(w http.ResponseWriter, r *http.Request) {
@@ -169,7 +178,8 @@ func (h *HTTPGateway) findTraces(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	traces, err := h.QueryService.FindTraces(r.Context(), queryParams)
+	findTracesIter := h.QueryService.FindTraces(r.Context(), *queryParams)
+	traces, err := v1adapter.V1TracesFromSeq2(findTracesIter)
 	// TODO how do we distinguish internal error from bad parameters for FindTrace?
 	if h.tryHandleError(w, err, http.StatusInternalServerError) {
 		return
@@ -181,9 +191,9 @@ func (h *HTTPGateway) findTraces(w http.ResponseWriter, r *http.Request) {
 	h.returnSpans(spans, w)
 }
 
-func (h *HTTPGateway) parseFindTracesQuery(q url.Values, w http.ResponseWriter) (*querysvc.TraceQueryParameters, bool) {
-	queryParams := &querysvc.TraceQueryParameters{
-		TraceQueryParameters: spanstore.TraceQueryParameters{
+func (h *HTTPGateway) parseFindTracesQuery(q url.Values, w http.ResponseWriter) (*querysvc.TraceQueryParams, bool) {
+	queryParams := &querysvc.TraceQueryParams{
+		TraceQueryParams: tracestore.TraceQueryParams{
 			ServiceName:   q.Get(paramServiceName),
 			OperationName: q.Get(paramOperationName),
 			Tags:          nil, // most curiously not supported by grpc-gateway
@@ -252,7 +262,7 @@ func (h *HTTPGateway) getServices(w http.ResponseWriter, r *http.Request) {
 
 func (h *HTTPGateway) getOperations(w http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query()
-	queryParams := spanstore.OperationQueryParameters{
+	queryParams := tracestore.OperationQueryParams{
 		ServiceName: query.Get("service"),
 		SpanKind:    query.Get("span_kind"),
 	}
