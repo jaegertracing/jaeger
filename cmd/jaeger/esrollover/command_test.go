@@ -24,8 +24,6 @@ func TestCommand(t *testing.T) {
 	cmd := Command(v, logger)
 	assert.NotNil(t, cmd)
 	assert.Equal(t, "es-rollover", cmd.Use)
-	var b bytes.Buffer
-	cmd.SetOut(&b)
 	cmd.SetArgs([]string{})
 	err = cmd.Execute()
 	require.NoError(t, err)
