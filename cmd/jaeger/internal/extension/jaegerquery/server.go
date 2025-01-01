@@ -93,16 +93,12 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 	}
 
 	var opts querysvc.QueryServiceOptions
+	var v2opts v2querysvc.QueryServiceOptions
 	// TODO archive storage still uses v1 factory
-	if err := s.addArchiveStorage(&opts, host); err != nil {
+	if err := s.addArchiveStorage(&opts, &v2opts, host); err != nil {
 		return err
 	}
 	qs := querysvc.NewQueryService(traceReader, depReader, opts)
-
-	var v2opts v2querysvc.QueryServiceOptions
-	if err := s.addV2ArchiveStorage(&v2opts, host); err != nil {
-		return err
-	}
 	v2qs := v2querysvc.NewQueryService(traceReader, depReader, v2opts)
 
 	mqs, err := s.createMetricReader(host)
@@ -134,7 +130,10 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 	return nil
 }
 
-func (s *server) addArchiveStorage(opts *querysvc.QueryServiceOptions, host component.Host) error {
+func (s *server) addArchiveStorage(
+	opts *querysvc.QueryServiceOptions,
+	v2opts *v2querysvc.QueryServiceOptions,
+	host component.Host) error {
 	if s.config.Storage.TracesArchive == "" {
 		s.telset.Logger.Info("Archive storage not configured")
 		return nil
@@ -148,24 +147,11 @@ func (s *server) addArchiveStorage(opts *querysvc.QueryServiceOptions, host comp
 	if !opts.InitArchiveStorage(f, s.telset.Logger) {
 		s.telset.Logger.Info("Archive storage not initialized")
 	}
-	return nil
-}
-
-func (s *server) addV2ArchiveStorage(opts *v2querysvc.QueryServiceOptions, host component.Host) error {
-	if s.config.Storage.TracesArchive == "" {
-		s.telset.Logger.Info("Archive storage not configured")
-		return nil
-	}
-
-	f, err := jaegerstorage.GetStorageFactory(s.config.Storage.TracesArchive, host)
-	if err != nil {
-		return fmt.Errorf("cannot find archive storage factory: %w", err)
-	}
 
 	ar, aw := v1adapter.InitializeArchiveStorage(f, s.telset.Logger)
 	if ar != nil && aw != nil {
-		opts.ArchiveTraceReader = ar
-		opts.ArchiveTraceWriter = aw
+		v2opts.ArchiveTraceReader = ar
+		v2opts.ArchiveTraceWriter = aw
 	} else {
 		s.telset.Logger.Info("Archive storage not initialized")
 	}

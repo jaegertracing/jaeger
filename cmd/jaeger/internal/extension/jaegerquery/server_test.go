@@ -24,6 +24,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
+	v2querysvc "github.com/jaegertracing/jaeger/cmd/query/app/querysvc/v2/querysvc"
 	"github.com/jaegertracing/jaeger/internal/grpctest"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/telemetry"
@@ -257,6 +258,7 @@ func TestServerAddArchiveStorage(t *testing.T) {
 	tests := []struct {
 		name           string
 		qSvcOpts       *querysvc.QueryServiceOptions
+		v2qSvcOpts     *v2querysvc.QueryServiceOptions
 		config         *Config
 		extension      component.Component
 		expectedOutput string
@@ -266,6 +268,7 @@ func TestServerAddArchiveStorage(t *testing.T) {
 			name:           "Archive storage unset",
 			config:         &Config{},
 			qSvcOpts:       &querysvc.QueryServiceOptions{},
+			v2qSvcOpts:     &v2querysvc.QueryServiceOptions{},
 			expectedOutput: `{"level":"info","msg":"Archive storage not configured"}` + "\n",
 			expectedErr:    "",
 		},
@@ -277,6 +280,7 @@ func TestServerAddArchiveStorage(t *testing.T) {
 				},
 			},
 			qSvcOpts:       &querysvc.QueryServiceOptions{},
+			v2qSvcOpts:     &v2querysvc.QueryServiceOptions{},
 			expectedOutput: "",
 			expectedErr:    "cannot find archive storage factory: cannot find extension",
 		},
@@ -288,6 +292,7 @@ func TestServerAddArchiveStorage(t *testing.T) {
 				},
 			},
 			qSvcOpts:       &querysvc.QueryServiceOptions{},
+			v2qSvcOpts:     &v2querysvc.QueryServiceOptions{},
 			extension:      fakeStorageExt{},
 			expectedOutput: "Archive storage not supported by the factory",
 			expectedErr:    "",
@@ -306,7 +311,7 @@ func TestServerAddArchiveStorage(t *testing.T) {
 			if tt.extension != nil {
 				host = storagetest.NewStorageHost().WithExtension(jaegerstorage.ID, tt.extension)
 			}
-			err := server.addArchiveStorage(tt.qSvcOpts, host)
+			err := server.addArchiveStorage(tt.qSvcOpts, tt.v2qSvcOpts, host)
 			if tt.expectedErr == "" {
 				require.NoError(t, err)
 			} else {
