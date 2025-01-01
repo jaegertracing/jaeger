@@ -11,7 +11,6 @@ import (
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/extension"
 	"go.opentelemetry.io/collector/extension/extensioncapabilities"
-	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
 	queryApp "github.com/jaegertracing/jaeger/cmd/query/app"
@@ -22,7 +21,6 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/telemetry"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/plugin/metricstore/disabled"
-	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/metricstore"
 	"github.com/jaegertracing/jaeger/storage_v2/depstore"
 	"github.com/jaegertracing/jaeger/storage_v2/v1adapter"
@@ -164,42 +162,15 @@ func (s *server) addV2ArchiveStorage(opts *v2querysvc.QueryServiceOptions, host 
 		return fmt.Errorf("cannot find archive storage factory: %w", err)
 	}
 
-	if !s.initializeV2ArchiveStorage(f, opts) {
+	ar, aw := v1adapter.InitializeArchiveStorage(f, s.telset.Logger)
+	if ar != nil && aw != nil {
+		opts.ArchiveTraceReader = ar
+		opts.ArchiveTraceWriter = aw
+	} else {
 		s.telset.Logger.Info("Archive storage not initialized")
 	}
-	return nil
-}
 
-func (s *server) initializeV2ArchiveStorage(
-	storageFactory storage.Factory,
-	opts *v2querysvc.QueryServiceOptions,
-) bool {
-	archiveFactory, ok := storageFactory.(storage.ArchiveFactory)
-	if !ok {
-		s.telset.Logger.Info("Archive storage not supported by the factory")
-		return false
-	}
-	reader, err := archiveFactory.CreateArchiveSpanReader()
-	if errors.Is(err, storage.ErrArchiveStorageNotConfigured) || errors.Is(err, storage.ErrArchiveStorageNotSupported) {
-		s.telset.Logger.Info("Archive storage not created", zap.String("reason", err.Error()))
-		return false
-	}
-	if err != nil {
-		s.telset.Logger.Error("Cannot init archive storage reader", zap.Error(err))
-		return false
-	}
-	writer, err := archiveFactory.CreateArchiveSpanWriter()
-	if errors.Is(err, storage.ErrArchiveStorageNotConfigured) || errors.Is(err, storage.ErrArchiveStorageNotSupported) {
-		s.telset.Logger.Info("Archive storage not created", zap.String("reason", err.Error()))
-		return false
-	}
-	if err != nil {
-		s.telset.Logger.Error("Cannot init archive storage writer", zap.Error(err))
-		return false
-	}
-	opts.ArchiveTraceReader = v1adapter.NewTraceReader(reader)
-	opts.ArchiveTraceWriter = v1adapter.NewTraceWriter(writer)
-	return true
+	return nil
 }
 
 func (s *server) createMetricReader(host component.Host) (metricstore.Reader, error) {
