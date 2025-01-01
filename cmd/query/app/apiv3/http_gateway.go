@@ -15,7 +15,6 @@ import (
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/proto"
 	"github.com/gorilla/mux"
-	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
@@ -109,15 +108,6 @@ func (h *HTTPGateway) tryParamError(w http.ResponseWriter, err error, paramName 
 }
 
 func (h *HTTPGateway) returnSpans(spans []*model.Span, w http.ResponseWriter) {
-	// modelToOTLP does not easily return an error, so allow mocking it
-	h.returnSpansTestable(spans, w, modelToOTLP)
-}
-
-func (h *HTTPGateway) returnSpansTestable(
-	spans []*model.Span,
-	w http.ResponseWriter,
-	modelToOTLP func(_ []*model.Span) ptrace.Traces,
-) {
 	td := modelToOTLP(spans)
 	tracesData := api_v3.TracesData(td)
 	response := &api_v3.GRPCGatewayWrapper{
