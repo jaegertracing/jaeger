@@ -38,7 +38,7 @@ func AddFlags(flags *flag.FlagSet) {
 	flags.String(
 		httpServerHostPort,
 		defaultHTTPServerHostPort,
-		"host:port of the http server (e.g. for /sampling point and /baggageRestrictions endpoint)")
+		"host:port of the http server (e.g. for /sampling endpoint)")
 
 	for _, p := range defaultProcessors {
 		prefix := fmt.Sprintf(processorPrefixFmt, p.model, p.protocol)
