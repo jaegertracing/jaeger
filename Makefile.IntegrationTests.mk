@@ -21,6 +21,9 @@ jaeger-v2-storage-integration-test:
 
 .PHONY: storage-integration-test
 storage-integration-test:
+	# This is for rollover and cleaner tests for elastic search, once the cleaner is also embedded into the jaeger binary, we can shift
+    # these tests to v2 integration tests and remove this building of binary here!
+	(cd cmd/jaeger/ && go build .)
 	# Expire tests results for storage integration tests since the environment might change
 	# even though the code remains the same.
 	go clean -testcache
@@ -41,7 +44,7 @@ index-cleaner-integration-test: docker-images-elastic
 
 # this test assumes STORAGE environment variable is set to elasticsearch|opensearch
 .PHONY: index-rollover-integration-test
-index-rollover-integration-test: docker-images-elastic
+index-rollover-integration-test:
 	$(MAKE) storage-integration-test COVEROUT=cover-index-rollover.out
 
 .PHONY: tail-sampling-integration-test

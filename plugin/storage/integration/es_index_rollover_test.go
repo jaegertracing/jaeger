@@ -29,7 +29,7 @@ func TestIndexRollover_FailIfILMNotPresent(t *testing.T) {
 	require.NoError(t, err)
 	// make sure ES is clean
 	cleanES(t, client, defaultILMPolicyName)
-	envVars := []string{"ES_USE_ILM=true"}
+	envVars := []string{"es.use-ilm=true"}
 	// Run the ES rollover test with adaptive sampling disabled (set to false).
 	err = runEsRollover("init", envVars, false)
 	require.EqualError(t, err, "exit status 1")
@@ -61,11 +61,11 @@ func runCreateIndicesWithILM(t *testing.T, ilmPolicyName string) {
 	require.NoError(t, err)
 
 	envVars := []string{
-		"ES_USE_ILM=true",
+		"es.use-ilm=true",
 	}
 
 	if ilmPolicyName != defaultILMPolicyName {
-		envVars = append(envVars, "ES_ILM_POLICY_NAME="+ilmPolicyName)
+		envVars = append(envVars, "es.ilm-policy-name="+ilmPolicyName)
 	}
 
 	if esVersion >= 7 {
@@ -74,10 +74,10 @@ func runCreateIndicesWithILM(t *testing.T, ilmPolicyName string) {
 			runIndexRolloverWithILMTest(t, client, "", expectedIndices, envVars, ilmPolicyName, false)
 		})
 		t.Run("WithPrefix", func(t *testing.T) {
-			runIndexRolloverWithILMTest(t, client, indexPrefix, expectedIndices, append(envVars, "INDEX_PREFIX="+indexPrefix), ilmPolicyName, false)
+			runIndexRolloverWithILMTest(t, client, indexPrefix, expectedIndices, append(envVars, "index-prefix="+indexPrefix), ilmPolicyName, false)
 		})
 		t.Run("WithAdaptiveSampling", func(t *testing.T) {
-			runIndexRolloverWithILMTest(t, client, indexPrefix, expectedIndices, append(envVars, "INDEX_PREFIX="+indexPrefix), ilmPolicyName, true)
+			runIndexRolloverWithILMTest(t, client, indexPrefix, expectedIndices, append(envVars, "index-prefix="+indexPrefix), ilmPolicyName, true)
 		})
 	}
 }

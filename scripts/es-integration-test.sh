@@ -111,11 +111,9 @@ teardown_storage() {
 
 build_local_img(){
     make build-es-index-cleaner GOOS=linux
-    make build-es-rollover GOOS=linux
     make create-baseimg PLATFORMS="linux/$(go env GOARCH)"
-    #build es-index-cleaner and es-rollover images
+    #build es-index-cleaner image
     GITHUB_SHA=local-test BRANCH=local-test bash scripts/build/build-upload-a-docker-image.sh -l -b -c jaeger-es-index-cleaner -d cmd/es-index-cleaner -t release -p "linux/$(go env GOARCH)"
-    GITHUB_SHA=local-test BRANCH=local-test bash scripts/build/build-upload-a-docker-image.sh -l -b -c jaeger-es-rollover -d cmd/es-rollover -t release -p "linux/$(go env GOARCH)"
 }
 
 main() {

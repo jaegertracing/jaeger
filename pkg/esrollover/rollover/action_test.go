@@ -9,9 +9,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/jaegertracing/jaeger/cmd/es-rollover/app"
 	"github.com/jaegertracing/jaeger/pkg/es/client"
 	"github.com/jaegertracing/jaeger/pkg/es/client/mocks"
+	app "github.com/jaegertracing/jaeger/pkg/esrollover"
 )
 
 func TestRolloverAction(t *testing.T) {

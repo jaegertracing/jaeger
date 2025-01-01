@@ -67,7 +67,5 @@ docker-images-cassandra:
 docker-images-elastic: create-baseimg
 	GOOS=linux GOARCH=$(GOARCH) $(MAKE) build-esmapping-generator
 	GOOS=linux GOARCH=$(GOARCH) $(MAKE) build-es-index-cleaner
-	GOOS=linux GOARCH=$(GOARCH) $(MAKE) build-es-rollover
 	docker build -t $(DOCKER_NAMESPACE)/jaeger-es-index-cleaner:${DOCKER_TAG} --build-arg base_image=$(BASE_IMAGE) --build-arg TARGETARCH=$(GOARCH) cmd/es-index-cleaner
-	docker build -t $(DOCKER_NAMESPACE)/jaeger-es-rollover:${DOCKER_TAG} --build-arg base_image=$(BASE_IMAGE) --build-arg TARGETARCH=$(GOARCH) cmd/es-rollover
 	@echo "Finished building jaeger-elasticsearch tools =============="

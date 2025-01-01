@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"os/exec"
+	"strings"
 	"testing"
 
 	elasticsearch8 "github.com/elastic/go-elasticsearch/v8"
@@ -25,8 +26,7 @@ const (
 	spanIndexName         = "jaeger-span-2019-01-01"
 	serviceIndexName      = "jaeger-service-2019-01-01"
 	indexCleanerImage     = "localhost:5000/jaegertracing/jaeger-es-index-cleaner:local-test"
-	rolloverImage         = "localhost:5000/jaegertracing/jaeger-es-rollover:local-test"
-	rolloverNowEnvVar     = `CONDITIONS='{"max_age":"0s"}'`
+	rolloverNowEnvVar     = "conditions={\"max_age\": \"0s\"}"
 )
 
 func TestIndexCleaner_doNotFailOnEmptyStorage(t *testing.T) {
@@ -183,20 +183,20 @@ func createAllIndices(client *elastic.Client, prefix string, adaptiveSampling bo
 		return err
 	}
 	// create rollover archive index and roll alias to the new index
-	err = runEsRollover("init", []string{"ARCHIVE=true", "INDEX_PREFIX=" + prefix}, adaptiveSampling)
+	err = runEsRollover("init", []string{"archive=true", "index-prefix=" + prefix}, adaptiveSampling)
 	if err != nil {
 		return err
 	}
-	err = runEsRollover("rollover", []string{"ARCHIVE=true", "INDEX_PREFIX=" + prefix, rolloverNowEnvVar}, adaptiveSampling)
+	err = runEsRollover("rollover", []string{"archive=true", "index-prefix=" + prefix, rolloverNowEnvVar}, adaptiveSampling)
 	if err != nil {
 		return err
 	}
 	// create rollover main indices and roll over to the new index
-	err = runEsRollover("init", []string{"ARCHIVE=false", "INDEX_PREFIX=" + prefix}, adaptiveSampling)
+	err = runEsRollover("init", []string{"archive=false", "index-prefix=" + prefix}, adaptiveSampling)
 	if err != nil {
 		return err
 	}
-	err = runEsRollover("rollover", []string{"ARCHIVE=false", "INDEX_PREFIX=" + prefix, rolloverNowEnvVar}, adaptiveSampling)
+	err = runEsRollover("rollover", []string{"archive=false", "index-prefix=" + prefix, rolloverNowEnvVar}, adaptiveSampling)
 	if err != nil {
 		return err
 	}
@@ -225,12 +225,21 @@ func runEsCleaner(days int, envs []string) error {
 }
 
 func runEsRollover(action string, envs []string, adaptiveSampling bool) error {
-	var dockerEnv string
-	for _, e := range envs {
-		dockerEnv += " -e " + e
+	for i, e := range envs {
+		if strings.HasPrefix(e, "--") {
+			continue
+		}
+		envs[i] = "--" + e
 	}
-	args := fmt.Sprintf("docker run %s --rm --net=host %s %s --adaptive-sampling=%t http://%s", dockerEnv, rolloverImage, action, adaptiveSampling, queryHostPort)
-	cmd := exec.Command("/bin/sh", "-c", args)
+	args := []string{
+		"es-rollover",
+		fmt.Sprintf("--adaptive-sampling=%t", adaptiveSampling),
+		action,
+		queryURL,
+	}
+	args = append(args, envs...)
+	cmd := exec.Command("./jaeger", args...)
+	cmd.Dir = "../../../cmd/jaeger"
 	out, err := cmd.CombinedOutput()
 	fmt.Println(string(out))
 	return err
