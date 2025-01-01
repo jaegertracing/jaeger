@@ -133,7 +133,8 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 func (s *server) addArchiveStorage(
 	opts *querysvc.QueryServiceOptions,
 	v2opts *v2querysvc.QueryServiceOptions,
-	host component.Host) error {
+	host component.Host,
+) error {
 	if s.config.Storage.TracesArchive == "" {
 		s.telset.Logger.Info("Archive storage not configured")
 		return nil
