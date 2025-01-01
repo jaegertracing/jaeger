@@ -89,7 +89,6 @@ func makeTestTrace() ptrace.Traces {
 	spanB := scopes.Spans().AppendEmpty()
 	spanB.SetTraceID(testTraceID)
 	spanB.SetSpanID(pcommon.SpanID([8]byte{2}))
-	spanB.Attributes()
 
 	return trace
 }
@@ -295,7 +294,7 @@ func TestFindTraces_Success(t *testing.T) {
 	require.EqualValues(t, [8]byte{2}, gotSpans.At(1).SpanID())
 }
 
-func TestFindTraces_WithRawTraces(t *testing.T) {
+func TestFindTraces_WithRawTraces_PerformsAdjustment(t *testing.T) {
 	tests := []struct {
 		rawTraces  bool
 		attributes pcommon.Map
@@ -372,6 +371,129 @@ func TestFindTraces_WithRawTraces(t *testing.T) {
 			require.Len(t, gotTraces, 1)
 			gotAttributes := gotTraces[0].ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).Attributes()
 			require.Equal(t, test.expected, gotAttributes)
+		})
+	}
+}
+
+func TestFindTraces_WithRawTraces_PerformsAggregation(t *testing.T) {
+	tests := []struct {
+		rawTraces bool
+		traces    []ptrace.Traces
+		expected  []ptrace.Traces
+	}{
+		{
+			rawTraces: true,
+			traces: func() []ptrace.Traces {
+				traceA := ptrace.NewTraces()
+				resourcesA := traceA.ResourceSpans().AppendEmpty()
+				scopesA := resourcesA.ScopeSpans().AppendEmpty()
+				spanA := scopesA.Spans().AppendEmpty()
+				spanA.SetTraceID(testTraceID)
+				spanA.SetName("spanA")
+				spanA.SetSpanID(pcommon.SpanID([8]byte{1}))
+
+				traceB := ptrace.NewTraces()
+				resourcesB := traceB.ResourceSpans().AppendEmpty()
+				scopesB := resourcesB.ScopeSpans().AppendEmpty()
+				spanB := scopesB.Spans().AppendEmpty()
+				spanB.SetTraceID(testTraceID)
+				spanB.SetName("spanB")
+				spanB.SetSpanID(pcommon.SpanID([8]byte{2}))
+
+				return []ptrace.Traces{traceA, traceB}
+			}(),
+			expected: func() []ptrace.Traces {
+				traceA := ptrace.NewTraces()
+				resourcesA := traceA.ResourceSpans().AppendEmpty()
+				scopesA := resourcesA.ScopeSpans().AppendEmpty()
+				spanA := scopesA.Spans().AppendEmpty()
+				spanA.SetTraceID(testTraceID)
+				spanA.SetName("spanA")
+				spanA.SetSpanID(pcommon.SpanID([8]byte{1}))
+
+				traceB := ptrace.NewTraces()
+				resourcesB := traceB.ResourceSpans().AppendEmpty()
+				scopesB := resourcesB.ScopeSpans().AppendEmpty()
+				spanB := scopesB.Spans().AppendEmpty()
+				spanB.SetTraceID(testTraceID)
+				spanB.SetName("spanB")
+				spanB.SetSpanID(pcommon.SpanID([8]byte{2}))
+
+				return []ptrace.Traces{traceA, traceB}
+			}(),
+		},
+		{
+			rawTraces: false,
+			traces: func() []ptrace.Traces {
+				traceA := ptrace.NewTraces()
+				resourcesA := traceA.ResourceSpans().AppendEmpty()
+				scopesA := resourcesA.ScopeSpans().AppendEmpty()
+				spanA := scopesA.Spans().AppendEmpty()
+				spanA.SetTraceID(testTraceID)
+				spanA.SetSpanID(pcommon.SpanID([8]byte{1}))
+
+				traceB := ptrace.NewTraces()
+				resourcesB := traceB.ResourceSpans().AppendEmpty()
+				scopesB := resourcesB.ScopeSpans().AppendEmpty()
+				spanB := scopesB.Spans().AppendEmpty()
+				spanB.SetTraceID(testTraceID)
+				spanB.SetSpanID(pcommon.SpanID([8]byte{2}))
+
+				return []ptrace.Traces{traceA, traceB}
+			}(),
+			expected: func() []ptrace.Traces {
+				traceA := ptrace.NewTraces()
+				resourcesA := traceA.ResourceSpans().AppendEmpty()
+				scopesA := resourcesA.ScopeSpans().AppendEmpty()
+				spanA := scopesA.Spans().AppendEmpty()
+				spanA.SetTraceID(testTraceID)
+				spanA.SetSpanID(pcommon.SpanID([8]byte{1}))
+
+				resourcesB := ptrace.NewResourceSpans()
+				scopesB := resourcesB.ScopeSpans().AppendEmpty()
+				spanB := scopesB.Spans().AppendEmpty()
+				spanB.SetTraceID(testTraceID)
+				spanB.SetSpanID(pcommon.SpanID([8]byte{2}))
+
+				resourcesB.CopyTo(traceA.ResourceSpans().AppendEmpty())
+
+				return []ptrace.Traces{traceA}
+			}(),
+		},
+	}
+	for _, test := range tests {
+		t.Run(fmt.Sprintf("rawTraces=%v", test.rawTraces), func(t *testing.T) {
+			responseIter := iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+				yield(test.traces, nil)
+			})
+
+			tqs := initializeTestService()
+			duration, err := time.ParseDuration("20ms")
+			require.NoError(t, err)
+			now := time.Now()
+			tqs.traceReader.On("FindTraces", mock.Anything, tracestore.TraceQueryParams{
+				ServiceName:   "service",
+				OperationName: "operation",
+				StartTimeMax:  now,
+				DurationMin:   duration,
+				NumTraces:     200,
+			}).
+				Return(responseIter).Once()
+
+			query := TraceQueryParams{
+				TraceQueryParams: tracestore.TraceQueryParams{
+					ServiceName:   "service",
+					OperationName: "operation",
+					StartTimeMax:  now,
+					DurationMin:   duration,
+					NumTraces:     200,
+				},
+				RawTraces: test.rawTraces,
+			}
+			getTracesIter := tqs.queryService.FindTraces(context.Background(), query)
+			gotTraces, err := iter.FlattenWithErrors(getTracesIter)
+			require.NoError(t, err)
+			require.EqualValues(t, test.expected, gotTraces)
 		})
 	}
 }
