@@ -112,11 +112,11 @@ func TestWriteTracesInChunks(t *testing.T) {
 	assert.Equal(t, 1, chunks[2].ResourceSpans().Len()) // Third chunk has one span from one resource
 
 	// First chunk: NoServiceName1 span1 and 2
-	firstChunkResource1 := chunks[0].ResourceSpans().At(0)
-	assert.Equal(t, "NoServiceName1", firstChunkResource1.Resource().Attributes().AsRaw()["service.name"])
-	firstChunkScope1 := firstChunkResource1.ScopeSpans().At(0)
-	assert.Equal(t, "span1", firstChunkScope1.Spans().At(0).Name())
-	assert.Equal(t, "span2", firstChunkScope1.Spans().At(1).Name())
+	firstChunkResource := chunks[0].ResourceSpans().At(0)
+	assert.Equal(t, "NoServiceName1", firstChunkResource.Resource().Attributes().AsRaw()["service.name"])
+	firstChunkScope := firstChunkResource.ScopeSpans().At(0)
+	assert.Equal(t, "span1", firstChunkScope.Spans().At(0).Name())
+	assert.Equal(t, "span2", firstChunkScope.Spans().At(1).Name())
 
 	// Second chunk: NoServiceName2 span3 and 4
 	secondChunkResource := chunks[1].ResourceSpans().At(0)
