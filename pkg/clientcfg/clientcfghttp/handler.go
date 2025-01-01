@@ -38,7 +38,7 @@ type HTTPHandlerParams struct {
 }
 
 // HTTPHandler implements endpoints for used by Jaeger clients to retrieve client configuration,
-// such as sampling and baggage restrictions.
+// such as sampling strategies.
 type HTTPHandler struct {
 	params  HTTPHandlerParams
 	metrics struct {
@@ -47,9 +47,6 @@ type HTTPHandler struct {
 
 		// Number of good sampling requests against the old endpoint / using Thrift 0.9.2 enum codes
 		LegacySamplingRequestSuccess metrics.Counter `metric:"http-server.requests" tags:"type=sampling-legacy"`
-
-		// Number of good baggage requests
-		BaggageRequestSuccess metrics.Counter `metric:"http-server.requests" tags:"type=baggage"`
 
 		// Number of bad requests (400s)
 		BadRequest metrics.Counter `metric:"http-server.errors" tags:"status=4xx,source=all"`
@@ -92,10 +89,6 @@ func (h *HTTPHandler) RegisterRoutes(router *mux.Router) {
 			h.serveSamplingHTTP(w, r, h.encodeProto)
 		},
 	).Methods(http.MethodGet)
-
-	router.HandleFunc(prefix+"/baggageRestrictions", func(w http.ResponseWriter, r *http.Request) {
-		h.serveBaggageHTTP(w, r)
-	}).Methods(http.MethodGet)
 }
 
 // RegisterRoutes registers configuration handlers with HTTP Router.
@@ -177,25 +170,6 @@ func (h *HTTPHandler) encodeProto(strategy *api_v2.SamplingStrategyResponse) ([]
 	}
 	h.metrics.SamplingRequestSuccess.Inc(1)
 	return []byte(str), nil
-}
-
-func (h *HTTPHandler) serveBaggageHTTP(w http.ResponseWriter, r *http.Request) {
-	service, err := h.serviceFromRequest(w, r)
-	if err != nil {
-		return
-	}
-	resp, err := h.params.ConfigManager.GetBaggageRestrictions(r.Context(), service)
-	if err != nil {
-		h.metrics.CollectorProxyFailures.Inc(1)
-		http.Error(w, fmt.Sprintf("collector error: %+v", err), http.StatusInternalServerError)
-		return
-	}
-	// NB. it's literally impossible for this Marshal to fail
-	jsonBytes, _ := json.Marshal(resp)
-	if err = h.writeJSON(w, jsonBytes); err != nil {
-		return
-	}
-	h.metrics.BaggageRequestSuccess.Inc(1)
 }
 
 var samplingStrategyTypes = []api_v2.SamplingStrategyType{
