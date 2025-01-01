@@ -34,6 +34,7 @@ cmd/jaeger/internal/integration/results
 cmd/remote-storage/remote-storage
 cmd/remote-storage/remote-storage-*
 cmd/es-index-cleaner/es-index-cleaner-*
+cmd/es-rollover/es-rollover-*
 cmd/query/query
 cmd/query/query-*
 cmd/tracegen/tracegen

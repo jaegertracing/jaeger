@@ -66,6 +66,7 @@ function stage-tool-platform-files {
     local -r FILE_EXTENSION=${3:-}
 
     cp "./cmd/es-index-cleaner/es-index-cleaner-${PLATFORM}"  "${TOOLS_PACKAGE_STAGING_DIR}/jaeger-es-index-cleaner${FILE_EXTENSION}"
+    cp "./cmd/es-rollover/es-rollover-${PLATFORM}"            "${TOOLS_PACKAGE_STAGING_DIR}/jaeger-es-rollover${FILE_EXTENSION}"
     cp "./plugin/storage/es/esmapping-generator-${PLATFORM}"  "${TOOLS_PACKAGE_STAGING_DIR}/jaeger-esmapping-generator${FILE_EXTENSION}"
 }
 
