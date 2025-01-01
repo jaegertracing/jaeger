@@ -1,10 +1,14 @@
+// Copyright (c) 2025 The Jaeger Authors.
+// SPDX-License-Identifier: Apache-2.0
+
 package v1adapter
 
 import (
 	"errors"
 
-	"github.com/jaegertracing/jaeger/storage"
 	"go.uber.org/zap"
+
+	"github.com/jaegertracing/jaeger/storage"
 )
 
 func InitializeArchiveStorage(

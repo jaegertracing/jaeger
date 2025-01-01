@@ -166,39 +166,6 @@ func (qOpts *QueryOptions) BuildQueryServiceOptionsV2(storageFactory storage.Bas
 	return opts
 }
 
-func initializeV2ArchiveStorage(
-	storageFactory storage.BaseFactory,
-	opts *v2querysvc.QueryServiceOptions,
-	logger *zap.Logger,
-) bool {
-	archiveFactory, ok := storageFactory.(storage.ArchiveFactory)
-	if !ok {
-		logger.Info("Archive storage not supported by the factory")
-		return false
-	}
-	reader, err := archiveFactory.CreateArchiveSpanReader()
-	if errors.Is(err, storage.ErrArchiveStorageNotConfigured) || errors.Is(err, storage.ErrArchiveStorageNotSupported) {
-		logger.Info("Archive storage not created", zap.String("reason", err.Error()))
-		return false
-	}
-	if err != nil {
-		logger.Error("Cannot init archive storage reader", zap.Error(err))
-		return false
-	}
-	writer, err := archiveFactory.CreateArchiveSpanWriter()
-	if errors.Is(err, storage.ErrArchiveStorageNotConfigured) || errors.Is(err, storage.ErrArchiveStorageNotSupported) {
-		logger.Info("Archive storage not created", zap.String("reason", err.Error()))
-		return false
-	}
-	if err != nil {
-		logger.Error("Cannot init archive storage writer", zap.Error(err))
-		return false
-	}
-	opts.ArchiveTraceReader = v1adapter.NewTraceReader(reader)
-	opts.ArchiveTraceWriter = v1adapter.NewTraceWriter(writer)
-	return true
-}
-
 // stringSliceAsHeader parses a slice of strings and returns a http.Header.
 // Each string in the slice is expected to be in the format "key: value"
 func stringSliceAsHeader(slice []string) (http.Header, error) {

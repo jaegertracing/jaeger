@@ -1,15 +1,20 @@
+// Copyright (c) 2025 The Jaeger Authors.
+// SPDX-License-Identifier: Apache-2.0
+
 package v1adapter
 
 import (
 	"testing"
 
-	"github.com/crossdock/crossdock-go/assert"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
+
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	spanstoremocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
-	"go.uber.org/zap"
 )
 
 type fakeStorageFactory1 struct{}
@@ -42,8 +47,8 @@ func TestInitializeArchiveStorage(t *testing.T) {
 
 	t.Run("Archive storage not supported by the factory", func(t *testing.T) {
 		reader, writer := InitializeArchiveStorage(new(fakeStorageFactory1), logger)
-		assert.Nil(t, reader)
-		assert.Nil(t, writer)
+		require.Nil(t, reader)
+		require.Nil(t, writer)
 	})
 
 	t.Run("Archive storage not configured", func(t *testing.T) {
@@ -51,8 +56,8 @@ func TestInitializeArchiveStorage(t *testing.T) {
 			&fakeStorageFactory2{rErr: storage.ErrArchiveStorageNotConfigured},
 			logger,
 		)
-		assert.Nil(t, reader)
-		assert.Nil(t, writer)
+		require.Nil(t, reader)
+		require.Nil(t, writer)
 	})
 
 	t.Run("Archive storage not supported", func(t *testing.T) {
@@ -60,8 +65,8 @@ func TestInitializeArchiveStorage(t *testing.T) {
 			&fakeStorageFactory2{rErr: storage.ErrArchiveStorageNotSupported},
 			logger,
 		)
-		assert.Nil(t, reader)
-		assert.Nil(t, writer)
+		require.Nil(t, reader)
+		require.Nil(t, writer)
 	})
 
 	t.Run("Error initializing archive span reader", func(t *testing.T) {
@@ -69,8 +74,8 @@ func TestInitializeArchiveStorage(t *testing.T) {
 			&fakeStorageFactory2{rErr: assert.AnError},
 			logger,
 		)
-		assert.Nil(t, reader)
-		assert.Nil(t, writer)
+		require.Nil(t, reader)
+		require.Nil(t, writer)
 	})
 
 	t.Run("Error initializing archive span writer", func(t *testing.T) {
@@ -78,8 +83,8 @@ func TestInitializeArchiveStorage(t *testing.T) {
 			&fakeStorageFactory2{wErr: assert.AnError},
 			logger,
 		)
-		assert.Nil(t, reader)
-		assert.Nil(t, writer)
+		require.Nil(t, reader)
+		require.Nil(t, writer)
 	})
 
 	t.Run("Successfully initialize archive storage", func(t *testing.T) {
@@ -89,9 +94,7 @@ func TestInitializeArchiveStorage(t *testing.T) {
 			&fakeStorageFactory2{r: reader, w: writer},
 			logger,
 		)
-		assert.NotNil(t, traceReader)
-		assert.NotNil(t, traceWriter)
-		assert.Equal(t, reader, traceReader.spanReader)
-		assert.Equal(t, writer, traceWriter.spanWriter)
+		require.Equal(t, reader, traceReader.spanReader)
+		require.Equal(t, writer, traceWriter.spanWriter)
 	})
 }
