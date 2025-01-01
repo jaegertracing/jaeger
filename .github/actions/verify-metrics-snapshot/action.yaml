@@ -1,0 +1,31 @@
+# Copyright (c) 2023 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
+name: 'Verify Metric Snapshot and Upload Metrics'
+description: 'Upload or cache the metrics data after verification'
+inputs:
+  snapshot:
+    description: 'Path to the metric file'
+    required: true
+  artifact_key:
+    description: 'Artifact key used for uploading and fetching artifacts'
+    required: true
+  cache_key:
+    description: 'Cache key used for uploading and fetching the correct cached metric'
+    required: true
+runs:
+  using: 'composite'
+  steps:
+    - name: Upload Metrics Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ inputs.artifact_key }}
+        path: ${{ inputs.snapshot }}
+        retention-days: 7
+
+    - name: Cache scraped metrics for tagged release for longer retention
+      if: contains(github.ref,'tags')
+      uses: actions/cache@v4
+      with:
+        path: ${{ inputs.snapshot }}
+        key: ${{ inputs.cache_key }}

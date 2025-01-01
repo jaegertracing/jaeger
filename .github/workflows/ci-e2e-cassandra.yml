@@ -49,21 +49,14 @@ jobs:
       env:
         SKIP_APPLY_SCHEMA: ${{ matrix.create-schema == 'auto' && true || false }}
      
-    - name: Upload Metrics Artifact
-      uses: actions/upload-artifact@v4
+    - name: Metric snapshot (upload or cache metric)
+      uses: ./.github/actions/verify-metrics-snapshot
       if: ${{ matrix.jaeger-version }} == "v2"
       with:
-        name: cassandra_metrics_${{ matrix.version.major }}_${{ matrix.version.schema }}_${{ matrix.jaeger-version }}_${{ matrix.create-schema }}.txt
-        path: ./.metrics/cassandra_metrics.txt
-        retention-days: 7
+        snapshot: ./.metrics/cassandra_metrics.txt
+        artifact_key: cassandra_metrics_${{ matrix.version.major }}_${{ matrix.version.schema }}_${{ matrix.jaeger-version }}_${{ matrix.create-schema }}.txt
+        cache_key: ${{ github.ref_name }}_cassandra_metrics_${{ matrix.version.major }}_${{ matrix.version.schema }}
 
-    - name: Cache scraped metrics for tagged release for longer retention
-      if: ${{ contains(github.ref, 'tags') && matrix.jaeger-version == 'v2' }}
-      uses: actions/cache@v4
-      with:
-        path: ./.metrics/cassandra_metrics.txt
-        key: ${{ github.ref_name }}_cassandra_metrics_${{ matrix.version.major }}_${{ matrix.version.schema }}
-    
     - name: Restore and test cache download 
       if: ${{ matrix.jaeger-version }} == "v2"
       id: get-v2-tag
@@ -75,7 +68,7 @@ jobs:
     - uses: actions/cache@v4
       with:
         path: ./.metrics/cassandra_metrics.txt
-        key: ${{ env.v2_tag }}_cassandra_metrics_${{ matrix.version.major }}_${{ matrix.version.schema }}
+        key: ${{ github.env.v2_tag }}_cassandra_metrics_${{ matrix.version.major }}_${{ matrix.version.schema }}
 
     - name: Upload coverage to codecov
       uses: ./.github/actions/upload-codecov

@@ -30,19 +30,12 @@ jobs:
       run: |
         STORAGE=memory_v2 make jaeger-v2-storage-integration-test
         
-    - name: Upload Metrics Artifact
-      uses: actions/upload-artifact@v4
+    - name: Metric snapshot (upload or cache metric)
+      uses: ./.github/actions/verify-metrics-snapshot
       with:
-          name: memory-metrics.txt
-          path: ./.metrics/memory_metrics.txt
-          retention-days: 7
-    
-    - name: Cache scraped metrics for tagged release for longer retention
-      uses: actions/cache@v4
-      if: contains(github.ref,'tags')
-      with:
-        path: ./.metrics/memory_metrics.txt
-        key: ${{ github.ref_name }}_memory_metrics
+        snapshot: ./.metrics/memory_metrics.txt
+        artifact_key: memory-metrics.txt
+        cache_key: ${{ github.ref_name }}_memory_metrics
           
     - name: Upload coverage to codecov
       uses: ./.github/actions/upload-codecov

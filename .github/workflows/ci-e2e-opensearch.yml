@@ -52,20 +52,13 @@ jobs:
       id: test-execution
       run: bash scripts/es-integration-test.sh ${{ matrix.version.distribution }} ${{ matrix.version.major }} ${{ matrix.version.jaeger }}
 
-    - name: Upload Metrics Artifact
-      uses: actions/upload-artifact@v4
+    - name: Metric snapshot (upload or cache metric)
+      uses: ./.github/actions/verify-metrics-snapshot
       if: ${{ matrix.version.jaeger }} == "v2"
       with:
-          name: opensearch-metrics-${{ matrix.version.major }}.txt
-          path: ./.metrics/opensearch_metrics.txt
-          retention-days: 7
-
-    - name: Cache scraped metrics for tagged release for longer retention
-      uses: actions/cache@v4
-      if: contains(github.ref_name,'tags') && ${{ matrix.version.jaeger }} == "v2"
-      with:
-        path: ./.metrics/opensearch_metrics.txt
-        key: ${{ github.ref }}_kafka_metrics_${{ matrix.version.major }}
+        snapshot: ./.metrics/opensearch_metrics.txt
+        artifact_key: opensearch-metrics-${{ matrix.version.major }}.txt
+        cache_key: ${{ github.ref }}_kafka_metrics_${{ matrix.version.major }}
 
     - name: Upload coverage to codecov
       uses: ./.github/actions/upload-codecov

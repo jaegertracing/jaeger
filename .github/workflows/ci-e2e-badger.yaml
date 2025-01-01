@@ -40,23 +40,15 @@ jobs:
             STORAGE=badger make jaeger-v2-storage-integration-test
             ;;
         esac
-          
-    - name: Upload Metrics Artifact
-      uses: actions/upload-artifact@v4
+
+    - name: Metric snapshot (upload or cache metric)
+      uses: ./.github/actions/verify-metrics-snapshot
       if: ${{ matrix.version }} == "v2"
       with:
-        name: badger-metrics-${{ matrix.version }}.txt
-        path: ./.metrics/badger_metrics.txt
-        retention-days: 7
+        snapshot: ./.metrics/badger_metrics.txt
+        artifact_key: badger-metrics-${{ matrix.version }}.txt
+        cache_key: ${{ github.ref_name }}_badger_metrics
   
-    - name: Cache scraped metrics for tagged release for longer retention
-      uses: actions/cache@v4
-      if: contains(github.ref,'tags') && ${{ matrix.version }} == "v2"
-      with:
-        path: ./.metrics/badger_metrics.txt
-        key: ${{ github.ref_name }}_badger_metrics
-      
-
     - name: Upload coverage to codecov
       uses: ./.github/actions/upload-codecov
       with:

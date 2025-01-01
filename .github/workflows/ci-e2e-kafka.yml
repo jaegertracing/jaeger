@@ -35,21 +35,14 @@ jobs:
     - name: Run kafka integration tests
       id: test-execution
       run: bash scripts/kafka-integration-test.sh -j ${{ matrix.jaeger-version }} -v ${{ matrix.kafka-version }}
-            
-    - name: Upload Metrics Artifact
-      uses: actions/upload-artifact@v4
+        
+    - name: Metric snapshot (upload or cache metric)
+      uses: ./.github/actions/verify-metrics-snapshot
       if: ${{ matrix.jaeger-version }} == "v2"
       with:
-        name: kafka-metrics-${{ matrix.jaeger-version }}.txt
-        path: ./.metrics/kafka_metrics.txt
-        retention-days: 7
-
-    - name: Cache scraped metrics for tagged release for longer retention
-      uses: actions/cache@v4
-      if: contains(github.ref,'tags') && ${{ matrix.jaeger-version }} == "v2"
-      with:
-        path: ./.metrics/kafka_metrics.txt
-        key: ${{ github.ref_name }}_kafka_metrics
+        snapshot: ./.metrics/kafka_metrics.txt
+        artifact_key: kafka-metrics-${{ matrix.jaeger-version }}.txt
+        cache_key: ${{ github.ref_name }}_kafka_metrics
 
     - name: Upload coverage to codecov
       uses: ./.github/actions/upload-codecov
