@@ -68,21 +68,14 @@ func (w *traceWriter) Close() error {
 }
 
 func (w *traceWriter) WriteTraces(ctx context.Context, td ptrace.Traces) error {
-	var err error
 	maxChunkSize := 35 // max chunk size otel kafka export can handle safely.
-	if td.SpanCount() > maxChunkSize {
-		w.logger.Info("Chunking traces")
-		err = w.writeTraceInChunks(ctx, td, maxChunkSize)
-		w.logger.Info("Finished writing chunks")
-	} else {
-		err = w.exporter.ConsumeTraces(ctx, td)
-	}
+	w.logger.Info("Chunking traces")
+	err := w.writeTraceInChunks(ctx, td, maxChunkSize)
+	w.logger.Info("Finished writing chunks")
 	return err
 }
 
-// writeTraceChunks splits td into before writing
-
-// td span count should be greater than maxChunkSize
+// writeTraceInChunks splits td into chunks before writing.
 func (w *traceWriter) writeTraceInChunks(ctx context.Context, td ptrace.Traces, maxChunkSize int) error {
 	var err error
 
@@ -96,14 +89,16 @@ func (w *traceWriter) writeTraceInChunks(ctx context.Context, td ptrace.Traces, 
 			scope    ptrace.ScopeSpans
 			resource ptrace.ResourceSpans
 		)
-		// Create a new chunk if the current span count reaches MaxChunkSize
+		// Create a new chunk if the current span count reaches maxChunkSize
 		if spanCount == maxChunkSize {
 			err = w.exporter.ConsumeTraces(ctx, currentChunk)
 			currentChunk = ptrace.NewTraces()
 			spanCount = 0
+			currentResourceIndex = -1
+			currentScopeIndex = -1
 		}
 
-		if currentChunk.ResourceSpans().Len() == 0 || currentResourceIndex != pos.ResourceIndex {
+		if currentResourceIndex != pos.ResourceIndex {
 			resource = currentChunk.ResourceSpans().AppendEmpty()
 			td.ResourceSpans().At(pos.ResourceIndex).Resource().Attributes().CopyTo(resource.Resource().Attributes())
 			currentResourceIndex = pos.ResourceIndex
@@ -112,7 +107,7 @@ func (w *traceWriter) writeTraceInChunks(ctx context.Context, td ptrace.Traces, 
 			resource = currentChunk.ResourceSpans().At(currentChunk.ResourceSpans().Len() - 1)
 		}
 
-		if resource.ScopeSpans().Len() == 0 || currentScopeIndex != pos.ScopeIndex {
+		if currentScopeIndex != pos.ScopeIndex {
 			scope = resource.ScopeSpans().AppendEmpty()
 			td.ResourceSpans().At(pos.ResourceIndex).ScopeSpans().At(pos.ScopeIndex).Scope().CopyTo(scope.Scope())
 			currentScopeIndex = pos.ScopeIndex
@@ -126,7 +121,7 @@ func (w *traceWriter) writeTraceInChunks(ctx context.Context, td ptrace.Traces, 
 		return true
 	})
 
-	// append the last chunk if it has any spans
+	// write the last chunk if it has any spans
 	if spanCount > 0 {
 		err = w.exporter.ConsumeTraces(ctx, currentChunk)
 	}

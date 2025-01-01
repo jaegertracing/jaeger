@@ -12,7 +12,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/consumer"
-	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.uber.org/zap/zaptest"
 )
@@ -43,41 +42,54 @@ func (*MockExporter) Start(context.Context, component.Host) error {
 
 func TestWriteTracesInChunks(t *testing.T) {
 	td := ptrace.NewTraces()
-	rspans := td.ResourceSpans()
+	resources := td.ResourceSpans()
 
-	rspan1 := rspans.AppendEmpty()
-	rspan1.Resource().Attributes().PutStr("service.name", "NoServiceName1")
-	scope1 := rspan1.ScopeSpans()
-	sspan1 := scope1.AppendEmpty()
-	sspan1.Scope().SetName("success-op-1")
-	span1 := sspan1.Spans().AppendEmpty()
-	span1.SetName("span1")
-	span1.SetSpanID(pcommon.SpanID([8]byte{0, 0, 0, 0, 0, 0, 0, 1}))
-	span2 := sspan1.Spans().AppendEmpty()
-	span2.SetName("span2")
-	span2.SetSpanID(pcommon.SpanID([8]byte{0, 0, 0, 0, 0, 0, 0, 2}))
+	// create resources data for td
+	type testSpan struct {
+		name   string
+		spanID [8]byte
+	}
 
-	rspan2 := rspans.AppendEmpty()
-	rspan2.Resource().Attributes().PutStr("service.name", "NoServiceName2")
-	scope2 := rspan2.ScopeSpans()
-	sspan2 := scope2.AppendEmpty()
-	sspan2.Scope().SetName("success-op-2")
-	span3 := sspan2.Spans().AppendEmpty()
-	span3.SetName("span3")
-	span3.SetSpanID(pcommon.SpanID([8]byte{0, 0, 0, 0, 0, 0, 0, 3}))
-
-	rspan3 := rspans.AppendEmpty()
-	rspan3.Resource().Attributes().PutStr("service.name", "NoServiceName3")
-	scope3 := rspan3.ScopeSpans()
-	sspan3 := scope3.AppendEmpty()
-	sspan3.Scope().SetName("success-op-3")
-	span4 := sspan3.Spans().AppendEmpty()
-	span4.SetName("span4")
-	span4.SetSpanID(pcommon.SpanID([8]byte{0, 0, 0, 0, 0, 0, 0, 4}))
-
-	span5 := sspan3.Spans().AppendEmpty()
-	span5.SetName("span5")
-	span5.SetSpanID(pcommon.SpanID([8]byte{0, 0, 0, 0, 0, 0, 0, 5}))
+	services := []struct {
+		name      string
+		opName    string
+		testSpans []testSpan
+	}{
+		{
+			name:   "NoServiceName1",
+			opName: "success-op-1",
+			testSpans: []testSpan{
+				{name: "span1", spanID: [8]byte{0, 0, 0, 0, 0, 0, 0, 1}},
+				{name: "span2", spanID: [8]byte{0, 0, 0, 0, 0, 0, 0, 2}},
+			},
+		},
+		{
+			name:   "NoServiceName2",
+			opName: "success-op-2",
+			testSpans: []testSpan{
+				{name: "span3", spanID: [8]byte{0, 0, 0, 0, 0, 0, 0, 3}},
+			},
+		},
+		{
+			name:   "NoServiceName3",
+			opName: "success-op-2",
+			testSpans: []testSpan{
+				{name: "span4", spanID: [8]byte{0, 0, 0, 0, 0, 0, 0, 4}},
+				{name: "span5", spanID: [8]byte{0, 0, 0, 0, 0, 0, 0, 5}},
+			},
+		},
+	}
+	for _, service := range services {
+		resource := resources.AppendEmpty()
+		resource.Resource().Attributes().PutStr("service.name", service.name)
+		scope := resource.ScopeSpans().AppendEmpty()
+		scope.Scope().SetName(service.opName)
+		for _, ts := range service.testSpans {
+			span := scope.Spans().AppendEmpty()
+			span.SetName(ts.name)
+			span.SetSpanID(ts.spanID)
+		}
+	}
 
 	mockExporter := &MockExporter{}
 	tw := &traceWriter{
