@@ -6,9 +6,9 @@ package rollover
 import (
 	"encoding/json"
 
+	"github.com/jaegertracing/jaeger/cmd/es-rollover/app"
 	"github.com/jaegertracing/jaeger/pkg/es/client"
 	"github.com/jaegertracing/jaeger/pkg/es/filter"
-	app "github.com/jaegertracing/jaeger/pkg/esrollover"
 )
 
 // Action holds the configuration and clients for rollover action

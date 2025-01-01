@@ -7,10 +7,8 @@ import (
 	"log"
 
 	"github.com/spf13/viper"
-	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/internal/docs"
-	"github.com/jaegertracing/jaeger/cmd/jaeger/esrollover"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/version"
@@ -18,11 +16,9 @@ import (
 
 func main() {
 	v := viper.New()
-	logger, _ := zap.NewProduction()
 	command := internal.Command()
 	command.AddCommand(version.Command())
 	command.AddCommand(docs.Command(v))
-	command.AddCommand(esrollover.Command(v, logger))
 	config.AddFlags(
 		v,
 		command,

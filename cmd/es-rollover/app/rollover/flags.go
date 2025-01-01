@@ -8,7 +8,7 @@ import (
 
 	"github.com/spf13/viper"
 
-	app "github.com/jaegertracing/jaeger/pkg/esrollover"
+	"github.com/jaegertracing/jaeger/cmd/es-rollover/app"
 )
 
 const (

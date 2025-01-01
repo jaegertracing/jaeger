@@ -12,9 +12,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/cmd/es-rollover/app"
 	"github.com/jaegertracing/jaeger/pkg/es/client"
 	"github.com/jaegertracing/jaeger/pkg/es/client/mocks"
-	app "github.com/jaegertracing/jaeger/pkg/esrollover"
 )
 
 func TestLookBackAction(t *testing.T) {

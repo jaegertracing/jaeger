@@ -61,6 +61,10 @@ build-esmapping-generator-linux:
 build-es-index-cleaner:
 	$(GOBUILD) $(BUILD_INFO) -o ./cmd/es-index-cleaner/es-index-cleaner-$(GOOS)-$(GOARCH) ./cmd/es-index-cleaner/
 
+.PHONY: build-es-rollover
+build-es-rollover:
+	$(GOBUILD) $(BUILD_INFO) -o ./cmd/es-rollover/es-rollover-$(GOOS)-$(GOARCH) ./cmd/es-rollover/
+
 # Requires variables: $(BIN_NAME) $(BIN_PATH) $(GO_TAGS) $(DISABLE_OPTIMIZATIONS) $(SUFFIX) $(GOOS) $(GOARCH) $(BUILD_INFO)
 # Other targets can depend on this one but with a unique suffix to ensure it is always executed.
 BIN_PATH = ./cmd/$(BIN_NAME)
@@ -138,6 +142,7 @@ _build-platform-binaries: \
 		build-anonymizer \
 		build-esmapping-generator \
 		build-es-index-cleaner \
+		build-es-rollover
 # invoke make recursively such that DEBUG_BINARY=1 can take effect
 	$(MAKE) _build-platform-binaries-debug GOOS=$(GOOS) GOARCH=$(GOARCH) DEBUG_BINARY=1
 

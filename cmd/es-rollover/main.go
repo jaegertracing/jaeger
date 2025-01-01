@@ -1,38 +1,37 @@
-// Copyright (c) 2025 The Jaeger Authors.
+// Copyright (c) 2021 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
-package esrollover
+package main
 
 import (
 	"flag"
+	"os"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/cmd/es-rollover/app"
+	initialize "github.com/jaegertracing/jaeger/cmd/es-rollover/app/init"
+	"github.com/jaegertracing/jaeger/cmd/es-rollover/app/lookback"
+	"github.com/jaegertracing/jaeger/cmd/es-rollover/app/rollover"
+	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/es/client"
-	app "github.com/jaegertracing/jaeger/pkg/esrollover"
-	initialize "github.com/jaegertracing/jaeger/pkg/esrollover/init"
-	"github.com/jaegertracing/jaeger/pkg/esrollover/lookback"
-	"github.com/jaegertracing/jaeger/pkg/esrollover/rollover"
 )
 
-func Command(v *viper.Viper, logger *zap.Logger) *cobra.Command {
-	rootCmd := &cobra.Command{
-		Use:   "es-rollover",
-		Short: "es-rollover manages Jaeger indices",
-		Long:  "es-rollover manages Jaeger indices",
-	}
-	addPersistentFlags(v, rootCmd, app.AddFlags)
-	rootCmd.AddCommand(initCommand(v, logger))
-	rootCmd.AddCommand(rolloverCommand(v, logger))
-	rootCmd.AddCommand(lookBackCommand(v, logger))
-	return rootCmd
-}
+func main() {
+	v := viper.New()
+	logger, _ := zap.NewProduction()
 
-func initCommand(v *viper.Viper, logger *zap.Logger) *cobra.Command {
+	rootCmd := &cobra.Command{
+		Use:   "jaeger-es-rollover",
+		Short: "Jaeger es-rollover manages Jaeger indices",
+		Long:  "Jaeger es-rollover manages Jaeger indices",
+	}
+
+	// Init command
 	initCfg := &initialize.Config{}
-	initCmd := &cobra.Command{
+	initCommand := &cobra.Command{
 		Use:          "init http://HOSTNAME:PORT",
 		Short:        "creates indices and aliases",
 		Long:         "creates indices and aliases",
@@ -65,13 +64,11 @@ func initCommand(v *viper.Viper, logger *zap.Logger) *cobra.Command {
 			})
 		},
 	}
-	addPersistentFlags(v, initCmd, initCfg.AddFlags)
-	return initCmd
-}
 
-func rolloverCommand(v *viper.Viper, logger *zap.Logger) *cobra.Command {
+	// Rollover command
 	rolloverCfg := &rollover.Config{}
-	rolloverCmd := &cobra.Command{
+
+	rolloverCommand := &cobra.Command{
 		Use:   "rollover http://HOSTNAME:PORT",
 		Short: "rollover to new write index",
 		Long:  "rollover to new write index",
@@ -97,13 +94,9 @@ func rolloverCommand(v *viper.Viper, logger *zap.Logger) *cobra.Command {
 			})
 		},
 	}
-	addPersistentFlags(v, rolloverCmd, rolloverCfg.AddFlags)
-	return rolloverCmd
-}
 
-func lookBackCommand(v *viper.Viper, logger *zap.Logger) *cobra.Command {
 	lookbackCfg := lookback.Config{}
-	lookBackCmd := &cobra.Command{
+	lookbackCommand := &cobra.Command{
 		Use:   "lookback http://HOSTNAME:PORT",
 		Short: "removes old indices from read alias",
 		Long:  "removes old indices from read alias",
@@ -129,8 +122,24 @@ func lookBackCommand(v *viper.Viper, logger *zap.Logger) *cobra.Command {
 			})
 		},
 	}
-	addPersistentFlags(v, lookBackCmd, lookbackCfg.AddFlags)
-	return lookBackCmd
+
+	addPersistentFlags(v, rootCmd, app.AddFlags)
+	addSubCommand(v, rootCmd, initCommand, initCfg.AddFlags)
+	addSubCommand(v, rootCmd, rolloverCommand, rolloverCfg.AddFlags)
+	addSubCommand(v, rootCmd, lookbackCommand, lookbackCfg.AddFlags)
+
+	if err := rootCmd.Execute(); err != nil {
+		os.Exit(1)
+	}
+}
+
+func addSubCommand(v *viper.Viper, rootCmd, cmd *cobra.Command, addFlags func(*flag.FlagSet)) {
+	rootCmd.AddCommand(cmd)
+	config.AddFlags(
+		v,
+		cmd,
+		addFlags,
+	)
 }
 
 func addPersistentFlags(v *viper.Viper, rootCmd *cobra.Command, inits ...func(*flag.FlagSet)) {
