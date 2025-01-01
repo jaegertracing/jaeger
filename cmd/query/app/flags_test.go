@@ -146,6 +146,20 @@ func TestBuildQueryServiceOptionsV2(t *testing.T) {
 	assert.NotNil(t, qSvcOpts.ArchiveTraceWriter)
 }
 
+func TestBuildQueryServiceOptionsV2_NoArchiveStorage(t *testing.T) {
+	v, _ := config.Viperize(AddFlags)
+	qOpts, err := new(QueryOptions).InitFromViper(v, zap.NewNop())
+	require.NoError(t, err)
+	assert.NotNil(t, qOpts)
+
+	logger, logBuf := testutils.NewLogger()
+	qSvcOpts := qOpts.BuildQueryServiceOptionsV2(&mocks.Factory{}, logger)
+	assert.Nil(t, qSvcOpts.ArchiveTraceReader)
+	assert.Nil(t, qSvcOpts.ArchiveTraceWriter)
+
+	require.Contains(t, logBuf.String(), "Archive storage not initialized")
+}
+
 func TestQueryOptionsPortAllocationFromFlags(t *testing.T) {
 	flagPortCases := []struct {
 		name                 string
