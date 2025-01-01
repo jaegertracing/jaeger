@@ -181,23 +181,34 @@ func (qs QueryService) receiveTraces(
 	yield func([]ptrace.Traces, error) bool,
 	rawTraces bool,
 ) (map[pcommon.TraceID]struct{}, bool) {
-	aggregatedTraces := jptrace.AggregateTraces(seq)
 	foundTraceIDs := make(map[pcommon.TraceID]struct{})
 	proceed := true
-	aggregatedTraces(func(trace ptrace.Traces, err error) bool {
+
+	processTraces := func(traces []ptrace.Traces, err error) bool {
 		if err != nil {
 			proceed = yield(nil, err)
 			return proceed
 		}
-		if !rawTraces {
-			qs.options.Adjuster.Adjust(trace)
+		for _, trace := range traces {
+			if !rawTraces {
+				qs.options.Adjuster.Adjust(trace)
+			}
+			jptrace.SpanIter(trace)(func(_ jptrace.SpanIterPos, span ptrace.Span) bool {
+				foundTraceIDs[span.TraceID()] = struct{}{}
+				return true
+			})
 		}
-		jptrace.SpanIter(trace)(func(_ jptrace.SpanIterPos, span ptrace.Span) bool {
-			foundTraceIDs[span.TraceID()] = struct{}{}
-			return true
-		})
-		proceed = yield([]ptrace.Traces{trace}, nil)
+		proceed = yield(traces, nil)
 		return proceed
-	})
+	}
+
+	if rawTraces {
+		seq(processTraces)
+	} else {
+		jptrace.AggregateTraces(seq)(func(trace ptrace.Traces, err error) bool {
+			return processTraces([]ptrace.Traces{trace}, err)
+		})
+	}
+
 	return foundTraceIDs, proceed
 }
