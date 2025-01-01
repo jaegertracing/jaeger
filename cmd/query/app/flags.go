@@ -150,7 +150,7 @@ func (qOpts *QueryOptions) BuildQueryServiceOptions(storageFactory storage.BaseF
 	return opts
 }
 
-func (qOpts *QueryOptions) BuildV2QueryServiceOptions(storageFactory storage.BaseFactory, logger *zap.Logger) *v2querysvc.QueryServiceOptions {
+func (qOpts *QueryOptions) BuildQueryServiceOptionsV2(storageFactory storage.BaseFactory, logger *zap.Logger) *v2querysvc.QueryServiceOptions {
 	opts := &v2querysvc.QueryServiceOptions{}
 	if !initializeV2ArchiveStorage(storageFactory, opts, logger) {
 		logger.Info("Archive storage not initialized")

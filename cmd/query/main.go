@@ -113,7 +113,7 @@ func main() {
 				dependencyReader,
 				*queryServiceOptions)
 
-			queryServiceOptionsV2 := queryOpts.BuildV2QueryServiceOptions(storageFactory, logger)
+			queryServiceOptionsV2 := queryOpts.BuildQueryServiceOptionsV2(storageFactory, logger)
 			queryServiceV2 := querysvcv2.NewQueryService(
 				traceReader,
 				dependencyReader,
