@@ -15,6 +15,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
 	queryApp "github.com/jaegertracing/jaeger/cmd/query/app"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
+	v2querysvc "github.com/jaegertracing/jaeger/cmd/query/app/querysvc/v2/querysvc"
 	"github.com/jaegertracing/jaeger/pkg/jtracer"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/telemetry"
@@ -22,6 +23,7 @@ import (
 	"github.com/jaegertracing/jaeger/plugin/metricstore/disabled"
 	"github.com/jaegertracing/jaeger/storage/metricstore"
 	"github.com/jaegertracing/jaeger/storage_v2/depstore"
+	"github.com/jaegertracing/jaeger/storage_v2/v1adapter"
 )
 
 var (
@@ -91,11 +93,13 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 	}
 
 	var opts querysvc.QueryServiceOptions
+	var v2opts v2querysvc.QueryServiceOptions
 	// TODO archive storage still uses v1 factory
-	if err := s.addArchiveStorage(&opts, host); err != nil {
+	if err := s.addArchiveStorage(&opts, &v2opts, host); err != nil {
 		return err
 	}
 	qs := querysvc.NewQueryService(traceReader, depReader, opts)
+	v2qs := v2querysvc.NewQueryService(traceReader, depReader, v2opts)
 
 	mqs, err := s.createMetricReader(host)
 	if err != nil {
@@ -108,6 +112,7 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 		ctx,
 		// TODO propagate healthcheck updates up to the collector's runtime
 		qs,
+		v2qs,
 		mqs,
 		&s.config.QueryOptions,
 		tm,
@@ -125,7 +130,11 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 	return nil
 }
 
-func (s *server) addArchiveStorage(opts *querysvc.QueryServiceOptions, host component.Host) error {
+func (s *server) addArchiveStorage(
+	opts *querysvc.QueryServiceOptions,
+	v2opts *v2querysvc.QueryServiceOptions,
+	host component.Host,
+) error {
 	if s.config.Storage.TracesArchive == "" {
 		s.telset.Logger.Info("Archive storage not configured")
 		return nil
@@ -139,6 +148,15 @@ func (s *server) addArchiveStorage(opts *querysvc.QueryServiceOptions, host comp
 	if !opts.InitArchiveStorage(f, s.telset.Logger) {
 		s.telset.Logger.Info("Archive storage not initialized")
 	}
+
+	ar, aw := v1adapter.InitializeArchiveStorage(f, s.telset.Logger)
+	if ar != nil && aw != nil {
+		v2opts.ArchiveTraceReader = ar
+		v2opts.ArchiveTraceWriter = aw
+	} else {
+		s.telset.Logger.Info("Archive storage not initialized")
+	}
+
 	return nil
 }
 
