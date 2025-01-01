@@ -72,41 +72,33 @@ func (w *traceWriter) WriteTraces(ctx context.Context, td ptrace.Traces) error {
 	maxChunkSize := 35 // max chunk size otel kafka export can handle safely.
 	if td.SpanCount() > maxChunkSize {
 		w.logger.Info("Chunking traces")
-		traceChunks := ChunkTraces(td, maxChunkSize)
-		for _, chunk := range traceChunks {
-			err = w.exporter.ConsumeTraces(ctx, chunk)
-			if err != nil {
-				return err
-			}
-		}
-		w.logger.Info("Finished writing chunks", zap.Int("number of chunks written", len(traceChunks)))
+		err = w.writeTraceInChunks(ctx, td, maxChunkSize)
+		w.logger.Info("Finished writing chunks")
 	} else {
 		err = w.exporter.ConsumeTraces(ctx, td)
 	}
 	return err
 }
 
-// ChunkTraces splits td into chunks of ptrace.Traces.
-// Each chunk has a span count equal to maxCHunkSize
-//
-// maxChunkSize should always be greater than or equal to 2
-func ChunkTraces(td ptrace.Traces, maxChunkSize int) []ptrace.Traces {
-	var (
-		traceChunks          []ptrace.Traces
-		currentChunk         ptrace.Traces
-		spanCount            int
-		currentResourceIndex int
-		currentScopeIndex    int
-	)
+// writeTraceChunks splits td into before writing
 
-	currentChunk = ptrace.NewTraces()
+// td span count should be greater than maxChunkSize
+func (w *traceWriter) writeTraceInChunks(ctx context.Context, td ptrace.Traces, maxChunkSize int) error {
+	var err error
+
+	currentChunk := ptrace.NewTraces()
+	currentResourceIndex := -1
+	currentScopeIndex := -1
+	spanCount := 0
 
 	jptrace.SpanIter(td)(func(pos jptrace.SpanIterPos, span ptrace.Span) bool {
-		var scope ptrace.ScopeSpans
-		var resource ptrace.ResourceSpans
-		// Create a new chunk if the current span count reaches maxChunkSize
+		var (
+			scope    ptrace.ScopeSpans
+			resource ptrace.ResourceSpans
+		)
+		// Create a new chunk if the current span count reaches MaxChunkSize
 		if spanCount == maxChunkSize {
-			traceChunks = append(traceChunks, currentChunk)
+			err = w.exporter.ConsumeTraces(ctx, currentChunk)
 			currentChunk = ptrace.NewTraces()
 			spanCount = 0
 		}
@@ -115,6 +107,7 @@ func ChunkTraces(td ptrace.Traces, maxChunkSize int) []ptrace.Traces {
 			resource = currentChunk.ResourceSpans().AppendEmpty()
 			td.ResourceSpans().At(pos.ResourceIndex).Resource().Attributes().CopyTo(resource.Resource().Attributes())
 			currentResourceIndex = pos.ResourceIndex
+			currentScopeIndex = -1
 		} else {
 			resource = currentChunk.ResourceSpans().At(currentChunk.ResourceSpans().Len() - 1)
 		}
@@ -135,8 +128,7 @@ func ChunkTraces(td ptrace.Traces, maxChunkSize int) []ptrace.Traces {
 
 	// append the last chunk if it has any spans
 	if spanCount > 0 {
-		traceChunks = append(traceChunks, currentChunk)
+		err = w.exporter.ConsumeTraces(ctx, currentChunk)
 	}
-
-	return traceChunks
+	return err
 }
