@@ -172,7 +172,8 @@ func (s *server) addV2ArchiveStorage(opts *v2querysvc.QueryServiceOptions, host 
 
 func (s *server) initializeV2ArchiveStorage(
 	storageFactory storage.Factory,
-	opts *v2querysvc.QueryServiceOptions) bool {
+	opts *v2querysvc.QueryServiceOptions,
+) bool {
 	archiveFactory, ok := storageFactory.(storage.ArchiveFactory)
 	if !ok {
 		s.telset.Logger.Info("Archive storage not supported by the factory")

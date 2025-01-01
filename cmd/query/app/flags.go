@@ -164,7 +164,8 @@ func (qOpts *QueryOptions) BuildV2QueryServiceOptions(storageFactory storage.Bas
 func initializeV2ArchiveStorage(
 	storageFactory storage.BaseFactory,
 	opts *v2querysvc.QueryServiceOptions,
-	logger *zap.Logger) bool {
+	logger *zap.Logger,
+) bool {
 	archiveFactory, ok := storageFactory.(storage.ArchiveFactory)
 	if !ok {
 		logger.Info("Archive storage not supported by the factory")
