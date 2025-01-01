@@ -15,6 +15,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc/v2/querysvc"
 	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
 	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger/pkg/iter"
 	"github.com/jaegertracing/jaeger/storage_v2/tracestore"
 )
 
@@ -44,23 +45,8 @@ func (h *Handler) GetTrace(request *api_v3.GetTraceRequest, stream api_v3.QueryS
 		RawTraces: request.GetRawTraces(),
 	}
 	getTracesIter := h.QueryService.GetTraces(stream.Context(), query)
-	var getTraceErr error
-	getTracesIter(func(traces []ptrace.Traces, err error) bool {
-		if err != nil {
-			getTraceErr = err
-			return false
-		}
-		for _, trace := range traces {
-			tracesData := api_v3.TracesData(trace)
-			if err := stream.Send(&tracesData); err != nil {
-				getTraceErr = status.Error(codes.Internal,
-					fmt.Sprintf("failed to send response stream chunk to client: %v", err))
-				return false
-			}
-		}
-		return false // only one trace
-	})
-	return getTraceErr
+	err = h.recieveTraces(getTracesIter, stream.Send)
+	return err
 }
 
 // FindTraces implements api_v3.QueryServiceServer's FindTraces
@@ -106,23 +92,8 @@ func (h *Handler) internalFindTraces(
 	}
 
 	findTracesIter := h.QueryService.FindTraces(ctx, queryParams)
-	var findTracesErr error
-	findTracesIter(func(traces []ptrace.Traces, err error) bool {
-		if err != nil {
-			findTracesErr = err
-			return false
-		}
-		for _, trace := range traces {
-			tracesData := api_v3.TracesData(trace)
-			if err := streamSend(&tracesData); err != nil {
-				findTracesErr = status.Error(codes.Internal,
-					fmt.Sprintf("failed to send response stream chunk to client: %v", err))
-				return false
-			}
-		}
-		return true
-	})
-	return findTracesErr
+	err := h.recieveTraces(findTracesIter, streamSend)
+	return err
 }
 
 // GetServices implements api_v3.QueryServiceServer's GetServices
@@ -155,4 +126,26 @@ func (h *Handler) GetOperations(ctx context.Context, request *api_v3.GetOperatio
 	return &api_v3.GetOperationsResponse{
 		Operations: apiOperations,
 	}, nil
+}
+
+func (h *Handler) recieveTraces(
+	seq iter.Seq2[[]ptrace.Traces, error],
+	sendFn func(*api_v3.TracesData) error) error {
+	var capturedErr error
+	seq(func(traces []ptrace.Traces, err error) bool {
+		if err != nil {
+			capturedErr = err
+			return false
+		}
+		for _, trace := range traces {
+			tracesData := api_v3.TracesData(trace)
+			if err := sendFn(&tracesData); err != nil {
+				capturedErr = status.Error(codes.Internal,
+					fmt.Sprintf("failed to send response stream chunk to client: %v", err))
+				return false
+			}
+		}
+		return true
+	})
+	return capturedErr
 }
