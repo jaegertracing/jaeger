@@ -33,7 +33,7 @@ type Options struct {
 func AddFlags(flagSet *flag.FlagSet) {
 	flagSet.Duration(samplingStrategiesReloadInterval, 0, "Reload interval to check and reload sampling strategies file. Zero value means no reloading")
 	flagSet.String(samplingStrategiesFile, "", "The path for the sampling strategies file in JSON format. See sampling documentation to see format of the file")
-	flagSet.Bool(samplingStrategiesBugfix5270, false, "Include default operation level strategies for Ratesampling type service level strategy. Cf. https://github.com/jaegertracing/jaeger/issues/5270")
+	flagSet.Bool(samplingStrategiesBugfix5270, true, "Include default operation level strategies for Ratesampling type service level strategy. Cf. https://github.com/jaegertracing/jaeger/issues/5270")
 }
 
 // InitFromViper initializes Options with properties from viper
