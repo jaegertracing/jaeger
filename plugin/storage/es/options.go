@@ -323,14 +323,14 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 	nsConfig.addRolloverFlags(flagSet)
 }
 
-func (nsConfig *namespaceConfig) getRolloverFlagsConfig() esrollovercfg.EsRolloverFlagConfig {
+func (cfg *namespaceConfig) getRolloverFlagsConfig() esrollovercfg.EsRolloverFlagConfig {
 	return esrollovercfg.EsRolloverFlagConfig{
-		Prefix: nsConfig.namespace + prefixEsRollover,
+		Prefix: cfg.namespace + prefixEsRollover,
 	}
 }
 
-func (n *namespaceConfig) addRolloverFlags(flagSet *flag.FlagSet) {
-	es := n.getRolloverFlagsConfig()
+func (cfg *namespaceConfig) addRolloverFlags(flagSet *flag.FlagSet) {
+	es := cfg.getRolloverFlagsConfig()
 	es.AddFlagsForRollBackOptions(flagSet)
 	es.AddFlagsForRolloverOptions(flagSet)
 	es.AddFlagsForLookBackOptions(flagSet)
@@ -422,12 +422,12 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	cfg.Rollover = cfg.initRollOverFromViper(v)
 }
 
-func (n *namespaceConfig) initRollOverFromViper(v *viper.Viper) config.Rollover {
-	es := n.getRolloverFlagsConfig()
+func (cfg *namespaceConfig) initRollOverFromViper(v *viper.Viper) config.Rollover {
+	es := cfg.getRolloverFlagsConfig()
 	return config.Rollover{
-		Enabled:         v.GetBool(n.namespace + suffixEsRolloverEnabled),
-		LookBackEnabled: v.GetBool(n.namespace + suffixEsRolloverLookBackEnabled),
-		Frequency:       v.GetDuration(n.namespace + suffixEsRolloverFrequency),
+		Enabled:         v.GetBool(cfg.namespace + suffixEsRolloverEnabled),
+		LookBackEnabled: v.GetBool(cfg.namespace + suffixEsRolloverLookBackEnabled),
+		Frequency:       v.GetDuration(cfg.namespace + suffixEsRolloverFrequency),
 		RolloverOptions: es.InitRolloverOptionsFromViper(v),
 		LookBackOptions: es.InitLookBackFromViper(v),
 		RollBackOptions: es.InitRollBackFromViper(v),

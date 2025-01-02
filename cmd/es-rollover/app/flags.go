@@ -13,8 +13,10 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 )
 
-var tlsFlagsCfg = tlscfg.ClientFlagsConfig{Prefix: "es"}
-var esrolloverCfg = esrollovercfg.EsRolloverFlagConfig{}
+var (
+	tlsFlagsCfg   = tlscfg.ClientFlagsConfig{Prefix: "es"}
+	esrolloverCfg = esrollovercfg.EsRolloverFlagConfig{}
+)
 
 const (
 	indexPrefix = "index-prefix"

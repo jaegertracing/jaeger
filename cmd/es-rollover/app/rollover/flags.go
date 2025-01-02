@@ -27,5 +27,5 @@ func (*Config) AddFlags(flags *flag.FlagSet) {
 
 // InitFromViper initializes config from viper.Viper.
 func (c *Config) InitFromViper(v *viper.Viper) {
-	esrolloverCfg.InitRollBackFromViper(v)
+	c.RollBackOptions = esrolloverCfg.InitRollBackFromViper(v)
 }
