@@ -73,7 +73,7 @@ func (tr *TraceReader) GetServices(ctx context.Context) ([]string, error) {
 
 func (tr *TraceReader) GetOperations(
 	ctx context.Context,
-	query tracestore.OperationQueryParameters,
+	query tracestore.OperationQueryParams,
 ) ([]tracestore.Operation, error) {
 	o, err := tr.spanReader.GetOperations(ctx, spanstore.OperationQueryParameters{
 		ServiceName: query.ServiceName,

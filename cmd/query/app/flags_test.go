@@ -116,6 +116,50 @@ func TestBuildQueryServiceOptions(t *testing.T) {
 	assert.NotNil(t, qSvcOpts.ArchiveSpanWriter)
 }
 
+func TestBuildQueryServiceOptionsV2(t *testing.T) {
+	v, _ := config.Viperize(AddFlags)
+	qOpts, err := new(QueryOptions).InitFromViper(v, zap.NewNop())
+	require.NoError(t, err)
+	assert.NotNil(t, qOpts)
+
+	qSvcOpts := qOpts.BuildQueryServiceOptionsV2(&mocks.Factory{}, zap.NewNop())
+	assert.NotNil(t, qSvcOpts)
+	assert.NotNil(t, qSvcOpts.Adjuster)
+	assert.Nil(t, qSvcOpts.ArchiveTraceReader)
+	assert.Nil(t, qSvcOpts.ArchiveTraceWriter)
+
+	comboFactory := struct {
+		*mocks.Factory
+		*mocks.ArchiveFactory
+	}{
+		&mocks.Factory{},
+		&mocks.ArchiveFactory{},
+	}
+
+	comboFactory.ArchiveFactory.On("CreateArchiveSpanReader").Return(&spanstore_mocks.Reader{}, nil)
+	comboFactory.ArchiveFactory.On("CreateArchiveSpanWriter").Return(&spanstore_mocks.Writer{}, nil)
+
+	qSvcOpts = qOpts.BuildQueryServiceOptionsV2(comboFactory, zap.NewNop())
+	assert.NotNil(t, qSvcOpts)
+	assert.NotNil(t, qSvcOpts.Adjuster)
+	assert.NotNil(t, qSvcOpts.ArchiveTraceReader)
+	assert.NotNil(t, qSvcOpts.ArchiveTraceWriter)
+}
+
+func TestBuildQueryServiceOptionsV2_NoArchiveStorage(t *testing.T) {
+	v, _ := config.Viperize(AddFlags)
+	qOpts, err := new(QueryOptions).InitFromViper(v, zap.NewNop())
+	require.NoError(t, err)
+	assert.NotNil(t, qOpts)
+
+	logger, logBuf := testutils.NewLogger()
+	qSvcOpts := qOpts.BuildQueryServiceOptionsV2(&mocks.Factory{}, logger)
+	assert.Nil(t, qSvcOpts.ArchiveTraceReader)
+	assert.Nil(t, qSvcOpts.ArchiveTraceWriter)
+
+	require.Contains(t, logBuf.String(), "Archive storage not initialized")
+}
+
 func TestQueryOptionsPortAllocationFromFlags(t *testing.T) {
 	flagPortCases := []struct {
 		name                 string

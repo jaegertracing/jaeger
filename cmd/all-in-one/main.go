@@ -28,6 +28,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/internal/status"
 	queryApp "github.com/jaegertracing/jaeger/cmd/query/app"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
+	v2querysvc "github.com/jaegertracing/jaeger/cmd/query/app/querysvc/v2/querysvc"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/jtracer"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
@@ -171,6 +172,7 @@ by default uses only in-memory database.`,
 			queryTelset.Metrics = queryMetricsFactory
 			querySrv := startQuery(
 				svc, qOpts, qOpts.BuildQueryServiceOptions(storageFactory, logger),
+				qOpts.BuildQueryServiceOptionsV2(storageFactory, logger),
 				traceReader, dependencyReader, metricsQueryService,
 				tm, queryTelset,
 			)
@@ -218,6 +220,7 @@ func startQuery(
 	svc *flags.Service,
 	qOpts *queryApp.QueryOptions,
 	queryOpts *querysvc.QueryServiceOptions,
+	v2QueryOpts *v2querysvc.QueryServiceOptions,
 	traceReader tracestore.Reader,
 	depReader depstore.Reader,
 	metricsQueryService querysvc.MetricsQueryService,
@@ -225,8 +228,9 @@ func startQuery(
 	telset telemetry.Settings,
 ) *queryApp.Server {
 	qs := querysvc.NewQueryService(traceReader, depReader, *queryOpts)
+	v2qs := v2querysvc.NewQueryService(traceReader, depReader, *v2QueryOpts)
 
-	server, err := queryApp.NewServer(context.Background(), qs, metricsQueryService, qOpts, tm, telset)
+	server, err := queryApp.NewServer(context.Background(), qs, v2qs, metricsQueryService, qOpts, tm, telset)
 	if err != nil {
 		svc.Logger.Fatal("Could not create jaeger-query", zap.Error(err))
 	}

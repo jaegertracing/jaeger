@@ -37,8 +37,9 @@ func (s *GRPCStorageIntegrationTestSuite) initialize(t *testing.T) {
 	require.NoError(t, f.Initialize(metrics.NullFactory, logger))
 	s.factory = f
 
-	s.SpanWriter, err = f.CreateSpanWriter()
+	spanWriter, err := f.CreateSpanWriter()
 	require.NoError(t, err)
+	s.TraceWriter = v1adapter.NewTraceWriter(spanWriter)
 	spanReader, err := f.CreateSpanReader()
 	require.NoError(t, err)
 	s.TraceReader = v1adapter.NewTraceReader(spanReader)

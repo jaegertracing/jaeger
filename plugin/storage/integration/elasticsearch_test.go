@@ -133,8 +133,9 @@ func (s *ESStorageIntegration) initSpanstore(t *testing.T, allTagsAsFields bool)
 	f := s.initializeESFactory(t, allTagsAsFields)
 	s.factory = f
 	var err error
-	s.SpanWriter, err = f.CreateSpanWriter()
+	spanWriter, err := f.CreateSpanWriter()
 	require.NoError(t, err)
+	s.TraceWriter = v1adapter.NewTraceWriter(spanWriter)
 	spanReader, err := f.CreateSpanReader()
 	require.NoError(t, err)
 	s.TraceReader = v1adapter.NewTraceReader(spanReader)

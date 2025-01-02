@@ -21,6 +21,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/internal/flags"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
+	v2querysvc "github.com/jaegertracing/jaeger/cmd/query/app/querysvc/v2/querysvc"
 	"github.com/jaegertracing/jaeger/pkg/bearertoken"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/telemetry"
@@ -89,7 +90,8 @@ func runQueryService(t *testing.T, esURL string) *Server {
 	traceReader := v1adapter.NewTraceReader(spanReader)
 
 	querySvc := querysvc.NewQueryService(traceReader, nil, querysvc.QueryServiceOptions{})
-	server, err := NewServer(context.Background(), querySvc, nil,
+	v2QuerySvc := v2querysvc.NewQueryService(traceReader, nil, v2querysvc.QueryServiceOptions{})
+	server, err := NewServer(context.Background(), querySvc, v2QuerySvc, nil,
 		&QueryOptions{
 			BearerTokenPropagation: true,
 			HTTP: confighttp.ServerConfig{

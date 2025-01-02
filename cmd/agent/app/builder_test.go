@@ -26,7 +26,6 @@ import (
 	"github.com/jaegertracing/jaeger/internal/metricstest"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
-	"github.com/jaegertracing/jaeger/thrift-gen/baggage"
 	"github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 )
@@ -192,10 +191,6 @@ func (fakeCollectorProxy) Close() error {
 
 func (fakeCollectorProxy) GetSamplingStrategy(_ context.Context, _ string) (*api_v2.SamplingStrategyResponse, error) {
 	return nil, errors.New("no peers available")
-}
-
-func (fakeCollectorProxy) GetBaggageRestrictions(_ context.Context, _ string) ([]*baggage.BaggageRestriction, error) {
-	return nil, nil
 }
 
 func TestCreateCollectorProxy(t *testing.T) {

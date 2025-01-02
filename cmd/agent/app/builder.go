@@ -81,7 +81,7 @@ type ServerConfiguration struct {
 	HostPort         string `yaml:"hostPort" validate:"nonzero"`
 }
 
-// HTTPServerConfiguration holds config for a server providing sampling strategies and baggage restrictions to clients
+// HTTPServerConfiguration holds config for a server providing sampling strategies to clients
 type HTTPServerConfiguration struct {
 	HostPort string `yaml:"hostPort" validate:"nonzero"`
 }
@@ -153,7 +153,7 @@ func (b *Builder) getProcessors(rep reporter.Reporter, mFactory metrics.Factory,
 	return retMe, nil
 }
 
-// GetHTTPServer creates an HTTP server that provides sampling strategies and baggage restrictions to client libraries.
+// GetHTTPServer creates an HTTP server that provides sampling strategies to client libraries.
 func (c HTTPServerConfiguration) getHTTPServer(manager configmanager.ClientConfigManager, mFactory metrics.Factory, logger *zap.Logger) *http.Server {
 	hostPort := c.HostPort
 	if hostPort == "" {

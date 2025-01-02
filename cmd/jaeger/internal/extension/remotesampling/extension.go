@@ -165,8 +165,9 @@ func (ext *rsExtension) Shutdown(ctx context.Context) error {
 
 func (ext *rsExtension) startFileBasedStrategyProvider(_ context.Context) error {
 	opts := static.Options{
-		StrategiesFile: ext.cfg.File.Path,
-		ReloadInterval: ext.cfg.File.ReloadInterval,
+		StrategiesFile:             ext.cfg.File.Path,
+		ReloadInterval:             ext.cfg.File.ReloadInterval,
+		IncludeDefaultOpStrategies: includeDefaultOpStrategies.IsEnabled(),
 	}
 
 	// contextcheck linter complains about next line that context is not passed.

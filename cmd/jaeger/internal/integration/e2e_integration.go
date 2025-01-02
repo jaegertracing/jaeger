@@ -92,14 +92,15 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
 	}
 	cmd.Start(t)
 
-	s.SpanWriter, err = createSpanWriter(logger, otlpPort)
+	s.TraceWriter, err = createTraceWriter(logger, otlpPort)
 	require.NoError(t, err)
+
 	s.TraceReader, err = createTraceReader(logger, ports.QueryGRPC)
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
 		require.NoError(t, s.TraceReader.(io.Closer).Close())
-		require.NoError(t, s.SpanWriter.(io.Closer).Close())
+		require.NoError(t, s.TraceWriter.(io.Closer).Close())
 	})
 }
 

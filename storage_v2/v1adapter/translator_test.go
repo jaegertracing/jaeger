@@ -253,3 +253,33 @@ func TestV1TracesFromSeq2(t *testing.T) {
 		})
 	}
 }
+
+func TestV1TraceToOtelTrace_ReturnsExptectedOtelTrace(t *testing.T) {
+	jTrace := &model.Trace{
+		Spans: []*model.Span{
+			{
+				TraceID:       model.NewTraceID(2, 3),
+				SpanID:        model.NewSpanID(1),
+				Process:       model.NewProcess("Service1", nil),
+				OperationName: "two-resources-1",
+			}, {
+				TraceID:       model.NewTraceID(2, 3),
+				SpanID:        model.NewSpanID(2),
+				Process:       model.NewProcess("service2", nil),
+				OperationName: "two-resources-2",
+			},
+		},
+	}
+	actualTrace := V1TraceToOtelTrace(jTrace)
+
+	require.NotEmpty(t, actualTrace)
+	require.Equal(t, 2, actualTrace.ResourceSpans().Len())
+}
+
+func TestV1TraceToOtelTrace_ReturnEmptyOtelTrace(t *testing.T) {
+	jTrace := &model.Trace{}
+	eTrace := ptrace.NewTraces()
+	aTrace := V1TraceToOtelTrace(jTrace)
+
+	require.Equal(t, eTrace.SpanCount(), aTrace.SpanCount(), 0)
+}

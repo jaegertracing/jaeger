@@ -36,7 +36,7 @@ type Reader interface {
 
 	// GetOperations returns all operation names for a given service
 	// known to the backend from spans within its retention period.
-	GetOperations(ctx context.Context, query OperationQueryParameters) ([]Operation, error)
+	GetOperations(ctx context.Context, query OperationQueryParams) ([]Operation, error)
 
 	// FindTraces returns an iterator that retrieves traces matching query parameters.
 	// The iterator is single-use: once consumed, it cannot be used again.
@@ -101,8 +101,8 @@ func (t *TraceQueryParams) ToSpanStoreQueryParameters() *spanstore.TraceQueryPar
 	}
 }
 
-// OperationQueryParameters contains parameters of query operations, empty spanKind means get operations for all kinds of span.
-type OperationQueryParameters struct {
+// OperationQueryParams contains parameters of query operations, empty spanKind means get operations for all kinds of span.
+type OperationQueryParams struct {
 	ServiceName string
 	SpanKind    string
 }

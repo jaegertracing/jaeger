@@ -90,7 +90,7 @@ func (r *traceReader) GetServices(ctx context.Context) ([]string, error) {
 	return res.Services, nil
 }
 
-func (r *traceReader) GetOperations(ctx context.Context, query tracestore.OperationQueryParameters) ([]tracestore.Operation, error) {
+func (r *traceReader) GetOperations(ctx context.Context, query tracestore.OperationQueryParams) ([]tracestore.Operation, error) {
 	var operations []tracestore.Operation
 	res, err := r.client.GetOperations(ctx, &api_v3.GetOperationsRequest{
 		Service:  query.ServiceName,

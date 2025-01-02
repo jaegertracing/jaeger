@@ -240,7 +240,7 @@ func TestTraceReader_GetOperationsDelegatesResponse(t *testing.T) {
 			}
 			operations, err := traceReader.GetOperations(
 				context.Background(),
-				tracestore.OperationQueryParameters{
+				tracestore.OperationQueryParams{
 					ServiceName: "service-a",
 					SpanKind:    "server",
 				})

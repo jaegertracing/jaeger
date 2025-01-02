@@ -66,7 +66,7 @@ func (_m *Reader) FindTraces(ctx context.Context, query tracestore.TraceQueryPar
 }
 
 // GetOperations provides a mock function with given fields: ctx, query
-func (_m *Reader) GetOperations(ctx context.Context, query tracestore.OperationQueryParameters) ([]tracestore.Operation, error) {
+func (_m *Reader) GetOperations(ctx context.Context, query tracestore.OperationQueryParams) ([]tracestore.Operation, error) {
 	ret := _m.Called(ctx, query)
 
 	if len(ret) == 0 {
@@ -75,10 +75,10 @@ func (_m *Reader) GetOperations(ctx context.Context, query tracestore.OperationQ
 
 	var r0 []tracestore.Operation
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, tracestore.OperationQueryParameters) ([]tracestore.Operation, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, tracestore.OperationQueryParams) ([]tracestore.Operation, error)); ok {
 		return rf(ctx, query)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, tracestore.OperationQueryParameters) []tracestore.Operation); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, tracestore.OperationQueryParams) []tracestore.Operation); ok {
 		r0 = rf(ctx, query)
 	} else {
 		if ret.Get(0) != nil {
@@ -86,7 +86,7 @@ func (_m *Reader) GetOperations(ctx context.Context, query tracestore.OperationQ
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, tracestore.OperationQueryParameters) error); ok {
+	if rf, ok := ret.Get(1).(func(context.Context, tracestore.OperationQueryParams) error); ok {
 		r1 = rf(ctx, query)
 	} else {
 		r1 = ret.Error(1)

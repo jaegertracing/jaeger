@@ -28,6 +28,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/query/app/apiv3"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
+	querysvcv2 "github.com/jaegertracing/jaeger/cmd/query/app/querysvc/v2/querysvc"
 	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
 	"github.com/jaegertracing/jaeger/pkg/bearertoken"
 	"github.com/jaegertracing/jaeger/pkg/netutils"
@@ -58,6 +59,7 @@ type Server struct {
 func NewServer(
 	ctx context.Context,
 	querySvc *querysvc.QueryService,
+	v2QuerySvc *querysvcv2.QueryService,
 	metricsQuerySvc querysvc.MetricsQueryService,
 	options *QueryOptions,
 	tm *tenancy.Manager,
@@ -81,7 +83,7 @@ func NewServer(
 	if err != nil {
 		return nil, err
 	}
-	registerGRPCHandlers(grpcServer, querySvc, metricsQuerySvc, telset)
+	registerGRPCHandlers(grpcServer, querySvc, v2QuerySvc, metricsQuerySvc, telset)
 	httpServer, err := createHTTPServer(ctx, querySvc, metricsQuerySvc, options, tm, telset)
 	if err != nil {
 		return nil, err
@@ -100,6 +102,7 @@ func NewServer(
 func registerGRPCHandlers(
 	server *grpc.Server,
 	querySvc *querysvc.QueryService,
+	v2QuerySvc *querysvcv2.QueryService,
 	metricsQuerySvc querysvc.MetricsQueryService,
 	telset telemetry.Settings,
 ) {
@@ -111,7 +114,7 @@ func registerGRPCHandlers(
 
 	api_v2.RegisterQueryServiceServer(server, handler)
 	metrics.RegisterMetricsQueryServiceServer(server, handler)
-	api_v3.RegisterQueryServiceServer(server, &apiv3.Handler{QueryService: querySvc})
+	api_v3.RegisterQueryServiceServer(server, &apiv3.Handler{QueryService: v2QuerySvc})
 
 	healthServer.SetServingStatus("jaeger.api_v2.QueryService", grpc_health_v1.HealthCheckResponse_SERVING)
 	healthServer.SetServingStatus("jaeger.api_v2.metrics.MetricsQueryService", grpc_health_v1.HealthCheckResponse_SERVING)

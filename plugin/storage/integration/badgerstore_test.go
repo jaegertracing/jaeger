@@ -33,8 +33,9 @@ func (s *BadgerIntegrationStorage) initialize(t *testing.T) {
 		s.factory.Close()
 	})
 
-	s.SpanWriter, err = s.factory.CreateSpanWriter()
+	spanWriter, err := s.factory.CreateSpanWriter()
 	require.NoError(t, err)
+	s.TraceWriter = v1adapter.NewTraceWriter(spanWriter)
 
 	spanReader, err := s.factory.CreateSpanReader()
 	require.NoError(t, err)

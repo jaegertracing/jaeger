@@ -41,13 +41,6 @@ func TestSamplingManager_GetSamplingStrategy_error(t *testing.T) {
 	assert.ErrorContains(t, err, "failed to get sampling strategy")
 }
 
-func TestSamplingManager_GetBaggageRestrictions(t *testing.T) {
-	manager := NewConfigManager(nil)
-	rest, err := manager.GetBaggageRestrictions(context.Background(), "foo")
-	require.Nil(t, rest)
-	require.EqualError(t, err, "baggage not implemented")
-}
-
 type mockSamplingHandler struct{}
 
 func (*mockSamplingHandler) GetSamplingStrategy(context.Context, *api_v2.SamplingStrategyParameters) (*api_v2.SamplingStrategyResponse, error) {

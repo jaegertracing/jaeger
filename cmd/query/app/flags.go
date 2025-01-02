@@ -23,12 +23,15 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
+	v2adjuster "github.com/jaegertracing/jaeger/cmd/query/app/querysvc/v2/adjuster"
+	v2querysvc "github.com/jaegertracing/jaeger/cmd/query/app/querysvc/v2/querysvc"
 	"github.com/jaegertracing/jaeger/model/adjuster"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/ports"
 	"github.com/jaegertracing/jaeger/storage"
+	"github.com/jaegertracing/jaeger/storage_v2/v1adapter"
 )
 
 const (
@@ -143,6 +146,22 @@ func (qOpts *QueryOptions) BuildQueryServiceOptions(storageFactory storage.BaseF
 	}
 
 	opts.Adjuster = adjuster.Sequence(querysvc.StandardAdjusters(qOpts.MaxClockSkewAdjust)...)
+
+	return opts
+}
+
+func (qOpts *QueryOptions) BuildQueryServiceOptionsV2(storageFactory storage.BaseFactory, logger *zap.Logger) *v2querysvc.QueryServiceOptions {
+	opts := &v2querysvc.QueryServiceOptions{}
+
+	ar, aw := v1adapter.InitializeArchiveStorage(storageFactory, logger)
+	if ar != nil && aw != nil {
+		opts.ArchiveTraceReader = ar
+		opts.ArchiveTraceWriter = aw
+	} else {
+		logger.Info("Archive storage not initialized")
+	}
+
+	opts.Adjuster = v2adjuster.Sequence(v2adjuster.StandardAdjusters(qOpts.MaxClockSkewAdjust)...)
 
 	return opts
 }
