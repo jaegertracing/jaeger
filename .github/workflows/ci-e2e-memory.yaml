@@ -35,7 +35,6 @@ jobs:
       with:
         snapshot: ./.metrics/memory_metrics.txt
         artifact_key: memory-metrics.txt
-        cache_key: ${{ github.ref_name }}_memory_metrics
           
     - name: Upload coverage to codecov
       uses: ./.github/actions/upload-codecov

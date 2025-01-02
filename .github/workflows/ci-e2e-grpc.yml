@@ -46,7 +46,6 @@ jobs:
       with:
         snapshot: ./.metrics/grpc_metrics.txt
         artifact_key: grpc-metrics-${{ matrix.version }}.txt
-        cache_key: ${{ github.ref_name }}_grpc_metrics
 
     - name: Upload coverage to codecov
       uses: ./.github/actions/upload-codecov

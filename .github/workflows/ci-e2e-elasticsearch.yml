@@ -65,7 +65,6 @@ jobs:
       with:
         snapshot: ./.metrics/elasticsearch_metrics.txt
         artifact_key: elasticsearch-metrics-${{ matrix.version.major }}_${{ matrix.version.jaeger}}.txt
-        cache_key: ${{ github.ref_name }}_elasticsearch_${{ matrix.version.major }}
       
     - name: Upload coverage to codecov
       uses: ./.github/actions/upload-codecov

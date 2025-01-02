@@ -47,7 +47,6 @@ jobs:
       with:
         snapshot: ./.metrics/badger_metrics.txt
         artifact_key: badger-metrics-${{ matrix.version }}.txt
-        cache_key: ${{ github.ref_name }}_badger_metrics
   
     - name: Upload coverage to codecov
       uses: ./.github/actions/upload-codecov

@@ -58,7 +58,6 @@ jobs:
       with:
         snapshot: ./.metrics/opensearch_metrics.txt
         artifact_key: opensearch-metrics-${{ matrix.version.major }}.txt
-        cache_key: ${{ github.ref }}_kafka_metrics_${{ matrix.version.major }}
 
     - name: Upload coverage to codecov
       uses: ./.github/actions/upload-codecov

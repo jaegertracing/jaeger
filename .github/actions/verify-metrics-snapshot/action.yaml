@@ -28,4 +28,16 @@ runs:
       uses: actions/cache@v4
       with:
         path: ${{ inputs.snapshot }}
-        key: ${{ inputs.cache_key }}
+        key: ${{ github.ref_name }}_${{ inputs.artifact_key }}
+
+    - name: Get v2 tag 
+      run: |
+        v2_tag=$(make echo-v2 | perl -lne 'print $1 if /^v(\d+.\d+.\d+(-rc\d+)?)$/')
+        echo "v2_tag=$v2_tag" >> $GITHUB_ENV
+        echo "$v2_tag"
+    
+    - name: Download the cached tagged metrics
+      uses: actions/cache@v4
+      with:
+        path: cached_${{ inputs.snapshot}}
+        key: ${{ env.v2_tag }}_${{ inputs.artifact_key }}

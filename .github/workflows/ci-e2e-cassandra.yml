@@ -55,20 +55,6 @@ jobs:
       with:
         snapshot: ./.metrics/cassandra_metrics.txt
         artifact_key: cassandra_metrics_${{ matrix.version.major }}_${{ matrix.version.schema }}_${{ matrix.jaeger-version }}_${{ matrix.create-schema }}.txt
-        cache_key: ${{ github.ref_name }}_cassandra_metrics_${{ matrix.version.major }}_${{ matrix.version.schema }}
-
-    - name: Restore and test cache download 
-      if: ${{ matrix.jaeger-version }} == "v2"
-      id: get-v2-tag
-      run: |
-        v2_tag=$(make echo-v2)
-        echo "v2_tag=$v2_tag" >> $GITHUB_ENV
-        echo "v2_tag: $v2_tag"
-
-    - uses: actions/cache@v4
-      with:
-        path: ./.metrics/cassandra_metrics.txt
-        key: ${{ env.v2_tag }}_cassandra_metrics_${{ matrix.version.major }}_${{ matrix.version.schema }}
 
     - name: Upload coverage to codecov
       uses: ./.github/actions/upload-codecov

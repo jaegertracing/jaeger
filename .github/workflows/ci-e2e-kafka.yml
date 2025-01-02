@@ -42,7 +42,6 @@ jobs:
       with:
         snapshot: ./.metrics/kafka_metrics.txt
         artifact_key: kafka-metrics-${{ matrix.jaeger-version }}.txt
-        cache_key: ${{ github.ref_name }}_kafka_metrics
 
     - name: Upload coverage to codecov
       uses: ./.github/actions/upload-codecov
