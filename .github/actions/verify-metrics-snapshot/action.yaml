@@ -31,10 +31,12 @@ runs:
         key: ${{ github.ref_name }}_${{ inputs.artifact_key }}
 
     - name: Get v2 tag 
+      shell: bash
       run: |
         v2_tag=$(make echo-v2 | perl -lne 'print $1 if /^v(\d+.\d+.\d+(-rc\d+)?)$/')
         echo "v2_tag=$v2_tag" >> $GITHUB_ENV
         echo "$v2_tag"
+      
     
     - name: Download the cached tagged metrics
       uses: actions/cache@v4
