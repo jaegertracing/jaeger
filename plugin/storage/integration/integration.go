@@ -43,7 +43,7 @@ var fixtures embed.FS
 // Some implementations may declare multiple tests, with different settings,
 // and RunAll() under different conditions.
 type StorageIntegration struct {
-	SpanWriter        spanstore.Writer
+	TraceWriter       tracestore.Writer
 	TraceReader       tracestore.Reader
 	ArchiveSpanReader spanstore.Reader
 	ArchiveSpanWriter spanstore.Writer
@@ -270,7 +270,7 @@ func (s *StorageIntegration) testGetOperations(t *testing.T) {
 	found := s.waitForCondition(t, func(t *testing.T) bool {
 		var err error
 		actual, err = s.TraceReader.GetOperations(context.Background(),
-			tracestore.OperationQueryParameters{ServiceName: "example-service-1"})
+			tracestore.OperationQueryParams{ServiceName: "example-service-1"})
 		if err != nil {
 			t.Log(err)
 			return false
@@ -383,10 +383,10 @@ func (s *StorageIntegration) writeTrace(t *testing.T, trace *model.Trace) {
 	t.Logf("%-23s Writing trace with %d spans", time.Now().Format("2006-01-02 15:04:05.999"), len(trace.Spans))
 	ctx, cx := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cx()
-	for _, span := range trace.Spans {
-		err := s.SpanWriter.WriteSpan(ctx, span)
-		require.NoError(t, err, "Not expecting error when writing trace to storage")
-	}
+	otelTraces := v1adapter.V1TraceToOtelTrace(trace)
+	err := s.TraceWriter.WriteTraces(ctx, otelTraces)
+	require.NoError(t, err, "Not expecting error when writing trace to storage")
+
 	t.Logf("%-23s Finished writing trace with %d spans", time.Now().Format("2006-01-02 15:04:05.999"), len(trace.Spans))
 }
 

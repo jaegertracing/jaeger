@@ -5,12 +5,14 @@ package remotesampling
 
 import (
 	"errors"
+	"time"
 
 	"github.com/asaskevich/govalidator"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/confmap"
+	"go.opentelemetry.io/collector/featuregate"
 
 	"github.com/jaegertracing/jaeger/plugin/sampling/strategyprovider/adaptive"
 )
@@ -18,12 +20,22 @@ import (
 var (
 	errNoProvider        = errors.New("no sampling strategy provider specified, expecting 'adaptive' or 'file'")
 	errMultipleProviders = errors.New("only one sampling strategy provider can be specified, 'adaptive' or 'file'")
+	errNegativeInterval  = errors.New("reload interval must be a positive value, or zero to disable automatic reloading")
 )
 
 var (
 	_ component.Config          = (*Config)(nil)
 	_ component.ConfigValidator = (*Config)(nil)
 	_ confmap.Unmarshaler       = (*Config)(nil)
+
+	includeDefaultOpStrategies = featuregate.GlobalRegistry().MustRegister(
+		"jaeger.sampling.includeDefaultOpStrategies",
+		featuregate.StageBeta, // enabed by default
+		featuregate.WithRegisterFromVersion("v2.2.0"),
+		featuregate.WithRegisterToVersion("v2.5.0"),
+		featuregate.WithRegisterDescription("Forces service strategy to be merged with default strategy, including per-operation overrides."),
+		featuregate.WithRegisterReferenceURL("https://github.com/jaegertracing/jaeger/issues/5270"),
+	)
 )
 
 type Config struct {
@@ -36,6 +48,8 @@ type Config struct {
 type FileConfig struct {
 	// File specifies a local file as the source of sampling strategies.
 	Path string `valid:"required" mapstructure:"path"`
+	// ReloadInterval is the time interval to check and reload sampling strategies file
+	ReloadInterval time.Duration `mapstructure:"reload_interval"`
 }
 
 type AdaptiveConfig struct {
@@ -84,6 +98,10 @@ func (cfg *Config) Validate() error {
 
 	if cfg.File != nil && cfg.Adaptive != nil {
 		return errMultipleProviders
+	}
+
+	if cfg.File != nil && cfg.File.ReloadInterval < 0 {
+		return errNegativeInterval
 	}
 
 	_, err := govalidator.ValidateStruct(cfg)

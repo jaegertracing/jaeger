@@ -5,13 +5,11 @@ package grpc
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"google.golang.org/grpc"
 
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
-	"github.com/jaegertracing/jaeger/thrift-gen/baggage"
 )
 
 // ConfigManagerProxy returns sampling decisions from collector over gRPC.
@@ -33,9 +31,4 @@ func (s *ConfigManagerProxy) GetSamplingStrategy(ctx context.Context, serviceNam
 		return nil, fmt.Errorf("failed to get sampling strategy: %w", err)
 	}
 	return resp, nil
-}
-
-// GetBaggageRestrictions returns baggage restrictions from collector.
-func (*ConfigManagerProxy) GetBaggageRestrictions(_ context.Context, _ string) ([]*baggage.BaggageRestriction, error) {
-	return nil, errors.New("baggage not implemented")
 }

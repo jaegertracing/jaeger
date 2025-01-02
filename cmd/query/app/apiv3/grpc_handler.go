@@ -8,13 +8,15 @@ import (
 	"errors"
 	"fmt"
 
+	"go.opentelemetry.io/collector/pdata/ptrace"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
+	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc/v2/querysvc"
 	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
 	"github.com/jaegertracing/jaeger/model"
-	"github.com/jaegertracing/jaeger/storage/spanstore"
+	"github.com/jaegertracing/jaeger/pkg/iter"
+	"github.com/jaegertracing/jaeger/storage_v2/tracestore"
 )
 
 // Handler implements api_v3.QueryServiceServer
@@ -32,18 +34,18 @@ func (h *Handler) GetTrace(request *api_v3.GetTraceRequest, stream api_v3.QueryS
 		return fmt.Errorf("malform trace ID: %w", err)
 	}
 
-	query := spanstore.GetTraceParameters{
-		TraceID:   traceID,
-		StartTime: request.GetStartTime(),
-		EndTime:   request.GetEndTime(),
+	query := querysvc.GetTraceParams{
+		TraceIDs: []tracestore.GetTraceParams{
+			{
+				TraceID: traceID.ToOTELTraceID(),
+				Start:   request.GetStartTime(),
+				End:     request.GetEndTime(),
+			},
+		},
+		RawTraces: request.GetRawTraces(),
 	}
-	trace, err := h.QueryService.GetTrace(stream.Context(), query)
-	if err != nil {
-		return fmt.Errorf("cannot retrieve trace: %w", err)
-	}
-	td := modelToOTLP(trace.GetSpans())
-	tracesData := api_v3.TracesData(td)
-	return stream.Send(&tracesData)
+	getTracesIter := h.QueryService.GetTraces(stream.Context(), query)
+	return receiveTraces(getTracesIter, stream.Send)
 }
 
 // FindTraces implements api_v3.QueryServiceServer's FindTraces
@@ -66,11 +68,14 @@ func (h *Handler) internalFindTraces(
 		return errors.New("start time min and max are required parameters")
 	}
 
-	queryParams := &spanstore.TraceQueryParameters{
-		ServiceName:   query.GetServiceName(),
-		OperationName: query.GetOperationName(),
-		Tags:          query.GetAttributes(),
-		NumTraces:     int(query.GetSearchDepth()),
+	queryParams := querysvc.TraceQueryParams{
+		TraceQueryParams: tracestore.TraceQueryParams{
+			ServiceName:   query.GetServiceName(),
+			OperationName: query.GetOperationName(),
+			Tags:          query.GetAttributes(),
+			NumTraces:     int(query.GetSearchDepth()),
+		},
+		RawTraces: query.GetRawTraces(),
 	}
 	if ts := query.GetStartTimeMin(); !ts.IsZero() {
 		queryParams.StartTimeMin = ts
@@ -85,19 +90,8 @@ func (h *Handler) internalFindTraces(
 		queryParams.DurationMax = d
 	}
 
-	traces, err := h.QueryService.FindTraces(ctx, queryParams)
-	if err != nil {
-		return err
-	}
-	for _, t := range traces {
-		td := modelToOTLP(t.GetSpans())
-		tracesData := api_v3.TracesData(td)
-		if err := streamSend(&tracesData); err != nil {
-			return status.Error(codes.Internal,
-				fmt.Sprintf("failed to send response stream chunk to client: %v", err))
-		}
-	}
-	return nil
+	findTracesIter := h.QueryService.FindTraces(ctx, queryParams)
+	return receiveTraces(findTracesIter, streamSend)
 }
 
 // GetServices implements api_v3.QueryServiceServer's GetServices
@@ -113,7 +107,7 @@ func (h *Handler) GetServices(ctx context.Context, _ *api_v3.GetServicesRequest)
 
 // GetOperations implements api_v3.QueryService's GetOperations
 func (h *Handler) GetOperations(ctx context.Context, request *api_v3.GetOperationsRequest) (*api_v3.GetOperationsResponse, error) {
-	operations, err := h.QueryService.GetOperations(ctx, spanstore.OperationQueryParameters{
+	operations, err := h.QueryService.GetOperations(ctx, tracestore.OperationQueryParams{
 		ServiceName: request.GetService(),
 		SpanKind:    request.GetSpanKind(),
 	})
@@ -130,4 +124,27 @@ func (h *Handler) GetOperations(ctx context.Context, request *api_v3.GetOperatio
 	return &api_v3.GetOperationsResponse{
 		Operations: apiOperations,
 	}, nil
+}
+
+func receiveTraces(
+	seq iter.Seq2[[]ptrace.Traces, error],
+	sendFn func(*api_v3.TracesData) error,
+) error {
+	var capturedErr error
+	seq(func(traces []ptrace.Traces, err error) bool {
+		if err != nil {
+			capturedErr = err
+			return false
+		}
+		for _, trace := range traces {
+			tracesData := api_v3.TracesData(trace)
+			if err := sendFn(&tracesData); err != nil {
+				capturedErr = status.Error(codes.Internal,
+					fmt.Sprintf("failed to send response stream chunk to client: %v", err))
+				return false
+			}
+		}
+		return true
+	})
+	return capturedErr
 }

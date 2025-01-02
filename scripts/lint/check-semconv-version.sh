@@ -22,6 +22,6 @@ if [ "$count" -gt 1 ]; then
         printf "%-70s | %s\n" "$file_name" "$version"
     done < <(find_files)
     printf "Error: %d different semconv versions detected.\n" "$count"
-    echo "Run ./scripts/update-semconv-version.sh to update semconv to latest version."
+    echo "Run ./scripts/lint/update-semconv-version.sh to update semconv to latest version."
     exit 1
 fi

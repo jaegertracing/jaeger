@@ -31,6 +31,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/internal/flags"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
+	v2querysvc "github.com/jaegertracing/jaeger/cmd/query/app/querysvc/v2/querysvc"
 	"github.com/jaegertracing/jaeger/internal/grpctest"
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
@@ -74,7 +75,7 @@ func TestCreateTLSServerSinglePortError(t *testing.T) {
 		},
 	}
 	telset := initTelSet(zaptest.NewLogger(t), jtracer.NoOp(), healthcheck.New())
-	_, err := NewServer(context.Background(), &querysvc.QueryService{}, nil,
+	_, err := NewServer(context.Background(), &querysvc.QueryService{}, &v2querysvc.QueryService{}, nil,
 		&QueryOptions{
 			HTTP: confighttp.ServerConfig{Endpoint: ":8080", TLSSetting: &tlsCfg},
 			GRPC: configgrpc.ServerConfig{NetAddr: confignet.AddrConfig{Endpoint: ":8080", Transport: confignet.TransportTypeTCP}, TLSSetting: &tlsCfg},
@@ -92,7 +93,7 @@ func TestCreateTLSGrpcServerError(t *testing.T) {
 		},
 	}
 	telset := initTelSet(zaptest.NewLogger(t), jtracer.NoOp(), healthcheck.New())
-	_, err := NewServer(context.Background(), &querysvc.QueryService{}, nil,
+	_, err := NewServer(context.Background(), &querysvc.QueryService{}, &v2querysvc.QueryService{}, nil,
 		&QueryOptions{
 			HTTP: confighttp.ServerConfig{Endpoint: ":8080"},
 			GRPC: configgrpc.ServerConfig{NetAddr: confignet.AddrConfig{Endpoint: ":8081", Transport: confignet.TransportTypeTCP}, TLSSetting: &tlsCfg},
@@ -110,7 +111,7 @@ func TestStartTLSHttpServerError(t *testing.T) {
 		},
 	}
 	telset := initTelSet(zaptest.NewLogger(t), jtracer.NoOp(), healthcheck.New())
-	s, err := NewServer(context.Background(), &querysvc.QueryService{}, nil,
+	s, err := NewServer(context.Background(), &querysvc.QueryService{}, &v2querysvc.QueryService{}, nil,
 		&QueryOptions{
 			HTTP: confighttp.ServerConfig{Endpoint: ":8080", TLSSetting: &tlsCfg},
 			GRPC: configgrpc.ServerConfig{NetAddr: confignet.AddrConfig{Endpoint: ":8081", Transport: confignet.TransportTypeTCP}},
@@ -389,7 +390,7 @@ func TestServerHTTPTLS(t *testing.T) {
 			flagsSvc.Logger = zaptest.NewLogger(t)
 			telset := initTelSet(flagsSvc.Logger, jtracer.NoOp(), flagsSvc.HC())
 			querySvc := makeQuerySvc()
-			server, err := NewServer(context.Background(), querySvc.qs,
+			server, err := NewServer(context.Background(), querySvc.qs, &v2querysvc.QueryService{},
 				nil, serverOptions, tenancy.NewManager(&tenancy.Options{}),
 				telset)
 			require.NoError(t, err)
@@ -498,7 +499,7 @@ func TestServerGRPCTLS(t *testing.T) {
 
 			querySvc := makeQuerySvc()
 			telset := initTelSet(flagsSvc.Logger, jtracer.NoOp(), flagsSvc.HC())
-			server, err := NewServer(context.Background(), querySvc.qs,
+			server, err := NewServer(context.Background(), querySvc.qs, &v2querysvc.QueryService{},
 				nil, serverOptions, tenancy.NewManager(&tenancy.Options{}),
 				telset)
 			require.NoError(t, err)
@@ -540,7 +541,7 @@ func TestServerGRPCTLS(t *testing.T) {
 
 func TestServerBadHostPort(t *testing.T) {
 	telset := initTelSet(zaptest.NewLogger(t), jtracer.NoOp(), healthcheck.New())
-	_, err := NewServer(context.Background(), &querysvc.QueryService{}, nil,
+	_, err := NewServer(context.Background(), &querysvc.QueryService{}, &v2querysvc.QueryService{}, nil,
 		&QueryOptions{
 			BearerTokenPropagation: true,
 			HTTP: confighttp.ServerConfig{
@@ -557,7 +558,7 @@ func TestServerBadHostPort(t *testing.T) {
 		telset)
 	require.Error(t, err)
 
-	_, err = NewServer(context.Background(), &querysvc.QueryService{}, nil,
+	_, err = NewServer(context.Background(), &querysvc.QueryService{}, &v2querysvc.QueryService{}, nil,
 		&QueryOptions{
 			BearerTokenPropagation: true,
 			HTTP: confighttp.ServerConfig{
@@ -595,6 +596,7 @@ func TestServerInUseHostPort(t *testing.T) {
 			server, err := NewServer(
 				context.Background(),
 				&querysvc.QueryService{},
+				&v2querysvc.QueryService{},
 				nil,
 				&QueryOptions{
 					BearerTokenPropagation: true,
@@ -624,7 +626,7 @@ func TestServerSinglePort(t *testing.T) {
 	hostPort := ports.PortToHostPort(ports.QueryHTTP)
 	querySvc := makeQuerySvc()
 	telset := initTelSet(flagsSvc.Logger, jtracer.NoOp(), flagsSvc.HC())
-	server, err := NewServer(context.Background(), querySvc.qs, nil,
+	server, err := NewServer(context.Background(), querySvc.qs, &v2querysvc.QueryService{}, nil,
 		&QueryOptions{
 			BearerTokenPropagation: true,
 			HTTP: confighttp.ServerConfig{
@@ -670,7 +672,7 @@ func TestServerGracefulExit(t *testing.T) {
 
 	querySvc := makeQuerySvc()
 	telset := initTelSet(flagsSvc.Logger, jtracer.NoOp(), flagsSvc.HC())
-	server, err := NewServer(context.Background(), querySvc.qs, nil,
+	server, err := NewServer(context.Background(), querySvc.qs, &v2querysvc.QueryService{}, nil,
 		&QueryOptions{
 			HTTP: confighttp.ServerConfig{
 				Endpoint: hostPort,
@@ -712,8 +714,9 @@ func TestServerHandlesPortZero(t *testing.T) {
 	flagsSvc.Logger = zap.New(zapCore)
 
 	querySvc := &querysvc.QueryService{}
+	v2QuerySvc := &v2querysvc.QueryService{}
 	telset := initTelSet(flagsSvc.Logger, jtracer.NoOp(), flagsSvc.HC())
-	server, err := NewServer(context.Background(), querySvc, nil,
+	server, err := NewServer(context.Background(), querySvc, v2QuerySvc, nil,
 		&QueryOptions{
 			HTTP: confighttp.ServerConfig{
 				Endpoint: ":0",
@@ -781,7 +784,7 @@ func TestServerHTTPTenancy(t *testing.T) {
 	querySvc := makeQuerySvc()
 	querySvc.spanReader.On("FindTraces", mock.Anything, mock.Anything).Return([]*model.Trace{mockTrace}, nil).Once()
 	telset := initTelSet(zaptest.NewLogger(t), jtracer.NoOp(), healthcheck.New())
-	server, err := NewServer(context.Background(), querySvc.qs,
+	server, err := NewServer(context.Background(), querySvc.qs, &v2querysvc.QueryService{},
 		nil, serverOptions, tenancyMgr, telset)
 	require.NoError(t, err)
 	require.NoError(t, server.Start(context.Background()))
@@ -900,7 +903,7 @@ func TestServerHTTP_TracesRequest(t *testing.T) {
 				Return(makeMockTrace(t), nil).Once()
 			telset := initTelSet(zaptest.NewLogger(t), &tracer, healthcheck.New())
 
-			server, err := NewServer(context.Background(), querySvc.qs,
+			server, err := NewServer(context.Background(), querySvc.qs, &v2querysvc.QueryService{},
 				nil, serverOptions, tenancyMgr, telset)
 			require.NoError(t, err)
 			require.NoError(t, server.Start(context.Background()))

@@ -47,6 +47,18 @@ type QueryService struct {
 	options          QueryServiceOptions
 }
 
+// GetTraceParameters defines the parameters for querying a single trace from the query service.
+type GetTraceParameters struct {
+	spanstore.GetTraceParameters
+	RawTraces bool
+}
+
+// TraceQueryParameters defines the parameters for querying a batch of traces from the query service.
+type TraceQueryParameters struct {
+	spanstore.TraceQueryParameters
+	RawTraces bool
+}
+
 // NewQueryService returns a new QueryService.
 func NewQueryService(traceReader tracestore.Reader, dependencyReader depstore.Reader, options QueryServiceOptions) *QueryService {
 	qsvc := &QueryService{
@@ -62,19 +74,25 @@ func NewQueryService(traceReader tracestore.Reader, dependencyReader depstore.Re
 }
 
 // GetTrace is the queryService implementation of spanstore.Reader.GetTrace
-func (qs QueryService) GetTrace(ctx context.Context, query spanstore.GetTraceParameters) (*model.Trace, error) {
+func (qs QueryService) GetTrace(ctx context.Context, query GetTraceParameters) (*model.Trace, error) {
 	spanReader, err := v1adapter.GetV1Reader(qs.traceReader)
 	if err != nil {
 		return nil, err
 	}
-	trace, err := spanReader.GetTrace(ctx, query)
+	trace, err := spanReader.GetTrace(ctx, query.GetTraceParameters)
 	if errors.Is(err, spanstore.ErrTraceNotFound) {
 		if qs.options.ArchiveSpanReader == nil {
 			return nil, err
 		}
-		trace, err = qs.options.ArchiveSpanReader.GetTrace(ctx, query)
+		trace, err = qs.options.ArchiveSpanReader.GetTrace(ctx, query.GetTraceParameters)
 	}
-	return trace, err
+	if err != nil {
+		return nil, err
+	}
+	if !query.RawTraces {
+		qs.adjust(trace)
+	}
+	return trace, nil
 }
 
 // GetServices is the queryService implementation of spanstore.Reader.GetServices
@@ -99,12 +117,21 @@ func (qs QueryService) GetOperations(
 }
 
 // FindTraces is the queryService implementation of spanstore.Reader.FindTraces
-func (qs QueryService) FindTraces(ctx context.Context, query *spanstore.TraceQueryParameters) ([]*model.Trace, error) {
+func (qs QueryService) FindTraces(ctx context.Context, query *TraceQueryParameters) ([]*model.Trace, error) {
 	spanReader, err := v1adapter.GetV1Reader(qs.traceReader)
 	if err != nil {
 		return nil, err
 	}
-	return spanReader.FindTraces(ctx, query)
+	traces, err := spanReader.FindTraces(ctx, &query.TraceQueryParameters)
+	if err != nil {
+		return nil, err
+	}
+	if !query.RawTraces {
+		for _, trace := range traces {
+			qs.adjust(trace)
+		}
+	}
+	return traces, nil
 }
 
 // ArchiveTrace is the queryService utility to archive traces.
@@ -112,7 +139,7 @@ func (qs QueryService) ArchiveTrace(ctx context.Context, query spanstore.GetTrac
 	if qs.options.ArchiveSpanWriter == nil {
 		return errNoArchiveSpanStorage
 	}
-	trace, err := qs.GetTrace(ctx, query)
+	trace, err := qs.GetTrace(ctx, GetTraceParameters{GetTraceParameters: query})
 	if err != nil {
 		return err
 	}
@@ -128,7 +155,7 @@ func (qs QueryService) ArchiveTrace(ctx context.Context, query spanstore.GetTrac
 }
 
 // Adjust applies adjusters to the trace.
-func (qs QueryService) Adjust(trace *model.Trace) {
+func (qs QueryService) adjust(trace *model.Trace) {
 	qs.options.Adjuster.Adjust(trace)
 }
 
