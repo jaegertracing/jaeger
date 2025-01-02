@@ -24,6 +24,8 @@ import (
 var (
 	_ tracestore.Writer = (*traceWriter)(nil)
 	_ io.Closer         = (*traceWriter)(nil)
+
+	MaxChunkSize = 35 // max chunk size otel kafka export can handle safely.
 )
 
 // traceWriter utilizes the OTLP exporter to send span data to the Jaeger-v2 receiver
@@ -68,17 +70,7 @@ func (w *traceWriter) Close() error {
 }
 
 func (w *traceWriter) WriteTraces(ctx context.Context, td ptrace.Traces) error {
-	maxChunkSize := 35 // max chunk size otel kafka export can handle safely.
-	w.logger.Info("Chunking traces")
-	err := w.writeTraceInChunks(ctx, td, maxChunkSize)
-	w.logger.Info("Finished writing chunks")
-	return err
-}
-
-// writeTraceInChunks splits td into chunks before writing.
-func (w *traceWriter) writeTraceInChunks(ctx context.Context, td ptrace.Traces, maxChunkSize int) error {
 	var err error
-
 	currentChunk := ptrace.NewTraces()
 	currentResourceIndex := -1
 	currentScopeIndex := -1
@@ -89,8 +81,8 @@ func (w *traceWriter) writeTraceInChunks(ctx context.Context, td ptrace.Traces, 
 			scope    ptrace.ScopeSpans
 			resource ptrace.ResourceSpans
 		)
-		// Create a new chunk if the current span count reaches maxChunkSize
-		if spanCount == maxChunkSize {
+		
+		if spanCount == MaxChunkSize {
 			err = w.exporter.ConsumeTraces(ctx, currentChunk)
 			currentChunk = ptrace.NewTraces()
 			spanCount = 0

@@ -5,6 +5,7 @@ package integration
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -12,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/consumer"
+	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.uber.org/zap/zaptest"
 )
@@ -40,65 +42,50 @@ func (*MockExporter) Start(context.Context, component.Host) error {
 	return nil
 }
 
-func TestWriteTracesInChunks(t *testing.T) {
+func TestWriteTraces(t *testing.T) {
 	td := ptrace.NewTraces()
 	resources := td.ResourceSpans()
 
-	// create resources data for td
-	type testSpan struct {
-		name   string
-		spanID [8]byte
+	// Create resources and scopes
+	for i := 1; i <= 3; i++ {
+		resource := resources.AppendEmpty()
+		resource.Resource().Attributes().PutStr("service.name", fmt.Sprintf("NoServiceName%d", i))
+		scope := resource.ScopeSpans().AppendEmpty()
+		scope.Scope().SetName(fmt.Sprintf("success-op-%d", i))
 	}
 
-	services := []struct {
-		name      string
-		opName    string
-		testSpans []testSpan
-	}{
-		{
-			name:   "NoServiceName1",
-			opName: "success-op-1",
-			testSpans: []testSpan{
-				{name: "span1", spanID: [8]byte{0, 0, 0, 0, 0, 0, 0, 1}},
-				{name: "span2", spanID: [8]byte{0, 0, 0, 0, 0, 0, 0, 2}},
-			},
-		},
-		{
-			name:   "NoServiceName2",
-			opName: "success-op-2",
-			testSpans: []testSpan{
-				{name: "span3", spanID: [8]byte{0, 0, 0, 0, 0, 0, 0, 3}},
-			},
-		},
-		{
-			name:   "NoServiceName3",
-			opName: "success-op-2",
-			testSpans: []testSpan{
-				{name: "span4", spanID: [8]byte{0, 0, 0, 0, 0, 0, 0, 4}},
-				{name: "span5", spanID: [8]byte{0, 0, 0, 0, 0, 0, 0, 5}},
-			},
-		},
+	// Add span1 and span2
+	scope1 := resources.At(0).ScopeSpans().At(0)
+	for i := 1; i <= 2; i++ {
+		span := scope1.Spans().AppendEmpty()
+		span.SetSpanID(pcommon.SpanID([8]byte{0, 0, 0, 0, 0, 0, 0, byte(i)}))
+		span.SetName(fmt.Sprintf("span%d", i))
 	}
-	for _, service := range services {
-		resource := resources.AppendEmpty()
-		resource.Resource().Attributes().PutStr("service.name", service.name)
-		scope := resource.ScopeSpans().AppendEmpty()
-		scope.Scope().SetName(service.opName)
-		for _, ts := range service.testSpans {
-			span := scope.Spans().AppendEmpty()
-			span.SetName(ts.name)
-			span.SetSpanID(ts.spanID)
-		}
+
+	// span3
+	scope2 := resources.At(1).ScopeSpans().At(0)
+	span3 := scope2.Spans().AppendEmpty()
+	span3.SetSpanID(pcommon.SpanID([8]byte{0, 0, 0, 0, 0, 0, 3}))
+	span3.SetName("span3")
+
+	//  span4 and span5
+	scope3 := resources.At(2).ScopeSpans().At(0)
+	for i := 1; i <= 2; i++ {
+		span := scope3.Spans().AppendEmpty()
+		span.SetSpanID(pcommon.SpanID([8]byte{0, 0, 0, 0, 0, 0, 0, byte(i + 3)}))
+		span.SetName(fmt.Sprintf("span%d", i+3))
 	}
 
 	mockExporter := &MockExporter{}
+	mockExporter.On("ConsumeTraces", mock.Anything, mock.Anything).Return(nil).Times(3)
 	tw := &traceWriter{
 		logger:   zaptest.NewLogger(t),
 		exporter: mockExporter,
 	}
-	mockExporter.On("ConsumeTraces", mock.Anything, mock.Anything).Return(nil).Times(3)
-
-	err := tw.writeTraceInChunks(context.Background(), td, 2)
+	origMaxChunkSize := MaxChunkSize
+	MaxChunkSize = 2
+	err := tw.WriteTraces(context.Background(), td)
+	MaxChunkSize = origMaxChunkSize
 
 	require.NoError(t, err)
 	mockExporter.AssertNumberOfCalls(t, "ConsumeTraces", 3)
