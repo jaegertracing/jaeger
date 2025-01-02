@@ -58,9 +58,9 @@ func (c *CacheStore) populateCaches() {
 	c.loadServices()
 
 	for k := range c.services {
-		// This will load old data with all kinds as unspecified
+		// This will firstly load all the data with kind as unspecified
 		c.loadOperations(k)
-		// This will load the new data with proper kind
+		// This will load the new data with proper kind (overriding the old data)
 		c.loadOperationsWithKind(k)
 	}
 }
