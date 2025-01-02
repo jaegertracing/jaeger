@@ -134,18 +134,18 @@ cover: nocover
 .PHONY: nocover
 nocover:
 	@echo Verifying that all packages have test files to count in coverage
-	@scripts/check-test-files.sh $(ALL_PKGS)
+	@scripts/lint/check-test-files.sh $(ALL_PKGS)
 
 .PHONY: fmt
 fmt: $(GOFUMPT)
 	@echo Running import-order-cleanup on ALL_SRC ...
-	@./scripts/import-order-cleanup.py -o inplace -t $(ALL_SRC)
+	@./scripts/lint/import-order-cleanup.py -o inplace -t $(ALL_SRC)
 	@echo Running gofmt on ALL_SRC ...
 	@$(GOFMT) -e -s -l -w $(ALL_SRC)
 	@echo Running gofumpt on ALL_SRC ...
 	@$(GOFUMPT) -e -l -w $(ALL_SRC)
 	@echo Running updateLicense.py on ALL_SRC ...
-	@./scripts/updateLicense.py $(ALL_SRC) $(SCRIPTS_SRC)
+	@./scripts/lint/updateLicense.py $(ALL_SRC) $(SCRIPTS_SRC)
 
 .PHONY: lint
 lint: lint-license lint-imports lint-semconv lint-goversion lint-goleak lint-go
@@ -153,7 +153,7 @@ lint: lint-license lint-imports lint-semconv lint-goversion lint-goleak lint-go
 .PHONY: lint-license
 lint-license:
 	@echo Verifying that all files have license headers
-	@./scripts/updateLicense.py $(ALL_SRC) $(SCRIPTS_SRC) > $(FMT_LOG)
+	@./scripts/lint/updateLicense.py $(ALL_SRC) $(SCRIPTS_SRC) > $(FMT_LOG)
 	@[ ! -s "$(FMT_LOG)" ] || (echo "License check failures, run 'make fmt'" | cat - $(FMT_LOG) && false)
 
 .PHONY: lint-nocommit
@@ -169,21 +169,21 @@ lint-nocommit:
 .PHONY: lint-imports
 lint-imports:
 	@echo Verifying that all Go files have correctly ordered imports
-	@./scripts/import-order-cleanup.py -o stdout -t $(ALL_SRC) > $(IMPORT_LOG)
+	@./scripts/lint/import-order-cleanup.py -o stdout -t $(ALL_SRC) > $(IMPORT_LOG)
 	@[ ! -s "$(IMPORT_LOG)" ] || (echo "Import ordering failures, run 'make fmt'" | cat - $(IMPORT_LOG) && false)
 
 .PHONY: lint-semconv
 lint-semconv:
-	./scripts/check-semconv-version.sh
+	./scripts/lint/check-semconv-version.sh
 
 .PHONY: lint-goversion
 lint-goversion:
-	./scripts/check-go-version.sh
+	./scripts/lint/check-go-version.sh
 
 .PHONY: lint-goleak
 lint-goleak:
 	@echo Verifying that all packages with tests have goleak in their TestMain
-	@scripts/check-goleak-files.sh $(ALL_PKGS)
+	@scripts/lint/check-goleak-files.sh $(ALL_PKGS)
 
 .PHONY: lint-go
 lint-go: $(LINT)
