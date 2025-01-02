@@ -58,7 +58,10 @@ func (c *CacheStore) populateCaches() {
 	c.loadServices()
 
 	for k := range c.services {
+		// This will load old data with all kinds as unspecified
 		c.loadOperations(k)
+		// This will load the new data with proper kind
+		c.loadOperationsWithKind(k)
 	}
 }
 
@@ -89,6 +92,7 @@ func (c *CacheStore) loadServices() {
 func (c *CacheStore) loadOperations(service string) {
 	c.store.View(func(txn *badger.Txn) error {
 		opts := badger.DefaultIteratorOptions
+		opts.PrefetchValues = false
 		it := txn.NewIterator(opts)
 		defer it.Close()
 
@@ -104,18 +108,38 @@ func (c *CacheStore) loadOperations(service string) {
 			if _, found := c.operations[service]; !found {
 				c.operations[service] = make(map[model.SpanKind]map[string]uint64)
 			}
-			var kind model.SpanKind
-			err := it.Item().Value(func(val []byte) error {
-				if val == nil {
-					kind = model.SpanKindUnspecified
-					return nil
+			kind := model.SpanKindUnspecified
+			if _, found := c.operations[service][kind]; !found {
+				c.operations[service][kind] = make(map[string]uint64)
+			}
+			if v, found := c.operations[service][kind][operationName]; found {
+				if v > keyTTL {
+					continue
 				}
-				var err error
-				kind, err = model.SpanKindFromString(string(val))
-				return err
-			})
-			if err != nil {
-				kind = model.SpanKindUnspecified
+			}
+			c.operations[service][kind][operationName] = keyTTL
+		}
+		return nil
+	})
+}
+
+func (c *CacheStore) loadOperationsWithKind(service string) {
+	c.store.View(func(txn *badger.Txn) error {
+		opts := badger.DefaultIteratorOptions
+		opts.PrefetchValues = false
+		it := txn.NewIterator(opts)
+		defer it.Close()
+		serviceKey := make([]byte, len(service)+1)
+		serviceKey[0] = operationNameWithKindIndexKey
+		copy(serviceKey[1:], service)
+		for it.Seek(serviceKey); it.ValidForPrefix(serviceKey); it.Next() {
+			timestampStartIndex := len(it.Item().Key()) - (sizeOfTraceID + 8)
+			operationNameAndKind := string(it.Item().Key()[len(serviceKey):timestampStartIndex])
+			keyTTL := it.Item().ExpiresAt()
+			kind := getBadgerKindFromString(string(operationNameAndKind[0])).spanKind()
+			operationName := operationNameAndKind[1:]
+			if _, found := c.operations[service]; !found {
+				c.operations[service] = make(map[model.SpanKind]map[string]uint64)
 			}
 			if _, found := c.operations[service][kind]; !found {
 				c.operations[service][kind] = make(map[string]uint64)

@@ -24,15 +24,16 @@ import (
 */
 
 const (
-	spanKeyPrefix         byte = 0x80 // All span keys should have first bit set to 1
-	indexKeyRange         byte = 0x0F // Secondary indexes use last 4 bits
-	serviceNameIndexKey   byte = 0x81
-	operationNameIndexKey byte = 0x82
-	tagIndexKey           byte = 0x83
-	durationIndexKey      byte = 0x84
-	jsonEncoding          byte = 0x01 // Last 4 bits of the meta byte are for encoding type
-	protoEncoding         byte = 0x02 // Last 4 bits of the meta byte are for encoding type
-	defaultEncoding       byte = protoEncoding
+	spanKeyPrefix                 byte = 0x80 // All span keys should have first bit set to 1
+	indexKeyRange                 byte = 0x0F // Secondary indexes use last 4 bits
+	serviceNameIndexKey           byte = 0x81
+	operationNameIndexKey         byte = 0x82
+	tagIndexKey                   byte = 0x83
+	durationIndexKey              byte = 0x84
+	operationNameWithKindIndexKey byte = 0x85
+	jsonEncoding                  byte = 0x01 // Last 4 bits of the meta byte are for encoding type
+	protoEncoding                 byte = 0x02 // Last 4 bits of the meta byte are for encoding type
+	defaultEncoding               byte = protoEncoding
 )
 
 // SpanWriter for writing spans to badger
@@ -75,12 +76,12 @@ func (w *SpanWriter) WriteSpan(_ context.Context, span *model.Span) error {
 		entriesToStore,
 		w.createBadgerEntry(
 			createIndexKey(
-				operationNameIndexKey,
-				[]byte(span.Process.ServiceName+span.OperationName),
+				operationNameWithKindIndexKey,
+				[]byte(span.Process.ServiceName+getBadgerSpanKind(kind).String()+span.OperationName),
 				startTime,
 				span.TraceID,
 			),
-			[]byte(kind),
+			nil,
 			expireTime),
 	)
 
