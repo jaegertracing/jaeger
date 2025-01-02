@@ -73,8 +73,9 @@ func (s *CassandraStorageIntegration) initializeCassandra(t *testing.T) {
 	})
 	s.factory = f
 	var err error
-	s.SpanWriter, err = f.CreateSpanWriter()
+	spanWriter, err := f.CreateSpanWriter()
 	require.NoError(t, err)
+	s.TraceWriter = v1adapter.NewTraceWriter(spanWriter)
 	spanReader, err := f.CreateSpanReader()
 	require.NoError(t, err)
 	s.TraceReader = v1adapter.NewTraceReader(spanReader)
