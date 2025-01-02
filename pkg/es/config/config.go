@@ -27,9 +27,9 @@ import (
 	"go.uber.org/zap/zapgrpc"
 
 	"github.com/jaegertracing/jaeger/pkg/bearertoken"
+	"github.com/jaegertracing/jaeger/pkg/config/esrollovercfg"
 	"github.com/jaegertracing/jaeger/pkg/es"
 	eswrapper "github.com/jaegertracing/jaeger/pkg/es/wrapper"
-	"github.com/jaegertracing/jaeger/pkg/esrollover"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/storage/spanstore/spanstoremetrics"
 )
@@ -218,11 +218,11 @@ type Rollover struct {
 	// https://www.jaegertracing.io/docs/2.1/elasticsearch/#index-rollover
 	LookBackEnabled bool `mapstructure:"look_back_enabled"`
 	// LookBackOptions store the configuration which will be executed if look back is enabled
-	LookBackOptions esrollover.LookBackOptions `mapstructure:"look_back_options"`
-	// RollBackConditions stores the conditions on which index writing should be performed, for example: "{\"max_age\": \"2d\"}"
-	RollBackConditions esrollover.RollBackConditions `mapstructure:"roll_back_conditions"`
+	LookBackOptions esrollovercfg.LookBackOptions `mapstructure:"look_back_options"`
+	// RollBackConditions stores the conditions on which index writing should be performed
+	RollBackOptions esrollovercfg.RollBackOptions `mapstructure:"roll_back_options"`
 	// RolloverOptions store the configuration required for setting up the cron job of rolling over indices
-	RolloverOptions esrollover.RolloverOptions `mapstructure:"rollover_options"`
+	RolloverOptions esrollovercfg.RolloverOptions `mapstructure:"rollover_options"`
 }
 
 // NewClient creates a new ElasticSearch client

@@ -6,13 +6,15 @@ package app
 import (
 	"flag"
 
-	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
-	"github.com/jaegertracing/jaeger/pkg/esrollover"
 	"github.com/spf13/viper"
 	"go.opentelemetry.io/collector/config/configtls"
+
+	"github.com/jaegertracing/jaeger/pkg/config/esrollovercfg"
+	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 )
 
 var tlsFlagsCfg = tlscfg.ClientFlagsConfig{Prefix: "es"}
+var esrolloverCfg = esrollovercfg.EsRolloverFlagConfig{}
 
 const (
 	indexPrefix = "index-prefix"
@@ -23,7 +25,7 @@ const (
 
 // Config holds the global configurations for the es rollover, common to all actions
 type Config struct {
-	esrollover.RolloverOptions
+	esrollovercfg.RolloverOptions
 	IndexPrefix string
 	Username    string
 	Password    string
@@ -34,8 +36,7 @@ type Config struct {
 
 // AddFlags adds flags
 func AddFlags(flags *flag.FlagSet) {
-	cfg := esrollover.EsRolloverFlagConfig{}
-	cfg.AddFlagsForRolloverOptions(flags)
+	esrolloverCfg.AddFlagsForRolloverOptions(flags)
 	flags.String(indexPrefix, "", "Index prefix")
 	flags.String(username, "", "The username required by storage")
 	flags.String(password, "", "The password required by storage")
@@ -45,8 +46,7 @@ func AddFlags(flags *flag.FlagSet) {
 
 // InitFromViper initializes config from viper.Viper.
 func (c *Config) InitFromViper(v *viper.Viper) {
-	cfg := esrollover.EsRolloverFlagConfig{}
-	c.RolloverOptions = *cfg.InitFromViperForRolloverOptions(v)
+	c.RolloverOptions = esrolloverCfg.InitRolloverOptionsFromViper(v)
 	c.IndexPrefix = v.GetString(indexPrefix)
 	if c.IndexPrefix != "" {
 		c.IndexPrefix += "-"

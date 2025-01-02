@@ -9,11 +9,14 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"github.com/jaegertracing/jaeger/cmd/es-rollover/app"
+	"github.com/jaegertracing/jaeger/cmd/es-rollover/app/init"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync/atomic"
+	"time"
 
 	"github.com/spf13/viper"
 	"go.opentelemetry.io/otel"
@@ -21,6 +24,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/es"
+	esClient "github.com/jaegertracing/jaeger/pkg/es/client"
 	"github.com/jaegertracing/jaeger/pkg/es/config"
 	"github.com/jaegertracing/jaeger/pkg/fswatcher"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
@@ -67,6 +71,7 @@ type Factory struct {
 	archiveClient atomic.Pointer[es.Client]
 
 	watchers []*fswatcher.FSWatcher
+	rolloverTimeTicker *time.Ticker
 }
 
 // NewFactory creates a new Factory.
@@ -178,6 +183,34 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 	}
 
 	return nil
+}
+
+func registerEsRollover(config *config.Configuration, timeTicker *time.Ticker) {
+	if config.Rollover.Enabled {
+		timeTicker = time.NewTicker(config.Rollover.Frequency)
+	}
+}
+
+func startEsRollover(config *config.Configuration, client es.Client) {
+	initAction := init.Action{
+		Config: init.Config{
+			Config: getEsRolloverConfigFromEsConfig(config),
+			Indices: config.Indices,
+		},
+		ClusterClient: &esClient.ClusterClient{Client: client},
+	}
+}
+
+func getEsRolloverConfigFromEsConfig(config *config.Configuration) app.Config {
+	return app.Config{
+		RolloverOptions: config.Rollover.RolloverOptions,
+		IndexPrefix: string(config.Indices.IndexPrefix),
+		Username: config.Authentication.BasicAuthentication.Username,
+		Password: config.Authentication.BasicAuthentication.Password,
+		TLSEnabled: !config.TLS.Insecure,
+		TLSConfig: config.TLS,
+		UseILM: config.UseILM,
+	}
 }
 
 func (f *Factory) getPrimaryClient() es.Client {

@@ -6,7 +6,6 @@ package es
 
 import (
 	"flag"
-	"github.com/jaegertracing/jaeger/pkg/esrollover"
 	"log"
 	"strings"
 	"time"
@@ -14,12 +13,13 @@ import (
 	"github.com/spf13/viper"
 
 	"github.com/jaegertracing/jaeger/pkg/bearertoken"
+	"github.com/jaegertracing/jaeger/pkg/config/esrollovercfg"
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/pkg/es/config"
 )
 
 const (
-	prefixEsRollover					 = ".es-rollover-"
+	prefixEsRollover                     = ".es-rollover-"
 	suffixUsername                       = ".username"
 	suffixPassword                       = ".password"
 	suffixSniffer                        = ".sniffer"
@@ -59,9 +59,9 @@ const (
 	suffixMaxDocCount                    = ".max-doc-count"
 	suffixLogLevel                       = ".log-level"
 	suffixSendGetBodyAs                  = ".send-get-body-as"
-	suffixEsRolloverEnabled              = prefixEsRollover+"enabled"
-	suffixEsRolloverLookBackEnabled      = prefixEsRollover+"look-back-enabled"
-	suffixEsRolloverFrequency = prefixEsRollover+"frequency"
+	suffixEsRolloverEnabled              = prefixEsRollover + "enabled"
+	suffixEsRolloverLookBackEnabled      = prefixEsRollover + "look-back-enabled"
+	suffixEsRolloverFrequency            = prefixEsRollover + "frequency"
 	// default number of documents to return from a query (elasticsearch allowed limit)
 	// see search.max_buckets and index.max_result_window
 	defaultMaxDocCount        = 10_000
@@ -308,32 +308,32 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		nsConfig.namespace+suffixEsRolloverEnabled,
 		nsConfig.Rollover.Enabled,
 		"Enable es-rollover cron job",
-		)
+	)
 	flagSet.Bool(
 		nsConfig.namespace+suffixEsRolloverLookBackEnabled,
 		nsConfig.Rollover.LookBackEnabled,
 		"Enable lookback process for es-rollover",
-		)
+	)
 	flagSet.Duration(
 		nsConfig.namespace+suffixEsRolloverFrequency,
 		nsConfig.Rollover.Frequency,
 		"The frequency for the es-rollover cron job",
-		)
+	)
 	nsConfig.getTLSFlagsConfig().AddFlags(flagSet)
 	nsConfig.addRolloverFlags(flagSet)
 }
 
-func (nsConfig *namespaceConfig) getRolloverFlagsConfig() esrollover.EsRolloverFlagConfig {
-	return esrollover.EsRolloverFlagConfig{
-		Prefix: nsConfig.namespace+prefixEsRollover,
+func (nsConfig *namespaceConfig) getRolloverFlagsConfig() esrollovercfg.EsRolloverFlagConfig {
+	return esrollovercfg.EsRolloverFlagConfig{
+		Prefix: nsConfig.namespace + prefixEsRollover,
 	}
 }
 
 func (n *namespaceConfig) addRolloverFlags(flagSet *flag.FlagSet) {
 	es := n.getRolloverFlagsConfig()
-	es.AddFlagsForRollBack(flagSet)
-	es.AddFlagsForLookBack(flagSet)
+	es.AddFlagsForRollBackOptions(flagSet)
 	es.AddFlagsForRolloverOptions(flagSet)
+	es.AddFlagsForLookBackOptions(flagSet)
 }
 
 // InitFromViper initializes Options with properties from viper
@@ -425,12 +425,12 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 func (n *namespaceConfig) initRollOverFromViper(v *viper.Viper) config.Rollover {
 	es := n.getRolloverFlagsConfig()
 	return config.Rollover{
-		Enabled: v.GetBool(n.namespace + suffixEsRolloverEnabled),
+		Enabled:         v.GetBool(n.namespace + suffixEsRolloverEnabled),
 		LookBackEnabled: v.GetBool(n.namespace + suffixEsRolloverLookBackEnabled),
-		Frequency: v.GetDuration(n.namespace + suffixEsRolloverFrequency),
-		RolloverOptions: *es.InitFromViperForRolloverOptions(v),
-		LookBackOptions: *es.InitFromViperForLookBack(v),
-		RollBackConditions: *es.InitFromViperForRollBack(v),
+		Frequency:       v.GetDuration(n.namespace + suffixEsRolloverFrequency),
+		RolloverOptions: es.InitRolloverOptionsFromViper(v),
+		LookBackOptions: es.InitLookBackFromViper(v),
+		RollBackOptions: es.InitRollBackFromViper(v),
 	}
 }
 
@@ -506,12 +506,12 @@ func DefaultConfig() config.Configuration {
 			Sampling:     defaultIndexOptions,
 		},
 		Rollover: config.Rollover{
-			Enabled:            false,
-			Frequency:          24 * time.Hour,
-			LookBackEnabled:    false,
-			LookBackOptions:    esrollover.DefaultLookBackOptions(),
-			RollBackConditions: esrollover.DefaultRollBackConditions(),
-			RolloverOptions:    esrollover.DefaultRolloverOptions(),
+			Enabled:         false,
+			Frequency:       24 * time.Hour,
+			LookBackEnabled: false,
+			LookBackOptions: esrollovercfg.DefaultLookBackOptions(),
+			RollBackOptions: esrollovercfg.DefaultRollBackConditions(),
+			RolloverOptions: esrollovercfg.DefaultRolloverOptions(),
 		},
 	}
 }
