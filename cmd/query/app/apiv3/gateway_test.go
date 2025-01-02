@@ -23,7 +23,7 @@ import (
 	"github.com/jaegertracing/jaeger/model"
 	_ "github.com/jaegertracing/jaeger/pkg/gogocodec" // force gogo codec registration
 	"github.com/jaegertracing/jaeger/storage/spanstore"
-	spanstoremocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
+	tracestoremocks "github.com/jaegertracing/jaeger/storage_v2/tracestore/mocks"
 )
 
 // Utility functions used from http_gateway_test.go.
@@ -38,7 +38,7 @@ const (
 var regenerateSnapshots = os.Getenv("REGENERATE_SNAPSHOTS") == "true"
 
 type testGateway struct {
-	reader *spanstoremocks.Reader
+	reader *tracestoremocks.Reader
 	url    string
 	router *mux.Router
 	// used to set a tenancy header when executing requests

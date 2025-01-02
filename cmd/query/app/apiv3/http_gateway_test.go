@@ -15,16 +15,19 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/pdata/pcommon"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc/v2/querysvc"
 	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger/pkg/iter"
 	"github.com/jaegertracing/jaeger/pkg/jtracer"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
-	spanstoremocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
 	dependencyStoreMocks "github.com/jaegertracing/jaeger/storage_v2/depstore/mocks"
-	"github.com/jaegertracing/jaeger/storage_v2/v1adapter"
+	"github.com/jaegertracing/jaeger/storage_v2/tracestore"
+	tracestoremocks "github.com/jaegertracing/jaeger/storage_v2/tracestore/mocks"
 )
 
 func setupHTTPGatewayNoServer(
@@ -32,10 +35,10 @@ func setupHTTPGatewayNoServer(
 	basePath string,
 ) *testGateway {
 	gw := &testGateway{
-		reader: &spanstoremocks.Reader{},
+		reader: &tracestoremocks.Reader{},
 	}
 
-	q := querysvc.NewQueryService(v1adapter.NewTraceReader(gw.reader),
+	q := querysvc.NewQueryService(gw.reader,
 		&dependencyStoreMocks.Reader{},
 		querysvc.QueryServiceOptions{},
 	)
@@ -93,16 +96,28 @@ func TestHTTPGatewayTryHandleError(t *testing.T) {
 
 func TestHTTPGatewayGetTrace(t *testing.T) {
 	traceId, _ := model.TraceIDFromString("123")
+
+	makeTestTraces := func() ptrace.Traces {
+		traces := ptrace.NewTraces()
+		resources := traces.ResourceSpans().AppendEmpty()
+		scopes := resources.ScopeSpans().AppendEmpty()
+		span := scopes.Spans().AppendEmpty()
+		span.SetName("test-span")
+		span.SetTraceID(traceId.ToOTELTraceID())
+		span.SetSpanID(pcommon.SpanID{1})
+		return traces
+	}
+
 	testCases := []struct {
 		name          string
 		params        map[string]string
-		expectedQuery spanstore.GetTraceParameters
+		expectedQuery tracestore.GetTraceParams
 	}{
 		{
 			name:   "TestGetTrace",
 			params: map[string]string{},
-			expectedQuery: spanstore.GetTraceParameters{
-				TraceID: traceId,
+			expectedQuery: tracestore.GetTraceParams{
+				TraceID: traceId.ToOTELTraceID(),
 			},
 		},
 		{
@@ -111,10 +126,10 @@ func TestHTTPGatewayGetTrace(t *testing.T) {
 				"start_time": "2000-01-02T12:30:08.999999998Z",
 				"end_time":   "2000-04-05T21:55:16.999999992+08:00",
 			},
-			expectedQuery: spanstore.GetTraceParameters{
-				TraceID:   traceId,
-				StartTime: time.Date(2000, time.January, 0o2, 12, 30, 8, 999999998, time.UTC),
-				EndTime:   time.Date(2000, time.April, 0o5, 13, 55, 16, 999999992, time.UTC),
+			expectedQuery: tracestore.GetTraceParams{
+				TraceID: traceId.ToOTELTraceID(),
+				Start:   time.Date(2000, time.January, 0o2, 12, 30, 8, 999999998, time.UTC),
+				End:     time.Date(2000, time.April, 0o5, 13, 55, 16, 999999992, time.UTC),
 			},
 		},
 	}
@@ -124,9 +139,12 @@ func TestHTTPGatewayGetTrace(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			gw := setupHTTPGatewayNoServer(t, "")
+
 			gw.reader.
-				On("GetTrace", matchContext, tc.expectedQuery).
-				Return(&model.Trace{}, nil).Once()
+				On("GetTraces", matchContext, tc.expectedQuery).
+				Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+					yield([]ptrace.Traces{makeTestTraces()}, nil)
+				})).Once()
 
 			q := url.Values{}
 			for k, v := range tc.params {
@@ -141,7 +159,7 @@ func TestHTTPGatewayGetTrace(t *testing.T) {
 			require.NoError(t, err)
 			w := httptest.NewRecorder()
 			gw.router.ServeHTTP(w, r)
-			gw.reader.AssertCalled(t, "GetTrace", matchContext, tc.expectedQuery)
+			gw.reader.AssertCalled(t, "GetTraces", matchContext, tc.expectedQuery)
 		})
 	}
 }
