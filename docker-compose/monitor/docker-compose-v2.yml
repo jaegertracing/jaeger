@@ -29,7 +29,7 @@ services:
   prometheus:
     networks:
       - backend
-    image: prom/prometheus:v3.0.1
+    image: prom/prometheus:v3.1.0
     volumes:
       - "./prometheus.yml:/etc/prometheus/prometheus.yml"
     ports:
