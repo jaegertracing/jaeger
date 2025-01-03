@@ -49,8 +49,7 @@ jobs:
       env:
         SKIP_APPLY_SCHEMA: ${{ matrix.create-schema == 'auto' && true || false }}
      
-    - name: Metric snapshot (upload or cache metric)
-      uses: ./.github/actions/verify-metrics-snapshot
+    - uses: ./.github/actions/verify-metrics-snapshot
       if: ${{ matrix.jaeger-version }} == "v2"
       with:
         snapshot: ./.metrics/cassandra_metrics.txt

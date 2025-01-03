@@ -59,8 +59,7 @@ jobs:
       id: test-execution
       run: bash scripts/e2e/elasticsearch.sh ${{ matrix.version.distribution }} ${{ matrix.version.major }} ${{ matrix.version.jaeger }}
       
-    - name: Metric snapshot (upload or cache metric)
-      uses: ./.github/actions/verify-metrics-snapshot
+    - uses: ./.github/actions/verify-metrics-snapshot
       if: ${{ matrix.version.jaeger }} == "v2"
       with:
         snapshot: ./.metrics/elasticsearch_metrics.txt

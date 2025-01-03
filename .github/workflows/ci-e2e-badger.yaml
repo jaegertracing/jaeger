@@ -41,8 +41,7 @@ jobs:
             ;;
         esac
 
-    - name: Metric snapshot (upload or cache metric)
-      uses: ./.github/actions/verify-metrics-snapshot
+    - uses: ./.github/actions/verify-metrics-snapshot
       if: ${{ matrix.version }} == "v2"
       with:
         snapshot: ./.metrics/badger_metrics.txt

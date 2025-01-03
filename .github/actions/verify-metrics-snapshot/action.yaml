@@ -37,9 +37,22 @@ runs:
         echo "v2_tag=$v2_tag" >> $GITHUB_ENV
         echo "$v2_tag"
       
-    
     - name: Download the cached tagged metrics
       uses: actions/cache@v4
       with:
         path: cached_${{ inputs.snapshot}}
         key: ${{ env.v2_tag }}_${{ inputs.artifact_key }}
+
+    - name: Calculate diff between the snapshots 
+      shell: bash
+      run: |
+        python3 ./scripts/e2e/compare_metrics.py --file1 ${{ inputs.snapshot }} --file2 cached_${{ inputs.snapshot}} --output ./.metrics/diff_${{ github.ref_name }}_${{ inputs.artifact_key }}
+
+    - name: Upload the diff artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: diff_${{ inputs.artifact_key }}
+        path: ./.metrics/diff_${{ github.ref_name }}_${{ inputs.artifact_key }}
+        retention-days: 7
+
+    

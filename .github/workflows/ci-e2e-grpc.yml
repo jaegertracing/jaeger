@@ -40,8 +40,8 @@ jobs:
             STORAGE=grpc SPAN_STORAGE_TYPE=memory make jaeger-v2-storage-integration-test
             ;;
         esac
-    - name: Metric snapshot (upload or cache metric)
-      uses: ./.github/actions/verify-metrics-snapshot
+
+    - uses: ./.github/actions/verify-metrics-snapshot
       if: ${{ matrix.version }} == "v2"
       with:
         snapshot: ./.metrics/grpc_metrics.txt

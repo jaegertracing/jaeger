@@ -30,8 +30,7 @@ jobs:
       run: |
         STORAGE=memory_v2 make jaeger-v2-storage-integration-test
         
-    - name: Metric snapshot (upload or cache metric)
-      uses: ./.github/actions/verify-metrics-snapshot
+    - uses: ./.github/actions/verify-metrics-snapshot
       with:
         snapshot: ./.metrics/memory_metrics.txt
         artifact_key: memory-metrics.txt
