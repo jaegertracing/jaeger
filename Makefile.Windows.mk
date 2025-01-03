@@ -60,7 +60,7 @@ endef
 
 .PHONY: _build-syso
 _build-syso: $(GOVERSIONINFO)
-	$(eval SEMVER_ALL := $(shell scripts/compute-version.sh -s v1))
+	$(eval SEMVER_ALL := $(shell scripts/utils/compute-version.sh -s v1))
 	$(eval SEMVER_MAJOR := $(word 2, $(SEMVER_ALL)))
 	$(eval SEMVER_MINOR := $(word 3, $(SEMVER_ALL)))
 	$(eval SEMVER_PATCH := $(word 4, $(SEMVER_ALL)))
