@@ -45,11 +45,11 @@ func Test_Validate(t *testing.T) {
 			expectedErr: "",
 		},
 		{
-			name: "Invalid File provider",
+			name: "File provider can have empty file path",
 			config: &Config{
 				File: &FileConfig{Path: ""},
 			},
-			expectedErr: "File.Path: non zero value required",
+			expectedErr: "",
 		},
 		{
 			name: "File provider has negative reload interval",
