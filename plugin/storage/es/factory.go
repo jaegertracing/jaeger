@@ -21,10 +21,12 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/es"
+	"github.com/jaegertracing/jaeger/pkg/es/client"
 	"github.com/jaegertracing/jaeger/pkg/es/config"
 	"github.com/jaegertracing/jaeger/pkg/fswatcher"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/plugin"
+	"github.com/jaegertracing/jaeger/plugin/storage/es/cleaner"
 	esDepStore "github.com/jaegertracing/jaeger/plugin/storage/es/dependencystore"
 	"github.com/jaegertracing/jaeger/plugin/storage/es/mappings"
 	esSampleStore "github.com/jaegertracing/jaeger/plugin/storage/es/samplingstore"
@@ -67,6 +69,8 @@ type Factory struct {
 	archiveClient atomic.Pointer[es.Client]
 
 	watchers []*fswatcher.FSWatcher
+
+	primaryIndexCleaner *cleaner.IndexCleaner
 }
 
 // NewFactory creates a new Factory.
@@ -159,6 +163,15 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 			return fmt.Errorf("failed to create watcher for primary ES client's password: %w", err)
 		}
 		f.watchers = append(f.watchers, primaryWatcher)
+	}
+
+	if f.primaryConfig.IndexCleaner.Enabled {
+		indexCleanerClient, err := client.CreateIndicesClient(f.primaryConfig, logger)
+		if err != nil {
+			return fmt.Errorf("failed to create index cleaner client: %w", err)
+		}
+		primaryIndexCleaner := cleaner.NewIndexCleaner(indexCleanerClient, logger, string(f.primaryConfig.Indices.IndexPrefix), f.primaryConfig.MaxSpanAge)
+		primaryIndexCleaner.Start()
 	}
 
 	if f.archiveConfig.Enabled {
@@ -369,6 +382,8 @@ func (f *Factory) Close() error {
 	if client := f.getArchiveClient(); client != nil {
 		errs = append(errs, client.Close())
 	}
+
+	f.primaryIndexCleaner.Stop()
 
 	return errors.Join(errs...)
 }

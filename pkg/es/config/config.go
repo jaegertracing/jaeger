@@ -136,6 +136,14 @@ type Configuration struct {
 	Tags                     TagsAsFields  `mapstructure:"tags_as_fields"`
 	// Enabled, if set to true, enables the namespace for storage pointed to by this configuration.
 	Enabled bool `mapstructure:"-"`
+
+	// IndexCleaner cleans indices older than MaxSpanAge
+	IndexCleaner IndexCleaner `mapstructure:"index_cleaner"`
+}
+
+type IndexCleaner struct {
+	// Enabled, if set to true, enables the cleaner feature
+	Enabled bool `mapstructure:"enabled"`
 }
 
 // TagsAsFields holds configuration for tag schema.
