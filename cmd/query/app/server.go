@@ -28,7 +28,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/query/app/apiv3"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
-	querysvcv2 "github.com/jaegertracing/jaeger/cmd/query/app/querysvc/v2/querysvc"
+	v2querysvc "github.com/jaegertracing/jaeger/cmd/query/app/querysvc/v2/querysvc"
 	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
 	"github.com/jaegertracing/jaeger/pkg/bearertoken"
 	"github.com/jaegertracing/jaeger/pkg/netutils"
@@ -59,7 +59,7 @@ type Server struct {
 func NewServer(
 	ctx context.Context,
 	querySvc *querysvc.QueryService,
-	v2QuerySvc *querysvcv2.QueryService,
+	v2QuerySvc *v2querysvc.QueryService,
 	metricsQuerySvc querysvc.MetricsQueryService,
 	options *QueryOptions,
 	tm *tenancy.Manager,
@@ -84,7 +84,7 @@ func NewServer(
 		return nil, err
 	}
 	registerGRPCHandlers(grpcServer, querySvc, v2QuerySvc, metricsQuerySvc, telset)
-	httpServer, err := createHTTPServer(ctx, querySvc, metricsQuerySvc, options, tm, telset)
+	httpServer, err := createHTTPServer(ctx, querySvc, v2QuerySvc, metricsQuerySvc, options, tm, telset)
 	if err != nil {
 		return nil, err
 	}
@@ -102,7 +102,7 @@ func NewServer(
 func registerGRPCHandlers(
 	server *grpc.Server,
 	querySvc *querysvc.QueryService,
-	v2QuerySvc *querysvcv2.QueryService,
+	v2QuerySvc *v2querysvc.QueryService,
 	metricsQuerySvc querysvc.MetricsQueryService,
 	telset telemetry.Settings,
 ) {
@@ -167,6 +167,7 @@ var _ io.Closer = (*httpServer)(nil)
 
 func initRouter(
 	querySvc *querysvc.QueryService,
+	v2QuerySvc *v2querysvc.QueryService,
 	metricsQuerySvc querysvc.MetricsQueryService,
 	queryOpts *QueryOptions,
 	tenancyMgr *tenancy.Manager,
@@ -187,7 +188,7 @@ func initRouter(
 	}
 
 	(&apiv3.HTTPGateway{
-		QueryService: querySvc,
+		QueryService: v2QuerySvc,
 		Logger:       telset.Logger,
 		Tracer:       telset.TracerProvider,
 	}).RegisterRoutes(r)
@@ -209,12 +210,13 @@ func initRouter(
 func createHTTPServer(
 	ctx context.Context,
 	querySvc *querysvc.QueryService,
+	v2QuerySvc *v2querysvc.QueryService,
 	metricsQuerySvc querysvc.MetricsQueryService,
 	queryOpts *QueryOptions,
 	tm *tenancy.Manager,
 	telset telemetry.Settings,
 ) (*httpServer, error) {
-	handler, staticHandlerCloser := initRouter(querySvc, metricsQuerySvc, queryOpts, tm, telset)
+	handler, staticHandlerCloser := initRouter(querySvc, v2QuerySvc, metricsQuerySvc, queryOpts, tm, telset)
 	handler = recoveryhandler.NewRecoveryHandler(telset.Logger, true)(handler)
 	hs, err := queryOpts.HTTP.ToServer(
 		ctx,
