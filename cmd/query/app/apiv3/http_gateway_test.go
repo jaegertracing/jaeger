@@ -150,6 +150,39 @@ func TestHTTPGatewayGetTrace(t *testing.T) {
 	}
 }
 
+func TestHTTPGatewayGetTraceEmptyResponse(t *testing.T) {
+	gw := setupHTTPGatewayNoServer(t, "")
+	gw.reader.On("GetTraces", matchContext, mock.AnythingOfType("tracestore.GetTraceParams")).
+		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+			yield([]ptrace.Traces{}, nil)
+		})).Once()
+
+	r, err := http.NewRequest(http.MethodGet, "/api/v3/traces/1", nil)
+	require.NoError(t, err)
+	w := httptest.NewRecorder()
+	gw.router.ServeHTTP(w, r)
+	assert.Equal(t, http.StatusNotFound, w.Code)
+	assert.Contains(t, w.Body.String(), "No traces found")
+}
+
+func TestHTTPGatewayFindTracesEmptyResponse(t *testing.T) {
+	q, qp := mockFindQueries()
+	r, err := http.NewRequest(http.MethodGet, "/api/v3/traces?"+q.Encode(), nil)
+	require.NoError(t, err)
+	w := httptest.NewRecorder()
+
+	gw := setupHTTPGatewayNoServer(t, "")
+	gw.reader.
+		On("FindTraces", matchContext, qp).
+		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+			yield([]ptrace.Traces{}, nil)
+		})).Once()
+
+	gw.router.ServeHTTP(w, r)
+	assert.Equal(t, http.StatusNotFound, w.Code)
+	assert.Contains(t, w.Body.String(), "No traces found")
+}
+
 func TestHTTPGatewayGetTraceMalformedInputErrors(t *testing.T) {
 	testCases := []struct {
 		name          string
@@ -163,17 +196,17 @@ func TestHTTPGatewayGetTraceMalformedInputErrors(t *testing.T) {
 		},
 		{
 			name:          "TestGetTraceWithInvalidStartTime",
-			requestUrl:    "/api/v3/traces/123?start_time=abc",
+			requestUrl:    "/api/v3/traces/1?start_time=abc",
 			expectedError: "malformed parameter start_time",
 		},
 		{
 			name:          "TestGetTraceWithInvalidEndTime",
-			requestUrl:    "/api/v3/traces/123?end_time=xyz",
+			requestUrl:    "/api/v3/traces/1?end_time=xyz",
 			expectedError: "malformed parameter end_time",
 		},
 		{
 			name:          "TestGetTraceWithInvalidRawTraces",
-			requestUrl:    "/api/v3/traces/123?raw_traces=foobar",
+			requestUrl:    "/api/v3/traces/1?raw_traces=foobar",
 			expectedError: "malformed parameter raw_traces",
 		},
 	}
@@ -202,7 +235,7 @@ func TestHTTPGatewayGetTraceInternalErrors(t *testing.T) {
 			yield([]ptrace.Traces{}, assert.AnError)
 		})).Once()
 
-	r, err := http.NewRequest(http.MethodGet, "/api/v3/traces/123", nil)
+	r, err := http.NewRequest(http.MethodGet, "/api/v3/traces/1", nil)
 	require.NoError(t, err)
 	w := httptest.NewRecorder()
 	gw.router.ServeHTTP(w, r)

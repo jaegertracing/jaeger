@@ -123,6 +123,17 @@ func (h *HTTPGateway) returnTraces(traces []ptrace.Traces, err error, w http.Res
 	if h.tryHandleError(w, err, http.StatusInternalServerError) {
 		return
 	}
+	if len(traces) == 0 {
+		errorResponse := api_v3.GRPCGatewayError{
+			Error: &api_v3.GRPCGatewayError_GRPCGatewayErrorDetails{
+				HttpCode: http.StatusNotFound,
+				Message:  "No traces found",
+			},
+		}
+		resp, _ := json.Marshal(&errorResponse)
+		http.Error(w, string(resp), http.StatusNotFound)
+		return
+	}
 	// TODO: the response should be streamed back to the client
 	// https://github.com/jaegertracing/jaeger/issues/6467
 	combinedTrace := ptrace.NewTraces()
