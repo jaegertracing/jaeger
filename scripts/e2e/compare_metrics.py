@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import argparse
-import difflib
+import re
 import sys
 from pathlib import Path
 
@@ -10,22 +10,68 @@ def read_metric_file(file_path):
     try:
         with open(file_path, 'r') as f:
             return f.readlines()
-    except FileNotFoundError:
-        print(f"Error: File not found - {file_path}")
-        sys.exit(1)
     except Exception as e:
         print(f"Error reading file {file_path}: {str(e)}")
-        sys.exit(1)
+
+def parse_metric_line(line):
+
+    # Skip empty lines or comments
+    line = line.strip()
+    if not line or line.startswith('#'):
+        return None
+    
+    # Extract metric name and labels section
+    match = re.match(r'([^{]+)(?:{(.+)})?(?:\s+[-+]?[0-9.eE+-]+)?$', line)
+    if not match:
+        return None
+        
+    name = match.group(1)
+    labels_str = match.group(2) or ''
+    
+    # Parse labels into a frozenset of (key, value) tuples
+    labels = []
+    if labels_str:
+        for label in labels_str.split(','):
+            label = label.strip()
+            if '=' in label:
+                key, value = label.split('=', 1)
+                labels.append((key.strip(), value.strip()))
+    
+    # Sort labels and convert to frozenset for comparison
+    return (name, frozenset(sorted(labels)))
 
 def generate_diff(file1_lines, file2_lines, file1_name, file2_name):
 
-    return list(difflib.unified_diff(
-        file1_lines,
-        file2_lines,
-        fromfile=file1_name,
-        tofile=file2_name,
-        lineterm=''
-    ))
+    # Parse metrics from both files
+    metrics1 = {}  # {(name, labels_frozenset): original_line}
+    metrics2 = {}
+    
+    for line in file1_lines:
+        parsed = parse_metric_line(line)
+        if parsed:
+            metrics1[parsed] = line.strip()
+            
+    for line in file2_lines:
+        parsed = parse_metric_line(line)
+        if parsed:
+            metrics2[parsed] = line.strip()
+    
+    # Generate diff
+    diff_lines = []
+    diff_lines.append(f'--- {file1_name}')
+    diff_lines.append(f'+++ {file2_name}')
+    
+    # Find metrics unique to file1 (removed metrics)
+    for metric in sorted(set(metrics1.keys()) - set(metrics2.keys())):
+        name, labels = metric
+        diff_lines.append(f'-{metrics1[metric]}')
+    
+    # Find metrics unique to file2 (added metrics)
+    for metric in sorted(set(metrics2.keys()) - set(metrics1.keys())):
+        name, labels = metric
+        diff_lines.append(f'+{metrics2[metric]}')
+    
+    return diff_lines
 
 def write_diff_file(diff_lines, output_path):
     try:
@@ -35,7 +81,6 @@ def write_diff_file(diff_lines, output_path):
         print(f"Diff file successfully written to: {output_path}")
     except Exception as e:
         print(f"Error writing diff file: {str(e)}")
-        sys.exit(1)
 
 def main():
     parser = argparse.ArgumentParser(description='Generate diff between two Jaeger metric files')
