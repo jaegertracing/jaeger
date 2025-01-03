@@ -41,6 +41,12 @@ jobs:
             ;;
         esac
 
+    - uses: ./.github/actions/verify-metrics-snapshot
+      if: ${{ matrix.version }} == "v2"
+      with:
+        snapshot: grpc_metrics.txt
+        artifact_key: grpc-metrics-${{ matrix.version }}.txt
+
     - name: Upload coverage to codecov
       uses: ./.github/actions/upload-codecov
       with:

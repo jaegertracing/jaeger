@@ -1,0 +1,59 @@
+# Copyright (c) 2023 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
+name: 'Verify Metric Snapshot and Upload Metrics'
+description: 'Upload or cache the metrics data after verification'
+inputs:
+  snapshot:
+    description: 'Path to the metric file'
+    required: true
+  artifact_key:
+    description: 'Artifact key used for uploading and fetching artifacts'
+    required: true
+  cache_key:
+    description: 'Cache key used for uploading and fetching the correct cached metric'
+    required: true
+runs:
+  using: 'composite'
+  steps:
+    - name: Upload Metrics Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ inputs.artifact_key }}
+        path: ./.metrics/${{ inputs.snapshot }}
+        retention-days: 7
+
+    - name: Cache scraped metrics for tagged release for longer retention
+      if: contains(github.ref,'tags')
+      uses: actions/cache@v4
+      with:
+        path: ./.metrics/${{ inputs.snapshot }}
+        key: ${{ github.ref_name }}_${{ inputs.artifact_key }}
+
+    - name: Get v2 tag 
+      shell: bash
+      run: |
+        git fetch --prune --unshallow --tags
+        v2_tag=$(make echo-v2)
+        echo "v2_tag=$v2_tag" >> $GITHUB_ENV
+        echo "$v2_tag"
+      
+    - name: Download the cached tagged metrics
+      uses: actions/cache@v4
+      with:
+        path: ./.metrics/cached_${{ inputs.snapshot}}
+        key: ${{ env.v2_tag }}_${{ inputs.artifact_key }}
+
+    - name: Calculate diff between the snapshots 
+      shell: bash
+      run: |
+        python3 ./scripts/e2e/compare_metrics.py --file1 ./.metrics/${{ inputs.snapshot }} --file2 ./.metrics/cached_${{ inputs.snapshot}} --output ./.metrics/diff_${{ inputs.snapshot }}
+
+    - name: Upload the diff artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: diff_${{ inputs.artifact_key }}
+        path: ./.metrics/diff_${{ inputs.snapshot }}
+        retention-days: 7
+
+    

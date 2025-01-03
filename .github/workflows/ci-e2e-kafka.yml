@@ -35,6 +35,12 @@ jobs:
     - name: Run kafka integration tests
       id: test-execution
       run: bash scripts/e2e/kafka.sh -j ${{ matrix.jaeger-version }} -v ${{ matrix.kafka-version }}
+        
+    - uses: ./.github/actions/verify-metrics-snapshot
+      if: ${{ matrix.jaeger-version }} == "v2"
+      with:
+        snapshot: kafka_metrics.txt
+        artifact_key: kafka-metrics-${{ matrix.jaeger-version }}.txt
 
     - name: Upload coverage to codecov
       uses: ./.github/actions/upload-codecov

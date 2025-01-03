@@ -29,7 +29,12 @@ jobs:
     - name: Run Memory storage integration tests
       run: |
         STORAGE=memory_v2 make jaeger-v2-storage-integration-test
-
+        
+    - uses: ./.github/actions/verify-metrics-snapshot
+      with:
+        snapshot: memory_metrics.txt
+        artifact_key: memory-metrics.txt
+          
     - name: Upload coverage to codecov
       uses: ./.github/actions/upload-codecov
       with:

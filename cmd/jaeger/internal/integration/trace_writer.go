@@ -81,7 +81,7 @@ func (w *traceWriter) WriteTraces(ctx context.Context, td ptrace.Traces) error {
 			scope    ptrace.ScopeSpans
 			resource ptrace.ResourceSpans
 		)
-		
+
 		if spanCount == MaxChunkSize {
 			err = w.exporter.ConsumeTraces(ctx, currentChunk)
 			currentChunk = ptrace.NewTraces()

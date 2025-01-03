@@ -52,6 +52,12 @@ jobs:
       id: test-execution
       run: bash scripts/e2e/elasticsearch.sh ${{ matrix.version.distribution }} ${{ matrix.version.major }} ${{ matrix.version.jaeger }}
 
+    - uses: ./.github/actions/verify-metrics-snapshot
+      if: ${{ matrix.version.jaeger }} == "v2"
+      with:
+        snapshot: opensearch_metrics.txt
+        artifact_key: opensearch-metrics-${{ matrix.version.major }}.txt
+
     - name: Upload coverage to codecov
       uses: ./.github/actions/upload-codecov
       with:
