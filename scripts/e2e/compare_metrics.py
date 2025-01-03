@@ -7,11 +7,8 @@ import sys
 from pathlib import Path
 
 def read_metric_file(file_path):
-    try:
-        with open(file_path, 'r') as f:
-            return f.readlines()
-    except Exception as e:
-        print(f"Error reading file {file_path}: {str(e)}")
+    with open(file_path, 'r') as f:
+        return f.readlines()
 
 def parse_metric_line(line):
 
@@ -74,13 +71,11 @@ def generate_diff(file1_lines, file2_lines, file1_name, file2_name):
     return diff_lines
 
 def write_diff_file(diff_lines, output_path):
-    try:
-        with open(output_path, 'w') as f:
-            f.write('\n'.join(diff_lines))
-            f.write('\n')  # Add final newline
+    
+    with open(output_path, 'w') as f:
+        f.write('\n'.join(diff_lines))
+        f.write('\n')  # Add final newline
         print(f"Diff file successfully written to: {output_path}")
-    except Exception as e:
-        print(f"Error writing diff file: {str(e)}")
 
 def main():
     parser = argparse.ArgumentParser(description='Generate diff between two Jaeger metric files')
@@ -99,6 +94,11 @@ def main():
     # Read input files
     file1_lines = read_metric_file(file1_path)
     file2_lines = read_metric_file(file2_path)
+
+    # No cached file found
+    if not file1_lines or not file2_lines:
+        print("No cached file")
+        sys.exit(0)
     
     # Generate diff
     diff_lines = generate_diff(file1_lines, file2_lines, str(file1_path), str(file2_path))
