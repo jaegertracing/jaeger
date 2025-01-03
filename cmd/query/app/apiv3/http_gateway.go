@@ -21,7 +21,6 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc/v2/querysvc"
-	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/iter"
@@ -162,14 +161,20 @@ func (h *HTTPGateway) getTrace(w http.ResponseWriter, r *http.Request) {
 		request.RawTraces = rawTraces
 	}
 	getTracesIter := h.QueryService.GetTraces(r.Context(), request)
-	aggrTracesIter := jptrace.AggregateTraces(getTracesIter)
-	trc, err := iter.CollectWithErrors(aggrTracesIter)
+	trc, err := iter.FlattenWithErrors(getTracesIter)
 
 	if h.tryHandleError(w, err, http.StatusInternalServerError) {
 		return
 	}
 	if len(trc) == 0 {
-		// TODO: should we return 404 if trace not found?
+		errorResponse := api_v3.GRPCGatewayError{
+			Error: &api_v3.GRPCGatewayError_GRPCGatewayErrorDetails{
+				HttpCode: http.StatusNotFound,
+				Message:  err.Error(),
+			},
+		}
+		resp, _ := json.Marshal(&errorResponse)
+		http.Error(w, string(resp), http.StatusNotFound)
 		return
 	}
 	h.returnTrace(trc[0], w)
@@ -182,8 +187,7 @@ func (h *HTTPGateway) findTraces(w http.ResponseWriter, r *http.Request) {
 	}
 
 	findTracesIter := h.QueryService.FindTraces(r.Context(), *queryParams)
-	aggrTracesIter := jptrace.AggregateTraces(findTracesIter)
-	traces, err := iter.CollectWithErrors(aggrTracesIter)
+	traces, err := iter.FlattenWithErrors(findTracesIter)
 	// TODO how do we distinguish internal error from bad parameters for FindTrace?
 	if h.tryHandleError(w, err, http.StatusInternalServerError) {
 		return
