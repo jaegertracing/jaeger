@@ -17,10 +17,6 @@ func TestBadgerStorage(t *testing.T) {
 		StorageIntegration: integration.StorageIntegration{
 			SkipArchiveTest: true,
 			CleanUp:         purge,
-
-			// TODO: remove this once badger supports returning spanKind from GetOperations
-			// Cf https://github.com/jaegertracing/jaeger/issues/1922
-			GetOperationsMissingSpanKind: true,
 		},
 	}
 	s.e2eInitialize(t, "badger")

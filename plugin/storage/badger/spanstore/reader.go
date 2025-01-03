@@ -239,7 +239,7 @@ func (r *TraceReader) GetOperations(
 	_ context.Context,
 	query spanstore.OperationQueryParameters,
 ) ([]spanstore.Operation, error) {
-	return r.cache.GetOperations(query.ServiceName)
+	return r.cache.GetOperations(query.ServiceName, query.SpanKind)
 }
 
 // setQueryDefaults alters the query with defaults if certain parameters are not set
