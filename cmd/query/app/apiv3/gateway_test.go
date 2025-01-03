@@ -22,10 +22,8 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
-	"github.com/jaegertracing/jaeger/model"
 	_ "github.com/jaegertracing/jaeger/pkg/gogocodec" // force gogo codec registration
 	"github.com/jaegertracing/jaeger/pkg/iter"
-	"github.com/jaegertracing/jaeger/storage/spanstore"
 	"github.com/jaegertracing/jaeger/storage_v2/tracestore"
 	tracestoremocks "github.com/jaegertracing/jaeger/storage_v2/tracestore/mocks"
 )
@@ -87,25 +85,6 @@ func parseResponse(t *testing.T, body []byte, obj gogoproto.Message) {
 	require.NoError(t, gogojsonpb.Unmarshal(bytes.NewBuffer(body), obj))
 }
 
-func makeTestTrace() (*model.Trace, spanstore.GetTraceParameters) {
-	traceID := model.NewTraceID(150, 160)
-	query := spanstore.GetTraceParameters{TraceID: traceID}
-	return &model.Trace{
-		Spans: []*model.Span{
-			{
-				TraceID:       traceID,
-				SpanID:        model.NewSpanID(180),
-				OperationName: "foobar",
-				Tags: []model.KeyValue{
-					model.SpanKindTag(model.SpanKindServer),
-					model.Bool("error", true),
-				},
-				Process: &model.Process{},
-			},
-		},
-	}, query
-}
-
 func makeTestTraceV2() ptrace.Traces {
 	trace := ptrace.NewTraces()
 	resources := trace.ResourceSpans().AppendEmpty()
@@ -115,8 +94,8 @@ func makeTestTraceV2() ptrace.Traces {
 	spanA.SetName("foobar")
 	spanA.SetTraceID(traceID)
 	spanA.SetSpanID(pcommon.SpanID([8]byte{0, 0, 0, 0, 0, 0, 0, 2}))
-	// spanA.SetKind(ptrace.SpanKindServer)
-	// spanA.Attributes().PutBool("error", true)
+	spanA.SetKind(ptrace.SpanKindServer)
+	spanA.Status().SetCode(ptrace.StatusCodeError)
 
 	return trace
 }
