@@ -18,6 +18,8 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/pdata/pcommon"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
 	"github.com/jaegertracing/jaeger/model"
@@ -35,7 +37,10 @@ const (
 // Snapshots can be regenerated via:
 //
 //	REGENERATE_SNAPSHOTS=true go test -v ./cmd/query/app/apiv3/...
-var regenerateSnapshots = os.Getenv("REGENERATE_SNAPSHOTS") == "true"
+var (
+	regenerateSnapshots = os.Getenv("REGENERATE_SNAPSHOTS") == "true"
+	traceID             = pcommon.TraceID([16]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1})
+)
 
 type testGateway struct {
 	reader *tracestoremocks.Reader
@@ -97,6 +102,21 @@ func makeTestTrace() (*model.Trace, spanstore.GetTraceParameters) {
 			},
 		},
 	}, query
+}
+
+func makeTestTraceV2() ptrace.Traces {
+	trace := ptrace.NewTraces()
+	resources := trace.ResourceSpans().AppendEmpty()
+	scopes := resources.ScopeSpans().AppendEmpty()
+
+	spanA := scopes.Spans().AppendEmpty()
+	spanA.SetName("foobar")
+	spanA.SetTraceID(traceID)
+	spanA.SetSpanID(pcommon.SpanID([8]byte{180}))
+	spanA.SetKind(ptrace.SpanKindServer)
+	spanA.Attributes().PutBool("error", true)
+
+	return trace
 }
 
 func runGatewayTests(

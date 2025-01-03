@@ -14,9 +14,9 @@ make build-and-run-crossdock
 if [[ "$BRANCH" == "main" ]]; then
   echo 'upload images to dockerhub/quay.io'
   REPO=jaegertracing/test-driver
-  IFS=" " read -r -a IMAGE_TAGS <<< "$(bash scripts/compute-tags.sh ${REPO})"
+  IFS=" " read -r -a IMAGE_TAGS <<< "$(bash scripts/utils/compute-tags.sh ${REPO})"
   IMAGE_TAGS+=("--tag" "docker.io/${REPO}:${COMMIT}" "--tag" "quay.io/${REPO}:${COMMIT}")
-  bash scripts/docker-login.sh
+  bash scripts/utils/docker-login.sh
 
   docker buildx build --push \
     --progress=plain \
