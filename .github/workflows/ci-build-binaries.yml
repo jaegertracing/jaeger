@@ -25,7 +25,7 @@ jobs:
     - name: define matrix
       id: set-matrix
       run: |
-        echo "matrix=$(bash scripts/platforms-to-gh-matrix.sh)" >> $GITHUB_OUTPUT
+        echo "matrix=$(bash scripts/utils/platforms-to-gh-matrix.sh)" >> $GITHUB_OUTPUT
 
   build-binaries:
     needs: generate-matrix
