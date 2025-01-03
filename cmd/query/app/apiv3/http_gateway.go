@@ -123,6 +123,8 @@ func (h *HTTPGateway) returnTraces(traces []ptrace.Traces, err error, w http.Res
 	if h.tryHandleError(w, err, http.StatusInternalServerError) {
 		return
 	}
+	// TODO: the response should be streamed back to the client
+	// https://github.com/jaegertracing/jaeger/issues/6467
 	combinedTrace := ptrace.NewTraces()
 	for _, t := range traces {
 		resources := t.ResourceSpans()
