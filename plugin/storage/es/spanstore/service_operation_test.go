@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/es/mocks"
 	"github.com/jaegertracing/jaeger/plugin/storage/es/spanstore/internal/dbmodel"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
@@ -42,13 +43,48 @@ func TestWriteService(t *testing.T) {
 			},
 		}
 
-		w.writer.writeService(indexName, jsonSpan)
+		w.writer.writeService(indexName, jsonSpan, model.SpanKindUnspecified)
 
 		indexService.AssertNumberOfCalls(t, "Add", 1)
 		assert.Equal(t, "", w.logBuffer.String())
 
 		// test that cache works, will call the index service only once.
-		w.writer.writeService(indexName, jsonSpan)
+		w.writer.writeService(indexName, jsonSpan, model.SpanKindUnspecified)
+		indexService.AssertNumberOfCalls(t, "Add", 1)
+	})
+}
+
+func TestWriteServiceWithKind(t *testing.T) {
+	withSpanWriter(func(w *spanWriterTest) {
+		indexService := &mocks.IndexService{}
+
+		indexName := "jaeger-1995-04-21"
+		serviceHash := "dff8fa7700d2d554"
+
+		indexService.On("Index", stringMatcher(indexName)).Return(indexService)
+		indexService.On("Type", stringMatcher(serviceType)).Return(indexService)
+		indexService.On("Id", stringMatcher(serviceHash)).Return(indexService)
+		indexService.On("BodyJson", mock.AnythingOfType("dbmodel.ServiceWithKind")).Return(indexService)
+		indexService.On("Add")
+
+		w.client.On("Index").Return(indexService)
+
+		jsonSpan := &dbmodel.Span{
+			TraceID:       dbmodel.TraceID("1"),
+			SpanID:        dbmodel.SpanID("0"),
+			OperationName: "operation",
+			Process: dbmodel.Process{
+				ServiceName: "service",
+			},
+		}
+
+		w.writer.writeService(indexName, jsonSpan, model.SpanKindServer)
+
+		indexService.AssertNumberOfCalls(t, "Add", 1)
+		assert.Equal(t, "", w.logBuffer.String())
+
+		// test that cache works, will call the index service only once.
+		w.writer.writeService(indexName, jsonSpan, model.SpanKindServer)
 		indexService.AssertNumberOfCalls(t, "Add", 1)
 	})
 }
@@ -77,7 +113,7 @@ func TestWriteServiceError(*testing.T) {
 			},
 		}
 
-		w.writer.writeService(indexName, jsonSpan)
+		w.writer.writeService(indexName, jsonSpan, model.SpanKindUnspecified)
 	})
 }
 
@@ -87,6 +123,7 @@ func TestSpanReader_GetServices(t *testing.T) {
 
 func TestSpanReader_GetOperations(t *testing.T) {
 	testGet(operationsAggregation, t)
+	testGetWithKind(operationsAggregation, t, true)
 }
 
 func TestSpanReader_GetServicesEmptyIndex(t *testing.T) {

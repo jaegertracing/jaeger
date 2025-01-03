@@ -88,3 +88,9 @@ type Service struct {
 	ServiceName   string `json:"serviceName"`
 	OperationName string `json:"operationName"`
 }
+
+// ServiceWithKind is the JSON struct service:kind:operation documents in ElasticSearch
+type ServiceWithKind struct {
+	Service
+	Kind string `json:"spanKind"`
+}
