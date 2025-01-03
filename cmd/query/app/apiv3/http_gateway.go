@@ -110,12 +110,28 @@ func (h *HTTPGateway) tryParamError(w http.ResponseWriter, err error, paramName 
 	return h.tryHandleError(w, fmt.Errorf("malformed parameter %s: %w", paramName, err), http.StatusBadRequest)
 }
 
-func (h *HTTPGateway) returnTrace(t ptrace.Traces, w http.ResponseWriter) {
-	tracesData := api_v3.TracesData(t)
+func (h *HTTPGateway) returnTrace(td ptrace.Traces, w http.ResponseWriter) {
+	tracesData := api_v3.TracesData(td)
 	response := &api_v3.GRPCGatewayWrapper{
 		Result: &tracesData,
 	}
 	h.marshalResponse(response, w)
+}
+
+func (h *HTTPGateway) returnTraces(traces []ptrace.Traces, err error, w http.ResponseWriter) {
+	// TODO how do we distinguish internal error from bad parameters?
+	if h.tryHandleError(w, err, http.StatusInternalServerError) {
+		return
+	}
+	combinedTrace := ptrace.NewTraces()
+	for _, t := range traces {
+		resources := t.ResourceSpans()
+		for i := 0; i < resources.Len(); i++ {
+			resource := resources.At(i)
+			resource.CopyTo(combinedTrace.ResourceSpans().AppendEmpty())
+		}
+	}
+	h.returnTrace(combinedTrace, w)
 }
 
 func (*HTTPGateway) marshalResponse(response proto.Message, w http.ResponseWriter) {
@@ -162,22 +178,7 @@ func (h *HTTPGateway) getTrace(w http.ResponseWriter, r *http.Request) {
 	}
 	getTracesIter := h.QueryService.GetTraces(r.Context(), request)
 	trc, err := iter.FlattenWithErrors(getTracesIter)
-
-	if h.tryHandleError(w, err, http.StatusInternalServerError) {
-		return
-	}
-	if len(trc) == 0 {
-		errorResponse := api_v3.GRPCGatewayError{
-			Error: &api_v3.GRPCGatewayError_GRPCGatewayErrorDetails{
-				HttpCode: http.StatusNotFound,
-				Message:  err.Error(),
-			},
-		}
-		resp, _ := json.Marshal(&errorResponse)
-		http.Error(w, string(resp), http.StatusNotFound)
-		return
-	}
-	h.returnTrace(trc[0], w)
+	h.returnTraces(trc, err, w)
 }
 
 func (h *HTTPGateway) findTraces(w http.ResponseWriter, r *http.Request) {
@@ -188,19 +189,7 @@ func (h *HTTPGateway) findTraces(w http.ResponseWriter, r *http.Request) {
 
 	findTracesIter := h.QueryService.FindTraces(r.Context(), *queryParams)
 	traces, err := iter.FlattenWithErrors(findTracesIter)
-	// TODO how do we distinguish internal error from bad parameters for FindTrace?
-	if h.tryHandleError(w, err, http.StatusInternalServerError) {
-		return
-	}
-	combinedTrace := ptrace.NewTraces()
-	for _, t := range traces {
-		resources := t.ResourceSpans()
-		for i := 0; i < resources.Len(); i++ {
-			resource := resources.At(i)
-			resource.CopyTo(combinedTrace.ResourceSpans().AppendEmpty())
-		}
-	}
-	h.returnTrace(combinedTrace, w)
+	h.returnTraces(traces, err, w)
 }
 
 func (h *HTTPGateway) parseFindTracesQuery(q url.Values, w http.ResponseWriter) (*querysvc.TraceQueryParams, bool) {
