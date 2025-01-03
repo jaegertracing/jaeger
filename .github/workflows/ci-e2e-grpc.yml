@@ -44,7 +44,7 @@ jobs:
     - uses: ./.github/actions/verify-metrics-snapshot
       if: ${{ matrix.version }} == "v2"
       with:
-        snapshot: ./.metrics/grpc_metrics.txt
+        snapshot: grpc_metrics.txt
         artifact_key: grpc-metrics-${{ matrix.version }}.txt
 
     - name: Upload coverage to codecov

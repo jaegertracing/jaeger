@@ -62,7 +62,7 @@ jobs:
     - uses: ./.github/actions/verify-metrics-snapshot
       if: ${{ matrix.version.jaeger }} == "v2"
       with:
-        snapshot: ./.metrics/elasticsearch_metrics.txt
+        snapshot: elasticsearch_metrics.txt
         artifact_key: elasticsearch-metrics-${{ matrix.version.major }}_${{ matrix.version.jaeger}}.txt
 
     - name: Upload coverage to codecov

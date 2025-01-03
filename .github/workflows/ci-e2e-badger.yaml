@@ -44,7 +44,7 @@ jobs:
     - uses: ./.github/actions/verify-metrics-snapshot
       if: ${{ matrix.version }} == "v2"
       with:
-        snapshot: ./.metrics/badger_metrics.txt
+        snapshot: badger_metrics.txt
         artifact_key: badger-metrics-${{ matrix.version }}.txt
   
     - name: Upload coverage to codecov

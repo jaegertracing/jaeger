@@ -52,7 +52,7 @@ jobs:
     - uses: ./.github/actions/verify-metrics-snapshot
       if: ${{ matrix.jaeger-version }} == "v2"
       with:
-        snapshot: ./.metrics/cassandra_metrics.txt
+        snapshot: cassandra_metrics.txt
         artifact_key: cassandra_metrics_${{ matrix.version.major }}_${{ matrix.version.schema }}_${{ matrix.jaeger-version }}_${{ matrix.create-schema }}.txt
 
     - name: Upload coverage to codecov

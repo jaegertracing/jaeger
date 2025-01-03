@@ -20,14 +20,14 @@ runs:
       uses: actions/upload-artifact@v4
       with:
         name: ${{ inputs.artifact_key }}
-        path: ${{ inputs.snapshot }}
+        path: ./.metrics/${{ inputs.snapshot }}
         retention-days: 7
 
     - name: Cache scraped metrics for tagged release for longer retention
       if: contains(github.ref,'tags')
       uses: actions/cache@v4
       with:
-        path: ${{ inputs.snapshot }}
+        path: ./.metrics/${{ inputs.snapshot }}
         key: ${{ github.ref_name }}_${{ inputs.artifact_key }}
 
     - name: Get v2 tag 
@@ -40,19 +40,19 @@ runs:
     - name: Download the cached tagged metrics
       uses: actions/cache@v4
       with:
-        path: cached_${{ inputs.snapshot}}
+        path: ./.metrics/cached_${{ inputs.snapshot}}
         key: ${{ env.v2_tag }}_${{ inputs.artifact_key }}
 
     - name: Calculate diff between the snapshots 
       shell: bash
       run: |
-        python3 ./scripts/e2e/compare_metrics.py --file1 ${{ inputs.snapshot }} --file2 cached_${{ inputs.snapshot}} --output ./.metrics/diff_${{ github.ref_name }}_${{ inputs.artifact_key }}
+        python3 ./scripts/e2e/compare_metrics.py --file1 ./.metrics/${{ inputs.snapshot }} --file2 ./.metrics/cached_${{ inputs.snapshot}} --output ./.metrics/diff_${{ inputs.snapshot }}
 
     - name: Upload the diff artifact
       uses: actions/upload-artifact@v4
       with:
         name: diff_${{ inputs.artifact_key }}
-        path: ./.metrics/diff_${{ github.ref_name }}_${{ inputs.artifact_key }}
+        path: ./.metrics/diff_${{ inputs.snapshot }}
         retention-days: 7
 
     

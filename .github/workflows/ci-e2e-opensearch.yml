@@ -55,7 +55,7 @@ jobs:
     - uses: ./.github/actions/verify-metrics-snapshot
       if: ${{ matrix.version.jaeger }} == "v2"
       with:
-        snapshot: ./.metrics/opensearch_metrics.txt
+        snapshot: opensearch_metrics.txt
         artifact_key: opensearch-metrics-${{ matrix.version.major }}.txt
 
     - name: Upload coverage to codecov
