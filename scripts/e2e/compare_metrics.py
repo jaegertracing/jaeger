@@ -3,9 +3,8 @@
 
 import argparse
 import sys
-import json 
-import deepdiff
-from pathlib import Path
+from difflib import unified_diff
+from bisect import insort
 from prometheus_client.parser import text_string_to_metric_families
 
 def read_metric_file(file_path):
@@ -13,15 +12,19 @@ def read_metric_file(file_path):
         return f.readlines()
     
 def parse_metrics(content):
-    metrics = {}
+    metrics = []
     for family in text_string_to_metric_families(content):
         for sample in family.samples:
-            key = (family.name, frozenset(sorted(sample.labels.items())))
-            metrics[key] = {
-                'name': family.name,
-                'labels': dict(sample.labels),
-            }
+            labels = dict(sample.labels)
+            #simply pop undesirable metric labels
+            labels.pop('service_instance_id',None)
+            label_pairs = sorted(labels.items(), key=lambda x: x[0])
+            label_str = ','.join(f'{k}="{v}"' for k,v in label_pairs)
+            metric = f"{family.name}{{{label_str}}}"
+            insort(metrics , metric)
+        
     return metrics
+
 
 def generate_diff(file1_content, file2_content):
     if isinstance(file1_content, list):
@@ -32,13 +35,9 @@ def generate_diff(file1_content, file2_content):
     metrics1 = parse_metrics(file1_content)
     metrics2 = parse_metrics(file2_content)
 
-    # Compare metrics ignoring values
-    diff = deepdiff.DeepDiff(metrics1, metrics2,ignore_order=True,exclude_paths=["root['value']"])
-    diff_dict = diff.to_dict()
-    diff_dict['metrics_in_tagged_only'] = diff_dict.pop('dictionary_item_added')
-    diff_dict['metrics_in_current_only'] = diff_dict.pop('dictionary_item_removed')
-    diff_json = json.dumps(diff_dict,indent=4,default=tuple,sort_keys=True)
-    return diff_json
+    diff = unified_diff(metrics1, metrics2,lineterm='',n=0)
+    
+    return '\n'.join(diff)
 
 def write_diff_file(diff_lines, output_path):
     

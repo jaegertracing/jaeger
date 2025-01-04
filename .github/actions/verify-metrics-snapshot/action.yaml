@@ -17,7 +17,7 @@ runs:
   using: 'composite'
   steps:
     - name: Upload Metrics Artifact
-      uses: actions/upload-artifact@6f51ac03b9356f520e9adb1b1b7802705f340c2b
+      uses: actions/upload-artifact@6f51ac03b9356f520e9adb1b1b7802705f340c2b # v4.5.0
       with:
         name: ${{ inputs.artifact_key }}
         path: ./.metrics/${{ inputs.snapshot }}
@@ -51,7 +51,7 @@ runs:
         python3 ./scripts/e2e/compare_metrics.py --file1 ./.metrics/${{ inputs.snapshot }} --file2 ./.metrics/cached_${{ inputs.snapshot}} --output ./.metrics/diff_${{ inputs.snapshot }}
 
     - name: Upload the diff artifact
-      uses: actions/upload-artifact@6f51ac03b9356f520e9adb1b1b7802705f340c2b
+      uses: actions/upload-artifact@6f51ac03b9356f520e9adb1b1b7802705f340c2b # v4.5.0
       with:
         name: diff_${{ inputs.artifact_key }}
         path: ./.metrics/diff_${{ inputs.snapshot }}
