@@ -56,9 +56,9 @@ def main():
     
     args = parser.parse_args()
     
-    file1_path = Path(args.file1)
-    file2_path = Path(args.file2)
-    output_path = Path(args.output)
+    file1_path = args.file1
+    file2_path = args.file2
+    output_path = args.output
     
     # Read input files
     file1_lines = read_metric_file(file1_path)
