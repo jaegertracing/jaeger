@@ -17,7 +17,7 @@ runs:
   using: 'composite'
   steps:
     - name: Upload Metrics Artifact
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@6f51ac03b9356f520e9adb1b1b7802705f340c2b
       with:
         name: ${{ inputs.artifact_key }}
         path: ./.metrics/${{ inputs.snapshot }}
@@ -25,7 +25,7 @@ runs:
 
     - name: Cache scraped metrics for tagged release for longer retention
       if: contains(github.ref,'tags')
-      uses: actions/cache@v4
+      uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57
       with:
         path: ./.metrics/${{ inputs.snapshot }}
         key: ${{ github.ref_name }}_${{ inputs.artifact_key }}
@@ -39,7 +39,7 @@ runs:
         echo "$v2_tag"
       
     - name: Download the cached tagged metrics
-      uses: actions/cache@v4
+      uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57
       with:
         path: ./.metrics/cached_${{ inputs.snapshot}}
         key: ${{ env.v2_tag }}_${{ inputs.artifact_key }}
@@ -51,7 +51,7 @@ runs:
         python3 ./scripts/e2e/compare_metrics.py --file1 ./.metrics/${{ inputs.snapshot }} --file2 ./.metrics/cached_${{ inputs.snapshot}} --output ./.metrics/diff_${{ inputs.snapshot }}
 
     - name: Upload the diff artifact
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@6f51ac03b9356f520e9adb1b1b7802705f340c2b
       with:
         name: diff_${{ inputs.artifact_key }}
         path: ./.metrics/diff_${{ inputs.snapshot }}

@@ -56,16 +56,12 @@ def main():
     
     args = parser.parse_args()
     
-    file1_path = args.file1
-    file2_path = args.file2
-    output_path = args.output
-    
     # Read input files
-    file1_lines = read_metric_file(file1_path)
-    file2_lines = read_metric_file(file2_path)
+    file1_lines = read_metric_file(args.file1)
+    file2_lines = read_metric_file(args.file2)
     
     # Generate diff
-    diff_lines = generate_diff(file1_lines, file2_lines, str(file1_path), str(file2_path))
+    diff_lines = generate_diff(file1_lines, file2_lines, str(args.file1), str(args.file2))
     
     # Check if there are any differences
     if not diff_lines:
@@ -73,7 +69,7 @@ def main():
         sys.exit(0)
     
     # Write diff to output file
-    write_diff_file(diff_lines, output_path)
+    write_diff_file(diff_lines, args.output)
 
 if __name__ == '__main__':
     main()
