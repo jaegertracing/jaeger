@@ -51,6 +51,11 @@ type HTTPGateway struct {
 	Tracer       trace.TracerProvider
 }
 
+type wrappedResponseWriter struct {
+	http.ResponseWriter
+	flusher http.Flusher
+}
+
 // RegisterRoutes registers HTTP endpoints for APIv3 into provided mux.
 // The called can create a subrouter if it needs to prepend a base path.
 func (h *HTTPGateway) RegisterRoutes(router *mux.Router) {
@@ -68,7 +73,21 @@ func (*HTTPGateway) addRoute(
 	route string,
 	_ ...any, /* args */
 ) *mux.Route {
-	var handler http.Handler = http.HandlerFunc(f)
+	var handler http.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		flusher, ok := w.(http.Flusher)
+		if !ok {
+			http.Error(w, "Streaming unsupported!", http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Transfer-Encoding", "chunked")
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+
+		wrapped := wrappedResponseWriter{
+			ResponseWriter: w,
+			flusher:        flusher,
+		}
+		f(wrapped, r)
+	})
 	handler = otelhttp.WithRouteTag(route, handler)
 	handler = spanNameHandler(route, handler)
 	return router.HandleFunc(route, handler.ServeHTTP)
@@ -266,4 +285,12 @@ func spanNameHandler(spanName string, handler http.Handler) http.Handler {
 		span.SetName(spanName)
 		handler.ServeHTTP(w, r)
 	})
+}
+
+func (w wrappedResponseWriter) Write(p []byte) (int, error) {
+	n, err := w.ResponseWriter.Write(p)
+	if err == nil {
+		w.flusher.Flush()
+	}
+	return n, err
 }

@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"testing"
@@ -914,8 +915,17 @@ func TestServerHTTP_TracesRequest(t *testing.T) {
 			client := &http.Client{}
 			resp, err := client.Do(req)
 			require.NoError(t, err)
+			defer resp.Body.Close()
+
+			body, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+			require.NotEmpty(t, body, "Response body should not be empty")
 
 			if test.expectedTrace != "" {
+				// fmt.Printf("%v",exporter.GetSpans())
+				if test.name == "different ports for v3 api" {
+					fmt.Printf("%v", exporter.GetSpans())
+				}
 				assert.Len(t, exporter.GetSpans(), 1, "HTTP request was traced and span reported")
 				assert.Equal(t, test.expectedTrace, exporter.GetSpans()[0].Name)
 			} else {
