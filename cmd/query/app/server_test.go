@@ -915,7 +915,6 @@ func TestServerHTTP_TracesRequest(t *testing.T) {
 			client := &http.Client{}
 			resp, err := client.Do(req)
 			require.NoError(t, err)
-			defer resp.Body.Close()
 
 			body, err := io.ReadAll(resp.Body)
 			require.NoError(t, err)
