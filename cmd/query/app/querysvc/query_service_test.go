@@ -24,6 +24,7 @@ import (
 	spanstoremocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
 	"github.com/jaegertracing/jaeger/storage_v2/depstore"
 	depsmocks "github.com/jaegertracing/jaeger/storage_v2/depstore/mocks"
+	tracestoremocks "github.com/jaegertracing/jaeger/storage_v2/tracestore/mocks"
 	"github.com/jaegertracing/jaeger/storage_v2/v1adapter"
 )
 
@@ -510,4 +511,11 @@ func TestInitArchiveStorage(t *testing.T) {
 
 func TestMain(m *testing.M) {
 	testutils.VerifyGoLeaks(m)
+}
+
+func TestNewQueryService_PanicsForNonV1AdapterReader(t *testing.T) {
+	reader := &tracestoremocks.Reader{}
+	dependencyReader := &depsmocks.Reader{}
+	options := QueryServiceOptions{}
+	require.PanicsWithError(t, v1adapter.ErrV1ReaderNotAvailable.Error(), func() { NewQueryService(reader, dependencyReader, options) })
 }

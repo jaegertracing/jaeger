@@ -64,7 +64,7 @@ func NewQueryService(traceReader tracestore.Reader, dependencyReader depstore.Re
 	spanReader, err := v1adapter.GetV1Reader(traceReader)
 	if err != nil {
 		// TODO: implement a reverse adapter to convert v2 reader to v1 reader
-		panic("cannot convert v2 reader to v1 reader: " + err.Error())
+		panic(err)
 	}
 	qsvc := &QueryService{
 		spanReader:       spanReader,
