@@ -10,6 +10,7 @@ import (
 	"embed"
 	"encoding/json"
 	"fmt"
+	"github.com/jaegertracing/jaeger/storage_v2/depstore"
 	"os"
 	"regexp"
 	"sort"
@@ -27,7 +28,6 @@ import (
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/samplingstore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
-	"github.com/jaegertracing/jaeger/storage_v2/depstore"
 	"github.com/jaegertracing/jaeger/storage_v2/tracestore"
 	"github.com/jaegertracing/jaeger/storage_v2/v1adapter"
 )
@@ -500,14 +500,14 @@ func (s *StorageIntegration) testGetDependencies(t *testing.T) {
 			Source:    source,
 		},
 	}
-
-	require.NoError(t, s.DependencyWriter.WriteDependencies(time.Now(), expected))
+	startTime := time.Now()
+	require.NoError(t, s.DependencyWriter.WriteDependencies(startTime, expected))
 
 	var actual []model.DependencyLink
 	found := s.waitForCondition(t, func(t *testing.T) bool {
 		var err error
 
-		actual, err = s.DependencyReader.GetDependencies(context.Background(), depstore.QueryParameters{StartTime: time.Now(), EndTime: time.Now().Add(5 * time.Minute)})
+		actual, err = s.DependencyReader.GetDependencies(context.Background(), depstore.QueryParameters{StartTime: startTime, EndTime: startTime.Add(time.Minute * 5)})
 		if err != nil {
 			t.Log(err)
 			return false
