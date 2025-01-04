@@ -47,6 +47,7 @@ runs:
     - name: Calculate diff between the snapshots 
       shell: bash
       run: |
+        python3 -m pip install prometheus-client deepdiff
         python3 ./scripts/e2e/compare_metrics.py --file1 ./.metrics/${{ inputs.snapshot }} --file2 ./.metrics/cached_${{ inputs.snapshot}} --output ./.metrics/diff_${{ inputs.snapshot }}
 
     - name: Upload the diff artifact

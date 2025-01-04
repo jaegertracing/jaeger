@@ -2,78 +2,48 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import argparse
-import re
 import sys
+import json 
+import deepdiff
 from pathlib import Path
+from prometheus_client.parser import text_string_to_metric_families
 
 def read_metric_file(file_path):
     with open(file_path, 'r') as f:
         return f.readlines()
+    
+def parse_metrics(content):
+    metrics = {}
+    for family in text_string_to_metric_families(content):
+        for sample in family.samples:
+            key = (family.name, frozenset(sorted(sample.labels.items())))
+            metrics[key] = {
+                'name': family.name,
+                'labels': dict(sample.labels),
+            }
+    return metrics
 
-def parse_metric_line(line):
+def generate_diff(file1_content, file2_content):
+    if isinstance(file1_content, list):
+        file1_content = ''.join(file1_content)
+    if isinstance(file2_content, list):
+        file2_content = ''.join(file2_content)
 
-    # Skip empty lines or comments
-    line = line.strip()
-    if not line or line.startswith('#'):
-        return None
-    
-    # Extract metric name and labels section
-    match = re.match(r'([^{]+)(?:{(.+)})?(?:\s+[-+]?[0-9.eE+-]+)?$', line)
-    if not match:
-        return None
-        
-    name = match.group(1)
-    labels_str = match.group(2) or ''
-    
-    # Parse labels into a frozenset of (key, value) tuples
-    labels = []
-    if labels_str:
-        for label in labels_str.split(','):
-            label = label.strip()
-            if '=' in label:
-                key, value = label.split('=', 1)
-                labels.append((key.strip(), value.strip()))
-    
-    # Sort labels and convert to frozenset for comparison
-    return (name, frozenset(sorted(labels)))
+    metrics1 = parse_metrics(file1_content)
+    metrics2 = parse_metrics(file2_content)
 
-def generate_diff(file1_lines, file2_lines, file1_name, file2_name):
-
-    # Parse metrics from both files
-    metrics1 = {}  # {(name, labels_frozenset): original_line}
-    metrics2 = {}
-    
-    for line in file1_lines:
-        parsed = parse_metric_line(line)
-        if parsed:
-            metrics1[parsed] = line.strip()
-            
-    for line in file2_lines:
-        parsed = parse_metric_line(line)
-        if parsed:
-            metrics2[parsed] = line.strip()
-    
-    # Generate diff
-    diff_lines = []
-    diff_lines.append(f'--- {file1_name}')
-    diff_lines.append(f'+++ {file2_name}')
-    
-    # Find metrics unique to file1 (removed metrics)
-    for metric in sorted(set(metrics1.keys()) - set(metrics2.keys())):
-        name, labels = metric
-        diff_lines.append(f'-{metrics1[metric]}')
-    
-    # Find metrics unique to file2 (added metrics)
-    for metric in sorted(set(metrics2.keys()) - set(metrics1.keys())):
-        name, labels = metric
-        diff_lines.append(f'+{metrics2[metric]}')
-    
-    return diff_lines
+    # Compare metrics ignoring values
+    diff = deepdiff.DeepDiff(metrics1, metrics2,ignore_order=True,exclude_paths=["root['value']"])
+    diff_dict = diff.to_dict()
+    diff_dict['metrics_in_tagged_only'] = diff_dict.pop('dictionary_item_added')
+    diff_dict['metrics_in_current_only'] = diff_dict.pop('dictionary_item_removed')
+    diff_json = json.dumps(diff_dict,indent=4,default=tuple,sort_keys=True)
+    return diff_json
 
 def write_diff_file(diff_lines, output_path):
     
     with open(output_path, 'w') as f:
-        f.write('\n'.join(diff_lines))
+        f.write(diff_lines)
         f.write('\n')  # Add final newline
         print(f"Diff file successfully written to: {output_path}")
 
@@ -86,19 +56,13 @@ def main():
     
     args = parser.parse_args()
     
-    # Convert paths to absolute paths
-    file1_path = Path(args.file1).absolute()
-    file2_path = Path(args.file2).absolute()
-    output_path = Path(args.output).absolute()
+    file1_path = Path(args.file1)
+    file2_path = Path(args.file2)
+    output_path = Path(args.output)
     
     # Read input files
     file1_lines = read_metric_file(file1_path)
     file2_lines = read_metric_file(file2_path)
-
-    # No cached file found
-    if not file1_lines or not file2_lines:
-        print("No cached file")
-        sys.exit(0)
     
     # Generate diff
     diff_lines = generate_diff(file1_lines, file2_lines, str(file1_path), str(file2_path))
