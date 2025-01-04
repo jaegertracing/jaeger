@@ -93,8 +93,9 @@ func (s *CassandraStorageIntegration) initializeDependencyReaderAndWriter(t *tes
 		err error
 		ok  bool
 	)
-	s.DependencyReader, err = f.CreateDependencyReader()
+	dependencyReader, err := f.CreateDependencyReader()
 	require.NoError(t, err)
+	s.DependencyReader = v1adapter.NewDependencyReader(dependencyReader)
 
 	// TODO: Update this when the factory interface has CreateDependencyWriter
 	if s.DependencyWriter, ok = s.DependencyReader.(dependencystore.Writer); !ok {
