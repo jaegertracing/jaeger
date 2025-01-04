@@ -69,9 +69,9 @@ func (c *Config) InitFromViper(v *viper.Viper) {
 	c.Timeout = v.GetInt(timeout)
 	c.SkipDependencies = v.GetBool(skipDependencies)
 	c.AdaptiveSampling = v.GetBool(adaptiveSampling)
-	opts, err := tlsFlagsCfg.InitFromViper(v)
+	tlsCfg, err := tlsFlagsCfg.InitFromViper(v)
 	if err != nil {
 		panic(err)
 	}
-	c.TLSConfig = opts.ToOtelClientConfig()
+	c.TLSConfig = tlsCfg
 }
