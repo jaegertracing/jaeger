@@ -220,11 +220,9 @@ func TestFailedTLSFlags(t *testing.T) {
 
 					switch metaTest.side {
 					case "client":
-						_, ok := result.(configtls.ClientConfig)
-						require.True(t, ok, "expected result to be of type configtls.ClientConfig")
+						require.IsType(t, configtls.ClientConfig{}, result, "result should be of type configtls.ClientConfig")
 					case "server":
-						_, ok := result.(*configtls.ServerConfig)
-						require.True(t, ok, "expected result to be of type *configtls.ServerConfig")
+						require.IsType(t, &configtls.ServerConfig{}, result, "result should be of type *configtls.ServerConfig")
 					}
 
 					cmdLine[0] = "--prefix.tls.enabled=false"
