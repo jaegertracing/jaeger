@@ -922,10 +922,6 @@ func TestServerHTTP_TracesRequest(t *testing.T) {
 			require.NotEmpty(t, body, "Response body should not be empty")
 
 			if test.expectedTrace != "" {
-				// fmt.Printf("%v",exporter.GetSpans())
-				if test.name == "different ports for v3 api" {
-					fmt.Printf("%v", exporter.GetSpans())
-				}
 				assert.Len(t, exporter.GetSpans(), 1, "HTTP request was traced and span reported")
 				assert.Equal(t, test.expectedTrace, exporter.GetSpans()[0].Name)
 			} else {
