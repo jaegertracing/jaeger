@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/config/confignet"
+	"go.opentelemetry.io/collector/config/configtls"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest/observer"
@@ -21,7 +22,6 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/handler"
 	"github.com/jaegertracing/jaeger/internal/grpctest"
-	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 )
@@ -99,11 +99,12 @@ func TestSpanCollector(t *testing.T) {
 
 func TestCollectorStartWithTLS(t *testing.T) {
 	logger, _ := zap.NewDevelopment()
-	opts := tlscfg.Options{
-		Enabled:      true,
-		CertPath:     testCertKeyLocation + "/example-server-cert.pem",
-		KeyPath:      testCertKeyLocation + "/example-server-key.pem",
-		ClientCAPath: testCertKeyLocation + "/example-CA-cert.pem",
+	tlsCfg := &configtls.ServerConfig{
+		ClientCAFile: testCertKeyLocation + "/example-CA-cert.pem",
+		Config: configtls.Config{
+			CertFile: testCertKeyLocation + "/example-server-cert.pem",
+			KeyFile:  testCertKeyLocation + "/example-server-key.pem",
+		},
 	}
 	params := &GRPCServerParams{
 		Handler:          handler.NewGRPCHandler(logger, &mockSpanProcessor{}, &tenancy.Manager{}),
@@ -113,7 +114,7 @@ func TestCollectorStartWithTLS(t *testing.T) {
 			NetAddr: confignet.AddrConfig{
 				Transport: confignet.TransportTypeTCP,
 			},
-			TLSSetting: opts.ToOtelServerConfig(),
+			TLSSetting: tlsCfg,
 		},
 	}
 	server, err := StartGRPCServer(params)
