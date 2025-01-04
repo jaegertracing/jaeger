@@ -44,17 +44,35 @@ runs:
         path: ./.metrics/cached_${{ inputs.snapshot}}
         key: ${{ env.v2_tag }}_${{ inputs.artifact_key }}
 
-    - name: Calculate diff between the snapshots 
+    - name: Check cache and exit action
+      if: steps.cache-metrics.outputs.cache-hit != 'true'
       shell: bash
       run: |
-        python3 -m pip install prometheus-client deepdiff
-        python3 ./scripts/e2e/compare_metrics.py --file1 ./.metrics/${{ inputs.snapshot }} --file2 ./.metrics/cached_${{ inputs.snapshot}} --output ./.metrics/diff_${{ inputs.snapshot }}
+        echo "::notice::No cached metrics found for comparison, skipping remaining steps"
+        exit 78 
+
+    - name: Calculate diff between the snapshots 
+      id: diff-check
+      shell: bash
+      run: |
+        python3 -m pip install prometheus-client
+        if ! python3 ./scripts/e2e/compare_metrics.py --file1 ./.metrics/${{ inputs.snapshot }} --file2 ./.metrics/cached_${{ inputs.snapshot}} --output ./.metrics/diff_${{ inputs.snapshot }}; then
+          echo "diff_found=true" >> $GITHUB_ENV
+          exit 1
+        fi
 
     - name: Upload the diff artifact
+      if: env.diff_found == 'true'
       uses: actions/upload-artifact@6f51ac03b9356f520e9adb1b1b7802705f340c2b # v4.5.0
       with:
         name: diff_${{ inputs.artifact_key }}
         path: ./.metrics/diff_${{ inputs.snapshot }}
         retention-days: 7
 
+    - name: Fail if differences found
+      if: env.diff_found == 'true'
+      shell: bash
+      run: |
+        echo "::error::Differences found in metrics comparison"
+        exit 1
     
