@@ -98,7 +98,7 @@ func (s *CassandraStorageIntegration) initializeDependencyReaderAndWriter(t *tes
 	s.DependencyReader = v1adapter.NewDependencyReader(dependencyReader)
 
 	// TODO: Update this when the factory interface has CreateDependencyWriter
-	if s.DependencyWriter, ok = s.DependencyReader.(dependencystore.Writer); !ok {
+	if s.DependencyWriter, ok = dependencyReader.(dependencystore.Writer); !ok {
 		t.Log("DependencyWriter not implemented ")
 	}
 }

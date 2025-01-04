@@ -44,15 +44,15 @@ func (t *TraceWriter) WriteTraces(ctx context.Context, td ptrace.Traces) error {
 }
 
 type DependencyWriter struct {
-	DependencyWriter dependencystore.Writer
+	dependWriter dependencystore.Writer
 }
 
 func NewDependencyWriter(dependencyWriter dependencystore.Writer) *DependencyWriter {
 	return &DependencyWriter{
-		DependencyWriter: dependencyWriter,
+		dependWriter: dependencyWriter,
 	}
 }
 
 func (dw *DependencyWriter) WriteDependencies(ts time.Time, dependencies []model.DependencyLink) error {
-	return dw.DependencyWriter.WriteDependencies(ts, dependencies)
+	return dw.dependWriter.WriteDependencies(ts, dependencies)
 }
