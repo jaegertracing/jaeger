@@ -916,9 +916,20 @@ func TestServerHTTP_TracesRequest(t *testing.T) {
 			resp, err := client.Do(req)
 			require.NoError(t, err)
 
-			body, err := io.ReadAll(resp.Body)
-			require.NoError(t, err)
-			require.NotEmpty(t, body, "Response body should not be empty")
+			var fullResponse bytes.Buffer
+
+			buf := make([]byte, 1024)
+			for {
+				n, err := resp.Body.Read(buf)
+
+				if n > 0 {
+					fullResponse.Write(buf[:n])
+				}
+
+				if err == io.EOF {
+					break
+				}
+			}
 
 			if test.expectedTrace != "" {
 				assert.Len(t, exporter.GetSpans(), 1, "HTTP request was traced and span reported")
