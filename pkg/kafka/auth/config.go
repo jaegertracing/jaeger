@@ -87,8 +87,6 @@ func (config *AuthenticationConfig) InitFromViper(configPrefix string, v *viper.
 			return fmt.Errorf("failed to process Kafka TLS options: %w", err)
 		}
 		config.TLS = tlsCfg
-	} else {
-		config.TLS.Insecure = true
 	}
 
 	config.PlainText.Username = v.GetString(configPrefix + plainTextPrefix + suffixPlainTextUsername)
