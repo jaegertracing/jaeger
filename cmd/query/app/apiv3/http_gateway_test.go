@@ -129,7 +129,7 @@ func TestHTTPGatewayGetTrace(t *testing.T) {
 			gw.reader.
 				On("GetTraces", matchContext, tc.expectedQuery).
 				Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
-					yield([]ptrace.Traces{makeTestTraceV2()}, nil)
+					yield([]ptrace.Traces{makeTestTrace()}, nil)
 				})).Once()
 
 			q := url.Values{}
