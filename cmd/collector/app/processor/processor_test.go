@@ -15,11 +15,11 @@ import (
 func TestDetails(t *testing.T) {
 	d := Details{
 		SpanFormat:       JaegerSpanFormat,
-		InboundTransport: InboundTransport("grpc"),
+		InboundTransport: GRPCTransport,
 		Tenant:           "tenant",
 	}
 	assert.Equal(t, JaegerSpanFormat, d.GetSpanFormat())
-	assert.Equal(t, InboundTransport("grpc"), d.GetInboundTransport())
+	assert.Equal(t, GRPCTransport, d.GetInboundTransport())
 	assert.Equal(t, "tenant", d.GetTenant())
 }
 
@@ -28,7 +28,7 @@ func TestSpansV1(t *testing.T) {
 		Spans: []*model.Span{{}},
 		Details: Details{
 			SpanFormat:       JaegerSpanFormat,
-			InboundTransport: InboundTransport("grpc"),
+			InboundTransport: GRPCTransport,
 			Tenant:           "tenant",
 		},
 	}
@@ -40,7 +40,7 @@ func TestSpansV1(t *testing.T) {
 	})
 	assert.Equal(t, []*model.Span{{}}, spans)
 	assert.Equal(t, JaegerSpanFormat, s.GetSpanFormat())
-	assert.Equal(t, InboundTransport("grpc"), s.GetInboundTransport())
+	assert.Equal(t, GRPCTransport, s.GetInboundTransport())
 	assert.Equal(t, "tenant", s.GetTenant())
 }
 
@@ -49,7 +49,7 @@ func TestSpansV2(t *testing.T) {
 		Traces: ptrace.NewTraces(),
 		Details: Details{
 			SpanFormat:       JaegerSpanFormat,
-			InboundTransport: InboundTransport("grpc"),
+			InboundTransport: GRPCTransport,
 			Tenant:           "tenant",
 		},
 	}
@@ -61,6 +61,6 @@ func TestSpansV2(t *testing.T) {
 	})
 	assert.Equal(t, ptrace.NewTraces(), traces)
 	assert.Equal(t, JaegerSpanFormat, s.GetSpanFormat())
-	assert.Equal(t, InboundTransport("grpc"), s.GetInboundTransport())
+	assert.Equal(t, GRPCTransport, s.GetInboundTransport())
 	assert.Equal(t, "tenant", s.GetTenant())
 }
