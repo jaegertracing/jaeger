@@ -75,18 +75,20 @@ func (config *AuthenticationConfig) InitFromViper(configPrefix string, v *viper.
 	config.Kerberos.KeyTabPath = v.GetString(configPrefix + kerberosPrefix + suffixKerberosKeyTab)
 	config.Kerberos.DisablePAFXFast = v.GetBool(configPrefix + kerberosPrefix + suffixKerberosDisablePAFXFAST)
 
-	tlsClientConfig := tlscfg.ClientFlagsConfig{
-		Prefix: configPrefix,
+	if config.Authentication == tls {
+		if !v.IsSet(configPrefix + ".tls.enabled") {
+			v.Set(configPrefix+".tls.enabled", "true")
+		}
+		tlsClientConfig := tlscfg.ClientFlagsConfig{
+			Prefix: configPrefix,
+		}
+		tlsCfg, err := tlsClientConfig.InitFromViper(v)
+		if err != nil {
+			return fmt.Errorf("failed to process Kafka TLS options: %w", err)
+		}
+		config.TLS = tlsCfg
 	}
 
-	tlsOpts, err := tlsClientConfig.InitFromViper(v)
-	if err != nil {
-		return fmt.Errorf("failed to process Kafka TLS options: %w", err)
-	}
-	if config.Authentication == tls {
-		tlsOpts.Enabled = true
-		config.TLS = tlsOpts.ToOtelClientConfig()
-	}
 	config.PlainText.Username = v.GetString(configPrefix + plainTextPrefix + suffixPlainTextUsername)
 	config.PlainText.Password = v.GetString(configPrefix + plainTextPrefix + suffixPlainTextPassword)
 	config.PlainText.Mechanism = v.GetString(configPrefix + plainTextPrefix + suffixPlainTextMechanism)

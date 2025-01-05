@@ -23,7 +23,6 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/internal/flags"
 	"github.com/jaegertracing/jaeger/internal/grpctest"
-	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	"github.com/jaegertracing/jaeger/pkg/telemetry"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
@@ -113,11 +112,12 @@ func newStorageMocks() *storageMocks {
 }
 
 func TestNewServer_TLSConfigError(t *testing.T) {
-	tlsCfg := tlscfg.Options{
-		Enabled:      true,
-		CertPath:     "invalid/path",
-		KeyPath:      "invalid/path",
-		ClientCAPath: "invalid/path",
+	tlsCfg := &configtls.ServerConfig{
+		ClientCAFile: "invalid/path",
+		Config: configtls.Config{
+			CertFile: "invalid/path",
+			KeyFile:  "invalid/path",
+		},
 	}
 	telset := telemetry.Settings{
 		Logger:       zap.NewNop(),
@@ -130,7 +130,7 @@ func TestNewServer_TLSConfigError(t *testing.T) {
 				NetAddr: confignet.AddrConfig{
 					Endpoint: ":8081",
 				},
-				TLSSetting: tlsCfg.ToOtelServerConfig(),
+				TLSSetting: tlsCfg,
 			},
 		},
 		storageMocks.factory,

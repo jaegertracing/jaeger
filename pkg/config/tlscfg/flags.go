@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/spf13/viper"
+	"go.opentelemetry.io/collector/config/configtls"
 )
 
 const (
@@ -63,8 +64,8 @@ func (c ServerFlagsConfig) AddFlags(flags *flag.FlagSet) {
 }
 
 // InitFromViper creates tls.Config populated with values retrieved from Viper.
-func (c ClientFlagsConfig) InitFromViper(v *viper.Viper) (Options, error) {
-	var p Options
+func (c ClientFlagsConfig) InitFromViper(v *viper.Viper) (configtls.ClientConfig, error) {
+	var p options
 	p.Enabled = v.GetBool(c.Prefix + tlsEnabled)
 	p.CAPath = v.GetString(c.Prefix + tlsCA)
 	p.CertPath = v.GetString(c.Prefix + tlsCert)
@@ -73,18 +74,18 @@ func (c ClientFlagsConfig) InitFromViper(v *viper.Viper) (Options, error) {
 	p.SkipHostVerify = v.GetBool(c.Prefix + tlsSkipHostVerify)
 
 	if !p.Enabled {
-		var empty Options
+		var empty options
 		if !reflect.DeepEqual(&p, &empty) {
-			return p, fmt.Errorf("%s.tls.* options cannot be used when %s is false", c.Prefix, c.Prefix+tlsEnabled)
+			return configtls.ClientConfig{}, fmt.Errorf("%s.tls.* options cannot be used when %s is false", c.Prefix, c.Prefix+tlsEnabled)
 		}
 	}
 
-	return p, nil
+	return p.ToOtelClientConfig(), nil
 }
 
 // InitFromViper creates tls.Config populated with values retrieved from Viper.
-func (c ServerFlagsConfig) InitFromViper(v *viper.Viper) (Options, error) {
-	var p Options
+func (c ServerFlagsConfig) InitFromViper(v *viper.Viper) (*configtls.ServerConfig, error) {
+	var p options
 	p.Enabled = v.GetBool(c.Prefix + tlsEnabled)
 	p.CertPath = v.GetString(c.Prefix + tlsCert)
 	p.KeyPath = v.GetString(c.Prefix + tlsKey)
@@ -97,13 +98,13 @@ func (c ServerFlagsConfig) InitFromViper(v *viper.Viper) (Options, error) {
 	p.ReloadInterval = v.GetDuration(c.Prefix + tlsReloadInterval)
 
 	if !p.Enabled {
-		var empty Options
+		var empty options
 		if !reflect.DeepEqual(&p, &empty) {
-			return p, fmt.Errorf("%s.tls.* options cannot be used when %s is false", c.Prefix, c.Prefix+tlsEnabled)
+			return nil, fmt.Errorf("%s.tls.* options cannot be used when %s is false", c.Prefix, c.Prefix+tlsEnabled)
 		}
 	}
 
-	return p, nil
+	return p.ToOtelServerConfig(), nil
 }
 
 // stripWhiteSpace removes all whitespace characters from a string

@@ -62,9 +62,9 @@ func (c *Config) InitFromViper(v *viper.Viper) {
 	c.IndexDateSeparator = v.GetString(indexDateSeparator)
 	c.Username = v.GetString(username)
 	c.Password = v.GetString(password)
-	opts, err := tlsFlagsCfg.InitFromViper(v)
+	tlsCfg, err := tlsFlagsCfg.InitFromViper(v)
 	if err != nil {
 		panic(err)
 	}
-	c.TLSConfig = opts.ToOtelClientConfig()
+	c.TLSConfig = tlsCfg
 }

@@ -47,7 +47,10 @@ func Test_InitFromViper(t *testing.T) {
 	err := authConfig.InitFromViper(configPrefix, v)
 	require.ErrorContains(t, err, "kafka.auth.tls.* options cannot be used when kafka.auth.tls.enabled is false")
 
-	command.ParseFlags([]string{"--kafka.auth.tls.ca="}) // incrementally update authConfig
+	command.ParseFlags([]string{
+		"--kafka.auth.tls.enabled=true",
+		"--kafka.auth.tls.ca=",
+	}) // incrementally update authConfig
 	require.NoError(t, authConfig.InitFromViper(configPrefix, v))
 
 	expectedConfig := &AuthenticationConfig{
