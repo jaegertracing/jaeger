@@ -26,6 +26,6 @@ func (*mockSpanProcessor) Close() error {
 	return nil
 }
 
-func (*mockSpanProcessor) ProcessSpans(_ processor.Spans) ([]bool, error) {
+func (*mockSpanProcessor) ProcessSpans(_ processor.Batch) ([]bool, error) {
 	return []bool{}, nil
 }

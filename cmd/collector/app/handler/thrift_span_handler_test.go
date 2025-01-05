@@ -12,10 +12,12 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
 	zipkinsanitizer "github.com/jaegertracing/jaeger/cmd/collector/app/sanitizer/zipkin"
+	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 )
@@ -57,12 +59,19 @@ type shouldIErrorProcessor struct {
 
 var errTestError = errors.New("Whoops")
 
-func (s *shouldIErrorProcessor) ProcessSpans(spans processor.Spans) ([]bool, error) {
+func (s *shouldIErrorProcessor) ProcessSpans(batch processor.Batch) ([]bool, error) {
 	if s.shouldError {
 		return nil, errTestError
 	}
-	retMe := make([]bool, len(spans.SpansV1))
-	for i := range spans.SpansV1 {
+	var spans []*model.Span
+	batch.GetSpans(func(sp []*model.Span) {
+		spans = sp
+	}, func(traces ptrace.Traces) {
+		panic("not implemented")
+	})
+
+	retMe := make([]bool, len(spans))
+	for i := range spans {
 		retMe[i] = true
 	}
 	return retMe, nil

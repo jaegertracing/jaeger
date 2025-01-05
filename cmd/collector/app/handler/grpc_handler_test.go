@@ -12,6 +12,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -33,17 +34,21 @@ type mockSpanProcessor struct {
 	spanFormat    processor.SpanFormat
 }
 
-func (p *mockSpanProcessor) ProcessSpans(spans processor.Spans) ([]bool, error) {
+func (p *mockSpanProcessor) ProcessSpans(batch processor.Batch) ([]bool, error) {
 	p.mux.Lock()
 	defer p.mux.Unlock()
-	p.spans = append(p.spans, spans.SpansV1...)
-	oks := make([]bool, len(spans.SpansV1))
+	batch.GetSpans(func(spans []*model.Span) {
+		p.spans = append(p.spans, spans...)
+	}, func(traces ptrace.Traces) {
+		panic("not implemented")
+	})
+	oks := make([]bool, len(p.spans))
 	if p.tenants == nil {
 		p.tenants = make(map[string]bool)
 	}
-	p.tenants[spans.Tenant] = true
-	p.transport = spans.InboundTransport
-	p.spanFormat = spans.SpanFormat
+	p.tenants[batch.GetTenant()] = true
+	p.transport = batch.GetInboundTransport()
+	p.spanFormat = batch.GetSpanFormat()
 	return oks, p.expectedError
 }
 

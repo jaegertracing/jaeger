@@ -27,7 +27,7 @@ func TestAllOptionSet(t *testing.T) {
 		Options.ServiceMetrics(metrics.NullFactory),
 		Options.Logger(zap.NewNop()),
 		Options.NumWorkers(5),
-		Options.PreProcessSpans(func(_ processor.Spans) {}),
+		Options.PreProcessSpans(func(_ processor.Batch) {}),
 		Options.Sanitizer(func(span *model.Span) *model.Span { return span }),
 		Options.QueueSize(10),
 		Options.DynQueueSizeWarmup(1000),
@@ -53,7 +53,7 @@ func TestNoOptionsSet(t *testing.T) {
 	assert.Nil(t, opts.collectorTags)
 	assert.False(t, opts.reportBusy)
 	assert.False(t, opts.blockingSubmit)
-	assert.NotPanics(t, func() { opts.preProcessSpans(processor.Spans{}) })
+	assert.NotPanics(t, func() { opts.preProcessSpans(processor.SpansV1{}) })
 	assert.NotPanics(t, func() { opts.preSave(nil, "") })
 	assert.True(t, opts.spanFilter(nil))
 	span := model.Span{}

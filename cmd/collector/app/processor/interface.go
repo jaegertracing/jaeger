@@ -4,7 +4,6 @@
 package processor
 
 import (
-	"errors"
 	"io"
 
 	"go.opentelemetry.io/collector/pdata/ptrace"
@@ -12,49 +11,61 @@ import (
 	"github.com/jaegertracing/jaeger/model"
 )
 
-// ErrBusy signalizes that processor cannot process incoming data
-var ErrBusy = errors.New("server busy")
+var (
+	_ Batch = (*SpansV1)(nil)
+	_ Batch = (*SpansV2)(nil)
+)
 
-// SpansOptions additional options passed to processor along with the spans.
-type Spans struct {
-	SpansV1          []*model.Span
-	SpansV2          ptrace.Traces
+// Batch is a batch of spans passed to the processor.
+type Batch interface {
+	// Spans calls the appropriate function based on the type of spans being processed.
+	GetSpans(v1 func(spans []*model.Span), v2 func(traces ptrace.Traces))
+
+	GetSpanFormat() SpanFormat
+	GetInboundTransport() InboundTransport
+	GetTenant() string
+}
+
+// SpanProcessor handles spans
+type SpanProcessor interface {
+	// ProcessSpans processes spans and return with either a list of true/false success or an error
+	ProcessSpans(spans Batch) ([]bool, error)
+	io.Closer
+}
+
+type Details struct {
 	SpanFormat       SpanFormat
 	InboundTransport InboundTransport
 	Tenant           string
 }
 
-// SpanProcessor handles model spans
-type SpanProcessor interface {
-	// ProcessSpans processes model spans and return with either a list of true/false success or an error
-	ProcessSpans(spans Spans) ([]bool, error)
-	io.Closer
+// Spans is a batch of spans passed to the processor.
+type SpansV1 struct {
+	Spans []*model.Span
+	Details
 }
 
-// InboundTransport identifies the transport used to receive spans.
-type InboundTransport string
+type SpansV2 struct {
+	Traces ptrace.Traces
+	Details
+}
 
-const (
-	// GRPCTransport indicates spans received over gRPC.
-	GRPCTransport InboundTransport = "grpc"
-	// HTTPTransport indicates spans received over HTTP.
-	HTTPTransport InboundTransport = "http"
-	// UnknownTransport is the fallback/catch-all category.
-	UnknownTransport InboundTransport = "unknown"
-)
+func (s SpansV1) GetSpans(v1 func([]*model.Span), v2 func(ptrace.Traces)) {
+	v1(s.Spans)
+}
 
-// SpanFormat identifies the data format in which the span was originally received.
-type SpanFormat string
+func (s SpansV2) GetSpans(v1 func([]*model.Span), v2 func(ptrace.Traces)) {
+	v2(s.Traces)
+}
 
-const (
-	// JaegerSpanFormat is for Jaeger Thrift spans.
-	JaegerSpanFormat SpanFormat = "jaeger"
-	// ZipkinSpanFormat is for Zipkin Thrift spans.
-	ZipkinSpanFormat SpanFormat = "zipkin"
-	// ProtoSpanFormat is for Jaeger protobuf Spans.
-	ProtoSpanFormat SpanFormat = "proto"
-	// OTLPSpanFormat is for OpenTelemetry OTLP format.
-	OTLPSpanFormat SpanFormat = "otlp"
-	// UnknownSpanFormat is the fallback/catch-all category.
-	UnknownSpanFormat SpanFormat = "unknown"
-)
+func (d Details) GetSpanFormat() SpanFormat {
+	return d.SpanFormat
+}
+
+func (d Details) GetInboundTransport() InboundTransport {
+	return d.InboundTransport
+}
+
+func (d Details) GetTenant() string {
+	return d.Tenant
+}
