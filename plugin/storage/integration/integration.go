@@ -507,7 +507,13 @@ func (s *StorageIntegration) testGetDependencies(t *testing.T) {
 	found := s.waitForCondition(t, func(t *testing.T) bool {
 		var err error
 
-		actual, err = s.DependencyReader.GetDependencies(context.Background(), depstore.QueryParameters{StartTime: startTime, EndTime: startTime.Add(time.Minute * 5)})
+		actual, err = s.DependencyReader.GetDependencies(
+			context.Background(), 
+			depstore.QueryParameters{
+				StartTime: startTime,
+				EndTime: startTime.Add(time.Minute * 5),
+			},
+		)
 		if err != nil {
 			t.Log(err)
 			return false
