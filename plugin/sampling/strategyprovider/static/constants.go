@@ -16,14 +16,14 @@ const (
 	// only up to a fixed number of traces per second.
 	samplerTypeRateLimiting = "ratelimiting"
 
-	// defaultSamplingProbability is the default sampling probability the
-	// Strategy Store will use if none is provided.
-	defaultSamplingProbability = 0.001
+	// defaultDefaultSamplingProbability is the default "defaultSamplingProbability"
+	// used by the Strategy Store in case no defaultSamplingProbability is defined is given
+	defaultDefaultSamplingProbability = 0.001
 )
 
 // defaultStrategy is the default sampling strategy the Strategy Store will return
 // if none is provided.
-func defaultStrategyResponse() *api_v2.SamplingStrategyResponse {
+func defaultStrategyResponse(defaultSamplingProbability float64) *api_v2.SamplingStrategyResponse {
 	return &api_v2.SamplingStrategyResponse{
 		StrategyType: api_v2.SamplingStrategyType_PROBABILISTIC,
 		ProbabilisticSampling: &api_v2.ProbabilisticSamplingStrategy{
@@ -32,10 +32,10 @@ func defaultStrategyResponse() *api_v2.SamplingStrategyResponse {
 	}
 }
 
-func defaultStrategies() *storedStrategies {
+func defaultStrategies(defaultSamplingProbability float64) *storedStrategies {
 	s := &storedStrategies{
 		serviceStrategies: make(map[string]*api_v2.SamplingStrategyResponse),
 	}
-	s.defaultStrategy = defaultStrategyResponse()
+	s.defaultStrategy = defaultStrategyResponse(defaultSamplingProbability)
 	return s
 }
