@@ -283,6 +283,7 @@ func TestV1TraceToOtelTrace_ReturnEmptyOtelTrace(t *testing.T) {
 
 	require.Equal(t, eTrace.SpanCount(), aTrace.SpanCount(), 0)
 }
+
 func TestV1TraceIDsFromSeq2(t *testing.T) {
 	testCases := []struct {
 		name          string
@@ -292,7 +293,7 @@ func TestV1TraceIDsFromSeq2(t *testing.T) {
 	}{
 		{
 			name:          "empty sequence",
-			seqTraceIDs:   func(yield func([]pcommon.TraceID, error) bool) {},
+			seqTraceIDs:   func(func([]pcommon.TraceID, error) bool) {},
 			expectedIDs:   nil,
 			expectedError: nil,
 		},

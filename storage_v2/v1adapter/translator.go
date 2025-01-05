@@ -81,7 +81,6 @@ func V1TraceIDsFromSeq2(traceIDsIter iter.Seq2[[]pcommon.TraceID, error]) ([]mod
 		return nil, iterErr
 	}
 	return modelTraceIDs, nil
-
 }
 
 // V1TraceToOtelTrace converts v1 traces (*model.Trace) to Otel traces (ptrace.Traces)
