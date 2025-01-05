@@ -189,19 +189,19 @@ func TestFailedTLSFlags(t *testing.T) {
 				t.Run(test, func(t *testing.T) {
 					var (
 						addFlags      func(*flag.FlagSet)
-						initFromViper func(*viper.Viper) (interface{}, error)
+						initFromViper func(*viper.Viper) (any, error)
 					)
 
 					if metaTest.side == "client" {
 						clientConfig := &ClientFlagsConfig{Prefix: "prefix"}
 						addFlags = clientConfig.AddFlags
-						initFromViper = func(v *viper.Viper) (interface{}, error) {
+						initFromViper = func(v *viper.Viper) (any, error) {
 							return clientConfig.InitFromViper(v)
 						}
 					} else {
 						serverConfig := &ServerFlagsConfig{Prefix: "prefix"}
 						addFlags = serverConfig.AddFlags
-						initFromViper = func(v *viper.Viper) (interface{}, error) {
+						initFromViper = func(v *viper.Viper) (any, error) {
 							return serverConfig.InitFromViper(v)
 						}
 					}
