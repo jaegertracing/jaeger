@@ -24,6 +24,7 @@ import (
 	spanstoremocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
 	"github.com/jaegertracing/jaeger/storage_v2/depstore"
 	depsmocks "github.com/jaegertracing/jaeger/storage_v2/depstore/mocks"
+	"github.com/jaegertracing/jaeger/storage_v2/tracestore"
 	tracestoremocks "github.com/jaegertracing/jaeger/storage_v2/tracestore/mocks"
 	"github.com/jaegertracing/jaeger/storage_v2/v1adapter"
 )
@@ -513,9 +514,32 @@ func TestMain(m *testing.M) {
 	testutils.VerifyGoLeaks(m)
 }
 
-func TestNewQueryService_PanicsForNonV1AdapterReader(t *testing.T) {
-	reader := &tracestoremocks.Reader{}
-	dependencyReader := &depsmocks.Reader{}
-	options := QueryServiceOptions{}
-	require.PanicsWithError(t, v1adapter.ErrV1ReaderNotAvailable.Error(), func() { NewQueryService(reader, dependencyReader, options) })
+func TestNewQueryService_UsesCorrectTypeForSpanReader(t *testing.T) {
+	tests := []struct {
+		name         string
+		reader       tracestore.Reader
+		expectedType spanstore.Reader
+	}{
+		{
+			name: "wrapped spanstore.Reader gets extracted",
+			reader: func() tracestore.Reader {
+				reader := &spanstoremocks.Reader{}
+				return v1adapter.NewTraceReader(reader)
+			}(),
+			expectedType: &spanstoremocks.Reader{},
+		},
+		{
+			name:         "tracestore.Reader gets downgraded to v1 spanstore.Reader",
+			reader:       &tracestoremocks.Reader{},
+			expectedType: &v1adapter.SpanReader{},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			dependencyReader := &depsmocks.Reader{}
+			options := QueryServiceOptions{}
+			qs := NewQueryService(test.reader, dependencyReader, options)
+			assert.IsType(t, test.expectedType, qs.spanReader)
+		})
+	}
 }
