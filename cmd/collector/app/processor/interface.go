@@ -7,8 +7,9 @@ import (
 	"errors"
 	"io"
 
-	"github.com/jaegertracing/jaeger/model"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+
+	"github.com/jaegertracing/jaeger/model"
 )
 
 // ErrBusy signalizes that processor cannot process incoming data
