@@ -23,13 +23,13 @@ import (
 
 func TestSpanReader_GetTrace(t *testing.T) {
 	tests := []struct {
-		name           string
-		query          spanstore.GetTraceParameters
-		expectedQuery  tracestore.GetTraceParams
-		traces         []ptrace.Traces
-		expectedTraces *model.Trace
-		err            error
-		expectedErr    error
+		name          string
+		query         spanstore.GetTraceParameters
+		expectedQuery tracestore.GetTraceParams
+		traces        []ptrace.Traces
+		expectedTrace *model.Trace
+		err           error
+		expectedErr   error
 	}{
 		{
 			name: "error getting trace",
@@ -73,7 +73,7 @@ func TestSpanReader_GetTrace(t *testing.T) {
 				span.SetStartTimestamp(pcommon.NewTimestampFromTime(time.Unix(0, 0).UTC()))
 				return []ptrace.Traces{traces}
 			}(),
-			expectedTraces: &model.Trace{
+			expectedTrace: &model.Trace{
 				Spans: []*model.Span{
 					{
 						TraceID:       model.NewTraceID(1, 2),
@@ -96,7 +96,7 @@ func TestSpanReader_GetTrace(t *testing.T) {
 		sr := NewSpanReader(&tr)
 		trace, err := sr.GetTrace(context.Background(), test.query)
 		require.ErrorIs(t, err, test.expectedErr)
-		require.Equal(t, test.expectedTraces, trace)
+		require.Equal(t, test.expectedTrace, trace)
 	}
 }
 
@@ -104,9 +104,9 @@ func TestSpanReader_GetServices(t *testing.T) {
 	tests := []struct {
 		name             string
 		services         []string
+		expectedServices []string
 		err              error
 		expectedErr      error
-		expectedServices []string
 	}{
 		{
 			name:        "error getting services",
@@ -139,13 +139,13 @@ func TestSpanReader_GetServices(t *testing.T) {
 
 func TestSpanReader_GetOperations(t *testing.T) {
 	tests := []struct {
-		name          string
-		query         spanstore.OperationQueryParameters
-		expectedQuery tracestore.OperationQueryParams
-		operations    []tracestore.Operation
-		err           error
-		expectedErr   error
-		expectedOps   []spanstore.Operation
+		name               string
+		query              spanstore.OperationQueryParameters
+		expectedQuery      tracestore.OperationQueryParams
+		operations         []tracestore.Operation
+		expectedOperations []spanstore.Operation
+		err                error
+		expectedErr        error
 	}{
 		{
 			name: "error getting operations",
@@ -166,8 +166,8 @@ func TestSpanReader_GetOperations(t *testing.T) {
 			expectedQuery: tracestore.OperationQueryParams{
 				ServiceName: "service1",
 			},
-			operations:  []tracestore.Operation{},
-			expectedOps: []spanstore.Operation{},
+			operations:         []tracestore.Operation{},
+			expectedOperations: []spanstore.Operation{},
 		},
 		{
 			name: "multiple operations",
@@ -181,7 +181,7 @@ func TestSpanReader_GetOperations(t *testing.T) {
 				{Name: "operation1", SpanKind: "kind1"},
 				{Name: "operation2", SpanKind: "kind2"},
 			},
-			expectedOps: []spanstore.Operation{
+			expectedOperations: []spanstore.Operation{
 				{Name: "operation1", SpanKind: "kind1"},
 				{Name: "operation2", SpanKind: "kind2"},
 			},
@@ -196,7 +196,7 @@ func TestSpanReader_GetOperations(t *testing.T) {
 		sr := NewSpanReader(&tr)
 		ops, err := sr.GetOperations(context.Background(), test.query)
 		require.ErrorIs(t, err, test.expectedErr)
-		require.Equal(t, test.expectedOps, ops)
+		require.Equal(t, test.expectedOperations, ops)
 	}
 }
 
@@ -206,9 +206,9 @@ func TestSpanReader_FindTraces(t *testing.T) {
 		query          *spanstore.TraceQueryParameters
 		expectedQuery  tracestore.TraceQueryParams
 		traces         []ptrace.Traces
+		expectedTraces []*model.Trace
 		err            error
 		expectedErr    error
-		expectedTraces []*model.Trace
 	}{
 		{
 			name: "error finding traces",

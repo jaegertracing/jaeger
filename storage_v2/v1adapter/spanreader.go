@@ -13,6 +13,8 @@ import (
 
 var _ spanstore.Reader = (*SpanReader)(nil)
 
+// SpanReader wraps a tracestore.Reader so that it can be downgraded to implement
+// the v1 spanstore.Reader interface.
 type SpanReader struct {
 	traceReader tracestore.Reader
 }
