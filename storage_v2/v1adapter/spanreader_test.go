@@ -330,3 +330,68 @@ func TestSpanReader_FindTraces(t *testing.T) {
 		require.Equal(t, test.expectedTraces, traces)
 	}
 }
+
+func TestSpanReader_FindTraceIDs(t *testing.T) {
+	tests := []struct {
+		name             string
+		query            *spanstore.TraceQueryParameters
+		expectedQuery    tracestore.TraceQueryParams
+		traceIDs         []pcommon.TraceID
+		expectedTraceIDs []model.TraceID
+		err              error
+		expectedErr      error
+	}{
+		{
+			name: "error finding trace IDs",
+			query: &spanstore.TraceQueryParameters{
+				ServiceName: "service1",
+			},
+			expectedQuery: tracestore.TraceQueryParams{
+				ServiceName: "service1",
+			},
+			err:         assert.AnError,
+			expectedErr: assert.AnError,
+		},
+		{
+			name: "no trace IDs found",
+			query: &spanstore.TraceQueryParameters{
+				ServiceName: "service1",
+			},
+			expectedQuery: tracestore.TraceQueryParams{
+				ServiceName: "service1",
+			},
+			traceIDs:         []pcommon.TraceID{},
+			expectedTraceIDs: nil,
+		},
+		{
+			name: "multiple trace IDs found",
+			query: &spanstore.TraceQueryParameters{
+				ServiceName: "service1",
+			},
+			expectedQuery: tracestore.TraceQueryParams{
+				ServiceName: "service1",
+			},
+			traceIDs: []pcommon.TraceID{
+				pcommon.TraceID([16]byte{0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 2}),
+				pcommon.TraceID([16]byte{0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 4}),
+			},
+			expectedTraceIDs: []model.TraceID{
+				model.NewTraceID(1, 2),
+				model.NewTraceID(3, 4),
+			},
+		},
+	}
+
+	for _, test := range tests {
+		tr := tracestoremocks.Reader{}
+		tr.On("FindTraceIDs", mock.Anything, test.expectedQuery).
+			Return(iter.Seq2[[]pcommon.TraceID, error](func(yield func([]pcommon.TraceID, error) bool) {
+				yield(test.traceIDs, test.err)
+			})).Once()
+
+		sr := NewSpanReader(&tr)
+		traceIDs, err := sr.FindTraceIDs(context.Background(), test.query)
+		require.ErrorIs(t, err, test.expectedErr)
+		require.Equal(t, test.expectedTraceIDs, traceIDs)
+	}
+}
