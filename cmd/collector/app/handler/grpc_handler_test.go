@@ -39,7 +39,7 @@ func (p *mockSpanProcessor) ProcessSpans(batch processor.Batch) ([]bool, error) 
 	defer p.mux.Unlock()
 	batch.GetSpans(func(spans []*model.Span) {
 		p.spans = append(p.spans, spans...)
-	}, func(traces ptrace.Traces) {
+	}, func(_ ptrace.Traces) {
 		panic("not implemented")
 	})
 	oks := make([]bool, len(p.spans))

@@ -18,7 +18,7 @@ var (
 
 // Batch is a batch of spans passed to the processor.
 type Batch interface {
-	// Spans calls the appropriate function based on the type of spans being processed.
+	// GetSpans delegates to the appropriate function based on the data model version.
 	GetSpans(v1 func(spans []*model.Span), v2 func(traces ptrace.Traces))
 
 	GetSpanFormat() SpanFormat
@@ -50,11 +50,11 @@ type SpansV2 struct {
 	Details
 }
 
-func (s SpansV1) GetSpans(v1 func([]*model.Span), v2 func(ptrace.Traces)) {
+func (s SpansV1) GetSpans(v1 func([]*model.Span), _ func(ptrace.Traces)) {
 	v1(s.Spans)
 }
 
-func (s SpansV2) GetSpans(v1 func([]*model.Span), v2 func(ptrace.Traces)) {
+func (s SpansV2) GetSpans(_ func([]*model.Span), v2 func(ptrace.Traces)) {
 	v2(s.Traces)
 }
 

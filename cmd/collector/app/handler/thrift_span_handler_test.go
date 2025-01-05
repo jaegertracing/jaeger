@@ -66,7 +66,7 @@ func (s *shouldIErrorProcessor) ProcessSpans(batch processor.Batch) ([]bool, err
 	var spans []*model.Span
 	batch.GetSpans(func(sp []*model.Span) {
 		spans = sp
-	}, func(traces ptrace.Traces) {
+	}, func(_ ptrace.Traces) {
 		panic("not implemented")
 	})
 

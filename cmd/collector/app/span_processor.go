@@ -170,7 +170,7 @@ func (sp *spanProcessor) ProcessSpans(batch processor.Batch) ([]bool, error) {
 	var spans []*model.Span
 	batch.GetSpans(func(spansV1 []*model.Span) {
 		spans = spansV1
-	}, func(traces ptrace.Traces) {
+	}, func(_ ptrace.Traces) {
 		panic("not implemented")
 	})
 	sp.metrics.BatchSize.Update(int64(len(spans)))
@@ -197,7 +197,7 @@ func (sp *spanProcessor) ProcessSpans(batch processor.Batch) ([]bool, error) {
 }
 
 func (sp *spanProcessor) processItemFromQueue(item *queueItem) {
-	// TODO calling sanitized here contradicts the comment in enqueueSpan that warns about shared Process.
+	// TODO calling sanitizer here contradicts the comment in enqueueSpan about immutable Process.
 	sp.processSpan(sp.sanitizer(item.span), item.tenant)
 	sp.metrics.InQueueLatency.Record(time.Since(item.queuedTime))
 }
