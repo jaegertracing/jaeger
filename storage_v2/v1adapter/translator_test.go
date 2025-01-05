@@ -283,3 +283,62 @@ func TestV1TraceToOtelTrace_ReturnEmptyOtelTrace(t *testing.T) {
 
 	require.Equal(t, eTrace.SpanCount(), aTrace.SpanCount(), 0)
 }
+func TestV1TraceIDsFromSeq2(t *testing.T) {
+	testCases := []struct {
+		name          string
+		seqTraceIDs   iter.Seq2[[]pcommon.TraceID, error]
+		expectedIDs   []model.TraceID
+		expectedError error
+	}{
+		{
+			name:          "empty sequence",
+			seqTraceIDs:   func(yield func([]pcommon.TraceID, error) bool) {},
+			expectedIDs:   nil,
+			expectedError: nil,
+		},
+		{
+			name: "sequence with error",
+			seqTraceIDs: func(yield func([]pcommon.TraceID, error) bool) {
+				yield(nil, assert.AnError)
+			},
+			expectedIDs:   nil,
+			expectedError: assert.AnError,
+		},
+		{
+			name: "sequence with one chunk of trace IDs",
+			seqTraceIDs: func(yield func([]pcommon.TraceID, error) bool) {
+				traceID1 := pcommon.TraceID([16]byte{0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 3})
+				traceID2 := pcommon.TraceID([16]byte{0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 5})
+				yield([]pcommon.TraceID{traceID1, traceID2}, nil)
+			},
+			expectedIDs: []model.TraceID{
+				model.NewTraceID(2, 3),
+				model.NewTraceID(4, 5),
+			},
+			expectedError: nil,
+		},
+		{
+			name: "sequence with multiple chunks of trace IDs",
+			seqTraceIDs: func(yield func([]pcommon.TraceID, error) bool) {
+				traceID1 := pcommon.TraceID([16]byte{0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 3})
+				traceID2 := pcommon.TraceID([16]byte{0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 5})
+				traceID3 := pcommon.TraceID([16]byte{0, 0, 0, 0, 0, 0, 0, 6, 0, 0, 0, 0, 0, 0, 0, 7})
+				yield([]pcommon.TraceID{traceID1}, nil)
+				yield([]pcommon.TraceID{traceID2, traceID3}, nil)
+			},
+			expectedIDs: []model.TraceID{
+				model.NewTraceID(2, 3),
+				model.NewTraceID(4, 5),
+				model.NewTraceID(6, 7),
+			},
+			expectedError: nil,
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			actualIDs, err := V1TraceIDsFromSeq2(tc.seqTraceIDs)
+			require.Equal(t, tc.expectedError, err)
+			require.Equal(t, tc.expectedIDs, actualIDs)
+		})
+	}
+}
