@@ -5,6 +5,7 @@ package v1adapter
 
 import (
 	"context"
+	"errors"
 
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
@@ -12,6 +13,8 @@ import (
 )
 
 var _ spanstore.Reader = (*SpanReader)(nil)
+
+var errTooManyTracesFound = errors.New("too many traces found")
 
 // SpanReader wraps a tracestore.Reader so that it can be downgraded to implement
 // the v1 spanstore.Reader interface.
@@ -37,6 +40,8 @@ func (sr *SpanReader) GetTrace(ctx context.Context, query spanstore.GetTracePara
 	}
 	if len(traces) == 0 {
 		return nil, spanstore.ErrTraceNotFound
+	} else if len(traces) > 1 {
+		return nil, errTooManyTracesFound
 	}
 	return traces[0], nil
 }

@@ -54,7 +54,34 @@ func TestSpanReader_GetTrace(t *testing.T) {
 			expectedErr: spanstore.ErrTraceNotFound,
 		},
 		{
-			name: "succses",
+			name: "too many traces found",
+			query: spanstore.GetTraceParameters{
+				TraceID: model.NewTraceID(1, 2),
+			},
+			expectedQuery: tracestore.GetTraceParams{
+				TraceID: [16]byte{0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 2},
+			},
+			traces: func() []ptrace.Traces {
+				traces1 := ptrace.NewTraces()
+				resources1 := traces1.ResourceSpans().AppendEmpty()
+				resources1.Resource().Attributes().PutStr("service.name", "service1")
+				scopes1 := resources1.ScopeSpans().AppendEmpty()
+				span1 := scopes1.Spans().AppendEmpty()
+				span1.SetTraceID([16]byte{0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 2})
+
+				traces2 := ptrace.NewTraces()
+				resources2 := traces2.ResourceSpans().AppendEmpty()
+				resources2.Resource().Attributes().PutStr("service.name", "service1")
+				scopes2 := resources2.ScopeSpans().AppendEmpty()
+				span2 := scopes2.Spans().AppendEmpty()
+				span2.SetTraceID([16]byte{0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 3})
+
+				return []ptrace.Traces{traces1, traces2}
+			}(),
+			expectedErr: errTooManyTracesFound,
+		},
+		{
+			name: "success",
 			query: spanstore.GetTraceParameters{
 				TraceID: model.NewTraceID(1, 2),
 			},
