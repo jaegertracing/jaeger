@@ -252,7 +252,7 @@ func (cfg *NamespaceConfig) initFromViper(v *viper.Viper) {
 		// TODO refactor to be able to return error
 		log.Fatal(err)
 	}
-	cfg.Connection.TLS = tlsCfg.ToOtelClientConfig()
+	cfg.Connection.TLS = tlsCfg
 }
 
 // GetPrimary returns primary configuration.
