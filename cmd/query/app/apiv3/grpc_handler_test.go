@@ -109,7 +109,7 @@ func TestGetTrace(t *testing.T) {
 			tsc := newTestServerClient(t)
 			tsc.reader.On("GetTraces", matchContext, tc.expectedQuery).
 				Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
-					yield([]ptrace.Traces{makeTestTraceV2()}, nil)
+					yield([]ptrace.Traces{makeTestTrace()}, nil)
 				})).Once()
 
 			getTraceStream, err := tsc.client.GetTrace(context.Background(), &tc.request)
@@ -162,7 +162,7 @@ func TestFindTraces(t *testing.T) {
 	tsc := newTestServerClient(t)
 	tsc.reader.On("FindTraces", matchContext, mock.AnythingOfType("tracestore.TraceQueryParams")).
 		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
-			yield([]ptrace.Traces{makeTestTraceV2()}, nil)
+			yield([]ptrace.Traces{makeTestTrace()}, nil)
 		})).Once()
 
 	responseStream, err := tsc.client.FindTraces(context.Background(), &api_v3.FindTracesRequest{
@@ -188,7 +188,7 @@ func TestFindTracesSendError(t *testing.T) {
 	reader := new(tracestoremocks.Reader)
 	reader.On("FindTraces", mock.Anything, mock.AnythingOfType("tracestore.TraceQueryParams")).
 		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
-			yield([]ptrace.Traces{makeTestTraceV2()}, nil)
+			yield([]ptrace.Traces{makeTestTrace()}, nil)
 		})).Once()
 	h := &Handler{
 		QueryService: querysvc.NewQueryService(

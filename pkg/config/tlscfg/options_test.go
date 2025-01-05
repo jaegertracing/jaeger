@@ -14,12 +14,12 @@ import (
 func TestToOtelClientConfig(t *testing.T) {
 	testCases := []struct {
 		name     string
-		options  Options
+		options  options
 		expected configtls.ClientConfig
 	}{
 		{
 			name: "insecure",
-			options: Options{
+			options: options{
 				Enabled: false,
 			},
 			expected: configtls.ClientConfig{
@@ -28,7 +28,7 @@ func TestToOtelClientConfig(t *testing.T) {
 		},
 		{
 			name: "secure with skip host verify",
-			options: Options{
+			options: options{
 				Enabled:        true,
 				SkipHostVerify: true,
 				ServerName:     "example.com",
@@ -68,19 +68,19 @@ func TestToOtelClientConfig(t *testing.T) {
 func TestToOtelServerConfig(t *testing.T) {
 	testCases := []struct {
 		name     string
-		options  Options
+		options  options
 		expected *configtls.ServerConfig
 	}{
 		{
 			name: "not enabled",
-			options: Options{
+			options: options{
 				Enabled: false,
 			},
 			expected: nil,
 		},
 		{
 			name: "default mapping",
-			options: Options{
+			options: options{
 				Enabled:      true,
 				ClientCAPath: "path/to/client/ca.pem",
 				CAPath:       "path/to/ca.pem",
@@ -104,7 +104,7 @@ func TestToOtelServerConfig(t *testing.T) {
 		},
 		{
 			name: "with reload interval",
-			options: Options{
+			options: options{
 				Enabled:        true,
 				ClientCAPath:   "path/to/client/ca.pem",
 				CAPath:         "path/to/ca.pem",
