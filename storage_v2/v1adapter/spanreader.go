@@ -6,7 +6,6 @@ import (
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	"github.com/jaegertracing/jaeger/storage_v2/tracestore"
-	"go.opentelemetry.io/collector/pdata/pcommon"
 )
 
 var _ spanstore.Reader = (*SpanReader)(nil)
@@ -93,23 +92,5 @@ func (sr *SpanReader) FindTraceIDs(
 		DurationMax:   query.DurationMax,
 		NumTraces:     query.NumTraces,
 	})
-	var (
-		iterErr       error
-		modelTraceIDs []model.TraceID
-	)
-	traceIDsIter(func(traceIDs []pcommon.TraceID, err error) bool {
-		if err != nil {
-			iterErr = err
-			return false
-		}
-		for _, traceID := range traceIDs {
-			model.TraceIDFromOTEL(traceID)
-			modelTraceIDs = append(modelTraceIDs, model.TraceIDFromOTEL(traceID))
-		}
-		return true
-	})
-	if iterErr != nil {
-		return nil, iterErr
-	}
-	return modelTraceIDs, nil
+	return V1TraceIDsFromSeq2(traceIDsIter)
 }
