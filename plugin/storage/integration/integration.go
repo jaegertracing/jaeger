@@ -10,7 +10,6 @@ import (
 	"embed"
 	"encoding/json"
 	"fmt"
-	"github.com/jaegertracing/jaeger/storage_v2/depstore"
 	"os"
 	"regexp"
 	"sort"
@@ -28,6 +27,7 @@ import (
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/samplingstore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
+	"github.com/jaegertracing/jaeger/storage_v2/depstore"
 	"github.com/jaegertracing/jaeger/storage_v2/tracestore"
 	"github.com/jaegertracing/jaeger/storage_v2/v1adapter"
 )
