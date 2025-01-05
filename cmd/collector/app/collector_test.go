@@ -262,7 +262,10 @@ func TestAggregator(t *testing.T) {
 			},
 		},
 	}
-	_, err := c.spanProcessor.ProcessSpans(spans, processor.SpansOptions{SpanFormat: processor.JaegerSpanFormat})
+	_, err := c.spanProcessor.ProcessSpans(processor.Spans{
+		SpansV1:    spans,
+		SpanFormat: processor.JaegerSpanFormat,
+	})
 	require.NoError(t, err)
 	require.NoError(t, c.Close())
 

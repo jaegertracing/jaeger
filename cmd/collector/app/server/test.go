@@ -7,7 +7,6 @@ import (
 	"context"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
-	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 )
 
@@ -27,6 +26,6 @@ func (*mockSpanProcessor) Close() error {
 	return nil
 }
 
-func (*mockSpanProcessor) ProcessSpans([]*model.Span, processor.SpansOptions) ([]bool, error) {
+func (*mockSpanProcessor) ProcessSpans(_ processor.Spans) ([]bool, error) {
 	return []bool{}, nil
 }

@@ -33,17 +33,17 @@ type mockSpanProcessor struct {
 	spanFormat    processor.SpanFormat
 }
 
-func (p *mockSpanProcessor) ProcessSpans(spans []*model.Span, opts processor.SpansOptions) ([]bool, error) {
+func (p *mockSpanProcessor) ProcessSpans(spans processor.Spans) ([]bool, error) {
 	p.mux.Lock()
 	defer p.mux.Unlock()
-	p.spans = append(p.spans, spans...)
-	oks := make([]bool, len(spans))
+	p.spans = append(p.spans, spans.SpansV1...)
+	oks := make([]bool, len(spans.SpansV1))
 	if p.tenants == nil {
 		p.tenants = make(map[string]bool)
 	}
-	p.tenants[opts.Tenant] = true
-	p.transport = opts.InboundTransport
-	p.spanFormat = opts.SpanFormat
+	p.tenants[spans.Tenant] = true
+	p.transport = spans.InboundTransport
+	p.spanFormat = spans.SpanFormat
 	return oks, p.expectedError
 }
 

@@ -8,13 +8,16 @@ import (
 	"io"
 
 	"github.com/jaegertracing/jaeger/model"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 )
 
 // ErrBusy signalizes that processor cannot process incoming data
 var ErrBusy = errors.New("server busy")
 
 // SpansOptions additional options passed to processor along with the spans.
-type SpansOptions struct {
+type Spans struct {
+	SpansV1          []*model.Span
+	SpansV2          ptrace.Traces
 	SpanFormat       SpanFormat
 	InboundTransport InboundTransport
 	Tenant           string
@@ -23,7 +26,7 @@ type SpansOptions struct {
 // SpanProcessor handles model spans
 type SpanProcessor interface {
 	// ProcessSpans processes model spans and return with either a list of true/false success or an error
-	ProcessSpans(mSpans []*model.Span, options SpansOptions) ([]bool, error)
+	ProcessSpans(spans Spans) ([]bool, error)
 	io.Closer
 }
 

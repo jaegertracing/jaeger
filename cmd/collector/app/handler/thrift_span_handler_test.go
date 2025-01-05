@@ -16,7 +16,6 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
 	zipkinsanitizer "github.com/jaegertracing/jaeger/cmd/collector/app/sanitizer/zipkin"
-	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 )
@@ -58,12 +57,12 @@ type shouldIErrorProcessor struct {
 
 var errTestError = errors.New("Whoops")
 
-func (s *shouldIErrorProcessor) ProcessSpans(mSpans []*model.Span, _ processor.SpansOptions) ([]bool, error) {
+func (s *shouldIErrorProcessor) ProcessSpans(spans processor.Spans) ([]bool, error) {
 	if s.shouldError {
 		return nil, errTestError
 	}
-	retMe := make([]bool, len(mSpans))
-	for i := range mSpans {
+	retMe := make([]bool, len(spans.SpansV1))
+	for i := range spans.SpansV1 {
 		retMe[i] = true
 	}
 	return retMe, nil

@@ -54,7 +54,8 @@ func (jbh *jaegerBatchesHandler) SubmitBatches(batches []*jaeger.Batch, options 
 			mSpan := jConv.ToDomainSpan(span, batch.Process)
 			mSpans = append(mSpans, mSpan)
 		}
-		oks, err := jbh.modelProcessor.ProcessSpans(mSpans, processor.SpansOptions{
+		oks, err := jbh.modelProcessor.ProcessSpans(processor.Spans{
+			SpansV1:          mSpans,
 			InboundTransport: options.InboundTransport,
 			SpanFormat:       processor.JaegerSpanFormat,
 		})
@@ -105,7 +106,8 @@ func (h *zipkinSpanHandler) SubmitZipkinBatch(spans []*zipkincore.Span, options 
 		convCount[i] = len(converted)
 		mSpans = append(mSpans, converted...)
 	}
-	bools, err := h.modelProcessor.ProcessSpans(mSpans, processor.SpansOptions{
+	bools, err := h.modelProcessor.ProcessSpans(processor.Spans{
+		SpansV1:          mSpans,
 		InboundTransport: options.InboundTransport,
 		SpanFormat:       processor.ZipkinSpanFormat,
 	})

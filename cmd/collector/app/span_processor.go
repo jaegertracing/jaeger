@@ -164,22 +164,22 @@ func (sp *spanProcessor) countSpan(span *model.Span, _ string /* tenant */) {
 	sp.spansProcessed.Add(1)
 }
 
-func (sp *spanProcessor) ProcessSpans(mSpans []*model.Span, options processor.SpansOptions) ([]bool, error) {
-	sp.preProcessSpans(mSpans, options.Tenant)
-	sp.metrics.BatchSize.Update(int64(len(mSpans)))
-	retMe := make([]bool, len(mSpans))
+func (sp *spanProcessor) ProcessSpans(spans processor.Spans) ([]bool, error) {
+	sp.preProcessSpans(spans)
+	sp.metrics.BatchSize.Update(int64(len(spans.SpansV1)))
+	retMe := make([]bool, len(spans.SpansV1))
 
 	// Note: this is not the ideal place to do this because collector tags are added to Process.Tags,
 	// and Process can be shared between different spans in the batch, but we no longer know that,
 	// the relation is lost upstream and it's impossible in Go to dedupe pointers. But at least here
 	// we have a single thread updating all spans that may share the same Process, before concurrency
 	// kicks in.
-	for _, span := range mSpans {
+	for _, span := range spans.SpansV1 {
 		sp.addCollectorTags(span)
 	}
 
-	for i, mSpan := range mSpans {
-		ok := sp.enqueueSpan(mSpan, options.SpanFormat, options.InboundTransport, options.Tenant)
+	for i, mSpan := range spans.SpansV1 {
+		ok := sp.enqueueSpan(mSpan, spans.SpanFormat, spans.InboundTransport, spans.Tenant)
 		if !ok && sp.reportBusy {
 			return nil, processor.ErrBusy
 		}
