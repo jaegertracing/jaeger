@@ -131,7 +131,7 @@ echo "Finished building${upload_comment} ${component_name} =============="
 
 if [[ "$upload_readme" == "Y" ]]; then
   echo "::group:: docker upload ${dir_arg}/README.md"
-  bash scripts/upload-docker-readme.sh "${component_name}" "${dir_arg}"/README.md
+  bash scripts/build/upload-docker-readme.sh "${component_name}" "${dir_arg}"/README.md
   echo "::endgroup::"
 fi
 
