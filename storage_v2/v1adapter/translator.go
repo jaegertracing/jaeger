@@ -72,7 +72,6 @@ func V1TraceIDsFromSeq2(traceIDsIter iter.Seq2[[]pcommon.TraceID, error]) ([]mod
 			return false
 		}
 		for _, traceID := range traceIDs {
-			model.TraceIDFromOTEL(traceID)
 			modelTraceIDs = append(modelTraceIDs, model.TraceIDFromOTEL(traceID))
 		}
 		return true
