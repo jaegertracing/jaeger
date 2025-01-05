@@ -25,10 +25,7 @@ import (
 	tracestoremocks "github.com/jaegertracing/jaeger/storage_v2/tracestore/mocks"
 )
 
-var (
-	matchContext            = mock.AnythingOfType("*context.valueCtx")
-	matchGetTraceParameters = mock.AnythingOfType("spanstore.GetTraceParameters")
-)
+var matchContext = mock.AnythingOfType("*context.valueCtx")
 
 func newGrpcServer(t *testing.T, handler *Handler) (*grpc.Server, net.Addr) {
 	server := grpc.NewServer()
