@@ -28,7 +28,7 @@ type Options struct {
 	// strategies when calculating Ratelimiting type service level strategy
 	// more information https://github.com/jaegertracing/jaeger/issues/5270
 	IncludeDefaultOpStrategies bool
-	// SamplingProbability is the sampling probability used by the Strategy Store for static sampling
+	// DefaultSamplingProbability is the sampling probability used by the Strategy Store for static sampling
 	DefaultSamplingProbability float64
 }
 

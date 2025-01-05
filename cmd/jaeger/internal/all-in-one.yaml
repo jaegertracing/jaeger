@@ -32,7 +32,7 @@ extensions:
     file:
       path:
       reload_interval: 1s
-      defaultSamplingProbability: 0.001
+      default_sampling_probability: 0.001
     # adaptive:
     #   sampling_store: some_store
     #   initial_sampling_probability: 0.1
