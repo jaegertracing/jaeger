@@ -85,7 +85,7 @@ func parseResponse(t *testing.T, body []byte, obj gogoproto.Message) {
 	require.NoError(t, gogojsonpb.Unmarshal(bytes.NewBuffer(body), obj))
 }
 
-func makeTestTraceV2() ptrace.Traces {
+func makeTestTrace() ptrace.Traces {
 	trace := ptrace.NewTraces()
 	resources := trace.ResourceSpans().AppendEmpty()
 	scopes := resources.ScopeSpans().AppendEmpty()
@@ -147,7 +147,7 @@ func (gw *testGateway) runGatewayGetTrace(t *testing.T) {
 	gw.reader.
 		On("GetTraces", matchContext, query).
 		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
-			yield([]ptrace.Traces{makeTestTraceV2()}, nil)
+			yield([]ptrace.Traces{makeTestTrace()}, nil)
 		})).Once()
 	gw.getTracesAndVerify(t, "/api/v3/traces/1", traceID)
 }
@@ -156,7 +156,7 @@ func (gw *testGateway) runGatewayFindTraces(t *testing.T) {
 	q, qp := mockFindQueries()
 	gw.reader.On("FindTraces", matchContext, qp).
 		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
-			yield([]ptrace.Traces{makeTestTraceV2()}, nil)
+			yield([]ptrace.Traces{makeTestTrace()}, nil)
 		})).Once()
 	gw.getTracesAndVerify(t, "/api/v3/traces?"+q.Encode(), traceID)
 }
