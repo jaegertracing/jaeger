@@ -10,6 +10,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
@@ -164,22 +165,29 @@ func (sp *spanProcessor) countSpan(span *model.Span, _ string /* tenant */) {
 	sp.spansProcessed.Add(1)
 }
 
-func (sp *spanProcessor) ProcessSpans(mSpans []*model.Span, options processor.SpansOptions) ([]bool, error) {
-	sp.preProcessSpans(mSpans, options.Tenant)
-	sp.metrics.BatchSize.Update(int64(len(mSpans)))
-	retMe := make([]bool, len(mSpans))
+func (sp *spanProcessor) ProcessSpans(batch processor.Batch) ([]bool, error) {
+	sp.preProcessSpans(batch)
+	var spans []*model.Span
+	batch.GetSpans(func(spansV1 []*model.Span) {
+		spans = spansV1
+	}, func(_ ptrace.Traces) {
+		panic("not implemented")
+	})
+	sp.metrics.BatchSize.Update(int64(len(spans)))
+	retMe := make([]bool, len(spans))
 
 	// Note: this is not the ideal place to do this because collector tags are added to Process.Tags,
 	// and Process can be shared between different spans in the batch, but we no longer know that,
 	// the relation is lost upstream and it's impossible in Go to dedupe pointers. But at least here
 	// we have a single thread updating all spans that may share the same Process, before concurrency
 	// kicks in.
-	for _, span := range mSpans {
+	for _, span := range spans {
 		sp.addCollectorTags(span)
 	}
 
-	for i, mSpan := range mSpans {
-		ok := sp.enqueueSpan(mSpan, options.SpanFormat, options.InboundTransport, options.Tenant)
+	for i, mSpan := range spans {
+		// TODO does this have to be one span at a time?
+		ok := sp.enqueueSpan(mSpan, batch.GetSpanFormat(), batch.GetInboundTransport(), batch.GetTenant())
 		if !ok && sp.reportBusy {
 			return nil, processor.ErrBusy
 		}
@@ -189,6 +197,7 @@ func (sp *spanProcessor) ProcessSpans(mSpans []*model.Span, options processor.Sp
 }
 
 func (sp *spanProcessor) processItemFromQueue(item *queueItem) {
+	// TODO calling sanitizer here contradicts the comment in enqueueSpan about immutable Process.
 	sp.processSpan(sp.sanitizer(item.span), item.tenant)
 	sp.metrics.InQueueLatency.Record(time.Since(item.queuedTime))
 }

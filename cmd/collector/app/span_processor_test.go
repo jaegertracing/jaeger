@@ -238,8 +238,12 @@ func TestSpanProcessor(t *testing.T) {
 	p := NewSpanProcessor(w, nil, Options.QueueSize(1)).(*spanProcessor)
 
 	res, err := p.ProcessSpans(
-		[]*model.Span{{}}, // empty span should be enriched by sanitizers
-		processor.SpansOptions{SpanFormat: processor.JaegerSpanFormat})
+		processor.SpansV1{
+			Spans: []*model.Span{{}}, // empty span should be enriched by sanitizers
+			Details: processor.Details{
+				SpanFormat: processor.JaegerSpanFormat,
+			},
+		})
 	require.NoError(t, err)
 	assert.Equal(t, []bool{true}, res)
 	require.NoError(t, p.Close())
@@ -263,13 +267,18 @@ func TestSpanProcessorErrors(t *testing.T) {
 		Options.QueueSize(1),
 	).(*spanProcessor)
 
-	res, err := p.ProcessSpans([]*model.Span{
-		{
-			Process: &model.Process{
-				ServiceName: "x",
+	res, err := p.ProcessSpans(processor.SpansV1{
+		Spans: []*model.Span{
+			{
+				Process: &model.Process{
+					ServiceName: "x",
+				},
 			},
 		},
-	}, processor.SpansOptions{SpanFormat: processor.JaegerSpanFormat})
+		Details: processor.Details{
+			SpanFormat: processor.JaegerSpanFormat,
+		},
+	})
 	require.NoError(t, err)
 	assert.Equal(t, []bool{true}, res)
 
@@ -315,23 +324,28 @@ func TestSpanProcessorBusy(t *testing.T) {
 	w.Lock()
 	defer w.Unlock()
 
-	res, err := p.ProcessSpans([]*model.Span{
-		{
-			Process: &model.Process{
-				ServiceName: "x",
+	res, err := p.ProcessSpans(processor.SpansV1{
+		Spans: []*model.Span{
+			{
+				Process: &model.Process{
+					ServiceName: "x",
+				},
+			},
+			{
+				Process: &model.Process{
+					ServiceName: "x",
+				},
+			},
+			{
+				Process: &model.Process{
+					ServiceName: "x",
+				},
 			},
 		},
-		{
-			Process: &model.Process{
-				ServiceName: "x",
-			},
+		Details: processor.Details{
+			SpanFormat: processor.JaegerSpanFormat,
 		},
-		{
-			Process: &model.Process{
-				ServiceName: "x",
-			},
-		},
-	}, processor.SpansOptions{SpanFormat: processor.JaegerSpanFormat})
+	})
 
 	require.Error(t, err, "expecting busy error")
 	assert.Nil(t, res)
@@ -612,13 +626,18 @@ func TestAdditionalProcessors(t *testing.T) {
 
 	// nil doesn't fail
 	p := NewSpanProcessor(w, nil, Options.QueueSize(1))
-	res, err := p.ProcessSpans([]*model.Span{
-		{
-			Process: &model.Process{
-				ServiceName: "x",
+	res, err := p.ProcessSpans(processor.SpansV1{
+		Spans: []*model.Span{
+			{
+				Process: &model.Process{
+					ServiceName: "x",
+				},
 			},
 		},
-	}, processor.SpansOptions{SpanFormat: processor.JaegerSpanFormat})
+		Details: processor.Details{
+			SpanFormat: processor.JaegerSpanFormat,
+		},
+	})
 	require.NoError(t, err)
 	assert.Equal(t, []bool{true}, res)
 	require.NoError(t, p.Close())
@@ -629,13 +648,18 @@ func TestAdditionalProcessors(t *testing.T) {
 		count++
 	}
 	p = NewSpanProcessor(w, []ProcessSpan{f}, Options.QueueSize(1))
-	res, err = p.ProcessSpans([]*model.Span{
-		{
-			Process: &model.Process{
-				ServiceName: "x",
+	res, err = p.ProcessSpans(processor.SpansV1{
+		Spans: []*model.Span{
+			{
+				Process: &model.Process{
+					ServiceName: "x",
+				},
 			},
 		},
-	}, processor.SpansOptions{SpanFormat: processor.JaegerSpanFormat})
+		Details: processor.Details{
+			SpanFormat: processor.JaegerSpanFormat,
+		},
+	})
 	require.NoError(t, err)
 	assert.Equal(t, []bool{true}, res)
 	require.NoError(t, p.Close())
@@ -648,14 +672,17 @@ func TestSpanProcessorContextPropagation(t *testing.T) {
 
 	dummyTenant := "context-prop-test-tenant"
 
-	res, err := p.ProcessSpans([]*model.Span{
-		{
-			Process: &model.Process{
-				ServiceName: "x",
+	res, err := p.ProcessSpans(processor.SpansV1{
+		Spans: []*model.Span{
+			{
+				Process: &model.Process{
+					ServiceName: "x",
+				},
 			},
 		},
-	}, processor.SpansOptions{
-		Tenant: dummyTenant,
+		Details: processor.Details{
+			Tenant: dummyTenant,
+		},
 	})
 	require.NoError(t, err)
 	assert.Equal(t, []bool{true}, res)
@@ -687,10 +714,14 @@ func TestSpanProcessorWithOnDroppedSpanOption(t *testing.T) {
 	w.Lock()
 	defer w.Unlock()
 
-	opts := processor.SpansOptions{SpanFormat: processor.JaegerSpanFormat}
-	_, err := p.ProcessSpans([]*model.Span{
-		{OperationName: "op1"},
-	}, opts)
+	_, err := p.ProcessSpans(processor.SpansV1{
+		Spans: []*model.Span{
+			{OperationName: "op1"},
+		},
+		Details: processor.Details{
+			SpanFormat: processor.JaegerSpanFormat,
+		},
+	})
 	require.NoError(t, err)
 
 	// Wait for the sole worker to pick the item from the queue and block
@@ -700,10 +731,15 @@ func TestSpanProcessorWithOnDroppedSpanOption(t *testing.T) {
 
 	// Now the queue is empty again and can accept one more item, but no workers available.
 	// If we send two items, the last one will have to be dropped.
-	_, err = p.ProcessSpans([]*model.Span{
-		{OperationName: "op2"},
-		{OperationName: "op3"},
-	}, opts)
+	_, err = p.ProcessSpans(processor.SpansV1{
+		Spans: []*model.Span{
+			{OperationName: "op2"},
+			{OperationName: "op3"},
+		},
+		Details: processor.Details{
+			SpanFormat: processor.JaegerSpanFormat,
+		},
+	})
 	require.EqualError(t, err, processor.ErrBusy.Error())
 	assert.Equal(t, []string{"op3"}, droppedOperations)
 }
