@@ -47,7 +47,7 @@ type Config struct {
 
 type FileConfig struct {
 	// File specifies a local file as the source of sampling strategies.
-	Path string `valid:"required" mapstructure:"path"`
+	Path string `mapstructure:"path"`
 	// ReloadInterval is the time interval to check and reload sampling strategies file
 	ReloadInterval time.Duration `mapstructure:"reload_interval"`
 }
