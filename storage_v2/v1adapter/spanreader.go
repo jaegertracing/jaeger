@@ -9,6 +9,8 @@ import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 )
 
+var _ spanstore.Reader = (*SpanReader)(nil)
+
 type SpanReader struct {
 	traceReader tracestore.Reader
 }
