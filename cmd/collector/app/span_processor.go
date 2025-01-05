@@ -30,7 +30,7 @@ const (
 )
 
 type spanProcessor struct {
-	queue              *queue.BoundedQueue
+	queue              *queue.BoundedQueue[queueItem]
 	queueResizeMu      sync.Mutex
 	metrics            *SpanProcessorMetrics
 	preProcessSpans    ProcessSpans
@@ -63,9 +63,8 @@ func NewSpanProcessor(
 ) processor.SpanProcessor {
 	sp := newSpanProcessor(spanWriter, additional, opts...)
 
-	sp.queue.StartConsumers(sp.numWorkers, func(item any) {
-		value := item.(*queueItem)
-		sp.processItemFromQueue(value)
+	sp.queue.StartConsumers(sp.numWorkers, func(item queueItem) {
+		sp.processItemFromQueue(item)
 	})
 
 	sp.background(1*time.Second, sp.updateGauges)
@@ -83,13 +82,13 @@ func newSpanProcessor(spanWriter spanstore.Writer, additional []ProcessSpan, opt
 		options.serviceMetrics,
 		options.hostMetrics,
 		options.extraFormatTypes)
-	droppedItemHandler := func(item any) {
+	droppedItemHandler := func(item queueItem) {
 		handlerMetrics.SpansDropped.Inc(1)
 		if options.onDroppedSpan != nil {
-			options.onDroppedSpan(item.(*queueItem).span)
+			options.onDroppedSpan(item.span)
 		}
 	}
-	boundedQueue := queue.NewBoundedQueue(options.queueSize, droppedItemHandler)
+	boundedQueue := queue.NewBoundedQueue[queueItem](options.queueSize, droppedItemHandler)
 
 	sanitizers := sanitizer.NewStandardSanitizers()
 	if options.sanitizer != nil {
@@ -196,7 +195,7 @@ func (sp *spanProcessor) ProcessSpans(batch processor.Batch) ([]bool, error) {
 	return retMe, nil
 }
 
-func (sp *spanProcessor) processItemFromQueue(item *queueItem) {
+func (sp *spanProcessor) processItemFromQueue(item queueItem) {
 	// TODO calling sanitizer here contradicts the comment in enqueueSpan about immutable Process.
 	sp.processSpan(sp.sanitizer(item.span), item.tenant)
 	sp.metrics.InQueueLatency.Record(time.Since(item.queuedTime))
@@ -237,7 +236,7 @@ func (sp *spanProcessor) enqueueSpan(span *model.Span, originalFormat processor.
 	// add format tag
 	span.Tags = append(span.Tags, model.String("internal.span.format", string(originalFormat)))
 
-	item := &queueItem{
+	item := queueItem{
 		queuedTime: time.Now(),
 		span:       span,
 		tenant:     tenant,
