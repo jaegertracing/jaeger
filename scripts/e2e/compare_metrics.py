@@ -70,6 +70,9 @@ def main():
     # Write diff to output file
     write_diff_file(diff_lines, args.output)
 
+    print("\n=== Metrics Comparison Results ===")
+    print(diff_lines)
+
     return 0
 
 if __name__ == '__main__':
