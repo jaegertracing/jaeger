@@ -16,7 +16,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/es/client"
 )
 
-func newESClient(endpoint string, cfg *Config, tlsCfg *tls.Config) client.Client {
+func NewESClient(endpoint string, cfg *Config, tlsCfg *tls.Config) client.Client {
 	httpClient := &http.Client{
 		Timeout: time.Duration(cfg.Timeout) * time.Second,
 		Transport: &http.Transport{
@@ -57,7 +57,7 @@ func ExecuteAction(opts ActionExecuteOptions, createAction ActionCreatorFunction
 		return fmt.Errorf("TLS configuration failed: %w", err)
 	}
 
-	esClient := newESClient(opts.Args[0], &cfg, tlsCfg)
+	esClient := NewESClient(opts.Args[0], &cfg, tlsCfg)
 	action := createAction(esClient, cfg)
 	return action.Do()
 }

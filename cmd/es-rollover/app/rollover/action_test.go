@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger/cmd/es-rollover/app"
+	"github.com/jaegertracing/jaeger/pkg/config/esrollovercfg"
 	"github.com/jaegertracing/jaeger/pkg/es/client"
 	"github.com/jaegertracing/jaeger/pkg/es/client/mocks"
 )
@@ -115,9 +116,9 @@ func TestRolloverAction(t *testing.T) {
 
 			rolloverAction := Action{
 				Config: Config{
-					Conditions: test.conditions,
+					RollBackOptions: esrollovercfg.RollBackOptions{Conditions: test.conditions},
 					Config: app.Config{
-						Archive: true,
+						RolloverOptions: esrollovercfg.RolloverOptions{Archive: true},
 					},
 				},
 				IndicesClient: indexClient,

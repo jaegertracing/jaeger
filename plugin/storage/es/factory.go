@@ -14,13 +14,19 @@ import (
 	"path/filepath"
 	"strings"
 	"sync/atomic"
+	"time"
 
 	"github.com/spf13/viper"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/cmd/es-rollover/app"
+	initialize "github.com/jaegertracing/jaeger/cmd/es-rollover/app/init"
+	"github.com/jaegertracing/jaeger/cmd/es-rollover/app/lookback"
+	"github.com/jaegertracing/jaeger/cmd/es-rollover/app/rollover"
 	"github.com/jaegertracing/jaeger/pkg/es"
+	esClient "github.com/jaegertracing/jaeger/pkg/es/client"
 	"github.com/jaegertracing/jaeger/pkg/es/config"
 	"github.com/jaegertracing/jaeger/pkg/fswatcher"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
@@ -66,7 +72,8 @@ type Factory struct {
 	primaryClient atomic.Pointer[es.Client]
 	archiveClient atomic.Pointer[es.Client]
 
-	watchers []*fswatcher.FSWatcher
+	watchers           []*fswatcher.FSWatcher
+	rolloverTimeTicker *time.Ticker
 }
 
 // NewFactory creates a new Factory.
@@ -153,6 +160,11 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 	}
 	f.primaryClient.Store(&primaryClient)
 
+	if f.primaryConfig.Rollover.Enabled {
+		f.rolloverTimeTicker = time.NewTicker(f.primaryConfig.Rollover.Frequency)
+		go registerEsRollover(f.primaryConfig, f.rolloverTimeTicker, f.logger)
+	}
+
 	if f.primaryConfig.Authentication.BasicAuthentication.PasswordFilePath != "" {
 		primaryWatcher, err := fswatcher.New([]string{f.primaryConfig.Authentication.BasicAuthentication.PasswordFilePath}, f.onPrimaryPasswordChange, f.logger)
 		if err != nil {
@@ -178,6 +190,115 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 	}
 
 	return nil
+}
+
+func registerEsRollover(configuration *config.Configuration, timeTicker *time.Ticker, logger *zap.Logger) {
+	for range timeTicker.C {
+		for _, server := range configuration.Servers {
+			go startEsRollover(configuration, server, logger)
+		}
+	}
+}
+
+func startEsRollover(configuration *config.Configuration, server string, logger *zap.Logger) {
+	cfg := getEsRolloverConfigFromEsConfig(configuration)
+	err := executeAction(server, cfg, func(cl esClient.Client) app.Action {
+		initConfig := initialize.Config{
+			Config:  cfg,
+			Indices: configuration.Indices,
+		}
+		indicesClient := &esClient.IndicesClient{
+			Client:               cl,
+			MasterTimeoutSeconds: initConfig.Timeout,
+		}
+		clusterClient := &esClient.ClusterClient{
+			Client: cl,
+		}
+		ilmClient := &esClient.ILMClient{
+			Client: cl,
+		}
+		return initialize.Action{
+			Config:        initConfig,
+			ILMClient:     ilmClient,
+			ClusterClient: clusterClient,
+			IndicesClient: indicesClient,
+		}
+	})
+	if err != nil {
+		logger.Error("Failed to start ES Rollover for the server: "+server, zap.Error(err))
+		return
+	}
+	err = executeAction(server, cfg, func(cl esClient.Client) app.Action {
+		rolloverCfg := rollover.Config{
+			Config:          cfg,
+			RollBackOptions: configuration.Rollover.RollBackOptions,
+		}
+		indicesClient := &esClient.IndicesClient{
+			Client:               cl,
+			MasterTimeoutSeconds: rolloverCfg.Timeout,
+		}
+		return &rollover.Action{
+			Config:        rolloverCfg,
+			IndicesClient: indicesClient,
+		}
+	})
+	if err != nil {
+		logger.Error("Failed to complete rollover for the server: "+server, zap.Error(err))
+		return
+	}
+	if configuration.Rollover.LookBackEnabled {
+		err = executeAction(server, cfg, func(cl esClient.Client) app.Action {
+			lookbackCfg := lookback.Config{
+				Config:          cfg,
+				LookBackOptions: configuration.Rollover.LookBackOptions,
+			}
+			indicesClient := &esClient.IndicesClient{
+				Client:               cl,
+				MasterTimeoutSeconds: lookbackCfg.Timeout,
+			}
+			return &lookback.Action{
+				Config:        lookbackCfg,
+				IndicesClient: indicesClient,
+				Logger:        logger,
+			}
+		})
+		if err != nil {
+			logger.Error("Failed to complete lookback for the server: "+server, zap.Error(err))
+			return
+		}
+	}
+}
+
+type actionCreatorFunction func(esClient.Client) app.Action
+
+// nolint: nolintlint
+// nolint: contextcheck
+func executeAction(server string, cfg app.Config, createAction actionCreatorFunction) error {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	// The context in this method is unused, therefore a local context to pass which is cancelled just after the
+	// completion of function. The linter is to suppress the error:
+	// Function `NewFactoryWithConfig->Initialize->registerEsRollover->startEsRollover->executeAction` should pass the context parameter
+	// As we don't need to introduce a global context for an unused context.
+	tlsCfg, err := cfg.TLSConfig.LoadTLSConfig(ctx)
+	if err != nil {
+		return fmt.Errorf("TLS configuration failed: %w", err)
+	}
+	esCl := app.NewESClient(server, &cfg, tlsCfg)
+	action := createAction(esCl)
+	return action.Do()
+}
+
+func getEsRolloverConfigFromEsConfig(configuration *config.Configuration) app.Config {
+	return app.Config{
+		RolloverOptions: configuration.Rollover.RolloverOptions,
+		IndexPrefix:     string(configuration.Indices.IndexPrefix),
+		Username:        configuration.Authentication.BasicAuthentication.Username,
+		Password:        configuration.Authentication.BasicAuthentication.Password,
+		TLSEnabled:      !configuration.TLS.Insecure,
+		TLSConfig:       configuration.TLS,
+		UseILM:          configuration.UseILM,
+	}
 }
 
 func (f *Factory) getPrimaryClient() es.Client {
@@ -369,7 +490,9 @@ func (f *Factory) Close() error {
 	if client := f.getArchiveClient(); client != nil {
 		errs = append(errs, client.Close())
 	}
-
+	if f.rolloverTimeTicker != nil {
+		f.rolloverTimeTicker.Stop()
+	}
 	return errors.Join(errs...)
 }
 
@@ -405,8 +528,8 @@ func (f *Factory) onClientPasswordChange(cfg *config.Configuration, client *atom
 }
 
 func (f *Factory) Purge(ctx context.Context) error {
-	esClient := f.getPrimaryClient()
-	_, err := esClient.DeleteIndex("*").Do(ctx)
+	esCl := f.getPrimaryClient()
+	_, err := esCl.DeleteIndex("*").Do(ctx)
 	return err
 }
 

@@ -9,25 +9,23 @@ import (
 	"github.com/spf13/viper"
 
 	"github.com/jaegertracing/jaeger/cmd/es-rollover/app"
+	"github.com/jaegertracing/jaeger/pkg/config/esrollovercfg"
 )
 
-const (
-	conditions               = "conditions"
-	defaultRollbackCondition = "{\"max_age\": \"2d\"}"
-)
+var esrolloverCfg = esrollovercfg.EsRolloverFlagConfig{}
 
 // Config holds configuration for index cleaner binary.
 type Config struct {
 	app.Config
-	Conditions string
+	esrollovercfg.RollBackOptions
 }
 
 // AddFlags adds flags for TLS to the FlagSet.
 func (*Config) AddFlags(flags *flag.FlagSet) {
-	flags.String(conditions, defaultRollbackCondition, "conditions used to rollover to a new write index")
+	esrolloverCfg.AddFlagsForRollBackOptions(flags)
 }
 
 // InitFromViper initializes config from viper.Viper.
 func (c *Config) InitFromViper(v *viper.Viper) {
-	c.Conditions = v.GetString(conditions)
+	c.RollBackOptions = esrolloverCfg.InitRollBackFromViper(v)
 }
