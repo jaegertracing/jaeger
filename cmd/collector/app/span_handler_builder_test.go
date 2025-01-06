@@ -44,7 +44,8 @@ func TestNewSpanHandlerBuilder(t *testing.T) {
 		TenancyMgr:     &tenancy.Manager{},
 	}
 
-	spanProcessor := builder.BuildSpanProcessor()
+	spanProcessor, err := builder.BuildSpanProcessor()
+	require.NoError(t, err)
 	spanHandlers := builder.BuildHandlers(spanProcessor)
 	assert.NotNil(t, spanHandlers.ZipkinSpansHandler)
 	assert.NotNil(t, spanHandlers.JaegerBatchesHandler)

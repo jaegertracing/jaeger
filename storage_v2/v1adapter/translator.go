@@ -61,6 +61,27 @@ func V1TracesFromSeq2(otelSeq iter.Seq2[[]ptrace.Traces, error]) ([]*model.Trace
 	return jaegerTraces, nil
 }
 
+func V1TraceIDsFromSeq2(traceIDsIter iter.Seq2[[]pcommon.TraceID, error]) ([]model.TraceID, error) {
+	var (
+		iterErr       error
+		modelTraceIDs []model.TraceID
+	)
+	traceIDsIter(func(traceIDs []pcommon.TraceID, err error) bool {
+		if err != nil {
+			iterErr = err
+			return false
+		}
+		for _, traceID := range traceIDs {
+			modelTraceIDs = append(modelTraceIDs, model.TraceIDFromOTEL(traceID))
+		}
+		return true
+	})
+	if iterErr != nil {
+		return nil, iterErr
+	}
+	return modelTraceIDs, nil
+}
+
 // V1TraceToOtelTrace converts v1 traces (*model.Trace) to Otel traces (ptrace.Traces)
 func V1TraceToOtelTrace(jTrace *model.Trace) ptrace.Traces {
 	batches := createBatchesFromModelTrace(jTrace)

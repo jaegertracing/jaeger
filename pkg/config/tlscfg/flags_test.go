@@ -11,6 +11,7 @@ import (
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/config/configtls"
 
 	"github.com/jaegertracing/jaeger/pkg/config"
 )
@@ -46,16 +47,24 @@ func TestClientFlags(t *testing.T) {
 
 			err := command.ParseFlags(append(cmdLine, test.option))
 			require.NoError(t, err)
-			tlsOpts, err := flagCfg.InitFromViper(v)
+			clientCfg, err := flagCfg.InitFromViper(v)
 			require.NoError(t, err)
-			assert.Equal(t, Options{
-				Enabled:        true,
-				CAPath:         "ca-file",
-				CertPath:       "cert-file",
-				KeyPath:        "key-file",
-				ServerName:     "HAL1",
-				SkipHostVerify: true,
-			}, tlsOpts)
+
+			expectedCfg := configtls.ClientConfig{
+				Config: configtls.Config{
+					CAFile:                   "ca-file",
+					CertFile:                 "cert-file",
+					KeyFile:                  "key-file",
+					IncludeSystemCACertsPool: false,
+					CipherSuites:             nil,
+					ReloadInterval:           0,
+				},
+				Insecure:           false,
+				InsecureSkipVerify: true,
+				ServerName:         "HAL1",
+			}
+
+			assert.Equal(t, expectedCfg, clientCfg)
 		})
 	}
 }
@@ -96,17 +105,21 @@ func TestServerFlags(t *testing.T) {
 			cmdLine[0] = test.option
 			err := command.ParseFlags(cmdLine)
 			require.NoError(t, err)
-			tlsOpts, err := flagCfg.InitFromViper(v)
+			serverConfig, err := flagCfg.InitFromViper(v)
 			require.NoError(t, err)
-			assert.Equal(t, Options{
-				Enabled:      true,
-				CertPath:     "cert-file",
-				KeyPath:      "key-file",
-				ClientCAPath: test.file,
-				CipherSuites: []string{"TLS_AES_256_GCM_SHA384", "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA"},
-				MinVersion:   "1.2",
-				MaxVersion:   "1.3",
-			}, tlsOpts)
+
+			expectedConfig := configtls.ServerConfig{
+				ClientCAFile: "client-ca-file",
+				Config: configtls.Config{
+					CertFile:     "cert-file",
+					KeyFile:      "key-file",
+					MinVersion:   "1.2",
+					MaxVersion:   "1.3",
+					CipherSuites: []string{"TLS_AES_256_GCM_SHA384", "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA"},
+				},
+			}
+
+			assert.Equal(t, expectedConfig, *serverConfig)
 		})
 	}
 }
@@ -161,6 +174,7 @@ func TestFailedTLSFlags(t *testing.T) {
 		".min-version=1.1",
 		".max-version=1.3",
 	}
+
 	allTests := []struct {
 		side  string
 		tests []string
@@ -173,21 +187,26 @@ func TestFailedTLSFlags(t *testing.T) {
 		t.Run(metaTest.side, func(t *testing.T) {
 			for _, test := range metaTest.tests {
 				t.Run(test, func(t *testing.T) {
-					type UnderTest interface {
-						AddFlags(flags *flag.FlagSet)
-						InitFromViper(v *viper.Viper) (Options, error)
-					}
-					var underTest UnderTest
+					var (
+						addFlags      func(*flag.FlagSet)
+						initFromViper func(*viper.Viper) (any, error)
+					)
+
 					if metaTest.side == "client" {
-						underTest = &ClientFlagsConfig{
-							Prefix: "prefix",
+						clientConfig := &ClientFlagsConfig{Prefix: "prefix"}
+						addFlags = clientConfig.AddFlags
+						initFromViper = func(v *viper.Viper) (any, error) {
+							return clientConfig.InitFromViper(v)
 						}
 					} else {
-						underTest = &ServerFlagsConfig{
-							Prefix: "prefix",
+						serverConfig := &ServerFlagsConfig{Prefix: "prefix"}
+						addFlags = serverConfig.AddFlags
+						initFromViper = func(v *viper.Viper) (any, error) {
+							return serverConfig.InitFromViper(v)
 						}
 					}
-					v, command := config.Viperize(underTest.AddFlags)
+
+					v, command := config.Viperize(addFlags)
 
 					cmdLine := []string{
 						"--prefix.tls.enabled=true",
@@ -195,13 +214,22 @@ func TestFailedTLSFlags(t *testing.T) {
 					}
 					err := command.ParseFlags(cmdLine)
 					require.NoError(t, err)
-					_, err = underTest.InitFromViper(v)
+
+					result, err := initFromViper(v)
 					require.NoError(t, err)
+
+					switch metaTest.side {
+					case "client":
+						require.IsType(t, configtls.ClientConfig{}, result, "result should be of type configtls.ClientConfig")
+					case "server":
+						require.IsType(t, &configtls.ServerConfig{}, result, "result should be of type *configtls.ServerConfig")
+					}
 
 					cmdLine[0] = "--prefix.tls.enabled=false"
 					err = command.ParseFlags(cmdLine)
 					require.NoError(t, err)
-					_, err = underTest.InitFromViper(v)
+
+					_, err = initFromViper(v)
 					require.Error(t, err)
 					require.EqualError(t, err, "prefix.tls.* options cannot be used when prefix.tls.enabled is false")
 				})

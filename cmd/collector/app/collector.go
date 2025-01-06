@@ -95,7 +95,11 @@ func (c *Collector) Start(options *flags.CollectorOptions) error {
 		})
 	}
 
-	c.spanProcessor = handlerBuilder.BuildSpanProcessor(additionalProcessors...)
+	spanProcessor, err := handlerBuilder.BuildSpanProcessor(additionalProcessors...)
+	if err != nil {
+		return fmt.Errorf("could not create span processor: %w", err)
+	}
+	c.spanProcessor = spanProcessor
 	c.spanHandlers = handlerBuilder.BuildHandlers(c.spanProcessor)
 	grpcServer, err := server.StartGRPCServer(&server.GRPCServerParams{
 		Handler:          c.spanHandlers.GRPCHandler,

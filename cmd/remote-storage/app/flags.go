@@ -40,11 +40,11 @@ func AddFlags(flagSet *flag.FlagSet) {
 // InitFromViper initializes Options with properties from CLI flags.
 func (o *Options) InitFromViper(v *viper.Viper) (*Options, error) {
 	o.NetAddr.Endpoint = v.GetString(flagGRPCHostPort)
-	tlsGrpc, err := tlsGRPCFlagsConfig.InitFromViper(v)
+	tlsGRPC, err := tlsGRPCFlagsConfig.InitFromViper(v)
 	if err != nil {
 		return o, fmt.Errorf("failed to process gRPC TLS options: %w", err)
 	}
-	o.TLSSetting = tlsGrpc.ToOtelServerConfig()
+	o.TLSSetting = tlsGRPC
 	o.Tenancy = tenancy.InitFromViper(v)
 	return o, nil
 }
