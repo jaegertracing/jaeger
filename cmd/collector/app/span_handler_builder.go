@@ -36,7 +36,7 @@ type SpanHandlers struct {
 }
 
 // BuildSpanProcessor builds the span processor to be used with the handlers
-func (b *SpanHandlerBuilder) BuildSpanProcessor(additional ...ProcessSpan) processor.SpanProcessor {
+func (b *SpanHandlerBuilder) BuildSpanProcessor(additional ...ProcessSpan) (processor.SpanProcessor, error) {
 	hostname, _ := os.Hostname()
 	svcMetrics := b.metricsFactory()
 	hostMetrics := svcMetrics.Namespace(metrics.NSOptions{Tags: map[string]string{"host": hostname}})
