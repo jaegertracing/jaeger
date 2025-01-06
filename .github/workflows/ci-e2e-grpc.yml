@@ -46,7 +46,7 @@ jobs:
         esac
 
     - uses: ./.github/actions/verify-metrics-snapshot
-      if: ${{ matrix.version }} == "v2"
+      if: matrix.version == 'v2'
       with:
         snapshot: grpc_metrics.txt
         artifact_key: grpc-metrics-${{ matrix.version }}.txt

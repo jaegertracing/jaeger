@@ -60,15 +60,17 @@ def main():
     file2_lines = read_metric_file(args.file2)
     
     # Generate diff
-    diff_lines = generate_diff(file1_lines, file2_lines, str(args.file1), str(args.file2))
+    diff_lines = generate_diff(file1_lines, file2_lines)
     
     # Check if there are any differences
     if not diff_lines:
         print("No differences found between the metric files.")
-        sys.exit(0)
+        sys.exit(1)
     
     # Write diff to output file
     write_diff_file(diff_lines, args.output)
+
+    return 0
 
 if __name__ == '__main__':
     main()
