@@ -17,6 +17,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/plugin/storage/memory"
+	"github.com/jaegertracing/jaeger/storage_v2/v1adapter"
 )
 
 func TestNewSpanHandlerBuilder(t *testing.T) {
@@ -29,7 +30,7 @@ func TestNewSpanHandlerBuilder(t *testing.T) {
 	spanWriter := memory.NewStore()
 
 	builder := &SpanHandlerBuilder{
-		SpanWriter:    spanWriter,
+		TraceWriter:   v1adapter.NewTraceWriter(spanWriter),
 		CollectorOpts: cOpts,
 		TenancyMgr:    &tenancy.Manager{},
 	}
@@ -37,7 +38,7 @@ func TestNewSpanHandlerBuilder(t *testing.T) {
 	assert.NotNil(t, builder.metricsFactory())
 
 	builder = &SpanHandlerBuilder{
-		SpanWriter:     spanWriter,
+		TraceWriter:    v1adapter.NewTraceWriter(spanWriter),
 		CollectorOpts:  cOpts,
 		Logger:         zap.NewNop(),
 		MetricsFactory: metrics.NullFactory,

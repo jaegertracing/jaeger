@@ -27,6 +27,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
+	"github.com/jaegertracing/jaeger/storage_v2/v1adapter"
 	"github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	zc "github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 )
@@ -78,7 +79,7 @@ func TestBySvcMetrics(t *testing.T) {
 		serviceMetrics := mb.Namespace(metrics.NSOptions{Name: "service", Tags: nil})
 		hostMetrics := mb.Namespace(metrics.NSOptions{Name: "host", Tags: nil})
 		sp, err := newSpanProcessor(
-			&fakeSpanWriter{},
+			v1adapter.NewTraceWriter(&fakeSpanWriter{}),
 			nil,
 			Options.ServiceMetrics(serviceMetrics),
 			Options.HostMetrics(hostMetrics),
@@ -236,7 +237,7 @@ func makeJaegerSpan(service string, rootSpan bool, debugEnabled bool) (*jaeger.S
 
 func TestSpanProcessor(t *testing.T) {
 	w := &fakeSpanWriter{}
-	p, err := NewSpanProcessor(w, nil, Options.QueueSize(1))
+	p, err := NewSpanProcessor(v1adapter.NewTraceWriter(w), nil, Options.QueueSize(1))
 	require.NoError(t, err)
 
 	res, err := p.ProcessSpans(
@@ -262,7 +263,8 @@ func TestSpanProcessorErrors(t *testing.T) {
 	mb := metricstest.NewFactory(time.Hour)
 	defer mb.Backend.Stop()
 	serviceMetrics := mb.Namespace(metrics.NSOptions{Name: "service", Tags: nil})
-	pp, err := NewSpanProcessor(w,
+	pp, err := NewSpanProcessor(
+		v1adapter.NewTraceWriter(w),
 		nil,
 		Options.Logger(logger),
 		Options.ServiceMetrics(serviceMetrics),
@@ -315,7 +317,8 @@ func (w *blockingWriter) WriteSpan(context.Context, *model.Span) error {
 
 func TestSpanProcessorBusy(t *testing.T) {
 	w := &blockingWriter{}
-	pp, err := NewSpanProcessor(w,
+	pp, err := NewSpanProcessor(
+		v1adapter.NewTraceWriter(w),
 		nil,
 		Options.NumWorkers(1),
 		Options.QueueSize(1),
@@ -363,7 +366,7 @@ func TestSpanProcessorWithNilProcess(t *testing.T) {
 	serviceMetrics := mb.Namespace(metrics.NSOptions{Name: "service", Tags: nil})
 
 	w := &fakeSpanWriter{}
-	pp, err := NewSpanProcessor(w, nil, Options.ServiceMetrics(serviceMetrics))
+	pp, err := NewSpanProcessor(v1adapter.NewTraceWriter(w), nil, Options.ServiceMetrics(serviceMetrics))
 	require.NoError(t, err)
 	p := pp.(*spanProcessor)
 	defer require.NoError(t, p.Close())
@@ -385,7 +388,7 @@ func TestSpanProcessorWithCollectorTags(t *testing.T) {
 
 	w := &fakeSpanWriter{}
 
-	pp, err := NewSpanProcessor(w, nil, Options.CollectorTags(testCollectorTags))
+	pp, err := NewSpanProcessor(v1adapter.NewTraceWriter(w), nil, Options.CollectorTags(testCollectorTags))
 	require.NoError(t, err)
 	p := pp.(*spanProcessor)
 
@@ -476,7 +479,7 @@ func TestSpanProcessorCountSpan(t *testing.T) {
 			} else {
 				opts = append(opts, Options.DynQueueSizeMemory(0))
 			}
-			pp, err := NewSpanProcessor(w, nil, opts...)
+			pp, err := NewSpanProcessor(v1adapter.NewTraceWriter(w), nil, opts...)
 			require.NoError(t, err)
 			p := pp.(*spanProcessor)
 			defer func() {
@@ -591,7 +594,7 @@ func TestUpdateDynQueueSize(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			w := &fakeSpanWriter{}
-			p, err := newSpanProcessor(w, nil, Options.QueueSize(tt.initialCapacity), Options.DynQueueSizeWarmup(tt.warmup), Options.DynQueueSizeMemory(tt.sizeInBytes))
+			p, err := newSpanProcessor(v1adapter.NewTraceWriter(w), nil, Options.QueueSize(tt.initialCapacity), Options.DynQueueSizeWarmup(tt.warmup), Options.DynQueueSizeMemory(tt.sizeInBytes))
 			require.NoError(t, err)
 			assert.EqualValues(t, tt.initialCapacity, p.queue.Capacity())
 
@@ -606,7 +609,7 @@ func TestUpdateDynQueueSize(t *testing.T) {
 
 func TestUpdateQueueSizeNoActivityYet(t *testing.T) {
 	w := &fakeSpanWriter{}
-	p, err := newSpanProcessor(w, nil, Options.QueueSize(1), Options.DynQueueSizeWarmup(1), Options.DynQueueSizeMemory(1))
+	p, err := newSpanProcessor(v1adapter.NewTraceWriter(w), nil, Options.QueueSize(1), Options.DynQueueSizeWarmup(1), Options.DynQueueSizeMemory(1))
 	require.NoError(t, err)
 	assert.NotPanics(t, p.updateQueueSize)
 }
@@ -614,7 +617,8 @@ func TestUpdateQueueSizeNoActivityYet(t *testing.T) {
 func TestStartDynQueueSizeUpdater(t *testing.T) {
 	w := &fakeSpanWriter{}
 	oneGiB := uint(1024 * 1024 * 1024)
-	p, err := newSpanProcessor(w, nil, Options.QueueSize(100), Options.DynQueueSizeWarmup(1000), Options.DynQueueSizeMemory(oneGiB))
+
+	p, err := newSpanProcessor(v1adapter.NewTraceWriter(w), nil, Options.QueueSize(100), Options.DynQueueSizeWarmup(1000), Options.DynQueueSizeMemory(oneGiB))
 	require.NoError(t, err)
 	assert.EqualValues(t, 100, p.queue.Capacity())
 
@@ -641,7 +645,7 @@ func TestAdditionalProcessors(t *testing.T) {
 	w := &fakeSpanWriter{}
 
 	// nil doesn't fail
-	p, err := NewSpanProcessor(w, nil, Options.QueueSize(1))
+	p, err := NewSpanProcessor(v1adapter.NewTraceWriter(w), nil, Options.QueueSize(1))
 	require.NoError(t, err)
 	res, err := p.ProcessSpans(processor.SpansV1{
 		Spans: []*model.Span{
@@ -664,7 +668,7 @@ func TestAdditionalProcessors(t *testing.T) {
 	f := func(_ *model.Span, _ string) {
 		count++
 	}
-	p, err = NewSpanProcessor(w, []ProcessSpan{f}, Options.QueueSize(1))
+	p, err = NewSpanProcessor(v1adapter.NewTraceWriter(w), []ProcessSpan{f}, Options.QueueSize(1))
 	require.NoError(t, err)
 	res, err = p.ProcessSpans(processor.SpansV1{
 		Spans: []*model.Span{
@@ -686,7 +690,7 @@ func TestAdditionalProcessors(t *testing.T) {
 
 func TestSpanProcessorContextPropagation(t *testing.T) {
 	w := &fakeSpanWriter{}
-	p, err := NewSpanProcessor(w, nil, Options.QueueSize(1))
+	p, err := NewSpanProcessor(v1adapter.NewTraceWriter(w), nil, Options.QueueSize(1))
 	require.NoError(t, err)
 
 	dummyTenant := "context-prop-test-tenant"
@@ -720,7 +724,8 @@ func TestSpanProcessorWithOnDroppedSpanOption(t *testing.T) {
 	}
 
 	w := &blockingWriter{}
-	pp, err := NewSpanProcessor(w,
+	pp, err := NewSpanProcessor(
+		v1adapter.NewTraceWriter(w),
 		nil,
 		Options.NumWorkers(1),
 		Options.QueueSize(1),

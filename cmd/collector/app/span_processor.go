@@ -10,6 +10,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"go.opentelemetry.io/collector/exporter"
+	"go.opentelemetry.io/collector/exporter/exporterhelper"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.uber.org/zap"
 
@@ -17,8 +19,10 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sanitizer"
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/queue"
+	"github.com/jaegertracing/jaeger/pkg/telemetry"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
-	"github.com/jaegertracing/jaeger/storage/spanstore"
+	"github.com/jaegertracing/jaeger/storage_v2/tracestore"
+	"github.com/jaegertracing/jaeger/storage_v2/v1adapter"
 )
 
 const (
@@ -31,6 +35,7 @@ const (
 
 type spanProcessor struct {
 	queue              *queue.BoundedQueue[queueItem]
+	otelExporter       exporter.Traces
 	queueResizeMu      sync.Mutex
 	metrics            *SpanProcessorMetrics
 	preProcessSpans    ProcessSpans
@@ -38,7 +43,7 @@ type spanProcessor struct {
 	sanitizer          sanitizer.SanitizeSpan // sanitizer is called before processSpan
 	processSpan        ProcessSpan
 	logger             *zap.Logger
-	spanWriter         spanstore.Writer
+	traceWriter        tracestore.Writer
 	reportBusy         bool
 	numWorkers         int
 	collectorTags      map[string]string
@@ -57,11 +62,11 @@ type queueItem struct {
 
 // NewSpanProcessor returns a SpanProcessor that preProcesses, filters, queues, sanitizes, and processes spans.
 func NewSpanProcessor(
-	spanWriter spanstore.Writer,
+	traceWriter tracestore.Writer,
 	additional []ProcessSpan,
 	opts ...Option,
 ) (processor.SpanProcessor, error) {
-	sp, err := newSpanProcessor(spanWriter, additional, opts...)
+	sp, err := newSpanProcessor(traceWriter, additional, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -79,7 +84,7 @@ func NewSpanProcessor(
 	return sp, nil
 }
 
-func newSpanProcessor(spanWriter spanstore.Writer, additional []ProcessSpan, opts ...Option) (*spanProcessor, error) {
+func newSpanProcessor(traceWriter tracestore.Writer, additional []ProcessSpan, opts ...Option) (*spanProcessor, error) {
 	options := Options.apply(opts...)
 	handlerMetrics := NewSpanProcessorMetrics(
 		options.serviceMetrics,
@@ -107,7 +112,7 @@ func newSpanProcessor(spanWriter spanstore.Writer, additional []ProcessSpan, opt
 		sanitizer:          sanitizer.NewChainedSanitizer(sanitizers...),
 		reportBusy:         options.reportBusy,
 		numWorkers:         options.numWorkers,
-		spanWriter:         spanWriter,
+		traceWriter:        traceWriter,
 		collectorTags:      options.collectorTags,
 		stopCh:             make(chan struct{}),
 		dynQueueSizeMemory: options.dynQueueSizeMemory,
@@ -128,14 +133,47 @@ func newSpanProcessor(spanWriter spanstore.Writer, additional []ProcessSpan, opt
 	processSpanFuncs = append(processSpanFuncs, additional...)
 
 	sp.processSpan = ChainedProcessSpan(processSpanFuncs...)
+
+	// TODO get real settings
+	telset := telemetry.NoopSettings().ToOtelComponent()
+	set := exporter.Settings{
+		TelemetrySettings: telset,
+	}
+	// surprisingly exporterhelper ignores the config but requires it not be nil
+	anyCfg := struct{}{}
+
+	otelExporter, err := exporterhelper.NewTraces(context.Background(), set, anyCfg,
+		sp.pushTraces,
+		exporterhelper.WithQueue(exporterhelper.NewDefaultQueueConfig()),
+		//   exporterhelper.WithCapabilities(consumer.Capabilities{MutatesData: false}),
+		//   exporterhelper.WithTimeout(oCfg.TimeoutConfig),
+		//   exporterhelper.WithRetry(oCfg.RetryConfig),
+		//   exporterhelper.WithBatcher(oCfg.BatcherConfig),
+		//   exporterhelper.WithStart(oce.start),
+		//   exporterhelper.WithShutdown(oce.shutdown),
+	)
+	if err != nil {
+		return nil, err
+	}
+	sp.otelExporter = otelExporter
+
 	return &sp, nil
 }
 
 func (sp *spanProcessor) Close() error {
 	close(sp.stopCh)
 	sp.queue.Stop()
-
+	sp.otelExporter.Shutdown(context.Background())
 	return nil
+}
+
+// pushTraces is called by exporterhelper's concurrent queue consumers.
+func (sp *spanProcessor) pushTraces(ctx context.Context, td ptrace.Traces) error {
+	// TODO apply collector tags
+	// TODO call sanitizers
+	// TODO emit metrics
+
+	return sp.traceWriter.WriteTraces(ctx, td)
 }
 
 func (sp *spanProcessor) saveSpan(span *model.Span, tenant string) {
@@ -150,7 +188,7 @@ func (sp *spanProcessor) saveSpan(span *model.Span, tenant string) {
 	// the inbound Context, as it may be cancelled by the time we reach this point,
 	// so we need to start a new Context.
 	ctx := tenancy.WithTenant(context.Background(), tenant)
-	if err := sp.spanWriter.WriteSpan(ctx, span); err != nil {
+	if err := sp.writeSpan(ctx, span); err != nil {
 		sp.logger.Error("Failed to save span", zap.Error(err))
 		sp.metrics.SavedErrBySvc.ReportServiceNameForSpan(span)
 	} else {
@@ -161,6 +199,15 @@ func (sp *spanProcessor) saveSpan(span *model.Span, tenant string) {
 	sp.metrics.SaveLatency.Record(time.Since(startTime))
 }
 
+func (sp *spanProcessor) writeSpan(ctx context.Context, span *model.Span) error {
+	spanWriter, err := v1adapter.GetV1Writer(sp.traceWriter)
+	if err == nil {
+		return spanWriter.WriteSpan(ctx, span)
+	}
+	traces := v1adapter.V1BatchesToTraces([]*model.Batch{{Spans: []*model.Span{span}}})
+	return sp.traceWriter.WriteTraces(ctx, traces)
+}
+
 func (sp *spanProcessor) countSpan(span *model.Span, _ string /* tenant */) {
 	//nolint: gosec // G115
 	sp.bytesProcessed.Add(uint64(span.Size()))
@@ -168,13 +215,36 @@ func (sp *spanProcessor) countSpan(span *model.Span, _ string /* tenant */) {
 }
 
 func (sp *spanProcessor) ProcessSpans(batch processor.Batch) ([]bool, error) {
+	// We call preProcessSpans on a batch, it's responsibility of implementation
+	// to understand v1/v2 distinction. Jaeger itself does not use pre-processors.
 	sp.preProcessSpans(batch)
-	var spans []*model.Span
-	batch.GetSpans(func(spansV1 []*model.Span) {
-		spans = spansV1
-	}, func(_ ptrace.Traces) {
-		panic("not implemented")
+
+	var batchOks []bool
+	var batchErr error
+	batch.GetSpans(func(spans []*model.Span) {
+		batchOks, batchErr = sp.processSpans(batch, spans)
+	}, func(traces ptrace.Traces) {
+		// If we don't have a v2-capable Writer, we can fall back to v1 path
+		// Right now we don't.
+
+		// We cannot pass batch to the exporter, so capture tenant in the context.
+		// TODO verify if the context will survive all the way to the consumer threads.
+		ctx := tenancy.WithTenant(context.Background(), batch.GetTenant())
+
+		// the exporter will eventually call pushTraces from consumer threads.
+		if err := sp.otelExporter.ConsumeTraces(ctx, traces); err != nil {
+			batchErr = err
+		} else {
+			batchOks = make([]bool, traces.SpanCount())
+			for i := range batchOks {
+				batchOks[i] = true
+			}
+		}
 	})
+	return batchOks, batchErr
+}
+
+func (sp *spanProcessor) processSpans(batch processor.Batch, spans []*model.Span) ([]bool, error) {
 	sp.metrics.BatchSize.Update(int64(len(spans)))
 	retMe := make([]bool, len(spans))
 
@@ -188,7 +258,6 @@ func (sp *spanProcessor) ProcessSpans(batch processor.Batch) ([]bool, error) {
 	}
 
 	for i, mSpan := range spans {
-		// TODO does this have to be one span at a time?
 		ok := sp.enqueueSpan(mSpan, batch.GetSpanFormat(), batch.GetInboundTransport(), batch.GetTenant())
 		if !ok && sp.reportBusy {
 			return nil, processor.ErrBusy
