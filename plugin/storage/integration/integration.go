@@ -508,10 +508,10 @@ func (s *StorageIntegration) testGetDependencies(t *testing.T) {
 		var err error
 
 		actual, err = s.DependencyReader.GetDependencies(
-			context.Background(), 
+			context.Background(),
 			depstore.QueryParameters{
 				StartTime: startTime,
-				EndTime: startTime.Add(time.Minute * 5),
+				EndTime:   startTime.Add(time.Minute * 5),
 			},
 		)
 		if err != nil {
