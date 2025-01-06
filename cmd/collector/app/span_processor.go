@@ -60,8 +60,11 @@ func NewSpanProcessor(
 	spanWriter spanstore.Writer,
 	additional []ProcessSpan,
 	opts ...Option,
-) processor.SpanProcessor {
-	sp := newSpanProcessor(spanWriter, additional, opts...)
+) (processor.SpanProcessor, error) {
+	sp, err := newSpanProcessor(spanWriter, additional, opts...)
+	if err != nil {
+		return nil, err
+	}
 
 	sp.queue.StartConsumers(sp.numWorkers, func(item any) {
 		value := item.(*queueItem)
@@ -74,10 +77,10 @@ func NewSpanProcessor(
 		sp.background(1*time.Minute, sp.updateQueueSize)
 	}
 
-	return sp
+	return sp, nil
 }
 
-func newSpanProcessor(spanWriter spanstore.Writer, additional []ProcessSpan, opts ...Option) *spanProcessor {
+func newSpanProcessor(spanWriter spanstore.Writer, additional []ProcessSpan, opts ...Option) (*spanProcessor, error) {
 	options := Options.apply(opts...)
 	handlerMetrics := NewSpanProcessorMetrics(
 		options.serviceMetrics,
@@ -126,7 +129,7 @@ func newSpanProcessor(spanWriter spanstore.Writer, additional []ProcessSpan, opt
 	processSpanFuncs = append(processSpanFuncs, additional...)
 
 	sp.processSpan = ChainedProcessSpan(processSpanFuncs...)
-	return &sp
+	return &sp, nil
 }
 
 func (sp *spanProcessor) Close() error {
