@@ -2,7 +2,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import argparse
-import sys
 from difflib import unified_diff
 from bisect import insort
 from prometheus_client.parser import text_string_to_metric_families
@@ -63,16 +62,15 @@ def main():
     diff_lines = generate_diff(file1_lines, file2_lines)
     
     # Check if there are any differences
-    if not diff_lines:
-        print("No differences found between the metric files.")
-        sys.exit(1)
-    
-    # Write diff to output file
-    write_diff_file(diff_lines, args.output)
+    if diff_lines:
+        print("differences found between the metric files.")
+        print("=== Metrics Comparison Results ===")
+        print(diff_lines)
+        write_diff_file(diff_lines, args.output)
 
-    print("\n=== Metrics Comparison Results ===")
-    print(diff_lines)
+        return 1    
 
+    print("no difference found")
     return 0
 
 if __name__ == '__main__':

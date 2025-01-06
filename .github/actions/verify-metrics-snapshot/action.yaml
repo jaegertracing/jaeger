@@ -34,7 +34,7 @@ runs:
       id: check-cache
       uses: actions/cache/restore@1bd1e32a3bdc45362d1e726936510720a7c30a57
       with:
-        path: ./.metrics/cached_${{ inputs.snapshot}}
+        path: ./.metrics/release_${{ inputs.snapshot}}
         key: ${{ env.v2_tag }}_${{ inputs.artifact_key }}
         lookup-only: true
 
@@ -42,37 +42,37 @@ runs:
       if: ${{ (github.ref_name == 'main') && (steps.check-cache.outputs.cache-hit != 'true') }}
       shell: bash
       run: |
-        mv ./.metrics/${{ inputs.snapshot }} ./.metrics/cached_${{ inputs.snapshot}}
+        mv ./.metrics/${{ inputs.snapshot }} ./.metrics/release_${{ inputs.snapshot}}
 
     - name: Cache scraped metrics for tagged release for longer retention
       id: tagged-metrics
       if: ${{ (github.ref_name == 'main') && (steps.check-cache.outputs.cache-hit != 'true') }}
       uses: actions/cache/save@1bd1e32a3bdc45362d1e726936510720a7c30a57
       with:
-        path: ./.metrics/cached_${{ inputs.snapshot}}
+        path: ./.metrics/release_${{ inputs.snapshot}}
         key: ${{ env.v2_tag }}_${{ inputs.artifact_key }}
       
     - name: Download the cached tagged metrics
-      id: cache-metrics
+      id: download-release-snapshot
       uses: actions/cache/restore@1bd1e32a3bdc45362d1e726936510720a7c30a57
       with:
-        path: ./.metrics/cached_${{ inputs.snapshot}}
+        path: ./.metrics/release_${{ inputs.snapshot}}
         key: ${{ env.v2_tag }}_${{ inputs.artifact_key }}
 
     - name: Calculate diff between the snapshots 
-      id: diff-check
-      if: steps.cache-metrics.outputs.cache-hit == 'true'
+      id: compare-snapshots
+      if: steps.download-release-snapshot.outputs.cache-hit == 'true'
       shell: bash
       run: |
         python3 -m pip install prometheus-client
         python3 ./scripts/e2e/compare_metrics.py --file1 ./.metrics/${{ inputs.snapshot }} --file2 ./.metrics/cached_${{ inputs.snapshot}} --output ./.metrics/diff_${{ inputs.snapshot }}
         if [ $? -eq 1 ]; then
-        echo "No differences found in metrics"
+        echo "Differences found in metrics"
         exit 1
         fi
 
     - name: Upload the diff artifact
-      if: ${{ (steps.cache-metrics.outputs.cache-hit == 'true') && (steps.diff-check.outcome == 'failure') }}
+      if: ${{ (steps.download-release-snapshot.outputs.cache-hit == 'true') && (steps.compare-snapshots.outcome == 'failure') }}
       uses: actions/upload-artifact@6f51ac03b9356f520e9adb1b1b7802705f340c2b # v4.5.0
       with:
         name: diff_${{ inputs.artifact_key }}
