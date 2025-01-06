@@ -89,6 +89,7 @@ proto: proto-model \
 .PHONY: proto-model
 proto-model:
 	$(call proto_compile, model, idl/proto/api_v2/model.proto)
+	$(call proto_compile, proto-gen/model, idl/proto/api_v2/model.proto)
 	$(PROTOC) -Imodel/proto --go_out=$(PWD)/model/ model/proto/model_test.proto
 
 .PHONY: proto-api-v2
