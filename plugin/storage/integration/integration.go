@@ -27,6 +27,7 @@ import (
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/samplingstore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
+	"github.com/jaegertracing/jaeger/storage_v2/depstore"
 	"github.com/jaegertracing/jaeger/storage_v2/tracestore"
 	"github.com/jaegertracing/jaeger/storage_v2/v1adapter"
 )
@@ -48,7 +49,7 @@ type StorageIntegration struct {
 	ArchiveSpanReader spanstore.Reader
 	ArchiveSpanWriter spanstore.Writer
 	DependencyWriter  dependencystore.Writer
-	DependencyReader  dependencystore.Reader
+	DependencyReader  depstore.Reader
 	SamplingStore     samplingstore.Store
 	Fixtures          []*QueryFixtures
 
@@ -499,13 +500,20 @@ func (s *StorageIntegration) testGetDependencies(t *testing.T) {
 			Source:    source,
 		},
 	}
-
-	require.NoError(t, s.DependencyWriter.WriteDependencies(time.Now(), expected))
+	startTime := time.Now()
+	require.NoError(t, s.DependencyWriter.WriteDependencies(startTime, expected))
 
 	var actual []model.DependencyLink
 	found := s.waitForCondition(t, func(t *testing.T) bool {
 		var err error
-		actual, err = s.DependencyReader.GetDependencies(context.Background(), time.Now(), 5*time.Minute)
+
+		actual, err = s.DependencyReader.GetDependencies(
+			context.Background(),
+			depstore.QueryParameters{
+				StartTime: startTime,
+				EndTime:   startTime.Add(time.Minute * 5),
+			},
+		)
 		if err != nil {
 			t.Log(err)
 			return false
