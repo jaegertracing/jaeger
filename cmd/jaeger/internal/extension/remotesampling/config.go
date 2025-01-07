@@ -18,10 +18,9 @@ import (
 )
 
 var (
-	errNoProvider                = errors.New("no sampling strategy provider specified, expecting 'adaptive' or 'file'")
-	errMultipleProviders         = errors.New("only one sampling strategy provider can be specified, 'adaptive' or 'file'")
-	errNegativeInterval          = errors.New("reload interval must be a positive value, or zero to disable automatic reloading")
-	errInvalidDefaultProbability = errors.New("default sampling probability must be between 0 and 1")
+	errNoProvider        = errors.New("no sampling strategy provider specified, expecting 'adaptive' or 'file'")
+	errMultipleProviders = errors.New("only one sampling strategy provider can be specified, 'adaptive' or 'file'")
+	errNegativeInterval  = errors.New("reload interval must be a positive value, or zero to disable automatic reloading")
 )
 
 var (
@@ -52,7 +51,7 @@ type FileConfig struct {
 	// ReloadInterval is the time interval to check and reload sampling strategies file
 	ReloadInterval time.Duration `mapstructure:"reload_interval"`
 	// DefaultSamplingProbability is the sampling probability used by the Strategy Store for static sampling
-	DefaultSamplingProbability float64 `mapstructure:"default_sampling_probability"`
+	DefaultSamplingProbability float64 `mapstructure:"default_sampling_probability" valid:"range(0|1)"`
 }
 
 type AdaptiveConfig struct {
@@ -105,10 +104,6 @@ func (cfg *Config) Validate() error {
 
 	if cfg.File != nil && cfg.File.ReloadInterval < 0 {
 		return errNegativeInterval
-	}
-
-	if cfg.File != nil && (cfg.File.DefaultSamplingProbability > 1 || cfg.File.DefaultSamplingProbability < 0) {
-		return errInvalidDefaultProbability
 	}
 
 	_, err := govalidator.ValidateStruct(cfg)

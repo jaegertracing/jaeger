@@ -63,14 +63,14 @@ func Test_Validate(t *testing.T) {
 			config: &Config{
 				File: &FileConfig{Path: "", DefaultSamplingProbability: -0.5},
 			},
-			expectedErr: "default sampling probability must be between 0 and 1",
+			expectedErr: "File.DefaultSamplingProbability: -0.5 does not validate as range(0|1)",
 		},
 		{
 			name: "File provider has default sampling probability greater than 1",
 			config: &Config{
 				File: &FileConfig{Path: "", DefaultSamplingProbability: 1.5},
 			},
-			expectedErr: "default sampling probability must be between 0 and 1",
+			expectedErr: "File.DefaultSamplingProbability: 1.5 does not validate as range(0|1)",
 		},
 		{
 			name: "Invalid Adaptive provider",

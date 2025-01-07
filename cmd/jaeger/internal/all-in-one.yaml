@@ -31,8 +31,8 @@ extensions:
     # We can either use file or adaptive sampling strategy in remote_sampling
     file:
       path:
+      default_sampling_probability: 1
       reload_interval: 1s
-      default_sampling_probability: 0.001
     # adaptive:
     #   sampling_store: some_store
     #   initial_sampling_probability: 0.1

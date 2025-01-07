@@ -15,7 +15,7 @@ const (
 	samplingStrategiesFile                       = "sampling.strategies-file"
 	samplingStrategiesReloadInterval             = "sampling.strategies-reload-interval"
 	samplingStrategiesBugfix5270                 = "sampling.strategies.bugfix-5270"
-	samplingStrategiesDefaultSamplingProbability = "sampling.stategies-default-sampling-probability"
+	samplingStrategiesDefaultSamplingProbability = "sampling.default-sampling-probability"
 )
 
 // Options holds configuration for the static sampling strategy store.
@@ -37,7 +37,7 @@ func AddFlags(flagSet *flag.FlagSet) {
 	flagSet.Duration(samplingStrategiesReloadInterval, 0, "Reload interval to check and reload sampling strategies file. Zero value means no reloading")
 	flagSet.String(samplingStrategiesFile, "", "The path for the sampling strategies file in JSON format. See sampling documentation to see format of the file")
 	flagSet.Bool(samplingStrategiesBugfix5270, true, "Include default operation level strategies for Ratesampling type service level strategy. Cf. https://github.com/jaegertracing/jaeger/issues/5270")
-	flagSet.Float64(samplingStrategiesDefaultSamplingProbability, defaultDefaultSamplingProbability, "Sampling probability used by the Strategy Store for static sampling. Value must be between 0 and 1.")
+	flagSet.Float64(samplingStrategiesDefaultSamplingProbability, DefaultDefaultSamplingProbability, "Sampling probability used by the Strategy Store for static sampling. Value must be between 0 and 1.")
 }
 
 // InitFromViper initializes Options with properties from viper
