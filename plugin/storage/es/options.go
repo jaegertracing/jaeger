@@ -19,7 +19,7 @@ import (
 )
 
 const (
-	prefixEsRollover                     = ".es-rollover-"
+	prefixEsRollover                     = ".auto-rollover."
 	suffixUsername                       = ".username"
 	suffixPassword                       = ".password"
 	suffixSniffer                        = ".sniffer"

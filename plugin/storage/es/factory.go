@@ -195,7 +195,7 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 func registerEsRollover(configuration *config.Configuration, timeTicker *time.Ticker, logger *zap.Logger) {
 	for range timeTicker.C {
 		for _, server := range configuration.Servers {
-			go startEsRollover(configuration, server, logger)
+			startEsRollover(configuration, server, logger)
 		}
 	}
 }
@@ -228,6 +228,8 @@ func startEsRollover(configuration *config.Configuration, server string, logger 
 		logger.Error("Failed to start ES Rollover for the server: "+server, zap.Error(err))
 		return
 	}
+	logger.Info("Completed the init operation of Rollover for server " + server)
+	logger.Info("Use ILM:", zap.Bool("ILM", configuration.UseILM))
 	err = executeAction(server, cfg, func(cl esClient.Client) app.Action {
 		rolloverCfg := rollover.Config{
 			Config:          cfg,
@@ -246,6 +248,7 @@ func startEsRollover(configuration *config.Configuration, server string, logger 
 		logger.Error("Failed to complete rollover for the server: "+server, zap.Error(err))
 		return
 	}
+	logger.Info("Completed the rollover operation of Rollover for server " + server)
 	if configuration.Rollover.LookBackEnabled {
 		err = executeAction(server, cfg, func(cl esClient.Client) app.Action {
 			lookbackCfg := lookback.Config{
@@ -266,6 +269,7 @@ func startEsRollover(configuration *config.Configuration, server string, logger 
 			logger.Error("Failed to complete lookback for the server: "+server, zap.Error(err))
 			return
 		}
+		logger.Info("Completed the lookback operation of Rollover for server " + server)
 	}
 }
 
@@ -292,7 +296,7 @@ func executeAction(server string, cfg app.Config, createAction actionCreatorFunc
 func getEsRolloverConfigFromEsConfig(configuration *config.Configuration) app.Config {
 	return app.Config{
 		RolloverOptions: configuration.Rollover.RolloverOptions,
-		IndexPrefix:     string(configuration.Indices.IndexPrefix),
+		IndexPrefix:     string(configuration.Indices.IndexPrefix) + "-",
 		Username:        configuration.Authentication.BasicAuthentication.Username,
 		Password:        configuration.Authentication.BasicAuthentication.Password,
 		TLSEnabled:      !configuration.TLS.Insecure,

@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -55,6 +56,18 @@ type E2EStorageIntegration struct {
 // it also initialize the SpanWriter and SpanReader below.
 // This function should be called before any of the tests start.
 func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
+	s.e2eInitializeWithCmdStart(t, storage, func(cmd Binary, t *testing.T) {
+		cmd.Start(t)
+	})
+}
+
+func (s *E2EStorageIntegration) e2eInitializeForCronJob(t *testing.T, storage string, duration time.Duration) {
+	s.e2eInitializeWithCmdStart(t, storage, func(cmd Binary, t *testing.T) {
+		cmd.StartForCronJob(t, duration)
+	})
+}
+
+func (s *E2EStorageIntegration) e2eInitializeWithCmdStart(t *testing.T, storage string, start func(cmd Binary, t *testing.T)) {
 	logger := zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller()))
 	if s.BinaryName == "" {
 		s.BinaryName = "jaeger-v2"
@@ -90,7 +103,7 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
 			Env: envVars,
 		},
 	}
-	cmd.Start(t)
+	start(cmd, t)
 
 	s.TraceWriter, err = createTraceWriter(logger, otlpPort)
 	require.NoError(t, err)
