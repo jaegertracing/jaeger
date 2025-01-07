@@ -229,7 +229,6 @@ func startEsRollover(configuration *config.Configuration, server string, logger 
 		return
 	}
 	logger.Info("Completed the init operation of Rollover for server " + server)
-	logger.Info("Use ILM:", zap.Bool("ILM", configuration.UseILM))
 	err = executeAction(server, cfg, func(cl esClient.Client) app.Action {
 		rolloverCfg := rollover.Config{
 			Config:          cfg,
@@ -294,9 +293,13 @@ func executeAction(server string, cfg app.Config, createAction actionCreatorFunc
 }
 
 func getEsRolloverConfigFromEsConfig(configuration *config.Configuration) app.Config {
+	indexPrefix := string(configuration.Indices.IndexPrefix)
+	if indexPrefix != "" {
+		indexPrefix += "-"
+	}
 	return app.Config{
 		RolloverOptions: configuration.Rollover.RolloverOptions,
-		IndexPrefix:     string(configuration.Indices.IndexPrefix) + "-",
+		IndexPrefix:     indexPrefix,
 		Username:        configuration.Authentication.BasicAuthentication.Username,
 		Password:        configuration.Authentication.BasicAuthentication.Password,
 		TLSEnabled:      !configuration.TLS.Insecure,

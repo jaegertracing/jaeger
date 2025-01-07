@@ -55,8 +55,8 @@ func (b *Binary) StartForCronJob(t *testing.T, duration time.Duration) {
 		require.Eventually(t, func() bool { return b.doHealthCheck(t) },
 			60*time.Second, 3*time.Second, "%s did not start", b.Name)
 		t.Logf("%s is ready", b.Name)
-		// Sleep till the cron job takes place
-		time.Sleep(duration)
+		// Sleep till the cron job takes place. The duration is doubled so as to give time to cron job for completion
+		time.Sleep(2 * duration)
 		// After the cron job, close the binary
 		if err := b.Process.Kill(); err != nil {
 			t.Errorf("Failed to kill %s process: %v", b.Name, err)
@@ -72,7 +72,7 @@ func (b *Binary) StartForCronJob(t *testing.T, duration time.Duration) {
 
 func (b *Binary) startWithBinaryCleanupFunction(t *testing.T, cleanupRegister func(t *testing.T, outF *os.File, errF *os.File)) {
 	outFile, err := os.OpenFile(
-		filepath.Join("output_logs.txt"),
+		filepath.Join(t.TempDir(), "output_logs.txt"),
 		os.O_CREATE|os.O_WRONLY,
 		os.ModePerm,
 	)
@@ -80,7 +80,7 @@ func (b *Binary) startWithBinaryCleanupFunction(t *testing.T, cleanupRegister fu
 	t.Logf("Writing the %s output logs into %s", b.Name, outFile.Name())
 
 	errFile, err := os.OpenFile(
-		filepath.Join("error_logs.txt"),
+		filepath.Join(t.TempDir(), "error_logs.txt"),
 		os.O_CREATE|os.O_WRONLY,
 		os.ModePerm,
 	)

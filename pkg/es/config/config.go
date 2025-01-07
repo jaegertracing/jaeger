@@ -115,6 +115,7 @@ type Configuration struct {
 	// UseReadWriteAliases, if set to true, will use read and write aliases for indices.
 	// Use this option with Elasticsearch rollover API. It requires an external component
 	// to create aliases before startup and then performing its management.
+	// If you have enabled the rollover then this will automatically be enabled!
 	UseReadWriteAliases bool `mapstructure:"use_aliases"`
 	// CreateIndexTemplates, if set to true, creates index templates at application startup.
 	// This configuration should be set to false when templates are installed manually.
@@ -430,6 +431,10 @@ func (c *Configuration) ApplyDefaults(source *Configuration) {
 	}
 	if c.Rollover.Frequency == 0 {
 		c.Rollover.Frequency = source.Rollover.Frequency
+	}
+	if c.Rollover.Enabled {
+		// Rollover enabled and UseReadWriteAliases disabled has no meaning
+		c.UseReadWriteAliases = true
 	}
 }
 

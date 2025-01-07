@@ -32,10 +32,20 @@ func TestOptions(t *testing.T) {
 	assert.EqualValues(t, 1, primary.Indices.Services.Replicas)
 	assert.EqualValues(t, 1, primary.Indices.Sampling.Replicas)
 	assert.EqualValues(t, 1, primary.Indices.Dependencies.Replicas)
+	assert.EqualValues(t, 24*time.Hour, primary.Rollover.Frequency)
 	assert.Equal(t, 72*time.Hour, primary.MaxSpanAge)
 	assert.False(t, primary.Sniffing.Enabled)
 	assert.False(t, primary.Sniffing.UseHTTPS)
-
+	assert.False(t, primary.Rollover.Enabled)
+	assert.False(t, primary.Rollover.LookBackEnabled)
+	assert.Equal(t, "days", primary.Rollover.LookBackOptions.Unit)
+	assert.Equal(t, 1, primary.Rollover.LookBackOptions.UnitCount)
+	assert.JSONEq(t, `{"max_age": "20000d"}`, primary.Rollover.RollBackOptions.Conditions)
+	assert.False(t, primary.Rollover.RolloverOptions.Archive)
+	assert.False(t, primary.Rollover.RolloverOptions.SkipDependencies)
+	assert.False(t, primary.Rollover.RolloverOptions.AdaptiveSampling)
+	assert.Equal(t, "jaeger-ilm-policy", primary.Rollover.RolloverOptions.ILMPolicyName)
+	assert.Equal(t, 120, primary.Rollover.RolloverOptions.Timeout)
 	aux := opts.Get("archive")
 	assert.Equal(t, primary.Authentication.BasicAuthentication.Username, aux.Authentication.BasicAuthentication.Username)
 	assert.Equal(t, primary.Authentication.BasicAuthentication.Password, aux.Authentication.BasicAuthentication.Password)
@@ -75,6 +85,17 @@ func TestOptionsWithFlags(t *testing.T) {
 		"--es.tags-as-fields.dot-replacement=!",
 		"--es.use-ilm=true",
 		"--es.send-get-body-as=POST",
+		"--es.auto-rollover.enabled=true",
+		"--es.auto-rollover.frequency=1s",
+		"--es.auto-rollover.look-back-enabled=true",
+		"--es.auto-rollover.unit=days",
+		"--es.auto-rollover.unit-count=2",
+		"--es.auto-rollover.conditions=test",
+		"--es.auto-rollover.archive=true",
+		"--es.auto-rollover.es.ilm-policy-name=testing-policy",
+		"--es.auto-rollover.timeout=2",
+		"--es.auto-rollover.skip-dependencies=true",
+		"--es.auto-rollover.adaptive-sampling=true",
 	})
 	require.NoError(t, err)
 	opts.InitFromViper(v)
@@ -119,6 +140,17 @@ func TestOptionsWithFlags(t *testing.T) {
 	assert.Equal(t, "2006.01.02.15", aux.Indices.Spans.DateLayout)
 	assert.True(t, primary.UseILM)
 	assert.Equal(t, http.MethodPost, aux.SendGetBodyAs)
+	assert.True(t, primary.Rollover.Enabled)
+	assert.Equal(t, 1*time.Second, primary.Rollover.Frequency)
+	assert.True(t, primary.Rollover.LookBackEnabled)
+	assert.Equal(t, "days", primary.Rollover.LookBackOptions.Unit)
+	assert.Equal(t, 2, primary.Rollover.LookBackOptions.UnitCount)
+	assert.Equal(t, "test", primary.Rollover.RollBackOptions.Conditions)
+	assert.True(t, primary.Rollover.RolloverOptions.Archive)
+	assert.Equal(t, "testing-policy", primary.Rollover.RolloverOptions.ILMPolicyName)
+	assert.Equal(t, 2, primary.Rollover.RolloverOptions.Timeout)
+	assert.True(t, primary.Rollover.RolloverOptions.SkipDependencies)
+	assert.True(t, primary.Rollover.RolloverOptions.AdaptiveSampling)
 }
 
 func TestEmptyRemoteReadClusters(t *testing.T) {

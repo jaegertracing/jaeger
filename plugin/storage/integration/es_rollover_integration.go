@@ -22,11 +22,12 @@ const (
 )
 
 type EsRolloverIntegration struct {
-	runEsRollover func(action string, envs []string, adaptiveSampling bool) error
+	runEsRollover             func(action string, envs []string, adaptiveSampling bool) error
+	runningOnEsRolloverBinary bool
 }
 
-func NewESRolloverIntegration(runEsRollover func(action string, envs []string, adaptiveSampling bool) error) *EsRolloverIntegration {
-	s := &EsRolloverIntegration{runEsRollover}
+func NewESRolloverIntegration(runEsRollover func(action string, envs []string, adaptiveSampling bool) error, runningOnEsRolloverBinary bool) *EsRolloverIntegration {
+	s := &EsRolloverIntegration{runEsRollover, runningOnEsRolloverBinary}
 	return s
 }
 
@@ -41,7 +42,7 @@ func newEsRolloverIntegration() *EsRolloverIntegration {
 		out, err := cmd.CombinedOutput()
 		fmt.Println(string(out))
 		return err
-	})
+	}, true)
 }
 
 func (s *EsRolloverIntegration) runCreateIndicesWithILM(t *testing.T, ilmPolicyName string) {
@@ -60,9 +61,9 @@ func (s *EsRolloverIntegration) runCreateIndicesWithILM(t *testing.T, ilmPolicyN
 
 	if esVersion >= 7 {
 		expectedIndices := []string{"jaeger-span-000001", "jaeger-service-000001", "jaeger-dependencies-000001"}
-		//t.Run("NoPrefix", func(t *testing.T) {
-		//	s.runIndexRolloverWithILMTest(t, client, "", expectedIndices, envVars, ilmPolicyName, false)
-		//})
+		t.Run("NoPrefix", func(t *testing.T) {
+			s.runIndexRolloverWithILMTest(t, client, "", expectedIndices, append(envVars, "INDEX_PREFIX="+""), ilmPolicyName, false)
+		})
 		t.Run("WithPrefix", func(t *testing.T) {
 			s.runIndexRolloverWithILMTest(t, client, indexPrefix, expectedIndices, append(envVars, "INDEX_PREFIX="+indexPrefix), ilmPolicyName, false)
 		})
@@ -147,8 +148,9 @@ func (s *EsRolloverIntegration) testIndexRolloverCreateIndicesWithILM(t *testing
 	})
 }
 
-func (s *EsRolloverIntegration) RunESRolloverTests(t *testing.T, usingEsRolloverBinary bool) {
-	if usingEsRolloverBinary {
+func (s *EsRolloverIntegration) RunESRolloverTests(t *testing.T) {
+	// This test case has to be skipped when ES-Rollover is running as a cron job in jaeger v2 binary
+	if s.runningOnEsRolloverBinary {
 		t.Run("FailIfILMNotPresent", s.testIndexRolloverFailIfILMNotPresent)
 	}
 	t.Run("CreateIndicesWithILM", s.testIndexRolloverCreateIndicesWithILM)

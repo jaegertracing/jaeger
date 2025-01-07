@@ -32,6 +32,7 @@ extensions:
     backends:
       some_storage:
         elasticsearch:
+          use_ilm: false
           indices:
             index_prefix: "jaeger-main"
             spans:
@@ -57,6 +58,10 @@ extensions:
           rollover:
             enabled: true
             frequency: "1s"
+            rollover_options:
+              adaptive_sampling: false
+              ilm_policy_name: "jaeger-ilm-policy"
+              archive: false
       another_storage:
         elasticsearch:
           indices:

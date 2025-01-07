@@ -15,5 +15,5 @@ func TestEsRollover(t *testing.T) {
 		testutils.VerifyGoLeaksOnceForES(t)
 	})
 	s := newEsRolloverIntegration()
-	s.RunESRolloverTests(t, true)
+	s.RunESRolloverTests(t)
 }
