@@ -1,6 +1,8 @@
 # Copyright (c) 2023 The Jaeger Authors.
 # SPDX-License-Identifier: Apache-2.0
 
+
+
 name: 'Verify Metric Snapshot and Upload Metrics'
 description: 'Upload or cache the metrics data after verification'
 inputs:
@@ -37,7 +39,9 @@ runs:
         path: ./.metrics/release_${{ inputs.snapshot}}
         key: ${{ env.v2_tag }}_${{ inputs.artifact_key }}
         lookup-only: true
-
+  
+      # The github cache restore successfully restores when cache saved has same key and same path.
+      # Hence to restore release metric with name relese_{metric_name} , the name must be changed to the same.
     - name: Change file name before caching
       if: ${{ (github.ref_name == 'main') && (steps.check-cache.outputs.cache-hit != 'true') }}
       shell: bash
