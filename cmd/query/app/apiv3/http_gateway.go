@@ -20,10 +20,12 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
+	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc/v2/querysvc"
 	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
 	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger/pkg/iter"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
+	"github.com/jaegertracing/jaeger/storage_v2/tracestore"
 )
 
 const (
@@ -108,22 +110,41 @@ func (h *HTTPGateway) tryParamError(w http.ResponseWriter, err error, paramName 
 	return h.tryHandleError(w, fmt.Errorf("malformed parameter %s: %w", paramName, err), http.StatusBadRequest)
 }
 
-func (h *HTTPGateway) returnSpans(spans []*model.Span, w http.ResponseWriter) {
-	// modelToOTLP does not easily return an error, so allow mocking it
-	h.returnSpansTestable(spans, w, modelToOTLP)
-}
-
-func (h *HTTPGateway) returnSpansTestable(
-	spans []*model.Span,
-	w http.ResponseWriter,
-	modelToOTLP func(_ []*model.Span) ptrace.Traces,
-) {
-	td := modelToOTLP(spans)
+func (h *HTTPGateway) returnTrace(td ptrace.Traces, w http.ResponseWriter) {
 	tracesData := api_v3.TracesData(td)
 	response := &api_v3.GRPCGatewayWrapper{
 		Result: &tracesData,
 	}
 	h.marshalResponse(response, w)
+}
+
+func (h *HTTPGateway) returnTraces(traces []ptrace.Traces, err error, w http.ResponseWriter) {
+	// TODO how do we distinguish internal error from bad parameters?
+	if h.tryHandleError(w, err, http.StatusInternalServerError) {
+		return
+	}
+	if len(traces) == 0 {
+		errorResponse := api_v3.GRPCGatewayError{
+			Error: &api_v3.GRPCGatewayError_GRPCGatewayErrorDetails{
+				HttpCode: http.StatusNotFound,
+				Message:  "No traces found",
+			},
+		}
+		resp, _ := json.Marshal(&errorResponse)
+		http.Error(w, string(resp), http.StatusNotFound)
+		return
+	}
+	// TODO: the response should be streamed back to the client
+	// https://github.com/jaegertracing/jaeger/issues/6467
+	combinedTrace := ptrace.NewTraces()
+	for _, t := range traces {
+		resources := t.ResourceSpans()
+		for i := 0; i < resources.Len(); i++ {
+			resource := resources.At(i)
+			resource.CopyTo(combinedTrace.ResourceSpans().AppendEmpty())
+		}
+	}
+	h.returnTrace(combinedTrace, w)
 }
 
 func (*HTTPGateway) marshalResponse(response proto.Message, w http.ResponseWriter) {
@@ -137,9 +158,11 @@ func (h *HTTPGateway) getTrace(w http.ResponseWriter, r *http.Request) {
 	if h.tryParamError(w, err, paramTraceID) {
 		return
 	}
-	request := querysvc.GetTraceParameters{
-		GetTraceParameters: spanstore.GetTraceParameters{
-			TraceID: traceID,
+	request := querysvc.GetTraceParams{
+		TraceIDs: []tracestore.GetTraceParams{
+			{
+				TraceID: traceID.ToOTELTraceID(),
+			},
 		},
 	}
 	http_query := r.URL.Query()
@@ -149,7 +172,7 @@ func (h *HTTPGateway) getTrace(w http.ResponseWriter, r *http.Request) {
 		if h.tryParamError(w, err, paramStartTime) {
 			return
 		}
-		request.StartTime = timeParsed.UTC()
+		request.TraceIDs[0].Start = timeParsed.UTC()
 	}
 	endTime := http_query.Get(paramEndTime)
 	if endTime != "" {
@@ -157,7 +180,7 @@ func (h *HTTPGateway) getTrace(w http.ResponseWriter, r *http.Request) {
 		if h.tryParamError(w, err, paramEndTime) {
 			return
 		}
-		request.EndTime = timeParsed.UTC()
+		request.TraceIDs[0].End = timeParsed.UTC()
 	}
 	if r := http_query.Get(paramRawTraces); r != "" {
 		rawTraces, err := strconv.ParseBool(r)
@@ -166,11 +189,9 @@ func (h *HTTPGateway) getTrace(w http.ResponseWriter, r *http.Request) {
 		}
 		request.RawTraces = rawTraces
 	}
-	trc, err := h.QueryService.GetTrace(r.Context(), request)
-	if h.tryHandleError(w, err, http.StatusInternalServerError) {
-		return
-	}
-	h.returnSpans(trc.Spans, w)
+	getTracesIter := h.QueryService.GetTraces(r.Context(), request)
+	trc, err := iter.FlattenWithErrors(getTracesIter)
+	h.returnTraces(trc, err, w)
 }
 
 func (h *HTTPGateway) findTraces(w http.ResponseWriter, r *http.Request) {
@@ -179,21 +200,14 @@ func (h *HTTPGateway) findTraces(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	traces, err := h.QueryService.FindTraces(r.Context(), queryParams)
-	// TODO how do we distinguish internal error from bad parameters for FindTrace?
-	if h.tryHandleError(w, err, http.StatusInternalServerError) {
-		return
-	}
-	var spans []*model.Span
-	for _, t := range traces {
-		spans = append(spans, t.Spans...)
-	}
-	h.returnSpans(spans, w)
+	findTracesIter := h.QueryService.FindTraces(r.Context(), *queryParams)
+	traces, err := iter.FlattenWithErrors(findTracesIter)
+	h.returnTraces(traces, err, w)
 }
 
-func (h *HTTPGateway) parseFindTracesQuery(q url.Values, w http.ResponseWriter) (*querysvc.TraceQueryParameters, bool) {
-	queryParams := &querysvc.TraceQueryParameters{
-		TraceQueryParameters: spanstore.TraceQueryParameters{
+func (h *HTTPGateway) parseFindTracesQuery(q url.Values, w http.ResponseWriter) (*querysvc.TraceQueryParams, bool) {
+	queryParams := &querysvc.TraceQueryParams{
+		TraceQueryParams: tracestore.TraceQueryParams{
 			ServiceName:   q.Get(paramServiceName),
 			OperationName: q.Get(paramOperationName),
 			Tags:          nil, // most curiously not supported by grpc-gateway
@@ -262,7 +276,7 @@ func (h *HTTPGateway) getServices(w http.ResponseWriter, r *http.Request) {
 
 func (h *HTTPGateway) getOperations(w http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query()
-	queryParams := spanstore.OperationQueryParameters{
+	queryParams := tracestore.OperationQueryParams{
 		ServiceName: query.Get("service"),
 		SpanKind:    query.Get("span_kind"),
 	}

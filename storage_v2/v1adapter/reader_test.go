@@ -39,7 +39,7 @@ func TestGetV1Reader_NoError(t *testing.T) {
 func TestGetV1Reader_Error(t *testing.T) {
 	fr := new(tracestoremocks.Reader)
 	_, err := GetV1Reader(fr)
-	require.ErrorIs(t, err, errV1ReaderNotAvailable)
+	require.ErrorIs(t, err, ErrV1ReaderNotAvailable)
 }
 
 func TestTraceReader_GetTracesDelegatesSuccessResponse(t *testing.T) {

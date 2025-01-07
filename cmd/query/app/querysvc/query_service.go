@@ -42,7 +42,7 @@ type StorageCapabilities struct {
 
 // QueryService contains span utils required by the query-service.
 type QueryService struct {
-	traceReader      tracestore.Reader
+	spanReader       spanstore.Reader
 	dependencyReader depstore.Reader
 	options          QueryServiceOptions
 }
@@ -61,8 +61,14 @@ type TraceQueryParameters struct {
 
 // NewQueryService returns a new QueryService.
 func NewQueryService(traceReader tracestore.Reader, dependencyReader depstore.Reader, options QueryServiceOptions) *QueryService {
+	spanReader, err := v1adapter.GetV1Reader(traceReader)
+	if err != nil {
+		// if the spanstore.Reader is not available, downgrade the native tracestore.Reader to
+		// a spanstore.Reader
+		spanReader = v1adapter.NewSpanReader(traceReader)
+	}
 	qsvc := &QueryService{
-		traceReader:      traceReader,
+		spanReader:       spanReader,
 		dependencyReader: dependencyReader,
 		options:          options,
 	}
@@ -75,11 +81,7 @@ func NewQueryService(traceReader tracestore.Reader, dependencyReader depstore.Re
 
 // GetTrace is the queryService implementation of spanstore.Reader.GetTrace
 func (qs QueryService) GetTrace(ctx context.Context, query GetTraceParameters) (*model.Trace, error) {
-	spanReader, err := v1adapter.GetV1Reader(qs.traceReader)
-	if err != nil {
-		return nil, err
-	}
-	trace, err := spanReader.GetTrace(ctx, query.GetTraceParameters)
+	trace, err := qs.spanReader.GetTrace(ctx, query.GetTraceParameters)
 	if errors.Is(err, spanstore.ErrTraceNotFound) {
 		if qs.options.ArchiveSpanReader == nil {
 			return nil, err
@@ -97,11 +99,7 @@ func (qs QueryService) GetTrace(ctx context.Context, query GetTraceParameters) (
 
 // GetServices is the queryService implementation of spanstore.Reader.GetServices
 func (qs QueryService) GetServices(ctx context.Context) ([]string, error) {
-	spanReader, err := v1adapter.GetV1Reader(qs.traceReader)
-	if err != nil {
-		return nil, err
-	}
-	return spanReader.GetServices(ctx)
+	return qs.spanReader.GetServices(ctx)
 }
 
 // GetOperations is the queryService implementation of spanstore.Reader.GetOperations
@@ -109,20 +107,12 @@ func (qs QueryService) GetOperations(
 	ctx context.Context,
 	query spanstore.OperationQueryParameters,
 ) ([]spanstore.Operation, error) {
-	spanReader, err := v1adapter.GetV1Reader(qs.traceReader)
-	if err != nil {
-		return nil, err
-	}
-	return spanReader.GetOperations(ctx, query)
+	return qs.spanReader.GetOperations(ctx, query)
 }
 
 // FindTraces is the queryService implementation of spanstore.Reader.FindTraces
 func (qs QueryService) FindTraces(ctx context.Context, query *TraceQueryParameters) ([]*model.Trace, error) {
-	spanReader, err := v1adapter.GetV1Reader(qs.traceReader)
-	if err != nil {
-		return nil, err
-	}
-	traces, err := spanReader.FindTraces(ctx, &query.TraceQueryParameters)
+	traces, err := qs.spanReader.FindTraces(ctx, &query.TraceQueryParameters)
 	if err != nil {
 		return nil, err
 	}

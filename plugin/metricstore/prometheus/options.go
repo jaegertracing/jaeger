@@ -115,11 +115,11 @@ func (opt *Options) InitFromViper(v *viper.Viper) error {
 	}
 
 	var err error
-	tlsOpts, err := tlsFlagsCfg.InitFromViper(v)
+	tlsCfg, err := tlsFlagsCfg.InitFromViper(v)
 	if err != nil {
 		return fmt.Errorf("failed to process Prometheus TLS options: %w", err)
 	}
-	opt.TLS = tlsOpts.ToOtelClientConfig()
+	opt.TLS = tlsCfg
 	return nil
 }
 

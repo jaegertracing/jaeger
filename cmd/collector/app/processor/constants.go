@@ -5,27 +5,10 @@ package processor
 
 import (
 	"errors"
-	"io"
-
-	"github.com/jaegertracing/jaeger/model"
 )
 
 // ErrBusy signalizes that processor cannot process incoming data
 var ErrBusy = errors.New("server busy")
-
-// SpansOptions additional options passed to processor along with the spans.
-type SpansOptions struct {
-	SpanFormat       SpanFormat
-	InboundTransport InboundTransport
-	Tenant           string
-}
-
-// SpanProcessor handles model spans
-type SpanProcessor interface {
-	// ProcessSpans processes model spans and return with either a list of true/false success or an error
-	ProcessSpans(mSpans []*model.Span, options SpansOptions) ([]bool, error)
-	io.Closer
-}
 
 // InboundTransport identifies the transport used to receive spans.
 type InboundTransport string

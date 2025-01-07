@@ -8,16 +8,14 @@
             "scope": {},
             "spans": [
               {
-                "endTimeUnixNano": "11651379494838206464",
                 "kind": 2,
                 "name": "foobar",
                 "parentSpanId": "",
-                "spanId": "00000000000000b4",
-                "startTimeUnixNano": "11651379494838206464",
+                "spanId": "0000000000000002",
                 "status": {
                   "code": 2
                 },
-                "traceId": "000000000000009600000000000000a0"
+                "traceId": "00000000000000000000000000000001"
               }
             ]
           }

@@ -24,6 +24,7 @@ import (
 	spanstoremocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
 	"github.com/jaegertracing/jaeger/storage_v2/depstore"
 	depsmocks "github.com/jaegertracing/jaeger/storage_v2/depstore/mocks"
+	"github.com/jaegertracing/jaeger/storage_v2/tracestore"
 	tracestoremocks "github.com/jaegertracing/jaeger/storage_v2/tracestore/mocks"
 	"github.com/jaegertracing/jaeger/storage_v2/v1adapter"
 )
@@ -195,20 +196,6 @@ func TestGetTraceNotFound(t *testing.T) {
 	assert.Equal(t, err, spanstore.ErrTraceNotFound)
 }
 
-func TestGetTrace_V1ReaderNotFound(t *testing.T) {
-	fr := new(tracestoremocks.Reader)
-	qs := QueryService{
-		traceReader: fr,
-	}
-	query := GetTraceParameters{
-		GetTraceParameters: spanstore.GetTraceParameters{
-			TraceID: mockTraceID,
-		},
-	}
-	_, err := qs.GetTrace(context.Background(), query)
-	require.Error(t, err)
-}
-
 // Test QueryService.GetTrace() with ArchiveSpanReader
 func TestGetTraceFromArchiveStorage(t *testing.T) {
 	tqs := initializeTestService(withArchiveSpanReader())
@@ -242,15 +229,6 @@ func TestGetServices(t *testing.T) {
 	assert.Equal(t, expectedServices, actualServices)
 }
 
-func TestGetServices_V1ReaderNotFound(t *testing.T) {
-	fr := new(tracestoremocks.Reader)
-	qs := QueryService{
-		traceReader: fr,
-	}
-	_, err := qs.GetServices(context.Background())
-	require.Error(t, err)
-}
-
 // Test QueryService.GetOperations() for success.
 func TestGetOperations(t *testing.T) {
 	tqs := initializeTestService()
@@ -267,16 +245,6 @@ func TestGetOperations(t *testing.T) {
 	actualOperations, err := tqs.queryService.GetOperations(context.WithValue(ctx, contextKey("foo"), "bar"), operationQuery)
 	require.NoError(t, err)
 	assert.Equal(t, expectedOperations, actualOperations)
-}
-
-func TestGetOperations_V1ReaderNotFound(t *testing.T) {
-	fr := new(tracestoremocks.Reader)
-	qs := QueryService{
-		traceReader: fr,
-	}
-	operationQuery := spanstore.OperationQueryParameters{ServiceName: "abc/trifle"}
-	_, err := qs.GetOperations(context.Background(), operationQuery)
-	require.Error(t, err)
 }
 
 // Test QueryService.FindTraces() for success.
@@ -360,26 +328,6 @@ func TestFindTracesWithRawTraces(t *testing.T) {
 			require.EqualValues(t, test.expected, spans[0].Tags)
 		})
 	}
-}
-
-func TestFindTraces_V1ReaderNotFound(t *testing.T) {
-	fr := new(tracestoremocks.Reader)
-	qs := QueryService{
-		traceReader: fr,
-	}
-	duration, err := time.ParseDuration("20ms")
-	require.NoError(t, err)
-	params := &TraceQueryParameters{
-		TraceQueryParameters: spanstore.TraceQueryParameters{
-			ServiceName:   "service",
-			OperationName: "operation",
-			StartTimeMax:  time.Now(),
-			DurationMin:   duration,
-			NumTraces:     200,
-		},
-	}
-	_, err = qs.FindTraces(context.Background(), params)
-	require.Error(t, err)
 }
 
 func TestFindTracesError(t *testing.T) {
@@ -564,4 +512,34 @@ func TestInitArchiveStorage(t *testing.T) {
 
 func TestMain(m *testing.M) {
 	testutils.VerifyGoLeaks(m)
+}
+
+func TestNewQueryService_UsesCorrectTypeForSpanReader(t *testing.T) {
+	tests := []struct {
+		name         string
+		reader       tracestore.Reader
+		expectedType spanstore.Reader
+	}{
+		{
+			name: "wrapped spanstore.Reader gets extracted",
+			reader: func() tracestore.Reader {
+				reader := &spanstoremocks.Reader{}
+				return v1adapter.NewTraceReader(reader)
+			}(),
+			expectedType: &spanstoremocks.Reader{},
+		},
+		{
+			name:         "tracestore.Reader gets downgraded to v1 spanstore.Reader",
+			reader:       &tracestoremocks.Reader{},
+			expectedType: &v1adapter.SpanReader{},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			dependencyReader := &depsmocks.Reader{}
+			options := QueryServiceOptions{}
+			qs := NewQueryService(test.reader, dependencyReader, options)
+			assert.IsType(t, test.expectedType, qs.spanReader)
+		})
+	}
 }

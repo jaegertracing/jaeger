@@ -195,11 +195,11 @@ run-all-in-one: build-ui
 
 .PHONY: changelog
 changelog:
-	./scripts/release-notes.py --exclude-dependabot --verbose
+	./scripts/release/notes.py --exclude-dependabot --verbose
 
 .PHONY: draft-release
 draft-release:
-	./scripts/draft-release.py
+	./scripts/release/draft.py
 
 .PHONY: test-ci
 test-ci: GOTEST := $(GOTEST_QUIET)

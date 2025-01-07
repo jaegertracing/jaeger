@@ -96,13 +96,13 @@ if [[ "${local_test_only}" = "Y" ]]; then
 else
     echo "::group:: compute tags ${component_name}"
     # shellcheck disable=SC2086
-    IFS=" " read -r -a IMAGE_TAGS <<< "$(bash scripts/util/compute-tags.sh ${namespace}/${component_name})"
+    IFS=" " read -r -a IMAGE_TAGS <<< "$(bash scripts/utils/compute-tags.sh ${namespace}/${component_name})"
     echo "::endgroup::"
 
     # Only push multi-arch images to dockerhub/quay.io for main branch or for release tags vM.N.P{-rcX}
     if [[ "$BRANCH" == "main" || $BRANCH =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-rc[0-9]+)?$ ]]; then
 	    echo "will build docker images and upload to dockerhub/quay.io, BRANCH=$BRANCH"
-	    bash scripts/util/docker-login.sh
+	    bash scripts/utils/docker-login.sh
 	    PUSHTAG="type=image,push=true"
 	    upload_comment=" and uploading"
 	    if [[ "$overwrite" == 'N' ]]; then
@@ -131,7 +131,7 @@ echo "Finished building${upload_comment} ${component_name} =============="
 
 if [[ "$upload_readme" == "Y" ]]; then
   echo "::group:: docker upload ${dir_arg}/README.md"
-  bash scripts/upload-docker-readme.sh "${component_name}" "${dir_arg}"/README.md
+  bash scripts/build/upload-docker-readme.sh "${component_name}" "${dir_arg}"/README.md
   echo "::endgroup::"
 fi
 

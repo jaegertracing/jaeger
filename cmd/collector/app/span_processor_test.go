@@ -77,7 +77,7 @@ func TestBySvcMetrics(t *testing.T) {
 		logger := zap.NewNop()
 		serviceMetrics := mb.Namespace(metrics.NSOptions{Name: "service", Tags: nil})
 		hostMetrics := mb.Namespace(metrics.NSOptions{Name: "host", Tags: nil})
-		sp := newSpanProcessor(
+		sp, err := newSpanProcessor(
 			&fakeSpanWriter{},
 			nil,
 			Options.ServiceMetrics(serviceMetrics),
@@ -88,6 +88,7 @@ func TestBySvcMetrics(t *testing.T) {
 			Options.ReportBusy(false),
 			Options.SpanFilter(isSpanAllowed),
 		)
+		require.NoError(t, err)
 		var metricPrefix, format string
 		switch test.format {
 		case processor.ZipkinSpanFormat:
@@ -235,11 +236,16 @@ func makeJaegerSpan(service string, rootSpan bool, debugEnabled bool) (*jaeger.S
 
 func TestSpanProcessor(t *testing.T) {
 	w := &fakeSpanWriter{}
-	p := NewSpanProcessor(w, nil, Options.QueueSize(1)).(*spanProcessor)
+	p, err := NewSpanProcessor(w, nil, Options.QueueSize(1))
+	require.NoError(t, err)
 
 	res, err := p.ProcessSpans(
-		[]*model.Span{{}}, // empty span should be enriched by sanitizers
-		processor.SpansOptions{SpanFormat: processor.JaegerSpanFormat})
+		processor.SpansV1{
+			Spans: []*model.Span{{}}, // empty span should be enriched by sanitizers
+			Details: processor.Details{
+				SpanFormat: processor.JaegerSpanFormat,
+			},
+		})
 	require.NoError(t, err)
 	assert.Equal(t, []bool{true}, res)
 	require.NoError(t, p.Close())
@@ -256,20 +262,27 @@ func TestSpanProcessorErrors(t *testing.T) {
 	mb := metricstest.NewFactory(time.Hour)
 	defer mb.Backend.Stop()
 	serviceMetrics := mb.Namespace(metrics.NSOptions{Name: "service", Tags: nil})
-	p := NewSpanProcessor(w,
+	pp, err := NewSpanProcessor(w,
 		nil,
 		Options.Logger(logger),
 		Options.ServiceMetrics(serviceMetrics),
 		Options.QueueSize(1),
-	).(*spanProcessor)
+	)
+	require.NoError(t, err)
+	p := pp.(*spanProcessor)
 
-	res, err := p.ProcessSpans([]*model.Span{
-		{
-			Process: &model.Process{
-				ServiceName: "x",
+	res, err := p.ProcessSpans(processor.SpansV1{
+		Spans: []*model.Span{
+			{
+				Process: &model.Process{
+					ServiceName: "x",
+				},
 			},
 		},
-	}, processor.SpansOptions{SpanFormat: processor.JaegerSpanFormat})
+		Details: processor.Details{
+			SpanFormat: processor.JaegerSpanFormat,
+		},
+	})
 	require.NoError(t, err)
 	assert.Equal(t, []bool{true}, res)
 
@@ -302,12 +315,14 @@ func (w *blockingWriter) WriteSpan(context.Context, *model.Span) error {
 
 func TestSpanProcessorBusy(t *testing.T) {
 	w := &blockingWriter{}
-	p := NewSpanProcessor(w,
+	pp, err := NewSpanProcessor(w,
 		nil,
 		Options.NumWorkers(1),
 		Options.QueueSize(1),
 		Options.ReportBusy(true),
-	).(*spanProcessor)
+	)
+	require.NoError(t, err)
+	p := pp.(*spanProcessor)
 	defer require.NoError(t, p.Close())
 
 	// block the writer so that the first span is read from the queue and blocks the processor,
@@ -315,23 +330,28 @@ func TestSpanProcessorBusy(t *testing.T) {
 	w.Lock()
 	defer w.Unlock()
 
-	res, err := p.ProcessSpans([]*model.Span{
-		{
-			Process: &model.Process{
-				ServiceName: "x",
+	res, err := p.ProcessSpans(processor.SpansV1{
+		Spans: []*model.Span{
+			{
+				Process: &model.Process{
+					ServiceName: "x",
+				},
+			},
+			{
+				Process: &model.Process{
+					ServiceName: "x",
+				},
+			},
+			{
+				Process: &model.Process{
+					ServiceName: "x",
+				},
 			},
 		},
-		{
-			Process: &model.Process{
-				ServiceName: "x",
-			},
+		Details: processor.Details{
+			SpanFormat: processor.JaegerSpanFormat,
 		},
-		{
-			Process: &model.Process{
-				ServiceName: "x",
-			},
-		},
-	}, processor.SpansOptions{SpanFormat: processor.JaegerSpanFormat})
+	})
 
 	require.Error(t, err, "expecting busy error")
 	assert.Nil(t, res)
@@ -343,7 +363,9 @@ func TestSpanProcessorWithNilProcess(t *testing.T) {
 	serviceMetrics := mb.Namespace(metrics.NSOptions{Name: "service", Tags: nil})
 
 	w := &fakeSpanWriter{}
-	p := NewSpanProcessor(w, nil, Options.ServiceMetrics(serviceMetrics)).(*spanProcessor)
+	pp, err := NewSpanProcessor(w, nil, Options.ServiceMetrics(serviceMetrics))
+	require.NoError(t, err)
+	p := pp.(*spanProcessor)
 	defer require.NoError(t, p.Close())
 
 	p.saveSpan(&model.Span{}, "")
@@ -362,7 +384,10 @@ func TestSpanProcessorWithCollectorTags(t *testing.T) {
 	}
 
 	w := &fakeSpanWriter{}
-	p := NewSpanProcessor(w, nil, Options.CollectorTags(testCollectorTags)).(*spanProcessor)
+
+	pp, err := NewSpanProcessor(w, nil, Options.CollectorTags(testCollectorTags))
+	require.NoError(t, err)
+	p := pp.(*spanProcessor)
 
 	defer require.NoError(t, p.Close())
 	span := &model.Span{
@@ -451,7 +476,9 @@ func TestSpanProcessorCountSpan(t *testing.T) {
 			} else {
 				opts = append(opts, Options.DynQueueSizeMemory(0))
 			}
-			p := NewSpanProcessor(w, nil, opts...).(*spanProcessor)
+			pp, err := NewSpanProcessor(w, nil, opts...)
+			require.NoError(t, err)
+			p := pp.(*spanProcessor)
 			defer func() {
 				require.NoError(t, p.Close())
 			}()
@@ -564,7 +591,8 @@ func TestUpdateDynQueueSize(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			w := &fakeSpanWriter{}
-			p := newSpanProcessor(w, nil, Options.QueueSize(tt.initialCapacity), Options.DynQueueSizeWarmup(tt.warmup), Options.DynQueueSizeMemory(tt.sizeInBytes))
+			p, err := newSpanProcessor(w, nil, Options.QueueSize(tt.initialCapacity), Options.DynQueueSizeWarmup(tt.warmup), Options.DynQueueSizeMemory(tt.sizeInBytes))
+			require.NoError(t, err)
 			assert.EqualValues(t, tt.initialCapacity, p.queue.Capacity())
 
 			p.spansProcessed.Store(tt.spansProcessed)
@@ -578,14 +606,16 @@ func TestUpdateDynQueueSize(t *testing.T) {
 
 func TestUpdateQueueSizeNoActivityYet(t *testing.T) {
 	w := &fakeSpanWriter{}
-	p := newSpanProcessor(w, nil, Options.QueueSize(1), Options.DynQueueSizeWarmup(1), Options.DynQueueSizeMemory(1))
+	p, err := newSpanProcessor(w, nil, Options.QueueSize(1), Options.DynQueueSizeWarmup(1), Options.DynQueueSizeMemory(1))
+	require.NoError(t, err)
 	assert.NotPanics(t, p.updateQueueSize)
 }
 
 func TestStartDynQueueSizeUpdater(t *testing.T) {
 	w := &fakeSpanWriter{}
 	oneGiB := uint(1024 * 1024 * 1024)
-	p := newSpanProcessor(w, nil, Options.QueueSize(100), Options.DynQueueSizeWarmup(1000), Options.DynQueueSizeMemory(oneGiB))
+	p, err := newSpanProcessor(w, nil, Options.QueueSize(100), Options.DynQueueSizeWarmup(1000), Options.DynQueueSizeMemory(oneGiB))
+	require.NoError(t, err)
 	assert.EqualValues(t, 100, p.queue.Capacity())
 
 	p.spansProcessed.Store(1000)
@@ -611,14 +641,20 @@ func TestAdditionalProcessors(t *testing.T) {
 	w := &fakeSpanWriter{}
 
 	// nil doesn't fail
-	p := NewSpanProcessor(w, nil, Options.QueueSize(1))
-	res, err := p.ProcessSpans([]*model.Span{
-		{
-			Process: &model.Process{
-				ServiceName: "x",
+	p, err := NewSpanProcessor(w, nil, Options.QueueSize(1))
+	require.NoError(t, err)
+	res, err := p.ProcessSpans(processor.SpansV1{
+		Spans: []*model.Span{
+			{
+				Process: &model.Process{
+					ServiceName: "x",
+				},
 			},
 		},
-	}, processor.SpansOptions{SpanFormat: processor.JaegerSpanFormat})
+		Details: processor.Details{
+			SpanFormat: processor.JaegerSpanFormat,
+		},
+	})
 	require.NoError(t, err)
 	assert.Equal(t, []bool{true}, res)
 	require.NoError(t, p.Close())
@@ -628,14 +664,20 @@ func TestAdditionalProcessors(t *testing.T) {
 	f := func(_ *model.Span, _ string) {
 		count++
 	}
-	p = NewSpanProcessor(w, []ProcessSpan{f}, Options.QueueSize(1))
-	res, err = p.ProcessSpans([]*model.Span{
-		{
-			Process: &model.Process{
-				ServiceName: "x",
+	p, err = NewSpanProcessor(w, []ProcessSpan{f}, Options.QueueSize(1))
+	require.NoError(t, err)
+	res, err = p.ProcessSpans(processor.SpansV1{
+		Spans: []*model.Span{
+			{
+				Process: &model.Process{
+					ServiceName: "x",
+				},
 			},
 		},
-	}, processor.SpansOptions{SpanFormat: processor.JaegerSpanFormat})
+		Details: processor.Details{
+			SpanFormat: processor.JaegerSpanFormat,
+		},
+	})
 	require.NoError(t, err)
 	assert.Equal(t, []bool{true}, res)
 	require.NoError(t, p.Close())
@@ -644,18 +686,22 @@ func TestAdditionalProcessors(t *testing.T) {
 
 func TestSpanProcessorContextPropagation(t *testing.T) {
 	w := &fakeSpanWriter{}
-	p := NewSpanProcessor(w, nil, Options.QueueSize(1))
+	p, err := NewSpanProcessor(w, nil, Options.QueueSize(1))
+	require.NoError(t, err)
 
 	dummyTenant := "context-prop-test-tenant"
 
-	res, err := p.ProcessSpans([]*model.Span{
-		{
-			Process: &model.Process{
-				ServiceName: "x",
+	res, err := p.ProcessSpans(processor.SpansV1{
+		Spans: []*model.Span{
+			{
+				Process: &model.Process{
+					ServiceName: "x",
+				},
 			},
 		},
-	}, processor.SpansOptions{
-		Tenant: dummyTenant,
+		Details: processor.Details{
+			Tenant: dummyTenant,
+		},
 	})
 	require.NoError(t, err)
 	assert.Equal(t, []bool{true}, res)
@@ -674,23 +720,29 @@ func TestSpanProcessorWithOnDroppedSpanOption(t *testing.T) {
 	}
 
 	w := &blockingWriter{}
-	p := NewSpanProcessor(w,
+	pp, err := NewSpanProcessor(w,
 		nil,
 		Options.NumWorkers(1),
 		Options.QueueSize(1),
 		Options.OnDroppedSpan(customOnDroppedSpan),
 		Options.ReportBusy(true),
-	).(*spanProcessor)
+	)
+	require.NoError(t, err)
+	p := pp.(*spanProcessor)
 	defer p.Close()
 
 	// Acquire the lock externally to force the writer to block.
 	w.Lock()
 	defer w.Unlock()
 
-	opts := processor.SpansOptions{SpanFormat: processor.JaegerSpanFormat}
-	_, err := p.ProcessSpans([]*model.Span{
-		{OperationName: "op1"},
-	}, opts)
+	_, err = p.ProcessSpans(processor.SpansV1{
+		Spans: []*model.Span{
+			{OperationName: "op1"},
+		},
+		Details: processor.Details{
+			SpanFormat: processor.JaegerSpanFormat,
+		},
+	})
 	require.NoError(t, err)
 
 	// Wait for the sole worker to pick the item from the queue and block
@@ -700,10 +752,15 @@ func TestSpanProcessorWithOnDroppedSpanOption(t *testing.T) {
 
 	// Now the queue is empty again and can accept one more item, but no workers available.
 	// If we send two items, the last one will have to be dropped.
-	_, err = p.ProcessSpans([]*model.Span{
-		{OperationName: "op2"},
-		{OperationName: "op3"},
-	}, opts)
+	_, err = p.ProcessSpans(processor.SpansV1{
+		Spans: []*model.Span{
+			{OperationName: "op2"},
+			{OperationName: "op3"},
+		},
+		Details: processor.Details{
+			SpanFormat: processor.JaegerSpanFormat,
+		},
+	})
 	require.EqualError(t, err, processor.ErrBusy.Error())
 	assert.Equal(t, []string{"op3"}, droppedOperations)
 }

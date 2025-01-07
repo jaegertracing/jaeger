@@ -384,7 +384,7 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 		// TODO refactor to be able to return error
 		log.Fatal(err)
 	}
-	cfg.TLS = tlsconfig.ToOtelClientConfig()
+	cfg.TLS = tlsconfig
 }
 
 // GetPrimary returns primary configuration.

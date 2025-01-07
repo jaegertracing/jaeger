@@ -18,12 +18,14 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/pdata/pcommon"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
-	"github.com/jaegertracing/jaeger/model"
 	_ "github.com/jaegertracing/jaeger/pkg/gogocodec" // force gogo codec registration
-	"github.com/jaegertracing/jaeger/storage/spanstore"
-	spanstoremocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
+	"github.com/jaegertracing/jaeger/pkg/iter"
+	"github.com/jaegertracing/jaeger/storage_v2/tracestore"
+	tracestoremocks "github.com/jaegertracing/jaeger/storage_v2/tracestore/mocks"
 )
 
 // Utility functions used from http_gateway_test.go.
@@ -35,10 +37,13 @@ const (
 // Snapshots can be regenerated via:
 //
 //	REGENERATE_SNAPSHOTS=true go test -v ./cmd/query/app/apiv3/...
-var regenerateSnapshots = os.Getenv("REGENERATE_SNAPSHOTS") == "true"
+var (
+	regenerateSnapshots = os.Getenv("REGENERATE_SNAPSHOTS") == "true"
+	traceID             = pcommon.TraceID([16]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1})
+)
 
 type testGateway struct {
-	reader *spanstoremocks.Reader
+	reader *tracestoremocks.Reader
 	url    string
 	router *mux.Router
 	// used to set a tenancy header when executing requests
@@ -80,23 +85,19 @@ func parseResponse(t *testing.T, body []byte, obj gogoproto.Message) {
 	require.NoError(t, gogojsonpb.Unmarshal(bytes.NewBuffer(body), obj))
 }
 
-func makeTestTrace() (*model.Trace, spanstore.GetTraceParameters) {
-	traceID := model.NewTraceID(150, 160)
-	query := spanstore.GetTraceParameters{TraceID: traceID}
-	return &model.Trace{
-		Spans: []*model.Span{
-			{
-				TraceID:       traceID,
-				SpanID:        model.NewSpanID(180),
-				OperationName: "foobar",
-				Tags: []model.KeyValue{
-					model.SpanKindTag(model.SpanKindServer),
-					model.Bool("error", true),
-				},
-				Process: &model.Process{},
-			},
-		},
-	}, query
+func makeTestTrace() ptrace.Traces {
+	trace := ptrace.NewTraces()
+	resources := trace.ResourceSpans().AppendEmpty()
+	scopes := resources.ScopeSpans().AppendEmpty()
+
+	spanA := scopes.Spans().AppendEmpty()
+	spanA.SetName("foobar")
+	spanA.SetTraceID(traceID)
+	spanA.SetSpanID(pcommon.SpanID([8]byte{0, 0, 0, 0, 0, 0, 0, 2}))
+	spanA.SetKind(ptrace.SpanKindServer)
+	spanA.Status().SetCode(ptrace.StatusCodeError)
+
+	return trace
 }
 
 func runGatewayTests(
@@ -125,10 +126,10 @@ func (gw *testGateway) runGatewayGetServices(t *testing.T) {
 }
 
 func (gw *testGateway) runGatewayGetOperations(t *testing.T) {
-	qp := spanstore.OperationQueryParameters{ServiceName: "foo", SpanKind: "server"}
+	qp := tracestore.OperationQueryParams{ServiceName: "foo", SpanKind: "server"}
 	gw.reader.
 		On("GetOperations", matchContext, qp).
-		Return([]spanstore.Operation{{Name: "get_users", SpanKind: "server"}}, nil).Once()
+		Return([]tracestore.Operation{{Name: "get_users", SpanKind: "server"}}, nil).Once()
 
 	body, statusCode := gw.execRequest(t, "/api/v3/operations?service=foo&span_kind=server")
 	require.Equal(t, http.StatusOK, statusCode)
@@ -142,21 +143,25 @@ func (gw *testGateway) runGatewayGetOperations(t *testing.T) {
 }
 
 func (gw *testGateway) runGatewayGetTrace(t *testing.T) {
-	trace, query := makeTestTrace()
-	gw.reader.On("GetTrace", matchContext, query).Return(trace, nil).Once()
-	gw.getTracesAndVerify(t, "/api/v3/traces/"+query.TraceID.String(), query.TraceID)
+	query := tracestore.GetTraceParams{TraceID: traceID}
+	gw.reader.
+		On("GetTraces", matchContext, query).
+		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+			yield([]ptrace.Traces{makeTestTrace()}, nil)
+		})).Once()
+	gw.getTracesAndVerify(t, "/api/v3/traces/1", traceID)
 }
 
 func (gw *testGateway) runGatewayFindTraces(t *testing.T) {
-	trace, query := makeTestTrace()
 	q, qp := mockFindQueries()
-	gw.reader.
-		On("FindTraces", matchContext, qp).
-		Return([]*model.Trace{trace}, nil).Once()
-	gw.getTracesAndVerify(t, "/api/v3/traces?"+q.Encode(), query.TraceID)
+	gw.reader.On("FindTraces", matchContext, qp).
+		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+			yield([]ptrace.Traces{makeTestTrace()}, nil)
+		})).Once()
+	gw.getTracesAndVerify(t, "/api/v3/traces?"+q.Encode(), traceID)
 }
 
-func (gw *testGateway) getTracesAndVerify(t *testing.T, url string, expectedTraceID model.TraceID) {
+func (gw *testGateway) getTracesAndVerify(t *testing.T, url string, expectedTraceID pcommon.TraceID) {
 	body, statusCode := gw.execRequest(t, url)
 	require.Equal(t, http.StatusOK, statusCode, "response=%s", string(body))
 	body = gw.verifySnapshot(t, body)

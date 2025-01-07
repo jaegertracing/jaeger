@@ -10,6 +10,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
@@ -29,7 +30,7 @@ const (
 )
 
 type spanProcessor struct {
-	queue              *queue.BoundedQueue
+	queue              *queue.BoundedQueue[queueItem]
 	queueResizeMu      sync.Mutex
 	metrics            *SpanProcessorMetrics
 	preProcessSpans    ProcessSpans
@@ -59,12 +60,14 @@ func NewSpanProcessor(
 	spanWriter spanstore.Writer,
 	additional []ProcessSpan,
 	opts ...Option,
-) processor.SpanProcessor {
-	sp := newSpanProcessor(spanWriter, additional, opts...)
+) (processor.SpanProcessor, error) {
+	sp, err := newSpanProcessor(spanWriter, additional, opts...)
+	if err != nil {
+		return nil, err
+	}
 
-	sp.queue.StartConsumers(sp.numWorkers, func(item any) {
-		value := item.(*queueItem)
-		sp.processItemFromQueue(value)
+	sp.queue.StartConsumers(sp.numWorkers, func(item queueItem) {
+		sp.processItemFromQueue(item)
 	})
 
 	sp.background(1*time.Second, sp.updateGauges)
@@ -73,22 +76,22 @@ func NewSpanProcessor(
 		sp.background(1*time.Minute, sp.updateQueueSize)
 	}
 
-	return sp
+	return sp, nil
 }
 
-func newSpanProcessor(spanWriter spanstore.Writer, additional []ProcessSpan, opts ...Option) *spanProcessor {
+func newSpanProcessor(spanWriter spanstore.Writer, additional []ProcessSpan, opts ...Option) (*spanProcessor, error) {
 	options := Options.apply(opts...)
 	handlerMetrics := NewSpanProcessorMetrics(
 		options.serviceMetrics,
 		options.hostMetrics,
 		options.extraFormatTypes)
-	droppedItemHandler := func(item any) {
+	droppedItemHandler := func(item queueItem) {
 		handlerMetrics.SpansDropped.Inc(1)
 		if options.onDroppedSpan != nil {
-			options.onDroppedSpan(item.(*queueItem).span)
+			options.onDroppedSpan(item.span)
 		}
 	}
-	boundedQueue := queue.NewBoundedQueue(options.queueSize, droppedItemHandler)
+	boundedQueue := queue.NewBoundedQueue[queueItem](options.queueSize, droppedItemHandler)
 
 	sanitizers := sanitizer.NewStandardSanitizers()
 	if options.sanitizer != nil {
@@ -125,7 +128,7 @@ func newSpanProcessor(spanWriter spanstore.Writer, additional []ProcessSpan, opt
 	processSpanFuncs = append(processSpanFuncs, additional...)
 
 	sp.processSpan = ChainedProcessSpan(processSpanFuncs...)
-	return &sp
+	return &sp, nil
 }
 
 func (sp *spanProcessor) Close() error {
@@ -164,22 +167,29 @@ func (sp *spanProcessor) countSpan(span *model.Span, _ string /* tenant */) {
 	sp.spansProcessed.Add(1)
 }
 
-func (sp *spanProcessor) ProcessSpans(mSpans []*model.Span, options processor.SpansOptions) ([]bool, error) {
-	sp.preProcessSpans(mSpans, options.Tenant)
-	sp.metrics.BatchSize.Update(int64(len(mSpans)))
-	retMe := make([]bool, len(mSpans))
+func (sp *spanProcessor) ProcessSpans(batch processor.Batch) ([]bool, error) {
+	sp.preProcessSpans(batch)
+	var spans []*model.Span
+	batch.GetSpans(func(spansV1 []*model.Span) {
+		spans = spansV1
+	}, func(_ ptrace.Traces) {
+		panic("not implemented")
+	})
+	sp.metrics.BatchSize.Update(int64(len(spans)))
+	retMe := make([]bool, len(spans))
 
 	// Note: this is not the ideal place to do this because collector tags are added to Process.Tags,
 	// and Process can be shared between different spans in the batch, but we no longer know that,
 	// the relation is lost upstream and it's impossible in Go to dedupe pointers. But at least here
 	// we have a single thread updating all spans that may share the same Process, before concurrency
 	// kicks in.
-	for _, span := range mSpans {
+	for _, span := range spans {
 		sp.addCollectorTags(span)
 	}
 
-	for i, mSpan := range mSpans {
-		ok := sp.enqueueSpan(mSpan, options.SpanFormat, options.InboundTransport, options.Tenant)
+	for i, mSpan := range spans {
+		// TODO does this have to be one span at a time?
+		ok := sp.enqueueSpan(mSpan, batch.GetSpanFormat(), batch.GetInboundTransport(), batch.GetTenant())
 		if !ok && sp.reportBusy {
 			return nil, processor.ErrBusy
 		}
@@ -188,7 +198,8 @@ func (sp *spanProcessor) ProcessSpans(mSpans []*model.Span, options processor.Sp
 	return retMe, nil
 }
 
-func (sp *spanProcessor) processItemFromQueue(item *queueItem) {
+func (sp *spanProcessor) processItemFromQueue(item queueItem) {
+	// TODO calling sanitizer here contradicts the comment in enqueueSpan about immutable Process.
 	sp.processSpan(sp.sanitizer(item.span), item.tenant)
 	sp.metrics.InQueueLatency.Record(time.Since(item.queuedTime))
 }
@@ -228,7 +239,7 @@ func (sp *spanProcessor) enqueueSpan(span *model.Span, originalFormat processor.
 	// add format tag
 	span.Tags = append(span.Tags, model.String("internal.span.format", string(originalFormat)))
 
-	item := &queueItem{
+	item := queueItem{
 		queuedTime: time.Now(),
 		span:       span,
 		tenant:     tenant,

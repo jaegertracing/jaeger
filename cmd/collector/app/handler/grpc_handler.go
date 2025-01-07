@@ -47,7 +47,7 @@ func (g *GRPCHandler) PostSpans(ctx context.Context, r *api_v2.PostSpansRequest)
 type batchConsumer struct {
 	logger        *zap.Logger
 	spanProcessor processor.SpanProcessor
-	spanOptions   processor.SpansOptions
+	spanOptions   processor.Details // common settings for all spans
 	tenancyMgr    *tenancy.Manager
 }
 
@@ -55,7 +55,7 @@ func newBatchConsumer(logger *zap.Logger, spanProcessor processor.SpanProcessor,
 	return batchConsumer{
 		logger:        logger,
 		spanProcessor: spanProcessor,
-		spanOptions: processor.SpansOptions{
+		spanOptions: processor.Details{
 			InboundTransport: transport,
 			SpanFormat:       spanFormat,
 		},
@@ -75,10 +75,13 @@ func (c *batchConsumer) consume(ctx context.Context, batch *model.Batch) error {
 			span.Process = batch.Process
 		}
 	}
-	_, err = c.spanProcessor.ProcessSpans(batch.Spans, processor.SpansOptions{
-		InboundTransport: c.spanOptions.InboundTransport,
-		SpanFormat:       c.spanOptions.SpanFormat,
-		Tenant:           tenant,
+	_, err = c.spanProcessor.ProcessSpans(processor.SpansV1{
+		Spans: batch.Spans,
+		Details: processor.Details{
+			InboundTransport: c.spanOptions.InboundTransport,
+			SpanFormat:       c.spanOptions.SpanFormat,
+			Tenant:           tenant,
+		},
 	})
 	if err != nil {
 		if errors.Is(err, processor.ErrBusy) {
