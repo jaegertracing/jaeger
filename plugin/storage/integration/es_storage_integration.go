@@ -144,7 +144,8 @@ func (s *ESStorageIntegration) initSpanstore(t *testing.T, allTagsAsFields bool)
 	dependencyReader, err := f.CreateDependencyReader()
 	require.NoError(t, err)
 	s.DependencyReader = v1adapter.NewDependencyReader(dependencyReader)
-	s.DependencyWriter = s.DependencyReader.(dependencystore.Writer)
+
+	s.DependencyWriter = dependencyReader.(dependencystore.Writer)
 
 	s.SamplingStore, err = f.CreateSamplingStore(1)
 	require.NoError(t, err)
