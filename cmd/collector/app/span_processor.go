@@ -6,6 +6,7 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -17,6 +18,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sanitizer"
+	sanitizerv2 "github.com/jaegertracing/jaeger/cmd/jaeger/sanitizer"
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/queue"
 	"github.com/jaegertracing/jaeger/pkg/telemetry"
@@ -38,6 +40,7 @@ type spanProcessor struct {
 	otelExporter       exporter.Traces
 	queueResizeMu      sync.Mutex
 	metrics            *SpanProcessorMetrics
+	telset             telemetry.Settings
 	preProcessSpans    ProcessSpans
 	filterSpan         FilterSpan             // filter is called before the sanitizer but after preProcessSpans
 	sanitizer          sanitizer.SanitizeSpan // sanitizer is called before processSpan
@@ -68,12 +71,17 @@ func NewSpanProcessor(
 ) (processor.SpanProcessor, error) {
 	sp, err := newSpanProcessor(traceWriter, additional, opts...)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("could not create span processor: %w", err)
 	}
 
 	sp.queue.StartConsumers(sp.numWorkers, func(item queueItem) {
 		sp.processItemFromQueue(item)
 	})
+
+	err = sp.otelExporter.Start(context.Background(), sp.telset.Host)
+	if err != nil {
+		return nil, fmt.Errorf("could not start exporter: %w", err)
+	}
 
 	sp.background(1*time.Second, sp.updateGauges)
 
@@ -106,6 +114,7 @@ func newSpanProcessor(traceWriter tracestore.Writer, additional []ProcessSpan, o
 	sp := spanProcessor{
 		queue:              boundedQueue,
 		metrics:            handlerMetrics,
+		telset:             telemetry.NoopSettings(), // TODO get real settings
 		logger:             options.logger,
 		preProcessSpans:    options.preProcessSpans,
 		filterSpan:         options.spanFilter,
@@ -126,23 +135,16 @@ func newSpanProcessor(traceWriter tracestore.Writer, additional []ProcessSpan, o
 			zap.Uint("queue-size-warmup", options.dynQueueSizeWarmup))
 	}
 	if options.dynQueueSizeMemory > 0 || options.spanSizeMetricsEnabled {
-		// add to processSpanFuncs
 		processSpanFuncs = append(processSpanFuncs, sp.countSpan)
 	}
+	sp.processSpan = ChainedProcessSpan(append(processSpanFuncs, additional...)...)
 
-	processSpanFuncs = append(processSpanFuncs, additional...)
-
-	sp.processSpan = ChainedProcessSpan(processSpanFuncs...)
-
-	// TODO get real settings
-	telset := telemetry.NoopSettings().ToOtelComponent()
-	set := exporter.Settings{
-		TelemetrySettings: telset,
-	}
-	// surprisingly exporterhelper ignores the config but requires it not be nil
-	anyCfg := struct{}{}
-
-	otelExporter, err := exporterhelper.NewTraces(context.Background(), set, anyCfg,
+	otelExporter, err := exporterhelper.NewTraces(
+		context.Background(),
+		exporter.Settings{
+			TelemetrySettings: sp.telset.ToOtelComponent(),
+		},
+		struct{}{}, // surprisingly exporterhelper ignores the config but requires it not be nil
 		sp.pushTraces,
 		exporterhelper.WithQueue(exporterhelper.NewDefaultQueueConfig()),
 		//   exporterhelper.WithCapabilities(consumer.Capabilities{MutatesData: false}),
@@ -153,7 +155,7 @@ func newSpanProcessor(traceWriter tracestore.Writer, additional []ProcessSpan, o
 		//   exporterhelper.WithShutdown(oce.shutdown),
 	)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("could not create exporterhelper: %w", err)
 	}
 	sp.otelExporter = otelExporter
 
@@ -169,8 +171,20 @@ func (sp *spanProcessor) Close() error {
 
 // pushTraces is called by exporterhelper's concurrent queue consumers.
 func (sp *spanProcessor) pushTraces(ctx context.Context, td ptrace.Traces) error {
-	// TODO apply collector tags
-	// TODO call sanitizers
+	td = sanitizerv2.Sanitize(td)
+
+	if len(sp.collectorTags) > 0 {
+		for i := 0; i < td.ResourceSpans().Len(); i++ {
+			resource := td.ResourceSpans().At(i).Resource()
+			for k, v := range sp.collectorTags {
+				if _, ok := resource.Attributes().Get(k); ok {
+					continue // don't override existing keys
+				}
+				resource.Attributes().PutStr(k, v)
+			}
+		}
+	}
+
 	// TODO emit metrics
 
 	return sp.traceWriter.WriteTraces(ctx, td)

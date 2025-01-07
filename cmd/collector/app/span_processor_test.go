@@ -5,16 +5,19 @@
 package app
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"io"
 	"reflect"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/gogo/protobuf/jsonpb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -168,6 +171,7 @@ func isSpanAllowed(span *model.Span) bool {
 }
 
 type fakeSpanWriter struct {
+	t         *testing.T
 	spansLock sync.Mutex
 	spans     []*model.Span
 	err       error
@@ -175,6 +179,9 @@ type fakeSpanWriter struct {
 }
 
 func (n *fakeSpanWriter) WriteSpan(ctx context.Context, span *model.Span) error {
+	if n.t != nil {
+		n.t.Logf("Capturing span %+v", span)
+	}
 	n.spansLock.Lock()
 	defer n.spansLock.Unlock()
 	n.spans = append(n.spans, span)
@@ -380,54 +387,84 @@ func TestSpanProcessorWithNilProcess(t *testing.T) {
 }
 
 func TestSpanProcessorWithCollectorTags(t *testing.T) {
-	testCollectorTags := map[string]string{
-		"extra": "tag",
-		"env":   "prod",
-		"node":  "172.22.18.161",
+	for _, modelVersion := range []string{"v1", "v2"} {
+		t.Run(modelVersion, func(t *testing.T) {
+			testCollectorTags := map[string]string{
+				"extra": "tag",
+				"env":   "prod",
+				"node":  "172.22.18.161",
+			}
+
+			w := &fakeSpanWriter{}
+
+			pp, err := NewSpanProcessor(
+				v1adapter.NewTraceWriter(w),
+				nil,
+				Options.CollectorTags(testCollectorTags),
+				Options.NumWorkers(1),
+				Options.QueueSize(1),
+			)
+			require.NoError(t, err)
+			p := pp.(*spanProcessor)
+			t.Cleanup(func() {
+				require.NoError(t, p.Close())
+			})
+
+			span := &model.Span{
+				Process: model.NewProcess("unit-test-service", []model.KeyValue{
+					model.String("env", "prod"),
+					model.String("node", "k8s-test-node-01"),
+				}),
+			}
+
+			var batch processor.Batch
+			if modelVersion == "v2" {
+				batch = processor.SpansV2{
+					Traces: v1adapter.V1BatchesToTraces([]*model.Batch{{Spans: []*model.Span{span}}}),
+				}
+			} else {
+				batch = processor.SpansV1{
+					Spans: []*model.Span{span},
+				}
+			}
+			_, err = p.ProcessSpans(batch)
+			require.NoError(t, err)
+
+			require.Eventually(t, func() bool {
+				w.spansLock.Lock()
+				defer w.spansLock.Unlock()
+				return len(w.spans) > 0
+			}, time.Second, time.Millisecond)
+
+			w.spansLock.Lock()
+			defer w.spansLock.Unlock()
+			span = w.spans[0]
+
+			expected := &model.Span{
+				Process: model.NewProcess("unit-test-service", []model.KeyValue{
+					model.String("env", "prod"),
+					model.String("extra", "tag"),
+					model.String("node", "172.22.18.161"),
+					model.String("node", "k8s-test-node-01"),
+				}),
+			}
+			if modelVersion == "v2" {
+				// ptrace.Resource.Attributes do not allow duplicate keys,
+				// so we only add non-conflicting tags, meaning the node IP
+				// tag from the collectorTags will not be added.
+				expected.Process.Tags = slices.Delete(expected.Process.Tags, 2, 3)
+				typedTags := model.KeyValues(span.Process.Tags)
+				typedTags.Sort()
+			}
+
+			m := &jsonpb.Marshaler{Indent: "  "}
+			jsonActual := new(bytes.Buffer)
+			m.Marshal(jsonActual, span.Process)
+			jsonExpected := new(bytes.Buffer)
+			m.Marshal(jsonExpected, expected.Process)
+			assert.Equal(t, jsonExpected.String(), jsonActual.String())
+		})
 	}
-
-	w := &fakeSpanWriter{}
-
-	pp, err := NewSpanProcessor(v1adapter.NewTraceWriter(w), nil, Options.CollectorTags(testCollectorTags))
-	require.NoError(t, err)
-	p := pp.(*spanProcessor)
-
-	defer require.NoError(t, p.Close())
-	span := &model.Span{
-		Process: model.NewProcess("unit-test-service", []model.KeyValue{
-			{
-				Key:  "env",
-				VStr: "prod",
-			},
-			{
-				Key:  "node",
-				VStr: "k8s-test-node-01",
-			},
-		}),
-	}
-	p.addCollectorTags(span)
-	expected := &model.Span{
-		Process: model.NewProcess("unit-test-service", []model.KeyValue{
-			{
-				Key:  "env",
-				VStr: "prod",
-			},
-			{
-				Key:  "extra",
-				VStr: "tag",
-			},
-			{
-				Key:  "node",
-				VStr: "172.22.18.161",
-			},
-			{
-				Key:  "node",
-				VStr: "k8s-test-node-01",
-			},
-		}),
-	}
-
-	assert.Equal(t, expected.Process, span.Process)
 }
 
 func TestSpanProcessorCountSpan(t *testing.T) {
