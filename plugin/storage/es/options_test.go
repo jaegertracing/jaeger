@@ -40,7 +40,7 @@ func TestOptions(t *testing.T) {
 	assert.False(t, primary.Rollover.LookBackEnabled)
 	assert.Equal(t, "days", primary.Rollover.LookBackOptions.Unit)
 	assert.Equal(t, 1, primary.Rollover.LookBackOptions.UnitCount)
-	assert.JSONEq(t, `{"max_age": "20000d"}`, primary.Rollover.RollBackOptions.Conditions)
+	assert.JSONEq(t, `{"max_age": "2d"}`, primary.Rollover.RollBackOptions.Conditions)
 	assert.False(t, primary.Rollover.RolloverOptions.Archive)
 	assert.False(t, primary.Rollover.RolloverOptions.SkipDependencies)
 	assert.False(t, primary.Rollover.RolloverOptions.AdaptiveSampling)
