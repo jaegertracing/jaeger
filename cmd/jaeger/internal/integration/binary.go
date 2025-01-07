@@ -29,8 +29,50 @@ type Binary struct {
 }
 
 func (b *Binary) Start(t *testing.T) {
+	b.startWithBinaryCleanupFunction(t, func(t *testing.T, outFile *os.File, errFile *os.File) {
+		t.Cleanup(func() {
+			if err := b.Process.Kill(); err != nil {
+				t.Errorf("Failed to kill %s process: %v", b.Name, err)
+			}
+			t.Logf("Waiting for %s to exit", b.Name)
+			b.Process.Wait()
+			t.Logf("%s exited", b.Name)
+			if t.Failed() {
+				b.dumpLogs(t, outFile, errFile)
+			}
+		})
+
+		// Wait for the binary to start and become ready to serve requests.
+		require.Eventually(t, func() bool { return b.doHealthCheck(t) },
+			60*time.Second, 3*time.Second, "%s did not start", b.Name)
+		t.Logf("%s is ready", b.Name)
+	})
+}
+
+func (b *Binary) StartForCronJob(t *testing.T, duration time.Duration) {
+	b.startWithBinaryCleanupFunction(t, func(t *testing.T, outFile *os.File, errFile *os.File) {
+		// Firstly we have to check whether the binary is healthy and then after the cron job, we have to close it
+		require.Eventually(t, func() bool { return b.doHealthCheck(t) },
+			60*time.Second, 3*time.Second, "%s did not start", b.Name)
+		t.Logf("%s is ready", b.Name)
+		// Sleep till the cron job takes place
+		time.Sleep(duration)
+		// After the cron job, close the binary
+		if err := b.Process.Kill(); err != nil {
+			t.Errorf("Failed to kill %s process: %v", b.Name, err)
+		}
+		t.Logf("Waiting for %s to exit", b.Name)
+		b.Process.Wait()
+		t.Logf("%s exited", b.Name)
+		if t.Failed() {
+			b.dumpLogs(t, outFile, errFile)
+		}
+	})
+}
+
+func (b *Binary) startWithBinaryCleanupFunction(t *testing.T, cleanupRegister func(t *testing.T, outF *os.File, errF *os.File)) {
 	outFile, err := os.OpenFile(
-		filepath.Join(t.TempDir(), "output_logs.txt"),
+		filepath.Join("output_logs.txt"),
 		os.O_CREATE|os.O_WRONLY,
 		os.ModePerm,
 	)
@@ -38,7 +80,7 @@ func (b *Binary) Start(t *testing.T) {
 	t.Logf("Writing the %s output logs into %s", b.Name, outFile.Name())
 
 	errFile, err := os.OpenFile(
-		filepath.Join(t.TempDir(), "error_logs.txt"),
+		filepath.Join("error_logs.txt"),
 		os.O_CREATE|os.O_WRONLY,
 		os.ModePerm,
 	)
@@ -51,22 +93,7 @@ func (b *Binary) Start(t *testing.T) {
 	t.Logf("Running command: %v", b.Args)
 	require.NoError(t, b.Cmd.Start())
 
-	t.Cleanup(func() {
-		if err := b.Process.Kill(); err != nil {
-			t.Errorf("Failed to kill %s process: %v", b.Name, err)
-		}
-		t.Logf("Waiting for %s to exit", b.Name)
-		b.Process.Wait()
-		t.Logf("%s exited", b.Name)
-		if t.Failed() {
-			b.dumpLogs(t, outFile, errFile)
-		}
-	})
-
-	// Wait for the binary to start and become ready to serve requests.
-	require.Eventually(t, func() bool { return b.doHealthCheck(t) },
-		60*time.Second, 3*time.Second, "%s did not start", b.Name)
-	t.Logf("%s is ready", b.Name)
+	cleanupRegister(t, outFile, errFile)
 }
 
 func (b *Binary) doHealthCheck(t *testing.T) bool {
