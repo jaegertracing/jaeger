@@ -17,6 +17,7 @@ const (
 	archive            = "archive"
 	rollover           = "rollover"
 	timeout            = "timeout"
+	ignoreUnavailable  = "ignore-unavailable"
 	indexDateSeparator = "index-date-separator"
 	username           = "es.username"
 	password           = "es.password"
@@ -30,6 +31,7 @@ type Config struct {
 	Archive                  bool
 	Rollover                 bool
 	MasterNodeTimeoutSeconds int
+	IgnoreUnavailableIndex   bool
 	IndexDateSeparator       string
 	Username                 string
 	Password                 string
@@ -43,6 +45,7 @@ func (*Config) AddFlags(flags *flag.FlagSet) {
 	flags.Bool(archive, false, "Whether to remove archive indices. It works only for rollover")
 	flags.Bool(rollover, false, "Whether to remove indices created by rollover")
 	flags.Int(timeout, 120, "Number of seconds to wait for master node response")
+	flags.Bool(ignoreUnavailable, true, "If false, returns an error when index is missing")
 	flags.String(indexDateSeparator, "-", "Index date separator")
 	flags.String(username, "", "The username required by storage")
 	flags.String(password, "", "The password required by storage")
@@ -59,6 +62,7 @@ func (c *Config) InitFromViper(v *viper.Viper) {
 	c.Archive = v.GetBool(archive)
 	c.Rollover = v.GetBool(rollover)
 	c.MasterNodeTimeoutSeconds = v.GetInt(timeout)
+	c.IgnoreUnavailableIndex = v.GetBool(ignoreUnavailable)
 	c.IndexDateSeparator = v.GetString(indexDateSeparator)
 	c.Username = v.GetString(username)
 	c.Password = v.GetString(password)

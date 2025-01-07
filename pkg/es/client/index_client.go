@@ -38,7 +38,8 @@ var _ IndexAPI = (*IndicesClient)(nil)
 // IndicesClient is a client used to manipulate indices.
 type IndicesClient struct {
 	Client
-	MasterTimeoutSeconds int
+	MasterTimeoutSeconds   int
+	IgnoreUnavailableIndex bool
 }
 
 // GetJaegerIndices queries all Jaeger indices including the archive and rollover.
@@ -94,8 +95,9 @@ func (i *IndicesClient) GetJaegerIndices(prefix string) ([]Index, error) {
 // execute delete request
 func (i *IndicesClient) indexDeleteRequest(concatIndices string) error {
 	_, err := i.request(elasticRequest{
-		endpoint: fmt.Sprintf("%s?master_timeout=%ds", concatIndices, i.MasterTimeoutSeconds),
-		method:   http.MethodDelete,
+		endpoint: fmt.Sprintf("%s?master_timeout=%ds&ignore_unavailable=%t", concatIndices,
+			i.MasterTimeoutSeconds, i.IgnoreUnavailableIndex),
+		method: http.MethodDelete,
 	})
 	if err != nil {
 		var responseError ResponseError
