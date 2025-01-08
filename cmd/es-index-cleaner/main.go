@@ -62,7 +62,7 @@ func main() {
 					BasicAuth: basicAuth(cfg.Username, cfg.Password),
 				},
 				MasterTimeoutSeconds:   cfg.MasterNodeTimeoutSeconds,
-				IgnoreUnavailableIndex: cfg.IgnoreUnavailableIndex,
+				IgnoreUnavailableIndex: true,
 			}
 
 			indices, err := i.GetJaegerIndices(cfg.IndexPrefix)
