@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"sort"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -175,6 +176,7 @@ func getIndicesList(size int) []Index {
 func TestClientDeleteIndices(t *testing.T) {
 	masterTimeoutSeconds := 1
 	maxURLPathLength := 4000
+	ignoreUnavailableIndex := true
 
 	tests := []struct {
 		name         string
@@ -236,6 +238,7 @@ func TestClientDeleteIndices(t *testing.T) {
 				assert.Equal(t, http.MethodDelete, req.Method)
 				assert.Equal(t, "Basic foobar", req.Header.Get("Authorization"))
 				assert.Equal(t, fmt.Sprintf("%ds", masterTimeoutSeconds), req.URL.Query().Get("master_timeout"))
+				assert.Equal(t, strconv.FormatBool(ignoreUnavailableIndex), req.URL.Query().Get("ignore_unavailable"))
 				assert.LessOrEqual(t, len(req.URL.Path), maxURLPathLength)
 
 				// removes leading '/' and trailing ','
@@ -261,7 +264,8 @@ func TestClientDeleteIndices(t *testing.T) {
 					Endpoint:  testServer.URL,
 					BasicAuth: "foobar",
 				},
-				MasterTimeoutSeconds: masterTimeoutSeconds,
+				MasterTimeoutSeconds:   masterTimeoutSeconds,
+				IgnoreUnavailableIndex: ignoreUnavailableIndex,
 			}
 
 			err := c.DeleteIndices(test.indices)
