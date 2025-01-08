@@ -160,15 +160,10 @@ func getLoggingTimeRangeIndexFn(logger *zap.Logger, fn timeRangeIndexFn) timeRan
 
 func getTimeRangeIndexFn(indexSuffix string, useReadWriteAliases bool, remoteReadClusters []string) timeRangeIndexFn {
 	if indexSuffix != "" {
-		suffix := indexSuffix
-		if useReadWriteAliases {
-			suffix += "-read"
-		}
 		return addRemoteReadClusters(func(indexPrefix, _ /* indexDateLayout */ string, _ /* startTime */ time.Time, _ /* endTime */ time.Time, _ /* reduceDuration */ time.Duration) []string {
-			return []string{indexPrefix + suffix}
+			return []string{indexPrefix + indexSuffix}
 		}, remoteReadClusters)
-	}
-	if useReadWriteAliases {
+	} else if useReadWriteAliases {
 		return addRemoteReadClusters(func(indexPrefix string, _ /* indexDateLayout */ string, _ /* startTime */ time.Time, _ /* endTime */ time.Time, _ /* reduceDuration */ time.Duration) []string {
 			return []string{indexPrefix + "read"}
 		}, remoteReadClusters)

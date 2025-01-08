@@ -103,14 +103,9 @@ func getSpanAndServiceIndexFn(p SpanWriterParams) spanAndServiceIndexFn {
 	serviceIndexPrefix := p.IndexPrefix.Apply(serviceIndexBaseName)
 	if p.IndexSuffix != "" {
 		return func(_ time.Time) (string, string) {
-			if p.UseReadWriteAliases {
-				return spanIndexPrefix + p.IndexSuffix + "-write", ""
-			}
 			return spanIndexPrefix + p.IndexSuffix, ""
 		}
-	}
-
-	if p.UseReadWriteAliases {
+	} else if p.UseReadWriteAliases {
 		return func(_ /* spanTime */ time.Time) (string, string) {
 			return spanIndexPrefix + "write", serviceIndexPrefix + "write"
 		}
