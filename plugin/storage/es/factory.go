@@ -196,7 +196,7 @@ func (f *Factory) getArchiveClient() es.Client {
 
 // CreateSpanReader implements storage.Factory
 func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
-	sr, err := createSpanReader(f.getPrimaryClient, f.primaryConfig, f.logger, f.tracer)
+	sr, err := createSpanReader(f.getPrimaryClient, f.primaryConfig, f.logger, f.tracer, "", f.primaryConfig.UseReadWriteAliases)
 	if err != nil {
 		return nil, err
 	}
@@ -218,8 +218,7 @@ func (f *Factory) CreateArchiveSpanReader() (spanstore.Reader, error) {
 	if !f.archiveConfig.Enabled {
 		return nil, nil
 	}
-	// TODO: should use_aliases be always set to true here?
-	sr, err := createSpanReader(f.getArchiveClient, f.archiveConfig, f.logger, f.tracer)
+	sr, err := createSpanReader(f.getArchiveClient, f.archiveConfig, f.logger, f.tracer, "archive", true)
 	if err != nil {
 		return nil, err
 	}
@@ -239,6 +238,8 @@ func createSpanReader(
 	cfg *config.Configuration,
 	logger *zap.Logger,
 	tp trace.TracerProvider,
+	indexSuffix string,
+	useReadWriteAliases bool,
 ) (spanstore.Reader, error) {
 	if cfg.UseILM && !cfg.UseReadWriteAliases {
 		return nil, errors.New("--es.use-ilm must always be used in conjunction with --es.use-aliases to ensure ES writers and readers refer to the single index mapping")
@@ -251,7 +252,8 @@ func createSpanReader(
 		SpanIndex:           cfg.Indices.Spans,
 		ServiceIndex:        cfg.Indices.Services,
 		TagDotReplacement:   cfg.Tags.DotReplacement,
-		UseReadWriteAliases: cfg.UseReadWriteAliases,
+		UseReadWriteAliases: useReadWriteAliases,
+		IndexSuffix:         indexSuffix,
 		RemoteReadClusters:  cfg.RemoteReadClusters,
 		Logger:              logger,
 		Tracer:              tp.Tracer("esSpanStore.SpanReader"),
