@@ -74,7 +74,7 @@ func TestSpanWriterIndices(t *testing.T) {
 		{
 			params: SpanWriterParams{
 				Client: clientFn, Logger: logger, MetricsFactory: metricsFactory,
-				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts, Archive: false,
+				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts,
 			},
 			indices: []string{spanIndexBaseName + spanDataLayoutFormat, serviceIndexBaseName + serviceDataLayoutFormat},
 		},
@@ -88,7 +88,7 @@ func TestSpanWriterIndices(t *testing.T) {
 		{
 			params: SpanWriterParams{
 				Client: clientFn, Logger: logger, MetricsFactory: metricsFactory,
-				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts, IndexPrefix: "foo:", Archive: false,
+				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts, IndexPrefix: "foo:",
 			},
 			indices: []string{"foo:" + config.IndexPrefixSeparator + spanIndexBaseName + spanDataLayoutFormat, "foo:" + config.IndexPrefixSeparator + serviceIndexBaseName + serviceDataLayoutFormat},
 		},
@@ -102,23 +102,23 @@ func TestSpanWriterIndices(t *testing.T) {
 		{
 			params: SpanWriterParams{
 				Client: clientFn, Logger: logger, MetricsFactory: metricsFactory,
-				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts, Archive: true,
+				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts, IndexSuffix: "archive",
 			},
-			indices: []string{spanIndexBaseName + archiveIndexSuffix, ""},
+			indices: []string{spanIndexBaseName + "archive", ""},
 		},
 		{
 			params: SpanWriterParams{
 				Client: clientFn, Logger: logger, MetricsFactory: metricsFactory,
-				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts, IndexPrefix: "foo:", Archive: true,
+				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts, IndexPrefix: "foo:", IndexSuffix: "archive",
 			},
-			indices: []string{"foo:" + config.IndexPrefixSeparator + spanIndexBaseName + archiveIndexSuffix, ""},
+			indices: []string{"foo:" + config.IndexPrefixSeparator + spanIndexBaseName + "archive", ""},
 		},
 		{
 			params: SpanWriterParams{
 				Client: clientFn, Logger: logger, MetricsFactory: metricsFactory,
-				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts, IndexPrefix: "foo:", Archive: true, UseReadWriteAliases: true,
+				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts, IndexPrefix: "foo:", IndexSuffix: "archive", UseReadWriteAliases: true,
 			},
-			indices: []string{"foo:" + config.IndexPrefixSeparator + spanIndexBaseName + archiveWriteIndexSuffix, ""},
+			indices: []string{"foo:" + config.IndexPrefixSeparator + spanIndexBaseName + "archive-write", ""},
 		},
 	}
 	for _, testCase := range testCases {

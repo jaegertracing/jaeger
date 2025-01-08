@@ -134,7 +134,7 @@ func withArchiveSpanReader(t *testing.T, readAlias bool, fn func(r *spanReaderTe
 			Tracer:              tracer.Tracer("test"),
 			MaxSpanAge:          0,
 			TagDotReplacement:   "@",
-			Archive:             true,
+			IndexSuffix:         "archive",
 			UseReadWriteAliases: readAlias,
 		}),
 	}
@@ -199,7 +199,6 @@ func TestSpanReaderIndices(t *testing.T) {
 	}{
 		{
 			params: SpanReaderParams{
-				Archive:      false,
 				SpanIndex:    spanIndexOpts,
 				ServiceIndex: serviceIndexOpts,
 			},
@@ -213,7 +212,6 @@ func TestSpanReaderIndices(t *testing.T) {
 		},
 		{
 			params: SpanReaderParams{
-				Archive:      false,
 				SpanIndex:    spanIndexOpts,
 				ServiceIndex: serviceIndexOpts,
 				IndexPrefix:  "foo:",
@@ -228,27 +226,26 @@ func TestSpanReaderIndices(t *testing.T) {
 		},
 		{
 			params: SpanReaderParams{
-				Archive: true,
+				IndexSuffix: "archive",
 			},
-			indices: []string{spanIndexBaseName + archiveIndexSuffix, serviceIndexBaseName + archiveIndexSuffix},
+			indices: []string{spanIndexBaseName + "archive", serviceIndexBaseName + "archive"},
 		},
 		{
 			params: SpanReaderParams{
-				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts, IndexPrefix: "foo:", Archive: true,
+				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts, IndexPrefix: "foo:", IndexSuffix: "archive",
 			},
-			indices: []string{"foo:" + config.IndexPrefixSeparator + spanIndexBaseName + archiveIndexSuffix, "foo:" + config.IndexPrefixSeparator + serviceIndexBaseName + archiveIndexSuffix},
+			indices: []string{"foo:" + config.IndexPrefixSeparator + spanIndexBaseName + "archive", "foo:" + config.IndexPrefixSeparator + serviceIndexBaseName + "archive"},
 		},
 		{
 			params: SpanReaderParams{
-				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts, IndexPrefix: "foo:", Archive: true, UseReadWriteAliases: true,
+				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts, IndexPrefix: "foo:", IndexSuffix: "archive", UseReadWriteAliases: true,
 			},
-			indices: []string{"foo:" + config.IndexPrefixSeparator + spanIndexBaseName + archiveReadIndexSuffix, "foo:" + config.IndexPrefixSeparator + serviceIndexBaseName + archiveReadIndexSuffix},
+			indices: []string{"foo:" + config.IndexPrefixSeparator + spanIndexBaseName + "archive-read", "foo:" + config.IndexPrefixSeparator + serviceIndexBaseName + "archive-read"},
 		},
 		{
 			params: SpanReaderParams{
 				SpanIndex:          spanIndexOpts,
 				ServiceIndex:       serviceIndexOpts,
-				Archive:            false,
 				RemoteReadClusters: []string{"cluster_one", "cluster_two"},
 			},
 			indices: []string{
@@ -262,20 +259,20 @@ func TestSpanReaderIndices(t *testing.T) {
 		},
 		{
 			params: SpanReaderParams{
-				Archive: true, RemoteReadClusters: []string{"cluster_one", "cluster_two"},
+				IndexSuffix: "archive", RemoteReadClusters: []string{"cluster_one", "cluster_two"},
 			},
 			indices: []string{
-				spanIndexBaseName + archiveIndexSuffix,
-				"cluster_one:" + spanIndexBaseName + archiveIndexSuffix,
-				"cluster_two:" + spanIndexBaseName + archiveIndexSuffix,
-				serviceIndexBaseName + archiveIndexSuffix,
-				"cluster_one:" + serviceIndexBaseName + archiveIndexSuffix,
-				"cluster_two:" + serviceIndexBaseName + archiveIndexSuffix,
+				spanIndexBaseName + "archive",
+				"cluster_one:" + spanIndexBaseName + "archive",
+				"cluster_two:" + spanIndexBaseName + "archive",
+				serviceIndexBaseName + "archive",
+				"cluster_one:" + serviceIndexBaseName + "archive",
+				"cluster_two:" + serviceIndexBaseName + "archive",
 			},
 		},
 		{
 			params: SpanReaderParams{
-				Archive: false, UseReadWriteAliases: true, RemoteReadClusters: []string{"cluster_one", "cluster_two"},
+				UseReadWriteAliases: true, RemoteReadClusters: []string{"cluster_one", "cluster_two"},
 			},
 			indices: []string{
 				spanIndexBaseName + "read",
@@ -288,15 +285,15 @@ func TestSpanReaderIndices(t *testing.T) {
 		},
 		{
 			params: SpanReaderParams{
-				Archive: true, UseReadWriteAliases: true, RemoteReadClusters: []string{"cluster_one", "cluster_two"},
+				IndexSuffix: "archive", UseReadWriteAliases: true, RemoteReadClusters: []string{"cluster_one", "cluster_two"},
 			},
 			indices: []string{
-				spanIndexBaseName + archiveReadIndexSuffix,
-				"cluster_one:" + spanIndexBaseName + archiveReadIndexSuffix,
-				"cluster_two:" + spanIndexBaseName + archiveReadIndexSuffix,
-				serviceIndexBaseName + archiveReadIndexSuffix,
-				"cluster_one:" + serviceIndexBaseName + archiveReadIndexSuffix,
-				"cluster_two:" + serviceIndexBaseName + archiveReadIndexSuffix,
+				spanIndexBaseName + "archive-read",
+				"cluster_one:" + spanIndexBaseName + "archive-read",
+				"cluster_two:" + spanIndexBaseName + "archive-read",
+				serviceIndexBaseName + "archive-read",
+				"cluster_one:" + serviceIndexBaseName + "archive-read",
+				"cluster_two:" + serviceIndexBaseName + "archive-read",
 			},
 		},
 	}
