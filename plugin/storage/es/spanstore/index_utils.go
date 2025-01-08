@@ -12,8 +12,3 @@ func indexWithDate(indexPrefix, indexDateLayout string, date time.Time) string {
 	spanDate := date.UTC().Format(indexDateLayout)
 	return indexPrefix + spanDate
 }
-
-// returns archive index name
-func archiveIndex(indexPrefix, archiveSuffix string) string {
-	return indexPrefix + archiveSuffix
-}

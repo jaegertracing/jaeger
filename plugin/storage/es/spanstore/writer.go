@@ -55,7 +55,6 @@ type SpanWriterParams struct {
 	AllTagsAsFields     bool
 	TagKeysAsFields     []string
 	TagDotReplacement   string
-	Archive             bool
 	UseReadWriteAliases bool
 	ServiceCacheTTL     time.Duration
 }
@@ -101,14 +100,6 @@ type spanAndServiceIndexFn func(spanTime time.Time) (string, string)
 func getSpanAndServiceIndexFn(p SpanWriterParams) spanAndServiceIndexFn {
 	spanIndexPrefix := p.IndexPrefix.Apply(spanIndexBaseName)
 	serviceIndexPrefix := p.IndexPrefix.Apply(serviceIndexBaseName)
-	if p.Archive {
-		return func(_ time.Time) (string, string) {
-			if p.UseReadWriteAliases {
-				return archiveIndex(spanIndexPrefix, archiveWriteIndexSuffix), ""
-			}
-			return archiveIndex(spanIndexPrefix, archiveIndexSuffix), ""
-		}
-	}
 
 	if p.UseReadWriteAliases {
 		return func(_ /* spanTime */ time.Time) (string, string) {

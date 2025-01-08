@@ -27,13 +27,10 @@ import (
 )
 
 const (
-	spanIndexBaseName       = "jaeger-span-"
-	serviceIndexBaseName    = "jaeger-service-"
-	archiveIndexSuffix      = "archive"
-	archiveReadIndexSuffix  = archiveIndexSuffix + "-read"
-	archiveWriteIndexSuffix = archiveIndexSuffix + "-write"
-	traceIDAggregation      = "traceIDs"
-	indexPrefixSeparator    = "-"
+	spanIndexBaseName    = "jaeger-span-"
+	serviceIndexBaseName = "jaeger-service-"
+	traceIDAggregation   = "traceIDs"
+	indexPrefixSeparator = "-"
 
 	traceIDField           = "traceID"
 	durationField          = "duration"
