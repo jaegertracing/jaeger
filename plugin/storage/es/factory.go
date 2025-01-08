@@ -205,7 +205,7 @@ func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
 
 // CreateSpanWriter implements storage.Factory
 func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
-	return createSpanWriter(f.getPrimaryClient, f.primaryConfig, f.primaryMetricsFactory, f.logger)
+	return createSpanWriter(f.getPrimaryClient, f.primaryConfig, f.primaryMetricsFactory, f.logger, "", f.primaryConfig.UseReadWriteAliases)
 }
 
 // CreateDependencyReader implements storage.Factory
@@ -230,7 +230,7 @@ func (f *Factory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
 	if !f.archiveConfig.Enabled {
 		return nil, nil
 	}
-	return createSpanWriter(f.getArchiveClient, f.archiveConfig, f.archiveMetricsFactory, f.logger)
+	return createSpanWriter(f.getArchiveClient, f.archiveConfig, f.archiveMetricsFactory, f.logger, "archive", true)
 }
 
 func createSpanReader(
@@ -265,6 +265,8 @@ func createSpanWriter(
 	cfg *config.Configuration,
 	mFactory metrics.Factory,
 	logger *zap.Logger,
+	indexSuffix string,
+	useReadWriteAliases bool,
 ) (spanstore.Writer, error) {
 	var tags []string
 	var err error
@@ -279,12 +281,13 @@ func createSpanWriter(
 	writer := esSpanStore.NewSpanWriter(esSpanStore.SpanWriterParams{
 		Client:              clientFn,
 		IndexPrefix:         cfg.Indices.IndexPrefix,
+		IndexSuffix:         indexSuffix,
 		SpanIndex:           cfg.Indices.Spans,
 		ServiceIndex:        cfg.Indices.Services,
 		AllTagsAsFields:     cfg.Tags.AllAsFields,
 		TagKeysAsFields:     tags,
 		TagDotReplacement:   cfg.Tags.DotReplacement,
-		UseReadWriteAliases: cfg.UseReadWriteAliases,
+		UseReadWriteAliases: useReadWriteAliases,
 		Logger:              logger,
 		MetricsFactory:      mFactory,
 		ServiceCacheTTL:     cfg.ServiceCacheTTL,
