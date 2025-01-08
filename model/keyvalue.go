@@ -27,6 +27,7 @@ const (
 	BinaryType = ValueType_BINARY
 
 	SpanKindKey     = "span.kind"
+	SpanHashKey     = "span.hash"
 	SamplerTypeKey  = "sampler.type"
 	SamplerParamKey = "sampler.param"
 )

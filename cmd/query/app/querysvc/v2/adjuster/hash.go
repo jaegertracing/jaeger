@@ -6,10 +6,13 @@ package adjuster
 import (
 	"fmt"
 	"hash/fnv"
+	"unsafe"
 
+	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger/internal/jptrace"
+	"github.com/jaegertracing/jaeger/model"
 )
 
 var _ Adjuster = (*SpanHashDeduper)(nil)
@@ -34,7 +37,7 @@ type SpanHashDeduper struct {
 }
 
 func (s *SpanHashDeduper) Adjust(traces ptrace.Traces) {
-	spansByHash := make(map[uint64]ptrace.Span)
+	spansByHash := make(map[int64]ptrace.Span)
 	resourceSpans := traces.ResourceSpans()
 	for i := 0; i < resourceSpans.Len(); i++ {
 		rs := resourceSpans.At(i)
@@ -52,16 +55,27 @@ func (s *SpanHashDeduper) Adjust(traces ptrace.Traces) {
 			for k := 0; k < spans.Len(); k++ {
 				span := spans.At(k)
 				span.CopyTo(hashSpan)
-				h, err := s.computeHashCode(
-					hashTrace,
-				)
-				if err != nil {
-					jptrace.AddWarnings(span, fmt.Sprintf("failed to compute hash code: %v", err))
-					span.CopyTo(dedupedSpans.AppendEmpty())
-					continue
+
+				var spanHash int64
+				if hashAttr, ok := span.Attributes().Get(model.SpanHashKey); ok {
+					if hashAttr.Type() != pcommon.ValueTypeInt {
+						jptrace.AddWarnings(span, "span hash attribute is not an integer type")
+						span.CopyTo(dedupedSpans.AppendEmpty())
+						continue
+					}
+					spanHash = hashAttr.Int()
+				} else {
+					h, err := s.computeHashCode(hashTrace)
+					if err != nil {
+						jptrace.AddWarnings(span, fmt.Sprintf("failed to compute hash code: %v", err))
+						span.CopyTo(dedupedSpans.AppendEmpty())
+						continue
+					}
+					spanHash = uint64ToInt64Bits(h)
 				}
-				if _, ok := spansByHash[h]; !ok {
-					spansByHash[h] = span
+
+				if _, ok := spansByHash[spanHash]; !ok {
+					spansByHash[spanHash] = span
 					span.CopyTo(dedupedSpans.AppendEmpty())
 				}
 			}
@@ -80,4 +94,8 @@ func (s *SpanHashDeduper) computeHashCode(
 	hasher := fnv.New64a()
 	hasher.Write(b) // the writer in the Hash interface never returns an error
 	return hasher.Sum64(), nil
+}
+
+func uint64ToInt64Bits(value uint64) int64 {
+	return *(*int64)(unsafe.Pointer(&value))
 }

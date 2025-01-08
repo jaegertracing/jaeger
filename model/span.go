@@ -110,6 +110,22 @@ func (s *Span) IsRPCServer() bool {
 	return s.HasSpanKind(SpanKindServer)
 }
 
+// GetHashTag returns true if span has hash in it span.Tags
+func (s *Span) HashHashTag() bool {
+	if _, ok := KeyValues(s.Tags).FindByKey(SpanHashKey); ok {
+		return true
+	}
+	return false
+}
+
+// GetHashTag returns hash keyValue from Tags and wether the hash was found
+func (s *Span) GetHashTag() (hashCode int64, found bool) {
+	if tag, ok := KeyValues(s.Tags).FindByKey(SpanHashKey); ok {
+		return tag.GetVInt64(), true
+	}
+	return -1, false
+}
+
 // NormalizeTimestamps changes all timestamps in this span to UTC.
 func (s *Span) NormalizeTimestamps() {
 	s.StartTime = s.StartTime.UTC()
