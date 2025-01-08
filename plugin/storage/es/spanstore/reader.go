@@ -109,7 +109,6 @@ type SpanReaderParams struct {
 	SpanIndex           cfg.IndexOptions
 	ServiceIndex        cfg.IndexOptions
 	TagDotReplacement   string
-	Archive             bool
 	UseReadWriteAliases bool
 	RemoteReadClusters  []string
 	Logger              *zap.Logger
@@ -136,9 +135,9 @@ func NewSpanReader(p SpanReaderParams) *SpanReader {
 		spanConverter:           dbmodel.NewToDomain(p.TagDotReplacement),
 		timeRangeIndices: getLoggingTimeRangeIndexFn(
 			p.Logger,
-			getTimeRangeIndexFn(p.Archive, p.UseReadWriteAliases, p.RemoteReadClusters),
+			getTimeRangeIndexFn(p.UseReadWriteAliases, p.RemoteReadClusters),
 		),
-		sourceFn:            getSourceFn(p.Archive, p.MaxDocCount),
+		sourceFn:            getSourceFn(p.UseReadWriteAliases, p.MaxDocCount),
 		maxDocCount:         p.MaxDocCount,
 		useReadWriteAliases: p.UseReadWriteAliases,
 		logger:              p.Logger,
@@ -161,18 +160,7 @@ func getLoggingTimeRangeIndexFn(logger *zap.Logger, fn timeRangeIndexFn) timeRan
 	}
 }
 
-func getTimeRangeIndexFn(archive, useReadWriteAliases bool, remoteReadClusters []string) timeRangeIndexFn {
-	if archive {
-		var archiveSuffix string
-		if useReadWriteAliases {
-			archiveSuffix = archiveReadIndexSuffix
-		} else {
-			archiveSuffix = archiveIndexSuffix
-		}
-		return addRemoteReadClusters(func(indexPrefix, _ /* indexDateLayout */ string, _ /* startTime */ time.Time, _ /* endTime */ time.Time, _ /* reduceDuration */ time.Duration) []string {
-			return []string{archiveIndex(indexPrefix, archiveSuffix)}
-		}, remoteReadClusters)
-	}
+func getTimeRangeIndexFn(useReadWriteAliases bool, remoteReadClusters []string) timeRangeIndexFn {
 	if useReadWriteAliases {
 		return addRemoteReadClusters(func(indexPrefix string, _ /* indexDateLayout */ string, _ /* startTime */ time.Time, _ /* endTime */ time.Time, _ /* reduceDuration */ time.Duration) []string {
 			return []string{indexPrefix + "read"}
@@ -201,12 +189,12 @@ func addRemoteReadClusters(fn timeRangeIndexFn, remoteReadClusters []string) tim
 	}
 }
 
-func getSourceFn(archive bool, maxDocCount int) sourceFn {
+func getSourceFn(useReadWriteAliases bool, maxDocCount int) sourceFn {
 	return func(query elastic.Query, nextTime uint64) *elastic.SearchSource {
 		s := elastic.NewSearchSource().
 			Query(query).
 			Size(maxDocCount)
-		if !archive {
+		if !useReadWriteAliases {
 			s.Sort("startTime", true).
 				SearchAfter(nextTime)
 		}

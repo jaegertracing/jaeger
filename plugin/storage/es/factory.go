@@ -196,7 +196,7 @@ func (f *Factory) getArchiveClient() es.Client {
 
 // CreateSpanReader implements storage.Factory
 func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
-	sr, err := createSpanReader(f.getPrimaryClient, f.primaryConfig, false, f.logger, f.tracer)
+	sr, err := createSpanReader(f.getPrimaryClient, f.primaryConfig, f.logger, f.tracer)
 	if err != nil {
 		return nil, err
 	}
@@ -218,7 +218,8 @@ func (f *Factory) CreateArchiveSpanReader() (spanstore.Reader, error) {
 	if !f.archiveConfig.Enabled {
 		return nil, nil
 	}
-	sr, err := createSpanReader(f.getArchiveClient, f.archiveConfig, true, f.logger, f.tracer)
+	// TODO: should use_aliases be always set to true here?
+	sr, err := createSpanReader(f.getArchiveClient, f.archiveConfig, f.logger, f.tracer)
 	if err != nil {
 		return nil, err
 	}
@@ -236,7 +237,6 @@ func (f *Factory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
 func createSpanReader(
 	clientFn func() es.Client,
 	cfg *config.Configuration,
-	archive bool,
 	logger *zap.Logger,
 	tp trace.TracerProvider,
 ) (spanstore.Reader, error) {
@@ -252,7 +252,6 @@ func createSpanReader(
 		ServiceIndex:        cfg.Indices.Services,
 		TagDotReplacement:   cfg.Tags.DotReplacement,
 		UseReadWriteAliases: cfg.UseReadWriteAliases,
-		Archive:             archive,
 		RemoteReadClusters:  cfg.RemoteReadClusters,
 		Logger:              logger,
 		Tracer:              tp.Tracer("esSpanStore.SpanReader"),
