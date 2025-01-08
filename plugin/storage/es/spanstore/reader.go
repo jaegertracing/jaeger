@@ -103,6 +103,7 @@ type SpanReaderParams struct {
 	MaxSpanAge          time.Duration
 	MaxDocCount         int
 	IndexPrefix         cfg.IndexPrefix
+	IndexSuffix         string
 	SpanIndex           cfg.IndexOptions
 	ServiceIndex        cfg.IndexOptions
 	TagDotReplacement   string
@@ -132,7 +133,7 @@ func NewSpanReader(p SpanReaderParams) *SpanReader {
 		spanConverter:           dbmodel.NewToDomain(p.TagDotReplacement),
 		timeRangeIndices: getLoggingTimeRangeIndexFn(
 			p.Logger,
-			getTimeRangeIndexFn(p.UseReadWriteAliases, p.RemoteReadClusters),
+			getTimeRangeIndexFn(p.IndexSuffix, p.UseReadWriteAliases, p.RemoteReadClusters),
 		),
 		sourceFn:            getSourceFn(p.UseReadWriteAliases, p.MaxDocCount),
 		maxDocCount:         p.MaxDocCount,
@@ -157,7 +158,16 @@ func getLoggingTimeRangeIndexFn(logger *zap.Logger, fn timeRangeIndexFn) timeRan
 	}
 }
 
-func getTimeRangeIndexFn(useReadWriteAliases bool, remoteReadClusters []string) timeRangeIndexFn {
+func getTimeRangeIndexFn(indexSuffix string, useReadWriteAliases bool, remoteReadClusters []string) timeRangeIndexFn {
+	if indexSuffix != "" {
+		suffix := indexSuffix
+		if useReadWriteAliases {
+			suffix += "-read"
+		}
+		return addRemoteReadClusters(func(indexPrefix, _ /* indexDateLayout */ string, _ /* startTime */ time.Time, _ /* endTime */ time.Time, _ /* reduceDuration */ time.Duration) []string {
+			return []string{indexPrefix + suffix}
+		}, remoteReadClusters)
+	}
 	if useReadWriteAliases {
 		return addRemoteReadClusters(func(indexPrefix string, _ /* indexDateLayout */ string, _ /* startTime */ time.Time, _ /* endTime */ time.Time, _ /* reduceDuration */ time.Duration) []string {
 			return []string{indexPrefix + "read"}
