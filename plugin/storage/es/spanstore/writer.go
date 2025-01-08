@@ -52,6 +52,7 @@ type SpanWriterParams struct {
 	SpanIndex           cfg.IndexOptions
 	ServiceIndex        cfg.IndexOptions
 	IndexPrefix         cfg.IndexPrefix
+	IndexSuffix         string
 	AllTagsAsFields     bool
 	TagKeysAsFields     []string
 	TagDotReplacement   string
@@ -100,6 +101,14 @@ type spanAndServiceIndexFn func(spanTime time.Time) (string, string)
 func getSpanAndServiceIndexFn(p SpanWriterParams) spanAndServiceIndexFn {
 	spanIndexPrefix := p.IndexPrefix.Apply(spanIndexBaseName)
 	serviceIndexPrefix := p.IndexPrefix.Apply(serviceIndexBaseName)
+	if p.IndexSuffix != "" {
+		return func(_ time.Time) (string, string) {
+			if p.UseReadWriteAliases {
+				return spanIndexPrefix + p.IndexSuffix + "-write", ""
+			}
+			return spanIndexPrefix + p.IndexSuffix, ""
+		}
+	}
 
 	if p.UseReadWriteAliases {
 		return func(_ /* spanTime */ time.Time) (string, string) {
