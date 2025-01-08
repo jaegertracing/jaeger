@@ -27,7 +27,6 @@ func TestBindFlags(t *testing.T) {
 		"--rollover=true",
 		"--archive=true",
 		"--timeout=150",
-		"--ignore-unavailable=false",
 		"--index-date-separator=@",
 		"--es.username=admin",
 		"--es.password=admin",
@@ -39,7 +38,6 @@ func TestBindFlags(t *testing.T) {
 	assert.True(t, c.Rollover)
 	assert.True(t, c.Archive)
 	assert.Equal(t, 150, c.MasterNodeTimeoutSeconds)
-	assert.False(t, c.IgnoreUnavailableIndex)
 	assert.Equal(t, "@", c.IndexDateSeparator)
 	assert.Equal(t, "admin", c.Username)
 	assert.Equal(t, "admin", c.Password)
