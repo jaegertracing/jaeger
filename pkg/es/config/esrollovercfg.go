@@ -50,16 +50,6 @@ func (e EsRolloverFlagConfig) InitRolloverOptionsFromViper(v *viper.Viper) Rollo
 	return *r
 }
 
-func DefaultRolloverOptions() RolloverOptions {
-	return RolloverOptions{
-		Archive:          defaultArchiveValue,
-		ILMPolicyName:    defaultIlmPolicyName,
-		Timeout:          defaultTimeout,
-		SkipDependencies: defaultSkipDependencies,
-		AdaptiveSampling: defaultAdaptiveSampling,
-	}
-}
-
 func (e EsRolloverFlagConfig) AddFlagsForLookBackOptions(flags *flag.FlagSet) {
 	flags.String(e.Prefix+unit, defaultUnit, "used with lookback to remove indices from read alias e.g, days, weeks, months, years")
 	flags.Int(e.Prefix+unitCount, defaultUnitCount, "count of UNITs")
@@ -72,13 +62,6 @@ func (e EsRolloverFlagConfig) InitLookBackFromViper(v *viper.Viper) LookBackOpti
 	return *l
 }
 
-func DefaultLookBackOptions() LookBackOptions {
-	return LookBackOptions{
-		Unit:      defaultUnit,
-		UnitCount: defaultUnitCount,
-	}
-}
-
 func (e EsRolloverFlagConfig) AddFlagsForRollBackOptions(flags *flag.FlagSet) {
 	flags.String(e.Prefix+conditions, defaultRollBackCondition, "conditions used to rollover to a new write index")
 }
@@ -87,10 +70,4 @@ func (e EsRolloverFlagConfig) InitRollBackFromViper(v *viper.Viper) RollBackOpti
 	r := &RollBackOptions{}
 	r.Conditions = v.GetString(e.Prefix + conditions)
 	return *r
-}
-
-func DefaultRollBackConditions() RollBackOptions {
-	return RollBackOptions{
-		Conditions: defaultRollBackCondition,
-	}
 }
