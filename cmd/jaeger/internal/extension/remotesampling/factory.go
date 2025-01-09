@@ -45,7 +45,7 @@ func createDefaultConfig() component.Config {
 		},
 		File: &FileConfig{
 			Path:                       "", // path needs to be specified
-			DefaultSamplingProbability: static.DefaultDefaultSamplingProbability,
+			DefaultSamplingProbability: static.DefaultSamplingProbability,
 		},
 		Adaptive: &AdaptiveConfig{
 			SamplingStore: "", // storage name needs to be specified

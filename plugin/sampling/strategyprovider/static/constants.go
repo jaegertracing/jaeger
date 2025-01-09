@@ -16,9 +16,9 @@ const (
 	// only up to a fixed number of traces per second.
 	samplerTypeRateLimiting = "ratelimiting"
 
-	// DefaultDefaultSamplingProbability is the default value for  "DefaultSamplingProbability"
+	// DefaultSamplingProbability is the default value for  "DefaultSamplingProbability"
 	// used by the Strategy Store in case no DefaultSamplingProbability is defined
-	DefaultDefaultSamplingProbability = 0.001
+	DefaultSamplingProbability = 0.001
 )
 
 // defaultStrategy is the default sampling strategy the Strategy Store will return
