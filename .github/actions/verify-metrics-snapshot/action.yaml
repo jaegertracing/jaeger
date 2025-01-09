@@ -32,25 +32,17 @@ runs:
         echo "v2_tag=$v2_tag" >> $GITHUB_ENV
         echo "$v2_tag"
 
-    - name: Check existing cache
-      id: check-cache
-      uses: actions/cache/restore@1bd1e32a3bdc45362d1e726936510720a7c30a57
-      with:
-        path: ./.metrics/release_${{ inputs.snapshot}}
-        key: ${{ env.v2_tag }}_${{ inputs.artifact_key }}
-        lookup-only: true
-  
       # The github cache restore successfully restores when cache saved has same key and same path.
       # Hence to restore release metric with name relese_{metric_name} , the name must be changed to the same.
     - name: Change file name before caching
-      if: ${{ (github.ref_name == 'main') && (steps.check-cache.outputs.cache-hit != 'true') }}
+      if: github.ref_name == 'main'
       shell: bash
       run: |
         mv ./.metrics/${{ inputs.snapshot }} ./.metrics/release_${{ inputs.snapshot}}
 
     - name: Cache scraped metrics for tagged release for longer retention
       id: tagged-metrics
-      if: ${{ (github.ref_name == 'main') && (steps.check-cache.outputs.cache-hit != 'true') }}
+      if: github.ref_name == 'main'
       uses: actions/cache/save@1bd1e32a3bdc45362d1e726936510720a7c30a57
       with:
         path: ./.metrics/release_${{ inputs.snapshot}}
