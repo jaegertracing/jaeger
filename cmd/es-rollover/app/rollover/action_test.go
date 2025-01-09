@@ -12,6 +12,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/es-rollover/app"
 	"github.com/jaegertracing/jaeger/pkg/es/client"
 	"github.com/jaegertracing/jaeger/pkg/es/client/mocks"
+	"github.com/jaegertracing/jaeger/pkg/es/config"
 )
 
 func TestRolloverAction(t *testing.T) {
@@ -115,9 +116,9 @@ func TestRolloverAction(t *testing.T) {
 
 			rolloverAction := Action{
 				Config: Config{
-					Conditions: test.conditions,
+					RollBackOptions: config.RollBackOptions{Conditions: test.conditions},
 					Config: app.Config{
-						Archive: true,
+						RolloverOptions: config.RolloverOptions{Archive: true},
 					},
 				},
 				IndicesClient: indexClient,

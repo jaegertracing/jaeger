@@ -15,6 +15,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/es-rollover/app"
 	"github.com/jaegertracing/jaeger/pkg/es/client"
 	"github.com/jaegertracing/jaeger/pkg/es/client/mocks"
+	"github.com/jaegertracing/jaeger/pkg/es/config"
 )
 
 func TestLookBackAction(t *testing.T) {
@@ -81,11 +82,13 @@ func TestLookBackAction(t *testing.T) {
 				}).Return(nil)
 			},
 			config: Config{
-				Unit:      "days",
-				UnitCount: 1,
+				LookBackOptions: config.LookBackOptions{
+					Unit:      "days",
+					UnitCount: 1,
+				},
 				Config: app.Config{
-					Archive: true,
-					UseILM:  true,
+					RolloverOptions: config.RolloverOptions{Archive: true},
+					UseILM:          true,
 				},
 			},
 			expectedErr: nil,
@@ -96,11 +99,13 @@ func TestLookBackAction(t *testing.T) {
 				indexClient.On("GetJaegerIndices", "").Return(indices, errors.New("get indices error"))
 			},
 			config: Config{
-				Unit:      "days",
-				UnitCount: 1,
+				LookBackOptions: config.LookBackOptions{
+					Unit:      "days",
+					UnitCount: 1,
+				},
 				Config: app.Config{
-					Archive: true,
-					UseILM:  true,
+					RolloverOptions: config.RolloverOptions{Archive: true},
+					UseILM:          true,
 				},
 			},
 			expectedErr: errors.New("get indices error"),
@@ -111,11 +116,13 @@ func TestLookBackAction(t *testing.T) {
 				indexClient.On("GetJaegerIndices", "").Return([]client.Index{}, nil)
 			},
 			config: Config{
-				Unit:      "days",
-				UnitCount: 1,
+				LookBackOptions: config.LookBackOptions{
+					Unit:      "days",
+					UnitCount: 1,
+				},
 				Config: app.Config{
-					Archive: true,
-					UseILM:  true,
+					RolloverOptions: config.RolloverOptions{Archive: true},
+					UseILM:          true,
 				},
 			},
 			expectedErr: nil,
