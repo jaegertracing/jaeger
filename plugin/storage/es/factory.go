@@ -218,11 +218,11 @@ func (f *Factory) CreateArchiveSpanReader() (spanstore.Reader, error) {
 	if !f.archiveConfig.Enabled {
 		return nil, nil
 	}
-	suffix := "archive"
+	readAlias := "archive"
 	if f.archiveConfig.UseReadWriteAliases {
-		suffix += "-read"
+		readAlias += "-read"
 	}
-	sr, err := createSpanReader(f.getArchiveClient, f.archiveConfig, f.logger, f.tracer, suffix, true)
+	sr, err := createSpanReader(f.getArchiveClient, f.archiveConfig, f.logger, f.tracer, readAlias, true)
 	if err != nil {
 		return nil, err
 	}
@@ -234,11 +234,11 @@ func (f *Factory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
 	if !f.archiveConfig.Enabled {
 		return nil, nil
 	}
-	readAlias := "archive"
+	writeAlias := "archive"
 	if f.archiveConfig.UseReadWriteAliases {
-		readAlias += "-write"
+		writeAlias += "-write"
 	}
-	return createSpanWriter(f.getArchiveClient, f.archiveConfig, f.archiveMetricsFactory, f.logger, readAlias, true)
+	return createSpanWriter(f.getArchiveClient, f.archiveConfig, f.archiveMetricsFactory, f.logger, writeAlias, true)
 }
 
 func createSpanReader(
