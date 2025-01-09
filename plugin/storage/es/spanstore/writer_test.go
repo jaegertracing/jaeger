@@ -88,6 +88,14 @@ func TestSpanWriterIndices(t *testing.T) {
 		{
 			params: SpanWriterParams{
 				Client: clientFn, Logger: logger, MetricsFactory: metricsFactory,
+				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts,
+				WriteAlias: "archive", // ignored because UseReadWriteAliases is false
+			},
+			indices: []string{spanIndexBaseName + spanDataLayoutFormat, serviceIndexBaseName + serviceDataLayoutFormat},
+		},
+		{
+			params: SpanWriterParams{
+				Client: clientFn, Logger: logger, MetricsFactory: metricsFactory,
 				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts, IndexPrefix: "foo:",
 			},
 			indices: []string{"foo:" + config.IndexPrefixSeparator + spanIndexBaseName + spanDataLayoutFormat, "foo:" + config.IndexPrefixSeparator + serviceIndexBaseName + serviceDataLayoutFormat},
@@ -102,23 +110,16 @@ func TestSpanWriterIndices(t *testing.T) {
 		{
 			params: SpanWriterParams{
 				Client: clientFn, Logger: logger, MetricsFactory: metricsFactory,
-				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts, IndexSuffix: "archive",
+				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts, WriteAlias: "archive", UseReadWriteAliases: true,
 			},
 			indices: []string{spanIndexBaseName + "archive", ""},
 		},
 		{
 			params: SpanWriterParams{
 				Client: clientFn, Logger: logger, MetricsFactory: metricsFactory,
-				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts, IndexPrefix: "foo:", IndexSuffix: "archive",
+				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts, IndexPrefix: "foo:", WriteAlias: "archive", UseReadWriteAliases: true,
 			},
 			indices: []string{"foo:" + config.IndexPrefixSeparator + spanIndexBaseName + "archive", ""},
-		},
-		{
-			params: SpanWriterParams{
-				Client: clientFn, Logger: logger, MetricsFactory: metricsFactory,
-				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts, IndexPrefix: "foo:", IndexSuffix: "archive", UseReadWriteAliases: true,
-			},
-			indices: []string{"foo:" + config.IndexPrefixSeparator + spanIndexBaseName + "archive-write", ""},
 		},
 	}
 	for _, testCase := range testCases {

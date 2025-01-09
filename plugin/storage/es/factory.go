@@ -273,7 +273,7 @@ func createSpanWriter(
 	cfg *config.Configuration,
 	mFactory metrics.Factory,
 	logger *zap.Logger,
-	indexSuffix string,
+	writeAlias string,
 	useReadWriteAliases bool,
 ) (spanstore.Writer, error) {
 	var tags []string
@@ -289,13 +289,13 @@ func createSpanWriter(
 	writer := esSpanStore.NewSpanWriter(esSpanStore.SpanWriterParams{
 		Client:              clientFn,
 		IndexPrefix:         cfg.Indices.IndexPrefix,
-		IndexSuffix:         indexSuffix,
 		SpanIndex:           cfg.Indices.Spans,
 		ServiceIndex:        cfg.Indices.Services,
 		AllTagsAsFields:     cfg.Tags.AllAsFields,
 		TagKeysAsFields:     tags,
 		TagDotReplacement:   cfg.Tags.DotReplacement,
 		UseReadWriteAliases: useReadWriteAliases,
+		WriteAlias:          writeAlias,
 		Logger:              logger,
 		MetricsFactory:      mFactory,
 		ServiceCacheTTL:     cfg.ServiceCacheTTL,
