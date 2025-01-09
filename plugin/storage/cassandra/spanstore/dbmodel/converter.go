@@ -58,8 +58,7 @@ func (c converter) fromDomain(span *model.Span) *Span {
 	udtProcess := c.toDBProcess(span.Process)
 	spanHash, found := span.GetHashTag()
 	if !found {
-		tempSpam := *span
-		spanHash, _ = tempSpam.SetHashTag()
+		spanHash, _ = span.SetHashTag()
 	}
 
 	tags = append(tags, warnings...)
@@ -86,6 +85,7 @@ func (c converter) toDomain(dbSpan *Span) (*model.Span, error) {
 	if err != nil {
 		return nil, err
 	}
+	tags = append(tags, model.Int64(model.SpanHashKey, dbSpan.SpanHash))
 	warnings, err := c.fromDBWarnings(dbSpan.Tags)
 	if err != nil {
 		return nil, err

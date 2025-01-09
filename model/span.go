@@ -116,7 +116,7 @@ func (s *Span) GetHashTag() (hashCode int64, found bool) {
 	if tag, ok := KeyValues(s.Tags).FindByKey(SpanHashKey); ok {
 		return tag.GetVInt64(), true
 	}
-	return -1, false
+	return 0, false
 }
 
 func (s *Span) SetHashTag() (hashCode int64, err error) {
@@ -125,11 +125,7 @@ func (s *Span) SetHashTag() (hashCode int64, err error) {
 		return -1, err
 	}
 	spanHash := uint64ToInt64Bits(hCode)
-	s.Tags = append(s.Tags, KeyValue{
-		Key:    SpanHashKey,
-		VType:  ValueType_INT64,
-		VInt64: spanHash,
-	})
+	s.Tags = append(s.Tags, Int64(SpanHashKey, spanHash))
 	return spanHash, err
 }
 

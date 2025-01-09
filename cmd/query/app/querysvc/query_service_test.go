@@ -50,6 +50,7 @@ var (
 		},
 		Warnings: []string{},
 	}
+	mockHash = int64(12345)
 )
 
 type testQueryService struct {
@@ -130,10 +131,12 @@ func TestGetTraceWithRawTraces(t *testing.T) {
 			tags: model.KeyValues{
 				model.String("z", "key"),
 				model.String("a", "key"),
+				model.Int64(model.SpanHashKey, mockHash),
 			},
 			expected: model.KeyValues{
 				model.String("z", "key"),
 				model.String("a", "key"),
+				model.Int64(model.SpanHashKey, mockHash),
 			},
 		},
 		{
@@ -142,9 +145,11 @@ func TestGetTraceWithRawTraces(t *testing.T) {
 			tags: model.KeyValues{
 				model.String("z", "key"),
 				model.String("a", "key"),
+				model.Int64(model.SpanHashKey, mockHash),
 			},
 			expected: model.KeyValues{
 				model.String("a", "key"),
+				model.Int64(model.SpanHashKey, mockHash),
 				model.String("z", "key"),
 			},
 		},
@@ -283,10 +288,12 @@ func TestFindTracesWithRawTraces(t *testing.T) {
 			tags: model.KeyValues{
 				model.String("z", "key"),
 				model.String("a", "key"),
+				model.Int64(model.SpanHashKey, mockHash),
 			},
 			expected: model.KeyValues{
 				model.String("z", "key"),
 				model.String("a", "key"),
+				model.Int64(model.SpanHashKey, mockHash),
 			},
 		},
 		{
@@ -295,9 +302,11 @@ func TestFindTracesWithRawTraces(t *testing.T) {
 			tags: model.KeyValues{
 				model.String("z", "key"),
 				model.String("a", "key"),
+				model.Int64(model.SpanHashKey, mockHash),
 			},
 			expected: model.KeyValues{
 				model.String("a", "key"),
+				model.Int64(model.SpanHashKey, mockHash),
 				model.String("z", "key"),
 			},
 		},

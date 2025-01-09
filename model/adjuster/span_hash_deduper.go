@@ -27,8 +27,7 @@ func (d *spanHashDeduper) groupSpansByHash() {
 	for _, span := range d.trace.Spans {
 		spanHash, found := span.GetHashTag()
 		if !found {
-			tempSpan := *span
-			spanHash, _ = tempSpan.SetHashTag()
+			spanHash, _ = span.SetHashTag()
 		}
 
 		if _, ok := spansByHash[spanHash]; !ok {

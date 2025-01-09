@@ -134,6 +134,7 @@ func TestSpanWriter(t *testing.T) {
 				"Failed to index tags",
 				`"tag_key":"x"`,
 				`"tag_value":"y"`,
+				`"tag_key":"span.hash"`,
 			},
 		},
 		{
@@ -190,6 +191,7 @@ func TestSpanWriter(t *testing.T) {
 						ServiceName: "service-a",
 					},
 				}
+				span.SetHashTag()
 				if testCase.firehose {
 					span.Flags = model.FirehoseFlag
 				}

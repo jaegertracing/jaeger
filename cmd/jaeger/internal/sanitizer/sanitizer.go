@@ -16,6 +16,7 @@ func NewStandardSanitizers() []Func {
 	return []Func{
 		NewEmptyServiceNameSanitizer(),
 		NewUTF8Sanitizer(),
+		NewHashingSanitizer(),
 	}
 }
 

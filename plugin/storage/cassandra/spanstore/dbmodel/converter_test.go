@@ -133,6 +133,7 @@ func getTestJaegerProcess() *model.Process {
 }
 
 func getTestSpan() *Span {
+	spanHash, _ := model.HashCode(getTestJaegerSpan())
 	span := &Span{
 		TraceID:       someDBTraceID,
 		SpanID:        int64(someSpanID),
@@ -145,13 +146,9 @@ func getTestSpan() *Span {
 		Refs:          someDBRefs,
 		Process:       someDBProcess,
 		ServiceName:   someServiceName,
+		SpanHash:      int64(spanHash),
 	}
-	// there is no way to validate if the hash code is "correct" or not,
-	// other than comparing it with some magic number that keeps changing
-	// as the model changes. So let's just make sure the code is being
-	// calculated during the conversion.
-	spanHash, _ := model.HashCode(getTestJaegerSpan())
-	span.SpanHash = int64(spanHash)
+
 	return span
 }
 
@@ -191,6 +188,7 @@ func TestFromSpan(t *testing.T) {
 			testDBSpan.Refs = nil
 		}
 		expectedSpan := getTestJaegerSpan()
+		expectedSpan.SetHashTag()
 		actualJSpan, err := ToDomain(testDBSpan)
 		require.NoError(t, err)
 		if !assert.EqualValues(t, expectedSpan, actualJSpan) {
@@ -279,6 +277,7 @@ func TestGenerateHashCode(t *testing.T) {
 
 func TestFromDBTagsWithoutWarnings(t *testing.T) {
 	span := getTestJaegerSpan()
+	span.SetHashTag()
 	dbSpan := FromDomain(span)
 
 	tags, err := converter{}.fromDBTags(dbSpan.Tags)
@@ -289,6 +288,7 @@ func TestFromDBTagsWithoutWarnings(t *testing.T) {
 func TestFromDBTagsWithWarnings(t *testing.T) {
 	span := getTestJaegerSpan()
 	span.Warnings = someWarnings
+	span.SetHashTag()
 	dbSpan := FromDomain(span)
 
 	tags, err := converter{}.fromDBTags(dbSpan.Tags)
