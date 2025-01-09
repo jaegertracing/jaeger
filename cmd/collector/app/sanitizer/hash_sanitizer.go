@@ -4,8 +4,6 @@
 package sanitizer
 
 import (
-	"unsafe"
-
 	"github.com/jaegertracing/jaeger/model"
 )
 
@@ -16,24 +14,14 @@ func NewHashingSanitizer() SanitizeSpan {
 
 func hashingSanitizer(span *model.Span) *model.Span {
 	// Check if hash already exists
-	if found := span.HashHashTag(); found {
+	if _, found := span.GetHashTag(); found {
 		return span
 	}
 
-	spanHash, err := model.HashCode(span)
+	_, err := span.SetHashTag()
 	if err != nil {
 		return span
 	}
 
-	span.Tags = append(span.Tags, model.KeyValue{
-		Key:    model.SpanHashKey,
-		VType:  model.ValueType_INT64,
-		VInt64: uint64ToInt64Bits(spanHash),
-	})
-
 	return span
-}
-
-func uint64ToInt64Bits(value uint64) int64 {
-	return *(*int64)(unsafe.Pointer(&value))
 }

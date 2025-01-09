@@ -16,7 +16,6 @@ type SanitizeSpan func(span *model.Span) *model.Span
 func NewStandardSanitizers() []SanitizeSpan {
 	return []SanitizeSpan{
 		NewEmptyServiceNameSanitizer(),
-		NewHashingSanitizer(),
 	}
 }
 

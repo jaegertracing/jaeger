@@ -4,8 +4,6 @@
 package adjuster
 
 import (
-	"unsafe"
-
 	"github.com/jaegertracing/jaeger/model"
 )
 
@@ -29,8 +27,8 @@ func (d *spanHashDeduper) groupSpansByHash() {
 	for _, span := range d.trace.Spans {
 		spanHash, found := span.GetHashTag()
 		if !found {
-			hash, _ := model.HashCode(span)
-			spanHash = uint64ToInt64Bits(hash)
+			tempSpan := *span
+			spanHash, _ = tempSpan.SetHashTag()
 		}
 
 		if _, ok := spansByHash[spanHash]; !ok {
@@ -43,8 +41,4 @@ func (d *spanHashDeduper) groupSpansByHash() {
 	for _, span := range d.spansByHash {
 		d.trace.Spans = append(d.trace.Spans, span)
 	}
-}
-
-func uint64ToInt64Bits(value uint64) int64 {
-	return *(*int64)(unsafe.Pointer(&value))
 }

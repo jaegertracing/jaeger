@@ -7,7 +7,6 @@ package dbmodel
 import (
 	"fmt"
 	"strings"
-	"unsafe"
 
 	"github.com/jaegertracing/jaeger/model"
 )
@@ -59,8 +58,8 @@ func (c converter) fromDomain(span *model.Span) *Span {
 	udtProcess := c.toDBProcess(span.Process)
 	spanHash, found := span.GetHashTag()
 	if !found {
-		hCode, _ := model.HashCode(span)
-		spanHash = uint64ToInt64Bits(hCode)
+		tempSpam := *span
+		spanHash, _ = tempSpam.SetHashTag()
 	}
 
 	tags = append(tags, warnings...)
@@ -275,8 +274,4 @@ func (c converter) toDBProcess(process *model.Process) Process {
 		ServiceName: process.ServiceName,
 		Tags:        c.toDBTags(process.Tags),
 	}
-}
-
-func uint64ToInt64Bits(value uint64) int64 {
-	return *(*int64)(unsafe.Pointer(&value))
 }
