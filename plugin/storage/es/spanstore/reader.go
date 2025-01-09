@@ -116,10 +116,16 @@ type SpanReaderParams struct {
 // NewSpanReader returns a new SpanReader with a metrics.
 func NewSpanReader(p SpanReaderParams) *SpanReader {
 	maxSpanAge := p.MaxSpanAge
+	readAlias := ""
 	// Setting the maxSpanAge to a large duration will ensure all spans in the "read" alias are accessible by queries (query window = [now - maxSpanAge, now]).
 	// When read/write aliases are enabled, which are required for index rollovers, only the "read" alias is queried and therefore should not affect performance.
 	if p.UseReadWriteAliases {
 		maxSpanAge = rolloverMaxSpanAge
+		if p.ReadAlias != "" {
+			readAlias = p.ReadAlias
+		} else {
+			readAlias = "read"
+		}
 	}
 
 	return &SpanReader{
@@ -133,7 +139,7 @@ func NewSpanReader(p SpanReaderParams) *SpanReader {
 		spanConverter:           dbmodel.NewToDomain(p.TagDotReplacement),
 		timeRangeIndices: getLoggingTimeRangeIndexFn(
 			p.Logger,
-			getTimeRangeIndexFn(p.UseReadWriteAliases, p.ReadAlias, p.RemoteReadClusters),
+			getTimeRangeIndexFn(readAlias, p.RemoteReadClusters),
 		),
 		sourceFn:            getSourceFn(p.UseReadWriteAliases, p.MaxDocCount),
 		maxDocCount:         p.MaxDocCount,
@@ -158,15 +164,10 @@ func getLoggingTimeRangeIndexFn(logger *zap.Logger, fn timeRangeIndexFn) timeRan
 	}
 }
 
-func getTimeRangeIndexFn(useReadWriteAliases bool, readAlias string, remoteReadClusters []string) timeRangeIndexFn {
-	if useReadWriteAliases {
-		if readAlias != "" {
-			return addRemoteReadClusters(func(indexPrefix, _ /* indexDateLayout */ string, _ /* startTime */ time.Time, _ /* endTime */ time.Time, _ /* reduceDuration */ time.Duration) []string {
-				return []string{indexPrefix + readAlias}
-			}, remoteReadClusters)
-		}
-		return addRemoteReadClusters(func(indexPrefix string, _ /* indexDateLayout */ string, _ /* startTime */ time.Time, _ /* endTime */ time.Time, _ /* reduceDuration */ time.Duration) []string {
-			return []string{indexPrefix + "read"}
+func getTimeRangeIndexFn(readAlias string, remoteReadClusters []string) timeRangeIndexFn {
+	if readAlias != "" {
+		return addRemoteReadClusters(func(indexPrefix, _ /* indexDateLayout */ string, _ /* startTime */ time.Time, _ /* endTime */ time.Time, _ /* reduceDuration */ time.Duration) []string {
+			return []string{indexPrefix + readAlias}
 		}, remoteReadClusters)
 	}
 	return addRemoteReadClusters(timeRangeIndices, remoteReadClusters)
