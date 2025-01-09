@@ -67,6 +67,15 @@ func NewSpanWriter(p SpanWriterParams) *SpanWriter {
 		serviceCacheTTL = serviceCacheTTLDefault
 	}
 
+	writeAlias := ""
+	if p.UseReadWriteAliases {
+		if p.WriteAlias != "" {
+			writeAlias = p.WriteAlias
+		} else {
+			writeAlias = "write"
+		}
+	}
+
 	serviceOperationStorage := NewServiceOperationStorage(p.Client, p.Logger, serviceCacheTTL)
 	return &SpanWriter{
 		client: p.Client,
@@ -76,7 +85,7 @@ func NewSpanWriter(p SpanWriterParams) *SpanWriter {
 		},
 		serviceWriter:    serviceOperationStorage.Write,
 		spanConverter:    dbmodel.NewFromDomain(p.AllTagsAsFields, p.TagKeysAsFields, p.TagDotReplacement),
-		spanServiceIndex: getSpanAndServiceIndexFn(p),
+		spanServiceIndex: getSpanAndServiceIndexFn(p, writeAlias),
 	}
 }
 
@@ -98,17 +107,12 @@ func (s *SpanWriter) CreateTemplates(spanTemplate, serviceTemplate string, index
 // spanAndServiceIndexFn returns names of span and service indices
 type spanAndServiceIndexFn func(spanTime time.Time) (string, string)
 
-func getSpanAndServiceIndexFn(p SpanWriterParams) spanAndServiceIndexFn {
+func getSpanAndServiceIndexFn(p SpanWriterParams, writeAlias string) spanAndServiceIndexFn {
 	spanIndexPrefix := p.IndexPrefix.Apply(spanIndexBaseName)
 	serviceIndexPrefix := p.IndexPrefix.Apply(serviceIndexBaseName)
-	if p.UseReadWriteAliases {
-		if p.WriteAlias != "" {
-			return func(_ time.Time) (string, string) {
-				return spanIndexPrefix + p.WriteAlias, ""
-			}
-		}
-		return func(_ /* spanTime */ time.Time) (string, string) {
-			return spanIndexPrefix + "write", serviceIndexPrefix + "write"
+	if writeAlias != "" {
+		return func(_ time.Time) (string, string) {
+			return spanIndexPrefix + writeAlias, serviceIndexPrefix + writeAlias
 		}
 	}
 	return func(date time.Time) (string, string) {

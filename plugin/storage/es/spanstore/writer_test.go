@@ -112,14 +112,14 @@ func TestSpanWriterIndices(t *testing.T) {
 				Client: clientFn, Logger: logger, MetricsFactory: metricsFactory,
 				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts, WriteAlias: "archive", UseReadWriteAliases: true,
 			},
-			indices: []string{spanIndexBaseName + "archive", ""},
+			indices: []string{spanIndexBaseName + "archive", serviceIndexBaseName + "archive"},
 		},
 		{
 			params: SpanWriterParams{
 				Client: clientFn, Logger: logger, MetricsFactory: metricsFactory,
 				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts, IndexPrefix: "foo:", WriteAlias: "archive", UseReadWriteAliases: true,
 			},
-			indices: []string{"foo:" + config.IndexPrefixSeparator + spanIndexBaseName + "archive", ""},
+			indices: []string{"foo:" + config.IndexPrefixSeparator + spanIndexBaseName + "archive", "foo:" + config.IndexPrefixSeparator + serviceIndexBaseName + "archive"},
 		},
 	}
 	for _, testCase := range testCases {
