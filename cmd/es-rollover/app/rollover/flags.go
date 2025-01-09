@@ -17,7 +17,7 @@ var esrolloverCfg = config.EsRolloverFlagConfig{}
 // Config holds configuration for index cleaner binary.
 type Config struct {
 	app.Config
-	config.RollBackOptions
+	config.RollOverConditions
 }
 
 // AddFlags adds flags for TLS to the FlagSet.
@@ -27,5 +27,5 @@ func (*Config) AddFlags(flags *flag.FlagSet) {
 
 // InitFromViper initializes config from viper.Viper.
 func (c *Config) InitFromViper(v *viper.Viper) {
-	c.RollBackOptions = esrolloverCfg.InitRollBackFromViper(v)
+	c.RollOverConditions = esrolloverCfg.InitRollBackFromViper(v)
 }

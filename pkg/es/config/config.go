@@ -202,6 +202,7 @@ type BearerTokenAuthentication struct {
 	AllowFromContext bool `mapstructure:"from_context"`
 }
 
+// RolloverOptions store the options for the working of auto-rollover (cron job) in the jaeger.
 type RolloverOptions struct {
 	// Archive if set to true will handle archive indices also
 	Archive bool `mapstructure:"archive"`
@@ -212,9 +213,10 @@ type RolloverOptions struct {
 	// SkipDependencies if set to true will disable rollover for dependencies index
 	SkipDependencies bool `mapstructure:"skip_dependencies"`
 	// AdaptiveSampling if set to true will enable rollover for adaptive sampling index
-	AdaptiveSampling bool `mapstructure:"adaptive_sampling"`
+	AdaptiveSampling bool `mapstructure:"include_adaptive_sampling"`
 }
 
+// LookBackOptions store the options for a sub-process which is similar to index cleaner of auto rollover of jaeger.
 type LookBackOptions struct {
 	// Unit is used with lookback to remove indices from read alias e.g, days, weeks, months, years
 	Unit string `mapstructure:"unit"`
@@ -222,7 +224,8 @@ type LookBackOptions struct {
 	UnitCount int `mapstructure:"unit-count"`
 }
 
-type RollBackOptions struct {
+// RollOverConditions store the conditions required for the rollover operation in the auto-rollover cron job of jaeger.
+type RollOverConditions struct {
 	// Conditions stores the conditions on which index writing should be performed, for example: "{\"max_age\": \"2d\"}"
 	Conditions string `mapstructure:"conditions"`
 }

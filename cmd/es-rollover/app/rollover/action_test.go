@@ -116,7 +116,7 @@ func TestRolloverAction(t *testing.T) {
 
 			rolloverAction := Action{
 				Config: Config{
-					RollBackOptions: config.RollBackOptions{Conditions: test.conditions},
+					RollOverConditions: config.RollOverConditions{Conditions: test.conditions},
 					Config: app.Config{
 						RolloverOptions: config.RolloverOptions{Archive: true},
 					},
