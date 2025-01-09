@@ -103,10 +103,10 @@ type SpanReaderParams struct {
 	MaxSpanAge          time.Duration
 	MaxDocCount         int
 	IndexPrefix         cfg.IndexPrefix
-	IndexSuffix         string
 	SpanIndex           cfg.IndexOptions
 	ServiceIndex        cfg.IndexOptions
 	TagDotReplacement   string
+	ReadAlias           string
 	UseReadWriteAliases bool
 	RemoteReadClusters  []string
 	Logger              *zap.Logger
@@ -133,7 +133,7 @@ func NewSpanReader(p SpanReaderParams) *SpanReader {
 		spanConverter:           dbmodel.NewToDomain(p.TagDotReplacement),
 		timeRangeIndices: getLoggingTimeRangeIndexFn(
 			p.Logger,
-			getTimeRangeIndexFn(p.IndexSuffix, p.UseReadWriteAliases, p.RemoteReadClusters),
+			getTimeRangeIndexFn(p.UseReadWriteAliases, p.ReadAlias, p.RemoteReadClusters),
 		),
 		sourceFn:            getSourceFn(p.UseReadWriteAliases, p.MaxDocCount),
 		maxDocCount:         p.MaxDocCount,
@@ -158,12 +158,13 @@ func getLoggingTimeRangeIndexFn(logger *zap.Logger, fn timeRangeIndexFn) timeRan
 	}
 }
 
-func getTimeRangeIndexFn(indexSuffix string, useReadWriteAliases bool, remoteReadClusters []string) timeRangeIndexFn {
-	if indexSuffix != "" {
-		return addRemoteReadClusters(func(indexPrefix, _ /* indexDateLayout */ string, _ /* startTime */ time.Time, _ /* endTime */ time.Time, _ /* reduceDuration */ time.Duration) []string {
-			return []string{indexPrefix + indexSuffix}
-		}, remoteReadClusters)
-	} else if useReadWriteAliases {
+func getTimeRangeIndexFn(useReadWriteAliases bool, readAlias string, remoteReadClusters []string) timeRangeIndexFn {
+	if useReadWriteAliases {
+		if readAlias != "" {
+			return addRemoteReadClusters(func(indexPrefix, _ /* indexDateLayout */ string, _ /* startTime */ time.Time, _ /* endTime */ time.Time, _ /* reduceDuration */ time.Duration) []string {
+				return []string{indexPrefix + readAlias}
+			}, remoteReadClusters)
+		}
 		return addRemoteReadClusters(func(indexPrefix string, _ /* indexDateLayout */ string, _ /* startTime */ time.Time, _ /* endTime */ time.Time, _ /* reduceDuration */ time.Duration) []string {
 			return []string{indexPrefix + "read"}
 		}, remoteReadClusters)

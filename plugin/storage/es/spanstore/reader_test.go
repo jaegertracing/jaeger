@@ -134,7 +134,7 @@ func withArchiveSpanReader(t *testing.T, readAlias bool, fn func(r *spanReaderTe
 			Tracer:              tracer.Tracer("test"),
 			MaxSpanAge:          0,
 			TagDotReplacement:   "@",
-			IndexSuffix:         "archive",
+			ReadAlias:           "archive",
 			UseReadWriteAliases: readAlias,
 		}),
 	}
@@ -212,6 +212,12 @@ func TestSpanReaderIndices(t *testing.T) {
 		},
 		{
 			params: SpanReaderParams{
+				ReadAlias: "archive", // ignored because ReadWriteAliases is false
+			},
+			indices: []string{spanIndexBaseName, serviceIndexBaseName},
+		},
+		{
+			params: SpanReaderParams{
 				SpanIndex:    spanIndexOpts,
 				ServiceIndex: serviceIndexOpts,
 				IndexPrefix:  "foo:",
@@ -226,21 +232,16 @@ func TestSpanReaderIndices(t *testing.T) {
 		},
 		{
 			params: SpanReaderParams{
-				IndexSuffix: "archive",
+				ReadAlias:           "archive",
+				UseReadWriteAliases: true,
 			},
 			indices: []string{spanIndexBaseName + "archive", serviceIndexBaseName + "archive"},
 		},
 		{
 			params: SpanReaderParams{
-				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts, IndexPrefix: "foo:", IndexSuffix: "archive",
+				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts, IndexPrefix: "foo:", UseReadWriteAliases: true, ReadAlias: "archive",
 			},
 			indices: []string{"foo:" + config.IndexPrefixSeparator + spanIndexBaseName + "archive", "foo:" + config.IndexPrefixSeparator + serviceIndexBaseName + "archive"},
-		},
-		{
-			params: SpanReaderParams{
-				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts, IndexPrefix: "foo:", IndexSuffix: "archive", UseReadWriteAliases: true,
-			},
-			indices: []string{"foo:" + config.IndexPrefixSeparator + spanIndexBaseName + "archive-read", "foo:" + config.IndexPrefixSeparator + serviceIndexBaseName + "archive-read"},
 		},
 		{
 			params: SpanReaderParams{
@@ -259,7 +260,7 @@ func TestSpanReaderIndices(t *testing.T) {
 		},
 		{
 			params: SpanReaderParams{
-				IndexSuffix: "archive", RemoteReadClusters: []string{"cluster_one", "cluster_two"},
+				UseReadWriteAliases: true, ReadAlias: "archive", RemoteReadClusters: []string{"cluster_one", "cluster_two"},
 			},
 			indices: []string{
 				spanIndexBaseName + "archive",
@@ -281,19 +282,6 @@ func TestSpanReaderIndices(t *testing.T) {
 				serviceIndexBaseName + "read",
 				"cluster_one:" + serviceIndexBaseName + "read",
 				"cluster_two:" + serviceIndexBaseName + "read",
-			},
-		},
-		{
-			params: SpanReaderParams{
-				IndexSuffix: "archive", UseReadWriteAliases: true, RemoteReadClusters: []string{"cluster_one", "cluster_two"},
-			},
-			indices: []string{
-				spanIndexBaseName + "archive-read",
-				"cluster_one:" + spanIndexBaseName + "archive-read",
-				"cluster_two:" + spanIndexBaseName + "archive-read",
-				serviceIndexBaseName + "archive-read",
-				"cluster_one:" + serviceIndexBaseName + "archive-read",
-				"cluster_two:" + serviceIndexBaseName + "archive-read",
 			},
 		},
 	}
@@ -1264,30 +1252,13 @@ func TestSpanReader_GetEmptyIndex(t *testing.T) {
 }
 
 func TestSpanReader_ArchiveTraces(t *testing.T) {
-	withArchiveSpanReader(t, false, func(r *spanReaderTest) {
+	withArchiveSpanReader(t, true, func(r *spanReaderTest) {
 		mockSearchService(r).
 			Return(&elastic.SearchResult{}, nil)
 		mockArchiveMultiSearchService(r, "jaeger-span-archive").
 			Return(&elastic.MultiSearchResult{
 				Responses: []*elastic.SearchResult{},
 			}, nil)
-		query := spanstore.GetTraceParameters{}
-		trace, err := r.reader.GetTrace(context.Background(), query)
-		require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
-		require.Nil(t, trace)
-		require.EqualError(t, err, "trace not found")
-	})
-}
-
-func TestSpanReader_ArchiveTraces_ReadAlias(t *testing.T) {
-	withArchiveSpanReader(t, true, func(r *spanReaderTest) {
-		mockSearchService(r).
-			Return(&elastic.SearchResult{}, nil)
-		mockArchiveMultiSearchService(r, "jaeger-span-archive-read").
-			Return(&elastic.MultiSearchResult{
-				Responses: []*elastic.SearchResult{},
-			}, nil)
-
 		query := spanstore.GetTraceParameters{}
 		trace, err := r.reader.GetTrace(context.Background(), query)
 		require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
