@@ -22,7 +22,6 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/handler"
 	"github.com/jaegertracing/jaeger/internal/metricstest"
-	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	"github.com/jaegertracing/jaeger/ports"
 )
@@ -93,20 +92,21 @@ func TestSpanCollectorHTTP(t *testing.T) {
 func TestSpanCollectorHTTPS(t *testing.T) {
 	testCases := []struct {
 		name              string
-		TLS               tlscfg.Options
-		clientTLS         tlscfg.Options
+		TLS               *configtls.ServerConfig
+		clientTLS         configtls.ClientConfig
 		expectError       bool
 		expectClientError bool
 	}{
 		{
 			name: "should fail with TLS client to untrusted TLS server",
-			TLS: tlscfg.Options{
-				Enabled:  true,
-				CertPath: testCertKeyLocation + "/example-server-cert.pem",
-				KeyPath:  testCertKeyLocation + "/example-server-key.pem",
+			TLS: &configtls.ServerConfig{
+				Config: configtls.Config{
+					CertFile: testCertKeyLocation + "/example-server-cert.pem",
+					KeyFile:  testCertKeyLocation + "/example-server-key.pem",
+				},
 			},
-			clientTLS: tlscfg.Options{
-				Enabled:    true,
+			clientTLS: configtls.ClientConfig{
+				Insecure:   false,
 				ServerName: "example.com",
 			},
 			expectError:       true,
@@ -114,14 +114,17 @@ func TestSpanCollectorHTTPS(t *testing.T) {
 		},
 		{
 			name: "should fail with TLS client to trusted TLS server with incorrect hostname",
-			TLS: tlscfg.Options{
-				Enabled:  true,
-				CertPath: testCertKeyLocation + "/example-server-cert.pem",
-				KeyPath:  testCertKeyLocation + "/example-server-key.pem",
+			TLS: &configtls.ServerConfig{
+				Config: configtls.Config{
+					CertFile: testCertKeyLocation + "/example-server-cert.pem",
+					KeyFile:  testCertKeyLocation + "/example-server-key.pem",
+				},
 			},
-			clientTLS: tlscfg.Options{
-				Enabled:    true,
-				CAPath:     testCertKeyLocation + "/example-CA-cert.pem",
+			clientTLS: configtls.ClientConfig{
+				Insecure: false,
+				Config: configtls.Config{
+					CAFile: testCertKeyLocation + "/example-CA-cert.pem",
+				},
 				ServerName: "nonEmpty",
 			},
 			expectError:       true,
@@ -129,62 +132,74 @@ func TestSpanCollectorHTTPS(t *testing.T) {
 		},
 		{
 			name: "should pass with TLS client to trusted TLS server with correct hostname",
-			TLS: tlscfg.Options{
-				Enabled:  true,
-				CertPath: testCertKeyLocation + "/example-server-cert.pem",
-				KeyPath:  testCertKeyLocation + "/example-server-key.pem",
+			TLS: &configtls.ServerConfig{
+				Config: configtls.Config{
+					CertFile: testCertKeyLocation + "/example-server-cert.pem",
+					KeyFile:  testCertKeyLocation + "/example-server-key.pem",
+				},
 			},
-			clientTLS: tlscfg.Options{
-				Enabled:    true,
-				CAPath:     testCertKeyLocation + "/example-CA-cert.pem",
+			clientTLS: configtls.ClientConfig{
+				Insecure: false,
+				Config: configtls.Config{
+					CAFile: testCertKeyLocation + "/example-CA-cert.pem",
+				},
 				ServerName: "example.com",
 			},
 		},
 		{
 			name: "should fail with TLS client without cert to trusted TLS server requiring cert",
-			TLS: tlscfg.Options{
-				Enabled:      true,
-				CertPath:     testCertKeyLocation + "/example-server-cert.pem",
-				KeyPath:      testCertKeyLocation + "/example-server-key.pem",
-				ClientCAPath: testCertKeyLocation + "/example-CA-cert.pem",
+			TLS: &configtls.ServerConfig{
+				ClientCAFile: testCertKeyLocation + "/example-CA-cert.pem",
+				Config: configtls.Config{
+					CertFile: testCertKeyLocation + "/example-server-cert.pem",
+					KeyFile:  testCertKeyLocation + "/example-server-key.pem",
+				},
 			},
-			clientTLS: tlscfg.Options{
-				Enabled:    true,
-				CAPath:     testCertKeyLocation + "/example-CA-cert.pem",
+			clientTLS: configtls.ClientConfig{
+				Insecure:   false,
 				ServerName: "example.com",
+				Config: configtls.Config{
+					CAFile: testCertKeyLocation + "/example-CA-cert.pem",
+				},
 			},
 			expectClientError: true,
 		},
 		{
 			name: "should pass with TLS client with cert to trusted TLS server requiring cert",
-			TLS: tlscfg.Options{
-				Enabled:      true,
-				CertPath:     testCertKeyLocation + "/example-server-cert.pem",
-				KeyPath:      testCertKeyLocation + "/example-server-key.pem",
-				ClientCAPath: testCertKeyLocation + "/example-CA-cert.pem",
+			TLS: &configtls.ServerConfig{
+				ClientCAFile: testCertKeyLocation + "/example-CA-cert.pem",
+				Config: configtls.Config{
+					CertFile: testCertKeyLocation + "/example-server-cert.pem",
+					KeyFile:  testCertKeyLocation + "/example-server-key.pem",
+				},
 			},
-			clientTLS: tlscfg.Options{
-				Enabled:    true,
-				CAPath:     testCertKeyLocation + "/example-CA-cert.pem",
+			clientTLS: configtls.ClientConfig{
+				Insecure:   true,
 				ServerName: "example.com",
-				CertPath:   testCertKeyLocation + "/example-client-cert.pem",
-				KeyPath:    testCertKeyLocation + "/example-client-key.pem",
+				Config: configtls.Config{
+					CAFile:   testCertKeyLocation + "/example-CA-cert.pem",
+					CertFile: testCertKeyLocation + "/example-client-cert.pem",
+					KeyFile:  testCertKeyLocation + "/example-client-key.pem",
+				},
 			},
 		},
 		{
 			name: "should fail with TLS client without cert to trusted TLS server requiring cert from a different CA",
-			TLS: tlscfg.Options{
-				Enabled:      true,
-				CertPath:     testCertKeyLocation + "/example-server-cert.pem",
-				KeyPath:      testCertKeyLocation + "/example-server-key.pem",
-				ClientCAPath: testCertKeyLocation + "/wrong-CA-cert.pem", // NB: wrong CA
+			TLS: &configtls.ServerConfig{
+				ClientCAFile: testCertKeyLocation + "/wrong-CA-cert.pem", // NB: wrong CA
+				Config: configtls.Config{
+					CertFile: testCertKeyLocation + "/example-server-cert.pem",
+					KeyFile:  testCertKeyLocation + "/example-server-key.pem",
+				},
 			},
-			clientTLS: tlscfg.Options{
-				Enabled:    true,
-				CAPath:     testCertKeyLocation + "/example-CA-cert.pem",
+			clientTLS: configtls.ClientConfig{
+				Insecure:   false,
 				ServerName: "example.com",
-				CertPath:   testCertKeyLocation + "/example-client-cert.pem",
-				KeyPath:    testCertKeyLocation + "/example-client-key.pem",
+				Config: configtls.Config{
+					CAFile:   testCertKeyLocation + "/example-CA-cert.pem",
+					CertFile: testCertKeyLocation + "/example-client-cert.pem",
+					KeyFile:  testCertKeyLocation + "/example-client-key.pem",
+				},
 			},
 			expectClientError: true,
 		},
@@ -200,7 +215,7 @@ func TestSpanCollectorHTTPS(t *testing.T) {
 			params := &HTTPServerParams{
 				ServerConfig: confighttp.ServerConfig{
 					Endpoint:   fmt.Sprintf(":%d", ports.CollectorHTTP),
-					TLSSetting: test.TLS.ToOtelServerConfig(),
+					TLSSetting: test.TLS,
 				},
 				Handler:          handler.NewJaegerSpanHandler(logger, &mockSpanProcessor{}),
 				SamplingProvider: &mockSamplingProvider{},
@@ -215,7 +230,7 @@ func TestSpanCollectorHTTPS(t *testing.T) {
 				require.NoError(t, server.Close())
 			}()
 
-			clientTLSCfg, err0 := test.clientTLS.ToOtelClientConfig().LoadTLSConfig(context.Background())
+			clientTLSCfg, err0 := test.clientTLS.LoadTLSConfig(context.Background())
 			require.NoError(t, err0)
 			dialer := &net.Dialer{Timeout: 2 * time.Second}
 			conn, clientError := tls.DialWithDialer(dialer, "tcp", "localhost:"+strconv.Itoa(ports.CollectorHTTP), clientTLSCfg)

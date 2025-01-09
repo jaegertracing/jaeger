@@ -14,17 +14,19 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
-	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc/v2/querysvc"
+	"github.com/jaegertracing/jaeger/pkg/iter"
 	"github.com/jaegertracing/jaeger/pkg/jtracer"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
-	spanstoremocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
 	dependencyStoreMocks "github.com/jaegertracing/jaeger/storage_v2/depstore/mocks"
-	"github.com/jaegertracing/jaeger/storage_v2/v1adapter"
+	"github.com/jaegertracing/jaeger/storage_v2/tracestore"
+	tracestoremocks "github.com/jaegertracing/jaeger/storage_v2/tracestore/mocks"
 )
 
 func setupHTTPGatewayNoServer(
@@ -32,10 +34,10 @@ func setupHTTPGatewayNoServer(
 	basePath string,
 ) *testGateway {
 	gw := &testGateway{
-		reader: &spanstoremocks.Reader{},
+		reader: &tracestoremocks.Reader{},
 	}
 
-	q := querysvc.NewQueryService(v1adapter.NewTraceReader(gw.reader),
+	q := querysvc.NewQueryService(gw.reader,
 		&dependencyStoreMocks.Reader{},
 		querysvc.QueryServiceOptions{},
 	)
@@ -92,17 +94,16 @@ func TestHTTPGatewayTryHandleError(t *testing.T) {
 }
 
 func TestHTTPGatewayGetTrace(t *testing.T) {
-	traceId, _ := model.TraceIDFromString("123")
 	testCases := []struct {
 		name          string
 		params        map[string]string
-		expectedQuery spanstore.GetTraceParameters
+		expectedQuery tracestore.GetTraceParams
 	}{
 		{
 			name:   "TestGetTrace",
 			params: map[string]string{},
-			expectedQuery: spanstore.GetTraceParameters{
-				TraceID: traceId,
+			expectedQuery: tracestore.GetTraceParams{
+				TraceID: traceID,
 			},
 		},
 		{
@@ -111,22 +112,25 @@ func TestHTTPGatewayGetTrace(t *testing.T) {
 				"start_time": "2000-01-02T12:30:08.999999998Z",
 				"end_time":   "2000-04-05T21:55:16.999999992+08:00",
 			},
-			expectedQuery: spanstore.GetTraceParameters{
-				TraceID:   traceId,
-				StartTime: time.Date(2000, time.January, 0o2, 12, 30, 8, 999999998, time.UTC),
-				EndTime:   time.Date(2000, time.April, 0o5, 13, 55, 16, 999999992, time.UTC),
+			expectedQuery: tracestore.GetTraceParams{
+				TraceID: traceID,
+				Start:   time.Date(2000, time.January, 0o2, 12, 30, 8, 999999998, time.UTC),
+				End:     time.Date(2000, time.April, 0o5, 13, 55, 16, 999999992, time.UTC),
 			},
 		},
 	}
 
-	testUri := "/api/v3/traces/123"
+	testUri := "/api/v3/traces/1"
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			gw := setupHTTPGatewayNoServer(t, "")
+
 			gw.reader.
-				On("GetTrace", matchContext, tc.expectedQuery).
-				Return(&model.Trace{}, nil).Once()
+				On("GetTraces", matchContext, tc.expectedQuery).
+				Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+					yield([]ptrace.Traces{makeTestTrace()}, nil)
+				})).Once()
 
 			q := url.Values{}
 			for k, v := range tc.params {
@@ -141,9 +145,42 @@ func TestHTTPGatewayGetTrace(t *testing.T) {
 			require.NoError(t, err)
 			w := httptest.NewRecorder()
 			gw.router.ServeHTTP(w, r)
-			gw.reader.AssertCalled(t, "GetTrace", matchContext, tc.expectedQuery)
+			gw.reader.AssertCalled(t, "GetTraces", matchContext, tc.expectedQuery)
 		})
 	}
+}
+
+func TestHTTPGatewayGetTraceEmptyResponse(t *testing.T) {
+	gw := setupHTTPGatewayNoServer(t, "")
+	gw.reader.On("GetTraces", matchContext, mock.AnythingOfType("tracestore.GetTraceParams")).
+		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+			yield([]ptrace.Traces{}, nil)
+		})).Once()
+
+	r, err := http.NewRequest(http.MethodGet, "/api/v3/traces/1", nil)
+	require.NoError(t, err)
+	w := httptest.NewRecorder()
+	gw.router.ServeHTTP(w, r)
+	assert.Equal(t, http.StatusNotFound, w.Code)
+	assert.Contains(t, w.Body.String(), "No traces found")
+}
+
+func TestHTTPGatewayFindTracesEmptyResponse(t *testing.T) {
+	q, qp := mockFindQueries()
+	r, err := http.NewRequest(http.MethodGet, "/api/v3/traces?"+q.Encode(), nil)
+	require.NoError(t, err)
+	w := httptest.NewRecorder()
+
+	gw := setupHTTPGatewayNoServer(t, "")
+	gw.reader.
+		On("FindTraces", matchContext, qp).
+		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+			yield([]ptrace.Traces{}, nil)
+		})).Once()
+
+	gw.router.ServeHTTP(w, r)
+	assert.Equal(t, http.StatusNotFound, w.Code)
+	assert.Contains(t, w.Body.String(), "No traces found")
 }
 
 func TestHTTPGatewayGetTraceMalformedInputErrors(t *testing.T) {
@@ -159,17 +196,17 @@ func TestHTTPGatewayGetTraceMalformedInputErrors(t *testing.T) {
 		},
 		{
 			name:          "TestGetTraceWithInvalidStartTime",
-			requestUrl:    "/api/v3/traces/123?start_time=abc",
+			requestUrl:    "/api/v3/traces/1?start_time=abc",
 			expectedError: "malformed parameter start_time",
 		},
 		{
 			name:          "TestGetTraceWithInvalidEndTime",
-			requestUrl:    "/api/v3/traces/123?end_time=xyz",
+			requestUrl:    "/api/v3/traces/1?end_time=xyz",
 			expectedError: "malformed parameter end_time",
 		},
 		{
 			name:          "TestGetTraceWithInvalidRawTraces",
-			requestUrl:    "/api/v3/traces/123?raw_traces=foobar",
+			requestUrl:    "/api/v3/traces/1?raw_traces=foobar",
 			expectedError: "malformed parameter raw_traces",
 		},
 	}
@@ -177,9 +214,10 @@ func TestHTTPGatewayGetTraceMalformedInputErrors(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			gw := setupHTTPGatewayNoServer(t, "")
-			gw.reader.
-				On("GetTrace", matchContext, matchGetTraceParameters).
-				Return(&model.Trace{}, nil).Once()
+			gw.reader.On("GetTraces", matchContext, mock.AnythingOfType("tracestore.GetTraceParams")).
+				Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+					yield([]ptrace.Traces{}, nil)
+				})).Once()
 
 			r, err := http.NewRequest(http.MethodGet, tc.requestUrl, nil)
 			require.NoError(t, err)
@@ -192,18 +230,19 @@ func TestHTTPGatewayGetTraceMalformedInputErrors(t *testing.T) {
 
 func TestHTTPGatewayGetTraceInternalErrors(t *testing.T) {
 	gw := setupHTTPGatewayNoServer(t, "")
-	gw.reader.
-		On("GetTrace", matchContext, matchGetTraceParameters).
-		Return(nil, assert.AnError).Once()
+	gw.reader.On("GetTraces", matchContext, mock.AnythingOfType("tracestore.GetTraceParams")).
+		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+			yield([]ptrace.Traces{}, assert.AnError)
+		})).Once()
 
-	r, err := http.NewRequest(http.MethodGet, "/api/v3/traces/123", nil)
+	r, err := http.NewRequest(http.MethodGet, "/api/v3/traces/1", nil)
 	require.NoError(t, err)
 	w := httptest.NewRecorder()
 	gw.router.ServeHTTP(w, r)
 	assert.Contains(t, w.Body.String(), assert.AnError.Error())
 }
 
-func mockFindQueries() (url.Values, *spanstore.TraceQueryParameters) {
+func mockFindQueries() (url.Values, tracestore.TraceQueryParams) {
 	// mock performs deep comparison of the timestamps and can fail
 	// if they are different in the timezone or the monotonic clocks.
 	// To void that we truncate monotonic clock and force UTC timezone.
@@ -218,7 +257,7 @@ func mockFindQueries() (url.Values, *spanstore.TraceQueryParameters) {
 	q.Set(paramDurationMax, "2s")
 	q.Set(paramNumTraces, "10")
 
-	return q, &spanstore.TraceQueryParameters{
+	return q, tracestore.TraceQueryParams{
 		ServiceName:   "foo",
 		OperationName: "bar",
 		StartTimeMin:  time1,
@@ -306,7 +345,6 @@ func TestHTTPGatewayFindTracesErrors(t *testing.T) {
 	}
 	t.Run("span reader error", func(t *testing.T) {
 		q, qp := mockFindQueries()
-		const simErr = "simulated error"
 		r, err := http.NewRequest(http.MethodGet, "/api/v3/traces?"+q.Encode(), nil)
 		require.NoError(t, err)
 		w := httptest.NewRecorder()
@@ -314,40 +352,40 @@ func TestHTTPGatewayFindTracesErrors(t *testing.T) {
 		gw := setupHTTPGatewayNoServer(t, "")
 		gw.reader.
 			On("FindTraces", matchContext, qp).
-			Return(nil, errors.New(simErr)).Once()
+			Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+				yield(nil, assert.AnError)
+			})).Once()
 
 		gw.router.ServeHTTP(w, r)
-		assert.Contains(t, w.Body.String(), simErr)
+		assert.Contains(t, w.Body.String(), assert.AnError.Error())
 	})
 }
 
 func TestHTTPGatewayGetServicesErrors(t *testing.T) {
 	gw := setupHTTPGatewayNoServer(t, "")
 
-	const simErr = "simulated error"
 	gw.reader.
 		On("GetServices", matchContext).
-		Return(nil, errors.New(simErr)).Once()
+		Return(nil, assert.AnError).Once()
 
 	r, err := http.NewRequest(http.MethodGet, "/api/v3/services", nil)
 	require.NoError(t, err)
 	w := httptest.NewRecorder()
 	gw.router.ServeHTTP(w, r)
-	assert.Contains(t, w.Body.String(), simErr)
+	assert.Contains(t, w.Body.String(), assert.AnError.Error())
 }
 
 func TestHTTPGatewayGetOperationsErrors(t *testing.T) {
 	gw := setupHTTPGatewayNoServer(t, "")
 
-	qp := spanstore.OperationQueryParameters{ServiceName: "foo", SpanKind: "server"}
-	const simErr = "simulated error"
+	qp := tracestore.OperationQueryParams{ServiceName: "foo", SpanKind: "server"}
 	gw.reader.
 		On("GetOperations", matchContext, qp).
-		Return(nil, errors.New(simErr)).Once()
+		Return(nil, assert.AnError).Once()
 
 	r, err := http.NewRequest(http.MethodGet, "/api/v3/operations?service=foo&span_kind=server", nil)
 	require.NoError(t, err)
 	w := httptest.NewRecorder()
 	gw.router.ServeHTTP(w, r)
-	assert.Contains(t, w.Body.String(), simErr)
+	assert.Contains(t, w.Body.String(), assert.AnError.Error())
 }

@@ -176,7 +176,7 @@ func (options) apply(opts ...Option) options {
 		ret.hostMetrics = metrics.NullFactory
 	}
 	if ret.preProcessSpans == nil {
-		ret.preProcessSpans = func(_ []*model.Span, _ /* tenant */ string) {}
+		ret.preProcessSpans = func(_ processor.Batch) {}
 	}
 	if ret.sanitizer == nil {
 		ret.sanitizer = func(span *model.Span) *model.Span { return span }

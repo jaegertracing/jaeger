@@ -9,22 +9,22 @@ import (
 	"go.opentelemetry.io/collector/config/configtls"
 )
 
-// Options describes the configuration properties for TLS Connections.
-type Options struct {
-	Enabled        bool          `mapstructure:"enabled"`
-	CAPath         string        `mapstructure:"ca"`
-	CertPath       string        `mapstructure:"cert"`
-	KeyPath        string        `mapstructure:"key"`
-	ServerName     string        `mapstructure:"server_name"` // only for client-side TLS config
-	ClientCAPath   string        `mapstructure:"client_ca"`   // only for server-side TLS config for client auth
-	CipherSuites   []string      `mapstructure:"cipher_suites"`
-	MinVersion     string        `mapstructure:"min_version"`
-	MaxVersion     string        `mapstructure:"max_version"`
-	SkipHostVerify bool          `mapstructure:"skip_host_verify"`
-	ReloadInterval time.Duration `mapstructure:"reload_interval"`
+// options describes the configuration properties for TLS Connections.
+type options struct {
+	Enabled        bool
+	CAPath         string
+	CertPath       string
+	KeyPath        string
+	ServerName     string // only for client-side TLS config
+	ClientCAPath   string // only for server-side TLS config for client auth
+	CipherSuites   []string
+	MinVersion     string
+	MaxVersion     string
+	SkipHostVerify bool
+	ReloadInterval time.Duration
 }
 
-func (o *Options) ToOtelClientConfig() configtls.ClientConfig {
+func (o *options) ToOtelClientConfig() configtls.ClientConfig {
 	return configtls.ClientConfig{
 		Insecure:           !o.Enabled,
 		InsecureSkipVerify: o.SkipHostVerify,
@@ -46,7 +46,7 @@ func (o *Options) ToOtelClientConfig() configtls.ClientConfig {
 }
 
 // ToOtelServerConfig provides a mapping between from Options to OTEL's TLS Server Configuration.
-func (o *Options) ToOtelServerConfig() *configtls.ServerConfig {
+func (o *options) ToOtelServerConfig() *configtls.ServerConfig {
 	if !o.Enabled {
 		return nil
 	}

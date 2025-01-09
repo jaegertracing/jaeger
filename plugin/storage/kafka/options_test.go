@@ -197,11 +197,10 @@ func TestTLSFlags(t *testing.T) {
 			},
 		},
 		{
-			flags: []string{"--kafka.producer.authentication=tls", "--kafka.producer.tls.enabled=false"},
+			flags: []string{"--kafka.producer.authentication=tls"},
 			expected: auth.AuthenticationConfig{
 				Authentication: "tls",
 				Kerberos:       kerb,
-				// TODO this test is unclear - if tls.enabled=false, why is it not tls.Insecure=true?
 				TLS: configtls.ClientConfig{
 					Config: configtls.Config{
 						IncludeSystemCACertsPool: true,
