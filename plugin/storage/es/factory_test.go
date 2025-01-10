@@ -245,7 +245,7 @@ func TestArchiveDisabled(t *testing.T) {
 func TestArchiveEnabled(t *testing.T) {
 	f := NewFactory()
 	f.primaryConfig = &escfg.Configuration{}
-	f.archiveConfig = &escfg.Configuration{Enabled: true}
+	f.archiveConfig = &escfg.Configuration{Enabled: true, UseReadWriteAliases: true}
 	f.newClientFn = (&mockClientBuilder{}).NewClient
 	err := f.Initialize(metrics.NullFactory, zap.NewNop())
 	require.NoError(t, err)
