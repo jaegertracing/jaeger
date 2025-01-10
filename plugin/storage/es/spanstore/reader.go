@@ -141,7 +141,7 @@ func NewSpanReader(p SpanReaderParams) *SpanReader {
 			p.Logger,
 			getTimeRangeIndexFn(readAlias, p.RemoteReadClusters),
 		),
-		sourceFn:            getSourceFn(p.UseReadWriteAliases, p.MaxDocCount),
+		sourceFn:            getSourceFn(p.MaxDocCount),
 		maxDocCount:         p.MaxDocCount,
 		useReadWriteAliases: p.UseReadWriteAliases,
 		logger:              p.Logger,
@@ -193,7 +193,7 @@ func addRemoteReadClusters(fn timeRangeIndexFn, remoteReadClusters []string) tim
 	}
 }
 
-func getSourceFn(useReadWriteAliases bool, maxDocCount int) sourceFn {
+func getSourceFn(maxDocCount int) sourceFn {
 	return func(query elastic.Query, nextTime uint64) *elastic.SearchSource {
 		return elastic.NewSearchSource().
 			Query(query).

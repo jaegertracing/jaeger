@@ -1310,7 +1310,7 @@ func TestBuildTraceByIDQuery(t *testing.T) {
 }
 
 func TestTerminateAfterNotSet(t *testing.T) {
-	srcFn := getSourceFn(false, 99)
+	srcFn := getSourceFn(99)
 	searchSource := srcFn(elastic.NewMatchAllQuery(), 1)
 	sp, err := searchSource.Source()
 	require.NoError(t, err)
