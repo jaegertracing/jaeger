@@ -195,14 +195,11 @@ func addRemoteReadClusters(fn timeRangeIndexFn, remoteReadClusters []string) tim
 
 func getSourceFn(useReadWriteAliases bool, maxDocCount int) sourceFn {
 	return func(query elastic.Query, nextTime uint64) *elastic.SearchSource {
-		s := elastic.NewSearchSource().
+		return elastic.NewSearchSource().
 			Query(query).
-			Size(maxDocCount)
-		if !useReadWriteAliases {
-			s.Sort("startTime", true).
-				SearchAfter(nextTime)
-		}
-		return s
+			Size(maxDocCount).
+			Sort("startTime", true).
+			SearchAfter(nextTime)
 	}
 }
 
