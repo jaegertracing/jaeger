@@ -11,6 +11,7 @@ import (
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/extension"
 	"go.opentelemetry.io/collector/extension/extensioncapabilities"
+	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
 	queryApp "github.com/jaegertracing/jaeger/cmd/query/app"
@@ -23,7 +24,6 @@ import (
 	"github.com/jaegertracing/jaeger/plugin/metricstore/disabled"
 	"github.com/jaegertracing/jaeger/storage/metricstore"
 	"github.com/jaegertracing/jaeger/storage_v2/depstore"
-	"github.com/jaegertracing/jaeger/storage_v2/v1adapter"
 )
 
 var (
@@ -94,8 +94,7 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 
 	var opts querysvc.QueryServiceOptions
 	var v2opts v2querysvc.QueryServiceOptions
-	// TODO archive storage still uses v1 factory
-	if err := s.addArchiveStorage(&opts, &v2opts, host); err != nil {
+	if err := s.addArchiveStorage(&v2opts, host); err != nil {
 		return err
 	}
 	qs := querysvc.NewQueryService(traceReader, depReader, opts)
@@ -131,7 +130,6 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 }
 
 func (s *server) addArchiveStorage(
-	opts *querysvc.QueryServiceOptions,
 	v2opts *v2querysvc.QueryServiceOptions,
 	host component.Host,
 ) error {
@@ -140,19 +138,25 @@ func (s *server) addArchiveStorage(
 		return nil
 	}
 
-	f, err := jaegerstorage.GetStorageFactory(s.config.Storage.TracesArchive, host)
+	f, err := jaegerstorage.GetTraceStoreFactory(s.config.Storage.TracesArchive, host)
 	if err != nil {
 		return fmt.Errorf("cannot find archive storage factory: %w", err)
 	}
 
-	if !opts.InitArchiveStorage(f, s.telset.Logger) {
-		s.telset.Logger.Info("Archive storage not initialized")
+	reader, err := f.CreateTraceReader()
+	if err != nil {
+		s.telset.Logger.Error("Cannot init archive storage reader", zap.Error(err))
+		return nil
+	}
+	writer, err := f.CreateTraceWriter()
+	if err != nil {
+		s.telset.Logger.Error("Cannot init archive storage writer", zap.Error(err))
+		return nil
 	}
 
-	ar, aw := v1adapter.InitializeArchiveStorage(f, s.telset.Logger)
-	if ar != nil && aw != nil {
-		v2opts.ArchiveTraceReader = ar
-		v2opts.ArchiveTraceWriter = aw
+	if reader != nil && writer != nil {
+		v2opts.ArchiveTraceReader = reader
+		v2opts.ArchiveTraceWriter = writer
 	} else {
 		s.telset.Logger.Info("Archive storage not initialized")
 	}
