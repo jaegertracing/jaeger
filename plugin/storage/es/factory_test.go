@@ -500,3 +500,52 @@ func TestPasswordFromFileErrors(t *testing.T) {
 	f.onPrimaryPasswordChange()
 	f.onArchivePasswordChange()
 }
+
+// This test should pass without any leakage and error
+func TestIndexRolloverCronJobShouldRunWithoutError(t *testing.T) {
+	defer testutils.VerifyGoLeaksOnce(t)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Write(mockEsServerResponse)
+	}))
+	defer server.Close()
+	f, err := NewFactoryWithConfig(escfg.Configuration{
+		Servers: []string{server.URL},
+		Rollover: escfg.Rollover{
+			Enabled:   true,
+			Frequency: 1 * time.Second,
+		},
+	}, metrics.NullFactory, zap.NewNop())
+	require.NoError(t, err)
+	time.Sleep(1 * time.Second)
+	defer f.Close()
+}
+
+func TestIndexRolloverOperations(t *testing.T) {
+	defer testutils.VerifyGoLeaksOnce(t)
+	cfg := DefaultConfig()
+	appCfg := getEsRolloverConfigFromEsConfig(&cfg)
+	tests := []struct {
+		name      string
+		fxnToCall func() error
+	}{
+		{
+			name:      "init",
+			fxnToCall: func() error { return executeInit(&cfg, "http://localhost:9200", appCfg) },
+		},
+		{
+			name:      "rollover",
+			fxnToCall: func() error { return executeRollover(&cfg, "http://localhost:9200", appCfg) },
+		},
+		{
+			name:      "lookback",
+			fxnToCall: func() error { return executeLookBack(&cfg, "http://localhost:9200", appCfg, zap.NewNop()) },
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			err := test.fxnToCall()
+			require.Error(t, err)
+			require.Contains(t, err.Error(), "connect: connection refused")
+		})
+	}
+}

@@ -9,13 +9,13 @@ import (
 	"github.com/spf13/viper"
 	"go.opentelemetry.io/collector/config/configtls"
 
-	"github.com/jaegertracing/jaeger/pkg/config/esrollovercfg"
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
+	"github.com/jaegertracing/jaeger/pkg/es/config"
 )
 
 var (
 	tlsFlagsCfg   = tlscfg.ClientFlagsConfig{Prefix: "es"}
-	esrolloverCfg = esrollovercfg.EsRolloverFlagConfig{}
+	esrolloverCfg = config.EsRolloverFlagConfig{}
 )
 
 const (
@@ -27,7 +27,7 @@ const (
 
 // Config holds the global configurations for the es rollover, common to all actions
 type Config struct {
-	esrollovercfg.RolloverOptions
+	config.RolloverOptions
 	IndexPrefix string
 	Username    string
 	Password    string

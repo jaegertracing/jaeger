@@ -13,9 +13,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger/cmd/es-rollover/app"
-	"github.com/jaegertracing/jaeger/pkg/config/esrollovercfg"
 	"github.com/jaegertracing/jaeger/pkg/es/client"
 	"github.com/jaegertracing/jaeger/pkg/es/client/mocks"
+	"github.com/jaegertracing/jaeger/pkg/es/config"
 )
 
 func TestIndexCreateIfNotExist(t *testing.T) {
@@ -91,7 +91,7 @@ func TestRolloverAction(t *testing.T) {
 			},
 			config: Config{
 				Config: app.Config{
-					RolloverOptions: esrollovercfg.RolloverOptions{Archive: true},
+					RolloverOptions: config.RolloverOptions{Archive: true},
 					UseILM:          true,
 				},
 			},
@@ -105,7 +105,7 @@ func TestRolloverAction(t *testing.T) {
 			expectedErr: errors.New("version error"),
 			config: Config{
 				Config: app.Config{
-					RolloverOptions: esrollovercfg.RolloverOptions{Archive: true},
+					RolloverOptions: config.RolloverOptions{Archive: true},
 					UseILM:          true,
 				},
 			},
@@ -119,7 +119,7 @@ func TestRolloverAction(t *testing.T) {
 			expectedErr: errors.New("ILM policy myilmpolicy doesn't exist in Elasticsearch. Please create it and re-run init"),
 			config: Config{
 				Config: app.Config{
-					RolloverOptions: esrollovercfg.RolloverOptions{Archive: true, ILMPolicyName: "myilmpolicy"},
+					RolloverOptions: config.RolloverOptions{Archive: true, ILMPolicyName: "myilmpolicy"},
 					UseILM:          true,
 				},
 			},
@@ -133,7 +133,7 @@ func TestRolloverAction(t *testing.T) {
 			expectedErr: errors.New("error getting ilm policy"),
 			config: Config{
 				Config: app.Config{
-					RolloverOptions: esrollovercfg.RolloverOptions{Archive: true, ILMPolicyName: "myilmpolicy"},
+					RolloverOptions: config.RolloverOptions{Archive: true, ILMPolicyName: "myilmpolicy"},
 					UseILM:          true,
 				},
 			},
@@ -147,7 +147,7 @@ func TestRolloverAction(t *testing.T) {
 			expectedErr: errors.New("error creating template"),
 			config: Config{
 				Config: app.Config{
-					RolloverOptions: esrollovercfg.RolloverOptions{Archive: true},
+					RolloverOptions: config.RolloverOptions{Archive: true},
 					UseILM:          false,
 				},
 			},
@@ -163,7 +163,7 @@ func TestRolloverAction(t *testing.T) {
 			expectedErr: errors.New("error getting jaeger indices"),
 			config: Config{
 				Config: app.Config{
-					RolloverOptions: esrollovercfg.RolloverOptions{Archive: true},
+					RolloverOptions: config.RolloverOptions{Archive: true},
 					UseILM:          false,
 				},
 			},
@@ -183,7 +183,7 @@ func TestRolloverAction(t *testing.T) {
 			expectedErr: errors.New("error creating aliases"),
 			config: Config{
 				Config: app.Config{
-					RolloverOptions: esrollovercfg.RolloverOptions{Archive: true},
+					RolloverOptions: config.RolloverOptions{Archive: true},
 					UseILM:          false,
 				},
 			},
@@ -203,7 +203,7 @@ func TestRolloverAction(t *testing.T) {
 			expectedErr: nil,
 			config: Config{
 				Config: app.Config{
-					RolloverOptions: esrollovercfg.RolloverOptions{Archive: true},
+					RolloverOptions: config.RolloverOptions{Archive: true},
 					UseILM:          false,
 				},
 			},
@@ -224,7 +224,7 @@ func TestRolloverAction(t *testing.T) {
 			expectedErr: nil,
 			config: Config{
 				Config: app.Config{
-					RolloverOptions: esrollovercfg.RolloverOptions{Archive: true, ILMPolicyName: "jaeger-ilm"},
+					RolloverOptions: config.RolloverOptions{Archive: true, ILMPolicyName: "jaeger-ilm"},
 					UseILM:          true,
 				},
 			},

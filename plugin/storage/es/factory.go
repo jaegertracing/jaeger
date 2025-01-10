@@ -14,7 +14,6 @@ import (
 	"path/filepath"
 	"strings"
 	"sync/atomic"
-	"time"
 
 	"github.com/spf13/viper"
 	"go.opentelemetry.io/otel"
@@ -72,8 +71,8 @@ type Factory struct {
 	primaryClient atomic.Pointer[es.Client]
 	archiveClient atomic.Pointer[es.Client]
 
-	watchers           []*fswatcher.FSWatcher
-	rolloverTimeTicker *time.Ticker
+	watchers        []*fswatcher.FSWatcher
+	rolloverCronJob *CronJob
 }
 
 // NewFactory creates a new Factory.
@@ -161,8 +160,8 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 	f.primaryClient.Store(&primaryClient)
 
 	if f.primaryConfig.Rollover.Enabled {
-		f.rolloverTimeTicker = time.NewTicker(f.primaryConfig.Rollover.Frequency)
-		go registerEsRollover(f.primaryConfig, f.rolloverTimeTicker, f.logger)
+		f.rolloverCronJob = NewCronJob(f.primaryConfig.Rollover.Frequency, f.registerRolloverCronJobForPrimaryConfig)
+		f.rolloverCronJob.Start()
 	}
 
 	if f.primaryConfig.Authentication.BasicAuthentication.PasswordFilePath != "" {
@@ -192,17 +191,42 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 	return nil
 }
 
-func registerEsRollover(configuration *config.Configuration, timeTicker *time.Ticker, logger *zap.Logger) {
-	for range timeTicker.C {
-		for _, server := range configuration.Servers {
-			startEsRollover(configuration, server, logger)
-		}
+func (f *Factory) registerRolloverCronJobForPrimaryConfig() {
+	registerEsRollover(f.primaryConfig, f.logger)
+}
+
+func registerEsRollover(configuration *config.Configuration, logger *zap.Logger) {
+	for _, server := range configuration.Servers {
+		startEsRollover(configuration, server, logger)
 	}
 }
 
 func startEsRollover(configuration *config.Configuration, server string, logger *zap.Logger) {
 	cfg := getEsRolloverConfigFromEsConfig(configuration)
-	err := executeAction(server, cfg, func(cl esClient.Client) app.Action {
+	err := executeInit(configuration, server, cfg)
+	if err != nil {
+		logger.Error("Failed to start ES Rollover for the server: "+server, zap.Error(err))
+		return
+	}
+	logger.Info("Completed the init operation of Rollover for server " + server)
+	err = executeRollover(configuration, server, cfg)
+	if err != nil {
+		logger.Error("Failed to complete rollover for the server: "+server, zap.Error(err))
+		return
+	}
+	logger.Info("Completed the rollover operation of Rollover for server " + server)
+	if configuration.Rollover.LookBackEnabled {
+		err = executeLookBack(configuration, server, cfg, logger)
+		if err != nil {
+			logger.Error("Failed to complete lookback for the server: "+server, zap.Error(err))
+			return
+		}
+		logger.Info("Completed the lookback operation of Rollover for server " + server)
+	}
+}
+
+func executeInit(configuration *config.Configuration, server string, cfg app.Config) error {
+	return executeAction(server, cfg, func(cl esClient.Client) app.Action {
 		initConfig := initialize.Config{
 			Config:  cfg,
 			Indices: configuration.Indices,
@@ -224,12 +248,10 @@ func startEsRollover(configuration *config.Configuration, server string, logger 
 			IndicesClient: indicesClient,
 		}
 	})
-	if err != nil {
-		logger.Error("Failed to start ES Rollover for the server: "+server, zap.Error(err))
-		return
-	}
-	logger.Info("Completed the init operation of Rollover for server " + server)
-	err = executeAction(server, cfg, func(cl esClient.Client) app.Action {
+}
+
+func executeRollover(configuration *config.Configuration, server string, cfg app.Config) error {
+	return executeAction(server, cfg, func(cl esClient.Client) app.Action {
 		rolloverCfg := rollover.Config{
 			Config:          cfg,
 			RollBackOptions: configuration.Rollover.RollBackOptions,
@@ -243,33 +265,24 @@ func startEsRollover(configuration *config.Configuration, server string, logger 
 			IndicesClient: indicesClient,
 		}
 	})
-	if err != nil {
-		logger.Error("Failed to complete rollover for the server: "+server, zap.Error(err))
-		return
-	}
-	logger.Info("Completed the rollover operation of Rollover for server " + server)
-	if configuration.Rollover.LookBackEnabled {
-		err = executeAction(server, cfg, func(cl esClient.Client) app.Action {
-			lookbackCfg := lookback.Config{
-				Config:          cfg,
-				LookBackOptions: configuration.Rollover.LookBackOptions,
-			}
-			indicesClient := &esClient.IndicesClient{
-				Client:               cl,
-				MasterTimeoutSeconds: lookbackCfg.Timeout,
-			}
-			return &lookback.Action{
-				Config:        lookbackCfg,
-				IndicesClient: indicesClient,
-				Logger:        logger,
-			}
-		})
-		if err != nil {
-			logger.Error("Failed to complete lookback for the server: "+server, zap.Error(err))
-			return
+}
+
+func executeLookBack(configuration *config.Configuration, server string, cfg app.Config, logger *zap.Logger) error {
+	return executeAction(server, cfg, func(cl esClient.Client) app.Action {
+		lookbackCfg := lookback.Config{
+			Config:          cfg,
+			LookBackOptions: configuration.Rollover.LookBackOptions,
 		}
-		logger.Info("Completed the lookback operation of Rollover for server " + server)
-	}
+		indicesClient := &esClient.IndicesClient{
+			Client:               cl,
+			MasterTimeoutSeconds: lookbackCfg.Timeout,
+		}
+		return &lookback.Action{
+			Config:        lookbackCfg,
+			IndicesClient: indicesClient,
+			Logger:        logger,
+		}
+	})
 }
 
 type actionCreatorFunction func(esClient.Client) app.Action
@@ -497,8 +510,8 @@ func (f *Factory) Close() error {
 	if client := f.getArchiveClient(); client != nil {
 		errs = append(errs, client.Close())
 	}
-	if f.rolloverTimeTicker != nil {
-		f.rolloverTimeTicker.Stop()
+	if f.rolloverCronJob != nil {
+		f.rolloverCronJob.Close()
 	}
 	return errors.Join(errs...)
 }

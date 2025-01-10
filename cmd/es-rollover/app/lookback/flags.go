@@ -9,15 +9,15 @@ import (
 	"github.com/spf13/viper"
 
 	"github.com/jaegertracing/jaeger/cmd/es-rollover/app"
-	"github.com/jaegertracing/jaeger/pkg/config/esrollovercfg"
+	"github.com/jaegertracing/jaeger/pkg/es/config"
 )
 
-var esrolloverCfg = esrollovercfg.EsRolloverFlagConfig{}
+var esrolloverCfg = config.EsRolloverFlagConfig{}
 
 // Config holds configuration for index cleaner binary.
 type Config struct {
 	app.Config
-	esrollovercfg.LookBackOptions
+	config.LookBackOptions
 }
 
 // AddFlags adds flags for TLS to the FlagSet.

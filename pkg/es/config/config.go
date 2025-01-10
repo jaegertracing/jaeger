@@ -27,7 +27,6 @@ import (
 	"go.uber.org/zap/zapgrpc"
 
 	"github.com/jaegertracing/jaeger/pkg/bearertoken"
-	"github.com/jaegertracing/jaeger/pkg/config/esrollovercfg"
 	"github.com/jaegertracing/jaeger/pkg/es"
 	eswrapper "github.com/jaegertracing/jaeger/pkg/es/wrapper"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
@@ -219,11 +218,36 @@ type Rollover struct {
 	// https://www.jaegertracing.io/docs/2.1/elasticsearch/#index-rollover
 	LookBackEnabled bool `mapstructure:"look_back_enabled"`
 	// LookBackOptions store the configuration which will be executed if look back is enabled
-	LookBackOptions esrollovercfg.LookBackOptions `mapstructure:"look_back_options"`
+	LookBackOptions LookBackOptions `mapstructure:"look_back_options"`
 	// RollBackConditions stores the conditions on which index writing should be performed
-	RollBackOptions esrollovercfg.RollBackOptions `mapstructure:"roll_back_options"`
+	RollBackOptions RollBackOptions `mapstructure:"roll_back_options"`
 	// RolloverOptions store the configuration required for setting up the cron job of rolling over indices
-	RolloverOptions esrollovercfg.RolloverOptions `mapstructure:"rollover_options"`
+	RolloverOptions RolloverOptions `mapstructure:"rollover_options"`
+}
+
+type RolloverOptions struct {
+	// Archive if set to true will handle archive indices also
+	Archive bool `mapstructure:"archive"`
+	// The name of the ILM policy to use if ILM is active
+	ILMPolicyName string `mapstructure:"ilm_policy_name"`
+	// This stores number of seconds to wait for master node response. By default, it is set to 120
+	Timeout int `mapstructure:"timeout"`
+	// SkipDependencies if set to true will disable rollover for dependencies index
+	SkipDependencies bool `mapstructure:"skip_dependencies"`
+	// AdaptiveSampling if set to true will enable rollover for adaptive sampling index
+	AdaptiveSampling bool `mapstructure:"adaptive_sampling"`
+}
+
+type LookBackOptions struct {
+	// Unit is used with lookback to remove indices from read alias e.g, days, weeks, months, years
+	Unit string `mapstructure:"unit"`
+	// UnitCount is the count of units for which look-up is performed
+	UnitCount int `mapstructure:"unit-count"`
+}
+
+type RollBackOptions struct {
+	// Conditions stores the conditions on which index writing should be performed, for example: "{\"max_age\": \"2d\"}"
+	Conditions string `mapstructure:"conditions"`
 }
 
 // NewClient creates a new ElasticSearch client

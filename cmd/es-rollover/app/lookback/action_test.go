@@ -13,9 +13,9 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/es-rollover/app"
-	"github.com/jaegertracing/jaeger/pkg/config/esrollovercfg"
 	"github.com/jaegertracing/jaeger/pkg/es/client"
 	"github.com/jaegertracing/jaeger/pkg/es/client/mocks"
+	"github.com/jaegertracing/jaeger/pkg/es/config"
 )
 
 func TestLookBackAction(t *testing.T) {
@@ -82,12 +82,12 @@ func TestLookBackAction(t *testing.T) {
 				}).Return(nil)
 			},
 			config: Config{
-				LookBackOptions: esrollovercfg.LookBackOptions{
+				LookBackOptions: config.LookBackOptions{
 					Unit:      "days",
 					UnitCount: 1,
 				},
 				Config: app.Config{
-					RolloverOptions: esrollovercfg.RolloverOptions{Archive: true},
+					RolloverOptions: config.RolloverOptions{Archive: true},
 					UseILM:          true,
 				},
 			},
@@ -99,12 +99,12 @@ func TestLookBackAction(t *testing.T) {
 				indexClient.On("GetJaegerIndices", "").Return(indices, errors.New("get indices error"))
 			},
 			config: Config{
-				LookBackOptions: esrollovercfg.LookBackOptions{
+				LookBackOptions: config.LookBackOptions{
 					Unit:      "days",
 					UnitCount: 1,
 				},
 				Config: app.Config{
-					RolloverOptions: esrollovercfg.RolloverOptions{Archive: true},
+					RolloverOptions: config.RolloverOptions{Archive: true},
 					UseILM:          true,
 				},
 			},
@@ -116,12 +116,12 @@ func TestLookBackAction(t *testing.T) {
 				indexClient.On("GetJaegerIndices", "").Return([]client.Index{}, nil)
 			},
 			config: Config{
-				LookBackOptions: esrollovercfg.LookBackOptions{
+				LookBackOptions: config.LookBackOptions{
 					Unit:      "days",
 					UnitCount: 1,
 				},
 				Config: app.Config{
-					RolloverOptions: esrollovercfg.RolloverOptions{Archive: true},
+					RolloverOptions: config.RolloverOptions{Archive: true},
 					UseILM:          true,
 				},
 			},

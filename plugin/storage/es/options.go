@@ -13,7 +13,6 @@ import (
 	"github.com/spf13/viper"
 
 	"github.com/jaegertracing/jaeger/pkg/bearertoken"
-	"github.com/jaegertracing/jaeger/pkg/config/esrollovercfg"
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/pkg/es/config"
 )
@@ -409,8 +408,8 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	cfg.Rollover = cfg.initRollOverFromViper(v)
 }
 
-func (cfg *namespaceConfig) getRolloverFlagsConfig() esrollovercfg.EsRolloverFlagConfig {
-	return esrollovercfg.EsRolloverFlagConfig{
+func (cfg *namespaceConfig) getRolloverFlagsConfig() config.EsRolloverFlagConfig {
+	return config.EsRolloverFlagConfig{
 		Prefix: cfg.namespace + prefixEsRollover,
 	}
 }
@@ -509,9 +508,9 @@ func DefaultConfig() config.Configuration {
 			Enabled:         false,
 			Frequency:       24 * time.Hour,
 			LookBackEnabled: false,
-			LookBackOptions: esrollovercfg.DefaultLookBackOptions(),
-			RollBackOptions: esrollovercfg.DefaultRollBackConditions(),
-			RolloverOptions: esrollovercfg.DefaultRolloverOptions(),
+			LookBackOptions: config.DefaultLookBackOptions(),
+			RollBackOptions: config.DefaultRollBackConditions(),
+			RolloverOptions: config.DefaultRolloverOptions(),
 		},
 	}
 }

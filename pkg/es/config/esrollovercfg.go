@@ -1,7 +1,7 @@
 // Copyright (c) 2025 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
-package esrollovercfg
+package config
 
 import (
 	"flag"
@@ -32,19 +32,6 @@ type EsRolloverFlagConfig struct {
 	Prefix string
 }
 
-type RolloverOptions struct {
-	// Archive if set to true will handle archive indices also
-	Archive bool `mapstructure:"archive"`
-	// The name of the ILM policy to use if ILM is active
-	ILMPolicyName string `mapstructure:"ilm_policy_name"`
-	// This stores number of seconds to wait for master node response. By default, it is set to 120
-	Timeout int `mapstructure:"timeout"`
-	// SkipDependencies if set to true will disable rollover for dependencies index
-	SkipDependencies bool `mapstructure:"skip_dependencies"`
-	// AdaptiveSampling if set to true will enable rollover for adaptive sampling index
-	AdaptiveSampling bool `mapstructure:"adaptive_sampling"`
-}
-
 func (e EsRolloverFlagConfig) AddFlagsForRolloverOptions(flags *flag.FlagSet) {
 	flags.Bool(e.Prefix+archive, defaultArchiveValue, "Handle archive indices")
 	flags.String(e.Prefix+ilmPolicyName, defaultIlmPolicyName, "The name of the ILM policy to use if ILM is active")
@@ -73,13 +60,6 @@ func DefaultRolloverOptions() RolloverOptions {
 	}
 }
 
-type LookBackOptions struct {
-	// Unit is used with lookback to remove indices from read alias e.g, days, weeks, months, years
-	Unit string `mapstructure:"unit"`
-	// UnitCount is the count of units for which look-up is performed
-	UnitCount int `mapstructure:"unit-count"`
-}
-
 func (e EsRolloverFlagConfig) AddFlagsForLookBackOptions(flags *flag.FlagSet) {
 	flags.String(e.Prefix+unit, defaultUnit, "used with lookback to remove indices from read alias e.g, days, weeks, months, years")
 	flags.Int(e.Prefix+unitCount, defaultUnitCount, "count of UNITs")
@@ -97,11 +77,6 @@ func DefaultLookBackOptions() LookBackOptions {
 		Unit:      defaultUnit,
 		UnitCount: defaultUnitCount,
 	}
-}
-
-type RollBackOptions struct {
-	// Conditions stores the conditions on which index writing should be performed, for example: "{\"max_age\": \"2d\"}"
-	Conditions string `mapstructure:"conditions"`
 }
 
 func (e EsRolloverFlagConfig) AddFlagsForRollBackOptions(flags *flag.FlagSet) {
