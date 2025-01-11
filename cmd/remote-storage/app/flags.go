@@ -21,7 +21,6 @@ const (
 
 var tlsGRPCFlagsConfig = tlscfg.ServerFlagsConfig{
 	Prefix: "grpc",
-	EnableCertReloadInterval: true,
 }
 
 // Options holds configuration for remote-storage service.

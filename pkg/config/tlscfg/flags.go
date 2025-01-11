@@ -36,7 +36,6 @@ type ClientFlagsConfig struct {
 // ServerFlagsConfig describes which CLI flags for TLS server should be generated.
 type ServerFlagsConfig struct {
 	Prefix                   string
-	EnableCertReloadInterval bool
 }
 
 // AddFlags adds flags for TLS to the FlagSet.
@@ -51,7 +50,6 @@ func (c ClientFlagsConfig) AddFlags(flags *flag.FlagSet) {
 
 // AddFlags adds flags for TLS to the FlagSet.
 func (c ServerFlagsConfig) AddFlags(flags *flag.FlagSet) {
-	c.EnableCertReloadInterval=true
 	flags.Bool(c.Prefix+tlsEnabled, false, "Enable TLS on the server")
 	flags.String(c.Prefix+tlsCert, "", "Path to a TLS Certificate file, used to identify this server to clients")
 	flags.String(c.Prefix+tlsKey, "", "Path to a TLS Private Key file, used to identify this server to clients")
@@ -59,9 +57,9 @@ func (c ServerFlagsConfig) AddFlags(flags *flag.FlagSet) {
 	flags.String(c.Prefix+tlsCipherSuites, "", "Comma-separated list of cipher suites for the server, values are from tls package constants (https://golang.org/pkg/crypto/tls/#pkg-constants).")
 	flags.String(c.Prefix+tlsMinVersion, "", "Minimum TLS version supported (Possible values: 1.0, 1.1, 1.2, 1.3)")
 	flags.String(c.Prefix+tlsMaxVersion, "", "Maximum TLS version supported (Possible values: 1.0, 1.1, 1.2, 1.3)")
-	if c.EnableCertReloadInterval {
-		flags.Duration(c.Prefix+tlsReloadInterval, 0, "The duration after which the certificate will be reloaded (0s means will not be reloaded)")
-	}
+	// if c.EnableCertReloadInterval {
+	flags.Duration(c.Prefix+tlsReloadInterval, 0, "The duration after which the certificate will be reloaded (0s means will not be reloaded)")
+	// }
 }
 
 // InitFromViper creates tls.Config populated with values retrieved from Viper.
