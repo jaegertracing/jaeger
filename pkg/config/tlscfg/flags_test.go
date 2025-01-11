@@ -193,7 +193,7 @@ func TestFailedTLSFlags(t *testing.T) {
 							return clientConfig.InitFromViper(v)
 						}
 					} else {
-						serverConfig := &ServerFlagsConfig{Prefix: "prefix",}
+						serverConfig := &ServerFlagsConfig{Prefix: "prefix"}
 						addFlags = serverConfig.AddFlags
 						initFromViper = func(v *viper.Viper) (any, error) {
 							return serverConfig.InitFromViper(v)
