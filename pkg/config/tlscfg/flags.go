@@ -86,7 +86,6 @@ func (c ClientFlagsConfig) InitFromViper(v *viper.Viper) (configtls.ClientConfig
 
 // InitFromViper creates tls.Config populated with values retrieved from Viper.
 func (c ServerFlagsConfig) InitFromViper(v *viper.Viper) (*configtls.ServerConfig, error) {
-	c.EnableCertReloadInterval=true
 	var p options
 	p.Enabled = v.GetBool(c.Prefix + tlsEnabled)
 	p.CertPath = v.GetString(c.Prefix + tlsCert)
