@@ -8,7 +8,6 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 )
 
-
 func AddWarnings(span ptrace.Span, warnings ...string) {
 	var w pcommon.Slice
 	if currWarnings, ok := span.Attributes().Get(WarningsAttribute); ok {
