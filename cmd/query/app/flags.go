@@ -49,10 +49,12 @@ const (
 
 var tlsGRPCFlagsConfig = tlscfg.ServerFlagsConfig{
 	Prefix: "query.grpc",
+	EnableCertReloadInterval: true,
 }
 
 var tlsHTTPFlagsConfig = tlscfg.ServerFlagsConfig{
 	Prefix: "query.http",
+	EnableCertReloadInterval: true,
 }
 
 type UIConfig struct {

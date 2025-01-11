@@ -97,6 +97,7 @@ func TestServerFlags(t *testing.T) {
 			flagSet := &flag.FlagSet{}
 			flagCfg := ServerFlagsConfig{
 				Prefix: "prefix",
+				EnableCertReloadInterval: true,
 			}
 			flagCfg.AddFlags(flagSet)
 			command.PersistentFlags().AddGoFlagSet(flagSet)
@@ -199,7 +200,7 @@ func TestFailedTLSFlags(t *testing.T) {
 							return clientConfig.InitFromViper(v)
 						}
 					} else {
-						serverConfig := &ServerFlagsConfig{Prefix: "prefix"}
+						serverConfig := &ServerFlagsConfig{Prefix: "prefix",EnableCertReloadInterval: true,}
 						addFlags = serverConfig.AddFlags
 						initFromViper = func(v *viper.Viper) (any, error) {
 							return serverConfig.InitFromViper(v)

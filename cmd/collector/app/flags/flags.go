@@ -56,6 +56,7 @@ var grpcServerFlagsCfg = serverFlagsConfig{
 	prefix: "collector.grpc-server",
 	tls: tlscfg.ServerFlagsConfig{
 		Prefix: "collector.grpc",
+		EnableCertReloadInterval: true,
 	},
 }
 
@@ -64,6 +65,7 @@ var httpServerFlagsCfg = serverFlagsConfig{
 	prefix: "collector.http-server",
 	tls: tlscfg.ServerFlagsConfig{
 		Prefix: "collector.http",
+		EnableCertReloadInterval: true,
 	},
 	corsCfg: corscfg.Flags{
 		Prefix: "collector.otlp.http",
@@ -97,6 +99,7 @@ var zipkinServerFlagsCfg = serverFlagsConfig{
 	prefix: "collector.zipkin",
 	tls: tlscfg.ServerFlagsConfig{
 		Prefix: "collector.zipkin",
+		EnableCertReloadInterval: true,
 	},
 	corsCfg: corscfg.Flags{
 		Prefix: "collector.zipkin",

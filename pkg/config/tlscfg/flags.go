@@ -51,6 +51,7 @@ func (c ClientFlagsConfig) AddFlags(flags *flag.FlagSet) {
 
 // AddFlags adds flags for TLS to the FlagSet.
 func (c ServerFlagsConfig) AddFlags(flags *flag.FlagSet) {
+	c.EnableCertReloadInterval=true
 	flags.Bool(c.Prefix+tlsEnabled, false, "Enable TLS on the server")
 	flags.String(c.Prefix+tlsCert, "", "Path to a TLS Certificate file, used to identify this server to clients")
 	flags.String(c.Prefix+tlsKey, "", "Path to a TLS Private Key file, used to identify this server to clients")
@@ -85,6 +86,7 @@ func (c ClientFlagsConfig) InitFromViper(v *viper.Viper) (configtls.ClientConfig
 
 // InitFromViper creates tls.Config populated with values retrieved from Viper.
 func (c ServerFlagsConfig) InitFromViper(v *viper.Viper) (*configtls.ServerConfig, error) {
+	c.EnableCertReloadInterval=true
 	var p options
 	p.Enabled = v.GetBool(c.Prefix + tlsEnabled)
 	p.CertPath = v.GetString(c.Prefix + tlsCert)
