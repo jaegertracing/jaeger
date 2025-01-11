@@ -146,11 +146,7 @@ func TestServerCertReloadInterval(t *testing.T) {
 				"--" + test.config.Prefix + ".tls.enabled=true",
 				"--" + test.config.Prefix + ".tls.reload-interval=24h",
 			})
-			// if !test.config.EnableCertReloadInterval {
-			// 	assert.ErrorContains(t, err, "unknown flag")
-			// } else {
 			require.NoError(t, err)
-			// }
 		})
 	}
 }

@@ -57,9 +57,7 @@ func (c ServerFlagsConfig) AddFlags(flags *flag.FlagSet) {
 	flags.String(c.Prefix+tlsCipherSuites, "", "Comma-separated list of cipher suites for the server, values are from tls package constants (https://golang.org/pkg/crypto/tls/#pkg-constants).")
 	flags.String(c.Prefix+tlsMinVersion, "", "Minimum TLS version supported (Possible values: 1.0, 1.1, 1.2, 1.3)")
 	flags.String(c.Prefix+tlsMaxVersion, "", "Maximum TLS version supported (Possible values: 1.0, 1.1, 1.2, 1.3)")
-	// if c.EnableCertReloadInterval {
 	flags.Duration(c.Prefix+tlsReloadInterval, 0, "The duration after which the certificate will be reloaded (0s means will not be reloaded)")
-	// }
 }
 
 // InitFromViper creates tls.Config populated with values retrieved from Viper.
