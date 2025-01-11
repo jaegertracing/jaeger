@@ -15,7 +15,7 @@ func NewServiceNameSanitizer(c cache.Cache) SanitizeSpan {
 	return sanitizer.Sanitize
 }
 
-// ServiceNameSanitizer sanitizes the service names in span annotations given a source of truth alias to service cache.
+// serviceNameSanitizer sanitizes the service names in span annotations given a source of truth alias to service cache.
 type serviceNameSanitizer struct {
 	cache cache.Cache
 }

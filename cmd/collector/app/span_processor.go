@@ -15,6 +15,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sanitizer"
+	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/queue"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
@@ -237,7 +238,7 @@ func (sp *spanProcessor) enqueueSpan(span *model.Span, originalFormat processor.
 	}
 
 	// add format tag
-	span.Tags = append(span.Tags, model.String("internal.span.format", string(originalFormat)))
+	span.Tags = append(span.Tags, model.String(jptrace.FormatAttribute, string(originalFormat)))
 
 	item := queueItem{
 		queuedTime: time.Now(),

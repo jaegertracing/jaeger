@@ -53,11 +53,9 @@ var ( // interface comformance checks
 type Factory struct {
 	Options *Options
 
-	metricsFactory        metrics.Factory
-	primaryMetricsFactory metrics.Factory
-	archiveMetricsFactory metrics.Factory
-	logger                *zap.Logger
-	tracer                trace.TracerProvider
+	metricsFactory metrics.Factory
+	logger         *zap.Logger
+	tracer         trace.TracerProvider
 
 	primaryConfig config.Configuration
 	archiveConfig *config.Configuration
@@ -141,20 +139,6 @@ func (f *Factory) configureFromOptions(o *Options) {
 // Initialize implements storage.Factory
 func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
 	f.metricsFactory = metricsFactory
-	f.primaryMetricsFactory = metricsFactory.Namespace(
-		metrics.NSOptions{
-			Tags: map[string]string{
-				"role": "primary",
-			},
-		},
-	)
-	f.archiveMetricsFactory = metricsFactory.Namespace(
-		metrics.NSOptions{
-			Tags: map[string]string{
-				"role": "archive",
-			},
-		},
-	)
 	f.logger = logger
 
 	primarySession, err := f.sessionBuilderFn(&f.primaryConfig)
@@ -219,11 +203,11 @@ func NewSession(c *config.Configuration) (cassandra.Session, error) {
 
 // CreateSpanReader implements storage.Factory
 func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
-	sr, err := cSpanStore.NewSpanReader(f.primarySession, f.primaryMetricsFactory, f.logger, f.tracer.Tracer("cSpanStore.SpanReader"))
+	sr, err := cSpanStore.NewSpanReader(f.primarySession, f.metricsFactory, f.logger, f.tracer.Tracer("cSpanStore.SpanReader"))
 	if err != nil {
 		return nil, err
 	}
-	return spanstoremetrics.NewReaderDecorator(sr, f.primaryMetricsFactory), nil
+	return spanstoremetrics.NewReaderDecorator(sr, f.metricsFactory), nil
 }
 
 // CreateSpanWriter implements storage.Factory
@@ -232,13 +216,13 @@ func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
 	if err != nil {
 		return nil, err
 	}
-	return cSpanStore.NewSpanWriter(f.primarySession, f.Options.SpanStoreWriteCacheTTL, f.primaryMetricsFactory, f.logger, options...)
+	return cSpanStore.NewSpanWriter(f.primarySession, f.Options.SpanStoreWriteCacheTTL, f.metricsFactory, f.logger, options...)
 }
 
 // CreateDependencyReader implements storage.Factory
 func (f *Factory) CreateDependencyReader() (dependencystore.Reader, error) {
 	version := cDepStore.GetDependencyVersion(f.primarySession)
-	return cDepStore.NewDependencyStore(f.primarySession, f.primaryMetricsFactory, f.logger, version)
+	return cDepStore.NewDependencyStore(f.primarySession, f.metricsFactory, f.logger, version)
 }
 
 // CreateArchiveSpanReader implements storage.ArchiveFactory
@@ -246,11 +230,18 @@ func (f *Factory) CreateArchiveSpanReader() (spanstore.Reader, error) {
 	if f.archiveSession == nil {
 		return nil, storage.ErrArchiveStorageNotConfigured
 	}
-	sr, err := cSpanStore.NewSpanReader(f.archiveSession, f.archiveMetricsFactory, f.logger, f.tracer.Tracer("cSpanStore.SpanReader"))
+	archiveMetricsFactory := f.metricsFactory.Namespace(
+		metrics.NSOptions{
+			Tags: map[string]string{
+				"role": "archive",
+			},
+		},
+	)
+	sr, err := cSpanStore.NewSpanReader(f.archiveSession, archiveMetricsFactory, f.logger, f.tracer.Tracer("cSpanStore.SpanReader"))
 	if err != nil {
 		return nil, err
 	}
-	return spanstoremetrics.NewReaderDecorator(sr, f.archiveMetricsFactory), nil
+	return spanstoremetrics.NewReaderDecorator(sr, archiveMetricsFactory), nil
 }
 
 // CreateArchiveSpanWriter implements storage.ArchiveFactory
@@ -262,7 +253,14 @@ func (f *Factory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
 	if err != nil {
 		return nil, err
 	}
-	return cSpanStore.NewSpanWriter(f.archiveSession, f.Options.SpanStoreWriteCacheTTL, f.archiveMetricsFactory, f.logger, options...)
+	archiveMetricsFactory := f.metricsFactory.Namespace(
+		metrics.NSOptions{
+			Tags: map[string]string{
+				"role": "archive",
+			},
+		},
+	)
+	return cSpanStore.NewSpanWriter(f.archiveSession, f.Options.SpanStoreWriteCacheTTL, archiveMetricsFactory, f.logger, options...)
 }
 
 // CreateLock implements storage.SamplingStoreFactory
