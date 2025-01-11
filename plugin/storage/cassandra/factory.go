@@ -230,11 +230,18 @@ func (f *Factory) CreateArchiveSpanReader() (spanstore.Reader, error) {
 	if f.archiveSession == nil {
 		return nil, storage.ErrArchiveStorageNotConfigured
 	}
-	sr, err := cSpanStore.NewSpanReader(f.archiveSession, f.metricsFactory, f.logger, f.tracer.Tracer("cSpanStore.SpanReader"))
+	archiveMetricsFactory := f.metricsFactory.Namespace(
+		metrics.NSOptions{
+			Tags: map[string]string{
+				"role": "archive",
+			},
+		},
+	)
+	sr, err := cSpanStore.NewSpanReader(f.archiveSession, archiveMetricsFactory, f.logger, f.tracer.Tracer("cSpanStore.SpanReader"))
 	if err != nil {
 		return nil, err
 	}
-	return spanstoremetrics.NewReaderDecorator(sr, f.metricsFactory), nil
+	return spanstoremetrics.NewReaderDecorator(sr, archiveMetricsFactory), nil
 }
 
 // CreateArchiveSpanWriter implements storage.ArchiveFactory
@@ -246,7 +253,14 @@ func (f *Factory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
 	if err != nil {
 		return nil, err
 	}
-	return cSpanStore.NewSpanWriter(f.archiveSession, f.Options.SpanStoreWriteCacheTTL, f.metricsFactory, f.logger, options...)
+	archiveMetricsFactory := f.metricsFactory.Namespace(
+		metrics.NSOptions{
+			Tags: map[string]string{
+				"role": "archive",
+			},
+		},
+	)
+	return cSpanStore.NewSpanWriter(f.archiveSession, f.Options.SpanStoreWriteCacheTTL, archiveMetricsFactory, f.logger, options...)
 }
 
 // CreateLock implements storage.SamplingStoreFactory
