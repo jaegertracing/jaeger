@@ -19,6 +19,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/queue"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
+	"github.com/jaegertracing/jaeger/internal/jptrace"
 )
 
 const (
@@ -237,7 +238,7 @@ func (sp *spanProcessor) enqueueSpan(span *model.Span, originalFormat processor.
 	}
 
 	// add format tag
-	span.Tags = append(span.Tags, model.String("@jaeger@format", string(originalFormat)))
+	span.Tags = append(span.Tags, model.String(jptrace.FormatAttribute, string(originalFormat)))
 
 	item := queueItem{
 		queuedTime: time.Now(),
