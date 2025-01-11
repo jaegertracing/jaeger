@@ -11,16 +11,16 @@ print_help() {
   echo "-l: Enable local-only mode that only pushes images to local registry"
   echo "-o: overwrite image in the target remote repository even if the semver tag already exists"
   echo "-p: Comma-separated list of platforms to build for (default: all supported)"
-  echo "-v: Jaeger version to use for hotrod image (v1 or v2, default: v1)"
+  echo "-v: Jaeger version to use for hotrod image (v1 or v2, default: v2)"
   echo "-r: Runtime to test with (docker|k8s, default: docker)"
   exit 1
 }
 
-docker_compose_file="./examples/hotrod/docker-compose.yml"
+docker_compose_file="./examples/hotrod/docker-compose-v2.yml"
 platforms="$(make echo-linux-platforms)"
 current_platform="$(go env GOOS)/$(go env GOARCH)"
-jaeger_version="v1"
-binary="all-in-one"
+jaeger_version="v2"
+binary="jaeger"
 FLAGS=()
 success="false"
 runtime="docker"
@@ -54,7 +54,7 @@ done
 
 case "$jaeger_version" in
   v1)
-    docker_compose_file="./examples/hotrod/docker-compose.yml"
+    docker_compose_file="./examples/hotrod/docker-compose-v1.yml"
     binary="all-in-one"
     ;;
   v2)

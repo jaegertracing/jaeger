@@ -7,13 +7,13 @@ set -euf -o pipefail
 
 print_help() {
   echo "Usage: $0 [-b binary]"
-  echo "-b: Which binary to build: 'all-in-one' (default) or 'jaeger' (v2)"
+  echo "-b: Which binary to build: 'all-in-one' or 'jaeger' (v2) (default)"
   echo "-h: Print help"
   exit 1
 }
 
-BINARY='all-in-one'
-compose_file=docker-compose/monitor/docker-compose.yml
+BINARY='jaeger'
+compose_file=docker-compose/monitor/docker-compose-v2.yml
 
 while getopts "b:h" opt; do
 	case "${opt}" in
@@ -28,8 +28,8 @@ done
 
 set -x
 
-if [ "$BINARY" == "jaeger" ]; then
-  compose_file=docker-compose/monitor/docker-compose-v2.yml
+if [ "$BINARY" == "all-in-one" ]; then
+  compose_file=docker-compose/monitor/docker-compose-v1.yml
 fi
 
 timeout=600

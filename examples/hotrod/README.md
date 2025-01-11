@@ -23,7 +23,7 @@ As of Jaeger v1.42.0 this application was upgraded to use the OpenTelemetry SDK 
 
 ### Run everything via `docker compose`
 
-* Download `docker-compose.yml` from https://github.com/jaegertracing/jaeger/blob/main/examples/hotrod/docker-compose.yml
+* Download `docker-compose-v1.yml` from https://github.com/jaegertracing/jaeger/blob/main/examples/hotrod/docker-compose-v1.yml
 * Optional: find the latest Jaeger version (see https://www.jaegertracing.io/download/) and pass it via environment variable `JAEGER_VERSION`. Otherwise `docker compose` will use the `latest` tag, which is fine for the first time you download the images, but once they are in your local registry the `latest` tag is never updated and you may be running stale (and possibly incompatible) verions of Jaeger and the HotROD app.
 * Run Jaeger backend and HotROD demo, e.g.:
   * `JAEGER_VERSION=1.52 docker compose -f path-to-yml-file up`
