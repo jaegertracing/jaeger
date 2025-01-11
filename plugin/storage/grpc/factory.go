@@ -167,14 +167,7 @@ func (f *Factory) newRemoteStorage(
 
 // CreateSpanReader implements storage.Factory
 func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
-	primaryMetricsFactory := f.telset.Metrics.Namespace(
-		metrics.NSOptions{
-			Tags: map[string]string{
-				"role": "primary",
-			},
-		},
-	)
-	return spanstoremetrics.NewReaderDecorator(f.services.Store.SpanReader(), primaryMetricsFactory), nil
+	return spanstoremetrics.NewReaderDecorator(f.services.Store.SpanReader(), f.telset.Metrics), nil
 }
 
 // CreateSpanWriter implements storage.Factory
