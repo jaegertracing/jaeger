@@ -130,12 +130,12 @@ func TestServerCertReloadInterval(t *testing.T) {
 	}{
 		{
 			config: ServerFlagsConfig{
-				Prefix:                   "enabled",
+				Prefix: "enabled",
 			},
 		},
 		{
 			config: ServerFlagsConfig{
-				Prefix:                   "disabled",
+				Prefix: "disabled",
 			},
 		},
 	}

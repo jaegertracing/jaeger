@@ -35,7 +35,7 @@ type ClientFlagsConfig struct {
 
 // ServerFlagsConfig describes which CLI flags for TLS server should be generated.
 type ServerFlagsConfig struct {
-	Prefix                   string
+	Prefix string
 }
 
 // AddFlags adds flags for TLS to the FlagSet.
