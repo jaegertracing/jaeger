@@ -136,7 +136,7 @@ func newSpanProcessor(traceWriter tracestore.Writer, additional []ProcessSpan, o
 			zap.Uint("queue-size-warmup", options.dynQueueSizeWarmup))
 	}
 	if options.dynQueueSizeMemory > 0 || options.spanSizeMetricsEnabled {
-		processSpanFuncs = append(processSpanFuncs, sp.countSpan)
+		processSpanFuncs = append(processSpanFuncs, sp.countSpansInQueue)
 	}
 	sp.processSpan = ChainedProcessSpan(append(processSpanFuncs, additional...)...)
 
@@ -145,7 +145,7 @@ func newSpanProcessor(traceWriter tracestore.Writer, additional []ProcessSpan, o
 		exporter.Settings{
 			TelemetrySettings: sp.telset.ToOtelComponent(),
 		},
-		struct{}{}, // surprisingly exporterhelper ignores the config but requires it not be nil
+		struct{}{}, // exporterhelper requires not-nil config, but then ignores it
 		sp.pushTraces,
 		exporterhelper.WithQueue(exporterhelper.NewDefaultQueueConfig()),
 		//   exporterhelper.WithCapabilities(consumer.Capabilities{MutatesData: false}),
@@ -186,15 +186,25 @@ func (sp *spanProcessor) pushTraces(ctx context.Context, td ptrace.Traces) error
 		}
 	}
 
-	// TODO emit metrics
+	err := sp.traceWriter.WriteTraces(ctx, td)
 
-	return sp.traceWriter.WriteTraces(ctx, td)
+	sp.metrics.BatchSize.Update(int64(td.SpanCount()))
+	jptrace.SpanIter(td)(func(i jptrace.SpanIterPos, span ptrace.Span) bool {
+		if err != nil {
+			sp.metrics.SavedErrBySvc.ForSpanV2(i.Resource.Resource(), span)
+		} else {
+			sp.metrics.SavedOkBySvc.ForSpanV2(i.Resource.Resource(), span)
+		}
+		return true
+	})
+
+	return err
 }
 
 func (sp *spanProcessor) saveSpan(span *model.Span, tenant string) {
-	if nil == span.Process {
+	if span.Process == nil {
 		sp.logger.Error("process is empty for the span")
-		sp.metrics.SavedErrBySvc.ReportServiceNameForSpan(span)
+		sp.metrics.SavedErrBySvc.ForSpanV1(span)
 		return
 	}
 
@@ -205,11 +215,11 @@ func (sp *spanProcessor) saveSpan(span *model.Span, tenant string) {
 	ctx := tenancy.WithTenant(context.Background(), tenant)
 	if err := sp.writeSpan(ctx, span); err != nil {
 		sp.logger.Error("Failed to save span", zap.Error(err))
-		sp.metrics.SavedErrBySvc.ReportServiceNameForSpan(span)
+		sp.metrics.SavedErrBySvc.ForSpanV1(span)
 	} else {
 		sp.logger.Debug("Span written to the storage by the collector",
 			zap.Stringer("trace-id", span.TraceID), zap.Stringer("span-id", span.SpanID))
-		sp.metrics.SavedOkBySvc.ReportServiceNameForSpan(span)
+		sp.metrics.SavedOkBySvc.ForSpanV1(span)
 	}
 	sp.metrics.SaveLatency.Record(time.Since(startTime))
 }
@@ -223,7 +233,7 @@ func (sp *spanProcessor) writeSpan(ctx context.Context, span *model.Span) error 
 	return sp.traceWriter.WriteTraces(ctx, traces)
 }
 
-func (sp *spanProcessor) countSpan(span *model.Span, _ string /* tenant */) {
+func (sp *spanProcessor) countSpansInQueue(span *model.Span, _ string /* tenant */) {
 	//nolint: gosec // G115
 	sp.bytesProcessed.Add(uint64(span.Size()))
 	sp.spansProcessed.Add(1)
@@ -239,10 +249,6 @@ func (sp *spanProcessor) ProcessSpans(batch processor.Batch) ([]bool, error) {
 	batch.GetSpans(func(spans []*model.Span) {
 		batchOks, batchErr = sp.processSpans(batch, spans)
 	}, func(traces ptrace.Traces) {
-		// If we don't have a v2-capable Writer, we can fall back to v1 path
-		// Right now we don't.
-
-		// We cannot pass batch to the exporter, so capture tenant in the context.
 		// TODO verify if the context will survive all the way to the consumer threads.
 		ctx := tenancy.WithTenant(context.Background(), batch.GetTenant())
 
@@ -313,10 +319,10 @@ func (sp *spanProcessor) addCollectorTags(span *model.Span) {
 // in this function as it may cause race conditions.
 func (sp *spanProcessor) enqueueSpan(span *model.Span, originalFormat processor.SpanFormat, transport processor.InboundTransport, tenant string) bool {
 	spanCounts := sp.metrics.GetCountsForFormat(originalFormat, transport)
-	spanCounts.ReceivedBySvc.ReportServiceNameForSpan(span)
+	spanCounts.ReceivedBySvc.ForSpanV1(span)
 
 	if !sp.filterSpan(span) {
-		spanCounts.RejectedBySvc.ReportServiceNameForSpan(span)
+		spanCounts.RejectedBySvc.ForSpanV1(span)
 		return true // as in "not dropped", because it's actively rejected
 	}
 

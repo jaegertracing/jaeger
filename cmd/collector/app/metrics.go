@@ -8,6 +8,10 @@ import (
 	"strings"
 	"sync"
 
+	"go.opentelemetry.io/collector/pdata/pcommon"
+	"go.opentelemetry.io/collector/pdata/ptrace"
+	conventions "go.opentelemetry.io/collector/semconv/v1.16.0"
+
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
@@ -224,9 +228,9 @@ func (m *SpanProcessorMetrics) GetCountsForFormat(spanFormat processor.SpanForma
 	return t
 }
 
-// reportServiceNameForSpan determines the name of the service that emitted
+// ForSpanV1 determines the name of the service that emitted
 // the span and reports a counter stat.
-func (m metricsBySvc) ReportServiceNameForSpan(span *model.Span) {
+func (m metricsBySvc) ForSpanV1(span *model.Span) {
 	var serviceName string
 	if nil == span.Process || len(span.Process.ServiceName) == 0 {
 		serviceName = "__unknown"
@@ -238,6 +242,20 @@ func (m metricsBySvc) ReportServiceNameForSpan(span *model.Span) {
 	if span.ParentSpanID() == 0 {
 		m.countTracesByServiceName(serviceName, span.Flags.IsDebug(), span.
 			GetSamplerType())
+	}
+}
+
+// ForSpanV1 determines the name of the service that emitted
+// the span and reports a counter stat.
+func (m metricsBySvc) ForSpanV2(resource pcommon.Resource, span ptrace.Span) {
+	serviceName := "__unknown"
+	if v, ok := resource.Attributes().Get(conventions.AttributeServiceName); ok {
+		serviceName = v.AsString()
+	}
+
+	m.countSpansByServiceName(serviceName, false)
+	if span.ParentSpanID().IsEmpty() {
+		m.countTracesByServiceName(serviceName, false, model.SamplerTypeUnrecognized)
 	}
 }
 
