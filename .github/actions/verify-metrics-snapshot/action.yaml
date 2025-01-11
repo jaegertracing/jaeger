@@ -50,6 +50,7 @@ runs:
       
     - name: Download the cached tagged metrics
       id: download-release-snapshot
+      if: github.ref_name != 'main'
       uses: actions/cache/restore@1bd1e32a3bdc45362d1e726936510720a7c30a57
       with:
         path: ./.metrics/release_${{ inputs.snapshot}}
@@ -61,9 +62,9 @@ runs:
       shell: bash
       run: |
         python3 -m pip install prometheus-client
-        python3 ./scripts/e2e/compare_metrics.py --file1 ./.metrics/${{ inputs.snapshot }} --file2 ./.metrics/cached_${{ inputs.snapshot}} --output ./.metrics/diff_${{ inputs.snapshot }}
+        python3 ./scripts/e2e/compare_metrics.py --file1 ./.metrics/${{ inputs.snapshot }} --file2 ./.metrics/release_${{ inputs.snapshot}} --output ./.metrics/diff_${{ inputs.snapshot }}
         if [ $? -eq 1 ]; then
-        echo "Differences found in metrics"
+        echo "🛑 Differences found in metrics"
         exit 1
         fi
 
