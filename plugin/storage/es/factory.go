@@ -231,7 +231,7 @@ func (f *Factory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
 	if f.archiveConfig.UseReadWriteAliases {
 		writeAlias += "-write"
 	}
-  archiveMetricsFactory := f.metricsFactory.Namespace(
+	archiveMetricsFactory := f.metricsFactory.Namespace(
 		metrics.NSOptions{
 			Tags: map[string]string{
 				"role": "archive",
