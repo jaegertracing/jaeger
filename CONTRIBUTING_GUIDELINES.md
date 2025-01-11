@@ -50,8 +50,7 @@ If you are new to GitHub's contribution workflow, we recommend the following set
       ```bash
       git remote -v
       ``` 
-      Will show `origin`, e.g. 
-      ```origin	git@github.com:{username}/jaeger.git```
+      will show `origin`, e.g. `origin git@github.com:{username}/jaeger.git`
     * Add `upstream` remote:
       ```bash
       git remote add upstream git@github.com:jaegertracing/jaeger.git
@@ -68,8 +67,7 @@ If you are new to GitHub's contribution workflow, we recommend the following set
 
 Once you're ready to make changes:
   * Create a new local branch (DO NOT make changes to `main`, it will cause CI errors).
-  * Commit your changes, making sure **each commit is signed**, e.g.
-    ([see below](#certificate-of-origin---sign-your-work)).
+  * Commit your changes, making sure **each commit is signed** ([see below](#certificate-of-origin---sign-your-work)):
     ```bash
     git commit -s -m "Your commit message"
     ``` 
