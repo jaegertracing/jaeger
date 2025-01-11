@@ -10,12 +10,12 @@ import (
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
-	conventions "go.opentelemetry.io/collector/semconv/v1.16.0"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/normalizer"
+	"github.com/jaegertracing/jaeger/pkg/otelsemconv"
 )
 
 const (
@@ -249,7 +249,7 @@ func (m metricsBySvc) ForSpanV1(span *model.Span) {
 // the span and reports a counter stat.
 func (m metricsBySvc) ForSpanV2(resource pcommon.Resource, span ptrace.Span) {
 	serviceName := "__unknown"
-	if v, ok := resource.Attributes().Get(conventions.AttributeServiceName); ok {
+	if v, ok := resource.Attributes().Get(string(otelsemconv.ServiceNameKey)); ok {
 		serviceName = v.AsString()
 	}
 
