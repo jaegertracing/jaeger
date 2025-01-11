@@ -295,6 +295,28 @@ func TestServerAddArchiveStorage(t *testing.T) {
 			expectedErr:    "cannot find archive storage factory: cannot find extension",
 		},
 		{
+			name: "Archive storage span reader error",
+			config: &Config{
+				Storage: Storage{
+					TracesArchive: "need-span-reader-error",
+				},
+			},
+			v2qSvcOpts:     &v2querysvc.QueryServiceOptions{},
+			extension:      fakeStorageExt{},
+			expectedOutput: "Cannot init archive storage reader",
+		},
+		{
+			name: "Archive storage span writer error",
+			config: &Config{
+				Storage: Storage{
+					TracesArchive: "need-span-writer-error",
+				},
+			},
+			v2qSvcOpts:     &v2querysvc.QueryServiceOptions{},
+			extension:      fakeStorageExt{},
+			expectedOutput: "Cannot init archive storage writer",
+		},
+		{
 			name: "Archive storage exists",
 			config: &Config{
 				Storage: Storage{
