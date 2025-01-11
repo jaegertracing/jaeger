@@ -46,17 +46,38 @@ If you are new to GitHub's contribution workflow, we recommend the following set
   * Go to the respective Jaeger repo on GitHub and create a fork using the button at the top. Select a destination org where you have write permissions (usually it is your personal "org").
   * Clone the fork into your workspace.
   * (Recommended): register upstream repo as remote
-    * After you clone your forked repo, `git remote -v` will show `origin`, e.g. `origin	git@github.com:{username}/jaeger.git`
-    * Add `upstream` remote: `git remote add upstream git@github.com:jaegertracing/jaeger.git`
-    * Fetch it: `git fetch upstream main`
-    * Repoint your main branch: `git branch --set-upstream-to=upstream/main main`
+    * After you clone your forked repo, running below command
+      ```bash
+      git remote -v
+      ``` 
+      Will show `origin`, e.g. 
+      ```origin	git@github.com:{username}/jaeger.git```
+    * Add `upstream` remote:
+      ```bash
+      git remote add upstream git@github.com:jaegertracing/jaeger.git
+      ```
+    * Fetch it:
+      ```bash
+      git fetch upstream main
+      ```
+    * Repoint your main branch: 
+      ```bash
+      git branch --set-upstream-to=upstream/main main
+      ```
     * With this setup, you will not need to keep your main branch in the fork in sync with the upstream repo.
 
 Once you're ready to make changes:
   * Create a new local branch (DO NOT make changes to `main`, it will cause CI errors).
-  * Commit your changes, making sure **each commit is signed**, e.g. `git commit -s ...` ([see below](#certificate-of-origin---sign-your-work)).
+  * Commit your changes, making sure **each commit is signed**, e.g.
+    ([see below](#certificate-of-origin---sign-your-work)).
+    ```bash
+    git commit -s -m "Your commit message"
+    ``` 
   * You do not need to squash the commits, it will happen once the PR is merged into the official repo (but each individual commit must be signed).
-  * When satisfied, push the changes. Git will likely ask for upstream destination: `git push --set-upstream origin {branch-name}`.
+  * When satisfied, push the changes. Git will likely ask for upstream destination, so you push commits like this:
+    ```bash
+    git push --set-upstream origin {branch-name}
+    ```
   * After you push, look for the output, it usually contains a URL to create a pull request.
 
 Each PR should have:
