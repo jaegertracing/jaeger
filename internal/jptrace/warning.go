@@ -13,7 +13,7 @@ const (
 	// store various warnings produced from transformations,
 	// such as inbound sanitizers and outbound adjusters.
 	// The value type of the attribute is a string slice.
-	WarningsAttribute = "jaeger.internal.warnings"
+	WarningsAttribute = "@jaeger@warnings"
 )
 
 func AddWarnings(span ptrace.Span, warnings ...string) {

@@ -237,7 +237,7 @@ func (sp *spanProcessor) enqueueSpan(span *model.Span, originalFormat processor.
 	}
 
 	// add format tag
-	span.Tags = append(span.Tags, model.String("internal.span.format", string(originalFormat)))
+	span.Tags = append(span.Tags, model.String("@jaeger@format", string(originalFormat)))
 
 	item := queueItem{
 		queuedTime: time.Now(),
