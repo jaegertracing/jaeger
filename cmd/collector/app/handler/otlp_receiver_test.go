@@ -130,3 +130,31 @@ func TestConsumerHelper(t *testing.T) {
 	assert.Empty(t, spanProcessor.getSpans())
 	assert.Len(t, spanProcessor.getTraces(), 1)
 }
+
+func TestConsumerConsume_Error(t *testing.T) {
+	logger, _ := testutils.NewLogger()
+	spanProcessor := &mockSpanProcessor{expectedError: errors.New("mock error")}
+	consumerHelper := &consumerHelper{
+		batchConsumer: newBatchConsumer(logger,
+			spanProcessor,
+			processor.UnknownTransport, // could be gRPC or HTTP
+			processor.OTLPSpanFormat,
+			&tenancy.Manager{}),
+	}
+	err := consumerHelper.consume(context.Background(), makeTracesOneSpan())
+	require.ErrorContains(t, err, "mock error")
+}
+
+func TestConsumerConsume_TenantError(t *testing.T) {
+	logger, _ := testutils.NewLogger()
+	spanProcessor := &mockSpanProcessor{}
+	consumerHelper := &consumerHelper{
+		batchConsumer: newBatchConsumer(logger,
+			spanProcessor,
+			processor.UnknownTransport, // could be gRPC or HTTP
+			processor.OTLPSpanFormat,
+			&tenancy.Manager{Enabled: true}),
+	}
+	err := consumerHelper.consume(context.Background(), makeTracesOneSpan())
+	require.ErrorContains(t, err, "missing tenant header")
+}
