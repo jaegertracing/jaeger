@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -243,19 +244,33 @@ func TestArchiveDisabled(t *testing.T) {
 }
 
 func TestArchiveEnabled(t *testing.T) {
-	f := NewFactory()
-	f.primaryConfig = &escfg.Configuration{}
-	f.archiveConfig = &escfg.Configuration{Enabled: true}
-	f.newClientFn = (&mockClientBuilder{}).NewClient
-	err := f.Initialize(metrics.NullFactory, zap.NewNop())
-	require.NoError(t, err)
-	defer f.Close() // Ensure resources are cleaned up if initialization is successful
-	w, err := f.CreateArchiveSpanWriter()
-	require.NoError(t, err)
-	assert.NotNil(t, w)
-	r, err := f.CreateArchiveSpanReader()
-	require.NoError(t, err)
-	assert.NotNil(t, r)
+	tests := []struct {
+		useReadWriteAliases bool
+	}{
+		{
+			useReadWriteAliases: false,
+		},
+		{
+			useReadWriteAliases: true,
+		},
+	}
+	for _, test := range tests {
+		t.Run(fmt.Sprintf("useReadWriteAliases=%v", test.useReadWriteAliases), func(t *testing.T) {
+			f := NewFactory()
+			f.primaryConfig = &escfg.Configuration{}
+			f.archiveConfig = &escfg.Configuration{Enabled: true, UseReadWriteAliases: test.useReadWriteAliases}
+			f.newClientFn = (&mockClientBuilder{}).NewClient
+			err := f.Initialize(metrics.NullFactory, zap.NewNop())
+			require.NoError(t, err)
+			defer f.Close() // Ensure resources are cleaned up if initialization is successful
+			w, err := f.CreateArchiveSpanWriter()
+			require.NoError(t, err)
+			assert.NotNil(t, w)
+			r, err := f.CreateArchiveSpanReader()
+			require.NoError(t, err)
+			assert.NotNil(t, r)
+		})
+	}
 }
 
 func TestConfigureFromOptions(t *testing.T) {
