@@ -25,7 +25,10 @@ import (
 	"github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 )
 
-var httpClient = &http.Client{Timeout: 2 * time.Second}
+var (
+	httpClient                      = &http.Client{Timeout: 2 * time.Second}
+	_          JaegerBatchesHandler = (*mockJaegerHandler)(nil)
+)
 
 type mockJaegerHandler struct {
 	err     error
@@ -33,7 +36,7 @@ type mockJaegerHandler struct {
 	batches []*jaeger.Batch
 }
 
-func (p *mockJaegerHandler) SubmitBatches(batches []*jaeger.Batch, _ SubmitBatchOptions) ([]*jaeger.BatchSubmitResponse, error) {
+func (p *mockJaegerHandler) SubmitBatches(_ context.Context, batches []*jaeger.Batch, _ SubmitBatchOptions) ([]*jaeger.BatchSubmitResponse, error) {
 	p.mux.Lock()
 	defer p.mux.Unlock()
 	p.batches = append(p.batches, batches...)

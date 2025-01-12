@@ -36,6 +36,8 @@ const (
 	minRequiredChange = 1.2
 )
 
+var _ processor.SpanProcessor = (*spanProcessor)(nil)
+
 type spanProcessor struct {
 	queue              *queue.BoundedQueue[queueItem]
 	otelExporter       exporter.Traces
@@ -240,7 +242,7 @@ func (sp *spanProcessor) countSpansInQueue(span *model.Span, _ string /* tenant 
 }
 
 // TODO pass Context
-func (sp *spanProcessor) ProcessSpans(batch processor.Batch) ([]bool, error) {
+func (sp *spanProcessor) ProcessSpans(ctx context.Context, batch processor.Batch) ([]bool, error) {
 	// We call preProcessSpans on a batch, it's responsibility of implementation
 	// to understand v1/v2 distinction. Jaeger itself does not use pre-processors.
 	sp.preProcessSpans(batch)
@@ -248,10 +250,10 @@ func (sp *spanProcessor) ProcessSpans(batch processor.Batch) ([]bool, error) {
 	var batchOks []bool
 	var batchErr error
 	batch.GetSpans(func(spans []*model.Span) {
-		batchOks, batchErr = sp.processSpans(batch, spans)
+		batchOks, batchErr = sp.processSpans(ctx, batch, spans)
 	}, func(traces ptrace.Traces) {
 		// TODO verify if the context will survive all the way to the consumer threads.
-		ctx := tenancy.WithTenant(context.Background(), batch.GetTenant())
+		ctx := tenancy.WithTenant(ctx, batch.GetTenant())
 
 		// the exporter will eventually call pushTraces from consumer threads.
 		if err := sp.otelExporter.ConsumeTraces(ctx, traces); err != nil {
@@ -266,7 +268,7 @@ func (sp *spanProcessor) ProcessSpans(batch processor.Batch) ([]bool, error) {
 	return batchOks, batchErr
 }
 
-func (sp *spanProcessor) processSpans(batch processor.Batch, spans []*model.Span) ([]bool, error) {
+func (sp *spanProcessor) processSpans(_ context.Context, batch processor.Batch, spans []*model.Span) ([]bool, error) {
 	sp.metrics.BatchSize.Update(int64(len(spans)))
 	retMe := make([]bool, len(spans))
 
