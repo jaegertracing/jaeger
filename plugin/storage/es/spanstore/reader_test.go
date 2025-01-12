@@ -118,7 +118,7 @@ func withSpanReader(t *testing.T, fn func(r *spanReaderTest)) {
 	fn(r)
 }
 
-func withArchiveSpanReader(t *testing.T, readAlias bool, fn func(r *spanReaderTest)) {
+func withArchiveSpanReader(t *testing.T, readAlias bool, readAliasSuffix string, fn func(r *spanReaderTest)) {
 	client := &mocks.Client{}
 	tracer, exp, closer := tracerProvider(t)
 	defer closer()
@@ -134,7 +134,7 @@ func withArchiveSpanReader(t *testing.T, readAlias bool, fn func(r *spanReaderTe
 			Tracer:              tracer.Tracer("test"),
 			MaxSpanAge:          0,
 			TagDotReplacement:   "@",
-			ReadAliasSuffix:     "archive",
+			ReadAliasSuffix:     readAliasSuffix,
 			UseReadWriteAliases: readAlias,
 		}),
 	}
@@ -1252,13 +1252,30 @@ func TestSpanReader_GetEmptyIndex(t *testing.T) {
 }
 
 func TestSpanReader_ArchiveTraces(t *testing.T) {
-	withArchiveSpanReader(t, true, func(r *spanReaderTest) {
+	withArchiveSpanReader(t, true, "archive", func(r *spanReaderTest) {
 		mockSearchService(r).
 			Return(&elastic.SearchResult{}, nil)
 		mockArchiveMultiSearchService(r, "jaeger-span-archive").
 			Return(&elastic.MultiSearchResult{
 				Responses: []*elastic.SearchResult{},
 			}, nil)
+		query := spanstore.GetTraceParameters{}
+		trace, err := r.reader.GetTrace(context.Background(), query)
+		require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
+		require.Nil(t, trace)
+		require.EqualError(t, err, "trace not found")
+	})
+}
+
+func TestSpanReader_ArchiveTraces_ReadAlias(t *testing.T) {
+	withArchiveSpanReader(t, true, "archive-read", func(r *spanReaderTest) {
+		mockSearchService(r).
+			Return(&elastic.SearchResult{}, nil)
+		mockArchiveMultiSearchService(r, "jaeger-span-archive-read").
+			Return(&elastic.MultiSearchResult{
+				Responses: []*elastic.SearchResult{},
+			}, nil)
+
 		query := spanstore.GetTraceParameters{}
 		trace, err := r.reader.GetTrace(context.Background(), query)
 		require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
