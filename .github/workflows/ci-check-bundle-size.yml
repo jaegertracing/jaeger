@@ -42,7 +42,7 @@ jobs:
       run: make install-ci
 
     - name: Build jaeger binary
-      run: /
+      run: |
         export GOOS=linux
         export GOARCH=amd64
         make build-jaeger
