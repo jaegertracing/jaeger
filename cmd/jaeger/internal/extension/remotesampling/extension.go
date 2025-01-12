@@ -168,6 +168,7 @@ func (ext *rsExtension) startFileBasedStrategyProvider(_ context.Context) error 
 		StrategiesFile:             ext.cfg.File.Path,
 		ReloadInterval:             ext.cfg.File.ReloadInterval,
 		IncludeDefaultOpStrategies: includeDefaultOpStrategies.IsEnabled(),
+		DefaultSamplingProbability: ext.cfg.File.DefaultSamplingProbability,
 	}
 
 	// contextcheck linter complains about next line that context is not passed.

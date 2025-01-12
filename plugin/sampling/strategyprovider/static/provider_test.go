@@ -94,16 +94,16 @@ func mockStrategyServer(t *testing.T) (*httptest.Server, *atomic.Pointer[string]
 }
 
 func TestStrategyStoreWithFile(t *testing.T) {
-	_, err := NewProvider(Options{StrategiesFile: "fileNotFound.json"}, zap.NewNop())
+	_, err := NewProvider(Options{StrategiesFile: "fileNotFound.json", DefaultSamplingProbability: DefaultSamplingProbability}, zap.NewNop())
 	require.ErrorContains(t, err, "failed to read strategies file fileNotFound.json")
 
-	_, err = NewProvider(Options{StrategiesFile: "fixtures/bad_strategies.json"}, zap.NewNop())
+	_, err = NewProvider(Options{StrategiesFile: "fixtures/bad_strategies.json", DefaultSamplingProbability: DefaultSamplingProbability}, zap.NewNop())
 	require.EqualError(t, err,
 		"failed to unmarshal strategies: json: cannot unmarshal string into Go value of type static.strategies")
 
 	// Test default strategy
 	logger, buf := testutils.NewLogger()
-	provider, err := NewProvider(Options{}, logger)
+	provider, err := NewProvider(Options{DefaultSamplingProbability: DefaultSamplingProbability}, logger)
 	require.NoError(t, err)
 	assert.Contains(t, buf.String(), "No sampling strategies source provided, using defaults")
 	s, err := provider.GetSamplingStrategy(context.Background(), "foo")
@@ -130,7 +130,7 @@ func TestStrategyStoreWithURL(t *testing.T) {
 	// Test default strategy when URL is temporarily unavailable.
 	logger, buf := testutils.NewLogger()
 	mockServer, _ := mockStrategyServer(t)
-	provider, err := NewProvider(Options{StrategiesFile: mockServer.URL + "/service-unavailable"}, logger)
+	provider, err := NewProvider(Options{StrategiesFile: mockServer.URL + "/service-unavailable", DefaultSamplingProbability: DefaultSamplingProbability}, logger)
 	require.NoError(t, err)
 	assert.Contains(t, buf.String(), "No sampling strategies found or URL is unavailable, using defaults")
 	s, err := provider.GetSamplingStrategy(context.Background(), "foo")
@@ -154,10 +154,11 @@ func TestPerOperationSamplingStrategies(t *testing.T) {
 	tests := []struct {
 		options Options
 	}{
-		{Options{StrategiesFile: "fixtures/operation_strategies.json"}},
+		{Options{StrategiesFile: "fixtures/operation_strategies.json", DefaultSamplingProbability: DefaultSamplingProbability}},
 		{Options{
 			StrategiesFile:             "fixtures/operation_strategies.json",
 			IncludeDefaultOpStrategies: true,
+			DefaultSamplingProbability: DefaultSamplingProbability,
 		}},
 	}
 
@@ -245,11 +246,11 @@ func TestPerOperationSamplingStrategies(t *testing.T) {
 
 func TestMissingServiceSamplingStrategyTypes(t *testing.T) {
 	logger, buf := testutils.NewLogger()
-	provider, err := NewProvider(Options{StrategiesFile: "fixtures/missing-service-types.json"}, logger)
+	provider, err := NewProvider(Options{StrategiesFile: "fixtures/missing-service-types.json", DefaultSamplingProbability: DefaultSamplingProbability}, logger)
 	assert.Contains(t, buf.String(), "Failed to parse sampling strategy")
 	require.NoError(t, err)
 
-	expected := makeResponse(api_v2.SamplingStrategyType_PROBABILISTIC, defaultSamplingProbability)
+	expected := makeResponse(api_v2.SamplingStrategyType_PROBABILISTIC, DefaultSamplingProbability)
 
 	s, err := provider.GetSamplingStrategy(context.Background(), "foo")
 	require.NoError(t, err)
@@ -258,12 +259,12 @@ func TestMissingServiceSamplingStrategyTypes(t *testing.T) {
 
 	require.NotNil(t, s.OperationSampling)
 	opSampling := s.OperationSampling
-	assert.InDelta(t, defaultSamplingProbability, opSampling.DefaultSamplingProbability, 1e-4)
+	assert.InDelta(t, DefaultSamplingProbability, opSampling.DefaultSamplingProbability, 1e-4)
 	require.Len(t, opSampling.PerOperationStrategies, 1)
 	assert.Equal(t, "op1", opSampling.PerOperationStrategies[0].Operation)
 	assert.InDelta(t, 0.2, opSampling.PerOperationStrategies[0].ProbabilisticSampling.SamplingRate, 0.001)
 
-	expected = makeResponse(api_v2.SamplingStrategyType_PROBABILISTIC, defaultSamplingProbability)
+	expected = makeResponse(api_v2.SamplingStrategyType_PROBABILISTIC, DefaultSamplingProbability)
 
 	s, err = provider.GetSamplingStrategy(context.Background(), "bar")
 	require.NoError(t, err)
@@ -305,7 +306,7 @@ func TestParseStrategy(t *testing.T) {
 		},
 	}
 	logger, buf := testutils.NewLogger()
-	provider := &samplingProvider{logger: logger}
+	provider := &samplingProvider{options: Options{DefaultSamplingProbability: DefaultSamplingProbability}, logger: logger}
 	for _, test := range tests {
 		tt := test
 		t.Run("", func(t *testing.T) {
@@ -316,7 +317,7 @@ func TestParseStrategy(t *testing.T) {
 
 	// Test nonexistent strategy type
 	actual := *provider.parseStrategy(&strategy{Type: "blah", Param: 3.5})
-	expected := makeResponse(api_v2.SamplingStrategyType_PROBABILISTIC, defaultSamplingProbability)
+	expected := makeResponse(api_v2.SamplingStrategyType_PROBABILISTIC, provider.options.DefaultSamplingProbability)
 	assert.EqualValues(t, expected, actual)
 	assert.Contains(t, buf.String(), "Failed to parse sampling strategy")
 }
@@ -396,8 +397,9 @@ func TestAutoUpdateStrategyWithFile(t *testing.T) {
 func TestAutoUpdateStrategyWithURL(t *testing.T) {
 	mockServer, mockStrategy := mockStrategyServer(t)
 	ss, err := NewProvider(Options{
-		StrategiesFile: mockServer.URL,
-		ReloadInterval: 10 * time.Millisecond,
+		DefaultSamplingProbability: DefaultSamplingProbability,
+		StrategiesFile:             mockServer.URL,
+		ReloadInterval:             10 * time.Millisecond,
 	}, zap.NewNop())
 	require.NoError(t, err)
 	provider := ss.(*samplingProvider)
