@@ -204,11 +204,11 @@ func (f *Factory) CreateArchiveSpanReader() (spanstore.Reader, error) {
 	if !f.archiveConfig.Enabled {
 		return nil, nil
 	}
-	readAlias := "archive"
+	readAliasSuffix := "archive"
 	if f.archiveConfig.UseReadWriteAliases {
-		readAlias += "-read"
+		readAliasSuffix += "-read"
 	}
-	sr, err := createSpanReader(f.getArchiveClient, f.archiveConfig, f.logger, f.tracer, readAlias, true)
+	sr, err := createSpanReader(f.getArchiveClient, f.archiveConfig, f.logger, f.tracer, readAliasSuffix, true)
 	if err != nil {
 		return nil, err
 	}
@@ -246,7 +246,7 @@ func createSpanReader(
 	cfg *config.Configuration,
 	logger *zap.Logger,
 	tp trace.TracerProvider,
-	readAlias string,
+	readAliasSuffix string,
 	useReadWriteAliases bool,
 ) (spanstore.Reader, error) {
 	if cfg.UseILM && !cfg.UseReadWriteAliases {
@@ -261,7 +261,7 @@ func createSpanReader(
 		ServiceIndex:        cfg.Indices.Services,
 		TagDotReplacement:   cfg.Tags.DotReplacement,
 		UseReadWriteAliases: useReadWriteAliases,
-		ReadAliasSuffix:     readAlias,
+		ReadAliasSuffix:     readAliasSuffix,
 		RemoteReadClusters:  cfg.RemoteReadClusters,
 		Logger:              logger,
 		Tracer:              tp.Tracer("esSpanStore.SpanReader"),

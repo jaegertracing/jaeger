@@ -116,15 +116,15 @@ type SpanReaderParams struct {
 // NewSpanReader returns a new SpanReader with a metrics.
 func NewSpanReader(p SpanReaderParams) *SpanReader {
 	maxSpanAge := p.MaxSpanAge
-	readAlias := ""
+	readAliasSuffix := ""
 	// Setting the maxSpanAge to a large duration will ensure all spans in the "read" alias are accessible by queries (query window = [now - maxSpanAge, now]).
 	// When read/write aliases are enabled, which are required for index rollovers, only the "read" alias is queried and therefore should not affect performance.
 	if p.UseReadWriteAliases {
 		maxSpanAge = dawnOfTimeSpanAge
 		if p.ReadAliasSuffix != "" {
-			readAlias = p.ReadAliasSuffix
+			readAliasSuffix = p.ReadAliasSuffix
 		} else {
-			readAlias = "read"
+			readAliasSuffix = "read"
 		}
 	}
 
@@ -140,7 +140,7 @@ func NewSpanReader(p SpanReaderParams) *SpanReader {
 		timeRangeIndices: getLoggingTimeRangeIndexFn(
 			p.Logger,
 			addRemoteReadClusters(
-				getTimeRangeIndexFn(p.UseReadWriteAliases, readAlias),
+				getTimeRangeIndexFn(p.UseReadWriteAliases, readAliasSuffix),
 				p.RemoteReadClusters,
 			),
 		),
