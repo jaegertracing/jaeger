@@ -28,10 +28,10 @@ const (
 	// samplerTypeKey is the name of the metric tag showing sampler type
 	samplerTypeKey = "sampler_type"
 
-	// // types of samplers: const, probabilistic, ratelimiting, lowerbound
-	// numOfSamplerTypes = 4
-
 	concatenation = "$_$"
+
+	// unknownServiceName is used when a span has no service name
+	unknownServiceName = "__unknown"
 )
 
 var otherServicesSamplers map[model.SamplerType]string = initOtherServicesSamplers()
@@ -233,7 +233,7 @@ func (m *SpanProcessorMetrics) GetCountsForFormat(spanFormat processor.SpanForma
 func (m metricsBySvc) ForSpanV1(span *model.Span) {
 	var serviceName string
 	if nil == span.Process || len(span.Process.ServiceName) == 0 {
-		serviceName = "__unknown"
+		serviceName = unknownServiceName
 	} else {
 		serviceName = span.Process.ServiceName
 	}
@@ -245,10 +245,10 @@ func (m metricsBySvc) ForSpanV1(span *model.Span) {
 	}
 }
 
-// ForSpanV1 determines the name of the service that emitted
+// ForSpanV2 determines the name of the service that emitted
 // the span and reports a counter stat.
 func (m metricsBySvc) ForSpanV2(resource pcommon.Resource, span ptrace.Span) {
-	serviceName := "__unknown"
+	serviceName := unknownServiceName
 	if v, ok := resource.Attributes().Get(string(otelsemconv.ServiceNameKey)); ok {
 		serviceName = v.AsString()
 	}
