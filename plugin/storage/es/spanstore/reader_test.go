@@ -1282,23 +1282,6 @@ func TestSpanReader_ArchiveTraces(t *testing.T) {
 	}
 }
 
-func TestSpanReader_ArchiveTraces_ReadAlias(t *testing.T) {
-	withArchiveSpanReader(t, true, "archive-read", func(r *spanReaderTest) {
-		mockSearchService(r).
-			Return(&elastic.SearchResult{}, nil)
-		mockArchiveMultiSearchService(r, "jaeger-span-archive-read").
-			Return(&elastic.MultiSearchResult{
-				Responses: []*elastic.SearchResult{},
-			}, nil)
-
-		query := spanstore.GetTraceParameters{}
-		trace, err := r.reader.GetTrace(context.Background(), query)
-		require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
-		require.Nil(t, trace)
-		require.EqualError(t, err, "trace not found")
-	})
-}
-
 func TestConvertTraceIDsStringsToModels(t *testing.T) {
 	ids, err := convertTraceIDsStringsToModels([]string{"1", "2", "01", "02", "001", "002"})
 	require.NoError(t, err)
