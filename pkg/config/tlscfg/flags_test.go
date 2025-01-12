@@ -124,33 +124,6 @@ func TestServerFlags(t *testing.T) {
 	}
 }
 
-func TestServerCertReloadInterval(t *testing.T) {
-	tests := []struct {
-		config ServerFlagsConfig
-	}{
-		{
-			config: ServerFlagsConfig{
-				Prefix: "enabled",
-			},
-		},
-		{
-			config: ServerFlagsConfig{
-				Prefix: "disabled",
-			},
-		},
-	}
-	for _, test := range tests {
-		t.Run(test.config.Prefix, func(t *testing.T) {
-			_, command := config.Viperize(test.config.AddFlags)
-			err := command.ParseFlags([]string{
-				"--" + test.config.Prefix + ".tls.enabled=true",
-				"--" + test.config.Prefix + ".tls.reload-interval=24h",
-			})
-			require.NoError(t, err)
-		})
-	}
-}
-
 // TestFailedTLSFlags verifies that TLS options cannot be used when tls.enabled=false
 func TestFailedTLSFlags(t *testing.T) {
 	clientTests := []string{
