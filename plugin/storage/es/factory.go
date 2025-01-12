@@ -227,9 +227,9 @@ func (f *Factory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
 	if !f.archiveConfig.Enabled {
 		return nil, nil
 	}
-	writeAlias := "archive"
+	writeAliasSuffix := "archive"
 	if f.archiveConfig.UseReadWriteAliases {
-		writeAlias += "-write"
+		writeAliasSuffix += "-write"
 	}
 	archiveMetricsFactory := f.metricsFactory.Namespace(
 		metrics.NSOptions{
@@ -238,7 +238,7 @@ func (f *Factory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
 			},
 		},
 	)
-	return createSpanWriter(f.getArchiveClient, f.archiveConfig, archiveMetricsFactory, f.logger, writeAlias, true)
+	return createSpanWriter(f.getArchiveClient, f.archiveConfig, archiveMetricsFactory, f.logger, writeAliasSuffix, true)
 }
 
 func createSpanReader(
@@ -273,7 +273,7 @@ func createSpanWriter(
 	cfg *config.Configuration,
 	mFactory metrics.Factory,
 	logger *zap.Logger,
-	writeAlias string,
+	writeAliasSuffix string,
 	useReadWriteAliases bool,
 ) (spanstore.Writer, error) {
 	var tags []string
@@ -295,7 +295,7 @@ func createSpanWriter(
 		TagKeysAsFields:     tags,
 		TagDotReplacement:   cfg.Tags.DotReplacement,
 		UseReadWriteAliases: useReadWriteAliases,
-		WriteAlias:          writeAlias,
+		WriteAlias:          writeAliasSuffix,
 		Logger:              logger,
 		MetricsFactory:      mFactory,
 		ServiceCacheTTL:     cfg.ServiceCacheTTL,
