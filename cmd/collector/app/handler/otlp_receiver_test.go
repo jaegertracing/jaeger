@@ -71,33 +71,6 @@ func makeTracesOneSpan() ptrace.Traces {
 	return traces
 }
 
-// func TestConsumerDelegate(t *testing.T) {
-// 	testCases := []struct {
-// 		expectErr error
-// 		expectLog string
-// 	}{
-// 		{}, // no errors
-// 		{expectErr: errors.New("test-error"), expectLog: "test-error"},
-// 	}
-// 	for _, test := range testCases {
-// 		t.Run(test.expectLog, func(t *testing.T) {
-// 			logger, logBuf := testutils.NewLogger()
-// 			spanProcessor := &mockSpanProcessor{expectedError: test.expectErr}
-// 			consumer := newConsumerDelegate(logger, spanProcessor, &tenancy.Manager{})
-
-// 			err := consumer.consume(context.Background(), makeTracesOneSpan())
-
-// 			if test.expectErr != nil {
-// 				require.Equal(t, test.expectErr, err)
-// 				assert.Contains(t, logBuf.String(), test.expectLog)
-// 			} else {
-// 				require.NoError(t, err)
-// 				assert.Len(t, spanProcessor.getSpans(), 1)
-// 			}
-// 		})
-// 	}
-// }
-
 func TestStartOtlpReceiver_Error(t *testing.T) {
 	spanProcessor := &mockSpanProcessor{}
 	logger, _ := testutils.NewLogger()
@@ -154,6 +127,6 @@ func TestConsumerHelper(t *testing.T) {
 	}
 	err := consumerHelper.consume(context.Background(), makeTracesOneSpan())
 	require.NoError(t, err)
-	assert.Len(t, spanProcessor.getSpans(), 0)
+	assert.Empty(t, spanProcessor.getSpans())
 	assert.Len(t, spanProcessor.getTraces(), 1)
 }
