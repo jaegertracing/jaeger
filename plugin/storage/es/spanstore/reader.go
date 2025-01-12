@@ -48,7 +48,7 @@ const (
 
 	defaultNumTraces = 100
 
-	rolloverMaxSpanAge = time.Hour * 24 * 365 * 50
+	dawnOfTimeSpanAge = time.Hour * 24 * 365 * 50
 )
 
 var (
@@ -106,7 +106,7 @@ type SpanReaderParams struct {
 	SpanIndex           cfg.IndexOptions
 	ServiceIndex        cfg.IndexOptions
 	TagDotReplacement   string
-	ReadAlias           string
+	ReadAliasSuffix     string
 	UseReadWriteAliases bool
 	RemoteReadClusters  []string
 	Logger              *zap.Logger
@@ -120,9 +120,9 @@ func NewSpanReader(p SpanReaderParams) *SpanReader {
 	// Setting the maxSpanAge to a large duration will ensure all spans in the "read" alias are accessible by queries (query window = [now - maxSpanAge, now]).
 	// When read/write aliases are enabled, which are required for index rollovers, only the "read" alias is queried and therefore should not affect performance.
 	if p.UseReadWriteAliases {
-		maxSpanAge = rolloverMaxSpanAge
-		if p.ReadAlias != "" {
-			readAlias = p.ReadAlias
+		maxSpanAge = dawnOfTimeSpanAge
+		if p.ReadAliasSuffix != "" {
+			readAlias = p.ReadAliasSuffix
 		} else {
 			readAlias = "read"
 		}
@@ -139,7 +139,10 @@ func NewSpanReader(p SpanReaderParams) *SpanReader {
 		spanConverter:           dbmodel.NewToDomain(p.TagDotReplacement),
 		timeRangeIndices: getLoggingTimeRangeIndexFn(
 			p.Logger,
-			getTimeRangeIndexFn(readAlias, p.RemoteReadClusters),
+			addRemoteReadClusters(
+				getTimeRangeIndexFn(p.UseReadWriteAliases, readAlias),
+				p.RemoteReadClusters,
+			),
 		),
 		sourceFn:            getSourceFn(p.MaxDocCount),
 		maxDocCount:         p.MaxDocCount,
@@ -164,13 +167,13 @@ func getLoggingTimeRangeIndexFn(logger *zap.Logger, fn timeRangeIndexFn) timeRan
 	}
 }
 
-func getTimeRangeIndexFn(readAlias string, remoteReadClusters []string) timeRangeIndexFn {
-	if readAlias != "" {
-		return addRemoteReadClusters(func(indexPrefix, _ /* indexDateLayout */ string, _ /* startTime */ time.Time, _ /* endTime */ time.Time, _ /* reduceDuration */ time.Duration) []string {
+func getTimeRangeIndexFn(useReadWriteAliases bool, readAlias string) timeRangeIndexFn {
+	if useReadWriteAliases {
+		return func(indexPrefix, _ /* indexDateLayout */ string, _ /* startTime */ time.Time, _ /* endTime */ time.Time, _ /* reduceDuration */ time.Duration) []string {
 			return []string{indexPrefix + readAlias}
-		}, remoteReadClusters)
+		}
 	}
-	return addRemoteReadClusters(timeRangeIndices, remoteReadClusters)
+	return timeRangeIndices
 }
 
 // Add a remote cluster prefix for each cluster and for each index and add it to the list of original indices.

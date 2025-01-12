@@ -134,7 +134,7 @@ func withArchiveSpanReader(t *testing.T, readAlias bool, fn func(r *spanReaderTe
 			Tracer:              tracer.Tracer("test"),
 			MaxSpanAge:          0,
 			TagDotReplacement:   "@",
-			ReadAlias:           "archive",
+			ReadAliasSuffix:     "archive",
 			UseReadWriteAliases: readAlias,
 		}),
 	}
@@ -212,7 +212,7 @@ func TestSpanReaderIndices(t *testing.T) {
 		},
 		{
 			params: SpanReaderParams{
-				ReadAlias: "archive", // ignored because ReadWriteAliases is false
+				ReadAliasSuffix: "archive", // ignored because ReadWriteAliases is false
 			},
 			indices: []string{spanIndexBaseName, serviceIndexBaseName},
 		},
@@ -232,14 +232,14 @@ func TestSpanReaderIndices(t *testing.T) {
 		},
 		{
 			params: SpanReaderParams{
-				ReadAlias:           "archive",
+				ReadAliasSuffix:     "archive",
 				UseReadWriteAliases: true,
 			},
 			indices: []string{spanIndexBaseName + "archive", serviceIndexBaseName + "archive"},
 		},
 		{
 			params: SpanReaderParams{
-				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts, IndexPrefix: "foo:", UseReadWriteAliases: true, ReadAlias: "archive",
+				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts, IndexPrefix: "foo:", UseReadWriteAliases: true, ReadAliasSuffix: "archive",
 			},
 			indices: []string{"foo:" + config.IndexPrefixSeparator + spanIndexBaseName + "archive", "foo:" + config.IndexPrefixSeparator + serviceIndexBaseName + "archive"},
 		},
@@ -260,7 +260,7 @@ func TestSpanReaderIndices(t *testing.T) {
 		},
 		{
 			params: SpanReaderParams{
-				UseReadWriteAliases: true, ReadAlias: "archive", RemoteReadClusters: []string{"cluster_one", "cluster_two"},
+				UseReadWriteAliases: true, ReadAliasSuffix: "archive", RemoteReadClusters: []string{"cluster_one", "cluster_two"},
 			},
 			indices: []string{
 				spanIndexBaseName + "archive",

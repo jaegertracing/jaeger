@@ -110,7 +110,7 @@ type spanAndServiceIndexFn func(spanTime time.Time) (string, string)
 func getSpanAndServiceIndexFn(p SpanWriterParams, writeAlias string) spanAndServiceIndexFn {
 	spanIndexPrefix := p.IndexPrefix.Apply(spanIndexBaseName)
 	serviceIndexPrefix := p.IndexPrefix.Apply(serviceIndexBaseName)
-	if writeAlias != "" {
+	if p.UseReadWriteAliases {
 		return func(_ time.Time) (string, string) {
 			return spanIndexPrefix + writeAlias, serviceIndexPrefix + writeAlias
 		}

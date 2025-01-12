@@ -261,7 +261,7 @@ func createSpanReader(
 		ServiceIndex:        cfg.Indices.Services,
 		TagDotReplacement:   cfg.Tags.DotReplacement,
 		UseReadWriteAliases: useReadWriteAliases,
-		ReadAlias:           readAlias,
+		ReadAliasSuffix:     readAlias,
 		RemoteReadClusters:  cfg.RemoteReadClusters,
 		Logger:              logger,
 		Tracer:              tp.Tracer("esSpanStore.SpanReader"),
