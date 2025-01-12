@@ -82,14 +82,7 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 
 // CreateSpanReader implements storage.Factory
 func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
-	primaryMetricsFactory := f.metricsFactory.Namespace(
-		metrics.NSOptions{
-			Tags: map[string]string{
-				"role": "primary",
-			},
-		},
-	)
-	return spanstoremetrics.NewReaderDecorator(f.store, primaryMetricsFactory), nil
+	return spanstoremetrics.NewReaderDecorator(f.store, f.metricsFactory), nil
 }
 
 // CreateSpanWriter implements storage.Factory
