@@ -6,6 +6,7 @@ package tlscfg
 import (
 	"flag"
 	"testing"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -122,6 +123,21 @@ func TestServerFlags(t *testing.T) {
 			assert.Equal(t, expectedConfig, *serverConfig)
 		})
 	}
+}
+
+func TestServerCertReloadInterval(t *testing.T) {
+	cfg := ServerFlagsConfig{
+		Prefix: "prefix",
+	}
+	v, command := config.Viperize(cfg.AddFlags)
+	err := command.ParseFlags([]string{
+		"--prefix.tls.enabled=true",
+		"--prefix.tls.reload-interval=24h",
+	})
+	require.NoError(t, err)
+	tlscfg, err := cfg.InitFromViper(v)
+	require.NoError(t, err)
+	assert.Equal(t, 24*time.Hour, tlscfg.ReloadInterval)
 }
 
 // TestFailedTLSFlags verifies that TLS options cannot be used when tls.enabled=false
