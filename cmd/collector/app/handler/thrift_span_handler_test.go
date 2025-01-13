@@ -5,6 +5,7 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"os"
@@ -36,7 +37,7 @@ func TestJaegerSpanHandler(t *testing.T) {
 	for _, tc := range testChunks {
 		logger := zap.NewNop()
 		h := NewJaegerSpanHandler(logger, &shouldIErrorProcessor{tc.expectedErr != nil})
-		res, err := h.SubmitBatches([]*jaeger.Batch{
+		res, err := h.SubmitBatches(context.Background(), []*jaeger.Batch{
 			{
 				Process: &jaeger.Process{ServiceName: "someServiceName"},
 				Spans:   []*jaeger.Span{{SpanId: 21345}},
@@ -57,9 +58,12 @@ type shouldIErrorProcessor struct {
 	shouldError bool
 }
 
-var errTestError = errors.New("Whoops")
+var (
+	_            processor.SpanProcessor = (*shouldIErrorProcessor)(nil)
+	errTestError                         = errors.New("Whoops")
+)
 
-func (s *shouldIErrorProcessor) ProcessSpans(batch processor.Batch) ([]bool, error) {
+func (s *shouldIErrorProcessor) ProcessSpans(_ context.Context, batch processor.Batch) ([]bool, error) {
 	if s.shouldError {
 		return nil, errTestError
 	}
@@ -121,7 +125,7 @@ func TestZipkinSpanHandler(t *testing.T) {
 					},
 				}
 			}
-			res, err := h.SubmitZipkinBatch(spans, SubmitBatchOptions{})
+			res, err := h.SubmitZipkinBatch(context.Background(), spans, SubmitBatchOptions{})
 			if tc.expectedErr != nil {
 				assert.Nil(t, res)
 				assert.Equal(t, tc.expectedErr, err)
