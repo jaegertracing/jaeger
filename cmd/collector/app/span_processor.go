@@ -241,7 +241,6 @@ func (sp *spanProcessor) countSpansInQueue(span *model.Span, _ string /* tenant 
 	sp.spansProcessed.Add(1)
 }
 
-// TODO pass Context
 func (sp *spanProcessor) ProcessSpans(ctx context.Context, batch processor.Batch) ([]bool, error) {
 	// We call preProcessSpans on a batch, it's responsibility of implementation
 	// to understand v1/v2 distinction. Jaeger itself does not use pre-processors.
