@@ -41,7 +41,7 @@ jobs:
     - uses: ./.github/actions/verify-metrics-snapshot
       if: matrix.jaeger-version == 'v2'
       with:
-        snapshot: kafka_metrics.txt
+        snapshot: metrics_snapshot_kafka
         artifact_key: kafka-metrics-${{ matrix.jaeger-version }}.txt
 
     - name: Upload coverage to codecov

@@ -18,19 +18,12 @@ inputs:
 runs:
   using: 'composite'
   steps:
-    - name: Upload Metrics Artifact
+    - name: Upload current metrics snapshot
       uses: actions/upload-artifact@6f51ac03b9356f520e9adb1b1b7802705f340c2b # v4.5.0
       with:
         name: ${{ inputs.artifact_key }}
-        path: ./.metrics/${{ inputs.snapshot }}
+        path: ./.metrics/${{ inputs.snapshot }}.txt
         retention-days: 7
-
-    - name: Get v2 tag 
-      shell: bash
-      run: |
-        v2_tag=$(make echo-v2)
-        echo "v2_tag=$v2_tag" >> $GITHUB_ENV
-        echo "$v2_tag"
 
       # The github cache restore successfully restores when cache saved has same key and same path.
       # Hence to restore release metric with name relese_{metric_name} , the name must be changed to the same.
@@ -38,17 +31,16 @@ runs:
       if: github.ref_name == 'main'
       shell: bash
       run: |
-        mv ./.metrics/${{ inputs.snapshot }} ./.metrics/release_${{ inputs.snapshot}}
+        mv ./.metrics/${{ inputs.snapshot }}.txt ./.metrics/baseline_${{ inputs.snapshot }}.txt
 
     - name: Cache scraped metrics for tagged release for longer retention
       id: tagged-metrics
       if: github.ref_name == 'main'
       uses: actions/cache/save@1bd1e32a3bdc45362d1e726936510720a7c30a57
       with: 
-        path: ./.metrics/release_${{ inputs.snapshot}}
-        key: ${{ env.v2_tag }}_${{ inputs.artifact_key }}_${{ github.run_id }}
-        restore-keys: |
-          ${{ env.v2_tag }}_${{ inputs.artifact_key }}_
+        path: ./.metrics/baseline_${{ inputs.snapshot }}.txt
+        key: ${{ inputs.artifact_key }}_${{ github.run_id }}
+        restore-keys: [ ${{ inputs.artifact_key }} ]
 
       
     - name: Download the cached tagged metrics
@@ -56,16 +48,16 @@ runs:
       if: github.ref_name != 'main'
       uses: actions/cache/restore@1bd1e32a3bdc45362d1e726936510720a7c30a57
       with:
-        path: ./.metrics/release_${{ inputs.snapshot}}
-        key: ${{ env.v2_tag }}_${{ inputs.artifact_key }}_${{ github.run_id }}
+        path: ./.metrics/baseline_${{ inputs.snapshot }}.txt
+        key: ${{ inputs.artifact_key }}
 
     - name: Calculate diff between the snapshots 
       id: compare-snapshots
-      if: ${{ (steps.download-release-snapshot.outputs.cache-hit == 'true') && (github.ref_name != 'main') }}
+      if: ${{ (github.ref_name != 'main') && (steps.download-release-snapshot.outputs.cache-hit == 'true')  }}
       shell: bash
       run: |
         python3 -m pip install prometheus-client
-        python3 ./scripts/e2e/compare_metrics.py --file1 ./.metrics/${{ inputs.snapshot }} --file2 ./.metrics/release_${{ inputs.snapshot}} --output ./.metrics/diff_${{ inputs.snapshot }}
+        python3 ./scripts/e2e/compare_metrics.py --file1 ./.metrics/${{ inputs.snapshot }}.txt --file2 ./.metrics/baseline_${{ inputs.snapshot }}.txt --output ./.metrics/diff_${{ inputs.snapshot }}.txt
         if [ $? -eq 1 ]; then
         echo "🛑 Differences found in metrics"
         exit 1
@@ -76,7 +68,7 @@ runs:
       uses: actions/upload-artifact@6f51ac03b9356f520e9adb1b1b7802705f340c2b # v4.5.0
       with:
         name: diff_${{ inputs.artifact_key }}
-        path: ./.metrics/diff_${{ inputs.snapshot }}
+        path: ./.metrics/diff_${{ inputs.snapshot }}.txt
         retention-days: 7
 
     
