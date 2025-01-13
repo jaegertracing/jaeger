@@ -295,7 +295,7 @@ func createSpanWriter(
 		TagKeysAsFields:     tags,
 		TagDotReplacement:   cfg.Tags.DotReplacement,
 		UseReadWriteAliases: useReadWriteAliases,
-		WriteAlias:          writeAliasSuffix,
+		WriteAliasSuffix:    writeAliasSuffix,
 		Logger:              logger,
 		MetricsFactory:      mFactory,
 		ServiceCacheTTL:     cfg.ServiceCacheTTL,

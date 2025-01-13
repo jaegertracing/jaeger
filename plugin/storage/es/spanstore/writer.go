@@ -56,7 +56,7 @@ type SpanWriterParams struct {
 	TagKeysAsFields     []string
 	TagDotReplacement   string
 	UseReadWriteAliases bool
-	WriteAlias          string
+	WriteAliasSuffix    string
 	ServiceCacheTTL     time.Duration
 }
 
@@ -67,12 +67,12 @@ func NewSpanWriter(p SpanWriterParams) *SpanWriter {
 		serviceCacheTTL = serviceCacheTTLDefault
 	}
 
-	writeAlias := ""
+	writeAliasSuffix := ""
 	if p.UseReadWriteAliases {
-		if p.WriteAlias != "" {
-			writeAlias = p.WriteAlias
+		if p.WriteAliasSuffix != "" {
+			writeAliasSuffix = p.WriteAliasSuffix
 		} else {
-			writeAlias = "write"
+			writeAliasSuffix = "write"
 		}
 	}
 
@@ -85,7 +85,7 @@ func NewSpanWriter(p SpanWriterParams) *SpanWriter {
 		},
 		serviceWriter:    serviceOperationStorage.Write,
 		spanConverter:    dbmodel.NewFromDomain(p.AllTagsAsFields, p.TagKeysAsFields, p.TagDotReplacement),
-		spanServiceIndex: getSpanAndServiceIndexFn(p, writeAlias),
+		spanServiceIndex: getSpanAndServiceIndexFn(p, writeAliasSuffix),
 	}
 }
 
