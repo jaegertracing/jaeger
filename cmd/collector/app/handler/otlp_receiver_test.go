@@ -4,11 +4,17 @@
 package handler
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"fmt"
+	"net"
+	"net/http"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/configgrpc"
@@ -23,6 +29,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/collector/app/flags"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
+	"github.com/jaegertracing/jaeger/storage_v2/tracestore/mocks"
 )
 
 func optionsWithPorts(port string) *flags.CollectorOptions {
@@ -138,4 +145,65 @@ func TestOtelHost(t *testing.T) {
 	assert.Nil(t, host.GetFactory(component.KindReceiver, pipeline.SignalTraces))
 	assert.Nil(t, host.GetExtensions())
 	assert.Nil(t, host.GetExporters())
+}
+
+func TestOTLPReceiverWithV2Storage(t *testing.T) {
+	// Setup mock writer and expectations
+	mockWriter := mocks.NewWriter(t)
+	expectedTraces := makeTracesOneSpan()
+	mockWriter.On("WriteTraces", mock.Anything, mock.Anything).Return(func(ctx context.Context, td ptrace.Traces) error {
+		if tenancy.GetTenant(ctx) != "test-tenant" {
+			return errors.New("unexpected tenant in context")
+		}
+
+		if !assert.ObjectsAreEqual(expectedTraces, td) {
+			return errors.New("unexpected trace")
+		}
+
+		return nil
+	})
+
+	// Create span processor and start receiver
+	spanProcessor := &mockSpanProcessor{}
+	logger, _ := testutils.NewLogger()
+
+	port := GetAvailablePort(t)
+
+	// Create and start receiver
+	rec, err := StartOTLPReceiver(optionsWithPorts(fmt.Sprintf(":%d", port)), logger, spanProcessor, &tenancy.Manager{})
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	defer rec.Shutdown(ctx)
+
+	// Give the receiver a moment to start up
+	time.Sleep(100 * time.Millisecond)
+
+	// Send trace via HTTP
+	url := fmt.Sprintf("http://localhost:%d/v1/traces", port)
+	client := &http.Client{}
+
+	marshaler := ptrace.JSONMarshaler{}
+	data, err := marshaler.MarshalTraces(expectedTraces)
+	require.NoError(t, err)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(data))
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("jaeger-tenant", "test-tenant")
+
+	resp, err := client.Do(req)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	// Verify expectations
+	mockWriter.AssertExpectations(t)
+}
+
+// Helper function if not already available in testutils
+func GetAvailablePort(t *testing.T) int {
+	listener, err := net.Listen("tcp", ":0")
+	require.NoError(t, err)
+	listener.Close()
+	return listener.Addr().(*net.TCPAddr).Port
 }
