@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -19,6 +20,7 @@ import (
 	"go.opentelemetry.io/collector/pipeline"
 	"go.opentelemetry.io/collector/receiver"
 	"go.opentelemetry.io/collector/receiver/otlpreceiver"
+	"go.uber.org/zap/zaptest"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/flags"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
@@ -50,7 +52,7 @@ func optionsWithPorts(port string) *flags.CollectorOptions {
 
 func TestStartOtlpReceiver(t *testing.T) {
 	spanProcessor := &mockSpanProcessor{}
-	logger, _ := testutils.NewLogger()
+	logger := zaptest.NewLogger(t)
 	tm := &tenancy.Manager{}
 	rec, err := StartOTLPReceiver(optionsWithPorts(":0"), logger, spanProcessor, tm)
 	require.NoError(t, err)
@@ -73,7 +75,7 @@ func makeTracesOneSpan() ptrace.Traces {
 
 func TestStartOtlpReceiver_Error(t *testing.T) {
 	spanProcessor := &mockSpanProcessor{}
-	logger, _ := testutils.NewLogger()
+	logger := zaptest.NewLogger(t)
 	opts := optionsWithPorts(":-1")
 	tm := &tenancy.Manager{}
 	_, err := StartOTLPReceiver(opts, logger, spanProcessor, tm)
@@ -114,12 +116,10 @@ func TestOtelHost(t *testing.T) {
 	assert.Nil(t, host.GetExporters())
 }
 
-// unit test for consumerHelper
 func TestConsumerHelper(t *testing.T) {
-	logger, _ := testutils.NewLogger()
 	spanProcessor := &mockSpanProcessor{}
 	consumerHelper := &consumerHelper{
-		batchConsumer: newBatchConsumer(logger,
+		batchConsumer: newBatchConsumer(zaptest.NewLogger(t),
 			spanProcessor,
 			processor.UnknownTransport, // could be gRPC or HTTP
 			processor.OTLPSpanFormat,
@@ -127,16 +127,16 @@ func TestConsumerHelper(t *testing.T) {
 	}
 	err := consumerHelper.consume(context.Background(), makeTracesOneSpan())
 	require.NoError(t, err)
+	assert.Eventually(t, func() bool {
+		return len(spanProcessor.getTraces()) == 1
+	}, time.Second, time.Millisecond, "spanProcessor should have received one span")
 	assert.Empty(t, spanProcessor.getSpans())
-	assert.Len(t, spanProcessor.getTraces(), 1)
 }
 
-func TestConsumerConsume_Error(t *testing.T) {
-	logger, _ := testutils.NewLogger()
-	spanProcessor := &mockSpanProcessor{expectedError: errors.New("mock error")}
+func TestConsumerHelper_Consume_Error(t *testing.T) {
 	consumerHelper := &consumerHelper{
-		batchConsumer: newBatchConsumer(logger,
-			spanProcessor,
+		batchConsumer: newBatchConsumer(zaptest.NewLogger(t),
+			&mockSpanProcessor{expectedError: errors.New("mock error")},
 			processor.UnknownTransport, // could be gRPC or HTTP
 			processor.OTLPSpanFormat,
 			&tenancy.Manager{}),
@@ -145,12 +145,10 @@ func TestConsumerConsume_Error(t *testing.T) {
 	require.ErrorContains(t, err, "mock error")
 }
 
-func TestConsumerConsume_TenantError(t *testing.T) {
-	logger, _ := testutils.NewLogger()
-	spanProcessor := &mockSpanProcessor{}
+func TestConsumerHelper_Consume_TenantError(t *testing.T) {
 	consumerHelper := &consumerHelper{
-		batchConsumer: newBatchConsumer(logger,
-			spanProcessor,
+		batchConsumer: newBatchConsumer(zaptest.NewLogger(t),
+			&mockSpanProcessor{},
 			processor.UnknownTransport, // could be gRPC or HTTP
 			processor.OTLPSpanFormat,
 			&tenancy.Manager{Enabled: true}),
