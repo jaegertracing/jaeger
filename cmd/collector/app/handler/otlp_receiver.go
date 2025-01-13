@@ -107,7 +107,7 @@ func (ch *consumerHelper) consume(ctx context.Context, td ptrace.Traces) error {
 		ch.logger.Debug("rejecting spans (tenancy)", zap.Error(err))
 		return err
 	}
-	_, err = ch.spanProcessor.ProcessSpans(processor.SpansV2{
+	_, err = ch.spanProcessor.ProcessSpans(ctx, processor.SpansV2{
 		Traces: td,
 		Details: processor.Details{
 			InboundTransport: ch.spanOptions.InboundTransport,
