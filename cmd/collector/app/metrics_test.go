@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
 	"github.com/jaegertracing/jaeger/internal/metricstest"
@@ -29,7 +30,7 @@ func TestProcessorMetrics(t *testing.T) {
 
 	grpcChannelFormat := spm.GetCountsForFormat(processor.JaegerSpanFormat, processor.GRPCTransport)
 	assert.NotNil(t, grpcChannelFormat)
-	grpcChannelFormat.ReceivedBySvc.ReportServiceNameForSpan(&model.Span{
+	grpcChannelFormat.ReceivedBySvc.ForSpanV1(&model.Span{
 		Process: &model.Process{},
 	})
 	mSpan := model.Span{
@@ -37,16 +38,26 @@ func TestProcessorMetrics(t *testing.T) {
 			ServiceName: "fry",
 		},
 	}
-	grpcChannelFormat.ReceivedBySvc.ReportServiceNameForSpan(&mSpan)
+	grpcChannelFormat.ReceivedBySvc.ForSpanV1(&mSpan)
 	mSpan.Flags.SetDebug()
-	grpcChannelFormat.ReceivedBySvc.ReportServiceNameForSpan(&mSpan)
+	grpcChannelFormat.ReceivedBySvc.ForSpanV1(&mSpan)
 	mSpan.ReplaceParentID(1234)
-	grpcChannelFormat.ReceivedBySvc.ReportServiceNameForSpan(&mSpan)
+	grpcChannelFormat.ReceivedBySvc.ForSpanV1(&mSpan)
+
+	pd := ptrace.NewTraces()
+	rs := pd.ResourceSpans().AppendEmpty()
+	resource := rs.Resource()
+	resource.Attributes().PutStr("service.name", "fry")
+	sp := rs.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+	grpcChannelFormat.ReceivedBySvc.ForSpanV2(resource, sp)
+	sp.SetParentSpanID([8]byte{1, 2, 3, 4, 5, 6, 7, 8})
+	grpcChannelFormat.ReceivedBySvc.ForSpanV2(resource, sp)
+
 	counters, gauges := baseMetrics.Backend.Snapshot()
 
-	assert.EqualValues(t, 1, counters["service.spans.received|debug=false|format=jaeger|svc=fry|transport=grpc"])
+	assert.EqualValues(t, 3, counters["service.spans.received|debug=false|format=jaeger|svc=fry|transport=grpc"])
 	assert.EqualValues(t, 2, counters["service.spans.received|debug=true|format=jaeger|svc=fry|transport=grpc"])
-	assert.EqualValues(t, 1, counters["service.traces.received|debug=false|format=jaeger|sampler_type=unrecognized|svc=fry|transport=grpc"])
+	assert.EqualValues(t, 2, counters["service.traces.received|debug=false|format=jaeger|sampler_type=unrecognized|svc=fry|transport=grpc"])
 	assert.EqualValues(t, 1, counters["service.traces.received|debug=true|format=jaeger|sampler_type=unrecognized|svc=fry|transport=grpc"])
 	assert.Empty(t, gauges)
 }

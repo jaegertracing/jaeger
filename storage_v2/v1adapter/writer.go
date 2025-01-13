@@ -10,10 +10,20 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger/storage/spanstore"
+	"github.com/jaegertracing/jaeger/storage_v2/tracestore"
 )
+
+var ErrV1WriterNotAvailable = errors.New("spanstore.Writer is not a wrapper around v1 writer")
 
 type TraceWriter struct {
 	spanWriter spanstore.Writer
+}
+
+func GetV1Writer(writer tracestore.Writer) (spanstore.Writer, error) {
+	if tr, ok := writer.(*TraceWriter); ok {
+		return tr.spanWriter, nil
+	}
+	return nil, ErrV1WriterNotAvailable
 }
 
 func NewTraceWriter(spanWriter spanstore.Writer) *TraceWriter {
@@ -24,7 +34,7 @@ func NewTraceWriter(spanWriter spanstore.Writer) *TraceWriter {
 
 // WriteTraces implements tracestore.Writer.
 func (t *TraceWriter) WriteTraces(ctx context.Context, td ptrace.Traces) error {
-	batches := ProtoFromTraces(td)
+	batches := V1BatchesFromTraces(td)
 	var errs []error
 	for _, batch := range batches {
 		for _, span := range batch.Spans {

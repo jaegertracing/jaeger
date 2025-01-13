@@ -26,6 +26,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
+	"github.com/jaegertracing/jaeger/storage_v2/v1adapter"
 )
 
 var _ (io.Closer) = (*Collector)(nil)
@@ -116,7 +117,7 @@ func TestNewCollector(t *testing.T) {
 		ServiceName:      "collector",
 		Logger:           logger,
 		MetricsFactory:   baseMetrics,
-		SpanWriter:       spanWriter,
+		TraceWriter:      v1adapter.NewTraceWriter(spanWriter),
 		SamplingProvider: samplingProvider,
 		HealthCheck:      hc,
 		TenancyMgr:       tm,
@@ -143,7 +144,7 @@ func TestCollector_StartErrors(t *testing.T) {
 				ServiceName:      "collector",
 				Logger:           logger,
 				MetricsFactory:   baseMetrics,
-				SpanWriter:       spanWriter,
+				TraceWriter:      v1adapter.NewTraceWriter(spanWriter),
 				SamplingProvider: samplingProvider,
 				HealthCheck:      hc,
 				TenancyMgr:       tm,
@@ -201,7 +202,7 @@ func TestCollector_PublishOpts(t *testing.T) {
 		ServiceName:      "collector",
 		Logger:           logger,
 		MetricsFactory:   metricsFactory,
-		SpanWriter:       spanWriter,
+		TraceWriter:      v1adapter.NewTraceWriter(spanWriter),
 		SamplingProvider: samplingProvider,
 		HealthCheck:      hc,
 		TenancyMgr:       tm,
@@ -232,7 +233,7 @@ func TestAggregator(t *testing.T) {
 		ServiceName:        "collector",
 		Logger:             logger,
 		MetricsFactory:     baseMetrics,
-		SpanWriter:         spanWriter,
+		TraceWriter:        v1adapter.NewTraceWriter(spanWriter),
 		SamplingProvider:   samplingProvider,
 		HealthCheck:        hc,
 		SamplingAggregator: agg,
@@ -262,7 +263,7 @@ func TestAggregator(t *testing.T) {
 			},
 		},
 	}
-	_, err := c.spanProcessor.ProcessSpans(processor.SpansV1{
+	_, err := c.spanProcessor.ProcessSpans(context.Background(), processor.SpansV1{
 		Spans: spans,
 		Details: processor.Details{
 			SpanFormat: processor.JaegerSpanFormat,

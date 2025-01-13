@@ -30,7 +30,8 @@ extensions:
   remote_sampling:
     # We can either use file or adaptive sampling strategy in remote_sampling
     file:
-      path: ./cmd/jaeger/sampling-strategies.json
+      path:
+      default_sampling_probability: 1
       reload_interval: 1s
     # adaptive:
     #   sampling_store: some_store
