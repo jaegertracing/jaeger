@@ -1,7 +1,7 @@
 # Copyright (c) 2024 The Jaeger Authors.
 # SPDX-License-Identifier: Apache-2.0
 
-BINARY ?= all-in-one # Default value uses v1 binary
+BINARY ?= jaeger # Default value uses v2 binary
 
 .PHONY: build
 build: clean-jaeger
@@ -20,13 +20,13 @@ build: clean-jaeger
 .PHONY: dev
 dev: export JAEGER_IMAGE_TAG = dev
 dev: 
-	docker compose -f docker-compose.yml up $(DOCKER_COMPOSE_ARGS)
+	docker compose up $(DOCKER_COMPOSE_ARGS)
 
-.PHONY: dev-v2
-dev-v2: export JAEGER_IMAGE_TAG = dev
-dev-v2: export BINARY = jaeger
-dev-v2: build 
-	docker compose -f docker-compose-v2.yml up $(DOCKER_COMPOSE_ARGS)
+.PHONY: dev-v1
+dev-v1: export JAEGER_IMAGE_TAG = dev
+dev-v1: export BINARY = all-in-one
+dev-v1: build
+	docker compose -f docker-compose-v1.yml up $(DOCKER_COMPOSE_ARGS)
 
 .PHONY: clean-jaeger
 clean-jaeger:
