@@ -30,6 +30,7 @@ import (
 	ss "github.com/jaegertracing/jaeger/plugin/sampling/strategyprovider"
 	"github.com/jaegertracing/jaeger/plugin/storage"
 	"github.com/jaegertracing/jaeger/ports"
+	"github.com/jaegertracing/jaeger/storage_v2/v1adapter"
 )
 
 const serviceName = "jaeger-collector"
@@ -101,7 +102,7 @@ func main() {
 				ServiceName:        serviceName,
 				Logger:             logger,
 				MetricsFactory:     metricsFactory,
-				SpanWriter:         spanWriter,
+				TraceWriter:        v1adapter.NewTraceWriter(spanWriter),
 				SamplingProvider:   samplingProvider,
 				SamplingAggregator: samplingAggregator,
 				HealthCheck:        svc.HC(),

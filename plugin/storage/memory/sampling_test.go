@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/model"
+	"github.com/jaegertracing/jaeger/storage/samplingstore/model"
 )
 
 func withPopulatedSamplingStore(f func(samplingStore *SamplingStore)) {
