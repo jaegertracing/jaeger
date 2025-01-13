@@ -142,6 +142,7 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 			Name: "storage",
 			Tags: map[string]string{
 				"kind": kind,
+				"role": "primary", // can be overiden in the storage factory for archive/sampling stores
 			},
 		})
 		if err := factory.Initialize(mf, logger); err != nil {

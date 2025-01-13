@@ -77,15 +77,13 @@ var otlpServerFlagsCfg = struct {
 	GRPC: serverFlagsConfig{
 		prefix: "collector.otlp.grpc",
 		tls: tlscfg.ServerFlagsConfig{
-			Prefix:                   "collector.otlp.grpc",
-			EnableCertReloadInterval: true,
+			Prefix: "collector.otlp.grpc",
 		},
 	},
 	HTTP: serverFlagsConfig{
 		prefix: "collector.otlp.http",
 		tls: tlscfg.ServerFlagsConfig{
-			Prefix:                   "collector.otlp.http",
-			EnableCertReloadInterval: true,
+			Prefix: "collector.otlp.http",
 		},
 		corsCfg: corscfg.Flags{
 			Prefix: "collector.otlp.http",

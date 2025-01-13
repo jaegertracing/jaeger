@@ -16,11 +16,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/model"
 	"github.com/jaegertracing/jaeger/internal/metricstest"
 	"github.com/jaegertracing/jaeger/pkg/cassandra/mocks"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/storage/samplingstore"
+	"github.com/jaegertracing/jaeger/storage/samplingstore/model"
 )
 
 var testTime = time.Date(2017, time.January, 24, 11, 15, 17, 12345, time.UTC)
@@ -348,7 +348,7 @@ func TestStringToProbabilitiesAndQPS(t *testing.T) {
 	probabilities := s.stringToProbabilitiesAndQPS(testStr)
 
 	assert.Len(t, probabilities, 2)
-	assert.Equal(t, map[string]*model.ProbabilityAndQPS{
+	assert.Equal(t, map[string]*probabilityAndQPS{
 		http.MethodGet: {
 			Probability: 0.001,
 			QPS:         63.2,
@@ -358,7 +358,7 @@ func TestStringToProbabilitiesAndQPS(t *testing.T) {
 			QPS:         0.0,
 		},
 	}, probabilities["svc1"])
-	assert.Equal(t, map[string]*model.ProbabilityAndQPS{
+	assert.Equal(t, map[string]*probabilityAndQPS{
 		http.MethodGet: {
 			Probability: 0.5,
 			QPS:         34.2,

@@ -6,19 +6,26 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"go.opentelemetry.io/collector/exporter"
+	"go.opentelemetry.io/collector/exporter/exporterhelper"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sanitizer"
+	sanitizerv2 "github.com/jaegertracing/jaeger/cmd/jaeger/sanitizer"
+	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/queue"
+	"github.com/jaegertracing/jaeger/pkg/telemetry"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
-	"github.com/jaegertracing/jaeger/storage/spanstore"
+	"github.com/jaegertracing/jaeger/storage_v2/tracestore"
+	"github.com/jaegertracing/jaeger/storage_v2/v1adapter"
 )
 
 const (
@@ -29,16 +36,20 @@ const (
 	minRequiredChange = 1.2
 )
 
+var _ processor.SpanProcessor = (*spanProcessor)(nil)
+
 type spanProcessor struct {
 	queue              *queue.BoundedQueue[queueItem]
+	otelExporter       exporter.Traces
 	queueResizeMu      sync.Mutex
 	metrics            *SpanProcessorMetrics
+	telset             telemetry.Settings
 	preProcessSpans    ProcessSpans
 	filterSpan         FilterSpan             // filter is called before the sanitizer but after preProcessSpans
 	sanitizer          sanitizer.SanitizeSpan // sanitizer is called before processSpan
 	processSpan        ProcessSpan
 	logger             *zap.Logger
-	spanWriter         spanstore.Writer
+	traceWriter        tracestore.Writer
 	reportBusy         bool
 	numWorkers         int
 	collectorTags      map[string]string
@@ -57,18 +68,23 @@ type queueItem struct {
 
 // NewSpanProcessor returns a SpanProcessor that preProcesses, filters, queues, sanitizes, and processes spans.
 func NewSpanProcessor(
-	spanWriter spanstore.Writer,
+	traceWriter tracestore.Writer,
 	additional []ProcessSpan,
 	opts ...Option,
 ) (processor.SpanProcessor, error) {
-	sp, err := newSpanProcessor(spanWriter, additional, opts...)
+	sp, err := newSpanProcessor(traceWriter, additional, opts...)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("could not create span processor: %w", err)
 	}
 
 	sp.queue.StartConsumers(sp.numWorkers, func(item queueItem) {
 		sp.processItemFromQueue(item)
 	})
+
+	err = sp.otelExporter.Start(context.Background(), sp.telset.Host)
+	if err != nil {
+		return nil, fmt.Errorf("could not start exporter: %w", err)
+	}
 
 	sp.background(1*time.Second, sp.updateGauges)
 
@@ -79,7 +95,7 @@ func NewSpanProcessor(
 	return sp, nil
 }
 
-func newSpanProcessor(spanWriter spanstore.Writer, additional []ProcessSpan, opts ...Option) (*spanProcessor, error) {
+func newSpanProcessor(traceWriter tracestore.Writer, additional []ProcessSpan, opts ...Option) (*spanProcessor, error) {
 	options := Options.apply(opts...)
 	handlerMetrics := NewSpanProcessorMetrics(
 		options.serviceMetrics,
@@ -101,13 +117,14 @@ func newSpanProcessor(spanWriter spanstore.Writer, additional []ProcessSpan, opt
 	sp := spanProcessor{
 		queue:              boundedQueue,
 		metrics:            handlerMetrics,
+		telset:             telemetry.NoopSettings(), // TODO get real settings
 		logger:             options.logger,
 		preProcessSpans:    options.preProcessSpans,
 		filterSpan:         options.spanFilter,
 		sanitizer:          sanitizer.NewChainedSanitizer(sanitizers...),
 		reportBusy:         options.reportBusy,
 		numWorkers:         options.numWorkers,
-		spanWriter:         spanWriter,
+		traceWriter:        traceWriter,
 		collectorTags:      options.collectorTags,
 		stopCh:             make(chan struct{}),
 		dynQueueSizeMemory: options.dynQueueSizeMemory,
@@ -121,27 +138,75 @@ func newSpanProcessor(spanWriter spanstore.Writer, additional []ProcessSpan, opt
 			zap.Uint("queue-size-warmup", options.dynQueueSizeWarmup))
 	}
 	if options.dynQueueSizeMemory > 0 || options.spanSizeMetricsEnabled {
-		// add to processSpanFuncs
-		processSpanFuncs = append(processSpanFuncs, sp.countSpan)
+		processSpanFuncs = append(processSpanFuncs, sp.countSpansInQueue)
 	}
+	sp.processSpan = ChainedProcessSpan(append(processSpanFuncs, additional...)...)
 
-	processSpanFuncs = append(processSpanFuncs, additional...)
+	otelExporter, err := exporterhelper.NewTraces(
+		context.Background(),
+		exporter.Settings{
+			TelemetrySettings: sp.telset.ToOtelComponent(),
+		},
+		struct{}{}, // exporterhelper requires not-nil config, but then ignores it
+		sp.pushTraces,
+		exporterhelper.WithQueue(exporterhelper.NewDefaultQueueConfig()),
+		//   exporterhelper.WithCapabilities(consumer.Capabilities{MutatesData: false}),
+		//   exporterhelper.WithTimeout(oCfg.TimeoutConfig),
+		//   exporterhelper.WithRetry(oCfg.RetryConfig),
+		//   exporterhelper.WithBatcher(oCfg.BatcherConfig),
+		//   exporterhelper.WithStart(oce.start),
+		//   exporterhelper.WithShutdown(oce.shutdown),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("could not create exporterhelper: %w", err)
+	}
+	sp.otelExporter = otelExporter
 
-	sp.processSpan = ChainedProcessSpan(processSpanFuncs...)
 	return &sp, nil
 }
 
 func (sp *spanProcessor) Close() error {
 	close(sp.stopCh)
 	sp.queue.Stop()
-
+	sp.otelExporter.Shutdown(context.Background())
 	return nil
 }
 
+// pushTraces is called by exporterhelper's concurrent queue consumers.
+func (sp *spanProcessor) pushTraces(ctx context.Context, td ptrace.Traces) error {
+	td = sanitizerv2.Sanitize(td)
+
+	if len(sp.collectorTags) > 0 {
+		for i := 0; i < td.ResourceSpans().Len(); i++ {
+			resource := td.ResourceSpans().At(i).Resource()
+			for k, v := range sp.collectorTags {
+				if _, ok := resource.Attributes().Get(k); ok {
+					continue // don't override existing keys
+				}
+				resource.Attributes().PutStr(k, v)
+			}
+		}
+	}
+
+	err := sp.traceWriter.WriteTraces(ctx, td)
+
+	sp.metrics.BatchSize.Update(int64(td.SpanCount()))
+	jptrace.SpanIter(td)(func(i jptrace.SpanIterPos, span ptrace.Span) bool {
+		if err != nil {
+			sp.metrics.SavedErrBySvc.ForSpanV2(i.Resource.Resource(), span)
+		} else {
+			sp.metrics.SavedOkBySvc.ForSpanV2(i.Resource.Resource(), span)
+		}
+		return true
+	})
+
+	return err
+}
+
 func (sp *spanProcessor) saveSpan(span *model.Span, tenant string) {
-	if nil == span.Process {
+	if span.Process == nil {
 		sp.logger.Error("process is empty for the span")
-		sp.metrics.SavedErrBySvc.ReportServiceNameForSpan(span)
+		sp.metrics.SavedErrBySvc.ForSpanV1(span)
 		return
 	}
 
@@ -150,31 +215,59 @@ func (sp *spanProcessor) saveSpan(span *model.Span, tenant string) {
 	// the inbound Context, as it may be cancelled by the time we reach this point,
 	// so we need to start a new Context.
 	ctx := tenancy.WithTenant(context.Background(), tenant)
-	if err := sp.spanWriter.WriteSpan(ctx, span); err != nil {
+	if err := sp.writeSpan(ctx, span); err != nil {
 		sp.logger.Error("Failed to save span", zap.Error(err))
-		sp.metrics.SavedErrBySvc.ReportServiceNameForSpan(span)
+		sp.metrics.SavedErrBySvc.ForSpanV1(span)
 	} else {
 		sp.logger.Debug("Span written to the storage by the collector",
 			zap.Stringer("trace-id", span.TraceID), zap.Stringer("span-id", span.SpanID))
-		sp.metrics.SavedOkBySvc.ReportServiceNameForSpan(span)
+		sp.metrics.SavedOkBySvc.ForSpanV1(span)
 	}
 	sp.metrics.SaveLatency.Record(time.Since(startTime))
 }
 
-func (sp *spanProcessor) countSpan(span *model.Span, _ string /* tenant */) {
+func (sp *spanProcessor) writeSpan(ctx context.Context, span *model.Span) error {
+	spanWriter, err := v1adapter.GetV1Writer(sp.traceWriter)
+	if err == nil {
+		return spanWriter.WriteSpan(ctx, span)
+	}
+	traces := v1adapter.V1BatchesToTraces([]*model.Batch{{Spans: []*model.Span{span}}})
+	return sp.traceWriter.WriteTraces(ctx, traces)
+}
+
+func (sp *spanProcessor) countSpansInQueue(span *model.Span, _ string /* tenant */) {
 	//nolint: gosec // G115
 	sp.bytesProcessed.Add(uint64(span.Size()))
 	sp.spansProcessed.Add(1)
 }
 
-func (sp *spanProcessor) ProcessSpans(batch processor.Batch) ([]bool, error) {
+func (sp *spanProcessor) ProcessSpans(ctx context.Context, batch processor.Batch) ([]bool, error) {
+	// We call preProcessSpans on a batch, it's responsibility of implementation
+	// to understand v1/v2 distinction. Jaeger itself does not use pre-processors.
 	sp.preProcessSpans(batch)
-	var spans []*model.Span
-	batch.GetSpans(func(spansV1 []*model.Span) {
-		spans = spansV1
-	}, func(_ ptrace.Traces) {
-		panic("not implemented")
+
+	var batchOks []bool
+	var batchErr error
+	batch.GetSpans(func(spans []*model.Span) {
+		batchOks, batchErr = sp.processSpans(ctx, batch, spans)
+	}, func(traces ptrace.Traces) {
+		// TODO verify if the context will survive all the way to the consumer threads.
+		ctx := tenancy.WithTenant(ctx, batch.GetTenant())
+
+		// the exporter will eventually call pushTraces from consumer threads.
+		if err := sp.otelExporter.ConsumeTraces(ctx, traces); err != nil {
+			batchErr = err
+		} else {
+			batchOks = make([]bool, traces.SpanCount())
+			for i := range batchOks {
+				batchOks[i] = true
+			}
+		}
 	})
+	return batchOks, batchErr
+}
+
+func (sp *spanProcessor) processSpans(_ context.Context, batch processor.Batch, spans []*model.Span) ([]bool, error) {
 	sp.metrics.BatchSize.Update(int64(len(spans)))
 	retMe := make([]bool, len(spans))
 
@@ -188,7 +281,6 @@ func (sp *spanProcessor) ProcessSpans(batch processor.Batch) ([]bool, error) {
 	}
 
 	for i, mSpan := range spans {
-		// TODO does this have to be one span at a time?
 		ok := sp.enqueueSpan(mSpan, batch.GetSpanFormat(), batch.GetInboundTransport(), batch.GetTenant())
 		if !ok && sp.reportBusy {
 			return nil, processor.ErrBusy
@@ -229,15 +321,15 @@ func (sp *spanProcessor) addCollectorTags(span *model.Span) {
 // in this function as it may cause race conditions.
 func (sp *spanProcessor) enqueueSpan(span *model.Span, originalFormat processor.SpanFormat, transport processor.InboundTransport, tenant string) bool {
 	spanCounts := sp.metrics.GetCountsForFormat(originalFormat, transport)
-	spanCounts.ReceivedBySvc.ReportServiceNameForSpan(span)
+	spanCounts.ReceivedBySvc.ForSpanV1(span)
 
 	if !sp.filterSpan(span) {
-		spanCounts.RejectedBySvc.ReportServiceNameForSpan(span)
+		spanCounts.RejectedBySvc.ForSpanV1(span)
 		return true // as in "not dropped", because it's actively rejected
 	}
 
 	// add format tag
-	span.Tags = append(span.Tags, model.String("internal.span.format", string(originalFormat)))
+	span.Tags = append(span.Tags, model.String(jptrace.FormatAttribute, string(originalFormat)))
 
 	item := queueItem{
 		queuedTime: time.Now(),
