@@ -25,6 +25,8 @@ import (
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 )
 
+var _ processor.SpanProcessor = (*mockSpanProcessor)(nil)
+
 type mockSpanProcessor struct {
 	expectedError error
 	mux           sync.Mutex
@@ -34,7 +36,7 @@ type mockSpanProcessor struct {
 	spanFormat    processor.SpanFormat
 }
 
-func (p *mockSpanProcessor) ProcessSpans(batch processor.Batch) ([]bool, error) {
+func (p *mockSpanProcessor) ProcessSpans(_ context.Context, batch processor.Batch) ([]bool, error) {
 	p.mux.Lock()
 	defer p.mux.Unlock()
 	batch.GetSpans(func(spans []*model.Span) {

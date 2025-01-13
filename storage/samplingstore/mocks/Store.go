@@ -8,7 +8,7 @@
 package mocks
 
 import (
-	model "github.com/jaegertracing/jaeger/cmd/collector/app/sampling/model"
+	model "github.com/jaegertracing/jaeger/storage/samplingstore/model"
 	mock "github.com/stretchr/testify/mock"
 
 	time "time"

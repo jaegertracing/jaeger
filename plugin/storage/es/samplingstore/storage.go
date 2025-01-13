@@ -13,10 +13,10 @@ import (
 	"github.com/olivere/elastic"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/model"
 	"github.com/jaegertracing/jaeger/pkg/es"
 	"github.com/jaegertracing/jaeger/pkg/es/config"
 	"github.com/jaegertracing/jaeger/plugin/storage/es/samplingstore/dbmodel"
+	"github.com/jaegertracing/jaeger/storage/samplingstore/model"
 )
 
 const (

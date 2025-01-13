@@ -53,10 +53,9 @@ var ( // interface comformance checks
 type Factory struct {
 	Options *Options
 
-	primaryMetricsFactory metrics.Factory
-	archiveMetricsFactory metrics.Factory
-	logger                *zap.Logger
-	tracer                trace.TracerProvider
+	metricsFactory metrics.Factory
+	logger         *zap.Logger
+	tracer         trace.TracerProvider
 
 	newClientFn func(c *config.Configuration, logger *zap.Logger, metricsFactory metrics.Factory) (es.Client, error)
 
@@ -131,20 +130,7 @@ func (f *Factory) configureFromOptions(o *Options) {
 
 // Initialize implements storage.Factory.
 func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
-	f.primaryMetricsFactory = metricsFactory.Namespace(
-		metrics.NSOptions{
-			Tags: map[string]string{
-				"role": "primary",
-			},
-		},
-	)
-	f.archiveMetricsFactory = metricsFactory.Namespace(
-		metrics.NSOptions{
-			Tags: map[string]string{
-				"role": "archive",
-			},
-		},
-	)
+	f.metricsFactory = metricsFactory
 	f.logger = logger
 
 	primaryClient, err := f.newClientFn(f.primaryConfig, logger, metricsFactory)
@@ -200,12 +186,12 @@ func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
 	if err != nil {
 		return nil, err
 	}
-	return spanstoremetrics.NewReaderDecorator(sr, f.primaryMetricsFactory), nil
+	return spanstoremetrics.NewReaderDecorator(sr, f.metricsFactory), nil
 }
 
 // CreateSpanWriter implements storage.Factory
 func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
-	return createSpanWriter(f.getPrimaryClient, f.primaryConfig, false, f.primaryMetricsFactory, f.logger)
+	return createSpanWriter(f.getPrimaryClient, f.primaryConfig, false, f.metricsFactory, f.logger)
 }
 
 // CreateDependencyReader implements storage.Factory
@@ -222,7 +208,14 @@ func (f *Factory) CreateArchiveSpanReader() (spanstore.Reader, error) {
 	if err != nil {
 		return nil, err
 	}
-	return spanstoremetrics.NewReaderDecorator(sr, f.archiveMetricsFactory), nil
+	archiveMetricsFactory := f.metricsFactory.Namespace(
+		metrics.NSOptions{
+			Tags: map[string]string{
+				"role": "archive",
+			},
+		},
+	)
+	return spanstoremetrics.NewReaderDecorator(sr, archiveMetricsFactory), nil
 }
 
 // CreateArchiveSpanWriter implements storage.ArchiveFactory
@@ -230,7 +223,14 @@ func (f *Factory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
 	if !f.archiveConfig.Enabled {
 		return nil, nil
 	}
-	return createSpanWriter(f.getArchiveClient, f.archiveConfig, true, f.archiveMetricsFactory, f.logger)
+	archiveMetricsFactory := f.metricsFactory.Namespace(
+		metrics.NSOptions{
+			Tags: map[string]string{
+				"role": "archive",
+			},
+		},
+	)
+	return createSpanWriter(f.getArchiveClient, f.archiveConfig, true, archiveMetricsFactory, f.logger)
 }
 
 func createSpanReader(
@@ -374,11 +374,18 @@ func (f *Factory) Close() error {
 }
 
 func (f *Factory) onPrimaryPasswordChange() {
-	f.onClientPasswordChange(f.primaryConfig, &f.primaryClient, f.primaryMetricsFactory)
+	f.onClientPasswordChange(f.primaryConfig, &f.primaryClient, f.metricsFactory)
 }
 
 func (f *Factory) onArchivePasswordChange() {
-	f.onClientPasswordChange(f.archiveConfig, &f.archiveClient, f.archiveMetricsFactory)
+	archiveMetricsFactory := f.metricsFactory.Namespace(
+		metrics.NSOptions{
+			Tags: map[string]string{
+				"role": "archive",
+			},
+		},
+	)
+	f.onClientPasswordChange(f.archiveConfig, &f.archiveClient, archiveMetricsFactory)
 }
 
 func (f *Factory) onClientPasswordChange(cfg *config.Configuration, client *atomic.Pointer[es.Client], mf metrics.Factory) {
