@@ -1,34 +1,20 @@
 services:
   jaeger:
     networks:
-      - backend
-    image: jaegertracing/all-in-one:${JAEGER_IMAGE_TAG:-latest}
-    volumes:
-      - "./jaeger-ui.json:/etc/jaeger/jaeger-ui.json"
-    command: --query.ui-config /etc/jaeger/jaeger-ui.json
-    environment:
-      - METRICS_STORAGE_TYPE=prometheus
-      - PROMETHEUS_SERVER_URL=http://prometheus:9090
-      - PROMETHEUS_QUERY_NAMESPACE=${PROMETHEUS_QUERY_NAMESPACE:-}
-      - PROMETHEUS_QUERY_DURATION_UNIT=${PROMETHEUS_QUERY_DURATION_UNIT:-}
-      - PROMETHEUS_QUERY_NORMALIZE_CALLS=true
-      - PROMETHEUS_QUERY_NORMALIZE_DURATION=true
-    ports:
-      - "16686:16686"
-
-  otel_collector:
-    networks:
       backend:
         # This is the host name used in Prometheus scrape configuration.
         aliases: [spm_metrics_source]
-    image: otel/opentelemetry-collector-contrib:${OTEL_IMAGE_TAG:-0.112.0}
+    image: jaegertracing/jaeger:${JAEGER_IMAGE_TAG:-latest}
     volumes:
-      - ${OTEL_CONFIG_SRC:-./otel-collector-config-connector.yml}:/etc/otelcol/otel-collector-config.yml
-    command: --config /etc/otelcol/otel-collector-config.yml
-    depends_on:
-      - jaeger
+      - "./jaeger-ui.json:/etc/jaeger/jaeger-ui.json" # Do we need this for v2 ? Seems to be running without this.
+      - "../../cmd/jaeger/config-spm.yaml:/etc/jaeger/config.yml"
+    command: ["--config", "/etc/jaeger/config.yml"]
     ports:
+      - "16686:16686"
+      - "8888:8888"
       - "8889:8889"
+      - "4317:4317"
+      - "4318:4318"
 
   microsim:
     networks:
@@ -36,15 +22,14 @@ services:
     image: yurishkuro/microsim:v0.4.1
     command: "-d 24h -s 500ms"
     environment:
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel_collector:4318
-      - OTEL_EXPORTER_OTLP_INSECURE=true
+      - OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://jaeger:4318/v1/traces
     depends_on:
-      - otel_collector
+      - jaeger
 
   prometheus:
     networks:
       - backend
-    image: prom/prometheus:latest
+    image: prom/prometheus:v3.1.0
     volumes:
       - "./prometheus.yml:/etc/prometheus/prometheus.yml"
     ports:
