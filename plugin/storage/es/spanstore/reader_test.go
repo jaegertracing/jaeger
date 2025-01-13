@@ -1259,8 +1259,8 @@ func TestSpanReader_ArchiveTraces(t *testing.T) {
 	}{
 		{false, "", "jaeger-span-"},
 		{true, "", "jaeger-span-read"},
-		{false, "archive", "jaeger-span-"},
-		{true, "archive", "jaeger-span-archive"},
+		{false, "foobar", "jaeger-span-"},
+		{true, "foobar", "jaeger-span-foobar"},
 	}
 
 	for _, tc := range testCases {
