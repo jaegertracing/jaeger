@@ -163,7 +163,7 @@ main() {
   if [ "$BINARY" == "jaeger" ]; then
     (cd docker-compose/monitor && make build BINARY="$BINARY" && make dev DOCKER_COMPOSE_ARGS="-d")
   else
-    (cd docker-compose/monitor && make build BINARY="$BINARY" && make dev-v2 DOCKER_COMPOSE_ARGS="-d")
+    (cd docker-compose/monitor && make build BINARY="$BINARY" && make dev-v1 DOCKER_COMPOSE_ARGS="-d")
   fi
   wait_for_services
   check_spm

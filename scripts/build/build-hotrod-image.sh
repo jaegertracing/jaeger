@@ -16,7 +16,7 @@ print_help() {
   exit 1
 }
 
-docker_compose_file="./examples/hotrod/docker-compose-v2.yml"
+docker_compose_file="./examples/hotrod/docker-compose.yml"
 platforms="$(make echo-linux-platforms)"
 current_platform="$(go env GOOS)/$(go env GOARCH)"
 jaeger_version="v2"
@@ -58,7 +58,7 @@ case "$jaeger_version" in
     binary="all-in-one"
     ;;
   v2)
-    docker_compose_file="./examples/hotrod/docker-compose-v2.yml"
+    docker_compose_file="./examples/hotrod/docker-compose.yml"
     binary="jaeger"
     ;;
   *)
