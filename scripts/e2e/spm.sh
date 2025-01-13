@@ -13,7 +13,7 @@ print_help() {
 }
 
 BINARY='jaeger'
-compose_file=docker-compose/monitor/docker-compose-v2.yml
+compose_file=docker-compose/monitor/docker-compose.yml
 
 while getopts "b:h" opt; do
 	case "${opt}" in
@@ -161,9 +161,9 @@ teardown_services() {
 
 main() {
   if [ "$BINARY" == "jaeger" ]; then
-    (cd docker-compose/monitor && make build BINARY="$BINARY" && make dev-v2 DOCKER_COMPOSE_ARGS="-d")
-  else
     (cd docker-compose/monitor && make build BINARY="$BINARY" && make dev DOCKER_COMPOSE_ARGS="-d")
+  else
+    (cd docker-compose/monitor && make build BINARY="$BINARY" && make dev-v2 DOCKER_COMPOSE_ARGS="-d")
   fi
   wait_for_services
   check_spm
