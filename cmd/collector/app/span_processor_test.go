@@ -99,13 +99,13 @@ func TestBySvcMetrics(t *testing.T) {
 			span := makeZipkinSpan(test.serviceName, test.rootSpan, test.debug)
 			sanitizer := zipkinsanitizer.NewChainedSanitizer(zipkinsanitizer.NewStandardSanitizers()...)
 			zHandler := handler.NewZipkinSpanHandler(logger, sp, sanitizer)
-			zHandler.SubmitZipkinBatch([]*zc.Span{span, span}, handler.SubmitBatchOptions{})
+			zHandler.SubmitZipkinBatch(context.Background(), []*zc.Span{span, span}, handler.SubmitBatchOptions{})
 			metricPrefix = "service"
 			format = "zipkin"
 		case processor.JaegerSpanFormat:
 			span, process := makeJaegerSpan(test.serviceName, test.rootSpan, test.debug)
 			jHandler := handler.NewJaegerSpanHandler(logger, sp)
-			jHandler.SubmitBatches([]*jaeger.Batch{
+			jHandler.SubmitBatches(context.Background(), []*jaeger.Batch{
 				{
 					Spans: []*jaeger.Span{
 						span,
@@ -248,6 +248,7 @@ func TestSpanProcessor(t *testing.T) {
 	require.NoError(t, err)
 
 	res, err := p.ProcessSpans(
+		context.Background(),
 		processor.SpansV1{
 			Spans: []*model.Span{{}}, // empty span should be enriched by sanitizers
 			Details: processor.Details{
@@ -280,7 +281,7 @@ func TestSpanProcessorErrors(t *testing.T) {
 	require.NoError(t, err)
 	p := pp.(*spanProcessor)
 
-	res, err := p.ProcessSpans(processor.SpansV1{
+	res, err := p.ProcessSpans(context.Background(), processor.SpansV1{
 		Spans: []*model.Span{
 			{
 				Process: &model.Process{
@@ -340,7 +341,7 @@ func TestSpanProcessorBusy(t *testing.T) {
 	w.Lock()
 	defer w.Unlock()
 
-	res, err := p.ProcessSpans(processor.SpansV1{
+	res, err := p.ProcessSpans(context.Background(), processor.SpansV1{
 		Spans: []*model.Span{
 			{
 				Process: &model.Process{
@@ -427,7 +428,7 @@ func TestSpanProcessorWithCollectorTags(t *testing.T) {
 					Spans: []*model.Span{span},
 				}
 			}
-			_, err = p.ProcessSpans(batch)
+			_, err = p.ProcessSpans(context.Background(), batch)
 			require.NoError(t, err)
 
 			require.Eventually(t, func() bool {
@@ -684,7 +685,7 @@ func TestAdditionalProcessors(t *testing.T) {
 	// nil doesn't fail
 	p, err := NewSpanProcessor(v1adapter.NewTraceWriter(w), nil, Options.QueueSize(1))
 	require.NoError(t, err)
-	res, err := p.ProcessSpans(processor.SpansV1{
+	res, err := p.ProcessSpans(context.Background(), processor.SpansV1{
 		Spans: []*model.Span{
 			{
 				Process: &model.Process{
@@ -707,7 +708,7 @@ func TestAdditionalProcessors(t *testing.T) {
 	}
 	p, err = NewSpanProcessor(v1adapter.NewTraceWriter(w), []ProcessSpan{f}, Options.QueueSize(1))
 	require.NoError(t, err)
-	res, err = p.ProcessSpans(processor.SpansV1{
+	res, err = p.ProcessSpans(context.Background(), processor.SpansV1{
 		Spans: []*model.Span{
 			{
 				Process: &model.Process{
@@ -732,7 +733,7 @@ func TestSpanProcessorContextPropagation(t *testing.T) {
 
 	dummyTenant := "context-prop-test-tenant"
 
-	res, err := p.ProcessSpans(processor.SpansV1{
+	res, err := p.ProcessSpans(context.Background(), processor.SpansV1{
 		Spans: []*model.Span{
 			{
 				Process: &model.Process{
@@ -777,7 +778,7 @@ func TestSpanProcessorWithOnDroppedSpanOption(t *testing.T) {
 	w.Lock()
 	defer w.Unlock()
 
-	_, err = p.ProcessSpans(processor.SpansV1{
+	_, err = p.ProcessSpans(context.Background(), processor.SpansV1{
 		Spans: []*model.Span{
 			{OperationName: "op1"},
 		},
@@ -794,7 +795,7 @@ func TestSpanProcessorWithOnDroppedSpanOption(t *testing.T) {
 
 	// Now the queue is empty again and can accept one more item, but no workers available.
 	// If we send two items, the last one will have to be dropped.
-	_, err = p.ProcessSpans(processor.SpansV1{
+	_, err = p.ProcessSpans(context.Background(), processor.SpansV1{
 		Spans: []*model.Span{
 			{OperationName: "op2"},
 			{OperationName: "op3"},
