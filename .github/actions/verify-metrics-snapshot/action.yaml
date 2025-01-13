@@ -40,7 +40,7 @@ runs:
       with: 
         path: ./.metrics/baseline_${{ inputs.snapshot }}.txt
         key: ${{ inputs.artifact_key }}_${{ github.run_id }}
-        restore-keys: [ ${{ inputs.artifact_key }} ]
+        restore-keys: ${{ inputs.artifact_key }}
 
       
     - name: Download the cached tagged metrics
