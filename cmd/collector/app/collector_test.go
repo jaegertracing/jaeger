@@ -263,7 +263,7 @@ func TestAggregator(t *testing.T) {
 			},
 		},
 	}
-	_, err := c.spanProcessor.ProcessSpans(processor.SpansV1{
+	_, err := c.spanProcessor.ProcessSpans(context.Background(), processor.SpansV1{
 		Spans: spans,
 		Details: processor.Details{
 			SpanFormat: processor.JaegerSpanFormat,
