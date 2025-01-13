@@ -1,7 +1,7 @@
 // Copyright (c) 2018 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
-package sampling
+package grpc
 
 import (
 	"errors"
@@ -40,7 +40,7 @@ func TestNewGRPCHandler(t *testing.T) {
 		{req: &api_v2.SamplingStrategyParameters{ServiceName: "nil"}, resp: nil},
 		{req: &api_v2.SamplingStrategyParameters{ServiceName: "foo"}, resp: &api_v2.SamplingStrategyResponse{StrategyType: api_v2.SamplingStrategyType_PROBABILISTIC}},
 	}
-	h := NewGRPCHandler(mockSamplingStore{})
+	h := NewHandler(mockSamplingStore{})
 	for _, test := range tests {
 		resp, err := h.GetSamplingStrategy(context.Background(), test.req)
 		if test.err != "" {
