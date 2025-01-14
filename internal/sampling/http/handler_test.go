@@ -2,7 +2,7 @@
 // Copyright (c) 2017 Uber Technologies, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-package clientcfghttp
+package http
 
 import (
 	"encoding/json"
@@ -18,8 +18,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger/internal/metricstest"
+	tSampling092 "github.com/jaegertracing/jaeger/internal/sampling/http/thrift-0.9.2"
 	p2json "github.com/jaegertracing/jaeger/model/converter/json"
-	tSampling092 "github.com/jaegertracing/jaeger/pkg/clientcfg/clientcfghttp/thrift-0.9.2"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 )
 
@@ -27,7 +27,7 @@ type testServer struct {
 	metricsFactory   *metricstest.Factory
 	samplingProvider *mockSamplingProvider
 	server           *httptest.Server
-	handler          *HTTPHandler
+	handler          *Handler
 }
 
 func withServer(
@@ -41,7 +41,7 @@ func withServer(
 	cfgMgr := &ConfigManager{
 		SamplingProvider: samplingProvider,
 	}
-	handler := NewHTTPHandler(HTTPHandlerParams{
+	handler := NewHandler(HandlerParams{
 		ConfigManager:          cfgMgr,
 		MetricsFactory:         metricsFactory,
 		BasePath:               basePath,
