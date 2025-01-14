@@ -117,7 +117,7 @@ func scrapeMetrics(t *testing.T, storage string) {
 	outputDir := "../../../../.metrics"
 	require.NoError(t, os.MkdirAll(outputDir, os.ModePerm))
 
-	metricsFile, err := os.Create(fmt.Sprintf("%s/%v_metrics.txt", outputDir, storage))
+	metricsFile, err := os.Create(fmt.Sprintf("%s/metrics_snapshot_%v.txt", outputDir, storage))
 	require.NoError(t, err)
 	defer metricsFile.Close()
 
