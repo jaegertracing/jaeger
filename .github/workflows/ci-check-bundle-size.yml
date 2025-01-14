@@ -38,14 +38,8 @@ jobs:
     - name: Setup Node.js version
       uses: ./.github/actions/setup-node.js
 
-    - name: Install tools
-      run: make install-ci
-
     - name: Build jaeger binary
-      run: |
-        export GOOS=linux
-        export GOARCH=amd64
-        make build-jaeger
+      run: make build-jaeger
 
     - name: Calculate bundle size
       run: |
@@ -61,25 +55,23 @@ jobs:
         key: bundle-size-jaeger-linux-amd64
 
     - name: Compare bundle sizes
+      if: steps.cache-bundle-size.outputs.cache-hit == 'true'
       run: |
-        if [ -f ./bundle_size.txt ]; then
-          OLD_BUNDLE_SIZE=$(cat ./bundle_size.txt)
-          NEW_BUNDLE_SIZE=$(cat ./new_bundle_size.txt)
-          echo "Previous bundle size: $OLD_BUNDLE_SIZE bytes"
-          echo "New bundle size: $NEW_BUNDLE_SIZE bytes"
-          
-          SIZE_CHANGE=$(( $NEW_BUNDLE_SIZE - $OLD_BUNDLE_SIZE ))
-          PERCENTAGE_CHANGE=$(( SIZE_CHANGE * 100 / $OLD_BUNDLE_SIZE ))
-          echo "Size change: $PERCENTAGE_CHANGE%"
-          if [ $PERCENTAGE_CHANGE -gt 2 ]; then
-            echo "❌ Bundle size increased by more than 2% ($PERCENTAGE_CHANGE%)"
-            exit 1
-          else
-            echo "✅ Bundle size change is within acceptable range ($PERCENTAGE_CHANGE%)"
-          fi
+        OLD_BUNDLE_SIZE=$(cat ./bundle_size.txt)
+        NEW_BUNDLE_SIZE=$(cat ./new_bundle_size.txt)
+        echo "Previous bundle size: $OLD_BUNDLE_SIZE bytes"
+        echo "New bundle size: $NEW_BUNDLE_SIZE bytes"
+        
+        SIZE_CHANGE=$(( $NEW_BUNDLE_SIZE - $OLD_BUNDLE_SIZE ))
+        PERCENTAGE_CHANGE=$(( SIZE_CHANGE * 100 / $OLD_BUNDLE_SIZE ))
+        echo "Size change: $PERCENTAGE_CHANGE%"
+        if [ $PERCENTAGE_CHANGE -gt 2 ]; then
+          echo "❌ Bundle size increased by more than 2% ($PERCENTAGE_CHANGE%)"
+          exit 1
         else
-          echo "No previous bundle size found. This will be the baseline."
+          echo "✅ Bundle size change is within acceptable range ($PERCENTAGE_CHANGE%)"
         fi
+ 
 
     - name: Remove previous *_bundle_*.txt
       run: |
