@@ -40,9 +40,9 @@ runs:
       with: 
         path: ./.metrics/baseline_${{ inputs.snapshot }}.txt
         key: ${{ inputs.artifact_key }}_${{ github.run_id }}
-        restore-keys: ${{ inputs.artifact_key }}
-
-      
+            
+    # Use restore keys to match prefix and fetch the latest cache
+    # Here , restore keys is an ordered list of prefixes that need to be matched 
     - name: Download the cached tagged metrics
       id: download-release-snapshot
       if: github.ref_name != 'main'
@@ -50,6 +50,8 @@ runs:
       with:
         path: ./.metrics/baseline_${{ inputs.snapshot }}.txt
         key: ${{ inputs.artifact_key }}
+        restore-keys: |
+          ${{ inputs.artifact_key }}
 
     - name: Calculate diff between the snapshots 
       id: compare-snapshots
