@@ -114,6 +114,7 @@ func TestStartHTTP(t *testing.T) {
 		TelemetrySettings: componenttest.NewNopTelemetrySettings(),
 	}, cfg)
 	require.NoError(t, err)
+	// here, the file is using a service hardcoded in the sampling-services.json file
 	host := makeStorageExtension(t, "foobar")
 	require.NoError(t, ext.Start(context.Background(), host))
 
@@ -154,6 +155,7 @@ func TestStartGRPC(t *testing.T) {
 		TelemetrySettings: componenttest.NewNopTelemetrySettings(),
 	}, cfg)
 	require.NoError(t, err)
+	// here, the file is using a service hardcoded in the sampling-services.json file
 	host := makeStorageExtension(t, "foobar")
 	require.NoError(t, ext.Start(context.Background(), host))
 

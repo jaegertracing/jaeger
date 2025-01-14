@@ -19,10 +19,10 @@ import (
 	"google.golang.org/grpc/health"
 	"google.golang.org/grpc/health/grpc_health_v1"
 
-	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/samplingstrategy"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
 	"github.com/jaegertracing/jaeger/internal/metrics/otelmetrics"
+	samplinggrpc "github.com/jaegertracing/jaeger/internal/sampling/grpc"
 	"github.com/jaegertracing/jaeger/pkg/clientcfg/clientcfghttp"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/plugin/sampling/leaderelection"
@@ -168,6 +168,7 @@ func (ext *rsExtension) startFileBasedStrategyProvider(_ context.Context) error 
 		StrategiesFile:             ext.cfg.File.Path,
 		ReloadInterval:             ext.cfg.File.ReloadInterval,
 		IncludeDefaultOpStrategies: includeDefaultOpStrategies.IsEnabled(),
+		DefaultSamplingProbability: ext.cfg.File.DefaultSamplingProbability,
 	}
 
 	// contextcheck linter complains about next line that context is not passed.
@@ -275,7 +276,7 @@ func (ext *rsExtension) startGRPCServer(ctx context.Context, host component.Host
 		return err
 	}
 
-	api_v2.RegisterSamplingManagerServer(ext.grpcServer, sampling.NewGRPCHandler(ext.strategyProvider))
+	api_v2.RegisterSamplingManagerServer(ext.grpcServer, samplinggrpc.NewHandler(ext.strategyProvider))
 
 	healthServer := health.NewServer() // support health checks on the gRPC server
 	healthServer.SetServingStatus("jaeger.api_v2.SamplingManager", grpc_health_v1.HealthCheckResponse_SERVING)
