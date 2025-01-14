@@ -11,10 +11,10 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/samplingstrategy"
+	"github.com/jaegertracing/jaeger/internal/leaderelection"
 	"github.com/jaegertracing/jaeger/pkg/distributedlock"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/plugin"
-	"github.com/jaegertracing/jaeger/plugin/sampling/leaderelection"
 	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/samplingstore"
 )
