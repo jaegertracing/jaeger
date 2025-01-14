@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"reflect"
 	"slices"
 	"sync"
@@ -19,9 +20,15 @@ import (
 
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/config/configgrpc"
+	"go.opentelemetry.io/collector/config/confighttp"
+	"go.opentelemetry.io/collector/config/confignet"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.uber.org/zap"
 
+	cFlags "github.com/jaegertracing/jaeger/cmd/collector/app/flags"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/handler"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
 	zipkinsanitizer "github.com/jaegertracing/jaeger/cmd/collector/app/sanitizer/zipkin"
@@ -30,6 +37,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
+	"github.com/jaegertracing/jaeger/storage_v2/tracestore/mocks"
 	"github.com/jaegertracing/jaeger/storage_v2/v1adapter"
 	"github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	zc "github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
@@ -806,4 +814,94 @@ func TestSpanProcessorWithOnDroppedSpanOption(t *testing.T) {
 	})
 	require.EqualError(t, err, processor.ErrBusy.Error())
 	assert.Equal(t, []string{"op3"}, droppedOperations)
+}
+
+func optionsWithPorts(portHttp string, portGrpc string) *cFlags.CollectorOptions {
+	opts := &cFlags.CollectorOptions{
+		OTLP: struct {
+			Enabled bool
+			GRPC    configgrpc.ServerConfig
+			HTTP    confighttp.ServerConfig
+		}{
+			Enabled: true,
+			HTTP: confighttp.ServerConfig{
+				Endpoint: portHttp,
+			},
+			GRPC: configgrpc.ServerConfig{
+				NetAddr: confignet.AddrConfig{
+					Endpoint:  portGrpc,
+					Transport: confignet.TransportTypeTCP,
+				},
+			},
+		},
+	}
+	return opts
+}
+
+func TestOTLPReceiverWithV2Storage(t *testing.T) {
+	// Setup mock writer and expectations
+	mockWriter := mocks.NewWriter(t)
+	traces := ptrace.NewTraces()
+	rSpans := traces.ResourceSpans().AppendEmpty()
+	sSpans := rSpans.ScopeSpans().AppendEmpty()
+	span := sSpans.Spans().AppendEmpty()
+	span.SetName("test-trace")
+	mockWriter.On("WriteTraces", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
+		ctx := args.Get(0).(context.Context)
+		td := args.Get(1).(ptrace.Traces)
+
+		equal := td.ResourceSpans().Len() == traces.ResourceSpans().Len()
+		if equal {
+			rSpan := td.ResourceSpans().At(0)
+			equal = rSpan.ScopeSpans().Len() == 1 &&
+				rSpan.ScopeSpans().At(0).Spans().Len() == 1 &&
+				rSpan.ScopeSpans().At(0).Spans().At(0).Name() == "test-trace"
+		}
+
+		tenant := tenancy.GetTenant(ctx)
+		if !equal {
+			t.Error("Traces don't match expected structure")
+		}
+		if tenant != "test-tenant" {
+			t.Errorf("Expected tenant 'test-tenant', got '%s'", tenant)
+		}
+	}).Return(nil)
+
+	spanProcessor, err := NewSpanProcessor(
+		mockWriter,
+		nil,
+		Options.NumWorkers(1),
+		Options.QueueSize(1),
+		Options.ReportBusy(true),
+	)
+	require.NoError(t, err)
+	logger, _ := testutils.NewLogger()
+
+	portHttp := "4318"
+	portGrpc := "4317"
+
+	// Create and start receiver
+	rec, err := handler.StartOTLPReceiver(optionsWithPorts(fmt.Sprintf("localhost:%v", portHttp), fmt.Sprintf("localhost:%v", portGrpc)), logger, spanProcessor, &tenancy.Manager{})
+	require.NoError(t, err)
+	ctx := context.Background()
+	defer rec.Shutdown(ctx)
+
+	// Send trace via HTTP
+	url := fmt.Sprintf("http://localhost:%v/v1/traces", portHttp)
+	client := &http.Client{}
+
+	marshaler := ptrace.JSONMarshaler{}
+	data, err := marshaler.MarshalTraces(traces)
+	require.NoError(t, err)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(data))
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("tenant", "test-tenant")
+
+	resp, err := client.Do(req)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	mockWriter.AssertExpectations(t)
 }
