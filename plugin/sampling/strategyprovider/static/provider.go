@@ -18,7 +18,7 @@ import (
 
 	"go.uber.org/zap"
 
-	ss "github.com/jaegertracing/jaeger/cmd/collector/app/sampling/samplingstrategy"
+	ss "github.com/jaegertracing/jaeger/internal/sampling/strategy"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 )
 

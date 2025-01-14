@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
-	ss "github.com/jaegertracing/jaeger/cmd/collector/app/sampling/samplingstrategy"
+	ss "github.com/jaegertracing/jaeger/internal/sampling/strategy"
 	"github.com/jaegertracing/jaeger/pkg/distributedlock"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/plugin"

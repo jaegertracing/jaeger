@@ -17,8 +17,8 @@ import (
 	"google.golang.org/grpc/reflection"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/handler"
-	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/samplingstrategy"
 	samplinggrpc "github.com/jaegertracing/jaeger/internal/sampling/grpc"
+	"github.com/jaegertracing/jaeger/internal/sampling/strategy"
 	"github.com/jaegertracing/jaeger/pkg/telemetry"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 )
@@ -27,7 +27,7 @@ import (
 type GRPCServerParams struct {
 	configgrpc.ServerConfig
 	Handler          *handler.GRPCHandler
-	SamplingProvider samplingstrategy.Provider
+	SamplingProvider strategy.Provider
 	Logger           *zap.Logger
 	OnError          func(error)
 

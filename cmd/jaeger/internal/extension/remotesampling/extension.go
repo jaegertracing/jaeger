@@ -19,12 +19,12 @@ import (
 	"google.golang.org/grpc/health"
 	"google.golang.org/grpc/health/grpc_health_v1"
 
-	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/samplingstrategy"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
 	"github.com/jaegertracing/jaeger/internal/leaderelection"
 	"github.com/jaegertracing/jaeger/internal/metrics/otelmetrics"
 	samplinggrpc "github.com/jaegertracing/jaeger/internal/sampling/grpc"
 	samplinghttp "github.com/jaegertracing/jaeger/internal/sampling/http"
+	"github.com/jaegertracing/jaeger/internal/sampling/strategy"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/plugin/sampling/strategyprovider/adaptive"
 	"github.com/jaegertracing/jaeger/plugin/sampling/strategyprovider/static"
@@ -47,7 +47,7 @@ type rsExtension struct {
 	telemetry        component.TelemetrySettings
 	httpServer       *http.Server
 	grpcServer       *grpc.Server
-	strategyProvider samplingstrategy.Provider // TODO we should rename this to Provider, not "store"
+	strategyProvider strategy.Provider // TODO we should rename this to Provider, not "store"
 	adaptiveStore    samplingstore.Store
 	distLock         *leaderelection.DistributedElectionParticipant
 	shutdownWG       sync.WaitGroup

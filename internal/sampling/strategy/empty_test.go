@@ -1,7 +1,7 @@
 // Copyright (c) 2019 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
-package samplingstrategy
+package strategy
 
 import (
 	"testing"
