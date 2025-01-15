@@ -118,7 +118,7 @@ jobs:
       run: |
         SHUNIT2=.tools/shunit2 bash scripts/utils/compute-tags.test.sh
 
-  binary-size-and-check:
+  binary-size-check:
     runs-on: ubuntu-latest
     steps:
     - uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
