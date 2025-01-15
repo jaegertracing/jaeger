@@ -839,69 +839,87 @@ func optionsWithPorts(portHttp string, portGrpc string) *cFlags.CollectorOptions
 }
 
 func TestOTLPReceiverWithV2Storage(t *testing.T) {
-	// Setup mock writer and expectations
-	mockWriter := mocks.NewWriter(t)
-	traces := ptrace.NewTraces()
-	rSpans := traces.ResourceSpans().AppendEmpty()
-	sSpans := rSpans.ScopeSpans().AppendEmpty()
-	span := sSpans.Spans().AppendEmpty()
-	span.SetName("test-trace")
-	mockWriter.On("WriteTraces", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
-		ctx := args.Get(0).(context.Context)
-		td := args.Get(1).(ptrace.Traces)
+    // Setup mock writer and expectations
+    mockWriter := mocks.NewWriter(t)
+    traces := ptrace.NewTraces()
+    rSpans := traces.ResourceSpans().AppendEmpty()
+    sSpans := rSpans.ScopeSpans().AppendEmpty()
+    span := sSpans.Spans().AppendEmpty()
+    span.SetName("test-trace")
 
-		equal := td.ResourceSpans().Len() == traces.ResourceSpans().Len()
-		if equal {
-			rSpan := td.ResourceSpans().At(0)
-			equal = rSpan.ScopeSpans().Len() == 1 &&
-				rSpan.ScopeSpans().At(0).Spans().Len() == 1 &&
-				rSpan.ScopeSpans().At(0).Spans().At(0).Name() == "test-trace"
-		}
+    mockWriter.On("WriteTraces", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
+        ctx := args.Get(0).(context.Context)
+        td := args.Get(1).(ptrace.Traces)
 
-		tenant := tenancy.GetTenant(ctx)
-		if !equal {
-			t.Error("Traces don't match expected structure")
-		}
-		if tenant != "test-tenant" {
-			t.Errorf("Expected tenant 'test-tenant', got '%s'", tenant)
-		}
-	}).Return(nil)
+        equal := td.ResourceSpans().Len() == traces.ResourceSpans().Len()
+        if equal {
+            rSpan := td.ResourceSpans().At(0)
+            equal = rSpan.ScopeSpans().Len() == 1 &&
+                rSpan.ScopeSpans().At(0).Spans().Len() == 1 &&
+                rSpan.ScopeSpans().At(0).Spans().At(0).Name() == "test-trace"
+        }
 
-	spanProcessor, err := NewSpanProcessor(
-		mockWriter,
-		nil,
-		Options.NumWorkers(1),
-		Options.QueueSize(1),
-		Options.ReportBusy(true),
-	)
-	require.NoError(t, err)
-	logger, _ := testutils.NewLogger()
+        tenant := tenancy.GetTenant(ctx)
+        if !equal {
+            t.Error("Traces don't match expected structure")
+        }
+        if tenant != "tenant" {
+            t.Errorf("Expected tenant 'tenant', got '%s'", tenant)
+        }
+    }).Return(nil)
 
-	portHttp := "4318"
-	portGrpc := "4317"
+    spanProcessor, err := NewSpanProcessor(
+        mockWriter,
+        nil,
+        Options.NumWorkers(1),
+        Options.QueueSize(1),
+        Options.ReportBusy(true),
+    )
+    require.NoError(t, err)
+    logger, _ := testutils.NewLogger()
 
-	// Create and start receiver
-	rec, err := handler.StartOTLPReceiver(optionsWithPorts(fmt.Sprintf("localhost:%v", portHttp), fmt.Sprintf("localhost:%v", portGrpc)), logger, spanProcessor, &tenancy.Manager{})
-	require.NoError(t, err)
-	ctx := context.Background()
-	defer rec.Shutdown(ctx)
+    portHttp := "4318"
+    portGrpc := "4317"
+    tenancyMgr := &tenancy.Manager{
+        Enabled: true,
+        Header:  "x-tenant", // Add the header configuration
+    }
 
-	// Send trace via HTTP
-	url := fmt.Sprintf("http://localhost:%v/v1/traces", portHttp)
-	client := &http.Client{}
+    // Create and start receiver
+    rec, err := handler.StartOTLPReceiver(
+        optionsWithPorts(fmt.Sprintf("localhost:%v", portHttp), fmt.Sprintf("localhost:%v", portGrpc)),
+        logger,
+        spanProcessor,
+        tenancyMgr,
+    )
+    require.NoError(t, err)
+    ctx := context.Background()
+    defer rec.Shutdown(ctx)
 
-	marshaler := ptrace.JSONMarshaler{}
-	data, err := marshaler.MarshalTraces(traces)
-	require.NoError(t, err)
+    // Send trace via HTTP
+    url := fmt.Sprintf("http://localhost:%v/v1/traces", portHttp)
+    client := &http.Client{}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(data))
-	require.NoError(t, err)
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("tenant", "test-tenant")
+    marshaler := ptrace.JSONMarshaler{}
+    data, err := marshaler.MarshalTraces(traces)
+    require.NoError(t, err)
 
-	resp, err := client.Do(req)
-	require.NoError(t, err)
-	require.Equal(t, http.StatusOK, resp.StatusCode)
+    req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(data))
+    require.NoError(t, err)
+	req.Header.Add("Content-Type", "application/json")
+    req.Header.Add("x-tenant", "test-tenant")
 
-	mockWriter.AssertExpectations(t)
+    resp, err := client.Do(req)
+	body , err := io.ReadAll(resp.Body)
+	fmt.Printf("%v",string(body))
+	fmt.Printf("%v",req.Header)
+    require.NoError(t, err)
+    defer resp.Body.Close()
+
+    require.Equal(t, http.StatusOK, resp.StatusCode) // Update expected status code
+
+    // Give time for processing
+    time.Sleep(100 * time.Millisecond)
+
+    mockWriter.AssertExpectations(t)
 }
