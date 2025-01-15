@@ -13,14 +13,14 @@ import (
 	"go.uber.org/zap/zapcore"
 
 	"github.com/jaegertracing/jaeger/cmd/agent/app/configmanager"
-	"github.com/jaegertracing/jaeger/pkg/clientcfg/clientcfghttp"
+	samplinghttp "github.com/jaegertracing/jaeger/internal/sampling/http"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
 // NewHTTPServer creates a new server that hosts an HTTP/JSON endpoint for clients
 // to query for sampling strategies.
 func NewHTTPServer(hostPort string, manager configmanager.ClientConfigManager, mFactory metrics.Factory, logger *zap.Logger) *http.Server {
-	handler := clientcfghttp.NewHTTPHandler(clientcfghttp.HTTPHandlerParams{
+	handler := samplinghttp.NewHandler(samplinghttp.HandlerParams{
 		ConfigManager:          manager,
 		MetricsFactory:         mFactory,
 		LegacySamplingEndpoint: true,
