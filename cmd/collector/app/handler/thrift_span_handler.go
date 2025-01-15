@@ -5,6 +5,8 @@
 package handler
 
 import (
+	"context"
+
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
@@ -24,13 +26,13 @@ type SubmitBatchOptions struct {
 // ZipkinSpansHandler consumes and handles zipkin spans
 type ZipkinSpansHandler interface {
 	// SubmitZipkinBatch records a batch of spans in Zipkin Thrift format
-	SubmitZipkinBatch(spans []*zipkincore.Span, options SubmitBatchOptions) ([]*zipkincore.Response, error)
+	SubmitZipkinBatch(ctx context.Context, spans []*zipkincore.Span, options SubmitBatchOptions) ([]*zipkincore.Response, error)
 }
 
 // JaegerBatchesHandler consumes and handles Jaeger batches
 type JaegerBatchesHandler interface {
 	// SubmitBatches records a batch of spans in Jaeger Thrift format
-	SubmitBatches(batches []*jaeger.Batch, options SubmitBatchOptions) ([]*jaeger.BatchSubmitResponse, error)
+	SubmitBatches(ctx context.Context, batches []*jaeger.Batch, options SubmitBatchOptions) ([]*jaeger.BatchSubmitResponse, error)
 }
 
 type jaegerBatchesHandler struct {
@@ -46,7 +48,7 @@ func NewJaegerSpanHandler(logger *zap.Logger, modelProcessor processor.SpanProce
 	}
 }
 
-func (jbh *jaegerBatchesHandler) SubmitBatches(batches []*jaeger.Batch, options SubmitBatchOptions) ([]*jaeger.BatchSubmitResponse, error) {
+func (jbh *jaegerBatchesHandler) SubmitBatches(ctx context.Context, batches []*jaeger.Batch, options SubmitBatchOptions) ([]*jaeger.BatchSubmitResponse, error) {
 	responses := make([]*jaeger.BatchSubmitResponse, 0, len(batches))
 	for _, batch := range batches {
 		mSpans := make([]*model.Span, 0, len(batch.Spans))
@@ -54,7 +56,7 @@ func (jbh *jaegerBatchesHandler) SubmitBatches(batches []*jaeger.Batch, options 
 			mSpan := jConv.ToDomainSpan(span, batch.Process)
 			mSpans = append(mSpans, mSpan)
 		}
-		oks, err := jbh.modelProcessor.ProcessSpans(processor.SpansV1{
+		oks, err := jbh.modelProcessor.ProcessSpans(ctx, processor.SpansV1{
 			Spans: mSpans,
 			Details: processor.Details{
 				InboundTransport: options.InboundTransport,
@@ -98,7 +100,7 @@ func NewZipkinSpanHandler(logger *zap.Logger, modelHandler processor.SpanProcess
 }
 
 // SubmitZipkinBatch records a batch of spans already in Zipkin Thrift format.
-func (h *zipkinSpanHandler) SubmitZipkinBatch(spans []*zipkincore.Span, options SubmitBatchOptions) ([]*zipkincore.Response, error) {
+func (h *zipkinSpanHandler) SubmitZipkinBatch(ctx context.Context, spans []*zipkincore.Span, options SubmitBatchOptions) ([]*zipkincore.Response, error) {
 	mSpans := make([]*model.Span, 0, len(spans))
 	convCount := make([]int, len(spans))
 	for i, span := range spans {
@@ -108,7 +110,7 @@ func (h *zipkinSpanHandler) SubmitZipkinBatch(spans []*zipkincore.Span, options 
 		convCount[i] = len(converted)
 		mSpans = append(mSpans, converted...)
 	}
-	bools, err := h.modelProcessor.ProcessSpans(processor.SpansV1{
+	bools, err := h.modelProcessor.ProcessSpans(ctx, processor.SpansV1{
 		Spans: mSpans,
 		Details: processor.Details{
 			InboundTransport: options.InboundTransport,

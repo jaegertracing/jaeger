@@ -75,7 +75,7 @@ func (c *batchConsumer) consume(ctx context.Context, batch *model.Batch) error {
 			span.Process = batch.Process
 		}
 	}
-	_, err = c.spanProcessor.ProcessSpans(processor.SpansV1{
+	_, err = c.spanProcessor.ProcessSpans(ctx, processor.SpansV1{
 		Spans: batch.Spans,
 		Details: processor.Details{
 			InboundTransport: c.spanOptions.InboundTransport,

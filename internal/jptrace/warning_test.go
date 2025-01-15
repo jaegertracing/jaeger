@@ -42,13 +42,13 @@ func TestAddWarning(t *testing.T) {
 			span := ptrace.NewSpan()
 			attrs := span.Attributes()
 			if test.existing != nil {
-				warnings := attrs.PutEmptySlice("jaeger.internal.warnings")
+				warnings := attrs.PutEmptySlice(WarningsAttribute)
 				for _, warn := range test.existing {
 					warnings.AppendEmpty().SetStr(warn)
 				}
 			}
 			AddWarnings(span, test.newWarn)
-			warnings, ok := attrs.Get("jaeger.internal.warnings")
+			warnings, ok := attrs.Get(WarningsAttribute)
 			assert.True(t, ok)
 			assert.Equal(t, len(test.expected), warnings.Slice().Len())
 			for i, expectedWarn := range test.expected {
@@ -61,7 +61,7 @@ func TestAddWarning(t *testing.T) {
 func TestAddWarning_MultipleWarnings(t *testing.T) {
 	span := ptrace.NewSpan()
 	AddWarnings(span, "warning-1", "warning-2")
-	warnings, ok := span.Attributes().Get("jaeger.internal.warnings")
+	warnings, ok := span.Attributes().Get(WarningsAttribute)
 	require.True(t, ok)
 	require.Equal(t, "warning-1", warnings.Slice().At(0).Str())
 	require.Equal(t, "warning-2", warnings.Slice().At(1).Str())
@@ -94,7 +94,7 @@ func TestGetWarnings(t *testing.T) {
 			span := ptrace.NewSpan()
 			attrs := span.Attributes()
 			if test.existing != nil {
-				warnings := attrs.PutEmptySlice("jaeger.internal.warnings")
+				warnings := attrs.PutEmptySlice(WarningsAttribute)
 				for _, warn := range test.existing {
 					warnings.AppendEmpty().SetStr(warn)
 				}

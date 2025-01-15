@@ -19,13 +19,3 @@ type ServiceOperationProbabilities map[string]map[string]float64
 // ServiceOperationQPS contains the qps for all operations in a service.
 // ie [service][operation] = qps
 type ServiceOperationQPS map[string]map[string]float64
-
-// ProbabilityAndQPS contains the sampling probability and measured qps for an operation.
-type ProbabilityAndQPS struct {
-	Probability float64
-	QPS         float64
-}
-
-// ServiceOperationData contains the sampling probabilities and measured qps for all operations in a service.
-// ie [service][operation] = ProbabilityAndQPS
-type ServiceOperationData map[string]map[string]*ProbabilityAndQPS

@@ -18,6 +18,7 @@ import (
 	"github.com/jaegertracing/jaeger/plugin/storage/memory"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	spanstoreMocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
+	tracestoremocks "github.com/jaegertracing/jaeger/storage_v2/tracestore/mocks"
 )
 
 func TestWriteTraces(t *testing.T) {
@@ -54,6 +55,22 @@ func TestWriteTracesError(t *testing.T) {
 
 	err := traceWriter.WriteTraces(context.Background(), makeTraces())
 	require.ErrorContains(t, err, "mocked error")
+}
+
+func TestGetV1Writer_NoError(t *testing.T) {
+	memstore := memory.NewStore()
+	traceWriter := &TraceWriter{
+		spanWriter: memstore,
+	}
+	v1Writer, err := GetV1Writer(traceWriter)
+	require.NoError(t, err)
+	require.Equal(t, memstore, v1Writer)
+}
+
+func TestGetV1Writer_Error(t *testing.T) {
+	w := new(tracestoremocks.Writer)
+	_, err := GetV1Writer(w)
+	require.ErrorIs(t, err, ErrV1WriterNotAvailable)
 }
 
 func makeTraces() ptrace.Traces {

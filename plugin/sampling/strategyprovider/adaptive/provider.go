@@ -10,10 +10,10 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/model"
-	"github.com/jaegertracing/jaeger/plugin/sampling/leaderelection"
+	"github.com/jaegertracing/jaeger/internal/leaderelection"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 	"github.com/jaegertracing/jaeger/storage/samplingstore"
+	"github.com/jaegertracing/jaeger/storage/samplingstore/model"
 )
 
 const defaultFollowerProbabilityInterval = 20 * time.Second

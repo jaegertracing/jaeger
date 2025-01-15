@@ -53,10 +53,9 @@ var ( // interface comformance checks
 type Factory struct {
 	Options *Options
 
-	primaryMetricsFactory metrics.Factory
-	archiveMetricsFactory metrics.Factory
-	logger                *zap.Logger
-	tracer                trace.TracerProvider
+	metricsFactory metrics.Factory
+	logger         *zap.Logger
+	tracer         trace.TracerProvider
 
 	newClientFn func(c *config.Configuration, logger *zap.Logger, metricsFactory metrics.Factory) (es.Client, error)
 
@@ -131,20 +130,7 @@ func (f *Factory) configureFromOptions(o *Options) {
 
 // Initialize implements storage.Factory.
 func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
-	f.primaryMetricsFactory = metricsFactory.Namespace(
-		metrics.NSOptions{
-			Tags: map[string]string{
-				"role": "primary",
-			},
-		},
-	)
-	f.archiveMetricsFactory = metricsFactory.Namespace(
-		metrics.NSOptions{
-			Tags: map[string]string{
-				"role": "archive",
-			},
-		},
-	)
+	f.metricsFactory = metricsFactory
 	f.logger = logger
 
 	primaryClient, err := f.newClientFn(f.primaryConfig, logger, metricsFactory)
@@ -196,16 +182,16 @@ func (f *Factory) getArchiveClient() es.Client {
 
 // CreateSpanReader implements storage.Factory
 func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
-	sr, err := createSpanReader(f.getPrimaryClient, f.primaryConfig, false, f.logger, f.tracer)
+	sr, err := createSpanReader(f.getPrimaryClient, f.primaryConfig, f.logger, f.tracer, "", f.primaryConfig.UseReadWriteAliases)
 	if err != nil {
 		return nil, err
 	}
-	return spanstoremetrics.NewReaderDecorator(sr, f.primaryMetricsFactory), nil
+	return spanstoremetrics.NewReaderDecorator(sr, f.metricsFactory), nil
 }
 
 // CreateSpanWriter implements storage.Factory
 func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
-	return createSpanWriter(f.getPrimaryClient, f.primaryConfig, false, f.primaryMetricsFactory, f.logger)
+	return createSpanWriter(f.getPrimaryClient, f.primaryConfig, f.metricsFactory, f.logger, "", f.primaryConfig.UseReadWriteAliases)
 }
 
 // CreateDependencyReader implements storage.Factory
@@ -218,11 +204,22 @@ func (f *Factory) CreateArchiveSpanReader() (spanstore.Reader, error) {
 	if !f.archiveConfig.Enabled {
 		return nil, nil
 	}
-	sr, err := createSpanReader(f.getArchiveClient, f.archiveConfig, true, f.logger, f.tracer)
+	readAliasSuffix := "archive"
+	if f.archiveConfig.UseReadWriteAliases {
+		readAliasSuffix += "-read"
+	}
+	sr, err := createSpanReader(f.getArchiveClient, f.archiveConfig, f.logger, f.tracer, readAliasSuffix, true)
 	if err != nil {
 		return nil, err
 	}
-	return spanstoremetrics.NewReaderDecorator(sr, f.archiveMetricsFactory), nil
+	archiveMetricsFactory := f.metricsFactory.Namespace(
+		metrics.NSOptions{
+			Tags: map[string]string{
+				"role": "archive",
+			},
+		},
+	)
+	return spanstoremetrics.NewReaderDecorator(sr, archiveMetricsFactory), nil
 }
 
 // CreateArchiveSpanWriter implements storage.ArchiveFactory
@@ -230,15 +227,27 @@ func (f *Factory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
 	if !f.archiveConfig.Enabled {
 		return nil, nil
 	}
-	return createSpanWriter(f.getArchiveClient, f.archiveConfig, true, f.archiveMetricsFactory, f.logger)
+	writeAliasSuffix := "archive"
+	if f.archiveConfig.UseReadWriteAliases {
+		writeAliasSuffix += "-write"
+	}
+	archiveMetricsFactory := f.metricsFactory.Namespace(
+		metrics.NSOptions{
+			Tags: map[string]string{
+				"role": "archive",
+			},
+		},
+	)
+	return createSpanWriter(f.getArchiveClient, f.archiveConfig, archiveMetricsFactory, f.logger, writeAliasSuffix, true)
 }
 
 func createSpanReader(
 	clientFn func() es.Client,
 	cfg *config.Configuration,
-	archive bool,
 	logger *zap.Logger,
 	tp trace.TracerProvider,
+	readAliasSuffix string,
+	useReadWriteAliases bool,
 ) (spanstore.Reader, error) {
 	if cfg.UseILM && !cfg.UseReadWriteAliases {
 		return nil, errors.New("--es.use-ilm must always be used in conjunction with --es.use-aliases to ensure ES writers and readers refer to the single index mapping")
@@ -251,8 +260,8 @@ func createSpanReader(
 		SpanIndex:           cfg.Indices.Spans,
 		ServiceIndex:        cfg.Indices.Services,
 		TagDotReplacement:   cfg.Tags.DotReplacement,
-		UseReadWriteAliases: cfg.UseReadWriteAliases,
-		Archive:             archive,
+		UseReadWriteAliases: useReadWriteAliases,
+		ReadAliasSuffix:     readAliasSuffix,
 		RemoteReadClusters:  cfg.RemoteReadClusters,
 		Logger:              logger,
 		Tracer:              tp.Tracer("esSpanStore.SpanReader"),
@@ -262,9 +271,10 @@ func createSpanReader(
 func createSpanWriter(
 	clientFn func() es.Client,
 	cfg *config.Configuration,
-	archive bool,
 	mFactory metrics.Factory,
 	logger *zap.Logger,
+	writeAliasSuffix string,
+	useReadWriteAliases bool,
 ) (spanstore.Writer, error) {
 	var tags []string
 	var err error
@@ -284,8 +294,8 @@ func createSpanWriter(
 		AllTagsAsFields:     cfg.Tags.AllAsFields,
 		TagKeysAsFields:     tags,
 		TagDotReplacement:   cfg.Tags.DotReplacement,
-		Archive:             archive,
-		UseReadWriteAliases: cfg.UseReadWriteAliases,
+		UseReadWriteAliases: useReadWriteAliases,
+		WriteAliasSuffix:    writeAliasSuffix,
 		Logger:              logger,
 		MetricsFactory:      mFactory,
 		ServiceCacheTTL:     cfg.ServiceCacheTTL,
@@ -374,11 +384,18 @@ func (f *Factory) Close() error {
 }
 
 func (f *Factory) onPrimaryPasswordChange() {
-	f.onClientPasswordChange(f.primaryConfig, &f.primaryClient, f.primaryMetricsFactory)
+	f.onClientPasswordChange(f.primaryConfig, &f.primaryClient, f.metricsFactory)
 }
 
 func (f *Factory) onArchivePasswordChange() {
-	f.onClientPasswordChange(f.archiveConfig, &f.archiveClient, f.archiveMetricsFactory)
+	archiveMetricsFactory := f.metricsFactory.Namespace(
+		metrics.NSOptions{
+			Tags: map[string]string{
+				"role": "archive",
+			},
+		},
+	)
+	f.onClientPasswordChange(f.archiveConfig, &f.archiveClient, archiveMetricsFactory)
 }
 
 func (f *Factory) onClientPasswordChange(cfg *config.Configuration, client *atomic.Pointer[es.Client], mf metrics.Factory) {

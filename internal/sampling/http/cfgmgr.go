@@ -1,7 +1,7 @@
 // Copyright (c) 2020 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
-package clientcfghttp
+package http
 
 import (
 	"context"

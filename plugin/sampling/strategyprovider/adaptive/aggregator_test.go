@@ -13,9 +13,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
+	epmocks "github.com/jaegertracing/jaeger/internal/leaderelection/mocks"
 	"github.com/jaegertracing/jaeger/internal/metricstest"
 	"github.com/jaegertracing/jaeger/model"
-	epmocks "github.com/jaegertracing/jaeger/plugin/sampling/leaderelection/mocks"
 	"github.com/jaegertracing/jaeger/storage/samplingstore/mocks"
 )
 
