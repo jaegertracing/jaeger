@@ -14,8 +14,8 @@ import (
 	"go.uber.org/zap/zapcore"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/handler"
-	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/samplingstrategy"
-	clientcfgHandler "github.com/jaegertracing/jaeger/pkg/clientcfg/clientcfghttp"
+	samplinghttp "github.com/jaegertracing/jaeger/internal/sampling/http"
+	"github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy"
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	"github.com/jaegertracing/jaeger/pkg/httpmetrics"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
@@ -59,8 +59,8 @@ func serveHTTP(server *http.Server, listener net.Listener, params *HTTPServerPar
 	apiHandler := handler.NewAPIHandler(params.Handler)
 	apiHandler.RegisterRoutes(r)
 
-	cfgHandler := clientcfgHandler.NewHTTPHandler(clientcfgHandler.HTTPHandlerParams{
-		ConfigManager: &clientcfgHandler.ConfigManager{
+	cfgHandler := samplinghttp.NewHandler(samplinghttp.HandlerParams{
+		ConfigManager: &samplinghttp.ConfigManager{
 			SamplingProvider: params.SamplingProvider,
 		},
 		MetricsFactory:         params.MetricsFactory,
