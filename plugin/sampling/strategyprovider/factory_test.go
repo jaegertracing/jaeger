@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
-	ss "github.com/jaegertracing/jaeger/cmd/collector/app/sampling/samplingstrategy"
+	"github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy"
 	"github.com/jaegertracing/jaeger/pkg/distributedlock"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/plugin"
@@ -23,8 +23,8 @@ import (
 )
 
 var (
-	_ ss.Factory          = new(Factory)
-	_ plugin.Configurable = new(Factory)
+	_ samplingstrategy.Factory = new(Factory)
+	_ plugin.Configurable      = new(Factory)
 )
 
 func TestNewFactory(t *testing.T) {
@@ -121,7 +121,7 @@ func (f *mockFactory) InitFromViper(v *viper.Viper, logger *zap.Logger) {
 	f.logger = logger
 }
 
-func (f *mockFactory) CreateStrategyProvider() (ss.Provider, ss.Aggregator, error) {
+func (f *mockFactory) CreateStrategyProvider() (samplingstrategy.Provider, samplingstrategy.Aggregator, error) {
 	if f.retError {
 		return nil, nil, errors.New("error creating store")
 	}

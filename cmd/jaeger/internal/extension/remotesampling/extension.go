@@ -19,12 +19,12 @@ import (
 	"google.golang.org/grpc/health"
 	"google.golang.org/grpc/health/grpc_health_v1"
 
-	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/samplingstrategy"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
 	"github.com/jaegertracing/jaeger/internal/leaderelection"
 	"github.com/jaegertracing/jaeger/internal/metrics/otelmetrics"
 	samplinggrpc "github.com/jaegertracing/jaeger/internal/sampling/grpc"
 	samplinghttp "github.com/jaegertracing/jaeger/internal/sampling/http"
+	"github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/plugin/sampling/strategyprovider/adaptive"
 	"github.com/jaegertracing/jaeger/plugin/sampling/strategyprovider/static"

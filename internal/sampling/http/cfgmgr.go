@@ -6,7 +6,7 @@ package http
 import (
 	"context"
 
-	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/samplingstrategy"
+	"github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 )
 
