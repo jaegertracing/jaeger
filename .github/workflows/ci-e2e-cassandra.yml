@@ -55,7 +55,7 @@ jobs:
       if: matrix.jaeger-version == 'v2'
       with:
         snapshot: metrics_snapshot_cassandra
-        artifact_key: cassandra_metrics_${{ matrix.version.major }}_${{ matrix.version.schema }}_${{ matrix.jaeger-version }}_${{ matrix.create-schema }}.txt
+        artifact_key: metrics_snapshot_cassandras_${{ matrix.version.major }}_${{ matrix.version.schema }}_${{ matrix.jaeger-version }}_${{ matrix.create-schema }}
 
     - name: Upload coverage to codecov
       uses: ./.github/actions/upload-codecov

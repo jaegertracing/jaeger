@@ -35,7 +35,7 @@ jobs:
     - uses: ./.github/actions/verify-metrics-snapshot
       with:
         snapshot: metrics_snapshot_memory
-        artifact_key: memory-metrics.txt
+        artifact_key: metrics_snapshot_memory
           
     - name: Upload coverage to codecov
       uses: ./.github/actions/upload-codecov
