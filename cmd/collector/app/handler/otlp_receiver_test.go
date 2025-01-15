@@ -136,13 +136,13 @@ func TestConsumerHelper(t *testing.T) {
 func TestConsumerHelper_Consume_Error(t *testing.T) {
 	consumerHelper := &consumerHelper{
 		batchConsumer: newBatchConsumer(zaptest.NewLogger(t),
-			&mockSpanProcessor{expectedError: errors.New("mock error")},
+			&mockSpanProcessor{expectedError: assert.AnError},
 			processor.UnknownTransport, // could be gRPC or HTTP
 			processor.OTLPSpanFormat,
 			&tenancy.Manager{}),
 	}
 	err := consumerHelper.consume(context.Background(), makeTracesOneSpan())
-	require.ErrorContains(t, err, "mock error")
+	require.ErrorIs(t, err, assert.AnError)
 }
 
 func TestConsumerHelper_Consume_TenantError(t *testing.T) {
