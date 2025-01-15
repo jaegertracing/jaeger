@@ -18,7 +18,7 @@ import (
 
 	"go.uber.org/zap"
 
-	ss "github.com/jaegertracing/jaeger/internal/sampling/strategy"
+	"github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 )
 
@@ -44,7 +44,7 @@ type storedStrategies struct {
 type strategyLoader func() ([]byte, error)
 
 // NewProvider creates a strategy store that holds static sampling strategies.
-func NewProvider(options Options, logger *zap.Logger) (ss.Provider, error) {
+func NewProvider(options Options, logger *zap.Logger) (samplingstrategy.Provider, error) {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	h := &samplingProvider{
 		logger:     logger,

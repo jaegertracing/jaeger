@@ -11,7 +11,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/internal/leaderelection"
-	"github.com/jaegertracing/jaeger/internal/sampling/strategy"
+	"github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy"
 	"github.com/jaegertracing/jaeger/pkg/distributedlock"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/plugin"
@@ -20,8 +20,8 @@ import (
 )
 
 var (
-	_ plugin.Configurable = (*Factory)(nil)
-	_ strategy.Factory    = (*Factory)(nil)
+	_ plugin.Configurable      = (*Factory)(nil)
+	_ samplingstrategy.Factory = (*Factory)(nil)
 )
 
 // Factory implements samplingstrategy.Factory for an adaptive strategy store.
@@ -81,7 +81,7 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, ssFactory storage.S
 }
 
 // CreateStrategyProvider implements samplingstrategy.Factory
-func (f *Factory) CreateStrategyProvider() (strategy.Provider, strategy.Aggregator, error) {
+func (f *Factory) CreateStrategyProvider() (samplingstrategy.Provider, samplingstrategy.Aggregator, error) {
 	s := NewProvider(*f.options, f.logger, f.participant, f.store)
 	a, err := NewAggregator(*f.options, f.logger, f.metricsFactory, f.participant, f.store)
 	if err != nil {

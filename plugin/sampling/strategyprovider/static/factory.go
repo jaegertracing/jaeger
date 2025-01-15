@@ -9,7 +9,7 @@ import (
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
 
-	ss "github.com/jaegertracing/jaeger/internal/sampling/strategy"
+	"github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/plugin"
 	"github.com/jaegertracing/jaeger/storage"
@@ -48,7 +48,7 @@ func (f *Factory) Initialize(_ metrics.Factory, _ storage.SamplingStoreFactory, 
 }
 
 // CreateStrategyProvider implements samplingstrategy.Factory
-func (f *Factory) CreateStrategyProvider() (ss.Provider, ss.Aggregator, error) {
+func (f *Factory) CreateStrategyProvider() (samplingstrategy.Provider, samplingstrategy.Aggregator, error) {
 	s, err := NewProvider(*f.options, f.logger)
 	if err != nil {
 		return nil, nil, err

@@ -11,7 +11,7 @@ import (
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/internal/sampling/strategy"
+	"github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/plugin"
 	"github.com/jaegertracing/jaeger/plugin/sampling/strategyprovider/adaptive"
@@ -31,15 +31,15 @@ const (
 var AllSamplingTypes = []string{samplingTypeFile, samplingTypeAdaptive}
 
 var (
-	_ plugin.Configurable = (*Factory)(nil)
-	_ strategy.Factory    = (*Factory)(nil)
+	_ plugin.Configurable      = (*Factory)(nil)
+	_ samplingstrategy.Factory = (*Factory)(nil)
 )
 
 // Factory implements samplingstrategy.Factory interface as a meta-factory for strategy storage components.
 type Factory struct {
 	FactoryConfig
 
-	factories map[Kind]strategy.Factory
+	factories map[Kind]samplingstrategy.Factory
 }
 
 // NewFactory creates the meta-factory.
@@ -48,7 +48,7 @@ func NewFactory(config FactoryConfig) (*Factory, error) {
 	uniqueTypes := map[Kind]struct{}{
 		f.StrategyStoreType: {},
 	}
-	f.factories = make(map[Kind]strategy.Factory)
+	f.factories = make(map[Kind]samplingstrategy.Factory)
 	for t := range uniqueTypes {
 		ff, err := f.getFactoryOfType(t)
 		if err != nil {
@@ -59,7 +59,7 @@ func NewFactory(config FactoryConfig) (*Factory, error) {
 	return f, nil
 }
 
-func (*Factory) getFactoryOfType(factoryType Kind) (strategy.Factory, error) {
+func (*Factory) getFactoryOfType(factoryType Kind) (samplingstrategy.Factory, error) {
 	switch factoryType {
 	case samplingTypeFile:
 		return static.NewFactory(), nil
@@ -99,7 +99,7 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, ssFactory storage.S
 }
 
 // CreateStrategyProvider implements samplingstrategy.Factory
-func (f *Factory) CreateStrategyProvider() (strategy.Provider, strategy.Aggregator, error) {
+func (f *Factory) CreateStrategyProvider() (samplingstrategy.Provider, samplingstrategy.Aggregator, error) {
 	factory, ok := f.factories[f.StrategyStoreType]
 	if !ok {
 		return nil, nil, fmt.Errorf("no %s strategy store registered", f.StrategyStoreType)

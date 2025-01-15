@@ -10,7 +10,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/internal/leaderelection"
-	"github.com/jaegertracing/jaeger/internal/sampling/strategy"
+	"github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy"
 	span_model "github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/hostname"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
@@ -43,7 +43,7 @@ type aggregator struct {
 
 // NewAggregator creates a throughput aggregator that simply emits metrics
 // about the number of operations seen over the aggregationInterval.
-func NewAggregator(options Options, logger *zap.Logger, metricsFactory metrics.Factory, participant leaderelection.ElectionParticipant, store samplingstore.Store) (strategy.Aggregator, error) {
+func NewAggregator(options Options, logger *zap.Logger, metricsFactory metrics.Factory, participant leaderelection.ElectionParticipant, store samplingstore.Store) (samplingstrategy.Aggregator, error) {
 	hostId, err := hostname.AsIdentifier()
 	if err != nil {
 		return nil, err

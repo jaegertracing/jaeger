@@ -6,13 +6,13 @@ package http
 import (
 	"context"
 
-	"github.com/jaegertracing/jaeger/internal/sampling/strategy"
+	"github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 )
 
 // ConfigManager implements ClientConfigManager.
 type ConfigManager struct {
-	SamplingProvider strategy.Provider
+	SamplingProvider samplingstrategy.Provider
 }
 
 // GetSamplingStrategy implements ClientConfigManager.GetSamplingStrategy.

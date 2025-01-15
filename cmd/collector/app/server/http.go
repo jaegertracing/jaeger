@@ -15,7 +15,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/handler"
 	samplinghttp "github.com/jaegertracing/jaeger/internal/sampling/http"
-	"github.com/jaegertracing/jaeger/internal/sampling/strategy"
+	"github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy"
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	"github.com/jaegertracing/jaeger/pkg/httpmetrics"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
@@ -27,7 +27,7 @@ import (
 type HTTPServerParams struct {
 	confighttp.ServerConfig
 	Handler          handler.JaegerBatchesHandler
-	SamplingProvider strategy.Provider
+	SamplingProvider samplingstrategy.Provider
 	MetricsFactory   metrics.Factory
 	HealthCheck      *healthcheck.HealthCheck
 	Logger           *zap.Logger

@@ -6,17 +6,17 @@ package grpc
 import (
 	"context"
 
-	"github.com/jaegertracing/jaeger/internal/sampling/strategy"
+	"github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 )
 
 // Handler is sampling strategy handler for gRPC.
 type Handler struct {
-	samplingProvider strategy.Provider
+	samplingProvider samplingstrategy.Provider
 }
 
 // NewHandler creates a handler that controls sampling strategies for services.
-func NewHandler(provider strategy.Provider) Handler {
+func NewHandler(provider samplingstrategy.Provider) Handler {
 	return Handler{
 		samplingProvider: provider,
 	}

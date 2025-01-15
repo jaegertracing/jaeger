@@ -18,7 +18,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/server"
 	"github.com/jaegertracing/jaeger/internal/safeexpvar"
-	"github.com/jaegertracing/jaeger/internal/sampling/strategy"
+	"github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy"
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
@@ -38,8 +38,8 @@ type Collector struct {
 	logger             *zap.Logger
 	metricsFactory     metrics.Factory
 	traceWriter        tracestore.Writer
-	samplingProvider   strategy.Provider
-	samplingAggregator strategy.Aggregator
+	samplingProvider   samplingstrategy.Provider
+	samplingAggregator samplingstrategy.Aggregator
 	hCheck             *healthcheck.HealthCheck
 	spanProcessor      processor.SpanProcessor
 	spanHandlers       *SpanHandlers
@@ -58,8 +58,8 @@ type CollectorParams struct {
 	Logger             *zap.Logger
 	MetricsFactory     metrics.Factory
 	TraceWriter        tracestore.Writer
-	SamplingProvider   strategy.Provider
-	SamplingAggregator strategy.Aggregator
+	SamplingProvider   samplingstrategy.Provider
+	SamplingAggregator samplingstrategy.Aggregator
 	HealthCheck        *healthcheck.HealthCheck
 	TenancyMgr         *tenancy.Manager
 }
