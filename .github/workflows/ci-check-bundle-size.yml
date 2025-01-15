@@ -52,9 +52,9 @@ jobs:
       uses: actions/cache/restore@1bd1e32a3bdc45362d1e726936510720a7c30a57      #v4.2.0
       with:
         path: ./jaeger_binary_size.txt
-        key: jaeger_binary
+        key: jaeger_binary_size
         restore-keys: |
-          jaeger_binary
+          jaeger_binary_size
 
     - name: Compare jaeger binary sizes
       if: steps.cache-binary-size.outputs.cache-hit == 'true'
