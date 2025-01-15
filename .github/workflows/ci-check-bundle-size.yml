@@ -59,13 +59,13 @@ jobs:
     - name: Compare jaeger binary sizes
       if: steps.cache-binary-size.outputs.cache-hit == 'true'
       run: |
-        OLD_BUNDLE_SIZE=$(cat ./jaeger_binary_size.txt)
-        NEW_BUNDLE_SIZE=$(cat ./new_jaeger_binary_size.txt)
-        echo "Previous binary size: $OLD_BUNDLE_SIZE bytes"
-        echo "New binary size: $NEW_BUNDLE_SIZE bytes"
+        OLD_BINARY_SIZE=$(cat ./jaeger_binary_size.txt)
+        NEW_BINARY_SIZE=$(cat ./new_jaeger_binary_size.txt)
+        echo "Previous binary size: $OLD_BINARY_SIZE bytes"
+        echo "New binary size: $NEW_BINARY_SIZE bytes"
         
-        SIZE_CHANGE=$(( $NEW_BUNDLE_SIZE - $OLD_BUNDLE_SIZE ))
-        PERCENTAGE_CHANGE=$(( SIZE_CHANGE * 100 / $OLD_BUNDLE_SIZE ))
+        SIZE_CHANGE=$(( $NEW_BINARY_SIZE - $OLD_BINARY_SIZE ))
+        PERCENTAGE_CHANGE=$(( SIZE_CHANGE * 100 / $OLD_BINARY_SIZE ))
         echo "Size change: $PERCENTAGE_CHANGE%"
         if [ $PERCENTAGE_CHANGE -gt 2 ]; then
           echo "❌ binary size increased by more than 2% ($PERCENTAGE_CHANGE%)"
@@ -75,7 +75,7 @@ jobs:
         fi
  
 
-    - name: Remove previous *_bundle_*.txt
+    - name: Remove previous *_binary_*.txt
       run: |
         rm -rf ./jaeger_binary_size.txt
         mv ./new_jaeger_binary_size.txt ./jaeger_binary_size.txt
