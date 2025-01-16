@@ -19,4 +19,5 @@ type ClusterAPI interface {
 
 type IndexManagementLifecycleAPI interface {
 	Exists(name string) (bool, error)
+	CreateOrUpdate(policy string, ilmPolicy Policy) error
 }
