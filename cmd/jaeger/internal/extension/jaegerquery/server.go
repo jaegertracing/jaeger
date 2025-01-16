@@ -140,15 +140,6 @@ func (s *server) addArchiveStorage(
 		return nil
 	}
 
-	// v1Factory, err := jaegerstorage.GetStorageFactory(s.config.Storage.TracesArchive, host)
-	// if err != nil {
-	// 	return fmt.Errorf("cannot find archive storage factory: %w", err)
-	// }
-
-	// if !opts.InitArchiveStorage(v1Factory, s.telset.Logger) {
-	// 	s.telset.Logger.Info("Archive storage not initialized for v1 query service")
-	// }
-
 	f, err := jaegerstorage.GetTraceStoreFactory(s.config.Storage.TracesArchive, host)
 	if err != nil {
 		return fmt.Errorf("cannot find traces archive storage factory: %w", err)
@@ -167,9 +158,19 @@ func (s *server) addArchiveStorage(
 	v2opts.ArchiveTraceReader = reader
 	v2opts.ArchiveTraceWriter = writer
 
-	// TODO: handle error
-	v1Reader, _ := v1adapter.GetV1Reader(reader)
-	v1Writer, _ := v1adapter.GetV1Writer(writer)
+	v1Reader, err := v1adapter.GetV1Reader(reader)
+	if err != nil {
+		// if the spanstore.Reader is not available, downgrade the native tracestore.Reader to
+		// a spanstore.Reader
+		v1Reader = v1adapter.NewSpanReader(reader)
+	}
+
+	v1Writer, err := v1adapter.GetV1Writer(writer)
+	if err != nil {
+		// TODO: implement an adapter to downgrade a tracestore.Writer to a spanstore.Writer
+		panic("downgrade tracestore.Writer to spanstore.Writer is not implemented")
+	}
+
 	opts.ArchiveSpanReader = v1Reader
 	opts.ArchiveSpanWriter = v1Writer
 
