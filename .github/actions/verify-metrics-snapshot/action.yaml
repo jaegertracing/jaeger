@@ -12,9 +12,6 @@ inputs:
   artifact_key:
     description: 'Artifact key used for uploading and fetching artifacts'
     required: true
-  cache_key:
-    description: 'Cache key used for uploading and fetching the correct cached metric'
-    required: true
 runs:
   using: 'composite'
   steps:
@@ -33,8 +30,7 @@ runs:
       run: |
         mv ./.metrics/${{ inputs.snapshot }}.txt ./.metrics/baseline_${{ inputs.snapshot }}.txt
 
-    - name: Cache scraped metrics for tagged release for longer retention
-      id: tagged-metrics
+    - name: Cache metrics snapshot on main branch for longer retention
       if: github.ref_name == 'main'
       uses: actions/cache/save@1bd1e32a3bdc45362d1e726936510720a7c30a57
       with: 
@@ -55,7 +51,7 @@ runs:
 
     - name: Calculate diff between the snapshots 
       id: compare-snapshots
-      if: ${{ (github.ref_name != 'main') && (steps.download-release-snapshot.outputs.cache-hit == 'true')  }}
+      if: ${{ (github.ref_name != 'main') && (steps.download-release-snapshot.outputs.cache-matched-key != '')  }}
       shell: bash
       run: |
         python3 -m pip install prometheus-client
