@@ -36,8 +36,8 @@ func TestSpanWriter_WriteSpan(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
 			mockTraceWriter := &tracestoremocks.Writer{}
 			spanWriter := NewSpanWriter(mockTraceWriter)
 
@@ -50,18 +50,18 @@ func TestSpanWriter_WriteSpan(t *testing.T) {
 			}
 
 			traces := ptrace.NewTraces()
-			rs := traces.ResourceSpans().AppendEmpty()
-			il := rs.ScopeSpans().AppendEmpty()
-			span := il.Spans().AppendEmpty()
+			resources := traces.ResourceSpans().AppendEmpty()
+			scopes := resources.ScopeSpans().AppendEmpty()
+			span := scopes.Spans().AppendEmpty()
 			span.SetTraceID(pcommon.TraceID([16]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1}))
 			span.SetSpanID(pcommon.SpanID([8]byte{0, 0, 0, 0, 0, 0, 0, 1}))
 			span.SetStartTimestamp(pcommon.NewTimestampFromTime(now))
 			span.SetEndTimestamp(pcommon.NewTimestampFromTime(now.Add(time.Second)))
 
-			mockTraceWriter.On("WriteTraces", mock.Anything, traces).Return(tt.mockReturnErr)
+			mockTraceWriter.On("WriteTraces", mock.Anything, traces).Return(test.mockReturnErr)
 
 			err := spanWriter.WriteSpan(context.Background(), testSpan)
-			require.ErrorIs(t, err, tt.expectedErr)
+			require.ErrorIs(t, err, test.expectedErr)
 		})
 	}
 }
