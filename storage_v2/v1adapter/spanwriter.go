@@ -1,0 +1,36 @@
+// Copyright (c) 2025 The Jaeger Authors.
+// SPDX-License-Identifier: Apache-2.0
+
+package v1adapter
+
+import (
+	"context"
+
+	jaegerTranslator "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger"
+
+	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger/storage/spanstore"
+	"github.com/jaegertracing/jaeger/storage_v2/tracestore"
+)
+
+var _ spanstore.Writer = (*SpanWriter)(nil)
+
+// SpanReader wraps a tracestore.Writer so that it can be downgraded to implement
+// the v1 spanstore.Writer interface.
+type SpanWriter struct {
+	traceWriter tracestore.Writer
+}
+
+func NewSpanWriter(traceWriter tracestore.Writer) *SpanWriter {
+	return &SpanWriter{
+		traceWriter: traceWriter,
+	}
+}
+
+func (sw *SpanWriter) WriteSpan(ctx context.Context, span *model.Span) error {
+	traces, err := jaegerTranslator.ProtoToTraces([]*model.Batch{{Spans: []*model.Span{span}}})
+	if err != nil {
+		return err
+	}
+	return sw.traceWriter.WriteTraces(ctx, traces)
+}
