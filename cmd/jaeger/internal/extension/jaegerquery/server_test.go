@@ -23,6 +23,7 @@ import (
 	"go.uber.org/zap/zaptest"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
+	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	v2querysvc "github.com/jaegertracing/jaeger/cmd/query/app/querysvc/v2/querysvc"
 	"github.com/jaegertracing/jaeger/internal/grpctest"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
@@ -270,6 +271,7 @@ func TestServerAddArchiveStorage(t *testing.T) {
 
 	tests := []struct {
 		name           string
+		qSvcOpts       *querysvc.QueryServiceOptions
 		v2qSvcOpts     *v2querysvc.QueryServiceOptions
 		config         *Config
 		extension      component.Component
@@ -279,6 +281,7 @@ func TestServerAddArchiveStorage(t *testing.T) {
 		{
 			name:           "Archive storage unset",
 			config:         &Config{},
+			qSvcOpts:       &querysvc.QueryServiceOptions{},
 			v2qSvcOpts:     &v2querysvc.QueryServiceOptions{},
 			expectedOutput: `{"level":"info","msg":"Archive storage not configured"}` + "\n",
 			expectedErr:    "",
@@ -290,39 +293,32 @@ func TestServerAddArchiveStorage(t *testing.T) {
 					TracesArchive: "random-value",
 				},
 			},
+			qSvcOpts:       &querysvc.QueryServiceOptions{},
 			v2qSvcOpts:     &v2querysvc.QueryServiceOptions{},
 			expectedOutput: "",
 			expectedErr:    "cannot find archive storage factory: cannot find extension",
 		},
 		{
-			name: "Archive storage span reader error",
+			name: "Archive storage not supported",
 			config: &Config{
 				Storage: Storage{
-					TracesArchive: "need-span-reader-error",
+					TracesArchive: "no-archive",
 				},
 			},
+			qSvcOpts:       &querysvc.QueryServiceOptions{},
 			v2qSvcOpts:     &v2querysvc.QueryServiceOptions{},
 			extension:      fakeStorageExt{},
-			expectedOutput: "Cannot init archive storage reader",
+			expectedOutput: "Archive storage not supported by the factory",
+			expectedErr:    "",
 		},
 		{
-			name: "Archive storage span writer error",
-			config: &Config{
-				Storage: Storage{
-					TracesArchive: "need-span-writer-error",
-				},
-			},
-			v2qSvcOpts:     &v2querysvc.QueryServiceOptions{},
-			extension:      fakeStorageExt{},
-			expectedOutput: "Cannot init archive storage writer",
-		},
-		{
-			name: "Archive storage exists",
+			name: "Archive storage supported",
 			config: &Config{
 				Storage: Storage{
 					TracesArchive: "some-archive-storage",
 				},
 			},
+			qSvcOpts:       &querysvc.QueryServiceOptions{},
 			v2qSvcOpts:     &v2querysvc.QueryServiceOptions{},
 			extension:      fakeStorageExt{},
 			expectedOutput: "",
@@ -342,7 +338,7 @@ func TestServerAddArchiveStorage(t *testing.T) {
 			if tt.extension != nil {
 				host = storagetest.NewStorageHost().WithExtension(jaegerstorage.ID, tt.extension)
 			}
-			err := server.addArchiveStorage(tt.v2qSvcOpts, host)
+			err := server.addArchiveStorage(tt.qSvcOpts, tt.v2qSvcOpts, host)
 			if tt.expectedErr == "" {
 				require.NoError(t, err)
 			} else {

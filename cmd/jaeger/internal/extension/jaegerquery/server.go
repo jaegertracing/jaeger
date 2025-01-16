@@ -94,7 +94,7 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 
 	var opts querysvc.QueryServiceOptions
 	var v2opts v2querysvc.QueryServiceOptions
-	if err := s.addArchiveStorage(&v2opts, host); err != nil {
+	if err := s.addArchiveStorage(&opts, &v2opts, host); err != nil {
 		return err
 	}
 	qs := querysvc.NewQueryService(traceReader, depReader, opts)
@@ -130,6 +130,7 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 }
 
 func (s *server) addArchiveStorage(
+	opts *querysvc.QueryServiceOptions,
 	v2opts *v2querysvc.QueryServiceOptions,
 	host component.Host,
 ) error {
@@ -138,28 +139,32 @@ func (s *server) addArchiveStorage(
 		return nil
 	}
 
-	f, err := jaegerstorage.GetTraceStoreFactory(s.config.Storage.TracesArchive, host)
+	v1Factory, err := jaegerstorage.GetStorageFactory(s.config.Storage.TracesArchive, host)
 	if err != nil {
 		return fmt.Errorf("cannot find archive storage factory: %w", err)
 	}
 
-	reader, err := f.CreateTraceReader()
-	if err != nil {
-		s.telset.Logger.Error("Cannot init archive storage reader", zap.Error(err))
-		return nil
-	}
-	writer, err := f.CreateTraceWriter()
-	if err != nil {
-		s.telset.Logger.Error("Cannot init archive storage writer", zap.Error(err))
-		return nil
+	if !opts.InitArchiveStorage(v1Factory, s.telset.Logger) {
+		s.telset.Logger.Info("Archive storage not initialized for v1 query service")
 	}
 
-	if reader != nil && writer != nil {
-		v2opts.ArchiveTraceReader = reader
-		v2opts.ArchiveTraceWriter = writer
-	} else {
-		s.telset.Logger.Info("Archive storage not initialized")
+	v2Factory, err := jaegerstorage.GetTraceStoreFactory(s.config.Storage.TracesArchive, host)
+	if err != nil {
+		return fmt.Errorf("cannot find traces archive storage factory: %w", err)
 	}
+
+	reader, err := v2Factory.CreateTraceReader()
+	if err != nil {
+		s.telset.Logger.Error("Cannot init traces archive storage reader", zap.Error(err))
+		return nil
+	}
+	writer, err := v2Factory.CreateTraceWriter()
+	if err != nil {
+		s.telset.Logger.Error("Cannot init traces archive storage writer", zap.Error(err))
+		return nil
+	}
+	v2opts.ArchiveTraceReader = reader
+	v2opts.ArchiveTraceWriter = writer
 
 	return nil
 }
