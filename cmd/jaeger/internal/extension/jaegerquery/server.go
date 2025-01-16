@@ -24,6 +24,7 @@ import (
 	"github.com/jaegertracing/jaeger/plugin/metricstore/disabled"
 	"github.com/jaegertracing/jaeger/storage/metricstore"
 	"github.com/jaegertracing/jaeger/storage_v2/depstore"
+	"github.com/jaegertracing/jaeger/storage_v2/v1adapter"
 )
 
 var (
@@ -139,32 +140,38 @@ func (s *server) addArchiveStorage(
 		return nil
 	}
 
-	v1Factory, err := jaegerstorage.GetStorageFactory(s.config.Storage.TracesArchive, host)
-	if err != nil {
-		return fmt.Errorf("cannot find archive storage factory: %w", err)
-	}
+	// v1Factory, err := jaegerstorage.GetStorageFactory(s.config.Storage.TracesArchive, host)
+	// if err != nil {
+	// 	return fmt.Errorf("cannot find archive storage factory: %w", err)
+	// }
 
-	if !opts.InitArchiveStorage(v1Factory, s.telset.Logger) {
-		s.telset.Logger.Info("Archive storage not initialized for v1 query service")
-	}
+	// if !opts.InitArchiveStorage(v1Factory, s.telset.Logger) {
+	// 	s.telset.Logger.Info("Archive storage not initialized for v1 query service")
+	// }
 
-	v2Factory, err := jaegerstorage.GetTraceStoreFactory(s.config.Storage.TracesArchive, host)
+	f, err := jaegerstorage.GetTraceStoreFactory(s.config.Storage.TracesArchive, host)
 	if err != nil {
 		return fmt.Errorf("cannot find traces archive storage factory: %w", err)
 	}
 
-	reader, err := v2Factory.CreateTraceReader()
+	reader, err := f.CreateTraceReader()
 	if err != nil {
 		s.telset.Logger.Error("Cannot init traces archive storage reader", zap.Error(err))
 		return nil
 	}
-	writer, err := v2Factory.CreateTraceWriter()
+	writer, err := f.CreateTraceWriter()
 	if err != nil {
 		s.telset.Logger.Error("Cannot init traces archive storage writer", zap.Error(err))
 		return nil
 	}
 	v2opts.ArchiveTraceReader = reader
 	v2opts.ArchiveTraceWriter = writer
+
+	// TODO: handle error
+	v1Reader, _ := v1adapter.GetV1Reader(reader)
+	v1Writer, _ := v1adapter.GetV1Writer(writer)
+	opts.ArchiveSpanReader = v1Reader
+	opts.ArchiveSpanWriter = v1Writer
 
 	return nil
 }
