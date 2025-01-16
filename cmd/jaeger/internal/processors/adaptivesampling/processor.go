@@ -10,9 +10,9 @@ import (
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
-	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/samplingstrategy"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/remotesampling"
 	"github.com/jaegertracing/jaeger/internal/metrics/otelmetrics"
+	"github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy"
 	"github.com/jaegertracing/jaeger/plugin/sampling/strategyprovider/adaptive"
 	"github.com/jaegertracing/jaeger/storage_v2/v1adapter"
 )

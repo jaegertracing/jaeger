@@ -31,6 +31,7 @@ type mockSpanProcessor struct {
 	expectedError error
 	mux           sync.Mutex
 	spans         []*model.Span
+	traces        []ptrace.Traces
 	tenants       map[string]bool
 	transport     processor.InboundTransport
 	spanFormat    processor.SpanFormat
@@ -41,8 +42,8 @@ func (p *mockSpanProcessor) ProcessSpans(_ context.Context, batch processor.Batc
 	defer p.mux.Unlock()
 	batch.GetSpans(func(spans []*model.Span) {
 		p.spans = append(p.spans, spans...)
-	}, func(_ ptrace.Traces) {
-		panic("not implemented")
+	}, func(td ptrace.Traces) {
+		p.traces = append(p.traces, td)
 	})
 	oks := make([]bool, len(p.spans))
 	if p.tenants == nil {
@@ -58,6 +59,12 @@ func (p *mockSpanProcessor) getSpans() []*model.Span {
 	p.mux.Lock()
 	defer p.mux.Unlock()
 	return p.spans
+}
+
+func (p *mockSpanProcessor) getTraces() []ptrace.Traces {
+	p.mux.Lock()
+	defer p.mux.Unlock()
+	return p.traces
 }
 
 func (p *mockSpanProcessor) getTenants() map[string]bool {

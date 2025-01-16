@@ -23,7 +23,6 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/collector/app/flags"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
-	"github.com/jaegertracing/jaeger/storage_v2/v1adapter"
 )
 
 var _ component.Host = (*otelHost)(nil) // API check
@@ -72,9 +71,14 @@ func startOTLPReceiver(
 		},
 	}
 
-	otlpConsumer := newConsumerDelegate(logger, spanProcessor, tm)
-	// the following two constructors never return errors given non-nil arguments, so we ignore errors
-	nextConsumer, err := newTraces(otlpConsumer.consume)
+	consumerHelper := &consumerHelper{
+		batchConsumer: newBatchConsumer(logger,
+			spanProcessor,
+			processor.UnknownTransport, // could be gRPC or HTTP
+			processor.OTLPSpanFormat,
+			tm),
+	}
+	nextConsumer, err := newTraces(consumerHelper.consume)
 	if err != nil {
 		return nil, fmt.Errorf("could not create the OTLP consumer: %w", err)
 	}
@@ -93,29 +97,25 @@ func startOTLPReceiver(
 	return otlpReceiver, nil
 }
 
-func newConsumerDelegate(logger *zap.Logger, spanProcessor processor.SpanProcessor, tm *tenancy.Manager) *consumerDelegate {
-	return &consumerDelegate{
-		batchConsumer: newBatchConsumer(logger,
-			spanProcessor,
-			processor.UnknownTransport, // could be gRPC or HTTP
-			processor.OTLPSpanFormat,
-			tm),
-	}
+type consumerHelper struct {
+	batchConsumer
 }
 
-type consumerDelegate struct {
-	batchConsumer batchConsumer
-}
-
-func (c *consumerDelegate) consume(ctx context.Context, td ptrace.Traces) error {
-	batches := v1adapter.ProtoFromTraces(td)
-	for _, batch := range batches {
-		err := c.batchConsumer.consume(ctx, batch)
-		if err != nil {
-			return err
-		}
+func (ch *consumerHelper) consume(ctx context.Context, td ptrace.Traces) error {
+	tenant, err := ch.validateTenant(ctx)
+	if err != nil {
+		ch.logger.Debug("rejecting spans (tenancy)", zap.Error(err))
+		return err
 	}
-	return nil
+	_, err = ch.spanProcessor.ProcessSpans(ctx, processor.SpansV2{
+		Traces: td,
+		Details: processor.Details{
+			InboundTransport: ch.spanOptions.InboundTransport,
+			SpanFormat:       ch.spanOptions.SpanFormat,
+			Tenant:           tenant,
+		},
+	})
+	return err
 }
 
 var _ componentstatus.Reporter = (*otelHost)(nil)

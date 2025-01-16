@@ -2,7 +2,7 @@
 // Copyright (c) 2017 Uber Technologies, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-package clientcfghttp
+package http
 
 import (
 	"encoding/json"
@@ -24,8 +24,8 @@ const mimeTypeApplicationJSON = "application/json"
 
 var errBadRequest = errors.New("bad request")
 
-// HTTPHandlerParams contains parameters that must be passed to NewHTTPHandler.
-type HTTPHandlerParams struct {
+// HandlerParams contains parameters that must be passed to NewHTTPHandler.
+type HandlerParams struct {
 	ConfigManager  configmanager.ClientConfigManager // required
 	MetricsFactory metrics.Factory                   // required
 
@@ -37,10 +37,10 @@ type HTTPHandlerParams struct {
 	LegacySamplingEndpoint bool
 }
 
-// HTTPHandler implements endpoints for used by Jaeger clients to retrieve client configuration,
+// Handler implements endpoints for used by Jaeger clients to retrieve client configuration,
 // such as sampling strategies.
-type HTTPHandler struct {
-	params  HTTPHandlerParams
+type Handler struct {
+	params  HandlerParams
 	metrics struct {
 		// Number of good sampling requests
 		SamplingRequestSuccess metrics.Counter `metric:"http-server.requests" tags:"type=sampling"`
@@ -65,15 +65,15 @@ type HTTPHandler struct {
 	}
 }
 
-// NewHTTPHandler creates new HTTPHandler.
-func NewHTTPHandler(params HTTPHandlerParams) *HTTPHandler {
-	handler := &HTTPHandler{params: params}
+// NewHandler creates new HTTPHandler.
+func NewHandler(params HandlerParams) *Handler {
+	handler := &Handler{params: params}
 	metrics.MustInit(&handler.metrics, params.MetricsFactory, nil)
 	return handler
 }
 
 // RegisterRoutes registers configuration handlers with Gorilla Router.
-func (h *HTTPHandler) RegisterRoutes(router *mux.Router) {
+func (h *Handler) RegisterRoutes(router *mux.Router) {
 	prefix := h.params.BasePath
 	if h.params.LegacySamplingEndpoint {
 		router.HandleFunc(
@@ -92,7 +92,7 @@ func (h *HTTPHandler) RegisterRoutes(router *mux.Router) {
 }
 
 // RegisterRoutes registers configuration handlers with HTTP Router.
-func (h *HTTPHandler) RegisterRoutesWithHTTP(router *http.ServeMux) {
+func (h *Handler) RegisterRoutesWithHTTP(router *http.ServeMux) {
 	prefix := h.params.BasePath
 	router.HandleFunc(
 		prefix+"/",
@@ -102,7 +102,7 @@ func (h *HTTPHandler) RegisterRoutesWithHTTP(router *http.ServeMux) {
 	)
 }
 
-func (h *HTTPHandler) serviceFromRequest(w http.ResponseWriter, r *http.Request) (string, error) {
+func (h *Handler) serviceFromRequest(w http.ResponseWriter, r *http.Request) (string, error) {
 	services := r.URL.Query()["service"]
 	if len(services) != 1 {
 		h.metrics.BadRequest.Inc(1)
@@ -112,7 +112,7 @@ func (h *HTTPHandler) serviceFromRequest(w http.ResponseWriter, r *http.Request)
 	return services[0], nil
 }
 
-func (h *HTTPHandler) writeJSON(w http.ResponseWriter, jsonData []byte) error {
+func (h *Handler) writeJSON(w http.ResponseWriter, jsonData []byte) error {
 	w.Header().Add("Content-Type", mimeTypeApplicationJSON)
 	if _, err := w.Write(jsonData); err != nil {
 		h.metrics.WriteFailures.Inc(1)
@@ -121,7 +121,7 @@ func (h *HTTPHandler) writeJSON(w http.ResponseWriter, jsonData []byte) error {
 	return nil
 }
 
-func (h *HTTPHandler) serveSamplingHTTP(
+func (h *Handler) serveSamplingHTTP(
 	w http.ResponseWriter,
 	r *http.Request,
 	encoder func(strategy *api_v2.SamplingStrategyResponse) ([]byte, error),
@@ -146,7 +146,7 @@ func (h *HTTPHandler) serveSamplingHTTP(
 	}
 }
 
-func (h *HTTPHandler) encodeThriftLegacy(strategy *api_v2.SamplingStrategyResponse) ([]byte, error) {
+func (h *Handler) encodeThriftLegacy(strategy *api_v2.SamplingStrategyResponse) ([]byte, error) {
 	tStrategy, err := t2p.ConvertSamplingResponseFromDomain(strategy)
 	if err != nil {
 		h.metrics.BadThriftFailures.Inc(1)
@@ -162,7 +162,7 @@ func (h *HTTPHandler) encodeThriftLegacy(strategy *api_v2.SamplingStrategyRespon
 	return jsonBytes, nil
 }
 
-func (h *HTTPHandler) encodeProto(strategy *api_v2.SamplingStrategyResponse) ([]byte, error) {
+func (h *Handler) encodeProto(strategy *api_v2.SamplingStrategyResponse) ([]byte, error) {
 	str, err := p2json.SamplingStrategyResponseToJSON(strategy)
 	if err != nil {
 		h.metrics.BadProtoFailures.Inc(1)
@@ -187,7 +187,7 @@ var samplingStrategyTypes = []api_v2.SamplingStrategyType{
 //
 // Thrift 0.9.3 classes generate this JSON:
 // {"strategyType":"PROBABILISTIC","probabilisticSampling":{"samplingRate":0.5}}
-func (*HTTPHandler) encodeThriftEnums092(jsonData []byte) []byte {
+func (*Handler) encodeThriftEnums092(jsonData []byte) []byte {
 	str := string(jsonData)
 	for _, strategyType := range samplingStrategyTypes {
 		str = strings.Replace(
