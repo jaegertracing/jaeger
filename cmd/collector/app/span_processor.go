@@ -227,8 +227,7 @@ func (sp *spanProcessor) saveSpan(span *model.Span, tenant string) {
 }
 
 func (sp *spanProcessor) writeSpan(ctx context.Context, span *model.Span) error {
-	spanWriter, err := v1adapter.GetV1Writer(sp.traceWriter)
-	if err == nil {
+	if spanWriter, ok := v1adapter.GetV1Writer(sp.traceWriter); ok {
 		return spanWriter.WriteSpan(ctx, span)
 	}
 	traces := v1adapter.V1BatchesToTraces([]*model.Batch{{Spans: []*model.Span{span}}})

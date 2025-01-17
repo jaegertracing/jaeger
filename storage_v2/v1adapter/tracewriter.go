@@ -13,17 +13,15 @@ import (
 	"github.com/jaegertracing/jaeger/storage_v2/tracestore"
 )
 
-var ErrV1WriterNotAvailable = errors.New("spanstore.Writer is not a wrapper around v1 writer")
-
 type TraceWriter struct {
 	spanWriter spanstore.Writer
 }
 
-func GetV1Writer(writer tracestore.Writer) (spanstore.Writer, error) {
+func GetV1Writer(writer tracestore.Writer) (spanstore.Writer, bool) {
 	if tr, ok := writer.(*TraceWriter); ok {
-		return tr.spanWriter, nil
+		return tr.spanWriter, ok
 	}
-	return nil, ErrV1WriterNotAvailable
+	return nil, false
 }
 
 func NewTraceWriter(spanWriter spanstore.Writer) *TraceWriter {
