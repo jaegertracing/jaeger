@@ -155,7 +155,7 @@ jobs:
           jaeger_binary_size
 
     - name: Compare jaeger binary sizes
-      if: steps.cache-binary-size.outputs.cache-hit == 'true'
+      if: steps.cache-binary-size.outputs.cache-matched-key != ''
       run: |
         OLD_BINARY_SIZE=$(cat ./jaeger_binary_size.txt)
         NEW_BINARY_SIZE=$(cat ./new_jaeger_binary_size.txt)
