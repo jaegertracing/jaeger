@@ -23,7 +23,9 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/plugin/metricstore/disabled"
 	"github.com/jaegertracing/jaeger/storage/metricstore"
+	"github.com/jaegertracing/jaeger/storage/spanstore"
 	"github.com/jaegertracing/jaeger/storage_v2/depstore"
+	"github.com/jaegertracing/jaeger/storage_v2/tracestore"
 	"github.com/jaegertracing/jaeger/storage_v2/v1adapter"
 )
 
@@ -145,37 +147,51 @@ func (s *server) addArchiveStorage(
 		return fmt.Errorf("cannot find traces archive storage factory: %w", err)
 	}
 
+	traceReader, traceWriter := s.initArchiveStorage(f)
+	if traceReader == nil || traceWriter == nil {
+		return nil
+	}
+
+	v2opts.ArchiveTraceReader = traceReader
+	v2opts.ArchiveTraceWriter = traceWriter
+
+	spanReader, spanWriter := getV1Adapters(traceReader, traceWriter)
+
+	opts.ArchiveSpanReader = spanReader
+	opts.ArchiveSpanWriter = spanWriter
+
+	return nil
+}
+
+func (s *server) initArchiveStorage(f tracestore.Factory) (tracestore.Reader, tracestore.Writer) {
 	reader, err := f.CreateTraceReader()
 	if err != nil {
 		s.telset.Logger.Error("Cannot init traces archive storage reader", zap.Error(err))
-		return nil
+		return nil, nil
 	}
 	writer, err := f.CreateTraceWriter()
 	if err != nil {
 		s.telset.Logger.Error("Cannot init traces archive storage writer", zap.Error(err))
-		return nil
+		return nil, nil
 	}
-	v2opts.ArchiveTraceReader = reader
-	v2opts.ArchiveTraceWriter = writer
+	return reader, writer
+}
 
+func getV1Adapters(
+	reader tracestore.Reader,
+	writer tracestore.Writer,
+) (spanstore.Reader, spanstore.Writer) {
 	v1Reader, err := v1adapter.GetV1Reader(reader)
 	if err != nil {
-		// if the spanstore.Reader is not available, downgrade the native tracestore.Reader to
-		// a spanstore.Reader
 		v1Reader = v1adapter.NewSpanReader(reader)
 	}
 
 	v1Writer, err := v1adapter.GetV1Writer(writer)
 	if err != nil {
-		// if the spanstore.Writer is not available, downgrade the native tracestore.Writer to
-		// a spanstore.Writer
 		v1Writer = v1adapter.NewSpanWriter(writer)
 	}
 
-	opts.ArchiveSpanReader = v1Reader
-	opts.ArchiveSpanWriter = v1Writer
-
-	return nil
+	return v1Reader, v1Writer
 }
 
 func (s *server) createMetricReader(host component.Host) (metricstore.Reader, error) {

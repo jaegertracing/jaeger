@@ -36,6 +36,9 @@ import (
 	metricstoremocks "github.com/jaegertracing/jaeger/storage/metricstore/mocks"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	spanstoremocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
+	"github.com/jaegertracing/jaeger/storage_v2/tracestore"
+	tracestoremocks "github.com/jaegertracing/jaeger/storage_v2/tracestore/mocks"
+	"github.com/jaegertracing/jaeger/storage_v2/v1adapter"
 )
 
 type fakeFactory struct {
@@ -346,6 +349,39 @@ func TestServerAddArchiveStorage(t *testing.T) {
 			}
 
 			assert.Contains(t, buf.String(), tt.expectedOutput)
+		})
+	}
+}
+
+func TestGetV1Adapters(t *testing.T) {
+	tests := []struct {
+		name           string
+		reader         tracestore.Reader
+		writer         tracestore.Writer
+		expectedReader spanstore.Reader
+		expectedWriter spanstore.Writer
+	}{
+		{
+			name:           "native tracestore.Reader and tracestore.Writer",
+			reader:         &tracestoremocks.Reader{},
+			writer:         &tracestoremocks.Writer{},
+			expectedReader: v1adapter.NewSpanReader(&tracestoremocks.Reader{}),
+			expectedWriter: v1adapter.NewSpanWriter(&tracestoremocks.Writer{}),
+		},
+		{
+			name:           "wrapped spanstore.Reader and spanstore.Writer",
+			reader:         v1adapter.NewTraceReader(&spanstoremocks.Reader{}),
+			writer:         v1adapter.NewTraceWriter(&spanstoremocks.Writer{}),
+			expectedReader: &spanstoremocks.Reader{},
+			expectedWriter: &spanstoremocks.Writer{},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			gotReader, gotWriter := getV1Adapters(test.reader, test.writer)
+			require.Equal(t, test.expectedReader, gotReader)
+			require.Equal(t, test.expectedWriter, gotWriter)
 		})
 	}
 }
