@@ -62,15 +62,15 @@ func TestGetV1Writer_NoError(t *testing.T) {
 	traceWriter := &TraceWriter{
 		spanWriter: memstore,
 	}
-	v1Writer, err := GetV1Writer(traceWriter)
-	require.NoError(t, err)
+	v1Writer, ok := GetV1Writer(traceWriter)
+	require.True(t, ok)
 	require.Equal(t, memstore, v1Writer)
 }
 
 func TestGetV1Writer_Error(t *testing.T) {
 	w := new(tracestoremocks.Writer)
-	_, err := GetV1Writer(w)
-	require.ErrorIs(t, err, ErrV1WriterNotAvailable)
+	_, ok := GetV1Writer(w)
+	require.False(t, ok)
 }
 
 func makeTraces() ptrace.Traces {
