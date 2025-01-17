@@ -180,7 +180,7 @@ func TestServerStart(t *testing.T) {
 					TracesPrimary: "jaeger_storage",
 				},
 			},
-			expectedErr: "cannot find archive storage factory",
+			expectedErr: "cannot find traces archive storage factory",
 		},
 		{
 			name: "metrics storage error",
