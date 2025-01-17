@@ -28,9 +28,6 @@ func NewSpanWriter(traceWriter tracestore.Writer) *SpanWriter {
 }
 
 func (sw *SpanWriter) WriteSpan(ctx context.Context, span *model.Span) error {
-	traces, err := jaegerTranslator.ProtoToTraces([]*model.Batch{{Spans: []*model.Span{span}}})
-	if err != nil {
-		return err
-	}
+	traces, _ := jaegerTranslator.ProtoToTraces([]*model.Batch{{Spans: []*model.Span{span}}})
 	return sw.traceWriter.WriteTraces(ctx, traces)
 }
