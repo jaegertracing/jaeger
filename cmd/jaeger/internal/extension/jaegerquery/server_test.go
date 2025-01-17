@@ -63,14 +63,6 @@ func (ff fakeFactory) CreateSpanWriter() (spanstore.Writer, error) {
 	return &spanstoremocks.Writer{}, nil
 }
 
-func (fakeFactory) CreateArchiveSpanReader() (spanstore.Reader, error) {
-	return &spanstoremocks.Reader{}, nil
-}
-
-func (fakeFactory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
-	return &spanstoremocks.Writer{}, nil
-}
-
 func (ff fakeFactory) Initialize(metrics.Factory, *zap.Logger) error {
 	if ff.name == "need-initialize-error" {
 		return errors.New("test-error")
@@ -104,11 +96,6 @@ var _ jaegerstorage.Extension = (*fakeStorageExt)(nil)
 func (fakeStorageExt) TraceStorageFactory(name string) (storage.Factory, bool) {
 	if name == "need-factory-error" {
 		return nil, false
-	} else if name == "no-archive" {
-		f := fakeFactory{name: name}
-		return struct {
-			storage.Factory
-		}{f}, true
 	}
 
 	return fakeFactory{name: name}, true
@@ -296,19 +283,32 @@ func TestServerAddArchiveStorage(t *testing.T) {
 			qSvcOpts:       &querysvc.QueryServiceOptions{},
 			v2qSvcOpts:     &v2querysvc.QueryServiceOptions{},
 			expectedOutput: "",
-			expectedErr:    "cannot find archive storage factory: cannot find extension",
+			expectedErr:    "cannot find traces archive storage factory: cannot find extension",
 		},
 		{
-			name: "Archive storage not supported",
+			name: "Error in trace reader",
 			config: &Config{
 				Storage: Storage{
-					TracesArchive: "no-archive",
+					TracesArchive: "need-span-reader-error",
 				},
 			},
 			qSvcOpts:       &querysvc.QueryServiceOptions{},
 			v2qSvcOpts:     &v2querysvc.QueryServiceOptions{},
 			extension:      fakeStorageExt{},
-			expectedOutput: "Archive storage not supported by the factory",
+			expectedOutput: "Cannot init traces archive storage reader",
+			expectedErr:    "",
+		},
+		{
+			name: "Error in trace writer",
+			config: &Config{
+				Storage: Storage{
+					TracesArchive: "need-span-writer-error",
+				},
+			},
+			qSvcOpts:       &querysvc.QueryServiceOptions{},
+			v2qSvcOpts:     &v2querysvc.QueryServiceOptions{},
+			extension:      fakeStorageExt{},
+			expectedOutput: "Cannot init traces archive storage writer",
 			expectedErr:    "",
 		},
 		{

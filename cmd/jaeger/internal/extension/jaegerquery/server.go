@@ -167,8 +167,9 @@ func (s *server) addArchiveStorage(
 
 	v1Writer, err := v1adapter.GetV1Writer(writer)
 	if err != nil {
-		// TODO: implement an adapter to downgrade a tracestore.Writer to a spanstore.Writer
-		panic("downgrade tracestore.Writer to spanstore.Writer is not implemented")
+		// if the spanstore.Writer is not available, downgrade the native tracestore.Writer to
+		// a spanstore.Writer
+		v1Writer = v1adapter.NewSpanWriter(writer)
 	}
 
 	opts.ArchiveSpanReader = v1Reader
