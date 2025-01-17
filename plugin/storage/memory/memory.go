@@ -24,20 +24,22 @@ type Store struct {
 	sync.RWMutex
 	// Each tenant gets a copy of default config.
 	// In the future this can be extended to contain per-tenant configuration.
-	defaultConfig Configuration
-	perTenant     map[string]*Tenant
+	defaultConfig      Configuration
+	perTenant          map[string]*Tenant
+	useNewDependencies bool
 }
 
 // Tenant is an in-memory store of traces for a single tenant
 type Tenant struct {
 	sync.RWMutex
-	ids        []*model.TraceID
-	traces     map[model.TraceID]*model.Trace
-	services   map[string]struct{}
-	operations map[string]map[spanstore.Operation]struct{}
-	deduper    adjuster.Adjuster
-	config     Configuration
-	index      int
+	ids             []*model.TraceID
+	traces          map[model.TraceID]*model.Trace
+	services        map[string]struct{}
+	operations      map[string]map[spanstore.Operation]struct{}
+	deduper         adjuster.Adjuster
+	config          Configuration
+	index           int
+	dependencyLinks map[string]*model.DependencyLink
 }
 
 // NewStore creates an unbounded in-memory store
@@ -48,19 +50,22 @@ func NewStore() *Store {
 // WithConfiguration creates a new in memory storage based on the given configuration
 func WithConfiguration(cfg Configuration) *Store {
 	return &Store{
-		defaultConfig: cfg,
-		perTenant:     make(map[string]*Tenant),
+		defaultConfig:      cfg,
+		perTenant:          make(map[string]*Tenant),
+		useNewDependencies: false, // 添加初始化
+
 	}
 }
 
 func newTenant(cfg Configuration) *Tenant {
 	return &Tenant{
-		ids:        make([]*model.TraceID, cfg.MaxTraces),
-		traces:     map[model.TraceID]*model.Trace{},
-		services:   map[string]struct{}{},
-		operations: map[string]map[spanstore.Operation]struct{}{},
-		deduper:    adjuster.ZipkinSpanIDUniquifier(),
-		config:     cfg,
+		ids:             make([]*model.TraceID, cfg.MaxTraces),
+		traces:          map[model.TraceID]*model.Trace{},
+		services:        map[string]struct{}{},
+		operations:      map[string]map[spanstore.Operation]struct{}{},
+		deduper:         adjuster.ZipkinSpanIDUniquifier(),
+		config:          cfg,
+		dependencyLinks: make(map[string]*model.DependencyLink),
 	}
 }
 
@@ -83,6 +88,9 @@ func (st *Store) getTenant(tenantID string) *Tenant {
 
 // GetDependencies returns dependencies between services
 func (st *Store) GetDependencies(ctx context.Context, endTs time.Time, lookback time.Duration) ([]model.DependencyLink, error) {
+	if st.useNewDependencies { // 添加条件判断
+		return st.getDependenciesNew(ctx)
+	}
 	m := st.getTenant(tenancy.GetTenant(ctx))
 	// deduper used below can modify the spans, so we take an exclusive lock
 	m.Lock()
@@ -117,6 +125,36 @@ func (st *Store) GetDependencies(ctx context.Context, endTs time.Time, lookback 
 		retMe = append(retMe, *dep)
 	}
 	return retMe, nil
+}
+
+func (st *Store) getDependenciesNew(ctx context.Context) ([]model.DependencyLink, error) {
+	m := st.getTenant(tenancy.GetTenant(ctx))
+	m.RLock()
+	defer m.RUnlock()
+	retMe := make([]model.DependencyLink, 0, len(m.dependencyLinks))
+	for _, dep := range m.dependencyLinks {
+		retMe = append(retMe, *dep)
+	}
+	return retMe, nil
+}
+
+func (st *Store) WriteDependencies(ctx context.Context, ts time.Time, dependencies []*model.DependencyLink) error {
+	m := st.getTenant(tenancy.GetTenant(ctx))
+	m.Lock()
+	defer m.Unlock()
+	for _, dep := range dependencies {
+		key := dep.Parent + "&&&" + dep.Child
+		if _, ok := m.dependencyLinks[key]; !ok {
+			m.dependencyLinks[key] = &model.DependencyLink{
+				Parent:    dep.Parent,
+				Child:     dep.Child,
+				CallCount: dep.CallCount,
+			}
+		} else {
+			m.dependencyLinks[key].CallCount += dep.CallCount
+		}
+	}
+	return nil
 }
 
 func findSpan(trace *model.Trace, spanID model.SpanID) *model.Span {
