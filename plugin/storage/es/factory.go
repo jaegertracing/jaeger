@@ -42,11 +42,10 @@ const (
 )
 
 var ( // interface comformance checks
-	_ storage.Factory        = (*Factory)(nil)
-	_ storage.ArchiveFactory = (*Factory)(nil)
-	_ io.Closer              = (*Factory)(nil)
-	_ plugin.Configurable    = (*Factory)(nil)
-	_ storage.Purger         = (*Factory)(nil)
+	_ storage.Factory     = (*Factory)(nil)
+	_ io.Closer           = (*Factory)(nil)
+	_ plugin.Configurable = (*Factory)(nil)
+	_ storage.Purger      = (*Factory)(nil)
 )
 
 // Factory implements storage.Factory for Elasticsearch backend.
@@ -59,11 +58,9 @@ type Factory struct {
 
 	newClientFn func(c *config.Configuration, logger *zap.Logger, metricsFactory metrics.Factory) (es.Client, error)
 
-	primaryConfig *config.Configuration
-	archiveConfig *config.Configuration
+	config *config.Configuration
 
-	primaryClient atomic.Pointer[es.Client]
-	archiveClient atomic.Pointer[es.Client]
+	client atomic.Pointer[es.Client]
 
 	watchers []*fswatcher.FSWatcher
 }
@@ -71,7 +68,28 @@ type Factory struct {
 // NewFactory creates a new Factory.
 func NewFactory() *Factory {
 	return &Factory{
-		Options:     NewOptions(primaryNamespace, archiveNamespace),
+		Options:     NewOptions(primaryNamespace),
+		newClientFn: config.NewClient,
+		tracer:      otel.GetTracerProvider(),
+	}
+}
+
+func NewArchiveFactory() *Factory {
+	opts := NewOptions(archiveNamespace)
+
+	aliasSuffix := "archive"
+	if opts.Primary.UseReadWriteAliases {
+		opts.Primary.ReadAliasSuffix = aliasSuffix + "-read"
+		opts.Primary.WriteAliasSuffix = aliasSuffix + "-write"
+	} else {
+		opts.Primary.ReadAliasSuffix = aliasSuffix
+		opts.Primary.WriteAliasSuffix = aliasSuffix
+	}
+
+	opts.Primary.UseReadWriteAliases = true
+
+	return &Factory{
+		Options:     opts,
 		newClientFn: config.NewClient,
 		tracer:      otel.GetTracerProvider(),
 	}
@@ -89,20 +107,11 @@ func NewFactoryWithConfig(
 	defaultConfig := DefaultConfig()
 	cfg.ApplyDefaults(&defaultConfig)
 
-	archive := make(map[string]*namespaceConfig)
-	archive[archiveNamespace] = &namespaceConfig{
-		Configuration: cfg,
-		namespace:     archiveNamespace,
+	f := &Factory{
+		config:      &cfg,
+		newClientFn: config.NewClient,
+		tracer:      otel.GetTracerProvider(),
 	}
-
-	f := NewFactory()
-	f.configureFromOptions(&Options{
-		Primary: namespaceConfig{
-			Configuration: cfg,
-			namespace:     primaryNamespace,
-		},
-		others: archive,
-	})
 	err := f.Initialize(metricsFactory, logger)
 	if err != nil {
 		return nil, err
@@ -124,8 +133,7 @@ func (f *Factory) InitFromViper(v *viper.Viper, _ *zap.Logger) {
 // configureFromOptions configures factory from Options struct.
 func (f *Factory) configureFromOptions(o *Options) {
 	f.Options = o
-	f.primaryConfig = f.Options.GetPrimary()
-	f.archiveConfig = f.Options.Get(archiveNamespace)
+	f.config = f.Options.GetPrimary()
 }
 
 // Initialize implements storage.Factory.
@@ -133,48 +141,25 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 	f.metricsFactory = metricsFactory
 	f.logger = logger
 
-	primaryClient, err := f.newClientFn(f.primaryConfig, logger, metricsFactory)
+	primaryClient, err := f.newClientFn(f.config, logger, metricsFactory)
 	if err != nil {
 		return fmt.Errorf("failed to create primary Elasticsearch client: %w", err)
 	}
-	f.primaryClient.Store(&primaryClient)
+	f.client.Store(&primaryClient)
 
-	if f.primaryConfig.Authentication.BasicAuthentication.PasswordFilePath != "" {
-		primaryWatcher, err := fswatcher.New([]string{f.primaryConfig.Authentication.BasicAuthentication.PasswordFilePath}, f.onPrimaryPasswordChange, f.logger)
+	if f.config.Authentication.BasicAuthentication.PasswordFilePath != "" {
+		primaryWatcher, err := fswatcher.New([]string{f.config.Authentication.BasicAuthentication.PasswordFilePath}, f.onPrimaryPasswordChange, f.logger)
 		if err != nil {
 			return fmt.Errorf("failed to create watcher for primary ES client's password: %w", err)
 		}
 		f.watchers = append(f.watchers, primaryWatcher)
 	}
 
-	if f.archiveConfig.Enabled {
-		archiveClient, err := f.newClientFn(f.archiveConfig, logger, metricsFactory)
-		if err != nil {
-			return fmt.Errorf("failed to create archive Elasticsearch client: %w", err)
-		}
-		f.archiveClient.Store(&archiveClient)
-
-		if f.archiveConfig.Authentication.BasicAuthentication.PasswordFilePath != "" {
-			archiveWatcher, err := fswatcher.New([]string{f.archiveConfig.Authentication.BasicAuthentication.PasswordFilePath}, f.onArchivePasswordChange, f.logger)
-			if err != nil {
-				return fmt.Errorf("failed to create watcher for archive ES client's password: %w", err)
-			}
-			f.watchers = append(f.watchers, archiveWatcher)
-		}
-	}
-
 	return nil
 }
 
 func (f *Factory) getPrimaryClient() es.Client {
-	if c := f.primaryClient.Load(); c != nil {
-		return *c
-	}
-	return nil
-}
-
-func (f *Factory) getArchiveClient() es.Client {
-	if c := f.archiveClient.Load(); c != nil {
+	if c := f.client.Load(); c != nil {
 		return *c
 	}
 	return nil
@@ -182,7 +167,7 @@ func (f *Factory) getArchiveClient() es.Client {
 
 // CreateSpanReader implements storage.Factory
 func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
-	sr, err := createSpanReader(f.getPrimaryClient, f.primaryConfig, f.logger, f.tracer, "", f.primaryConfig.UseReadWriteAliases)
+	sr, err := createSpanReader(f.getPrimaryClient, f.config, f.logger, f.tracer, f.config.ReadAliasSuffix, f.config.UseReadWriteAliases)
 	if err != nil {
 		return nil, err
 	}
@@ -191,54 +176,12 @@ func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
 
 // CreateSpanWriter implements storage.Factory
 func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
-	return createSpanWriter(f.getPrimaryClient, f.primaryConfig, f.metricsFactory, f.logger, "", f.primaryConfig.UseReadWriteAliases)
+	return createSpanWriter(f.getPrimaryClient, f.config, f.metricsFactory, f.logger, f.config.WriteAliasSuffix, f.config.UseReadWriteAliases)
 }
 
 // CreateDependencyReader implements storage.Factory
 func (f *Factory) CreateDependencyReader() (dependencystore.Reader, error) {
-	return createDependencyReader(f.getPrimaryClient, f.primaryConfig, f.logger)
-}
-
-// CreateArchiveSpanReader implements storage.ArchiveFactory
-func (f *Factory) CreateArchiveSpanReader() (spanstore.Reader, error) {
-	if !f.archiveConfig.Enabled {
-		return nil, nil
-	}
-	readAliasSuffix := "archive"
-	if f.archiveConfig.UseReadWriteAliases {
-		readAliasSuffix += "-read"
-	}
-	sr, err := createSpanReader(f.getArchiveClient, f.archiveConfig, f.logger, f.tracer, readAliasSuffix, true)
-	if err != nil {
-		return nil, err
-	}
-	archiveMetricsFactory := f.metricsFactory.Namespace(
-		metrics.NSOptions{
-			Tags: map[string]string{
-				"role": "archive",
-			},
-		},
-	)
-	return spanstoremetrics.NewReaderDecorator(sr, archiveMetricsFactory), nil
-}
-
-// CreateArchiveSpanWriter implements storage.ArchiveFactory
-func (f *Factory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
-	if !f.archiveConfig.Enabled {
-		return nil, nil
-	}
-	writeAliasSuffix := "archive"
-	if f.archiveConfig.UseReadWriteAliases {
-		writeAliasSuffix += "-write"
-	}
-	archiveMetricsFactory := f.metricsFactory.Namespace(
-		metrics.NSOptions{
-			Tags: map[string]string{
-				"role": "archive",
-			},
-		},
-	)
-	return createSpanWriter(f.getArchiveClient, f.archiveConfig, archiveMetricsFactory, f.logger, writeAliasSuffix, true)
+	return createDependencyReader(f.getPrimaryClient, f.config, f.logger)
 }
 
 func createSpanReader(
@@ -319,16 +262,16 @@ func (f *Factory) CreateSamplingStore(int /* maxBuckets */) (samplingstore.Store
 	params := esSampleStore.Params{
 		Client:                 f.getPrimaryClient,
 		Logger:                 f.logger,
-		IndexPrefix:            f.primaryConfig.Indices.IndexPrefix,
-		IndexDateLayout:        f.primaryConfig.Indices.Sampling.DateLayout,
-		IndexRolloverFrequency: config.RolloverFrequencyAsNegativeDuration(f.primaryConfig.Indices.Sampling.RolloverFrequency),
-		Lookback:               f.primaryConfig.AdaptiveSamplingLookback,
-		MaxDocCount:            f.primaryConfig.MaxDocCount,
+		IndexPrefix:            f.config.Indices.IndexPrefix,
+		IndexDateLayout:        f.config.Indices.Sampling.DateLayout,
+		IndexRolloverFrequency: config.RolloverFrequencyAsNegativeDuration(f.config.Indices.Sampling.RolloverFrequency),
+		Lookback:               f.config.AdaptiveSamplingLookback,
+		MaxDocCount:            f.config.MaxDocCount,
 	}
 	store := esSampleStore.NewSamplingStore(params)
 
-	if f.primaryConfig.CreateIndexTemplates && !f.primaryConfig.UseILM {
-		mappingBuilder := mappingBuilderFromConfig(f.primaryConfig)
+	if f.config.CreateIndexTemplates && !f.config.UseILM {
+		mappingBuilder := mappingBuilderFromConfig(f.config)
 		samplingMapping, err := mappingBuilder.GetSamplingMappings()
 		if err != nil {
 			return nil, err
@@ -376,26 +319,12 @@ func (f *Factory) Close() error {
 		errs = append(errs, w.Close())
 	}
 	errs = append(errs, f.getPrimaryClient().Close())
-	if client := f.getArchiveClient(); client != nil {
-		errs = append(errs, client.Close())
-	}
 
 	return errors.Join(errs...)
 }
 
 func (f *Factory) onPrimaryPasswordChange() {
-	f.onClientPasswordChange(f.primaryConfig, &f.primaryClient, f.metricsFactory)
-}
-
-func (f *Factory) onArchivePasswordChange() {
-	archiveMetricsFactory := f.metricsFactory.Namespace(
-		metrics.NSOptions{
-			Tags: map[string]string{
-				"role": "archive",
-			},
-		},
-	)
-	f.onClientPasswordChange(f.archiveConfig, &f.archiveClient, archiveMetricsFactory)
+	f.onClientPasswordChange(f.config, &f.client, f.metricsFactory)
 }
 
 func (f *Factory) onClientPasswordChange(cfg *config.Configuration, client *atomic.Pointer[es.Client], mf metrics.Factory) {
