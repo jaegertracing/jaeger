@@ -18,7 +18,7 @@ import (
 
 	"go.uber.org/zap"
 
-	ss "github.com/jaegertracing/jaeger/cmd/collector/app/sampling/samplingstrategy"
+	"github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 )
 
@@ -44,14 +44,14 @@ type storedStrategies struct {
 type strategyLoader func() ([]byte, error)
 
 // NewProvider creates a strategy store that holds static sampling strategies.
-func NewProvider(options Options, logger *zap.Logger) (ss.Provider, error) {
+func NewProvider(options Options, logger *zap.Logger) (samplingstrategy.Provider, error) {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	h := &samplingProvider{
 		logger:     logger,
 		cancelFunc: cancelFunc,
 		options:    options,
 	}
-	h.storedStrategies.Store(defaultStrategies())
+	h.storedStrategies.Store(defaultStrategies(options.DefaultSamplingProbability))
 
 	if options.StrategiesFile == "" {
 		h.logger.Info("No sampling strategies source provided, using defaults")
@@ -77,7 +77,7 @@ func NewProvider(options Options, logger *zap.Logger) (ss.Provider, error) {
 	}
 
 	if options.ReloadInterval > 0 {
-		go h.autoUpdateStrategies(ctx, options.ReloadInterval, loadFn)
+		go h.autoUpdateStrategies(ctx, loadFn)
 	}
 	return h, nil
 }
@@ -154,9 +154,9 @@ func (h *samplingProvider) samplingStrategyLoader(strategiesFile string) strateg
 	}
 }
 
-func (h *samplingProvider) autoUpdateStrategies(ctx context.Context, interval time.Duration, loader strategyLoader) {
+func (h *samplingProvider) autoUpdateStrategies(ctx context.Context, loader strategyLoader) {
 	lastValue := string(nullJSON)
-	ticker := time.NewTicker(interval)
+	ticker := time.NewTicker(h.options.ReloadInterval)
 	defer ticker.Stop()
 	for {
 		select {
@@ -209,7 +209,7 @@ func loadStrategies(loadFn strategyLoader) (*strategies, error) {
 }
 
 func (h *samplingProvider) parseStrategies_deprecated(strategies *strategies) {
-	newStore := defaultStrategies()
+	newStore := defaultStrategies(h.options.DefaultSamplingProbability)
 	if strategies.DefaultStrategy != nil {
 		newStore.defaultStrategy = h.parseServiceStrategies(strategies.DefaultStrategy)
 	}
@@ -248,7 +248,7 @@ func (h *samplingProvider) parseStrategies_deprecated(strategies *strategies) {
 }
 
 func (h *samplingProvider) parseStrategies(strategies *strategies) {
-	newStore := defaultStrategies()
+	newStore := defaultStrategies(h.options.DefaultSamplingProbability)
 	if strategies.DefaultStrategy != nil {
 		newStore.defaultStrategy = h.parseServiceStrategies(strategies.DefaultStrategy)
 	}
@@ -308,7 +308,7 @@ func (h *samplingProvider) parseServiceStrategies(strategy *serviceStrategy) *ap
 		return resp
 	}
 	opS := &api_v2.PerOperationSamplingStrategies{
-		DefaultSamplingProbability: defaultSamplingProbability,
+		DefaultSamplingProbability: h.options.DefaultSamplingProbability,
 	}
 	if resp.StrategyType == api_v2.SamplingStrategyType_PROBABILISTIC {
 		opS.DefaultSamplingProbability = resp.ProbabilisticSampling.SamplingRate
@@ -365,7 +365,7 @@ func (h *samplingProvider) parseStrategy(strategy *strategy) *api_v2.SamplingStr
 		}
 	default:
 		h.logger.Warn("Failed to parse sampling strategy", zap.Any("strategy", strategy))
-		return defaultStrategyResponse()
+		return defaultStrategyResponse(h.options.DefaultSamplingProbability)
 	}
 }
 

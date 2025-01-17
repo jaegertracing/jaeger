@@ -13,8 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/model"
-	ss "github.com/jaegertracing/jaeger/cmd/collector/app/sampling/samplingstrategy"
+	"github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/distributedlock"
 	lmocks "github.com/jaegertracing/jaeger/pkg/distributedlock/mocks"
@@ -22,11 +21,12 @@ import (
 	"github.com/jaegertracing/jaeger/plugin"
 	"github.com/jaegertracing/jaeger/storage/samplingstore"
 	smocks "github.com/jaegertracing/jaeger/storage/samplingstore/mocks"
+	"github.com/jaegertracing/jaeger/storage/samplingstore/model"
 )
 
 var (
-	_ ss.Factory          = new(Factory)
-	_ plugin.Configurable = new(Factory)
+	_ samplingstrategy.Factory = new(Factory)
+	_ plugin.Configurable      = new(Factory)
 )
 
 func TestFactory(t *testing.T) {
