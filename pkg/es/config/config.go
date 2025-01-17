@@ -114,7 +114,9 @@ type Configuration struct {
 	// UseReadWriteAliases, if set to true, will use read and write aliases for indices.
 	// Use this option with Elasticsearch rollover API. It requires an external component
 	// to create aliases before startup and then performing its management.
-	UseReadWriteAliases bool `mapstructure:"use_aliases"`
+	UseReadWriteAliases bool   `mapstructure:"use_aliases"`
+	ReadAliasSuffix     string `mapstructure:"-"`
+	WriteAliasSuffix    string `mapstructure:"-"`
 	// CreateIndexTemplates, if set to true, creates index templates at application startup.
 	// This configuration should be set to false when templates are installed manually.
 	CreateIndexTemplates bool `mapstructure:"create_mappings"`
