@@ -85,6 +85,7 @@ type Factory struct {
 	FactoryConfig
 	metricsFactory         metrics.Factory
 	factories              map[string]storage.Factory
+	archiveFactories       map[string]storage.Factory
 	downsamplingFlagsAdded bool
 }
 
@@ -103,12 +104,18 @@ func NewFactory(config FactoryConfig) (*Factory, error) {
 		uniqueTypes[f.SamplingStorageType] = struct{}{}
 	}
 	f.factories = make(map[string]storage.Factory)
+	f.archiveFactories = make(map[string]storage.Factory)
 	for t := range uniqueTypes {
 		ff, err := f.getFactoryOfType(t)
 		if err != nil {
 			return nil, err
 		}
 		f.factories[t] = ff
+
+		af, err := f.getArchiveFactoryOfType(t)
+		if err == nil {
+			f.archiveFactories[t] = af
+		}
 	}
 	return f, nil
 }
@@ -134,20 +141,38 @@ func (*Factory) getFactoryOfType(factoryType string) (storage.Factory, error) {
 	}
 }
 
+func (*Factory) getArchiveFactoryOfType(factoryType string) (storage.Factory, error) {
+	switch factoryType {
+	case elasticsearchStorageType, opensearchStorageType:
+		return es.NewArchiveFactory(), nil
+	default:
+		return nil, fmt.Errorf("archive storage factory not available for %s", factoryType)
+	}
+}
+
 // Initialize implements storage.Factory.
 func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
 	f.metricsFactory = metricsFactory
-	for kind, factory := range f.factories {
-		mf := metricsFactory.Namespace(metrics.NSOptions{
-			Name: "storage",
-			Tags: map[string]string{
-				"kind": kind,
-				"role": "primary", // can be overiden in the storage factory for archive/sampling stores
-			},
-		})
-		if err := factory.Initialize(mf, logger); err != nil {
-			return err
+	initializeFactories := func(factories map[string]storage.Factory, role string) error {
+		for kind, factory := range factories {
+			mf := metricsFactory.Namespace(metrics.NSOptions{
+				Name: "storage",
+				Tags: map[string]string{
+					"kind": kind,
+					"role": role,
+				},
+			})
+			if err := factory.Initialize(mf, logger); err != nil {
+				return err
+			}
 		}
+		return nil
+	}
+	if err := initializeFactories(f.factories, "primary"); err != nil {
+		return err
+	}
+	if err := initializeFactories(f.archiveFactories, "archive"); err != nil {
+		return err
 	}
 	f.publishOpts()
 
@@ -292,28 +317,20 @@ func (f *Factory) initDownsamplingFromViper(v *viper.Viper) {
 
 // CreateArchiveSpanReader implements storage.ArchiveFactory
 func (f *Factory) CreateArchiveSpanReader() (spanstore.Reader, error) {
-	factory, ok := f.factories[f.SpanReaderType]
+	factory, ok := f.archiveFactories[f.SpanReaderType]
 	if !ok {
 		return nil, fmt.Errorf("no %s backend registered for span store", f.SpanReaderType)
 	}
-	archive, ok := factory.(storage.ArchiveFactory)
-	if !ok {
-		return nil, storage.ErrArchiveStorageNotSupported
-	}
-	return archive.CreateArchiveSpanReader()
+	return factory.CreateSpanReader()
 }
 
 // CreateArchiveSpanWriter implements storage.ArchiveFactory
 func (f *Factory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
-	factory, ok := f.factories[f.SpanWriterTypes[0]]
+	factory, ok := f.archiveFactories[f.SpanWriterTypes[0]]
 	if !ok {
 		return nil, fmt.Errorf("no %s backend registered for span store", f.SpanWriterTypes[0])
 	}
-	archive, ok := factory.(storage.ArchiveFactory)
-	if !ok {
-		return nil, storage.ErrArchiveStorageNotSupported
-	}
-	return archive.CreateArchiveSpanWriter()
+	return factory.CreateSpanWriter()
 }
 
 var _ io.Closer = (*Factory)(nil)
