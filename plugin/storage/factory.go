@@ -316,7 +316,7 @@ func (f *Factory) initDownsamplingFromViper(v *viper.Viper) {
 	f.FactoryConfig.DownsamplingHashSalt = v.GetString(downsamplingHashSalt)
 }
 
-func (f *Factory) CreateArchiveSpanReader() (spanstore.Reader, error) {
+func (f *Factory) createArchiveSpanReader() (spanstore.Reader, error) {
 	factory, ok := f.archiveFactories[f.SpanReaderType]
 	if !ok {
 		return nil, fmt.Errorf("no %s backend registered for span store", f.SpanReaderType)
@@ -324,12 +324,29 @@ func (f *Factory) CreateArchiveSpanReader() (spanstore.Reader, error) {
 	return factory.CreateSpanReader()
 }
 
-func (f *Factory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
+func (f *Factory) createArchiveSpanWriter() (spanstore.Writer, error) {
 	factory, ok := f.archiveFactories[f.SpanWriterTypes[0]]
 	if !ok {
 		return nil, fmt.Errorf("no %s backend registered for span store", f.SpanWriterTypes[0])
 	}
 	return factory.CreateSpanWriter()
+}
+
+func (f *Factory) InitArchiveStorage(
+	logger *zap.Logger,
+) (spanstore.Reader, spanstore.Writer) {
+	reader, err := f.createArchiveSpanReader()
+	if err != nil {
+		logger.Error("Cannot init archive storage reader", zap.Error(err))
+		return nil, nil
+	}
+	writer, err := f.createArchiveSpanWriter()
+	if err != nil {
+		logger.Error("Cannot init archive storage writer", zap.Error(err))
+		return nil, nil
+	}
+
+	return reader, writer
 }
 
 var _ io.Closer = (*Factory)(nil)

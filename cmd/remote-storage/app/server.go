@@ -75,7 +75,7 @@ func createGRPCHandler(f *storage.Factory, logger *zap.Logger) (*shared.GRPCHand
 		StreamingSpanWriter: func() spanstore.Writer { return nil },
 	}
 
-	ar, aw := initArchiveStorage(f, logger)
+	ar, aw := f.InitArchiveStorage(logger)
 	impl.ArchiveSpanReader = func() spanstore.Reader { return ar }
 	impl.ArchiveSpanWriter = func() spanstore.Writer { return aw }
 
@@ -138,22 +138,4 @@ func (s *Server) Close() error {
 	s.stopped.Wait()
 	s.telset.ReportStatus(componentstatus.NewEvent(componentstatus.StatusStopped))
 	return nil
-}
-
-func initArchiveStorage(
-	storageFactory *storage.Factory,
-	logger *zap.Logger,
-) (spanstore.Reader, spanstore.Writer) {
-	reader, err := storageFactory.CreateArchiveSpanReader()
-	if err != nil {
-		logger.Error("Cannot init archive storage reader", zap.Error(err))
-		return nil, nil
-	}
-	writer, err := storageFactory.CreateArchiveSpanWriter()
-	if err != nil {
-		logger.Error("Cannot init archive storage writer", zap.Error(err))
-		return nil, nil
-	}
-
-	return reader, writer
 }
