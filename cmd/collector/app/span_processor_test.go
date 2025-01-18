@@ -904,7 +904,16 @@ func TestOTLPReceiverWithV2Storage(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
-	time.Sleep(100 * time.Millisecond)
+	assert.Eventually(t, func() bool {
+		storedTraces := receivedTraces.Load()
+		if storedTraces == nil {
+			return false
+		}
+		receivedSpan := storedTraces.ResourceSpans().At(0).
+			ScopeSpans().At(0).
+			Spans().At(0)
+		return receivedSpan.Name() == span.Name()
+	}, 1*time.Second, 50*time.Millisecond)
 
 	receivedSpan := receivedTraces.Load().ResourceSpans().At(0).
 		ScopeSpans().At(0).
