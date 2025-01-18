@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/model"
 )
 
@@ -31,7 +32,7 @@ func TestHashingSanitizer(t *testing.T) {
 			SpanID:  model.SpanID(2),
 			Tags: []model.KeyValue{
 				{
-					Key:    "span.hash",
+					Key:   	jptrace.HashAttribute,
 					VType:  model.ValueType_INT64,
 					VInt64: 12345,
 				},

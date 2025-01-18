@@ -4,15 +4,9 @@
 package adjuster
 
 import (
-	"fmt"
-	"hash/fnv"
-	"unsafe"
-
-	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger/internal/jptrace"
-	"github.com/jaegertracing/jaeger/model"
 )
 
 var _ Adjuster = (*SpanHashDeduper)(nil)
@@ -27,18 +21,15 @@ var _ Adjuster = (*SpanHashDeduper)(nil)
 // To ensure consistent hash codes, this adjuster should be executed after
 // SortAttributesAndEvents, which normalizes the order of collections within the span.
 func DeduplicateSpans() *SpanHashDeduper {
-	return &SpanHashDeduper{
-		marshaler: &ptrace.ProtoMarshaler{},
-	}
+	return &SpanHashDeduper{}
 }
 
-type SpanHashDeduper struct {
-	marshaler ptrace.Marshaler
-}
+type SpanHashDeduper struct{}
 
-func (s *SpanHashDeduper) Adjust(traces ptrace.Traces) {
+func (SpanHashDeduper) Adjust(traces ptrace.Traces) {
 	spansByHash := make(map[int64]ptrace.Span)
 	resourceSpans := traces.ResourceSpans()
+	spanHasher := jptrace.NewSpanHasher()
 	for i := 0; i < resourceSpans.Len(); i++ {
 		rs := resourceSpans.At(i)
 		scopeSpans := rs.ScopeSpans()
@@ -55,23 +46,13 @@ func (s *SpanHashDeduper) Adjust(traces ptrace.Traces) {
 			for k := 0; k < spans.Len(); k++ {
 				span := spans.At(k)
 				span.CopyTo(hashSpan)
-
-				var spanHash int64
-				if hashAttr, ok := span.Attributes().Get(model.SpanHashKey); ok {
-					if hashAttr.Type() != pcommon.ValueTypeInt {
-						jptrace.AddWarnings(span, "span hash attribute is not an integer type")
-						span.CopyTo(dedupedSpans.AppendEmpty())
-						continue
-					}
-					spanHash = hashAttr.Int()
-				} else {
-					h, err := s.computeHashCode(hashTrace)
-					if err != nil {
-						jptrace.AddWarnings(span, fmt.Sprintf("failed to compute hash code: %v", err))
-						span.CopyTo(dedupedSpans.AppendEmpty())
-						continue
-					}
-					spanHash = uint64ToInt64Bits(h)
+				spanHash, err := spanHasher.SpanHash(hashTrace)
+				if err != nil {
+					jptrace.AddWarnings(span, err.Error())
+				}
+				if spanHash == 0 {
+					span.CopyTo(dedupedSpans.AppendEmpty())
+					continue
 				}
 
 				if _, ok := spansByHash[spanHash]; !ok {
@@ -82,20 +63,4 @@ func (s *SpanHashDeduper) Adjust(traces ptrace.Traces) {
 			dedupedSpans.CopyTo(spans)
 		}
 	}
-}
-
-func (s *SpanHashDeduper) computeHashCode(
-	hashTrace ptrace.Traces,
-) (uint64, error) {
-	b, err := s.marshaler.MarshalTraces(hashTrace)
-	if err != nil {
-		return 0, err
-	}
-	hasher := fnv.New64a()
-	hasher.Write(b) // the writer in the Hash interface never returns an error
-	return hasher.Sum64(), nil
-}
-
-func uint64ToInt64Bits(value uint64) int64 {
-	return *(*int64)(unsafe.Pointer(&value))
 }

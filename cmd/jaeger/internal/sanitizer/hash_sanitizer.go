@@ -4,15 +4,12 @@
 package sanitizer
 
 import (
-	"fmt"
 	"hash/fnv"
 	"unsafe"
 
-	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger/internal/jptrace"
-	"github.com/jaegertracing/jaeger/model"
 )
 
 func NewHashingSanitizer() Func {
@@ -21,7 +18,7 @@ func NewHashingSanitizer() Func {
 
 func hashingSanitizer(traces ptrace.Traces) ptrace.Traces {
 	resourceSpans := traces.ResourceSpans()
-	marshaler := &ptrace.ProtoMarshaler{}
+	spanHasher := jptrace.NewSpanHasher()
 	for i := 0; i < resourceSpans.Len(); i++ {
 		rs := resourceSpans.At(i)
 		scopeSpans := rs.ScopeSpans()
@@ -37,17 +34,13 @@ func hashingSanitizer(traces ptrace.Traces) ptrace.Traces {
 			for k := 0; k < spans.Len(); k++ {
 				span := spans.At(k)
 				span.CopyTo(hashSpan)
-				if hashAttr, ok := span.Attributes().Get(model.SpanHashKey); ok {
-					if hashAttr.Type() != pcommon.ValueTypeInt {
-						jptrace.AddWarnings(span, "span hash attribute is not an integer type")
-					}
-				} else {
-					_, updatedSpan, err := computeHashCode(hashTrace, marshaler)
-					if err != nil {
-						jptrace.AddWarnings(span, fmt.Sprintf("failed to compute hash code: %v", err))
-						continue
-					}
-					updatedSpan.CopyTo(span)
+				spanHash, err := spanHasher.SpanHash(hashTrace)
+				if err != nil {
+					jptrace.AddWarnings(span, err.Error())
+				}
+				if spanHash != 0 {
+					attrs := span.Attributes()
+					attrs.PutInt(jptrace.HashAttribute, spanHash)
 				}
 			}
 		}
@@ -68,7 +61,7 @@ func computeHashCode(hashTrace ptrace.Traces, marshaler ptrace.Marshaler) (uint6
 	span := hashTrace.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0)
 
 	attrs := span.Attributes()
-	attrs.PutInt(model.SpanHashKey, uint64ToInt64Bits(hash))
+	attrs.PutInt(jptrace.HashAttribute, uint64ToInt64Bits(hash))
 
 	return hash, span, nil
 }

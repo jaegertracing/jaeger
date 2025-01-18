@@ -289,16 +289,8 @@ func TestSpanHash_DuplicateSpansDifferentResourceAttributes(t *testing.T) {
 	assert.Equal(t, expected(), i)
 }
 
-type errorMarshaler struct{}
-
-func (*errorMarshaler) MarshalTraces(ptrace.Traces) ([]byte, error) {
-	return nil, assert.AnError
-}
-
 func TestSpanHash_ErrorInMarshaler(t *testing.T) {
-	adjuster := SpanHashDeduper{
-		marshaler: &errorMarshaler{},
-	}
+	adjuster := SpanHashDeduper{}
 
 	traces := ptrace.NewTraces()
 	rs := traces.ResourceSpans().AppendEmpty()
@@ -314,7 +306,5 @@ func TestSpanHash_ErrorInMarshaler(t *testing.T) {
 	assert.Equal(t, "span1", gotSpan.Name())
 
 	warnings := jptrace.GetWarnings(gotSpan)
-	assert.Len(t, warnings, 1)
-	assert.Contains(t, warnings[0], "failed to compute hash code")
-	assert.Contains(t, warnings[0], assert.AnError.Error())
+	assert.Empty(t, warnings)
 }

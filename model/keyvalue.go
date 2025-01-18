@@ -11,6 +11,8 @@ import (
 	"io"
 	"sort"
 	"strconv"
+
+	"github.com/jaegertracing/jaeger/internal/jptrace"
 )
 
 // These constants are kept mostly for backwards compatibility.
@@ -27,7 +29,7 @@ const (
 	BinaryType = ValueType_BINARY
 
 	SpanKindKey     = "span.kind"
-	SpanHashKey     = "span.hash"
+	SpanHashKey     = jptrace.HashAttribute
 	SamplerTypeKey  = "sampler.type"
 	SamplerParamKey = "sampler.param"
 )

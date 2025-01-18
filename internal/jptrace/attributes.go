@@ -12,4 +12,8 @@ const (
 	// wire format in which the span was received by Jaeger,
 	// e.g. proto, thrift, json.
 	FormatAttribute = "@jaeger@format"
+	// HashAttrivute is the name of the span attribute where we can
+	// store hash values of the span . The hash value can be used to
+	// skip hash computation and used for deduplication of spans
+	HashAttribute = "@jaeger@hash"
 )

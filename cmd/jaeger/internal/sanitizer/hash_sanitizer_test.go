@@ -4,6 +4,7 @@
 package sanitizer
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -11,7 +12,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
-	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger/internal/jptrace"
 )
 
 func createTestTraces() ptrace.Traces {
@@ -29,9 +30,10 @@ func TestHashingSanitizer(t *testing.T) {
 		sanitized := hashingSanitizer(traces)
 
 		span := sanitized.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0)
-		hashAttr, exists := span.Attributes().Get(model.SpanHashKey)
+		hashAttr, exists := span.Attributes().Get(jptrace.HashAttribute)
 
 		require.True(t, exists, "hash should be added")
+		fmt.Printf("%v",hashAttr.Type())
 		assert.Equal(t, pcommon.ValueTypeInt, hashAttr.Type())
 	})
 }
@@ -46,7 +48,7 @@ func TestComputeHashCode(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotZero(t, hash)
 
-		hashAttr, exists := span.Attributes().Get(model.SpanHashKey)
+		hashAttr, exists := span.Attributes().Get(jptrace.HashAttribute)
 		require.True(t, exists)
 		assert.Equal(t, int64(hash), hashAttr.Int())
 	})

@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
@@ -131,12 +132,12 @@ func TestGetTraceWithRawTraces(t *testing.T) {
 			tags: model.KeyValues{
 				model.String("z", "key"),
 				model.String("a", "key"),
-				model.Int64(model.SpanHashKey, mockHash),
+				model.Int64(jptrace.HashAttribute, mockHash),
 			},
 			expected: model.KeyValues{
 				model.String("z", "key"),
 				model.String("a", "key"),
-				model.Int64(model.SpanHashKey, mockHash),
+				model.Int64(jptrace.HashAttribute, mockHash),
 			},
 		},
 		{
@@ -145,11 +146,11 @@ func TestGetTraceWithRawTraces(t *testing.T) {
 			tags: model.KeyValues{
 				model.String("z", "key"),
 				model.String("a", "key"),
-				model.Int64(model.SpanHashKey, mockHash),
+				model.Int64(jptrace.HashAttribute, mockHash),
 			},
 			expected: model.KeyValues{
+				model.Int64(jptrace.HashAttribute, mockHash),
 				model.String("a", "key"),
-				model.Int64(model.SpanHashKey, mockHash),
 				model.String("z", "key"),
 			},
 		},
@@ -288,12 +289,12 @@ func TestFindTracesWithRawTraces(t *testing.T) {
 			tags: model.KeyValues{
 				model.String("z", "key"),
 				model.String("a", "key"),
-				model.Int64(model.SpanHashKey, mockHash),
+				model.Int64(jptrace.HashAttribute, mockHash),
 			},
 			expected: model.KeyValues{
 				model.String("z", "key"),
 				model.String("a", "key"),
-				model.Int64(model.SpanHashKey, mockHash),
+				model.Int64(jptrace.HashAttribute, mockHash),
 			},
 		},
 		{
@@ -302,11 +303,11 @@ func TestFindTracesWithRawTraces(t *testing.T) {
 			tags: model.KeyValues{
 				model.String("z", "key"),
 				model.String("a", "key"),
-				model.Int64(model.SpanHashKey, mockHash),
+				model.Int64(jptrace.HashAttribute, mockHash),
 			},
 			expected: model.KeyValues{
+				model.Int64(jptrace.HashAttribute, mockHash),
 				model.String("a", "key"),
-				model.Int64(model.SpanHashKey, mockHash),
 				model.String("z", "key"),
 			},
 		},

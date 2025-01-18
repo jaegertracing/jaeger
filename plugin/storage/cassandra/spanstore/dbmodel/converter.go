@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/model"
 )
 
@@ -85,7 +86,7 @@ func (c converter) toDomain(dbSpan *Span) (*model.Span, error) {
 	if err != nil {
 		return nil, err
 	}
-	tags = append(tags, model.Int64(model.SpanHashKey, dbSpan.SpanHash))
+	tags = append(tags, model.Int64(jptrace.HashAttribute, dbSpan.SpanHash))
 	warnings, err := c.fromDBWarnings(dbSpan.Tags)
 	if err != nil {
 		return nil, err
