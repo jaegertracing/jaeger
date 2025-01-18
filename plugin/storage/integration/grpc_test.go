@@ -62,6 +62,7 @@ func (s *GRPCStorageIntegrationTestSuite) initialize(t *testing.T) {
 
 func (s *GRPCStorageIntegrationTestSuite) close(t *testing.T) {
 	require.NoError(t, s.factory.Close())
+	require.NoError(t, s.archiveFactory.Close())
 	s.remoteStorage.Close(t)
 }
 

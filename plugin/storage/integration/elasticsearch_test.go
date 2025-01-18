@@ -101,6 +101,7 @@ func (s *ESStorageIntegration) initializeES(t *testing.T, c *http.Client, allTag
 
 func (s *ESStorageIntegration) esCleanUp(t *testing.T) {
 	require.NoError(t, s.factory.Purge(context.Background()))
+	require.NoError(t, s.archiveFactory.Purge(context.Background()))
 }
 
 func (*ESStorageIntegration) initializeESFactory(t *testing.T, args []string, factoryInit func() *es.Factory) *es.Factory {

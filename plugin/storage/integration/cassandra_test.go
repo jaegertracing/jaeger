@@ -42,6 +42,7 @@ func newCassandraStorageIntegration() *CassandraStorageIntegration {
 
 func (s *CassandraStorageIntegration) cleanUp(t *testing.T) {
 	require.NoError(t, s.factory.Purge(context.Background()))
+	require.NoError(t, s.archiveFactory.Purge(context.Background()))
 }
 
 func (*CassandraStorageIntegration) initializeCassandraFactory(t *testing.T, flags []string, factoryInit func() *cassandra.Factory) *cassandra.Factory {
