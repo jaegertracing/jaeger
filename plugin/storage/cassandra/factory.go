@@ -36,8 +36,8 @@ import (
 )
 
 const (
-	primaryStorageConfig = "cassandra"
-	archiveStorageConfig = "cassandra-archive"
+	primaryStorageNamespace = "cassandra"
+	archiveStorageNamespace = "cassandra-archive"
 )
 
 var ( // interface comformance checks
@@ -68,7 +68,7 @@ type Factory struct {
 func NewFactory() *Factory {
 	return &Factory{
 		tracer:           otel.GetTracerProvider(),
-		Options:          NewOptions(primaryStorageConfig),
+		Options:          NewOptions(primaryStorageNamespace),
 		sessionBuilderFn: NewSession,
 	}
 }
@@ -76,7 +76,7 @@ func NewFactory() *Factory {
 func NewArchiveFactory() *Factory {
 	return &Factory{
 		tracer:           otel.GetTracerProvider(),
-		Options:          NewOptions(archiveStorageConfig),
+		Options:          NewOptions(archiveStorageNamespace),
 		sessionBuilderFn: NewSession,
 	}
 }
@@ -109,7 +109,7 @@ type withConfigBuilder struct {
 
 func (b *withConfigBuilder) build() (*Factory, error) {
 	b.f.configureFromOptions(b.opts)
-	if err := b.opts.Primary.Validate(); err != nil {
+	if err := b.opts.NamespaceConfig.Validate(); err != nil {
 		return nil, err
 	}
 	err := b.initializer(b.metricsFactory, b.logger)
@@ -133,7 +133,7 @@ func (f *Factory) InitFromViper(v *viper.Viper, _ *zap.Logger) {
 // InitFromOptions initializes factory from options.
 func (f *Factory) configureFromOptions(o *Options) {
 	f.Options = o
-	f.config = o.GetPrimary()
+	f.config = o.GetConfig()
 }
 
 // Initialize implements storage.Factory
@@ -141,11 +141,11 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 	f.metricsFactory = metricsFactory
 	f.logger = logger
 
-	primarySession, err := f.sessionBuilderFn(&f.config)
+	session, err := f.sessionBuilderFn(&f.config)
 	if err != nil {
 		return err
 	}
-	f.session = primarySession
+	f.session = session
 
 	return nil
 }
