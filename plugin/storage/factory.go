@@ -143,6 +143,8 @@ func (*Factory) getFactoryOfType(factoryType string) (storage.Factory, error) {
 
 func (*Factory) getArchiveFactoryOfType(factoryType string) (storage.Factory, error) {
 	switch factoryType {
+	case cassandraStorageType:
+		return cassandra.NewArchiveFactory(), nil
 	case elasticsearchStorageType, opensearchStorageType:
 		return es.NewArchiveFactory(), nil
 	default:

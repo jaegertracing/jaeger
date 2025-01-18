@@ -49,9 +49,8 @@ const (
 // (e.g. archive) may be underspecified and infer the rest of its parameters from primary.
 type Options struct {
 	Primary                NamespaceConfig `mapstructure:",squash"`
-	others                 map[string]*NamespaceConfig
-	SpanStoreWriteCacheTTL time.Duration `mapstructure:"span_store_write_cache_ttl"`
-	Index                  IndexConfig   `mapstructure:"index"`
+	SpanStoreWriteCacheTTL time.Duration   `mapstructure:"span_store_write_cache_ttl"`
+	Index                  IndexConfig     `mapstructure:"index"`
 }
 
 // IndexConfig configures indexing.
@@ -74,20 +73,15 @@ type NamespaceConfig struct {
 }
 
 // NewOptions creates a new Options struct.
-func NewOptions(primaryNamespace string, otherNamespaces ...string) *Options {
+func NewOptions(namespace string) *Options {
 	// TODO all default values should be defined via cobra flags
 	options := &Options{
 		Primary: NamespaceConfig{
 			Configuration: config.DefaultConfiguration(),
-			namespace:     primaryNamespace,
+			namespace:     namespace,
 			Enabled:       true,
 		},
-		others:                 make(map[string]*NamespaceConfig, len(otherNamespaces)),
 		SpanStoreWriteCacheTTL: time.Hour * 12,
-	}
-
-	for _, namespace := range otherNamespaces {
-		options.others[namespace] = &NamespaceConfig{namespace: namespace}
 	}
 
 	return options
@@ -96,9 +90,6 @@ func NewOptions(primaryNamespace string, otherNamespaces ...string) *Options {
 // AddFlags adds flags for Options
 func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
 	addFlags(flagSet, opt.Primary)
-	for _, cfg := range opt.others {
-		addFlags(flagSet, *cfg)
-	}
 	flagSet.Duration(opt.Primary.namespace+suffixSpanStoreWriteCacheTTL,
 		opt.SpanStoreWriteCacheTTL,
 		"The duration to wait before rewriting an existing service or operation name")
@@ -206,9 +197,6 @@ func addFlags(flagSet *flag.FlagSet, nsConfig NamespaceConfig) {
 // InitFromViper initializes Options with properties from viper
 func (opt *Options) InitFromViper(v *viper.Viper) {
 	opt.Primary.initFromViper(v)
-	for _, cfg := range opt.others {
-		cfg.initFromViper(v)
-	}
 	opt.SpanStoreWriteCacheTTL = v.GetDuration(opt.Primary.namespace + suffixSpanStoreWriteCacheTTL)
 	opt.Index.TagBlackList = stripWhiteSpace(v.GetString(opt.Primary.namespace + suffixIndexTagsBlacklist))
 	opt.Index.TagWhiteList = stripWhiteSpace(v.GetString(opt.Primary.namespace + suffixIndexTagsWhitelist))
@@ -258,23 +246,6 @@ func (cfg *NamespaceConfig) initFromViper(v *viper.Viper) {
 // GetPrimary returns primary configuration.
 func (opt *Options) GetPrimary() config.Configuration {
 	return opt.Primary.Configuration
-}
-
-// Get returns auxiliary named configuration.
-func (opt *Options) Get(namespace string) *config.Configuration {
-	nsCfg, ok := opt.others[namespace]
-	if !ok {
-		nsCfg = &NamespaceConfig{}
-		opt.others[namespace] = nsCfg
-	}
-	if !nsCfg.Enabled {
-		return nil
-	}
-	nsCfg.Configuration.ApplyDefaults(&opt.Primary.Configuration)
-	if len(nsCfg.Connection.Servers) == 0 {
-		nsCfg.Connection.Servers = opt.Primary.Connection.Servers
-	}
-	return &nsCfg.Configuration
 }
 
 // TagIndexBlacklist returns the list of blacklisted tags
