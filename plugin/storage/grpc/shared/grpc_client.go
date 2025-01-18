@@ -31,24 +31,20 @@ var (
 
 // GRPCClient implements shared.StoragePlugin and reads/writes spans and dependencies
 type GRPCClient struct {
-	readerClient        storage_v1.SpanReaderPluginClient
-	writerClient        storage_v1.SpanWriterPluginClient
-	archiveReaderClient storage_v1.ArchiveSpanReaderPluginClient
-	archiveWriterClient storage_v1.ArchiveSpanWriterPluginClient
-	capabilitiesClient  storage_v1.PluginCapabilitiesClient
-	depsReaderClient    storage_v1.DependenciesReaderPluginClient
-	streamWriterClient  storage_v1.StreamingSpanWriterPluginClient
+	readerClient       storage_v1.SpanReaderPluginClient
+	writerClient       storage_v1.SpanWriterPluginClient
+	capabilitiesClient storage_v1.PluginCapabilitiesClient
+	depsReaderClient   storage_v1.DependenciesReaderPluginClient
+	streamWriterClient storage_v1.StreamingSpanWriterPluginClient
 }
 
 func NewGRPCClient(tracedConn *grpc.ClientConn, untracedConn *grpc.ClientConn) *GRPCClient {
 	return &GRPCClient{
-		readerClient:        storage_v1.NewSpanReaderPluginClient(tracedConn),
-		writerClient:        storage_v1.NewSpanWriterPluginClient(untracedConn),
-		archiveReaderClient: storage_v1.NewArchiveSpanReaderPluginClient(tracedConn),
-		archiveWriterClient: storage_v1.NewArchiveSpanWriterPluginClient(untracedConn),
-		capabilitiesClient:  storage_v1.NewPluginCapabilitiesClient(tracedConn),
-		depsReaderClient:    storage_v1.NewDependenciesReaderPluginClient(tracedConn),
-		streamWriterClient:  storage_v1.NewStreamingSpanWriterPluginClient(untracedConn),
+		readerClient:       storage_v1.NewSpanReaderPluginClient(tracedConn),
+		writerClient:       storage_v1.NewSpanWriterPluginClient(untracedConn),
+		capabilitiesClient: storage_v1.NewPluginCapabilitiesClient(tracedConn),
+		depsReaderClient:   storage_v1.NewDependenciesReaderPluginClient(tracedConn),
+		streamWriterClient: storage_v1.NewStreamingSpanWriterPluginClient(untracedConn),
 	}
 }
 
@@ -69,14 +65,6 @@ func (c *GRPCClient) SpanWriter() spanstore.Writer {
 
 func (c *GRPCClient) StreamingSpanWriter() spanstore.Writer {
 	return newStreamingSpanWriter(c.streamWriterClient)
-}
-
-func (c *GRPCClient) ArchiveSpanReader() spanstore.Reader {
-	return &archiveReader{client: c.archiveReaderClient}
-}
-
-func (c *GRPCClient) ArchiveSpanWriter() spanstore.Writer {
-	return &archiveWriter{client: c.archiveWriterClient}
 }
 
 // GetTrace takes a traceID and returns a Trace associated with that traceID
@@ -242,8 +230,6 @@ func (c *GRPCClient) Capabilities() (*Capabilities, error) {
 	}
 
 	return &Capabilities{
-		ArchiveSpanReader:   capabilities.ArchiveSpanReader,
-		ArchiveSpanWriter:   capabilities.ArchiveSpanWriter,
 		StreamingSpanWriter: capabilities.StreamingSpanWriter,
 	}, nil
 }

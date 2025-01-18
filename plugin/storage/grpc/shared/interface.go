@@ -27,8 +27,6 @@ type PluginCapabilities interface {
 
 // Capabilities contains information about plugin capabilities
 type Capabilities struct {
-	ArchiveSpanReader   bool
-	ArchiveSpanWriter   bool
 	StreamingSpanWriter bool
 }
 
