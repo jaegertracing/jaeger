@@ -20,22 +20,29 @@ import (
 
 type GRPCStorageIntegrationTestSuite struct {
 	StorageIntegration
-	flags         []string
-	factory       *grpc.Factory
-	remoteStorage *RemoteMemoryStorage
+	flags          []string
+	factory        *grpc.Factory
+	archiveFactory *grpc.Factory
+	remoteStorage  *RemoteMemoryStorage
 }
 
 func (s *GRPCStorageIntegrationTestSuite) initialize(t *testing.T) {
 	logger := zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller()))
 	s.remoteStorage = StartNewRemoteMemoryStorage(t)
 
+	initFactory := func(f *grpc.Factory) {
+		v, command := config.Viperize(f.AddFlags)
+		err := command.ParseFlags(s.flags)
+		require.NoError(t, err)
+		f.InitFromViper(v, logger)
+		require.NoError(t, f.Initialize(metrics.NullFactory, logger))
+	}
 	f := grpc.NewFactory()
-	v, command := config.Viperize(f.AddFlags)
-	err := command.ParseFlags(s.flags)
-	require.NoError(t, err)
-	f.InitFromViper(v, logger)
-	require.NoError(t, f.Initialize(metrics.NullFactory, logger))
+	af := grpc.NewFactory()
+	initFactory(f)
+	initFactory(af)
 	s.factory = f
+	s.archiveFactory = af
 
 	spanWriter, err := f.CreateSpanWriter()
 	require.NoError(t, err)
@@ -43,9 +50,9 @@ func (s *GRPCStorageIntegrationTestSuite) initialize(t *testing.T) {
 	spanReader, err := f.CreateSpanReader()
 	require.NoError(t, err)
 	s.TraceReader = v1adapter.NewTraceReader(spanReader)
-	s.ArchiveSpanReader, err = f.CreateArchiveSpanReader()
+	s.ArchiveSpanReader, err = af.CreateSpanReader()
 	require.NoError(t, err)
-	s.ArchiveSpanWriter, err = f.CreateArchiveSpanWriter()
+	s.ArchiveSpanWriter, err = af.CreateSpanWriter()
 	require.NoError(t, err)
 
 	// TODO DependencyWriter is not implemented in grpc store
