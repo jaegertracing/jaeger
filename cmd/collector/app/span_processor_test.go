@@ -915,10 +915,5 @@ func TestOTLPReceiverWithV2Storage(t *testing.T) {
 		return receivedSpan.Name() == span.Name()
 	}, 1*time.Second, 50*time.Millisecond)
 
-	receivedSpan := receivedTraces.Load().ResourceSpans().At(0).
-		ScopeSpans().At(0).
-		Spans().At(0)
-	require.Equal(t, span.Name(), receivedSpan.Name())
-
 	mockWriter.AssertExpectations(t)
 }
