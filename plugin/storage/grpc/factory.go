@@ -34,10 +34,9 @@ import (
 )
 
 var ( // interface comformance checks
-	_ storage.Factory        = (*Factory)(nil)
-	_ storage.ArchiveFactory = (*Factory)(nil)
-	_ io.Closer              = (*Factory)(nil)
-	_ plugin.Configurable    = (*Factory)(nil)
+	_ storage.Factory     = (*Factory)(nil)
+	_ io.Closer           = (*Factory)(nil)
+	_ plugin.Configurable = (*Factory)(nil)
 )
 
 // Factory implements storage.Factory and creates storage components backed by a storage plugin.
@@ -158,7 +157,6 @@ func (f *Factory) newRemoteStorage(
 	return &ClientPluginServices{
 		PluginServices: shared.PluginServices{
 			Store:               grpcClient,
-			ArchiveStore:        grpcClient,
 			StreamingSpanWriter: grpcClient,
 		},
 		Capabilities: grpcClient,
@@ -183,43 +181,6 @@ func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
 // CreateDependencyReader implements storage.Factory
 func (f *Factory) CreateDependencyReader() (dependencystore.Reader, error) {
 	return f.services.Store.DependencyReader(), nil
-}
-
-// CreateArchiveSpanReader implements storage.ArchiveFactory
-func (f *Factory) CreateArchiveSpanReader() (spanstore.Reader, error) {
-	if f.services.Capabilities == nil {
-		return nil, storage.ErrArchiveStorageNotSupported
-	}
-	capabilities, err := f.services.Capabilities.Capabilities()
-	if err != nil {
-		return nil, err
-	}
-	if capabilities == nil || !capabilities.ArchiveSpanReader {
-		return nil, storage.ErrArchiveStorageNotSupported
-	}
-	archiveMetricsFactory := f.telset.Metrics.Namespace(
-		metrics.NSOptions{
-			Tags: map[string]string{
-				"role": "archive",
-			},
-		},
-	)
-	return spanstoremetrics.NewReaderDecorator(f.services.ArchiveStore.ArchiveSpanReader(), archiveMetricsFactory), nil
-}
-
-// CreateArchiveSpanWriter implements storage.ArchiveFactory
-func (f *Factory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
-	if f.services.Capabilities == nil {
-		return nil, storage.ErrArchiveStorageNotSupported
-	}
-	capabilities, err := f.services.Capabilities.Capabilities()
-	if err != nil {
-		return nil, err
-	}
-	if capabilities == nil || !capabilities.ArchiveSpanWriter {
-		return nil, storage.ErrArchiveStorageNotSupported
-	}
-	return f.services.ArchiveStore.ArchiveSpanWriter(), nil
 }
 
 // Close closes the resources held by the factory

@@ -52,7 +52,6 @@ func NewGRPCHandler(impl *GRPCHandlerStorageImpl) *GRPCHandler {
 // NewGRPCHandler creates a handler given implementations grouped by plugin services.
 func NewGRPCHandlerWithPlugins(
 	mainImpl StoragePlugin,
-	archiveImpl ArchiveStoragePlugin,
 	streamImpl StreamingSpanWriterPlugin,
 ) *GRPCHandler {
 	impl := &GRPCHandlerStorageImpl{
@@ -63,10 +62,6 @@ func NewGRPCHandlerWithPlugins(
 		ArchiveSpanReader:   func() spanstore.Reader { return nil },
 		ArchiveSpanWriter:   func() spanstore.Writer { return nil },
 		StreamingSpanWriter: func() spanstore.Writer { return nil },
-	}
-	if archiveImpl != nil {
-		impl.ArchiveSpanReader = archiveImpl.ArchiveSpanReader
-		impl.ArchiveSpanWriter = archiveImpl.ArchiveSpanWriter
 	}
 	if streamImpl != nil {
 		impl.StreamingSpanWriter = streamImpl.StreamingSpanWriter

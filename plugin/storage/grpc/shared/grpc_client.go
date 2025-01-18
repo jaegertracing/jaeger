@@ -25,9 +25,8 @@ import (
 const BearerTokenKey = "bearer.token"
 
 var (
-	_ StoragePlugin        = (*GRPCClient)(nil)
-	_ ArchiveStoragePlugin = (*GRPCClient)(nil)
-	_ PluginCapabilities   = (*GRPCClient)(nil)
+	_ StoragePlugin      = (*GRPCClient)(nil)
+	_ PluginCapabilities = (*GRPCClient)(nil)
 )
 
 // GRPCClient implements shared.StoragePlugin and reads/writes spans and dependencies
