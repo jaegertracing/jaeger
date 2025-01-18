@@ -36,6 +36,9 @@ import (
 	metricstoremocks "github.com/jaegertracing/jaeger/storage/metricstore/mocks"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	spanstoremocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
+	"github.com/jaegertracing/jaeger/storage_v2/tracestore"
+	tracestoremocks "github.com/jaegertracing/jaeger/storage_v2/tracestore/mocks"
+	"github.com/jaegertracing/jaeger/storage_v2/v1adapter"
 )
 
 type fakeFactory struct {
@@ -60,14 +63,6 @@ func (ff fakeFactory) CreateSpanWriter() (spanstore.Writer, error) {
 	if ff.name == "need-span-writer-error" {
 		return nil, errors.New("test-error")
 	}
-	return &spanstoremocks.Writer{}, nil
-}
-
-func (fakeFactory) CreateArchiveSpanReader() (spanstore.Reader, error) {
-	return &spanstoremocks.Reader{}, nil
-}
-
-func (fakeFactory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
 	return &spanstoremocks.Writer{}, nil
 }
 
@@ -104,11 +99,6 @@ var _ jaegerstorage.Extension = (*fakeStorageExt)(nil)
 func (fakeStorageExt) TraceStorageFactory(name string) (storage.Factory, bool) {
 	if name == "need-factory-error" {
 		return nil, false
-	} else if name == "no-archive" {
-		f := fakeFactory{name: name}
-		return struct {
-			storage.Factory
-		}{f}, true
 	}
 
 	return fakeFactory{name: name}, true
@@ -193,7 +183,7 @@ func TestServerStart(t *testing.T) {
 					TracesPrimary: "jaeger_storage",
 				},
 			},
-			expectedErr: "cannot find archive storage factory",
+			expectedErr: "cannot find traces archive storage factory",
 		},
 		{
 			name: "metrics storage error",
@@ -296,19 +286,32 @@ func TestServerAddArchiveStorage(t *testing.T) {
 			qSvcOpts:       &querysvc.QueryServiceOptions{},
 			v2qSvcOpts:     &v2querysvc.QueryServiceOptions{},
 			expectedOutput: "",
-			expectedErr:    "cannot find archive storage factory: cannot find extension",
+			expectedErr:    "cannot find traces archive storage factory: cannot find extension",
 		},
 		{
-			name: "Archive storage not supported",
+			name: "Error in trace reader",
 			config: &Config{
 				Storage: Storage{
-					TracesArchive: "no-archive",
+					TracesArchive: "need-span-reader-error",
 				},
 			},
 			qSvcOpts:       &querysvc.QueryServiceOptions{},
 			v2qSvcOpts:     &v2querysvc.QueryServiceOptions{},
 			extension:      fakeStorageExt{},
-			expectedOutput: "Archive storage not supported by the factory",
+			expectedOutput: "Cannot init traces archive storage reader",
+			expectedErr:    "",
+		},
+		{
+			name: "Error in trace writer",
+			config: &Config{
+				Storage: Storage{
+					TracesArchive: "need-span-writer-error",
+				},
+			},
+			qSvcOpts:       &querysvc.QueryServiceOptions{},
+			v2qSvcOpts:     &v2querysvc.QueryServiceOptions{},
+			extension:      fakeStorageExt{},
+			expectedOutput: "Cannot init traces archive storage writer",
 			expectedErr:    "",
 		},
 		{
@@ -346,6 +349,39 @@ func TestServerAddArchiveStorage(t *testing.T) {
 			}
 
 			assert.Contains(t, buf.String(), tt.expectedOutput)
+		})
+	}
+}
+
+func TestGetV1Adapters(t *testing.T) {
+	tests := []struct {
+		name           string
+		reader         tracestore.Reader
+		writer         tracestore.Writer
+		expectedReader spanstore.Reader
+		expectedWriter spanstore.Writer
+	}{
+		{
+			name:           "native tracestore.Reader and tracestore.Writer",
+			reader:         &tracestoremocks.Reader{},
+			writer:         &tracestoremocks.Writer{},
+			expectedReader: v1adapter.NewSpanReader(&tracestoremocks.Reader{}),
+			expectedWriter: v1adapter.NewSpanWriter(&tracestoremocks.Writer{}),
+		},
+		{
+			name:           "wrapped spanstore.Reader and spanstore.Writer",
+			reader:         v1adapter.NewTraceReader(&spanstoremocks.Reader{}),
+			writer:         v1adapter.NewTraceWriter(&spanstoremocks.Writer{}),
+			expectedReader: &spanstoremocks.Reader{},
+			expectedWriter: &spanstoremocks.Writer{},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			gotReader, gotWriter := getV1Adapters(test.reader, test.writer)
+			require.Equal(t, test.expectedReader, gotReader)
+			require.Equal(t, test.expectedWriter, gotWriter)
 		})
 	}
 }
