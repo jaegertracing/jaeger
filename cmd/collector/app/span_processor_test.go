@@ -848,13 +848,11 @@ func TestOTLPReceiverWithV2Storage(t *testing.T) {
 	span := sSpans.Spans().AppendEmpty()
 	span.SetName("test-trace")
 
-	var receivedTraces ptrace.Traces
-	var mu sync.Mutex
+	receivedTraces := atomic.Pointer[ptrace.Traces]{}
 	mockWriter.On("WriteTraces", mock.Anything, mock.Anything).
 		Run(func(args mock.Arguments) {
-			mu.Lock()
-			receivedTraces = args.Get(1).(ptrace.Traces)
-			mu.Unlock()
+			storeTrace := args.Get(1).(ptrace.Traces)
+			receivedTraces.Store(&storeTrace)
 		}).Return(nil)
 
 	spanProcessor, err := NewSpanProcessor(
@@ -908,12 +906,10 @@ func TestOTLPReceiverWithV2Storage(t *testing.T) {
 
 	time.Sleep(100 * time.Millisecond)
 
-	mu.Lock()
-	receivedSpan := receivedTraces.ResourceSpans().At(0).
+	receivedSpan := receivedTraces.Load().ResourceSpans().At(0).
 		ScopeSpans().At(0).
 		Spans().At(0)
 	require.Equal(t, span.Name(), receivedSpan.Name())
-	mu.Unlock()
 
 	mockWriter.AssertExpectations(t)
 }
