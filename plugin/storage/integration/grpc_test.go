@@ -30,17 +30,17 @@ func (s *GRPCStorageIntegrationTestSuite) initialize(t *testing.T) {
 	logger := zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller()))
 	s.remoteStorage = StartNewRemoteMemoryStorage(t)
 
-	initFactory := func(f *grpc.Factory) {
+	initFactory := func() *grpc.Factory {
+		f := grpc.NewFactory()
 		v, command := config.Viperize(f.AddFlags)
 		err := command.ParseFlags(s.flags)
 		require.NoError(t, err)
 		f.InitFromViper(v, logger)
 		require.NoError(t, f.Initialize(metrics.NullFactory, logger))
+		return f
 	}
-	f := grpc.NewFactory()
-	af := grpc.NewFactory()
-	initFactory(f)
-	initFactory(af)
+	f := initFactory()
+	af := initFactory()
 	s.factory = f
 	s.archiveFactory = af
 
