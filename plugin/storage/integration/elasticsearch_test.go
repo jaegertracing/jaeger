@@ -52,7 +52,8 @@ type ESStorageIntegration struct {
 	client   *elastic.Client
 	v8Client *elasticsearch8.Client
 
-	factory *es.Factory
+	factory        *es.Factory
+	archiveFactory *es.Factory
 }
 
 func (s *ESStorageIntegration) getVersion() (uint, error) {
@@ -102,23 +103,10 @@ func (s *ESStorageIntegration) esCleanUp(t *testing.T) {
 	require.NoError(t, s.factory.Purge(context.Background()))
 }
 
-func (*ESStorageIntegration) initializeESFactory(t *testing.T, allTagsAsFields bool) *es.Factory {
+func (*ESStorageIntegration) initializeESFactory(t *testing.T, args []string, factoryInit func() *es.Factory) *es.Factory {
 	logger := zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller()))
-	f := es.NewFactory()
+	f := factoryInit()
 	v, command := config.Viperize(f.AddFlags)
-	args := []string{
-		fmt.Sprintf("--es.num-shards=%v", 5),
-		fmt.Sprintf("--es.num-replicas=%v", 1),
-		fmt.Sprintf("--es.index-prefix=%v", indexPrefix),
-		fmt.Sprintf("--es.use-ilm=%v", false),
-		fmt.Sprintf("--es.service-cache-ttl=%v", 1*time.Second),
-		fmt.Sprintf("--es.tags-as-fields.all=%v", allTagsAsFields),
-		fmt.Sprintf("--es.bulk.actions=%v", 1),
-		fmt.Sprintf("--es.bulk.flush-interval=%v", time.Nanosecond),
-		"--es-archive.enabled=true",
-		fmt.Sprintf("--es-archive.tags-as-fields.all=%v", allTagsAsFields),
-		fmt.Sprintf("--es-archive.index-prefix=%v", indexPrefix),
-	}
 	require.NoError(t, command.ParseFlags(args))
 	f.InitFromViper(v, logger)
 	require.NoError(t, f.Initialize(metrics.NullFactory, logger))
@@ -130,8 +118,23 @@ func (*ESStorageIntegration) initializeESFactory(t *testing.T, allTagsAsFields b
 }
 
 func (s *ESStorageIntegration) initSpanstore(t *testing.T, allTagsAsFields bool) {
-	f := s.initializeESFactory(t, allTagsAsFields)
+	f := s.initializeESFactory(t, []string{
+		fmt.Sprintf("--es.num-shards=%v", 5),
+		fmt.Sprintf("--es.num-replicas=%v", 1),
+		fmt.Sprintf("--es.index-prefix=%v", indexPrefix),
+		fmt.Sprintf("--es.use-ilm=%v", false),
+		fmt.Sprintf("--es.service-cache-ttl=%v", 1*time.Second),
+		fmt.Sprintf("--es.tags-as-fields.all=%v", allTagsAsFields),
+		fmt.Sprintf("--es.bulk.actions=%v", 1),
+		fmt.Sprintf("--es.bulk.flush-interval=%v", time.Nanosecond),
+		"--es-archive.enabled=true",
+	}, es.NewFactory)
+	af := s.initializeESFactory(t, []string{
+		fmt.Sprintf("--es-archive.tags-as-fields.all=%v", allTagsAsFields),
+		fmt.Sprintf("--es-archive.index-prefix=%v", indexPrefix),
+	}, es.NewArchiveFactory)
 	s.factory = f
+	s.archiveFactory = af
 	var err error
 	spanWriter, err := f.CreateSpanWriter()
 	require.NoError(t, err)
@@ -139,9 +142,9 @@ func (s *ESStorageIntegration) initSpanstore(t *testing.T, allTagsAsFields bool)
 	spanReader, err := f.CreateSpanReader()
 	require.NoError(t, err)
 	s.TraceReader = v1adapter.NewTraceReader(spanReader)
-	s.ArchiveSpanReader, err = f.CreateArchiveSpanReader()
+	s.ArchiveSpanReader, err = af.CreateSpanReader()
 	require.NoError(t, err)
-	s.ArchiveSpanWriter, err = f.CreateArchiveSpanWriter()
+	s.ArchiveSpanWriter, err = af.CreateSpanWriter()
 	require.NoError(t, err)
 
 	dependencyReader, err := f.CreateDependencyReader()
