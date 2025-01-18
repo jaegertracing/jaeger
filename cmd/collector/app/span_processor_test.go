@@ -848,7 +848,7 @@ func TestOTLPReceiverWithV2Storage(t *testing.T) {
 	span := sSpans.Spans().AppendEmpty()
 	span.SetName("test-trace")
 
-	receivedTraces := atomic.Pointer[ptrace.Traces]{}
+	var receivedTraces atomic.Pointer[ptrace.Traces]
 	mockWriter.On("WriteTraces", mock.Anything, mock.Anything).
 		Run(func(args mock.Arguments) {
 			storeTrace := args.Get(1).(ptrace.Traces)
