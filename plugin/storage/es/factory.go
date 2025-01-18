@@ -78,15 +78,15 @@ func NewArchiveFactory() *Factory {
 	opts := NewOptions(archiveNamespace)
 
 	aliasSuffix := "archive"
-	if opts.Primary.UseReadWriteAliases {
-		opts.Primary.ReadAliasSuffix = aliasSuffix + "-read"
-		opts.Primary.WriteAliasSuffix = aliasSuffix + "-write"
+	if opts.Config.UseReadWriteAliases {
+		opts.Config.ReadAliasSuffix = aliasSuffix + "-read"
+		opts.Config.WriteAliasSuffix = aliasSuffix + "-write"
 	} else {
-		opts.Primary.ReadAliasSuffix = aliasSuffix
-		opts.Primary.WriteAliasSuffix = aliasSuffix
+		opts.Config.ReadAliasSuffix = aliasSuffix
+		opts.Config.WriteAliasSuffix = aliasSuffix
 	}
 
-	opts.Primary.UseReadWriteAliases = true
+	opts.Config.UseReadWriteAliases = true
 
 	return &Factory{
 		Options:     opts,
@@ -133,7 +133,7 @@ func (f *Factory) InitFromViper(v *viper.Viper, _ *zap.Logger) {
 // configureFromOptions configures factory from Options struct.
 func (f *Factory) configureFromOptions(o *Options) {
 	f.Options = o
-	f.config = f.Options.GetPrimary()
+	f.config = f.Options.GetConfig()
 }
 
 // Initialize implements storage.Factory.
@@ -141,24 +141,24 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 	f.metricsFactory = metricsFactory
 	f.logger = logger
 
-	primaryClient, err := f.newClientFn(f.config, logger, metricsFactory)
+	client, err := f.newClientFn(f.config, logger, metricsFactory)
 	if err != nil {
-		return fmt.Errorf("failed to create primary Elasticsearch client: %w", err)
+		return fmt.Errorf("failed to create Elasticsearch client: %w", err)
 	}
-	f.client.Store(&primaryClient)
+	f.client.Store(&client)
 
 	if f.config.Authentication.BasicAuthentication.PasswordFilePath != "" {
-		primaryWatcher, err := fswatcher.New([]string{f.config.Authentication.BasicAuthentication.PasswordFilePath}, f.onPrimaryPasswordChange, f.logger)
+		watcher, err := fswatcher.New([]string{f.config.Authentication.BasicAuthentication.PasswordFilePath}, f.onPasswordChange, f.logger)
 		if err != nil {
-			return fmt.Errorf("failed to create watcher for primary ES client's password: %w", err)
+			return fmt.Errorf("failed to create watcher for ES client's password: %w", err)
 		}
-		f.watchers = append(f.watchers, primaryWatcher)
+		f.watchers = append(f.watchers, watcher)
 	}
 
 	return nil
 }
 
-func (f *Factory) getPrimaryClient() es.Client {
+func (f *Factory) getClient() es.Client {
 	if c := f.client.Load(); c != nil {
 		return *c
 	}
@@ -167,7 +167,7 @@ func (f *Factory) getPrimaryClient() es.Client {
 
 // CreateSpanReader implements storage.Factory
 func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
-	sr, err := createSpanReader(f.getPrimaryClient, f.config, f.logger, f.tracer, f.config.ReadAliasSuffix, f.config.UseReadWriteAliases)
+	sr, err := createSpanReader(f.getClient, f.config, f.logger, f.tracer, f.config.ReadAliasSuffix, f.config.UseReadWriteAliases)
 	if err != nil {
 		return nil, err
 	}
@@ -176,12 +176,12 @@ func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
 
 // CreateSpanWriter implements storage.Factory
 func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
-	return createSpanWriter(f.getPrimaryClient, f.config, f.metricsFactory, f.logger, f.config.WriteAliasSuffix, f.config.UseReadWriteAliases)
+	return createSpanWriter(f.getClient, f.config, f.metricsFactory, f.logger, f.config.WriteAliasSuffix, f.config.UseReadWriteAliases)
 }
 
 // CreateDependencyReader implements storage.Factory
 func (f *Factory) CreateDependencyReader() (dependencystore.Reader, error) {
-	return createDependencyReader(f.getPrimaryClient, f.config, f.logger)
+	return createDependencyReader(f.getClient, f.config, f.logger)
 }
 
 func createSpanReader(
@@ -260,7 +260,7 @@ func createSpanWriter(
 
 func (f *Factory) CreateSamplingStore(int /* maxBuckets */) (samplingstore.Store, error) {
 	params := esSampleStore.Params{
-		Client:                 f.getPrimaryClient,
+		Client:                 f.getClient,
 		Logger:                 f.logger,
 		IndexPrefix:            f.config.Indices.IndexPrefix,
 		IndexDateLayout:        f.config.Indices.Sampling.DateLayout,
@@ -276,7 +276,7 @@ func (f *Factory) CreateSamplingStore(int /* maxBuckets */) (samplingstore.Store
 		if err != nil {
 			return nil, err
 		}
-		if _, err := f.getPrimaryClient().CreateTemplate(params.PrefixedIndexName()).Body(samplingMapping).Do(context.Background()); err != nil {
+		if _, err := f.getClient().CreateTemplate(params.PrefixedIndexName()).Body(samplingMapping).Do(context.Background()); err != nil {
 			return nil, fmt.Errorf("failed to create template: %w", err)
 		}
 	}
@@ -318,12 +318,12 @@ func (f *Factory) Close() error {
 	for _, w := range f.watchers {
 		errs = append(errs, w.Close())
 	}
-	errs = append(errs, f.getPrimaryClient().Close())
+	errs = append(errs, f.getClient().Close())
 
 	return errors.Join(errs...)
 }
 
-func (f *Factory) onPrimaryPasswordChange() {
+func (f *Factory) onPasswordChange() {
 	f.onClientPasswordChange(f.config, &f.client, f.metricsFactory)
 }
 
@@ -351,7 +351,7 @@ func (f *Factory) onClientPasswordChange(cfg *config.Configuration, client *atom
 }
 
 func (f *Factory) Purge(ctx context.Context) error {
-	esClient := f.getPrimaryClient()
+	esClient := f.getClient()
 	_, err := esClient.DeleteIndex("*").Do(ctx)
 	return err
 }

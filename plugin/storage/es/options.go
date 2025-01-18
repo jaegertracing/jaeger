@@ -85,7 +85,7 @@ var defaultIndexOptions = config.IndexOptions{
 // (e.g. archive) may be underspecified and infer the rest of its parameters from primary.
 type Options struct {
 	// TODO: remove indirection
-	Primary namespaceConfig `mapstructure:",squash"`
+	Config namespaceConfig `mapstructure:",squash"`
 }
 
 type namespaceConfig struct {
@@ -98,7 +98,7 @@ func NewOptions(namespace string) *Options {
 	// TODO all default values should be defined via cobra flags
 	defaultConfig := DefaultConfig()
 	options := &Options{
-		Primary: namespaceConfig{
+		Config: namespaceConfig{
 			Configuration: defaultConfig,
 			namespace:     namespace,
 		},
@@ -115,7 +115,7 @@ func (cfg *namespaceConfig) getTLSFlagsConfig() tlscfg.ClientFlagsConfig {
 
 // AddFlags adds flags for Options
 func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
-	addFlags(flagSet, &opt.Primary)
+	addFlags(flagSet, &opt.Config)
 }
 
 func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
@@ -290,7 +290,7 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 
 // InitFromViper initializes Options with properties from viper
 func (opt *Options) InitFromViper(v *viper.Viper) {
-	initFromViper(&opt.Primary, v)
+	initFromViper(&opt.Config, v)
 }
 
 func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
@@ -371,8 +371,8 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 }
 
 // GetPrimary returns primary configuration.
-func (opt *Options) GetPrimary() *config.Configuration {
-	return &opt.Primary.Configuration
+func (opt *Options) GetConfig() *config.Configuration {
+	return &opt.Config.Configuration
 }
 
 // stripWhiteSpace removes all whitespace characters from a string
