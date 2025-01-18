@@ -6,7 +6,6 @@ package storage
 
 import (
 	"context"
-	"errors"
 
 	"go.uber.org/zap"
 
@@ -59,23 +58,6 @@ type SamplingStoreFactory interface {
 	CreateLock() (distributedlock.Lock, error)
 	// CreateSamplingStore creates a sampling store.
 	CreateSamplingStore(maxBuckets int) (samplingstore.Store, error)
-}
-
-var (
-	// ErrArchiveStorageNotConfigured can be returned by the ArchiveFactory when the archive storage is not configured.
-	ErrArchiveStorageNotConfigured = errors.New("archive storage not configured")
-
-	// ErrArchiveStorageNotSupported can be returned by the ArchiveFactory when the archive storage is not supported by the backend.
-	ErrArchiveStorageNotSupported = errors.New("archive storage not supported")
-)
-
-// ArchiveFactory is an additional interface that can be implemented by a factory to support trace archiving.
-type ArchiveFactory interface {
-	// CreateArchiveSpanReader creates a spanstore.Reader.
-	CreateArchiveSpanReader() (spanstore.Reader, error)
-
-	// CreateArchiveSpanWriter creates a spanstore.Writer.
-	CreateArchiveSpanWriter() (spanstore.Writer, error)
 }
 
 // MetricStoreFactory defines an interface for a factory that can create implementations of different metrics storage components.
