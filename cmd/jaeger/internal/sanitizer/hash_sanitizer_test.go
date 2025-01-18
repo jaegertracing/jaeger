@@ -33,7 +33,7 @@ func TestHashingSanitizer(t *testing.T) {
 		hashAttr, exists := span.Attributes().Get(jptrace.HashAttribute)
 
 		require.True(t, exists, "hash should be added")
-		fmt.Printf("%v",hashAttr.Type())
+		fmt.Printf("%v", hashAttr.Type())
 		assert.Equal(t, pcommon.ValueTypeInt, hashAttr.Type())
 	})
 }
@@ -41,10 +41,11 @@ func TestHashingSanitizer(t *testing.T) {
 func TestComputeHashCode(t *testing.T) {
 	t.Run("successful hash computation", func(t *testing.T) {
 		traces := createTestTraces()
-		marshaler := &ptrace.ProtoMarshaler{}
+		spanHasher := jptrace.NewSpanHasher()
 
-		hash, span, err := computeHashCode(traces, marshaler)
-
+		hash, err := spanHasher.SpanHash(traces)
+		span := traces.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0)
+		span.Attributes().PutInt(jptrace.HashAttribute, hash)
 		require.NoError(t, err)
 		assert.NotZero(t, hash)
 

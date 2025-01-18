@@ -32,7 +32,7 @@ func TestHashingSanitizer(t *testing.T) {
 			SpanID:  model.SpanID(2),
 			Tags: []model.KeyValue{
 				{
-					Key:   	jptrace.HashAttribute,
+					Key:    jptrace.HashAttribute,
 					VType:  model.ValueType_INT64,
 					VInt64: 12345,
 				},
