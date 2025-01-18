@@ -127,9 +127,9 @@ func (s *ESStorageIntegration) initSpanstore(t *testing.T, allTagsAsFields bool)
 		fmt.Sprintf("--es.tags-as-fields.all=%v", allTagsAsFields),
 		fmt.Sprintf("--es.bulk.actions=%v", 1),
 		fmt.Sprintf("--es.bulk.flush-interval=%v", time.Nanosecond),
-		"--es-archive.enabled=true",
 	}, es.NewFactory)
 	af := s.initializeESFactory(t, []string{
+		"--es-archive.enabled=true",
 		fmt.Sprintf("--es-archive.tags-as-fields.all=%v", allTagsAsFields),
 		fmt.Sprintf("--es-archive.index-prefix=%v", indexPrefix),
 	}, es.NewArchiveFactory)
