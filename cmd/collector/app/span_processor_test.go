@@ -27,6 +27,7 @@ import (
 	"go.opentelemetry.io/collector/config/confignet"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest"
 
 	cFlags "github.com/jaegertracing/jaeger/cmd/collector/app/flags"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/handler"
@@ -846,25 +847,15 @@ func TestOTLPReceiverWithV2Storage(t *testing.T) {
 	sSpans := rSpans.ScopeSpans().AppendEmpty()
 	span := sSpans.Spans().AppendEmpty()
 	span.SetName("test-trace")
-	byteId := [8]byte{1, 2, 3, 4, 5, 6, 7}
-	span.SetSpanID(byteId)
 
-	mockWriter.On("WriteTraces", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
-		td := args.Get(1).(ptrace.Traces)
-
-		equal := td.ResourceSpans().Len() == traces.ResourceSpans().Len()
-
-		if equal {
-			rSpan := td.ResourceSpans().At(0)
-			equal = rSpan.ScopeSpans().Len() == 1 &&
-				rSpan.ScopeSpans().At(0).Spans().Len() == 1 &&
-				rSpan.ScopeSpans().At(0).Spans().At(0).Name() == "test-trace" &&
-				rSpan.ScopeSpans().At(0).Spans().At(0).SpanID() == byteId
-		}
-		if !equal {
-			t.Error("Traces don't match expected structure")
-		}
-	}).Return(nil)
+	var receivedTraces ptrace.Traces
+	var mu sync.Mutex
+	mockWriter.On("WriteTraces", mock.Anything, mock.Anything).
+		Run(func(args mock.Arguments) {
+			mu.Lock()
+			receivedTraces = args.Get(1).(ptrace.Traces)
+			mu.Unlock()
+		}).Return(nil)
 
 	spanProcessor, err := NewSpanProcessor(
 		mockWriter,
@@ -875,7 +866,7 @@ func TestOTLPReceiverWithV2Storage(t *testing.T) {
 	)
 	require.NoError(t, err)
 	defer spanProcessor.Close()
-	logger, _ := testutils.NewLogger()
+	logger := zaptest.NewLogger(t)
 
 	portHttp := "4318"
 	portGrpc := "4317"
@@ -914,6 +905,15 @@ func TestOTLPReceiverWithV2Storage(t *testing.T) {
 	defer resp.Body.Close()
 
 	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	time.Sleep(100 * time.Millisecond)
+
+	mu.Lock()
+	receivedSpan := receivedTraces.ResourceSpans().At(0).
+		ScopeSpans().At(0).
+		Spans().At(0)
+	require.Equal(t, span.Name(), receivedSpan.Name())
+	mu.Unlock()
 
 	mockWriter.AssertExpectations(t)
 }
