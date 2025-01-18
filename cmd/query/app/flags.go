@@ -29,8 +29,9 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
+	"github.com/jaegertracing/jaeger/plugin/storage"
 	"github.com/jaegertracing/jaeger/ports"
-	"github.com/jaegertracing/jaeger/storage"
+	"github.com/jaegertracing/jaeger/storage/spanstore"
 	"github.com/jaegertracing/jaeger/storage_v2/v1adapter"
 )
 
@@ -139,9 +140,13 @@ func (qOpts *QueryOptions) InitFromViper(v *viper.Viper, logger *zap.Logger) (*Q
 }
 
 // BuildQueryServiceOptions creates a QueryServiceOptions struct with appropriate adjusters and archive config
-func (qOpts *QueryOptions) BuildQueryServiceOptions(storageFactory storage.BaseFactory, logger *zap.Logger) *querysvc.QueryServiceOptions {
+func (qOpts *QueryOptions) BuildQueryServiceOptions(storageFactory *storage.Factory, logger *zap.Logger) *querysvc.QueryServiceOptions {
 	opts := &querysvc.QueryServiceOptions{}
-	if !opts.InitArchiveStorage(storageFactory, logger) {
+	ar, aw := initArchiveStorage(storageFactory, logger)
+	if ar != nil && aw != nil {
+		opts.ArchiveSpanReader = ar
+		opts.ArchiveSpanWriter = aw
+	} else {
 		logger.Info("Archive storage not initialized")
 	}
 
@@ -150,13 +155,13 @@ func (qOpts *QueryOptions) BuildQueryServiceOptions(storageFactory storage.BaseF
 	return opts
 }
 
-func (qOpts *QueryOptions) BuildQueryServiceOptionsV2(storageFactory storage.BaseFactory, logger *zap.Logger) *v2querysvc.QueryServiceOptions {
+func (qOpts *QueryOptions) BuildQueryServiceOptionsV2(storageFactory *storage.Factory, logger *zap.Logger) *v2querysvc.QueryServiceOptions {
 	opts := &v2querysvc.QueryServiceOptions{}
 
-	ar, aw := v1adapter.InitializeArchiveStorage(storageFactory, logger)
+	ar, aw := initArchiveStorage(storageFactory, logger)
 	if ar != nil && aw != nil {
-		opts.ArchiveTraceReader = ar
-		opts.ArchiveTraceWriter = aw
+		opts.ArchiveTraceReader = v1adapter.NewTraceReader(ar)
+		opts.ArchiveTraceWriter = v1adapter.NewTraceWriter(aw)
 	} else {
 		logger.Info("Archive storage not initialized")
 	}
@@ -164,6 +169,24 @@ func (qOpts *QueryOptions) BuildQueryServiceOptionsV2(storageFactory storage.Bas
 	opts.Adjuster = v2adjuster.Sequence(v2adjuster.StandardAdjusters(qOpts.MaxClockSkewAdjust)...)
 
 	return opts
+}
+
+func initArchiveStorage(
+	storageFactory *storage.Factory,
+	logger *zap.Logger,
+) (spanstore.Reader, spanstore.Writer) {
+	reader, err := storageFactory.CreateArchiveSpanReader()
+	if err != nil {
+		logger.Error("Cannot init archive storage reader", zap.Error(err))
+		return nil, nil
+	}
+	writer, err := storageFactory.CreateArchiveSpanWriter()
+	if err != nil {
+		logger.Error("Cannot init archive storage writer", zap.Error(err))
+		return nil, nil
+	}
+
+	return reader, writer
 }
 
 // stringSliceAsHeader parses a slice of strings and returns a http.Header.

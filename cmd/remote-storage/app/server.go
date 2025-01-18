@@ -17,12 +17,11 @@ import (
 	"google.golang.org/grpc/health"
 	"google.golang.org/grpc/reflection"
 
-	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	"github.com/jaegertracing/jaeger/pkg/bearertoken"
 	"github.com/jaegertracing/jaeger/pkg/telemetry"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
+	"github.com/jaegertracing/jaeger/plugin/storage"
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared"
-	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
@@ -37,7 +36,7 @@ type Server struct {
 }
 
 // NewServer creates and initializes Server.
-func NewServer(options *Options, storageFactory storage.BaseFactory, tm *tenancy.Manager, telset telemetry.Settings) (*Server, error) {
+func NewServer(options *Options, storageFactory *storage.Factory, tm *tenancy.Manager, telset telemetry.Settings) (*Server, error) {
 	handler, err := createGRPCHandler(storageFactory, telset.Logger)
 	if err != nil {
 		return nil, err
@@ -55,7 +54,7 @@ func NewServer(options *Options, storageFactory storage.BaseFactory, tm *tenancy
 	}, nil
 }
 
-func createGRPCHandler(f storage.BaseFactory, logger *zap.Logger) (*shared.GRPCHandler, error) {
+func createGRPCHandler(f *storage.Factory, logger *zap.Logger) (*shared.GRPCHandler, error) {
 	reader, err := f.CreateSpanReader()
 	if err != nil {
 		return nil, err
@@ -76,12 +75,9 @@ func createGRPCHandler(f storage.BaseFactory, logger *zap.Logger) (*shared.GRPCH
 		StreamingSpanWriter: func() spanstore.Writer { return nil },
 	}
 
-	// borrow code from Query service for archive storage
-	qOpts := &querysvc.QueryServiceOptions{}
-	// when archive storage not initialized (returns false), the reader/writer will be nil
-	_ = qOpts.InitArchiveStorage(f, logger)
-	impl.ArchiveSpanReader = func() spanstore.Reader { return qOpts.ArchiveSpanReader }
-	impl.ArchiveSpanWriter = func() spanstore.Writer { return qOpts.ArchiveSpanWriter }
+	ar, aw := initArchiveStorage(f, logger)
+	impl.ArchiveSpanReader = func() spanstore.Reader { return ar }
+	impl.ArchiveSpanWriter = func() spanstore.Writer { return aw }
 
 	handler := shared.NewGRPCHandler(impl)
 	return handler, nil
@@ -142,4 +138,22 @@ func (s *Server) Close() error {
 	s.stopped.Wait()
 	s.telset.ReportStatus(componentstatus.NewEvent(componentstatus.StatusStopped))
 	return nil
+}
+
+func initArchiveStorage(
+	storageFactory *storage.Factory,
+	logger *zap.Logger,
+) (spanstore.Reader, spanstore.Writer) {
+	reader, err := storageFactory.CreateArchiveSpanReader()
+	if err != nil {
+		logger.Error("Cannot init archive storage reader", zap.Error(err))
+		return nil, nil
+	}
+	writer, err := storageFactory.CreateArchiveSpanWriter()
+	if err != nil {
+		logger.Error("Cannot init archive storage writer", zap.Error(err))
+		return nil, nil
+	}
+
+	return reader, writer
 }

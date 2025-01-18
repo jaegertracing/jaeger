@@ -74,10 +74,9 @@ func AllSamplingStorageTypes() []string {
 }
 
 var ( // interface comformance checks
-	_ storage.Factory        = (*Factory)(nil)
-	_ storage.ArchiveFactory = (*Factory)(nil)
-	_ io.Closer              = (*Factory)(nil)
-	_ plugin.Configurable    = (*Factory)(nil)
+	_ storage.Factory     = (*Factory)(nil)
+	_ io.Closer           = (*Factory)(nil)
+	_ plugin.Configurable = (*Factory)(nil)
 )
 
 // Factory implements storage.Factory interface as a meta-factory for storage components.
@@ -317,7 +316,6 @@ func (f *Factory) initDownsamplingFromViper(v *viper.Viper) {
 	f.FactoryConfig.DownsamplingHashSalt = v.GetString(downsamplingHashSalt)
 }
 
-// CreateArchiveSpanReader implements storage.ArchiveFactory
 func (f *Factory) CreateArchiveSpanReader() (spanstore.Reader, error) {
 	factory, ok := f.archiveFactories[f.SpanReaderType]
 	if !ok {
@@ -326,7 +324,6 @@ func (f *Factory) CreateArchiveSpanReader() (spanstore.Reader, error) {
 	return factory.CreateSpanReader()
 }
 
-// CreateArchiveSpanWriter implements storage.ArchiveFactory
 func (f *Factory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
 	factory, ok := f.archiveFactories[f.SpanWriterTypes[0]]
 	if !ok {
