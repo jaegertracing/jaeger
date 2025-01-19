@@ -110,6 +110,7 @@ func (b builders) build() (otelcol.Factories, error) {
 		attributesprocessor.NewFactory(),
 		// add-ons
 		adaptivesampling.NewFactory(),
+		dependencyprocessor.NewFactory(),
 	)
 	if err != nil {
 		return otelcol.Factories{}, err
