@@ -80,7 +80,7 @@ func withGRPCServer(fn func(r *grpcServerTest)) {
 		streamWriter:  streamWriter,
 	}
 
-	handler := NewGRPCHandlerWithPlugins(impl, impl, impl)
+	handler := NewGRPCHandlerWithPlugins(impl, impl)
 	defer handler.Close(context.Background(), &storage_v1.CloseWriterRequest{})
 	r := &grpcServerTest{
 		server: handler,
@@ -445,7 +445,7 @@ func TestNewGRPCHandlerWithPlugins_Nils(t *testing.T) {
 		depsReader: depReader,
 	}
 
-	handler := NewGRPCHandlerWithPlugins(impl, nil, nil)
+	handler := NewGRPCHandlerWithPlugins(impl, nil)
 	assert.Nil(t, handler.impl.ArchiveSpanReader())
 	assert.Nil(t, handler.impl.ArchiveSpanWriter())
 	assert.Nil(t, handler.impl.StreamingSpanWriter())
