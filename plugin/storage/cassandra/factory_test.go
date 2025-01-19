@@ -46,7 +46,7 @@ func (m *mockSessionBuilder) build(*config.Configuration) (cassandra.Session, er
 }
 
 func TestCassandraFactory(t *testing.T) {
-	logger, logBuf := testutils.NewLogger()
+	logger, _ := testutils.NewLogger()
 	f := NewFactory()
 	v, command := viperize.Viperize(f.AddFlags)
 	command.ParseFlags([]string{"--cassandra-archive.enabled=true"})
@@ -67,10 +67,8 @@ func TestCassandraFactory(t *testing.T) {
 		add(nil, errors.New("made-up archive error")).build
 	require.EqualError(t, f.Initialize(metrics.NullFactory, zap.NewNop()), "made-up archive error")
 
-	f.archiveConfig = nil
 	f.sessionBuilderFn = new(mockSessionBuilder).add(session, nil).build
 	require.NoError(t, f.Initialize(metrics.NullFactory, logger))
-	assert.Contains(t, logBuf.String(), "Cassandra archive storage configuration is empty, skipping")
 
 	_, err := f.CreateSpanReader()
 	require.NoError(t, err)
@@ -81,21 +79,8 @@ func TestCassandraFactory(t *testing.T) {
 	_, err = f.CreateDependencyReader()
 	require.NoError(t, err)
 
-	_, err = f.CreateArchiveSpanReader()
-	require.EqualError(t, err, "archive storage not configured")
-
-	_, err = f.CreateArchiveSpanWriter()
-	require.EqualError(t, err, "archive storage not configured")
-
-	f.archiveConfig = &config.Configuration{}
 	f.sessionBuilderFn = new(mockSessionBuilder).add(session, nil).add(session, nil).build
 	require.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
-
-	_, err = f.CreateArchiveSpanReader()
-	require.NoError(t, err)
-
-	_, err = f.CreateArchiveSpanWriter()
-	require.NoError(t, err)
 
 	_, err = f.CreateLock()
 	require.NoError(t, err)
@@ -117,15 +102,11 @@ func TestCreateSpanReaderError(t *testing.T) {
 		mock.Anything).Return(query)
 	query.On("Exec").Return(errors.New("table does not exist"))
 	f := NewFactory()
-	f.archiveConfig = &config.Configuration{}
 	f.sessionBuilderFn = new(mockSessionBuilder).add(session, nil).add(session, nil).build
 	require.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
 	r, err := f.CreateSpanReader()
 	require.Error(t, err)
 	require.Nil(t, r)
-	ar, err := f.CreateArchiveSpanReader()
-	require.Error(t, err)
-	require.Nil(t, ar)
 }
 
 func TestExclusiveWhitelistBlacklist(t *testing.T) {
@@ -149,12 +130,8 @@ func TestExclusiveWhitelistBlacklist(t *testing.T) {
 	_, err := f.CreateSpanWriter()
 	require.EqualError(t, err, "only one of TagIndexBlacklist and TagIndexWhitelist can be specified")
 
-	f.archiveConfig = &config.Configuration{}
 	f.sessionBuilderFn = new(mockSessionBuilder).add(session, nil).add(session, nil).build
 	require.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
-
-	_, err = f.CreateArchiveSpanWriter()
-	require.EqualError(t, err, "only one of TagIndexBlacklist and TagIndexWhitelist can be specified")
 }
 
 func TestWriterOptions(t *testing.T) {
@@ -201,18 +178,16 @@ func TestWriterOptions(t *testing.T) {
 
 func TestConfigureFromOptions(t *testing.T) {
 	f := NewFactory()
-	o := NewOptions("foo", archiveStorageConfig)
-	o.others[archiveStorageConfig].Enabled = true
+	o := NewOptions("foo")
 	f.configureFromOptions(o)
 	assert.Equal(t, o, f.Options)
-	assert.Equal(t, o.GetPrimary(), f.primaryConfig)
-	assert.Equal(t, o.Get(archiveStorageConfig), f.archiveConfig)
+	assert.Equal(t, o.GetConfig(), f.config)
 }
 
 func TestNewFactoryWithConfig(t *testing.T) {
 	t.Run("valid configuration", func(t *testing.T) {
 		opts := &Options{
-			Primary: NamespaceConfig{
+			NamespaceConfig: NamespaceConfig{
 				Configuration: config.DefaultConfiguration(),
 			},
 		}
@@ -230,7 +205,7 @@ func TestNewFactoryWithConfig(t *testing.T) {
 	t.Run("connection error", func(t *testing.T) {
 		expErr := errors.New("made-up error")
 		opts := &Options{
-			Primary: NamespaceConfig{
+			NamespaceConfig: NamespaceConfig{
 				Configuration: config.DefaultConfiguration(),
 			},
 		}
@@ -260,7 +235,7 @@ func TestFactory_Purge(t *testing.T) {
 	)
 	session.On("Query", mock.AnythingOfType("string"), mock.Anything).Return(query)
 	query.On("Exec").Return(nil)
-	f.primarySession = session
+	f.session = session
 
 	err := f.Purge(context.Background())
 	require.NoError(t, err)
