@@ -458,9 +458,7 @@ func (*fakeStorageFactory1) CreateSpanReader() (spanstore.Reader, error)        
 func (*fakeStorageFactory1) CreateSpanWriter() (spanstore.Writer, error)             { return nil, nil }
 func (*fakeStorageFactory1) CreateDependencyReader() (dependencystore.Reader, error) { return nil, nil }
 
-var (
-	_ storage.Factory = new(fakeStorageFactory1)
-)
+var _ storage.Factory = new(fakeStorageFactory1)
 
 func TestMain(m *testing.M) {
 	testutils.VerifyGoLeaks(m)
