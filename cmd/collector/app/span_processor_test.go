@@ -913,7 +913,7 @@ func TestOTLPReceiverWithV2Storage(t *testing.T) {
 			ScopeSpans().At(0).
 			Spans().At(0)
 		return receivedSpan.Name() == span.Name()
-	}, 1*time.Second, 50*time.Millisecond)
+	}, 1*time.Second, 1*time.Millisecond)
 
 	mockWriter.AssertExpectations(t)
 }
