@@ -22,9 +22,9 @@ import (
 
 func defaultFactoryCfg() storage.FactoryConfig {
 	return storage.FactoryConfig{
-		SpanWriterTypes:         []string{"memory"},
-		SpanReaderType:          "memory",
-		DependenciesStorageType: "memory",
+		SpanWriterTypes:         []string{"blackhole"},
+		SpanReaderType:          "blackhole",
+		DependenciesStorageType: "blackhole",
 		DownsamplingRatio:       1.0,
 		DownsamplingHashSalt:    "",
 	}
