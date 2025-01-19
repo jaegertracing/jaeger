@@ -55,11 +55,6 @@ func TestOptionsWithFlags(t *testing.T) {
 		"--es.index-rollover-frequency-services=day",
 		// a couple overrides
 		"--es.remote-read-clusters=cluster_one,cluster_two",
-		"--es.aux.server-urls=3.3.3.3, 4.4.4.4",
-		"--es.aux.max-span-age=24h",
-		"--es.aux.num-replicas=10",
-		"--es.aux.index-date-separator=.",
-		"--es.aux.index-rollover-frequency-spans=hour",
 		"--es.tls.enabled=true",
 		"--es.tls.skip-host-verify=true",
 		"--es.tags-as-fields.all=true",

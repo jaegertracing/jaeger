@@ -67,15 +67,7 @@ func TestElasticsearchFactory(t *testing.T) {
 	f.InitFromViper(v, zap.NewNop())
 
 	f.newClientFn = (&mockClientBuilder{err: errors.New("made-up error")}).NewClient
-	require.EqualError(t, f.Initialize(metrics.NullFactory, zap.NewNop()), "failed to create primary Elasticsearch client: made-up error")
-
-	f.newClientFn = func(c *escfg.Configuration, logger *zap.Logger, metricsFactory metrics.Factory) (es.Client, error) {
-		// to test archive storage error, pretend that primary client creation is successful
-		// but override newClientFn so it fails for the next invocation
-		f.newClientFn = (&mockClientBuilder{err: errors.New("made-up error2")}).NewClient
-		return (&mockClientBuilder{}).NewClient(c, logger, metricsFactory)
-	}
-	require.EqualError(t, f.Initialize(metrics.NullFactory, zap.NewNop()), "failed to create archive Elasticsearch client: made-up error2")
+	require.EqualError(t, f.Initialize(metrics.NullFactory, zap.NewNop()), "failed to create Elasticsearch client: made-up error")
 
 	f.newClientFn = (&mockClientBuilder{}).NewClient
 	require.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
@@ -276,7 +268,7 @@ func TestESStorageFactoryWithConfigError(t *testing.T) {
 		LogLevel: "error",
 	}
 	_, err := NewFactoryWithConfig(cfg, metrics.NullFactory, zap.NewNop())
-	require.ErrorContains(t, err, "failed to create primary Elasticsearch client")
+	require.ErrorContains(t, err, "failed to create Elasticsearch client")
 }
 
 func TestPasswordFromFile(t *testing.T) {
