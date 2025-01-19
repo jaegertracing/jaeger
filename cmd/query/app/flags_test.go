@@ -16,10 +16,19 @@ import (
 
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
+	"github.com/jaegertracing/jaeger/plugin/storage"
 	"github.com/jaegertracing/jaeger/ports"
-	"github.com/jaegertracing/jaeger/storage/mocks"
-	spanstore_mocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
 )
+
+func defaultFactoryCfg() storage.FactoryConfig {
+	return storage.FactoryConfig{
+		SpanWriterTypes:         []string{"memory"},
+		SpanReaderType:          "memory",
+		DependenciesStorageType: "memory",
+		DownsamplingRatio:       1.0,
+		DownsamplingHashSalt:    "",
+	}
+}
 
 func TestQueryBuilderFlags(t *testing.T) {
 	v, command := config.Viperize(AddFlags)
@@ -92,28 +101,14 @@ func TestBuildQueryServiceOptions(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotNil(t, qOpts)
 
-	qSvcOpts := qOpts.BuildQueryServiceOptions(&mocks.Factory{}, zap.NewNop())
+	f, err := storage.NewFactory(defaultFactoryCfg())
+	require.NoError(t, err)
+
+	qSvcOpts := qOpts.BuildQueryServiceOptions(f, zap.NewNop())
 	assert.NotNil(t, qSvcOpts)
 	assert.NotNil(t, qSvcOpts.Adjuster)
 	assert.Nil(t, qSvcOpts.ArchiveSpanReader)
 	assert.Nil(t, qSvcOpts.ArchiveSpanWriter)
-
-	comboFactory := struct {
-		*mocks.Factory
-		*mocks.ArchiveFactory
-	}{
-		&mocks.Factory{},
-		&mocks.ArchiveFactory{},
-	}
-
-	comboFactory.ArchiveFactory.On("CreateArchiveSpanReader").Return(&spanstore_mocks.Reader{}, nil)
-	comboFactory.ArchiveFactory.On("CreateArchiveSpanWriter").Return(&spanstore_mocks.Writer{}, nil)
-
-	qSvcOpts = qOpts.BuildQueryServiceOptions(comboFactory, zap.NewNop())
-	assert.NotNil(t, qSvcOpts)
-	assert.NotNil(t, qSvcOpts.Adjuster)
-	assert.NotNil(t, qSvcOpts.ArchiveSpanReader)
-	assert.NotNil(t, qSvcOpts.ArchiveSpanWriter)
 }
 
 func TestBuildQueryServiceOptionsV2(t *testing.T) {
@@ -122,28 +117,14 @@ func TestBuildQueryServiceOptionsV2(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotNil(t, qOpts)
 
-	qSvcOpts := qOpts.BuildQueryServiceOptionsV2(&mocks.Factory{}, zap.NewNop())
+	f, err := storage.NewFactory(defaultFactoryCfg())
+	require.NoError(t, err)
+
+	qSvcOpts := qOpts.BuildQueryServiceOptionsV2(f, zap.NewNop())
 	assert.NotNil(t, qSvcOpts)
 	assert.NotNil(t, qSvcOpts.Adjuster)
 	assert.Nil(t, qSvcOpts.ArchiveTraceReader)
 	assert.Nil(t, qSvcOpts.ArchiveTraceWriter)
-
-	comboFactory := struct {
-		*mocks.Factory
-		*mocks.ArchiveFactory
-	}{
-		&mocks.Factory{},
-		&mocks.ArchiveFactory{},
-	}
-
-	comboFactory.ArchiveFactory.On("CreateArchiveSpanReader").Return(&spanstore_mocks.Reader{}, nil)
-	comboFactory.ArchiveFactory.On("CreateArchiveSpanWriter").Return(&spanstore_mocks.Writer{}, nil)
-
-	qSvcOpts = qOpts.BuildQueryServiceOptionsV2(comboFactory, zap.NewNop())
-	assert.NotNil(t, qSvcOpts)
-	assert.NotNil(t, qSvcOpts.Adjuster)
-	assert.NotNil(t, qSvcOpts.ArchiveTraceReader)
-	assert.NotNil(t, qSvcOpts.ArchiveTraceWriter)
 }
 
 func TestBuildQueryServiceOptionsV2_NoArchiveStorage(t *testing.T) {
@@ -152,8 +133,11 @@ func TestBuildQueryServiceOptionsV2_NoArchiveStorage(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotNil(t, qOpts)
 
+	f, err := storage.NewFactory(defaultFactoryCfg())
+	require.NoError(t, err)
+
 	logger, logBuf := testutils.NewLogger()
-	qSvcOpts := qOpts.BuildQueryServiceOptionsV2(&mocks.Factory{}, logger)
+	qSvcOpts := qOpts.BuildQueryServiceOptionsV2(f, logger)
 	assert.Nil(t, qSvcOpts.ArchiveTraceReader)
 	assert.Nil(t, qSvcOpts.ArchiveTraceWriter)
 
