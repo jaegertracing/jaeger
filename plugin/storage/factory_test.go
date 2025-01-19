@@ -91,6 +91,7 @@ func TestInitialize(t *testing.T) {
 
 	mock := new(mocks.Factory)
 	f.factories[cassandraStorageType] = mock
+	f.archiveFactories[cassandraStorageType] = mock
 
 	m := metrics.NullFactory
 	l := zap.NewNop()

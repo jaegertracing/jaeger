@@ -259,11 +259,15 @@ func (f *Factory) CreateDependencyReader() (dependencystore.Reader, error) {
 
 // AddFlags implements plugin.Configurable
 func (f *Factory) AddFlags(flagSet *flag.FlagSet) {
-	for _, factory := range f.factories {
-		if conf, ok := factory.(plugin.Configurable); ok {
-			conf.AddFlags(flagSet)
+	addFlags := func(factories map[string]storage.Factory) {
+		for _, factory := range factories {
+			if conf, ok := factory.(plugin.Configurable); ok {
+				conf.AddFlags(flagSet)
+			}
 		}
 	}
+	addFlags(f.factories)
+	addFlags(f.archiveFactories)
 }
 
 // AddPipelineFlags adds all the standard flags as well as the downsampling
@@ -291,11 +295,15 @@ func (f *Factory) addDownsamplingFlags(flagSet *flag.FlagSet) {
 
 // InitFromViper implements plugin.Configurable
 func (f *Factory) InitFromViper(v *viper.Viper, logger *zap.Logger) {
-	for _, factory := range f.factories {
-		if conf, ok := factory.(plugin.Configurable); ok {
-			conf.InitFromViper(v, logger)
+	initFromViper := func(factories map[string]storage.Factory) {
+		for _, factory := range factories {
+			if conf, ok := factory.(plugin.Configurable); ok {
+				conf.InitFromViper(v, logger)
+			}
 		}
 	}
+	initFromViper(f.factories)
+	initFromViper(f.archiveFactories)
 	f.initDownsamplingFromViper(v)
 }
 
@@ -354,14 +362,19 @@ var _ io.Closer = (*Factory)(nil)
 // Close closes the resources held by the factory
 func (f *Factory) Close() error {
 	var errs []error
+	closeFactory := func(factory storage.Factory) {
+		if closer, ok := factory.(io.Closer); ok {
+			if err := closer.Close(); err != nil {
+				errs = append(errs, err)
+			}
+		}
+	}
 	for _, storageType := range f.SpanWriterTypes {
 		if factory, ok := f.factories[storageType]; ok {
-			if closer, ok := factory.(io.Closer); ok {
-				err := closer.Close()
-				if err != nil {
-					errs = append(errs, err)
-				}
-			}
+			closeFactory(factory)
+		}
+		if factory, ok := f.archiveFactories[storageType]; ok {
+			closeFactory(factory)
 		}
 	}
 	return errors.Join(errs...)

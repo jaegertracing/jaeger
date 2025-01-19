@@ -62,10 +62,6 @@ func TestCassandraFactory(t *testing.T) {
 	session.On("Query", mock.AnythingOfType("string"), mock.Anything).Return(query)
 	session.On("Close").Return()
 	query.On("Exec").Return(nil)
-	f.sessionBuilderFn = new(mockSessionBuilder).
-		add(session, nil).
-		add(nil, errors.New("made-up archive error")).build
-	require.EqualError(t, f.Initialize(metrics.NullFactory, zap.NewNop()), "made-up archive error")
 
 	f.sessionBuilderFn = new(mockSessionBuilder).add(session, nil).build
 	require.NoError(t, f.Initialize(metrics.NullFactory, logger))
@@ -113,7 +109,6 @@ func TestExclusiveWhitelistBlacklist(t *testing.T) {
 	f := NewFactory()
 	v, command := viperize.Viperize(f.AddFlags)
 	command.ParseFlags([]string{
-		"--cassandra-archive.enabled=true",
 		"--cassandra.index.tag-whitelist=a,b,c",
 		"--cassandra.index.tag-blacklist=a,b,c",
 	})
