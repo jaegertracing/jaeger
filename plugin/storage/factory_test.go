@@ -131,12 +131,6 @@ func TestCreate(t *testing.T) {
 	assert.Equal(t, depReader, d)
 	require.EqualError(t, err, "dep-reader-error")
 
-	_, err = f.CreateArchiveSpanReader()
-	require.EqualError(t, err, "archive storage not supported")
-
-	_, err = f.CreateArchiveSpanWriter()
-	require.EqualError(t, err, "archive storage not supported")
-
 	mock.On("CreateSpanWriter").Return(spanWriter, nil)
 	m := metrics.NullFactory
 	l := zap.NewNop()
@@ -229,14 +223,6 @@ func TestCreateArchive(t *testing.T) {
 
 	mock.ArchiveFactory.On("CreateArchiveSpanReader").Return(archiveSpanReader, errors.New("archive-span-reader-error"))
 	mock.ArchiveFactory.On("CreateArchiveSpanWriter").Return(archiveSpanWriter, errors.New("archive-span-writer-error"))
-
-	ar, err := f.CreateArchiveSpanReader()
-	assert.Equal(t, archiveSpanReader, ar)
-	require.EqualError(t, err, "archive-span-reader-error")
-
-	aw, err := f.CreateArchiveSpanWriter()
-	assert.Equal(t, archiveSpanWriter, aw)
-	require.EqualError(t, err, "archive-span-writer-error")
 }
 
 func TestCreateError(t *testing.T) {
@@ -263,18 +249,6 @@ func TestCreateError(t *testing.T) {
 	{
 		d, err := f.CreateDependencyReader()
 		assert.Nil(t, d)
-		require.EqualError(t, err, expectedErr)
-	}
-
-	{
-		r, err := f.CreateArchiveSpanReader()
-		assert.Nil(t, r)
-		require.EqualError(t, err, expectedErr)
-	}
-
-	{
-		w, err := f.CreateArchiveSpanWriter()
-		assert.Nil(t, w)
 		require.EqualError(t, err, expectedErr)
 	}
 }
