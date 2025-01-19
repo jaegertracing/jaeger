@@ -4,7 +4,9 @@
 package app
 
 import (
+	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -324,68 +326,67 @@ func newGRPCClient(t *testing.T, addr string, creds credentials.TransportCredent
 	}
 }
 
-// func TestServerGRPCTLS(t *testing.T) {
-// 	for _, test := range testCases {
-// 		t.Run(test.name, func(t *testing.T) {
-// 			serverOptions := &Options{
-// 				ServerConfig: configgrpc.ServerConfig{
-// 					NetAddr: confignet.AddrConfig{
-// 						Endpoint: ":0",
-// 					},
-// 					TLSSetting: test.TLS,
-// 				},
-// 			}
-// 			flagsSvc := flags.NewService(ports.QueryAdminHTTP)
-// 			flagsSvc.Logger = zap.NewNop()
+func TestServerGRPCTLS(t *testing.T) {
+	for _, test := range testCases {
+		t.Run(test.name, func(t *testing.T) {
+			serverOptions := &Options{
+				ServerConfig: configgrpc.ServerConfig{
+					NetAddr: confignet.AddrConfig{
+						Endpoint: ":0",
+					},
+					TLSSetting: test.TLS,
+				},
+			}
+			flagsSvc := flags.NewService(ports.QueryAdminHTTP)
+			flagsSvc.Logger = zap.NewNop()
 
-// 			storageMocks := newStorageMocks()
-// 			expectedServices := []string{"test"}
-// 			storageMocks.reader.On("GetServices", mock.AnythingOfType("*context.valueCtx")).Return(expectedServices, nil)
+			factory, err := storage.NewFactory(defaultFactoryCfg())
+			require.NoError(t, err)
 
-// 			tm := tenancy.NewManager(&tenancy.Options{Enabled: true})
-// 			telset := telemetry.Settings{
-// 				Logger:       flagsSvc.Logger,
-// 				ReportStatus: telemetry.HCAdapter(flagsSvc.HC()),
-// 			}
-// 			server, err := NewServer(
-// 				serverOptions,
-// 				storageMocks.factory,
-// 				tm,
-// 				telset,
-// 			)
-// 			require.NoError(t, err)
-// 			require.NoError(t, server.Start())
+			tm := tenancy.NewManager(&tenancy.Options{Enabled: true})
+			telset := telemetry.Settings{
+				Logger:       flagsSvc.Logger,
+				ReportStatus: telemetry.HCAdapter(flagsSvc.HC()),
+			}
+			server, err := NewServer(
+				serverOptions,
+				factory,
+				tm,
+				telset,
+			)
+			require.NoError(t, err)
+			require.NoError(t, server.Start())
 
-// 			var clientError error
-// 			var client *grpcClient
+			var clientError error
+			var client *grpcClient
 
-// 			if serverOptions.TLSSetting != nil {
-// 				clientTLSCfg, err0 := test.clientTLS.LoadTLSConfig(context.Background())
-// 				require.NoError(t, err0)
-// 				creds := credentials.NewTLS(clientTLSCfg)
-// 				client = newGRPCClient(t, server.grpcConn.Addr().String(), creds, tm)
-// 			} else {
-// 				client = newGRPCClient(t, server.grpcConn.Addr().String(), nil, tm)
-// 			}
+			if serverOptions.TLSSetting != nil {
+				clientTLSCfg, err0 := test.clientTLS.LoadTLSConfig(context.Background())
+				require.NoError(t, err0)
+				creds := credentials.NewTLS(clientTLSCfg)
+				client = newGRPCClient(t, server.grpcConn.Addr().String(), creds, tm)
+			} else {
+				client = newGRPCClient(t, server.grpcConn.Addr().String(), nil, tm)
+			}
 
-// 			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-// 			defer cancel()
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			defer cancel()
 
-// 			ctx = tenancy.WithTenant(ctx, "foo")
-// 			res, clientError := client.GetServices(ctx, &storage_v1.GetServicesRequest{})
+			ctx = tenancy.WithTenant(ctx, "foo")
+			res, clientError := client.GetServices(ctx, &storage_v1.GetServicesRequest{})
 
-// 			if test.expectClientError {
-// 				require.Error(t, clientError)
-// 			} else {
-// 				require.NoError(t, clientError)
-// 				assert.Equal(t, expectedServices, res.Services)
-// 			}
-// 			require.NoError(t, client.conn.Close())
-// 			server.Close()
-// 			assert.Equal(t, healthcheck.Unavailable, flagsSvc.HC().Get())
-// 		})
-// 	}
-// }
+			if test.expectClientError {
+				require.Error(t, clientError)
+			} else {
+				require.NoError(t, clientError)
+				assert.Empty(t, res.Services)
+			}
+			require.NoError(t, client.conn.Close())
+			server.Close()
+			assert.Equal(t, healthcheck.Unavailable, flagsSvc.HC().Get())
+		})
+	}
+}
 
 func TestServerHandlesPortZero(t *testing.T) {
 	flagsSvc := flags.NewService(ports.QueryAdminHTTP)
