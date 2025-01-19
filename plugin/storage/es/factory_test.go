@@ -8,7 +8,6 @@ import (
 	"context"
 	"encoding/base64"
 	"errors"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -70,7 +69,6 @@ func TestElasticsearchFactory(t *testing.T) {
 	f.newClientFn = (&mockClientBuilder{err: errors.New("made-up error")}).NewClient
 	require.EqualError(t, f.Initialize(metrics.NullFactory, zap.NewNop()), "failed to create primary Elasticsearch client: made-up error")
 
-	f.archiveConfig.Enabled = true
 	f.newClientFn = func(c *escfg.Configuration, logger *zap.Logger, metricsFactory metrics.Factory) (es.Client, error) {
 		// to test archive storage error, pretend that primary client creation is successful
 		// but override newClientFn so it fails for the next invocation
@@ -91,12 +89,6 @@ func TestElasticsearchFactory(t *testing.T) {
 	_, err = f.CreateDependencyReader()
 	require.NoError(t, err)
 
-	_, err = f.CreateArchiveSpanReader()
-	require.NoError(t, err)
-
-	_, err = f.CreateArchiveSpanWriter()
-	require.NoError(t, err)
-
 	_, err = f.CreateSamplingStore(1)
 	require.NoError(t, err)
 
@@ -105,12 +97,11 @@ func TestElasticsearchFactory(t *testing.T) {
 
 func TestElasticsearchTagsFileDoNotExist(t *testing.T) {
 	f := NewFactory()
-	f.primaryConfig = &escfg.Configuration{
+	f.config = &escfg.Configuration{
 		Tags: escfg.TagsAsFields{
 			File: "fixtures/file-does-not-exist.txt",
 		},
 	}
-	f.archiveConfig = &escfg.Configuration{}
 	f.newClientFn = (&mockClientBuilder{}).NewClient
 	require.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
 	defer f.Close()
@@ -121,12 +112,8 @@ func TestElasticsearchTagsFileDoNotExist(t *testing.T) {
 
 func TestElasticsearchILMUsedWithoutReadWriteAliases(t *testing.T) {
 	f := NewFactory()
-	f.primaryConfig = &escfg.Configuration{
+	f.config = &escfg.Configuration{
 		UseILM: true,
-	}
-	f.archiveConfig = &escfg.Configuration{
-		Enabled: true,
-		UseILM:  true,
 	}
 	f.newClientFn = (&mockClientBuilder{}).NewClient
 	require.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
@@ -138,10 +125,6 @@ func TestElasticsearchILMUsedWithoutReadWriteAliases(t *testing.T) {
 	r, err := f.CreateSpanReader()
 	require.EqualError(t, err, "--es.use-ilm must always be used in conjunction with --es.use-aliases to ensure ES writers and readers refer to the single index mapping")
 	assert.Nil(t, r)
-
-	ar, err := f.CreateArchiveSpanReader()
-	require.EqualError(t, err, "--es.use-ilm must always be used in conjunction with --es.use-aliases to ensure ES writers and readers refer to the single index mapping")
-	assert.Nil(t, ar)
 }
 
 func TestTagKeysAsFields(t *testing.T) {
@@ -203,8 +186,7 @@ func TestTagKeysAsFields(t *testing.T) {
 
 func TestCreateTemplateError(t *testing.T) {
 	f := NewFactory()
-	f.primaryConfig = &escfg.Configuration{CreateIndexTemplates: true}
-	f.archiveConfig = &escfg.Configuration{}
+	f.config = &escfg.Configuration{CreateIndexTemplates: true}
 	f.newClientFn = (&mockClientBuilder{createTemplateError: errors.New("template-error")}).NewClient
 	err := f.Initialize(metrics.NullFactory, zap.NewNop())
 	require.NoError(t, err)
@@ -221,8 +203,7 @@ func TestCreateTemplateError(t *testing.T) {
 
 func TestILMDisableTemplateCreation(t *testing.T) {
 	f := NewFactory()
-	f.primaryConfig = &escfg.Configuration{UseILM: true, UseReadWriteAliases: true, CreateIndexTemplates: true}
-	f.archiveConfig = &escfg.Configuration{}
+	f.config = &escfg.Configuration{UseILM: true, UseReadWriteAliases: true, CreateIndexTemplates: true}
 	f.newClientFn = (&mockClientBuilder{createTemplateError: errors.New("template-error")}).NewClient
 	err := f.Initialize(metrics.NullFactory, zap.NewNop())
 	defer f.Close()
@@ -231,57 +212,13 @@ func TestILMDisableTemplateCreation(t *testing.T) {
 	require.NoError(t, err) // as the createTemplate is not called, CreateSpanWriter should not return an error
 }
 
-func TestArchiveDisabled(t *testing.T) {
-	f := NewFactory()
-	f.archiveConfig = &escfg.Configuration{Enabled: false}
-	f.newClientFn = (&mockClientBuilder{}).NewClient
-	w, err := f.CreateArchiveSpanWriter()
-	assert.Nil(t, w)
-	require.NoError(t, err)
-	r, err := f.CreateArchiveSpanReader()
-	assert.Nil(t, r)
-	require.NoError(t, err)
-}
-
-func TestArchiveEnabled(t *testing.T) {
-	tests := []struct {
-		useReadWriteAliases bool
-	}{
-		{
-			useReadWriteAliases: false,
-		},
-		{
-			useReadWriteAliases: true,
-		},
-	}
-	for _, test := range tests {
-		t.Run(fmt.Sprintf("useReadWriteAliases=%v", test.useReadWriteAliases), func(t *testing.T) {
-			f := NewFactory()
-			f.primaryConfig = &escfg.Configuration{}
-			f.archiveConfig = &escfg.Configuration{Enabled: true, UseReadWriteAliases: test.useReadWriteAliases}
-			f.newClientFn = (&mockClientBuilder{}).NewClient
-			err := f.Initialize(metrics.NullFactory, zap.NewNop())
-			require.NoError(t, err)
-			defer f.Close() // Ensure resources are cleaned up if initialization is successful
-			w, err := f.CreateArchiveSpanWriter()
-			require.NoError(t, err)
-			assert.NotNil(t, w)
-			r, err := f.CreateArchiveSpanReader()
-			require.NoError(t, err)
-			assert.NotNil(t, r)
-		})
-	}
-}
-
 func TestConfigureFromOptions(t *testing.T) {
 	f := NewFactory()
 	o := &Options{
-		Primary: namespaceConfig{Configuration: escfg.Configuration{Servers: []string{"server"}}},
-		others:  map[string]*namespaceConfig{"es-archive": {Configuration: escfg.Configuration{Servers: []string{"server2"}}}},
+		Config: namespaceConfig{Configuration: escfg.Configuration{Servers: []string{"server"}}},
 	}
 	f.configureFromOptions(o)
-	assert.Equal(t, o.GetPrimary(), f.primaryConfig)
-	assert.Equal(t, o.Get(archiveNamespace), f.archiveConfig)
+	assert.Equal(t, o.GetConfig(), f.config)
 }
 
 func TestESStorageFactoryWithConfig(t *testing.T) {
@@ -346,12 +283,7 @@ func TestPasswordFromFile(t *testing.T) {
 	defer testutils.VerifyGoLeaksOnce(t)
 	t.Run("primary client", func(t *testing.T) {
 		f := NewFactory()
-		testPasswordFromFile(t, f, f.getPrimaryClient, f.CreateSpanWriter)
-	})
-
-	t.Run("archive client", func(t *testing.T) {
-		f2 := NewFactory()
-		testPasswordFromFile(t, f2, f2.getArchiveClient, f2.CreateArchiveSpanWriter)
+		testPasswordFromFile(t, f, f.getClient, f.CreateSpanWriter)
 	})
 
 	t.Run("load token error", func(t *testing.T) {
@@ -391,21 +323,7 @@ func testPasswordFromFile(t *testing.T, f *Factory, getClient func() es.Client, 
 	pwdFile := filepath.Join(t.TempDir(), "pwd")
 	require.NoError(t, os.WriteFile(pwdFile, []byte(pwd1), 0o600))
 
-	f.primaryConfig = &escfg.Configuration{
-		Servers:  []string{server.URL},
-		LogLevel: "debug",
-		Authentication: escfg.Authentication{
-			BasicAuthentication: escfg.BasicAuthentication{
-				Username:         "user",
-				PasswordFilePath: pwdFile,
-			},
-		},
-		BulkProcessing: escfg.BulkProcessing{
-			MaxBytes: -1, // disable bulk; we want immediate flush
-		},
-	}
-	f.archiveConfig = &escfg.Configuration{
-		Enabled:  true,
+	f.config = &escfg.Configuration{
 		Servers:  []string{server.URL},
 		LogLevel: "debug",
 		Authentication: escfg.Authentication{
@@ -464,8 +382,7 @@ func testPasswordFromFile(t *testing.T, f *Factory, getClient func() es.Client, 
 
 func TestFactoryESClientsAreNil(t *testing.T) {
 	f := &Factory{}
-	assert.Nil(t, f.getPrimaryClient())
-	assert.Nil(t, f.getArchiveClient())
+	assert.Nil(t, f.getClient())
 }
 
 func TestPasswordFromFileErrors(t *testing.T) {
@@ -479,16 +396,7 @@ func TestPasswordFromFileErrors(t *testing.T) {
 	require.NoError(t, os.WriteFile(pwdFile, []byte("first password"), 0o600))
 
 	f := NewFactory()
-	f.primaryConfig = &escfg.Configuration{
-		Servers:  []string{server.URL},
-		LogLevel: "debug",
-		Authentication: escfg.Authentication{
-			BasicAuthentication: escfg.BasicAuthentication{
-				PasswordFilePath: pwdFile,
-			},
-		},
-	}
-	f.archiveConfig = &escfg.Configuration{
+	f.config = &escfg.Configuration{
 		Servers:  []string{server.URL},
 		LogLevel: "debug",
 		Authentication: escfg.Authentication{
@@ -502,16 +410,10 @@ func TestPasswordFromFileErrors(t *testing.T) {
 	require.NoError(t, f.Initialize(metrics.NullFactory, logger))
 	defer f.Close()
 
-	f.primaryConfig.Servers = []string{}
-	f.onPrimaryPasswordChange()
-	assert.Contains(t, buf.String(), "no servers specified")
-
-	f.archiveConfig.Servers = []string{}
-	buf.Reset()
-	f.onArchivePasswordChange()
+	f.config.Servers = []string{}
+	f.onPasswordChange()
 	assert.Contains(t, buf.String(), "no servers specified")
 
 	require.NoError(t, os.Remove(pwdFile))
-	f.onPrimaryPasswordChange()
-	f.onArchivePasswordChange()
+	f.onPasswordChange()
 }

@@ -5,7 +5,6 @@
 package es
 
 import (
-	"net/http"
 	"testing"
 	"time"
 
@@ -18,7 +17,7 @@ import (
 
 func TestOptions(t *testing.T) {
 	opts := NewOptions("foo")
-	primary := opts.GetPrimary()
+	primary := opts.GetConfig()
 	assert.Empty(t, primary.Authentication.BasicAuthentication.Username)
 	assert.Empty(t, primary.Authentication.BasicAuthentication.Password)
 	assert.Empty(t, primary.Authentication.BasicAuthentication.PasswordFilePath)
@@ -35,16 +34,10 @@ func TestOptions(t *testing.T) {
 	assert.Equal(t, 72*time.Hour, primary.MaxSpanAge)
 	assert.False(t, primary.Sniffing.Enabled)
 	assert.False(t, primary.Sniffing.UseHTTPS)
-
-	aux := opts.Get("archive")
-	assert.Equal(t, primary.Authentication.BasicAuthentication.Username, aux.Authentication.BasicAuthentication.Username)
-	assert.Equal(t, primary.Authentication.BasicAuthentication.Password, aux.Authentication.BasicAuthentication.Password)
-	assert.Equal(t, primary.Authentication.BasicAuthentication.PasswordFilePath, aux.Authentication.BasicAuthentication.PasswordFilePath)
-	assert.Equal(t, primary.Servers, aux.Servers)
 }
 
 func TestOptionsWithFlags(t *testing.T) {
-	opts := NewOptions("es", "es.aux")
+	opts := NewOptions("es")
 	v, command := config.Viperize(opts.AddFlags)
 	err := command.ParseFlags([]string{
 		"--es.server-urls=1.1.1.1, 2.2.2.2",
@@ -79,7 +72,7 @@ func TestOptionsWithFlags(t *testing.T) {
 	require.NoError(t, err)
 	opts.InitFromViper(v)
 
-	primary := opts.GetPrimary()
+	primary := opts.GetConfig()
 	assert.Equal(t, "hello", primary.Authentication.BasicAuthentication.Username)
 	assert.Equal(t, "world", primary.Authentication.BasicAuthentication.Password)
 	assert.Equal(t, "/foo/bar", primary.Authentication.BearerTokenAuthentication.FilePath)
@@ -97,32 +90,11 @@ func TestOptionsWithFlags(t *testing.T) {
 	assert.Equal(t, "test,tags", primary.Tags.Include)
 	assert.Equal(t, "20060102", primary.Indices.Services.DateLayout)
 	assert.Equal(t, "2006010215", primary.Indices.Spans.DateLayout)
-	aux := opts.Get("es.aux")
-	assert.Equal(t, []string{"3.3.3.3", "4.4.4.4"}, aux.Servers)
-	assert.Equal(t, "hello", aux.Authentication.BasicAuthentication.Username)
-	assert.Equal(t, "world", aux.Authentication.BasicAuthentication.Password)
-	assert.EqualValues(t, 5, aux.Indices.Spans.Shards)
-	assert.EqualValues(t, 5, aux.Indices.Services.Shards)
-	assert.EqualValues(t, 5, aux.Indices.Sampling.Shards)
-	assert.EqualValues(t, 5, aux.Indices.Dependencies.Shards)
-	assert.EqualValues(t, 10, aux.Indices.Spans.Replicas)
-	assert.EqualValues(t, 10, aux.Indices.Services.Replicas)
-	assert.EqualValues(t, 10, aux.Indices.Sampling.Replicas)
-	assert.EqualValues(t, 10, aux.Indices.Dependencies.Replicas)
-	assert.Equal(t, 24*time.Hour, aux.MaxSpanAge)
-	assert.True(t, aux.Sniffing.Enabled)
-	assert.True(t, aux.Tags.AllAsFields)
-	assert.Equal(t, "@", aux.Tags.DotReplacement)
-	assert.Equal(t, "./file.txt", aux.Tags.File)
-	assert.Equal(t, "test,tags", aux.Tags.Include)
-	assert.Equal(t, "2006.01.02", aux.Indices.Services.DateLayout)
-	assert.Equal(t, "2006.01.02.15", aux.Indices.Spans.DateLayout)
 	assert.True(t, primary.UseILM)
-	assert.Equal(t, http.MethodPost, aux.SendGetBodyAs)
 }
 
 func TestEmptyRemoteReadClusters(t *testing.T) {
-	opts := NewOptions("es", "es.aux")
+	opts := NewOptions("es")
 	v, command := config.Viperize(opts.AddFlags)
 	err := command.ParseFlags([]string{
 		"--es.remote-read-clusters=",
@@ -130,12 +102,12 @@ func TestEmptyRemoteReadClusters(t *testing.T) {
 	require.NoError(t, err)
 	opts.InitFromViper(v)
 
-	primary := opts.GetPrimary()
+	primary := opts.GetConfig()
 	assert.Equal(t, []string{}, primary.RemoteReadClusters)
 }
 
 func TestMaxSpanAgeSetErrorInArchiveMode(t *testing.T) {
-	opts := NewOptions("es", archiveNamespace)
+	opts := NewOptions(archiveNamespace)
 	_, command := config.Viperize(opts.AddFlags)
 	flags := []string{"--es-archive.max-span-age=24h"}
 	err := command.ParseFlags(flags)
@@ -153,12 +125,12 @@ func TestMaxDocCount(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			opts := NewOptions("es", "es.aux")
+			opts := NewOptions("es")
 			v, command := config.Viperize(opts.AddFlags)
 			command.ParseFlags(tc.flags)
 			opts.InitFromViper(v)
 
-			primary := opts.GetPrimary()
+			primary := opts.GetConfig()
 			assert.Equal(t, tc.wantMaxDocCount, primary.MaxDocCount)
 		})
 	}
@@ -184,7 +156,7 @@ func TestIndexDateSeparator(t *testing.T) {
 			command.ParseFlags(tc.flags)
 			opts.InitFromViper(v)
 
-			primary := opts.GetPrimary()
+			primary := opts.GetConfig()
 			assert.Equal(t, tc.wantDateLayout, primary.Indices.Spans.DateLayout)
 		})
 	}
@@ -238,7 +210,7 @@ func TestIndexRollover(t *testing.T) {
 			v, command := config.Viperize(opts.AddFlags)
 			command.ParseFlags(tc.flags)
 			opts.InitFromViper(v)
-			primary := opts.GetPrimary()
+			primary := opts.GetConfig()
 			assert.Equal(t, tc.wantSpanDateLayout, primary.Indices.Spans.DateLayout)
 			assert.Equal(t, tc.wantServiceDateLayout, primary.Indices.Services.DateLayout)
 			assert.Equal(t, tc.wantSpanIndexRolloverFrequency, escfg.RolloverFrequencyAsNegativeDuration(primary.Indices.Spans.RolloverFrequency))
