@@ -21,3 +21,7 @@ type IndexManagementLifecycleAPI interface {
 	Exists(name string) (bool, error)
 	CreateOrUpdate(policy string, ilmPolicy Policy) error
 }
+
+type DataStreamAPI interface {
+	Create(name string) error
+}

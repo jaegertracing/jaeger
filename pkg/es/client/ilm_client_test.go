@@ -68,7 +68,7 @@ func TestExists(t *testing.T) {
 	}
 }
 
-const esILMPolicy = `
+const defaultILMPolicy = `
 {
   "policy": {
     "phases": {
@@ -94,7 +94,7 @@ const esILMPolicy = `
 }
 `
 
-func TestCreate(t *testing.T) {
+func TestCreateOrUpdate(t *testing.T) {
 	policy := "jaeger-ilm-policy"
 	tests := []struct {
 		name         string
@@ -105,6 +105,11 @@ func TestCreate(t *testing.T) {
 		{
 			name:         "successful",
 			responseCode: http.StatusOK,
+		},
+		{
+			name:         "not found",
+			responseCode: http.StatusNotFound,
+			response:     esErrResponse,
 		},
 		{
 			name:         "client error",
@@ -131,7 +136,7 @@ func TestCreate(t *testing.T) {
 				},
 			}
 			ilmPolicy := types.NewIlmPolicy()
-			json.Unmarshal([]byte(esILMPolicy), ilmPolicy)
+			json.Unmarshal([]byte(defaultILMPolicy), ilmPolicy)
 			fmt.Printf("%+v\n", *ilmPolicy)
 
 			err := c.CreateOrUpdate(policy, Policy{ILMPolicy: *ilmPolicy})
