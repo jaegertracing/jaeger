@@ -94,17 +94,16 @@ func (s *CassandraStorageIntegration) initializeCassandra(t *testing.T) {
 }
 
 func (s *CassandraStorageIntegration) initializeDependencyReaderAndWriter(t *testing.T, f *cassandra.Factory) {
-	var (
-		err error
-		ok  bool
-	)
+	var err error
 	dependencyReader, err := f.CreateDependencyReader()
 	require.NoError(t, err)
 	s.DependencyReader = v1adapter.NewDependencyReader(dependencyReader)
 
 	// TODO: Update this when the factory interface has CreateDependencyWriter
-	if s.DependencyWriter, ok = dependencyReader.(dependencystore.Writer); !ok {
+	if dependencyWriter, ok := dependencyReader.(dependencystore.Writer); !ok {
 		t.Log("DependencyWriter not implemented ")
+	} else {
+		s.DependencyWriter = v1adapter.NewDependencyWriter(dependencyWriter)
 	}
 }
 
