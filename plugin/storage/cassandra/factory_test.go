@@ -291,3 +291,17 @@ func TestNewSessionErrors(t *testing.T) {
 		require.ErrorContains(t, err, "no hosts provided")
 	})
 }
+
+func TestInheritSettingsFrom(t *testing.T) {
+	primaryFactory := NewFactory()
+	primaryFactory.config.Schema.Keyspace = "foo"
+	primaryFactory.config.Query.MaxRetryAttempts = 99
+
+	archiveFactory := NewArchiveFactory()
+	archiveFactory.config.Schema.Keyspace = "bar"
+
+	archiveFactory.InheritSettingsFrom(primaryFactory)
+
+	require.Equal(t, "bar", archiveFactory.config.Schema.Keyspace)
+	require.Equal(t, 99, archiveFactory.config.Query.MaxRetryAttempts)
+}
