@@ -52,8 +52,7 @@ func WithConfiguration(cfg Configuration) *Store {
 	return &Store{
 		defaultConfig:      cfg,
 		perTenant:          make(map[string]*Tenant),
-		useNewDependencies: false, // 添加初始化
-
+		useNewDependencies: false,
 	}
 }
 
@@ -88,7 +87,7 @@ func (st *Store) getTenant(tenantID string) *Tenant {
 
 // GetDependencies returns dependencies between services
 func (st *Store) GetDependencies(ctx context.Context, endTs time.Time, lookback time.Duration) ([]model.DependencyLink, error) {
-	if st.useNewDependencies { // 添加条件判断
+	if st.useNewDependencies {
 		return st.getDependenciesNew(ctx)
 	}
 	m := st.getTenant(tenancy.GetTenant(ctx))

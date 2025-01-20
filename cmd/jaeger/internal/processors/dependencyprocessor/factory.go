@@ -26,12 +26,10 @@ func NewFactory() processor.Factory {
 	)
 }
 
-// createDefaultConfig returns the default configuration for the dependency processor.
 func createDefaultConfig() component.Config {
 	return &Config{
-		AggregationInterval: 5 * time.Second,
+		AggregationInterval: 10 * time.Second,
 		InactivityTimeout:   2 * time.Second,
-		Store:               memory.NewStore(),
 	}
 }
 

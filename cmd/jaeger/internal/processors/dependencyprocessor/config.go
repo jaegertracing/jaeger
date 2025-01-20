@@ -10,15 +10,12 @@ import (
 )
 
 type Config struct {
+	// AggregationInterval defines how often the processor aggregates dependencies.
+	// This controls the frequency of flushing dependency data to storage.
+	// Default dependency aggregation interval: 10 seconds
 	AggregationInterval time.Duration `yaml:"aggregation_interval"`
-	InactivityTimeout   time.Duration `yaml:"inactivity_timeout"`
-	Store               *memory.Store `yaml:"-"`
-}
-
-func DefaultConfig() Config {
-	return Config{
-		AggregationInterval: 5 * time.Second, // Default dependency aggregation interval: 5 seconds
-		InactivityTimeout:   2 * time.Second, // Default trace completion timeout: 2 seconds of inactivity
-		Store:               memory.NewStore(),
-	}
+	// InactivityTimeout specifies the duration of inactivity after which a trace
+	// is considered complete and ready for dependency aggregation.
+	// Default trace completion timeout: 2 seconds of inactivity
+	InactivityTimeout time.Duration `yaml:"inactivity_timeout"`
 }

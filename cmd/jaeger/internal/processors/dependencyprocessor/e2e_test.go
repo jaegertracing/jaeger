@@ -25,6 +25,7 @@ func TestDependencyProcessorEndToEnd(t *testing.T) {
 	factory := NewFactory()
 	cfg := factory.CreateDefaultConfig().(*Config)
 
+	cfg.AggregationInterval = 1 * time.Second
 	// Create a mock next consumer (exporter)
 	sink := new(consumertest.TracesSink)
 
@@ -55,7 +56,10 @@ func TestDependencyProcessorEndToEnd(t *testing.T) {
 	require.NoError(t, err)
 
 	// Wait for the processor to process the trace
-	time.Sleep(cfg.AggregationInterval + 100*time.Millisecond)
+	assert.Eventually(t, func() bool {
+		deps, err := store.GetDependencies(context.Background(), time.Now(), cfg.AggregationInterval)
+		return err == nil && len(deps) > 0
+	}, cfg.AggregationInterval+time.Second, 100*time.Millisecond)
 
 	// Verify dependency links
 	deps, err := store.GetDependencies(context.Background(), time.Now(), cfg.AggregationInterval)
