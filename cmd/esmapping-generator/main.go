@@ -7,41 +7,17 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/spf13/cobra"
-	"go.uber.org/zap"
-
 	"github.com/jaegertracing/jaeger/cmd/esmapping-generator/app"
-	"github.com/jaegertracing/jaeger/cmd/esmapping-generator/app/renderer"
-	"github.com/jaegertracing/jaeger/pkg/es"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/mapping"
 	"github.com/jaegertracing/jaeger/pkg/version"
-	"github.com/jaegertracing/jaeger/plugin/storage/es/mappings"
 )
 
 func main() {
-	logger, _ := zap.NewDevelopment()
 	options := app.Options{}
-	command := &cobra.Command{
-		Use:   "jaeger-esmapping-generator",
-		Short: "Jaeger esmapping-generator prints rendered mappings as string",
-		Long:  `Jaeger esmapping-generator renders passed templates with provided values and prints rendered output to stdout`,
-		Run: func(_ *cobra.Command, _ /* args */ []string) {
-			if _, err := mappings.MappingTypeFromString(options.Mapping); err != nil {
-				logger.Fatal("please pass either 'jaeger-service' or 'jaeger-span' as argument")
-			}
+	esmappingsCmd := mapping.Command(options)
+	esmappingsCmd.AddCommand(version.Command())
 
-			parsedMapping, err := renderer.GetMappingAsString(es.TextTemplateBuilder{}, &options)
-			if err != nil {
-				logger.Fatal(err.Error())
-			}
-			print(parsedMapping)
-		},
-	}
-
-	options.AddFlags(command)
-
-	command.AddCommand(version.Command())
-
-	if err := command.Execute(); err != nil {
+	if err := esmappingsCmd.Execute(); err != nil {
 		fmt.Println(err.Error())
 		os.Exit(1)
 	}
