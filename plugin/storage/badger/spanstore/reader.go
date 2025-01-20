@@ -650,7 +650,7 @@ func (r *TraceReader) loadServices() {
 }
 
 func (r *TraceReader) loadOperations(service string) {
-	r.cache.store.View(func(txn *badger.Txn) error {
+	r.store.View(func(txn *badger.Txn) error {
 		opts := badger.DefaultIteratorOptions
 		it := txn.NewIterator(opts)
 		defer it.Close()
