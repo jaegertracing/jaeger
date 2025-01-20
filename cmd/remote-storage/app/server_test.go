@@ -26,7 +26,6 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	"github.com/jaegertracing/jaeger/pkg/telemetry"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
-	"github.com/jaegertracing/jaeger/plugin/storage"
 	"github.com/jaegertracing/jaeger/ports"
 	"github.com/jaegertracing/jaeger/proto-gen/storage_v1"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
@@ -37,70 +36,40 @@ import (
 
 var testCertKeyLocation = "../../../pkg/config/tlscfg/testdata"
 
-func defaultFactoryCfg() storage.FactoryConfig {
-	return storage.FactoryConfig{
-		SpanWriterTypes:         []string{"blackhole"},
-		SpanReaderType:          "blackhole",
-		DependenciesStorageType: "blackhole",
-		DownsamplingRatio:       1.0,
-		DownsamplingHashSalt:    "",
-	}
-}
-
 func TestNewServer_CreateStorageErrors(t *testing.T) {
-	tests := []struct {
-		name          string
-		modifyFactory func(factory *storage.FactoryConfig)
-		expectedError string
-	}{
-		{
-			name: "no span reader",
-			modifyFactory: func(factory *storage.FactoryConfig) {
-				factory.SpanReaderType = "a"
-			},
-			expectedError: "no a backend registered",
-		},
-		{
-			name: "no span writer",
-			modifyFactory: func(factory *storage.FactoryConfig) {
-				factory.SpanWriterTypes = []string{"b"}
-			},
-			expectedError: "no b backend registered",
-		},
-		{
-			name: "no dependency reader",
-			modifyFactory: func(factory *storage.FactoryConfig) {
-				factory.DependenciesStorageType = "c"
-			},
-			expectedError: "no c backend registered",
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			factoryCfg := defaultFactoryCfg()
-
-			factory, err := storage.NewFactory(factoryCfg)
-			require.NoError(t, err)
-
-			test.modifyFactory(&factory.FactoryConfig)
-
-			_, err = NewServer(
-				&Options{
-					ServerConfig: configgrpc.ServerConfig{
-						NetAddr: confignet.AddrConfig{
-							Endpoint: ":0",
-						},
+	createServer := func(factory *fakeFactory) (*Server, error) {
+		return NewServer(
+			&Options{
+				ServerConfig: configgrpc.ServerConfig{
+					NetAddr: confignet.AddrConfig{
+						Endpoint: ":0",
 					},
 				},
-				factory,
-				tenancy.NewManager(&tenancy.Options{}),
-				telemetry.NoopSettings(),
-			)
-
-			require.ErrorContains(t, err, test.expectedError)
-		})
+			},
+			factory,
+			tenancy.NewManager(&tenancy.Options{}),
+			telemetry.NoopSettings(),
+		)
 	}
+
+	factory := &fakeFactory{readerErr: errors.New("no reader")}
+	_, err := createServer(factory)
+	require.ErrorContains(t, err, "no reader")
+
+	factory = &fakeFactory{writerErr: errors.New("no writer")}
+	_, err = createServer(factory)
+	require.ErrorContains(t, err, "no writer")
+
+	factory = &fakeFactory{depReaderErr: errors.New("no deps")}
+	_, err = createServer(factory)
+	require.ErrorContains(t, err, "no deps")
+
+	factory = &fakeFactory{}
+	s, err := createServer(factory)
+	require.NoError(t, err)
+	require.NoError(t, s.Start())
+	validateGRPCServer(t, s.grpcConn.Addr().String())
+	require.NoError(t, s.grpcConn.Close())
 }
 
 func TestServerStart_BadPortErrors(t *testing.T) {
@@ -117,20 +86,33 @@ func TestServerStart_BadPortErrors(t *testing.T) {
 }
 
 type fakeFactory struct {
-	reader    *spanStoreMocks.Reader
-	writer    *spanStoreMocks.Writer
-	depReader *depStoreMocks.Reader
+	reader    spanstore.Reader
+	writer    spanstore.Writer
+	depReader dependencystore.Reader
+
+	readerErr    error
+	writerErr    error
+	depReaderErr error
 }
 
 func (f *fakeFactory) CreateSpanReader() (spanstore.Reader, error) {
+	if f.readerErr != nil {
+		return nil, f.readerErr
+	}
 	return f.reader, nil
 }
 
 func (f *fakeFactory) CreateSpanWriter() (spanstore.Writer, error) {
+	if f.writerErr != nil {
+		return nil, f.writerErr
+	}
 	return f.writer, nil
 }
 
 func (f *fakeFactory) CreateDependencyReader() (dependencystore.Reader, error) {
+	if f.depReaderErr != nil {
+		return nil, f.depReaderErr
+	}
 	return f.depReader, nil
 }
 
@@ -151,10 +133,7 @@ func TestNewServer_TLSConfigError(t *testing.T) {
 		ReportStatus: telemetry.HCAdapter(healthcheck.New()),
 	}
 
-	f, err := storage.NewFactory(defaultFactoryCfg())
-	require.NoError(t, err)
-
-	_, err = NewServer(
+	_, err := NewServer(
 		&Options{
 			ServerConfig: configgrpc.ServerConfig{
 				NetAddr: confignet.AddrConfig{
@@ -163,7 +142,7 @@ func TestNewServer_TLSConfigError(t *testing.T) {
 				TLSSetting: tlsCfg,
 			},
 		},
-		f,
+		&fakeFactory{},
 		tenancy.NewManager(&tenancy.Options{}),
 		telset,
 	)
@@ -433,8 +412,6 @@ func TestServerHandlesPortZero(t *testing.T) {
 	flagsSvc := flags.NewService(ports.QueryAdminHTTP)
 	zapCore, logs := observer.New(zap.InfoLevel)
 	flagsSvc.Logger = zap.New(zapCore)
-	f, err := storage.NewFactory(defaultFactoryCfg())
-	require.NoError(t, err)
 	telset := telemetry.Settings{
 		Logger:       flagsSvc.Logger,
 		ReportStatus: telemetry.HCAdapter(flagsSvc.HC()),
@@ -443,7 +420,7 @@ func TestServerHandlesPortZero(t *testing.T) {
 		&Options{ServerConfig: configgrpc.ServerConfig{
 			NetAddr: confignet.AddrConfig{Endpoint: ":0"},
 		}},
-		f,
+		&fakeFactory{},
 		tenancy.NewManager(&tenancy.Options{}),
 		telset,
 	)
