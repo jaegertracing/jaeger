@@ -74,7 +74,19 @@ type executionPlan struct {
 }
 
 // NewTraceReader returns a TraceReader with cache
-func NewTraceReader(db *badger.DB, c *CacheStore) *TraceReader {
+func NewTraceReader(db *badger.DB, c *CacheStore, prefillCache bool) *TraceReader {
+	reader := &TraceReader{
+		store: db,
+		cache: c,
+	}
+	if prefillCache {
+		reader.cache.cacheLock.Lock()
+		defer reader.cache.cacheLock.Unlock()
+		reader.loadServices()
+		for service := range reader.cache.services {
+			reader.loadOperations(service)
+		}
+	}
 	return &TraceReader{
 		store: db,
 		cache: c,
@@ -611,4 +623,58 @@ func scanRangeFunction(it *badger.Iterator, indexEndValue []byte) bool {
 		return bytes.Compare(indexEndValue, compareSlice) >= 0
 	}
 	return false
+}
+
+func (r *TraceReader) loadServices() {
+	r.store.View(func(txn *badger.Txn) error {
+		opts := badger.DefaultIteratorOptions
+		it := txn.NewIterator(opts)
+		defer it.Close()
+
+		serviceKey := []byte{serviceNameIndexKey}
+
+		// Seek all the services first
+		for it.Seek(serviceKey); it.ValidForPrefix(serviceKey); it.Next() {
+			timestampStartIndex := len(it.Item().Key()) - (sizeOfTraceID + 8) // 8 = sizeof(uint64)
+			serviceName := string(it.Item().Key()[len(serviceKey):timestampStartIndex])
+			keyTTL := it.Item().ExpiresAt()
+			if v, found := r.cache.services[serviceName]; found {
+				if v > keyTTL {
+					continue
+				}
+			}
+			r.cache.services[serviceName] = keyTTL
+		}
+		return nil
+	})
+}
+
+func (r *TraceReader) loadOperations(service string) {
+	r.cache.store.View(func(txn *badger.Txn) error {
+		opts := badger.DefaultIteratorOptions
+		it := txn.NewIterator(opts)
+		defer it.Close()
+
+		serviceKey := make([]byte, len(service)+1)
+		serviceKey[0] = operationNameIndexKey
+		copy(serviceKey[1:], service)
+
+		// Seek all the services first
+		for it.Seek(serviceKey); it.ValidForPrefix(serviceKey); it.Next() {
+			timestampStartIndex := len(it.Item().Key()) - (sizeOfTraceID + 8) // 8 = sizeof(uint64)
+			operationName := string(it.Item().Key()[len(serviceKey):timestampStartIndex])
+			keyTTL := it.Item().ExpiresAt()
+			if _, found := r.cache.operations[service]; !found {
+				r.cache.operations[service] = make(map[string]uint64)
+			}
+
+			if v, found := r.cache.operations[service][operationName]; found {
+				if v > keyTTL {
+					continue
+				}
+			}
+			r.cache.operations[service][operationName] = keyTTL
+		}
+		return nil
+	})
 }

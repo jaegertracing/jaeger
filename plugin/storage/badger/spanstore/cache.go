@@ -25,83 +25,14 @@ type CacheStore struct {
 }
 
 // NewCacheStore returns initialized CacheStore for badger use
-func NewCacheStore(db *badger.DB, ttl time.Duration, prefill bool) *CacheStore {
+func NewCacheStore(db *badger.DB, ttl time.Duration) *CacheStore {
 	cs := &CacheStore{
 		services:   make(map[string]uint64),
 		operations: make(map[string]map[string]uint64),
 		ttl:        ttl,
 		store:      db,
 	}
-
-	if prefill {
-		cs.populateCaches()
-	}
 	return cs
-}
-
-func (c *CacheStore) populateCaches() {
-	c.cacheLock.Lock()
-	defer c.cacheLock.Unlock()
-
-	c.loadServices()
-
-	for k := range c.services {
-		c.loadOperations(k)
-	}
-}
-
-func (c *CacheStore) loadServices() {
-	c.store.View(func(txn *badger.Txn) error {
-		opts := badger.DefaultIteratorOptions
-		it := txn.NewIterator(opts)
-		defer it.Close()
-
-		serviceKey := []byte{serviceNameIndexKey}
-
-		// Seek all the services first
-		for it.Seek(serviceKey); it.ValidForPrefix(serviceKey); it.Next() {
-			timestampStartIndex := len(it.Item().Key()) - (sizeOfTraceID + 8) // 8 = sizeof(uint64)
-			serviceName := string(it.Item().Key()[len(serviceKey):timestampStartIndex])
-			keyTTL := it.Item().ExpiresAt()
-			if v, found := c.services[serviceName]; found {
-				if v > keyTTL {
-					continue
-				}
-			}
-			c.services[serviceName] = keyTTL
-		}
-		return nil
-	})
-}
-
-func (c *CacheStore) loadOperations(service string) {
-	c.store.View(func(txn *badger.Txn) error {
-		opts := badger.DefaultIteratorOptions
-		it := txn.NewIterator(opts)
-		defer it.Close()
-
-		serviceKey := make([]byte, len(service)+1)
-		serviceKey[0] = operationNameIndexKey
-		copy(serviceKey[1:], service)
-
-		// Seek all the services first
-		for it.Seek(serviceKey); it.ValidForPrefix(serviceKey); it.Next() {
-			timestampStartIndex := len(it.Item().Key()) - (sizeOfTraceID + 8) // 8 = sizeof(uint64)
-			operationName := string(it.Item().Key()[len(serviceKey):timestampStartIndex])
-			keyTTL := it.Item().ExpiresAt()
-			if _, found := c.operations[service]; !found {
-				c.operations[service] = make(map[string]uint64)
-			}
-
-			if v, found := c.operations[service][operationName]; found {
-				if v > keyTTL {
-					continue
-				}
-			}
-			c.operations[service][operationName] = keyTTL
-		}
-		return nil
-	})
 }
 
 // Update caches the results of service and service + operation indexes and maintains their TTL
