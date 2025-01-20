@@ -166,6 +166,13 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 			if err := factory.Initialize(mf, logger); err != nil {
 				return err
 			}
+			if role == "archive" {
+				if primaryFactory, ok := f.factories[kind]; ok {
+					if dc, ok := factory.(plugin.DefaultConfigurable); ok {
+						dc.InheritSettingsFrom(primaryFactory)
+					}
+				}
+			}
 		}
 		return nil
 	}
@@ -176,7 +183,6 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 		return err
 	}
 	f.publishOpts()
-
 	return nil
 }
 

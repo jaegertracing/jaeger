@@ -9,6 +9,8 @@ import (
 
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
+
+	"github.com/jaegertracing/jaeger/storage"
 )
 
 // Configurable interface can be implemented by plugins that require external configuration,
@@ -19,4 +21,8 @@ type Configurable interface {
 
 	// InitFromViper initializes this component with properties from spf13/viper.
 	InitFromViper(v *viper.Viper, logger *zap.Logger)
+}
+
+type DefaultConfigurable interface {
+	InheritSettingsFrom(other storage.Factory)
 }

@@ -42,10 +42,11 @@ const (
 )
 
 var ( // interface comformance checks
-	_ storage.Factory     = (*Factory)(nil)
-	_ io.Closer           = (*Factory)(nil)
-	_ plugin.Configurable = (*Factory)(nil)
-	_ storage.Purger      = (*Factory)(nil)
+	_ storage.Factory            = (*Factory)(nil)
+	_ io.Closer                  = (*Factory)(nil)
+	_ plugin.Configurable        = (*Factory)(nil)
+	_ plugin.DefaultConfigurable = (*Factory)(nil)
+	_ storage.Purger             = (*Factory)(nil)
 )
 
 // Factory implements storage.Factory for Elasticsearch backend.
@@ -142,7 +143,7 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 		f.watchers = append(f.watchers, watcher)
 	}
 
-	if f.Options.Config.namespace == archiveNamespace {
+	if f.Options != nil && f.Options.Config.namespace == archiveNamespace {
 		aliasSuffix := "archive"
 		if f.config.UseReadWriteAliases {
 			f.config.ReadAliasSuffix = aliasSuffix + "-read"
@@ -151,7 +152,6 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 			f.config.ReadAliasSuffix = aliasSuffix
 			f.config.WriteAliasSuffix = aliasSuffix
 		}
-
 		f.config.UseReadWriteAliases = true
 	}
 
@@ -362,4 +362,10 @@ func loadTokenFromFile(path string) (string, error) {
 		return "", err
 	}
 	return strings.TrimRight(string(b), "\r\n"), nil
+}
+
+func (f *Factory) InheritSettingsFrom(other storage.Factory) {
+	if otherFactory, ok := other.(*Factory); ok {
+		f.config.ApplyDefaults(otherFactory.config)
+	}
 }

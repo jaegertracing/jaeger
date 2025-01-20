@@ -282,3 +282,9 @@ func (f *Factory) Close() error {
 func (f *Factory) Purge(_ context.Context) error {
 	return f.session.Query("TRUNCATE traces").Exec()
 }
+
+func (f *Factory) InheritDefaultSettingsFrom(other storage.Factory) {
+	if otherFactory, ok := other.(*Factory); ok {
+		f.config.ApplyDefaults(&otherFactory.config)
+	}
+}
