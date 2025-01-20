@@ -75,21 +75,8 @@ func NewFactory() *Factory {
 }
 
 func NewArchiveFactory() *Factory {
-	opts := NewOptions(archiveNamespace)
-
-	aliasSuffix := "archive"
-	if opts.Config.UseReadWriteAliases {
-		opts.Config.ReadAliasSuffix = aliasSuffix + "-read"
-		opts.Config.WriteAliasSuffix = aliasSuffix + "-write"
-	} else {
-		opts.Config.ReadAliasSuffix = aliasSuffix
-		opts.Config.WriteAliasSuffix = aliasSuffix
-	}
-
-	opts.Config.UseReadWriteAliases = true
-
 	return &Factory{
-		Options:     opts,
+		Options:     NewOptions(archiveNamespace),
 		newClientFn: config.NewClient,
 		tracer:      otel.GetTracerProvider(),
 	}
@@ -153,6 +140,19 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 			return fmt.Errorf("failed to create watcher for ES client's password: %w", err)
 		}
 		f.watchers = append(f.watchers, watcher)
+	}
+
+	if f.Options.Config.namespace == archiveNamespace {
+		aliasSuffix := "archive"
+		if f.config.UseReadWriteAliases {
+			f.config.ReadAliasSuffix = aliasSuffix + "-read"
+			f.config.WriteAliasSuffix = aliasSuffix + "-write"
+		} else {
+			f.config.ReadAliasSuffix = aliasSuffix
+			f.config.WriteAliasSuffix = aliasSuffix
+		}
+
+		f.config.UseReadWriteAliases = true
 	}
 
 	return nil
