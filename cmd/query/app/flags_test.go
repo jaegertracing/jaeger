@@ -16,19 +16,10 @@ import (
 
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
-	"github.com/jaegertracing/jaeger/plugin/storage"
 	"github.com/jaegertracing/jaeger/ports"
+	"github.com/jaegertracing/jaeger/storage/spanstore"
+	spanstoremocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
 )
-
-func defaultFactoryCfg() storage.FactoryConfig {
-	return storage.FactoryConfig{
-		SpanWriterTypes:         []string{"blackhole"},
-		SpanReaderType:          "blackhole",
-		DependenciesStorageType: "blackhole",
-		DownsamplingRatio:       1.0,
-		DownsamplingHashSalt:    "",
-	}
-}
 
 func TestQueryBuilderFlags(t *testing.T) {
 	v, command := config.Viperize(AddFlags)
@@ -95,20 +86,45 @@ func TestStringSliceAsHeader(t *testing.T) {
 	require.NoError(t, err)
 }
 
+type fakeArchiveInitializer struct {
+	archiveReader spanstore.Reader
+	archiveWriter spanstore.Writer
+}
+
+func (f *fakeArchiveInitializer) InitArchiveStorage(*zap.Logger) (spanstore.Reader, spanstore.Writer) {
+	return f.archiveReader, f.archiveWriter
+}
+
 func TestBuildQueryServiceOptions(t *testing.T) {
 	v, _ := config.Viperize(AddFlags)
 	qOpts, err := new(QueryOptions).InitFromViper(v, zap.NewNop())
 	require.NoError(t, err)
 	assert.NotNil(t, qOpts)
 
-	f, err := storage.NewFactory(defaultFactoryCfg())
-	require.NoError(t, err)
+	qSvcOpts := qOpts.BuildQueryServiceOptions(&fakeArchiveInitializer{
+		archiveReader: &spanstoremocks.Reader{},
+		archiveWriter: &spanstoremocks.Writer{},
+	}, zap.NewNop())
+	assert.NotNil(t, qSvcOpts)
+	assert.NotNil(t, qSvcOpts.Adjuster)
+	assert.NotNil(t, qSvcOpts.ArchiveSpanReader)
+	assert.NotNil(t, qSvcOpts.ArchiveSpanWriter)
+}
 
-	qSvcOpts := qOpts.BuildQueryServiceOptions(f, zap.NewNop())
+func TestBuildQueryServiceOptions_NoArchiveStorage(t *testing.T) {
+	v, _ := config.Viperize(AddFlags)
+	qOpts, err := new(QueryOptions).InitFromViper(v, zap.NewNop())
+	require.NoError(t, err)
+	assert.NotNil(t, qOpts)
+
+	logger, logBuf := testutils.NewLogger()
+	qSvcOpts := qOpts.BuildQueryServiceOptions(&fakeArchiveInitializer{}, logger)
 	assert.NotNil(t, qSvcOpts)
 	assert.NotNil(t, qSvcOpts.Adjuster)
 	assert.Nil(t, qSvcOpts.ArchiveSpanReader)
 	assert.Nil(t, qSvcOpts.ArchiveSpanWriter)
+
+	require.Contains(t, logBuf.String(), "Archive storage not initialized")
 }
 
 func TestBuildQueryServiceOptionsV2(t *testing.T) {
@@ -117,14 +133,15 @@ func TestBuildQueryServiceOptionsV2(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotNil(t, qOpts)
 
-	f, err := storage.NewFactory(defaultFactoryCfg())
-	require.NoError(t, err)
+	qSvcOpts := qOpts.BuildQueryServiceOptionsV2(&fakeArchiveInitializer{
+		archiveReader: &spanstoremocks.Reader{},
+		archiveWriter: &spanstoremocks.Writer{},
+	}, zap.NewNop())
 
-	qSvcOpts := qOpts.BuildQueryServiceOptionsV2(f, zap.NewNop())
 	assert.NotNil(t, qSvcOpts)
 	assert.NotNil(t, qSvcOpts.Adjuster)
-	assert.Nil(t, qSvcOpts.ArchiveTraceReader)
-	assert.Nil(t, qSvcOpts.ArchiveTraceWriter)
+	assert.NotNil(t, qSvcOpts.ArchiveTraceReader)
+	assert.NotNil(t, qSvcOpts.ArchiveTraceWriter)
 }
 
 func TestBuildQueryServiceOptionsV2_NoArchiveStorage(t *testing.T) {
@@ -133,11 +150,8 @@ func TestBuildQueryServiceOptionsV2_NoArchiveStorage(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotNil(t, qOpts)
 
-	f, err := storage.NewFactory(defaultFactoryCfg())
-	require.NoError(t, err)
-
 	logger, logBuf := testutils.NewLogger()
-	qSvcOpts := qOpts.BuildQueryServiceOptionsV2(f, logger)
+	qSvcOpts := qOpts.BuildQueryServiceOptionsV2(&fakeArchiveInitializer{}, logger)
 	assert.Nil(t, qSvcOpts.ArchiveTraceReader)
 	assert.Nil(t, qSvcOpts.ArchiveTraceWriter)
 

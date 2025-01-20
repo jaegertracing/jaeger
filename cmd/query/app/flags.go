@@ -29,8 +29,8 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
-	"github.com/jaegertracing/jaeger/plugin/storage"
 	"github.com/jaegertracing/jaeger/ports"
+	"github.com/jaegertracing/jaeger/storage/spanstore"
 	"github.com/jaegertracing/jaeger/storage_v2/v1adapter"
 )
 
@@ -138,10 +138,14 @@ func (qOpts *QueryOptions) InitFromViper(v *viper.Viper, logger *zap.Logger) (*Q
 	return qOpts, nil
 }
 
+type archiveInitializer interface {
+	InitArchiveStorage(logger *zap.Logger) (spanstore.Reader, spanstore.Writer)
+}
+
 // BuildQueryServiceOptions creates a QueryServiceOptions struct with appropriate adjusters and archive config
-func (qOpts *QueryOptions) BuildQueryServiceOptions(storageFactory *storage.Factory, logger *zap.Logger) *querysvc.QueryServiceOptions {
+func (qOpts *QueryOptions) BuildQueryServiceOptions(archiveInitializer archiveInitializer, logger *zap.Logger) *querysvc.QueryServiceOptions {
 	opts := &querysvc.QueryServiceOptions{}
-	ar, aw := storageFactory.InitArchiveStorage(logger)
+	ar, aw := archiveInitializer.InitArchiveStorage(logger)
 	if ar != nil && aw != nil {
 		opts.ArchiveSpanReader = ar
 		opts.ArchiveSpanWriter = aw
@@ -154,10 +158,10 @@ func (qOpts *QueryOptions) BuildQueryServiceOptions(storageFactory *storage.Fact
 	return opts
 }
 
-func (qOpts *QueryOptions) BuildQueryServiceOptionsV2(storageFactory *storage.Factory, logger *zap.Logger) *v2querysvc.QueryServiceOptions {
+func (qOpts *QueryOptions) BuildQueryServiceOptionsV2(archiveInitializer archiveInitializer, logger *zap.Logger) *v2querysvc.QueryServiceOptions {
 	opts := &v2querysvc.QueryServiceOptions{}
 
-	ar, aw := storageFactory.InitArchiveStorage(logger)
+	ar, aw := archiveInitializer.InitArchiveStorage(logger)
 	if ar != nil && aw != nil {
 		opts.ArchiveTraceReader = v1adapter.NewTraceReader(ar)
 		opts.ArchiveTraceWriter = v1adapter.NewTraceWriter(aw)
