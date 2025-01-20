@@ -47,44 +47,67 @@ func (m *mockSessionBuilder) build(*config.Configuration) (cassandra.Session, er
 
 func TestCassandraFactory(t *testing.T) {
 	logger, _ := testutils.NewLogger()
-	f := NewFactory()
-	v, command := viperize.Viperize(f.AddFlags)
-	command.ParseFlags([]string{"--cassandra-archive.enabled=true"})
-	f.InitFromViper(v, zap.NewNop())
 
-	f.sessionBuilderFn = new(mockSessionBuilder).add(nil, errors.New("made-up primary error")).build
-	require.EqualError(t, f.Initialize(metrics.NullFactory, zap.NewNop()), "made-up primary error")
+	tests := []struct {
+		name      string
+		factoryFn func() *Factory
+		namespace string
+	}{
+		{
+			name:      "CassandraFactory",
+			factoryFn: NewFactory,
+			namespace: primaryStorageNamespace,
+		},
+		{
+			name:      "CassandraArchiveFactory",
+			factoryFn: NewArchiveFactory,
+			namespace: archiveStorageNamespace,
+		},
+	}
 
-	var (
-		session = &mocks.Session{}
-		query   = &mocks.Query{}
-	)
-	session.On("Query", mock.AnythingOfType("string"), mock.Anything).Return(query)
-	session.On("Close").Return()
-	query.On("Exec").Return(nil)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			f := test.factoryFn()
+			require.Equal(t, test.namespace, f.Options.namespace)
+			v, command := viperize.Viperize(f.AddFlags)
+			command.ParseFlags([]string{})
+			f.InitFromViper(v, zap.NewNop())
 
-	f.sessionBuilderFn = new(mockSessionBuilder).add(session, nil).build
-	require.NoError(t, f.Initialize(metrics.NullFactory, logger))
+			f.sessionBuilderFn = new(mockSessionBuilder).add(nil, errors.New("made-up primary error")).build
+			require.EqualError(t, f.Initialize(metrics.NullFactory, zap.NewNop()), "made-up primary error")
 
-	_, err := f.CreateSpanReader()
-	require.NoError(t, err)
+			var (
+				session = &mocks.Session{}
+				query   = &mocks.Query{}
+			)
+			session.On("Query", mock.AnythingOfType("string"), mock.Anything).Return(query)
+			session.On("Close").Return()
+			query.On("Exec").Return(nil)
 
-	_, err = f.CreateSpanWriter()
-	require.NoError(t, err)
+			f.sessionBuilderFn = new(mockSessionBuilder).add(session, nil).build
+			require.NoError(t, f.Initialize(metrics.NullFactory, logger))
 
-	_, err = f.CreateDependencyReader()
-	require.NoError(t, err)
+			_, err := f.CreateSpanReader()
+			require.NoError(t, err)
 
-	f.sessionBuilderFn = new(mockSessionBuilder).add(session, nil).add(session, nil).build
-	require.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
+			_, err = f.CreateSpanWriter()
+			require.NoError(t, err)
 
-	_, err = f.CreateLock()
-	require.NoError(t, err)
+			_, err = f.CreateDependencyReader()
+			require.NoError(t, err)
 
-	_, err = f.CreateSamplingStore(0)
-	require.NoError(t, err)
+			f.sessionBuilderFn = new(mockSessionBuilder).add(session, nil).add(session, nil).build
+			require.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
 
-	require.NoError(t, f.Close())
+			_, err = f.CreateLock()
+			require.NoError(t, err)
+
+			_, err = f.CreateSamplingStore(0)
+			require.NoError(t, err)
+
+			require.NoError(t, f.Close())
+		})
+	}
 }
 
 func TestCreateSpanReaderError(t *testing.T) {
