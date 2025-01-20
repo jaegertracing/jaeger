@@ -447,3 +447,20 @@ func TestPasswordFromFileErrors(t *testing.T) {
 	require.NoError(t, os.Remove(pwdFile))
 	f.onPasswordChange()
 }
+
+func TestInheritSettingsFrom(t *testing.T) {
+	primaryFactory := NewFactory()
+	primaryFactory.config = &escfg.Configuration{
+		MaxDocCount: 99,
+	}
+
+	archiveFactory := NewArchiveFactory()
+	archiveFactory.config = &escfg.Configuration{
+		SendGetBodyAs: "PUT",
+	}
+
+	archiveFactory.InheritSettingsFrom(primaryFactory)
+
+	require.Equal(t, "PUT", archiveFactory.config.SendGetBodyAs)
+	require.Equal(t, 99, primaryFactory.config.MaxDocCount)
+}
