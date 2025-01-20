@@ -23,3 +23,11 @@ func TestElasticsearchStorage(t *testing.T) {
 	s.e2eInitialize(t, "elasticsearch")
 	s.RunSpanStoreTests(t)
 }
+
+func TestElasticsearchRollover(t *testing.T) {
+	integration.SkipUnlessEnv(t, "elasticsearch")
+	e := &E2EElasticSearchILMIntegration{
+		isOpenSearch: false,
+	}
+	e.RunTests(t)
+}

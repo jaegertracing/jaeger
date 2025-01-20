@@ -57,6 +57,60 @@ func (c ClientWrapper) DeleteIndex(index string) es.IndicesDeleteService {
 	return WrapESIndicesDeleteService(c.client.DeleteIndex(index))
 }
 
+func (c ClientWrapper) GetIndices() es.IndicesGetService {
+	indicesGetService := elastic.NewIndicesGetService(c.client)
+	return WrapIndicesGetService(indicesGetService)
+}
+
+func (c ClientWrapper) CreateAlias(alias string) es.AliasAddAction {
+	aliasAddAction := elastic.NewAliasAddAction(alias)
+	return WrapAliasAddAction(aliasAddAction, c.client)
+}
+
+func (c ClientWrapper) DeleteAlias(alias string) es.AliasRemoveAction {
+	aliasRemoveAction := elastic.NewAliasRemoveAction(alias)
+	return WrapAliasRemoveAction(aliasRemoveAction, c.client)
+}
+
+func (c ClientWrapper) CreateIlmPolicy() es.XPackIlmPutLifecycle {
+	xPack := elastic.NewXPackIlmPutLifecycleService(c.client)
+	return WrapXPackIlmPutLifecycle(xPack)
+}
+
+func (c ClientWrapper) CreateIsmPolicy(ctx context.Context, id, policy string) (*elastic.Response, error) {
+	return c.client.PerformRequest(ctx, elastic.PerformRequestOptions{
+		Path:   "_plugins/_ism/policies/" + id,
+		Method: http.MethodPut,
+		Body:   policy,
+	})
+}
+
+func (c ClientWrapper) IlmPolicyExists(ctx context.Context, id string) (bool, error) {
+	ilmGetService := elastic.NewXPackIlmGetLifecycleService(c.client)
+	_, err := ilmGetService.Policy(id).Do(ctx)
+	if err != nil {
+		if elastic.IsNotFound(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
+}
+
+func (c ClientWrapper) IsmPolicyExists(ctx context.Context, id string) (bool, error) {
+	_, err := c.client.PerformRequest(ctx, elastic.PerformRequestOptions{
+		Path:   "_opendistro/_ism/policies/" + id,
+		Method: http.MethodGet,
+	})
+	if err != nil {
+		if elastic.IsNotFound(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
+}
+
 // CreateTemplate calls this function to internal client.
 func (c ClientWrapper) CreateTemplate(ttype string) es.TemplateCreateService {
 	if c.esVersion >= 8 {
@@ -293,4 +347,78 @@ func (s MultiSearchServiceWrapper) Index(indices ...string) es.MultiSearchServic
 // Do calls this function to internal service.
 func (s MultiSearchServiceWrapper) Do(ctx context.Context) (*elastic.MultiSearchResult, error) {
 	return s.multiSearchService.Do(ctx)
+}
+
+type AliasAddActionWrapper struct {
+	aliasAddAction *elastic.AliasAddAction
+	client         *elastic.Client
+}
+
+func WrapAliasAddAction(aliasAddAction *elastic.AliasAddAction, client *elastic.Client) AliasAddActionWrapper {
+	return AliasAddActionWrapper{aliasAddAction: aliasAddAction, client: client}
+}
+
+func (a AliasAddActionWrapper) Index(index ...string) es.AliasAddAction {
+	return WrapAliasAddAction(a.aliasAddAction.Index(index...), a.client)
+}
+
+func (a AliasAddActionWrapper) IsWriteIndex(flag bool) es.AliasAddAction {
+	return WrapAliasAddAction(a.aliasAddAction.IsWriteIndex(flag), a.client)
+}
+
+func (a AliasAddActionWrapper) Do(ctx context.Context) (*elastic.AliasResult, error) {
+	return a.client.Alias().Action(a.aliasAddAction).Do(ctx)
+}
+
+type AliasRemoveActionWrapper struct {
+	aliasRemoveAction *elastic.AliasRemoveAction
+	client            *elastic.Client
+}
+
+func WrapAliasRemoveAction(aliasRemoveAction *elastic.AliasRemoveAction, client *elastic.Client) AliasRemoveActionWrapper {
+	return AliasRemoveActionWrapper{aliasRemoveAction: aliasRemoveAction, client: client}
+}
+
+func (a AliasRemoveActionWrapper) Index(index ...string) es.AliasRemoveAction {
+	return WrapAliasRemoveAction(a.aliasRemoveAction.Index(index...), a.client)
+}
+
+func (a AliasRemoveActionWrapper) Do(ctx context.Context) (*elastic.AliasResult, error) {
+	return a.client.Alias().Action(a.aliasRemoveAction).Do(ctx)
+}
+
+type XPackIlmPutLifecycleWrapper struct {
+	xPackPutLifecycleWrapper *elastic.XPackIlmPutLifecycleService
+}
+
+func WrapXPackIlmPutLifecycle(xPackIlmPutLifecycleWrapper *elastic.XPackIlmPutLifecycleService) XPackIlmPutLifecycleWrapper {
+	return XPackIlmPutLifecycleWrapper{xPackPutLifecycleWrapper: xPackIlmPutLifecycleWrapper}
+}
+
+func (x XPackIlmPutLifecycleWrapper) BodyString(body string) es.XPackIlmPutLifecycle {
+	return WrapXPackIlmPutLifecycle(x.xPackPutLifecycleWrapper.BodyString(body))
+}
+
+func (x XPackIlmPutLifecycleWrapper) Policy(policy string) es.XPackIlmPutLifecycle {
+	return WrapXPackIlmPutLifecycle(x.xPackPutLifecycleWrapper.Policy(policy))
+}
+
+func (x XPackIlmPutLifecycleWrapper) Do(ctx context.Context) (*elastic.XPackIlmPutLifecycleResponse, error) {
+	return x.xPackPutLifecycleWrapper.Do(ctx)
+}
+
+type IndicesGetServiceWrapper struct {
+	indicesGetService *elastic.IndicesGetService
+}
+
+func WrapIndicesGetService(indicesGetService *elastic.IndicesGetService) IndicesGetServiceWrapper {
+	return IndicesGetServiceWrapper{indicesGetService: indicesGetService}
+}
+
+func (i IndicesGetServiceWrapper) Index(indices ...string) es.IndicesGetService {
+	return WrapIndicesGetService(i.indicesGetService.Index(indices...))
+}
+
+func (i IndicesGetServiceWrapper) Do(ctx context.Context) (map[string]*elastic.IndicesGetResponse, error) {
+	return i.indicesGetService.Do(ctx)
 }

@@ -10,12 +10,16 @@
     "index.number_of_replicas": {{ .Replicas }},
     "index.mapping.nested_fields.limit":50,
     "index.requests.cache.enable":true
-    {{- if .UseILM }}
-    ,"lifecycle": {
-      "name": "{{ .ILMPolicyName }}",
-      "rollover_alias": "{{ .IndexPrefix }}jaeger-span-write"
-    }
-    {{- end }}
+      {{- if .UseILM }},
+        {{- if .IsOpenSearch }},
+            "plugins.index_state_management.rollover_alias": "{{ .IndexPrefix }}jaeger-span-write"
+        {{- else }}
+            "lifecycle": {
+                "name": "{{ .ILMPolicyName }}",
+                "rollover_alias": "{{ .IndexPrefix }}jaeger-span-write"
+            }
+        {{- end }}
+      {{- end }}
   },
   "mappings":{
     "dynamic_templates":[

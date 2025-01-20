@@ -32,6 +32,7 @@ extensions:
     backends:
       some_storage:
         elasticsearch:
+          create_mappings: true
           indices:
             index_prefix: "jaeger-main"
             spans:

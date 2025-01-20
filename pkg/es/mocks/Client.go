@@ -8,7 +8,11 @@
 package mocks
 
 import (
+	context "context"
+
 	es "github.com/jaegertracing/jaeger/pkg/es"
+	elastic "github.com/olivere/elastic"
+
 	mock "github.com/stretchr/testify/mock"
 )
 
@@ -35,6 +39,46 @@ func (_m *Client) Close() error {
 	return r0
 }
 
+// CreateAlias provides a mock function with given fields: name
+func (_m *Client) CreateAlias(name string) es.AliasAddAction {
+	ret := _m.Called(name)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CreateAlias")
+	}
+
+	var r0 es.AliasAddAction
+	if rf, ok := ret.Get(0).(func(string) es.AliasAddAction); ok {
+		r0 = rf(name)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(es.AliasAddAction)
+		}
+	}
+
+	return r0
+}
+
+// CreateIlmPolicy provides a mock function with no fields
+func (_m *Client) CreateIlmPolicy() es.XPackIlmPutLifecycle {
+	ret := _m.Called()
+
+	if len(ret) == 0 {
+		panic("no return value specified for CreateIlmPolicy")
+	}
+
+	var r0 es.XPackIlmPutLifecycle
+	if rf, ok := ret.Get(0).(func() es.XPackIlmPutLifecycle); ok {
+		r0 = rf()
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(es.XPackIlmPutLifecycle)
+		}
+	}
+
+	return r0
+}
+
 // CreateIndex provides a mock function with given fields: index
 func (_m *Client) CreateIndex(index string) es.IndicesCreateService {
 	ret := _m.Called(index)
@@ -55,6 +99,36 @@ func (_m *Client) CreateIndex(index string) es.IndicesCreateService {
 	return r0
 }
 
+// CreateIsmPolicy provides a mock function with given fields: ctx, id, policy
+func (_m *Client) CreateIsmPolicy(ctx context.Context, id string, policy string) (*elastic.Response, error) {
+	ret := _m.Called(ctx, id, policy)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CreateIsmPolicy")
+	}
+
+	var r0 *elastic.Response
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) (*elastic.Response, error)); ok {
+		return rf(ctx, id, policy)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) *elastic.Response); ok {
+		r0 = rf(ctx, id, policy)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*elastic.Response)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, string) error); ok {
+		r1 = rf(ctx, id, policy)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // CreateTemplate provides a mock function with given fields: id
 func (_m *Client) CreateTemplate(id string) es.TemplateCreateService {
 	ret := _m.Called(id)
@@ -69,6 +143,26 @@ func (_m *Client) CreateTemplate(id string) es.TemplateCreateService {
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(es.TemplateCreateService)
+		}
+	}
+
+	return r0
+}
+
+// DeleteAlias provides a mock function with given fields: name
+func (_m *Client) DeleteAlias(name string) es.AliasRemoveAction {
+	ret := _m.Called(name)
+
+	if len(ret) == 0 {
+		panic("no return value specified for DeleteAlias")
+	}
+
+	var r0 es.AliasRemoveAction
+	if rf, ok := ret.Get(0).(func(string) es.AliasRemoveAction); ok {
+		r0 = rf(name)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(es.AliasRemoveAction)
 		}
 	}
 
@@ -95,6 +189,26 @@ func (_m *Client) DeleteIndex(index string) es.IndicesDeleteService {
 	return r0
 }
 
+// GetIndices provides a mock function with no fields
+func (_m *Client) GetIndices() es.IndicesGetService {
+	ret := _m.Called()
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetIndices")
+	}
+
+	var r0 es.IndicesGetService
+	if rf, ok := ret.Get(0).(func() es.IndicesGetService); ok {
+		r0 = rf()
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(es.IndicesGetService)
+		}
+	}
+
+	return r0
+}
+
 // GetVersion provides a mock function with no fields
 func (_m *Client) GetVersion() uint {
 	ret := _m.Called()
@@ -111,6 +225,34 @@ func (_m *Client) GetVersion() uint {
 	}
 
 	return r0
+}
+
+// IlmPolicyExists provides a mock function with given fields: ctx, id
+func (_m *Client) IlmPolicyExists(ctx context.Context, id string) (bool, error) {
+	ret := _m.Called(ctx, id)
+
+	if len(ret) == 0 {
+		panic("no return value specified for IlmPolicyExists")
+	}
+
+	var r0 bool
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (bool, error)); ok {
+		return rf(ctx, id)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) bool); ok {
+		r0 = rf(ctx, id)
+	} else {
+		r0 = ret.Get(0).(bool)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, id)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
 }
 
 // Index provides a mock function with no fields
@@ -151,6 +293,34 @@ func (_m *Client) IndexExists(index string) es.IndicesExistsService {
 	}
 
 	return r0
+}
+
+// IsmPolicyExists provides a mock function with given fields: ctx, id
+func (_m *Client) IsmPolicyExists(ctx context.Context, id string) (bool, error) {
+	ret := _m.Called(ctx, id)
+
+	if len(ret) == 0 {
+		panic("no return value specified for IsmPolicyExists")
+	}
+
+	var r0 bool
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (bool, error)); ok {
+		return rf(ctx, id)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) bool); ok {
+		r0 = rf(ctx, id)
+	} else {
+		r0 = ret.Get(0).(bool)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, id)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
 }
 
 // MultiSearch provides a mock function with no fields

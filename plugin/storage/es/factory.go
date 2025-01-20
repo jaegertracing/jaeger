@@ -26,6 +26,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/plugin"
 	esDepStore "github.com/jaegertracing/jaeger/plugin/storage/es/dependencystore"
+	"github.com/jaegertracing/jaeger/plugin/storage/es/ilm"
 	"github.com/jaegertracing/jaeger/plugin/storage/es/mappings"
 	esSampleStore "github.com/jaegertracing/jaeger/plugin/storage/es/samplingstore"
 	esSpanStore "github.com/jaegertracing/jaeger/plugin/storage/es/spanstore"
@@ -312,6 +313,13 @@ func createSpanWriter(
 			return nil, err
 		}
 	}
+	if cfg.UseILM {
+		policyManager := ilm.NewPolicyManager(clientFn(), cfg, ilm.OnServiceAndSpan)
+		err = policyManager.Init()
+		if err != nil {
+			return nil, err
+		}
+	}
 	return writer, nil
 }
 
@@ -337,7 +345,13 @@ func (f *Factory) CreateSamplingStore(int /* maxBuckets */) (samplingstore.Store
 			return nil, fmt.Errorf("failed to create template: %w", err)
 		}
 	}
-
+	if f.primaryConfig.UseILM {
+		policyManager := ilm.NewPolicyManager(f.getPrimaryClient(), f.primaryConfig, ilm.OnSampling)
+		err := policyManager.Init()
+		if err != nil {
+			return nil, err
+		}
+	}
 	return store, nil
 }
 
