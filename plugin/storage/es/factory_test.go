@@ -87,6 +87,44 @@ func TestElasticsearchFactory(t *testing.T) {
 	require.NoError(t, f.Close())
 }
 
+func TestArchiveFactory(t *testing.T) {
+	tests := []struct {
+		name               string
+		args               []string
+		expectedReadAlias  string
+		expectedWriteAlias string
+	}{
+		{
+			name:               "default settings",
+			args:               []string{},
+			expectedReadAlias:  "archive",
+			expectedWriteAlias: "archive",
+		},
+		{
+			name:               "use read write aliases",
+			args:               []string{"--es-archive.use-aliases=true"},
+			expectedReadAlias:  "archive-read",
+			expectedWriteAlias: "archive-write",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			f := NewArchiveFactory()
+			v, command := config.Viperize(f.AddFlags)
+			command.ParseFlags(test.args)
+			f.InitFromViper(v, zap.NewNop())
+
+			f.newClientFn = (&mockClientBuilder{}).NewClient
+			require.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
+
+			require.Equal(t, test.expectedReadAlias, f.config.ReadAliasSuffix)
+			require.Equal(t, test.expectedWriteAlias, f.config.WriteAliasSuffix)
+			require.True(t, f.config.UseReadWriteAliases)
+		})
+	}
+}
+
 func TestElasticsearchTagsFileDoNotExist(t *testing.T) {
 	f := NewFactory()
 	f.config = &escfg.Configuration{
