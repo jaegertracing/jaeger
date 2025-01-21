@@ -14,6 +14,7 @@ function usage {
     >&2 echo "  TRACE_TTL          - time to live for trace data, in seconds (default: 172800, 2 days)"
     >&2 echo "  DEPENDENCIES_TTL   - time to live for dependencies data, in seconds (default: 0, no TTL)"
     >&2 echo "  KEYSPACE           - keyspace (default: jaeger_v1_{datacenter})"
+    >&2 echo "  REPLICATION        - complete replication configuration (overrides REPLICATION_FACTOR if set)"
     >&2 echo "  REPLICATION_FACTOR - replication factor for prod (default: 2 for prod, 1 for test)"
     >&2 echo "  VERSION            - Cassandra backend version, 3 or 4 (default: 4). Ignored if template is provided."
     >&2 echo ""
@@ -47,14 +48,22 @@ fi
 if [[ "$MODE" == "" ]]; then
     usage "missing MODE parameter"
 elif [[ "$MODE" == "prod" ]]; then
-    if [[ "$DATACENTER" == "" ]]; then usage "missing DATACENTER parameter for prod mode"; fi
-    datacenter=$DATACENTER
-    replication_factor=${REPLICATION_FACTOR:-2}
-    replication="{'class': 'NetworkTopologyStrategy', '$datacenter': '${replication_factor}' }"
+    if [[ -n "$REPLICATION" ]]; then
+        replication="$REPLICATION"
+    else
+        if [[ "$DATACENTER" == "" ]]; then usage "missing DATACENTER parameter for prod mode"; fi
+        datacenter=$DATACENTER
+        replication_factor=${REPLICATION_FACTOR:-2}
+        replication="{'class': 'NetworkTopologyStrategy', '$datacenter': '${replication_factor}' }"
+    fi
 elif [[ "$MODE" == "test" ]]; then
-    datacenter=${DATACENTER:-'test'}
-    replication_factor=${REPLICATION_FACTOR:-1}
-    replication="{'class': 'SimpleStrategy', 'replication_factor': '${replication_factor}'}"
+    if [[ -n "$REPLICATION" ]]; then
+        replication="$REPLICATION"
+    else
+        datacenter=${DATACENTER:-'test'}
+        replication_factor=${REPLICATION_FACTOR:-1}
+        replication="{'class': 'SimpleStrategy', 'replication_factor': '${replication_factor}'}"
+    fi
 else
     usage "invalid MODE=$MODE, expecting 'prod' or 'test'"
 fi
