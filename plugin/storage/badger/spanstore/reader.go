@@ -620,6 +620,7 @@ func scanRangeFunction(it *badger.Iterator, indexEndValue []byte) bool {
 	return false
 }
 
+// loadServices fills the cache with services after extracting from badger
 func (r *TraceReader) loadServices() {
 	r.store.View(func(txn *badger.Txn) error {
 		opts := badger.DefaultIteratorOptions
@@ -639,6 +640,7 @@ func (r *TraceReader) loadServices() {
 	})
 }
 
+// loadOperations extract all operations for a specified service
 func (r *TraceReader) loadOperations(service string, operationFiller func(service, operation string, keyTTL uint64)) {
 	r.store.View(func(txn *badger.Txn) error {
 		opts := badger.DefaultIteratorOptions
