@@ -63,7 +63,7 @@ type Factory struct {
 
 	client atomic.Pointer[es.Client]
 
-	watchers []*fswatcher.FSWatcher
+	pwdFileWatcher *fswatcher.FSWatcher
 }
 
 // NewFactory creates a new Factory.
@@ -140,7 +140,7 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 		if err != nil {
 			return fmt.Errorf("failed to create watcher for ES client's password: %w", err)
 		}
-		f.watchers = append(f.watchers, watcher)
+		f.pwdFileWatcher = watcher
 	}
 
 	if f.Options != nil && f.Options.Config.namespace == archiveNamespace {
@@ -315,8 +315,8 @@ var _ io.Closer = (*Factory)(nil)
 func (f *Factory) Close() error {
 	var errs []error
 
-	for _, w := range f.watchers {
-		errs = append(errs, w.Close())
+	if f.pwdFileWatcher != nil {
+		errs = append(errs, f.pwdFileWatcher.Close())
 	}
 	errs = append(errs, f.getClient().Close())
 
