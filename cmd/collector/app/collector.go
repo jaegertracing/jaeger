@@ -16,14 +16,14 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/collector/app/flags"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/handler"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
-	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/samplingstrategy"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/server"
 	"github.com/jaegertracing/jaeger/internal/safeexpvar"
+	"github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy"
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
-	"github.com/jaegertracing/jaeger/storage/spanstore"
+	"github.com/jaegertracing/jaeger/storage_v2/tracestore"
 )
 
 const (
@@ -37,7 +37,7 @@ type Collector struct {
 	serviceName        string
 	logger             *zap.Logger
 	metricsFactory     metrics.Factory
-	spanWriter         spanstore.Writer
+	traceWriter        tracestore.Writer
 	samplingProvider   samplingstrategy.Provider
 	samplingAggregator samplingstrategy.Aggregator
 	hCheck             *healthcheck.HealthCheck
@@ -57,7 +57,7 @@ type CollectorParams struct {
 	ServiceName        string
 	Logger             *zap.Logger
 	MetricsFactory     metrics.Factory
-	SpanWriter         spanstore.Writer
+	TraceWriter        tracestore.Writer
 	SamplingProvider   samplingstrategy.Provider
 	SamplingAggregator samplingstrategy.Aggregator
 	HealthCheck        *healthcheck.HealthCheck
@@ -70,7 +70,7 @@ func New(params *CollectorParams) *Collector {
 		serviceName:        params.ServiceName,
 		logger:             params.Logger,
 		metricsFactory:     params.MetricsFactory,
-		spanWriter:         params.SpanWriter,
+		traceWriter:        params.TraceWriter,
 		samplingProvider:   params.SamplingProvider,
 		samplingAggregator: params.SamplingAggregator,
 		hCheck:             params.HealthCheck,
@@ -81,7 +81,7 @@ func New(params *CollectorParams) *Collector {
 // Start the component and underlying dependencies
 func (c *Collector) Start(options *flags.CollectorOptions) error {
 	handlerBuilder := &SpanHandlerBuilder{
-		SpanWriter:     c.spanWriter,
+		TraceWriter:    c.traceWriter,
 		CollectorOpts:  options,
 		Logger:         c.logger,
 		MetricsFactory: c.metricsFactory,
@@ -91,7 +91,7 @@ func (c *Collector) Start(options *flags.CollectorOptions) error {
 	var additionalProcessors []ProcessSpan
 	if c.samplingAggregator != nil {
 		additionalProcessors = append(additionalProcessors, func(span *model.Span, _ /* tenant */ string) {
-			c.samplingAggregator.HandleRootSpan(span, c.logger)
+			c.samplingAggregator.HandleRootSpan(span)
 		})
 	}
 

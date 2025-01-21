@@ -4,7 +4,7 @@
 package dbmodel
 
 import (
-	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/model"
+	"github.com/jaegertracing/jaeger/storage/samplingstore/model"
 )
 
 func FromThroughputs(throughputs []*model.Throughput) []Throughput {

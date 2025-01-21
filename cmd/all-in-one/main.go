@@ -29,6 +29,7 @@ import (
 	queryApp "github.com/jaegertracing/jaeger/cmd/query/app"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	v2querysvc "github.com/jaegertracing/jaeger/cmd/query/app/querysvc/v2/querysvc"
+	ss "github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy/metafactory"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/jtracer"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
@@ -36,7 +37,6 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/pkg/version"
 	"github.com/jaegertracing/jaeger/plugin/metricstore"
-	ss "github.com/jaegertracing/jaeger/plugin/sampling/strategyprovider"
 	"github.com/jaegertracing/jaeger/plugin/storage"
 	"github.com/jaegertracing/jaeger/ports"
 	"github.com/jaegertracing/jaeger/storage_v2/depstore"
@@ -157,7 +157,7 @@ by default uses only in-memory database.`,
 				ServiceName:        "jaeger-collector",
 				Logger:             logger,
 				MetricsFactory:     collectorMetricsFactory,
-				SpanWriter:         spanWriter,
+				TraceWriter:        v1adapter.NewTraceWriter(spanWriter),
 				SamplingProvider:   samplingProvider,
 				SamplingAggregator: samplingAggregator,
 				HealthCheck:        svc.HC(),

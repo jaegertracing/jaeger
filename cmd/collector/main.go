@@ -22,14 +22,15 @@ import (
 	cmdFlags "github.com/jaegertracing/jaeger/cmd/internal/flags"
 	"github.com/jaegertracing/jaeger/cmd/internal/printconfig"
 	"github.com/jaegertracing/jaeger/cmd/internal/status"
+	ss "github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy/metafactory"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/telemetry"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/pkg/version"
-	ss "github.com/jaegertracing/jaeger/plugin/sampling/strategyprovider"
 	"github.com/jaegertracing/jaeger/plugin/storage"
 	"github.com/jaegertracing/jaeger/ports"
+	"github.com/jaegertracing/jaeger/storage_v2/v1adapter"
 )
 
 const serviceName = "jaeger-collector"
@@ -101,7 +102,7 @@ func main() {
 				ServiceName:        serviceName,
 				Logger:             logger,
 				MetricsFactory:     metricsFactory,
-				SpanWriter:         spanWriter,
+				TraceWriter:        v1adapter.NewTraceWriter(spanWriter),
 				SamplingProvider:   samplingProvider,
 				SamplingAggregator: samplingAggregator,
 				HealthCheck:        svc.HC(),

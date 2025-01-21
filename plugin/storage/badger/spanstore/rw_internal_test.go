@@ -23,9 +23,9 @@ func TestEncodingTypes(t *testing.T) {
 	runWithBadger(t, func(store *badger.DB, t *testing.T) {
 		testSpan := createDummySpan()
 
-		cache := NewCacheStore(store, time.Duration(1*time.Hour), true)
+		cache := NewCacheStore(store, time.Duration(1*time.Hour))
 		sw := NewSpanWriter(store, cache, time.Duration(1*time.Hour))
-		rw := NewTraceReader(store, cache)
+		rw := NewTraceReader(store, cache, true)
 
 		sw.encodingType = jsonEncoding
 		err := sw.WriteSpan(context.Background(), &testSpan)
@@ -40,7 +40,7 @@ func TestEncodingTypes(t *testing.T) {
 	runWithBadger(t, func(store *badger.DB, t *testing.T) {
 		testSpan := createDummySpan()
 
-		cache := NewCacheStore(store, time.Duration(1*time.Hour), true)
+		cache := NewCacheStore(store, time.Duration(1*time.Hour))
 		sw := NewSpanWriter(store, cache, time.Duration(1*time.Hour))
 		// rw := NewTraceReader(store, cache)
 
@@ -53,9 +53,9 @@ func TestEncodingTypes(t *testing.T) {
 	runWithBadger(t, func(store *badger.DB, t *testing.T) {
 		testSpan := createDummySpan()
 
-		cache := NewCacheStore(store, time.Duration(1*time.Hour), true)
+		cache := NewCacheStore(store, time.Duration(1*time.Hour))
 		sw := NewSpanWriter(store, cache, time.Duration(1*time.Hour))
-		rw := NewTraceReader(store, cache)
+		rw := NewTraceReader(store, cache, true)
 
 		err := sw.WriteSpan(context.Background(), &testSpan)
 		require.NoError(t, err)
@@ -92,9 +92,9 @@ func TestDecodeErrorReturns(t *testing.T) {
 func TestDuplicateTraceIDDetection(t *testing.T) {
 	runWithBadger(t, func(store *badger.DB, t *testing.T) {
 		testSpan := createDummySpan()
-		cache := NewCacheStore(store, time.Duration(1*time.Hour), true)
+		cache := NewCacheStore(store, time.Duration(1*time.Hour))
 		sw := NewSpanWriter(store, cache, time.Duration(1*time.Hour))
-		rw := NewTraceReader(store, cache)
+		rw := NewTraceReader(store, cache, true)
 		origStartTime := testSpan.StartTime
 
 		traceCount := 128
@@ -188,4 +188,44 @@ func TestMergeJoin(t *testing.T) {
 	merged = mergeJoinIds(left[0:3], right[1:7])
 	chk.Len(merged, 2)
 	chk.Equal(uint32(2), binary.BigEndian.Uint32(merged[1]))
+}
+
+func TestOldReads(t *testing.T) {
+	runWithBadger(t, func(store *badger.DB, t *testing.T) {
+		timeNow := model.TimeAsEpochMicroseconds(time.Now())
+		s1Key := createIndexKey(serviceNameIndexKey, []byte("service1"), timeNow, model.TraceID{High: 0, Low: 0})
+		s1o1Key := createIndexKey(operationNameIndexKey, []byte("service1operation1"), timeNow, model.TraceID{High: 0, Low: 0})
+
+		tid := time.Now().Add(1 * time.Minute)
+
+		writer := func() {
+			store.Update(func(txn *badger.Txn) error {
+				txn.SetEntry(&badger.Entry{
+					Key:       s1Key,
+					ExpiresAt: uint64(tid.Unix()),
+				})
+				txn.SetEntry(&badger.Entry{
+					Key:       s1o1Key,
+					ExpiresAt: uint64(tid.Unix()),
+				})
+				return nil
+			})
+		}
+
+		cache := NewCacheStore(store, time.Duration(-1*time.Hour))
+		writer()
+
+		nuTid := tid.Add(1 * time.Hour)
+
+		cache.Update("service1", "operation1", uint64(tid.Unix()))
+		cache.services["service1"] = uint64(nuTid.Unix())
+		cache.operations["service1"]["operation1"] = uint64(nuTid.Unix())
+
+		// This is equivalent to populate caches of cache
+		_ = NewTraceReader(store, cache, true)
+
+		// Now make sure we didn't use the older timestamps from the DB
+		assert.Equal(t, uint64(nuTid.Unix()), cache.services["service1"])
+		assert.Equal(t, uint64(nuTid.Unix()), cache.operations["service1"]["operation1"])
+	})
 }

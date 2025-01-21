@@ -4,6 +4,7 @@
 package processor
 
 import (
+	"context"
 	"io"
 
 	"go.opentelemetry.io/collector/pdata/ptrace"
@@ -29,7 +30,7 @@ type Batch interface {
 // SpanProcessor handles spans
 type SpanProcessor interface {
 	// ProcessSpans processes spans and return with either a list of true/false success or an error
-	ProcessSpans(spans Batch) ([]bool, error)
+	ProcessSpans(ctx context.Context, spans Batch) ([]bool, error)
 	io.Closer
 }
 

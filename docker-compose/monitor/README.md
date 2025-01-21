@@ -72,10 +72,10 @@ It uses the latest image tags from both Jaeger and OpenTelemetry.
 docker compose up
 ```
 
-**Jaeger v2**
+**Jaeger v1**
 
 ```shell
-docker compose -f docker-compose-v2.yml up
+docker compose -f docker-compose-v1.yml up
 ```
 
 **Tips:**
@@ -83,7 +83,7 @@ docker compose -f docker-compose-v2.yml up
 - Navigate to Jaeger UI at http://localhost:16686/ and inspect the Monitor tab. Select `redis` service from the dropdown to see more than one endpoint.
 - To visualize the raw metrics stored on the Prometheus server (for debugging and local development use cases), use the built-in Prometheus UI at http://localhost:9090/query. For example, http://localhost:9090/query?g0.expr=traces_span_metrics_calls_total&g0.tab=0&g0.range_input=5m
 
-**Warning:** The included [docker-compose.yml](./docker-compose.yml) file uses the `latest` version of Jaeger and other components. If your local Docker registry already contains older versions, which may still be tagged as `latest`, you may want to delete those images before running the full set, to ensure consistent behavior:
+**Warning:** The included ` docker compose` files use the `latest` version of Jaeger and other components. If your local Docker registry already contains older versions, which may still be tagged as `latest`, you may want to delete those images before running the full set, to ensure consistent behavior:
 
 ```bash
 make clean-all
@@ -92,13 +92,13 @@ make clean-all
 To use an official published image of Jaeger, specify the version via environment variable:
 
 ```shell
-JAEGER_IMAGE_TAG=1.62.0 docker compose up
+JAEGER_IMAGE_TAG=2.0.0 docker compose -f docker-compose.yml up
 ```
 
-or for Jaeger v2:
+or for Jaeger v1:
 
 ```shell
-JAEGER_IMAGE_TAG=2.0.0 docker compose -f docker-compose-v2.yml up
+JAEGER_IMAGE_TAG=1.62.0 docker compose -f docker-compose-v1.yml up  
 ```
 
 ## Development
@@ -107,7 +107,7 @@ These steps allow for running the system necessary for SPM, built from Jaeger's 
 
 The primary use case is for testing source code changes to the SPM feature locally.
 
-### Build jaeger-all-in-one docker image
+### Build jaeger-v2 docker image
 
 ```shell
 make build
