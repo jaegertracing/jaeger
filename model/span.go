@@ -8,8 +8,6 @@ import (
 	"encoding/gob"
 	"io"
 	"unsafe"
-
-	"go.uber.org/zap"
 )
 
 type SamplerType int
@@ -164,4 +162,3 @@ func (s *Span) ReplaceParentID(newParentID SpanID) {
 func uint64ToInt64Bits(value uint64) int64 {
 	return *(*int64)(unsafe.Pointer(&value))
 }
-
