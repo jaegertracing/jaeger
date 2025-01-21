@@ -26,8 +26,13 @@ import (
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/confignet"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+	otlptrace "go.opentelemetry.io/proto/otlp/collector/trace/v1"
+	tracepb "go.opentelemetry.io/proto/otlp/trace/v1"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/metadata"
 
 	cFlags "github.com/jaegertracing/jaeger/cmd/collector/app/flags"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/handler"
@@ -913,6 +918,108 @@ func TestOTLPReceiverWithV2Storage(t *testing.T) {
 			ScopeSpans().At(0).
 			Spans().At(0)
 		return receivedSpan.Name() == span.Name()
+	}, 1*time.Second, 1*time.Millisecond)
+
+	mockWriter.AssertExpectations(t)
+}
+
+func TestOTLPReceiverWithV2StorageWithGRPC(t *testing.T) {
+	// Setup mock writer and expectations
+	mockWriter := mocks.NewWriter(t)
+	traces := ptrace.NewTraces()
+	rSpans := traces.ResourceSpans().AppendEmpty()
+	sSpans := rSpans.ScopeSpans().AppendEmpty()
+	span := sSpans.Spans().AppendEmpty()
+	span.SetName("test-trace")
+
+	var receivedTraces atomic.Pointer[ptrace.Traces]
+	var recievedCtx atomic.Pointer[context.Context]
+	mockWriter.On("WriteTraces", mock.Anything, mock.Anything).
+		Run(func(args mock.Arguments) {
+			storeContext := args.Get(0).(context.Context)
+			storeTrace := args.Get(1).(ptrace.Traces)
+			receivedTraces.Store(&storeTrace)
+			recievedCtx.Store(&storeContext)
+		}).Return(nil)
+
+	spanProcessor, err := NewSpanProcessor(
+		mockWriter,
+		nil,
+		Options.NumWorkers(1),
+		Options.QueueSize(1),
+		Options.ReportBusy(true),
+	)
+	require.NoError(t, err)
+	defer spanProcessor.Close()
+	logger := zaptest.NewLogger(t)
+
+	portHttp := "4318"
+	portGrpc := "4317"
+
+	// Setup proper tenancy manager using NewManager
+	tenancyMgr := tenancy.NewManager(&tenancy.Options{
+		Enabled: true,
+		Header:  "x-tenant",
+		Tenants: []string{"test-tenant"},
+	})
+
+	// Create and start receiver
+	rec, err := handler.StartOTLPReceiver(
+		optionsWithPorts(fmt.Sprintf("localhost:%v", portHttp), fmt.Sprintf("localhost:%v", portGrpc)),
+		logger,
+		spanProcessor,
+		tenancyMgr,
+	)
+	require.NoError(t, err)
+	ctx := context.Background()
+	defer rec.Shutdown(ctx)
+
+	// Create gRPC client connection
+	conn, err := grpc.NewClient(
+		fmt.Sprintf("localhost:%v", portGrpc),
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
+	require.NoError(t, err)
+	defer conn.Close()
+
+	// Create metadata with tenant information
+	md := metadata.New(map[string]string{
+		tenancyMgr.Header: "test-tenant",
+	})
+	ctxWithMD := metadata.NewOutgoingContext(ctx, md)
+
+	client := otlptrace.NewTraceServiceClient(conn)
+	req := &otlptrace.ExportTraceServiceRequest{
+		ResourceSpans: []*tracepb.ResourceSpans{
+			{
+				ScopeSpans: []*tracepb.ScopeSpans{
+					{
+						Spans: []*tracepb.Span{
+							{
+								Name: "test-trace",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	// Send traces via gRPC
+	_, err = client.Export(ctxWithMD, req)
+	require.NoError(t, err)
+
+	assert.Eventually(t, func() bool {
+		storedTraces := receivedTraces.Load()
+		storedCtx := recievedCtx.Load()
+		if storedTraces == nil || storedCtx == nil {
+			return false
+		}
+		receivedSpan := storedTraces.ResourceSpans().At(0).
+			ScopeSpans().At(0).
+			Spans().At(0)
+		receivedTenant := tenancy.GetTenant(*storedCtx)
+		return receivedSpan.Name() == span.Name() && receivedTenant == "test-tenant"
 	}, 1*time.Second, 1*time.Millisecond)
 
 	mockWriter.AssertExpectations(t)
