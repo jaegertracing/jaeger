@@ -92,7 +92,7 @@ jobs:
       run: make thrift && git diff --name-status --exit-code
 
     - name: Verify Mockery types are up to date
-      run: make generate-mocks && git status --porcelain | grep '??' && exit 1
+      run: make generate-mocks && if git status --porcelain | grep '??'; then exit 1; fi
 
   lint-shell-scripts:
     runs-on: ubuntu-latest
