@@ -80,17 +80,12 @@ func NewTraceReader(db *badger.DB, c *CacheStore, prefillCache bool) *TraceReade
 		cache: c,
 	}
 	if prefillCache {
-		reader.cache.cacheLock.Lock()
-		defer reader.cache.cacheLock.Unlock()
 		reader.loadServices()
-		for service := range reader.cache.services {
-			reader.loadOperations(service)
-		}
+		reader.cache.ServiceIterator(func(service string) {
+			reader.loadOperations(service, reader.cache.UnsafeFillOperation)
+		})
 	}
-	return &TraceReader{
-		store: db,
-		cache: c,
-	}
+	return reader
 }
 
 func decodeValue(val []byte, encodeType byte) (*model.Span, error) {
@@ -638,18 +633,13 @@ func (r *TraceReader) loadServices() {
 			timestampStartIndex := len(it.Item().Key()) - (sizeOfTraceID + 8) // 8 = sizeof(uint64)
 			serviceName := string(it.Item().Key()[len(serviceKey):timestampStartIndex])
 			keyTTL := it.Item().ExpiresAt()
-			if v, found := r.cache.services[serviceName]; found {
-				if v > keyTTL {
-					continue
-				}
-			}
-			r.cache.services[serviceName] = keyTTL
+			r.cache.FillService(serviceName, keyTTL)
 		}
 		return nil
 	})
 }
 
-func (r *TraceReader) loadOperations(service string) {
+func (r *TraceReader) loadOperations(service string, operationFiller func(service, operation string, keyTTL uint64)) {
 	r.store.View(func(txn *badger.Txn) error {
 		opts := badger.DefaultIteratorOptions
 		it := txn.NewIterator(opts)
@@ -664,16 +654,7 @@ func (r *TraceReader) loadOperations(service string) {
 			timestampStartIndex := len(it.Item().Key()) - (sizeOfTraceID + 8) // 8 = sizeof(uint64)
 			operationName := string(it.Item().Key()[len(serviceKey):timestampStartIndex])
 			keyTTL := it.Item().ExpiresAt()
-			if _, found := r.cache.operations[service]; !found {
-				r.cache.operations[service] = make(map[string]uint64)
-			}
-
-			if v, found := r.cache.operations[service][operationName]; found {
-				if v > keyTTL {
-					continue
-				}
-			}
-			r.cache.operations[service][operationName] = keyTTL
+			operationFiller(service, operationName, keyTTL)
 		}
 		return nil
 	})
