@@ -18,9 +18,8 @@ type SpanHasher struct {
 }
 
 func NewSpanHasher() *SpanHasher {
-	protoMarshaler := &ptrace.ProtoMarshaler{}
 	return &SpanHasher{
-		marshaler: protoMarshaler,
+		marshaler: &ptrace.ProtoMarshaler{},
 	}
 }
 

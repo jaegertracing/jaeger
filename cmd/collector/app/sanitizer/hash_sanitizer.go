@@ -7,8 +7,8 @@ import (
 	"github.com/jaegertracing/jaeger/model"
 )
 
-// NewHashingSanitizer creates a sanitizer to add hash field to spans
-func NewHashingSanitizer() SanitizeSpan {
+// AddHashTag creates a sanitizer to add hash field to spans
+func AddHashTag() SanitizeSpan {
 	return hashingSanitizer
 }
 

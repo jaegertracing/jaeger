@@ -14,7 +14,7 @@ import (
 )
 
 func TestHashingSanitizer(t *testing.T) {
-	sanitizer := NewHashingSanitizer()
+	sanitizer := AddHashTag()
 
 	t.Run("add hash to span without hash tag", func(t *testing.T) {
 		span := &model.Span{
