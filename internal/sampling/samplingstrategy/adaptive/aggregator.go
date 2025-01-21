@@ -4,6 +4,7 @@
 package adaptive
 
 import (
+	"strconv"
 	"sync"
 	"time"
 
@@ -155,4 +156,37 @@ func (a *aggregator) HandleRootSpan(span *span_model.Span) {
 		return
 	}
 	a.RecordThroughput(service, span.OperationName, samplerType, samplerParam)
+}
+
+// GetSamplerParams returns the sampler.type and sampler.param value if they are valid.
+func GetSamplerParams(s *span_model.Span, logger *zap.Logger) (span_model.SamplerType, float64) {
+	samplerType := s.GetSamplerType()
+	if samplerType == span_model.SamplerTypeUnrecognized {
+		return span_model.SamplerTypeUnrecognized, 0
+	}
+	tag, ok := span_model.KeyValues(s.Tags).FindByKey(span_model.SamplerParamKey)
+	if !ok {
+		return span_model.SamplerTypeUnrecognized, 0
+	}
+	samplerParam, err := samplerParamToFloat(tag)
+	if err != nil {
+		logger.
+			With(zap.String("traceID", s.TraceID.String())).
+			With(zap.String("spanID", s.SpanID.String())).
+			Warn("sampler.param tag is not a number", zap.Any("tag", tag))
+		return span_model.SamplerTypeUnrecognized, 0
+	}
+	return samplerType, samplerParam
+}
+
+func samplerParamToFloat(samplerParamTag span_model.KeyValue) (float64, error) {
+	// The param could be represented as a string, an int, or a float
+	switch samplerParamTag.VType {
+	case span_model.Float64Type:
+		return samplerParamTag.Float64(), nil
+	case span_model.Int64Type:
+		return float64(samplerParamTag.Int64()), nil
+	default:
+		return strconv.ParseFloat(samplerParamTag.AsString(), 64)
+	}
 }
