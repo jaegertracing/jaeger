@@ -48,9 +48,17 @@ jobs:
       run: bash scripts/e2e/cassandra.sh ${{ matrix.version.major }} ${{ matrix.version.schema }} ${{ matrix.jaeger-version }}
       env:
         SKIP_APPLY_SCHEMA: ${{ matrix.create-schema == 'auto' && true || false }}
+     
+    - uses: ./.github/actions/verify-metrics-snapshot
+      if: matrix.jaeger-version == 'v2'
+      with:
+        snapshot: metrics_snapshot_cassandra
+        artifact_key: metrics_snapshot_cassandras_${{ matrix.version.major }}_${{ matrix.version.schema }}_${{ matrix.jaeger-version }}_${{ matrix.create-schema }}
 
     - name: Upload coverage to codecov
       uses: ./.github/actions/upload-codecov
       with:
         files: cover.out
         flags: cassandra-${{ matrix.version.major }}-${{ matrix.jaeger-version }}-${{ matrix.create-schema }}
+    
+    

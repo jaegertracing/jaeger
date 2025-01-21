@@ -31,15 +31,15 @@ func TestGetV1Reader_NoError(t *testing.T) {
 	traceReader := &TraceReader{
 		spanReader: memstore,
 	}
-	v1Reader, err := GetV1Reader(traceReader)
-	require.NoError(t, err)
+	v1Reader, ok := GetV1Reader(traceReader)
+	require.True(t, ok)
 	require.Equal(t, memstore, v1Reader)
 }
 
 func TestGetV1Reader_Error(t *testing.T) {
 	fr := new(tracestoremocks.Reader)
-	_, err := GetV1Reader(fr)
-	require.ErrorIs(t, err, ErrV1ReaderNotAvailable)
+	_, ok := GetV1Reader(fr)
+	require.False(t, ok)
 }
 
 func TestTraceReader_GetTracesDelegatesSuccessResponse(t *testing.T) {

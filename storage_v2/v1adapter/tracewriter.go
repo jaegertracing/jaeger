@@ -6,24 +6,25 @@ package v1adapter
 import (
 	"context"
 	"errors"
+	"time"
 
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
+	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	"github.com/jaegertracing/jaeger/storage_v2/tracestore"
 )
-
-var ErrV1WriterNotAvailable = errors.New("spanstore.Writer is not a wrapper around v1 writer")
 
 type TraceWriter struct {
 	spanWriter spanstore.Writer
 }
 
-func GetV1Writer(writer tracestore.Writer) (spanstore.Writer, error) {
+func GetV1Writer(writer tracestore.Writer) (spanstore.Writer, bool) {
 	if tr, ok := writer.(*TraceWriter); ok {
-		return tr.spanWriter, nil
+		return tr.spanWriter, ok
 	}
-	return nil, ErrV1WriterNotAvailable
+	return nil, false
 }
 
 func NewTraceWriter(spanWriter spanstore.Writer) *TraceWriter {
@@ -48,4 +49,18 @@ func (t *TraceWriter) WriteTraces(ctx context.Context, td ptrace.Traces) error {
 		}
 	}
 	return errors.Join(errs...)
+}
+
+type DependencyWriter struct {
+	writer dependencystore.Writer
+}
+
+func NewDependencyWriter(writer dependencystore.Writer) *DependencyWriter {
+	return &DependencyWriter{
+		writer: writer,
+	}
+}
+
+func (dw *DependencyWriter) WriteDependencies(ts time.Time, dependencies []model.DependencyLink) error {
+	return dw.writer.WriteDependencies(ts, dependencies)
 }

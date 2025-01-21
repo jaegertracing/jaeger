@@ -99,9 +99,30 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
+		scrapeMetrics(t, storage)
 		require.NoError(t, s.TraceReader.(io.Closer).Close())
 		require.NoError(t, s.TraceWriter.(io.Closer).Close())
 	})
+}
+
+func scrapeMetrics(t *testing.T, storage string) {
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "http://localhost:8888/metrics", nil)
+	require.NoError(t, err)
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	outputDir := "../../../../.metrics"
+	require.NoError(t, os.MkdirAll(outputDir, os.ModePerm))
+
+	metricsFile, err := os.Create(fmt.Sprintf("%s/metrics_snapshot_%v.txt", outputDir, storage))
+	require.NoError(t, err)
+	defer metricsFile.Close()
+
+	_, err = io.Copy(metricsFile, resp.Body)
+	require.NoError(t, err)
 }
 
 func createStorageCleanerConfig(t *testing.T, configFile string, storage string) string {

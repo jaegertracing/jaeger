@@ -92,7 +92,7 @@ jobs:
       run: make thrift && git diff --name-status --exit-code
 
     - name: Verify Mockery types are up to date
-      run: make generate-mocks && git diff --name-status --exit-code
+      run: make generate-mocks && { if git status --porcelain | grep '??'; then exit 1; else git diff --name-status --exit-code; fi }
 
   lint-shell-scripts:
     runs-on: ubuntu-latest
@@ -155,7 +155,7 @@ jobs:
           jaeger_binary_size
 
     - name: Compare jaeger binary sizes
-      if: steps.cache-binary-size.outputs.cache-hit == 'true'
+      if: steps.cache-binary-size.outputs.cache-matched-key != ''
       run: |
         OLD_BINARY_SIZE=$(cat ./jaeger_binary_size.txt)
         NEW_BINARY_SIZE=$(cat ./new_jaeger_binary_size.txt)

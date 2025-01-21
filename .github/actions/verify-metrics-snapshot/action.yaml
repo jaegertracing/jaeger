@@ -1,0 +1,70 @@
+# Copyright (c) 2023 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
+name: 'Verify Metric Snapshot and Upload Metrics'
+description: 'Upload or cache the metrics data after verification'
+inputs:
+  snapshot:
+    description: 'Path to the metric file'
+    required: true
+  artifact_key:
+    description: 'Artifact key used for uploading and fetching artifacts'
+    required: true
+runs:
+  using: 'composite'
+  steps:
+    - name: Upload current metrics snapshot
+      uses: actions/upload-artifact@6f51ac03b9356f520e9adb1b1b7802705f340c2b # v4.5.0
+      with:
+        name: ${{ inputs.artifact_key }}
+        path: ./.metrics/${{ inputs.snapshot }}.txt
+        retention-days: 7
+
+      # The github cache restore successfully restores when cache saved has same key and same path.
+      # Hence to restore release metric with name relese_{metric_name} , the name must be changed to the same.
+    - name: Change file name before caching
+      if: github.ref_name == 'main'
+      shell: bash
+      run: |
+        mv ./.metrics/${{ inputs.snapshot }}.txt ./.metrics/baseline_${{ inputs.snapshot }}.txt
+
+    - name: Cache metrics snapshot on main branch for longer retention
+      if: github.ref_name == 'main'
+      uses: actions/cache/save@1bd1e32a3bdc45362d1e726936510720a7c30a57
+      with: 
+        path: ./.metrics/baseline_${{ inputs.snapshot }}.txt
+        key: ${{ inputs.artifact_key }}_${{ github.run_id }}
+            
+    # Use restore keys to match prefix and fetch the latest cache
+    # Here , restore keys is an ordered list of prefixes that need to be matched 
+    - name: Download the cached tagged metrics
+      id: download-release-snapshot
+      if: github.ref_name != 'main'
+      uses: actions/cache/restore@1bd1e32a3bdc45362d1e726936510720a7c30a57
+      with:
+        path: ./.metrics/baseline_${{ inputs.snapshot }}.txt
+        key: ${{ inputs.artifact_key }}
+        restore-keys: |
+          ${{ inputs.artifact_key }}
+
+    - name: Calculate diff between the snapshots 
+      id: compare-snapshots
+      if: ${{ (github.ref_name != 'main') && (steps.download-release-snapshot.outputs.cache-matched-key != '')  }}
+      shell: bash
+      run: |
+        python3 -m pip install prometheus-client
+        python3 ./scripts/e2e/compare_metrics.py --file1 ./.metrics/${{ inputs.snapshot }}.txt --file2 ./.metrics/baseline_${{ inputs.snapshot }}.txt --output ./.metrics/diff_${{ inputs.snapshot }}.txt
+        if [ $? -eq 1 ]; then
+        echo "🛑 Differences found in metrics"
+        exit 1
+        fi
+
+    - name: Upload the diff artifact
+      if: ${{ (github.ref_name != 'main') && (steps.compare-snapshots.outcome == 'failure') }}
+      uses: actions/upload-artifact@6f51ac03b9356f520e9adb1b1b7802705f340c2b # v4.5.0
+      with:
+        name: diff_${{ inputs.artifact_key }}
+        path: ./.metrics/diff_${{ inputs.snapshot }}.txt
+        retention-days: 7
+
+    
