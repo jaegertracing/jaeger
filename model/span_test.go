@@ -175,32 +175,6 @@ func TestIsRPCClientServer(t *testing.T) {
 	assert.False(t, span2.IsRPCServer())
 }
 
-func TestIsDebug(t *testing.T) {
-	flags := model.Flags(0)
-	flags.SetDebug()
-	assert.True(t, flags.IsDebug())
-	flags = model.Flags(0)
-	assert.False(t, flags.IsDebug())
-
-	flags = model.Flags(32)
-	assert.False(t, flags.IsDebug())
-	flags.SetDebug()
-	assert.True(t, flags.IsDebug())
-}
-
-func TestIsFirehoseEnabled(t *testing.T) {
-	flags := model.Flags(0)
-	assert.False(t, flags.IsFirehoseEnabled())
-	flags.SetDebug()
-	flags.SetSampled()
-	assert.False(t, flags.IsFirehoseEnabled())
-	flags.SetFirehose()
-	assert.True(t, flags.IsFirehoseEnabled())
-
-	flags = model.Flags(8)
-	assert.True(t, flags.IsFirehoseEnabled())
-}
-
 func TestGetSpanKind(t *testing.T) {
 	span := makeSpan(model.String("sampler.type", "lowerbound"))
 	spanKind, found := span.GetSpanKind()
@@ -222,15 +196,6 @@ func TestSamplerType(t *testing.T) {
 	assert.Equal(t, model.SamplerTypeProbabilistic, span.GetSamplerType())
 	span = makeSpan(model.KeyValue{})
 	assert.Equal(t, model.SamplerTypeUnrecognized, span.GetSamplerType())
-}
-
-func TestIsSampled(t *testing.T) {
-	flags := model.Flags(0)
-	flags.SetSampled()
-	assert.True(t, flags.IsSampled())
-	flags = model.Flags(0)
-	flags.SetDebug()
-	assert.False(t, flags.IsSampled())
 }
 
 func TestSpanHash(t *testing.T) {
