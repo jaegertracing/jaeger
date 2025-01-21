@@ -211,3 +211,16 @@ For example:
 ```
 * Remove deprecated flags `--old-flag`, please use `--new-flag` ([#1234](<pull-request URL>), [@myusername](https://github.com/myusername))
 ```
+
+## Using Feature Gates for Breaking Changes
+
+As much as possible, use OTel Collector's [feature gates][feature_gates] to manage breaking changes. For example, consider that we discovered a bug in the existing behavior, such as https://github.com/jaegertracing/jaeger/issues/5270. Simply changing the behavior might be a breaking change, so we implement a new behavior and create an internal config setting that enables or disables it. But how will users ever know and be encouraged to migrate to the new behavior? For that we can create a feature gate (without even creating any additional user-facing configuration), as follows:
+  * Introduce a new feature gate, with the name `jaeger.***`.
+  * If we don't want to change the default behavior right away, we can start the feature in the Alpha state, where it is disabled by default. No breaking changes need to be called out in the changelog.
+  * If we do want to change the default behavior right away, we can start the feature in the Beta state, where it is enabled by default, but the user can still disable it. Call out a breaking change in the changelog.
+  * Two releases later change the gate to Stable, where it is not only enabled by default, but trying to disable it will cause a runtime error. The code for the old behavior should be removed. Call out a breaking change in the changelog.
+  * Two releases later remove the feature gate as unused. Call out a breaking change in the changelog.
+
+See https://github.com/jaegertracing/jaeger/pull/6441 for an example of this workflow.
+
+[feature_gates]: https://github.com/open-telemetry/opentelemetry-collector/blob/main/featuregate/README.md

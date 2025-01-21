@@ -23,7 +23,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger/model"
-	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/samplingstore"
 	samplemodel "github.com/jaegertracing/jaeger/storage/samplingstore/model"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
@@ -48,7 +47,7 @@ type StorageIntegration struct {
 	TraceReader       tracestore.Reader
 	ArchiveSpanReader spanstore.Reader
 	ArchiveSpanWriter spanstore.Writer
-	DependencyWriter  dependencystore.Writer
+	DependencyWriter  depstore.Writer
 	DependencyReader  depstore.Reader
 	SamplingStore     samplingstore.Store
 	Fixtures          []*QueryFixtures
