@@ -151,7 +151,7 @@ func (a *aggregator) HandleRootSpan(span *span_model.Span) {
 	if service == "" || span.OperationName == "" {
 		return
 	}
-	samplerType, samplerParam := span.GetSamplerParams(a.postAggregator.logger)
+	samplerType, samplerParam := getSamplerParams(span, a.postAggregator.logger)
 	if samplerType == span_model.SamplerTypeUnrecognized {
 		return
 	}
@@ -159,7 +159,7 @@ func (a *aggregator) HandleRootSpan(span *span_model.Span) {
 }
 
 // GetSamplerParams returns the sampler.type and sampler.param value if they are valid.
-func (a *aggregator) getSamplerParams(s *span_model.Span, logger *zap.Logger) (span_model.SamplerType, float64) {
+func getSamplerParams(s *span_model.Span, logger *zap.Logger) (span_model.SamplerType, float64) {
 	samplerType := s.GetSamplerType()
 	if samplerType == span_model.SamplerTypeUnrecognized {
 		return span_model.SamplerTypeUnrecognized, 0
