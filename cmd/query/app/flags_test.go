@@ -86,8 +86,12 @@ func TestStringSliceAsHeader(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func fakeInitializerFn(*zap.Logger) (spanstore.Reader, spanstore.Writer) {
+func initializedFn(*zap.Logger) (spanstore.Reader, spanstore.Writer) {
 	return &spanstoremocks.Reader{}, &spanstoremocks.Writer{}
+}
+
+func uninitializedFn(*zap.Logger) (spanstore.Reader, spanstore.Writer) {
+	return nil, nil
 }
 
 func TestBuildQueryServiceOptions(t *testing.T) {
@@ -96,7 +100,7 @@ func TestBuildQueryServiceOptions(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotNil(t, qOpts)
 
-	qSvcOpts := qOpts.BuildQueryServiceOptions(fakeInitializerFn, zap.NewNop())
+	qSvcOpts := qOpts.BuildQueryServiceOptions(initializedFn, zap.NewNop())
 	assert.NotNil(t, qSvcOpts)
 	assert.NotNil(t, qSvcOpts.Adjuster)
 	assert.NotNil(t, qSvcOpts.ArchiveSpanReader)
@@ -110,7 +114,7 @@ func TestBuildQueryServiceOptions_NoArchiveStorage(t *testing.T) {
 	assert.NotNil(t, qOpts)
 
 	logger, logBuf := testutils.NewLogger()
-	qSvcOpts := qOpts.BuildQueryServiceOptions(fakeInitializerFn, logger)
+	qSvcOpts := qOpts.BuildQueryServiceOptions(uninitializedFn, logger)
 	assert.NotNil(t, qSvcOpts)
 	assert.NotNil(t, qSvcOpts.Adjuster)
 	assert.Nil(t, qSvcOpts.ArchiveSpanReader)
@@ -125,7 +129,7 @@ func TestBuildQueryServiceOptionsV2(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotNil(t, qOpts)
 
-	qSvcOpts := qOpts.BuildQueryServiceOptionsV2(fakeInitializerFn, zap.NewNop())
+	qSvcOpts := qOpts.BuildQueryServiceOptionsV2(initializedFn, zap.NewNop())
 
 	assert.NotNil(t, qSvcOpts)
 	assert.NotNil(t, qSvcOpts.Adjuster)
@@ -140,7 +144,7 @@ func TestBuildQueryServiceOptionsV2_NoArchiveStorage(t *testing.T) {
 	assert.NotNil(t, qOpts)
 
 	logger, logBuf := testutils.NewLogger()
-	qSvcOpts := qOpts.BuildQueryServiceOptionsV2(fakeInitializerFn, logger)
+	qSvcOpts := qOpts.BuildQueryServiceOptionsV2(uninitializedFn, logger)
 	assert.Nil(t, qSvcOpts.ArchiveTraceReader)
 	assert.Nil(t, qSvcOpts.ArchiveTraceWriter)
 
