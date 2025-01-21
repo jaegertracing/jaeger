@@ -301,15 +301,23 @@ func (f *Factory) addDownsamplingFlags(flagSet *flag.FlagSet) {
 
 // InitFromViper implements plugin.Configurable
 func (f *Factory) InitFromViper(v *viper.Viper, logger *zap.Logger) {
-	initFromViper := func(factories map[string]storage.Factory) {
-		for _, factory := range factories {
-			if conf, ok := factory.(plugin.Configurable); ok {
-				conf.InitFromViper(v, logger)
+	initializeConfigurable := func(factory storage.Factory) {
+		if conf, ok := factory.(plugin.Configurable); ok {
+			conf.InitFromViper(v, logger)
+		}
+	}
+	for _, factory := range f.factories {
+		initializeConfigurable(factory)
+	}
+	for kind, factory := range f.archiveFactories {
+		initializeConfigurable(factory)
+
+		if primaryFactory, ok := f.factories[kind]; ok {
+			if inheritable, ok := factory.(plugin.Inheritable); ok {
+				inheritable.InheritSettingsFrom(primaryFactory)
 			}
 		}
 	}
-	initFromViper(f.factories)
-	initFromViper(f.archiveFactories)
 	f.initDownsamplingFromViper(v)
 }
 
