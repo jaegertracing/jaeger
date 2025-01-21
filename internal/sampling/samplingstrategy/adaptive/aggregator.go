@@ -159,7 +159,7 @@ func (a *aggregator) HandleRootSpan(span *span_model.Span) {
 }
 
 // GetSamplerParams returns the sampler.type and sampler.param value if they are valid.
-func (a *aggregator) getSamplerParams(s *span_model.Span) (span_model.SamplerType, float64) {
+func (a *aggregator) getSamplerParams(s *span_model.Span, logger *zap.Logger) (span_model.SamplerType, float64) {
 	samplerType := s.GetSamplerType()
 	if samplerType == span_model.SamplerTypeUnrecognized {
 		return span_model.SamplerTypeUnrecognized, 0
@@ -170,7 +170,7 @@ func (a *aggregator) getSamplerParams(s *span_model.Span) (span_model.SamplerTyp
 	}
 	samplerParam, err := samplerParamToFloat(tag)
 	if err != nil {
-		a.postAggregator.logger.
+		logger.
 			With(zap.String("traceID", s.TraceID.String())).
 			With(zap.String("spanID", s.SpanID.String())).
 			Warn("sampler.param tag is not a number", zap.Any("tag", tag))
