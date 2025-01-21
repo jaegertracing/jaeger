@@ -86,13 +86,8 @@ func TestStringSliceAsHeader(t *testing.T) {
 	require.NoError(t, err)
 }
 
-type fakeArchiveInitializer struct {
-	archiveReader spanstore.Reader
-	archiveWriter spanstore.Writer
-}
-
-func (f *fakeArchiveInitializer) InitArchiveStorage(*zap.Logger) (spanstore.Reader, spanstore.Writer) {
-	return f.archiveReader, f.archiveWriter
+func fakeInitializerFn(*zap.Logger) (spanstore.Reader, spanstore.Writer) {
+	return &spanstoremocks.Reader{}, &spanstoremocks.Writer{}
 }
 
 func TestBuildQueryServiceOptions(t *testing.T) {
@@ -101,10 +96,7 @@ func TestBuildQueryServiceOptions(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotNil(t, qOpts)
 
-	qSvcOpts := qOpts.BuildQueryServiceOptions(&fakeArchiveInitializer{
-		archiveReader: &spanstoremocks.Reader{},
-		archiveWriter: &spanstoremocks.Writer{},
-	}, zap.NewNop())
+	qSvcOpts := qOpts.BuildQueryServiceOptions(fakeInitializerFn, zap.NewNop())
 	assert.NotNil(t, qSvcOpts)
 	assert.NotNil(t, qSvcOpts.Adjuster)
 	assert.NotNil(t, qSvcOpts.ArchiveSpanReader)
@@ -118,7 +110,7 @@ func TestBuildQueryServiceOptions_NoArchiveStorage(t *testing.T) {
 	assert.NotNil(t, qOpts)
 
 	logger, logBuf := testutils.NewLogger()
-	qSvcOpts := qOpts.BuildQueryServiceOptions(&fakeArchiveInitializer{}, logger)
+	qSvcOpts := qOpts.BuildQueryServiceOptions(fakeInitializerFn, logger)
 	assert.NotNil(t, qSvcOpts)
 	assert.NotNil(t, qSvcOpts.Adjuster)
 	assert.Nil(t, qSvcOpts.ArchiveSpanReader)
@@ -133,10 +125,7 @@ func TestBuildQueryServiceOptionsV2(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotNil(t, qOpts)
 
-	qSvcOpts := qOpts.BuildQueryServiceOptionsV2(&fakeArchiveInitializer{
-		archiveReader: &spanstoremocks.Reader{},
-		archiveWriter: &spanstoremocks.Writer{},
-	}, zap.NewNop())
+	qSvcOpts := qOpts.BuildQueryServiceOptionsV2(fakeInitializerFn, zap.NewNop())
 
 	assert.NotNil(t, qSvcOpts)
 	assert.NotNil(t, qSvcOpts.Adjuster)
@@ -151,7 +140,7 @@ func TestBuildQueryServiceOptionsV2_NoArchiveStorage(t *testing.T) {
 	assert.NotNil(t, qOpts)
 
 	logger, logBuf := testutils.NewLogger()
-	qSvcOpts := qOpts.BuildQueryServiceOptionsV2(&fakeArchiveInitializer{}, logger)
+	qSvcOpts := qOpts.BuildQueryServiceOptionsV2(fakeInitializerFn, logger)
 	assert.Nil(t, qSvcOpts.ArchiveTraceReader)
 	assert.Nil(t, qSvcOpts.ArchiveTraceWriter)
 
