@@ -25,7 +25,7 @@ import (
 
 const (
 	serviceName         = "serviceName"
-	spanKindField       = "spanKindField"
+	spanKindField       = "spanKind"
 	operationsAggName   = "distinct_operations"
 	servicesAggregation = "distinct_services"
 )
@@ -63,7 +63,6 @@ func (s *ServiceOperationStorage) Write(indexName string, jsonSpan *dbmodel.Span
 		Kind:          string(kind),
 		OperationName: jsonSpan.OperationName,
 	}
-
 	cacheKey := hashCode(service)
 	if !keyInCache(cacheKey, s.serviceCache) {
 		s.client().Index().Index(indexName).Type(serviceType).Id(cacheKey).BodyJson(service).Add()
