@@ -168,7 +168,7 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 			}
 			if role == "archive" {
 				if primaryFactory, ok := f.factories[kind]; ok {
-					if dc, ok := factory.(plugin.DefaultConfigurable); ok {
+					if dc, ok := factory.(plugin.Inheritable); ok {
 						dc.InheritSettingsFrom(primaryFactory)
 					}
 				}

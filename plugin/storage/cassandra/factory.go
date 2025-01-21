@@ -46,6 +46,7 @@ var ( // interface comformance checks
 	_ storage.SamplingStoreFactory = (*Factory)(nil)
 	_ io.Closer                    = (*Factory)(nil)
 	_ plugin.Configurable          = (*Factory)(nil)
+	_ plugin.Inheritable           = (*Factory)(nil)
 )
 
 // Factory implements storage.Factory for Cassandra backend.

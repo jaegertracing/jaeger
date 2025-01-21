@@ -23,8 +23,8 @@ type Configurable interface {
 	InitFromViper(v *viper.Viper, logger *zap.Logger)
 }
 
-// DefaultConfigurable is an interface that can be implement by some storage implementations
+// Inheritable is an interface that can be implement by some storage implementations
 // to provide a way to inherit configuration settings from another factory.
-type DefaultConfigurable interface {
+type Inheritable interface {
 	InheritSettingsFrom(other storage.Factory)
 }
