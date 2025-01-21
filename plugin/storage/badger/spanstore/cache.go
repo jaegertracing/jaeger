@@ -35,8 +35,8 @@ func NewCacheStore(db *badger.DB, ttl time.Duration) *CacheStore {
 	return cs
 }
 
-// FillService fills the services into the cache with the most updated expiration time
-func (c *CacheStore) FillService(service string, keyTTL uint64) {
+// AddService fills the services into the cache with the most updated expiration time
+func (c *CacheStore) AddService(service string, keyTTL uint64) {
 	c.cacheLock.Lock()
 	defer c.cacheLock.Unlock()
 	if v, found := c.services[service]; found {
@@ -47,19 +47,10 @@ func (c *CacheStore) FillService(service string, keyTTL uint64) {
 	c.services[service] = keyTTL
 }
 
-// ServiceIterator iterates the service map structure of the cache.
-func (c *CacheStore) ServiceIterator(itr func(service string)) {
+// AddOperation adds the cache with operation names with most updated expiration time
+func (c *CacheStore) AddOperation(service, operation string, keyTTL uint64) {
 	c.cacheLock.Lock()
 	defer c.cacheLock.Unlock()
-	for service := range c.services {
-		itr(service)
-	}
-}
-
-// UnsafeFillOperation don't apply lock while filling the operation in cache. This should only be used
-// along with other methods which are thread-safe, for example it's primary use is along with ServiceIterator
-// where service iterator is expected to lock the cache and hence this operation can be used safely there.
-func (c *CacheStore) UnsafeFillOperation(service, operation string, keyTTL uint64) {
 	if _, found := c.operations[service]; !found {
 		c.operations[service] = make(map[string]uint64)
 	}

@@ -80,10 +80,10 @@ func NewTraceReader(db *badger.DB, c *CacheStore, prefillCache bool) *TraceReade
 		cache: c,
 	}
 	if prefillCache {
-		reader.loadServices()
-		reader.cache.ServiceIterator(func(service string) {
-			reader.loadOperations(service, reader.cache.UnsafeFillOperation)
-		})
+		services := reader.preloadServices()
+		for _, service := range services {
+			reader.preloadOperations(service)
+		}
 	}
 	return reader
 }
@@ -620,8 +620,9 @@ func scanRangeFunction(it *badger.Iterator, indexEndValue []byte) bool {
 	return false
 }
 
-// loadServices fills the cache with services after extracting from badger
-func (r *TraceReader) loadServices() {
+// preloadServices fills the cache with services after extracting from badger
+func (r *TraceReader) preloadServices() []string {
+	var services []string
 	r.store.View(func(txn *badger.Txn) error {
 		opts := badger.DefaultIteratorOptions
 		it := txn.NewIterator(opts)
@@ -634,14 +635,16 @@ func (r *TraceReader) loadServices() {
 			timestampStartIndex := len(it.Item().Key()) - (sizeOfTraceID + 8) // 8 = sizeof(uint64)
 			serviceName := string(it.Item().Key()[len(serviceKey):timestampStartIndex])
 			keyTTL := it.Item().ExpiresAt()
-			r.cache.FillService(serviceName, keyTTL)
+			services = append(services, serviceName)
+			r.cache.AddService(serviceName, keyTTL)
 		}
 		return nil
 	})
+	return services
 }
 
-// loadOperations extract all operations for a specified service
-func (r *TraceReader) loadOperations(service string, operationFiller func(service, operation string, keyTTL uint64)) {
+// preloadOperations extract all operations for a specified service
+func (r *TraceReader) preloadOperations(service string) {
 	r.store.View(func(txn *badger.Txn) error {
 		opts := badger.DefaultIteratorOptions
 		it := txn.NewIterator(opts)
@@ -656,7 +659,7 @@ func (r *TraceReader) loadOperations(service string, operationFiller func(servic
 			timestampStartIndex := len(it.Item().Key()) - (sizeOfTraceID + 8) // 8 = sizeof(uint64)
 			operationName := string(it.Item().Key()[len(serviceKey):timestampStartIndex])
 			keyTTL := it.Item().ExpiresAt()
-			operationFiller(service, operationName, keyTTL)
+			r.cache.AddOperation(service, operationName, keyTTL)
 		}
 		return nil
 	})
