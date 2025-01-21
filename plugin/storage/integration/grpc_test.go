@@ -33,8 +33,7 @@ func (s *GRPCStorageIntegrationTestSuite) initialize(t *testing.T) {
 	initFactory := func() *grpc.Factory {
 		f := grpc.NewFactory()
 		v, command := config.Viperize(f.AddFlags)
-		err := command.ParseFlags(s.flags)
-		require.NoError(t, err)
+		require.NoError(t, command.ParseFlags(s.flags))
 		f.InitFromViper(v, logger)
 		require.NoError(t, f.Initialize(metrics.NullFactory, logger))
 		return f
