@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"reflect"
 	"slices"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -847,20 +848,15 @@ func optionsWithPorts(portHttp string, portGrpc string) *cFlags.CollectorOptions
 func TestOTLPReceiverWithV2Storage(t *testing.T) {
 	// Setup mock writer and expectations
 	mockWriter := mocks.NewWriter(t)
-	traces := ptrace.NewTraces()
-	rSpans := traces.ResourceSpans().AppendEmpty()
-	sSpans := rSpans.ScopeSpans().AppendEmpty()
-	span := sSpans.Spans().AppendEmpty()
-	span.SetName("test-trace")
 
 	var receivedTraces atomic.Pointer[ptrace.Traces]
-	var recievedCtx atomic.Pointer[context.Context]
+	var receivedCtx atomic.Pointer[context.Context]
 	mockWriter.On("WriteTraces", mock.Anything, mock.Anything).
 		Run(func(args mock.Arguments) {
 			storeContext := args.Get(0).(context.Context)
 			storeTrace := args.Get(1).(ptrace.Traces)
 			receivedTraces.Store(&storeTrace)
-			recievedCtx.Store(&storeContext)
+			receivedCtx.Store(&storeContext)
 		}).Return(nil)
 
 	spanProcessor, err := NewSpanProcessor(
@@ -898,11 +894,17 @@ func TestOTLPReceiverWithV2Storage(t *testing.T) {
 		url := fmt.Sprintf("http://localhost:%v/v1/traces", portHttp)
 		client := &http.Client{}
 
-		marshaler := ptrace.JSONMarshaler{}
-		data, err := marshaler.MarshalTraces(traces)
-		require.NoError(t, err)
+		traceJSON := `{
+			"resourceSpans": [{
+				"scopeSpans": [{
+					"spans": [{
+						"name": "test-trace"
+					}]
+				}]
+			}]
+		}`
 
-		req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(data))
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, strings.NewReader(traceJSON))
 		require.NoError(t, err)
 		req.Header.Add("Content-Type", "application/json")
 		req.Header.Add("x-tenant", "test-tenant")
@@ -921,7 +923,7 @@ func TestOTLPReceiverWithV2Storage(t *testing.T) {
 			receivedSpan := storedTraces.ResourceSpans().At(0).
 				ScopeSpans().At(0).
 				Spans().At(0)
-			return receivedSpan.Name() == span.Name()
+			return receivedSpan.Name() == "test-trace"
 		}, 1*time.Second, 1*time.Millisecond)
 
 		mockWriter.AssertExpectations(t)
@@ -983,7 +985,7 @@ func TestOTLPReceiverWithV2Storage(t *testing.T) {
 
 		assert.Eventually(t, func() bool {
 			storedTraces := receivedTraces.Load()
-			storedCtx := recievedCtx.Load()
+			storedCtx := receivedCtx.Load()
 			if storedTraces == nil || storedCtx == nil {
 				return false
 			}
@@ -991,7 +993,7 @@ func TestOTLPReceiverWithV2Storage(t *testing.T) {
 				ScopeSpans().At(0).
 				Spans().At(0)
 			receivedTenant := tenancy.GetTenant(*storedCtx)
-			return receivedSpan.Name() == span.Name() && receivedTenant == "test-tenant"
+			return receivedSpan.Name() == "test-trace" && receivedTenant == "test-tenant"
 		}, 1*time.Second, 1*time.Millisecond)
 
 		mockWriter.AssertExpectations(t)
