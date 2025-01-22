@@ -49,31 +49,6 @@ func NewGRPCHandler(impl *GRPCHandlerStorageImpl) *GRPCHandler {
 	return &GRPCHandler{impl: impl}
 }
 
-// NewGRPCHandler creates a handler given implementations grouped by plugin services.
-func NewGRPCHandlerWithPlugins(
-	mainImpl StoragePlugin,
-	archiveImpl StoragePlugin,
-	streamImpl StreamingSpanWriterPlugin,
-) *GRPCHandler {
-	impl := &GRPCHandlerStorageImpl{
-		SpanReader:       mainImpl.SpanReader,
-		SpanWriter:       mainImpl.SpanWriter,
-		DependencyReader: mainImpl.DependencyReader,
-
-		ArchiveSpanReader:   func() spanstore.Reader { return nil },
-		ArchiveSpanWriter:   func() spanstore.Writer { return nil },
-		StreamingSpanWriter: func() spanstore.Writer { return nil },
-	}
-	if archiveImpl != nil {
-		impl.ArchiveSpanReader = archiveImpl.SpanReader
-		impl.ArchiveSpanWriter = archiveImpl.SpanWriter
-	}
-	if streamImpl != nil {
-		impl.StreamingSpanWriter = streamImpl.StreamingSpanWriter
-	}
-	return NewGRPCHandler(impl)
-}
-
 // Register registers the server as gRPC methods handler.
 func (s *GRPCHandler) Register(ss *grpc.Server, hs *health.Server) error {
 	storage_v1.RegisterSpanReaderPluginServer(ss, s)

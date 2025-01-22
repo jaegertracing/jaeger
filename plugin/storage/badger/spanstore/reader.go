@@ -74,11 +74,18 @@ type executionPlan struct {
 }
 
 // NewTraceReader returns a TraceReader with cache
-func NewTraceReader(db *badger.DB, c *CacheStore) *TraceReader {
-	return &TraceReader{
+func NewTraceReader(db *badger.DB, c *CacheStore, prefillCache bool) *TraceReader {
+	reader := &TraceReader{
 		store: db,
 		cache: c,
 	}
+	if prefillCache {
+		services := reader.preloadServices()
+		for _, service := range services {
+			reader.preloadOperations(service)
+		}
+	}
+	return reader
 }
 
 func decodeValue(val []byte, encodeType byte) (*model.Span, error) {
@@ -611,4 +618,49 @@ func scanRangeFunction(it *badger.Iterator, indexEndValue []byte) bool {
 		return bytes.Compare(indexEndValue, compareSlice) >= 0
 	}
 	return false
+}
+
+// preloadServices fills the cache with services after extracting from badger
+func (r *TraceReader) preloadServices() []string {
+	var services []string
+	r.store.View(func(txn *badger.Txn) error {
+		opts := badger.DefaultIteratorOptions
+		it := txn.NewIterator(opts)
+		defer it.Close()
+
+		serviceKey := []byte{serviceNameIndexKey}
+
+		// Seek all the services first
+		for it.Seek(serviceKey); it.ValidForPrefix(serviceKey); it.Next() {
+			timestampStartIndex := len(it.Item().Key()) - (sizeOfTraceID + 8) // 8 = sizeof(uint64)
+			serviceName := string(it.Item().Key()[len(serviceKey):timestampStartIndex])
+			keyTTL := it.Item().ExpiresAt()
+			services = append(services, serviceName)
+			r.cache.AddService(serviceName, keyTTL)
+		}
+		return nil
+	})
+	return services
+}
+
+// preloadOperations extract all operations for a specified service
+func (r *TraceReader) preloadOperations(service string) {
+	r.store.View(func(txn *badger.Txn) error {
+		opts := badger.DefaultIteratorOptions
+		it := txn.NewIterator(opts)
+		defer it.Close()
+
+		serviceKey := make([]byte, len(service)+1)
+		serviceKey[0] = operationNameIndexKey
+		copy(serviceKey[1:], service)
+
+		// Seek all the services first
+		for it.Seek(serviceKey); it.ValidForPrefix(serviceKey); it.Next() {
+			timestampStartIndex := len(it.Item().Key()) - (sizeOfTraceID + 8) // 8 = sizeof(uint64)
+			operationName := string(it.Item().Key()[len(serviceKey):timestampStartIndex])
+			keyTTL := it.Item().ExpiresAt()
+			r.cache.AddOperation(service, operationName, keyTTL)
+		}
+		return nil
+	})
 }

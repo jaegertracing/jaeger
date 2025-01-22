@@ -146,7 +146,7 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 	}
 	f.store = store
 
-	f.cache = badgerStore.NewCacheStore(f.store, f.Config.TTL.Spans, true)
+	f.cache = badgerStore.NewCacheStore(f.store, f.Config.TTL.Spans)
 
 	f.metrics.ValueLogSpaceAvailable = metricsFactory.Gauge(metrics.Options{Name: valueLogSpaceAvailableName})
 	f.metrics.KeyLogSpaceAvailable = metricsFactory.Gauge(metrics.Options{Name: keyLogSpaceAvailableName})
@@ -172,7 +172,7 @@ func initializeDir(path string) {
 
 // CreateSpanReader implements storage.Factory
 func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
-	tr := badgerStore.NewTraceReader(f.store, f.cache)
+	tr := badgerStore.NewTraceReader(f.store, f.cache, true)
 	return spanstoremetrics.NewReaderDecorator(tr, f.metricsFactory), nil
 }
 

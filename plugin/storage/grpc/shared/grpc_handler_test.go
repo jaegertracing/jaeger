@@ -64,13 +64,39 @@ func withGRPCServer(fn func(r *grpcServerTest)) {
 		spanWriter:   spanWriter,
 		depsReader:   depReader,
 		streamWriter: streamWriter,
+	mockPlugin := &mockStoragePlugin{
+		spanReader:    spanReader,
+		spanWriter:    spanWriter,
+		depsReader:    depReader,
+		streamWriter:  streamWriter,
 	}
 
-	handler := NewGRPCHandlerWithPlugins(impl, impl, impl)
+	impl := &GRPCHandlerStorageImpl{
+		SpanReader: func() spanstore.Reader {
+			return mockPlugin.spanReader
+		},
+		SpanWriter: func() spanstore.Writer {
+			return mockPlugin.spanWriter
+		},
+		DependencyReader: func() dependencystore.Reader {
+			return mockPlugin.depsReader
+		},
+		ArchiveSpanReader: func() spanstore.Reader {
+			return mockPlugin.archiveReader
+		},
+		ArchiveSpanWriter: func() spanstore.Writer {
+			return mockPlugin.archiveWriter
+		},
+		StreamingSpanWriter: func() spanstore.Writer {
+			return mockPlugin.streamWriter
+		},
+	}
+
+	handler := NewGRPCHandler(impl)
 	defer handler.Close(context.Background(), &storage_v1.CloseWriterRequest{})
 	r := &grpcServerTest{
 		server: handler,
-		impl:   impl,
+		impl:   mockPlugin,
 	}
 	fn(r)
 }
@@ -418,21 +444,4 @@ func TestGRPCServerCapabilities_NoStreamWriter(t *testing.T) {
 		}
 		assert.Equal(t, expected, capabilities)
 	})
-}
-
-func TestNewGRPCHandlerWithPlugins_Nils(t *testing.T) {
-	spanReader := new(spanStoreMocks.Reader)
-	spanWriter := new(spanStoreMocks.Writer)
-	depReader := new(dependencyStoreMocks.Reader)
-
-	impl := &mockStoragePlugin{
-		spanReader: spanReader,
-		spanWriter: spanWriter,
-		depsReader: depReader,
-	}
-
-	handler := NewGRPCHandlerWithPlugins(impl, nil, nil)
-	assert.Nil(t, handler.impl.ArchiveSpanReader())
-	assert.Nil(t, handler.impl.ArchiveSpanWriter())
-	assert.Nil(t, handler.impl.StreamingSpanWriter())
 }
