@@ -14,7 +14,7 @@ function usage {
     >&2 echo "  TRACE_TTL          - time to live for trace data, in seconds (default: 172800, 2 days)"
     >&2 echo "  DEPENDENCIES_TTL   - time to live for dependencies data, in seconds (default: 0, no TTL)"
     >&2 echo "  KEYSPACE           - keyspace (default: jaeger_v1_{datacenter})"
-    >&2 echo "  REPLICATION        - complete replication configuration (overrides REPLICATION_FACTOR if set)"
+    >&2 echo "  REPLICATION        - complete replication configuration (if set, overrides REPLICATION_FACTOR and DATACENTER)"
     >&2 echo "  REPLICATION_FACTOR - replication factor for prod (default: 2 for prod, 1 for test)"
     >&2 echo "  VERSION            - Cassandra backend version, 3 or 4 (default: 4). Ignored if template is provided."
     >&2 echo ""
