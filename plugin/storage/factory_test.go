@@ -8,6 +8,7 @@ import (
 	"errors"
 	"expvar"
 	"flag"
+	"fmt"
 	"io"
 	"reflect"
 	"strings"
@@ -313,6 +314,36 @@ func TestConfigurable(t *testing.T) {
 
 	assert.Equal(t, fs, mock.flagSet)
 	assert.Equal(t, v, mock.viper)
+}
+
+type inheritable struct {
+	mocks.Factory
+	calledWith storage.Factory
+}
+
+func (i *inheritable) InheritSettingsFrom(other storage.Factory) {
+	fmt.Println("here")
+	i.calledWith = other
+}
+
+func TestInheritable(t *testing.T) {
+	f, err := NewFactory(defaultCfg())
+	require.NoError(t, err)
+	assert.NotEmpty(t, f.factories)
+	assert.NotEmpty(t, f.factories[cassandraStorageType])
+	assert.NotEmpty(t, f.archiveFactories[cassandraStorageType])
+
+	mockInheritable := new(inheritable)
+	f.factories[cassandraStorageType] = &mocks.Factory{}
+	f.archiveFactories[cassandraStorageType] = mockInheritable
+
+	fs := new(flag.FlagSet)
+	v := viper.New()
+
+	f.AddFlags(fs)
+	f.InitFromViper(v, zap.NewNop())
+
+	assert.Equal(t, f.factories[cassandraStorageType], mockInheritable.calledWith)
 }
 
 func TestParsingDownsamplingRatio(t *testing.T) {
