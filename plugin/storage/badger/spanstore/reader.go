@@ -55,8 +55,9 @@ const (
 
 // TraceReader reads traces from the local badger store
 type TraceReader struct {
-	store *badger.DB
-	cache *CacheStore
+	store      *badger.DB
+	cache      *CacheStore
+	dualLookUp bool
 }
 
 // executionPlan is internal structure to track the index filtering
@@ -74,15 +75,19 @@ type executionPlan struct {
 }
 
 // NewTraceReader returns a TraceReader with cache
-func NewTraceReader(db *badger.DB, c *CacheStore, prefillCache bool) *TraceReader {
+func NewTraceReader(db *badger.DB, c *CacheStore, prefillCache bool, dualLookUp bool) *TraceReader {
 	reader := &TraceReader{
-		store: db,
-		cache: c,
+		store:      db,
+		cache:      c,
+		dualLookUp: dualLookUp,
 	}
 	if prefillCache {
 		services := reader.preloadServices()
 		for _, service := range services {
-			reader.preloadOperations(service)
+			if reader.dualLookUp {
+				reader.preloadOperations(service)
+			}
+			reader.preloadOperationsWthKind(service)
 		}
 	}
 	return reader
@@ -246,7 +251,7 @@ func (r *TraceReader) GetOperations(
 	_ context.Context,
 	query spanstore.OperationQueryParameters,
 ) ([]spanstore.Operation, error) {
-	return r.cache.GetOperations(query.ServiceName)
+	return r.cache.GetOperations(query.ServiceName, query.SpanKind)
 }
 
 // setQueryDefaults alters the query with defaults if certain parameters are not set
@@ -257,7 +262,7 @@ func setQueryDefaults(query *spanstore.TraceQueryParameters) {
 }
 
 // serviceQueries parses the query to index seeks which are unique index seeks
-func serviceQueries(query *spanstore.TraceQueryParameters, indexSeeks [][]byte) [][]byte {
+func serviceQueries(query *spanstore.TraceQueryParameters, indexSeeks [][]byte, operationPrefix byte) [][]byte {
 	if query.ServiceName != "" {
 		indexSearchKey := make([]byte, 0, 64) // 64 is a magic guess
 		tagQueryUsed := false
@@ -271,13 +276,13 @@ func serviceQueries(query *spanstore.TraceQueryParameters, indexSeeks [][]byte) 
 		}
 
 		if query.OperationName != "" {
-			indexSearchKey = append(indexSearchKey, operationNameIndexKey)
-			indexSearchKey = append(indexSearchKey, []byte(query.ServiceName+query.OperationName)...)
+			prefix := []byte(query.ServiceName + query.OperationName)
+			indexSearchKey = append(indexSearchKey, operationPrefix)
+			indexSearchKey = append(indexSearchKey, prefix...)
 		} else if !tagQueryUsed { // Tag query already reduces the search set with a serviceName
 			indexSearchKey = append(indexSearchKey, serviceNameIndexKey)
 			indexSearchKey = append(indexSearchKey, []byte(query.ServiceName)...)
 		}
-
 		if len(indexSearchKey) > 0 {
 			indexSeeks = append(indexSeeks, indexSearchKey)
 		}
@@ -369,7 +374,6 @@ func buildHash(plan *executionPlan, outerIDs [][]byte) map[model.TraceID]struct{
 	hashed := make(map[model.TraceID]struct{})
 	for i := 0; i < len(outerIDs); i++ {
 		trID := bytesToTraceID(outerIDs[i])
-
 		if plan.hashOuter != nil {
 			if _, exists := plan.hashOuter[trID]; exists {
 				hashed[trID] = empty
@@ -379,7 +383,6 @@ func buildHash(plan *executionPlan, outerIDs [][]byte) map[model.TraceID]struct{
 			hashed[trID] = empty
 		}
 	}
-
 	return hashed
 }
 
@@ -470,7 +473,7 @@ func (r *TraceReader) FindTraceIDs(_ context.Context, query *spanstore.TraceQuer
 
 	// Find matches using indexes that are using service as part of the key
 	indexSeeks := make([][]byte, 0, 1)
-	indexSeeks = serviceQueries(query, indexSeeks)
+	indexSeeks = serviceQueries(query, indexSeeks, operationNameWithKindIndexKey)
 
 	startStampBytes := make([]byte, 8)
 	binary.BigEndian.PutUint64(startStampBytes, model.TimeAsEpochMicroseconds(query.StartTimeMin))
@@ -483,21 +486,64 @@ func (r *TraceReader) FindTraceIDs(_ context.Context, query *spanstore.TraceQuer
 		startTimeMax: endStampBytes,
 		limit:        query.NumTraces,
 	}
-
+	var hashOuter map[model.TraceID]struct{}
 	if query.DurationMax != 0 || query.DurationMin != 0 {
-		plan.hashOuter = r.durationQueries(plan, query)
+		hashOuter = r.durationQueries(plan, query)
+		plan.hashOuter = hashOuter
 	}
 
+	var keys []model.TraceID
+	var err error
 	if len(indexSeeks) > 0 {
-		keys, err := r.indexSeeksToTraceIDs(plan, indexSeeks)
+		keys, err = r.indexSeeksToTraceIDs(plan, indexSeeks)
 		if err != nil {
 			return nil, err
 		}
-
+	}
+	if r.dualLookUp && len(keys) < query.NumTraces {
+		oldIndexPresent, err := r.oldOperationIndexExists()
+		if err != nil {
+			return nil, err
+		}
+		if oldIndexPresent {
+			oldIndexSeeks := make([][]byte, 0, 1)
+			oldIndexSeeks = serviceQueries(query, oldIndexSeeks, operationNameIndexKey)
+			if len(oldIndexSeeks) > 0 {
+				// This new plan is necessary as merge outer and hash outers should be unique
+				oldIndexPlan := &executionPlan{
+					startTimeMin: startStampBytes,
+					startTimeMax: endStampBytes,
+					limit:        query.NumTraces - len(keys),
+				}
+				oldIndexPlan.hashOuter = hashOuter
+				oldKeys, err := r.indexSeeksToTraceIDs(oldIndexPlan, oldIndexSeeks)
+				if err != nil {
+					return nil, err
+				}
+				keys = append(keys, oldKeys...)
+			}
+		}
+	}
+	if len(keys) > 0 {
 		return keys, nil
 	}
-
 	return r.scanTimeRange(plan)
+}
+
+func (r *TraceReader) oldOperationIndexExists() (bool, error) {
+	found := false
+	err := r.store.View(func(txn *badger.Txn) error {
+		opts := badger.DefaultIteratorOptions
+		opts.PrefetchValues = false
+		iter := txn.NewIterator(opts)
+		defer iter.Close()
+		for iter.Seek([]byte{operationNameIndexKey}); iter.ValidForPrefix([]byte{operationNameIndexKey}); iter.Next() {
+			found = true
+			return nil
+		}
+		return nil
+	})
+	return found, err
 }
 
 // validateQuery returns an error if certain restrictions are not met
@@ -527,6 +573,8 @@ func validateQuery(p *spanstore.TraceQueryParameters) error {
 func (r *TraceReader) scanIndexKeys(indexKeyValue []byte, plan *executionPlan) ([][]byte, error) {
 	indexResults := make([][]byte, 0)
 
+	endingIndexOfTimeStampFromLast := getEndingIndexOfTimeStampFromLast(indexKeyValue)
+
 	err := r.store.View(func(txn *badger.Txn) error {
 		opts := badger.DefaultIteratorOptions
 		opts.PrefetchValues = false // Don't fetch values since we're only interested in the keys
@@ -542,13 +590,11 @@ func (r *TraceReader) scanIndexKeys(indexKeyValue []byte, plan *executionPlan) (
 
 		for it.Seek(startIndex); scanFunction(it, indexKeyValue, plan.startTimeMin); it.Next() {
 			item := it.Item()
-
 			// ScanFunction is a prefix scanning (since we could have for example service1 & service12)
 			// Now we need to match only the exact key if we want to add it
-			timestampStartIndex := len(it.Item().Key()) - (sizeOfTraceID + 8) // timestamp is stored with 8 bytes
+			timestampStartIndex := len(it.Item().Key()) - (endingIndexOfTimeStampFromLast + 8) // timestamp is stored with 8 bytes
 			if bytes.Equal(indexKeyValue, it.Item().Key()[:timestampStartIndex]) {
 				traceIDBytes := item.Key()[len(item.Key())-sizeOfTraceID:]
-
 				traceIDCopy := make([]byte, sizeOfTraceID)
 				copy(traceIDCopy, traceIDBytes)
 				indexResults = append(indexResults, traceIDCopy)
@@ -556,26 +602,39 @@ func (r *TraceReader) scanIndexKeys(indexKeyValue []byte, plan *executionPlan) (
 		}
 		return nil
 	})
-
 	return indexResults, err
+}
+
+func getEndingIndexOfTimeStampFromLast(key []byte) int {
+	if key[0] == operationNameWithKindIndexKey {
+		return sizeOfTraceID + 1
+	}
+	return sizeOfTraceID
 }
 
 // scanFunction compares the index name as well as the time range in the index key
 func scanFunction(it *badger.Iterator, indexPrefix []byte, timeBytesEnd []byte) bool {
 	if it.Valid() {
+		startIndexOfTraceId := getEndingIndexOfTimeStampFromLast(it.Item().Key())
 		// We can't use the indexPrefix length, because we might have the same prefixValue for non-matching cases also
-		timestampStartIndex := len(it.Item().Key()) - (sizeOfTraceID + 8) // timestamp is stored with 8 bytes
+		timestampStartIndex := len(it.Item().Key()) - (startIndexOfTraceId + 8) // timestamp is stored with 8 bytes
 		timestamp := it.Item().Key()[timestampStartIndex : timestampStartIndex+8]
 		timestampInRange := bytes.Compare(timeBytesEnd, timestamp) <= 0
-
 		// Check length as well to prevent theoretical case where timestamp might match with wrong index key
-		if len(it.Item().Key()) != len(indexPrefix)+24 {
+		if len(it.Item().Key()) != len(indexPrefix)+24+getExtraLengthOfKey(it.Item().Key()) {
 			return false
 		}
 
 		return bytes.HasPrefix(it.Item().Key()[:timestampStartIndex], indexPrefix) && timestampInRange
 	}
 	return false
+}
+
+func getExtraLengthOfKey(key []byte) int {
+	if key[0] == operationNameWithKindIndexKey {
+		return 1
+	}
+	return 0
 }
 
 // scanRangeIndex scans the time range for index keys matching the given prefix.
@@ -647,6 +706,7 @@ func (r *TraceReader) preloadServices() []string {
 func (r *TraceReader) preloadOperations(service string) {
 	r.store.View(func(txn *badger.Txn) error {
 		opts := badger.DefaultIteratorOptions
+		opts.PrefetchValues = false
 		it := txn.NewIterator(opts)
 		defer it.Close()
 
@@ -659,7 +719,29 @@ func (r *TraceReader) preloadOperations(service string) {
 			timestampStartIndex := len(it.Item().Key()) - (sizeOfTraceID + 8) // 8 = sizeof(uint64)
 			operationName := string(it.Item().Key()[len(serviceKey):timestampStartIndex])
 			keyTTL := it.Item().ExpiresAt()
-			r.cache.AddOperation(service, operationName, keyTTL)
+			kind := model.SpanKindUnspecified
+			r.cache.AddOperation(service, operationName, kind, keyTTL)
+		}
+		return nil
+	})
+}
+
+func (r *TraceReader) preloadOperationsWthKind(service string) {
+	r.store.View(func(txn *badger.Txn) error {
+		opts := badger.DefaultIteratorOptions
+		opts.PrefetchValues = false
+		it := txn.NewIterator(opts)
+		defer it.Close()
+		serviceKey := make([]byte, len(service)+1)
+		serviceKey[0] = operationNameWithKindIndexKey
+		copy(serviceKey[1:], service)
+		for it.Seek(serviceKey); it.ValidForPrefix(serviceKey); it.Next() {
+			timestampStartIndex := len(it.Item().Key()) - (sizeOfTraceID + 8 + 1)
+			operationName := string(it.Item().Key()[len(serviceKey):timestampStartIndex])
+			keyTTL := it.Item().ExpiresAt()
+			badgerKind := getBadgerSpanKindFromByte(it.Item().Key()[timestampStartIndex+8])
+			kind := badgerKind.spanKind()
+			r.cache.AddOperation(service, operationName, kind, keyTTL)
 		}
 		return nil
 	})
