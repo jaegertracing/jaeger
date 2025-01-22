@@ -37,7 +37,7 @@ func (h *Handler) GetTrace(request *api_v3.GetTraceRequest, stream api_v3.QueryS
 	query := querysvc.GetTraceParams{
 		TraceIDs: []tracestore.GetTraceParams{
 			{
-				TraceID: traceID.ToOTELTraceID(),
+				TraceID: model.ToOTELTraceID(traceID),
 				Start:   request.GetStartTime(),
 				End:     request.GetEndTime(),
 			},

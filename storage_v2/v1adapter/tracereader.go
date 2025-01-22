@@ -122,7 +122,7 @@ func (tr *TraceReader) FindTraceIDs(
 		}
 		otelIDs := make([]pcommon.TraceID, 0, len(traceIDs))
 		for _, traceID := range traceIDs {
-			otelIDs = append(otelIDs, traceID.ToOTELTraceID())
+			otelIDs = append(otelIDs, model.ToOTELTraceID(traceID))
 		}
 		yield(otelIDs, nil)
 	}
