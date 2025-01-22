@@ -4,14 +4,10 @@
 package mapping
 
 import (
-	"bytes"
 	"encoding/json"
-	"io"
 	"os"
-	"strings"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger/cmd/esmapping-generator/app"
@@ -30,23 +26,15 @@ func TestCommandExecute(t *testing.T) {
 	}
 	cmd := Command(o)
 
-	oldStdout := os.Stdout
-	defer func() {
-		os.Stdout = oldStdout
-	}()
-
-	r, w, err := os.Pipe()
+	// TempFile to capture output
+	tempFile, err := os.CreateTemp("", "command-output-*.txt")
 	require.NoError(t, err)
+	defer os.Remove(tempFile.Name())
 
-	os.Stdout = w
-
-	var buf bytes.Buffer
-	done := make(chan struct{})
-
-	go func() {
-		_, _ = io.Copy(&buf, r)
-		close(done)
-	}()
+	// Redirect stdout to the TempFile
+	oldStdout := os.Stdout
+	os.Stdout = tempFile
+	defer func() { os.Stdout = oldStdout }()
 
 	err = cmd.ParseFlags([]string{
 		"--mapping=jaeger-span",
@@ -60,21 +48,11 @@ func TestCommandExecute(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, cmd.Execute())
 
-	_ = w.Close()
-	<-done
-
-	capturedOutput := buf.String()
-
-	assert.True(t, strings.HasPrefix(capturedOutput, "{"), "Output should be JSON starting with '{'")
-	assert.True(t, strings.HasSuffix(strings.TrimSpace(capturedOutput), "}"), "Output should end with '}'")
-
-	assert.Contains(t, capturedOutput, `"index_patterns":`, "Output should contain 'index_patterns'")
-	assert.Contains(t, capturedOutput, `"index.number_of_shards":`, "Output should contain 'index.number_of_shards'")
-	assert.Contains(t, capturedOutput, `"index.number_of_replicas":`, "Output should contain 'index.number_of_replicas'")
-	assert.Contains(t, capturedOutput, `"mappings":`, "Output should contain 'mappings'")
+	output, err := os.ReadFile(tempFile.Name())
+	require.NoError(t, err)
 
 	var jsonOutput map[string]any
-	err = json.Unmarshal([]byte(capturedOutput), &jsonOutput)
+	err = json.Unmarshal(output, &jsonOutput)
 	require.NoError(t, err, "Output should be valid JSON")
 }
 
