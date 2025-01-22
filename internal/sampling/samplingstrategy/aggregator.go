@@ -6,8 +6,6 @@ package samplingstrategy
 import (
 	"io"
 
-	"go.uber.org/zap"
-
 	"github.com/jaegertracing/jaeger/model"
 )
 
@@ -18,7 +16,7 @@ type Aggregator interface {
 
 	// The HandleRootSpan function processes a span, checking if it's a root span.
 	// If it is, it extracts sampler parameters, then calls RecordThroughput.
-	HandleRootSpan(span *model.Span, logger *zap.Logger)
+	HandleRootSpan(span *model.Span)
 
 	// RecordThroughput records throughput for an operation for aggregation.
 	RecordThroughput(service, operation string, samplerType model.SamplerType, probability float64)

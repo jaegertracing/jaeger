@@ -154,7 +154,7 @@ func transferWarningsToOTLPSpans(batches []*model.Batch, spanMap map[pcommon.Spa
 			if len(span.Warnings) == 0 {
 				continue
 			}
-			if otelSpan, ok := spanMap[span.SpanID.ToOTELSpanID()]; ok {
+			if otelSpan, ok := spanMap[model.ToOTELSpanID(span.SpanID)]; ok {
 				jptrace.AddWarnings(otelSpan, span.Warnings...)
 			}
 		}
