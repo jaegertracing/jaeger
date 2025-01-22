@@ -13,7 +13,8 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/esmapping-generator/generator"
 )
 
-func Command(options app.Options) *cobra.Command {
+func Command() *cobra.Command {
+	options := app.Options{}
 	command := &cobra.Command{
 		Use:   "elasticsearch-mappings",
 		Short: "Jaeger esmapping-generator prints rendered mappings as string",

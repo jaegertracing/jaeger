@@ -10,21 +10,11 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/jaegertracing/jaeger/cmd/esmapping-generator/app"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 )
 
 func TestCommandExecute(t *testing.T) {
-	o := app.Options{
-		Mapping:       "jaeger-span",
-		EsVersion:     7,
-		Shards:        5,
-		Replicas:      1,
-		IndexPrefix:   "jaeger-index",
-		UseILM:        "false",
-		ILMPolicyName: "jaeger-ilm-policy",
-	}
-	cmd := Command(o)
+	cmd := Command()
 
 	// TempFile to capture output
 	tempFile, err := os.CreateTemp("", "command-output-*.txt")

@@ -8,7 +8,6 @@ import (
 
 	"github.com/spf13/viper"
 
-	"github.com/jaegertracing/jaeger/cmd/esmapping-generator/app"
 	"github.com/jaegertracing/jaeger/cmd/internal/docs"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/mapping"
@@ -18,11 +17,10 @@ import (
 
 func main() {
 	v := viper.New()
-	options := app.Options{}
 	command := internal.Command()
 	command.AddCommand(version.Command())
 	command.AddCommand(docs.Command(v))
-	command.AddCommand(mapping.Command(options))
+	command.AddCommand(mapping.Command())
 	config.AddFlags(
 		v,
 		command,
