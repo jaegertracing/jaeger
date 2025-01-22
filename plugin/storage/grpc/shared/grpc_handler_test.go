@@ -59,16 +59,11 @@ func withGRPCServer(fn func(r *grpcServerTest)) {
 	depReader := new(dependencyStoreMocks.Reader)
 	streamWriter := new(spanStoreMocks.Writer)
 
-	impl := &mockStoragePlugin{
+	mockPlugin := &mockStoragePlugin{
 		spanReader:   spanReader,
 		spanWriter:   spanWriter,
 		depsReader:   depReader,
 		streamWriter: streamWriter,
-	mockPlugin := &mockStoragePlugin{
-		spanReader:    spanReader,
-		spanWriter:    spanWriter,
-		depsReader:    depReader,
-		streamWriter:  streamWriter,
 	}
 
 	impl := &GRPCHandlerStorageImpl{
@@ -82,10 +77,10 @@ func withGRPCServer(fn func(r *grpcServerTest)) {
 			return mockPlugin.depsReader
 		},
 		ArchiveSpanReader: func() spanstore.Reader {
-			return mockPlugin.archiveReader
+			return mockPlugin.spanReader
 		},
 		ArchiveSpanWriter: func() spanstore.Writer {
-			return mockPlugin.archiveWriter
+			return mockPlugin.spanWriter
 		},
 		StreamingSpanWriter: func() spanstore.Writer {
 			return mockPlugin.streamWriter
