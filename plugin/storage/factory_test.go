@@ -186,7 +186,9 @@ func TestCreateMulti(t *testing.T) {
 	mock := new(mocks.Factory)
 	mock2 := new(mocks.Factory)
 	f.factories[cassandraStorageType] = mock
+	f.archiveFactories[cassandraStorageType] = mock
 	f.factories[elasticsearchStorageType] = mock2
+	f.archiveFactories[elasticsearchStorageType] = mock2
 
 	spanWriter := new(spanStoreMocks.Writer)
 	spanWriter2 := new(spanStoreMocks.Writer)
