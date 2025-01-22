@@ -217,11 +217,11 @@ func (s *StorageIntegration) testGetLargeSpan(t *testing.T) {
 	t.Log("Testing Large Trace over 10K with duplicate IDs...")
 
 	expected := s.writeLargeTraceWithDuplicateSpanIds(t)
-	expectedTraceID := expected.Spans[0].TraceID
+	expectedTraceID := model.ToOTELTraceID(expected.Spans[0].TraceID)
 
 	actual := &model.Trace{} // no spans
 	found := s.waitForCondition(t, func(_ *testing.T) bool {
-		iterTraces := s.TraceReader.GetTraces(context.Background(), tracestore.GetTraceParams{TraceID: expectedTraceID.ToOTELTraceID()})
+		iterTraces := s.TraceReader.GetTraces(context.Background(), tracestore.GetTraceParams{TraceID: expectedTraceID})
 		traces, err := v1adapter.V1TracesFromSeq2(iterTraces)
 		if len(traces) > 0 {
 			actual = traces[0]
@@ -293,11 +293,11 @@ func (s *StorageIntegration) testGetTrace(t *testing.T) {
 	defer s.cleanUp(t)
 
 	expected := s.loadParseAndWriteExampleTrace(t)
-	expectedTraceID := expected.Spans[0].TraceID
+	expectedTraceID := model.ToOTELTraceID(expected.Spans[0].TraceID)
 
 	actual := &model.Trace{} // no spans
 	found := s.waitForCondition(t, func(t *testing.T) bool {
-		iterTraces := s.TraceReader.GetTraces(context.Background(), tracestore.GetTraceParams{TraceID: expectedTraceID.ToOTELTraceID()})
+		iterTraces := s.TraceReader.GetTraces(context.Background(), tracestore.GetTraceParams{TraceID: expectedTraceID})
 		traces, err := v1adapter.V1TracesFromSeq2(iterTraces)
 		if err != nil {
 			t.Log(err)
@@ -313,8 +313,8 @@ func (s *StorageIntegration) testGetTrace(t *testing.T) {
 	}
 
 	t.Run("NotFound error", func(t *testing.T) {
-		fakeTraceID := model.TraceID{High: 0, Low: 1}
-		iterTraces := s.TraceReader.GetTraces(context.Background(), tracestore.GetTraceParams{TraceID: fakeTraceID.ToOTELTraceID()})
+		fakeTraceID := model.ToOTELTraceID(model.TraceID{High: 0, Low: 1})
+		iterTraces := s.TraceReader.GetTraces(context.Background(), tracestore.GetTraceParams{TraceID: fakeTraceID})
 		traces, err := v1adapter.V1TracesFromSeq2(iterTraces)
 		require.NoError(t, err) // v2 TraceReader no longer returns an error for not found
 		assert.Empty(t, traces)

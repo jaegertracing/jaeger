@@ -13,7 +13,7 @@ import (
 // ToOTELTraceID converts the TraceID to OTEL's representation of a trace identitfier.
 // This was taken from
 // https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/internal/coreinternal/idutils/big_endian_converter.go.
-func (t *TraceID) ToOTELTraceID() pcommon.TraceID {
+func ToOTELTraceID(t TraceID) pcommon.TraceID {
 	traceID := [16]byte{}
 	binary.BigEndian.PutUint64(traceID[:8], t.High)
 	binary.BigEndian.PutUint64(traceID[8:], t.Low)
@@ -30,7 +30,7 @@ func TraceIDFromOTEL(traceID pcommon.TraceID) TraceID {
 // ToOTELSpanID converts the SpanID to OTEL's representation of a span identitfier.
 // This was taken from
 // https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/internal/coreinternal/idutils/big_endian_converter.go.
-func (s SpanID) ToOTELSpanID() pcommon.SpanID {
+func ToOTELSpanID(s SpanID) pcommon.SpanID {
 	spanID := [8]byte{}
 	binary.BigEndian.PutUint64(spanID[:], uint64(s))
 	return pcommon.SpanID(spanID)
