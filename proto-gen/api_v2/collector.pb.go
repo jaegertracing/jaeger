@@ -9,12 +9,10 @@ import (
 	_ "github.com/gogo/googleapis/google/api"
 	_ "github.com/gogo/protobuf/gogoproto"
 	proto "github.com/gogo/protobuf/proto"
-	model "github.com/jaegertracing/jaeger/model"
 	grpc "google.golang.org/grpc"
-	codes "google.golang.org/grpc/codes"
-	status "google.golang.org/grpc/status"
 	io "io"
 	math "math"
+	jaegerIdlModel "github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
 	math_bits "math/bits"
 )
 
@@ -29,89 +27,17 @@ var _ = math.Inf
 // proto package needs to be updated.
 const _ = proto.GoGoProtoPackageIsVersion3 // please upgrade the proto package
 
-type PostSpansRequest struct {
-	Batch                model.Batch `protobuf:"bytes,1,opt,name=batch,proto3" json:"batch"`
-	XXX_NoUnkeyedLiteral struct{}    `json:"-"`
-	XXX_unrecognized     []byte      `json:"-"`
-	XXX_sizecache        int32       `json:"-"`
-}
+type PostSpansRequest = jaegerIdlModel.PostSpansRequest
 
-func (m *PostSpansRequest) Reset()         { *m = PostSpansRequest{} }
-func (m *PostSpansRequest) String() string { return proto.CompactTextString(m) }
-func (*PostSpansRequest) ProtoMessage()    {}
-func (*PostSpansRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9305884a292fdf82, []int{0}
-}
-func (m *PostSpansRequest) XXX_Unmarshal(b []byte) error {
-	return m.Unmarshal(b)
-}
-func (m *PostSpansRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	if deterministic {
-		return xxx_messageInfo_PostSpansRequest.Marshal(b, m, deterministic)
-	} else {
-		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
-		if err != nil {
-			return nil, err
-		}
-		return b[:n], nil
-	}
-}
-func (m *PostSpansRequest) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_PostSpansRequest.Merge(m, src)
-}
-func (m *PostSpansRequest) XXX_Size() int {
-	return m.Size()
-}
-func (m *PostSpansRequest) XXX_DiscardUnknown() {
-	xxx_messageInfo_PostSpansRequest.DiscardUnknown(m)
-}
+
 
 var xxx_messageInfo_PostSpansRequest proto.InternalMessageInfo
 
-func (m *PostSpansRequest) GetBatch() model.Batch {
-	if m != nil {
-		return m.Batch
-	}
-	return model.Batch{}
-}
 
-type PostSpansResponse struct {
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
-}
 
-func (m *PostSpansResponse) Reset()         { *m = PostSpansResponse{} }
-func (m *PostSpansResponse) String() string { return proto.CompactTextString(m) }
-func (*PostSpansResponse) ProtoMessage()    {}
-func (*PostSpansResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9305884a292fdf82, []int{1}
-}
-func (m *PostSpansResponse) XXX_Unmarshal(b []byte) error {
-	return m.Unmarshal(b)
-}
-func (m *PostSpansResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	if deterministic {
-		return xxx_messageInfo_PostSpansResponse.Marshal(b, m, deterministic)
-	} else {
-		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
-		if err != nil {
-			return nil, err
-		}
-		return b[:n], nil
-	}
-}
-func (m *PostSpansResponse) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_PostSpansResponse.Merge(m, src)
-}
-func (m *PostSpansResponse) XXX_Size() int {
-	return m.Size()
-}
-func (m *PostSpansResponse) XXX_DiscardUnknown() {
-	xxx_messageInfo_PostSpansResponse.DiscardUnknown(m)
-}
+type PostSpansResponse = jaegerIdlModel.PostSpansResponse
+
+
 
 var xxx_messageInfo_PostSpansResponse proto.InternalMessageInfo
 
@@ -154,9 +80,7 @@ const _ = grpc.SupportPackageIsVersion4
 // CollectorServiceClient is the client API for CollectorService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://godoc.org/google.golang.org/grpc#ClientConn.NewStream.
-type CollectorServiceClient interface {
-	PostSpans(ctx context.Context, in *PostSpansRequest, opts ...grpc.CallOption) (*PostSpansResponse, error)
-}
+type CollectorServiceClient = jaegerIdlModel.CollectorServiceClient
 
 type collectorServiceClient struct {
 	cc *grpc.ClientConn
@@ -176,17 +100,12 @@ func (c *collectorServiceClient) PostSpans(ctx context.Context, in *PostSpansReq
 }
 
 // CollectorServiceServer is the server API for CollectorService service.
-type CollectorServiceServer interface {
-	PostSpans(context.Context, *PostSpansRequest) (*PostSpansResponse, error)
-}
+type CollectorServiceServer = jaegerIdlModel.CollectorServiceServer
 
 // UnimplementedCollectorServiceServer can be embedded to have forward compatible implementations.
-type UnimplementedCollectorServiceServer struct {
-}
+type UnimplementedCollectorServiceServer = jaegerIdlModel.UnimplementedCollectorServiceServer
 
-func (*UnimplementedCollectorServiceServer) PostSpans(ctx context.Context, req *PostSpansRequest) (*PostSpansResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method PostSpans not implemented")
-}
+
 
 func RegisterCollectorServiceServer(s *grpc.Server, srv CollectorServiceServer) {
 	s.RegisterService(&_CollectorService_serviceDesc, srv)
@@ -223,69 +142,7 @@ var _CollectorService_serviceDesc = grpc.ServiceDesc{
 	Metadata: "collector.proto",
 }
 
-func (m *PostSpansRequest) Marshal() (dAtA []byte, err error) {
-	size := m.Size()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
-	if err != nil {
-		return nil, err
-	}
-	return dAtA[:n], nil
-}
 
-func (m *PostSpansRequest) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *PostSpansRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
-	_ = i
-	var l int
-	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	{
-		size, err := m.Batch.MarshalToSizedBuffer(dAtA[:i])
-		if err != nil {
-			return 0, err
-		}
-		i -= size
-		i = encodeVarintCollector(dAtA, i, uint64(size))
-	}
-	i--
-	dAtA[i] = 0xa
-	return len(dAtA) - i, nil
-}
-
-func (m *PostSpansResponse) Marshal() (dAtA []byte, err error) {
-	size := m.Size()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
-	if err != nil {
-		return nil, err
-	}
-	return dAtA[:n], nil
-}
-
-func (m *PostSpansResponse) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *PostSpansResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
-	_ = i
-	var l int
-	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	return len(dAtA) - i, nil
-}
 
 func encodeVarintCollector(dAtA []byte, offset int, v uint64) int {
 	offset -= sovCollector(v)
@@ -298,31 +155,7 @@ func encodeVarintCollector(dAtA []byte, offset int, v uint64) int {
 	dAtA[offset] = uint8(v)
 	return base
 }
-func (m *PostSpansRequest) Size() (n int) {
-	if m == nil {
-		return 0
-	}
-	var l int
-	_ = l
-	l = m.Batch.Size()
-	n += 1 + l + sovCollector(uint64(l))
-	if m.XXX_unrecognized != nil {
-		n += len(m.XXX_unrecognized)
-	}
-	return n
-}
 
-func (m *PostSpansResponse) Size() (n int) {
-	if m == nil {
-		return 0
-	}
-	var l int
-	_ = l
-	if m.XXX_unrecognized != nil {
-		n += len(m.XXX_unrecognized)
-	}
-	return n
-}
 
 func sovCollector(x uint64) (n int) {
 	return (math_bits.Len64(x|1) + 6) / 7
@@ -330,141 +163,7 @@ func sovCollector(x uint64) (n int) {
 func sozCollector(x uint64) (n int) {
 	return sovCollector(uint64((x << 1) ^ uint64((int64(x) >> 63))))
 }
-func (m *PostSpansRequest) Unmarshal(dAtA []byte) error {
-	l := len(dAtA)
-	iNdEx := 0
-	for iNdEx < l {
-		preIndex := iNdEx
-		var wire uint64
-		for shift := uint(0); ; shift += 7 {
-			if shift >= 64 {
-				return ErrIntOverflowCollector
-			}
-			if iNdEx >= l {
-				return io.ErrUnexpectedEOF
-			}
-			b := dAtA[iNdEx]
-			iNdEx++
-			wire |= uint64(b&0x7F) << shift
-			if b < 0x80 {
-				break
-			}
-		}
-		fieldNum := int32(wire >> 3)
-		wireType := int(wire & 0x7)
-		if wireType == 4 {
-			return fmt.Errorf("proto: PostSpansRequest: wiretype end group for non-group")
-		}
-		if fieldNum <= 0 {
-			return fmt.Errorf("proto: PostSpansRequest: illegal tag %d (wire type %d)", fieldNum, wire)
-		}
-		switch fieldNum {
-		case 1:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Batch", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowCollector
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLengthCollector
-			}
-			postIndex := iNdEx + msglen
-			if postIndex < 0 {
-				return ErrInvalidLengthCollector
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			if err := m.Batch.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			iNdEx = postIndex
-		default:
-			iNdEx = preIndex
-			skippy, err := skipCollector(dAtA[iNdEx:])
-			if err != nil {
-				return err
-			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
-				return ErrInvalidLengthCollector
-			}
-			if (iNdEx + skippy) > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
-			iNdEx += skippy
-		}
-	}
 
-	if iNdEx > l {
-		return io.ErrUnexpectedEOF
-	}
-	return nil
-}
-func (m *PostSpansResponse) Unmarshal(dAtA []byte) error {
-	l := len(dAtA)
-	iNdEx := 0
-	for iNdEx < l {
-		preIndex := iNdEx
-		var wire uint64
-		for shift := uint(0); ; shift += 7 {
-			if shift >= 64 {
-				return ErrIntOverflowCollector
-			}
-			if iNdEx >= l {
-				return io.ErrUnexpectedEOF
-			}
-			b := dAtA[iNdEx]
-			iNdEx++
-			wire |= uint64(b&0x7F) << shift
-			if b < 0x80 {
-				break
-			}
-		}
-		fieldNum := int32(wire >> 3)
-		wireType := int(wire & 0x7)
-		if wireType == 4 {
-			return fmt.Errorf("proto: PostSpansResponse: wiretype end group for non-group")
-		}
-		if fieldNum <= 0 {
-			return fmt.Errorf("proto: PostSpansResponse: illegal tag %d (wire type %d)", fieldNum, wire)
-		}
-		switch fieldNum {
-		default:
-			iNdEx = preIndex
-			skippy, err := skipCollector(dAtA[iNdEx:])
-			if err != nil {
-				return err
-			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
-				return ErrInvalidLengthCollector
-			}
-			if (iNdEx + skippy) > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
-			iNdEx += skippy
-		}
-	}
-
-	if iNdEx > l {
-		return io.ErrUnexpectedEOF
-	}
-	return nil
-}
 func skipCollector(dAtA []byte) (n int, err error) {
 	l := len(dAtA)
 	iNdEx := 0
