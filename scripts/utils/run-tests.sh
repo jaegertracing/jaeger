@@ -3,7 +3,6 @@
 # Copyright (c) 2025 The Jaeger Authors.
 # SPDX-License-Identifier: Apache-2.0
 
-set -euo pipefail
 
 UTILS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$UTILS_DIR/../.."
@@ -63,7 +62,7 @@ main() {
         echo "Failed tests:"
         for test in "${failed_tests[@]}"; do
             echo "  - $(basename "$test")"
-        fi
+        done
     fi
 
     exit $failed
