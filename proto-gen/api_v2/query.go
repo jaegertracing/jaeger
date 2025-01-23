@@ -357,7 +357,7 @@ type UnimplementedQueryServiceServer = jaegerIdlModel.UnimplementedQueryServiceS
 
 
 func RegisterQueryServiceServer(s *grpc.Server, srv QueryServiceServer) {
-	s.RegisterService(&_QueryService_serviceDesc, srv)
+	jaegerIdlModel.RegisterQueryServiceServer(s,srv)
 }
 
 func _QueryService_GetTrace_Handler(srv interface{}, stream grpc.ServerStream) error {
@@ -607,7 +607,7 @@ func skipQuery(dAtA []byte) (n int, err error) {
 }
 
 var (
-	ErrInvalidLengthQuery        = fmt.Errorf("proto: negative length found during unmarshaling")
-	ErrIntOverflowQuery          = fmt.Errorf("proto: integer overflow")
-	ErrUnexpectedEndOfGroupQuery = fmt.Errorf("proto: unexpected end of group")
+	ErrInvalidLengthQuery        = jaegerIdlModel.ErrInvalidLengthQuery
+	ErrIntOverflowQuery          = jaegerIdlModel.ErrIntOverflowQuery
+	ErrUnexpectedEndOfGroupQuery = jaegerIdlModel.ErrUnexpectedEndOfGroupQuery
 )

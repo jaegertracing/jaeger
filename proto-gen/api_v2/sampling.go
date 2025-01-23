@@ -35,15 +35,9 @@ const (
 	SamplingStrategyType_RATE_LIMITING SamplingStrategyType = 1
 )
 
-var SamplingStrategyType_name = map[int32]string{
-	0: "PROBABILISTIC",
-	1: "RATE_LIMITING",
-}
+var SamplingStrategyType_name = jaegerIdlModel.SamplingStrategyType_name
 
-var SamplingStrategyType_value = map[string]int32{
-	"PROBABILISTIC": 0,
-	"RATE_LIMITING": 1,
-}
+var SamplingStrategyType_value = jaegerIdlModel.SamplingStrategyType_value
 
 
 
@@ -170,7 +164,7 @@ type samplingManagerClient struct {
 
 
 func NewSamplingManagerClient(cc *grpc.ClientConn) SamplingManagerClient {
-	return &samplingManagerClient{cc}
+	return jaegerIdlModel.NewSamplingManagerClient(cc)
 }
 
 func (c *samplingManagerClient) GetSamplingStrategy(ctx context.Context, in *SamplingStrategyParameters, opts ...grpc.CallOption) (*SamplingStrategyResponse, error) {
@@ -192,7 +186,7 @@ type UnimplementedSamplingManagerServer = jaegerIdlModel.UnimplementedSamplingMa
 
 
 func RegisterSamplingManagerServer(s *grpc.Server, srv SamplingManagerServer) {
-	s.RegisterService(&_SamplingManager_serviceDesc, srv)
+	jaegerIdlModel.RegisterSamplingManagerServer(s, srv)
 }
 
 func _SamplingManager_GetSamplingStrategy_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -328,7 +322,7 @@ func skipSampling(dAtA []byte) (n int, err error) {
 }
 
 var (
-	ErrInvalidLengthSampling        = fmt.Errorf("proto: negative length found during unmarshaling")
-	ErrIntOverflowSampling          = fmt.Errorf("proto: integer overflow")
-	ErrUnexpectedEndOfGroupSampling = fmt.Errorf("proto: unexpected end of group")
+	ErrInvalidLengthSampling        = jaegerIdlModel.ErrInvalidLengthSampling
+	ErrIntOverflowSampling          = jaegerIdlModel.ErrIntOverflowSampling
+	ErrUnexpectedEndOfGroupSampling = jaegerIdlModel.ErrUnexpectedEndOfGroupSampling
 )

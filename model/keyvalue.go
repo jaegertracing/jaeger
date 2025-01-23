@@ -5,8 +5,6 @@
 package model
 
 import (
-	"fmt"
-
 	jaegerIdlModel "github.com/jaegertracing/jaeger-idl/model/v1"
 )
 
@@ -23,29 +21,23 @@ const (
 	// BinaryType indicates the value is binary blob stored as a byte array
 	BinaryType = ValueType_BINARY
 
-	SpanKindKey     = "span.kind"
-	SamplerTypeKey  = "sampler.type"
-	SamplerParamKey = "sampler.param"
+	SpanKindKey     = jaegerIdlModel.SpanKindKey
+	SamplerTypeKey  = jaegerIdlModel.SamplerTypeKey
+	SamplerParamKey = jaegerIdlModel.SamplerParamKey
 )
 
 type SpanKind = jaegerIdlModel.SpanKind
 
 const (
-	SpanKindClient      SpanKind = "client"
-	SpanKindServer      SpanKind = "server"
-	SpanKindProducer    SpanKind = "producer"
-	SpanKindConsumer    SpanKind = "consumer"
-	SpanKindInternal    SpanKind = "internal"
-	SpanKindUnspecified SpanKind = ""
+	SpanKindClient      SpanKind = jaegerIdlModel.SpanKindClient
+	SpanKindServer      SpanKind = jaegerIdlModel.SpanKindServer
+	SpanKindProducer    SpanKind = jaegerIdlModel.SpanKindProducer
+	SpanKindConsumer    SpanKind = jaegerIdlModel.SpanKindConsumer
+	SpanKindInternal    SpanKind = jaegerIdlModel.SpanKindInternal
+	SpanKindUnspecified SpanKind =jaegerIdlModel.SpanKindUnspecified
 )
-
 func SpanKindFromString(kind string) (SpanKind, error) {
-	switch SpanKind(kind) {
-	case SpanKindClient, SpanKindServer, SpanKindProducer, SpanKindConsumer, SpanKindInternal, SpanKindUnspecified:
-		return SpanKind(kind), nil
-	default:
-		return SpanKindUnspecified, fmt.Errorf("unknown span kind %q", kind)
-	}
+	return jaegerIdlModel.SpanKindFromString(kind)
 }
 
 // KeyValues is a type alias that exposes convenience functions like Sort, FindByKey.
@@ -53,25 +45,25 @@ type KeyValues = jaegerIdlModel.KeyValues
 
 // String creates a String-typed KeyValue
 func String(key string, value string) KeyValue {
-	return KeyValue{Key: key, VType: StringType, VStr: value}
+	return jaegerIdlModel.String(key, value)
 }
 
 // Bool creates a Bool-typed KeyValue
 func Bool(key string, value bool) KeyValue {
-	return KeyValue{Key: key, VType: BoolType, VBool: value}
+	return jaegerIdlModel.Bool(key, value)
 }
 
 // Int64 creates a Int64-typed KeyValue
 func Int64(key string, value int64) KeyValue {
-	return KeyValue{Key: key, VType: Int64Type, VInt64: value}
+	return jaegerIdlModel.Int64(key, value)
 }
 
 // Float64 creates a Float64-typed KeyValue
 func Float64(key string, value float64) KeyValue {
-	return KeyValue{Key: key, VType: Float64Type, VFloat64: value}
+	return jaegerIdlModel.Float64(key, value)
 }
 
 // Binary creates a Binary-typed KeyValue
 func Binary(key string, value []byte) KeyValue {
-	return KeyValue{Key: key, VType: BinaryType, VBinary: value}
+	return jaegerIdlModel.Binary(key, value)
 }

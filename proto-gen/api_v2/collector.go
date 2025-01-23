@@ -87,7 +87,7 @@ type collectorServiceClient struct {
 }
 
 func NewCollectorServiceClient(cc *grpc.ClientConn) CollectorServiceClient {
-	return &collectorServiceClient{cc}
+	return jaegerIdlModel.NewCollectorServiceClient(cc)
 }
 
 func (c *collectorServiceClient) PostSpans(ctx context.Context, in *PostSpansRequest, opts ...grpc.CallOption) (*PostSpansResponse, error) {
@@ -108,7 +108,7 @@ type UnimplementedCollectorServiceServer = jaegerIdlModel.UnimplementedCollector
 
 
 func RegisterCollectorServiceServer(s *grpc.Server, srv CollectorServiceServer) {
-	s.RegisterService(&_CollectorService_serviceDesc, srv)
+	jaegerIdlModel.RegisterCollectorServiceServer(s, srv)
 }
 
 func _CollectorService_PostSpans_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -244,7 +244,7 @@ func skipCollector(dAtA []byte) (n int, err error) {
 }
 
 var (
-	ErrInvalidLengthCollector        = fmt.Errorf("proto: negative length found during unmarshaling")
-	ErrIntOverflowCollector          = fmt.Errorf("proto: integer overflow")
-	ErrUnexpectedEndOfGroupCollector = fmt.Errorf("proto: unexpected end of group")
+	ErrInvalidLengthCollector        = jaegerIdlModel.ErrInvalidLengthCollector
+	ErrIntOverflowCollector          = jaegerIdlModel.ErrIntOverflowCollector
+	ErrUnexpectedEndOfGroupCollector = jaegerIdlModel.ErrUnexpectedEndOfGroupCollector
 )

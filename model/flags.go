@@ -10,11 +10,11 @@ import (
 
 const (
 	// SampledFlag is the bit set in Flags in order to define a span as a sampled span
-	SampledFlag = Flags(1)
+	SampledFlag = jaegerIdlModel.SampledFlag
 	// DebugFlag is the bit set in Flags in order to define a span as a debug span
-	DebugFlag = Flags(2)
+	DebugFlag = jaegerIdlModel.SampledFlag
 	// FirehoseFlag is the bit in Flags in order to define a span as a firehose span
-	FirehoseFlag = Flags(8)
+	FirehoseFlag = jaegerIdlModel.SampledFlag
 )
 
 // Flags is a bit map of flags for a span

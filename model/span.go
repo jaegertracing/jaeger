@@ -27,5 +27,5 @@ var toSamplerType = map[string]SamplerType{
 }
 
 func SpanKindTag(kind SpanKind) KeyValue {
-	return String(SpanKindKey, string(kind))
+	return jaegerIdlModel.SpanKindTag(kind)
 }
