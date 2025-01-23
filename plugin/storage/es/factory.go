@@ -42,11 +42,12 @@ const (
 )
 
 var ( // interface comformance checks
-	_ storage.Factory     = (*Factory)(nil)
-	_ io.Closer           = (*Factory)(nil)
-	_ plugin.Configurable = (*Factory)(nil)
-	_ plugin.Inheritable  = (*Factory)(nil)
-	_ storage.Purger      = (*Factory)(nil)
+	_ storage.Factory       = (*Factory)(nil)
+	_ io.Closer             = (*Factory)(nil)
+	_ plugin.Configurable   = (*Factory)(nil)
+	_ plugin.Inheritable    = (*Factory)(nil)
+	_ storage.Purger        = (*Factory)(nil)
+	_ plugin.ArchiveCapable = (*Factory)(nil)
 )
 
 // Factory implements storage.Factory for Elasticsearch backend.
@@ -368,4 +369,8 @@ func (f *Factory) InheritSettingsFrom(other storage.Factory) {
 	if otherFactory, ok := other.(*Factory); ok {
 		f.config.ApplyDefaults(otherFactory.config)
 	}
+}
+
+func (f *Factory) IsArchiveCapable() bool {
+	return f.Options.Config.namespace == archiveNamespace && f.config.Enabled
 }

@@ -153,30 +153,39 @@ func (*Factory) getArchiveFactoryOfType(factoryType string) (storage.Factory, er
 	}
 }
 
-// Initialize implements storage.Factory.
 func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
 	f.metricsFactory = metricsFactory
-	initializeFactories := func(factories map[string]storage.Factory, role string) error {
-		for kind, factory := range factories {
-			mf := metricsFactory.Namespace(metrics.NSOptions{
-				Name: "storage",
-				Tags: map[string]string{
-					"kind": kind,
-					"role": role,
-				},
-			})
-			if err := factory.Initialize(mf, logger); err != nil {
-				return err
+
+	initializeFactory := func(kind string, factory storage.Factory, role string) error {
+		mf := metricsFactory.Namespace(metrics.NSOptions{
+			Name: "storage",
+			Tags: map[string]string{
+				"kind": kind,
+				"role": role,
+			},
+		})
+		return factory.Initialize(mf, logger)
+	}
+
+	for kind, factory := range f.factories {
+		if err := initializeFactory(kind, factory, "primary"); err != nil {
+			return err
+		}
+	}
+
+	uninitializedArchiveFactories := make(map[string]struct{})
+	for kind, factory := range f.archiveFactories {
+		if archivable, ok := factory.(plugin.ArchiveCapable); ok && archivable.IsArchiveCapable() {
+			if err := initializeFactory(kind, factory, "primary"); err != nil {
+				uninitializedArchiveFactories[kind] = struct{}{}
 			}
 		}
-		return nil
 	}
-	if err := initializeFactories(f.factories, "primary"); err != nil {
-		return err
+
+	for kind := range uninitializedArchiveFactories {
+		delete(f.archiveFactories, kind)
 	}
-	if err := initializeFactories(f.archiveFactories, "archive"); err != nil {
-		return err
-	}
+
 	f.publishOpts()
 	return nil
 }

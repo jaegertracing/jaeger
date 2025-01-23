@@ -28,3 +28,7 @@ type Configurable interface {
 type Inheritable interface {
 	InheritSettingsFrom(other storage.Factory)
 }
+
+type ArchiveCapable interface {
+	IsArchiveCapable() bool
+}

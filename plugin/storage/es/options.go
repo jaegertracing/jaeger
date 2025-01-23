@@ -275,7 +275,7 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 	if nsConfig.namespace == archiveNamespace {
 		flagSet.Bool(
 			nsConfig.namespace+suffixEnabled,
-			nsConfig.Enabled,
+			false,
 			"Enable extra storage")
 	} else {
 		// MaxSpanAge is only relevant when searching for unarchived traces.
