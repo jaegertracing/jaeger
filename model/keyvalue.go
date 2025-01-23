@@ -34,8 +34,9 @@ const (
 	SpanKindProducer    SpanKind = jaegerIdlModel.SpanKindProducer
 	SpanKindConsumer    SpanKind = jaegerIdlModel.SpanKindConsumer
 	SpanKindInternal    SpanKind = jaegerIdlModel.SpanKindInternal
-	SpanKindUnspecified SpanKind =jaegerIdlModel.SpanKindUnspecified
+	SpanKindUnspecified SpanKind = jaegerIdlModel.SpanKindUnspecified
 )
+
 func SpanKindFromString(kind string) (SpanKind, error) {
 	return jaegerIdlModel.SpanKindFromString(kind)
 }
