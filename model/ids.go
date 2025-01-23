@@ -71,7 +71,6 @@ func TraceIDFromBytes(data []byte) (TraceID, error) {
 	return t, nil
 }
 
-
 // ------- SpanID -------
 
 // NewSpanID creates a new SpanID from a 64bit unsigned int.
