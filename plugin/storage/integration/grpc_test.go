@@ -15,31 +15,35 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc"
+	"github.com/jaegertracing/jaeger/ports"
 	"github.com/jaegertracing/jaeger/storage_v2/v1adapter"
 )
 
 type GRPCStorageIntegrationTestSuite struct {
 	StorageIntegration
-	flags          []string
-	factory        *grpc.Factory
-	archiveFactory *grpc.Factory
-	remoteStorage  *RemoteMemoryStorage
+	flags                []string
+	archiveFlags         []string
+	factory              *grpc.Factory
+	archiveFactory       *grpc.Factory
+	remoteStorage        *RemoteMemoryStorage
+	archiveRemoteStorage *RemoteMemoryStorage
 }
 
 func (s *GRPCStorageIntegrationTestSuite) initialize(t *testing.T) {
 	logger := zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller()))
-	s.remoteStorage = StartNewRemoteMemoryStorage(t)
+	s.remoteStorage = StartNewRemoteMemoryStorage(t, ports.RemoteStorageGRPC)
+	s.archiveRemoteStorage = StartNewRemoteMemoryStorage(t, ports.RemoteStorageGRPC+1)
 
-	initFactory := func() *grpc.Factory {
-		f := grpc.NewFactory()
+	initFactory := func(f *grpc.Factory, flags []string) {
 		v, command := config.Viperize(f.AddFlags)
-		require.NoError(t, command.ParseFlags(s.flags))
+		require.NoError(t, command.ParseFlags(flags))
 		f.InitFromViper(v, logger)
 		require.NoError(t, f.Initialize(metrics.NullFactory, logger))
-		return f
 	}
-	f := initFactory()
-	af := initFactory()
+	f := grpc.NewFactory()
+	af := grpc.NewArchiveFactory()
+	initFactory(f, s.flags)
+	initFactory(af, s.archiveFlags)
 	s.factory = f
 	s.archiveFactory = af
 
@@ -63,6 +67,7 @@ func (s *GRPCStorageIntegrationTestSuite) close(t *testing.T) {
 	require.NoError(t, s.factory.Close())
 	require.NoError(t, s.archiveFactory.Close())
 	s.remoteStorage.Close(t)
+	s.archiveRemoteStorage.Close(t)
 }
 
 func (s *GRPCStorageIntegrationTestSuite) cleanUp(t *testing.T) {
@@ -79,6 +84,10 @@ func TestGRPCRemoteStorage(t *testing.T) {
 		flags: []string{
 			"--grpc-storage.server=localhost:17271",
 			"--grpc-storage.tls.enabled=false",
+		},
+		archiveFlags: []string{
+			"--grpc-storage-archive.server=localhost:17272",
+			"--grpc-storage-archive.tls.enabled=false",
 		},
 	}
 	s.initialize(t)

@@ -83,7 +83,7 @@ func makeMockServices() *ClientPluginServices {
 func makeFactory(t *testing.T) *Factory {
 	f := NewFactory()
 	f.InitFromViper(viper.New(), zap.NewNop())
-	f.config.ClientConfig.Endpoint = ":0"
+	f.options.ClientConfig.Endpoint = ":0"
 	require.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
 
 	t.Cleanup(func() {
@@ -110,7 +110,7 @@ func TestNewFactoryError(t *testing.T) {
 	t.Run("viper", func(t *testing.T) {
 		f := NewFactory()
 		f.InitFromViper(viper.New(), zap.NewNop())
-		f.config = *cfg
+		f.options.Config = *cfg
 		err := f.Initialize(metrics.NullFactory, zap.NewNop())
 		assert.ErrorContains(t, err, "authenticator")
 	})
@@ -235,7 +235,7 @@ func TestWithCLIFlags(t *testing.T) {
 	})
 	require.NoError(t, err)
 	f.InitFromViper(v, zap.NewNop())
-	assert.Equal(t, "foo:1234", f.config.ClientConfig.Endpoint)
+	assert.Equal(t, "foo:1234", f.options.Config.ClientConfig.Endpoint)
 	require.NoError(t, f.Close())
 }
 

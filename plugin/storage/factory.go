@@ -146,6 +146,8 @@ func (*Factory) getArchiveFactoryOfType(factoryType string) (storage.Factory, er
 		return cassandra.NewArchiveFactory(), nil
 	case elasticsearchStorageType, opensearchStorageType:
 		return es.NewArchiveFactory(), nil
+	case grpcStorageType:
+		return grpc.NewArchiveFactory(), nil
 	default:
 		return nil, fmt.Errorf("archive storage factory not available for %s", factoryType)
 	}

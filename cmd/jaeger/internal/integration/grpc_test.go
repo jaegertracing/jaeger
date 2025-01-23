@@ -7,20 +7,24 @@ import (
 	"testing"
 
 	"github.com/jaegertracing/jaeger/plugin/storage/integration"
+	"github.com/jaegertracing/jaeger/ports"
 )
 
 type GRPCStorageIntegration struct {
 	E2EStorageIntegration
 
-	remoteStorage *integration.RemoteMemoryStorage
+	remoteStorage        *integration.RemoteMemoryStorage
+	archiveRemoteStorage *integration.RemoteMemoryStorage
 }
 
 func (s *GRPCStorageIntegration) initialize(t *testing.T) {
-	s.remoteStorage = integration.StartNewRemoteMemoryStorage(t)
+	s.remoteStorage = integration.StartNewRemoteMemoryStorage(t, ports.RemoteStorageGRPC)
+	s.remoteStorage = integration.StartNewRemoteMemoryStorage(t, ports.RemoteStorageGRPC+1)
 }
 
 func (s *GRPCStorageIntegration) cleanUp(t *testing.T) {
 	s.remoteStorage.Close(t)
+	s.archiveRemoteStorage.Close(t)
 	s.initialize(t)
 }
 
