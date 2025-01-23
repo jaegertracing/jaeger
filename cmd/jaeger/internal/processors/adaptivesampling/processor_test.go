@@ -140,7 +140,7 @@ type notClosingAgg struct{}
 
 func (*notClosingAgg) Close() error { return errors.New("not closing") }
 
-func (*notClosingAgg) HandleRootSpan(*model.Span, *zap.Logger)                     {}
+func (*notClosingAgg) HandleRootSpan(*model.Span)                                  {}
 func (*notClosingAgg) RecordThroughput(string, string, model.SamplerType, float64) {}
 func (*notClosingAgg) Start()                                                      {}
 

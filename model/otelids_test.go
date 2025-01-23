@@ -19,7 +19,7 @@ func TestToOTELTraceID(t *testing.T) {
 		Low:  3,
 		High: 2,
 	}
-	otelTraceID := modelTraceID.ToOTELTraceID()
+	otelTraceID := model.ToOTELTraceID(modelTraceID)
 	expected := []byte{0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 3}
 	require.Equal(t, pcommon.TraceID(expected), otelTraceID)
 }
@@ -53,7 +53,7 @@ func TestToOTELSpanID(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			actual := test.spanID.ToOTELSpanID()
+			actual := model.ToOTELSpanID(test.spanID)
 			assert.Equal(t, test.expected, actual)
 		})
 	}

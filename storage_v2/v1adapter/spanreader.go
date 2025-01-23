@@ -30,7 +30,7 @@ func NewSpanReader(traceReader tracestore.Reader) *SpanReader {
 
 func (sr *SpanReader) GetTrace(ctx context.Context, query spanstore.GetTraceParameters) (*model.Trace, error) {
 	getTracesIter := sr.traceReader.GetTraces(ctx, tracestore.GetTraceParams{
-		TraceID: query.TraceID.ToOTELTraceID(),
+		TraceID: model.ToOTELTraceID(query.TraceID),
 		Start:   query.StartTime,
 		End:     query.EndTime,
 	})
