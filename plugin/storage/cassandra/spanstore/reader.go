@@ -10,12 +10,12 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/pkg/cassandra"
 	casMetrics "github.com/jaegertracing/jaeger/pkg/cassandra/metrics"
 	"github.com/jaegertracing/jaeger/pkg/metrics"

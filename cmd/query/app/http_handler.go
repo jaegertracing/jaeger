@@ -17,11 +17,11 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/gorilla/mux"
-	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	uiconv "github.com/jaegertracing/jaeger/model/converter/json"
 	ui "github.com/jaegertracing/jaeger/model/json"

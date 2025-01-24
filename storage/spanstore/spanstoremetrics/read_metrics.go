@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
-
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )

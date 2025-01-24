@@ -9,11 +9,11 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"go.opentelemetry.io/collector/receiver"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/flags"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/handler"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"

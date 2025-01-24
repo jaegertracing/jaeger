@@ -9,9 +9,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/pkg/cache"
 	"github.com/jaegertracing/jaeger/pkg/es"
 	cfg "github.com/jaegertracing/jaeger/pkg/es/config"

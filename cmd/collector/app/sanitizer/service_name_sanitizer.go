@@ -6,7 +6,6 @@ package sanitizer
 
 import (
 	"github.com/jaegertracing/jaeger-idl/model/v1"
-
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sanitizer/cache"
 )
 

@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/stretchr/testify/assert"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
 	"github.com/jaegertracing/jaeger/internal/metricstest"
 	jaegerM "github.com/jaegertracing/jaeger/pkg/metrics"

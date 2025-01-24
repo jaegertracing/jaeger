@@ -18,13 +18,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/es"
 	escfg "github.com/jaegertracing/jaeger/pkg/es/config"

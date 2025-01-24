@@ -12,9 +12,9 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 )
 

@@ -7,10 +7,10 @@ package app
 import (
 	"testing"
 
-	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/flags"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
 	"github.com/jaegertracing/jaeger/pkg/metrics"

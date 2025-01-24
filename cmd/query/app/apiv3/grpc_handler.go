@@ -8,11 +8,11 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc/v2/querysvc"
 	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
 	OTELModel "github.com/jaegertracing/jaeger/model"

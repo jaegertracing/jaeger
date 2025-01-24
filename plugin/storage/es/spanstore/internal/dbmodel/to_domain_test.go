@@ -14,10 +14,11 @@ import (
 	"testing"
 
 	gogojsonpb "github.com/gogo/protobuf/jsonpb"
-	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/kr/pretty"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 )
 
 func TestToDomain(t *testing.T) {

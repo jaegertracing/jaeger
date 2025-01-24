@@ -6,9 +6,10 @@ package processor
 import (
 	"testing"
 
-	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/stretchr/testify/assert"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 )
 
 func TestDetails(t *testing.T) {

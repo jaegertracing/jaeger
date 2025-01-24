@@ -9,11 +9,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	ui "github.com/jaegertracing/jaeger/model/json"
 	"github.com/jaegertracing/jaeger/storage_v2/depstore"
 )

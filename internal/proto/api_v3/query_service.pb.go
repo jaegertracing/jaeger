@@ -6,20 +6,18 @@ package api_v3
 import (
 	context "context"
 	fmt "fmt"
-
 	_ "github.com/gogo/protobuf/gogoproto"
 	proto "github.com/gogo/protobuf/proto"
 	_ "github.com/gogo/protobuf/types"
 	github_com_gogo_protobuf_types "github.com/gogo/protobuf/types"
 
+	grpc "google.golang.org/grpc"
+	codes "google.golang.org/grpc/codes"
+	status "google.golang.org/grpc/status"
 	io "io"
 	math "math"
 	math_bits "math/bits"
 	time "time"
-
-	grpc "google.golang.org/grpc"
-	codes "google.golang.org/grpc/codes"
-	status "google.golang.org/grpc/status"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -123,6 +121,7 @@ func (m *GetTraceRequest) GetRawTraces() bool {
 // that match the conditions, and the resulting number of traces can be less.
 //
 // Note: some storage implementations do not guarantee the correct implementation of all parameters.
+//
 type TraceQueryParameters struct {
 	ServiceName   string `protobuf:"bytes,1,opt,name=service_name,json=serviceName,proto3" json:"service_name,omitempty"`
 	OperationName string `protobuf:"bytes,2,opt,name=operation_name,json=operationName,proto3" json:"operation_name,omitempty"`
@@ -674,15 +673,15 @@ func (m *GRPCGatewayError_GRPCGatewayErrorDetails) GetHttpStatus() string {
 // In case of errors, GRPCGatewayError above is used.
 //
 // Example:
-//
-//	{"result": {"resourceSpans": ...}}
+//     {"result": {"resourceSpans": ...}}
 //
 // See https://github.com/grpc-ecosystem/grpc-gateway/issues/2189
+//
 type GRPCGatewayWrapper struct {
 	Result               *TracesData `protobuf:"bytes,1,opt,name=result,proto3" json:"result,omitempty"`
-	XXX_NoUnkeyedLiteral struct{}    `json:"-"`
-	XXX_unrecognized     []byte      `json:"-"`
-	XXX_sizecache        int32       `json:"-"`
+	XXX_NoUnkeyedLiteral struct{}       `json:"-"`
+	XXX_unrecognized     []byte         `json:"-"`
+	XXX_sizecache        int32          `json:"-"`
 }
 
 func (m *GRPCGatewayWrapper) Reset()         { *m = GRPCGatewayWrapper{} }

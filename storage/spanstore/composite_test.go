@@ -10,9 +10,9 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/stretchr/testify/require"
 
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 

@@ -7,9 +7,9 @@ package handler
 import (
 	"context"
 
-	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
 	zipkinS "github.com/jaegertracing/jaeger/cmd/collector/app/sanitizer/zipkin"
 	jConv "github.com/jaegertracing/jaeger/model/converter/thrift/jaeger"

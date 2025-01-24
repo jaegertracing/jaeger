@@ -8,9 +8,9 @@ import (
 	"sync"
 	"time"
 
-	span_model "github.com/jaegertracing/jaeger-idl/model/v1"
 	"go.uber.org/zap"
 
+	span_model "github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/leaderelection"
 	"github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy"
 	"github.com/jaegertracing/jaeger/pkg/hostname"

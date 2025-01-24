@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
-
 	"github.com/jaegertracing/jaeger/model/json"
 )
 

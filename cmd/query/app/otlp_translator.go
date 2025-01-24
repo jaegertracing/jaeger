@@ -6,9 +6,9 @@ package app
 import (
 	"fmt"
 
-	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/storage_v2/v1adapter"
 )
 

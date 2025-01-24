@@ -8,7 +8,6 @@ import (
 	"errors"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
-
 	OTELModel "github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	"github.com/jaegertracing/jaeger/storage_v2/tracestore"

@@ -7,11 +7,11 @@ package model_test
 import (
 	"testing"
 
-	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	OTELModel "github.com/jaegertracing/jaeger/model"
 )
 

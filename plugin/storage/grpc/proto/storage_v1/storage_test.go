@@ -8,11 +8,11 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/proto"
-	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc/proto/storageprototest"
 	"github.com/jaegertracing/jaeger/proto-gen/storage_v1"

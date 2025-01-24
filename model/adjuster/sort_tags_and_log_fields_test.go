@@ -8,9 +8,10 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 )
 
 func TestSortTagsAndLogFieldsDoesSortFields(t *testing.T) {

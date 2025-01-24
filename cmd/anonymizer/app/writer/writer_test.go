@@ -8,9 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
+
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 )
 
 var tags = []model.KeyValue{

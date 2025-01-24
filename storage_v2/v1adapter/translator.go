@@ -4,11 +4,11 @@
 package v1adapter
 
 import (
-	"github.com/jaegertracing/jaeger-idl/model/v1"
 	jaegerTranslator "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/jptrace"
 	OTELModel "github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/iter"

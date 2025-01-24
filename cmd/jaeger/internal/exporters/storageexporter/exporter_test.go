@@ -8,7 +8,6 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/storage/storagetest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -21,6 +20,7 @@ import (
 	nooptrace "go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/zap/zaptest"
 
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
 	"github.com/jaegertracing/jaeger/plugin/storage/memory"
 	"github.com/jaegertracing/jaeger/storage"

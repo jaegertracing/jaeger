@@ -7,9 +7,10 @@ package dbmodel
 import (
 	"testing"
 
-	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/kr/pretty"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 )
 
 func TestDefaultTagFilter(t *testing.T) {

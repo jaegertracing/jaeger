@@ -13,10 +13,10 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/jsonpb"
-	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	jModel "github.com/jaegertracing/jaeger/model/json"
 )
 

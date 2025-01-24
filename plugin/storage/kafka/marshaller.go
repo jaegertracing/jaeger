@@ -8,6 +8,7 @@ import (
 
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/proto"
+
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 )
 

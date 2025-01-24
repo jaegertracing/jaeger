@@ -15,12 +15,12 @@ import (
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/proto"
 	"github.com/gorilla/mux"
-	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc/v2/querysvc"
 	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
 	OTELModel "github.com/jaegertracing/jaeger/model"
