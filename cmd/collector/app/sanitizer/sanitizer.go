@@ -5,7 +5,7 @@
 package sanitizer
 
 import (
-	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 )
 
 // SanitizeSpan sanitizes/normalizes spans. Any business logic that needs to be applied to normalize the contents of a

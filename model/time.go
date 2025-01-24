@@ -5,33 +5,19 @@
 package model
 
 import (
-	"time"
+	modelv1 "github.com/jaegertracing/jaeger-idl/model/v1"
 )
 
 // EpochMicrosecondsAsTime converts microseconds since epoch to time.Time value.
-func EpochMicrosecondsAsTime(ts uint64) time.Time {
-	seconds := ts / 1000000
-	nanos := 1000 * (ts % 1000000)
-	//nolint: gosec // G115
-	return time.Unix(int64(seconds), int64(nanos)).UTC()
-}
+var EpochMicrosecondsAsTime = modelv1.EpochMicrosecondsAsTime
 
 // TimeAsEpochMicroseconds converts time.Time to microseconds since epoch,
 // which is the format the StartTime field is stored in the Span.
-func TimeAsEpochMicroseconds(t time.Time) uint64 {
-	//nolint: gosec // G115
-	return uint64(t.UnixNano() / 1000)
-}
+var TimeAsEpochMicroseconds = modelv1.TimeAsEpochMicroseconds
 
 // MicrosecondsAsDuration converts duration in microseconds to time.Duration value.
-func MicrosecondsAsDuration(v uint64) time.Duration {
-	//nolint: gosec // G115
-	return time.Duration(v) * time.Microsecond
-}
+var MicrosecondsAsDuration = modelv1.MicrosecondsAsDuration
 
 // DurationAsMicroseconds converts time.Duration to microseconds,
 // which is the format the Duration field is stored in the Span.
-func DurationAsMicroseconds(d time.Duration) uint64 {
-	//nolint: gosec // G115
-	return uint64(d.Nanoseconds() / 1000)
-}
+var DurationAsMicroseconds = modelv1.DurationAsMicroseconds

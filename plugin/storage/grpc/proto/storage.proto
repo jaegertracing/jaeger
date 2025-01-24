@@ -69,7 +69,7 @@ message CloseWriterResponse {
 message GetTraceRequest {
     bytes trace_id = 1 [
       (gogoproto.nullable) = false,
-      (gogoproto.customtype) = "github.com/jaegertracing/jaeger/model.TraceID",
+      (gogoproto.customtype) = "github.com/jaegertracing/jaeger-idl/model/v1.TraceID",
       (gogoproto.customname) = "TraceID"
     ];
     google.protobuf.Timestamp start_time = 2 [
@@ -143,7 +143,7 @@ message FindTraceIDsRequest {
 message FindTraceIDsResponse {
     repeated bytes trace_ids = 1 [
       (gogoproto.nullable) = false,
-      (gogoproto.customtype) = "github.com/jaegertracing/jaeger/model.TraceID",
+      (gogoproto.customtype) = "github.com/jaegertracing/jaeger-idl/model/v1.TraceID",
       (gogoproto.customname) = "TraceIDs"
     ];
 }
