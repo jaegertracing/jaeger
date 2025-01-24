@@ -15,7 +15,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"regexp"
 	"testing"
 	"time"
 
@@ -772,18 +771,24 @@ func TestTransformOTLPBadPayload(t *testing.T) {
 
 func TestBadOTLPReturns400(t *testing.T) {
 	withTestServer(t, func(ts *testServer) {
-		response := new(any)
+		url := ts.server.URL + "/api/transform"
 		request := "Bad Payload"
-		err := postJSON(ts.server.URL+"/api/transform", request, response)
-		errstring := err.Error()
-		pattern := `"code":(\d+),`
-		re := regexp.MustCompile(pattern)
-		match := re.FindStringSubmatch(errstring)
-		if len(match) > 1 {
-			require.Equal(t, "400", match[1])
-		} else {
+		buf := &bytes.Buffer{}
+		encoder := json.NewEncoder(buf)
+		if err := encoder.Encode(request); err != nil {
 			require.Error(t, err)
 		}
+		r, err := http.NewRequest(http.MethodPost, url, buf)
+		if err != nil {
+			require.Error(t, err)
+		}
+		r.Header.Add("Accept", "application/json")
+		resp, err := httpClient.Do(r)
+		if err != nil {
+			require.Error(t, err)
+		}
+		defer resp.Body.Close()
+		require.Equal(t, 400, resp.StatusCode)
 	}, querysvc.QueryServiceOptions{})
 }
 
