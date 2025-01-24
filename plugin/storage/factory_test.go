@@ -344,6 +344,78 @@ func TestInheritable(t *testing.T) {
 	assert.Equal(t, f.factories[cassandraStorageType], mockInheritable.calledWith)
 }
 
+type archiveConfigurable struct {
+	isConfigurable bool
+	*mocks.Factory
+}
+
+func (ac *archiveConfigurable) IsArchiveCapable() bool {
+	return ac.isConfigurable
+}
+
+func TestArchiveConfigurable(t *testing.T) {
+	tests := []struct {
+		name                string
+		isArchiveCapable    bool
+		archiveInitError    error
+		expectedError       error
+		expectedArchiveSize int
+	}{
+		{
+			name:                "Archive factory initializes successfully",
+			isArchiveCapable:    true,
+			archiveInitError:    nil,
+			expectedError:       nil,
+			expectedArchiveSize: 1,
+		},
+		{
+			name:                "Archive factory initialization fails",
+			isArchiveCapable:    true,
+			archiveInitError:    assert.AnError,
+			expectedError:       assert.AnError,
+			expectedArchiveSize: 1,
+		},
+		{
+			name:                "Archive factory is not archive-capable",
+			isArchiveCapable:    false,
+			archiveInitError:    nil,
+			expectedError:       nil,
+			expectedArchiveSize: 0,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			f, err := NewFactory(defaultCfg())
+			require.NoError(t, err)
+
+			primaryFactory := &mocks.Factory{}
+			archiveFactory := &mocks.Factory{}
+			archiveConfigurable := &archiveConfigurable{
+				isConfigurable: test.isArchiveCapable,
+				Factory:        archiveFactory,
+			}
+
+			f.factories[cassandraStorageType] = primaryFactory
+			f.archiveFactories[cassandraStorageType] = archiveConfigurable
+
+			m := metrics.NullFactory
+			l := zap.NewNop()
+			primaryFactory.On("Initialize", m, l).Return(nil).Once()
+			archiveFactory.On("Initialize", m, l).Return(test.archiveInitError).Once()
+
+			err = f.Initialize(m, l)
+			if test.expectedError != nil {
+				require.ErrorIs(t, err, test.expectedError)
+			} else {
+				require.NoError(t, err)
+			}
+
+			assert.Len(t, f.archiveFactories, test.expectedArchiveSize)
+		})
+	}
+}
+
 func TestParsingDownsamplingRatio(t *testing.T) {
 	f := Factory{}
 	v, command := config.Viperize(f.AddPipelineFlags)
