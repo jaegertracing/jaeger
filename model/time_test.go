@@ -8,9 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/stretchr/testify/assert"
-
-	"github.com/jaegertracing/jaeger/model"
 )
 
 func TestTimeConversion(t *testing.T) {

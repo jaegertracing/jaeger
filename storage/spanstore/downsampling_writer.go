@@ -11,7 +11,8 @@ import (
 	"math/big"
 	"sync"
 
-	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger-idl/model/v1"
+
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 

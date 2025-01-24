@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -16,7 +17,6 @@ import (
 
 	epmocks "github.com/jaegertracing/jaeger/internal/leaderelection/mocks"
 	"github.com/jaegertracing/jaeger/internal/metricstest"
-	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/storage/samplingstore/mocks"
 )
 

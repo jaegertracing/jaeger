@@ -15,6 +15,7 @@ import (
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/proto"
 	"github.com/gorilla/mux"
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel/trace"
@@ -22,7 +23,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc/v2/querysvc"
 	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
-	"github.com/jaegertracing/jaeger/model"
+	OTELModel "github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/iter"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	"github.com/jaegertracing/jaeger/storage_v2/tracestore"
@@ -161,7 +162,7 @@ func (h *HTTPGateway) getTrace(w http.ResponseWriter, r *http.Request) {
 	request := querysvc.GetTraceParams{
 		TraceIDs: []tracestore.GetTraceParams{
 			{
-				TraceID: model.ToOTELTraceID(traceID),
+				TraceID: OTELModel.ToOTELTraceID(traceID),
 			},
 		},
 	}

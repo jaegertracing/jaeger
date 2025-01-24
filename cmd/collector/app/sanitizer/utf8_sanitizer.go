@@ -8,10 +8,9 @@ import (
 	"fmt"
 	"unicode/utf8"
 
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
-
-	"github.com/jaegertracing/jaeger/model"
 )
 
 const (

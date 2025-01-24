@@ -4,12 +4,13 @@
 package v1adapter
 
 import (
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	jaegerTranslator "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger/internal/jptrace"
-	"github.com/jaegertracing/jaeger/model"
+	OTELModel "github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/iter"
 )
 
@@ -72,7 +73,7 @@ func V1TraceIDsFromSeq2(traceIDsIter iter.Seq2[[]pcommon.TraceID, error]) ([]mod
 			return false
 		}
 		for _, traceID := range traceIDs {
-			modelTraceIDs = append(modelTraceIDs, model.TraceIDFromOTEL(traceID))
+			modelTraceIDs = append(modelTraceIDs, OTELModel.TraceIDFromOTEL(traceID))
 		}
 		return true
 	})
@@ -138,7 +139,7 @@ func transferWarningsToModelSpans(traces ptrace.Traces, spanMap map[model.SpanID
 				if len(warnings) == 0 {
 					continue
 				}
-				if span, ok := spanMap[model.SpanIDFromOTEL(otelSpan.SpanID())]; ok {
+				if span, ok := spanMap[OTELModel.SpanIDFromOTEL(otelSpan.SpanID())]; ok {
 					span.Warnings = append(span.Warnings, warnings...)
 					// filter out the warning tag
 					span.Tags = filterTags(span.Tags, jptrace.WarningsAttribute)
@@ -154,7 +155,7 @@ func transferWarningsToOTLPSpans(batches []*model.Batch, spanMap map[pcommon.Spa
 			if len(span.Warnings) == 0 {
 				continue
 			}
-			if otelSpan, ok := spanMap[model.ToOTELSpanID(span.SpanID)]; ok {
+			if otelSpan, ok := spanMap[OTELModel.ToOTELSpanID(span.SpanID)]; ok {
 				jptrace.AddWarnings(otelSpan, span.Warnings...)
 			}
 		}

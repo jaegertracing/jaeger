@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"go.opentelemetry.io/collector/receiver"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -19,7 +20,6 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/collector/app/server"
 	"github.com/jaegertracing/jaeger/internal/safeexpvar"
 	"github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy"
-	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"

@@ -8,12 +8,12 @@ import (
 	"errors"
 	"time"
 
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
-	"github.com/jaegertracing/jaeger/model"
 	_ "github.com/jaegertracing/jaeger/pkg/gogocodec" // force gogo codec registration
 	"github.com/jaegertracing/jaeger/pkg/jtracer"
 	"github.com/jaegertracing/jaeger/plugin/metricstore/disabled"

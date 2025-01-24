@@ -9,10 +9,10 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/jaegertracing/jaeger/internal/metricstest"
-	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	"github.com/jaegertracing/jaeger/storage/spanstore/mocks"
 	"github.com/jaegertracing/jaeger/storage/spanstore/spanstoremetrics"

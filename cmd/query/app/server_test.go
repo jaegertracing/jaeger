@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/jsonpb"
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -33,7 +34,6 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	v2querysvc "github.com/jaegertracing/jaeger/cmd/query/app/querysvc/v2/querysvc"
 	"github.com/jaegertracing/jaeger/internal/grpctest"
-	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	"github.com/jaegertracing/jaeger/pkg/jtracer"
 	"github.com/jaegertracing/jaeger/pkg/telemetry"

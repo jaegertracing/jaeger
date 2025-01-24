@@ -22,4 +22,3 @@ type CollectorServiceServer = modelv1.CollectorServiceServer
 type UnimplementedCollectorServiceServer = modelv1.UnimplementedCollectorServiceServer
 
 var RegisterCollectorServiceServer = modelv1.RegisterCollectorServiceServer
-

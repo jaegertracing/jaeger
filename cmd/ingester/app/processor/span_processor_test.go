@@ -8,12 +8,12 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	cmocks "github.com/jaegertracing/jaeger/cmd/ingester/app/consumer/mocks"
-	"github.com/jaegertracing/jaeger/model"
 	umocks "github.com/jaegertracing/jaeger/plugin/storage/kafka/mocks"
 	smocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
 )

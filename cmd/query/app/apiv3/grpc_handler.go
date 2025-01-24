@@ -8,13 +8,14 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc/v2/querysvc"
 	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
-	"github.com/jaegertracing/jaeger/model"
+	OTELModel "github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/iter"
 	"github.com/jaegertracing/jaeger/storage_v2/tracestore"
 )
@@ -37,7 +38,7 @@ func (h *Handler) GetTrace(request *api_v3.GetTraceRequest, stream api_v3.QueryS
 	query := querysvc.GetTraceParams{
 		TraceIDs: []tracestore.GetTraceParams{
 			{
-				TraceID: model.ToOTELTraceID(traceID),
+				TraceID: OTELModel.ToOTELTraceID(traceID),
 				Start:   request.GetStartTime(),
 				End:     request.GetEndTime(),
 			},

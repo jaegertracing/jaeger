@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -16,7 +17,6 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/query/app"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
-	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/plugin/metricstore/disabled"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 	"github.com/jaegertracing/jaeger/storage/spanstore"

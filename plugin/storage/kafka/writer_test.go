@@ -11,12 +11,12 @@ import (
 
 	"github.com/Shopify/sarama"
 	saramaMocks "github.com/Shopify/sarama/mocks"
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/internal/metricstest"
-	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/plugin/storage/kafka/mocks"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )

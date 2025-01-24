@@ -8,13 +8,13 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
 	zipkin2 "github.com/jaegertracing/jaeger/cmd/collector/app/sanitizer/zipkin"
-	"github.com/jaegertracing/jaeger/model"
 	jConverter "github.com/jaegertracing/jaeger/model/converter/thrift/jaeger"
 	"github.com/jaegertracing/jaeger/model/converter/thrift/zipkin"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"

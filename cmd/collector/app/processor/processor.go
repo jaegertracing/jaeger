@@ -7,9 +7,8 @@ import (
 	"context"
 	"io"
 
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"go.opentelemetry.io/collector/pdata/ptrace"
-
-	"github.com/jaegertracing/jaeger/model"
 )
 
 var (

@@ -8,13 +8,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
-	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/iter"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	"github.com/jaegertracing/jaeger/storage_v2/tracestore"

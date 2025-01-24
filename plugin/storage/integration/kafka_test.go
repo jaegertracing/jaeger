@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/Shopify/sarama"
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -17,7 +18,6 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/ingester/app"
 	"github.com/jaegertracing/jaeger/cmd/ingester/app/builder"
-	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/kafka/consumer"
 	"github.com/jaegertracing/jaeger/pkg/metrics"

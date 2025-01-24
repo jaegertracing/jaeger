@@ -7,9 +7,9 @@ import (
 	"context"
 
 	"github.com/Shopify/sarama"
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 

@@ -21,6 +21,7 @@ import (
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/protobuf/types"
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -31,7 +32,6 @@ import (
 	"go.uber.org/zap/zaptest/observer"
 
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
-	"github.com/jaegertracing/jaeger/model"
 	ui "github.com/jaegertracing/jaeger/model/json"
 	"github.com/jaegertracing/jaeger/pkg/jtracer"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"

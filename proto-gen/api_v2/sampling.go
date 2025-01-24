@@ -54,4 +54,3 @@ type SamplingManagerServer = modelv1.SamplingManagerServer
 type UnimplementedSamplingManagerServer = modelv1.UnimplementedSamplingManagerServer
 
 var RegisterSamplingManagerServer = modelv1.RegisterSamplingManagerServer
-

@@ -11,6 +11,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
 	"go.opentelemetry.io/collector/pdata/ptrace"
@@ -20,7 +21,6 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sanitizer"
 	sanitizerv2 "github.com/jaegertracing/jaeger/cmd/jaeger/sanitizer"
 	"github.com/jaegertracing/jaeger/internal/jptrace"
-	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/queue"
 	"github.com/jaegertracing/jaeger/pkg/telemetry"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"

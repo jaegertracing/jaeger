@@ -8,6 +8,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/storage/storagetest"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
@@ -21,7 +22,6 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/remotesampling"
 	"github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy/adaptive"
-	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/plugin/storage/memory"
 )
 

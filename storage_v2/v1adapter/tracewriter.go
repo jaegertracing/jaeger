@@ -8,9 +8,9 @@ import (
 	"errors"
 	"time"
 
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
-	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	"github.com/jaegertracing/jaeger/storage_v2/tracestore"

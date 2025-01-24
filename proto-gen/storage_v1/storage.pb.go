@@ -6,19 +6,20 @@ package storage_v1
 import (
 	context "context"
 	fmt "fmt"
+	io "io"
+	math "math"
+	math_bits "math/bits"
+	time "time"
+
 	_ "github.com/gogo/protobuf/gogoproto"
 	proto "github.com/gogo/protobuf/proto"
 	_ "github.com/gogo/protobuf/types"
 	github_com_gogo_protobuf_types "github.com/gogo/protobuf/types"
 	github_com_jaegertracing_jaeger_idl_model_v1 "github.com/jaegertracing/jaeger-idl/model/v1"
-	model "github.com/jaegertracing/jaeger/model"
+	model "github.com/jaegertracing/jaeger-idl/model/v1"
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
-	io "io"
-	math "math"
-	math_bits "math/bits"
-	time "time"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.

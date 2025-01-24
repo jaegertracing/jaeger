@@ -7,11 +7,12 @@ package model_test
 import (
 	"testing"
 
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 
-	"github.com/jaegertracing/jaeger/model"
+	OTELModel "github.com/jaegertracing/jaeger/model"
 )
 
 func TestToOTELTraceID(t *testing.T) {
@@ -19,7 +20,7 @@ func TestToOTELTraceID(t *testing.T) {
 		Low:  3,
 		High: 2,
 	}
-	otelTraceID := model.ToOTELTraceID(modelTraceID)
+	otelTraceID := OTELModel.ToOTELTraceID(modelTraceID)
 	expected := []byte{0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 3}
 	require.Equal(t, pcommon.TraceID(expected), otelTraceID)
 }
@@ -30,7 +31,7 @@ func TestTraceIDFromOTEL(t *testing.T) {
 		Low:  3,
 		High: 2,
 	}
-	require.Equal(t, expected, model.TraceIDFromOTEL(otelTraceID))
+	require.Equal(t, expected, OTELModel.TraceIDFromOTEL(otelTraceID))
 }
 
 func TestToOTELSpanID(t *testing.T) {
@@ -53,7 +54,7 @@ func TestToOTELSpanID(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			actual := model.ToOTELSpanID(test.spanID)
+			actual := OTELModel.ToOTELSpanID(test.spanID)
 			assert.Equal(t, test.expected, actual)
 		})
 	}
@@ -79,7 +80,7 @@ func TestSpanIDFromOTEL(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			actual := model.SpanIDFromOTEL(test.otelSpanID)
+			actual := OTELModel.SpanIDFromOTEL(test.otelSpanID)
 			assert.Equal(t, test.expected, actual)
 		})
 	}

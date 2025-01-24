@@ -8,9 +8,9 @@ import (
 	"errors"
 	"time"
 
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/model/adjuster"
 	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/spanstore"

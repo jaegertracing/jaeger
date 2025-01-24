@@ -13,9 +13,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/model"
 	uiconv "github.com/jaegertracing/jaeger/model/converter/json"
 	uimodel "github.com/jaegertracing/jaeger/model/json"
 )

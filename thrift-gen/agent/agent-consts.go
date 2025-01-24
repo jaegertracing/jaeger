@@ -7,13 +7,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
-	thrift "github.com/apache/thrift/lib/go/thrift"
-	"strings"
 	"regexp"
+	"strings"
+	"time"
+
+	thrift "github.com/apache/thrift/lib/go/thrift"
 	"github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
-
 )
 
 // (needed to ensure safety because of naive import list construction.)
@@ -23,6 +23,7 @@ var _ = errors.New
 var _ = context.Background
 var _ = time.Now
 var _ = bytes.Equal
+
 // (needed by validator.)
 var _ = strings.Contains
 var _ = regexp.MatchString
@@ -32,4 +33,3 @@ var _ = zipkincore.GoUnusedProtection__
 
 func init() {
 }
-
