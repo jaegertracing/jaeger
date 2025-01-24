@@ -769,6 +769,15 @@ func TestTransformOTLPBadPayload(t *testing.T) {
 	}, querysvc.QueryServiceOptions{})
 }
 
+func TestBadOTLPReturns400(t *testing.T) {
+	withTestServer(t, func(ts *testServer) {
+		response := new(any)
+		request := "Bad Payload"
+		err := postJSON(ts.server.URL+"/api/transform", request, response)
+		require.ErrorContains(t, err, "400 error")
+	}, querysvc.QueryServiceOptions{})
+}
+
 func TestGetMetricsSuccess(t *testing.T) {
 	mr := &metricsmocks.Reader{}
 	apiHandlerOptions := []HandlerOption{
