@@ -105,7 +105,7 @@ type DependencyLink = jaegerIdlModel.DependencyLink
 var xxx_messageInfo_DependencyLink proto.InternalMessageInfo
 
 func init() {
-	proto.RegisterEnum("jaeger.api_v2.ValueType", ValueType_name, ValueType_value)
+	//proto.RegisterEnum("jaeger.api_v2.ValueType", ValueType_name, ValueType_value)
 	proto.RegisterEnum("jaeger.api_v2.SpanRefType", SpanRefType_name, SpanRefType_value)
 	proto.RegisterType((*KeyValue)(nil), "jaeger.api_v2.KeyValue")
 	proto.RegisterType((*Log)(nil), "jaeger.api_v2.Log")
