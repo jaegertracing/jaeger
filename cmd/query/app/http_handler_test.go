@@ -780,9 +780,9 @@ func TestBadOTLPReturns400(t *testing.T) {
 		re := regexp.MustCompile(pattern)
 		match := re.FindStringSubmatch(errstring)
 		if len(match) > 1 {
-			require.Equal(t,"400", match[1])
+			require.Equal(t, "400", match[1])
 		} else {
-			require.Error(t,err)
+			require.Error(t, err)
 		}
 	}, querysvc.QueryServiceOptions{})
 }
