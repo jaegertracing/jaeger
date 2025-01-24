@@ -5,7 +5,7 @@
 package model
 
 import (
-	jaegerIdlModel "github.com/jaegertracing/jaeger-idl/model/v1"
+	modelv1 "github.com/jaegertracing/jaeger-idl/model/v1"
 )
 
 const (
@@ -22,16 +22,10 @@ const (
 // We no longer store ParentSpanID in the domain model, but the data in the database
 // or other formats might still have these IDs without representing them in the References,
 // so this converts parent IDs to canonical reference format.
-func MaybeAddParentSpanID(traceID TraceID, parentSpanID SpanID, refs []SpanRef) []SpanRef {
-	return jaegerIdlModel.MaybeAddParentSpanID(traceID, parentSpanID, refs)
-}
+var MaybeAddParentSpanID = modelv1.MaybeAddParentSpanID
 
 // NewChildOfRef creates a new child-of span reference.
-func NewChildOfRef(traceID TraceID, spanID SpanID) SpanRef {
-	return jaegerIdlModel.NewChildOfRef(traceID, spanID)
-}
+var NewChildOfRef = modelv1.NewChildOfRef
 
 // NewFollowsFromRef creates a new follows-from span reference.
-func NewFollowsFromRef(traceID TraceID, spanID SpanID) SpanRef {
-	return jaegerIdlModel.NewFollowsFromRef(traceID, spanID)
-}
+var NewFollowsFromRef = modelv1.NewFollowsFromRef

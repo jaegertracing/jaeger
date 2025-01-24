@@ -5,10 +5,10 @@
 package model
 
 import (
-	jaegerIdlModel "github.com/jaegertracing/jaeger-idl/model/v1"
+	modelv1 "github.com/jaegertracing/jaeger-idl/model/v1"
 )
 
-type SamplerType = jaegerIdlModel.SamplerType
+type SamplerType = modelv1.SamplerType
 
 const (
 	SamplerTypeUnrecognized SamplerType = iota
@@ -26,6 +26,4 @@ var toSamplerType = map[string]SamplerType{
 	"const":         SamplerTypeConst,
 }
 
-func SpanKindTag(kind SpanKind) KeyValue {
-	return jaegerIdlModel.SpanKindTag(kind)
-}
+var SpanKindTag = modelv1.SpanKindTag

@@ -5,25 +5,17 @@
 package model
 
 import (
-	jaegerIdlModel "github.com/jaegertracing/jaeger-idl/model/v1"
+	modelv1 "github.com/jaegertracing/jaeger-idl/model/v1"
 )
 
 // SortTraceIDs sorts a list of TraceIDs
-func SortTraceIDs(traceIDs []*TraceID) {
-	jaegerIdlModel.SortTraceIDs(traceIDs)
-}
+var SortTraceIDs = modelv1.SortTraceIDs
 
 // SortTraces deep sorts a list of traces by TraceID.
-func SortTraces(traces []*Trace) {
-	jaegerIdlModel.SortTraces(traces)
-}
+var SortTraces = modelv1.SortTraces
 
 // SortTrace deep sorts a trace's spans by SpanID.
-func SortTrace(trace *Trace) {
-	jaegerIdlModel.SortTrace(trace)
-}
+var SortTrace = modelv1.SortTrace
 
 // SortSpan deep sorts a span: this sorts its tags, logs by timestamp, tags in logs, and tags in process.
-func SortSpan(span *Span) {
-	jaegerIdlModel.SortSpan(span)
-}
+var SortSpan = modelv1.SortSpan

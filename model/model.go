@@ -4,7 +4,7 @@
 package model
 
 import (
-	jaegerIdlModel "github.com/jaegertracing/jaeger-idl/model/v1"
+	modelv1 "github.com/jaegertracing/jaeger-idl/model/v1"
 )
 
 // This is a compile-time assertion to ensure that this generated file
@@ -12,44 +12,36 @@ import (
 // A compilation error at this line likely means your copy of the
 // proto package needs to be updated.
 
-type ValueType = jaegerIdlModel.ValueType
+type ValueType = modelv1.ValueType
 
 const (
-	ValueType_STRING  ValueType = jaegerIdlModel.ValueType_STRING
-	ValueType_BOOL    ValueType = jaegerIdlModel.ValueType_BOOL
-	ValueType_INT64   ValueType = jaegerIdlModel.ValueType_INT64
-	ValueType_FLOAT64 ValueType = jaegerIdlModel.ValueType_FLOAT64
-	ValueType_BINARY  ValueType = jaegerIdlModel.ValueType_BINARY
+	ValueType_STRING  ValueType = modelv1.ValueType_STRING
+	ValueType_BOOL    ValueType = modelv1.ValueType_BOOL
+	ValueType_INT64   ValueType = modelv1.ValueType_INT64
+	ValueType_FLOAT64 ValueType = modelv1.ValueType_FLOAT64
+	ValueType_BINARY  ValueType = modelv1.ValueType_BINARY
 )
 
-var ValueType_name = jaegerIdlModel.ValueType_name
-
-var ValueType_value = jaegerIdlModel.ValueType_value
-
-type SpanRefType = jaegerIdlModel.SpanRefType
+type SpanRefType = modelv1.SpanRefType
 
 const (
-	SpanRefType_CHILD_OF     SpanRefType = jaegerIdlModel.SpanRefType_CHILD_OF
-	SpanRefType_FOLLOWS_FROM SpanRefType = jaegerIdlModel.SpanRefType_FOLLOWS_FROM
+	SpanRefType_CHILD_OF     SpanRefType = modelv1.SpanRefType_CHILD_OF
+	SpanRefType_FOLLOWS_FROM SpanRefType = modelv1.SpanRefType_FOLLOWS_FROM
 )
 
-var SpanRefType_name = jaegerIdlModel.SpanRefType_name
+type KeyValue = modelv1.KeyValue
 
-var SpanRefType_value = jaegerIdlModel.SpanRefType_value
+type Log = modelv1.Log
 
-type KeyValue = jaegerIdlModel.KeyValue
+type SpanRef = modelv1.SpanRef
 
-type Log = jaegerIdlModel.Log
+type Process = modelv1.Process
 
-type SpanRef = jaegerIdlModel.SpanRef
+type Span = modelv1.Span
 
-type Process = jaegerIdlModel.Process
+type Trace = modelv1.Trace
 
-type Span = jaegerIdlModel.Span
-
-type Trace = jaegerIdlModel.Trace
-
-type Trace_ProcessMapping = jaegerIdlModel.Trace_ProcessMapping
+type Trace_ProcessMapping = modelv1.Trace_ProcessMapping
 
 // Note that both Span and Batch may contain a Process.
 // This is different from the Thrift model which was only used
@@ -60,12 +52,6 @@ type Trace_ProcessMapping = jaegerIdlModel.Trace_ProcessMapping
 // semantics, both Batch and Spans in the same message may contain
 // their own instances of Process, with span.Process taking priority
 // over batch.Process.
-type Batch = jaegerIdlModel.Batch
+type Batch = modelv1.Batch
 
-type DependencyLink = jaegerIdlModel.DependencyLink
-
-var (
-	ErrInvalidLengthModel        = jaegerIdlModel.ErrInvalidLengthModel
-	ErrIntOverflowModel          = jaegerIdlModel.ErrIntOverflowModel
-	ErrUnexpectedEndOfGroupModel = jaegerIdlModel.ErrUnexpectedEndOfGroupModel
-)
+type DependencyLink = modelv1.DependencyLink

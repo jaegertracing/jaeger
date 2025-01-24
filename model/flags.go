@@ -5,17 +5,17 @@
 package model
 
 import (
-	jaegerIdlModel "github.com/jaegertracing/jaeger-idl/model/v1"
+	modelv1 "github.com/jaegertracing/jaeger-idl/model/v1"
 )
 
 const (
 	// SampledFlag is the bit set in Flags in order to define a span as a sampled span
-	SampledFlag = jaegerIdlModel.SampledFlag
+	SampledFlag = modelv1.SampledFlag
 	// DebugFlag is the bit set in Flags in order to define a span as a debug span
-	DebugFlag = jaegerIdlModel.SampledFlag
+	DebugFlag = modelv1.SampledFlag
 	// FirehoseFlag is the bit in Flags in order to define a span as a firehose span
-	FirehoseFlag = jaegerIdlModel.SampledFlag
+	FirehoseFlag = modelv1.SampledFlag
 )
 
 // Flags is a bit map of flags for a span
-type Flags = jaegerIdlModel.Flags
+type Flags = modelv1.Flags

@@ -5,7 +5,7 @@
 package model
 
 import (
-	jaegerIdlModel "github.com/jaegertracing/jaeger-idl/model/v1"
+	modelv1 "github.com/jaegertracing/jaeger-idl/model/v1"
 )
 
 const (
@@ -14,41 +14,37 @@ const (
 )
 
 // TraceID is a random 128bit identifier for a trace
-type TraceID = jaegerIdlModel.TraceID
+type TraceID = modelv1.TraceID
 
 // SpanID is a random 64bit identifier for a span
-type SpanID = jaegerIdlModel.SpanID
+type SpanID = modelv1.SpanID
 
 // ------- TraceID -------
 
 // NewTraceID creates a new TraceID from two 64bit unsigned ints.
-func NewTraceID(high, low uint64) TraceID {
-	return jaegerIdlModel.NewTraceID(high, low)
-}
+var NewTraceID = modelv1.NewTraceID
 
 // TraceIDFromString creates a TraceID from a hexadecimal string
 func TraceIDFromString(s string) (TraceID, error) {
-	return jaegerIdlModel.TraceIDFromString(s)
+	return modelv1.TraceIDFromString(s)
 }
 
 // TraceIDFromBytes creates a TraceID from list of bytes
 func TraceIDFromBytes(data []byte) (TraceID, error) {
-	return jaegerIdlModel.TraceIDFromBytes(data)
+	return modelv1.TraceIDFromBytes(data)
 }
 
 // ------- SpanID -------
 
 // NewSpanID creates a new SpanID from a 64bit unsigned int.
-func NewSpanID(v uint64) SpanID {
-	return jaegerIdlModel.NewSpanID(v)
-}
+var NewSpanID = modelv1.NewSpanID
 
 // SpanIDFromString creates a SpanID from a hexadecimal string
 func SpanIDFromString(s string) (SpanID, error) {
-	return jaegerIdlModel.SpanIDFromString(s)
+	return modelv1.SpanIDFromString(s)
 }
 
 // SpanIDFromBytes creates a SpandID from list of bytes
 func SpanIDFromBytes(data []byte) (SpanID, error) {
-	return jaegerIdlModel.SpanIDFromBytes(data)
+	return modelv1.SpanIDFromBytes(data)
 }

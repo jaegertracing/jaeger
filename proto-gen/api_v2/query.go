@@ -4,77 +4,61 @@ import (
 	_ "github.com/gogo/googleapis/google/api"
 	_ "github.com/gogo/protobuf/gogoproto"
 	_ "github.com/gogo/protobuf/types"
-	grpc "google.golang.org/grpc"
 
-	jaegerIdlModel "github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
+	modelv1 "github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
 )
 
-type GetTraceRequest = jaegerIdlModel.GetTraceRequest
+type GetTraceRequest = modelv1.GetTraceRequest
 
-type SpansResponseChunk = jaegerIdlModel.SpansResponseChunk
+type SpansResponseChunk = modelv1.SpansResponseChunk
 
-type ArchiveTraceRequest = jaegerIdlModel.ArchiveTraceRequest
+type ArchiveTraceRequest = modelv1.ArchiveTraceRequest
 
-type ArchiveTraceResponse = jaegerIdlModel.ArchiveTraceResponse
+type ArchiveTraceResponse = modelv1.ArchiveTraceResponse
 
-// Query parameters to find traces. Except for num_traces, all fields should be treated
-// as forming a conjunction, e.g., "service_name='X' AND operation_name='Y' AND ...".
-// All fields are matched against individual spans, not at the trace level.
-// The returned results contain traces where at least one span matches the conditions.
-// When num_traces results in fewer traces returned, there is no required ordering.
-//
-// Note: num_traces should restrict the number of traces returned, but not all backends
-// interpret it this way. For instance, in Cassandra this limits the number of _spans_
-// that match the conditions, and the resulting number of traces can be less.
-//
-// Note: some storage implementations do not guarantee the correct implementation of all parameters.
-type TraceQueryParameters = jaegerIdlModel.TraceQueryParameters
+type TraceQueryParameters = modelv1.TraceQueryParameters
 
-type FindTracesRequest = jaegerIdlModel.FindTracesRequest
+type FindTracesRequest = modelv1.FindTracesRequest
 
-type GetServicesRequest = jaegerIdlModel.GetServicesRequest
+type GetServicesRequest = modelv1.GetServicesRequest
 
-type GetServicesResponse = jaegerIdlModel.GetServicesResponse
+type GetServicesResponse = modelv1.GetServicesResponse
 
-type GetOperationsRequest = jaegerIdlModel.GetOperationsRequest
+type GetOperationsRequest = modelv1.GetOperationsRequest
 
-type Operation = jaegerIdlModel.Operation
+type Operation = modelv1.Operation
 
-type GetOperationsResponse = jaegerIdlModel.GetOperationsResponse
+type GetOperationsResponse = modelv1.GetOperationsResponse
 
-type GetDependenciesRequest = jaegerIdlModel.GetDependenciesRequest
+type GetDependenciesRequest = modelv1.GetDependenciesRequest
 
-type GetDependenciesResponse = jaegerIdlModel.GetDependenciesResponse
+type GetDependenciesResponse = modelv1.GetDependenciesResponse
 
 // QueryServiceClient is the client API for QueryService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://godoc.org/google.golang.org/grpc#ClientConn.NewStream.
-type QueryServiceClient = jaegerIdlModel.QueryServiceClient
+type QueryServiceClient = modelv1.QueryServiceClient
 
-func NewQueryServiceClient(cc *grpc.ClientConn) QueryServiceClient {
-	return jaegerIdlModel.NewQueryServiceClient(cc)
-}
+var NewQueryServiceClient = modelv1.NewQueryServiceClient
 
-type QueryService_GetTraceClient = jaegerIdlModel.QueryService_GetTraceClient
+type QueryService_GetTraceClient = modelv1.QueryService_GetTraceClient
 
-type QueryService_FindTracesClient = jaegerIdlModel.QueryService_FindTracesClient
+type QueryService_FindTracesClient = modelv1.QueryService_FindTracesClient
 
 // QueryServiceServer is the server API for QueryService service.
-type QueryServiceServer = jaegerIdlModel.QueryServiceServer
+type QueryServiceServer = modelv1.QueryServiceServer
 
 // UnimplementedQueryServiceServer can be embedded to have forward compatible implementations.
-type UnimplementedQueryServiceServer = jaegerIdlModel.UnimplementedQueryServiceServer
+type UnimplementedQueryServiceServer = modelv1.UnimplementedQueryServiceServer
 
-func RegisterQueryServiceServer(s *grpc.Server, srv QueryServiceServer) {
-	jaegerIdlModel.RegisterQueryServiceServer(s, srv)
-}
+var RegisterQueryServiceServer = modelv1.RegisterQueryServiceServer
 
-type QueryService_GetTraceServer = jaegerIdlModel.QueryService_GetTraceServer
+type QueryService_GetTraceServer = modelv1.QueryService_GetTraceServer
 
-type QueryService_FindTracesServer = jaegerIdlModel.QueryService_FindTracesServer
+type QueryService_FindTracesServer = modelv1.QueryService_FindTracesServer
 
 var (
-	ErrInvalidLengthQuery        = jaegerIdlModel.ErrInvalidLengthQuery
-	ErrIntOverflowQuery          = jaegerIdlModel.ErrIntOverflowQuery
-	ErrUnexpectedEndOfGroupQuery = jaegerIdlModel.ErrUnexpectedEndOfGroupQuery
+	ErrInvalidLengthQuery        = modelv1.ErrInvalidLengthQuery
+	ErrIntOverflowQuery          = modelv1.ErrIntOverflowQuery
+	ErrUnexpectedEndOfGroupQuery = modelv1.ErrUnexpectedEndOfGroupQuery
 )
