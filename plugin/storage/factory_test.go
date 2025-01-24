@@ -8,7 +8,6 @@ import (
 	"errors"
 	"expvar"
 	"flag"
-	"fmt"
 	"io"
 	"reflect"
 	"strings"
@@ -322,7 +321,6 @@ type inheritable struct {
 }
 
 func (i *inheritable) InheritSettingsFrom(other storage.Factory) {
-	fmt.Println("here")
 	i.calledWith = other
 }
 
