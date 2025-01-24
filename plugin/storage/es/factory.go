@@ -321,7 +321,7 @@ func createSpanWriter(
 		}
 	}
 	if cfg.UseILM {
-		err := writer.CreatePolicy(cfg.Version, cfg.IsOpenSearch)
+		err := writer.CreatePolicy(cfg.Version)
 		if err != nil {
 			return nil, err
 		}
@@ -352,7 +352,7 @@ func (f *Factory) CreateSamplingStore(int /* maxBuckets */) (samplingstore.Store
 		}
 	}
 	if f.primaryConfig.UseILM {
-		err := store.CreatePolicy(f.primaryConfig.Version, f.primaryConfig.IsOpenSearch)
+		err := store.CreatePolicy(f.primaryConfig.Version)
 		if err != nil {
 			return nil, err
 		}

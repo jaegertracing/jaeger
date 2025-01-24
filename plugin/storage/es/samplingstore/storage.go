@@ -152,8 +152,8 @@ func (s *SamplingStore) writeProbabilitiesAndQPS(indexName string, ts time.Time,
 		}).Add()
 }
 
-func (s *SamplingStore) CreatePolicy(version uint, isOpenSearch bool) error {
-	policyManager := ilm.NewPolicyManager(s.client, version, isOpenSearch, s.samplingIndexPrefix)
+func (s *SamplingStore) CreatePolicy(version uint) error {
+	policyManager := ilm.NewPolicyManager(s.client, version, s.samplingIndexPrefix)
 	return policyManager.Init()
 }
 

@@ -137,7 +137,7 @@ func (s *DependencyStore) getWriteIndex(ts time.Time) string {
 	return indexWithDate(s.dependencyIndexPrefix, s.indexDateLayout, ts)
 }
 
-func (s *DependencyStore) CreatePolicy(version uint, isOpenSearch bool) error {
-	policyManager := ilm.NewPolicyManager(s.client, version, isOpenSearch, s.dependencyIndexPrefix)
+func (s *DependencyStore) CreatePolicy(version uint) error {
+	policyManager := ilm.NewPolicyManager(s.client, version, s.dependencyIndexPrefix)
 	return policyManager.Init()
 }

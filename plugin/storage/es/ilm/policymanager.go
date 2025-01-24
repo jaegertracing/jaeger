@@ -27,13 +27,15 @@ const (
 
 var ErrIlmNotSupported = errors.New("ILM is supported only for ES version 7+")
 
+// PolicyManager manages the environment for ILM or ISM policy
 type PolicyManager struct {
 	client                         func() es.Client
 	prefixedIndexNameWithSeparator string
 	version                        uint
-	isOpenSearch                   bool
 }
 
+// Init makes the jaeger ready for automatic rollover by using ILM by creating
+// initial rollover indices and read-write aliases
 func (p *PolicyManager) Init() error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -47,11 +49,13 @@ func (p *PolicyManager) Init() error {
 	return nil
 }
 
-func NewPolicyManager(cl func() es.Client, version uint, isOpenSearch bool, prefixedIndexNameWithSeparator string) *PolicyManager {
+// NewPolicyManager creates the policy manager with appropriate version and prefixedIndexNameWithSeparator.
+// prefixedIndexNameWithSeparator is the prefix with separator. For example if index prefix is jaeger-main
+// and policy manager is called for span indices, then prefixedIndexNameWithSeparator will be jaeger-main-jaeger-span-
+func NewPolicyManager(cl func() es.Client, version uint, prefixedIndexNameWithSeparator string) *PolicyManager {
 	return &PolicyManager{
 		client:                         cl,
 		version:                        version,
-		isOpenSearch:                   isOpenSearch,
 		prefixedIndexNameWithSeparator: prefixedIndexNameWithSeparator,
 	}
 }

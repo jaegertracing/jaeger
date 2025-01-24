@@ -13,6 +13,7 @@ import (
 //go:embed *.json
 var ILM embed.FS
 
+// CreatePolicyIfNotExists creates ILM or ISM policy depending upon whether the server is OpenSearch or ElasticSearch
 func CreatePolicyIfNotExists(client es.Client, isOpenSearch bool, version uint) error {
 	if version < ilmVersionSupport {
 		return ErrIlmNotSupported

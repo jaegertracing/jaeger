@@ -108,15 +108,15 @@ func (s *SpanWriter) CreateTemplates(spanTemplate, serviceTemplate string, index
 	return nil
 }
 
-func (s *SpanWriter) CreatePolicy(version uint, isOpenSearch bool) error {
+func (s *SpanWriter) CreatePolicy(version uint) error {
 	spanPrefix := s.spanAndServicePrefixFn(spanIndexBaseName)
-	spanPolicyManager := ilm.NewPolicyManager(s.client, version, isOpenSearch, spanPrefix)
+	spanPolicyManager := ilm.NewPolicyManager(s.client, version, spanPrefix)
 	err := spanPolicyManager.Init()
 	if err != nil {
 		return err
 	}
 	servicePrefix := s.spanAndServicePrefixFn(serviceIndexBaseName)
-	servicePolicyManager := ilm.NewPolicyManager(s.client, version, isOpenSearch, servicePrefix)
+	servicePolicyManager := ilm.NewPolicyManager(s.client, version, servicePrefix)
 	return servicePolicyManager.Init()
 }
 
