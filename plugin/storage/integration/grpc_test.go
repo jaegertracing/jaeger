@@ -86,6 +86,7 @@ func TestGRPCRemoteStorage(t *testing.T) {
 			"--grpc-storage.tls.enabled=false",
 		},
 		archiveFlags: []string{
+			"--grpc-storage-archive.enabled=true",
 			"--grpc-storage-archive.server=localhost:17272",
 			"--grpc-storage-archive.tls.enabled=false",
 		},

@@ -19,6 +19,7 @@ const (
 	archiveRemotePrefix      = "grpc-storage-archive"
 	remoteServer             = ".server"
 	remoteConnectionTimeout  = ".connection-timeout"
+	enabled                  = ".enabled"
 	defaultConnectionTimeout = time.Duration(5 * time.Second)
 )
 
@@ -47,6 +48,12 @@ func (opts *options) addFlags(flagSet *flag.FlagSet) {
 
 	flagSet.String(opts.namespace+remoteServer, "", "The remote storage gRPC server address as host:port")
 	flagSet.Duration(opts.namespace+remoteConnectionTimeout, defaultConnectionTimeout, "The remote storage gRPC server connection timeout")
+	if opts.namespace == archiveRemotePrefix {
+		flagSet.Bool(
+			opts.namespace+enabled,
+			false,
+			"Enable extra storage")
+	}
 }
 
 func (opts *options) initFromViper(cfg *Config, v *viper.Viper) error {
@@ -58,5 +65,8 @@ func (opts *options) initFromViper(cfg *Config, v *viper.Viper) error {
 	cfg.ClientConfig.TLSSetting = remoteTLSCfg
 	cfg.TimeoutConfig.Timeout = v.GetDuration(opts.namespace + remoteConnectionTimeout)
 	cfg.Tenancy = tenancy.InitFromViper(v)
+	if opts.namespace == archiveRemotePrefix {
+		cfg.enabled = v.GetBool(opts.namespace + enabled)
+	}
 	return nil
 }

@@ -16,6 +16,7 @@ type Config struct {
 	Tenancy                      tenancy.Options `mapstructure:"multi_tenancy"`
 	configgrpc.ClientConfig      `mapstructure:",squash"`
 	exporterhelper.TimeoutConfig `mapstructure:",squash"`
+	enabled                      bool
 }
 
 func DefaultConfig() Config {

@@ -34,9 +34,10 @@ import (
 )
 
 var ( // interface comformance checks
-	_ storage.Factory     = (*Factory)(nil)
-	_ io.Closer           = (*Factory)(nil)
-	_ plugin.Configurable = (*Factory)(nil)
+	_ storage.Factory       = (*Factory)(nil)
+	_ io.Closer             = (*Factory)(nil)
+	_ plugin.Configurable   = (*Factory)(nil)
+	_ plugin.ArchiveCapable = (*Factory)(nil)
 )
 
 // Factory implements storage.Factory and creates storage components backed by a storage plugin.
@@ -209,4 +210,8 @@ func getTelset(logger *zap.Logger, tracerProvider trace.TracerProvider, meterPro
 		TracerProvider: tracerProvider,
 		MeterProvider:  meterProvider,
 	}
+}
+
+func (f *Factory) IsArchiveCapable() bool {
+	return f.options.namespace == archiveRemotePrefix && f.options.enabled
 }
