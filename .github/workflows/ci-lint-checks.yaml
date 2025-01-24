@@ -12,174 +12,175 @@ concurrency:
   cancel-in-progress: true
 
 # See https://github.com/ossf/scorecard/blob/main/docs/checks.md#token-permissions
-permissions: # added using https://github.com/step-security/secure-workflows
+permissions:  # added using https://github.com/step-security/secure-workflows
   contents: read
 
 jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
-        with:
-          egress-policy: audit # TODO: change to 'egress-policy: block' after a couple of runs
+    - uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
+      with:
+        egress-policy: audit # TODO: change to 'egress-policy: block' after a couple of runs
 
-      - uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938 # v4.2.0
+    - uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938 # v4.2.0
 
-      - uses: actions/setup-go@3041bf56c941b39c61721a86cd11f3bb1338122a # v5.2.0
-        with:
-          go-version: 1.23.x
+    - uses: actions/setup-go@3041bf56c941b39c61721a86cd11f3bb1338122a # v5.2.0
+      with:
+        go-version: 1.23.x
 
-      - name: Print Jaeger version for no reason
-        run: make echo-v1 echo-v2
+    - name: Print Jaeger version for no reason
+      run: make echo-v1 echo-v2
 
-      - run: make install-test-tools
+    - run: make install-test-tools
 
-      - run: make lint
+    - run: make lint
 
   pull-request-preconditions:
     runs-on: ubuntu-latest
     steps:
-      - uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
-        with:
-          egress-policy: audit # TODO: change to 'egress-policy: block' after a couple of runs
+    - uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
+      with:
+        egress-policy: audit # TODO: change to 'egress-policy: block' after a couple of runs
 
-      - uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938 # v4.2.0
+    - uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938 # v4.2.0
 
-      - uses: ./.github/actions/block-pr-from-main-branch
+    - uses: ./.github/actions/block-pr-from-main-branch
 
-      - run: |
-          git fetch origin main
-          make lint-nocommit
+    - run: |
+        git fetch origin main
+        make lint-nocommit
 
   dco-check:
     runs-on: ubuntu-latest
     steps:
-      - uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
-        with:
-          egress-policy: audit # TODO: change to 'egress-policy: block' after a couple of runs
+    - uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
+      with:
+        egress-policy: audit # TODO: change to 'egress-policy: block' after a couple of runs
 
-      - uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938 # v4.2.0
+    - uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938 # v4.2.0
 
-      - name: Set up Python 3.x for DCO check
-        uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
-        with:
-          python-version: "3.x"
+    - name: Set up Python 3.x for DCO check
+      uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
+      with:
+        python-version: '3.x'
 
-      - name: Run DCO check
-        run: python3 scripts/lint/dco_check.py -b main -v --exclude-pattern '@users\.noreply\.github\.com'
-        env:
+    - name: Run DCO check
+      run: python3 scripts/lint/dco_check.py -b main -v --exclude-pattern '@users\.noreply\.github\.com'
+      env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   generated-files-check:
     runs-on: ubuntu-latest
     steps:
-      - uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
-        with:
-          egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
+    - uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
+      with:
+        egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
 
-      - uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938 # v4.2.0
-        with:
-          submodules: recursive
+    - uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938 # v4.2.0
+      with:
+        submodules: recursive
 
-      - uses: actions/setup-go@3041bf56c941b39c61721a86cd11f3bb1338122a # v5.2.0
-        with:
-          go-version: 1.23.x
+    - uses: actions/setup-go@3041bf56c941b39c61721a86cd11f3bb1338122a # v5.2.0
+      with:
+        go-version: 1.23.x
 
-      - name: Verify Protobuf types are up to date
-        run: make proto && git diff --name-status --exit-code
+    - name: Verify Protobuf types are up to date
+      run: make proto && git diff --name-status --exit-code
 
-      - name: Verify Thrift types are up to date
-        run: make thrift && git diff --name-status --exit-code
+    - name: Verify Thrift types are up to date
+      run: make thrift && git diff --name-status --exit-code
 
-      - name: Verify Mockery types are up to date
-        run: make generate-mocks && { if git status --porcelain | grep '??'; then exit 1; else git diff --name-status --exit-code; fi }
+    - name: Verify Mockery types are up to date
+      run: make generate-mocks && { if git status --porcelain | grep '??'; then exit 1; else git diff --name-status --exit-code; fi }
 
   lint-shell-scripts:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
-        with:
-          egress-policy: audit
+    - uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
+      with:
+        egress-policy: audit
 
-      - uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938 # v4.2.0
+    - uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938 # v4.2.0
 
-      - run: sudo apt-get install shellcheck
+    - run: sudo apt-get install shellcheck
 
-      - run: shellcheck scripts/**/*.sh
+    - run: shellcheck scripts/**/*.sh
 
-      - name: Install shunit2 for shell unit tests
-        uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938 # v4.2.0
-        with:
-          repository: kward/shunit2
-          path: .tools/shunit2
+    - name: Install shunit2 for shell unit tests
+      uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938 # v4.2.0
+      with:
+        repository: kward/shunit2
+        path: .tools/shunit2
 
-      - name: Run unit tests for scripts
-        run: |
-          SHUNIT2=.tools/shunit2 bash scripts/utils/run-tests.sh
+    - name: Run unit tests for scripts
+      run: |
+        SHUNIT2=.tools/shunit2 bash scripts/utils/run-tests.sh
 
   binary-size-check:
     runs-on: ubuntu-latest
     steps:
-      - uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
-        with:
-          egress-policy: audit
+    - uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
+      with:
+        egress-policy: audit 
 
-      - uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938 # v4.2.0
-        with:
-          submodules: true
+    - uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938 # v4.2.0
+      with:
+        submodules: true
 
-      - uses: actions/setup-go@3041bf56c941b39c61721a86cd11f3bb1338122a # v5.2.0
-        with:
-          go-version: 1.23.x
+    - uses: actions/setup-go@3041bf56c941b39c61721a86cd11f3bb1338122a # v5.2.0
+      with:
+        go-version: 1.23.x
 
-      - name: Setup Node.js version
-        uses: ./.github/actions/setup-node.js
+    - name: Setup Node.js version
+      uses: ./.github/actions/setup-node.js
 
-      - name: Build jaeger binary
-        run: make build-jaeger
+    - name: Build jaeger binary
+      run: make build-jaeger
 
-      - name: Calculate jaeger binary size
-        run: |
-          TOTAL_SIZE=$(du -sb ./cmd/jaeger/jaeger-linux-amd64 | cut -f1)
-          echo "$TOTAL_SIZE" > ./new_jaeger_binary_size.txt
-          echo "Total binary size: $TOTAL_SIZE bytes"
+    - name: Calculate jaeger binary size
+      run: |
+        TOTAL_SIZE=$(du -sb ./cmd/jaeger/jaeger-linux-amd64 | cut -f1)
+        echo "$TOTAL_SIZE" > ./new_jaeger_binary_size.txt
+        echo "Total binary size: $TOTAL_SIZE bytes"
+        
+    - name: Restore previous binary size
+      id: cache-binary-size
+      uses: actions/cache/restore@1bd1e32a3bdc45362d1e726936510720a7c30a57      #v4.2.0
+      with:
+        path: ./jaeger_binary_size.txt
+        key: jaeger_binary_size
+        restore-keys: |
+          jaeger_binary_size
 
-      - name: Restore previous binary size
-        id: cache-binary-size
-        uses: actions/cache/restore@1bd1e32a3bdc45362d1e726936510720a7c30a57 #v4.2.0
-        with:
-          path: ./jaeger_binary_size.txt
-          key: jaeger_binary_size
-          restore-keys: |
-            jaeger_binary_size
+    - name: Compare jaeger binary sizes
+      if: steps.cache-binary-size.outputs.cache-matched-key != ''
+      run: |
+        OLD_BINARY_SIZE=$(cat ./jaeger_binary_size.txt)
+        NEW_BINARY_SIZE=$(cat ./new_jaeger_binary_size.txt)
+        echo "Previous binary size: $OLD_BINARY_SIZE bytes"
+        echo "New binary size: $NEW_BINARY_SIZE bytes"
+        
+        SIZE_CHANGE=$(( $NEW_BINARY_SIZE - $OLD_BINARY_SIZE ))
+        PERCENTAGE_CHANGE=$(( SIZE_CHANGE * 100 / $OLD_BINARY_SIZE ))
+        echo "Size change: $PERCENTAGE_CHANGE%"
+        if [ $PERCENTAGE_CHANGE -gt 2 ]; then
+          echo "❌ binary size increased by more than 2% ($PERCENTAGE_CHANGE%)"
+          exit 1
+        else
+          echo "✅ binary size change is within acceptable range ($PERCENTAGE_CHANGE%)"
+        fi
+ 
 
-      - name: Compare jaeger binary sizes
-        if: steps.cache-binary-size.outputs.cache-matched-key != ''
-        run: |
-          OLD_BINARY_SIZE=$(cat ./jaeger_binary_size.txt)
-          NEW_BINARY_SIZE=$(cat ./new_jaeger_binary_size.txt)
-          echo "Previous binary size: $OLD_BINARY_SIZE bytes"
-          echo "New binary size: $NEW_BINARY_SIZE bytes"
-
-          SIZE_CHANGE=$(( $NEW_BINARY_SIZE - $OLD_BINARY_SIZE ))
-          PERCENTAGE_CHANGE=$(( SIZE_CHANGE * 100 / $OLD_BINARY_SIZE ))
-          echo "Size change: $PERCENTAGE_CHANGE%"
-          if [ $PERCENTAGE_CHANGE -gt 2 ]; then
-            echo "❌ binary size increased by more than 2% ($PERCENTAGE_CHANGE%)"
-            exit 1
-          else
-            echo "✅ binary size change is within acceptable range ($PERCENTAGE_CHANGE%)"
-          fi
-
-      - name: Remove previous *_binary_*.txt
-        run: |
-          rm -rf ./jaeger_binary_size.txt
-          mv ./new_jaeger_binary_size.txt ./jaeger_binary_size.txt
-
-      - name: Save new jaeger binary size
-        if: ${{ (github.event_name == 'push') && (github.ref == 'refs/heads/main') }}
-        uses: actions/cache/save@1bd1e32a3bdc45362d1e726936510720a7c30a57 #v4.2.0
-        with:
-          path: ./jaeger_binary_size.txt
-          key: jaeger_binary_size_${{ github.run_id }}
+    - name: Remove previous *_binary_*.txt
+      run: |
+        rm -rf ./jaeger_binary_size.txt
+        mv ./new_jaeger_binary_size.txt ./jaeger_binary_size.txt
+      
+    - name: Save new jaeger binary size
+      if: ${{ (github.event_name == 'push') && (github.ref == 'refs/heads/main') }}
+      uses: actions/cache/save@1bd1e32a3bdc45362d1e726936510720a7c30a57     #v4.2.0
+      with:
+        path: ./jaeger_binary_size.txt
+        key: jaeger_binary_size_${{ github.run_id }}
