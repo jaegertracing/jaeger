@@ -37,9 +37,7 @@ const (
 	SpanKindUnspecified SpanKind = modelv1.SpanKindUnspecified
 )
 
-func SpanKindFromString(kind string) (SpanKind, error) {
-	return modelv1.SpanKindFromString(kind)
-}
+var SpanKindFromString = modelv1.SpanKindFromString
 
 // KeyValues is a type alias that exposes convenience functions like Sort, FindByKey.
 type KeyValues = modelv1.KeyValues

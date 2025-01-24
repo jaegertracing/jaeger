@@ -25,14 +25,10 @@ type SpanID = modelv1.SpanID
 var NewTraceID = modelv1.NewTraceID
 
 // TraceIDFromString creates a TraceID from a hexadecimal string
-func TraceIDFromString(s string) (TraceID, error) {
-	return modelv1.TraceIDFromString(s)
-}
+var TraceIDFromString = modelv1.TraceIDFromString
 
 // TraceIDFromBytes creates a TraceID from list of bytes
-func TraceIDFromBytes(data []byte) (TraceID, error) {
-	return modelv1.TraceIDFromBytes(data)
-}
+var TraceIDFromBytes = modelv1.TraceIDFromBytes
 
 // ------- SpanID -------
 
@@ -40,11 +36,7 @@ func TraceIDFromBytes(data []byte) (TraceID, error) {
 var NewSpanID = modelv1.NewSpanID
 
 // SpanIDFromString creates a SpanID from a hexadecimal string
-func SpanIDFromString(s string) (SpanID, error) {
-	return modelv1.SpanIDFromString(s)
-}
+var SpanIDFromString = modelv1.SpanIDFromString
 
 // SpanIDFromBytes creates a SpandID from list of bytes
-func SpanIDFromBytes(data []byte) (SpanID, error) {
-	return modelv1.SpanIDFromBytes(data)
-}
+var SpanIDFromBytes = modelv1.SpanIDFromBytes

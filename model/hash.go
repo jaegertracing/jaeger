@@ -13,6 +13,4 @@ import (
 type Hashable = modelv1.Hashable
 
 // HashCode calculates a FNV-1a hash code for a Hashable object.
-func HashCode(o Hashable) (uint64, error) {
-	return modelv1.HashCode(o)
-}
+var HashCode = modelv1.HashCode
