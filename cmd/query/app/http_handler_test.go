@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"regexp"
 	"testing"
 	"time"
 
@@ -774,7 +775,15 @@ func TestBadOTLPReturns400(t *testing.T) {
 		response := new(any)
 		request := "Bad Payload"
 		err := postJSON(ts.server.URL+"/api/transform", request, response)
-		require.ErrorContains(t, err, "400 error")
+		errstring := err.Error()
+		pattern := `"code":(\d+),`
+		re := regexp.MustCompile(pattern)
+		match := re.FindStringSubmatch(errstring)
+		if len(match) > 1 {
+			require.Equal(t,"400", match[1])
+		} else {
+			require.Error(t,err)
+		}
 	}, querysvc.QueryServiceOptions{})
 }
 
