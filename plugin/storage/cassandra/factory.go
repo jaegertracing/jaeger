@@ -292,5 +292,6 @@ func (f *Factory) InheritSettingsFrom(other storage.Factory) {
 }
 
 func (f *Factory) IsArchiveCapable() bool {
-	return f.Options.NamespaceConfig.namespace == archiveStorageNamespace && f.Options.Enabled
+	return f.Options.NamespaceConfig.namespace == archiveStorageNamespace &&
+		f.Options.NamespaceConfig.Enabled
 }

@@ -287,3 +287,46 @@ func TestStreamingSpanWriterFactory_Capabilities(t *testing.T) {
 	err = writer.WriteSpan(context.Background(), nil)
 	assert.ErrorContains(t, err, "I am streaming writer", "streaming writer when Capabilities return true")
 }
+
+func TestIsArchiveCapable(t *testing.T) {
+	tests := []struct {
+		name      string
+		namespace string
+		enabled   bool
+		expected  bool
+	}{
+		{
+			name:      "archive capable",
+			namespace: "grpc-storage-archive",
+			enabled:   true,
+			expected:  true,
+		},
+		{
+			name:      "not capable",
+			namespace: "grpc-storage-archive",
+			enabled:   false,
+			expected:  false,
+		},
+		{
+			name:      "capable + wrong namespace",
+			namespace: "grpc-storage",
+			enabled:   true,
+			expected:  false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			factory := &Factory{
+				options: &options{
+					namespace: test.namespace,
+					Config: Config{
+						enabled: test.enabled,
+					},
+				},
+			}
+			result := factory.IsArchiveCapable()
+			require.Equal(t, test.expected, result)
+		})
+	}
+}

@@ -305,3 +305,46 @@ func TestInheritSettingsFrom(t *testing.T) {
 	require.Equal(t, "bar", archiveFactory.config.Schema.Keyspace)
 	require.Equal(t, 99, archiveFactory.config.Query.MaxRetryAttempts)
 }
+
+func TestIsArchiveCapable(t *testing.T) {
+	tests := []struct {
+		name      string
+		namespace string
+		enabled   bool
+		expected  bool
+	}{
+		{
+			name:      "archive capable",
+			namespace: "cassandra-archive",
+			enabled:   true,
+			expected:  true,
+		},
+		{
+			name:      "not capable",
+			namespace: "cassandra-archive",
+			enabled:   false,
+			expected:  false,
+		},
+		{
+			name:      "capable + wrong namespace",
+			namespace: "cassandra",
+			enabled:   true,
+			expected:  false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			factory := &Factory{
+				Options: &Options{
+					NamespaceConfig: NamespaceConfig{
+						namespace: test.namespace,
+						Enabled:   test.enabled,
+					},
+				},
+			}
+			result := factory.IsArchiveCapable()
+			require.Equal(t, test.expected, result)
+		})
+	}
+}

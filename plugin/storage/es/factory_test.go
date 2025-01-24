@@ -464,3 +464,48 @@ func TestInheritSettingsFrom(t *testing.T) {
 	require.Equal(t, "PUT", archiveFactory.config.SendGetBodyAs)
 	require.Equal(t, 99, primaryFactory.config.MaxDocCount)
 }
+
+func TestIsArchiveCapable(t *testing.T) {
+	tests := []struct {
+		name      string
+		namespace string
+		enabled   bool
+		expected  bool
+	}{
+		{
+			name:      "archive capable",
+			namespace: "es-archive",
+			enabled:   true,
+			expected:  true,
+		},
+		{
+			name:      "not capable",
+			namespace: "es-archive",
+			enabled:   false,
+			expected:  false,
+		},
+		{
+			name:      "capable + wrong namespace",
+			namespace: "es",
+			enabled:   true,
+			expected:  false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			factory := &Factory{
+				Options: &Options{
+					Config: namespaceConfig{
+						namespace: test.namespace,
+						Configuration: escfg.Configuration{
+							Enabled: test.enabled,
+						},
+					},
+				},
+			}
+			result := factory.IsArchiveCapable()
+			require.Equal(t, test.expected, result)
+		})
+	}
+}
