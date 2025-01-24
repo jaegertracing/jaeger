@@ -5,10 +5,12 @@ package mappings
 
 import (
 	"embed"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"os"
+	"reflect"
 	"testing"
 	"text/template"
 
@@ -68,14 +70,16 @@ func TestMappingBuilderGetMapping(t *testing.T) {
 				UseILM:        true,
 				ILMPolicyName: "jaeger-test-policy",
 			}
+			var wantObj, gotObj map[string]any
 			got, err := mb.GetMapping(tt.mapping)
 			require.NoError(t, err)
+			require.NoError(t, json.Unmarshal([]byte(got), &gotObj))
 			var wantbytes []byte
 			fileSuffix := fmt.Sprintf("-%d", tt.esVersion)
 			wantbytes, err = FIXTURES.ReadFile("fixtures/" + templateName + fileSuffix + ".json")
 			require.NoError(t, err)
-			want := string(wantbytes)
-			assert.Equal(t, want, got)
+			require.NoError(t, json.Unmarshal(wantbytes, &wantObj))
+			assert.True(t, reflect.DeepEqual(wantObj, gotObj))
 		})
 	}
 }

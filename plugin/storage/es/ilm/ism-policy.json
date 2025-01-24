@@ -13,6 +13,10 @@
           }
         ]
       }
-    ]
+    ],
+    "ism_template": {
+      "index_patterns": ["*jaeger-*"],
+      "priority": 100
+    }
   }
 }

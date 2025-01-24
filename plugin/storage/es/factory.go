@@ -164,6 +164,13 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 		}
 	}
 
+	if f.primaryConfig.UseILM {
+		err = ilm.CreatePolicyIfNotExists(primaryClient, f.primaryConfig.IsOpenSearch, f.primaryConfig.Version)
+		if err != nil {
+			return fmt.Errorf("failed to create ILM policy: %w", err)
+		}
+	}
+
 	return nil
 }
 
@@ -302,8 +309,8 @@ func createSpanWriter(
 		ServiceCacheTTL:     cfg.ServiceCacheTTL,
 	})
 
-	// Creating a template here would conflict with the one created for ILM resulting to no index rollover
-	if cfg.CreateIndexTemplates && !cfg.UseILM {
+	// Creating a template here no matter what is ilm. Creating template before creating policy will not give any error
+	if cfg.CreateIndexTemplates {
 		mappingBuilder := mappingBuilderFromConfig(cfg)
 		spanMapping, serviceMapping, err := mappingBuilder.GetSpanServiceMappings()
 		if err != nil {
@@ -314,8 +321,7 @@ func createSpanWriter(
 		}
 	}
 	if cfg.UseILM {
-		policyManager := ilm.NewPolicyManager(clientFn(), cfg, ilm.OnServiceAndSpan)
-		err = policyManager.Init()
+		err := writer.CreatePolicy(cfg.Version, cfg.IsOpenSearch)
 		if err != nil {
 			return nil, err
 		}
@@ -335,7 +341,7 @@ func (f *Factory) CreateSamplingStore(int /* maxBuckets */) (samplingstore.Store
 	}
 	store := esSampleStore.NewSamplingStore(params)
 
-	if f.primaryConfig.CreateIndexTemplates && !f.primaryConfig.UseILM {
+	if f.primaryConfig.CreateIndexTemplates {
 		mappingBuilder := mappingBuilderFromConfig(f.primaryConfig)
 		samplingMapping, err := mappingBuilder.GetSamplingMappings()
 		if err != nil {
@@ -346,8 +352,7 @@ func (f *Factory) CreateSamplingStore(int /* maxBuckets */) (samplingstore.Store
 		}
 	}
 	if f.primaryConfig.UseILM {
-		policyManager := ilm.NewPolicyManager(f.getPrimaryClient(), f.primaryConfig, ilm.OnSampling)
-		err := policyManager.Init()
+		err := store.CreatePolicy(f.primaryConfig.Version, f.primaryConfig.IsOpenSearch)
 		if err != nil {
 			return nil, err
 		}
@@ -361,6 +366,8 @@ func mappingBuilderFromConfig(cfg *config.Configuration) mappings.MappingBuilder
 		Indices:         cfg.Indices,
 		EsVersion:       cfg.Version,
 		UseILM:          cfg.UseILM,
+		IsOpenSearch:    cfg.IsOpenSearch,
+		ILMPolicyName:   ilm.DefaultIlmPolicy,
 	}
 }
 

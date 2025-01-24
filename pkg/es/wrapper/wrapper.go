@@ -79,7 +79,7 @@ func (c ClientWrapper) CreateIlmPolicy() es.XPackIlmPutLifecycle {
 
 func (c ClientWrapper) CreateIsmPolicy(ctx context.Context, id, policy string) (*elastic.Response, error) {
 	return c.client.PerformRequest(ctx, elastic.PerformRequestOptions{
-		Path:   "_plugins/_ism/policies/" + id,
+		Path:   "/_plugins/_ism/policies/" + id,
 		Method: http.MethodPut,
 		Body:   policy,
 	})
@@ -99,7 +99,7 @@ func (c ClientWrapper) IlmPolicyExists(ctx context.Context, id string) (bool, er
 
 func (c ClientWrapper) IsmPolicyExists(ctx context.Context, id string) (bool, error) {
 	_, err := c.client.PerformRequest(ctx, elastic.PerformRequestOptions{
-		Path:   "_opendistro/_ism/policies/" + id,
+		Path:   "/_plugins/_ism/policies/" + id,
 		Method: http.MethodGet,
 	})
 	if err != nil {

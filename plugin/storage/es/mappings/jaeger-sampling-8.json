@@ -12,11 +12,11 @@
       "index.number_of_replicas": {{ .Replicas }},
       "index.mapping.nested_fields.limit": 50,
       "index.requests.cache.enable": false
-    {{- if .UseILM }},
-      {{- if .IsOpenSearch }},
-        "plugins.index_state_management.rollover_alias": "{{ .IndexPrefix }}jaeger-sampling-write"
+    {{- if .UseILM }}
+      {{- if .IsOpenSearch }}
+        ,"plugins.index_state_management.rollover_alias": "{{ .IndexPrefix }}jaeger-sampling-write"
       {{- else }}
-        "lifecycle": {
+        ,"lifecycle": {
         "name": "{{ .ILMPolicyName }}",
         "rollover_alias": "{{ .IndexPrefix }}jaeger-sampling-write"
       }

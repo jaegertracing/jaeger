@@ -7,6 +7,7 @@ package spanstore
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"go.uber.org/zap"
@@ -16,6 +17,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/es"
 	cfg "github.com/jaegertracing/jaeger/pkg/es/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/plugin/storage/es/ilm"
 	"github.com/jaegertracing/jaeger/plugin/storage/es/spanstore/internal/dbmodel"
 	"github.com/jaegertracing/jaeger/storage/spanstore/spanstoremetrics"
 )
@@ -39,9 +41,10 @@ type SpanWriter struct {
 	logger        *zap.Logger
 	writerMetrics spanWriterMetrics // TODO: build functions to wrap around each Do fn
 	// indexCache       cache.Cache
-	serviceWriter    serviceWriter
-	spanConverter    dbmodel.FromDomain
-	spanServiceIndex spanAndServiceIndexFn
+	serviceWriter          serviceWriter
+	spanConverter          dbmodel.FromDomain
+	spanServiceIndex       spanAndServiceIndexFn
+	spanAndServicePrefixFn spanAndServicePrefixFn
 }
 
 // SpanWriterParams holds constructor parameters for NewSpanWriter
@@ -83,9 +86,10 @@ func NewSpanWriter(p SpanWriterParams) *SpanWriter {
 		writerMetrics: spanWriterMetrics{
 			indexCreate: spanstoremetrics.NewWriter(p.MetricsFactory, "index_create"),
 		},
-		serviceWriter:    serviceOperationStorage.Write,
-		spanConverter:    dbmodel.NewFromDomain(p.AllTagsAsFields, p.TagKeysAsFields, p.TagDotReplacement),
-		spanServiceIndex: getSpanAndServiceIndexFn(p, writeAliasSuffix),
+		serviceWriter:          serviceOperationStorage.Write,
+		spanConverter:          dbmodel.NewFromDomain(p.AllTagsAsFields, p.TagKeysAsFields, p.TagDotReplacement),
+		spanServiceIndex:       getSpanAndServiceIndexFn(p, writeAliasSuffix),
+		spanAndServicePrefixFn: p.getSpanAndServicePrefixFn,
 	}
 }
 
@@ -102,6 +106,28 @@ func (s *SpanWriter) CreateTemplates(spanTemplate, serviceTemplate string, index
 		return fmt.Errorf("failed to create template %q: %w", jaegerServiceIdx, err)
 	}
 	return nil
+}
+
+func (s *SpanWriter) CreatePolicy(version uint, isOpenSearch bool) error {
+	spanPrefix := s.spanAndServicePrefixFn(spanIndexBaseName)
+	spanPolicyManager := ilm.NewPolicyManager(s.client, version, isOpenSearch, spanPrefix)
+	err := spanPolicyManager.Init()
+	if err != nil {
+		return err
+	}
+	servicePrefix := s.spanAndServicePrefixFn(serviceIndexBaseName)
+	servicePolicyManager := ilm.NewPolicyManager(s.client, version, isOpenSearch, servicePrefix)
+	return servicePolicyManager.Init()
+}
+
+type spanAndServicePrefixFn func(baseIndexName string) string
+
+func (p SpanWriterParams) getSpanAndServicePrefixFn(baseIndexName string) string {
+	prefix := p.IndexPrefix.Apply(baseIndexName)
+	if strings.Contains(p.WriteAliasSuffix, "archive") {
+		prefix += "archive" + cfg.IndexPrefixSeparator
+	}
+	return prefix
 }
 
 // spanAndServiceIndexFn returns names of span and service indices

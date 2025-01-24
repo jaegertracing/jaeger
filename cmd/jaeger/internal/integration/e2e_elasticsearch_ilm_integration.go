@@ -41,16 +41,23 @@ func (e *E2EElasticSearchILMIntegration) RunTests(t *testing.T) {
 	if version < 7 {
 		t.Skip("Automated Rollover is supported only for 7+ versions")
 	}
-	s := &E2EStorageIntegration{
-		ConfigFile: "../../config-elasticsearch-ilm.yaml",
-		StorageIntegration: integration.StorageIntegration{
-			CleanUp:  purge,
-			Fixtures: integration.LoadAndParseQueryTestCases(t, "fixtures/queries_es.json"),
-		},
-	}
 	if e.isOpenSearch {
+		s := &E2EStorageIntegration{
+			ConfigFile: "../../config-opensearch-ilm.yaml",
+			StorageIntegration: integration.StorageIntegration{
+				CleanUp:  purge,
+				Fixtures: integration.LoadAndParseQueryTestCases(t, "fixtures/queries_es.json"),
+			},
+		}
 		s.e2eInitialize(t, "opensearch")
 	} else {
+		s := &E2EStorageIntegration{
+			ConfigFile: "../../config-elasticsearch-ilm.yaml",
+			StorageIntegration: integration.StorageIntegration{
+				CleanUp:  purge,
+				Fixtures: integration.LoadAndParseQueryTestCases(t, "fixtures/queries_es.json"),
+			},
+		}
 		s.e2eInitialize(t, "elasticsearch")
 	}
 	var v8client *esV8.Client
@@ -78,7 +85,7 @@ func (e *E2EElasticSearchILMIntegration) checkForIlmPolicyCreation(t *testing.T,
 		}
 	} else {
 		_, err := client.PerformRequest(context.Background(), elastic.PerformRequestOptions{
-			Path:   "_plugins/_ism/policies/" + defaultIsmPolicy,
+			Path:   "/_plugins/_ism/policies/" + defaultIsmPolicy,
 			Method: http.MethodGet,
 		})
 		require.NoError(t, err)
@@ -177,7 +184,7 @@ func (e *E2EElasticSearchILMIntegration) cleanES(t *testing.T, client *elastic.C
 		}
 	} else {
 		_, err := client.PerformRequest(context.Background(), elastic.PerformRequestOptions{
-			Path:   "_plugins/_ism/policies/" + defaultIsmPolicy,
+			Path:   "/_plugins/_ism/policies/" + defaultIsmPolicy,
 			Method: http.MethodDelete,
 		})
 		require.NoError(t, err)

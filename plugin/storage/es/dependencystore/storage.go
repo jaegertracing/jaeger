@@ -18,6 +18,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/es"
 	"github.com/jaegertracing/jaeger/pkg/es/config"
 	"github.com/jaegertracing/jaeger/plugin/storage/es/dependencystore/dbmodel"
+	"github.com/jaegertracing/jaeger/plugin/storage/es/ilm"
 )
 
 const (
@@ -134,4 +135,9 @@ func (s *DependencyStore) getWriteIndex(ts time.Time) string {
 		return s.dependencyIndexPrefix + "write"
 	}
 	return indexWithDate(s.dependencyIndexPrefix, s.indexDateLayout, ts)
+}
+
+func (s *DependencyStore) CreatePolicy(version uint, isOpenSearch bool) error {
+	policyManager := ilm.NewPolicyManager(s.client, version, isOpenSearch, s.dependencyIndexPrefix)
+	return policyManager.Init()
 }

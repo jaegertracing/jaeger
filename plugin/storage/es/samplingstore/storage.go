@@ -15,6 +15,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/pkg/es"
 	"github.com/jaegertracing/jaeger/pkg/es/config"
+	"github.com/jaegertracing/jaeger/plugin/storage/es/ilm"
 	"github.com/jaegertracing/jaeger/plugin/storage/es/samplingstore/dbmodel"
 	"github.com/jaegertracing/jaeger/storage/samplingstore/model"
 )
@@ -149,6 +150,11 @@ func (s *SamplingStore) writeProbabilitiesAndQPS(indexName string, ts time.Time,
 			Timestamp:           ts,
 			ProbabilitiesAndQPS: pandqps,
 		}).Add()
+}
+
+func (s *SamplingStore) CreatePolicy(version uint, isOpenSearch bool) error {
+	policyManager := ilm.NewPolicyManager(s.client, version, isOpenSearch, s.samplingIndexPrefix)
+	return policyManager.Init()
 }
 
 func getLatestIndices(indexPrefix, indexDateLayout string, clientFn es.Client, rollover time.Duration, maxDuration time.Duration) ([]string, error) {
