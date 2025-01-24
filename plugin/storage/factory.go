@@ -173,17 +173,14 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 		}
 	}
 
-	uninitializedArchiveFactories := make(map[string]struct{})
 	for kind, factory := range f.archiveFactories {
 		if archivable, ok := factory.(plugin.ArchiveCapable); ok && archivable.IsArchiveCapable() {
-			if err := initializeFactory(kind, factory, "primary"); err != nil {
-				uninitializedArchiveFactories[kind] = struct{}{}
+			if err := initializeFactory(kind, factory, "archive"); err != nil {
+				return err
 			}
+		} else {
+			delete(f.archiveFactories, kind)
 		}
-	}
-
-	for kind := range uninitializedArchiveFactories {
-		delete(f.archiveFactories, kind)
 	}
 
 	f.publishOpts()
