@@ -52,4 +52,3 @@ var RegisterQueryServiceServer = modelv1.RegisterQueryServiceServer
 type QueryService_GetTraceServer = modelv1.QueryService_GetTraceServer
 
 type QueryService_FindTracesServer = modelv1.QueryService_FindTracesServer
-

@@ -12,7 +12,7 @@ import (
 
 	mock "github.com/stretchr/testify/mock"
 
-	model "github.com/jaegertracing/jaeger/model"
+	model "github.com/jaegertracing/jaeger-idl/model/v1"
 
 	time "time"
 )
