@@ -26,7 +26,7 @@ function usage {
 trace_ttl=${TRACE_TTL:-172800}
 dependencies_ttl=${DEPENDENCIES_TTL:-0}
 cas_version=${VERSION:-4}
-
+cas_version=$(echo "$cas_version" | tr -cd '0-9')
 template=$1
 if [[ "$template" == "" ]]; then
     case "$cas_version" in
