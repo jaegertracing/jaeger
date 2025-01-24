@@ -1,8 +1,6 @@
 package api_v2
 
 import (
-	_ "github.com/gogo/googleapis/google/api"
-	_ "github.com/gogo/protobuf/gogoproto"
 	modelv1 "github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
 )
 
@@ -25,8 +23,3 @@ type UnimplementedCollectorServiceServer = modelv1.UnimplementedCollectorService
 
 var RegisterCollectorServiceServer = modelv1.RegisterCollectorServiceServer
 
-var (
-	ErrInvalidLengthCollector        = modelv1.ErrInvalidLengthCollector
-	ErrIntOverflowCollector          = modelv1.ErrIntOverflowCollector
-	ErrUnexpectedEndOfGroupCollector = modelv1.ErrUnexpectedEndOfGroupCollector
-)

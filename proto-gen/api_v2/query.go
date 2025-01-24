@@ -1,10 +1,6 @@
 package api_v2
 
 import (
-	_ "github.com/gogo/googleapis/google/api"
-	_ "github.com/gogo/protobuf/gogoproto"
-	_ "github.com/gogo/protobuf/types"
-
 	modelv1 "github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
 )
 
@@ -57,8 +53,3 @@ type QueryService_GetTraceServer = modelv1.QueryService_GetTraceServer
 
 type QueryService_FindTracesServer = modelv1.QueryService_FindTracesServer
 
-var (
-	ErrInvalidLengthQuery        = modelv1.ErrInvalidLengthQuery
-	ErrIntOverflowQuery          = modelv1.ErrIntOverflowQuery
-	ErrUnexpectedEndOfGroupQuery = modelv1.ErrUnexpectedEndOfGroupQuery
-)

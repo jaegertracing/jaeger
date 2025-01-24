@@ -1,8 +1,6 @@
 package api_v2
 
 import (
-	_ "github.com/gogo/googleapis/google/api"
-	_ "github.com/gogo/protobuf/gogoproto"
 	modelv1 "github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
 )
 
@@ -57,8 +55,3 @@ type UnimplementedSamplingManagerServer = modelv1.UnimplementedSamplingManagerSe
 
 var RegisterSamplingManagerServer = modelv1.RegisterSamplingManagerServer
 
-var (
-	ErrInvalidLengthSampling        = modelv1.ErrInvalidLengthSampling
-	ErrIntOverflowSampling          = modelv1.ErrIntOverflowSampling
-	ErrUnexpectedEndOfGroupSampling = modelv1.ErrUnexpectedEndOfGroupSampling
-)

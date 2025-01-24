@@ -4,7 +4,11 @@
 
 package model
 
+import (
+	modelv1 "github.com/jaegertracing/jaeger-idl/model/v1"
+)
+
 const (
 	// JaegerDependencyLinkSource describes a dependency diagram that was generated from Jaeger traces.
-	JaegerDependencyLinkSource = "jaeger"
+	JaegerDependencyLinkSource = modelv1.JaegerDependencyLinkSource
 )
