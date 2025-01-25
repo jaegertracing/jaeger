@@ -832,7 +832,7 @@ func optionsWithPorts(portHttp string, portGrpc string) *cFlags.CollectorOptions
 		}{
 			Enabled: true,
 			HTTP: confighttp.ServerConfig{
-				Endpoint: portHttp,
+				Endpoint:        portHttp,
 				IncludeMetadata: true,
 			},
 			GRPC: configgrpc.ServerConfig{
@@ -879,7 +879,7 @@ func TestOTLPReceiverWithV2Storage(t *testing.T) {
 		// Can't send tenancy headers with http request to OTLP receiver
 		tenancyMgr := &tenancy.Manager{
 			Enabled: true,
-			Header: "x-tenant",
+			Header:  "x-tenant",
 		}
 
 		rec, err := handler.StartOTLPReceiver(
@@ -908,8 +908,8 @@ func TestOTLPReceiverWithV2Storage(t *testing.T) {
 
 		req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, strings.NewReader(traceJSON))
 		require.NoError(t, err)
-		req.Header.Set("Content-Type","application/json")
-		req.Header.Set("x-tenant","test-tenant")
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("x-tenant", "test-tenant")
 		resp, err := httpClient.Do(req)
 		require.NoError(t, err)
 		defer resp.Body.Close()
