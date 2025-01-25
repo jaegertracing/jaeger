@@ -7,7 +7,7 @@ package jaeger
 import (
 	"fmt"
 
-	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 )
 
