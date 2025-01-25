@@ -8,8 +8,11 @@ import (
 	"errors"
 	"time"
 
-	"github.com/jaegertracing/jaeger/model"
+	"go.uber.org/zap"
+
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/model/adjuster"
+	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	"github.com/jaegertracing/jaeger/storage_v2/depstore"
 	"github.com/jaegertracing/jaeger/storage_v2/tracestore"
@@ -159,6 +162,36 @@ func (qs QueryService) GetCapabilities() StorageCapabilities {
 	return StorageCapabilities{
 		ArchiveStorage: qs.options.hasArchiveStorage(),
 	}
+}
+
+// InitArchiveStorage tries to initialize archive storage reader/writer if storage factory supports them.
+func (opts *QueryServiceOptions) InitArchiveStorage(storageFactory storage.BaseFactory, logger *zap.Logger) bool {
+	archiveFactory, ok := storageFactory.(storage.ArchiveFactory)
+	if !ok {
+		logger.Info("Archive storage not supported by the factory")
+		return false
+	}
+	reader, err := archiveFactory.CreateArchiveSpanReader()
+	if errors.Is(err, storage.ErrArchiveStorageNotConfigured) || errors.Is(err, storage.ErrArchiveStorageNotSupported) {
+		logger.Info("Archive storage not created", zap.String("reason", err.Error()))
+		return false
+	}
+	if err != nil {
+		logger.Error("Cannot init archive storage reader", zap.Error(err))
+		return false
+	}
+	writer, err := archiveFactory.CreateArchiveSpanWriter()
+	if errors.Is(err, storage.ErrArchiveStorageNotConfigured) || errors.Is(err, storage.ErrArchiveStorageNotSupported) {
+		logger.Info("Archive storage not created", zap.String("reason", err.Error()))
+		return false
+	}
+	if err != nil {
+		logger.Error("Cannot init archive storage writer", zap.Error(err))
+		return false
+	}
+	opts.ArchiveSpanReader = reader
+	opts.ArchiveSpanWriter = writer
+	return true
 }
 
 // hasArchiveStorage returns true if archive storage reader/writer are initialized.
