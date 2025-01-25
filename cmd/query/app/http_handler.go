@@ -121,6 +121,31 @@ func (aH *APIHandler) RegisterRoutes(router *mux.Router) {
 	aH.handleFunc(router, aH.calls, "/metrics/calls").Methods(http.MethodGet)
 	aH.handleFunc(router, aH.errors, "/metrics/errors").Methods(http.MethodGet)
 	aH.handleFunc(router, aH.minStep, "/metrics/minstep").Methods(http.MethodGet)
+	aH.handleFunc(router, aH.getQualityMetrics, "/quality-metrics").Methods(http.MethodGet)
+
+}
+
+func (aH *APIHandler) getQualityMetrics(w http.ResponseWriter, r *http.Request) {
+    data := []map[string]any{
+        {
+            "serviceName":           "sample-service-A",
+            "totalSpans":            50,
+            "errorSpans":            4,
+            "instrumentationQuality": "dummy-data-A",
+        },
+        {
+            "serviceName":           "sample-service-B",
+            "totalSpans":            25,
+            "errorSpans":            1,
+            "instrumentationQuality": "dummy-data-B",
+        },
+    }
+
+    structuredRes := structuredResponse{
+        Data:   data,
+        Errors: []structuredError{},
+    }
+    aH.writeJSON(w, r, &structuredRes)
 }
 
 func (aH *APIHandler) handleFunc(
