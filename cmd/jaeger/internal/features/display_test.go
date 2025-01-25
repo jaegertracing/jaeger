@@ -23,8 +23,8 @@ func TestDisplay(t *testing.T) {
 	out := DisplayFeatures()
 	parts := strings.Split(out, "\n\n")
 	parts = parts[:len(parts)-1]
-	feature_re := regexp.MustCompile(`(?m)Feature:\s*(.*)`)
-	description_re := regexp.MustCompile(`(?m)Description:\s*(.*)`)
+	feature_re := regexp.MustCompile(`(?m)Feature:\s*(.*)`) // String between Feature: and the first \n after it
+	description_re := regexp.MustCompile(`(?m)Description:\s*(.*)`) // String between Description: and the first \n after it
 	for _, part := range parts {
 		feature_matches := feature_re.FindStringSubmatch(part)
 		require.Greater(t, len(feature_matches), 1)
