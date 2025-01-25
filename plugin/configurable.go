@@ -9,8 +9,6 @@ import (
 
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
-
-	"github.com/jaegertracing/jaeger/storage"
 )
 
 // Configurable interface can be implemented by plugins that require external configuration,
@@ -21,14 +19,4 @@ type Configurable interface {
 
 	// InitFromViper initializes this component with properties from spf13/viper.
 	InitFromViper(v *viper.Viper, logger *zap.Logger)
-}
-
-// Inheritable is an interface that can be implement by some storage implementations
-// to provide a way to inherit configuration settings from another factory.
-type Inheritable interface {
-	InheritSettingsFrom(other storage.Factory)
-}
-
-type ArchiveCapable interface {
-	IsArchiveCapable() bool
 }

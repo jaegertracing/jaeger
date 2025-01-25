@@ -74,3 +74,15 @@ type MetricStoreFactory interface {
 	// CreateMetricsReader creates a metricstore.Reader.
 	CreateMetricsReader() (metricstore.Reader, error)
 }
+
+// Inheritable is an interface that can be implement by some storage implementations
+// to provide a way to inherit configuration settings from another factory.
+type Inheritable interface {
+	InheritSettingsFrom(other Factory)
+}
+
+// ArchiveCapable is an interface that can be implemented by some storage implementations
+// to indicate that they are capable of archiving data.
+type ArchiveCapable interface {
+	IsArchiveCapable() bool
+}

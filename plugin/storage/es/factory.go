@@ -42,12 +42,12 @@ const (
 )
 
 var ( // interface comformance checks
-	_ storage.Factory       = (*Factory)(nil)
-	_ io.Closer             = (*Factory)(nil)
-	_ plugin.Configurable   = (*Factory)(nil)
-	_ plugin.Inheritable    = (*Factory)(nil)
-	_ storage.Purger        = (*Factory)(nil)
-	_ plugin.ArchiveCapable = (*Factory)(nil)
+	_ storage.Factory        = (*Factory)(nil)
+	_ io.Closer              = (*Factory)(nil)
+	_ plugin.Configurable    = (*Factory)(nil)
+	_ storage.Inheritable    = (*Factory)(nil)
+	_ storage.Purger         = (*Factory)(nil)
+	_ storage.ArchiveCapable = (*Factory)(nil)
 )
 
 // Factory implements storage.Factory for Elasticsearch backend.

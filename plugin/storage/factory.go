@@ -173,7 +173,7 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 	}
 
 	for kind, factory := range f.archiveFactories {
-		if archivable, ok := factory.(plugin.ArchiveCapable); ok && archivable.IsArchiveCapable() {
+		if archivable, ok := factory.(storage.ArchiveCapable); ok && archivable.IsArchiveCapable() {
 			if err := initializeFactory(kind, factory, "archive"); err != nil {
 				return err
 			}
@@ -313,7 +313,7 @@ func (f *Factory) InitFromViper(v *viper.Viper, logger *zap.Logger) {
 		initializeConfigurable(factory)
 
 		if primaryFactory, ok := f.factories[kind]; ok {
-			if inheritable, ok := factory.(plugin.Inheritable); ok {
+			if inheritable, ok := factory.(storage.Inheritable); ok {
 				inheritable.InheritSettingsFrom(primaryFactory)
 			}
 		}
