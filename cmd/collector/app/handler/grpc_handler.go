@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 
+	"go.opentelemetry.io/collector/client"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	_ "google.golang.org/grpc/encoding/gzip" // register zip encoding
@@ -98,12 +99,19 @@ func (c *batchConsumer) validateTenant(ctx context.Context) (string, error) {
 		return "", nil
 	}
 
+	httpMd := client.FromContext(ctx)
+	tenants := httpMd.Metadata.Get(c.tenancyMgr.Header)
+
+	if len(tenants) > 0 {
+		return tenants[0] , nil
+	}
+
 	md, ok := metadata.FromIncomingContext(ctx)
 	if !ok {
 		return "", status.Errorf(codes.PermissionDenied, "missing tenant header")
 	}
 
-	tenants := md.Get(c.tenancyMgr.Header)
+	tenants = md.Get(c.tenancyMgr.Header)
 	if len(tenants) < 1 {
 		return "", status.Errorf(codes.PermissionDenied, "missing tenant header")
 	} else if len(tenants) > 1 {

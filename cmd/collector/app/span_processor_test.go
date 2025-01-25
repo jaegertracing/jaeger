@@ -833,6 +833,7 @@ func optionsWithPorts(portHttp string, portGrpc string) *cFlags.CollectorOptions
 			Enabled: true,
 			HTTP: confighttp.ServerConfig{
 				Endpoint: portHttp,
+				IncludeMetadata: true,
 			},
 			GRPC: configgrpc.ServerConfig{
 				NetAddr: confignet.AddrConfig{
@@ -877,10 +878,10 @@ func TestOTLPReceiverWithV2Storage(t *testing.T) {
 	t.Run("Send trace data using HTTP connection", func(t *testing.T) {
 		// Can't send tenancy headers with http request to OTLP receiver
 		tenancyMgr := &tenancy.Manager{
-			Enabled: false,
+			Enabled: true,
+			Header: "x-tenant",
 		}
 
-		// Create and start receiver
 		rec, err := handler.StartOTLPReceiver(
 			optionsWithPorts(fmt.Sprintf("localhost:%v", portHttp), fmt.Sprintf("localhost:%v", portGrpc)),
 			logger,
@@ -892,7 +893,6 @@ func TestOTLPReceiverWithV2Storage(t *testing.T) {
 		defer rec.Shutdown(ctx)
 
 		url := fmt.Sprintf("http://localhost:%v/v1/traces", portHttp)
-		client := &http.Client{}
 
 		traceJSON := `{
 			"resourceSpans": [{
@@ -904,26 +904,28 @@ func TestOTLPReceiverWithV2Storage(t *testing.T) {
 			}]
 		}`
 
+		httpClient := http.Client{}
+
 		req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, strings.NewReader(traceJSON))
 		require.NoError(t, err)
-		req.Header.Add("Content-Type", "application/json")
-		req.Header.Add("x-tenant", "test-tenant")
-
-		resp, err := client.Do(req)
+		req.Header.Set("Content-Type","application/json")
+		req.Header.Set("x-tenant","test-tenant")
+		resp, err := httpClient.Do(req)
 		require.NoError(t, err)
 		defer resp.Body.Close()
-
 		require.Equal(t, http.StatusOK, resp.StatusCode)
 
 		assert.Eventually(t, func() bool {
 			storedTraces := receivedTraces.Load()
-			if storedTraces == nil {
+			storedCtx := receivedCtx.Load()
+			if storedTraces == nil || storedCtx == nil {
 				return false
 			}
 			receivedSpan := storedTraces.ResourceSpans().At(0).
 				ScopeSpans().At(0).
 				Spans().At(0)
-			return receivedSpan.Name() == "test-trace"
+			receivedTenant := tenancy.GetTenant(*storedCtx)
+			return receivedSpan.Name() == "test-trace" && receivedTenant == "test-tenant"
 		}, 1*time.Second, 1*time.Millisecond)
 
 		mockWriter.AssertExpectations(t)
