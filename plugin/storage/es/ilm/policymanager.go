@@ -31,7 +31,6 @@ var ErrIlmNotSupported = errors.New("ILM is supported only for ES version 7+")
 type PolicyManager struct {
 	client                         func() es.Client
 	prefixedIndexNameWithSeparator string
-	version                        uint
 }
 
 // Init makes the jaeger ready for automatic rollover by using ILM by creating
@@ -39,9 +38,6 @@ type PolicyManager struct {
 func (p *PolicyManager) Init() error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	if p.version < ilmVersionSupport {
-		return ErrIlmNotSupported
-	}
 	err := p.init(ctx)
 	if err != nil {
 		return err
@@ -52,10 +48,9 @@ func (p *PolicyManager) Init() error {
 // NewPolicyManager creates the policy manager with appropriate version and prefixedIndexNameWithSeparator.
 // prefixedIndexNameWithSeparator is the prefix with separator. For example if index prefix is jaeger-main
 // and policy manager is called for span indices, then prefixedIndexNameWithSeparator will be jaeger-main-jaeger-span-
-func NewPolicyManager(cl func() es.Client, version uint, prefixedIndexNameWithSeparator string) *PolicyManager {
+func NewPolicyManager(cl func() es.Client, prefixedIndexNameWithSeparator string) *PolicyManager {
 	return &PolicyManager{
 		client:                         cl,
-		version:                        version,
 		prefixedIndexNameWithSeparator: prefixedIndexNameWithSeparator,
 	}
 }

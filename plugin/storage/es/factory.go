@@ -167,7 +167,7 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 	if f.primaryConfig.UseILM {
 		err = ilm.CreatePolicyIfNotExists(primaryClient, f.primaryConfig.IsOpenSearch, f.primaryConfig.Version)
 		if err != nil {
-			return fmt.Errorf("failed to create ILM policy: %w", err)
+			return fmt.Errorf("failed to create index management policy: %w", err)
 		}
 	}
 
@@ -321,7 +321,7 @@ func createSpanWriter(
 		}
 	}
 	if cfg.UseILM {
-		err := writer.CreatePolicy(cfg.Version)
+		err := writer.InitializePolicyManager()
 		if err != nil {
 			return nil, err
 		}
@@ -352,7 +352,7 @@ func (f *Factory) CreateSamplingStore(int /* maxBuckets */) (samplingstore.Store
 		}
 	}
 	if f.primaryConfig.UseILM {
-		err := store.CreatePolicy(f.primaryConfig.Version)
+		err := store.InitializePolicyManager()
 		if err != nil {
 			return nil, err
 		}
