@@ -7,7 +7,6 @@ package model_test
 import (
 	"bytes"
 	"fmt"
-	"strconv"
 	"testing"
 	"time"
 
@@ -15,8 +14,6 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.opentelemetry.io/otel/trace"
-	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/model"
 )
@@ -165,7 +162,7 @@ func TestSpanIDUnmarshalJSONErrors(t *testing.T) {
 func TestIsRPCClientServer(t *testing.T) {
 	span1 := &model.Span{
 		Tags: model.KeyValues{
-			model.String(model.SpanKindKey, trace.SpanKindClient.String()),
+			model.String(model.SpanKindKey, "client"),
 		},
 	}
 	assert.True(t, span1.IsRPCClient())
@@ -334,124 +331,4 @@ func BenchmarkBatchSerialization(b *testing.B) {
 			proto.Unmarshal(data, &batch2)
 		}
 	})
-}
-
-func TestGetSamplerParams(t *testing.T) {
-	logger := zap.NewNop()
-	tests := []struct {
-		tags          model.KeyValues
-		expectedType  model.SamplerType
-		expectedParam float64
-	}{
-		{
-			tags: model.KeyValues{
-				model.String("sampler.type", "probabilistic"),
-				model.String("sampler.param", "1e-05"),
-			},
-			expectedType:  model.SamplerTypeProbabilistic,
-			expectedParam: 0.00001,
-		},
-		{
-			tags: model.KeyValues{
-				model.String("sampler.type", "probabilistic"),
-				model.Float64("sampler.param", 0.10404450002098709),
-			},
-			expectedType:  model.SamplerTypeProbabilistic,
-			expectedParam: 0.10404450002098709,
-		},
-		{
-			tags: model.KeyValues{
-				model.String("sampler.type", "probabilistic"),
-				model.String("sampler.param", "0.10404450002098709"),
-			},
-			expectedType:  model.SamplerTypeProbabilistic,
-			expectedParam: 0.10404450002098709,
-		},
-		{
-			tags: model.KeyValues{
-				model.String("sampler.type", "probabilistic"),
-				model.Int64("sampler.param", 1),
-			},
-			expectedType:  model.SamplerTypeProbabilistic,
-			expectedParam: 1.0,
-		},
-		{
-			tags: model.KeyValues{
-				model.String("sampler.type", "ratelimiting"),
-				model.String("sampler.param", "1"),
-			},
-			expectedType:  model.SamplerTypeRateLimiting,
-			expectedParam: 1,
-		},
-		{
-			tags: model.KeyValues{
-				model.Float64("sampler.type", 1.5),
-			},
-			expectedType:  model.SamplerTypeUnrecognized,
-			expectedParam: 0,
-		},
-		{
-			tags: model.KeyValues{
-				model.String("sampler.type", "probabilistic"),
-			},
-			expectedType:  model.SamplerTypeUnrecognized,
-			expectedParam: 0,
-		},
-		{
-			tags:          model.KeyValues{},
-			expectedType:  model.SamplerTypeUnrecognized,
-			expectedParam: 0,
-		},
-		{
-			tags: model.KeyValues{
-				model.String("sampler.type", "lowerbound"),
-				model.String("sampler.param", "1"),
-			},
-			expectedType:  model.SamplerTypeLowerBound,
-			expectedParam: 1,
-		},
-		{
-			tags: model.KeyValues{
-				model.String("sampler.type", "lowerbound"),
-				model.Int64("sampler.param", 1),
-			},
-			expectedType:  model.SamplerTypeLowerBound,
-			expectedParam: 1,
-		},
-		{
-			tags: model.KeyValues{
-				model.String("sampler.type", "lowerbound"),
-				model.Float64("sampler.param", 0.5),
-			},
-			expectedType:  model.SamplerTypeLowerBound,
-			expectedParam: 0.5,
-		},
-		{
-			tags: model.KeyValues{
-				model.String("sampler.type", "lowerbound"),
-				model.String("sampler.param", "not_a_number"),
-			},
-			expectedType:  model.SamplerTypeUnrecognized,
-			expectedParam: 0,
-		},
-		{
-			tags: model.KeyValues{
-				model.String("sampler.type", "not_a_type"),
-				model.String("sampler.param", "not_a_number"),
-			},
-			expectedType:  model.SamplerTypeUnrecognized,
-			expectedParam: 0,
-		},
-	}
-
-	for i, test := range tests {
-		tt := test
-		t.Run(strconv.Itoa(i), func(t *testing.T) {
-			span := &model.Span{}
-			span.Tags = tt.tags
-			actualType, actualParam := span.GetSamplerParams(logger)
-			assert.Equal(t, tt.expectedType, actualType)
-			assert.InDelta(t, tt.expectedParam, actualParam, 0.01)
-		})
-	}
 }

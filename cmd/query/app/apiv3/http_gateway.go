@@ -161,7 +161,7 @@ func (h *HTTPGateway) getTrace(w http.ResponseWriter, r *http.Request) {
 	request := querysvc.GetTraceParams{
 		TraceIDs: []tracestore.GetTraceParams{
 			{
-				TraceID: traceID.ToOTELTraceID(),
+				TraceID: model.ToOTELTraceID(traceID),
 			},
 		},
 	}
