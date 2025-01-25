@@ -19,7 +19,7 @@ const (
 	jaegerModelPkgPath    = "github.com/jaegertracing/jaeger-idl/model/v1"
 
 	jaegerProtoGenPkgPathOld = "github.com/jaegertracing/jaeger/proto-gen"
-	jaegerModelPkgPathOld    = "github.com/jaegertracing/jaeger/model"
+	jaegerModelPkgPathOld    = "github.com/jaegertracing/jaeger-idl/model/v1"
 )
 
 var defaultCodec encoding.CodecV2
