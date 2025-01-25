@@ -13,8 +13,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
 	p2json "github.com/jaegertracing/jaeger/model/converter/json"
-	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 )
 
 var testResponse = &api_v2.SamplingStrategyResponse{
