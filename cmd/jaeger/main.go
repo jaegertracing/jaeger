@@ -4,6 +4,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 
 	"github.com/spf13/cobra"
@@ -39,7 +40,7 @@ func featuresCommand() *cobra.Command {
 		Short: "Displays the list of supported features",
 		Long:  "The 'features' command shows all supported features in the current build of Jaeger.",
 		Run: func(_ *cobra.Command, _ []string) {
-			features.DisplayFeatures()
+			fmt.Print(features.DisplayFeatures())
 		},
 	}
 }

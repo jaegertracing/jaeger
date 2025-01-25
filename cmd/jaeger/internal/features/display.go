@@ -9,23 +9,24 @@ import (
 	"go.opentelemetry.io/collector/featuregate"
 )
 
-func DisplayFeatures() {
+func DisplayFeatures() string {
 	f := featuregate.GlobalRegistry()
 	if f == nil {
-		return
+		return ""
 	}
+	out := ""
 	f.VisitAll(func(g *featuregate.Gate) {
-		fmt.Printf("Feature:\t%s\n", g.ID())
+		out += fmt.Sprintf("Feature:\t%s\n", g.ID())
 		if !g.IsEnabled() {
-			fmt.Printf("Default state:\t%s\n", "On")
+			out += fmt.Sprintf("Default state:\t%s\n", "On")
 		} else {
-			fmt.Printf("Default state:\t%s\n", "Off")
+			out += fmt.Sprintf("Default state:\t%s\n", "Off")
 		}
-		fmt.Printf("Description:\t%s\n", g.Description())
-
+		out += fmt.Sprintf("Description:\t%s\n", g.Description())
 		if ref := g.ReferenceURL(); ref != "" {
-			fmt.Printf("ReferenceURL:\t%s\n", ref)
+			out += fmt.Sprintf("ReferenceURL:\t%s\n", ref)
 		}
-		fmt.Println()
+		out += "\n"
 	})
+	return out
 }
