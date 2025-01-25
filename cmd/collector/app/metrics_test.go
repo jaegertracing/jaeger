@@ -11,9 +11,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
 	"github.com/jaegertracing/jaeger/internal/metricstest"
-	"github.com/jaegertracing/jaeger/model"
 	jaegerM "github.com/jaegertracing/jaeger/pkg/metrics"
 )
 

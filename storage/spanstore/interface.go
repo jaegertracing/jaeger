@@ -9,7 +9,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 )
 
 // ErrTraceNotFound is returned by Reader's GetTrace if no data is found for given trace ID.

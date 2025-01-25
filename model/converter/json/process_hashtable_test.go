@@ -9,7 +9,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 )
 
 func TestProcessHashtable(t *testing.T) {

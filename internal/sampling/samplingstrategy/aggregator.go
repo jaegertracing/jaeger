@@ -6,7 +6,7 @@ package samplingstrategy
 import (
 	"io"
 
-	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 )
 
 // Aggregator defines an interface used to aggregate operation throughput.

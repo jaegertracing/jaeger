@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/model/prototest"
 )
 

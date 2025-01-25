@@ -5,7 +5,7 @@
 package adjuster
 
 import (
-	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 )
 
 // Adjuster is an interface for modifying a trace object in place.

@@ -24,7 +24,7 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 
-	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/es"
 	escfg "github.com/jaegertracing/jaeger/pkg/es/config"
