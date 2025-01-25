@@ -22,11 +22,11 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
+	"github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	"github.com/jaegertracing/jaeger/pkg/jtracer"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/plugin/metricstore/disabled"
-	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2/metrics"
 	"github.com/jaegertracing/jaeger/storage/metricstore"
 	metricsmocks "github.com/jaegertracing/jaeger/storage/metricstore/mocks"
