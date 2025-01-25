@@ -775,9 +775,7 @@ func TestBadOTLPReturns400(t *testing.T) {
 		request := "Bad Payload"
 		buf := &bytes.Buffer{}
 		encoder := json.NewEncoder(buf)
-		if err := encoder.Encode(request); err != nil {
-			require.Error(t, err)
-		}
+		require.NoError(t, encoder.Encode(request))
 		r, err := http.NewRequest(http.MethodPost, url, buf)
 		if err != nil {
 			require.Error(t, err)
