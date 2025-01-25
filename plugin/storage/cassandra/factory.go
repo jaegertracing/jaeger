@@ -36,17 +36,18 @@ import (
 )
 
 const (
-	primaryStorageConfig = "cassandra"
-	archiveStorageConfig = "cassandra-archive"
+	primaryStorageNamespace = "cassandra"
+	archiveStorageNamespace = "cassandra-archive"
 )
 
 var ( // interface comformance checks
 	_ storage.Factory              = (*Factory)(nil)
 	_ storage.Purger               = (*Factory)(nil)
-	_ storage.ArchiveFactory       = (*Factory)(nil)
 	_ storage.SamplingStoreFactory = (*Factory)(nil)
 	_ io.Closer                    = (*Factory)(nil)
 	_ plugin.Configurable          = (*Factory)(nil)
+	_ storage.Inheritable          = (*Factory)(nil)
+	_ storage.ArchiveCapable       = (*Factory)(nil)
 )
 
 // Factory implements storage.Factory for Cassandra backend.
@@ -57,11 +58,9 @@ type Factory struct {
 	logger         *zap.Logger
 	tracer         trace.TracerProvider
 
-	primaryConfig config.Configuration
-	archiveConfig *config.Configuration
+	config config.Configuration
 
-	primarySession cassandra.Session
-	archiveSession cassandra.Session
+	session cassandra.Session
 
 	// tests can override this
 	sessionBuilderFn func(*config.Configuration) (cassandra.Session, error)
@@ -71,7 +70,15 @@ type Factory struct {
 func NewFactory() *Factory {
 	return &Factory{
 		tracer:           otel.GetTracerProvider(),
-		Options:          NewOptions(primaryStorageConfig, archiveStorageConfig),
+		Options:          NewOptions(primaryStorageNamespace),
+		sessionBuilderFn: NewSession,
+	}
+}
+
+func NewArchiveFactory() *Factory {
+	return &Factory{
+		tracer:           otel.GetTracerProvider(),
+		Options:          NewOptions(archiveStorageNamespace),
 		sessionBuilderFn: NewSession,
 	}
 }
@@ -104,7 +111,7 @@ type withConfigBuilder struct {
 
 func (b *withConfigBuilder) build() (*Factory, error) {
 	b.f.configureFromOptions(b.opts)
-	if err := b.opts.Primary.Validate(); err != nil {
+	if err := b.opts.NamespaceConfig.Validate(); err != nil {
 		return nil, err
 	}
 	err := b.initializer(b.metricsFactory, b.logger)
@@ -128,12 +135,7 @@ func (f *Factory) InitFromViper(v *viper.Viper, _ *zap.Logger) {
 // InitFromOptions initializes factory from options.
 func (f *Factory) configureFromOptions(o *Options) {
 	f.Options = o
-	// TODO this is a hack because we do not define defaults in Options
-	if o.others == nil {
-		o.others = make(map[string]*NamespaceConfig)
-	}
-	f.primaryConfig = o.GetPrimary()
-	f.archiveConfig = f.Options.Get(archiveStorageConfig)
+	f.config = o.GetConfig()
 }
 
 // Initialize implements storage.Factory
@@ -141,21 +143,12 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 	f.metricsFactory = metricsFactory
 	f.logger = logger
 
-	primarySession, err := f.sessionBuilderFn(&f.primaryConfig)
+	session, err := f.sessionBuilderFn(&f.config)
 	if err != nil {
 		return err
 	}
-	f.primarySession = primarySession
+	f.session = session
 
-	if f.archiveConfig != nil {
-		archiveSession, err := f.sessionBuilderFn(f.archiveConfig)
-		if err != nil {
-			return err
-		}
-		f.archiveSession = archiveSession
-	} else {
-		logger.Info("Cassandra archive storage configuration is empty, skipping")
-	}
 	return nil
 }
 
@@ -203,7 +196,7 @@ func NewSession(c *config.Configuration) (cassandra.Session, error) {
 
 // CreateSpanReader implements storage.Factory
 func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
-	sr, err := cSpanStore.NewSpanReader(f.primarySession, f.metricsFactory, f.logger, f.tracer.Tracer("cSpanStore.SpanReader"))
+	sr, err := cSpanStore.NewSpanReader(f.session, f.metricsFactory, f.logger, f.tracer.Tracer("cSpanStore.SpanReader"))
 	if err != nil {
 		return nil, err
 	}
@@ -216,51 +209,13 @@ func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
 	if err != nil {
 		return nil, err
 	}
-	return cSpanStore.NewSpanWriter(f.primarySession, f.Options.SpanStoreWriteCacheTTL, f.metricsFactory, f.logger, options...)
+	return cSpanStore.NewSpanWriter(f.session, f.Options.SpanStoreWriteCacheTTL, f.metricsFactory, f.logger, options...)
 }
 
 // CreateDependencyReader implements storage.Factory
 func (f *Factory) CreateDependencyReader() (dependencystore.Reader, error) {
-	version := cDepStore.GetDependencyVersion(f.primarySession)
-	return cDepStore.NewDependencyStore(f.primarySession, f.metricsFactory, f.logger, version)
-}
-
-// CreateArchiveSpanReader implements storage.ArchiveFactory
-func (f *Factory) CreateArchiveSpanReader() (spanstore.Reader, error) {
-	if f.archiveSession == nil {
-		return nil, storage.ErrArchiveStorageNotConfigured
-	}
-	archiveMetricsFactory := f.metricsFactory.Namespace(
-		metrics.NSOptions{
-			Tags: map[string]string{
-				"role": "archive",
-			},
-		},
-	)
-	sr, err := cSpanStore.NewSpanReader(f.archiveSession, archiveMetricsFactory, f.logger, f.tracer.Tracer("cSpanStore.SpanReader"))
-	if err != nil {
-		return nil, err
-	}
-	return spanstoremetrics.NewReaderDecorator(sr, archiveMetricsFactory), nil
-}
-
-// CreateArchiveSpanWriter implements storage.ArchiveFactory
-func (f *Factory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
-	if f.archiveSession == nil {
-		return nil, storage.ErrArchiveStorageNotConfigured
-	}
-	options, err := writerOptions(f.Options)
-	if err != nil {
-		return nil, err
-	}
-	archiveMetricsFactory := f.metricsFactory.Namespace(
-		metrics.NSOptions{
-			Tags: map[string]string{
-				"role": "archive",
-			},
-		},
-	)
-	return cSpanStore.NewSpanWriter(f.archiveSession, f.Options.SpanStoreWriteCacheTTL, archiveMetricsFactory, f.logger, options...)
+	version := cDepStore.GetDependencyVersion(f.session)
+	return cDepStore.NewDependencyStore(f.session, f.metricsFactory, f.logger, version)
 }
 
 // CreateLock implements storage.SamplingStoreFactory
@@ -271,7 +226,7 @@ func (f *Factory) CreateLock() (distributedlock.Lock, error) {
 	}
 	f.logger.Info("Using unique participantName in the distributed lock", zap.String("participantName", hostId))
 
-	return cLock.NewLock(f.primarySession, hostId), nil
+	return cLock.NewLock(f.session, hostId), nil
 }
 
 // CreateSamplingStore implements storage.SamplingStoreFactory
@@ -283,7 +238,7 @@ func (f *Factory) CreateSamplingStore(int /* maxBuckets */) (samplingstore.Store
 			},
 		},
 	)
-	return cSamplingStore.New(f.primarySession, samplingMetricsFactory, f.logger), nil
+	return cSamplingStore.New(f.session, samplingMetricsFactory, f.logger), nil
 }
 
 func writerOptions(opts *Options) ([]cSpanStore.Option, error) {
@@ -319,16 +274,24 @@ var _ io.Closer = (*Factory)(nil)
 
 // Close closes the resources held by the factory
 func (f *Factory) Close() error {
-	if f.primarySession != nil {
-		f.primarySession.Close()
-	}
-	if f.archiveSession != nil {
-		f.archiveSession.Close()
+	if f.session != nil {
+		f.session.Close()
 	}
 
 	return nil
 }
 
 func (f *Factory) Purge(_ context.Context) error {
-	return f.primarySession.Query("TRUNCATE traces").Exec()
+	return f.session.Query("TRUNCATE traces").Exec()
+}
+
+func (f *Factory) InheritSettingsFrom(other storage.Factory) {
+	if otherFactory, ok := other.(*Factory); ok {
+		f.config.ApplyDefaults(&otherFactory.config)
+	}
+}
+
+func (f *Factory) IsArchiveCapable() bool {
+	return f.Options.NamespaceConfig.namespace == archiveStorageNamespace &&
+		f.Options.NamespaceConfig.Enabled
 }
