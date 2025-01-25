@@ -38,14 +38,10 @@ const (
 )
 
 var ( // interface comformance checks
-	_ storage.Factory     = (*Factory)(nil)
-	_ io.Closer           = (*Factory)(nil)
-	_ plugin.Configurable = (*Factory)(nil)
-	_ storage.Purger      = (*Factory)(nil)
-
-	// TODO badger could implement archive storage
-	// _ storage.ArchiveFactory       = (*Factory)(nil)
-
+	_ storage.Factory              = (*Factory)(nil)
+	_ io.Closer                    = (*Factory)(nil)
+	_ plugin.Configurable          = (*Factory)(nil)
+	_ storage.Purger               = (*Factory)(nil)
 	_ storage.SamplingStoreFactory = (*Factory)(nil)
 )
 
