@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
-	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	ui "github.com/jaegertracing/jaeger/model/json"
 	"github.com/jaegertracing/jaeger/storage_v2/depstore"
 )

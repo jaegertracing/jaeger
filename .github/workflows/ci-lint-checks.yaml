@@ -116,7 +116,7 @@ jobs:
 
     - name: Run unit tests for scripts
       run: |
-        SHUNIT2=.tools/shunit2 bash scripts/utils/compute-tags.test.sh
+        SHUNIT2=.tools/shunit2 bash scripts/utils/run-tests.sh
 
   binary-size-check:
     runs-on: ubuntu-latest

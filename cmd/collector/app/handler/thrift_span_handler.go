@@ -9,9 +9,9 @@ import (
 
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
 	zipkinS "github.com/jaegertracing/jaeger/cmd/collector/app/sanitizer/zipkin"
-	"github.com/jaegertracing/jaeger/model"
 	jConv "github.com/jaegertracing/jaeger/model/converter/thrift/jaeger"
 	"github.com/jaegertracing/jaeger/model/converter/thrift/zipkin"
 	"github.com/jaegertracing/jaeger/thrift-gen/jaeger"

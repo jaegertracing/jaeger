@@ -46,64 +46,68 @@ func (m *mockSessionBuilder) build(*config.Configuration) (cassandra.Session, er
 }
 
 func TestCassandraFactory(t *testing.T) {
-	logger, logBuf := testutils.NewLogger()
-	f := NewFactory()
-	v, command := viperize.Viperize(f.AddFlags)
-	command.ParseFlags([]string{"--cassandra-archive.enabled=true"})
-	f.InitFromViper(v, zap.NewNop())
+	logger, _ := testutils.NewLogger()
 
-	f.sessionBuilderFn = new(mockSessionBuilder).add(nil, errors.New("made-up primary error")).build
-	require.EqualError(t, f.Initialize(metrics.NullFactory, zap.NewNop()), "made-up primary error")
+	tests := []struct {
+		name      string
+		factoryFn func() *Factory
+		namespace string
+	}{
+		{
+			name:      "CassandraFactory",
+			factoryFn: NewFactory,
+			namespace: primaryStorageNamespace,
+		},
+		{
+			name:      "CassandraArchiveFactory",
+			factoryFn: NewArchiveFactory,
+			namespace: archiveStorageNamespace,
+		},
+	}
 
-	var (
-		session = &mocks.Session{}
-		query   = &mocks.Query{}
-	)
-	session.On("Query", mock.AnythingOfType("string"), mock.Anything).Return(query)
-	session.On("Close").Return()
-	query.On("Exec").Return(nil)
-	f.sessionBuilderFn = new(mockSessionBuilder).
-		add(session, nil).
-		add(nil, errors.New("made-up archive error")).build
-	require.EqualError(t, f.Initialize(metrics.NullFactory, zap.NewNop()), "made-up archive error")
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			f := test.factoryFn()
+			require.Equal(t, test.namespace, f.Options.namespace)
+			v, command := viperize.Viperize(f.AddFlags)
+			command.ParseFlags([]string{})
+			f.InitFromViper(v, zap.NewNop())
 
-	f.archiveConfig = nil
-	f.sessionBuilderFn = new(mockSessionBuilder).add(session, nil).build
-	require.NoError(t, f.Initialize(metrics.NullFactory, logger))
-	assert.Contains(t, logBuf.String(), "Cassandra archive storage configuration is empty, skipping")
+			f.sessionBuilderFn = new(mockSessionBuilder).add(nil, errors.New("made-up primary error")).build
+			require.EqualError(t, f.Initialize(metrics.NullFactory, zap.NewNop()), "made-up primary error")
 
-	_, err := f.CreateSpanReader()
-	require.NoError(t, err)
+			var (
+				session = &mocks.Session{}
+				query   = &mocks.Query{}
+			)
+			session.On("Query", mock.AnythingOfType("string"), mock.Anything).Return(query)
+			session.On("Close").Return()
+			query.On("Exec").Return(nil)
 
-	_, err = f.CreateSpanWriter()
-	require.NoError(t, err)
+			f.sessionBuilderFn = new(mockSessionBuilder).add(session, nil).build
+			require.NoError(t, f.Initialize(metrics.NullFactory, logger))
 
-	_, err = f.CreateDependencyReader()
-	require.NoError(t, err)
+			_, err := f.CreateSpanReader()
+			require.NoError(t, err)
 
-	_, err = f.CreateArchiveSpanReader()
-	require.EqualError(t, err, "archive storage not configured")
+			_, err = f.CreateSpanWriter()
+			require.NoError(t, err)
 
-	_, err = f.CreateArchiveSpanWriter()
-	require.EqualError(t, err, "archive storage not configured")
+			_, err = f.CreateDependencyReader()
+			require.NoError(t, err)
 
-	f.archiveConfig = &config.Configuration{}
-	f.sessionBuilderFn = new(mockSessionBuilder).add(session, nil).add(session, nil).build
-	require.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
+			f.sessionBuilderFn = new(mockSessionBuilder).add(session, nil).add(session, nil).build
+			require.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
 
-	_, err = f.CreateArchiveSpanReader()
-	require.NoError(t, err)
+			_, err = f.CreateLock()
+			require.NoError(t, err)
 
-	_, err = f.CreateArchiveSpanWriter()
-	require.NoError(t, err)
+			_, err = f.CreateSamplingStore(0)
+			require.NoError(t, err)
 
-	_, err = f.CreateLock()
-	require.NoError(t, err)
-
-	_, err = f.CreateSamplingStore(0)
-	require.NoError(t, err)
-
-	require.NoError(t, f.Close())
+			require.NoError(t, f.Close())
+		})
+	}
 }
 
 func TestCreateSpanReaderError(t *testing.T) {
@@ -117,22 +121,17 @@ func TestCreateSpanReaderError(t *testing.T) {
 		mock.Anything).Return(query)
 	query.On("Exec").Return(errors.New("table does not exist"))
 	f := NewFactory()
-	f.archiveConfig = &config.Configuration{}
 	f.sessionBuilderFn = new(mockSessionBuilder).add(session, nil).add(session, nil).build
 	require.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
 	r, err := f.CreateSpanReader()
 	require.Error(t, err)
 	require.Nil(t, r)
-	ar, err := f.CreateArchiveSpanReader()
-	require.Error(t, err)
-	require.Nil(t, ar)
 }
 
 func TestExclusiveWhitelistBlacklist(t *testing.T) {
 	f := NewFactory()
 	v, command := viperize.Viperize(f.AddFlags)
 	command.ParseFlags([]string{
-		"--cassandra-archive.enabled=true",
 		"--cassandra.index.tag-whitelist=a,b,c",
 		"--cassandra.index.tag-blacklist=a,b,c",
 	})
@@ -149,12 +148,8 @@ func TestExclusiveWhitelistBlacklist(t *testing.T) {
 	_, err := f.CreateSpanWriter()
 	require.EqualError(t, err, "only one of TagIndexBlacklist and TagIndexWhitelist can be specified")
 
-	f.archiveConfig = &config.Configuration{}
 	f.sessionBuilderFn = new(mockSessionBuilder).add(session, nil).add(session, nil).build
 	require.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
-
-	_, err = f.CreateArchiveSpanWriter()
-	require.EqualError(t, err, "only one of TagIndexBlacklist and TagIndexWhitelist can be specified")
 }
 
 func TestWriterOptions(t *testing.T) {
@@ -201,18 +196,16 @@ func TestWriterOptions(t *testing.T) {
 
 func TestConfigureFromOptions(t *testing.T) {
 	f := NewFactory()
-	o := NewOptions("foo", archiveStorageConfig)
-	o.others[archiveStorageConfig].Enabled = true
+	o := NewOptions("foo")
 	f.configureFromOptions(o)
 	assert.Equal(t, o, f.Options)
-	assert.Equal(t, o.GetPrimary(), f.primaryConfig)
-	assert.Equal(t, o.Get(archiveStorageConfig), f.archiveConfig)
+	assert.Equal(t, o.GetConfig(), f.config)
 }
 
 func TestNewFactoryWithConfig(t *testing.T) {
 	t.Run("valid configuration", func(t *testing.T) {
 		opts := &Options{
-			Primary: NamespaceConfig{
+			NamespaceConfig: NamespaceConfig{
 				Configuration: config.DefaultConfiguration(),
 			},
 		}
@@ -230,7 +223,7 @@ func TestNewFactoryWithConfig(t *testing.T) {
 	t.Run("connection error", func(t *testing.T) {
 		expErr := errors.New("made-up error")
 		opts := &Options{
-			Primary: NamespaceConfig{
+			NamespaceConfig: NamespaceConfig{
 				Configuration: config.DefaultConfiguration(),
 			},
 		}
@@ -260,7 +253,7 @@ func TestFactory_Purge(t *testing.T) {
 	)
 	session.On("Query", mock.AnythingOfType("string"), mock.Anything).Return(query)
 	query.On("Exec").Return(nil)
-	f.primarySession = session
+	f.session = session
 
 	err := f.Purge(context.Background())
 	require.NoError(t, err)
@@ -297,4 +290,61 @@ func TestNewSessionErrors(t *testing.T) {
 		_, err := NewSession(cfg)
 		require.ErrorContains(t, err, "no hosts provided")
 	})
+}
+
+func TestInheritSettingsFrom(t *testing.T) {
+	primaryFactory := NewFactory()
+	primaryFactory.config.Schema.Keyspace = "foo"
+	primaryFactory.config.Query.MaxRetryAttempts = 99
+
+	archiveFactory := NewArchiveFactory()
+	archiveFactory.config.Schema.Keyspace = "bar"
+
+	archiveFactory.InheritSettingsFrom(primaryFactory)
+
+	require.Equal(t, "bar", archiveFactory.config.Schema.Keyspace)
+	require.Equal(t, 99, archiveFactory.config.Query.MaxRetryAttempts)
+}
+
+func TestIsArchiveCapable(t *testing.T) {
+	tests := []struct {
+		name      string
+		namespace string
+		enabled   bool
+		expected  bool
+	}{
+		{
+			name:      "archive capable",
+			namespace: "cassandra-archive",
+			enabled:   true,
+			expected:  true,
+		},
+		{
+			name:      "not capable",
+			namespace: "cassandra-archive",
+			enabled:   false,
+			expected:  false,
+		},
+		{
+			name:      "capable + wrong namespace",
+			namespace: "cassandra",
+			enabled:   true,
+			expected:  false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			factory := &Factory{
+				Options: &Options{
+					NamespaceConfig: NamespaceConfig{
+						namespace: test.namespace,
+						Enabled:   test.enabled,
+					},
+				},
+			}
+			result := factory.IsArchiveCapable()
+			require.Equal(t, test.expected, result)
+		})
+	}
 }

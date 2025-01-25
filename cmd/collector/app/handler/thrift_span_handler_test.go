@@ -16,9 +16,9 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
 	zipkinsanitizer "github.com/jaegertracing/jaeger/cmd/collector/app/sanitizer/zipkin"
-	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 )

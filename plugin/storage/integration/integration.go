@@ -22,7 +22,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/storage/samplingstore"
 	samplemodel "github.com/jaegertracing/jaeger/storage/samplingstore/model"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
@@ -217,7 +217,7 @@ func (s *StorageIntegration) testGetLargeSpan(t *testing.T) {
 	t.Log("Testing Large Trace over 10K with duplicate IDs...")
 
 	expected := s.writeLargeTraceWithDuplicateSpanIds(t)
-	expectedTraceID := model.ToOTELTraceID(expected.Spans[0].TraceID)
+	expectedTraceID := v1adapter.FromV1TraceID(expected.Spans[0].TraceID)
 
 	actual := &model.Trace{} // no spans
 	found := s.waitForCondition(t, func(_ *testing.T) bool {
@@ -293,7 +293,7 @@ func (s *StorageIntegration) testGetTrace(t *testing.T) {
 	defer s.cleanUp(t)
 
 	expected := s.loadParseAndWriteExampleTrace(t)
-	expectedTraceID := model.ToOTELTraceID(expected.Spans[0].TraceID)
+	expectedTraceID := v1adapter.FromV1TraceID(expected.Spans[0].TraceID)
 
 	actual := &model.Trace{} // no spans
 	found := s.waitForCondition(t, func(t *testing.T) bool {
@@ -313,7 +313,7 @@ func (s *StorageIntegration) testGetTrace(t *testing.T) {
 	}
 
 	t.Run("NotFound error", func(t *testing.T) {
-		fakeTraceID := model.ToOTELTraceID(model.TraceID{High: 0, Low: 1})
+		fakeTraceID := v1adapter.FromV1TraceID(model.TraceID{High: 0, Low: 1})
 		iterTraces := s.TraceReader.GetTraces(context.Background(), tracestore.GetTraceParams{TraceID: fakeTraceID})
 		traces, err := v1adapter.V1TracesFromSeq2(iterTraces)
 		require.NoError(t, err) // v2 TraceReader no longer returns an error for not found

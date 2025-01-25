@@ -7,7 +7,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	"github.com/jaegertracing/jaeger/storage_v2/tracestore"
 )
@@ -30,7 +30,7 @@ func NewSpanReader(traceReader tracestore.Reader) *SpanReader {
 
 func (sr *SpanReader) GetTrace(ctx context.Context, query spanstore.GetTraceParameters) (*model.Trace, error) {
 	getTracesIter := sr.traceReader.GetTraces(ctx, tracestore.GetTraceParams{
-		TraceID: model.ToOTELTraceID(query.TraceID),
+		TraceID: FromV1TraceID(query.TraceID),
 		Start:   query.StartTime,
 		End:     query.EndTime,
 	})
