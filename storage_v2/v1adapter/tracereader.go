@@ -11,7 +11,6 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
-	OTELModel "github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/iter"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
@@ -45,7 +44,7 @@ func (tr *TraceReader) GetTraces(
 	return func(yield func([]ptrace.Traces, error) bool) {
 		for _, idParams := range traceIDs {
 			query := spanstore.GetTraceParameters{
-				TraceID:   OTELModel.TraceIDFromOTEL(idParams.TraceID),
+				TraceID:   ToV1TraceID(idParams.TraceID),
 				StartTime: idParams.Start,
 				EndTime:   idParams.End,
 			}
@@ -123,7 +122,7 @@ func (tr *TraceReader) FindTraceIDs(
 		}
 		otelIDs := make([]pcommon.TraceID, 0, len(traceIDs))
 		for _, traceID := range traceIDs {
-			otelIDs = append(otelIDs, OTELModel.ToOTELTraceID(traceID))
+			otelIDs = append(otelIDs, FromV1TraceID(traceID))
 		}
 		yield(otelIDs, nil)
 	}
