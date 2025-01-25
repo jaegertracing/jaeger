@@ -991,11 +991,11 @@ func postJSON(url string, req any, out any) error {
 
 type HTTPError struct {
 	StatusCode int
-	Err        error
+	Body       string
 }
 
 func (e *HTTPError) Error() string {
-	return fmt.Sprintf("HTTP Error %d: %v", e.StatusCode, e.Err)
+	return fmt.Sprintf("%d error from server: %s", e.StatusCode, e.Body)
 }
 
 // execJSON executes an http request against a server and parses response as JSON
@@ -1017,7 +1017,10 @@ func execJSON(req *http.Request, additionalHeaders map[string]string, out any) e
 		if err != nil {
 			return err
 		}
-		return &HTTPError{StatusCode: resp.StatusCode, Err: errors.New(string(body))}
+		return &HTTPError{
+			StatusCode: resp.StatusCode,
+			Body:       string(body),
+		}
 	}
 
 	if out == nil {
