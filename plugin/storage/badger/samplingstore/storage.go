@@ -11,7 +11,7 @@ import (
 
 	"github.com/dgraph-io/badger/v4"
 
-	jaegermodel "github.com/jaegertracing/jaeger/model"
+	jaegermodel "github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/storage/samplingstore/model"
 )
 

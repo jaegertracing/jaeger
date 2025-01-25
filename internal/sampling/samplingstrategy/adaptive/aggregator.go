@@ -4,14 +4,15 @@
 package adaptive
 
 import (
+	"strconv"
 	"sync"
 	"time"
 
 	"go.uber.org/zap"
 
+	span_model "github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/leaderelection"
 	"github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy"
-	span_model "github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/hostname"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/storage/samplingstore"
@@ -140,7 +141,7 @@ func (a *aggregator) Close() error {
 	return nil
 }
 
-func (a *aggregator) HandleRootSpan(span *span_model.Span, logger *zap.Logger) {
+func (a *aggregator) HandleRootSpan(span *span_model.Span) {
 	// simply checking parentId to determine if a span is a root span is not sufficient. However,
 	// we can be sure that only a root span will have sampler tags.
 	if span.ParentSpanID() != span_model.NewSpanID(0) {
@@ -150,9 +151,42 @@ func (a *aggregator) HandleRootSpan(span *span_model.Span, logger *zap.Logger) {
 	if service == "" || span.OperationName == "" {
 		return
 	}
-	samplerType, samplerParam := span.GetSamplerParams(logger)
+	samplerType, samplerParam := getSamplerParams(span, a.postAggregator.logger)
 	if samplerType == span_model.SamplerTypeUnrecognized {
 		return
 	}
 	a.RecordThroughput(service, span.OperationName, samplerType, samplerParam)
+}
+
+// GetSamplerParams returns the sampler.type and sampler.param value if they are valid.
+func getSamplerParams(s *span_model.Span, logger *zap.Logger) (span_model.SamplerType, float64) {
+	samplerType := s.GetSamplerType()
+	if samplerType == span_model.SamplerTypeUnrecognized {
+		return span_model.SamplerTypeUnrecognized, 0
+	}
+	tag, ok := span_model.KeyValues(s.Tags).FindByKey(span_model.SamplerParamKey)
+	if !ok {
+		return span_model.SamplerTypeUnrecognized, 0
+	}
+	samplerParam, err := samplerParamToFloat(tag)
+	if err != nil {
+		logger.
+			With(zap.String("traceID", s.TraceID.String())).
+			With(zap.String("spanID", s.SpanID.String())).
+			Warn("sampler.param tag is not a number", zap.Any("tag", tag))
+		return span_model.SamplerTypeUnrecognized, 0
+	}
+	return samplerType, samplerParam
+}
+
+func samplerParamToFloat(samplerParamTag span_model.KeyValue) (float64, error) {
+	// The param could be represented as a string, an int, or a float
+	switch samplerParamTag.VType {
+	case span_model.Float64Type:
+		return samplerParamTag.Float64(), nil
+	case span_model.Int64Type:
+		return float64(samplerParamTag.Int64()), nil
+	default:
+		return strconv.ParseFloat(samplerParamTag.AsString(), 64)
+	}
 }

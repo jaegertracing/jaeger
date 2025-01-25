@@ -15,7 +15,7 @@ import (
 	"google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/status"
 
-	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	_ "github.com/jaegertracing/jaeger/pkg/gogocodec" // force gogo codec registration
 	"github.com/jaegertracing/jaeger/proto-gen/storage_v1"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
@@ -47,31 +47,6 @@ type GRPCHandlerStorageImpl struct {
 // NewGRPCHandler creates a handler given individual storage implementations.
 func NewGRPCHandler(impl *GRPCHandlerStorageImpl) *GRPCHandler {
 	return &GRPCHandler{impl: impl}
-}
-
-// NewGRPCHandler creates a handler given implementations grouped by plugin services.
-func NewGRPCHandlerWithPlugins(
-	mainImpl StoragePlugin,
-	archiveImpl ArchiveStoragePlugin,
-	streamImpl StreamingSpanWriterPlugin,
-) *GRPCHandler {
-	impl := &GRPCHandlerStorageImpl{
-		SpanReader:       mainImpl.SpanReader,
-		SpanWriter:       mainImpl.SpanWriter,
-		DependencyReader: mainImpl.DependencyReader,
-
-		ArchiveSpanReader:   func() spanstore.Reader { return nil },
-		ArchiveSpanWriter:   func() spanstore.Writer { return nil },
-		StreamingSpanWriter: func() spanstore.Writer { return nil },
-	}
-	if archiveImpl != nil {
-		impl.ArchiveSpanReader = archiveImpl.ArchiveSpanReader
-		impl.ArchiveSpanWriter = archiveImpl.ArchiveSpanWriter
-	}
-	if streamImpl != nil {
-		impl.StreamingSpanWriter = streamImpl.StreamingSpanWriter
-	}
-	return NewGRPCHandler(impl)
 }
 
 // Register registers the server as gRPC methods handler.

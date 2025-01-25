@@ -32,6 +32,8 @@ extensions:
     backends:
       some_storage:
         elasticsearch:
+          server_urls:
+            - http://localhost:9200
           indices:
             index_prefix: "jaeger-main"
             spans:
@@ -58,6 +60,8 @@ extensions:
           use_aliases: true
       another_storage:
         elasticsearch:
+          server_urls:
+            - http://localhost:9200
           indices:
             index_prefix: "jaeger-archive"
 

@@ -5,6 +5,7 @@ package adaptive
 
 import (
 	"net/http"
+	"strconv"
 	"testing"
 	"time"
 
@@ -13,9 +14,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	epmocks "github.com/jaegertracing/jaeger/internal/leaderelection/mocks"
 	"github.com/jaegertracing/jaeger/internal/metricstest"
-	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/storage/samplingstore/mocks"
 )
 
@@ -121,7 +122,7 @@ func TestRecordThroughput(t *testing.T) {
 
 	// Testing non-root span
 	span := &model.Span{References: []model.SpanRef{{SpanID: model.NewSpanID(1), RefType: model.ChildOf}}}
-	a.HandleRootSpan(span, logger)
+	a.HandleRootSpan(span)
 	require.Empty(t, a.(*aggregator).currentThroughput)
 
 	// Testing span with service name but no operation
@@ -129,12 +130,12 @@ func TestRecordThroughput(t *testing.T) {
 	span.Process = &model.Process{
 		ServiceName: "A",
 	}
-	a.HandleRootSpan(span, logger)
+	a.HandleRootSpan(span)
 	require.Empty(t, a.(*aggregator).currentThroughput)
 
 	// Testing span with service name and operation but no probabilistic sampling tags
 	span.OperationName = http.MethodGet
-	a.HandleRootSpan(span, logger)
+	a.HandleRootSpan(span)
 	require.Empty(t, a.(*aggregator).currentThroughput)
 
 	// Testing span with service name, operation, and probabilistic sampling tags
@@ -142,7 +143,7 @@ func TestRecordThroughput(t *testing.T) {
 		model.String("sampler.type", "probabilistic"),
 		model.String("sampler.param", "0.001"),
 	}
-	a.HandleRootSpan(span, logger)
+	a.HandleRootSpan(span)
 	assert.EqualValues(t, 1, a.(*aggregator).currentThroughput["A"][http.MethodGet].Count)
 }
 
@@ -162,7 +163,7 @@ func TestRecordThroughputFunc(t *testing.T) {
 
 	// Testing non-root span
 	span := &model.Span{References: []model.SpanRef{{SpanID: model.NewSpanID(1), RefType: model.ChildOf}}}
-	a.HandleRootSpan(span, logger)
+	a.HandleRootSpan(span)
 	require.Empty(t, a.(*aggregator).currentThroughput)
 
 	// Testing span with service name but no operation
@@ -170,12 +171,12 @@ func TestRecordThroughputFunc(t *testing.T) {
 	span.Process = &model.Process{
 		ServiceName: "A",
 	}
-	a.HandleRootSpan(span, logger)
+	a.HandleRootSpan(span)
 	require.Empty(t, a.(*aggregator).currentThroughput)
 
 	// Testing span with service name and operation but no probabilistic sampling tags
 	span.OperationName = http.MethodGet
-	a.HandleRootSpan(span, logger)
+	a.HandleRootSpan(span)
 	require.Empty(t, a.(*aggregator).currentThroughput)
 
 	// Testing span with service name, operation, and probabilistic sampling tags
@@ -183,6 +184,127 @@ func TestRecordThroughputFunc(t *testing.T) {
 		model.String("sampler.type", "probabilistic"),
 		model.String("sampler.param", "0.001"),
 	}
-	a.HandleRootSpan(span, logger)
+	a.HandleRootSpan(span)
 	assert.EqualValues(t, 1, a.(*aggregator).currentThroughput["A"][http.MethodGet].Count)
+}
+
+func TestGetSamplerParams(t *testing.T) {
+	logger := zap.NewNop()
+
+	tests := []struct {
+		tags          model.KeyValues
+		expectedType  model.SamplerType
+		expectedParam float64
+	}{
+		{
+			tags: model.KeyValues{
+				model.String("sampler.type", "probabilistic"),
+				model.String("sampler.param", "1e-05"),
+			},
+			expectedType:  model.SamplerTypeProbabilistic,
+			expectedParam: 0.00001,
+		},
+		{
+			tags: model.KeyValues{
+				model.String("sampler.type", "probabilistic"),
+				model.Float64("sampler.param", 0.10404450002098709),
+			},
+			expectedType:  model.SamplerTypeProbabilistic,
+			expectedParam: 0.10404450002098709,
+		},
+		{
+			tags: model.KeyValues{
+				model.String("sampler.type", "probabilistic"),
+				model.String("sampler.param", "0.10404450002098709"),
+			},
+			expectedType:  model.SamplerTypeProbabilistic,
+			expectedParam: 0.10404450002098709,
+		},
+		{
+			tags: model.KeyValues{
+				model.String("sampler.type", "probabilistic"),
+				model.Int64("sampler.param", 1),
+			},
+			expectedType:  model.SamplerTypeProbabilistic,
+			expectedParam: 1.0,
+		},
+		{
+			tags: model.KeyValues{
+				model.String("sampler.type", "ratelimiting"),
+				model.String("sampler.param", "1"),
+			},
+			expectedType:  model.SamplerTypeRateLimiting,
+			expectedParam: 1,
+		},
+		{
+			tags: model.KeyValues{
+				model.Float64("sampler.type", 1.5),
+			},
+			expectedType:  model.SamplerTypeUnrecognized,
+			expectedParam: 0,
+		},
+		{
+			tags: model.KeyValues{
+				model.String("sampler.type", "probabilistic"),
+			},
+			expectedType:  model.SamplerTypeUnrecognized,
+			expectedParam: 0,
+		},
+		{
+			tags:          model.KeyValues{},
+			expectedType:  model.SamplerTypeUnrecognized,
+			expectedParam: 0,
+		},
+		{
+			tags: model.KeyValues{
+				model.String("sampler.type", "lowerbound"),
+				model.String("sampler.param", "1"),
+			},
+			expectedType:  model.SamplerTypeLowerBound,
+			expectedParam: 1,
+		},
+		{
+			tags: model.KeyValues{
+				model.String("sampler.type", "lowerbound"),
+				model.Int64("sampler.param", 1),
+			},
+			expectedType:  model.SamplerTypeLowerBound,
+			expectedParam: 1,
+		},
+		{
+			tags: model.KeyValues{
+				model.String("sampler.type", "lowerbound"),
+				model.Float64("sampler.param", 0.5),
+			},
+			expectedType:  model.SamplerTypeLowerBound,
+			expectedParam: 0.5,
+		},
+		{
+			tags: model.KeyValues{
+				model.String("sampler.type", "lowerbound"),
+				model.String("sampler.param", "not_a_number"),
+			},
+			expectedType:  model.SamplerTypeUnrecognized,
+			expectedParam: 0,
+		},
+		{
+			tags: model.KeyValues{
+				model.String("sampler.type", "not_a_type"),
+				model.String("sampler.param", "not_a_number"),
+			},
+			expectedType:  model.SamplerTypeUnrecognized,
+			expectedParam: 0,
+		},
+	}
+
+	for i, test := range tests {
+		tt := test
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			span := &model.Span{}
+			span.Tags = tt.tags
+			actualType, actualParam := getSamplerParams(span, logger)
+			assert.Equal(t, tt.expectedType, actualType)
+			assert.InDelta(t, tt.expectedParam, actualParam, 0.01)
+		})
+	}
 }

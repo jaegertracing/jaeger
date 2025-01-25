@@ -19,10 +19,10 @@ import (
 	"go.opentelemetry.io/collector/config/configtls"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/flags"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
 	"github.com/jaegertracing/jaeger/internal/metricstest"
-	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
@@ -92,7 +92,7 @@ func (t *mockAggregator) RecordThroughput(string /* service */, string /* operat
 	t.callCount.Add(1)
 }
 
-func (t *mockAggregator) HandleRootSpan(*model.Span, *zap.Logger) {
+func (t *mockAggregator) HandleRootSpan(*model.Span) {
 	t.callCount.Add(1)
 }
 

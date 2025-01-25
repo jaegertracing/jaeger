@@ -78,24 +78,21 @@ define proto_compile
 endef
 
 .PHONY: proto
-proto: proto-model \
-	proto-api-v2 \
-	proto-storage-v1 \
+proto: proto-storage-v1 \
 	proto-hotrod \
 	proto-zipkin \
 	proto-openmetrics \
 	proto-api-v3
 
-.PHONY: proto-model
-proto-model:
-	$(call proto_compile, model, idl/proto/api_v2/model.proto)
-	$(PROTOC) -Imodel/proto --go_out=$(PWD)/model/ model/proto/model_test.proto
 
-.PHONY: proto-api-v2
-proto-api-v2:
-	$(call proto_compile, proto-gen/api_v2, idl/proto/api_v2/query.proto)
-	$(call proto_compile, proto-gen/api_v2, idl/proto/api_v2/collector.proto)
-	$(call proto_compile, proto-gen/api_v2, idl/proto/api_v2/sampling.proto)
+API_V2_PATCHED_DIR=proto-gen/.patched/api_v2
+.PHONY: patch-api-v2
+patch-api-v2:
+	mkdir -p $(API_V2_PATCHED_DIR)
+	cp idl/proto/api_v2/collector.proto $(API_V2_PATCHED_DIR)/
+	cp idl/proto/api_v2/sampling.proto $(API_V2_PATCHED_DIR)/
+	cat idl/proto/api_v2/query.proto | $(SED) 's|jaegertracing/jaeger-idl/model/v1.|jaegertracing/jaeger/model.|g' > $(API_V2_PATCHED_DIR)/query.proto
+
 
 .PHONY: proto-openmetrics
 proto-openmetrics:

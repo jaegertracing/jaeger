@@ -4,16 +4,11 @@
 
 package model
 
-const (
-	// JaegerDependencyLinkSource describes a dependency diagram that was generated from Jaeger traces.
-	JaegerDependencyLinkSource = "jaeger"
+import (
+	modelv1 "github.com/jaegertracing/jaeger-idl/model/v1"
 )
 
-// ApplyDefaults applies defaults to the DependencyLink.
-func (d DependencyLink) ApplyDefaults() DependencyLink {
-	dd := d
-	if dd.Source == "" {
-		dd.Source = JaegerDependencyLinkSource
-	}
-	return dd
-}
+const (
+	// JaegerDependencyLinkSource describes a dependency diagram that was generated from Jaeger traces.
+	JaegerDependencyLinkSource = modelv1.JaegerDependencyLinkSource
+)
