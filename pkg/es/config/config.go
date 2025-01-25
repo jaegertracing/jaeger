@@ -115,6 +115,14 @@ type Configuration struct {
 	// Use this option with Elasticsearch rollover API. It requires an external component
 	// to create aliases before startup and then performing its management.
 	UseReadWriteAliases bool `mapstructure:"use_aliases"`
+	// ReadAliasSuffix is the suffix to append to the index name used for reading.
+	// This configuration only exists to provide backwards compatibility for jaeger-v1
+	// which is why it is not exposed as a configuration option for jaeger-v2
+	ReadAliasSuffix string `mapstructure:"-"`
+	// WriteAliasSuffix is the suffix to append to the write index name.
+	// This configuration only exists to provide backwards compatibility for jaeger-v1
+	// which is why it is not exposed as a configuration option for jaeger-v2
+	WriteAliasSuffix string `mapstructure:"-"`
 	// CreateIndexTemplates, if set to true, creates index templates at application startup.
 	// This configuration should be set to false when templates are installed manually.
 	CreateIndexTemplates bool `mapstructure:"create_mappings"`
