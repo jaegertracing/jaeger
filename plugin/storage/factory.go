@@ -111,8 +111,7 @@ func NewFactory(config FactoryConfig) (*Factory, error) {
 		}
 		f.factories[t] = ff
 
-		af, err := f.getArchiveFactoryOfType(t)
-		if err == nil {
+		if af, ok := f.getArchiveFactoryOfType(t); ok {
 			f.archiveFactories[t] = af
 		}
 	}
@@ -140,16 +139,16 @@ func (*Factory) getFactoryOfType(factoryType string) (storage.Factory, error) {
 	}
 }
 
-func (*Factory) getArchiveFactoryOfType(factoryType string) (storage.Factory, error) {
+func (*Factory) getArchiveFactoryOfType(factoryType string) (storage.Factory, bool) {
 	switch factoryType {
 	case cassandraStorageType:
-		return cassandra.NewArchiveFactory(), nil
+		return cassandra.NewArchiveFactory(), true
 	case elasticsearchStorageType, opensearchStorageType:
-		return es.NewArchiveFactory(), nil
+		return es.NewArchiveFactory(), true
 	case grpcStorageType:
-		return grpc.NewArchiveFactory(), nil
+		return grpc.NewArchiveFactory(), true
 	default:
-		return nil, fmt.Errorf("archive storage factory not available for %s", factoryType)
+		return nil, false
 	}
 }
 
