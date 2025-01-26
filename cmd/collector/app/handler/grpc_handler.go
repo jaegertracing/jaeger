@@ -103,6 +103,9 @@ func (c *batchConsumer) validateTenant(ctx context.Context) (string, error) {
 	tenants := httpMd.Metadata.Get(c.tenancyMgr.Header)
 
 	if len(tenants) > 0 {
+		if !c.tenancyMgr.Valid(tenants[0]) {
+			return "", status.Errorf(codes.PermissionDenied, "unknown tenant")
+		}
 		return tenants[0], nil
 	}
 
