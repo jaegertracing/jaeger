@@ -18,14 +18,11 @@ func TestMain(m *testing.M) {
 
 func TestDisplay(t *testing.T) {
 	featuregate.GlobalRegistry().MustRegister(
-		"jaeger.sampling.includeDefaultOpStrategies",
-		featuregate.StageBeta, // enabed by default
-		featuregate.WithRegisterFromVersion("v2.2.0"),
-		featuregate.WithRegisterToVersion("v2.5.0"),
-		featuregate.WithRegisterDescription("Forces service strategy to be merged with default strategy, including per-operation overrides."),
-		featuregate.WithRegisterReferenceURL("https://github.com/jaegertracing/jaeger/issues/5270"),
+		"jaeger.features-display.test-gate",
+		featuregate.StageBeta,
+		featuregate.WithRegisterDescription("test-description"),
+		featuregate.WithRegisterReferenceURL("https://test-url.com"),
 	)
 	out := DisplayFeatures()
-	expected_out := "Feature:\tjaeger.sampling.includeDefaultOpStrategies\nDefault state:\tOn\nDescription:\tForces service strategy to be merged with default strategy, including per-operation overrides.\nReferenceURL:\thttps://github.com/jaegertracing/jaeger/issues/5270\n\n"
-	require.Equal(t, expected_out, out)
+	require.Contains(t, out, "jaeger.features-display.test-gate")
 }

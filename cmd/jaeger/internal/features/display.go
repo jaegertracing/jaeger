@@ -4,6 +4,7 @@
 package features
 
 import (
+	"bytes"
 	"fmt"
 
 	"go.opentelemetry.io/collector/featuregate"
@@ -11,22 +12,21 @@ import (
 
 func DisplayFeatures() string {
 	f := featuregate.GlobalRegistry()
-	if f == nil {
-		return ""
-	}
-	out := ""
+	var buffer bytes.Buffer
+
 	f.VisitAll(func(g *featuregate.Gate) {
-		out += fmt.Sprintf("Feature:\t%s\n", g.ID())
+		fmt.Fprintf(&buffer, "Feature:\t%s\n", g.ID())
 		if g.IsEnabled() {
-			out += fmt.Sprintf("Default state:\t%s\n", "On")
+			fmt.Fprintf(&buffer, "Default state:\t%s\n", "On")
 		} else {
-			out += fmt.Sprintf("Default state:\t%s\n", "Off")
+			fmt.Fprintf(&buffer, "Default state:\t%s\n", "Off")
 		}
-		out += fmt.Sprintf("Description:\t%s\n", g.Description())
+		fmt.Fprintf(&buffer, "Description:\t%s\n", g.Description())
 		if ref := g.ReferenceURL(); ref != "" {
-			out += fmt.Sprintf("ReferenceURL:\t%s\n", ref)
+			fmt.Fprintf(&buffer, "ReferenceURL:\t%s\n", ref)
 		}
-		out += "\n"
+		fmt.Fprintln(&buffer)
 	})
-	return out
+
+	return buffer.String()
 }
