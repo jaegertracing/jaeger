@@ -847,40 +847,38 @@ func optionsWithPorts(portHttp string, portGrpc string) *cFlags.CollectorOptions
 }
 
 func TestOTLPReceiverWithV2Storage(t *testing.T) {
-	// Setup mock writer and expectations
-	mockWriter := mocks.NewWriter(t)
-
-	var receivedTraces atomic.Pointer[ptrace.Traces]
-	var receivedCtx atomic.Pointer[context.Context]
-	mockWriter.On("WriteTraces", mock.Anything, mock.Anything).
-		Run(func(args mock.Arguments) {
-			storeContext := args.Get(0).(context.Context)
-			storeTrace := args.Get(1).(ptrace.Traces)
-			receivedTraces.Store(&storeTrace)
-			receivedCtx.Store(&storeContext)
-		}).Return(nil)
-
-	spanProcessor, err := NewSpanProcessor(
-		mockWriter,
-		nil,
-		Options.NumWorkers(1),
-		Options.QueueSize(1),
-		Options.ReportBusy(true),
-	)
-	require.NoError(t, err)
-	defer spanProcessor.Close()
-	logger := zaptest.NewLogger(t)
-
-	portHttp := "4317"
-	portGrpc := "4318"
-
 	// Send trace via HTTP
 	t.Run("Send trace data using HTTP connection", func(t *testing.T) {
+		mockWriter := mocks.NewWriter(t)
+
+		spanProcessor, err := NewSpanProcessor(
+			mockWriter,
+			nil,
+			Options.NumWorkers(1),
+			Options.QueueSize(1),
+			Options.ReportBusy(true),
+		)
+		require.NoError(t, err)
+		defer spanProcessor.Close()
+		logger := zaptest.NewLogger(t)
+
+		portHttp := "4317"
+		portGrpc := "4318"
+		var receivedTraces atomic.Pointer[ptrace.Traces]
+		var receivedCtx atomic.Pointer[context.Context]
+		mockWriter.On("WriteTraces", mock.Anything, mock.Anything).
+			Run(func(args mock.Arguments) {
+				storeContext := args.Get(0).(context.Context)
+				storeTrace := args.Get(1).(ptrace.Traces)
+				receivedTraces.Store(&storeTrace)
+				receivedCtx.Store(&storeContext)
+			}).Return(nil)
 		// Can't send tenancy headers with http request to OTLP receiver
-		tenancyMgr := &tenancy.Manager{
+		tenancyMgr := tenancy.NewManager(&tenancy.Options{
 			Enabled: true,
 			Header:  "x-tenant",
-		}
+			Tenants: []string{"test-tenant"},
+		})
 
 		rec, err := handler.StartOTLPReceiver(
 			optionsWithPorts(fmt.Sprintf("localhost:%v", portHttp), fmt.Sprintf("localhost:%v", portGrpc)),
@@ -932,6 +930,30 @@ func TestOTLPReceiverWithV2Storage(t *testing.T) {
 	})
 
 	t.Run("Send trace data using GRPC connection", func(t *testing.T) {
+		mockWriter := mocks.NewWriter(t)
+
+		spanProcessor, err := NewSpanProcessor(
+			mockWriter,
+			nil,
+			Options.NumWorkers(1),
+			Options.QueueSize(1),
+			Options.ReportBusy(true),
+		)
+		require.NoError(t, err)
+		defer spanProcessor.Close()
+		logger := zaptest.NewLogger(t)
+
+		portHttp := "4317"
+		portGrpc := "4318"
+		var receivedTraces atomic.Pointer[ptrace.Traces]
+		var receivedCtx atomic.Pointer[context.Context]
+		mockWriter.On("WriteTraces", mock.Anything, mock.Anything).
+			Run(func(args mock.Arguments) {
+				storeContext := args.Get(0).(context.Context)
+				storeTrace := args.Get(1).(ptrace.Traces)
+				receivedTraces.Store(&storeTrace)
+				receivedCtx.Store(&storeContext)
+			}).Return(nil)
 		// Setup proper tenancy manager using NewManager
 		tenancyMgr := tenancy.NewManager(&tenancy.Options{
 			Enabled: true,
@@ -996,7 +1018,7 @@ func TestOTLPReceiverWithV2Storage(t *testing.T) {
 				Spans().At(0)
 			receivedTenant := tenancy.GetTenant(*storedCtx)
 			return receivedSpan.Name() == "test-trace" && receivedTenant == "test-tenant"
-		}, 1*time.Second, 1*time.Millisecond)
+		}, 1*time.Second, 100*time.Millisecond)
 
 		mockWriter.AssertExpectations(t)
 	})
