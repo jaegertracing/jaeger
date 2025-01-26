@@ -253,7 +253,7 @@ func createSpanWriter(
 		ServiceCacheTTL:     cfg.ServiceCacheTTL,
 	})
 
-	// Creating a template here no matter what is ilm. Creating template before creating policy will not give any error
+	// Creating a template here no matter what is ilm. ILM configured mapping has already been injected in mappingBuilderFromConfig
 	if cfg.CreateIndexTemplates {
 		mappingBuilder := mappingBuilderFromConfig(cfg)
 		spanMapping, serviceMapping, err := mappingBuilder.GetSpanServiceMappings()
