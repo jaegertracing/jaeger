@@ -65,11 +65,6 @@ func (tr *TraceReader) GetTraces(
 	}
 }
 
-func (tr *TraceReader) GetArchiveTraces(ctx context.Context, traceID tracestore.GetTraceParams) (*model.Trace, error) {
-	tID := model.TraceIDFromOTEL(traceID.TraceID)
-	return tr.spanReader.GetTrace(ctx, spanstore.GetTraceParameters{TraceID: tID})
-}
-
 func (tr *TraceReader) GetServices(ctx context.Context) ([]string, error) {
 	return tr.spanReader.GetServices(ctx)
 }
