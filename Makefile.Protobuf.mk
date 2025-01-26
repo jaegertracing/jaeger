@@ -98,8 +98,6 @@ patch-api-v2:
 proto-openmetrics:
 	$(call print_caption, Processing OpenMetrics Protos)
 	$(foreach file,$(OPENMETRICS_PROTO_FILES),$(call proto_compile, proto-gen/api_v2/metrics, $(file)))
-	@# TODO why is this file included in model/proto/metrics/ in the first place?
-	rm proto-gen/api_v2/metrics/otelmetric.pb.go
 
 .PHONY: proto-storage-v1
 proto-storage-v1:
