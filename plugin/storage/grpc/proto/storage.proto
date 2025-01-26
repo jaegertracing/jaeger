@@ -167,11 +167,13 @@ service SpanReaderPlugin {
     rpc FindTraceIDs(FindTraceIDsRequest) returns (FindTraceIDsResponse);
 }
 
+// This plugin is deprecated and is not used anymore.
 service ArchiveSpanWriterPlugin {
     // spanstore/Writer
     rpc WriteArchiveSpan(WriteSpanRequest) returns (WriteSpanResponse);
 }
 
+// This plugin is deprecated and is not used anymore.
 service ArchiveSpanReaderPlugin {
     // spanstore/Reader
     rpc GetArchiveTrace(GetTraceRequest) returns (stream SpansResponseChunk);
