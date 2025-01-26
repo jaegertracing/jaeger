@@ -17,7 +17,7 @@ func DisplayFeatures() string {
 	out := ""
 	f.VisitAll(func(g *featuregate.Gate) {
 		out += fmt.Sprintf("Feature:\t%s\n", g.ID())
-		if !g.IsEnabled() {
+		if g.IsEnabled() {
 			out += fmt.Sprintf("Default state:\t%s\n", "On")
 		} else {
 			out += fmt.Sprintf("Default state:\t%s\n", "Off")

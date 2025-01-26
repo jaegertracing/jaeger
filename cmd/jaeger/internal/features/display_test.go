@@ -4,14 +4,12 @@
 package features
 
 import (
-	"regexp"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/jaegertracing/jaeger/cmd/jaeger/internal"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
+	"go.opentelemetry.io/collector/featuregate"
 )
 
 func TestMain(m *testing.M) {
@@ -19,16 +17,16 @@ func TestMain(m *testing.M) {
 }
 
 func TestDisplay(t *testing.T) {
-	internal.Command()
+	featuregate.GlobalRegistry().MustRegister( 
+		"jaeger.sampling.includeDefaultOpStrategies", 
+		featuregate.StageBeta, // enabed by default 
+		featuregate.WithRegisterFromVersion("v2.2.0"), 
+		featuregate.WithRegisterToVersion("v2.5.0"), 
+		featuregate.WithRegisterDescription("Forces service strategy to be merged with default strategy, including per-operation overrides."), 
+		featuregate.WithRegisterReferenceURL("https://github.com/jaegertracing/jaeger/issues/5270"), 
+	) 
 	out := DisplayFeatures()
-	parts := strings.Split(out, "\n\n")
-	parts = parts[:len(parts)-1]
-	feature_re := regexp.MustCompile(`(?m)Feature:\s*(.*)`) // String between Feature: and the first \n after it
-	description_re := regexp.MustCompile(`(?m)Description:\s*(.*)`) // String between Description: and the first \n after it
-	for _, part := range parts {
-		feature_matches := feature_re.FindStringSubmatch(part)
-		require.Greater(t, len(feature_matches), 1)
-		description_matches := description_re.FindStringSubmatch(part)
-		require.Greater(t, len(description_matches), 1)
-	}
+	expected_out := "Feature:\tjaeger.sampling.includeDefaultOpStrategies\nDefault state:\tOn\nDescription:\tForces service strategy to be merged with default strategy, including per-operation overrides.\nReferenceURL:\thttps://github.com/jaegertracing/jaeger/issues/5270\n\n"
+	require.Equal(t, expected_out, out)
+	
 }
