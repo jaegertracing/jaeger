@@ -29,8 +29,6 @@ const (
 var (
 	errNilRequest           = status.Error(codes.InvalidArgument, "a nil argument is not allowed")
 	errUninitializedTraceID = status.Error(codes.InvalidArgument, "uninitialized TraceID is not allowed")
-	errMissingServiceNames  = status.Error(codes.InvalidArgument, "please provide at least one service name")
-	errMissingQuantile      = status.Error(codes.InvalidArgument, "please provide a quantile between (0, 1]")
 )
 
 // GRPCHandler implements the gRPC endpoint of the query service.
@@ -240,18 +238,4 @@ func (g *GRPCHandler) GetDependencies(ctx context.Context, r *api_v2.GetDependen
 	}
 
 	return &api_v2.GetDependenciesResponse{Dependencies: dependencies}, nil
-}
-
-func (g *GRPCHandler) handleErr(msg string, err error) error {
-	if err == nil {
-		return nil
-	}
-	g.logger.Error(msg, zap.Error(err))
-
-	if _, ok := status.FromError(err); ok {
-		return err
-	}
-
-	// Received an "unexpected" error.
-	return status.Errorf(codes.Internal, "%s: %v", msg, err)
 }

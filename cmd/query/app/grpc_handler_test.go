@@ -116,13 +116,12 @@ var (
 )
 
 type grpcServer struct {
-	server              *grpc.Server
-	lisAddr             net.Addr
-	spanReader          *spanstoremocks.Reader
-	depReader           *depsmocks.Reader
-	metricsQueryService querysvc.MetricsQueryService
-	archiveSpanReader   *spanstoremocks.Reader
-	archiveSpanWriter   *spanstoremocks.Writer
+	server            *grpc.Server
+	lisAddr           net.Addr
+	spanReader        *spanstoremocks.Reader
+	depReader         *depsmocks.Reader
+	archiveSpanReader *spanstoremocks.Reader
+	archiveSpanWriter *spanstoremocks.Writer
 }
 
 type grpcClient struct {
@@ -167,13 +166,8 @@ func newGRPCClient(t *testing.T, addr string) *grpcClient {
 	}
 }
 
-type testOption func(*testQueryService)
-
-type testQueryService struct {
-}
-
-func withServerAndClient(t *testing.T, actualTest func(server *grpcServer, client *grpcClient), options ...testOption) {
-	server := initializeTenantedTestServerGRPCWithOptions(t, &tenancy.Manager{}, options...)
+func withServerAndClient(t *testing.T, actualTest func(server *grpcServer, client *grpcClient)) {
+	server := initializeTenantedTestServerGRPC(t, &tenancy.Manager{})
 	client := newGRPCClient(t, server.lisAddr.String())
 	defer server.server.Stop()
 	defer client.conn.Close()
@@ -620,7 +614,7 @@ func TestSendSpanChunksError(t *testing.T) {
 	require.EqualError(t, err, expectedErr.Error())
 }
 
-func initializeTenantedTestServerGRPCWithOptions(t *testing.T, tm *tenancy.Manager, options ...testOption) *grpcServer {
+func initializeTenantedTestServerGRPC(t *testing.T, tm *tenancy.Manager) *grpcServer {
 	archiveSpanReader := &spanstoremocks.Reader{}
 	archiveSpanWriter := &spanstoremocks.Writer{}
 
@@ -634,11 +628,6 @@ func initializeTenantedTestServerGRPCWithOptions(t *testing.T, tm *tenancy.Manag
 			ArchiveSpanReader: archiveSpanReader,
 			ArchiveSpanWriter: archiveSpanWriter,
 		})
-
-	tqs := &testQueryService{}
-	for _, opt := range options {
-		opt(tqs)
-	}
 
 	logger := zap.NewNop()
 	tracer := jtracer.NoOp()
@@ -655,8 +644,8 @@ func initializeTenantedTestServerGRPCWithOptions(t *testing.T, tm *tenancy.Manag
 	}
 }
 
-func withTenantedServerAndClient(t *testing.T, tm *tenancy.Manager, actualTest func(server *grpcServer, client *grpcClient), options ...testOption) {
-	server := initializeTenantedTestServerGRPCWithOptions(t, tm, options...)
+func withTenantedServerAndClient(t *testing.T, tm *tenancy.Manager, actualTest func(server *grpcServer, client *grpcClient)) {
+	server := initializeTenantedTestServerGRPC(t, tm)
 	client := newGRPCClient(t, server.lisAddr.String())
 	defer server.server.Stop()
 	defer client.conn.Close()
