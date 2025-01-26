@@ -18,11 +18,11 @@ func TestMain(m *testing.M) {
 
 func TestDisplay(t *testing.T) {
 	featuregate.GlobalRegistry().MustRegister(
-		"jaeger.features-display.test-gate",
+		"jaeger.featuresdisplay.testgate",
 		featuregate.StageBeta,
 		featuregate.WithRegisterDescription("test-description"),
 		featuregate.WithRegisterReferenceURL("https://test-url.com"),
 	)
 	out := DisplayFeatures()
-	require.Contains(t, out, "jaeger.features-display.test-gate")
+	require.Contains(t, out, "jaeger.featuresdisplay.testgate")
 }
