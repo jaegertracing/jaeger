@@ -38,9 +38,6 @@ type GRPCHandlerStorageImpl struct {
 	SpanWriter       func() spanstore.Writer
 	DependencyReader func() dependencystore.Reader
 
-	ArchiveSpanReader func() spanstore.Reader
-	ArchiveSpanWriter func() spanstore.Writer
-
 	StreamingSpanWriter func() spanstore.Writer
 }
 
@@ -244,45 +241,16 @@ func (*GRPCHandler) sendSpans(spans []*model.Span, sendFn func(*storage_v1.Spans
 
 func (s *GRPCHandler) Capabilities(context.Context, *storage_v1.CapabilitiesRequest) (*storage_v1.CapabilitiesResponse, error) {
 	return &storage_v1.CapabilitiesResponse{
-		ArchiveSpanReader:   s.impl.ArchiveSpanReader() != nil,
-		ArchiveSpanWriter:   s.impl.ArchiveSpanWriter() != nil,
+		ArchiveSpanReader:   s.impl.SpanReader() != nil,
+		ArchiveSpanWriter:   s.impl.SpanWriter() != nil,
 		StreamingSpanWriter: s.impl.StreamingSpanWriter() != nil,
 	}, nil
 }
 
 func (s *GRPCHandler) GetArchiveTrace(r *storage_v1.GetTraceRequest, stream storage_v1.ArchiveSpanReaderPlugin_GetArchiveTraceServer) error {
-	reader := s.impl.ArchiveSpanReader()
-	if reader == nil {
-		return status.Error(codes.Unimplemented, "not implemented")
-	}
-	trace, err := reader.GetTrace(stream.Context(), spanstore.GetTraceParameters{
-		TraceID:   r.TraceID,
-		StartTime: r.StartTime,
-		EndTime:   r.EndTime,
-	})
-	if errors.Is(err, spanstore.ErrTraceNotFound) {
-		return status.Error(codes.NotFound, spanstore.ErrTraceNotFound.Error())
-	}
-	if err != nil {
-		return err
-	}
-
-	err = s.sendSpans(trace.Spans, stream.Send)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return s.GetTrace(r, stream)
 }
 
 func (s *GRPCHandler) WriteArchiveSpan(ctx context.Context, r *storage_v1.WriteSpanRequest) (*storage_v1.WriteSpanResponse, error) {
-	writer := s.impl.ArchiveSpanWriter()
-	if writer == nil {
-		return nil, status.Error(codes.Unimplemented, "not implemented")
-	}
-	err := writer.WriteSpan(ctx, r.Span)
-	if err != nil {
-		return nil, err
-	}
-	return &storage_v1.WriteSpanResponse{}, nil
+	return s.WriteSpan(ctx, r)
 }
