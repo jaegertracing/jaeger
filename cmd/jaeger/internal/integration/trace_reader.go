@@ -19,11 +19,11 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
-	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/iter"
 	"github.com/jaegertracing/jaeger/ports"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	"github.com/jaegertracing/jaeger/storage_v2/tracestore"
+	"github.com/jaegertracing/jaeger/storage_v2/v1adapter"
 )
 
 var (
@@ -68,7 +68,7 @@ func (r *traceReader) GetTraces(
 	return func(yield func([]ptrace.Traces, error) bool) {
 		// api_v3 does not support multi-get, so loop through IDs
 		for _, idParams := range traceIDs {
-			idStr := model.TraceIDFromOTEL(idParams.TraceID).String()
+			idStr := v1adapter.ToV1TraceID(idParams.TraceID).String()
 			r.logger.Info("Calling api_v3.GetTrace", zap.String("trace_id", idStr))
 			stream, err := r.client.GetTrace(ctx, &api_v3.GetTraceRequest{
 				TraceId:   idStr,

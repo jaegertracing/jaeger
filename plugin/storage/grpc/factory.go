@@ -35,14 +35,14 @@ import (
 
 var ( // interface comformance checks
 	_ storage.Factory        = (*Factory)(nil)
-	_ storage.ArchiveFactory = (*Factory)(nil)
 	_ io.Closer              = (*Factory)(nil)
 	_ plugin.Configurable    = (*Factory)(nil)
+	_ storage.ArchiveCapable = (*Factory)(nil)
 )
 
 // Factory implements storage.Factory and creates storage components backed by a storage plugin.
 type Factory struct {
-	config             Config
+	options            *options
 	telset             telemetry.Settings
 	services           *ClientPluginServices
 	tracedRemoteConn   *grpc.ClientConn
@@ -52,7 +52,15 @@ type Factory struct {
 // NewFactory creates a new Factory.
 func NewFactory() *Factory {
 	return &Factory{
-		telset: telemetry.NoopSettings(),
+		options: newOptions(remotePrefix),
+		telset:  telemetry.NoopSettings(),
+	}
+}
+
+func NewArchiveFactory() *Factory {
+	return &Factory{
+		options: newOptions(archiveRemotePrefix),
+		telset:  telemetry.NoopSettings(),
 	}
 }
 
@@ -62,7 +70,7 @@ func NewFactoryWithConfig(
 	telset telemetry.Settings,
 ) (*Factory, error) {
 	f := NewFactory()
-	f.config = cfg
+	f.options.Config = cfg
 	f.telset = telset
 	if err := f.Initialize(telset.Metrics, telset.Logger); err != nil {
 		return nil, err
@@ -71,13 +79,13 @@ func NewFactoryWithConfig(
 }
 
 // AddFlags implements plugin.Configurable
-func (*Factory) AddFlags(flagSet *flag.FlagSet) {
-	addFlags(flagSet)
+func (f *Factory) AddFlags(flagSet *flag.FlagSet) {
+	f.options.addFlags(flagSet)
 }
 
 // InitFromViper implements plugin.Configurable
 func (f *Factory) InitFromViper(v *viper.Viper, logger *zap.Logger) {
-	if err := initFromViper(&f.config, v); err != nil {
+	if err := f.options.initFromViper(&f.options.Config, v); err != nil {
 		logger.Fatal("unable to initialize gRPC storage factory", zap.Error(err))
 	}
 }
@@ -95,7 +103,7 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 		for _, opt := range opts {
 			clientOpts = append(clientOpts, configgrpc.WithGrpcDialOption(opt))
 		}
-		return f.config.ToClientConn(context.Background(), f.telset.Host, telset, clientOpts...)
+		return f.options.Config.ToClientConn(context.Background(), f.telset.Host, telset, clientOpts...)
 	}
 
 	var err error
@@ -103,7 +111,7 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 	if err != nil {
 		return fmt.Errorf("grpc storage builder failed to create a store: %w", err)
 	}
-	logger.Info("Remote storage configuration", zap.Any("configuration", f.config))
+	logger.Info("Remote storage configuration", zap.Any("configuration", f.options.Config))
 	return nil
 }
 
@@ -114,7 +122,7 @@ func (f *Factory) newRemoteStorage(
 	untracedTelset component.TelemetrySettings,
 	newClient newClientFn,
 ) (*ClientPluginServices, error) {
-	c := f.config
+	c := f.options.Config
 	if c.Auth != nil {
 		return nil, errors.New("authenticator is not supported")
 	}
@@ -158,7 +166,6 @@ func (f *Factory) newRemoteStorage(
 	return &ClientPluginServices{
 		PluginServices: shared.PluginServices{
 			Store:               grpcClient,
-			ArchiveStore:        grpcClient,
 			StreamingSpanWriter: grpcClient,
 		},
 		Capabilities: grpcClient,
@@ -185,43 +192,6 @@ func (f *Factory) CreateDependencyReader() (dependencystore.Reader, error) {
 	return f.services.Store.DependencyReader(), nil
 }
 
-// CreateArchiveSpanReader implements storage.ArchiveFactory
-func (f *Factory) CreateArchiveSpanReader() (spanstore.Reader, error) {
-	if f.services.Capabilities == nil {
-		return nil, storage.ErrArchiveStorageNotSupported
-	}
-	capabilities, err := f.services.Capabilities.Capabilities()
-	if err != nil {
-		return nil, err
-	}
-	if capabilities == nil || !capabilities.ArchiveSpanReader {
-		return nil, storage.ErrArchiveStorageNotSupported
-	}
-	archiveMetricsFactory := f.telset.Metrics.Namespace(
-		metrics.NSOptions{
-			Tags: map[string]string{
-				"role": "archive",
-			},
-		},
-	)
-	return spanstoremetrics.NewReaderDecorator(f.services.ArchiveStore.ArchiveSpanReader(), archiveMetricsFactory), nil
-}
-
-// CreateArchiveSpanWriter implements storage.ArchiveFactory
-func (f *Factory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
-	if f.services.Capabilities == nil {
-		return nil, storage.ErrArchiveStorageNotSupported
-	}
-	capabilities, err := f.services.Capabilities.Capabilities()
-	if err != nil {
-		return nil, err
-	}
-	if capabilities == nil || !capabilities.ArchiveSpanWriter {
-		return nil, storage.ErrArchiveStorageNotSupported
-	}
-	return f.services.ArchiveStore.ArchiveSpanWriter(), nil
-}
-
 // Close closes the resources held by the factory
 func (f *Factory) Close() error {
 	var errs []error
@@ -240,4 +210,8 @@ func getTelset(logger *zap.Logger, tracerProvider trace.TracerProvider, meterPro
 		TracerProvider: tracerProvider,
 		MeterProvider:  meterProvider,
 	}
+}
+
+func (f *Factory) IsArchiveCapable() bool {
+	return f.options.namespace == archiveRemotePrefix && f.options.enabled
 }

@@ -5,7 +5,7 @@
 package adjuster
 
 import (
-	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 )
 
 // SortTagsAndLogFields returns an Adjuster that sorts the fields in the tags and

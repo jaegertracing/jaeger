@@ -13,13 +13,13 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/flags"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/handler"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/server"
 	"github.com/jaegertracing/jaeger/internal/safeexpvar"
 	"github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy"
-	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
@@ -91,7 +91,7 @@ func (c *Collector) Start(options *flags.CollectorOptions) error {
 	var additionalProcessors []ProcessSpan
 	if c.samplingAggregator != nil {
 		additionalProcessors = append(additionalProcessors, func(span *model.Span, _ /* tenant */ string) {
-			c.samplingAggregator.HandleRootSpan(span, c.logger)
+			c.samplingAggregator.HandleRootSpan(span)
 		})
 	}
 

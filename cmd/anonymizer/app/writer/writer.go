@@ -14,8 +14,8 @@ import (
 	"github.com/gogo/protobuf/jsonpb"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/cmd/anonymizer/app/anonymizer"
-	"github.com/jaegertracing/jaeger/model"
 )
 
 var ErrMaxSpansCountReached = errors.New("max spans count reached")

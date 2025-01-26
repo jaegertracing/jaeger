@@ -18,10 +18,10 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/remotesampling"
 	"github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy/adaptive"
-	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/plugin/storage/memory"
 )
 
@@ -140,7 +140,7 @@ type notClosingAgg struct{}
 
 func (*notClosingAgg) Close() error { return errors.New("not closing") }
 
-func (*notClosingAgg) HandleRootSpan(*model.Span, *zap.Logger)                     {}
+func (*notClosingAgg) HandleRootSpan(*model.Span)                                  {}
 func (*notClosingAgg) RecordThroughput(string, string, model.SamplerType, float64) {}
 func (*notClosingAgg) Start()                                                      {}
 

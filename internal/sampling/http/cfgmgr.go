@@ -6,8 +6,8 @@ package http
 import (
 	"context"
 
+	"github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
 	"github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy"
-	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 )
 
 // ConfigManager implements ClientConfigManager.

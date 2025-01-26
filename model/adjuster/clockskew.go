@@ -10,7 +10,7 @@ import (
 	"net"
 	"time"
 
-	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 )
 
 // ClockSkew returns an adjuster that modifies start time and log timestamps

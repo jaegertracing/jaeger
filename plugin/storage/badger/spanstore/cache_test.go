@@ -10,8 +10,6 @@ import (
 	"github.com/dgraph-io/badger/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/jaegertracing/jaeger/model"
 )
 
 /*
@@ -20,7 +18,7 @@ import (
 
 func TestExpiredItems(t *testing.T) {
 	runWithBadger(t, func(store *badger.DB, t *testing.T) {
-		cache := NewCacheStore(store, time.Duration(-1*time.Hour), false)
+		cache := NewCacheStore(store, time.Duration(-1*time.Hour))
 
 		expireTime := uint64(time.Now().Add(cache.ttl).Unix())
 
@@ -52,45 +50,6 @@ func TestExpiredItems(t *testing.T) {
 		operations, err = cache.GetOperations("service1")
 		require.NoError(t, err)
 		assert.Empty(t, operations) // Everything should be expired
-	})
-}
-
-func TestOldReads(t *testing.T) {
-	runWithBadger(t, func(store *badger.DB, t *testing.T) {
-		timeNow := model.TimeAsEpochMicroseconds(time.Now())
-		s1Key := createIndexKey(serviceNameIndexKey, []byte("service1"), timeNow, model.TraceID{High: 0, Low: 0})
-		s1o1Key := createIndexKey(operationNameIndexKey, []byte("service1operation1"), timeNow, model.TraceID{High: 0, Low: 0})
-
-		tid := time.Now().Add(1 * time.Minute)
-
-		writer := func() {
-			store.Update(func(txn *badger.Txn) error {
-				txn.SetEntry(&badger.Entry{
-					Key:       s1Key,
-					ExpiresAt: uint64(tid.Unix()),
-				})
-				txn.SetEntry(&badger.Entry{
-					Key:       s1o1Key,
-					ExpiresAt: uint64(tid.Unix()),
-				})
-				return nil
-			})
-		}
-
-		cache := NewCacheStore(store, time.Duration(-1*time.Hour), false)
-		writer()
-
-		nuTid := tid.Add(1 * time.Hour)
-
-		cache.Update("service1", "operation1", uint64(tid.Unix()))
-		cache.services["service1"] = uint64(nuTid.Unix())
-		cache.operations["service1"]["operation1"] = uint64(nuTid.Unix())
-
-		cache.populateCaches()
-
-		// Now make sure we didn't use the older timestamps from the DB
-		assert.Equal(t, uint64(nuTid.Unix()), cache.services["service1"])
-		assert.Equal(t, uint64(nuTid.Unix()), cache.operations["service1"]["operation1"])
 	})
 }
 
