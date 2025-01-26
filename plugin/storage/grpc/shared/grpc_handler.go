@@ -50,16 +50,12 @@ func NewGRPCHandler(impl *GRPCHandlerStorageImpl) *GRPCHandler {
 func (s *GRPCHandler) Register(ss *grpc.Server, hs *health.Server) error {
 	storage_v1.RegisterSpanReaderPluginServer(ss, s)
 	storage_v1.RegisterSpanWriterPluginServer(ss, s)
-	storage_v1.RegisterArchiveSpanReaderPluginServer(ss, s)
-	storage_v1.RegisterArchiveSpanWriterPluginServer(ss, s)
 	storage_v1.RegisterPluginCapabilitiesServer(ss, s)
 	storage_v1.RegisterDependenciesReaderPluginServer(ss, s)
 	storage_v1.RegisterStreamingSpanWriterPluginServer(ss, s)
 
 	hs.SetServingStatus("jaeger.storage.v1.SpanReaderPlugin", grpc_health_v1.HealthCheckResponse_SERVING)
 	hs.SetServingStatus("jaeger.storage.v1.SpanWriterPlugin", grpc_health_v1.HealthCheckResponse_SERVING)
-	hs.SetServingStatus("jaeger.storage.v1.ArchiveSpanReaderPlugin", grpc_health_v1.HealthCheckResponse_SERVING)
-	hs.SetServingStatus("jaeger.storage.v1.ArchiveSpanWriterPlugin", grpc_health_v1.HealthCheckResponse_SERVING)
 	hs.SetServingStatus("jaeger.storage.v1.PluginCapabilities", grpc_health_v1.HealthCheckResponse_SERVING)
 	hs.SetServingStatus("jaeger.storage.v1.DependenciesReaderPlugin", grpc_health_v1.HealthCheckResponse_SERVING)
 	hs.SetServingStatus("jaeger.storage.v1.StreamingSpanWriterPlugin", grpc_health_v1.HealthCheckResponse_SERVING)
@@ -245,12 +241,4 @@ func (s *GRPCHandler) Capabilities(context.Context, *storage_v1.CapabilitiesRequ
 		ArchiveSpanWriter:   false,
 		StreamingSpanWriter: s.impl.StreamingSpanWriter() != nil,
 	}, nil
-}
-
-func (s *GRPCHandler) GetArchiveTrace(r *storage_v1.GetTraceRequest, stream storage_v1.ArchiveSpanReaderPlugin_GetArchiveTraceServer) error {
-	return s.GetTrace(r, stream)
-}
-
-func (s *GRPCHandler) WriteArchiveSpan(ctx context.Context, r *storage_v1.WriteSpanRequest) (*storage_v1.WriteSpanResponse, error) {
-	return s.WriteSpan(ctx, r)
 }
