@@ -232,47 +232,6 @@ func TestCreateTemplateError(t *testing.T) {
 	require.Error(t, err, "template-error")
 }
 
-func TestArchiveDisabled(t *testing.T) {
-	f := NewFactory()
-	f.archiveConfig = &escfg.Configuration{Enabled: false}
-	f.newClientFn = (&mockClientBuilder{}).NewClient
-	w, err := f.CreateArchiveSpanWriter()
-	assert.Nil(t, w)
-	require.NoError(t, err)
-	r, err := f.CreateArchiveSpanReader()
-	assert.Nil(t, r)
-	require.NoError(t, err)
-}
-
-func TestArchiveEnabled(t *testing.T) {
-	tests := []struct {
-		useReadWriteAliases bool
-	}{
-		{
-			useReadWriteAliases: false,
-		},
-		{
-			useReadWriteAliases: true,
-		},
-	}
-	for _, test := range tests {
-		t.Run(fmt.Sprintf("useReadWriteAliases=%v", test.useReadWriteAliases), func(t *testing.T) {
-			f := NewFactory()
-			f.primaryConfig = &escfg.Configuration{}
-			f.archiveConfig = &escfg.Configuration{Enabled: true, UseReadWriteAliases: test.useReadWriteAliases}
-			f.newClientFn = (&mockClientBuilder{}).NewClient
-			err := f.Initialize(metrics.NullFactory, zap.NewNop())
-			require.NoError(t, err)
-			defer f.Close() // Ensure resources are cleaned up if initialization is successful
-			w, err := f.CreateArchiveSpanWriter()
-			require.NoError(t, err)
-			assert.NotNil(t, w)
-			r, err := f.CreateArchiveSpanReader()
-			require.NoError(t, err)
-			assert.NotNil(t, r)
-		})
-	}
-
 func TestConfigureFromOptions(t *testing.T) {
 	f := NewFactory()
 	o := &Options{

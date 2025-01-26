@@ -157,8 +157,8 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 		f.config.UseReadWriteAliases = true
 	}
 
-	if f.primaryConfig.UseILM {
-		err = ilm.CreatePolicyIfNotExists(primaryClient, f.primaryConfig.IsOpenSearch, f.primaryConfig.Version)
+	if f.config.UseILM {
+		err = ilm.CreatePolicyIfNotExists(client, f.config.IsOpenSearch, f.config.Version)
 		if err != nil {
 			return fmt.Errorf("failed to create index management policy: %w", err)
 		}
@@ -295,7 +295,7 @@ func (f *Factory) CreateSamplingStore(int /* maxBuckets */) (samplingstore.Store
 			return nil, fmt.Errorf("failed to create template: %w", err)
 		}
 	}
-	if f.primaryConfig.UseILM {
+	if f.config.UseILM {
 		err := store.InitializePolicyManager()
 		if err != nil {
 			return nil, err
