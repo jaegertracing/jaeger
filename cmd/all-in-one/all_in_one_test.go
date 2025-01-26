@@ -20,9 +20,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
 	ui "github.com/jaegertracing/jaeger/model/json"
 	"github.com/jaegertracing/jaeger/ports"
-	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 )
 
 // These tests are only run when the environment variable TEST_MODE=integration is set.

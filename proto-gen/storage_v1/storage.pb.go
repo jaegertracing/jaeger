@@ -11,7 +11,7 @@ import (
 	_ "github.com/gogo/protobuf/types"
 	github_com_gogo_protobuf_types "github.com/gogo/protobuf/types"
 	github_com_jaegertracing_jaeger_idl_model_v1 "github.com/jaegertracing/jaeger-idl/model/v1"
-	model "github.com/jaegertracing/jaeger/model"
+	v1 "github.com/jaegertracing/jaeger-idl/model/v1"
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
@@ -89,10 +89,10 @@ func (m *GetDependenciesRequest) GetEndTime() time.Time {
 }
 
 type GetDependenciesResponse struct {
-	Dependencies         []model.DependencyLink `protobuf:"bytes,1,rep,name=dependencies,proto3" json:"dependencies"`
-	XXX_NoUnkeyedLiteral struct{}               `json:"-"`
-	XXX_unrecognized     []byte                 `json:"-"`
-	XXX_sizecache        int32                  `json:"-"`
+	Dependencies         []v1.DependencyLink `protobuf:"bytes,1,rep,name=dependencies,proto3" json:"dependencies"`
+	XXX_NoUnkeyedLiteral struct{}            `json:"-"`
+	XXX_unrecognized     []byte              `json:"-"`
+	XXX_sizecache        int32               `json:"-"`
 }
 
 func (m *GetDependenciesResponse) Reset()         { *m = GetDependenciesResponse{} }
@@ -128,7 +128,7 @@ func (m *GetDependenciesResponse) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_GetDependenciesResponse proto.InternalMessageInfo
 
-func (m *GetDependenciesResponse) GetDependencies() []model.DependencyLink {
+func (m *GetDependenciesResponse) GetDependencies() []v1.DependencyLink {
 	if m != nil {
 		return m.Dependencies
 	}
@@ -136,10 +136,10 @@ func (m *GetDependenciesResponse) GetDependencies() []model.DependencyLink {
 }
 
 type WriteSpanRequest struct {
-	Span                 *model.Span `protobuf:"bytes,1,opt,name=span,proto3" json:"span,omitempty"`
-	XXX_NoUnkeyedLiteral struct{}    `json:"-"`
-	XXX_unrecognized     []byte      `json:"-"`
-	XXX_sizecache        int32       `json:"-"`
+	Span                 *v1.Span `protobuf:"bytes,1,opt,name=span,proto3" json:"span,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
 func (m *WriteSpanRequest) Reset()         { *m = WriteSpanRequest{} }
@@ -175,7 +175,7 @@ func (m *WriteSpanRequest) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_WriteSpanRequest proto.InternalMessageInfo
 
-func (m *WriteSpanRequest) GetSpan() *model.Span {
+func (m *WriteSpanRequest) GetSpan() *v1.Span {
 	if m != nil {
 		return m.Span
 	}
@@ -760,10 +760,10 @@ func (m *FindTracesRequest) GetQuery() *TraceQueryParameters {
 }
 
 type SpansResponseChunk struct {
-	Spans                []model.Span `protobuf:"bytes,1,rep,name=spans,proto3" json:"spans"`
-	XXX_NoUnkeyedLiteral struct{}     `json:"-"`
-	XXX_unrecognized     []byte       `json:"-"`
-	XXX_sizecache        int32        `json:"-"`
+	Spans                []v1.Span `protobuf:"bytes,1,rep,name=spans,proto3" json:"spans"`
+	XXX_NoUnkeyedLiteral struct{}  `json:"-"`
+	XXX_unrecognized     []byte    `json:"-"`
+	XXX_sizecache        int32     `json:"-"`
 }
 
 func (m *SpansResponseChunk) Reset()         { *m = SpansResponseChunk{} }
@@ -799,7 +799,7 @@ func (m *SpansResponseChunk) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_SpansResponseChunk proto.InternalMessageInfo
 
-func (m *SpansResponseChunk) GetSpans() []model.Span {
+func (m *SpansResponseChunk) GetSpans() []v1.Span {
 	if m != nil {
 		return m.Spans
 	}
@@ -3237,7 +3237,7 @@ func (m *GetDependenciesResponse) Unmarshal(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.Dependencies = append(m.Dependencies, model.DependencyLink{})
+			m.Dependencies = append(m.Dependencies, v1.DependencyLink{})
 			if err := m.Dependencies[len(m.Dependencies)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
@@ -3323,7 +3323,7 @@ func (m *WriteSpanRequest) Unmarshal(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			if m.Span == nil {
-				m.Span = &model.Span{}
+				m.Span = &v1.Span{}
 			}
 			if err := m.Span.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
@@ -4673,7 +4673,7 @@ func (m *SpansResponseChunk) Unmarshal(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.Spans = append(m.Spans, model.Span{})
+			m.Spans = append(m.Spans, v1.Span{})
 			if err := m.Spans[len(m.Spans)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}

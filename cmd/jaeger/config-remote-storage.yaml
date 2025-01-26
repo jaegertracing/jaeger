@@ -24,6 +24,7 @@ extensions:
   jaeger_query:
     storage:
       traces: some-storage
+      traces_archive: another-storage
     ui:
       config_file: ./cmd/jaeger/config-ui.json
 
@@ -34,6 +35,11 @@ extensions:
           endpoint: localhost:17271
           tls:
             insecure: true
+      another-storage:
+        grpc:
+          endpoint: localhost:17272
+          tls:
+            insecure: true  
 
 receivers:
   otlp:

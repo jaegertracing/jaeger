@@ -6,7 +6,6 @@ package storage
 
 import (
 	"context"
-	"errors"
 
 	"go.uber.org/zap"
 
@@ -61,23 +60,6 @@ type SamplingStoreFactory interface {
 	CreateSamplingStore(maxBuckets int) (samplingstore.Store, error)
 }
 
-var (
-	// ErrArchiveStorageNotConfigured can be returned by the ArchiveFactory when the archive storage is not configured.
-	ErrArchiveStorageNotConfigured = errors.New("archive storage not configured")
-
-	// ErrArchiveStorageNotSupported can be returned by the ArchiveFactory when the archive storage is not supported by the backend.
-	ErrArchiveStorageNotSupported = errors.New("archive storage not supported")
-)
-
-// ArchiveFactory is an additional interface that can be implemented by a factory to support trace archiving.
-type ArchiveFactory interface {
-	// CreateArchiveSpanReader creates a spanstore.Reader.
-	CreateArchiveSpanReader() (spanstore.Reader, error)
-
-	// CreateArchiveSpanWriter creates a spanstore.Writer.
-	CreateArchiveSpanWriter() (spanstore.Writer, error)
-}
-
 // MetricStoreFactory defines an interface for a factory that can create implementations of different metrics storage components.
 // Implementations are also encouraged to implement plugin.Configurable interface.
 //
@@ -91,4 +73,16 @@ type MetricStoreFactory interface {
 
 	// CreateMetricsReader creates a metricstore.Reader.
 	CreateMetricsReader() (metricstore.Reader, error)
+}
+
+// Inheritable is an interface that can be implement by some storage implementations
+// to provide a way to inherit configuration settings from another factory.
+type Inheritable interface {
+	InheritSettingsFrom(other Factory)
+}
+
+// ArchiveCapable is an interface that can be implemented by some storage implementations
+// to indicate that they are capable of archiving data.
+type ArchiveCapable interface {
+	IsArchiveCapable() bool
 }
