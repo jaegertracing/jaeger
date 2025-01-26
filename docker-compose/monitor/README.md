@@ -92,13 +92,13 @@ make clean-all
 To use an official published image of Jaeger, specify the version via environment variable:
 
 ```shell
-JAEGER_IMAGE_TAG=2.0.0 docker compose -f docker-compose.yml up
+JAEGER_VERSION=2.0.0 docker compose -f docker-compose.yml up
 ```
 
 or for Jaeger v1:
 
 ```shell
-JAEGER_IMAGE_TAG=1.62.0 docker compose -f docker-compose-v1.yml up  
+JAEGER_VERSION=1.62.0 docker compose -f docker-compose-v1.yml up  
 ```
 
 ## Development
