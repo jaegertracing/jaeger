@@ -39,18 +39,19 @@ const (
 )
 
 var ( // interface comformance checks
-	_ storage.Factory              = (*Factory)(nil)
-	_ io.Closer                    = (*Factory)(nil)
-	_ plugin.Configurable          = (*Factory)(nil)
-	_ storage.Purger               = (*Factory)(nil)
-	_ storage.SamplingStoreFactory = (*Factory)(nil)
-  	includeDualLookUp            = featuregate.GlobalRegistry().MustRegister(
+	_                 storage.Factory              = (*Factory)(nil)
+	_                 io.Closer                    = (*Factory)(nil)
+	_                 plugin.Configurable          = (*Factory)(nil)
+	_                 storage.Purger               = (*Factory)(nil)
+	_                 storage.SamplingStoreFactory = (*Factory)(nil)
+	includeDualLookUp                              = featuregate.GlobalRegistry().MustRegister(
 		"jaeger.badger.dualLookUp",
 		featuregate.StageBeta, // enabed by default
 		featuregate.WithRegisterFromVersion("v2.2.0"),
 		featuregate.WithRegisterToVersion("v2.5.0"),
 		featuregate.WithRegisterDescription("Allows reader to look up for traces from old index key"),
 		featuregate.WithRegisterReferenceURL("https://github.com/jaegertracing/jaeger/pull/6376"),
+	)
 )
 
 // Factory implements storage.Factory for Badger backend.
