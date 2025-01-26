@@ -8,11 +8,6 @@ import (
 	modelv1 "github.com/jaegertracing/jaeger-idl/model/v1"
 )
 
-const (
-	// traceIDShortBytesLen indicates length of 64bit traceID when represented as list of bytes
-	traceIDShortBytesLen = 8
-)
-
 // TraceID is a random 128bit identifier for a trace
 type TraceID = modelv1.TraceID
 

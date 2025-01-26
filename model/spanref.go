@@ -11,11 +11,11 @@ import (
 const (
 	// ChildOf span reference type describes a reference to a parent span
 	// that depends on the response from the current (child) span
-	ChildOf = SpanRefType_CHILD_OF
+	ChildOf = modelv1.ChildOf
 
 	// FollowsFrom span reference type describes a reference to a "parent" span
 	// that does not depend on the response from the current (child) span
-	FollowsFrom = SpanRefType_FOLLOWS_FROM
+	FollowsFrom = modelv1.FollowsFrom
 )
 
 // MaybeAddParentSpanID adds non-zero parentSpanID to refs as a child-of reference.

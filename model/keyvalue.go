@@ -10,16 +10,11 @@ import (
 
 // These constants are kept mostly for backwards compatibility.
 const (
-	// StringType indicates the value is a unicode string
-	StringType = ValueType_STRING
-	// BoolType indicates the value is a Boolean encoded as int64 number 0 or 1
-	BoolType = ValueType_BOOL
-	// Int64Type indicates the value is an int64 number
-	Int64Type = ValueType_INT64
-	// Float64Type indicates the value is a float64 number stored as int64
-	Float64Type = ValueType_FLOAT64
-	// BinaryType indicates the value is binary blob stored as a byte array
-	BinaryType = ValueType_BINARY
+	StringType  = modelv1.StringType
+	BoolType    = modelv1.BoolType
+	Int64Type   = modelv1.Int64Type
+	Float64Type = modelv1.Float64Type
+	BinaryType  = modelv1.BinaryType
 
 	SpanKindKey     = modelv1.SpanKindKey
 	SamplerTypeKey  = modelv1.SamplerTypeKey

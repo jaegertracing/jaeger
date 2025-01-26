@@ -33,12 +33,12 @@ type RemoteMemoryStorage struct {
 	storageFactory *storage.Factory
 }
 
-func StartNewRemoteMemoryStorage(t *testing.T) *RemoteMemoryStorage {
+func StartNewRemoteMemoryStorage(t *testing.T, port int) *RemoteMemoryStorage {
 	logger := zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller()))
 	opts := &app.Options{
 		ServerConfig: configgrpc.ServerConfig{
 			NetAddr: confignet.AddrConfig{
-				Endpoint: ports.PortToHostPort(ports.RemoteStorageGRPC),
+				Endpoint: ports.PortToHostPort(port),
 			},
 		},
 		Tenancy: tenancy.Options{

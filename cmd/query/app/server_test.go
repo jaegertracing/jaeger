@@ -30,6 +30,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
+	"github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
 	"github.com/jaegertracing/jaeger/cmd/internal/flags"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	v2querysvc "github.com/jaegertracing/jaeger/cmd/query/app/querysvc/v2/querysvc"
@@ -39,7 +40,6 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/telemetry"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/ports"
-	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	spanstoremocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
 	depsmocks "github.com/jaegertracing/jaeger/storage_v2/depstore/mocks"

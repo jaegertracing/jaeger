@@ -74,7 +74,7 @@ func (cfg *TraceBackend) Unmarshal(conf *confmap.Conf) error {
 	}
 	if conf.IsSet("cassandra") {
 		cfg.Cassandra = &cassandra.Options{
-			Primary: cassandra.NamespaceConfig{
+			NamespaceConfig: cassandra.NamespaceConfig{
 				Configuration: casCfg.DefaultConfiguration(),
 				Enabled:       true,
 			},

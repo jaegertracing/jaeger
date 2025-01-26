@@ -15,7 +15,6 @@ import (
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/jptrace"
-	OTELModel "github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/iter"
 )
 
@@ -147,9 +146,9 @@ func TestV1TracesFromSeq2(t *testing.T) {
 				// Add a new span and set attributes
 				modelTraceID := model.NewTraceID(2, 3)
 				span1 := spans.AppendEmpty()
-				span1.SetTraceID(OTELModel.ToOTELTraceID(modelTraceID))
+				span1.SetTraceID(FromV1TraceID(modelTraceID))
 				span1.SetName("op-success-a")
-				span1.SetSpanID(OTELModel.ToOTELSpanID(model.NewSpanID(1)))
+				span1.SetSpanID(FromV1SpanID(model.NewSpanID(1)))
 
 				// Yield the test trace
 				yield([]ptrace.Traces{testTrace}, nil)
@@ -184,18 +183,18 @@ func TestV1TracesFromSeq2(t *testing.T) {
 				spans1 := sSpans1.Spans()
 				modelTraceID := model.NewTraceID(2, 3)
 				span1 := spans1.AppendEmpty()
-				span1.SetTraceID(OTELModel.ToOTELTraceID(modelTraceID))
+				span1.SetTraceID(FromV1TraceID(modelTraceID))
 				span1.SetName("op-two-chunks-a")
-				span1.SetSpanID(OTELModel.ToOTELSpanID(model.NewSpanID(1)))
+				span1.SetSpanID(FromV1SpanID(model.NewSpanID(1)))
 
 				traceChunk2 := ptrace.NewTraces()
 				rSpans2 := traceChunk2.ResourceSpans().AppendEmpty()
 				sSpans2 := rSpans2.ScopeSpans().AppendEmpty()
 				spans2 := sSpans2.Spans()
 				span2 := spans2.AppendEmpty()
-				span2.SetTraceID(OTELModel.ToOTELTraceID(modelTraceID))
+				span2.SetTraceID(FromV1TraceID(modelTraceID))
 				span2.SetName("op-two-chunks-b")
-				span2.SetSpanID(OTELModel.ToOTELSpanID(model.NewSpanID(2)))
+				span2.SetSpanID(FromV1SpanID(model.NewSpanID(2)))
 				// Yield the test trace
 				yield([]ptrace.Traces{traceChunk1, traceChunk2}, nil)
 			},
@@ -219,9 +218,9 @@ func TestV1TracesFromSeq2(t *testing.T) {
 
 				modelTraceID := model.NewTraceID(2, 3)
 				span1 := spans.AppendEmpty()
-				span1.SetTraceID(OTELModel.ToOTELTraceID(modelTraceID))
+				span1.SetTraceID(FromV1TraceID(modelTraceID))
 				span1.SetName("op-error-a")
-				span1.SetSpanID(OTELModel.ToOTELSpanID(model.NewSpanID(1)))
+				span1.SetSpanID(FromV1SpanID(model.NewSpanID(1)))
 
 				// Yield the test trace
 				if !yield([]ptrace.Traces{testTrace}, nil) {

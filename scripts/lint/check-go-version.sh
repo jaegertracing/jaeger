@@ -88,6 +88,9 @@ check .golangci.yml "go:\s\+\"$version_regex\"" "$go_previous_version"
 
 # find all other go.mod files in the repository and check for latest Go version
 for file in $(find . -type f -name go.mod | grep -v '^./go.mod'); do
+    if [[ $file == "./idl/go.mod" ]]; then
+        continue
+    fi
     check "$file" "^go\s\+$version_regex" "$go_latest_version"
 done
 

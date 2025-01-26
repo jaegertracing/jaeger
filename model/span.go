@@ -18,12 +18,4 @@ const (
 	SamplerTypeConst                     = modelv1.SamplerTypeConst
 )
 
-var toSamplerType = map[string]SamplerType{
-	"unrecognized":  SamplerTypeUnrecognized,
-	"probabilistic": SamplerTypeProbabilistic,
-	"lowerbound":    SamplerTypeLowerBound,
-	"ratelimiting":  SamplerTypeRateLimiting,
-	"const":         SamplerTypeConst,
-}
-
 var SpanKindTag = modelv1.SpanKindTag

@@ -33,7 +33,7 @@ PROTO_GOGO_MAPPINGS := $(shell echo \
 		Mgoogle/protobuf/duration.proto=github.com/gogo/protobuf/types \
 		Mgoogle/protobuf/empty.proto=github.com/gogo/protobuf/types \
 		Mgoogle/api/annotations.proto=github.com/gogo/googleapis/google/api \
-		Mmodel.proto=github.com/jaegertracing/jaeger/model \
+		Mmodel.proto=github.com/jaegertracing/jaeger-idl/model/v1 \
 	| $(SED) 's/  */,/g')
 
 OPENMETRICS_PROTO_FILES=$(wildcard model/proto/metrics/*.proto)

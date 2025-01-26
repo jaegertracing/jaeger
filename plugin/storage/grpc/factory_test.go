@@ -28,7 +28,6 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared"
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared/mocks"
-	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	dependencyStoreMocks "github.com/jaegertracing/jaeger/storage/dependencystore/mocks"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
@@ -73,10 +72,6 @@ func makeMockServices() *ClientPluginServices {
 				reader: new(spanStoreMocks.Reader),
 				deps:   new(dependencyStoreMocks.Reader),
 			},
-			ArchiveStore: &store{
-				writer: new(spanStoreMocks.Writer),
-				reader: new(spanStoreMocks.Reader),
-			},
 			StreamingSpanWriter: &store{
 				writer: new(spanStoreMocks.Writer),
 			},
@@ -88,7 +83,7 @@ func makeMockServices() *ClientPluginServices {
 func makeFactory(t *testing.T) *Factory {
 	f := NewFactory()
 	f.InitFromViper(viper.New(), zap.NewNop())
-	f.config.ClientConfig.Endpoint = ":0"
+	f.options.ClientConfig.Endpoint = ":0"
 	require.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
 
 	t.Cleanup(func() {
@@ -115,7 +110,7 @@ func TestNewFactoryError(t *testing.T) {
 	t.Run("viper", func(t *testing.T) {
 		f := NewFactory()
 		f.InitFromViper(viper.New(), zap.NewNop())
-		f.config = *cfg
+		f.options.Config = *cfg
 		err := f.Initialize(metrics.NullFactory, zap.NewNop())
 		assert.ErrorContains(t, err, "authenticator")
 	})
@@ -189,20 +184,10 @@ func TestGRPCStorageFactory_Capabilities(t *testing.T) {
 	capabilities := f.services.Capabilities.(*mocks.PluginCapabilities)
 	capabilities.On("Capabilities").
 		Return(&shared.Capabilities{
-			ArchiveSpanReader:   true,
-			ArchiveSpanWriter:   true,
 			StreamingSpanWriter: true,
-		}, nil).Times(3)
+		}, nil).Times(1)
 
-	reader, err := f.CreateArchiveSpanReader()
-	require.NoError(t, err)
-	assert.NotNil(t, reader)
-
-	writer, err := f.CreateArchiveSpanWriter()
-	require.NoError(t, err)
-	assert.NotNil(t, writer)
-
-	writer, err = f.CreateSpanWriter()
+	writer, err := f.CreateSpanWriter()
 	require.NoError(t, err)
 	assert.NotNil(t, writer)
 }
@@ -213,18 +198,10 @@ func TestGRPCStorageFactory_CapabilitiesDisabled(t *testing.T) {
 	capabilities := f.services.Capabilities.(*mocks.PluginCapabilities)
 	capabilities.On("Capabilities").
 		Return(&shared.Capabilities{
-			ArchiveSpanReader:   false,
-			ArchiveSpanWriter:   false,
 			StreamingSpanWriter: false,
-		}, nil).Times(3)
+		}, nil).Times(1)
 
-	reader, err := f.CreateArchiveSpanReader()
-	require.EqualError(t, err, storage.ErrArchiveStorageNotSupported.Error())
-	assert.Nil(t, reader)
-	writer, err := f.CreateArchiveSpanWriter()
-	require.EqualError(t, err, storage.ErrArchiveStorageNotSupported.Error())
-	assert.Nil(t, writer)
-	writer, err = f.CreateSpanWriter()
+	writer, err := f.CreateSpanWriter()
 	require.NoError(t, err)
 	assert.NotNil(t, writer, "regular span writer is available")
 }
@@ -236,13 +213,7 @@ func TestGRPCStorageFactory_CapabilitiesError(t *testing.T) {
 	customError := errors.New("made-up error")
 	capabilities.On("Capabilities").Return(nil, customError)
 
-	reader, err := f.CreateArchiveSpanReader()
-	require.EqualError(t, err, customError.Error())
-	assert.Nil(t, reader)
-	writer, err := f.CreateArchiveSpanWriter()
-	require.EqualError(t, err, customError.Error())
-	assert.Nil(t, writer)
-	writer, err = f.CreateSpanWriter()
+	writer, err := f.CreateSpanWriter()
 	require.NoError(t, err)
 	assert.NotNil(t, writer, "regular span writer is available")
 }
@@ -251,13 +222,7 @@ func TestGRPCStorageFactory_CapabilitiesNil(t *testing.T) {
 	f := makeFactory(t)
 	f.services.Capabilities = nil
 
-	reader, err := f.CreateArchiveSpanReader()
-	assert.Equal(t, err, storage.ErrArchiveStorageNotSupported)
-	assert.Nil(t, reader)
-	writer, err := f.CreateArchiveSpanWriter()
-	assert.Equal(t, err, storage.ErrArchiveStorageNotSupported)
-	assert.Nil(t, writer)
-	writer, err = f.CreateSpanWriter()
+	writer, err := f.CreateSpanWriter()
 	require.NoError(t, err)
 	assert.NotNil(t, writer, "regular span writer is available")
 }
@@ -270,7 +235,7 @@ func TestWithCLIFlags(t *testing.T) {
 	})
 	require.NoError(t, err)
 	f.InitFromViper(v, zap.NewNop())
-	assert.Equal(t, "foo:1234", f.config.ClientConfig.Endpoint)
+	assert.Equal(t, "foo:1234", f.options.Config.ClientConfig.Endpoint)
 	require.NoError(t, f.Close())
 }
 
@@ -321,4 +286,47 @@ func TestStreamingSpanWriterFactory_Capabilities(t *testing.T) {
 	require.NoError(t, err)
 	err = writer.WriteSpan(context.Background(), nil)
 	assert.ErrorContains(t, err, "I am streaming writer", "streaming writer when Capabilities return true")
+}
+
+func TestIsArchiveCapable(t *testing.T) {
+	tests := []struct {
+		name      string
+		namespace string
+		enabled   bool
+		expected  bool
+	}{
+		{
+			name:      "archive capable",
+			namespace: "grpc-storage-archive",
+			enabled:   true,
+			expected:  true,
+		},
+		{
+			name:      "not capable",
+			namespace: "grpc-storage-archive",
+			enabled:   false,
+			expected:  false,
+		},
+		{
+			name:      "capable + wrong namespace",
+			namespace: "grpc-storage",
+			enabled:   true,
+			expected:  false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			factory := &Factory{
+				options: &options{
+					namespace: test.namespace,
+					Config: Config{
+						enabled: test.enabled,
+					},
+				},
+			}
+			result := factory.IsArchiveCapable()
+			require.Equal(t, test.expected, result)
+		})
+	}
 }

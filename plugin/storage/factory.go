@@ -74,10 +74,9 @@ func AllSamplingStorageTypes() []string {
 }
 
 var ( // interface comformance checks
-	_ storage.Factory        = (*Factory)(nil)
-	_ storage.ArchiveFactory = (*Factory)(nil)
-	_ io.Closer              = (*Factory)(nil)
-	_ plugin.Configurable    = (*Factory)(nil)
+	_ storage.Factory     = (*Factory)(nil)
+	_ io.Closer           = (*Factory)(nil)
+	_ plugin.Configurable = (*Factory)(nil)
 )
 
 // Factory implements storage.Factory interface as a meta-factory for storage components.
@@ -85,6 +84,7 @@ type Factory struct {
 	FactoryConfig
 	metricsFactory         metrics.Factory
 	factories              map[string]storage.Factory
+	archiveFactories       map[string]storage.Factory
 	downsamplingFlagsAdded bool
 }
 
@@ -103,12 +103,17 @@ func NewFactory(config FactoryConfig) (*Factory, error) {
 		uniqueTypes[f.SamplingStorageType] = struct{}{}
 	}
 	f.factories = make(map[string]storage.Factory)
+	f.archiveFactories = make(map[string]storage.Factory)
 	for t := range uniqueTypes {
 		ff, err := f.getFactoryOfType(t)
 		if err != nil {
 			return nil, err
 		}
 		f.factories[t] = ff
+
+		if af, ok := f.getArchiveFactoryOfType(t); ok {
+			f.archiveFactories[t] = af
+		}
 	}
 	return f, nil
 }
@@ -134,23 +139,50 @@ func (*Factory) getFactoryOfType(factoryType string) (storage.Factory, error) {
 	}
 }
 
-// Initialize implements storage.Factory.
+func (*Factory) getArchiveFactoryOfType(factoryType string) (storage.Factory, bool) {
+	switch factoryType {
+	case cassandraStorageType:
+		return cassandra.NewArchiveFactory(), true
+	case elasticsearchStorageType, opensearchStorageType:
+		return es.NewArchiveFactory(), true
+	case grpcStorageType:
+		return grpc.NewArchiveFactory(), true
+	default:
+		return nil, false
+	}
+}
+
 func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
 	f.metricsFactory = metricsFactory
-	for kind, factory := range f.factories {
+
+	initializeFactory := func(kind string, factory storage.Factory, role string) error {
 		mf := metricsFactory.Namespace(metrics.NSOptions{
 			Name: "storage",
 			Tags: map[string]string{
 				"kind": kind,
-				"role": "primary", // can be overiden in the storage factory for archive/sampling stores
+				"role": role,
 			},
 		})
-		if err := factory.Initialize(mf, logger); err != nil {
+		return factory.Initialize(mf, logger)
+	}
+
+	for kind, factory := range f.factories {
+		if err := initializeFactory(kind, factory, "primary"); err != nil {
 			return err
 		}
 	}
-	f.publishOpts()
 
+	for kind, factory := range f.archiveFactories {
+		if archivable, ok := factory.(storage.ArchiveCapable); ok && archivable.IsArchiveCapable() {
+			if err := initializeFactory(kind, factory, "archive"); err != nil {
+				return err
+			}
+		} else {
+			delete(f.archiveFactories, kind)
+		}
+	}
+
+	f.publishOpts()
 	return nil
 }
 
@@ -233,11 +265,15 @@ func (f *Factory) CreateDependencyReader() (dependencystore.Reader, error) {
 
 // AddFlags implements plugin.Configurable
 func (f *Factory) AddFlags(flagSet *flag.FlagSet) {
-	for _, factory := range f.factories {
-		if conf, ok := factory.(plugin.Configurable); ok {
-			conf.AddFlags(flagSet)
+	addFlags := func(factories map[string]storage.Factory) {
+		for _, factory := range factories {
+			if conf, ok := factory.(plugin.Configurable); ok {
+				conf.AddFlags(flagSet)
+			}
 		}
 	}
+	addFlags(f.factories)
+	addFlags(f.archiveFactories)
 }
 
 // AddPipelineFlags adds all the standard flags as well as the downsampling
@@ -265,9 +301,21 @@ func (f *Factory) addDownsamplingFlags(flagSet *flag.FlagSet) {
 
 // InitFromViper implements plugin.Configurable
 func (f *Factory) InitFromViper(v *viper.Viper, logger *zap.Logger) {
-	for _, factory := range f.factories {
+	initializeConfigurable := func(factory storage.Factory) {
 		if conf, ok := factory.(plugin.Configurable); ok {
 			conf.InitFromViper(v, logger)
+		}
+	}
+	for _, factory := range f.factories {
+		initializeConfigurable(factory)
+	}
+	for kind, factory := range f.archiveFactories {
+		initializeConfigurable(factory)
+
+		if primaryFactory, ok := f.factories[kind]; ok {
+			if inheritable, ok := factory.(storage.Inheritable); ok {
+				inheritable.InheritSettingsFrom(primaryFactory)
+			}
 		}
 	}
 	f.initDownsamplingFromViper(v)
@@ -290,30 +338,37 @@ func (f *Factory) initDownsamplingFromViper(v *viper.Viper) {
 	f.FactoryConfig.DownsamplingHashSalt = v.GetString(downsamplingHashSalt)
 }
 
-// CreateArchiveSpanReader implements storage.ArchiveFactory
-func (f *Factory) CreateArchiveSpanReader() (spanstore.Reader, error) {
-	factory, ok := f.factories[f.SpanReaderType]
+func (f *Factory) createArchiveSpanReader() (spanstore.Reader, error) {
+	factory, ok := f.archiveFactories[f.SpanReaderType]
 	if !ok {
 		return nil, fmt.Errorf("no %s backend registered for span store", f.SpanReaderType)
 	}
-	archive, ok := factory.(storage.ArchiveFactory)
-	if !ok {
-		return nil, storage.ErrArchiveStorageNotSupported
-	}
-	return archive.CreateArchiveSpanReader()
+	return factory.CreateSpanReader()
 }
 
-// CreateArchiveSpanWriter implements storage.ArchiveFactory
-func (f *Factory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
-	factory, ok := f.factories[f.SpanWriterTypes[0]]
+func (f *Factory) createArchiveSpanWriter() (spanstore.Writer, error) {
+	factory, ok := f.archiveFactories[f.SpanWriterTypes[0]]
 	if !ok {
 		return nil, fmt.Errorf("no %s backend registered for span store", f.SpanWriterTypes[0])
 	}
-	archive, ok := factory.(storage.ArchiveFactory)
-	if !ok {
-		return nil, storage.ErrArchiveStorageNotSupported
+	return factory.CreateSpanWriter()
+}
+
+func (f *Factory) InitArchiveStorage(
+	logger *zap.Logger,
+) (spanstore.Reader, spanstore.Writer) {
+	reader, err := f.createArchiveSpanReader()
+	if err != nil {
+		logger.Error("Cannot init archive storage reader", zap.Error(err))
+		return nil, nil
 	}
-	return archive.CreateArchiveSpanWriter()
+	writer, err := f.createArchiveSpanWriter()
+	if err != nil {
+		logger.Error("Cannot init archive storage writer", zap.Error(err))
+		return nil, nil
+	}
+
+	return reader, writer
 }
 
 var _ io.Closer = (*Factory)(nil)
@@ -321,14 +376,19 @@ var _ io.Closer = (*Factory)(nil)
 // Close closes the resources held by the factory
 func (f *Factory) Close() error {
 	var errs []error
+	closeFactory := func(factory storage.Factory) {
+		if closer, ok := factory.(io.Closer); ok {
+			if err := closer.Close(); err != nil {
+				errs = append(errs, err)
+			}
+		}
+	}
 	for _, storageType := range f.SpanWriterTypes {
 		if factory, ok := f.factories[storageType]; ok {
-			if closer, ok := factory.(io.Closer); ok {
-				err := closer.Close()
-				if err != nil {
-					errs = append(errs, err)
-				}
-			}
+			closeFactory(factory)
+		}
+		if factory, ok := f.archiveFactories[storageType]; ok {
+			closeFactory(factory)
 		}
 	}
 	return errors.Join(errs...)

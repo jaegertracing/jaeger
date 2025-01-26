@@ -20,6 +20,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	depStoreMocks "github.com/jaegertracing/jaeger/storage/dependencystore/mocks"
@@ -90,6 +91,7 @@ func TestInitialize(t *testing.T) {
 
 	mock := new(mocks.Factory)
 	f.factories[cassandraStorageType] = mock
+	f.archiveFactories[cassandraStorageType] = mock
 
 	m := metrics.NullFactory
 	l := zap.NewNop()
@@ -130,12 +132,6 @@ func TestCreate(t *testing.T) {
 	d, err := f.CreateDependencyReader()
 	assert.Equal(t, depReader, d)
 	require.EqualError(t, err, "dep-reader-error")
-
-	_, err = f.CreateArchiveSpanReader()
-	require.EqualError(t, err, "archive storage not supported")
-
-	_, err = f.CreateArchiveSpanWriter()
-	require.EqualError(t, err, "archive storage not supported")
 
 	mock.On("CreateSpanWriter").Return(spanWriter, nil)
 	m := metrics.NullFactory
@@ -190,7 +186,9 @@ func TestCreateMulti(t *testing.T) {
 	mock := new(mocks.Factory)
 	mock2 := new(mocks.Factory)
 	f.factories[cassandraStorageType] = mock
+	f.archiveFactories[cassandraStorageType] = mock
 	f.factories[elasticsearchStorageType] = mock2
+	f.archiveFactories[elasticsearchStorageType] = mock2
 
 	spanWriter := new(spanStoreMocks.Writer)
 	spanWriter2 := new(spanStoreMocks.Writer)
@@ -211,32 +209,6 @@ func TestCreateMulti(t *testing.T) {
 	w, err = f.CreateSpanWriter()
 	require.NoError(t, err)
 	assert.Equal(t, spanstore.NewCompositeWriter(spanWriter, spanWriter2), w)
-}
-
-func TestCreateArchive(t *testing.T) {
-	f, err := NewFactory(defaultCfg())
-	require.NoError(t, err)
-	assert.NotEmpty(t, f.factories[cassandraStorageType])
-
-	mock := &struct {
-		mocks.Factory
-		mocks.ArchiveFactory
-	}{}
-	f.factories[cassandraStorageType] = mock
-
-	archiveSpanReader := new(spanStoreMocks.Reader)
-	archiveSpanWriter := new(spanStoreMocks.Writer)
-
-	mock.ArchiveFactory.On("CreateArchiveSpanReader").Return(archiveSpanReader, errors.New("archive-span-reader-error"))
-	mock.ArchiveFactory.On("CreateArchiveSpanWriter").Return(archiveSpanWriter, errors.New("archive-span-writer-error"))
-
-	ar, err := f.CreateArchiveSpanReader()
-	assert.Equal(t, archiveSpanReader, ar)
-	require.EqualError(t, err, "archive-span-reader-error")
-
-	aw, err := f.CreateArchiveSpanWriter()
-	assert.Equal(t, archiveSpanWriter, aw)
-	require.EqualError(t, err, "archive-span-writer-error")
 }
 
 func TestCreateError(t *testing.T) {
@@ -263,18 +235,6 @@ func TestCreateError(t *testing.T) {
 	{
 		d, err := f.CreateDependencyReader()
 		assert.Nil(t, d)
-		require.EqualError(t, err, expectedErr)
-	}
-
-	{
-		r, err := f.CreateArchiveSpanReader()
-		assert.Nil(t, r)
-		require.EqualError(t, err, expectedErr)
-	}
-
-	{
-		w, err := f.CreateArchiveSpanWriter()
-		assert.Nil(t, w)
 		require.EqualError(t, err, expectedErr)
 	}
 }
@@ -355,6 +315,107 @@ func TestConfigurable(t *testing.T) {
 	assert.Equal(t, v, mock.viper)
 }
 
+type inheritable struct {
+	mocks.Factory
+	calledWith storage.Factory
+}
+
+func (i *inheritable) InheritSettingsFrom(other storage.Factory) {
+	i.calledWith = other
+}
+
+func TestInheritable(t *testing.T) {
+	f, err := NewFactory(defaultCfg())
+	require.NoError(t, err)
+	assert.NotEmpty(t, f.factories)
+	assert.NotEmpty(t, f.factories[cassandraStorageType])
+	assert.NotEmpty(t, f.archiveFactories[cassandraStorageType])
+
+	mockInheritable := new(inheritable)
+	f.factories[cassandraStorageType] = &mocks.Factory{}
+	f.archiveFactories[cassandraStorageType] = mockInheritable
+
+	fs := new(flag.FlagSet)
+	v := viper.New()
+
+	f.AddFlags(fs)
+	f.InitFromViper(v, zap.NewNop())
+
+	assert.Equal(t, f.factories[cassandraStorageType], mockInheritable.calledWith)
+}
+
+type archiveConfigurable struct {
+	isConfigurable bool
+	*mocks.Factory
+}
+
+func (ac *archiveConfigurable) IsArchiveCapable() bool {
+	return ac.isConfigurable
+}
+
+func TestArchiveConfigurable(t *testing.T) {
+	tests := []struct {
+		name                string
+		isArchiveCapable    bool
+		archiveInitError    error
+		expectedError       error
+		expectedArchiveSize int
+	}{
+		{
+			name:                "Archive factory initializes successfully",
+			isArchiveCapable:    true,
+			archiveInitError:    nil,
+			expectedError:       nil,
+			expectedArchiveSize: 1,
+		},
+		{
+			name:                "Archive factory initialization fails",
+			isArchiveCapable:    true,
+			archiveInitError:    assert.AnError,
+			expectedError:       assert.AnError,
+			expectedArchiveSize: 1,
+		},
+		{
+			name:                "Archive factory is not archive-capable",
+			isArchiveCapable:    false,
+			archiveInitError:    nil,
+			expectedError:       nil,
+			expectedArchiveSize: 0,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			f, err := NewFactory(defaultCfg())
+			require.NoError(t, err)
+
+			primaryFactory := &mocks.Factory{}
+			archiveFactory := &mocks.Factory{}
+			archiveConfigurable := &archiveConfigurable{
+				isConfigurable: test.isArchiveCapable,
+				Factory:        archiveFactory,
+			}
+
+			f.factories[cassandraStorageType] = primaryFactory
+			f.archiveFactories[cassandraStorageType] = archiveConfigurable
+
+			m := metrics.NullFactory
+			l := zap.NewNop()
+			primaryFactory.On("Initialize", m, l).Return(nil).Once()
+			archiveFactory.On("Initialize", m, l).Return(test.archiveInitError).Once()
+
+			err = f.Initialize(m, l)
+			if test.expectedError != nil {
+				require.ErrorIs(t, err, test.expectedError)
+			} else {
+				require.NoError(t, err)
+			}
+
+			assert.Len(t, f.archiveFactories, test.expectedArchiveSize)
+		})
+	}
+}
+
 func TestParsingDownsamplingRatio(t *testing.T) {
 	f := Factory{}
 	v, command := config.Viperize(f.AddPipelineFlags)
@@ -399,6 +460,69 @@ func TestPublishOpts(t *testing.T) {
 
 	assert.EqualValues(t, 1, expvar.Get(downsamplingRatio).(*expvar.Int).Value())
 	assert.EqualValues(t, 1, expvar.Get(spanStorageType+"-"+f.SpanReaderType).(*expvar.Int).Value())
+}
+
+func TestInitArchiveStorage(t *testing.T) {
+	tests := []struct {
+		name           string
+		setupMock      func(*mocks.Factory)
+		expectedReader spanstore.Reader
+		expectedWriter spanstore.Writer
+		expectedLog    string
+	}{
+		{
+			name: "successful initialization",
+			setupMock: func(mock *mocks.Factory) {
+				spanReader := &spanStoreMocks.Reader{}
+				spanWriter := &spanStoreMocks.Writer{}
+				mock.On("CreateSpanReader").Return(spanReader, nil)
+				mock.On("CreateSpanWriter").Return(spanWriter, nil)
+			},
+			expectedReader: &spanStoreMocks.Reader{},
+			expectedWriter: &spanStoreMocks.Writer{},
+		},
+		{
+			name: "error initializing reader",
+			setupMock: func(mock *mocks.Factory) {
+				mock.On("CreateSpanReader").Return(nil, assert.AnError)
+			},
+			expectedReader: nil,
+			expectedWriter: nil,
+			expectedLog:    "Cannot init archive storage reader",
+		},
+		{
+			name: "error initializing writer",
+			setupMock: func(mock *mocks.Factory) {
+				spanReader := new(spanStoreMocks.Reader)
+				mock.On("CreateSpanReader").Return(spanReader, nil)
+				mock.On("CreateSpanWriter").Return(nil, assert.AnError)
+			},
+			expectedReader: nil,
+			expectedWriter: nil,
+			expectedLog:    "Cannot init archive storage writer",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			logger, buf := testutils.NewLogger()
+
+			f, err := NewFactory(defaultCfg())
+			require.NoError(t, err)
+			assert.NotEmpty(t, f.factories)
+			assert.NotEmpty(t, f.factories[cassandraStorageType])
+
+			mock := new(mocks.Factory)
+			f.archiveFactories[cassandraStorageType] = mock
+			test.setupMock(mock)
+
+			reader, writer := f.InitArchiveStorage(logger)
+			assert.Equal(t, test.expectedReader, reader)
+			assert.Equal(t, test.expectedWriter, writer)
+
+			require.Contains(t, buf.String(), test.expectedLog)
+		})
+	}
 }
 
 type errorFactory struct {

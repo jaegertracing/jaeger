@@ -6,8 +6,8 @@ package configmanager
 import (
 	"context"
 
+	"github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
-	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 )
 
 // configManagerMetrics holds metrics related to ClientConfigManager

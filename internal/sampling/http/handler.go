@@ -13,11 +13,11 @@ import (
 
 	"github.com/gorilla/mux"
 
+	"github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/configmanager"
 	p2json "github.com/jaegertracing/jaeger/model/converter/json"
 	t2p "github.com/jaegertracing/jaeger/model/converter/thrift/jaeger"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
-	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 )
 
 const mimeTypeApplicationJSON = "application/json"

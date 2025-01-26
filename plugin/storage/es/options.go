@@ -84,9 +84,8 @@ var defaultIndexOptions = config.IndexOptions{
 // to bind them to command line flag and apply overlays, so that some configurations
 // (e.g. archive) may be underspecified and infer the rest of its parameters from primary.
 type Options struct {
-	Primary namespaceConfig `mapstructure:",squash"`
-
-	others map[string]*namespaceConfig
+	// TODO: remove indirection
+	Config namespaceConfig `mapstructure:",squash"`
 }
 
 type namespaceConfig struct {
@@ -95,24 +94,14 @@ type namespaceConfig struct {
 }
 
 // NewOptions creates a new Options struct.
-func NewOptions(primaryNamespace string, otherNamespaces ...string) *Options {
+func NewOptions(namespace string) *Options {
 	// TODO all default values should be defined via cobra flags
 	defaultConfig := DefaultConfig()
 	options := &Options{
-		Primary: namespaceConfig{
-			Configuration: defaultConfig,
-			namespace:     primaryNamespace,
-		},
-		others: make(map[string]*namespaceConfig, len(otherNamespaces)),
-	}
-
-	// Other namespaces need to be explicitly enabled.
-	defaultConfig.Enabled = false
-	for _, namespace := range otherNamespaces {
-		options.others[namespace] = &namespaceConfig{
+		Config: namespaceConfig{
 			Configuration: defaultConfig,
 			namespace:     namespace,
-		}
+		},
 	}
 
 	return options
@@ -126,10 +115,7 @@ func (cfg *namespaceConfig) getTLSFlagsConfig() tlscfg.ClientFlagsConfig {
 
 // AddFlags adds flags for Options
 func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
-	addFlags(flagSet, &opt.Primary)
-	for _, cfg := range opt.others {
-		addFlags(flagSet, cfg)
-	}
+	addFlags(flagSet, &opt.Config)
 }
 
 func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
@@ -289,7 +275,7 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 	if nsConfig.namespace == archiveNamespace {
 		flagSet.Bool(
 			nsConfig.namespace+suffixEnabled,
-			nsConfig.Enabled,
+			false,
 			"Enable extra storage")
 	} else {
 		// MaxSpanAge is only relevant when searching for unarchived traces.
@@ -304,10 +290,7 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 
 // InitFromViper initializes Options with properties from viper
 func (opt *Options) InitFromViper(v *viper.Viper) {
-	initFromViper(&opt.Primary, v)
-	for _, cfg := range opt.others {
-		initFromViper(cfg, v)
-	}
+	initFromViper(&opt.Config, v)
 }
 
 func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
@@ -388,22 +371,8 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 }
 
 // GetPrimary returns primary configuration.
-func (opt *Options) GetPrimary() *config.Configuration {
-	return &opt.Primary.Configuration
-}
-
-// Get returns auxiliary named configuration.
-func (opt *Options) Get(namespace string) *config.Configuration {
-	nsCfg, ok := opt.others[namespace]
-	if !ok {
-		nsCfg = &namespaceConfig{}
-		opt.others[namespace] = nsCfg
-	}
-	nsCfg.Configuration.ApplyDefaults(&opt.Primary.Configuration)
-	if len(nsCfg.Configuration.Servers) == 0 {
-		nsCfg.Servers = opt.Primary.Servers
-	}
-	return &nsCfg.Configuration
+func (opt *Options) GetConfig() *config.Configuration {
+	return &opt.Config.Configuration
 }
 
 // stripWhiteSpace removes all whitespace characters from a string

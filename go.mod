@@ -16,7 +16,6 @@ require (
 	github.com/fsnotify/fsnotify v1.8.0
 	github.com/go-logr/zapr v1.3.0
 	github.com/gocql/gocql v1.7.0
-	github.com/gogo/googleapis v1.4.1
 	github.com/gogo/protobuf v1.3.2
 	github.com/gorilla/handlers v1.5.2
 	github.com/gorilla/mux v1.8.1
@@ -99,11 +98,14 @@ require (
 	golang.org/x/net v0.34.0
 	golang.org/x/sys v0.29.0
 	google.golang.org/grpc v1.70.0
-	google.golang.org/protobuf v1.36.3
+	google.golang.org/protobuf v1.36.4
 	gopkg.in/yaml.v3 v3.0.1
 )
 
-require go.opentelemetry.io/collector/extension/xextension v0.118.0 // indirect
+require (
+	github.com/gogo/googleapis v1.4.1 // indirect
+	go.opentelemetry.io/collector/extension/xextension v0.118.0 // indirect
+)
 
 require (
 	github.com/IBM/sarama v1.45.0 // indirect
