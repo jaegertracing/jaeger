@@ -16,13 +16,26 @@ func TestMain(m *testing.M) {
 	testutils.VerifyGoLeaks(m)
 }
 
-func TestDisplay(t *testing.T) {
+func TestDisplayStageAlpha(t *testing.T) {
 	featuregate.GlobalRegistry().MustRegister(
-		"jaeger.featuresdisplay.testgate",
-		featuregate.StageBeta,
-		featuregate.WithRegisterDescription("test-description"),
-		featuregate.WithRegisterReferenceURL("https://test-url.com"),
+		"jaeger.featuresdisplay.testgate1",
+		featuregate.StageAlpha,
+		featuregate.WithRegisterDescription("testdescription"),
+		featuregate.WithRegisterReferenceURL("https://testurl.com"),
 	)
 	out := DisplayFeatures()
 	require.Contains(t, out, "jaeger.featuresdisplay.testgate")
+	require.Contains(t, out, "Off")
+}
+
+func TestDisplayStageBeta(t *testing.T) {
+	featuregate.GlobalRegistry().MustRegister(
+		"jaeger.featuresdisplay.testgate2",
+		featuregate.StageBeta,
+		featuregate.WithRegisterDescription("testdescription"),
+		featuregate.WithRegisterReferenceURL("https://testurl.com"),
+	)
+	out := DisplayFeatures()
+	require.Contains(t, out, "jaeger.featuresdisplay.testgate")
+	require.Contains(t, out, "On")
 }
