@@ -7,7 +7,6 @@ package spanstore
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	"go.uber.org/zap"
@@ -124,9 +123,6 @@ type spanAndServicePrefixFn func(baseIndexName string) string
 
 func (p SpanWriterParams) getSpanAndServicePrefixFn(baseIndexName string) string {
 	prefix := p.IndexPrefix.Apply(baseIndexName)
-	if strings.Contains(p.WriteAliasSuffix, "archive") {
-		prefix += "archive" + cfg.IndexPrefixSeparator
-	}
 	return prefix
 }
 
