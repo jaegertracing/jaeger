@@ -241,8 +241,8 @@ func (*GRPCHandler) sendSpans(spans []*model.Span, sendFn func(*storage_v1.Spans
 
 func (s *GRPCHandler) Capabilities(context.Context, *storage_v1.CapabilitiesRequest) (*storage_v1.CapabilitiesResponse, error) {
 	return &storage_v1.CapabilitiesResponse{
-		ArchiveSpanReader:   s.impl.SpanReader() != nil,
-		ArchiveSpanWriter:   s.impl.SpanWriter() != nil,
+		ArchiveSpanReader:   false,
+		ArchiveSpanWriter:   false,
 		StreamingSpanWriter: s.impl.StreamingSpanWriter() != nil,
 	}, nil
 }

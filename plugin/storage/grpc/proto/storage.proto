@@ -188,8 +188,8 @@ message CapabilitiesRequest {
 }
 
 message CapabilitiesResponse {
-    bool archiveSpanReader = 1;
-    bool archiveSpanWriter = 2;
+    bool archiveSpanReader = 1 [deprecated = true];
+    bool archiveSpanWriter = 2 [deprecated = true];
     bool streamingSpanWriter = 3;
 }
 
