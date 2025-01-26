@@ -11,6 +11,7 @@ import (
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/extension"
 	"go.opentelemetry.io/collector/extension/extensioncapabilities"
+	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
 	queryApp "github.com/jaegertracing/jaeger/cmd/query/app"
@@ -22,7 +23,9 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/plugin/metricstore/disabled"
 	"github.com/jaegertracing/jaeger/storage/metricstore"
+	"github.com/jaegertracing/jaeger/storage/spanstore"
 	"github.com/jaegertracing/jaeger/storage_v2/depstore"
+	"github.com/jaegertracing/jaeger/storage_v2/tracestore"
 	"github.com/jaegertracing/jaeger/storage_v2/v1adapter"
 )
 
@@ -94,7 +97,6 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 
 	var opts querysvc.QueryServiceOptions
 	var v2opts v2querysvc.QueryServiceOptions
-	// TODO archive storage still uses v1 factory
 	if err := s.addArchiveStorage(&opts, &v2opts, host); err != nil {
 		return err
 	}
@@ -140,24 +142,56 @@ func (s *server) addArchiveStorage(
 		return nil
 	}
 
-	f, err := jaegerstorage.GetStorageFactory(s.config.Storage.TracesArchive, host)
+	f, err := jaegerstorage.GetTraceStoreFactory(s.config.Storage.TracesArchive, host)
 	if err != nil {
-		return fmt.Errorf("cannot find archive storage factory: %w", err)
+		return fmt.Errorf("cannot find traces archive storage factory: %w", err)
 	}
 
-	if !opts.InitArchiveStorage(f, s.telset.Logger) {
-		s.telset.Logger.Info("Archive storage not initialized")
+	traceReader, traceWriter := s.initArchiveStorage(f)
+	if traceReader == nil || traceWriter == nil {
+		return nil
 	}
 
-	ar, aw := v1adapter.InitializeArchiveStorage(f, s.telset.Logger)
-	if ar != nil && aw != nil {
-		v2opts.ArchiveTraceReader = ar
-		v2opts.ArchiveTraceWriter = aw
-	} else {
-		s.telset.Logger.Info("Archive storage not initialized")
-	}
+	v2opts.ArchiveTraceReader = traceReader
+	v2opts.ArchiveTraceWriter = traceWriter
+
+	spanReader, spanWriter := getV1Adapters(traceReader, traceWriter)
+
+	opts.ArchiveSpanReader = spanReader
+	opts.ArchiveSpanWriter = spanWriter
 
 	return nil
+}
+
+func (s *server) initArchiveStorage(f tracestore.Factory) (tracestore.Reader, tracestore.Writer) {
+	reader, err := f.CreateTraceReader()
+	if err != nil {
+		s.telset.Logger.Error("Cannot init traces archive storage reader", zap.Error(err))
+		return nil, nil
+	}
+	writer, err := f.CreateTraceWriter()
+	if err != nil {
+		s.telset.Logger.Error("Cannot init traces archive storage writer", zap.Error(err))
+		return nil, nil
+	}
+	return reader, writer
+}
+
+func getV1Adapters(
+	reader tracestore.Reader,
+	writer tracestore.Writer,
+) (spanstore.Reader, spanstore.Writer) {
+	v1Reader, ok := v1adapter.GetV1Reader(reader)
+	if !ok {
+		v1Reader = v1adapter.NewSpanReader(reader)
+	}
+
+	v1Writer, ok := v1adapter.GetV1Writer(writer)
+	if !ok {
+		v1Writer = v1adapter.NewSpanWriter(writer)
+	}
+
+	return v1Reader, v1Writer
 }
 
 func (s *server) createMetricReader(host component.Host) (metricstore.Reader, error) {

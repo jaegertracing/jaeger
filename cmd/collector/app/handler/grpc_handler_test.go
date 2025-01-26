@@ -18,29 +18,32 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
 
+	"github.com/jaegertracing/jaeger-idl/model/v1"
+	"github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
-	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
-	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 )
+
+var _ processor.SpanProcessor = (*mockSpanProcessor)(nil)
 
 type mockSpanProcessor struct {
 	expectedError error
 	mux           sync.Mutex
 	spans         []*model.Span
+	traces        []ptrace.Traces
 	tenants       map[string]bool
 	transport     processor.InboundTransport
 	spanFormat    processor.SpanFormat
 }
 
-func (p *mockSpanProcessor) ProcessSpans(batch processor.Batch) ([]bool, error) {
+func (p *mockSpanProcessor) ProcessSpans(_ context.Context, batch processor.Batch) ([]bool, error) {
 	p.mux.Lock()
 	defer p.mux.Unlock()
 	batch.GetSpans(func(spans []*model.Span) {
 		p.spans = append(p.spans, spans...)
-	}, func(_ ptrace.Traces) {
-		panic("not implemented")
+	}, func(td ptrace.Traces) {
+		p.traces = append(p.traces, td)
 	})
 	oks := make([]bool, len(p.spans))
 	if p.tenants == nil {
@@ -56,6 +59,12 @@ func (p *mockSpanProcessor) getSpans() []*model.Span {
 	p.mux.Lock()
 	defer p.mux.Unlock()
 	return p.spans
+}
+
+func (p *mockSpanProcessor) getTraces() []ptrace.Traces {
+	p.mux.Lock()
+	defer p.mux.Unlock()
+	return p.traces
 }
 
 func (p *mockSpanProcessor) getTenants() map[string]bool {

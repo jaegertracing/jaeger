@@ -24,7 +24,7 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 
-	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/pkg/es"
 	"github.com/jaegertracing/jaeger/pkg/es/config"
 	"github.com/jaegertracing/jaeger/pkg/es/mocks"
@@ -118,7 +118,7 @@ func withSpanReader(t *testing.T, fn func(r *spanReaderTest)) {
 	fn(r)
 }
 
-func withArchiveSpanReader(t *testing.T, readAlias bool, fn func(r *spanReaderTest)) {
+func withArchiveSpanReader(t *testing.T, readAlias bool, readAliasSuffix string, fn func(r *spanReaderTest)) {
 	client := &mocks.Client{}
 	tracer, exp, closer := tracerProvider(t)
 	defer closer()
@@ -134,7 +134,7 @@ func withArchiveSpanReader(t *testing.T, readAlias bool, fn func(r *spanReaderTe
 			Tracer:              tracer.Tracer("test"),
 			MaxSpanAge:          0,
 			TagDotReplacement:   "@",
-			Archive:             true,
+			ReadAliasSuffix:     readAliasSuffix,
 			UseReadWriteAliases: readAlias,
 		}),
 	}
@@ -199,7 +199,6 @@ func TestSpanReaderIndices(t *testing.T) {
 	}{
 		{
 			params: SpanReaderParams{
-				Archive:      false,
 				SpanIndex:    spanIndexOpts,
 				ServiceIndex: serviceIndexOpts,
 			},
@@ -213,7 +212,12 @@ func TestSpanReaderIndices(t *testing.T) {
 		},
 		{
 			params: SpanReaderParams{
-				Archive:      false,
+				ReadAliasSuffix: "archive", // ignored because ReadWriteAliases is false
+			},
+			indices: []string{spanIndexBaseName, serviceIndexBaseName},
+		},
+		{
+			params: SpanReaderParams{
 				SpanIndex:    spanIndexOpts,
 				ServiceIndex: serviceIndexOpts,
 				IndexPrefix:  "foo:",
@@ -228,27 +232,21 @@ func TestSpanReaderIndices(t *testing.T) {
 		},
 		{
 			params: SpanReaderParams{
-				Archive: true,
+				ReadAliasSuffix:     "archive",
+				UseReadWriteAliases: true,
 			},
-			indices: []string{spanIndexBaseName + archiveIndexSuffix, serviceIndexBaseName + archiveIndexSuffix},
+			indices: []string{spanIndexBaseName + "archive", serviceIndexBaseName + "archive"},
 		},
 		{
 			params: SpanReaderParams{
-				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts, IndexPrefix: "foo:", Archive: true,
+				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts, IndexPrefix: "foo:", UseReadWriteAliases: true, ReadAliasSuffix: "archive",
 			},
-			indices: []string{"foo:" + config.IndexPrefixSeparator + spanIndexBaseName + archiveIndexSuffix, "foo:" + config.IndexPrefixSeparator + serviceIndexBaseName + archiveIndexSuffix},
-		},
-		{
-			params: SpanReaderParams{
-				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts, IndexPrefix: "foo:", Archive: true, UseReadWriteAliases: true,
-			},
-			indices: []string{"foo:" + config.IndexPrefixSeparator + spanIndexBaseName + archiveReadIndexSuffix, "foo:" + config.IndexPrefixSeparator + serviceIndexBaseName + archiveReadIndexSuffix},
+			indices: []string{"foo:" + config.IndexPrefixSeparator + spanIndexBaseName + "archive", "foo:" + config.IndexPrefixSeparator + serviceIndexBaseName + "archive"},
 		},
 		{
 			params: SpanReaderParams{
 				SpanIndex:          spanIndexOpts,
 				ServiceIndex:       serviceIndexOpts,
-				Archive:            false,
 				RemoteReadClusters: []string{"cluster_one", "cluster_two"},
 			},
 			indices: []string{
@@ -262,20 +260,20 @@ func TestSpanReaderIndices(t *testing.T) {
 		},
 		{
 			params: SpanReaderParams{
-				Archive: true, RemoteReadClusters: []string{"cluster_one", "cluster_two"},
+				UseReadWriteAliases: true, ReadAliasSuffix: "archive", RemoteReadClusters: []string{"cluster_one", "cluster_two"},
 			},
 			indices: []string{
-				spanIndexBaseName + archiveIndexSuffix,
-				"cluster_one:" + spanIndexBaseName + archiveIndexSuffix,
-				"cluster_two:" + spanIndexBaseName + archiveIndexSuffix,
-				serviceIndexBaseName + archiveIndexSuffix,
-				"cluster_one:" + serviceIndexBaseName + archiveIndexSuffix,
-				"cluster_two:" + serviceIndexBaseName + archiveIndexSuffix,
+				spanIndexBaseName + "archive",
+				"cluster_one:" + spanIndexBaseName + "archive",
+				"cluster_two:" + spanIndexBaseName + "archive",
+				serviceIndexBaseName + "archive",
+				"cluster_one:" + serviceIndexBaseName + "archive",
+				"cluster_two:" + serviceIndexBaseName + "archive",
 			},
 		},
 		{
 			params: SpanReaderParams{
-				Archive: false, UseReadWriteAliases: true, RemoteReadClusters: []string{"cluster_one", "cluster_two"},
+				UseReadWriteAliases: true, RemoteReadClusters: []string{"cluster_one", "cluster_two"},
 			},
 			indices: []string{
 				spanIndexBaseName + "read",
@@ -284,19 +282,6 @@ func TestSpanReaderIndices(t *testing.T) {
 				serviceIndexBaseName + "read",
 				"cluster_one:" + serviceIndexBaseName + "read",
 				"cluster_two:" + serviceIndexBaseName + "read",
-			},
-		},
-		{
-			params: SpanReaderParams{
-				Archive: true, UseReadWriteAliases: true, RemoteReadClusters: []string{"cluster_one", "cluster_two"},
-			},
-			indices: []string{
-				spanIndexBaseName + archiveReadIndexSuffix,
-				"cluster_one:" + spanIndexBaseName + archiveReadIndexSuffix,
-				"cluster_two:" + spanIndexBaseName + archiveReadIndexSuffix,
-				serviceIndexBaseName + archiveReadIndexSuffix,
-				"cluster_one:" + serviceIndexBaseName + archiveReadIndexSuffix,
-				"cluster_two:" + serviceIndexBaseName + archiveReadIndexSuffix,
 			},
 		},
 	}
@@ -1267,36 +1252,34 @@ func TestSpanReader_GetEmptyIndex(t *testing.T) {
 }
 
 func TestSpanReader_ArchiveTraces(t *testing.T) {
-	withArchiveSpanReader(t, false, func(r *spanReaderTest) {
-		mockSearchService(r).
-			Return(&elastic.SearchResult{}, nil)
-		mockArchiveMultiSearchService(r, "jaeger-span-archive").
-			Return(&elastic.MultiSearchResult{
-				Responses: []*elastic.SearchResult{},
-			}, nil)
-		query := spanstore.GetTraceParameters{}
-		trace, err := r.reader.GetTrace(context.Background(), query)
-		require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
-		require.Nil(t, trace)
-		require.EqualError(t, err, "trace not found")
-	})
-}
+	testCases := []struct {
+		useAliases bool
+		suffix     string
+		expected   string
+	}{
+		{false, "", "jaeger-span-"},
+		{true, "", "jaeger-span-read"},
+		{false, "foobar", "jaeger-span-"},
+		{true, "foobar", "jaeger-span-foobar"},
+	}
 
-func TestSpanReader_ArchiveTraces_ReadAlias(t *testing.T) {
-	withArchiveSpanReader(t, true, func(r *spanReaderTest) {
-		mockSearchService(r).
-			Return(&elastic.SearchResult{}, nil)
-		mockArchiveMultiSearchService(r, "jaeger-span-archive-read").
-			Return(&elastic.MultiSearchResult{
-				Responses: []*elastic.SearchResult{},
-			}, nil)
-
-		query := spanstore.GetTraceParameters{}
-		trace, err := r.reader.GetTrace(context.Background(), query)
-		require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
-		require.Nil(t, trace)
-		require.EqualError(t, err, "trace not found")
-	})
+	for _, tc := range testCases {
+		t.Run(fmt.Sprintf("useAliases=%v suffix=%s", tc.useAliases, tc.suffix), func(t *testing.T) {
+			withArchiveSpanReader(t, tc.useAliases, tc.suffix, func(r *spanReaderTest) {
+				mockSearchService(r).
+					Return(&elastic.SearchResult{}, nil)
+				mockArchiveMultiSearchService(r, tc.expected).
+					Return(&elastic.MultiSearchResult{
+						Responses: []*elastic.SearchResult{},
+					}, nil)
+				query := spanstore.GetTraceParameters{}
+				trace, err := r.reader.GetTrace(context.Background(), query)
+				require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
+				require.Nil(t, trace)
+				require.EqualError(t, err, "trace not found")
+			})
+		})
+	}
 }
 
 func TestConvertTraceIDsStringsToModels(t *testing.T) {
@@ -1342,7 +1325,7 @@ func TestBuildTraceByIDQuery(t *testing.T) {
 }
 
 func TestTerminateAfterNotSet(t *testing.T) {
-	srcFn := getSourceFn(false, 99)
+	srcFn := getSourceFn(99)
 	searchSource := srcFn(elastic.NewMatchAllQuery(), 1)
 	sp, err := searchSource.Source()
 	require.NoError(t, err)

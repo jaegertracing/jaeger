@@ -7,7 +7,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 )
 
 // QueryParameters contains the parameters that can be used to query dependencies.

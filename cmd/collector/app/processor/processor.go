@@ -4,11 +4,12 @@
 package processor
 
 import (
+	"context"
 	"io"
 
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
-	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 )
 
 var (
@@ -19,7 +20,7 @@ var (
 // Batch is a batch of spans passed to the processor.
 type Batch interface {
 	// GetSpans delegates to the appropriate function based on the data model version.
-	GetSpans(v1 func(spans []*model.Span), v2 func(traces ptrace.Traces))
+	GetSpans(sv1 func(spans []*model.Span), sv2 func(traces ptrace.Traces))
 
 	GetSpanFormat() SpanFormat
 	GetInboundTransport() InboundTransport
@@ -29,7 +30,7 @@ type Batch interface {
 // SpanProcessor handles spans
 type SpanProcessor interface {
 	// ProcessSpans processes spans and return with either a list of true/false success or an error
-	ProcessSpans(spans Batch) ([]bool, error)
+	ProcessSpans(ctx context.Context, spans Batch) ([]bool, error)
 	io.Closer
 }
 
@@ -50,8 +51,8 @@ type SpansV2 struct {
 	Details
 }
 
-func (s SpansV1) GetSpans(v1 func([]*model.Span), _ func(ptrace.Traces)) {
-	v1(s.Spans)
+func (s SpansV1) GetSpans(sv1 func([]*model.Span), _ func(ptrace.Traces)) {
+	sv1(s.Spans)
 }
 
 func (s SpansV2) GetSpans(_ func([]*model.Span), v2 func(ptrace.Traces)) {

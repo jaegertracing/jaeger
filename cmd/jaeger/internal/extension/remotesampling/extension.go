@@ -19,16 +19,16 @@ import (
 	"google.golang.org/grpc/health"
 	"google.golang.org/grpc/health/grpc_health_v1"
 
-	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling"
-	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/samplingstrategy"
+	"github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
+	"github.com/jaegertracing/jaeger/internal/leaderelection"
 	"github.com/jaegertracing/jaeger/internal/metrics/otelmetrics"
-	"github.com/jaegertracing/jaeger/pkg/clientcfg/clientcfghttp"
+	samplinggrpc "github.com/jaegertracing/jaeger/internal/sampling/grpc"
+	samplinghttp "github.com/jaegertracing/jaeger/internal/sampling/http"
+	"github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy"
+	"github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy/adaptive"
+	"github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy/file"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
-	"github.com/jaegertracing/jaeger/plugin/sampling/leaderelection"
-	"github.com/jaegertracing/jaeger/plugin/sampling/strategyprovider/adaptive"
-	"github.com/jaegertracing/jaeger/plugin/sampling/strategyprovider/static"
-	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/samplingstore"
 )
@@ -164,15 +164,16 @@ func (ext *rsExtension) Shutdown(ctx context.Context) error {
 }
 
 func (ext *rsExtension) startFileBasedStrategyProvider(_ context.Context) error {
-	opts := static.Options{
+	opts := file.Options{
 		StrategiesFile:             ext.cfg.File.Path,
 		ReloadInterval:             ext.cfg.File.ReloadInterval,
 		IncludeDefaultOpStrategies: includeDefaultOpStrategies.IsEnabled(),
+		DefaultSamplingProbability: ext.cfg.File.DefaultSamplingProbability,
 	}
 
 	// contextcheck linter complains about next line that context is not passed.
 	//nolint
-	provider, err := static.NewProvider(opts, ext.telemetry.Logger)
+	provider, err := file.NewProvider(opts, ext.telemetry.Logger)
 	if err != nil {
 		return fmt.Errorf("failed to create the local file strategy store: %w", err)
 	}
@@ -228,8 +229,8 @@ func (ext *rsExtension) startAdaptiveStrategyProvider(host component.Host) error
 func (ext *rsExtension) startHTTPServer(ctx context.Context, host component.Host) error {
 	mf := otelmetrics.NewFactory(ext.telemetry.MeterProvider)
 	mf = mf.Namespace(metrics.NSOptions{Name: "jaeger_remote_sampling"})
-	handler := clientcfghttp.NewHTTPHandler(clientcfghttp.HTTPHandlerParams{
-		ConfigManager: &clientcfghttp.ConfigManager{
+	handler := samplinghttp.NewHandler(samplinghttp.HandlerParams{
+		ConfigManager: &samplinghttp.ConfigManager{
 			SamplingProvider: ext.strategyProvider,
 		},
 		MetricsFactory: mf,
@@ -275,7 +276,7 @@ func (ext *rsExtension) startGRPCServer(ctx context.Context, host component.Host
 		return err
 	}
 
-	api_v2.RegisterSamplingManagerServer(ext.grpcServer, sampling.NewGRPCHandler(ext.strategyProvider))
+	api_v2.RegisterSamplingManagerServer(ext.grpcServer, samplinggrpc.NewHandler(ext.strategyProvider))
 
 	healthServer := health.NewServer() // support health checks on the gRPC server
 	healthServer.SetServingStatus("jaeger.api_v2.SamplingManager", grpc_health_v1.HealthCheckResponse_SERVING)

@@ -6,8 +6,8 @@ package server
 import (
 	"context"
 
+	"github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
-	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 )
 
 type mockSamplingProvider struct{}
@@ -26,6 +26,6 @@ func (*mockSpanProcessor) Close() error {
 	return nil
 }
 
-func (*mockSpanProcessor) ProcessSpans(_ processor.Batch) ([]bool, error) {
+func (*mockSpanProcessor) ProcessSpans(_ context.Context, _ processor.Batch) ([]bool, error) {
 	return []bool{}, nil
 }

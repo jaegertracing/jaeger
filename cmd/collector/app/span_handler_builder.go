@@ -9,19 +9,19 @@ import (
 
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/flags"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/handler"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
 	zs "github.com/jaegertracing/jaeger/cmd/collector/app/sanitizer/zipkin"
-	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
-	"github.com/jaegertracing/jaeger/storage/spanstore"
+	"github.com/jaegertracing/jaeger/storage_v2/tracestore"
 )
 
 // SpanHandlerBuilder holds configuration required for handlers
 type SpanHandlerBuilder struct {
-	SpanWriter     spanstore.Writer
+	TraceWriter    tracestore.Writer
 	CollectorOpts  *flags.CollectorOptions
 	Logger         *zap.Logger
 	MetricsFactory metrics.Factory
@@ -42,7 +42,7 @@ func (b *SpanHandlerBuilder) BuildSpanProcessor(additional ...ProcessSpan) (proc
 	hostMetrics := svcMetrics.Namespace(metrics.NSOptions{Tags: map[string]string{"host": hostname}})
 
 	return NewSpanProcessor(
-		b.SpanWriter,
+		b.TraceWriter,
 		additional,
 		Options.ServiceMetrics(svcMetrics),
 		Options.HostMetrics(hostMetrics),

@@ -28,22 +28,16 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/ports"
 	"github.com/jaegertracing/jaeger/proto-gen/storage_v1"
+	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	depStoreMocks "github.com/jaegertracing/jaeger/storage/dependencystore/mocks"
-	factoryMocks "github.com/jaegertracing/jaeger/storage/mocks"
+	"github.com/jaegertracing/jaeger/storage/spanstore"
 	spanStoreMocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
 )
 
 var testCertKeyLocation = "../../../pkg/config/tlscfg/testdata"
 
 func TestNewServer_CreateStorageErrors(t *testing.T) {
-	factory := new(factoryMocks.Factory)
-	factory.On("CreateSpanReader").Return(nil, errors.New("no reader")).Once()
-	factory.On("CreateSpanReader").Return(nil, nil)
-	factory.On("CreateSpanWriter").Return(nil, errors.New("no writer")).Once()
-	factory.On("CreateSpanWriter").Return(nil, nil)
-	factory.On("CreateDependencyReader").Return(nil, errors.New("no deps")).Once()
-	factory.On("CreateDependencyReader").Return(nil, nil)
-	f := func() (*Server, error) {
+	createServer := func(factory *fakeFactory) (*Server, error) {
 		return NewServer(
 			&Options{
 				ServerConfig: configgrpc.ServerConfig{
@@ -57,16 +51,21 @@ func TestNewServer_CreateStorageErrors(t *testing.T) {
 			telemetry.NoopSettings(),
 		)
 	}
-	_, err := f()
+
+	factory := &fakeFactory{readerErr: errors.New("no reader")}
+	_, err := createServer(factory)
 	require.ErrorContains(t, err, "no reader")
 
-	_, err = f()
+	factory = &fakeFactory{writerErr: errors.New("no writer")}
+	_, err = createServer(factory)
 	require.ErrorContains(t, err, "no writer")
 
-	_, err = f()
+	factory = &fakeFactory{depReaderErr: errors.New("no deps")}
+	_, err = createServer(factory)
 	require.ErrorContains(t, err, "no deps")
 
-	s, err := f()
+	factory = &fakeFactory{}
+	s, err := createServer(factory)
 	require.NoError(t, err)
 	require.NoError(t, s.Start())
 	validateGRPCServer(t, s.grpcConn.Addr().String())
@@ -86,29 +85,39 @@ func TestServerStart_BadPortErrors(t *testing.T) {
 	require.Error(t, srv.Start())
 }
 
-type storageMocks struct {
-	factory   *factoryMocks.Factory
-	reader    *spanStoreMocks.Reader
-	writer    *spanStoreMocks.Writer
-	depReader *depStoreMocks.Reader
+type fakeFactory struct {
+	reader    spanstore.Reader
+	writer    spanstore.Writer
+	depReader dependencystore.Reader
+
+	readerErr    error
+	writerErr    error
+	depReaderErr error
 }
 
-func newStorageMocks() *storageMocks {
-	reader := new(spanStoreMocks.Reader)
-	writer := new(spanStoreMocks.Writer)
-	depReader := new(depStoreMocks.Reader)
-
-	factory := new(factoryMocks.Factory)
-	factory.On("CreateSpanReader").Return(reader, nil)
-	factory.On("CreateSpanWriter").Return(writer, nil)
-	factory.On("CreateDependencyReader").Return(depReader, nil)
-
-	return &storageMocks{
-		factory:   factory,
-		reader:    reader,
-		writer:    writer,
-		depReader: depReader,
+func (f *fakeFactory) CreateSpanReader() (spanstore.Reader, error) {
+	if f.readerErr != nil {
+		return nil, f.readerErr
 	}
+	return f.reader, nil
+}
+
+func (f *fakeFactory) CreateSpanWriter() (spanstore.Writer, error) {
+	if f.writerErr != nil {
+		return nil, f.writerErr
+	}
+	return f.writer, nil
+}
+
+func (f *fakeFactory) CreateDependencyReader() (dependencystore.Reader, error) {
+	if f.depReaderErr != nil {
+		return nil, f.depReaderErr
+	}
+	return f.depReader, nil
+}
+
+func (*fakeFactory) InitArchiveStorage(*zap.Logger) (spanstore.Reader, spanstore.Writer) {
+	return nil, nil
 }
 
 func TestNewServer_TLSConfigError(t *testing.T) {
@@ -123,7 +132,7 @@ func TestNewServer_TLSConfigError(t *testing.T) {
 		Logger:       zap.NewNop(),
 		ReportStatus: telemetry.HCAdapter(healthcheck.New()),
 	}
-	storageMocks := newStorageMocks()
+
 	_, err := NewServer(
 		&Options{
 			ServerConfig: configgrpc.ServerConfig{
@@ -133,7 +142,7 @@ func TestNewServer_TLSConfigError(t *testing.T) {
 				TLSSetting: tlsCfg,
 			},
 		},
-		storageMocks.factory,
+		&fakeFactory{},
 		tenancy.NewManager(&tenancy.Options{}),
 		telset,
 	)
@@ -141,15 +150,24 @@ func TestNewServer_TLSConfigError(t *testing.T) {
 }
 
 func TestCreateGRPCHandler(t *testing.T) {
-	storageMocks := newStorageMocks()
-	h, err := createGRPCHandler(storageMocks.factory, zap.NewNop())
+	reader := new(spanStoreMocks.Reader)
+	writer := new(spanStoreMocks.Writer)
+	depReader := new(depStoreMocks.Reader)
+
+	f := &fakeFactory{
+		reader:    reader,
+		writer:    writer,
+		depReader: depReader,
+	}
+
+	h, err := createGRPCHandler(f, zap.NewNop())
 	require.NoError(t, err)
 
-	storageMocks.writer.On("WriteSpan", mock.Anything, mock.Anything).Return(errors.New("writer error"))
+	writer.On("WriteSpan", mock.Anything, mock.Anything).Return(errors.New("writer error"))
 	_, err = h.WriteSpan(context.Background(), &storage_v1.WriteSpanRequest{})
 	require.ErrorContains(t, err, "writer error")
 
-	storageMocks.depReader.On(
+	depReader.On(
 		"GetDependencies",
 		mock.Anything, // context
 		mock.Anything, // time
@@ -338,9 +356,12 @@ func TestServerGRPCTLS(t *testing.T) {
 			flagsSvc := flags.NewService(ports.QueryAdminHTTP)
 			flagsSvc.Logger = zap.NewNop()
 
-			storageMocks := newStorageMocks()
+			reader := new(spanStoreMocks.Reader)
+			f := &fakeFactory{
+				reader: reader,
+			}
 			expectedServices := []string{"test"}
-			storageMocks.reader.On("GetServices", mock.AnythingOfType("*context.valueCtx")).Return(expectedServices, nil)
+			reader.On("GetServices", mock.AnythingOfType("*context.valueCtx")).Return(expectedServices, nil)
 
 			tm := tenancy.NewManager(&tenancy.Options{Enabled: true})
 			telset := telemetry.Settings{
@@ -349,7 +370,7 @@ func TestServerGRPCTLS(t *testing.T) {
 			}
 			server, err := NewServer(
 				serverOptions,
-				storageMocks.factory,
+				f,
 				tm,
 				telset,
 			)
@@ -391,7 +412,6 @@ func TestServerHandlesPortZero(t *testing.T) {
 	flagsSvc := flags.NewService(ports.QueryAdminHTTP)
 	zapCore, logs := observer.New(zap.InfoLevel)
 	flagsSvc.Logger = zap.New(zapCore)
-	storageMocks := newStorageMocks()
 	telset := telemetry.Settings{
 		Logger:       flagsSvc.Logger,
 		ReportStatus: telemetry.HCAdapter(flagsSvc.HC()),
@@ -400,7 +420,7 @@ func TestServerHandlesPortZero(t *testing.T) {
 		&Options{ServerConfig: configgrpc.ServerConfig{
 			NetAddr: confignet.AddrConfig{Endpoint: ":0"},
 		}},
-		storageMocks.factory,
+		&fakeFactory{},
 		tenancy.NewManager(&tenancy.Options{}),
 		telset,
 	)

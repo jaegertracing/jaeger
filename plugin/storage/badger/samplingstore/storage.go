@@ -11,8 +11,8 @@ import (
 
 	"github.com/dgraph-io/badger/v4"
 
-	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/model"
-	jaegermodel "github.com/jaegertracing/jaeger/model"
+	jaegermodel "github.com/jaegertracing/jaeger-idl/model/v1"
+	"github.com/jaegertracing/jaeger/storage/samplingstore/model"
 )
 
 const (

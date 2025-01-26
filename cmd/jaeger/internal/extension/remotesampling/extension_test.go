@@ -27,10 +27,10 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
+	"github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
-	"github.com/jaegertracing/jaeger/plugin/sampling/strategyprovider/adaptive"
+	"github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy/adaptive"
 	"github.com/jaegertracing/jaeger/plugin/storage/memory"
-	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 )
 
 func makeStorageExtension(t *testing.T, memstoreName string) component.Host {
@@ -114,6 +114,7 @@ func TestStartHTTP(t *testing.T) {
 		TelemetrySettings: componenttest.NewNopTelemetrySettings(),
 	}, cfg)
 	require.NoError(t, err)
+	// here, the file is using a service hardcoded in the sampling-services.json file
 	host := makeStorageExtension(t, "foobar")
 	require.NoError(t, ext.Start(context.Background(), host))
 
@@ -154,6 +155,7 @@ func TestStartGRPC(t *testing.T) {
 		TelemetrySettings: componenttest.NewNopTelemetrySettings(),
 	}, cfg)
 	require.NoError(t, err)
+	// here, the file is using a service hardcoded in the sampling-services.json file
 	host := makeStorageExtension(t, "foobar")
 	require.NoError(t, ext.Start(context.Background(), host))
 

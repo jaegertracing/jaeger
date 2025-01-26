@@ -32,6 +32,8 @@ extensions:
     backends:
       some_storage:
         opensearch:
+          server_urls:
+            - http://localhost:9200
           indices:
             index_prefix: "jaeger-main"
             spans:
@@ -56,6 +58,8 @@ extensions:
               replicas: 1
       another_storage:
         opensearch:
+          server_urls:
+            - http://localhost:9200
           indices:
             index_prefix: "jaeger-archive"
 

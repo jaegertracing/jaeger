@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/model"
+	"github.com/jaegertracing/jaeger/storage/samplingstore/model"
 )
 
 // SamplingStore is an in-memory store for sampling data

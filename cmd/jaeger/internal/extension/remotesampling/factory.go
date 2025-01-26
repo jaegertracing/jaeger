@@ -12,7 +12,8 @@ import (
 	"go.opentelemetry.io/collector/config/confignet"
 	"go.opentelemetry.io/collector/extension"
 
-	"github.com/jaegertracing/jaeger/plugin/sampling/strategyprovider/adaptive"
+	"github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy/adaptive"
+	"github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy/file"
 	"github.com/jaegertracing/jaeger/ports"
 )
 
@@ -43,7 +44,8 @@ func createDefaultConfig() component.Config {
 			},
 		},
 		File: &FileConfig{
-			Path: "", // path needs to be specified
+			Path:                       "", // path needs to be specified
+			DefaultSamplingProbability: file.DefaultSamplingProbability,
 		},
 		Adaptive: &AdaptiveConfig{
 			SamplingStore: "", // storage name needs to be specified

@@ -13,6 +13,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/internal/docs"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/features"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/mapping"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/version"
 )
@@ -23,7 +24,7 @@ func main() {
 	command.AddCommand(version.Command())
 	command.AddCommand(docs.Command(v))
 	command.AddCommand(featuresCommand())
-
+	command.AddCommand(mapping.Command())
 	config.AddFlags(
 		v,
 		command,

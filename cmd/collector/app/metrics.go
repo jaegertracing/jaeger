@@ -8,10 +8,14 @@ import (
 	"strings"
 	"sync"
 
+	"go.opentelemetry.io/collector/pdata/pcommon"
+	"go.opentelemetry.io/collector/pdata/ptrace"
+
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
-	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/normalizer"
+	"github.com/jaegertracing/jaeger/pkg/otelsemconv"
 )
 
 const (
@@ -24,10 +28,10 @@ const (
 	// samplerTypeKey is the name of the metric tag showing sampler type
 	samplerTypeKey = "sampler_type"
 
-	// // types of samplers: const, probabilistic, ratelimiting, lowerbound
-	// numOfSamplerTypes = 4
-
 	concatenation = "$_$"
+
+	// unknownServiceName is used when a span has no service name
+	unknownServiceName = "__unknown"
 )
 
 var otherServicesSamplers map[model.SamplerType]string = initOtherServicesSamplers()
@@ -224,12 +228,12 @@ func (m *SpanProcessorMetrics) GetCountsForFormat(spanFormat processor.SpanForma
 	return t
 }
 
-// reportServiceNameForSpan determines the name of the service that emitted
+// ForSpanV1 determines the name of the service that emitted
 // the span and reports a counter stat.
-func (m metricsBySvc) ReportServiceNameForSpan(span *model.Span) {
+func (m metricsBySvc) ForSpanV1(span *model.Span) {
 	var serviceName string
 	if nil == span.Process || len(span.Process.ServiceName) == 0 {
-		serviceName = "__unknown"
+		serviceName = unknownServiceName
 	} else {
 		serviceName = span.Process.ServiceName
 	}
@@ -238,6 +242,20 @@ func (m metricsBySvc) ReportServiceNameForSpan(span *model.Span) {
 	if span.ParentSpanID() == 0 {
 		m.countTracesByServiceName(serviceName, span.Flags.IsDebug(), span.
 			GetSamplerType())
+	}
+}
+
+// ForSpanV2 determines the name of the service that emitted
+// the span and reports a counter stat.
+func (m metricsBySvc) ForSpanV2(resource pcommon.Resource, span ptrace.Span) {
+	serviceName := unknownServiceName
+	if v, ok := resource.Attributes().Get(string(otelsemconv.ServiceNameKey)); ok {
+		serviceName = v.AsString()
+	}
+
+	m.countSpansByServiceName(serviceName, false)
+	if span.ParentSpanID().IsEmpty() {
+		m.countTracesByServiceName(serviceName, false, model.SamplerTypeUnrecognized)
 	}
 }
 

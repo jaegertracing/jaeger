@@ -11,7 +11,7 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/pkg/cache"
 	"github.com/jaegertracing/jaeger/pkg/es"
 	cfg "github.com/jaegertracing/jaeger/pkg/es/config"
@@ -55,8 +55,8 @@ type SpanWriterParams struct {
 	AllTagsAsFields     bool
 	TagKeysAsFields     []string
 	TagDotReplacement   string
-	Archive             bool
 	UseReadWriteAliases bool
+	WriteAliasSuffix    string
 	ServiceCacheTTL     time.Duration
 }
 
@@ -65,6 +65,15 @@ func NewSpanWriter(p SpanWriterParams) *SpanWriter {
 	serviceCacheTTL := p.ServiceCacheTTL
 	if p.ServiceCacheTTL == 0 {
 		serviceCacheTTL = serviceCacheTTLDefault
+	}
+
+	writeAliasSuffix := ""
+	if p.UseReadWriteAliases {
+		if p.WriteAliasSuffix != "" {
+			writeAliasSuffix = p.WriteAliasSuffix
+		} else {
+			writeAliasSuffix = "write"
+		}
 	}
 
 	serviceOperationStorage := NewServiceOperationStorage(p.Client, p.Logger, serviceCacheTTL)
@@ -76,7 +85,7 @@ func NewSpanWriter(p SpanWriterParams) *SpanWriter {
 		},
 		serviceWriter:    serviceOperationStorage.Write,
 		spanConverter:    dbmodel.NewFromDomain(p.AllTagsAsFields, p.TagKeysAsFields, p.TagDotReplacement),
-		spanServiceIndex: getSpanAndServiceIndexFn(p),
+		spanServiceIndex: getSpanAndServiceIndexFn(p, writeAliasSuffix),
 	}
 }
 
@@ -98,21 +107,12 @@ func (s *SpanWriter) CreateTemplates(spanTemplate, serviceTemplate string, index
 // spanAndServiceIndexFn returns names of span and service indices
 type spanAndServiceIndexFn func(spanTime time.Time) (string, string)
 
-func getSpanAndServiceIndexFn(p SpanWriterParams) spanAndServiceIndexFn {
+func getSpanAndServiceIndexFn(p SpanWriterParams, writeAlias string) spanAndServiceIndexFn {
 	spanIndexPrefix := p.IndexPrefix.Apply(spanIndexBaseName)
 	serviceIndexPrefix := p.IndexPrefix.Apply(serviceIndexBaseName)
-	if p.Archive {
-		return func(_ time.Time) (string, string) {
-			if p.UseReadWriteAliases {
-				return archiveIndex(spanIndexPrefix, archiveWriteIndexSuffix), ""
-			}
-			return archiveIndex(spanIndexPrefix, archiveIndexSuffix), ""
-		}
-	}
-
 	if p.UseReadWriteAliases {
-		return func(_ /* spanTime */ time.Time) (string, string) {
-			return spanIndexPrefix + "write", serviceIndexPrefix + "write"
+		return func(_ time.Time) (string, string) {
+			return spanIndexPrefix + writeAlias, serviceIndexPrefix + writeAlias
 		}
 	}
 	return func(date time.Time) (string, string) {

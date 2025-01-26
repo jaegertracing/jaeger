@@ -12,7 +12,7 @@ def cleanup_imports_and_return(imports):
     for i in imports:
         if i.strip() == "":
             continue
-        if i.find("github.com/jaegertracing/jaeger/") != -1:
+        if i.find("github.com/jaegertracing/jaeger/") != -1 or i.find("github.com/jaegertracing/jaeger-idl/") != -1:
             jaeger_packages.append(i)
         elif i.find(".com") != -1 or i.find(".net") != -1 or i.find(".org") != -1 or i.find(".in") != -1 or i.find(".io") != -1:
             thirdparty_packages.append(i)

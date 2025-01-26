@@ -17,10 +17,10 @@ import (
 	"github.com/gocql/gocql"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/model"
 	"github.com/jaegertracing/jaeger/pkg/cassandra"
 	casMetrics "github.com/jaegertracing/jaeger/pkg/cassandra/metrics"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/storage/samplingstore/model"
 )
 
 const (
@@ -33,6 +33,16 @@ const (
 	insertProbabilities    = `INSERT INTO sampling_probabilities(bucket, ts, hostname, probabilities) VALUES (?, ?, ?, ?)`
 	getLatestProbabilities = `SELECT probabilities FROM sampling_probabilities WHERE bucket = ` + constBucketStr + ` LIMIT 1`
 )
+
+// probabilityAndQPS contains the sampling probability and measured qps for an operation.
+type probabilityAndQPS struct {
+	Probability float64
+	QPS         float64
+}
+
+// serviceOperationData contains the sampling probabilities and measured qps for all operations in a service.
+// ie [service][operation] = ProbabilityAndQPS
+type serviceOperationData map[string]map[string]*probabilityAndQPS
 
 type samplingStoreMetrics struct {
 	operationThroughput *casMetrics.Table
@@ -127,8 +137,8 @@ func probabilitiesAndQPSToString(probabilities model.ServiceOperationProbabiliti
 	return buf.String()
 }
 
-func (s *SamplingStore) stringToProbabilitiesAndQPS(probabilitiesAndQPSStr string) model.ServiceOperationData {
-	probabilitiesAndQPS := make(model.ServiceOperationData)
+func (s *SamplingStore) stringToProbabilitiesAndQPS(probabilitiesAndQPSStr string) serviceOperationData {
+	probabilitiesAndQPS := make(serviceOperationData)
 	appendFunc := s.appendProbabilityAndQPS(probabilitiesAndQPS)
 	s.parseString(probabilitiesAndQPSStr, 4, appendFunc)
 	return probabilitiesAndQPS
@@ -167,7 +177,7 @@ func (s *SamplingStore) stringToThroughput(throughputStr string) []*model.Throug
 	return throughput
 }
 
-func (s *SamplingStore) appendProbabilityAndQPS(svcOpData model.ServiceOperationData) func(csvFields []string) {
+func (s *SamplingStore) appendProbabilityAndQPS(svcOpData serviceOperationData) func(csvFields []string) {
 	return func(csvFields []string) {
 		probability, err := strconv.ParseFloat(csvFields[2], 64)
 		if err != nil {
@@ -182,9 +192,9 @@ func (s *SamplingStore) appendProbabilityAndQPS(svcOpData model.ServiceOperation
 		service := csvFields[0]
 		operation := csvFields[1]
 		if _, ok := svcOpData[service]; !ok {
-			svcOpData[service] = make(map[string]*model.ProbabilityAndQPS)
+			svcOpData[service] = make(map[string]*probabilityAndQPS)
 		}
-		svcOpData[service][operation] = &model.ProbabilityAndQPS{
+		svcOpData[service][operation] = &probabilityAndQPS{
 			Probability: probability,
 			QPS:         qps,
 		}

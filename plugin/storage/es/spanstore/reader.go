@@ -19,7 +19,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/pkg/es"
 	cfg "github.com/jaegertracing/jaeger/pkg/es/config"
 	"github.com/jaegertracing/jaeger/plugin/storage/es/spanstore/internal/dbmodel"
@@ -27,13 +27,10 @@ import (
 )
 
 const (
-	spanIndexBaseName       = "jaeger-span-"
-	serviceIndexBaseName    = "jaeger-service-"
-	archiveIndexSuffix      = "archive"
-	archiveReadIndexSuffix  = archiveIndexSuffix + "-read"
-	archiveWriteIndexSuffix = archiveIndexSuffix + "-write"
-	traceIDAggregation      = "traceIDs"
-	indexPrefixSeparator    = "-"
+	spanIndexBaseName    = "jaeger-span-"
+	serviceIndexBaseName = "jaeger-service-"
+	traceIDAggregation   = "traceIDs"
+	indexPrefixSeparator = "-"
 
 	traceIDField           = "traceID"
 	durationField          = "duration"
@@ -51,7 +48,7 @@ const (
 
 	defaultNumTraces = 100
 
-	rolloverMaxSpanAge = time.Hour * 24 * 365 * 50
+	dawnOfTimeSpanAge = time.Hour * 24 * 365 * 50
 )
 
 var (
@@ -109,7 +106,7 @@ type SpanReaderParams struct {
 	SpanIndex           cfg.IndexOptions
 	ServiceIndex        cfg.IndexOptions
 	TagDotReplacement   string
-	Archive             bool
+	ReadAliasSuffix     string
 	UseReadWriteAliases bool
 	RemoteReadClusters  []string
 	Logger              *zap.Logger
@@ -119,10 +116,16 @@ type SpanReaderParams struct {
 // NewSpanReader returns a new SpanReader with a metrics.
 func NewSpanReader(p SpanReaderParams) *SpanReader {
 	maxSpanAge := p.MaxSpanAge
+	readAliasSuffix := ""
 	// Setting the maxSpanAge to a large duration will ensure all spans in the "read" alias are accessible by queries (query window = [now - maxSpanAge, now]).
 	// When read/write aliases are enabled, which are required for index rollovers, only the "read" alias is queried and therefore should not affect performance.
 	if p.UseReadWriteAliases {
-		maxSpanAge = rolloverMaxSpanAge
+		maxSpanAge = dawnOfTimeSpanAge
+		if p.ReadAliasSuffix != "" {
+			readAliasSuffix = p.ReadAliasSuffix
+		} else {
+			readAliasSuffix = "read"
+		}
 	}
 
 	return &SpanReader{
@@ -136,9 +139,12 @@ func NewSpanReader(p SpanReaderParams) *SpanReader {
 		spanConverter:           dbmodel.NewToDomain(p.TagDotReplacement),
 		timeRangeIndices: getLoggingTimeRangeIndexFn(
 			p.Logger,
-			getTimeRangeIndexFn(p.Archive, p.UseReadWriteAliases, p.RemoteReadClusters),
+			addRemoteReadClusters(
+				getTimeRangeIndexFn(p.UseReadWriteAliases, readAliasSuffix),
+				p.RemoteReadClusters,
+			),
 		),
-		sourceFn:            getSourceFn(p.Archive, p.MaxDocCount),
+		sourceFn:            getSourceFn(p.MaxDocCount),
 		maxDocCount:         p.MaxDocCount,
 		useReadWriteAliases: p.UseReadWriteAliases,
 		logger:              p.Logger,
@@ -161,24 +167,13 @@ func getLoggingTimeRangeIndexFn(logger *zap.Logger, fn timeRangeIndexFn) timeRan
 	}
 }
 
-func getTimeRangeIndexFn(archive, useReadWriteAliases bool, remoteReadClusters []string) timeRangeIndexFn {
-	if archive {
-		var archiveSuffix string
-		if useReadWriteAliases {
-			archiveSuffix = archiveReadIndexSuffix
-		} else {
-			archiveSuffix = archiveIndexSuffix
-		}
-		return addRemoteReadClusters(func(indexPrefix, _ /* indexDateLayout */ string, _ /* startTime */ time.Time, _ /* endTime */ time.Time, _ /* reduceDuration */ time.Duration) []string {
-			return []string{archiveIndex(indexPrefix, archiveSuffix)}
-		}, remoteReadClusters)
-	}
+func getTimeRangeIndexFn(useReadWriteAliases bool, readAlias string) timeRangeIndexFn {
 	if useReadWriteAliases {
-		return addRemoteReadClusters(func(indexPrefix string, _ /* indexDateLayout */ string, _ /* startTime */ time.Time, _ /* endTime */ time.Time, _ /* reduceDuration */ time.Duration) []string {
-			return []string{indexPrefix + "read"}
-		}, remoteReadClusters)
+		return func(indexPrefix, _ /* indexDateLayout */ string, _ /* startTime */ time.Time, _ /* endTime */ time.Time, _ /* reduceDuration */ time.Duration) []string {
+			return []string{indexPrefix + readAlias}
+		}
 	}
-	return addRemoteReadClusters(timeRangeIndices, remoteReadClusters)
+	return timeRangeIndices
 }
 
 // Add a remote cluster prefix for each cluster and for each index and add it to the list of original indices.
@@ -201,16 +196,13 @@ func addRemoteReadClusters(fn timeRangeIndexFn, remoteReadClusters []string) tim
 	}
 }
 
-func getSourceFn(archive bool, maxDocCount int) sourceFn {
+func getSourceFn(maxDocCount int) sourceFn {
 	return func(query elastic.Query, nextTime uint64) *elastic.SearchSource {
-		s := elastic.NewSearchSource().
+		return elastic.NewSearchSource().
 			Query(query).
-			Size(maxDocCount)
-		if !archive {
-			s.Sort("startTime", true).
-				SearchAfter(nextTime)
-		}
-		return s
+			Size(maxDocCount).
+			Sort("startTime", true).
+			SearchAfter(nextTime)
 	}
 }
 

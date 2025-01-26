@@ -16,11 +16,11 @@ import (
 	"google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/reflection"
 
+	"github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/handler"
-	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling"
-	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/samplingstrategy"
+	samplinggrpc "github.com/jaegertracing/jaeger/internal/sampling/grpc"
+	"github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy"
 	"github.com/jaegertracing/jaeger/pkg/telemetry"
-	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 )
 
 // GRPCServerParams to construct a new Jaeger Collector gRPC Server
@@ -65,7 +65,7 @@ func serveGRPC(server *grpc.Server, listener net.Listener, params *GRPCServerPar
 	healthServer := health.NewServer()
 
 	api_v2.RegisterCollectorServiceServer(server, params.Handler)
-	api_v2.RegisterSamplingManagerServer(server, sampling.NewGRPCHandler(params.SamplingProvider))
+	api_v2.RegisterSamplingManagerServer(server, samplinggrpc.NewHandler(params.SamplingProvider))
 
 	healthServer.SetServingStatus("jaeger.api_v2.CollectorService", grpc_health_v1.HealthCheckResponse_SERVING)
 	healthServer.SetServingStatus("jaeger.api_v2.SamplingManager", grpc_health_v1.HealthCheckResponse_SERVING)

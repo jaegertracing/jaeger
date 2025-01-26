@@ -70,34 +70,6 @@ func TestCollectorOptionsWithFailedTLSFlags(t *testing.T) {
 	}
 }
 
-func TestCollectorOptionsWithFlags_CheckTLSReloadInterval(t *testing.T) {
-	prefixes := []string{
-		"--collector.http",
-		"--collector.grpc",
-		"--collector.zipkin",
-		"--collector.otlp.http",
-		"--collector.otlp.grpc",
-	}
-	otlpPrefixes := map[string]struct{}{
-		"--collector.otlp.http": {},
-		"--collector.otlp.grpc": {},
-	}
-	for _, prefix := range prefixes {
-		t.Run(prefix, func(t *testing.T) {
-			_, command := config.Viperize(AddFlags)
-			err := command.ParseFlags([]string{
-				prefix + ".tls.enabled=true",
-				prefix + ".tls.reload-interval=24h",
-			})
-			if _, ok := otlpPrefixes[prefix]; !ok {
-				assert.ErrorContains(t, err, "unknown flag")
-			} else {
-				require.NoError(t, err)
-			}
-		})
-	}
-}
-
 func TestCollectorOptionsWithFlags_CheckMaxReceiveMessageLength(t *testing.T) {
 	c := &CollectorOptions{}
 	v, command := config.Viperize(AddFlags)
