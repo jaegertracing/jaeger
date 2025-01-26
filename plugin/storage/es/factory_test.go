@@ -144,7 +144,8 @@ func TestElasticsearchTagsFileDoNotExist(t *testing.T) {
 func TestElasticsearchILMUsedWithoutReadWriteAliases(t *testing.T) {
 	f := NewFactory()
 	f.config = &escfg.Configuration{
-		UseILM: true,
+		UseILM:  true,
+		Version: 7,
 	}
 	f.newClientFn = (&mockClientBuilder{}).NewClient
 	require.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
