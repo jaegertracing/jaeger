@@ -162,7 +162,7 @@ func getLoggingTimeRangeIndexFn(logger *zap.Logger, fn timeRangeIndexFn) timeRan
 	}
 	return func(indexName string, indexDateLayout string, startTime time.Time, endTime time.Time, reduceDuration time.Duration) []string {
 		indices := fn(indexName, indexDateLayout, startTime, endTime, reduceDuration)
-		logger.Debug("Reading from ES indices", zap.Strings("index", indices))
+		// logger.Debug("Reading from ES indices", zap.Strings("index", indices))
 		return indices
 	}
 }
