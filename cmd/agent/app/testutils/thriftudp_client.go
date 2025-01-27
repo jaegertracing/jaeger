@@ -10,7 +10,7 @@ import (
 	"github.com/apache/thrift/lib/go/thrift"
 
 	"github.com/jaegertracing/jaeger/cmd/agent/app/servers/thriftudp"
-	"github.com/jaegertracing/jaeger/thrift-gen/agent"
+	"github.com/jaegertracing/jaeger-idl/thrift-gen/agent"
 )
 
 // NewZipkinThriftUDPClient creates a new zipking agent client that works like Jaeger client

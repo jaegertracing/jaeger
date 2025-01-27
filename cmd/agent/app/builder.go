@@ -22,7 +22,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/agent/app/servers/thriftudp"
 	"github.com/jaegertracing/jaeger/internal/safeexpvar"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
-	agentThrift "github.com/jaegertracing/jaeger/thrift-gen/agent"
+	agentThrift "github.com/jaegertracing/jaeger-idl/thrift-gen/agent"
 )
 
 const (

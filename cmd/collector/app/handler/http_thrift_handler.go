@@ -15,7 +15,7 @@ import (
 	"github.com/gorilla/mux"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
-	tJaeger "github.com/jaegertracing/jaeger/thrift-gen/jaeger"
+	tJaeger "github.com/jaegertracing/jaeger-idl/thrift-gen/jaeger"
 )
 
 const (

@@ -31,8 +31,8 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/storage_v2/v1adapter"
-	"github.com/jaegertracing/jaeger/thrift-gen/jaeger"
-	zc "github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
+	"github.com/jaegertracing/jaeger-idl/thrift-gen/jaeger"
+	zc "github.com/jaegertracing/jaeger-idl/thrift-gen/zipkincore"
 )
 
 var (
