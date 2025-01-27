@@ -3,17 +3,17 @@
 
 package clickhouse
 
-import(
+import (
 	"time"
 
 	"go.opentelemetry.io/collector/config/configtls"
 )
 
 // Configuration is clickhouse's internal configuration data
-type Configuration struct{
+type Configuration struct {
 	Connection Connection `mapstructure:"connection"`
-	Schema Schema `mapstructure:"schema"`
-	Query Query `mapstructure:"query"`
+	Schema     Schema     `mapstructure:"schema"`
+	Query      Query      `mapstructure:"query"`
 }
 
 type Schema struct {
@@ -49,7 +49,7 @@ type Connection struct {
 	// ConnMaxLifetime is the maximum lifetime of a connection in the pool. Default value is 1 hour
 	// After that connection is stopped and new connection is made
 	ConnMaxLifetime time.Duration
-	//ConnOpenStrategy determines how the list of node addresses should be consumed and used
+	// ConnOpenStrategy determines how the list of node addresses should be consumed and used
 	// to open connections. Refer to: https://clickhouse.com/docs/en/integrations/go#connection-settings
 	ConnOpenStrategy ConnOpenStrategy
 	// Authenticator contains the details of the authentication mechanism that is used for
@@ -73,7 +73,6 @@ type Query struct {
 	UseCompression bool `mapstructure:"use_compression"`
 }
 
-
 // Authenticator holds the authentication properties needed to connect to a Clickhouse cluster.
 type Authenticator struct {
 	Basic BasicAuthenticator `mapstructure:"basic"`
@@ -81,14 +80,13 @@ type Authenticator struct {
 
 // BasicAuthenticator holds the username and password for a password authenticator for a Clickhouse cluster.
 type BasicAuthenticator struct {
-	Username              string   `mapstructure:"username"`
-	Password              string   `mapstructure:"password"`
+	Username string `mapstructure:"username"`
+	Password string `mapstructure:"password"`
 }
 
 type ConnOpenStrategy uint8
 
-
-func DefaultConfiguration () *Configuration {
+func DefaultConfiguration() *Configuration {
 	return &Configuration{
 		Connection: Connection{
 			Servers:            []string{"127.0.0.1"},
