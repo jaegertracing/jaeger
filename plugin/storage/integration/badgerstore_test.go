@@ -56,8 +56,6 @@ func TestBadgerStorage(t *testing.T) {
 	})
 	s := &BadgerIntegrationStorage{
 		StorageIntegration: StorageIntegration{
-			SkipArchiveTest: true,
-
 			// TODO: remove this badger supports returning spanKind from GetOperations
 			GetOperationsMissingSpanKind: true,
 		},

@@ -53,10 +53,6 @@ func (s *GRPCStorageIntegrationTestSuite) initialize(t *testing.T) {
 	spanReader, err := f.CreateSpanReader()
 	require.NoError(t, err)
 	s.TraceReader = v1adapter.NewTraceReader(spanReader)
-	s.ArchiveSpanReader, err = af.CreateSpanReader()
-	require.NoError(t, err)
-	s.ArchiveSpanWriter, err = af.CreateSpanWriter()
-	require.NoError(t, err)
 
 	// TODO DependencyWriter is not implemented in grpc store
 
