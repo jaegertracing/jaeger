@@ -1,3 +1,6 @@
+// Copyright (c) 2025 The Jaeger Authors.
+// SPDX-License-Identifier: Apache-2.0
+
 package clickhouse
 
 import(
@@ -6,16 +9,16 @@ import(
 	"go.opentelemetry.io/collector/config/configtls"
 )
 
-const (
-
-)
-
 // Configuration is clickhouse's internal configuration data
 type Configuration struct{
 	Connection Connection `mapstructure:"connection"`
-
+	Schema Schema `mapstructure:"schema"`
+	Query Query `mapstructure:"query"`
 }
 
+type Schema struct {
+	// TODO:Make the schema config
+}
 type Connection struct {
 	// Servers contains a list of hosts that are used to connect to the cluster.
 	Servers []string `mapstructure:"servers" valid:"required,url"`
@@ -59,6 +62,18 @@ type Connection struct {
 	Compression string `mapstructure:"compression"`
 }
 
+type Query struct {
+	// Timeout contains the maximum time spent executing a query.
+	Timeout time.Duration `mapstructure:"timeout"`
+	// MaxRetryAttempts indicates the maximum number of times a query will be retried for execution.
+	MaxRetryAttempts int `mapstructure:"max_retry_attempts"`
+	// DistributedRetries specifies how many times a distributed query should be retried on failure.
+	DistributedRetries int `mapstructure:"distributed_retries"`
+	// UseCompression specifies if query results should be compressed.
+	UseCompression bool `mapstructure:"use_compression"`
+}
+
+
 // Authenticator holds the authentication properties needed to connect to a Clickhouse cluster.
 type Authenticator struct {
 	Basic BasicAuthenticator `mapstructure:"basic"`
@@ -73,9 +88,17 @@ type BasicAuthenticator struct {
 type ConnOpenStrategy uint8
 
 
-func DefaultConfig () *Configuration {
-
+func DefaultConfiguration () *Configuration {
 	return &Configuration{
-
+		Connection: Connection{
+			Servers:            []string{"127.0.0.1"},
+			Port:               9042,
+			ProtoVersion:       4,
+			ConnectionsPerHost: 2,
+			ReconnectInterval:  60 * time.Second,
+		},
+		Query: Query{
+			MaxRetryAttempts: 3,
+		},
 	}
 }
