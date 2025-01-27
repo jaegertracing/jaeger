@@ -19,6 +19,3 @@ var NewAgentEmitZipkinBatchArgs = modelv1.NewAgentEmitZipkinBatchArgs
 
 type AgentEmitBatchArgs = modelv1.AgentEmitBatchArgs
 var NewAgentEmitBatchArgs = modelv1.NewAgentEmitBatchArgs
-
-
-var GoUnusedProtection__ int

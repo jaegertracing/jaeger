@@ -58,6 +58,3 @@ const (
   SERVER_ADDR = modelv1.SERVER_ADDR
   MESSAGE_ADDR = modelv1.MESSAGE_ADDR
 )
-
-
-var GoUnusedProtection__ int

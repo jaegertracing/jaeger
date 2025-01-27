@@ -53,5 +53,3 @@ var NewCollectorClient = modelv1.NewCollectorClient
 
 type CollectorProcessor = modelv1.CollectorProcessor
 var NewCollectorProcessor = modelv1.NewCollectorProcessor
-
-var GoUnusedProtection__ int
