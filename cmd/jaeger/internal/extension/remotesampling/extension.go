@@ -184,7 +184,7 @@ func (ext *rsExtension) startFileBasedStrategyProvider(_ context.Context) error 
 
 func (ext *rsExtension) startAdaptiveStrategyProvider(host component.Host) error {
 	storageName := ext.cfg.Adaptive.SamplingStore
-	f, err := jaegerstorage.GetStorageFactory(storageName, host)
+	f, err := jaegerstorage.GetTraceStoreFactory(storageName, host)
 	if err != nil {
 		return fmt.Errorf("cannot find storage factory: %w", err)
 	}

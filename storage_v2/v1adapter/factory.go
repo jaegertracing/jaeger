@@ -5,9 +5,12 @@ package v1adapter
 
 import (
 	"context"
+	"errors"
 	"io"
 
+	"github.com/jaegertracing/jaeger/pkg/distributedlock"
 	storage_v1 "github.com/jaegertracing/jaeger/storage"
+	"github.com/jaegertracing/jaeger/storage/samplingstore"
 	"github.com/jaegertracing/jaeger/storage_v2/depstore"
 	"github.com/jaegertracing/jaeger/storage_v2/tracestore"
 )
@@ -60,4 +63,34 @@ func (f *Factory) CreateDependencyReader() (depstore.Reader, error) {
 		return nil, err
 	}
 	return NewDependencyReader(dr), nil
+}
+
+// CreateLock implements storage_v1.SamplingStoreFactory
+func (f *Factory) CreateLock() (distributedlock.Lock, error) {
+	ss, ok := f.ss.(storage_v1.SamplingStoreFactory)
+	if !ok {
+		return nil, errors.New("storage backend does not support sampling store")
+	}
+	lock, err := ss.CreateLock()
+	return lock, err
+}
+
+// CreateSamplingStore implements storage_v1.SamplingStoreFactory
+func (f *Factory) CreateSamplingStore(maxBuckets int) (samplingstore.Store, error) {
+	ss, ok := f.ss.(storage_v1.SamplingStoreFactory)
+	if !ok {
+		return nil, errors.New("storage backend does not support sampling store")
+	}
+	store, err := ss.CreateSamplingStore(maxBuckets)
+	return store, err
+}
+
+// Purge implements storage_v1.Purger
+func (f *Factory) Purge(ctx context.Context) error {
+	p, ok := f.ss.(storage_v1.Purger)
+	if !ok {
+		return errors.New("storage backend does not support Purger")
+	}
+	err := p.Purge(ctx)
+	return err
 }
