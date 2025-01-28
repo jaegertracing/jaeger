@@ -255,13 +255,17 @@ func (s *ESStorageIntegration) cleanESIndexTemplates(t *testing.T, prefix string
 	return nil
 }
 
+// testArchiveTrace validates that a trace with a start time older than maxSpanAge
+// can still be retrieved via the archive storage. This ensures archived traces are
+// accessible even when their age exceeds the retention period for primary storage.
+// This test applies only to Elasticsearch (ES) storage.
 func (s *ESStorageIntegration) testArchiveTrace(t *testing.T) {
 	s.skipIfNeeded(t)
 	defer s.cleanUp(t)
 	tID := model.NewTraceID(uint64(11), uint64(22))
 	expected := &model.Span{
 		OperationName: "archive_span",
-		StartTime:     time.Now().Add(-time.Hour * 72 * 5).Truncate(time.Microsecond),
+		StartTime:     time.Now().Add(-maxSpanAge * 5).Truncate(time.Microsecond),
 		TraceID:       tID,
 		SpanID:        model.NewSpanID(55),
 		References:    []model.SpanRef{},
