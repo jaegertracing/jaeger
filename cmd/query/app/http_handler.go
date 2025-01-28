@@ -80,6 +80,84 @@ type APIHandler struct {
 	tracer              trace.TracerProvider
 }
 
+type TQualityMetrics struct {
+    TraceQualityDocumentationLink string     `json:"traceQualityDocumentationLink"`
+    BannerText                    *BannerText `json:"bannerText,omitempty"`
+    Scores                        []Score    `json:"scores"`
+    Metrics                       []Metric   `json:"metrics"`
+    Clients                       []Client   `json:"clients,omitempty"`
+}
+
+// BannerText stores the optional banner text with styling
+type BannerText struct {
+    Value   string                 `json:"value"`
+    Styling map[string]interface{} `json:"styling,omitempty"` // CSS properties as a map
+}
+
+// Score represents individual score entries.
+type Score struct {
+    Key   string `json:"key"`
+    Label string `json:"label"`
+    Max   int    `json:"max"`
+    Value int    `json:"value"`
+}
+
+// Metric represents individual metrics with detailed information.
+type Metric struct {
+    Name                   string    `json:"name"`
+    Category               string    `json:"category"` // should match a Scores.key
+    Description            string    `json:"description"`
+    MetricDocumentationLink string   `json:"metricDocumentationLink"`
+    MetricWeight           float64   `json:"metricWeight"`
+    PassCount              int       `json:"passCount"`
+    PassExamples           []Example `json:"passExamples"`
+    FailureCount           int       `json:"failureCount"`
+    FailureExamples        []Example `json:"failureExamples"`
+    ExemptionCount         *int      `json:"exemptionCount"`
+    ExemptionExamples      []Example `json:"exemptionExamples"`
+    Details                []Detail  `json:"details"`
+}
+
+// Detail represents additional details for a metric.
+type Detail struct {
+    Description string      `json:"description"`
+    Header      string      `json:"header"`
+    Columns     []ColumnDef `json:"columns"`
+    Rows        []Row       `json:"rows"`
+}
+
+// ColumnDef represents column definitions in details.
+type ColumnDef struct {
+    Key         string                 `json:"key"`
+    Label       string                 `json:"label"`
+    PreventSort bool                   `json:"preventSort"`
+    Styling     map[string]interface{} `json:"styling,omitempty"` // CSS properties as a map
+}
+
+// Row represents a single row of data in details.
+type Row map[string]interface{} // TRow is Record<string, TStyledValue | string | number | TExample[]>
+
+// StyledValue represents a value that may include styling or a link.
+type StyledValue struct {
+    LinkTo  string                 `json:"linkTo"`
+    Styling map[string]interface{} `json:"styling"`
+    Value   interface{}            `json:"value"`
+}
+
+// Example represents a sampe trace
+type Example struct {
+    SpanIDs []string `json:"spanIDs"`
+    TraceID string   `json:"traceID"`
+}
+
+// Client represents client information.
+type Client struct {
+    Version    string    `json:"version"`
+    MinVersion string    `json:"minVersion"`
+    Count      int       `json:"count"`
+    Examples   []Example `json:"examples"`
+}
+
 // NewAPIHandler returns an APIHandler
 func NewAPIHandler(queryService *querysvc.QueryService, options ...HandlerOption) *APIHandler {
 	aH := &APIHandler{
@@ -125,28 +203,7 @@ func (aH *APIHandler) RegisterRoutes(router *mux.Router) {
 
 }
 
-func (aH *APIHandler) getQualityMetrics(w http.ResponseWriter, r *http.Request) {
-    data := []map[string]any{
-        {
-            "serviceName":           "sample-service-A",
-            "totalSpans":            50,
-            "errorSpans":            4,
-            "instrumentationQuality": "dummy-data-A",
-        },
-        {
-            "serviceName":           "sample-service-B",
-            "totalSpans":            25,
-            "errorSpans":            1,
-            "instrumentationQuality": "dummy-data-B",
-        },
-    }
 
-    structuredRes := structuredResponse{
-        Data:   data,
-        Errors: []structuredError{},
-    }
-    aH.writeJSON(w, r, &structuredRes)
-}
 
 func (aH *APIHandler) handleFunc(
 	router *mux.Router,
@@ -576,4 +633,143 @@ func spanNameHandler(spanName string, handler http.Handler) http.Handler {
 		span.SetName(spanName)
 		handler.ServeHTTP(w, r)
 	})
+}
+
+func (aH *APIHandler) getQualityMetrics(w http.ResponseWriter, r *http.Request) {
+    data := TQualityMetrics{
+        TraceQualityDocumentationLink: "https://example.com/trace-quality-docs",
+        BannerText: &BannerText{
+            Value: "Currently, this is dummy text",
+            Styling: map[string]interface{}{
+                "color":      "blue",
+                "fontWeight": "bold",
+            },
+        },
+        Scores: []Score{
+            {
+                Key:   "coverage",
+                Label: "Instrumentation Coverage",
+                Max:   100,
+                Value: 90,
+            },
+            {
+                Key:   "quality",
+                Label: "Trace Quality",
+                Max:   100,
+                Value: 85,
+            },
+        },
+        Metrics: []Metric{
+            {
+                Name:                   "Span Completeness",
+                Category:               "coverage",
+                Description:            "Measures the completeness of spans in traces.",
+                MetricDocumentationLink: "https://example.com/span-completeness-docs",
+                MetricWeight:           0.6,
+                PassCount:              1500,
+                PassExamples: []Example{
+                    {
+                        TraceID: "trace-id-001",
+                    },
+                    {
+                        TraceID: "trace-id-002",
+                    },
+                },
+                FailureCount: 100,
+                FailureExamples: []Example{
+                    {
+                        TraceID: "trace-id-003",
+                    },
+                },
+                Details: []Detail{
+                    {
+                        Description: "Detailed breakdown of span completeness.",
+                        Header:      "Span Completeness Details",
+                        Columns: []ColumnDef{
+                            {
+                                Key:   "service",
+                                Label: "Service",
+                            },
+                            {
+                                Key:   "spanCount",
+                                Label: "Span Count",
+                            },
+                        },
+                        Rows: []Row{
+                            {
+                                "service":    "sample-service-A",
+                                "spanCount":  150,
+                            },
+                            {
+                                "service":    "sample-service-B",
+                                "spanCount":  200,
+                            },
+                        },
+                    },
+                },
+            },
+            {
+                Name:                   "Error Rate",
+                Category:               "quality",
+                Description:            "Percentage of spans that resulted in errors.",
+                MetricDocumentationLink: "https://example.com/error-rate-docs",
+                MetricWeight:           0.4,
+                PassCount:              1400,
+                PassExamples: []Example{
+                    {
+                        TraceID: "trace-id-004",
+                    },
+                },
+                FailureCount: 80,
+                FailureExamples: []Example{
+                    {
+                        TraceID: "trace-id-005",
+                    },
+                },
+                Details: []Detail{
+                    {
+                        Description: "Detailed breakdown of error rates.",
+                        Header:      "Error Rate Details",
+                        Columns: []ColumnDef{
+                            {
+                                Key:   "service",
+                                Label: "Service",
+                            },
+                            {
+                                Key:   "errorCount",
+                                Label: "Error Count",
+                            },
+                        },
+                        Rows: []Row{
+                            {
+                                "service":    "sample-service-A",
+                                "errorCount": 5,
+                            },
+                            {
+                                "service":    "sample-service-B",
+                                "errorCount": 3,
+                            },
+                        },
+                    },
+                },
+            },
+        },
+        Clients: []Client{
+            {
+                Version:    "1.0.0",
+                MinVersion: "0.9.0",
+                Count:      10,
+                Examples: []Example{
+                    {
+                        TraceID: "trace-id-006",
+                    },
+                },
+            },
+        },
+    }
+    structuredRes := structuredResponse{
+        Data:   data,
+        Errors: []structuredError{},
+    }
+    aH.writeJSON(w, r, &structuredRes)
 }
