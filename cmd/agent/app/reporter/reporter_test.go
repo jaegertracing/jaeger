@@ -13,9 +13,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/jaegertracing/jaeger/cmd/agent/app/testutils"
 	"github.com/jaegertracing/jaeger-idl/thrift-gen/jaeger"
 	"github.com/jaegertracing/jaeger-idl/thrift-gen/zipkincore"
+	"github.com/jaegertracing/jaeger/cmd/agent/app/testutils"
 )
 
 func TestMultiReporter(t *testing.T) {
