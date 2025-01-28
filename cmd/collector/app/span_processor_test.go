@@ -37,6 +37,8 @@ import (
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	cFlags "github.com/jaegertracing/jaeger/cmd/collector/app/flags"
+	"github.com/jaegertracing/jaeger-idl/thrift-gen/jaeger"
+	zc "github.com/jaegertracing/jaeger-idl/thrift-gen/zipkincore"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/handler"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
 	zipkinsanitizer "github.com/jaegertracing/jaeger/cmd/collector/app/sanitizer/zipkin"
@@ -46,8 +48,6 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/storage_v2/tracestore/mocks"
 	"github.com/jaegertracing/jaeger/storage_v2/v1adapter"
-	"github.com/jaegertracing/jaeger/thrift-gen/jaeger"
-	zc "github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 )
 
 var (

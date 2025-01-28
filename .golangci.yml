@@ -125,6 +125,8 @@ linters-settings:
             desc: "Use errors.Join instead of github.com/hashicorp/go-multierror"
           - pkg: "github.com/jaegertracing/jaeger/model$"
             desc: "Use github.com/jaegertracing/jaeger-idl/model/v1"
+          - pkg: "github.com/jaegertracing/jaeger/proto-gen/api_v2$"
+            desc: "Use github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
       # crossdock-go provides assert/require similar to stretchr/testify
       # but we never want to use them outside of the crossdock tests.
       disallow-crossdock:
