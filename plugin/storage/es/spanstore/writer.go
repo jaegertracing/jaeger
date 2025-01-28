@@ -128,7 +128,7 @@ func (s *SpanWriter) WriteSpan(_ context.Context, span *model.Span) error {
 		s.writeService(serviceIndexName, jsonSpan)
 	}
 	s.writeSpan(spanIndexName, jsonSpan)
-	// s.logger.Debug("Wrote span to ES index", zap.String("index", spanIndexName))
+	s.logger.Debug("Wrote span to ES index", zap.String("index", spanIndexName))
 	return nil
 }
 
