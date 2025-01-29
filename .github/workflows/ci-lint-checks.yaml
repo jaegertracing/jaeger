@@ -88,9 +88,6 @@ jobs:
     - name: Verify Protobuf types are up to date
       run: make proto && { if git status --porcelain | grep '??'; then exit 1; else git diff --name-status --exit-code; fi }
 
-    - name: Verify Thrift types are up to date
-      run: make thrift && { if git status --porcelain | grep '??'; then exit 1; else git diff --name-status --exit-code; fi }
-
     - name: Verify Mockery types are up to date
       run: make generate-mocks && { if git status --porcelain | grep '??'; then exit 1; else git diff --name-status --exit-code; fi }
 
