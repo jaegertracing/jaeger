@@ -25,7 +25,8 @@ import (
 	"github.com/jaegertracing/jaeger/plugin/storage/memory"
 	"github.com/jaegertracing/jaeger/storage"
 	factoryMocks "github.com/jaegertracing/jaeger/storage/mocks"
-	"github.com/jaegertracing/jaeger/storage/spanstore"
+	"github.com/jaegertracing/jaeger/storage_v2/tracestore"
+	"github.com/jaegertracing/jaeger/storage_v2/v1adapter"
 )
 
 type mockStorageExt struct {
@@ -143,17 +144,20 @@ func TestExporter(t *testing.T) {
 	err = tracesExporter.ConsumeTraces(ctx, traces)
 	require.NoError(t, err)
 
-	storageFactory, err := jaegerstorage.GetStorageFactory(memstoreName, host)
+	storageFactory, err := jaegerstorage.GetTraceStoreFactory(memstoreName, host)
 	require.NoError(t, err)
-	spanReader, err := storageFactory.CreateSpanReader()
+	traceReader, err := storageFactory.CreateTraceReader()
 	require.NoError(t, err)
 	requiredTraceID := model.NewTraceID(0, 1) // 00000000000000000000000000000001
-	requiredTrace, err := spanReader.GetTrace(ctx, spanstore.GetTraceParameters{TraceID: requiredTraceID})
+	requiredTraceIter := traceReader.GetTraces(ctx, tracestore.GetTraceParams{
+		TraceID: v1adapter.FromV1TraceID(requiredTraceID),
+	})
+	requiredTrace, err := v1adapter.V1TracesFromSeq2(requiredTraceIter)
 	require.NoError(t, err)
-	assert.Equal(t, spanID.String(), requiredTrace.Spans[0].SpanID.String())
+	assert.Equal(t, spanID.String(), requiredTrace[0].Spans[0].SpanID.String())
 
 	// check that the service name attribute was added by the sanitizer
-	require.Equal(t, "missing-service-name", requiredTrace.Spans[0].Process.ServiceName)
+	require.Equal(t, "missing-service-name", requiredTrace[0].Spans[0].Process.ServiceName)
 }
 
 func makeStorageExtension(t *testing.T, memstoreName string) component.Host {

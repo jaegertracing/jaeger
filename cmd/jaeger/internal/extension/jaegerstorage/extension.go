@@ -40,23 +40,6 @@ type storageExt struct {
 	metricsFactories map[string]storage.MetricStoreFactory
 }
 
-// GetStorageFactory locates the extension in Host and retrieves
-// a trace storage factory from it with the given name.
-func GetStorageFactory(name string, host component.Host) (storage.Factory, error) {
-	ext, err := findExtension(host)
-	if err != nil {
-		return nil, err
-	}
-	f, ok := ext.TraceStorageFactory(name)
-	if !ok {
-		return nil, fmt.Errorf(
-			"cannot find definition of storage '%s' in the configuration for extension '%s'",
-			name, componentType,
-		)
-	}
-	return f, nil
-}
-
 // GetMetricStorageFactory locates the extension in Host and retrieves
 // a metric storage factory from it with the given name.
 func GetMetricStorageFactory(name string, host component.Host) (storage.MetricStoreFactory, error) {
@@ -75,9 +58,17 @@ func GetMetricStorageFactory(name string, host component.Host) (storage.MetricSt
 }
 
 func GetTraceStoreFactory(name string, host component.Host) (tracestore.Factory, error) {
-	f, err := GetStorageFactory(name, host)
+	ext, err := findExtension(host)
 	if err != nil {
 		return nil, err
+	}
+
+	f, ok := ext.TraceStorageFactory(name)
+	if !ok {
+		return nil, fmt.Errorf(
+			"cannot find definition of storage '%s' in the configuration for extension '%s'",
+			name, componentType,
+		)
 	}
 
 	return v1adapter.NewFactory(f), nil
