@@ -90,8 +90,8 @@ type TQualityMetrics struct {
 
 // BannerText stores the optional banner text with styling
 type BannerText struct {
-	Value   string                 `json:"value"`
-	Styling map[string]interface{} `json:"styling,omitempty"` // CSS properties as a map
+	Value   string         `json:"value"`
+	Styling map[string]any `json:"styling,omitempty"` // CSS properties as a map
 }
 
 // Score represents individual score entries.
@@ -128,20 +128,20 @@ type Detail struct {
 
 // ColumnDef represents column definitions in details.
 type ColumnDef struct {
-	Key         string                 `json:"key"`
-	Label       string                 `json:"label"`
-	PreventSort bool                   `json:"preventSort"`
-	Styling     map[string]interface{} `json:"styling,omitempty"` // CSS properties as a map
+	Key         string         `json:"key"`
+	Label       string         `json:"label"`
+	PreventSort bool           `json:"preventSort"`
+	Styling     map[string]any `json:"styling,omitempty"` // CSS properties as a map
 }
 
 // Row represents a single row of data in details.
-type Row map[string]interface{} // TRow is Record<string, TStyledValue | string | number | TExample[]>
+type Row map[string]any // TRow is Record<string, TStyledValue | string | number | TExample[]>
 
 // StyledValue represents a value that may include styling or a link.
 type StyledValue struct {
-	LinkTo  string                 `json:"linkTo"`
-	Styling map[string]interface{} `json:"styling"`
-	Value   interface{}            `json:"value"`
+	LinkTo  string         `json:"linkTo"`
+	Styling map[string]any `json:"styling"`
+	Value   any            `json:"value"`
 }
 
 // Example represents a sampe trace
@@ -637,7 +637,7 @@ func (aH *APIHandler) getQualityMetrics(w http.ResponseWriter, r *http.Request) 
 		TraceQualityDocumentationLink: "https://example.com/trace-quality-docs",
 		BannerText: &BannerText{
 			Value: "Currently, this is dummy text",
-			Styling: map[string]interface{}{
+			Styling: map[string]any{
 				"color":      "blue",
 				"fontWeight": "bold",
 			},
