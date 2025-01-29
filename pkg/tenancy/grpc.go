@@ -24,28 +24,27 @@ func (tss *tenantedServerStream) Context() context.Context {
 }
 
 func GetValidTenant(ctx context.Context, tm *Manager) (string, error) {
-	// Check if context directly has tenant attached
-	// Check for OTEL client' metadata
-	// Check for gRPC metadata
-	var tenant string
-	var err error
-	if tenant = GetTenant(ctx); tenant != "" {
-		if !tm.Valid(tenant) {
-			return "", status.Errorf(codes.PermissionDenied, "unknown tenant")
-		}
+	tenant, err := extractTenantFromSources(ctx, tm.Header)
+	if err != nil {
+		return "", err
+	}
+
+	if !tm.Valid(tenant) {
+		return "", status.Errorf(codes.PermissionDenied, "unknown tenant")
+	}
+
+	return tenant, nil
+}
+
+// helper function to extract tenant from different sources
+func extractTenantFromSources(ctx context.Context, header string) (string, error) {
+	if tenant := GetTenant(ctx); tenant != "" {
 		return tenant, nil
 	}
 
-	if cli := client.FromContext(ctx); cli.Metadata.Get(tm.Header) != nil {
-		if tenants := cli.Metadata.Get(tm.Header); len(tenants) > 0 {
-			tenant, err = extractSingleTenant(tenants)
-			if err != nil {
-				return "", err
-			}
-			if !tm.Valid(tenant) {
-				return "", status.Errorf(codes.PermissionDenied, "unknown tenant: %s", tenant)
-			}
-			return tenant, nil
+	if cli := client.FromContext(ctx); cli.Metadata.Get(header) != nil {
+		if tenants := cli.Metadata.Get(header); len(tenants) > 0 {
+			return extractSingleTenant(tenants)
 		}
 	}
 
@@ -54,14 +53,7 @@ func GetValidTenant(ctx context.Context, tm *Manager) (string, error) {
 		return "", status.Errorf(codes.PermissionDenied, "missing tenant header")
 	}
 
-	tenant, err = tenantFromMetadata(md, tm.Header)
-	if err != nil {
-		return "", err
-	}
-	if !tm.Valid(tenant) {
-		return "", status.Errorf(codes.PermissionDenied, "unknown tenant")
-	}
-	return tenant, nil
+	return extractSingleTenant(md.Get(header))
 }
 
 // Helper function for metadata extraction
