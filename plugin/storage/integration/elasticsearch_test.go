@@ -8,7 +8,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/jaegertracing/jaeger/model"
 	"net/http"
 	"strconv"
 	"strings"
