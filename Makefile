@@ -82,7 +82,6 @@ include Makefile.Crossdock.mk
 include Makefile.Docker.mk
 include Makefile.IntegrationTests.mk
 include Makefile.Protobuf.mk
-include Makefile.Thrift.mk
 include Makefile.Tools.mk
 include Makefile.Windows.mk
 
