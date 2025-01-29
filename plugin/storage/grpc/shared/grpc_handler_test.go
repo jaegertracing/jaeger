@@ -76,12 +76,6 @@ func withGRPCServer(fn func(r *grpcServerTest)) {
 		DependencyReader: func() dependencystore.Reader {
 			return mockPlugin.depsReader
 		},
-		ArchiveSpanReader: func() spanstore.Reader {
-			return mockPlugin.spanReader
-		},
-		ArchiveSpanWriter: func() spanstore.Writer {
-			return mockPlugin.spanWriter
-		},
 		StreamingSpanWriter: func() spanstore.Writer {
 			return mockPlugin.streamWriter
 		},
@@ -280,150 +274,11 @@ func TestGRPCServerGetDependencies(t *testing.T) {
 	})
 }
 
-func TestGRPCServerGetArchiveTrace(t *testing.T) {
-	withGRPCServer(func(r *grpcServerTest) {
-		traceSteam := new(grpcMocks.SpanReaderPlugin_GetTraceServer)
-		traceSteam.On("Context").Return(context.Background())
-		traceSteam.On("Send", &storage_v1.SpansResponseChunk{Spans: mockTraceSpans}).
-			Return(nil)
-
-		var traceSpans []*model.Span
-		for i := range mockTraceSpans {
-			traceSpans = append(traceSpans, &mockTraceSpans[i])
-		}
-		r.impl.spanReader.On("GetTrace", mock.Anything, spanstore.GetTraceParameters{TraceID: mockTraceID}).
-			Return(&model.Trace{Spans: traceSpans}, nil)
-
-		err := r.server.GetArchiveTrace(&storage_v1.GetTraceRequest{
-			TraceID: mockTraceID,
-		}, traceSteam)
-		require.NoError(t, err)
-	})
-}
-
-func TestGRPCServerGetArchiveTrace_NotFound(t *testing.T) {
-	withGRPCServer(func(r *grpcServerTest) {
-		traceSteam := new(grpcMocks.SpanReaderPlugin_GetTraceServer)
-		traceSteam.On("Context").Return(context.Background())
-
-		r.impl.spanReader.On("GetTrace", mock.Anything, spanstore.GetTraceParameters{TraceID: mockTraceID}).
-			Return(nil, spanstore.ErrTraceNotFound)
-
-		err := r.server.GetArchiveTrace(&storage_v1.GetTraceRequest{
-			TraceID: mockTraceID,
-		}, traceSteam)
-		assert.Equal(t, codes.NotFound, status.Code(err))
-	})
-}
-
-func TestGRPCServerGetArchiveTrace_Error(t *testing.T) {
-	withGRPCServer(func(r *grpcServerTest) {
-		traceSteam := new(grpcMocks.SpanReaderPlugin_GetTraceServer)
-		traceSteam.On("Context").Return(context.Background())
-
-		r.impl.spanReader.On("GetTrace", mock.Anything, spanstore.GetTraceParameters{TraceID: mockTraceID}).
-			Return(nil, errors.New("some error"))
-
-		err := r.server.GetArchiveTrace(&storage_v1.GetTraceRequest{
-			TraceID: mockTraceID,
-		}, traceSteam)
-		require.Error(t, err)
-	})
-}
-
-func TestGRPCServerGetArchiveTrace_NoImpl(t *testing.T) {
-	withGRPCServer(func(r *grpcServerTest) {
-		r.server.impl.ArchiveSpanReader = func() spanstore.Reader { return nil }
-		traceSteam := new(grpcMocks.SpanReaderPlugin_GetTraceServer)
-
-		r.impl.spanReader.On("GetTrace", mock.Anything, spanstore.GetTraceParameters{TraceID: mockTraceID}).
-			Return(nil, errors.New("some error"))
-
-		err := r.server.GetArchiveTrace(&storage_v1.GetTraceRequest{
-			TraceID: mockTraceID,
-		}, traceSteam)
-		assert.Equal(t, codes.Unimplemented, status.Code(err))
-	})
-}
-
-func TestGRPCServerGetArchiveTrace_StreamError(t *testing.T) {
-	withGRPCServer(func(r *grpcServerTest) {
-		traceSteam := new(grpcMocks.SpanReaderPlugin_GetTraceServer)
-		traceSteam.On("Context").Return(context.Background())
-		traceSteam.On("Send", &storage_v1.SpansResponseChunk{Spans: mockTraceSpans}).
-			Return(errors.New("some error"))
-
-		var traceSpans []*model.Span
-		for i := range mockTraceSpans {
-			traceSpans = append(traceSpans, &mockTraceSpans[i])
-		}
-		r.impl.spanReader.On("GetTrace", mock.Anything, spanstore.GetTraceParameters{TraceID: mockTraceID}).
-			Return(&model.Trace{Spans: traceSpans}, nil)
-
-		err := r.server.GetArchiveTrace(&storage_v1.GetTraceRequest{
-			TraceID: mockTraceID,
-		}, traceSteam)
-		require.Error(t, err)
-	})
-}
-
-func TestGRPCServerWriteArchiveSpan_NoImpl(t *testing.T) {
-	withGRPCServer(func(r *grpcServerTest) {
-		r.server.impl.ArchiveSpanWriter = func() spanstore.Writer { return nil }
-
-		_, err := r.server.WriteArchiveSpan(context.Background(), &storage_v1.WriteSpanRequest{
-			Span: &mockTraceSpans[0],
-		})
-		assert.Equal(t, codes.Unimplemented, status.Code(err))
-	})
-}
-
-func TestGRPCServerWriteArchiveSpan(t *testing.T) {
-	withGRPCServer(func(r *grpcServerTest) {
-		r.impl.spanWriter.On("WriteSpan", mock.Anything, &mockTraceSpans[0]).
-			Return(nil)
-
-		s, err := r.server.WriteArchiveSpan(context.Background(), &storage_v1.WriteSpanRequest{
-			Span: &mockTraceSpans[0],
-		})
-		require.NoError(t, err)
-		assert.Equal(t, &storage_v1.WriteSpanResponse{}, s)
-	})
-}
-
-func TestGRPCServerWriteArchiveSpan_Error(t *testing.T) {
-	withGRPCServer(func(r *grpcServerTest) {
-		r.impl.spanWriter.On("WriteSpan", mock.Anything, &mockTraceSpans[0]).
-			Return(errors.New("some error"))
-
-		_, err := r.server.WriteArchiveSpan(context.Background(), &storage_v1.WriteSpanRequest{
-			Span: &mockTraceSpans[0],
-		})
-		require.Error(t, err)
-	})
-}
-
 func TestGRPCServerCapabilities(t *testing.T) {
 	withGRPCServer(func(r *grpcServerTest) {
 		capabilities, err := r.server.Capabilities(context.Background(), &storage_v1.CapabilitiesRequest{})
 		require.NoError(t, err)
-		assert.Equal(t, &storage_v1.CapabilitiesResponse{ArchiveSpanReader: true, ArchiveSpanWriter: true, StreamingSpanWriter: true}, capabilities)
-	})
-}
-
-func TestGRPCServerCapabilities_NoArchive(t *testing.T) {
-	withGRPCServer(func(r *grpcServerTest) {
-		r.server.impl.ArchiveSpanReader = func() spanstore.Reader { return nil }
-		r.server.impl.ArchiveSpanWriter = func() spanstore.Writer { return nil }
-
-		capabilities, err := r.server.Capabilities(context.Background(), &storage_v1.CapabilitiesRequest{})
-		require.NoError(t, err)
-		expected := &storage_v1.CapabilitiesResponse{
-			ArchiveSpanReader:   false,
-			ArchiveSpanWriter:   false,
-			StreamingSpanWriter: true,
-		}
-		assert.Equal(t, expected, capabilities)
+		assert.Equal(t, &storage_v1.CapabilitiesResponse{ArchiveSpanReader: false, ArchiveSpanWriter: false, StreamingSpanWriter: true}, capabilities)
 	})
 }
 
@@ -433,10 +288,7 @@ func TestGRPCServerCapabilities_NoStreamWriter(t *testing.T) {
 
 		capabilities, err := r.server.Capabilities(context.Background(), &storage_v1.CapabilitiesRequest{})
 		require.NoError(t, err)
-		expected := &storage_v1.CapabilitiesResponse{
-			ArchiveSpanReader: true,
-			ArchiveSpanWriter: true,
-		}
+		expected := &storage_v1.CapabilitiesResponse{}
 		assert.Equal(t, expected, capabilities)
 	})
 }

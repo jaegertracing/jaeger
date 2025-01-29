@@ -8,8 +8,8 @@ import (
 	"context"
 	"sync"
 
-	"github.com/jaegertracing/jaeger/thrift-gen/jaeger"
-	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
+	"github.com/jaegertracing/jaeger-idl/thrift-gen/jaeger"
+	"github.com/jaegertracing/jaeger-idl/thrift-gen/zipkincore"
 )
 
 // InMemoryReporter collects spans in memory

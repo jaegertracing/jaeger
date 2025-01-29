@@ -15,8 +15,7 @@ func TestBadgerStorage(t *testing.T) {
 	s := &E2EStorageIntegration{
 		ConfigFile: "../../config-badger.yaml",
 		StorageIntegration: integration.StorageIntegration{
-			SkipArchiveTest: true,
-			CleanUp:         purge,
+			CleanUp: purge,
 
 			// TODO: remove this once badger supports returning spanKind from GetOperations
 			// Cf https://github.com/jaegertracing/jaeger/issues/1922

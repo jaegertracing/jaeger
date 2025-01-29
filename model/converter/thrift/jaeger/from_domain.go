@@ -8,7 +8,7 @@ import (
 	"fmt"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
-	"github.com/jaegertracing/jaeger/thrift-gen/jaeger"
+	"github.com/jaegertracing/jaeger-idl/thrift-gen/jaeger"
 )
 
 // FromDomain takes an array of model.Span and returns

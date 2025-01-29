@@ -38,12 +38,11 @@ type storageFactory interface {
 	CreateSpanReader() (spanstore.Reader, error)
 	CreateSpanWriter() (spanstore.Writer, error)
 	CreateDependencyReader() (dependencystore.Reader, error)
-	InitArchiveStorage(logger *zap.Logger) (spanstore.Reader, spanstore.Writer)
 }
 
 // NewServer creates and initializes Server.
 func NewServer(options *Options, storageFactory storageFactory, tm *tenancy.Manager, telset telemetry.Settings) (*Server, error) {
-	handler, err := createGRPCHandler(storageFactory, telset.Logger)
+	handler, err := createGRPCHandler(storageFactory)
 	if err != nil {
 		return nil, err
 	}
@@ -60,7 +59,7 @@ func NewServer(options *Options, storageFactory storageFactory, tm *tenancy.Mana
 	}, nil
 }
 
-func createGRPCHandler(f storageFactory, logger *zap.Logger) (*shared.GRPCHandler, error) {
+func createGRPCHandler(f storageFactory) (*shared.GRPCHandler, error) {
 	reader, err := f.CreateSpanReader()
 	if err != nil {
 		return nil, err
@@ -80,10 +79,6 @@ func createGRPCHandler(f storageFactory, logger *zap.Logger) (*shared.GRPCHandle
 		DependencyReader:    func() dependencystore.Reader { return depReader },
 		StreamingSpanWriter: func() spanstore.Writer { return nil },
 	}
-
-	ar, aw := f.InitArchiveStorage(logger)
-	impl.ArchiveSpanReader = func() spanstore.Reader { return ar }
-	impl.ArchiveSpanWriter = func() spanstore.Writer { return aw }
 
 	handler := shared.NewGRPCHandler(impl)
 	return handler, nil

@@ -22,13 +22,13 @@ import (
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/receiver"
 
+	"github.com/jaegertracing/jaeger-idl/thrift-gen/zipkincore"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/flags"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
 	zipkinthrift "github.com/jaegertracing/jaeger/model/converter/thrift/zipkin"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 	zipkin_proto3 "github.com/jaegertracing/jaeger/proto-gen/zipkin"
-	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 )
 
 func TestZipkinReceiver(t *testing.T) {

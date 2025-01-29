@@ -14,6 +14,7 @@ import (
 	"github.com/apache/thrift/lib/go/thrift"
 	"go.uber.org/zap"
 
+	agentThrift "github.com/jaegertracing/jaeger-idl/thrift-gen/agent"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/configmanager"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/httpserver"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/processors"
@@ -22,7 +23,6 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/agent/app/servers/thriftudp"
 	"github.com/jaegertracing/jaeger/internal/safeexpvar"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
-	agentThrift "github.com/jaegertracing/jaeger/thrift-gen/agent"
 )
 
 const (
