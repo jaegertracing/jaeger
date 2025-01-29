@@ -7,7 +7,7 @@ package dbmodel
 import (
 	"strings"
 
-	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 )
 
 // NewFromDomain creates FromDomain used to convert model span to db span

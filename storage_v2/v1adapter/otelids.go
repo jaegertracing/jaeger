@@ -2,43 +2,48 @@
 // Copyright (c) 2018 Uber Technologies, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-package model
+package v1adapter
 
 import (
 	"encoding/binary"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
+
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 )
 
-// ToOTELTraceID converts the TraceID to OTEL's representation of a trace identitfier.
+// FromV1TraceID converts the TraceID to OTEL's representation of a trace identitfier.
 // This was taken from
 // https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/internal/coreinternal/idutils/big_endian_converter.go.
-func (t *TraceID) ToOTELTraceID() pcommon.TraceID {
+func FromV1TraceID(t model.TraceID) pcommon.TraceID {
 	traceID := [16]byte{}
 	binary.BigEndian.PutUint64(traceID[:8], t.High)
 	binary.BigEndian.PutUint64(traceID[8:], t.Low)
 	return traceID
 }
 
-func TraceIDFromOTEL(traceID pcommon.TraceID) TraceID {
-	return TraceID{
+func ToV1TraceID(traceID pcommon.TraceID) model.TraceID {
+	// traceIDShortBytesLen indicates length of 64bit traceID when represented as list of bytes
+	const traceIDShortBytesLen = 8
+
+	return model.TraceID{
 		High: binary.BigEndian.Uint64(traceID[:traceIDShortBytesLen]),
 		Low:  binary.BigEndian.Uint64(traceID[traceIDShortBytesLen:]),
 	}
 }
 
-// ToOTELSpanID converts the SpanID to OTEL's representation of a span identitfier.
+// FromV1SpanID converts the SpanID to OTEL's representation of a span identitfier.
 // This was taken from
 // https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/internal/coreinternal/idutils/big_endian_converter.go.
-func (s SpanID) ToOTELSpanID() pcommon.SpanID {
+func FromV1SpanID(s model.SpanID) pcommon.SpanID {
 	spanID := [8]byte{}
 	binary.BigEndian.PutUint64(spanID[:], uint64(s))
 	return pcommon.SpanID(spanID)
 }
 
-// ToOTELSpanID converts OTEL's SpanID to the model representation of a span identitfier.
+// ToV1SpanID converts OTEL's SpanID to the model representation of a span identitfier.
 // This was taken from
 // https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/internal/coreinternal/idutils/big_endian_converter.go.
-func SpanIDFromOTEL(spanID pcommon.SpanID) SpanID {
-	return SpanID(binary.BigEndian.Uint64(spanID[:]))
+func ToV1SpanID(spanID pcommon.SpanID) model.SpanID {
+	return model.SpanID(binary.BigEndian.Uint64(spanID[:]))
 }

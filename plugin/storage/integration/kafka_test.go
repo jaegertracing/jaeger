@@ -15,9 +15,9 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/cmd/ingester/app"
 	"github.com/jaegertracing/jaeger/cmd/ingester/app/builder"
-	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/kafka/consumer"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
@@ -95,7 +95,6 @@ func (s *KafkaIntegrationTestSuite) initialize(t *testing.T) {
 	s.TraceReader = v1adapter.NewTraceReader(spanReader)
 	s.TraceWriter = v1adapter.NewTraceWriter(spanWriter)
 	s.CleanUp = func(_ *testing.T) {}
-	s.SkipArchiveTest = true
 }
 
 // The ingester consumes spans from kafka and writes them to an in-memory traceStore

@@ -7,8 +7,8 @@ package jaeger
 import (
 	"fmt"
 
-	"github.com/jaegertracing/jaeger/model"
-	"github.com/jaegertracing/jaeger/thrift-gen/jaeger"
+	"github.com/jaegertracing/jaeger-idl/model/v1"
+	"github.com/jaegertracing/jaeger-idl/thrift-gen/jaeger"
 )
 
 // ToDomain transforms a set of spans and a process in jaeger.thrift format into a slice of model.Span.

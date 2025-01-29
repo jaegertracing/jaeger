@@ -10,7 +10,7 @@ package mocks
 import (
 	context "context"
 
-	model "github.com/jaegertracing/jaeger/model"
+	model "github.com/jaegertracing/jaeger-idl/model/v1"
 	mock "github.com/stretchr/testify/mock"
 )
 

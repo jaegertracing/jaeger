@@ -15,6 +15,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc"
+	"github.com/jaegertracing/jaeger/ports"
 	"github.com/jaegertracing/jaeger/storage_v2/v1adapter"
 )
 
@@ -27,14 +28,16 @@ type GRPCStorageIntegrationTestSuite struct {
 
 func (s *GRPCStorageIntegrationTestSuite) initialize(t *testing.T) {
 	logger := zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller()))
-	s.remoteStorage = StartNewRemoteMemoryStorage(t)
+	s.remoteStorage = StartNewRemoteMemoryStorage(t, ports.RemoteStorageGRPC)
 
+	initFactory := func(f *grpc.Factory, flags []string) {
+		v, command := config.Viperize(f.AddFlags)
+		require.NoError(t, command.ParseFlags(flags))
+		f.InitFromViper(v, logger)
+		require.NoError(t, f.Initialize(metrics.NullFactory, logger))
+	}
 	f := grpc.NewFactory()
-	v, command := config.Viperize(f.AddFlags)
-	err := command.ParseFlags(s.flags)
-	require.NoError(t, err)
-	f.InitFromViper(v, logger)
-	require.NoError(t, f.Initialize(metrics.NullFactory, logger))
+	initFactory(f, s.flags)
 	s.factory = f
 
 	spanWriter, err := f.CreateSpanWriter()
@@ -43,10 +46,6 @@ func (s *GRPCStorageIntegrationTestSuite) initialize(t *testing.T) {
 	spanReader, err := f.CreateSpanReader()
 	require.NoError(t, err)
 	s.TraceReader = v1adapter.NewTraceReader(spanReader)
-	s.ArchiveSpanReader, err = f.CreateArchiveSpanReader()
-	require.NoError(t, err)
-	s.ArchiveSpanWriter, err = f.CreateArchiveSpanWriter()
-	require.NoError(t, err)
 
 	// TODO DependencyWriter is not implemented in grpc store
 

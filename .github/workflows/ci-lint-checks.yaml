@@ -86,10 +86,7 @@ jobs:
         go-version: 1.23.x
 
     - name: Verify Protobuf types are up to date
-      run: make proto && git diff --name-status --exit-code
-
-    - name: Verify Thrift types are up to date
-      run: make thrift && git diff --name-status --exit-code
+      run: make proto && { if git status --porcelain | grep '??'; then exit 1; else git diff --name-status --exit-code; fi }
 
     - name: Verify Mockery types are up to date
       run: make generate-mocks && { if git status --porcelain | grep '??'; then exit 1; else git diff --name-status --exit-code; fi }
@@ -116,7 +113,7 @@ jobs:
 
     - name: Run unit tests for scripts
       run: |
-        SHUNIT2=.tools/shunit2 bash scripts/utils/compute-tags.test.sh
+        SHUNIT2=.tools/shunit2 bash scripts/utils/run-tests.sh
 
   binary-size-check:
     runs-on: ubuntu-latest

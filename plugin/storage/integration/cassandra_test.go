@@ -43,9 +43,9 @@ func (s *CassandraStorageIntegration) cleanUp(t *testing.T) {
 	require.NoError(t, s.factory.Purge(context.Background()))
 }
 
-func (*CassandraStorageIntegration) initializeCassandraFactory(t *testing.T, flags []string) *cassandra.Factory {
+func (*CassandraStorageIntegration) initializeCassandraFactory(t *testing.T, flags []string, factoryInit func() *cassandra.Factory) *cassandra.Factory {
 	logger := zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller()))
-	f := cassandra.NewFactory()
+	f := factoryInit()
 	v, command := config.Viperize(f.AddFlags)
 	require.NoError(t, command.ParseFlags(flags))
 	f.InitFromViper(v, logger)
@@ -64,13 +64,7 @@ func (s *CassandraStorageIntegration) initializeCassandra(t *testing.T) {
 		"--cassandra.password=" + password,
 		"--cassandra.username=" + username,
 		"--cassandra.keyspace=jaeger_v1_dc1",
-		"--cassandra-archive.keyspace=jaeger_v1_dc1_archive",
-		"--cassandra-archive.enabled=true",
-		"--cassandra-archive.servers=127.0.0.1",
-		"--cassandra-archive.basic.allowed-authenticators=org.apache.cassandra.auth.PasswordAuthenticator",
-		"--cassandra-archive.password=" + password,
-		"--cassandra-archive.username=" + username,
-	})
+	}, cassandra.NewFactory)
 	s.factory = f
 	var err error
 	spanWriter, err := f.CreateSpanWriter()
@@ -79,10 +73,6 @@ func (s *CassandraStorageIntegration) initializeCassandra(t *testing.T) {
 	spanReader, err := f.CreateSpanReader()
 	require.NoError(t, err)
 	s.TraceReader = v1adapter.NewTraceReader(spanReader)
-	s.ArchiveSpanReader, err = f.CreateArchiveSpanReader()
-	require.NoError(t, err)
-	s.ArchiveSpanWriter, err = f.CreateArchiveSpanWriter()
-	require.NoError(t, err)
 	s.SamplingStore, err = f.CreateSamplingStore(0)
 	require.NoError(t, err)
 	s.initializeDependencyReaderAndWriter(t, f)

@@ -58,7 +58,6 @@ func TestKafkaStorage(t *testing.T) {
 				StorageIntegration: integration.StorageIntegration{
 					CleanUp:                      purge,
 					GetDependenciesReturnsSource: true,
-					SkipArchiveTest:              true,
 				},
 				EnvVarOverrides: envVarOverrides,
 			}

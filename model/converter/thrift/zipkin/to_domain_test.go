@@ -21,8 +21,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/jaegertracing/jaeger/model"
-	z "github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
+	"github.com/jaegertracing/jaeger-idl/model/v1"
+	z "github.com/jaegertracing/jaeger-idl/thrift-gen/zipkincore"
 )
 
 const NumberOfFixtures = 3

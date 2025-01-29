@@ -18,12 +18,12 @@ build: clean-jaeger
 # starts up the system required for SPM using the latest otel image and a development jaeger image.
 # Note: the jaeger "dev" image can be built with "make build".
 .PHONY: dev
-dev: export JAEGER_IMAGE_TAG = dev
+dev: export JAEGER_VERSION = dev
 dev: 
 	docker compose up $(DOCKER_COMPOSE_ARGS)
 
 .PHONY: dev-v1
-dev-v1: export JAEGER_IMAGE_TAG = dev
+dev-v1: export JAEGER_VERSION = dev
 dev-v1: export BINARY = all-in-one
 dev-v1: build
 	docker compose -f docker-compose-v1.yml up $(DOCKER_COMPOSE_ARGS)

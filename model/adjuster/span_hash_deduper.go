@@ -4,7 +4,7 @@
 package adjuster
 
 import (
-	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 )
 
 // DedupeBySpanHash returns an adjuster that removes all but one span with the same hashcode.

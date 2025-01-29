@@ -21,11 +21,13 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/plugin/storage/es"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
+	"github.com/jaegertracing/jaeger/storage_v2/tracestore"
 	"github.com/jaegertracing/jaeger/storage_v2/v1adapter"
 )
 
@@ -52,7 +54,11 @@ type ESStorageIntegration struct {
 	client   *elastic.Client
 	v8Client *elasticsearch8.Client
 
-	factory *es.Factory
+	ArchiveTraceReader tracestore.Reader
+	ArchiveTraceWriter tracestore.Writer
+
+	factory        *es.Factory
+	archiveFactory *es.Factory
 }
 
 func (s *ESStorageIntegration) getVersion() (uint, error) {
@@ -100,25 +106,13 @@ func (s *ESStorageIntegration) initializeES(t *testing.T, c *http.Client, allTag
 
 func (s *ESStorageIntegration) esCleanUp(t *testing.T) {
 	require.NoError(t, s.factory.Purge(context.Background()))
+	require.NoError(t, s.archiveFactory.Purge(context.Background()))
 }
 
-func (*ESStorageIntegration) initializeESFactory(t *testing.T, allTagsAsFields bool) *es.Factory {
+func (*ESStorageIntegration) initializeESFactory(t *testing.T, args []string, factoryInit func() *es.Factory) *es.Factory {
 	logger := zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller()))
-	f := es.NewFactory()
+	f := factoryInit()
 	v, command := config.Viperize(f.AddFlags)
-	args := []string{
-		fmt.Sprintf("--es.num-shards=%v", 5),
-		fmt.Sprintf("--es.num-replicas=%v", 1),
-		fmt.Sprintf("--es.index-prefix=%v", indexPrefix),
-		fmt.Sprintf("--es.use-ilm=%v", false),
-		fmt.Sprintf("--es.service-cache-ttl=%v", 1*time.Second),
-		fmt.Sprintf("--es.tags-as-fields.all=%v", allTagsAsFields),
-		fmt.Sprintf("--es.bulk.actions=%v", 1),
-		fmt.Sprintf("--es.bulk.flush-interval=%v", time.Nanosecond),
-		"--es-archive.enabled=true",
-		fmt.Sprintf("--es-archive.tags-as-fields.all=%v", allTagsAsFields),
-		fmt.Sprintf("--es-archive.index-prefix=%v", indexPrefix),
-	}
 	require.NoError(t, command.ParseFlags(args))
 	f.InitFromViper(v, logger)
 	require.NoError(t, f.Initialize(metrics.NullFactory, logger))
@@ -130,8 +124,23 @@ func (*ESStorageIntegration) initializeESFactory(t *testing.T, allTagsAsFields b
 }
 
 func (s *ESStorageIntegration) initSpanstore(t *testing.T, allTagsAsFields bool) {
-	f := s.initializeESFactory(t, allTagsAsFields)
+	f := s.initializeESFactory(t, []string{
+		fmt.Sprintf("--es.num-shards=%v", 5),
+		fmt.Sprintf("--es.num-replicas=%v", 1),
+		fmt.Sprintf("--es.index-prefix=%v", indexPrefix),
+		fmt.Sprintf("--es.use-ilm=%v", false),
+		fmt.Sprintf("--es.service-cache-ttl=%v", 1*time.Second),
+		fmt.Sprintf("--es.tags-as-fields.all=%v", allTagsAsFields),
+		fmt.Sprintf("--es.bulk.actions=%v", 1),
+		fmt.Sprintf("--es.bulk.flush-interval=%v", time.Nanosecond),
+	}, es.NewFactory)
+	af := s.initializeESFactory(t, []string{
+		"--es-archive.enabled=true",
+		fmt.Sprintf("--es-archive.tags-as-fields.all=%v", allTagsAsFields),
+		fmt.Sprintf("--es-archive.index-prefix=%v", indexPrefix),
+	}, es.NewArchiveFactory)
 	s.factory = f
+	s.archiveFactory = af
 	var err error
 	spanWriter, err := f.CreateSpanWriter()
 	require.NoError(t, err)
@@ -139,10 +148,12 @@ func (s *ESStorageIntegration) initSpanstore(t *testing.T, allTagsAsFields bool)
 	spanReader, err := f.CreateSpanReader()
 	require.NoError(t, err)
 	s.TraceReader = v1adapter.NewTraceReader(spanReader)
-	s.ArchiveSpanReader, err = f.CreateArchiveSpanReader()
+	archiveSpanReader, err := af.CreateSpanReader()
 	require.NoError(t, err)
-	s.ArchiveSpanWriter, err = f.CreateArchiveSpanWriter()
+	s.ArchiveTraceReader = v1adapter.NewTraceReader(archiveSpanReader)
+	archiveSpanWriter, err := af.CreateSpanWriter()
 	require.NoError(t, err)
+	s.ArchiveTraceWriter = v1adapter.NewTraceWriter(archiveSpanWriter)
 
 	dependencyReader, err := f.CreateDependencyReader()
 	require.NoError(t, err)
@@ -170,8 +181,7 @@ func testElasticsearchStorage(t *testing.T, allTagsAsFields bool) {
 	require.NoError(t, healthCheck(c))
 	s := &ESStorageIntegration{
 		StorageIntegration: StorageIntegration{
-			Fixtures:        LoadAndParseQueryTestCases(t, "fixtures/queries_es.json"),
-			SkipArchiveTest: false,
+			Fixtures: LoadAndParseQueryTestCases(t, "fixtures/queries_es.json"),
 			// TODO: remove this flag after ES supports returning spanKind
 			//  Issue https://github.com/jaegertracing/jaeger/issues/1923
 			GetOperationsMissingSpanKind: true,
@@ -179,6 +189,7 @@ func testElasticsearchStorage(t *testing.T, allTagsAsFields bool) {
 	}
 	s.initializeES(t, c, allTagsAsFields)
 	s.RunAll(t)
+	t.Run("ArchiveTrace", s.testArchiveTrace)
 }
 
 func TestElasticsearchStorage(t *testing.T) {
@@ -244,4 +255,42 @@ func (s *ESStorageIntegration) cleanESIndexTemplates(t *testing.T, prefix string
 		require.NoError(t, err)
 	}
 	return nil
+}
+
+// testArchiveTrace validates that a trace with a start time older than maxSpanAge
+// can still be retrieved via the archive storage. This ensures archived traces are
+// accessible even when their age exceeds the retention period for primary storage.
+// This test applies only to Elasticsearch (ES) storage.
+func (s *ESStorageIntegration) testArchiveTrace(t *testing.T) {
+	s.skipIfNeeded(t)
+	defer s.cleanUp(t)
+	tID := model.NewTraceID(uint64(11), uint64(22))
+	expected := &model.Trace{
+		Spans: []*model.Span{
+			{
+				OperationName: "archive_span",
+				StartTime:     time.Now().Add(-maxSpanAge * 5).Truncate(time.Microsecond),
+				TraceID:       tID,
+				SpanID:        model.NewSpanID(55),
+				References:    []model.SpanRef{},
+				Process:       model.NewProcess("archived_service", model.KeyValues{}),
+			},
+		},
+	}
+
+	require.NoError(t, s.ArchiveTraceWriter.WriteTraces(context.Background(), v1adapter.V1TraceToOtelTrace(expected)))
+
+	var actual *model.Trace
+	found := s.waitForCondition(t, func(_ *testing.T) bool {
+		var err error
+		iterTraces := s.ArchiveTraceReader.GetTraces(context.Background(), tracestore.GetTraceParams{TraceID: v1adapter.FromV1TraceID(tID)})
+		traces, err := v1adapter.V1TracesFromSeq2(iterTraces)
+		if len(traces) == 0 {
+			return false
+		}
+		actual = traces[0]
+		return err == nil && len(actual.Spans) == 1
+	})
+	require.True(t, found)
+	CompareTraces(t, expected, actual)
 }

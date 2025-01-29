@@ -6,8 +6,8 @@ package server
 import (
 	"context"
 
+	"github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
-	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 )
 
 type mockSamplingProvider struct{}
