@@ -19,6 +19,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
 	"github.com/jaegertracing/jaeger/storage"
+	"github.com/jaegertracing/jaeger/storage_v2/v1adapter"
 )
 
 var (
@@ -55,7 +56,11 @@ func (c *storageCleaner) Start(_ context.Context, host component.Host) error {
 		if !ok {
 			return fmt.Errorf("storage %s does not implement Purger interface", c.config.TraceStorage)
 		}
-		if err := purger.Purge(httpContext); err != nil {
+		err = purger.Purge(httpContext)
+		if errors.Is(err, v1adapter.ErrPurgerNotImplemented) {
+			return fmt.Errorf("storage %s does not implement Purger interface", c.config.TraceStorage)
+		}
+		if err != nil {
 			return fmt.Errorf("error purging storage: %w", err)
 		}
 		return nil

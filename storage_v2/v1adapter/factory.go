@@ -15,6 +15,11 @@ import (
 	"github.com/jaegertracing/jaeger/storage_v2/tracestore"
 )
 
+var (
+	ErrPurgerNotImplemented        = errors.New("storage backend does not support Purger")
+	ErrSamplingStoreNotImplemented = errors.New("storage backend does not support sampling store")
+)
+
 type Factory struct {
 	ss storage_v1.Factory
 }
@@ -69,7 +74,7 @@ func (f *Factory) CreateDependencyReader() (depstore.Reader, error) {
 func (f *Factory) CreateLock() (distributedlock.Lock, error) {
 	ss, ok := f.ss.(storage_v1.SamplingStoreFactory)
 	if !ok {
-		return nil, errors.New("storage backend does not support sampling store")
+		return nil, ErrSamplingStoreNotImplemented
 	}
 	lock, err := ss.CreateLock()
 	return lock, err
@@ -79,7 +84,7 @@ func (f *Factory) CreateLock() (distributedlock.Lock, error) {
 func (f *Factory) CreateSamplingStore(maxBuckets int) (samplingstore.Store, error) {
 	ss, ok := f.ss.(storage_v1.SamplingStoreFactory)
 	if !ok {
-		return nil, errors.New("storage backend does not support sampling store")
+		return nil, ErrSamplingStoreNotImplemented
 	}
 	store, err := ss.CreateSamplingStore(maxBuckets)
 	return store, err
@@ -89,7 +94,7 @@ func (f *Factory) CreateSamplingStore(maxBuckets int) (samplingstore.Store, erro
 func (f *Factory) Purge(ctx context.Context) error {
 	p, ok := f.ss.(storage_v1.Purger)
 	if !ok {
-		return errors.New("storage backend does not support Purger")
+		return ErrPurgerNotImplemented
 	}
 	err := p.Purge(ctx)
 	return err

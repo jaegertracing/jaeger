@@ -31,6 +31,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/samplingstore"
+	"github.com/jaegertracing/jaeger/storage_v2/v1adapter"
 )
 
 var _ extension.Extension = (*rsExtension)(nil)
@@ -195,6 +196,9 @@ func (ext *rsExtension) startAdaptiveStrategyProvider(host component.Host) error
 	}
 
 	store, err := storeFactory.CreateSamplingStore(ext.cfg.Adaptive.AggregationBuckets)
+	if errors.Is(err, v1adapter.ErrSamplingStoreNotImplemented) {
+		return fmt.Errorf("storage '%s' does not support sampling store", storageName)
+	}
 	if err != nil {
 		return fmt.Errorf("failed to create the sampling store: %w", err)
 	}
@@ -202,6 +206,9 @@ func (ext *rsExtension) startAdaptiveStrategyProvider(host component.Host) error
 
 	{
 		lock, err := storeFactory.CreateLock()
+		if errors.Is(err, v1adapter.ErrSamplingStoreNotImplemented) {
+			return fmt.Errorf("storage '%s' does not support sampling store", storageName)
+		}
 		if err != nil {
 			return fmt.Errorf("failed to create the distributed lock: %w", err)
 		}
