@@ -46,7 +46,7 @@ SCRIPTS_SRC = $(shell find . \( -name '*.sh' -o -name '*.py' -o -name '*.mk' -o 
 					sort)
 
 # ALL_PKGS is used with 'nocover' and 'goleak'
-ALL_PKGS = $(shell echo $(dir $(ALL_SRC)) | tr ' ' '\n' | sort -u)
+ALL_PKGS = $(shell echo $(dir $(ALL_SRC)) | tr ' ' '\n' | grep -v '/.*-gen/' | sort -u)
 
 GO=go
 GOOS ?= $(shell $(GO) env GOOS)
