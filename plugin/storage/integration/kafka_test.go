@@ -95,7 +95,6 @@ func (s *KafkaIntegrationTestSuite) initialize(t *testing.T) {
 	s.TraceReader = v1adapter.NewTraceReader(spanReader)
 	s.TraceWriter = v1adapter.NewTraceWriter(spanWriter)
 	s.CleanUp = func(_ *testing.T) {}
-	s.SkipArchiveTest = true
 }
 
 // The ingester consumes spans from kafka and writes them to an in-memory traceStore
