@@ -15,11 +15,9 @@ import (
 )
 
 // (needed to ensure safety because of naive import list construction.)
-var (
-	_ = thrift.ZERO
-	_ = fmt.Printf
-	_ = bytes.Equal
-)
+var _ = thrift.ZERO
+var _ = fmt.Printf
+var _ = bytes.Equal
 
 var GoUnusedProtection__ int
 
@@ -63,7 +61,6 @@ func NewProbabilisticSamplingStrategy() *ProbabilisticSamplingStrategy {
 func (p *ProbabilisticSamplingStrategy) GetSamplingRate() float64 {
 	return p.SamplingRate
 }
-
 func (p *ProbabilisticSamplingStrategy) Read(iprot thrift.TProtocol) error {
 	ctx := context.Background()
 	if _, err := iprot.ReadStructBegin(ctx); err != nil {
@@ -155,7 +152,6 @@ func NewRateLimitingSamplingStrategy() *RateLimitingSamplingStrategy {
 func (p *RateLimitingSamplingStrategy) GetMaxTracesPerSecond() int16 {
 	return p.MaxTracesPerSecond
 }
-
 func (p *RateLimitingSamplingStrategy) Read(iprot thrift.TProtocol) error {
 	ctx := context.Background()
 	if _, err := iprot.ReadStructBegin(ctx); err != nil {
@@ -257,7 +253,6 @@ func (p *OperationSamplingStrategy) GetProbabilisticSampling() *ProbabilisticSam
 	}
 	return p.ProbabilisticSampling
 }
-
 func (p *OperationSamplingStrategy) IsSetProbabilisticSampling() bool {
 	return p.ProbabilisticSampling != nil
 }
@@ -392,7 +387,6 @@ func (p *PerOperationSamplingStrategies) GetDefaultLowerBoundTracesPerSecond() f
 func (p *PerOperationSamplingStrategies) GetPerOperationStrategies() []*OperationSamplingStrategy {
 	return p.PerOperationStrategies
 }
-
 func (p *PerOperationSamplingStrategies) Read(iprot thrift.TProtocol) error {
 	ctx := context.Background()
 	if _, err := iprot.ReadStructBegin(ctx); err != nil {
@@ -594,7 +588,6 @@ func (p *SamplingStrategyResponse) GetOperationSampling() *PerOperationSamplingS
 	}
 	return p.OperationSampling
 }
-
 func (p *SamplingStrategyResponse) IsSetProbabilisticSampling() bool {
 	return p.ProbabilisticSampling != nil
 }
