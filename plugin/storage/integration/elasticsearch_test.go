@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/jaegertracing/jaeger/model"
 	"net/http"
 	"strconv"
 	"strings"
@@ -181,8 +182,7 @@ func testElasticsearchStorage(t *testing.T, allTagsAsFields bool) {
 	require.NoError(t, healthCheck(c))
 	s := &ESStorageIntegration{
 		StorageIntegration: StorageIntegration{
-			Fixtures:        LoadAndParseQueryTestCases(t, "fixtures/queries_es.json"),
-			SkipArchiveTest: false,
+			Fixtures: LoadAndParseQueryTestCases(t, "fixtures/queries_es.json"),
 		},
 	}
 	s.initializeES(t, c, allTagsAsFields)
