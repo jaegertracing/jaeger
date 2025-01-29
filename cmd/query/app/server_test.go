@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"testing"
@@ -916,6 +917,21 @@ func TestServerHTTP_TracesRequest(t *testing.T) {
 			client := &http.Client{}
 			resp, err := client.Do(req)
 			require.NoError(t, err)
+
+			var fullResponse bytes.Buffer
+
+			buf := make([]byte, 1024)
+			for {
+				n, err := resp.Body.Read(buf)
+
+				if n > 0 {
+					fullResponse.Write(buf[:n])
+				}
+
+				if err == io.EOF {
+					break
+				}
+			}
 
 			if test.expectedTrace != "" {
 				assert.Len(t, exporter.GetSpans(), 1, "HTTP request was traced and span reported")
