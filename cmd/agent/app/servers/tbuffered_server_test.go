@@ -16,12 +16,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/jaegertracing/jaeger-idl/thrift-gen/agent"
+	"github.com/jaegertracing/jaeger-idl/thrift-gen/zipkincore"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/customtransport"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/servers/thriftudp"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/testutils"
 	"github.com/jaegertracing/jaeger/internal/metricstest"
-	"github.com/jaegertracing/jaeger/thrift-gen/agent"
-	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 )
 
 func TestTBufferedServerSendReceive(t *testing.T) {

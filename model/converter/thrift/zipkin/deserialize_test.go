@@ -10,7 +10,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
+	"github.com/jaegertracing/jaeger-idl/thrift-gen/zipkincore"
 )
 
 func TestDeserializeWithBadListStart(t *testing.T) {

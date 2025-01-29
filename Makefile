@@ -33,7 +33,6 @@ ALL_SRC = $(shell find . -name '*.go' \
 				   -not -path './internal/tools/*' \
 				   -not -path './docker/debug/*' \
 				   -not -path '*/mocks/*' \
-				   -not -path '*/*-gen/*' \
 				   -not -path '*/thrift-0.9.2/*' \
 				   -type f | \
 				sort)
@@ -47,7 +46,7 @@ SCRIPTS_SRC = $(shell find . \( -name '*.sh' -o -name '*.py' -o -name '*.mk' -o 
 					sort)
 
 # ALL_PKGS is used with 'nocover' and 'goleak'
-ALL_PKGS = $(shell echo $(dir $(ALL_SRC)) | tr ' ' '\n' | sort -u)
+ALL_PKGS = $(shell echo $(dir $(ALL_SRC)) | tr ' ' '\n' | grep -v '/.*-gen/' | sort -u)
 
 GO=go
 GOOS ?= $(shell $(GO) env GOOS)
@@ -82,7 +81,6 @@ include Makefile.Crossdock.mk
 include Makefile.Docker.mk
 include Makefile.IntegrationTests.mk
 include Makefile.Protobuf.mk
-include Makefile.Thrift.mk
 include Makefile.Tools.mk
 include Makefile.Windows.mk
 

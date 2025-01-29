@@ -21,18 +21,14 @@ import (
 
 type GRPCStorageIntegrationTestSuite struct {
 	StorageIntegration
-	flags                []string
-	archiveFlags         []string
-	factory              *grpc.Factory
-	archiveFactory       *grpc.Factory
-	remoteStorage        *RemoteMemoryStorage
-	archiveRemoteStorage *RemoteMemoryStorage
+	flags         []string
+	factory       *grpc.Factory
+	remoteStorage *RemoteMemoryStorage
 }
 
 func (s *GRPCStorageIntegrationTestSuite) initialize(t *testing.T) {
 	logger := zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller()))
 	s.remoteStorage = StartNewRemoteMemoryStorage(t, ports.RemoteStorageGRPC)
-	s.archiveRemoteStorage = StartNewRemoteMemoryStorage(t, ports.RemoteStorageGRPC+1)
 
 	initFactory := func(f *grpc.Factory, flags []string) {
 		v, command := config.Viperize(f.AddFlags)
@@ -41,11 +37,8 @@ func (s *GRPCStorageIntegrationTestSuite) initialize(t *testing.T) {
 		require.NoError(t, f.Initialize(metrics.NullFactory, logger))
 	}
 	f := grpc.NewFactory()
-	af := grpc.NewArchiveFactory()
 	initFactory(f, s.flags)
-	initFactory(af, s.archiveFlags)
 	s.factory = f
-	s.archiveFactory = af
 
 	spanWriter, err := f.CreateSpanWriter()
 	require.NoError(t, err)
@@ -53,10 +46,6 @@ func (s *GRPCStorageIntegrationTestSuite) initialize(t *testing.T) {
 	spanReader, err := f.CreateSpanReader()
 	require.NoError(t, err)
 	s.TraceReader = v1adapter.NewTraceReader(spanReader)
-	s.ArchiveSpanReader, err = af.CreateSpanReader()
-	require.NoError(t, err)
-	s.ArchiveSpanWriter, err = af.CreateSpanWriter()
-	require.NoError(t, err)
 
 	// TODO DependencyWriter is not implemented in grpc store
 
@@ -65,9 +54,7 @@ func (s *GRPCStorageIntegrationTestSuite) initialize(t *testing.T) {
 
 func (s *GRPCStorageIntegrationTestSuite) close(t *testing.T) {
 	require.NoError(t, s.factory.Close())
-	require.NoError(t, s.archiveFactory.Close())
 	s.remoteStorage.Close(t)
-	s.archiveRemoteStorage.Close(t)
 }
 
 func (s *GRPCStorageIntegrationTestSuite) cleanUp(t *testing.T) {
@@ -84,11 +71,6 @@ func TestGRPCRemoteStorage(t *testing.T) {
 		flags: []string{
 			"--grpc-storage.server=localhost:17271",
 			"--grpc-storage.tls.enabled=false",
-		},
-		archiveFlags: []string{
-			"--grpc-storage-archive.enabled=true",
-			"--grpc-storage-archive.server=localhost:17272",
-			"--grpc-storage-archive.tls.enabled=false",
 		},
 	}
 	s.initialize(t)

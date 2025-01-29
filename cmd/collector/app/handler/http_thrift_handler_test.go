@@ -22,7 +22,7 @@ import (
 	jaegerClient "github.com/uber/jaeger-client-go"
 	"github.com/uber/jaeger-client-go/transport"
 
-	"github.com/jaegertracing/jaeger/thrift-gen/jaeger"
+	"github.com/jaegertracing/jaeger-idl/thrift-gen/jaeger"
 )
 
 var (

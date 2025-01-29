@@ -160,7 +160,7 @@ func TestCreateGRPCHandler(t *testing.T) {
 		depReader: depReader,
 	}
 
-	h, err := createGRPCHandler(f, zap.NewNop())
+	h, err := createGRPCHandler(f)
 	require.NoError(t, err)
 
 	writer.On("WriteSpan", mock.Anything, mock.Anything).Return(errors.New("writer error"))
@@ -175,12 +175,6 @@ func TestCreateGRPCHandler(t *testing.T) {
 	).Return(nil, errors.New("deps error"))
 	_, err = h.GetDependencies(context.Background(), &storage_v1.GetDependenciesRequest{})
 	require.ErrorContains(t, err, "deps error")
-
-	err = h.GetArchiveTrace(nil, nil)
-	require.ErrorContains(t, err, "not implemented")
-
-	_, err = h.WriteArchiveSpan(context.Background(), nil)
-	require.ErrorContains(t, err, "not implemented")
 
 	err = h.WriteSpanStream(nil)
 	assert.ErrorContains(t, err, "not implemented")
@@ -449,8 +443,6 @@ func validateGRPCServer(t *testing.T, hostPort string) {
 			"jaeger.storage.v1.SpanWriterPlugin",
 			"jaeger.storage.v1.DependenciesReaderPlugin",
 			"jaeger.storage.v1.PluginCapabilities",
-			"jaeger.storage.v1.ArchiveSpanReaderPlugin",
-			"jaeger.storage.v1.ArchiveSpanWriterPlugin",
 			"jaeger.storage.v1.StreamingSpanWriterPlugin",
 			"grpc.health.v1.Health",
 		},
