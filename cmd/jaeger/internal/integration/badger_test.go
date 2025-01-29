@@ -15,7 +15,7 @@ func TestBadgerStorage(t *testing.T) {
 	s := &E2EStorageIntegration{
 		ConfigFile: "../../config-badger.yaml",
 		StorageIntegration: integration.StorageIntegration{
-			CleanUp:         purge,
+			CleanUp: purge,
 		},
 	}
 	s.e2eInitialize(t, "badger")
