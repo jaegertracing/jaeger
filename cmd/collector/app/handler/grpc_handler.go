@@ -10,7 +10,6 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	_ "google.golang.org/grpc/encoding/gzip" // register zip encoding
-	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
@@ -97,22 +96,5 @@ func (c *batchConsumer) validateTenant(ctx context.Context) (string, error) {
 	if !c.tenancyMgr.Enabled {
 		return "", nil
 	}
-
-	md, ok := metadata.FromIncomingContext(ctx)
-	if !ok {
-		return "", status.Errorf(codes.PermissionDenied, "missing tenant header")
-	}
-
-	tenants := md.Get(c.tenancyMgr.Header)
-	if len(tenants) < 1 {
-		return "", status.Errorf(codes.PermissionDenied, "missing tenant header")
-	} else if len(tenants) > 1 {
-		return "", status.Errorf(codes.PermissionDenied, "extra tenant header")
-	}
-
-	if !c.tenancyMgr.Valid(tenants[0]) {
-		return "", status.Errorf(codes.PermissionDenied, "unknown tenant")
-	}
-
-	return tenants[0], nil
+	return tenancy.GetValidTenant(ctx, c.tenancyMgr)
 }
