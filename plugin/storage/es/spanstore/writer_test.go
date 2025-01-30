@@ -470,11 +470,11 @@ func TestSpanWriterParamsTTL(t *testing.T) {
 				OperationName: "bar",
 			}
 
-			w.writeService(serviceIndexName, jsonSpan)
+			w.writeService(serviceIndexName, jsonSpan, model.SpanKindUnspecified)
 			time.Sleep(1 * time.Nanosecond)
-			w.writeService(serviceIndexName, jsonSpan)
+			w.writeService(serviceIndexName, jsonSpan, model.SpanKindUnspecified)
 			time.Sleep(1 * time.Nanosecond)
-			w.writeService(serviceIndexName, jsonSpan)
+			w.writeService(serviceIndexName, jsonSpan, model.SpanKindUnspecified)
 			indexService.AssertNumberOfCalls(t, "Add", test.expectedAddCalls)
 		})
 	}

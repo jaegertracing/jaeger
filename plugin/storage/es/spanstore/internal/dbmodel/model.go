@@ -86,5 +86,6 @@ type KeyValue struct {
 // Service is the JSON struct for service:operation documents in ElasticSearch
 type Service struct {
 	ServiceName   string `json:"serviceName"`
+	Kind          string `json:"spanKind,omitempty"`
 	OperationName string `json:"operationName"`
 }

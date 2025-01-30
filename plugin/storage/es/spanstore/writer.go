@@ -31,7 +31,7 @@ type spanWriterMetrics struct {
 	indexCreate *spanstoremetrics.WriteMetrics
 }
 
-type serviceWriter func(string, *dbmodel.Span)
+type serviceWriter func(string, *dbmodel.Span, model.SpanKind)
 
 // SpanWriter is a wrapper around elastic.Client
 type SpanWriter struct {
@@ -124,8 +124,9 @@ func getSpanAndServiceIndexFn(p SpanWriterParams, writeAlias string) spanAndServ
 func (s *SpanWriter) WriteSpan(_ context.Context, span *model.Span) error {
 	spanIndexName, serviceIndexName := s.spanServiceIndex(span.StartTime)
 	jsonSpan := s.spanConverter.FromDomainEmbedProcess(span)
+	kind, _ := span.GetSpanKind()
 	if serviceIndexName != "" {
-		s.writeService(serviceIndexName, jsonSpan)
+		s.writeService(serviceIndexName, jsonSpan, kind)
 	}
 	s.writeSpan(spanIndexName, jsonSpan)
 	s.logger.Debug("Wrote span to ES index", zap.String("index", spanIndexName))
@@ -145,8 +146,8 @@ func writeCache(key string, c cache.Cache) {
 	c.Put(key, key)
 }
 
-func (s *SpanWriter) writeService(indexName string, jsonSpan *dbmodel.Span) {
-	s.serviceWriter(indexName, jsonSpan)
+func (s *SpanWriter) writeService(indexName string, jsonSpan *dbmodel.Span, kind model.SpanKind) {
+	s.serviceWriter(indexName, jsonSpan, kind)
 }
 
 func (s *SpanWriter) writeSpan(indexName string, jsonSpan *dbmodel.Span) {

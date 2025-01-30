@@ -71,6 +71,26 @@ func (_m *SearchService) Do(ctx context.Context) (*elastic.SearchResult, error) 
 	return r0, r1
 }
 
+// FetchSourceContext provides a mock function with given fields: fetchSourceContext
+func (_m *SearchService) FetchSourceContext(fetchSourceContext *elastic.FetchSourceContext) es.SearchService {
+	ret := _m.Called(fetchSourceContext)
+
+	if len(ret) == 0 {
+		panic("no return value specified for FetchSourceContext")
+	}
+
+	var r0 es.SearchService
+	if rf, ok := ret.Get(0).(func(*elastic.FetchSourceContext) es.SearchService); ok {
+		r0 = rf(fetchSourceContext)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(es.SearchService)
+		}
+	}
+
+	return r0
+}
+
 // IgnoreUnavailable provides a mock function with given fields: ignoreUnavailable
 func (_m *SearchService) IgnoreUnavailable(ignoreUnavailable bool) es.SearchService {
 	ret := _m.Called(ignoreUnavailable)
