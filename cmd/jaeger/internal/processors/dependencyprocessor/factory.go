@@ -10,8 +10,6 @@ import (
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/processor"
-
-	"github.com/jaegertracing/jaeger/plugin/storage/memory"
 )
 
 // componentType is the name of this processor in configuration.
@@ -28,8 +26,8 @@ func NewFactory() processor.Factory {
 
 func createDefaultConfig() component.Config {
 	return &Config{
-		AggregationInterval: 10 * time.Second,
-		InactivityTimeout:   2 * time.Second,
+		AggregationInterval: 10 * time.Minute,
+		InactivityTimeout:   2 * time.Minute,
 	}
 }
 
@@ -42,7 +40,7 @@ func createTracesProcessor(
 ) (processor.Traces, error) {
 	oCfg := cfg.(*Config)
 
-	dp := newDependencyProcessor(*oCfg, set.TelemetrySettings, oCfg.Store, nextConsumer)
+	dp := newDependencyProcessor(*oCfg, set.TelemetrySettings, nextConsumer)
 
 	return dp, nil
 }

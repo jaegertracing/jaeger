@@ -11,17 +11,21 @@ import (
 	"github.com/apache/beam/sdks/v2/go/pkg/beam"
 	"github.com/apache/beam/sdks/v2/go/pkg/beam/x/beamx"
 	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/pdata/pcommon"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/model"
-	"github.com/jaegertracing/jaeger/plugin/storage/memory"
+	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
+
+var beamInitOnce sync.Once
 
 type dependencyAggregator struct {
 	config           *Config
 	telset           component.TelemetrySettings
-	dependencyWriter *memory.Store
-	traces           map[model.TraceID]*TraceState
+	dependencyWriter spanstore.Writer
+	traces           map[pcommon.TraceID]*TraceState
 	tracesLock       sync.RWMutex
 	closeChan        chan struct{}
 	beamPipeline     *beam.Pipeline
@@ -29,20 +33,23 @@ type dependencyAggregator struct {
 }
 
 type TraceState struct {
-	spans          []*model.Span
-	spanMap        map[model.SpanID]*model.Span
+	spans          []*ptrace.Span
+	spanMap        map[pcommon.SpanID]*ptrace.Span
 	lastUpdateTime time.Time
 	timer          *time.Timer
+	serviceName    string
 }
 
-func newDependencyAggregator(cfg Config, telset component.TelemetrySettings, dependencyWriter *memory.Store) *dependencyAggregator {
-	beam.Init()
+func newDependencyAggregator(cfg Config, telset component.TelemetrySettings, dependencyWriter spanstore.Writer) *dependencyAggregator {
+	beamInitOnce.Do(func() {
+		beam.Init()
+	})
 	p, s := beam.NewPipelineWithRoot()
 	return &dependencyAggregator{
 		config:           &cfg,
 		telset:           telset,
 		dependencyWriter: dependencyWriter,
-		traces:           make(map[model.TraceID]*TraceState),
+		traces:           make(map[pcommon.TraceID]*TraceState),
 		beamPipeline:     p,
 		beamScope:        s,
 	}
@@ -56,9 +63,9 @@ func (agg *dependencyAggregator) Start(closeChan chan struct{}) {
 		for {
 			select {
 			case <-ticker.C:
-				agg.processTraces(context.Background()) // Pass context
+				agg.processTraces(context.Background())
 			case <-agg.closeChan:
-				agg.processTraces(context.Background()) // Pass context
+				agg.processTraces(context.Background())
 				return
 			}
 		}
@@ -76,29 +83,34 @@ func (agg *dependencyAggregator) Close() error {
 	return nil
 }
 
-func (agg *dependencyAggregator) HandleSpan(span *model.Span) {
+func (agg *dependencyAggregator) HandleSpan(ctx context.Context, span ptrace.Span, serviceName string) {
 	agg.tracesLock.Lock()
 	defer agg.tracesLock.Unlock()
 
-	traceState, ok := agg.traces[span.TraceID]
+	traceID := span.TraceID()
+	spanID := span.SpanID()
+
+	traceState, ok := agg.traces[traceID]
 	if !ok {
 		traceState = &TraceState{
-			spans:          []*model.Span{},
-			spanMap:        make(map[model.SpanID]*model.Span),
+			spans:          []*ptrace.Span{},
+			spanMap:        make(map[pcommon.SpanID]*ptrace.Span),
 			lastUpdateTime: time.Now(),
+			serviceName:    serviceName,
 		}
-		agg.traces[span.TraceID] = traceState
+		agg.traces[traceID] = traceState
 	}
 
-	traceState.spans = append(traceState.spans, span)
-	traceState.spanMap[span.SpanID] = span
+	spanCopy := span
+	traceState.spans = append(traceState.spans, &spanCopy)
+	traceState.spanMap[spanID] = &spanCopy
 	traceState.lastUpdateTime = time.Now()
 
 	if traceState.timer != nil {
 		traceState.timer.Stop()
 	}
 	traceState.timer = time.AfterFunc(agg.config.InactivityTimeout, func() {
-		agg.processTraces(context.Background()) // Pass context
+		agg.processTraces(ctx)
 	})
 }
 
@@ -109,8 +121,9 @@ func (agg *dependencyAggregator) processTraces(ctx context.Context) {
 		return
 	}
 	traces := agg.traces
-	agg.traces = make(map[model.TraceID]*TraceState)
+	agg.traces = make(map[pcommon.TraceID]*TraceState)
 	agg.tracesLock.Unlock()
+
 	for _, traceState := range traces {
 		if traceState.timer != nil {
 			traceState.timer.Stop()
@@ -123,8 +136,8 @@ func (agg *dependencyAggregator) processTraces(ctx context.Context) {
 	}
 }
 
-func (agg *dependencyAggregator) createBeamInput(traces map[model.TraceID]*TraceState) beam.PCollection {
-	var allSpans []*model.Span
+func (agg *dependencyAggregator) createBeamInput(traces map[pcommon.TraceID]*TraceState) beam.PCollection {
+	var allSpans []*ptrace.Span
 	for _, traceState := range traces {
 		allSpans = append(allSpans, traceState.spans...)
 	}
@@ -135,16 +148,16 @@ func (agg *dependencyAggregator) createBeamInput(traces map[model.TraceID]*Trace
 }
 
 func (agg *dependencyAggregator) calculateDependencies(ctx context.Context, input beam.PCollection) {
-	keyedSpans := beam.ParDo(agg.beamScope, func(s *model.Span) (model.TraceID, *model.Span) {
-		return s.TraceID, s
+	keyedSpans := beam.ParDo(agg.beamScope, func(s *ptrace.Span) (pcommon.TraceID, *ptrace.Span) {
+		return s.TraceID(), s
 	}, input)
 
 	groupedSpans := beam.GroupByKey(agg.beamScope, keyedSpans)
-	depLinks := beam.ParDo(agg.beamScope, func(_ model.TraceID, spansIter func(*model.Span) bool) []*model.DependencyLink {
+	depLinks := beam.ParDo(agg.beamScope, func(_ pcommon.TraceID, spansIter func(*ptrace.Span) bool) []*model.DependencyLink {
 		deps := map[string]*model.DependencyLink{}
-		var span *model.Span
+		var span *ptrace.Span
 		for spansIter(span) {
-			processSpan(deps, span, agg.traces)
+			processSpanOtel(deps, span, agg.traces)
 		}
 		return depMapToSlice(deps)
 	}, groupedSpans)
@@ -167,35 +180,45 @@ func (agg *dependencyAggregator) calculateDependencies(ctx context.Context, inpu
 	}()
 }
 
-// processSpan is a copy from the memory storage plugin
-func processSpan(deps map[string]*model.DependencyLink, s *model.Span, traces map[model.TraceID]*TraceState) {
-	parentSpan := seekToSpan(s, traces)
-	if parentSpan != nil {
-		if parentSpan.Process.ServiceName == s.Process.ServiceName {
-			return
-		}
-		depKey := parentSpan.Process.ServiceName + "&&&" + s.Process.ServiceName
-		if _, ok := deps[depKey]; !ok {
-			deps[depKey] = &model.DependencyLink{
-				Parent:    parentSpan.Process.ServiceName,
-				Child:     s.Process.ServiceName,
-				CallCount: 1,
-			}
-		} else {
-			deps[depKey].CallCount++
-		}
-	}
-}
+func processSpanOtel(deps map[string]*model.DependencyLink, span *ptrace.Span, traces map[pcommon.TraceID]*TraceState) {
+	traceID := span.TraceID()
+	parentSpanID := span.ParentSpanID()
 
-func seekToSpan(span *model.Span, traces map[model.TraceID]*TraceState) *model.Span {
-	traceState, ok := traces[span.TraceID]
+	traceState, ok := traces[traceID]
 	if !ok {
-		return nil
+		return
 	}
-	return traceState.spanMap[span.ParentSpanID()]
+
+	parentSpan := traceState.spanMap[parentSpanID]
+	if parentSpan == nil {
+		return
+	}
+
+	parentTraceState := traces[traceID]
+	if parentTraceState == nil {
+		return
+	}
+
+	parentService := parentTraceState.serviceName
+	currentService := traceState.serviceName
+
+	if parentService == currentService || parentService == "" || currentService == "" {
+		return
+	}
+
+	depKey := parentService + "&&&" + currentService
+	if _, ok := deps[depKey]; !ok {
+		deps[depKey] = &model.DependencyLink{
+			Parent:    parentService,
+			Child:     currentService,
+			CallCount: 1,
+		}
+	} else {
+		deps[depKey].CallCount++
+	}
 }
 
-// depMapToSlice modifies the spans to DependencyLink in the same way as the memory storage plugin
+// depMapToSlice converts dependency map to slice
 func depMapToSlice(deps map[string]*model.DependencyLink) []*model.DependencyLink {
 	retMe := make([]*model.DependencyLink, 0, len(deps))
 	for _, dep := range deps {
