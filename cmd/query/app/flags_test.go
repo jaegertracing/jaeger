@@ -100,10 +100,12 @@ func TestBuildQueryServiceOptions(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotNil(t, qOpts)
 
-	qSvcOpts := qOpts.BuildQueryServiceOptions(initializedFn, zap.NewNop())
+	qSvcOpts, v2qSvcOpts := qOpts.BuildQueryServiceOptions(initializedFn, zap.NewNop())
 	assert.NotNil(t, qSvcOpts)
 	assert.NotNil(t, qSvcOpts.ArchiveSpanReader)
 	assert.NotNil(t, qSvcOpts.ArchiveSpanWriter)
+	assert.NotNil(t, v2qSvcOpts.ArchiveTraceReader)
+	assert.NotNil(t, v2qSvcOpts.ArchiveTraceWriter)
 	assert.Equal(t, defaultMaxClockSkewAdjust, qSvcOpts.MaxClockSkewAdjust)
 }
 
@@ -114,39 +116,13 @@ func TestBuildQueryServiceOptions_NoArchiveStorage(t *testing.T) {
 	assert.NotNil(t, qOpts)
 
 	logger, logBuf := testutils.NewLogger()
-	qSvcOpts := qOpts.BuildQueryServiceOptions(uninitializedFn, logger)
+	qSvcOpts, v2qSvcOpts := qOpts.BuildQueryServiceOptions(uninitializedFn, logger)
 	assert.NotNil(t, qSvcOpts)
 	assert.Nil(t, qSvcOpts.ArchiveSpanReader)
 	assert.Nil(t, qSvcOpts.ArchiveSpanWriter)
+	assert.Nil(t, v2qSvcOpts.ArchiveTraceReader)
+	assert.Nil(t, v2qSvcOpts.ArchiveTraceWriter)
 	assert.Equal(t, defaultMaxClockSkewAdjust, qSvcOpts.MaxClockSkewAdjust)
-
-	require.Contains(t, logBuf.String(), "Archive storage not initialized")
-}
-
-func TestBuildQueryServiceOptionsV2(t *testing.T) {
-	v, _ := config.Viperize(AddFlags)
-	qOpts, err := new(QueryOptions).InitFromViper(v, zap.NewNop())
-	require.NoError(t, err)
-	assert.NotNil(t, qOpts)
-
-	qSvcOpts := qOpts.BuildQueryServiceOptionsV2(initializedFn, zap.NewNop())
-
-	assert.NotNil(t, qSvcOpts)
-	assert.NotNil(t, qSvcOpts.ArchiveTraceReader)
-	assert.NotNil(t, qSvcOpts.ArchiveTraceWriter)
-	assert.Equal(t, defaultMaxClockSkewAdjust, qSvcOpts.MaxClockSkewAdjust)
-}
-
-func TestBuildQueryServiceOptionsV2_NoArchiveStorage(t *testing.T) {
-	v, _ := config.Viperize(AddFlags)
-	qOpts, err := new(QueryOptions).InitFromViper(v, zap.NewNop())
-	require.NoError(t, err)
-	assert.NotNil(t, qOpts)
-
-	logger, logBuf := testutils.NewLogger()
-	qSvcOpts := qOpts.BuildQueryServiceOptionsV2(uninitializedFn, logger)
-	assert.Nil(t, qSvcOpts.ArchiveTraceReader)
-	assert.Nil(t, qSvcOpts.ArchiveTraceWriter)
 
 	require.Contains(t, logBuf.String(), "Archive storage not initialized")
 }

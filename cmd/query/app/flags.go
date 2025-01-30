@@ -146,35 +146,24 @@ type InitArchiveStorageFn func() (spanstore.Reader, spanstore.Writer)
 func (qOpts *QueryOptions) BuildQueryServiceOptions(
 	initArchiveStorageFn InitArchiveStorageFn,
 	logger *zap.Logger,
-) *querysvc.QueryServiceOptions {
+) (*querysvc.QueryServiceOptions, *v2querysvc.QueryServiceOptions) {
 	opts := &querysvc.QueryServiceOptions{
+		MaxClockSkewAdjust: qOpts.MaxClockSkewAdjust,
+	}
+	v2Opts := &v2querysvc.QueryServiceOptions{
 		MaxClockSkewAdjust: qOpts.MaxClockSkewAdjust,
 	}
 	ar, aw := initArchiveStorageFn()
 	if ar != nil && aw != nil {
 		opts.ArchiveSpanReader = ar
 		opts.ArchiveSpanWriter = aw
+		v2Opts.ArchiveTraceReader = v1adapter.NewTraceReader(ar)
+		v2Opts.ArchiveTraceWriter = v1adapter.NewTraceWriter(aw)
 	} else {
 		logger.Info("Archive storage not initialized")
 	}
 
-	return opts
-}
-
-func (qOpts *QueryOptions) BuildQueryServiceOptionsV2(initArchiveStorageFn InitArchiveStorageFn, logger *zap.Logger) *v2querysvc.QueryServiceOptions {
-	opts := &v2querysvc.QueryServiceOptions{
-		MaxClockSkewAdjust: qOpts.MaxClockSkewAdjust,
-	}
-
-	ar, aw := initArchiveStorageFn()
-	if ar != nil && aw != nil {
-		opts.ArchiveTraceReader = v1adapter.NewTraceReader(ar)
-		opts.ArchiveTraceWriter = v1adapter.NewTraceWriter(aw)
-	} else {
-		logger.Info("Archive storage not initialized")
-	}
-
-	return opts
+	return opts, v2Opts
 }
 
 // stringSliceAsHeader parses a slice of strings and returns a http.Header.
