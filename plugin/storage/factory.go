@@ -354,17 +354,13 @@ func (f *Factory) createArchiveSpanWriter() (spanstore.Writer, error) {
 	return factory.CreateSpanWriter()
 }
 
-func (f *Factory) InitArchiveStorage(
-	logger *zap.Logger,
-) (spanstore.Reader, spanstore.Writer) {
+func (f *Factory) InitArchiveStorage() (spanstore.Reader, spanstore.Writer) {
 	reader, err := f.createArchiveSpanReader()
 	if err != nil {
-		logger.Error("Cannot init archive storage reader", zap.Error(err))
 		return nil, nil
 	}
 	writer, err := f.createArchiveSpanWriter()
 	if err != nil {
-		logger.Error("Cannot init archive storage writer", zap.Error(err))
 		return nil, nil
 	}
 

@@ -86,11 +86,11 @@ func TestStringSliceAsHeader(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func initializedFn(*zap.Logger) (spanstore.Reader, spanstore.Writer) {
+func initializedFn() (spanstore.Reader, spanstore.Writer) {
 	return &spanstoremocks.Reader{}, &spanstoremocks.Writer{}
 }
 
-func uninitializedFn(*zap.Logger) (spanstore.Reader, spanstore.Writer) {
+func uninitializedFn() (spanstore.Reader, spanstore.Writer) {
 	return nil, nil
 }
 

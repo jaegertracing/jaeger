@@ -140,7 +140,7 @@ func (qOpts *QueryOptions) InitFromViper(v *viper.Viper, logger *zap.Logger) (*Q
 	return qOpts, nil
 }
 
-type InitArchiveStorageFn func(logger *zap.Logger) (spanstore.Reader, spanstore.Writer)
+type InitArchiveStorageFn func() (spanstore.Reader, spanstore.Writer)
 
 // BuildQueryServiceOptions creates a QueryServiceOptions struct with appropriate adjusters and archive config
 func (qOpts *QueryOptions) BuildQueryServiceOptions(
@@ -150,7 +150,7 @@ func (qOpts *QueryOptions) BuildQueryServiceOptions(
 	opts := &querysvc.QueryServiceOptions{
 		MaxClockSkewAdjust: qOpts.MaxClockSkewAdjust,
 	}
-	ar, aw := initArchiveStorageFn(logger)
+	ar, aw := initArchiveStorageFn()
 	if ar != nil && aw != nil {
 		opts.ArchiveSpanReader = ar
 		opts.ArchiveSpanWriter = aw
@@ -166,7 +166,7 @@ func (qOpts *QueryOptions) BuildQueryServiceOptionsV2(initArchiveStorageFn InitA
 		MaxClockSkewAdjust: qOpts.MaxClockSkewAdjust,
 	}
 
-	ar, aw := initArchiveStorageFn(logger)
+	ar, aw := initArchiveStorageFn()
 	if ar != nil && aw != nil {
 		opts.ArchiveTraceReader = v1adapter.NewTraceReader(ar)
 		opts.ArchiveTraceWriter = v1adapter.NewTraceWriter(aw)

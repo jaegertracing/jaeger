@@ -20,7 +20,6 @@ import (
 
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
-	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	depStoreMocks "github.com/jaegertracing/jaeger/storage/dependencystore/mocks"
@@ -468,7 +467,6 @@ func TestInitArchiveStorage(t *testing.T) {
 		setupMock      func(*mocks.Factory)
 		expectedReader spanstore.Reader
 		expectedWriter spanstore.Writer
-		expectedLog    string
 	}{
 		{
 			name: "successful initialization",
@@ -488,7 +486,6 @@ func TestInitArchiveStorage(t *testing.T) {
 			},
 			expectedReader: nil,
 			expectedWriter: nil,
-			expectedLog:    "Cannot init archive storage reader",
 		},
 		{
 			name: "error initializing writer",
@@ -499,14 +496,11 @@ func TestInitArchiveStorage(t *testing.T) {
 			},
 			expectedReader: nil,
 			expectedWriter: nil,
-			expectedLog:    "Cannot init archive storage writer",
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			logger, buf := testutils.NewLogger()
-
 			f, err := NewFactory(defaultCfg())
 			require.NoError(t, err)
 			assert.NotEmpty(t, f.factories)
@@ -516,11 +510,9 @@ func TestInitArchiveStorage(t *testing.T) {
 			f.archiveFactories[cassandraStorageType] = mock
 			test.setupMock(mock)
 
-			reader, writer := f.InitArchiveStorage(logger)
+			reader, writer := f.InitArchiveStorage()
 			assert.Equal(t, test.expectedReader, reader)
 			assert.Equal(t, test.expectedWriter, writer)
-
-			require.Contains(t, buf.String(), test.expectedLog)
 		})
 	}
 }
