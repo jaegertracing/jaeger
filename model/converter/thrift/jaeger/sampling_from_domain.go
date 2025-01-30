@@ -8,7 +8,7 @@ import (
 	"math"
 
 	"github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
-	"github.com/jaegertracing/jaeger/thrift-gen/sampling"
+	"github.com/jaegertracing/jaeger-idl/thrift-gen/sampling"
 )
 
 // ConvertSamplingResponseFromDomain converts proto sampling response to its thrift representation.
