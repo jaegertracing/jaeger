@@ -5,6 +5,7 @@ package client
 
 type IndexAPI interface {
 	GetJaegerIndices(prefix string) ([]Index, error)
+	IndexExists(index string) (bool, error)
 	DeleteIndices(indices []Index) error
 	CreateIndex(index string) error
 	CreateAlias(aliases []Alias) error

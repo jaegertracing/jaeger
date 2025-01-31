@@ -5,7 +5,6 @@ package init
 
 import (
 	"errors"
-	"net/http"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -18,59 +17,47 @@ import (
 )
 
 func TestIndexCreateIfNotExist(t *testing.T) {
-	const esErrResponse = `{"error":{"root_cause":[{"type":"resource_already_exists_exception","reason":"]"}],"type":"resource_already_exists_exception","reason":"request [/jaeger-*] contains unrecognized parameter: [help]"},"status":400}`
-
 	tests := []struct {
-		name          string
-		returnErr     error
-		expectedErr   error
-		containsError string
+		name                     string
+		exists                   bool
+		indexExistsReturnError   error
+		indexExistsExpectedError error
+		createIndexReturnErr     error
+		createIndexExpectedError error
 	}{
 		{
-			name: "success",
+			name:   "success",
+			exists: false,
 		},
 		{
-			name:        "generic error",
-			returnErr:   errors.New("may be an http error?"),
-			expectedErr: errors.New("may be an http error?"),
+			name:                     "generic error from index exists",
+			exists:                   false,
+			indexExistsReturnError:   errors.New("may be an http error from index exists"),
+			indexExistsExpectedError: errors.New("may be an http error from index exists"),
 		},
 		{
-			name: "response error",
-			returnErr: client.ResponseError{
-				Err:        errors.New("x"),
-				StatusCode: http.StatusForbidden,
-			},
-			expectedErr: errors.New("x"),
+			name:                     "generic error from create index",
+			exists:                   false,
+			createIndexReturnErr:     errors.New("may be an http error from create index"),
+			createIndexExpectedError: errors.New("may be an http error from create index"),
 		},
 		{
-			name: "unmarshal error",
-			returnErr: client.ResponseError{
-				Err:        errors.New("x"),
-				StatusCode: http.StatusBadRequest,
-				Body:       []byte("blablabla"),
-			},
-			containsError: "invalid character",
-		},
-		{
-			name: "existing error",
-			returnErr: client.ResponseError{
-				Err:        errors.New("x"),
-				StatusCode: http.StatusBadRequest,
-				Body:       []byte(esErrResponse),
-			},
-			expectedErr: nil,
+			name:   "index already exists",
+			exists: true,
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			indexClient := &mocks.IndexAPI{}
-			indexClient.On("CreateIndex", "jaeger-span").Return(test.returnErr)
+			indexClient.On("IndexExists", "jaeger-span").Return(test.exists, test.indexExistsReturnError)
+			indexClient.On("CreateIndex", "jaeger-span").Return(test.createIndexReturnErr)
 			err := createIndexIfNotExist(indexClient, "jaeger-span")
-			if test.containsError != "" {
-				assert.ErrorContains(t, err, test.containsError)
-			} else {
-				assert.Equal(t, test.expectedErr, err)
+			if test.indexExistsExpectedError != nil {
+				assert.Equal(t, test.indexExistsExpectedError, err)
+			}
+			if test.createIndexExpectedError != nil {
+				assert.Equal(t, test.createIndexExpectedError, err)
 			}
 		})
 	}
@@ -157,6 +144,7 @@ func TestRolloverAction(t *testing.T) {
 			name: "fail to get jaeger indices",
 			setupCallExpectations: func(indexClient *mocks.IndexAPI, clusterClient *mocks.ClusterAPI, _ *mocks.IndexManagementLifecycleAPI) {
 				clusterClient.On("Version").Return(uint(7), nil)
+				indexClient.On("IndexExists", "jaeger-span-archive-000001").Return(false, nil)
 				indexClient.On("CreateTemplate", mock.Anything, "jaeger-span").Return(nil)
 				indexClient.On("CreateIndex", "jaeger-span-archive-000001").Return(nil)
 				indexClient.On("GetJaegerIndices", "").Return([]client.Index{}, errors.New("error getting jaeger indices"))
@@ -173,6 +161,7 @@ func TestRolloverAction(t *testing.T) {
 			name: "fail to create alias",
 			setupCallExpectations: func(indexClient *mocks.IndexAPI, clusterClient *mocks.ClusterAPI, _ *mocks.IndexManagementLifecycleAPI) {
 				clusterClient.On("Version").Return(uint(7), nil)
+				indexClient.On("IndexExists", "jaeger-span-archive-000001").Return(false, nil)
 				indexClient.On("CreateTemplate", mock.Anything, "jaeger-span").Return(nil)
 				indexClient.On("CreateIndex", "jaeger-span-archive-000001").Return(nil)
 				indexClient.On("GetJaegerIndices", "").Return([]client.Index{}, nil)
@@ -193,6 +182,7 @@ func TestRolloverAction(t *testing.T) {
 			name: "create rollover index",
 			setupCallExpectations: func(indexClient *mocks.IndexAPI, clusterClient *mocks.ClusterAPI, _ *mocks.IndexManagementLifecycleAPI) {
 				clusterClient.On("Version").Return(uint(7), nil)
+				indexClient.On("IndexExists", "jaeger-span-archive-000001").Return(false, nil)
 				indexClient.On("CreateTemplate", mock.Anything, "jaeger-span").Return(nil)
 				indexClient.On("CreateIndex", "jaeger-span-archive-000001").Return(nil)
 				indexClient.On("GetJaegerIndices", "").Return([]client.Index{}, nil)
@@ -213,6 +203,7 @@ func TestRolloverAction(t *testing.T) {
 			name: "create rollover index with ilm",
 			setupCallExpectations: func(indexClient *mocks.IndexAPI, clusterClient *mocks.ClusterAPI, ilmClient *mocks.IndexManagementLifecycleAPI) {
 				clusterClient.On("Version").Return(uint(7), nil)
+				indexClient.On("IndexExists", "jaeger-span-archive-000001").Return(false, nil)
 				indexClient.On("CreateTemplate", mock.Anything, "jaeger-span").Return(nil)
 				indexClient.On("CreateIndex", "jaeger-span-archive-000001").Return(nil)
 				indexClient.On("GetJaegerIndices", "").Return([]client.Index{}, nil)
