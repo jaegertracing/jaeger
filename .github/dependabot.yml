@@ -42,7 +42,7 @@ updates:
       - /docker/base
       - /docker/debug
       - /examples/hotrod
-      - /plugin/storage/cassandra
+      - /internal/storage/cassandra
     schedule:
       interval: daily
   - package-ecosystem: docker

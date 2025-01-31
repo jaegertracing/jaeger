@@ -10,7 +10,7 @@ REPO_ROOT="$UTILS_DIR/../.."
 # Define list of test files explicitly here , to be dynamic to the location of the test file
 TEST_FILES=(
     "$UTILS_DIR/compute-tags.test.sh"
-    "$REPO_ROOT/plugin/storage/cassandra/schema/create.test.sh"
+    "$REPO_ROOT/internal/storage/cassandra/schema/create.test.sh"
 )
 
 run_test_file() {
