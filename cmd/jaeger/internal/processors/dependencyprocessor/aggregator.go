@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/apache/beam/sdks/v2/go/pkg/beam"
+	"github.com/apache/beam/sdks/v2/go/pkg/beam/core/graph/window"
+	"github.com/apache/beam/sdks/v2/go/pkg/beam/transforms/stats"
 	"github.com/apache/beam/sdks/v2/go/pkg/beam/x/beamx"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/pdata/pcommon"
@@ -21,208 +23,179 @@ import (
 
 var beamInitOnce sync.Once
 
+// dependencyAggregator processes spans and aggregates dependencies using Apache Beam
 type dependencyAggregator struct {
 	config           *Config
 	telset           component.TelemetrySettings
 	dependencyWriter spanstore.Writer
-	traces           map[pcommon.TraceID]*TraceState
-	tracesLock       sync.RWMutex
+	inputChan        chan spanEvent
 	closeChan        chan struct{}
-	beamPipeline     *beam.Pipeline
-	beamScope        beam.Scope
 }
 
-type TraceState struct {
-	spans          []*ptrace.Span
-	spanMap        map[pcommon.SpanID]*ptrace.Span
-	lastUpdateTime time.Time
-	timer          *time.Timer
-	serviceName    string
+// spanEvent represents a span with its service name and timestamp
+type spanEvent struct {
+	span        ptrace.Span
+	serviceName string
+	eventTime   time.Time
 }
 
+// newDependencyAggregator creates a new dependency aggregator
 func newDependencyAggregator(cfg Config, telset component.TelemetrySettings, dependencyWriter spanstore.Writer) *dependencyAggregator {
 	beamInitOnce.Do(func() {
 		beam.Init()
 	})
-	p, s := beam.NewPipelineWithRoot()
 	return &dependencyAggregator{
 		config:           &cfg,
 		telset:           telset,
 		dependencyWriter: dependencyWriter,
-		traces:           make(map[pcommon.TraceID]*TraceState),
-		beamPipeline:     p,
-		beamScope:        s,
+		inputChan:        make(chan spanEvent, 1000),
+		closeChan:        make(chan struct{}),
 	}
 }
 
+// Start begins the aggregation process
 func (agg *dependencyAggregator) Start(closeChan chan struct{}) {
 	agg.closeChan = closeChan
-	go func() {
-		ticker := time.NewTicker(agg.config.AggregationInterval)
-		defer ticker.Stop()
+	go agg.runPipeline()
+}
+
+// HandleSpan processes a single span
+func (agg *dependencyAggregator) HandleSpan(ctx context.Context, span ptrace.Span, serviceName string) {
+	event := spanEvent{
+		span:        span,
+		serviceName: serviceName,
+		eventTime:   time.Now(),
+	}
+	select {
+	case agg.inputChan <- event:
+	default:
+		agg.telset.Logger.Warn("Input channel full, dropping span")
+	}
+}
+
+// runPipeline runs the main processing pipeline
+func (agg *dependencyAggregator) runPipeline() {
+	for {
+		var events []spanEvent
+		timer := time.NewTimer(agg.config.AggregationInterval)
+
+	collectLoop:
 		for {
 			select {
-			case <-ticker.C:
-				agg.processTraces(context.Background())
+			case event := <-agg.inputChan:
+				events = append(events, event)
+			case <-timer.C:
+				break collectLoop
 			case <-agg.closeChan:
-				agg.processTraces(context.Background())
+				if !timer.Stop() {
+					<-timer.C
+				}
+				if len(events) > 0 {
+					agg.processEvents(context.Background(), events)
+				}
 				return
 			}
 		}
-	}()
-}
 
-func (agg *dependencyAggregator) Close() error {
-	agg.tracesLock.Lock()
-	defer agg.tracesLock.Unlock()
-	for _, traceState := range agg.traces {
-		if traceState.timer != nil {
-			traceState.timer.Stop()
+		if len(events) > 0 {
+			agg.processEvents(context.Background(), events)
 		}
 	}
-	return nil
 }
 
-func (agg *dependencyAggregator) HandleSpan(ctx context.Context, span ptrace.Span, serviceName string) {
-	agg.tracesLock.Lock()
-	defer agg.tracesLock.Unlock()
+// processEvents processes a batch of spans using Beam pipeline
+func (agg *dependencyAggregator) processEvents(ctx context.Context, events []spanEvent) {
+	// Create new pipeline and scope
+	p, s := beam.NewPipelineWithRoot()
 
-	traceID := span.TraceID()
-	spanID := span.SpanID()
+	// Create initial PCollection with timestamps
+	col := beam.CreateList(s, events)
 
-	traceState, ok := agg.traces[traceID]
-	if !ok {
-		traceState = &TraceState{
-			spans:          []*ptrace.Span{},
-			spanMap:        make(map[pcommon.SpanID]*ptrace.Span),
-			lastUpdateTime: time.Now(),
-			serviceName:    serviceName,
+	// Transform into timestamped KV pairs
+	timestamped := beam.ParDo(s, func(event spanEvent) beam.WindowValue {
+		return beam.WindowValue{
+			Timestamp: event.eventTime,
+			Windows:   window.IntervalWindow{Start: event.eventTime, End: event.eventTime.Add(agg.config.InactivityTimeout)},
+			Value: beam.KV{
+				Key:   event.span.TraceID(),
+				Value: event,
+			},
 		}
-		agg.traces[traceID] = traceState
-	}
+	}, col)
 
-	spanCopy := span
-	traceState.spans = append(traceState.spans, &spanCopy)
-	traceState.spanMap[spanID] = &spanCopy
-	traceState.lastUpdateTime = time.Now()
+	// Apply session windows
+	windowed := beam.WindowInto(s,
+		window.NewSessions(agg.config.InactivityTimeout),
+		timestamped,
+	)
 
-	if traceState.timer != nil {
-		traceState.timer.Stop()
-	}
-	traceState.timer = time.AfterFunc(agg.config.InactivityTimeout, func() {
-		agg.processTraces(ctx)
-	})
-}
+	// Group by TraceID and aggregate dependencies
+	grouped := stats.GroupByKey(s, windowed)
 
-func (agg *dependencyAggregator) processTraces(ctx context.Context) {
-	agg.tracesLock.Lock()
-	if len(agg.traces) == 0 {
-		agg.tracesLock.Unlock()
-		return
-	}
-	traces := agg.traces
-	agg.traces = make(map[pcommon.TraceID]*TraceState)
-	agg.tracesLock.Unlock()
+	// Calculate dependencies for each trace
+	dependencies := beam.ParDo(s, func(key pcommon.TraceID, iter func(*spanEvent) bool) []*model.DependencyLink {
+		spanMap := make(map[pcommon.SpanID]spanEvent)
+		var event *spanEvent
 
-	for _, traceState := range traces {
-		if traceState.timer != nil {
-			traceState.timer.Stop()
+		// Build span map
+		for iter(event) {
+			spanMap[event.span.SpanID()] = *event
 		}
-	}
 
-	beamInput := agg.createBeamInput(traces)
-	if beamInput.IsValid() {
-		agg.calculateDependencies(ctx, beamInput)
-	}
-}
+		// Calculate dependencies
+		deps := make(map[string]*model.DependencyLink)
+		for _, event := range spanMap {
+			parentSpanID := event.span.ParentSpanID()
+			if parentEvent, hasParent := spanMap[parentSpanID]; hasParent {
+				parentService := parentEvent.serviceName
+				childService := event.serviceName
 
-func (agg *dependencyAggregator) createBeamInput(traces map[pcommon.TraceID]*TraceState) beam.PCollection {
-	var allSpans []*ptrace.Span
-	for _, traceState := range traces {
-		allSpans = append(allSpans, traceState.spans...)
-	}
-	if len(allSpans) == 0 {
-		return beam.PCollection{}
-	}
-	return beam.CreateList(agg.beamScope, allSpans)
-}
-
-func (agg *dependencyAggregator) calculateDependencies(ctx context.Context, input beam.PCollection) {
-	keyedSpans := beam.ParDo(agg.beamScope, func(s *ptrace.Span) (pcommon.TraceID, *ptrace.Span) {
-		return s.TraceID(), s
-	}, input)
-
-	groupedSpans := beam.GroupByKey(agg.beamScope, keyedSpans)
-	depLinks := beam.ParDo(agg.beamScope, func(_ pcommon.TraceID, spansIter func(*ptrace.Span) bool) []*model.DependencyLink {
-		deps := map[string]*model.DependencyLink{}
-		var span *ptrace.Span
-		for spansIter(span) {
-			processSpanOtel(deps, span, agg.traces)
+				// Create dependency link if services are different
+				if parentService != "" && childService != "" && parentService != childService {
+					depKey := parentService + "&&&" + childService
+					if dep, exists := deps[depKey]; exists {
+						dep.CallCount++
+					} else {
+						deps[depKey] = &model.DependencyLink{
+							Parent:    parentService,
+							Child:     childService,
+							CallCount: 1,
+						}
+					}
+				}
+			}
 		}
+
 		return depMapToSlice(deps)
-	}, groupedSpans)
-	flattened := beam.Flatten(agg.beamScope, depLinks)
+	}, grouped)
 
-	beam.ParDo0(agg.beamScope, func(deps []*model.DependencyLink) {
-		err := agg.dependencyWriter.WriteDependencies(ctx, time.Now(), deps)
-		if err != nil {
-			agg.telset.Logger.Error("Error writing dependencies", zap.Error(err))
-		}
-	}, flattened)
+	// Merge results from all windows
+	merged := beam.Flatten(s, dependencies)
 
-	go func() {
-		err := beamx.Run(ctx, agg.beamPipeline)
-		if err != nil {
-			agg.telset.Logger.Error("Error running beam pipeline", zap.Error(err))
+	// Write to storage
+	beam.ParDo0(s, func(deps []*model.DependencyLink) {
+		if err := agg.dependencyWriter.WriteDependencies(ctx, time.Now(), deps); err != nil {
+			agg.telset.Logger.Error("Failed to write dependencies", zap.Error(err))
 		}
-		agg.beamPipeline = beam.NewPipeline()
-		agg.beamScope = beam.Scope{Parent: beam.PipelineScope{ID: "dependency"}, Name: "dependency"}
-	}()
+	}, merged)
+
+	// Execute pipeline
+	if err := beamx.Run(ctx, p); err != nil {
+		agg.telset.Logger.Error("Failed to run beam pipeline", zap.Error(err))
+	}
 }
 
-func processSpanOtel(deps map[string]*model.DependencyLink, span *ptrace.Span, traces map[pcommon.TraceID]*TraceState) {
-	traceID := span.TraceID()
-	parentSpanID := span.ParentSpanID()
-
-	traceState, ok := traces[traceID]
-	if !ok {
-		return
-	}
-
-	parentSpan := traceState.spanMap[parentSpanID]
-	if parentSpan == nil {
-		return
-	}
-
-	parentTraceState := traces[traceID]
-	if parentTraceState == nil {
-		return
-	}
-
-	parentService := parentTraceState.serviceName
-	currentService := traceState.serviceName
-
-	if parentService == currentService || parentService == "" || currentService == "" {
-		return
-	}
-
-	depKey := parentService + "&&&" + currentService
-	if _, ok := deps[depKey]; !ok {
-		deps[depKey] = &model.DependencyLink{
-			Parent:    parentService,
-			Child:     currentService,
-			CallCount: 1,
-		}
-	} else {
-		deps[depKey].CallCount++
-	}
+// Close shuts down the aggregator
+func (agg *dependencyAggregator) Close() error {
+	close(agg.closeChan)
+	return nil
 }
 
 // depMapToSlice converts dependency map to slice
 func depMapToSlice(deps map[string]*model.DependencyLink) []*model.DependencyLink {
-	retMe := make([]*model.DependencyLink, 0, len(deps))
+	result := make([]*model.DependencyLink, 0, len(deps))
 	for _, dep := range deps {
-		retMe = append(retMe, dep)
+		result = append(result, dep)
 	}
-	return retMe
+	return result
 }
