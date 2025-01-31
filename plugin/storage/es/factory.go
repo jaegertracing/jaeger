@@ -26,6 +26,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/plugin"
 	esDepStore "github.com/jaegertracing/jaeger/plugin/storage/es/dependencystore"
+	"github.com/jaegertracing/jaeger/plugin/storage/es/ilm"
 	"github.com/jaegertracing/jaeger/plugin/storage/es/mappings"
 	esSampleStore "github.com/jaegertracing/jaeger/plugin/storage/es/samplingstore"
 	esSpanStore "github.com/jaegertracing/jaeger/plugin/storage/es/spanstore"
@@ -156,6 +157,13 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 		f.config.UseReadWriteAliases = true
 	}
 
+	if f.config.UseILM {
+		err = ilm.CreatePolicyIfNotExists(client, f.config.IsOpenSearch, f.config.Version)
+		if err != nil {
+			return fmt.Errorf("failed to create index management policy: %w", err)
+		}
+	}
+
 	return nil
 }
 
@@ -245,14 +253,20 @@ func createSpanWriter(
 		ServiceCacheTTL:     cfg.ServiceCacheTTL,
 	})
 
-	// Creating a template here would conflict with the one created for ILM resulting to no index rollover
-	if cfg.CreateIndexTemplates && !cfg.UseILM {
+	// Creating a template here no matter what is ilm. ILM configured mapping has already been injected in mappingBuilderFromConfig
+	if cfg.CreateIndexTemplates {
 		mappingBuilder := mappingBuilderFromConfig(cfg)
 		spanMapping, serviceMapping, err := mappingBuilder.GetSpanServiceMappings()
 		if err != nil {
 			return nil, err
 		}
 		if err := writer.CreateTemplates(spanMapping, serviceMapping, cfg.Indices.IndexPrefix); err != nil {
+			return nil, err
+		}
+	}
+	if cfg.UseILM {
+		err := writer.InitializePolicyManager()
+		if err != nil {
 			return nil, err
 		}
 	}
@@ -281,7 +295,12 @@ func (f *Factory) CreateSamplingStore(int /* maxBuckets */) (samplingstore.Store
 			return nil, fmt.Errorf("failed to create template: %w", err)
 		}
 	}
-
+	if f.config.UseILM {
+		err := store.InitializePolicyManager()
+		if err != nil {
+			return nil, err
+		}
+	}
 	return store, nil
 }
 
@@ -291,6 +310,8 @@ func mappingBuilderFromConfig(cfg *config.Configuration) mappings.MappingBuilder
 		Indices:         cfg.Indices,
 		EsVersion:       cfg.Version,
 		UseILM:          cfg.UseILM,
+		IsOpenSearch:    cfg.IsOpenSearch,
+		ILMPolicyName:   ilm.DefaultIlmPolicy,
 	}
 }
 

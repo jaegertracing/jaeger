@@ -31,9 +31,10 @@ extensions:
   jaeger_storage:
     backends:
       some_storage:
-        elasticsearch:
-          server_urls:
-            - http://localhost:9200
+        opensearch:
+          use_ilm: true
+          create_mappings: true
+          use_aliases: true
           indices:
             index_prefix: "jaeger-main"
             spans:
@@ -56,12 +57,8 @@ extensions:
               rollover_frequency: "day"
               shards: 5
               replicas: 1
-          use_ilm: true
-          use_aliases: true
       another_storage:
-        elasticsearch:
-          server_urls:
-            - http://localhost:9200
+        opensearch:
           indices:
             index_prefix: "jaeger-archive"
 
