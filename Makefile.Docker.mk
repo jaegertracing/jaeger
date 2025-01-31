@@ -60,7 +60,7 @@ docker-images-anonymizer:
 
 .PHONY: docker-images-cassandra
 docker-images-cassandra:
-	docker build -t $(DOCKER_NAMESPACE)/jaeger-cassandra-schema:${DOCKER_TAG} internal/storage/cassandra/
+	docker build -t $(DOCKER_NAMESPACE)/jaeger-cassandra-schema:${DOCKER_TAG} internal/storage/v1/cassandra/
 	@echo "Finished building jaeger-cassandra-schema =============="
 
 .PHONY: docker-images-elastic
