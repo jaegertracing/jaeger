@@ -14,7 +14,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/internal/safeexpvar"
-	"github.com/jaegertracing/jaeger/internal/storage/cassandra"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/plugin"
 	"github.com/jaegertracing/jaeger/plugin/storage/badger"

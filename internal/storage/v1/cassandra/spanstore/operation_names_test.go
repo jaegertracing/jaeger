@@ -16,7 +16,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/internal/metricstest"
-	"github.com/jaegertracing/jaeger/internal/storage/cassandra/spanstore/dbmodel"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra/spanstore/dbmodel"
 	"github.com/jaegertracing/jaeger/pkg/cassandra/mocks"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/storage/spanstore"

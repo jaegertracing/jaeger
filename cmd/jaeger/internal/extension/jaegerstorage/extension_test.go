@@ -21,7 +21,7 @@ import (
 	nooptrace "go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/internal/storage/cassandra"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra"
 	esCfg "github.com/jaegertracing/jaeger/pkg/es/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	promCfg "github.com/jaegertracing/jaeger/pkg/prometheus/config"

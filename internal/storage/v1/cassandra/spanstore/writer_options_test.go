@@ -9,7 +9,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/jaegertracing/jaeger/internal/storage/cassandra/spanstore/dbmodel"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra/spanstore/dbmodel"
 )
 
 func TestWriterOptions(t *testing.T) {

@@ -11,8 +11,8 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
-	"github.com/jaegertracing/jaeger/internal/storage/cassandra"
-	cSpanStore "github.com/jaegertracing/jaeger/internal/storage/cassandra/spanstore"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra"
+	cSpanStore "github.com/jaegertracing/jaeger/internal/storage/v1/cassandra/spanstore"
 	cascfg "github.com/jaegertracing/jaeger/pkg/cassandra/config"
 	"github.com/jaegertracing/jaeger/pkg/jtracer"
 	"github.com/jaegertracing/jaeger/pkg/metrics"

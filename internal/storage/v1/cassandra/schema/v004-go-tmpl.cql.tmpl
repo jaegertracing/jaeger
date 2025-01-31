@@ -175,7 +175,7 @@ CREATE TABLE IF NOT EXISTS {{.Keyspace}}.dependencies_v2 (
     AND default_time_to_live = {{.DependenciesTTLInSeconds}};
 
 -- adaptive sampling tables
--- ./internal/storage/cassandra/samplingstore/storage.go
+-- ./internal/storage/v1/cassandra/samplingstore/storage.go
 CREATE TABLE IF NOT EXISTS {{.Keyspace}}.operation_throughput (
     bucket        int,
     ts            timeuuid,

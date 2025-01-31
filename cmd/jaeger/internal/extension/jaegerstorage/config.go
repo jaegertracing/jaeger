@@ -12,7 +12,7 @@ import (
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/confmap"
 
-	"github.com/jaegertracing/jaeger/internal/storage/cassandra"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra"
 	casCfg "github.com/jaegertracing/jaeger/pkg/cassandra/config"
 	esCfg "github.com/jaegertracing/jaeger/pkg/es/config"
 	promCfg "github.com/jaegertracing/jaeger/pkg/prometheus/config"

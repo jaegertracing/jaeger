@@ -68,7 +68,7 @@ teardown_cassandra() {
 
 apply_schema() {
   local image=cassandra-schema
-  local schema_dir=internal/storage/cassandra/
+  local schema_dir=internal/storage/v1/cassandra/
   local schema_version=$1
   local keyspace=$2
   local params=(
