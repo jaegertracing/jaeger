@@ -477,9 +477,7 @@ func TestInitArchiveStorage(t *testing.T) {
 				mock.On("CreateSpanReader").Return(spanReader, nil)
 				mock.On("CreateSpanWriter").Return(spanWriter, nil)
 			},
-			factoryCfg: func() FactoryConfig {
-				return defaultCfg()
-			},
+			factoryCfg: defaultCfg,
 			expectedStorage: &ArchiveStorage{
 				Reader: &spanStoreMocks.Reader{},
 				Writer: &spanStoreMocks.Writer{},
@@ -520,9 +518,7 @@ func TestInitArchiveStorage(t *testing.T) {
 			setupMock: func(mock *mocks.Factory) {
 				mock.On("CreateSpanReader").Return(nil, assert.AnError)
 			},
-			factoryCfg: func() FactoryConfig {
-				return defaultCfg()
-			},
+			factoryCfg:      defaultCfg,
 			expectedStorage: nil,
 			expectedError:   assert.AnError,
 		},
@@ -533,9 +529,7 @@ func TestInitArchiveStorage(t *testing.T) {
 				mock.On("CreateSpanReader").Return(spanReader, nil)
 				mock.On("CreateSpanWriter").Return(nil, assert.AnError)
 			},
-			factoryCfg: func() FactoryConfig {
-				return defaultCfg()
-			},
+			factoryCfg:      defaultCfg,
 			expectedStorage: nil,
 			expectedError:   assert.AnError,
 		},
