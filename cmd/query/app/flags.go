@@ -27,8 +27,8 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
+	"github.com/jaegertracing/jaeger/plugin/storage"
 	"github.com/jaegertracing/jaeger/ports"
-	"github.com/jaegertracing/jaeger/storage/spanstore"
 	"github.com/jaegertracing/jaeger/storage_v2/v1adapter"
 )
 
@@ -140,41 +140,35 @@ func (qOpts *QueryOptions) InitFromViper(v *viper.Viper, logger *zap.Logger) (*Q
 	return qOpts, nil
 }
 
-type InitArchiveStorageFn func(logger *zap.Logger) (spanstore.Reader, spanstore.Writer)
+type InitArchiveStorageFn func() (*storage.ArchiveStorage, error)
 
 // BuildQueryServiceOptions creates a QueryServiceOptions struct with appropriate adjusters and archive config
 func (qOpts *QueryOptions) BuildQueryServiceOptions(
 	initArchiveStorageFn InitArchiveStorageFn,
 	logger *zap.Logger,
-) *querysvc.QueryServiceOptions {
+) (*querysvc.QueryServiceOptions, *v2querysvc.QueryServiceOptions) {
 	opts := &querysvc.QueryServiceOptions{
 		MaxClockSkewAdjust: qOpts.MaxClockSkewAdjust,
 	}
-	ar, aw := initArchiveStorageFn(logger)
-	if ar != nil && aw != nil {
-		opts.ArchiveSpanReader = ar
-		opts.ArchiveSpanWriter = aw
-	} else {
-		logger.Info("Archive storage not initialized")
-	}
-
-	return opts
-}
-
-func (qOpts *QueryOptions) BuildQueryServiceOptionsV2(initArchiveStorageFn InitArchiveStorageFn, logger *zap.Logger) *v2querysvc.QueryServiceOptions {
-	opts := &v2querysvc.QueryServiceOptions{
+	v2Opts := &v2querysvc.QueryServiceOptions{
 		MaxClockSkewAdjust: qOpts.MaxClockSkewAdjust,
 	}
+	as, err := initArchiveStorageFn()
+	if err != nil {
+		logger.Error("Received an error when trying to initialize archive storage", zap.Error(err))
+		return opts, v2Opts
+	}
 
-	ar, aw := initArchiveStorageFn(logger)
-	if ar != nil && aw != nil {
-		opts.ArchiveTraceReader = v1adapter.NewTraceReader(ar)
-		opts.ArchiveTraceWriter = v1adapter.NewTraceWriter(aw)
+	if as != nil && as.Reader != nil && as.Writer != nil {
+		opts.ArchiveSpanReader = as.Reader
+		opts.ArchiveSpanWriter = as.Writer
+		v2Opts.ArchiveTraceReader = v1adapter.NewTraceReader(as.Reader)
+		v2Opts.ArchiveTraceWriter = v1adapter.NewTraceWriter(as.Writer)
 	} else {
 		logger.Info("Archive storage not initialized")
 	}
 
-	return opts
+	return opts, v2Opts
 }
 
 // stringSliceAsHeader parses a slice of strings and returns a http.Header.

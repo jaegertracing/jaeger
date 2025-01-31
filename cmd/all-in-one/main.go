@@ -170,9 +170,9 @@ by default uses only in-memory database.`,
 			// query
 			queryTelset := baseTelset // copy
 			queryTelset.Metrics = queryMetricsFactory
+			querySvcOpts, v2querySvcOpts := qOpts.BuildQueryServiceOptions(storageFactory.InitArchiveStorage, logger)
 			querySrv := startQuery(
-				svc, qOpts, qOpts.BuildQueryServiceOptions(storageFactory.InitArchiveStorage, logger),
-				qOpts.BuildQueryServiceOptionsV2(storageFactory.InitArchiveStorage, logger),
+				svc, qOpts, querySvcOpts, v2querySvcOpts,
 				traceReader, dependencyReader, metricsQueryService,
 				tm, queryTelset,
 			)

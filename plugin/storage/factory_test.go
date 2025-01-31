@@ -20,7 +20,6 @@ import (
 
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
-	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	depStoreMocks "github.com/jaegertracing/jaeger/storage/dependencystore/mocks"
@@ -464,11 +463,11 @@ func TestPublishOpts(t *testing.T) {
 
 func TestInitArchiveStorage(t *testing.T) {
 	tests := []struct {
-		name           string
-		setupMock      func(*mocks.Factory)
-		expectedReader spanstore.Reader
-		expectedWriter spanstore.Writer
-		expectedLog    string
+		name            string
+		setupMock       func(*mocks.Factory)
+		factoryCfg      func() FactoryConfig
+		expectedStorage *ArchiveStorage
+		expectedError   error
 	}{
 		{
 			name: "successful initialization",
@@ -478,17 +477,50 @@ func TestInitArchiveStorage(t *testing.T) {
 				mock.On("CreateSpanReader").Return(spanReader, nil)
 				mock.On("CreateSpanWriter").Return(spanWriter, nil)
 			},
-			expectedReader: &spanStoreMocks.Reader{},
-			expectedWriter: &spanStoreMocks.Writer{},
+			factoryCfg: defaultCfg,
+			expectedStorage: &ArchiveStorage{
+				Reader: &spanStoreMocks.Reader{},
+				Writer: &spanStoreMocks.Writer{},
+			},
+		},
+		{
+			name: "no archive span reader",
+			setupMock: func(mock *mocks.Factory) {
+				spanReader := &spanStoreMocks.Reader{}
+				spanWriter := &spanStoreMocks.Writer{}
+				mock.On("CreateSpanReader").Return(spanReader, nil)
+				mock.On("CreateSpanWriter").Return(spanWriter, nil)
+			},
+			factoryCfg: func() FactoryConfig {
+				cfg := defaultCfg()
+				cfg.SpanReaderType = "blackhole"
+				return cfg
+			},
+			expectedStorage: nil,
+		},
+		{
+			name: "no archive span writer",
+			setupMock: func(mock *mocks.Factory) {
+				spanReader := &spanStoreMocks.Reader{}
+				spanWriter := &spanStoreMocks.Writer{}
+				mock.On("CreateSpanReader").Return(spanReader, nil)
+				mock.On("CreateSpanWriter").Return(spanWriter, nil)
+			},
+			factoryCfg: func() FactoryConfig {
+				cfg := defaultCfg()
+				cfg.SpanWriterTypes = []string{"blackhole"}
+				return cfg
+			},
+			expectedStorage: nil,
 		},
 		{
 			name: "error initializing reader",
 			setupMock: func(mock *mocks.Factory) {
 				mock.On("CreateSpanReader").Return(nil, assert.AnError)
 			},
-			expectedReader: nil,
-			expectedWriter: nil,
-			expectedLog:    "Cannot init archive storage reader",
+			factoryCfg:      defaultCfg,
+			expectedStorage: nil,
+			expectedError:   assert.AnError,
 		},
 		{
 			name: "error initializing writer",
@@ -497,30 +529,25 @@ func TestInitArchiveStorage(t *testing.T) {
 				mock.On("CreateSpanReader").Return(spanReader, nil)
 				mock.On("CreateSpanWriter").Return(nil, assert.AnError)
 			},
-			expectedReader: nil,
-			expectedWriter: nil,
-			expectedLog:    "Cannot init archive storage writer",
+			factoryCfg:      defaultCfg,
+			expectedStorage: nil,
+			expectedError:   assert.AnError,
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			logger, buf := testutils.NewLogger()
-
-			f, err := NewFactory(defaultCfg())
+			cfg := test.factoryCfg()
+			f, err := NewFactory(cfg)
 			require.NoError(t, err)
-			assert.NotEmpty(t, f.factories)
-			assert.NotEmpty(t, f.factories[cassandraStorageType])
 
 			mock := new(mocks.Factory)
 			f.archiveFactories[cassandraStorageType] = mock
 			test.setupMock(mock)
 
-			reader, writer := f.InitArchiveStorage(logger)
-			assert.Equal(t, test.expectedReader, reader)
-			assert.Equal(t, test.expectedWriter, writer)
-
-			require.Contains(t, buf.String(), test.expectedLog)
+			storage, err := f.InitArchiveStorage()
+			require.Equal(t, test.expectedStorage, storage)
+			require.ErrorIs(t, err, test.expectedError)
 		})
 	}
 }

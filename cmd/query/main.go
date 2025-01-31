@@ -107,23 +107,16 @@ func main() {
 			if err != nil {
 				logger.Fatal("Failed to create metrics query service", zap.Error(err))
 			}
-			queryServiceOptions := queryOpts.BuildQueryServiceOptions(
-				storageFactory.InitArchiveStorage,
-				logger,
-			)
+			querySvcOpts, v2querySvcOpts := queryOpts.BuildQueryServiceOptions(storageFactory.InitArchiveStorage, logger)
 			queryService := querysvc.NewQueryService(
 				traceReader,
 				dependencyReader,
-				*queryServiceOptions)
+				*querySvcOpts)
 
-			queryServiceOptionsV2 := queryOpts.BuildQueryServiceOptionsV2(
-				storageFactory.InitArchiveStorage,
-				logger,
-			)
 			queryServiceV2 := querysvcv2.NewQueryService(
 				traceReader,
 				dependencyReader,
-				*queryServiceOptionsV2)
+				*v2querySvcOpts)
 
 			tm := tenancy.NewManager(&queryOpts.Tenancy)
 			telset := baseTelset // copy

@@ -16,8 +16,8 @@ import (
 
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
+	"github.com/jaegertracing/jaeger/plugin/storage"
 	"github.com/jaegertracing/jaeger/ports"
-	"github.com/jaegertracing/jaeger/storage/spanstore"
 	spanstoremocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
 )
 
@@ -86,69 +86,67 @@ func TestStringSliceAsHeader(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func initializedFn(*zap.Logger) (spanstore.Reader, spanstore.Writer) {
-	return &spanstoremocks.Reader{}, &spanstoremocks.Writer{}
-}
-
-func uninitializedFn(*zap.Logger) (spanstore.Reader, spanstore.Writer) {
-	return nil, nil
-}
-
 func TestBuildQueryServiceOptions(t *testing.T) {
-	v, _ := config.Viperize(AddFlags)
-	qOpts, err := new(QueryOptions).InitFromViper(v, zap.NewNop())
-	require.NoError(t, err)
-	assert.NotNil(t, qOpts)
+	tests := []struct {
+		name             string
+		initFn           func() (*storage.ArchiveStorage, error)
+		expectNilStorage bool
+		expectedLogEntry string
+	}{
+		{
+			name: "successful initialization",
+			initFn: func() (*storage.ArchiveStorage, error) {
+				return &storage.ArchiveStorage{
+					Reader: &spanstoremocks.Reader{},
+					Writer: &spanstoremocks.Writer{},
+				}, nil
+			},
+			expectNilStorage: false,
+		},
+		{
+			name: "error initializing archive storage",
+			initFn: func() (*storage.ArchiveStorage, error) {
+				return nil, assert.AnError
+			},
+			expectNilStorage: true,
+			expectedLogEntry: "Received an error when trying to initialize archive storage",
+		},
+		{
+			name: "no archive storage",
+			initFn: func() (*storage.ArchiveStorage, error) {
+				return nil, nil
+			},
+			expectNilStorage: true,
+			expectedLogEntry: "Archive storage not initialized",
+		},
+	}
 
-	qSvcOpts := qOpts.BuildQueryServiceOptions(initializedFn, zap.NewNop())
-	assert.NotNil(t, qSvcOpts)
-	assert.NotNil(t, qSvcOpts.ArchiveSpanReader)
-	assert.NotNil(t, qSvcOpts.ArchiveSpanWriter)
-	assert.Equal(t, defaultMaxClockSkewAdjust, qSvcOpts.MaxClockSkewAdjust)
-}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			v, _ := config.Viperize(AddFlags)
+			qOpts, err := new(QueryOptions).InitFromViper(v, zap.NewNop())
+			require.NoError(t, err)
+			require.NotNil(t, qOpts)
 
-func TestBuildQueryServiceOptions_NoArchiveStorage(t *testing.T) {
-	v, _ := config.Viperize(AddFlags)
-	qOpts, err := new(QueryOptions).InitFromViper(v, zap.NewNop())
-	require.NoError(t, err)
-	assert.NotNil(t, qOpts)
+			logger, logBuf := testutils.NewLogger()
+			qSvcOpts, v2qSvcOpts := qOpts.BuildQueryServiceOptions(test.initFn, logger)
+			require.Equal(t, defaultMaxClockSkewAdjust, qSvcOpts.MaxClockSkewAdjust)
 
-	logger, logBuf := testutils.NewLogger()
-	qSvcOpts := qOpts.BuildQueryServiceOptions(uninitializedFn, logger)
-	assert.NotNil(t, qSvcOpts)
-	assert.Nil(t, qSvcOpts.ArchiveSpanReader)
-	assert.Nil(t, qSvcOpts.ArchiveSpanWriter)
-	assert.Equal(t, defaultMaxClockSkewAdjust, qSvcOpts.MaxClockSkewAdjust)
+			if test.expectNilStorage {
+				require.Nil(t, qSvcOpts.ArchiveSpanReader)
+				require.Nil(t, qSvcOpts.ArchiveSpanWriter)
+				require.Nil(t, v2qSvcOpts.ArchiveTraceReader)
+				require.Nil(t, v2qSvcOpts.ArchiveTraceWriter)
+			} else {
+				require.NotNil(t, qSvcOpts.ArchiveSpanReader)
+				require.NotNil(t, qSvcOpts.ArchiveSpanWriter)
+				require.NotNil(t, v2qSvcOpts.ArchiveTraceReader)
+				require.NotNil(t, v2qSvcOpts.ArchiveTraceWriter)
+			}
 
-	require.Contains(t, logBuf.String(), "Archive storage not initialized")
-}
-
-func TestBuildQueryServiceOptionsV2(t *testing.T) {
-	v, _ := config.Viperize(AddFlags)
-	qOpts, err := new(QueryOptions).InitFromViper(v, zap.NewNop())
-	require.NoError(t, err)
-	assert.NotNil(t, qOpts)
-
-	qSvcOpts := qOpts.BuildQueryServiceOptionsV2(initializedFn, zap.NewNop())
-
-	assert.NotNil(t, qSvcOpts)
-	assert.NotNil(t, qSvcOpts.ArchiveTraceReader)
-	assert.NotNil(t, qSvcOpts.ArchiveTraceWriter)
-	assert.Equal(t, defaultMaxClockSkewAdjust, qSvcOpts.MaxClockSkewAdjust)
-}
-
-func TestBuildQueryServiceOptionsV2_NoArchiveStorage(t *testing.T) {
-	v, _ := config.Viperize(AddFlags)
-	qOpts, err := new(QueryOptions).InitFromViper(v, zap.NewNop())
-	require.NoError(t, err)
-	assert.NotNil(t, qOpts)
-
-	logger, logBuf := testutils.NewLogger()
-	qSvcOpts := qOpts.BuildQueryServiceOptionsV2(uninitializedFn, logger)
-	assert.Nil(t, qSvcOpts.ArchiveTraceReader)
-	assert.Nil(t, qSvcOpts.ArchiveTraceWriter)
-
-	require.Contains(t, logBuf.String(), "Archive storage not initialized")
+			require.Contains(t, logBuf.String(), test.expectedLogEntry)
+		})
+	}
 }
 
 func TestQueryOptionsPortAllocationFromFlags(t *testing.T) {
