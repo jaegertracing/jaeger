@@ -338,33 +338,34 @@ func (f *Factory) initDownsamplingFromViper(v *viper.Viper) {
 	f.FactoryConfig.DownsamplingHashSalt = v.GetString(downsamplingHashSalt)
 }
 
-func (f *Factory) createArchiveSpanReader() (spanstore.Reader, error) {
+type ArchiveStorage struct {
+	Reader spanstore.Reader
+	Writer spanstore.Writer
+}
+
+func (f *Factory) InitArchiveStorage() (*ArchiveStorage, error) {
 	factory, ok := f.archiveFactories[f.SpanReaderType]
 	if !ok {
-		return nil, fmt.Errorf("no %s backend registered for span store", f.SpanReaderType)
+		return nil, nil
 	}
-	return factory.CreateSpanReader()
-}
+	reader, err := factory.CreateSpanReader()
+	if err != nil {
+		return nil, err
+	}
 
-func (f *Factory) createArchiveSpanWriter() (spanstore.Writer, error) {
-	factory, ok := f.archiveFactories[f.SpanWriterTypes[0]]
+	factory, ok = f.archiveFactories[f.SpanWriterTypes[0]]
 	if !ok {
-		return nil, fmt.Errorf("no %s backend registered for span store", f.SpanWriterTypes[0])
-	}
-	return factory.CreateSpanWriter()
-}
-
-func (f *Factory) InitArchiveStorage() (spanstore.Reader, spanstore.Writer) {
-	reader, err := f.createArchiveSpanReader()
-	if err != nil {
 		return nil, nil
 	}
-	writer, err := f.createArchiveSpanWriter()
+	writer, err := factory.CreateSpanWriter()
 	if err != nil {
-		return nil, nil
+		return nil, err
 	}
 
-	return reader, writer
+	return &ArchiveStorage{
+		Reader: reader,
+		Writer: writer,
+	}, nil
 }
 
 var _ io.Closer = (*Factory)(nil)

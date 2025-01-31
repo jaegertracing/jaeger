@@ -16,8 +16,8 @@ import (
 
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
+	"github.com/jaegertracing/jaeger/plugin/storage"
 	"github.com/jaegertracing/jaeger/ports"
-	"github.com/jaegertracing/jaeger/storage/spanstore"
 	spanstoremocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
 )
 
@@ -86,11 +86,14 @@ func TestStringSliceAsHeader(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func initializedFn() (spanstore.Reader, spanstore.Writer) {
-	return &spanstoremocks.Reader{}, &spanstoremocks.Writer{}
+func initializedFn() (*storage.ArchiveStorage, error) {
+	return &storage.ArchiveStorage{
+		Reader: &spanstoremocks.Reader{},
+		Writer: &spanstoremocks.Writer{},
+	}, nil
 }
 
-func uninitializedFn() (spanstore.Reader, spanstore.Writer) {
+func uninitializedFn() (*storage.ArchiveStorage, error) {
 	return nil, nil
 }
 
