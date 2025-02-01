@@ -37,6 +37,23 @@ const (
 	IndexPrefixSeparator = "-"
 )
 
+// IndexCleaner struct for configuring index cleaning
+type IndexCleaner struct {
+	// Enabled specifies whether the index cleaner functionality is enabled.
+	// when set to true, the index cleaner will periodically run based on the specified frequency.
+	Enabled bool `mapstructure:"enabled"`
+	// Frequency defines the interval at which the index cleaner runs.
+	Frequency time.Duration `mapstructure:"frequency" validate:"gt=0"`
+}
+
+// Rollover struct for configuring roll over
+type Rollover struct {
+	// Enabled specifies whether the rollover functionality is enabled.
+	Enabled bool `mapstructure:"enabled"`
+	// Frequency specifies the interval at which the rollover process runs.
+	Frequency time.Duration `mapstructure:"frequency" validate:"gt=0"`
+}
+
 // IndexOptions describes the index format and rollover frequency
 type IndexOptions struct {
 	// Priority contains the priority of index template (ESv8 only).
@@ -144,6 +161,12 @@ type Configuration struct {
 	Tags                     TagsAsFields  `mapstructure:"tags_as_fields"`
 	// Enabled, if set to true, enables the namespace for storage pointed to by this configuration.
 	Enabled bool `mapstructure:"-"`
+
+	// ---- ES-specific config ----
+	// IndexCleaner holds the configuration for the Elasticsearch index Cleaner.
+	IndexCleaner IndexCleaner `mapstructure:"index_cleaner"`
+	// Rollover holds the configuration for the Elasticsearh roll over.
+	Rollover Rollover `mapstructure:"rollover"`
 }
 
 // TagsAsFields holds configuration for tag schema.
