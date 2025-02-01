@@ -11,11 +11,11 @@ import (
 	"strings"
 
 	"github.com/jaegertracing/jaeger/cmd/es-rollover/app"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/es/mappings"
 	"github.com/jaegertracing/jaeger/pkg/es"
 	"github.com/jaegertracing/jaeger/pkg/es/client"
 	"github.com/jaegertracing/jaeger/pkg/es/config"
 	"github.com/jaegertracing/jaeger/pkg/es/filter"
-	"github.com/jaegertracing/jaeger/plugin/storage/es/mappings"
 )
 
 const ilmVersionSupport = 7

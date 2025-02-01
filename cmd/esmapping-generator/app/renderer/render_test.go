@@ -13,9 +13,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger/cmd/esmapping-generator/app"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/es/mappings"
 	"github.com/jaegertracing/jaeger/pkg/es/mocks"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
-	"github.com/jaegertracing/jaeger/plugin/storage/es/mappings"
 )
 
 func TestIsValidOption(t *testing.T) {

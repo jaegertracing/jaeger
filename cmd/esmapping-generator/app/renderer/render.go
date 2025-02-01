@@ -7,9 +7,9 @@ import (
 	"strconv"
 
 	"github.com/jaegertracing/jaeger/cmd/esmapping-generator/app"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/es/mappings"
 	"github.com/jaegertracing/jaeger/pkg/es"
 	cfg "github.com/jaegertracing/jaeger/pkg/es/config"
-	"github.com/jaegertracing/jaeger/plugin/storage/es/mappings"
 )
 
 // GetMappingAsString returns rendered index templates as string
