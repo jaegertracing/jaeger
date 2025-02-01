@@ -27,6 +27,7 @@ import (
 
 	"github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
 	"github.com/jaegertracing/jaeger/cmd/query/app/apiv3"
+	"github.com/jaegertracing/jaeger/cmd/query/app/analytics"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	v2querysvc "github.com/jaegertracing/jaeger/cmd/query/app/querysvc/v2/querysvc"
 	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
@@ -105,7 +106,6 @@ func registerGRPCHandlers(
 
 	api_v2.RegisterQueryServiceServer(server, handler)
 	api_v3.RegisterQueryServiceServer(server, &apiv3.Handler{QueryService: v2QuerySvc})
-
 	healthServer.SetServingStatus("jaeger.api_v2.QueryService", grpc_health_v1.HealthCheckResponse_SERVING)
 	healthServer.SetServingStatus("jaeger.api_v2.metrics.MetricsQueryService", grpc_health_v1.HealthCheckResponse_SERVING)
 	healthServer.SetServingStatus("jaeger.api_v3.QueryService", grpc_health_v1.HealthCheckResponse_SERVING)
@@ -181,6 +181,10 @@ func initRouter(
 		QueryService: v2QuerySvc,
 		Logger:       telset.Logger,
 		Tracer:       telset.TracerProvider,
+	}).RegisterRoutes(r)
+
+	(&analytics.HTTPGateway{
+		Logger: telset.Logger,
 	}).RegisterRoutes(r)
 
 	apiHandler.RegisterRoutes(r)
