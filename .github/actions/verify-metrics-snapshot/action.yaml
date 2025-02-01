@@ -14,7 +14,7 @@ runs:
   using: 'composite'
   steps:
     - name: Upload current metrics snapshot
-      uses: actions/upload-artifact@6f51ac03b9356f520e9adb1b1b7802705f340c2b # v4.5.0
+      uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
       with:
         name: ${{ inputs.artifact_key }}
         path: ./.metrics/${{ inputs.snapshot }}.txt
@@ -61,7 +61,7 @@ runs:
 
     - name: Upload the diff artifact
       if: ${{ (github.ref_name != 'main') && (steps.compare-snapshots.outcome == 'failure') }}
-      uses: actions/upload-artifact@6f51ac03b9356f520e9adb1b1b7802705f340c2b # v4.5.0
+      uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
       with:
         name: diff_${{ inputs.artifact_key }}
         path: ./.metrics/diff_${{ inputs.snapshot }}.txt
