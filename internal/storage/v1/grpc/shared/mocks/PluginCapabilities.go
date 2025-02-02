@@ -8,7 +8,7 @@
 package mocks
 
 import (
-	shared "github.com/jaegertracing/jaeger/plugin/storage/grpc/shared"
+	shared "github.com/jaegertracing/jaeger/internal/storage/v1/grpc/shared"
 	mock "github.com/stretchr/testify/mock"
 )
 

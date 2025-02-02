@@ -48,7 +48,7 @@ packages:
   github.com/jaegertracing/jaeger/plugin/sampling/leaderelection:
     config:
       all: true
-  github.com/jaegertracing/jaeger/plugin/storage/grpc/shared:
+  github.com/jaegertracing/jaeger/internal/storage/v1/grpc/shared:
     interfaces:
       PluginCapabilities:
   github.com/jaegertracing/jaeger/plugin/storage/kafka:

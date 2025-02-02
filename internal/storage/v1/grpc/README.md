@@ -3,7 +3,7 @@ gRPC Remote Storage Plugins
 
 Update (May 2024): as of v1.58, Jaeger will no longer support grpc-sidecar plugin model. Only gRPC Remote Storage API is suppored.
 
-In order to support an ecosystem of different backend storage implementations, Jaeger supports a gRPC-based Remote Strorage API. The custom backend storage solutions need to implement `storage_v1` gRPC interfaces defined in `plugin/storage/grpc/proto/`.
+In order to support an ecosystem of different backend storage implementations, Jaeger supports a gRPC-based Remote Strorage API. The custom backend storage solutions need to implement `storage_v1` gRPC interfaces defined in `internal/storage/v1/grpc/proto/`.
 
 ```
 +----------------------------------+                  +-----------------------------+
@@ -23,7 +23,7 @@ Implementing a plugin
 ----------------------
 
 Although the instructions below are limited to Go, plugins can be implemented any language. Languages other than
-Go would implement a gRPC server using the `storage_v1` proto interfaces. The `proto` file can be found in `plugin/storage/grpc/proto/`.
+Go would implement a gRPC server using the `storage_v1` proto interfaces. The `proto` file can be found in `internal/storage/v1/grpc/proto/`.
 To generate the bindings for your language you would use `protoc` with the appropriate `xx_out=` flag. This is detailed
 in the [protobuf documentation](https://developers.google.com/protocol-buffers/docs/tutorials) and you can see an example of
 how it is done for Go in the top level Jaeger `Makefile`.
@@ -42,7 +42,7 @@ $ git submodule update --init --recursive
 3. Then execute the following Docker command which mounts the local directory `c:\source\repos\jaeger` to the directory `/jaeger` in the Docker container and then executes the `jaegertracing/protobuf:0.2.0` command. This will create a file called `Storage.cs` in your local Windows folder `c:\source\repos\jaeger\code` containing the gRPC Storage API bindings.
 ```
 $ docker run --rm -u 1000 -v/c/source/repos/jaeger:/jaeger -w/jaeger \
-    jaegertracing/protobuf:0.2.0 "-I/jaeger -Iidl/proto/api_v2 -I/usr/include/github.com/gogo/protobuf -Iplugin/storage/grpc/proto --csharp_out=/jaeger/code plugin/storage/grpc/proto/storage.proto"
+    jaegertracing/protobuf:0.2.0 "-I/jaeger -Iidl/proto/api_v2 -I/usr/include/github.com/gogo/protobuf -Iinternal/storage/v1/grpc/proto --csharp_out=/jaeger/code internal/storage/v1/grpc/proto/storage.proto"
 ```
 
 An example of a Go binary that implements Remote Storage API can be found in `cmd/remote-storage`. That specific binary does not implement a custom backend, instead it supports the same backend implementations as available directly in Jaeger, but it makes them accessible via a Remote Storage API (and is being used in the integration tests).
@@ -104,7 +104,7 @@ import (
     "fmt"
     "google.golang.org/grpc/metadata"
 
-    "github.com/jaegertracing/jaeger/plugin/storage/grpc"
+    "github.com/jaegertracing/jaeger/internal/storage/v1/grpc"
 )
 
 // ... spanReader type declared here

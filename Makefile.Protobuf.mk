@@ -101,11 +101,11 @@ proto-openmetrics:
 
 .PHONY: proto-storage-v1
 proto-storage-v1:
-	$(call proto_compile, proto-gen/storage_v1, plugin/storage/grpc/proto/storage.proto, -Iplugin/storage/grpc/proto)
+	$(call proto_compile, proto-gen/storage_v1, internal/storage/v1/grpc/proto/storage.proto, -Iinternal/storage/v1/grpc/proto)
 	$(PROTOC) \
-		-Iplugin/storage/grpc/proto \
-		--go_out=$(PWD)/plugin/storage/grpc/proto/ \
-		plugin/storage/grpc/proto/storage_test.proto
+		-Iinternal/storage/v1/grpc/proto \
+		--go_out=$(PWD)/internal/storage/v1/grpc/proto/ \
+		internal/storage/v1/grpc/proto/storage_test.proto
 
 .PHONY: proto-hotrod
 proto-hotrod:
