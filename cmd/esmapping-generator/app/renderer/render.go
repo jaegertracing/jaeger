@@ -7,7 +7,7 @@ import (
 	"strconv"
 
 	"github.com/jaegertracing/jaeger/cmd/esmapping-generator/app"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/es/mappings"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/mappings"
 	"github.com/jaegertracing/jaeger/pkg/es"
 	cfg "github.com/jaegertracing/jaeger/pkg/es/config"
 )

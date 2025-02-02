@@ -2,7 +2,7 @@
 // Copyright (c) 2017 Uber Technologies, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-package es
+package elasticsearch
 
 import (
 	"context"
@@ -25,10 +25,10 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/spanstoremetrics"
-	esDepStore "github.com/jaegertracing/jaeger/internal/storage/v1/es/dependencystore"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/es/mappings"
-	esSampleStore "github.com/jaegertracing/jaeger/internal/storage/v1/es/samplingstore"
-	esSpanStore "github.com/jaegertracing/jaeger/internal/storage/v1/es/spanstore"
+	esDepStore "github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/dependencystore"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/mappings"
+	esSampleStore "github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/samplingstore"
+	esSpanStore "github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/spanstore"
 	"github.com/jaegertracing/jaeger/pkg/es"
 	"github.com/jaegertracing/jaeger/pkg/es/config"
 	"github.com/jaegertracing/jaeger/pkg/fswatcher"
