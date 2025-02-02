@@ -15,8 +15,8 @@ import (
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
-	"github.com/jaegertracing/jaeger/storage/spanstore"
-	spanstoremocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/spanstore"
+	spanstoremocks "github.com/jaegertracing/jaeger/internal/storage/v1/spanstore/mocks"
 )
 
 func TestGetArchivedTrace_NotFound(t *testing.T) {

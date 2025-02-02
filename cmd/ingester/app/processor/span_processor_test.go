@@ -15,7 +15,7 @@ import (
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	cmocks "github.com/jaegertracing/jaeger/cmd/ingester/app/consumer/mocks"
 	umocks "github.com/jaegertracing/jaeger/internal/storage/v1/kafka/mocks"
-	smocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
+	smocks "github.com/jaegertracing/jaeger/internal/storage/v1/spanstore/mocks"
 )
 
 func TestNewSpanProcessor(t *testing.T) {

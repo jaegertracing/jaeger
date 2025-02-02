@@ -17,7 +17,7 @@ import (
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
-	"github.com/jaegertracing/jaeger/storage/spanstore"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/spanstore"
 )
 
 // Query represents a jaeger-query's query for trace-id

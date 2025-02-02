@@ -9,13 +9,13 @@ import (
 
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/internal/storage/v1/dependencystore"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/metricstore"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/samplingstore"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/spanstore"
 	"github.com/jaegertracing/jaeger/pkg/distributedlock"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/telemetry"
-	"github.com/jaegertracing/jaeger/storage/dependencystore"
-	"github.com/jaegertracing/jaeger/storage/metricstore"
-	"github.com/jaegertracing/jaeger/storage/samplingstore"
-	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
 // BaseFactory is the same as Factory, but without the Initialize method.

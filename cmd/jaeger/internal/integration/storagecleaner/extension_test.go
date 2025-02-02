@@ -20,8 +20,8 @@ import (
 	"go.uber.org/zap/zaptest"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
-	"github.com/jaegertracing/jaeger/storage"
-	factoryMocks "github.com/jaegertracing/jaeger/storage/mocks"
+	"github.com/jaegertracing/jaeger/internal/storage/v1"
+	factoryMocks "github.com/jaegertracing/jaeger/internal/storage/v1/mocks"
 )
 
 var (

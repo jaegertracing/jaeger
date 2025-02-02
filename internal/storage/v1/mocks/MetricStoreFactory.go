@@ -8,7 +8,7 @@
 package mocks
 
 import (
-	metricstore "github.com/jaegertracing/jaeger/storage/metricstore"
+	metricstore "github.com/jaegertracing/jaeger/internal/storage/v1/metricstore"
 	mock "github.com/stretchr/testify/mock"
 
 	telemetry "github.com/jaegertracing/jaeger/pkg/telemetry"

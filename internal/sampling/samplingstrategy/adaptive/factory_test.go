@@ -14,14 +14,14 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/samplingstore"
+	smocks "github.com/jaegertracing/jaeger/internal/storage/v1/samplingstore/mocks"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/samplingstore/model"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/distributedlock"
 	lmocks "github.com/jaegertracing/jaeger/pkg/distributedlock/mocks"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/plugin"
-	"github.com/jaegertracing/jaeger/storage/samplingstore"
-	smocks "github.com/jaegertracing/jaeger/storage/samplingstore/mocks"
-	"github.com/jaegertracing/jaeger/storage/samplingstore/model"
 )
 
 var (

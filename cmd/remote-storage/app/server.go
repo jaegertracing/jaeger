@@ -17,12 +17,12 @@ import (
 	"google.golang.org/grpc/health"
 	"google.golang.org/grpc/reflection"
 
+	"github.com/jaegertracing/jaeger/internal/storage/v1/dependencystore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/grpc/shared"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/spanstore"
 	"github.com/jaegertracing/jaeger/pkg/bearertoken"
 	"github.com/jaegertracing/jaeger/pkg/telemetry"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
-	"github.com/jaegertracing/jaeger/storage/dependencystore"
-	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
 // Server runs a gRPC server

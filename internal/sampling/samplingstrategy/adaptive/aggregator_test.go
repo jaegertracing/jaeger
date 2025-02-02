@@ -17,7 +17,7 @@ import (
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	epmocks "github.com/jaegertracing/jaeger/internal/leaderelection/mocks"
 	"github.com/jaegertracing/jaeger/internal/metricstest"
-	"github.com/jaegertracing/jaeger/storage/samplingstore/mocks"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/samplingstore/mocks"
 )
 
 func TestAggregator(t *testing.T) {

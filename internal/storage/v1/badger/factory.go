@@ -17,17 +17,17 @@ import (
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/internal/storage/v1"
 	depStore "github.com/jaegertracing/jaeger/internal/storage/v1/badger/dependencystore"
 	badgerSampling "github.com/jaegertracing/jaeger/internal/storage/v1/badger/samplingstore"
 	badgerStore "github.com/jaegertracing/jaeger/internal/storage/v1/badger/spanstore"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/dependencystore"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/samplingstore"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/spanstore"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/spanstore/spanstoremetrics"
 	"github.com/jaegertracing/jaeger/pkg/distributedlock"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/plugin"
-	"github.com/jaegertracing/jaeger/storage"
-	"github.com/jaegertracing/jaeger/storage/dependencystore"
-	"github.com/jaegertracing/jaeger/storage/samplingstore"
-	"github.com/jaegertracing/jaeger/storage/spanstore"
-	"github.com/jaegertracing/jaeger/storage/spanstore/spanstoremetrics"
 )
 
 const (

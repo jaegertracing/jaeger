@@ -16,8 +16,8 @@ import (
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/memory"
-	"github.com/jaegertracing/jaeger/storage/spanstore"
-	spanstoreMocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/spanstore"
+	spanstoreMocks "github.com/jaegertracing/jaeger/internal/storage/v1/spanstore/mocks"
 	tracestoremocks "github.com/jaegertracing/jaeger/storage_v2/tracestore/mocks"
 )
 

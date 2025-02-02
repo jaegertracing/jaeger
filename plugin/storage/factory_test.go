@@ -18,14 +18,14 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/internal/storage/v1"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/dependencystore"
+	depStoreMocks "github.com/jaegertracing/jaeger/internal/storage/v1/dependencystore/mocks"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/mocks"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/spanstore"
+	spanStoreMocks "github.com/jaegertracing/jaeger/internal/storage/v1/spanstore/mocks"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
-	"github.com/jaegertracing/jaeger/storage"
-	"github.com/jaegertracing/jaeger/storage/dependencystore"
-	depStoreMocks "github.com/jaegertracing/jaeger/storage/dependencystore/mocks"
-	"github.com/jaegertracing/jaeger/storage/mocks"
-	"github.com/jaegertracing/jaeger/storage/spanstore"
-	spanStoreMocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
 )
 
 func defaultCfg() FactoryConfig {

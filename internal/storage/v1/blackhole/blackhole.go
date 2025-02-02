@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
-	"github.com/jaegertracing/jaeger/storage/spanstore"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/spanstore"
 )
 
 // Store is a blackhole. It creates an artificial micro-singularity

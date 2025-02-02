@@ -10,8 +10,8 @@ package mocks
 import (
 	context "context"
 
+	metricstore "github.com/jaegertracing/jaeger/internal/storage/v1/metricstore"
 	metrics "github.com/jaegertracing/jaeger/proto-gen/api_v2/metrics"
-	metricstore "github.com/jaegertracing/jaeger/storage/metricstore"
 
 	mock "github.com/stretchr/testify/mock"
 

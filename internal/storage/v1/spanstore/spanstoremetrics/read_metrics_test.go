@@ -13,9 +13,9 @@ import (
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/metricstest"
-	"github.com/jaegertracing/jaeger/storage/spanstore"
-	"github.com/jaegertracing/jaeger/storage/spanstore/mocks"
-	"github.com/jaegertracing/jaeger/storage/spanstore/spanstoremetrics"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/spanstore"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/spanstore/mocks"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/spanstore/spanstoremetrics"
 )
 
 func TestSuccessfulUnderlyingCalls(t *testing.T) {

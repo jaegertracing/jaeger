@@ -20,20 +20,20 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/internal/storage/v1"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/dependencystore"
 	esDepStore "github.com/jaegertracing/jaeger/internal/storage/v1/es/dependencystore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/es/mappings"
 	esSampleStore "github.com/jaegertracing/jaeger/internal/storage/v1/es/samplingstore"
 	esSpanStore "github.com/jaegertracing/jaeger/internal/storage/v1/es/spanstore"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/samplingstore"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/spanstore"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/spanstore/spanstoremetrics"
 	"github.com/jaegertracing/jaeger/pkg/es"
 	"github.com/jaegertracing/jaeger/pkg/es/config"
 	"github.com/jaegertracing/jaeger/pkg/fswatcher"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/plugin"
-	"github.com/jaegertracing/jaeger/storage"
-	"github.com/jaegertracing/jaeger/storage/dependencystore"
-	"github.com/jaegertracing/jaeger/storage/samplingstore"
-	"github.com/jaegertracing/jaeger/storage/spanstore"
-	"github.com/jaegertracing/jaeger/storage/spanstore/spanstoremetrics"
 )
 
 const (

@@ -13,9 +13,9 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/ingester/app/consumer"
 	"github.com/jaegertracing/jaeger/cmd/ingester/app/processor"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/kafka"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/spanstore"
 	kafkaConsumer "github.com/jaegertracing/jaeger/pkg/kafka/consumer"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
-	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
 // CreateConsumer creates a new span consumer for the ingester

@@ -10,7 +10,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sanitizer"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/kafka"
-	"github.com/jaegertracing/jaeger/storage/spanstore"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/spanstore"
 )
 
 //go:generate mockery -name=KafkaSpanProcessor
