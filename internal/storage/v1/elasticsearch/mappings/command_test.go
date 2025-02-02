@@ -101,7 +101,7 @@ func Test_getMappingAsString(t *testing.T) {
 			// Prepare
 			mockTemplateApplier := &mocks.TemplateApplier{}
 			mockTemplateApplier.On("Execute", mock.Anything, mock.Anything).Return(
-				func(wr io.Writer, data any) error {
+				func(wr io.Writer, _ any) error {
 					wr.Write([]byte(tt.want))
 					return nil
 				},
@@ -179,7 +179,7 @@ func TestGenerateMappings(t *testing.T) {
 			} else {
 				require.NoError(t, err, "Did not expect an error")
 
-				var parsed map[string]interface{}
+				var parsed map[string]any
 				err = json.Unmarshal([]byte(result), &parsed)
 				require.NoError(t, err, "Expected valid JSON output")
 
