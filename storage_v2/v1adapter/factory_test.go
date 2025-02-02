@@ -10,7 +10,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/jaegertracing/jaeger/plugin/storage/grpc"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/grpc"
 	dependencyStoreMocks "github.com/jaegertracing/jaeger/storage/dependencystore/mocks"
 	factoryMocks "github.com/jaegertracing/jaeger/storage/mocks"
 	spanstoreMocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
