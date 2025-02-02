@@ -14,8 +14,8 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/internal/safeexpvar"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/blackhole"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/badger"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/blackhole"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/es"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/grpc"
