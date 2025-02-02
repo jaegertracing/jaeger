@@ -19,7 +19,7 @@ services:
   microsim:
     networks:
       - backend
-    image: yurishkuro/microsim:v0.4.1
+    image: yurishkuro/microsim:v0.5.0
     command: "-d 24h -s 500ms"
     environment:
       - OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://jaeger:4318/v1/traces
