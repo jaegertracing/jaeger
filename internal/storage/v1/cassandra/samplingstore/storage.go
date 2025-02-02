@@ -17,7 +17,7 @@ import (
 	"github.com/gocql/gocql"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/internal/storage/v1/samplingstore/model"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore/model"
 	"github.com/jaegertracing/jaeger/pkg/cassandra"
 	casMetrics "github.com/jaegertracing/jaeger/pkg/cassandra/metrics"
 	"github.com/jaegertracing/jaeger/pkg/metrics"

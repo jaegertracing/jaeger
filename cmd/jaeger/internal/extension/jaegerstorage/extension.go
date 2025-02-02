@@ -12,7 +12,7 @@ import (
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/extension"
 
-	"github.com/jaegertracing/jaeger/internal/storage/v1"
+	storage "github.com/jaegertracing/jaeger/internal/storage/v1/api"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/badger"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/es"

@@ -7,7 +7,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/jaegertracing/jaeger/internal/storage/v1/metricstore"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2/metrics"
 )
 

@@ -7,7 +7,7 @@ package samplingstore
 import (
 	"time"
 
-	"github.com/jaegertracing/jaeger/internal/storage/v1/samplingstore/model"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore/model"
 )
 
 // Store writes and retrieves sampling data to and from storage.

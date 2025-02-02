@@ -23,7 +23,7 @@ import (
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc/v2/querysvc"
 	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/spanstore"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	"github.com/jaegertracing/jaeger/pkg/iter"
 	"github.com/jaegertracing/jaeger/storage_v2/tracestore"
 	"github.com/jaegertracing/jaeger/storage_v2/v1adapter"

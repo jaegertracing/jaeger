@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/spanstore"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 )
 
 // DependencyStore handles all queries and insertions to Badger dependencies

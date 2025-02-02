@@ -16,10 +16,10 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
-	dependencyStoreMocks "github.com/jaegertracing/jaeger/internal/storage/v1/dependencystore/mocks"
+	dependencyStoreMocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore/mocks"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
+	spanStoreMocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/memory"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/spanstore"
-	spanStoreMocks "github.com/jaegertracing/jaeger/internal/storage/v1/spanstore/mocks"
 	"github.com/jaegertracing/jaeger/pkg/iter"
 	"github.com/jaegertracing/jaeger/storage_v2/depstore"
 	"github.com/jaegertracing/jaeger/storage_v2/tracestore"

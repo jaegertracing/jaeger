@@ -32,9 +32,9 @@ import (
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
-	metricsmocks "github.com/jaegertracing/jaeger/internal/storage/v1/metricstore/mocks"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/spanstore"
-	spanstoremocks "github.com/jaegertracing/jaeger/internal/storage/v1/spanstore/mocks"
+	metricsmocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore/mocks"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
+	spanstoremocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/mocks"
 	ui "github.com/jaegertracing/jaeger/model/json"
 	"github.com/jaegertracing/jaeger/pkg/jtracer"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"

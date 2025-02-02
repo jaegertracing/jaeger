@@ -8,7 +8,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/jaegertracing/jaeger/internal/storage/v1/spanstore"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 )
 
 func Test_getUniqueOperationNames(t *testing.T) {

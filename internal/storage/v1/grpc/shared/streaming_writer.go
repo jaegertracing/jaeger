@@ -10,7 +10,7 @@ import (
 	"sync/atomic"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/spanstore"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	"github.com/jaegertracing/jaeger/proto-gen/storage_v1"
 )
 

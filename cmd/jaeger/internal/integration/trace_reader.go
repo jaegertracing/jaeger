@@ -19,7 +19,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/spanstore"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	"github.com/jaegertracing/jaeger/pkg/iter"
 	"github.com/jaegertracing/jaeger/ports"
 	"github.com/jaegertracing/jaeger/storage_v2/tracestore"

@@ -13,8 +13,8 @@ import (
 	span_model "github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/leaderelection"
 	"github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/samplingstore"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/samplingstore/model"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore/model"
 	"github.com/jaegertracing/jaeger/pkg/hostname"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 )

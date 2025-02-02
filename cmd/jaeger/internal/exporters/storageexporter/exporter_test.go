@@ -22,10 +22,10 @@ import (
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
-	"github.com/jaegertracing/jaeger/internal/storage/v1"
+	storage "github.com/jaegertracing/jaeger/internal/storage/v1/api"
+	factoryMocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/mocks"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/memory"
-	factoryMocks "github.com/jaegertracing/jaeger/internal/storage/v1/mocks"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/spanstore"
 )
 
 type mockStorageExt struct {

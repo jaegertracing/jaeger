@@ -16,7 +16,7 @@ import (
 	"github.com/dgraph-io/badger/v4"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/spanstore"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 )
 
 // Most of these errors are common with the ES and Cassandra backends. Each backend has slightly different validation rules.

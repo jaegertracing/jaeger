@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/internal/storage/v1"
+	storage "github.com/jaegertracing/jaeger/internal/storage/v1/api"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 

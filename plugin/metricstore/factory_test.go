@@ -12,8 +12,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/internal/storage/v1"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/mocks"
+	storage "github.com/jaegertracing/jaeger/internal/storage/v1/api"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/api/mocks"
 	"github.com/jaegertracing/jaeger/pkg/telemetry"
 	"github.com/jaegertracing/jaeger/plugin/metricstore/disabled"
 )

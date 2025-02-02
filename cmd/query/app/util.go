@@ -4,7 +4,7 @@
 package app
 
 import (
-	"github.com/jaegertracing/jaeger/internal/storage/v1/spanstore"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 )
 
 func getUniqueOperationNames(operations []spanstore.Operation) []string {

@@ -17,8 +17,8 @@ import (
 	epmocks "github.com/jaegertracing/jaeger/internal/leaderelection/mocks"
 	"github.com/jaegertracing/jaeger/internal/metricstest"
 	"github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy/adaptive/calculationstrategy"
-	smocks "github.com/jaegertracing/jaeger/internal/storage/v1/samplingstore/mocks"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/samplingstore/model"
+	smocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore/mocks"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore/model"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 )

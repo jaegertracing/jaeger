@@ -16,8 +16,8 @@ import (
 
 	"github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
 	epmocks "github.com/jaegertracing/jaeger/internal/leaderelection/mocks"
-	smocks "github.com/jaegertracing/jaeger/internal/storage/v1/samplingstore/mocks"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/samplingstore/model"
+	smocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore/mocks"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore/model"
 )
 
 func TestProviderLoadProbabilities(t *testing.T) {

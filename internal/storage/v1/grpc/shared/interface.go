@@ -4,8 +4,8 @@
 package shared
 
 import (
-	"github.com/jaegertracing/jaeger/internal/storage/v1/dependencystore"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/spanstore"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 )
 
 // StoragePlugin is the interface we're exposing as a plugin.

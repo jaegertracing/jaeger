@@ -18,8 +18,8 @@ import (
 	"github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
 	"github.com/jaegertracing/jaeger/cmd/query/app"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/spanstore"
-	spanstoremocks "github.com/jaegertracing/jaeger/internal/storage/v1/spanstore/mocks"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
+	spanstoremocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/mocks"
 	dependencyStoreMocks "github.com/jaegertracing/jaeger/storage_v2/depstore/mocks"
 	"github.com/jaegertracing/jaeger/storage_v2/v1adapter"
 )

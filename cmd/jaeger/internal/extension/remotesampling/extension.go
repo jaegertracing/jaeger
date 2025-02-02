@@ -28,8 +28,8 @@ import (
 	"github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy"
 	"github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy/adaptive"
 	"github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy/file"
-	"github.com/jaegertracing/jaeger/internal/storage/v1"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/samplingstore"
+	storage "github.com/jaegertracing/jaeger/internal/storage/v1/api"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
