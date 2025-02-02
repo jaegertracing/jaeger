@@ -51,7 +51,7 @@ packages:
   github.com/jaegertracing/jaeger/internal/storage/v1/grpc/shared:
     interfaces:
       PluginCapabilities:
-  github.com/jaegertracing/jaeger/plugin/storage/kafka:
+  github.com/jaegertracing/jaeger/internal/storage/v1/kafka:
     interfaces:
       Marshaller:
       Unmarshaller:

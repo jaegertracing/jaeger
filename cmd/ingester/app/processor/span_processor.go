@@ -9,7 +9,7 @@ import (
 	"io"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sanitizer"
-	"github.com/jaegertracing/jaeger/plugin/storage/kafka"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/kafka"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
