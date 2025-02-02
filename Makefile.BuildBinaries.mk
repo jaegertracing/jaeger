@@ -51,11 +51,11 @@ build-anonymizer:
 
 .PHONY: build-esmapping-generator
 build-esmapping-generator:
-	$(GOBUILD) $(BUILD_INFO) -o ./plugin/storage/es/esmapping-generator-$(GOOS)-$(GOARCH) ./cmd/esmapping-generator/
+	$(GOBUILD) $(BUILD_INFO) -o ./internal/storage/v1/es/esmapping-generator-$(GOOS)-$(GOARCH) ./cmd/esmapping-generator/
 
 .PHONY: build-esmapping-generator-linux
 build-esmapping-generator-linux:
-	 GOOS=linux $(BUILD_INFO) GOARCH=amd64 $(GOBUILD) -o ./plugin/storage/es/esmapping-generator ./cmd/esmapping-generator/
+	 GOOS=linux $(BUILD_INFO) GOARCH=amd64 $(GOBUILD) -o ./internal/storage/v1/es/esmapping-generator ./cmd/esmapping-generator/
 
 .PHONY: build-es-index-cleaner
 build-es-index-cleaner:

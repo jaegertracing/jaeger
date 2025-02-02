@@ -9,8 +9,8 @@ import (
 
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/internal/storage/v1/memory"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
-	"github.com/jaegertracing/jaeger/plugin/storage/memory"
 	"github.com/jaegertracing/jaeger/storage_v2/v1adapter"
 )
 
