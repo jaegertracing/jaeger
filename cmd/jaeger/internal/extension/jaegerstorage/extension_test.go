@@ -28,8 +28,6 @@ import (
 	esCfg "github.com/jaegertracing/jaeger/pkg/es/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	promCfg "github.com/jaegertracing/jaeger/pkg/prometheus/config"
-	"github.com/jaegertracing/jaeger/plugin/storage/badger"
-	"github.com/jaegertracing/jaeger/plugin/storage/memory"
 	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
