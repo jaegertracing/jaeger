@@ -21,7 +21,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
-	factoryMocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/mocks"
+	factoryMocks "github.com/jaegertracing/jaeger/internal/storage/v1/mocks"
 )
 
 var (

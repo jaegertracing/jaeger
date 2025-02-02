@@ -13,7 +13,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/api/mocks"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/mocks"
 	"github.com/jaegertracing/jaeger/pkg/telemetry"
 	"github.com/jaegertracing/jaeger/plugin/metricstore/disabled"
 )

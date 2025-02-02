@@ -11,9 +11,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	dependencyStoreMocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore/mocks"
-	factoryMocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/mocks"
 	spanstoreMocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/grpc"
+	factoryMocks "github.com/jaegertracing/jaeger/internal/storage/v1/mocks"
 )
 
 func TestAdapterInitialize(t *testing.T) {

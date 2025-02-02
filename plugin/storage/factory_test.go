@@ -21,9 +21,9 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore"
 	depStoreMocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore/mocks"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/api/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	spanStoreMocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/mocks"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/mocks"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
