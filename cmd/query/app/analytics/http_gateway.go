@@ -8,9 +8,9 @@ import (
 	"net/http"
 
 	"github.com/gorilla/mux"
-	"go.uber.org/zap"
-	"go.opentelemetry.io/otel/trace"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel/trace"
+	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 )
@@ -19,7 +19,7 @@ const (
 	// paramOpsName = ""
 	// paramServiceName = ""
 
-	routeGetDeepDependencies  = "/api/deep-dependencies/"
+	routeGetDeepDependencies = "/api/deep-dependencies/"
 )
 
 // HTTPGateway exposes analytics HTTP endpoints.
@@ -54,7 +54,7 @@ func spanNameHandler(spanName string, handler http.Handler) http.Handler {
 	})
 }
 
-func (h * HTTPGateway) getDeepDependencies(w http.ResponseWriter, r *http.Request) {
+func (h *HTTPGateway) getDeepDependencies(w http.ResponseWriter, r *http.Request) {
 	dependencies := TDdgPayload{
 		Dependencies: []TDdgPayloadPath{
 			{
@@ -73,8 +73,6 @@ func (h * HTTPGateway) getDeepDependencies(w http.ResponseWriter, r *http.Reques
 	if err := json.NewEncoder(w).Encode(dependencies); err != nil {
 		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
 	}
-
-
 }
 
 // Structs that need to be used or created for deep dependencies
