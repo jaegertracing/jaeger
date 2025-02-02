@@ -1,7 +1,7 @@
 // Copyright (c) 2020 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
-package app
+package mappings
 
 import (
 	"github.com/spf13/cobra"
