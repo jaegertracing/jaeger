@@ -22,16 +22,16 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 
+	"github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore"
+	dependencyStoreMocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore/mocks"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
+	spanStoreMocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/grpc/shared"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/grpc/shared/mocks"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/telemetry"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
-	"github.com/jaegertracing/jaeger/storage/dependencystore"
-	dependencyStoreMocks "github.com/jaegertracing/jaeger/storage/dependencystore/mocks"
-	"github.com/jaegertracing/jaeger/storage/spanstore"
-	spanStoreMocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
 )
 
 type store struct {

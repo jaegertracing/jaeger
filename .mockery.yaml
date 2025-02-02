@@ -58,19 +58,19 @@ packages:
   github.com/jaegertracing/jaeger/proto-gen/storage_v1:
     config:
       all: true
-  github.com/jaegertracing/jaeger/storage:
+  github.com/jaegertracing/jaeger/internal/storage/v1:
     config:
       all: true
-  github.com/jaegertracing/jaeger/storage/dependencystore:
+  github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore:
     interfaces:
       Reader:
-  github.com/jaegertracing/jaeger/storage/metricstore:
+  github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore:
     config:
       all: true
-  github.com/jaegertracing/jaeger/storage/samplingstore:
+  github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore:
     config:
       all: true
-  github.com/jaegertracing/jaeger/storage/spanstore:
+  github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore:
     config:
       all: true
   github.com/jaegertracing/jaeger/storage_v2/tracestore:

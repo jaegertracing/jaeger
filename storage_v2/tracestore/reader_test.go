@@ -9,7 +9,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/jaegertracing/jaeger/storage/spanstore"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 )
 
 func TestToSpanStoreQueryParameters(t *testing.T) {

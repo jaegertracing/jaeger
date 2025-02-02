@@ -12,8 +12,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	samplemodel "github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore/model"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
-	samplemodel "github.com/jaegertracing/jaeger/storage/samplingstore/model"
 )
 
 func newTestSamplingStore(db *badger.DB) *SamplingStore {

@@ -14,11 +14,11 @@ import (
 	"go.opentelemetry.io/collector/config/configopaque"
 	"go.uber.org/zap"
 
+	spanstoremocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/mocks"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/plugin/storage"
 	"github.com/jaegertracing/jaeger/ports"
-	spanstoremocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
 )
 
 func TestQueryBuilderFlags(t *testing.T) {

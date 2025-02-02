@@ -12,10 +12,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/internal/storage/v1"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/mocks"
 	"github.com/jaegertracing/jaeger/pkg/telemetry"
 	"github.com/jaegertracing/jaeger/plugin/metricstore/disabled"
-	"github.com/jaegertracing/jaeger/storage"
-	"github.com/jaegertracing/jaeger/storage/mocks"
 )
 
 var _ storage.MetricStoreFactory = new(Factory)

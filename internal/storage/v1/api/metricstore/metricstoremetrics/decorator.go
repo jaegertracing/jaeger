@@ -7,9 +7,9 @@ import (
 	"context"
 	"time"
 
+	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	protometrics "github.com/jaegertracing/jaeger/proto-gen/api_v2/metrics"
-	"github.com/jaegertracing/jaeger/storage/metricstore"
 )
 
 // ReadMetricsDecorator wraps a metricstore.Reader and collects metrics around each read operation.

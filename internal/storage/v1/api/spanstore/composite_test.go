@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
-	"github.com/jaegertracing/jaeger/storage/spanstore"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 )
 
 var errIWillAlwaysFail = errors.New("ErrProneWriteSpanStore will always fail")

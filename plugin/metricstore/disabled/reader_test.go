@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/jaegertracing/jaeger/storage/metricstore"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
 )
 
 func TestGetLatencies(t *testing.T) {

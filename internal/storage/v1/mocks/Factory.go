@@ -8,12 +8,12 @@
 package mocks
 
 import (
+	dependencystore "github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore"
 	metrics "github.com/jaegertracing/jaeger/pkg/metrics"
-	dependencystore "github.com/jaegertracing/jaeger/storage/dependencystore"
 
 	mock "github.com/stretchr/testify/mock"
 
-	spanstore "github.com/jaegertracing/jaeger/storage/spanstore"
+	spanstore "github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 
 	zap "go.uber.org/zap"
 )

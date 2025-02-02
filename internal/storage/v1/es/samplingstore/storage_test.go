@@ -16,12 +16,12 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
+	samplemodel "github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore/model"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/es/samplingstore/dbmodel"
 	"github.com/jaegertracing/jaeger/pkg/es"
 	"github.com/jaegertracing/jaeger/pkg/es/config"
 	"github.com/jaegertracing/jaeger/pkg/es/mocks"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
-	samplemodel "github.com/jaegertracing/jaeger/storage/samplingstore/model"
 )
 
 const defaultMaxDocCount = 10_000

@@ -10,7 +10,7 @@ import (
 
 	"github.com/dgraph-io/badger/v4"
 
-	"github.com/jaegertracing/jaeger/storage/spanstore"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 )
 
 // CacheStore saves expensive calculations from the K/V store
