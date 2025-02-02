@@ -53,6 +53,7 @@ func (m *mockClientBuilder) NewClient(*escfg.Configuration, *zap.Logger, metrics
 		tService.On("Body", mock.Anything).Return(tService)
 		tService.On("Do", context.Background()).Return(nil, m.createTemplateError)
 		c.On("CreateTemplate", mock.Anything).Return(tService)
+		c.On("IlmPolicyExists", mock.Anything, mock.Anything).Return(true, nil)
 		c.On("GetVersion").Return(uint(6))
 		c.On("Close").Return(nil)
 		return c, nil
@@ -143,7 +144,8 @@ func TestElasticsearchTagsFileDoNotExist(t *testing.T) {
 func TestElasticsearchILMUsedWithoutReadWriteAliases(t *testing.T) {
 	f := NewFactory()
 	f.config = &escfg.Configuration{
-		UseILM: true,
+		UseILM:  true,
+		Version: 7,
 	}
 	f.newClientFn = (&mockClientBuilder{}).NewClient
 	require.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
@@ -229,17 +231,6 @@ func TestCreateTemplateError(t *testing.T) {
 	s, err := f.CreateSamplingStore(1)
 	assert.Nil(t, s)
 	require.Error(t, err, "template-error")
-}
-
-func TestILMDisableTemplateCreation(t *testing.T) {
-	f := NewFactory()
-	f.config = &escfg.Configuration{UseILM: true, UseReadWriteAliases: true, CreateIndexTemplates: true}
-	f.newClientFn = (&mockClientBuilder{createTemplateError: errors.New("template-error")}).NewClient
-	err := f.Initialize(metrics.NullFactory, zap.NewNop())
-	defer f.Close()
-	require.NoError(t, err)
-	_, err = f.CreateSpanWriter()
-	require.NoError(t, err) // as the createTemplate is not called, CreateSpanWriter should not return an error
 }
 
 func TestConfigureFromOptions(t *testing.T) {

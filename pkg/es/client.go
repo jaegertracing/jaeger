@@ -15,7 +15,14 @@ import (
 type Client interface {
 	IndexExists(index string) IndicesExistsService
 	CreateIndex(index string) IndicesCreateService
+	GetIndices() IndicesGetService
 	CreateTemplate(id string) TemplateCreateService
+	CreateAlias(name string) AliasAddAction
+	DeleteAlias(name string) AliasRemoveAction
+	CreateIlmPolicy() XPackIlmPutLifecycle
+	CreateIsmPolicy(ctx context.Context, id string, policy string) (*elastic.Response, error)
+	IlmPolicyExists(ctx context.Context, id string) (bool, error)
+	IsmPolicyExists(ctx context.Context, id string) (bool, error)
 	Index() IndexService
 	Search(indices ...string) SearchService
 	MultiSearch() MultiSearchService
@@ -69,4 +76,30 @@ type MultiSearchService interface {
 	Add(requests ...*elastic.SearchRequest) MultiSearchService
 	Index(indices ...string) MultiSearchService
 	Do(ctx context.Context) (*elastic.MultiSearchResult, error)
+}
+
+// AliasAddAction is an abstraction for elastic.AliasAddAction
+type AliasAddAction interface {
+	Index(index ...string) AliasAddAction
+	IsWriteIndex(flag bool) AliasAddAction
+	Do(ctx context.Context) (*elastic.AliasResult, error)
+}
+
+// AliasRemoveAction is an abstraction for elastic.AliasRemoveAction
+type AliasRemoveAction interface {
+	Index(index ...string) AliasRemoveAction
+	Do(ctx context.Context) (*elastic.AliasResult, error)
+}
+
+// XPackIlmPutLifecycle is an abstraction for elastic.XPackIlmPutLifecycle
+type XPackIlmPutLifecycle interface {
+	BodyString(body string) XPackIlmPutLifecycle
+	Policy(policy string) XPackIlmPutLifecycle
+	Do(ctx context.Context) (*elastic.XPackIlmPutLifecycleResponse, error)
+}
+
+// IndicesGetService is an abstraction for elastic.IndicesGetService
+type IndicesGetService interface {
+	Index(indices ...string) IndicesGetService
+	Do(ctx context.Context) (map[string]*elastic.IndicesGetResponse, error)
 }
