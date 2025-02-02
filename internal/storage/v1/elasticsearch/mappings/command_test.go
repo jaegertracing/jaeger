@@ -50,6 +50,12 @@ func TestCommandExecute(t *testing.T) {
 	require.NoError(t, err, "Output should be valid JSON")
 }
 
+func TestCommandExecuteError(t *testing.T) {
+	cmd := Command()
+	require.NoError(t, cmd.ParseFlags([]string{"--mapping=foobar"}))
+	require.ErrorContains(t, cmd.Execute(), "foobar")
+}
+
 func TestIsValidOption(t *testing.T) {
 	tests := []struct {
 		name          string
@@ -127,8 +133,16 @@ func TestGenerateMappings(t *testing.T) {
 	tests := []struct {
 		name      string
 		options   Options
-		expectErr bool
+		expectErr string
 	}{
+		{
+			name: "bad ILM setting",
+			options: Options{
+				Mapping: "jaeger-span",
+				UseILM:  "foobar",
+			},
+			expectErr: "foobar",
+		},
 		{
 			name: "valid jaeger-span mapping",
 			options: Options{
@@ -140,7 +154,7 @@ func TestGenerateMappings(t *testing.T) {
 				UseILM:        "false",
 				ILMPolicyName: "jaeger-ilm-policy",
 			},
-			expectErr: false,
+			expectErr: "",
 		},
 		{
 			name: "valid jaeger-service mapping",
@@ -153,29 +167,29 @@ func TestGenerateMappings(t *testing.T) {
 				UseILM:        "true",
 				ILMPolicyName: "service-ilm-policy",
 			},
-			expectErr: false,
+			expectErr: "",
 		},
 		{
 			name: "invalid mapping type",
 			options: Options{
 				Mapping: "invalid-mapping",
 			},
-			expectErr: true,
+			expectErr: "invalid-mapping",
 		},
 		{
 			name: "missing mapping flag",
 			options: Options{
 				Mapping: "",
 			},
-			expectErr: true,
+			expectErr: "invalid mapping type ''",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result, err := generateMappings(tt.options)
-			if tt.expectErr {
-				require.Error(t, err, "Expected an error")
+			if tt.expectErr != "" {
+				require.ErrorContains(t, err, tt.expectErr)
 			} else {
 				require.NoError(t, err, "Did not expect an error")
 

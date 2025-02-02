@@ -5,7 +5,6 @@ package mappings
 
 import (
 	"fmt"
-	"log"
 	"strconv"
 
 	"github.com/spf13/cobra"
@@ -20,12 +19,13 @@ func Command() *cobra.Command {
 		Use:   "elasticsearch-mappings",
 		Short: "Jaeger esmapping-generator prints rendered mappings as string",
 		Long:  "Jaeger esmapping-generator renders passed templates with provided values and prints rendered output to stdout",
-		Run: func(_ *cobra.Command, _ /* args */ []string) {
+		RunE: func(_ *cobra.Command, _ /* args */ []string) error {
 			result, err := generateMappings(options)
 			if err != nil {
-				log.Fatalf("Error generating mappings: %v", err)
+				return fmt.Errorf("error generating mappings: %w", err)
 			}
 			fmt.Println(result)
+			return nil
 		},
 	}
 	options.AddFlags(command)
