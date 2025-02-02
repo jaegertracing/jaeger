@@ -10,6 +10,14 @@ import (
 	"net/http"
 )
 
+type notFoundError struct {
+	err error
+}
+
+func (e notFoundError) Error() string {
+	return e.err.Error()
+}
+
 // ResponseError holds information about a request error
 type ResponseError struct {
 	// Error returned by the http client
@@ -79,6 +87,9 @@ func (c *Client) request(esRequest elasticRequest) ([]byte, error) {
 	}
 	defer res.Body.Close()
 
+	if res.StatusCode == http.StatusNotFound {
+		return []byte{}, notFoundError{err: fmt.Errorf("%s doesn't exists", esRequest.endpoint)}
+	}
 	if res.StatusCode != http.StatusOK {
 		return []byte{}, c.handleFailedRequest(res)
 	}

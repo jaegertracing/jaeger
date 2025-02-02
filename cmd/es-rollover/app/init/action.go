@@ -4,11 +4,8 @@
 package init
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
-	"net/http"
-	"strings"
 
 	"github.com/jaegertracing/jaeger/cmd/es-rollover/app"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/mappings"
@@ -69,28 +66,15 @@ func (c Action) Do() error {
 }
 
 func createIndexIfNotExist(c client.IndexAPI, index string) error {
-	err := c.CreateIndex(index)
+	exists, err := c.IndexExists(index)
 	if err != nil {
-		var esErr client.ResponseError
-		if errors.As(err, &esErr) {
-			if esErr.StatusCode != http.StatusBadRequest || esErr.Body == nil {
-				return esErr.Err
-			}
-			// check for the reason of the error
-			jsonError := map[string]any{}
-			err := json.Unmarshal(esErr.Body, &jsonError)
-			if err != nil {
-				// return unmarshal error
-				return err
-			}
-			errorMap := jsonError["error"].(map[string]any)
-			// check for reason, ignore already exist error
-			if strings.Contains(errorMap["type"].(string), "resource_already_exists_exception") {
-				return nil
-			}
-		}
-		// Return any other error unrelated to the response
 		return err
+	}
+	if !exists {
+		err := c.CreateIndex(index)
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }
