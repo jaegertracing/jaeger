@@ -55,10 +55,7 @@ func TestBadgerStorage(t *testing.T) {
 		testutils.VerifyGoLeaksOnce(t)
 	})
 	s := &BadgerIntegrationStorage{
-		StorageIntegration: StorageIntegration{
-			// TODO: remove this badger supports returning spanKind from GetOperations
-			GetOperationsMissingSpanKind: true,
-		},
+		StorageIntegration: StorageIntegration{},
 	}
 	s.CleanUp = s.cleanUp
 	s.initialize(t)
