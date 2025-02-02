@@ -20,7 +20,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v1/badger"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/blackhole"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/es"
+	es "github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/grpc"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/kafka"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/memory"
