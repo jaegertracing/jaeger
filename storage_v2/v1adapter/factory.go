@@ -7,7 +7,7 @@ import (
 	"context"
 	"io"
 
-	storage_v1 "github.com/jaegertracing/jaeger/internal/storage/v1/api"
+	storage_v1 "github.com/jaegertracing/jaeger/internal/storage/v1"
 	"github.com/jaegertracing/jaeger/storage_v2/depstore"
 	"github.com/jaegertracing/jaeger/storage_v2/tracestore"
 )

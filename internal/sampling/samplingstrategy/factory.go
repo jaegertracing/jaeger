@@ -6,7 +6,7 @@ package samplingstrategy
 import (
 	"go.uber.org/zap"
 
-	storage "github.com/jaegertracing/jaeger/internal/storage/v1/api"
+	"github.com/jaegertracing/jaeger/internal/storage/v1"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
