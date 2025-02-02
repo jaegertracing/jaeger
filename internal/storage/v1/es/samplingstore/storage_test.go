@@ -16,11 +16,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/internal/storage/v1/es/samplingstore/dbmodel"
 	"github.com/jaegertracing/jaeger/pkg/es"
 	"github.com/jaegertracing/jaeger/pkg/es/config"
 	"github.com/jaegertracing/jaeger/pkg/es/mocks"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
-	"github.com/jaegertracing/jaeger/plugin/storage/es/samplingstore/dbmodel"
 	samplemodel "github.com/jaegertracing/jaeger/storage/samplingstore/model"
 )
 

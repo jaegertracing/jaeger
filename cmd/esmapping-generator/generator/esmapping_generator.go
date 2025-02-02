@@ -8,8 +8,8 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/esmapping-generator/app"
 	"github.com/jaegertracing/jaeger/cmd/esmapping-generator/app/renderer"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/es/mappings"
 	"github.com/jaegertracing/jaeger/pkg/es"
-	"github.com/jaegertracing/jaeger/plugin/storage/es/mappings"
 )
 
 func GenerateMappings(options app.Options) (string, error) {
