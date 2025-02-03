@@ -1,0 +1,60 @@
+service:
+  extensions: [jaeger_storage, jaeger_query, healthcheckv2]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [jaeger_storage_exporter]
+  telemetry:
+    resource:
+      service.name: jaeger
+    metrics:
+      level: detailed
+      address: 0.0.0.0:8888
+    logs:
+      level: debug
+    # TODO Initialize telemetry tracer once OTEL released new feature.
+    # https://github.com/open-telemetry/opentelemetry-collector/issues/10663
+
+extensions:
+  healthcheckv2:
+    use_v2: true
+    http:
+
+  jaeger_query:
+    storage:
+      traces: some_storage
+      traces_archive: another_storage
+    ui:
+      config_file: ./cmd/jaeger/config-ui.json
+
+  jaeger_storage:
+    backends:
+      some_storage:
+        clickhouse:
+          connection:
+            addresses: "127.0.0.1:9000"
+            auth:
+              database: "jeager"
+              username: "default"
+              password: ""
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+      http:
+
+  jaeger:
+    protocols:
+      grpc:
+      thrift_binary:
+      thrift_compact:
+      thrift_http:
+
+processors:
+  batch:
+
+exporters:
+  jaeger_storage_exporter:
+    trace_storage: some_storage
