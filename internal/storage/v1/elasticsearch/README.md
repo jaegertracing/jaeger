@@ -23,7 +23,7 @@ ElasticSearch creates a new document for every nested field, there is currently 
 ### Shards and Replicas
 Number of shards and replicas per index can be specified as parameters to the writer and/or through configs under
 `./pkg/es/config/config.go`. If not specified, it defaults to ElasticSearch defaults: 5 shards and 1 replica.
-[This article](https://qbox.io/blog/optimizing-elasticsearch-how-many-shards-per-index) goes into more information
+[This article](https://www.elastic.co/blog/how-many-shards-should-i-have-in-my-elasticsearch-cluster) goes into more information
 about choosing how many shards should be chosen for optimization.
 
 ## Limitations
