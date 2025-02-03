@@ -12,7 +12,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
-	"github.com/jaegertracing/jaeger/internal/storage/v2/api/v1adapter"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
 	"github.com/jaegertracing/jaeger/model/adjuster"
 )
 

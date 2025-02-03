@@ -14,7 +14,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/metrics/otelmetrics"
 	"github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy"
 	"github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy/adaptive"
-	"github.com/jaegertracing/jaeger/internal/storage/v2/api/v1adapter"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
 )
 
 type traceProcessor struct {

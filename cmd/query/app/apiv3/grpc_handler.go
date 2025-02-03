@@ -16,7 +16,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc/v2/querysvc"
 	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
-	"github.com/jaegertracing/jaeger/internal/storage/v2/api/v1adapter"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
 	"github.com/jaegertracing/jaeger/pkg/iter"
 )
 

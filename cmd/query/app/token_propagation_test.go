@@ -23,7 +23,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	v2querysvc "github.com/jaegertracing/jaeger/cmd/query/app/querysvc/v2/querysvc"
 	es "github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch"
-	"github.com/jaegertracing/jaeger/internal/storage/v2/api/v1adapter"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
 	"github.com/jaegertracing/jaeger/pkg/bearertoken"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/telemetry"

@@ -24,7 +24,7 @@ import (
 	depsmocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	tracestoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
-	"github.com/jaegertracing/jaeger/internal/storage/v2/api/v1adapter"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 )

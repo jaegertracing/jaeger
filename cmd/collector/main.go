@@ -23,7 +23,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/internal/printconfig"
 	"github.com/jaegertracing/jaeger/cmd/internal/status"
 	ss "github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy/metafactory"
-	"github.com/jaegertracing/jaeger/internal/storage/v2/api/v1adapter"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/telemetry"

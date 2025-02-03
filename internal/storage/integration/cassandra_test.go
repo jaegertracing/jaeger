@@ -16,7 +16,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra"
-	"github.com/jaegertracing/jaeger/internal/storage/v2/api/v1adapter"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/testutils"

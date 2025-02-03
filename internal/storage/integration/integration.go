@@ -27,7 +27,7 @@ import (
 	samplemodel "github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore/model"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
-	"github.com/jaegertracing/jaeger/internal/storage/v2/api/v1adapter"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
 )
 
 //go:embed fixtures

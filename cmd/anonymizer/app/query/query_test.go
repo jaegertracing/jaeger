@@ -21,7 +21,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	spanstoremocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/mocks"
 	dependencyStoreMocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore/mocks"
-	"github.com/jaegertracing/jaeger/internal/storage/v2/api/v1adapter"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
 )
 
 var (
