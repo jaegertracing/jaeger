@@ -19,7 +19,7 @@ const (
 
 // HTTPGateway exposes analytics HTTP endpoints.
 type HTTPGateway struct {
-	Logger       *zap.Logger
+	Logger *zap.Logger
 }
 
 func (h *HTTPGateway) RegisterRoutes(router *mux.Router) {
