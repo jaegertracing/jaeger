@@ -636,7 +636,7 @@ func (aH *APIHandler) getQualityMetrics(w http.ResponseWriter, r *http.Request) 
 	data := TQualityMetrics{
 		TraceQualityDocumentationLink: "https://example.com/trace-quality-docs",
 		BannerText: &BannerText{
-			Value: "Currently, this is dummy text",
+			Value: "🛑 Made up data, for demonstration only!",
 			Styling: map[string]any{
 				"color":      "blue",
 				"fontWeight": "bold",
