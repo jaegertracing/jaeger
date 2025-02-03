@@ -74,7 +74,7 @@ FMT_LOG=.fmt.log
 IMPORT_LOG=.import.log
 COLORIZE ?= | $(SED) 's/PASS/✅ PASS/g' | $(SED) 's/FAIL/❌ FAIL/g' | $(SED) 's/SKIP/🔕 SKIP/g'
 
-# import other Makefiles after the variables are defined
+ # import other Makefiles after the variables are defined
 
 include scripts/makefiles/BuildBinaries.mk
 include scripts/makefiles/BuildInfo.mk
