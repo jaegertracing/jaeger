@@ -7,12 +7,12 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/mapping"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/mappings"
 	"github.com/jaegertracing/jaeger/pkg/version"
 )
 
 func main() {
-	esmappingsCmd := mapping.Command()
+	esmappingsCmd := mappings.Command()
 	esmappingsCmd.AddCommand(version.Command())
 
 	if err := esmappingsCmd.Execute(); err != nil {
