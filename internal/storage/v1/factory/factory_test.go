@@ -2,7 +2,7 @@
 // Copyright (c) 2018 Uber Technologies, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-package storage
+package factory
 
 import (
 	"errors"
@@ -28,8 +28,8 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
-func defaultCfg() FactoryConfig {
-	return FactoryConfig{
+func defaultCfg() Config {
+	return Config{
 		SpanWriterTypes:         []string{cassandraStorageType},
 		SpanReaderType:          cassandraStorageType,
 		DependenciesStorageType: cassandraStorageType,
@@ -47,7 +47,7 @@ func TestNewFactory(t *testing.T) {
 	assert.Equal(t, cassandraStorageType, f.SpanReaderType)
 	assert.Equal(t, cassandraStorageType, f.DependenciesStorageType)
 
-	f, err = NewFactory(FactoryConfig{
+	f, err = NewFactory(Config{
 		SpanWriterTypes:         []string{cassandraStorageType, kafkaStorageType, badgerStorageType},
 		SpanReaderType:          elasticsearchStorageType,
 		DependenciesStorageType: memoryStorageType,
@@ -62,7 +62,7 @@ func TestNewFactory(t *testing.T) {
 	assert.Equal(t, elasticsearchStorageType, f.SpanReaderType)
 	assert.Equal(t, memoryStorageType, f.DependenciesStorageType)
 
-	_, err = NewFactory(FactoryConfig{SpanWriterTypes: []string{"x"}, DependenciesStorageType: "y", SpanReaderType: "z"})
+	_, err = NewFactory(Config{SpanWriterTypes: []string{"x"}, DependenciesStorageType: "y", SpanReaderType: "z"})
 	require.Error(t, err)
 	expected := "unknown storage type" // could be 'x' or 'y' since code iterates through map.
 	assert.Equal(t, expected, err.Error()[0:len(expected)])
@@ -77,7 +77,7 @@ func TestClose(t *testing.T) {
 		factories: map[string]storage.Factory{
 			storageType: &errorFactory{closeErr: err},
 		},
-		FactoryConfig: FactoryConfig{SpanWriterTypes: []string{storageType}},
+		Config: Config{SpanWriterTypes: []string{storageType}},
 	}
 	require.EqualError(t, f.Close(), err.Error())
 }
@@ -425,15 +425,15 @@ func TestParsingDownsamplingRatio(t *testing.T) {
 	require.NoError(t, err)
 	f.InitFromViper(v, zap.NewNop())
 
-	assert.InDelta(t, 1.0, f.FactoryConfig.DownsamplingRatio, 0.01)
-	assert.Equal(t, "jaeger", f.FactoryConfig.DownsamplingHashSalt)
+	assert.InDelta(t, 1.0, f.Config.DownsamplingRatio, 0.01)
+	assert.Equal(t, "jaeger", f.Config.DownsamplingHashSalt)
 
 	err = command.ParseFlags([]string{
 		"--downsampling.ratio=0.5",
 	})
 	require.NoError(t, err)
 	f.InitFromViper(v, zap.NewNop())
-	assert.InDelta(t, 0.5, f.FactoryConfig.DownsamplingRatio, 0.01)
+	assert.InDelta(t, 0.5, f.Config.DownsamplingRatio, 0.01)
 }
 
 func TestDefaultDownsamplingWithAddFlags(t *testing.T) {
@@ -443,8 +443,8 @@ func TestDefaultDownsamplingWithAddFlags(t *testing.T) {
 	require.NoError(t, err)
 	f.InitFromViper(v, zap.NewNop())
 
-	assert.InDelta(t, defaultDownsamplingRatio, f.FactoryConfig.DownsamplingRatio, 0.01)
-	assert.Equal(t, defaultDownsamplingHashSalt, f.FactoryConfig.DownsamplingHashSalt)
+	assert.InDelta(t, defaultDownsamplingRatio, f.Config.DownsamplingRatio, 0.01)
+	assert.Equal(t, defaultDownsamplingHashSalt, f.Config.DownsamplingHashSalt)
 
 	err = command.ParseFlags([]string{
 		"--downsampling.ratio=0.5",
@@ -465,7 +465,7 @@ func TestInitArchiveStorage(t *testing.T) {
 	tests := []struct {
 		name            string
 		setupMock       func(*mocks.Factory)
-		factoryCfg      func() FactoryConfig
+		factoryCfg      func() Config
 		expectedStorage *ArchiveStorage
 		expectedError   error
 	}{
@@ -491,7 +491,7 @@ func TestInitArchiveStorage(t *testing.T) {
 				mock.On("CreateSpanReader").Return(spanReader, nil)
 				mock.On("CreateSpanWriter").Return(spanWriter, nil)
 			},
-			factoryCfg: func() FactoryConfig {
+			factoryCfg: func() Config {
 				cfg := defaultCfg()
 				cfg.SpanReaderType = "blackhole"
 				return cfg
@@ -506,7 +506,7 @@ func TestInitArchiveStorage(t *testing.T) {
 				mock.On("CreateSpanReader").Return(spanReader, nil)
 				mock.On("CreateSpanWriter").Return(spanWriter, nil)
 			},
-			factoryCfg: func() FactoryConfig {
+			factoryCfg: func() Config {
 				cfg := defaultCfg()
 				cfg.SpanWriterTypes = []string{"blackhole"}
 				return cfg

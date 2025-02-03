@@ -30,6 +30,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	v2querysvc "github.com/jaegertracing/jaeger/cmd/query/app/querysvc/v2/querysvc"
 	ss "github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy/metafactory"
+	storage "github.com/jaegertracing/jaeger/internal/storage/v1/factory"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
@@ -40,7 +41,6 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/pkg/version"
 	"github.com/jaegertracing/jaeger/plugin/metricstore"
-	"github.com/jaegertracing/jaeger/plugin/storage"
 	"github.com/jaegertracing/jaeger/ports"
 )
 
@@ -54,7 +54,7 @@ func main() {
 	if os.Getenv(storage.SpanStorageTypeEnvVar) == "" {
 		os.Setenv(storage.SpanStorageTypeEnvVar, "memory") // other storage types default to SpanStorage
 	}
-	storageFactory, err := storage.NewFactory(storage.FactoryConfigFromEnvAndCLI(os.Args, os.Stderr))
+	storageFactory, err := storage.NewFactory(storage.ConfigFromEnvAndCLI(os.Args, os.Stderr))
 	if err != nil {
 		log.Fatalf("Cannot initialize storage factory: %v", err)
 	}

@@ -19,12 +19,12 @@ import (
 	"google.golang.org/grpc/health/grpc_health_v1"
 
 	"github.com/jaegertracing/jaeger/cmd/remote-storage/app"
+	storage "github.com/jaegertracing/jaeger/internal/storage/v1/factory"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/telemetry"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
-	"github.com/jaegertracing/jaeger/plugin/storage"
 	"github.com/jaegertracing/jaeger/ports"
 )
 
@@ -46,7 +46,7 @@ func StartNewRemoteMemoryStorage(t *testing.T, port int) *RemoteMemoryStorage {
 		},
 	}
 	tm := tenancy.NewManager(&opts.Tenancy)
-	storageFactory, err := storage.NewFactory(storage.FactoryConfigFromEnvAndCLI(os.Args, os.Stderr))
+	storageFactory, err := storage.NewFactory(storage.ConfigFromEnvAndCLI(os.Args, os.Stderr))
 	require.NoError(t, err)
 
 	v, _ := config.Viperize(storageFactory.AddFlags)
