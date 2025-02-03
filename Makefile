@@ -75,14 +75,14 @@ IMPORT_LOG=.import.log
 COLORIZE ?= | $(SED) 's/PASS/✅ PASS/g' | $(SED) 's/FAIL/❌ FAIL/g' | $(SED) 's/SKIP/🔕 SKIP/g'
 
 # import other Makefiles after the variables are defined
-include Makefile.BuildBinaries.mk
-include Makefile.BuildInfo.mk
-include Makefile.Crossdock.mk
-include Makefile.Docker.mk
-include Makefile.IntegrationTests.mk
-include Makefile.Protobuf.mk
-include Makefile.Tools.mk
-include Makefile.Windows.mk
+include scripts/makefiles/BuildBinaries.mk
+include scripts/makefiles/BuildInfo.mk
+include scripts/makefiles/Crossdock.mk
+include scripts/makefiles/Docker.mk
+include scripts/makefiles/IntegrationTests.mk
+include scripts/makefiles/Protobuf.mk
+include scripts/makefiles/Tools.mk
+include scripts/makefiles/Windows.mk
 
 .DEFAULT_GOAL := test-and-lint
 
