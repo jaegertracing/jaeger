@@ -11,20 +11,14 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
-
-	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 )
 
 const (
-	// paramOpsName = ""
-	// paramServiceName = ""
-
-	routeGetDeepDependencies = "/api/deep-dependencies/"
+	routeGetDeepDependencies = "/api/deep-dependencies"
 )
 
 // HTTPGateway exposes analytics HTTP endpoints.
 type HTTPGateway struct {
-	QueryService *querysvc.QueryService
 	Logger       *zap.Logger
 }
 
@@ -59,6 +53,7 @@ func (h *HTTPGateway) getDeepDependencies(w http.ResponseWriter, r *http.Request
 		Dependencies: []TDdgPayloadPath{
 			{
 				Path: []TDdgPayloadEntry{
+					{Service: "driver", Operation: "driver.DriverService/FindNearest"},
 					{Service: "serviceA", Operation: "opA"},
 					{Service: "serviceB", Operation: "opB"},
 				},
