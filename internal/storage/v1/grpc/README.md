@@ -61,11 +61,11 @@ Note that using the streaming spanWriter may make the collector's `save_by_svr` 
 
 Certifying compliance
 ---------------
-A plugin implementation shall verify it's correctness with Jaeger storage protocol by running the storage integration tests from [integration package](https://github.com/jaegertracing/jaeger/blob/main/plugin/storage/integration/integration.go#L397).
+A plugin implementation shall verify it's correctness with Jaeger storage protocol by running the storage integration tests from [integration package](https://github.com/jaegertracing/jaeger/blob/main/internal/storage/integration/integration.go#L397).
 
 ```golang
 import (
-	jaeger_integration_tests "github.com/jaegertracing/jaeger/plugin/storage/integration"
+	jaeger_integration_tests "github.com/jaegertracing/jaeger/internal/storage/integration"
 )
 
 func TestJaegerStorageIntegration(t *testing.T) {
