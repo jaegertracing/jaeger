@@ -18,7 +18,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	spanstoreMocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/memory"
-	tracestoremocks "github.com/jaegertracing/jaeger/storage_v2/tracestore/mocks"
+	tracestoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
 )
 
 func TestWriteTraces(t *testing.T) {

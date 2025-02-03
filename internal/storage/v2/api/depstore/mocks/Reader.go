@@ -10,7 +10,7 @@ package mocks
 import (
 	context "context"
 
-	depstore "github.com/jaegertracing/jaeger/storage_v2/depstore"
+	depstore "github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	mock "github.com/stretchr/testify/mock"
 
 	model "github.com/jaegertracing/jaeger-idl/model/v1"
