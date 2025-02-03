@@ -2,7 +2,7 @@
 // Copyright (c) 2017 Uber Technologies, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-package storage
+package factory
 
 import (
 	"errors"
@@ -81,7 +81,7 @@ var ( // interface comformance checks
 
 // Factory implements storage.Factory interface as a meta-factory for storage components.
 type Factory struct {
-	FactoryConfig
+	Config
 	metricsFactory         metrics.Factory
 	factories              map[string]storage.Factory
 	archiveFactories       map[string]storage.Factory
@@ -89,8 +89,8 @@ type Factory struct {
 }
 
 // NewFactory creates the meta-factory.
-func NewFactory(config FactoryConfig) (*Factory, error) {
-	f := &Factory{FactoryConfig: config}
+func NewFactory(config Config) (*Factory, error) {
+	f := &Factory{Config: config}
 	uniqueTypes := map[string]struct{}{
 		f.SpanReaderType:          {},
 		f.DependenciesStorageType: {},
@@ -325,17 +325,17 @@ func (f *Factory) initDownsamplingFromViper(v *viper.Viper) {
 	// if the downsampling flag isn't set then this component used the standard "AddFlags" method
 	// and has no use for downsampling.  the default settings effectively disable downsampling
 	if !f.downsamplingFlagsAdded {
-		f.FactoryConfig.DownsamplingRatio = defaultDownsamplingRatio
-		f.FactoryConfig.DownsamplingHashSalt = defaultDownsamplingHashSalt
+		f.Config.DownsamplingRatio = defaultDownsamplingRatio
+		f.Config.DownsamplingHashSalt = defaultDownsamplingHashSalt
 		return
 	}
 
-	f.FactoryConfig.DownsamplingRatio = v.GetFloat64(downsamplingRatio)
-	if f.FactoryConfig.DownsamplingRatio < 0 || f.FactoryConfig.DownsamplingRatio > 1 {
+	f.Config.DownsamplingRatio = v.GetFloat64(downsamplingRatio)
+	if f.Config.DownsamplingRatio < 0 || f.Config.DownsamplingRatio > 1 {
 		// Values not in the range of 0 ~ 1.0 will be set to default.
-		f.FactoryConfig.DownsamplingRatio = 1.0
+		f.Config.DownsamplingRatio = 1.0
 	}
-	f.FactoryConfig.DownsamplingHashSalt = v.GetString(downsamplingHashSalt)
+	f.Config.DownsamplingHashSalt = v.GetString(downsamplingHashSalt)
 }
 
 type ArchiveStorage struct {
@@ -392,6 +392,6 @@ func (f *Factory) Close() error {
 }
 
 func (f *Factory) publishOpts() {
-	safeexpvar.SetInt(downsamplingRatio, int64(f.FactoryConfig.DownsamplingRatio))
-	safeexpvar.SetInt(spanStorageType+"-"+f.FactoryConfig.SpanReaderType, 1)
+	safeexpvar.SetInt(downsamplingRatio, int64(f.Config.DownsamplingRatio))
+	safeexpvar.SetInt(spanStorageType+"-"+f.Config.SpanReaderType, 1)
 }

@@ -2,7 +2,7 @@
 // Copyright (c) 2018 Uber Technologies, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-package storage
+package factory
 
 import (
 	"fmt"
@@ -24,8 +24,8 @@ const (
 	spanStorageFlag = "--span-storage.type"
 )
 
-// FactoryConfig tells the Factory which types of backends it needs to create for different storage types.
-type FactoryConfig struct {
+// Config tells the Factory which types of backends it needs to create for different storage types.
+type Config struct {
 	SpanWriterTypes         []string
 	SpanReaderType          string
 	SamplingStorageType     string
@@ -34,7 +34,7 @@ type FactoryConfig struct {
 	DownsamplingHashSalt    string
 }
 
-// FactoryConfigFromEnvAndCLI reads the desired types of storage backends from SPAN_STORAGE_TYPE and
+// ConfigFromEnvAndCLI reads the desired types of storage backends from SPAN_STORAGE_TYPE and
 // DEPENDENCY_STORAGE_TYPE environment variables. Allowed values:
 // * `cassandra` - built-in
 // * `opensearch` - built-in
@@ -46,7 +46,7 @@ type FactoryConfig struct {
 //
 // For backwards compatibility it also parses the args looking for deprecated --span-storage.type flag.
 // If found, it writes a deprecation warning to the log.
-func FactoryConfigFromEnvAndCLI(args []string, log io.Writer) FactoryConfig {
+func ConfigFromEnvAndCLI(args []string, log io.Writer) Config {
 	spanStorageType := os.Getenv(SpanStorageTypeEnvVar)
 	if spanStorageType == "" {
 		// for backwards compatibility check command line for --span-storage.type flag
@@ -69,7 +69,7 @@ func FactoryConfigFromEnvAndCLI(args []string, log io.Writer) FactoryConfig {
 	}
 	samplingStorageType := os.Getenv(SamplingStorageTypeEnvVar)
 	// TODO support explicit configuration for readers
-	return FactoryConfig{
+	return Config{
 		SpanWriterTypes:         spanWriterTypes,
 		SpanReaderType:          spanWriterTypes[0],
 		DependenciesStorageType: depStorageType,

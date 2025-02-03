@@ -2,7 +2,7 @@
 // Copyright (c) 2018 Uber Technologies, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-package storage
+package factory
 
 import (
 	"bytes"
@@ -12,7 +12,7 @@ import (
 )
 
 func TestFactoryConfigFromEnv(t *testing.T) {
-	f := FactoryConfigFromEnvAndCLI(nil, &bytes.Buffer{})
+	f := ConfigFromEnvAndCLI(nil, &bytes.Buffer{})
 	assert.Len(t, f.SpanWriterTypes, 1)
 	assert.Equal(t, cassandraStorageType, f.SpanWriterTypes[0])
 	assert.Equal(t, cassandraStorageType, f.SpanReaderType)
@@ -23,7 +23,7 @@ func TestFactoryConfigFromEnv(t *testing.T) {
 	t.Setenv(DependencyStorageTypeEnvVar, memoryStorageType)
 	t.Setenv(SamplingStorageTypeEnvVar, cassandraStorageType)
 
-	f = FactoryConfigFromEnvAndCLI(nil, &bytes.Buffer{})
+	f = ConfigFromEnvAndCLI(nil, &bytes.Buffer{})
 	assert.Len(t, f.SpanWriterTypes, 1)
 	assert.Equal(t, elasticsearchStorageType, f.SpanWriterTypes[0])
 	assert.Equal(t, elasticsearchStorageType, f.SpanReaderType)
@@ -32,14 +32,14 @@ func TestFactoryConfigFromEnv(t *testing.T) {
 
 	t.Setenv(SpanStorageTypeEnvVar, elasticsearchStorageType+","+kafkaStorageType)
 
-	f = FactoryConfigFromEnvAndCLI(nil, &bytes.Buffer{})
+	f = ConfigFromEnvAndCLI(nil, &bytes.Buffer{})
 	assert.Len(t, f.SpanWriterTypes, 2)
 	assert.Equal(t, []string{elasticsearchStorageType, kafkaStorageType}, f.SpanWriterTypes)
 	assert.Equal(t, elasticsearchStorageType, f.SpanReaderType)
 
 	t.Setenv(SpanStorageTypeEnvVar, badgerStorageType)
 
-	f = FactoryConfigFromEnvAndCLI(nil, nil)
+	f = ConfigFromEnvAndCLI(nil, nil)
 	assert.Len(t, f.SpanWriterTypes, 1)
 	assert.Equal(t, badgerStorageType, f.SpanWriterTypes[0])
 	assert.Equal(t, badgerStorageType, f.SpanReaderType)
@@ -58,7 +58,7 @@ func TestFactoryConfigFromEnvDeprecated(t *testing.T) {
 	}
 	for _, testCase := range testCases {
 		log := new(bytes.Buffer)
-		f := FactoryConfigFromEnvAndCLI(testCase.args, log)
+		f := ConfigFromEnvAndCLI(testCase.args, log)
 		assert.Len(t, f.SpanWriterTypes, 1)
 		assert.Equal(t, testCase.value, f.SpanWriterTypes[0])
 		assert.Equal(t, testCase.value, f.SpanReaderType)
