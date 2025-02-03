@@ -21,12 +21,12 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc/v2/querysvc"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
+	dependencyStoreMocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore/mocks"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
+	tracestoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
 	"github.com/jaegertracing/jaeger/pkg/iter"
 	"github.com/jaegertracing/jaeger/pkg/jtracer"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
-	dependencyStoreMocks "github.com/jaegertracing/jaeger/storage_v2/depstore/mocks"
-	"github.com/jaegertracing/jaeger/storage_v2/tracestore"
-	tracestoremocks "github.com/jaegertracing/jaeger/storage_v2/tracestore/mocks"
 )
 
 func setupHTTPGatewayNoServer(

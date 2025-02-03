@@ -14,9 +14,9 @@ import (
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc/v2/adjuster"
 	"github.com/jaegertracing/jaeger/internal/jptrace"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/pkg/iter"
-	"github.com/jaegertracing/jaeger/storage_v2/depstore"
-	"github.com/jaegertracing/jaeger/storage_v2/tracestore"
 )
 
 var errNoArchiveSpanStorage = errors.New("archive span storage was not configured")

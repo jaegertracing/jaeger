@@ -20,10 +20,10 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	spanStoreMocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/memory"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
+	tracestoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
 	"github.com/jaegertracing/jaeger/pkg/iter"
-	"github.com/jaegertracing/jaeger/storage_v2/depstore"
-	"github.com/jaegertracing/jaeger/storage_v2/tracestore"
-	tracestoremocks "github.com/jaegertracing/jaeger/storage_v2/tracestore/mocks"
 )
 
 func TestGetV1Reader_NoError(t *testing.T) {

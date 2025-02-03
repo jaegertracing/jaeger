@@ -15,7 +15,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
-	tracestoremocks "github.com/jaegertracing/jaeger/storage_v2/tracestore/mocks"
+	tracestoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
 )
 
 func TestSpanWriter_WriteSpan(t *testing.T) {

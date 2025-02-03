@@ -14,8 +14,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	ui "github.com/jaegertracing/jaeger/model/json"
-	"github.com/jaegertracing/jaeger/storage_v2/depstore"
 )
 
 func TestDeduplicateDependencies(t *testing.T) {

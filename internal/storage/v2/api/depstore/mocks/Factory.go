@@ -8,7 +8,7 @@
 package mocks
 
 import (
-	depstore "github.com/jaegertracing/jaeger/storage_v2/depstore"
+	depstore "github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	mock "github.com/stretchr/testify/mock"
 )
 
