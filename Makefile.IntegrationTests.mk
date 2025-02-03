@@ -1,7 +1,7 @@
 # Copyright (c) 2023 The Jaeger Authors.
 # SPDX-License-Identifier: Apache-2.0
 
-STORAGE_PKGS = ./plugin/storage/integration/...
+STORAGE_PKGS = ./internal/storage/integration/...
 JAEGER_V2_STORAGE_PKGS = ./cmd/jaeger/internal/integration
 
 .PHONY: all-in-one-integration-test

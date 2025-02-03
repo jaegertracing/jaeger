@@ -20,7 +20,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/integration/storagecleaner"
-	"github.com/jaegertracing/jaeger/plugin/storage/integration"
+	"github.com/jaegertracing/jaeger/internal/storage/integration"
 	"github.com/jaegertracing/jaeger/ports"
 )
 

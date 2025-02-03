@@ -6,7 +6,7 @@ package integration
 import (
 	"testing"
 
-	"github.com/jaegertracing/jaeger/plugin/storage/integration"
+	"github.com/jaegertracing/jaeger/internal/storage/integration"
 	"github.com/jaegertracing/jaeger/ports"
 )
 
