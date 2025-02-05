@@ -23,17 +23,17 @@ require (
 	github.com/jaegertracing/jaeger-idl v0.5.0
 	github.com/kr/pretty v0.3.1
 	github.com/olivere/elastic v6.2.37+incompatible
-	github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector v0.118.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/kafkaexporter v0.118.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/prometheusexporter v0.118.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckv2extension v0.118.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/extension/storage v0.118.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger v0.118.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/processor/attributesprocessor v0.118.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/processor/tailsamplingprocessor v0.118.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver v0.118.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kafkareceiver v0.118.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zipkinreceiver v0.118.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector v0.119.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/kafkaexporter v0.119.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/prometheusexporter v0.119.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckv2extension v0.119.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/extension/storage v0.119.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger v0.119.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/processor/attributesprocessor v0.119.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/processor/tailsamplingprocessor v0.119.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver v0.119.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kafkareceiver v0.119.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zipkinreceiver v0.119.0
 	github.com/prometheus/client_golang v1.20.5
 	github.com/prometheus/client_model v0.6.1
 	github.com/prometheus/common v0.62.0
@@ -105,6 +105,7 @@ require (
 
 require (
 	github.com/gogo/googleapis v1.4.1 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/core/xidutils v0.119.0 // indirect
 	go.opentelemetry.io/collector/extension/xextension v0.119.0 // indirect
 )
 
@@ -148,7 +149,7 @@ require (
 	github.com/go-ole/go-ole v1.2.6 // indirect
 	github.com/go-viper/mapstructure/v2 v2.2.1 // indirect
 	github.com/gobwas/glob v0.2.3 // indirect
-	github.com/goccy/go-json v0.10.4 // indirect
+	github.com/goccy/go-json v0.10.5 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/golang/snappy v0.0.4 // indirect
 	github.com/google/flatbuffers v24.12.23+incompatible // indirect
@@ -191,20 +192,20 @@ require (
 	github.com/mostynb/go-grpc-compression v1.2.3 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/onsi/ginkgo v1.16.5 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/internal/common v0.118.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal v0.118.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/internal/filter v0.118.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/internal/kafka v0.118.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/internal/pdatautil v0.118.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/batchpersignal v0.118.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/kafka/topic v0.118.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl v0.118.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatautil v0.118.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry v0.118.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/status v0.118.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/azure v0.118.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/prometheus v0.118.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/zipkin v0.118.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/internal/common v0.119.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal v0.119.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/internal/filter v0.119.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/internal/kafka v0.119.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/internal/pdatautil v0.119.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/batchpersignal v0.119.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/kafka/topic v0.119.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl v0.119.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatautil v0.119.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry v0.119.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/status v0.119.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/azure v0.119.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/prometheus v0.119.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/zipkin v0.119.0 // indirect
 	github.com/opentracing/opentracing-go v1.2.0 // indirect
 	github.com/openzipkin/zipkin-go v0.4.3 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.2 // indirect
@@ -251,7 +252,7 @@ require (
 	go.opentelemetry.io/collector/exporter/exporterhelper/xexporterhelper v0.119.0 // indirect
 	go.opentelemetry.io/collector/exporter/xexporter v0.119.0 // indirect
 	go.opentelemetry.io/collector/extension/auth v0.119.0 // indirect
-	go.opentelemetry.io/collector/extension/extensioncapabilities v0.118.0
+	go.opentelemetry.io/collector/extension/extensioncapabilities v0.119.0
 	go.opentelemetry.io/collector/internal/fanoutconsumer v0.119.0 // indirect
 	go.opentelemetry.io/collector/internal/memorylimiter v0.118.0 // indirect
 	go.opentelemetry.io/collector/internal/sharedcomponent v0.119.0 // indirect
@@ -261,7 +262,7 @@ require (
 	go.opentelemetry.io/collector/processor/xprocessor v0.119.0 // indirect
 	go.opentelemetry.io/collector/receiver/receivertest v0.119.0 // indirect
 	go.opentelemetry.io/collector/receiver/xreceiver v0.119.0 // indirect
-	go.opentelemetry.io/collector/semconv v0.118.0 // indirect
+	go.opentelemetry.io/collector/semconv v0.119.0 // indirect
 	go.opentelemetry.io/collector/service v0.118.0 // indirect
 	go.opentelemetry.io/contrib/bridges/otelzap v0.6.0 // indirect
 	go.opentelemetry.io/contrib/config v0.10.0 // indirect
