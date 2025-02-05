@@ -15,6 +15,7 @@ import (
 
 	"github.com/dgraph-io/badger/v4"
 	"github.com/spf13/viper"
+	"go.opentelemetry.io/collector/featuregate"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
@@ -38,11 +39,19 @@ const (
 )
 
 var ( // interface comformance checks
-	_ storage.Factory              = (*Factory)(nil)
-	_ io.Closer                    = (*Factory)(nil)
-	_ plugin.Configurable          = (*Factory)(nil)
-	_ storage.Purger               = (*Factory)(nil)
-	_ storage.SamplingStoreFactory = (*Factory)(nil)
+	_                 storage.Factory              = (*Factory)(nil)
+	_                 io.Closer                    = (*Factory)(nil)
+	_                 plugin.Configurable          = (*Factory)(nil)
+	_                 storage.Purger               = (*Factory)(nil)
+	_                 storage.SamplingStoreFactory = (*Factory)(nil)
+	includeDualLookUp                              = featuregate.GlobalRegistry().MustRegister(
+		"jaeger.badger.dualLookUp",
+		featuregate.StageBeta, // enabed by default
+		featuregate.WithRegisterFromVersion("v2.2.0"),
+		featuregate.WithRegisterToVersion("v2.5.0"),
+		featuregate.WithRegisterDescription("Allows reader to look up for traces from old index key"),
+		featuregate.WithRegisterReferenceURL("https://github.com/jaegertracing/jaeger/pull/6376"),
+	)
 )
 
 // Factory implements storage.Factory for Badger backend.
@@ -146,7 +155,7 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 	}
 	f.store = store
 
-	f.cache = badgerStore.NewCacheStore(f.store, f.Config.TTL.Spans)
+	f.cache = badgerStore.NewCacheStore(f.Config.TTL.Spans)
 
 	f.metrics.ValueLogSpaceAvailable = metricsFactory.Gauge(metrics.Options{Name: valueLogSpaceAvailableName})
 	f.metrics.KeyLogSpaceAvailable = metricsFactory.Gauge(metrics.Options{Name: keyLogSpaceAvailableName})
@@ -172,7 +181,7 @@ func initializeDir(path string) {
 
 // CreateSpanReader implements storage.Factory
 func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
-	tr := badgerStore.NewTraceReader(f.store, f.cache, true)
+	tr := badgerStore.NewTraceReader(f.store, f.cache, true, includeDualLookUp.IsEnabled())
 	return spanstoremetrics.NewReaderDecorator(tr, f.metricsFactory), nil
 }
 

@@ -8,29 +8,37 @@ import (
 	"sync"
 	"time"
 
-	"github.com/dgraph-io/badger/v4"
-
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 )
 
 // CacheStore saves expensive calculations from the K/V store
 type CacheStore struct {
 	// Given the small amount of data these will store, we use the same structure as the memory store
-	cacheLock  sync.Mutex // write heavy - Mutex is faster than RWMutex for writes
-	services   map[string]uint64
-	operations map[string]map[string]uint64
+	cacheLock sync.Mutex // write heavy - Mutex is faster than RWMutex for writes
+	services  map[string]uint64
+	// This map is for the hierarchy: service name, kind and operation name.
+	// Each service contains the span kinds, and then operation names belonging to that kind.
+	// This structure will look like:
+	/*
+		"service1":{
+			SpanKind.unspecified: {
+				"operation1": uint64
+			}
+		}
+	*/
+	// The uint64 value is the expiry time of operation
+	operations map[string]map[model.SpanKind]map[string]uint64
 
-	store *badger.DB
-	ttl   time.Duration
+	ttl time.Duration
 }
 
 // NewCacheStore returns initialized CacheStore for badger use
-func NewCacheStore(db *badger.DB, ttl time.Duration) *CacheStore {
+func NewCacheStore(ttl time.Duration) *CacheStore {
 	cs := &CacheStore{
 		services:   make(map[string]uint64),
-		operations: make(map[string]map[string]uint64),
+		operations: make(map[string]map[model.SpanKind]map[string]uint64),
 		ttl:        ttl,
-		store:      db,
 	}
 	return cs
 }
@@ -48,67 +56,73 @@ func (c *CacheStore) AddService(service string, keyTTL uint64) {
 }
 
 // AddOperation adds the cache with operation names with most updated expiration time
-func (c *CacheStore) AddOperation(service, operation string, keyTTL uint64) {
+func (c *CacheStore) AddOperation(service, operation string, kind model.SpanKind, keyTTL uint64) {
 	c.cacheLock.Lock()
 	defer c.cacheLock.Unlock()
 	if _, found := c.operations[service]; !found {
-		c.operations[service] = make(map[string]uint64)
+		c.operations[service] = make(map[model.SpanKind]map[string]uint64)
 	}
-	if v, found := c.operations[service][operation]; found {
+	if _, found := c.operations[service][kind]; !found {
+		c.operations[service][kind] = make(map[string]uint64)
+	}
+	if v, found := c.operations[service][kind][operation]; found {
 		if v > keyTTL {
 			return
 		}
 	}
-	c.operations[service][operation] = keyTTL
+	c.operations[service][kind][operation] = keyTTL
 }
 
 // Update caches the results of service and service + operation indexes and maintains their TTL
-func (c *CacheStore) Update(service, operation string, expireTime uint64) {
+func (c *CacheStore) Update(service, operation string, kind model.SpanKind, expireTime uint64) {
 	c.cacheLock.Lock()
 
 	c.services[service] = expireTime
-	if _, ok := c.operations[service]; !ok {
-		c.operations[service] = make(map[string]uint64)
+	if _, found := c.operations[service]; !found {
+		c.operations[service] = make(map[model.SpanKind]map[string]uint64)
 	}
-	c.operations[service][operation] = expireTime
+	if _, found := c.operations[service][kind]; !found {
+		c.operations[service][kind] = make(map[string]uint64)
+	}
+	c.operations[service][kind][operation] = expireTime
 	c.cacheLock.Unlock()
 }
 
 // GetOperations returns all operations for a specific service & spanKind traced by Jaeger
-func (c *CacheStore) GetOperations(service string) ([]spanstore.Operation, error) {
-	operations := make([]string, 0, len(c.services))
+func (c *CacheStore) GetOperations(service string, kind string) ([]spanstore.Operation, error) {
+	operations := make([]spanstore.Operation, 0, len(c.services))
 	//nolint: gosec // G115
-	t := uint64(time.Now().Unix())
+	currentTime := uint64(time.Now().Unix())
 	c.cacheLock.Lock()
 	defer c.cacheLock.Unlock()
-
-	if v, ok := c.services[service]; ok {
-		if v < t {
+	if expiryTimeOfService, ok := c.services[service]; ok {
+		if expiryTimeOfService < currentTime {
 			// Expired, remove
 			delete(c.services, service)
 			delete(c.operations, service)
 			return []spanstore.Operation{}, nil // empty slice rather than nil
 		}
-		for o, e := range c.operations[service] {
-			if e > t {
-				operations = append(operations, o)
-			} else {
-				delete(c.operations[service], o)
+		for sKind := range c.operations[service] {
+			if kind != "" && kind != string(sKind) {
+				continue
+			}
+			for o, expiryTimeOfOperation := range c.operations[service][sKind] {
+				if expiryTimeOfOperation > currentTime {
+					op := spanstore.Operation{Name: o, SpanKind: string(sKind)}
+					operations = append(operations, op)
+				} else {
+					delete(c.operations[service][sKind], o)
+				}
+				sort.Slice(operations, func(i, j int) bool {
+					if operations[i].SpanKind == operations[j].SpanKind {
+						return operations[i].Name < operations[j].Name
+					}
+					return operations[i].SpanKind < operations[j].SpanKind
+				})
 			}
 		}
 	}
-
-	sort.Strings(operations)
-
-	// TODO: https://github.com/jaegertracing/jaeger/issues/1922
-	// 	- return the operations with actual spanKind
-	result := make([]spanstore.Operation, 0, len(operations))
-	for _, op := range operations {
-		result = append(result, spanstore.Operation{
-			Name: op,
-		})
-	}
-	return result, nil
+	return operations, nil
 }
 
 // GetServices returns all services traced by Jaeger
