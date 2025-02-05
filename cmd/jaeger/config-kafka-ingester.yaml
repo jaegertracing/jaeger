@@ -10,7 +10,8 @@ service:
       service.name: jaeger
     metrics:
       level: detailed
-      address: 0.0.0.0:8888
+      # use different port to avoid conflict with collector
+      address: 0.0.0.0:8889
     logs:
       level: info
 
