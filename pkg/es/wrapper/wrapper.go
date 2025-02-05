@@ -265,6 +265,10 @@ func (s SearchServiceWrapper) Query(query elastic.Query) es.SearchService {
 	return WrapESSearchService(s.searchService.Query(query))
 }
 
+func (s SearchServiceWrapper) FetchSourceContext(fetchSourceContext *elastic.FetchSourceContext) es.SearchService {
+	return WrapESSearchService(s.searchService.FetchSourceContext(fetchSourceContext))
+}
+
 // Do calls this function to internal service.
 func (s SearchServiceWrapper) Do(ctx context.Context) (*elastic.SearchResult, error) {
 	return s.searchService.Do(ctx)
