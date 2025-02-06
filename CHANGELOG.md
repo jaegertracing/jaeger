@@ -21,7 +21,115 @@ copy from UI changelog
 
 </details>
 
-next release v1.65.0 / v2.2.0 (2025-01-08)
+v1.66.0 / v2.3.0 (2025-02-03)
+-------------------------------
+### Backend Changes
+
+#### ⛔ Breaking Changes
+
+* [refactor] move cassandra implementation to `internal` package ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#6639](https://github.com/jaegertracing/jaeger/pull/6639))
+* [refactor] remove archive reader and writer from remote storage grpc handler ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#6611](https://github.com/jaegertracing/jaeger/pull/6611))
+* Delete grpc metricsqueryservice, metricsquery.proto and related code ([@yurishkuro](https://github.com/yurishkuro) in [#6616](https://github.com/jaegertracing/jaeger/pull/6616))
+* [storage] remove distinction between primary and `archive` storage interfaces ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#6567](https://github.com/jaegertracing/jaeger/pull/6567))
+* [v2][query] create archive reader/writer using regular factory methods ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#6519](https://github.com/jaegertracing/jaeger/pull/6519))
+
+#### 🐞 Bug fixes, Minor Improvements
+
+* Update elasticsearch article link ([@timyip3](https://github.com/timyip3) in [#6662](https://github.com/jaegertracing/jaeger/pull/6662))
+* [chore] move scylladb implementation to `docker-compose` ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#6652](https://github.com/jaegertracing/jaeger/pull/6652))
+* [fix] refactor archive storage initialization and remove error log ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#6636](https://github.com/jaegertracing/jaeger/pull/6636))
+* Update import paths for jaeger thrift files to use jaeger-idl ([@Nabil-Salah](https://github.com/Nabil-Salah) in [#6635](https://github.com/jaegertracing/jaeger/pull/6635))
+* [v2][query] apply "max clock skew adjust" setting ([@dnaka91](https://github.com/dnaka91) in [#6566](https://github.com/jaegertracing/jaeger/pull/6566))
+* Alias samping.thrift and clean thrift files ([@Nabil-Salah](https://github.com/Nabil-Salah) in [#6630](https://github.com/jaegertracing/jaeger/pull/6630))
+* Fix(hotrod): include ca certificates for hotrod dockerfile ([@prashant-shahi](https://github.com/prashant-shahi) in [#6627](https://github.com/jaegertracing/jaeger/pull/6627))
+* Replace all imports of jaeger/thrift-gen/* with jaeger-idl/thrift-gen/* ([@danish9039](https://github.com/danish9039) in [#6621](https://github.com/jaegertracing/jaeger/pull/6621))
+* Redefine thrift-gen types as aliases to jaeger-idl ([@danish9039](https://github.com/danish9039) in [#6619](https://github.com/jaegertracing/jaeger/pull/6619))
+* Add 'features' command to print available feature gates ([@ADI-ROXX](https://github.com/ADI-ROXX) in [#6542](https://github.com/jaegertracing/jaeger/pull/6542))
+* Replace jaeger_image_tag with jaeger_version ([@ADI-ROXX](https://github.com/ADI-ROXX) in [#6614](https://github.com/jaegertracing/jaeger/pull/6614))
+* Use jeager-idl/proto-gen/api_v2 ([@Nabil-Salah](https://github.com/Nabil-Salah) in [#6609](https://github.com/jaegertracing/jaeger/pull/6609))
+* Additional model/ cleanup ([@yurishkuro](https://github.com/yurishkuro) in [#6610](https://github.com/jaegertracing/jaeger/pull/6610))
+* Return 400 instead of 500 on incorrect otlp payload ([@ADI-ROXX](https://github.com/ADI-ROXX) in [#6599](https://github.com/jaegertracing/jaeger/pull/6599))
+* Replace model imports with jaeger-idl ([@Nabil-Salah](https://github.com/Nabil-Salah) in [#6595](https://github.com/jaegertracing/jaeger/pull/6595))
+* Redefine model/ and api_v2/ types as aliases to jaeger-idl/ types ([@Nabil-Salah](https://github.com/Nabil-Salah) in [#6602](https://github.com/jaegertracing/jaeger/pull/6602))
+* Add example of es/os server_urls to configs ([@yurishkuro](https://github.com/yurishkuro) in [#6601](https://github.com/jaegertracing/jaeger/pull/6601))
+* Sanitize cassandra version before use it ([@rubenvp8510](https://github.com/rubenvp8510) in [#6596](https://github.com/jaegertracing/jaeger/pull/6596))
+* Feat: add esmapping-generator into jaeger binary ([@Rohanraj123](https://github.com/Rohanraj123) in [#6327](https://github.com/jaegertracing/jaeger/pull/6327))
+* Add replication parameter to cassandra schema script ([@asimchoudhary](https://github.com/asimchoudhary) in [#6582](https://github.com/jaegertracing/jaeger/pull/6582))
+* Exclude idl/ as a source of go code ([@yurishkuro](https://github.com/yurishkuro) in [#6591](https://github.com/jaegertracing/jaeger/pull/6591))
+* Change model.tootelxxxid() to accept id argument ([@yurishkuro](https://github.com/yurishkuro) in [#6589](https://github.com/jaegertracing/jaeger/pull/6589))
+* [refactor][storage][badger]refactored the prefilling of cache to reader ([@Manik2708](https://github.com/Manik2708) in [#6575](https://github.com/jaegertracing/jaeger/pull/6575))
+* Move span.getsamplerparams out of model/ into sampling/aggregator ([@Nabil-Salah](https://github.com/Nabil-Salah) in [#6583](https://github.com/jaegertracing/jaeger/pull/6583))
+* Remove logger parameter in adaptive/aggregator.go ([@Nabil-Salah](https://github.com/Nabil-Salah) in [#6586](https://github.com/jaegertracing/jaeger/pull/6586))
+* Separate model parts into more independent pieces ([@yurishkuro](https://github.com/yurishkuro) in [#6581](https://github.com/jaegertracing/jaeger/pull/6581))
+* [storage]generate mocks for dependency writer of v2 ([@Manik2708](https://github.com/Manik2708) in [#6576](https://github.com/jaegertracing/jaeger/pull/6576))
+* [chore] remove unused method from grpc handler ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#6580](https://github.com/jaegertracing/jaeger/pull/6580))
+* Document usage of feature gates for breaking changes ([@yurishkuro](https://github.com/yurishkuro) in [#6568](https://github.com/jaegertracing/jaeger/pull/6568))
+* [refactor] move sampling strategy providers to internal/sampling/samplingstrategy ([@ary82](https://github.com/ary82) in [#6561](https://github.com/jaegertracing/jaeger/pull/6561))
+* [v2][storage] implement reverse adapter to translate v2 writer to v1 ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#6555](https://github.com/jaegertracing/jaeger/pull/6555))
+* [refactor] move sampling strategy interfaces to internal/sampling/strategy ([@ary82](https://github.com/ary82) in [#6547](https://github.com/jaegertracing/jaeger/pull/6547))
+* Switch v1 receivers to use v2 write path ([@yurishkuro](https://github.com/yurishkuro) in [#6532](https://github.com/jaegertracing/jaeger/pull/6532))
+* [refactor] move plugin/sampling/leaderelection to internal/leaderelection ([@ary82](https://github.com/ary82) in [#6546](https://github.com/jaegertracing/jaeger/pull/6546))
+* [refactor] move sampling http handler to internal/sampling/http ([@ary82](https://github.com/ary82) in [#6545](https://github.com/jaegertracing/jaeger/pull/6545))
+* [storage] remove dependency on archive flag in es reader ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#6490](https://github.com/jaegertracing/jaeger/pull/6490))
+* [refactor] move sampling grpc handler to internal/sampling/grpc ([@ary82](https://github.com/ary82) in [#6540](https://github.com/jaegertracing/jaeger/pull/6540))
+* Correct references in cmd readme.md ([@jyoungs](https://github.com/jyoungs) in [#6539](https://github.com/jaegertracing/jaeger/pull/6539))
+* Use jaeger-v2 by default in hotrod and monitor examples ([@zzzk1](https://github.com/zzzk1) in [#6523](https://github.com/jaegertracing/jaeger/pull/6523))
+* Pass context through span processors ([@yurishkuro](https://github.com/yurishkuro) in [#6534](https://github.com/jaegertracing/jaeger/pull/6534))
+* [refactor] move cmd/collector/app/sampling/model types to storage ([@ary82](https://github.com/ary82) in [#6531](https://github.com/jaegertracing/jaeger/pull/6531))
+* Switch v1 collector pipeline to v2 writer ([@yurishkuro](https://github.com/yurishkuro) in [#6491](https://github.com/jaegertracing/jaeger/pull/6491))
+* Make all-in-one.yaml file independant of sampling-strategies.json file ([@adityachopra29](https://github.com/adityachopra29) in [#6431](https://github.com/jaegertracing/jaeger/pull/6431))
+* Enable reload-interval flag for all tls server configs ([@ADI-ROXX](https://github.com/ADI-ROXX) in [#6525](https://github.com/jaegertracing/jaeger/pull/6525))
+* Use bash script markdown in contributing.md ([@MAX-786](https://github.com/MAX-786) in [#6530](https://github.com/jaegertracing/jaeger/pull/6530))
+* Add standard tags for internal warnings and span format ([@ADI-ROXX](https://github.com/ADI-ROXX) in [#6524](https://github.com/jaegertracing/jaeger/pull/6524))
+* [refactor][storage] remove metrics factory distinctions from storage factories ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#6526](https://github.com/jaegertracing/jaeger/pull/6526))
+* [es-cleaner] do not fail if the index does not exist ([@skirtan1](https://github.com/skirtan1) in [#6511](https://github.com/jaegertracing/jaeger/pull/6511))
+
+#### 👷 CI Improvements
+
+* Upgrade storage integration test: use v2 archive readerwriter ([@ekefan](https://github.com/ekefan) in [#6489](https://github.com/jaegertracing/jaeger/pull/6489))
+* [chore][tests] clean up integration tests to remove archive reader / writer ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#6625](https://github.com/jaegertracing/jaeger/pull/6625))
+* Bump jaeger-idl ([@yurishkuro](https://github.com/yurishkuro) in [#6569](https://github.com/jaegertracing/jaeger/pull/6569))
+* [storage]upgraded integration tests to use dependency writer of storage_v2 ([@Manik2708](https://github.com/Manik2708) in [#6559](https://github.com/jaegertracing/jaeger/pull/6559))
+* [ci] fix binary-size-check workflow ([@chahatsagarmain](https://github.com/chahatsagarmain) in [#6552](https://github.com/jaegertracing/jaeger/pull/6552))
+* [ci] scrape and verify metrics at the end of e2e tests ([@chahatsagarmain](https://github.com/chahatsagarmain) in [#6330](https://github.com/jaegertracing/jaeger/pull/6330))
+* [ci] add workflow to guard against increases in the binary size ([@chahatsagarmain](https://github.com/chahatsagarmain) in [#6529](https://github.com/jaegertracing/jaeger/pull/6529))
+
+
+### 📊 UI Changes
+
+#### 🐞 Bug fixes, Minor Improvements
+
+* Remove defaultprops from minimap.tsx ([@ADI-ROXX](https://github.com/ADI-ROXX) in [#2615](https://github.com/jaegertracing/jaeger-ui/pull/2615))
+* Remove defaultprops from scatterplot.jsx ([@ADI-ROXX](https://github.com/ADI-ROXX) in [#2618](https://github.com/jaegertracing/jaeger-ui/pull/2618))
+* Migrate empasizednode from class based to function based component ([@AdiIsHappy](https://github.com/AdiIsHappy) in [#2638](https://github.com/jaegertracing/jaeger-ui/pull/2638))
+* Remove defaultprops from accordiantext.tsx ([@ADI-ROXX](https://github.com/ADI-ROXX) in [#2612](https://github.com/jaegertracing/jaeger-ui/pull/2612))
+* Remove defaultprops from ticks.tsx ([@ADI-ROXX](https://github.com/ADI-ROXX) in [#2617](https://github.com/jaegertracing/jaeger-ui/pull/2617))
+* Remove defaultprops from timelinerow.tsx ([@ADI-ROXX](https://github.com/ADI-ROXX) in [#2616](https://github.com/jaegertracing/jaeger-ui/pull/2616))
+* Remove defaultprops from traceheader.jsx ([@ADI-ROXX](https://github.com/ADI-ROXX) in [#2620](https://github.com/jaegertracing/jaeger-ui/pull/2620))
+* Remove defaultprops from accordianlogs.tsx ([@ADI-ROXX](https://github.com/ADI-ROXX) in [#2613](https://github.com/jaegertracing/jaeger-ui/pull/2613))
+* Remove defaultprops fromt breakabletext.tsx ([@ADI-ROXX](https://github.com/ADI-ROXX) in [#2611](https://github.com/jaegertracing/jaeger-ui/pull/2611))
+* Remove defaultprops from errormessage & newwindowicon ([@ADI-ROXX](https://github.com/ADI-ROXX) in [#2609](https://github.com/jaegertracing/jaeger-ui/pull/2609))
+* [loadingindicator]: replace defaultprops with destructuring ([@its-me-abhishek](https://github.com/its-me-abhishek) in [#2601](https://github.com/jaegertracing/jaeger-ui/pull/2601))
+* [fix]: disable submit button on invalid minduration or maxduration ([@hari45678](https://github.com/hari45678) in [#2600](https://github.com/jaegertracing/jaeger-ui/pull/2600))
+* [deps]: remove dependency on redux-form ([@hari45678](https://github.com/hari45678) in [#2593](https://github.com/jaegertracing/jaeger-ui/pull/2593))
+* [fix]: remove redux-form dependency from sort selector ([@hari45678](https://github.com/hari45678) in [#2569](https://github.com/jaegertracing/jaeger-ui/pull/2569))
+* [revert]: revert redux and react-redux dependency upgrades ([@yurishkuro](https://github.com/yurishkuro) in [#2577](https://github.com/jaegertracing/jaeger-ui/pull/2577))
+* Fix: deep clone trace data for consistency ([@Zen-cronic](https://github.com/Zen-cronic) in [#2571](https://github.com/jaegertracing/jaeger-ui/pull/2571))
+* [fix]: remove redux-form dependency from monitor page ([@hari45678](https://github.com/hari45678) in [#2562](https://github.com/jaegertracing/jaeger-ui/pull/2562))
+* Fix tracediff graph pan and zoom issue ([@anshgoyalevil](https://github.com/anshgoyalevil) in [#2566](https://github.com/jaegertracing/jaeger-ui/pull/2566))
+
+#### 👷 CI Improvements
+
+* Remove unused matrix from codeql workflow ([@yurishkuro](https://github.com/yurishkuro) in [#2635](https://github.com/jaegertracing/jaeger-ui/pull/2635))
+* Rename dco->dco check ([@yurishkuro](https://github.com/yurishkuro) in [#2633](https://github.com/jaegertracing/jaeger-ui/pull/2633))
+* Add fake dco check for merge queue events ([@yurishkuro](https://github.com/yurishkuro) in [#2632](https://github.com/jaegertracing/jaeger-ui/pull/2632))
+* Don't run label check in merge queue ([@yurishkuro](https://github.com/yurishkuro) in [#2631](https://github.com/jaegertracing/jaeger-ui/pull/2631))
+* Don't run codeql from merge queue ([@yurishkuro](https://github.com/yurishkuro) in [#2630](https://github.com/jaegertracing/jaeger-ui/pull/2630))
+* Enable workflows to run in merge queue ([@yurishkuro](https://github.com/yurishkuro) in [#2629](https://github.com/jaegertracing/jaeger-ui/pull/2629))
+* [ci] fix cache resolution and syntax in check binary size workflow ([@chahatsagarmain](https://github.com/chahatsagarmain) in [#2591](https://github.com/jaegertracing/jaeger-ui/pull/2591))
+* [ci]: add workflow to guard against growing bundle size ([@hari45678](https://github.com/hari45678) in [#2586](https://github.com/jaegertracing/jaeger-ui/pull/2586))
+
+v1.65.0 / v2.2.0 (2025-01-08)
 -------------------------------
 
 ### Backend Changes
