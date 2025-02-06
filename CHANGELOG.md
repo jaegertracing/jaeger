@@ -23,11 +23,8 @@ copy from UI changelog
 
 v1.66.0 / v2.3.0 (2025-02-03)
 -------------------------------
-### Backend Changes
-
 #### ⛔ Breaking Changes
 
-* [refactor] move cassandra implementation to `internal` package ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#6639](https://github.com/jaegertracing/jaeger/pull/6639))
 * [refactor] remove archive reader and writer from remote storage grpc handler ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#6611](https://github.com/jaegertracing/jaeger/pull/6611))
 * Delete grpc metricsqueryservice, metricsquery.proto and related code ([@yurishkuro](https://github.com/yurishkuro) in [#6616](https://github.com/jaegertracing/jaeger/pull/6616))
 * [storage] remove distinction between primary and `archive` storage interfaces ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#6567](https://github.com/jaegertracing/jaeger/pull/6567))
@@ -35,6 +32,8 @@ v1.66.0 / v2.3.0 (2025-02-03)
 
 #### 🐞 Bug fixes, Minor Improvements
 
+* [fix] replace deprecated address field in service::telemetry ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#6679](https://github.com/jaegertracing/jaeger/pull/6679))
+* [fix] change metrics port in kafka ingester config to avoid conflict with collector ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#6678](https://github.com/jaegertracing/jaeger/pull/6678))
 * Update elasticsearch article link ([@timyip3](https://github.com/timyip3) in [#6662](https://github.com/jaegertracing/jaeger/pull/6662))
 * [chore] move scylladb implementation to `docker-compose` ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#6652](https://github.com/jaegertracing/jaeger/pull/6652))
 * [fix] refactor archive storage initialization and remove error log ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#6636](https://github.com/jaegertracing/jaeger/pull/6636))
@@ -75,14 +74,6 @@ v1.66.0 / v2.3.0 (2025-02-03)
 * Correct references in cmd readme.md ([@jyoungs](https://github.com/jyoungs) in [#6539](https://github.com/jaegertracing/jaeger/pull/6539))
 * Use jaeger-v2 by default in hotrod and monitor examples ([@zzzk1](https://github.com/zzzk1) in [#6523](https://github.com/jaegertracing/jaeger/pull/6523))
 * Pass context through span processors ([@yurishkuro](https://github.com/yurishkuro) in [#6534](https://github.com/jaegertracing/jaeger/pull/6534))
-* [refactor] move cmd/collector/app/sampling/model types to storage ([@ary82](https://github.com/ary82) in [#6531](https://github.com/jaegertracing/jaeger/pull/6531))
-* Switch v1 collector pipeline to v2 writer ([@yurishkuro](https://github.com/yurishkuro) in [#6491](https://github.com/jaegertracing/jaeger/pull/6491))
-* Make all-in-one.yaml file independant of sampling-strategies.json file ([@adityachopra29](https://github.com/adityachopra29) in [#6431](https://github.com/jaegertracing/jaeger/pull/6431))
-* Enable reload-interval flag for all tls server configs ([@ADI-ROXX](https://github.com/ADI-ROXX) in [#6525](https://github.com/jaegertracing/jaeger/pull/6525))
-* Use bash script markdown in contributing.md ([@MAX-786](https://github.com/MAX-786) in [#6530](https://github.com/jaegertracing/jaeger/pull/6530))
-* Add standard tags for internal warnings and span format ([@ADI-ROXX](https://github.com/ADI-ROXX) in [#6524](https://github.com/jaegertracing/jaeger/pull/6524))
-* [refactor][storage] remove metrics factory distinctions from storage factories ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#6526](https://github.com/jaegertracing/jaeger/pull/6526))
-* [es-cleaner] do not fail if the index does not exist ([@skirtan1](https://github.com/skirtan1) in [#6511](https://github.com/jaegertracing/jaeger/pull/6511))
 
 #### 👷 CI Improvements
 
@@ -93,7 +84,6 @@ v1.66.0 / v2.3.0 (2025-02-03)
 * [ci] fix binary-size-check workflow ([@chahatsagarmain](https://github.com/chahatsagarmain) in [#6552](https://github.com/jaegertracing/jaeger/pull/6552))
 * [ci] scrape and verify metrics at the end of e2e tests ([@chahatsagarmain](https://github.com/chahatsagarmain) in [#6330](https://github.com/jaegertracing/jaeger/pull/6330))
 * [ci] add workflow to guard against increases in the binary size ([@chahatsagarmain](https://github.com/chahatsagarmain) in [#6529](https://github.com/jaegertracing/jaeger/pull/6529))
-
 
 ### 📊 UI Changes
 
