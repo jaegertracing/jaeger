@@ -28,6 +28,8 @@ import (
 	"go.opentelemetry.io/collector/processor/memorylimiterprocessor"
 	"go.opentelemetry.io/collector/receiver"
 	"go.opentelemetry.io/collector/receiver/otlpreceiver"
+	"go.opentelemetry.io/collector/exporter/nopexporter"
+    "go.opentelemetry.io/collector/receiver/nopreceiver" 
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/exporters/storageexporter"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/expvar"
@@ -78,6 +80,8 @@ func (b builders) build() (otelcol.Factories, error) {
 	factories.Receivers, err = b.receiver(
 		// standard
 		otlpreceiver.NewFactory(),
+		// add nop receiver
+		nopreceiver.NewFactory(),
 		// add-ons
 		jaegerreceiver.NewFactory(),
 		kafkareceiver.NewFactory(),
@@ -92,6 +96,8 @@ func (b builders) build() (otelcol.Factories, error) {
 		debugexporter.NewFactory(),
 		otlpexporter.NewFactory(),
 		otlphttpexporter.NewFactory(),
+		// add nop exporter
+		nopexporter.NewFactory(),
 		// add-ons
 		storageexporter.NewFactory(), // generic exporter to Jaeger v1 spanstore.SpanWriter
 		kafkaexporter.NewFactory(),
