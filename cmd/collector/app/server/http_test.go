@@ -74,7 +74,9 @@ func TestSpanCollectorHTTP(t *testing.T) {
 		Logger:           logger,
 	}
 
-	server, _ := params.ToServer(context.Background(), nil, component.TelemetrySettings{}, nil)
+	server, _ := params.ToServer(context.Background(), nil, component.TelemetrySettings{
+		Logger: logger,
+	}, nil)
 	listener, _ := params.ToListener(context.Background())
 
 	serveHTTP(server, listener, params)

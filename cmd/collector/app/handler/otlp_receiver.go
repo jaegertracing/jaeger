@@ -11,7 +11,6 @@ import (
 	"go.opentelemetry.io/collector/component/componentstatus"
 	"go.opentelemetry.io/collector/config/confignet"
 	"go.opentelemetry.io/collector/consumer"
-	"go.opentelemetry.io/collector/extension"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/collector/pipeline"
 	"go.opentelemetry.io/collector/receiver"
@@ -135,7 +134,7 @@ func (*otelHost) GetFactory(_ component.Kind, _ pipeline.Signal) component.Facto
 	return nil
 }
 
-func (*otelHost) GetExtensions() map[component.ID]extension.Extension {
+func (*otelHost) GetExtensions() map[component.ID]component.Component {
 	return nil
 }
 
