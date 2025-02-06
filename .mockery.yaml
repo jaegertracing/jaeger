@@ -61,6 +61,9 @@ packages:
   github.com/jaegertracing/jaeger/internal/storage/v1:
     config:
       all: true
+  github.com/jaegertracing/jaeger/internal/storage/v2:
+    config:
+      all: true
   github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore:
     interfaces:
       Reader:
