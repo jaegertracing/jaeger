@@ -119,29 +119,38 @@ func TestGetFactory(t *testing.T) {
 	require.NotNil(t, f3)
 }
 
-func TestGetSamplingStoreFactory_Supported(t *testing.T) {
+func TestGetSamplingStoreFactory(t *testing.T) {
+	tests := []struct {
+		name          string
+		storageName   string
+		expectedFound bool
+	}{
+		{
+			name:          "Supported",
+			storageName:   "foo",
+			expectedFound: true,
+		},
+		{
+			name:          "NotFound",
+			storageName:   "nonexistingstorage",
+			expectedFound: false,
+		},
+	}
+
 	traceStoreFactory := "foo"
 	host := storagetest.NewStorageHost().WithExtension(ID, startStorageExtension(t, traceStoreFactory, "bar"))
 
-	factory, ok := GetSamplingStoreFactory(traceStoreFactory, host)
-	require.True(t, ok)
-	require.NotNil(t, factory)
-
-	ssf, ok := GetSamplingStoreFactory("foo", host)
-	require.True(t, ok)
-	require.NotNil(t, ssf)
-}
-
-func TestGetSamplingStoreFactory_NotFound(t *testing.T) {
-	traceStoreFactory := "foo"
-	host := storagetest.NewStorageHost().WithExtension(ID, startStorageExtension(t, traceStoreFactory, "bar"))
-
-	factory, ok := GetSamplingStoreFactory(traceStoreFactory, host)
-	require.True(t, ok)
-	require.NotNil(t, factory)
-
-	_, ok = GetSamplingStoreFactory("nonexistingstorage", host)
-	require.False(t, ok)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ssf, ok := GetSamplingStoreFactory(tt.storageName, host)
+			require.Equal(t, tt.expectedFound, ok)
+			if tt.expectedFound {
+				require.NotNil(t, ssf)
+			} else {
+				require.Nil(t, ssf)
+			}
+		})
+	}
 }
 
 func TestBadger(t *testing.T) {
