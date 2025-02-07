@@ -119,6 +119,31 @@ func TestGetFactory(t *testing.T) {
 	require.NotNil(t, f3)
 }
 
+func TestGetSamplingStoreFactory_Supported(t *testing.T) {
+	traceStoreFactory := "foo"
+	host := storagetest.NewStorageHost().WithExtension(ID, startStorageExtension(t, traceStoreFactory, "bar"))
+
+	factory, ok := GetSamplingStoreFactory(traceStoreFactory, host)
+	require.True(t, ok)
+	require.NotNil(t, factory)
+
+	ssf, ok := GetSamplingStoreFactory("foo", host)
+	require.True(t, ok)
+	require.NotNil(t, ssf)
+}
+
+func TestGetSamplingStoreFactory_NotFound(t *testing.T) {
+	traceStoreFactory := "foo"
+	host := storagetest.NewStorageHost().WithExtension(ID, startStorageExtension(t, traceStoreFactory, "bar"))
+
+	factory, ok := GetSamplingStoreFactory(traceStoreFactory, host)
+	require.True(t, ok)
+	require.NotNil(t, factory)
+
+	_, ok = GetSamplingStoreFactory("nonexistingstorage", host)
+	require.False(t, ok)
+}
+
 func TestBadger(t *testing.T) {
 	ext := makeStorageExtenion(t, &Config{
 		TraceBackends: map[string]TraceBackend{
