@@ -49,15 +49,8 @@ func (c *storageCleaner) Start(_ context.Context, host component.Host) error {
 		return fmt.Errorf("failed to obtain purger: %w", err)
 	}
 
-	purgeStorage := func(httpContext context.Context) error {
-		if err := purger.Purge(httpContext); err != nil {
-			return fmt.Errorf("error purging storage: %w", err)
-		}
-		return nil
-	}
-
 	purgeHandler := func(w http.ResponseWriter, r *http.Request) {
-		if err := purgeStorage(r.Context()); err != nil {
+		if err := purger.Purge(r.Context()); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
