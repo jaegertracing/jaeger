@@ -98,7 +98,7 @@ func (a *aggregator) saveThroughput() {
 	a.storage.InsertThroughput(throughputSlice)
 }
 
-func (a *aggregator) RecordThroughput(service, operation string, samplerType span_model.SamplerType, probability float64) {
+func (a *aggregator) RecordThroughput(service, operation string, _ span_model.SamplerType, probability float64) {
 	a.Lock()
 	defer a.Unlock()
 	if _, ok := a.currentThroughput[service]; !ok {
