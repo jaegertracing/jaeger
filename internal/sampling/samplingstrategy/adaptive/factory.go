@@ -16,11 +16,10 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore"
 	"github.com/jaegertracing/jaeger/pkg/distributedlock"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
-	"github.com/jaegertracing/jaeger/plugin"
 )
 
 var (
-	_ plugin.Configurable      = (*Factory)(nil)
+	_ storage.Configurable     = (*Factory)(nil)
 	_ samplingstrategy.Factory = (*Factory)(nil)
 )
 
@@ -44,12 +43,12 @@ func NewFactory() *Factory {
 	}
 }
 
-// AddFlags implements plugin.Configurable
+// AddFlags implements storage.Configurable
 func (*Factory) AddFlags(flagSet *flag.FlagSet) {
 	AddFlags(flagSet)
 }
 
-// InitFromViper implements plugin.Configurable
+// InitFromViper implements storage.Configurable
 func (f *Factory) InitFromViper(v *viper.Viper, _ *zap.Logger) {
 	f.options.InitFromViper(v)
 }
