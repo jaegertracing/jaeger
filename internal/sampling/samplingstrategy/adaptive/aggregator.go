@@ -113,15 +113,10 @@ func (a *aggregator) RecordThroughput(service, operation string, samplerType spa
 		}
 		a.currentThroughput[service][operation] = throughput
 	}
-	probStr := TruncateFloat(probability)
+	throughput.Count++
+	probStr := truncateFloat(probability)
 	if len(throughput.Probabilities) != maxProbabilities {
 		throughput.Probabilities[probStr] = struct{}{}
-	}
-	// Only if we see probabilistically sampled root spans do we increment the throughput counter,
-	// for lowerbound sampled spans, we don't increment at all but we still save a count of 0 as
-	// the throughput so that the adaptive sampling processor is made aware of the endpoint.
-	if samplerType == span_model.SamplerTypeProbabilistic {
-		throughput.Count++
 	}
 }
 
@@ -152,9 +147,6 @@ func (a *aggregator) HandleRootSpan(span *span_model.Span) {
 		return
 	}
 	samplerType, samplerParam := getSamplerParams(span, a.postAggregator.logger)
-	if samplerType == span_model.SamplerTypeUnrecognized {
-		return
-	}
 	a.RecordThroughput(service, span.OperationName, samplerType, samplerParam)
 }
 

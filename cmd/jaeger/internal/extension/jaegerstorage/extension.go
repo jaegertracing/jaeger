@@ -74,7 +74,7 @@ func GetMetricStorageFactory(name string, host component.Host) (storage.MetricSt
 	return mf, nil
 }
 
-func GetTraceStoreFactory(name string, host component.Host) (tracestore.Factory, error) {
+func(name string, host component.Host) (tracestore.Factory, error) {
 	f, err := GetStorageFactory(name, host)
 	if err != nil {
 		return nil, err
