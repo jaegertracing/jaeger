@@ -124,26 +124,68 @@ func TestGetSamplingStoreFactory(t *testing.T) {
 		name          string
 		storageName   string
 		expectedError string
+		setupFunc     func(t *testing.T) component.Component
 	}{
 		{
 			name:        "Supported",
 			storageName: "foo",
+			setupFunc: func(t *testing.T) component.Component {
+				traceStoreFactory := "foo"
+				return startStorageExtension(t, traceStoreFactory, "bar")
+			},
 		},
 		{
 			name:          "NotFound",
 			storageName:   "nonexistingstorage",
 			expectedError: "cannot find definition of storage",
+			setupFunc: func(t *testing.T) component.Component {
+				traceStoreFactory := "foo"
+				return startStorageExtension(t, traceStoreFactory, "bar")
+			},
+		},
+		{
+			name:          "NotSupported",
+			storageName:   "foo",
+			expectedError: "storage does not support sampling store",
+			setupFunc: func(t *testing.T) component.Component {
+				versionResponse, err := json.Marshal(map[string]any{
+					"Version": map[string]any{
+						"Number": "7",
+					},
+				})
+				require.NoError(t, err)
+				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.Write(versionResponse)
+				}))
+				t.Cleanup(func() { server.Close() })
+
+				ext := makeStorageExtension(t, &Config{
+					TraceBackends: map[string]TraceBackend{
+						"foo": {
+							Elasticsearch: &esCfg.Configuration{
+								Servers:  []string{server.URL},
+								LogLevel: "error",
+							},
+						},
+					},
+				})
+				require.NoError(t, ext.Start(context.Background(), componenttest.NewNopHost()))
+				t.Cleanup(func() {
+					require.NoError(t, ext.Shutdown(context.Background()))
+				})
+				return ext
+			},
 		},
 	}
 
-	traceStoreFactory := "foo"
-	host := storagetest.NewStorageHost().WithExtension(ID, startStorageExtension(t, traceStoreFactory, "bar"))
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			ext := test.setupFunc(t)
+			host := storagetest.NewStorageHost().WithExtension(ID, ext)
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			ssf, err := GetSamplingStoreFactory(tt.storageName, host)
-			if tt.expectedError != "" {
-				require.ErrorContains(t, err, tt.expectedError)
+			ssf, err := GetSamplingStoreFactory(test.storageName, host)
+			if test.expectedError != "" {
+				require.ErrorContains(t, err, test.expectedError)
 				require.Nil(t, ssf)
 			} else {
 				require.NotNil(t, ssf)
@@ -153,7 +195,7 @@ func TestGetSamplingStoreFactory(t *testing.T) {
 }
 
 func TestBadger(t *testing.T) {
-	ext := makeStorageExtenion(t, &Config{
+	ext := makeStorageExtension(t, &Config{
 		TraceBackends: map[string]TraceBackend{
 			"foo": {
 				Badger: &badger.Config{
@@ -171,7 +213,7 @@ func TestBadger(t *testing.T) {
 }
 
 func TestGRPC(t *testing.T) {
-	ext := makeStorageExtenion(t, &Config{
+	ext := makeStorageExtension(t, &Config{
 		TraceBackends: map[string]TraceBackend{
 			"foo": {
 				GRPC: &grpc.Config{
@@ -189,7 +231,7 @@ func TestGRPC(t *testing.T) {
 }
 
 func TestPrometheus(t *testing.T) {
-	ext := makeStorageExtenion(t, &Config{
+	ext := makeStorageExtension(t, &Config{
 		MetricBackends: map[string]MetricBackend{
 			"foo": {
 				Prometheus: &promCfg.Configuration{
@@ -205,7 +247,7 @@ func TestPrometheus(t *testing.T) {
 }
 
 func TestStartError(t *testing.T) {
-	ext := makeStorageExtenion(t, &Config{
+	ext := makeStorageExtension(t, &Config{
 		TraceBackends: map[string]TraceBackend{
 			"foo": {},
 		},
@@ -216,7 +258,7 @@ func TestStartError(t *testing.T) {
 }
 
 func TestMetricsStorageStartError(t *testing.T) {
-	ext := makeStorageExtenion(t, &Config{
+	ext := makeStorageExtension(t, &Config{
 		MetricBackends: map[string]MetricBackend{
 			"foo": {
 				Prometheus: &promCfg.Configuration{},
@@ -228,7 +270,7 @@ func TestMetricsStorageStartError(t *testing.T) {
 }
 
 func testElasticsearchOrOpensearch(t *testing.T, cfg TraceBackend) {
-	ext := makeStorageExtenion(t, &Config{
+	ext := makeStorageExtension(t, &Config{
 		TraceBackends: map[string]TraceBackend{
 			"foo": cfg,
 		},
@@ -271,7 +313,7 @@ func TestXYZsearch(t *testing.T) {
 func TestCassandraError(t *testing.T) {
 	// since we cannot successfully create storage factory for Cassandra
 	// without running a Cassandra server, we only test the error case.
-	ext := makeStorageExtenion(t, &Config{
+	ext := makeStorageExtension(t, &Config{
 		TraceBackends: map[string]TraceBackend{
 			"cassandra": {
 				Cassandra: &cassandra.Options{},
@@ -291,7 +333,7 @@ func noopTelemetrySettings() component.TelemetrySettings {
 	}
 }
 
-func makeStorageExtenion(t *testing.T, config *Config) component.Component {
+func makeStorageExtension(t *testing.T, config *Config) component.Component {
 	extensionFactory := NewFactory()
 	ctx := context.Background()
 	ext, err := extensionFactory.Create(ctx,
@@ -325,7 +367,7 @@ func startStorageExtension(t *testing.T, memstoreName string, promstoreName stri
 	}
 	require.NoError(t, config.Validate())
 
-	ext := makeStorageExtenion(t, config)
+	ext := makeStorageExtension(t, config)
 	err := ext.Start(context.Background(), componenttest.NewNopHost())
 	require.NoError(t, err)
 	t.Cleanup(func() {
