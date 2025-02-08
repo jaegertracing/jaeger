@@ -83,18 +83,18 @@ func GetTraceStoreFactory(name string, host component.Host) (tracestore.Factory,
 	return v1adapter.NewFactory(f), nil
 }
 
-func GetSamplingStoreFactory(name string, host component.Host) (storage.SamplingStoreFactory, bool) {
+func GetSamplingStoreFactory(name string, host component.Host) (storage.SamplingStoreFactory, error) {
 	f, err := GetStorageFactory(name, host)
 	if err != nil {
-		return nil, false
+		return nil, err
 	}
 
 	ssf, ok := f.(storage.SamplingStoreFactory)
 	if !ok {
-		return nil, false
+		return nil, errors.New("storage does not support sampling store")
 	}
 
-	return ssf, true
+	return ssf, nil
 }
 
 func findExtension(host component.Host) (Extension, error) {

@@ -123,17 +123,16 @@ func TestGetSamplingStoreFactory(t *testing.T) {
 	tests := []struct {
 		name          string
 		storageName   string
-		expectedFound bool
+		expectedError string
 	}{
 		{
-			name:          "Supported",
-			storageName:   "foo",
-			expectedFound: true,
+			name:        "Supported",
+			storageName: "foo",
 		},
 		{
 			name:          "NotFound",
 			storageName:   "nonexistingstorage",
-			expectedFound: false,
+			expectedError: "cannot find definition of storage",
 		},
 	}
 
@@ -142,12 +141,12 @@ func TestGetSamplingStoreFactory(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ssf, ok := GetSamplingStoreFactory(tt.storageName, host)
-			require.Equal(t, tt.expectedFound, ok)
-			if tt.expectedFound {
-				require.NotNil(t, ssf)
-			} else {
+			ssf, err := GetSamplingStoreFactory(tt.storageName, host)
+			if tt.expectedError != "" {
+				require.ErrorContains(t, err, tt.expectedError)
 				require.Nil(t, ssf)
+			} else {
+				require.NotNil(t, ssf)
 			}
 		})
 	}

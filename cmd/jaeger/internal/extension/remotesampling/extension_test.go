@@ -199,7 +199,7 @@ func TestStartAdaptiveStrategyProviderErrors(t *testing.T) {
 		},
 	}
 	err := ext.startAdaptiveStrategyProvider(host)
-	require.ErrorContains(t, err, "storage 'foobar' does not support sampling store")
+	require.ErrorContains(t, err, "failed to obtain sampling store factory")
 }
 
 func TestGetAdaptiveSamplingComponents(t *testing.T) {
