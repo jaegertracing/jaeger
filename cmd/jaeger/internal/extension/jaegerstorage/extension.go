@@ -91,7 +91,7 @@ func GetSamplingStoreFactory(name string, host component.Host) (storage.Sampling
 
 	ssf, ok := f.(storage.SamplingStoreFactory)
 	if !ok {
-		return nil, errors.New("storage does not support sampling store")
+		return nil, fmt.Errorf("storage '%s' does not support sampling store", name)
 	}
 
 	return ssf, nil

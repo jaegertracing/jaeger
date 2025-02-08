@@ -146,7 +146,7 @@ func TestGetSamplingStoreFactory(t *testing.T) {
 		{
 			name:          "NotSupported",
 			storageName:   "foo",
-			expectedError: "storage does not support sampling store",
+			expectedError: "storage 'foo' does not support sampling store",
 			setupFunc: func(t *testing.T) component.Component {
 				versionResponse, err := json.Marshal(map[string]any{
 					"Version": map[string]any{
