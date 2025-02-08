@@ -2,9 +2,9 @@ service:
   extensions: [jaeger_storage, jaeger_query, healthcheckv2]
   pipelines:
     traces:
-      receivers: [otlp]
+      receivers: [nop]
       processors: [batch]
-      exporters: [jaeger_storage_exporter]
+      exporters: [nop]
   telemetry:
     resource:
       service.name: jaeger-query
@@ -32,14 +32,10 @@ extensions:
           max_traces: 100000
 
 receivers:
-  otlp:
-    protocols:
-      grpc:
-      http:
+  nop:
 
 processors:
   batch:
 
 exporters:
-  jaeger_storage_exporter:
-    trace_storage: query_storage
+  nop:
