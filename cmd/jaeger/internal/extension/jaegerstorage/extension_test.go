@@ -194,6 +194,71 @@ func TestGetSamplingStoreFactory(t *testing.T) {
 	}
 }
 
+func TestGetPurger(t *testing.T) {
+	tests := []struct {
+		name          string
+		storageName   string
+		expectedError string
+		setupFunc     func(t *testing.T) component.Component
+	}{
+		{
+			name:        "Supported",
+			storageName: "foo",
+			setupFunc: func(t *testing.T) component.Component {
+				traceStoreFactory := "foo"
+				return startStorageExtension(t, traceStoreFactory, "bar")
+			},
+		},
+		{
+			name:          "NotFound",
+			storageName:   "nonexistingstorage",
+			expectedError: "cannot find definition of storage",
+			setupFunc: func(t *testing.T) component.Component {
+				traceStoreFactory := "foo"
+				return startStorageExtension(t, traceStoreFactory, "bar")
+			},
+		},
+		{
+			name:          "NotSupported",
+			storageName:   "foo",
+			expectedError: "storage 'foo' does not support purging",
+			setupFunc: func(t *testing.T) component.Component {
+				ext := makeStorageExtension(t, &Config{
+					TraceBackends: map[string]TraceBackend{
+						"foo": {
+							GRPC: &grpc.Config{
+								ClientConfig: configgrpc.ClientConfig{
+									Endpoint: "localhost:12345",
+								},
+							},
+						},
+					},
+				})
+				require.NoError(t, ext.Start(context.Background(), componenttest.NewNopHost()))
+				t.Cleanup(func() {
+					require.NoError(t, ext.Shutdown(context.Background()))
+				})
+				return ext
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			ext := test.setupFunc(t)
+			host := storagetest.NewStorageHost().WithExtension(ID, ext)
+
+			purger, err := GetPurger(test.storageName, host)
+			if test.expectedError != "" {
+				require.ErrorContains(t, err, test.expectedError)
+				require.Nil(t, purger)
+			} else {
+				require.NotNil(t, purger)
+			}
+		})
+	}
+}
+
 func TestBadger(t *testing.T) {
 	ext := makeStorageExtension(t, &Config{
 		TraceBackends: map[string]TraceBackend{
