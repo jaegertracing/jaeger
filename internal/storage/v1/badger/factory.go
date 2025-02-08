@@ -27,7 +27,6 @@ import (
 	badgerStore "github.com/jaegertracing/jaeger/internal/storage/v1/badger/spanstore"
 	"github.com/jaegertracing/jaeger/pkg/distributedlock"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
-	"github.com/jaegertracing/jaeger/plugin"
 )
 
 const (
@@ -40,7 +39,7 @@ const (
 var ( // interface comformance checks
 	_ storage.Factory              = (*Factory)(nil)
 	_ io.Closer                    = (*Factory)(nil)
-	_ plugin.Configurable          = (*Factory)(nil)
+	_ storage.Configurable         = (*Factory)(nil)
 	_ storage.Purger               = (*Factory)(nil)
 	_ storage.SamplingStoreFactory = (*Factory)(nil)
 )
@@ -94,12 +93,12 @@ func NewFactoryWithConfig(
 	return f, nil
 }
 
-// AddFlags implements plugin.Configurable
+// AddFlags implements storage.Configurable
 func (f *Factory) AddFlags(flagSet *flag.FlagSet) {
 	f.Config.AddFlags(flagSet)
 }
 
-// InitFromViper implements plugin.Configurable
+// InitFromViper implements storage.Configurable
 func (f *Factory) InitFromViper(v *viper.Viper, logger *zap.Logger) {
 	f.Config.InitFromViper(v, logger)
 	f.configure(f.Config)
