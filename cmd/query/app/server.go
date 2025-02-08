@@ -14,7 +14,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/soheilhy/cmux"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componentstatus"
 	"go.opentelemetry.io/collector/config/configgrpc"
@@ -263,7 +262,7 @@ func (s *Server) initListener(ctx context.Context) error {
 	return nil
 }
 
-// Start http, GRPC and cmux servers concurrently
+// Start http and gRPC servers concurrently
 func (s *Server) Start(ctx context.Context) error {
 	err := s.initListener(ctx)
 	if err != nil {
@@ -285,7 +284,7 @@ func (s *Server) Start(ctx context.Context) error {
 		defer s.bgFinished.Done()
 		s.telset.Logger.Info("Starting HTTP server", zap.Int("port", httpPort), zap.String("addr", s.queryOptions.HTTP.Endpoint))
 		err := s.httpServer.Serve(s.httpConn)
-		if err != nil && !errors.Is(err, http.ErrServerClosed) && !errors.Is(err, cmux.ErrListenerClosed) && !errors.Is(err, cmux.ErrServerClosed) {
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
 			s.telset.Logger.Error("Could not start HTTP server", zap.Error(err))
 			s.telset.ReportStatus(componentstatus.NewFatalErrorEvent(err))
 			return
@@ -300,7 +299,7 @@ func (s *Server) Start(ctx context.Context) error {
 		s.telset.Logger.Info("Starting GRPC server", zap.Int("port", grpcPort), zap.String("addr", s.queryOptions.GRPC.NetAddr.Endpoint))
 
 		err := s.grpcServer.Serve(s.grpcConn)
-		if err != nil && !errors.Is(err, cmux.ErrListenerClosed) && !errors.Is(err, cmux.ErrServerClosed) {
+		if err != nil {
 			s.telset.Logger.Error("Could not start GRPC server", zap.Error(err))
 			s.telset.ReportStatus(componentstatus.NewFatalErrorEvent(err))
 			return
