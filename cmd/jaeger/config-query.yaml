@@ -10,7 +10,7 @@ service:
       service.name: jaeger-query
     metrics:
       level: detailed
-      address: 0.0.0.0:8888
+      address: 0.0.0.0:8889
     logs:
       level: info
 

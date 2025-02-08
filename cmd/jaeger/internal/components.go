@@ -80,7 +80,6 @@ func (b builders) build() (otelcol.Factories, error) {
 	factories.Receivers, err = b.receiver(
 		// standard
 		otlpreceiver.NewFactory(),
-		// add nop receiver
 		nopreceiver.NewFactory(),
 		// add-ons
 		jaegerreceiver.NewFactory(),
@@ -96,7 +95,6 @@ func (b builders) build() (otelcol.Factories, error) {
 		debugexporter.NewFactory(),
 		otlpexporter.NewFactory(),
 		otlphttpexporter.NewFactory(),
-		// add nop exporter
 		nopexporter.NewFactory(),
 		// add-ons
 		storageexporter.NewFactory(), // generic exporter to Jaeger v1 spanstore.SpanWriter
