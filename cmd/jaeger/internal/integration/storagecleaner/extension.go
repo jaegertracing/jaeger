@@ -18,7 +18,6 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
-	"github.com/jaegertracing/jaeger/internal/storage/v1"
 )
 
 var (
@@ -45,16 +44,12 @@ func newStorageCleaner(config *Config, telset component.TelemetrySettings) *stor
 }
 
 func (c *storageCleaner) Start(_ context.Context, host component.Host) error {
-	storageFactory, err := jaegerstorage.GetStorageFactory(c.config.TraceStorage, host)
+	purger, err := jaegerstorage.GetPurger(c.config.TraceStorage, host)
 	if err != nil {
-		return fmt.Errorf("cannot find storage factory '%s': %w", c.config.TraceStorage, err)
+		return fmt.Errorf("failed to obtain purger: %w", err)
 	}
 
 	purgeStorage := func(httpContext context.Context) error {
-		purger, ok := storageFactory.(storage.Purger)
-		if !ok {
-			return fmt.Errorf("storage %s does not implement Purger interface", c.config.TraceStorage)
-		}
 		if err := purger.Purge(httpContext); err != nil {
 			return fmt.Errorf("error purging storage: %w", err)
 		}

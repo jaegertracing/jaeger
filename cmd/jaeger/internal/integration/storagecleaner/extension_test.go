@@ -82,11 +82,6 @@ func TestStorageCleanerExtension(t *testing.T) {
 			factory: &PurgerFactory{err: errors.New("error")},
 			status:  http.StatusInternalServerError,
 		},
-		{
-			name:    "bad storage",
-			factory: &factoryMocks.Factory{},
-			status:  http.StatusInternalServerError,
-		},
 	}
 
 	for _, test := range tests {
@@ -122,17 +117,35 @@ func TestStorageCleanerExtension(t *testing.T) {
 }
 
 func TestGetStorageFactoryError(t *testing.T) {
-	config := &Config{}
-	s := newStorageCleaner(config, component.TelemetrySettings{
-		Logger: zaptest.NewLogger(t),
-	})
-	host := storagetest.NewStorageHost()
-	host.WithExtension(jaegerstorage.ID, &mockStorageExt{
-		name:    "storage",
-		factory: nil,
-	})
-	err := s.Start(context.Background(), host)
-	require.ErrorContains(t, err, "cannot find storage factory")
+	tests := []struct {
+		name    string
+		factory storage.Factory
+	}{
+		{
+			name:    "NoFactory",
+			factory: &factoryMocks.Factory{},
+		},
+		{
+			name:    "BadFactory",
+			factory: nil,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			config := &Config{}
+			s := newStorageCleaner(config, component.TelemetrySettings{
+				Logger: zaptest.NewLogger(t),
+			})
+			host := storagetest.NewStorageHost()
+			host.WithExtension(jaegerstorage.ID, &mockStorageExt{
+				name:    "storage",
+				factory: test.factory,
+			})
+			err := s.Start(context.Background(), host)
+			require.ErrorContains(t, err, "failed to obtain purger")
+		})
+	}
 }
 
 func TestStorageExtensionStartError(t *testing.T) {

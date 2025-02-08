@@ -97,6 +97,20 @@ func GetSamplingStoreFactory(name string, host component.Host) (storage.Sampling
 	return ssf, nil
 }
 
+func GetPurger(name string, host component.Host) (storage.Purger, error) {
+	f, err := GetStorageFactory(name, host)
+	if err != nil {
+		return nil, err
+	}
+
+	purger, ok := f.(storage.Purger)
+	if !ok {
+		return nil, fmt.Errorf("storage '%s' does not support purging", name)
+	}
+
+	return purger, nil
+}
+
 func findExtension(host component.Host) (Extension, error) {
 	var id component.ID
 	var comp component.Component
