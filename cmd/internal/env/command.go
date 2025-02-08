@@ -11,8 +11,8 @@ import (
 	"github.com/spf13/pflag"
 
 	ss "github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy/metafactory"
-	"github.com/jaegertracing/jaeger/plugin/metricstore"
-	"github.com/jaegertracing/jaeger/plugin/storage"
+	"github.com/jaegertracing/jaeger/internal/storage/metricstore"
+	storage "github.com/jaegertracing/jaeger/internal/storage/v1/factory"
 )
 
 const (

@@ -17,16 +17,16 @@ import (
 	queryApp "github.com/jaegertracing/jaeger/cmd/query/app"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	v2querysvc "github.com/jaegertracing/jaeger/cmd/query/app/querysvc/v2/querysvc"
+	"github.com/jaegertracing/jaeger/internal/storage/metricstore/disabled"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
 	"github.com/jaegertracing/jaeger/pkg/jtracer"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/telemetry"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
-	"github.com/jaegertracing/jaeger/plugin/metricstore/disabled"
-	"github.com/jaegertracing/jaeger/storage/metricstore"
-	"github.com/jaegertracing/jaeger/storage/spanstore"
-	"github.com/jaegertracing/jaeger/storage_v2/depstore"
-	"github.com/jaegertracing/jaeger/storage_v2/tracestore"
-	"github.com/jaegertracing/jaeger/storage_v2/v1adapter"
 )
 
 var (
@@ -95,8 +95,12 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 		return fmt.Errorf("cannot create dependencies reader: %w", err)
 	}
 
-	var opts querysvc.QueryServiceOptions
-	var v2opts v2querysvc.QueryServiceOptions
+	opts := querysvc.QueryServiceOptions{
+		MaxClockSkewAdjust: s.config.MaxClockSkewAdjust,
+	}
+	v2opts := v2querysvc.QueryServiceOptions{
+		MaxClockSkewAdjust: s.config.MaxClockSkewAdjust,
+	}
 	if err := s.addArchiveStorage(&opts, &v2opts, host); err != nil {
 		return err
 	}

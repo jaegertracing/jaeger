@@ -27,10 +27,10 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
+	"github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
 	"github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy/adaptive"
-	"github.com/jaegertracing/jaeger/plugin/storage/memory"
-	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/memory"
 )
 
 func makeStorageExtension(t *testing.T, memstoreName string) component.Host {

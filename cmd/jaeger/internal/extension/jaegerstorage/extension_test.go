@@ -21,16 +21,16 @@ import (
 	nooptrace "go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/internal/storage/v1"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/badger"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/grpc"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/memory"
 	esCfg "github.com/jaegertracing/jaeger/pkg/es/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	promCfg "github.com/jaegertracing/jaeger/pkg/prometheus/config"
-	"github.com/jaegertracing/jaeger/plugin/storage/badger"
-	"github.com/jaegertracing/jaeger/plugin/storage/cassandra"
-	"github.com/jaegertracing/jaeger/plugin/storage/grpc"
-	"github.com/jaegertracing/jaeger/plugin/storage/memory"
-	"github.com/jaegertracing/jaeger/storage"
-	"github.com/jaegertracing/jaeger/storage/dependencystore"
-	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
 type errorFactory struct {

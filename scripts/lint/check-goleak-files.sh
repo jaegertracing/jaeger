@@ -24,7 +24,7 @@ for dir in $*; do
   invalid=0
   for test in ${testFiles}; do
     if grep -q "TestMain" "${test}" && grep -q "testutils.VerifyGoLeaks" "${test}"; then
-      if [ "${dir}" != "./plugin/storage/integration/" ] &&  grep -q "testutils.VerifyGoLeaksForES" "${test}"; then
+      if [ "${dir}" != "./internal/storage/integration/" ] &&  grep -q "testutils.VerifyGoLeaksForES" "${test}"; then
           invalid=1
           break
       fi

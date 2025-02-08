@@ -23,10 +23,10 @@ import (
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc/v2/querysvc"
 	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
-	OTELModel "github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
 	"github.com/jaegertracing/jaeger/pkg/iter"
-	"github.com/jaegertracing/jaeger/storage/spanstore"
-	"github.com/jaegertracing/jaeger/storage_v2/tracestore"
 )
 
 const (
@@ -162,7 +162,7 @@ func (h *HTTPGateway) getTrace(w http.ResponseWriter, r *http.Request) {
 	request := querysvc.GetTraceParams{
 		TraceIDs: []tracestore.GetTraceParams{
 			{
-				TraceID: OTELModel.ToOTELTraceID(traceID),
+				TraceID: v1adapter.FromV1TraceID(traceID),
 			},
 		},
 	}

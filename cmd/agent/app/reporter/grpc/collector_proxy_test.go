@@ -16,9 +16,9 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 
+	"github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
+	"github.com/jaegertracing/jaeger-idl/thrift-gen/jaeger"
 	"github.com/jaegertracing/jaeger/internal/metricstest"
-	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
-	"github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 )
 
 var _ io.Closer = (*ProxyBuilder)(nil)

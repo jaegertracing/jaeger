@@ -41,7 +41,7 @@ jobs:
       with:
         submodules: true
         
-    - uses: actions/setup-go@3041bf56c941b39c61721a86cd11f3bb1338122a # v5.2.0
+    - uses: actions/setup-go@f111f3307d8850f501ac008e886eec1fd1932a34 # v5.3.0
       with:
         go-version: 1.23.x
 
@@ -50,7 +50,7 @@ jobs:
         date
         echo TZ="$TZ"
 
-    - uses: docker/setup-qemu-action@49b3bc8e6bdd4a60e6116a5414239cba5943d3cf # v3.2.0
+    - uses: docker/setup-qemu-action@53851d14592bedcffcf25ea515637cff71ef929a # v3.3.0
     - name: Run ${{ matrix.version.distribution }} integration tests
       id: test-execution
       run: bash scripts/e2e/elasticsearch.sh ${{ matrix.version.distribution }} ${{ matrix.version.major }} ${{ matrix.version.jaeger }}

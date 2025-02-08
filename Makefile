@@ -33,7 +33,6 @@ ALL_SRC = $(shell find . -name '*.go' \
 				   -not -path './internal/tools/*' \
 				   -not -path './docker/debug/*' \
 				   -not -path '*/mocks/*' \
-				   -not -path '*/*-gen/*' \
 				   -not -path '*/thrift-0.9.2/*' \
 				   -type f | \
 				sort)
@@ -47,7 +46,7 @@ SCRIPTS_SRC = $(shell find . \( -name '*.sh' -o -name '*.py' -o -name '*.mk' -o 
 					sort)
 
 # ALL_PKGS is used with 'nocover' and 'goleak'
-ALL_PKGS = $(shell echo $(dir $(ALL_SRC)) | tr ' ' '\n' | sort -u)
+ALL_PKGS = $(shell echo $(dir $(ALL_SRC)) | tr ' ' '\n' | grep -v '/.*-gen/' | sort -u)
 
 GO=go
 GOOS ?= $(shell $(GO) env GOOS)
@@ -75,16 +74,17 @@ FMT_LOG=.fmt.log
 IMPORT_LOG=.import.log
 COLORIZE ?= | $(SED) 's/PASS/✅ PASS/g' | $(SED) 's/FAIL/❌ FAIL/g' | $(SED) 's/SKIP/🔕 SKIP/g'
 
-# import other Makefiles after the variables are defined
-include Makefile.BuildBinaries.mk
-include Makefile.BuildInfo.mk
-include Makefile.Crossdock.mk
-include Makefile.Docker.mk
-include Makefile.IntegrationTests.mk
-include Makefile.Protobuf.mk
-include Makefile.Thrift.mk
-include Makefile.Tools.mk
-include Makefile.Windows.mk
+ # import other Makefiles after the variables are defined
+
+include scripts/makefiles/BuildBinaries.mk
+include scripts/makefiles/BuildInfo.mk
+include scripts/makefiles/Crossdock.mk
+include scripts/makefiles/Docker.mk
+include scripts/makefiles/IntegrationTests.mk
+include scripts/makefiles/Protobuf.mk
+include scripts/makefiles/Tools.mk
+include scripts/makefiles/Windows.mk
+
 
 .DEFAULT_GOAL := test-and-lint
 

@@ -14,9 +14,9 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/collector/app/handler"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
 	zs "github.com/jaegertracing/jaeger/cmd/collector/app/sanitizer/zipkin"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
-	"github.com/jaegertracing/jaeger/storage_v2/tracestore"
 )
 
 // SpanHandlerBuilder holds configuration required for handlers

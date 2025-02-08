@@ -23,14 +23,14 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/internal/printconfig"
 	"github.com/jaegertracing/jaeger/cmd/internal/status"
 	ss "github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy/metafactory"
+	storage "github.com/jaegertracing/jaeger/internal/storage/v1/factory"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/telemetry"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/pkg/version"
-	"github.com/jaegertracing/jaeger/plugin/storage"
 	"github.com/jaegertracing/jaeger/ports"
-	"github.com/jaegertracing/jaeger/storage_v2/v1adapter"
 )
 
 const serviceName = "jaeger-collector"
@@ -39,7 +39,7 @@ func main() {
 	cmdFlags.PrintV1EOL()
 	svc := cmdFlags.NewService(ports.CollectorAdminHTTP)
 
-	storageFactory, err := storage.NewFactory(storage.FactoryConfigFromEnvAndCLI(os.Args, os.Stderr))
+	storageFactory, err := storage.NewFactory(storage.ConfigFromEnvAndCLI(os.Args, os.Stderr))
 	if err != nil {
 		log.Fatalf("Cannot initialize storage factory: %v", err)
 	}

@@ -11,7 +11,6 @@ import (
 	"github.com/gorilla/mux"
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/handler"
 	samplinghttp "github.com/jaegertracing/jaeger/internal/sampling/http"
@@ -40,11 +39,9 @@ func StartHTTPServer(params *HTTPServerParams) (*http.Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	errorLog, _ := zap.NewStdLogAt(params.Logger, zapcore.ErrorLevel)
-	server, err := params.ToServer(context.Background(), nil, telemetry.NoopSettings().ToOtelComponent(),
-		nil)
-
-	server.ErrorLog = errorLog
+	settings := telemetry.NoopSettings().ToOtelComponent()
+	settings.Logger = params.Logger
+	server, err := params.ToServer(context.Background(), nil, settings, nil)
 	if err != nil {
 		return nil, err
 	}
