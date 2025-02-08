@@ -43,15 +43,12 @@ type Server struct {
 	querySvc     *querysvc.QueryService
 	queryOptions *QueryOptions
 
-	conn          net.Listener
-	grpcConn      net.Listener
-	httpConn      net.Listener
-	cmuxServer    cmux.CMux
-	grpcServer    *grpc.Server
-	httpServer    *httpServer
-	separatePorts bool
-	bgFinished    sync.WaitGroup
-	telset        telemetry.Settings
+	grpcConn   net.Listener
+	httpConn   net.Listener
+	grpcServer *grpc.Server
+	httpServer *httpServer
+	bgFinished sync.WaitGroup
+	telset     telemetry.Settings
 }
 
 // NewServer creates and initializes Server
@@ -89,12 +86,11 @@ func NewServer(
 	}
 
 	return &Server{
-		querySvc:      querySvc,
-		queryOptions:  options,
-		grpcServer:    grpcServer,
-		httpServer:    httpServer,
-		separatePorts: separatePorts,
-		telset:        telset,
+		querySvc:     querySvc,
+		queryOptions: options,
+		grpcServer:   grpcServer,
+		httpServer:   httpServer,
+		telset:       telset,
 	}, nil
 }
 
@@ -248,69 +244,30 @@ func (hS httpServer) Close() error {
 }
 
 // initListener initialises listeners of the server
-func (s *Server) initListener(ctx context.Context) (cmux.CMux, error) {
-	if s.separatePorts { // use separate ports and listeners each for gRPC and HTTP requests
-		var err error
-		s.grpcConn, err = s.queryOptions.GRPC.NetAddr.Listen(ctx)
-		if err != nil {
-			return nil, err
-		}
-
-		s.httpConn, err = s.queryOptions.HTTP.ToListener(ctx)
-		if err != nil {
-			return nil, err
-		}
-		s.telset.Logger.Info(
-			"Query server started",
-			zap.String("http_addr", s.HTTPAddr()),
-			zap.String("grpc_addr", s.GRPCAddr()),
-		)
-		return nil, nil
-	}
-
-	//  old behavior using cmux
-	conn, err := net.Listen("tcp", s.queryOptions.HTTP.Endpoint)
+func (s *Server) initListener(ctx context.Context) error {
+	var err error
+	s.grpcConn, err = s.queryOptions.GRPC.NetAddr.Listen(ctx)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	s.conn = conn
-
-	var tcpPort int
-	if port, err := netutils.GetPort(s.conn.Addr()); err == nil {
-		tcpPort = port
+	s.httpConn, err = s.queryOptions.HTTP.ToListener(ctx)
+	if err != nil {
+		return err
 	}
-
 	s.telset.Logger.Info(
 		"Query server started",
-		zap.Int("port", tcpPort),
-		zap.String("addr", s.queryOptions.HTTP.Endpoint))
-
-	// cmux server acts as a reverse-proxy between HTTP and GRPC backends.
-	cmuxServer := cmux.New(s.conn)
-
-	s.grpcConn = cmuxServer.MatchWithWriters(
-		cmux.HTTP2MatchHeaderFieldSendSettings("content-type", "application/grpc"),
-		cmux.HTTP2MatchHeaderFieldSendSettings("content-type", "application/grpc+proto"),
+		zap.String("http_addr", s.HTTPAddr()),
+		zap.String("grpc_addr", s.GRPCAddr()),
 	)
-	s.httpConn = cmuxServer.Match(cmux.Any())
-
-	return cmuxServer, nil
+	return nil
 }
 
 // Start http, GRPC and cmux servers concurrently
 func (s *Server) Start(ctx context.Context) error {
-	cmuxServer, err := s.initListener(ctx)
+	err := s.initListener(ctx)
 	if err != nil {
 		return fmt.Errorf("query server failed to initialize listener: %w", err)
-	}
-	s.cmuxServer = cmuxServer
-
-	var tcpPort int
-	if !s.separatePorts {
-		if port, err := netutils.GetPort(s.conn.Addr()); err == nil {
-			tcpPort = port
-		}
 	}
 
 	var httpPort int
@@ -350,24 +307,6 @@ func (s *Server) Start(ctx context.Context) error {
 		}
 		s.telset.Logger.Info("GRPC server stopped", zap.Int("port", grpcPort), zap.String("addr", s.queryOptions.GRPC.NetAddr.Endpoint))
 	}()
-
-	// Start cmux server concurrently.
-	if !s.separatePorts {
-		s.bgFinished.Add(1)
-		go func() {
-			defer s.bgFinished.Done()
-			s.telset.Logger.Info("Starting CMUX server", zap.Int("port", tcpPort), zap.String("addr", s.queryOptions.HTTP.Endpoint))
-
-			err := cmuxServer.Serve()
-			// TODO: find a way to avoid string comparison. Even though cmux has ErrServerClosed, it's not returned here.
-			if err != nil && !strings.Contains(err.Error(), "use of closed network connection") {
-				s.telset.Logger.Error("Could not start multiplexed server", zap.Error(err))
-				s.telset.ReportStatus(componentstatus.NewFatalErrorEvent(err))
-				return
-			}
-			s.telset.Logger.Info("CMUX server stopped", zap.Int("port", tcpPort), zap.String("addr", s.queryOptions.HTTP.Endpoint))
-		}()
-	}
 	return nil
 }
 
@@ -391,10 +330,6 @@ func (s *Server) Close() error {
 	s.telset.Logger.Info("Stopping gRPC server")
 	s.grpcServer.Stop()
 
-	if !s.separatePorts {
-		s.telset.Logger.Info("Closing CMux server")
-		s.cmuxServer.Close()
-	}
 	s.bgFinished.Wait()
 
 	s.telset.Logger.Info("Server stopped")
