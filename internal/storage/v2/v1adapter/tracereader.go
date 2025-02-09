@@ -37,31 +37,29 @@ func NewTraceReader(spanReader spanstore.Reader) tracestore.Reader {
 		spanReader: spanReader,
 	}
 	var (
-		purger, isPurger                             = spanReader.(storage.Purger)
-		samplingStoreFactory, isSamplingStoreFactory = spanReader.(storage.SamplingStoreFactory)
+		purger, isPurger   = spanReader.(storage.Purger)
+		sampler, isSampler = spanReader.(storage.SamplingStoreFactory)
 	)
 
 	switch {
-	case isPurger && isSamplingStoreFactory:
+	case isPurger && isSampler:
 		return struct {
 			tracestore.Reader
 			storage.Purger
 			storage.SamplingStoreFactory
-		}{traceReader, purger, samplingStoreFactory}
+		}{traceReader, purger, sampler}
 	case isPurger:
 		return struct {
 			tracestore.Reader
 			storage.Purger
 		}{traceReader, purger}
-	case isSamplingStoreFactory:
+	case isSampler:
 		return struct {
 			tracestore.Reader
 			storage.SamplingStoreFactory
-		}{traceReader, samplingStoreFactory}
+		}{traceReader, sampler}
 	default:
-		return &TraceReader{
-			spanReader: spanReader,
-		}
+		return traceReader
 	}
 }
 
