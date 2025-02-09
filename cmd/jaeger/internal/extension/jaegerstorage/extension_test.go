@@ -58,13 +58,13 @@ func (e errorFactory) Close() error {
 }
 
 func TestStorageFactoryBadHostError(t *testing.T) {
-	_, err := GetStorageFactory("something", componenttest.NewNopHost())
+	_, err := getStorageFactory("something", componenttest.NewNopHost())
 	require.ErrorContains(t, err, "cannot find extension")
 }
 
 func TestStorageFactoryBadNameError(t *testing.T) {
 	host := storagetest.NewStorageHost().WithExtension(ID, startStorageExtension(t, "foo", ""))
-	_, err := GetStorageFactory("bar", host)
+	_, err := getStorageFactory("bar", host)
 	require.ErrorContains(t, err, "cannot find definition of storage 'bar'")
 }
 
@@ -106,7 +106,7 @@ func TestGetFactory(t *testing.T) {
 	const name = "foo"
 	const metricname = "bar"
 	host := storagetest.NewStorageHost().WithExtension(ID, startStorageExtension(t, name, metricname))
-	f, err := GetStorageFactory(name, host)
+	f, err := getStorageFactory(name, host)
 	require.NoError(t, err)
 	require.NotNil(t, f)
 
