@@ -40,7 +40,7 @@ const (
 var ( // interface comformance checks
 	_                 storage.Factory              = (*Factory)(nil)
 	_                 io.Closer                    = (*Factory)(nil)
-	_                 plugin.Configurable          = (*Factory)(nil)
+	_                 storage.Configurable         = (*Factory)(nil)
 	_                 storage.Purger               = (*Factory)(nil)
 	_                 storage.SamplingStoreFactory = (*Factory)(nil)
 	includeDualLookUp                              = featuregate.GlobalRegistry().MustRegister(
