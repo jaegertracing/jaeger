@@ -75,12 +75,12 @@ type configurable struct {
 	logger  *zap.Logger
 }
 
-// AddFlags implements plugin.Configurable.
+// AddFlags implements storage.Configurable.
 func (f *configurable) AddFlags(flagSet *flag.FlagSet) {
 	f.flagSet = flagSet
 }
 
-// InitFromViper implements plugin.Configurable.
+// InitFromViper implements storage.Configurable.
 func (f *configurable) InitFromViper(v *viper.Viper, logger *zap.Logger) {
 	f.viper = v
 	f.logger = logger
