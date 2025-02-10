@@ -2,7 +2,7 @@ services:
   jaeger:
     networks:
       backend:
-    image: jaegertracing/jaeger:${JAEGER_IMAGE_TAG:-latest}
+    image: jaegertracing/jaeger:${JAEGER_VERSION:-latest}
     volumes:
       - "./jaeger-v2-config.yml:/etc/jaeger/config.yml"
     command: ["--config", "/etc/jaeger/config.yml"]

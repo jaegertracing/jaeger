@@ -23,6 +23,9 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/query/app"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	querysvcv2 "github.com/jaegertracing/jaeger/cmd/query/app/querysvc/v2/querysvc"
+	metricsPlugin "github.com/jaegertracing/jaeger/internal/storage/metricstore"
+	storage "github.com/jaegertracing/jaeger/internal/storage/v1/factory"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
 	"github.com/jaegertracing/jaeger/pkg/bearertoken"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/jtracer"
@@ -30,17 +33,14 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/telemetry"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/pkg/version"
-	metricsPlugin "github.com/jaegertracing/jaeger/plugin/metricstore"
-	"github.com/jaegertracing/jaeger/plugin/storage"
 	"github.com/jaegertracing/jaeger/ports"
-	"github.com/jaegertracing/jaeger/storage_v2/v1adapter"
 )
 
 func main() {
 	flags.PrintV1EOL()
 	svc := flags.NewService(ports.QueryAdminHTTP)
 
-	storageFactory, err := storage.NewFactory(storage.FactoryConfigFromEnvAndCLI(os.Args, os.Stderr))
+	storageFactory, err := storage.NewFactory(storage.ConfigFromEnvAndCLI(os.Args, os.Stderr))
 	if err != nil {
 		log.Fatalf("Cannot initialize storage factory: %v", err)
 	}
@@ -107,17 +107,16 @@ func main() {
 			if err != nil {
 				logger.Fatal("Failed to create metrics query service", zap.Error(err))
 			}
-			queryServiceOptions := queryOpts.BuildQueryServiceOptions(storageFactory, logger)
+			querySvcOpts, v2querySvcOpts := queryOpts.BuildQueryServiceOptions(storageFactory.InitArchiveStorage, logger)
 			queryService := querysvc.NewQueryService(
 				traceReader,
 				dependencyReader,
-				*queryServiceOptions)
+				*querySvcOpts)
 
-			queryServiceOptionsV2 := queryOpts.BuildQueryServiceOptionsV2(storageFactory, logger)
 			queryServiceV2 := querysvcv2.NewQueryService(
 				traceReader,
 				dependencyReader,
-				*queryServiceOptionsV2)
+				*v2querySvcOpts)
 
 			tm := tenancy.NewManager(&queryOpts.Tenancy)
 			telset := baseTelset // copy

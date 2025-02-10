@@ -22,10 +22,10 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
+	tracestoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
 	_ "github.com/jaegertracing/jaeger/pkg/gogocodec" // force gogo codec registration
 	"github.com/jaegertracing/jaeger/pkg/iter"
-	"github.com/jaegertracing/jaeger/storage_v2/tracestore"
-	tracestoremocks "github.com/jaegertracing/jaeger/storage_v2/tracestore/mocks"
 )
 
 // Utility functions used from http_gateway_test.go.

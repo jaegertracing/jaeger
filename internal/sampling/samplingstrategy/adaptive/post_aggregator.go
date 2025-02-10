@@ -14,9 +14,9 @@ import (
 
 	"github.com/jaegertracing/jaeger/internal/leaderelection"
 	"github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy/adaptive/calculationstrategy"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore/model"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
-	"github.com/jaegertracing/jaeger/storage/samplingstore"
-	"github.com/jaegertracing/jaeger/storage/samplingstore/model"
 )
 
 const (

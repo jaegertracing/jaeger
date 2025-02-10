@@ -26,6 +26,7 @@ import (
 	"google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/reflection"
 
+	"github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
 	"github.com/jaegertracing/jaeger/cmd/query/app/apiv3"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	v2querysvc "github.com/jaegertracing/jaeger/cmd/query/app/querysvc/v2/querysvc"
@@ -35,8 +36,6 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/recoveryhandler"
 	"github.com/jaegertracing/jaeger/pkg/telemetry"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
-	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
-	"github.com/jaegertracing/jaeger/proto-gen/api_v2/metrics"
 )
 
 // Server runs HTTP, Mux and a grpc server
@@ -83,7 +82,7 @@ func NewServer(
 	if err != nil {
 		return nil, err
 	}
-	registerGRPCHandlers(grpcServer, querySvc, v2QuerySvc, metricsQuerySvc, telset)
+	registerGRPCHandlers(grpcServer, querySvc, v2QuerySvc, telset)
 	httpServer, err := createHTTPServer(ctx, querySvc, v2QuerySvc, metricsQuerySvc, options, tm, telset)
 	if err != nil {
 		return nil, err
@@ -103,17 +102,13 @@ func registerGRPCHandlers(
 	server *grpc.Server,
 	querySvc *querysvc.QueryService,
 	v2QuerySvc *v2querysvc.QueryService,
-	metricsQuerySvc querysvc.MetricsQueryService,
 	telset telemetry.Settings,
 ) {
 	reflection.Register(server)
-	handler := NewGRPCHandler(querySvc, metricsQuerySvc, GRPCHandlerOptions{
-		Logger: telset.Logger,
-	})
+	handler := NewGRPCHandler(querySvc, GRPCHandlerOptions{Logger: telset.Logger})
 	healthServer := health.NewServer()
 
 	api_v2.RegisterQueryServiceServer(server, handler)
-	metrics.RegisterMetricsQueryServiceServer(server, handler)
 	api_v3.RegisterQueryServiceServer(server, &apiv3.Handler{QueryService: v2QuerySvc})
 
 	healthServer.SetServingStatus("jaeger.api_v2.QueryService", grpc_health_v1.HealthCheckResponse_SERVING)

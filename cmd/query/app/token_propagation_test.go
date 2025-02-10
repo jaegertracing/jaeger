@@ -22,13 +22,13 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/internal/flags"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	v2querysvc "github.com/jaegertracing/jaeger/cmd/query/app/querysvc/v2/querysvc"
+	es "github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
 	"github.com/jaegertracing/jaeger/pkg/bearertoken"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/telemetry"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
-	"github.com/jaegertracing/jaeger/plugin/storage/es"
 	"github.com/jaegertracing/jaeger/ports"
-	"github.com/jaegertracing/jaeger/storage_v2/v1adapter"
 )
 
 const (
@@ -81,7 +81,7 @@ func runQueryService(t *testing.T, esURL string) *Server {
 	}))
 	f.InitFromViper(v, flagsSvc.Logger)
 	// set AllowTokenFromContext manually because we don't register the respective CLI flag from query svc
-	f.Options.Primary.Authentication.BearerTokenAuthentication.AllowFromContext = true
+	f.Options.Config.Authentication.BearerTokenAuthentication.AllowFromContext = true
 	require.NoError(t, f.Initialize(telset.Metrics, telset.Logger))
 	defer f.Close()
 

@@ -19,6 +19,7 @@ import (
 	"google.golang.org/grpc/health"
 	"google.golang.org/grpc/health/grpc_health_v1"
 
+	"github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
 	"github.com/jaegertracing/jaeger/internal/leaderelection"
 	"github.com/jaegertracing/jaeger/internal/metrics/otelmetrics"
@@ -27,10 +28,9 @@ import (
 	"github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy"
 	"github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy/adaptive"
 	"github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy/file"
+	"github.com/jaegertracing/jaeger/internal/storage/v1"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
-	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
-	"github.com/jaegertracing/jaeger/storage"
-	"github.com/jaegertracing/jaeger/storage/samplingstore"
 )
 
 var _ extension.Extension = (*rsExtension)(nil)
@@ -172,7 +172,7 @@ func (ext *rsExtension) startFileBasedStrategyProvider(_ context.Context) error 
 	}
 
 	// contextcheck linter complains about next line that context is not passed.
-	//nolint
+	//nolint:contextcheck
 	provider, err := file.NewProvider(opts, ext.telemetry.Logger)
 	if err != nil {
 		return fmt.Errorf("failed to create the local file strategy store: %w", err)

@@ -28,7 +28,7 @@
         "docker-compose/monitor/docker-compose.yml",
         "docker-compose/opensearch/v1/docker-compose.yml",
         "docker-compose/opensearch/v2/docker-compose.yml",
-        "plugin/storage/scylladb/docker-compose.yml"
+        "docker-compose/scylladb/docker-compose.yml"
       ],
       "matchUpdateTypes": [
         "major",

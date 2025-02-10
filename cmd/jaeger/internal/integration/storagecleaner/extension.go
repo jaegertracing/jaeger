@@ -18,7 +18,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
-	"github.com/jaegertracing/jaeger/storage"
+	"github.com/jaegertracing/jaeger/internal/storage/v1"
 )
 
 var (

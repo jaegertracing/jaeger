@@ -14,10 +14,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
 	epmocks "github.com/jaegertracing/jaeger/internal/leaderelection/mocks"
-	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
-	smocks "github.com/jaegertracing/jaeger/storage/samplingstore/mocks"
-	"github.com/jaegertracing/jaeger/storage/samplingstore/model"
+	smocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore/mocks"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore/model"
 )
 
 func TestProviderLoadProbabilities(t *testing.T) {

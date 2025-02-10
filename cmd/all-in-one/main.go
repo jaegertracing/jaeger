@@ -30,18 +30,18 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	v2querysvc "github.com/jaegertracing/jaeger/cmd/query/app/querysvc/v2/querysvc"
 	ss "github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy/metafactory"
+	"github.com/jaegertracing/jaeger/internal/storage/metricstore"
+	storage "github.com/jaegertracing/jaeger/internal/storage/v1/factory"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/jtracer"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/telemetry"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/pkg/version"
-	"github.com/jaegertracing/jaeger/plugin/metricstore"
-	"github.com/jaegertracing/jaeger/plugin/storage"
 	"github.com/jaegertracing/jaeger/ports"
-	"github.com/jaegertracing/jaeger/storage_v2/depstore"
-	"github.com/jaegertracing/jaeger/storage_v2/tracestore"
-	"github.com/jaegertracing/jaeger/storage_v2/v1adapter"
 )
 
 // all-in-one/main is a standalone full-stack jaeger backend, backed by a memory store
@@ -54,7 +54,7 @@ func main() {
 	if os.Getenv(storage.SpanStorageTypeEnvVar) == "" {
 		os.Setenv(storage.SpanStorageTypeEnvVar, "memory") // other storage types default to SpanStorage
 	}
-	storageFactory, err := storage.NewFactory(storage.FactoryConfigFromEnvAndCLI(os.Args, os.Stderr))
+	storageFactory, err := storage.NewFactory(storage.ConfigFromEnvAndCLI(os.Args, os.Stderr))
 	if err != nil {
 		log.Fatalf("Cannot initialize storage factory: %v", err)
 	}
@@ -170,9 +170,9 @@ by default uses only in-memory database.`,
 			// query
 			queryTelset := baseTelset // copy
 			queryTelset.Metrics = queryMetricsFactory
+			querySvcOpts, v2querySvcOpts := qOpts.BuildQueryServiceOptions(storageFactory.InitArchiveStorage, logger)
 			querySrv := startQuery(
-				svc, qOpts, qOpts.BuildQueryServiceOptions(storageFactory, logger),
-				qOpts.BuildQueryServiceOptionsV2(storageFactory, logger),
+				svc, qOpts, querySvcOpts, v2querySvcOpts,
 				traceReader, dependencyReader, metricsQueryService,
 				tm, queryTelset,
 			)

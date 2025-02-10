@@ -6,7 +6,7 @@ package integration
 import (
 	"testing"
 
-	"github.com/jaegertracing/jaeger/plugin/storage/integration"
+	"github.com/jaegertracing/jaeger/internal/storage/integration"
 )
 
 func TestCassandraStorage(t *testing.T) {
@@ -16,7 +16,6 @@ func TestCassandraStorage(t *testing.T) {
 		StorageIntegration: integration.StorageIntegration{
 			CleanUp:                      purge,
 			GetDependenciesReturnsSource: true,
-			SkipArchiveTest:              true,
 
 			SkipList: integration.CassandraSkippedTests,
 		},

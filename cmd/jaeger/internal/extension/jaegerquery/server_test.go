@@ -26,19 +26,19 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	v2querysvc "github.com/jaegertracing/jaeger/cmd/query/app/querysvc/v2/querysvc"
 	"github.com/jaegertracing/jaeger/internal/grpctest"
+	"github.com/jaegertracing/jaeger/internal/storage/v1"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore"
+	depsmocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore/mocks"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
+	metricstoremocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore/mocks"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
+	spanstoremocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/mocks"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
+	tracestoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/telemetry"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
-	"github.com/jaegertracing/jaeger/storage"
-	"github.com/jaegertracing/jaeger/storage/dependencystore"
-	depsmocks "github.com/jaegertracing/jaeger/storage/dependencystore/mocks"
-	"github.com/jaegertracing/jaeger/storage/metricstore"
-	metricstoremocks "github.com/jaegertracing/jaeger/storage/metricstore/mocks"
-	"github.com/jaegertracing/jaeger/storage/spanstore"
-	spanstoremocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
-	"github.com/jaegertracing/jaeger/storage_v2/tracestore"
-	tracestoremocks "github.com/jaegertracing/jaeger/storage_v2/tracestore/mocks"
-	"github.com/jaegertracing/jaeger/storage_v2/v1adapter"
 )
 
 type fakeFactory struct {
@@ -245,7 +245,6 @@ func TestServerStart(t *testing.T) {
 					ExpectedServices: []string{
 						"jaeger.api_v2.QueryService",
 						"jaeger.api_v3.QueryService",
-						"jaeger.api_v2.metrics.MetricsQueryService",
 						"grpc.health.v1.Health",
 					},
 				}.Execute(t)

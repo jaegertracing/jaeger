@@ -10,7 +10,12 @@ service:
       service.name: jaeger
     metrics:
       level: detailed
-      address: 0.0.0.0:8888
+      readers:
+        - pull:
+            exporter:
+              prometheus:
+                host: 0.0.0.0
+                port: 8888
     logs:
       level: debug
     # TODO Initialize telemetry tracer once OTEL released new feature.
@@ -24,6 +29,7 @@ extensions:
   jaeger_query:
     storage:
       traces: some-storage
+      traces_archive: another-storage
     ui:
       config_file: ./cmd/jaeger/config-ui.json
 
@@ -34,6 +40,11 @@ extensions:
           endpoint: localhost:17271
           tls:
             insecure: true
+      another-storage:
+        grpc:
+          endpoint: localhost:17272
+          tls:
+            insecure: true  
 
 receivers:
   otlp:
