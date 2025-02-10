@@ -6,12 +6,14 @@ package qualitymetrics
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 )
 
-func TestDummy(*testing.T) {
-	// This is a dummy test in the root package.
-	// Without it `go test -v .` prints "testing: warning: no tests to run".
+func TestGetSampleData(t *testing.T) {
+	data := GetSampleData()
+	assert.NotNil(t, data.TraceQualityDocumentationLink, "TraceQualityDocumentationLink should match")
 }
 
 func TestMain(m *testing.M) {
