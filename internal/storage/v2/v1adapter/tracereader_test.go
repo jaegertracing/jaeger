@@ -16,79 +16,15 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
-	"github.com/jaegertracing/jaeger/internal/storage/v1"
 	dependencyStoreMocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	spanStoreMocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/memory"
-	v1StorageMocks "github.com/jaegertracing/jaeger/internal/storage/v1/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	tracestoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
 	"github.com/jaegertracing/jaeger/pkg/iter"
 )
-
-func TestNewTraceReader(t *testing.T) {
-	mockSpanReader := new(spanStoreMocks.Reader)
-	mockPurger := new(v1StorageMocks.Purger)
-	mockSamplingStoreFactory := new(v1StorageMocks.SamplingStoreFactory)
-
-	tests := []struct {
-		name               string
-		spanReader         spanstore.Reader
-		expectedInterfaces []any
-	}{
-		{
-			name:               "No extra interfaces",
-			spanReader:         mockSpanReader,
-			expectedInterfaces: []any{(*tracestore.Reader)(nil)},
-		},
-		{
-			name: "Implements Purger",
-			spanReader: struct {
-				spanstore.Reader
-				storage.Purger
-			}{mockSpanReader, mockPurger},
-			expectedInterfaces: []any{
-				(*tracestore.Reader)(nil),
-				(*storage.Purger)(nil),
-			},
-		},
-		{
-			name: "Implements SamplingStoreFactory",
-			spanReader: struct {
-				spanstore.Reader
-				storage.SamplingStoreFactory
-			}{mockSpanReader, mockSamplingStoreFactory},
-			expectedInterfaces: []any{
-				(*tracestore.Reader)(nil),
-				(*storage.SamplingStoreFactory)(nil),
-			},
-		},
-		{
-			name: "Implements both Purger and SamplingStoreFactory",
-			spanReader: struct {
-				spanstore.Reader
-				storage.Purger
-				storage.SamplingStoreFactory
-			}{mockSpanReader, mockPurger, mockSamplingStoreFactory},
-			expectedInterfaces: []any{
-				(*tracestore.Reader)(nil),
-				(*storage.Purger)(nil),
-				(*storage.SamplingStoreFactory)(nil),
-			},
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			traceReader := NewTraceReader(test.spanReader)
-			for _, i := range test.expectedInterfaces {
-				require.Implements(t, i, traceReader)
-			}
-		})
-	}
-}
 
 func TestGetV1Reader_NoError(t *testing.T) {
 	memstore := memory.NewStore()
