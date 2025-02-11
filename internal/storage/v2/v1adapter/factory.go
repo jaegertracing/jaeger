@@ -4,7 +4,6 @@
 package v1adapter
 
 import (
-	"context"
 	"io"
 
 	storage_v1 "github.com/jaegertracing/jaeger/internal/storage/v1"
@@ -16,23 +15,61 @@ type Factory struct {
 	ss storage_v1.Factory
 }
 
-func NewFactory(ss storage_v1.Factory) *Factory {
-	return &Factory{
+func NewFactory(ss storage_v1.Factory) tracestore.Factory {
+	factory := &Factory{
 		ss: ss,
 	}
-}
 
-// Initialize implements tracestore.Factory.
-func (*Factory) Initialize(_ context.Context) error {
-	panic("not implemented")
-}
+	var (
+		purger, isPurger   = ss.(storage_v1.Purger)
+		sampler, isSampler = ss.(storage_v1.SamplingStoreFactory)
+		closer, isCloser   = ss.(io.Closer)
+	)
 
-// Close implements tracestore.Factory.
-func (f *Factory) Close(_ context.Context) error {
-	if closer, ok := f.ss.(io.Closer); ok {
-		return closer.Close()
+	switch {
+	case isPurger && isSampler && isCloser:
+		return struct {
+			tracestore.Factory
+			storage_v1.Purger
+			storage_v1.SamplingStoreFactory
+			io.Closer
+		}{factory, purger, sampler, closer}
+	case isPurger && isCloser:
+		return struct {
+			tracestore.Factory
+			storage_v1.Purger
+			io.Closer
+		}{factory, purger, closer}
+	case isSampler && isCloser:
+		return struct {
+			tracestore.Factory
+			storage_v1.SamplingStoreFactory
+			io.Closer
+		}{factory, sampler, closer}
+	case isSampler && isPurger:
+		return struct {
+			tracestore.Factory
+			storage_v1.Purger
+			storage_v1.SamplingStoreFactory
+		}{factory, purger, sampler}
+	case isCloser:
+		return struct {
+			tracestore.Factory
+			io.Closer
+		}{factory, closer}
+	case isPurger:
+		return struct {
+			tracestore.Factory
+			storage_v1.Purger
+		}{factory, purger}
+	case isSampler:
+		return struct {
+			tracestore.Factory
+			storage_v1.SamplingStoreFactory
+		}{factory, sampler}
+	default:
+		return factory
 	}
-	return nil
 }
 
 // CreateTraceReader implements tracestore.Factory.
