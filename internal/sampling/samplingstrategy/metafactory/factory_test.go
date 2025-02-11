@@ -19,12 +19,11 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore"
 	"github.com/jaegertracing/jaeger/pkg/distributedlock"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
-	"github.com/jaegertracing/jaeger/plugin"
 )
 
 var (
 	_ samplingstrategy.Factory = new(Factory)
-	_ plugin.Configurable      = new(Factory)
+	_ storage.Configurable     = new(Factory)
 )
 
 func TestNewFactory(t *testing.T) {

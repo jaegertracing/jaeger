@@ -28,7 +28,6 @@ import (
 	"github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy"
 	"github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy/adaptive"
 	"github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy/file"
-	"github.com/jaegertracing/jaeger/internal/storage/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
@@ -184,14 +183,10 @@ func (ext *rsExtension) startFileBasedStrategyProvider(_ context.Context) error 
 
 func (ext *rsExtension) startAdaptiveStrategyProvider(host component.Host) error {
 	storageName := ext.cfg.Adaptive.SamplingStore
-	f, err := jaegerstorage.GetStorageFactory(storageName, host)
-	if err != nil {
-		return fmt.Errorf("cannot find storage factory: %w", err)
-	}
 
-	storeFactory, ok := f.(storage.SamplingStoreFactory)
-	if !ok {
-		return fmt.Errorf("storage '%s' does not support sampling store", storageName)
+	storeFactory, err := jaegerstorage.GetSamplingStoreFactory(storageName, host)
+	if err != nil {
+		return fmt.Errorf("failed to obtain sampling store factory: %w", err)
 	}
 
 	store, err := storeFactory.CreateSamplingStore(ext.cfg.Adaptive.AggregationBuckets)
