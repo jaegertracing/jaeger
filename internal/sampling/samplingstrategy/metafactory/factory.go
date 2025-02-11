@@ -16,7 +16,6 @@ import (
 	"github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy/file"
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
-	"github.com/jaegertracing/jaeger/plugin"
 )
 
 // Kind is a datatype holding the type of strategy store.
@@ -31,7 +30,7 @@ const (
 var AllSamplingTypes = []string{samplingTypeFile, samplingTypeAdaptive}
 
 var (
-	_ plugin.Configurable      = (*Factory)(nil)
+	_ storage.Configurable     = (*Factory)(nil)
 	_ samplingstrategy.Factory = (*Factory)(nil)
 )
 
@@ -70,19 +69,19 @@ func (*Factory) getFactoryOfType(factoryType Kind) (samplingstrategy.Factory, er
 	}
 }
 
-// AddFlags implements plugin.Configurable
+// AddFlags implements storage.Configurable
 func (f *Factory) AddFlags(flagSet *flag.FlagSet) {
 	for _, factory := range f.factories {
-		if conf, ok := factory.(plugin.Configurable); ok {
+		if conf, ok := factory.(storage.Configurable); ok {
 			conf.AddFlags(flagSet)
 		}
 	}
 }
 
-// InitFromViper implements plugin.Configurable
+// InitFromViper implements storage.Configurable
 func (f *Factory) InitFromViper(v *viper.Viper, logger *zap.Logger) {
 	for _, factory := range f.factories {
-		if conf, ok := factory.(plugin.Configurable); ok {
+		if conf, ok := factory.(storage.Configurable); ok {
 			conf.InitFromViper(v, logger)
 		}
 	}
