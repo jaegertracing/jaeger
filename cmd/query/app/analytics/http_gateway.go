@@ -53,9 +53,8 @@ func (h *HTTPGateway) getDeepDependencies(w http.ResponseWriter, r *http.Request
 		Dependencies: []TDdgPayloadPath{
 			{
 				Path: []TDdgPayloadEntry{
-					{Service: "driver", Operation: "driver.DriverService/FindNearest"},
-					{Service: "serviceA", Operation: "opA"},
-					{Service: "serviceB", Operation: "opB"},
+					{Service: "sample-serviceA", Operation: "sample-opA"},
+					{Service: "sample-serviceB", Operation: "sample-opB"},
 				},
 				Attributes: []Attribute{
 					{Key: "exemplar_trace_id", Value: "abc123"},
