@@ -11,7 +11,6 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
-	"github.com/jaegertracing/jaeger/internal/storage/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
@@ -32,34 +31,9 @@ func GetV1Reader(reader tracestore.Reader) (spanstore.Reader, bool) {
 	return nil, false
 }
 
-func NewTraceReader(spanReader spanstore.Reader) tracestore.Reader {
-	traceReader := &TraceReader{
+func NewTraceReader(spanReader spanstore.Reader) *TraceReader {
+	return &TraceReader{
 		spanReader: spanReader,
-	}
-	var (
-		purger, isPurger   = spanReader.(storage.Purger)
-		sampler, isSampler = spanReader.(storage.SamplingStoreFactory)
-	)
-
-	switch {
-	case isPurger && isSampler:
-		return struct {
-			tracestore.Reader
-			storage.Purger
-			storage.SamplingStoreFactory
-		}{traceReader, purger, sampler}
-	case isPurger:
-		return struct {
-			tracestore.Reader
-			storage.Purger
-		}{traceReader, purger}
-	case isSampler:
-		return struct {
-			tracestore.Reader
-			storage.SamplingStoreFactory
-		}{traceReader, sampler}
-	default:
-		return traceReader
 	}
 }
 
