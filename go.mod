@@ -1,6 +1,6 @@
 module github.com/jaegertracing/jaeger
 
-go 1.22.7
+go 1.23.7
 
 toolchain go1.24.0
 
