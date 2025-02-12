@@ -1,5 +1,5 @@
 # Fake "DCO check" workkflow inspired by https://github.com/onnx/onnx/pull/5398/files.
-# The regular DCO check is required, but it does not from a merge queue and there is
+# The regular DCO check is required, but it does not run from a merge queue and there is
 # no way to configure it to run.
 name: DCO
 on:
