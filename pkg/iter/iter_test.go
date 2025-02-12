@@ -4,6 +4,7 @@
 package iter
 
 import (
+	stditer "iter"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -13,7 +14,7 @@ import (
 func TestCollectWithErrors(t *testing.T) {
 	tests := []struct {
 		name     string
-		seq      Seq2[string, error]
+		seq      stditer.Seq2[string, error]
 		expected []string
 		err      error
 	}{
@@ -70,7 +71,7 @@ func TestCollectWithErrors(t *testing.T) {
 func TestFlattenWithErrors(t *testing.T) {
 	tests := []struct {
 		name     string
-		seq      Seq2[[]string, error]
+		seq      stditer.Seq2[[]string, error]
 		expected []string
 		err      error
 	}{

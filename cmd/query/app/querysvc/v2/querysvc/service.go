@@ -6,6 +6,7 @@ package querysvc
 import (
 	"context"
 	"errors"
+	"iter"
 	"time"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
@@ -16,7 +17,6 @@ import (
 	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
-	"github.com/jaegertracing/jaeger/pkg/iter"
 )
 
 var errNoArchiveSpanStorage = errors.New("archive span storage was not configured")
