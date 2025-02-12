@@ -16,15 +16,36 @@ type Factory struct {
 	ss storage_v1.Factory
 }
 
-func NewFactory(ss storage_v1.Factory) *Factory {
-	return &Factory{
+func NewFactory(ss storage_v1.Factory) tracestore.Factory {
+	factory := &Factory{
 		ss: ss,
 	}
-}
 
-// Initialize implements tracestore.Factory.
-func (*Factory) Initialize(_ context.Context) error {
-	panic("not implemented")
+	var (
+		purger, isPurger   = ss.(storage_v1.Purger)
+		sampler, isSampler = ss.(storage_v1.SamplingStoreFactory)
+	)
+
+	switch {
+	case isSampler && isPurger:
+		return struct {
+			*Factory
+			storage_v1.Purger
+			storage_v1.SamplingStoreFactory
+		}{factory, purger, sampler}
+	case isPurger:
+		return struct {
+			*Factory
+			storage_v1.Purger
+		}{factory, purger}
+	case isSampler:
+		return struct {
+			*Factory
+			storage_v1.SamplingStoreFactory
+		}{factory, sampler}
+	default:
+		return factory
+	}
 }
 
 // Close implements tracestore.Factory.
