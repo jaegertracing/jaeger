@@ -158,52 +158,52 @@ func (s *storageExt) Start(_ context.Context, host component.Host) error {
 	for storageName, cfg := range s.config.TraceBackends {
 		s.telset.Logger.Sugar().Infof("Initializing storage '%s'", storageName)
 		var factory tracestore.Factory
+		var v1Factory storage.Factory
 		var err error = errors.New("empty configuration")
 		switch {
 		case cfg.Memory != nil:
-			memoryFactory := memory.NewFactoryWithConfig(
+			v1Factory, err = memory.NewFactoryWithConfig(
 				*cfg.Memory,
 				scopedMetricsFactory(storageName, "memory", "tracestore"),
 				s.telset.Logger,
-			)
-			factory, err = v1adapter.NewFactory(memoryFactory), nil
+			), nil
 		case cfg.Badger != nil:
-			badgerFactory, badgerErr := badger.NewFactoryWithConfig(
+			v1Factory, err = badger.NewFactoryWithConfig(
 				*cfg.Badger,
 				scopedMetricsFactory(storageName, "badger", "tracestore"),
 				s.telset.Logger)
-			factory, err = v1adapter.NewFactory(badgerFactory), badgerErr
 		case cfg.GRPC != nil:
 			grpcTelset := telset
 			grpcTelset.Metrics = scopedMetricsFactory(storageName, "grpc", "tracestore")
 			//nolint: contextcheck
-			grpcFactory, grpcErr := grpc.NewFactoryWithConfig(*cfg.GRPC, grpcTelset)
-			factory, err = v1adapter.NewFactory(grpcFactory), grpcErr
+			v1Factory, err = grpc.NewFactoryWithConfig(*cfg.GRPC, grpcTelset)
 		case cfg.Cassandra != nil:
-			cassandraFactory, cassandraErr := cassandra.NewFactoryWithConfig(
+			v1Factory, err = cassandra.NewFactoryWithConfig(
 				*cfg.Cassandra,
 				scopedMetricsFactory(storageName, "cassandra", "tracestore"),
 				s.telset.Logger,
 			)
-			factory, err = v1adapter.NewFactory(cassandraFactory), cassandraErr
 		case cfg.Elasticsearch != nil:
-			esFactory, esErr := es.NewFactoryWithConfig(
+			v1Factory, err = es.NewFactoryWithConfig(
 				*cfg.Elasticsearch,
 				scopedMetricsFactory(storageName, "elasticsearch", "tracestore"),
 				s.telset.Logger,
 			)
-			factory, err = v1adapter.NewFactory(esFactory), esErr
 		case cfg.Opensearch != nil:
-			osFactory, osErr := es.NewFactoryWithConfig(
+			v1Factory, err = es.NewFactoryWithConfig(
 				*cfg.Opensearch,
 				scopedMetricsFactory(storageName, "opensearch", "tracestore"),
 				s.telset.Logger,
 			)
-			factory, err = v1adapter.NewFactory(osFactory), osErr
 		}
 		if err != nil {
 			return fmt.Errorf("failed to initialize storage '%s': %w", storageName, err)
 		}
+
+		if v1Factory != nil {
+			factory = v1adapter.NewFactory(v1Factory)
+		}
+
 		s.factories[storageName] = factory
 	}
 
