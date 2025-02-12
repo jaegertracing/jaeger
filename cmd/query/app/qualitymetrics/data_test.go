@@ -13,7 +13,7 @@ import (
 
 func TestGetSampleData(t *testing.T) {
 	data := GetSampleData()
-	assert.NotEmpty(t, data.TraceQualityDocumentationLink, "TraceQualityDocumentationLink should not be empty")
+	assert.NotEmpty(t, data.TraceQualityDocumentationLink)
 }
 
 func TestMain(m *testing.M) {
