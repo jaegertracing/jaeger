@@ -48,7 +48,7 @@ func spanNameHandler(spanName string, handler http.Handler) http.Handler {
 	})
 }
 
-func (h *HTTPGateway) getDeepDependencies(w http.ResponseWriter, r *http.Request) {
+func (h *HTTPGateway) getDeepDependencies(w http.ResponseWriter, _ *http.Request) {
 	dependencies := TDdgPayload{
 		Dependencies: []TDdgPayloadPath{
 			{
