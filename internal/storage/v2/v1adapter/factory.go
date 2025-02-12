@@ -4,6 +4,7 @@
 package v1adapter
 
 import (
+	"context"
 	"io"
 
 	storage_v1 "github.com/jaegertracing/jaeger/internal/storage/v1"
@@ -23,40 +24,21 @@ func NewFactory(ss storage_v1.Factory) tracestore.Factory {
 	var (
 		purger, isPurger   = ss.(storage_v1.Purger)
 		sampler, isSampler = ss.(storage_v1.SamplingStoreFactory)
-		closer, isCloser   = ss.(io.Closer)
 	)
 
 	switch {
-	case isPurger && isSampler && isCloser:
+	case isPurger && isSampler:
 		return struct {
 			*Factory
 			storage_v1.Purger
 			storage_v1.SamplingStoreFactory
-			io.Closer
-		}{factory, purger, sampler, closer}
-	case isPurger && isCloser:
-		return struct {
-			*Factory
-			storage_v1.Purger
-			io.Closer
-		}{factory, purger, closer}
-	case isSampler && isCloser:
-		return struct {
-			*Factory
-			storage_v1.SamplingStoreFactory
-			io.Closer
-		}{factory, sampler, closer}
+		}{factory, purger, sampler}
 	case isSampler && isPurger:
 		return struct {
 			*Factory
 			storage_v1.Purger
 			storage_v1.SamplingStoreFactory
 		}{factory, purger, sampler}
-	case isCloser:
-		return struct {
-			*Factory
-			io.Closer
-		}{factory, closer}
 	case isPurger:
 		return struct {
 			*Factory
@@ -70,6 +52,14 @@ func NewFactory(ss storage_v1.Factory) tracestore.Factory {
 	default:
 		return factory
 	}
+}
+
+// Close implements tracestore.Factory.
+func (f *Factory) Close(_ context.Context) error {
+	if closer, ok := f.ss.(io.Closer); ok {
+		return closer.Close()
+	}
+	return nil
 }
 
 // CreateTraceReader implements tracestore.Factory.
