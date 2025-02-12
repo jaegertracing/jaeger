@@ -150,14 +150,6 @@ linters-settings:
         files:
           - "!**/v1adapter/**"
 
-      # TODO: remove once we have upgraded to Go 1.23
-      disallow-iter:
-        deny:
-         - pkg: iter
-           desc: "Use github.com/jaegertracing/jaeger/pkg/iter"
-        files:
-          - "**"
-
   goimports:
     local-prefixes: github.com/jaegertracing/jaeger
   gosec:

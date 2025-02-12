@@ -1,10 +1,10 @@
 // Copyright (c) 2024 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
-package iter
+package jiter
 
 import (
-	stditer "iter"
+	"iter"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -14,7 +14,7 @@ import (
 func TestCollectWithErrors(t *testing.T) {
 	tests := []struct {
 		name     string
-		seq      stditer.Seq2[string, error]
+		seq      iter.Seq2[string, error]
 		expected []string
 		err      error
 	}{
@@ -71,7 +71,7 @@ func TestCollectWithErrors(t *testing.T) {
 func TestFlattenWithErrors(t *testing.T) {
 	tests := []struct {
 		name     string
-		seq      stditer.Seq2[[]string, error]
+		seq      iter.Seq2[[]string, error]
 		expected []string
 		err      error
 	}{
