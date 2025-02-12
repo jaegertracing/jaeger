@@ -5,6 +5,7 @@ package v1adapter
 
 import (
 	"errors"
+	"io"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -12,12 +13,13 @@ import (
 	storage_v1 "github.com/jaegertracing/jaeger/internal/storage/v1"
 	dependencyStoreMocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore/mocks"
 	spanstoreMocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/mocks"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/grpc"
 	factoryMocks "github.com/jaegertracing/jaeger/internal/storage/v1/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
-func TestNewTraceReader(t *testing.T) {
+func TestNewFactory(t *testing.T) {
 	mockFactory := new(factoryMocks.Factory)
 	mockPurger := new(factoryMocks.Purger)
 	mockSamplingStoreFactory := new(factoryMocks.SamplingStoreFactory)
@@ -28,9 +30,13 @@ func TestNewTraceReader(t *testing.T) {
 		expectedInterfaces []any
 	}{
 		{
-			name:               "No extra interfaces",
-			factory:            mockFactory,
-			expectedInterfaces: []any{(*tracestore.Factory)(nil), (*depstore.Factory)(nil)},
+			name:    "No extra interfaces",
+			factory: mockFactory,
+			expectedInterfaces: []any{
+				(*tracestore.Factory)(nil),
+				(*depstore.Factory)(nil),
+				(*io.Closer)(nil),
+			},
 		},
 		{
 			name: "Implements Purger",
@@ -41,6 +47,7 @@ func TestNewTraceReader(t *testing.T) {
 			expectedInterfaces: []any{
 				(*tracestore.Factory)(nil),
 				(*depstore.Factory)(nil),
+				(*io.Closer)(nil),
 				(*storage_v1.Purger)(nil),
 			},
 		},
@@ -53,6 +60,7 @@ func TestNewTraceReader(t *testing.T) {
 			expectedInterfaces: []any{
 				(*tracestore.Factory)(nil),
 				(*depstore.Factory)(nil),
+				(*io.Closer)(nil),
 				(*storage_v1.SamplingStoreFactory)(nil),
 			},
 		},
@@ -66,6 +74,7 @@ func TestNewTraceReader(t *testing.T) {
 			expectedInterfaces: []any{
 				(*tracestore.Factory)(nil),
 				(*depstore.Factory)(nil),
+				(*io.Closer)(nil),
 				(*storage_v1.Purger)(nil),
 				(*storage_v1.SamplingStoreFactory)(nil),
 			},
@@ -80,6 +89,20 @@ func TestNewTraceReader(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestAdapterCloseNotOk(t *testing.T) {
+	f := NewFactory(&factoryMocks.Factory{})
+	closer, ok := f.(io.Closer)
+	require.True(t, ok)
+	require.NoError(t, closer.Close())
+}
+
+func TestAdapterClose(t *testing.T) {
+	f := NewFactory(grpc.NewFactory())
+	closer, ok := f.(io.Closer)
+	require.True(t, ok)
+	require.NoError(t, closer.Close())
 }
 
 func TestAdapterCreateTraceReader(t *testing.T) {

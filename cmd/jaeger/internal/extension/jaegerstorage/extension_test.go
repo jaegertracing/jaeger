@@ -21,15 +21,12 @@ import (
 	nooptrace "go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/internal/storage/v1"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/badger"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/grpc"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/memory"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	esCfg "github.com/jaegertracing/jaeger/pkg/es/config"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 	promCfg "github.com/jaegertracing/jaeger/pkg/prometheus/config"
 )
 
@@ -37,19 +34,11 @@ type errorFactory struct {
 	closeErr error
 }
 
-func (errorFactory) Initialize(metrics.Factory, *zap.Logger) error {
+func (errorFactory) CreateTraceReader() (tracestore.Reader, error) {
 	panic("not implemented")
 }
 
-func (errorFactory) CreateSpanReader() (spanstore.Reader, error) {
-	panic("not implemented")
-}
-
-func (errorFactory) CreateSpanWriter() (spanstore.Writer, error) {
-	panic("not implemented")
-}
-
-func (errorFactory) CreateDependencyReader() (dependencystore.Reader, error) {
+func (errorFactory) CreateTraceWriter() (tracestore.Writer, error) {
 	panic("not implemented")
 }
 
@@ -88,7 +77,7 @@ func TestStorageExtensionType(t *testing.T) {
 func TestStorageFactoryBadShutdownError(t *testing.T) {
 	shutdownError := errors.New("shutdown error")
 	ext := storageExt{
-		factories: map[string]storage.Factory{
+		factories: map[string]tracestore.Factory{
 			"foo": errorFactory{closeErr: shutdownError},
 		},
 	}
