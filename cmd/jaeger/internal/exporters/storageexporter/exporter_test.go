@@ -21,11 +21,11 @@ import (
 	"go.uber.org/zap/zaptest"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
+	"github.com/jaegertracing/jaeger/internal/jiter"
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/memory"
 	factoryMocks "github.com/jaegertracing/jaeger/internal/storage/v1/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
-	"github.com/jaegertracing/jaeger/pkg/iter"
 	"github.com/jaegertracing/jaeger/pkg/otelsemconv"
 )
 
@@ -152,7 +152,7 @@ func TestExporter(t *testing.T) {
 	getTracesIter := traceReader.GetTraces(ctx, tracestore.GetTraceParams{
 		TraceID: requiredTraceID,
 	})
-	requiredTrace, err := iter.FlattenWithErrors(getTracesIter)
+	requiredTrace, err := jiter.FlattenWithErrors(getTracesIter)
 	require.NoError(t, err)
 	resource := requiredTrace[0].ResourceSpans().At(0)
 	assert.Equal(t, spanID, resource.ScopeSpans().At(0).Spans().At(0).SpanID())
