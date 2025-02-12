@@ -1,8 +1,8 @@
 module github.com/jaegertracing/jaeger
 
-go 1.22.7
+go 1.23.7
 
-toolchain go1.23.6
+toolchain go1.24.0
 
 require (
 	github.com/HdrHistogram/hdrhistogram-go v1.1.2
