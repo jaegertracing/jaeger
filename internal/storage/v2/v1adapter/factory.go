@@ -4,7 +4,6 @@
 package v1adapter
 
 import (
-	"context"
 	"io"
 
 	storage_v1 "github.com/jaegertracing/jaeger/internal/storage/v1"
@@ -49,7 +48,7 @@ func NewFactory(ss storage_v1.Factory) tracestore.Factory {
 }
 
 // Close implements tracestore.Factory.
-func (f *Factory) Close(_ context.Context) error {
+func (f *Factory) Close() error {
 	if closer, ok := f.ss.(io.Closer); ok {
 		return closer.Close()
 	}
