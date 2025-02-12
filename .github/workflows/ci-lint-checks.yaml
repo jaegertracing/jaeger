@@ -1,6 +1,7 @@
 name: Lint Checks
 
 on:
+  merge_group:
   push:
     branches: [main]
 
