@@ -5,7 +5,6 @@ package storageexporter
 
 import (
 	"context"
-	"errors"
 	"testing"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/storage/storagetest"
@@ -25,13 +24,14 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v1/memory"
 	factoryMocks "github.com/jaegertracing/jaeger/internal/storage/v1/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
+	tracestoreMocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
 	"github.com/jaegertracing/jaeger/pkg/iter"
 	"github.com/jaegertracing/jaeger/pkg/otelsemconv"
 )
 
 type mockStorageExt struct {
 	name           string
-	factory        *factoryMocks.Factory
+	factory        *tracestoreMocks.Factory
 	metricsFactory *factoryMocks.MetricStoreFactory
 }
 
@@ -45,7 +45,7 @@ func (*mockStorageExt) Shutdown(context.Context) error {
 	panic("not implemented")
 }
 
-func (m *mockStorageExt) TraceStorageFactory(name string) (storage.Factory, bool) {
+func (m *mockStorageExt) TraceStorageFactory(name string) (tracestore.Factory, bool) {
 	if m.name == name {
 		return m.factory, true
 	}
@@ -79,8 +79,8 @@ func TestExporterStartBadNameError(t *testing.T) {
 }
 
 func TestExporterStartBadSpanstoreError(t *testing.T) {
-	factory := new(factoryMocks.Factory)
-	factory.On("CreateSpanWriter").Return(nil, errors.New("mocked error"))
+	factory := new(tracestoreMocks.Factory)
+	factory.On("CreateTraceWriter").Return(nil, assert.AnError)
 
 	host := storagetest.NewStorageHost()
 	host.WithExtension(jaegerstorage.ID, &mockStorageExt{
@@ -94,7 +94,7 @@ func TestExporterStartBadSpanstoreError(t *testing.T) {
 		},
 	}
 	err := exp.start(context.Background(), host)
-	require.ErrorContains(t, err, "mocked error")
+	require.ErrorIs(t, err, assert.AnError)
 }
 
 func TestExporter(t *testing.T) {

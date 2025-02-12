@@ -176,8 +176,8 @@ func (s *storageExt) Start(_ context.Context, host component.Host) error {
 		case cfg.GRPC != nil:
 			grpcTelset := telset
 			grpcTelset.Metrics = scopedMetricsFactory(storageName, "grpc", "tracestore")
-			grpcFactory, grpcErr := grpc.NewFactoryWithConfig(*cfg.GRPC, grpcTelset)
 			//nolint: contextcheck
+			grpcFactory, grpcErr := grpc.NewFactoryWithConfig(*cfg.GRPC, grpcTelset)
 			factory, err = v1adapter.NewFactory(grpcFactory), grpcErr
 		case cfg.Cassandra != nil:
 			cassandraFactory, cassandraErr := cassandra.NewFactoryWithConfig(

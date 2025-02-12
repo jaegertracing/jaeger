@@ -21,16 +21,17 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
-	factoryMocks "github.com/jaegertracing/jaeger/internal/storage/v1/mocks"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
+	tracestoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
 )
 
 var (
 	_ jaegerstorage.Extension = (*mockStorageExt)(nil)
-	_ storage.Factory         = (*PurgerFactory)(nil)
+	_ tracestore.Factory      = (*PurgerFactory)(nil)
 )
 
 type PurgerFactory struct {
-	factoryMocks.Factory
+	tracestoremocks.Factory
 	err error
 }
 
@@ -40,7 +41,7 @@ func (f *PurgerFactory) Purge(_ context.Context) error {
 
 type mockStorageExt struct {
 	name           string
-	factory        storage.Factory
+	factory        tracestore.Factory
 	metricsFactory storage.MetricStoreFactory
 }
 
@@ -52,7 +53,7 @@ func (*mockStorageExt) Shutdown(context.Context) error {
 	panic("not implemented")
 }
 
-func (m *mockStorageExt) TraceStorageFactory(name string) (storage.Factory, bool) {
+func (m *mockStorageExt) TraceStorageFactory(name string) (tracestore.Factory, bool) {
 	if m.name == name {
 		return m.factory, true
 	}
@@ -69,7 +70,7 @@ func (m *mockStorageExt) MetricStorageFactory(name string) (storage.MetricStoreF
 func TestStorageCleanerExtension(t *testing.T) {
 	tests := []struct {
 		name    string
-		factory storage.Factory
+		factory tracestore.Factory
 		status  int
 	}{
 		{
@@ -119,11 +120,11 @@ func TestStorageCleanerExtension(t *testing.T) {
 func TestGetStorageFactoryError(t *testing.T) {
 	tests := []struct {
 		name    string
-		factory storage.Factory
+		factory tracestore.Factory
 	}{
 		{
 			name:    "NoFactory",
-			factory: &factoryMocks.Factory{},
+			factory: &tracestoremocks.Factory{},
 		},
 		{
 			name:    "BadFactory",
