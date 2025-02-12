@@ -4,37 +4,82 @@
 package v1adapter
 
 import (
-	"context"
 	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
+	storage_v1 "github.com/jaegertracing/jaeger/internal/storage/v1"
 	dependencyStoreMocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore/mocks"
 	spanstoreMocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/mocks"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/grpc"
 	factoryMocks "github.com/jaegertracing/jaeger/internal/storage/v1/mocks"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
-func TestAdapterInitialize(t *testing.T) {
-	defer func() {
-		if r := recover(); r == nil {
-			t.Errorf("initialize did not panic")
-		}
-	}()
+func TestNewTraceReader(t *testing.T) {
+	mockFactory := new(factoryMocks.Factory)
+	mockPurger := new(factoryMocks.Purger)
+	mockSamplingStoreFactory := new(factoryMocks.SamplingStoreFactory)
 
-	f := &Factory{}
-	_ = f.Initialize(context.Background())
-}
+	tests := []struct {
+		name               string
+		factory            storage_v1.Factory
+		expectedInterfaces []any
+	}{
+		{
+			name:               "No extra interfaces",
+			factory:            mockFactory,
+			expectedInterfaces: []any{(*tracestore.Factory)(nil), (*depstore.Factory)(nil)},
+		},
+		{
+			name: "Implements Purger",
+			factory: struct {
+				storage_v1.Factory
+				storage_v1.Purger
+			}{mockFactory, mockPurger},
+			expectedInterfaces: []any{
+				(*tracestore.Factory)(nil),
+				(*depstore.Factory)(nil),
+				(*storage_v1.Purger)(nil),
+			},
+		},
+		{
+			name: "Implements SamplingStoreFactory",
+			factory: struct {
+				storage_v1.Factory
+				storage_v1.SamplingStoreFactory
+			}{mockFactory, mockSamplingStoreFactory},
+			expectedInterfaces: []any{
+				(*tracestore.Factory)(nil),
+				(*depstore.Factory)(nil),
+				(*storage_v1.SamplingStoreFactory)(nil),
+			},
+		},
+		{
+			name: "Implements both Purger and SamplingStoreFactory",
+			factory: struct {
+				storage_v1.Factory
+				storage_v1.Purger
+				storage_v1.SamplingStoreFactory
+			}{mockFactory, mockPurger, mockSamplingStoreFactory},
+			expectedInterfaces: []any{
+				(*tracestore.Factory)(nil),
+				(*depstore.Factory)(nil),
+				(*storage_v1.Purger)(nil),
+				(*storage_v1.SamplingStoreFactory)(nil),
+			},
+		},
+	}
 
-func TestAdapterCloseNotOk(t *testing.T) {
-	f := NewFactory(&factoryMocks.Factory{})
-	require.NoError(t, f.Close(context.Background()))
-}
-
-func TestAdapterClose(t *testing.T) {
-	f := NewFactory(grpc.NewFactory())
-	require.NoError(t, f.Close(context.Background()))
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			traceReader := NewFactory(test.factory)
+			for _, i := range test.expectedInterfaces {
+				require.Implements(t, i, traceReader)
+			}
+		})
+	}
 }
 
 func TestAdapterCreateTraceReader(t *testing.T) {
@@ -78,7 +123,9 @@ func TestAdapterCreateDependencyReader(t *testing.T) {
 	f1.On("CreateDependencyReader").Return(new(dependencyStoreMocks.Reader), nil)
 
 	f := NewFactory(f1)
-	r, err := f.CreateDependencyReader()
+	depFactory, ok := f.(depstore.Factory)
+	require.True(t, ok)
+	r, err := depFactory.CreateDependencyReader()
 	require.NoError(t, err)
 	require.NotNil(t, r)
 }
@@ -89,7 +136,9 @@ func TestAdapterCreateDependencyReaderError(t *testing.T) {
 	f1.On("CreateDependencyReader").Return(nil, testErr)
 
 	f := NewFactory(f1)
-	r, err := f.CreateDependencyReader()
+	depFactory, ok := f.(depstore.Factory)
+	require.True(t, ok)
+	r, err := depFactory.CreateDependencyReader()
 	require.ErrorIs(t, err, testErr)
 	require.Nil(t, r)
 }
