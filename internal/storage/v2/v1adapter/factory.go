@@ -29,42 +29,42 @@ func NewFactory(ss storage_v1.Factory) tracestore.Factory {
 	switch {
 	case isPurger && isSampler && isCloser:
 		return struct {
-			tracestore.Factory
+			*Factory
 			storage_v1.Purger
 			storage_v1.SamplingStoreFactory
 			io.Closer
 		}{factory, purger, sampler, closer}
 	case isPurger && isCloser:
 		return struct {
-			tracestore.Factory
+			*Factory
 			storage_v1.Purger
 			io.Closer
 		}{factory, purger, closer}
 	case isSampler && isCloser:
 		return struct {
-			tracestore.Factory
+			*Factory
 			storage_v1.SamplingStoreFactory
 			io.Closer
 		}{factory, sampler, closer}
 	case isSampler && isPurger:
 		return struct {
-			tracestore.Factory
+			*Factory
 			storage_v1.Purger
 			storage_v1.SamplingStoreFactory
 		}{factory, purger, sampler}
 	case isCloser:
 		return struct {
-			tracestore.Factory
+			*Factory
 			io.Closer
 		}{factory, closer}
 	case isPurger:
 		return struct {
-			tracestore.Factory
+			*Factory
 			storage_v1.Purger
 		}{factory, purger}
 	case isSampler:
 		return struct {
-			tracestore.Factory
+			*Factory
 			storage_v1.SamplingStoreFactory
 		}{factory, sampler}
 	default:
