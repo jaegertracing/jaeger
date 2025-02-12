@@ -2,7 +2,6 @@ module github.com/jaegertracing/jaeger
 
 go 1.23.7
 
-// @nocommit wait until Homebrew has 1.24 recipe
 toolchain go1.24.0
 
 require (
