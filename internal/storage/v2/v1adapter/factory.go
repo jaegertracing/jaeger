@@ -27,12 +27,6 @@ func NewFactory(ss storage_v1.Factory) tracestore.Factory {
 	)
 
 	switch {
-	case isPurger && isSampler:
-		return struct {
-			*Factory
-			storage_v1.Purger
-			storage_v1.SamplingStoreFactory
-		}{factory, purger, sampler}
 	case isSampler && isPurger:
 		return struct {
 			*Factory
