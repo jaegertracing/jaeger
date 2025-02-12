@@ -65,7 +65,7 @@ func (h *HTTPGateway) getDeepDependencies(w http.ResponseWriter, r *http.Request
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(dependencies); err != nil {
-		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+		h.Logger.Error("Failed to encode response", zap.Error(err))
 	}
 }
 
