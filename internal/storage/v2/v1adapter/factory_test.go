@@ -13,6 +13,7 @@ import (
 	storage_v1 "github.com/jaegertracing/jaeger/internal/storage/v1"
 	dependencyStoreMocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore/mocks"
 	spanstoreMocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/mocks"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/grpc"
 	factoryMocks "github.com/jaegertracing/jaeger/internal/storage/v1/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
@@ -34,7 +35,8 @@ func TestNewFactory(t *testing.T) {
 			expectedInterfaces: []any{
 				(*tracestore.Factory)(nil),
 				(*depstore.Factory)(nil),
-				(*io.Closer)(nil)},
+				(*io.Closer)(nil),
+			},
 		},
 		{
 			name: "Implements Purger",
@@ -87,6 +89,20 @@ func TestNewFactory(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestAdapterCloseNotOk(t *testing.T) {
+	f := NewFactory(&factoryMocks.Factory{})
+	closer, ok := f.(io.Closer)
+	require.True(t, ok)
+	require.NoError(t, closer.Close())
+}
+
+func TestAdapterClose(t *testing.T) {
+	f := NewFactory(grpc.NewFactory())
+	closer, ok := f.(io.Closer)
+	require.True(t, ok)
+	require.NoError(t, closer.Close())
 }
 
 func TestAdapterCreateTraceReader(t *testing.T) {
