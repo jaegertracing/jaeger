@@ -5,7 +5,7 @@ package qualitymetrics
 
 func GetSampleData() TQualityMetrics {
 	return TQualityMetrics{
-		TraceQualityDocumentationLink: "https://www.jaegertracing.io/docs/1.18/",
+		TraceQualityDocumentationLink: "https://github.com/jaegertracing/jaeger-analytics-java#trace-quality-metrics",
 		BannerText: &BannerText{
 			Value: "🛑 Made up data, for demonstration only!",
 			Styling: map[string]any{
