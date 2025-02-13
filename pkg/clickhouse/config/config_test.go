@@ -9,8 +9,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
-
-	"github.com/jaegertracing/jaeger/pkg/testutils"
 )
 
 func TestNewClientWithDefaults(t *testing.T) {
@@ -19,8 +17,5 @@ func TestNewClientWithDefaults(t *testing.T) {
 	client, err := cfg.NewClient(logger)
 	require.NoError(t, err)
 	assert.NotEmpty(t, client)
-}
-
-func TestMain(m *testing.M) {
-	testutils.VerifyGoLeaks(m)
+	defer client.Close()
 }

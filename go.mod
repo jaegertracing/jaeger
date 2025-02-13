@@ -5,6 +5,8 @@ go 1.23.7
 toolchain go1.24.0
 
 require (
+	github.com/ClickHouse/ch-go v0.64.1
+	github.com/ClickHouse/clickhouse-go/v2 v2.31.0
 	github.com/HdrHistogram/hdrhistogram-go v1.1.2
 	github.com/Shopify/sarama v1.37.2
 	github.com/apache/thrift v0.21.0
@@ -105,8 +107,6 @@ require (
 )
 
 require (
-	github.com/ClickHouse/ch-go v0.64.1 // indirect
-	github.com/ClickHouse/clickhouse-go/v2 v2.31.0 // indirect
 	github.com/andybalholm/brotli v1.1.1 // indirect
 	github.com/dmarkham/enumer v1.5.10 // indirect
 	github.com/go-faster/city v1.0.1 // indirect
@@ -278,7 +278,7 @@ require (
 	go.opentelemetry.io/collector/processor/xprocessor v0.119.0 // indirect
 	go.opentelemetry.io/collector/receiver/receivertest v0.119.0 // indirect
 	go.opentelemetry.io/collector/receiver/xreceiver v0.119.0 // indirect
-	go.opentelemetry.io/collector/semconv v0.119.0 // indirect
+	go.opentelemetry.io/collector/semconv v0.119.0
 	go.opentelemetry.io/collector/service v0.119.0 // indirect
 	go.opentelemetry.io/contrib/bridges/otelzap v0.9.0 // indirect
 	go.opentelemetry.io/contrib/config v0.14.0 // indirect

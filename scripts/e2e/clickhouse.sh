@@ -14,9 +14,9 @@ setup_clickhouse() {
 wait_for_clickhouse() {
   echo "Waiting for ClickHouse to start..."
   while ! docker exec clickhouse clickhouse-client --host=127.0.0.1 --port=9000 \
-     --user="$CLICKHOUSE_USERNAME" \
-     --password="$CLICKHOUSE_PASSWORD" \
-                                                      --query="SELECT 1" > /dev/null 2>&1; do
+      --user="$CLICKHOUSE_USERNAME" \
+      --password="$CLICKHOUSE_PASSWORD" \
+      --query="SELECT 1" > /dev/null 2>&1; do
     echo "Waiting for ClickHouse to be ready..."
     sleep 2
   done
