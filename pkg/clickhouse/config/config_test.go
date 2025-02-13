@@ -4,12 +4,13 @@
 package config
 
 import (
-	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
+
+	"github.com/jaegertracing/jaeger/pkg/testutils"
 )
 
 func TestNewClientWithDefaults(t *testing.T) {
