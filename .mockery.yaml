@@ -42,6 +42,11 @@ packages:
   github.com/jaegertracing/jaeger/pkg/es/client:
     config:
       all: true
+  github.com/jaegertracing/jaeger/pkg/clickhouse:
+    config:
+      all: true
+    interfaces:
+      Client:
   github.com/jaegertracing/jaeger/pkg/kafka/consumer:
     interfaces:
       Consumer:
