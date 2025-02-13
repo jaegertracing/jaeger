@@ -18,6 +18,7 @@ var ErrTraceNotFound = errors.New("trace not found")
 // Writer writes spans to storage.
 type Writer interface {
 	WriteSpan(ctx context.Context, span *model.Span) error
+	WriteDependencies(ctx context.Context, ts time.Time, dependencies []model.DependencyLink) error
 }
 
 // Reader finds and loads traces and other data from storage.

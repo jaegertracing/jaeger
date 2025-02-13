@@ -36,6 +36,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/remotesampling"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/integration/storagecleaner"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/processors/adaptivesampling"
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/processors/dependencyprocessor"
 )
 
 type builders struct {

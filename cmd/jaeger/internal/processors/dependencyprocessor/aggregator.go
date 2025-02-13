@@ -9,9 +9,6 @@ import (
 	"time"
 
 	"github.com/apache/beam/sdks/v2/go/pkg/beam"
-	"github.com/apache/beam/sdks/v2/go/pkg/beam/core/graph/window"
-	"github.com/apache/beam/sdks/v2/go/pkg/beam/transforms/stats"
-	"github.com/apache/beam/sdks/v2/go/pkg/beam/x/beamx"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
@@ -48,14 +45,13 @@ func newDependencyAggregator(cfg Config, telset component.TelemetrySettings, dep
 		config:           &cfg,
 		telset:           telset,
 		dependencyWriter: dependencyWriter,
-		inputChan:        make(chan spanEvent, 1000),
+		inputChan:        make(chan spanEvent),
 		closeChan:        make(chan struct{}),
 	}
 }
 
 // Start begins the aggregation process
-func (agg *dependencyAggregator) Start(closeChan chan struct{}) {
-	agg.closeChan = closeChan
+func (agg *dependencyAggregator) Start() {
 	go agg.runPipeline()
 }
 
@@ -115,7 +111,7 @@ func (agg *dependencyAggregator) processEvents(ctx context.Context, events []spa
 	timestamped := beam.ParDo(s, func(event spanEvent) beam.WindowValue {
 		return beam.WindowValue{
 			Timestamp: event.eventTime,
-			Windows:   window.IntervalWindow{Start: event.eventTime, End: event.eventTime.Add(agg.config.InactivityTimeout)},
+			Windows:   beam.window.IntervalWindow{Start: event.eventTime, End: event.eventTime.Add(agg.config.InactivityTimeout)},
 			Value: beam.KV{
 				Key:   event.span.TraceID(),
 				Value: event,
@@ -125,12 +121,12 @@ func (agg *dependencyAggregator) processEvents(ctx context.Context, events []spa
 
 	// Apply session windows
 	windowed := beam.WindowInto(s,
-		window.NewSessions(agg.config.InactivityTimeout),
+		beam.window.NewSessions(agg.config.InactivityTimeout),
 		timestamped,
 	)
 
 	// Group by TraceID and aggregate dependencies
-	grouped := stats.GroupByKey(s, windowed)
+	grouped := beam.stats.GroupByKey(s, windowed)
 
 	// Calculate dependencies for each trace
 	dependencies := beam.ParDo(s, func(key pcommon.TraceID, iter func(*spanEvent) bool) []*model.DependencyLink {
@@ -173,14 +169,14 @@ func (agg *dependencyAggregator) processEvents(ctx context.Context, events []spa
 	merged := beam.Flatten(s, dependencies)
 
 	// Write to storage
-	beam.ParDo0(s, func(deps []*model.DependencyLink) {
+	beam.ParDo0(s, func(deps []model.DependencyLink) {
 		if err := agg.dependencyWriter.WriteDependencies(ctx, time.Now(), deps); err != nil {
 			agg.telset.Logger.Error("Failed to write dependencies", zap.Error(err))
 		}
 	}, merged)
 
 	// Execute pipeline
-	if err := beamx.Run(ctx, p); err != nil {
+	if err := beam.Run(ctx, p); err != nil {
 		agg.telset.Logger.Error("Failed to run beam pipeline", zap.Error(err))
 	}
 }

@@ -53,7 +53,7 @@ func (tp *dependencyProcessor) Start(_ context.Context, host component.Host) err
 	tp.dependencyWriter = writer
 
 	tp.aggregator = newDependencyAggregator(*tp.config, tp.telset, tp.dependencyWriter)
-	tp.aggregator.Start(tp.closeChan)
+	tp.aggregator.Start()
 	return nil
 }
 
