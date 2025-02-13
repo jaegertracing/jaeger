@@ -9,8 +9,8 @@ package mocks
 
 import (
 	context "context"
+	iter "iter"
 
-	iter "github.com/jaegertracing/jaeger/pkg/iter"
 	mock "github.com/stretchr/testify/mock"
 
 	pcommon "go.opentelemetry.io/collector/pdata/pcommon"
