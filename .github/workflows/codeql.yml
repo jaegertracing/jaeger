@@ -1,6 +1,7 @@
 name: "CodeQL"
 
 on:
+  merge_group:
   push:
     branches: [main]
 
@@ -20,6 +21,8 @@ permissions:  # added using https://github.com/step-security/secure-workflows
 
 jobs:
   codeql-analyze:
+    # Run only on pull requests, see https://github.com/github/codeql-action/issues/1537
+    if: ${{ github.event_name == 'pull_request' }}
     name: CodeQL Analyze
     runs-on: ubuntu-latest
 

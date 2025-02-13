@@ -1,6 +1,7 @@
 name: Build binaries
 
 on:
+  merge_group:
   push:
     branches: [main]
 

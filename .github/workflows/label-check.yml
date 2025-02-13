@@ -1,6 +1,7 @@
 name: Verify PR Label
 
 on:
+  merge_group:
   pull_request:
     types:
       - opened
