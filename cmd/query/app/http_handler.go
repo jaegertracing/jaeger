@@ -21,15 +21,16 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger-idl/model/v1"
+	"github.com/jaegertracing/jaeger/cmd/query/app/qualitymetrics"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
-	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger/internal/storage/metricstore/disabled"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	uiconv "github.com/jaegertracing/jaeger/model/converter/json"
 	ui "github.com/jaegertracing/jaeger/model/json"
 	"github.com/jaegertracing/jaeger/pkg/jtracer"
-	"github.com/jaegertracing/jaeger/plugin/metricstore/disabled"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2/metrics"
-	"github.com/jaegertracing/jaeger/storage/metricstore"
-	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
 const (
@@ -121,6 +122,7 @@ func (aH *APIHandler) RegisterRoutes(router *mux.Router) {
 	aH.handleFunc(router, aH.calls, "/metrics/calls").Methods(http.MethodGet)
 	aH.handleFunc(router, aH.errors, "/metrics/errors").Methods(http.MethodGet)
 	aH.handleFunc(router, aH.minStep, "/metrics/minstep").Methods(http.MethodGet)
+	aH.handleFunc(router, aH.getQualityMetrics, "/quality-metrics").Methods(http.MethodGet)
 }
 
 func (aH *APIHandler) handleFunc(
@@ -183,7 +185,7 @@ func (aH *APIHandler) transformOTLP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	traces, err := otlp2traces(body)
-	if aH.handleError(w, err, http.StatusInternalServerError) {
+	if aH.handleError(w, err, http.StatusBadRequest) {
 		return
 	}
 
@@ -551,4 +553,13 @@ func spanNameHandler(spanName string, handler http.Handler) http.Handler {
 		span.SetName(spanName)
 		handler.ServeHTTP(w, r)
 	})
+}
+
+func (aH *APIHandler) getQualityMetrics(w http.ResponseWriter, r *http.Request) {
+	data := qualitymetrics.GetSampleData()
+	structuredRes := structuredResponse{
+		Data:   data,
+		Errors: []structuredError{},
+	}
+	aH.writeJSON(w, r, &structuredRes)
 }

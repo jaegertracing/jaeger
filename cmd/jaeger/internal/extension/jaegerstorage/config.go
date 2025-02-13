@@ -12,15 +12,15 @@ import (
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/confmap"
 
+	"github.com/jaegertracing/jaeger/internal/storage/metricstore/prometheus"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/badger"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra"
+	es "github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/grpc"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/memory"
 	casCfg "github.com/jaegertracing/jaeger/pkg/cassandra/config"
 	esCfg "github.com/jaegertracing/jaeger/pkg/es/config"
 	promCfg "github.com/jaegertracing/jaeger/pkg/prometheus/config"
-	"github.com/jaegertracing/jaeger/plugin/metricstore/prometheus"
-	"github.com/jaegertracing/jaeger/plugin/storage/badger"
-	"github.com/jaegertracing/jaeger/plugin/storage/cassandra"
-	"github.com/jaegertracing/jaeger/plugin/storage/es"
-	"github.com/jaegertracing/jaeger/plugin/storage/grpc"
-	"github.com/jaegertracing/jaeger/plugin/storage/memory"
 )
 
 var (
@@ -74,7 +74,7 @@ func (cfg *TraceBackend) Unmarshal(conf *confmap.Conf) error {
 	}
 	if conf.IsSet("cassandra") {
 		cfg.Cassandra = &cassandra.Options{
-			Primary: cassandra.NamespaceConfig{
+			NamespaceConfig: cassandra.NamespaceConfig{
 				Configuration: casCfg.DefaultConfiguration(),
 				Enabled:       true,
 			},

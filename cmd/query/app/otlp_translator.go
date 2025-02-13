@@ -8,8 +8,8 @@ import (
 
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
-	"github.com/jaegertracing/jaeger/model"
-	"github.com/jaegertracing/jaeger/storage_v2/v1adapter"
+	"github.com/jaegertracing/jaeger-idl/model/v1"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
 )
 
 func otlp2traces(otlpSpans []byte) ([]*model.Trace, error) {

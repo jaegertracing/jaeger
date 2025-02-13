@@ -25,9 +25,9 @@ jobs:
 
     - uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938 # v4.2.0
 
-    - uses: actions/setup-go@3041bf56c941b39c61721a86cd11f3bb1338122a # v5.2.0
+    - uses: actions/setup-go@f111f3307d8850f501ac008e886eec1fd1932a34 # v5.3.0
       with:
-        go-version: 1.23.x
+        go-version: 1.24.x
 
     - name: Print Jaeger version for no reason
       run: make echo-v1 echo-v2
@@ -61,7 +61,7 @@ jobs:
     - uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938 # v4.2.0
 
     - name: Set up Python 3.x for DCO check
-      uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
+      uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
       with:
         python-version: '3.x'
 
@@ -81,18 +81,15 @@ jobs:
       with:
         submodules: recursive
 
-    - uses: actions/setup-go@3041bf56c941b39c61721a86cd11f3bb1338122a # v5.2.0
+    - uses: actions/setup-go@f111f3307d8850f501ac008e886eec1fd1932a34 # v5.3.0
       with:
-        go-version: 1.23.x
+        go-version: 1.24.x
 
     - name: Verify Protobuf types are up to date
-      run: make proto && git diff --name-status --exit-code
-
-    - name: Verify Thrift types are up to date
-      run: make thrift && git diff --name-status --exit-code
+      run: make proto && { if git status --porcelain | grep '??'; then exit 1; else git diff --name-status --exit-code; fi }
 
     - name: Verify Mockery types are up to date
-      run: make generate-mocks && git diff --name-status --exit-code
+      run: make generate-mocks && { if git status --porcelain | grep '??'; then exit 1; else git diff --name-status --exit-code; fi }
 
   lint-shell-scripts:
     runs-on: ubuntu-latest
@@ -116,7 +113,7 @@ jobs:
 
     - name: Run unit tests for scripts
       run: |
-        SHUNIT2=.tools/shunit2 bash scripts/utils/compute-tags.test.sh
+        SHUNIT2=.tools/shunit2 bash scripts/utils/run-tests.sh
 
   binary-size-check:
     runs-on: ubuntu-latest
@@ -129,9 +126,9 @@ jobs:
       with:
         submodules: true
 
-    - uses: actions/setup-go@3041bf56c941b39c61721a86cd11f3bb1338122a # v5.2.0
+    - uses: actions/setup-go@f111f3307d8850f501ac008e886eec1fd1932a34 # v5.3.0
       with:
-        go-version: 1.23.x
+        go-version: 1.24.x
 
     - name: Setup Node.js version
       uses: ./.github/actions/setup-node.js

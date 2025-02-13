@@ -14,15 +14,14 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 
+	"github.com/jaegertracing/jaeger-idl/model/v1"
+	"github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
 	"github.com/jaegertracing/jaeger/cmd/query/app"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
-	"github.com/jaegertracing/jaeger/model"
-	"github.com/jaegertracing/jaeger/plugin/metricstore/disabled"
-	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
-	"github.com/jaegertracing/jaeger/storage/spanstore"
-	spanstoremocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
-	dependencyStoreMocks "github.com/jaegertracing/jaeger/storage_v2/depstore/mocks"
-	"github.com/jaegertracing/jaeger/storage_v2/v1adapter"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
+	spanstoremocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/mocks"
+	dependencyStoreMocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore/mocks"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
 )
 
 var (
@@ -58,15 +57,13 @@ type testServer struct {
 func newTestServer(t *testing.T) *testServer {
 	spanReader := &spanstoremocks.Reader{}
 	traceReader := v1adapter.NewTraceReader(spanReader)
-	metricsReader, err := disabled.NewMetricsReader()
-	require.NoError(t, err)
 
 	q := querysvc.NewQueryService(
 		traceReader,
 		&dependencyStoreMocks.Reader{},
 		querysvc.QueryServiceOptions{},
 	)
-	h := app.NewGRPCHandler(q, metricsReader, app.GRPCHandlerOptions{})
+	h := app.NewGRPCHandler(q, app.GRPCHandlerOptions{})
 
 	server := grpc.NewServer()
 	api_v2.RegisterQueryServiceServer(server, h)

@@ -29,21 +29,21 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 
+	"github.com/jaegertracing/jaeger-idl/model/v1"
+	"github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
 	"github.com/jaegertracing/jaeger/cmd/internal/flags"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	v2querysvc "github.com/jaegertracing/jaeger/cmd/query/app/querysvc/v2/querysvc"
 	"github.com/jaegertracing/jaeger/internal/grpctest"
-	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
+	spanstoremocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/mocks"
+	depsmocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore/mocks"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	"github.com/jaegertracing/jaeger/pkg/jtracer"
 	"github.com/jaegertracing/jaeger/pkg/telemetry"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/ports"
-	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
-	"github.com/jaegertracing/jaeger/storage/spanstore"
-	spanstoremocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
-	depsmocks "github.com/jaegertracing/jaeger/storage_v2/depstore/mocks"
-	"github.com/jaegertracing/jaeger/storage_v2/v1adapter"
 )
 
 var testCertKeyLocation = "../../../pkg/config/tlscfg/testdata"
@@ -620,47 +620,6 @@ func TestServerInUseHostPort(t *testing.T) {
 	}
 }
 
-func TestServerSinglePort(t *testing.T) {
-	flagsSvc := flags.NewService(ports.QueryAdminHTTP)
-	flagsSvc.Logger = zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller()))
-	hostPort := ports.PortToHostPort(ports.QueryHTTP)
-	querySvc := makeQuerySvc()
-	telset := initTelSet(flagsSvc.Logger, jtracer.NoOp(), flagsSvc.HC())
-	server, err := NewServer(context.Background(), querySvc.qs, &v2querysvc.QueryService{}, nil,
-		&QueryOptions{
-			BearerTokenPropagation: true,
-			HTTP: confighttp.ServerConfig{
-				Endpoint: hostPort,
-			},
-			GRPC: configgrpc.ServerConfig{
-				NetAddr: confignet.AddrConfig{
-					Endpoint:  hostPort,
-					Transport: confignet.TransportTypeTCP,
-				},
-			},
-		},
-		tenancy.NewManager(&tenancy.Options{}),
-		telset)
-	require.NoError(t, err)
-	require.NoError(t, server.Start(context.Background()))
-	t.Cleanup(func() {
-		require.NoError(t, server.Close())
-	})
-
-	client := newGRPCClient(t, hostPort)
-	t.Cleanup(func() {
-		require.NoError(t, client.conn.Close())
-	})
-
-	// using generous timeout since grpc.NewClient no longer does a handshake.
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	res, err := client.GetServices(ctx, &api_v2.GetServicesRequest{})
-	require.NoError(t, err)
-	assert.Equal(t, querySvc.expectedServices, res.Services)
-}
-
 func TestServerGracefulExit(t *testing.T) {
 	flagsSvc := flags.NewService(ports.QueryAdminHTTP)
 
@@ -668,18 +627,19 @@ func TestServerGracefulExit(t *testing.T) {
 	assert.Equal(t, 0, logs.Len(), "Expected initial ObservedLogs to have zero length.")
 
 	flagsSvc.Logger = zap.New(zapCore)
-	hostPort := ports.PortToHostPort(ports.QueryAdminHTTP)
+	grpcHostPort := ports.PortToHostPort(ports.QueryGRPC)
+	httpHostPort := ports.PortToHostPort(ports.QueryHTTP)
 
 	querySvc := makeQuerySvc()
 	telset := initTelSet(flagsSvc.Logger, jtracer.NoOp(), flagsSvc.HC())
 	server, err := NewServer(context.Background(), querySvc.qs, &v2querysvc.QueryService{}, nil,
 		&QueryOptions{
 			HTTP: confighttp.ServerConfig{
-				Endpoint: hostPort,
+				Endpoint: httpHostPort,
 			},
 			GRPC: configgrpc.ServerConfig{
 				NetAddr: confignet.AddrConfig{
-					Endpoint:  hostPort,
+					Endpoint:  grpcHostPort,
 					Transport: confignet.TransportTypeTCP,
 				},
 			},
@@ -690,7 +650,7 @@ func TestServerGracefulExit(t *testing.T) {
 
 	// Wait for servers to come up before we can call .Close()
 	{
-		client := newGRPCClient(t, hostPort)
+		client := newGRPCClient(t, grpcHostPort)
 		t.Cleanup(func() {
 			require.NoError(t, client.conn.Close())
 		})
@@ -742,7 +702,6 @@ func TestServerHandlesPortZero(t *testing.T) {
 		ExpectedServices: []string{
 			"jaeger.api_v2.QueryService",
 			"jaeger.api_v3.QueryService",
-			"jaeger.api_v2.metrics.MetricsQueryService",
 			"grpc.health.v1.Health",
 		},
 	}.Execute(t)
@@ -775,7 +734,7 @@ func TestServerHTTPTenancy(t *testing.T) {
 		},
 		GRPC: configgrpc.ServerConfig{
 			NetAddr: confignet.AddrConfig{
-				Endpoint:  ":8080",
+				Endpoint:  ":8081",
 				Transport: confignet.TransportTypeTCP,
 			},
 		},
@@ -847,30 +806,16 @@ func TestServerHTTP_TracesRequest(t *testing.T) {
 		expectedTrace string
 	}{
 		{
-			name:          "different ports",
+			name:          "api v1/v2",
 			httpEndpoint:  ":8080",
 			grpcEndpoint:  ":8081",
 			queryString:   "/api/traces/123456aBC",
 			expectedTrace: "/api/traces/{traceID}",
 		},
 		{
-			name:          "different ports for v3 api",
+			name:          "api v3",
 			httpEndpoint:  ":8080",
 			grpcEndpoint:  ":8081",
-			queryString:   "/api/v3/traces/123456aBC",
-			expectedTrace: "/api/v3/traces/{trace_id}",
-		},
-		{
-			name:          "same port",
-			httpEndpoint:  ":8080",
-			grpcEndpoint:  ":8080",
-			queryString:   "/api/traces/123456aBC",
-			expectedTrace: "/api/traces/{traceID}",
-		},
-		{
-			name:          "same port for v3 api",
-			httpEndpoint:  ":8080",
-			grpcEndpoint:  ":8080",
 			queryString:   "/api/v3/traces/123456aBC",
 			expectedTrace: "/api/v3/traces/{trace_id}",
 		},

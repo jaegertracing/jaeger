@@ -16,7 +16,7 @@ build: clean-jaeger
 		cmd/$(BINARY)
 
 .PHONY: dev
-dev: export JAEGER_IMAGE_TAG = dev
+dev: export JAEGER_VERSION = dev
 dev: build 
 	docker compose -f docker-compose.yml up $(DOCKER_COMPOSE_ARGS)
 

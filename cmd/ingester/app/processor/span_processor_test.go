@@ -12,10 +12,10 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	cmocks "github.com/jaegertracing/jaeger/cmd/ingester/app/consumer/mocks"
-	"github.com/jaegertracing/jaeger/model"
-	umocks "github.com/jaegertracing/jaeger/plugin/storage/kafka/mocks"
-	smocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
+	smocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/mocks"
+	umocks "github.com/jaegertracing/jaeger/internal/storage/v1/kafka/mocks"
 )
 
 func TestNewSpanProcessor(t *testing.T) {

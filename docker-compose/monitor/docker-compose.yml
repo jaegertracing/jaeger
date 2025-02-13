@@ -3,8 +3,8 @@ services:
     networks:
       backend:
         # This is the host name used in Prometheus scrape configuration.
-        aliases: [spm_metrics_source]
-    image: jaegertracing/jaeger:${JAEGER_IMAGE_TAG:-latest}
+        aliases: [ spm_metrics_source ]
+    image: jaegertracing/jaeger:${JAEGER_VERSION:-latest}
     volumes:
       - "./jaeger-ui.json:/etc/jaeger/jaeger-ui.json" # Do we need this for v2 ? Seems to be running without this.
       - "../../cmd/jaeger/config-spm.yaml:/etc/jaeger/config.yml"
@@ -19,7 +19,7 @@ services:
   microsim:
     networks:
       - backend
-    image: yurishkuro/microsim:v0.4.1
+    image: yurishkuro/microsim:v0.5.0
     command: "-d 24h -s 500ms"
     environment:
       - OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://jaeger:4318/v1/traces

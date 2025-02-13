@@ -14,8 +14,8 @@ import (
 
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/jaegertracing/jaeger/model"
-	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
+	"github.com/jaegertracing/jaeger-idl/model/v1"
+	"github.com/jaegertracing/jaeger-idl/thrift-gen/zipkincore"
 )
 
 const (

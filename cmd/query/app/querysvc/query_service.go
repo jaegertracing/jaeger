@@ -8,28 +8,21 @@ import (
 	"errors"
 	"time"
 
-	"go.uber.org/zap"
-
-	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger-idl/model/v1"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
 	"github.com/jaegertracing/jaeger/model/adjuster"
-	"github.com/jaegertracing/jaeger/storage"
-	"github.com/jaegertracing/jaeger/storage/spanstore"
-	"github.com/jaegertracing/jaeger/storage_v2/depstore"
-	"github.com/jaegertracing/jaeger/storage_v2/tracestore"
-	"github.com/jaegertracing/jaeger/storage_v2/v1adapter"
 )
 
 var errNoArchiveSpanStorage = errors.New("archive span storage was not configured")
 
-const (
-	defaultMaxClockSkewAdjust = time.Second
-)
-
 // QueryServiceOptions has optional members of QueryService
 type QueryServiceOptions struct {
-	ArchiveSpanReader spanstore.Reader
-	ArchiveSpanWriter spanstore.Writer
-	Adjuster          adjuster.Adjuster
+	ArchiveSpanReader  spanstore.Reader
+	ArchiveSpanWriter  spanstore.Writer
+	MaxClockSkewAdjust time.Duration
 }
 
 // StorageCapabilities is a feature flag for query service
@@ -44,6 +37,7 @@ type StorageCapabilities struct {
 type QueryService struct {
 	spanReader       spanstore.Reader
 	dependencyReader depstore.Reader
+	adjuster         adjuster.Adjuster
 	options          QueryServiceOptions
 }
 
@@ -70,12 +64,10 @@ func NewQueryService(traceReader tracestore.Reader, dependencyReader depstore.Re
 	qsvc := &QueryService{
 		spanReader:       spanReader,
 		dependencyReader: dependencyReader,
+		adjuster:         adjuster.Sequence(StandardAdjusters(options.MaxClockSkewAdjust)...),
 		options:          options,
 	}
 
-	if qsvc.options.Adjuster == nil {
-		qsvc.options.Adjuster = adjuster.Sequence(StandardAdjusters(defaultMaxClockSkewAdjust)...)
-	}
 	return qsvc
 }
 
@@ -146,7 +138,7 @@ func (qs QueryService) ArchiveTrace(ctx context.Context, query spanstore.GetTrac
 
 // Adjust applies adjusters to the trace.
 func (qs QueryService) adjust(trace *model.Trace) {
-	qs.options.Adjuster.Adjust(trace)
+	qs.adjuster.Adjust(trace)
 }
 
 // GetDependencies implements dependencystore.Reader.GetDependencies
@@ -162,36 +154,6 @@ func (qs QueryService) GetCapabilities() StorageCapabilities {
 	return StorageCapabilities{
 		ArchiveStorage: qs.options.hasArchiveStorage(),
 	}
-}
-
-// InitArchiveStorage tries to initialize archive storage reader/writer if storage factory supports them.
-func (opts *QueryServiceOptions) InitArchiveStorage(storageFactory storage.BaseFactory, logger *zap.Logger) bool {
-	archiveFactory, ok := storageFactory.(storage.ArchiveFactory)
-	if !ok {
-		logger.Info("Archive storage not supported by the factory")
-		return false
-	}
-	reader, err := archiveFactory.CreateArchiveSpanReader()
-	if errors.Is(err, storage.ErrArchiveStorageNotConfigured) || errors.Is(err, storage.ErrArchiveStorageNotSupported) {
-		logger.Info("Archive storage not created", zap.String("reason", err.Error()))
-		return false
-	}
-	if err != nil {
-		logger.Error("Cannot init archive storage reader", zap.Error(err))
-		return false
-	}
-	writer, err := archiveFactory.CreateArchiveSpanWriter()
-	if errors.Is(err, storage.ErrArchiveStorageNotConfigured) || errors.Is(err, storage.ErrArchiveStorageNotSupported) {
-		logger.Info("Archive storage not created", zap.String("reason", err.Error()))
-		return false
-	}
-	if err != nil {
-		logger.Error("Cannot init archive storage writer", zap.Error(err))
-		return false
-	}
-	opts.ArchiveSpanReader = reader
-	opts.ArchiveSpanWriter = writer
-	return true
 }
 
 // hasArchiveStorage returns true if archive storage reader/writer are initialized.

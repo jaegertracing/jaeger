@@ -19,18 +19,17 @@ import (
 	"google.golang.org/grpc/health"
 	"google.golang.org/grpc/health/grpc_health_v1"
 
+	"github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
 	"github.com/jaegertracing/jaeger/internal/leaderelection"
 	"github.com/jaegertracing/jaeger/internal/metrics/otelmetrics"
 	samplinggrpc "github.com/jaegertracing/jaeger/internal/sampling/grpc"
 	samplinghttp "github.com/jaegertracing/jaeger/internal/sampling/http"
 	"github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy"
+	"github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy/adaptive"
+	"github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy/file"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
-	"github.com/jaegertracing/jaeger/plugin/sampling/strategyprovider/adaptive"
-	"github.com/jaegertracing/jaeger/plugin/sampling/strategyprovider/static"
-	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
-	"github.com/jaegertracing/jaeger/storage"
-	"github.com/jaegertracing/jaeger/storage/samplingstore"
 )
 
 var _ extension.Extension = (*rsExtension)(nil)
@@ -164,7 +163,7 @@ func (ext *rsExtension) Shutdown(ctx context.Context) error {
 }
 
 func (ext *rsExtension) startFileBasedStrategyProvider(_ context.Context) error {
-	opts := static.Options{
+	opts := file.Options{
 		StrategiesFile:             ext.cfg.File.Path,
 		ReloadInterval:             ext.cfg.File.ReloadInterval,
 		IncludeDefaultOpStrategies: includeDefaultOpStrategies.IsEnabled(),
@@ -172,8 +171,8 @@ func (ext *rsExtension) startFileBasedStrategyProvider(_ context.Context) error 
 	}
 
 	// contextcheck linter complains about next line that context is not passed.
-	//nolint
-	provider, err := static.NewProvider(opts, ext.telemetry.Logger)
+	//nolint:contextcheck
+	provider, err := file.NewProvider(opts, ext.telemetry.Logger)
 	if err != nil {
 		return fmt.Errorf("failed to create the local file strategy store: %w", err)
 	}
@@ -184,14 +183,10 @@ func (ext *rsExtension) startFileBasedStrategyProvider(_ context.Context) error 
 
 func (ext *rsExtension) startAdaptiveStrategyProvider(host component.Host) error {
 	storageName := ext.cfg.Adaptive.SamplingStore
-	f, err := jaegerstorage.GetStorageFactory(storageName, host)
-	if err != nil {
-		return fmt.Errorf("cannot find storage factory: %w", err)
-	}
 
-	storeFactory, ok := f.(storage.SamplingStoreFactory)
-	if !ok {
-		return fmt.Errorf("storage '%s' does not support sampling store", storageName)
+	storeFactory, err := jaegerstorage.GetSamplingStoreFactory(storageName, host)
+	if err != nil {
+		return fmt.Errorf("failed to obtain sampling store factory: %w", err)
 	}
 
 	store, err := storeFactory.CreateSamplingStore(ext.cfg.Adaptive.AggregationBuckets)

@@ -30,18 +30,18 @@ import (
 	"go.uber.org/zap/zaptest"
 	"go.uber.org/zap/zaptest/observer"
 
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
-	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger/internal/storage/metricstore/disabled"
+	metricsmocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore/mocks"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
+	spanstoremocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/mocks"
+	depsmocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore/mocks"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
 	ui "github.com/jaegertracing/jaeger/model/json"
 	"github.com/jaegertracing/jaeger/pkg/jtracer"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
-	"github.com/jaegertracing/jaeger/plugin/metricstore/disabled"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2/metrics"
-	metricsmocks "github.com/jaegertracing/jaeger/storage/metricstore/mocks"
-	"github.com/jaegertracing/jaeger/storage/spanstore"
-	spanstoremocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
-	depsmocks "github.com/jaegertracing/jaeger/storage_v2/depstore/mocks"
-	"github.com/jaegertracing/jaeger/storage_v2/v1adapter"
 )
 
 const millisToNanosMultiplier = int64(time.Millisecond / time.Nanosecond)
@@ -769,6 +769,15 @@ func TestTransformOTLPBadPayload(t *testing.T) {
 	}, querysvc.QueryServiceOptions{})
 }
 
+func TestBadOTLPReturns400(t *testing.T) {
+	withTestServer(t, func(ts *testServer) {
+		err := postJSON(ts.server.URL+"/api/transform", "Bad Payload", nil)
+		var httpErr *HTTPError
+		require.ErrorAs(t, err, &httpErr)
+		require.Equal(t, 400, httpErr.StatusCode)
+	}, querysvc.QueryServiceOptions{})
+}
+
 func TestGetMetricsSuccess(t *testing.T) {
 	mr := &metricsmocks.Reader{}
 	apiHandlerOptions := []HandlerOption{
@@ -852,6 +861,17 @@ func TestGetMetricsSuccess(t *testing.T) {
 			assert.Equal(t, expectedMetricsQueryResponse, &response)
 		})
 	}
+}
+
+func TestGetQualityMetrics(t *testing.T) {
+	handler := &APIHandler{}
+	req := httptest.NewRequest(http.MethodGet, "/quality-metrics", nil)
+	rr := httptest.NewRecorder()
+	handler.getQualityMetrics(rr, req)
+	assert.Equal(t, http.StatusOK, rr.Code)
+	assert.Equal(t, "application/json", rr.Header().Get("Content-Type"))
+	var resp structuredResponse
+	assert.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp), "unable to unmarshal response")
 }
 
 func TestMetricsReaderError(t *testing.T) {
@@ -980,6 +1000,15 @@ func postJSON(url string, req any, out any) error {
 	return execJSON(r, make(map[string]string), out)
 }
 
+type HTTPError struct {
+	StatusCode int
+	Body       string
+}
+
+func (e *HTTPError) Error() string {
+	return fmt.Sprintf("%d error from server: %s", e.StatusCode, e.Body)
+}
+
 // execJSON executes an http request against a server and parses response as JSON
 func execJSON(req *http.Request, additionalHeaders map[string]string, out any) error {
 	req.Header.Add("Accept", "application/json")
@@ -999,7 +1028,10 @@ func execJSON(req *http.Request, additionalHeaders map[string]string, out any) e
 		if err != nil {
 			return err
 		}
-		return fmt.Errorf("%d error from server: %s", resp.StatusCode, body)
+		return &HTTPError{
+			StatusCode: resp.StatusCode,
+			Body:       string(body),
+		}
 	}
 
 	if out == nil {

@@ -6,16 +6,16 @@ package samplingstrategy
 import (
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/internal/storage/v1"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
-	"github.com/jaegertracing/jaeger/storage"
 )
 
 // Factory defines an interface for a factory that can create implementations of different sampling strategy components.
-// Implementations are also encouraged to implement plugin.Configurable interface.
+// Implementations are also encouraged to implement storage.Configurable interface.
 //
 // # See also
 //
-// plugin.Configurable
+// storage.Configurable
 type Factory interface {
 	// Initialize performs internal initialization of the factory.
 	Initialize(metricsFactory metrics.Factory, ssFactory storage.SamplingStoreFactory, logger *zap.Logger) error

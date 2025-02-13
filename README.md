@@ -136,6 +136,10 @@ Please see [ADOPTERS.md](./ADOPTERS.md) for some of the organizations using Jaeg
 If you would like to add your organization to the list, please comment on our
 [survey issue](https://github.com/jaegertracing/jaeger/issues/207).
 
+## Sponsors
+
+The Jaeger project owes its success in open source largely to the Cloud Native Computing Foundation (CNCF), our primary supporter. We deeply appreciate their vital support.  Furthermore, we are grateful to Uber for their initial, project-launching donation, and for the continuous contributions of software and infrastructure from 1Password, Codecov.io, Dosu, GitHub, Google Analytics, Netlify, and Oracle Cloud Infrastructure. Thank you for your generous support.
+
 ## License
 
 Copyright (c) The Jaeger Authors. [Apache 2.0 License](./LICENSE).

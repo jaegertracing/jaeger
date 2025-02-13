@@ -15,18 +15,18 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger-idl/model/v1"
+	"github.com/jaegertracing/jaeger/internal/storage/v1"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
+	spanstoremocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/mocks"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
+	depsmocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore/mocks"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
+	tracestoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
-	"github.com/jaegertracing/jaeger/storage"
-	"github.com/jaegertracing/jaeger/storage/dependencystore"
-	"github.com/jaegertracing/jaeger/storage/spanstore"
-	spanstoremocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
-	"github.com/jaegertracing/jaeger/storage_v2/depstore"
-	depsmocks "github.com/jaegertracing/jaeger/storage_v2/depstore/mocks"
-	"github.com/jaegertracing/jaeger/storage_v2/tracestore"
-	tracestoremocks "github.com/jaegertracing/jaeger/storage_v2/tracestore/mocks"
-	"github.com/jaegertracing/jaeger/storage_v2/v1adapter"
 )
 
 const millisToNanosMultiplier = int64(time.Millisecond / time.Nanosecond)
@@ -451,14 +451,6 @@ func TestGetCapabilitiesWithSupportsArchive(t *testing.T) {
 
 type fakeStorageFactory1 struct{}
 
-type fakeStorageFactory2 struct {
-	fakeStorageFactory1
-	r    spanstore.Reader
-	w    spanstore.Writer
-	rErr error
-	wErr error
-}
-
 func (*fakeStorageFactory1) Initialize(metrics.Factory, *zap.Logger) error {
 	return nil
 }
@@ -466,49 +458,7 @@ func (*fakeStorageFactory1) CreateSpanReader() (spanstore.Reader, error)        
 func (*fakeStorageFactory1) CreateSpanWriter() (spanstore.Writer, error)             { return nil, nil }
 func (*fakeStorageFactory1) CreateDependencyReader() (dependencystore.Reader, error) { return nil, nil }
 
-func (f *fakeStorageFactory2) CreateArchiveSpanReader() (spanstore.Reader, error) { return f.r, f.rErr }
-func (f *fakeStorageFactory2) CreateArchiveSpanWriter() (spanstore.Writer, error) { return f.w, f.wErr }
-
-var (
-	_ storage.Factory        = new(fakeStorageFactory1)
-	_ storage.ArchiveFactory = new(fakeStorageFactory2)
-)
-
-func TestInitArchiveStorageErrors(t *testing.T) {
-	opts := &QueryServiceOptions{}
-	logger := zap.NewNop()
-
-	assert.False(t, opts.InitArchiveStorage(new(fakeStorageFactory1), logger))
-	assert.False(t, opts.InitArchiveStorage(
-		&fakeStorageFactory2{rErr: storage.ErrArchiveStorageNotConfigured},
-		logger,
-	))
-	assert.False(t, opts.InitArchiveStorage(
-		&fakeStorageFactory2{rErr: errors.New("error")},
-		logger,
-	))
-	assert.False(t, opts.InitArchiveStorage(
-		&fakeStorageFactory2{wErr: storage.ErrArchiveStorageNotConfigured},
-		logger,
-	))
-	assert.False(t, opts.InitArchiveStorage(
-		&fakeStorageFactory2{wErr: errors.New("error")},
-		logger,
-	))
-}
-
-func TestInitArchiveStorage(t *testing.T) {
-	opts := &QueryServiceOptions{}
-	logger := zap.NewNop()
-	reader := &spanstoremocks.Reader{}
-	writer := &spanstoremocks.Writer{}
-	assert.True(t, opts.InitArchiveStorage(
-		&fakeStorageFactory2{r: reader, w: writer},
-		logger,
-	))
-	assert.Equal(t, reader, opts.ArchiveSpanReader)
-	assert.Equal(t, writer, opts.ArchiveSpanWriter)
-}
+var _ storage.Factory = new(fakeStorageFactory1)
 
 func TestMain(m *testing.M) {
 	testutils.VerifyGoLeaks(m)

@@ -2,7 +2,7 @@ services:
   jaeger:
     networks:
       - backend
-    image: jaegertracing/all-in-one:${JAEGER_IMAGE_TAG:-latest}
+    image: jaegertracing/all-in-one:${JAEGER_VERSION:-latest}
     volumes:
       - "./jaeger-ui.json:/etc/jaeger/jaeger-ui.json"
     command: --query.ui-config /etc/jaeger/jaeger-ui.json
@@ -33,7 +33,7 @@ services:
   microsim:
     networks:
       - backend
-    image: yurishkuro/microsim:v0.4.1
+    image: yurishkuro/microsim:v0.5.0
     command: "-d 24h -s 500ms"
     environment:
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel_collector:4318

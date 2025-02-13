@@ -16,7 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	jModel "github.com/jaegertracing/jaeger/model/json"
 )
 
@@ -85,23 +85,24 @@ func TestFromDomainEmbedProcess(t *testing.T) {
 	}
 }
 
-func loadFixturesUI(t *testing.T, i int) ([]byte, []byte) {
+func loadFixturesUI(t *testing.T, i int) (inStr []byte, outStr []byte) {
 	return loadFixtures(t, i, false)
 }
 
-func loadFixturesES(t *testing.T, i int) ([]byte, []byte) {
+func loadFixturesES(t *testing.T, i int) (inStr []byte, outStr []byte) {
 	return loadFixtures(t, i, true)
 }
 
 // Loads and returns domain model and JSON model fixtures with given number i.
-func loadFixtures(t *testing.T, i int, processEmbedded bool) ([]byte, []byte) {
+func loadFixtures(t *testing.T, i int, processEmbedded bool) (inStr []byte, outStr []byte) {
 	var in string
+	var err error
 	if processEmbedded {
 		in = fmt.Sprintf("fixtures/domain_es_%02d.json", i)
 	} else {
 		in = fmt.Sprintf("fixtures/domain_%02d.json", i)
 	}
-	inStr, err := os.ReadFile(in)
+	inStr, err = os.ReadFile(in)
 	require.NoError(t, err)
 	var out string
 	if processEmbedded {
@@ -109,7 +110,7 @@ func loadFixtures(t *testing.T, i int, processEmbedded bool) ([]byte, []byte) {
 	} else {
 		out = fmt.Sprintf("fixtures/ui_%02d.json", i)
 	}
-	outStr, err := os.ReadFile(out)
+	outStr, err = os.ReadFile(out)
 	require.NoError(t, err)
 	return inStr, outStr
 }

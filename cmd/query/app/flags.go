@@ -23,15 +23,13 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
-	v2adjuster "github.com/jaegertracing/jaeger/cmd/query/app/querysvc/v2/adjuster"
 	v2querysvc "github.com/jaegertracing/jaeger/cmd/query/app/querysvc/v2/querysvc"
-	"github.com/jaegertracing/jaeger/model/adjuster"
+	storage "github.com/jaegertracing/jaeger/internal/storage/v1/factory"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/ports"
-	"github.com/jaegertracing/jaeger/storage"
-	"github.com/jaegertracing/jaeger/storage_v2/v1adapter"
 )
 
 const (
@@ -45,6 +43,10 @@ const (
 	queryAdditionalHeaders     = "query.additional-headers"
 	queryMaxClockSkewAdjust    = "query.max-clock-skew-adjustment"
 	queryEnableTracing         = "query.enable-tracing"
+)
+
+const (
+	defaultMaxClockSkewAdjust = 0 * time.Second
 )
 
 var tlsGRPCFlagsConfig = tlscfg.ServerFlagsConfig{
@@ -94,7 +96,7 @@ func AddFlags(flagSet *flag.FlagSet) {
 	flagSet.Bool(queryLogStaticAssetsAccess, false, "Log when static assets are accessed (for debugging)")
 	flagSet.String(queryUIConfig, "", "The path to the UI configuration file in JSON format")
 	flagSet.Bool(queryTokenPropagation, false, "Allow propagation of bearer token to be used by storage plugins")
-	flagSet.Duration(queryMaxClockSkewAdjust, 0, "The maximum delta by which span timestamps may be adjusted in the UI due to clock skew; set to 0s to disable clock skew adjustments")
+	flagSet.Duration(queryMaxClockSkewAdjust, defaultMaxClockSkewAdjust, "The maximum delta by which span timestamps may be adjusted in the UI due to clock skew; set to 0s to disable clock skew adjustments")
 	flagSet.Bool(queryEnableTracing, false, "Enables emitting jaeger-query traces")
 	tlsGRPCFlagsConfig.AddFlags(flagSet)
 	tlsHTTPFlagsConfig.AddFlags(flagSet)
@@ -107,7 +109,7 @@ func (qOpts *QueryOptions) InitFromViper(v *viper.Viper, logger *zap.Logger) (*Q
 	// TODO: drop support for same host ports
 	// https://github.com/jaegertracing/jaeger/issues/6117
 	if qOpts.HTTP.Endpoint == qOpts.GRPC.NetAddr.Endpoint {
-		logger.Warn("using the same port for gRPC and HTTP is deprecated; please use dedicated ports instead; support for shared ports will be removed in Feb 2025")
+		return qOpts, errors.New("using the same port for gRPC and HTTP is not supported - use dedidcated ports instead")
 	}
 	tlsGrpc, err := tlsGRPCFlagsConfig.InitFromViper(v)
 	if err != nil {
@@ -138,32 +140,35 @@ func (qOpts *QueryOptions) InitFromViper(v *viper.Viper, logger *zap.Logger) (*Q
 	return qOpts, nil
 }
 
+type InitArchiveStorageFn func() (*storage.ArchiveStorage, error)
+
 // BuildQueryServiceOptions creates a QueryServiceOptions struct with appropriate adjusters and archive config
-func (qOpts *QueryOptions) BuildQueryServiceOptions(storageFactory storage.BaseFactory, logger *zap.Logger) *querysvc.QueryServiceOptions {
-	opts := &querysvc.QueryServiceOptions{}
-	if !opts.InitArchiveStorage(storageFactory, logger) {
-		logger.Info("Archive storage not initialized")
+func (qOpts *QueryOptions) BuildQueryServiceOptions(
+	initArchiveStorageFn InitArchiveStorageFn,
+	logger *zap.Logger,
+) (*querysvc.QueryServiceOptions, *v2querysvc.QueryServiceOptions) {
+	opts := &querysvc.QueryServiceOptions{
+		MaxClockSkewAdjust: qOpts.MaxClockSkewAdjust,
+	}
+	v2Opts := &v2querysvc.QueryServiceOptions{
+		MaxClockSkewAdjust: qOpts.MaxClockSkewAdjust,
+	}
+	as, err := initArchiveStorageFn()
+	if err != nil {
+		logger.Error("Received an error when trying to initialize archive storage", zap.Error(err))
+		return opts, v2Opts
 	}
 
-	opts.Adjuster = adjuster.Sequence(querysvc.StandardAdjusters(qOpts.MaxClockSkewAdjust)...)
-
-	return opts
-}
-
-func (qOpts *QueryOptions) BuildQueryServiceOptionsV2(storageFactory storage.BaseFactory, logger *zap.Logger) *v2querysvc.QueryServiceOptions {
-	opts := &v2querysvc.QueryServiceOptions{}
-
-	ar, aw := v1adapter.InitializeArchiveStorage(storageFactory, logger)
-	if ar != nil && aw != nil {
-		opts.ArchiveTraceReader = ar
-		opts.ArchiveTraceWriter = aw
+	if as != nil && as.Reader != nil && as.Writer != nil {
+		opts.ArchiveSpanReader = as.Reader
+		opts.ArchiveSpanWriter = as.Writer
+		v2Opts.ArchiveTraceReader = v1adapter.NewTraceReader(as.Reader)
+		v2Opts.ArchiveTraceWriter = v1adapter.NewTraceWriter(as.Writer)
 	} else {
 		logger.Info("Archive storage not initialized")
 	}
 
-	opts.Adjuster = v2adjuster.Sequence(v2adjuster.StandardAdjusters(qOpts.MaxClockSkewAdjust)...)
-
-	return opts
+	return opts, v2Opts
 }
 
 // stringSliceAsHeader parses a slice of strings and returns a http.Header.
@@ -197,6 +202,7 @@ func mapHTTPHeaderToOTELHeaders(h http.Header) map[string]configopaque.String {
 
 func DefaultQueryOptions() QueryOptions {
 	return QueryOptions{
+		MaxClockSkewAdjust: defaultMaxClockSkewAdjust,
 		HTTP: confighttp.ServerConfig{
 			Endpoint: ports.PortToHostPort(ports.QueryHTTP),
 		},

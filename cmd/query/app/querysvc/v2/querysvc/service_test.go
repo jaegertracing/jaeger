@@ -6,6 +6,7 @@ package querysvc
 import (
 	"context"
 	"fmt"
+	"iter"
 	"testing"
 	"time"
 
@@ -15,13 +16,13 @@ import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc/v2/adjuster"
-	"github.com/jaegertracing/jaeger/model"
-	"github.com/jaegertracing/jaeger/pkg/iter"
-	"github.com/jaegertracing/jaeger/storage_v2/depstore"
-	depstoremocks "github.com/jaegertracing/jaeger/storage_v2/depstore/mocks"
-	"github.com/jaegertracing/jaeger/storage_v2/tracestore"
-	tracestoremocks "github.com/jaegertracing/jaeger/storage_v2/tracestore/mocks"
+	"github.com/jaegertracing/jaeger/internal/jiter"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
+	depstoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore/mocks"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
+	tracestoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
 )
 
 const millisToNanosMultiplier = int64(time.Millisecond / time.Nanosecond)
@@ -56,12 +57,6 @@ func withArchiveTraceWriter() testOption {
 		r := &tracestoremocks.Writer{}
 		tqs.archiveTraceWriter = r
 		options.ArchiveTraceWriter = r
-	}
-}
-
-func withAdjuster(adj adjuster.Adjuster) testOption {
-	return func(_ *testQueryService, options *QueryServiceOptions) {
-		options.Adjuster = adj
 	}
 }
 
@@ -115,7 +110,7 @@ func TestGetTraces_ErrorInReader(t *testing.T) {
 		},
 	}
 	getTracesIter := tqs.queryService.GetTraces(context.Background(), params)
-	_, err := iter.FlattenWithErrors(getTracesIter)
+	_, err := jiter.FlattenWithErrors(getTracesIter)
 	require.ErrorIs(t, err, assert.AnError)
 }
 
@@ -132,7 +127,7 @@ func TestGetTraces_Success(t *testing.T) {
 		},
 	}
 	getTracesIter := tqs.queryService.GetTraces(context.Background(), params)
-	gotTraces, err := iter.FlattenWithErrors(getTracesIter)
+	gotTraces, err := jiter.FlattenWithErrors(getTracesIter)
 	require.NoError(t, err)
 	require.Len(t, gotTraces, 1)
 
@@ -204,7 +199,7 @@ func TestGetTraces_WithRawTraces(t *testing.T) {
 				RawTraces: test.rawTraces,
 			}
 			getTracesIter := tqs.queryService.GetTraces(context.Background(), params)
-			gotTraces, err := iter.FlattenWithErrors(getTracesIter)
+			gotTraces, err := jiter.FlattenWithErrors(getTracesIter)
 			require.NoError(t, err)
 
 			require.Len(t, gotTraces, 1)
@@ -233,7 +228,7 @@ func TestGetTraces_TraceInArchiveStorage(t *testing.T) {
 		},
 	}
 	getTracesIter := tqs.queryService.GetTraces(context.Background(), params)
-	gotTraces, err := iter.FlattenWithErrors(getTracesIter)
+	gotTraces, err := jiter.FlattenWithErrors(getTracesIter)
 	require.NoError(t, err)
 	require.Len(t, gotTraces, 1)
 
@@ -289,7 +284,7 @@ func TestFindTraces_Success(t *testing.T) {
 
 	query := TraceQueryParams{TraceQueryParams: queryParams}
 	getTracesIter := tqs.queryService.FindTraces(context.Background(), query)
-	gotTraces, err := iter.FlattenWithErrors(getTracesIter)
+	gotTraces, err := jiter.FlattenWithErrors(getTracesIter)
 	require.NoError(t, err)
 	require.Len(t, gotTraces, 1)
 
@@ -372,7 +367,7 @@ func TestFindTraces_WithRawTraces_PerformsAdjustment(t *testing.T) {
 				RawTraces: test.rawTraces,
 			}
 			getTracesIter := tqs.queryService.FindTraces(context.Background(), query)
-			gotTraces, err := iter.FlattenWithErrors(getTracesIter)
+			gotTraces, err := jiter.FlattenWithErrors(getTracesIter)
 			require.NoError(t, err)
 
 			require.Len(t, gotTraces, 1)
@@ -483,7 +478,8 @@ func TestFindTraces_WithRawTraces_PerformsAggregation(t *testing.T) {
 				adjustCalls++
 			})
 
-			tqs := initializeTestService(withAdjuster(adj))
+			tqs := initializeTestService()
+			tqs.queryService.adjuster = adj
 			duration, err := time.ParseDuration("20ms")
 			require.NoError(t, err)
 			now := time.Now()
@@ -507,7 +503,7 @@ func TestFindTraces_WithRawTraces_PerformsAggregation(t *testing.T) {
 				RawTraces: test.rawTraces,
 			}
 			getTracesIter := tqs.queryService.FindTraces(context.Background(), query)
-			gotTraces, err := iter.FlattenWithErrors(getTracesIter)
+			gotTraces, err := jiter.FlattenWithErrors(getTracesIter)
 			require.NoError(t, err)
 			assert.Equal(t, test.expected, gotTraces)
 			assert.Equal(t, test.expectedAdjustCalls, adjustCalls)

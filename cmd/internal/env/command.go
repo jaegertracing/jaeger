@@ -10,9 +10,9 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
-	"github.com/jaegertracing/jaeger/plugin/metricstore"
-	"github.com/jaegertracing/jaeger/plugin/sampling/strategyprovider"
-	"github.com/jaegertracing/jaeger/plugin/storage"
+	ss "github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy/metafactory"
+	"github.com/jaegertracing/jaeger/internal/storage/metricstore"
+	storage "github.com/jaegertracing/jaeger/internal/storage/v1/factory"
 )
 
 const (
@@ -66,11 +66,11 @@ func Command() *cobra.Command {
 		"The type of backend used for service dependencies storage.",
 	)
 	fs.String(
-		strategyprovider.SamplingTypeEnvVar,
+		ss.SamplingTypeEnvVar,
 		"file",
 		fmt.Sprintf(
 			strings.ReplaceAll(samplingTypeDescription, "\n", " "),
-			strings.Join(strategyprovider.AllSamplingTypes, ", "),
+			strings.Join(ss.AllSamplingTypes, ", "),
 		),
 	)
 	fs.String(
@@ -79,7 +79,7 @@ func Command() *cobra.Command {
 		fmt.Sprintf(
 			strings.ReplaceAll(samplingStorageTypeDescription, "\n", " "),
 			strings.Join(storage.AllSamplingStorageTypes(), ", "),
-			strategyprovider.SamplingTypeEnvVar,
+			ss.SamplingTypeEnvVar,
 		),
 	)
 	fs.String(
