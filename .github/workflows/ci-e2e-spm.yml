@@ -1,6 +1,7 @@
 name: Test SPM
 
 on:
+  merge_group:
   push:
     branches: [main]
 

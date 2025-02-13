@@ -16,8 +16,6 @@ permissions:
 
 jobs:
   check-label:
-    # Auto-succeed when triggered by merge_group event.
-    if: ${{ github.event_name == 'pull_request' }}
     runs-on: ubuntu-latest
     steps:
       - name: Harden Runner
