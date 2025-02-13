@@ -353,7 +353,7 @@ func testIndexOrAliasExistence(t *testing.T, existence string) {
 				exists, err = c.AliasExists("jaeger-span")
 			}
 			if test.expectedErr != "" {
-				assert.ErrorContains(t, err, test.expectedErr)
+				require.ErrorContains(t, err, test.expectedErr)
 			} else {
 				require.NoError(t, err)
 			}
