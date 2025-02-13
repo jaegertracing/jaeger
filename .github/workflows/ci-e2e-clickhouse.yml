@@ -18,7 +18,7 @@ jobs:
       fail-fast: false
       matrix:
         jaeger-version: [v2]
-        clickhouse-version: ["2.x"]
+        clickhouse-version: ["25.x"]
     name: clickhouse ${{matrix.clickhouse-version }} ${{ matrix.jaeger-version }}
     steps:
       - name: Harden Runner
@@ -40,7 +40,7 @@ jobs:
         if: matrix.jaeger-version == 'v2'
         with:
           snapshot: metrics_snapshot_clickhouse
-          artifact_key: metrics_snapshot_kafka_${{ matrix.jaeger-version }}
+          artifact_key: metrics_snapshot_clickhouse_${{ matrix.jaeger-version }}
 
       - name: Upload coverage to codecov
         uses: ./.github/actions/upload-codecov
