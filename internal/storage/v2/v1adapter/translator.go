@@ -4,13 +4,14 @@
 package v1adapter
 
 import (
+	"iter"
+
 	jaegerTranslator "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/jptrace"
-	"github.com/jaegertracing/jaeger/pkg/iter"
 )
 
 // V1BatchesFromTraces converts OpenTelemetry traces (ptrace.Traces)
