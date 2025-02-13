@@ -1,54 +1,62 @@
 #!/usr/bin/env bash
 #Requires bash version to be >=4. Will add alternative for lower versions
 set -euo pipefail
-VERSION_TYPE=""
 
-usage() {
-  echo "Usage: $0 --type [v1|v2]"
-  exit 1
-}
 
-while [[ $# -gt 0 ]]; do
-  case "$1" in
-    -t|--type)
-      VERSION_TYPE="$2"
-      shift 2
-      ;;
-    *)
-      echo "Unknown argument: $1"
-      usage
-      ;;
-  esac
-done
-
-if [[ -z "${VERSION_TYPE}" ]]; then
-  echo "Error: --type not provided."
-  usage
-fi
-
-if [[ "${VERSION_TYPE}" != "v1" && "${VERSION_TYPE}" != "v2" ]]; then
-  echo "Error: invalid --type value '${VERSION_TYPE}'. Must be 'v1' or 'v2'."
-  usage
-fi
-
-if ! current_version=$(make "echo-${VERSION_TYPE}"); then
-  echo "Error: Failed to fetch current version from make echo-${VERSION_TYPE}."
+if ! current_version_v1=$(make "echo-v1"); then
+  echo "Error: Failed to fetch current version from make echo-v1."
   exit 1
 fi
 
-current_version=$(echo "$current_version" | xargs)
-
-clean_version="${current_version#v}"
+# removing the v so that in the line "New version: v1.66.1", v cannot be removed with backspace
+clean_version="${current_version_v1#v}" 
 
 IFS='.' read -r major minor patch <<< "$clean_version"
 
-# Default to incrementing the patch number
 patch=$((patch + 1))
 suggested_version="${major}.${minor}.${patch}"
-echo "Current ${VERSION_TYPE} version: ${current_version}"
-read -e -p "New version: v" -i "${suggested_version}" user_version
+echo "Current v1 version: ${current_version_v1}"
+read -e -p "New version: v" -i "${suggested_version}" user_version_v1
 
-new_version="v${user_version}"
+if ! current_version_v2=$(make "echo-v2"); then
+  echo "Error: Failed to fetch current version from make echo-v2."
+  exit 1
+fi
+
+# removing the v so that in the line "New version: v1.66.1", v cannot be removed with backspace
+clean_version="${current_version_v2#v}" 
+
+IFS='.' read -r major minor patch <<< "$clean_version"
+
+patch=$((patch + 1))
+suggested_version="${major}.${minor}.${patch}"
+echo "Current v2 version: ${current_version_v2}"
+read -e -p "New version: v" -i "${suggested_version}" user_version_v2
+
+new_version="v${user_version_v1} / v${user_version_v2}"
 echo "Using new version: ${new_version}"
 
+
+if [ ! -f "scripts/utils/formatter.go" ]; then
+  echo "Error: scripts/utils/formatter.go not found."
+  exit 1
+fi
+
+wget -O DOC_RELEASE.md https://raw.githubusercontent.com/jaegertracing/documentation/main/RELEASE.md
+
+issue_body=$(go run scripts/utils/formatter.go)
+
+gh issue create --title "Checklist ${new_version}" --body "$issue_body"
+
+
+if ! current_version_v1=$(make "echo-v2"); then
+  echo "Error: Failed to fetch current version from make echo-v2."
+  exit 1
+fi
+
+
+rm DOC_RELEASE.md
+
 exit 1;
+
+
