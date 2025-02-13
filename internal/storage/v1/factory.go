@@ -32,11 +32,11 @@ type BaseFactory interface {
 }
 
 // Factory defines an interface for a factory that can create implementations of different storage components.
-// Implementations are also encouraged to implement plugin.Configurable interface.
+// Implementations are also encouraged to implement storage.Configurable interface.
 //
 // # See also
 //
-// plugin.Configurable
+// storage.Configurable
 type Factory interface {
 	BaseFactory
 	// Initialize performs internal initialization of the factory, such as opening connections to the backend store.
@@ -61,11 +61,11 @@ type SamplingStoreFactory interface {
 }
 
 // MetricStoreFactory defines an interface for a factory that can create implementations of different metrics storage components.
-// Implementations are also encouraged to implement plugin.Configurable interface.
+// Implementations are also encouraged to implement storage.Configurable interface.
 //
 // # See also
 //
-// plugin.Configurable
+// storage.Configurable
 type MetricStoreFactory interface {
 	// Initialize performs internal initialization of the factory, such as opening connections to the backend store.
 	// It is called after all configuration of the factory itself has been done.

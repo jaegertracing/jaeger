@@ -5,6 +5,7 @@ package v1adapter
 
 import (
 	"errors"
+	"iter"
 	"testing"
 	"time"
 
@@ -15,7 +16,6 @@ import (
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/jptrace"
-	"github.com/jaegertracing/jaeger/pkg/iter"
 )
 
 func TestProtoFromTraces_AddsWarnings(t *testing.T) {

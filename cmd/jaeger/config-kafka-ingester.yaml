@@ -10,8 +10,13 @@ service:
       service.name: jaeger
     metrics:
       level: detailed
-      # use different port to avoid conflict with collector
-      address: 0.0.0.0:8889
+      readers:
+        - pull:
+            exporter:
+              prometheus:
+                host: 0.0.0.0
+                # use different port to avoid conflict with collector
+                port: 8889
     logs:
       level: info
 

@@ -2,14 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // Package iter is a backport of Go 1.23 official "iter" package, until we upgrade.
-package iter
+package jiter
 
-type (
-	Seq[V any]     func(yield func(V) bool)
-	Seq2[K, V any] func(yield func(K, V) bool)
+import (
+	"iter"
 )
 
-func CollectWithErrors[V any](seq Seq2[V, error]) ([]V, error) {
+func CollectWithErrors[V any](seq iter.Seq2[V, error]) ([]V, error) {
 	var result []V
 	var err error
 	seq(func(v V, e error) bool {
@@ -26,7 +25,7 @@ func CollectWithErrors[V any](seq Seq2[V, error]) ([]V, error) {
 	return result, nil
 }
 
-func FlattenWithErrors[V any](seq Seq2[[]V, error]) ([]V, error) {
+func FlattenWithErrors[V any](seq iter.Seq2[[]V, error]) ([]V, error) {
 	var result []V
 	var err error
 	seq(func(v []V, e error) bool {

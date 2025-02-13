@@ -10,7 +10,12 @@ service:
       service.name: jaeger
     metrics:
       level: detailed
-      address: "${env:JAEGER_LISTEN_HOST:-localhost}:8888"
+      readers:
+        - pull:
+            exporter:
+              prometheus:
+                host: "${env:JAEGER_LISTEN_HOST:-localhost}"
+                port: 8888
     logs:
       level: info
     # TODO Initialize telemetry tracer once OTEL released new feature.

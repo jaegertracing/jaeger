@@ -15,6 +15,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
+	cLock "github.com/jaegertracing/jaeger/internal/storage/distributedlock/cassandra"
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore"
@@ -31,8 +32,6 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/distributedlock"
 	"github.com/jaegertracing/jaeger/pkg/hostname"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
-	"github.com/jaegertracing/jaeger/plugin"
-	cLock "github.com/jaegertracing/jaeger/plugin/pkg/distributedlock/cassandra"
 )
 
 const (
@@ -45,7 +44,7 @@ var ( // interface comformance checks
 	_ storage.Purger               = (*Factory)(nil)
 	_ storage.SamplingStoreFactory = (*Factory)(nil)
 	_ io.Closer                    = (*Factory)(nil)
-	_ plugin.Configurable          = (*Factory)(nil)
+	_ storage.Configurable         = (*Factory)(nil)
 	_ storage.Inheritable          = (*Factory)(nil)
 	_ storage.ArchiveCapable       = (*Factory)(nil)
 )
@@ -121,12 +120,12 @@ func (b *withConfigBuilder) build() (*Factory, error) {
 	return b.f, nil
 }
 
-// AddFlags implements plugin.Configurable
+// AddFlags implements storage.Configurable
 func (f *Factory) AddFlags(flagSet *flag.FlagSet) {
 	f.Options.AddFlags(flagSet)
 }
 
-// InitFromViper implements plugin.Configurable
+// InitFromViper implements storage.Configurable
 func (f *Factory) InitFromViper(v *viper.Viper, _ *zap.Logger) {
 	f.Options.InitFromViper(v)
 	f.configureFromOptions(f.Options)

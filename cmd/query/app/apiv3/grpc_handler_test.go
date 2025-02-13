@@ -5,6 +5,7 @@ package apiv3
 
 import (
 	"context"
+	"iter"
 	"net"
 	"testing"
 	"time"
@@ -22,7 +23,6 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	tracestoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
 	_ "github.com/jaegertracing/jaeger/pkg/gogocodec" // force gogo codec registration
-	"github.com/jaegertracing/jaeger/pkg/iter"
 )
 
 var matchContext = mock.AnythingOfType("*context.valueCtx")

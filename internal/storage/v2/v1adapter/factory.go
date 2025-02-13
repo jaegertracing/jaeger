@@ -4,7 +4,6 @@
 package v1adapter
 
 import (
-	"context"
 	"io"
 
 	storage_v1 "github.com/jaegertracing/jaeger/internal/storage/v1"
@@ -16,19 +15,40 @@ type Factory struct {
 	ss storage_v1.Factory
 }
 
-func NewFactory(ss storage_v1.Factory) *Factory {
-	return &Factory{
+func NewFactory(ss storage_v1.Factory) tracestore.Factory {
+	factory := &Factory{
 		ss: ss,
+	}
+
+	var (
+		purger, isPurger   = ss.(storage_v1.Purger)
+		sampler, isSampler = ss.(storage_v1.SamplingStoreFactory)
+	)
+
+	switch {
+	case isSampler && isPurger:
+		return struct {
+			*Factory
+			storage_v1.Purger
+			storage_v1.SamplingStoreFactory
+		}{factory, purger, sampler}
+	case isPurger:
+		return struct {
+			*Factory
+			storage_v1.Purger
+		}{factory, purger}
+	case isSampler:
+		return struct {
+			*Factory
+			storage_v1.SamplingStoreFactory
+		}{factory, sampler}
+	default:
+		return factory
 	}
 }
 
-// Initialize implements tracestore.Factory.
-func (*Factory) Initialize(_ context.Context) error {
-	panic("not implemented")
-}
-
 // Close implements tracestore.Factory.
-func (f *Factory) Close(_ context.Context) error {
+func (f *Factory) Close() error {
 	if closer, ok := f.ss.(io.Closer); ok {
 		return closer.Close()
 	}
