@@ -131,21 +131,17 @@ func receiveTraces(
 	seq iter.Seq2[[]ptrace.Traces, error],
 	sendFn func(*api_v3.TracesData) error,
 ) error {
-	var capturedErr error
-	seq(func(traces []ptrace.Traces, err error) bool {
+	for traces, err := range seq {
 		if err != nil {
-			capturedErr = err
-			return false
+			return err
 		}
 		for _, trace := range traces {
 			tracesData := api_v3.TracesData(trace)
 			if err := sendFn(&tracesData); err != nil {
-				capturedErr = status.Error(codes.Internal,
+				return status.Error(codes.Internal,
 					fmt.Sprintf("failed to send response stream chunk to client: %v", err))
-				return false
 			}
 		}
-		return true
-	})
-	return capturedErr
+	}
+	return nil
 }

@@ -4,7 +4,6 @@
 package jiter
 
 import (
-	"iter"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -12,52 +11,64 @@ import (
 )
 
 func TestCollectWithErrors(t *testing.T) {
+	type item struct {
+		str string
+		err error
+	}
 	tests := []struct {
 		name     string
-		seq      iter.Seq2[string, error]
+		items    []item
 		expected []string
 		err      error
 	}{
 		{
 			name: "no errors",
-			seq: func(yield func(string, error) bool) {
-				yield("a", nil)
-				yield("b", nil)
-				yield("c", nil)
+			items: []item{
+				{str: "a", err: nil},
+				{str: "b", err: nil},
+				{str: "c", err: nil},
 			},
 			expected: []string{"a", "b", "c"},
 		},
 		{
 			name: "first error",
-			seq: func(yield func(string, error) bool) {
-				yield("a", nil)
-				yield("b", nil)
-				yield("c", assert.AnError)
+			items: []item{
+				{str: "a", err: nil},
+				{str: "b", err: nil},
+				{str: "c", err: assert.AnError},
 			},
 			err: assert.AnError,
 		},
 		{
 			name: "second error",
-			seq: func(yield func(string, error) bool) {
-				yield("a", nil)
-				yield("b", assert.AnError)
-				yield("c", nil)
+			items: []item{
+				{str: "a", err: nil},
+				{str: "b", err: assert.AnError},
+				{str: "c", err: nil},
 			},
 			err: assert.AnError,
 		},
 		{
 			name: "third error",
-			seq: func(yield func(string, error) bool) {
-				yield("a", nil)
-				yield("b", nil)
-				yield("c", assert.AnError)
+			items: []item{
+				{str: "a", err: nil},
+				{str: "b", err: nil},
+				{str: "c", err: assert.AnError},
 			},
+
 			err: assert.AnError,
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			result, err := CollectWithErrors(test.seq)
+			seq := func(yield func(string, error) bool) {
+				for _, item := range test.items {
+					if !yield(item.str, item.err) {
+						return
+					}
+				}
+			}
+			result, err := CollectWithErrors(seq)
 			if test.err != nil {
 				require.ErrorIs(t, err, test.err)
 			} else {
@@ -69,43 +80,54 @@ func TestCollectWithErrors(t *testing.T) {
 }
 
 func TestFlattenWithErrors(t *testing.T) {
+	type item struct {
+		strs []string
+		err  error
+	}
 	tests := []struct {
 		name     string
-		seq      iter.Seq2[[]string, error]
+		items    []item
 		expected []string
 		err      error
 	}{
 		{
 			name: "no errors",
-			seq: func(yield func([]string, error) bool) {
-				yield([]string{"a", "b", "c"}, nil)
-				yield([]string{"d", "e", "f"}, nil)
-				yield([]string{"g", "h", "i"}, nil)
+			items: []item{
+				{strs: []string{"a", "b", "c"}, err: nil},
+				{strs: []string{"d", "e", "f"}, err: nil},
+				{strs: []string{"g", "h", "i"}, err: nil},
 			},
 			expected: []string{"a", "b", "c", "d", "e", "f", "g", "h", "i"},
 		},
 		{
 			name: "first error",
-			seq: func(yield func([]string, error) bool) {
-				yield([]string{"a", "b", "c"}, nil)
-				yield([]string{"d", "e", "f"}, assert.AnError)
-				yield([]string{"g", "h", "i"}, nil)
+			items: []item{
+				{strs: []string{"a", "b", "c"}, err: nil},
+				{strs: []string{"d", "e", "f"}, err: assert.AnError},
+				{strs: []string{"g", "h", "i"}, err: nil},
 			},
 			err: assert.AnError,
 		},
 		{
 			name: "second error",
-			seq: func(yield func([]string, error) bool) {
-				yield([]string{"a", "b", "c"}, nil)
-				yield([]string{"d", "e", "f"}, nil)
-				yield([]string{"g", "h", "i"}, assert.AnError)
+			items: []item{
+				{strs: []string{"a", "b", "c"}, err: nil},
+				{strs: []string{"d", "e", "f"}, err: nil},
+				{strs: []string{"g", "h", "i"}, err: assert.AnError},
 			},
 			err: assert.AnError,
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			result, err := FlattenWithErrors(test.seq)
+			seq := func(yield func([]string, error) bool) {
+				for _, item := range test.items {
+					if !yield(item.strs, item.err) {
+						return
+					}
+				}
+			}
+			result, err := FlattenWithErrors(seq)
 			if test.err != nil {
 				require.ErrorIs(t, err, test.err)
 			} else {
