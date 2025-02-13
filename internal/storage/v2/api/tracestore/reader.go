@@ -5,13 +5,13 @@ package tracestore
 
 import (
 	"context"
+	"iter"
 	"time"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
-	"github.com/jaegertracing/jaeger/pkg/iter"
 )
 
 // Reader finds and loads traces and other data from storage.

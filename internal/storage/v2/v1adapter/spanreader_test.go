@@ -5,6 +5,7 @@ package v1adapter
 
 import (
 	"context"
+	"iter"
 	"testing"
 	"time"
 
@@ -18,7 +19,6 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	tracestoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
-	"github.com/jaegertracing/jaeger/pkg/iter"
 )
 
 func TestSpanReader_GetTrace(t *testing.T) {

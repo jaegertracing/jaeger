@@ -6,6 +6,7 @@ package v1adapter
 import (
 	"context"
 	"errors"
+	"iter"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
@@ -15,7 +16,6 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
-	"github.com/jaegertracing/jaeger/pkg/iter"
 )
 
 var _ tracestore.Reader = (*TraceReader)(nil)
