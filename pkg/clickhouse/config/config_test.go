@@ -4,6 +4,7 @@
 package config
 
 import (
+	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -17,4 +18,8 @@ func TestNewClientWithDefaults(t *testing.T) {
 	client, err := cfg.NewClient(logger)
 	require.NoError(t, err)
 	assert.NotEmpty(t, client)
+}
+
+func TestMain(m *testing.M) {
+	testutils.VerifyGoLeaks(m)
 }
