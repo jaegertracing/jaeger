@@ -1,3 +1,6 @@
+// Copyright (c) 2025 The Jaeger Authors.
+// SPDX-License-Identifier: Apache-2.0
+
 package main
 
 import (
@@ -11,7 +14,7 @@ import (
 func extractSectionFromFile(filePath, startMarker, endMarker string) (string, error) {
 	data, err := os.ReadFile(filePath)
 	if err != nil {
-		return "", fmt.Errorf("error reading file: %v", err)
+		return "", fmt.Errorf("error reading file: %w", err)
 	}
 	text := string(data)
 
@@ -33,7 +36,7 @@ func extractSectionFromFile(filePath, startMarker, endMarker string) (string, er
 func extractAfterStart(filePath, startMarker string) (string, error) {
 	data, err := os.ReadFile(filePath)
 	if err != nil {
-		return "", fmt.Errorf("error reading file: %v", err)
+		return "", fmt.Errorf("error reading file: %w", err)
 	}
 	text := string(data)
 
@@ -43,7 +46,7 @@ func extractAfterStart(filePath, startMarker string) (string, error) {
 	}
 	startIndex += len(startMarker)
 
-	endIndex := len(text)-1
+	endIndex := len(text) - 1
 
 	backendSection := text[startIndex:endIndex]
 	return backendSection, nil
@@ -59,30 +62,27 @@ func main() {
 	}
 	re_star := regexp.MustCompile(`(\n\s*)(\*)(\s)`)
 	backendSection = re_star.ReplaceAllString(backendSection, "$1$2 [ ]$3")
-	re_num :=regexp.MustCompile(`(\n\s*)([0-9]*\.)(\s)`)
+	re_num := regexp.MustCompile(`(\n\s*)([0-9]*\.)(\s)`)
 	backendSection = re_num.ReplaceAllString(backendSection, "$1* [ ]$3")
 
-	docFilename:= "DOC_RELEASE.md"
+	docFilename := "DOC_RELEASE.md"
 	docStartMarker := "# Release instructions"
 	docEndMarker := "### Auto-generated documentation for CLI flags"
 	docSection, err := extractSectionFromFile(docFilename, docStartMarker, docEndMarker)
-	if err != nil{
+	if err != nil {
 		log.Fatalf("Failed to extract documentation section: %v", err)
-		
 	}
-	re_dash :=regexp.MustCompile(`(\n\s*)(\-)`)
-	docSection=re_dash.ReplaceAllString(docSection, "$1* [ ]")
-	
+	re_dash := regexp.MustCompile(`(\n\s*)(\-)`)
+	docSection = re_dash.ReplaceAllString(docSection, "$1* [ ]")
+
 	uiFilename := "jaeger-ui/RELEASE.md"
 	uiStartMarker := "# Cutting a Jaeger UI release"
 	uiSection, err := extractAfterStart(uiFilename, uiStartMarker)
-	if err != nil{
+	if err != nil {
 		log.Fatalf("Failed to extract UI section: %v", err)
 	}
 	uiSection = re_dash.ReplaceAllString(uiSection, "$1$2 [ ]$3")
 	uiSection = re_num.ReplaceAllString(uiSection, "$1* [ ]$3")
-	
-
 
 	fmt.Println("# UI Release")
 	fmt.Println(uiSection)
@@ -90,5 +90,4 @@ func main() {
 	fmt.Println(backendSection)
 	fmt.Println("# Doc Release")
 	fmt.Println(docSection)
-
 }

@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+
+# Copyright (c) 2025 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
 #Requires bash version to be >=4. Will add alternative for lower versions
 set -euo pipefail
 
