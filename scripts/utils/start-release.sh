@@ -19,7 +19,7 @@ IFS='.' read -r major minor patch <<< "$clean_version"
 patch=$((patch + 1))
 suggested_version="${major}.${minor}.${patch}"
 echo "Current v1 version: ${current_version_v1}"
-read -e -p "New version: v" -i "${suggested_version}" user_version_v1
+read -r -e -p "New version: v" -i "${suggested_version}" user_version_v1
 
 if ! current_version_v2=$(make "echo-v2"); then
   echo "Error: Failed to fetch current version from make echo-v2."
@@ -34,20 +34,20 @@ IFS='.' read -r major minor patch <<< "$clean_version"
 patch=$((patch + 1))
 suggested_version="${major}.${minor}.${patch}"
 echo "Current v2 version: ${current_version_v2}"
-read -e -p "New version: v" -i "${suggested_version}" user_version_v2
+read -r -e -p "New version: v" -i "${suggested_version}" user_version_v2
 
 new_version="v${user_version_v1} / v${user_version_v2}"
 echo "Using new version: ${new_version}"
 
 
-if [ ! -f "scripts/utils/formatter.go" ]; then
-  echo "Error: scripts/utils/formatter.go not found."
+if [ ! -f "scripts/utils/formatter.py" ]; then
+  echo "Error: scripts/utils/formatter.py not found."
   exit 1
 fi
 
 wget -O DOC_RELEASE.md https://raw.githubusercontent.com/jaegertracing/documentation/main/RELEASE.md
 
-issue_body=$(go run scripts/utils/formatter.go)
+issue_body=$(python scripts/utils/formatter.py)
 
 gh issue create --title "Checklist ${new_version}" --body "$issue_body"
 
