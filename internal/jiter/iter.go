@@ -10,34 +10,22 @@ import (
 
 func CollectWithErrors[V any](seq iter.Seq2[V, error]) ([]V, error) {
 	var result []V
-	var err error
-	seq(func(v V, e error) bool {
-		if e != nil {
-			err = e
-			return false
+	for v, err := range seq {
+		if err != nil {
+			return nil, err
 		}
 		result = append(result, v)
-		return true
-	})
-	if err != nil {
-		return nil, err
 	}
 	return result, nil
 }
 
 func FlattenWithErrors[V any](seq iter.Seq2[[]V, error]) ([]V, error) {
 	var result []V
-	var err error
-	seq(func(v []V, e error) bool {
-		if e != nil {
-			err = e
-			return false
+	for v, err := range seq {
+		if err != nil {
+			return nil, err
 		}
 		result = append(result, v...)
-		return true
-	})
-	if err != nil {
-		return nil, err
 	}
 	return result, nil
 }
