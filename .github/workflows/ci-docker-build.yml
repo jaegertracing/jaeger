@@ -1,6 +1,7 @@
 name: Build docker images
 
 on:
+  merge_group:
   push:
     branches: [main]
 

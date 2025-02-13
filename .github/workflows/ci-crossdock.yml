@@ -1,6 +1,7 @@
 name: CIT Crossdock
 
 on:
+  merge_group:
   push:
     branches: [main]
 

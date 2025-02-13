@@ -1,6 +1,7 @@
 name: CIT Hotrod
 
 on:
+  merge_group:
   push:
     branches: [main]
 
