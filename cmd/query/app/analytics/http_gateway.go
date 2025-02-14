@@ -17,7 +17,7 @@ const (
 )
 
 // HTTPGateway exposes analytics HTTP endpoints.
-type HTTPGateway struct {}
+type HTTPGateway struct{}
 
 func RegisterRoutes(router *mux.Router) {
 	addRoute(router, getDeepDependencies, routeGetDeepDependencies).Methods(http.MethodGet)
@@ -60,13 +60,13 @@ func getDeepDependencies(w http.ResponseWriter, _ *http.Request) {
 		},
 	}
 
-	json, err := json.Marshal(dependencies)
+	res, err := json.Marshal(dependencies)
 	if err != nil {
 		http.Error(w, "Failed to encode response", http.StatusNotImplemented)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	w.Write(json)
+	w.Write(res)
 }
 
 // Structs that need to be used or created for deep dependencies

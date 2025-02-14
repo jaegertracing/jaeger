@@ -31,7 +31,6 @@ func TestHTTPGateway(
 	t.Run("getDeepDependencies", gw.runGatewayGetDeepDependencies)
 }
 
-
 func (gw *testGateway) runGatewayGetDeepDependencies(t *testing.T) {
 	expectedPath := []TDdgPayloadEntry{
 		{Service: "sample-serviceA", Operation: "sample-opA"},
@@ -40,20 +39,19 @@ func (gw *testGateway) runGatewayGetDeepDependencies(t *testing.T) {
 	expectedAttributes := []Attribute{
 		{Key: "exemplar_trace_id", Value: "abc123"},
 	}
-	
+
 	body, statusCode := gw.execRequest(t, "/api/deep-dependencies")
-	
+
 	require.Equal(t, http.StatusOK, statusCode)
-	
+
 	var response TDdgPayload
 	err := json.Unmarshal(body, &response)
 	require.NoError(t, err)
-	
+
 	require.Len(t, response.Dependencies, 1)
 	require.Equal(t, expectedPath, response.Dependencies[0].Path)
 	require.Equal(t, expectedAttributes, response.Dependencies[0].Attributes)
 }
-
 
 func (gw *testGateway) execRequest(t *testing.T, url string) ([]byte, int) {
 	req, err := http.NewRequest(http.MethodGet, gw.url+url, nil)
