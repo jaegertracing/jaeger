@@ -107,6 +107,14 @@ proto-storage-v1:
 		--go_out=$(PWD)/internal/storage/v1/grpc/proto/ \
 		internal/storage/v1/grpc/proto/storage_test.proto
 
+.PHONY: proto-storage-v2
+proto-storage-v1:
+	$(call proto_compile, proto-gen/storage_v1, internal/storage/v3/grpc/proto/storage.proto, -Iinternal/storage/v2/grpc/proto)
+	$(PROTOC) \
+		-Iinternal/storage/v2/grpc/proto \
+		--go_out=$(PWD)/internal/storage/v2/grpc/proto/ \
+		internal/storage/v2/grpc/proto/storage_test.proto
+
 .PHONY: proto-hotrod
 proto-hotrod:
 	$(call proto_compile, , examples/hotrod/services/driver/driver.proto)
