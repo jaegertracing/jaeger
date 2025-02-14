@@ -5,6 +5,29 @@
 #Requires bash version to be >=4. Will add alternative for lower versions
 set -euo pipefail
 
+dry_run=false
+
+PARSED_OPTIONS=$(getopt -n "$0" -o d --long dry-run -- "$@")
+if [ $? -ne 0 ]; then
+    exit 1
+fi
+eval set -- "$PARSED_OPTIONS"
+
+while true; do
+    case "$1" in
+        -d|--dry-run)
+            dry_run=true
+            shift
+            ;;
+        --)
+            shift
+            break
+            ;;
+        *)
+            break
+            ;;
+    esac
+done
 
 if ! current_version_v1=$(make "echo-v1"); then
   echo "Error: Failed to fetch current version from make echo-v1."
@@ -50,11 +73,10 @@ wget -O "$TMPFILE" https://raw.githubusercontent.com/jaegertracing/documentation
 
 issue_body=$(python scripts/utils/formatter.py "${TMPFILE}" "${user_version_v1}" "${user_version_v2}")
 
-gh issue create --title "Checklist ${new_version}" --body "$issue_body"
-
-if ! current_version_v1=$(make "echo-v2"); then
-  echo "Error: Failed to fetch current version from make echo-v2."
-  exit 1
+if $dry_run; then
+  echo "${issue_body}"
+else
+  gh issue create --title "Checklist ${new_version}" --body "$issue_body"
 fi
 
 rm "${TMPFILE}"
