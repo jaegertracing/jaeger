@@ -16,7 +16,7 @@ clean_version="${current_version_v1#v}"
 
 IFS='.' read -r major minor patch <<< "$clean_version"
 
-patch=$((patch + 1))
+minor=$((minor + 1))
 suggested_version="${major}.${minor}.${patch}"
 echo "Current v1 version: ${current_version_v1}"
 read -r -e -p "New version: v" -i "${suggested_version}" user_version_v1
@@ -31,7 +31,7 @@ clean_version="${current_version_v2#v}"
 
 IFS='.' read -r major minor patch <<< "$clean_version"
 
-patch=$((patch + 1))
+minor=$((minor + 1))
 suggested_version="${major}.${minor}.${patch}"
 echo "Current v2 version: ${current_version_v2}"
 read -r -e -p "New version: v" -i "${suggested_version}" user_version_v2
