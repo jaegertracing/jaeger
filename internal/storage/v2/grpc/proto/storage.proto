@@ -10,9 +10,8 @@ option go_package = "storage_v2";
 
 // GetTraceRequest represents a query to get a single trace from the storage backend.
 message GetTraceRequest {
-    // trace_id is a 16 byte hex-encoded string containing the unique 
-    // identifier for the trace to query. 
-    string trace_id = 1;
+    // trace_id is a 16 byte array containing the unique identifier for the trace to query. 
+    bytes trace_id = 1;
     // start_time is the start of the time interval to search for the trace_id.
     // This field is optional.
     google.protobuf.Timestamp start_time = 2 [

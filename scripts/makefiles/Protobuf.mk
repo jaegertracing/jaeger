@@ -109,7 +109,7 @@ proto-storage-v1:
 
 .PHONY: proto-storage-v2
 proto-storage-v1:
-	$(call proto_compile, proto-gen/storage_v1, internal/storage/v3/grpc/proto/storage.proto, -Iinternal/storage/v2/grpc/proto)
+	$(call proto_compile, proto-gen/storage_v1, internal/storage/v2/grpc/proto/storage.proto, -Iinternal/storage/v2/grpc/proto)
 	$(PROTOC) \
 		-Iinternal/storage/v2/grpc/proto \
 		--go_out=$(PWD)/internal/storage/v2/grpc/proto/ \
