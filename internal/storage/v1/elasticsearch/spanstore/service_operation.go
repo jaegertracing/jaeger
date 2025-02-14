@@ -99,32 +99,12 @@ func getServicesAggregation(maxDocCount int) elastic.Query {
 		Size(maxDocCount) // ES deprecated size omission for aggregating all. https://github.com/elastic/elasticsearch/issues/18838
 }
 
-func (s *ServiceOperationStorage) getOperationsWithKind(ctx context.Context, indices []string, service, kind string, maxDocCount int) ([]spanstore.Operation, error) {
-	var searchService es.SearchService
+func (s *ServiceOperationStorage) getOperations(ctx context.Context, indices []string, service, kind string, maxDocCount int) ([]spanstore.Operation, error) {
 	if kind != "" {
-		searchService = s.client().Search(indices...).
-			Size(0). // set to 0 because we don't want actual documents.
-			Query(elastic.NewBoolQuery().Must(
-				elastic.NewTermQuery(serviceName, service),
-				elastic.NewTermQuery(spanKindField, kind))).
-			IgnoreUnavailable(true).
-			Aggregation(operationsAggName, getOperationsAggregation(maxDocCount))
-		searchResult, err := searchService.Do(ctx)
-		if err != nil {
-			return nil, fmt.Errorf("search operations failed: %w", es.DetailedError(err))
-		}
-		if searchResult.Aggregations == nil {
-			return []spanstore.Operation{}, nil
-		}
-		bucket, found := searchResult.Aggregations.Terms(operationsAggName)
-		if !found {
-			return nil, errors.New("could not find aggregation of " + operationsAggName)
-		}
-		operationNamesBucket := bucket.Buckets
-		return bucketOfOperationNamesToOperationsArray(operationNamesBucket, kind)
+		return s.getOperationsWithKind(ctx, indices, service, kind, maxDocCount)
 	}
 	serviceQuery := elastic.NewTermQuery(serviceName, service)
-	searchService = s.client().Search(indices...).
+	searchService := s.client().Search(indices...).
 		Query(serviceQuery).
 		IgnoreUnavailable(true).
 		FetchSourceContext(elastic.NewFetchSourceContext(true).Include(spanKindField, operationNameField)).
@@ -137,6 +117,29 @@ func (s *ServiceOperationStorage) getOperationsWithKind(ctx context.Context, ind
 		return []spanstore.Operation{}, nil
 	}
 	return bucketOfOperationsToOperationsArray(searchResult.Hits)
+}
+
+func (s *ServiceOperationStorage) getOperationsWithKind(ctx context.Context, indices []string, service, kind string, maxDocCount int) ([]spanstore.Operation, error) {
+	searchService := s.client().Search(indices...).
+		Size(0). // set to 0 because we don't want actual documents.
+		Query(elastic.NewBoolQuery().Must(
+			elastic.NewTermQuery(serviceName, service),
+			elastic.NewTermQuery(spanKindField, kind))).
+		IgnoreUnavailable(true).
+		Aggregation(operationsAggName, getOperationsAggregation(maxDocCount))
+	searchResult, err := searchService.Do(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("search operations failed: %w", es.DetailedError(err))
+	}
+	if searchResult.Aggregations == nil {
+		return []spanstore.Operation{}, nil
+	}
+	bucket, found := searchResult.Aggregations.Terms(operationsAggName)
+	if !found {
+		return nil, errors.New("could not find aggregation of " + operationsAggName)
+	}
+	operationNamesBucket := bucket.Buckets
+	return bucketOfOperationNamesToOperationsArray(operationNamesBucket, kind)
 }
 
 func getOperationsAggregation(maxDocCount int) elastic.Query {

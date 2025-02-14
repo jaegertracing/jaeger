@@ -298,7 +298,7 @@ func (s *SpanReader) GetOperations(
 		currentTime,
 		cfg.RolloverFrequencyAsNegativeDuration(s.serviceIndex.RolloverFrequency),
 	)
-	operations, err := s.serviceOperationStorage.getOperationsWithKind(ctx, jaegerIndices, query.ServiceName, query.SpanKind, s.maxDocCount)
+	operations, err := s.serviceOperationStorage.getOperations(ctx, jaegerIndices, query.ServiceName, query.SpanKind, s.maxDocCount)
 	if err != nil {
 		return nil, err
 	}
