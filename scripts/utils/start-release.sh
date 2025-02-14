@@ -45,20 +45,19 @@ if [ ! -f "scripts/utils/formatter.py" ]; then
   exit 1
 fi
 
-wget -O DOC_RELEASE.md https://raw.githubusercontent.com/jaegertracing/documentation/main/RELEASE.md
+TMPFILE=$(mktemp "/tmp/DOC_RELEASE.XXXXXX") 
+wget -O "$TMPFILE" https://raw.githubusercontent.com/jaegertracing/documentation/main/RELEASE.md
 
-issue_body=$(python scripts/utils/formatter.py)
+issue_body=$(python scripts/utils/formatter.py ${TMPFILE})
 
 gh issue create --title "Checklist ${new_version}" --body "$issue_body"
-
 
 if ! current_version_v1=$(make "echo-v2"); then
   echo "Error: Failed to fetch current version from make echo-v2."
   exit 1
 fi
 
-
-rm DOC_RELEASE.md
+rm ${TMPFILE}
 
 exit 1;
 

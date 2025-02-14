@@ -40,11 +40,13 @@ def extract_after_start(file_path, start_marker):
     return text[start_index:end_index]
 
 def main():
-
+    
+    loc = sys.argv[1]
     try:
         backend_file_name = "RELEASE.md"
-        backend_start_marker = "# Jaeger Backend Release Process"
-        backend_end_marker = "## Patch Release"
+        backend_start_marker = "<!-- BEGIN_BACKEND -->"
+        backend_end_marker = "<!-- END_BACKEND -->"
+
         backend_section = extract_section_from_file(backend_file_name, backend_start_marker, backend_end_marker)
     except Exception as e:
         sys.exit(f"Failed to extract backendSection: {e}")
@@ -55,7 +57,7 @@ def main():
     backend_section = re_num.sub(r'\1* [ ]\3', backend_section)
 
     try:
-        doc_filename = "DOC_RELEASE.md"
+        doc_filename = loc
         doc_start_marker = "# Release instructions"
         doc_end_marker = "### Auto-generated documentation for CLI flags"
         doc_section = extract_section_from_file(doc_filename, doc_start_marker, doc_end_marker)
