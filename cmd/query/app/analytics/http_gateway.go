@@ -10,7 +10,6 @@ import (
 	"github.com/gorilla/mux"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel/trace"
-	"go.uber.org/zap"
 )
 
 const (
@@ -18,17 +17,15 @@ const (
 )
 
 // HTTPGateway exposes analytics HTTP endpoints.
-type HTTPGateway struct {
-	Logger *zap.Logger
-}
+type HTTPGateway struct {}
 
-func (h *HTTPGateway) RegisterRoutes(router *mux.Router) {
-	h.addRoute(router, h.getDeepDependencies, routeGetDeepDependencies).Methods(http.MethodGet)
+func RegisterRoutes(router *mux.Router) {
+	addRoute(router, getDeepDependencies, routeGetDeepDependencies).Methods(http.MethodGet)
 }
 
 // addRoute adds a new endpoint to the router with given path and handler function.
 // This code is mostly copied from ../http_handler.
-func (*HTTPGateway) addRoute(
+func addRoute(
 	router *mux.Router,
 	f func(http.ResponseWriter, *http.Request),
 	route string,
@@ -48,7 +45,7 @@ func spanNameHandler(spanName string, handler http.Handler) http.Handler {
 	})
 }
 
-func (h *HTTPGateway) getDeepDependencies(w http.ResponseWriter, _ *http.Request) {
+func getDeepDependencies(w http.ResponseWriter, _ *http.Request) {
 	dependencies := TDdgPayload{
 		Dependencies: []TDdgPayloadPath{
 			{
@@ -63,10 +60,13 @@ func (h *HTTPGateway) getDeepDependencies(w http.ResponseWriter, _ *http.Request
 		},
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(dependencies); err != nil {
-		h.Logger.Error("Failed to encode response", zap.Error(err))
+	json, err := json.Marshal(dependencies)
+	if err != nil {
+		http.Error(w, "Failed to encode response", http.StatusNotImplemented)
+		return
 	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(json)
 }
 
 // Structs that need to be used or created for deep dependencies

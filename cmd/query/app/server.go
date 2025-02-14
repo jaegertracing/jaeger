@@ -183,9 +183,7 @@ func initRouter(
 		Tracer:       telset.TracerProvider,
 	}).RegisterRoutes(r)
 
-	(&analytics.HTTPGateway{
-		Logger: telset.Logger,
-	}).RegisterRoutes(r)
+	analytics.RegisterRoutes(r)
 
 	apiHandler.RegisterRoutes(r)
 	staticHandlerCloser := RegisterStaticHandler(r, telset.Logger, queryOpts, querySvc.GetCapabilities())
