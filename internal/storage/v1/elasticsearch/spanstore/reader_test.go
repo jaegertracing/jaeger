@@ -677,6 +677,26 @@ func testGetWithKind(typ string, t *testing.T, testKind bool) {
 				return ""
 			},
 		})
+		nonStringKeyAggregations := make(map[string]*json.RawMessage)
+		nonStringKeyMessage := []byte(`{"buckets": [{"key": 123,"doc_count": 16}]}`)
+		nonStringKeyAggregations[typ] = (*json.RawMessage)(&nonStringKeyMessage)
+		testCases = append(testCases, testGetStruct{
+			caption:      typ + " non-string-key error",
+			searchResult: &elastic.SearchResult{Aggregations: nonStringKeyAggregations},
+			expectedError: func() string {
+				return "non-string key found in aggregation"
+			},
+		})
+		testCases = append(testCases, testGetStruct{
+			caption:      typ + " nil aggregation",
+			searchResult: &elastic.SearchResult{Aggregations: nil},
+			expectedError: func() string {
+				return ""
+			},
+			expectedOutput: map[string]any{
+				operationsAggName: []spanstore.Operation{},
+			},
+		})
 	}
 
 	if typ == operationsAggName && !testKind {
@@ -704,6 +724,25 @@ func testGetWithKind(typ string, t *testing.T, testKind bool) {
 			},
 			expectedError: func() string {
 				return ""
+			},
+		})
+		badMessage := json.RawMessage(`{bad message}`)
+		badHitModel := &elastic.SearchHits{
+			TotalHits: 1,
+			MaxScore:  &score,
+			Hits: []*elastic.SearchHit{
+				{
+					Score:  &score,
+					Id:     "e232b0fbe5cebc85",
+					Source: &badMessage,
+				},
+			},
+		}
+		testCases = append(testCases, testGetStruct{
+			caption:      typ + " marshalling error",
+			searchResult: &elastic.SearchResult{Hits: badHitModel},
+			expectedError: func() string {
+				return "invalid character 'b' looking for beginning of object key string"
 			},
 		})
 	}
