@@ -8,16 +8,12 @@ import (
 	"net/http"
 
 	"github.com/gorilla/mux"
-	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel/trace"
 )
 
 const (
 	routeGetDeepDependencies = "/api/deep-dependencies"
 )
-
-// HTTPGateway exposes analytics HTTP endpoints.
-type HTTPGateway struct{}
 
 func RegisterRoutes(router *mux.Router) {
 	addRoute(router, getDeepDependencies, routeGetDeepDependencies).Methods(http.MethodGet)
@@ -32,7 +28,6 @@ func addRoute(
 	_ ...any, /* args */
 ) *mux.Route {
 	var handler http.Handler = http.HandlerFunc(f)
-	handler = otelhttp.WithRouteTag(route, handler)
 	handler = spanNameHandler(route, handler)
 	return router.HandleFunc(route, handler.ServeHTTP)
 }
@@ -59,7 +54,6 @@ func getDeepDependencies(w http.ResponseWriter, _ *http.Request) {
 			},
 		},
 	}
-
 	res, err := json.Marshal(dependencies)
 	if err != nil {
 		http.Error(w, "Failed to encode response", http.StatusNotImplemented)
