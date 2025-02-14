@@ -56,7 +56,7 @@ func getDeepDependencies(w http.ResponseWriter, _ *http.Request) {
 	}
 	res, err := json.Marshal(dependencies)
 	if err != nil {
-		http.Error(w, "Failed to encode response", http.StatusNotImplemented)
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
