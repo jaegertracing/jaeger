@@ -41,6 +41,7 @@
 3. Create a release on Github:
     * Automated:
        * `make draft-release`
+    <!-- BEGIN_MANUAL -->  
     * Manual:
        * Title "Release 1.x.x / 2.x.x"
        * Tag `v1.x.x` (note the `v` prefix) and choose appropriate branch (usually `main`)
@@ -50,6 +51,8 @@
          Before doing the previous step, you can click that button and then remove everything
          except the New Contributors section. Change the header to `### 👏 New Contributors`,
          then copy the main changelog above it. [Example](https://github.com/jaegertracing/jaeger/releases/tag/v1.55.0).
+    <!-- END_MANUAL -->  
+    
 4. Go to [Publish Release](https://github.com/jaegertracing/jaeger/actions/workflows/ci-release.yml) workflow on GitHub
    and run it manually using Run Workflow button on the right.
    1. For monitoring and troubleshooting, open the logs of the workflow run from above URL.
