@@ -42,6 +42,9 @@ def extract_after_start(file_path, start_marker):
 def main():
     
     loc = sys.argv[1]
+    v1 = sys.argv[2]
+    v2 = sys.argv[3]
+
     try:
         backend_file_name = "RELEASE.md"
         backend_start_marker = "<!-- BEGIN_BACKEND -->"
@@ -82,6 +85,17 @@ def main():
     ui_section = re.sub(manual_pattern, '', ui_section, flags=re.DOTALL)
     ui_section = re_dash.sub(r'\1* [ ]', ui_section)
     ui_section = re_num.sub(r'\1* [ ]\3', ui_section)
+
+    #Concrete version
+    v1_pattern = r'(?:X\.Y\.Z|1\.[0-9]+\.[0-9]+|1\.x\.x)'
+    ui_section = re.sub(v1_pattern, v1, ui_section)
+    backend_section = re.sub(v1_pattern, v1, backend_section)
+    doc_section = re.sub(v1_pattern, v1, doc_section)
+
+    v2_pattern = r'2.x.x'
+    ui_section = re.sub(v2_pattern, v2, ui_section)
+    backend_section = re.sub(v2_pattern, v2, backend_section)
+    doc_section = re.sub(v2_pattern, v2, doc_section)
 
     print("# UI Release")
     print(ui_section)

@@ -48,7 +48,7 @@ fi
 TMPFILE=$(mktemp "/tmp/DOC_RELEASE.XXXXXX") 
 wget -O "$TMPFILE" https://raw.githubusercontent.com/jaegertracing/documentation/main/RELEASE.md
 
-issue_body=$(python scripts/utils/formatter.py "${TMPFILE}")
+issue_body=$(python scripts/utils/formatter.py "${TMPFILE}" "${user_version_v1}" "${user_version_v2}")
 
 gh issue create --title "Checklist ${new_version}" --body "$issue_body"
 
