@@ -51,6 +51,10 @@ def main():
     except Exception as e:
         sys.exit(f"Failed to extract backendSection: {e}")
 
+    manual_start = "<!-- BEGIN_MANUAL -->"
+    manual_end = "<!-- END_MANUAL -->"
+    manual_pattern = f"{manual_start}.*?{manual_end}"
+    backend_section = re.sub(manual_pattern, '', backend_section, flags=re.DOTALL)
     re_star = re.compile(r'(\n\s*)(\*)(\s)')
     backend_section = re_star.sub(r'\1\2 [ ]\3', backend_section)
     re_num = re.compile(r'(\n\s*)([0-9]*\.)(\s)')
@@ -64,6 +68,7 @@ def main():
     except Exception as e:
         sys.exit(f"Failed to extract documentation section: {e}")
 
+    doc_section = re.sub(manual_pattern, '', doc_section, flags=re.DOTALL)
     re_dash = re.compile(r'(\n\s*)(\-)')
     doc_section = re_dash.sub(r'\1* [ ]', doc_section)
 
@@ -74,6 +79,7 @@ def main():
     except Exception as e:
         sys.exit(f"Failed to extract UI section: {e}")
 
+    ui_section = re.sub(manual_pattern, '', ui_section, flags=re.DOTALL)
     ui_section = re_dash.sub(r'\1* [ ]', ui_section)
     ui_section = re_num.sub(r'\1* [ ]\3', ui_section)
 
