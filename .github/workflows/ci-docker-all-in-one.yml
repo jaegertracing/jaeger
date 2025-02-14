@@ -1,6 +1,7 @@
 name: Build all-in-one
 
 on:
+  merge_group:
   push:
     branches: [main]
 

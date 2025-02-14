@@ -1,6 +1,7 @@
 name: Test Tail Sampling Processor
 
 on:
+  merge_group:
   push:
     branches: [main]
 

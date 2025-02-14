@@ -1,6 +1,7 @@
 name: Verify PR Label
 
 on:
+  merge_group:
   pull_request:
     types:
       - opened
@@ -23,7 +24,7 @@ jobs:
           egress-policy: audit
 
       - name: Check PR label
-        if: github.event.pull_request.user.login != 'dependabot'
+        if: ${{ github.event.pull_request.user.login != 'dependabot' && github.event_name != 'merge_group' }}
         run: |
           LABEL_NAME="changelog:"
           if [[ $(curl -s "https://api.github.com/repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}" | jq -r '.labels[].name' | grep -c "^$LABEL_NAME") -eq 0 ]]; then

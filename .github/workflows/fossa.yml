@@ -1,6 +1,7 @@
 name: FOSSA
 
 on:
+  merge_group:
   push:
     branches: [main]
 
