@@ -48,7 +48,7 @@ fi
 TMPFILE=$(mktemp "/tmp/DOC_RELEASE.XXXXXX") 
 wget -O "$TMPFILE" https://raw.githubusercontent.com/jaegertracing/documentation/main/RELEASE.md
 
-issue_body=$(python scripts/utils/formatter.py ${TMPFILE})
+issue_body=$(python scripts/utils/formatter.py "${TMPFILE}")
 
 gh issue create --title "Checklist ${new_version}" --body "$issue_body"
 
@@ -57,7 +57,7 @@ if ! current_version_v1=$(make "echo-v2"); then
   exit 1
 fi
 
-rm ${TMPFILE}
+rm "${TMPFILE}"
 
 exit 1;
 
