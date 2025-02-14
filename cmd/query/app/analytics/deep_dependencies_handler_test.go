@@ -21,10 +21,8 @@ func TestGetDeepDependencies(t *testing.T) {
 
 	req, err := http.NewRequest(http.MethodGet, routeGetDeepDependencies, nil)
 	require.NoError(t, err)
-
 	rw := httptest.NewRecorder()
 	router.ServeHTTP(rw, req)
-
 	require.Equal(t, http.StatusOK, rw.Code)
 
 	var response TDdgPayload
