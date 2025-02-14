@@ -76,7 +76,7 @@ issue_body=$(python scripts/utils/formatter.py "${TMPFILE}" "${user_version_v1}"
 if $dry_run; then
   echo "${issue_body}"
 else
-  gh issue create --title "Checklist ${new_version}" --body "$issue_body"
+  gh issue create --title "Prepare Jaeger Release ${new_version}" --body "$issue_body"
 fi
 
 rm "${TMPFILE}"
