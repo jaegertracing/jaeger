@@ -8,8 +8,8 @@ import "opentelemetry/proto/trace/v1/trace.proto";
 
 option go_package = "storage";
 
-// GetTraceRequest represents the query for a single trace from the storage backend.
-message GetTraceRequest {
+// GetTraceParams represents the query for a single trace from the storage backend.
+message GetTraceParams {
     // trace_id is a 16 byte array containing the unique identifier for the trace to query. 
     bytes trace_id = 1;
     // start_time is the start of the time interval to search for the trace_id.
@@ -28,7 +28,7 @@ message GetTraceRequest {
 
 // GetTracesRequest represents a request to retrieve multiple traces.
 message GetTracesRequest {
-  repeated GetTraceRequest trace_requests = 1;
+  repeated GetTraceParams query = 1;
 }
 
 service TraceReader {
@@ -43,5 +43,5 @@ service TraceReader {
 	// - If no spans are found for any given trace ID, the ID is ignored.
 	// - If none of the trace IDs are found in the storage, an empty response is returned.
 	// - If an error is encountered, the iterator returns the error and stops.
-    rpc GetTraces(GetTraceRequest) returns (stream opentelemetry.proto.trace.v1.TracesData) {}
+    rpc GetTraces(GetTracesRequest) returns (stream opentelemetry.proto.trace.v1.TracesData) {}
 }
