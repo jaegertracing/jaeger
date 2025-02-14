@@ -12,12 +12,14 @@ option go_package = "storage";
 message GetTraceParams {
     // trace_id is a 16 byte array containing the unique identifier for the trace to query. 
     bytes trace_id = 1;
+
     // start_time is the start of the time interval to search for the trace_id.
     //
     // This field is optional.
     google.protobuf.Timestamp start_time = 2 [
       (gogoproto.stdtime) = true
     ];
+    
     // end_time is the end of the time interval to search for the trace_id.
     //
     // This field is optional.
@@ -42,6 +44,6 @@ service TraceReader {
 	// Edge cases:
 	// - If no spans are found for any given trace ID, the ID is ignored.
 	// - If none of the trace IDs are found in the storage, an empty response is returned.
-	// - If an error is encountered, the iterator returns the error and stops.
+	// - If an error is encountered, the stream returns the error and stops.
     rpc GetTraces(GetTracesRequest) returns (stream opentelemetry.proto.trace.v1.TracesData) {}
 }
