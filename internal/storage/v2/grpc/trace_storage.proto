@@ -48,13 +48,13 @@ message GetOperationsRequest {
   // spans generated in a particular context.
   //
   // This field is optional.
-  opentelemetry.proto.trace.v1.SpanKind span_kind = 2;
+  opentelemetry.proto.trace.v1.Span.SpanKind span_kind = 2;
 }
 
 // Operation contains information about an operation for a given service.
 message Operation {
   string name = 1;
-  string span_kind = 2;
+  opentelemetry.proto.trace.v1.Span.SpanKind span_kind = 2;
 }
 
 // GetOperationsResponse represents the response for GetOperationsRequest.
