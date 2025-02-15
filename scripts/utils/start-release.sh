@@ -8,28 +8,17 @@ set -euo pipefail
 
 dry_run=false
 
-PARSED_OPTIONS=$(getopt -n "$0" -o d --long dry-run -- "$@")
-if [ $? -ne 0 ]; then
-    exit 1
-fi
-eval set -- "$PARSED_OPTIONS"
-
-while true; do
-    case "$1" in
-        -d|--dry-run)
+while getopts "d" opt; do
+    case "${opt}" in
+        d)
             dry_run=true
-            shift
-            ;;
-        --)
-            shift
-            break
             ;;
         *)
-            break
+            echo "Usage: $0 [-d]"
+            exit 1
             ;;
     esac
 done
-
 if ! current_version_v1=$(make "echo-v1"); then
   echo "Error: Failed to fetch current version from make echo-v1."
   exit 1

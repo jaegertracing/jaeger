@@ -10,7 +10,7 @@
 
 # Jaeger Backend Release Process
 
-<!-- BEGIN_BACKEND -->
+<!-- BEGIN_CHECKLIST -->
 
 1. Create a PR "Prepare release 1.x.x / 2.x.x" against main or maintenance branch ([example](https://github.com/jaegertracing/jaeger/pull/543/files)) by updating CHANGELOG.md to include:
     * A new section with the header `1.x.x / 2.x.x (YYYY-MM-DD)` (copy the template at the top)
@@ -47,7 +47,7 @@
    2. Check the images are available on [Docker Hub](https://hub.docker.com/r/jaegertracing/)
       and binaries are uploaded [to the release]()https://github.com/jaegertracing/jaeger/releases.
 
-<!-- END_BACKEND -->
+<!-- END_CHECKLIST -->
 
 ## Manual release
 
