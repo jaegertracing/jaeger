@@ -10,6 +10,8 @@ import (
 
 	"github.com/ClickHouse/ch-go"
 	"github.com/ClickHouse/ch-go/chpool"
+	clientV2 "github.com/ClickHouse/clickhouse-go/v2"
+	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/clickhouse"
@@ -70,7 +72,13 @@ func (c *Configuration) NewClient(logger *zap.Logger) (clickhouse.Client, error)
 	if err != nil {
 		return nil, err
 	}
-	return wrapper.WrapCHClient(nil, pool), nil
+
+	conn, err := c.newConn()
+	if err != nil {
+		return nil, err
+	}
+
+	return wrapper.WrapCHClient(conn, pool), nil
 }
 
 func (c *Configuration) newPool(log *zap.Logger) (*chpool.Pool, error) {
@@ -90,4 +98,19 @@ func (c *Configuration) newPool(log *zap.Logger) (*chpool.Pool, error) {
 	}
 	chPool, err := chpool.Dial(context.Background(), option)
 	return chPool, err
+}
+
+func (c *Configuration) newConn() (driver.Conn, error) {
+	addr := make([]string, 0, len(c.ClientConfig.Address))
+	addr = append(addr, c.ClientConfig.Address)
+	option := clientV2.Options{
+		Addr: addr,
+		Auth: clientV2.Auth{
+			Username: c.ClientConfig.Username,
+			Password: c.ClientConfig.Password,
+			Database: c.ClientConfig.Database,
+		},
+	}
+	conn, err := clientV2.Open(&option)
+	return conn, err
 }

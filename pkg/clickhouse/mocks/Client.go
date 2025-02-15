@@ -41,7 +41,7 @@ func (_m *Client) Close() error {
 }
 
 // Do provides a mock function with given fields: ctx, query
-func (_m *Client) Do(ctx context.Context, query clickhouse.QueryParam) error {
+func (_m *Client) Do(ctx context.Context, query clickhouse.ChQuery) error {
 	ret := _m.Called(ctx, query)
 
 	if len(ret) == 0 {
@@ -49,7 +49,7 @@ func (_m *Client) Do(ctx context.Context, query clickhouse.QueryParam) error {
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, clickhouse.QueryParam) error); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, clickhouse.ChQuery) error); ok {
 		r0 = rf(ctx, query)
 	} else {
 		r0 = ret.Error(0)

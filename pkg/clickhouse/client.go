@@ -6,19 +6,21 @@ package clickhouse
 import (
 	"context"
 
+	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 )
 
 // Client is an abstraction collection of ch-go and clickhouse-go.
 type Client interface {
-	Do(ctx context.Context, query QueryParam) error
+	Do(ctx context.Context, query ChQuery) error
+	Query(ctx context.Context, query string, args ...any) (driver.Rows, error)
 	Close() error
 }
 
-// QueryParam Parameters for executing write operations
+// ChQuery Parameters for executing WRITE operations
 // Body: SQL Insert Statement
 // Input: Batch Insert Data.
-type QueryParam struct {
+type ChQuery struct {
 	Body  string
 	Input ptrace.Traces
 }

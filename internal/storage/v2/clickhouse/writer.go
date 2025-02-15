@@ -60,7 +60,7 @@ func (t *TraceWriter) WriteTraces(ctx context.Context, td ptrace.Traces) error {
 
 func (t *TraceWriter) writeTraces(ctx context.Context, td ptrace.Traces) error {
 	// TODO SQL injection?
-	param := clickhouse.QueryParam{
+	param := clickhouse.ChQuery{
 		Body:  fmt.Sprintf(insertTrace, t.table),
 		Input: td,
 	}
