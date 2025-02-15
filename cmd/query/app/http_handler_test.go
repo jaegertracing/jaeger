@@ -31,6 +31,7 @@ import (
 	"go.uber.org/zap/zaptest/observer"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
+	"github.com/jaegertracing/jaeger/cmd/query/app/qualitymetrics"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	"github.com/jaegertracing/jaeger/internal/storage/metricstore/disabled"
 	metricsmocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore/mocks"
@@ -870,8 +871,9 @@ func TestGetQualityMetrics(t *testing.T) {
 	handler.getQualityMetrics(rr, req)
 	assert.Equal(t, http.StatusOK, rr.Code)
 	assert.Equal(t, "application/json", rr.Header().Get("Content-Type"))
-	var resp structuredResponse
-	assert.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp), "unable to unmarshal response")
+	var resp qualitymetrics.TQualityMetrics
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
+	require.Contains(t, resp.TraceQualityDocumentationLink, "github.com/jaegertracing")
 }
 
 func TestMetricsReaderError(t *testing.T) {
