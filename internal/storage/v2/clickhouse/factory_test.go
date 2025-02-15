@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/ClickHouse/ch-go/cht"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
@@ -27,8 +28,9 @@ func TestClickHouseFactoryWithConfig(t *testing.T) {
 	cht.New(t,
 		cht.WithLog(zap.NewNop()),
 	)
-	_, err := NewFactoryWithConfig(&cfg, zap.NewNop())
+	f, err := NewFactoryWithConfig(&cfg, zap.NewNop())
 	require.NoError(t, err)
+	defer f.Close()
 }
 
 func TestCreateTraceWriter(t *testing.T) {
@@ -40,6 +42,8 @@ func TestCreateTraceWriter(t *testing.T) {
 
 	f, err := NewFactoryWithConfig(&cfg, zap.NewNop())
 	require.NoError(t, err)
-	_, err = f.CreateTraceWriter()
+	traceWriter, err := f.CreateTraceWriter()
 	require.NoError(t, err)
+	assert.NotEmpty(t, traceWriter)
+	defer f.Close()
 }

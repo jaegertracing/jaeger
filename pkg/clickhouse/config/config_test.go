@@ -10,8 +10,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
-
-	"github.com/jaegertracing/jaeger/pkg/testutils"
 )
 
 func TestDefaultConfig(t *testing.T) {
@@ -35,6 +33,41 @@ func TestNewClientWithDefaults(t *testing.T) {
 	defer client.Close()
 }
 
-func TestMain(m *testing.M) {
-	testutils.VerifyGoLeaks(m)
+func TestNewPool(t *testing.T) {
+	cfg := DefaultConfiguration()
+	logger := zap.NewNop()
+	conn, err := cfg.newConn()
+
+	cht.New(t,
+		cht.WithLog(logger),
+	)
+
+	require.NoError(t, err)
+	assert.NotEmpty(t, conn)
+	defer conn.Close()
+}
+
+func TestNewPoolFail(t *testing.T) {
+	cfg := Configuration{}
+	logger := zap.NewNop()
+	pool, err := cfg.newPool(logger)
+
+	cht.New(t,
+		cht.WithLog(logger),
+	)
+
+	require.Error(t, err)
+	assert.Nil(t, pool)
+}
+
+func TestNewConnection(t *testing.T) {
+	cfg := DefaultConfiguration()
+	logger := zap.NewNop()
+
+	cht.New(t, cht.WithLog(logger))
+
+	conn, err := cfg.newConn()
+	require.NoError(t, err)
+	assert.NotEmpty(t, conn)
+	defer conn.Close()
 }

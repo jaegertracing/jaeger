@@ -97,6 +97,9 @@ func (c *Configuration) newPool(log *zap.Logger) (*chpool.Pool, error) {
 		HealthCheckPeriod: c.ConnectionPoolConfig.HealthCheckPeriod,
 	}
 	chPool, err := chpool.Dial(context.Background(), option)
+	if err != nil {
+		return nil, err
+	}
 	return chPool, err
 }
 
@@ -112,5 +115,8 @@ func (c *Configuration) newConn() (driver.Conn, error) {
 		},
 	}
 	conn, err := clientV2.Open(&option)
+	if err != nil {
+		return nil, err
+	}
 	return conn, err
 }
