@@ -872,7 +872,7 @@ func TestGetQualityMetrics(t *testing.T) {
 	assert.Equal(t, http.StatusOK, rr.Code)
 	assert.Equal(t, "application/json", rr.Header().Get("Content-Type"))
 	var resp qualitymetrics.TQualityMetrics
-	assert.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
 	require.Contains(t, resp.TraceQualityDocumentationLink, "github.com/jaegertracing")
 }
 
