@@ -2,6 +2,7 @@
 
 # Copyright (c) 2025 The Jaeger Authors.
 # SPDX-License-Identifier: Apache-2.0
+
 #Requires bash version to be >=4. Will add alternative for lower versions
 set -euo pipefail
 
@@ -65,10 +66,6 @@ new_version="v${user_version_v1} / v${user_version_v2}"
 echo "Using new version: ${new_version}"
 
 
-if [ ! -f "scripts/utils/formatter.py" ]; then
-  echo "Error: scripts/utils/formatter.py not found."
-  exit 1
-fi
 
 TMPFILE=$(mktemp "/tmp/DOC_RELEASE.XXXXXX") 
 wget -O "$TMPFILE" https://raw.githubusercontent.com/jaegertracing/documentation/main/RELEASE.md

@@ -6,12 +6,8 @@ import re
 import sys
 
 def extract_section_from_file(file_path, start_marker, end_marker):
-    try:
-        with open(file_path, 'r') as f:
-            text = f.read()
-    except Exception as e:
-        raise Exception(f"error reading file: {e}") from e
-
+    with open(file_path, 'r') as f:
+        text = f.read()
     start_index = text.find(start_marker)
     if start_index == -1:
         raise Exception(f"start marker {start_marker!r} not found")
@@ -24,11 +20,8 @@ def extract_section_from_file(file_path, start_marker, end_marker):
     return text[start_index:end_index]
 
 def extract_after_start(file_path, start_marker):
-    try:
-        with open(file_path, 'r') as f:
-            text = f.read()
-    except Exception as e:
-        raise Exception(f"error reading file: {e}") from e
+    with open(file_path, 'r') as f:
+        text = f.read()
 
     start_index = text.find(start_marker)
     if start_index == -1:
