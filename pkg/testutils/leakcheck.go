@@ -55,6 +55,14 @@ func ignoreHttpTransportReadLoopLeak() goleak.Option {
 	return goleak.IgnoreTopFunction("net/http.(*persistConn).readLoop")
 }
 
+func ignoreBackgroundHealthCheck() goleak.Option {
+	return goleak.IgnoreTopFunction("github.com/ClickHouse/ch-go/chpool.(*Pool).backgroundHealthCheck")
+}
+
+func ignoreStartAutoCloseIdleConnections() goleak.Option {
+	return goleak.IgnoreTopFunction("github.com/ClickHouse/clickhouse-go/v2.(*clickhouse).startAutoCloseIdleConnections")
+}
+
 // VerifyGoLeaks verifies that unit tests do not leak any goroutines.
 // It should be called in TestMain.
 func VerifyGoLeaks(m *testing.M) {
@@ -81,4 +89,8 @@ func VerifyGoLeaksOnceForES(t *testing.T) {
 // This must not be used anywhere else other than integration package in ES environment for v1
 func VerifyGoLeaksForES(m *testing.M) {
 	goleak.VerifyTestMain(m, ignoreHttpTransportWriteLoopLeak(), ignoreHttpTransportPollRuntimeLeak(), ignoreHttpTransportReadLoopLeak())
+}
+
+func VerifyGoLeaksForCH(m *testing.M) {
+	goleak.VerifyTestMain(m, ignoreHttpTransportWriteLoopLeak(), ignoreHttpTransportPollRuntimeLeak(), ignoreBackgroundHealthCheck(), ignoreStartAutoCloseIdleConnections())
 }

@@ -6,7 +6,6 @@ package clickhouse
 import (
 	"testing"
 
-	"github.com/ClickHouse/ch-go/cht"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -24,10 +23,7 @@ func TestClickHouseFactoryWithConfig(t *testing.T) {
 		},
 		ConnectionPoolConfig: config.ConnectionPoolConfig{},
 	}
-	// provide a tcp server for testing.
-	cht.New(t,
-		cht.WithLog(zap.NewNop()),
-	)
+
 	f, err := NewFactoryWithConfig(&cfg, zap.NewNop())
 	require.NoError(t, err)
 	defer f.Close()
@@ -35,10 +31,6 @@ func TestClickHouseFactoryWithConfig(t *testing.T) {
 
 func TestCreateTraceWriter(t *testing.T) {
 	cfg := config.DefaultConfiguration()
-	// provide a tcp server for testing.
-	cht.New(t,
-		cht.WithLog(zap.NewNop()),
-	)
 
 	f, err := NewFactoryWithConfig(&cfg, zap.NewNop())
 	require.NoError(t, err)

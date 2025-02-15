@@ -6,7 +6,6 @@ package config
 import (
 	"testing"
 
-	"github.com/ClickHouse/ch-go/cht"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -23,11 +22,8 @@ func TestNewClientWithDefaults(t *testing.T) {
 	cfg := DefaultConfiguration()
 	logger := zap.NewNop()
 
-	cht.New(t,
-		cht.WithLog(logger),
-	)
-
 	client, err := cfg.NewClient(logger)
+
 	require.NoError(t, err)
 	assert.NotEmpty(t, client)
 	defer client.Close()
@@ -36,11 +32,7 @@ func TestNewClientWithDefaults(t *testing.T) {
 func TestNewPool(t *testing.T) {
 	cfg := DefaultConfiguration()
 	logger := zap.NewNop()
-	conn, err := cfg.newConn()
-
-	cht.New(t,
-		cht.WithLog(logger),
-	)
+	conn, err := cfg.newPool(logger)
 
 	require.NoError(t, err)
 	assert.NotEmpty(t, conn)
@@ -52,19 +44,12 @@ func TestNewPoolFail(t *testing.T) {
 	logger := zap.NewNop()
 	pool, err := cfg.newPool(logger)
 
-	cht.New(t,
-		cht.WithLog(logger),
-	)
-
 	require.Error(t, err)
 	assert.Nil(t, pool)
 }
 
 func TestNewConnection(t *testing.T) {
 	cfg := DefaultConfiguration()
-	logger := zap.NewNop()
-
-	cht.New(t, cht.WithLog(logger))
 
 	conn, err := cfg.newConn()
 	require.NoError(t, err)
