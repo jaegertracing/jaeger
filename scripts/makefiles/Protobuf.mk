@@ -24,7 +24,8 @@ PATCHED_OTEL_PROTO_DIR = proto-gen/.patched-otel-proto
 PROTO_INCLUDES := \
 	-Iidl/proto/api_v2 \
 	-Imodel/proto/metrics \
-	-I/usr/include/github.com/gogo/protobuf
+	-I/usr/include/github.com/gogo/protobuf \
+	-Iidl/opentelemetry-proto
 
 # Remapping of std types to gogo types (must not contain spaces)
 PROTO_GOGO_MAPPINGS := $(shell echo \
@@ -79,6 +80,7 @@ endef
 
 .PHONY: proto
 proto: proto-storage-v1 \
+	proto-storage-v2 \
 	proto-hotrod \
 	proto-zipkin \
 	proto-openmetrics \
@@ -106,6 +108,10 @@ proto-storage-v1:
 		-Iinternal/storage/v1/grpc/proto \
 		--go_out=$(PWD)/internal/storage/v1/grpc/proto/ \
 		internal/storage/v1/grpc/proto/storage_test.proto
+
+.PHONY: proto-storage-v2
+proto-storage-v2:
+	$(call proto_compile, proto-gen/storage/v2, internal/storage/v2/grpc/trace_storage.proto, -Iinternal/storage/v2/grpc/)
 
 .PHONY: proto-hotrod
 proto-hotrod:

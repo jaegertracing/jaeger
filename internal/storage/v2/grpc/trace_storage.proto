@@ -1,0 +1,49 @@
+syntax = "proto3";
+
+package jaeger.storage.v2;
+
+import "gogoproto/gogo.proto";
+import "google/protobuf/timestamp.proto";
+import "opentelemetry/proto/trace/v1/trace.proto";
+
+option go_package = "storage";
+
+// GetTraceParams represents the query for a single trace from the storage backend.
+message GetTraceParams {
+    // trace_id is a 16 byte array containing the unique identifier for the trace to query. 
+    bytes trace_id = 1;
+
+    // start_time is the start of the time interval to search for the trace_id.
+    //
+    // This field is optional.
+    google.protobuf.Timestamp start_time = 2 [
+      (gogoproto.stdtime) = true
+    ];
+    
+    // end_time is the end of the time interval to search for the trace_id.
+    //
+    // This field is optional.
+    google.protobuf.Timestamp end_time = 3 [
+      (gogoproto.stdtime) = true
+    ];
+}
+
+// GetTracesRequest represents a request to retrieve multiple traces.
+message GetTracesRequest {
+  repeated GetTraceParams query = 1;
+}
+
+service TraceReader {
+	// GetTraces returns a stream that retrieves all traces with given IDs.
+	//
+	// Chunking requirements:
+	// - A single TracesData chunk MUST NOT contain spans from multiple traces.
+	// - Large traces MAY be split across multiple, *consecutive* TracesData chunks.
+	// - Each returned TracesData object MUST NOT be empty.
+	//
+	// Edge cases:
+	// - If no spans are found for any given trace ID, the ID is ignored.
+	// - If none of the trace IDs are found in the storage, an empty response is returned.
+	// - If an error is encountered, the stream returns the error and stops.
+    rpc GetTraces(GetTracesRequest) returns (stream opentelemetry.proto.trace.v1.TracesData) {}
+}
