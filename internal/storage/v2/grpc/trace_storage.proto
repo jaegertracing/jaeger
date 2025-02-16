@@ -103,6 +103,11 @@ message TraceQueryParams {
   int max_traces = 8;
 }
 
+// FindTracesRequest represents a request to find traces.
+message FindTracesRequest {
+  TraceQueryParams query = 1;
+}
+
 service TraceReader {
   // GetTraces returns a stream that retrieves all traces with given IDs.
   //
@@ -135,7 +140,7 @@ service TraceReader {
   // There's currently an implementation-dependent ambiguity whether all query filters
   // (such as multiple tags) must apply to the same span within a trace, or can be satisfied
   // by different spans.
-  rpc FindTraces(TraceQueryParams) returns (stream opentelemetry.proto.trace.v1.TracesData) {}
+  rpc FindTraces(FindTracesRequest) returns (stream opentelemetry.proto.trace.v1.TracesData) {}
 
   // FindTraceIDs returns a stream that retrieves IDs of traces matching query parameters.
   //
@@ -146,5 +151,5 @@ service TraceReader {
   // of matching trace IDs. This is useful in some contexts, such as batch jobs, where a
   // large list of trace IDs may be queried first and then the full traces are loaded
   // in batches.
-  rpc FindTraceIDs(TraceQueryParams) returns (stream bytes) {}
+  rpc FindTraceIDs(FindTracesRequest) returns (stream bytes) {}
 }
