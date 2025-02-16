@@ -159,6 +159,8 @@ service TraceReader {
   rpc FindTraceIDs(FindTracesRequest) returns (FindTraceIDsResponse) {}
 }
 
+// The TraceWriter is used for pushing a batch of traces to the storage backend.
+// This service is comptaible with OTEL's TraceService.
 service TraceWriter {
   rpc Export(opentelemetry.proto.collector.trace.v1.ExportTraceServiceRequest) returns (opentelemetry.proto.collector.trace.v1.ExportTraceServiceResponse) {}
 }
