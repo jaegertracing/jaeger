@@ -5,6 +5,7 @@ package jaeger.storage.v2;
 import "gogoproto/gogo.proto";
 import "google/protobuf/duration.proto";
 import "google/protobuf/timestamp.proto";
+import "opentelemetry/proto/collector/trace/v1/trace_service.proto";
 import "opentelemetry/proto/trace/v1/trace.proto";
 
 option go_package = "storage";
@@ -152,4 +153,8 @@ service TraceReader {
   // large list of trace IDs may be queried first and then the full traces are loaded
   // in batches.
   rpc FindTraceIDs(FindTracesRequest) returns (stream bytes) {}
+}
+
+service TraceWriter {
+  rpc Export(opentelemetry.proto.collector.trace.v1.ExportTraceServiceRequest) returns (opentelemetry.proto.collector.trace.v1.ExportTraceServiceResponse) {}
 }
