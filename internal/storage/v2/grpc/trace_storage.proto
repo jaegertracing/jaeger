@@ -101,12 +101,16 @@ message TraceQueryParams {
   // max_traces is the maximum number of traces to return. If the number of traces
   // matching the query is greater than this number, only the first max_traces
   // traces will be returned.
-  int max_traces = 8;
+  int32 max_traces = 8;
 }
 
 // FindTracesRequest represents a request to find traces.
 message FindTracesRequest {
   TraceQueryParams query = 1;
+}
+
+message FindTraceIDsResponse {
+  repeated bytes trace_ids = 1;
 }
 
 service TraceReader {
@@ -152,7 +156,7 @@ service TraceReader {
   // of matching trace IDs. This is useful in some contexts, such as batch jobs, where a
   // large list of trace IDs may be queried first and then the full traces are loaded
   // in batches.
-  rpc FindTraceIDs(FindTracesRequest) returns (stream bytes) {}
+  rpc FindTraceIDs(FindTracesRequest) returns (FindTraceIDsResponse) {}
 }
 
 service TraceWriter {
