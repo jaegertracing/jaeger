@@ -4,7 +4,6 @@ package jaeger.storage.v2;
 
 import "gogoproto/gogo.proto";
 import "google/protobuf/timestamp.proto";
-import "model.proto";
 
 option go_package = "storage";
 
@@ -21,8 +20,23 @@ message GetDependenciesRequest {
   ];
 }
 
+// Dependency represents a relationship between two services.
+message Dependency {
+  // parent is the name of the caller service.
+  string parent = 1;
+
+  // child is the name of the service being called.
+  string child = 2;
+
+  // call_count is the number of times the parent service called the child service.
+  uint64 call_count = 3;
+
+  // source contains the origin from where the dependency was extracted.
+  string source = 4;
+}
+
 message GetDependenciesResponse {
-  repeated jaeger.api_v2.DependencyLink dependencies = 1 [(gogoproto.nullable) = false];
+  repeated Dependency dependencies = 1 [(gogoproto.nullable) = false];
 }
 
 service DependencyReader {
