@@ -74,15 +74,15 @@ message TraceQueryParams {
   // Attributes are matched against the attributes of the resources and spans.
   // At least one span in a trace must match all specified attributes.
   map<string, string> attributes = 3;
-  // start_time is the start of the time interval for the query. All the returned traces
+  // start_time_min is the start of the time interval for the query. All the returned traces
   // will contain spans that have started after this time.
-  google.protobuf.Timestamp start_time = 4 [
+  google.protobuf.Timestamp start_time_min = 4 [
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = false
   ];
-  // end_time is the end of the time interval for the query. All the returned traces
+  // start_time_max is the end of the time interval for the query. All the returned traces
   // will contain spans that have started before this time.
-  google.protobuf.Timestamp end_time = 5 [
+  google.protobuf.Timestamp start_time_max = 5 [
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = false
   ];
