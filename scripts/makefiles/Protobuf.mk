@@ -112,6 +112,7 @@ proto-storage-v1:
 .PHONY: proto-storage-v2
 proto-storage-v2:
 	$(call proto_compile, proto-gen/storage/v2, internal/storage/v2/grpc/trace_storage.proto, -Iinternal/storage/v2/grpc/)
+	$(call proto_compile, proto-gen/storage/v2, internal/storage/v2/grpc/dependency_storage.proto, -Iinternal/storage/v2/grpc/)
 
 .PHONY: proto-hotrod
 proto-hotrod:
