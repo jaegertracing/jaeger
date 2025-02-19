@@ -12,6 +12,7 @@ import (
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/confmap"
+	"go.opentelemetry.io/collector/confmap/xconfmap"
 	"go.opentelemetry.io/collector/featuregate"
 
 	"github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy/adaptive"
@@ -24,9 +25,9 @@ var (
 )
 
 var (
-	_ component.Config          = (*Config)(nil)
-	_ component.ConfigValidator = (*Config)(nil)
-	_ confmap.Unmarshaler       = (*Config)(nil)
+	_ component.Config    = (*Config)(nil)
+	_ xconfmap.Validator  = (*Config)(nil)
+	_ confmap.Unmarshaler = (*Config)(nil)
 
 	includeDefaultOpStrategies = featuregate.GlobalRegistry().MustRegister(
 		"jaeger.sampling.includeDefaultOpStrategies",
