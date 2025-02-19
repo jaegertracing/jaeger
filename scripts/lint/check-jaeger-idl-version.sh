@@ -19,6 +19,7 @@ get_gomod_version() {
 
 get_submodule_version() {
   cd idl
+  git fetch --tags
   commit_version=$(git rev-parse HEAD)
   semver=$(git describe --tags --exact-match "$commit_version")
   if [ ! "$semver" ]; then
