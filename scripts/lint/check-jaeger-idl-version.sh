@@ -20,7 +20,7 @@ get_gomod_version() {
 get_submodule_version() {
   cd idl
   commit_version=$(git rev-parse HEAD)
-  semver=$(git describe --tags --match "v*" --exact-match "$commit_version")
+  semver=$(git describe --tags --exact-match "$commit_version")
   if [ ! "$semver" ]; then
     printf "Error: failed getting version from submodule\n" >&2
     exit 1
