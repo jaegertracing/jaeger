@@ -190,6 +190,12 @@ lint-goleak:
 lint-go: $(LINT)
 	$(LINT) -v run
 
+.PHONY: lint-jaeger-idl-version
+lint-jaeger-idl-version:
+	@echo Checking jaeger-idl version consistency between go.mod and submodule...
+	./scripts/lint/check-jaeger-idl-version.sh
+
+
 .PHONY: run-all-in-one
 run-all-in-one: build-ui
 	go run ./cmd/all-in-one --log-level debug
