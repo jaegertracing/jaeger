@@ -83,6 +83,9 @@ jobs:
       with:
         submodules: recursive
 
+    - name: Initialize and update submodule
+      run: git submodule update --init --recursive
+
     - name: check jaeger-idl versions across git submodule and go.mod dependency
       run: make lint-jaeger-idl-versions
 
