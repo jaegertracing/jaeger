@@ -6,6 +6,7 @@ import "gogoproto/gogo.proto";
 import "google/protobuf/duration.proto";
 import "google/protobuf/timestamp.proto";
 import "opentelemetry/proto/collector/trace/v1/trace_service.proto";
+import "opentelemetry/proto/common/v1/common.proto";
 import "opentelemetry/proto/trace/v1/trace.proto";
 
 option go_package = "storage";
@@ -65,12 +66,12 @@ message GetOperationsResponse {
 }
 
 // TraceQueryParameters contains query paramters to find traces. For a detailed
-// definition of each field in this message, refer to `TraceQueryParameters` in
-// `jaeger.api_v3`.
+// definition of each field in this message, refer to `TraceQueryParameters` in `jaeger.api_v3`
+// (https://github.com/jaegertracing/jaeger-idl/blob/main/proto/api_v3/query_service.proto).
 message TraceQueryParameters {
   string service_name = 1;
   string operation_name = 2;
-  map<string, string> attributes = 3;
+  repeated opentelemetry.proto.common.v1.KeyValue attributes = 3;
   google.protobuf.Timestamp start_time_min = 4 [
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = false
@@ -87,10 +88,7 @@ message TraceQueryParameters {
     (gogoproto.stdduration) = true,
     (gogoproto.nullable) = false
   ];
-  // max_traces is the maximum number of traces to return. If the number of traces
-  // matching the query is greater than this number, only the first max_traces
-  // traces will be returned.
-  int32 max_traces = 8;
+  int32 search_depth = 8;
 }
 
 // FindTracesRequest represents a request to find traces.
@@ -113,7 +111,6 @@ service TraceReader {
   // Edge cases:
   // - If no spans are found for any given trace ID, the ID is ignored.
   // - If none of the trace IDs are found in the storage, an empty response is returned.
-  // - If an error is encountered, the stream returns the error and stops.
   rpc GetTraces(GetTracesRequest) returns (stream opentelemetry.proto.trace.v1.TracesData) {}
 
   // GetServices returns all service names known to the backend from traces
@@ -129,17 +126,11 @@ service TraceReader {
   // The chunking rules are the same as for GetTraces.
   //
   // If no matching traces are found, an empty stream is returned.
-  // If an error is encountered, the iterator returns the error and stops.
-  //
-  // There's currently an implementation-dependent ambiguity whether all query filters
-  // (such as multiple tags) must apply to the same span within a trace, or can be satisfied
-  // by different spans.
   rpc FindTraces(FindTracesRequest) returns (stream opentelemetry.proto.trace.v1.TracesData) {}
 
   // FindTraceIDs returns a stream that retrieves IDs of traces matching query parameters.
   //
   // If no matching traces are found, an empty stream is returned.
-  // If an error is encountered, the stream returns the error and stops.
   //
   // This call behaves identically to FindTraces, except that it returns only the list
   // of matching trace IDs. This is useful in some contexts, such as batch jobs, where a
