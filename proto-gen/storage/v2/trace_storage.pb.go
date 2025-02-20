@@ -440,6 +440,8 @@ func (m *TraceQueryParameters) GetSearchDepth() int32 {
 }
 
 // FindTracesRequest represents a request to find traces.
+// It can be used to retrieve the traces (FindTraces) or simply
+// the trace IDs (FindTraceIDs).
 type FindTracesRequest struct {
 	Query                *TraceQueryParameters `protobuf:"bytes,1,opt,name=query,proto3" json:"query,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}              `json:"-"`
@@ -478,6 +480,7 @@ func (m *FindTracesRequest) GetQuery() *TraceQueryParameters {
 	return nil
 }
 
+// FindTraceIDsResponse represents the response for FindTracesRequest.
 type FindTraceIDsResponse struct {
 	TraceIds             [][]byte `protobuf:"bytes,1,rep,name=trace_ids,json=traceIds,proto3" json:"trace_ids,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
