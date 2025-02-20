@@ -92,10 +92,13 @@ message TraceQueryParameters {
 }
 
 // FindTracesRequest represents a request to find traces.
+// It can be used to retrieve the traces (FindTraces) or simply 
+// the trace IDs (FindTraceIDs).
 message FindTracesRequest {
   TraceQueryParameters query = 1;
 }
 
+// FindTraceIDsResponse represents the response for FindTracesRequest.
 message FindTraceIDsResponse {
   repeated bytes trace_ids = 1;
 }
