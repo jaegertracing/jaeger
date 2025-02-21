@@ -12,13 +12,13 @@ import (
 	"go.uber.org/zap"
 )
 
-func setTLSConfiguration(config *configtls.ClientConfig, saramaConfig *sarama.Config, logger *zap.Logger) error {
-    tlsConfig, err := config.LoadTLSConfig(context.Background())
-    if err != nil {
-        return fmt.Errorf("error loading tls config: %w", err)
-    }
-    
-    saramaConfig.Net.TLS.Enable = true
-    saramaConfig.Net.TLS.Config = tlsConfig
-    return nil
+func setTLSConfiguration(config *configtls.ClientConfig, saramaConfig *sarama.Config, _ *zap.Logger) error {
+	tlsConfig, err := config.LoadTLSConfig(context.Background())
+	if err != nil {
+		return fmt.Errorf("error loading tls config: %w", err)
+	}
+
+	saramaConfig.Net.TLS.Enable = true
+	saramaConfig.Net.TLS.Config = tlsConfig
+	return nil
 }
