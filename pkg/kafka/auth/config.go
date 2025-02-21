@@ -43,11 +43,11 @@ func (config *AuthenticationConfig) SetConfiguration(saramaConfig *sarama.Config
 	if strings.Trim(authentication, " ") == "" {
 		authentication = none
 	}
-   if config.Authentication == tls || !config.TLS.Insecure {
-        if err := setTLSConfiguration(&config.TLS, saramaConfig, logger); err != nil {
-            return err
-        }
-    }
+	if config.Authentication == tls || !config.TLS.Insecure {
+		if err := setTLSConfiguration(&config.TLS, saramaConfig, logger); err != nil {
+			return err
+		}
+	}
 
 	switch authentication {
 	case none:
@@ -58,7 +58,7 @@ func (config *AuthenticationConfig) SetConfiguration(saramaConfig *sarama.Config
 		setKerberosConfiguration(&config.Kerberos, saramaConfig)
 		return nil
 	case plaintext:
-        return setPlainTextConfiguration(&config.PlainText, saramaConfig)
+		return setPlainTextConfiguration(&config.PlainText, saramaConfig)
 	default:
 		return fmt.Errorf("Unknown/Unsupported authentication method %s to kafka cluster", config.Authentication)
 	}
@@ -76,22 +76,22 @@ func (config *AuthenticationConfig) InitFromViper(configPrefix string, v *viper.
 	config.Kerberos.KeyTabPath = v.GetString(configPrefix + kerberosPrefix + suffixKerberosKeyTab)
 	config.Kerberos.DisablePAFXFast = v.GetBool(configPrefix + kerberosPrefix + suffixKerberosDisablePAFXFAST)
 
-	if config.Authentication == tls || v.GetBool(configPrefix+".tls.enabled"){
-        tlsClientConfig := tlscfg.ClientFlagsConfig{
-            Prefix: configPrefix,
-        }
-        tlsCfg, err := tlsClientConfig.InitFromViper(v)
-        if err != nil {
-            return fmt.Errorf("failed to process Kafka TLS options: %w", err)
-        }
-        config.TLS = tlsCfg
+	tlsEnabled := v.GetBool(configPrefix + ".tls.enabled")
+	if config.Authentication == tls || v.GetBool(configPrefix+".tls.enabled") {
+		tlsClientConfig := tlscfg.ClientFlagsConfig{
+			Prefix: configPrefix,
+		}
+		tlsCfg, err := tlsClientConfig.InitFromViper(v)
+		if err != nil {
+			return fmt.Errorf("failed to process Kafka TLS options: %w", err)
+		}
+		config.TLS = tlsCfg
 	} else {
-        // Explicitly set TLS to insecure when disabled
-        config.TLS = configtls.ClientConfig{
-            Insecure: true,
-        }
-    }
-
+		// Explicitly set TLS to insecure when disabled
+		config.TLS = configtls.ClientConfig{
+			Insecure: true,
+		}
+	}
 
 	config.PlainText.Username = v.GetString(configPrefix + plainTextPrefix + suffixPlainTextUsername)
 	config.PlainText.Password = v.GetString(configPrefix + plainTextPrefix + suffixPlainTextPassword)
