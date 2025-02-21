@@ -5,7 +5,6 @@ package jaeger.storage.v2;
 import "gogoproto/gogo.proto";
 import "google/protobuf/duration.proto";
 import "google/protobuf/timestamp.proto";
-import "opentelemetry/proto/collector/trace/v1/trace_service.proto";
 import "opentelemetry/proto/common/v1/common.proto";
 import "opentelemetry/proto/trace/v1/trace.proto";
 
@@ -92,7 +91,7 @@ message TraceQueryParameters {
 }
 
 // FindTracesRequest represents a request to find traces.
-// It can be used to retrieve the traces (FindTraces) or simply 
+// It can be used to retrieve the traces (FindTraces) or simply
 // the trace IDs (FindTraceIDs).
 message FindTracesRequest {
   TraceQueryParameters query = 1;
@@ -103,6 +102,11 @@ message FindTraceIDsResponse {
   repeated bytes trace_ids = 1;
 }
 
+// TraceReader is a service that allows reading traces from storage.
+// Note that if you implement this service, you should also implement
+// OTEL's TraceService in package opentelemetry.proto.collector.trace.v1
+// to allow pushing traces to the storage backend
+// (https://github.com/open-telemetry/opentelemetry-proto/blob/main/opentelemetry/proto/collector/trace/v1/trace_service.proto)
 service TraceReader {
   // GetTraces returns a stream that retrieves all traces with given IDs.
   //
@@ -140,10 +144,4 @@ service TraceReader {
   // large list of trace IDs may be queried first and then the full traces are loaded
   // in batches.
   rpc FindTraceIDs(FindTracesRequest) returns (FindTraceIDsResponse) {}
-}
-
-// The TraceWriter is used for pushing a batch of traces to the storage backend.
-// This service is comptaible with OTEL's TraceService.
-service TraceWriter {
-  rpc Export(opentelemetry.proto.collector.trace.v1.ExportTraceServiceRequest) returns (opentelemetry.proto.collector.trace.v1.ExportTraceServiceResponse) {}
 }
