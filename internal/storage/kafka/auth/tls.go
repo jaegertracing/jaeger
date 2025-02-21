@@ -20,9 +20,5 @@ func setTLSConfiguration(config *configtls.ClientConfig, saramaConfig *sarama.Co
     
     saramaConfig.Net.TLS.Enable = true
     saramaConfig.Net.TLS.Config = tlsConfig
-    logger.Info("TLS configuration enabled for Kafka client", 
-        zap.Bool("skip_verify", config.InsecureSkipVerify),
-        zap.String("ca_file", config.CAFile),
-        zap.Bool("system_ca_enabled", config.Config.IncludeSystemCACertsPool))
     return nil
 }
