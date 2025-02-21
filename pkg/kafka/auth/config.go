@@ -76,7 +76,6 @@ func (config *AuthenticationConfig) InitFromViper(configPrefix string, v *viper.
 	config.Kerberos.KeyTabPath = v.GetString(configPrefix + kerberosPrefix + suffixKerberosKeyTab)
 	config.Kerberos.DisablePAFXFast = v.GetBool(configPrefix + kerberosPrefix + suffixKerberosDisablePAFXFAST)
 
-	tlsEnabled := v.GetBool(configPrefix + ".tls.enabled")
 	if config.Authentication == tls || v.GetBool(configPrefix+".tls.enabled") {
 		tlsClientConfig := tlscfg.ClientFlagsConfig{
 			Prefix: configPrefix,
