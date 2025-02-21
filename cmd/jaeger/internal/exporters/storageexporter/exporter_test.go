@@ -173,6 +173,7 @@ func makeStorageExtension(t *testing.T, memstoreName string) component.Host {
 	storageExtension, err := extensionFactory.Create(
 		context.Background(),
 		extension.Settings{
+			ID:                jaegerstorage.ID,
 			TelemetrySettings: telemetrySettings,
 		},
 		&jaegerstorage.Config{

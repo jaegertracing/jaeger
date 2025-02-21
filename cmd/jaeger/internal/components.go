@@ -50,11 +50,11 @@ type builders struct {
 
 func defaultBuilders() builders {
 	return builders{
-		extension: extension.MakeFactoryMap,
-		receiver:  receiver.MakeFactoryMap,
-		exporter:  exporter.MakeFactoryMap,
-		processor: processor.MakeFactoryMap,
-		connector: connector.MakeFactoryMap,
+		extension: otelcol.MakeFactoryMap[extension.Factory],
+		receiver:  otelcol.MakeFactoryMap[receiver.Factory],
+		exporter:  otelcol.MakeFactoryMap[exporter.Factory],
+		processor: otelcol.MakeFactoryMap[processor.Factory],
+		connector: otelcol.MakeFactoryMap[connector.Factory],
 	}
 }
 
