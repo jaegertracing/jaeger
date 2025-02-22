@@ -43,7 +43,10 @@ func (config *AuthenticationConfig) SetConfiguration(saramaConfig *sarama.Config
 	if strings.Trim(authentication, " ") == "" {
 		authentication = none
 	}
-	if config.Authentication == tls {
+
+
+
+	if config.Authentication == tls || (!config.TLS.Insecure && config.TLS.ServerName != "") {
 		if err := setTLSConfiguration(&config.TLS, saramaConfig, logger); err != nil {
 			return err
 		}
@@ -75,7 +78,7 @@ func (config *AuthenticationConfig) InitFromViper(configPrefix string, v *viper.
 	config.Kerberos.KeyTabPath = v.GetString(configPrefix + kerberosPrefix + suffixKerberosKeyTab)
 	config.Kerberos.DisablePAFXFast = v.GetBool(configPrefix + kerberosPrefix + suffixKerberosDisablePAFXFAST)
 
-	if config.Authentication == tls {
+	if config.Authentication == tls ||  (!config.TLS.Insecure && config.TLS.ServerName != ""){
 		if !v.IsSet(configPrefix + ".tls.enabled") {
 			v.Set(configPrefix+".tls.enabled", "true")
 		}
