@@ -456,7 +456,7 @@ func TestTraceReader_FindTraceIDsDelegatesResponse(t *testing.T) {
 			traceReader := &TraceReader{
 				spanReader: sr,
 			}
-			traceIDs, err := jiter.FlattenWithErrors(traceReader.FindTraceIDs(
+			traceIDs, err := jiter.CollectWithErrors(traceReader.FindTraceIDs(
 				context.Background(),
 				tracestore.TraceQueryParams{
 					ServiceName:   "service",

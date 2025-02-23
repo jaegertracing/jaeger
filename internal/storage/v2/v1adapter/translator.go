@@ -12,6 +12,7 @@ import (
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/jptrace"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
 // V1BatchesFromTraces converts OpenTelemetry traces (ptrace.Traces)
@@ -62,17 +63,17 @@ func V1TracesFromSeq2(otelSeq iter.Seq2[[]ptrace.Traces, error]) ([]*model.Trace
 	return jaegerTraces, nil
 }
 
-func V1TraceIDsFromSeq2(traceIDsIter iter.Seq2[[]pcommon.TraceID, error]) ([]model.TraceID, error) {
+func V1TraceIDsFromSeq2(traceIDsIter iter.Seq2[tracestore.FindTraceIDsResponse, error]) ([]model.TraceID, error) {
 	var (
 		iterErr       error
 		modelTraceIDs []model.TraceID
 	)
-	traceIDsIter(func(traceIDs []pcommon.TraceID, err error) bool {
+	traceIDsIter(func(traceIDsResponse tracestore.FindTraceIDsResponse, err error) bool {
 		if err != nil {
 			iterErr = err
 			return false
 		}
-		for _, traceID := range traceIDs {
+		for _, traceID := range traceIDsResponse.TraceIDs {
 			modelTraceIDs = append(modelTraceIDs, ToV1TraceID(traceID))
 		}
 		return true
