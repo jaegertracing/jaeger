@@ -137,7 +137,7 @@ func (r *traceReader) FindTraces(
 func (*traceReader) FindTraceIDs(
 	_ context.Context,
 	_ tracestore.TraceQueryParams,
-) iter.Seq2[tracestore.FindTraceIDsChunk, error] {
+) iter.Seq2[[]tracestore.FoundTraceID, error] {
 	panic("not implemented")
 }
 

@@ -404,7 +404,7 @@ func TestTraceReader_FindTraceIDsDelegatesResponse(t *testing.T) {
 	tests := []struct {
 		name             string
 		modelTraceIDs    []model.TraceID
-		expectedTraceIDs tracestore.FindTraceIDsChunk
+		expectedTraceIDs []tracestore.FoundTraceID
 		err              error
 	}{
 		{
@@ -413,34 +413,30 @@ func TestTraceReader_FindTraceIDsDelegatesResponse(t *testing.T) {
 				{Low: 3, High: 2},
 				{Low: 4, High: 3},
 			},
-			expectedTraceIDs: tracestore.FindTraceIDsChunk{
-				TraceIDs: []pcommon.TraceID{
-					pcommon.TraceID([]byte{0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 3}),
-					pcommon.TraceID([]byte{0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 4}),
+			expectedTraceIDs: []tracestore.FoundTraceID{
+				{
+					TraceID: pcommon.TraceID([]byte{0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 3}),
+				},
+				{
+					TraceID: pcommon.TraceID([]byte{0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 4}),
 				},
 			},
 		},
 		{
-			name:          "empty response",
-			modelTraceIDs: []model.TraceID{},
-			expectedTraceIDs: tracestore.FindTraceIDsChunk{
-				TraceIDs: []pcommon.TraceID{},
-			},
+			name:             "empty response",
+			modelTraceIDs:    []model.TraceID{},
+			expectedTraceIDs: nil,
 		},
 		{
-			name:          "nil response",
-			modelTraceIDs: nil,
-			expectedTraceIDs: tracestore.FindTraceIDsChunk{
-				TraceIDs: nil,
-			},
+			name:             "nil response",
+			modelTraceIDs:    nil,
+			expectedTraceIDs: nil,
 		},
 		{
-			name:          "error response",
-			modelTraceIDs: nil,
-			expectedTraceIDs: tracestore.FindTraceIDsChunk{
-				TraceIDs: nil,
-			},
-			err: errors.New("test error"),
+			name:             "error response",
+			modelTraceIDs:    nil,
+			expectedTraceIDs: nil,
+			err:              errors.New("test error"),
 		},
 	}
 	for _, test := range tests {
@@ -464,7 +460,7 @@ func TestTraceReader_FindTraceIDsDelegatesResponse(t *testing.T) {
 			traceReader := &TraceReader{
 				spanReader: sr,
 			}
-			traceIDs, err := jiter.CollectWithErrors(traceReader.FindTraceIDs(
+			traceIDs, err := jiter.FlattenWithErrors(traceReader.FindTraceIDs(
 				context.Background(),
 				tracestore.TraceQueryParams{
 					ServiceName:   "service",
@@ -477,11 +473,8 @@ func TestTraceReader_FindTraceIDsDelegatesResponse(t *testing.T) {
 					NumTraces:     10,
 				},
 			))
-			if test.err != nil {
-				require.ErrorIs(t, err, test.err)
-			} else {
-				require.Equal(t, test.expectedTraceIDs, traceIDs[0])
-			}
+			require.ErrorIs(t, err, test.err)
+			require.Equal(t, test.expectedTraceIDs, traceIDs)
 		})
 	}
 }
