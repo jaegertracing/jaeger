@@ -105,12 +105,7 @@ require (
 
 require (
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.12.0 // indirect
-	github.com/google/go-cmp v0.6.0 // indirect
 	go.opentelemetry.io/collector/extension/extensiontest v0.120.0 // indirect
-	golang.org/x/mod v0.21.0 // indirect
-	golang.org/x/sync v0.11.0 // indirect
-	golang.org/x/tools v0.26.0 // indirect
-	mvdan.cc/gofumpt v0.7.0 // indirect
 )
 
 require (
