@@ -113,11 +113,11 @@ func (tr *TraceReader) FindTraces(
 func (tr *TraceReader) FindTraceIDs(
 	ctx context.Context,
 	query tracestore.TraceQueryParams,
-) iter.Seq2[tracestore.FindTraceIDsResponse, error] {
-	return func(yield func(tracestore.FindTraceIDsResponse, error) bool) {
+) iter.Seq2[tracestore.FindTraceIDsChunk, error] {
+	return func(yield func(tracestore.FindTraceIDsChunk, error) bool) {
 		traceIDs, err := tr.spanReader.FindTraceIDs(ctx, query.ToSpanStoreQueryParameters())
 		if err != nil {
-			yield(tracestore.FindTraceIDsResponse{
+			yield(tracestore.FindTraceIDsChunk{
 				TraceIDs: nil,
 			}, err)
 			return
@@ -126,7 +126,7 @@ func (tr *TraceReader) FindTraceIDs(
 		for _, traceID := range traceIDs {
 			otelIDs = append(otelIDs, FromV1TraceID(traceID))
 		}
-		yield(tracestore.FindTraceIDsResponse{
+		yield(tracestore.FindTraceIDsChunk{
 			TraceIDs: otelIDs,
 		}, nil)
 	}

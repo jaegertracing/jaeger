@@ -288,20 +288,20 @@ func TestV1TraceToOtelTrace_ReturnEmptyOtelTrace(t *testing.T) {
 func TestV1TraceIDsFromSeq2(t *testing.T) {
 	testCases := []struct {
 		name          string
-		seqTraceIDs   iter.Seq2[tracestore.FindTraceIDsResponse, error]
+		seqTraceIDs   iter.Seq2[tracestore.FindTraceIDsChunk, error]
 		expectedIDs   []model.TraceID
 		expectedError error
 	}{
 		{
 			name:          "empty sequence",
-			seqTraceIDs:   func(func(tracestore.FindTraceIDsResponse, error) bool) {},
+			seqTraceIDs:   func(func(tracestore.FindTraceIDsChunk, error) bool) {},
 			expectedIDs:   nil,
 			expectedError: nil,
 		},
 		{
 			name: "sequence with error",
-			seqTraceIDs: func(yield func(tracestore.FindTraceIDsResponse, error) bool) {
-				yield(tracestore.FindTraceIDsResponse{
+			seqTraceIDs: func(yield func(tracestore.FindTraceIDsChunk, error) bool) {
+				yield(tracestore.FindTraceIDsChunk{
 					TraceIDs: nil,
 				}, assert.AnError)
 			},
@@ -310,10 +310,10 @@ func TestV1TraceIDsFromSeq2(t *testing.T) {
 		},
 		{
 			name: "sequence with one chunk of trace IDs",
-			seqTraceIDs: func(yield func(tracestore.FindTraceIDsResponse, error) bool) {
+			seqTraceIDs: func(yield func(tracestore.FindTraceIDsChunk, error) bool) {
 				traceID1 := pcommon.TraceID([16]byte{0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 3})
 				traceID2 := pcommon.TraceID([16]byte{0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 5})
-				yield(tracestore.FindTraceIDsResponse{
+				yield(tracestore.FindTraceIDsChunk{
 					TraceIDs: []pcommon.TraceID{traceID1, traceID2},
 				}, nil)
 			},
@@ -325,12 +325,12 @@ func TestV1TraceIDsFromSeq2(t *testing.T) {
 		},
 		{
 			name: "sequence with multiple chunks of trace IDs",
-			seqTraceIDs: func(yield func(tracestore.FindTraceIDsResponse, error) bool) {
+			seqTraceIDs: func(yield func(tracestore.FindTraceIDsChunk, error) bool) {
 				traceID1 := pcommon.TraceID([16]byte{0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 3})
 				traceID2 := pcommon.TraceID([16]byte{0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 5})
 				traceID3 := pcommon.TraceID([16]byte{0, 0, 0, 0, 0, 0, 0, 6, 0, 0, 0, 0, 0, 0, 0, 7})
-				yield(tracestore.FindTraceIDsResponse{TraceIDs: []pcommon.TraceID{traceID1}}, nil)
-				yield(tracestore.FindTraceIDsResponse{TraceIDs: []pcommon.TraceID{traceID2, traceID3}}, nil)
+				yield(tracestore.FindTraceIDsChunk{TraceIDs: []pcommon.TraceID{traceID1}}, nil)
+				yield(tracestore.FindTraceIDsChunk{TraceIDs: []pcommon.TraceID{traceID2, traceID3}}, nil)
 			},
 			expectedIDs: []model.TraceID{
 				model.NewTraceID(2, 3),

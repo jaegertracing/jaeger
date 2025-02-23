@@ -61,7 +61,7 @@ type Reader interface {
 	// of matching trace IDs. This is useful in some contexts, such as batch jobs, where a
 	// large list of trace IDs may be queried first and then the full traces are loaded
 	// in batches.
-	FindTraceIDs(ctx context.Context, query TraceQueryParams) iter.Seq2[FindTraceIDsResponse, error]
+	FindTraceIDs(ctx context.Context, query TraceQueryParams) iter.Seq2[FindTraceIDsChunk, error]
 }
 
 // GetTraceParams contains single-trace parameters for a GetTraces request.
@@ -88,7 +88,7 @@ type TraceQueryParams struct {
 	NumTraces     int
 }
 
-type FindTraceIDsResponse struct {
+type FindTraceIDsChunk struct {
 	TraceIDs []pcommon.TraceID
 	Start    time.Time
 	End      time.Time

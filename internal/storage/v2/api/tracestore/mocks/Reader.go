@@ -24,19 +24,19 @@ type Reader struct {
 }
 
 // FindTraceIDs provides a mock function with given fields: ctx, query
-func (_m *Reader) FindTraceIDs(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[tracestore.FindTraceIDsResponse, error] {
+func (_m *Reader) FindTraceIDs(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[tracestore.FindTraceIDsChunk, error] {
 	ret := _m.Called(ctx, query)
 
 	if len(ret) == 0 {
 		panic("no return value specified for FindTraceIDs")
 	}
 
-	var r0 iter.Seq2[tracestore.FindTraceIDsResponse, error]
-	if rf, ok := ret.Get(0).(func(context.Context, tracestore.TraceQueryParams) iter.Seq2[tracestore.FindTraceIDsResponse, error]); ok {
+	var r0 iter.Seq2[tracestore.FindTraceIDsChunk, error]
+	if rf, ok := ret.Get(0).(func(context.Context, tracestore.TraceQueryParams) iter.Seq2[tracestore.FindTraceIDsChunk, error]); ok {
 		r0 = rf(ctx, query)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(iter.Seq2[tracestore.FindTraceIDsResponse, error])
+			r0 = ret.Get(0).(iter.Seq2[tracestore.FindTraceIDsChunk, error])
 		}
 	}
 
