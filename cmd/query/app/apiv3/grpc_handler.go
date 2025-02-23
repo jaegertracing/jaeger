@@ -70,7 +70,7 @@ func (h *Handler) internalFindTraces(
 	}
 
 	queryParams := querysvc.TraceQueryParams{
-		TraceQueryParams: tracestore.TraceQueryParams{
+		TraceQueryParameters: tracestore.TraceQueryParameters{
 			ServiceName:   query.GetServiceName(),
 			OperationName: query.GetOperationName(),
 			Tags:          query.GetAttributes(),

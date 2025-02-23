@@ -110,7 +110,7 @@ func (r *traceReader) GetOperations(ctx context.Context, query tracestore.Operat
 
 func (r *traceReader) FindTraces(
 	ctx context.Context,
-	query tracestore.TraceQueryParams,
+	query tracestore.TraceQueryParameters,
 ) iter.Seq2[[]ptrace.Traces, error] {
 	return func(yield func([]ptrace.Traces, error) bool) {
 		if query.NumTraces > math.MaxInt32 {
@@ -137,7 +137,7 @@ func (r *traceReader) FindTraces(
 
 func (*traceReader) FindTraceIDs(
 	_ context.Context,
-	_ tracestore.TraceQueryParams,
+	_ tracestore.TraceQueryParameters,
 ) iter.Seq2[[]pcommon.TraceID, error] {
 	panic("not implemented")
 }

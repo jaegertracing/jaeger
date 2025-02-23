@@ -75,7 +75,7 @@ type StorageIntegration struct {
 // the service name is formatted "query##-service".
 type QueryFixtures struct {
 	Caption          string
-	Query            *tracestore.TraceQueryParams
+	Query            *tracestore.TraceQueryParameters
 	ExpectedFixtures []string
 }
 
@@ -150,7 +150,7 @@ func (s *StorageIntegration) testGetServices(t *testing.T) {
 			// If the storage backend returns more services than expected, let's log traces for those
 			t.Log("🛑 Found unexpected services!")
 			for _, service := range actual {
-				iterTraces := s.TraceReader.FindTraces(context.Background(), tracestore.TraceQueryParams{
+				iterTraces := s.TraceReader.FindTraces(context.Background(), tracestore.TraceQueryParameters{
 					ServiceName:  service,
 					StartTimeMin: time.Now().Add(-2 * time.Hour),
 					StartTimeMax: time.Now(),
@@ -323,7 +323,7 @@ func (s *StorageIntegration) testFindTraces(t *testing.T) {
 	}
 }
 
-func (s *StorageIntegration) findTracesByQuery(t *testing.T, query *tracestore.TraceQueryParams, expected []*model.Trace) []*model.Trace {
+func (s *StorageIntegration) findTracesByQuery(t *testing.T, query *tracestore.TraceQueryParameters, expected []*model.Trace) []*model.Trace {
 	var traces []*model.Trace
 	found := s.waitForCondition(t, func(t *testing.T) bool {
 		var err error

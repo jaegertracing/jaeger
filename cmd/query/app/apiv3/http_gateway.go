@@ -208,7 +208,7 @@ func (h *HTTPGateway) findTraces(w http.ResponseWriter, r *http.Request) {
 
 func (h *HTTPGateway) parseFindTracesQuery(q url.Values, w http.ResponseWriter) (*querysvc.TraceQueryParams, bool) {
 	queryParams := &querysvc.TraceQueryParams{
-		TraceQueryParams: tracestore.TraceQueryParams{
+		TraceQueryParameters: tracestore.TraceQueryParameters{
 			ServiceName:   q.Get(paramServiceName),
 			OperationName: q.Get(paramOperationName),
 			Tags:          nil, // most curiously not supported by grpc-gateway

@@ -273,7 +273,7 @@ func TestFindTraces_Success(t *testing.T) {
 
 	duration := 20 * time.Millisecond
 	now := time.Now()
-	queryParams := tracestore.TraceQueryParams{
+	queryParams := tracestore.TraceQueryParameters{
 		ServiceName:   "service",
 		OperationName: "operation",
 		StartTimeMax:  now,
@@ -282,7 +282,7 @@ func TestFindTraces_Success(t *testing.T) {
 	}
 	tqs.traceReader.On("FindTraces", mock.Anything, queryParams).Return(responseIter).Once()
 
-	query := TraceQueryParams{TraceQueryParams: queryParams}
+	query := TraceQueryParams{TraceQueryParameters: queryParams}
 	getTracesIter := tqs.queryService.FindTraces(context.Background(), query)
 	gotTraces, err := jiter.FlattenWithErrors(getTracesIter)
 	require.NoError(t, err)
@@ -347,7 +347,7 @@ func TestFindTraces_WithRawTraces_PerformsAdjustment(t *testing.T) {
 			duration, err := time.ParseDuration("20ms")
 			require.NoError(t, err)
 			now := time.Now()
-			tqs.traceReader.On("FindTraces", mock.Anything, tracestore.TraceQueryParams{
+			tqs.traceReader.On("FindTraces", mock.Anything, tracestore.TraceQueryParameters{
 				ServiceName:   "service",
 				OperationName: "operation",
 				StartTimeMax:  now,
@@ -357,7 +357,7 @@ func TestFindTraces_WithRawTraces_PerformsAdjustment(t *testing.T) {
 				Return(responseIter).Once()
 
 			query := TraceQueryParams{
-				TraceQueryParams: tracestore.TraceQueryParams{
+				TraceQueryParameters: tracestore.TraceQueryParameters{
 					ServiceName:   "service",
 					OperationName: "operation",
 					StartTimeMax:  now,
@@ -483,7 +483,7 @@ func TestFindTraces_WithRawTraces_PerformsAggregation(t *testing.T) {
 			duration, err := time.ParseDuration("20ms")
 			require.NoError(t, err)
 			now := time.Now()
-			tqs.traceReader.On("FindTraces", mock.Anything, tracestore.TraceQueryParams{
+			tqs.traceReader.On("FindTraces", mock.Anything, tracestore.TraceQueryParameters{
 				ServiceName:   "service",
 				OperationName: "operation",
 				StartTimeMax:  now,
@@ -493,7 +493,7 @@ func TestFindTraces_WithRawTraces_PerformsAggregation(t *testing.T) {
 				Return(responseIter).Once()
 
 			query := TraceQueryParams{
-				TraceQueryParams: tracestore.TraceQueryParams{
+				TraceQueryParameters: tracestore.TraceQueryParameters{
 					ServiceName:   "service",
 					OperationName: "operation",
 					StartTimeMax:  now,

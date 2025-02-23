@@ -297,7 +297,7 @@ func TestTraceReader_FindTracesDelegatesSuccessResponse(t *testing.T) {
 	}
 	traces, err := jiter.FlattenWithErrors(traceReader.FindTraces(
 		context.Background(),
-		tracestore.TraceQueryParams{
+		tracestore.TraceQueryParameters{
 			ServiceName:   "service",
 			OperationName: "operation",
 			Tags:          map[string]string{"tag-a": "val-a"},
@@ -360,7 +360,7 @@ func TestTraceReader_FindTracesEdgeCases(t *testing.T) {
 			}
 			traces, err := jiter.FlattenWithErrors(traceReader.FindTraces(
 				context.Background(),
-				tracestore.TraceQueryParams{},
+				tracestore.TraceQueryParameters{},
 			))
 			require.ErrorIs(t, err, test.err)
 			require.Equal(t, test.expectedTraces, traces)
@@ -380,7 +380,7 @@ func TestTraceReader_FindTracesEarlyStop(t *testing.T) {
 	}
 	called := 0
 	traceReader.FindTraces(
-		context.Background(), tracestore.TraceQueryParams{},
+		context.Background(), tracestore.TraceQueryParameters{},
 	)(func(tr []ptrace.Traces, err error) bool {
 		require.NoError(t, err)
 		require.Len(t, tr, 1)
@@ -390,7 +390,7 @@ func TestTraceReader_FindTracesEarlyStop(t *testing.T) {
 	assert.Equal(t, 3, called)
 	called = 0
 	traceReader.FindTraces(
-		context.Background(), tracestore.TraceQueryParams{},
+		context.Background(), tracestore.TraceQueryParameters{},
 	)(func(tr []ptrace.Traces, err error) bool {
 		require.NoError(t, err)
 		require.Len(t, tr, 1)
@@ -458,7 +458,7 @@ func TestTraceReader_FindTraceIDsDelegatesResponse(t *testing.T) {
 			}
 			traceIDs, err := jiter.FlattenWithErrors(traceReader.FindTraceIDs(
 				context.Background(),
-				tracestore.TraceQueryParams{
+				tracestore.TraceQueryParameters{
 					ServiceName:   "service",
 					OperationName: "operation",
 					Tags:          map[string]string{"tag-a": "val-a"},

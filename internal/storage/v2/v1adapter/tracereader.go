@@ -92,7 +92,7 @@ func (tr *TraceReader) GetOperations(
 
 func (tr *TraceReader) FindTraces(
 	ctx context.Context,
-	query tracestore.TraceQueryParams,
+	query tracestore.TraceQueryParameters,
 ) iter.Seq2[[]ptrace.Traces, error] {
 	return func(yield func([]ptrace.Traces, error) bool) {
 		traces, err := tr.spanReader.FindTraces(ctx, query.ToSpanStoreQueryParameters())
@@ -112,7 +112,7 @@ func (tr *TraceReader) FindTraces(
 
 func (tr *TraceReader) FindTraceIDs(
 	ctx context.Context,
-	query tracestore.TraceQueryParams,
+	query tracestore.TraceQueryParameters,
 ) iter.Seq2[[]pcommon.TraceID, error] {
 	return func(yield func([]pcommon.TraceID, error) bool) {
 		traceIDs, err := tr.spanReader.FindTraceIDs(ctx, query.ToSpanStoreQueryParameters())

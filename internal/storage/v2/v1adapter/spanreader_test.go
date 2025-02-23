@@ -231,7 +231,7 @@ func TestSpanReader_FindTraces(t *testing.T) {
 	tests := []struct {
 		name           string
 		query          *spanstore.TraceQueryParameters
-		expectedQuery  tracestore.TraceQueryParams
+		expectedQuery  tracestore.TraceQueryParameters
 		traces         []ptrace.Traces
 		expectedTraces []*model.Trace
 		err            error
@@ -242,7 +242,7 @@ func TestSpanReader_FindTraces(t *testing.T) {
 			query: &spanstore.TraceQueryParameters{
 				ServiceName: "service1",
 			},
-			expectedQuery: tracestore.TraceQueryParams{
+			expectedQuery: tracestore.TraceQueryParameters{
 				ServiceName: "service1",
 			},
 			err:         assert.AnError,
@@ -253,7 +253,7 @@ func TestSpanReader_FindTraces(t *testing.T) {
 			query: &spanstore.TraceQueryParameters{
 				ServiceName: "service1",
 			},
-			expectedQuery: tracestore.TraceQueryParams{
+			expectedQuery: tracestore.TraceQueryParameters{
 				ServiceName: "service1",
 			},
 			traces:         []ptrace.Traces{},
@@ -264,7 +264,7 @@ func TestSpanReader_FindTraces(t *testing.T) {
 			query: &spanstore.TraceQueryParameters{
 				ServiceName: "service1",
 			},
-			expectedQuery: tracestore.TraceQueryParams{
+			expectedQuery: tracestore.TraceQueryParameters{
 				ServiceName: "service1",
 			},
 			traces: func() []ptrace.Traces {
@@ -335,7 +335,7 @@ func TestSpanReader_FindTraceIDs(t *testing.T) {
 	tests := []struct {
 		name             string
 		query            *spanstore.TraceQueryParameters
-		expectedQuery    tracestore.TraceQueryParams
+		expectedQuery    tracestore.TraceQueryParameters
 		traceIDs         []pcommon.TraceID
 		expectedTraceIDs []model.TraceID
 		err              error
@@ -346,7 +346,7 @@ func TestSpanReader_FindTraceIDs(t *testing.T) {
 			query: &spanstore.TraceQueryParameters{
 				ServiceName: "service1",
 			},
-			expectedQuery: tracestore.TraceQueryParams{
+			expectedQuery: tracestore.TraceQueryParameters{
 				ServiceName: "service1",
 			},
 			err:         assert.AnError,
@@ -357,7 +357,7 @@ func TestSpanReader_FindTraceIDs(t *testing.T) {
 			query: &spanstore.TraceQueryParameters{
 				ServiceName: "service1",
 			},
-			expectedQuery: tracestore.TraceQueryParams{
+			expectedQuery: tracestore.TraceQueryParameters{
 				ServiceName: "service1",
 			},
 			traceIDs:         []pcommon.TraceID{},
@@ -368,7 +368,7 @@ func TestSpanReader_FindTraceIDs(t *testing.T) {
 			query: &spanstore.TraceQueryParameters{
 				ServiceName: "service1",
 			},
-			expectedQuery: tracestore.TraceQueryParams{
+			expectedQuery: tracestore.TraceQueryParameters{
 				ServiceName: "service1",
 			},
 			traceIDs: []pcommon.TraceID{

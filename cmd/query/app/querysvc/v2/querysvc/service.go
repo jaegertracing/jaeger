@@ -58,7 +58,7 @@ type GetTraceParams struct {
 
 // TraceQueryParams represents the parameters for querying a batch of traces.
 type TraceQueryParams struct {
-	tracestore.TraceQueryParams
+	tracestore.TraceQueryParameters
 	// RawTraces indicates whether to retrieve raw traces.
 	// If set to false, the traces will be adjusted using QueryServiceOptions.Adjuster.
 	RawTraces bool
@@ -122,7 +122,7 @@ func (qs QueryService) FindTraces(
 	query TraceQueryParams,
 ) iter.Seq2[[]ptrace.Traces, error] {
 	return func(yield func([]ptrace.Traces, error) bool) {
-		tracesIter := qs.traceReader.FindTraces(ctx, query.TraceQueryParams)
+		tracesIter := qs.traceReader.FindTraces(ctx, query.TraceQueryParameters)
 		qs.receiveTraces(tracesIter, yield, query.RawTraces)
 	}
 }

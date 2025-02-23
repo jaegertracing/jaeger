@@ -49,7 +49,7 @@ type Reader interface {
 	// There's currently an implementation-dependent ambiguity whether all query filters
 	// (such as multiple tags) must apply to the same span within a trace, or can be satisfied
 	// by different spans.
-	FindTraces(ctx context.Context, query TraceQueryParams) iter.Seq2[[]ptrace.Traces, error]
+	FindTraces(ctx context.Context, query TraceQueryParameters) iter.Seq2[[]ptrace.Traces, error]
 
 	// FindTraceIDs returns an iterator that retrieves IDs of traces matching query parameters.
 	// The iterator is single-use: once consumed, it cannot be used again.
@@ -61,7 +61,7 @@ type Reader interface {
 	// of matching trace IDs. This is useful in some contexts, such as batch jobs, where a
 	// large list of trace IDs may be queried first and then the full traces are loaded
 	// in batches.
-	FindTraceIDs(ctx context.Context, query TraceQueryParams) iter.Seq2[[]pcommon.TraceID, error]
+	FindTraceIDs(ctx context.Context, query TraceQueryParameters) iter.Seq2[[]pcommon.TraceID, error]
 }
 
 // GetTraceParams contains single-trace parameters for a GetTraces request.
@@ -76,8 +76,10 @@ type GetTraceParams struct {
 	End time.Time
 }
 
-// TraceQueryParams contains parameters of a trace query.
-type TraceQueryParams struct {
+// TraceQueryParameters contains query paramters to find traces. For a detailed
+// definition of each field in this message, refer to `TraceQueryParameters` in `jaeger.api_v3`
+// (https://github.com/jaegertracing/jaeger-idl/blob/main/proto/api_v3/query_service.proto).
+type TraceQueryParameters struct {
 	ServiceName   string
 	OperationName string
 	Tags          map[string]string
@@ -88,7 +90,7 @@ type TraceQueryParams struct {
 	NumTraces     int
 }
 
-func (t *TraceQueryParams) ToSpanStoreQueryParameters() *spanstore.TraceQueryParameters {
+func (t *TraceQueryParameters) ToSpanStoreQueryParameters() *spanstore.TraceQueryParameters {
 	return &spanstore.TraceQueryParameters{
 		ServiceName:   t.ServiceName,
 		OperationName: t.OperationName,

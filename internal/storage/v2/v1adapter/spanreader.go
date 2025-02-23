@@ -75,7 +75,7 @@ func (sr *SpanReader) FindTraces(
 	ctx context.Context,
 	query *spanstore.TraceQueryParameters,
 ) ([]*model.Trace, error) {
-	getTracesIter := sr.traceReader.FindTraces(ctx, tracestore.TraceQueryParams{
+	getTracesIter := sr.traceReader.FindTraces(ctx, tracestore.TraceQueryParameters{
 		ServiceName:   query.ServiceName,
 		OperationName: query.OperationName,
 		Tags:          query.Tags,
@@ -92,7 +92,7 @@ func (sr *SpanReader) FindTraceIDs(
 	ctx context.Context,
 	query *spanstore.TraceQueryParameters,
 ) ([]model.TraceID, error) {
-	traceIDsIter := sr.traceReader.FindTraceIDs(ctx, tracestore.TraceQueryParams{
+	traceIDsIter := sr.traceReader.FindTraceIDs(ctx, tracestore.TraceQueryParameters{
 		ServiceName:   query.ServiceName,
 		OperationName: query.OperationName,
 		Tags:          query.Tags,

@@ -242,7 +242,7 @@ func TestHTTPGatewayGetTraceInternalErrors(t *testing.T) {
 	assert.Contains(t, w.Body.String(), assert.AnError.Error())
 }
 
-func mockFindQueries() (url.Values, tracestore.TraceQueryParams) {
+func mockFindQueries() (url.Values, tracestore.TraceQueryParameters) {
 	// mock performs deep comparison of the timestamps and can fail
 	// if they are different in the timezone or the monotonic clocks.
 	// To void that we truncate monotonic clock and force UTC timezone.
@@ -257,7 +257,7 @@ func mockFindQueries() (url.Values, tracestore.TraceQueryParams) {
 	q.Set(paramDurationMax, "2s")
 	q.Set(paramNumTraces, "10")
 
-	return q, tracestore.TraceQueryParams{
+	return q, tracestore.TraceQueryParameters{
 		ServiceName:   "foo",
 		OperationName: "bar",
 		StartTimeMin:  time1,
