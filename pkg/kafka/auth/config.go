@@ -47,10 +47,6 @@ func (config *AuthenticationConfig) SetConfiguration(saramaConfig *sarama.Config
 		if err := setTLSConfiguration(&config.TLS, saramaConfig, logger); err != nil {
 			return err
 		}
-		// saramaConfig.Net.TLS.Config.InsecureSkipVerify = true
-		// if config.Authentication == tls {
-		//     return nil
-		// }
 	}
 
 	switch authentication {
