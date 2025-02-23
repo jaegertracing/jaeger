@@ -113,7 +113,7 @@ func (r *traceReader) FindTraces(
 	query tracestore.TraceQueryParameters,
 ) iter.Seq2[[]ptrace.Traces, error] {
 	return func(yield func([]ptrace.Traces, error) bool) {
-		if query.NumTraces > math.MaxInt32 {
+		if query.SearchDepth > math.MaxInt32 {
 			yield(nil, fmt.Errorf("NumTraces must not be greater than %d", math.MaxInt32))
 			return
 		}
@@ -127,7 +127,7 @@ func (r *traceReader) FindTraces(
 				DurationMin:   query.DurationMin,
 				DurationMax:   query.DurationMax,
 				//nolint: gosec // G115
-				SearchDepth: int32(query.NumTraces),
+				SearchDepth: int32(query.SearchDepth),
 				RawTraces:   true,
 			},
 		})

@@ -22,7 +22,7 @@ func TestToSpanStoreQueryParameters(t *testing.T) {
 		StartTimeMax:  now.Add(time.Minute),
 		DurationMin:   time.Minute,
 		DurationMax:   time.Hour,
-		NumTraces:     10,
+		SearchDepth:   10,
 	}
 	expected := &spanstore.TraceQueryParameters{
 		ServiceName:   "service",

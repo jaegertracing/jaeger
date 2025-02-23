@@ -83,7 +83,7 @@ func (sr *SpanReader) FindTraces(
 		StartTimeMax:  query.StartTimeMax,
 		DurationMin:   query.DurationMin,
 		DurationMax:   query.DurationMax,
-		NumTraces:     query.NumTraces,
+		SearchDepth:   query.NumTraces,
 	})
 	return V1TracesFromSeq2(getTracesIter)
 }
@@ -100,7 +100,7 @@ func (sr *SpanReader) FindTraceIDs(
 		StartTimeMax:  query.StartTimeMax,
 		DurationMin:   query.DurationMin,
 		DurationMax:   query.DurationMax,
-		NumTraces:     query.NumTraces,
+		SearchDepth:   query.NumTraces,
 	})
 	return V1TraceIDsFromSeq2(traceIDsIter)
 }

@@ -238,7 +238,7 @@ func (h *HTTPGateway) parseFindTracesQuery(q url.Values, w http.ResponseWriter) 
 		if h.tryParamError(w, err, paramNumTraces) {
 			return nil, true
 		}
-		queryParams.NumTraces = numTraces
+		queryParams.SearchDepth = numTraces
 	}
 
 	if d := q.Get(paramDurationMin); d != "" {

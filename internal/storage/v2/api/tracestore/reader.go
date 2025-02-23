@@ -87,7 +87,7 @@ type TraceQueryParameters struct {
 	StartTimeMax  time.Time
 	DurationMin   time.Duration
 	DurationMax   time.Duration
-	NumTraces     int
+	SearchDepth   int
 }
 
 func (t *TraceQueryParameters) ToSpanStoreQueryParameters() *spanstore.TraceQueryParameters {
@@ -99,7 +99,7 @@ func (t *TraceQueryParameters) ToSpanStoreQueryParameters() *spanstore.TraceQuer
 		StartTimeMax:  t.StartTimeMax,
 		DurationMin:   t.DurationMin,
 		DurationMax:   t.DurationMax,
-		NumTraces:     t.NumTraces,
+		NumTraces:     t.SearchDepth,
 	}
 }
 

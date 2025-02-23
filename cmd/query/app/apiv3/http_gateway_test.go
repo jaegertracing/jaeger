@@ -264,7 +264,7 @@ func mockFindQueries() (url.Values, tracestore.TraceQueryParameters) {
 		StartTimeMax:  time2,
 		DurationMin:   1 * time.Second,
 		DurationMax:   2 * time.Second,
-		NumTraces:     10,
+		SearchDepth:   10,
 	}
 }
 
