@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package jptrace
 
+import "go.opentelemetry.io/collector/pdata/pcommon"
+
 const (
 	// WarningsAttribute is the name of the span attribute where we can
 	// store various warnings produced from transformations,
@@ -13,3 +15,20 @@ const (
 	// e.g. proto, thrift, json.
 	FormatAttribute = "@jaeger@format"
 )
+
+func AttributesToMap(attributes pcommon.Map) map[string]string {
+	tags := make(map[string]string)
+	attributes.Range(func(k string, v pcommon.Value) bool {
+		tags[k] = v.AsString()
+		return true
+	})
+	return tags
+}
+
+func MapToAttributes(tags map[string]string) pcommon.Map {
+	attributes := pcommon.NewMap()
+	for k, v := range tags {
+		attributes.PutStr(k, v)
+	}
+	return attributes
+}
