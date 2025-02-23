@@ -47,6 +47,10 @@ func (config *AuthenticationConfig) SetConfiguration(saramaConfig *sarama.Config
 		if err := setTLSConfiguration(&config.TLS, saramaConfig, logger); err != nil {
 			return err
 		}
+		// saramaConfig.Net.TLS.Config.InsecureSkipVerify = true
+		// if config.Authentication == tls {
+		//     return nil
+		// }
 	}
 
 	switch authentication {
@@ -84,12 +88,9 @@ func (config *AuthenticationConfig) InitFromViper(configPrefix string, v *viper.
 		if err != nil {
 			return fmt.Errorf("failed to process Kafka TLS options: %w", err)
 		}
+		tlsCfg.IncludeSystemCACertsPool = (config.Authentication == tls)
+		tlsCfg.Insecure = false
 		config.TLS = tlsCfg
-	} else {
-		// Explicitly set TLS to insecure when disabled
-		config.TLS = configtls.ClientConfig{
-			Insecure: true,
-		}
 	}
 
 	config.PlainText.Username = v.GetString(configPrefix + plainTextPrefix + suffixPlainTextUsername)
