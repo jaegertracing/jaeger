@@ -385,8 +385,10 @@ func TestSpanReader_FindTraceIDs(t *testing.T) {
 	for _, test := range tests {
 		tr := tracestoremocks.Reader{}
 		tr.On("FindTraceIDs", mock.Anything, test.expectedQuery).
-			Return(iter.Seq2[[]pcommon.TraceID, error](func(yield func([]pcommon.TraceID, error) bool) {
-				yield(test.traceIDs, test.err)
+			Return(iter.Seq2[tracestore.FindTraceIDsChunk, error](func(yield func(tracestore.FindTraceIDsChunk, error) bool) {
+				yield(tracestore.FindTraceIDsChunk{
+					TraceIDs: test.traceIDs,
+				}, test.err)
 			})).Once()
 
 		sr := NewSpanReader(&tr)
