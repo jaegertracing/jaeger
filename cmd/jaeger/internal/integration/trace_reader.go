@@ -19,6 +19,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
 
+	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
@@ -121,7 +122,7 @@ func (r *traceReader) FindTraces(
 			Query: &api_v3.TraceQueryParameters{
 				ServiceName:   query.ServiceName,
 				OperationName: query.OperationName,
-				Attributes:    query.Tags,
+				Attributes:    jptrace.AttributesToMap(query.Attributes),
 				StartTimeMin:  query.StartTimeMin,
 				StartTimeMax:  query.StartTimeMax,
 				DurationMin:   query.DurationMin,

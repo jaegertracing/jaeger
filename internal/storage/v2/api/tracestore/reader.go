@@ -11,6 +11,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
+	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 )
 
@@ -76,13 +77,13 @@ type GetTraceParams struct {
 	End time.Time
 }
 
-// TraceQueryParameters contains query paramters to find traces. For a detailed
+// TraceQueryParameters contains query parameters to find traces. For a detailed
 // definition of each field in this message, refer to `TraceQueryParameters` in `jaeger.api_v3`
 // (https://github.com/jaegertracing/jaeger-idl/blob/main/proto/api_v3/query_service.proto).
 type TraceQueryParameters struct {
 	ServiceName   string
 	OperationName string
-	Tags          map[string]string
+	Attributes    pcommon.Map
 	StartTimeMin  time.Time
 	StartTimeMax  time.Time
 	DurationMin   time.Duration
@@ -94,7 +95,7 @@ func (t *TraceQueryParameters) ToSpanStoreQueryParameters() *spanstore.TraceQuer
 	return &spanstore.TraceQueryParameters{
 		ServiceName:   t.ServiceName,
 		OperationName: t.OperationName,
-		Tags:          t.Tags,
+		Tags:          jptrace.AttributesToMap(t.Attributes),
 		StartTimeMin:  t.StartTimeMin,
 		StartTimeMax:  t.StartTimeMax,
 		DurationMin:   t.DurationMin,

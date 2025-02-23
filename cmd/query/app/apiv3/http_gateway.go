@@ -15,6 +15,7 @@ import (
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/proto"
 	"github.com/gorilla/mux"
+	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel/trace"
@@ -211,7 +212,7 @@ func (h *HTTPGateway) parseFindTracesQuery(q url.Values, w http.ResponseWriter) 
 		TraceQueryParameters: tracestore.TraceQueryParameters{
 			ServiceName:   q.Get(paramServiceName),
 			OperationName: q.Get(paramOperationName),
-			Tags:          nil, // most curiously not supported by grpc-gateway
+			Attributes:    pcommon.NewMap(), // most curiously not supported by grpc-gateway
 		},
 	}
 
