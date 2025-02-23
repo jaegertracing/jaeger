@@ -121,7 +121,6 @@ func (m *GetTraceRequest) GetRawTraces() bool {
 // that match the conditions, and the resulting number of traces can be less.
 //
 // Note: some storage implementations do not guarantee the correct implementation of all parameters.
-//
 type TraceQueryParameters struct {
 	ServiceName   string `protobuf:"bytes,1,opt,name=service_name,json=serviceName,proto3" json:"service_name,omitempty"`
 	OperationName string `protobuf:"bytes,2,opt,name=operation_name,json=operationName,proto3" json:"operation_name,omitempty"`
@@ -673,15 +672,15 @@ func (m *GRPCGatewayError_GRPCGatewayErrorDetails) GetHttpStatus() string {
 // In case of errors, GRPCGatewayError above is used.
 //
 // Example:
-//     {"result": {"resourceSpans": ...}}
+//
+//	{"result": {"resourceSpans": ...}}
 //
 // See https://github.com/grpc-ecosystem/grpc-gateway/issues/2189
-//
 type GRPCGatewayWrapper struct {
 	Result               *TracesData `protobuf:"bytes,1,opt,name=result,proto3" json:"result,omitempty"`
-	XXX_NoUnkeyedLiteral struct{}       `json:"-"`
-	XXX_unrecognized     []byte         `json:"-"`
-	XXX_sizecache        int32          `json:"-"`
+	XXX_NoUnkeyedLiteral struct{}    `json:"-"`
+	XXX_unrecognized     []byte      `json:"-"`
+	XXX_sizecache        int32       `json:"-"`
 }
 
 func (m *GRPCGatewayWrapper) Reset()         { *m = GRPCGatewayWrapper{} }
