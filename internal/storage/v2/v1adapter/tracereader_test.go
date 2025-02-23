@@ -404,7 +404,7 @@ func TestTraceReader_FindTraceIDsDelegatesResponse(t *testing.T) {
 	tests := []struct {
 		name             string
 		modelTraceIDs    []model.TraceID
-		expectedTraceIDs []pcommon.TraceID
+		expectedTraceIDs tracestore.FindTraceIDsChunk
 		err              error
 	}{
 		{
@@ -413,26 +413,34 @@ func TestTraceReader_FindTraceIDsDelegatesResponse(t *testing.T) {
 				{Low: 3, High: 2},
 				{Low: 4, High: 3},
 			},
-			expectedTraceIDs: []pcommon.TraceID{
-				pcommon.TraceID([]byte{0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 3}),
-				pcommon.TraceID([]byte{0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 4}),
+			expectedTraceIDs: tracestore.FindTraceIDsChunk{
+				TraceIDs: []pcommon.TraceID{
+					pcommon.TraceID([]byte{0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 3}),
+					pcommon.TraceID([]byte{0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 4}),
+				},
 			},
 		},
 		{
-			name:             "empty response",
-			modelTraceIDs:    []model.TraceID{},
-			expectedTraceIDs: nil,
+			name:          "empty response",
+			modelTraceIDs: []model.TraceID{},
+			expectedTraceIDs: tracestore.FindTraceIDsChunk{
+				TraceIDs: []pcommon.TraceID{},
+			},
 		},
 		{
-			name:             "nil response",
-			modelTraceIDs:    nil,
-			expectedTraceIDs: nil,
+			name:          "nil response",
+			modelTraceIDs: nil,
+			expectedTraceIDs: tracestore.FindTraceIDsChunk{
+				TraceIDs: nil,
+			},
 		},
 		{
-			name:             "error response",
-			modelTraceIDs:    nil,
-			expectedTraceIDs: nil,
-			err:              errors.New("test error"),
+			name:          "error response",
+			modelTraceIDs: nil,
+			expectedTraceIDs: tracestore.FindTraceIDsChunk{
+				TraceIDs: nil,
+			},
+			err: errors.New("test error"),
 		},
 	}
 	for _, test := range tests {
@@ -469,8 +477,11 @@ func TestTraceReader_FindTraceIDsDelegatesResponse(t *testing.T) {
 					NumTraces:     10,
 				},
 			))
-			require.ErrorIs(t, err, test.err)
-			require.Equal(t, test.expectedTraceIDs, traceIDs)
+			if test.err != nil {
+				require.ErrorIs(t, err, test.err)
+			} else {
+				require.Equal(t, test.expectedTraceIDs, traceIDs[0])
+			}
 		})
 	}
 }

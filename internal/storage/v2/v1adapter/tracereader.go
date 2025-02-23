@@ -122,6 +122,12 @@ func (tr *TraceReader) FindTraceIDs(
 			}, err)
 			return
 		}
+		if traceIDs == nil {
+			yield(tracestore.FindTraceIDsChunk{
+				TraceIDs: nil,
+			}, nil)
+			return
+		}
 		otelIDs := make([]pcommon.TraceID, 0, len(traceIDs))
 		for _, traceID := range traceIDs {
 			otelIDs = append(otelIDs, FromV1TraceID(traceID))
