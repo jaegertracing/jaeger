@@ -61,7 +61,7 @@ type Reader interface {
 	// of matching trace IDs. This is useful in some contexts, such as batch jobs, where a
 	// large list of trace IDs may be queried first and then the full traces are loaded
 	// in batches.
-	FindTraceIDs(ctx context.Context, query TraceQueryParams) iter.Seq2[[]pcommon.TraceID, error]
+	FindTraceIDs(ctx context.Context, query TraceQueryParams) iter.Seq2[FindTraceIDsResponse, error]
 }
 
 // GetTraceParams contains single-trace parameters for a GetTraces request.
@@ -86,6 +86,12 @@ type TraceQueryParams struct {
 	DurationMin   time.Duration
 	DurationMax   time.Duration
 	NumTraces     int
+}
+
+type FindTraceIDsResponse struct {
+	TraceIDs []pcommon.TraceID
+	Start    time.Time
+	End      time.Time
 }
 
 func (t *TraceQueryParams) ToSpanStoreQueryParameters() *spanstore.TraceQueryParameters {
