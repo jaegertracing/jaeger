@@ -2,7 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package jptrace
 
-import "go.opentelemetry.io/collector/pdata/pcommon"
+import (
+	"go.opentelemetry.io/collector/pdata/pcommon"
+)
 
 const (
 	// WarningsAttribute is the name of the span attribute where we can
