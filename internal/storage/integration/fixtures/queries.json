@@ -4,12 +4,12 @@
     "Query": {
       "ServiceName": "query01-service",
       "OperationName": "",
-      "Attributes": [
-        { "key": "sameplacetag1", "value": { "string_value": "sameplacevalue" } },
-        { "key": "sameplacetag2", "value": { "int_value": 123 } },
-        { "key": "sameplacetag3", "value": { "double_value": 72.5 } },
-        { "key": "sameplacetag4", "value": { "bool_value": true } }
-      ],
+      "Attributes": {
+        "sameplacetag1": { "string_value": "sameplacevalue" },
+        "sameplacetag2": { "int_value": 123 },
+        "sameplacetag3": { "double_value": 72.5 },
+        "sameplacetag4": { "bool_value": true }
+      },
       "StartTimeMin": "2017-01-26T15:46:31.639875Z",
       "StartTimeMax": "2017-01-26T17:46:31.639875Z",
       "DurationMin": 0,
@@ -23,12 +23,12 @@
     "Query": {
       "ServiceName": "query02-service",
       "OperationName": "",
-      "Attributes": [
-        { "key": "sameplacetag1", "value": { "string_value": "sameplacevalue" } },
-        { "key": "sameplacetag2", "value": { "int_value": 123 } },
-        { "key": "sameplacetag3", "value": { "double_value": 72.5 } },
-        { "key": "sameplacetag4", "value": { "bool_value": true } }
-      ],
+      "Attributes": {
+        "sameplacetag1": { "string_value": "sameplacevalue" },
+        "sameplacetag2": { "int_value": 123 },
+        "sameplacetag3": { "double_value": 72.5 },
+        "sameplacetag4": { "bool_value": true }
+      },
       "StartTimeMin": "2017-01-26T15:46:31.639875Z",
       "StartTimeMax": "2017-01-26T17:46:31.639875Z",
       "DurationMin": 0,
@@ -42,12 +42,12 @@
     "Query": {
       "ServiceName": "query03-service",
       "OperationName": "",
-      "Attributes": [
-        { "key": "sameplacetag1", "value": { "string_value": "sameplacevalue" } },
-        { "key": "sameplacetag2", "value": { "int_value": 123 } },
-        { "key": "sameplacetag3", "value": { "double_value": 72.5 } },
-        { "key": "sameplacetag4", "value": { "bool_value": true } }
-      ],
+      "Attributes": {
+        "sameplacetag1": { "string_value": "sameplacevalue" },
+        "sameplacetag2": { "int_value": 123 },
+        "sameplacetag3": { "double_value": 72.5 },
+        "sameplacetag4": { "bool_value": true }
+      },
       "StartTimeMin": "2017-01-26T15:46:31.639875Z",
       "StartTimeMax": "2017-01-26T17:46:31.639875Z",
       "DurationMin": 0,
@@ -61,12 +61,12 @@
     "Query": {
       "ServiceName": "query04-service",
       "OperationName": "",
-      "Attributes": [
-        { "key": "sameplacetag1", "value": { "string_value": "sameplacevalue" } },
-        { "key": "sameplacetag2", "value": { "int_value": 123 } },
-        { "key": "sameplacetag3", "value": { "double_value": 72.5 } },
-        { "key": "sameplacetag4", "value": { "bool_value": true } }
-      ],
+      "Attributes": {
+        "sameplacetag1": { "string_value": "sameplacevalue" },
+        "sameplacetag2": { "int_value": 123 },
+        "sameplacetag3": { "double_value": 72.5 },
+        "sameplacetag4": { "bool_value": true }
+      },
       "StartTimeMin": "2017-01-26T15:46:31.639875Z",
       "StartTimeMax": "2017-01-26T17:46:31.639875Z",
       "DurationMin": 0,
@@ -80,7 +80,7 @@
     "Query": {
       "ServiceName": "query05-service",
       "OperationName": "",
-      "Attributes": [],
+      "Attributes": {},
       "StartTimeMin": "2017-01-26T00:00:31.639875Z",
       "StartTimeMax": "2017-01-26T00:07:31.639875Z",
       "DurationMin": 0,
@@ -94,7 +94,7 @@
     "Query": {
       "ServiceName": "query06-service",
       "OperationName": "query06-operation",
-      "Attributes": [],
+      "Attributes": {},
       "StartTimeMin": "2017-01-26T15:46:31.639875Z",
       "StartTimeMax": "2017-01-26T17:46:31.639875Z",
       "DurationMin": 0,
@@ -108,7 +108,7 @@
     "Query": {
       "ServiceName": "query07-service",
       "OperationName": "query07-operation",
-      "Attributes": [],
+      "Attributes": {},
       "StartTimeMin": "2017-01-26T15:46:31.639875Z",
       "StartTimeMax": "2017-01-26T17:46:31.639875Z",
       "DurationMin": 0,
@@ -122,7 +122,7 @@
     "Query": {
       "ServiceName": "query08-service",
       "OperationName": "query08-operation",
-      "Attributes": [],
+      "Attributes": {},
       "StartTimeMin": "2017-01-26T15:46:31.639875Z",
       "StartTimeMax": "2017-01-26T17:46:31.639875Z",
       "DurationMin": 4500,
@@ -136,7 +136,7 @@
     "Query": {
       "ServiceName": "query09-service",
       "OperationName": "",
-      "Attributes": [],
+      "Attributes": {},
       "StartTimeMin": "2017-01-26T15:46:31.639875Z",
       "StartTimeMax": "2017-01-26T17:46:31.639875Z",
       "DurationMin": 4500,
@@ -150,7 +150,7 @@
     "Query": {
       "ServiceName": "query10-service",
       "OperationName": "",
-      "Attributes": [],
+      "Attributes": {},
       "StartTimeMin": "2017-01-26T15:46:31.639875Z",
       "StartTimeMax": "2017-01-26T17:46:31.639875Z",
       "DurationMin": 0,
@@ -164,7 +164,7 @@
     "Query": {
       "ServiceName": "query11-service",
       "OperationName": "",
-      "Attributes": [],
+      "Attributes": {},
       "StartTimeMin": "2017-01-26T15:46:31.639875Z",
       "StartTimeMax": "2017-01-26T17:46:31.639875Z",
       "DurationMin": 0,
@@ -178,12 +178,12 @@
     "Query": {
       "ServiceName": "query12-service",
       "OperationName": "query12-operation",
-      "Attributes": [
-        { "key": "sameplacetag1", "value": { "string_value": "sameplacevalue" } },
-        { "key": "sameplacetag2", "value": { "int_value": 123 } },
-        { "key": "sameplacetag3", "value": { "double_value": 72.5 } },
-        { "key": "sameplacetag4", "value": { "bool_value": true } }
-      ],
+      "Attributes": {
+        "sameplacetag1": { "string_value": "sameplacevalue" },
+        "sameplacetag2": { "int_value": 123 },
+        "sameplacetag3": { "double_value": 72.5 },
+        "sameplacetag4": { "bool_value": true }
+      },
       "StartTimeMin": "2017-01-26T15:46:31.639875Z",
       "StartTimeMax": "2017-01-26T17:46:31.639875Z",
       "DurationMin": 0,
@@ -197,12 +197,12 @@
     "Query": {
       "ServiceName": "query13-service",
       "OperationName": "query13-operation",
-      "Attributes": [
-        { "key": "sameplacetag1", "value": { "string_value": "sameplacevalue" } },
-        { "key": "sameplacetag2", "value": { "int_value": 123 } },
-        { "key": "sameplacetag3", "value": { "double_value": 72.5 } },
-        { "key": "sameplacetag4", "value": { "bool_value": true } }
-      ],
+      "Attributes": {
+        "sameplacetag1": { "string_value": "sameplacevalue" },
+        "sameplacetag2": { "int_value": 123 },
+        "sameplacetag3": { "double_value": 72.5 },
+        "sameplacetag4": { "bool_value": true }
+      },
       "StartTimeMin": "2017-01-26T15:46:31.639875Z",
       "StartTimeMax": "2017-01-26T17:46:31.639875Z",
       "DurationMin": 0,
@@ -216,12 +216,12 @@
     "Query": {
       "ServiceName": "query14-service",
       "OperationName": "query14-operation",
-      "Attributes": [
-        { "key": "sameplacetag1", "value": { "string_value": "sameplacevalue" } },
-        { "key": "sameplacetag2", "value": { "int_value": 123 } },
-        { "key": "sameplacetag3", "value": { "double_value": 72.5 } },
-        { "key": "sameplacetag4", "value": { "bool_value": true } }
-      ],
+      "Attributes": {
+        "sameplacetag1": { "string_value": "sameplacevalue" },
+        "sameplacetag2": { "int_value": 123 },
+        "sameplacetag3": { "double_value": 72.5 },
+        "sameplacetag4": { "bool_value": true }
+      },
       "StartTimeMin": "2017-01-26T15:46:31.639875Z",
       "StartTimeMax": "2017-01-26T17:46:31.639875Z",
       "DurationMin": 4500,
@@ -235,12 +235,12 @@
     "Query": {
       "ServiceName": "query15-service",
       "OperationName": "",
-      "Attributes": [
-        { "key": "sameplacetag1", "value": { "string_value": "sameplacevalue" } },
-        { "key": "sameplacetag2", "value": { "int_value": 123 } },
-        { "key": "sameplacetag3", "value": { "double_value": 72.5 } },
-        { "key": "sameplacetag4", "value": { "bool_value": true } }
-      ],
+      "Attributes": {
+        "sameplacetag1": { "string_value": "sameplacevalue" },
+        "sameplacetag2": { "int_value": 123 },
+        "sameplacetag3": { "double_value": 72.5 },
+        "sameplacetag4": { "bool_value": true }
+      },
       "StartTimeMin": "2017-01-26T15:46:31.639875Z",
       "StartTimeMax": "2017-01-26T17:46:31.639875Z",
       "DurationMin": 4500,
@@ -254,12 +254,12 @@
     "Query": {
       "ServiceName": "query16-service",
       "OperationName": "",
-      "Attributes": [
-        { "key": "sameplacetag1", "value": { "string_value": "sameplacevalue" } },
-        { "key": "sameplacetag2", "value": { "int_value": 123 } },
-        { "key": "sameplacetag3", "value": { "double_value": 72.5 } },
-        { "key": "sameplacetag4", "value": { "bool_value": true } }
-      ],
+      "Attributes": {
+        "sameplacetag1": { "string_value": "sameplacevalue" },
+        "sameplacetag2": { "int_value": 123 },
+        "sameplacetag3": { "double_value": 72.5 },
+        "sameplacetag4": { "bool_value": true }
+      },
       "StartTimeMin": "2017-01-26T15:46:31.639875Z",
       "StartTimeMax": "2017-01-26T17:46:31.639875Z",
       "DurationMin": 0,
@@ -273,12 +273,12 @@
     "Query": {
       "ServiceName": "query17-service",
       "OperationName": "query17-operation",
-      "Attributes": [
-        { "key": "sameplacetag1", "value": { "string_value": "sameplacevalue" } },
-        { "key": "sameplacetag2", "value": { "int_value": 123 } },
-        { "key": "sameplacetag3", "value": { "double_value": 72.5 } },
-        { "key": "sameplacetag4", "value": { "bool_value": true } }
-      ],
+      "Attributes": {
+        "sameplacetag1": { "string_value": "sameplacevalue" },
+        "sameplacetag2": { "int_value": 123 },
+        "sameplacetag3": { "double_value": 72.5 },
+        "sameplacetag4": { "bool_value": true }
+      },
       "StartTimeMin": "2017-01-26T15:46:31.639875Z",
       "StartTimeMax": "2017-01-26T17:46:31.639875Z",
       "DurationMin": 0,
@@ -292,12 +292,12 @@
     "Query": {
       "ServiceName": "query18-service",
       "OperationName": "query18-operation",
-      "Attributes": [
-        { "key": "sameplacetag1", "value": { "string_value": "sameplacevalue" } },
-        { "key": "sameplacetag2", "value": { "int_value": 123 } },
-        { "key": "sameplacetag3", "value": { "double_value": 72.5 } },
-        { "key": "sameplacetag4", "value": { "bool_value": true } }
-      ],
+      "Attributes": {
+        "sameplacetag1": { "string_value": "sameplacevalue" },
+        "sameplacetag2": { "int_value": 123 },
+        "sameplacetag3": { "double_value": 72.5 },
+        "sameplacetag4": { "bool_value": true }
+      },
       "StartTimeMin": "2017-01-26T15:46:31.639875Z",
       "StartTimeMax": "2017-01-26T17:46:31.639875Z",
       "DurationMin": 0,
@@ -311,12 +311,12 @@
     "Query": {
       "ServiceName": "query19-service",
       "OperationName": "query19-operation",
-      "Attributes": [
-        { "key": "sameplacetag1", "value": { "string_value": "sameplacevalue" } },
-        { "key": "sameplacetag2", "value": { "int_value": 123 } },
-        { "key": "sameplacetag3", "value": { "double_value": 72.5 } },
-        { "key": "sameplacetag4", "value": { "bool_value": true } }
-      ],
+      "Attributes": {
+        "sameplacetag1": { "string_value": "sameplacevalue" },
+        "sameplacetag2": { "int_value": 123 },
+        "sameplacetag3": { "double_value": 72.5 },
+        "sameplacetag4": { "bool_value": true }
+      },
       "StartTimeMin": "2017-01-26T15:46:31.639875Z",
       "StartTimeMax": "2017-01-26T17:46:31.639875Z",
       "DurationMin": 4500,
@@ -330,12 +330,12 @@
     "Query": {
       "ServiceName": "query20-service",
       "OperationName": "",
-      "Attributes": [
-        { "key": "sameplacetag1", "value": { "string_value": "sameplacevalue" } },
-        { "key": "sameplacetag2", "value": { "int_value": 123 } },
-        { "key": "sameplacetag3", "value": { "double_value": 72.5 } },
-        { "key": "sameplacetag4", "value": { "bool_value": true } }
-      ],
+      "Attributes": {
+        "sameplacetag1": { "string_value": "sameplacevalue" },
+        "sameplacetag2": { "int_value": 123 },
+        "sameplacetag3": { "double_value": 72.5 },
+        "sameplacetag4": { "bool_value": true }
+      },
       "StartTimeMin": "2017-01-26T15:46:31.639875Z",
       "StartTimeMax": "2017-01-26T17:46:31.639875Z",
       "DurationMin": 4500,
@@ -349,12 +349,12 @@
     "Query": {
       "ServiceName": "query21-service",
       "OperationName": "",
-      "Attributes": [
-        { "key": "sameplacetag1", "value": { "string_value": "sameplacevalue" } },
-        { "key": "sameplacetag2", "value": { "int_value": 123 } },
-        { "key": "sameplacetag3", "value": { "double_value": 72.5 } },
-        { "key": "sameplacetag4", "value": { "bool_value": true } }
-      ],
+      "Attributes": {
+        "sameplacetag1": { "string_value": "sameplacevalue" },
+        "sameplacetag2": { "int_value": 123 },
+        "sameplacetag3": { "double_value": 72.5 },
+        "sameplacetag4": { "bool_value": true }
+      },
       "StartTimeMin": "2017-01-26T15:46:31.639875Z",
       "StartTimeMax": "2017-01-26T17:46:31.639875Z",
       "DurationMin": 0,
@@ -368,7 +368,7 @@
     "Query": {
       "ServiceName": "query22-service",
       "OperationName": "",
-      "Attributes": [],
+      "Attributes": {},
       "StartTimeMin": "2017-01-26T15:46:31.639875Z",
       "StartTimeMax": "2017-01-26T17:46:31.639875Z",
       "DurationMin": 0,

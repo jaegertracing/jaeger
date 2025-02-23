@@ -4,9 +4,9 @@
         "Query": {
         "ServiceName": "query23-service",
         "OperationName": "query23-operation",
-        "Attributes": [
-            { "key": "sameplacetag1", "value": { "string_value": "same\\*" } }
-        ],
+        "Attributes": {
+            "sameplacetag1": { "string_value": "same\\*" }
+        },
         "StartTimeMin": "2017-01-26T15:46:31.639875Z",
         "StartTimeMax": "2017-01-26T17:46:31.639875Z",
         "DurationMin": 0,
@@ -20,9 +20,9 @@
         "Query": {
         "ServiceName": "query24-service",
         "OperationName": "",
-        "Attributes": [
-            { "key": "sameplacetag1", "value": { "string_value": "same.*" } }
-        ],
+        "Attributes": {
+            "sameplacetag1": { "string_value": "same.*" }
+        },
         "StartTimeMin": "2017-01-26T15:46:31.639875Z",
         "StartTimeMax": "2017-01-26T17:46:31.639875Z",
         "DurationMin": 0,
