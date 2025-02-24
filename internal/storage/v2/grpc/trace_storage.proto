@@ -97,9 +97,29 @@ message FindTracesRequest {
   TraceQueryParameters query = 1;
 }
 
+
+// FoundTraceID is a wrapper around trace ID returned from FindTraceIDs
+// with an optional time range that may be used in GetTraces calls.
+//
+// The time range is provided as an optimization hint for some storage backends
+// that can perform more efficient queries when they know the approximate time range.
+// The value should not be used for precise time-based filtering or assumptions.
+// It is meant as a rough boundary and may not be populated in all cases.
+message FoundTraceID {
+  bytes trace_id = 1;
+  google.protobuf.Timestamp start = 2 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false
+  ];
+  google.protobuf.Timestamp end = 3 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false
+  ];
+}
+
 // FindTraceIDsResponse represents the response for FindTracesRequest.
 message FindTraceIDsResponse {
-  repeated bytes trace_ids = 1;
+  repeated FoundTraceIDs trace_ids = 1;
 }
 
 // TraceReader is a service that allows reading traces from storage.
