@@ -119,7 +119,7 @@ message FoundTraceID {
 
 // FindTraceIDsResponse represents the response for FindTracesRequest.
 message FindTraceIDsResponse {
-  repeated FoundTraceIDs trace_ids = 1;
+  repeated FoundTraceID trace_ids = 1;
 }
 
 // TraceReader is a service that allows reading traces from storage.
