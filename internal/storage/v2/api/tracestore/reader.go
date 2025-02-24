@@ -88,27 +88,17 @@ type TraceQueryParams struct {
 	NumTraces     int
 }
 
-// FoundTraceID represents a chunk of trace IDs that match specific query parameters.
+// FoundTraceID is a wrapper around trace ID returned from FindTraceIDs
+// with an optional time range that may be used in GetTraces calls.
+//
+// The time range is provided as an optimization hint for some storage backends
+// that can perform more efficient queries when they know the approximate time range.
+// The value should not be used for precise time-based filtering or assumptions.
+// It is meant as a rough boundary and may not be populated in all cases.
 type FoundTraceID struct {
-	// TraceID is a slice of trace IDs that match the query parameters.
 	TraceID pcommon.TraceID
-
-	// Start is the start time of the earliest trace in the chunk.
-	//
-	// This field is provided as an optimization hint for some storage backends
-	// that can perform more efficient queries when they know the approximate time range.
-	// The value should not be used for precise time-based filtering or assumptions.
-	// It is meant as a rough boundary for the traces contained in the chunk and may not
-	// be populated in all cases.
-	Start time.Time
-
-	// End is the end time of the latest trace in the chunk.
-	//
-	// Similar to the Start field, this serves as an optimization for certain
-	// storage backends that can benefit from knowing the approximate end time
-	// of the traces. It should not be relied upon for any exact time-based logic
-	// and is only a hint for optimization purposes that may not be populated in all cases.
-	End time.Time
+	Start   time.Time
+	End     time.Time
 }
 
 func (t *TraceQueryParams) ToSpanStoreQueryParameters() *spanstore.TraceQueryParameters {
