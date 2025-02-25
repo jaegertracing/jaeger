@@ -21,16 +21,17 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
-	factoryMocks "github.com/jaegertracing/jaeger/internal/storage/v1/mocks"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
+	tracestoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
 )
 
 var (
 	_ jaegerstorage.Extension = (*mockStorageExt)(nil)
-	_ storage.Factory         = (*PurgerFactory)(nil)
+	_ tracestore.Factory      = (*PurgerFactory)(nil)
 )
 
 type PurgerFactory struct {
-	factoryMocks.Factory
+	tracestoremocks.Factory
 	err error
 }
 
@@ -40,7 +41,7 @@ func (f *PurgerFactory) Purge(_ context.Context) error {
 
 type mockStorageExt struct {
 	name           string
-	factory        storage.Factory
+	factory        tracestore.Factory
 	metricsFactory storage.MetricStoreFactory
 }
 
@@ -52,7 +53,7 @@ func (*mockStorageExt) Shutdown(context.Context) error {
 	panic("not implemented")
 }
 
-func (m *mockStorageExt) TraceStorageFactory(name string) (storage.Factory, bool) {
+func (m *mockStorageExt) TraceStorageFactory(name string) (tracestore.Factory, bool) {
 	if m.name == name {
 		return m.factory, true
 	}
@@ -69,7 +70,7 @@ func (m *mockStorageExt) MetricStorageFactory(name string) (storage.MetricStoreF
 func TestStorageCleanerExtension(t *testing.T) {
 	tests := []struct {
 		name    string
-		factory storage.Factory
+		factory tracestore.Factory
 		status  int
 	}{
 		{
@@ -80,11 +81,6 @@ func TestStorageCleanerExtension(t *testing.T) {
 		{
 			name:    "good storage with error",
 			factory: &PurgerFactory{err: errors.New("error")},
-			status:  http.StatusInternalServerError,
-		},
-		{
-			name:    "bad storage",
-			factory: &factoryMocks.Factory{},
 			status:  http.StatusInternalServerError,
 		},
 	}
@@ -122,17 +118,35 @@ func TestStorageCleanerExtension(t *testing.T) {
 }
 
 func TestGetStorageFactoryError(t *testing.T) {
-	config := &Config{}
-	s := newStorageCleaner(config, component.TelemetrySettings{
-		Logger: zaptest.NewLogger(t),
-	})
-	host := storagetest.NewStorageHost()
-	host.WithExtension(jaegerstorage.ID, &mockStorageExt{
-		name:    "storage",
-		factory: nil,
-	})
-	err := s.Start(context.Background(), host)
-	require.ErrorContains(t, err, "cannot find storage factory")
+	tests := []struct {
+		name    string
+		factory tracestore.Factory
+	}{
+		{
+			name:    "NoFactory",
+			factory: &tracestoremocks.Factory{},
+		},
+		{
+			name:    "BadFactory",
+			factory: nil,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			config := &Config{}
+			s := newStorageCleaner(config, component.TelemetrySettings{
+				Logger: zaptest.NewLogger(t),
+			})
+			host := storagetest.NewStorageHost()
+			host.WithExtension(jaegerstorage.ID, &mockStorageExt{
+				name:    "storage",
+				factory: test.factory,
+			})
+			err := s.Start(context.Background(), host)
+			require.ErrorContains(t, err, "failed to obtain purger")
+		})
+	}
 }
 
 func TestStorageExtensionStartError(t *testing.T) {

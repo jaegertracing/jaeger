@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"iter"
 
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"google.golang.org/grpc/codes"
@@ -17,7 +18,6 @@ import (
 	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
-	"github.com/jaegertracing/jaeger/pkg/iter"
 )
 
 // Handler implements api_v3.QueryServiceServer
@@ -131,21 +131,17 @@ func receiveTraces(
 	seq iter.Seq2[[]ptrace.Traces, error],
 	sendFn func(*api_v3.TracesData) error,
 ) error {
-	var capturedErr error
-	seq(func(traces []ptrace.Traces, err error) bool {
+	for traces, err := range seq {
 		if err != nil {
-			capturedErr = err
-			return false
+			return err
 		}
 		for _, trace := range traces {
 			tracesData := api_v3.TracesData(trace)
 			if err := sendFn(&tracesData); err != nil {
-				capturedErr = status.Error(codes.Internal,
+				return status.Error(codes.Internal,
 					fmt.Sprintf("failed to send response stream chunk to client: %v", err))
-				return false
 			}
 		}
-		return true
-	})
-	return capturedErr
+	}
+	return nil
 }

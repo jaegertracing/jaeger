@@ -21,15 +21,12 @@ import (
 	nooptrace "go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/internal/storage/v1"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/badger"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/grpc"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/memory"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	esCfg "github.com/jaegertracing/jaeger/pkg/es/config"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 	promCfg "github.com/jaegertracing/jaeger/pkg/prometheus/config"
 )
 
@@ -37,19 +34,11 @@ type errorFactory struct {
 	closeErr error
 }
 
-func (errorFactory) Initialize(metrics.Factory, *zap.Logger) error {
+func (errorFactory) CreateTraceReader() (tracestore.Reader, error) {
 	panic("not implemented")
 }
 
-func (errorFactory) CreateSpanReader() (spanstore.Reader, error) {
-	panic("not implemented")
-}
-
-func (errorFactory) CreateSpanWriter() (spanstore.Writer, error) {
-	panic("not implemented")
-}
-
-func (errorFactory) CreateDependencyReader() (dependencystore.Reader, error) {
+func (errorFactory) CreateTraceWriter() (tracestore.Writer, error) {
 	panic("not implemented")
 }
 
@@ -58,13 +47,13 @@ func (e errorFactory) Close() error {
 }
 
 func TestStorageFactoryBadHostError(t *testing.T) {
-	_, err := GetStorageFactory("something", componenttest.NewNopHost())
+	_, err := getStorageFactory("something", componenttest.NewNopHost())
 	require.ErrorContains(t, err, "cannot find extension")
 }
 
 func TestStorageFactoryBadNameError(t *testing.T) {
 	host := storagetest.NewStorageHost().WithExtension(ID, startStorageExtension(t, "foo", ""))
-	_, err := GetStorageFactory("bar", host)
+	_, err := getStorageFactory("bar", host)
 	require.ErrorContains(t, err, "cannot find definition of storage 'bar'")
 }
 
@@ -88,7 +77,7 @@ func TestStorageExtensionType(t *testing.T) {
 func TestStorageFactoryBadShutdownError(t *testing.T) {
 	shutdownError := errors.New("shutdown error")
 	ext := storageExt{
-		factories: map[string]storage.Factory{
+		factories: map[string]tracestore.Factory{
 			"foo": errorFactory{closeErr: shutdownError},
 		},
 	}
@@ -106,7 +95,7 @@ func TestGetFactory(t *testing.T) {
 	const name = "foo"
 	const metricname = "bar"
 	host := storagetest.NewStorageHost().WithExtension(ID, startStorageExtension(t, name, metricname))
-	f, err := GetStorageFactory(name, host)
+	f, err := getStorageFactory(name, host)
 	require.NoError(t, err)
 	require.NotNil(t, f)
 
@@ -189,6 +178,71 @@ func TestGetSamplingStoreFactory(t *testing.T) {
 				require.Nil(t, ssf)
 			} else {
 				require.NotNil(t, ssf)
+			}
+		})
+	}
+}
+
+func TestGetPurger(t *testing.T) {
+	tests := []struct {
+		name          string
+		storageName   string
+		expectedError string
+		setupFunc     func(t *testing.T) component.Component
+	}{
+		{
+			name:        "Supported",
+			storageName: "foo",
+			setupFunc: func(t *testing.T) component.Component {
+				traceStoreFactory := "foo"
+				return startStorageExtension(t, traceStoreFactory, "bar")
+			},
+		},
+		{
+			name:          "NotFound",
+			storageName:   "nonexistingstorage",
+			expectedError: "cannot find definition of storage",
+			setupFunc: func(t *testing.T) component.Component {
+				traceStoreFactory := "foo"
+				return startStorageExtension(t, traceStoreFactory, "bar")
+			},
+		},
+		{
+			name:          "NotSupported",
+			storageName:   "foo",
+			expectedError: "storage 'foo' does not support purging",
+			setupFunc: func(t *testing.T) component.Component {
+				ext := makeStorageExtension(t, &Config{
+					TraceBackends: map[string]TraceBackend{
+						"foo": {
+							GRPC: &grpc.Config{
+								ClientConfig: configgrpc.ClientConfig{
+									Endpoint: "localhost:12345",
+								},
+							},
+						},
+					},
+				})
+				require.NoError(t, ext.Start(context.Background(), componenttest.NewNopHost()))
+				t.Cleanup(func() {
+					require.NoError(t, ext.Shutdown(context.Background()))
+				})
+				return ext
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			ext := test.setupFunc(t)
+			host := storagetest.NewStorageHost().WithExtension(ID, ext)
+
+			purger, err := GetPurger(test.storageName, host)
+			if test.expectedError != "" {
+				require.ErrorContains(t, err, test.expectedError)
+				require.Nil(t, purger)
+			} else {
+				require.NotNil(t, purger)
 			}
 		})
 	}

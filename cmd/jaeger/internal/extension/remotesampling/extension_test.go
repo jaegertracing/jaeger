@@ -43,6 +43,7 @@ func makeStorageExtension(t *testing.T, memstoreName string) component.Host {
 	storageExtension, err := extensionFactory.Create(
 		context.Background(),
 		extension.Settings{
+			ID:                jaegerstorage.ID,
 			TelemetrySettings: telemetrySettings,
 		},
 		&jaegerstorage.Config{TraceBackends: map[string]jaegerstorage.TraceBackend{
@@ -65,6 +66,7 @@ func makeRemoteSamplingExtension(t *testing.T, cfg component.Config) component.H
 	samplingExtension, err := extensionFactory.Create(
 		context.Background(),
 		extension.Settings{
+			ID: ID,
 			TelemetrySettings: component.TelemetrySettings{
 				Logger:         zap.L(),
 				TracerProvider: nooptrace.NewTracerProvider(),
@@ -91,6 +93,7 @@ func TestStartFileBasedProvider(t *testing.T) {
 	require.NoError(t, cfg.Validate())
 
 	ext, err := factory.Create(context.Background(), extension.Settings{
+		ID:                ID,
 		TelemetrySettings: componenttest.NewNopTelemetrySettings(),
 	}, cfg)
 	require.NoError(t, err)
@@ -111,6 +114,7 @@ func TestStartHTTP(t *testing.T) {
 	require.NoError(t, cfg.Validate())
 
 	ext, err := factory.Create(context.Background(), extension.Settings{
+		ID:                ID,
 		TelemetrySettings: componenttest.NewNopTelemetrySettings(),
 	}, cfg)
 	require.NoError(t, err)
@@ -152,6 +156,7 @@ func TestStartGRPC(t *testing.T) {
 	require.NoError(t, cfg.Validate())
 
 	ext, err := factory.Create(context.Background(), extension.Settings{
+		ID:                ID,
 		TelemetrySettings: componenttest.NewNopTelemetrySettings(),
 	}, cfg)
 	require.NoError(t, err)
@@ -181,6 +186,7 @@ func TestStartAdaptiveProvider(t *testing.T) {
 	require.NoError(t, cfg.Validate())
 
 	ext, err := factory.Create(context.Background(), extension.Settings{
+		ID:                ID,
 		TelemetrySettings: componenttest.NewNopTelemetrySettings(),
 	}, cfg)
 	require.NoError(t, err)
@@ -247,6 +253,7 @@ func TestDependencies(t *testing.T) {
 	factory := NewFactory()
 	cfg := factory.CreateDefaultConfig().(*Config)
 	ext, err := factory.Create(context.Background(), extension.Settings{
+		ID:                ID,
 		TelemetrySettings: componenttest.NewNopTelemetrySettings(),
 	}, cfg)
 	require.NoError(t, err)

@@ -8,10 +8,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"iter"
 	"math"
 	"strings"
 
-	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -22,7 +22,6 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
-	"github.com/jaegertracing/jaeger/pkg/iter"
 	"github.com/jaegertracing/jaeger/ports"
 )
 
@@ -138,7 +137,7 @@ func (r *traceReader) FindTraces(
 func (*traceReader) FindTraceIDs(
 	_ context.Context,
 	_ tracestore.TraceQueryParams,
-) iter.Seq2[[]pcommon.TraceID, error] {
+) iter.Seq2[[]tracestore.FoundTraceID, error] {
 	panic("not implemented")
 }
 

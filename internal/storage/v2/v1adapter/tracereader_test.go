@@ -16,6 +16,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
+	"github.com/jaegertracing/jaeger/internal/jiter"
 	dependencyStoreMocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	spanStoreMocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/mocks"
@@ -23,7 +24,6 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	tracestoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
-	"github.com/jaegertracing/jaeger/pkg/iter"
 )
 
 func TestGetV1Reader_NoError(t *testing.T) {
@@ -63,7 +63,7 @@ func TestTraceReader_GetTracesDelegatesSuccessResponse(t *testing.T) {
 	traceReader := &TraceReader{
 		spanReader: sr,
 	}
-	traces, err := iter.FlattenWithErrors(traceReader.GetTraces(
+	traces, err := jiter.FlattenWithErrors(traceReader.GetTraces(
 		context.Background(),
 		tracestore.GetTraceParams{
 			TraceID: pcommon.TraceID([]byte{0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 3}),
@@ -120,7 +120,7 @@ func TestTraceReader_GetTracesErrorResponse(t *testing.T) {
 			traceReader := &TraceReader{
 				spanReader: sr,
 			}
-			traces, err := iter.FlattenWithErrors(traceReader.GetTraces(
+			traces, err := jiter.FlattenWithErrors(traceReader.GetTraces(
 				context.Background(), traceID(1), traceID(2),
 			))
 			require.ErrorIs(t, err, test.expectedErr)
@@ -295,7 +295,7 @@ func TestTraceReader_FindTracesDelegatesSuccessResponse(t *testing.T) {
 	traceReader := &TraceReader{
 		spanReader: sr,
 	}
-	traces, err := iter.FlattenWithErrors(traceReader.FindTraces(
+	traces, err := jiter.FlattenWithErrors(traceReader.FindTraces(
 		context.Background(),
 		tracestore.TraceQueryParams{
 			ServiceName:   "service",
@@ -358,7 +358,7 @@ func TestTraceReader_FindTracesEdgeCases(t *testing.T) {
 			traceReader := &TraceReader{
 				spanReader: sr,
 			}
-			traces, err := iter.FlattenWithErrors(traceReader.FindTraces(
+			traces, err := jiter.FlattenWithErrors(traceReader.FindTraces(
 				context.Background(),
 				tracestore.TraceQueryParams{},
 			))
@@ -404,7 +404,7 @@ func TestTraceReader_FindTraceIDsDelegatesResponse(t *testing.T) {
 	tests := []struct {
 		name             string
 		modelTraceIDs    []model.TraceID
-		expectedTraceIDs []pcommon.TraceID
+		expectedTraceIDs []tracestore.FoundTraceID
 		err              error
 	}{
 		{
@@ -413,9 +413,13 @@ func TestTraceReader_FindTraceIDsDelegatesResponse(t *testing.T) {
 				{Low: 3, High: 2},
 				{Low: 4, High: 3},
 			},
-			expectedTraceIDs: []pcommon.TraceID{
-				pcommon.TraceID([]byte{0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 3}),
-				pcommon.TraceID([]byte{0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 4}),
+			expectedTraceIDs: []tracestore.FoundTraceID{
+				{
+					TraceID: pcommon.TraceID([]byte{0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 3}),
+				},
+				{
+					TraceID: pcommon.TraceID([]byte{0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 4}),
+				},
 			},
 		},
 		{
@@ -456,7 +460,7 @@ func TestTraceReader_FindTraceIDsDelegatesResponse(t *testing.T) {
 			traceReader := &TraceReader{
 				spanReader: sr,
 			}
-			traceIDs, err := iter.FlattenWithErrors(traceReader.FindTraceIDs(
+			traceIDs, err := jiter.FlattenWithErrors(traceReader.FindTraceIDs(
 				context.Background(),
 				tracestore.TraceQueryParams{
 					ServiceName:   "service",

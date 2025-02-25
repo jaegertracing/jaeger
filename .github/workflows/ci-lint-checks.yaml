@@ -1,6 +1,7 @@
 name: Lint Checks
 
 on:
+  merge_group:
   push:
     branches: [main]
 
@@ -27,7 +28,7 @@ jobs:
 
     - uses: actions/setup-go@f111f3307d8850f501ac008e886eec1fd1932a34 # v5.3.0
       with:
-        go-version: 1.23.x
+        go-version: 1.24.x
 
     - name: Print Jaeger version for no reason
       run: make echo-v1 echo-v2
@@ -66,9 +67,25 @@ jobs:
         python-version: '3.x'
 
     - name: Run DCO check
+      if: ${{ github.event.pull_request.user.login != 'dependabot' && github.event_name != 'merge_group' }}
       run: python3 scripts/lint/dco_check.py -b main -v --exclude-pattern '@users\.noreply\.github\.com'
       env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  idl-version-check:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
+      with:
+        egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
+
+    - uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938 # v4.2.0
+      with:
+        submodules: recursive
+        fetch-tags: true
+
+    - name: check jaeger-idl versions across git submodule and go.mod dependency
+      run: make lint-jaeger-idl-versions
 
   generated-files-check:
     runs-on: ubuntu-latest
@@ -83,7 +100,7 @@ jobs:
 
     - uses: actions/setup-go@f111f3307d8850f501ac008e886eec1fd1932a34 # v5.3.0
       with:
-        go-version: 1.23.x
+        go-version: 1.24.x
 
     - name: Verify Protobuf types are up to date
       run: make proto && { if git status --porcelain | grep '??'; then exit 1; else git diff --name-status --exit-code; fi }
@@ -120,7 +137,7 @@ jobs:
     steps:
     - uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
       with:
-        egress-policy: audit 
+        egress-policy: audit
 
     - uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938 # v4.2.0
       with:
@@ -128,7 +145,7 @@ jobs:
 
     - uses: actions/setup-go@f111f3307d8850f501ac008e886eec1fd1932a34 # v5.3.0
       with:
-        go-version: 1.23.x
+        go-version: 1.24.x
 
     - name: Setup Node.js version
       uses: ./.github/actions/setup-node.js
@@ -141,7 +158,7 @@ jobs:
         TOTAL_SIZE=$(du -sb ./cmd/jaeger/jaeger-linux-amd64 | cut -f1)
         echo "$TOTAL_SIZE" > ./new_jaeger_binary_size.txt
         echo "Total binary size: $TOTAL_SIZE bytes"
-        
+
     - name: Restore previous binary size
       id: cache-binary-size
       uses: actions/cache/restore@1bd1e32a3bdc45362d1e726936510720a7c30a57      #v4.2.0
@@ -158,7 +175,7 @@ jobs:
         NEW_BINARY_SIZE=$(cat ./new_jaeger_binary_size.txt)
         echo "Previous binary size: $OLD_BINARY_SIZE bytes"
         echo "New binary size: $NEW_BINARY_SIZE bytes"
-        
+
         SIZE_CHANGE=$(( $NEW_BINARY_SIZE - $OLD_BINARY_SIZE ))
         PERCENTAGE_CHANGE=$(( SIZE_CHANGE * 100 / $OLD_BINARY_SIZE ))
         echo "Size change: $PERCENTAGE_CHANGE%"
@@ -168,13 +185,13 @@ jobs:
         else
           echo "✅ binary size change is within acceptable range ($PERCENTAGE_CHANGE%)"
         fi
- 
+
 
     - name: Remove previous *_binary_*.txt
       run: |
         rm -rf ./jaeger_binary_size.txt
         mv ./new_jaeger_binary_size.txt ./jaeger_binary_size.txt
-      
+
     - name: Save new jaeger binary size
       if: ${{ (github.event_name == 'push') && (github.ref == 'refs/heads/main') }}
       uses: actions/cache/save@1bd1e32a3bdc45362d1e726936510720a7c30a57     #v4.2.0
