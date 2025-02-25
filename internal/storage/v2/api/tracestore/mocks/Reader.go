@@ -13,8 +13,6 @@ import (
 
 	mock "github.com/stretchr/testify/mock"
 
-	pcommon "go.opentelemetry.io/collector/pdata/pcommon"
-
 	ptrace "go.opentelemetry.io/collector/pdata/ptrace"
 
 	tracestore "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
@@ -26,19 +24,19 @@ type Reader struct {
 }
 
 // FindTraceIDs provides a mock function with given fields: ctx, query
-func (_m *Reader) FindTraceIDs(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[[]pcommon.TraceID, error] {
+func (_m *Reader) FindTraceIDs(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[[]tracestore.FoundTraceID, error] {
 	ret := _m.Called(ctx, query)
 
 	if len(ret) == 0 {
 		panic("no return value specified for FindTraceIDs")
 	}
 
-	var r0 iter.Seq2[[]pcommon.TraceID, error]
-	if rf, ok := ret.Get(0).(func(context.Context, tracestore.TraceQueryParams) iter.Seq2[[]pcommon.TraceID, error]); ok {
+	var r0 iter.Seq2[[]tracestore.FoundTraceID, error]
+	if rf, ok := ret.Get(0).(func(context.Context, tracestore.TraceQueryParams) iter.Seq2[[]tracestore.FoundTraceID, error]); ok {
 		r0 = rf(ctx, query)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(iter.Seq2[[]pcommon.TraceID, error])
+			r0 = ret.Get(0).(iter.Seq2[[]tracestore.FoundTraceID, error])
 		}
 	}
 

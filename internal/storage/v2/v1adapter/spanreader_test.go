@@ -336,7 +336,7 @@ func TestSpanReader_FindTraceIDs(t *testing.T) {
 		name             string
 		query            *spanstore.TraceQueryParameters
 		expectedQuery    tracestore.TraceQueryParams
-		traceIDs         []pcommon.TraceID
+		traceIDs         []tracestore.FoundTraceID
 		expectedTraceIDs []model.TraceID
 		err              error
 		expectedErr      error
@@ -360,7 +360,7 @@ func TestSpanReader_FindTraceIDs(t *testing.T) {
 			expectedQuery: tracestore.TraceQueryParams{
 				ServiceName: "service1",
 			},
-			traceIDs:         []pcommon.TraceID{},
+			traceIDs:         []tracestore.FoundTraceID{},
 			expectedTraceIDs: nil,
 		},
 		{
@@ -371,9 +371,13 @@ func TestSpanReader_FindTraceIDs(t *testing.T) {
 			expectedQuery: tracestore.TraceQueryParams{
 				ServiceName: "service1",
 			},
-			traceIDs: []pcommon.TraceID{
-				pcommon.TraceID([16]byte{0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 2}),
-				pcommon.TraceID([16]byte{0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 4}),
+			traceIDs: []tracestore.FoundTraceID{
+				{
+					TraceID: [16]byte{0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 2},
+				},
+				{
+					TraceID: [16]byte{0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 4},
+				},
 			},
 			expectedTraceIDs: []model.TraceID{
 				model.NewTraceID(1, 2),
@@ -385,7 +389,7 @@ func TestSpanReader_FindTraceIDs(t *testing.T) {
 	for _, test := range tests {
 		tr := tracestoremocks.Reader{}
 		tr.On("FindTraceIDs", mock.Anything, test.expectedQuery).
-			Return(iter.Seq2[[]pcommon.TraceID, error](func(yield func([]pcommon.TraceID, error) bool) {
+			Return(iter.Seq2[[]tracestore.FoundTraceID, error](func(yield func([]tracestore.FoundTraceID, error) bool) {
 				yield(test.traceIDs, test.err)
 			})).Once()
 
