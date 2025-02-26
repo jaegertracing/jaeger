@@ -67,14 +67,14 @@ type StorageIntegration struct {
 // === SpanStore Integration Tests ===
 
 type Query struct {
-	ServiceName   string
-	OperationName string
-	Tags          map[string]string
-	StartTimeMin  time.Time
-	StartTimeMax  time.Time
-	DurationMin   time.Duration
-	DurationMax   time.Duration
-	NumTraces     int
+	ServiceName   string            `json:"service_name"`
+	OperationName string            `json:"operation_name"`
+	Tags          map[string]string `json:"tags"`
+	StartTimeMin  time.Time         `json:"start_time_min"`
+	StartTimeMax  time.Time         `json:"start_time_max"`
+	DurationMin   time.Duration     `json:"duration_min"`
+	DurationMax   time.Duration     `json:"duration_max"`
+	NumTraces     int               `json:"num_traces"`
 }
 
 func (q *Query) ToTraceQueryParams() *tracestore.TraceQueryParams {
@@ -98,9 +98,9 @@ func (q *Query) ToTraceQueryParams() *tracestore.TraceQueryParams {
 // Queries are not necessarily numbered, but since each query requires a service name,
 // the service name is formatted "query##-service".
 type QueryFixtures struct {
-	Caption          string
-	Query            *Query
-	ExpectedFixtures []string
+	Caption          string   `json:"caption"`
+	Query            *Query   `json:"query"`
+	ExpectedFixtures []string `json:"expected_fixtures"`
 }
 
 func (s *StorageIntegration) cleanUp(t *testing.T) {
