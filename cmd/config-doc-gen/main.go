@@ -188,7 +188,9 @@ func extractDefaultValue(tag *ast.BasicLit, fieldType string) interface{} {
 		return defaultValueStr
 	case "int", "int8", "int16", "int32", "int64":
 		var intValue int64
-		fmt.Sscanf(defaultValueStr, "%d", &intValue)
+		if _, err := fmt.Sscanf(defaultValueStr, "%d", &intValue); err != nil {
+			return nil
+		}
 		return intValue
 	case "uint", "uint8", "uint16", "uint32", "uint64":
 		var uintValue uint64
