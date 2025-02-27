@@ -86,7 +86,7 @@ type TraceQueryParams struct {
 	StartTimeMax  time.Time
 	DurationMin   time.Duration
 	DurationMax   time.Duration
-	NumTraces     int
+	SearchDepth   int
 }
 
 // FoundTraceID is a wrapper around trace ID returned from FindTraceIDs
@@ -111,7 +111,7 @@ func (t *TraceQueryParams) ToSpanStoreQueryParameters() *spanstore.TraceQueryPar
 		StartTimeMax:  t.StartTimeMax,
 		DurationMin:   t.DurationMin,
 		DurationMax:   t.DurationMax,
-		NumTraces:     t.NumTraces,
+		NumTraces:     t.SearchDepth,
 	}
 }
 

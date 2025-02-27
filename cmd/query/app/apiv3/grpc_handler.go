@@ -75,7 +75,7 @@ func (h *Handler) internalFindTraces(
 			ServiceName:   query.GetServiceName(),
 			OperationName: query.GetOperationName(),
 			Attributes:    jptrace.MapToAttributes(query.GetAttributes()),
-			NumTraces:     int(query.GetSearchDepth()),
+			SearchDepth:   int(query.GetSearchDepth()),
 		},
 		RawTraces: query.GetRawTraces(),
 	}

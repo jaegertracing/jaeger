@@ -278,7 +278,7 @@ func TestFindTraces_Success(t *testing.T) {
 		OperationName: "operation",
 		StartTimeMax:  now,
 		DurationMin:   duration,
-		NumTraces:     200,
+		SearchDepth:   200,
 	}
 	tqs.traceReader.On("FindTraces", mock.Anything, queryParams).Return(responseIter).Once()
 
@@ -352,7 +352,7 @@ func TestFindTraces_WithRawTraces_PerformsAdjustment(t *testing.T) {
 				OperationName: "operation",
 				StartTimeMax:  now,
 				DurationMin:   duration,
-				NumTraces:     200,
+				SearchDepth:   200,
 			}).
 				Return(responseIter).Once()
 
@@ -362,7 +362,7 @@ func TestFindTraces_WithRawTraces_PerformsAdjustment(t *testing.T) {
 					OperationName: "operation",
 					StartTimeMax:  now,
 					DurationMin:   duration,
-					NumTraces:     200,
+					SearchDepth:   200,
 				},
 				RawTraces: test.rawTraces,
 			}
@@ -488,7 +488,7 @@ func TestFindTraces_WithRawTraces_PerformsAggregation(t *testing.T) {
 				OperationName: "operation",
 				StartTimeMax:  now,
 				DurationMin:   duration,
-				NumTraces:     200,
+				SearchDepth:   200,
 			}).
 				Return(responseIter).Once()
 
@@ -498,7 +498,7 @@ func TestFindTraces_WithRawTraces_PerformsAggregation(t *testing.T) {
 					OperationName: "operation",
 					StartTimeMax:  now,
 					DurationMin:   duration,
-					NumTraces:     200,
+					SearchDepth:   200,
 				},
 				RawTraces: test.rawTraces,
 			}
