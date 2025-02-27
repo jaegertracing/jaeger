@@ -21,6 +21,7 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/pdata/pcommon"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore"
@@ -78,10 +79,14 @@ type Query struct {
 }
 
 func (q *Query) ToTraceQueryParams() *tracestore.TraceQueryParams {
+	attributes := pcommon.NewMap()
+	for k, v := range q.Tags {
+		attributes.PutStr(k, v)
+	}
 	return &tracestore.TraceQueryParams{
 		ServiceName:   q.ServiceName,
 		OperationName: q.OperationName,
-		Tags:          q.Tags,
+		Attributes:    attributes,
 		StartTimeMin:  q.StartTimeMin,
 		StartTimeMax:  q.StartTimeMax,
 		DurationMin:   q.DurationMin,

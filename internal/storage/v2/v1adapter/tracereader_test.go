@@ -295,12 +295,14 @@ func TestTraceReader_FindTracesDelegatesSuccessResponse(t *testing.T) {
 	traceReader := &TraceReader{
 		spanReader: sr,
 	}
+	attributes := pcommon.NewMap()
+	attributes.PutStr("tag-a", "val-a")
 	traces, err := jiter.FlattenWithErrors(traceReader.FindTraces(
 		context.Background(),
 		tracestore.TraceQueryParams{
 			ServiceName:   "service",
 			OperationName: "operation",
-			Tags:          map[string]string{"tag-a": "val-a"},
+			Attributes:    attributes,
 			StartTimeMin:  now,
 			StartTimeMax:  now.Add(time.Minute),
 			DurationMin:   time.Minute,
@@ -460,12 +462,14 @@ func TestTraceReader_FindTraceIDsDelegatesResponse(t *testing.T) {
 			traceReader := &TraceReader{
 				spanReader: sr,
 			}
+			attributes := pcommon.NewMap()
+			attributes.PutStr("tag-a", "val-a")
 			traceIDs, err := jiter.FlattenWithErrors(traceReader.FindTraceIDs(
 				context.Background(),
 				tracestore.TraceQueryParams{
 					ServiceName:   "service",
 					OperationName: "operation",
-					Tags:          map[string]string{"tag-a": "val-a"},
+					Attributes:    attributes,
 					StartTimeMin:  now,
 					StartTimeMax:  now.Add(time.Minute),
 					DurationMin:   time.Minute,
