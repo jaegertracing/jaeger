@@ -66,6 +66,30 @@ type StorageIntegration struct {
 
 // === SpanStore Integration Tests ===
 
+type Query struct {
+	ServiceName   string
+	OperationName string
+	Tags          map[string]string
+	StartTimeMin  time.Time
+	StartTimeMax  time.Time
+	DurationMin   time.Duration
+	DurationMax   time.Duration
+	NumTraces     int
+}
+
+func (q *Query) ToTraceQueryParams() *tracestore.TraceQueryParams {
+	return &tracestore.TraceQueryParams{
+		ServiceName:   q.ServiceName,
+		OperationName: q.OperationName,
+		Tags:          q.Tags,
+		StartTimeMin:  q.StartTimeMin,
+		StartTimeMax:  q.StartTimeMax,
+		DurationMin:   q.DurationMin,
+		DurationMax:   q.DurationMax,
+		NumTraces:     q.NumTraces,
+	}
+}
+
 // QueryFixtures and TraceFixtures are under ./fixtures/queries.json and ./fixtures/traces/*.json respectively.
 // Each query fixture includes:
 // - Caption: describes the query we are testing
@@ -75,7 +99,7 @@ type StorageIntegration struct {
 // the service name is formatted "query##-service".
 type QueryFixtures struct {
 	Caption          string
-	Query            *tracestore.TraceQueryParams
+	Query            *Query
 	ExpectedFixtures []string
 }
 
@@ -317,7 +341,7 @@ func (s *StorageIntegration) testFindTraces(t *testing.T) {
 		t.Run(queryTestCase.Caption, func(t *testing.T) {
 			s.skipIfNeeded(t)
 			expected := expectedTracesPerTestCase[i]
-			actual := s.findTracesByQuery(t, queryTestCase.Query, expected)
+			actual := s.findTracesByQuery(t, queryTestCase.Query.ToTraceQueryParams(), expected)
 			CompareSliceOfTraces(t, expected, actual)
 		})
 	}
