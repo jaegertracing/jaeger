@@ -362,7 +362,9 @@ func TestTraceReader_FindTracesEdgeCases(t *testing.T) {
 			}
 			traces, err := jiter.FlattenWithErrors(traceReader.FindTraces(
 				context.Background(),
-				tracestore.TraceQueryParams{},
+				tracestore.TraceQueryParams{
+					Attributes: pcommon.NewMap(),
+				},
 			))
 			require.ErrorIs(t, err, test.err)
 			require.Equal(t, test.expectedTraces, traces)
@@ -382,7 +384,9 @@ func TestTraceReader_FindTracesEarlyStop(t *testing.T) {
 	}
 	called := 0
 	traceReader.FindTraces(
-		context.Background(), tracestore.TraceQueryParams{},
+		context.Background(), tracestore.TraceQueryParams{
+			Attributes: pcommon.NewMap(),
+		},
 	)(func(tr []ptrace.Traces, err error) bool {
 		require.NoError(t, err)
 		require.Len(t, tr, 1)
@@ -392,7 +396,9 @@ func TestTraceReader_FindTracesEarlyStop(t *testing.T) {
 	assert.Equal(t, 3, called)
 	called = 0
 	traceReader.FindTraces(
-		context.Background(), tracestore.TraceQueryParams{},
+		context.Background(), tracestore.TraceQueryParams{
+			Attributes: pcommon.NewMap(),
+		},
 	)(func(tr []ptrace.Traces, err error) bool {
 		require.NoError(t, err)
 		require.Len(t, tr, 1)
