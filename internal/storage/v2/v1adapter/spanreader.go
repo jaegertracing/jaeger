@@ -8,6 +8,7 @@ import (
 	"errors"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
+	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
@@ -78,7 +79,7 @@ func (sr *SpanReader) FindTraces(
 	getTracesIter := sr.traceReader.FindTraces(ctx, tracestore.TraceQueryParams{
 		ServiceName:   query.ServiceName,
 		OperationName: query.OperationName,
-		Tags:          query.Tags,
+		Attributes:    jptrace.MapToAttributes(query.Tags),
 		StartTimeMin:  query.StartTimeMin,
 		StartTimeMax:  query.StartTimeMax,
 		DurationMin:   query.DurationMin,
@@ -95,7 +96,7 @@ func (sr *SpanReader) FindTraceIDs(
 	traceIDsIter := sr.traceReader.FindTraceIDs(ctx, tracestore.TraceQueryParams{
 		ServiceName:   query.ServiceName,
 		OperationName: query.OperationName,
-		Tags:          query.Tags,
+		Attributes:    jptrace.MapToAttributes(query.Tags),
 		StartTimeMin:  query.StartTimeMin,
 		StartTimeMax:  query.StartTimeMax,
 		DurationMin:   query.DurationMin,
