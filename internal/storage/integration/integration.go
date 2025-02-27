@@ -67,14 +67,14 @@ type StorageIntegration struct {
 // === SpanStore Integration Tests ===
 
 type Query struct {
-	ServiceName   string            `json:"service_name"`
-	OperationName string            `json:"operation_name"`
-	Tags          map[string]string `json:"tags"`
-	StartTimeMin  time.Time         `json:"start_time_min"`
-	StartTimeMax  time.Time         `json:"start_time_max"`
-	DurationMin   time.Duration     `json:"duration_min"`
-	DurationMax   time.Duration     `json:"duration_max"`
-	NumTraces     int               `json:"num_traces"`
+	ServiceName   string
+	OperationName string
+	Tags          map[string]string
+	StartTimeMin  time.Time
+	StartTimeMax  time.Time
+	DurationMin   time.Duration
+	DurationMax   time.Duration
+	NumTraces     int
 }
 
 func (q *Query) ToTraceQueryParams() *tracestore.TraceQueryParams {
