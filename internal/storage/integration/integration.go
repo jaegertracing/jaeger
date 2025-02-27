@@ -98,9 +98,9 @@ func (q *Query) ToTraceQueryParams() *tracestore.TraceQueryParams {
 // Queries are not necessarily numbered, but since each query requires a service name,
 // the service name is formatted "query##-service".
 type QueryFixtures struct {
-	Caption          string   `json:"caption"`
-	Query            *Query   `json:"query"`
-	ExpectedFixtures []string `json:"expected_fixtures"`
+	Caption          string
+	Query            *Query
+	ExpectedFixtures []string
 }
 
 func (s *StorageIntegration) cleanUp(t *testing.T) {
