@@ -79,7 +79,7 @@ func (sr *SpanReader) FindTraces(
 	getTracesIter := sr.traceReader.FindTraces(ctx, tracestore.TraceQueryParams{
 		ServiceName:   query.ServiceName,
 		OperationName: query.OperationName,
-		Attributes:    jptrace.MapToAttributes(query.Tags),
+		Attributes:    jptrace.PlainMapToPcommonMap(query.Tags),
 		StartTimeMin:  query.StartTimeMin,
 		StartTimeMax:  query.StartTimeMax,
 		DurationMin:   query.DurationMin,
@@ -96,7 +96,7 @@ func (sr *SpanReader) FindTraceIDs(
 	traceIDsIter := sr.traceReader.FindTraceIDs(ctx, tracestore.TraceQueryParams{
 		ServiceName:   query.ServiceName,
 		OperationName: query.OperationName,
-		Attributes:    jptrace.MapToAttributes(query.Tags),
+		Attributes:    jptrace.PlainMapToPcommonMap(query.Tags),
 		StartTimeMin:  query.StartTimeMin,
 		StartTimeMax:  query.StartTimeMax,
 		DurationMin:   query.DurationMin,

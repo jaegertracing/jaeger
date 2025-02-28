@@ -10,7 +10,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 )
 
-func TestAttributesToStringMap(t *testing.T) {
+func TestPcommonMapToPlainMap(t *testing.T) {
 	tests := []struct {
 		name       string
 		attributes pcommon.Map
@@ -54,13 +54,13 @@ func TestAttributesToStringMap(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			result := AttributesToMap(test.attributes)
+			result := PcommonMapToPlainMap(test.attributes)
 			require.Equal(t, test.expected, result)
 		})
 	}
 }
 
-func TestMapToAttributes(t *testing.T) {
+func TestPlainMapToPcommonMap(t *testing.T) {
 	tests := []struct {
 		name       string
 		attributes map[string]string
@@ -81,8 +81,8 @@ func TestMapToAttributes(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			result := MapToAttributes(test.attributes)
-			require.Equal(t, test.attributes, AttributesToMap(result))
+			result := PlainMapToPcommonMap(test.attributes)
+			require.Equal(t, test.attributes, PcommonMapToPlainMap(result))
 		})
 	}
 }
