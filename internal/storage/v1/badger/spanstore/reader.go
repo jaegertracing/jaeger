@@ -87,7 +87,7 @@ func NewTraceReader(db *badger.DB, c *CacheStore, prefillCache bool, dualLookUp 
 			if reader.dualLookUp {
 				reader.preloadOperations(service)
 			}
-			reader.preloadOperationsWthKind(service)
+			reader.preloadOperationsWithKind(service)
 		}
 	}
 	return reader
