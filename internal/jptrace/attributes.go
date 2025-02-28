@@ -19,21 +19,21 @@ const (
 )
 
 func AttributesToStringMap(attributes pcommon.Map) map[string]string {
-	tags := make(map[string]string)
+	mapAttributes := make(map[string]string)
 	attributes.Range(func(k string, v pcommon.Value) bool {
-		tags[k] = v.AsString()
+		mapAttributes[k] = v.AsString()
 		return true
 	})
-	return tags
+	return mapAttributes
 }
 
 func AttributesToMap(attributes pcommon.Map) map[string]any {
-	tags := make(map[string]any)
+	mapAttributes := make(map[string]any)
 	attributes.Range(func(k string, v pcommon.Value) bool {
-		tags[k] = v.AsRaw()
+		mapAttributes[k] = v.AsRaw()
 		return true
 	})
-	return tags
+	return mapAttributes
 }
 
 func MapToAttributes(tags map[string]string) pcommon.Map {

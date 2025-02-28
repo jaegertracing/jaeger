@@ -60,33 +60,6 @@ func TestAttributesToStringMap(t *testing.T) {
 	}
 }
 
-func TestMapToAttributes(t *testing.T) {
-	tests := []struct {
-		name string
-		tags map[string]string
-	}{
-		{
-			name: "empty map",
-			tags: map[string]string{},
-		},
-		{
-			name: "single tag",
-			tags: map[string]string{"key1": "value1"},
-		},
-		{
-			name: "multiple tags",
-			tags: map[string]string{"key1": "value1", "key2": "value2"},
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			result := MapToAttributes(test.tags)
-			require.Equal(t, test.tags, AttributesToStringMap(result))
-		})
-	}
-}
-
 func TestAttributesToMap(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -133,6 +106,33 @@ func TestAttributesToMap(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			result := AttributesToMap(test.attributes)
 			require.Equal(t, test.expected, result)
+		})
+	}
+}
+
+func TestMapToAttributes(t *testing.T) {
+	tests := []struct {
+		name       string
+		attributes map[string]string
+	}{
+		{
+			name:       "empty map",
+			attributes: map[string]string{},
+		},
+		{
+			name:       "single attribute",
+			attributes: map[string]string{"key1": "value1"},
+		},
+		{
+			name:       "multiple attributes",
+			attributes: map[string]string{"key1": "value1", "key2": "value2"},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			result := MapToAttributes(test.attributes)
+			require.Equal(t, test.attributes, AttributesToStringMap(result))
 		})
 	}
 }
