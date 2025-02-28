@@ -726,7 +726,7 @@ func (r *TraceReader) preloadOperations(service string) {
 	})
 }
 
-func (r *TraceReader) preloadOperationsWthKind(service string) {
+func (r *TraceReader) preloadOperationsWithKind(service string) {
 	r.store.View(func(txn *badger.Txn) error {
 		opts := badger.DefaultIteratorOptions
 		opts.PrefetchValues = false
