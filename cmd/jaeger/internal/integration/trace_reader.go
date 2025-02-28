@@ -121,7 +121,7 @@ func (r *traceReader) FindTraces(
 			Query: &api_v3.TraceQueryParameters{
 				ServiceName:   query.ServiceName,
 				OperationName: query.OperationName,
-				Attributes:    jptrace.AttributesToMap(query.Attributes),
+				Attributes:    jptrace.AttributesToStringMap(query.Attributes),
 				StartTimeMin:  query.StartTimeMin,
 				StartTimeMax:  query.StartTimeMax,
 				DurationMin:   query.DurationMin,
