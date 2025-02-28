@@ -101,7 +101,7 @@ func (q *Query) ToTraceQueryParams() *tracestore.TraceQueryParams {
 		StartTimeMax:  q.StartTimeMax,
 		DurationMin:   q.DurationMin,
 		DurationMax:   q.DurationMax,
-		NumTraces:     q.NumTraces,
+		SearchDepth:   q.NumTraces,
 	}
 }
 

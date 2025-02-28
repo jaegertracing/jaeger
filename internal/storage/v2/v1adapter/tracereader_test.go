@@ -307,7 +307,7 @@ func TestTraceReader_FindTracesDelegatesSuccessResponse(t *testing.T) {
 			StartTimeMax:  now.Add(time.Minute),
 			DurationMin:   time.Minute,
 			DurationMax:   time.Hour,
-			NumTraces:     10,
+			SearchDepth:   10,
 		},
 	))
 	require.NoError(t, err)
@@ -480,7 +480,7 @@ func TestTraceReader_FindTraceIDsDelegatesResponse(t *testing.T) {
 					StartTimeMax:  now.Add(time.Minute),
 					DurationMin:   time.Minute,
 					DurationMax:   time.Hour,
-					NumTraces:     10,
+					SearchDepth:   10,
 				},
 			))
 			require.ErrorIs(t, err, test.err)
