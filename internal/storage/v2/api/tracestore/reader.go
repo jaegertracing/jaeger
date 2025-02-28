@@ -108,7 +108,7 @@ func (t *TraceQueryParams) ToSpanStoreQueryParameters() *spanstore.TraceQueryPar
 	return &spanstore.TraceQueryParameters{
 		ServiceName:   t.ServiceName,
 		OperationName: t.OperationName,
-		Tags:          jptrace.AttributesToStringMap(t.Attributes),
+		Tags:          jptrace.AttributesToMap(t.Attributes),
 		StartTimeMin:  t.StartTimeMin,
 		StartTimeMax:  t.StartTimeMax,
 		DurationMin:   t.DurationMin,
