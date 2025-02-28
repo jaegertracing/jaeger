@@ -62,27 +62,27 @@ func TestPcommonMapToPlainMap(t *testing.T) {
 
 func TestPlainMapToPcommonMap(t *testing.T) {
 	tests := []struct {
-		name       string
-		attributes map[string]string
+		name     string
+		expected map[string]string
 	}{
 		{
-			name:       "empty map",
-			attributes: map[string]string{},
+			name:     "empty map",
+			expected: map[string]string{},
 		},
 		{
-			name:       "single attribute",
-			attributes: map[string]string{"key1": "value1"},
+			name:     "single attribute",
+			expected: map[string]string{"key1": "value1"},
 		},
 		{
-			name:       "multiple attributes",
-			attributes: map[string]string{"key1": "value1", "key2": "value2"},
+			name:     "multiple attributes",
+			expected: map[string]string{"key1": "value1", "key2": "value2"},
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			result := PlainMapToPcommonMap(test.attributes)
-			require.Equal(t, test.attributes, PcommonMapToPlainMap(result))
+			result := PlainMapToPcommonMap(test.expected)
+			require.Equal(t, test.expected, PcommonMapToPlainMap(result))
 		})
 	}
 }
