@@ -74,7 +74,7 @@ func (h *Handler) internalFindTraces(
 		TraceQueryParams: tracestore.TraceQueryParams{
 			ServiceName:   query.GetServiceName(),
 			OperationName: query.GetOperationName(),
-			Attributes:    jptrace.MapToAttributes(query.GetAttributes()),
+			Attributes:    jptrace.PlainMapToPcommonMap(query.GetAttributes()),
 			SearchDepth:   int(query.GetSearchDepth()),
 		},
 		RawTraces: query.GetRawTraces(),

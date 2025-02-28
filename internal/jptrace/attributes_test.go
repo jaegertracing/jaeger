@@ -10,7 +10,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 )
 
-func TestAttributesToMap(t *testing.T) {
+func TestPcommonMapToPlainMap(t *testing.T) {
 	tests := []struct {
 		name       string
 		attributes pcommon.Map
@@ -54,53 +54,35 @@ func TestAttributesToMap(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			result := AttributesToMap(test.attributes)
+			result := PcommonMapToPlainMap(test.attributes)
 			require.Equal(t, test.expected, result)
 		})
 	}
 }
 
-func TestMapToAttributes(t *testing.T) {
+func TestPlainMapToPcommonMap(t *testing.T) {
 	tests := []struct {
-		name      string
-		tags      map[string]string
-		requireFn func(t *testing.T, result pcommon.Map)
+		name     string
+		expected map[string]string
 	}{
 		{
-			name: "empty map",
-			tags: map[string]string{},
-			requireFn: func(t *testing.T, result pcommon.Map) {
-				require.Equal(t, 0, result.Len(), "Expected map to be empty")
-			},
+			name:     "empty map",
+			expected: map[string]string{},
 		},
 		{
-			name: "single tag",
-			tags: map[string]string{"key1": "value1"},
-			requireFn: func(t *testing.T, result pcommon.Map) {
-				val, exists := result.Get("key1")
-				require.True(t, exists)
-				require.Equal(t, "value1", val.Str())
-			},
+			name:     "single attribute",
+			expected: map[string]string{"key1": "value1"},
 		},
 		{
-			name: "multiple tags",
-			tags: map[string]string{"key1": "value1", "key2": "value2"},
-			requireFn: func(t *testing.T, result pcommon.Map) {
-				val, exists := result.Get("key1")
-				require.True(t, exists)
-				require.Equal(t, "value1", val.Str())
-
-				val, exists = result.Get("key2")
-				require.True(t, exists)
-				require.Equal(t, "value2", val.Str())
-			},
+			name:     "multiple attributes",
+			expected: map[string]string{"key1": "value1", "key2": "value2"},
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			result := MapToAttributes(test.tags)
-			test.requireFn(t, result)
+			result := PlainMapToPcommonMap(test.expected)
+			require.Equal(t, test.expected, PcommonMapToPlainMap(result))
 		})
 	}
 }
