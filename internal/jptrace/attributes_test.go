@@ -64,38 +64,43 @@ func TestMapToAttributes(t *testing.T) {
 	tests := []struct {
 		name     string
 		tags     map[string]string
-		expected pcommon.Map
+		assertFn func(t *testing.T, result pcommon.Map)
 	}{
 		{
-			name:     "empty map",
-			tags:     map[string]string{},
-			expected: pcommon.NewMap(),
+			name: "empty map",
+			tags: map[string]string{},
+			assertFn: func(t *testing.T, result pcommon.Map) {
+				assert.Equal(t, 0, result.Len(), "Expected map to be empty")
+			},
 		},
 		{
 			name: "single tag",
 			tags: map[string]string{"key1": "value1"},
-			expected: func() pcommon.Map {
-				m := pcommon.NewMap()
-				m.PutStr("key1", "value1")
-				return m
-			}(),
+			assertFn: func(t *testing.T, result pcommon.Map) {
+				val, exists := result.Get("key1")
+				assert.True(t, exists)
+				assert.Equal(t, "value1", val.Str())
+			},
 		},
 		{
 			name: "multiple tags",
 			tags: map[string]string{"key1": "value1", "key2": "value2"},
-			expected: func() pcommon.Map {
-				m := pcommon.NewMap()
-				m.PutStr("key1", "value1")
-				m.PutStr("key2", "value2")
-				return m
-			}(),
+			assertFn: func(t *testing.T, result pcommon.Map) {
+				val, exists := result.Get("key1")
+				assert.True(t, exists)
+				assert.Equal(t, "value1", val.Str())
+
+				val, exists = result.Get("key2")
+				assert.True(t, exists)
+				assert.Equal(t, "value2", val.Str())
+			},
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			result := MapToAttributes(test.tags)
-			assert.Equal(t, test.expected, result)
+			test.assertFn(t, result)
 		})
 	}
 }
