@@ -6,7 +6,7 @@ package jptrace
 import (
 	"testing"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 )
 
@@ -55,47 +55,52 @@ func TestAttributesToMap(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			result := AttributesToMap(test.attributes)
-			assert.Equal(t, test.expected, result)
+			require.Equal(t, test.expected, result)
 		})
 	}
 }
 
 func TestMapToAttributes(t *testing.T) {
 	tests := []struct {
-		name     string
-		tags     map[string]string
-		expected pcommon.Map
+		name      string
+		tags      map[string]string
+		requireFn func(t *testing.T, result pcommon.Map)
 	}{
 		{
-			name:     "empty map",
-			tags:     map[string]string{},
-			expected: pcommon.NewMap(),
+			name: "empty map",
+			tags: map[string]string{},
+			requireFn: func(t *testing.T, result pcommon.Map) {
+				require.Equal(t, 0, result.Len(), "Expected map to be empty")
+			},
 		},
 		{
 			name: "single tag",
 			tags: map[string]string{"key1": "value1"},
-			expected: func() pcommon.Map {
-				m := pcommon.NewMap()
-				m.PutStr("key1", "value1")
-				return m
-			}(),
+			requireFn: func(t *testing.T, result pcommon.Map) {
+				val, exists := result.Get("key1")
+				require.True(t, exists)
+				require.Equal(t, "value1", val.Str())
+			},
 		},
 		{
 			name: "multiple tags",
 			tags: map[string]string{"key1": "value1", "key2": "value2"},
-			expected: func() pcommon.Map {
-				m := pcommon.NewMap()
-				m.PutStr("key1", "value1")
-				m.PutStr("key2", "value2")
-				return m
-			}(),
+			requireFn: func(t *testing.T, result pcommon.Map) {
+				val, exists := result.Get("key1")
+				require.True(t, exists)
+				require.Equal(t, "value1", val.Str())
+
+				val, exists = result.Get("key2")
+				require.True(t, exists)
+				require.Equal(t, "value2", val.Str())
+			},
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			result := MapToAttributes(test.tags)
-			assert.Equal(t, test.expected, result)
+			test.requireFn(t, result)
 		})
 	}
 }
