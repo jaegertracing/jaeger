@@ -77,7 +77,9 @@ type GetTraceParams struct {
 	End time.Time
 }
 
-// TraceQueryParams contains parameters of a trace query.
+// TraceQueryParams contains query parameters to find traces. For a detailed
+// definition of each field in this message, refer to `TraceQueryParameters` in `jaeger.api_v3`
+// (https://github.com/jaegertracing/jaeger-idl/blob/main/proto/api_v3/query_service.proto).
 type TraceQueryParams struct {
 	ServiceName   string
 	OperationName string
@@ -86,7 +88,7 @@ type TraceQueryParams struct {
 	StartTimeMax  time.Time
 	DurationMin   time.Duration
 	DurationMax   time.Duration
-	NumTraces     int
+	SearchDepth   int
 }
 
 // FoundTraceID is a wrapper around trace ID returned from FindTraceIDs
@@ -111,7 +113,7 @@ func (t *TraceQueryParams) ToSpanStoreQueryParameters() *spanstore.TraceQueryPar
 		StartTimeMax:  t.StartTimeMax,
 		DurationMin:   t.DurationMin,
 		DurationMax:   t.DurationMax,
-		NumTraces:     t.NumTraces,
+		NumTraces:     t.SearchDepth,
 	}
 }
 
