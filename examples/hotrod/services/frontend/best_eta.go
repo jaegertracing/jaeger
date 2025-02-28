@@ -89,7 +89,7 @@ func (eta *bestETA) Get(ctx context.Context, customerID int) (*Response, error) 
 	resp := &Response{ETA: math.MaxInt64}
 	for _, result := range results {
 		if result.err != nil {
-			return nil, err
+			return nil, result.err
 		}
 		if result.route.ETA < resp.ETA {
 			resp.ETA = result.route.ETA
