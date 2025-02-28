@@ -82,10 +82,47 @@ func main() {
 	fmt.Println("Struct documentation has been written to struct_docs.json")
 }
 
+// processField processes a struct field and handles nested structs.
+func processField(fset *token.FileSet, field *ast.Field, structs map[string]StructDoc) []FieldDoc {
+	var fieldDocs []FieldDoc
+	fieldType := exprToString(fset, field.Type)
+	fieldTag := extractTag(field.Tag)
+	defaultValue := extractDefaultValue(field.Tag, fieldType)
+
+	for _, name := range field.Names {
+		fieldDoc := FieldDoc{
+			Name:         name.Name,
+			Type:         fieldType,
+			Tag:          fieldTag,
+			DefaultValue: defaultValue,
+			Comment:      extractComment(field.Doc),
+		}
+		fieldDocs = append(fieldDocs, fieldDoc)
+	}
+
+	// Handle nested struct
+	if ident, ok := field.Type.(*ast.Ident); ok && ident.Obj != nil {
+		if typeSpec, ok := ident.Obj.Decl.(*ast.TypeSpec); ok {
+			if structType, isStruct := typeSpec.Type.(*ast.StructType); isStruct {
+				nestedStructDoc := StructDoc{
+					Name:    ident.Name,
+					Comment: extractComment(typeSpec.Doc),
+				}
+				for _, nestedField := range structType.Fields.List {
+					nestedStructDoc.Fields = append(nestedStructDoc.Fields, processField(fset, nestedField, structs)...)
+				}
+				structs[ident.Name] = nestedStructDoc
+			}
+		}
+	}
+
+	return fieldDocs
+}
+
 // parseFile parses a Go source file and extracts struct information.
 func parseFile(filePath string) ([]StructDoc, error) {
 	var structs []StructDoc
-
+	structMap := make(map[string]StructDoc)
 	// Create a new token file set
 	fset := token.NewFileSet()
 
@@ -123,25 +160,19 @@ func parseFile(filePath string) ([]StructDoc, error) {
 
 			// Iterate over the struct fields
 			for _, field := range structType.Fields.List {
-				fieldType := exprToString(fset, field.Type)
-				fieldTag := extractTag(field.Tag)
-				defaultValue := extractDefaultValue(field.Tag, fieldType)
-
-				for _, name := range field.Names {
-					structDoc.Fields = append(structDoc.Fields, FieldDoc{
-						Name:         name.Name,
-						Type:         fieldType,
-						Tag:          fieldTag,
-						DefaultValue: defaultValue,
-						Comment:      extractComment(field.Doc),
-					})
-				}
+				structDoc.Fields = append(structDoc.Fields, processField(fset, field, structMap)...)
 			}
-			structs = append(structs, structDoc)
+			// Store processed struct in the map
+			structMap[structDoc.Name] = structDoc
+
 		}
 		return false
 	})
 
+	// Convert map to slice
+	for _, structDoc := range structMap {
+		structs = append(structs, structDoc)
+	}
 	return structs, nil
 }
 
