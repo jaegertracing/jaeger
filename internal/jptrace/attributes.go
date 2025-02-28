@@ -18,18 +18,18 @@ const (
 	FormatAttribute = "@jaeger@format"
 )
 
-func AttributesToMap(attributes pcommon.Map) map[string]string {
-	tags := make(map[string]string)
+func PcommonMapToPlainMap(attributes pcommon.Map) map[string]string {
+	mapAttributes := make(map[string]string)
 	attributes.Range(func(k string, v pcommon.Value) bool {
-		tags[k] = v.AsString()
+		mapAttributes[k] = v.AsString()
 		return true
 	})
-	return tags
+	return mapAttributes
 }
 
-func MapToAttributes(tags map[string]string) pcommon.Map {
+func PlainMapToPcommonMap(attributesMap map[string]string) pcommon.Map {
 	attributes := pcommon.NewMap()
-	for k, v := range tags {
+	for k, v := range attributesMap {
 		attributes.PutStr(k, v)
 	}
 	return attributes
