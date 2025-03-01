@@ -404,7 +404,7 @@ func TestTraceReader_FindTraceIDsDelegatesResponse(t *testing.T) {
 	tests := []struct {
 		name             string
 		modelTraceIDs    []model.TraceID
-		expectedTraceIDs []pcommon.TraceID
+		expectedTraceIDs []tracestore.FoundTraceID
 		err              error
 	}{
 		{
@@ -413,9 +413,13 @@ func TestTraceReader_FindTraceIDsDelegatesResponse(t *testing.T) {
 				{Low: 3, High: 2},
 				{Low: 4, High: 3},
 			},
-			expectedTraceIDs: []pcommon.TraceID{
-				pcommon.TraceID([]byte{0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 3}),
-				pcommon.TraceID([]byte{0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 4}),
+			expectedTraceIDs: []tracestore.FoundTraceID{
+				{
+					TraceID: pcommon.TraceID([]byte{0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 3}),
+				},
+				{
+					TraceID: pcommon.TraceID([]byte{0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 4}),
+				},
 			},
 		},
 		{

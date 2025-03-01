@@ -12,7 +12,6 @@ import (
 	"math"
 	"strings"
 
-	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -138,7 +137,7 @@ func (r *traceReader) FindTraces(
 func (*traceReader) FindTraceIDs(
 	_ context.Context,
 	_ tracestore.TraceQueryParams,
-) iter.Seq2[[]pcommon.TraceID, error] {
+) iter.Seq2[[]tracestore.FoundTraceID, error] {
 	panic("not implemented")
 }
 
