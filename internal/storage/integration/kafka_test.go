@@ -157,7 +157,9 @@ func (s *KafkaIntegrationTestSuite) initializeWithSASLSSLPlaintext(t *testing.T)
 		"--kafka.producer.tls.enabled",
 		"true",
 		"--kafka.producer.tls.ca",
-		"../../../pkg/config/tlscfg/testdata/kafka-certs/ca.pem",
+		"../../../internal/config/tlscfg/testdata/example-CA-cert.pem",
+		"--kafka.producer.tls.skip-host-verify",
+		"true",
 	})
 	require.NoError(t, err)
 	f.InitFromViper(v, logger)
@@ -191,7 +193,9 @@ func (s *KafkaIntegrationTestSuite) initializeWithSASLSSLPlaintext(t *testing.T)
 		"--kafka.consumer.tls.enabled",
 		"true",
 		"--kafka.consumer.tls.ca",
-		"../../../pkg/config/tlscfg/testdata/kafka-certs/ca.pem",
+		"../../../internal/config/tlscfg/testdata/example-CA-cert.pem",
+		"--kafka.consumer.tls.skip-host-verify",
+		"true",
 		"--ingester.parallelism",
 		"1000",
 	})

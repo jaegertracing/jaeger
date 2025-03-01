@@ -1,5 +1,12 @@
 version: "3"
 services:
+  zookeeper:
+    image: bitnami/zookeeper:latest
+    ports:
+      - "2181:2181"
+    environment:
+      - ALLOW_ANONYMOUS_LOGIN=yes
+
   kafka:
     image: bitnami/kafka:3.9.0
     user: "0:0" # Run as root to avoid permission issues
@@ -9,7 +16,7 @@ services:
       - "9094:9094"
       - "9095:9095"
     volumes:
-      - ../../../pkg/config/tlscfg/testdata/kafka-certs:/bitnami/kafka/config/certs
+      - ../../../internal/config/tlscfg/testdata:/bitnami/kafka/config/certs
       - kafka-data:/bitnami
     environment:
       # KRaft settings
