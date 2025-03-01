@@ -5,7 +5,6 @@ package jaeger.storage.v2;
 import "gogoproto/gogo.proto";
 import "google/protobuf/duration.proto";
 import "google/protobuf/timestamp.proto";
-import "opentelemetry/proto/common/v1/common.proto";
 import "opentelemetry/proto/trace/v1/trace.proto";
 
 option go_package = "storage";
@@ -64,13 +63,41 @@ message GetOperationsResponse {
   repeated Operation operations = 1;
 }
 
+// KeyValue and all its associated types are copied from opentelemetry-proto/common/v1/common.proto
+// (https://github.com/open-telemetry/opentelemetry-proto/blob/main/opentelemetry/proto/common/v1/common.proto).
+// This type is used to store attributes in traces.
+message KeyValue {
+  string key = 1;
+  AnyValue value = 2;
+}
+
+message AnyValue {
+  oneof value {
+    string string_value = 1;
+    bool bool_value = 2;
+    int64 int_value = 3;
+    double double_value = 4;
+    ArrayValue array_value = 5;
+    KeyValueList kvlist_value = 6;
+    bytes bytes_value = 7;
+  }
+}
+
+message KeyValueList {
+  repeated KeyValue values = 1;
+}
+
+message ArrayValue {
+  repeated AnyValue values = 1;
+}
+
 // TraceQueryParameters contains query parameters to find traces. For a detailed
 // definition of each field in this message, refer to `TraceQueryParameters` in `jaeger.api_v3`
 // (https://github.com/jaegertracing/jaeger-idl/blob/main/proto/api_v3/query_service.proto).
 message TraceQueryParameters {
   string service_name = 1;
   string operation_name = 2;
-  repeated opentelemetry.proto.common.v1.KeyValue attributes = 3;
+  repeated KeyValue attributes = 3;
   google.protobuf.Timestamp start_time_min = 4 [
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = false
@@ -96,7 +123,6 @@ message TraceQueryParameters {
 message FindTracesRequest {
   TraceQueryParameters query = 1;
 }
-
 
 // FoundTraceID is a wrapper around trace ID returned from FindTraceIDs
 // with an optional time range that may be used in GetTraces calls.

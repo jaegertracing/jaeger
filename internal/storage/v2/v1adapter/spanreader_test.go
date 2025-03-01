@@ -244,6 +244,7 @@ func TestSpanReader_FindTraces(t *testing.T) {
 			},
 			expectedQuery: tracestore.TraceQueryParams{
 				ServiceName: "service1",
+				Attributes:  pcommon.NewMap(),
 			},
 			err:         assert.AnError,
 			expectedErr: assert.AnError,
@@ -255,6 +256,7 @@ func TestSpanReader_FindTraces(t *testing.T) {
 			},
 			expectedQuery: tracestore.TraceQueryParams{
 				ServiceName: "service1",
+				Attributes:  pcommon.NewMap(),
 			},
 			traces:         []ptrace.Traces{},
 			expectedTraces: nil,
@@ -266,6 +268,7 @@ func TestSpanReader_FindTraces(t *testing.T) {
 			},
 			expectedQuery: tracestore.TraceQueryParams{
 				ServiceName: "service1",
+				Attributes:  pcommon.NewMap(),
 			},
 			traces: func() []ptrace.Traces {
 				traces1 := ptrace.NewTraces()
@@ -348,6 +351,7 @@ func TestSpanReader_FindTraceIDs(t *testing.T) {
 			},
 			expectedQuery: tracestore.TraceQueryParams{
 				ServiceName: "service1",
+				Attributes:  pcommon.NewMap(),
 			},
 			err:         assert.AnError,
 			expectedErr: assert.AnError,
@@ -359,6 +363,7 @@ func TestSpanReader_FindTraceIDs(t *testing.T) {
 			},
 			expectedQuery: tracestore.TraceQueryParams{
 				ServiceName: "service1",
+				Attributes:  pcommon.NewMap(),
 			},
 			traceIDs:         []tracestore.FoundTraceID{},
 			expectedTraceIDs: nil,
@@ -370,6 +375,7 @@ func TestSpanReader_FindTraceIDs(t *testing.T) {
 			},
 			expectedQuery: tracestore.TraceQueryParams{
 				ServiceName: "service1",
+				Attributes:  pcommon.NewMap(),
 			},
 			traceIDs: []tracestore.FoundTraceID{
 				{
