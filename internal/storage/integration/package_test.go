@@ -11,9 +11,13 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	if os.Getenv("STORAGE") == "elasticsearch" || os.Getenv("STORAGE") == "opensearch" {
+	switch os.Getenv("STORAGE") {
+	case "elasticsearch":
+	case "opensearch":
 		testutils.VerifyGoLeaksForES(m)
-	} else {
+	case "clickhouse":
+		testutils.VerifyGoLeaksForClickhouse(m)
+	default:
 		testutils.VerifyGoLeaks(m)
 	}
 }
