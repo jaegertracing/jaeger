@@ -182,9 +182,6 @@ func testElasticsearchStorage(t *testing.T, allTagsAsFields bool) {
 	s := &ESStorageIntegration{
 		StorageIntegration: StorageIntegration{
 			Fixtures: LoadAndParseQueryTestCases(t, "fixtures/queries_es.json"),
-			// TODO: remove this flag after ES supports returning spanKind
-			//  Issue https://github.com/jaegertracing/jaeger/issues/1923
-			GetOperationsMissingSpanKind: true,
 		},
 	}
 	s.initializeES(t, c, allTagsAsFields)
