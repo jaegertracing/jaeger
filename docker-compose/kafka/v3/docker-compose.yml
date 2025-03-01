@@ -1,14 +1,67 @@
+version: "3"
 services:
-  kafka:
-    image: bitnami/kafka:3.9.0
+  zookeeper:
+    image: bitnami/zookeeper:latest
     ports:
-      - "9092:9092"
+      - "2181:2181"
     environment:
-      - KAFKA_CFG_NODE_ID=0
-      - KAFKA_CFG_PROCESS_ROLES=controller,broker
-      - KAFKA_CFG_CONTROLLER_QUORUM_VOTERS=0@localhost:9093
-      - KAFKA_CFG_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9093
-      - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://localhost:9092
-      - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
-      - KAFKA_CFG_CONTROLLER_LISTENER_NAMES=CONTROLLER
-      - KAFKA_CFG_INTER_BROKER_LISTENER_NAME=PLAINTEXT
+      - ALLOW_ANONYMOUS_LOGIN=yes
+
+  kafka:
+    image: bitnami/kafka:3.7.0
+    ports:
+      - "9092:9092" #Internal PLAINTEXT
+      - "9094:9094" #External PLAINTEXT
+      - "29093:29093" #SASL_PLAINTEXT + SSL
+      - "9095:9095" #SASL_PLAINTEXT
+    environment:
+      - KAFKA_BROKER_ID=1
+      - KAFKA_CFG_ZOOKEEPER_CONNECT=zookeeper:2181
+      - KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1
+
+      # Listeners configuration
+      - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=INTERNAL:PLAINTEXT,OUTSIDE:PLAINTEXT,EXTERNAL:SASL_SSL,SASL_PLAIN:SASL_PLAINTEXT
+      - KAFKA_CFG_LISTENERS=INTERNAL://0.0.0.0:9092,OUTSIDE://0.0.0.0:9094,EXTERNAL://0.0.0.0:29093,SASL_PLAIN://0.0.0.0:9095
+      - KAFKA_CFG_ADVERTISED_LISTENERS=INTERNAL://kafka:9092,OUTSIDE://localhost:9094,EXTERNAL://localhost:29093,SASL_PLAIN://localhost:9095
+      - KAFKA_INTER_BROKER_LISTENER_NAME=INTERNAL
+      - KAFKA_CFG_OUTSIDE_SASL_ENABLED_MECHANISMS=
+      - ALLOW_PLAINTEXT_LISTENER=yes
+
+      - KAFKA_CFG_SASL_ENABLED_MECHANISMS=PLAIN
+      - KAFKA_CFG_SASL_MECHANISM_INTER_BROKER_PROTOCOL=PLAIN
+
+      # Message size configuration
+      - KAFKA_CFG_RECEIVE_MESSAGE_MAX_BYTES=1048576000
+      - KAFKA_CFG_SOCKET_RECEIVE_BUFFER_BYTES=1048576000
+      - KAFKA_CFG_MESSAGE_MAX_BYTES=1048576000
+      - KAFKA_CFG_REPLICA_FETCH_MAX_BYTES=1048576000
+      - KAFKA_CFG_FETCH_MESSAGE_MAX_BYTES=1048576000
+
+      # SSL Configuration
+      - KAFKA_TLS_TYPE=JKS
+      - KAFKA_CFG_SSL_KEYSTORE_LOCATION=/bitnami/kafka/config/certs/kafka.keystore.jks
+      - KAFKA_CFG_SSL_KEYSTORE_PASSWORD=kafkapass123
+      - KAFKA_CFG_SSL_KEY_PASSWORD=kafkapass123
+      - KAFKA_CFG_SSL_TRUSTSTORE_LOCATION=/bitnami/kafka/config/certs/kafka.truststore.jks
+      - KAFKA_CFG_SSL_TRUSTSTORE_PASSWORD=kafkapass123
+
+      # SASL Configuration
+      - KAFKA_CFG_SASL_ENABLED_MECHANISMS=PLAIN
+      - KAFKA_CFG_SASL_MECHANISM_INTER_BROKER_PROTOCOL=PLAIN
+      - KAFKA_CLIENT_USERS=admin
+      - KAFKA_CLIENT_PASSWORDS=admin-secret
+    volumes:
+      - ../certs:/bitnami/kafka/config/certs
+    depends_on:
+      - zookeeper
+    links:
+      - zookeeper
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "kafka-topics.sh --list --bootstrap-server 127.0.0.1:9092",
+        ]
+      interval: 10s
+      timeout: 10s
+      retries: 3
