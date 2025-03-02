@@ -4,10 +4,10 @@
 package jptrace
 
 import (
+	"iter"
+
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
-
-	"github.com/jaegertracing/jaeger/pkg/iter"
 )
 
 // AggregateTraces aggregates a sequence of trace batches into individual traces.

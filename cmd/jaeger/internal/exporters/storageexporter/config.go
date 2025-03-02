@@ -6,12 +6,13 @@ package storageexporter
 import (
 	"github.com/asaskevich/govalidator"
 	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/confmap/xconfmap"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
 )
 
 var (
-	_ component.Config          = (*Config)(nil)
-	_ component.ConfigValidator = (*Config)(nil)
+	_ component.Config   = (*Config)(nil)
+	_ xconfmap.Validator = (*Config)(nil)
 )
 
 // Config defines configuration for jaeger_storage_exporter.

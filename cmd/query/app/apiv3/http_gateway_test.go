@@ -6,6 +6,7 @@ package apiv3
 import (
 	"errors"
 	"fmt"
+	"iter"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -16,6 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.uber.org/zap"
 
@@ -24,7 +26,6 @@ import (
 	dependencyStoreMocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	tracestoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
-	"github.com/jaegertracing/jaeger/pkg/iter"
 	"github.com/jaegertracing/jaeger/pkg/jtracer"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 )
@@ -260,11 +261,12 @@ func mockFindQueries() (url.Values, tracestore.TraceQueryParams) {
 	return q, tracestore.TraceQueryParams{
 		ServiceName:   "foo",
 		OperationName: "bar",
+		Attributes:    pcommon.NewMap(),
 		StartTimeMin:  time1,
 		StartTimeMax:  time2,
 		DurationMin:   1 * time.Second,
 		DurationMax:   2 * time.Second,
-		NumTraces:     10,
+		SearchDepth:   10,
 	}
 }
 

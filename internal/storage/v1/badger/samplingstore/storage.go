@@ -167,14 +167,12 @@ func (s *SamplingStore) createProbabilitiesEntry(hostname string, probabilities 
 	return e, nil
 }
 
-func (*SamplingStore) createProbabilitiesKV(hostname string, probabilities model.ServiceOperationProbabilities, qps model.ServiceOperationQPS, startTime uint64) ([]byte, []byte, error) {
-	key := make([]byte, 16)
+func (*SamplingStore) createProbabilitiesKV(hostname string, probabilities model.ServiceOperationProbabilities, qps model.ServiceOperationQPS, startTime uint64) (key []byte, bb []byte, err error) {
+	key = make([]byte, 16)
 	key[0] = probabilitiesKeyPrefix
 	pos := 1
 	binary.BigEndian.PutUint64(key[pos:], startTime)
 
-	var bb []byte
-	var err error
 	val := ProbabilitiesAndQPS{
 		Hostname:      hostname,
 		Probabilities: probabilities,
@@ -202,14 +200,11 @@ func (*SamplingStore) createBadgerEntry(key []byte, value []byte) *badger.Entry 
 	}
 }
 
-func (*SamplingStore) createThroughputKV(throughput []*model.Throughput, startTime uint64) ([]byte, []byte, error) {
-	key := make([]byte, 16)
+func (*SamplingStore) createThroughputKV(throughput []*model.Throughput, startTime uint64) (key []byte, bb []byte, err error) {
+	key = make([]byte, 16)
 	key[0] = throughputKeyPrefix
 	pos := 1
 	binary.BigEndian.PutUint64(key[pos:], startTime)
-
-	var bb []byte
-	var err error
 
 	bb, err = json.Marshal(throughput)
 	return key, bb, err

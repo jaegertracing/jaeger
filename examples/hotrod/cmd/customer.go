@@ -24,7 +24,7 @@ var customerCmd = &cobra.Command{
 		zapLogger := logger.With(zap.String("service", "customer"))
 		logger := log.NewFactory(zapLogger)
 		server := customer.NewServer(
-			net.JoinHostPort("0.0.0.0", strconv.Itoa(customerPort)),
+			net.JoinHostPort(customerHostname, strconv.Itoa(customerPort)),
 			otelExporter,
 			metricsFactory,
 			logger,

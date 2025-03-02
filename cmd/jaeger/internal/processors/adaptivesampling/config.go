@@ -4,10 +4,10 @@
 package adaptivesampling
 
 import (
-	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/confmap/xconfmap"
 )
 
-var _ component.ConfigValidator = (*Config)(nil)
+var _ xconfmap.Validator = (*Config)(nil)
 
 type Config struct {
 	// all configuration for the processor is in the remotesampling extension

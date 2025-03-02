@@ -25,6 +25,7 @@ import (
 	querysvcv2 "github.com/jaegertracing/jaeger/cmd/query/app/querysvc/v2/querysvc"
 	metricsPlugin "github.com/jaegertracing/jaeger/internal/storage/metricstore"
 	storage "github.com/jaegertracing/jaeger/internal/storage/v1/factory"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
 	"github.com/jaegertracing/jaeger/pkg/bearertoken"
 	"github.com/jaegertracing/jaeger/pkg/config"
@@ -98,7 +99,11 @@ func main() {
 			if err != nil {
 				logger.Fatal("Failed to create trace reader", zap.Error(err))
 			}
-			dependencyReader, err := v2Factory.CreateDependencyReader()
+			depstoreFactory, ok := v2Factory.(depstore.Factory)
+			if !ok {
+				logger.Fatal("Failed to create dependency reader", zap.Error(err))
+			}
+			dependencyReader, err := depstoreFactory.CreateDependencyReader()
 			if err != nil {
 				logger.Fatal("Failed to create dependency reader", zap.Error(err))
 			}

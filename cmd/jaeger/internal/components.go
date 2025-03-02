@@ -18,6 +18,7 @@ import (
 	"go.opentelemetry.io/collector/connector/forwardconnector"
 	"go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/exporter/debugexporter"
+	"go.opentelemetry.io/collector/exporter/nopexporter"
 	"go.opentelemetry.io/collector/exporter/otlpexporter"
 	"go.opentelemetry.io/collector/exporter/otlphttpexporter"
 	"go.opentelemetry.io/collector/extension"
@@ -27,6 +28,7 @@ import (
 	"go.opentelemetry.io/collector/processor/batchprocessor"
 	"go.opentelemetry.io/collector/processor/memorylimiterprocessor"
 	"go.opentelemetry.io/collector/receiver"
+	"go.opentelemetry.io/collector/receiver/nopreceiver"
 	"go.opentelemetry.io/collector/receiver/otlpreceiver"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/exporters/storageexporter"
@@ -48,11 +50,11 @@ type builders struct {
 
 func defaultBuilders() builders {
 	return builders{
-		extension: extension.MakeFactoryMap,
-		receiver:  receiver.MakeFactoryMap,
-		exporter:  exporter.MakeFactoryMap,
-		processor: processor.MakeFactoryMap,
-		connector: connector.MakeFactoryMap,
+		extension: otelcol.MakeFactoryMap[extension.Factory],
+		receiver:  otelcol.MakeFactoryMap[receiver.Factory],
+		exporter:  otelcol.MakeFactoryMap[exporter.Factory],
+		processor: otelcol.MakeFactoryMap[processor.Factory],
+		connector: otelcol.MakeFactoryMap[connector.Factory],
 	}
 }
 
@@ -78,6 +80,7 @@ func (b builders) build() (otelcol.Factories, error) {
 	factories.Receivers, err = b.receiver(
 		// standard
 		otlpreceiver.NewFactory(),
+		nopreceiver.NewFactory(),
 		// add-ons
 		jaegerreceiver.NewFactory(),
 		kafkareceiver.NewFactory(),
@@ -92,6 +95,7 @@ func (b builders) build() (otelcol.Factories, error) {
 		debugexporter.NewFactory(),
 		otlpexporter.NewFactory(),
 		otlphttpexporter.NewFactory(),
+		nopexporter.NewFactory(),
 		// add-ons
 		storageexporter.NewFactory(), // generic exporter to Jaeger v1 spanstore.SpanWriter
 		kafkaexporter.NewFactory(),

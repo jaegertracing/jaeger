@@ -116,7 +116,11 @@ by default uses only in-memory database.`,
 			if err != nil {
 				logger.Fatal("Failed to create span writer", zap.Error(err))
 			}
-			dependencyReader, err := v2Factory.CreateDependencyReader()
+			depstoreFactory, ok := v2Factory.(depstore.Factory)
+			if !ok {
+				logger.Fatal("Failed to create dependency reader", zap.Error(err))
+			}
+			dependencyReader, err := depstoreFactory.CreateDependencyReader()
 			if err != nil {
 				logger.Fatal("Failed to create dependency reader", zap.Error(err))
 			}

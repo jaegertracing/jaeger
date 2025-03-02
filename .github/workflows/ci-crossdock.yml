@@ -1,6 +1,7 @@
 name: CIT Crossdock
 
 on:
+  merge_group:
   push:
     branches: [main]
 
@@ -20,7 +21,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
+    - uses: step-security/harden-runner@4d991eb9b905ef189e4c376166672c3f2f230481 # v2.11.0
       with:
         egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
 
@@ -34,13 +35,13 @@ jobs:
 
     - uses: actions/setup-go@f111f3307d8850f501ac008e886eec1fd1932a34 # v5.3.0
       with:
-        go-version: 1.23.x
+        go-version: 1.24.x
 
     - uses: ./.github/actions/setup-branch
 
     - run: make install-ci
 
-    - uses: docker/setup-qemu-action@53851d14592bedcffcf25ea515637cff71ef929a # v3.3.0
+    - uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392 # v3.6.0
 
     - name: Build, test, and publish crossdock image
       run: bash scripts/build/build-crossdock.sh

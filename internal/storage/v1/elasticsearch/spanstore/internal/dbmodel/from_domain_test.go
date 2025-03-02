@@ -42,12 +42,13 @@ func TestFromDomainEmbedProcess(t *testing.T) {
 }
 
 // Loads and returns domain model and JSON model fixtures with given number i.
-func loadFixtures(t *testing.T, i int) ([]byte, []byte) {
+func loadFixtures(t *testing.T, i int) (inStr []byte, outStr []byte) {
+	var err error
 	in := fmt.Sprintf("fixtures/domain_%02d.json", i)
-	inStr, err := os.ReadFile(in)
+	inStr, err = os.ReadFile(in)
 	require.NoError(t, err)
 	out := fmt.Sprintf("fixtures/es_%02d.json", i)
-	outStr, err := os.ReadFile(out)
+	outStr, err = os.ReadFile(out)
 	require.NoError(t, err)
 	return inStr, outStr
 }

@@ -507,19 +507,19 @@ func BenchmarkWrites(b *testing.B) {
 	})
 }
 
-func makeWriteSupports(tagsCount, spans int) ([]model.KeyValue, []string, []string) {
-	tags := make([]model.KeyValue, tagsCount)
+func makeWriteSupports(tagsCount, spans int) (tags []model.KeyValue, services []string, operations []string) {
+	tags = make([]model.KeyValue, tagsCount)
 	for i := 0; i < tagsCount; i++ {
 		tags[i] = model.KeyValue{
 			Key:  fmt.Sprintf("a%d", i),
 			VStr: fmt.Sprintf("b%d", i),
 		}
 	}
-	operations := make([]string, spans)
+	operations = make([]string, spans)
 	for j := 0; j < spans; j++ {
 		operations[j] = fmt.Sprintf("operation-%d", j)
 	}
-	services := make([]string, spans)
+	services = make([]string, spans)
 	for i := 0; i < spans; i++ {
 		services[i] = fmt.Sprintf("service-%d", i)
 	}

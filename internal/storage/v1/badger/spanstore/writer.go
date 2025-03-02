@@ -148,13 +148,13 @@ func (w *SpanWriter) createTraceEntry(span *model.Span, startTime, expireTime ui
 	return e, nil
 }
 
-func createTraceKV(span *model.Span, encodingType byte, startTime uint64) ([]byte, []byte, error) {
+func createTraceKV(span *model.Span, encodingType byte, startTime uint64) (key []byte, bb []byte, err error) {
 	// TODO Add Hash for Zipkin compatibility?
 
 	// Note, KEY must include startTime for proper sorting order for span-ids
 	// KEY: ti<trace-id><startTime><span-id> VALUE: All the details (json for now) METADATA: Encoding
 
-	key := make([]byte, 1+sizeOfTraceID+8+8)
+	key = make([]byte, 1+sizeOfTraceID+8+8)
 	key[0] = spanKeyPrefix
 	pos := 1
 	binary.BigEndian.PutUint64(key[pos:], span.TraceID.High)
@@ -164,9 +164,6 @@ func createTraceKV(span *model.Span, encodingType byte, startTime uint64) ([]byt
 	binary.BigEndian.PutUint64(key[pos:], startTime)
 	pos += 8
 	binary.BigEndian.PutUint64(key[pos:], uint64(span.SpanID))
-
-	var bb []byte
-	var err error
 
 	switch encodingType {
 	case protoEncoding:

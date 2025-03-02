@@ -9,8 +9,8 @@ import (
 	"reflect"
 	"time"
 
-	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/confmap"
+	"go.opentelemetry.io/collector/confmap/xconfmap"
 
 	"github.com/jaegertracing/jaeger/internal/storage/metricstore/prometheus"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/badger"
@@ -24,9 +24,9 @@ import (
 )
 
 var (
-	_ component.ConfigValidator = (*Config)(nil)
-	_ confmap.Unmarshaler       = (*TraceBackend)(nil)
-	_ confmap.Unmarshaler       = (*MetricBackend)(nil)
+	_ xconfmap.Validator  = (*Config)(nil)
+	_ confmap.Unmarshaler = (*TraceBackend)(nil)
+	_ confmap.Unmarshaler = (*MetricBackend)(nil)
 )
 
 // Config contains configuration(s) for jaeger trace storage.

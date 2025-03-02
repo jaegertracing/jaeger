@@ -1,6 +1,7 @@
 name: "CodeQL"
 
 on:
+  merge_group:
   push:
     branches: [main]
 
@@ -20,6 +21,8 @@ permissions:  # added using https://github.com/step-security/secure-workflows
 
 jobs:
   codeql-analyze:
+    # Run only on pull requests, see https://github.com/github/codeql-action/issues/1537
+    if: ${{ github.event_name == 'pull_request' }}
     name: CodeQL Analyze
     runs-on: ubuntu-latest
 
@@ -35,7 +38,7 @@ jobs:
 
     steps:
     - name: Harden Runner
-      uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
+      uses: step-security/harden-runner@4d991eb9b905ef189e4c376166672c3f2f230481 # v2.11.0
       with:
         egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
 

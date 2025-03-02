@@ -4,9 +4,9 @@
 package jptrace
 
 import (
-	"go.opentelemetry.io/collector/pdata/ptrace"
+	"iter"
 
-	"github.com/jaegertracing/jaeger/pkg/iter"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 )
 
 type SpanIterPos struct {
