@@ -14,7 +14,6 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"reflect"
 	"strings"
 )
 
@@ -87,15 +86,13 @@ func processField(fset *token.FileSet, field *ast.Field, structs map[string]Stru
 	var fieldDocs []FieldDoc
 	fieldType := exprToString(fset, field.Type)
 	fieldTag := extractTag(field.Tag)
-	defaultValue := extractDefaultValue(field.Tag, fieldType)
 
 	for _, name := range field.Names {
 		fieldDoc := FieldDoc{
-			Name:         name.Name,
-			Type:         fieldType,
-			Tag:          fieldTag,
-			DefaultValue: defaultValue,
-			Comment:      extractComment(field.Doc),
+			Name:    name.Name,
+			Type:    fieldType,
+			Tag:     fieldTag,
+			Comment: extractComment(field.Doc),
 		}
 		fieldDocs = append(fieldDocs, fieldDoc)
 	}
@@ -123,57 +120,153 @@ func processField(fset *token.FileSet, field *ast.Field, structs map[string]Stru
 func parseFile(filePath string) ([]StructDoc, error) {
 	var structs []StructDoc
 	structMap := make(map[string]StructDoc)
+	defaultValues := make(map[string]map[string]interface{}) // Store default values for structs
+
 	// Create a new token file set
 	fset := token.NewFileSet()
-
-	// Parse the Go source file
 	node, err := parser.ParseFile(fset, filePath, nil, parser.ParseComments)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse file %s: %w", filePath, err)
 	}
 
-	// Traverse the AST to find struct type declarations
+	// Traverse the AST to find struct type declarations and functions
 	ast.Inspect(node, func(n ast.Node) bool {
-		// Check for type declarations
-		genDecl, ok := n.(*ast.GenDecl)
-		if !ok || genDecl.Tok != token.TYPE {
-			return true
+		switch n := n.(type) {
+		case *ast.GenDecl: // Handle struct declarations
+			if n.Tok != token.TYPE {
+				return true
+			}
+			for _, spec := range n.Specs {
+				typeSpec, ok := spec.(*ast.TypeSpec)
+				if !ok {
+					continue
+				}
+				structType, ok := typeSpec.Type.(*ast.StructType)
+				if !ok {
+					continue
+				}
+
+				structDoc := StructDoc{
+					Name:    typeSpec.Name.Name,
+					Comment: extractComment(n.Doc),
+				}
+
+				for _, field := range structType.Fields.List {
+					structDoc.Fields = append(structDoc.Fields, processField(fset, field, structMap)...)
+				}
+
+				structMap[structDoc.Name] = structDoc
+			}
+
+		case *ast.FuncDecl: // Handle `createDefaultConfig()`
+			if n.Name.Name == "createDefaultConfig" {
+				structName, defaults := extractDefaultValues(fset, n)
+
+				if structName != "" {
+					defaultValues[structName] = defaults
+				}
+			}
 		}
-
-		// Iterate over the type specifications
-		for _, spec := range genDecl.Specs {
-			typeSpec, ok := spec.(*ast.TypeSpec)
-			if !ok {
-				continue
-			}
-
-			// Check if the type is a struct
-			structType, ok := typeSpec.Type.(*ast.StructType)
-			if !ok {
-				continue
-			}
-
-			structDoc := StructDoc{
-				Name:    typeSpec.Name.Name,
-				Comment: extractComment(genDecl.Doc),
-			}
-
-			// Iterate over the struct fields
-			for _, field := range structType.Fields.List {
-				structDoc.Fields = append(structDoc.Fields, processField(fset, field, structMap)...)
-			}
-			// Store processed struct in the map
-			structMap[structDoc.Name] = structDoc
-
-		}
-		return false
+		return true
 	})
+
+	// Apply extracted defaults to structs
+	for structName, defaults := range defaultValues {
+		if structDoc, exists := structMap[structName]; exists {
+			for i, field := range structDoc.Fields {
+				if val, found := defaults[field.Name]; found {
+					structDoc.Fields[i].DefaultValue = val
+				}
+			}
+			structMap[structName] = structDoc
+		}
+	}
 
 	// Convert map to slice
 	for _, structDoc := range structMap {
 		structs = append(structs, structDoc)
 	}
 	return structs, nil
+}
+
+// function to extract default value from struct
+func extractDefaultValues(fset *token.FileSet, fn *ast.FuncDecl) (string, map[string]interface{}) {
+	defaults := make(map[string]interface{})
+	var structName string
+
+	if fn.Body.List == nil {
+		return "", defaults
+	}
+
+	for _, stmt := range fn.Body.List {
+		retStmt, ok := stmt.(*ast.ReturnStmt)
+		if !ok || len(retStmt.Results) == 0 {
+			continue
+		}
+
+		unaryExpr, ok := retStmt.Results[0].(*ast.UnaryExpr)
+		if !ok {
+			continue
+		}
+
+		compLit, ok := unaryExpr.X.(*ast.CompositeLit)
+		if !ok {
+			continue
+		}
+
+		if ident, ok := compLit.Type.(*ast.Ident); ok {
+			structName = ident.Name
+		}
+
+		for _, elt := range compLit.Elts {
+			kvExpr, ok := elt.(*ast.KeyValueExpr)
+			if !ok {
+				continue
+			}
+
+			// Pass a valid fset instead of nil
+			fieldName := exprToString(fset, kvExpr.Key)
+			defaultValue := extractValue(kvExpr.Value)
+			defaults[fieldName] = defaultValue
+		}
+	}
+
+	return structName, defaults
+}
+
+// function to extract value
+func extractValue(expr ast.Expr) interface{} {
+	switch v := expr.(type) {
+	case *ast.BasicLit: // Handle basic types
+		switch v.Kind {
+		case token.STRING:
+			return strings.Trim(v.Value, `"`)
+		case token.INT:
+			var intValue int
+			fmt.Sscanf(v.Value, "%d", &intValue)
+			return intValue
+		case token.FLOAT:
+			var floatValue float64
+			fmt.Sscanf(v.Value, "%f", &floatValue)
+			return floatValue
+		default:
+			return v.Value
+		}
+	case *ast.Ident: // Handle boolean values
+		if v.Name == "true" {
+			return true
+		} else if v.Name == "false" {
+			return false
+		}
+		return v.Name // Could be a constant
+	case *ast.CallExpr: // Handle function calls
+		if fun, ok := v.Fun.(*ast.SelectorExpr); ok {
+			return fmt.Sprintf("function_call: %s.%s", fun.X, fun.Sel.Name)
+		} else if fun, ok := v.Fun.(*ast.Ident); ok {
+			return fmt.Sprintf("function_call: %s", fun.Name)
+		}
+	}
+	return nil
 }
 
 // extractComment retrieves the text from a CommentGroup.
@@ -199,44 +292,4 @@ func extractTag(tag *ast.BasicLit) string {
 		return strings.Trim(tag.Value, "`")
 	}
 	return ""
-}
-
-// extractDefaultValue parses the tag to find a default value if specified.
-func extractDefaultValue(tag *ast.BasicLit, fieldType string) interface{} {
-	if tag == nil {
-		return nil
-	}
-	tagValue := extractTag(tag)
-	structTag := reflect.StructTag(tagValue)
-	defaultValueStr := structTag.Get("default")
-	if defaultValueStr == "" {
-		return nil
-	}
-
-	// Convert the default value string to the appropriate type
-	switch fieldType {
-	case "string":
-		return defaultValueStr
-	case "int", "int8", "int16", "int32", "int64":
-		var intValue int64
-		if _, err := fmt.Sscanf(defaultValueStr, "%d", &intValue); err != nil {
-			return err
-		}
-		return intValue
-	case "uint", "uint8", "uint16", "uint32", "uint64":
-		var uintValue uint64
-		fmt.Sscanf(defaultValueStr, "%d", &uintValue)
-		return uintValue
-	case "float32", "float64":
-		var floatValue float64
-		fmt.Sscanf(defaultValueStr, "%f", &floatValue)
-		return floatValue
-	case "bool":
-		var boolValue bool
-		fmt.Sscanf(defaultValueStr, "%t", &boolValue)
-		return boolValue
-	// Add more types as needed
-	default:
-		return nil
-	}
 }
