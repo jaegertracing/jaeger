@@ -9,7 +9,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"github.com/jaegertracing/jaeger/pkg/es/client"
 	"log"
 	"net/http"
 	"strconv"
@@ -23,6 +22,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/es-index-cleaner/app"
 	"github.com/jaegertracing/jaeger/pkg/config"
+	"github.com/jaegertracing/jaeger/pkg/es/client"
 )
 
 var relativeIndexCleaner *featuregate.Gate
@@ -31,6 +31,7 @@ func init() {
 	relativeIndexCleaner = featuregate.GlobalRegistry().MustRegister(
 		"es.index.relativeTimeIndexDeletion",
 		featuregate.StageAlpha,
+		featuregate.WithRegisterFromVersion("v2.3.0"),
 		featuregate.WithRegisterDescription("Controls whether the indices will be deleted relative to the current time or tomorrow midnight."),
 		featuregate.WithRegisterReferenceURL("https://github.com/jaegertracing/jaeger/issues/6236"),
 	)
