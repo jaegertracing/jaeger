@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component/componenttest"
-	"go.opentelemetry.io/collector/extension/extensiontest"
+	"go.opentelemetry.io/collector/extension"
 )
 
 func TestCreateDefaultConfig(t *testing.T) {
@@ -22,7 +22,10 @@ func TestCreateDefaultConfig(t *testing.T) {
 func TestCreateExtension(t *testing.T) {
 	cfg := createDefaultConfig().(*Config)
 	f := NewFactory()
-	r, err := f.Create(context.Background(), extensiontest.NewNopSettings(), cfg)
+	r, err := f.Create(context.Background(), extension.Settings{
+		ID:                ID,
+		TelemetrySettings: componenttest.NewNopTelemetrySettings(),
+	}, cfg)
 	require.NoError(t, err)
 	assert.NotNil(t, r)
 }

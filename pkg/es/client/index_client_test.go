@@ -280,6 +280,89 @@ func TestClientDeleteIndices(t *testing.T) {
 	}
 }
 
+func TestIndexExists(t *testing.T) {
+	t.Run("index exists", func(t *testing.T) {
+		testIndexOrAliasExistence(t, "index")
+	})
+}
+
+func TestAliasExists(t *testing.T) {
+	t.Run("alias exists", func(t *testing.T) {
+		testIndexOrAliasExistence(t, "alias")
+	})
+}
+
+func testIndexOrAliasExistence(t *testing.T, existence string) {
+	maxURLPathLength := 4000
+	type indexOrAliasExistence struct {
+		name         string
+		exists       bool
+		responseCode int
+		expectedErr  string
+	}
+	tests := []indexOrAliasExistence{
+		{
+			name:         "exists",
+			responseCode: http.StatusOK,
+			exists:       true,
+		},
+		{
+			name:         "not exists",
+			responseCode: http.StatusNotFound,
+			exists:       false,
+		},
+	}
+	if existence == "index" {
+		test := indexOrAliasExistence{
+			name:         "generic error",
+			responseCode: http.StatusBadRequest,
+			expectedErr:  "failed to check if index exists: request failed, status code: 400",
+		}
+		tests = append(tests, test)
+	} else if existence == "alias" {
+		test := indexOrAliasExistence{
+			name:         "generic error",
+			responseCode: http.StatusBadRequest,
+			expectedErr:  "failed to check if alias exists: request failed, status code: 400",
+		}
+		tests = append(tests, test)
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			apiTriggered := false
+			testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
+				apiTriggered = true
+				assert.Equal(t, http.MethodHead, req.Method)
+				assert.Equal(t, "Basic foobar", req.Header.Get("Authorization"))
+				assert.LessOrEqual(t, len(req.URL.Path), maxURLPathLength)
+				res.WriteHeader(test.responseCode)
+			}))
+			defer testServer.Close()
+			c := &IndicesClient{
+				Client: Client{
+					Client:    testServer.Client(),
+					Endpoint:  testServer.URL,
+					BasicAuth: "foobar",
+				},
+			}
+			var exists bool
+			var err error
+			if existence == "index" {
+				exists, err = c.IndexExists("jaeger-span")
+			} else if existence == "alias" {
+				exists, err = c.AliasExists("jaeger-span")
+			}
+			if test.expectedErr != "" {
+				require.ErrorContains(t, err, test.expectedErr)
+			} else {
+				require.NoError(t, err)
+			}
+			assert.True(t, apiTriggered)
+			assert.Equal(t, test.exists, exists)
+		})
+	}
+}
+
 func TestClientRequestError(t *testing.T) {
 	c := &IndicesClient{
 		Client: Client{

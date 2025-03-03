@@ -1,6 +1,7 @@
 name: dependabot validate
 
 on:
+  merge_group:
   pull_request:
     paths:
       - '.github/dependabot.yml'

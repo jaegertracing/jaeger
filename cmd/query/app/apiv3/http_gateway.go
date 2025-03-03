@@ -15,6 +15,7 @@ import (
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/proto"
 	"github.com/gorilla/mux"
+	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel/trace"
@@ -22,11 +23,11 @@ import (
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc/v2/querysvc"
+	"github.com/jaegertracing/jaeger/internal/jiter"
 	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
-	"github.com/jaegertracing/jaeger/pkg/iter"
 )
 
 const (
@@ -191,7 +192,7 @@ func (h *HTTPGateway) getTrace(w http.ResponseWriter, r *http.Request) {
 		request.RawTraces = rawTraces
 	}
 	getTracesIter := h.QueryService.GetTraces(r.Context(), request)
-	trc, err := iter.FlattenWithErrors(getTracesIter)
+	trc, err := jiter.FlattenWithErrors(getTracesIter)
 	h.returnTraces(trc, err, w)
 }
 
@@ -202,7 +203,7 @@ func (h *HTTPGateway) findTraces(w http.ResponseWriter, r *http.Request) {
 	}
 
 	findTracesIter := h.QueryService.FindTraces(r.Context(), *queryParams)
-	traces, err := iter.FlattenWithErrors(findTracesIter)
+	traces, err := jiter.FlattenWithErrors(findTracesIter)
 	h.returnTraces(traces, err, w)
 }
 
@@ -211,7 +212,7 @@ func (h *HTTPGateway) parseFindTracesQuery(q url.Values, w http.ResponseWriter) 
 		TraceQueryParams: tracestore.TraceQueryParams{
 			ServiceName:   q.Get(paramServiceName),
 			OperationName: q.Get(paramOperationName),
-			Tags:          nil, // most curiously not supported by grpc-gateway
+			Attributes:    pcommon.NewMap(), // most curiously not supported by grpc-gateway
 		},
 	}
 
@@ -238,7 +239,7 @@ func (h *HTTPGateway) parseFindTracesQuery(q url.Values, w http.ResponseWriter) 
 		if h.tryParamError(w, err, paramNumTraces) {
 			return nil, true
 		}
-		queryParams.NumTraces = numTraces
+		queryParams.SearchDepth = numTraces
 	}
 
 	if d := q.Get(paramDurationMin); d != "" {

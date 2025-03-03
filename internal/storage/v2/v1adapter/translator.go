@@ -4,13 +4,15 @@
 package v1adapter
 
 import (
+	"iter"
+
 	jaegerTranslator "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/jptrace"
-	"github.com/jaegertracing/jaeger/pkg/iter"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
 // V1BatchesFromTraces converts OpenTelemetry traces (ptrace.Traces)
@@ -61,18 +63,18 @@ func V1TracesFromSeq2(otelSeq iter.Seq2[[]ptrace.Traces, error]) ([]*model.Trace
 	return jaegerTraces, nil
 }
 
-func V1TraceIDsFromSeq2(traceIDsIter iter.Seq2[[]pcommon.TraceID, error]) ([]model.TraceID, error) {
+func V1TraceIDsFromSeq2(traceIDsIter iter.Seq2[[]tracestore.FoundTraceID, error]) ([]model.TraceID, error) {
 	var (
 		iterErr       error
 		modelTraceIDs []model.TraceID
 	)
-	traceIDsIter(func(traceIDs []pcommon.TraceID, err error) bool {
+	traceIDsIter(func(traceIDs []tracestore.FoundTraceID, err error) bool {
 		if err != nil {
 			iterErr = err
 			return false
 		}
 		for _, traceID := range traceIDs {
-			modelTraceIDs = append(modelTraceIDs, ToV1TraceID(traceID))
+			modelTraceIDs = append(modelTraceIDs, ToV1TraceID(traceID.TraceID))
 		}
 		return true
 	})

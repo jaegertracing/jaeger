@@ -29,20 +29,20 @@ var _ Extension = (*storageExt)(nil)
 
 type Extension interface {
 	extension.Extension
-	TraceStorageFactory(name string) (storage.Factory, bool)
+	TraceStorageFactory(name string) (tracestore.Factory, bool)
 	MetricStorageFactory(name string) (storage.MetricStoreFactory, bool)
 }
 
 type storageExt struct {
 	config           *Config
 	telset           component.TelemetrySettings
-	factories        map[string]storage.Factory
+	factories        map[string]tracestore.Factory
 	metricsFactories map[string]storage.MetricStoreFactory
 }
 
-// GetStorageFactory locates the extension in Host and retrieves
+// getStorageFactory locates the extension in Host and retrieves
 // a trace storage factory from it with the given name.
-func GetStorageFactory(name string, host component.Host) (storage.Factory, error) {
+func getStorageFactory(name string, host component.Host) (tracestore.Factory, error) {
 	ext, err := findExtension(host)
 	if err != nil {
 		return nil, err
@@ -75,16 +75,16 @@ func GetMetricStorageFactory(name string, host component.Host) (storage.MetricSt
 }
 
 func GetTraceStoreFactory(name string, host component.Host) (tracestore.Factory, error) {
-	f, err := GetStorageFactory(name, host)
+	f, err := getStorageFactory(name, host)
 	if err != nil {
 		return nil, err
 	}
 
-	return v1adapter.NewFactory(f), nil
+	return f, nil
 }
 
 func GetSamplingStoreFactory(name string, host component.Host) (storage.SamplingStoreFactory, error) {
-	f, err := GetStorageFactory(name, host)
+	f, err := getStorageFactory(name, host)
 	if err != nil {
 		return nil, err
 	}
@@ -95,6 +95,20 @@ func GetSamplingStoreFactory(name string, host component.Host) (storage.Sampling
 	}
 
 	return ssf, nil
+}
+
+func GetPurger(name string, host component.Host) (storage.Purger, error) {
+	f, err := getStorageFactory(name, host)
+	if err != nil {
+		return nil, err
+	}
+
+	purger, ok := f.(storage.Purger)
+	if !ok {
+		return nil, fmt.Errorf("storage '%s' does not support purging", name)
+	}
+
+	return purger, nil
 }
 
 func findExtension(host component.Host) (Extension, error) {
@@ -123,7 +137,7 @@ func newStorageExt(config *Config, telset component.TelemetrySettings) *storageE
 	return &storageExt{
 		config:           config,
 		telset:           telset,
-		factories:        make(map[string]storage.Factory),
+		factories:        make(map[string]tracestore.Factory),
 		metricsFactories: make(map[string]storage.MetricStoreFactory),
 	}
 }
@@ -143,17 +157,18 @@ func (s *storageExt) Start(_ context.Context, host component.Host) error {
 	}
 	for storageName, cfg := range s.config.TraceBackends {
 		s.telset.Logger.Sugar().Infof("Initializing storage '%s'", storageName)
-		var factory storage.Factory
+		var factory tracestore.Factory
+		var v1Factory storage.Factory
 		var err error = errors.New("empty configuration")
 		switch {
 		case cfg.Memory != nil:
-			factory, err = memory.NewFactoryWithConfig(
+			v1Factory, err = memory.NewFactoryWithConfig(
 				*cfg.Memory,
 				scopedMetricsFactory(storageName, "memory", "tracestore"),
 				s.telset.Logger,
 			), nil
 		case cfg.Badger != nil:
-			factory, err = badger.NewFactoryWithConfig(
+			v1Factory, err = badger.NewFactoryWithConfig(
 				*cfg.Badger,
 				scopedMetricsFactory(storageName, "badger", "tracestore"),
 				s.telset.Logger)
@@ -161,21 +176,21 @@ func (s *storageExt) Start(_ context.Context, host component.Host) error {
 			grpcTelset := telset
 			grpcTelset.Metrics = scopedMetricsFactory(storageName, "grpc", "tracestore")
 			//nolint: contextcheck
-			factory, err = grpc.NewFactoryWithConfig(*cfg.GRPC, grpcTelset)
+			v1Factory, err = grpc.NewFactoryWithConfig(*cfg.GRPC, grpcTelset)
 		case cfg.Cassandra != nil:
-			factory, err = cassandra.NewFactoryWithConfig(
+			v1Factory, err = cassandra.NewFactoryWithConfig(
 				*cfg.Cassandra,
 				scopedMetricsFactory(storageName, "cassandra", "tracestore"),
 				s.telset.Logger,
 			)
 		case cfg.Elasticsearch != nil:
-			factory, err = es.NewFactoryWithConfig(
+			v1Factory, err = es.NewFactoryWithConfig(
 				*cfg.Elasticsearch,
 				scopedMetricsFactory(storageName, "elasticsearch", "tracestore"),
 				s.telset.Logger,
 			)
 		case cfg.Opensearch != nil:
-			factory, err = es.NewFactoryWithConfig(
+			v1Factory, err = es.NewFactoryWithConfig(
 				*cfg.Opensearch,
 				scopedMetricsFactory(storageName, "opensearch", "tracestore"),
 				s.telset.Logger,
@@ -184,6 +199,11 @@ func (s *storageExt) Start(_ context.Context, host component.Host) error {
 		if err != nil {
 			return fmt.Errorf("failed to initialize storage '%s': %w", storageName, err)
 		}
+
+		if v1Factory != nil {
+			factory = v1adapter.NewFactory(v1Factory)
+		}
+
 		s.factories[storageName] = factory
 	}
 
@@ -220,7 +240,7 @@ func (s *storageExt) Shutdown(context.Context) error {
 	return errors.Join(errs...)
 }
 
-func (s *storageExt) TraceStorageFactory(name string) (storage.Factory, bool) {
+func (s *storageExt) TraceStorageFactory(name string) (tracestore.Factory, bool) {
 	f, ok := s.factories[name]
 	return f, ok
 }

@@ -6,6 +6,7 @@ package querysvc
 import (
 	"context"
 	"fmt"
+	"iter"
 	"testing"
 	"time"
 
@@ -17,11 +18,11 @@ import (
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc/v2/adjuster"
+	"github.com/jaegertracing/jaeger/internal/jiter"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	depstoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	tracestoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
-	"github.com/jaegertracing/jaeger/pkg/iter"
 )
 
 const millisToNanosMultiplier = int64(time.Millisecond / time.Nanosecond)
@@ -109,7 +110,7 @@ func TestGetTraces_ErrorInReader(t *testing.T) {
 		},
 	}
 	getTracesIter := tqs.queryService.GetTraces(context.Background(), params)
-	_, err := iter.FlattenWithErrors(getTracesIter)
+	_, err := jiter.FlattenWithErrors(getTracesIter)
 	require.ErrorIs(t, err, assert.AnError)
 }
 
@@ -126,7 +127,7 @@ func TestGetTraces_Success(t *testing.T) {
 		},
 	}
 	getTracesIter := tqs.queryService.GetTraces(context.Background(), params)
-	gotTraces, err := iter.FlattenWithErrors(getTracesIter)
+	gotTraces, err := jiter.FlattenWithErrors(getTracesIter)
 	require.NoError(t, err)
 	require.Len(t, gotTraces, 1)
 
@@ -198,7 +199,7 @@ func TestGetTraces_WithRawTraces(t *testing.T) {
 				RawTraces: test.rawTraces,
 			}
 			getTracesIter := tqs.queryService.GetTraces(context.Background(), params)
-			gotTraces, err := iter.FlattenWithErrors(getTracesIter)
+			gotTraces, err := jiter.FlattenWithErrors(getTracesIter)
 			require.NoError(t, err)
 
 			require.Len(t, gotTraces, 1)
@@ -227,7 +228,7 @@ func TestGetTraces_TraceInArchiveStorage(t *testing.T) {
 		},
 	}
 	getTracesIter := tqs.queryService.GetTraces(context.Background(), params)
-	gotTraces, err := iter.FlattenWithErrors(getTracesIter)
+	gotTraces, err := jiter.FlattenWithErrors(getTracesIter)
 	require.NoError(t, err)
 	require.Len(t, gotTraces, 1)
 
@@ -277,13 +278,13 @@ func TestFindTraces_Success(t *testing.T) {
 		OperationName: "operation",
 		StartTimeMax:  now,
 		DurationMin:   duration,
-		NumTraces:     200,
+		SearchDepth:   200,
 	}
 	tqs.traceReader.On("FindTraces", mock.Anything, queryParams).Return(responseIter).Once()
 
 	query := TraceQueryParams{TraceQueryParams: queryParams}
 	getTracesIter := tqs.queryService.FindTraces(context.Background(), query)
-	gotTraces, err := iter.FlattenWithErrors(getTracesIter)
+	gotTraces, err := jiter.FlattenWithErrors(getTracesIter)
 	require.NoError(t, err)
 	require.Len(t, gotTraces, 1)
 
@@ -351,7 +352,7 @@ func TestFindTraces_WithRawTraces_PerformsAdjustment(t *testing.T) {
 				OperationName: "operation",
 				StartTimeMax:  now,
 				DurationMin:   duration,
-				NumTraces:     200,
+				SearchDepth:   200,
 			}).
 				Return(responseIter).Once()
 
@@ -361,12 +362,12 @@ func TestFindTraces_WithRawTraces_PerformsAdjustment(t *testing.T) {
 					OperationName: "operation",
 					StartTimeMax:  now,
 					DurationMin:   duration,
-					NumTraces:     200,
+					SearchDepth:   200,
 				},
 				RawTraces: test.rawTraces,
 			}
 			getTracesIter := tqs.queryService.FindTraces(context.Background(), query)
-			gotTraces, err := iter.FlattenWithErrors(getTracesIter)
+			gotTraces, err := jiter.FlattenWithErrors(getTracesIter)
 			require.NoError(t, err)
 
 			require.Len(t, gotTraces, 1)
@@ -487,7 +488,7 @@ func TestFindTraces_WithRawTraces_PerformsAggregation(t *testing.T) {
 				OperationName: "operation",
 				StartTimeMax:  now,
 				DurationMin:   duration,
-				NumTraces:     200,
+				SearchDepth:   200,
 			}).
 				Return(responseIter).Once()
 
@@ -497,12 +498,12 @@ func TestFindTraces_WithRawTraces_PerformsAggregation(t *testing.T) {
 					OperationName: "operation",
 					StartTimeMax:  now,
 					DurationMin:   duration,
-					NumTraces:     200,
+					SearchDepth:   200,
 				},
 				RawTraces: test.rawTraces,
 			}
 			getTracesIter := tqs.queryService.FindTraces(context.Background(), query)
-			gotTraces, err := iter.FlattenWithErrors(getTracesIter)
+			gotTraces, err := jiter.FlattenWithErrors(getTracesIter)
 			require.NoError(t, err)
 			assert.Equal(t, test.expected, gotTraces)
 			assert.Equal(t, test.expectedAdjustCalls, adjustCalls)
