@@ -31,7 +31,7 @@ type spanWriterMetrics struct {
 	indexCreate *spanstoremetrics.WriteMetrics
 }
 
-type serviceWriter func(string, *dbmodel.Span)
+type serviceWriter func(string, *es.Span)
 
 // SpanWriter is a wrapper around elastic.Client
 type SpanWriter struct {
@@ -145,10 +145,10 @@ func writeCache(key string, c cache.Cache) {
 	c.Put(key, key)
 }
 
-func (s *SpanWriter) writeService(indexName string, jsonSpan *dbmodel.Span) {
+func (s *SpanWriter) writeService(indexName string, jsonSpan *es.Span) {
 	s.serviceWriter(indexName, jsonSpan)
 }
 
-func (s *SpanWriter) writeSpan(indexName string, jsonSpan *dbmodel.Span) {
+func (s *SpanWriter) writeSpan(indexName string, jsonSpan *es.Span) {
 	s.client().Index().Index(indexName).Type(spanType).BodyJson(&jsonSpan).Add()
 }

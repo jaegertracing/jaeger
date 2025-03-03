@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
+	"github.com/jaegertracing/jaeger/pkg/es"
 )
 
 // NewFromDomain creates FromDomain used to convert model span to db span
@@ -28,15 +29,15 @@ type FromDomain struct {
 
 // FromDomainEmbedProcess converts model.Span into json.Span format.
 // This format includes a ParentSpanID and an embedded Process.
-func (fd FromDomain) FromDomainEmbedProcess(span *model.Span) *Span {
+func (fd FromDomain) FromDomainEmbedProcess(span *model.Span) *es.Span {
 	return fd.convertSpanEmbedProcess(span)
 }
 
-func (fd FromDomain) convertSpanInternal(span *model.Span) Span {
+func (fd FromDomain) convertSpanInternal(span *model.Span) es.Span {
 	tags, tagsMap := fd.convertKeyValuesString(span.Tags)
-	return Span{
-		TraceID:         TraceID(span.TraceID.String()),
-		SpanID:          SpanID(span.SpanID.String()),
+	return es.Span{
+		TraceID:         es.TraceID(span.TraceID.String()),
+		SpanID:          es.SpanID(span.SpanID.String()),
 		Flags:           uint32(span.Flags),
 		OperationName:   span.OperationName,
 		StartTime:       model.TimeAsEpochMicroseconds(span.StartTime),
@@ -48,35 +49,35 @@ func (fd FromDomain) convertSpanInternal(span *model.Span) Span {
 	}
 }
 
-func (fd FromDomain) convertSpanEmbedProcess(span *model.Span) *Span {
+func (fd FromDomain) convertSpanEmbedProcess(span *model.Span) *es.Span {
 	s := fd.convertSpanInternal(span)
 	s.Process = fd.convertProcess(span.Process)
 	s.References = fd.convertReferences(span)
 	return &s
 }
 
-func (fd FromDomain) convertReferences(span *model.Span) []Reference {
-	out := make([]Reference, 0, len(span.References))
+func (fd FromDomain) convertReferences(span *model.Span) []es.Reference {
+	out := make([]es.Reference, 0, len(span.References))
 	for _, ref := range span.References {
-		out = append(out, Reference{
+		out = append(out, es.Reference{
 			RefType: fd.convertRefType(ref.RefType),
-			TraceID: TraceID(ref.TraceID.String()),
-			SpanID:  SpanID(ref.SpanID.String()),
+			TraceID: es.TraceID(ref.TraceID.String()),
+			SpanID:  es.SpanID(ref.SpanID.String()),
 		})
 	}
 	return out
 }
 
-func (FromDomain) convertRefType(refType model.SpanRefType) ReferenceType {
+func (FromDomain) convertRefType(refType model.SpanRefType) es.ReferenceType {
 	if refType == model.FollowsFrom {
-		return FollowsFrom
+		return es.FollowsFrom
 	}
-	return ChildOf
+	return es.ChildOf
 }
 
-func (fd FromDomain) convertKeyValuesString(keyValues model.KeyValues) ([]KeyValue, map[string]any) {
+func (fd FromDomain) convertKeyValuesString(keyValues model.KeyValues) ([]es.KeyValue, map[string]any) {
 	var tagsMap map[string]any
-	var kvs []KeyValue
+	var kvs []es.KeyValue
 	for _, kv := range keyValues {
 		if kv.GetVType() != model.BinaryType && (fd.allTagsAsFields || fd.tagKeysAsFields[kv.Key]) {
 			if tagsMap == nil {
@@ -88,19 +89,19 @@ func (fd FromDomain) convertKeyValuesString(keyValues model.KeyValues) ([]KeyVal
 		}
 	}
 	if kvs == nil {
-		kvs = make([]KeyValue, 0)
+		kvs = make([]es.KeyValue, 0)
 	}
 	return kvs, tagsMap
 }
 
-func (FromDomain) convertLogs(logs []model.Log) []Log {
-	out := make([]Log, len(logs))
+func (FromDomain) convertLogs(logs []model.Log) []es.Log {
+	out := make([]es.Log, len(logs))
 	for i, log := range logs {
-		var kvs []KeyValue
+		var kvs []es.KeyValue
 		for _, kv := range log.Fields {
 			kvs = append(kvs, convertKeyValue(kv))
 		}
-		out[i] = Log{
+		out[i] = es.Log{
 			Timestamp: model.TimeAsEpochMicroseconds(log.Timestamp),
 			Fields:    kvs,
 		}
@@ -108,19 +109,19 @@ func (FromDomain) convertLogs(logs []model.Log) []Log {
 	return out
 }
 
-func (fd FromDomain) convertProcess(process *model.Process) Process {
+func (fd FromDomain) convertProcess(process *model.Process) es.Process {
 	tags, tagsMap := fd.convertKeyValuesString(process.Tags)
-	return Process{
+	return es.Process{
 		ServiceName: process.ServiceName,
 		Tags:        tags,
 		Tag:         tagsMap,
 	}
 }
 
-func convertKeyValue(kv model.KeyValue) KeyValue {
-	return KeyValue{
+func convertKeyValue(kv model.KeyValue) es.KeyValue {
+	return es.KeyValue{
 		Key:   kv.Key,
-		Type:  ValueType(strings.ToLower(kv.VType.String())),
+		Type:  es.ValueType(strings.ToLower(kv.VType.String())),
 		Value: kv.AsString(),
 	}
 }

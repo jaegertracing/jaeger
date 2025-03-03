@@ -2,7 +2,7 @@
 // Copyright (c) 2018 Uber Technologies, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-package dbmodel
+package es
 
 // ReferenceType is the reference type of one span to another
 type ReferenceType string

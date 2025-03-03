@@ -255,10 +255,10 @@ func (s *SpanReader) collectSpans(esSpansRaw []*elastic.SearchHit) ([]*model.Spa
 	return spans, nil
 }
 
-func (*SpanReader) unmarshalJSONSpan(esSpanRaw *elastic.SearchHit) (*dbmodel.Span, error) {
+func (*SpanReader) unmarshalJSONSpan(esSpanRaw *elastic.SearchHit) (*es.Span, error) {
 	esSpanInByteArray := esSpanRaw.Source
 
-	var jsonSpan dbmodel.Span
+	var jsonSpan es.Span
 
 	d := json.NewDecoder(bytes.NewReader(*esSpanInByteArray))
 	d.UseNumber()

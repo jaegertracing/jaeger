@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
+	"github.com/jaegertracing/jaeger/pkg/es"
 )
 
 func TestToDomain(t *testing.T) {
@@ -49,24 +50,24 @@ func testToDomain(t *testing.T, testParentSpanID bool) {
 	}
 }
 
-func loadESSpanFixture(i int) (Span, error) {
+func loadESSpanFixture(i int) (es.Span, error) {
 	in := fmt.Sprintf("fixtures/es_%02d.json", i)
 	inStr, err := os.ReadFile(in)
 	if err != nil {
-		return Span{}, err
+		return es.Span{}, err
 	}
-	var span Span
+	var span es.Span
 	err = json.Unmarshal(inStr, &span)
 	return span, err
 }
 
-func failingSpanTransform(t *testing.T, embeddedSpan *Span, errMsg string) {
+func failingSpanTransform(t *testing.T, embeddedSpan *es.Span, errMsg string) {
 	domainSpan, err := NewToDomain(":").SpanToDomain(embeddedSpan)
 	assert.Nil(t, domainSpan)
 	require.EqualError(t, err, errMsg)
 }
 
-func failingSpanTransformAnyMsg(t *testing.T, embeddedSpan *Span) {
+func failingSpanTransformAnyMsg(t *testing.T, embeddedSpan *es.Span) {
 	domainSpan, err := NewToDomain(":").SpanToDomain(embeddedSpan)
 	assert.Nil(t, domainSpan)
 	require.Error(t, err)
@@ -76,7 +77,7 @@ func TestFailureBadTypeTags(t *testing.T) {
 	badTagESSpan, err := loadESSpanFixture(1)
 	require.NoError(t, err)
 
-	badTagESSpan.Tags = []KeyValue{
+	badTagESSpan.Tags = []es.KeyValue{
 		{
 			Key:   "meh",
 			Type:  "badType",
@@ -90,7 +91,7 @@ func TestFailureBadBoolTags(t *testing.T) {
 	badTagESSpan, err := loadESSpanFixture(1)
 	require.NoError(t, err)
 
-	badTagESSpan.Tags = []KeyValue{
+	badTagESSpan.Tags = []es.KeyValue{
 		{
 			Key:   "meh",
 			Value: "meh",
@@ -104,7 +105,7 @@ func TestFailureBadIntTags(t *testing.T) {
 	badTagESSpan, err := loadESSpanFixture(1)
 	require.NoError(t, err)
 
-	badTagESSpan.Tags = []KeyValue{
+	badTagESSpan.Tags = []es.KeyValue{
 		{
 			Key:   "meh",
 			Value: "meh",
@@ -118,7 +119,7 @@ func TestFailureBadFloatTags(t *testing.T) {
 	badTagESSpan, err := loadESSpanFixture(1)
 	require.NoError(t, err)
 
-	badTagESSpan.Tags = []KeyValue{
+	badTagESSpan.Tags = []es.KeyValue{
 		{
 			Key:   "meh",
 			Value: "meh",
@@ -132,7 +133,7 @@ func TestFailureBadBinaryTags(t *testing.T) {
 	badTagESSpan, err := loadESSpanFixture(1)
 	require.NoError(t, err)
 
-	badTagESSpan.Tags = []KeyValue{
+	badTagESSpan.Tags = []es.KeyValue{
 		{
 			Key:   "zzzz",
 			Value: "zzzz",
@@ -145,10 +146,10 @@ func TestFailureBadBinaryTags(t *testing.T) {
 func TestFailureBadLogs(t *testing.T) {
 	badLogsESSpan, err := loadESSpanFixture(1)
 	require.NoError(t, err)
-	badLogsESSpan.Logs = []Log{
+	badLogsESSpan.Logs = []es.Log{
 		{
 			Timestamp: 0,
-			Fields: []KeyValue{
+			Fields: []es.KeyValue{
 				{
 					Key:   "sneh",
 					Value: "",
@@ -162,11 +163,11 @@ func TestFailureBadLogs(t *testing.T) {
 
 func TestRevertKeyValueOfType(t *testing.T) {
 	tests := []struct {
-		kv  *KeyValue
+		kv  *es.KeyValue
 		err string
 	}{
 		{
-			kv: &KeyValue{
+			kv: &es.KeyValue{
 				Key:   "sneh",
 				Type:  "badType",
 				Value: "someString",
@@ -174,11 +175,11 @@ func TestRevertKeyValueOfType(t *testing.T) {
 			err: "not a valid ValueType string",
 		},
 		{
-			kv:  &KeyValue{},
+			kv:  &es.KeyValue{},
 			err: "invalid nil Value",
 		},
 		{
-			kv: &KeyValue{
+			kv: &es.KeyValue{
 				Value: 123,
 			},
 			err: "non-string Value of type",
@@ -197,7 +198,7 @@ func TestRevertKeyValueOfType(t *testing.T) {
 func TestFailureBadRefs(t *testing.T) {
 	badRefsESSpan, err := loadESSpanFixture(1)
 	require.NoError(t, err)
-	badRefsESSpan.References = []Reference{
+	badRefsESSpan.References = []es.Reference{
 		{
 			RefType: "makeOurOwnCasino",
 			TraceID: "1",
@@ -209,7 +210,7 @@ func TestFailureBadRefs(t *testing.T) {
 func TestFailureBadTraceIDRefs(t *testing.T) {
 	badRefsESSpan, err := loadESSpanFixture(1)
 	require.NoError(t, err)
-	badRefsESSpan.References = []Reference{
+	badRefsESSpan.References = []es.Reference{
 		{
 			RefType: "CHILD_OF",
 			TraceID: "ZZBADZZ",
@@ -222,7 +223,7 @@ func TestFailureBadTraceIDRefs(t *testing.T) {
 func TestFailureBadSpanIDRefs(t *testing.T) {
 	badRefsESSpan, err := loadESSpanFixture(1)
 	require.NoError(t, err)
-	badRefsESSpan.References = []Reference{
+	badRefsESSpan.References = []es.Reference{
 		{
 			RefType: "CHILD_OF",
 			TraceID: "1",
@@ -236,14 +237,14 @@ func TestFailureBadProcess(t *testing.T) {
 	badProcessESSpan, err := loadESSpanFixture(1)
 	require.NoError(t, err)
 
-	badTags := []KeyValue{
+	badTags := []es.KeyValue{
 		{
 			Key:   "meh",
 			Value: "",
 			Type:  "badType",
 		},
 	}
-	badProcessESSpan.Process = Process{
+	badProcessESSpan.Process = es.Process{
 		ServiceName: "hello",
 		Tags:        badTags,
 	}

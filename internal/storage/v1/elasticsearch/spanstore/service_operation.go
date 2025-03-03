@@ -16,7 +16,6 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/internal/cache"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/spanstore/internal/dbmodel"
 	"github.com/jaegertracing/jaeger/pkg/es"
 )
 
@@ -53,9 +52,9 @@ func NewServiceOperationStorage(
 }
 
 // Write saves a service to operation pair.
-func (s *ServiceOperationStorage) Write(indexName string, jsonSpan *dbmodel.Span) {
+func (s *ServiceOperationStorage) Write(indexName string, jsonSpan *es.Span) {
 	// Insert serviceName:operationName document
-	service := dbmodel.Service{
+	service := es.Service{
 		ServiceName:   jsonSpan.Process.ServiceName,
 		OperationName: jsonSpan.OperationName,
 	}
@@ -127,7 +126,7 @@ func getOperationsAggregation(maxDocCount int) elastic.Query {
 		Size(maxDocCount) // ES deprecated size omission for aggregating all. https://github.com/elastic/elasticsearch/issues/18838
 }
 
-func hashCode(s dbmodel.Service) string {
+func hashCode(s es.Service) string {
 	h := fnv.New64a()
 	h.Write([]byte(s.ServiceName))
 	h.Write([]byte(s.OperationName))

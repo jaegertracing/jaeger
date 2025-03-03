@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
+	"github.com/jaegertracing/jaeger/pkg/es"
 )
 
 // NewToDomain creates ToDomain
@@ -35,7 +36,7 @@ func (td ToDomain) ReplaceDotReplacement(k string) string {
 }
 
 // SpanToDomain converts db span into model Span
-func (td ToDomain) SpanToDomain(dbSpan *Span) (*model.Span, error) {
+func (td ToDomain) SpanToDomain(dbSpan *es.Span) (*model.Span, error) {
 	tags, err := td.convertKeyValues(dbSpan.Tags)
 	if err != nil {
 		return nil, err
@@ -91,15 +92,15 @@ func (td ToDomain) SpanToDomain(dbSpan *Span) (*model.Span, error) {
 	return span, nil
 }
 
-func (ToDomain) convertRefs(refs []Reference) ([]model.SpanRef, error) {
+func (ToDomain) convertRefs(refs []es.Reference) ([]model.SpanRef, error) {
 	retMe := make([]model.SpanRef, len(refs))
 	for i, r := range refs {
 		// There are some inconsistencies with ReferenceTypes, hence the hacky fix.
 		var refType model.SpanRefType
 		switch r.RefType {
-		case ChildOf:
+		case es.ChildOf:
 			refType = model.ChildOf
-		case FollowsFrom:
+		case es.FollowsFrom:
 			refType = model.FollowsFrom
 		default:
 			return nil, fmt.Errorf("not a valid SpanRefType string %s", string(r.RefType))
@@ -124,7 +125,7 @@ func (ToDomain) convertRefs(refs []Reference) ([]model.SpanRef, error) {
 	return retMe, nil
 }
 
-func (td ToDomain) convertKeyValues(tags []KeyValue) ([]model.KeyValue, error) {
+func (td ToDomain) convertKeyValues(tags []es.KeyValue) ([]model.KeyValue, error) {
 	retMe := make([]model.KeyValue, len(tags))
 	for i := range tags {
 		kv, err := td.convertKeyValue(&tags[i])
@@ -183,7 +184,7 @@ func (td ToDomain) convertTagField(k string, v any) (model.KeyValue, error) {
 
 // convertKeyValue expects the Value field to be string, because it only works
 // as a reverse transformation after FromDomain() for ElasticSearch model.
-func (ToDomain) convertKeyValue(tag *KeyValue) (model.KeyValue, error) {
+func (ToDomain) convertKeyValue(tag *es.KeyValue) (model.KeyValue, error) {
 	if tag.Value == nil {
 		return model.KeyValue{}, fmt.Errorf("invalid nil Value in %v", tag)
 	}
@@ -192,27 +193,27 @@ func (ToDomain) convertKeyValue(tag *KeyValue) (model.KeyValue, error) {
 		return model.KeyValue{}, fmt.Errorf("non-string Value of type %t in %v", tag.Value, tag)
 	}
 	switch tag.Type {
-	case StringType:
+	case es.StringType:
 		return model.String(tag.Key, tagValue), nil
-	case BoolType:
+	case es.BoolType:
 		value, err := strconv.ParseBool(tagValue)
 		if err != nil {
 			return model.KeyValue{}, err
 		}
 		return model.Bool(tag.Key, value), nil
-	case Int64Type:
+	case es.Int64Type:
 		value, err := strconv.ParseInt(tagValue, 10, 64)
 		if err != nil {
 			return model.KeyValue{}, err
 		}
 		return model.Int64(tag.Key, value), nil
-	case Float64Type:
+	case es.Float64Type:
 		value, err := strconv.ParseFloat(tagValue, 64)
 		if err != nil {
 			return model.KeyValue{}, err
 		}
 		return model.Float64(tag.Key, value), nil
-	case BinaryType:
+	case es.BinaryType:
 		value, err := hex.DecodeString(tagValue)
 		if err != nil {
 			return model.KeyValue{}, err
@@ -222,7 +223,7 @@ func (ToDomain) convertKeyValue(tag *KeyValue) (model.KeyValue, error) {
 	return model.KeyValue{}, fmt.Errorf("not a valid ValueType string %s", string(tag.Type))
 }
 
-func (td ToDomain) convertLogs(logs []Log) ([]model.Log, error) {
+func (td ToDomain) convertLogs(logs []es.Log) ([]model.Log, error) {
 	retMe := make([]model.Log, len(logs))
 	for i, l := range logs {
 		fields, err := td.convertKeyValues(l.Fields)
@@ -237,7 +238,7 @@ func (td ToDomain) convertLogs(logs []Log) ([]model.Log, error) {
 	return retMe, nil
 }
 
-func (td ToDomain) convertProcess(process Process) (*model.Process, error) {
+func (td ToDomain) convertProcess(process es.Process) (*model.Process, error) {
 	tags, err := td.convertKeyValues(process.Tags)
 	if err != nil {
 		return nil, err
