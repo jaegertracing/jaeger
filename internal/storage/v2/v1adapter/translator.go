@@ -112,6 +112,17 @@ func modelTraceFromOtelTrace(otelTrace ptrace.Traces) *model.Trace {
 				proc := *batch.Process // shallow clone
 				span.Process = &proc
 			}
+
+			if span.Process.Tags == nil {
+				span.Process.Tags = []model.KeyValue{}
+			}
+
+			if span.References == nil {
+				span.References = []model.SpanRef{}
+			}
+			if span.Tags == nil {
+				span.Tags = []model.KeyValue{}
+			}
 			spans = append(spans, span)
 		}
 	}
