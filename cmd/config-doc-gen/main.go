@@ -8,13 +8,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"go/ast"
-	"go/parser"
 	"go/printer"
 	"go/token"
 	"log"
 	"os"
-	"path/filepath"
 	"strings"
+
+	"golang.org/x/tools/go/packages"
 )
 
 // FieldDoc represents documentation for a struct field.
@@ -35,33 +35,29 @@ type StructDoc struct {
 
 func main() {
 	// List of target directories
-	targetDirs := []string{
-		"cmd/jaeger/internal/extension/jaegerquery",
-		"pkg/es/config",
+	targetPackages := []string{
+		"github.com/jaegertracing/jaeger/cmd/jaeger/internal/exporters/storageexporter",
+		"github.com/jaegertracing/jaeger/pkg/es/config",
+		"go.opentelemetry.io/otel",
 	}
 
 	var allStructs []StructDoc
 
-	// Iterate over each target directory
-	for _, dir := range targetDirs {
-		fmt.Printf("Parsing directory: %s\n", dir)
-		err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
-			if err != nil {
-				return err
-			}
-			// Process only Go source files
-			if !info.IsDir() && filepath.Ext(path) == ".go" {
-				structs, err := parseFile(path)
-				if err != nil {
-					log.Printf("Error parsing file %s: %v", path, err)
-					return err
-				}
-				allStructs = append(allStructs, structs...)
-			}
-			return nil
-		})
-		if err != nil {
-			log.Fatalf("Error walking the path %s: %v", dir, err)
+	// Load packages using `go/packages`
+	cfg := &packages.Config{
+		Mode: packages.NeedSyntax | packages.NeedTypes | packages.NeedTypesInfo | packages.NeedFiles | packages.LoadImports,
+	}
+	pkgs, err := packages.Load(cfg, targetPackages...)
+
+	if err != nil {
+		log.Fatalf("Error loading packages: %v", err)
+	}
+
+	// Process each package
+	for _, pkg := range pkgs {
+		for _, syntax := range pkg.Syntax { // syntax contains AST trees of all files
+			structs := parseAST(syntax)
+			allStructs = append(allStructs, structs...)
 		}
 	}
 
@@ -117,17 +113,13 @@ func processField(fset *token.FileSet, field *ast.Field, structs map[string]Stru
 }
 
 // parseFile parses a Go source file and extracts struct information.
-func parseFile(filePath string) ([]StructDoc, error) {
+func parseAST(node *ast.File) []StructDoc {
 	var structs []StructDoc
 	structMap := make(map[string]StructDoc)
 	defaultValues := make(map[string]map[string]interface{}) // Store default values for structs
 
 	// Create a new token file set
 	fset := token.NewFileSet()
-	node, err := parser.ParseFile(fset, filePath, nil, parser.ParseComments)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse file %s: %w", filePath, err)
-	}
 
 	// Traverse the AST to find struct type declarations and functions
 	ast.Inspect(node, func(n ast.Node) bool {
@@ -186,7 +178,7 @@ func parseFile(filePath string) ([]StructDoc, error) {
 	for _, structDoc := range structMap {
 		structs = append(structs, structDoc)
 	}
-	return structs, nil
+	return structs
 }
 
 // function to extract default value from struct
