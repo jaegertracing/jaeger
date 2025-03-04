@@ -43,7 +43,7 @@ require (
 	github.com/stretchr/testify v1.10.0
 	github.com/uber/jaeger-client-go v2.30.0+incompatible
 	github.com/xdg-go/scram v1.1.2
-	go.opentelemetry.io/collector/component v0.120.0
+	go.opentelemetry.io/collector/component v1.27.0
 	go.opentelemetry.io/collector/component/componentstatus v0.120.0
 	go.opentelemetry.io/collector/component/componenttest v0.120.0
 	go.opentelemetry.io/collector/config/configauth v0.120.0
@@ -67,11 +67,11 @@ require (
 	go.opentelemetry.io/collector/exporter/nopexporter v0.120.0
 	go.opentelemetry.io/collector/exporter/otlpexporter v0.120.0
 	go.opentelemetry.io/collector/exporter/otlphttpexporter v0.120.0
-	go.opentelemetry.io/collector/extension v0.120.0
+	go.opentelemetry.io/collector/extension v1.27.0
 	go.opentelemetry.io/collector/extension/zpagesextension v0.120.0
 	go.opentelemetry.io/collector/featuregate v1.26.0
 	go.opentelemetry.io/collector/otelcol v0.120.0
-	go.opentelemetry.io/collector/pdata v1.26.0
+	go.opentelemetry.io/collector/pdata v1.27.0
 	go.opentelemetry.io/collector/pipeline v0.120.0
 	go.opentelemetry.io/collector/processor v0.120.0
 	go.opentelemetry.io/collector/processor/batchprocessor v0.120.0
