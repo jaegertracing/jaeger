@@ -1085,7 +1085,7 @@ func TestSpanReader_buildFindTraceIDsQuery(t *testing.T) {
 			},
 		}
 
-		actualQuery := r.reader.buildFindTraceIDsQuery(traceQuery)
+		actualQuery := r.reader.buildFindTraceIDsQuery(traceQuery.ServiceName, traceQuery.OperationName, traceQuery.Tags, traceQuery.StartTimeMin, traceQuery.StartTimeMax, traceQuery.DurationMin, traceQuery.DurationMax)
 		actual, err := actualQuery.Source()
 		require.NoError(t, err)
 		expectedQuery := elastic.NewBoolQuery().
