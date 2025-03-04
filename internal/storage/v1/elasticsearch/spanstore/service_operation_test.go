@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
-	"github.com/jaegertracing/jaeger/pkg/es"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/spanstore/internal/dbmodel"
 	"github.com/jaegertracing/jaeger/pkg/es/mocks"
 )
 
@@ -28,16 +28,16 @@ func TestWriteService(t *testing.T) {
 		indexService.On("Index", stringMatcher(indexName)).Return(indexService)
 		indexService.On("Type", stringMatcher(serviceType)).Return(indexService)
 		indexService.On("Id", stringMatcher(serviceHash)).Return(indexService)
-		indexService.On("BodyJson", mock.AnythingOfType("es.Service")).Return(indexService)
+		indexService.On("BodyJson", mock.AnythingOfType("dbmodel.Service")).Return(indexService)
 		indexService.On("Add")
 
 		w.client.On("Index").Return(indexService)
 
-		jsonSpan := &es.Span{
-			TraceID:       es.TraceID("1"),
-			SpanID:        es.SpanID("0"),
+		jsonSpan := &dbmodel.Span{
+			TraceID:       dbmodel.TraceID("1"),
+			SpanID:        dbmodel.SpanID("0"),
 			OperationName: "operation",
-			Process: es.Process{
+			Process: dbmodel.Process{
 				ServiceName: "service",
 			},
 		}
@@ -63,16 +63,16 @@ func TestWriteServiceError(*testing.T) {
 		indexService.On("Index", stringMatcher(indexName)).Return(indexService)
 		indexService.On("Type", stringMatcher(serviceType)).Return(indexService)
 		indexService.On("Id", stringMatcher(serviceHash)).Return(indexService)
-		indexService.On("BodyJson", mock.AnythingOfType("es.Service")).Return(indexService)
+		indexService.On("BodyJson", mock.AnythingOfType("dbmodel.Service")).Return(indexService)
 		indexService.On("Add")
 
 		w.client.On("Index").Return(indexService)
 
-		jsonSpan := &es.Span{
-			TraceID:       es.TraceID("1"),
-			SpanID:        es.SpanID("0"),
+		jsonSpan := &dbmodel.Span{
+			TraceID:       dbmodel.TraceID("1"),
+			SpanID:        dbmodel.SpanID("0"),
 			OperationName: "operation",
-			Process: es.Process{
+			Process: dbmodel.Process{
 				ServiceName: "service",
 			},
 		}

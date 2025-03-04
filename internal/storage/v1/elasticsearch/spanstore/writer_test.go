@@ -19,6 +19,7 @@ import (
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/metricstest"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/spanstore/internal/dbmodel"
 	"github.com/jaegertracing/jaeger/pkg/es"
 	"github.com/jaegertracing/jaeger/pkg/es/config"
 	"github.com/jaegertracing/jaeger/pkg/es/mocks"
@@ -184,11 +185,11 @@ func TestSpanWriter_WriteSpan(t *testing.T) {
 				indexService.On("Type", stringMatcher(spanType)).Return(indexSpanPut)
 
 				indexServicePut.On("Id", stringMatcher(serviceHash)).Return(indexServicePut)
-				indexServicePut.On("BodyJson", mock.AnythingOfType("es.Service")).Return(indexServicePut)
+				indexServicePut.On("BodyJson", mock.AnythingOfType("dbmodel.Service")).Return(indexServicePut)
 				indexServicePut.On("Add")
 
 				indexSpanPut.On("Id", mock.AnythingOfType("string")).Return(indexSpanPut)
-				indexSpanPut.On("BodyJson", mock.AnythingOfType("**es.Span")).Return(indexSpanPut)
+				indexSpanPut.On("BodyJson", mock.AnythingOfType("**dbmodel.Span")).Return(indexSpanPut)
 				indexSpanPut.On("Add")
 
 				w.client.On("Index").Return(indexService)
@@ -315,12 +316,12 @@ func TestWriteSpanInternal(t *testing.T) {
 		indexName := "jaeger-1995-04-21"
 		indexService.On("Index", stringMatcher(indexName)).Return(indexService)
 		indexService.On("Type", stringMatcher(spanType)).Return(indexService)
-		indexService.On("BodyJson", mock.AnythingOfType("**es.Span")).Return(indexService)
+		indexService.On("BodyJson", mock.AnythingOfType("**dbmodel.Span")).Return(indexService)
 		indexService.On("Add")
 
 		w.client.On("Index").Return(indexService)
 
-		jsonSpan := &es.Span{}
+		jsonSpan := &dbmodel.Span{}
 
 		w.writer.writeSpan(indexName, jsonSpan)
 		indexService.AssertNumberOfCalls(t, "Add", 1)
@@ -335,14 +336,14 @@ func TestWriteSpanInternalError(t *testing.T) {
 		indexName := "jaeger-1995-04-21"
 		indexService.On("Index", stringMatcher(indexName)).Return(indexService)
 		indexService.On("Type", stringMatcher(spanType)).Return(indexService)
-		indexService.On("BodyJson", mock.AnythingOfType("**es.Span")).Return(indexService)
+		indexService.On("BodyJson", mock.AnythingOfType("**dbmodel.Span")).Return(indexService)
 		indexService.On("Add")
 
 		w.client.On("Index").Return(indexService)
 
-		jsonSpan := &es.Span{
-			TraceID: es.TraceID("1"),
-			SpanID:  es.SpanID("0"),
+		jsonSpan := &dbmodel.Span{
+			TraceID: dbmodel.TraceID("1"),
+			SpanID:  dbmodel.SpanID("0"),
 		}
 
 		w.writer.writeSpan(indexName, jsonSpan)
@@ -357,7 +358,7 @@ func TestNewSpanTags(t *testing.T) {
 	metricsFactory := metricstest.NewFactory(0)
 	testCases := []struct {
 		writer   *SpanWriter
-		expected es.Span
+		expected dbmodel.Span
 		name     string
 	}{
 		{
@@ -365,9 +366,9 @@ func TestNewSpanTags(t *testing.T) {
 				Client: clientFn, Logger: logger, MetricsFactory: metricsFactory,
 				AllTagsAsFields: true,
 			}),
-			expected: es.Span{
-				Tag: map[string]any{"foo": "bar"}, Tags: []es.KeyValue{},
-				Process: es.Process{Tag: map[string]any{"bar": "baz"}, Tags: []es.KeyValue{}},
+			expected: dbmodel.Span{
+				Tag: map[string]any{"foo": "bar"}, Tags: []dbmodel.KeyValue{},
+				Process: dbmodel.Process{Tag: map[string]any{"bar": "baz"}, Tags: []dbmodel.KeyValue{}},
 			},
 			name: "allTagsAsFields",
 		},
@@ -376,23 +377,23 @@ func TestNewSpanTags(t *testing.T) {
 				Client: clientFn, Logger: logger, MetricsFactory: metricsFactory,
 				TagKeysAsFields: []string{"foo", "bar", "rere"},
 			}),
-			expected: es.Span{
-				Tag: map[string]any{"foo": "bar"}, Tags: []es.KeyValue{},
-				Process: es.Process{Tag: map[string]any{"bar": "baz"}, Tags: []es.KeyValue{}},
+			expected: dbmodel.Span{
+				Tag: map[string]any{"foo": "bar"}, Tags: []dbmodel.KeyValue{},
+				Process: dbmodel.Process{Tag: map[string]any{"bar": "baz"}, Tags: []dbmodel.KeyValue{}},
 			},
 			name: "definedTagNames",
 		},
 		{
 			writer: NewSpanWriter(SpanWriterParams{Client: clientFn, Logger: logger, MetricsFactory: metricsFactory}),
-			expected: es.Span{
-				Tags: []es.KeyValue{{
+			expected: dbmodel.Span{
+				Tags: []dbmodel.KeyValue{{
 					Key:   "foo",
-					Type:  es.StringType,
+					Type:  dbmodel.StringType,
 					Value: "bar",
 				}},
-				Process: es.Process{Tags: []es.KeyValue{{
+				Process: dbmodel.Process{Tags: []dbmodel.KeyValue{{
 					Key:   "bar",
-					Type:  es.StringType,
+					Type:  dbmodel.StringType,
 					Value: "baz",
 				}}},
 			},
@@ -446,7 +447,7 @@ func TestSpanWriterParamsTTL(t *testing.T) {
 			}
 			w := NewSpanWriter(params)
 
-			svc := es.Service{
+			svc := dbmodel.Service{
 				ServiceName:   "foo",
 				OperationName: "bar",
 			}
@@ -459,13 +460,13 @@ func TestSpanWriterParamsTTL(t *testing.T) {
 			indexService.On("Index", stringMatcher(serviceIndexName)).Return(indexService)
 			indexService.On("Type", stringMatcher(serviceType)).Return(indexService)
 			indexService.On("Id", stringMatcher(serviceHash)).Return(indexService)
-			indexService.On("BodyJson", mock.AnythingOfType("es.Service")).Return(indexService)
+			indexService.On("BodyJson", mock.AnythingOfType("dbmodel.Service")).Return(indexService)
 			indexService.On("Add")
 
 			client.On("Index").Return(indexService)
 
-			jsonSpan := &es.Span{
-				Process:       es.Process{ServiceName: "foo"},
+			jsonSpan := &dbmodel.Span{
+				Process:       dbmodel.Process{ServiceName: "foo"},
 				OperationName: "bar",
 			}
 
