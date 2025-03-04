@@ -130,22 +130,18 @@ func getSpanAndServiceIndexFn(p SpanWriterParams, writeAlias string) spanAndServ
 }
 
 // WriteSpan writes a span and its corresponding service:operation in ElasticSearch
-func (j *JsonSpanWriter) WriteSpan(serviceIndexName, spanIndexName string, span *dbmodel.Span) error {
+func (j *JsonSpanWriter) WriteSpan(serviceIndexName, spanIndexName string, span *dbmodel.Span) {
 	if serviceIndexName != "" {
 		j.writeService(serviceIndexName, span)
 	}
 	j.writeSpan(spanIndexName, span)
-	return nil
 }
 
 // WriteSpan writes a span and its corresponding service:operation in ElasticSearch
 func (s *SpanWriter) WriteSpan(_ context.Context, span *model.Span) error {
 	spanIndexName, serviceIndexName := s.spanServiceIndex(span.StartTime)
 	jsonSpan := s.spanConverter.FromDomainEmbedProcess(span)
-	err := s.jsonSpanWriter.WriteSpan(serviceIndexName, spanIndexName, jsonSpan)
-	if err != nil {
-		return err
-	}
+	s.jsonSpanWriter.WriteSpan(serviceIndexName, spanIndexName, jsonSpan)
 	s.logger.Debug("Wrote span to ES index", zap.String("index", spanIndexName))
 	return nil
 }
