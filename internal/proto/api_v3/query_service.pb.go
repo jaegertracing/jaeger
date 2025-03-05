@@ -10,7 +10,7 @@ import (
 	proto "github.com/gogo/protobuf/proto"
 	_ "github.com/gogo/protobuf/types"
 	github_com_gogo_protobuf_types "github.com/gogo/protobuf/types"
-
+	v1 "github.com/jaegertracing/jaeger/internal/jptrace"
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
@@ -678,7 +678,7 @@ func (m *GRPCGatewayError_GRPCGatewayErrorDetails) GetHttpStatus() string {
 // See https://github.com/grpc-ecosystem/grpc-gateway/issues/2189
 //
 type GRPCGatewayWrapper struct {
-	Result               *TracesData `protobuf:"bytes,1,opt,name=result,proto3" json:"result,omitempty"`
+	Result               *v1.TracesData `protobuf:"bytes,1,opt,name=result,proto3" json:"result,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}       `json:"-"`
 	XXX_unrecognized     []byte         `json:"-"`
 	XXX_sizecache        int32          `json:"-"`
@@ -717,7 +717,7 @@ func (m *GRPCGatewayWrapper) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_GRPCGatewayWrapper proto.InternalMessageInfo
 
-func (m *GRPCGatewayWrapper) GetResult() *TracesData {
+func (m *GRPCGatewayWrapper) GetResult() *v1.TracesData {
 	if m != nil {
 		return m.Result
 	}
@@ -851,7 +851,7 @@ func (c *queryServiceClient) GetTrace(ctx context.Context, in *GetTraceRequest, 
 }
 
 type QueryService_GetTraceClient interface {
-	Recv() (*TracesData, error)
+	Recv() (*v1.TracesData, error)
 	grpc.ClientStream
 }
 
@@ -859,8 +859,8 @@ type queryServiceGetTraceClient struct {
 	grpc.ClientStream
 }
 
-func (x *queryServiceGetTraceClient) Recv() (*TracesData, error) {
-	m := new(TracesData)
+func (x *queryServiceGetTraceClient) Recv() (*v1.TracesData, error) {
+	m := new(v1.TracesData)
 	if err := x.ClientStream.RecvMsg(m); err != nil {
 		return nil, err
 	}
@@ -883,7 +883,7 @@ func (c *queryServiceClient) FindTraces(ctx context.Context, in *FindTracesReque
 }
 
 type QueryService_FindTracesClient interface {
-	Recv() (*TracesData, error)
+	Recv() (*v1.TracesData, error)
 	grpc.ClientStream
 }
 
@@ -891,8 +891,8 @@ type queryServiceFindTracesClient struct {
 	grpc.ClientStream
 }
 
-func (x *queryServiceFindTracesClient) Recv() (*TracesData, error) {
-	m := new(TracesData)
+func (x *queryServiceFindTracesClient) Recv() (*v1.TracesData, error) {
+	m := new(v1.TracesData)
 	if err := x.ClientStream.RecvMsg(m); err != nil {
 		return nil, err
 	}
@@ -964,7 +964,7 @@ func _QueryService_GetTrace_Handler(srv interface{}, stream grpc.ServerStream) e
 }
 
 type QueryService_GetTraceServer interface {
-	Send(*TracesData) error
+	Send(*v1.TracesData) error
 	grpc.ServerStream
 }
 
@@ -972,7 +972,7 @@ type queryServiceGetTraceServer struct {
 	grpc.ServerStream
 }
 
-func (x *queryServiceGetTraceServer) Send(m *TracesData) error {
+func (x *queryServiceGetTraceServer) Send(m *v1.TracesData) error {
 	return x.ServerStream.SendMsg(m)
 }
 
@@ -985,7 +985,7 @@ func _QueryService_FindTraces_Handler(srv interface{}, stream grpc.ServerStream)
 }
 
 type QueryService_FindTracesServer interface {
-	Send(*TracesData) error
+	Send(*v1.TracesData) error
 	grpc.ServerStream
 }
 
@@ -993,7 +993,7 @@ type queryServiceFindTracesServer struct {
 	grpc.ServerStream
 }
 
-func (x *queryServiceFindTracesServer) Send(m *TracesData) error {
+func (x *queryServiceFindTracesServer) Send(m *v1.TracesData) error {
 	return x.ServerStream.SendMsg(m)
 }
 
@@ -3243,7 +3243,7 @@ func (m *GRPCGatewayWrapper) Unmarshal(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			if m.Result == nil {
-				m.Result = &TracesData{}
+				m.Result = &v1.TracesData{}
 			}
 			if err := m.Result.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
