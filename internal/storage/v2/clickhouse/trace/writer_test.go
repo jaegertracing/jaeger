@@ -42,21 +42,27 @@ func withTraceWriter(fn func(w *traceWriterTest)) {
 }
 
 func TestNewTraceWriter(t *testing.T) {
-	t.Run("test trace writer creation", func(t *testing.T) {
+	t.Run("should create trace writer successfully", func(t *testing.T) {
 		withTraceWriter(func(w *traceWriterTest) {
 			assert.NotNil(t, w.writer)
 		})
 	})
+	t.Run("should fail to create trace writer when ClickHouse connection pool is nil", func(t *testing.T) {
+		writer, err := NewTraceWriter(nil, zap.NewNop())
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "can't create trace writer with nil chPool")
+		assert.Nil(t, writer)
+	})
 }
 
 func TestTraceWriter(t *testing.T) {
-	t.Run("test TraceWriter write successfully", func(t *testing.T) {
+	t.Run("should write traces successfully", func(t *testing.T) {
 		withTraceWriter(func(w *traceWriterTest) {
 			err := w.writer.WriteTraces(context.Background(), sampleTrace)
 			require.NoError(t, err)
 		})
 	})
-	t.Run("test TraceWriter write error", func(t *testing.T) {
+	t.Run("should return error when writing traces fails due to database/table issues", func(t *testing.T) {
 		pool := &mocks.Pool{}
 		pool.On("Do", mock.Anything, mock.Anything, mock.Anything).Return(errors.New("database/table don't exist"))
 		logger, _ := testutils.NewLogger()

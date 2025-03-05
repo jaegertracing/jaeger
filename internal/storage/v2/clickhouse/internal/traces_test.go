@@ -66,6 +66,12 @@ func simpleTraces(count int) ptrace.Traces {
 	return traces
 }
 
+func TestTraceIDToHexOrEmptyString(t *testing.T) {
+	emptyId := pcommon.TraceID{}
+	emptyStringId := traceIDToHexOrEmptyString(emptyId)
+	assert.Empty(t, emptyStringId)
+}
+
 func TestMain(m *testing.M) {
 	testutils.VerifyGoLeaks(m)
 }

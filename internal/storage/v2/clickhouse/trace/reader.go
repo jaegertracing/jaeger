@@ -88,7 +88,7 @@ func (tr Reader) GetTraces(
 
 func NewTraceReader(c client.Conn) (*Reader, error) {
 	if c == nil {
-		return nil, errors.New("can't create trace reader with nil clickhouse")
+		return nil, errors.New("can't create trace reader with nil clickhouse client")
 	}
 	return &Reader{Client: c}, nil
 }

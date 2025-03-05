@@ -18,7 +18,6 @@ jobs:
       fail-fast: false
       matrix:
         clickhouse-version: ["25.x"]
-        create-schema: [auto]
     name: clickhouse
     steps:
       - name: Harden Runner
@@ -44,4 +43,4 @@ jobs:
         uses: ./.github/actions/upload-codecov
         with:
           files: cover.out
-          flags: clickhouse-${{ matrix.clickhouse-version }}-${{ matrix.create-schema }}
+          flags: clickhouse-${{ matrix.clickhouse-version }}
