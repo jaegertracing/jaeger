@@ -143,7 +143,7 @@ func (*traceReader) FindTraceIDs(
 }
 
 type traceStream interface {
-	Recv() (*api_v3.TracesData, error)
+	Recv() (*jptrace.TracesData, error)
 }
 
 // consumeTraces reads the stream and calls yield for each chunk.
