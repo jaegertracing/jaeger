@@ -81,7 +81,7 @@ var (
 type JsonSpanReader struct {
 	client             func() es.Client
 	tracer             trace.Tracer
-	toDomain           dbmodel.ToDomainFactory
+	dotManager         dbmodel.DotManager
 	timeRangeIndices   timeRangeIndexFn
 	spanIndexPrefix    string
 	serviceIndexPrefix string
@@ -97,40 +97,30 @@ type JsonSpanReader struct {
 	useReadWriteAliases     bool
 }
 
-func NewJsonSpanReader(client func() es.Client,
-	maxSpanAge time.Duration,
-	serviceOperationStorage *ServiceOperationStorage,
-	indexPrefix cfg.IndexPrefix,
-	spanIndex, serviceIndex cfg.IndexOptions,
-	remoteReadClusters []string,
-	useReadWriteAliases bool,
-	toDomain dbmodel.ToDomainFactory,
-	logger *zap.Logger,
-	readAliasSuffix string,
-	maxDocCount int,
-	tracer trace.Tracer,
-) *JsonSpanReader {
+// NewJsonSpanReader returns an instance JsonSpanReader which provides the spans and services
+func NewJsonSpanReader(p SpanReaderParams, readAliasSuffix string, maxSpanAge time.Duration) *JsonSpanReader {
+	dotManager := dbmodel.NewDotManager(p.TagDotReplacement)
 	return &JsonSpanReader{
-		client:   client,
-		tracer:   tracer,
-		toDomain: toDomain,
+		client:     p.Client,
+		tracer:     p.Tracer,
+		dotManager: dotManager,
 		timeRangeIndices: getLoggingTimeRangeIndexFn(
-			logger,
+			p.Logger,
 			addRemoteReadClusters(
-				getTimeRangeIndexFn(useReadWriteAliases, readAliasSuffix),
-				remoteReadClusters,
+				getTimeRangeIndexFn(p.UseReadWriteAliases, readAliasSuffix),
+				p.RemoteReadClusters,
 			),
 		),
-		spanIndexPrefix:         indexPrefix.Apply(spanIndexBaseName),
-		serviceIndexPrefix:      indexPrefix.Apply(serviceIndexBaseName),
-		spanIndex:               spanIndex,
-		serviceIndex:            serviceIndex,
-		logger:                  logger,
+		spanIndexPrefix:         p.IndexPrefix.Apply(spanIndexBaseName),
+		serviceIndexPrefix:      p.IndexPrefix.Apply(serviceIndexBaseName),
+		spanIndex:               p.SpanIndex,
+		serviceIndex:            p.ServiceIndex,
+		logger:                  p.Logger,
 		maxSpanAge:              maxSpanAge,
-		serviceOperationStorage: serviceOperationStorage,
-		maxDocCount:             maxDocCount,
-		sourceFn:                getSourceFn(maxDocCount),
-		useReadWriteAliases:     useReadWriteAliases,
+		serviceOperationStorage: NewServiceOperationStorage(p.Client, p.Logger, 0), // the decorator takes care of metrics,
+		maxDocCount:             p.MaxDocCount,
+		sourceFn:                getSourceFn(p.MaxDocCount),
+		useReadWriteAliases:     p.UseReadWriteAliases,
 	}
 }
 
@@ -172,21 +162,8 @@ func NewSpanReader(p SpanReaderParams) *SpanReader {
 	}
 	spanConverter := dbmodel.NewToDomain(p.TagDotReplacement)
 	return &SpanReader{
-		JsonSpanReader: *NewJsonSpanReader(p.Client,
-			maxSpanAge,
-			NewServiceOperationStorage(p.Client, p.Logger, 0), // the decorator takes care of metrics
-			p.IndexPrefix,
-			p.SpanIndex,
-			p.ServiceIndex,
-			p.RemoteReadClusters,
-			p.UseReadWriteAliases,
-			spanConverter,
-			p.Logger,
-			readAliasSuffix,
-			p.MaxDocCount,
-			p.Tracer,
-		),
-		spanConverter: spanConverter,
+		JsonSpanReader: *NewJsonSpanReader(p, readAliasSuffix, maxSpanAge),
+		spanConverter:  spanConverter,
 	}
 }
 
@@ -280,7 +257,7 @@ func (s *SpanReader) collectSpans(esSpansRaw []*elastic.SearchHit) ([]*model.Spa
 	spans := make([]*model.Span, len(esSpansRaw))
 
 	for i, esSpanRaw := range esSpansRaw {
-		jsonSpan, err := s.unmarshalJSONSpan(esSpanRaw)
+		jsonSpan, err := s.UnmarshalJSONSpan(esSpanRaw)
 		if err != nil {
 			return nil, fmt.Errorf("marshalling JSON to span object failed: %w", err)
 		}
@@ -293,7 +270,7 @@ func (s *SpanReader) collectSpans(esSpansRaw []*elastic.SearchHit) ([]*model.Spa
 	return spans, nil
 }
 
-func (*SpanReader) unmarshalJSONSpan(esSpanRaw *elastic.SearchHit) (*dbmodel.Span, error) {
+func (*JsonSpanReader) UnmarshalJSONSpan(esSpanRaw *elastic.SearchHit) (*dbmodel.Span, error) {
 	esSpanInByteArray := esSpanRaw.Source
 
 	var jsonSpan dbmodel.Span
@@ -330,7 +307,7 @@ func (s *SpanReader) GetServices(ctx context.Context) ([]string, error) {
 func (j *JsonSpanReader) GetJsonOperations(
 	ctx context.Context,
 	serviceName string,
-) ([]spanstore.Operation, error) {
+) ([]string, error) {
 	ctx, span := j.tracer.Start(ctx, "GetOperations")
 	defer span.End()
 	currentTime := time.Now()
@@ -345,16 +322,7 @@ func (j *JsonSpanReader) GetJsonOperations(
 	if err != nil {
 		return nil, err
 	}
-
-	// TODO: https://github.com/jaegertracing/jaeger/issues/1923
-	// 	- return the operations with actual span kind that meet requirement
-	var result []spanstore.Operation
-	for _, operation := range operations {
-		result = append(result, spanstore.Operation{
-			Name: operation,
-		})
-	}
-	return result, err
+	return operations, nil
 }
 
 // GetOperations returns all operations for a specific service traced by Jaeger
@@ -362,7 +330,20 @@ func (s *SpanReader) GetOperations(
 	ctx context.Context,
 	query spanstore.OperationQueryParameters,
 ) ([]spanstore.Operation, error) {
-	return s.GetJsonOperations(ctx, query.ServiceName)
+	operations, err := s.GetJsonOperations(ctx, query.ServiceName)
+	if err != nil {
+		return nil, err
+	}
+	// TODO: https://github.com/jaegertracing/jaeger/issues/1923
+	// 	- return the operations with actual span kind that meet requirement
+	//  - For this an operation struct can be defined in dbmodel which can be used to convert either to v2 or v1 operation struct
+	var result []spanstore.Operation
+	for _, operation := range operations {
+		result = append(result, spanstore.Operation{
+			Name: operation,
+		})
+	}
+	return result, err
 }
 
 func bucketToStringArray(buckets []*elastic.AggregationBucketKeyItem) ([]string, error) {
@@ -442,7 +423,7 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []model.TraceID, st
 			query := elastic.NewBoolQuery().
 				Must(traceQuery)
 			if s.useReadWriteAliases {
-				startTimeRangeQuery := s.buildStartTimeQuery(startTime.Add(-time.Hour*24), endTime.Add(time.Hour*24))
+				startTimeRangeQuery := s.BuildStartTimeQuery(startTime.Add(-time.Hour*24), endTime.Add(time.Hour*24))
 				query = query.Must(startTimeRangeQuery)
 			}
 
@@ -693,7 +674,7 @@ func (j *JsonSpanReader) buildFindTraceIDsQuery(serviceName string, operationNam
 	}
 
 	// add startTime query
-	startTimeQuery := j.buildStartTimeQuery(startTimeMin, startTimeMax)
+	startTimeQuery := j.BuildStartTimeQuery(startTimeMin, startTimeMax)
 	boolQuery.Must(startTimeQuery)
 
 	// add process.serviceName query
@@ -724,7 +705,7 @@ func (*JsonSpanReader) buildDurationQuery(durationMin time.Duration, durationMax
 	return elastic.NewRangeQuery(durationField).Gte(minDurationMicros).Lte(maxDurationMicros)
 }
 
-func (*JsonSpanReader) buildStartTimeQuery(startTimeMin time.Time, startTimeMax time.Time) elastic.Query {
+func (*JsonSpanReader) BuildStartTimeQuery(startTimeMin time.Time, startTimeMax time.Time) elastic.Query {
 	minStartTimeMicros := model.TimeAsEpochMicroseconds(startTimeMin)
 	maxStartTimeMicros := model.TimeAsEpochMicroseconds(startTimeMax)
 	// startTimeMillisField is date field in ES mapping.
@@ -744,7 +725,7 @@ func (*JsonSpanReader) buildOperationNameQuery(operationName string) elastic.Que
 func (j *JsonSpanReader) buildTagQuery(k string, v string) elastic.Query {
 	objectTagListLen := len(objectTagFieldList)
 	queries := make([]elastic.Query, len(nestedTagFieldList)+objectTagListLen)
-	kd := j.toDomain.ReplaceDot(k)
+	kd := j.dotManager.ReplaceDot(k)
 	for i := range objectTagFieldList {
 		queries[i] = j.buildObjectQuery(objectTagFieldList[i], kd, v)
 	}

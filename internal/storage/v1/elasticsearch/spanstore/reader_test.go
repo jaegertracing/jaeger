@@ -537,7 +537,7 @@ func TestSpanReader_esJSONtoJSONSpanModel(t *testing.T) {
 			Source: jsonPayload,
 		}
 
-		span, err := r.reader.unmarshalJSONSpan(esSpanRaw)
+		span, err := r.reader.UnmarshalJSONSpan(esSpanRaw)
 		require.NoError(t, err)
 
 		var expectedSpan dbmodel.Span
@@ -555,7 +555,7 @@ func TestSpanReader_esJSONtoJSONSpanModelError(t *testing.T) {
 			Source: jsonPayload,
 		}
 
-		span, err := r.reader.unmarshalJSONSpan(esSpanRaw)
+		span, err := r.reader.UnmarshalJSONSpan(esSpanRaw)
 		require.Error(t, err)
 		assert.Nil(t, span)
 	})
@@ -1091,7 +1091,7 @@ func TestSpanReader_buildFindTraceIDsQuery(t *testing.T) {
 		expectedQuery := elastic.NewBoolQuery().
 			Must(
 				r.reader.buildDurationQuery(time.Second, time.Second*2),
-				r.reader.buildStartTimeQuery(time.Time{}, time.Time{}.Add(time.Second)),
+				r.reader.BuildStartTimeQuery(time.Time{}, time.Time{}.Add(time.Second)),
 				r.reader.buildServiceNameQuery("s"),
 				r.reader.buildOperationNameQuery("o"),
 				r.reader.buildTagQuery("hello", "world"),
@@ -1138,7 +1138,7 @@ func TestSpanReader_buildStartTimeQuery(t *testing.T) {
 	withSpanReader(t, func(r *spanReaderTest) {
 		startTimeMin := time.Time{}.Add(time.Second)
 		startTimeMax := time.Time{}.Add(2 * time.Second)
-		durationQuery := r.reader.buildStartTimeQuery(startTimeMin, startTimeMax)
+		durationQuery := r.reader.BuildStartTimeQuery(startTimeMin, startTimeMax)
 		actual, err := durationQuery.Source()
 		require.NoError(t, err)
 
