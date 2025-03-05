@@ -142,6 +142,6 @@ patch-api-v3:
 proto-api-v3: patch-api-v3
 	$(call proto_compile, $(API_V3_PATH), $(API_V3_PATCHED), -I$(API_V3_PATCHED_DIR) -Iidl/opentelemetry-proto)
 	@echo "🏗️  replace first instance of OTEL import with internal type"
-	$(SED) -i '0,/go.opentelemetry.io\/proto\/otlp\/trace\/v1/s/go.opentelemetry.io\/proto\/otlp\/trace\/v1/github.com\/jaegertracing\/jaeger\/internal\/jptrace/' $(API_V3_PATH)/query_service.pb.go
+	$(SED) -i '0,/go.opentelemetry.io\/proto\/otlp\/trace\/v1/s|go.opentelemetry.io/proto/otlp/trace/v1|github.com/jaegertracing/jaeger/internal/jptrace|' $(API_V3_PATH)/query_service.pb.go
 	@echo "🏗️  remove all remaining OTEL imports because we're not using any other OTLP types"
 	$(SED) -i 's+^.*v1 "go.opentelemetry.io/proto/otlp/trace/v1".*$$++' $(API_V3_PATH)/query_service.pb.go
