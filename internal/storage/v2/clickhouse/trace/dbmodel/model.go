@@ -81,18 +81,29 @@ func (m Model) covertSpan(span ptrace.Span) error {
 	if err != nil {
 		return err
 	}
+	if isZeroBytes(traceId) {
+		return errors.New("trace id is empty")
+	}
+
 	span.SetTraceID(pcommon.TraceID(traceId))
 	spanId, err := hex.DecodeString(m.SpanId)
 	if err != nil {
 		return err
 	}
+	if isZeroBytes(spanId) {
+		return errors.New("span id is empty")
+	}
 	span.SetSpanID(pcommon.SpanID(spanId))
+
 	span.TraceState().FromRaw(m.TraceState)
 
 	if m.ParentSpanId != "" {
 		parentSpanId, err := hex.DecodeString(m.ParentSpanId)
 		if err != nil {
 			return err
+		}
+		if isZeroBytes(parentSpanId) {
+			return errors.New("parentSpan id is empty")
 		}
 		span.SetParentSpanID(pcommon.SpanID(parentSpanId))
 	}
@@ -121,7 +132,7 @@ func (m Model) covertSpan(span ptrace.Span) error {
 	for i := 0; i < len(m.LinksSpanId); i++ {
 		if i < len(m.LinksTraceId) {
 			link := span.Links().AppendEmpty()
-			err := m.covertLink(link, i)
+			err := m.convertLink(link, i)
 			if err != nil {
 				return err
 			}
@@ -130,7 +141,7 @@ func (m Model) covertSpan(span ptrace.Span) error {
 	return err
 }
 
-func (m Model) covertLink(link ptrace.SpanLink, i int) error {
+func (m Model) convertLink(link ptrace.SpanLink, i int) error {
 	var err error
 	linksTraceId, linksSpanId := m.LinksTraceId[i], m.LinksSpanId[i]
 
@@ -198,4 +209,16 @@ func (m Model) spanKind() ptrace.SpanKind {
 		return ptrace.SpanKindConsumer
 	}
 	return -1
+}
+
+func isZeroBytes(b []byte) bool {
+	if len(b) == 0 {
+		return true
+	}
+	for _, v := range b {
+		if v != 0 {
+			return false
+		}
+	}
+	return true
 }
