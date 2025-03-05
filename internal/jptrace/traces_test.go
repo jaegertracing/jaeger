@@ -1,7 +1,7 @@
 // Copyright (c) 2024 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
-package api_v3
+package jptrace
 
 import (
 	"testing"
@@ -9,8 +9,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/ptrace"
-
-	"github.com/jaegertracing/jaeger/pkg/testutils"
 )
 
 func TestTracesData(t *testing.T) {
@@ -56,8 +54,4 @@ func TestTracesData(t *testing.T) {
 
 	// Test String
 	assert.Equal(t, "*TracesData", td.String())
-}
-
-func TestMain(m *testing.M) {
-	testutils.VerifyGoLeaks(m)
 }

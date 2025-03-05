@@ -18,6 +18,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc/v2/querysvc"
+	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
 	dependencyStoreMocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
@@ -204,7 +205,7 @@ func TestFindTracesSendError(t *testing.T) {
 				StartTimeMax: time.Now(),
 			},
 		},
-		/* streamSend= */ func(*api_v3.TracesData) error {
+		/* streamSend= */ func(*jptrace.TracesData) error {
 			return assert.AnError
 		},
 	)
