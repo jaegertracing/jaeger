@@ -33,24 +33,6 @@ type spanWriterMetrics struct {
 
 type serviceWriter func(string, *dbmodel.Span)
 
-// JsonSpanWriter writes json Services and Spans specific to ElasticSearch.
-type JsonSpanWriter struct {
-	SpanWriter
-}
-
-// NewJsonSpanWriter returns an instance of JsonSpanWriter
-func NewJsonSpanWriter(p SpanWriterParams) *JsonSpanWriter {
-	return &JsonSpanWriter{
-		SpanWriter: *NewSpanWriter(p),
-	}
-}
-
-// GetSpanAndServiceIndexFn returns SpanAndServiceIndexFn which can be used to
-// fetch the span and service index names by start time of span
-func (j *JsonSpanWriter) GetSpanAndServiceIndexFn() SpanAndServiceIndexFn {
-	return j.spanServiceIndex
-}
-
 // SpanWriter is a wrapper around elastic.Client
 type SpanWriter struct {
 	client        func() es.Client
@@ -60,6 +42,10 @@ type SpanWriter struct {
 	serviceWriter    serviceWriter
 	spanConverter    dbmodel.FromDomain
 	spanServiceIndex SpanAndServiceIndexFn
+}
+
+type SpanWriterV1 struct {
+	spanWriter *SpanWriter
 }
 
 // SpanWriterParams holds constructor parameters for NewSpanWriter
@@ -76,6 +62,13 @@ type SpanWriterParams struct {
 	UseReadWriteAliases bool
 	WriteAliasSuffix    string
 	ServiceCacheTTL     time.Duration
+}
+
+// NewSpanWriterV1 returns the SpanWriterV1 for use
+func NewSpanWriterV1(p SpanWriterParams) *SpanWriterV1 {
+	return &SpanWriterV1{
+		spanWriter: NewSpanWriter(p),
+	}
 }
 
 // NewSpanWriter creates a new SpanWriter for use
@@ -105,6 +98,11 @@ func NewSpanWriter(p SpanWriterParams) *SpanWriter {
 		spanConverter:    dbmodel.NewFromDomain(p.AllTagsAsFields, p.TagKeysAsFields, p.TagDotReplacement),
 		spanServiceIndex: getSpanAndServiceIndexFn(p, writeAliasSuffix),
 	}
+}
+
+// CreateTemplates creates index templates.
+func (s *SpanWriterV1) CreateTemplates(spanTemplate, serviceTemplate string, indexPrefix cfg.IndexPrefix) error {
+	return s.spanWriter.CreateTemplates(spanTemplate, serviceTemplate, indexPrefix)
 }
 
 // CreateTemplates creates index templates.
@@ -138,8 +136,8 @@ func getSpanAndServiceIndexFn(p SpanWriterParams, writeAlias string) SpanAndServ
 	}
 }
 
-// WriteJsonSpan writes a span and its corresponding service:operation in ElasticSearch
-func (s *SpanWriter) WriteJsonSpan(serviceIndexName, spanIndexName string, span *dbmodel.Span) {
+// WriteSpan writes a span and its corresponding service:operation in ElasticSearch
+func (s *SpanWriter) WriteSpan(serviceIndexName, spanIndexName string, span *dbmodel.Span) {
 	if serviceIndexName != "" {
 		s.writeService(serviceIndexName, span)
 	}
@@ -147,17 +145,22 @@ func (s *SpanWriter) WriteJsonSpan(serviceIndexName, spanIndexName string, span 
 }
 
 // WriteSpan writes a span and its corresponding service:operation in ElasticSearch
-func (s *SpanWriter) WriteSpan(_ context.Context, span *model.Span) error {
-	spanIndexName, serviceIndexName := s.spanServiceIndex(span.StartTime)
-	jsonSpan := s.spanConverter.FromDomainEmbedProcess(span)
-	s.WriteJsonSpan(serviceIndexName, spanIndexName, jsonSpan)
-	s.logger.Debug("Wrote span to ES index", zap.String("index", spanIndexName))
+func (s *SpanWriterV1) WriteSpan(_ context.Context, span *model.Span) error {
+	spanIndexName, serviceIndexName := s.spanWriter.spanServiceIndex(span.StartTime)
+	jsonSpan := s.spanWriter.spanConverter.FromDomainEmbedProcess(span)
+	s.spanWriter.WriteSpan(serviceIndexName, spanIndexName, jsonSpan)
+	s.spanWriter.logger.Debug("Wrote span to ES index", zap.String("index", spanIndexName))
 	return nil
 }
 
 // Close closes SpanWriter
 func (s *SpanWriter) Close() error {
 	return s.client().Close()
+}
+
+// Close closes SpanWriter
+func (s *SpanWriterV1) Close() error {
+	return s.spanWriter.Close()
 }
 
 func keyInCache(key string, c cache.Cache) bool {
