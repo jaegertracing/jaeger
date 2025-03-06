@@ -47,7 +47,7 @@ func createTraceWriter(logger *zap.Logger, port int) (*traceWriter, error) {
 		Insecure: true,
 	}
 
-	set := exportertest.NewNopSettings()
+	set := exportertest.NewNopSettings(exportertest.NopType)
 	set.Logger = logger
 
 	exp, err := factory.CreateTraces(context.Background(), set, cfg)
