@@ -14,34 +14,29 @@ import (
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 )
 
-// DotManager manages the dotes of tags
-type DotManager struct {
-	tagDotReplacement string
-}
-
-// NewDotManager returns an instance of DotManager which manages the dotes of tags
-func NewDotManager(tagDotReplacement string) DotManager {
-	return DotManager{tagDotReplacement: tagDotReplacement}
+type ToDomainFactory interface {
+	ReplaceDot(k string) string
+	ReplaceDotReplacement(k string) string
 }
 
 // NewToDomain creates ToDomain
 func NewToDomain(tagDotReplacement string) ToDomain {
-	return ToDomain{DotManager: NewDotManager(tagDotReplacement)}
+	return ToDomain{tagDotReplacement: tagDotReplacement}
 }
 
 // ToDomain is used to convert Span to model.Span
 type ToDomain struct {
-	DotManager
+	tagDotReplacement string
 }
 
 // ReplaceDot replaces dot with dotReplacement
-func (dm DotManager) ReplaceDot(k string) string {
-	return strings.ReplaceAll(k, ".", dm.tagDotReplacement)
+func (td ToDomain) ReplaceDot(k string) string {
+	return strings.ReplaceAll(k, ".", td.tagDotReplacement)
 }
 
 // ReplaceDotReplacement replaces dotReplacement with dot
-func (dm DotManager) ReplaceDotReplacement(k string) string {
-	return strings.ReplaceAll(k, dm.tagDotReplacement, ".")
+func (td ToDomain) ReplaceDotReplacement(k string) string {
+	return strings.ReplaceAll(k, td.tagDotReplacement, ".")
 }
 
 // SpanToDomain converts db span into model Span
