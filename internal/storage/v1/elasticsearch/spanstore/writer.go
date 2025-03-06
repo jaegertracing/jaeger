@@ -35,8 +35,20 @@ type serviceWriter func(string, *dbmodel.Span)
 
 // JsonSpanWriter writes json Services and Spans specific to ElasticSearch.
 type JsonSpanWriter struct {
-	client        func() es.Client
-	serviceWriter serviceWriter
+	SpanWriter
+}
+
+// NewJsonSpanWriter returns an instance of JsonSpanWriter
+func NewJsonSpanWriter(p SpanWriterParams) *JsonSpanWriter {
+	return &JsonSpanWriter{
+		SpanWriter: *NewSpanWriter(p),
+	}
+}
+
+// GetSpanAndServiceIndexFn returns SpanAndServiceIndexFn which can be used to
+// fetch the span and service index names by start time of span
+func (j *JsonSpanWriter) GetSpanAndServiceIndexFn() SpanAndServiceIndexFn {
+	return j.spanServiceIndex
 }
 
 // SpanWriter is a wrapper around elastic.Client
@@ -46,8 +58,8 @@ type SpanWriter struct {
 	writerMetrics spanWriterMetrics // TODO: build functions to wrap around each Do fn
 	// indexCache       cache.Cache
 	spanConverter    dbmodel.FromDomain
-	spanServiceIndex spanAndServiceIndexFn
-	jsonSpanWriter   JsonSpanWriter
+	serviceWriter    serviceWriter
+	spanServiceIndex SpanAndServiceIndexFn
 }
 
 // SpanWriterParams holds constructor parameters for NewSpanWriter
@@ -89,10 +101,7 @@ func NewSpanWriter(p SpanWriterParams) *SpanWriter {
 		writerMetrics: spanWriterMetrics{
 			indexCreate: spanstoremetrics.NewWriter(p.MetricsFactory, "index_create"),
 		},
-		jsonSpanWriter: JsonSpanWriter{
-			client:        p.Client,
-			serviceWriter: serviceOperationStorage.Write,
-		},
+		serviceWriter:    serviceOperationStorage.Write,
 		spanConverter:    dbmodel.NewFromDomain(p.AllTagsAsFields, p.TagKeysAsFields, p.TagDotReplacement),
 		spanServiceIndex: getSpanAndServiceIndexFn(p, writeAliasSuffix),
 	}
@@ -113,10 +122,10 @@ func (s *SpanWriter) CreateTemplates(spanTemplate, serviceTemplate string, index
 	return nil
 }
 
-// spanAndServiceIndexFn returns names of span and service indices
-type spanAndServiceIndexFn func(spanTime time.Time) (string, string)
+// SpanAndServiceIndexFn returns names of span and service indices
+type SpanAndServiceIndexFn func(spanTime time.Time) (string, string)
 
-func getSpanAndServiceIndexFn(p SpanWriterParams, writeAlias string) spanAndServiceIndexFn {
+func getSpanAndServiceIndexFn(p SpanWriterParams, writeAlias string) SpanAndServiceIndexFn {
 	spanIndexPrefix := p.IndexPrefix.Apply(spanIndexBaseName)
 	serviceIndexPrefix := p.IndexPrefix.Apply(serviceIndexBaseName)
 	if p.UseReadWriteAliases {
@@ -129,19 +138,19 @@ func getSpanAndServiceIndexFn(p SpanWriterParams, writeAlias string) spanAndServ
 	}
 }
 
-// WriteSpan writes a span and its corresponding service:operation in ElasticSearch
-func (j *JsonSpanWriter) WriteSpan(serviceIndexName, spanIndexName string, span *dbmodel.Span) {
+// WriteJsonSpan writes a span and its corresponding service:operation in ElasticSearch
+func (s *SpanWriter) WriteJsonSpan(serviceIndexName, spanIndexName string, span *dbmodel.Span) {
 	if serviceIndexName != "" {
-		j.writeService(serviceIndexName, span)
+		s.writeService(serviceIndexName, span)
 	}
-	j.writeSpan(spanIndexName, span)
+	s.writeSpan(spanIndexName, span)
 }
 
 // WriteSpan writes a span and its corresponding service:operation in ElasticSearch
 func (s *SpanWriter) WriteSpan(_ context.Context, span *model.Span) error {
 	spanIndexName, serviceIndexName := s.spanServiceIndex(span.StartTime)
 	jsonSpan := s.spanConverter.FromDomainEmbedProcess(span)
-	s.jsonSpanWriter.WriteSpan(serviceIndexName, spanIndexName, jsonSpan)
+	s.WriteJsonSpan(serviceIndexName, spanIndexName, jsonSpan)
 	s.logger.Debug("Wrote span to ES index", zap.String("index", spanIndexName))
 	return nil
 }
@@ -159,10 +168,10 @@ func writeCache(key string, c cache.Cache) {
 	c.Put(key, key)
 }
 
-func (j *JsonSpanWriter) writeService(indexName string, jsonSpan *dbmodel.Span) {
-	j.serviceWriter(indexName, jsonSpan)
+func (s *SpanWriter) writeService(indexName string, jsonSpan *dbmodel.Span) {
+	s.serviceWriter(indexName, jsonSpan)
 }
 
-func (j *JsonSpanWriter) writeSpan(indexName string, jsonSpan *dbmodel.Span) {
-	j.client().Index().Index(indexName).Type(spanType).BodyJson(&jsonSpan).Add()
+func (s *SpanWriter) writeSpan(indexName string, jsonSpan *dbmodel.Span) {
+	s.client().Index().Index(indexName).Type(spanType).BodyJson(&jsonSpan).Add()
 }

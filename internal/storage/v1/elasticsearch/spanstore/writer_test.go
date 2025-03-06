@@ -323,7 +323,7 @@ func TestWriteSpanInternal(t *testing.T) {
 
 		jsonSpan := &dbmodel.Span{}
 
-		w.writer.jsonSpanWriter.writeSpan(indexName, jsonSpan)
+		w.writer.writeSpan(indexName, jsonSpan)
 		indexService.AssertNumberOfCalls(t, "Add", 1)
 		assert.Equal(t, "", w.logBuffer.String())
 	})
@@ -346,7 +346,7 @@ func TestWriteSpanInternalError(t *testing.T) {
 			SpanID:  dbmodel.SpanID("0"),
 		}
 
-		w.writer.jsonSpanWriter.writeSpan(indexName, jsonSpan)
+		w.writer.writeSpan(indexName, jsonSpan)
 		indexService.AssertNumberOfCalls(t, "Add", 1)
 	})
 }
@@ -470,11 +470,11 @@ func TestSpanWriterParamsTTL(t *testing.T) {
 				OperationName: "bar",
 			}
 
-			w.jsonSpanWriter.writeService(serviceIndexName, jsonSpan)
+			w.writeService(serviceIndexName, jsonSpan)
 			time.Sleep(1 * time.Nanosecond)
-			w.jsonSpanWriter.writeService(serviceIndexName, jsonSpan)
+			w.writeService(serviceIndexName, jsonSpan)
 			time.Sleep(1 * time.Nanosecond)
-			w.jsonSpanWriter.writeService(serviceIndexName, jsonSpan)
+			w.writeService(serviceIndexName, jsonSpan)
 			indexService.AssertNumberOfCalls(t, "Add", test.expectedAddCalls)
 		})
 	}
