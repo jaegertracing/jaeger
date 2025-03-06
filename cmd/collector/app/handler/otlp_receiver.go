@@ -24,6 +24,11 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 )
 
+var (
+	otlpComponentType = component.MustNewType("otlp")
+	otlpID            = component.NewID(otlpComponentType)
+)
+
 var _ component.Host = (*otelHost)(nil) // API check
 
 // StartOTLPReceiver starts OpenTelemetry OTLP receiver listening on gRPC and HTTP ports.
@@ -63,6 +68,7 @@ func startOTLPReceiver(
 		logger.Info("OTLP receiver status change", zap.Stringer("status", ev.Status()))
 	}
 	otlpReceiverSettings := receiver.Settings{
+		ID: otlpID,
 		TelemetrySettings: component.TelemetrySettings{
 			Logger:         logger,
 			TracerProvider: nooptrace.NewTracerProvider(),
