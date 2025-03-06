@@ -9,6 +9,7 @@ import (
 	"io"
 	"time"
 
+	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/config/configtls"
 	"go.opentelemetry.io/collector/exporter"
@@ -47,7 +48,8 @@ func createTraceWriter(logger *zap.Logger, port int) (*traceWriter, error) {
 		Insecure: true,
 	}
 
-	set := exportertest.NewNopSettings()
+	otlpComponentType := component.MustNewType("otlp")
+	set := exportertest.NewNopSettings(otlpComponentType)
 	set.Logger = logger
 
 	exp, err := factory.CreateTraces(context.Background(), set, cfg)
