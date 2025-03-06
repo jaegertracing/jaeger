@@ -14,11 +14,6 @@ import (
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 )
 
-type ToDomainFactory interface {
-	ReplaceDot(k string) string
-	ReplaceDotReplacement(k string) string
-}
-
 // NewToDomain creates ToDomain
 func NewToDomain(tagDotReplacement string) ToDomain {
 	return ToDomain{tagDotReplacement: tagDotReplacement}
