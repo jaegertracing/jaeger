@@ -56,9 +56,12 @@ func (_m *Conn) Exec(ctx context.Context, query string) error {
 	return r0
 }
 
-// Query provides a mock function with given fields: ctx, query, arg
-func (_m *Conn) Query(ctx context.Context, query string, arg string) (client.Rows, error) {
-	ret := _m.Called(ctx, query, arg)
+// Query provides a mock function with given fields: ctx, query, args
+func (_m *Conn) Query(ctx context.Context, query string, args ...any) (client.Rows, error) {
+	var _ca []interface{}
+	_ca = append(_ca, ctx, query)
+	_ca = append(_ca, args...)
+	ret := _m.Called(_ca...)
 
 	if len(ret) == 0 {
 		panic("no return value specified for Query")
@@ -66,19 +69,19 @@ func (_m *Conn) Query(ctx context.Context, query string, arg string) (client.Row
 
 	var r0 client.Rows
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, string) (client.Rows, error)); ok {
-		return rf(ctx, query, arg)
+	if rf, ok := ret.Get(0).(func(context.Context, string, ...any) (client.Rows, error)); ok {
+		return rf(ctx, query, args...)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, string, string) client.Rows); ok {
-		r0 = rf(ctx, query, arg)
+	if rf, ok := ret.Get(0).(func(context.Context, string, ...any) client.Rows); ok {
+		r0 = rf(ctx, query, args...)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(client.Rows)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, string, string) error); ok {
-		r1 = rf(ctx, query, arg)
+	if rf, ok := ret.Get(1).(func(context.Context, string, ...any) error); ok {
+		r1 = rf(ctx, query, args...)
 	} else {
 		r1 = ret.Error(1)
 	}

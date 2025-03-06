@@ -15,8 +15,7 @@ type Pool interface {
 }
 
 type Conn interface {
-	// TODO arg should support the dyment parameter.
-	Query(ctx context.Context, query string, arg string) (Rows, error)
+	Query(ctx context.Context, query string, args ...any) (Rows, error)
 	Exec(ctx context.Context, query string) error
 	Close() error
 }

@@ -99,8 +99,8 @@ func WarpConn(c v2Client.Conn) ConnWrapper {
 }
 
 // Query calls this function to internal connection.
-func (c ConnWrapper) Query(ctx context.Context, query string, args string) (client.Rows, error) {
-	return c.WrapQuery(ctx, query, args)
+func (c ConnWrapper) Query(ctx context.Context, query string, args ...any) (client.Rows, error) {
+	return c.WrapQuery(ctx, query, args...)
 }
 
 // Exec execute given query
@@ -119,8 +119,8 @@ func (c ConnWrapper) Close() error {
 	return nil
 }
 
-func (c ConnWrapper) WrapQuery(ctx context.Context, query string, args string) (client.Rows, error) {
-	return c.Conn.Query(ctx, query, args)
+func (c ConnWrapper) WrapQuery(ctx context.Context, query string, args ...any) (client.Rows, error) {
+	return c.Conn.Query(ctx, query, args...)
 }
 
 func (c ConnWrapper) WrapExec(ctx context.Context, query string) error {
