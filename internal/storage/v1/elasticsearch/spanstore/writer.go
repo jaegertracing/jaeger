@@ -57,8 +57,8 @@ type SpanWriter struct {
 	logger        *zap.Logger
 	writerMetrics spanWriterMetrics // TODO: build functions to wrap around each Do fn
 	// indexCache       cache.Cache
-	spanConverter    dbmodel.FromDomain
 	serviceWriter    serviceWriter
+	spanConverter    dbmodel.FromDomain
 	spanServiceIndex SpanAndServiceIndexFn
 }
 
