@@ -300,6 +300,7 @@ func (s *SpanReader) GetServices(ctx context.Context) ([]string, error) {
 	return s.serviceOperationStorage.getServices(ctx, jaegerIndices, s.maxDocCount)
 }
 
+// GetOperations returns all operations for a specific service traced by Jaeger
 func (s *SpanReaderV1) GetOperations(ctx context.Context, query spanstore.OperationQueryParameters) ([]spanstore.Operation, error) {
 	operations, err := s.spanReader.GetOperations(ctx, query.ServiceName)
 	if err != nil {
