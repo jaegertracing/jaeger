@@ -19,7 +19,7 @@ require (
 	github.com/gogo/protobuf v1.3.2
 	github.com/gorilla/handlers v1.5.2
 	github.com/gorilla/mux v1.8.1
-	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.0
+	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.1
 	github.com/jaegertracing/jaeger-idl v0.5.0
 	github.com/kr/pretty v0.3.1
 	github.com/olivere/elastic v6.2.37+incompatible
