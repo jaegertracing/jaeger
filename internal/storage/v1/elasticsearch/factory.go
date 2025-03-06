@@ -195,7 +195,7 @@ func createSpanReader(
 	if cfg.UseILM && !cfg.UseReadWriteAliases {
 		return nil, errors.New("--es.use-ilm must always be used in conjunction with --es.use-aliases to ensure ES writers and readers refer to the single index mapping")
 	}
-	return esSpanStore.NewSpanReader(esSpanStore.SpanReaderParams{
+	return esSpanStore.NewSpanReaderV1(esSpanStore.SpanReaderParams{
 		Client:              clientFn,
 		MaxDocCount:         cfg.MaxDocCount,
 		MaxSpanAge:          cfg.MaxSpanAge,

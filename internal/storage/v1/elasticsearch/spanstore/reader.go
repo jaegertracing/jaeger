@@ -77,6 +77,18 @@ var (
 	nestedTagFieldList = []string{nestedTagsField, nestedProcessTagsField, nestedLogFieldsField}
 )
 
+// SpanReaderV1	is a wrapper around SpanReader
+type SpanReaderV1 struct {
+	spanReader *SpanReader
+}
+
+// NewSpanReaderV1 returns an instance of SpanReaderV1
+func NewSpanReaderV1(p SpanReaderParams) *SpanReaderV1 {
+	return &SpanReaderV1{
+		spanReader: NewSpanReader(p),
+	}
+}
+
 // SpanReader can query for and load traces from ElasticSearch
 type SpanReader struct {
 	client func() es.Client
@@ -223,12 +235,12 @@ func timeRangeIndices(indexName, indexDateLayout string, startTime time.Time, en
 }
 
 // GetTrace takes a traceID and returns a Trace associated with that traceID
-func (s *SpanReader) GetTrace(ctx context.Context, query spanstore.GetTraceParameters) (*model.Trace, error) {
-	ctx, span := s.tracer.Start(ctx, "GetTrace")
+func (s *SpanReaderV1) GetTrace(ctx context.Context, query spanstore.GetTraceParameters) (*model.Trace, error) {
+	ctx, span := s.spanReader.tracer.Start(ctx, "GetTrace")
 	defer span.End()
 	currentTime := time.Now()
 	// TODO: use start time & end time in "query" struct
-	traces, err := s.multiRead(ctx, []model.TraceID{query.TraceID}, currentTime.Add(-s.maxSpanAge), currentTime)
+	traces, err := s.spanReader.multiRead(ctx, []model.TraceID{query.TraceID}, currentTime.Add(-s.spanReader.maxSpanAge), currentTime)
 	if err != nil {
 		return nil, es.DetailedError(err)
 	}
@@ -268,6 +280,10 @@ func (*SpanReader) unmarshalJSONSpan(esSpanRaw *elastic.SearchHit) (*dbmodel.Spa
 	return &jsonSpan, nil
 }
 
+func (s *SpanReaderV1) GetServices(ctx context.Context) ([]string, error) {
+	return s.spanReader.GetServices(ctx)
+}
+
 // GetServices returns all services traced by Jaeger, ordered by frequency
 func (s *SpanReader) GetServices(ctx context.Context) ([]string, error) {
 	ctx, span := s.tracer.Start(ctx, "GetService")
@@ -283,11 +299,28 @@ func (s *SpanReader) GetServices(ctx context.Context) ([]string, error) {
 	return s.serviceOperationStorage.getServices(ctx, jaegerIndices, s.maxDocCount)
 }
 
+func (s *SpanReaderV1) GetOperations(ctx context.Context, query spanstore.OperationQueryParameters) ([]spanstore.Operation, error) {
+	operations, err := s.spanReader.GetOperations(ctx, query.ServiceName)
+	if err != nil {
+		return nil, err
+	}
+	// TODO: https://github.com/jaegertracing/jaeger/issues/1923
+	// 	- return the operations with actual span kind that meet requirement
+	//  - To do this we have to introduce an Operation struct in dbmodel
+	var result []spanstore.Operation
+	for _, operation := range operations {
+		result = append(result, spanstore.Operation{
+			Name: operation,
+		})
+	}
+	return result, err
+}
+
 // GetOperations returns all operations for a specific service traced by Jaeger
 func (s *SpanReader) GetOperations(
 	ctx context.Context,
-	query spanstore.OperationQueryParameters,
-) ([]spanstore.Operation, error) {
+	serviceName string,
+) ([]string, error) {
 	ctx, span := s.tracer.Start(ctx, "GetOperations")
 	defer span.End()
 	currentTime := time.Now()
@@ -298,20 +331,11 @@ func (s *SpanReader) GetOperations(
 		currentTime,
 		cfg.RolloverFrequencyAsNegativeDuration(s.serviceIndex.RolloverFrequency),
 	)
-	operations, err := s.serviceOperationStorage.getOperations(ctx, jaegerIndices, query.ServiceName, s.maxDocCount)
+	operations, err := s.serviceOperationStorage.getOperations(ctx, jaegerIndices, serviceName, s.maxDocCount)
 	if err != nil {
 		return nil, err
 	}
-
-	// TODO: https://github.com/jaegertracing/jaeger/issues/1923
-	// 	- return the operations with actual span kind that meet requirement
-	var result []spanstore.Operation
-	for _, operation := range operations {
-		result = append(result, spanstore.Operation{
-			Name: operation,
-		})
-	}
-	return result, err
+	return operations, nil
 }
 
 func bucketToStringArray(buckets []*elastic.AggregationBucketKeyItem) ([]string, error) {
@@ -327,20 +351,20 @@ func bucketToStringArray(buckets []*elastic.AggregationBucketKeyItem) ([]string,
 }
 
 // FindTraces retrieves traces that match the traceQuery
-func (s *SpanReader) FindTraces(ctx context.Context, traceQuery *spanstore.TraceQueryParameters) ([]*model.Trace, error) {
-	ctx, span := s.tracer.Start(ctx, "FindTraces")
+func (s *SpanReaderV1) FindTraces(ctx context.Context, traceQuery *spanstore.TraceQueryParameters) ([]*model.Trace, error) {
+	ctx, span := s.spanReader.tracer.Start(ctx, "FindTraces")
 	defer span.End()
 
 	uniqueTraceIDs, err := s.FindTraceIDs(ctx, traceQuery)
 	if err != nil {
 		return nil, es.DetailedError(err)
 	}
-	return s.multiRead(ctx, uniqueTraceIDs, traceQuery.StartTimeMin, traceQuery.StartTimeMax)
+	return s.spanReader.multiRead(ctx, uniqueTraceIDs, traceQuery.StartTimeMin, traceQuery.StartTimeMax)
 }
 
 // FindTraceIDs retrieves traces IDs that match the traceQuery
-func (s *SpanReader) FindTraceIDs(ctx context.Context, traceQuery *spanstore.TraceQueryParameters) ([]model.TraceID, error) {
-	ctx, span := s.tracer.Start(ctx, "FindTraceIDs")
+func (s *SpanReaderV1) FindTraceIDs(ctx context.Context, traceQuery *spanstore.TraceQueryParameters) ([]model.TraceID, error) {
+	ctx, span := s.spanReader.tracer.Start(ctx, "FindTraceIDs")
 	defer span.End()
 
 	if err := validateQuery(traceQuery); err != nil {
@@ -350,7 +374,17 @@ func (s *SpanReader) FindTraceIDs(ctx context.Context, traceQuery *spanstore.Tra
 		traceQuery.NumTraces = defaultNumTraces
 	}
 
-	esTraceIDs, err := s.findTraceIDs(ctx, traceQuery)
+	esTraceIDs, err := s.spanReader.FindTraceIDs(
+		ctx,
+		traceQuery.ServiceName,
+		traceQuery.OperationName,
+		traceQuery.Tags,
+		traceQuery.StartTimeMin,
+		traceQuery.StartTimeMax,
+		traceQuery.DurationMin,
+		traceQuery.DurationMax,
+		traceQuery.NumTraces,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -516,7 +550,17 @@ func validateQuery(p *spanstore.TraceQueryParameters) error {
 	return nil
 }
 
-func (s *SpanReader) findTraceIDs(ctx context.Context, traceQuery *spanstore.TraceQueryParameters) ([]string, error) {
+func (s *SpanReader) FindTraceIDs(
+	ctx context.Context,
+	serviceName string,
+	operationName string,
+	tags map[string]string,
+	startTimeMin time.Time,
+	startTimeMax time.Time,
+	durationMin time.Duration,
+	durationMax time.Duration,
+	numTraces int,
+) ([]string, error) {
 	ctx, childSpan := s.tracer.Start(ctx, "findTraceIDs")
 	defer childSpan.End()
 	//  Below is the JSON body to our HTTP GET request to ElasticSearch. This function creates this.
@@ -572,13 +616,21 @@ func (s *SpanReader) findTraceIDs(ctx context.Context, traceQuery *spanstore.Tra
 	//      },
 	//      "aggs": { "traceIDs" : { "terms" : {"size": 100,"field": "traceID" }}}
 	//  }
-	aggregation := s.buildTraceIDAggregation(traceQuery.NumTraces)
-	boolQuery := s.buildFindTraceIDsQuery(traceQuery)
+	aggregation := s.buildTraceIDAggregation(numTraces)
+	boolQuery := s.buildFindTraceIDsQuery(
+		serviceName,
+		operationName,
+		tags,
+		startTimeMin,
+		startTimeMax,
+		durationMin,
+		durationMax,
+	)
 	jaegerIndices := s.timeRangeIndices(
 		s.spanIndexPrefix,
 		s.spanIndex.DateLayout,
-		traceQuery.StartTimeMin,
-		traceQuery.StartTimeMax,
+		startTimeMin,
+		startTimeMax,
 		cfg.RolloverFrequencyAsNegativeDuration(s.spanIndex.RolloverFrequency),
 	)
 
@@ -591,7 +643,7 @@ func (s *SpanReader) findTraceIDs(ctx context.Context, traceQuery *spanstore.Tra
 	searchResult, err := searchService.Do(ctx)
 	if err != nil {
 		err = es.DetailedError(err)
-		s.logger.Info("es search services failed", zap.Any("traceQuery", traceQuery), zap.Error(err))
+		s.logger.Info("es search services failed", zap.Any("traceQuery", serviceName), zap.Error(err))
 		return nil, fmt.Errorf("search services failed: %w", err)
 	}
 	if searchResult.Aggregations == nil {
@@ -619,32 +671,40 @@ func (*SpanReader) buildTraceIDSubAggregation() elastic.Aggregation {
 		Field(startTimeField)
 }
 
-func (s *SpanReader) buildFindTraceIDsQuery(traceQuery *spanstore.TraceQueryParameters) elastic.Query {
+func (s *SpanReader) buildFindTraceIDsQuery(
+	serviceName string,
+	operationName string,
+	tags map[string]string,
+	startTimeMin time.Time,
+	startTimeMax time.Time,
+	durationMin time.Duration,
+	durationMax time.Duration,
+) elastic.Query {
 	boolQuery := elastic.NewBoolQuery()
 
 	// add duration query
-	if traceQuery.DurationMax != 0 || traceQuery.DurationMin != 0 {
-		durationQuery := s.buildDurationQuery(traceQuery.DurationMin, traceQuery.DurationMax)
+	if durationMax != 0 || durationMin != 0 {
+		durationQuery := s.buildDurationQuery(durationMin, durationMax)
 		boolQuery.Must(durationQuery)
 	}
 
 	// add startTime query
-	startTimeQuery := s.buildStartTimeQuery(traceQuery.StartTimeMin, traceQuery.StartTimeMax)
+	startTimeQuery := s.buildStartTimeQuery(startTimeMin, startTimeMax)
 	boolQuery.Must(startTimeQuery)
 
 	// add process.serviceName query
-	if traceQuery.ServiceName != "" {
-		serviceNameQuery := s.buildServiceNameQuery(traceQuery.ServiceName)
+	if serviceName != "" {
+		serviceNameQuery := s.buildServiceNameQuery(serviceName)
 		boolQuery.Must(serviceNameQuery)
 	}
 
 	// add operationName query
-	if traceQuery.OperationName != "" {
-		operationNameQuery := s.buildOperationNameQuery(traceQuery.OperationName)
+	if operationName != "" {
+		operationNameQuery := s.buildOperationNameQuery(operationName)
 		boolQuery.Must(operationNameQuery)
 	}
 
-	for k, v := range traceQuery.Tags {
+	for k, v := range tags {
 		tagQuery := s.buildTagQuery(k, v)
 		boolQuery.Must(tagQuery)
 	}
