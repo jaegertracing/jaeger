@@ -120,7 +120,7 @@ func (s *SpanWriter) CreateTemplates(spanTemplate, serviceTemplate string, index
 	return nil
 }
 
-// SpanAndServiceIndexFn returns names of span and service indices
+// spanAndServiceIndexFn returns names of span and service indices
 type spanAndServiceIndexFn func(spanTime time.Time) (string, string)
 
 func getSpanAndServiceIndexFn(p SpanWriterParams, writeAlias string) spanAndServiceIndexFn {
