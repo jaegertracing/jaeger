@@ -280,6 +280,7 @@ func (*SpanReader) unmarshalJSONSpan(esSpanRaw *elastic.SearchHit) (*dbmodel.Spa
 	return &jsonSpan, nil
 }
 
+// GetServices returns all services traced by Jaeger, ordered by frequency
 func (s *SpanReaderV1) GetServices(ctx context.Context) ([]string, error) {
 	return s.spanReader.GetServices(ctx)
 }
