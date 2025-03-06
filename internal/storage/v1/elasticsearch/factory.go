@@ -229,7 +229,7 @@ func createSpanWriter(
 		return nil, err
 	}
 
-	writer := esSpanStore.NewSpanWriter(esSpanStore.SpanWriterParams{
+	writer := esSpanStore.NewSpanWriterV1(esSpanStore.SpanWriterParams{
 		Client:              clientFn,
 		IndexPrefix:         cfg.Indices.IndexPrefix,
 		SpanIndex:           cfg.Indices.Spans,
