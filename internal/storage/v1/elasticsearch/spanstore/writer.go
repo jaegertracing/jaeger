@@ -41,7 +41,7 @@ type SpanWriter struct {
 	// indexCache       cache.Cache
 	serviceWriter    serviceWriter
 	spanConverter    dbmodel.FromDomain
-	spanServiceIndex SpanAndServiceIndexFn
+	spanServiceIndex spanAndServiceIndexFn
 }
 
 type SpanWriterV1 struct {
@@ -121,9 +121,9 @@ func (s *SpanWriter) CreateTemplates(spanTemplate, serviceTemplate string, index
 }
 
 // SpanAndServiceIndexFn returns names of span and service indices
-type SpanAndServiceIndexFn func(spanTime time.Time) (string, string)
+type spanAndServiceIndexFn func(spanTime time.Time) (string, string)
 
-func getSpanAndServiceIndexFn(p SpanWriterParams, writeAlias string) SpanAndServiceIndexFn {
+func getSpanAndServiceIndexFn(p SpanWriterParams, writeAlias string) spanAndServiceIndexFn {
 	spanIndexPrefix := p.IndexPrefix.Apply(spanIndexBaseName)
 	serviceIndexPrefix := p.IndexPrefix.Apply(serviceIndexBaseName)
 	if p.UseReadWriteAliases {
@@ -137,19 +137,19 @@ func getSpanAndServiceIndexFn(p SpanWriterParams, writeAlias string) SpanAndServ
 }
 
 // WriteSpan writes a span and its corresponding service:operation in ElasticSearch
-func (s *SpanWriter) WriteSpan(serviceIndexName, spanIndexName string, span *dbmodel.Span) {
+func (s *SpanWriter) WriteSpan(spanStartTime time.Time, span *dbmodel.Span) {
+	spanIndexName, serviceIndexName := s.spanServiceIndex(spanStartTime)
 	if serviceIndexName != "" {
 		s.writeService(serviceIndexName, span)
 	}
 	s.writeSpan(spanIndexName, span)
+	s.logger.Debug("Wrote span to ES index", zap.String("index", spanIndexName))
 }
 
 // WriteSpan writes a span and its corresponding service:operation in ElasticSearch
 func (s *SpanWriterV1) WriteSpan(_ context.Context, span *model.Span) error {
-	spanIndexName, serviceIndexName := s.spanWriter.spanServiceIndex(span.StartTime)
 	jsonSpan := s.spanWriter.spanConverter.FromDomainEmbedProcess(span)
-	s.spanWriter.WriteSpan(serviceIndexName, spanIndexName, jsonSpan)
-	s.spanWriter.logger.Debug("Wrote span to ES index", zap.String("index", spanIndexName))
+	s.spanWriter.WriteSpan(span.StartTime, jsonSpan)
 	return nil
 }
 
