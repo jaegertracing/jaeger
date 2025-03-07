@@ -24,6 +24,7 @@ import (
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc/v2/querysvc"
 	"github.com/jaegertracing/jaeger/internal/jiter"
+	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
@@ -113,7 +114,7 @@ func (h *HTTPGateway) tryParamError(w http.ResponseWriter, err error, paramName 
 }
 
 func (h *HTTPGateway) returnTrace(td ptrace.Traces, w http.ResponseWriter) {
-	tracesData := api_v3.TracesData(td)
+	tracesData := jptrace.TracesData(td)
 	response := &api_v3.GRPCGatewayWrapper{
 		Result: &tracesData,
 	}

@@ -59,7 +59,7 @@ func (h *Handler) FindTraces(request *api_v3.FindTracesRequest, stream api_v3.Qu
 func (h *Handler) internalFindTraces(
 	ctx context.Context,
 	request *api_v3.FindTracesRequest,
-	streamSend func(*api_v3.TracesData) error,
+	streamSend func(*jptrace.TracesData) error,
 ) error {
 	query := request.GetQuery()
 	if query == nil {
@@ -130,14 +130,14 @@ func (h *Handler) GetOperations(ctx context.Context, request *api_v3.GetOperatio
 
 func receiveTraces(
 	seq iter.Seq2[[]ptrace.Traces, error],
-	sendFn func(*api_v3.TracesData) error,
+	sendFn func(*jptrace.TracesData) error,
 ) error {
 	for traces, err := range seq {
 		if err != nil {
 			return err
 		}
 		for _, trace := range traces {
-			tracesData := api_v3.TracesData(trace)
+			tracesData := jptrace.TracesData(trace)
 			if err := sendFn(&tracesData); err != nil {
 				return status.Error(codes.Internal,
 					fmt.Sprintf("failed to send response stream chunk to client: %v", err))
