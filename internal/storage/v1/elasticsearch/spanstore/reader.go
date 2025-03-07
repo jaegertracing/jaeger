@@ -324,7 +324,7 @@ func (s *SpanReaderV1) GetOperations(ctx context.Context, query spanstore.Operat
 	var result []spanstore.Operation
 	for _, operation := range operations {
 		result = append(result, spanstore.Operation{
-			Name: operation,
+			Name: operation.Name,
 		})
 	}
 	return result, err
@@ -334,7 +334,7 @@ func (s *SpanReaderV1) GetOperations(ctx context.Context, query spanstore.Operat
 func (s *SpanReader) GetOperations(
 	ctx context.Context,
 	serviceName string,
-) ([]string, error) {
+) ([]dbmodel.Operation, error) {
 	ctx, span := s.tracer.Start(ctx, "GetOperations")
 	defer span.End()
 	currentTime := time.Now()
@@ -345,11 +345,15 @@ func (s *SpanReader) GetOperations(
 		currentTime,
 		cfg.RolloverFrequencyAsNegativeDuration(s.serviceIndex.RolloverFrequency),
 	)
+	var result []dbmodel.Operation
 	operations, err := s.serviceOperationStorage.getOperations(ctx, jaegerIndices, serviceName, s.maxDocCount)
 	if err != nil {
 		return nil, err
 	}
-	return operations, nil
+	for _, operation := range operations {
+		result = append(result, dbmodel.Operation{Name: operation})
+	}
+	return result, nil
 }
 
 func bucketToStringArray(buckets []*elastic.AggregationBucketKeyItem) ([]string, error) {
@@ -388,22 +392,25 @@ func (s *SpanReaderV1) FindTraceIDs(ctx context.Context, traceQuery *spanstore.T
 		traceQuery.NumTraces = defaultNumTraces
 	}
 
-	esTraceIDs, err := s.spanReader.FindTraceIDs(
-		ctx,
-		traceQuery.ServiceName,
-		traceQuery.OperationName,
-		traceQuery.Tags,
-		traceQuery.StartTimeMin,
-		traceQuery.StartTimeMax,
-		traceQuery.DurationMin,
-		traceQuery.DurationMax,
-		traceQuery.NumTraces,
-	)
+	esTraceIDs, err := s.spanReader.FindTraceIDs(ctx, esTraceQueryParamsFromSpanStoreTraceQueryParams(traceQuery))
 	if err != nil {
 		return nil, err
 	}
 
 	return convertTraceIDsStringsToModels(esTraceIDs)
+}
+
+func esTraceQueryParamsFromSpanStoreTraceQueryParams(p *spanstore.TraceQueryParameters) *dbmodel.TraceQueryParameters {
+	return &dbmodel.TraceQueryParameters{
+		ServiceName:   p.ServiceName,
+		OperationName: p.OperationName,
+		Tags:          p.Tags,
+		StartTimeMin:  p.StartTimeMin,
+		StartTimeMax:  p.StartTimeMax,
+		DurationMin:   p.DurationMin,
+		DurationMax:   p.DurationMax,
+		NumTraces:     p.NumTraces,
+	}
 }
 
 func (s *SpanReaderV1) multiRead(ctx context.Context, traceIDs []model.TraceID, startTime, endTime time.Time) ([]*model.Trace, error) {
@@ -591,14 +598,7 @@ func validateQuery(p *spanstore.TraceQueryParameters) error {
 
 func (s *SpanReader) FindTraceIDs(
 	ctx context.Context,
-	serviceName string,
-	operationName string,
-	tags map[string]string,
-	startTimeMin time.Time,
-	startTimeMax time.Time,
-	durationMin time.Duration,
-	durationMax time.Duration,
-	numTraces int,
+	p *dbmodel.TraceQueryParameters,
 ) ([]string, error) {
 	ctx, childSpan := s.tracer.Start(ctx, "findTraceIDs")
 	defer childSpan.End()
@@ -655,21 +655,13 @@ func (s *SpanReader) FindTraceIDs(
 	//      },
 	//      "aggs": { "traceIDs" : { "terms" : {"size": 100,"field": "traceID" }}}
 	//  }
-	aggregation := s.buildTraceIDAggregation(numTraces)
-	boolQuery := s.buildFindTraceIDsQuery(
-		serviceName,
-		operationName,
-		tags,
-		startTimeMin,
-		startTimeMax,
-		durationMin,
-		durationMax,
-	)
+	aggregation := s.buildTraceIDAggregation(p.NumTraces)
+	boolQuery := s.buildFindTraceIDsQuery(p)
 	jaegerIndices := s.timeRangeIndices(
 		s.spanIndexPrefix,
 		s.spanIndex.DateLayout,
-		startTimeMin,
-		startTimeMax,
+		p.StartTimeMin,
+		p.StartTimeMax,
 		cfg.RolloverFrequencyAsNegativeDuration(s.spanIndex.RolloverFrequency),
 	)
 
@@ -710,40 +702,32 @@ func (*SpanReader) buildTraceIDSubAggregation() elastic.Aggregation {
 		Field(startTimeField)
 }
 
-func (s *SpanReader) buildFindTraceIDsQuery(
-	serviceName string,
-	operationName string,
-	tags map[string]string,
-	startTimeMin time.Time,
-	startTimeMax time.Time,
-	durationMin time.Duration,
-	durationMax time.Duration,
-) elastic.Query {
+func (s *SpanReader) buildFindTraceIDsQuery(p *dbmodel.TraceQueryParameters) elastic.Query {
 	boolQuery := elastic.NewBoolQuery()
 
 	// add duration query
-	if durationMax != 0 || durationMin != 0 {
-		durationQuery := s.buildDurationQuery(durationMin, durationMax)
+	if p.DurationMax != 0 || p.DurationMin != 0 {
+		durationQuery := s.buildDurationQuery(p.DurationMin, p.DurationMax)
 		boolQuery.Must(durationQuery)
 	}
 
 	// add startTime query
-	startTimeQuery := s.buildStartTimeQuery(startTimeMin, startTimeMax)
+	startTimeQuery := s.buildStartTimeQuery(p.StartTimeMin, p.StartTimeMax)
 	boolQuery.Must(startTimeQuery)
 
 	// add process.serviceName query
-	if serviceName != "" {
-		serviceNameQuery := s.buildServiceNameQuery(serviceName)
+	if p.ServiceName != "" {
+		serviceNameQuery := s.buildServiceNameQuery(p.ServiceName)
 		boolQuery.Must(serviceNameQuery)
 	}
 
 	// add operationName query
-	if operationName != "" {
-		operationNameQuery := s.buildOperationNameQuery(operationName)
+	if p.OperationName != "" {
+		operationNameQuery := s.buildOperationNameQuery(p.OperationName)
 		boolQuery.Must(operationNameQuery)
 	}
 
-	for k, v := range tags {
+	for k, v := range p.Tags {
 		tagQuery := s.buildTagQuery(k, v)
 		boolQuery.Must(tagQuery)
 	}
