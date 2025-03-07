@@ -317,8 +317,9 @@ func TestSpanReader_GetTrace(t *testing.T) {
 		require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
 		require.NoError(t, err)
 		require.NotNil(t, trace)
-
-		expectedSpans, err := r.reader.spanReader.collectSpans(hits)
+		jsonSpans, err := r.reader.spanReader.collectJsonSpans(hits)
+		require.NoError(t, err)
+		expectedSpans, err := r.reader.collectSpans(jsonSpans)
 		require.NoError(t, err)
 
 		require.Len(t, trace.Spans, 1)
@@ -336,29 +337,11 @@ func TestSpanReader_multiRead_followUp_query(t *testing.T) {
 		spanBytesID2, err := json.Marshal(spanID2)
 		require.NoError(t, err)
 
-		traceID1Query := elastic.NewBoolQuery().Should(
-			elastic.NewTermQuery(traceIDField, model.TraceID{High: 0, Low: 1}.String()).Boost(2),
-			elastic.NewTermQuery(traceIDField, fmt.Sprintf("%x", 1)))
-		id1Query := elastic.NewBoolQuery().Must(traceID1Query)
-		id1Search := elastic.NewSearchRequest().
-			IgnoreUnavailable(true).
-			Source(r.reader.spanReader.sourceFn(id1Query, model.TimeAsEpochMicroseconds(date.Add(-time.Hour))))
-		traceID2Query := elastic.NewBoolQuery().Should(
-			elastic.NewTermQuery(traceIDField, model.TraceID{High: 0, Low: 2}.String()).Boost(2),
-			elastic.NewTermQuery(traceIDField, fmt.Sprintf("%x", 2)))
-		id2Query := elastic.NewBoolQuery().Must(traceID2Query)
-		id2Search := elastic.NewSearchRequest().
-			IgnoreUnavailable(true).
-			Source(r.reader.spanReader.sourceFn(id2Query, model.TimeAsEpochMicroseconds(date.Add(-time.Hour))))
-		id1SearchSpanTime := elastic.NewSearchRequest().
-			IgnoreUnavailable(true).
-			Source(r.reader.spanReader.sourceFn(id1Query, spanID1.StartTime))
-
 		multiSearchService := &mocks.MultiSearchService{}
 		firstMultiSearch := &mocks.MultiSearchService{}
 		secondMultiSearch := &mocks.MultiSearchService{}
-		multiSearchService.On("Add", id1Search, id2Search).Return(firstMultiSearch)
-		multiSearchService.On("Add", id1SearchSpanTime).Return(secondMultiSearch)
+		multiSearchService.On("Add", mock.AnythingOfType("*elastic.SearchRequest"), mock.AnythingOfType("*elastic.SearchRequest")).Return(firstMultiSearch)
+		multiSearchService.On("Add", mock.AnythingOfType("*elastic.SearchRequest")).Return(secondMultiSearch)
 
 		firstMultiSearch.On("Index", mock.AnythingOfType("string")).Return(firstMultiSearch)
 		secondMultiSearch.On("Index", mock.AnythingOfType("string")).Return(secondMultiSearch)
@@ -390,7 +373,7 @@ func TestSpanReader_multiRead_followUp_query(t *testing.T) {
 				},
 			}, nil)
 
-		traces, err := r.reader.spanReader.multiRead(context.Background(), []model.TraceID{{High: 0, Low: 1}, {High: 0, Low: 2}}, date, date)
+		traces, err := r.reader.multiRead(context.Background(), []model.TraceID{{High: 0, Low: 1}, {High: 0, Low: 2}}, date, date)
 		require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
 		require.NoError(t, err)
 		require.NotNil(t, traces)
@@ -433,8 +416,9 @@ func TestSpanReader_SearchAfter(t *testing.T) {
 		require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
 		require.NoError(t, err)
 		require.NotNil(t, trace)
-
-		expectedSpans, err := r.reader.spanReader.collectSpans(hits)
+		jsonSpans, err := r.reader.spanReader.collectJsonSpans(hits)
+		require.NoError(t, err)
+		expectedSpans, err := r.reader.collectSpans(jsonSpans)
 		require.NoError(t, err)
 
 		assert.EqualValues(t, trace.Spans[0], expectedSpans[0])
@@ -759,7 +743,9 @@ func TestSpanReader_FindTraces(t *testing.T) {
 		assert.Len(t, traces, 1)
 
 		trace := traces[0]
-		expectedSpans, err := r.reader.spanReader.collectSpans(hits)
+		jsonSpans, err := r.reader.spanReader.collectJsonSpans(hits)
+		require.NoError(t, err)
+		expectedSpans, err := r.reader.collectSpans(jsonSpans)
 		require.NoError(t, err)
 
 		require.Len(t, trace.Spans, 2)
@@ -1320,7 +1306,7 @@ func TestBuildTraceByIDQuery(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
-		q := buildTraceByIDQuery(test.traceID)
+		q := buildTraceByIDQuery(dbmodel.TraceID(test.traceID.String()), getLegacyTraceId(test.traceID))
 		assert.Equal(t, test.query, q)
 	}
 }

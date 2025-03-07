@@ -79,13 +79,17 @@ var (
 
 // SpanReaderV1	is a wrapper around SpanReader
 type SpanReaderV1 struct {
-	spanReader *SpanReader
+	spanReader    *SpanReader
+	spanConverter dbmodel.ToDomain
+	tracer        trace.Tracer
 }
 
 // NewSpanReaderV1 returns an instance of SpanReaderV1
 func NewSpanReaderV1(p SpanReaderParams) *SpanReaderV1 {
 	return &SpanReaderV1{
-		spanReader: NewSpanReader(p),
+		spanReader:    NewSpanReader(p),
+		spanConverter: dbmodel.NewToDomain(p.TagDotReplacement),
+		tracer:        p.Tracer,
 	}
 }
 
@@ -100,13 +104,13 @@ type SpanReader struct {
 	serviceIndexPrefix      string
 	spanIndex               cfg.IndexOptions
 	serviceIndex            cfg.IndexOptions
-	spanConverter           dbmodel.ToDomain
 	timeRangeIndices        timeRangeIndexFn
 	sourceFn                sourceFn
 	maxDocCount             int
 	useReadWriteAliases     bool
 	logger                  *zap.Logger
 	tracer                  trace.Tracer
+	dotManager              dbmodel.DotManager
 }
 
 // SpanReaderParams holds constructor params for NewSpanReader
@@ -148,7 +152,6 @@ func NewSpanReader(p SpanReaderParams) *SpanReader {
 		serviceIndexPrefix:      p.IndexPrefix.Apply(serviceIndexBaseName),
 		spanIndex:               p.SpanIndex,
 		serviceIndex:            p.ServiceIndex,
-		spanConverter:           dbmodel.NewToDomain(p.TagDotReplacement),
 		timeRangeIndices: getLoggingTimeRangeIndexFn(
 			p.Logger,
 			addRemoteReadClusters(
@@ -161,6 +164,7 @@ func NewSpanReader(p SpanReaderParams) *SpanReader {
 		useReadWriteAliases: p.UseReadWriteAliases,
 		logger:              p.Logger,
 		tracer:              p.Tracer,
+		dotManager:          dbmodel.NewDotManager(p.TagDotReplacement),
 	}
 }
 
@@ -240,7 +244,7 @@ func (s *SpanReaderV1) GetTrace(ctx context.Context, query spanstore.GetTracePar
 	defer span.End()
 	currentTime := time.Now()
 	// TODO: use start time & end time in "query" struct
-	traces, err := s.spanReader.multiRead(ctx, []model.TraceID{query.TraceID}, currentTime.Add(-s.spanReader.maxSpanAge), currentTime)
+	traces, err := s.multiRead(ctx, []model.TraceID{query.TraceID}, currentTime.Add(-s.spanReader.maxSpanAge), currentTime)
 	if err != nil {
 		return nil, es.DetailedError(err)
 	}
@@ -250,14 +254,22 @@ func (s *SpanReaderV1) GetTrace(ctx context.Context, query spanstore.GetTracePar
 	return traces[0], nil
 }
 
-func (s *SpanReader) collectSpans(esSpansRaw []*elastic.SearchHit) ([]*model.Span, error) {
-	spans := make([]*model.Span, len(esSpansRaw))
-
+func (s *SpanReader) collectJsonSpans(esSpansRaw []*elastic.SearchHit) ([]*dbmodel.Span, error) {
+	spans := make([]*dbmodel.Span, len(esSpansRaw))
 	for i, esSpanRaw := range esSpansRaw {
 		jsonSpan, err := s.unmarshalJSONSpan(esSpanRaw)
 		if err != nil {
 			return nil, fmt.Errorf("marshalling JSON to span object failed: %w", err)
 		}
+		spans[i] = jsonSpan
+	}
+	return spans, nil
+}
+
+func (s *SpanReaderV1) collectSpans(jsonSpans []*dbmodel.Span) ([]*model.Span, error) {
+	spans := make([]*model.Span, len(jsonSpans))
+
+	for i, jsonSpan := range jsonSpans {
 		span, err := s.spanConverter.SpanToDomain(jsonSpan)
 		if err != nil {
 			return nil, fmt.Errorf("converting JSONSpan to domain Span failed: %w", err)
@@ -361,7 +373,7 @@ func (s *SpanReaderV1) FindTraces(ctx context.Context, traceQuery *spanstore.Tra
 	if err != nil {
 		return nil, es.DetailedError(err)
 	}
-	return s.spanReader.multiRead(ctx, uniqueTraceIDs, traceQuery.StartTimeMin, traceQuery.StartTimeMax)
+	return s.multiRead(ctx, uniqueTraceIDs, traceQuery.StartTimeMin, traceQuery.StartTimeMax)
 }
 
 // FindTraceIDs retrieves traces IDs that match the traceQuery
@@ -394,20 +406,59 @@ func (s *SpanReaderV1) FindTraceIDs(ctx context.Context, traceQuery *spanstore.T
 	return convertTraceIDsStringsToModels(esTraceIDs)
 }
 
-func (s *SpanReader) multiRead(ctx context.Context, traceIDs []model.TraceID, startTime, endTime time.Time) ([]*model.Trace, error) {
+func (s *SpanReaderV1) multiRead(ctx context.Context, traceIDs []model.TraceID, startTime, endTime time.Time) ([]*model.Trace, error) {
 	ctx, childSpan := s.tracer.Start(ctx, "multiRead")
 	defer childSpan.End()
+	traceIds := make(map[dbmodel.TraceID]string)
+	for _, traceID := range traceIDs {
+		traceIds[dbmodel.TraceID(traceID.String())] = getLegacyTraceId(traceID)
+	}
+	tracesMap, err := s.spanReader.MultiRead(ctx, traceIds, startTime, endTime)
+	if err != nil {
+		return []*model.Trace{}, err
+	}
+	var traces []*model.Trace
+	for _, jsonSpans := range tracesMap {
+		spans, err := s.collectSpans(jsonSpans)
+		if err != nil {
+			err = es.DetailedError(err)
+			logErrorToSpan(childSpan, err)
+			return nil, err
+		}
+		traces = append(traces, &model.Trace{Spans: spans})
+	}
+	return traces, nil
+}
+
+func getLegacyTraceId(traceID model.TraceID) string {
+	// https://github.com/jaegertracing/jaeger/pull/1956 added leading zeros to IDs
+	// So we need to also read IDs without leading zeros for compatibility with previously saved data.
+	// TODO remove in newer versions, added in Jaeger 1.16
+	if traceID.High == 0 {
+		return strconv.FormatUint(traceID.Low, 16)
+	}
+	return fmt.Sprintf("%x%016x", traceID.High, traceID.Low)
+}
+
+func (s *SpanReader) MultiRead(ctx context.Context, traceIds map[dbmodel.TraceID]string, startTime, endTime time.Time) (map[dbmodel.TraceID][]*dbmodel.Span, error) {
+	ctx, childSpan := s.tracer.Start(ctx, "MultiRead")
+	defer childSpan.End()
+
+	var traceIdSlice []dbmodel.TraceID
+	for traceID := range traceIds {
+		traceIdSlice = append(traceIdSlice, traceID)
+	}
 
 	if childSpan.IsRecording() {
-		tracesIDs := make([]string, len(traceIDs))
-		for i, traceID := range traceIDs {
-			tracesIDs[i] = traceID.String()
+		tracesIDs := make([]string, len(traceIdSlice))
+		for i, traceID := range traceIdSlice {
+			tracesIDs[i] = string(traceID)
 		}
 		childSpan.SetAttributes(attribute.Key("trace_ids").StringSlice(tracesIDs))
 	}
-
-	if len(traceIDs) == 0 {
-		return []*model.Trace{}, nil
+	tracesMap := make(map[dbmodel.TraceID][]*dbmodel.Span)
+	if len(traceIds) == 0 {
+		return tracesMap, nil
 	}
 
 	// Add an hour in both directions so that traces that straddle two indexes are retrieved.
@@ -420,16 +471,16 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []model.TraceID, st
 		cfg.RolloverFrequencyAsNegativeDuration(s.spanIndex.RolloverFrequency),
 	)
 	nextTime := model.TimeAsEpochMicroseconds(startTime.Add(-time.Hour))
-	searchAfterTime := make(map[model.TraceID]uint64)
-	totalDocumentsFetched := make(map[model.TraceID]int)
-	tracesMap := make(map[model.TraceID]*model.Trace)
+	searchAfterTime := make(map[dbmodel.TraceID]uint64)
+	totalDocumentsFetched := make(map[dbmodel.TraceID]int)
 	for {
-		if len(traceIDs) == 0 {
+		if len(traceIdSlice) == 0 {
 			break
 		}
-		searchRequests := make([]*elastic.SearchRequest, len(traceIDs))
-		for i, traceID := range traceIDs {
-			traceQuery := buildTraceByIDQuery(traceID)
+		searchRequests := make([]*elastic.SearchRequest, len(traceIdSlice))
+		for i, traceID := range traceIdSlice {
+			legacyTraceID := traceIds[traceID]
+			traceQuery := buildTraceByIDQuery(traceID, legacyTraceID)
 			query := elastic.NewBoolQuery().
 				Must(traceQuery)
 			if s.useReadWriteAliases {
@@ -447,7 +498,7 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []model.TraceID, st
 				Source(s)
 		}
 		// set traceIDs to empty
-		traceIDs = nil
+		traceIdSlice = nil
 		results, err := s.client().MultiSearch().Add(searchRequests...).Index(indices...).Do(ctx)
 		if err != nil {
 			err = es.DetailedError(err)
@@ -463,7 +514,7 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []model.TraceID, st
 			if result.Hits == nil || len(result.Hits.Hits) == 0 {
 				continue
 			}
-			spans, err := s.collectSpans(result.Hits.Hits)
+			spans, err := s.collectJsonSpans(result.Hits.Hits)
 			if err != nil {
 				err = es.DetailedError(err)
 				logErrorToSpan(childSpan, err)
@@ -472,39 +523,25 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []model.TraceID, st
 			lastSpan := spans[len(spans)-1]
 
 			if traceSpan, ok := tracesMap[lastSpan.TraceID]; ok {
-				traceSpan.Spans = append(traceSpan.Spans, spans...)
+				traceSpan = append(traceSpan, spans...)
+				tracesMap[lastSpan.TraceID] = traceSpan
 			} else {
-				tracesMap[lastSpan.TraceID] = &model.Trace{Spans: spans}
+				tracesMap[lastSpan.TraceID] = spans
 			}
-
 			totalDocumentsFetched[lastSpan.TraceID] += len(result.Hits.Hits)
 			if totalDocumentsFetched[lastSpan.TraceID] < int(result.TotalHits()) {
-				traceIDs = append(traceIDs, lastSpan.TraceID)
-				searchAfterTime[lastSpan.TraceID] = model.TimeAsEpochMicroseconds(lastSpan.StartTime)
+				traceIdSlice = append(traceIdSlice, lastSpan.TraceID)
+				searchAfterTime[lastSpan.TraceID] = lastSpan.StartTime
 			}
 		}
 	}
-
-	var traces []*model.Trace
-	for _, t := range tracesMap {
-		traces = append(traces, t)
-	}
-	return traces, nil
+	return tracesMap, nil
 }
 
-func buildTraceByIDQuery(traceID model.TraceID) elastic.Query {
-	traceIDStr := traceID.String()
+func buildTraceByIDQuery(traceID dbmodel.TraceID, legacyTraceID string) elastic.Query {
+	traceIDStr := string(traceID)
 	if traceIDStr[0] != '0' {
 		return elastic.NewTermQuery(traceIDField, traceIDStr)
-	}
-	// https://github.com/jaegertracing/jaeger/pull/1956 added leading zeros to IDs
-	// So we need to also read IDs without leading zeros for compatibility with previously saved data.
-	// TODO remove in newer versions, added in Jaeger 1.16
-	var legacyTraceID string
-	if traceID.High == 0 {
-		legacyTraceID = strconv.FormatUint(traceID.Low, 16)
-	} else {
-		legacyTraceID = fmt.Sprintf("%x%016x", traceID.High, traceID.Low)
 	}
 	return elastic.NewBoolQuery().Should(
 		elastic.NewTermQuery(traceIDField, traceIDStr).Boost(2),
@@ -742,7 +779,7 @@ func (*SpanReader) buildOperationNameQuery(operationName string) elastic.Query {
 func (s *SpanReader) buildTagQuery(k string, v string) elastic.Query {
 	objectTagListLen := len(objectTagFieldList)
 	queries := make([]elastic.Query, len(nestedTagFieldList)+objectTagListLen)
-	kd := s.spanConverter.ReplaceDot(k)
+	kd := s.dotManager.ReplaceDot(k)
 	for i := range objectTagFieldList {
 		queries[i] = s.buildObjectQuery(objectTagFieldList[i], kd, v)
 	}
