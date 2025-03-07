@@ -314,7 +314,7 @@ func (s *SpanReader) GetServices(ctx context.Context) ([]string, error) {
 
 // GetOperations returns all operations for a specific service traced by Jaeger
 func (s *SpanReaderV1) GetOperations(ctx context.Context, query spanstore.OperationQueryParameters) ([]spanstore.Operation, error) {
-	operations, err := s.spanReader.GetOperations(ctx, query.ServiceName)
+	operations, err := s.spanReader.GetOperations(ctx, esOperationQueryParamsFromSpanStoreQueryParams(query))
 	if err != nil {
 		return nil, err
 	}
@@ -330,10 +330,17 @@ func (s *SpanReaderV1) GetOperations(ctx context.Context, query spanstore.Operat
 	return result, err
 }
 
+func esOperationQueryParamsFromSpanStoreQueryParams(p spanstore.OperationQueryParameters) dbmodel.OperationQueryParameters {
+	return dbmodel.OperationQueryParameters{
+		ServiceName: p.ServiceName,
+		SpanKind:    p.SpanKind,
+	}
+}
+
 // GetOperations returns all operations for a specific service traced by Jaeger
 func (s *SpanReader) GetOperations(
 	ctx context.Context,
-	serviceName string,
+	parameters dbmodel.OperationQueryParameters,
 ) ([]dbmodel.Operation, error) {
 	ctx, span := s.tracer.Start(ctx, "GetOperations")
 	defer span.End()
@@ -346,7 +353,7 @@ func (s *SpanReader) GetOperations(
 		cfg.RolloverFrequencyAsNegativeDuration(s.serviceIndex.RolloverFrequency),
 	)
 	var result []dbmodel.Operation
-	operations, err := s.serviceOperationStorage.getOperations(ctx, jaegerIndices, serviceName, s.maxDocCount)
+	operations, err := s.serviceOperationStorage.getOperations(ctx, jaegerIndices, parameters.ServiceName, s.maxDocCount)
 	if err != nil {
 		return nil, err
 	}
