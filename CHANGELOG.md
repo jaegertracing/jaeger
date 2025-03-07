@@ -8,7 +8,7 @@ Changes by Version
 <details>
 <summary>next release template</summary>
 
-next release v1.x.x / v2.x.x-rcx (yyyy-mm-dd)
+next release v1.x.x / v2.x.x (yyyy-mm-dd)
 -------------------------------
 
 ### Backend Changes
@@ -20,6 +20,67 @@ run `make changelog` to generate content
 copy from UI changelog
 
 </details>
+
+v1.67.0 / v2.4.0 (2025-03-07)
+-------------------------------
+
+### Backend Changes
+
+#### ⛔ Breaking Changes
+
+* [query] drop support for shared grpc/http query server ports ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#6695](https://github.com/jaegertracing/jaeger/pull/6695))
+
+#### 🐞 Bug fixes, Minor Improvements
+
+* [es] refactor the es spanwriter to make it reusable for v2 apis ([@Manik2708](https://github.com/Manik2708) in [#6796](https://github.com/jaegertracing/jaeger/pull/6796))
+* [refactor] move internal `tracesdata` type to package `jptrace` ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#6809](https://github.com/jaegertracing/jaeger/pull/6809))
+* Use empty slices instead of nil ([@zhengkezhou1](https://github.com/zhengkezhou1) in [#6799](https://github.com/jaegertracing/jaeger/pull/6799))
+* [refactor] refactor `jptrace/attributes_tests.go` for readability ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#6786](https://github.com/jaegertracing/jaeger/pull/6786))
+* [refactor] converge v2 api with v2 remote storage api ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#6784](https://github.com/jaegertracing/jaeger/pull/6784))
+* Feat: enable configuration of hostnames for hotrod services ([@w-h-a](https://github.com/w-h-a) in [#6782](https://github.com/jaegertracing/jaeger/pull/6782))
+* [refactor] change `tracequeryparams` to accept typed attributes ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#6780](https://github.com/jaegertracing/jaeger/pull/6780))
+* [refactor] decouple `tracequeryparams` from `query` in integration tests ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#6779](https://github.com/jaegertracing/jaeger/pull/6779))
+* [refactor] inline proto definiton of `keyvalue` from otel ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#6775](https://github.com/jaegertracing/jaeger/pull/6775))
+* [refactor] return start and end timestamps from findtraceids in v2 remote storage api ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#6772](https://github.com/jaegertracing/jaeger/pull/6772))
+* [refactor] return start and end timestamps from `findtraceids` in v2 api ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#6770](https://github.com/jaegertracing/jaeger/pull/6770))
+* Revert "add 'features' command to print available feature gates" ([@yurishkuro](https://github.com/yurishkuro) in [#6771](https://github.com/jaegertracing/jaeger/pull/6771))
+* [remote-storage][v2] add complete idl for trace storage ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#6737](https://github.com/jaegertracing/jaeger/pull/6737))
+* [remote-storage][v2] add idl for dependency storage ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#6738](https://github.com/jaegertracing/jaeger/pull/6738))
+* [remote-storage][v2] add proto definition for `getservices` and `getoperations` rpc ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#6736](https://github.com/jaegertracing/jaeger/pull/6736))
+* Fix /qualitymetrics to return data in expected format ([@yurishkuro](https://github.com/yurishkuro) in [#6733](https://github.com/jaegertracing/jaeger/pull/6733))
+* [remote-storage][v2] add proto definition for `gettraces` rpc ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#6730](https://github.com/jaegertracing/jaeger/pull/6730))
+* [bug][storage] make es-rollover idempotent by checking if the index or alias already exist ([@Manik2708](https://github.com/Manik2708) in [#6638](https://github.com/jaegertracing/jaeger/pull/6638))
+* [refactor] use plain loops with iterators ([@yurishkuro](https://github.com/yurishkuro) in [#6722](https://github.com/jaegertracing/jaeger/pull/6722))
+* Use stdlib iterators ([@yurishkuro](https://github.com/yurishkuro) in [#6714](https://github.com/jaegertracing/jaeger/pull/6714))
+* Create a /quality-metrics endpoint ([@ADI-ROXX](https://github.com/ADI-ROXX) in [#6608](https://github.com/jaegertracing/jaeger/pull/6608))
+* Move pkg/cache to internal ([@won-js](https://github.com/won-js) in [#6720](https://github.com/jaegertracing/jaeger/pull/6720))
+* [storage] change storage extension to hold v2 factories ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#6699](https://github.com/jaegertracing/jaeger/pull/6699))
+* Fix go alpine version to 1.24.0 ([@yurishkuro](https://github.com/yurishkuro) in [#6713](https://github.com/jaegertracing/jaeger/pull/6713))
+* [refactor] conditionally implement interfaces in v1adapter factory ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#6710](https://github.com/jaegertracing/jaeger/pull/6710))
+* [fix] revert changes to tracereader adapter ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#6705](https://github.com/jaegertracing/jaeger/pull/6705))
+* [refactor] conditionally implement interfaces in `v1adapter` ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#6701](https://github.com/jaegertracing/jaeger/pull/6701))
+* [refactor] use `gettracestorefactory` instead of `getstoragefactory` ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#6696](https://github.com/jaegertracing/jaeger/pull/6696))
+* [storage] add helper to storage extension for retrieving purger ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#6694](https://github.com/jaegertracing/jaeger/pull/6694))
+* Import nop receiver/exporter and add a sample query service config ([@danish9039](https://github.com/danish9039) in [#6687](https://github.com/jaegertracing/jaeger/pull/6687))
+* [storage] add helper to storage extension for retrieving sampling store factory ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#6689](https://github.com/jaegertracing/jaeger/pull/6689))
+
+#### 👷 CI Improvements
+
+* [idl check] fetch tags ([@yurishkuro](https://github.com/yurishkuro) in [#6758](https://github.com/jaegertracing/jaeger/pull/6758))
+* [test]: check for jaeger-idl version mismatch ([@ary82](https://github.com/ary82) in [#6753](https://github.com/jaegertracing/jaeger/pull/6753))
+* Allow dependency-review workflow to run from merge queue ([@yurishkuro](https://github.com/yurishkuro) in [#6729](https://github.com/jaegertracing/jaeger/pull/6729))
+* Do not run dco-check from merge queue ([@yurishkuro](https://github.com/yurishkuro) in [#6727](https://github.com/jaegertracing/jaeger/pull/6727))
+* Do not run label check from merge queue ([@yurishkuro](https://github.com/yurishkuro) in [#6726](https://github.com/jaegertracing/jaeger/pull/6726))
+* Allow ci workflows to run from merge queue ([@danish9039](https://github.com/danish9039) in [#6719](https://github.com/jaegertracing/jaeger/pull/6719))
+
+### 📊 UI Changes
+
+#### 🐞 Bug fixes, Minor Improvements
+
+* Replace react-vis with recharts ([@hari45678](https://github.com/hari45678) in [#2679](https://github.com/jaegertracing/jaeger-ui/pull/2679))
+* Add config option to allow displaying full traceid ([@avinpy-255](https://github.com/avinpy-255) in [#2536](https://github.com/jaegertracing/jaeger-ui/pull/2536))
+
+
 
 v1.66.0 / v2.3.0 (2025-02-03)
 -------------------------------
@@ -274,7 +335,7 @@ v1.64.0 / v2.1.0 (2024-12-06)
 v1.63.0 / v2.0.0 (2024-11-10)
 -------------------------------
 
-Jaeger v2 is here! 🎉 🎉 🎉 
+Jaeger v2 is here! 🎉 🎉 🎉
 
 ### Backend Changes
 
