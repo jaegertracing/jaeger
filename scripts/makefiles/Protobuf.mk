@@ -135,7 +135,7 @@ API_V3_PATCHED=$(API_V3_PATCHED_DIR)/query_service.proto
 patch-api-v3:
 	mkdir -p $(API_V3_PATCHED_DIR)
 	cat idl/proto/api_v3/query_service.proto | \
-		$(SED) -f ./proto-gen/patch-api-v3.sed \
+		$(SED) -f ./proto-gen/patch.sed \
 		> $(API_V3_PATCHED)
 
 .PHONY: proto-api-v3
