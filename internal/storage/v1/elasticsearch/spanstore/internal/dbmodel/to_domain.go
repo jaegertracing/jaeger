@@ -23,16 +23,6 @@ type ToDomain struct {
 	dotReplacer DotReplacer
 }
 
-// ReplaceDot replaces dot with dotReplacement
-func (td ToDomain) ReplaceDot(k string) string {
-	return td.dotReplacer.ReplaceDot(k)
-}
-
-// ReplaceDotReplacement replaces dotReplacement with dot
-func (td ToDomain) ReplaceDotReplacement(k string) string {
-	return td.dotReplacer.ReplaceDotReplacement(k)
-}
-
 // SpanToDomain converts db span into model Span
 func (td ToDomain) SpanToDomain(dbSpan *Span) (*model.Span, error) {
 	tags, err := td.convertKeyValues(dbSpan.Tags)
