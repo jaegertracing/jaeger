@@ -490,7 +490,7 @@ func validateQuery(p *spanstore.TraceQueryParameters) error {
 
 func (s *SpanReader) findTraceIDs(
 	ctx context.Context,
-	p *dbmodel.TraceQueryParameters,
+	traceQuery *dbmodel.TraceQueryParameters,
 ) ([]dbmodel.TraceID, error) {
 	ctx, childSpan := s.tracer.Start(ctx, "findTraceIDs")
 	defer childSpan.End()
@@ -547,13 +547,13 @@ func (s *SpanReader) findTraceIDs(
 	//      },
 	//      "aggs": { "traceIDs" : { "terms" : {"size": 100,"field": "traceID" }}}
 	//  }
-	aggregation := s.buildTraceIDAggregation(p.NumTraces)
-	boolQuery := s.buildFindTraceIDsQuery(p)
+	aggregation := s.buildTraceIDAggregation(traceQuery.NumTraces)
+	boolQuery := s.buildFindTraceIDsQuery(traceQuery)
 	jaegerIndices := s.timeRangeIndices(
 		s.spanIndexPrefix,
 		s.spanIndex.DateLayout,
-		p.StartTimeMin,
-		p.StartTimeMax,
+		traceQuery.StartTimeMin,
+		traceQuery.StartTimeMax,
 		cfg.RolloverFrequencyAsNegativeDuration(s.spanIndex.RolloverFrequency),
 	)
 
@@ -566,7 +566,7 @@ func (s *SpanReader) findTraceIDs(
 	searchResult, err := searchService.Do(ctx)
 	if err != nil {
 		err = es.DetailedError(err)
-		s.logger.Info("es search services failed", zap.Any("traceQuery", p), zap.Error(err))
+		s.logger.Info("es search services failed", zap.Any("traceQuery", traceQuery), zap.Error(err))
 		return nil, fmt.Errorf("search services failed: %w", err)
 	}
 	if searchResult.Aggregations == nil {
