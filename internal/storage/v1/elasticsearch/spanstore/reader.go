@@ -485,7 +485,7 @@ func (s *SpanReader) FindTraceIDs(
 	searchResult, err := searchService.Do(ctx)
 	if err != nil {
 		err = es.DetailedError(err)
-		s.logger.Info("es search services failed", zap.Any("traceQuery", p), zap.Error(err))
+		s.logger.Info("es search services failed", zap.Any("traceQuery", serviceName), zap.Error(err))
 		return nil, fmt.Errorf("search services failed: %w", err)
 	}
 	if searchResult.Aggregations == nil {
