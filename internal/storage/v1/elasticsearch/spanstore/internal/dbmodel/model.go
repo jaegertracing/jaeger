@@ -4,6 +4,8 @@
 
 package dbmodel
 
+import "time"
+
 // ReferenceType is the reference type of one span to another
 type ReferenceType string
 
@@ -87,4 +89,28 @@ type KeyValue struct {
 type Service struct {
 	ServiceName   string `json:"serviceName"`
 	OperationName string `json:"operationName"`
+}
+
+// Operation is the struct for span operation properties.
+type Operation struct {
+	Name     string
+	SpanKind string
+}
+
+// TraceQueryParameters contains parameters of a trace query.
+type TraceQueryParameters struct {
+	ServiceName   string
+	OperationName string
+	Tags          map[string]string
+	StartTimeMin  time.Time
+	StartTimeMax  time.Time
+	DurationMin   time.Duration
+	DurationMax   time.Duration
+	NumTraces     int
+}
+
+// OperationQueryParameters contains parameters of query operations, empty spanKind means get operations for all kinds of span.
+type OperationQueryParameters struct {
+	ServiceName string
+	SpanKind    string
 }
