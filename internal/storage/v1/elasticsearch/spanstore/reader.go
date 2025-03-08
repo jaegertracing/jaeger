@@ -594,32 +594,32 @@ func (*SpanReader) buildTraceIDSubAggregation() elastic.Aggregation {
 		Field(startTimeField)
 }
 
-func (s *SpanReader) buildFindTraceIDsQuery(p *dbmodel.TraceQueryParameters) elastic.Query {
+func (s *SpanReader) buildFindTraceIDsQuery(traceQuery *dbmodel.TraceQueryParameters) elastic.Query {
 	boolQuery := elastic.NewBoolQuery()
 
 	// add duration query
-	if p.DurationMax != 0 || p.DurationMin != 0 {
-		durationQuery := s.buildDurationQuery(p.DurationMin, p.DurationMax)
+	if traceQuery.DurationMax != 0 || traceQuery.DurationMin != 0 {
+		durationQuery := s.buildDurationQuery(traceQuery.DurationMin, traceQuery.DurationMax)
 		boolQuery.Must(durationQuery)
 	}
 
 	// add startTime query
-	startTimeQuery := s.buildStartTimeQuery(p.StartTimeMin, p.StartTimeMax)
+	startTimeQuery := s.buildStartTimeQuery(traceQuery.StartTimeMin, traceQuery.StartTimeMax)
 	boolQuery.Must(startTimeQuery)
 
 	// add process.serviceName query
-	if p.ServiceName != "" {
-		serviceNameQuery := s.buildServiceNameQuery(p.ServiceName)
+	if traceQuery.ServiceName != "" {
+		serviceNameQuery := s.buildServiceNameQuery(traceQuery.ServiceName)
 		boolQuery.Must(serviceNameQuery)
 	}
 
 	// add operationName query
-	if p.OperationName != "" {
-		operationNameQuery := s.buildOperationNameQuery(p.OperationName)
+	if traceQuery.OperationName != "" {
+		operationNameQuery := s.buildOperationNameQuery(traceQuery.OperationName)
 		boolQuery.Must(operationNameQuery)
 	}
 
-	for k, v := range p.Tags {
+	for k, v := range traceQuery.Tags {
 		tagQuery := s.buildTagQuery(k, v)
 		boolQuery.Must(tagQuery)
 	}
