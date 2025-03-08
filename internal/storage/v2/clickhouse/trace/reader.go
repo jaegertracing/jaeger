@@ -50,19 +50,23 @@ type Reader struct {
 }
 
 func (Reader) GetServices(_ context.Context) ([]string, error) {
-	panic("implement me")
+	return []string{}, nil
 }
 
 func (Reader) GetOperations(_ context.Context, _ tracestore.OperationQueryParams) ([]tracestore.Operation, error) {
-	panic("implement me")
+	return []tracestore.Operation{}, nil
 }
 
 func (Reader) FindTraces(_ context.Context, _ tracestore.TraceQueryParams) iter.Seq2[[]ptrace.Traces, error] {
-	panic("implement me")
+	return func(yield func([]ptrace.Traces, error) bool) {
+		yield([]ptrace.Traces{}, nil)
+	}
 }
 
 func (Reader) FindTraceIDs(_ context.Context, _ tracestore.TraceQueryParams) iter.Seq2[[]tracestore.FoundTraceID, error] {
-	panic("implement me")
+	return func(yield func([]tracestore.FoundTraceID, error) bool) {
+		yield([]tracestore.FoundTraceID{}, nil)
+	}
 }
 
 func (tr Reader) GetTraces(

@@ -5,7 +5,6 @@ package clickhouse
 
 import (
 	"context"
-	"errors"
 
 	"go.uber.org/zap"
 
@@ -35,12 +34,12 @@ func newCHPool(cfg *config.Configuration, logger *zap.Logger) (client.Pool, erro
 	return chPool, err
 }
 
-func newClientPrerequisites(c *config.Configuration, logger *zap.Logger) error {
-	if c.CreateSchema {
+func newClientPrerequisites(cfg *config.Configuration, logger *zap.Logger) error {
+	if !cfg.CreateSchema {
 		return nil
 	}
 
-	chPool, err := newCHPool(c, logger)
+	chPool, err := newCHPool(cfg, logger)
 	if err != nil {
 		return err
 	}
@@ -53,22 +52,18 @@ func newFactory() *Factory {
 }
 
 func NewFactory(cfg *config.Configuration, logger *zap.Logger) (*Factory, error) {
-	var errs []error
 	err := newClientPrerequisites(cfg, logger)
 	if err != nil {
-		errs = append(errs, err)
+		return nil, err
 	}
 
 	connection, err := newCHConn(cfg)
-	if connection == nil {
-		errs = append(errs, err)
+	if err != nil {
+		return nil, err
 	}
 	chPool, err := newCHPool(cfg, logger)
-	if chPool == nil {
-		errs = append(errs, err)
-	}
-	if errs != nil {
-		return nil, errors.Join(errs...)
+	if err != nil {
+		return nil, err
 	}
 
 	f := &Factory{

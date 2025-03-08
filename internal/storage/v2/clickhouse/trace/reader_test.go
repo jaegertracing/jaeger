@@ -58,7 +58,7 @@ func TestNewTraceReader(t *testing.T) {
 	})
 }
 
-func TestTraceReader(t *testing.T) {
+func TestGetTraces(t *testing.T) {
 	t.Run("should read traces successfully", func(t *testing.T) {
 		withTraceReader(func(r *traceReaderTest) {
 			seq := r.reader.GetTraces(context.Background())
@@ -100,9 +100,7 @@ func TestTraceReader(t *testing.T) {
 			assert.EqualError(t, err, "trace not found")
 		}
 	})
-}
 
-func TestGetTraceError(t *testing.T) {
 	t.Run("should return error when querying ClickHouse fails", func(t *testing.T) {
 		conn := &mocks.Conn{}
 		conn.On("Query", mock.Anything, mock.Anything, mock.Anything).Return(nil,
@@ -165,4 +163,57 @@ func TestGetTraceError(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "trace id is empty")
 	})
+}
+
+func TestGetServices(t *testing.T) {
+	conn := &mocks.Conn{}
+
+	reader, _ := NewTraceReader(conn)
+	servers, err := reader.GetServices(context.Background())
+	assert.Equal(t, []string{}, servers)
+	require.NoError(t, err)
+}
+
+func TestGetOperations(t *testing.T) {
+	conn := &mocks.Conn{}
+
+	reader, _ := NewTraceReader(conn)
+	operations, err := reader.GetOperations(context.Background(), tracestore.OperationQueryParams{})
+	assert.Equal(t, []tracestore.Operation{}, operations)
+	require.NoError(t, err)
+}
+
+func TestFindTraces(t *testing.T) {
+	conn := &mocks.Conn{}
+
+	reader, _ := NewTraceReader(conn)
+	seq := reader.FindTraces(context.Background(), tracestore.TraceQueryParams{})
+
+	var results [][]ptrace.Traces
+	var errs []error
+
+	seq(func(traces []ptrace.Traces, err error) bool {
+		results = append(results, traces)
+		errs = append(errs, err)
+		return true
+	})
+	require.NoError(t, errs[0])
+	assert.Empty(t, results[0])
+}
+
+func TestFindTraceIDs(t *testing.T) {
+	conn := &mocks.Conn{}
+
+	reader, _ := NewTraceReader(conn)
+	seq := reader.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{})
+	var results [][]tracestore.FoundTraceID
+	var errs []error
+
+	seq(func(ids []tracestore.FoundTraceID, err error) bool {
+		results = append(results, ids)
+		errs = append(errs, err)
+		return true
+	})
+	require.NoError(t, errs[0])
+	assert.Empty(t, results[0])
 }

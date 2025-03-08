@@ -16,6 +16,8 @@ import (
 //go:embed schema.tmpl
 var schemaFile embed.FS
 
+const schema = "schema.tmpl"
+
 func getQueryFileAsBytes(fileName string) ([]byte, error) {
 	tmpl, err := template.ParseFS(schemaFile, fileName)
 	if err != nil {
@@ -58,8 +60,8 @@ func getQueriesFromBytes(queryFile []byte) ([]string, error) {
 	return queryStrings, nil
 }
 
-func constructSchemaQueries() ([]string, error) {
-	queryFile, err := getQueryFileAsBytes("schema.tmpl")
+func constructSchemaQueries(schema string) ([]string, error) {
+	queryFile, err := getQueryFileAsBytes(schema)
 	if err != nil {
 		return nil, err
 	}
@@ -71,13 +73,14 @@ func constructSchemaQueries() ([]string, error) {
 }
 
 func CreateSchemaIfNotPresent(pool client.Pool) error {
-	queries, err := constructSchemaQueries()
+	queries, err := constructSchemaQueries(schema)
 	if err != nil {
 		return err
 	}
 
 	for _, query := range queries {
-		if pool.Do(context.Background(), query) != nil {
+		err := pool.Do(context.Background(), query)
+		if err != nil {
 			return err
 		}
 	}

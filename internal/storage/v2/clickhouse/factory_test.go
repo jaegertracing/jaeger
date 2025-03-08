@@ -72,8 +72,17 @@ func TestTraceFactory(t *testing.T) {
 	require.NoError(t, f.Close())
 }
 
+func TestNewClientPrerequisites(t *testing.T) {
+	t.Run("should not create schema when CreateSchema is false", func(t *testing.T) {
+		cfg := config.DefaultConfiguration()
+		cfg.CreateSchema = false
+		err := newClientPrerequisites(&cfg, zap.NewNop())
+		require.NoError(t, err)
+	})
+}
+
 func TestPurge(t *testing.T) {
-	t.Run("Success", func(t *testing.T) {
+	t.Run("should succeed when Exec does not return an error", func(t *testing.T) {
 		conn := mocks.Conn{}
 		conn.On("Exec", mock.Anything, mock.Anything).Return(nil)
 		f := newFactory()
@@ -81,18 +90,20 @@ func TestPurge(t *testing.T) {
 		err := f.Purge(context.Background())
 		require.NoError(t, err)
 	})
-	t.Run("Connection refused", func(t *testing.T) {
+
+	t.Run("should return error when connection is refused", func(t *testing.T) {
 		conn := mocks.Conn{}
 		conn.On("Exec", mock.Anything, mock.Anything).Return(errors.New("connection refused"))
 		f := newFactory()
 		f.connection = &conn
 		err := f.Purge(context.Background())
-		require.Error(t, err, "connection refused")
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "connection refused")
 	})
 }
 
 func TestClose(t *testing.T) {
-	t.Run("Success", func(t *testing.T) {
+	t.Run("should succeed when both connection and pool close without error", func(t *testing.T) {
 		conn := mocks.Conn{}
 		conn.On("Close").Return(nil)
 		pool := mocks.Pool{}
@@ -103,7 +114,8 @@ func TestClose(t *testing.T) {
 		err := f.Close()
 		require.NoError(t, err)
 	})
-	t.Run("Close failed", func(t *testing.T) {
+
+	t.Run("should return error if chPool Close fails", func(t *testing.T) {
 		conn := mocks.Conn{}
 		conn.On("Close").Return(nil)
 		pool := mocks.Pool{}
@@ -111,15 +123,26 @@ func TestClose(t *testing.T) {
 		f := newFactory()
 		f.connection = &conn
 		f.chPool = &pool
-		require.Error(t, f.Close(), "chPool close error")
+		err := f.Close()
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "chPool close error")
+	})
 
+	t.Run("should return error if clickhouse connection Close fails", func(t *testing.T) {
+		conn := mocks.Conn{}
 		conn.On("Close").Return(errors.New("clickhouse close error"))
-		require.Error(t, f.Close(), "clickhouse close error")
+		pool := mocks.Pool{}
+		f := newFactory()
+		f.connection = &conn
+		f.chPool = &pool
+		err := f.Close()
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "clickhouse close error")
 	})
 }
 
 func TestCreateTraceWriter(t *testing.T) {
-	t.Run("Success", func(t *testing.T) {
+	t.Run("should succeed when trace writer is created successfully", func(t *testing.T) {
 		pool := mocks.Pool{}
 		f := newFactory()
 		f.chPool = &pool
@@ -127,17 +150,18 @@ func TestCreateTraceWriter(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, writer)
 	})
-	t.Run("Can't create trace writer with nil chPool", func(t *testing.T) {
+
+	t.Run("should return error when chPool is nil", func(t *testing.T) {
 		f := newFactory()
 		f.chPool = nil
 		writer, err := f.CreateTraceWriter()
-		require.Error(t, err, "can't create trace writer with nil chPool")
+		require.Error(t, err)
 		require.Empty(t, writer)
 	})
 }
 
 func TestCreateTraceReader(t *testing.T) {
-	t.Run("Success", func(t *testing.T) {
+	t.Run("should succeed when trace reader is created successfully", func(t *testing.T) {
 		c := mocks.Conn{}
 		f := newFactory()
 		f.connection = &c
@@ -145,11 +169,12 @@ func TestCreateTraceReader(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, reader)
 	})
-	t.Run("Can't create trace reader with nil clickhouse", func(t *testing.T) {
+
+	t.Run("should return error when connection is nil", func(t *testing.T) {
 		f := newFactory()
 		f.connection = nil
 		writer, err := f.CreateTracReader()
-		require.Error(t, err, "can't create trace reader with nil clickhouse")
+		require.Error(t, err)
 		require.Nil(t, writer)
 	})
 }

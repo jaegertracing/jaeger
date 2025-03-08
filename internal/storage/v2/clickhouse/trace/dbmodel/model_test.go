@@ -5,6 +5,7 @@ package dbmodel
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -12,6 +13,13 @@ import (
 )
 
 func TestConvertToTraces(t *testing.T) {
+	t.Run("should return error when traceId is invalid byte", func(t *testing.T) {
+		model := Model{TraceId: "0xff"}
+		_, err := model.ConvertToTraces()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "encoding/hex: invalid byte:")
+	})
+
 	t.Run("should return error when traceId is empty", func(t *testing.T) {
 		model := Model{TraceId: "00000000000000000000000000000000"}
 		_, err := model.ConvertToTraces()
@@ -26,11 +34,62 @@ func TestConvertToTraces(t *testing.T) {
 		assert.Contains(t, err.Error(), "span id is empty")
 	})
 
+	t.Run("should return error when spanId is invalid byte", func(t *testing.T) {
+		model := Model{TraceId: "00010001000100010001000100010001", SpanId: "0xff"}
+		_, err := model.ConvertToTraces()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "encoding/hex: invalid byte:")
+	})
+
 	t.Run("should return error when parentSpanId is empty", func(t *testing.T) {
 		model := Model{TraceId: "00010001000100010001000100010001", SpanId: "0000000000000001", ParentSpanId: "00000000"}
 		_, err := model.ConvertToTraces()
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "parentSpan id is empty")
+	})
+
+	t.Run("should return error when parentSpanId is empty", func(t *testing.T) {
+		model := Model{TraceId: "00010001000100010001000100010001", SpanId: "0000000000000001", ParentSpanId: "0xff"}
+		_, err := model.ConvertToTraces()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "encoding/hex: invalid byte:")
+	})
+
+	t.Run("should return error when convertLink fails", func(t *testing.T) {
+		model := Model{
+			TraceId:              "00010001000100010001000100010001",
+			SpanId:               "0000000000000001",
+			ParentSpanId:         "0000000000000001",
+			SpanAttributesKeys:   []string{"hello"},
+			SpanAttributesValues: []string{"world"},
+			LinksTraceId:         []string{"0xff"},
+			LinksSpanId:          []string{"0000000000000001"},
+			LinksTraceState:      []string{"good"},
+			EventsName:           []string{"even_name"},
+			EventsTimestamp:      []time.Time{time.Now()},
+			EventsAttributes:     []map[string]string{{"event_key": "event_val"}},
+		}
+		_, err := model.ConvertToTraces()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "encoding/hex: invalid byte:")
+	})
+
+	t.Run("should successfully convert model to traces", func(t *testing.T) {
+		model := Model{
+			TraceId:              "00010001000100010001000100010001",
+			SpanId:               "0000000000000001",
+			ParentSpanId:         "0000000000000001",
+			SpanAttributesKeys:   []string{"hello"},
+			SpanAttributesValues: []string{"world"},
+			LinksTraceId:         []string{"00010001000100010001000100010001"},
+			LinksSpanId:          []string{"0000000000000001"},
+			LinksTraceState:      []string{"good"},
+			EventsName:           []string{"even_name"},
+			EventsAttributes:     []map[string]string{{"event_key": "event_val"}},
+		}
+		pt, err := model.ConvertToTraces()
+		require.NoError(t, err)
+		require.NotNil(t, pt)
 	})
 }
 
@@ -47,10 +106,40 @@ func TestConvertLink(t *testing.T) {
 		err := model.convertLink(links, 0)
 		assert.Error(t, err)
 	})
+
+	t.Run("should return error when linksTraceId is invalid byte", func(t *testing.T) {
+		model := Model{LinksTraceId: []string{"invalidTraceId"}, LinksSpanId: []string{"0xff"}}
+		err := model.convertLink(links, 0)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "encoding/hex: invalid byte:")
+	})
+
 	t.Run("should return error when linksSpanId is invalid", func(t *testing.T) {
-		model := Model{LinksTraceId: []string{"0x1"}, LinksSpanId: []string{"invalidSpanId"}}
+		model := Model{LinksTraceId: []string{"00010001000100010001000100010001"}, LinksSpanId: []string{"invalidSpanId"}}
 		err := model.convertLink(links, 0)
 		assert.Error(t, err)
+	})
+
+	t.Run("should return error when linksSpanId is invalid byte", func(t *testing.T) {
+		model := Model{LinksTraceId: []string{"00010001000100010001000100010001"}, LinksSpanId: []string{"0xff"}}
+		err := model.convertLink(links, 0)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "encoding/hex: invalid byte:")
+	})
+
+	t.Run("should successfully convert link when valid data is provided", func(t *testing.T) {
+		links := ptrace.NewSpan().Links().AppendEmpty()
+		model := Model{
+			LinksTraceId:     []string{"00010001000100010001000100010001"},
+			LinksSpanId:      []string{"0000000000000001"},
+			LinksTraceState:  []string{"ha?"},
+			LinksAttributes:  []map[string]string{{"link_key": "link_val"}},
+			EventsName:       []string{"event"},
+			EventsTimestamp:  []time.Time{time.Now()},
+			EventsAttributes: []map[string]string{{"event_key": "event_val"}},
+		}
+		err := model.convertLink(links, 0)
+		require.NoError(t, err)
 	})
 }
 
@@ -102,4 +191,9 @@ func TestSpanKind(t *testing.T) {
 		model := Model{SpanKind: "Unknown"}
 		assert.Equal(t, ptrace.SpanKind(-1), model.spanKind())
 	})
+}
+
+func TestIsZeroBytes(t *testing.T) {
+	var b []byte
+	assert.True(t, isZeroBytes(b))
 }
