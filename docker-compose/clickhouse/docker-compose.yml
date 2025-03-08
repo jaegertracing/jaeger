@@ -1,0 +1,10 @@
+services:
+  clickhouse:
+    container_name: clickhouse
+    image: bitnami/clickhouse:25.1.3
+    environment:
+      CLICKHOUSE_USER: "default"
+      CLICKHOUSE_PASSWORD: "default"
+    ports:
+      - 9000:9000
+      - 8123:8123
