@@ -30,7 +30,7 @@ type spanWriterTest struct {
 	client    *mocks.Client
 	logger    *zap.Logger
 	logBuffer *testutils.Buffer
-	writer    *SpanWriter
+	writer    *SpanWriterV1
 }
 
 func withSpanWriter(fn func(w *spanWriterTest)) {
@@ -41,7 +41,7 @@ func withSpanWriter(fn func(w *spanWriterTest)) {
 		client:    client,
 		logger:    logger,
 		logBuffer: logBuffer,
-		writer: NewSpanWriter(SpanWriterParams{
+		writer: NewSpanWriterV1(SpanWriterParams{
 			Client: func() es.Client { return client },
 			Logger: logger, MetricsFactory: metricsFactory,
 			SpanIndex:    config.IndexOptions{DateLayout: "2006-01-02"},
@@ -51,7 +51,7 @@ func withSpanWriter(fn func(w *spanWriterTest)) {
 	fn(w)
 }
 
-var _ spanstore.Writer = &SpanWriter{} // check API conformance
+var _ spanstore.Writer = &SpanWriterV1{} // check API conformance
 
 func TestSpanWriterIndices(t *testing.T) {
 	client := &mocks.Client{}
@@ -123,8 +123,8 @@ func TestSpanWriterIndices(t *testing.T) {
 		},
 	}
 	for _, testCase := range testCases {
-		w := NewSpanWriter(testCase.params)
-		spanIndexName, serviceIndexName := w.spanServiceIndex(date)
+		w := NewSpanWriterV1(testCase.params)
+		spanIndexName, serviceIndexName := w.spanWriter.spanServiceIndex(date)
 		assert.Equal(t, []string{spanIndexName, serviceIndexName}, testCase.indices)
 	}
 }
@@ -323,7 +323,7 @@ func TestWriteSpanInternal(t *testing.T) {
 
 		jsonSpan := &dbmodel.Span{}
 
-		w.writer.writeSpan(indexName, jsonSpan)
+		w.writer.spanWriter.writeSpan(indexName, jsonSpan)
 		indexService.AssertNumberOfCalls(t, "Add", 1)
 		assert.Equal(t, "", w.logBuffer.String())
 	})
@@ -346,7 +346,7 @@ func TestWriteSpanInternalError(t *testing.T) {
 			SpanID:  dbmodel.SpanID("0"),
 		}
 
-		w.writer.writeSpan(indexName, jsonSpan)
+		w.writer.spanWriter.writeSpan(indexName, jsonSpan)
 		indexService.AssertNumberOfCalls(t, "Add", 1)
 	})
 }
@@ -357,12 +357,12 @@ func TestNewSpanTags(t *testing.T) {
 	logger, _ := testutils.NewLogger()
 	metricsFactory := metricstest.NewFactory(0)
 	testCases := []struct {
-		writer   *SpanWriter
+		writer   *SpanWriterV1
 		expected dbmodel.Span
 		name     string
 	}{
 		{
-			writer: NewSpanWriter(SpanWriterParams{
+			writer: NewSpanWriterV1(SpanWriterParams{
 				Client: clientFn, Logger: logger, MetricsFactory: metricsFactory,
 				AllTagsAsFields: true,
 			}),
@@ -373,7 +373,7 @@ func TestNewSpanTags(t *testing.T) {
 			name: "allTagsAsFields",
 		},
 		{
-			writer: NewSpanWriter(SpanWriterParams{
+			writer: NewSpanWriterV1(SpanWriterParams{
 				Client: clientFn, Logger: logger, MetricsFactory: metricsFactory,
 				TagKeysAsFields: []string{"foo", "bar", "rere"},
 			}),
@@ -384,7 +384,7 @@ func TestNewSpanTags(t *testing.T) {
 			name: "definedTagNames",
 		},
 		{
-			writer: NewSpanWriter(SpanWriterParams{Client: clientFn, Logger: logger, MetricsFactory: metricsFactory}),
+			writer: NewSpanWriterV1(SpanWriterParams{Client: clientFn, Logger: logger, MetricsFactory: metricsFactory}),
 			expected: dbmodel.Span{
 				Tags: []dbmodel.KeyValue{{
 					Key:   "foo",
@@ -407,7 +407,7 @@ func TestNewSpanTags(t *testing.T) {
 	}
 	for _, test := range testCases {
 		t.Run(test.name, func(t *testing.T) {
-			mSpan := test.writer.spanConverter.FromDomainEmbedProcess(s)
+			mSpan := test.writer.spanWriter.spanConverter.FromDomainEmbedProcess(s)
 			assert.Equal(t, test.expected.Tag, mSpan.Tag)
 			assert.Equal(t, test.expected.Tags, mSpan.Tags)
 			assert.Equal(t, test.expected.Process.Tag, mSpan.Process.Tag)
@@ -445,7 +445,7 @@ func TestSpanWriterParamsTTL(t *testing.T) {
 				MetricsFactory:  metricsFactory,
 				ServiceCacheTTL: test.serviceTTL,
 			}
-			w := NewSpanWriter(params)
+			w := NewSpanWriterV1(params)
 
 			svc := dbmodel.Service{
 				ServiceName:   "foo",
@@ -470,11 +470,11 @@ func TestSpanWriterParamsTTL(t *testing.T) {
 				OperationName: "bar",
 			}
 
-			w.writeService(serviceIndexName, jsonSpan)
+			w.spanWriter.writeService(serviceIndexName, jsonSpan)
 			time.Sleep(1 * time.Nanosecond)
-			w.writeService(serviceIndexName, jsonSpan)
+			w.spanWriter.writeService(serviceIndexName, jsonSpan)
 			time.Sleep(1 * time.Nanosecond)
-			w.writeService(serviceIndexName, jsonSpan)
+			w.spanWriter.writeService(serviceIndexName, jsonSpan)
 			indexService.AssertNumberOfCalls(t, "Add", test.expectedAddCalls)
 		})
 	}
