@@ -10,14 +10,14 @@ import (
 	"go.uber.org/zap"
 
 	prometheusstore "github.com/jaegertracing/jaeger/internal/storage/metricstore/prometheus/metricstore"
+	"github.com/jaegertracing/jaeger/internal/storage/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore/metricstoremetrics"
 	"github.com/jaegertracing/jaeger/pkg/prometheus/config"
 	"github.com/jaegertracing/jaeger/pkg/telemetry"
-	"github.com/jaegertracing/jaeger/plugin"
 )
 
-var _ plugin.Configurable = (*Factory)(nil)
+var _ storage.Configurable = (*Factory)(nil)
 
 // Factory implements storage.Factory and creates storage components backed by memory store.
 type Factory struct {
@@ -34,12 +34,12 @@ func NewFactory() *Factory {
 	}
 }
 
-// AddFlags implements plugin.Configurable.
+// AddFlags implements storage.Configurable.
 func (f *Factory) AddFlags(flagSet *flag.FlagSet) {
 	f.options.AddFlags(flagSet)
 }
 
-// InitFromViper implements plugin.Configurable.
+// InitFromViper implements storage.Configurable.
 func (f *Factory) InitFromViper(v *viper.Viper, logger *zap.Logger) {
 	if err := f.options.InitFromViper(v); err != nil {
 		logger.Panic("Failed to initialize metrics storage factory", zap.Error(err))

@@ -12,9 +12,9 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
+	"github.com/jaegertracing/jaeger/internal/cache"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/spanstoremetrics"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/spanstore/internal/dbmodel"
-	"github.com/jaegertracing/jaeger/pkg/cache"
 	"github.com/jaegertracing/jaeger/pkg/es"
 	cfg "github.com/jaegertracing/jaeger/pkg/es/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
@@ -44,6 +44,10 @@ type SpanWriter struct {
 	spanServiceIndex spanAndServiceIndexFn
 }
 
+type SpanWriterV1 struct {
+	spanWriter *SpanWriter
+}
+
 // SpanWriterParams holds constructor parameters for NewSpanWriter
 type SpanWriterParams struct {
 	Client              func() es.Client
@@ -58,6 +62,13 @@ type SpanWriterParams struct {
 	UseReadWriteAliases bool
 	WriteAliasSuffix    string
 	ServiceCacheTTL     time.Duration
+}
+
+// NewSpanWriterV1 returns the SpanWriterV1 for use
+func NewSpanWriterV1(p SpanWriterParams) *SpanWriterV1 {
+	return &SpanWriterV1{
+		spanWriter: NewSpanWriter(p),
+	}
 }
 
 // NewSpanWriter creates a new SpanWriter for use
@@ -87,6 +98,11 @@ func NewSpanWriter(p SpanWriterParams) *SpanWriter {
 		spanConverter:    dbmodel.NewFromDomain(p.AllTagsAsFields, p.TagKeysAsFields, p.TagDotReplacement),
 		spanServiceIndex: getSpanAndServiceIndexFn(p, writeAliasSuffix),
 	}
+}
+
+// CreateTemplates creates index templates.
+func (s *SpanWriterV1) CreateTemplates(spanTemplate, serviceTemplate string, indexPrefix cfg.IndexPrefix) error {
+	return s.spanWriter.CreateTemplates(spanTemplate, serviceTemplate, indexPrefix)
 }
 
 // CreateTemplates creates index templates.
@@ -121,20 +137,30 @@ func getSpanAndServiceIndexFn(p SpanWriterParams, writeAlias string) spanAndServ
 }
 
 // WriteSpan writes a span and its corresponding service:operation in ElasticSearch
-func (s *SpanWriter) WriteSpan(_ context.Context, span *model.Span) error {
-	spanIndexName, serviceIndexName := s.spanServiceIndex(span.StartTime)
-	jsonSpan := s.spanConverter.FromDomainEmbedProcess(span)
+func (s *SpanWriter) WriteSpan(spanStartTime time.Time, span *dbmodel.Span) {
+	spanIndexName, serviceIndexName := s.spanServiceIndex(spanStartTime)
 	if serviceIndexName != "" {
-		s.writeService(serviceIndexName, jsonSpan)
+		s.writeService(serviceIndexName, span)
 	}
-	s.writeSpan(spanIndexName, jsonSpan)
+	s.writeSpan(spanIndexName, span)
 	s.logger.Debug("Wrote span to ES index", zap.String("index", spanIndexName))
+}
+
+// WriteSpan writes a span and its corresponding service:operation in ElasticSearch
+func (s *SpanWriterV1) WriteSpan(_ context.Context, span *model.Span) error {
+	jsonSpan := s.spanWriter.spanConverter.FromDomainEmbedProcess(span)
+	s.spanWriter.WriteSpan(span.StartTime, jsonSpan)
 	return nil
 }
 
 // Close closes SpanWriter
 func (s *SpanWriter) Close() error {
 	return s.client().Close()
+}
+
+// Close closes SpanWriter
+func (s *SpanWriterV1) Close() error {
+	return s.spanWriter.Close()
 }
 
 func keyInCache(key string, c cache.Cache) bool {

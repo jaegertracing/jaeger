@@ -5,6 +5,7 @@ package v1adapter
 
 import (
 	"context"
+	"iter"
 	"testing"
 	"time"
 
@@ -18,7 +19,6 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	tracestoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
-	"github.com/jaegertracing/jaeger/pkg/iter"
 )
 
 func TestSpanReader_GetTrace(t *testing.T) {
@@ -106,7 +106,9 @@ func TestSpanReader_GetTrace(t *testing.T) {
 						TraceID:       model.NewTraceID(1, 2),
 						SpanID:        model.NewSpanID(3),
 						OperationName: "span",
-						Process:       model.NewProcess("service", nil),
+						References:    []model.SpanRef{},
+						Tags:          make([]model.KeyValue, 0),
+						Process:       model.NewProcess("service", make([]model.KeyValue, 0)),
 						StartTime:     time.Unix(0, 0).UTC(),
 					},
 				},
@@ -244,6 +246,7 @@ func TestSpanReader_FindTraces(t *testing.T) {
 			},
 			expectedQuery: tracestore.TraceQueryParams{
 				ServiceName: "service1",
+				Attributes:  pcommon.NewMap(),
 			},
 			err:         assert.AnError,
 			expectedErr: assert.AnError,
@@ -255,6 +258,7 @@ func TestSpanReader_FindTraces(t *testing.T) {
 			},
 			expectedQuery: tracestore.TraceQueryParams{
 				ServiceName: "service1",
+				Attributes:  pcommon.NewMap(),
 			},
 			traces:         []ptrace.Traces{},
 			expectedTraces: nil,
@@ -266,6 +270,7 @@ func TestSpanReader_FindTraces(t *testing.T) {
 			},
 			expectedQuery: tracestore.TraceQueryParams{
 				ServiceName: "service1",
+				Attributes:  pcommon.NewMap(),
 			},
 			traces: func() []ptrace.Traces {
 				traces1 := ptrace.NewTraces()
@@ -297,7 +302,9 @@ func TestSpanReader_FindTraces(t *testing.T) {
 							TraceID:       model.NewTraceID(1, 2),
 							SpanID:        model.NewSpanID(3),
 							OperationName: "span1",
-							Process:       model.NewProcess("service1", nil),
+							References:    make([]model.SpanRef, 0),
+							Tags:          model.KeyValues{},
+							Process:       model.NewProcess("service1", make([]model.KeyValue, 0)),
 							StartTime:     time.Unix(0, 0).UTC(),
 						},
 					},
@@ -308,7 +315,9 @@ func TestSpanReader_FindTraces(t *testing.T) {
 							TraceID:       model.NewTraceID(4, 5),
 							SpanID:        model.NewSpanID(6),
 							OperationName: "span2",
-							Process:       model.NewProcess("service1", nil),
+							References:    make([]model.SpanRef, 0),
+							Tags:          model.KeyValues{},
+							Process:       model.NewProcess("service1", make([]model.KeyValue, 0)),
 							StartTime:     time.Unix(0, 0).UTC(),
 						},
 					},
@@ -336,7 +345,7 @@ func TestSpanReader_FindTraceIDs(t *testing.T) {
 		name             string
 		query            *spanstore.TraceQueryParameters
 		expectedQuery    tracestore.TraceQueryParams
-		traceIDs         []pcommon.TraceID
+		traceIDs         []tracestore.FoundTraceID
 		expectedTraceIDs []model.TraceID
 		err              error
 		expectedErr      error
@@ -348,6 +357,7 @@ func TestSpanReader_FindTraceIDs(t *testing.T) {
 			},
 			expectedQuery: tracestore.TraceQueryParams{
 				ServiceName: "service1",
+				Attributes:  pcommon.NewMap(),
 			},
 			err:         assert.AnError,
 			expectedErr: assert.AnError,
@@ -359,8 +369,9 @@ func TestSpanReader_FindTraceIDs(t *testing.T) {
 			},
 			expectedQuery: tracestore.TraceQueryParams{
 				ServiceName: "service1",
+				Attributes:  pcommon.NewMap(),
 			},
-			traceIDs:         []pcommon.TraceID{},
+			traceIDs:         []tracestore.FoundTraceID{},
 			expectedTraceIDs: nil,
 		},
 		{
@@ -370,10 +381,15 @@ func TestSpanReader_FindTraceIDs(t *testing.T) {
 			},
 			expectedQuery: tracestore.TraceQueryParams{
 				ServiceName: "service1",
+				Attributes:  pcommon.NewMap(),
 			},
-			traceIDs: []pcommon.TraceID{
-				pcommon.TraceID([16]byte{0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 2}),
-				pcommon.TraceID([16]byte{0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 4}),
+			traceIDs: []tracestore.FoundTraceID{
+				{
+					TraceID: [16]byte{0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 2},
+				},
+				{
+					TraceID: [16]byte{0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 4},
+				},
 			},
 			expectedTraceIDs: []model.TraceID{
 				model.NewTraceID(1, 2),
@@ -385,7 +401,7 @@ func TestSpanReader_FindTraceIDs(t *testing.T) {
 	for _, test := range tests {
 		tr := tracestoremocks.Reader{}
 		tr.On("FindTraceIDs", mock.Anything, test.expectedQuery).
-			Return(iter.Seq2[[]pcommon.TraceID, error](func(yield func([]pcommon.TraceID, error) bool) {
+			Return(iter.Seq2[[]tracestore.FoundTraceID, error](func(yield func([]tracestore.FoundTraceID, error) bool) {
 				yield(test.traceIDs, test.err)
 			})).Once()
 

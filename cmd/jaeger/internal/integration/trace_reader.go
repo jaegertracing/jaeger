@@ -8,21 +8,21 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"iter"
 	"math"
 	"strings"
 
-	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
 
+	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
-	"github.com/jaegertracing/jaeger/pkg/iter"
 	"github.com/jaegertracing/jaeger/ports"
 )
 
@@ -113,7 +113,7 @@ func (r *traceReader) FindTraces(
 	query tracestore.TraceQueryParams,
 ) iter.Seq2[[]ptrace.Traces, error] {
 	return func(yield func([]ptrace.Traces, error) bool) {
-		if query.NumTraces > math.MaxInt32 {
+		if query.SearchDepth > math.MaxInt32 {
 			yield(nil, fmt.Errorf("NumTraces must not be greater than %d", math.MaxInt32))
 			return
 		}
@@ -121,13 +121,13 @@ func (r *traceReader) FindTraces(
 			Query: &api_v3.TraceQueryParameters{
 				ServiceName:   query.ServiceName,
 				OperationName: query.OperationName,
-				Attributes:    query.Tags,
+				Attributes:    jptrace.PcommonMapToPlainMap(query.Attributes),
 				StartTimeMin:  query.StartTimeMin,
 				StartTimeMax:  query.StartTimeMax,
 				DurationMin:   query.DurationMin,
 				DurationMax:   query.DurationMax,
 				//nolint: gosec // G115
-				SearchDepth: int32(query.NumTraces),
+				SearchDepth: int32(query.SearchDepth),
 				RawTraces:   true,
 			},
 		})
@@ -138,12 +138,12 @@ func (r *traceReader) FindTraces(
 func (*traceReader) FindTraceIDs(
 	_ context.Context,
 	_ tracestore.TraceQueryParams,
-) iter.Seq2[[]pcommon.TraceID, error] {
+) iter.Seq2[[]tracestore.FoundTraceID, error] {
 	panic("not implemented")
 }
 
 type traceStream interface {
-	Recv() (*api_v3.TracesData, error)
+	Recv() (*jptrace.TracesData, error)
 }
 
 // consumeTraces reads the stream and calls yield for each chunk.

@@ -38,6 +38,23 @@ func TestIndexRollover_FailIfILMNotPresent(t *testing.T) {
 	assert.Empty(t, indices)
 }
 
+func TestIndexRollover_Idempotency(t *testing.T) {
+	SkipUnlessEnv(t, "elasticsearch", "opensearch")
+	t.Cleanup(func() {
+		testutils.VerifyGoLeaksOnceForES(t)
+	})
+	client, err := createESClient(t, getESHttpClient(t))
+	require.NoError(t, err)
+	// Make sure that es is clean before the test!
+	cleanES(t, client, defaultILMPolicyName)
+	err = runEsRollover("init", []string{}, false)
+	require.NoError(t, err)
+	// Run again and it should return without any error
+	err = runEsRollover("init", []string{}, false)
+	require.NoError(t, err)
+	cleanES(t, client, defaultILMPolicyName)
+}
+
 func TestIndexRollover_CreateIndicesWithILM(t *testing.T) {
 	SkipUnlessEnv(t, "elasticsearch", "opensearch")
 	t.Cleanup(func() {

@@ -5,12 +5,12 @@ package jaegerquery
 
 import (
 	"github.com/asaskevich/govalidator"
-	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/confmap/xconfmap"
 
 	queryApp "github.com/jaegertracing/jaeger/cmd/query/app"
 )
 
-var _ component.ConfigValidator = (*Config)(nil)
+var _ xconfmap.Validator = (*Config)(nil)
 
 // Config represents the configuration for jaeger-query,
 type Config struct {

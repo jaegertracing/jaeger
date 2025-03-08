@@ -5,6 +5,7 @@ package v1adapter
 
 import (
 	"errors"
+	"iter"
 	"testing"
 	"time"
 
@@ -15,7 +16,7 @@ import (
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/jptrace"
-	"github.com/jaegertracing/jaeger/pkg/iter"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
 func TestProtoFromTraces_AddsWarnings(t *testing.T) {
@@ -131,7 +132,7 @@ func TestV1TracesFromSeq2(t *testing.T) {
 							TraceID:       model.NewTraceID(2, 3),
 							SpanID:        model.NewSpanID(1),
 							OperationName: "op-success-a",
-							Process:       model.NewProcess(processNoServiceName, nil),
+							Process:       model.NewProcess(processNoServiceName, make([]model.KeyValue, 0)),
 							StartTime:     startTime,
 						},
 					},
@@ -164,13 +165,13 @@ func TestV1TracesFromSeq2(t *testing.T) {
 							TraceID:       model.NewTraceID(2, 3),
 							SpanID:        model.NewSpanID(1),
 							OperationName: "op-two-chunks-a",
-							Process:       model.NewProcess(processNoServiceName, nil),
+							Process:       model.NewProcess(processNoServiceName, make([]model.KeyValue, 0)),
 							StartTime:     startTime,
 						}, {
 							TraceID:       model.NewTraceID(2, 3),
 							SpanID:        model.NewSpanID(2),
 							OperationName: "op-two-chunks-b",
-							Process:       model.NewProcess(processNoServiceName, nil),
+							Process:       model.NewProcess(processNoServiceName, make([]model.KeyValue, 0)),
 							StartTime:     startTime,
 						},
 					},
@@ -287,19 +288,19 @@ func TestV1TraceToOtelTrace_ReturnEmptyOtelTrace(t *testing.T) {
 func TestV1TraceIDsFromSeq2(t *testing.T) {
 	testCases := []struct {
 		name          string
-		seqTraceIDs   iter.Seq2[[]pcommon.TraceID, error]
+		seqTraceIDs   iter.Seq2[[]tracestore.FoundTraceID, error]
 		expectedIDs   []model.TraceID
 		expectedError error
 	}{
 		{
 			name:          "empty sequence",
-			seqTraceIDs:   func(func([]pcommon.TraceID, error) bool) {},
+			seqTraceIDs:   func(func([]tracestore.FoundTraceID, error) bool) {},
 			expectedIDs:   nil,
 			expectedError: nil,
 		},
 		{
 			name: "sequence with error",
-			seqTraceIDs: func(yield func([]pcommon.TraceID, error) bool) {
+			seqTraceIDs: func(yield func([]tracestore.FoundTraceID, error) bool) {
 				yield(nil, assert.AnError)
 			},
 			expectedIDs:   nil,
@@ -307,10 +308,15 @@ func TestV1TraceIDsFromSeq2(t *testing.T) {
 		},
 		{
 			name: "sequence with one chunk of trace IDs",
-			seqTraceIDs: func(yield func([]pcommon.TraceID, error) bool) {
-				traceID1 := pcommon.TraceID([16]byte{0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 3})
-				traceID2 := pcommon.TraceID([16]byte{0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 5})
-				yield([]pcommon.TraceID{traceID1, traceID2}, nil)
+			seqTraceIDs: func(yield func([]tracestore.FoundTraceID, error) bool) {
+				yield([]tracestore.FoundTraceID{
+					{
+						TraceID: pcommon.TraceID([16]byte{0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 3}),
+					},
+					{
+						TraceID: pcommon.TraceID([16]byte{0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 5}),
+					},
+				}, nil)
 			},
 			expectedIDs: []model.TraceID{
 				model.NewTraceID(2, 3),
@@ -320,12 +326,12 @@ func TestV1TraceIDsFromSeq2(t *testing.T) {
 		},
 		{
 			name: "sequence with multiple chunks of trace IDs",
-			seqTraceIDs: func(yield func([]pcommon.TraceID, error) bool) {
+			seqTraceIDs: func(yield func([]tracestore.FoundTraceID, error) bool) {
 				traceID1 := pcommon.TraceID([16]byte{0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 3})
 				traceID2 := pcommon.TraceID([16]byte{0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 5})
 				traceID3 := pcommon.TraceID([16]byte{0, 0, 0, 0, 0, 0, 0, 6, 0, 0, 0, 0, 0, 0, 0, 7})
-				yield([]pcommon.TraceID{traceID1}, nil)
-				yield([]pcommon.TraceID{traceID2, traceID3}, nil)
+				yield([]tracestore.FoundTraceID{{TraceID: traceID1}}, nil)
+				yield([]tracestore.FoundTraceID{{TraceID: traceID2}, {TraceID: traceID3}}, nil)
 			},
 			expectedIDs: []model.TraceID{
 				model.NewTraceID(2, 3),

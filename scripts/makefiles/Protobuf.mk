@@ -24,7 +24,8 @@ PATCHED_OTEL_PROTO_DIR = proto-gen/.patched-otel-proto
 PROTO_INCLUDES := \
 	-Iidl/proto/api_v2 \
 	-Imodel/proto/metrics \
-	-I/usr/include/github.com/gogo/protobuf
+	-I/usr/include/github.com/gogo/protobuf \
+	-Iidl/opentelemetry-proto
 
 # Remapping of std types to gogo types (must not contain spaces)
 PROTO_GOGO_MAPPINGS := $(shell echo \
@@ -79,6 +80,7 @@ endef
 
 .PHONY: proto
 proto: proto-storage-v1 \
+	proto-storage-v2 \
 	proto-hotrod \
 	proto-zipkin \
 	proto-openmetrics \
@@ -107,6 +109,11 @@ proto-storage-v1:
 		--go_out=$(PWD)/internal/storage/v1/grpc/proto/ \
 		internal/storage/v1/grpc/proto/storage_test.proto
 
+.PHONY: proto-storage-v2
+proto-storage-v2:
+	$(call proto_compile, proto-gen/storage/v2, internal/storage/v2/grpc/trace_storage.proto, -Iinternal/storage/v2/grpc/)
+	$(call proto_compile, proto-gen/storage/v2, internal/storage/v2/grpc/dependency_storage.proto, -Iinternal/storage/v2/grpc/)
+
 .PHONY: proto-hotrod
 proto-hotrod:
 	$(call proto_compile, , examples/hotrod/services/driver/driver.proto)
@@ -134,7 +141,7 @@ patch-api-v3:
 .PHONY: proto-api-v3
 proto-api-v3: patch-api-v3
 	$(call proto_compile, $(API_V3_PATH), $(API_V3_PATCHED), -I$(API_V3_PATCHED_DIR) -Iidl/opentelemetry-proto)
-	@echo "🏗️  replace TracesData with internal custom type"
-	$(SED) -i 's/v1.TracesData/TracesData/g' $(API_V3_PATH)/query_service.pb.go
-	@echo "🏗️  remove OTEL import because we're not using any other OTLP types"
+	@echo "🏗️  replace first instance of OTEL import with internal type"
+	$(SED) -i '0,/go.opentelemetry.io\/proto\/otlp\/trace\/v1/s|go.opentelemetry.io/proto/otlp/trace/v1|github.com/jaegertracing/jaeger/internal/jptrace|' $(API_V3_PATH)/query_service.pb.go
+	@echo "🏗️  remove all remaining OTEL imports because we're not using any other OTLP types"
 	$(SED) -i 's+^.*v1 "go.opentelemetry.io/proto/otlp/trace/v1".*$$++' $(API_V3_PATH)/query_service.pb.go

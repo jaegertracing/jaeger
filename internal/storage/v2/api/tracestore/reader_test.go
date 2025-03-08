@@ -8,21 +8,25 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/pdata/pcommon"
 
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 )
 
 func TestToSpanStoreQueryParameters(t *testing.T) {
 	now := time.Now()
+	attributes := pcommon.NewMap()
+	attributes.PutStr("tag-a", "val-a")
+
 	query := &TraceQueryParams{
 		ServiceName:   "service",
 		OperationName: "operation",
-		Tags:          map[string]string{"tag-a": "val-a"},
+		Attributes:    attributes,
 		StartTimeMin:  now,
 		StartTimeMax:  now.Add(time.Minute),
 		DurationMin:   time.Minute,
 		DurationMax:   time.Hour,
-		NumTraces:     10,
+		SearchDepth:   10,
 	}
 	expected := &spanstore.TraceQueryParameters{
 		ServiceName:   "service",
