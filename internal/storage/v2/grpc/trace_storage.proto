@@ -2,7 +2,6 @@ syntax = "proto3";
 
 package jaeger.storage.v2;
 
-import "gogoproto/gogo.proto";
 import "google/protobuf/duration.proto";
 import "google/protobuf/timestamp.proto";
 import "opentelemetry/proto/trace/v1/trace.proto";
