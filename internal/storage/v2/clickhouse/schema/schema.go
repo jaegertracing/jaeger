@@ -77,7 +77,8 @@ func CreateSchemaIfNotPresent(pool client.Pool) error {
 	}
 
 	for _, query := range queries {
-		if pool.Do(context.Background(), query) != nil {
+		err := pool.Do(context.Background(), query)
+		if err != nil {
 			return err
 		}
 	}

@@ -32,6 +32,13 @@ func TestConvertToTraces(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "parentSpan id is empty")
 	})
+
+	t.Run("should successfully convert model to traces", func(t *testing.T) {
+		model := Model{TraceId: "00010001000100010001000100010001", SpanId: "0000000000000001", ParentSpanId: "0000000000000001"}
+		pt, err := model.ConvertToTraces()
+		require.NoError(t, err)
+		require.NotNil(t, pt)
+	})
 }
 
 func TestConvertLink(t *testing.T) {
@@ -51,6 +58,17 @@ func TestConvertLink(t *testing.T) {
 		model := Model{LinksTraceId: []string{"0x1"}, LinksSpanId: []string{"invalidSpanId"}}
 		err := model.convertLink(links, 0)
 		assert.Error(t, err)
+	})
+	t.Run("should successfully convert link when valid data is provided", func(t *testing.T) {
+		links := ptrace.NewSpan().Links().AppendEmpty()
+		model := Model{
+			LinksTraceId:    []string{"00010001000100010001000100010001"},
+			LinksSpanId:     []string{"0000000000000001"},
+			LinksTraceState: []string{"ha?"},
+			LinksAttributes: make([]map[string]string, 1),
+		}
+		err := model.convertLink(links, 0)
+		require.NoError(t, err)
 	})
 }
 
