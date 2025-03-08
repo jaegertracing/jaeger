@@ -91,10 +91,10 @@ type Service struct {
 	OperationName string `json:"operationName"`
 }
 
-// Operation is the struct for span operation properties. The reason for a struct
-// not an alias of string is because it will contain kind property of the span in future
+// Operation is the struct for span operation properties.
 type Operation struct {
-	Name string
+	Name     string
+	SpanKind string
 }
 
 // TraceQueryParameters contains parameters of a trace query.

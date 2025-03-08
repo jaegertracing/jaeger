@@ -110,7 +110,7 @@ type SpanReader struct {
 	useReadWriteAliases     bool
 	logger                  *zap.Logger
 	tracer                  trace.Tracer
-	dotManager              dbmodel.DotManager
+	dotManager              dbmodel.DotReplacer
 }
 
 // SpanReaderParams holds constructor params for NewSpanReader
@@ -164,7 +164,7 @@ func NewSpanReader(p SpanReaderParams) *SpanReader {
 		useReadWriteAliases: p.UseReadWriteAliases,
 		logger:              p.Logger,
 		tracer:              p.Tracer,
-		dotManager:          dbmodel.NewDotManager(p.TagDotReplacement),
+		dotManager:          dbmodel.NewDotReplacer(p.TagDotReplacement),
 	}
 }
 
@@ -320,7 +320,6 @@ func (s *SpanReaderV1) GetOperations(ctx context.Context, query spanstore.Operat
 	}
 	// TODO: https://github.com/jaegertracing/jaeger/issues/1923
 	// 	- return the operations with actual span kind that meet requirement
-	//  - To do this we have to introduce an Operation struct in dbmodel
 	var result []spanstore.Operation
 	for _, operation := range operations {
 		result = append(result, spanstore.Operation{

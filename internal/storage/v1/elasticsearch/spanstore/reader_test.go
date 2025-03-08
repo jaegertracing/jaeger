@@ -672,7 +672,7 @@ func returnSearchFunc(typ string, r *spanReaderTest) (any, error) {
 		)
 	case traceIDAggregation:
 		query := &spanstore.TraceQueryParameters{}
-		return r.reader.spanReader.FindTraceIDs(context.Background(), query.ServiceName, query.OperationName, query.Tags, query.StartTimeMin, query.StartTimeMax, query.DurationMin, query.DurationMax, query.NumTraces)
+		return r.reader.spanReader.FindTraceIDs(context.Background(), esTraceQueryParamsFromSpanStoreTraceQueryParams(query))
 	}
 	return nil, errors.New("Specify services, operations, traceIDs only")
 }
@@ -1072,7 +1072,7 @@ func TestSpanReader_buildFindTraceIDsQuery(t *testing.T) {
 			},
 		}
 
-		actualQuery := r.reader.spanReader.buildFindTraceIDsQuery(traceQuery.ServiceName, traceQuery.OperationName, traceQuery.Tags, traceQuery.StartTimeMin, traceQuery.StartTimeMax, traceQuery.DurationMin, traceQuery.DurationMax)
+		actualQuery := r.reader.spanReader.buildFindTraceIDsQuery(esTraceQueryParamsFromSpanStoreTraceQueryParams(traceQuery))
 		actual, err := actualQuery.Source()
 		require.NoError(t, err)
 		expectedQuery := elastic.NewBoolQuery().
