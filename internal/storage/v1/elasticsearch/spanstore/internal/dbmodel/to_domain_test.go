@@ -340,7 +340,7 @@ func TestTagsMap(t *testing.T) {
 }
 
 func TestDotReplacement(t *testing.T) {
-	converter := NewDotReplacer("#")
+	converter := NewToDomain("#")
 	k := "foo.foo"
 	assert.Equal(t, k, converter.ReplaceDotReplacement(converter.ReplaceDot(k)))
 }
