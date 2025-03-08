@@ -672,7 +672,15 @@ func returnSearchFunc(typ string, r *spanReaderTest) (any, error) {
 		)
 	case traceIDAggregation:
 		query := &spanstore.TraceQueryParameters{}
-		return r.reader.spanReader.FindTraceIDs(context.Background(), esTraceQueryParamsFromSpanStoreTraceQueryParams(query))
+		traceIds, err := r.reader.spanReader.findTraceIDs(context.Background(), esTraceQueryParamsFromSpanStoreTraceQueryParams(query))
+		if err != nil {
+			return nil, err
+		}
+		traceIdStr := make([]string, len(traceIds))
+		for i, traceId := range traceIds {
+			traceIdStr[i] = string(traceId)
+		}
+		return traceIdStr, nil
 	}
 	return nil, errors.New("Specify services, operations, traceIDs only")
 }
@@ -948,12 +956,12 @@ func TestFindTraceIDs(t *testing.T) {
 }
 
 func TestTraceIDsStringsToModelsConversion(t *testing.T) {
-	traceIDs, err := convertTraceIDsStringsToModels([]string{"1", "2", "3"})
+	traceIDs, err := convertTraceIDsStringsToModels([]dbmodel.TraceID{"1", "2", "3"})
 	require.NoError(t, err)
 	assert.Len(t, traceIDs, 3)
 	assert.Equal(t, model.NewTraceID(0, 1), traceIDs[0])
 
-	traceIDs, err = convertTraceIDsStringsToModels([]string{"dsfjsdklfjdsofdfsdbfkgbgoaemlrksdfbsdofgerjl"})
+	traceIDs, err = convertTraceIDsStringsToModels([]dbmodel.TraceID{"dsfjsdklfjdsofdfsdbfkgbgoaemlrksdfbsdofgerjl"})
 	require.EqualError(t, err, "making traceID from string 'dsfjsdklfjdsofdfsdbfkgbgoaemlrksdfbsdofgerjl' failed: TraceID cannot be longer than 32 hex characters: dsfjsdklfjdsofdfsdbfkgbgoaemlrksdfbsdofgerjl")
 	assert.Empty(t, traceIDs)
 }
@@ -1270,10 +1278,10 @@ func TestSpanReader_ArchiveTraces(t *testing.T) {
 }
 
 func TestConvertTraceIDsStringsToModels(t *testing.T) {
-	ids, err := convertTraceIDsStringsToModels([]string{"1", "2", "01", "02", "001", "002"})
+	ids, err := convertTraceIDsStringsToModels([]dbmodel.TraceID{"1", "2", "01", "02", "001", "002"})
 	require.NoError(t, err)
 	assert.Equal(t, []model.TraceID{model.NewTraceID(0, 1), model.NewTraceID(0, 2)}, ids)
-	_, err = convertTraceIDsStringsToModels([]string{"1", "2", "01", "02", "001", "002", "blah"})
+	_, err = convertTraceIDsStringsToModels([]dbmodel.TraceID{"1", "2", "01", "02", "001", "002", "blah"})
 	require.Error(t, err)
 }
 
