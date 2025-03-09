@@ -6,8 +6,6 @@ package spanstore
 import (
 	"context"
 
-	"go.opentelemetry.io/otel/trace"
-
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/spanstore/internal/dbmodel"
@@ -17,7 +15,6 @@ import (
 type SpanReaderV1 struct {
 	spanReader    *SpanReader
 	spanConverter dbmodel.ToDomain
-	tracer        trace.Tracer
 }
 
 // NewSpanReaderV1 returns an instance of SpanReaderV1
@@ -25,7 +22,6 @@ func NewSpanReaderV1(p SpanReaderParams) *SpanReaderV1 {
 	return &SpanReaderV1{
 		spanReader:    NewSpanReader(p),
 		spanConverter: dbmodel.NewToDomain(p.TagDotReplacement),
-		tracer:        p.Tracer,
 	}
 }
 
