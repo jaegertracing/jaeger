@@ -43,11 +43,20 @@ func (config *AuthenticationConfig) SetConfiguration(saramaConfig *sarama.Config
 	if strings.Trim(authentication, " ") == "" {
 		authentication = none
 	}
-	if config.Authentication == tls {
+
+	tlsConfigured := config.Authentication == tls ||
+		config.TLS.CAFile != "" ||
+		config.TLS.CertFile != "" ||
+		config.TLS.KeyFile != "" ||
+		config.TLS.ServerName != "" ||
+		config.TLS.IncludeSystemCACertsPool
+
+	if tlsConfigured && !config.TLS.Insecure {
 		if err := setTLSConfiguration(&config.TLS, saramaConfig, logger); err != nil {
 			return err
 		}
 	}
+
 	switch authentication {
 	case none:
 		return nil
@@ -75,19 +84,25 @@ func (config *AuthenticationConfig) InitFromViper(configPrefix string, v *viper.
 	config.Kerberos.KeyTabPath = v.GetString(configPrefix + kerberosPrefix + suffixKerberosKeyTab)
 	config.Kerberos.DisablePAFXFast = v.GetBool(configPrefix + kerberosPrefix + suffixKerberosDisablePAFXFAST)
 
-	if config.Authentication == tls {
-		if !v.IsSet(configPrefix + ".tls.enabled") {
-			v.Set(configPrefix+".tls.enabled", "true")
-		}
+	// Initialize TLS config with default values
+	var tlsCfg configtls.ClientConfig
+
+	// For TLS authentication or when TLS is enabled, process TLS options
+	if config.Authentication == tls || v.GetBool(configPrefix+".tls.enabled") {
 		tlsClientConfig := tlscfg.ClientFlagsConfig{
 			Prefix: configPrefix,
 		}
-		tlsCfg, err := tlsClientConfig.InitFromViper(v)
+		var err error
+		tlsCfg, err = tlsClientConfig.InitFromViper(v)
 		if err != nil {
 			return fmt.Errorf("failed to process Kafka TLS options: %w", err)
 		}
-		config.TLS = tlsCfg
+		// Set IncludeSystemCACertsPool to true for TLS authentication
+		tlsCfg.IncludeSystemCACertsPool = (config.Authentication == tls)
+		tlsCfg.Insecure = false
 	}
+
+	config.TLS = tlsCfg
 
 	config.PlainText.Username = v.GetString(configPrefix + plainTextPrefix + suffixPlainTextUsername)
 	config.PlainText.Password = v.GetString(configPrefix + plainTextPrefix + suffixPlainTextPassword)
