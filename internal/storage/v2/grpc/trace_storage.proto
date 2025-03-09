@@ -130,9 +130,9 @@ message FindTraceIDsResponse {
 }
 
 // Chunking requirements:
-// - A single TracesData chunk MUST NOT contain spans from multiple traces.
-// - Large traces MAY be split across multiple, *consecutive* TracesData chunks.
-// - Each returned TracesData object MUST NOT be empty.
+// - A single chunk MUST NOT contain spans from multiple traces.
+// - Large traces MAY be split across multiple, *consecutive* chunks.
+// - Each TracesData object in the chunk MUST NOT be empty.
 message TracesChunk {
   repeated opentelemetry.proto.trace.v1.TracesData traces = 1;
 }
