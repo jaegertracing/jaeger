@@ -29,7 +29,7 @@ func NewTraceReader(tracedConn *grpc.ClientConn) *TraceReader {
 	}
 }
 
-func (c *TraceReader) GetTraces(
+func (t *TraceReader) GetTraces(
 	ctx context.Context,
 	traceIDs ...tracestore.GetTraceParams,
 ) iter.Seq2[[]ptrace.Traces, error] {
@@ -42,7 +42,7 @@ func (c *TraceReader) GetTraces(
 				EndTime:   traceID.End,
 			})
 		}
-		stream, err := c.client.GetTraces(ctx, &storage.GetTracesRequest{
+		stream, err := t.client.GetTraces(ctx, &storage.GetTracesRequest{
 			Query: query,
 		})
 		if err != nil {
@@ -60,27 +60,27 @@ func (c *TraceReader) GetTraces(
 	}
 }
 
-func (c *TraceReader) GetServices(ctx context.Context) ([]string, error) {
+func (*TraceReader) GetServices(context.Context) ([]string, error) {
 	panic("not implemented")
 }
 
-func (c *TraceReader) GetOperations(
-	ctx context.Context,
-	query tracestore.OperationQueryParams,
+func (*TraceReader) GetOperations(
+	context.Context,
+	tracestore.OperationQueryParams,
 ) ([]tracestore.Operation, error) {
 	panic("not implemented")
 }
 
-func (c *TraceReader) FindTraces(
-	ctx context.Context,
-	query tracestore.TraceQueryParams,
+func (*TraceReader) FindTraces(
+	context.Context,
+	tracestore.TraceQueryParams,
 ) iter.Seq2[[]ptrace.Traces, error] {
 	panic("not implemented")
 }
 
-func (c *TraceReader) FindTraceIDs(
-	ctx context.Context,
-	query tracestore.TraceQueryParams,
+func (*TraceReader) FindTraceIDs(
+	context.Context,
+	tracestore.TraceQueryParams,
 ) iter.Seq2[[]tracestore.FoundTraceID, error] {
 	panic("not implemented")
 }

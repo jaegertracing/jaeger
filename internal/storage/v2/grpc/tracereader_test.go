@@ -1,10 +1,14 @@
+// Copyright (c) 2025 The Jaeger Authors.
+// SPDX-License-Identifier: Apache-2.0
+
 package grpc
 
 import (
 	"context"
 	"testing"
 
-	"github.com/crossdock/crossdock-go/require"
+	"github.com/stretchr/testify/require"
+
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
