@@ -760,7 +760,7 @@ func TestSpanReader_FindTraces(t *testing.T) {
 				},
 			}, nil)
 
-		traceQuery := &spanstore.TraceQueryParameters{
+		traceQuery := &dbmodel.TraceQueryParameters{
 			ServiceName: serviceName,
 			Tags: map[string]string{
 				"hello": "world",
@@ -806,7 +806,7 @@ func TestSpanReader_FindTracesInvalidQuery(t *testing.T) {
 				},
 			}, nil)
 
-		traceQuery := &spanstore.TraceQueryParameters{
+		traceQuery := &dbmodel.TraceQueryParameters{
 			ServiceName: "",
 			Tags: map[string]string{
 				"hello": "world",
@@ -839,7 +839,7 @@ func TestSpanReader_FindTracesAggregationFailure(t *testing.T) {
 				Responses: []*elastic.SearchResult{},
 			}, nil)
 
-		traceQuery := &spanstore.TraceQueryParameters{
+		traceQuery := &dbmodel.TraceQueryParameters{
 			ServiceName: serviceName,
 			Tags: map[string]string{
 				"hello": "world",
@@ -874,7 +874,7 @@ func TestSpanReader_FindTracesNoTraceIDs(t *testing.T) {
 				Responses: []*elastic.SearchResult{},
 			}, nil)
 
-		traceQuery := &spanstore.TraceQueryParameters{
+		traceQuery := &dbmodel.TraceQueryParameters{
 			ServiceName: serviceName,
 			Tags: map[string]string{
 				"hello": "world",
@@ -908,7 +908,7 @@ func TestSpanReader_FindTracesReadTraceFailure(t *testing.T) {
 		mockMultiSearchService(r).
 			Return(nil, errors.New("read error"))
 
-		traceQuery := &spanstore.TraceQueryParameters{
+		traceQuery := &dbmodel.TraceQueryParameters{
 			ServiceName: serviceName,
 			Tags: map[string]string{
 				"hello": "world",
@@ -947,7 +947,7 @@ func TestSpanReader_FindTracesSpanCollectionFailure(t *testing.T) {
 				},
 			}, nil)
 
-		traceQuery := &spanstore.TraceQueryParameters{
+		traceQuery := &dbmodel.TraceQueryParameters{
 			ServiceName: serviceName,
 			Tags: map[string]string{
 				"hello": "world",
@@ -1252,7 +1252,7 @@ func TestSpanReader_GetEmptyIndex(t *testing.T) {
 				Responses: []*elastic.SearchResult{},
 			}, nil)
 
-		traceQuery := &spanstore.TraceQueryParameters{
+		traceQuery := &dbmodel.TraceQueryParameters{
 			ServiceName: serviceName,
 			Tags: map[string]string{
 				"hello": "world",

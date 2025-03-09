@@ -16,7 +16,7 @@ type CoreSpanReader interface {
 	// FindTraceIDs retrieves traces IDs that match the traceQuery
 	FindTraceIDs(ctx context.Context, traceQuery *dbmodel.TraceQueryParameters) ([]dbmodel.TraceID, error)
 	// FindTraces retrieves traces that match the traceQuery
-	FindTraces(ctx context.Context, traceQuery *spanstore.TraceQueryParameters) ([]*model.Trace, error)
+	FindTraces(ctx context.Context, traceQuery *dbmodel.TraceQueryParameters) ([]*model.Trace, error)
 	// GetOperations returns all operations for a specific service traced by Jaeger
 	GetOperations(ctx context.Context, query dbmodel.OperationQueryParameters) ([]dbmodel.Operation, error)
 	// GetServices returns all services traced by Jaeger, ordered by frequency

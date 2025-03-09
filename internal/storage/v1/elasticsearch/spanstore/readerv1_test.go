@@ -49,7 +49,7 @@ func TestSpanReaderV1_FindTraces(t *testing.T) {
 		trace1 := getTestingTrace("service-1")
 		trace2 := getTestingTrace("service-2")
 		traces := []*model.Trace{trace1, trace2}
-		m.On("FindTraces", mock.Anything, mock.AnythingOfType("*spanstore.TraceQueryParameters")).Return(traces, nil)
+		m.On("FindTraces", mock.Anything, mock.AnythingOfType("*dbmodel.TraceQueryParameters")).Return(traces, nil)
 		actual, err := r.FindTraces(context.Background(), &spanstore.TraceQueryParameters{})
 		require.NoError(t, err)
 		assert.Equal(t, traces, actual)
@@ -86,7 +86,7 @@ func TestSpanReaderV1_FindTraceIDs_Errors(t *testing.T) {
 		{
 			name:              "error from conversion",
 			returningTraceIDs: []dbmodel.TraceID{dbmodel.TraceID("wrong-id")},
-			expectedError:     "invalid syntax",
+			expectedError:     "making traceID from string 'wrong-id' failed: strconv.ParseUint: parsing \"wrong-id\": invalid syntax",
 		},
 	}
 	for _, tt := range tests {

@@ -341,11 +341,11 @@ func bucketToTraceIDArray(buckets []*elastic.AggregationBucketKeyItem) ([]dbmode
 }
 
 // FindTraces retrieves traces that match the traceQuery
-func (s *SpanReader) FindTraces(ctx context.Context, traceQuery *spanstore.TraceQueryParameters) ([]*model.Trace, error) {
+func (s *SpanReader) FindTraces(ctx context.Context, traceQuery *dbmodel.TraceQueryParameters) ([]*model.Trace, error) {
 	ctx, span := s.tracer.Start(ctx, "FindTraces")
 	defer span.End()
 
-	uniqueTraceIDs, err := s.FindTraceIDs(ctx, esTraceQueryParamsFromSpanStoreTraceQueryParams(traceQuery))
+	uniqueTraceIDs, err := s.FindTraceIDs(ctx, traceQuery)
 	if err != nil {
 		return nil, es.DetailedError(err)
 	}
@@ -491,28 +491,6 @@ func buildTraceByIDQuery(traceID model.TraceID) elastic.Query {
 	return elastic.NewBoolQuery().Should(
 		elastic.NewTermQuery(traceIDField, traceIDStr).Boost(2),
 		elastic.NewTermQuery(traceIDField, legacyTraceID))
-}
-
-func convertTraceIDsStringsToModels(traceIDs []dbmodel.TraceID) ([]model.TraceID, error) {
-	traceIDsMap := map[model.TraceID]bool{}
-	// https://github.com/jaegertracing/jaeger/pull/1956 added leading zeros to IDs
-	// So we need to also read IDs without leading zeros for compatibility with previously saved data.
-	// That means the input to this function may contain logically identical trace IDs but formatted
-	// with or without padding, and we need to dedupe them.
-	// TODO remove deduping in newer versions, added in Jaeger 1.16
-	traceIDsModels := make([]model.TraceID, 0, len(traceIDs))
-	for _, ID := range traceIDs {
-		traceID, err := model.TraceIDFromString(string(ID))
-		if err != nil {
-			return nil, fmt.Errorf("making traceID from string '%s' failed: %w", ID, err)
-		}
-		if _, ok := traceIDsMap[traceID]; !ok {
-			traceIDsMap[traceID] = true
-			traceIDsModels = append(traceIDsModels, traceID)
-		}
-	}
-
-	return traceIDsModels, nil
 }
 
 func validateQuery(p *dbmodel.TraceQueryParameters) error {

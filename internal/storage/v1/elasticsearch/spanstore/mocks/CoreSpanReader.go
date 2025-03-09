@@ -55,7 +55,7 @@ func (_m *CoreSpanReader) FindTraceIDs(ctx context.Context, traceQuery *dbmodel.
 }
 
 // FindTraces provides a mock function with given fields: ctx, traceQuery
-func (_m *CoreSpanReader) FindTraces(ctx context.Context, traceQuery *apispanstore.TraceQueryParameters) ([]*model.Trace, error) {
+func (_m *CoreSpanReader) FindTraces(ctx context.Context, traceQuery *dbmodel.TraceQueryParameters) ([]*model.Trace, error) {
 	ret := _m.Called(ctx, traceQuery)
 
 	if len(ret) == 0 {
@@ -64,10 +64,10 @@ func (_m *CoreSpanReader) FindTraces(ctx context.Context, traceQuery *apispansto
 
 	var r0 []*model.Trace
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, *apispanstore.TraceQueryParameters) ([]*model.Trace, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, *dbmodel.TraceQueryParameters) ([]*model.Trace, error)); ok {
 		return rf(ctx, traceQuery)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, *apispanstore.TraceQueryParameters) []*model.Trace); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, *dbmodel.TraceQueryParameters) []*model.Trace); ok {
 		r0 = rf(ctx, traceQuery)
 	} else {
 		if ret.Get(0) != nil {
@@ -75,7 +75,7 @@ func (_m *CoreSpanReader) FindTraces(ctx context.Context, traceQuery *apispansto
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, *apispanstore.TraceQueryParameters) error); ok {
+	if rf, ok := ret.Get(1).(func(context.Context, *dbmodel.TraceQueryParameters) error); ok {
 		r1 = rf(ctx, traceQuery)
 	} else {
 		r1 = ret.Error(1)
