@@ -26,7 +26,7 @@ func TestCreateTracesProcessor(t *testing.T) {
 	cfg := createDefaultConfig().(*Config)
 
 	nextConsumer := consumertest.NewNop()
-	set := processortest.NewNopSettings()
+	set := processortest.NewNopSettings(processortest.NopType)
 
 	tracesProcessor, err := createTracesProcessor(ctx, set, cfg, nextConsumer)
 	require.NoError(t, err)
