@@ -14,7 +14,7 @@ import (
 // CoreSpanReader is a DB-Level abstraction which directly deals with database level operations
 type CoreSpanReader interface {
 	// FindTraceIDs retrieves traces IDs that match the traceQuery
-	FindTraceIDs(ctx context.Context, traceQuery *spanstore.TraceQueryParameters) ([]model.TraceID, error)
+	FindTraceIDs(ctx context.Context, traceQuery *dbmodel.TraceQueryParameters) ([]dbmodel.TraceID, error)
 	// FindTraces retrieves traces that match the traceQuery
 	FindTraces(ctx context.Context, traceQuery *spanstore.TraceQueryParameters) ([]*model.Trace, error)
 	// GetOperations returns all operations for a specific service traced by Jaeger

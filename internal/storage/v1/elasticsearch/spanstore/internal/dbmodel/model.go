@@ -4,6 +4,8 @@
 
 package dbmodel
 
+import "time"
+
 // ReferenceType is the reference type of one span to another
 type ReferenceType string
 
@@ -99,4 +101,16 @@ type Operation struct {
 type OperationQueryParameters struct {
 	ServiceName string
 	SpanKind    string
+}
+
+// TraceQueryParameters contains parameters of a trace query.
+type TraceQueryParameters struct {
+	ServiceName   string
+	OperationName string
+	Tags          map[string]string
+	StartTimeMin  time.Time
+	StartTimeMax  time.Time
+	DurationMin   time.Duration
+	DurationMax   time.Duration
+	NumTraces     int
 }

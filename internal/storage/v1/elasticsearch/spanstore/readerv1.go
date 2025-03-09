@@ -66,5 +66,26 @@ func (s *SpanReaderV1) FindTraces(ctx context.Context, traceQuery *spanstore.Tra
 
 // FindTraceIDs retrieves traces IDs that match the traceQuery
 func (s *SpanReaderV1) FindTraceIDs(ctx context.Context, traceQuery *spanstore.TraceQueryParameters) ([]model.TraceID, error) {
-	return s.spanReader.FindTraceIDs(ctx, traceQuery)
+	ids, err := s.spanReader.FindTraceIDs(ctx, esTraceQueryParamsFromSpanStoreTraceQueryParams(traceQuery))
+	if err != nil {
+		return nil, err
+	}
+	traceIds, err := convertTraceIDsStringsToModels(ids)
+	if err != nil {
+		return nil, err
+	}
+	return traceIds, nil
+}
+
+func esTraceQueryParamsFromSpanStoreTraceQueryParams(p *spanstore.TraceQueryParameters) *dbmodel.TraceQueryParameters {
+	return &dbmodel.TraceQueryParameters{
+		ServiceName:   p.ServiceName,
+		OperationName: p.OperationName,
+		Tags:          p.Tags,
+		StartTimeMin:  p.StartTimeMin,
+		StartTimeMax:  p.StartTimeMax,
+		DurationMin:   p.DurationMin,
+		DurationMax:   p.DurationMax,
+		NumTraces:     p.NumTraces,
+	}
 }
