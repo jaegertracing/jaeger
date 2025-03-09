@@ -141,8 +141,6 @@ func withArchiveSpanReader(t *testing.T, readAlias bool, readAliasSuffix string,
 	fn(r)
 }
 
-var _ spanstore.Reader = &SpanReader{} // check API conformance
-
 func TestNewSpanReader(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -632,7 +630,7 @@ func testGet(typ string, t *testing.T) {
 			caption:      typ + " full behavior",
 			searchResult: &elastic.SearchResult{Aggregations: elastic.Aggregations(goodAggregations)},
 			expectedOutput: map[string]any{
-				operationsAggregation: []spanstore.Operation{{Name: "123"}},
+				operationsAggregation: []dbmodel.Operation{{Name: "123"}},
 				"default":             []string{"123"},
 			},
 			expectedError: func() string {
@@ -684,7 +682,7 @@ func returnSearchFunc(typ string, r *spanReaderTest) (any, error) {
 	case operationsAggregation:
 		return r.reader.GetOperations(
 			context.Background(),
-			spanstore.OperationQueryParameters{ServiceName: "someService"},
+			dbmodel.OperationQueryParameters{ServiceName: "someService"},
 		)
 	case traceIDAggregation:
 		return r.reader.findTraceIDs(context.Background(), &spanstore.TraceQueryParameters{})
