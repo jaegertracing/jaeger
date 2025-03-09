@@ -51,7 +51,8 @@ func (s *SpanReaderV1) GetOperations(
 
 	for _, operation := range operations {
 		result = append(result, spanstore.Operation{
-			Name: operation.Name,
+			Name:     operation.Name,
+			SpanKind: operation.SpanKind,
 		})
 	}
 	return result, nil
