@@ -34,9 +34,11 @@ func getTestingTrace(serviceName string) *model.Trace {
 	}}}
 }
 
+var _ spanstore.Reader = &SpanReaderV1{} // check API conformance
+
 func TestSpanReaderV1_GetTrace(t *testing.T) {
 	withSpanReaderV1(func(r *SpanReaderV1, m *mocks.CoreSpanReader) {
-		trace := getTestingTrace("123")
+		trace := getTestingTrace("service-1")
 		m.On("GetTrace", mock.Anything, mock.AnythingOfType("spanstore.GetTraceParameters")).Return(trace, nil)
 		actual, err := r.GetTrace(context.Background(), spanstore.GetTraceParameters{})
 		require.NoError(t, err)
