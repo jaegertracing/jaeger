@@ -75,6 +75,8 @@ var (
 	objectTagFieldList = []string{objectTagsField, objectProcessTagsField}
 
 	nestedTagFieldList = []string{nestedTagsField, nestedProcessTagsField, nestedLogFieldsField}
+
+	_ CoreSpanReader = (*SpanReader)(nil) // check API conformance
 )
 
 // SpanReader can query for and load traces from ElasticSearch

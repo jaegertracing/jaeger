@@ -34,8 +34,6 @@ func getTestingTrace(serviceName string) *model.Trace {
 	}}}
 }
 
-var _ spanstore.Reader = &SpanReaderV1{} // check API conformance
-
 func TestSpanReaderV1_GetTrace(t *testing.T) {
 	withSpanReaderV1(func(r *SpanReaderV1, m *mocks.CoreSpanReader) {
 		trace := getTestingTrace("service-1")

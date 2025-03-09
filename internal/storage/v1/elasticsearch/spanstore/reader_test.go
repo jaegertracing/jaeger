@@ -141,8 +141,6 @@ func withArchiveSpanReader(t *testing.T, readAlias bool, readAliasSuffix string,
 	fn(r)
 }
 
-var _ CoreSpanReader = &SpanReader{} // check API conformance
-
 func TestNewSpanReader(t *testing.T) {
 	tests := []struct {
 		name       string

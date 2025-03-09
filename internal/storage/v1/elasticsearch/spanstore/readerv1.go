@@ -11,6 +11,8 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/spanstore/internal/dbmodel"
 )
 
+var _ spanstore.Reader = (*SpanReaderV1)(nil) // check API conformance
+
 // SpanReaderV1	is a wrapper around SpanReader
 type SpanReaderV1 struct {
 	spanReader CoreSpanReader
