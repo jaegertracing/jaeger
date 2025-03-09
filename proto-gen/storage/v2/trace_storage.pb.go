@@ -986,8 +986,15 @@ func (m *FindTraceIDsResponse) GetTraceIds() []*FoundTraceID {
 	return nil
 }
 
-// TracesChunk is a chunk of traces returned by the storage backend.
-// Each TracesData object contains spans belonging to a single trace.
+// TracesChunk is the payload type used in streaming responses that contain traces.
+//
+// It consists of a batch of trace data, where each TracesData object contains spans
+// belonging to a single trace. Multiple traces may be included within a single TracesChunk.
+//
+// Chunking requirements:
+// - Each TracesData object within TracesChunk MUST NOT contain spans from multiple traces.
+// - Large individual traces MAY be split across multiple, *consecutive* TracesData objects.
+// - Each TracesData object MUST NOT be empty.
 type TracesChunk struct {
 	Traces               []*v1.TracesData `protobuf:"bytes,1,rep,name=traces,proto3" json:"traces,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}         `json:"-"`
@@ -1136,11 +1143,6 @@ const _ = grpc.SupportPackageIsVersion4
 type TraceReaderClient interface {
 	// GetTraces returns a stream that retrieves all traces with given IDs.
 	//
-	// Chunking requirements:
-	// - A single TracesData chunk MUST NOT contain spans from multiple traces.
-	// - Large traces MAY be split across multiple, *consecutive* TracesData chunks.
-	// - Each returned TracesData object MUST NOT be empty.
-	//
 	// Edge cases:
 	// - If no spans are found for any given trace ID, the ID is ignored.
 	// - If none of the trace IDs are found in the storage, an empty response is returned.
@@ -1152,8 +1154,6 @@ type TraceReaderClient interface {
 	// known to the backend from traces within its retention period.
 	GetOperations(ctx context.Context, in *GetOperationsRequest, opts ...grpc.CallOption) (*GetOperationsResponse, error)
 	// FindTraces returns a stream that retrieves traces matching query parameters.
-	//
-	// The chunking rules are the same as for GetTraces.
 	//
 	// If no matching traces are found, an empty stream is returned.
 	FindTraces(ctx context.Context, in *FindTracesRequest, opts ...grpc.CallOption) (TraceReader_FindTracesClient, error)
@@ -1271,11 +1271,6 @@ func (c *traceReaderClient) FindTraceIDs(ctx context.Context, in *FindTracesRequ
 type TraceReaderServer interface {
 	// GetTraces returns a stream that retrieves all traces with given IDs.
 	//
-	// Chunking requirements:
-	// - A single TracesData chunk MUST NOT contain spans from multiple traces.
-	// - Large traces MAY be split across multiple, *consecutive* TracesData chunks.
-	// - Each returned TracesData object MUST NOT be empty.
-	//
 	// Edge cases:
 	// - If no spans are found for any given trace ID, the ID is ignored.
 	// - If none of the trace IDs are found in the storage, an empty response is returned.
@@ -1287,8 +1282,6 @@ type TraceReaderServer interface {
 	// known to the backend from traces within its retention period.
 	GetOperations(context.Context, *GetOperationsRequest) (*GetOperationsResponse, error)
 	// FindTraces returns a stream that retrieves traces matching query parameters.
-	//
-	// The chunking rules are the same as for GetTraces.
 	//
 	// If no matching traces are found, an empty stream is returned.
 	FindTraces(*FindTracesRequest, TraceReader_FindTracesServer) error
