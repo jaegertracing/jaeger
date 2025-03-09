@@ -129,10 +129,15 @@ message FindTraceIDsResponse {
   repeated FoundTraceID trace_ids = 1;
 }
 
+// TracesChunk is the payload type used in streaming responses that contain traces.
+//
+// It consists of a batch of trace data, where each TracesData object contains spans
+// belonging to a single trace. Multiple traces may be included within a single TracesChunk.
+//
 // Chunking requirements:
-// - A single chunk MUST NOT contain spans from multiple traces.
-// - Large traces MAY be split across multiple, *consecutive* chunks.
-// - Each TracesData object in the chunk MUST NOT be empty.
+// - Each TracesData object within TracesChunk MUST NOT contain spans from multiple traces.
+// - Large individual traces MAY be split across multiple, *consecutive* TracesData objects.
+// - Each TracesData object MUST NOT be empty.
 message TracesChunk {
   repeated opentelemetry.proto.trace.v1.TracesData traces = 1;
 }
@@ -159,8 +164,6 @@ service TraceReader {
   rpc GetOperations(GetOperationsRequest) returns (GetOperationsResponse) {}
 
   // FindTraces returns a stream that retrieves traces matching query parameters.
-  //
-  // The chunking rules are the same as for GetTraces.
   //
   // If no matching traces are found, an empty stream is returned.
   rpc FindTraces(FindTracesRequest) returns (stream TracesChunk) {}
