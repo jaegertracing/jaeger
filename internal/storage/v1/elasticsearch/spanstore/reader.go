@@ -286,8 +286,8 @@ func (s *SpanReader) GetServices(ctx context.Context) ([]string, error) {
 // GetOperations returns all operations for a specific service traced by Jaeger
 func (s *SpanReader) GetOperations(
 	ctx context.Context,
-	query spanstore.OperationQueryParameters,
-) ([]spanstore.Operation, error) {
+	query dbmodel.OperationQueryParameters,
+) ([]dbmodel.Operation, error) {
 	ctx, span := s.tracer.Start(ctx, "GetOperations")
 	defer span.End()
 	currentTime := time.Now()
@@ -303,11 +303,9 @@ func (s *SpanReader) GetOperations(
 		return nil, err
 	}
 
-	// TODO: https://github.com/jaegertracing/jaeger/issues/1923
-	// 	- return the operations with actual span kind that meet requirement
-	var result []spanstore.Operation
+	var result []dbmodel.Operation
 	for _, operation := range operations {
-		result = append(result, spanstore.Operation{
+		result = append(result, dbmodel.Operation{
 			Name: operation,
 		})
 	}
