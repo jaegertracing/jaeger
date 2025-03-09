@@ -88,3 +88,15 @@ type Service struct {
 	ServiceName   string `json:"serviceName"`
 	OperationName string `json:"operationName"`
 }
+
+// Operation is the struct for span operation properties.
+type Operation struct {
+	Name     string
+	SpanKind string
+}
+
+// OperationQueryParameters contains parameters of query operations, empty spanKind means get operations for all kinds of span.
+type OperationQueryParameters struct {
+	ServiceName string
+	SpanKind    string
+}
