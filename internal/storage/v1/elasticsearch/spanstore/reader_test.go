@@ -724,6 +724,18 @@ func TestSpanReader_bucketToStringArrayError(t *testing.T) {
 	})
 }
 
+func TestSpanReader_bucketToTraceIDArrayError(t *testing.T) {
+	withSpanReader(t, func(_ *spanReaderTest) {
+		buckets := make([]*elastic.AggregationBucketKeyItem, 3)
+		buckets[0] = &elastic.AggregationBucketKeyItem{Key: "hello"}
+		buckets[1] = &elastic.AggregationBucketKeyItem{Key: "world"}
+		buckets[2] = &elastic.AggregationBucketKeyItem{Key: 2}
+
+		_, err := bucketToTraceIDArray(buckets)
+		require.EqualError(t, err, "non-string key found in aggregation")
+	})
+}
+
 func TestSpanReader_FindTraces(t *testing.T) {
 	goodAggregations := make(map[string]*json.RawMessage)
 	rawMessage := []byte(`{"buckets": [{"key": "1","doc_count": 16},{"key": "2","doc_count": 16},{"key": "3","doc_count": 16}]}`)

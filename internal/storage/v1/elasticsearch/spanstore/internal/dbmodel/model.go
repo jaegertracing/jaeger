@@ -112,5 +112,6 @@ type TraceQueryParameters struct {
 	StartTimeMax  time.Time
 	DurationMin   time.Duration
 	DurationMax   time.Duration
-	NumTraces     int
+	// TODO: Rename NumTraces to SearchDepth
+	NumTraces int
 }
