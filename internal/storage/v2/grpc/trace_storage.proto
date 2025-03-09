@@ -129,8 +129,10 @@ message FindTraceIDsResponse {
   repeated FoundTraceID trace_ids = 1;
 }
 
-// TracesChunk is a chunk of traces returned by the storage backend.
-// Each TracesData object contains spans belonging to a single trace.
+// Chunking requirements:
+// - A single TracesData chunk MUST NOT contain spans from multiple traces.
+// - Large traces MAY be split across multiple, *consecutive* TracesData chunks.
+// - Each returned TracesData object MUST NOT be empty.
 message TracesChunk {
   repeated opentelemetry.proto.trace.v1.TracesData traces = 1;
 }
@@ -142,11 +144,6 @@ message TracesChunk {
 // (https://github.com/open-telemetry/opentelemetry-proto/blob/main/opentelemetry/proto/collector/trace/v1/trace_service.proto)
 service TraceReader {
   // GetTraces returns a stream that retrieves all traces with given IDs.
-  //
-  // Chunking requirements:
-  // - A single TracesData chunk MUST NOT contain spans from multiple traces.
-  // - Large traces MAY be split across multiple, *consecutive* TracesData chunks.
-  // - Each returned TracesData object MUST NOT be empty.
   //
   // Edge cases:
   // - If no spans are found for any given trace ID, the ID is ignored.
