@@ -13,7 +13,6 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
-	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/spanstore/internal/dbmodel"
 	"github.com/jaegertracing/jaeger/pkg/es/mocks"
 )
@@ -113,7 +112,7 @@ func TestSpanReader_GetOperationsEmptyIndex(t *testing.T) {
 			}, nil)
 		services, err := r.reader.GetOperations(
 			context.Background(),
-			spanstore.OperationQueryParameters{ServiceName: "foo"},
+			dbmodel.OperationQueryParameters{ServiceName: "foo"},
 		)
 		require.NoError(t, err)
 		assert.Empty(t, services)
