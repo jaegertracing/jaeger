@@ -48,8 +48,6 @@ func (s *SpanReaderV1) GetOperations(
 	}
 	var result []spanstore.Operation
 
-	// TODO: https://github.com/jaegertracing/jaeger/issues/1923
-	// 	- return the operations with actual span kind that meet requirement
 	for _, operation := range operations {
 		result = append(result, spanstore.Operation{
 			Name: operation.Name,

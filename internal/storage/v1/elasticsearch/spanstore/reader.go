@@ -303,6 +303,8 @@ func (s *SpanReader) GetOperations(
 		return nil, err
 	}
 
+	// TODO: https://github.com/jaegertracing/jaeger/issues/1923
+	// 	- return the operations with actual span kind that meet requirement
 	var result []dbmodel.Operation
 	for _, operation := range operations {
 		result = append(result, dbmodel.Operation{
