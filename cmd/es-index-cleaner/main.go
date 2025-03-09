@@ -87,14 +87,8 @@ func main() {
 			if err != nil {
 				return err
 			}
-			year, month, day := time.Now().UTC().Date()
-			tomorrowMidnight := time.Date(year, month, day, 0, 0, 0, 0, time.UTC).AddDate(0, 0, 1)
-			deleteIndicesBefore := tomorrowMidnight.Add(-time.Hour * 24 * time.Duration(numOfDays))
 
-			if relativeIndexCleaner.IsEnabled() {
-				todayTime := time.Now().UTC()
-				deleteIndicesBefore = todayTime.Add(-time.Hour * 24 * time.Duration(numOfDays))
-			}
+			deleteIndicesBefore := app.CalculateDeletionCutoff(time.Now().UTC(), numOfDays, relativeIndexCleaner.IsEnabled())
 			logger.Info("Indices before this date will be deleted", zap.String("date", deleteIndicesBefore.Format(time.RFC3339)))
 
 			filter := &app.IndexFilter{
