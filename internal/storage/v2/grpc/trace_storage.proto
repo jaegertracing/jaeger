@@ -2,7 +2,6 @@ syntax = "proto3";
 
 package jaeger.storage.v2;
 
-import "gogoproto/gogo.proto";
 import "google/protobuf/duration.proto";
 import "google/protobuf/timestamp.proto";
 import "opentelemetry/proto/trace/v1/trace.proto";
@@ -17,12 +16,12 @@ message GetTraceParams {
   // start_time is the start of the time interval to search for the trace_id.
   //
   // This field is optional.
-  google.protobuf.Timestamp start_time = 2 [(gogoproto.stdtime) = true];
+  google.protobuf.Timestamp start_time = 2;
 
   // end_time is the end of the time interval to search for the trace_id.
   //
   // This field is optional.
-  google.protobuf.Timestamp end_time = 3 [(gogoproto.stdtime) = true];
+  google.protobuf.Timestamp end_time = 3;
 }
 
 // GetTracesRequest represents a request to retrieve multiple traces.
@@ -49,13 +48,13 @@ message GetOperationsRequest {
   // spans generated in a particular context.
   //
   // This field is optional.
-  opentelemetry.proto.trace.v1.Span.SpanKind span_kind = 2;
+  string span_kind = 2;
 }
 
 // Operation contains information about an operation for a given service.
 message Operation {
   string name = 1;
-  opentelemetry.proto.trace.v1.Span.SpanKind span_kind = 2;
+  string span_kind = 2;
 }
 
 // GetOperationsResponse represents the response for GetOperationsRequest.
@@ -98,22 +97,10 @@ message TraceQueryParameters {
   string service_name = 1;
   string operation_name = 2;
   repeated KeyValue attributes = 3;
-  google.protobuf.Timestamp start_time_min = 4 [
-    (gogoproto.stdtime) = true,
-    (gogoproto.nullable) = false
-  ];
-  google.protobuf.Timestamp start_time_max = 5 [
-    (gogoproto.stdtime) = true,
-    (gogoproto.nullable) = false
-  ];
-  google.protobuf.Duration duration_min = 6 [
-    (gogoproto.stdduration) = true,
-    (gogoproto.nullable) = false
-  ];
-  google.protobuf.Duration duration_max = 7 [
-    (gogoproto.stdduration) = true,
-    (gogoproto.nullable) = false
-  ];
+  google.protobuf.Timestamp start_time_min = 4;
+  google.protobuf.Timestamp start_time_max = 5;
+  google.protobuf.Duration duration_min = 6;
+  google.protobuf.Duration duration_max = 7;
   int32 search_depth = 8;
 }
 
@@ -133,14 +120,8 @@ message FindTracesRequest {
 // It is meant as a rough boundary and may not be populated in all cases.
 message FoundTraceID {
   bytes trace_id = 1;
-  google.protobuf.Timestamp start = 2 [
-    (gogoproto.stdtime) = true,
-    (gogoproto.nullable) = false
-  ];
-  google.protobuf.Timestamp end = 3 [
-    (gogoproto.stdtime) = true,
-    (gogoproto.nullable) = false
-  ];
+  google.protobuf.Timestamp start = 2;
+  google.protobuf.Timestamp end = 3;
 }
 
 // FindTraceIDsResponse represents the response for FindTracesRequest.
