@@ -41,6 +41,7 @@ func (s *SpanReaderV1) GetOperations(
 ) ([]spanstore.Operation, error) {
 	dbmodelQuery := dbmodel.OperationQueryParameters{
 		ServiceName: query.ServiceName,
+		SpanKind:    query.SpanKind,
 	}
 	operations, err := s.spanReader.GetOperations(ctx, dbmodelQuery)
 	if err != nil {
