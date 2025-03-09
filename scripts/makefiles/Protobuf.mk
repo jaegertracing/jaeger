@@ -109,22 +109,29 @@ proto-storage-v1:
 		--go_out=$(PWD)/internal/storage/v1/grpc/proto/ \
 		internal/storage/v1/grpc/proto/storage_test.proto
 
+STORAGE_V2_PATH=proto-gen/storage/v2
+STORAGE_V2_PATCHED_DIR=proto-gen/.patched/storage_v2
+STORAGE_V2_PATCHED_TRACE=$(STORAGE_V2_PATCHED_DIR)/trace_storage.proto
+STORAGE_V2_PATCHED_DEPENDENCY=$(STORAGE_V2_PATCHED_DIR)/dependency_storage.proto
+
 .PHONY: patch-storage-v2
 patch-storage-v2:
-	mkdir -p proto-gen/.patched/storage_v2
-	cp internal/storage/v2/grpc/trace_storage.proto proto-gen/.patched/storage_v2/
-	cp internal/storage/v2/grpc/dependency_storage.proto proto-gen/.patched/storage_v2/
-	cat internal/storage/v2/grpc/trace_storage.proto | $(SED) -f ./proto-gen/patch.sed > proto-gen/.patched/storage_v2/trace_storage.proto
-	cat internal/storage/v2/grpc/dependency_storage.proto | $(SED) -f ./proto-gen/patch.sed > proto-gen/.patched/storage_v2/dependency_storage.proto
+	mkdir -p $(STORAGE_V2_PATCHED_DIR)
+	cat internal/storage/v2/grpc/trace_storage.proto | \
+		$(SED) -f ./proto-gen/patch.sed \
+		> $(STORAGE_V2_PATCHED_TRACE)
+	cat internal/storage/v2/grpc/dependency_storage.proto | \
+		$(SED) -f ./proto-gen/patch.sed \
+		> $(STORAGE_V2_PATCHED_DEPENDENCY)
 
 .PHONY: proto-storage-v2
 proto-storage-v2: patch-storage-v2
-	$(call proto_compile, proto-gen/storage/v2, proto-gen/.patched/storage_v2/trace_storage.proto, -Iproto-gen/.patched/storage_v2 -Iinternal/storage/v2/grpc/)
-	$(call proto_compile, proto-gen/storage/v2, proto-gen/.patched/storage_v2/dependency_storage.proto, -Iproto-gen/.patched/storage_v2 -Iinternal/storage/v2/grpc/)
+	$(call proto_compile, $(STORAGE_V2_PATH), $(STORAGE_V2_PATCHED_TRACE), -I$(STORAGE_V2_PATCHED_DIR) -Iinternal/storage/v2/grpc/)
+	$(call proto_compile, $(STORAGE_V2_PATH), $(STORAGE_V2_PATCHED_DEPENDENCY), -I$(STORAGE_V2_PATCHED_DIR) -Iinternal/storage/v2/grpc/)
 	@echo "🏗️  replace first instance of OTEL import with internal type"
-	$(SED) -i '0,/go.opentelemetry.io\/proto\/otlp\/trace\/v1/s|go.opentelemetry.io/proto/otlp/trace/v1|github.com/jaegertracing/jaeger/internal/jptrace|' proto-gen/storage/v2/*.pb.go
+	$(SED) -i '0,/go.opentelemetry.io\/proto\/otlp\/trace\/v1/s|go.opentelemetry.io/proto/otlp/trace/v1|github.com/jaegertracing/jaeger/internal/jptrace|' $(STORAGE_V2_PATH)/*.pb.go
 	@echo "🏗️  remove all remaining OTEL imports because we're not using any other OTLP types"
-	$(SED) -i 's+^.*v1 "go.opentelemetry.io/proto/otlp/trace/v1".*$$++' proto-gen/storage/v2/*.pb.go
+	$(SED) -i 's+^.*v1 "go.opentelemetry.io/proto/otlp/trace/v1".*$$++' $(STORAGE_V2_PATH)/*.pb.go
 
 .PHONY: proto-hotrod
 proto-hotrod:
