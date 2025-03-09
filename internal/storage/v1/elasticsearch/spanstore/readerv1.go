@@ -13,15 +13,13 @@ import (
 
 // SpanReaderV1	is a wrapper around SpanReader
 type SpanReaderV1 struct {
-	spanReader    *SpanReader
-	spanConverter dbmodel.ToDomain
+	spanReader CoreSpanReader
 }
 
 // NewSpanReaderV1 returns an instance of SpanReaderV1
 func NewSpanReaderV1(p SpanReaderParams) *SpanReaderV1 {
 	return &SpanReaderV1{
-		spanReader:    NewSpanReader(p),
-		spanConverter: dbmodel.NewToDomain(p.TagDotReplacement),
+		spanReader: NewSpanReader(p),
 	}
 }
 
