@@ -13,28 +13,34 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"google.golang.org/grpc"
 
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/proto-gen/storage/v2"
 )
 
-type Client struct {
-	readerClient storage.TraceReaderClient
+type TraceReader struct {
+	client storage.TraceReaderClient
 }
 
-func NewClient(tracedConn *grpc.ClientConn) *Client {
-	return &Client{
-		readerClient: storage.NewTraceReaderClient(tracedConn),
+func NewTraceReader(tracedConn *grpc.ClientConn) *TraceReader {
+	return &TraceReader{
+		client: storage.NewTraceReaderClient(tracedConn),
 	}
 }
 
-func (c *Client) GetTraces(ctx context.Context,
-	traceIDs ...storage.GetTraceParams,
+func (c *TraceReader) GetTraces(
+	ctx context.Context,
+	traceIDs ...tracestore.GetTraceParams,
 ) iter.Seq2[[]ptrace.Traces, error] {
 	return func(yield func([]ptrace.Traces, error) bool) {
 		query := []*storage.GetTraceParams{}
 		for _, traceID := range traceIDs {
-			query = append(query, &traceID)
+			query = append(query, &storage.GetTraceParams{
+				TraceId:   traceID.TraceID[:],
+				StartTime: traceID.Start,
+				EndTime:   traceID.End,
+			})
 		}
-		stream, err := c.readerClient.GetTraces(ctx, &storage.GetTracesRequest{
+		stream, err := c.client.GetTraces(ctx, &storage.GetTracesRequest{
 			Query: query,
 		})
 		if err != nil {
