@@ -129,6 +129,12 @@ message FindTraceIDsResponse {
   repeated FoundTraceID trace_ids = 1;
 }
 
+// TracesChunk is a chunk of traces returned by the storage backend.
+// Each TracesData object contains spans belonging to a single trace.
+message TracesChunk {
+  repeated opentelemetry.proto.trace.v1.TracesData traces = 1;
+}
+
 // TraceReader is a service that allows reading traces from storage.
 // Note that if you implement this service, you should also implement
 // OTEL's TraceService in package opentelemetry.proto.collector.trace.v1
@@ -145,7 +151,7 @@ service TraceReader {
   // Edge cases:
   // - If no spans are found for any given trace ID, the ID is ignored.
   // - If none of the trace IDs are found in the storage, an empty response is returned.
-  rpc GetTraces(GetTracesRequest) returns (stream opentelemetry.proto.trace.v1.TracesData) {}
+  rpc GetTraces(GetTracesRequest) returns (stream TracesChunk) {}
 
   // GetServices returns all service names known to the backend from traces
   // within its retention period.
@@ -160,7 +166,7 @@ service TraceReader {
   // The chunking rules are the same as for GetTraces.
   //
   // If no matching traces are found, an empty stream is returned.
-  rpc FindTraces(FindTracesRequest) returns (stream opentelemetry.proto.trace.v1.TracesData) {}
+  rpc FindTraces(FindTracesRequest) returns (stream TracesChunk) {}
 
   // FindTraceIDs returns a stream that retrieves IDs of traces matching query parameters.
   //
