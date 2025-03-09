@@ -17,6 +17,8 @@ import (
 	"github.com/jaegertracing/jaeger/proto-gen/storage/v2"
 )
 
+var _ tracestore.Reader = (*TraceReader)(nil)
+
 type TraceReader struct {
 	client storage.TraceReaderClient
 }
@@ -56,4 +58,29 @@ func (c *TraceReader) GetTraces(
 			yield(traces, nil)
 		}
 	}
+}
+
+func (c *TraceReader) GetServices(ctx context.Context) ([]string, error) {
+	panic("not implemented")
+}
+
+func (c *TraceReader) GetOperations(
+	ctx context.Context,
+	query tracestore.OperationQueryParams,
+) ([]tracestore.Operation, error) {
+	panic("not implemented")
+}
+
+func (c *TraceReader) FindTraces(
+	ctx context.Context,
+	query tracestore.TraceQueryParams,
+) iter.Seq2[[]ptrace.Traces, error] {
+	panic("not implemented")
+}
+
+func (c *TraceReader) FindTraceIDs(
+	ctx context.Context,
+	query tracestore.TraceQueryParams,
+) iter.Seq2[[]tracestore.FoundTraceID, error] {
+	panic("not implemented")
 }
