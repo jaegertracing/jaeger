@@ -685,7 +685,15 @@ func returnSearchFunc(typ string, r *spanReaderTest) (any, error) {
 			dbmodel.OperationQueryParameters{ServiceName: "someService"},
 		)
 	case traceIDAggregation:
-		return r.reader.findTraceIDs(context.Background(), &spanstore.TraceQueryParameters{})
+		ids, err := r.reader.findTraceIDs(context.Background(), &dbmodel.TraceQueryParameters{})
+		if err != nil {
+			return nil, err
+		}
+		var stringIds []string
+		for _, id := range ids {
+			stringIds = append(stringIds, string(id))
+		}
+		return stringIds, nil
 	}
 	return nil, errors.New("Specify services, operations, traceIDs only")
 }
@@ -716,6 +724,18 @@ func TestSpanReader_bucketToStringArrayError(t *testing.T) {
 	})
 }
 
+func TestSpanReader_bucketToTraceIDArrayError(t *testing.T) {
+	withSpanReader(t, func(_ *spanReaderTest) {
+		buckets := make([]*elastic.AggregationBucketKeyItem, 3)
+		buckets[0] = &elastic.AggregationBucketKeyItem{Key: "hello"}
+		buckets[1] = &elastic.AggregationBucketKeyItem{Key: "world"}
+		buckets[2] = &elastic.AggregationBucketKeyItem{Key: 2}
+
+		_, err := bucketToTraceIDArray(buckets)
+		require.EqualError(t, err, "non-string key found in aggregation")
+	})
+}
+
 func TestSpanReader_FindTraces(t *testing.T) {
 	goodAggregations := make(map[string]*json.RawMessage)
 	rawMessage := []byte(`{"buckets": [{"key": "1","doc_count": 16},{"key": "2","doc_count": 16},{"key": "3","doc_count": 16}]}`)
@@ -740,7 +760,7 @@ func TestSpanReader_FindTraces(t *testing.T) {
 				},
 			}, nil)
 
-		traceQuery := &spanstore.TraceQueryParameters{
+		traceQuery := &dbmodel.TraceQueryParameters{
 			ServiceName: serviceName,
 			Tags: map[string]string{
 				"hello": "world",
@@ -786,7 +806,7 @@ func TestSpanReader_FindTracesInvalidQuery(t *testing.T) {
 				},
 			}, nil)
 
-		traceQuery := &spanstore.TraceQueryParameters{
+		traceQuery := &dbmodel.TraceQueryParameters{
 			ServiceName: "",
 			Tags: map[string]string{
 				"hello": "world",
@@ -819,7 +839,7 @@ func TestSpanReader_FindTracesAggregationFailure(t *testing.T) {
 				Responses: []*elastic.SearchResult{},
 			}, nil)
 
-		traceQuery := &spanstore.TraceQueryParameters{
+		traceQuery := &dbmodel.TraceQueryParameters{
 			ServiceName: serviceName,
 			Tags: map[string]string{
 				"hello": "world",
@@ -854,7 +874,7 @@ func TestSpanReader_FindTracesNoTraceIDs(t *testing.T) {
 				Responses: []*elastic.SearchResult{},
 			}, nil)
 
-		traceQuery := &spanstore.TraceQueryParameters{
+		traceQuery := &dbmodel.TraceQueryParameters{
 			ServiceName: serviceName,
 			Tags: map[string]string{
 				"hello": "world",
@@ -888,7 +908,7 @@ func TestSpanReader_FindTracesReadTraceFailure(t *testing.T) {
 		mockMultiSearchService(r).
 			Return(nil, errors.New("read error"))
 
-		traceQuery := &spanstore.TraceQueryParameters{
+		traceQuery := &dbmodel.TraceQueryParameters{
 			ServiceName: serviceName,
 			Tags: map[string]string{
 				"hello": "world",
@@ -927,7 +947,7 @@ func TestSpanReader_FindTracesSpanCollectionFailure(t *testing.T) {
 				},
 			}, nil)
 
-		traceQuery := &spanstore.TraceQueryParameters{
+		traceQuery := &dbmodel.TraceQueryParameters{
 			ServiceName: serviceName,
 			Tags: map[string]string{
 				"hello": "world",
@@ -959,12 +979,12 @@ func TestFindTraceIDs(t *testing.T) {
 }
 
 func TestTraceIDsStringsToModelsConversion(t *testing.T) {
-	traceIDs, err := convertTraceIDsStringsToModels([]string{"1", "2", "3"})
+	traceIDs, err := convertTraceIDsStringsToModels([]dbmodel.TraceID{"1", "2", "3"})
 	require.NoError(t, err)
 	assert.Len(t, traceIDs, 3)
 	assert.Equal(t, model.NewTraceID(0, 1), traceIDs[0])
 
-	traceIDs, err = convertTraceIDsStringsToModels([]string{"dsfjsdklfjdsofdfsdbfkgbgoaemlrksdfbsdofgerjl"})
+	traceIDs, err = convertTraceIDsStringsToModels([]dbmodel.TraceID{"dsfjsdklfjdsofdfsdbfkgbgoaemlrksdfbsdofgerjl"})
 	require.EqualError(t, err, "making traceID from string 'dsfjsdklfjdsofdfsdbfkgbgoaemlrksdfbsdofgerjl' failed: TraceID cannot be longer than 32 hex characters: dsfjsdklfjdsofdfsdbfkgbgoaemlrksdfbsdofgerjl")
 	assert.Empty(t, traceIDs)
 }
@@ -1009,11 +1029,11 @@ func mockSearchService(r *spanReaderTest) *mock.Call {
 }
 
 func TestTraceQueryParameterValidation(t *testing.T) {
-	var malformedtqp *spanstore.TraceQueryParameters
+	var malformedtqp *dbmodel.TraceQueryParameters
 	err := validateQuery(malformedtqp)
 	require.EqualError(t, err, ErrMalformedRequestObject.Error())
 
-	tqp := &spanstore.TraceQueryParameters{
+	tqp := &dbmodel.TraceQueryParameters{
 		ServiceName: "",
 		Tags: map[string]string{
 			"hello": "world",
@@ -1071,7 +1091,7 @@ func TestSpanReader_buildTraceIDAggregation(t *testing.T) {
 
 func TestSpanReader_buildFindTraceIDsQuery(t *testing.T) {
 	withSpanReader(t, func(r *spanReaderTest) {
-		traceQuery := &spanstore.TraceQueryParameters{
+		traceQuery := &dbmodel.TraceQueryParameters{
 			DurationMin:   time.Second,
 			DurationMax:   time.Second * 2,
 			StartTimeMin:  time.Time{},
@@ -1232,7 +1252,7 @@ func TestSpanReader_GetEmptyIndex(t *testing.T) {
 				Responses: []*elastic.SearchResult{},
 			}, nil)
 
-		traceQuery := &spanstore.TraceQueryParameters{
+		traceQuery := &dbmodel.TraceQueryParameters{
 			ServiceName: serviceName,
 			Tags: map[string]string{
 				"hello": "world",
@@ -1281,10 +1301,10 @@ func TestSpanReader_ArchiveTraces(t *testing.T) {
 }
 
 func TestConvertTraceIDsStringsToModels(t *testing.T) {
-	ids, err := convertTraceIDsStringsToModels([]string{"1", "2", "01", "02", "001", "002"})
+	ids, err := convertTraceIDsStringsToModels([]dbmodel.TraceID{"1", "2", "01", "02", "001", "002"})
 	require.NoError(t, err)
 	assert.Equal(t, []model.TraceID{model.NewTraceID(0, 1), model.NewTraceID(0, 2)}, ids)
-	_, err = convertTraceIDsStringsToModels([]string{"1", "2", "01", "02", "001", "002", "blah"})
+	_, err = convertTraceIDsStringsToModels([]dbmodel.TraceID{"1", "2", "01", "02", "001", "002", "blah"})
 	require.Error(t, err)
 }
 
