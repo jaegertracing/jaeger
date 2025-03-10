@@ -2,7 +2,6 @@ syntax = "proto3";
 
 package jaeger.storage.v2;
 
-import "gogoproto/gogo.proto";
 import "google/protobuf/duration.proto";
 import "google/protobuf/timestamp.proto";
 import "opentelemetry/proto/trace/v1/trace.proto";
@@ -17,12 +16,12 @@ message GetTraceParams {
   // start_time is the start of the time interval to search for the trace_id.
   //
   // This field is optional.
-  google.protobuf.Timestamp start_time = 2 [(gogoproto.stdtime) = true];
+  google.protobuf.Timestamp start_time = 2;
 
   // end_time is the end of the time interval to search for the trace_id.
   //
   // This field is optional.
-  google.protobuf.Timestamp end_time = 3 [(gogoproto.stdtime) = true];
+  google.protobuf.Timestamp end_time = 3;
 }
 
 // GetTracesRequest represents a request to retrieve multiple traces.
@@ -49,13 +48,13 @@ message GetOperationsRequest {
   // spans generated in a particular context.
   //
   // This field is optional.
-  opentelemetry.proto.trace.v1.Span.SpanKind span_kind = 2;
+  string span_kind = 2;
 }
 
 // Operation contains information about an operation for a given service.
 message Operation {
   string name = 1;
-  opentelemetry.proto.trace.v1.Span.SpanKind span_kind = 2;
+  string span_kind = 2;
 }
 
 // GetOperationsResponse represents the response for GetOperationsRequest.
@@ -98,22 +97,10 @@ message TraceQueryParameters {
   string service_name = 1;
   string operation_name = 2;
   repeated KeyValue attributes = 3;
-  google.protobuf.Timestamp start_time_min = 4 [
-    (gogoproto.stdtime) = true,
-    (gogoproto.nullable) = false
-  ];
-  google.protobuf.Timestamp start_time_max = 5 [
-    (gogoproto.stdtime) = true,
-    (gogoproto.nullable) = false
-  ];
-  google.protobuf.Duration duration_min = 6 [
-    (gogoproto.stdduration) = true,
-    (gogoproto.nullable) = false
-  ];
-  google.protobuf.Duration duration_max = 7 [
-    (gogoproto.stdduration) = true,
-    (gogoproto.nullable) = false
-  ];
+  google.protobuf.Timestamp start_time_min = 4;
+  google.protobuf.Timestamp start_time_max = 5;
+  google.protobuf.Duration duration_min = 6;
+  google.protobuf.Duration duration_max = 7;
   int32 search_depth = 8;
 }
 
@@ -133,19 +120,26 @@ message FindTracesRequest {
 // It is meant as a rough boundary and may not be populated in all cases.
 message FoundTraceID {
   bytes trace_id = 1;
-  google.protobuf.Timestamp start = 2 [
-    (gogoproto.stdtime) = true,
-    (gogoproto.nullable) = false
-  ];
-  google.protobuf.Timestamp end = 3 [
-    (gogoproto.stdtime) = true,
-    (gogoproto.nullable) = false
-  ];
+  google.protobuf.Timestamp start = 2;
+  google.protobuf.Timestamp end = 3;
 }
 
 // FindTraceIDsResponse represents the response for FindTracesRequest.
 message FindTraceIDsResponse {
   repeated FoundTraceID trace_ids = 1;
+}
+
+// TracesChunk is the payload type used in streaming responses that contain traces.
+//
+// It consists of a batch of trace data, where each TracesData object contains spans
+// belonging to a single trace. Multiple traces may be included within a single TracesChunk.
+//
+// Chunking requirements:
+// - Each TracesData object within TracesChunk MUST NOT contain spans from multiple traces.
+// - Large individual traces MAY be split across multiple, *consecutive* TracesData objects.
+// - Each TracesData object MUST NOT be empty.
+message TracesChunk {
+  repeated opentelemetry.proto.trace.v1.TracesData traces = 1;
 }
 
 // TraceReader is a service that allows reading traces from storage.
@@ -156,15 +150,10 @@ message FindTraceIDsResponse {
 service TraceReader {
   // GetTraces returns a stream that retrieves all traces with given IDs.
   //
-  // Chunking requirements:
-  // - A single TracesData chunk MUST NOT contain spans from multiple traces.
-  // - Large traces MAY be split across multiple, *consecutive* TracesData chunks.
-  // - Each returned TracesData object MUST NOT be empty.
-  //
   // Edge cases:
   // - If no spans are found for any given trace ID, the ID is ignored.
   // - If none of the trace IDs are found in the storage, an empty response is returned.
-  rpc GetTraces(GetTracesRequest) returns (stream opentelemetry.proto.trace.v1.TracesData) {}
+  rpc GetTraces(GetTracesRequest) returns (stream TracesChunk) {}
 
   // GetServices returns all service names known to the backend from traces
   // within its retention period.
@@ -176,10 +165,8 @@ service TraceReader {
 
   // FindTraces returns a stream that retrieves traces matching query parameters.
   //
-  // The chunking rules are the same as for GetTraces.
-  //
   // If no matching traces are found, an empty stream is returned.
-  rpc FindTraces(FindTracesRequest) returns (stream opentelemetry.proto.trace.v1.TracesData) {}
+  rpc FindTraces(FindTracesRequest) returns (stream TracesChunk) {}
 
   // FindTraceIDs returns a stream that retrieves IDs of traces matching query parameters.
   //
