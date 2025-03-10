@@ -1,5 +1,7 @@
 # Jaeger Overall Release Process
 
+Create an issue with the checklist for the release by running `bash scripts/release/start.sh`.
+
 1. Determine new version numbers for v1.x.x and v2.x.x
 2. Perform UI release according to https://github.com/jaegertracing/jaeger-ui/blob/main/RELEASE.md
 3. Perform Backend release (see below)
