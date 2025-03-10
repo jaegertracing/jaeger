@@ -112,6 +112,19 @@
       "matchPackageNames": [
         "github.com/prometheus{/,}**"
       ]
+    },
+    {
+      "groupName": "Exclude frequent tools upgrades",
+      "matchDatasources": [
+        "go"
+      ],
+      "matchPackageNames": [
+        "github.com/vektra/mockery/**"
+      ],
+      "matchUpdateTypes": [
+        "patch"
+      ],
+      "enabled": false
     }
   ]
 }
