@@ -7,7 +7,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"iter"
 
 	"go.opentelemetry.io/collector/pdata/ptrace"
@@ -19,6 +18,8 @@ import (
 
 var _ tracestore.Reader = (*TraceReader)(nil)
 
+var errFailedToGetServices = errors.New("failed to get services")
+
 type TraceReader struct {
 	client storage.TraceReaderClient
 }
@@ -29,39 +30,19 @@ func NewTraceReader(tracedConn *grpc.ClientConn) *TraceReader {
 	}
 }
 
-func (t *TraceReader) GetTraces(
-	ctx context.Context,
-	traceIDs ...tracestore.GetTraceParams,
+func (*TraceReader) GetTraces(
+	context.Context,
+	...tracestore.GetTraceParams,
 ) iter.Seq2[[]ptrace.Traces, error] {
-	return func(yield func([]ptrace.Traces, error) bool) {
-		query := []*storage.GetTraceParams{}
-		for _, traceID := range traceIDs {
-			query = append(query, &storage.GetTraceParams{
-				TraceId:   traceID.TraceID[:],
-				StartTime: traceID.Start,
-				EndTime:   traceID.End,
-			})
-		}
-		stream, err := t.client.GetTraces(ctx, &storage.GetTracesRequest{
-			Query: query,
-		})
-		if err != nil {
-			yield(nil, fmt.Errorf("received error from grpc reader client: %w", err))
-			return
-		}
-		for received, err := stream.Recv(); !errors.Is(err, io.EOF); received, err = stream.Recv() {
-			if err != nil {
-				yield(nil, fmt.Errorf("received error from grpc stream: %w", err))
-				return
-			}
-			traces := []ptrace.Traces{received.ToTraces()}
-			yield(traces, nil)
-		}
-	}
+	panic("not implemented")
 }
 
-func (*TraceReader) GetServices(context.Context) ([]string, error) {
-	panic("not implemented")
+func (tr *TraceReader) GetServices(ctx context.Context) ([]string, error) {
+	resp, err := tr.client.GetServices(ctx, &storage.GetServicesRequest{})
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", errFailedToGetServices, err)
+	}
+	return resp.Services, nil
 }
 
 func (*TraceReader) GetOperations(
