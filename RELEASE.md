@@ -1,5 +1,7 @@
 # Jaeger Overall Release Process
 
+Create an issue with the checklist for the release by running `bash scripts/release/start.sh`.
+
 1. Determine new version numbers for v1.x.x and v2.x.x
 2. Perform UI release according to https://github.com/jaegertracing/jaeger-ui/blob/main/RELEASE.md
 3. Perform Backend release (see below)
@@ -9,6 +11,8 @@
 5. Announce the release on the [mailing list](https://groups.google.com/g/jaeger-tracing), [slack](https://cloud-native.slack.com/archives/CGG7NFUJ3), and [twitter](https://twitter.com/JaegerTracing?lang=en).
 
 # Jaeger Backend Release Process
+
+<!-- BEGIN_CHECKLIST -->
 
 1. Create a PR "Prepare release 1.x.x / 2.x.x" against main or maintenance branch ([example](https://github.com/jaegertracing/jaeger/pull/543/files)) by updating CHANGELOG.md to include:
     * A new section with the header `1.x.x / 2.x.x (YYYY-MM-DD)` (copy the template at the top)
@@ -39,6 +43,16 @@
 3. Create a release on Github:
     * Automated:
        * `make draft-release`
+4. Go to [Publish Release](https://github.com/jaegertracing/jaeger/actions/workflows/ci-release.yml) workflow on GitHub
+   and run it manually using Run Workflow button on the right.
+   1. For monitoring and troubleshooting, open the logs of the workflow run from above URL.
+   2. Check the images are available on [Docker Hub](https://hub.docker.com/r/jaegertracing/)
+      and binaries are uploaded [to the release]()https://github.com/jaegertracing/jaeger/releases.
+
+<!-- END_CHECKLIST -->
+
+## Manual release
+
     * Manual:
        * Title "Release 1.x.x / 2.x.x"
        * Tag `v1.x.x` (note the `v` prefix) and choose appropriate branch (usually `main`)
@@ -48,11 +62,6 @@
          Before doing the previous step, you can click that button and then remove everything
          except the New Contributors section. Change the header to `### 👏 New Contributors`,
          then copy the main changelog above it. [Example](https://github.com/jaegertracing/jaeger/releases/tag/v1.55.0).
-4. Go to [Publish Release](https://github.com/jaegertracing/jaeger/actions/workflows/ci-release.yml) workflow on GitHub
-   and run it manually using Run Workflow button on the right.
-   1. For monitoring and troubleshooting, open the logs of the workflow run from above URL.
-   2. Check the images are available on [Docker Hub](https://hub.docker.com/r/jaegertracing/)
-      and binaries are uploaded [to the release]()https://github.com/jaegertracing/jaeger/releases.
 
 ## Patch Release
 
