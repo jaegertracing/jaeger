@@ -705,7 +705,7 @@ func TestSpanReader_bucketToStringArray(t *testing.T) {
 		buckets[1] = &elastic.AggregationBucketKeyItem{Key: "world"}
 		buckets[2] = &elastic.AggregationBucketKeyItem{Key: "2"}
 
-		actual, err := bucketToStringArray(buckets)
+		actual, err := bucketToStringArray[string](buckets)
 		require.NoError(t, err)
 
 		assert.EqualValues(t, []string{"hello", "world", "2"}, actual)
@@ -719,19 +719,7 @@ func TestSpanReader_bucketToStringArrayError(t *testing.T) {
 		buckets[1] = &elastic.AggregationBucketKeyItem{Key: "world"}
 		buckets[2] = &elastic.AggregationBucketKeyItem{Key: 2}
 
-		_, err := bucketToStringArray(buckets)
-		require.EqualError(t, err, "non-string key found in aggregation")
-	})
-}
-
-func TestSpanReader_bucketToTraceIDArrayError(t *testing.T) {
-	withSpanReader(t, func(_ *spanReaderTest) {
-		buckets := make([]*elastic.AggregationBucketKeyItem, 3)
-		buckets[0] = &elastic.AggregationBucketKeyItem{Key: "hello"}
-		buckets[1] = &elastic.AggregationBucketKeyItem{Key: "world"}
-		buckets[2] = &elastic.AggregationBucketKeyItem{Key: 2}
-
-		_, err := bucketToTraceIDArray(buckets)
+		_, err := bucketToStringArray[string](buckets)
 		require.EqualError(t, err, "non-string key found in aggregation")
 	})
 }

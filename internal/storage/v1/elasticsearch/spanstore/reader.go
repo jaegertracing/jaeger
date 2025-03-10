@@ -316,28 +316,16 @@ func (s *SpanReader) GetOperations(
 	return result, err
 }
 
-func bucketToStringArray(buckets []*elastic.AggregationBucketKeyItem) ([]string, error) {
-	strings := make([]string, len(buckets))
+func bucketToStringArray[T ~string](buckets []*elastic.AggregationBucketKeyItem) ([]T, error) {
+	strings := make([]T, len(buckets))
 	for i, keyitem := range buckets {
 		str, ok := keyitem.Key.(string)
 		if !ok {
 			return nil, errors.New("non-string key found in aggregation")
 		}
-		strings[i] = str
+		strings[i] = T(str)
 	}
 	return strings, nil
-}
-
-func bucketToTraceIDArray(buckets []*elastic.AggregationBucketKeyItem) ([]dbmodel.TraceID, error) {
-	ids := make([]dbmodel.TraceID, len(buckets))
-	for i, keyitem := range buckets {
-		str, ok := keyitem.Key.(string)
-		if !ok {
-			return nil, errors.New("non-string key found in aggregation")
-		}
-		ids[i] = dbmodel.TraceID(str)
-	}
-	return ids, nil
 }
 
 // FindTraces retrieves traces that match the traceQuery
@@ -599,7 +587,7 @@ func (s *SpanReader) findTraceIDs(ctx context.Context, traceQuery *dbmodel.Trace
 	}
 
 	traceIDBuckets := bucket.Buckets
-	return bucketToTraceIDArray(traceIDBuckets)
+	return bucketToStringArray[dbmodel.TraceID](traceIDBuckets)
 }
 
 func (s *SpanReader) buildTraceIDAggregation(numOfTraces int) elastic.Aggregation {
