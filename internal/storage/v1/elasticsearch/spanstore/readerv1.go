@@ -71,11 +71,7 @@ func (s *SpanReaderV1) FindTraceIDs(ctx context.Context, traceQuery *spanstore.T
 	if err != nil {
 		return nil, err
 	}
-	traceIds, err := convertTraceIDsStringsToModels(ids)
-	if err != nil {
-		return nil, err
-	}
-	return traceIds, nil
+	return convertTraceIDsStringsToModels(ids)
 }
 
 func toDbQueryParams(p *spanstore.TraceQueryParameters) *dbmodel.TraceQueryParameters {
