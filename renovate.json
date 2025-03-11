@@ -128,13 +128,12 @@
     },
     {
       "description": "Handle internal tools dependencies",
-      "matchPaths": [
+      "matchFileNames": [
         "internal/tools/**"
       ],
       "matchManagers": [
         "gomod"
-      ],
-      "labels": ["changelog:dependencies"]
+      ]
     }
   ]
 }
