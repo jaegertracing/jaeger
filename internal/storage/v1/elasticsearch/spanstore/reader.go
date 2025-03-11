@@ -316,20 +316,20 @@ func (s *SpanReader) GetOperations(
 	return result, err
 }
 
-func bucketToStringArray(buckets []*elastic.AggregationBucketKeyItem) ([]string, error) {
-	strings := make([]string, len(buckets))
+func bucketToStringArray[T ~string](buckets []*elastic.AggregationBucketKeyItem) ([]T, error) {
+	strings := make([]T, len(buckets))
 	for i, keyitem := range buckets {
 		str, ok := keyitem.Key.(string)
 		if !ok {
 			return nil, errors.New("non-string key found in aggregation")
 		}
-		strings[i] = str
+		strings[i] = T(str)
 	}
 	return strings, nil
 }
 
 // FindTraces retrieves traces that match the traceQuery
-func (s *SpanReader) FindTraces(ctx context.Context, traceQuery *spanstore.TraceQueryParameters) ([]*model.Trace, error) {
+func (s *SpanReader) FindTraces(ctx context.Context, traceQuery *dbmodel.TraceQueryParameters) ([]*model.Trace, error) {
 	ctx, span := s.tracer.Start(ctx, "FindTraces")
 	defer span.End()
 
@@ -337,11 +337,15 @@ func (s *SpanReader) FindTraces(ctx context.Context, traceQuery *spanstore.Trace
 	if err != nil {
 		return nil, es.DetailedError(err)
 	}
-	return s.multiRead(ctx, uniqueTraceIDs, traceQuery.StartTimeMin, traceQuery.StartTimeMax)
+	traceIds, err := toModelTraceIDs(uniqueTraceIDs)
+	if err != nil {
+		return nil, es.DetailedError(err)
+	}
+	return s.multiRead(ctx, traceIds, traceQuery.StartTimeMin, traceQuery.StartTimeMax)
 }
 
 // FindTraceIDs retrieves traces IDs that match the traceQuery
-func (s *SpanReader) FindTraceIDs(ctx context.Context, traceQuery *spanstore.TraceQueryParameters) ([]model.TraceID, error) {
+func (s *SpanReader) FindTraceIDs(ctx context.Context, traceQuery *dbmodel.TraceQueryParameters) ([]dbmodel.TraceID, error) {
 	ctx, span := s.tracer.Start(ctx, "FindTraceIDs")
 	defer span.End()
 
@@ -357,7 +361,7 @@ func (s *SpanReader) FindTraceIDs(ctx context.Context, traceQuery *spanstore.Tra
 		return nil, err
 	}
 
-	return convertTraceIDsStringsToModels(esTraceIDs)
+	return esTraceIDs, nil
 }
 
 func (s *SpanReader) multiRead(ctx context.Context, traceIDs []model.TraceID, startTime, endTime time.Time) ([]*model.Trace, error) {
@@ -477,29 +481,7 @@ func buildTraceByIDQuery(traceID model.TraceID) elastic.Query {
 		elastic.NewTermQuery(traceIDField, legacyTraceID))
 }
 
-func convertTraceIDsStringsToModels(traceIDs []string) ([]model.TraceID, error) {
-	traceIDsMap := map[model.TraceID]bool{}
-	// https://github.com/jaegertracing/jaeger/pull/1956 added leading zeros to IDs
-	// So we need to also read IDs without leading zeros for compatibility with previously saved data.
-	// That means the input to this function may contain logically identical trace IDs but formatted
-	// with or without padding, and we need to dedupe them.
-	// TODO remove deduping in newer versions, added in Jaeger 1.16
-	traceIDsModels := make([]model.TraceID, 0, len(traceIDs))
-	for _, ID := range traceIDs {
-		traceID, err := model.TraceIDFromString(ID)
-		if err != nil {
-			return nil, fmt.Errorf("making traceID from string '%s' failed: %w", ID, err)
-		}
-		if _, ok := traceIDsMap[traceID]; !ok {
-			traceIDsMap[traceID] = true
-			traceIDsModels = append(traceIDsModels, traceID)
-		}
-	}
-
-	return traceIDsModels, nil
-}
-
-func validateQuery(p *spanstore.TraceQueryParameters) error {
+func validateQuery(p *dbmodel.TraceQueryParameters) error {
 	if p == nil {
 		return ErrMalformedRequestObject
 	}
@@ -518,7 +500,7 @@ func validateQuery(p *spanstore.TraceQueryParameters) error {
 	return nil
 }
 
-func (s *SpanReader) findTraceIDs(ctx context.Context, traceQuery *spanstore.TraceQueryParameters) ([]string, error) {
+func (s *SpanReader) findTraceIDs(ctx context.Context, traceQuery *dbmodel.TraceQueryParameters) ([]dbmodel.TraceID, error) {
 	ctx, childSpan := s.tracer.Start(ctx, "findTraceIDs")
 	defer childSpan.End()
 	//  Below is the JSON body to our HTTP GET request to ElasticSearch. This function creates this.
@@ -597,7 +579,7 @@ func (s *SpanReader) findTraceIDs(ctx context.Context, traceQuery *spanstore.Tra
 		return nil, fmt.Errorf("search services failed: %w", err)
 	}
 	if searchResult.Aggregations == nil {
-		return []string{}, nil
+		return []dbmodel.TraceID{}, nil
 	}
 	bucket, found := searchResult.Aggregations.Terms(traceIDAggregation)
 	if !found {
@@ -605,7 +587,7 @@ func (s *SpanReader) findTraceIDs(ctx context.Context, traceQuery *spanstore.Tra
 	}
 
 	traceIDBuckets := bucket.Buckets
-	return bucketToStringArray(traceIDBuckets)
+	return bucketToStringArray[dbmodel.TraceID](traceIDBuckets)
 }
 
 func (s *SpanReader) buildTraceIDAggregation(numOfTraces int) elastic.Aggregation {
@@ -621,7 +603,7 @@ func (*SpanReader) buildTraceIDSubAggregation() elastic.Aggregation {
 		Field(startTimeField)
 }
 
-func (s *SpanReader) buildFindTraceIDsQuery(traceQuery *spanstore.TraceQueryParameters) elastic.Query {
+func (s *SpanReader) buildFindTraceIDsQuery(traceQuery *dbmodel.TraceQueryParameters) elastic.Query {
 	boolQuery := elastic.NewBoolQuery()
 
 	// add duration query

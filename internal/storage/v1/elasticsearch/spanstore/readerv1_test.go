@@ -49,7 +49,7 @@ func TestSpanReaderV1_FindTraces(t *testing.T) {
 		trace1 := getTestingTrace("service-1")
 		trace2 := getTestingTrace("service-2")
 		traces := []*model.Trace{trace1, trace2}
-		m.On("FindTraces", mock.Anything, mock.AnythingOfType("*spanstore.TraceQueryParameters")).Return(traces, nil)
+		m.On("FindTraces", mock.Anything, mock.AnythingOfType("*dbmodel.TraceQueryParameters")).Return(traces, nil)
 		actual, err := r.FindTraces(context.Background(), &spanstore.TraceQueryParameters{})
 		require.NoError(t, err)
 		assert.Equal(t, traces, actual)
@@ -58,14 +58,47 @@ func TestSpanReaderV1_FindTraces(t *testing.T) {
 
 func TestSpanReaderV1_FindTraceIDs(t *testing.T) {
 	withSpanReaderV1(func(r *SpanReaderV1, m *mocks.CoreSpanReader) {
-		traceId1 := model.NewTraceID(0, 1)
-		traceId2 := model.NewTraceID(0, 2)
-		traceIds := []model.TraceID{traceId1, traceId2}
-		m.On("FindTraceIDs", mock.Anything, mock.AnythingOfType("*spanstore.TraceQueryParameters")).Return(traceIds, nil)
+		traceId1Model := model.NewTraceID(0, 1)
+		traceId2Model := model.NewTraceID(0, 2)
+		traceId1 := dbmodel.TraceID(traceId1Model.String())
+		traceId2 := dbmodel.TraceID(traceId2Model.String())
+		traceIds := []dbmodel.TraceID{traceId1, traceId2}
+		m.On("FindTraceIDs", mock.Anything, mock.AnythingOfType("*dbmodel.TraceQueryParameters")).Return(traceIds, nil)
 		actual, err := r.FindTraceIDs(context.Background(), &spanstore.TraceQueryParameters{})
 		require.NoError(t, err)
-		assert.Equal(t, traceIds, actual)
+		expected := []model.TraceID{traceId1Model, traceId2Model}
+		assert.Equal(t, expected, actual)
 	})
+}
+
+func TestSpanReaderV1_FindTraceIDs_Errors(t *testing.T) {
+	tests := []struct {
+		name              string
+		returningTraceIDs []dbmodel.TraceID
+		returningErr      error
+		expectedError     string
+	}{
+		{
+			name:          "error from core span reader",
+			returningErr:  errors.New("error from core span reader"),
+			expectedError: "error from core span reader",
+		},
+		{
+			name:              "error from conversion",
+			returningTraceIDs: []dbmodel.TraceID{dbmodel.TraceID("wrong-id")},
+			expectedError:     "making traceID from string 'wrong-id' failed: strconv.ParseUint: parsing \"wrong-id\": invalid syntax",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			withSpanReaderV1(func(r *SpanReaderV1, m *mocks.CoreSpanReader) {
+				m.On("FindTraceIDs", mock.Anything, mock.AnythingOfType("*dbmodel.TraceQueryParameters")).Return(tt.returningTraceIDs, tt.returningErr)
+				actual, err := r.FindTraceIDs(context.Background(), &spanstore.TraceQueryParameters{})
+				assert.Nil(t, actual)
+				assert.ErrorContains(t, err, tt.expectedError)
+			})
+		})
+	}
 }
 
 func TestSpanReaderV1_GetServices(t *testing.T) {

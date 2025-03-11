@@ -5,6 +5,7 @@ package spanstore
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
@@ -61,10 +62,49 @@ func (s *SpanReaderV1) GetServices(ctx context.Context) ([]string, error) {
 
 // FindTraces retrieves traces that match the traceQuery
 func (s *SpanReaderV1) FindTraces(ctx context.Context, traceQuery *spanstore.TraceQueryParameters) ([]*model.Trace, error) {
-	return s.spanReader.FindTraces(ctx, traceQuery)
+	return s.spanReader.FindTraces(ctx, toDbQueryParams(traceQuery))
 }
 
 // FindTraceIDs retrieves traces IDs that match the traceQuery
 func (s *SpanReaderV1) FindTraceIDs(ctx context.Context, traceQuery *spanstore.TraceQueryParameters) ([]model.TraceID, error) {
-	return s.spanReader.FindTraceIDs(ctx, traceQuery)
+	ids, err := s.spanReader.FindTraceIDs(ctx, toDbQueryParams(traceQuery))
+	if err != nil {
+		return nil, err
+	}
+	return toModelTraceIDs(ids)
+}
+
+func toDbQueryParams(p *spanstore.TraceQueryParameters) *dbmodel.TraceQueryParameters {
+	return &dbmodel.TraceQueryParameters{
+		ServiceName:   p.ServiceName,
+		OperationName: p.OperationName,
+		Tags:          p.Tags,
+		StartTimeMin:  p.StartTimeMin,
+		StartTimeMax:  p.StartTimeMax,
+		DurationMin:   p.DurationMin,
+		DurationMax:   p.DurationMax,
+		NumTraces:     p.NumTraces,
+	}
+}
+
+func toModelTraceIDs(traceIDs []dbmodel.TraceID) ([]model.TraceID, error) {
+	traceIDsMap := map[model.TraceID]bool{}
+	// https://github.com/jaegertracing/jaeger/pull/1956 added leading zeros to IDs
+	// So we need to also read IDs without leading zeros for compatibility with previously saved data.
+	// That means the input to this function may contain logically identical trace IDs but formatted
+	// with or without padding, and we need to dedupe them.
+	// TODO remove deduping in newer versions, added in Jaeger 1.16
+	traceIDsModels := make([]model.TraceID, 0, len(traceIDs))
+	for _, ID := range traceIDs {
+		traceID, err := model.TraceIDFromString(string(ID))
+		if err != nil {
+			return nil, fmt.Errorf("making traceID from string '%s' failed: %w", ID, err)
+		}
+		if _, ok := traceIDsMap[traceID]; !ok {
+			traceIDsMap[traceID] = true
+			traceIDsModels = append(traceIDsModels, traceID)
+		}
+	}
+
+	return traceIDsModels, nil
 }

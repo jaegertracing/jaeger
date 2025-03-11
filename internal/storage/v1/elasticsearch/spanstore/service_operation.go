@@ -87,7 +87,7 @@ func (s *ServiceOperationStorage) getServices(ctx context.Context, indices []str
 		return nil, errors.New("could not find aggregation of " + servicesAggregation)
 	}
 	serviceNamesBucket := bucket.Buckets
-	return bucketToStringArray(serviceNamesBucket)
+	return bucketToStringArray[string](serviceNamesBucket)
 }
 
 func getServicesAggregation(maxDocCount int) elastic.Query {
@@ -118,7 +118,7 @@ func (s *ServiceOperationStorage) getOperations(ctx context.Context, indices []s
 		return nil, errors.New("could not find aggregation of " + operationsAggregation)
 	}
 	operationNamesBucket := bucket.Buckets
-	return bucketToStringArray(operationNamesBucket)
+	return bucketToStringArray[string](operationNamesBucket)
 }
 
 func getOperationsAggregation(maxDocCount int) elastic.Query {
