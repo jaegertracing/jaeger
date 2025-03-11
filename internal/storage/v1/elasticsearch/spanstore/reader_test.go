@@ -631,6 +631,7 @@ func testGet(typ string, t *testing.T) {
 			searchResult: &elastic.SearchResult{Aggregations: elastic.Aggregations(goodAggregations)},
 			expectedOutput: map[string]any{
 				operationsAggregation: []dbmodel.Operation{{Name: "123"}},
+				traceIDAggregation:    []dbmodel.TraceID{"123"},
 				"default":             []string{"123"},
 			},
 			expectedError: func() string {
@@ -685,15 +686,7 @@ func returnSearchFunc(typ string, r *spanReaderTest) (any, error) {
 			dbmodel.OperationQueryParameters{ServiceName: "someService"},
 		)
 	case traceIDAggregation:
-		ids, err := r.reader.findTraceIDs(context.Background(), &dbmodel.TraceQueryParameters{})
-		if err != nil {
-			return nil, err
-		}
-		var stringIds []string
-		for _, id := range ids {
-			stringIds = append(stringIds, string(id))
-		}
-		return stringIds, nil
+		return r.reader.findTraceIDs(context.Background(), &dbmodel.TraceQueryParameters{})
 	}
 	return nil, errors.New("Specify services, operations, traceIDs only")
 }
