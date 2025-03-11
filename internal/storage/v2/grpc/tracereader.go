@@ -24,9 +24,12 @@ type TraceReader struct {
 	client storage.TraceReaderClient
 }
 
-func NewTraceReader(tracedConn *grpc.ClientConn) *TraceReader {
+// NewTraceReader creates a TraceReader that communicates with a remote gRPC storage server.
+// The provided gRPC connection is used exclusively for reading traces, meaning it is safe
+// to enable instrumentation on the connection without risk of recursively generating traces.
+func NewTraceReader(conn *grpc.ClientConn) *TraceReader {
 	return &TraceReader{
-		client: storage.NewTraceReaderClient(tracedConn),
+		client: storage.NewTraceReaderClient(conn),
 	}
 }
 

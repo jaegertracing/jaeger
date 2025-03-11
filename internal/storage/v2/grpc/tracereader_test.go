@@ -65,11 +65,11 @@ func startTestServer(t *testing.T, testServer *testServer) *grpc.ClientConn {
 	return conn
 }
 
-func TestTraceReader_GetOperations(t *testing.T) {
+func TestTraceReader_GetTraces(t *testing.T) {
 	tr := &TraceReader{}
 
 	require.Panics(t, func() {
-		_, _ = tr.GetOperations(context.Background(), tracestore.OperationQueryParams{})
+		tr.GetTraces(context.Background(), tracestore.GetTraceParams{})
 	})
 }
 
@@ -107,11 +107,19 @@ func TestTraceReader_GetServices(t *testing.T) {
 	}
 }
 
+func TestTraceReader_GetOperations(t *testing.T) {
+	tr := &TraceReader{}
+
+	require.Panics(t, func() {
+		tr.GetOperations(context.Background(), tracestore.OperationQueryParams{})
+	})
+}
+
 func TestTraceReader_FindTraces(t *testing.T) {
 	tr := &TraceReader{}
 
 	require.Panics(t, func() {
-		_ = tr.FindTraces(context.Background(), tracestore.TraceQueryParams{})
+		tr.FindTraces(context.Background(), tracestore.TraceQueryParams{})
 	})
 }
 
@@ -119,6 +127,6 @@ func TestTraceReader_FindTraceIDs(t *testing.T) {
 	tr := &TraceReader{}
 
 	require.Panics(t, func() {
-		_ = tr.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{})
+		tr.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{})
 	})
 }
