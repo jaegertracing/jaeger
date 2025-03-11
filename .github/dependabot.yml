@@ -1,30 +1,5 @@
 version: 2
 updates:
-  - package-ecosystem: gomod
-    directory: "/"
-    schedule:
-      interval: daily
-    open-pull-requests-limit: 10
-    labels: [ "changelog:dependencies" ]
-    # Groups are updated together in one pull request
-    groups:
-      otel:
-        patterns:
-          - "go.opentelemetry.io/otel*"
-      otel-collector:
-        patterns:
-          - "go.opentelemetry.io/collector*"
-          - "github.com/open-telemetry/o*-collector-contrib/*"
-      otel-instrumentation:
-        patterns:
-          - "go.opentelemetry.io/contrib/instrumentation/*"
-
-  - package-ecosystem: gomod
-    directory: "/internal/tools"
-    schedule:
-      interval: daily
-    labels: [ "changelog:dependencies" ]
-
   - package-ecosystem: docker
     directories:
       - /cmd/agent

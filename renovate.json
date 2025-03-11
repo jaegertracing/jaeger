@@ -125,6 +125,16 @@
         "patch"
       ],
       "enabled": false
+    },
+    {
+      "description": "Handle internal tools dependencies",
+      "matchPaths": [
+        "internal/tools/**"
+      ],
+      "matchManagers": [
+        "gomod"
+      ],
+      "labels": ["changelog:dependencies"]
     }
   ]
 }
