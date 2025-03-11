@@ -13,10 +13,10 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
+	"github.com/jaegertracing/jaeger/internal/testutils"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	promCfg "github.com/jaegertracing/jaeger/pkg/prometheus/config"
 	"github.com/jaegertracing/jaeger/pkg/telemetry"
-	"github.com/jaegertracing/jaeger/pkg/testutils"
 )
 
 var _ storage.MetricStoreFactory = new(Factory)

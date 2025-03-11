@@ -16,8 +16,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger/internal/metricstest"
+	"github.com/jaegertracing/jaeger/internal/testutils"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
-	"github.com/jaegertracing/jaeger/pkg/testutils"
 )
 
 // In this test we run a queue with capacity 1 and a single consumer.

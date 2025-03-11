@@ -13,8 +13,8 @@ import (
 
 	"github.com/jaegertracing/jaeger/internal/metrics/otelmetrics"
 	prom "github.com/jaegertracing/jaeger/internal/metrics/prometheus"
+	"github.com/jaegertracing/jaeger/internal/testutils"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
-	"github.com/jaegertracing/jaeger/pkg/testutils"
 )
 
 func TestMain(m *testing.M) {

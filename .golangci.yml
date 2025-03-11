@@ -139,7 +139,7 @@ linters-settings:
       disallow-uber/goleak:
         deny:
          - pkg: go.uber.org/goleak
-           desc: "Use github.com/jaegertracing/jaeger/pkg/testutils"
+           desc: "Use github.com/jaegertracing/jaeger/internal/testutils"
         files:
           - "**_test.go"
 

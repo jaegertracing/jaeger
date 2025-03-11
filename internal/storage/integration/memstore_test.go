@@ -11,7 +11,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/internal/storage/v1/memory"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
-	"github.com/jaegertracing/jaeger/pkg/testutils"
+	"github.com/jaegertracing/jaeger/internal/testutils"
 )
 
 type MemStorageIntegrationTestSuite struct {
