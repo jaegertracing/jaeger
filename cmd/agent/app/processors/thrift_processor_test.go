@@ -227,7 +227,6 @@ func assertCollectorReceivedData(
 		t.Log("all metrics", c)
 	}
 
-	time.Sleep(100 * time.Millisecond)
 	metricsFactory.AssertCounterMetrics(t, []metricstest.ExpectedMetric{
 		{Name: "reporter.batches.submitted", Tags: map[string]string{"format": format}, Value: 1},
 		{Name: "reporter.spans.submitted", Tags: map[string]string{"format": format}, Value: 1},
