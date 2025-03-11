@@ -337,7 +337,7 @@ func (s *SpanReader) FindTraces(ctx context.Context, traceQuery *dbmodel.TraceQu
 	if err != nil {
 		return nil, es.DetailedError(err)
 	}
-	traceIds, err := convertTraceIDsStringsToModels(uniqueTraceIDs)
+	traceIds, err := toModelTraceIDs(uniqueTraceIDs)
 	if err != nil {
 		return nil, es.DetailedError(err)
 	}

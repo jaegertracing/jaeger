@@ -71,7 +71,7 @@ func (s *SpanReaderV1) FindTraceIDs(ctx context.Context, traceQuery *spanstore.T
 	if err != nil {
 		return nil, err
 	}
-	return convertTraceIDsStringsToModels(ids)
+	return toModelTraceIDs(ids)
 }
 
 func toDbQueryParams(p *spanstore.TraceQueryParameters) *dbmodel.TraceQueryParameters {
@@ -87,7 +87,7 @@ func toDbQueryParams(p *spanstore.TraceQueryParameters) *dbmodel.TraceQueryParam
 	}
 }
 
-func convertTraceIDsStringsToModels(traceIDs []dbmodel.TraceID) ([]model.TraceID, error) {
+func toModelTraceIDs(traceIDs []dbmodel.TraceID) ([]model.TraceID, error) {
 	traceIDsMap := map[model.TraceID]bool{}
 	// https://github.com/jaegertracing/jaeger/pull/1956 added leading zeros to IDs
 	// So we need to also read IDs without leading zeros for compatibility with previously saved data.

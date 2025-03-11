@@ -967,12 +967,12 @@ func TestFindTraceIDs(t *testing.T) {
 }
 
 func TestTraceIDsStringsToModelsConversion(t *testing.T) {
-	traceIDs, err := convertTraceIDsStringsToModels([]dbmodel.TraceID{"1", "2", "3"})
+	traceIDs, err := toModelTraceIDs([]dbmodel.TraceID{"1", "2", "3"})
 	require.NoError(t, err)
 	assert.Len(t, traceIDs, 3)
 	assert.Equal(t, model.NewTraceID(0, 1), traceIDs[0])
 
-	traceIDs, err = convertTraceIDsStringsToModels([]dbmodel.TraceID{"dsfjsdklfjdsofdfsdbfkgbgoaemlrksdfbsdofgerjl"})
+	traceIDs, err = toModelTraceIDs([]dbmodel.TraceID{"dsfjsdklfjdsofdfsdbfkgbgoaemlrksdfbsdofgerjl"})
 	require.EqualError(t, err, "making traceID from string 'dsfjsdklfjdsofdfsdbfkgbgoaemlrksdfbsdofgerjl' failed: TraceID cannot be longer than 32 hex characters: dsfjsdklfjdsofdfsdbfkgbgoaemlrksdfbsdofgerjl")
 	assert.Empty(t, traceIDs)
 }
@@ -1289,10 +1289,10 @@ func TestSpanReader_ArchiveTraces(t *testing.T) {
 }
 
 func TestConvertTraceIDsStringsToModels(t *testing.T) {
-	ids, err := convertTraceIDsStringsToModels([]dbmodel.TraceID{"1", "2", "01", "02", "001", "002"})
+	ids, err := toModelTraceIDs([]dbmodel.TraceID{"1", "2", "01", "02", "001", "002"})
 	require.NoError(t, err)
 	assert.Equal(t, []model.TraceID{model.NewTraceID(0, 1), model.NewTraceID(0, 2)}, ids)
-	_, err = convertTraceIDsStringsToModels([]dbmodel.TraceID{"1", "2", "01", "02", "001", "002", "blah"})
+	_, err = toModelTraceIDs([]dbmodel.TraceID{"1", "2", "01", "02", "001", "002", "blah"})
 	require.Error(t, err)
 }
 
