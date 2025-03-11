@@ -125,15 +125,6 @@
         "patch"
       ],
       "enabled": false
-    },
-    {
-      "description": "Handle internal tools dependencies",
-      "matchFileNames": [
-        "internal/tools/**"
-      ],
-      "matchManagers": [
-        "gomod"
-      ]
     }
   ]
 }
