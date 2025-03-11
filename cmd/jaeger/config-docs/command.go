@@ -53,7 +53,11 @@ func GenerateDocs() error {
 		"go.opentelemetry.io/otel",
 	}
 
-	var allStructs []StructDoc
+	schema := map[string]interface{}{
+		"$schema":     "https://json-schema.org/draft/2020-12/schema",
+		"type":        "object",
+		"definitions": map[string]interface{}{},
+	}
 
 	// Load packages using `go/packages`
 	cfg := &packages.Config{
@@ -68,27 +72,27 @@ func GenerateDocs() error {
 	for _, pkg := range pkgs {
 		for _, syntax := range pkg.Syntax {
 			structs := parseAST(syntax)
-			allStructs = append(allStructs, structs...)
+			for _, structDoc := range structs {
+				schema["definitions"].(map[string]interface{})[structDoc.Name] = structToSchema(structDoc)
+			}
 		}
 	}
 
 	// Extract referenced struct names from `components.go`
 	referencedStructs := extractStructsFromComponents()
 
-	// Get default values only for relevant structs
-	structDefaults := make(map[string]map[string]interface{})
-	for _, structDoc := range allStructs {
-		if _, exists := referencedStructs[structDoc.Name]; exists {
-			structDefaults[structDoc.Name] = extractDefaults(structDoc.Name)
-		}
-	}
-
-	// Merge defaults into structs
-	for i, structDoc := range allStructs {
-		if defaults, found := structDefaults[structDoc.Name]; found {
-			for j, field := range structDoc.Fields {
-				if val, ok := defaults[field.Name]; ok {
-					allStructs[i].Fields[j].DefaultValue = val
+	// Extract defaults and embed them within the JSON Schema
+	for structName := range referencedStructs {
+		defaults := extractDefaults(structName)
+		if schemaDef, exists := schema["definitions"].(map[string]interface{})[structName]; exists {
+			// Embed default values into the JSON Schema definition
+			if schemaMap, ok := schemaDef.(map[string]interface{}); ok {
+				for fieldName, defaultValue := range defaults {
+					if properties, ok := schemaMap["properties"].(map[string]interface{}); ok {
+						if fieldSchema, ok := properties[fieldName].(map[string]interface{}); ok {
+							fieldSchema["default"] = defaultValue
+						}
+					}
 				}
 			}
 		}
@@ -103,7 +107,7 @@ func GenerateDocs() error {
 
 	encoder := json.NewEncoder(outputFile)
 	encoder.SetIndent("", "  ")
-	if err := encoder.Encode(allStructs); err != nil {
+	if err := encoder.Encode(schema); err != nil {
 		log.Fatalf("Error encoding JSON: %v", err)
 	}
 
@@ -186,6 +190,53 @@ func extractStructsFromComponents() map[string]bool {
 		}
 	}
 	return structNames
+}
+
+func structToSchema(structDoc StructDoc) map[string]interface{} {
+	properties := make(map[string]interface{})
+	requiredFields := []string{}
+
+	for _, field := range structDoc.Fields {
+		fieldSchema := map[string]interface{}{
+			"type": mapGoTypeToJSONType(field.Type),
+		}
+
+		if field.Comment != "" {
+			fieldSchema["description"] = field.Comment
+		}
+		if field.DefaultValue != nil {
+			fieldSchema["default"] = field.DefaultValue
+		}
+
+		properties[field.Name] = fieldSchema
+		requiredFields = append(requiredFields, field.Name)
+	}
+
+	return map[string]interface{}{
+		"type":        "object",
+		"properties":  properties,
+		"required":    requiredFields,
+		"description": structDoc.Comment,
+	}
+}
+
+func mapGoTypeToJSONType(goType string) string {
+	switch goType {
+	case "int", "int32", "int64", "uint", "uint32", "uint64":
+		return "integer"
+	case "float32", "float64":
+		return "number"
+	case "bool":
+		return "boolean"
+	case "string":
+		return "string"
+	case "[]string", "[]int", "[]float64", "[]bool":
+		return "array"
+	case "map[string]string", "map[string]int":
+		return "object"
+	default:
+		return "string" // Fallback for complex types
+	}
 }
 
 // extractDefaults extracts default values only for relevant structs.
