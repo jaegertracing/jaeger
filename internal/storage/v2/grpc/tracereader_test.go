@@ -22,16 +22,15 @@ import (
 type testServer struct {
 	storage.UnimplementedTraceReaderServer
 
-	getServicesError   error
-	getOperationsError error
+	err error
 }
 
 func (s *testServer) GetServices(
 	context.Context,
 	*storage.GetServicesRequest,
 ) (*storage.GetServicesResponse, error) {
-	if s.getServicesError != nil {
-		return nil, s.getServicesError
+	if s.err != nil {
+		return nil, s.err
 	}
 	return &storage.GetServicesResponse{
 		Services: []string{"service-a", "service-b"},
@@ -42,8 +41,8 @@ func (s *testServer) GetOperations(
 	context.Context,
 	*storage.GetOperationsRequest,
 ) (*storage.GetOperationsResponse, error) {
-	if s.getOperationsError != nil {
-		return nil, s.getOperationsError
+	if s.err != nil {
+		return nil, s.err
 	}
 	return &storage.GetOperationsResponse{
 		Operations: []*storage.Operation{
@@ -104,7 +103,7 @@ func TestTraceReader_GetServices(t *testing.T) {
 		{
 			name: "error",
 			testServer: &testServer{
-				getServicesError: assert.AnError,
+				err: assert.AnError,
 			},
 			expectedError: errFailedToGetServices,
 		},
@@ -141,7 +140,7 @@ func TestTraceReader_GetOperations(t *testing.T) {
 		{
 			name: "error",
 			testServer: &testServer{
-				getOperationsError: assert.AnError,
+				err: assert.AnError,
 			},
 			expectedError: errFailedToGetOperations,
 		},
