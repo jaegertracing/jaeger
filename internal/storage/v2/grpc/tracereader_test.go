@@ -22,7 +22,8 @@ import (
 type testServer struct {
 	storage.UnimplementedTraceReaderServer
 
-	getServicesError error
+	getServicesError   error
+	getOperationsError error
 }
 
 func (s *testServer) GetServices(
@@ -34,6 +35,21 @@ func (s *testServer) GetServices(
 	}
 	return &storage.GetServicesResponse{
 		Services: []string{"service-a", "service-b"},
+	}, nil
+}
+
+func (s *testServer) GetOperations(
+	context.Context,
+	*storage.GetOperationsRequest,
+) (*storage.GetOperationsResponse, error) {
+	if s.getOperationsError != nil {
+		return nil, s.getOperationsError
+	}
+	return &storage.GetOperationsResponse{
+		Operations: []*storage.Operation{
+			{Name: "operation-a", SpanKind: "kind"},
+			{Name: "operation-b", SpanKind: "kind"},
+		},
 	}, nil
 }
 
@@ -108,11 +124,43 @@ func TestTraceReader_GetServices(t *testing.T) {
 }
 
 func TestTraceReader_GetOperations(t *testing.T) {
-	tr := &TraceReader{}
+	tests := []struct {
+		name          string
+		testServer    *testServer
+		expectedOps   []tracestore.Operation
+		expectedError error
+	}{
+		{
+			name:       "success",
+			testServer: &testServer{},
+			expectedOps: []tracestore.Operation{
+				{Name: "operation-a", SpanKind: "kind"},
+				{Name: "operation-b", SpanKind: "kind"},
+			},
+		},
+		{
+			name: "error",
+			testServer: &testServer{
+				getOperationsError: assert.AnError,
+			},
+			expectedError: errFailedToGetOperations,
+		},
+	}
 
-	require.Panics(t, func() {
-		tr.GetOperations(context.Background(), tracestore.OperationQueryParams{})
-	})
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			conn := startTestServer(t, test.testServer)
+
+			reader := NewTraceReader(conn)
+			ops, err := reader.GetOperations(context.Background(), tracestore.OperationQueryParams{
+				ServiceName: "service-a",
+				SpanKind:    "kind",
+			})
+
+			require.ErrorIs(t, err, test.expectedError)
+			require.Equal(t, test.expectedOps, ops)
+		})
+	}
 }
 
 func TestTraceReader_FindTraces(t *testing.T) {
