@@ -14,7 +14,7 @@ import (
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/grpc/proto/storageprototest"
-	"github.com/jaegertracing/jaeger/pkg/testutils"
+	"github.com/jaegertracing/jaeger/internal/testutils"
 	"github.com/jaegertracing/jaeger/proto-gen/storage_v1"
 )
 

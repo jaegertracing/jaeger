@@ -20,10 +20,10 @@ import (
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore"
+	"github.com/jaegertracing/jaeger/internal/testutils"
 	"github.com/jaegertracing/jaeger/pkg/es"
 	"github.com/jaegertracing/jaeger/pkg/es/config"
 	"github.com/jaegertracing/jaeger/pkg/es/mocks"
-	"github.com/jaegertracing/jaeger/pkg/testutils"
 )
 
 const defaultMaxDocCount = 10_000

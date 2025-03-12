@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger/cmd/query/app/ui/testdata"
-	"github.com/jaegertracing/jaeger/pkg/testutils"
+	"github.com/jaegertracing/jaeger/internal/testutils"
 )
 
 func TestGetStaticFiles_ReturnsPlaceholderWhenActualNotPresent(t *testing.T) {

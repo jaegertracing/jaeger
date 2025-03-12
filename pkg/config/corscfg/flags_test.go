@@ -11,8 +11,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/config/confighttp"
 
+	"github.com/jaegertracing/jaeger/internal/testutils"
 	"github.com/jaegertracing/jaeger/pkg/config"
-	"github.com/jaegertracing/jaeger/pkg/testutils"
 )
 
 func TestCORSFlags(t *testing.T) {

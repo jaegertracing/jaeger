@@ -15,9 +15,9 @@ import (
 	nooptrace "go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/internal/testutils"
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	"github.com/jaegertracing/jaeger/pkg/telemetry"
-	"github.com/jaegertracing/jaeger/pkg/testutils"
 )
 
 func TestHCAdapter(t *testing.T) {

@@ -12,7 +12,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 
-	"github.com/jaegertracing/jaeger/pkg/testutils"
+	"github.com/jaegertracing/jaeger/internal/testutils"
 )
 
 func TestNew(t *testing.T) {

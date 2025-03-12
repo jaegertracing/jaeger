@@ -6,7 +6,7 @@ package testutils_test
 import (
 	"testing"
 
-	"github.com/jaegertracing/jaeger/pkg/testutils"
+	"github.com/jaegertracing/jaeger/internal/testutils"
 )
 
 func TestVerifyGoLeaksOnce(t *testing.T) {

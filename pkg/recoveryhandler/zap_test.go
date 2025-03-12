@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/jaegertracing/jaeger/pkg/testutils"
+	"github.com/jaegertracing/jaeger/internal/testutils"
 )
 
 func TestNewRecoveryHandler(t *testing.T) {
