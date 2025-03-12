@@ -1,49 +1,19 @@
 // Copyright (c) 2025 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
-
 package configdocs
 
 import (
 	"encoding/json"
 	"fmt"
 	"go/ast"
-	"go/token"
 	"log"
 	"os"
 	"strings"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal"
-	"github.com/spf13/cobra"
 	"go.opentelemetry.io/collector/component"
 	"golang.org/x/tools/go/packages"
 )
-
-// FieldDoc represents documentation for a struct field.
-type FieldDoc struct {
-	Name         string      `json:"name"`
-	Type         string      `json:"type"`
-	Tag          string      `json:"tag,omitempty"`
-	DefaultValue interface{} `json:"default_value,omitempty"`
-	Comment      string      `json:"comment,omitempty"`
-}
-
-// StructDoc represents documentation for a struct.
-type StructDoc struct {
-	Name    string     `json:"name"`
-	Fields  []FieldDoc `json:"fields"`
-	Comment string     `json:"comment,omitempty"`
-}
-
-// Command returns the config-docs command.
-func Command() *cobra.Command {
-	return &cobra.Command{
-		Use:   "config-docs",
-		Short: "Extracts and generates configuration documentation from structs",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return GenerateDocs()
-		},
-	}
-}
 
 func GenerateDocs() error {
 	// List of target directories for AST parsing
@@ -113,54 +83,6 @@ func GenerateDocs() error {
 
 	fmt.Println("Struct documentation has been written to struct_docs.json")
 	return nil
-}
-
-// parseAST traverses an AST to extract struct definitions.
-func parseAST(node ast.Node) []StructDoc {
-	var structs []StructDoc
-
-	ast.Inspect(node, func(n ast.Node) bool {
-		switch t := n.(type) {
-		case *ast.GenDecl:
-			if t.Tok == token.TYPE {
-				for _, spec := range t.Specs {
-					typeSpec, ok := spec.(*ast.TypeSpec)
-					if !ok {
-						continue
-					}
-					structType, ok := typeSpec.Type.(*ast.StructType)
-					if !ok {
-						continue
-					}
-
-					structDoc := StructDoc{Name: typeSpec.Name.Name}
-					if t.Doc != nil {
-						structDoc.Comment = t.Doc.Text()
-					}
-
-					for _, field := range structType.Fields.List {
-						fieldType := fmt.Sprint(field.Type)
-						var tag string
-						if field.Tag != nil {
-							tag = field.Tag.Value
-						}
-
-						for _, fieldName := range field.Names {
-							structDoc.Fields = append(structDoc.Fields, FieldDoc{
-								Name: fieldName.Name,
-								Type: fieldType,
-								Tag:  tag,
-							})
-						}
-					}
-					structs = append(structs, structDoc)
-				}
-			}
-		}
-		return true
-	})
-
-	return structs
 }
 
 // extractStructsFromComponents extracts struct names referenced in `components.go`.
