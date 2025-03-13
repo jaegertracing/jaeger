@@ -6,7 +6,7 @@ package file
 import (
 	"testing"
 
-	"github.com/jaegertracing/jaeger/pkg/testutils"
+	"github.com/jaegertracing/jaeger/internal/testutils"
 )
 
 func TestMain(m *testing.M) {

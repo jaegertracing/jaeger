@@ -13,8 +13,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	promMetrics "github.com/jaegertracing/jaeger/internal/metrics/prometheus"
+	"github.com/jaegertracing/jaeger/internal/testutils"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
-	"github.com/jaegertracing/jaeger/pkg/testutils"
 )
 
 func TestOptions(t *testing.T) {
