@@ -1071,10 +1071,10 @@ def process_commits(
             if not is_valid_email(email):
                 infractions[commit.hash].append(f'invalid email: {email}')
             else:
-                sign_offs_name_email.append((name, email))
+                sign_offs_name_email.append((name, email.lower()))
 
         # Check that author is in the sign-offs
-        if not (commit.author_name, commit.author_email) in sign_offs_name_email:
+        if not (commit.author_name, commit.author_email.lower()) in sign_offs_name_email:
             infractions[commit.hash].append(
                 'sign-off not found for commit author: '
                 f'{commit.author_name} {commit.author_email}; found: {sign_offs}'
