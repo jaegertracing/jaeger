@@ -4,16 +4,22 @@ package configdocs
 
 // FieldDoc represents documentation for a struct field.
 type FieldDoc struct {
-	Name         string      `json:"name"`
-	Type         string      `json:"type"`
-	Tag          string      `json:"tag,omitempty"`
-	DefaultValue interface{} `json:"default_value,omitempty"`
-	Comment      string      `json:"comment,omitempty"`
+	Name           string      `json:"-"`
+	Type           string      `json:"type"`
+	MapStructure   string      `json:"mapstructure,omitempty"`
+	Description    string      `json:"description,omitempty"`
+	DefaultValue   interface{} `json:"default,omitempty"`
+	Required       bool        `json:"required,omitempty"`
+	JSONSchemaType string      `json:"-"`
+	NestedType     string      `json:"$ref,omitempty"`
+	Deprecated     bool        `json:"deprecated,omitempty"`
 }
 
 // StructDoc represents documentation for a struct.
 type StructDoc struct {
-	Name    string     `json:"name"`
-	Fields  []FieldDoc `json:"fields"`
-	Comment string     `json:"comment,omitempty"`
+	Name        string              `json:"-"`
+	PackagePath string              `json:"-"`
+	Description string              `json:"description,omitempty"`
+	Properties  map[string]FieldDoc `json:"properties"`
+	Required    []string            `json:"required,omitempty"`
 }

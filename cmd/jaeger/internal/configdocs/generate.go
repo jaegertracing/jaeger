@@ -5,209 +5,310 @@ package configdocs
 import (
 	"encoding/json"
 	"fmt"
-	"go/ast"
-	"log"
 	"os"
+	"reflect"
+	"sort"
 	"strings"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal"
-	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/otelcol"
 	"golang.org/x/tools/go/packages"
 )
 
+type JSONSchema struct {
+	Schema      string                     `json:"$schema"`
+	Title       string                     `json:"title"`
+	Description string                     `json:"description"`
+	Type        string                     `json:"type"`
+	Definitions map[string]interface{}     `json:"definitions"`
+	Properties  map[string]interface{}     `json:"properties"`
+	Required    []string                   `json:"required,omitempty"`
+	Extensions  map[string]json.RawMessage `json:"-"`
+}
+
 func GenerateDocs() error {
-	// List of target directories for AST parsing
-	targetPackages := []string{
-		"github.com/jaegertracing/jaeger/cmd/jaeger/internal/exporters/storageexporter",
-		"github.com/jaegertracing/jaeger/pkg/es/config",
-		"go.opentelemetry.io/otel",
+	factories, err := internal.Components()
+	if err != nil {
+		return fmt.Errorf("failed to get components: %w", err)
+	}
+
+	configs := collectConfigs(factories)
+	packages := collectPackages(configs)
+
+	pkgs, err := loadPackages(packages)
+	if err != nil {
+		return err
+	}
+
+	schema := JSONSchema{
+		Schema:      "https://json-schema.org/draft/2019-09/schema",
+		Title:       "Jaeger Configuration",
+		Description: "Jaeger component configuration schema",
+		Type:        "object",
+		Definitions: make(map[string]interface{}),
+		Properties:  make(map[string]interface{}),
+	}
+
+	structRegistry := make(map[string]StructDoc)
+
+	// First pass: Collect all structs
+	for _, pkg := range pkgs {
+		for _, syntax := range pkg.Syntax {
+			for _, s := range parseAST(syntax, pkg.PkgPath) {
+				structRegistry[s.Name] = s
+			}
+		}
+	}
+
+	// Second pass: Build schema with references
+	for _, s := range structRegistry {
+		schema.Definitions[s.Name] = buildSchemaStruct(s, structRegistry)
+	}
+
+	// Build root properties
+	rootProps := make(map[string]interface{})
+	// Inside GenerateDocs() function, after building rootProps:
+	for key := range rootProps {
+		if _, exists := schema.Definitions[getStructNameFromKey(key)]; !exists {
+			return fmt.Errorf("missing definition for component: %s", key)
+		}
+	}
+
+	for _, cfg := range configs {
+		structName := getStructName(cfg)
+		rootProps[getComponentKey(cfg)] = map[string]interface{}{
+			"$ref": fmt.Sprintf("#/definitions/%s", structName),
+		}
+	}
+	schema.Properties = rootProps
+
+	// Add defaults
+	addDefaults(&schema, configs)
+
+	return writeSchema(schema)
+}
+
+func buildSchemaStruct(s StructDoc, registry map[string]StructDoc) map[string]interface{} {
+	props := make(map[string]interface{})
+	required := make([]string, 0)
+
+	for name, field := range s.Properties {
+		//skip invalid names processing
+		if name == "" {
+			continue
+		}
+
+		prop := map[string]interface{}{
+			"description": field.Description,
+		}
+
+		// Handle special types
+		switch {
+		case field.Type == "time.Duration":
+			prop["type"] = "string"
+			prop["format"] = "duration"
+		case strings.HasPrefix(field.Type, "[]"):
+			elementType := strings.TrimPrefix(field.Type, "[]")
+			prop["type"] = "array"
+			prop["items"] = map[string]interface{}{
+				"type": mapTypeToJSONSchema(elementType),
+			}
+		default:
+			if nestedSchema, exists := registry[field.Type]; exists {
+				prop["$ref"] = fmt.Sprintf("#/definitions/%s", nestedSchema.Name)
+			} else {
+				prop["type"] = mapTypeToJSONSchema(field.Type)
+			}
+		}
+
+		// Add deprecation handling
+		if field.Deprecated {
+			prop["deprecated"] = true
+			prop["description"] = "[DEPRECATED] " + field.Description
+		}
+
+		if field.DefaultValue != nil {
+			prop["default"] = field.DefaultValue
+		}
+
+		if nestedSchema, exists := registry[field.Type]; exists {
+			prop["$ref"] = fmt.Sprintf("#/definitions/%s", nestedSchema.Name)
+		} else {
+			prop["type"] = mapTypeToJSONSchema(field.Type)
+		}
+
+		// Handle arrays
+		if strings.HasPrefix(field.Type, "[]") {
+			prop["type"] = "array"
+			prop["items"] = map[string]interface{}{
+				"type": mapTypeToJSONSchema(field.Type[2:]),
+			}
+		}
+
+		props[name] = prop
+
+		// Only add to required if not deprecated
+		if field.Required && !field.Deprecated {
+			required = append(required, name)
+		}
 	}
 
 	schema := map[string]interface{}{
-		"$schema":     "https://json-schema.org/draft/2020-12/schema",
+		"title":       s.Name,
 		"type":        "object",
-		"definitions": map[string]interface{}{},
+		"description": s.Description,
+		"properties":  props,
 	}
 
-	// Load packages using `go/packages`
-	cfg := &packages.Config{
-		Mode: packages.NeedSyntax | packages.NeedTypes | packages.NeedTypesInfo | packages.NeedFiles,
-	}
-	pkgs, err := packages.Load(cfg, targetPackages...)
-	if err != nil {
-		log.Fatalf("Error loading packages: %v", err)
+	if len(required) > 0 {
+		schema["required"] = required
 	}
 
-	// Extract struct definitions from AST
-	for _, pkg := range pkgs {
-		for _, syntax := range pkg.Syntax {
-			structs := parseAST(syntax)
-			for _, structDoc := range structs {
-				schema["definitions"].(map[string]interface{})[structDoc.Name] = structToSchema(structDoc)
-			}
-		}
-	}
+	return schema
+}
 
-	// Extract referenced struct names from `components.go`
-	referencedStructs := extractStructsFromComponents()
+func getStructNameFromKey(key string) string {
+	parts := strings.Split(key, "/")
+	return parts[len(parts)-1]
+}
 
-	// Extract defaults and embed them within the JSON Schema
-	for structName := range referencedStructs {
-		defaults := extractDefaults(structName)
-		if schemaDef, exists := schema["definitions"].(map[string]interface{})[structName]; exists {
-			// Embed default values into the JSON Schema definition
-			if schemaMap, ok := schemaDef.(map[string]interface{}); ok {
-				for fieldName, defaultValue := range defaults {
-					if properties, ok := schemaMap["properties"].(map[string]interface{}); ok {
-						if fieldSchema, ok := properties[fieldName].(map[string]interface{}); ok {
-							fieldSchema["default"] = defaultValue
-						}
+// Function to ADd defaults
+func addDefaults(schema *JSONSchema, configs []interface{}) {
+	for _, cfg := range configs {
+		structName := getStructName(cfg)
+		defaults := getDefaults(cfg)
+
+		if def, exists := schema.Definitions[structName].(map[string]interface{}); exists {
+			props := def["properties"].(map[string]interface{})
+			for name, value := range defaults {
+				if prop, ok := props[name].(map[string]interface{}); ok {
+					// Skip deprecated fields
+					if _, deprecated := prop["deprecated"]; !deprecated {
+						prop["default"] = value
 					}
 				}
 			}
 		}
 	}
-
-	// Serialize the collected struct documentation to JSON
-	outputFile, err := os.Create("struct_docs.json")
-	if err != nil {
-		log.Fatalf("Error creating output file: %v", err)
-	}
-	defer outputFile.Close()
-
-	encoder := json.NewEncoder(outputFile)
-	encoder.SetIndent("", "  ")
-	if err := encoder.Encode(schema); err != nil {
-		log.Fatalf("Error encoding JSON: %v", err)
-	}
-
-	fmt.Println("Struct documentation has been written to struct_docs.json")
-	return nil
 }
 
-// extractStructsFromComponents extracts struct names referenced in `components.go`.
-func extractStructsFromComponents() map[string]bool {
-	structNames := make(map[string]bool)
-
-	// Load components.go (adjust path if needed)
-	cfg := &packages.Config{
-		Mode: packages.NeedSyntax | packages.NeedFiles,
-	}
-	pkgs, err := packages.Load(cfg, "github.com/jaegertracing/jaeger/cmd/jaeger/internal/components")
-	if err != nil {
-		log.Fatalf("Error loading components.go: %v", err)
+func mapTypeToJSONSchema(goType string) string {
+	// Handle pointer types
+	if strings.HasPrefix(goType, "*") {
+		return mapTypeToJSONSchema(goType[1:])
 	}
 
-	// Parse AST to find struct names used in components.go
-	for _, pkg := range pkgs {
-		for _, syntax := range pkg.Syntax {
-			ast.Inspect(syntax, func(n ast.Node) bool {
-				if expr, ok := n.(*ast.CompositeLit); ok {
-					if ident, ok := expr.Type.(*ast.Ident); ok {
-						structNames[ident.Name] = true
-					}
-				}
-				return true
-			})
-		}
-	}
-	return structNames
-}
-
-func structToSchema(structDoc StructDoc) map[string]interface{} {
-	properties := make(map[string]interface{})
-	requiredFields := []string{}
-
-	for _, field := range structDoc.Fields {
-		fieldSchema := map[string]interface{}{
-			"type": mapGoTypeToJSONType(field.Type),
-		}
-
-		if field.Comment != "" {
-			fieldSchema["description"] = field.Comment
-		}
-		if field.DefaultValue != nil {
-			fieldSchema["default"] = field.DefaultValue
-		}
-
-		properties[field.Name] = fieldSchema
-		requiredFields = append(requiredFields, field.Name)
-	}
-
-	return map[string]interface{}{
-		"type":        "object",
-		"properties":  properties,
-		"required":    requiredFields,
-		"description": structDoc.Comment,
-	}
-}
-
-func mapGoTypeToJSONType(goType string) string {
-	switch goType {
-	case "int", "int32", "int64", "uint", "uint32", "uint64":
-		return "integer"
-	case "float32", "float64":
-		return "number"
-	case "bool":
-		return "boolean"
-	case "string":
+	// Handle complex types
+	switch {
+	case goType == "time.Duration":
 		return "string"
-	case "[]string", "[]int", "[]float64", "[]bool":
+	case strings.HasPrefix(goType, "[]"):
 		return "array"
-	case "map[string]string", "map[string]int":
+	case strings.HasPrefix(goType, "map["):
 		return "object"
+	case goType == "string":
+		return "string"
+	case goType == "bool":
+		return "boolean"
+	case strings.Contains(goType, "int"):
+		return "integer"
+	case strings.Contains(goType, "float"):
+		return "number"
 	default:
-		return "string" // Fallback for complex types
+		// Check if it's a known struct
+		if strings.Contains(goType, ".") {
+			return "object"
+		}
+		return "string"
 	}
 }
 
-// extractDefaults extracts default values only for relevant structs.
-func extractDefaults(structName string) map[string]interface{} {
-	defaults := make(map[string]interface{})
+func collectConfigs(factories otelcol.Factories) []interface{} {
+	var configs []interface{}
 
-	// Call Jaeger components initializer
-	factories, err := internal.Components()
+	for _, f := range factories.Extensions {
+		configs = append(configs, f.CreateDefaultConfig())
+	}
+	for _, f := range factories.Receivers {
+		configs = append(configs, f.CreateDefaultConfig())
+	}
+	for _, f := range factories.Processors {
+		configs = append(configs, f.CreateDefaultConfig())
+	}
+	for _, f := range factories.Exporters {
+		configs = append(configs, f.CreateDefaultConfig())
+	}
+
+	return configs
+}
+
+func collectPackages(configs []interface{}) []string {
+	packages := make(map[string]struct{})
+	for _, cfg := range configs {
+		t := reflect.TypeOf(cfg)
+		if t.Kind() == reflect.Ptr {
+			t = t.Elem()
+		}
+		if pkgPath := t.PkgPath(); pkgPath != "" {
+			packages[pkgPath] = struct{}{}
+		}
+	}
+
+	result := make([]string, 0, len(packages))
+	for pkg := range packages {
+		result = append(result, pkg)
+	}
+	sort.Strings(result)
+	return result
+}
+
+func loadPackages(pkgPaths []string) ([]*packages.Package, error) {
+	cfg := &packages.Config{
+		Mode: packages.NeedSyntax | packages.NeedTypes | packages.NeedName,
+	}
+	pkgs, err := packages.Load(cfg, pkgPaths...)
 	if err != nil {
-		log.Fatalf("Error building factories: %v", err)
+		return nil, fmt.Errorf("failed to load packages: %w", err)
 	}
+	return pkgs, nil
+}
 
-	// Iterate over all factory types and fetch defaults only if the struct matches
-	for _, factory := range factories.Extensions {
-		if matchAndProcessFactory(factory, structName, defaults) {
-			return defaults
-		}
+func getStructName(cfg interface{}) string {
+	t := reflect.TypeOf(cfg)
+	if t.Kind() == reflect.Ptr {
+		t = t.Elem()
 	}
-	for _, factory := range factories.Receivers {
-		if matchAndProcessFactory(factory, structName, defaults) {
-			return defaults
-		}
-	}
-	for _, factory := range factories.Processors {
-		if matchAndProcessFactory(factory, structName, defaults) {
-			return defaults
-		}
-	}
-	for _, factory := range factories.Exporters {
-		if matchAndProcessFactory(factory, structName, defaults) {
-			return defaults
-		}
-	}
+	return t.Name()
+}
 
+func getComponentKey(cfg interface{}) string {
+	t := reflect.TypeOf(cfg)
+	if t.Kind() == reflect.Ptr {
+		t = t.Elem()
+	}
+	return fmt.Sprintf("%s/%s", t.PkgPath(), t.Name())
+}
+
+func getDefaults(cfg interface{}) map[string]interface{} {
+	defaults := make(map[string]interface{})
+	data, err := json.Marshal(cfg)
+	if err != nil {
+		return defaults
+	}
+	json.Unmarshal(data, &defaults)
 	return defaults
 }
 
-// matchAndProcessFactory checks if the struct matches and extracts default values.
-func matchAndProcessFactory(factory component.Factory, structName string, defaults map[string]interface{}) bool {
-	cfg := factory.CreateDefaultConfig()
-	configStructName := fmt.Sprintf("%T", cfg)
-	configStructName = strings.TrimPrefix(configStructName, "*") // Remove pointer notation
+func writeSchema(schema JSONSchema) error {
 
-	if configStructName == structName {
-		jsonData, err := json.Marshal(cfg)
-		if err == nil {
-			json.Unmarshal(jsonData, &defaults)
-		}
-		return true
+	schema.Schema = "http://json-schema.org/draft-07/schema#"
+	file, err := os.Create("jaeger-config-schema.json")
+	if err != nil {
+		return err
 	}
-	return false
+	defer file.Close()
+
+	enc := json.NewEncoder(file)
+	enc.SetIndent("", "  ")
+	return enc.Encode(schema)
 }

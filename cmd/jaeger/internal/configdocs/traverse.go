@@ -6,52 +6,161 @@ import (
 	"fmt"
 	"go/ast"
 	"go/token"
+	"reflect"
+	"strings"
 )
 
 // parseAST traverses an AST to extract struct definitions.
-func parseAST(node ast.Node) []StructDoc {
+func parseAST(node ast.Node, pkgPath string) []StructDoc {
 	var structs []StructDoc
 
 	ast.Inspect(node, func(n ast.Node) bool {
-		switch t := n.(type) {
-		case *ast.GenDecl:
-			if t.Tok == token.TYPE {
-				for _, spec := range t.Specs {
-					typeSpec, ok := spec.(*ast.TypeSpec)
-					if !ok {
-						continue
-					}
-					structType, ok := typeSpec.Type.(*ast.StructType)
-					if !ok {
-						continue
-					}
+		genDecl, ok := n.(*ast.GenDecl)
+		if !ok || genDecl.Tok != token.TYPE {
+			return true
+		}
 
-					structDoc := StructDoc{Name: typeSpec.Name.Name}
-					if t.Doc != nil {
-						structDoc.Comment = t.Doc.Text()
-					}
+		for _, spec := range genDecl.Specs {
+			typeSpec, ok := spec.(*ast.TypeSpec)
+			if !ok {
+				continue
+			}
 
-					for _, field := range structType.Fields.List {
-						fieldType := fmt.Sprint(field.Type)
-						var tag string
-						if field.Tag != nil {
-							tag = field.Tag.Value
+			structType, ok := typeSpec.Type.(*ast.StructType)
+			if !ok {
+				continue
+			}
+
+			structDoc := StructDoc{
+				Name:        typeSpec.Name.Name,
+				PackagePath: pkgPath,
+				Description: extractComment(genDecl.Doc),
+				Properties:  make(map[string]FieldDoc),
+				Required:    []string{},
+			}
+
+			for _, field := range structType.Fields.List {
+				// Deprecation detection
+				isDeprecated := false
+				if field.Doc != nil {
+					for _, comment := range field.Doc.List {
+						if strings.Contains(comment.Text, "Deprecated:") {
+							isDeprecated = true
+							break
 						}
-
-						for _, fieldName := range field.Names {
-							structDoc.Fields = append(structDoc.Fields, FieldDoc{
-								Name: fieldName.Name,
-								Type: fieldType,
-								Tag:  tag,
-							})
-						}
 					}
-					structs = append(structs, structDoc)
+				}
+
+				fieldType := exprToString(field.Type)
+				tag := ""
+				if field.Tag != nil {
+					tag = strings.Trim(field.Tag.Value, "`")
+				}
+
+				msTag := parseMapStructureTag(tag)
+				fieldName := determineFieldName(field, fieldType, msTag)
+
+				// Skip empty names from anonymous fields
+				if fieldName == "" || !isValidJSONPropertyName(fieldName) {
+					continue
+				}
+
+				fieldDoc := FieldDoc{
+					Type:         fieldType,
+					MapStructure: msTag,
+					Description:  extractComment(field.Doc),
+					Required:     isRequired(msTag),
+					Deprecated:   isDeprecated,
+				}
+
+				if len(field.Names) > 0 {
+					for _, name := range field.Names {
+						structDoc.Properties[name.Name] = fieldDoc
+					}
+				} else {
+					structDoc.Properties[fieldName] = fieldDoc
+				}
+
+				if fieldDoc.Required && !fieldDoc.Deprecated && fieldName != "" {
+					structDoc.Required = append(structDoc.Required, fieldName)
 				}
 			}
+
+			structs = append(structs, structDoc)
 		}
 		return true
 	})
 
 	return structs
+}
+
+func isValidJSONPropertyName(name string) bool {
+	return name != "" && strings.TrimSpace(name) != "" &&
+		!strings.ContainsAny(name, " \t\n\r") &&
+		!strings.HasPrefix(name, "_") &&
+		!strings.Contains(name, "$")
+}
+
+func exprToString(expr ast.Expr) string {
+	switch t := expr.(type) {
+	case *ast.Ident:
+		return t.Name
+	case *ast.SelectorExpr:
+		return exprToString(t.X) + "." + t.Sel.Name
+	case *ast.StarExpr:
+		return exprToString(t.X)
+	case *ast.ArrayType:
+		return "[]" + exprToString(t.Elt)
+	case *ast.MapType:
+		return fmt.Sprintf("map[%s]%s", exprToString(t.Key), exprToString(t.Value))
+	case *ast.StructType:
+		return "AnonymousStruct"
+	case *ast.InterfaceType:
+		return "Any"
+	default:
+		return "CustomType"
+	}
+}
+
+func extractComment(group *ast.CommentGroup) string {
+	if group == nil {
+		return ""
+	}
+	return strings.TrimSpace(group.Text())
+}
+
+func parseMapStructureTag(tag string) string {
+	st := reflect.StructTag(tag)
+	return st.Get("mapstructure")
+}
+
+func isRequired(msTag string) bool {
+	return !strings.Contains(msTag, "omitempty") && msTag != ""
+}
+
+func determineFieldName(field *ast.Field, fieldType, msTag string) string {
+	// Handle mapstructure tag first
+	if msTag != "" {
+		parts := strings.SplitN(msTag, ",", 2)
+		if parts[0] != "" {
+			return parts[0]
+		}
+	}
+
+	// Handle named fields
+	if len(field.Names) > 0 {
+		return field.Names[0].Name
+	}
+
+	// Handle embedded types
+	return sanitizeFieldName(fieldType)
+}
+
+func sanitizeFieldName(name string) string {
+	// Remove pointers and package qualifiers
+	name = strings.TrimPrefix(name, "*")
+	if idx := strings.LastIndex(name, "."); idx != -1 {
+		name = name[idx+1:]
+	}
+	return name
 }
