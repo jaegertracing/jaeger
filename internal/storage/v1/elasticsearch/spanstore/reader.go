@@ -97,6 +97,7 @@ type SpanReader struct {
 	useReadWriteAliases     bool
 	logger                  *zap.Logger
 	tracer                  trace.Tracer
+	disableLegacyIds        bool
 }
 
 // SpanReaderParams holds constructor params for NewSpanReader
@@ -113,6 +114,7 @@ type SpanReaderParams struct {
 	RemoteReadClusters  []string
 	Logger              *zap.Logger
 	Tracer              trace.Tracer
+	DisableLegacyIds    bool
 }
 
 // NewSpanReader returns a new SpanReader with a metrics.
@@ -151,6 +153,7 @@ func NewSpanReader(p SpanReaderParams) *SpanReader {
 		useReadWriteAliases: p.UseReadWriteAliases,
 		logger:              p.Logger,
 		tracer:              p.Tracer,
+		disableLegacyIds:    p.DisableLegacyIds,
 	}
 }
 
@@ -399,7 +402,7 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []model.TraceID, st
 		}
 		searchRequests := make([]*elastic.SearchRequest, len(traceIDs))
 		for i, traceID := range traceIDs {
-			traceQuery := buildTraceByIDQuery(traceID)
+			traceQuery := buildTraceByIDQuery(traceID, s.disableLegacyIds)
 			query := elastic.NewBoolQuery().
 				Must(traceQuery)
 			if s.useReadWriteAliases {
@@ -462,14 +465,14 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []model.TraceID, st
 	return traces, nil
 }
 
-func buildTraceByIDQuery(traceID model.TraceID) elastic.Query {
+func buildTraceByIDQuery(traceID model.TraceID, disableLegacyIds bool) elastic.Query {
 	traceIDStr := traceID.String()
+	if disableLegacyIds {
+		return elastic.NewTermQuery(traceIDField, traceIDStr)
+	}
 	if traceIDStr[0] != '0' {
 		return elastic.NewTermQuery(traceIDField, traceIDStr)
 	}
-	// https://github.com/jaegertracing/jaeger/pull/1956 added leading zeros to IDs
-	// So we need to also read IDs without leading zeros for compatibility with previously saved data.
-	// TODO remove in newer versions, added in Jaeger 1.16
 	var legacyTraceID string
 	if traceID.High == 0 {
 		legacyTraceID = strconv.FormatUint(traceID.Low, 16)
