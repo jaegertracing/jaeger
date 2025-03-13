@@ -16,7 +16,6 @@ import (
 	"sync/atomic"
 
 	"github.com/spf13/viper"
-	"go.opentelemetry.io/collector/featuregate"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
@@ -42,20 +41,12 @@ const (
 )
 
 var ( // interface comformance checks
-	_                storage.Factory        = (*Factory)(nil)
-	_                io.Closer              = (*Factory)(nil)
-	_                storage.Configurable   = (*Factory)(nil)
-	_                storage.Inheritable    = (*Factory)(nil)
-	_                storage.Purger         = (*Factory)(nil)
-	_                storage.ArchiveCapable = (*Factory)(nil)
-	disableLegacyIDs                        = featuregate.GlobalRegistry().MustRegister(
-		"jaeger.es.disableLegacyId",
-		featuregate.StageBeta, // enabed by default
-		featuregate.WithRegisterFromVersion("v2.5.0"),
-		featuregate.WithRegisterToVersion("v2.8.0"),
-		featuregate.WithRegisterDescription("Legacy trace ids are the ids having starting 0s, enabling this will force the reader to search for the spans with trace ids having leading zeroes"),
-		featuregate.WithRegisterReferenceURL("https://github.com/jaegertracing/jaeger/issues/1578"),
-	)
+	_ storage.Factory        = (*Factory)(nil)
+	_ io.Closer              = (*Factory)(nil)
+	_ storage.Configurable   = (*Factory)(nil)
+	_ storage.Inheritable    = (*Factory)(nil)
+	_ storage.Purger         = (*Factory)(nil)
+	_ storage.ArchiveCapable = (*Factory)(nil)
 )
 
 // Factory implements storage.Factory for Elasticsearch backend.
@@ -217,7 +208,6 @@ func createSpanReader(
 		RemoteReadClusters:  cfg.RemoteReadClusters,
 		Logger:              logger,
 		Tracer:              tp.Tracer("esSpanStore.SpanReader"),
-		DisableLegacyIds:    disableLegacyIDs.IsEnabled(),
 	}), nil
 }
 

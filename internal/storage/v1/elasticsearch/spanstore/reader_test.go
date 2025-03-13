@@ -113,7 +113,6 @@ func withSpanReader(t *testing.T, fn func(r *spanReaderTest)) {
 			MaxSpanAge:        0,
 			TagDotReplacement: "@",
 			MaxDocCount:       defaultMaxDocCount,
-			DisableLegacyIds:  true,
 		}),
 	}
 	fn(r)
