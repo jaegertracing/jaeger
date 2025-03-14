@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/featuregate"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"go.opentelemetry.io/otel/trace"
@@ -1320,7 +1321,9 @@ func TestBuildTraceByIDQuery(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
-		q := buildTraceByIDQuery(test.traceID, test.disableLegacyIdsEnabled)
+		err := featuregate.GlobalRegistry().Set("jaeger.es.disableLegacyId", test.disableLegacyIdsEnabled)
+		require.NoError(t, err)
+		q := buildTraceByIDQuery(test.traceID)
 		assert.Equal(t, test.query, q)
 	}
 }

@@ -412,7 +412,7 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []model.TraceID, st
 		}
 		searchRequests := make([]*elastic.SearchRequest, len(traceIDs))
 		for i, traceID := range traceIDs {
-			traceQuery := buildTraceByIDQuery(traceID, disableLegacyIDs.IsEnabled())
+			traceQuery := buildTraceByIDQuery(traceID)
 			query := elastic.NewBoolQuery().
 				Must(traceQuery)
 			if s.useReadWriteAliases {
@@ -475,10 +475,10 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []model.TraceID, st
 	return traces, nil
 }
 
-func buildTraceByIDQuery(traceID model.TraceID, disableLegacyIDs bool) elastic.Query {
+func buildTraceByIDQuery(traceID model.TraceID) elastic.Query {
 	traceIDStr := traceID.String()
 
-	if traceIDStr[0] != '0' || disableLegacyIDs {
+	if traceIDStr[0] != '0' || disableLegacyIDs.IsEnabled() {
 		return elastic.NewTermQuery(traceIDField, traceIDStr)
 	}
 	// https://github.com/jaegertracing/jaeger/pull/1956 added leading zeros to IDs
