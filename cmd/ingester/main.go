@@ -97,7 +97,7 @@ func main() {
 	command.AddCommand(docs.Command(v))
 	command.AddCommand(status.Command(v, ports.IngesterAdminHTTP))
 	command.AddCommand(printconfig.Command(v))
-	featuregate.AddCommand(command)
+	command.AddCommand(featuregate.Command())
 
 	config.AddFlags(
 		v,

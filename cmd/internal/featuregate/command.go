@@ -8,13 +8,15 @@ import (
 	"go.opentelemetry.io/collector/otelcol"
 )
 
-func AddCommand(command *cobra.Command) {
+func Command() *cobra.Command {
+	var command *cobra.Command
 	settings := otelcol.CollectorSettings{}
 	otelCmd := otelcol.NewCommand(settings)
 	for _, cmd := range otelCmd.Commands() {
 		if cmd.Name() == "featuregate" {
 			otelCmd.RemoveCommand(cmd)
-			command.AddCommand(cmd)
+			command = cmd
 		}
 	}
+	return command
 }

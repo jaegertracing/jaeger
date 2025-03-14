@@ -102,7 +102,7 @@ func main() {
 	command.AddCommand(docs.Command(v))
 	command.AddCommand(status.Command(v, ports.QueryAdminHTTP))
 	command.AddCommand(printconfig.Command(v))
-	featuregate.AddCommand(command)
+	command.AddCommand(featuregate.Command())
 
 	config.AddFlags(
 		v,
