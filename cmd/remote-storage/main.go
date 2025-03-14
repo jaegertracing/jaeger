@@ -109,6 +109,7 @@ func main() {
 		storageFactory.AddFlags,
 		app.AddFlags,
 	)
+
 	if err := command.Execute(); err != nil {
 		fmt.Println(err.Error())
 		os.Exit(1)
