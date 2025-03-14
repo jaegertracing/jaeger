@@ -20,7 +20,6 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/es-index-cleaner/app"
-	featuregateCmd "github.com/jaegertracing/jaeger/cmd/internal/featuregate"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/es/client"
 )
@@ -112,8 +111,7 @@ func main() {
 		command,
 		cfg.AddFlags,
 	)
-
-	command.AddCommand(featuregateCmd.Command())
+	
 	command.Flags().AddFlagSet(pflag.CommandLine)
 	if err := command.Execute(); err != nil {
 		log.Fatalln(err)
