@@ -19,7 +19,7 @@ import (
 
 // ThriftProcessor is a server that processes spans using a TBuffered Server
 type ThriftProcessor struct {
-	server        servers.Server
+	server        *servers.TBufferedServer
 	handler       AgentProcessor
 	protocolPool  *sync.Pool
 	numProcessors int
@@ -44,7 +44,7 @@ type AgentProcessor interface {
 
 // NewThriftProcessor creates a TBufferedServer backed ThriftProcessor
 func NewThriftProcessor(
-	server servers.Server,
+	server *servers.TBufferedServer,
 	numProcessors int,
 	mFactory metrics.Factory,
 	factory thrift.TProtocolFactory,
@@ -102,11 +102,10 @@ func (s *ThriftProcessor) Stop() {
 // processBuffer reads data off the channel and puts it into a custom transport for
 // the processor to process
 func (s *ThriftProcessor) processBuffer() {
-	for readBuf := range s.server.DataChan() {
+	for buf := range s.server.DataChan() {
 		protocol := s.protocolPool.Get().(thrift.TProtocol)
-		payload := readBuf.GetBytes()
-		protocol.Transport().Write(payload)
-		s.logger.Debug("Span(s) received by the agent", zap.Int("bytes-received", len(payload)))
+		buf.WriteTo(protocol.Transport())
+		s.logger.Debug("Span(s) received by the agent", zap.Int("bytes-received", buf.Len()))
 
 		// NB: oddly, thrift-gen/agent/agent.go:L156 does this: `return true, thrift.WrapTException(err2)`
 		// So we check for both OK and error.
@@ -115,6 +114,6 @@ func (s *ThriftProcessor) processBuffer() {
 			s.metrics.HandlerProcessError.Inc(1)
 		}
 		s.protocolPool.Put(protocol)
-		s.server.DataRecd(readBuf) // acknowledge receipt and release the buffer
+		s.server.DataRecd(buf) // acknowledge receipt and release the buffer
 	}
 }

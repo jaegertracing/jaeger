@@ -190,7 +190,7 @@ func (c *ServerConfiguration) applyDefaults() {
 }
 
 // getUDPServer gets a TBufferedServer backed server using the server configuration
-func (c *ServerConfiguration) getUDPServer(mFactory metrics.Factory) (servers.Server, error) {
+func (c *ServerConfiguration) getUDPServer(mFactory metrics.Factory) (*servers.TBufferedServer, error) {
 	c.applyDefaults()
 
 	if c.HostPort == "" {

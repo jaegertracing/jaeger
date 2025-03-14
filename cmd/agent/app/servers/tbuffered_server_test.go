@@ -5,6 +5,7 @@
 package servers
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"sync"
@@ -49,18 +50,18 @@ func TestTBufferedServerSendReceive(t *testing.T) {
 		require.NoError(t, err)
 
 		select {
-		case readBuf := <-server.DataChan():
-			assert.NotEmpty(t, readBuf.GetBytes())
+		case buf := <-server.DataChan():
+			assert.Positive(t, buf.Len())
 
 			inMemReporter := testutils.NewInMemoryReporter()
 			protoFact := thrift.NewTCompactProtocolFactoryConf(&thrift.TConfiguration{})
 			trans := &customtransport.TBufferedReadTransport{}
 			protocol := protoFact.GetProtocol(trans)
 
-			_, err = protocol.Transport().Write(readBuf.GetBytes())
+			_, err = buf.WriteTo(protocol.Transport())
 			require.NoError(t, err)
 
-			server.DataRecd(readBuf) // return to pool
+			server.DataRecd(buf) // return to pool
 
 			handler := agent.NewAgentProcessor(inMemReporter)
 			_, err = handler.Process(context.Background(), protocol, protocol)
@@ -138,12 +139,11 @@ func TestTBufferedServerMetrics(t *testing.T) {
 	}
 	require.True(t, packetDropped, "packetDropped")
 
-	var readBuf *ReadBuf
+	var readBuf *bytes.Buffer
 	select {
 	case readBuf = <-server.DataChan():
-		b := readBuf.GetBytes()
-		assert.Len(t, b, 65000)
-		assert.EqualValues(t, 1, b[0], "first packet must be all 0x01's")
+		assert.Equal(t, readBuf.Len(), 65000)
+		assert.EqualValues(t, 1, readBuf.Bytes()[0], "first packet must be all 0x01's")
 	default:
 		t.Fatal("expecting a packet in the channel")
 	}
@@ -159,6 +159,7 @@ func TestTBufferedServerMetrics(t *testing.T) {
 	)
 
 	server.DataRecd(readBuf)
+
 	metricsFactory.AssertGaugeMetrics(t,
 		metricstest.ExpectedMetric{Name: "thrift.udp.server.queue_size", Value: 0},
 	)

@@ -25,12 +25,12 @@ type TBufferedServer struct {
 	// NB. queueLength HAS to be at the top of the struct or it will SIGSEV for certain architectures.
 	// See https://github.com/golang/go/issues/13868
 	queueSize     int64
-	dataChan      chan *ReadBuf
+	dataChan      chan *bytes.Buffer
 	maxPacketSize int
 	maxQueueSize  int
 	serving       uint32
 	transport     ThriftTransport
-	readBufPool   *sync.Pool
+	readBufPool   sync.Pool
 	metrics       struct {
 		// Size of the current server queue
 		QueueSize metrics.Gauge `metric:"thrift.udp.server.queue_size"`
@@ -66,21 +66,21 @@ func NewTBufferedServer(
 	maxPacketSize int,
 	mFactory metrics.Factory,
 ) (*TBufferedServer, error) {
-	dataChan := make(chan *ReadBuf, maxQueueSize)
-
-	readBufPool := &sync.Pool{
-		New: func() any {
-			return &ReadBuf{bytes: make([]byte, maxPacketSize)}
-		},
-	}
+	dataChan := make(chan *bytes.Buffer, maxQueueSize)
 
 	res := &TBufferedServer{
 		dataChan:      dataChan,
 		transport:     transport,
 		maxQueueSize:  maxQueueSize,
 		maxPacketSize: maxPacketSize,
-		readBufPool:   readBufPool,
 		serving:       stateInit,
+		readBufPool: sync.Pool{
+			New: func() any {
+				b := new(bytes.Buffer)
+				b.Grow(maxPacketSize)
+				return b
+			},
+		},
 	}
 
 	metrics.MustInit(&res.metrics, mFactory, nil)
@@ -94,25 +94,26 @@ func (s *TBufferedServer) Serve() {
 		return // Stop already called
 	}
 
-	var _ bytes.Reader
-	var _ bytes.Buffer
-
+	lr := &io.LimitedReader{
+		R: s.transport,
+	}
 	for s.IsServing() {
-		readBuf := s.readBufPool.Get().(*ReadBuf)
-		n, err := s.transport.Read(readBuf.bytes)
+		buf := s.readBufPool.Get().(*bytes.Buffer)
+		buf.Reset()
+		lr.N = int64(s.maxPacketSize)
+		n, err := buf.ReadFrom(lr)
 		if err == nil {
-			readBuf.n = n
 			s.metrics.PacketSize.Update(int64(n))
 			select {
-			case s.dataChan <- readBuf:
+			case s.dataChan <- buf:
 				s.metrics.PacketsProcessed.Inc(1)
 				s.updateQueueSize(1)
 			default:
-				s.readBufPool.Put(readBuf)
+				s.readBufPool.Put(buf)
 				s.metrics.PacketsDropped.Inc(1)
 			}
 		} else {
-			s.readBufPool.Put(readBuf)
+			s.readBufPool.Put(buf)
 			s.metrics.ReadError.Inc(1)
 		}
 	}
@@ -136,12 +137,12 @@ func (s *TBufferedServer) Stop() {
 }
 
 // DataChan returns the data chan of the buffered server
-func (s *TBufferedServer) DataChan() chan *ReadBuf {
+func (s *TBufferedServer) DataChan() chan *bytes.Buffer {
 	return s.dataChan
 }
 
 // DataRecd is called by the consumers every time they read a data item from DataChan
-func (s *TBufferedServer) DataRecd(buf *ReadBuf) {
+func (s *TBufferedServer) DataRecd(buf *bytes.Buffer) {
 	s.updateQueueSize(-1)
 	s.readBufPool.Put(buf)
 }
