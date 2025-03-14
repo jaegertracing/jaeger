@@ -17,6 +17,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/internal/docs"
 	"github.com/jaegertracing/jaeger/cmd/internal/env"
+	"github.com/jaegertracing/jaeger/cmd/internal/featuregate"
 	"github.com/jaegertracing/jaeger/cmd/internal/flags"
 	"github.com/jaegertracing/jaeger/cmd/internal/printconfig"
 	"github.com/jaegertracing/jaeger/cmd/internal/status"
@@ -161,6 +162,7 @@ func main() {
 	command.AddCommand(docs.Command(v))
 	command.AddCommand(status.Command(v, ports.QueryAdminHTTP))
 	command.AddCommand(printconfig.Command(v))
+	command.AddCommand(featuregate.Command())
 
 	config.AddFlags(
 		v,

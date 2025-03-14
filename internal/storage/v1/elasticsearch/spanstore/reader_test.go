@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/featuregate"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"go.opentelemetry.io/otel/trace"
@@ -334,16 +335,12 @@ func TestSpanReader_multiRead_followUp_query(t *testing.T) {
 		spanBytesID2, err := json.Marshal(spanID2)
 		require.NoError(t, err)
 
-		traceID1Query := elastic.NewBoolQuery().Should(
-			elastic.NewTermQuery(traceIDField, model.TraceID{High: 0, Low: 1}.String()).Boost(2),
-			elastic.NewTermQuery(traceIDField, fmt.Sprintf("%x", 1)))
+		traceID1Query := elastic.NewTermQuery(traceIDField, model.TraceID{High: 0, Low: 1}.String())
 		id1Query := elastic.NewBoolQuery().Must(traceID1Query)
 		id1Search := elastic.NewSearchRequest().
 			IgnoreUnavailable(true).
 			Source(r.reader.sourceFn(id1Query, model.TimeAsEpochMicroseconds(date.Add(-time.Hour))))
-		traceID2Query := elastic.NewBoolQuery().Should(
-			elastic.NewTermQuery(traceIDField, model.TraceID{High: 0, Low: 2}.String()).Boost(2),
-			elastic.NewTermQuery(traceIDField, fmt.Sprintf("%x", 2)))
+		traceID2Query := elastic.NewTermQuery(traceIDField, model.TraceID{High: 0, Low: 2}.String())
 		id2Query := elastic.NewBoolQuery().Must(traceID2Query)
 		id2Search := elastic.NewSearchRequest().
 			IgnoreUnavailable(true).
@@ -1295,8 +1292,9 @@ func TestBuildTraceByIDQuery(t *testing.T) {
 	traceIDHigh := model.NewTraceID(1, 1)
 	traceID := model.NewTraceID(uintMax, uintMax)
 	tests := []struct {
-		traceID model.TraceID
-		query   elastic.Query
+		traceID                 model.TraceID
+		query                   elastic.Query
+		disableLegacyIdsEnabled bool
 	}{
 		{
 			traceID: traceIDNoHigh,
@@ -1316,8 +1314,15 @@ func TestBuildTraceByIDQuery(t *testing.T) {
 			traceID: traceID,
 			query:   elastic.NewTermQuery(traceIDField, "ffffffffffffffffffffffffffffffff"),
 		},
+		{
+			traceID:                 traceIDHigh,
+			query:                   elastic.NewTermQuery(traceIDField, "00000000000000010000000000000001"),
+			disableLegacyIdsEnabled: true,
+		},
 	}
 	for _, test := range tests {
+		err := featuregate.GlobalRegistry().Set("jaeger.es.disableLegacyId", test.disableLegacyIdsEnabled)
+		require.NoError(t, err)
 		q := buildTraceByIDQuery(test.traceID)
 		assert.Equal(t, test.query, q)
 	}

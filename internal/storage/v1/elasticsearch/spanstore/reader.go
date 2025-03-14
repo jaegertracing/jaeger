@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/olivere/elastic"
+	"go.opentelemetry.io/collector/featuregate"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
@@ -77,7 +78,19 @@ var (
 	nestedTagFieldList = []string{nestedTagsField, nestedProcessTagsField, nestedLogFieldsField}
 
 	_ CoreSpanReader = (*SpanReader)(nil) // check API conformance
+
+	disableLegacyIDs *featuregate.Gate
 )
+
+func init() {
+	disableLegacyIDs = featuregate.GlobalRegistry().MustRegister(
+		"jaeger.es.disableLegacyId",
+		featuregate.StageBeta, // enabed by default
+		featuregate.WithRegisterFromVersion("v2.5.0"),
+		featuregate.WithRegisterToVersion("v2.8.0"),
+		featuregate.WithRegisterDescription("Legacy trace ids are the ids that used to be rendered with leading 0s omitted. Setting this gate to false will force the reader to search for the spans with trace ids having leading zeroes"),
+		featuregate.WithRegisterReferenceURL("https://github.com/jaegertracing/jaeger/issues/1578"))
+}
 
 // SpanReader can query for and load traces from ElasticSearch
 type SpanReader struct {
@@ -464,12 +477,12 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []model.TraceID, st
 
 func buildTraceByIDQuery(traceID model.TraceID) elastic.Query {
 	traceIDStr := traceID.String()
-	if traceIDStr[0] != '0' {
+
+	if traceIDStr[0] != '0' || disableLegacyIDs.IsEnabled() {
 		return elastic.NewTermQuery(traceIDField, traceIDStr)
 	}
 	// https://github.com/jaegertracing/jaeger/pull/1956 added leading zeros to IDs
 	// So we need to also read IDs without leading zeros for compatibility with previously saved data.
-	// TODO remove in newer versions, added in Jaeger 1.16
 	var legacyTraceID string
 	if traceID.High == 0 {
 		legacyTraceID = strconv.FormatUint(traceID.Low, 16)
