@@ -7,7 +7,6 @@ import (
 	"context"
 	"encoding/base64"
 	"errors"
-	"flag"
 	"fmt"
 	"log"
 	"net/http"
@@ -21,6 +20,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/es-index-cleaner/app"
+	featuregateCmd "github.com/jaegertracing/jaeger/cmd/internal/featuregate"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/es/client"
 )
@@ -35,9 +35,6 @@ func init() {
 		featuregate.WithRegisterDescription("Controls whether the indices will be deleted relative to the current time or tomorrow midnight."),
 		featuregate.WithRegisterReferenceURL("https://github.com/jaegertracing/jaeger/issues/6236"),
 	)
-	featureGateFlagSet := flag.NewFlagSet("feature-gates", flag.ExitOnError)
-	featuregate.GlobalRegistry().RegisterFlags(featureGateFlagSet)
-	pflag.CommandLine.AddGoFlagSet(featureGateFlagSet)
 }
 
 func main() {
@@ -116,6 +113,7 @@ func main() {
 		cfg.AddFlags,
 	)
 
+	command.AddCommand(featuregateCmd.Command())
 	command.Flags().AddFlagSet(pflag.CommandLine)
 	if err := command.Execute(); err != nil {
 		log.Fatalln(err)

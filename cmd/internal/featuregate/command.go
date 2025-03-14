@@ -9,14 +9,13 @@ import (
 )
 
 func Command() *cobra.Command {
-	var command *cobra.Command
 	settings := otelcol.CollectorSettings{}
 	otelCmd := otelcol.NewCommand(settings)
 	for _, cmd := range otelCmd.Commands() {
 		if cmd.Name() == "featuregate" {
 			otelCmd.RemoveCommand(cmd)
-			command = cmd
+			return cmd
 		}
 	}
-	return command
+	panic("could not find 'featuregate' command")
 }
