@@ -89,9 +89,8 @@ func (s *Service) AddFlags(flagSet *flag.FlagSet) {
 	}
 	metricsbuilder.AddFlags(flagSet)
 	s.Admin.AddFlags(flagSet)
-	featureGateFlagSet := flag.NewFlagSet("feature-gates", flag.ExitOnError)
-	featuregate.GlobalRegistry().RegisterFlags(featureGateFlagSet)
-	pflag.CommandLine.AddGoFlagSet(featureGateFlagSet)
+	featuregate.GlobalRegistry().RegisterFlags(flagSet)
+	pflag.CommandLine.AddGoFlagSet(flagSet)
 }
 
 // Start bootstraps the service and starts the admin server.
