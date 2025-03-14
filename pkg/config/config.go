@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 )
 
@@ -26,7 +27,7 @@ func AddFlags(v *viper.Viper, command *cobra.Command, inits ...func(*flag.FlagSe
 		inits[i](flagSet)
 	}
 	command.Flags().AddGoFlagSet(flagSet)
-
+	command.Flags().AddFlagSet(pflag.CommandLine)
 	configureViper(v)
 	v.BindPFlags(command.Flags())
 	return v, command

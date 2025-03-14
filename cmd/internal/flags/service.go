@@ -11,7 +11,9 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
+	"go.opentelemetry.io/collector/featuregate"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapgrpc"
 	"google.golang.org/grpc/grpclog"
@@ -87,6 +89,9 @@ func (s *Service) AddFlags(flagSet *flag.FlagSet) {
 	}
 	metricsbuilder.AddFlags(flagSet)
 	s.Admin.AddFlags(flagSet)
+	featureGateFlagSet := flag.NewFlagSet("feature-gates", flag.ExitOnError)
+	featuregate.GlobalRegistry().RegisterFlags(featureGateFlagSet)
+	pflag.CommandLine.AddGoFlagSet(featureGateFlagSet)
 }
 
 // Start bootstraps the service and starts the admin server.
