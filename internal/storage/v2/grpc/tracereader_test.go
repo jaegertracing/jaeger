@@ -17,39 +17,41 @@ import (
 	"github.com/jaegertracing/jaeger/proto-gen/storage/v2"
 )
 
+type getServicesRepsonse struct {
+	services []string
+	err      error
+}
+
+type getOperationsRepsonse struct {
+	operations []*storage.Operation
+	err        error
+}
+
 // testServer implements the storage.TraceReaderServer interface
 // to simulate responses for testing.
 type testServer struct {
 	storage.UnimplementedTraceReaderServer
 
-	err error
+	getServicesRepsonse   getServicesRepsonse
+	getOperationsRepsonse getOperationsRepsonse
 }
 
 func (s *testServer) GetServices(
 	context.Context,
 	*storage.GetServicesRequest,
 ) (*storage.GetServicesResponse, error) {
-	if s.err != nil {
-		return nil, s.err
-	}
 	return &storage.GetServicesResponse{
-		Services: []string{"service-a", "service-b"},
-	}, nil
+		Services: s.getServicesRepsonse.services,
+	}, s.getServicesRepsonse.err
 }
 
 func (s *testServer) GetOperations(
 	context.Context,
 	*storage.GetOperationsRequest,
 ) (*storage.GetOperationsResponse, error) {
-	if s.err != nil {
-		return nil, s.err
-	}
 	return &storage.GetOperationsResponse{
-		Operations: []*storage.Operation{
-			{Name: "operation-a", SpanKind: "kind"},
-			{Name: "operation-b", SpanKind: "kind"},
-		},
-	}, nil
+		Operations: s.getOperationsRepsonse.operations,
+	}, s.getOperationsRepsonse.err
 }
 
 func startTestServer(t *testing.T, testServer *testServer) *grpc.ClientConn {
@@ -96,14 +98,20 @@ func TestTraceReader_GetServices(t *testing.T) {
 		expectedError    error
 	}{
 		{
-			name:             "success",
-			testServer:       &testServer{},
+			name: "success",
+			testServer: &testServer{
+				getServicesRepsonse: getServicesRepsonse{
+					services: []string{"service-a", "service-b"},
+				},
+			},
 			expectedServices: []string{"service-a", "service-b"},
 		},
 		{
 			name: "error",
 			testServer: &testServer{
-				err: assert.AnError,
+				getServicesRepsonse: getServicesRepsonse{
+					err: assert.AnError,
+				},
 			},
 			expectedError: errFailedToGetServices,
 		},
@@ -130,8 +138,15 @@ func TestTraceReader_GetOperations(t *testing.T) {
 		expectedError error
 	}{
 		{
-			name:       "success",
-			testServer: &testServer{},
+			name: "success",
+			testServer: &testServer{
+				getOperationsRepsonse: getOperationsRepsonse{
+					operations: []*storage.Operation{
+						{Name: "operation-a", SpanKind: "kind"},
+						{Name: "operation-b", SpanKind: "kind"},
+					},
+				},
+			},
 			expectedOps: []tracestore.Operation{
 				{Name: "operation-a", SpanKind: "kind"},
 				{Name: "operation-b", SpanKind: "kind"},
@@ -140,7 +155,9 @@ func TestTraceReader_GetOperations(t *testing.T) {
 		{
 			name: "error",
 			testServer: &testServer{
-				err: assert.AnError,
+				getOperationsRepsonse: getOperationsRepsonse{
+					err: assert.AnError,
+				},
 			},
 			expectedError: errFailedToGetOperations,
 		},
