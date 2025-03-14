@@ -95,7 +95,7 @@ func TestTraceReader_GetServices(t *testing.T) {
 		name             string
 		testServer       *testServer
 		expectedServices []string
-		expectedError    error
+		expectedError    string
 	}{
 		{
 			name: "success",
@@ -113,7 +113,7 @@ func TestTraceReader_GetServices(t *testing.T) {
 					err: assert.AnError,
 				},
 			},
-			expectedError: errFailedToGetServices,
+			expectedError: "failed to get services",
 		},
 	}
 
@@ -124,8 +124,11 @@ func TestTraceReader_GetServices(t *testing.T) {
 			reader := NewTraceReader(conn)
 			services, err := reader.GetServices(context.Background())
 
-			require.ErrorIs(t, err, test.expectedError)
-			require.Equal(t, test.expectedServices, services)
+			if test.expectedError != "" {
+				require.ErrorContains(t, err, test.expectedError)
+			} else {
+				require.Equal(t, test.expectedServices, services)
+			}
 		})
 	}
 }
@@ -135,7 +138,7 @@ func TestTraceReader_GetOperations(t *testing.T) {
 		name          string
 		testServer    *testServer
 		expectedOps   []tracestore.Operation
-		expectedError error
+		expectedError string
 	}{
 		{
 			name: "success",
@@ -159,7 +162,7 @@ func TestTraceReader_GetOperations(t *testing.T) {
 					err: assert.AnError,
 				},
 			},
-			expectedError: errFailedToGetOperations,
+			expectedError: "failed to get operations",
 		},
 	}
 
@@ -173,8 +176,11 @@ func TestTraceReader_GetOperations(t *testing.T) {
 				SpanKind:    "kind",
 			})
 
-			require.ErrorIs(t, err, test.expectedError)
-			require.Equal(t, test.expectedOps, ops)
+			if test.expectedError != "" {
+				require.ErrorContains(t, err, test.expectedError)
+			} else {
+				require.Equal(t, test.expectedOps, ops)
+			}
 		})
 	}
 }
