@@ -172,6 +172,7 @@ func main() {
 		// add tenancy flags here to avoid panic caused by double registration in all-in-one
 		tenancy.AddFlags,
 	)
+
 	if err := command.Execute(); err != nil {
 		fmt.Println(err.Error())
 		os.Exit(1)
