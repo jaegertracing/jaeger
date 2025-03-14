@@ -9,13 +9,8 @@ import (
 )
 
 // Server is the interface for servers that receive inbound span submissions from client.
-type Server interface {
-	Serve()
-	IsServing() bool
-	Stop()
-	DataChan() chan *ReadBuf
-	DataRecd(*ReadBuf) // must be called by consumer after reading data from the ReadBuf
-}
+// It is just an alias to TBufferedServer implementation since we don't have any others.
+type Server = *TBufferedServer
 
 // ReadBuf is a structure that holds the bytes to read into as well as the number of bytes
 // that was read. The slice is typically pre-allocated to the max packet size and the buffers
