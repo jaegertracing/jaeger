@@ -111,7 +111,7 @@ func main() {
 		command,
 		cfg.AddFlags,
 	)
-	
+
 	command.Flags().AddFlagSet(pflag.CommandLine)
 	if err := command.Execute(); err != nil {
 		log.Fatalln(err)
