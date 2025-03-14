@@ -9,8 +9,8 @@ import (
 	"github.com/spf13/viper"
 
 	"github.com/jaegertracing/jaeger/cmd/internal/docs"
-	"github.com/jaegertracing/jaeger/cmd/jaeger/config-docs"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal"
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/configdocs"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/mappings"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/version"

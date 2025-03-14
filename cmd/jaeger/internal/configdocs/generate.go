@@ -15,17 +15,6 @@ import (
 	"golang.org/x/tools/go/packages"
 )
 
-type JSONSchema struct {
-	Schema      string                     `json:"$schema"`
-	Title       string                     `json:"title"`
-	Description string                     `json:"description"`
-	Type        string                     `json:"type"`
-	Definitions map[string]interface{}     `json:"definitions"`
-	Properties  map[string]interface{}     `json:"properties"`
-	Required    []string                   `json:"required,omitempty"`
-	Extensions  map[string]json.RawMessage `json:"-"`
-}
-
 func GenerateDocs() error {
 	factories, err := internal.Components()
 	if err != nil {
