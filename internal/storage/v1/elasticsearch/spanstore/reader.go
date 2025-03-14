@@ -9,13 +9,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"flag"
 	"fmt"
 	"strconv"
 	"time"
 
 	"github.com/olivere/elastic"
-	"github.com/spf13/pflag"
 	"go.opentelemetry.io/collector/featuregate"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -90,11 +88,8 @@ func init() {
 		featuregate.StageBeta, // enabed by default
 		featuregate.WithRegisterFromVersion("v2.5.0"),
 		featuregate.WithRegisterToVersion("v2.8.0"),
-		featuregate.WithRegisterDescription("Legacy trace ids are the ids having starting 0s, enabling this will force the reader to search for the spans with trace ids having leading zeroes"),
+		featuregate.WithRegisterDescription("Legacy trace ids are the ids that used to be rendered with leading 0s omitted. Setting this gate to false will force the reader to search for the spans with trace ids having leading zeroes"),
 		featuregate.WithRegisterReferenceURL("https://github.com/jaegertracing/jaeger/issues/1578"))
-	featureGateFlagSet := flag.NewFlagSet("feature-gates", flag.ExitOnError)
-	featuregate.GlobalRegistry().RegisterFlags(featureGateFlagSet)
-	pflag.CommandLine.AddGoFlagSet(featureGateFlagSet)
 }
 
 // SpanReader can query for and load traces from ElasticSearch
@@ -480,12 +475,10 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []model.TraceID, st
 	return traces, nil
 }
 
-func buildTraceByIDQuery(traceID model.TraceID, disableLegacyIds bool) elastic.Query {
+func buildTraceByIDQuery(traceID model.TraceID, disableLegacyIDs bool) elastic.Query {
 	traceIDStr := traceID.String()
-	if disableLegacyIds {
-		return elastic.NewTermQuery(traceIDField, traceIDStr)
-	}
-	if traceIDStr[0] != '0' {
+
+	if traceIDStr[0] != '0' || disableLegacyIDs {
 		return elastic.NewTermQuery(traceIDField, traceIDStr)
 	}
 	// https://github.com/jaegertracing/jaeger/pull/1956 added leading zeros to IDs

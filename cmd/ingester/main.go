@@ -4,13 +4,16 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"io"
 	"log"
 	"os"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
+	"go.opentelemetry.io/collector/featuregate"
 	_ "go.uber.org/automaxprocs"
 	"go.uber.org/zap"
 
@@ -104,7 +107,10 @@ func main() {
 		storageFactory.AddPipelineFlags,
 		app.AddFlags,
 	)
-
+	featureGateFlagSet := flag.NewFlagSet("feature-gates", flag.ExitOnError)
+	featuregate.GlobalRegistry().RegisterFlags(featureGateFlagSet)
+	pflag.CommandLine.AddGoFlagSet(featureGateFlagSet)
+	command.Flags().AddFlagSet(pflag.CommandLine)
 	if err := command.Execute(); err != nil {
 		fmt.Println(err.Error())
 		os.Exit(1)
