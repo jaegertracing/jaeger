@@ -9,8 +9,14 @@ import (
 )
 
 func Command() *cobra.Command {
-	settings := otelcol.CollectorSettings{}
-	otelCmd := otelcol.NewCommand(settings)
+	return command(func() *cobra.Command {
+		settings := otelcol.CollectorSettings{}
+		return otelcol.NewCommand(settings)
+	})
+}
+
+func command(otelCmdFn func() *cobra.Command) *cobra.Command {
+	otelCmd := otelCmdFn()
 	for _, cmd := range otelCmd.Commands() {
 		if cmd.Name() == "featuregate" {
 			otelCmd.RemoveCommand(cmd)
