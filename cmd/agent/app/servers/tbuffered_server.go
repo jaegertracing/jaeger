@@ -5,6 +5,7 @@
 package servers
 
 import (
+	"bytes"
 	"io"
 	"sync"
 	"sync/atomic"
@@ -92,6 +93,9 @@ func (s *TBufferedServer) Serve() {
 	if !atomic.CompareAndSwapUint32(&s.serving, stateInit, stateServing) {
 		return // Stop already called
 	}
+
+	var _ bytes.Reader
+	var _ bytes.Buffer
 
 	for s.IsServing() {
 		readBuf := s.readBufPool.Get().(*ReadBuf)
