@@ -11,12 +11,12 @@ import (
 	"go.opentelemetry.io/collector/otelcol"
 )
 
-func TestAddCommand(t *testing.T) {
+func TestCommand(t *testing.T) {
 	cmd := Command()
 	assert.Equal(t, "featuregate [feature-id]", cmd.Use)
 }
 
-func TestAddCommand_Panic(t *testing.T) {
+func TestCommand_Panic(t *testing.T) {
 	assert.PanicsWithValue(t, "could not find 'featuregate' command", func() {
 		command(func() *cobra.Command {
 			settings := otelcol.CollectorSettings{}
