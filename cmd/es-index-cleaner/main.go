@@ -7,7 +7,6 @@ import (
 	"context"
 	"encoding/base64"
 	"errors"
-	"flag"
 	"fmt"
 	"log"
 	"net/http"
@@ -35,9 +34,6 @@ func init() {
 		featuregate.WithRegisterDescription("Controls whether the indices will be deleted relative to the current time or tomorrow midnight."),
 		featuregate.WithRegisterReferenceURL("https://github.com/jaegertracing/jaeger/issues/6236"),
 	)
-	featureGateFlagSet := flag.NewFlagSet("feature-gates", flag.ExitOnError)
-	featuregate.GlobalRegistry().RegisterFlags(featureGateFlagSet)
-	pflag.CommandLine.AddGoFlagSet(featureGateFlagSet)
 }
 
 func main() {
