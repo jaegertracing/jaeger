@@ -92,14 +92,6 @@ func newTraceID(high, low uint64) traceID {
 	return traceID{high: high, low: low}
 }
 
-func timeAsEpochMicroseconds(t time.Time) uint64 {
-	return uint64(t.UnixNano() / 1000)
-}
-
-func durationAsMicroseconds(d time.Duration) uint64 {
-	return uint64(d.Nanoseconds() / 1000)
-}
-
 func (t traceID) String() string {
 	if t.high == 0 {
 		return fmt.Sprintf("%016x", t.low)

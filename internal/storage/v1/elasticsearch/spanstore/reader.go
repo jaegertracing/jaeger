@@ -20,7 +20,6 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/spanstore/internal/dbmodel"
 	"github.com/jaegertracing/jaeger/pkg/es"
 	cfg "github.com/jaegertracing/jaeger/pkg/es/config"
@@ -70,7 +69,7 @@ var (
 	// ErrUnableToFindTraceIDAggregation occurs when an aggregation query for TraceIDs fail.
 	ErrUnableToFindTraceIDAggregation = errors.New("could not find aggregation of traceIDs")
 
-	defaultMaxDuration = model.DurationAsMicroseconds(time.Hour * 24)
+	defaultMaxDuration = durationAsMicroseconds(time.Hour * 24)
 
 	objectTagFieldList = []string{objectTagsField, objectProcessTagsField}
 
@@ -89,6 +88,16 @@ func init() {
 		featuregate.WithRegisterToVersion("v2.8.0"),
 		featuregate.WithRegisterDescription("Legacy trace ids are the ids that used to be rendered with leading 0s omitted. Setting this gate to false will force the reader to search for the spans with trace ids having leading zeroes"),
 		featuregate.WithRegisterReferenceURL("https://github.com/jaegertracing/jaeger/issues/1578"))
+}
+
+func timeAsEpochMicroseconds(t time.Time) uint64 {
+	//nolint: gosec // G115
+	return uint64(t.UnixNano() / 1000)
+}
+
+func durationAsMicroseconds(d time.Duration) uint64 {
+	//nolint: gosec // G115
+	return uint64(d.Nanoseconds() / 1000)
 }
 
 // SpanReader can query for and load traces from ElasticSearch
@@ -386,7 +395,7 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []dbmodel.TraceID, 
 		endTime.Add(time.Hour),
 		cfg.RolloverFrequencyAsNegativeDuration(s.spanIndex.RolloverFrequency),
 	)
-	nextTime := model.TimeAsEpochMicroseconds(startTime.Add(-time.Hour))
+	nextTime := timeAsEpochMicroseconds(startTime.Add(-time.Hour))
 	searchAfterTime := make(map[dbmodel.TraceID]uint64)
 	totalDocumentsFetched := make(map[dbmodel.TraceID]int)
 	tracesMap := make(map[dbmodel.TraceID]*dbmodel.Trace)
@@ -662,17 +671,17 @@ func (s *SpanReader) buildFindTraceIDsQuery(traceQuery *dbmodel.TraceQueryParame
 }
 
 func (*SpanReader) buildDurationQuery(durationMin time.Duration, durationMax time.Duration) elastic.Query {
-	minDurationMicros := model.DurationAsMicroseconds(durationMin)
+	minDurationMicros := durationAsMicroseconds(durationMin)
 	maxDurationMicros := defaultMaxDuration
 	if durationMax != 0 {
-		maxDurationMicros = model.DurationAsMicroseconds(durationMax)
+		maxDurationMicros = durationAsMicroseconds(durationMax)
 	}
 	return elastic.NewRangeQuery(durationField).Gte(minDurationMicros).Lte(maxDurationMicros)
 }
 
 func (*SpanReader) buildStartTimeQuery(startTimeMin time.Time, startTimeMax time.Time) elastic.Query {
-	minStartTimeMicros := model.TimeAsEpochMicroseconds(startTimeMin)
-	maxStartTimeMicros := model.TimeAsEpochMicroseconds(startTimeMax)
+	minStartTimeMicros := timeAsEpochMicroseconds(startTimeMin)
+	maxStartTimeMicros := timeAsEpochMicroseconds(startTimeMax)
 	// startTimeMillisField is date field in ES mapping.
 	// Using date field in range queries helps to skip search on unnecessary shards at Elasticsearch side.
 	// https://discuss.elastic.co/t/timeline-query-on-timestamped-indices/129328/2
