@@ -5,7 +5,6 @@ package grpc
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"iter"
 
@@ -17,8 +16,6 @@ import (
 )
 
 var _ tracestore.Reader = (*TraceReader)(nil)
-
-var errFailedToGetServices = errors.New("failed to get services")
 
 type TraceReader struct {
 	client storage.TraceReaderClient
@@ -43,16 +40,30 @@ func (*TraceReader) GetTraces(
 func (tr *TraceReader) GetServices(ctx context.Context) ([]string, error) {
 	resp, err := tr.client.GetServices(ctx, &storage.GetServicesRequest{})
 	if err != nil {
-		return nil, fmt.Errorf("%w: %w", errFailedToGetServices, err)
+		return nil, fmt.Errorf("failed to get services: %w", err)
 	}
 	return resp.Services, nil
 }
 
-func (*TraceReader) GetOperations(
-	context.Context,
-	tracestore.OperationQueryParams,
+func (tr *TraceReader) GetOperations(
+	ctx context.Context,
+	params tracestore.OperationQueryParams,
 ) ([]tracestore.Operation, error) {
-	panic("not implemented")
+	resp, err := tr.client.GetOperations(ctx, &storage.GetOperationsRequest{
+		Service:  params.ServiceName,
+		SpanKind: params.SpanKind,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get operations: %w", err)
+	}
+	operations := make([]tracestore.Operation, len(resp.Operations))
+	for i, op := range resp.Operations {
+		operations[i] = tracestore.Operation{
+			Name:     op.Name,
+			SpanKind: op.SpanKind,
+		}
+	}
+	return operations, nil
 }
 
 func (*TraceReader) FindTraces(
