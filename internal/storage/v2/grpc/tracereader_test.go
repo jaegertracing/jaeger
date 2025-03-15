@@ -22,19 +22,27 @@ import (
 type testServer struct {
 	storage.UnimplementedTraceReaderServer
 
-	getServicesError error
+	services   []string
+	operations []*storage.Operation
+	err        error
 }
 
 func (s *testServer) GetServices(
 	context.Context,
 	*storage.GetServicesRequest,
 ) (*storage.GetServicesResponse, error) {
-	if s.getServicesError != nil {
-		return nil, s.getServicesError
-	}
 	return &storage.GetServicesResponse{
-		Services: []string{"service-a", "service-b"},
-	}, nil
+		Services: s.services,
+	}, s.err
+}
+
+func (s *testServer) GetOperations(
+	context.Context,
+	*storage.GetOperationsRequest,
+) (*storage.GetOperationsResponse, error) {
+	return &storage.GetOperationsResponse{
+		Operations: s.operations,
+	}, s.err
 }
 
 func startTestServer(t *testing.T, testServer *testServer) *grpc.ClientConn {
@@ -78,19 +86,21 @@ func TestTraceReader_GetServices(t *testing.T) {
 		name             string
 		testServer       *testServer
 		expectedServices []string
-		expectedError    error
+		expectedError    string
 	}{
 		{
-			name:             "success",
-			testServer:       &testServer{},
+			name: "success",
+			testServer: &testServer{
+				services: []string{"service-a", "service-b"},
+			},
 			expectedServices: []string{"service-a", "service-b"},
 		},
 		{
 			name: "error",
 			testServer: &testServer{
-				getServicesError: assert.AnError,
+				err: assert.AnError,
 			},
-			expectedError: errFailedToGetServices,
+			expectedError: "failed to get services",
 		},
 	}
 
@@ -101,18 +111,61 @@ func TestTraceReader_GetServices(t *testing.T) {
 			reader := NewTraceReader(conn)
 			services, err := reader.GetServices(context.Background())
 
-			require.ErrorIs(t, err, test.expectedError)
-			require.Equal(t, test.expectedServices, services)
+			if test.expectedError != "" {
+				require.ErrorContains(t, err, test.expectedError)
+			} else {
+				require.Equal(t, test.expectedServices, services)
+			}
 		})
 	}
 }
 
 func TestTraceReader_GetOperations(t *testing.T) {
-	tr := &TraceReader{}
+	tests := []struct {
+		name          string
+		testServer    *testServer
+		expectedOps   []tracestore.Operation
+		expectedError string
+	}{
+		{
+			name: "success",
+			testServer: &testServer{
+				operations: []*storage.Operation{
+					{Name: "operation-a", SpanKind: "kind"},
+					{Name: "operation-b", SpanKind: "kind"},
+				},
+			},
+			expectedOps: []tracestore.Operation{
+				{Name: "operation-a", SpanKind: "kind"},
+				{Name: "operation-b", SpanKind: "kind"},
+			},
+		},
+		{
+			name: "error",
+			testServer: &testServer{
+				err: assert.AnError,
+			},
+			expectedError: "failed to get operations",
+		},
+	}
 
-	require.Panics(t, func() {
-		tr.GetOperations(context.Background(), tracestore.OperationQueryParams{})
-	})
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			conn := startTestServer(t, test.testServer)
+
+			reader := NewTraceReader(conn)
+			ops, err := reader.GetOperations(context.Background(), tracestore.OperationQueryParams{
+				ServiceName: "service-a",
+				SpanKind:    "kind",
+			})
+
+			if test.expectedError != "" {
+				require.ErrorContains(t, err, test.expectedError)
+			} else {
+				require.Equal(t, test.expectedOps, ops)
+			}
+		})
+	}
 }
 
 func TestTraceReader_FindTraces(t *testing.T) {
