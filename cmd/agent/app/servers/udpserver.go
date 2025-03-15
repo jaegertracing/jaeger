@@ -7,21 +7,23 @@ package servers
 import (
 	"bytes"
 	"io"
+	"net"
 	"sync"
 	"sync/atomic"
 
+	"github.com/jaegertracing/jaeger/cmd/agent/app/servers/thriftudp"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
-// ThriftTransport is a subset of thrift.TTransport methods, for easier mocking.
-type ThriftTransport interface {
+// UDPConn is a subset of interfaces of *net.UDPConn methods, for easier mocking.
+type UDPConn interface {
 	io.Reader
 	io.Closer
 }
 
-// TBufferedServer is a custom thrift server that reads traffic using the transport provided
-// and places messages into a buffered channel to be processed by the processor provided
-type TBufferedServer struct {
+// UDPServer reads traffic packets from a UDP connection into bytes.Buffer
+// and places them into a buffered channel to be consumed by the receiver.
+type UDPServer struct {
 	// NB. queueLength HAS to be at the top of the struct or it will SIGSEV for certain architectures.
 	// See https://github.com/golang/go/issues/13868
 	queueSize     int64
@@ -29,7 +31,8 @@ type TBufferedServer struct {
 	maxPacketSize int
 	maxQueueSize  int
 	serving       uint32
-	transport     ThriftTransport
+	conn          UDPConn
+	addr          net.Addr
 	readBufPool   sync.Pool
 	metrics       struct {
 		// Size of the current server queue
@@ -49,7 +52,7 @@ type TBufferedServer struct {
 	}
 }
 
-// state values for TBufferedServer.serving
+// state values for UDPServer.serving
 //
 // init -> serving -> stopped
 // init -> stopped (might happen in unit tests)
@@ -59,25 +62,35 @@ const (
 	stateInit
 )
 
-// NewTBufferedServer creates a TBufferedServer
-func NewTBufferedServer(
-	transport ThriftTransport,
+// NewUDPServer creates a UDPServer
+func NewUDPServer(
+	hostPort string,
 	maxQueueSize int,
 	maxPacketSize int,
 	mFactory metrics.Factory,
-) (*TBufferedServer, error) {
-	dataChan := make(chan *bytes.Buffer, maxQueueSize)
+) (*UDPServer, error) {
+	addr, err := net.ResolveUDPAddr("udp", hostPort)
+	if err != nil {
+		return nil, err
+	}
+	conn, err := net.ListenUDP(addr.Network(), addr)
+	if err != nil {
+		return nil, err
+	}
+	if err := thriftudp.SetSocketBuffer(conn, maxPacketSize); err != nil {
+		return nil, err
+	}
 
-	res := &TBufferedServer{
-		dataChan:      dataChan,
-		transport:     transport,
+	res := &UDPServer{
+		dataChan:      make(chan *bytes.Buffer, maxQueueSize),
+		conn:          conn,
+		addr:          conn.LocalAddr(),
 		maxQueueSize:  maxQueueSize,
 		maxPacketSize: maxPacketSize,
 		serving:       stateInit,
 		readBufPool: sync.Pool{
 			New: func() any {
 				b := new(bytes.Buffer)
-				b.Grow(maxPacketSize)
 				return b
 			},
 		},
@@ -87,22 +100,32 @@ func NewTBufferedServer(
 	return res, nil
 }
 
+func (s *UDPServer) Addr() net.Addr {
+	return s.addr
+}
+
+func (s *UDPServer) readPacket(buf *bytes.Buffer) (int, error) {
+	buf.Grow(s.maxPacketSize)
+	buf.Reset()
+	n, err := s.conn.Read(buf.Bytes())
+	if err != nil {
+		return 0, err
+	}
+	buf.Truncate(n)
+	return n, nil
+}
+
 // Serve initiates the readers and starts serving traffic
-func (s *TBufferedServer) Serve() {
+func (s *UDPServer) Serve() {
 	defer close(s.dataChan)
 	if !atomic.CompareAndSwapUint32(&s.serving, stateInit, stateServing) {
 		return // Stop already called
 	}
 
-	lr := &io.LimitedReader{
-		R: s.transport,
-	}
 	for s.IsServing() {
 		buf := s.readBufPool.Get().(*bytes.Buffer)
-		buf.Reset()
-		lr.N = int64(s.maxPacketSize)
-		n, err := buf.ReadFrom(lr)
-		if err == nil {
+		n, err := s.readPacket(buf)
+		if err == nil && n > 0 {
 			s.metrics.PacketSize.Update(int64(n))
 			select {
 			case s.dataChan <- buf:
@@ -119,30 +142,30 @@ func (s *TBufferedServer) Serve() {
 	}
 }
 
-func (s *TBufferedServer) updateQueueSize(delta int64) {
+func (s *UDPServer) updateQueueSize(delta int64) {
 	atomic.AddInt64(&s.queueSize, delta)
 	s.metrics.QueueSize.Update(atomic.LoadInt64(&s.queueSize))
 }
 
 // IsServing indicates whether the server is currently serving traffic
-func (s *TBufferedServer) IsServing() bool {
+func (s *UDPServer) IsServing() bool {
 	return atomic.LoadUint32(&s.serving) == stateServing
 }
 
 // Stop stops the serving of traffic and waits until the queue is
 // emptied by the readers
-func (s *TBufferedServer) Stop() {
+func (s *UDPServer) Stop() {
 	atomic.StoreUint32(&s.serving, stateStopped)
-	_ = s.transport.Close()
+	_ = s.conn.Close()
 }
 
 // DataChan returns the data chan of the buffered server
-func (s *TBufferedServer) DataChan() chan *bytes.Buffer {
+func (s *UDPServer) DataChan() chan *bytes.Buffer {
 	return s.dataChan
 }
 
 // DataRecd is called by the consumers every time they read a data item from DataChan
-func (s *TBufferedServer) DataRecd(buf *bytes.Buffer) {
+func (s *UDPServer) DataRecd(buf *bytes.Buffer) {
 	s.updateQueueSize(-1)
 	s.readBufPool.Put(buf)
 }

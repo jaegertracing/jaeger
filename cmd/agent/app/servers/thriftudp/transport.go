@@ -154,5 +154,5 @@ func (p *TUDPTransport) Flush(_ context.Context) error {
 
 // SetSocketBufferSize sets udp buffer size
 func (p *TUDPTransport) SetSocketBufferSize(bufferSize int) error {
-	return setSocketBuffer(p.Conn(), bufferSize)
+	return SetSocketBuffer(p.Conn(), bufferSize)
 }

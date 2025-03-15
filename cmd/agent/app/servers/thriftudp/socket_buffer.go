@@ -11,7 +11,7 @@ import (
 	"syscall"
 )
 
-func setSocketBuffer(conn *net.UDPConn, bufferSize int) error {
+func SetSocketBuffer(conn *net.UDPConn, bufferSize int) error {
 	rawConn, err := conn.SyscallConn()
 	if err != nil {
 		return fmt.Errorf("failed to get raw connection: %w", err)

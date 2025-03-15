@@ -8,7 +8,6 @@ import (
 	"bytes"
 	"context"
 	"io"
-	"runtime"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -21,24 +20,22 @@ import (
 	"github.com/jaegertracing/jaeger-idl/thrift-gen/agent"
 	"github.com/jaegertracing/jaeger-idl/thrift-gen/zipkincore"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/customtransport"
-	"github.com/jaegertracing/jaeger/cmd/agent/app/servers/thriftudp"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/testutils"
 	"github.com/jaegertracing/jaeger/internal/metricstest"
 )
 
-func TestTBufferedServerSendReceive(t *testing.T) {
+func TestUDPServerSendReceive(t *testing.T) {
 	metricsFactory := metricstest.NewFactory(0)
 
-	transport, err := thriftudp.NewTUDPServerTransport("127.0.0.1:0")
-	require.NoError(t, err)
-
 	const maxPacketSize = 65000
-	server, err := NewTBufferedServer(transport, 100, maxPacketSize, metricsFactory)
+	const maxQueueSize = 100
+	server, err := NewUDPServer("127.0.0.1:0", maxQueueSize, maxPacketSize, metricsFactory)
 	require.NoError(t, err)
 	go server.Serve()
 	defer server.Stop()
 
-	client, clientCloser, err := testutils.NewZipkinThriftUDPClient(transport.Addr().String())
+	// TODO simplify this, no need to use real Thrift machinery, just a plain string will do.
+	client, clientCloser, err := testutils.NewZipkinThriftUDPClient(server.Addr().String())
 	require.NoError(t, err)
 	defer clientCloser.Close()
 
@@ -48,7 +45,6 @@ func TestTBufferedServerSendReceive(t *testing.T) {
 	for i := 0; i < 1000; i++ {
 		err := client.EmitZipkinBatch(context.Background(), []*zipkincore.Span{span})
 		require.NoError(t, err)
-		runtime.Gosched()
 
 		select {
 		case buf := <-server.DataChan():
@@ -83,7 +79,7 @@ func TestTBufferedServerSendReceive(t *testing.T) {
 // The fakeTransport allows the server to read two packets, one filled with 1's, another with 2's,
 // then returns an error, and then blocks on the semaphore. The semaphore is only released when
 // the test is exiting.
-type fakeTransport struct {
+type fakeConn struct {
 	packet atomic.Int64
 	wg     sync.WaitGroup
 }
@@ -92,7 +88,7 @@ type fakeTransport struct {
 // First packet is returned as normal.
 // Second packet is simulated as error.
 // Third packet is returned as normal, but will be dropped as overflow by the server whose queue size = 1.
-func (t *fakeTransport) Read(p []byte) (n int, err error) {
+func (t *fakeConn) Read(p []byte) (n int, err error) {
 	packet := t.packet.Add(1)
 	if packet == 2 {
 		// return some error packet, followed by valid one
@@ -109,24 +105,29 @@ func (t *fakeTransport) Read(p []byte) (n int, err error) {
 	return len(p), nil
 }
 
-func (*fakeTransport) Close() error {
+func (*fakeConn) Close() error {
 	return nil
 }
 
-func TestTBufferedServerMetrics(t *testing.T) {
+func TestUDPServerMetrics(t *testing.T) {
 	metricsFactory := metricstest.NewFactory(0)
 
-	transport := new(fakeTransport)
-	transport.wg.Add(1)
-	defer transport.wg.Done()
-
-	maxPacketSize := 65000
-	server, err := NewTBufferedServer(transport, 1, maxPacketSize, metricsFactory)
+	const maxPacketSize = 65000
+	const maxQueueSize = 1
+	server, err := NewUDPServer("127.0.0.1:0", maxQueueSize, maxPacketSize, metricsFactory)
 	require.NoError(t, err)
+
+	// replace connection with fake one
+	conn := new(fakeConn)
+	conn.wg.Add(1)
+	defer conn.wg.Done()
+	server.conn.Close()
+	server.conn = conn
+
 	go server.Serve()
 	defer server.Stop()
 
-	// The fakeTransport will allow the server to read exactly two packets and one error in between.
+	// The fakeConn will allow the server to read exactly two packets and one error in between.
 	// Since we use the server with queue size == 1, the first packet will be
 	// sent to channel, the error will increment the metric, and the second valid packet dropped.
 
