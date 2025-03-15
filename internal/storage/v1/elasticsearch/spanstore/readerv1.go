@@ -91,9 +91,6 @@ func (s *SpanReaderV1) FindTraces(ctx context.Context, traceQuery *spanstore.Tra
 	if err != nil {
 		return nil, err
 	}
-	if len(traces) == 0 {
-		return nil, spanstore.ErrTraceNotFound
-	}
 	var result []*model.Trace
 	for _, trace := range traces {
 		spans, err := s.collectSpans(trace.Spans)

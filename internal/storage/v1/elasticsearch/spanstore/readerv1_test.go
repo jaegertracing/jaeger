@@ -177,8 +177,13 @@ type traceError struct {
 	returningTraces []*dbmodel.Trace
 }
 
-func getTraceErrTests() []traceError {
-	return []traceError{
+func getTraceErrTests(includeNoTraceErr bool) []traceError {
+	noTraceErrTest := traceError{
+		name:            "trace not found",
+		returningTraces: []*dbmodel.Trace{},
+		expectedError:   "trace not found",
+	}
+	tests := []traceError{
 		{
 			name:            "conversion error",
 			expectedError:   "span conversion error, because lacks elements",
@@ -189,16 +194,16 @@ func getTraceErrTests() []traceError {
 			returningErr:  errors.New("error"),
 			expectedError: "error",
 		},
-		{
-			name:            "trace not found",
-			returningTraces: []*dbmodel.Trace{},
-			expectedError:   "trace not found",
-		},
 	}
+	if includeNoTraceErr {
+		tests = append(tests, noTraceErrTest)
+		return tests
+	}
+	return tests
 }
 
 func TestSpanReaderV1_GetTraceError(t *testing.T) {
-	tests := getTraceErrTests()
+	tests := getTraceErrTests(true)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			withSpanReaderV1(func(r *SpanReaderV1, m *mocks.CoreSpanReader) {
@@ -213,7 +218,7 @@ func TestSpanReaderV1_GetTraceError(t *testing.T) {
 }
 
 func TestSpanReaderV1_FindTracesError(t *testing.T) {
-	tests := getTraceErrTests()
+	tests := getTraceErrTests(false)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			withSpanReaderV1(func(r *SpanReaderV1, m *mocks.CoreSpanReader) {
