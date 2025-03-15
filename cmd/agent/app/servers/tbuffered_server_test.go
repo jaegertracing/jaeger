@@ -13,15 +13,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/apache/thrift/lib/go/thrift"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/jaegertracing/jaeger-idl/thrift-gen/agent"
-	"github.com/jaegertracing/jaeger-idl/thrift-gen/zipkincore"
-	"github.com/jaegertracing/jaeger/cmd/agent/app/customtransport"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/servers/thriftudp"
-	"github.com/jaegertracing/jaeger/cmd/agent/app/testutils"
 	"github.com/jaegertracing/jaeger/internal/metricstest"
 )
 
@@ -38,38 +33,21 @@ func TestTBufferedServerSendReceive(t *testing.T) {
 	go server.Serve()
 	defer server.Stop()
 
-	// TODO simplify this, no need to use real Thrift machinery, just a plain string will do.
-	client, clientCloser, err := testutils.NewZipkinThriftUDPClient(transport.Addr().String())
+	client, err := thriftudp.NewTUDPClientTransport(transport.Addr().String(), "")
 	require.NoError(t, err)
-	defer clientCloser.Close()
+	defer client.Close()
 
-	span := zipkincore.NewSpan()
-	span.Name = "span1"
-
-	for i := 0; i < 1000; i++ {
-		err := client.EmitZipkinBatch(context.Background(), []*zipkincore.Span{span})
+	// keep sending packets until the server receives one
+	for range 1000 {
+		n, err := client.Write([]byte("span1"))
 		require.NoError(t, err)
+		require.Equal(t, 5, n)
+		require.NoError(t, client.Flush(context.Background()))
 
 		select {
 		case buf := <-server.DataChan():
 			assert.Positive(t, buf.Len())
-			inMemReporter := testutils.NewInMemoryReporter()
-			protoFact := thrift.NewTCompactProtocolFactoryConf(&thrift.TConfiguration{})
-			trans := &customtransport.TBufferedReadTransport{}
-			protocol := protoFact.GetProtocol(trans)
-
-			_, err = buf.WriteTo(protocol.Transport())
-			require.NoError(t, err)
-
-			server.DataRecd(buf) // return to pool
-
-			handler := agent.NewAgentProcessor(inMemReporter)
-			_, err = handler.Process(context.Background(), protocol, protocol)
-			require.NoError(t, err)
-
-			require.Len(t, inMemReporter.ZipkinSpans(), 1)
-			assert.Equal(t, "span1", inMemReporter.ZipkinSpans()[0].Name)
-
+			assert.Equal(t, "span1", buf.String())
 			return // exit test on successful receipt
 		default:
 			time.Sleep(10 * time.Millisecond)
