@@ -13,6 +13,12 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
+// TBufferedServer is an alias for UDPServer, for backwards compatibility.
+type TBufferedServer = UDPServer
+
+// NewTBufferedServer is an alias for NewUDPServer, for backwards compatibility.
+var NewTBufferedServer = NewUDPServer
+
 // UDPConn is a an abstraction of *net.UDPConn, for easier mocking.
 type UDPConn interface {
 	io.Reader
