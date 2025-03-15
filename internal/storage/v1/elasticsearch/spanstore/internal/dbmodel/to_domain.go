@@ -9,29 +9,18 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
-	"strings"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 )
 
 // NewToDomain creates ToDomain
 func NewToDomain(tagDotReplacement string) ToDomain {
-	return ToDomain{tagDotReplacement: tagDotReplacement}
+	return ToDomain{dotReplacer: NewDotReplacer(tagDotReplacement)}
 }
 
 // ToDomain is used to convert Span to model.Span
 type ToDomain struct {
-	tagDotReplacement string
-}
-
-// ReplaceDot replaces dot with dotReplacement
-func (td ToDomain) ReplaceDot(k string) string {
-	return strings.ReplaceAll(k, ".", td.tagDotReplacement)
-}
-
-// ReplaceDotReplacement replaces dotReplacement with dot
-func (td ToDomain) ReplaceDotReplacement(k string) string {
-	return strings.ReplaceAll(k, td.tagDotReplacement, ".")
+	dotReplacer DotReplacer
 }
 
 // SpanToDomain converts db span into model Span
@@ -151,7 +140,7 @@ func (td ToDomain) convertTagFields(tagsMap map[string]any) ([]model.KeyValue, e
 }
 
 func (td ToDomain) convertTagField(k string, v any) (model.KeyValue, error) {
-	dKey := td.ReplaceDotReplacement(k)
+	dKey := td.dotReplacer.ReplaceDotReplacement(k)
 	switch val := v.(type) {
 	case int64:
 		return model.Int64(dKey, val), nil
