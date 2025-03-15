@@ -87,7 +87,7 @@ func NewUDPServer(
 
 // packetReader is a helper for reading a single packet no larger than maxPacketSize
 // from the underlying reader. Without it the ReadFrom() method of bytes.Buffer would
-// read multiple packets and won't even stop  at maxPacketSize.
+// read multiple packets and won't even stop at maxPacketSize.
 type packetReader struct {
 	maxPacketSize int
 	reader        io.LimitedReader
