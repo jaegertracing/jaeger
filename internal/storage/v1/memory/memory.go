@@ -24,8 +24,9 @@ type Store struct {
 	sync.RWMutex
 	// Each tenant gets a copy of default config.
 	// In the future this can be extended to contain per-tenant configuration.
-	defaultConfig Configuration
-	perTenant     map[string]*Tenant
+	defaultConfig   Configuration
+	perTenant       map[string]*Tenant
+	dependencyLinks map[time.Time][]model.DependencyLink
 }
 
 // Tenant is an in-memory store of traces for a single tenant
@@ -176,6 +177,20 @@ func (st *Store) WriteSpan(ctx context.Context, span *model.Span) error {
 		}
 	}
 	m.traces[span.TraceID].Spans = append(m.traces[span.TraceID].Spans, span)
+
+	return nil
+}
+
+func (st *Store) WriteDependencies(ctx context.Context, ts time.Time, dependencies []model.DependencyLink) error {
+	// Lock the store to prevent concurrent writes
+	st.Lock()
+	defer st.Unlock()
+
+	// Store the dependencies (this is a simple in-memory example)
+	if st.dependencyLinks == nil {
+		st.dependencyLinks = make(map[time.Time][]model.DependencyLink)
+	}
+	st.dependencyLinks[ts] = dependencies
 
 	return nil
 }
