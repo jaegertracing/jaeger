@@ -17,23 +17,14 @@ import (
 	"github.com/jaegertracing/jaeger/proto-gen/storage/v2"
 )
 
-type getServicesRepsonse struct {
-	services []string
-	err      error
-}
-
-type getOperationsRepsonse struct {
-	operations []*storage.Operation
-	err        error
-}
-
 // testServer implements the storage.TraceReaderServer interface
 // to simulate responses for testing.
 type testServer struct {
 	storage.UnimplementedTraceReaderServer
 
-	getServicesRepsonse   getServicesRepsonse
-	getOperationsRepsonse getOperationsRepsonse
+	services   []string
+	operations []*storage.Operation
+	err        error
 }
 
 func (s *testServer) GetServices(
@@ -41,8 +32,8 @@ func (s *testServer) GetServices(
 	*storage.GetServicesRequest,
 ) (*storage.GetServicesResponse, error) {
 	return &storage.GetServicesResponse{
-		Services: s.getServicesRepsonse.services,
-	}, s.getServicesRepsonse.err
+		Services: s.services,
+	}, s.err
 }
 
 func (s *testServer) GetOperations(
@@ -50,8 +41,8 @@ func (s *testServer) GetOperations(
 	*storage.GetOperationsRequest,
 ) (*storage.GetOperationsResponse, error) {
 	return &storage.GetOperationsResponse{
-		Operations: s.getOperationsRepsonse.operations,
-	}, s.getOperationsRepsonse.err
+		Operations: s.operations,
+	}, s.err
 }
 
 func startTestServer(t *testing.T, testServer *testServer) *grpc.ClientConn {
@@ -100,18 +91,14 @@ func TestTraceReader_GetServices(t *testing.T) {
 		{
 			name: "success",
 			testServer: &testServer{
-				getServicesRepsonse: getServicesRepsonse{
-					services: []string{"service-a", "service-b"},
-				},
+				services: []string{"service-a", "service-b"},
 			},
 			expectedServices: []string{"service-a", "service-b"},
 		},
 		{
 			name: "error",
 			testServer: &testServer{
-				getServicesRepsonse: getServicesRepsonse{
-					err: assert.AnError,
-				},
+				err: assert.AnError,
 			},
 			expectedError: "failed to get services",
 		},
@@ -143,11 +130,9 @@ func TestTraceReader_GetOperations(t *testing.T) {
 		{
 			name: "success",
 			testServer: &testServer{
-				getOperationsRepsonse: getOperationsRepsonse{
-					operations: []*storage.Operation{
-						{Name: "operation-a", SpanKind: "kind"},
-						{Name: "operation-b", SpanKind: "kind"},
-					},
+				operations: []*storage.Operation{
+					{Name: "operation-a", SpanKind: "kind"},
+					{Name: "operation-b", SpanKind: "kind"},
 				},
 			},
 			expectedOps: []tracestore.Operation{
@@ -158,9 +143,7 @@ func TestTraceReader_GetOperations(t *testing.T) {
 		{
 			name: "error",
 			testServer: &testServer{
-				getOperationsRepsonse: getOperationsRepsonse{
-					err: assert.AnError,
-				},
+				err: assert.AnError,
 			},
 			expectedError: "failed to get operations",
 		},
