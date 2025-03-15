@@ -5,8 +5,10 @@
 package servers
 
 import (
+	"bytes"
 	"context"
 	"io"
+	"runtime"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -30,14 +32,13 @@ func TestTBufferedServerSendReceive(t *testing.T) {
 	transport, err := thriftudp.NewTUDPServerTransport("127.0.0.1:0")
 	require.NoError(t, err)
 
-	maxPacketSize := 65000
+	const maxPacketSize = 65000
 	server, err := NewTBufferedServer(transport, 100, maxPacketSize, metricsFactory)
 	require.NoError(t, err)
 	go server.Serve()
 	defer server.Stop()
 
-	hostPort := transport.Addr().String()
-	client, clientCloser, err := testutils.NewZipkinThriftUDPClient(hostPort)
+	client, clientCloser, err := testutils.NewZipkinThriftUDPClient(transport.Addr().String())
 	require.NoError(t, err)
 	defer clientCloser.Close()
 
@@ -47,20 +48,22 @@ func TestTBufferedServerSendReceive(t *testing.T) {
 	for i := 0; i < 1000; i++ {
 		err := client.EmitZipkinBatch(context.Background(), []*zipkincore.Span{span})
 		require.NoError(t, err)
+		runtime.Gosched()
 
 		select {
-		case readBuf := <-server.DataChan():
-			assert.NotEmpty(t, readBuf.GetBytes())
+		case buf := <-server.DataChan():
+			assert.Positive(t, buf.Len())
+			t.Logf("received %d bytes", buf.Len())
 
 			inMemReporter := testutils.NewInMemoryReporter()
 			protoFact := thrift.NewTCompactProtocolFactoryConf(&thrift.TConfiguration{})
 			trans := &customtransport.TBufferedReadTransport{}
 			protocol := protoFact.GetProtocol(trans)
 
-			_, err = protocol.Transport().Write(readBuf.GetBytes())
+			_, err = buf.WriteTo(protocol.Transport())
 			require.NoError(t, err)
 
-			server.DataRecd(readBuf) // return to pool
+			server.DataRecd(buf) // return to pool
 
 			handler := agent.NewAgentProcessor(inMemReporter)
 			_, err = handler.Process(context.Background(), protocol, protocol)
@@ -138,10 +141,10 @@ func TestTBufferedServerMetrics(t *testing.T) {
 	}
 	require.True(t, packetDropped, "packetDropped")
 
-	var readBuf *ReadBuf
+	var readBuf *bytes.Buffer
 	select {
 	case readBuf = <-server.DataChan():
-		b := readBuf.GetBytes()
+		b := readBuf.Bytes()
 		assert.Len(t, b, 65000)
 		assert.EqualValues(t, 1, b[0], "first packet must be all 0x01's")
 	default:
@@ -159,6 +162,7 @@ func TestTBufferedServerMetrics(t *testing.T) {
 	)
 
 	server.DataRecd(readBuf)
+
 	metricsFactory.AssertGaugeMetrics(t,
 		metricstest.ExpectedMetric{Name: "thrift.udp.server.queue_size", Value: 0},
 	)

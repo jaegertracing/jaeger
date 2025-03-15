@@ -6,6 +6,7 @@ package thriftudp
 
 import (
 	"context"
+	"io"
 	"net"
 	"strings"
 	"sync"
@@ -133,7 +134,7 @@ func TestWriteRead(t *testing.T) {
 	expected := []byte("teststring")
 	readBuf := make([]byte, 20)
 	n, err = server.Read(readBuf)
-	require.NoError(t, err)
+	require.ErrorIs(t, err, io.EOF)
 	require.Len(t, expected, n)
 	require.Equal(t, expected, readBuf[0:n])
 }

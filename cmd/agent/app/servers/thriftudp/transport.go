@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"io"
 	"net"
 	"sync/atomic"
 
@@ -115,7 +116,10 @@ func (p *TUDPTransport) Read(buf []byte) (int, error) {
 		return 0, thrift.NewTTransportException(thrift.NOT_OPEN, "Connection not open")
 	}
 	n, err := p.conn.Read(buf)
-	return n, thrift.NewTTransportExceptionFromError(err)
+	if err != nil {
+		return n, thrift.NewTTransportExceptionFromError(err)
+	}
+	return n, io.EOF
 }
 
 // RemainingBytes returns the max number of bytes (same as Thrift's StreamTransport) as we
