@@ -68,10 +68,8 @@ func NewUDPServer(
 	maxPacketSize int,
 	mFactory metrics.Factory,
 ) (*UDPServer, error) {
-	dataChan := make(chan *bytes.Buffer, maxQueueSize)
-
-	res := &UDPServer{
-		dataChan:      dataChan,
+	srv := &UDPServer{
+		dataChan:      make(chan *bytes.Buffer, maxQueueSize),
 		transport:     transport,
 		maxQueueSize:  maxQueueSize,
 		maxPacketSize: maxPacketSize,
@@ -83,8 +81,8 @@ func NewUDPServer(
 		},
 	}
 
-	metrics.MustInit(&res.metrics, mFactory, nil)
-	return res, nil
+	metrics.MustInit(&srv.metrics, mFactory, nil)
+	return srv, nil
 }
 
 // packetReader is a helper for reading a single packet no larger than maxPacketSize
@@ -92,7 +90,7 @@ func NewUDPServer(
 // read multiple packets and won't even stop  at maxPacketSize.
 type packetReader struct {
 	maxPacketSize int
-	reader        *io.LimitedReader
+	reader        io.LimitedReader
 	attempt       int
 }
 
@@ -125,7 +123,7 @@ func (s *UDPServer) Serve() {
 
 	pr := &packetReader{
 		maxPacketSize: s.maxPacketSize,
-		reader: &io.LimitedReader{
+		reader: io.LimitedReader{
 			R: s.transport,
 		},
 	}

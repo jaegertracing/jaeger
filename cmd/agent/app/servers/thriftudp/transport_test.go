@@ -121,7 +121,7 @@ func TestWriteRead(t *testing.T) {
 	require.NoError(t, err)
 	defer client.Close()
 
-	// client makes two writes and one flush, resulting in one packer
+	// client makes two writes and one flush, resulting in one packet
 	n, err := client.Write([]byte("test"))
 	require.NoError(t, err)
 	require.Equal(t, 4, n)

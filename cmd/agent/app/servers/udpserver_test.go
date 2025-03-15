@@ -139,7 +139,6 @@ func TestTBufferedServerMetrics(t *testing.T) {
 	)
 
 	server.DataRecd(readBuf)
-
 	metricsFactory.AssertGaugeMetrics(t,
 		metricstest.ExpectedMetric{Name: "thrift.udp.server.queue_size", Value: 0},
 	)
