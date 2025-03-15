@@ -4,7 +4,6 @@
 package adaptive
 
 import (
-	"errors"
 	"net/http"
 	"testing"
 	"time"
@@ -59,10 +58,6 @@ func testThroughputBuckets() []*throughputBucket {
 			interval: 60 * time.Second,
 		},
 	}
-}
-
-func errTestStorage() error {
-	return errors.New("storage error")
 }
 
 func testCalculator() calculationstrategy.ProbabilityCalculator {
@@ -131,7 +126,7 @@ func TestInitializeThroughput(t *testing.T) {
 func TestInitializeThroughputFailure(t *testing.T) {
 	mockStorage := &smocks.Store{}
 	mockStorage.On("GetThroughput", time.Time{}.Add(time.Minute*19), time.Time{}.Add(time.Minute*20)).
-		Return(nil, errTestStorage())
+		Return(nil, assert.AnError)
 	p := &PostAggregator{storage: mockStorage, Options: Options{CalculationInterval: time.Minute, AggregationBuckets: 1}}
 	p.initializeThroughput(time.Time{}.Add(time.Minute * 20))
 
@@ -326,10 +321,10 @@ func TestRunCalculationLoop(t *testing.T) {
 	mockStorage := &smocks.Store{}
 	mockStorage.On("GetThroughput", mock.AnythingOfType("time.Time"), mock.AnythingOfType("time.Time")).
 		Return(testThroughputs(), nil)
-	mockStorage.On("GetLatestProbabilities").Return(model.ServiceOperationProbabilities{}, errTestStorage())
+	mockStorage.On("GetLatestProbabilities").Return(model.ServiceOperationProbabilities{}, assert.AnError)
 	mockStorage.On("InsertProbabilitiesAndQPS", mock.AnythingOfType("string"), mock.AnythingOfType("model.ServiceOperationProbabilities"),
-		mock.AnythingOfType("model.ServiceOperationQPS")).Return(errTestStorage())
-	mockStorage.On("InsertThroughput", mock.AnythingOfType("[]*model.Throughput")).Return(errTestStorage())
+		mock.AnythingOfType("model.ServiceOperationQPS")).Return(assert.AnError)
+	mockStorage.On("InsertThroughput", mock.AnythingOfType("[]*model.Throughput")).Return(assert.AnError)
 	mockEP := &epmocks.ElectionParticipant{}
 	mockEP.On("Start").Return(nil)
 	mockEP.On("Close").Return(nil)
@@ -372,11 +367,11 @@ func TestRunCalculationLoop_GetThroughputError(t *testing.T) {
 	logger, logBuffer := testutils.NewLogger()
 	mockStorage := &smocks.Store{}
 	mockStorage.On("GetThroughput", mock.AnythingOfType("time.Time"), mock.AnythingOfType("time.Time")).
-		Return(nil, errTestStorage())
-	mockStorage.On("GetLatestProbabilities").Return(model.ServiceOperationProbabilities{}, errTestStorage())
+		Return(nil, assert.AnError)
+	mockStorage.On("GetLatestProbabilities").Return(model.ServiceOperationProbabilities{}, assert.AnError)
 	mockStorage.On("InsertProbabilitiesAndQPS", mock.AnythingOfType("string"), mock.AnythingOfType("model.ServiceOperationProbabilities"),
-		mock.AnythingOfType("model.ServiceOperationQPS")).Return(errTestStorage())
-	mockStorage.On("InsertThroughput", mock.AnythingOfType("[]*model.Throughput")).Return(errTestStorage())
+		mock.AnythingOfType("model.ServiceOperationQPS")).Return(assert.AnError)
+	mockStorage.On("InsertThroughput", mock.AnythingOfType("[]*model.Throughput")).Return(assert.AnError)
 
 	mockEP := &epmocks.ElectionParticipant{}
 	mockEP.On("Start").Return(nil)
