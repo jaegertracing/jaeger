@@ -13,15 +13,17 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
-// ThriftTransport is a subset of thrift.TTransport methods, for easier mocking.
-type ThriftTransport interface {
+// UDPConn is a an abstraction of *net.UDPConn, for easier mocking.
+type UDPConn interface {
 	io.Reader
 	io.Closer
 }
 
-// TBufferedServer is a custom thrift server that reads traffic using the transport provided
-// and places messages into a buffered channel to be processed by the processor provided
-type TBufferedServer struct {
+// UDPServer reads packets from a UDP connection into bytes.Buffer and places
+// each buffer into a bounded channel to be consumed by the receiver.
+// After consuming the buffer, the receiver SHOULD call DataRecd() to signal
+// that the buffer is no longer in use and to return it to the pool.
+type UDPServer struct {
 	// NB. queueLength HAS to be at the top of the struct or it will SIGSEV for certain architectures.
 	// See https://github.com/golang/go/issues/13868
 	queueSize     int64
@@ -29,7 +31,7 @@ type TBufferedServer struct {
 	maxPacketSize int
 	maxQueueSize  int
 	serving       uint32
-	transport     ThriftTransport
+	transport     UDPConn
 	readBufPool   sync.Pool
 	metrics       struct {
 		// Size of the current server queue
@@ -59,16 +61,16 @@ const (
 	stateInit
 )
 
-// NewTBufferedServer creates a TBufferedServer
-func NewTBufferedServer(
-	transport ThriftTransport,
+// NewUDPServer creates a UDPServer
+func NewUDPServer(
+	transport UDPConn,
 	maxQueueSize int,
 	maxPacketSize int,
 	mFactory metrics.Factory,
-) (*TBufferedServer, error) {
+) (*UDPServer, error) {
 	dataChan := make(chan *bytes.Buffer, maxQueueSize)
 
-	res := &TBufferedServer{
+	res := &UDPServer{
 		dataChan:      dataChan,
 		transport:     transport,
 		maxQueueSize:  maxQueueSize,
@@ -115,7 +117,7 @@ func (r *packetReader) readPacket(buf *bytes.Buffer) (int, error) {
 }
 
 // Serve initiates the readers and starts serving traffic
-func (s *TBufferedServer) Serve() {
+func (s *UDPServer) Serve() {
 	defer close(s.dataChan)
 	if !atomic.CompareAndSwapUint32(&s.serving, stateInit, stateServing) {
 		return // Stop already called
@@ -148,30 +150,30 @@ func (s *TBufferedServer) Serve() {
 	}
 }
 
-func (s *TBufferedServer) updateQueueSize(delta int64) {
+func (s *UDPServer) updateQueueSize(delta int64) {
 	atomic.AddInt64(&s.queueSize, delta)
 	s.metrics.QueueSize.Update(atomic.LoadInt64(&s.queueSize))
 }
 
 // IsServing indicates whether the server is currently serving traffic
-func (s *TBufferedServer) IsServing() bool {
+func (s *UDPServer) IsServing() bool {
 	return atomic.LoadUint32(&s.serving) == stateServing
 }
 
 // Stop stops the serving of traffic and waits until the queue is
 // emptied by the readers
-func (s *TBufferedServer) Stop() {
+func (s *UDPServer) Stop() {
 	atomic.StoreUint32(&s.serving, stateStopped)
 	_ = s.transport.Close()
 }
 
 // DataChan returns the data chan of the buffered server
-func (s *TBufferedServer) DataChan() chan *bytes.Buffer {
+func (s *UDPServer) DataChan() chan *bytes.Buffer {
 	return s.dataChan
 }
 
 // DataRecd is called by the consumers every time they read a data item from DataChan
-func (s *TBufferedServer) DataRecd(buf *bytes.Buffer) {
+func (s *UDPServer) DataRecd(buf *bytes.Buffer) {
 	s.updateQueueSize(-1)
 	s.readBufPool.Put(buf)
 }

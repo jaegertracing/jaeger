@@ -19,7 +19,7 @@ import (
 
 // ThriftProcessor is a server that processes spans using a TBuffered Server
 type ThriftProcessor struct {
-	server        *servers.TBufferedServer
+	server        *servers.UDPServer
 	handler       AgentProcessor
 	protocolPool  *sync.Pool
 	numProcessors int
@@ -44,7 +44,7 @@ type AgentProcessor interface {
 
 // NewThriftProcessor creates a TBufferedServer backed ThriftProcessor
 func NewThriftProcessor(
-	server *servers.TBufferedServer,
+	server *servers.UDPServer,
 	numProcessors int,
 	mFactory metrics.Factory,
 	factory thrift.TProtocolFactory,

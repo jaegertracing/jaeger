@@ -28,7 +28,7 @@ func TestTBufferedServerSendReceive(t *testing.T) {
 
 	const maxPacketSize = 65000
 	const maxQueueSize = 100
-	server, err := NewTBufferedServer(transport, maxQueueSize, maxPacketSize, metricsFactory)
+	server, err := NewUDPServer(transport, maxQueueSize, maxPacketSize, metricsFactory)
 	require.NoError(t, err)
 	go server.Serve()
 	defer server.Stop()
@@ -98,7 +98,7 @@ func TestTBufferedServerMetrics(t *testing.T) {
 
 	const maxPacketSize = 65000
 	const maxQueueSize = 1
-	server, err := NewTBufferedServer(transport, maxQueueSize, maxPacketSize, metricsFactory)
+	server, err := NewUDPServer(transport, maxQueueSize, maxPacketSize, metricsFactory)
 	require.NoError(t, err)
 	go server.Serve()
 	defer server.Stop()
