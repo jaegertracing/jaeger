@@ -8,7 +8,6 @@ import (
 	"bytes"
 	"context"
 	"io"
-	"runtime"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -33,11 +32,13 @@ func TestTBufferedServerSendReceive(t *testing.T) {
 	require.NoError(t, err)
 
 	const maxPacketSize = 65000
-	server, err := NewTBufferedServer(transport, 100, maxPacketSize, metricsFactory)
+	const maxQueueSize = 100
+	server, err := NewTBufferedServer(transport, maxQueueSize, maxPacketSize, metricsFactory)
 	require.NoError(t, err)
 	go server.Serve()
 	defer server.Stop()
 
+	// TODO simplify this, no need to use real Thrift machinery, just a plain string will do.
 	client, clientCloser, err := testutils.NewZipkinThriftUDPClient(transport.Addr().String())
 	require.NoError(t, err)
 	defer clientCloser.Close()
@@ -48,13 +49,10 @@ func TestTBufferedServerSendReceive(t *testing.T) {
 	for i := 0; i < 1000; i++ {
 		err := client.EmitZipkinBatch(context.Background(), []*zipkincore.Span{span})
 		require.NoError(t, err)
-		runtime.Gosched()
 
 		select {
 		case buf := <-server.DataChan():
 			assert.Positive(t, buf.Len())
-			t.Logf("received %d bytes", buf.Len())
-
 			inMemReporter := testutils.NewInMemoryReporter()
 			protoFact := thrift.NewTCompactProtocolFactoryConf(&thrift.TConfiguration{})
 			trans := &customtransport.TBufferedReadTransport{}
@@ -120,8 +118,9 @@ func TestTBufferedServerMetrics(t *testing.T) {
 	transport.wg.Add(1)
 	defer transport.wg.Done()
 
-	maxPacketSize := 65000
-	server, err := NewTBufferedServer(transport, 1, maxPacketSize, metricsFactory)
+	const maxPacketSize = 65000
+	const maxQueueSize = 1
+	server, err := NewTBufferedServer(transport, maxQueueSize, maxPacketSize, metricsFactory)
 	require.NoError(t, err)
 	go server.Serve()
 	defer server.Stop()

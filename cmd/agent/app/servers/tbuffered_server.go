@@ -76,15 +76,42 @@ func NewTBufferedServer(
 		serving:       stateInit,
 		readBufPool: sync.Pool{
 			New: func() any {
-				b := new(bytes.Buffer)
-				b.Grow(maxPacketSize)
-				return b
+				return new(bytes.Buffer)
 			},
 		},
 	}
 
 	metrics.MustInit(&res.metrics, mFactory, nil)
 	return res, nil
+}
+
+// packetReader is a helper for reading a single packet no larger than maxPacketSize
+// from the underlying reader. Without it the ReadFrom() method of bytes.Buffer would
+// read multiple packets and won't even stop  at maxPacketSize.
+type packetReader struct {
+	maxPacketSize int
+	reader        *io.LimitedReader
+	attempt       int
+}
+
+func (r *packetReader) Read(p []byte) (int, error) {
+	if r.attempt > 0 {
+		return 0, io.EOF
+	}
+	r.attempt = 1
+	return r.reader.Read(p)
+}
+
+func (r *packetReader) readPacket(buf *bytes.Buffer) (int, error) {
+	// reset the readers since we're reusing them to avoid allocations
+	r.attempt = 0
+	r.reader.N = int64(r.maxPacketSize)
+	// prepare the buffer for expected packet size
+	buf.Grow(r.maxPacketSize)
+	buf.Reset()
+	// use Buffer's ReadFrom() as otherwise it's hard to get it into the right state
+	n, err := buf.ReadFrom(r)
+	return int(n), err
 }
 
 // Serve initiates the readers and starts serving traffic
@@ -94,14 +121,16 @@ func (s *TBufferedServer) Serve() {
 		return // Stop already called
 	}
 
-	lr := &io.LimitedReader{
-		R: s.transport,
+	pr := &packetReader{
+		maxPacketSize: s.maxPacketSize,
+		reader: &io.LimitedReader{
+			R: s.transport,
+		},
 	}
+
 	for s.IsServing() {
 		buf := s.readBufPool.Get().(*bytes.Buffer)
-		buf.Reset()
-		lr.N = int64(s.maxPacketSize)
-		n, err := buf.ReadFrom(lr)
+		n, err := pr.readPacket(buf)
 		if err == nil {
 			s.metrics.PacketSize.Update(int64(n))
 			select {
