@@ -87,7 +87,6 @@ func (tr *TraceReader) FindTraceIDs(
 			DurationMin:   params.DurationMin,
 			DurationMax:   params.DurationMax,
 			SearchDepth:   int32(params.SearchDepth), //nolint: gosec // G115
-
 		}
 		resp, err := tr.client.FindTraceIDs(ctx, &storage.FindTracesRequest{
 			Query: query,
