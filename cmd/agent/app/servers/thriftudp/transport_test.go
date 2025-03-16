@@ -121,21 +121,36 @@ func TestWriteRead(t *testing.T) {
 	require.NoError(t, err)
 	defer client.Close()
 
+	// client makes two writes and one flush, resulting in one packet
 	n, err := client.Write([]byte("test"))
 	require.NoError(t, err)
 	require.Equal(t, 4, n)
-	n, err = client.Write([]byte("string"))
+	n, err = client.Write([]byte("string1"))
 	require.NoError(t, err)
-	require.Equal(t, 6, n)
-	err = client.Flush(context.Background())
-	require.NoError(t, err)
+	require.Equal(t, 7, n)
+	require.NoError(t, client.Flush(context.Background()))
 
-	expected := []byte("teststring")
+	// another packet
+	n, err = client.Write([]byte("test"))
+	require.NoError(t, err)
+	require.Equal(t, 4, n)
+	n, err = client.Write([]byte("string2"))
+	require.NoError(t, err)
+	require.Equal(t, 7, n)
+	require.NoError(t, client.Flush(context.Background()))
+
+	expected := "teststring1"
 	readBuf := make([]byte, 20)
 	n, err = server.Read(readBuf)
 	require.NoError(t, err)
-	require.Len(t, expected, n)
-	require.Equal(t, expected, readBuf[0:n])
+	assert.Len(t, expected, n)
+	assert.Equal(t, expected, string(readBuf[0:n]))
+
+	expected = "teststring2"
+	n, err = server.Read(readBuf)
+	require.NoError(t, err)
+	assert.Len(t, expected, n)
+	assert.Equal(t, expected, string(readBuf[0:n]))
 }
 
 func TestDoubleCloseError(t *testing.T) {
