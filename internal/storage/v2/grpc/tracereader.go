@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"iter"
 
+	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"google.golang.org/grpc"
 
@@ -73,9 +74,38 @@ func (*TraceReader) FindTraces(
 	panic("not implemented")
 }
 
-func (*TraceReader) FindTraceIDs(
-	context.Context,
-	tracestore.TraceQueryParams,
+func (tr *TraceReader) FindTraceIDs(
+	ctx context.Context,
+	params tracestore.TraceQueryParams,
 ) iter.Seq2[[]tracestore.FoundTraceID, error] {
-	panic("not implemented")
+	return func(yield func([]tracestore.FoundTraceID, error) bool) {
+		query := &storage.TraceQueryParameters{
+			ServiceName:   params.ServiceName,
+			OperationName: params.OperationName,
+			StartTimeMin:  params.StartTimeMin,
+			StartTimeMax:  params.StartTimeMax,
+			DurationMin:   params.DurationMin,
+			DurationMax:   params.DurationMax,
+			SearchDepth:   int32(params.SearchDepth),
+		}
+		resp, err := tr.client.FindTraceIDs(ctx, &storage.FindTracesRequest{
+			Query: query,
+		})
+		if err != nil {
+			yield(nil, fmt.Errorf("could not find trace IDs: %w", err))
+			return
+		}
+		foundTraceIDs := make([]tracestore.FoundTraceID, len(resp.TraceIds))
+		for i, foundTraceID := range resp.TraceIds {
+			var sizedTraceID [16]byte
+			copy(sizedTraceID[:], foundTraceID.TraceId)
+
+			foundTraceIDs[i] = tracestore.FoundTraceID{
+				TraceID: pcommon.TraceID(sizedTraceID),
+				Start:   foundTraceID.Start,
+				End:     foundTraceID.End,
+			}
+		}
+		yield(foundTraceIDs, nil)
+	}
 }
