@@ -5,6 +5,7 @@
 package servers
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"sync"
@@ -12,15 +13,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/apache/thrift/lib/go/thrift"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/jaegertracing/jaeger-idl/thrift-gen/agent"
-	"github.com/jaegertracing/jaeger-idl/thrift-gen/zipkincore"
-	"github.com/jaegertracing/jaeger/cmd/agent/app/customtransport"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/servers/thriftudp"
-	"github.com/jaegertracing/jaeger/cmd/agent/app/testutils"
 	"github.com/jaegertracing/jaeger/internal/metricstest"
 )
 
@@ -30,45 +26,28 @@ func TestTBufferedServerSendReceive(t *testing.T) {
 	transport, err := thriftudp.NewTUDPServerTransport("127.0.0.1:0")
 	require.NoError(t, err)
 
-	maxPacketSize := 65000
-	server, err := NewTBufferedServer(transport, 100, maxPacketSize, metricsFactory)
+	const maxPacketSize = 65000
+	const maxQueueSize = 100
+	server, err := NewUDPServer(transport, maxQueueSize, maxPacketSize, metricsFactory)
 	require.NoError(t, err)
 	go server.Serve()
 	defer server.Stop()
 
-	hostPort := transport.Addr().String()
-	client, clientCloser, err := testutils.NewZipkinThriftUDPClient(hostPort)
+	client, err := thriftudp.NewTUDPClientTransport(transport.Addr().String(), "")
 	require.NoError(t, err)
-	defer clientCloser.Close()
+	defer client.Close()
 
-	span := zipkincore.NewSpan()
-	span.Name = "span1"
-
-	for i := 0; i < 1000; i++ {
-		err := client.EmitZipkinBatch(context.Background(), []*zipkincore.Span{span})
+	// keep sending packets until the server receives one
+	for range 1000 {
+		n, err := client.Write([]byte("span1"))
 		require.NoError(t, err)
+		require.Equal(t, 5, n)
+		require.NoError(t, client.Flush(context.Background()))
 
 		select {
-		case readBuf := <-server.DataChan():
-			assert.NotEmpty(t, readBuf.GetBytes())
-
-			inMemReporter := testutils.NewInMemoryReporter()
-			protoFact := thrift.NewTCompactProtocolFactoryConf(&thrift.TConfiguration{})
-			trans := &customtransport.TBufferedReadTransport{}
-			protocol := protoFact.GetProtocol(trans)
-
-			_, err = protocol.Transport().Write(readBuf.GetBytes())
-			require.NoError(t, err)
-
-			server.DataRecd(readBuf) // return to pool
-
-			handler := agent.NewAgentProcessor(inMemReporter)
-			_, err = handler.Process(context.Background(), protocol, protocol)
-			require.NoError(t, err)
-
-			require.Len(t, inMemReporter.ZipkinSpans(), 1)
-			assert.Equal(t, "span1", inMemReporter.ZipkinSpans()[0].Name)
-
+		case buf := <-server.DataChan():
+			assert.Positive(t, buf.Len())
+			assert.Equal(t, "span1", buf.String())
 			return // exit test on successful receipt
 		default:
 			time.Sleep(10 * time.Millisecond)
@@ -117,8 +96,9 @@ func TestTBufferedServerMetrics(t *testing.T) {
 	transport.wg.Add(1)
 	defer transport.wg.Done()
 
-	maxPacketSize := 65000
-	server, err := NewTBufferedServer(transport, 1, maxPacketSize, metricsFactory)
+	const maxPacketSize = 65000
+	const maxQueueSize = 1
+	server, err := NewUDPServer(transport, maxQueueSize, maxPacketSize, metricsFactory)
 	require.NoError(t, err)
 	go server.Serve()
 	defer server.Stop()
@@ -138,10 +118,10 @@ func TestTBufferedServerMetrics(t *testing.T) {
 	}
 	require.True(t, packetDropped, "packetDropped")
 
-	var readBuf *ReadBuf
+	var readBuf *bytes.Buffer
 	select {
 	case readBuf = <-server.DataChan():
-		b := readBuf.GetBytes()
+		b := readBuf.Bytes()
 		assert.Len(t, b, 65000)
 		assert.EqualValues(t, 1, b[0], "first packet must be all 0x01's")
 	default:
