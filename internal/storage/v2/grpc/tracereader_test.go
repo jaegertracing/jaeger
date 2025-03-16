@@ -32,12 +32,9 @@ type testServer struct {
 }
 
 func (ts *testServer) GetTraces(_ *storage.GetTracesRequest, s storage.TraceReader_GetTracesServer) error {
-	s.SendMsg(&storage.TracesChunk{
+	s.Send(&storage.TracesChunk{
 		Traces: ts.traces,
 	})
-	// s.Send(&storage.TracesChunk{
-	// 	Traces: ts.traces,
-	// })
 	return ts.err
 }
 
