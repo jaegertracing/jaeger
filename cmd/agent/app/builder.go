@@ -190,7 +190,7 @@ func (c *ServerConfiguration) applyDefaults() {
 }
 
 // getUDPServer gets a TBufferedServer backed server using the server configuration
-func (c *ServerConfiguration) getUDPServer(mFactory metrics.Factory) (*servers.UDPServer, error) {
+func (c *ServerConfiguration) getUDPServer(mFactory metrics.Factory) (*servers.TBufferedServer, error) {
 	c.applyDefaults()
 
 	if c.HostPort == "" {
@@ -206,7 +206,7 @@ func (c *ServerConfiguration) getUDPServer(mFactory metrics.Factory) (*servers.U
 		}
 	}
 
-	return servers.NewUDPServer(transport, c.QueueSize, c.MaxPacketSize, mFactory)
+	return servers.NewTBufferedServer(transport, c.QueueSize, c.MaxPacketSize, mFactory)
 }
 
 func defaultInt(value int, defaultVal int) int {

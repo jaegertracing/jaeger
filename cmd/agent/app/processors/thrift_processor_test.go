@@ -49,7 +49,7 @@ func createProcessor(t *testing.T, mFactory metrics.Factory, tFactory thrift.TPr
 
 	queueSize := 10
 	maxPacketSize := 65000
-	server, err := servers.NewUDPServer(transport, queueSize, maxPacketSize, mFactory)
+	server, err := servers.NewTBufferedServer(transport, queueSize, maxPacketSize, mFactory)
 	require.NoError(t, err)
 
 	numProcessors := 1
