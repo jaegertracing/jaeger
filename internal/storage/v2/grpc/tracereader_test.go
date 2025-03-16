@@ -7,12 +7,15 @@ import (
 	"context"
 	"net"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/pdata/pcommon"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
+	"github.com/jaegertracing/jaeger/internal/jiter"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/proto-gen/storage/v2"
 )
@@ -24,6 +27,7 @@ type testServer struct {
 
 	services   []string
 	operations []*storage.Operation
+	traceIDs   []*storage.FoundTraceID
 	err        error
 }
 
@@ -42,6 +46,15 @@ func (s *testServer) GetOperations(
 ) (*storage.GetOperationsResponse, error) {
 	return &storage.GetOperationsResponse{
 		Operations: s.operations,
+	}, s.err
+}
+
+func (s *testServer) FindTraceIDs(
+	context.Context,
+	*storage.FindTracesRequest,
+) (*storage.FindTraceIDsResponse, error) {
+	return &storage.FindTraceIDsResponse{
+		TraceIds: s.traceIDs,
 	}, s.err
 }
 
@@ -177,9 +190,120 @@ func TestTraceReader_FindTraces(t *testing.T) {
 }
 
 func TestTraceReader_FindTraceIDs(t *testing.T) {
-	tr := &TraceReader{}
+	now := time.Now().UTC()
+	tests := []struct {
+		name          string
+		testServer    *testServer
+		queryParams   tracestore.TraceQueryParams
+		expectedIDs   []tracestore.FoundTraceID
+		expectedError string
+	}{
+		{
+			name: "success",
+			testServer: &testServer{
+				traceIDs: []*storage.FoundTraceID{
+					{
+						TraceId: []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16},
+						Start:   now,
+						End:     now.Add(1 * time.Second),
+					},
+					{
+						TraceId: []byte{2, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16},
+						Start:   now,
+						End:     now.Add(1 * time.Minute),
+					},
+				},
+			},
+			queryParams: tracestore.TraceQueryParams{
+				ServiceName:   "service-a",
+				OperationName: "operation-a",
+			},
+			expectedIDs: []tracestore.FoundTraceID{
+				{
+					TraceID: pcommon.TraceID([16]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}),
+					Start:   now,
+					End:     now.Add(1 * time.Second),
+				},
+				{
+					TraceID: pcommon.TraceID([16]byte{2, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}),
+					Start:   now,
+					End:     now.Add(1 * time.Minute),
+				},
+			},
+		},
+		{
+			name: "trace ID with less than 16 bytes",
+			testServer: &testServer{
+				traceIDs: []*storage.FoundTraceID{
+					{
+						TraceId: []byte{1, 2, 3, 4, 5, 6, 7, 8},
+						Start:   now,
+						End:     now.Add(1 * time.Second),
+					},
+				},
+			},
+			queryParams: tracestore.TraceQueryParams{
+				ServiceName:   "service-a",
+				OperationName: "operation-a",
+			},
+			expectedIDs: []tracestore.FoundTraceID{
+				{
+					TraceID: pcommon.TraceID([16]byte{1, 2, 3, 4, 5, 6, 7, 8}),
+					Start:   now,
+					End:     now.Add(1 * time.Second),
+				},
+			},
+		},
+		{
+			name: "trace ID with more than 16 bytes",
+			testServer: &testServer{
+				traceIDs: []*storage.FoundTraceID{
+					{
+						TraceId: []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17},
+						Start:   now,
+						End:     now.Add(1 * time.Second),
+					},
+				},
+			},
+			queryParams: tracestore.TraceQueryParams{
+				ServiceName:   "service-a",
+				OperationName: "operation-a",
+			},
+			expectedIDs: []tracestore.FoundTraceID{
+				{
+					TraceID: pcommon.TraceID([16]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}),
+					Start:   now,
+					End:     now.Add(1 * time.Second),
+				},
+			},
+		},
+		{
+			name: "error",
+			testServer: &testServer{
+				err: assert.AnError,
+			},
+			queryParams: tracestore.TraceQueryParams{
+				ServiceName: "service-a",
+			},
+			expectedError: "could not find trace IDs",
+		},
+	}
 
-	require.Panics(t, func() {
-		tr.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{})
-	})
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			conn := startTestServer(t, test.testServer)
+
+			reader := NewTraceReader(conn)
+
+			foundIDsIter := reader.FindTraceIDs(context.Background(), test.queryParams)
+			foundIDs, err := jiter.FlattenWithErrors(foundIDsIter)
+
+			if test.expectedError != "" {
+				require.ErrorContains(t, err, test.expectedError)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, test.expectedIDs, foundIDs)
+			}
+		})
+	}
 }
