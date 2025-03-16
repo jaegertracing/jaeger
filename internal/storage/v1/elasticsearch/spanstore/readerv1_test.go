@@ -6,7 +6,6 @@ package spanstore
 import (
 	"context"
 	"errors"
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -39,7 +38,7 @@ func TestSpanReaderV1_GetTrace(t *testing.T) {
 		traceID1 := model.NewTraceID(0, 1)
 		spanID1 := model.NewSpanID(1)
 		trace := getTestingTrace(traceID1, spanID1)
-		m.On("GetTrace", mock.Anything, mock.AnythingOfType("[]dbmodel.TraceID")).Return([]*dbmodel.Trace{trace}, nil)
+		m.On("GetTrace", mock.Anything, mock.Anything).Return([]*dbmodel.Trace{trace}, nil)
 		actual, err := r.GetTrace(context.Background(), spanstore.GetTraceParameters{})
 		require.NoError(t, err)
 		assert.Len(t, actual.Spans, 1)
@@ -145,31 +144,6 @@ func TestSpanReaderV1_GetOperations_Error(t *testing.T) {
 	})
 }
 
-func TestSpanReaderV1_ArchiveTraces(t *testing.T) {
-	testCases := []struct {
-		useAliases bool
-		suffix     string
-		expected   string
-	}{
-		{false, "", "jaeger-span-"},
-		{true, "", "jaeger-span-read"},
-		{false, "foobar", "jaeger-span-"},
-		{true, "foobar", "jaeger-span-foobar"},
-	}
-
-	for _, tc := range testCases {
-		t.Run(fmt.Sprintf("useAliases=%v suffix=%s", tc.useAliases, tc.suffix), func(t *testing.T) {
-			withSpanReaderV1(func(r *SpanReaderV1, m *mocks.CoreSpanReader) {
-				m.On("GetTrace", mock.Anything, mock.AnythingOfType("[]dbmodel.TraceID")).Return([]*dbmodel.Trace{}, nil)
-				query := spanstore.GetTraceParameters{}
-				trace, err := r.GetTrace(context.Background(), query)
-				require.Nil(t, trace)
-				require.EqualError(t, err, "trace not found")
-			})
-		})
-	}
-}
-
 type traceError struct {
 	name            string
 	returningErr    error
@@ -207,7 +181,7 @@ func TestSpanReaderV1_GetTraceError(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			withSpanReaderV1(func(r *SpanReaderV1, m *mocks.CoreSpanReader) {
-				m.On("GetTrace", mock.Anything, mock.AnythingOfType("[]dbmodel.TraceID")).Return(tt.returningTraces, tt.returningErr)
+				m.On("GetTrace", mock.Anything, mock.Anything).Return(tt.returningTraces, tt.returningErr)
 				query := spanstore.GetTraceParameters{}
 				trace, err := r.GetTrace(context.Background(), query)
 				require.Error(t, err, tt.expectedError)

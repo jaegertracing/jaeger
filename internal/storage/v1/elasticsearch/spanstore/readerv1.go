@@ -44,12 +44,12 @@ func (s *SpanReaderV1) GetTrace(ctx context.Context, query spanstore.GetTracePar
 	return &model.Trace{Spans: spans}, nil
 }
 
-func (s *SpanReaderV1) collectSpans(jsonSpans []*dbmodel.Span) ([]*model.Span, error) {
-	spans := make([]*model.Span, len(jsonSpans))
-	for i, jsonSpan := range jsonSpans {
+func (s *SpanReaderV1) collectSpans(dbSpans []*dbmodel.Span) ([]*model.Span, error) {
+	spans := make([]*model.Span, len(dbSpans))
+	for i, jsonSpan := range dbSpans {
 		span, err := s.spanConverter.SpanToDomain(jsonSpan)
 		if err != nil {
-			return nil, fmt.Errorf("converting JSONSpan to domain Span failed: %w", err)
+			return nil, fmt.Errorf("converting ES dbSpan to domain Span failed: %w", err)
 		}
 		spans[i] = span
 	}
