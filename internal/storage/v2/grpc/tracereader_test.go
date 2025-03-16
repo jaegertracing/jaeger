@@ -10,9 +10,12 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
+	"github.com/jaegertracing/jaeger/internal/jiter"
+	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/proto-gen/storage/v2"
 )
@@ -22,27 +25,38 @@ import (
 type testServer struct {
 	storage.UnimplementedTraceReaderServer
 
+	traces     []*jptrace.TracesData
 	services   []string
 	operations []*storage.Operation
 	err        error
 }
 
-func (s *testServer) GetServices(
+func (ts *testServer) GetTraces(_ *storage.GetTracesRequest, s storage.TraceReader_GetTracesServer) error {
+	s.SendMsg(&storage.TracesChunk{
+		Traces: ts.traces,
+	})
+	// s.Send(&storage.TracesChunk{
+	// 	Traces: ts.traces,
+	// })
+	return ts.err
+}
+
+func (ts *testServer) GetServices(
 	context.Context,
 	*storage.GetServicesRequest,
 ) (*storage.GetServicesResponse, error) {
 	return &storage.GetServicesResponse{
-		Services: s.services,
-	}, s.err
+		Services: ts.services,
+	}, ts.err
 }
 
-func (s *testServer) GetOperations(
+func (ts *testServer) GetOperations(
 	context.Context,
 	*storage.GetOperationsRequest,
 ) (*storage.GetOperationsResponse, error) {
 	return &storage.GetOperationsResponse{
-		Operations: s.operations,
-	}, s.err
+		Operations: ts.operations,
+	}, ts.err
 }
 
 func startTestServer(t *testing.T, testServer *testServer) *grpc.ClientConn {
@@ -74,11 +88,60 @@ func startTestServer(t *testing.T, testServer *testServer) *grpc.ClientConn {
 }
 
 func TestTraceReader_GetTraces(t *testing.T) {
-	tr := &TraceReader{}
+	tests := []struct {
+		name           string
+		traces         func() []*jptrace.TracesData
+		expectedTraces func() []ptrace.Traces
+		expectedError  string
+	}{
+		{
+			name: "success",
+			traces: func() []*jptrace.TracesData {
+				traceA := ptrace.NewTraces()
+				spanA := traceA.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+				spanA.SetName("span-a")
 
-	require.Panics(t, func() {
-		tr.GetTraces(context.Background(), tracestore.GetTraceParams{})
-	})
+				traceB := ptrace.NewTraces()
+				spanB := traceA.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+				spanB.SetName("span-b")
+
+				return []*jptrace.TracesData{
+					(*jptrace.TracesData)(&traceA),
+					(*jptrace.TracesData)(&traceB),
+				}
+			},
+			expectedTraces: func() []ptrace.Traces {
+				traceA := ptrace.NewTraces()
+				spanA := traceA.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+				spanA.SetName("span-a")
+
+				traceB := ptrace.NewTraces()
+				spanB := traceA.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+				spanB.SetName("span-b")
+
+				return []ptrace.Traces{traceA, traceB}
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			conn := startTestServer(t, &testServer{
+				traces: test.traces(),
+			})
+
+			reader := NewTraceReader(conn)
+			getTracesIter := reader.GetTraces(context.Background(), tracestore.GetTraceParams{})
+			traces, err := jiter.FlattenWithErrors(getTracesIter)
+
+			if test.expectedError != "" {
+				require.ErrorContains(t, err, test.expectedError)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, test.expectedTraces(), traces)
+			}
+		})
+	}
 }
 
 func TestTraceReader_GetServices(t *testing.T) {
