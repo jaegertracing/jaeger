@@ -32,7 +32,7 @@ func NewTraceReader(conn *grpc.ClientConn) *TraceReader {
 	}
 }
 
-func (c *TraceReader) GetTraces(
+func (tr *TraceReader) GetTraces(
 	ctx context.Context,
 	traceIDs ...tracestore.GetTraceParams,
 ) iter.Seq2[[]ptrace.Traces, error] {
@@ -45,7 +45,7 @@ func (c *TraceReader) GetTraces(
 				EndTime:   traceID.End,
 			})
 		}
-		stream, err := c.client.GetTraces(ctx, &storage.GetTracesRequest{
+		stream, err := tr.client.GetTraces(ctx, &storage.GetTracesRequest{
 			Query: query,
 		})
 		if err != nil {
