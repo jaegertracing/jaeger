@@ -1,6 +1,6 @@
 services:
   cassandra:
-    image: cassandra:4.1
+    image: cassandra:4.1@sha256:b9451ebdfa53f9e22b470e1420f2a94a3433738b7f25350472d3443f0b203b75
     container_name: "cassandra-4"
     ports:
       - "9042:9042"
