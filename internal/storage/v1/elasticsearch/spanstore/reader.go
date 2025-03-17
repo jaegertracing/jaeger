@@ -471,10 +471,9 @@ func buildTraceByIDQuery(traceID dbmodel.TraceID) elastic.Query {
 	} else {
 		legacyTraceID = traceIDStr[15:]
 	}
-	query := elastic.NewBoolQuery().Should(
+	return elastic.NewBoolQuery().Should(
 		elastic.NewTermQuery(traceIDField, traceIDStr).Boost(2),
 		elastic.NewTermQuery(traceIDField, legacyTraceID))
-	return query
 }
 
 func validateQuery(p *dbmodel.TraceQueryParameters) error {
