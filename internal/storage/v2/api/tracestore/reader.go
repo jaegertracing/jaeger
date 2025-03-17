@@ -122,6 +122,7 @@ func (t *TraceQueryParams) ToProtoQueryParameters() *storage.TraceQueryParameter
 	return &storage.TraceQueryParameters{
 		ServiceName:   t.ServiceName,
 		OperationName: t.OperationName,
+		Attributes:    jpcommon.ConvertMapToKeyValueList(t.Attributes),
 		StartTimeMin:  t.StartTimeMin,
 		StartTimeMax:  t.StartTimeMax,
 		DurationMin:   t.DurationMin,

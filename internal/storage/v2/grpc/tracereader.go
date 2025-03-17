@@ -79,17 +79,8 @@ func (tr *TraceReader) FindTraceIDs(
 	params tracestore.TraceQueryParams,
 ) iter.Seq2[[]tracestore.FoundTraceID, error] {
 	return func(yield func([]tracestore.FoundTraceID, error) bool) {
-		query := &storage.TraceQueryParameters{
-			ServiceName:   params.ServiceName,
-			OperationName: params.OperationName,
-			StartTimeMin:  params.StartTimeMin,
-			StartTimeMax:  params.StartTimeMax,
-			DurationMin:   params.DurationMin,
-			DurationMax:   params.DurationMax,
-			SearchDepth:   int32(params.SearchDepth), //nolint: gosec // G115
-		}
 		resp, err := tr.client.FindTraceIDs(ctx, &storage.FindTracesRequest{
-			Query: query,
+			Query: params.ToProtoQueryParameters(),
 		})
 		if err != nil {
 			yield(nil, fmt.Errorf("could not find trace IDs: %w", err))
