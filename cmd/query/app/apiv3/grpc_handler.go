@@ -15,6 +15,7 @@ import (
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc/v2/querysvc"
+	"github.com/jaegertracing/jaeger/internal/jpcommon"
 	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
@@ -74,7 +75,7 @@ func (h *Handler) internalFindTraces(
 		TraceQueryParams: tracestore.TraceQueryParams{
 			ServiceName:   query.GetServiceName(),
 			OperationName: query.GetOperationName(),
-			Attributes:    jptrace.PlainMapToPcommonMap(query.GetAttributes()),
+			Attributes:    jpcommon.PlainMapToPcommonMap(query.GetAttributes()),
 			SearchDepth:   int(query.GetSearchDepth()),
 		},
 		RawTraces: query.GetRawTraces(),

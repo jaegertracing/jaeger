@@ -11,8 +11,9 @@ import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
-	"github.com/jaegertracing/jaeger/internal/jptrace"
+	"github.com/jaegertracing/jaeger/internal/jpcommon"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
+	"github.com/jaegertracing/jaeger/proto-gen/storage/v2"
 )
 
 // Reader finds and loads traces and other data from storage.
@@ -108,12 +109,24 @@ func (t *TraceQueryParams) ToSpanStoreQueryParameters() *spanstore.TraceQueryPar
 	return &spanstore.TraceQueryParameters{
 		ServiceName:   t.ServiceName,
 		OperationName: t.OperationName,
-		Tags:          jptrace.PcommonMapToPlainMap(t.Attributes),
+		Tags:          jpcommon.PcommonMapToPlainMap(t.Attributes),
 		StartTimeMin:  t.StartTimeMin,
 		StartTimeMax:  t.StartTimeMax,
 		DurationMin:   t.DurationMin,
 		DurationMax:   t.DurationMax,
 		NumTraces:     t.SearchDepth,
+	}
+}
+
+func (t *TraceQueryParams) ToProtoQueryParameters() *storage.TraceQueryParameters {
+	return &storage.TraceQueryParameters{
+		ServiceName:   t.ServiceName,
+		OperationName: t.OperationName,
+		StartTimeMin:  t.StartTimeMin,
+		StartTimeMax:  t.StartTimeMax,
+		DurationMin:   t.DurationMin,
+		DurationMax:   t.DurationMax,
+		SearchDepth:   int32(t.SearchDepth), //nolint: gosec // G115
 	}
 }
 
