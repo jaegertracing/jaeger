@@ -2,7 +2,8 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
     "config:recommended",
-    ":gitSignOff"
+    ":gitSignOff",
+    "helpers:pinGitHubActionDigests"
   ],
   "labels": [
     "changelog:dependencies"
