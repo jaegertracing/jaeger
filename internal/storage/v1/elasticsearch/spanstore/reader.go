@@ -10,7 +10,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strconv"
 	"time"
 
 	"github.com/olivere/elastic"
@@ -396,10 +395,7 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []dbmodel.TraceID, 
 		}
 		searchRequests := make([]*elastic.SearchRequest, len(traceIDs))
 		for i, traceID := range traceIDs {
-			traceQuery, err := buildTraceByIDQuery(traceID)
-			if err != nil {
-				return nil, err
-			}
+			traceQuery := buildTraceByIDQuery(traceID)
 			query := elastic.NewBoolQuery().
 				Must(traceQuery)
 			if s.useReadWriteAliases {
@@ -462,49 +458,23 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []dbmodel.TraceID, 
 	return traces, nil
 }
 
-func buildTraceByIDQuery(traceID dbmodel.TraceID) (elastic.Query, error) {
+func buildTraceByIDQuery(traceID dbmodel.TraceID) elastic.Query {
 	traceIDStr := string(traceID)
 	if traceIDStr[0] != '0' || disableLegacyIDs.IsEnabled() {
-		return elastic.NewTermQuery(traceIDField, traceIDStr), nil
+		return elastic.NewTermQuery(traceIDField, traceIDStr)
 	}
 	// https://github.com/jaegertracing/jaeger/pull/1956 added leading zeros to IDs
 	// So we need to also read IDs without leading zeros for compatibility with previously saved data.
 	var legacyTraceID string
-	hi, lo, err := getHiAndLoFromString(traceIDStr)
-	if err != nil {
-		return nil, err
-	}
-	if *hi == 0 {
-		legacyTraceID = strconv.FormatUint(*lo, 16)
+	if len(traceIDStr) < 16 {
+		legacyTraceID = traceIDStr
 	} else {
-		legacyTraceID = fmt.Sprintf("%x%016x", *hi, *lo)
+		legacyTraceID = traceIDStr[15:]
 	}
 	query := elastic.NewBoolQuery().Should(
 		elastic.NewTermQuery(traceIDField, traceIDStr).Boost(2),
 		elastic.NewTermQuery(traceIDField, legacyTraceID))
-	return query, nil
-}
-
-func getHiAndLoFromString(traceIDStr string) (high *uint64, low *uint64, er error) {
-	var hi, lo uint64
-	var err error
-	switch {
-	case len(traceIDStr) > 32:
-		return nil, nil, fmt.Errorf("TraceID cannot be longer than 32 hex characters: %s", traceIDStr)
-	case len(traceIDStr) > 16:
-		hiLen := len(traceIDStr) - 16
-		if hi, err = strconv.ParseUint(traceIDStr[0:hiLen], 16, 64); err != nil {
-			return nil, nil, err
-		}
-		if lo, err = strconv.ParseUint(traceIDStr[hiLen:], 16, 64); err != nil {
-			return nil, nil, err
-		}
-	default:
-		if lo, err = strconv.ParseUint(traceIDStr, 16, 64); err != nil {
-			return nil, nil, err
-		}
-	}
-	return &hi, &lo, nil
+	return query
 }
 
 func validateQuery(p *dbmodel.TraceQueryParameters) error {

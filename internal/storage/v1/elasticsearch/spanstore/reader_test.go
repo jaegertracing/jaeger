@@ -402,17 +402,6 @@ func TestSpanReader_multiRead_followUp_query(t *testing.T) {
 	})
 }
 
-func TestSpanReader_multiread_error(t *testing.T) {
-	withSpanReader(t, func(r *spanReaderTest) {
-		err := featuregate.GlobalRegistry().Set("jaeger.es.disableLegacyId", false)
-		require.NoError(t, err)
-		date := time.Date(2019, 10, 10, 5, 0, 0, 0, time.UTC)
-		traces, err := r.reader.multiRead(context.Background(), []dbmodel.TraceID{"0wrong-id"}, date, date)
-		require.EqualError(t, err, "strconv.ParseUint: parsing \"0wrong-id\": invalid syntax")
-		assert.Nil(t, traces)
-	})
-}
-
 func TestSpanReader_SearchAfter(t *testing.T) {
 	withSpanReader(t, func(r *spanReaderTest) {
 		var hits []*elastic.SearchHit
@@ -1251,12 +1240,11 @@ func TestSpanReader_ArchiveTraces(t *testing.T) {
 }
 
 func TestBuildTraceByIDQuery(t *testing.T) {
-	uintMax := ^uint64(0)
-	traceIDNoHigh := model.NewTraceID(0, 1)
-	traceIDHigh := model.NewTraceID(1, 1)
-	traceId := model.NewTraceID(uintMax, uintMax)
+	traceIDNoHigh := dbmodel.TraceID("0000000000000001")
+	traceIDHigh := dbmodel.TraceID("00000000000000010000000000000001")
+	traceId := dbmodel.TraceID("ffffffffffffffffffffffffffffffff")
 	tests := []struct {
-		traceID                 model.TraceID
+		traceID                 dbmodel.TraceID
 		query                   elastic.Query
 		disableLegacyIdsEnabled bool
 	}{
@@ -1287,18 +1275,9 @@ func TestBuildTraceByIDQuery(t *testing.T) {
 	for _, test := range tests {
 		err := featuregate.GlobalRegistry().Set("jaeger.es.disableLegacyId", test.disableLegacyIdsEnabled)
 		require.NoError(t, err)
-		q, err := buildTraceByIDQuery(dbmodel.TraceID(test.traceID.String()))
-		require.NoError(t, err)
+		q := buildTraceByIDQuery(test.traceID)
 		assert.Equal(t, test.query, q)
 	}
-}
-
-func TestBuildTraceByQuery_Error(t *testing.T) {
-	err := featuregate.GlobalRegistry().Set("jaeger.es.disableLegacyId", false)
-	require.NoError(t, err)
-	q, err := buildTraceByIDQuery("0wrong-id")
-	require.Error(t, err)
-	assert.Nil(t, q)
 }
 
 func TestTerminateAfterNotSet(t *testing.T) {
