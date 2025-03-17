@@ -1243,6 +1243,7 @@ func TestBuildTraceByIDQuery(t *testing.T) {
 	traceIDNoHigh := dbmodel.TraceID("0000000000000001")
 	traceIDHigh := dbmodel.TraceID("00000000000000010000000000000001")
 	traceId := dbmodel.TraceID("ffffffffffffffffffffffffffffffff")
+	shortTraceId := dbmodel.TraceID("0short-traceid")
 	tests := []struct {
 		traceID                 dbmodel.TraceID
 		query                   elastic.Query
@@ -1270,6 +1271,13 @@ func TestBuildTraceByIDQuery(t *testing.T) {
 			traceID:                 traceIDHigh,
 			query:                   elastic.NewTermQuery(traceIDField, "00000000000000010000000000000001"),
 			disableLegacyIdsEnabled: true,
+		},
+		{
+			traceID: shortTraceId,
+			query: elastic.NewBoolQuery().Should(
+				elastic.NewTermQuery(traceIDField, string(shortTraceId)).Boost(2),
+				elastic.NewTermQuery(traceIDField, string(shortTraceId)),
+			),
 		},
 	}
 	for _, test := range tests {
