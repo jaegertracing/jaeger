@@ -11,6 +11,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
+	"github.com/jaegertracing/jaeger/proto-gen/storage/v2"
 )
 
 func TestToSpanStoreQueryParameters(t *testing.T) {
@@ -39,4 +40,41 @@ func TestToSpanStoreQueryParameters(t *testing.T) {
 		NumTraces:     10,
 	}
 	require.Equal(t, expected, query.ToSpanStoreQueryParameters())
+}
+
+func TestToProtoQueryParameters(t *testing.T) {
+	now := time.Now()
+	attributes := pcommon.NewMap()
+	attributes.PutStr("tag-a", "val-a")
+
+	query := &TraceQueryParams{
+		ServiceName:   "service",
+		OperationName: "operation",
+		Attributes:    attributes,
+		StartTimeMin:  now,
+		StartTimeMax:  now.Add(time.Minute),
+		DurationMin:   time.Minute,
+		DurationMax:   time.Hour,
+		SearchDepth:   10,
+	}
+	expected := &storage.TraceQueryParameters{
+		ServiceName:   "service",
+		OperationName: "operation",
+		Attributes: []*storage.KeyValue{
+			{
+				Key: "tag-a",
+				Value: &storage.AnyValue{
+					Value: &storage.AnyValue_StringValue{
+						StringValue: "val-a",
+					},
+				},
+			},
+		},
+		StartTimeMin: now,
+		StartTimeMax: now.Add(time.Minute),
+		DurationMin:  time.Minute,
+		DurationMax:  time.Hour,
+		SearchDepth:  10,
+	}
+	require.Equal(t, expected, query.ToProtoQueryParameters())
 }
