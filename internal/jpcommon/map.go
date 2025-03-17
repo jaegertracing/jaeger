@@ -1,8 +1,12 @@
+// Copyright (c) 2025 The Jaeger Authors.
+// SPDX-License-Identifier: Apache-2.0
+
 package jpcommon
 
 import (
-	"github.com/jaegertracing/jaeger/proto-gen/storage/v2"
 	"go.opentelemetry.io/collector/pdata/pcommon"
+
+	"github.com/jaegertracing/jaeger/proto-gen/storage/v2"
 )
 
 func PcommonMapToPlainMap(attributes pcommon.Map) map[string]string {
