@@ -314,7 +314,7 @@ func TestSpanReader_GetTrace(t *testing.T) {
 				},
 			}, nil)
 		query := []dbmodel.TraceID{dbmodel.TraceID(testingTraceId)}
-		trace, err := r.reader.GetTrace(context.Background(), query)
+		trace, err := r.reader.GetTraces(context.Background(), query)
 		require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
 		require.NoError(t, err)
 		require.NotNil(t, trace)
@@ -329,22 +329,22 @@ func TestSpanReader_GetTrace(t *testing.T) {
 
 func TestSpanReader_multiRead_followUp_query(t *testing.T) {
 	withSpanReader(t, func(r *spanReaderTest) {
-		traceID1 := testingTraceId + "1"
-		traceID2 := testingTraceId + "2"
+		traceID1 := dbmodel.TraceID(testingTraceId + "1")
+		traceID2 := dbmodel.TraceID(testingTraceId + "2")
 		date := time.Date(2019, 10, 10, 5, 0, 0, 0, time.UTC)
-		spanID1 := dbmodel.Span{SpanID: "0", TraceID: dbmodel.TraceID(traceID1), StartTime: model.TimeAsEpochMicroseconds(date)}
+		spanID1 := dbmodel.Span{SpanID: "0", TraceID: traceID1, StartTime: model.TimeAsEpochMicroseconds(date)}
 		spanBytesID1, err := json.Marshal(spanID1)
 		require.NoError(t, err)
-		spanID2 := dbmodel.Span{SpanID: "0", TraceID: dbmodel.TraceID(traceID2), StartTime: model.TimeAsEpochMicroseconds(date)}
+		spanID2 := dbmodel.Span{SpanID: "0", TraceID: traceID2, StartTime: model.TimeAsEpochMicroseconds(date)}
 		spanBytesID2, err := json.Marshal(spanID2)
 		require.NoError(t, err)
 
-		traceID1Query := elastic.NewTermQuery(traceIDField, traceID1)
+		traceID1Query := elastic.NewTermQuery(traceIDField, string(traceID1))
 		id1Query := elastic.NewBoolQuery().Must(traceID1Query)
 		id1Search := elastic.NewSearchRequest().
 			IgnoreUnavailable(true).
 			Source(r.reader.sourceFn(id1Query, model.TimeAsEpochMicroseconds(date.Add(-time.Hour))))
-		traceID2Query := elastic.NewTermQuery(traceIDField, traceID2)
+		traceID2Query := elastic.NewTermQuery(traceIDField, string(traceID2))
 		id2Query := elastic.NewBoolQuery().Must(traceID2Query)
 		id2Search := elastic.NewSearchRequest().
 			IgnoreUnavailable(true).
@@ -389,7 +389,7 @@ func TestSpanReader_multiRead_followUp_query(t *testing.T) {
 				},
 			}, nil)
 
-		traces, err := r.reader.multiRead(context.Background(), []dbmodel.TraceID{dbmodel.TraceID(traceID1), dbmodel.TraceID(traceID2)}, date, date)
+		traces, err := r.reader.multiRead(context.Background(), []dbmodel.TraceID{traceID1, traceID2}, date, date)
 		require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
 		require.NoError(t, err)
 		require.NotNil(t, traces)
@@ -422,7 +422,7 @@ func TestSpanReader_SearchAfter(t *testing.T) {
 			}, nil).Times(2)
 
 		query := []dbmodel.TraceID{dbmodel.TraceID("testing-id")}
-		trace, err := r.reader.GetTrace(context.Background(), query)
+		trace, err := r.reader.GetTraces(context.Background(), query)
 		require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
 		require.NoError(t, err)
 		require.NotNil(t, trace)
@@ -443,7 +443,7 @@ func TestSpanReader_GetTraceQueryError(t *testing.T) {
 				Responses: []*elastic.SearchResult{},
 			}, nil)
 		query := []dbmodel.TraceID{dbmodel.TraceID("testing-id")}
-		trace, err := r.reader.GetTrace(context.Background(), query)
+		trace, err := r.reader.GetTraces(context.Background(), query)
 		require.NoError(t, err)
 		require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
 		require.Empty(t, trace)
@@ -464,7 +464,7 @@ func TestSpanReader_GetTraceNilHits(t *testing.T) {
 			}, nil)
 
 		query := []dbmodel.TraceID{dbmodel.TraceID(testingTraceId)}
-		trace, err := r.reader.GetTrace(context.Background(), query)
+		trace, err := r.reader.GetTraces(context.Background(), query)
 		require.NoError(t, err)
 		require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
 		require.Empty(t, trace)
@@ -489,7 +489,7 @@ func TestSpanReader_GetTraceInvalidSpanError(t *testing.T) {
 			}, nil)
 
 		query := []dbmodel.TraceID{dbmodel.TraceID(testingTraceId)}
-		trace, err := r.reader.GetTrace(context.Background(), query)
+		trace, err := r.reader.GetTraces(context.Background(), query)
 		require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
 		require.Error(t, err, "invalid span")
 		require.Nil(t, trace)
@@ -1230,7 +1230,7 @@ func TestSpanReader_ArchiveTraces(t *testing.T) {
 						Responses: []*elastic.SearchResult{},
 					}, nil)
 				query := []dbmodel.TraceID{}
-				trace, err := r.reader.GetTrace(context.Background(), query)
+				trace, err := r.reader.GetTraces(context.Background(), query)
 				require.NoError(t, err)
 				require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
 				require.Empty(t, trace)
@@ -1240,50 +1240,50 @@ func TestSpanReader_ArchiveTraces(t *testing.T) {
 }
 
 func TestBuildTraceByIDQuery(t *testing.T) {
-	traceIDNoHigh := dbmodel.TraceID("0000000000000001")
-	traceIDHigh := dbmodel.TraceID("00000000000000010000000000000001")
-	traceId := dbmodel.TraceID("ffffffffffffffffffffffffffffffff")
-	shortTraceId := dbmodel.TraceID("0short-traceid")
+	traceIDNoHigh := "0000000000000001"
+	traceIDHigh := "00000000000000010000000000000001"
+	traceId := "ffffffffffffffffffffffffffffffff"
+	shortTraceId := "0short-traceid"
 	tests := []struct {
-		traceID                 dbmodel.TraceID
+		traceID                 string
 		query                   elastic.Query
 		disableLegacyIdsEnabled bool
 	}{
 		{
 			traceID: traceIDNoHigh,
 			query: elastic.NewBoolQuery().Should(
-				elastic.NewTermQuery(traceIDField, "0000000000000001").Boost(2),
+				elastic.NewTermQuery(traceIDField, traceIDNoHigh).Boost(2),
 				elastic.NewTermQuery(traceIDField, "1"),
 			),
 		},
 		{
 			traceID: traceIDHigh,
 			query: elastic.NewBoolQuery().Should(
-				elastic.NewTermQuery(traceIDField, "00000000000000010000000000000001").Boost(2),
+				elastic.NewTermQuery(traceIDField, traceIDHigh).Boost(2),
 				elastic.NewTermQuery(traceIDField, "10000000000000001"),
 			),
 		},
 		{
 			traceID: traceId,
-			query:   elastic.NewTermQuery(traceIDField, "ffffffffffffffffffffffffffffffff"),
+			query:   elastic.NewTermQuery(traceIDField, traceId),
 		},
 		{
 			traceID:                 traceIDHigh,
-			query:                   elastic.NewTermQuery(traceIDField, "00000000000000010000000000000001"),
+			query:                   elastic.NewTermQuery(traceIDField, traceIDHigh),
 			disableLegacyIdsEnabled: true,
 		},
 		{
 			traceID: shortTraceId,
 			query: elastic.NewBoolQuery().Should(
-				elastic.NewTermQuery(traceIDField, string(shortTraceId)).Boost(2),
-				elastic.NewTermQuery(traceIDField, string(shortTraceId)),
+				elastic.NewTermQuery(traceIDField, shortTraceId).Boost(2),
+				elastic.NewTermQuery(traceIDField, "short-traceid"),
 			),
 		},
 	}
 	for _, test := range tests {
 		err := featuregate.GlobalRegistry().Set("jaeger.es.disableLegacyId", test.disableLegacyIdsEnabled)
 		require.NoError(t, err)
-		q := buildTraceByIDQuery(test.traceID)
+		q := buildTraceByIDQuery(dbmodel.TraceID(test.traceID))
 		assert.Equal(t, test.query, q)
 	}
 }

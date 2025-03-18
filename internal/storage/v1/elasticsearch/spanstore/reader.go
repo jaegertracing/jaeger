@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/olivere/elastic"
@@ -235,8 +236,8 @@ func timeRangeIndices(indexName, indexDateLayout string, startTime time.Time, en
 	return indices
 }
 
-// GetTrace takes a traceID and returns a Trace associated with that traceID
-func (s *SpanReader) GetTrace(ctx context.Context, query []dbmodel.TraceID) ([]*dbmodel.Trace, error) {
+// GetTraces takes a traceID and returns a Trace associated with that traceID
+func (s *SpanReader) GetTraces(ctx context.Context, query []dbmodel.TraceID) ([]*dbmodel.Trace, error) {
 	ctx, span := s.tracer.Start(ctx, "GetTrace")
 	defer span.End()
 	currentTime := time.Now()
@@ -317,15 +318,15 @@ func (s *SpanReader) GetOperations(
 }
 
 func bucketToStringArray[T ~string](buckets []*elastic.AggregationBucketKeyItem) ([]T, error) {
-	strings := make([]T, len(buckets))
+	stringSlice := make([]T, len(buckets))
 	for i, keyitem := range buckets {
 		str, ok := keyitem.Key.(string)
 		if !ok {
 			return nil, errors.New("non-string key found in aggregation")
 		}
-		strings[i] = T(str)
+		stringSlice[i] = T(str)
 	}
-	return strings, nil
+	return stringSlice, nil
 }
 
 // FindTraces retrieves traces that match the traceQuery
@@ -465,12 +466,7 @@ func buildTraceByIDQuery(traceID dbmodel.TraceID) elastic.Query {
 	}
 	// https://github.com/jaegertracing/jaeger/pull/1956 added leading zeros to IDs
 	// So we need to also read IDs without leading zeros for compatibility with previously saved data.
-	var legacyTraceID string
-	if len(traceIDStr) < 16 {
-		legacyTraceID = traceIDStr
-	} else {
-		legacyTraceID = traceIDStr[15:]
-	}
+	legacyTraceID := strings.TrimLeft(traceIDStr, "0")
 	return elastic.NewBoolQuery().Should(
 		elastic.NewTermQuery(traceIDField, traceIDStr).Boost(2),
 		elastic.NewTermQuery(traceIDField, legacyTraceID))

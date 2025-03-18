@@ -139,12 +139,12 @@ func (_m *CoreSpanReader) GetServices(ctx context.Context) ([]string, error) {
 	return r0, r1
 }
 
-// GetTrace provides a mock function with given fields: ctx, query
-func (_m *CoreSpanReader) GetTrace(ctx context.Context, query []dbmodel.TraceID) ([]*dbmodel.Trace, error) {
+// GetTraces provides a mock function with given fields: ctx, query
+func (_m *CoreSpanReader) GetTraces(ctx context.Context, query []dbmodel.TraceID) ([]*dbmodel.Trace, error) {
 	ret := _m.Called(ctx, query)
 
 	if len(ret) == 0 {
-		panic("no return value specified for GetTrace")
+		panic("no return value specified for GetTraces")
 	}
 
 	var r0 []*dbmodel.Trace

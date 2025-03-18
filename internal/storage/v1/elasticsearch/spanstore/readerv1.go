@@ -30,7 +30,7 @@ func NewSpanReaderV1(p SpanReaderParams) *SpanReaderV1 {
 
 // GetTrace takes a traceID and returns a Trace associated with that traceID
 func (s *SpanReaderV1) GetTrace(ctx context.Context, query spanstore.GetTraceParameters) (*model.Trace, error) {
-	traces, err := s.spanReader.GetTrace(ctx, []dbmodel.TraceID{dbmodel.TraceID(query.TraceID.String())})
+	traces, err := s.spanReader.GetTraces(ctx, []dbmodel.TraceID{dbmodel.TraceID(query.TraceID.String())})
 	if err != nil {
 		return nil, err
 	}

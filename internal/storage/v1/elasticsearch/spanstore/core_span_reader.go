@@ -19,6 +19,6 @@ type CoreSpanReader interface {
 	GetOperations(ctx context.Context, query dbmodel.OperationQueryParameters) ([]dbmodel.Operation, error)
 	// GetServices returns all services traced by Jaeger, ordered by frequency
 	GetServices(ctx context.Context) ([]string, error)
-	// GetTrace takes a traceID and returns a Trace associated with that traceID
-	GetTrace(ctx context.Context, query []dbmodel.TraceID) ([]*dbmodel.Trace, error)
+	// GetTraces takes a traceID and returns a Trace associated with that traceID
+	GetTraces(ctx context.Context, query []dbmodel.TraceID) ([]*dbmodel.Trace, error)
 }
