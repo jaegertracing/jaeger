@@ -26,7 +26,6 @@ import (
 	"go.uber.org/zap/zaptest"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/spanstore/internal/dbmodel"
 	"github.com/jaegertracing/jaeger/internal/testutils"
 	"github.com/jaegertracing/jaeger/pkg/es"
@@ -34,7 +33,10 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/es/mocks"
 )
 
-const defaultMaxDocCount = 10_000
+const (
+	defaultMaxDocCount = 10_000
+	testingTraceId     = "testing-id"
+)
 
 var exampleESSpan = []byte(
 	`{
@@ -311,36 +313,38 @@ func TestSpanReader_GetTrace(t *testing.T) {
 					{Hits: searchHits},
 				},
 			}, nil)
-		query := spanstore.GetTraceParameters{TraceID: model.NewTraceID(0, 1)}
-		trace, err := r.reader.GetTrace(context.Background(), query)
+		query := []dbmodel.TraceID{dbmodel.TraceID(testingTraceId)}
+		trace, err := r.reader.GetTraces(context.Background(), query)
 		require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
 		require.NoError(t, err)
 		require.NotNil(t, trace)
-
+		assert.Len(t, trace, 1)
 		expectedSpans, err := r.reader.collectSpans(hits)
 		require.NoError(t, err)
 
-		require.Len(t, trace.Spans, 1)
-		assert.EqualValues(t, trace.Spans[0], expectedSpans[0])
+		require.Len(t, trace[0].Spans, 1)
+		assert.EqualValues(t, trace[0].Spans[0], expectedSpans[0])
 	})
 }
 
 func TestSpanReader_multiRead_followUp_query(t *testing.T) {
 	withSpanReader(t, func(r *spanReaderTest) {
+		traceID1 := dbmodel.TraceID(testingTraceId + "1")
+		traceID2 := dbmodel.TraceID(testingTraceId + "2")
 		date := time.Date(2019, 10, 10, 5, 0, 0, 0, time.UTC)
-		spanID1 := dbmodel.Span{SpanID: "0", TraceID: "1", StartTime: model.TimeAsEpochMicroseconds(date)}
+		spanID1 := dbmodel.Span{SpanID: "0", TraceID: traceID1, StartTime: model.TimeAsEpochMicroseconds(date)}
 		spanBytesID1, err := json.Marshal(spanID1)
 		require.NoError(t, err)
-		spanID2 := dbmodel.Span{SpanID: "0", TraceID: "2", StartTime: model.TimeAsEpochMicroseconds(date)}
+		spanID2 := dbmodel.Span{SpanID: "0", TraceID: traceID2, StartTime: model.TimeAsEpochMicroseconds(date)}
 		spanBytesID2, err := json.Marshal(spanID2)
 		require.NoError(t, err)
 
-		traceID1Query := elastic.NewTermQuery(traceIDField, model.TraceID{High: 0, Low: 1}.String())
+		traceID1Query := elastic.NewTermQuery(traceIDField, string(traceID1))
 		id1Query := elastic.NewBoolQuery().Must(traceID1Query)
 		id1Search := elastic.NewSearchRequest().
 			IgnoreUnavailable(true).
 			Source(r.reader.sourceFn(id1Query, model.TimeAsEpochMicroseconds(date.Add(-time.Hour))))
-		traceID2Query := elastic.NewTermQuery(traceIDField, model.TraceID{High: 0, Low: 2}.String())
+		traceID2Query := elastic.NewTermQuery(traceIDField, string(traceID2))
 		id2Query := elastic.NewBoolQuery().Must(traceID2Query)
 		id2Search := elastic.NewSearchRequest().
 			IgnoreUnavailable(true).
@@ -385,19 +389,13 @@ func TestSpanReader_multiRead_followUp_query(t *testing.T) {
 				},
 			}, nil)
 
-		traces, err := r.reader.multiRead(context.Background(), []model.TraceID{{High: 0, Low: 1}, {High: 0, Low: 2}}, date, date)
+		traces, err := r.reader.multiRead(context.Background(), []dbmodel.TraceID{traceID1, traceID2}, date, date)
 		require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
 		require.NoError(t, err)
 		require.NotNil(t, traces)
 		require.Len(t, traces, 2)
 
-		toDomain := dbmodel.NewToDomain("-")
-		sModel1, err := toDomain.SpanToDomain(&spanID1)
-		require.NoError(t, err)
-		sModel2, err := toDomain.SpanToDomain(&spanID2)
-		require.NoError(t, err)
-
-		for _, s := range []*model.Span{sModel1, sModel2} {
+		for _, s := range []*dbmodel.Span{&spanID1, &spanID2} {
 			found := reflect.DeepEqual(traces[0].Spans[0], s) || reflect.DeepEqual(traces[1].Spans[0], s)
 			assert.True(t, found, "span was expected to be within one of the traces but was not: %v", s)
 		}
@@ -423,16 +421,16 @@ func TestSpanReader_SearchAfter(t *testing.T) {
 				},
 			}, nil).Times(2)
 
-		query := spanstore.GetTraceParameters{TraceID: model.NewTraceID(0, 1)}
-		trace, err := r.reader.GetTrace(context.Background(), query)
+		query := []dbmodel.TraceID{dbmodel.TraceID("testing-id")}
+		trace, err := r.reader.GetTraces(context.Background(), query)
 		require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
 		require.NoError(t, err)
 		require.NotNil(t, trace)
-
+		assert.Len(t, trace, 1)
 		expectedSpans, err := r.reader.collectSpans(hits)
 		require.NoError(t, err)
 
-		assert.EqualValues(t, trace.Spans[0], expectedSpans[0])
+		assert.EqualValues(t, trace[0].Spans[0], expectedSpans[0])
 	})
 }
 
@@ -444,11 +442,11 @@ func TestSpanReader_GetTraceQueryError(t *testing.T) {
 			Return(&elastic.MultiSearchResult{
 				Responses: []*elastic.SearchResult{},
 			}, nil)
-		query := spanstore.GetTraceParameters{TraceID: model.NewTraceID(0, 1)}
-		trace, err := r.reader.GetTrace(context.Background(), query)
+		query := []dbmodel.TraceID{dbmodel.TraceID("testing-id")}
+		trace, err := r.reader.GetTraces(context.Background(), query)
+		require.NoError(t, err)
 		require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
-		require.EqualError(t, err, "trace not found")
-		require.Nil(t, trace)
+		require.Empty(t, trace)
 	})
 }
 
@@ -465,11 +463,11 @@ func TestSpanReader_GetTraceNilHits(t *testing.T) {
 				},
 			}, nil)
 
-		query := spanstore.GetTraceParameters{TraceID: model.NewTraceID(0, 1)}
-		trace, err := r.reader.GetTrace(context.Background(), query)
+		query := []dbmodel.TraceID{dbmodel.TraceID(testingTraceId)}
+		trace, err := r.reader.GetTraces(context.Background(), query)
+		require.NoError(t, err)
 		require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
-		require.EqualError(t, err, "trace not found")
-		require.Nil(t, trace)
+		require.Empty(t, trace)
 	})
 }
 
@@ -490,36 +488,10 @@ func TestSpanReader_GetTraceInvalidSpanError(t *testing.T) {
 				},
 			}, nil)
 
-		query := spanstore.GetTraceParameters{TraceID: model.NewTraceID(0, 1)}
-		trace, err := r.reader.GetTrace(context.Background(), query)
+		query := []dbmodel.TraceID{dbmodel.TraceID(testingTraceId)}
+		trace, err := r.reader.GetTraces(context.Background(), query)
 		require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
 		require.Error(t, err, "invalid span")
-		require.Nil(t, trace)
-	})
-}
-
-func TestSpanReader_GetTraceSpanConversionError(t *testing.T) {
-	withSpanReader(t, func(r *spanReaderTest) {
-		badSpan := []byte(`{"TraceID": "123"}`)
-
-		hits := make([]*elastic.SearchHit, 1)
-		hits[0] = &elastic.SearchHit{
-			Source: (*json.RawMessage)(&badSpan),
-		}
-		searchHits := &elastic.SearchHits{Hits: hits}
-
-		mockSearchService(r).Return(&elastic.SearchResult{Hits: searchHits}, nil)
-		mockMultiSearchService(r).
-			Return(&elastic.MultiSearchResult{
-				Responses: []*elastic.SearchResult{
-					{Hits: searchHits},
-				},
-			}, nil)
-
-		query := spanstore.GetTraceParameters{TraceID: model.NewTraceID(0, 1)}
-		trace, err := r.reader.GetTrace(context.Background(), query)
-		require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
-		require.Error(t, err, "span conversion error, because lacks elements")
 		require.Nil(t, trace)
 	})
 }
@@ -956,17 +928,6 @@ func TestFindTraceIDs(t *testing.T) {
 	}
 }
 
-func TestTraceIDsStringsToModelsConversion(t *testing.T) {
-	traceIDs, err := toModelTraceIDs([]dbmodel.TraceID{"1", "2", "3"})
-	require.NoError(t, err)
-	assert.Len(t, traceIDs, 3)
-	assert.Equal(t, model.NewTraceID(0, 1), traceIDs[0])
-
-	traceIDs, err = toModelTraceIDs([]dbmodel.TraceID{"dsfjsdklfjdsofdfsdbfkgbgoaemlrksdfbsdofgerjl"})
-	require.EqualError(t, err, "making traceID from string 'dsfjsdklfjdsofdfsdbfkgbgoaemlrksdfbsdofgerjl' failed: TraceID cannot be longer than 32 hex characters: dsfjsdklfjdsofdfsdbfkgbgoaemlrksdfbsdofgerjl")
-	assert.Empty(t, traceIDs)
-}
-
 func mockMultiSearchService(r *spanReaderTest) *mock.Call {
 	multiSearchService := &mocks.MultiSearchService{}
 	multiSearchService.On("Add", mock.Anything, mock.Anything, mock.Anything).Return(multiSearchService)
@@ -1268,62 +1229,57 @@ func TestSpanReader_ArchiveTraces(t *testing.T) {
 					Return(&elastic.MultiSearchResult{
 						Responses: []*elastic.SearchResult{},
 					}, nil)
-				query := spanstore.GetTraceParameters{}
-				trace, err := r.reader.GetTrace(context.Background(), query)
+				query := []dbmodel.TraceID{}
+				trace, err := r.reader.GetTraces(context.Background(), query)
+				require.NoError(t, err)
 				require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
-				require.Nil(t, trace)
-				require.EqualError(t, err, "trace not found")
+				require.Empty(t, trace)
 			})
 		})
 	}
 }
 
-func TestConvertTraceIDsStringsToModels(t *testing.T) {
-	ids, err := toModelTraceIDs([]dbmodel.TraceID{"1", "2", "01", "02", "001", "002"})
-	require.NoError(t, err)
-	assert.Equal(t, []model.TraceID{model.NewTraceID(0, 1), model.NewTraceID(0, 2)}, ids)
-	_, err = toModelTraceIDs([]dbmodel.TraceID{"1", "2", "01", "02", "001", "002", "blah"})
-	require.Error(t, err)
-}
-
 func TestBuildTraceByIDQuery(t *testing.T) {
-	uintMax := ^uint64(0)
-	traceIDNoHigh := model.NewTraceID(0, 1)
-	traceIDHigh := model.NewTraceID(1, 1)
-	traceID := model.NewTraceID(uintMax, uintMax)
 	tests := []struct {
-		traceID                 model.TraceID
+		traceID                 string
 		query                   elastic.Query
 		disableLegacyIdsEnabled bool
 	}{
 		{
-			traceID: traceIDNoHigh,
+			traceID: "0000000000000001",
 			query: elastic.NewBoolQuery().Should(
 				elastic.NewTermQuery(traceIDField, "0000000000000001").Boost(2),
 				elastic.NewTermQuery(traceIDField, "1"),
 			),
 		},
 		{
-			traceID: traceIDHigh,
+			traceID: "00000000000000010000000000000001",
 			query: elastic.NewBoolQuery().Should(
 				elastic.NewTermQuery(traceIDField, "00000000000000010000000000000001").Boost(2),
 				elastic.NewTermQuery(traceIDField, "10000000000000001"),
 			),
 		},
 		{
-			traceID: traceID,
+			traceID: "ffffffffffffffffffffffffffffffff",
 			query:   elastic.NewTermQuery(traceIDField, "ffffffffffffffffffffffffffffffff"),
 		},
 		{
-			traceID:                 traceIDHigh,
+			traceID:                 "00000000000000010000000000000001",
 			query:                   elastic.NewTermQuery(traceIDField, "00000000000000010000000000000001"),
 			disableLegacyIdsEnabled: true,
+		},
+		{
+			traceID: "0short-traceid",
+			query: elastic.NewBoolQuery().Should(
+				elastic.NewTermQuery(traceIDField, "0short-traceid").Boost(2),
+				elastic.NewTermQuery(traceIDField, "short-traceid"),
+			),
 		},
 	}
 	for _, test := range tests {
 		err := featuregate.GlobalRegistry().Set("jaeger.es.disableLegacyId", test.disableLegacyIdsEnabled)
 		require.NoError(t, err)
-		q := buildTraceByIDQuery(test.traceID)
+		q := buildTraceByIDQuery(dbmodel.TraceID(test.traceID))
 		assert.Equal(t, test.query, q)
 	}
 }
