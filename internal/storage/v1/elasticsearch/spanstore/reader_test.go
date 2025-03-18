@@ -1240,42 +1240,38 @@ func TestSpanReader_ArchiveTraces(t *testing.T) {
 }
 
 func TestBuildTraceByIDQuery(t *testing.T) {
-	traceIDNoHigh := "0000000000000001"
-	traceIDHigh := "00000000000000010000000000000001"
-	traceId := "ffffffffffffffffffffffffffffffff"
-	shortTraceId := "0short-traceid"
 	tests := []struct {
 		traceID                 string
 		query                   elastic.Query
 		disableLegacyIdsEnabled bool
 	}{
 		{
-			traceID: traceIDNoHigh,
+			traceID: "0000000000000001",
 			query: elastic.NewBoolQuery().Should(
-				elastic.NewTermQuery(traceIDField, traceIDNoHigh).Boost(2),
+				elastic.NewTermQuery(traceIDField, "0000000000000001").Boost(2),
 				elastic.NewTermQuery(traceIDField, "1"),
 			),
 		},
 		{
-			traceID: traceIDHigh,
+			traceID: "00000000000000010000000000000001",
 			query: elastic.NewBoolQuery().Should(
-				elastic.NewTermQuery(traceIDField, traceIDHigh).Boost(2),
+				elastic.NewTermQuery(traceIDField, "00000000000000010000000000000001").Boost(2),
 				elastic.NewTermQuery(traceIDField, "10000000000000001"),
 			),
 		},
 		{
-			traceID: traceId,
-			query:   elastic.NewTermQuery(traceIDField, traceId),
+			traceID: "ffffffffffffffffffffffffffffffff",
+			query:   elastic.NewTermQuery(traceIDField, "ffffffffffffffffffffffffffffffff"),
 		},
 		{
-			traceID:                 traceIDHigh,
-			query:                   elastic.NewTermQuery(traceIDField, traceIDHigh),
+			traceID:                 "00000000000000010000000000000001",
+			query:                   elastic.NewTermQuery(traceIDField, "00000000000000010000000000000001"),
 			disableLegacyIdsEnabled: true,
 		},
 		{
-			traceID: shortTraceId,
+			traceID: "0short-traceid",
 			query: elastic.NewBoolQuery().Should(
-				elastic.NewTermQuery(traceIDField, shortTraceId).Boost(2),
+				elastic.NewTermQuery(traceIDField, "0short-traceid").Boost(2),
 				elastic.NewTermQuery(traceIDField, "short-traceid"),
 			),
 		},
