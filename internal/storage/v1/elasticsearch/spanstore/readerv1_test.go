@@ -151,12 +151,7 @@ type traceError struct {
 	returningTraces []*dbmodel.Trace
 }
 
-func getTraceErrTests(includeNoTraceErr bool) []traceError {
-	noTraceErrTest := traceError{
-		name:            "trace not found",
-		returningTraces: []*dbmodel.Trace{},
-		expectedError:   "trace not found",
-	}
+func getTraceErrTests(includeTraceNotFound bool) []traceError {
 	tests := []traceError{
 		{
 			name:            "conversion error",
@@ -169,9 +164,12 @@ func getTraceErrTests(includeNoTraceErr bool) []traceError {
 			expectedError: "error",
 		},
 	}
-	if includeNoTraceErr {
-		tests = append(tests, noTraceErrTest)
-		return tests
+	if includeTraceNotFound {
+		tests = append(tests, traceError{
+			name:            "trace not found",
+			returningTraces: []*dbmodel.Trace{},
+			expectedError:   "trace not found",
+		})
 	}
 	return tests
 }
@@ -231,6 +229,6 @@ func TestConvertTraceIDsStringsToModels(t *testing.T) {
 	ids, err := toModelTraceIDs([]dbmodel.TraceID{"1", "2", "01", "02", "001", "002"})
 	require.NoError(t, err)
 	assert.Equal(t, []model.TraceID{model.NewTraceID(0, 1), model.NewTraceID(0, 2)}, ids)
-	_, err = toModelTraceIDs([]dbmodel.TraceID{"1", "2", "01", "02", "001", "002", "blah"})
-	require.Error(t, err)
+	_, err = toModelTraceIDs([]dbmodel.TraceID{"blah"})
+	require.ErrorContains(t, err, "making traceID from string 'blah' failed: strconv.ParseUint: parsing \"blah\": invalid syntax")
 }
