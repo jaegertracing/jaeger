@@ -31,7 +31,7 @@ var (
 
 	includeDefaultOpStrategies = featuregate.GlobalRegistry().MustRegister(
 		"jaeger.sampling.includeDefaultOpStrategies",
-		featuregate.StageBeta, // enabed by default
+		featuregate.StageStable, // can only be ON
 		featuregate.WithRegisterFromVersion("v2.2.0"),
 		featuregate.WithRegisterToVersion("v2.5.0"),
 		featuregate.WithRegisterDescription("Forces service strategy to be merged with default strategy, including per-operation overrides."),

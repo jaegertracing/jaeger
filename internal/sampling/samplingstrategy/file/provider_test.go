@@ -154,10 +154,8 @@ func TestPerOperationSamplingStrategies(t *testing.T) {
 	tests := []struct {
 		options Options
 	}{
-		{Options{StrategiesFile: "fixtures/operation_strategies.json", DefaultSamplingProbability: DefaultSamplingProbability}},
 		{Options{
 			StrategiesFile:             "fixtures/operation_strategies.json",
-			IncludeDefaultOpStrategies: true,
 			DefaultSamplingProbability: DefaultSamplingProbability,
 		}},
 	}
@@ -480,8 +478,7 @@ func TestServiceNoPerOperationStrategies(t *testing.T) {
 	// given setup of strategy provider with no specific per operation sampling strategies
 	// and option "sampling.strategies.bugfix-5270=true"
 	provider, err := NewProvider(Options{
-		StrategiesFile:             "fixtures/service_no_per_operation.json",
-		IncludeDefaultOpStrategies: true,
+		StrategiesFile: "fixtures/service_no_per_operation.json",
 	}, zap.NewNop())
 	require.NoError(t, err)
 
