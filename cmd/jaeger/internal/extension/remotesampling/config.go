@@ -29,7 +29,7 @@ var (
 	_ xconfmap.Validator  = (*Config)(nil)
 	_ confmap.Unmarshaler = (*Config)(nil)
 
-	includeDefaultOpStrategies = featuregate.GlobalRegistry().MustRegister(
+	_ = featuregate.GlobalRegistry().MustRegister(
 		"jaeger.sampling.includeDefaultOpStrategies",
 		featuregate.StageStable, // can only be ON
 		featuregate.WithRegisterFromVersion("v2.2.0"),
