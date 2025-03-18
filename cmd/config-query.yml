@@ -1,0 +1,52 @@
+service:
+   extensions: [jaeger_storage, jaeger_query, healthcheckv2]
+   pipelines:
+     traces:
+       receivers: [nop]
+       processors: [batch]
+       exporters: [nop]
+   telemetry:
+     resource:
+       service.name: jaeger-query
+     metrics:
+       level: detailed
+       readers:
+         - pull:
+             exporter:
+               prometheus:
+                 host: 0.0.0.0
+                 # Use a different port to avoid conflict with the collector
+                 port: 8887
+     logs:
+       level: info
+
+extensions:
+   healthcheckv2:
+     use_v2: true
+     http:
+       # Use a different port to avoid conflict with the collector
+       endpoint: 0.0.0.0:12133
+
+   jaeger_query:
+     storage:
+       type: memory
+       traces: query_storage
+       ui:
+         static_files: ./cmd/jaeger/ui
+         index_file: index.html
+       config_file: ./cmd/jaeger/config-ui.json
+
+   jaeger_storage:
+     backends:
+       query_storage:
+         memory:
+           max_traces: 100000
+
+receivers:
+   nop:
+
+processors:
+   batch:
+
+exporters:
+   nop:
