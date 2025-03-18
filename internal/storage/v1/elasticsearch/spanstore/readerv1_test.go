@@ -155,7 +155,7 @@ func getTraceErrTests(includeTraceNotFound bool) []traceError {
 	tests := []traceError{
 		{
 			name:            "conversion error",
-			expectedError:   "span conversion error, because lacks elements",
+			expectedError:   "converting ES dbSpan to domain Span failed: strconv.ParseUint: parsing \"\": invalid syntax",
 			returningTraces: []*dbmodel.Trace{getBadTrace()},
 		},
 		{
@@ -182,7 +182,7 @@ func TestSpanReaderV1_GetTraceError(t *testing.T) {
 				m.On("GetTraces", mock.Anything, mock.Anything).Return(tt.returningTraces, tt.returningErr)
 				query := spanstore.GetTraceParameters{}
 				trace, err := r.GetTrace(context.Background(), query)
-				require.Error(t, err, tt.expectedError)
+				require.ErrorContains(t, err, tt.expectedError)
 				require.Nil(t, trace)
 			})
 		})
