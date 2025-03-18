@@ -504,38 +504,6 @@ func TestServiceNoPerOperationStrategies(t *testing.T) {
 	}
 }
 
-func TestServiceNoPerOperationStrategiesDeprecatedBehavior(t *testing.T) {
-	// test case to be removed along with removal of strategy_store.parseStrategies_deprecated,
-	// see https://github.com/jaegertracing/jaeger/issues/5270 for more details
-
-	// given setup of strategy provider with no specific per operation sampling strategies
-	provider, err := NewProvider(Options{
-		StrategiesFile: "fixtures/service_no_per_operation.json",
-	}, zap.NewNop())
-	require.NoError(t, err)
-
-	for _, service := range []string{"ServiceA", "ServiceB"} {
-		t.Run(service, func(t *testing.T) {
-			strategy, err := provider.GetSamplingStrategy(context.Background(), service)
-			require.NoError(t, err)
-			strategyJson, err := json.MarshalIndent(strategy, "", "  ")
-			require.NoError(t, err)
-
-			testName := strings.ReplaceAll(t.Name(), "/", "_")
-			snapshotFile := filepath.Join(snapshotLocation, testName+".json")
-			expectedServiceResponse, err := os.ReadFile(snapshotFile)
-			require.NoError(t, err)
-
-			assert.JSONEq(t, string(expectedServiceResponse), string(strategyJson),
-				"comparing against stored snapshot. Use REGENERATE_SNAPSHOTS=true to rebuild snapshots.")
-
-			if regenerateSnapshots {
-				os.WriteFile(snapshotFile, strategyJson, 0o644)
-			}
-		})
-	}
-}
-
 func TestSamplingStrategyLoader(t *testing.T) {
 	provider := &samplingProvider{logger: zap.NewNop()}
 	// invalid file path
