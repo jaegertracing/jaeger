@@ -53,8 +53,8 @@ github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 h1:DklsrG3d
 github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2/go.mod h1:WaHUgvxTVq04UNunO+XhnAqY/wQc+bxr74GqbsZ/Jqw=
 github.com/aws/aws-msk-iam-sasl-signer-go v1.0.1 h1:nMp7diZObd4XEVUR0pEvn7/E13JIgManMX79Q6quV6E=
 github.com/aws/aws-msk-iam-sasl-signer-go v1.0.1/go.mod h1:MVYeeOhILFFemC/XlYTClvBjYZrg/EPd3ts885KrNTI=
-github.com/aws/aws-sdk-go v1.55.6 h1:cSg4pvZ3m8dgYcgqB97MrcdjUmZ1BeMYKUxMMB89IPk=
-github.com/aws/aws-sdk-go v1.55.6/go.mod h1:eRwEWoyTWFMVYVQzKMNHWP5/RV4xIUGMQfXQHfHkpNU=
+github.com/aws/aws-sdk-go v1.55.5 h1:KKUZBfBoyqy5d3swXyiC7Q76ic40rYcbqH7qjh59kzU=
+github.com/aws/aws-sdk-go v1.55.5/go.mod h1:eRwEWoyTWFMVYVQzKMNHWP5/RV4xIUGMQfXQHfHkpNU=
 github.com/aws/aws-sdk-go-v2 v1.36.3 h1:mJoei2CxPutQVxaATCzDUjcZEjVRdpsiiXi2o38yqWM=
 github.com/aws/aws-sdk-go-v2 v1.36.3/go.mod h1:LLXuLpgzEbD766Z5ECcRmi8AzSwfZItDtmABVkRLGzg=
 github.com/aws/aws-sdk-go-v2/config v1.28.2 h1:FLvWA97elBiSPdIol4CXfIAY1wlq3KzoSgkMuZSuSe8=
@@ -482,8 +482,8 @@ github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetr
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry v0.122.0/go.mod h1:xRVCkxl7mUlRsp65vfpOZXsbD1WrUYBQJPeeGA4adj4=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/status v0.122.0 h1:vlXt39WlguQyfalnl20Ya1gcIlgMamCMOe54cTGWoLs=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/status v0.122.0/go.mod h1:4H2Xm+9adnTCCoP7A04DB9bM8MFTJ+SoejTBno23o+Y=
-github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/azure v0.121.0 h1:/1iFwP6X88j02upTdpvqrKNvHlIz42D9f85z6oDZXDc=
-github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/azure v0.121.0/go.mod h1:yG4ykQmlkpLKSJW3/a+P/DfDKcKvxLWvNfNJDHZvayg=
+github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/azure v0.122.0 h1:NRRPQX2h+BUgAFjHLtCL35lJPELpj45FmImiwT/1etE=
+github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/azure v0.122.0/go.mod h1:cLRBD0KTx58pTi2HlkqwNnJ4YGlDMh/ka5CRjYouhHk=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger v0.122.0 h1:8u4KG1Tgeqv1N3zH3xt0v7i+Iv/DuXlezrjYfrwS9cM=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger v0.122.0/go.mod h1:kWjLiZv1oddZK52NpBhs/EeRPUa5Tvq2GMtQWLEDNno=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/prometheus v0.122.0 h1:CVFxV+kYScaMafYHYwJ3T+pXfScYVS8HBuvyfajkzvU=
@@ -496,8 +496,8 @@ github.com/open-telemetry/opentelemetry-collector-contrib/processor/tailsampling
 github.com/open-telemetry/opentelemetry-collector-contrib/processor/tailsamplingprocessor v0.122.0/go.mod h1:tKkDLrQA9vfXudPfbs2mpVM91NFHFgpuEVPkhIh6kVw=
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver v0.122.0 h1:WkO/80K37kq1U4x1bFH57DXyaAy1wgyGqenrxtd877o=
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver v0.122.0/go.mod h1:ZGRdfBP5JA2KUaDAVBOd23QAPfGsN/QH3B5DQp53QLY=
-github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kafkareceiver v0.121.0 h1:O6IqakKflC7vNyh7NjIN1vLIZz2EbFBsNH8IEmJnSjY=
-github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kafkareceiver v0.121.0/go.mod h1:G9Yj59SZ6Gh/WlBzy20RvFZWKEd0KCiqgH4OLd9zI7A=
+github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kafkareceiver v0.122.0 h1:SXI7bebUronpqSO1q5m6EGUUKBytOECcA7IoRVnk7FM=
+github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kafkareceiver v0.122.0/go.mod h1:5cKrfMBq9exPKtArq1olwmjOmU2kqTAwnziTgY6tQag=
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/prometheusreceiver v0.122.0 h1:G2A+G9Eflwn48skXE4x+efNnOar55zqBC17VzEpPDRM=
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/prometheusreceiver v0.122.0/go.mod h1:6CmMa+n3XNtlKTtLXzb39+ZGVFKsx75pBnuAgef9gow=
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zipkinreceiver v0.122.0 h1:y++4YQ1FafIIqHH4X3FAPLZdEW0YVS0xnH1v549zn7M=
