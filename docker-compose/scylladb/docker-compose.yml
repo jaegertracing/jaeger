@@ -51,7 +51,7 @@ services:
 
   scylladb:
     restart: always
-    image: scylladb/scylla:5.4.7
+    image: scylladb/scylla:5.4.7@sha256:d73f652cbce3622827eeff35a650936d70b2bf2939ea5dd6b7e6c3e8944537fe
     ports:
       - 9042:9042
     volumes:
@@ -66,7 +66,7 @@ services:
 
   scylladb2:
     restart: always
-    image: scylladb/scylla:5.4.7
+    image: scylladb/scylla:5.4.7@sha256:d73f652cbce3622827eeff35a650936d70b2bf2939ea5dd6b7e6c3e8944537fe
     command: --seeds=scylladb
     volumes:
       - .docker/scylladb/2:/var/lib/scylla
@@ -75,7 +75,7 @@ services:
 
   scylladb3:
     restart: always
-    image: scylladb/scylla:5.4.7
+    image: scylladb/scylla:5.4.7@sha256:d73f652cbce3622827eeff35a650936d70b2bf2939ea5dd6b7e6c3e8944537fe
     command: --seeds=scylladb
     volumes:
       - .docker/scylladb/3:/var/lib/scylla
