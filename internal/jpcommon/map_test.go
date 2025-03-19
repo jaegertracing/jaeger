@@ -108,6 +108,7 @@ func TestConvertMapToKeyValueList(t *testing.T) {
 				m.PutInt("key2", 42)
 				m.PutDouble("key3", 3.14)
 				m.PutBool("key4", true)
+				m.PutEmptyBytes("key5").Append(1, 2)
 				return m
 			}(),
 			expected: []*storage.KeyValue{
@@ -140,6 +141,14 @@ func TestConvertMapToKeyValueList(t *testing.T) {
 					Value: &storage.AnyValue{
 						Value: &storage.AnyValue_BoolValue{
 							BoolValue: true,
+						},
+					},
+				},
+				{
+					Key: "key5",
+					Value: &storage.AnyValue{
+						Value: &storage.AnyValue_BytesValue{
+							BytesValue: []byte{1, 2},
 						},
 					},
 				},
