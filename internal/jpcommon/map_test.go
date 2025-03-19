@@ -101,6 +101,20 @@ func TestConvertMapToKeyValueList(t *testing.T) {
 			expected:   []*storage.KeyValue{},
 		},
 		{
+			name: "empty value",
+			attributes: func() pcommon.Map {
+				m := pcommon.NewMap()
+				m.PutEmpty("key1")
+				return m
+			}(),
+			expected: []*storage.KeyValue{
+				{
+					Key:   "key1",
+					Value: nil,
+				},
+			},
+		},
+		{
 			name: "primitive types",
 			attributes: func() pcommon.Map {
 				m := pcommon.NewMap()
