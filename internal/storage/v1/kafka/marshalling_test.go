@@ -7,11 +7,11 @@ import (
 	"context"
 	"testing"
 
+	zipkin "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/zipkin/zipkinthriftconverter"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger-idl/thrift-gen/zipkincore"
-	"github.com/jaegertracing/jaeger/model/converter/thrift/zipkin"
 )
 
 func TestProtobufMarshallerAndUnmarshaller(t *testing.T) {
@@ -36,7 +36,7 @@ func testMarshallerAndUnmarshaller(t *testing.T, marshaller Marshaller, unmarsha
 
 func TestZipkinThriftUnmarshaller(t *testing.T) {
 	operationName := "foo"
-	bytes := zipkin.SerializeThrift(context.Background(), []*zipkincore.Span{
+	bytes, err := zipkin.SerializeThrift(context.Background(), []*zipkincore.Span{
 		{
 			ID:   12345,
 			Name: operationName,
@@ -45,6 +45,7 @@ func TestZipkinThriftUnmarshaller(t *testing.T) {
 			},
 		},
 	})
+	require.NoError(t, err)
 	unmarshaller := NewZipkinThriftUnmarshaller()
 	resultSpan, err := unmarshaller.Unmarshal(bytes)
 
@@ -53,14 +54,15 @@ func TestZipkinThriftUnmarshaller(t *testing.T) {
 }
 
 func TestZipkinThriftUnmarshallerErrorNoService(t *testing.T) {
-	bytes := zipkin.SerializeThrift(context.Background(), []*zipkincore.Span{
+	bytes, err := zipkin.SerializeThrift(context.Background(), []*zipkincore.Span{
 		{
 			ID:   12345,
 			Name: "foo",
 		},
 	})
+	require.NoError(t, err)
 	unmarshaller := NewZipkinThriftUnmarshaller()
-	_, err := unmarshaller.Unmarshal(bytes)
+	_, err = unmarshaller.Unmarshal(bytes)
 	require.Error(t, err)
 }
 
