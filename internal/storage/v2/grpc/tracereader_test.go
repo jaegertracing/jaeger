@@ -190,6 +190,11 @@ func TestTraceReader_FindTraces(t *testing.T) {
 }
 
 func TestTraceReader_FindTraceIDs(t *testing.T) {
+	queryParams := tracestore.TraceQueryParams{
+		ServiceName:   "service-a",
+		OperationName: "operation-a",
+		Attributes:    pcommon.NewMap(),
+	}
 	now := time.Now().UTC()
 	tests := []struct {
 		name          string
@@ -214,10 +219,7 @@ func TestTraceReader_FindTraceIDs(t *testing.T) {
 					},
 				},
 			},
-			queryParams: tracestore.TraceQueryParams{
-				ServiceName:   "service-a",
-				OperationName: "operation-a",
-			},
+			queryParams: queryParams,
 			expectedIDs: []tracestore.FoundTraceID{
 				{
 					TraceID: pcommon.TraceID([16]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}),
@@ -242,10 +244,7 @@ func TestTraceReader_FindTraceIDs(t *testing.T) {
 					},
 				},
 			},
-			queryParams: tracestore.TraceQueryParams{
-				ServiceName:   "service-a",
-				OperationName: "operation-a",
-			},
+			queryParams: queryParams,
 			expectedIDs: []tracestore.FoundTraceID{
 				{
 					TraceID: pcommon.TraceID([16]byte{1, 2, 3, 4, 5, 6, 7, 8}),
@@ -265,10 +264,7 @@ func TestTraceReader_FindTraceIDs(t *testing.T) {
 					},
 				},
 			},
-			queryParams: tracestore.TraceQueryParams{
-				ServiceName:   "service-a",
-				OperationName: "operation-a",
-			},
+			queryParams: queryParams,
 			expectedIDs: []tracestore.FoundTraceID{
 				{
 					TraceID: pcommon.TraceID([16]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}),
@@ -282,9 +278,7 @@ func TestTraceReader_FindTraceIDs(t *testing.T) {
 			testServer: &testServer{
 				err: assert.AnError,
 			},
-			queryParams: tracestore.TraceQueryParams{
-				ServiceName: "service-a",
-			},
+			queryParams:   queryParams,
 			expectedError: "failed to execute FindTraceIDs",
 		},
 	}
