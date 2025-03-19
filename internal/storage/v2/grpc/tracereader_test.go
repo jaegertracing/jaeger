@@ -285,7 +285,7 @@ func TestTraceReader_FindTraceIDs(t *testing.T) {
 			queryParams: tracestore.TraceQueryParams{
 				ServiceName: "service-a",
 			},
-			expectedError: "could not find trace IDs",
+			expectedError: "failed to execute FindTraceIDs",
 		},
 	}
 

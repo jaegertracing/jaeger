@@ -83,7 +83,7 @@ func (tr *TraceReader) FindTraceIDs(
 			Query: params.ToProtoQueryParameters(),
 		})
 		if err != nil {
-			yield(nil, fmt.Errorf("could not find trace IDs: %w", err))
+			yield(nil, fmt.Errorf("failed to execute FindTraceIDs: %w", err))
 			return
 		}
 		foundTraceIDs := make([]tracestore.FoundTraceID, len(resp.TraceIds))
