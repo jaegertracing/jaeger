@@ -14,7 +14,6 @@ import (
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
-	"github.com/jaegertracing/jaeger/pkg/normalizer"
 	"github.com/jaegertracing/jaeger/pkg/otelsemconv"
 )
 
@@ -281,13 +280,15 @@ func (m metricsBySvc) countTracesByServiceName(serviceName string, isDebug bool,
 // an alert should be raised to investigate what's causing so many unique
 // service names.
 func (m *traceCountsBySvc) countByServiceName(serviceName string, isDebug bool, samplerType model.SamplerType) {
-	serviceName = normalizer.ServiceName(serviceName)
+	m.lock.Lock()
+	defer m.lock.Unlock()
+
+	serviceName = normalizeServiceName(serviceName)
 	counts := m.counts
 	if isDebug {
 		counts = m.debugCounts
 	}
 	var counter metrics.Counter
-	m.lock.Lock()
 
 	// trace counter key is combination of serviceName and samplerType.
 	key := m.buildKey(serviceName, samplerType.String())
@@ -312,7 +313,6 @@ func (m *traceCountsBySvc) countByServiceName(serviceName string, isDebug bool, 
 		}
 		counter = counts[otherServicesSampler]
 	}
-	m.lock.Unlock()
 	counter.Inc(1)
 }
 
@@ -327,13 +327,15 @@ func (m *traceCountsBySvc) countByServiceName(serviceName string, isDebug bool, 
 // an alert should be raised to investigate what's causing so many unique
 // service names.
 func (m *spanCountsBySvc) countByServiceName(serviceName string, isDebug bool) {
-	serviceName = normalizer.ServiceName(serviceName)
+	m.lock.Lock()
+	defer m.lock.Unlock()
+
+	serviceName = normalizeServiceName(serviceName)
 	counts := m.counts
 	if isDebug {
 		counts = m.debugCounts
 	}
 	var counter metrics.Counter
-	m.lock.Lock()
 
 	if c, ok := counts[serviceName]; ok {
 		counter = c
@@ -349,7 +351,6 @@ func (m *spanCountsBySvc) countByServiceName(serviceName string, isDebug bool) {
 	} else {
 		counter = counts[otherServices]
 	}
-	m.lock.Unlock()
 	counter.Inc(1)
 }
 
@@ -362,4 +363,43 @@ func (m *traceCountsBySvc) buildKey(serviceName, samplerType string) string {
 	key := keyBuilder.String()
 	m.stringBuilderPool.Put(keyBuilder)
 	return key
+}
+func normalizeServiceName(serviceName string) string {
+	return serviceNameReplacer.Replace(serviceName)
+}
+
+var serviceNameReplacer = newServiceNameReplacer()
+
+// Only allowed runes: [a-zA-Z0-9_:-.]
+func newServiceNameReplacer() *strings.Replacer {
+	var mapping [256]byte
+	// we start with everything being replaces with underscore, and later fix some safe characters
+	for i := range mapping {
+		mapping[i] = '_'
+	}
+	// digits are safe
+	for i := '0'; i <= '9'; i++ {
+		mapping[i] = byte(i)
+	}
+	// lower case letters are safe
+	for i := 'a'; i <= 'z'; i++ {
+		mapping[i] = byte(i)
+	}
+	// upper case letters are safe, but convert them to lower case
+	for i := 'A'; i <= 'Z'; i++ {
+		mapping[i] = byte(i - 'A' + 'a')
+	}
+	// dash and dot are safe
+	mapping['-'] = '-'
+	mapping['.'] = '.'
+
+	// prepare array of pairs of bad/good characters
+	oldnew := make([]string, 0, 2*(256-2-10-int('z'-'a'+1)))
+	for i := range mapping {
+		if mapping[i] != byte(i) {
+			oldnew = append(oldnew, string(rune(i)), string(rune(mapping[i])))
+		}
+	}
+
+	return strings.NewReplacer(oldnew...)
 }
