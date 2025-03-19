@@ -509,7 +509,7 @@ func TestSpanReader_esJSONtoJSONSpanModel(t *testing.T) {
 
 		var expectedSpan dbmodel.Span
 		require.NoError(t, json.Unmarshal(exampleESSpan, &expectedSpan))
-		assert.EqualValues(t, &expectedSpan, span)
+		assert.EqualValues(t, expectedSpan, span)
 	})
 }
 
@@ -524,7 +524,7 @@ func TestSpanReader_esJSONtoJSONSpanModelError(t *testing.T) {
 
 		span, err := r.reader.unmarshalJSONSpan(esSpanRaw)
 		require.Error(t, err)
-		assert.Nil(t, span)
+		assert.Empty(t, span)
 	})
 }
 

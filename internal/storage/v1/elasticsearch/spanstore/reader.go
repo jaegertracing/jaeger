@@ -253,12 +253,12 @@ func (s *SpanReader) collectSpans(esSpansRaw []*elastic.SearchHit) ([]dbmodel.Sp
 		if err != nil {
 			return nil, fmt.Errorf("marshalling JSON to span object failed: %w", err)
 		}
-		spans[i] = *jsonSpan
+		spans[i] = jsonSpan
 	}
 	return spans, nil
 }
 
-func (*SpanReader) unmarshalJSONSpan(esSpanRaw *elastic.SearchHit) (*dbmodel.Span, error) {
+func (*SpanReader) unmarshalJSONSpan(esSpanRaw *elastic.SearchHit) (dbmodel.Span, error) {
 	esSpanInByteArray := esSpanRaw.Source
 
 	var jsonSpan dbmodel.Span
@@ -266,9 +266,9 @@ func (*SpanReader) unmarshalJSONSpan(esSpanRaw *elastic.SearchHit) (*dbmodel.Spa
 	d := json.NewDecoder(bytes.NewReader(*esSpanInByteArray))
 	d.UseNumber()
 	if err := d.Decode(&jsonSpan); err != nil {
-		return nil, err
+		return dbmodel.Span{}, err
 	}
-	return &jsonSpan, nil
+	return jsonSpan, nil
 }
 
 // GetServices returns all services traced by Jaeger, ordered by frequency
