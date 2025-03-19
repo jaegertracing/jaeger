@@ -3,6 +3,8 @@
 
 package jptrace
 
+import "go.opentelemetry.io/collector/pdata/pcommon"
+
 const (
 	// WarningsAttribute is the name of the span attribute where we can
 	// store various warnings produced from transformations,
@@ -14,3 +16,20 @@ const (
 	// e.g. proto, thrift, json.
 	FormatAttribute = "@jaeger@format"
 )
+
+func PcommonMapToPlainMap(attributes pcommon.Map) map[string]string {
+	mapAttributes := make(map[string]string)
+	attributes.Range(func(k string, v pcommon.Value) bool {
+		mapAttributes[k] = v.AsString()
+		return true
+	})
+	return mapAttributes
+}
+
+func PlainMapToPcommonMap(attributesMap map[string]string) pcommon.Map {
+	attributes := pcommon.NewMap()
+	for k, v := range attributesMap {
+		attributes.PutStr(k, v)
+	}
+	return attributes
+}
