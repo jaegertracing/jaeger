@@ -20,7 +20,7 @@ type ValueType string
 
 // Trace is the type of traces
 type Trace struct {
-	Spans []*Span
+	Spans []Span
 }
 
 const (

@@ -20,7 +20,7 @@ type CoreSpanReader struct {
 }
 
 // FindTraceIDs provides a mock function with given fields: ctx, traceQuery
-func (_m *CoreSpanReader) FindTraceIDs(ctx context.Context, traceQuery *dbmodel.TraceQueryParameters) ([]dbmodel.TraceID, error) {
+func (_m *CoreSpanReader) FindTraceIDs(ctx context.Context, traceQuery dbmodel.TraceQueryParameters) ([]dbmodel.TraceID, error) {
 	ret := _m.Called(ctx, traceQuery)
 
 	if len(ret) == 0 {
@@ -29,10 +29,10 @@ func (_m *CoreSpanReader) FindTraceIDs(ctx context.Context, traceQuery *dbmodel.
 
 	var r0 []dbmodel.TraceID
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, *dbmodel.TraceQueryParameters) ([]dbmodel.TraceID, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, dbmodel.TraceQueryParameters) ([]dbmodel.TraceID, error)); ok {
 		return rf(ctx, traceQuery)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, *dbmodel.TraceQueryParameters) []dbmodel.TraceID); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, dbmodel.TraceQueryParameters) []dbmodel.TraceID); ok {
 		r0 = rf(ctx, traceQuery)
 	} else {
 		if ret.Get(0) != nil {
@@ -40,7 +40,7 @@ func (_m *CoreSpanReader) FindTraceIDs(ctx context.Context, traceQuery *dbmodel.
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, *dbmodel.TraceQueryParameters) error); ok {
+	if rf, ok := ret.Get(1).(func(context.Context, dbmodel.TraceQueryParameters) error); ok {
 		r1 = rf(ctx, traceQuery)
 	} else {
 		r1 = ret.Error(1)
@@ -50,27 +50,27 @@ func (_m *CoreSpanReader) FindTraceIDs(ctx context.Context, traceQuery *dbmodel.
 }
 
 // FindTraces provides a mock function with given fields: ctx, traceQuery
-func (_m *CoreSpanReader) FindTraces(ctx context.Context, traceQuery *dbmodel.TraceQueryParameters) ([]*dbmodel.Trace, error) {
+func (_m *CoreSpanReader) FindTraces(ctx context.Context, traceQuery dbmodel.TraceQueryParameters) ([]dbmodel.Trace, error) {
 	ret := _m.Called(ctx, traceQuery)
 
 	if len(ret) == 0 {
 		panic("no return value specified for FindTraces")
 	}
 
-	var r0 []*dbmodel.Trace
+	var r0 []dbmodel.Trace
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, *dbmodel.TraceQueryParameters) ([]*dbmodel.Trace, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, dbmodel.TraceQueryParameters) ([]dbmodel.Trace, error)); ok {
 		return rf(ctx, traceQuery)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, *dbmodel.TraceQueryParameters) []*dbmodel.Trace); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, dbmodel.TraceQueryParameters) []dbmodel.Trace); ok {
 		r0 = rf(ctx, traceQuery)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]*dbmodel.Trace)
+			r0 = ret.Get(0).([]dbmodel.Trace)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, *dbmodel.TraceQueryParameters) error); ok {
+	if rf, ok := ret.Get(1).(func(context.Context, dbmodel.TraceQueryParameters) error); ok {
 		r1 = rf(ctx, traceQuery)
 	} else {
 		r1 = ret.Error(1)
@@ -140,23 +140,23 @@ func (_m *CoreSpanReader) GetServices(ctx context.Context) ([]string, error) {
 }
 
 // GetTraces provides a mock function with given fields: ctx, query
-func (_m *CoreSpanReader) GetTraces(ctx context.Context, query []dbmodel.TraceID) ([]*dbmodel.Trace, error) {
+func (_m *CoreSpanReader) GetTraces(ctx context.Context, query []dbmodel.TraceID) ([]dbmodel.Trace, error) {
 	ret := _m.Called(ctx, query)
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetTraces")
 	}
 
-	var r0 []*dbmodel.Trace
+	var r0 []dbmodel.Trace
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, []dbmodel.TraceID) ([]*dbmodel.Trace, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, []dbmodel.TraceID) ([]dbmodel.Trace, error)); ok {
 		return rf(ctx, query)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, []dbmodel.TraceID) []*dbmodel.Trace); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, []dbmodel.TraceID) []dbmodel.Trace); ok {
 		r0 = rf(ctx, query)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]*dbmodel.Trace)
+			r0 = ret.Get(0).([]dbmodel.Trace)
 		}
 	}
 

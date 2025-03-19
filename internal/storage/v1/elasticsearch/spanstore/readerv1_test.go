@@ -26,8 +26,8 @@ func withSpanReaderV1(fn func(r *SpanReaderV1, m *mocks.CoreSpanReader)) {
 	fn(r, spanReader)
 }
 
-func getTestingTrace(traceID model.TraceID, spanId model.SpanID) *dbmodel.Trace {
-	return &dbmodel.Trace{Spans: []*dbmodel.Span{{
+func getTestingTrace(traceID model.TraceID, spanId model.SpanID) dbmodel.Trace {
+	return dbmodel.Trace{Spans: []dbmodel.Span{{
 		TraceID: dbmodel.TraceID(traceID.String()),
 		SpanID:  dbmodel.SpanID(spanId.String()),
 	}}}
@@ -38,7 +38,7 @@ func TestSpanReaderV1_GetTrace(t *testing.T) {
 		traceID1 := model.NewTraceID(0, 1)
 		spanID1 := model.NewSpanID(1)
 		trace := getTestingTrace(traceID1, spanID1)
-		m.On("GetTraces", mock.Anything, mock.Anything).Return([]*dbmodel.Trace{trace}, nil)
+		m.On("GetTraces", mock.Anything, mock.Anything).Return([]dbmodel.Trace{trace}, nil)
 		actual, err := r.GetTrace(context.Background(), spanstore.GetTraceParameters{})
 		require.NoError(t, err)
 		assert.Len(t, actual.Spans, 1)
@@ -54,8 +54,8 @@ func TestSpanReaderV1_FindTraces(t *testing.T) {
 		spanID2 := model.NewSpanID(2)
 		trace1 := getTestingTrace(traceID1, spanID1)
 		trace2 := getTestingTrace(traceID2, spanID2)
-		traces := []*dbmodel.Trace{trace1, trace2}
-		m.On("FindTraces", mock.Anything, mock.AnythingOfType("*dbmodel.TraceQueryParameters")).Return(traces, nil)
+		traces := []dbmodel.Trace{trace1, trace2}
+		m.On("FindTraces", mock.Anything, mock.AnythingOfType("dbmodel.TraceQueryParameters")).Return(traces, nil)
 		actual, err := r.FindTraces(context.Background(), &spanstore.TraceQueryParameters{})
 		require.NoError(t, err)
 		assert.Len(t, actual, 2)
@@ -73,7 +73,7 @@ func TestSpanReaderV1_FindTraceIDs(t *testing.T) {
 		traceId1 := dbmodel.TraceID(traceId1Model.String())
 		traceId2 := dbmodel.TraceID(traceId2Model.String())
 		traceIds := []dbmodel.TraceID{traceId1, traceId2}
-		m.On("FindTraceIDs", mock.Anything, mock.AnythingOfType("*dbmodel.TraceQueryParameters")).Return(traceIds, nil)
+		m.On("FindTraceIDs", mock.Anything, mock.AnythingOfType("dbmodel.TraceQueryParameters")).Return(traceIds, nil)
 		actual, err := r.FindTraceIDs(context.Background(), &spanstore.TraceQueryParameters{})
 		require.NoError(t, err)
 		expected := []model.TraceID{traceId1Model, traceId2Model}
@@ -102,7 +102,7 @@ func TestSpanReaderV1_FindTraceIDs_Errors(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			withSpanReaderV1(func(r *SpanReaderV1, m *mocks.CoreSpanReader) {
-				m.On("FindTraceIDs", mock.Anything, mock.AnythingOfType("*dbmodel.TraceQueryParameters")).Return(tt.returningTraceIDs, tt.returningErr)
+				m.On("FindTraceIDs", mock.Anything, mock.AnythingOfType("dbmodel.TraceQueryParameters")).Return(tt.returningTraceIDs, tt.returningErr)
 				actual, err := r.FindTraceIDs(context.Background(), &spanstore.TraceQueryParameters{})
 				assert.Nil(t, actual)
 				assert.ErrorContains(t, err, tt.expectedError)
@@ -148,7 +148,7 @@ type traceError struct {
 	name            string
 	returningErr    error
 	expectedError   string
-	returningTraces []*dbmodel.Trace
+	returningTraces []dbmodel.Trace
 }
 
 func getTraceErrTests(includeTraceNotFound bool) []traceError {
@@ -156,7 +156,7 @@ func getTraceErrTests(includeTraceNotFound bool) []traceError {
 		{
 			name:            "conversion error",
 			expectedError:   "converting ES dbSpan to domain Span failed: strconv.ParseUint: parsing \"\": invalid syntax",
-			returningTraces: []*dbmodel.Trace{getBadTrace()},
+			returningTraces: []dbmodel.Trace{getBadTrace()},
 		},
 		{
 			name:          "generic error",
@@ -167,7 +167,7 @@ func getTraceErrTests(includeTraceNotFound bool) []traceError {
 	if includeTraceNotFound {
 		tests = append(tests, traceError{
 			name:            "trace not found",
-			returningTraces: []*dbmodel.Trace{},
+			returningTraces: []dbmodel.Trace{},
 			expectedError:   "trace not found",
 		})
 	}
@@ -194,7 +194,7 @@ func TestSpanReaderV1_FindTracesError(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			withSpanReaderV1(func(r *SpanReaderV1, m *mocks.CoreSpanReader) {
-				m.On("FindTraces", mock.Anything, mock.AnythingOfType("*dbmodel.TraceQueryParameters")).Return(tt.returningTraces, tt.returningErr)
+				m.On("FindTraces", mock.Anything, mock.AnythingOfType("dbmodel.TraceQueryParameters")).Return(tt.returningTraces, tt.returningErr)
 				query := &spanstore.TraceQueryParameters{}
 				trace, err := r.FindTraces(context.Background(), query)
 				require.Error(t, err, tt.expectedError)
@@ -204,9 +204,9 @@ func TestSpanReaderV1_FindTracesError(t *testing.T) {
 	}
 }
 
-func getBadTrace() *dbmodel.Trace {
-	return &dbmodel.Trace{
-		Spans: []*dbmodel.Span{
+func getBadTrace() dbmodel.Trace {
+	return dbmodel.Trace{
+		Spans: []dbmodel.Span{
 			{
 				OperationName: "testing-operation",
 			},

@@ -237,7 +237,7 @@ func timeRangeIndices(indexName, indexDateLayout string, startTime time.Time, en
 }
 
 // GetTraces takes a traceID and returns a Trace associated with that traceID
-func (s *SpanReader) GetTraces(ctx context.Context, query []dbmodel.TraceID) ([]*dbmodel.Trace, error) {
+func (s *SpanReader) GetTraces(ctx context.Context, query []dbmodel.TraceID) ([]dbmodel.Trace, error) {
 	ctx, span := s.tracer.Start(ctx, "GetTrace")
 	defer span.End()
 	currentTime := time.Now()
@@ -245,15 +245,15 @@ func (s *SpanReader) GetTraces(ctx context.Context, query []dbmodel.TraceID) ([]
 	return s.multiRead(ctx, query, currentTime.Add(-s.maxSpanAge), currentTime)
 }
 
-func (s *SpanReader) collectSpans(esSpansRaw []*elastic.SearchHit) ([]*dbmodel.Span, error) {
-	spans := make([]*dbmodel.Span, len(esSpansRaw))
+func (s *SpanReader) collectSpans(esSpansRaw []*elastic.SearchHit) ([]dbmodel.Span, error) {
+	spans := make([]dbmodel.Span, len(esSpansRaw))
 
 	for i, esSpanRaw := range esSpansRaw {
 		jsonSpan, err := s.unmarshalJSONSpan(esSpanRaw)
 		if err != nil {
 			return nil, fmt.Errorf("marshalling JSON to span object failed: %w", err)
 		}
-		spans[i] = jsonSpan
+		spans[i] = *jsonSpan
 	}
 	return spans, nil
 }
@@ -330,7 +330,7 @@ func bucketToStringArray[T ~string](buckets []*elastic.AggregationBucketKeyItem)
 }
 
 // FindTraces retrieves traces that match the traceQuery
-func (s *SpanReader) FindTraces(ctx context.Context, traceQuery *dbmodel.TraceQueryParameters) ([]*dbmodel.Trace, error) {
+func (s *SpanReader) FindTraces(ctx context.Context, traceQuery dbmodel.TraceQueryParameters) ([]dbmodel.Trace, error) {
 	ctx, span := s.tracer.Start(ctx, "FindTraces")
 	defer span.End()
 
@@ -342,7 +342,7 @@ func (s *SpanReader) FindTraces(ctx context.Context, traceQuery *dbmodel.TraceQu
 }
 
 // FindTraceIDs retrieves traces IDs that match the traceQuery
-func (s *SpanReader) FindTraceIDs(ctx context.Context, traceQuery *dbmodel.TraceQueryParameters) ([]dbmodel.TraceID, error) {
+func (s *SpanReader) FindTraceIDs(ctx context.Context, traceQuery dbmodel.TraceQueryParameters) ([]dbmodel.TraceID, error) {
 	ctx, span := s.tracer.Start(ctx, "FindTraceIDs")
 	defer span.End()
 
@@ -361,7 +361,7 @@ func (s *SpanReader) FindTraceIDs(ctx context.Context, traceQuery *dbmodel.Trace
 	return esTraceIDs, nil
 }
 
-func (s *SpanReader) multiRead(ctx context.Context, traceIDs []dbmodel.TraceID, startTime, endTime time.Time) ([]*dbmodel.Trace, error) {
+func (s *SpanReader) multiRead(ctx context.Context, traceIDs []dbmodel.TraceID, startTime, endTime time.Time) ([]dbmodel.Trace, error) {
 	ctx, childSpan := s.tracer.Start(ctx, "multiRead")
 	defer childSpan.End()
 
@@ -374,7 +374,7 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []dbmodel.TraceID, 
 	}
 
 	if len(traceIDs) == 0 {
-		return []*dbmodel.Trace{}, nil
+		return []dbmodel.Trace{}, nil
 	}
 
 	// Add an hour in both directions so that traces that straddle two indexes are retrieved.
@@ -452,9 +452,9 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []dbmodel.TraceID, 
 		}
 	}
 
-	var traces []*dbmodel.Trace
+	var traces []dbmodel.Trace
 	for _, t := range tracesMap {
-		traces = append(traces, t)
+		traces = append(traces, *t)
 	}
 	return traces, nil
 }
@@ -472,10 +472,7 @@ func buildTraceByIDQuery(traceID dbmodel.TraceID) elastic.Query {
 		elastic.NewTermQuery(traceIDField, legacyTraceID))
 }
 
-func validateQuery(p *dbmodel.TraceQueryParameters) error {
-	if p == nil {
-		return ErrMalformedRequestObject
-	}
+func validateQuery(p dbmodel.TraceQueryParameters) error {
 	if p.ServiceName == "" && len(p.Tags) > 0 {
 		return ErrServiceNameNotSet
 	}
@@ -491,7 +488,7 @@ func validateQuery(p *dbmodel.TraceQueryParameters) error {
 	return nil
 }
 
-func (s *SpanReader) findTraceIDs(ctx context.Context, traceQuery *dbmodel.TraceQueryParameters) ([]dbmodel.TraceID, error) {
+func (s *SpanReader) findTraceIDs(ctx context.Context, traceQuery dbmodel.TraceQueryParameters) ([]dbmodel.TraceID, error) {
 	ctx, childSpan := s.tracer.Start(ctx, "findTraceIDs")
 	defer childSpan.End()
 	//  Below is the JSON body to our HTTP GET request to ElasticSearch. This function creates this.
@@ -594,7 +591,7 @@ func (*SpanReader) buildTraceIDSubAggregation() elastic.Aggregation {
 		Field(startTimeField)
 }
 
-func (s *SpanReader) buildFindTraceIDsQuery(traceQuery *dbmodel.TraceQueryParameters) elastic.Query {
+func (s *SpanReader) buildFindTraceIDsQuery(traceQuery dbmodel.TraceQueryParameters) elastic.Query {
 	boolQuery := elastic.NewBoolQuery()
 
 	// add duration query

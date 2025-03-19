@@ -395,7 +395,7 @@ func TestSpanReader_multiRead_followUp_query(t *testing.T) {
 		require.NotNil(t, traces)
 		require.Len(t, traces, 2)
 
-		for _, s := range []*dbmodel.Span{&spanID1, &spanID2} {
+		for _, s := range []dbmodel.Span{spanID1, spanID2} {
 			found := reflect.DeepEqual(traces[0].Spans[0], s) || reflect.DeepEqual(traces[1].Spans[0], s)
 			assert.True(t, found, "span was expected to be within one of the traces but was not: %v", s)
 		}
@@ -655,7 +655,7 @@ func returnSearchFunc(typ string, r *spanReaderTest) (any, error) {
 			dbmodel.OperationQueryParameters{ServiceName: "someService"},
 		)
 	case traceIDAggregation:
-		return r.reader.findTraceIDs(context.Background(), &dbmodel.TraceQueryParameters{})
+		return r.reader.findTraceIDs(context.Background(), dbmodel.TraceQueryParameters{})
 	}
 	return nil, errors.New("Specify services, operations, traceIDs only")
 }
@@ -710,7 +710,7 @@ func TestSpanReader_FindTraces(t *testing.T) {
 				},
 			}, nil)
 
-		traceQuery := &dbmodel.TraceQueryParameters{
+		traceQuery := dbmodel.TraceQueryParameters{
 			ServiceName: serviceName,
 			Tags: map[string]string{
 				"hello": "world",
@@ -756,7 +756,7 @@ func TestSpanReader_FindTracesInvalidQuery(t *testing.T) {
 				},
 			}, nil)
 
-		traceQuery := &dbmodel.TraceQueryParameters{
+		traceQuery := dbmodel.TraceQueryParameters{
 			ServiceName: "",
 			Tags: map[string]string{
 				"hello": "world",
@@ -789,7 +789,7 @@ func TestSpanReader_FindTracesAggregationFailure(t *testing.T) {
 				Responses: []*elastic.SearchResult{},
 			}, nil)
 
-		traceQuery := &dbmodel.TraceQueryParameters{
+		traceQuery := dbmodel.TraceQueryParameters{
 			ServiceName: serviceName,
 			Tags: map[string]string{
 				"hello": "world",
@@ -824,7 +824,7 @@ func TestSpanReader_FindTracesNoTraceIDs(t *testing.T) {
 				Responses: []*elastic.SearchResult{},
 			}, nil)
 
-		traceQuery := &dbmodel.TraceQueryParameters{
+		traceQuery := dbmodel.TraceQueryParameters{
 			ServiceName: serviceName,
 			Tags: map[string]string{
 				"hello": "world",
@@ -858,7 +858,7 @@ func TestSpanReader_FindTracesReadTraceFailure(t *testing.T) {
 		mockMultiSearchService(r).
 			Return(nil, errors.New("read error"))
 
-		traceQuery := &dbmodel.TraceQueryParameters{
+		traceQuery := dbmodel.TraceQueryParameters{
 			ServiceName: serviceName,
 			Tags: map[string]string{
 				"hello": "world",
@@ -897,7 +897,7 @@ func TestSpanReader_FindTracesSpanCollectionFailure(t *testing.T) {
 				},
 			}, nil)
 
-		traceQuery := &dbmodel.TraceQueryParameters{
+		traceQuery := dbmodel.TraceQueryParameters{
 			ServiceName: serviceName,
 			Tags: map[string]string{
 				"hello": "world",
@@ -968,17 +968,13 @@ func mockSearchService(r *spanReaderTest) *mock.Call {
 }
 
 func TestTraceQueryParameterValidation(t *testing.T) {
-	var malformedtqp *dbmodel.TraceQueryParameters
-	err := validateQuery(malformedtqp)
-	require.EqualError(t, err, ErrMalformedRequestObject.Error())
-
-	tqp := &dbmodel.TraceQueryParameters{
+	tqp := dbmodel.TraceQueryParameters{
 		ServiceName: "",
 		Tags: map[string]string{
 			"hello": "world",
 		},
 	}
-	err = validateQuery(tqp)
+	err := validateQuery(tqp)
 	require.EqualError(t, err, ErrServiceNameNotSet.Error())
 
 	tqp.ServiceName = serviceName
@@ -1030,7 +1026,7 @@ func TestSpanReader_buildTraceIDAggregation(t *testing.T) {
 
 func TestSpanReader_buildFindTraceIDsQuery(t *testing.T) {
 	withSpanReader(t, func(r *spanReaderTest) {
-		traceQuery := &dbmodel.TraceQueryParameters{
+		traceQuery := dbmodel.TraceQueryParameters{
 			DurationMin:   time.Second,
 			DurationMax:   time.Second * 2,
 			StartTimeMin:  time.Time{},
@@ -1191,7 +1187,7 @@ func TestSpanReader_GetEmptyIndex(t *testing.T) {
 				Responses: []*elastic.SearchResult{},
 			}, nil)
 
-		traceQuery := &dbmodel.TraceQueryParameters{
+		traceQuery := dbmodel.TraceQueryParameters{
 			ServiceName: serviceName,
 			Tags: map[string]string{
 				"hello": "world",
