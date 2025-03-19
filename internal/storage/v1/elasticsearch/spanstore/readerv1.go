@@ -44,10 +44,10 @@ func (s *SpanReaderV1) GetTrace(ctx context.Context, query spanstore.GetTracePar
 	return &model.Trace{Spans: spans}, nil
 }
 
-func (s *SpanReaderV1) collectSpans(dbSpans []*dbmodel.Span) ([]*model.Span, error) {
+func (s *SpanReaderV1) collectSpans(dbSpans []dbmodel.Span) ([]*model.Span, error) {
 	spans := make([]*model.Span, len(dbSpans))
-	for i, jsonSpan := range dbSpans {
-		span, err := s.spanConverter.SpanToDomain(jsonSpan)
+	for i := range dbSpans {
+		span, err := s.spanConverter.SpanToDomain(&dbSpans[i])
 		if err != nil {
 			return nil, fmt.Errorf("converting ES dbSpan to domain Span failed: %w", err)
 		}
@@ -111,8 +111,8 @@ func (s *SpanReaderV1) FindTraceIDs(ctx context.Context, traceQuery *spanstore.T
 	return toModelTraceIDs(ids)
 }
 
-func toDbQueryParams(p *spanstore.TraceQueryParameters) *dbmodel.TraceQueryParameters {
-	return &dbmodel.TraceQueryParameters{
+func toDbQueryParams(p *spanstore.TraceQueryParameters) dbmodel.TraceQueryParameters {
+	return dbmodel.TraceQueryParameters{
 		ServiceName:   p.ServiceName,
 		OperationName: p.OperationName,
 		Tags:          p.Tags,
