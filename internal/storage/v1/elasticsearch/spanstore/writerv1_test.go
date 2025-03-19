@@ -96,3 +96,11 @@ func TestSpanWriterV1_WriteSpan(t *testing.T) {
 	err := writerV1.WriteSpan(context.Background(), s)
 	require.NoError(t, err)
 }
+
+func TestSpanWriterV1_Close(t *testing.T) {
+	coreWriter := &writerMocks.CoreSpanWriter{}
+	coreWriter.On("Close").Return(nil)
+	writerV1 := &SpanWriterV1{spanWriter: coreWriter}
+	err := writerV1.Close()
+	require.NoError(t, err)
+}
