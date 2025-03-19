@@ -19,10 +19,10 @@ if [[ "$BRANCH" == "main" ]]; then
   bash scripts/utils/docker-login.sh
 
   docker buildx build --push \
-  --progress=plain \
-  --platform=linux/amd64 \
-  "${IMAGE_TAGS[@]}" \
-  crossdock/
+    --progress=plain \
+    --platform=linux/amd64 \
+    "${IMAGE_TAGS[@]}" \
+    crossdock/
 else
   echo 'skip docker images upload for PR'
 fi
