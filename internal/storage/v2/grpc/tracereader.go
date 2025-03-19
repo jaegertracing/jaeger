@@ -12,6 +12,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"google.golang.org/grpc"
 
+	"github.com/jaegertracing/jaeger/internal/jpcommon"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/proto-gen/storage/v2"
 )
@@ -80,7 +81,7 @@ func (tr *TraceReader) FindTraceIDs(
 ) iter.Seq2[[]tracestore.FoundTraceID, error] {
 	return func(yield func([]tracestore.FoundTraceID, error) bool) {
 		resp, err := tr.client.FindTraceIDs(ctx, &storage.FindTracesRequest{
-			Query: params.ToProtoQueryParameters(),
+			Query: toProtoQueryParameters(params),
 		})
 		if err != nil {
 			yield(nil, fmt.Errorf("failed to execute FindTraceIDs: %w", err))
@@ -98,5 +99,18 @@ func (tr *TraceReader) FindTraceIDs(
 			}
 		}
 		yield(foundTraceIDs, nil)
+	}
+}
+
+func toProtoQueryParameters(t tracestore.TraceQueryParams) *storage.TraceQueryParameters {
+	return &storage.TraceQueryParameters{
+		ServiceName:   t.ServiceName,
+		OperationName: t.OperationName,
+		Attributes:    jpcommon.ConvertMapToKeyValueList(t.Attributes),
+		StartTimeMin:  t.StartTimeMin,
+		StartTimeMax:  t.StartTimeMax,
+		DurationMin:   t.DurationMin,
+		DurationMax:   t.DurationMax,
+		SearchDepth:   int32(t.SearchDepth), //nolint: gosec // G115
 	}
 }
