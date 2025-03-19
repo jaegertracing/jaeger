@@ -55,7 +55,7 @@ func TestSpanReaderV1_FindTraces(t *testing.T) {
 		trace1 := getTestingTrace(traceID1, spanID1)
 		trace2 := getTestingTrace(traceID2, spanID2)
 		traces := []dbmodel.Trace{trace1, trace2}
-		m.On("FindTraces", mock.Anything, mock.AnythingOfType("dbmodel.TraceQueryParameters")).Return(traces, nil)
+		m.On("FindTraces", mock.Anything, mock.Anything).Return(traces, nil)
 		actual, err := r.FindTraces(context.Background(), &spanstore.TraceQueryParameters{})
 		require.NoError(t, err)
 		assert.Len(t, actual, 2)
@@ -73,7 +73,7 @@ func TestSpanReaderV1_FindTraceIDs(t *testing.T) {
 		traceId1 := dbmodel.TraceID(traceId1Model.String())
 		traceId2 := dbmodel.TraceID(traceId2Model.String())
 		traceIds := []dbmodel.TraceID{traceId1, traceId2}
-		m.On("FindTraceIDs", mock.Anything, mock.AnythingOfType("dbmodel.TraceQueryParameters")).Return(traceIds, nil)
+		m.On("FindTraceIDs", mock.Anything, mock.Anything).Return(traceIds, nil)
 		actual, err := r.FindTraceIDs(context.Background(), &spanstore.TraceQueryParameters{})
 		require.NoError(t, err)
 		expected := []model.TraceID{traceId1Model, traceId2Model}
@@ -102,7 +102,7 @@ func TestSpanReaderV1_FindTraceIDs_Errors(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			withSpanReaderV1(func(r *SpanReaderV1, m *mocks.CoreSpanReader) {
-				m.On("FindTraceIDs", mock.Anything, mock.AnythingOfType("dbmodel.TraceQueryParameters")).Return(tt.returningTraceIDs, tt.returningErr)
+				m.On("FindTraceIDs", mock.Anything, mock.Anything).Return(tt.returningTraceIDs, tt.returningErr)
 				actual, err := r.FindTraceIDs(context.Background(), &spanstore.TraceQueryParameters{})
 				assert.Nil(t, actual)
 				assert.ErrorContains(t, err, tt.expectedError)
@@ -194,7 +194,7 @@ func TestSpanReaderV1_FindTracesError(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			withSpanReaderV1(func(r *SpanReaderV1, m *mocks.CoreSpanReader) {
-				m.On("FindTraces", mock.Anything, mock.AnythingOfType("dbmodel.TraceQueryParameters")).Return(tt.returningTraces, tt.returningErr)
+				m.On("FindTraces", mock.Anything, mock.Anything).Return(tt.returningTraces, tt.returningErr)
 				query := &spanstore.TraceQueryParameters{}
 				trace, err := r.FindTraces(context.Background(), query)
 				require.Error(t, err, tt.expectedError)

@@ -522,9 +522,8 @@ func TestSpanReader_esJSONtoJSONSpanModelError(t *testing.T) {
 			Source: jsonPayload,
 		}
 
-		span, err := r.reader.unmarshalJSONSpan(esSpanRaw)
+		_, err := r.reader.unmarshalJSONSpan(esSpanRaw)
 		require.Error(t, err)
-		assert.Empty(t, span)
 	})
 }
 

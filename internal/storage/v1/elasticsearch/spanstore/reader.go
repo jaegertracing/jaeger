@@ -373,8 +373,10 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []dbmodel.TraceID, 
 		childSpan.SetAttributes(attribute.Key("trace_ids").StringSlice(tracesIDs))
 	}
 
+	traces := make([]dbmodel.Trace, 0, len(traceIDs))
+
 	if len(traceIDs) == 0 {
-		return []dbmodel.Trace{}, nil
+		return traces, nil
 	}
 
 	// Add an hour in both directions so that traces that straddle two indexes are retrieved.
@@ -441,7 +443,8 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []dbmodel.TraceID, 
 			if traceSpan, ok := tracesMap[lastSpan.TraceID]; ok {
 				traceSpan.Spans = append(traceSpan.Spans, spans...)
 			} else {
-				tracesMap[lastSpan.TraceID] = &dbmodel.Trace{Spans: spans}
+				traces = append(traces, dbmodel.Trace{Spans: spans})
+				tracesMap[lastSpan.TraceID] = &traces[len(traces)-1]
 			}
 
 			totalDocumentsFetched[lastSpan.TraceID] += len(result.Hits.Hits)
@@ -450,11 +453,6 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []dbmodel.TraceID, 
 				searchAfterTime[lastSpan.TraceID] = lastSpan.StartTime
 			}
 		}
-	}
-
-	var traces []dbmodel.Trace
-	for _, t := range tracesMap {
-		traces = append(traces, *t)
 	}
 	return traces, nil
 }
