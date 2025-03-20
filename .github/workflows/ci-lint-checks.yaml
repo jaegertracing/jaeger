@@ -51,7 +51,6 @@ jobs:
     - run: |
         git fetch origin main
         make lint-nocommit
-
   dco-check:
     runs-on: ubuntu-latest
     steps:
@@ -131,7 +130,6 @@ jobs:
     - name: Run unit tests for scripts
       run: |
         SHUNIT2=.tools/shunit2 bash scripts/utils/run-tests.sh
-
   binary-size-check:
     runs-on: ubuntu-latest
     steps:
@@ -158,7 +156,6 @@ jobs:
         TOTAL_SIZE=$(du -sb ./cmd/jaeger/jaeger-linux-amd64 | cut -f1)
         echo "$TOTAL_SIZE" > ./new_jaeger_binary_size.txt
         echo "Total binary size: $TOTAL_SIZE bytes"
-
     - name: Restore previous binary size
       id: cache-binary-size
       uses: actions/cache/restore@1bd1e32a3bdc45362d1e726936510720a7c30a57      #v4.2.0
@@ -167,7 +164,6 @@ jobs:
         key: jaeger_binary_size
         restore-keys: |
           jaeger_binary_size
-
     - name: Compare jaeger binary sizes
       if: steps.cache-binary-size.outputs.cache-matched-key != ''
       run: |
@@ -175,7 +171,6 @@ jobs:
         NEW_BINARY_SIZE=$(cat ./new_jaeger_binary_size.txt)
         echo "Previous binary size: $OLD_BINARY_SIZE bytes"
         echo "New binary size: $NEW_BINARY_SIZE bytes"
-
         SIZE_CHANGE=$(( $NEW_BINARY_SIZE - $OLD_BINARY_SIZE ))
         PERCENTAGE_CHANGE=$(( SIZE_CHANGE * 100 / $OLD_BINARY_SIZE ))
         echo "Size change: $PERCENTAGE_CHANGE%"
@@ -185,13 +180,10 @@ jobs:
         else
           echo "✅ binary size change is within acceptable range ($PERCENTAGE_CHANGE%)"
         fi
-
-
     - name: Remove previous *_binary_*.txt
       run: |
         rm -rf ./jaeger_binary_size.txt
         mv ./new_jaeger_binary_size.txt ./jaeger_binary_size.txt
-
     - name: Save new jaeger binary size
       if: ${{ (github.event_name == 'push') && (github.ref == 'refs/heads/main') }}
       uses: actions/cache/save@1bd1e32a3bdc45362d1e726936510720a7c30a57     #v4.2.0
