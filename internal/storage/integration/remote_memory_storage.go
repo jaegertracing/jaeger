@@ -19,8 +19,8 @@ import (
 	"google.golang.org/grpc/health/grpc_health_v1"
 
 	"github.com/jaegertracing/jaeger/cmd/remote-storage/app"
+	"github.com/jaegertracing/jaeger/internal/config"
 	storage "github.com/jaegertracing/jaeger/internal/storage/v1/factory"
-	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/telemetry"

@@ -12,7 +12,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/internal/testutils"
-	"github.com/jaegertracing/jaeger/pkg/config"
+	"github.com/jaegertracing/jaeger/internal/config"
 )
 
 func TestCollectorOptionsWithFlags_CheckHostPort(t *testing.T) {

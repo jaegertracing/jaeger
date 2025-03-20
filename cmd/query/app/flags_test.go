@@ -14,10 +14,10 @@ import (
 	"go.opentelemetry.io/collector/config/configopaque"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/internal/config"
 	spanstoremocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/mocks"
 	storage "github.com/jaegertracing/jaeger/internal/storage/v1/factory"
 	"github.com/jaegertracing/jaeger/internal/testutils"
-	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/ports"
 )
 
