@@ -13,11 +13,11 @@ import (
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/cache"
+	"github.com/jaegertracing/jaeger/internal/metrics/api"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/spanstoremetrics"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/spanstore/internal/dbmodel"
 	"github.com/jaegertracing/jaeger/pkg/es"
 	cfg "github.com/jaegertracing/jaeger/pkg/es/config"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
 const (
@@ -52,7 +52,7 @@ type SpanWriterV1 struct {
 type SpanWriterParams struct {
 	Client              func() es.Client
 	Logger              *zap.Logger
-	MetricsFactory      metrics.Factory
+	MetricsFactory      api.Factory
 	SpanIndex           cfg.IndexOptions
 	ServiceIndex        cfg.IndexOptions
 	IndexPrefix         cfg.IndexPrefix

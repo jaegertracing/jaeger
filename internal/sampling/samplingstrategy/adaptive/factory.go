@@ -11,11 +11,11 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/internal/leaderelection"
+	"github.com/jaegertracing/jaeger/internal/metrics/api"
 	"github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy"
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore"
 	"github.com/jaegertracing/jaeger/pkg/distributedlock"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
 var (
@@ -27,7 +27,7 @@ var (
 type Factory struct {
 	options        *Options
 	logger         *zap.Logger
-	metricsFactory metrics.Factory
+	metricsFactory api.Factory
 	lock           distributedlock.Lock
 	store          samplingstore.Store
 	participant    *leaderelection.DistributedElectionParticipant
@@ -54,7 +54,7 @@ func (f *Factory) InitFromViper(v *viper.Viper, _ *zap.Logger) {
 }
 
 // Initialize implements samplingstrategy.Factory
-func (f *Factory) Initialize(metricsFactory metrics.Factory, ssFactory storage.SamplingStoreFactory, logger *zap.Logger) error {
+func (f *Factory) Initialize(metricsFactory api.Factory, ssFactory storage.SamplingStoreFactory, logger *zap.Logger) error {
 	if ssFactory == nil {
 		return errors.New("sampling store factory is nil. Please configure a backend that supports adaptive sampling")
 	}

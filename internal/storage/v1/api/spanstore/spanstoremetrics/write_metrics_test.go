@@ -51,6 +51,7 @@ func TestTableEmit(t *testing.T) {
 			},
 		},
 	}
+
 	for _, tc := range testCases {
 		mf := metricstest.NewFactory(time.Second)
 		tm := NewWriter(mf, "a_table")

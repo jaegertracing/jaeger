@@ -11,7 +11,7 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/internal/metrics/api"
 )
 
 // limit the size of cache for timers to avoid DDOS.
@@ -38,7 +38,7 @@ func (r *statusRecorder) WriteHeader(status int) {
 //
 // Do not use with HTTP endpoints that take parameters from URL path, such as `/user/{user_id}`,
 // because they will result in high cardinality metrics.
-func Wrap(h http.Handler, metricsFactory metrics.Factory, logger *zap.Logger) http.Handler {
+func Wrap(h http.Handler, metricsFactory api.Factory, logger *zap.Logger) http.Handler {
 	timers := newRequestDurations(metricsFactory, logger)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
@@ -72,17 +72,17 @@ type recordedRequest struct {
 type requestDurations struct {
 	lock sync.RWMutex
 
-	metrics    metrics.Factory
+	metrics    api.Factory
 	logger     *zap.Logger
 	maxEntries int
 
-	timers   map[recordedRequestKey]metrics.Timer
-	fallback metrics.Timer
+	timers   map[recordedRequestKey]api.Timer
+	fallback api.Timer
 }
 
-func newRequestDurations(metricsFactory metrics.Factory, logger *zap.Logger) *requestDurations {
+func newRequestDurations(metricsFactory api.Factory, logger *zap.Logger) *requestDurations {
 	r := &requestDurations{
-		timers:     make(map[recordedRequestKey]metrics.Timer),
+		timers:     make(map[recordedRequestKey]api.Timer),
 		metrics:    metricsFactory,
 		logger:     logger,
 		maxEntries: maxEntries,
@@ -100,7 +100,7 @@ func (r *requestDurations) record(request recordedRequest) {
 	timer.Record(request.duration)
 }
 
-func (r *requestDurations) getTimer(cacheKey recordedRequestKey) metrics.Timer {
+func (r *requestDurations) getTimer(cacheKey recordedRequestKey) api.Timer {
 	r.lock.RLock()
 	timer, ok := r.timers[cacheKey]
 	size := len(r.timers)
@@ -120,16 +120,16 @@ func (r *requestDurations) getTimer(cacheKey recordedRequestKey) metrics.Timer {
 	return timer
 }
 
-func (r *requestDurations) buildTimer(metricsFactory metrics.Factory, key recordedRequestKey) (out metrics.Timer) {
+func (r *requestDurations) buildTimer(metricsFactory api.Factory, key recordedRequestKey) (out api.Timer) {
 	// deal with https://github.com/jaegertracing/jaeger/issues/2944
 	defer func() {
 		if err := recover(); err != nil {
 			r.logger.Error("panic in metrics factory trying to create a timer", zap.Any("error", err))
-			out = metrics.NullTimer
+			out = api.NullTimer
 		}
 	}()
 
-	out = metricsFactory.Timer(metrics.TimerOptions{
+	out = metricsFactory.Timer(api.TimerOptions{
 		Name: "http.request.duration",
 		Help: "Duration of HTTP requests",
 		Tags: map[string]string{

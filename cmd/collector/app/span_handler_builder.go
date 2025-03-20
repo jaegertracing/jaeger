@@ -14,8 +14,8 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/collector/app/handler"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
 	zs "github.com/jaegertracing/jaeger/cmd/collector/app/sanitizer/zipkin"
+	"github.com/jaegertracing/jaeger/internal/metrics/api"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 )
 
@@ -24,7 +24,7 @@ type SpanHandlerBuilder struct {
 	TraceWriter    tracestore.Writer
 	CollectorOpts  *flags.CollectorOptions
 	Logger         *zap.Logger
-	MetricsFactory metrics.Factory
+	MetricsFactory api.Factory
 	TenancyMgr     *tenancy.Manager
 }
 
@@ -39,7 +39,7 @@ type SpanHandlers struct {
 func (b *SpanHandlerBuilder) BuildSpanProcessor(additional ...ProcessSpan) (processor.SpanProcessor, error) {
 	hostname, _ := os.Hostname()
 	svcMetrics := b.metricsFactory()
-	hostMetrics := svcMetrics.Namespace(metrics.NSOptions{Tags: map[string]string{"host": hostname}})
+	hostMetrics := svcMetrics.Namespace(api.NSOptions{Tags: map[string]string{"host": hostname}})
 
 	return NewSpanProcessor(
 		b.TraceWriter,
@@ -82,9 +82,9 @@ func (b *SpanHandlerBuilder) logger() *zap.Logger {
 	return b.Logger
 }
 
-func (b *SpanHandlerBuilder) metricsFactory() metrics.Factory {
+func (b *SpanHandlerBuilder) metricsFactory() api.Factory {
 	if b.MetricsFactory == nil {
-		return metrics.NullFactory
+		return api.NullFactory
 	}
 	return b.MetricsFactory
 }

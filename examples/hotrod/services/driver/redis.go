@@ -20,7 +20,7 @@ import (
 	"github.com/jaegertracing/jaeger/examples/hotrod/pkg/log"
 	"github.com/jaegertracing/jaeger/examples/hotrod/pkg/tracing"
 	"github.com/jaegertracing/jaeger/examples/hotrod/services/config"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/internal/metrics/api"
 )
 
 // Redis is a simulator of remote Redis cache
@@ -30,7 +30,7 @@ type Redis struct {
 	errorSimulator
 }
 
-func newRedis(otelExporter string, metricsFactory metrics.Factory, logger log.Factory) *Redis {
+func newRedis(otelExporter string, metricsFactory api.Factory, logger log.Factory) *Redis {
 	tp := tracing.InitOTEL("redis-manual", otelExporter, metricsFactory, logger)
 	return &Redis{
 		tracer: tp.Tracer("redis-manual"),

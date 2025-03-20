@@ -13,7 +13,7 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/internal/metrics/api"
 	"github.com/jaegertracing/jaeger/pkg/otelsemconv"
 )
 
@@ -27,7 +27,7 @@ type Observer struct {
 }
 
 // NewObserver creates a new observer that can emit RPC metrics.
-func NewObserver(metricsFactory metrics.Factory, normalizer NameNormalizer) *Observer {
+func NewObserver(metricsFactory api.Factory, normalizer NameNormalizer) *Observer {
 	return &Observer{
 		metricsByEndpoint: newMetricsByEndpoint(
 			metricsFactory,

@@ -13,14 +13,14 @@ import (
 	nooptrace "go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/internal/metrics/api"
 	"github.com/jaegertracing/jaeger/internal/metrics/otelmetrics"
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
 type Settings struct {
 	Logger         *zap.Logger
-	Metrics        metrics.Factory
+	Metrics        api.Factory
 	MeterProvider  metric.MeterProvider
 	TracerProvider trace.TracerProvider
 	ReportStatus   func(*componentstatus.Event) // TODO remove this
@@ -50,7 +50,7 @@ func HCAdapter(hc *healthcheck.HealthCheck) func(*componentstatus.Event) {
 func NoopSettings() Settings {
 	return Settings{
 		Logger:         zap.NewNop(),
-		Metrics:        metrics.NullFactory,
+		Metrics:        api.NullFactory,
 		MeterProvider:  noopmetric.NewMeterProvider(),
 		TracerProvider: nooptrace.NewTracerProvider(),
 		ReportStatus:   func(*componentstatus.Event) {},

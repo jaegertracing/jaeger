@@ -15,7 +15,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/examples/hotrod/pkg/log"
 	"github.com/jaegertracing/jaeger/examples/hotrod/pkg/tracing"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/internal/metrics/api"
 )
 
 // Server implements jaeger-demo-frontend service
@@ -29,7 +29,7 @@ type Server struct {
 var _ DriverServiceServer = (*Server)(nil)
 
 // NewServer creates a new driver.Server
-func NewServer(hostPort string, otelExporter string, metricsFactory metrics.Factory, logger log.Factory) *Server {
+func NewServer(hostPort string, otelExporter string, metricsFactory api.Factory, logger log.Factory) *Server {
 	tracerProvider := tracing.InitOTEL("driver", otelExporter, metricsFactory, logger)
 	server := grpc.NewServer(
 		grpc.StatsHandler(otelgrpc.NewServerHandler(otelgrpc.WithTracerProvider(tracerProvider))),

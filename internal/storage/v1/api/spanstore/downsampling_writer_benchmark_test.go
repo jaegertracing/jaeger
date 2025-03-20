@@ -11,7 +11,7 @@ import (
 	"testing"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/internal/metrics/api"
 )
 
 // Benchmark result:
@@ -46,6 +46,7 @@ func BenchmarkDownSamplingWriter_HashBytes(b *testing.B) {
 	for i := 0; i < 16; i++ {
 		ba[i] = byte(i)
 	}
+
 	b.ResetTimer()
 	b.ReportAllocs()
 	h := c.sampler.hasherPool.Get().(*hasher)
@@ -62,7 +63,7 @@ func BenchmarkDownsamplingWriter_RandomHash(b *testing.B) {
 	downsamplingOptions := DownsamplingOptions{
 		Ratio:          1,
 		HashSalt:       "jaeger-test",
-		MetricsFactory: metrics.NullFactory,
+		MetricsFactory: api.NullFactory,
 	}
 	c := NewDownsamplingWriter(&noopWriteSpanStore{}, downsamplingOptions)
 	h := c.sampler.hasherPool.Get().(*hasher)

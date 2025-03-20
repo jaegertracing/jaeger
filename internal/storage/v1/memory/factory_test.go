@@ -12,16 +12,16 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/internal/metrics/api"
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
 	"github.com/jaegertracing/jaeger/pkg/config"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
 var _ storage.Factory = new(Factory)
 
 func TestMemoryStorageFactory(t *testing.T) {
 	f := NewFactory()
-	require.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
+	require.NoError(t, f.Initialize(api.NullFactory, zap.NewNop()))
 	assert.NotNil(t, f.store)
 	reader, err := f.CreateSpanReader()
 	require.NoError(t, err)
@@ -52,7 +52,7 @@ func TestNewFactoryWithConfig(t *testing.T) {
 	cfg := Configuration{
 		MaxTraces: 42,
 	}
-	f := NewFactoryWithConfig(cfg, metrics.NullFactory, zap.NewNop())
+	f := NewFactoryWithConfig(cfg, api.NullFactory, zap.NewNop())
 	assert.Equal(t, cfg, f.options.Configuration)
 }
 
@@ -62,6 +62,6 @@ func TestPublishOpts(t *testing.T) {
 	command.ParseFlags([]string{"--memory.max-traces=100"})
 	f.InitFromViper(v, zap.NewNop())
 
-	require.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
+	require.NoError(t, f.Initialize(api.NullFactory, zap.NewNop()))
 	assert.EqualValues(t, 100, expvar.Get("jaeger_storage_memory_max_traces").(*expvar.Int).Value())
 }

@@ -18,11 +18,11 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/collector/app/handler"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/server"
+	"github.com/jaegertracing/jaeger/internal/metrics/api"
 	"github.com/jaegertracing/jaeger/internal/safeexpvar"
 	"github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 )
 
@@ -36,7 +36,7 @@ type Collector struct {
 	// required to start a new collector
 	serviceName        string
 	logger             *zap.Logger
-	metricsFactory     metrics.Factory
+	metricsFactory     api.Factory
 	traceWriter        tracestore.Writer
 	samplingProvider   samplingstrategy.Provider
 	samplingAggregator samplingstrategy.Aggregator
@@ -56,7 +56,7 @@ type Collector struct {
 type CollectorParams struct {
 	ServiceName        string
 	Logger             *zap.Logger
-	MetricsFactory     metrics.Factory
+	MetricsFactory     api.Factory
 	TraceWriter        tracestore.Writer
 	SamplingProvider   samplingstrategy.Provider
 	SamplingAggregator samplingstrategy.Aggregator

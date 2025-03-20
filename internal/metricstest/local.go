@@ -11,7 +11,7 @@ import (
 
 	"github.com/HdrHistogram/hdrhistogram-go"
 
-	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/internal/metrics/api"
 )
 
 // This is intentionally very similar to github.com/codahale/metrics, the
@@ -328,7 +328,7 @@ func (l *Factory) newNamespace(name string) string {
 }
 
 // Counter returns a local stats counter
-func (l *Factory) Counter(options metrics.Options) metrics.Counter {
+func (l *Factory) Counter(options api.Options) api.Counter {
 	return &localCounter{
 		stats{
 			name:         l.newNamespace(options.Name),
@@ -339,7 +339,7 @@ func (l *Factory) Counter(options metrics.Options) metrics.Counter {
 }
 
 // Timer returns a local stats timer.
-func (l *Factory) Timer(options metrics.TimerOptions) metrics.Timer {
+func (l *Factory) Timer(options api.TimerOptions) api.Timer {
 	return &localTimer{
 		stats{
 			name:            l.newNamespace(options.Name),
@@ -351,7 +351,7 @@ func (l *Factory) Timer(options metrics.TimerOptions) metrics.Timer {
 }
 
 // Gauge returns a local stats gauge.
-func (l *Factory) Gauge(options metrics.Options) metrics.Gauge {
+func (l *Factory) Gauge(options api.Options) api.Gauge {
 	return &localGauge{
 		stats{
 			name:         l.newNamespace(options.Name),
@@ -362,7 +362,7 @@ func (l *Factory) Gauge(options metrics.Options) metrics.Gauge {
 }
 
 // Histogram returns a local stats histogram.
-func (l *Factory) Histogram(options metrics.HistogramOptions) metrics.Histogram {
+func (l *Factory) Histogram(options api.HistogramOptions) api.Histogram {
 	return &localHistogram{
 		stats{
 			name:         l.newNamespace(options.Name),
@@ -374,7 +374,7 @@ func (l *Factory) Histogram(options metrics.HistogramOptions) metrics.Histogram 
 }
 
 // Namespace returns a new namespace.
-func (l *Factory) Namespace(scope metrics.NSOptions) metrics.Factory {
+func (l *Factory) Namespace(scope api.NSOptions) api.Factory {
 	return &Factory{
 		namespace: l.newNamespace(scope.Name),
 		tags:      l.appendTags(scope.Tags),

@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/internal/metrics/api"
 )
 
 func TestLocalMetrics(t *testing.T) {
@@ -20,38 +20,38 @@ func TestLocalMetrics(t *testing.T) {
 
 	f := NewFactory(0)
 	defer f.Stop()
-	f.Counter(metrics.Options{
+	f.Counter(api.Options{
 		Name: "my-counter",
 		Tags: tags,
 	}).Inc(4)
-	f.Counter(metrics.Options{
+	f.Counter(api.Options{
 		Name: "my-counter",
 		Tags: tags,
 	}).Inc(6)
-	f.Counter(metrics.Options{
+	f.Counter(api.Options{
 		Name: "my-counter",
 	}).Inc(6)
-	f.Counter(metrics.Options{
+	f.Counter(api.Options{
 		Name: "other-counter",
 	}).Inc(8)
-	f.Gauge(metrics.Options{
+	f.Gauge(api.Options{
 		Name: "my-gauge",
 	}).Update(25)
-	f.Gauge(metrics.Options{
+	f.Gauge(api.Options{
 		Name: "my-gauge",
 	}).Update(43)
-	f.Gauge(metrics.Options{
+	f.Gauge(api.Options{
 		Name: "other-gauge",
 	}).Update(74)
-	f.Namespace(metrics.NSOptions{
+	f.Namespace(api.NSOptions{
 		Name: "namespace",
 		Tags: tags,
-	}).Counter(metrics.Options{
+	}).Counter(api.Options{
 		Name: "my-counter",
 	}).Inc(7)
-	f.Namespace(metrics.NSOptions{
+	f.Namespace(api.NSOptions{
 		Name: "ns.subns",
-	}).Counter(metrics.Options{
+	}).Counter(api.Options{
 		Tags: map[string]string{"service": "a-service"},
 	}).Inc(9)
 
@@ -72,13 +72,13 @@ func TestLocalMetrics(t *testing.T) {
 
 	for metric, timing := range timings {
 		for _, d := range timing {
-			f.Timer(metrics.TimerOptions{
+			f.Timer(api.TimerOptions{
 				Name: metric,
 			}).Record(d)
 		}
 	}
 
-	histogram := f.Histogram(metrics.HistogramOptions{
+	histogram := f.Histogram(api.HistogramOptions{
 		Name: "my-histo",
 	})
 	histogram.Record(321)
@@ -134,7 +134,7 @@ func TestLocalMetricsInterval(t *testing.T) {
 	f := NewFactory(refreshInterval)
 	defer f.Stop()
 
-	f.Timer(metrics.TimerOptions{
+	f.Timer(api.TimerOptions{
 		Name: "timer",
 	}).Record(1)
 

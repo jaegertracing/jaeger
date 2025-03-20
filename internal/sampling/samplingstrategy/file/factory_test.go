@@ -9,10 +9,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/internal/metrics/api"
 	"github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy"
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
 	"github.com/jaegertracing/jaeger/pkg/config"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
 var (
@@ -26,7 +26,7 @@ func TestFactory(t *testing.T) {
 	command.ParseFlags([]string{"--sampling.strategies-file=fixtures/strategies.json"})
 	f.InitFromViper(v, zap.NewNop())
 
-	require.NoError(t, f.Initialize(metrics.NullFactory, nil, zap.NewNop()))
+	require.NoError(t, f.Initialize(api.NullFactory, nil, zap.NewNop()))
 	_, _, err := f.CreateStrategyProvider()
 	require.NoError(t, err)
 	require.NoError(t, f.Close())

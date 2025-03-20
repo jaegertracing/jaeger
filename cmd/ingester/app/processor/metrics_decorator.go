@@ -7,22 +7,22 @@ import (
 	"io"
 	"time"
 
-	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/internal/metrics/api"
 )
 
 type metricsDecorator struct {
-	errors    metrics.Counter
-	latency   metrics.Timer
+	errors    api.Counter
+	latency   api.Timer
 	processor SpanProcessor
 	io.Closer
 }
 
 // NewDecoratedProcessor returns a processor with metrics
-func NewDecoratedProcessor(f metrics.Factory, processor SpanProcessor) SpanProcessor {
-	m := f.Namespace(metrics.NSOptions{Name: "span-processor", Tags: nil})
+func NewDecoratedProcessor(f api.Factory, processor SpanProcessor) SpanProcessor {
+	m := f.Namespace(api.NSOptions{Name: "span-processor", Tags: nil})
 	return &metricsDecorator{
-		errors:    m.Counter(metrics.Options{Name: "errors", Tags: nil}),
-		latency:   m.Timer(metrics.TimerOptions{Name: "latency", Tags: nil}),
+		errors:    m.Counter(api.Options{Name: "errors", Tags: nil}),
+		latency:   m.Timer(api.TimerOptions{Name: "latency", Tags: nil}),
 		processor: processor,
 	}
 }

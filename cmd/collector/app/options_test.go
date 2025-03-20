@@ -13,7 +13,7 @@ import (
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/flags"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/internal/metrics/api"
 )
 
 func TestAllOptionSet(t *testing.T) {
@@ -23,8 +23,8 @@ func TestAllOptionSet(t *testing.T) {
 		Options.BlockingSubmit(true),
 		Options.ExtraFormatTypes(types),
 		Options.SpanFilter(func(_ *model.Span) bool { return true }),
-		Options.HostMetrics(metrics.NullFactory),
-		Options.ServiceMetrics(metrics.NullFactory),
+		Options.HostMetrics(api.NullFactory),
+		Options.ServiceMetrics(api.NullFactory),
 		Options.Logger(zap.NewNop()),
 		Options.NumWorkers(5),
 		Options.PreProcessSpans(func(_ processor.Batch) {}),

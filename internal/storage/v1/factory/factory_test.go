@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/internal/metrics/api"
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore"
 	depStoreMocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore/mocks"
@@ -25,7 +26,6 @@ import (
 	spanStoreMocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/mocks"
 	"github.com/jaegertracing/jaeger/pkg/config"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
 func defaultCfg() Config {
@@ -92,7 +92,7 @@ func TestInitialize(t *testing.T) {
 	f.factories[cassandraStorageType] = mock
 	f.archiveFactories[cassandraStorageType] = mock
 
-	m := metrics.NullFactory
+	m := api.NullFactory
 	l := zap.NewNop()
 	mock.On("Initialize", m, l).Return(nil)
 	require.NoError(t, f.Initialize(m, l))
@@ -133,7 +133,7 @@ func TestCreate(t *testing.T) {
 	require.EqualError(t, err, "dep-reader-error")
 
 	mock.On("CreateSpanWriter").Return(spanWriter, nil)
-	m := metrics.NullFactory
+	m := api.NullFactory
 	l := zap.NewNop()
 	mock.On("Initialize", m, l).Return(nil)
 	f.Initialize(m, l)
@@ -151,7 +151,7 @@ func TestCreateDownsamplingWriter(t *testing.T) {
 	spanWriter := new(spanStoreMocks.Writer)
 	mock.On("CreateSpanWriter").Return(spanWriter, nil)
 
-	m := metrics.NullFactory
+	m := api.NullFactory
 	l := zap.NewNop()
 	mock.On("Initialize", m, l).Return(nil)
 
@@ -200,7 +200,7 @@ func TestCreateMulti(t *testing.T) {
 
 	mock.On("CreateSpanWriter").Return(spanWriter, nil)
 	mock2.On("CreateSpanWriter").Return(spanWriter2, nil)
-	m := metrics.NullFactory
+	m := api.NullFactory
 	l := zap.NewNop()
 	mock.On("Initialize", m, l).Return(nil)
 	mock2.On("Initialize", m, l).Return(nil)
@@ -398,7 +398,7 @@ func TestArchiveConfigurable(t *testing.T) {
 			f.factories[cassandraStorageType] = primaryFactory
 			f.archiveFactories[cassandraStorageType] = archiveConfigurable
 
-			m := metrics.NullFactory
+			m := api.NullFactory
 			l := zap.NewNop()
 			primaryFactory.On("Initialize", m, l).Return(nil).Once()
 			archiveFactory.On("Initialize", m, l).Return(test.archiveInitError).Once()
@@ -561,7 +561,7 @@ var (
 	_ io.Closer       = (*errorFactory)(nil)
 )
 
-func (errorFactory) Initialize(metrics.Factory, *zap.Logger) error {
+func (errorFactory) Initialize(api.Factory, *zap.Logger) error {
 	panic("implement me")
 }
 

@@ -10,8 +10,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/jaegertracing/jaeger/internal/metrics/api"
 	"github.com/jaegertracing/jaeger/internal/metricstest"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
 func TestHandleReset(t *testing.T) {
@@ -46,7 +46,7 @@ func TestCache(t *testing.T) {
 	fakeMarker := func(_ /* offset */ int64) {
 		assert.Fail(t, "Shouldn't mark cached offset")
 	}
-	manager := NewManager(offset, fakeMarker, "test_topic", 1, metrics.NullFactory)
+	manager := NewManager(offset, fakeMarker, "test_topic", 1, api.NullFactory)
 	manager.Start()
 	time.Sleep(resetInterval + 50)
 	manager.MarkOffset(offset)

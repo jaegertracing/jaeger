@@ -11,22 +11,22 @@ import (
 	promExporter "go.opentelemetry.io/otel/exporters/prometheus"
 	"go.opentelemetry.io/otel/sdk/metric"
 
+	"github.com/jaegertracing/jaeger/internal/metrics/api"
 	"github.com/jaegertracing/jaeger/internal/metrics/otelmetrics"
 	prom "github.com/jaegertracing/jaeger/internal/metrics/prometheus"
 	"github.com/jaegertracing/jaeger/internal/testutils"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
 func TestMain(m *testing.M) {
 	testutils.VerifyGoLeaks(m)
 }
 
-func setupPrometheusFactory() metrics.Factory {
+func setupPrometheusFactory() api.Factory {
 	reg := prometheus.NewRegistry()
 	return prom.New(prom.WithRegisterer(reg))
 }
 
-func setupOTELFactory(b *testing.B) metrics.Factory {
+func setupOTELFactory(b *testing.B) api.Factory {
 	registry := prometheus.NewRegistry()
 	exporter, err := promExporter.New(promExporter.WithRegisterer(registry))
 	require.NoError(b, err)
@@ -36,8 +36,8 @@ func setupOTELFactory(b *testing.B) metrics.Factory {
 	return otelmetrics.NewFactory(meterProvider)
 }
 
-func benchmarkCounter(b *testing.B, factory metrics.Factory) {
-	counter := factory.Counter(metrics.Options{
+func benchmarkCounter(b *testing.B, factory api.Factory) {
+	counter := factory.Counter(api.Options{
 		Name: "test_counter",
 		Tags: map[string]string{"tag1": "value1"},
 	})
@@ -47,8 +47,8 @@ func benchmarkCounter(b *testing.B, factory metrics.Factory) {
 	}
 }
 
-func benchmarkGauge(b *testing.B, factory metrics.Factory) {
-	gauge := factory.Gauge(metrics.Options{
+func benchmarkGauge(b *testing.B, factory api.Factory) {
+	gauge := factory.Gauge(api.Options{
 		Name: "test_gauge",
 		Tags: map[string]string{"tag1": "value1"},
 	})
@@ -58,8 +58,8 @@ func benchmarkGauge(b *testing.B, factory metrics.Factory) {
 	}
 }
 
-func benchmarkTimer(b *testing.B, factory metrics.Factory) {
-	timer := factory.Timer(metrics.TimerOptions{
+func benchmarkTimer(b *testing.B, factory api.Factory) {
+	timer := factory.Timer(api.TimerOptions{
 		Name: "test_timer",
 		Tags: map[string]string{"tag1": "value1"},
 	})
@@ -69,8 +69,8 @@ func benchmarkTimer(b *testing.B, factory metrics.Factory) {
 	}
 }
 
-func benchmarkHistogram(b *testing.B, factory metrics.Factory) {
-	histogram := factory.Histogram(metrics.HistogramOptions{
+func benchmarkHistogram(b *testing.B, factory api.Factory) {
+	histogram := factory.Histogram(api.HistogramOptions{
 		Name: "test_histogram",
 		Tags: map[string]string{"tag1": "value1"},
 	})

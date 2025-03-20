@@ -23,11 +23,11 @@ import (
 	cmdFlags "github.com/jaegertracing/jaeger/cmd/internal/flags"
 	"github.com/jaegertracing/jaeger/cmd/internal/printconfig"
 	"github.com/jaegertracing/jaeger/cmd/internal/status"
+	"github.com/jaegertracing/jaeger/internal/metrics/api"
 	ss "github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy/metafactory"
 	storage "github.com/jaegertracing/jaeger/internal/storage/v1/factory"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
 	"github.com/jaegertracing/jaeger/pkg/config"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/telemetry"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/pkg/version"
@@ -63,8 +63,8 @@ func main() {
 				return err
 			}
 			logger := svc.Logger // shortcut
-			baseFactory := svc.MetricsFactory.Namespace(metrics.NSOptions{Name: "jaeger"})
-			metricsFactory := baseFactory.Namespace(metrics.NSOptions{Name: "collector"})
+			baseFactory := svc.MetricsFactory.Namespace(api.NSOptions{Name: "jaeger"})
+			metricsFactory := baseFactory.Namespace(api.NSOptions{Name: "collector"})
 			version.NewInfoMetrics(metricsFactory)
 
 			baseTelset := telemetry.NoopSettings()

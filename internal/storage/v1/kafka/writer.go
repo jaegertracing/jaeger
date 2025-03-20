@@ -10,12 +10,12 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/internal/metrics/api"
 )
 
 type spanWriterMetrics struct {
-	SpansWrittenSuccess metrics.Counter
-	SpansWrittenFailure metrics.Counter
+	SpansWrittenSuccess api.Counter
+	SpansWrittenFailure api.Counter
 }
 
 // SpanWriter writes spans to kafka. Implements spanstore.Writer
@@ -31,12 +31,12 @@ func NewSpanWriter(
 	producer sarama.AsyncProducer,
 	marshaller Marshaller,
 	topic string,
-	factory metrics.Factory,
+	factory api.Factory,
 	logger *zap.Logger,
 ) *SpanWriter {
 	writeMetrics := spanWriterMetrics{
-		SpansWrittenSuccess: factory.Counter(metrics.Options{Name: "kafka_spans_written", Tags: map[string]string{"status": "success"}}),
-		SpansWrittenFailure: factory.Counter(metrics.Options{Name: "kafka_spans_written", Tags: map[string]string{"status": "failure"}}),
+		SpansWrittenSuccess: factory.Counter(api.Options{Name: "kafka_spans_written", Tags: map[string]string{"status": "success"}}),
+		SpansWrittenFailure: factory.Counter(api.Options{Name: "kafka_spans_written", Tags: map[string]string{"status": "failure"}}),
 	}
 
 	go func() {

@@ -12,11 +12,11 @@ import (
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/internal/metrics/api"
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	"github.com/jaegertracing/jaeger/pkg/kafka/producer"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
 var ( // interface comformance checks
@@ -29,7 +29,7 @@ var ( // interface comformance checks
 type Factory struct {
 	options Options
 
-	metricsFactory metrics.Factory
+	metricsFactory api.Factory
 	logger         *zap.Logger
 
 	producer   sarama.AsyncProducer
@@ -60,7 +60,7 @@ func (f *Factory) configureFromOptions(o Options) {
 }
 
 // Initialize implements storage.Factory
-func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
+func (f *Factory) Initialize(metricsFactory api.Factory, logger *zap.Logger) error {
 	f.metricsFactory, f.logger = metricsFactory, logger
 	logger.Info("Kafka factory",
 		zap.Any("producer builder", f.Builder),

@@ -11,15 +11,15 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/internal/metrics/api"
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
 var _ storage.Factory = new(Factory)
 
 func TestStorageFactory(t *testing.T) {
 	f := NewFactory()
-	require.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
+	require.NoError(t, f.Initialize(api.NullFactory, zap.NewNop()))
 	assert.NotNil(t, f.store)
 	reader, err := f.CreateSpanReader()
 	require.NoError(t, err)

@@ -7,10 +7,10 @@ package blackhole
 import (
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/internal/metrics/api"
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
 // interface comformance checks
@@ -18,7 +18,7 @@ var _ storage.Factory = (*Factory)(nil)
 
 // Factory implements storage.Factory and creates blackhole storage components.
 type Factory struct {
-	metricsFactory metrics.Factory
+	metricsFactory api.Factory
 	logger         *zap.Logger
 	store          *Store
 }
@@ -29,7 +29,7 @@ func NewFactory() *Factory {
 }
 
 // Initialize implements storage.Factory
-func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
+func (f *Factory) Initialize(metricsFactory api.Factory, logger *zap.Logger) error {
 	f.metricsFactory, f.logger = metricsFactory, logger
 	f.store = NewStore()
 	logger.Info("Blackhole storage initialized")

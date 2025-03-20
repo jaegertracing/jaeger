@@ -17,6 +17,7 @@ import (
 	queryApp "github.com/jaegertracing/jaeger/cmd/query/app"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	v2querysvc "github.com/jaegertracing/jaeger/cmd/query/app/querysvc/v2/querysvc"
+	"github.com/jaegertracing/jaeger/internal/metrics/api"
 	"github.com/jaegertracing/jaeger/internal/storage/metricstore/disabled"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
@@ -24,7 +25,6 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
 	"github.com/jaegertracing/jaeger/pkg/jtracer"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/telemetry"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 )
@@ -75,8 +75,8 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 	telset := telemetry.FromOtelComponent(s.telset, host)
 	telset.TracerProvider = tracerProvider.OTEL
 	telset.Metrics = telset.Metrics.
-		Namespace(metrics.NSOptions{Name: "jaeger"}).
-		Namespace(metrics.NSOptions{Name: "query"})
+		Namespace(api.NSOptions{Name: "jaeger"}).
+		Namespace(api.NSOptions{Name: "query"})
 	tf, err := jaegerstorage.GetTraceStoreFactory(s.config.Storage.TracesPrimary, host)
 	if err != nil {
 		return fmt.Errorf("cannot find factory for trace storage %s: %w", s.config.Storage.TracesPrimary, err)

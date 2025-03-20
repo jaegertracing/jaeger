@@ -10,11 +10,11 @@ import (
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/internal/metrics/api"
 	"github.com/jaegertracing/jaeger/internal/storage/metricstore/disabled"
 	"github.com/jaegertracing/jaeger/internal/storage/metricstore/prometheus"
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/telemetry"
 )
 
@@ -67,7 +67,7 @@ func (*Factory) getFactoryOfType(factoryType string) (storage.MetricStoreFactory
 func (f *Factory) Initialize(telset telemetry.Settings) error {
 	for kind, factory := range f.factories {
 		scopedTelset := telset
-		scopedTelset.Metrics = telset.Metrics.Namespace(metrics.NSOptions{
+		scopedTelset.Metrics = telset.Metrics.Namespace(api.NSOptions{
 			Name: "storage",
 			Tags: map[string]string{
 				"kind": kind,

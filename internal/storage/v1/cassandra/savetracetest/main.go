@@ -11,19 +11,19 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
+	"github.com/jaegertracing/jaeger/internal/metrics/api"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra"
 	cSpanStore "github.com/jaegertracing/jaeger/internal/storage/v1/cassandra/spanstore"
 	cascfg "github.com/jaegertracing/jaeger/pkg/cassandra/config"
 	"github.com/jaegertracing/jaeger/pkg/jtracer"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
 var logger, _ = zap.NewDevelopment()
 
 // TODO: this is going morph into a load testing framework for cassandra 3.7
 func main() {
-	noScope := metrics.NullFactory
+	noScope := api.NullFactory
 	cConfig := &cascfg.Configuration{
 		Schema: cascfg.Schema{
 			Keyspace: "jaeger_v1_test",

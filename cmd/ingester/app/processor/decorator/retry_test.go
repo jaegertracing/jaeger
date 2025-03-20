@@ -12,9 +12,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger/cmd/ingester/app/processor/mocks"
+	"github.com/jaegertracing/jaeger/internal/metrics/api"
 	"github.com/jaegertracing/jaeger/internal/metricstest"
 	"github.com/jaegertracing/jaeger/internal/testutils"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
 type fakeMsg struct{}
@@ -125,7 +125,7 @@ func Test_ProcessBackoff(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(_ *testing.T) {
 			rd := &retryDecorator{
-				retryAttempts: metrics.NullCounter,
+				retryAttempts: api.NullCounter,
 				options: retryOptions{
 					minInterval: minBackoff,
 					maxInterval: maxBackoff,

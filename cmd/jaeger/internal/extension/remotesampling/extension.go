@@ -22,6 +22,7 @@ import (
 	"github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
 	"github.com/jaegertracing/jaeger/internal/leaderelection"
+	"github.com/jaegertracing/jaeger/internal/metrics/api"
 	"github.com/jaegertracing/jaeger/internal/metrics/otelmetrics"
 	samplinggrpc "github.com/jaegertracing/jaeger/internal/sampling/grpc"
 	samplinghttp "github.com/jaegertracing/jaeger/internal/sampling/http"
@@ -29,7 +30,6 @@ import (
 	"github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy/adaptive"
 	"github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy/file"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
 var _ extension.Extension = (*rsExtension)(nil)
@@ -223,7 +223,7 @@ func (ext *rsExtension) startAdaptiveStrategyProvider(host component.Host) error
 
 func (ext *rsExtension) startHTTPServer(ctx context.Context, host component.Host) error {
 	mf := otelmetrics.NewFactory(ext.telemetry.MeterProvider)
-	mf = mf.Namespace(metrics.NSOptions{Name: "jaeger_remote_sampling"})
+	mf = mf.Namespace(api.NSOptions{Name: "jaeger_remote_sampling"})
 	handler := samplinghttp.NewHandler(samplinghttp.HandlerParams{
 		ConfigManager: &samplinghttp.ConfigManager{
 			SamplingProvider: ext.strategyProvider,

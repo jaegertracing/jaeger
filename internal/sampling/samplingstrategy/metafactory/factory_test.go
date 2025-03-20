@@ -14,11 +14,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/internal/metrics/api"
 	"github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy"
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore"
 	"github.com/jaegertracing/jaeger/pkg/distributedlock"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
 var (
@@ -64,14 +64,14 @@ func TestNewFactory(t *testing.T) {
 		mock := new(mockFactory)
 		f.factories[Kind(tc.strategyStoreType)] = mock
 
-		require.NoError(t, f.Initialize(metrics.NullFactory, mockSSFactory, zap.NewNop()))
+		require.NoError(t, f.Initialize(api.NullFactory, mockSSFactory, zap.NewNop()))
 		_, _, err = f.CreateStrategyProvider()
 		require.NoError(t, err)
 		require.NoError(t, f.Close())
 
 		// force the mock to return errors
 		mock.retError = true
-		require.EqualError(t, f.Initialize(metrics.NullFactory, mockSSFactory, zap.NewNop()), "error initializing store")
+		require.EqualError(t, f.Initialize(api.NullFactory, mockSSFactory, zap.NewNop()), "error initializing store")
 		_, _, err = f.CreateStrategyProvider()
 		require.EqualError(t, err, "error creating store")
 		require.EqualError(t, f.Close(), "error closing store")
@@ -127,7 +127,7 @@ func (f *mockFactory) CreateStrategyProvider() (samplingstrategy.Provider, sampl
 	return nil, nil, nil
 }
 
-func (f *mockFactory) Initialize(metrics.Factory, storage.SamplingStoreFactory, *zap.Logger) error {
+func (f *mockFactory) Initialize(api.Factory, storage.SamplingStoreFactory, *zap.Logger) error {
 	if f.retError {
 		return errors.New("error initializing store")
 	}

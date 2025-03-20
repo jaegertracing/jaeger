@@ -6,7 +6,7 @@ package version
 import (
 	"fmt"
 
-	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/internal/metrics/api"
 )
 
 var (
@@ -29,7 +29,7 @@ type Info struct {
 
 // InfoMetrics hold a gauge whose tags include build information.
 type InfoMetrics struct {
-	BuildInfo metrics.Gauge `metric:"build_info"`
+	BuildInfo api.Gauge `metric:"build_info"`
 }
 
 // Get creates and initialized Info object
@@ -42,7 +42,7 @@ func Get() Info {
 }
 
 // NewInfoMetrics returns a InfoMetrics
-func NewInfoMetrics(metricsFactory metrics.Factory) *InfoMetrics {
+func NewInfoMetrics(metricsFactory api.Factory) *InfoMetrics {
 	var info InfoMetrics
 
 	buildTags := map[string]string{
@@ -50,7 +50,7 @@ func NewInfoMetrics(metricsFactory metrics.Factory) *InfoMetrics {
 		"version":    latestVersion,
 		"build_date": date,
 	}
-	metrics.Init(&info, metricsFactory, buildTags)
+	api.Init(&info, metricsFactory, buildTags)
 	info.BuildInfo.Update(1)
 
 	return &info

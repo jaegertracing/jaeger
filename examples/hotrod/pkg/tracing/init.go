@@ -25,14 +25,14 @@ import (
 
 	"github.com/jaegertracing/jaeger/examples/hotrod/pkg/log"
 	"github.com/jaegertracing/jaeger/examples/hotrod/pkg/tracing/rpcmetrics"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/internal/metrics/api"
 	"github.com/jaegertracing/jaeger/pkg/otelsemconv"
 )
 
 var once sync.Once
 
 // InitOTEL initializes OpenTelemetry SDK.
-func InitOTEL(serviceName string, exporterType string, metricsFactory metrics.Factory, logger log.Factory) trace.TracerProvider {
+func InitOTEL(serviceName string, exporterType string, metricsFactory api.Factory, logger log.Factory) trace.TracerProvider {
 	once.Do(func() {
 		otel.SetTextMapPropagator(
 			propagation.NewCompositeTextMapPropagator(

@@ -14,8 +14,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/jaegertracing/jaeger/internal/metrics/api"
 	"github.com/jaegertracing/jaeger/internal/testutils"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
 func TestAddFlags(t *testing.T) {
@@ -88,7 +88,7 @@ func TestBuilder(t *testing.T) {
 			continue
 		}
 		require.NotNil(t, mf)
-		mf.Counter(metrics.Options{Name: "counter", Tags: nil}).Inc(1)
+		mf.Counter(api.Options{Name: "counter", Tags: nil}).Inc(1)
 		if testCase.assert != nil {
 			testCase.assert()
 		}

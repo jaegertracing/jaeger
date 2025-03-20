@@ -24,6 +24,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/query/app"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	querysvcv2 "github.com/jaegertracing/jaeger/cmd/query/app/querysvc/v2/querysvc"
+	"github.com/jaegertracing/jaeger/internal/metrics/api"
 	metricsPlugin "github.com/jaegertracing/jaeger/internal/storage/metricstore"
 	storage "github.com/jaegertracing/jaeger/internal/storage/v1/factory"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
@@ -31,7 +32,6 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/bearertoken"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/jtracer"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/telemetry"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/pkg/version"
@@ -63,8 +63,8 @@ func main() {
 				return err
 			}
 			logger := svc.Logger // shortcut
-			baseFactory := svc.MetricsFactory.Namespace(metrics.NSOptions{Name: "jaeger"})
-			metricsFactory := baseFactory.Namespace(metrics.NSOptions{Name: "query"})
+			baseFactory := svc.MetricsFactory.Namespace(api.NSOptions{Name: "jaeger"})
+			metricsFactory := baseFactory.Namespace(api.NSOptions{Name: "query"})
 			version.NewInfoMetrics(metricsFactory)
 
 			defaultOpts := app.DefaultQueryOptions()

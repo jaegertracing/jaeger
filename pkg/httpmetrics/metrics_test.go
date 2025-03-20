@@ -13,10 +13,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/internal/metrics/api"
 	"github.com/jaegertracing/jaeger/internal/metrics/prometheus"
 	"github.com/jaegertracing/jaeger/internal/metricstest"
 	"github.com/jaegertracing/jaeger/internal/testutils"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
 func TestNewMetricsHandler(t *testing.T) {
@@ -69,7 +69,7 @@ func TestIllegalPrometheusLabel(t *testing.T) {
 		w.WriteHeader(http.StatusTeapot) // any subsequent statuses should be ignored
 	})
 
-	mf := prometheus.New().Namespace(metrics.NSOptions{})
+	mf := prometheus.New().Namespace(api.NSOptions{})
 	handler := Wrap(dummyHandlerFunc, mf, zap.NewNop())
 
 	invalidUtf8 := []byte{0xC0, 0xAE, 0xC0, 0xAE}

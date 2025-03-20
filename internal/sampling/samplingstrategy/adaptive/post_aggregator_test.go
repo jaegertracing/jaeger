@@ -15,12 +15,12 @@ import (
 	"go.uber.org/zap"
 
 	epmocks "github.com/jaegertracing/jaeger/internal/leaderelection/mocks"
+	"github.com/jaegertracing/jaeger/internal/metrics/api"
 	"github.com/jaegertracing/jaeger/internal/metricstest"
 	"github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy/adaptive/calculationstrategy"
 	smocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore/model"
 	"github.com/jaegertracing/jaeger/internal/testutils"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
 func testThroughputs() []*model.Throughput {
@@ -305,7 +305,7 @@ func TestCalculateProbabilitiesAndQPS(t *testing.T) {
 		},
 		throughputs: testThroughputBuckets(), probabilities: prevProbabilities, qps: qps,
 		weightVectorCache: NewWeightVectorCache(), probabilityCalculator: testCalculator(),
-		operationsCalculatedGauge: mets.Gauge(metrics.Options{Name: "test"}),
+		operationsCalculatedGauge: mets.Gauge(api.Options{Name: "test"}),
 	}
 	probabilities, qps := p.calculateProbabilitiesAndQPS()
 
@@ -346,7 +346,7 @@ func TestRunCalculationLoop(t *testing.T) {
 		FollowerLeaseRefreshInterval: time.Second,
 		BucketsForCalculation:        10,
 	}
-	agg, err := NewAggregator(cfg, logger, metrics.NullFactory, mockEP, mockStorage)
+	agg, err := NewAggregator(cfg, logger, api.NullFactory, mockEP, mockStorage)
 	require.NoError(t, err)
 	agg.Start()
 	defer agg.Close()
@@ -388,7 +388,7 @@ func TestRunCalculationLoop_GetThroughputError(t *testing.T) {
 		AggregationBuckets:    2,
 		BucketsForCalculation: 10,
 	}
-	agg, err := NewAggregator(cfg, logger, metrics.NullFactory, mockEP, mockStorage)
+	agg, err := NewAggregator(cfg, logger, api.NullFactory, mockEP, mockStorage)
 	require.NoError(t, err)
 	agg.Start()
 	for i := 0; i < 1000; i++ {
@@ -425,17 +425,17 @@ func TestConstructorFailure(t *testing.T) {
 		CalculationInterval:        time.Second * 5,
 		AggregationBuckets:         0,
 	}
-	_, err := newPostAggregator(cfg, "host", nil, nil, metrics.NullFactory, logger)
+	_, err := newPostAggregator(cfg, "host", nil, nil, api.NullFactory, logger)
 	require.EqualError(t, err, "CalculationInterval and AggregationBuckets must be greater than 0")
 
 	cfg.CalculationInterval = 0
-	_, err = newPostAggregator(cfg, "host", nil, nil, metrics.NullFactory, logger)
+	_, err = newPostAggregator(cfg, "host", nil, nil, api.NullFactory, logger)
 	require.EqualError(t, err, "CalculationInterval and AggregationBuckets must be greater than 0")
 
 	cfg.CalculationInterval = time.Millisecond
 	cfg.AggregationBuckets = 1
 	cfg.BucketsForCalculation = -1
-	_, err = newPostAggregator(cfg, "host", nil, nil, metrics.NullFactory, logger)
+	_, err = newPostAggregator(cfg, "host", nil, nil, api.NullFactory, logger)
 	require.EqualError(t, err, "BucketsForCalculation cannot be less than 1")
 }
 
@@ -501,7 +501,7 @@ func TestCalculateProbabilitiesAndQPSMultiple(t *testing.T) {
 		qps: make(model.ServiceOperationQPS), weightVectorCache: NewWeightVectorCache(),
 		probabilityCalculator:     calculationstrategy.NewPercentageIncreaseCappedCalculator(1.0),
 		serviceCache:              []SamplingCache{},
-		operationsCalculatedGauge: metrics.NullFactory.Gauge(metrics.Options{}),
+		operationsCalculatedGauge: api.NullFactory.Gauge(api.Options{}),
 	}
 
 	probabilities, qps := p.calculateProbabilitiesAndQPS()

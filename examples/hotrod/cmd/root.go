@@ -13,13 +13,13 @@ import (
 
 	"github.com/jaegertracing/jaeger/examples/hotrod/services/config"
 	"github.com/jaegertracing/jaeger/internal/jaegerclientenv2otel"
+	"github.com/jaegertracing/jaeger/internal/metrics/api"
 	"github.com/jaegertracing/jaeger/internal/metrics/prometheus"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
 var (
 	logger         *zap.Logger
-	metricsFactory metrics.Factory
+	metricsFactory api.Factory
 )
 
 // RootCmd represents the base command when called without any subcommands
@@ -58,7 +58,7 @@ func onInitialize() {
 
 	jaegerclientenv2otel.MapJaegerToOtelEnvVars(logger)
 
-	metricsFactory = prometheus.New().Namespace(metrics.NSOptions{Name: "hotrod", Tags: nil})
+	metricsFactory = prometheus.New().Namespace(api.NSOptions{Name: "hotrod", Tags: nil})
 
 	if config.MySQLGetDelay != fixDBConnDelay {
 		logger.Info("fix: overriding MySQL query delay", zap.Duration("old", config.MySQLGetDelay), zap.Duration("new", fixDBConnDelay))

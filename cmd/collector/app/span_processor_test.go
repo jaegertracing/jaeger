@@ -42,11 +42,11 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/collector/app/handler"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
 	zipkinsanitizer "github.com/jaegertracing/jaeger/cmd/collector/app/sanitizer/zipkin"
+	"github.com/jaegertracing/jaeger/internal/metrics/api"
 	"github.com/jaegertracing/jaeger/internal/metricstest"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
 	"github.com/jaegertracing/jaeger/internal/testutils"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 )
 
@@ -94,8 +94,8 @@ func TestBySvcMetrics(t *testing.T) {
 		mb := metricstest.NewFactory(time.Hour)
 		defer mb.Backend.Stop()
 		logger := zap.NewNop()
-		serviceMetrics := mb.Namespace(metrics.NSOptions{Name: "service", Tags: nil})
-		hostMetrics := mb.Namespace(metrics.NSOptions{Name: "host", Tags: nil})
+		serviceMetrics := mb.Namespace(api.NSOptions{Name: "service", Tags: nil})
+		hostMetrics := mb.Namespace(api.NSOptions{Name: "host", Tags: nil})
 		sp, err := newSpanProcessor(
 			v1adapter.NewTraceWriter(&fakeSpanWriter{}),
 			nil,
@@ -285,7 +285,7 @@ func TestSpanProcessorErrors(t *testing.T) {
 	}
 	mb := metricstest.NewFactory(time.Hour)
 	defer mb.Backend.Stop()
-	serviceMetrics := mb.Namespace(metrics.NSOptions{Name: "service", Tags: nil})
+	serviceMetrics := mb.Namespace(api.NSOptions{Name: "service", Tags: nil})
 	pp, err := NewSpanProcessor(
 		v1adapter.NewTraceWriter(w),
 		nil,
@@ -386,7 +386,7 @@ func TestSpanProcessorBusy(t *testing.T) {
 func TestSpanProcessorWithNilProcess(t *testing.T) {
 	mb := metricstest.NewFactory(time.Hour)
 	defer mb.Backend.Stop()
-	serviceMetrics := mb.Namespace(metrics.NSOptions{Name: "service", Tags: nil})
+	serviceMetrics := mb.Namespace(api.NSOptions{Name: "service", Tags: nil})
 
 	w := &fakeSpanWriter{}
 	pp, err := NewSpanProcessor(v1adapter.NewTraceWriter(w), nil, Options.ServiceMetrics(serviceMetrics))
@@ -520,7 +520,7 @@ func TestSpanProcessorCountSpan(t *testing.T) {
 		t.Run(tt.name, func(_ *testing.T) {
 			mb := metricstest.NewFactory(time.Hour)
 			defer mb.Backend.Stop()
-			m := mb.Namespace(metrics.NSOptions{})
+			m := mb.Namespace(api.NSOptions{})
 
 			w := &fakeSpanWriter{}
 			opts := []Option{

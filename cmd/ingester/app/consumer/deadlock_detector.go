@@ -10,7 +10,7 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/internal/metrics/api"
 )
 
 // deadlockDetector monitors the messages consumed and wither signals for the partition to be closed by sending a
@@ -26,7 +26,7 @@ import (
 //
 // This hack protects jaeger-ingester from issues described in  https://github.com/jaegertracing/jaeger/issues/1052
 type deadlockDetector struct {
-	metricsFactory                metrics.Factory
+	metricsFactory                api.Factory
 	logger                        *zap.Logger
 	interval                      time.Duration
 	allPartitionsDeadlockDetector *allPartitionsDeadlockDetector
@@ -50,9 +50,9 @@ type allPartitionsDeadlockDetector struct {
 	disabled    bool
 }
 
-func newDeadlockDetector(metricsFactory metrics.Factory, logger *zap.Logger, interval time.Duration) deadlockDetector {
+func newDeadlockDetector(metricsFactory api.Factory, logger *zap.Logger, interval time.Duration) deadlockDetector {
 	panicFunc := func(partition int32) {
-		metricsFactory.Counter(metrics.Options{Name: "deadlockdetector.panic-issued", Tags: map[string]string{"partition": strconv.Itoa(int(partition))}}).Inc(1)
+		metricsFactory.Counter(api.Options{Name: "deadlockdetector.panic-issued", Tags: map[string]string{"partition": strconv.Itoa(int(partition))}}).Inc(1)
 		time.Sleep(time.Second) // Allow time to flush metric
 
 		logger.Panic("No messages processed in the last check interval, possible deadlock, exiting. "+
@@ -105,7 +105,7 @@ func (s *deadlockDetector) monitorForPartition(w *partitionDeadlockDetector, par
 			if atomic.LoadUint64(w.msgConsumed) == 0 {
 				select {
 				case w.closePartition <- struct{}{}:
-					s.metricsFactory.Counter(metrics.Options{Name: "deadlockdetector.close-signalled", Tags: map[string]string{"partition": strconv.Itoa(int(partition))}}).Inc(1)
+					s.metricsFactory.Counter(api.Options{Name: "deadlockdetector.close-signalled", Tags: map[string]string{"partition": strconv.Itoa(int(partition))}}).Inc(1)
 					s.logger.Warn("Signalling partition close due to inactivity", zap.Int32("partition", partition))
 				default:
 					// If closePartition is blocked, the consumer might have deadlocked - kill the process

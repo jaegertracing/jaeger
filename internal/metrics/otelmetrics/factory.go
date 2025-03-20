@@ -11,7 +11,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 
-	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/internal/metrics/api"
 )
 
 type otelFactory struct {
@@ -22,7 +22,7 @@ type otelFactory struct {
 	tags       map[string]string
 }
 
-func NewFactory(meterProvider metric.MeterProvider) metrics.Factory {
+func NewFactory(meterProvider metric.MeterProvider) api.Factory {
 	return &otelFactory{
 		meter:      meterProvider.Meter("jaeger-v2"),
 		separator:  ".",
@@ -31,12 +31,12 @@ func NewFactory(meterProvider metric.MeterProvider) metrics.Factory {
 	}
 }
 
-func (f *otelFactory) Counter(opts metrics.Options) metrics.Counter {
+func (f *otelFactory) Counter(opts api.Options) api.Counter {
 	name := CounterNamingConvention(f.subScope(opts.Name))
 	counter, err := f.meter.Int64Counter(name)
 	if err != nil {
 		log.Printf("Error creating OTEL counter: %v", err)
-		return metrics.NullCounter
+		return api.NullCounter
 	}
 	return &otelCounter{
 		counter:  counter,
@@ -45,12 +45,12 @@ func (f *otelFactory) Counter(opts metrics.Options) metrics.Counter {
 	}
 }
 
-func (f *otelFactory) Gauge(opts metrics.Options) metrics.Gauge {
+func (f *otelFactory) Gauge(opts api.Options) api.Gauge {
 	name := f.subScope(opts.Name)
 	gauge, err := f.meter.Int64Gauge(name)
 	if err != nil {
 		log.Printf("Error creating OTEL gauge: %v", err)
-		return metrics.NullGauge
+		return api.NullGauge
 	}
 
 	return &otelGauge{
@@ -60,12 +60,12 @@ func (f *otelFactory) Gauge(opts metrics.Options) metrics.Gauge {
 	}
 }
 
-func (f *otelFactory) Histogram(opts metrics.HistogramOptions) metrics.Histogram {
+func (f *otelFactory) Histogram(opts api.HistogramOptions) api.Histogram {
 	name := f.subScope(opts.Name)
 	histogram, err := f.meter.Float64Histogram(name)
 	if err != nil {
 		log.Printf("Error creating OTEL histogram: %v", err)
-		return metrics.NullHistogram
+		return api.NullHistogram
 	}
 
 	return &otelHistogram{
@@ -75,12 +75,12 @@ func (f *otelFactory) Histogram(opts metrics.HistogramOptions) metrics.Histogram
 	}
 }
 
-func (f *otelFactory) Timer(opts metrics.TimerOptions) metrics.Timer {
+func (f *otelFactory) Timer(opts api.TimerOptions) api.Timer {
 	name := f.subScope(opts.Name)
 	timer, err := f.meter.Float64Histogram(name, metric.WithUnit("s"))
 	if err != nil {
 		log.Printf("Error creating OTEL timer: %v", err)
-		return metrics.NullTimer
+		return api.NullTimer
 	}
 	return &otelTimer{
 		histogram: timer,
@@ -89,7 +89,7 @@ func (f *otelFactory) Timer(opts metrics.TimerOptions) metrics.Timer {
 	}
 }
 
-func (f *otelFactory) Namespace(opts metrics.NSOptions) metrics.Factory {
+func (f *otelFactory) Namespace(opts api.NSOptions) api.Factory {
 	return &otelFactory{
 		meter:      f.meter,
 		scope:      f.subScope(opts.Name),

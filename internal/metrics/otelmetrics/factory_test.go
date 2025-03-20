@@ -14,16 +14,16 @@ import (
 	"go.opentelemetry.io/otel/exporters/prometheus"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 
+	"github.com/jaegertracing/jaeger/internal/metrics/api"
 	"github.com/jaegertracing/jaeger/internal/metrics/otelmetrics"
 	"github.com/jaegertracing/jaeger/internal/testutils"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
 func TestMain(m *testing.M) {
 	testutils.VerifyGoLeaks(m)
 }
 
-func newTestFactory(t *testing.T, registry *promReg.Registry) metrics.Factory {
+func newTestFactory(t *testing.T, registry *promReg.Registry) api.Factory {
 	exporter, err := prometheus.New(prometheus.WithRegisterer(registry), prometheus.WithoutScopeInfo())
 	require.NoError(t, err)
 	meterProvider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(exporter))
@@ -54,40 +54,40 @@ func promLabelsToMap(labels []*promModel.LabelPair) map[string]string {
 
 func TestInvalidCounter(t *testing.T) {
 	factory := newTestFactory(t, promReg.NewPedanticRegistry())
-	counter := factory.Counter(metrics.Options{
+	counter := factory.Counter(api.Options{
 		Name: "invalid*counter%",
 	})
-	assert.Equal(t, counter, metrics.NullCounter, "Expected NullCounter, got %v", counter)
+	assert.Equal(t, counter, api.NullCounter, "Expected NullCounter, got %v", counter)
 }
 
 func TestInvalidGauge(t *testing.T) {
 	factory := newTestFactory(t, promReg.NewPedanticRegistry())
-	gauge := factory.Gauge(metrics.Options{
+	gauge := factory.Gauge(api.Options{
 		Name: "#invalid>gauge%",
 	})
-	assert.Equal(t, gauge, metrics.NullGauge, "Expected NullCounter, got %v", gauge)
+	assert.Equal(t, gauge, api.NullGauge, "Expected NullCounter, got %v", gauge)
 }
 
 func TestInvalidHistogram(t *testing.T) {
 	factory := newTestFactory(t, promReg.NewPedanticRegistry())
-	histogram := factory.Histogram(metrics.HistogramOptions{
+	histogram := factory.Histogram(api.HistogramOptions{
 		Name: "invalid>histogram?%",
 	})
-	assert.Equal(t, histogram, metrics.NullHistogram, "Expected NullCounter, got %v", histogram)
+	assert.Equal(t, histogram, api.NullHistogram, "Expected NullCounter, got %v", histogram)
 }
 
 func TestInvalidTimer(t *testing.T) {
 	factory := newTestFactory(t, promReg.NewPedanticRegistry())
-	timer := factory.Timer(metrics.TimerOptions{
+	timer := factory.Timer(api.TimerOptions{
 		Name: "invalid*<=timer%",
 	})
-	assert.Equal(t, timer, metrics.NullTimer, "Expected NullCounter, got %v", timer)
+	assert.Equal(t, timer, api.NullTimer, "Expected NullCounter, got %v", timer)
 }
 
 func TestCounter(t *testing.T) {
 	registry := promReg.NewPedanticRegistry()
 	factory := newTestFactory(t, registry)
-	counter := factory.Counter(metrics.Options{
+	counter := factory.Counter(api.Options{
 		Name: "test_counter",
 		Tags: map[string]string{"tag1": "value1"},
 	})
@@ -118,7 +118,7 @@ func TestCounterNamingConvention(t *testing.T) {
 func TestGauge(t *testing.T) {
 	registry := promReg.NewPedanticRegistry()
 	factory := newTestFactory(t, registry)
-	gauge := factory.Gauge(metrics.Options{
+	gauge := factory.Gauge(api.Options{
 		Name: "test_gauge",
 		Tags: map[string]string{"tag1": "value1"},
 	})
@@ -138,7 +138,7 @@ func TestGauge(t *testing.T) {
 func TestHistogram(t *testing.T) {
 	registry := promReg.NewPedanticRegistry()
 	factory := newTestFactory(t, registry)
-	histogram := factory.Histogram(metrics.HistogramOptions{
+	histogram := factory.Histogram(api.HistogramOptions{
 		Name: "test_histogram",
 		Tags: map[string]string{"tag1": "value1"},
 	})
@@ -158,7 +158,7 @@ func TestHistogram(t *testing.T) {
 func TestTimer(t *testing.T) {
 	registry := promReg.NewPedanticRegistry()
 	factory := newTestFactory(t, registry)
-	timer := factory.Timer(metrics.TimerOptions{
+	timer := factory.Timer(api.TimerOptions{
 		Name: "test_timer",
 		Tags: map[string]string{"tag1": "value1"},
 	})
@@ -178,18 +178,18 @@ func TestTimer(t *testing.T) {
 func TestNamespace(t *testing.T) {
 	testCases := []struct {
 		name           string
-		nsOptions1     metrics.NSOptions
-		nsOptions2     metrics.NSOptions
+		nsOptions1     api.NSOptions
+		nsOptions2     api.NSOptions
 		expectedName   string
 		expectedLabels map[string]string
 	}{
 		{
 			name: "Nested Namespace",
-			nsOptions1: metrics.NSOptions{
+			nsOptions1: api.NSOptions{
 				Name: "first_namespace",
 				Tags: map[string]string{"ns_tag1": "ns_value1"},
 			},
-			nsOptions2: metrics.NSOptions{
+			nsOptions2: api.NSOptions{
 				Name: "second_namespace",
 				Tags: map[string]string{"ns_tag3": "ns_value3"},
 			},
@@ -202,11 +202,11 @@ func TestNamespace(t *testing.T) {
 		},
 		{
 			name: "Single Namespace",
-			nsOptions1: metrics.NSOptions{
+			nsOptions1: api.NSOptions{
 				Name: "single_namespace",
 				Tags: map[string]string{"ns_tag2": "ns_value2"},
 			},
-			nsOptions2:   metrics.NSOptions{},
+			nsOptions2:   api.NSOptions{},
 			expectedName: "single_namespace_test_counter_total",
 			expectedLabels: map[string]string{
 				"ns_tag2": "ns_value2",
@@ -215,8 +215,8 @@ func TestNamespace(t *testing.T) {
 		},
 		{
 			name:         "Empty Namespace Name",
-			nsOptions1:   metrics.NSOptions{},
-			nsOptions2:   metrics.NSOptions{},
+			nsOptions1:   api.NSOptions{},
+			nsOptions2:   api.NSOptions{},
 			expectedName: "test_counter_total",
 			expectedLabels: map[string]string{
 				"tag1": "value1",
@@ -231,7 +231,7 @@ func TestNamespace(t *testing.T) {
 			nsFactory1 := factory.Namespace(tc.nsOptions1)
 			nsFactory2 := nsFactory1.Namespace(tc.nsOptions2)
 
-			counter := nsFactory2.Counter(metrics.Options{
+			counter := nsFactory2.Counter(api.Options{
 				Name: "test_counter",
 				Tags: map[string]string{"tag1": "value1"},
 			})
@@ -250,11 +250,11 @@ func TestNamespace(t *testing.T) {
 func TestNormalization(t *testing.T) {
 	registry := promReg.NewPedanticRegistry()
 	factory := newTestFactory(t, registry)
-	normalizedFactory := factory.Namespace(metrics.NSOptions{
+	normalizedFactory := factory.Namespace(api.NSOptions{
 		Name: "My Namespace",
 	})
 
-	gauge := normalizedFactory.Gauge(metrics.Options{
+	gauge := normalizedFactory.Gauge(api.Options{
 		Name: "My Gauge",
 	})
 	require.NotNil(t, gauge)

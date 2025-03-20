@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"sync"
 
-	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/internal/metrics/api"
 )
 
 const (
@@ -20,28 +20,28 @@ const (
 // throughput, success, errors, and performance.
 type Metrics struct {
 	// RequestCountSuccess is a counter of the total number of successes.
-	RequestCountSuccess metrics.Counter `metric:"requests" tags:"error=false"`
+	RequestCountSuccess api.Counter `metric:"requests" tags:"error=false"`
 
 	// RequestCountFailures is a counter of the number of times any failure has been observed.
-	RequestCountFailures metrics.Counter `metric:"requests" tags:"error=true"`
+	RequestCountFailures api.Counter `metric:"requests" tags:"error=true"`
 
 	// RequestLatencySuccess is a latency histogram of successful requests.
-	RequestLatencySuccess metrics.Timer `metric:"request_latency" tags:"error=false"`
+	RequestLatencySuccess api.Timer `metric:"request_latency" tags:"error=false"`
 
 	// RequestLatencyFailures is a latency histogram of failed requests.
-	RequestLatencyFailures metrics.Timer `metric:"request_latency" tags:"error=true"`
+	RequestLatencyFailures api.Timer `metric:"request_latency" tags:"error=true"`
 
 	// HTTPStatusCode2xx is a counter of the total number of requests with HTTP status code 200-299
-	HTTPStatusCode2xx metrics.Counter `metric:"http_requests" tags:"status_code=2xx"`
+	HTTPStatusCode2xx api.Counter `metric:"http_requests" tags:"status_code=2xx"`
 
 	// HTTPStatusCode3xx is a counter of the total number of requests with HTTP status code 300-399
-	HTTPStatusCode3xx metrics.Counter `metric:"http_requests" tags:"status_code=3xx"`
+	HTTPStatusCode3xx api.Counter `metric:"http_requests" tags:"status_code=3xx"`
 
 	// HTTPStatusCode4xx is a counter of the total number of requests with HTTP status code 400-499
-	HTTPStatusCode4xx metrics.Counter `metric:"http_requests" tags:"status_code=4xx"`
+	HTTPStatusCode4xx api.Counter `metric:"http_requests" tags:"status_code=4xx"`
 
 	// HTTPStatusCode5xx is a counter of the total number of requests with HTTP status code 500-599
-	HTTPStatusCode5xx metrics.Counter `metric:"http_requests" tags:"status_code=5xx"`
+	HTTPStatusCode5xx api.Counter `metric:"http_requests" tags:"status_code=5xx"`
 }
 
 func (m *Metrics) recordHTTPStatusCode(statusCode int64) {
@@ -61,14 +61,14 @@ func (m *Metrics) recordHTTPStatusCode(statusCode int64) {
 // Only maxNumberOfEndpoints Metrics are stored, all other endpoint names are mapped
 // to a generic endpoint name "other".
 type MetricsByEndpoint struct {
-	metricsFactory    metrics.Factory
+	metricsFactory    api.Factory
 	endpoints         *normalizedEndpoints
 	metricsByEndpoint map[string]*Metrics
 	mux               sync.RWMutex
 }
 
 func newMetricsByEndpoint(
-	metricsFactory metrics.Factory,
+	metricsFactory api.Factory,
 	normalizer NameNormalizer,
 	maxNumberOfEndpoints int,
 ) *MetricsByEndpoint {
@@ -109,7 +109,7 @@ func (m *MetricsByEndpoint) getWithWriteLock(safeName string) *Metrics {
 	// expensive, however some metrics backends (e.g. expvar) may not like duplicate metrics.
 	met := &Metrics{}
 	tags := map[string]string{endpointNameMetricTag: safeName}
-	metrics.Init(met, m.metricsFactory, tags)
+	api.Init(met, m.metricsFactory, tags)
 
 	m.metricsByEndpoint[safeName] = met
 	return met

@@ -11,17 +11,17 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/jaegertracing/jaeger/internal/metrics/api"
 	"github.com/jaegertracing/jaeger/internal/metricstest"
 	"github.com/jaegertracing/jaeger/internal/testutils"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
 func TestInitMetrics(t *testing.T) {
 	testMetrics := struct {
-		Gauge     metrics.Gauge     `metric:"gauge" tags:"1=one,2=two"`
-		Counter   metrics.Counter   `metric:"counter"`
-		Timer     metrics.Timer     `metric:"timer"`
-		Histogram metrics.Histogram `metric:"histogram" buckets:"20,40,60,80"`
+		Gauge     api.Gauge     `metric:"gauge" tags:"1=one,2=two"`
+		Counter   api.Counter   `metric:"counter"`
+		Timer     api.Timer     `metric:"timer"`
+		Histogram api.Histogram `metric:"histogram" buckets:"20,40,60,80"`
 	}{}
 
 	f := metricstest.NewFactory(0)
@@ -29,7 +29,7 @@ func TestInitMetrics(t *testing.T) {
 
 	globalTags := map[string]string{"key": "value"}
 
-	err := metrics.Init(&testMetrics, f, globalTags)
+	err := api.Init(&testMetrics, f, globalTags)
 	require.NoError(t, err)
 
 	testMetrics.Gauge.Update(10)
@@ -53,18 +53,18 @@ func TestInitMetrics(t *testing.T) {
 	assert.EqualValues(t, 36863, g["timer|key=value.P50"])
 	assert.EqualValues(t, 43, g["histogram|key=value.P50"])
 
-	stopwatch := metrics.StartStopwatch(testMetrics.Timer)
+	stopwatch := api.StartStopwatch(testMetrics.Timer)
 	stopwatch.Stop()
 	assert.Positive(t, stopwatch.ElapsedTime())
 }
 
 var (
 	noMetricTag = struct {
-		NoMetricTag metrics.Counter
+		NoMetricTag api.Counter
 	}{}
 
 	badTags = struct {
-		BadTags metrics.Counter `metric:"counter" tags:"1=one,noValue"`
+		BadTags api.Counter `metric:"counter" tags:"1=one,noValue"`
 	}{}
 
 	invalidMetricType = struct {
@@ -72,34 +72,34 @@ var (
 	}{}
 
 	badHistogramBucket = struct {
-		BadHistogramBucket metrics.Histogram `metric:"histogram" buckets:"1,2,a,4"`
+		BadHistogramBucket api.Histogram `metric:"histogram" buckets:"1,2,a,4"`
 	}{}
 
 	badTimerBucket = struct {
-		BadTimerBucket metrics.Timer `metric:"timer" buckets:"1"`
+		BadTimerBucket api.Timer `metric:"timer" buckets:"1"`
 	}{}
 
 	invalidBuckets = struct {
-		InvalidBuckets metrics.Counter `metric:"counter" buckets:"1"`
+		InvalidBuckets api.Counter `metric:"counter" buckets:"1"`
 	}{}
 )
 
 func TestInitMetricsFailures(t *testing.T) {
-	require.EqualError(t, metrics.Init(&noMetricTag, nil, nil), "Field NoMetricTag is missing a tag 'metric'")
+	require.EqualError(t, api.Init(&noMetricTag, nil, nil), "Field NoMetricTag is missing a tag 'metric'")
 
-	require.EqualError(t, metrics.Init(&badTags, nil, nil),
+	require.EqualError(t, api.Init(&badTags, nil, nil),
 		"Field [BadTags]: Tag [noValue] is not of the form key=value in 'tags' string [1=one,noValue]")
 
-	require.EqualError(t, metrics.Init(&invalidMetricType, nil, nil),
+	require.EqualError(t, api.Init(&invalidMetricType, nil, nil),
 		"Field InvalidMetricType is not a pointer to timer, gauge, or counter")
 
-	require.EqualError(t, metrics.Init(&badHistogramBucket, nil, nil),
+	require.EqualError(t, api.Init(&badHistogramBucket, nil, nil),
 		"Field [BadHistogramBucket]: Bucket [a] could not be converted to float64 in 'buckets' string [1,2,a,4]")
 
-	require.EqualError(t, metrics.Init(&badTimerBucket, nil, nil),
+	require.EqualError(t, api.Init(&badTimerBucket, nil, nil),
 		"Field [BadTimerBucket]: Buckets are not currently initialized for timer metrics")
 
-	require.EqualError(t, metrics.Init(&invalidBuckets, nil, nil),
+	require.EqualError(t, api.Init(&invalidBuckets, nil, nil),
 		"Field [InvalidBuckets]: Buckets should only be defined for Timer and Histogram metric types")
 }
 
@@ -110,26 +110,25 @@ func TestInitPanic(t *testing.T) {
 		}
 	}()
 
-	metrics.MustInit(&noMetricTag, metrics.NullFactory, nil)
+	api.MustInit(&noMetricTag, api.NullFactory, nil)
 }
 
-func TestNullMetrics(*testing.T) {
-	// This test is just for cover
-	metrics.NullFactory.Timer(metrics.TimerOptions{
+func TestNullMetrics(_ *testing.T) {
+	api.NullFactory.Timer(api.TimerOptions{
 		Name: "name",
 	}).Record(0)
-	metrics.NullFactory.Counter(metrics.Options{
+	api.NullFactory.Counter(api.Options{
 		Name: "name",
 	}).Inc(0)
-	metrics.NullFactory.Gauge(metrics.Options{
+	api.NullFactory.Gauge(api.Options{
 		Name: "name",
 	}).Update(0)
-	metrics.NullFactory.Histogram(metrics.HistogramOptions{
+	api.NullFactory.Histogram(api.HistogramOptions{
 		Name: "name",
 	}).Record(0)
-	metrics.NullFactory.Namespace(metrics.NSOptions{
+	api.NullFactory.Namespace(api.NSOptions{
 		Name: "name",
-	}).Gauge(metrics.Options{
+	}).Gauge(api.Options{
 		Name: "name2",
 	}).Update(0)
 }

@@ -21,13 +21,13 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 
+	"github.com/jaegertracing/jaeger/internal/metrics/api"
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/spanstoremetrics"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/grpc/shared"
 	"github.com/jaegertracing/jaeger/pkg/bearertoken"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/telemetry"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 )
@@ -90,7 +90,7 @@ func (f *Factory) InitFromViper(v *viper.Viper, logger *zap.Logger) {
 }
 
 // Initialize implements storage.Factory
-func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
+func (f *Factory) Initialize(metricsFactory api.Factory, logger *zap.Logger) error {
 	f.telset.Metrics = metricsFactory
 	f.telset.Logger = logger
 	f.telset.TracerProvider = otel.GetTracerProvider()

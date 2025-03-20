@@ -13,11 +13,11 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/handler"
+	"github.com/jaegertracing/jaeger/internal/metrics/api"
 	samplinghttp "github.com/jaegertracing/jaeger/internal/sampling/http"
 	"github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy"
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	"github.com/jaegertracing/jaeger/pkg/httpmetrics"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/recoveryhandler"
 	"github.com/jaegertracing/jaeger/pkg/telemetry"
 )
@@ -27,7 +27,7 @@ type HTTPServerParams struct {
 	confighttp.ServerConfig
 	Handler          handler.JaegerBatchesHandler
 	SamplingProvider samplingstrategy.Provider
-	MetricsFactory   metrics.Factory
+	MetricsFactory   api.Factory
 	HealthCheck      *healthcheck.HealthCheck
 	Logger           *zap.Logger
 }

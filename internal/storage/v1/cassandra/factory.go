@@ -15,6 +15,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/internal/metrics/api"
 	cLock "github.com/jaegertracing/jaeger/internal/storage/distributedlock/cassandra"
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore"
@@ -31,7 +32,6 @@ import (
 	gocqlw "github.com/jaegertracing/jaeger/pkg/cassandra/gocql"
 	"github.com/jaegertracing/jaeger/pkg/distributedlock"
 	"github.com/jaegertracing/jaeger/pkg/hostname"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
 const (
@@ -53,7 +53,7 @@ var ( // interface comformance checks
 type Factory struct {
 	Options *Options
 
-	metricsFactory metrics.Factory
+	metricsFactory api.Factory
 	logger         *zap.Logger
 	tracer         trace.TracerProvider
 
@@ -85,7 +85,7 @@ func NewArchiveFactory() *Factory {
 // NewFactoryWithConfig initializes factory with Config.
 func NewFactoryWithConfig(
 	opts Options,
-	metricsFactory metrics.Factory,
+	metricsFactory api.Factory,
 	logger *zap.Logger,
 ) (*Factory, error) {
 	f := NewFactory()
@@ -103,9 +103,9 @@ func NewFactoryWithConfig(
 type withConfigBuilder struct {
 	f              *Factory
 	opts           *Options
-	metricsFactory metrics.Factory
+	metricsFactory api.Factory
 	logger         *zap.Logger
-	initializer    func(metricsFactory metrics.Factory, logger *zap.Logger) error
+	initializer    func(metricsFactory api.Factory, logger *zap.Logger) error
 }
 
 func (b *withConfigBuilder) build() (*Factory, error) {
@@ -138,7 +138,7 @@ func (f *Factory) configureFromOptions(o *Options) {
 }
 
 // Initialize implements storage.Factory
-func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
+func (f *Factory) Initialize(metricsFactory api.Factory, logger *zap.Logger) error {
 	f.metricsFactory = metricsFactory
 	f.logger = logger
 
@@ -231,7 +231,7 @@ func (f *Factory) CreateLock() (distributedlock.Lock, error) {
 // CreateSamplingStore implements storage.SamplingStoreFactory
 func (f *Factory) CreateSamplingStore(int /* maxBuckets */) (samplingstore.Store, error) {
 	samplingMetricsFactory := f.metricsFactory.Namespace(
-		metrics.NSOptions{
+		api.NSOptions{
 			Tags: map[string]string{
 				"role": "sampling",
 			},

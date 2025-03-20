@@ -15,9 +15,9 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
+	"github.com/jaegertracing/jaeger/internal/metrics/api"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	kafkaConfig "github.com/jaegertracing/jaeger/pkg/kafka/producer"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
 type mockProducerBuilder struct {
@@ -43,10 +43,10 @@ func TestKafkaFactory(t *testing.T) {
 		err: errors.New("made-up error"),
 		t:   t,
 	}
-	require.EqualError(t, f.Initialize(metrics.NullFactory, zap.NewNop()), "made-up error")
+	require.EqualError(t, f.Initialize(api.NullFactory, zap.NewNop()), "made-up error")
 
 	f.Builder = &mockProducerBuilder{t: t}
-	require.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
+	require.NoError(t, f.Initialize(api.NullFactory, zap.NewNop()))
 	assert.IsType(t, &protobufMarshaller{}, f.marshaller)
 
 	_, err := f.CreateSpanWriter()
@@ -78,7 +78,7 @@ func TestKafkaFactoryEncoding(t *testing.T) {
 			f.InitFromViper(v, zap.NewNop())
 
 			f.Builder = &mockProducerBuilder{t: t}
-			require.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
+			require.NoError(t, f.Initialize(api.NullFactory, zap.NewNop()))
 			assert.IsType(t, test.marshaller, f.marshaller)
 			require.NoError(t, f.Close())
 		})
@@ -92,7 +92,7 @@ func TestKafkaFactoryMarshallerErr(t *testing.T) {
 	f.InitFromViper(v, zap.NewNop())
 
 	f.Builder = &mockProducerBuilder{t: t}
-	require.Error(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
+	require.Error(t, f.Initialize(api.NullFactory, zap.NewNop()))
 }
 
 func TestKafkaFactoryDoesNotLogPassword(t *testing.T) {
@@ -137,7 +137,7 @@ func TestKafkaFactoryDoesNotLogPassword(t *testing.T) {
 				zapcore.AddSync(logbuf),
 				zap.NewAtomicLevel(),
 			))
-			err = f.Initialize(metrics.NullFactory, logger)
+			err = f.Initialize(api.NullFactory, logger)
 			require.NoError(t, err)
 			logger.Sync()
 

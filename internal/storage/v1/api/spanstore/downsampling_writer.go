@@ -12,7 +12,7 @@ import (
 	"sync"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/internal/metrics/api"
 )
 
 const defaultHashSalt = "downsampling-default-salt"
@@ -27,8 +27,8 @@ type hasher struct {
 
 // downsamplingWriterMetrics keeping track of total number of dropped spans and accepted spans.
 type downsamplingWriterMetrics struct {
-	SpansDropped  metrics.Counter `metric:"spans_dropped"`
-	SpansAccepted metrics.Counter `metric:"spans_accepted"`
+	SpansDropped  api.Counter `metric:"spans_dropped"`
+	SpansAccepted api.Counter `metric:"spans_accepted"`
 }
 
 // DownsamplingWriter is a span Writer that drops spans with a predefined downsamplingRatio.
@@ -42,15 +42,21 @@ type DownsamplingWriter struct {
 type DownsamplingOptions struct {
 	Ratio          float64
 	HashSalt       string
-	MetricsFactory metrics.Factory
+	MetricsFactory api.Factory
 }
 
 // NewDownsamplingWriter creates a DownsamplingWriter.
 func NewDownsamplingWriter(spanWriter Writer, downsamplingOptions DownsamplingOptions) *DownsamplingWriter {
 	writeMetrics := &downsamplingWriterMetrics{}
-	metrics.Init(writeMetrics, downsamplingOptions.MetricsFactory, nil)
+	api.Init(writeMetrics, downsamplingOptions.MetricsFactory, nil)
+
+	hashSalt := downsamplingOptions.HashSalt
+	if hashSalt == "" {
+		hashSalt = defaultHashSalt
+	}
+
 	return &DownsamplingWriter{
-		sampler:    NewSampler(downsamplingOptions.Ratio, downsamplingOptions.HashSalt),
+		sampler:    NewSampler(downsamplingOptions.Ratio, hashSalt),
 		spanWriter: spanWriter,
 		metrics:    *writeMetrics,
 	}

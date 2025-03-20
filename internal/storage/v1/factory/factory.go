@@ -13,6 +13,7 @@ import (
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/internal/metrics/api"
 	"github.com/jaegertracing/jaeger/internal/safeexpvar"
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore"
@@ -24,7 +25,6 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v1/grpc"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/kafka"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/memory"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
 const (
@@ -64,8 +64,11 @@ func AllSamplingStorageTypes() []string {
 	f := &Factory{}
 	var backends []string
 	for _, st := range AllStorageTypes {
-		f, _ := f.getFactoryOfType(st) // no errors since we're looping through supported types
-		if _, ok := f.(storage.SamplingStoreFactory); ok {
+		factory, err := f.getFactoryOfType(st)
+		if err != nil {
+			continue
+		}
+		if _, ok := factory.(storage.SamplingStoreFactory); ok {
 			backends = append(backends, st)
 		}
 	}
@@ -81,7 +84,7 @@ var ( // interface comformance checks
 // Factory implements storage.Factory interface as a meta-factory for storage components.
 type Factory struct {
 	Config
-	metricsFactory         metrics.Factory
+	metricsFactory         api.Factory
 	factories              map[string]storage.Factory
 	archiveFactories       map[string]storage.Factory
 	downsamplingFlagsAdded bool
@@ -151,11 +154,11 @@ func (*Factory) getArchiveFactoryOfType(factoryType string) (storage.Factory, bo
 	}
 }
 
-func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
+func (f *Factory) Initialize(metricsFactory api.Factory, logger *zap.Logger) error {
 	f.metricsFactory = metricsFactory
 
 	initializeFactory := func(kind string, factory storage.Factory, role string) error {
-		mf := metricsFactory.Namespace(metrics.NSOptions{
+		mf := metricsFactory.Namespace(api.NSOptions{
 			Name: "storage",
 			Tags: map[string]string{
 				"kind": kind,
@@ -221,7 +224,7 @@ func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
 	return spanstore.NewDownsamplingWriter(spanWriter, spanstore.DownsamplingOptions{
 		Ratio:          f.DownsamplingRatio,
 		HashSalt:       f.DownsamplingHashSalt,
-		MetricsFactory: f.metricsFactory.Namespace(metrics.NSOptions{Name: "downsampling_writer"}),
+		MetricsFactory: f.metricsFactory.Namespace(api.NSOptions{Name: "downsampling_writer"}),
 	}), nil
 }
 

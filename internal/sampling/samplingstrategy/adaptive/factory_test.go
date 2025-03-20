@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/internal/metrics/api"
 	"github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy"
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore"
@@ -21,7 +22,6 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/distributedlock"
 	lmocks "github.com/jaegertracing/jaeger/pkg/distributedlock/mocks"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
 var (
@@ -60,7 +60,7 @@ func TestFactory(t *testing.T) {
 	assert.Equal(t, time.Second, f.options.LeaderLeaseRefreshInterval)
 	assert.Equal(t, time.Second*2, f.options.FollowerLeaseRefreshInterval)
 
-	require.NoError(t, f.Initialize(metrics.NullFactory, &mockSamplingStoreFactory{}, zap.NewNop()))
+	require.NoError(t, f.Initialize(api.NullFactory, &mockSamplingStoreFactory{}, zap.NewNop()))
 	provider, aggregator, err := f.CreateStrategyProvider()
 	require.NoError(t, err)
 	require.NoError(t, provider.Close())
@@ -84,7 +84,7 @@ func TestBadConfigFail(t *testing.T) {
 
 		f.InitFromViper(v, zap.NewNop())
 
-		require.NoError(t, f.Initialize(metrics.NullFactory, &mockSamplingStoreFactory{}, zap.NewNop()))
+		require.NoError(t, f.Initialize(api.NullFactory, &mockSamplingStoreFactory{}, zap.NewNop()))
 		_, _, err := f.CreateStrategyProvider()
 		require.Error(t, err)
 		require.NoError(t, f.Close())
@@ -95,13 +95,13 @@ func TestSamplingStoreFactoryFails(t *testing.T) {
 	f := NewFactory()
 
 	// nil fails
-	require.Error(t, f.Initialize(metrics.NullFactory, nil, zap.NewNop()))
+	require.Error(t, f.Initialize(api.NullFactory, nil, zap.NewNop()))
 
 	// fail if lock fails
-	require.Error(t, f.Initialize(metrics.NullFactory, &mockSamplingStoreFactory{lockFailsWith: errors.New("fail")}, zap.NewNop()))
+	require.Error(t, f.Initialize(api.NullFactory, &mockSamplingStoreFactory{lockFailsWith: errors.New("fail")}, zap.NewNop()))
 
 	// fail if store fails
-	require.Error(t, f.Initialize(metrics.NullFactory, &mockSamplingStoreFactory{storeFailsWith: errors.New("fail")}, zap.NewNop()))
+	require.Error(t, f.Initialize(api.NullFactory, &mockSamplingStoreFactory{storeFailsWith: errors.New("fail")}, zap.NewNop()))
 }
 
 type mockSamplingStoreFactory struct {

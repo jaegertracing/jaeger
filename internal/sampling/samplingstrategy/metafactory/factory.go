@@ -11,11 +11,11 @@ import (
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/internal/metrics/api"
 	"github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy"
 	"github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy/adaptive"
 	"github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy/file"
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
 // Kind is a datatype holding the type of strategy store.
@@ -88,7 +88,7 @@ func (f *Factory) InitFromViper(v *viper.Viper, logger *zap.Logger) {
 }
 
 // Initialize implements samplingstrategy.Factory
-func (f *Factory) Initialize(metricsFactory metrics.Factory, ssFactory storage.SamplingStoreFactory, logger *zap.Logger) error {
+func (f *Factory) Initialize(metricsFactory api.Factory, ssFactory storage.SamplingStoreFactory, logger *zap.Logger) error {
 	for _, factory := range f.factories {
 		if err := factory.Initialize(metricsFactory, ssFactory, logger); err != nil {
 			return err

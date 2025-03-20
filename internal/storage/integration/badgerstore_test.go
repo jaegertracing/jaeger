@@ -11,10 +11,10 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 
+	"github.com/jaegertracing/jaeger/internal/metrics/api"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/badger"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
 	"github.com/jaegertracing/jaeger/internal/testutils"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
 type BadgerIntegrationStorage struct {
@@ -27,7 +27,7 @@ func (s *BadgerIntegrationStorage) initialize(t *testing.T) {
 	s.factory.Config.Ephemeral = false
 
 	logger := zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller()))
-	err := s.factory.Initialize(metrics.NullFactory, logger)
+	err := s.factory.Initialize(api.NullFactory, logger)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		s.factory.Close()

@@ -11,11 +11,11 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/internal/cache"
+	"github.com/jaegertracing/jaeger/internal/metrics/api"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra/spanstore/dbmodel"
 	"github.com/jaegertracing/jaeger/pkg/cassandra"
 	casMetrics "github.com/jaegertracing/jaeger/pkg/cassandra/metrics"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
 const (
@@ -90,7 +90,7 @@ type OperationNamesStorage struct {
 func NewOperationNamesStorage(
 	session cassandra.Session,
 	writeCacheTTL time.Duration,
-	metricsFactory metrics.Factory,
+	metricsFactory api.Factory,
 	logger *zap.Logger,
 ) (*OperationNamesStorage, error) {
 	schemaVersion := latestVersion

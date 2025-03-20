@@ -9,9 +9,9 @@ import (
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/internal/metrics/api"
 	"github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy"
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
 var _ storage.Configurable = (*Factory)(nil)
@@ -41,7 +41,7 @@ func (f *Factory) InitFromViper(v *viper.Viper, _ *zap.Logger) {
 }
 
 // Initialize implements samplingstrategy.Factory
-func (f *Factory) Initialize(_ metrics.Factory, _ storage.SamplingStoreFactory, logger *zap.Logger) error {
+func (f *Factory) Initialize(_ api.Factory, _ storage.SamplingStoreFactory, logger *zap.Logger) error {
 	f.logger = logger
 	return nil
 }

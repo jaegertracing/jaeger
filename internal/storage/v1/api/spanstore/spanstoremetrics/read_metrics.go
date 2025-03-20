@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
+	"github.com/jaegertracing/jaeger/internal/metrics/api"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
 // ReadMetricsDecorator wraps a spanstore.Reader and collects metrics around each read operation.
@@ -24,11 +24,11 @@ type ReadMetricsDecorator struct {
 }
 
 type queryMetrics struct {
-	Errors     metrics.Counter `metric:"requests" tags:"result=err"`
-	Successes  metrics.Counter `metric:"requests" tags:"result=ok"`
-	Responses  metrics.Timer   `metric:"responses"` // used as a histogram, not necessary for GetTrace
-	ErrLatency metrics.Timer   `metric:"latency" tags:"result=err"`
-	OKLatency  metrics.Timer   `metric:"latency" tags:"result=ok"`
+	Errors     api.Counter `metric:"requests" tags:"result=err"`
+	Successes  api.Counter `metric:"requests" tags:"result=ok"`
+	Responses  api.Timer   `metric:"responses"` // used as a histogram, not necessary for GetTrace
+	ErrLatency api.Timer   `metric:"latency" tags:"result=err"`
+	OKLatency  api.Timer   `metric:"latency" tags:"result=ok"`
 }
 
 func (q *queryMetrics) emit(err error, latency time.Duration, responses int) {
@@ -43,7 +43,7 @@ func (q *queryMetrics) emit(err error, latency time.Duration, responses int) {
 }
 
 // NewReaderDecorator returns a new ReadMetricsDecorator.
-func NewReaderDecorator(spanReader spanstore.Reader, metricsFactory metrics.Factory) *ReadMetricsDecorator {
+func NewReaderDecorator(spanReader spanstore.Reader, metricsFactory api.Factory) *ReadMetricsDecorator {
 	return &ReadMetricsDecorator{
 		spanReader:           spanReader,
 		findTracesMetrics:    buildQueryMetrics("find_traces", metricsFactory),
@@ -54,10 +54,10 @@ func NewReaderDecorator(spanReader spanstore.Reader, metricsFactory metrics.Fact
 	}
 }
 
-func buildQueryMetrics(operation string, metricsFactory metrics.Factory) *queryMetrics {
+func buildQueryMetrics(operation string, metricsFactory api.Factory) *queryMetrics {
 	qMetrics := &queryMetrics{}
-	scoped := metricsFactory.Namespace(metrics.NSOptions{Name: "", Tags: map[string]string{"operation": operation}})
-	metrics.Init(qMetrics, scoped, nil)
+	scoped := metricsFactory.Namespace(api.NSOptions{Name: "", Tags: map[string]string{"operation": operation}})
+	api.Init(qMetrics, scoped, nil)
 	return qMetrics
 }
 

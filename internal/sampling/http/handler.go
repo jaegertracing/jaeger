@@ -15,9 +15,9 @@ import (
 	"github.com/gorilla/mux"
 
 	"github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
+	"github.com/jaegertracing/jaeger/internal/metrics/api"
 	p2json "github.com/jaegertracing/jaeger/model/converter/json"
 	t2p "github.com/jaegertracing/jaeger/model/converter/thrift/jaeger"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
 const mimeTypeApplicationJSON = "application/json"
@@ -31,7 +31,7 @@ type ClientConfigManager interface {
 // HandlerParams contains parameters that must be passed to NewHTTPHandler.
 type HandlerParams struct {
 	ConfigManager  ClientConfigManager // required
-	MetricsFactory metrics.Factory     // required
+	MetricsFactory api.Factory         // required
 
 	// BasePath will be used as a prefix for the endpoints, e.g. "/api"
 	BasePath string
@@ -47,32 +47,32 @@ type Handler struct {
 	params  HandlerParams
 	metrics struct {
 		// Number of good sampling requests
-		SamplingRequestSuccess metrics.Counter `metric:"http-server.requests" tags:"type=sampling"`
+		SamplingRequestSuccess api.Counter `metric:"http-server.requests" tags:"type=sampling"`
 
 		// Number of good sampling requests against the old endpoint / using Thrift 0.9.2 enum codes
-		LegacySamplingRequestSuccess metrics.Counter `metric:"http-server.requests" tags:"type=sampling-legacy"`
+		LegacySamplingRequestSuccess api.Counter `metric:"http-server.requests" tags:"type=sampling-legacy"`
 
 		// Number of bad requests (400s)
-		BadRequest metrics.Counter `metric:"http-server.errors" tags:"status=4xx,source=all"`
+		BadRequest api.Counter `metric:"http-server.errors" tags:"status=4xx,source=all"`
 
 		// Number of collector proxy failures
-		CollectorProxyFailures metrics.Counter `metric:"http-server.errors" tags:"status=5xx,source=collector-proxy"`
+		CollectorProxyFailures api.Counter `metric:"http-server.errors" tags:"status=5xx,source=collector-proxy"`
 
 		// Number of bad responses due to malformed thrift
-		BadThriftFailures metrics.Counter `metric:"http-server.errors" tags:"status=5xx,source=thrift"`
+		BadThriftFailures api.Counter `metric:"http-server.errors" tags:"status=5xx,source=thrift"`
 
 		// Number of bad responses due to proto conversion
-		BadProtoFailures metrics.Counter `metric:"http-server.errors" tags:"status=5xx,source=proto"`
+		BadProtoFailures api.Counter `metric:"http-server.errors" tags:"status=5xx,source=proto"`
 
 		// Number of failed response writes from http server
-		WriteFailures metrics.Counter `metric:"http-server.errors" tags:"status=5xx,source=write"`
+		WriteFailures api.Counter `metric:"http-server.errors" tags:"status=5xx,source=write"`
 	}
 }
 
 // NewHandler creates new HTTPHandler.
 func NewHandler(params HandlerParams) *Handler {
 	handler := &Handler{params: params}
-	metrics.MustInit(&handler.metrics, params.MetricsFactory, nil)
+	api.MustInit(&handler.metrics, params.MetricsFactory, nil)
 	return handler
 }
 

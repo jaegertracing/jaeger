@@ -12,14 +12,14 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/ingester/app"
 	"github.com/jaegertracing/jaeger/cmd/ingester/app/consumer"
 	"github.com/jaegertracing/jaeger/cmd/ingester/app/processor"
+	"github.com/jaegertracing/jaeger/internal/metrics/api"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/kafka"
 	kafkaConsumer "github.com/jaegertracing/jaeger/pkg/kafka/consumer"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
 // CreateConsumer creates a new span consumer for the ingester
-func CreateConsumer(logger *zap.Logger, metricsFactory metrics.Factory, spanWriter spanstore.Writer, options app.Options) (*consumer.Consumer, error) {
+func CreateConsumer(logger *zap.Logger, metricsFactory api.Factory, spanWriter spanstore.Writer, options app.Options) (*consumer.Consumer, error) {
 	var unmarshaller kafka.Unmarshaller
 	switch options.Encoding {
 	case kafka.EncodingJSON:

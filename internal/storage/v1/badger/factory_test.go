@@ -14,9 +14,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/internal/metrics/api"
 	"github.com/jaegertracing/jaeger/internal/metricstest"
 	"github.com/jaegertracing/jaeger/pkg/config"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
 func TestInitializationErrors(t *testing.T) {
@@ -34,7 +34,7 @@ func TestInitializationErrors(t *testing.T) {
 	})
 	f.InitFromViper(v, zap.NewNop())
 
-	err := f.Initialize(metrics.NullFactory, zap.NewNop())
+	err := f.Initialize(api.NullFactory, zap.NewNop())
 	require.Error(t, err)
 }
 
@@ -44,7 +44,7 @@ func TestForCodecov(t *testing.T) {
 	v, _ := config.Viperize(f.AddFlags)
 	f.InitFromViper(v, zap.NewNop())
 
-	err := f.Initialize(metrics.NullFactory, zap.NewNop())
+	err := f.Initialize(api.NullFactory, zap.NewNop())
 	require.NoError(t, err)
 
 	// Get all the writers, readers, etc
@@ -193,7 +193,7 @@ func TestConfigure(t *testing.T) {
 
 func TestBadgerStorageFactoryWithConfig(t *testing.T) {
 	cfg := Config{}
-	_, err := NewFactoryWithConfig(cfg, metrics.NullFactory, zap.NewNop())
+	_, err := NewFactoryWithConfig(cfg, api.NullFactory, zap.NewNop())
 	require.ErrorContains(t, err, "Error Creating Dir")
 
 	tmp := os.TempDir()
@@ -207,7 +207,7 @@ func TestBadgerStorageFactoryWithConfig(t *testing.T) {
 		MaintenanceInterval:   5,
 		MetricsUpdateInterval: 10,
 	}
-	factory, err := NewFactoryWithConfig(cfg, metrics.NullFactory, zap.NewNop())
+	factory, err := NewFactoryWithConfig(cfg, api.NullFactory, zap.NewNop())
 	require.NoError(t, err)
 	defer factory.Close()
 }

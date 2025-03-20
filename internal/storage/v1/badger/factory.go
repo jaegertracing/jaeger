@@ -17,6 +17,7 @@ import (
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/internal/metrics/api"
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore"
@@ -26,7 +27,6 @@ import (
 	badgerSampling "github.com/jaegertracing/jaeger/internal/storage/v1/badger/samplingstore"
 	badgerStore "github.com/jaegertracing/jaeger/internal/storage/v1/badger/spanstore"
 	"github.com/jaegertracing/jaeger/pkg/distributedlock"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
 const (
@@ -50,7 +50,7 @@ type Factory struct {
 	store          *badger.DB
 	cache          *badgerStore.CacheStore
 	logger         *zap.Logger
-	metricsFactory metrics.Factory
+	metricsFactory api.Factory
 
 	tmpDir          string
 	maintenanceDone chan bool
@@ -58,16 +58,16 @@ type Factory struct {
 	// TODO initialize via reflection; convert comments to tag 'description'.
 	metrics struct {
 		// ValueLogSpaceAvailable returns the amount of space left on the value log mount point in bytes
-		ValueLogSpaceAvailable metrics.Gauge
+		ValueLogSpaceAvailable api.Gauge
 		// KeyLogSpaceAvailable returns the amount of space left on the key log mount point in bytes
-		KeyLogSpaceAvailable metrics.Gauge
+		KeyLogSpaceAvailable api.Gauge
 		// LastMaintenanceRun stores the timestamp (UnixNano) of the previous maintenanceRun
-		LastMaintenanceRun metrics.Gauge
+		LastMaintenanceRun api.Gauge
 		// LastValueLogCleaned stores the timestamp (UnixNano) of the previous ValueLogGC run
-		LastValueLogCleaned metrics.Gauge
+		LastValueLogCleaned api.Gauge
 
 		// Expose badger's internal expvar metrics, which are all gauge's at this point
-		badgerMetrics map[string]metrics.Gauge
+		badgerMetrics map[string]api.Gauge
 	}
 }
 
@@ -81,7 +81,7 @@ func NewFactory() *Factory {
 
 func NewFactoryWithConfig(
 	cfg Config,
-	metricsFactory metrics.Factory,
+	metricsFactory api.Factory,
 	logger *zap.Logger,
 ) (*Factory, error) {
 	f := NewFactory()
@@ -110,7 +110,7 @@ func (f *Factory) configure(config *Config) {
 }
 
 // Initialize implements storage.Factory
-func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
+func (f *Factory) Initialize(metricsFactory api.Factory, logger *zap.Logger) error {
 	f.logger = logger
 	f.metricsFactory = metricsFactory
 
@@ -147,10 +147,10 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 
 	f.cache = badgerStore.NewCacheStore(f.store, f.Config.TTL.Spans)
 
-	f.metrics.ValueLogSpaceAvailable = metricsFactory.Gauge(metrics.Options{Name: valueLogSpaceAvailableName})
-	f.metrics.KeyLogSpaceAvailable = metricsFactory.Gauge(metrics.Options{Name: keyLogSpaceAvailableName})
-	f.metrics.LastMaintenanceRun = metricsFactory.Gauge(metrics.Options{Name: lastMaintenanceRunName})
-	f.metrics.LastValueLogCleaned = metricsFactory.Gauge(metrics.Options{Name: lastValueLogCleanedName})
+	f.metrics.ValueLogSpaceAvailable = metricsFactory.Gauge(api.Options{Name: valueLogSpaceAvailableName})
+	f.metrics.KeyLogSpaceAvailable = metricsFactory.Gauge(api.Options{Name: keyLogSpaceAvailableName})
+	f.metrics.LastMaintenanceRun = metricsFactory.Gauge(api.Options{Name: lastMaintenanceRunName})
+	f.metrics.LastValueLogCleaned = metricsFactory.Gauge(api.Options{Name: lastValueLogCleanedName})
 
 	f.registerBadgerExpvarMetrics(metricsFactory)
 
@@ -273,20 +273,20 @@ func (f *Factory) metricsCopier() {
 	}
 }
 
-func (f *Factory) registerBadgerExpvarMetrics(metricsFactory metrics.Factory) {
-	f.metrics.badgerMetrics = make(map[string]metrics.Gauge)
+func (f *Factory) registerBadgerExpvarMetrics(metricsFactory api.Factory) {
+	f.metrics.badgerMetrics = make(map[string]api.Gauge)
 
 	expvar.Do(func(kv expvar.KeyValue) {
 		if strings.HasPrefix(kv.Key, "badger") {
 			if _, ok := kv.Value.(*expvar.Int); ok {
-				g := metricsFactory.Gauge(metrics.Options{Name: kv.Key})
+				g := metricsFactory.Gauge(api.Options{Name: kv.Key})
 				f.metrics.badgerMetrics[kv.Key] = g
 			} else if mapVal, ok := kv.Value.(*expvar.Map); ok {
 				mapVal.Do(func(innerKv expvar.KeyValue) {
 					// The metrics we're interested in have only a single inner key (dynamic name)
 					// and we're only interested in its value
 					if _, ok = innerKv.Value.(*expvar.Int); ok {
-						g := metricsFactory.Gauge(metrics.Options{Name: kv.Key})
+						g := metricsFactory.Gauge(api.Options{Name: kv.Key})
 						f.metrics.badgerMetrics[kv.Key] = g
 					}
 				})

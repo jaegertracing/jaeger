@@ -7,22 +7,22 @@ package spanstoremetrics
 import (
 	"time"
 
-	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/internal/metrics/api"
 )
 
 // WriteMetrics is a collection of metrics for write operations.
 type WriteMetrics struct {
-	Attempts   metrics.Counter `metric:"attempts"`
-	Inserts    metrics.Counter `metric:"inserts"`
-	Errors     metrics.Counter `metric:"errors"`
-	LatencyOk  metrics.Timer   `metric:"latency-ok"`
-	LatencyErr metrics.Timer   `metric:"latency-err"`
+	Attempts   api.Counter `metric:"attempts"`
+	Inserts    api.Counter `metric:"inserts"`
+	Errors     api.Counter `metric:"errors"`
+	LatencyOk  api.Timer   `metric:"latency-ok"`
+	LatencyErr api.Timer   `metric:"latency-err"`
 }
 
 // NewWriter takes a metrics scope and creates a metrics struct
-func NewWriter(factory metrics.Factory, tableName string) *WriteMetrics {
+func NewWriter(factory api.Factory, tableName string) *WriteMetrics {
 	t := &WriteMetrics{}
-	metrics.Init(t, factory.Namespace(metrics.NSOptions{Name: tableName, Tags: nil}), nil)
+	api.Init(t, factory.Namespace(api.NSOptions{Name: tableName, Tags: nil}), nil)
 	return t
 }
 

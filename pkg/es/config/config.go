@@ -26,11 +26,11 @@ import (
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zapgrpc"
 
+	"github.com/jaegertracing/jaeger/internal/metrics/api"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/spanstoremetrics"
 	"github.com/jaegertracing/jaeger/pkg/bearertoken"
 	"github.com/jaegertracing/jaeger/pkg/es"
 	eswrapper "github.com/jaegertracing/jaeger/pkg/es/wrapper"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
 const (
@@ -211,7 +211,7 @@ type BearerTokenAuthentication struct {
 }
 
 // NewClient creates a new ElasticSearch client
-func NewClient(c *Configuration, logger *zap.Logger, metricsFactory metrics.Factory) (es.Client, error) {
+func NewClient(c *Configuration, logger *zap.Logger, metricsFactory api.Factory) (es.Client, error) {
 	if len(c.Servers) < 1 {
 		return nil, errors.New("no servers specified")
 	}

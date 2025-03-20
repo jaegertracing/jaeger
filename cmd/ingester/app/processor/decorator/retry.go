@@ -9,13 +9,13 @@ import (
 	"time"
 
 	"github.com/jaegertracing/jaeger/cmd/ingester/app/processor"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/internal/metrics/api"
 )
 
 type retryDecorator struct {
 	processor     processor.SpanProcessor
-	retryAttempts metrics.Counter
-	exhausted     metrics.Counter
+	retryAttempts api.Counter
+	exhausted     api.Counter
 	options       retryOptions
 	io.Closer
 }
@@ -79,16 +79,16 @@ func PropagateError(b bool) RetryOption {
 
 // NewRetryingProcessor returns a processor that retries failures using an exponential backoff
 // with jitter.
-func NewRetryingProcessor(f metrics.Factory, proc processor.SpanProcessor, opts ...RetryOption) processor.SpanProcessor {
+func NewRetryingProcessor(f api.Factory, proc processor.SpanProcessor, opts ...RetryOption) processor.SpanProcessor {
 	options := defaultOpts
 	for _, opt := range opts {
 		opt(&options)
 	}
 
-	m := f.Namespace(metrics.NSOptions{Name: "span-processor", Tags: nil})
+	m := f.Namespace(api.NSOptions{Name: "span-processor", Tags: nil})
 	return &retryDecorator{
-		retryAttempts: m.Counter(metrics.Options{Name: "retry-attempts", Tags: nil}),
-		exhausted:     m.Counter(metrics.Options{Name: "retry-exhausted", Tags: nil}),
+		retryAttempts: m.Counter(api.Options{Name: "retry-attempts", Tags: nil}),
+		exhausted:     m.Counter(api.Options{Name: "retry-exhausted", Tags: nil}),
 		processor:     proc,
 		options:       options,
 	}

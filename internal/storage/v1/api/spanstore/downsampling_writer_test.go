@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
+	"github.com/jaegertracing/jaeger/internal/metrics/api"
 )
 
 type noopWriteSpanStore struct{}
@@ -55,7 +56,7 @@ func TestDownSamplingWriter_hashBytes(t *testing.T) {
 	downsamplingOptions := DownsamplingOptions{
 		Ratio:          1,
 		HashSalt:       "",
-		MetricsFactory: nil,
+		MetricsFactory: api.NullFactory,
 	}
 	c := NewDownsamplingWriter(&noopWriteSpanStore{}, downsamplingOptions)
 	h := c.sampler.hasherPool.Get().(*hasher)

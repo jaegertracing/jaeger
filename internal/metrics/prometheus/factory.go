@@ -10,10 +10,10 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 
-	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/internal/metrics/api"
 )
 
-// Factory implements metrics.Factory backed by Prometheus registry.
+// Factory implements api.Factory backed by Prometheus registry.
 type Factory struct {
 	scope      string
 	tags       map[string]string
@@ -23,7 +23,7 @@ type Factory struct {
 	separator  Separator
 }
 
-var _ metrics.Factory = (*Factory)(nil)
+var _ api.Factory = (*Factory)(nil)
 
 type options struct {
 	registerer prometheus.Registerer
@@ -115,8 +115,8 @@ func newFactory(parent *Factory, scope string, tags map[string]string) *Factory 
 	}
 }
 
-// Counter implements Counter of metrics.Factory.
-func (f *Factory) Counter(options metrics.Options) metrics.Counter {
+// Counter implements Counter of api.Factory.
+func (f *Factory) Counter(options api.Options) api.Counter {
 	help := strings.TrimSpace(options.Help)
 	if len(help) == 0 {
 		help = options.Name
@@ -134,8 +134,8 @@ func (f *Factory) Counter(options metrics.Options) metrics.Counter {
 	}
 }
 
-// Gauge implements Gauge of metrics.Factory.
-func (f *Factory) Gauge(options metrics.Options) metrics.Gauge {
+// Gauge implements Gauge of api.Factory.
+func (f *Factory) Gauge(options api.Options) api.Gauge {
 	help := strings.TrimSpace(options.Help)
 	if len(help) == 0 {
 		help = options.Name
@@ -153,8 +153,8 @@ func (f *Factory) Gauge(options metrics.Options) metrics.Gauge {
 	}
 }
 
-// Timer implements Timer of metrics.Factory.
-func (f *Factory) Timer(options metrics.TimerOptions) metrics.Timer {
+// Timer implements Timer of api.Factory.
+func (f *Factory) Timer(options api.TimerOptions) api.Timer {
 	help := strings.TrimSpace(options.Help)
 	if len(help) == 0 {
 		help = options.Name
@@ -182,8 +182,8 @@ func asFloatBuckets(buckets []time.Duration) []float64 {
 	return data
 }
 
-// Histogram implements Histogram of metrics.Factory.
-func (f *Factory) Histogram(options metrics.HistogramOptions) metrics.Histogram {
+// Histogram implements Histogram of api.Factory.
+func (f *Factory) Histogram(options api.HistogramOptions) api.Histogram {
 	help := strings.TrimSpace(options.Help)
 	if len(help) == 0 {
 		help = options.Name
@@ -203,8 +203,8 @@ func (f *Factory) Histogram(options metrics.HistogramOptions) metrics.Histogram 
 	}
 }
 
-// Namespace implements Namespace of metrics.Factory.
-func (f *Factory) Namespace(scope metrics.NSOptions) metrics.Factory {
+// Namespace implements Namespace of api.Factory.
+func (f *Factory) Namespace(scope api.NSOptions) api.Factory {
 	return newFactory(f, f.subScope(scope.Name), f.mergeTags(scope.Tags))
 }
 

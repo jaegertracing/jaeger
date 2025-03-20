@@ -10,9 +10,9 @@ import (
 
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/internal/metrics/api"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/spanstoremetrics"
 	"github.com/jaegertracing/jaeger/pkg/cassandra"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
 // Table is a collection of metrics about Cassandra write operations.
@@ -21,9 +21,9 @@ type Table struct {
 }
 
 // NewTable takes a metrics scope and creates a table metrics struct
-func NewTable(factory metrics.Factory, tableName string) *Table {
+func NewTable(factory api.Factory, tableName string) *Table {
 	t := spanstoremetrics.WriteMetrics{}
-	metrics.Init(&t, factory.Namespace(metrics.NSOptions{Name: "", Tags: map[string]string{"table": tableName}}), nil)
+	api.Init(&t, factory.Namespace(api.NSOptions{Name: "", Tags: map[string]string{"table": tableName}}), nil)
 	return &Table{t}
 }
 

@@ -12,14 +12,14 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/ingester/app/processor"
+	"github.com/jaegertracing/jaeger/internal/metrics/api"
 	"github.com/jaegertracing/jaeger/pkg/kafka/consumer"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
 // Params are the parameters of a Consumer
 type Params struct {
 	ProcessorFactory      ProcessorFactory
-	MetricsFactory        metrics.Factory
+	MetricsFactory        api.Factory
 	Logger                *zap.Logger
 	InternalConsumer      consumer.Consumer
 	DeadlockCheckInterval time.Duration
@@ -27,7 +27,7 @@ type Params struct {
 
 // Consumer uses sarama to consume and handle messages from kafka
 type Consumer struct {
-	metricsFactory metrics.Factory
+	metricsFactory api.Factory
 	logger         *zap.Logger
 
 	internalConsumer consumer.Consumer
@@ -38,7 +38,7 @@ type Consumer struct {
 	partitionIDToState  map[int32]*consumerState
 	partitionMapLock    sync.Mutex
 	partitionsHeld      int64
-	partitionsHeldGauge metrics.Gauge
+	partitionsHeldGauge api.Gauge
 
 	doneWg sync.WaitGroup
 }

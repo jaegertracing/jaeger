@@ -12,6 +12,7 @@ import (
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/extension"
 
+	"github.com/jaegertracing/jaeger/internal/metrics/api"
 	"github.com/jaegertracing/jaeger/internal/storage/metricstore/prometheus"
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/badger"
@@ -21,7 +22,6 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v1/memory"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/telemetry"
 )
 
@@ -144,9 +144,9 @@ func newStorageExt(config *Config, telset component.TelemetrySettings) *storageE
 
 func (s *storageExt) Start(_ context.Context, host component.Host) error {
 	telset := telemetry.FromOtelComponent(s.telset, host)
-	telset.Metrics = telset.Metrics.Namespace(metrics.NSOptions{Name: "jaeger"})
-	scopedMetricsFactory := func(name, kind, role string) metrics.Factory {
-		return telset.Metrics.Namespace(metrics.NSOptions{
+	telset.Metrics = telset.Metrics.Namespace(api.NSOptions{Name: "jaeger"})
+	scopedMetricsFactory := func(name, kind, role string) api.Factory {
+		return telset.Metrics.Namespace(api.NSOptions{
 			Name: "storage",
 			Tags: map[string]string{
 				"name": name,

@@ -29,6 +29,7 @@ import (
 	queryApp "github.com/jaegertracing/jaeger/cmd/query/app"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	v2querysvc "github.com/jaegertracing/jaeger/cmd/query/app/querysvc/v2/querysvc"
+	"github.com/jaegertracing/jaeger/internal/metrics/api"
 	ss "github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy/metafactory"
 	"github.com/jaegertracing/jaeger/internal/storage/metricstore"
 	storage "github.com/jaegertracing/jaeger/internal/storage/v1/factory"
@@ -37,7 +38,6 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/jtracer"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/telemetry"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/pkg/version"
@@ -84,10 +84,10 @@ by default uses only in-memory database.`,
 				return err
 			}
 			logger := svc.Logger // shortcut
-			baseFactory := svc.MetricsFactory.Namespace(metrics.NSOptions{Name: "jaeger"})
+			baseFactory := svc.MetricsFactory.Namespace(api.NSOptions{Name: "jaeger"})
 			version.NewInfoMetrics(baseFactory)
-			collectorMetricsFactory := baseFactory.Namespace(metrics.NSOptions{Name: "collector"})
-			queryMetricsFactory := baseFactory.Namespace(metrics.NSOptions{Name: "query"})
+			collectorMetricsFactory := baseFactory.Namespace(api.NSOptions{Name: "collector"})
+			queryMetricsFactory := baseFactory.Namespace(api.NSOptions{Name: "query"})
 
 			tracer, err := jtracer.New("jaeger-all-in-one")
 			if err != nil {

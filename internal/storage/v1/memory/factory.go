@@ -11,6 +11,7 @@ import (
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/internal/metrics/api"
 	"github.com/jaegertracing/jaeger/internal/safeexpvar"
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore"
@@ -18,7 +19,6 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/spanstoremetrics"
 	"github.com/jaegertracing/jaeger/pkg/distributedlock"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
 var ( // interface comformance checks
@@ -31,7 +31,7 @@ var ( // interface comformance checks
 // Factory implements storage.Factory and creates storage components backed by memory store.
 type Factory struct {
 	options        Options
-	metricsFactory metrics.Factory
+	metricsFactory api.Factory
 	logger         *zap.Logger
 	store          *Store
 }
@@ -44,7 +44,7 @@ func NewFactory() *Factory {
 // NewFactoryWithConfig is used from jaeger(v2).
 func NewFactoryWithConfig(
 	cfg Configuration,
-	metricsFactory metrics.Factory,
+	metricsFactory api.Factory,
 	logger *zap.Logger,
 ) *Factory {
 	f := NewFactory()
@@ -69,7 +69,7 @@ func (f *Factory) configureFromOptions(opts Options) {
 }
 
 // Initialize implements storage.Factory
-func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
+func (f *Factory) Initialize(metricsFactory api.Factory, logger *zap.Logger) error {
 	f.metricsFactory, f.logger = metricsFactory, logger
 	f.store = WithConfiguration(f.options.Configuration)
 	logger.Info("Memory storage initialized", zap.Any("configuration", f.store.defaultConfig))

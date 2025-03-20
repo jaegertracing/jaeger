@@ -17,9 +17,9 @@ import (
 	"go.uber.org/zap/zapgrpc"
 	"google.golang.org/grpc/grpclog"
 
+	"github.com/jaegertracing/jaeger/internal/metrics/api"
 	"github.com/jaegertracing/jaeger/internal/metrics/metricsbuilder"
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/ports"
 )
 
@@ -38,7 +38,7 @@ type Service struct {
 	Logger *zap.Logger
 
 	// MetricsFactory is the root factory without a namespace.
-	MetricsFactory metrics.Factory
+	MetricsFactory api.Factory
 
 	signalsChannel chan os.Signal
 }

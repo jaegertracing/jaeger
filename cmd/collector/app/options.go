@@ -11,13 +11,13 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/collector/app/flags"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sanitizer"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/internal/metrics/api"
 )
 
 type options struct {
 	logger                 *zap.Logger
-	serviceMetrics         metrics.Factory
-	hostMetrics            metrics.Factory
+	serviceMetrics         api.Factory
+	hostMetrics            api.Factory
 	preProcessSpans        ProcessSpans // see docs in PreProcessSpans option.
 	sanitizer              sanitizer.SanitizeSpan
 	preSave                ProcessSpan
@@ -48,14 +48,14 @@ func (options) Logger(logger *zap.Logger) Option {
 }
 
 // ServiceMetrics creates an Option that initializes the serviceMetrics metrics factory
-func (options) ServiceMetrics(serviceMetrics metrics.Factory) Option {
+func (options) ServiceMetrics(serviceMetrics api.Factory) Option {
 	return func(b *options) {
 		b.serviceMetrics = serviceMetrics
 	}
 }
 
 // HostMetrics creates an Option that initializes the hostMetrics metrics factory
-func (options) HostMetrics(hostMetrics metrics.Factory) Option {
+func (options) HostMetrics(hostMetrics api.Factory) Option {
 	return func(b *options) {
 		b.hostMetrics = hostMetrics
 	}
@@ -170,10 +170,10 @@ func (options) apply(opts ...Option) options {
 		ret.logger = zap.NewNop()
 	}
 	if ret.serviceMetrics == nil {
-		ret.serviceMetrics = metrics.NullFactory
+		ret.serviceMetrics = api.NullFactory
 	}
 	if ret.hostMetrics == nil {
-		ret.hostMetrics = metrics.NullFactory
+		ret.hostMetrics = api.NullFactory
 	}
 	if ret.preProcessSpans == nil {
 		ret.preProcessSpans = func(_ processor.Batch) {}

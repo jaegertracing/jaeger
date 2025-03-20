@@ -13,10 +13,10 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/internal/leaderelection"
+	"github.com/jaegertracing/jaeger/internal/metrics/api"
 	"github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy/adaptive/calculationstrategy"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore/model"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
 const (
@@ -88,8 +88,8 @@ type PostAggregator struct {
 
 	shutdown chan struct{}
 
-	operationsCalculatedGauge     metrics.Gauge
-	calculateProbabilitiesLatency metrics.Timer
+	operationsCalculatedGauge     api.Gauge
+	calculateProbabilitiesLatency api.Timer
 	lastCheckedTime               time.Time
 }
 
@@ -99,7 +99,7 @@ func newPostAggregator(
 	hostname string,
 	storage samplingstore.Store,
 	electionParticipant leaderelection.ElectionParticipant,
-	metricsFactory metrics.Factory,
+	metricsFactory api.Factory,
 	logger *zap.Logger,
 ) (*PostAggregator, error) {
 	if opts.CalculationInterval == 0 || opts.AggregationBuckets == 0 {
@@ -108,7 +108,7 @@ func newPostAggregator(
 	if opts.BucketsForCalculation < 1 {
 		return nil, errBucketsForCalculation
 	}
-	metricsFactory = metricsFactory.Namespace(metrics.NSOptions{Name: "adaptive_sampling_processor"})
+	metricsFactory = metricsFactory.Namespace(api.NSOptions{Name: "adaptive_sampling_processor"})
 	return &PostAggregator{
 		Options:             opts,
 		storage:             storage,
@@ -121,8 +121,8 @@ func newPostAggregator(
 		weightVectorCache:             NewWeightVectorCache(),
 		probabilityCalculator:         calculationstrategy.NewPercentageIncreaseCappedCalculator(1.0),
 		serviceCache:                  []SamplingCache{},
-		operationsCalculatedGauge:     metricsFactory.Gauge(metrics.Options{Name: "operations_calculated"}),
-		calculateProbabilitiesLatency: metricsFactory.Timer(metrics.TimerOptions{Name: "calculate_probabilities"}),
+		operationsCalculatedGauge:     metricsFactory.Gauge(api.Options{Name: "operations_calculated"}),
+		calculateProbabilitiesLatency: metricsFactory.Timer(api.TimerOptions{Name: "calculate_probabilities"}),
 		shutdown:                      make(chan struct{}),
 	}, nil
 }

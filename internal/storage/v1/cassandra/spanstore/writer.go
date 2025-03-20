@@ -15,10 +15,10 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
+	"github.com/jaegertracing/jaeger/internal/metrics/api"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra/spanstore/dbmodel"
 	"github.com/jaegertracing/jaeger/pkg/cassandra"
 	casMetrics "github.com/jaegertracing/jaeger/pkg/cassandra/metrics"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
 const (
@@ -83,7 +83,7 @@ type SpanWriter struct {
 	operationNamesWriter operationNamesWriter
 	writerMetrics        spanWriterMetrics
 	logger               *zap.Logger
-	tagIndexSkipped      metrics.Counter
+	tagIndexSkipped      api.Counter
 	tagFilter            dbmodel.TagFilter
 	storageMode          storageMode
 	indexFilter          dbmodel.IndexFilter
@@ -93,7 +93,7 @@ type SpanWriter struct {
 func NewSpanWriter(
 	session cassandra.Session,
 	writeCacheTTL time.Duration,
-	metricsFactory metrics.Factory,
+	metricsFactory api.Factory,
 	logger *zap.Logger,
 	options ...Option,
 ) (*SpanWriter, error) {
@@ -102,7 +102,7 @@ func NewSpanWriter(
 	if err != nil {
 		return nil, err
 	}
-	tagIndexSkipped := metricsFactory.Counter(metrics.Options{Name: "tag_index_skipped", Tags: nil})
+	tagIndexSkipped := metricsFactory.Counter(api.Options{Name: "tag_index_skipped", Tags: nil})
 	opts := applyOptions(options...)
 	return &SpanWriter{
 		session:              session,

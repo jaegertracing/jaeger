@@ -14,8 +14,8 @@ import (
 
 	cmocks "github.com/jaegertracing/jaeger/cmd/ingester/app/consumer/mocks"
 	"github.com/jaegertracing/jaeger/cmd/ingester/app/processor/mocks"
+	"github.com/jaegertracing/jaeger/internal/metrics/api"
 	kmocks "github.com/jaegertracing/jaeger/pkg/kafka/consumer/mocks"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
 func Test_NewFactory(t *testing.T) {
@@ -38,7 +38,7 @@ func Test_new(t *testing.T) {
 
 	pf := ProcessorFactory{
 		consumer:       mockConsumer,
-		metricsFactory: metrics.NullFactory,
+		metricsFactory: api.NullFactory,
 		logger:         zap.NewNop(),
 		baseProcessor:  sp,
 		parallelism:    1,

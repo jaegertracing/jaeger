@@ -9,12 +9,12 @@ import (
 
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/internal/metrics/api"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	"github.com/jaegertracing/jaeger/pkg/distributedlock"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/telemetry"
 )
 
@@ -41,7 +41,7 @@ type Factory interface {
 	BaseFactory
 	// Initialize performs internal initialization of the factory, such as opening connections to the backend store.
 	// It is called after all configuration of the factory itself has been done.
-	Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error
+	Initialize(metricsFactory api.Factory, logger *zap.Logger) error
 }
 
 // Purger defines an interface that is capable of purging the storage.

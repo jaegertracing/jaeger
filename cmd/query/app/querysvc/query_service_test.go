@@ -16,6 +16,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
+	"github.com/jaegertracing/jaeger/internal/metrics/api"
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
@@ -26,7 +27,6 @@ import (
 	tracestoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
 	"github.com/jaegertracing/jaeger/internal/testutils"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
 const millisToNanosMultiplier = int64(time.Millisecond / time.Nanosecond)
@@ -451,7 +451,7 @@ func TestGetCapabilitiesWithSupportsArchive(t *testing.T) {
 
 type fakeStorageFactory1 struct{}
 
-func (*fakeStorageFactory1) Initialize(metrics.Factory, *zap.Logger) error {
+func (*fakeStorageFactory1) Initialize(api.Factory, *zap.Logger) error {
 	return nil
 }
 func (*fakeStorageFactory1) CreateSpanReader() (spanstore.Reader, error)             { return nil, nil }

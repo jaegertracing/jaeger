@@ -16,11 +16,11 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
+	"github.com/jaegertracing/jaeger/internal/metrics/api"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra/spanstore/dbmodel"
 	"github.com/jaegertracing/jaeger/pkg/cassandra"
 	casMetrics "github.com/jaegertracing/jaeger/pkg/cassandra/metrics"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/otelsemconv"
 )
 
@@ -106,11 +106,11 @@ type SpanReader struct {
 // NewSpanReader returns a new SpanReader.
 func NewSpanReader(
 	session cassandra.Session,
-	metricsFactory metrics.Factory,
+	metricsFactory api.Factory,
 	logger *zap.Logger,
 	tracer trace.Tracer,
 ) (*SpanReader, error) {
-	readFactory := metricsFactory.Namespace(metrics.NSOptions{Name: "read", Tags: nil})
+	readFactory := metricsFactory.Namespace(api.NSOptions{Name: "read", Tags: nil})
 	serviceNamesStorage := NewServiceNamesStorage(session, 0, metricsFactory, logger)
 	operationNamesStorage, err := NewOperationNamesStorage(session, 0, metricsFactory, logger)
 	if err != nil {

@@ -22,6 +22,7 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 
+	"github.com/jaegertracing/jaeger/internal/metrics/api"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore"
 	dependencyStoreMocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
@@ -29,7 +30,6 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v1/grpc/shared"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/grpc/shared/mocks"
 	"github.com/jaegertracing/jaeger/pkg/config"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/telemetry"
 	"github.com/jaegertracing/jaeger/pkg/tenancy"
 )
@@ -84,7 +84,7 @@ func makeFactory(t *testing.T) *Factory {
 	f := NewFactory()
 	f.InitFromViper(viper.New(), zap.NewNop())
 	f.options.ClientConfig.Endpoint = ":0"
-	require.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
+	require.NoError(t, f.Initialize(api.NullFactory, zap.NewNop()))
 
 	t.Cleanup(func() {
 		f.Close()
@@ -111,7 +111,7 @@ func TestNewFactoryError(t *testing.T) {
 		f := NewFactory()
 		f.InitFromViper(viper.New(), zap.NewNop())
 		f.options.Config = *cfg
-		err := f.Initialize(metrics.NullFactory, zap.NewNop())
+		err := f.Initialize(api.NullFactory, zap.NewNop())
 		assert.ErrorContains(t, err, "authenticator")
 	})
 

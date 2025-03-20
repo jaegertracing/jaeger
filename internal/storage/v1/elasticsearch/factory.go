@@ -20,6 +20,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/internal/metrics/api"
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore"
@@ -32,7 +33,6 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/es"
 	"github.com/jaegertracing/jaeger/pkg/es/config"
 	"github.com/jaegertracing/jaeger/pkg/fswatcher"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
 const (
@@ -53,11 +53,11 @@ var ( // interface comformance checks
 type Factory struct {
 	Options *Options
 
-	metricsFactory metrics.Factory
+	metricsFactory api.Factory
 	logger         *zap.Logger
 	tracer         trace.TracerProvider
 
-	newClientFn func(c *config.Configuration, logger *zap.Logger, metricsFactory metrics.Factory) (es.Client, error)
+	newClientFn func(c *config.Configuration, logger *zap.Logger, metricsFactory api.Factory) (es.Client, error)
 
 	config *config.Configuration
 
@@ -85,7 +85,7 @@ func NewArchiveFactory() *Factory {
 
 func NewFactoryWithConfig(
 	cfg config.Configuration,
-	metricsFactory metrics.Factory,
+	metricsFactory api.Factory,
 	logger *zap.Logger,
 ) (*Factory, error) {
 	if err := cfg.Validate(); err != nil {
@@ -125,7 +125,7 @@ func (f *Factory) configureFromOptions(o *Options) {
 }
 
 // Initialize implements storage.Factory.
-func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
+func (f *Factory) Initialize(metricsFactory api.Factory, logger *zap.Logger) error {
 	f.metricsFactory = metricsFactory
 	f.logger = logger
 
@@ -214,7 +214,7 @@ func createSpanReader(
 func createSpanWriter(
 	clientFn func() es.Client,
 	cfg *config.Configuration,
-	mFactory metrics.Factory,
+	mFactory api.Factory,
 	logger *zap.Logger,
 	writeAliasSuffix string,
 	useReadWriteAliases bool,
@@ -327,7 +327,7 @@ func (f *Factory) onPasswordChange() {
 	f.onClientPasswordChange(f.config, &f.client, f.metricsFactory)
 }
 
-func (f *Factory) onClientPasswordChange(cfg *config.Configuration, client *atomic.Pointer[es.Client], mf metrics.Factory) {
+func (f *Factory) onClientPasswordChange(cfg *config.Configuration, client *atomic.Pointer[es.Client], mf api.Factory) {
 	newPassword, err := loadTokenFromFile(cfg.Authentication.BasicAuthentication.PasswordFilePath)
 	if err != nil {
 		f.logger.Error("failed to reload password for Elasticsearch client", zap.Error(err))

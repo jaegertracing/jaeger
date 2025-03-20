@@ -13,8 +13,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/viper"
 
+	"github.com/jaegertracing/jaeger/internal/metrics/api"
 	jprom "github.com/jaegertracing/jaeger/internal/metrics/prometheus"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
 const (
@@ -55,14 +55,14 @@ func (b *Builder) InitFromViper(v *viper.Viper) *Builder {
 // CreateMetricsFactory creates a metrics factory based on the configured type of the backend.
 // If the metrics backend supports HTTP endpoint for scraping, it is stored in the builder and
 // can be later added by RegisterHandler function.
-func (b *Builder) CreateMetricsFactory(namespace string) (metrics.Factory, error) {
+func (b *Builder) CreateMetricsFactory(namespace string) (api.Factory, error) {
 	if b.Backend == "prometheus" {
-		metricsFactory := jprom.New().Namespace(metrics.NSOptions{Name: namespace, Tags: nil})
+		metricsFactory := jprom.New().Namespace(api.NSOptions{Name: namespace, Tags: nil})
 		b.handler = promhttp.HandlerFor(prometheus.DefaultGatherer, promhttp.HandlerOpts{DisableCompression: true})
 		return metricsFactory, nil
 	}
 	if b.Backend == "none" || b.Backend == "" {
-		return metrics.NullFactory, nil
+		return api.NullFactory, nil
 	}
 	return nil, errUnknownBackend
 }

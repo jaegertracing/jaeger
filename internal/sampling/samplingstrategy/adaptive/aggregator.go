@@ -12,11 +12,11 @@ import (
 
 	span_model "github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/leaderelection"
+	"github.com/jaegertracing/jaeger/internal/metrics/api"
 	"github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore/model"
 	"github.com/jaegertracing/jaeger/pkg/hostname"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
 const (
@@ -32,8 +32,8 @@ const (
 type aggregator struct {
 	sync.Mutex
 
-	operationsCounter   metrics.Counter
-	servicesCounter     metrics.Counter
+	operationsCounter   api.Counter
+	servicesCounter     api.Counter
 	currentThroughput   serviceOperationThroughput
 	postAggregator      *PostAggregator
 	aggregationInterval time.Duration
@@ -44,7 +44,7 @@ type aggregator struct {
 
 // NewAggregator creates a throughput aggregator that simply emits metrics
 // about the number of operations seen over the aggregationInterval.
-func NewAggregator(options Options, logger *zap.Logger, metricsFactory metrics.Factory, participant leaderelection.ElectionParticipant, store samplingstore.Store) (samplingstrategy.Aggregator, error) {
+func NewAggregator(options Options, logger *zap.Logger, metricsFactory api.Factory, participant leaderelection.ElectionParticipant, store samplingstore.Store) (samplingstrategy.Aggregator, error) {
 	hostId, err := hostname.AsIdentifier()
 	if err != nil {
 		return nil, err
@@ -57,8 +57,8 @@ func NewAggregator(options Options, logger *zap.Logger, metricsFactory metrics.F
 	}
 
 	return &aggregator{
-		operationsCounter:   metricsFactory.Counter(metrics.Options{Name: "sampling_operations"}),
-		servicesCounter:     metricsFactory.Counter(metrics.Options{Name: "sampling_services"}),
+		operationsCounter:   metricsFactory.Counter(api.Options{Name: "sampling_operations"}),
+		servicesCounter:     metricsFactory.Counter(api.Options{Name: "sampling_services"}),
 		currentThroughput:   make(serviceOperationThroughput),
 		aggregationInterval: options.CalculationInterval,
 		postAggregator:      postAggregator,

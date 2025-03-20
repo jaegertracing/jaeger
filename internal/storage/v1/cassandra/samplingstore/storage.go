@@ -17,10 +17,10 @@ import (
 	"github.com/gocql/gocql"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/internal/metrics/api"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore/model"
 	"github.com/jaegertracing/jaeger/pkg/cassandra"
 	casMetrics "github.com/jaegertracing/jaeger/pkg/cassandra/metrics"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
 const (
@@ -57,7 +57,7 @@ type SamplingStore struct {
 }
 
 // New creates a new cassandra sampling store.
-func New(session cassandra.Session, factory metrics.Factory, logger *zap.Logger) *SamplingStore {
+func New(session cassandra.Session, factory api.Factory, logger *zap.Logger) *SamplingStore {
 	return &SamplingStore{
 		session: session,
 		metrics: samplingStoreMetrics{

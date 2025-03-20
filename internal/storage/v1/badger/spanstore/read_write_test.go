@@ -19,10 +19,10 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
+	"github.com/jaegertracing/jaeger/internal/metrics/api"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/badger"
 	"github.com/jaegertracing/jaeger/pkg/config"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
 func TestWriteReadBack(t *testing.T) {
@@ -387,7 +387,7 @@ func TestPersist(t *testing.T) {
 		})
 		f.InitFromViper(v, zap.NewNop())
 
-		err := f.Initialize(metrics.NullFactory, zap.NewNop())
+		err := f.Initialize(api.NullFactory, zap.NewNop())
 		require.NoError(t, err)
 
 		sw, err := f.CreateSpanWriter()
@@ -446,7 +446,7 @@ func runFactoryTest(tb testing.TB, test func(tb testing.TB, sw spanstore.Writer,
 	})
 	f.InitFromViper(v, zap.NewNop())
 
-	err := f.Initialize(metrics.NullFactory, zap.NewNop())
+	err := f.Initialize(api.NullFactory, zap.NewNop())
 	require.NoError(tb, err)
 
 	sw, err := f.CreateSpanWriter()
@@ -616,7 +616,7 @@ func runLargeFactoryTest(tb testing.TB, test func(tb testing.TB, sw spanstore.Wr
 
 	f.InitFromViper(v, zap.NewNop())
 
-	err = f.Initialize(metrics.NullFactory, zap.NewNop())
+	err = f.Initialize(api.NullFactory, zap.NewNop())
 	assertion.NoError(err)
 
 	sw, err := f.CreateSpanWriter()

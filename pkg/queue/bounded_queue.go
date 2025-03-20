@@ -9,7 +9,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/internal/metrics/api"
 )
 
 // Consumer consumes data from a bounded queue
@@ -151,7 +151,7 @@ func (q *BoundedQueue[T]) Capacity() int {
 
 // StartLengthReporting starts a timer-based goroutine that periodically reports
 // current queue length to a given metrics gauge.
-func (q *BoundedQueue[T]) StartLengthReporting(reportPeriod time.Duration, gauge metrics.Gauge) {
+func (q *BoundedQueue[T]) StartLengthReporting(reportPeriod time.Duration, gauge api.Gauge) {
 	ticker := time.NewTicker(reportPeriod)
 	go func() {
 		defer ticker.Stop()

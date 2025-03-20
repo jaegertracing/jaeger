@@ -16,12 +16,12 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
+	"github.com/jaegertracing/jaeger/internal/metrics/api"
 	"github.com/jaegertracing/jaeger/internal/metricstest"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore"
 	"github.com/jaegertracing/jaeger/internal/testutils"
 	"github.com/jaegertracing/jaeger/pkg/cassandra"
 	"github.com/jaegertracing/jaeger/pkg/cassandra/mocks"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
 type depStorageTest struct {
@@ -58,7 +58,7 @@ func TestVersionIsValid(t *testing.T) {
 }
 
 func TestInvalidVersion(t *testing.T) {
-	_, err := NewDependencyStore(&mocks.Session{}, metrics.NullFactory, zap.NewNop(), versionEnumEnd)
+	_, err := NewDependencyStore(&mocks.Session{}, api.NullFactory, zap.NewNop(), versionEnumEnd)
 	require.Error(t, err)
 }
 

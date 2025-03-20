@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/internal/metrics/api"
 )
 
 const (
@@ -28,8 +28,8 @@ const (
 // [1] https://kafka.apache.org/0100/javadoc/index.html?org/apache/kafka/clients/consumer/KafkaConsumer.html
 type Manager struct {
 	markOffsetFunction  MarkOffset
-	offsetCommitCount   metrics.Counter
-	lastCommittedOffset metrics.Gauge
+	offsetCommitCount   api.Counter
+	lastCommittedOffset api.Gauge
 	minOffset           int64
 	list                *ConcurrentList
 	close               chan struct{}
@@ -45,7 +45,7 @@ func NewManager(
 	markOffset MarkOffset,
 	topic string,
 	partition int32,
-	factory metrics.Factory,
+	factory api.Factory,
 ) *Manager {
 	tags := map[string]string{
 		"topic":     topic,
@@ -54,8 +54,8 @@ func NewManager(
 	return &Manager{
 		markOffsetFunction:  markOffset,
 		close:               make(chan struct{}),
-		offsetCommitCount:   factory.Counter(metrics.Options{Name: "offset-commits-total", Tags: tags}),
-		lastCommittedOffset: factory.Gauge(metrics.Options{Name: "last-committed-offset", Tags: tags}),
+		offsetCommitCount:   factory.Counter(api.Options{Name: "offset-commits-total", Tags: tags}),
+		lastCommittedOffset: factory.Gauge(api.Options{Name: "last-committed-offset", Tags: tags}),
 		list:                newConcurrentList(minOffset),
 		minOffset:           minOffset,
 	}

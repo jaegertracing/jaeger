@@ -18,6 +18,7 @@ import (
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/cmd/ingester/app"
 	"github.com/jaegertracing/jaeger/cmd/ingester/app/builder"
+	"github.com/jaegertracing/jaeger/internal/metrics/api"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/kafka"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/memory"
@@ -25,7 +26,6 @@ import (
 	"github.com/jaegertracing/jaeger/internal/testutils"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/kafka/consumer"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
 const defaultLocalKafkaBroker = "127.0.0.1:9092"
@@ -54,7 +54,7 @@ func (s *KafkaIntegrationTestSuite) initialize(t *testing.T) {
 	})
 	require.NoError(t, err)
 	f.InitFromViper(v, logger)
-	err = f.Initialize(metrics.NullFactory, logger)
+	err = f.Initialize(api.NullFactory, logger)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		assert.NoError(t, f.Close())
@@ -84,7 +84,7 @@ func (s *KafkaIntegrationTestSuite) initialize(t *testing.T) {
 	}
 	options.InitFromViper(v)
 	traceStore := memory.NewStore()
-	spanConsumer, err := builder.CreateConsumer(logger, metrics.NullFactory, traceStore, options)
+	spanConsumer, err := builder.CreateConsumer(logger, api.NullFactory, traceStore, options)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		assert.NoError(t, spanConsumer.Close())

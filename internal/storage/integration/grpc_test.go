@@ -11,11 +11,11 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 
+	"github.com/jaegertracing/jaeger/internal/metrics/api"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/grpc"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
 	"github.com/jaegertracing/jaeger/internal/testutils"
 	"github.com/jaegertracing/jaeger/pkg/config"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/ports"
 )
 
@@ -34,7 +34,7 @@ func (s *GRPCStorageIntegrationTestSuite) initialize(t *testing.T) {
 		v, command := config.Viperize(f.AddFlags)
 		require.NoError(t, command.ParseFlags(flags))
 		f.InitFromViper(v, logger)
-		require.NoError(t, f.Initialize(metrics.NullFactory, logger))
+		require.NoError(t, f.Initialize(api.NullFactory, logger))
 	}
 	f := grpc.NewFactory()
 	initFactory(f, s.flags)

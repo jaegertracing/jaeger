@@ -15,9 +15,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/jaegertracing/jaeger/internal/metrics/api"
 	"github.com/jaegertracing/jaeger/internal/metricstest"
 	"github.com/jaegertracing/jaeger/internal/testutils"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
 // In this test we run a queue with capacity 1 and a single consumer.
@@ -25,8 +25,8 @@ import (
 // by holding a startLock before submitting items to the queue.
 func helper(t *testing.T, startConsumers func(q *BoundedQueue[string], consumerFn func(item string))) {
 	mFact := metricstest.NewFactory(0)
-	counter := mFact.Counter(metrics.Options{Name: "dropped", Tags: nil})
-	gauge := mFact.Gauge(metrics.Options{Name: "size", Tags: nil})
+	counter := mFact.Counter(api.Options{Name: "dropped", Tags: nil})
+	gauge := mFact.Gauge(api.Options{Name: "size", Tags: nil})
 
 	q := NewBoundedQueue[string](1, func( /* item */ string) {
 		counter.Inc(1)

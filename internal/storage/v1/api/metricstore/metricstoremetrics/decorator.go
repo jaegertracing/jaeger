@@ -7,8 +7,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/jaegertracing/jaeger/internal/metrics/api"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 	protometrics "github.com/jaegertracing/jaeger/proto-gen/api_v2/metrics"
 )
 
@@ -22,10 +22,10 @@ type ReadMetricsDecorator struct {
 }
 
 type queryMetrics struct {
-	Errors     metrics.Counter `metric:"requests" tags:"result=err"`
-	Successes  metrics.Counter `metric:"requests" tags:"result=ok"`
-	ErrLatency metrics.Timer   `metric:"latency" tags:"result=err"`
-	OKLatency  metrics.Timer   `metric:"latency" tags:"result=ok"`
+	Errors     api.Counter `metric:"requests" tags:"result=err"`
+	Successes  api.Counter `metric:"requests" tags:"result=ok"`
+	ErrLatency api.Timer   `metric:"latency" tags:"result=err"`
+	OKLatency  api.Timer   `metric:"latency" tags:"result=ok"`
 }
 
 func (q *queryMetrics) emit(err error, latency time.Duration) {
@@ -39,7 +39,7 @@ func (q *queryMetrics) emit(err error, latency time.Duration) {
 }
 
 // NewReadMetricsDecorator returns a new ReadMetricsDecorator.
-func NewReaderDecorator(reader metricstore.Reader, metricsFactory metrics.Factory) *ReadMetricsDecorator {
+func NewReaderDecorator(reader metricstore.Reader, metricsFactory api.Factory) *ReadMetricsDecorator {
 	return &ReadMetricsDecorator{
 		reader:                    reader,
 		getLatenciesMetrics:       buildQueryMetrics("get_latencies", metricsFactory),
@@ -49,10 +49,10 @@ func NewReaderDecorator(reader metricstore.Reader, metricsFactory metrics.Factor
 	}
 }
 
-func buildQueryMetrics(operation string, metricsFactory metrics.Factory) *queryMetrics {
+func buildQueryMetrics(operation string, metricsFactory api.Factory) *queryMetrics {
 	qMetrics := &queryMetrics{}
-	scoped := metricsFactory.Namespace(metrics.NSOptions{Name: "", Tags: map[string]string{"operation": operation}})
-	metrics.Init(qMetrics, scoped, nil)
+	scoped := metricsFactory.Namespace(api.NSOptions{Name: "", Tags: map[string]string{"operation": operation}})
+	api.Init(qMetrics, scoped, nil)
 	return qMetrics
 }
 

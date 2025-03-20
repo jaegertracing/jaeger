@@ -13,9 +13,9 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
+	"github.com/jaegertracing/jaeger/internal/metrics/api"
 	"github.com/jaegertracing/jaeger/pkg/cassandra"
 	casMetrics "github.com/jaegertracing/jaeger/pkg/cassandra/metrics"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
 // Version determines which version of the dependencies table to use.
@@ -56,7 +56,7 @@ type DependencyStore struct {
 // NewDependencyStore returns a DependencyStore
 func NewDependencyStore(
 	session cassandra.Session,
-	metricsFactory metrics.Factory,
+	metricsFactory api.Factory,
 	logger *zap.Logger,
 	version Version,
 ) (*DependencyStore, error) {

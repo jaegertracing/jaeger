@@ -22,9 +22,9 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/internal/flags"
 	"github.com/jaegertracing/jaeger/cmd/internal/printconfig"
 	"github.com/jaegertracing/jaeger/cmd/internal/status"
+	"github.com/jaegertracing/jaeger/internal/metrics/api"
 	storage "github.com/jaegertracing/jaeger/internal/storage/v1/factory"
 	"github.com/jaegertracing/jaeger/pkg/config"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/telemetry"
 	"github.com/jaegertracing/jaeger/pkg/version"
 	"github.com/jaegertracing/jaeger/ports"
@@ -49,8 +49,8 @@ func main() {
 				return err
 			}
 			logger := svc.Logger // shortcut
-			baseFactory := svc.MetricsFactory.Namespace(metrics.NSOptions{Name: "jaeger"})
-			metricsFactory := baseFactory.Namespace(metrics.NSOptions{Name: "ingester"})
+			baseFactory := svc.MetricsFactory.Namespace(api.NSOptions{Name: "jaeger"})
+			metricsFactory := baseFactory.Namespace(api.NSOptions{Name: "ingester"})
 			version.NewInfoMetrics(metricsFactory)
 
 			baseTelset := telemetry.NoopSettings()

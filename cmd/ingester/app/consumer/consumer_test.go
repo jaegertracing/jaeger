@@ -20,10 +20,10 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/ingester/app/processor"
 	pmocks "github.com/jaegertracing/jaeger/cmd/ingester/app/processor/mocks"
+	"github.com/jaegertracing/jaeger/internal/metrics/api"
 	"github.com/jaegertracing/jaeger/internal/metricstest"
 	"github.com/jaegertracing/jaeger/pkg/kafka/consumer"
 	kmocks "github.com/jaegertracing/jaeger/pkg/kafka/consumer/mocks"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
 //go:generate mockery -dir ../../../../pkg/kafka/config/ -name Consumer
@@ -36,7 +36,7 @@ const (
 )
 
 func TestConstructor(t *testing.T) {
-	newConsumer, err := New(Params{MetricsFactory: metrics.NullFactory})
+	newConsumer, err := New(Params{MetricsFactory: api.NullFactory})
 	require.NoError(t, err)
 	assert.NotNil(t, newConsumer)
 }
@@ -76,7 +76,7 @@ func newSaramaClusterConsumer(saramaPartitionConsumer sarama.PartitionConsumer, 
 
 func newConsumer(
 	t *testing.T,
-	metricsFactory metrics.Factory,
+	metricsFactory api.Factory,
 	_ string, /* topic */
 	proc processor.SpanProcessor,
 	cons consumer.Consumer,

@@ -16,8 +16,8 @@ import (
 	"go.opentelemetry.io/collector/config/configtls"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/internal/metrics/api"
 	"github.com/jaegertracing/jaeger/internal/testutils"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
 var mockEsServerResponseWithVersion0 = []byte(`
@@ -406,7 +406,7 @@ func TestNewClient(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			logger := zap.NewNop()
-			metricsFactory := metrics.NullFactory
+			metricsFactory := api.NullFactory
 			config := test.config
 			client, err := NewClient(config, logger, metricsFactory)
 			if test.expectedError {
