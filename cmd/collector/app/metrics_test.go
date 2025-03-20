@@ -128,9 +128,3 @@ func TestBuildKey(t *testing.T) {
 	key = tc.buildKey("sample-service2", model.SamplerTypeConst.String())
 	assert.Equal(t, "sample-service2$_$const", key)
 }
-
-func TestNormalizeServiceName(t *testing.T) {
-	assert.Equal(t, "abc", normalizeServiceName("ABC"), "lower case conversion")
-	assert.Equal(t, "a_b_c__", normalizeServiceName("a&b%c/:"), "disallowed runes to underscore")
-	assert.Equal(t, "a_z_0123456789.", normalizeServiceName("A_Z_0123456789."), "allowed runes")
-}
