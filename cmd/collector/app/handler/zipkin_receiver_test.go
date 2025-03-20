@@ -26,8 +26,8 @@ import (
 	"github.com/jaegertracing/jaeger-idl/thrift-gen/zipkincore"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/flags"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
+	"github.com/jaegertracing/jaeger/internal/tenancy"
 	"github.com/jaegertracing/jaeger/internal/testutils"
-	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	zipkin_proto3 "github.com/jaegertracing/jaeger/proto-gen/zipkin"
 )
 
