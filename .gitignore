@@ -51,3 +51,4 @@ resource.syso
 .gocache
 test-results.json
 .metrics/
+.qodo
