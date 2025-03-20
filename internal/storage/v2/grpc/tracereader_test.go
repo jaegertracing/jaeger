@@ -19,6 +19,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/jiter"
 	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
+	_ "github.com/jaegertracing/jaeger/pkg/gogocodec" // force gogo codec registration
 	"github.com/jaegertracing/jaeger/proto-gen/storage/v2"
 )
 
@@ -59,13 +60,13 @@ func (ts *testServer) GetOperations(
 	}, ts.err
 }
 
-func (s *testServer) FindTraceIDs(
+func (ts *testServer) FindTraceIDs(
 	context.Context,
 	*storage.FindTracesRequest,
 ) (*storage.FindTraceIDsResponse, error) {
 	return &storage.FindTraceIDsResponse{
-		TraceIds: s.traceIDs,
-	}, s.err
+		TraceIds: ts.traceIDs,
+	}, ts.err
 }
 
 func startTestServer(t *testing.T, testServer *testServer) *grpc.ClientConn {
