@@ -18,6 +18,11 @@ type SpanID string
 // ValueType is the type of a value stored in KeyValue struct.
 type ValueType string
 
+// Trace is the type of traces
+type Trace struct {
+	Spans []Span
+}
+
 const (
 	// ChildOf means a span is the child of another span
 	ChildOf ReferenceType = "CHILD_OF"
