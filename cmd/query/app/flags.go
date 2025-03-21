@@ -24,8 +24,6 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	v2querysvc "github.com/jaegertracing/jaeger/cmd/query/app/querysvc/v2/querysvc"
-	"github.com/jaegertracing/jaeger/internal/config"
-	"github.com/jaegertracing/jaeger/internal/config/tlscfg"
 	storage "github.com/jaegertracing/jaeger/internal/storage/v1/factory"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
 	"github.com/jaegertracing/jaeger/internal/tenancy"

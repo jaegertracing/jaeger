@@ -26,7 +26,7 @@ import (
 	"github.com/jaegertracing/jaeger/ports"
 )
 
-var testCertKeyLocation = "../../../../pkg/config/tlscfg/testdata"
+var testCertKeyLocation = "../../../../internal/config/tlscfg/testdata"
 
 // test wrong port number
 func TestFailToListenHTTP(t *testing.T) {
