@@ -29,9 +29,9 @@ import (
 	spanStoreMocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/grpc/shared"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/grpc/shared/mocks"
+	"github.com/jaegertracing/jaeger/internal/tenancy"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/telemetry"
-	"github.com/jaegertracing/jaeger/pkg/tenancy"
 )
 
 type store struct {
