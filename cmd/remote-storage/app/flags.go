@@ -10,8 +10,8 @@ import (
 	"github.com/spf13/viper"
 	"go.opentelemetry.io/collector/config/configgrpc"
 
+	"github.com/jaegertracing/jaeger/internal/tenancy"
 	"github.com/jaegertracing/jaeger/internal/config/tlscfg"
-	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/ports"
 )
 
