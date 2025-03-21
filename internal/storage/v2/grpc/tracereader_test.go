@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gogo/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
@@ -191,6 +192,31 @@ func TestTraceReader_GetServices(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestTracesChunk(t *testing.T) {
+	traceA := ptrace.NewTraces()
+	spanA := traceA.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+	spanA.SetName("span-a")
+	spanA.SetTraceID(pcommon.TraceID([16]byte{1}))
+	spanA.SetSpanID(pcommon.SpanID([8]byte{1}))
+	traceAA := (*jptrace.TracesData)(&traceA)
+
+	c := new(storage.TracesChunk)
+	c.Traces = []*jptrace.TracesData{
+		traceAA,
+	}
+
+	buf, err := proto.Marshal(traceAA)
+	require.NoError(t, err)
+	t.Logf("buf1: %x", buf)
+
+	buf, err = proto.Marshal(c)
+	require.NoError(t, err)
+	t.Logf("buf2: %x", buf)
+	var c2 storage.TracesChunk
+	err = proto.Unmarshal(buf, &c2)
+	require.NoError(t, err)
 }
 
 func TestTraceReader_GetOperations(t *testing.T) {
