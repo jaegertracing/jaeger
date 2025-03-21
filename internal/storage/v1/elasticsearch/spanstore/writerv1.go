@@ -7,7 +7,6 @@ import (
 	"context"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/spanstoremetrics"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/spanstore/internal/dbmodel"
 	cfg "github.com/jaegertracing/jaeger/pkg/es/config"
 )
@@ -15,11 +14,6 @@ import (
 type SpanWriterV1 struct {
 	spanWriter    CoreSpanWriter
 	spanConverter dbmodel.FromDomain
-	writerMetrics spanWriterMetrics // TODO: build functions to wrap around each Do fn
-}
-
-type spanWriterMetrics struct {
-	indexCreate *spanstoremetrics.WriteMetrics
 }
 
 // NewSpanWriterV1 returns the SpanWriterV1 for use
@@ -27,9 +21,6 @@ func NewSpanWriterV1(p SpanWriterParams) *SpanWriterV1 {
 	return &SpanWriterV1{
 		spanWriter:    NewSpanWriter(p),
 		spanConverter: dbmodel.NewFromDomain(p.AllTagsAsFields, p.TagKeysAsFields, p.TagDotReplacement),
-		writerMetrics: spanWriterMetrics{
-			indexCreate: spanstoremetrics.NewWriter(p.MetricsFactory, "index_create"),
-		},
 	}
 }
 

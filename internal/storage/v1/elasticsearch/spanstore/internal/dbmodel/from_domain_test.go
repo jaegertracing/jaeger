@@ -186,13 +186,12 @@ func TestNewSpanTags(t *testing.T) {
 			name: "noAllTagsAsFields",
 		},
 	}
-
-	s := &model.Span{
-		Tags:    []model.KeyValue{{Key: "foo", VStr: "bar"}},
-		Process: &model.Process{Tags: []model.KeyValue{{Key: "bar", VStr: "baz"}}},
-	}
 	for _, test := range testCases {
 		t.Run(test.name, func(t *testing.T) {
+			s := &model.Span{
+				Tags:    []model.KeyValue{{Key: "foo", VStr: "bar"}},
+				Process: &model.Process{Tags: []model.KeyValue{{Key: "bar", VStr: "baz"}}},
+			}
 			mSpan := test.spanConverter.FromDomainEmbedProcess(s)
 			assert.Equal(t, test.expected.Tag, mSpan.Tag)
 			assert.Equal(t, test.expected.Tags, mSpan.Tags)
