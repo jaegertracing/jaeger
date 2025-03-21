@@ -17,8 +17,8 @@ import (
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+
 	"github.com/jaegertracing/jaeger/internal/healthcheck"
-	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/internal/recoveryhandler"
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/pkg/telemetry"
