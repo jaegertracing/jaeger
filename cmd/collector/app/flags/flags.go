@@ -15,9 +15,9 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/internal/flags"
-	"github.com/jaegertracing/jaeger/internal/tenancy"
 	"github.com/jaegertracing/jaeger/internal/config/corscfg"
 	"github.com/jaegertracing/jaeger/internal/config/tlscfg"
+	"github.com/jaegertracing/jaeger/internal/tenancy"
 	"github.com/jaegertracing/jaeger/ports"
 )
 

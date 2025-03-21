@@ -29,8 +29,6 @@ import (
 	storage "github.com/jaegertracing/jaeger/internal/storage/v1/factory"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
 	"github.com/jaegertracing/jaeger/internal/tenancy"
-	"github.com/jaegertracing/jaeger/internal/config"
-	"github.com/jaegertracing/jaeger/internal/config/tlscfg"
 	"github.com/jaegertracing/jaeger/ports"
 )
 
