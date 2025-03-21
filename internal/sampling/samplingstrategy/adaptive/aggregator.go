@@ -11,11 +11,11 @@ import (
 	"go.uber.org/zap"
 
 	span_model "github.com/jaegertracing/jaeger-idl/model/v1"
+	"github.com/jaegertracing/jaeger/internal/hostname"
 	"github.com/jaegertracing/jaeger/internal/leaderelection"
 	"github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore/model"
-	"github.com/jaegertracing/jaeger/internal/hostname"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
