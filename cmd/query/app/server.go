@@ -30,10 +30,10 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	v2querysvc "github.com/jaegertracing/jaeger/cmd/query/app/querysvc/v2/querysvc"
 	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
+	"github.com/jaegertracing/jaeger/internal/recoveryhandler"
 	"github.com/jaegertracing/jaeger/internal/tenancy"
 	"github.com/jaegertracing/jaeger/pkg/bearertoken"
 	"github.com/jaegertracing/jaeger/pkg/netutils"
-	"github.com/jaegertracing/jaeger/pkg/recoveryhandler"
 	"github.com/jaegertracing/jaeger/pkg/telemetry"
 )
 
