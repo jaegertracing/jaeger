@@ -14,10 +14,10 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/handler"
 	"github.com/jaegertracing/jaeger/internal/metrics/api"
+	"github.com/jaegertracing/jaeger/internal/healthcheck"
 	"github.com/jaegertracing/jaeger/internal/recoveryhandler"
 	samplinghttp "github.com/jaegertracing/jaeger/internal/sampling/http"
 	"github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy"
-	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	"github.com/jaegertracing/jaeger/pkg/httpmetrics"
 	"github.com/jaegertracing/jaeger/pkg/telemetry"
 )

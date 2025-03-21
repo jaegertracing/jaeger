@@ -16,10 +16,10 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapgrpc"
 	"google.golang.org/grpc/grpclog"
-
 	"github.com/jaegertracing/jaeger/internal/metrics/api"
 	"github.com/jaegertracing/jaeger/internal/metrics/metricsbuilder"
-	"github.com/jaegertracing/jaeger/pkg/healthcheck"
+	"github.com/jaegertracing/jaeger/internal/healthcheck"
+	"github.com/jaegertracing/jaeger/internal/metrics/metricsbuilder"
 	"github.com/jaegertracing/jaeger/ports"
 )
 

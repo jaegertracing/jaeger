@@ -14,8 +14,8 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/internal/metrics/api"
+	"github.com/jaegertracing/jaeger/internal/healthcheck"
 	"github.com/jaegertracing/jaeger/internal/metrics/otelmetrics"
-	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 )
 
 type Settings struct {

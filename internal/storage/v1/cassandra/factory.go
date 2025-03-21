@@ -16,6 +16,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/internal/metrics/api"
+	"github.com/jaegertracing/jaeger/internal/hostname"
 	cLock "github.com/jaegertracing/jaeger/internal/storage/distributedlock/cassandra"
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore"
@@ -31,7 +32,6 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/cassandra/config"
 	gocqlw "github.com/jaegertracing/jaeger/pkg/cassandra/gocql"
 	"github.com/jaegertracing/jaeger/pkg/distributedlock"
-	"github.com/jaegertracing/jaeger/pkg/hostname"
 )
 
 const (
