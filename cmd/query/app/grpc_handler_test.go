@@ -29,8 +29,8 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	depsmocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
+	"github.com/jaegertracing/jaeger/internal/tenancy"
 	"github.com/jaegertracing/jaeger/pkg/jtracer"
-	"github.com/jaegertracing/jaeger/pkg/tenancy"
 )
 
 var (

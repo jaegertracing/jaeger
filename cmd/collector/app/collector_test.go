@@ -26,7 +26,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/healthcheck"
 	"github.com/jaegertracing/jaeger/internal/metricstest"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
-	"github.com/jaegertracing/jaeger/pkg/tenancy"
+	"github.com/jaegertracing/jaeger/internal/tenancy"
 )
 
 var _ (io.Closer) = (*Collector)(nil)
