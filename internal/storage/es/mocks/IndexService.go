@@ -8,7 +8,7 @@
 package mocks
 
 import (
-	es "github.com/jaegertracing/jaeger/pkg/es"
+	es "github.com/jaegertracing/jaeger/internal/storage/es"
 	mock "github.com/stretchr/testify/mock"
 )
 

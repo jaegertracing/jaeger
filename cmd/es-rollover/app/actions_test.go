@@ -13,7 +13,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/internal/config"
-	"github.com/jaegertracing/jaeger/pkg/es/client"
+	"github.com/jaegertracing/jaeger/internal/storage/es/client"
 )
 
 var errActionTest = errors.New("action error")

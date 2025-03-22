@@ -3,7 +3,7 @@
 
 package eswrapper
 
-import "github.com/jaegertracing/jaeger/pkg/es"
+import "github.com/jaegertracing/jaeger/internal/storage/es"
 
 // Some of the functions of elastic.BulkIndexRequest violate golint rules,
 // e.g. Id() should be ID() and BodyJson() should be BodyJSON().

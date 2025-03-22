@@ -8,8 +8,8 @@ import (
 	"embed"
 	"fmt"
 
-	"github.com/jaegertracing/jaeger/pkg/es"
-	"github.com/jaegertracing/jaeger/pkg/es/config"
+	"github.com/jaegertracing/jaeger/internal/storage/es"
+	"github.com/jaegertracing/jaeger/internal/storage/es/config"
 )
 
 // MAPPINGS contains embedded index templates.

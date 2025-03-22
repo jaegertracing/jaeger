@@ -9,7 +9,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/jaegertracing/jaeger/pkg/es/client"
+	"github.com/jaegertracing/jaeger/internal/storage/es/client"
 )
 
 func TestIndexFilter(t *testing.T) {
