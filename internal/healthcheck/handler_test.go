@@ -11,8 +11,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/jaegertracing/jaeger/internal/healthcheck"
 	"github.com/jaegertracing/jaeger/internal/testutils"
-	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 )
 
 func TestStatusString(t *testing.T) {

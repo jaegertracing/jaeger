@@ -8,7 +8,7 @@ import (
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
 
 	"github.com/jaegertracing/jaeger/internal/storage/v1/grpc/shared"
-	"github.com/jaegertracing/jaeger/pkg/tenancy"
+	"github.com/jaegertracing/jaeger/internal/tenancy"
 )
 
 // Config describes the options to customize the storage behavior

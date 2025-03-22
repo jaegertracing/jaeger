@@ -9,9 +9,9 @@ import (
 
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/proto"
+	zipkin "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/zipkin/zipkinthriftconverter"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
-	"github.com/jaegertracing/jaeger/model/converter/thrift/zipkin"
 )
 
 // Unmarshaller decodes a byte array to a span

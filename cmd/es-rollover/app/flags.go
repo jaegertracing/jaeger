@@ -9,7 +9,7 @@ import (
 	"github.com/spf13/viper"
 	"go.opentelemetry.io/collector/config/configtls"
 
-	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
+	"github.com/jaegertracing/jaeger/internal/config/tlscfg"
 )
 
 var tlsFlagsCfg = tlscfg.ClientFlagsConfig{Prefix: "es"}

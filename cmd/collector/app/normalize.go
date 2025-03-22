@@ -2,14 +2,14 @@
 // Copyright (c) 2017 Uber Technologies, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-package normalizer
+package app
 
 import (
 	"strings"
 )
 
-// ServiceName converts service name to a lowercase string that is safe to use in metrics
-func ServiceName(serviceName string) string {
+// normalizeServiceName converts service name to a string that is safe to use in metrics
+func normalizeServiceName(serviceName string) string {
 	return serviceNameReplacer.Replace(serviceName)
 }
 

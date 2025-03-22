@@ -14,7 +14,7 @@ import (
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
-	"github.com/jaegertracing/jaeger/pkg/tenancy"
+	"github.com/jaegertracing/jaeger/internal/tenancy"
 )
 
 var (

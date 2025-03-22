@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/pkg/config"
+	"github.com/jaegertracing/jaeger/internal/config"
 )
 
 func TestDefaultConfigParsing(t *testing.T) {

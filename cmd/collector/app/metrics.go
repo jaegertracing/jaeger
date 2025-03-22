@@ -14,7 +14,6 @@ import (
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
-	"github.com/jaegertracing/jaeger/pkg/normalizer"
 	"github.com/jaegertracing/jaeger/pkg/otelsemconv"
 )
 
@@ -281,7 +280,7 @@ func (m metricsBySvc) countTracesByServiceName(serviceName string, isDebug bool,
 // an alert should be raised to investigate what's causing so many unique
 // service names.
 func (m *traceCountsBySvc) countByServiceName(serviceName string, isDebug bool, samplerType model.SamplerType) {
-	serviceName = normalizer.ServiceName(serviceName)
+	serviceName = normalizeServiceName(serviceName)
 	counts := m.counts
 	if isDebug {
 		counts = m.debugCounts
@@ -312,6 +311,7 @@ func (m *traceCountsBySvc) countByServiceName(serviceName string, isDebug bool, 
 		}
 		counter = counts[otherServicesSampler]
 	}
+
 	m.lock.Unlock()
 	counter.Inc(1)
 }
@@ -327,7 +327,7 @@ func (m *traceCountsBySvc) countByServiceName(serviceName string, isDebug bool, 
 // an alert should be raised to investigate what's causing so many unique
 // service names.
 func (m *spanCountsBySvc) countByServiceName(serviceName string, isDebug bool) {
-	serviceName = normalizer.ServiceName(serviceName)
+	serviceName = normalizeServiceName(serviceName)
 	counts := m.counts
 	if isDebug {
 		counts = m.debugCounts

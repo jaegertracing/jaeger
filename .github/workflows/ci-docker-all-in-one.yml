@@ -48,10 +48,10 @@ jobs:
 
     - uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392 # v3.6.0
 
-    - name: Define BUILD_FLAGS var if running on a Pull Request
+    - name: Define BUILD_FLAGS var if running on a Pull Request or Merge Queue
       run: |
         case ${GITHUB_EVENT_NAME} in
-          pull_request)
+          pull_request|merge_group)
             echo "BUILD_FLAGS=-l -D -p linux/$(go env GOARCH)" >> ${GITHUB_ENV}
             ;;
           *)

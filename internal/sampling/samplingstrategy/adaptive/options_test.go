@@ -9,7 +9,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/jaegertracing/jaeger/pkg/config"
+	"github.com/jaegertracing/jaeger/internal/config"
 )
 
 func TestOptionsWithFlags(t *testing.T) {

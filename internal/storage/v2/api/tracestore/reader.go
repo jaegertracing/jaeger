@@ -83,12 +83,13 @@ type GetTraceParams struct {
 type TraceQueryParams struct {
 	ServiceName   string
 	OperationName string
-	Attributes    pcommon.Map
-	StartTimeMin  time.Time
-	StartTimeMax  time.Time
-	DurationMin   time.Duration
-	DurationMax   time.Duration
-	SearchDepth   int
+	// Attributes must initialized with pcommon.NewMap() before use.
+	Attributes   pcommon.Map
+	StartTimeMin time.Time
+	StartTimeMax time.Time
+	DurationMin  time.Duration
+	DurationMax  time.Duration
+	SearchDepth  int
 }
 
 // FoundTraceID is a wrapper around trace ID returned from FindTraceIDs

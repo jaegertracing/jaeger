@@ -15,7 +15,7 @@ import (
 	initialize "github.com/jaegertracing/jaeger/cmd/es-rollover/app/init"
 	"github.com/jaegertracing/jaeger/cmd/es-rollover/app/lookback"
 	"github.com/jaegertracing/jaeger/cmd/es-rollover/app/rollover"
-	"github.com/jaegertracing/jaeger/pkg/config"
+	"github.com/jaegertracing/jaeger/internal/config"
 	"github.com/jaegertracing/jaeger/pkg/es/client"
 )
 

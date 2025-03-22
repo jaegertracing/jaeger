@@ -15,7 +15,7 @@ import (
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
-	"github.com/jaegertracing/jaeger/pkg/tenancy"
+	"github.com/jaegertracing/jaeger/internal/tenancy"
 )
 
 // GRPCHandler implements gRPC CollectorService.

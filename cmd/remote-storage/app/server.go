@@ -20,9 +20,9 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/grpc/shared"
+	"github.com/jaegertracing/jaeger/internal/tenancy"
 	"github.com/jaegertracing/jaeger/pkg/bearertoken"
 	"github.com/jaegertracing/jaeger/pkg/telemetry"
-	"github.com/jaegertracing/jaeger/pkg/tenancy"
 )
 
 // Server runs a gRPC server

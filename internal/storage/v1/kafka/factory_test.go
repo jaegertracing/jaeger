@@ -15,7 +15,7 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
-	"github.com/jaegertracing/jaeger/pkg/config"
+	"github.com/jaegertracing/jaeger/internal/config"
 	kafkaConfig "github.com/jaegertracing/jaeger/pkg/kafka/producer"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 )

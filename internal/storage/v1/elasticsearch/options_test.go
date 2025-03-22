@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/jaegertracing/jaeger/pkg/config"
+	"github.com/jaegertracing/jaeger/internal/config"
 	escfg "github.com/jaegertracing/jaeger/pkg/es/config"
 )
 

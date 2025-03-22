@@ -7,7 +7,7 @@ import (
 	"flag"
 	"strings"
 
-	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
+	"github.com/jaegertracing/jaeger/internal/config/tlscfg"
 )
 
 const (
