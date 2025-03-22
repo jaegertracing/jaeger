@@ -21,7 +21,8 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/spanstore/internal/dbmodel"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/dbmodel"
+	db "github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/spanstore/internal/dbmodel"
 	"github.com/jaegertracing/jaeger/pkg/es"
 	cfg "github.com/jaegertracing/jaeger/pkg/es/config"
 )
@@ -108,7 +109,7 @@ type SpanReader struct {
 	useReadWriteAliases     bool
 	logger                  *zap.Logger
 	tracer                  trace.Tracer
-	dotReplacer             dbmodel.DotReplacer
+	dotReplacer             db.DotReplacer
 }
 
 // SpanReaderParams holds constructor params for NewSpanReader
@@ -162,7 +163,7 @@ func NewSpanReader(p SpanReaderParams) *SpanReader {
 		useReadWriteAliases: p.UseReadWriteAliases,
 		logger:              p.Logger,
 		tracer:              p.Tracer,
-		dotReplacer:         dbmodel.NewDotReplacer(p.TagDotReplacement),
+		dotReplacer:         db.NewDotReplacer(p.TagDotReplacement),
 	}
 }
 

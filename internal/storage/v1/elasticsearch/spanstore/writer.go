@@ -13,8 +13,9 @@ import (
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/cache"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/dbmodel"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/spanstoremetrics"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/spanstore/internal/dbmodel"
+	db "github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/spanstore/internal/dbmodel"
 	"github.com/jaegertracing/jaeger/pkg/es"
 	cfg "github.com/jaegertracing/jaeger/pkg/es/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
@@ -40,7 +41,7 @@ type SpanWriter struct {
 	writerMetrics spanWriterMetrics // TODO: build functions to wrap around each Do fn
 	// indexCache       cache.Cache
 	serviceWriter    serviceWriter
-	spanConverter    dbmodel.FromDomain
+	spanConverter    db.FromDomain
 	spanServiceIndex spanAndServiceIndexFn
 }
 
@@ -95,7 +96,7 @@ func NewSpanWriter(p SpanWriterParams) *SpanWriter {
 			indexCreate: spanstoremetrics.NewWriter(p.MetricsFactory, "index_create"),
 		},
 		serviceWriter:    serviceOperationStorage.Write,
-		spanConverter:    dbmodel.NewFromDomain(p.AllTagsAsFields, p.TagKeysAsFields, p.TagDotReplacement),
+		spanConverter:    db.NewFromDomain(p.AllTagsAsFields, p.TagKeysAsFields, p.TagDotReplacement),
 		spanServiceIndex: getSpanAndServiceIndexFn(p, writeAliasSuffix),
 	}
 }
