@@ -13,8 +13,8 @@ import (
 
 	"github.com/jaegertracing/jaeger/examples/hotrod/services/config"
 	"github.com/jaegertracing/jaeger/internal/jaegerclientenv2otel"
+	"github.com/jaegertracing/jaeger/internal/metrics"
 	"github.com/jaegertracing/jaeger/internal/metrics/prometheus"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
 var (

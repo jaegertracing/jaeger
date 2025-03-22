@@ -21,9 +21,9 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/remote-storage/app"
 	"github.com/jaegertracing/jaeger/internal/config"
 	"github.com/jaegertracing/jaeger/internal/healthcheck"
+	"github.com/jaegertracing/jaeger/internal/metrics"
 	storage "github.com/jaegertracing/jaeger/internal/storage/v1/factory"
 	"github.com/jaegertracing/jaeger/internal/tenancy"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/telemetry"
 	"github.com/jaegertracing/jaeger/ports"
 )

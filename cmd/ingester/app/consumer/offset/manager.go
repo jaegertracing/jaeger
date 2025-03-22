@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/internal/metrics"
 )
 
 const (
