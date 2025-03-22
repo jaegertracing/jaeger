@@ -19,8 +19,8 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore"
 	smocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore/model"
-	"github.com/jaegertracing/jaeger/pkg/distributedlock"
-	lmocks "github.com/jaegertracing/jaeger/pkg/distributedlock/mocks"
+	"github.com/jaegertracing/jaeger/internal/distributedlock"
+	lmocks "github.com/jaegertracing/jaeger/internal/distributedlock/mocks"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 

@@ -30,7 +30,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/cassandra"
 	"github.com/jaegertracing/jaeger/pkg/cassandra/config"
 	gocqlw "github.com/jaegertracing/jaeger/pkg/cassandra/gocql"
-	"github.com/jaegertracing/jaeger/pkg/distributedlock"
+	"github.com/jaegertracing/jaeger/internal/distributedlock"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 

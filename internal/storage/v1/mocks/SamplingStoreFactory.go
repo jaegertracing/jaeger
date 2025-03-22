@@ -8,7 +8,7 @@
 package mocks
 
 import (
-	distributedlock "github.com/jaegertracing/jaeger/pkg/distributedlock"
+	distributedlock "github.com/jaegertracing/jaeger/internal/distributedlock"
 	mock "github.com/stretchr/testify/mock"
 
 	samplingstore "github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore"
