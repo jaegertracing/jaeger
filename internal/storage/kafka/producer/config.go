@@ -9,7 +9,7 @@ import (
 	"github.com/Shopify/sarama"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/pkg/kafka/auth"
+	"github.com/jaegertracing/jaeger/internal/storage/kafka/auth"
 )
 
 // Builder builds a new kafka producer

@@ -14,7 +14,7 @@ import (
 	"go.opentelemetry.io/collector/config/configtls"
 
 	"github.com/jaegertracing/jaeger/internal/config"
-	"github.com/jaegertracing/jaeger/pkg/kafka/auth"
+	"github.com/jaegertracing/jaeger/internal/storage/kafka/auth"
 )
 
 func TestOptionsWithFlags(t *testing.T) {
