@@ -25,8 +25,8 @@ import (
 	"go.uber.org/zap/zapcore"
 
 	"github.com/jaegertracing/jaeger/internal/jaegerclientenv2otel"
-	"github.com/jaegertracing/jaeger/internal/tracegen"
 	"github.com/jaegertracing/jaeger/internal/otelsemconv"
+	"github.com/jaegertracing/jaeger/internal/tracegen"
 	"github.com/jaegertracing/jaeger/pkg/version"
 )
 

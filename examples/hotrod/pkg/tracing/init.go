@@ -25,8 +25,8 @@ import (
 
 	"github.com/jaegertracing/jaeger/examples/hotrod/pkg/log"
 	"github.com/jaegertracing/jaeger/examples/hotrod/pkg/tracing/rpcmetrics"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/internal/otelsemconv"
+	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
 var once sync.Once
