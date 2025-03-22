@@ -3,6 +3,7 @@
 package configdocs
 
 import (
+	"fmt"
 	"go/ast"
 	"go/token"
 	"reflect"
@@ -53,7 +54,7 @@ func parseAST(file *ast.File, pkgPath string) []StructDoc {
 			}
 
 			structDoc := StructDoc{
-				Name:        typeSpec.Name.Name,
+				Name:        fmt.Sprintf("%s.%s", pkgPath, typeSpec.Name.Name),
 				PackagePath: pkgPath,
 				Description: extractComment(genDecl.Doc),
 				Properties:  make(map[string]FieldDoc),

@@ -63,7 +63,22 @@ func GenerateDocs() error {
 	}
 
 	for _, cfg := range configs {
-		structName := getStructName(cfg)
+		key := getComponentKey(cfg)
+		if key == "/" {
+			continue // Skip root entry
+		}
+		t := reflect.TypeOf(cfg)
+		if t.Kind() == reflect.Ptr {
+			t = t.Elem()
+		}
+		pkgPath := t.PkgPath()
+		structName := fmt.Sprintf("%s.%s", pkgPath, t.Name())
+
+		// Skip invalid entries like "/"
+		if pkgPath == "" || t.Name() == "" {
+			continue
+		}
+
 		rootProps[getComponentKey(cfg)] = map[string]interface{}{
 			"$ref": fmt.Sprintf("#/definitions/%s", structName),
 		}
@@ -307,7 +322,7 @@ func getStructName(cfg interface{}) string {
 	if t.Kind() == reflect.Ptr {
 		t = t.Elem()
 	}
-	return t.Name()
+	return fmt.Sprintf("%s.%s", t.PkgPath(), t.Name())
 }
 
 func getComponentKey(cfg interface{}) string {
