@@ -15,7 +15,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/config"
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
 	"github.com/jaegertracing/jaeger/internal/testutils"
-	promCfg "github.com/jaegertracing/jaeger/pkg/prometheus/config"
+	promCfg "github.com/jaegertracing/jaeger/internal/prometheus/config"
 	"github.com/jaegertracing/jaeger/pkg/telemetry"
 )
 

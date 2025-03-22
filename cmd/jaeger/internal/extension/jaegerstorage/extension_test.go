@@ -27,7 +27,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v1/memory"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	esCfg "github.com/jaegertracing/jaeger/pkg/es/config"
-	promCfg "github.com/jaegertracing/jaeger/pkg/prometheus/config"
+	promCfg "github.com/jaegertracing/jaeger/internal/prometheus/config"
 )
 
 type errorFactory struct {

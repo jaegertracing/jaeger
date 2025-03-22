@@ -20,7 +20,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v1/memory"
 	casCfg "github.com/jaegertracing/jaeger/pkg/cassandra/config"
 	esCfg "github.com/jaegertracing/jaeger/pkg/es/config"
-	promCfg "github.com/jaegertracing/jaeger/pkg/prometheus/config"
+	promCfg "github.com/jaegertracing/jaeger/internal/prometheus/config"
 )
 
 var (
