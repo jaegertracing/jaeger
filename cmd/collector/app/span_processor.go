@@ -21,11 +21,12 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sanitizer"
 	sanitizerv2 "github.com/jaegertracing/jaeger/cmd/jaeger/sanitizer"
 	"github.com/jaegertracing/jaeger/internal/jptrace"
+	"github.com/jaegertracing/jaeger/internal/queue"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 	"github.com/jaegertracing/jaeger/internal/tenancy"
-	"github.com/jaegertracing/jaeger/pkg/queue"
+	"github.com/jaegertracing/jaeger/pkg/telemetry"
 )
 
 const (
