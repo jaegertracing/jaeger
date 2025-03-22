@@ -26,8 +26,8 @@ import (
 
 	"github.com/jaegertracing/jaeger/internal/jaegerclientenv2otel"
 	"github.com/jaegertracing/jaeger/internal/tracegen"
-	"github.com/jaegertracing/jaeger/pkg/otelsemconv"
 	"github.com/jaegertracing/jaeger/internal/version"
+	"github.com/jaegertracing/jaeger/pkg/otelsemconv"
 )
 
 var flagAdaptiveSamplingEndpoint string
