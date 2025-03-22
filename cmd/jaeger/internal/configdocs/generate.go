@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"os"
 	"reflect"
-	"sort"
 	"strings"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal"
@@ -43,7 +42,7 @@ func GenerateDocs() error {
 	// First pass: Collect all structs
 	for _, pkg := range pkgs {
 		for _, syntax := range pkg.Syntax {
-			for _, s := range parseAST(syntax, pkg.PkgPath) {
+			for _, s := range parseASTWithImports(syntax, pkg) {
 				structRegistry[s.Name] = s
 			}
 		}
@@ -104,9 +103,17 @@ func buildSchemaStruct(s StructDoc, registry map[string]StructDoc) map[string]in
 			}
 		default:
 			if nestedSchema, exists := registry[field.Type]; exists {
+				// Existing $ref logic
 				prop["$ref"] = fmt.Sprintf("#/definitions/%s", nestedSchema.Name)
 			} else {
-				prop["type"] = mapTypeToJSONSchema(field.Type)
+				// Handle external types not in registry
+				if isCrossPackageType(field.Type, s.PackagePath) {
+					prop["type"] = "object"
+					prop["description"] = fmt.Sprintf("External type: %s", field.Type)
+				} else {
+					// Primitive type handling
+					prop["type"] = mapTypeToJSONSchema(field.Type)
+				}
 			}
 		}
 
@@ -159,6 +166,20 @@ func buildSchemaStruct(s StructDoc, registry map[string]StructDoc) map[string]in
 func getStructNameFromKey(key string) string {
 	parts := strings.Split(key, "/")
 	return parts[len(parts)-1]
+}
+
+func isCrossPackageType(typeName, currentPkgPath string) bool {
+	// Check if type is qualified with a package
+	if !strings.Contains(typeName, ".") {
+		return false
+	}
+
+	// Extract package from type name (e.g., "configgrpc" from "configgrpc.GRPCServerSettings")
+	parts := strings.Split(typeName, ".")
+	typePkg := strings.Join(parts[:len(parts)-1], ".")
+
+	// Compare with current package
+	return typePkg != "" && typePkg != currentPkgPath
 }
 
 // Function to ADd defaults
@@ -233,13 +254,33 @@ func collectConfigs(factories otelcol.Factories) []interface{} {
 
 func collectPackages(configs []interface{}) []string {
 	packages := make(map[string]struct{})
+
 	for _, cfg := range configs {
 		t := reflect.TypeOf(cfg)
 		if t.Kind() == reflect.Ptr {
 			t = t.Elem()
 		}
+
+		// Add the config struct's own package
 		if pkgPath := t.PkgPath(); pkgPath != "" {
 			packages[pkgPath] = struct{}{}
+		}
+
+		// Add packages from all nested fields
+		for i := 0; i < t.NumField(); i++ {
+			field := t.Field(i)
+			fieldType := field.Type
+
+			// Dereference pointers/slices/maps
+			for fieldType.Kind() == reflect.Ptr || fieldType.Kind() == reflect.Slice || fieldType.Kind() == reflect.Map {
+				fieldType = fieldType.Elem()
+			}
+
+			if fieldType.Kind() == reflect.Struct {
+				if pkgPath := fieldType.PkgPath(); pkgPath != "" {
+					packages[pkgPath] = struct{}{}
+				}
+			}
 		}
 	}
 
@@ -247,7 +288,6 @@ func collectPackages(configs []interface{}) []string {
 	for pkg := range packages {
 		result = append(result, pkg)
 	}
-	sort.Strings(result)
 	return result
 }
 

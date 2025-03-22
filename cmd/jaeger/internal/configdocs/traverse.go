@@ -3,18 +3,39 @@
 package configdocs
 
 import (
-	"fmt"
 	"go/ast"
 	"go/token"
 	"reflect"
 	"strings"
+
+	"golang.org/x/tools/go/packages"
 )
 
+// In traverse.go
+func parseASTWithImports(file *ast.File, pkg *packages.Package) []StructDoc {
+	// First parse current package's structs
+	structs := parseAST(file, pkg.PkgPath)
+
+	// Then recursively parse imported packages
+	for _, imp := range pkg.Imports {
+		for _, file := range imp.Syntax {
+			// Prevent infinite loops with a visited map
+			visited := make(map[string]bool)
+			if !visited[imp.PkgPath] {
+				visited[imp.PkgPath] = true
+				structs = append(structs, parseASTWithImports(file, imp)...)
+			}
+		}
+	}
+
+	return structs
+}
+
 // parseAST traverses an AST to extract struct definitions.
-func parseAST(node ast.Node, pkgPath string) []StructDoc {
+func parseAST(file *ast.File, pkgPath string) []StructDoc {
 	var structs []StructDoc
 
-	ast.Inspect(node, func(n ast.Node) bool {
+	ast.Inspect(file, func(n ast.Node) bool {
 		genDecl, ok := n.(*ast.GenDecl)
 		if !ok || genDecl.Tok != token.TYPE {
 			return true
@@ -51,7 +72,7 @@ func parseAST(node ast.Node, pkgPath string) []StructDoc {
 					}
 				}
 
-				fieldType := exprToString(field.Type)
+				fieldType := exprToString(field.Type, file)
 				tag := ""
 				if field.Tag != nil {
 					tag = strings.Trim(field.Tag.Value, "`")
@@ -101,24 +122,18 @@ func isValidJSONPropertyName(name string) bool {
 		!strings.Contains(name, "$")
 }
 
-func exprToString(expr ast.Expr) string {
+func exprToString(expr ast.Expr, file *ast.File) string {
 	switch t := expr.(type) {
+	case *ast.SelectorExpr:
+		return t.Sel.Name
 	case *ast.Ident:
 		return t.Name
-	case *ast.SelectorExpr:
-		return exprToString(t.X) + "." + t.Sel.Name
 	case *ast.StarExpr:
-		return exprToString(t.X)
+		return "*" + exprToString(t.X, file)
 	case *ast.ArrayType:
-		return "[]" + exprToString(t.Elt)
-	case *ast.MapType:
-		return fmt.Sprintf("map[%s]%s", exprToString(t.Key), exprToString(t.Value))
-	case *ast.StructType:
-		return "AnonymousStruct"
-	case *ast.InterfaceType:
-		return "Any"
+		return "[]" + exprToString(t.Elt, file)
 	default:
-		return "CustomType"
+		return "unknown"
 	}
 }
 
