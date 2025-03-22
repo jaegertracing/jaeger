@@ -13,9 +13,9 @@ import (
 )
 
 func TestMapJaegerToOtelEnvVars(t *testing.T) {
-	os.Setenv("JAEGER_TAGS", "tags")
-	os.Setenv("JAEGER_USER", "user")
-	os.Unsetenv("OTEL_EXPORTER_JAEGER_USER")
+	t.Setenv("JAEGER_TAGS", "tags")
+	t.Setenv("JAEGER_USER", "user")
+	t.Setenv("OTEL_EXPORTER_JAEGER_USER", "")
 
 	logger, buffer := testutils.NewLogger()
 	MapJaegerToOtelEnvVars(logger)

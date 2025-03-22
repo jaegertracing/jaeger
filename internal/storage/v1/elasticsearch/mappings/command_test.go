@@ -21,7 +21,7 @@ func TestCommandExecute(t *testing.T) {
 	cmd := Command()
 
 	// TempFile to capture output
-	tempFile, err := os.CreateTemp("", "command-output-*.txt")
+	tempFile, err := os.CreateTemp(t.TempDir(), "command-output-*.txt")
 	require.NoError(t, err)
 	defer os.Remove(tempFile.Name())
 

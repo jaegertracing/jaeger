@@ -349,14 +349,10 @@ func TestDeepCopy(t *testing.T) {
 }
 
 func TestAutoUpdateStrategyWithFile(t *testing.T) {
-	tempFile, _ := os.CreateTemp("", "for_go_test_*.json")
-	require.NoError(t, tempFile.Close())
-	defer func() {
-		require.NoError(t, os.Remove(tempFile.Name()))
-	}()
+	dstFile := filepath.Join(t.TempDir(), "for_go_test.json")
 
 	// copy known fixture content into temp file which we can later overwrite
-	srcFile, dstFile := "fixtures/strategies.json", tempFile.Name()
+	srcFile := "fixtures/strategies.json"
 	srcBytes, err := os.ReadFile(srcFile)
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(dstFile, srcBytes, 0o644))
@@ -436,11 +432,7 @@ func TestAutoUpdateStrategyWithURL(t *testing.T) {
 }
 
 func TestAutoUpdateStrategyErrors(t *testing.T) {
-	tempFile, _ := os.CreateTemp("", "for_go_test_*.json")
-	require.NoError(t, tempFile.Close())
-	defer func() {
-		_ = os.Remove(tempFile.Name())
-	}()
+	tempFile := filepath.Join(t.TempDir(), "for_go_test.json")
 
 	zapCore, logs := observer.New(zap.InfoLevel)
 	logger := zap.New(zapCore)
@@ -454,12 +446,12 @@ func TestAutoUpdateStrategyErrors(t *testing.T) {
 	defer provider.Close()
 
 	// check invalid file path or read failure
-	assert.Equal(t, "blah", provider.reloadSamplingStrategy(provider.samplingStrategyLoader(tempFile.Name()+"bad-path"), "blah"))
+	assert.Equal(t, "blah", provider.reloadSamplingStrategy(provider.samplingStrategyLoader(tempFile+"bad-path"), "blah"))
 	assert.Len(t, logs.FilterMessage("failed to re-load sampling strategies").All(), 1)
 
 	// check bad file content
-	require.NoError(t, os.WriteFile(tempFile.Name(), []byte("bad value"), 0o644))
-	assert.Equal(t, "blah", provider.reloadSamplingStrategy(provider.samplingStrategyLoader(tempFile.Name()), "blah"))
+	require.NoError(t, os.WriteFile(tempFile, []byte("bad value"), 0o644))
+	assert.Equal(t, "blah", provider.reloadSamplingStrategy(provider.samplingStrategyLoader(tempFile), "blah"))
 	assert.Len(t, logs.FilterMessage("failed to update sampling strategies").All(), 1)
 
 	// check invalid url

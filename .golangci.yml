@@ -108,6 +108,9 @@ linters:
     # Detects the possibility to use variables/constants from the Go standard library.
     - usestdlibvars
 
+    # Recommends using functions from `testing`
+    - usetesting  # Added new linter
+
     # TODO consider adding more linters, cf. https://olegk.dev/go-linters-configuration-the-right-version
 
 linters-settings:

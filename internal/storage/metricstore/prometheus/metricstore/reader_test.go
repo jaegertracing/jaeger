@@ -769,7 +769,7 @@ func TestGetRoundTripperTLSConfig(t *testing.T) {
 func TestGetRoundTripperTokenFile(t *testing.T) {
 	const wantBearer = "token from file"
 
-	file, err := os.CreateTemp("", "token_")
+	file, err := os.CreateTemp(t.TempDir(), "token_")
 	require.NoError(t, err)
 	defer func() { require.NoError(t, os.Remove(file.Name())) }()
 
@@ -804,7 +804,7 @@ func TestGetRoundTripperTokenFile(t *testing.T) {
 }
 
 func TestGetRoundTripperTokenFromContext(t *testing.T) {
-	file, err := os.CreateTemp("", "token_")
+	file, err := os.CreateTemp(t.TempDir(), "token_")
 	require.NoError(t, err)
 	defer func() { require.NoError(t, os.Remove(file.Name())) }()
 	_, err = file.Write([]byte("token from file"))
