@@ -23,7 +23,7 @@ import (
 	dependencyStoreMocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	tracestoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
-	_ "github.com/jaegertracing/jaeger/pkg/gogocodec" // force gogo codec registration
+	_ "github.com/jaegertracing/jaeger/internal/gogocodec" // force gogo codec registration
 )
 
 var matchContext = mock.AnythingOfType("*context.valueCtx")
