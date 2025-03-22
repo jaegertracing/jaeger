@@ -26,7 +26,7 @@ import (
 	storage "github.com/jaegertracing/jaeger/internal/storage/v1/factory"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/telemetry"
-	"github.com/jaegertracing/jaeger/pkg/version"
+	"github.com/jaegertracing/jaeger/internal/version"
 	"github.com/jaegertracing/jaeger/ports"
 )
 
