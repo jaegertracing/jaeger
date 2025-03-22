@@ -146,3 +146,57 @@ func TestConvertKeyValueValue(t *testing.T) {
 		})
 	}
 }
+
+func TestNewSpanTags(t *testing.T) {
+	testCases := []struct {
+		spanConverter FromDomain
+		expected      Span
+		name          string
+	}{
+		{
+			spanConverter: NewFromDomain(true, []string{}, ""),
+			expected: Span{
+				Tag: map[string]any{"foo": "bar"}, Tags: []KeyValue{},
+				Process: Process{Tag: map[string]any{"bar": "baz"}, Tags: []KeyValue{}},
+			},
+			name: "allTagsAsFields",
+		},
+		{
+			spanConverter: NewFromDomain(false, []string{"foo", "bar", "rere"}, ""),
+			expected: Span{
+				Tag: map[string]any{"foo": "bar"}, Tags: []KeyValue{},
+				Process: Process{Tag: map[string]any{"bar": "baz"}, Tags: []KeyValue{}},
+			},
+			name: "definedTagNames",
+		},
+		{
+			spanConverter: NewFromDomain(false, []string{}, ""),
+			expected: Span{
+				Tags: []KeyValue{{
+					Key:   "foo",
+					Type:  StringType,
+					Value: "bar",
+				}},
+				Process: Process{Tags: []KeyValue{{
+					Key:   "bar",
+					Type:  StringType,
+					Value: "baz",
+				}}},
+			},
+			name: "noAllTagsAsFields",
+		},
+	}
+	for _, test := range testCases {
+		t.Run(test.name, func(t *testing.T) {
+			s := &model.Span{
+				Tags:    []model.KeyValue{{Key: "foo", VStr: "bar"}},
+				Process: &model.Process{Tags: []model.KeyValue{{Key: "bar", VStr: "baz"}}},
+			}
+			mSpan := test.spanConverter.FromDomainEmbedProcess(s)
+			assert.Equal(t, test.expected.Tag, mSpan.Tag)
+			assert.Equal(t, test.expected.Tags, mSpan.Tags)
+			assert.Equal(t, test.expected.Process.Tag, mSpan.Process.Tag)
+			assert.Equal(t, test.expected.Process.Tags, mSpan.Process.Tags)
+		})
+	}
+}
