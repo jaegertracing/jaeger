@@ -8,7 +8,7 @@ import (
 	"os"
 
 	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/mappings"
-	"github.com/jaegertracing/jaeger/pkg/version"
+	"github.com/jaegertracing/jaeger/internal/version"
 )
 
 func main() {

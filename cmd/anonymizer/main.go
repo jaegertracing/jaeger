@@ -17,7 +17,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/anonymizer/app/query"
 	"github.com/jaegertracing/jaeger/cmd/anonymizer/app/uiconv"
 	"github.com/jaegertracing/jaeger/cmd/anonymizer/app/writer"
-	"github.com/jaegertracing/jaeger/pkg/version"
+	"github.com/jaegertracing/jaeger/internal/version"
 )
 
 var logger, _ = zap.NewDevelopment()
