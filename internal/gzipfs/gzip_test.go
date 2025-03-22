@@ -90,7 +90,7 @@ func TestFS(t *testing.T) {
 			// To provide coverage of the error from io.ReadAll function, we use a file
 			// that is a copy of proper gzipped file testdata/foobaz.gz but truncated
 			// to 36 bytes with:
-			//     perl -e "truncate 'pkg/gzipfs/testdata/foobaz_truncated.gz', 36"
+			//     perl -e "truncate 'internal/gzipfs/testdata/foobaz_truncated.gz', 36"
 			// This allows gzip.NewReader() to succeed because the file has a proper gz
 			// header, but subsequent read fails with unexpected EOF.
 			name:        "compressed but truncated file accessed without gz extension",
