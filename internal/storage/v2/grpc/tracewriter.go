@@ -1,12 +1,16 @@
+// Copyright (c) 2025 The Jaeger Authors.
+// SPDX-License-Identifier: Apache-2.0
+
 package grpc
 
 import (
 	"context"
 
-	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp"
 	"google.golang.org/grpc"
+
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
 var _ tracestore.Writer = (*TraceWriter)(nil)
