@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
-	"github.com/jaegertracing/jaeger/pkg/otelsemconv"
+	"github.com/jaegertracing/jaeger/internal/otelsemconv"
 )
 
 func TestOTelTagAdjuster(t *testing.T) {
