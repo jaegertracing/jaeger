@@ -9,7 +9,7 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/pkg/gzipfs"
+	"github.com/jaegertracing/jaeger/internal/gzipfs"
 	"github.com/jaegertracing/jaeger/pkg/httpfs"
 )
 
