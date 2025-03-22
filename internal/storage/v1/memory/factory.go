@@ -17,7 +17,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/spanstoremetrics"
-	"github.com/jaegertracing/jaeger/pkg/distributedlock"
+	"github.com/jaegertracing/jaeger/internal/distributedlock"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 

@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger/internal/testutils"
-	lmocks "github.com/jaegertracing/jaeger/pkg/distributedlock/mocks"
+	lmocks "github.com/jaegertracing/jaeger/internal/distributedlock/mocks"
 )
 
 var errTestLock = errors.New("lock error")

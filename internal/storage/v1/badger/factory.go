@@ -25,7 +25,7 @@ import (
 	depStore "github.com/jaegertracing/jaeger/internal/storage/v1/badger/dependencystore"
 	badgerSampling "github.com/jaegertracing/jaeger/internal/storage/v1/badger/samplingstore"
 	badgerStore "github.com/jaegertracing/jaeger/internal/storage/v1/badger/spanstore"
-	"github.com/jaegertracing/jaeger/pkg/distributedlock"
+	"github.com/jaegertracing/jaeger/internal/distributedlock"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
