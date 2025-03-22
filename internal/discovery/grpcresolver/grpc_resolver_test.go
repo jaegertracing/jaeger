@@ -20,8 +20,8 @@ import (
 	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/resolver"
 
+	"github.com/jaegertracing/jaeger/internal/discovery"
 	"github.com/jaegertracing/jaeger/internal/testutils"
-	"github.com/jaegertracing/jaeger/pkg/discovery"
 )
 
 type testServer struct {
