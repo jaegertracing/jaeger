@@ -66,16 +66,7 @@ func NewProvider(options Options, logger *zap.Logger) (samplingstrategy.Provider
 		h.logger.Info("No sampling strategies found or URL is unavailable, using defaults")
 		return h, nil
 	}
-
-	if !h.options.IncludeDefaultOpStrategies {
-		h.logger.Warn("Default operations level strategies will not be included for Ratelimiting service strategies." +
-			"This behavior will be changed in future releases. " +
-			"Cf. https://github.com/jaegertracing/jaeger/issues/5270")
-		h.parseStrategies_deprecated(strategies)
-	} else {
-		h.parseStrategies(strategies)
-	}
-
+	h.parseStrategies(strategies)
 	if options.ReloadInterval > 0 {
 		go h.autoUpdateStrategies(ctx, loadFn)
 	}
@@ -206,45 +197,6 @@ func loadStrategies(loadFn strategyLoader) (*strategies, error) {
 		return nil, fmt.Errorf("failed to unmarshal strategies: %w", err)
 	}
 	return strategies, nil
-}
-
-func (h *samplingProvider) parseStrategies_deprecated(strategies *strategies) {
-	newStore := defaultStrategies(h.options.DefaultSamplingProbability)
-	if strategies.DefaultStrategy != nil {
-		newStore.defaultStrategy = h.parseServiceStrategies(strategies.DefaultStrategy)
-	}
-
-	merge := true
-	if newStore.defaultStrategy.OperationSampling == nil ||
-		newStore.defaultStrategy.OperationSampling.PerOperationStrategies == nil {
-		merge = false
-	}
-
-	for _, s := range strategies.ServiceStrategies {
-		newStore.serviceStrategies[s.Service] = h.parseServiceStrategies(s)
-
-		// Merge with the default operation strategies, because only merging with
-		// the default strategy has no effect on service strategies (the default strategy
-		// is not merged with and only used as a fallback).
-		opS := newStore.serviceStrategies[s.Service].OperationSampling
-		if opS == nil {
-			if newStore.defaultStrategy.OperationSampling == nil ||
-				newStore.serviceStrategies[s.Service].ProbabilisticSampling == nil {
-				continue
-			}
-			// Service has no per-operation strategies, so just reference the default settings and change default samplingRate.
-			newOpS := *newStore.defaultStrategy.OperationSampling
-			newOpS.DefaultSamplingProbability = newStore.serviceStrategies[s.Service].ProbabilisticSampling.SamplingRate
-			newStore.serviceStrategies[s.Service].OperationSampling = &newOpS
-			continue
-		}
-		if merge {
-			opS.PerOperationStrategies = mergePerOperationSamplingStrategies(
-				opS.PerOperationStrategies,
-				newStore.defaultStrategy.OperationSampling.PerOperationStrategies)
-		}
-	}
-	h.storedStrategies.Store(newStore)
 }
 
 func (h *samplingProvider) parseStrategies(strategies *strategies) {
