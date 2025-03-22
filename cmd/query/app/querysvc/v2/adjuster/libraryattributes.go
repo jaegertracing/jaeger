@@ -8,7 +8,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger/internal/jptrace"
-	"github.com/jaegertracing/jaeger/pkg/otelsemconv"
+	"github.com/jaegertracing/jaeger/internal/otelsemconv"
 )
 
 var _ Adjuster = (*ResourceAttributesAdjuster)(nil)

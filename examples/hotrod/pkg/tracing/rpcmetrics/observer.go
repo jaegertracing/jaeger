@@ -14,7 +14,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/jaegertracing/jaeger/pkg/metrics"
-	"github.com/jaegertracing/jaeger/pkg/otelsemconv"
+	"github.com/jaegertracing/jaeger/internal/otelsemconv"
 )
 
 const defaultMaxNumberOfEndpoints = 200

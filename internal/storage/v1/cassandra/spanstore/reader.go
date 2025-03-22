@@ -21,7 +21,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/cassandra"
 	casMetrics "github.com/jaegertracing/jaeger/pkg/cassandra/metrics"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
-	"github.com/jaegertracing/jaeger/pkg/otelsemconv"
+	"github.com/jaegertracing/jaeger/internal/otelsemconv"
 )
 
 const (
