@@ -14,7 +14,7 @@ import (
 	esV8api "github.com/elastic/go-elasticsearch/v8/esapi"
 	"github.com/olivere/elastic"
 
-	"github.com/jaegertracing/jaeger/pkg/es"
+	"github.com/jaegertracing/jaeger/internal/storage/es"
 )
 
 // This file avoids lint because the Id and Json are required to be capitalized, but must match an outside library.

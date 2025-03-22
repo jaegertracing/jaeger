@@ -6,7 +6,7 @@ package filter
 import (
 	"time"
 
-	"github.com/jaegertracing/jaeger/pkg/es/client"
+	"github.com/jaegertracing/jaeger/internal/storage/es/client"
 )
 
 // ByDate filter indices by creationTime, return indices that were created before certain date.

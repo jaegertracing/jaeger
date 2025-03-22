@@ -15,9 +15,9 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
+	"github.com/jaegertracing/jaeger/internal/storage/es"
+	"github.com/jaegertracing/jaeger/internal/storage/es/config"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/dependencystore/dbmodel"
-	"github.com/jaegertracing/jaeger/pkg/es"
-	"github.com/jaegertracing/jaeger/pkg/es/config"
 )
 
 const (

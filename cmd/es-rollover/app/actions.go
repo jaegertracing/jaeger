@@ -13,7 +13,7 @@ import (
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/pkg/es/client"
+	"github.com/jaegertracing/jaeger/internal/storage/es/client"
 )
 
 func newESClient(endpoint string, cfg *Config, tlsCfg *tls.Config) client.Client {
