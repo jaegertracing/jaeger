@@ -8,7 +8,7 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
-	"github.com/jaegertracing/jaeger/pkg/gogocodec"
+	"github.com/jaegertracing/jaeger/internal/gogocodec"
 )
 
 // TracesData is an alias to ptrace.Traces that supports Gogo marshaling.

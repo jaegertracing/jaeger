@@ -16,7 +16,7 @@ import (
 	"github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
-	_ "github.com/jaegertracing/jaeger/pkg/gogocodec" // force gogo codec registration
+	_ "github.com/jaegertracing/jaeger/internal/gogocodec" // force gogo codec registration
 	"github.com/jaegertracing/jaeger/pkg/jtracer"
 )
 
