@@ -10,7 +10,7 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/internal/metrics"
 )
 
 // deadlockDetector monitors the messages consumed and wither signals for the partition to be closed by sending a

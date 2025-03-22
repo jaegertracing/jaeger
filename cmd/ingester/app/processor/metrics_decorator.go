@@ -7,7 +7,7 @@ import (
 	"io"
 	"time"
 
-	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/internal/metrics"
 )
 
 type metricsDecorator struct {

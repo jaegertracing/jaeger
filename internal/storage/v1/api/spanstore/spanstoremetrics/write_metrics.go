@@ -7,7 +7,7 @@ package spanstoremetrics
 import (
 	"time"
 
-	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/internal/metrics"
 )
 
 // WriteMetrics is a collection of metrics for write operations.

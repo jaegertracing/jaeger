@@ -6,7 +6,7 @@ package version
 import (
 	"fmt"
 
-	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/internal/metrics"
 )
 
 var (

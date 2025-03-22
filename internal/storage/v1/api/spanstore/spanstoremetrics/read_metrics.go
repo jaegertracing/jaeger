@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
+	"github.com/jaegertracing/jaeger/internal/metrics"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
 // ReadMetricsDecorator wraps a spanstore.Reader and collects metrics around each read operation.

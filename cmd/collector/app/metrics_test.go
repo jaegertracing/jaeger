@@ -13,8 +13,8 @@ import (
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
+	jaegerM "github.com/jaegertracing/jaeger/internal/metrics"
 	"github.com/jaegertracing/jaeger/internal/metricstest"
-	jaegerM "github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
 func TestProcessorMetrics(t *testing.T) {

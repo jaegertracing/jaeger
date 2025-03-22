@@ -11,7 +11,7 @@ import (
 
 	"github.com/HdrHistogram/hdrhistogram-go"
 
-	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/internal/metrics"
 )
 
 // This is intentionally very similar to github.com/codahale/metrics, the

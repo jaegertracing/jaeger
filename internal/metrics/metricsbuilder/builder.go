@@ -13,8 +13,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/viper"
 
+	"github.com/jaegertracing/jaeger/internal/metrics"
 	jprom "github.com/jaegertracing/jaeger/internal/metrics/prometheus"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
 const (

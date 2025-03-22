@@ -15,9 +15,9 @@ import (
 	"github.com/gorilla/mux"
 
 	"github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
+	"github.com/jaegertracing/jaeger/internal/metrics"
 	p2json "github.com/jaegertracing/jaeger/model/converter/json"
 	t2p "github.com/jaegertracing/jaeger/model/converter/thrift/jaeger"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
 const mimeTypeApplicationJSON = "application/json"
