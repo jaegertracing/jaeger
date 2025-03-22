@@ -222,11 +222,11 @@ generate-mocks: $(MOCKERY)
 
 .PHONY: certs
 certs:
-	cd pkg/config/tlscfg/testdata && ./gen-certs.sh
+	cd internal/config/tlscfg/testdata && ./gen-certs.sh
 
 .PHONY: certs-dryrun
 certs-dryrun:
-	cd pkg/config/tlscfg/testdata && ./gen-certs.sh -d
+	cd internal/config/tlscfg/testdata && ./gen-certs.sh -d
 
 .PHONY: repro-check
 repro-check:

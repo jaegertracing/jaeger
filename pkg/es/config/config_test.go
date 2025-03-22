@@ -75,7 +75,7 @@ func TestNewClient(t *testing.T) {
 	const (
 		pwd1       = "password"
 		token      = "token"
-		serverCert = "../../config/tlscfg/testdata/example-server-cert.pem"
+		serverCert = "../../../internal/config/tlscfg/testdata/example-server-cert.pem"
 	)
 	pwdFile := filepath.Join(t.TempDir(), "pwd")
 	require.NoError(t, os.WriteFile(pwdFile, []byte(pwd1), 0o600))

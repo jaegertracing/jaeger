@@ -22,7 +22,7 @@ import (
 )
 
 func TestSpanCollectorZipkinTLS(t *testing.T) {
-	const testCertKeyLocation = "../../../../pkg/config/tlscfg/testdata"
+	const testCertKeyLocation = "../../../../internal/config/tlscfg/testdata"
 	testCases := []struct {
 		name                  string
 		serverTLS             configtls.ServerConfig
