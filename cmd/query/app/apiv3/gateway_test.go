@@ -25,7 +25,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	tracestoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
-	_ "github.com/jaegertracing/jaeger/pkg/gogocodec" // force gogo codec registration
+	_ "github.com/jaegertracing/jaeger/internal/gogocodec" // force gogo codec registration
 )
 
 // Utility functions used from http_gateway_test.go.
