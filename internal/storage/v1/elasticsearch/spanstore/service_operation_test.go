@@ -41,13 +41,13 @@ func TestWriteService(t *testing.T) {
 			},
 		}
 
-		w.writer.spanWriter.writeService(indexName, jsonSpan)
+		w.writer.writeService(indexName, jsonSpan)
 
 		indexService.AssertNumberOfCalls(t, "Add", 1)
 		assert.Equal(t, "", w.logBuffer.String())
 
 		// test that cache works, will call the index service only once.
-		w.writer.spanWriter.writeService(indexName, jsonSpan)
+		w.writer.writeService(indexName, jsonSpan)
 		indexService.AssertNumberOfCalls(t, "Add", 1)
 	})
 }
@@ -76,7 +76,7 @@ func TestWriteServiceError(*testing.T) {
 			},
 		}
 
-		w.writer.spanWriter.writeService(indexName, jsonSpan)
+		w.writer.writeService(indexName, jsonSpan)
 	})
 }
 
