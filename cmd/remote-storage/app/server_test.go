@@ -34,7 +34,7 @@ import (
 	"github.com/jaegertracing/jaeger/proto-gen/storage_v1"
 )
 
-var testCertKeyLocation = "../../../pkg/config/tlscfg/testdata"
+var testCertKeyLocation = "../../../internal/config/tlscfg/testdata"
 
 func TestNewServer_CreateStorageErrors(t *testing.T) {
 	createServer := func(factory *fakeFactory) (*Server, error) {
