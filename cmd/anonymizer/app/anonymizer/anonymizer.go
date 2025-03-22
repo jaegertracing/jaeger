@@ -16,7 +16,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
-	uiconv "github.com/jaegertracing/jaeger/model/converter/json"
+	uiconv "github.com/jaegertracing/jaeger/internal/converter/json"
 	uimodel "github.com/jaegertracing/jaeger/model/json"
 )
 
