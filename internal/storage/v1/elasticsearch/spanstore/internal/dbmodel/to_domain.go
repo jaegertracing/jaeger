@@ -16,12 +16,12 @@ import (
 
 // NewToDomain creates ToDomain
 func NewToDomain(tagDotReplacement string) ToDomain {
-	return ToDomain{dotReplacer: NewDotReplacer(tagDotReplacement)}
+	return ToDomain{dotReplacer: dbmodel.NewDotReplacer(tagDotReplacement)}
 }
 
 // ToDomain is used to convert Span to model.Span
 type ToDomain struct {
-	dotReplacer DotReplacer
+	dotReplacer dbmodel.DotReplacer
 }
 
 // SpanToDomain converts db span into model Span
