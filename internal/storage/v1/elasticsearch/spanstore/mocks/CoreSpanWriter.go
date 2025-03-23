@@ -8,7 +8,7 @@
 package mocks
 
 import (
-	dbmodel "github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/spanstore/internal/dbmodel"
+	dbmodel "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/dbmodel"
 	config "github.com/jaegertracing/jaeger/pkg/es/config"
 	mock "github.com/stretchr/testify/mock"
 
