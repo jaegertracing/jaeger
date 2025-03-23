@@ -7,20 +7,19 @@ import (
 	"context"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/spanstore/internal/dbmodel"
 	cfg "github.com/jaegertracing/jaeger/pkg/es/config"
 )
 
 type SpanWriterV1 struct {
 	spanWriter    CoreSpanWriter
-	spanConverter dbmodel.FromDomain
+	spanConverter FromDomain
 }
 
 // NewSpanWriterV1 returns the SpanWriterV1 for use
 func NewSpanWriterV1(p SpanWriterParams) *SpanWriterV1 {
 	return &SpanWriterV1{
 		spanWriter:    NewSpanWriter(p),
-		spanConverter: dbmodel.NewFromDomain(p.AllTagsAsFields, p.TagKeysAsFields, p.TagDotReplacement),
+		spanConverter: NewFromDomain(p.AllTagsAsFields, p.TagKeysAsFields, p.TagDotReplacement),
 	}
 }
 
