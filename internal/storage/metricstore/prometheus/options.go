@@ -11,8 +11,8 @@ import (
 
 	"github.com/spf13/viper"
 
+	config "github.com/jaegertracing/jaeger/internal/config/promcfg"
 	"github.com/jaegertracing/jaeger/internal/config/tlscfg"
-	"github.com/jaegertracing/jaeger/internal/prometheus/config"
 )
 
 const (
