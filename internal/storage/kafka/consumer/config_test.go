@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zaptest"
 
-	"github.com/jaegertracing/jaeger/pkg/kafka/auth"
+	"github.com/jaegertracing/jaeger/internal/storage/kafka/auth"
 )
 
 func TestSetConfiguration(t *testing.T) {
