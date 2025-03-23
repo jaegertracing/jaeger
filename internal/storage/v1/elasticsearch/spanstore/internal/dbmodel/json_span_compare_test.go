@@ -12,9 +12,11 @@ import (
 	"github.com/kr/pretty"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/dbmodel"
 )
 
-func CompareJSONSpans(t *testing.T, expected *Span, actual *Span) {
+func CompareJSONSpans(t *testing.T, expected *dbmodel.Span, actual *dbmodel.Span) {
 	sortJSONSpan(expected)
 	sortJSONSpan(actual)
 
@@ -28,35 +30,35 @@ func CompareJSONSpans(t *testing.T, expected *Span, actual *Span) {
 	}
 }
 
-func sortJSONSpan(span *Span) {
+func sortJSONSpan(span *dbmodel.Span) {
 	sortJSONTags(span.Tags)
 	sortJSONLogs(span.Logs)
 	sortJSONProcess(span.Process)
 }
 
-type JSONTagByKey []KeyValue
+type JSONTagByKey []dbmodel.KeyValue
 
 func (t JSONTagByKey) Len() int           { return len(t) }
 func (t JSONTagByKey) Swap(i, j int)      { t[i], t[j] = t[j], t[i] }
 func (t JSONTagByKey) Less(i, j int) bool { return t[i].Key < t[j].Key }
 
-func sortJSONTags(tags []KeyValue) {
+func sortJSONTags(tags []dbmodel.KeyValue) {
 	sort.Sort(JSONTagByKey(tags))
 }
 
-type JSONLogByTimestamp []Log
+type JSONLogByTimestamp []dbmodel.Log
 
 func (t JSONLogByTimestamp) Len() int           { return len(t) }
 func (t JSONLogByTimestamp) Swap(i, j int)      { t[i], t[j] = t[j], t[i] }
 func (t JSONLogByTimestamp) Less(i, j int) bool { return t[i].Timestamp < t[j].Timestamp }
 
-func sortJSONLogs(logs []Log) {
+func sortJSONLogs(logs []dbmodel.Log) {
 	sort.Sort(JSONLogByTimestamp(logs))
 	for i := range logs {
 		sortJSONTags(logs[i].Fields)
 	}
 }
 
-func sortJSONProcess(process Process) {
+func sortJSONProcess(process dbmodel.Process) {
 	sortJSONTags(process.Tags)
 }

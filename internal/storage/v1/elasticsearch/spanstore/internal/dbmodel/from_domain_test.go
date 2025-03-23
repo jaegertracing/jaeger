@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/dbmodel"
 )
 
 const NumberOfFixtures = 1
@@ -31,7 +32,7 @@ func TestFromDomainEmbedProcess(t *testing.T) {
 			converter := NewFromDomain(false, nil, ":")
 			embeddedSpan := converter.FromDomainEmbedProcess(&span)
 
-			var expectedSpan Span
+			var expectedSpan dbmodel.Span
 			require.NoError(t, json.Unmarshal(jsonStr, &expectedSpan))
 
 			testJSONEncoding(t, i, jsonStr, embeddedSpan)
@@ -107,35 +108,35 @@ func TestConvertKeyValueValue(t *testing.T) {
 	key := "key"
 	tests := []struct {
 		kv       model.KeyValue
-		expected KeyValue
+		expected dbmodel.KeyValue
 	}{
 		{
 			kv:       model.Bool(key, true),
-			expected: KeyValue{Key: key, Value: "true", Type: "bool"},
+			expected: dbmodel.KeyValue{Key: key, Value: "true", Type: "bool"},
 		},
 		{
 			kv:       model.Bool(key, false),
-			expected: KeyValue{Key: key, Value: "false", Type: "bool"},
+			expected: dbmodel.KeyValue{Key: key, Value: "false", Type: "bool"},
 		},
 		{
 			kv:       model.Int64(key, int64(1499)),
-			expected: KeyValue{Key: key, Value: "1499", Type: "int64"},
+			expected: dbmodel.KeyValue{Key: key, Value: "1499", Type: "int64"},
 		},
 		{
 			kv:       model.Float64(key, float64(15.66)),
-			expected: KeyValue{Key: key, Value: "15.66", Type: "float64"},
+			expected: dbmodel.KeyValue{Key: key, Value: "15.66", Type: "float64"},
 		},
 		{
 			kv:       model.String(key, longString),
-			expected: KeyValue{Key: key, Value: longString, Type: "string"},
+			expected: dbmodel.KeyValue{Key: key, Value: longString, Type: "string"},
 		},
 		{
 			kv:       model.Binary(key, []byte(longString)),
-			expected: KeyValue{Key: key, Value: hex.EncodeToString([]byte(longString)), Type: "binary"},
+			expected: dbmodel.KeyValue{Key: key, Value: hex.EncodeToString([]byte(longString)), Type: "binary"},
 		},
 		{
 			kv:       model.KeyValue{VType: 1500, Key: key},
-			expected: KeyValue{Key: key, Value: "unknown type 1500", Type: "1500"},
+			expected: dbmodel.KeyValue{Key: key, Value: "unknown type 1500", Type: "1500"},
 		},
 	}
 
@@ -150,36 +151,36 @@ func TestConvertKeyValueValue(t *testing.T) {
 func TestNewSpanTags(t *testing.T) {
 	testCases := []struct {
 		spanConverter FromDomain
-		expected      Span
+		expected      dbmodel.Span
 		name          string
 	}{
 		{
 			spanConverter: NewFromDomain(true, []string{}, ""),
-			expected: Span{
-				Tag: map[string]any{"foo": "bar"}, Tags: []KeyValue{},
-				Process: Process{Tag: map[string]any{"bar": "baz"}, Tags: []KeyValue{}},
+			expected: dbmodel.Span{
+				Tag: map[string]any{"foo": "bar"}, Tags: []dbmodel.KeyValue{},
+				Process: dbmodel.Process{Tag: map[string]any{"bar": "baz"}, Tags: []dbmodel.KeyValue{}},
 			},
 			name: "allTagsAsFields",
 		},
 		{
 			spanConverter: NewFromDomain(false, []string{"foo", "bar", "rere"}, ""),
-			expected: Span{
-				Tag: map[string]any{"foo": "bar"}, Tags: []KeyValue{},
-				Process: Process{Tag: map[string]any{"bar": "baz"}, Tags: []KeyValue{}},
+			expected: dbmodel.Span{
+				Tag: map[string]any{"foo": "bar"}, Tags: []dbmodel.KeyValue{},
+				Process: dbmodel.Process{Tag: map[string]any{"bar": "baz"}, Tags: []dbmodel.KeyValue{}},
 			},
 			name: "definedTagNames",
 		},
 		{
 			spanConverter: NewFromDomain(false, []string{}, ""),
-			expected: Span{
-				Tags: []KeyValue{{
+			expected: dbmodel.Span{
+				Tags: []dbmodel.KeyValue{{
 					Key:   "foo",
-					Type:  StringType,
+					Type:  dbmodel.StringType,
 					Value: "bar",
 				}},
-				Process: Process{Tags: []KeyValue{{
+				Process: dbmodel.Process{Tags: []dbmodel.KeyValue{{
 					Key:   "bar",
-					Type:  StringType,
+					Type:  dbmodel.StringType,
 					Value: "baz",
 				}}},
 			},
