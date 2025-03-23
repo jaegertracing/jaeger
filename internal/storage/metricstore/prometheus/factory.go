@@ -9,12 +9,12 @@ import (
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
 
+	config "github.com/jaegertracing/jaeger/internal/config/promcfg"
 	prometheusstore "github.com/jaegertracing/jaeger/internal/storage/metricstore/prometheus/metricstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore/metricstoremetrics"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
-	"github.com/jaegertracing/jaeger/pkg/prometheus/config"
 )
 
 var _ storage.Configurable = (*Factory)(nil)
