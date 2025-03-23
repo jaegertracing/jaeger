@@ -12,7 +12,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/ingester/app/processor"
-	"github.com/jaegertracing/jaeger/pkg/kafka/consumer"
+	"github.com/jaegertracing/jaeger/internal/storage/kafka/consumer"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
