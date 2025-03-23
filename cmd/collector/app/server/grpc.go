@@ -20,7 +20,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/collector/app/handler"
 	samplinggrpc "github.com/jaegertracing/jaeger/internal/sampling/grpc"
 	"github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy"
-	"github.com/jaegertracing/jaeger/pkg/telemetry"
+	"github.com/jaegertracing/jaeger/internal/telemetry"
 )
 
 // GRPCServerParams to construct a new Jaeger Collector gRPC Server

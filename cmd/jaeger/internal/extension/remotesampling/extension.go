@@ -166,7 +166,6 @@ func (ext *rsExtension) startFileBasedStrategyProvider(_ context.Context) error 
 	opts := file.Options{
 		StrategiesFile:             ext.cfg.File.Path,
 		ReloadInterval:             ext.cfg.File.ReloadInterval,
-		IncludeDefaultOpStrategies: includeDefaultOpStrategies.IsEnabled(),
 		DefaultSamplingProbability: ext.cfg.File.DefaultSamplingProbability,
 	}
 
