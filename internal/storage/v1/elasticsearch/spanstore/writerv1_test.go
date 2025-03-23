@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/spanstore/internal/dbmodel"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/spanstore/mocks"
 )
 
@@ -20,7 +19,7 @@ func TestSpanWriterV1_WriteSpan(t *testing.T) {
 		Tags:    []model.KeyValue{{Key: "foo", VStr: "bar"}},
 		Process: &model.Process{Tags: []model.KeyValue{{Key: "bar", VStr: "baz"}}},
 	}
-	converter := dbmodel.NewFromDomain(true, []string{}, "-")
+	converter := NewFromDomain(true, []string{}, "-")
 	writerV1 := &SpanWriterV1{spanWriter: coreWriter, spanConverter: converter}
 	coreWriter.On("WriteSpan", s.StartTime, converter.FromDomainEmbedProcess(s))
 	err := writerV1.WriteSpan(context.Background(), s)

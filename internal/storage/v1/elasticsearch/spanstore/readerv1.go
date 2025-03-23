@@ -8,8 +8,8 @@ import (
 	"fmt"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/dbmodel"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/spanstore/internal/dbmodel"
 )
 
 var _ spanstore.Reader = (*SpanReaderV1)(nil) // check API conformance
@@ -17,14 +17,14 @@ var _ spanstore.Reader = (*SpanReaderV1)(nil) // check API conformance
 // SpanReaderV1	is a wrapper around SpanReader
 type SpanReaderV1 struct {
 	spanReader    CoreSpanReader
-	spanConverter dbmodel.ToDomain
+	spanConverter ToDomain
 }
 
 // NewSpanReaderV1 returns an instance of SpanReaderV1
 func NewSpanReaderV1(p SpanReaderParams) *SpanReaderV1 {
 	return &SpanReaderV1{
 		spanReader:    NewSpanReader(p),
-		spanConverter: dbmodel.NewToDomain(p.TagDotReplacement),
+		spanConverter: NewToDomain(p.TagDotReplacement),
 	}
 }
 
