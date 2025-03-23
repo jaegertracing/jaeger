@@ -12,7 +12,7 @@ import (
 
 	"github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
 	api_v1 "github.com/jaegertracing/jaeger-idl/thrift-gen/sampling"
-	thriftconv "github.com/jaegertracing/jaeger/model/converter/thrift/jaeger"
+	thriftconv "github.com/jaegertracing/jaeger/internal/converter/thrift/jaeger"
 )
 
 func TestSamplingStrategyResponseToJSON_Error(t *testing.T) {
