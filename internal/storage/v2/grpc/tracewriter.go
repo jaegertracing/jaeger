@@ -5,6 +5,7 @@ package grpc
 
 import (
 	"context"
+	"fmt"
 
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp"
@@ -32,5 +33,8 @@ func NewTraceWriter(conn *grpc.ClientConn) *TraceWriter {
 func (tw *TraceWriter) WriteTraces(ctx context.Context, td ptrace.Traces) error {
 	req := ptraceotlp.NewExportRequestFromTraces(td)
 	_, err := tw.client.Export(ctx, req)
-	return err
+	if err != nil {
+		return fmt.Errorf("failed to export traces: %w", err)
+	}
+	return nil
 }
