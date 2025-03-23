@@ -77,7 +77,7 @@ func TestUseGogo(t *testing.T) {
 }
 
 func BenchmarkCodecUnmarshal25Spans(b *testing.B) {
-	const fileName = "../../model/converter/thrift/jaeger/fixtures/domain_01.json"
+	const fileName = "../../internal/converter/thrift/jaeger/fixtures/domain_01.json"
 	jsonFile, err := os.Open(fileName)
 	require.NoError(b, err, "Failed to open json fixture file %s", fileName)
 	var trace model.Trace

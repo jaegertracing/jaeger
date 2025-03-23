@@ -15,8 +15,8 @@ import (
 	"github.com/jaegertracing/jaeger/internal/config"
 	promCfg "github.com/jaegertracing/jaeger/internal/config/promcfg"
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
+	"github.com/jaegertracing/jaeger/internal/telemetry"
 	"github.com/jaegertracing/jaeger/internal/testutils"
-	"github.com/jaegertracing/jaeger/pkg/telemetry"
 )
 
 var _ storage.MetricStoreFactory = new(Factory)

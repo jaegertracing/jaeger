@@ -10,7 +10,7 @@ package mocks
 import (
 	context "context"
 
-	dbmodel "github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/spanstore/internal/dbmodel"
+	dbmodel "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/dbmodel"
 	mock "github.com/stretchr/testify/mock"
 )
 

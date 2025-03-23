@@ -15,8 +15,8 @@ import (
 	"github.com/gorilla/mux"
 
 	"github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
-	p2json "github.com/jaegertracing/jaeger/model/converter/json"
-	t2p "github.com/jaegertracing/jaeger/model/converter/thrift/jaeger"
+	p2json "github.com/jaegertracing/jaeger/internal/converter/json"
+	t2p "github.com/jaegertracing/jaeger/internal/converter/thrift/jaeger"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
