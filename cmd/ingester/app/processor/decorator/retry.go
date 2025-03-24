@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/jaegertracing/jaeger/cmd/ingester/app/processor"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/internal/metrics"
 )
 
 type retryDecorator struct {
