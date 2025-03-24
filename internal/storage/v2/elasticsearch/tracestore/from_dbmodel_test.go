@@ -1,5 +1,9 @@
 // Copyright (c) 2025 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
+// Copyright The OpenTelemetry Authors
+// SPDX-License-Identifier: Apache-2.0
+
+// Code originally copied from https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/e49500a9b68447cbbe237fa29526ba99e4963f39/pkg/translator/jaeger/jaegerproto_to_traces_test.go
 
 package tracestore
 
@@ -83,17 +87,41 @@ func TestZeroBatchLength(t *testing.T) {
 	assert.Equal(t, 0, trace.ResourceSpans().Len())
 }
 
-func TestEmptyServiceName(t *testing.T) {
-	trace, err := ProtoToTraces([]*model.Batch{
+func TestEmptyServiceNameAndTags(t *testing.T) {
+	tests := []struct {
+		name    string
+		batches []*model.Batch
+	}{
 		{
-			Process: &model.Process{
-				ServiceName: "",
+			name: "empty service with nil tags",
+			batches: []*model.Batch{
+				{
+					Process: &model.Process{
+						ServiceName: "",
+					},
+				},
 			},
 		},
-	})
-	require.NoError(t, err)
-	assert.Equal(t, 1, trace.ResourceSpans().Len())
-	assert.Equal(t, 0, trace.ResourceSpans().At(0).Resource().Attributes().Len())
+		{
+			name: "empty service with tags",
+			batches: []*model.Batch{
+				{
+					Process: &model.Process{
+						ServiceName: "",
+						Tags:        []model.KeyValue{},
+					},
+				},
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			trace, err := ProtoToTraces(test.batches)
+			require.NoError(t, err)
+			assert.Equal(t, 1, trace.ResourceSpans().Len())
+			assert.Equal(t, 0, trace.ResourceSpans().At(0).Resource().Attributes().Len())
+		})
+	}
 }
 
 func TestEmptySpansAndProcess(t *testing.T) {
