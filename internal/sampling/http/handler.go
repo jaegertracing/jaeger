@@ -17,7 +17,7 @@ import (
 	"github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
 	p2json "github.com/jaegertracing/jaeger/internal/converter/json"
 	t2p "github.com/jaegertracing/jaeger/internal/converter/thrift/jaeger"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/internal/metrics"
 )
 
 const mimeTypeApplicationJSON = "application/json"
