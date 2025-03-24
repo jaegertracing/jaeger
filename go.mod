@@ -5,6 +5,8 @@ go 1.23.7
 toolchain go1.24.1
 
 require (
+	github.com/ClickHouse/ch-go v0.65.1
+	github.com/ClickHouse/clickhouse-go/v2 v2.33.1
 	github.com/HdrHistogram/hdrhistogram-go v1.1.2
 	github.com/Shopify/sarama v1.37.2
 	github.com/apache/thrift v0.21.0
@@ -103,8 +105,17 @@ require (
 )
 
 require (
+	github.com/andybalholm/brotli v1.1.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.12.3 // indirect
 	github.com/cenkalti/backoff/v5 v5.0.2 // indirect
+	github.com/dmarkham/enumer v1.5.10 // indirect
+	github.com/go-faster/city v1.0.1 // indirect
+	github.com/go-faster/errors v0.7.1 // indirect
+	github.com/jackc/puddle/v2 v2.2.2 // indirect
+	github.com/pascaldekloe/name v1.0.1 // indirect
+	github.com/paulmach/orb v0.11.1 // indirect
+	github.com/segmentio/asm v1.2.0 // indirect
+	github.com/shopspring/decimal v1.4.0 // indirect
 	github.com/twmb/murmur3 v1.1.8 // indirect
 	go.opentelemetry.io/collector/extension/extensionauth v0.122.1 // indirect
 	go.opentelemetry.io/collector/extension/extensiontest v0.122.1 // indirect
@@ -112,6 +123,9 @@ require (
 	go.opentelemetry.io/collector/receiver/receiverhelper v0.122.1 // indirect
 	go.opentelemetry.io/collector/service/hostcapabilities v0.122.1 // indirect
 	go.opentelemetry.io/contrib/otelconf v0.15.0 // indirect
+	golang.org/x/mod v0.23.0 // indirect
+	golang.org/x/sync v0.12.0 // indirect
+	golang.org/x/tools v0.30.0 // indirect
 )
 
 require (
@@ -264,7 +278,7 @@ require (
 	go.opentelemetry.io/collector/processor/xprocessor v0.122.1 // indirect
 	go.opentelemetry.io/collector/receiver/receivertest v0.122.1 // indirect
 	go.opentelemetry.io/collector/receiver/xreceiver v0.122.1 // indirect
-	go.opentelemetry.io/collector/semconv v0.122.1 // indirect
+	go.opentelemetry.io/collector/semconv v0.122.1
 	go.opentelemetry.io/collector/service v0.122.1 // indirect
 	go.opentelemetry.io/contrib/bridges/otelzap v0.10.0 // indirect
 	go.opentelemetry.io/contrib/propagators/b3 v1.35.0 // indirect

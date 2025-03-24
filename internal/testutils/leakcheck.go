@@ -55,6 +55,13 @@ func ignoreHttpTransportReadLoopLeak() goleak.Option {
 	return goleak.IgnoreTopFunction("net/http.(*persistConn).readLoop")
 }
 
+// Don't use this in any other method other than leaks for ClickHouse
+// These leaks are from ch-go health checking
+// See this PR for context: https://github.com/ClickHouse/ch-go/pull/1049
+func ignoreBackgroundHealthCheck() goleak.Option {
+	return goleak.IgnoreTopFunction("github.com/ClickHouse/ch-go/chpool.(*Pool).backgroundHealthCheck")
+}
+
 // VerifyGoLeaks verifies that unit tests do not leak any goroutines.
 // It should be called in TestMain.
 func VerifyGoLeaks(m *testing.M) {
@@ -81,4 +88,16 @@ func VerifyGoLeaksOnceForES(t *testing.T) {
 // This must not be used anywhere else other than integration package in ES environment for v1
 func VerifyGoLeaksForES(m *testing.M) {
 	goleak.VerifyTestMain(m, ignoreHttpTransportWriteLoopLeak(), ignoreHttpTransportPollRuntimeLeak(), ignoreHttpTransportReadLoopLeak())
+}
+
+// VerifyGoLeaksOnceForClickhouse is go leak check for Clickhouse integration tests
+// This must not be used anywhere else other than integration package for v2
+func VerifyGoLeaksOnceForClickhouse(t *testing.T) {
+	goleak.VerifyNone(t, IgnoreGlogFlushDaemonLeak(), IgnoreOpenCensusWorkerLeak(), IgnoreGoMetricsMeterLeak(), ignoreBackgroundHealthCheck())
+}
+
+// VerifyGoLeaksForClickhouse is go leak check for integration package in Clickhouse Environment
+// This must not be used anywhere else other than integration package in Clickhouse environment for v2
+func VerifyGoLeaksForClickhouse(m *testing.M) {
+	goleak.VerifyTestMain(m, IgnoreGlogFlushDaemonLeak(), IgnoreOpenCensusWorkerLeak(), IgnoreGoMetricsMeterLeak(), ignoreBackgroundHealthCheck())
 }

@@ -84,3 +84,10 @@ packages:
       CoreSpanReader:
       CoreSpanWriter:
 
+  github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/client:
+    config:
+      all: true
+    interfaces:
+      Pool:
+      Conn:
+      Rows:

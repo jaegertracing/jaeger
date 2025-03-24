@@ -37,3 +37,5 @@ jobs:
   opensearch:
     uses: ./.github/workflows/ci-e2e-opensearch.yml
 
+  clickhouse:
+    uses: ./.github/workflows/ci-e2e-clickhouse.yml
