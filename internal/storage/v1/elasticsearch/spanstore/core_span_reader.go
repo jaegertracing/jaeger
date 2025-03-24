@@ -6,7 +6,7 @@ package spanstore
 import (
 	"context"
 
-	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/spanstore/internal/dbmodel"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/dbmodel"
 )
 
 // CoreSpanReader is a DB-Level abstraction which directly deals with database level operations

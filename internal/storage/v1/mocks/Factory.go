@@ -8,8 +8,8 @@
 package mocks
 
 import (
+	metrics "github.com/jaegertracing/jaeger/internal/metrics"
 	dependencystore "github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore"
-	metrics "github.com/jaegertracing/jaeger/pkg/metrics"
 
 	mock "github.com/stretchr/testify/mock"
 

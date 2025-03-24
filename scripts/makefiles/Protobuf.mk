@@ -23,7 +23,7 @@ PATCHED_OTEL_PROTO_DIR = proto-gen/.patched-otel-proto
 
 PROTO_INCLUDES := \
 	-Iidl/proto/api_v2 \
-	-Imodel/proto/metrics \
+	-Iinternal/proto/metrics \
 	-I/usr/include/github.com/gogo/protobuf \
 	-Iidl/opentelemetry-proto
 
@@ -37,7 +37,7 @@ PROTO_GOGO_MAPPINGS := $(shell echo \
 		Mmodel.proto=github.com/jaegertracing/jaeger-idl/model/v1 \
 	| $(SED) 's/  */,/g')
 
-OPENMETRICS_PROTO_FILES=$(wildcard model/proto/metrics/*.proto)
+OPENMETRICS_PROTO_FILES=$(wildcard internal/proto/metrics/*.proto)
 
 # The source directory for OTLP Protobufs from the sub-sub-module.
 OTEL_PROTO_SRC_DIR=idl/opentelemetry-proto/opentelemetry/proto

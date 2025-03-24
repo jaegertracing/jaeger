@@ -22,6 +22,7 @@ import (
 	"github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
 	"github.com/jaegertracing/jaeger/internal/leaderelection"
+	"github.com/jaegertracing/jaeger/internal/metrics"
 	"github.com/jaegertracing/jaeger/internal/metrics/otelmetrics"
 	samplinggrpc "github.com/jaegertracing/jaeger/internal/sampling/grpc"
 	samplinghttp "github.com/jaegertracing/jaeger/internal/sampling/http"
@@ -29,7 +30,6 @@ import (
 	"github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy/adaptive"
 	"github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy/file"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
 var _ extension.Extension = (*rsExtension)(nil)
@@ -166,7 +166,6 @@ func (ext *rsExtension) startFileBasedStrategyProvider(_ context.Context) error 
 	opts := file.Options{
 		StrategiesFile:             ext.cfg.File.Path,
 		ReloadInterval:             ext.cfg.File.ReloadInterval,
-		IncludeDefaultOpStrategies: includeDefaultOpStrategies.IsEnabled(),
 		DefaultSamplingProbability: ext.cfg.File.DefaultSamplingProbability,
 	}
 
