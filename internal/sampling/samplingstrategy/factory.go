@@ -6,8 +6,8 @@ package samplingstrategy
 import (
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/internal/metrics"
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
 // Factory defines an interface for a factory that can create implementations of different sampling strategy components.
