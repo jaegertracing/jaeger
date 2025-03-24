@@ -13,8 +13,8 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/handler"
+	"github.com/jaegertracing/jaeger/cmd/collector/app/server/httpmetrics"
 	"github.com/jaegertracing/jaeger/internal/healthcheck"
-	"github.com/jaegertracing/jaeger/internal/httpmetrics"
 	"github.com/jaegertracing/jaeger/internal/recoveryhandler"
 	samplinghttp "github.com/jaegertracing/jaeger/internal/sampling/http"
 	"github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy"
