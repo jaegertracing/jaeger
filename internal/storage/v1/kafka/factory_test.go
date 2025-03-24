@@ -17,7 +17,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/internal/config"
 	"github.com/jaegertracing/jaeger/internal/metrics"
-	kafkaConfig "github.com/jaegertracing/jaeger/pkg/kafka/producer"
+	kafkaConfig "github.com/jaegertracing/jaeger/internal/storage/kafka/producer"
 )
 
 type mockProducerBuilder struct {

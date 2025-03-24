@@ -15,7 +15,7 @@ import (
 	cmocks "github.com/jaegertracing/jaeger/cmd/ingester/app/consumer/mocks"
 	"github.com/jaegertracing/jaeger/cmd/ingester/app/processor/mocks"
 	"github.com/jaegertracing/jaeger/internal/metrics"
-	kmocks "github.com/jaegertracing/jaeger/pkg/kafka/consumer/mocks"
+	kmocks "github.com/jaegertracing/jaeger/internal/storage/kafka/consumer/mocks"
 )
 
 func Test_NewFactory(t *testing.T) {

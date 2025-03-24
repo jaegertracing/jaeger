@@ -22,8 +22,8 @@ import (
 	pmocks "github.com/jaegertracing/jaeger/cmd/ingester/app/processor/mocks"
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	"github.com/jaegertracing/jaeger/internal/metricstest"
-	"github.com/jaegertracing/jaeger/pkg/kafka/consumer"
-	kmocks "github.com/jaegertracing/jaeger/pkg/kafka/consumer/mocks"
+	"github.com/jaegertracing/jaeger/internal/storage/kafka/consumer"
+	kmocks "github.com/jaegertracing/jaeger/internal/storage/kafka/consumer/mocks"
 )
 
 //go:generate mockery -dir ../../../../pkg/kafka/config/ -name Consumer
