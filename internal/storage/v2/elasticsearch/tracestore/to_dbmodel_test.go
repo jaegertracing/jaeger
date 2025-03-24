@@ -51,6 +51,29 @@ func TestGetTagFromStatusCode(t *testing.T) {
 	}
 }
 
+func TestEmptyAttributes(t *testing.T) {
+	traces := ptrace.NewTraces()
+	spans := traces.ResourceSpans().AppendEmpty()
+	scopeSpans := spans.ScopeSpans().AppendEmpty()
+	spanScope := scopeSpans.Scope()
+	span := scopeSpans.Spans().AppendEmpty()
+	modelSpan := spanToJaegerProto(span, spanScope)
+	assert.Empty(t, modelSpan.Tags)
+}
+
+func TestEmptyLinkRefs(t *testing.T) {
+	traces := ptrace.NewTraces()
+	spans := traces.ResourceSpans().AppendEmpty()
+	scopeSpans := spans.ScopeSpans().AppendEmpty()
+	spanScope := scopeSpans.Scope()
+	span := scopeSpans.Spans().AppendEmpty()
+	spanLink := span.Links().AppendEmpty()
+	spanLink.Attributes().PutStr("testing-key", "testing-value")
+	modelSpan := spanToJaegerProto(span, spanScope)
+	assert.Len(t, modelSpan.References, 1)
+	assert.Equal(t, model.SpanRefType_FOLLOWS_FROM, modelSpan.References[0].RefType)
+}
+
 func TestGetErrorTagFromStatusCode(t *testing.T) {
 	errTag := model.KeyValue{
 		Key:   tagError,
@@ -80,6 +103,21 @@ func TestGetTagFromStatusMsg(t *testing.T) {
 		VStr:  "test-error",
 		VType: model.ValueType_STRING,
 	}, got)
+}
+
+func Test_resourceToJaegerProtoProcess_WhenOnlyServiceNameIsPresent(t *testing.T) {
+	traces := ptrace.NewTraces()
+	spans := traces.ResourceSpans().AppendEmpty()
+	spans.Resource().Attributes().PutStr(conventions.AttributeServiceName, "service")
+	process := resourceToJaegerProtoProcess(spans.Resource())
+	assert.Equal(t, "service", process.ServiceName)
+}
+
+func Test_appendTagsFromResourceAttributes_empty_attrs(t *testing.T) {
+	traces := ptrace.NewTraces()
+	emptyAttrs := traces.ResourceSpans().AppendEmpty().Resource().Attributes()
+	kv := appendTagsFromResourceAttributes([]model.KeyValue{}, emptyAttrs)
+	assert.Empty(t, kv)
 }
 
 func TestGetTagFromSpanKind(t *testing.T) {
@@ -209,6 +247,20 @@ func TestAttributesToJaegerProtoTags(t *testing.T) {
 	// The last item in expected ("service-name") must be skipped in resource tags translation
 	got = appendTagsFromResourceAttributes(make([]model.KeyValue, 0, len(expected)-1), attributes)
 	require.EqualValues(t, expected[:5], got)
+}
+
+func TestAttributesToJaegerProtoTags_MapType(t *testing.T) {
+	attributes := pcommon.NewMap()
+	attributes.PutEmptyMap("empty-map")
+	got := appendTagsFromAttributes(make([]model.KeyValue, 0, 1), attributes)
+	expected := []model.KeyValue{
+		{
+			Key:   "empty-map",
+			VType: model.ValueType_STRING,
+			VStr:  "{}",
+		},
+	}
+	require.EqualValues(t, expected, got)
 }
 
 func TestInternalTracesToJaegerProto(t *testing.T) {

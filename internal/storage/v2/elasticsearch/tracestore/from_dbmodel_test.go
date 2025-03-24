@@ -77,12 +77,97 @@ func TestCodeFromAttr(t *testing.T) {
 	}
 }
 
+func TestZeroBatchLength(t *testing.T) {
+	trace, err := ProtoToTraces([]*model.Batch{})
+	require.NoError(t, err)
+	assert.Equal(t, 0, trace.ResourceSpans().Len())
+}
+
+func TestEmptyServiceName(t *testing.T) {
+	trace, err := ProtoToTraces([]*model.Batch{
+		{
+			Spans: []*model.Span{
+				{
+					Process: &model.Process{
+						ServiceName: "",
+					},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, 1, trace.ResourceSpans().Len())
+	assert.Equal(t, 0, trace.ResourceSpans().At(0).Resource().Attributes().Len())
+}
+
+func Test_translateHostnameAttr(t *testing.T) {
+	traceData := ptrace.NewTraces()
+	rss := traceData.ResourceSpans().AppendEmpty().Resource().Attributes()
+	rss.PutStr("hostname", "testing")
+	translateHostnameAttr(rss)
+	_, hostNameFound := rss.Get("hostname")
+	assert.False(t, hostNameFound)
+	convHostName, convHostNameFound := rss.Get(conventions.AttributeHostName)
+	assert.True(t, convHostNameFound)
+	assert.Equal(t, "testing", convHostName.AsString())
+}
+
+func Test_translateJaegerVersionAttr(t *testing.T) {
+	traceData := ptrace.NewTraces()
+	rss := traceData.ResourceSpans().AppendEmpty().Resource().Attributes()
+	rss.PutStr("jaeger.version", "1.0.0")
+	translateJaegerVersionAttr(rss)
+	_, jaegerVersionFound := rss.Get("jaeger.version")
+	assert.False(t, jaegerVersionFound)
+	exportVersion, exportVersionFound := rss.Get(attributeExporterVersion)
+	assert.True(t, exportVersionFound)
+	assert.Equal(t, "Jaeger-1.0.0", exportVersion.AsString())
+}
+
+func Test_jSpansToInternal_EmptyOrNilSpans(t *testing.T) {
+	tests := []struct {
+		name  string
+		spans []*model.Span
+	}{
+		{
+			name:  "nil spans",
+			spans: []*model.Span{nil},
+		},
+		{
+			name:  "empty spans",
+			spans: []*model.Span{new(model.Span)},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			traceData := ptrace.NewTraces()
+			rss := traceData.ResourceSpans().AppendEmpty().ScopeSpans()
+			jSpansToInternal(tt.spans, rss)
+			assert.Equal(t, 0, rss.Len())
+		})
+	}
+}
+
+func Test_jTagsToInternalAttributes(t *testing.T) {
+	traceData := ptrace.NewTraces()
+	rss := traceData.ResourceSpans().AppendEmpty().Resource().Attributes()
+	kv := []model.KeyValue{{
+		Key:   "testing-key",
+		VType: model.ValueType(12),
+	}}
+	jTagsToInternalAttributes(kv, rss)
+	testingKey, testingKeyFound := rss.Get("testing-key")
+	assert.True(t, testingKeyFound)
+	assert.Equal(t, "<Unknown Jaeger TagType \"12\">", testingKey.AsString())
+}
+
 func TestGetStatusCodeFromHTTPStatusAttr(t *testing.T) {
 	tests := []struct {
 		name string
 		attr pcommon.Value
 		kind ptrace.SpanKind
 		code ptrace.StatusCode
+		err  string
 	}{
 		{
 			name: "string-unknown",
@@ -122,15 +207,48 @@ func TestGetStatusCodeFromHTTPStatusAttr(t *testing.T) {
 			kind: ptrace.SpanKindClient,
 			code: ptrace.StatusCodeError,
 		},
+		{
+			name: "wrong value",
+			attr: pcommon.NewValueBool(true),
+			kind: ptrace.SpanKindClient,
+			code: ptrace.StatusCodeUnset,
+			err:  "invalid type: Bool",
+		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			code, err := getStatusCodeFromHTTPStatusAttr(test.attr, test.kind)
-			require.NoError(t, err)
+			if test.err != "" {
+				require.ErrorContains(t, err, test.err)
+			} else {
+				require.NoError(t, err)
+			}
 			assert.Equal(t, test.code, code)
 		})
 	}
+}
+
+func Test_jLogsToSpanEvents(t *testing.T) {
+	traces := ptrace.NewTraces()
+	span := traces.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+	span.Events().AppendEmpty().SetName("event1")
+	span.Events().AppendEmpty().SetName("event2")
+	span.Events().AppendEmpty().Attributes().PutStr(eventNameAttr, "testing")
+	logs := []model.Log{
+		{
+			Timestamp: testSpanEventTime,
+		},
+		{
+			Timestamp: testSpanEventTime,
+		},
+	}
+	jLogsToSpanEvents(logs, span.Events())
+	for i := 0; i < len(logs); i++ {
+		assert.Equal(t, testSpanEventTime, span.Events().At(i).Timestamp().AsTime())
+	}
+	assert.Equal(t, 1, span.Events().At(2).Attributes().Len())
+	assert.Empty(t, span.Events().At(2).Name())
 }
 
 func TestJTagsToInternalAttributes(t *testing.T) {
@@ -475,6 +593,16 @@ func TestSetInternalSpanStatus(t *testing.T) {
 			attrsModifiedLen: 1,
 		},
 		{
+			name: "status.error has precedence over http.status_error.",
+			attrs: map[string]any{
+				conventions.OtelStatusCode:          statusError,
+				conventions.AttributeHTTPStatusCode: 500,
+				tagHTTPStatusMsg:                    "Server Error",
+			},
+			status:           errorStatus,
+			attrsModifiedLen: 2,
+		},
+		{
 			name: "the 4xx range span status MUST be left unset in case of SpanKind.SERVER",
 			kind: ptrace.SpanKindServer,
 			attrs: map[string]any{
@@ -482,6 +610,15 @@ func TestSetInternalSpanStatus(t *testing.T) {
 				conventions.AttributeHTTPStatusCode: 404,
 			},
 			status:           emptyStatus,
+			attrsModifiedLen: 2,
+		},
+		{
+			name: "whether tagHttpStatusMsg is set as string",
+			attrs: map[string]any{
+				conventions.AttributeHTTPStatusCode: 404,
+				tagHTTPStatusMsg:                    "HTTP 404: Not Found",
+			},
+			status:           errorStatusWith404Message,
 			attrsModifiedLen: 2,
 		},
 	}
