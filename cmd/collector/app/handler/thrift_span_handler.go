@@ -15,7 +15,7 @@ import (
 	"github.com/jaegertracing/jaeger-idl/thrift-gen/zipkincore"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
 	zipkinS "github.com/jaegertracing/jaeger/cmd/collector/app/sanitizer/zipkin"
-	jConv "github.com/jaegertracing/jaeger/model/converter/thrift/jaeger"
+	jConv "github.com/jaegertracing/jaeger/internal/converter/thrift/jaeger"
 )
 
 // SubmitBatchOptions are passed to Submit methods of the handlers.

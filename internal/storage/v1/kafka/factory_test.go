@@ -16,8 +16,8 @@ import (
 	"go.uber.org/zap/zapcore"
 
 	"github.com/jaegertracing/jaeger/internal/config"
-	kafkaConfig "github.com/jaegertracing/jaeger/pkg/kafka/producer"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/internal/metrics"
+	kafkaConfig "github.com/jaegertracing/jaeger/internal/storage/kafka/producer"
 )
 
 type mockProducerBuilder struct {
