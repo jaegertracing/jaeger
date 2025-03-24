@@ -18,8 +18,8 @@ import (
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/metricstest"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/dbmodel"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/spanstore/internal/dbmodel"
 	"github.com/jaegertracing/jaeger/internal/testutils"
 	"github.com/jaegertracing/jaeger/pkg/es"
 	"github.com/jaegertracing/jaeger/pkg/es/config"
@@ -30,7 +30,7 @@ type spanWriterTest struct {
 	client    *mocks.Client
 	logger    *zap.Logger
 	logBuffer *testutils.Buffer
-	writer    *SpanWriterV1
+	writer    *SpanWriter
 }
 
 func withSpanWriter(fn func(w *spanWriterTest)) {
@@ -41,7 +41,7 @@ func withSpanWriter(fn func(w *spanWriterTest)) {
 		client:    client,
 		logger:    logger,
 		logBuffer: logBuffer,
-		writer: NewSpanWriterV1(SpanWriterParams{
+		writer: NewSpanWriter(SpanWriterParams{
 			Client: func() es.Client { return client },
 			Logger: logger, MetricsFactory: metricsFactory,
 			SpanIndex:    config.IndexOptions{DateLayout: "2006-01-02"},
@@ -123,8 +123,8 @@ func TestSpanWriterIndices(t *testing.T) {
 		},
 	}
 	for _, testCase := range testCases {
-		w := NewSpanWriterV1(testCase.params)
-		spanIndexName, serviceIndexName := w.spanWriter.spanServiceIndex(date)
+		w := NewSpanWriter(testCase.params)
+		spanIndexName, serviceIndexName := w.spanServiceIndex(date)
 		assert.Equal(t, []string{spanIndexName, serviceIndexName}, testCase.indices)
 	}
 }
@@ -160,14 +160,14 @@ func TestSpanWriter_WriteSpan(t *testing.T) {
 				date, err := time.Parse(time.RFC3339, "1995-04-21T22:08:41+00:00")
 				require.NoError(t, err)
 
-				span := &model.Span{
-					TraceID:       model.NewTraceID(0, 1),
-					SpanID:        model.NewSpanID(0),
+				span := &dbmodel.Span{
+					TraceID:       "testing-traceid",
+					SpanID:        "testing-spanid",
 					OperationName: "operation",
-					Process: &model.Process{
+					Process: dbmodel.Process{
 						ServiceName: "service",
 					},
-					StartTime: date,
+					StartTime: model.TimeAsEpochMicroseconds(date),
 				}
 
 				spanIndexName := "jaeger-span-1995-04-21"
@@ -194,10 +194,9 @@ func TestSpanWriter_WriteSpan(t *testing.T) {
 
 				w.client.On("Index").Return(indexService)
 
-				err = w.writer.WriteSpan(context.Background(), span)
+				w.writer.WriteSpan(date, span)
 
 				if testCase.expectedError == "" {
-					require.NoError(t, err)
 					indexServicePut.AssertNumberOfCalls(t, "Add", 1)
 					indexSpanPut.AssertNumberOfCalls(t, "Add", 1)
 				} else {
@@ -323,7 +322,7 @@ func TestWriteSpanInternal(t *testing.T) {
 
 		jsonSpan := &dbmodel.Span{}
 
-		w.writer.spanWriter.writeSpan(indexName, jsonSpan)
+		w.writer.writeSpan(indexName, jsonSpan)
 		indexService.AssertNumberOfCalls(t, "Add", 1)
 		assert.Equal(t, "", w.logBuffer.String())
 	})
@@ -346,74 +345,9 @@ func TestWriteSpanInternalError(t *testing.T) {
 			SpanID:  dbmodel.SpanID("0"),
 		}
 
-		w.writer.spanWriter.writeSpan(indexName, jsonSpan)
+		w.writer.writeSpan(indexName, jsonSpan)
 		indexService.AssertNumberOfCalls(t, "Add", 1)
 	})
-}
-
-func TestNewSpanTags(t *testing.T) {
-	client := &mocks.Client{}
-	clientFn := func() es.Client { return client }
-	logger, _ := testutils.NewLogger()
-	metricsFactory := metricstest.NewFactory(0)
-	testCases := []struct {
-		writer   *SpanWriterV1
-		expected dbmodel.Span
-		name     string
-	}{
-		{
-			writer: NewSpanWriterV1(SpanWriterParams{
-				Client: clientFn, Logger: logger, MetricsFactory: metricsFactory,
-				AllTagsAsFields: true,
-			}),
-			expected: dbmodel.Span{
-				Tag: map[string]any{"foo": "bar"}, Tags: []dbmodel.KeyValue{},
-				Process: dbmodel.Process{Tag: map[string]any{"bar": "baz"}, Tags: []dbmodel.KeyValue{}},
-			},
-			name: "allTagsAsFields",
-		},
-		{
-			writer: NewSpanWriterV1(SpanWriterParams{
-				Client: clientFn, Logger: logger, MetricsFactory: metricsFactory,
-				TagKeysAsFields: []string{"foo", "bar", "rere"},
-			}),
-			expected: dbmodel.Span{
-				Tag: map[string]any{"foo": "bar"}, Tags: []dbmodel.KeyValue{},
-				Process: dbmodel.Process{Tag: map[string]any{"bar": "baz"}, Tags: []dbmodel.KeyValue{}},
-			},
-			name: "definedTagNames",
-		},
-		{
-			writer: NewSpanWriterV1(SpanWriterParams{Client: clientFn, Logger: logger, MetricsFactory: metricsFactory}),
-			expected: dbmodel.Span{
-				Tags: []dbmodel.KeyValue{{
-					Key:   "foo",
-					Type:  dbmodel.StringType,
-					Value: "bar",
-				}},
-				Process: dbmodel.Process{Tags: []dbmodel.KeyValue{{
-					Key:   "bar",
-					Type:  dbmodel.StringType,
-					Value: "baz",
-				}}},
-			},
-			name: "noAllTagsAsFields",
-		},
-	}
-
-	s := &model.Span{
-		Tags:    []model.KeyValue{{Key: "foo", VStr: "bar"}},
-		Process: &model.Process{Tags: []model.KeyValue{{Key: "bar", VStr: "baz"}}},
-	}
-	for _, test := range testCases {
-		t.Run(test.name, func(t *testing.T) {
-			mSpan := test.writer.spanWriter.spanConverter.FromDomainEmbedProcess(s)
-			assert.Equal(t, test.expected.Tag, mSpan.Tag)
-			assert.Equal(t, test.expected.Tags, mSpan.Tags)
-			assert.Equal(t, test.expected.Process.Tag, mSpan.Process.Tag)
-			assert.Equal(t, test.expected.Process.Tags, mSpan.Process.Tags)
-		})
-	}
 }
 
 func TestSpanWriterParamsTTL(t *testing.T) {
@@ -445,7 +379,7 @@ func TestSpanWriterParamsTTL(t *testing.T) {
 				MetricsFactory:  metricsFactory,
 				ServiceCacheTTL: test.serviceTTL,
 			}
-			w := NewSpanWriterV1(params)
+			w := NewSpanWriter(params)
 
 			svc := dbmodel.Service{
 				ServiceName:   "foo",
@@ -470,11 +404,11 @@ func TestSpanWriterParamsTTL(t *testing.T) {
 				OperationName: "bar",
 			}
 
-			w.spanWriter.writeService(serviceIndexName, jsonSpan)
+			w.writeService(serviceIndexName, jsonSpan)
 			time.Sleep(1 * time.Nanosecond)
-			w.spanWriter.writeService(serviceIndexName, jsonSpan)
+			w.writeService(serviceIndexName, jsonSpan)
 			time.Sleep(1 * time.Nanosecond)
-			w.spanWriter.writeService(serviceIndexName, jsonSpan)
+			w.writeService(serviceIndexName, jsonSpan)
 			indexService.AssertNumberOfCalls(t, "Add", test.expectedAddCalls)
 		})
 	}
