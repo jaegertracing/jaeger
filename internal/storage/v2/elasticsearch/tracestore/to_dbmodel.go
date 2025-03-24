@@ -66,8 +66,7 @@ func (t ToDBModel) resourceSpansToDbSpans(rs ptrace.ResourceSpans) []*dbmodel.Sp
 		spans := ils.Spans()
 		for j := 0; j < spans.Len(); j++ {
 			span := spans.At(j)
-			jSpan := t.spanToDbSpan(span, ils.Scope())
-			jSpan.Process = *process
+			jSpan := t.spanToDbSpan(span, ils.Scope(), *process)
 			if jSpan != nil {
 				jSpans = append(jSpans, jSpan)
 			}
@@ -76,7 +75,7 @@ func (t ToDBModel) resourceSpansToDbSpans(rs ptrace.ResourceSpans) []*dbmodel.Sp
 	return jSpans
 }
 
-func (t ToDBModel) spanToDbSpan(span ptrace.Span, libraryTags pcommon.InstrumentationScope) *dbmodel.Span {
+func (t ToDBModel) spanToDbSpan(span ptrace.Span, libraryTags pcommon.InstrumentationScope, process dbmodel.Process) *dbmodel.Span {
 	traceId := span.TraceID()
 	startTime := span.StartTimestamp().AsTime()
 	tags, tagsMap := t.toDbTags(span, libraryTags)
@@ -91,6 +90,7 @@ func (t ToDBModel) spanToDbSpan(span ptrace.Span, libraryTags pcommon.Instrument
 		Logs:            spanEventsToDbLogs(span.Events()),
 		Tags:            tags,
 		Tag:             tagsMap,
+		Process:         process,
 	}
 }
 
@@ -224,8 +224,5 @@ func (t ToDBModel) appendTagsFromResourceAttributes(attrs pcommon.Map) ([]dbmode
 	}
 	appender := NewTagAppender(t.allTagsAsFields, t.tagKeysAsFields, t.tagDotReplacement, tagsMap, kvs)
 	appender.AppendTagsFromResourceAttributes(attrs)
-	if kvs == nil {
-		kvs = make([]dbmodel.KeyValue, 0)
-	}
 	return kvs, tagsMap
 }

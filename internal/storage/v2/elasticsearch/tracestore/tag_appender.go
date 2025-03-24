@@ -38,7 +38,7 @@ func NewTagAppender(allTagsAsFields bool, tagKeysAsFields map[string]bool, tagDo
 	}
 }
 
-func (t TagAppender) AppendTagsForSpan(span ptrace.Span, scope pcommon.InstrumentationScope) {
+func (t *TagAppender) AppendTagsForSpan(span ptrace.Span, scope pcommon.InstrumentationScope) {
 	t.appendTagsFromScope(scope)
 	t.appendSpanKind(span.Kind())
 	status := span.Status()
@@ -54,7 +54,7 @@ func (t TagAppender) AppendTagsForSpan(span ptrace.Span, scope pcommon.Instrumen
 	}
 }
 
-func (t TagAppender) AppendTagsFromResourceAttributes(attrs pcommon.Map) {
+func (t *TagAppender) AppendTagsFromResourceAttributes(attrs pcommon.Map) {
 	attrs.Range(func(key string, attr pcommon.Value) bool {
 		if key == conventions.AttributeServiceName {
 			return true
@@ -64,7 +64,7 @@ func (t TagAppender) AppendTagsFromResourceAttributes(attrs pcommon.Map) {
 	})
 }
 
-func (t TagAppender) appendTagsFromScope(scope pcommon.InstrumentationScope) {
+func (t *TagAppender) appendTagsFromScope(scope pcommon.InstrumentationScope) {
 	if ilName := scope.Name(); ilName != "" {
 		t.appendTagsForDb(conventions.AttributeOtelScopeName, pcommon.ValueTypeStr, ilName)
 	}
@@ -73,14 +73,14 @@ func (t TagAppender) appendTagsFromScope(scope pcommon.InstrumentationScope) {
 	}
 }
 
-func (t TagAppender) appendSpanKind(spanKind ptrace.SpanKind) {
+func (t *TagAppender) appendSpanKind(spanKind ptrace.SpanKind) {
 	tag, found := toJaegerSpanKind(spanKind)
 	if found {
 		t.appendTagsForDb(model.SpanKindKey, pcommon.ValueTypeStr, string(tag))
 	}
 }
 
-func (t TagAppender) appendTagFromStatusCode(statusCode ptrace.StatusCode) {
+func (t *TagAppender) appendTagFromStatusCode(statusCode ptrace.StatusCode) {
 	key := conventions.OtelStatusCode
 	valueType := pcommon.ValueTypeStr
 	switch statusCode {
@@ -92,20 +92,20 @@ func (t TagAppender) appendTagFromStatusCode(statusCode ptrace.StatusCode) {
 	}
 }
 
-func (t TagAppender) appendTagFromStatusMsg(statusMsg string) {
+func (t *TagAppender) appendTagFromStatusMsg(statusMsg string) {
 	if statusMsg != "" {
 		t.appendTagsForDb(conventions.OtelStatusDescription, pcommon.ValueTypeStr, statusMsg)
 	}
 }
 
-func (t TagAppender) appendTagsFromTraceState(traceState string) {
+func (t *TagAppender) appendTagsFromTraceState(traceState string) {
 	exists := traceState != ""
 	if exists {
 		t.appendTagsForDb(tagW3CTraceState, pcommon.ValueTypeStr, traceState)
 	}
 }
 
-func (t TagAppender) appendTagsForDb(key string, valueType pcommon.ValueType, value string) {
+func (t *TagAppender) appendTagsForDb(key string, valueType pcommon.ValueType, value string) {
 	if valueType != pcommon.ValueTypeBytes && (t.allTagsAsFields || t.tagKeysAsFields[key]) {
 		t.tagsMap[strings.ReplaceAll(key, ".", t.tagDotReplacement)] = value
 	} else {
