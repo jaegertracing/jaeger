@@ -86,18 +86,20 @@ func TestZeroBatchLength(t *testing.T) {
 func TestEmptyServiceName(t *testing.T) {
 	trace, err := ProtoToTraces([]*model.Batch{
 		{
-			Spans: []*model.Span{
-				{
-					Process: &model.Process{
-						ServiceName: "",
-					},
-				},
+			Process: &model.Process{
+				ServiceName: "",
 			},
 		},
 	})
 	require.NoError(t, err)
 	assert.Equal(t, 1, trace.ResourceSpans().Len())
 	assert.Equal(t, 0, trace.ResourceSpans().At(0).Resource().Attributes().Len())
+}
+
+func TestEmptySpansAndProcess(t *testing.T) {
+	trace, err := ProtoToTraces([]*model.Batch{{Spans: []*model.Span{}}})
+	require.NoError(t, err)
+	assert.Equal(t, 0, trace.ResourceSpans().Len())
 }
 
 func Test_translateHostnameAttr(t *testing.T) {
