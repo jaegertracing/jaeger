@@ -335,7 +335,7 @@ func parseBool(r *http.Request, paramName string) (b bool, err error) {
 // - "producer": producer sending a message to broker.
 // - "consumer": consumer consuming a message from a broker.
 //
-// The output span kinds are the string representations from the OpenTelemetry model/proto/metrics/otelspankind.proto.
+// The output span kinds are the string representations from the OpenTelemetry internal/proto/metrics/otelspankind.proto.
 // That is, the following map to the above valid inputs:
 // - "SPAN_KIND_UNSPECIFIED"
 // - "SPAN_KIND_INTERNAL"
