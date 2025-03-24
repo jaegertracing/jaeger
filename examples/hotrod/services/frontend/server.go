@@ -20,7 +20,7 @@ import (
 	"github.com/jaegertracing/jaeger/examples/hotrod/pkg/httperr"
 	"github.com/jaegertracing/jaeger/examples/hotrod/pkg/log"
 	"github.com/jaegertracing/jaeger/examples/hotrod/pkg/tracing"
-	"github.com/jaegertracing/jaeger/pkg/httpfs"
+	"github.com/jaegertracing/jaeger/internal/httpfs"
 )
 
 //go:embed web_assets/*
