@@ -8,9 +8,10 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/jaegertracing/jaeger/internal/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/jaegertracing/jaeger/internal/config"
 )
 
 func TestCLI(t *testing.T) {
