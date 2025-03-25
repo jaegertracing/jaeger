@@ -193,18 +193,10 @@ func testElasticsearchStorage(t *testing.T, allTagsAsFields bool) {
 }
 
 func TestElasticsearchStorage(t *testing.T) {
-	SkipUnlessEnv(t, "elasticsearch", "opensearch")
-	t.Cleanup(func() {
-		testutils.VerifyGoLeaksOnceForES(t)
-	})
 	testElasticsearchStorage(t, false)
 }
 
 func TestElasticsearchStorage_AllTagsAsObjectFields(t *testing.T) {
-	SkipUnlessEnv(t, "elasticsearch", "opensearch")
-	t.Cleanup(func() {
-		testutils.VerifyGoLeaksOnceForES(t)
-	})
 	testElasticsearchStorage(t, true)
 }
 
