@@ -5,9 +5,7 @@
 
 export CLICKHOUSE_USERNAME="default"
 export CLICKHOUSE_PASSWORD="default"
-export QUERY_FILE="/clickhouse-schema/schema.tmpl"
 compose_file="docker-compose/clickhouse/docker-compose.yml"
-SKIP_APPLY_SCHEMA=${SKIP_APPLY_SCHEMA:-"false"}
 
 setup_clickhouse() {
   docker compose -f "$compose_file" up -d
@@ -25,26 +23,6 @@ wait_for_clickhouse() {
   echo "ClickHouse is ready!"
 }
 
-apply_schema() {
-  local image=clickhouse-schema
-  local schema_dir=internal/storage/v2/clickhouse/
-  local params=(
-    --rm
-    --env "CLICKHOUSE_HOST=localhost"
-    --env "QUERY_FILE=${QUERY_FILE}"
-    --env "CLICKHOUSE_USERNAME=${CLICKHOUSE_USERNAME}"
-    --env "CLICKHOUSE_PASSWORD=${CLICKHOUSE_PASSWORD}"
-    --network host
-  )
-  docker build -t ${image} ${schema_dir}
-  docker run "${params[@]}" ${image}
-
-  if ! docker run "${params[@]}" ${image}; then
-    echo "Schema application failed. Exiting..."
-    exit 1
-  fi
-}
-
 dump_logs() {
   echo "::group::🚧 🚧 🚧 clickhouse logs"
   docker compose -f "${compose_file}" logs
@@ -52,7 +30,6 @@ dump_logs() {
 }
 
 run_integration_test() {
-  apply_schema
   # Wait for the schema to be applied before starting the integration test
   echo "Schema applied, starting integration tests..."
   STORAGE=clickhouse make storage-integration-test

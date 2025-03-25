@@ -1,7 +1,7 @@
 // Copyright (c) 2025 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
-package trace
+package tracestore
 
 import (
 	"context"
@@ -21,14 +21,14 @@ import (
 )
 
 type traceReaderTest struct {
-	connection *mocks.Conn
+	connection *mocks.Clickhouse
 	logger     *zap.Logger
 	logBuffer  *testutils.Buffer
-	reader     *Reader
+	reader     *TraceReader
 }
 
 func withTraceReader(fn func(r *traceReaderTest)) {
-	conn := &mocks.Conn{}
+	conn := &mocks.Clickhouse{}
 	rows := &mocks.Rows{}
 	rows.On("Err").Return(nil)
 	rows.On("Scan", mock.Arguments{}).Return()
@@ -69,7 +69,7 @@ func TestGetTraces(t *testing.T) {
 		})
 	})
 	t.Run("should return empty traces when no data is available", func(t *testing.T) {
-		conn := &mocks.Conn{}
+		conn := &mocks.Clickhouse{}
 		rows := &mocks.Rows{}
 		rows.On("Scan").Return(nil)
 		rows.On("Err").Return(nil)
@@ -83,7 +83,7 @@ func TestGetTraces(t *testing.T) {
 	})
 
 	t.Run("should return error when rows encounter an error", func(t *testing.T) {
-		conn := &mocks.Conn{}
+		conn := &mocks.Clickhouse{}
 		rows := &mocks.Rows{}
 
 		rows.On("Scan", mock.Arguments{}).Return(nil)
@@ -102,7 +102,7 @@ func TestGetTraces(t *testing.T) {
 	})
 
 	t.Run("should return error when querying ClickHouse fails", func(t *testing.T) {
-		conn := &mocks.Conn{}
+		conn := &mocks.Clickhouse{}
 		conn.On("Query", mock.Anything, mock.Anything, mock.Anything).Return(nil,
 			errors.New("can't connect to clickhouse"))
 		reader, err := NewTraceReader(conn)
@@ -116,7 +116,7 @@ func TestGetTraces(t *testing.T) {
 	})
 
 	t.Run("should return error when scanning rows fails", func(t *testing.T) {
-		conn := &mocks.Conn{}
+		conn := &mocks.Clickhouse{}
 		rows := &mocks.Rows{}
 
 		conn.On("Query", mock.Anything, mock.Anything, mock.Anything).Return(rows, nil)
@@ -141,7 +141,7 @@ func TestGetTraces(t *testing.T) {
 	})
 
 	t.Run("should return error when trace conversion fails", func(t *testing.T) {
-		conn := &mocks.Conn{}
+		conn := &mocks.Clickhouse{}
 		rows := &mocks.Rows{}
 
 		conn.On("Query", mock.Anything, mock.Anything, mock.Anything).Return(rows, nil)
@@ -166,7 +166,7 @@ func TestGetTraces(t *testing.T) {
 }
 
 func TestGetServices(t *testing.T) {
-	conn := &mocks.Conn{}
+	conn := &mocks.Clickhouse{}
 
 	reader, _ := NewTraceReader(conn)
 	servers, err := reader.GetServices(context.Background())
@@ -175,7 +175,7 @@ func TestGetServices(t *testing.T) {
 }
 
 func TestGetOperations(t *testing.T) {
-	conn := &mocks.Conn{}
+	conn := &mocks.Clickhouse{}
 
 	reader, _ := NewTraceReader(conn)
 	operations, err := reader.GetOperations(context.Background(), tracestore.OperationQueryParams{})
@@ -184,7 +184,7 @@ func TestGetOperations(t *testing.T) {
 }
 
 func TestFindTraces(t *testing.T) {
-	conn := &mocks.Conn{}
+	conn := &mocks.Clickhouse{}
 
 	reader, _ := NewTraceReader(conn)
 	seq := reader.FindTraces(context.Background(), tracestore.TraceQueryParams{})
@@ -202,7 +202,7 @@ func TestFindTraces(t *testing.T) {
 }
 
 func TestFindTraceIDs(t *testing.T) {
-	conn := &mocks.Conn{}
+	conn := &mocks.Clickhouse{}
 
 	reader, _ := NewTraceReader(conn)
 	seq := reader.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{})

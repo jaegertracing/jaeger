@@ -24,7 +24,7 @@ type mockPoolBuilder struct {
 
 func (m *mockPoolBuilder) NewPool(*config.Configuration, *zap.Logger) (client.ChPool, error) {
 	if m.error == nil {
-		c := &mocks.Pool{}
+		c := &mocks.ChPool{}
 		c.On("Do", context.Background(), mock.Anything, mock.Anything).Return(nil)
 		c.On("Close").Return(nil)
 		return c, nil
@@ -38,7 +38,7 @@ type mockConnBuilder struct {
 
 func (m *mockConnBuilder) NewConn(*config.Configuration) (client.Clickhouse, error) {
 	if m.err == nil {
-		c := &mocks.Conn{}
+		c := &mocks.Clickhouse{}
 		c.On("Query", mock.Anything, mock.Anything, mock.Anything).Return(nil, nil)
 		c.On("Exec", mock.Anything, mock.Anything).Return(nil)
 		c.On("Close").Return(nil)
@@ -82,68 +82,100 @@ func TestNewClientPrerequisites(t *testing.T) {
 }
 
 func TestPurge(t *testing.T) {
-	t.Run("should succeed when Exec does not return an error", func(t *testing.T) {
-		conn := mocks.Conn{}
-		conn.On("Exec", mock.Anything, mock.Anything).Return(nil)
-		f := newFactory()
-		f.ClickhouseClient = &conn
-		err := f.Purge(context.Background())
-		require.NoError(t, err)
-	})
+	tests := []struct {
+		name         string
+		mockError    error
+		expectError  bool
+		errorMessage string
+	}{
+		{
+			name:        "should succeed when Exec does not return an error",
+			mockError:   nil,
+			expectError: false,
+		},
+		{
+			name:         "should return error when ClickhouseClient is refused",
+			mockError:    errors.New("ClickhouseClient refused"),
+			expectError:  true,
+			errorMessage: "ClickhouseClient refused",
+		},
+	}
 
-	t.Run("should return error when ClickhouseClient is refused", func(t *testing.T) {
-		conn := mocks.Conn{}
-		conn.On("Exec", mock.Anything, mock.Anything).Return(errors.New("ClickhouseClient refused"))
-		f := newFactory()
-		f.ClickhouseClient = &conn
-		err := f.Purge(context.Background())
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "ClickhouseClient refused")
-	})
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			conn := mocks.Clickhouse{}
+			conn.On("Exec", mock.Anything, mock.Anything).Return(tt.mockError)
+			f := newFactory()
+			f.ClickhouseClient = &conn
+			err := f.Purge(context.Background())
+
+			if tt.expectError {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), tt.errorMessage)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
 }
 
 func TestClose(t *testing.T) {
-	t.Run("should succeed when both ClickhouseClient and pool close without error", func(t *testing.T) {
-		conn := mocks.Conn{}
-		conn.On("Close").Return(nil)
-		pool := mocks.Pool{}
-		pool.On("Close").Return(nil)
-		f := newFactory()
-		f.ClickhouseClient = &conn
-		f.chPool = &pool
-		err := f.Close()
-		require.NoError(t, err)
-	})
+	tests := []struct {
+		name         string
+		poolCloseErr error
+		connCloseErr error
+		expectError  bool
+		errorMessage string
+	}{
+		{
+			name:         "should succeed when both ClickhouseClient and pool close without error",
+			poolCloseErr: nil,
+			connCloseErr: nil,
+			expectError:  false,
+		},
+		{
+			name:         "should return error if chPool Close fails",
+			poolCloseErr: errors.New("chPool close error"),
+			connCloseErr: nil,
+			expectError:  true,
+			errorMessage: "chPool close error",
+		},
+		{
+			name:         "should return error if clickhouse ClickhouseClient Close fails",
+			poolCloseErr: nil,
+			connCloseErr: errors.New("clickhouse close error"),
+			expectError:  true,
+			errorMessage: "clickhouse close error",
+		},
+	}
 
-	t.Run("should return error if chPool Close fails", func(t *testing.T) {
-		conn := mocks.Conn{}
-		conn.On("Close").Return(nil)
-		pool := mocks.Pool{}
-		pool.On("Close").Return(errors.New("chPool close error"))
-		f := newFactory()
-		f.ClickhouseClient = &conn
-		f.chPool = &pool
-		err := f.Close()
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "chPool close error")
-	})
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			conn := mocks.Clickhouse{}
+			conn.On("Close").Return(tt.connCloseErr)
 
-	t.Run("should return error if clickhouse ClickhouseClient Close fails", func(t *testing.T) {
-		conn := mocks.Conn{}
-		conn.On("Close").Return(errors.New("clickhouse close error"))
-		pool := mocks.Pool{}
-		f := newFactory()
-		f.ClickhouseClient = &conn
-		f.chPool = &pool
-		err := f.Close()
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "clickhouse close error")
-	})
+			pool := mocks.ChPool{}
+			pool.On("Close").Return(tt.poolCloseErr)
+
+			f := newFactory()
+			f.ClickhouseClient = &conn
+			f.chPool = &pool
+
+			err := f.Close()
+
+			if tt.expectError {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), tt.errorMessage)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
 }
 
 func TestCreateTraceWriter(t *testing.T) {
 	t.Run("should succeed when trace writer is created successfully", func(t *testing.T) {
-		pool := mocks.Pool{}
+		pool := mocks.ChPool{}
 		f := newFactory()
 		f.chPool = &pool
 		writer, err := f.CreateTraceWriter()
@@ -157,25 +189,6 @@ func TestCreateTraceWriter(t *testing.T) {
 		writer, err := f.CreateTraceWriter()
 		require.Error(t, err)
 		require.Empty(t, writer)
-	})
-}
-
-func TestCreateTraceReader(t *testing.T) {
-	t.Run("should succeed when trace reader is created successfully", func(t *testing.T) {
-		c := mocks.Conn{}
-		f := newFactory()
-		f.ClickhouseClient = &c
-		reader, err := f.CreateTracReader()
-		require.NoError(t, err)
-		require.NotNil(t, reader)
-	})
-
-	t.Run("should return error when ClickhouseClient is nil", func(t *testing.T) {
-		f := newFactory()
-		f.ClickhouseClient = nil
-		writer, err := f.CreateTracReader()
-		require.Error(t, err)
-		require.Nil(t, writer)
 	})
 }
 

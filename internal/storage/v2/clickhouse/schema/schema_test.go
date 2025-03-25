@@ -24,7 +24,7 @@ func TestGetQueryFileAsBytes(t *testing.T) {
 }
 
 func TestGetQueriesFromBytes(t *testing.T) {
-	t.Run("should successful when query sgement lost ;", func(t *testing.T) {
+	t.Run("should successful when query segment lost ;", func(t *testing.T) {
 		queryFile := []byte(`
 		SELECT * FROM otel_traces;
 		SELECT * FROM xxx
@@ -43,8 +43,7 @@ func TestConstructSchemaQueries(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		assert.Contains(t, queries[0], "CREATE DATABASE IF NOT EXISTS jaeger;")
-		assert.Contains(t, queries[1], "CREATE TABLE IF NOT EXISTS jaeger.otel_traces")
+		assert.Contains(t, queries[0], "CREATE TABLE IF NOT EXISTS otel_traces")
 	})
 
 	t.Run("should return error when schema file not found.", func(t *testing.T) {
@@ -56,14 +55,14 @@ func TestConstructSchemaQueries(t *testing.T) {
 
 func TestCreateSchemaIfNotPresent(t *testing.T) {
 	t.Run("should successful when schema is created successfully", func(t *testing.T) {
-		pool := mocks.Pool{}
+		pool := mocks.ChPool{}
 		pool.On("Do", mock.Anything, mock.Anything).Return(nil)
 		err := CreateSchemaIfNotPresent(&pool)
 		assert.NoError(t, err)
 	})
 
 	t.Run("should fail when unable to connect to ClickHouse server", func(t *testing.T) {
-		pool := mocks.Pool{}
+		pool := mocks.ChPool{}
 		pool.On("Do", mock.Anything, mock.Anything).Return(errors.New("can't connect to clickhouse server"))
 		err := CreateSchemaIfNotPresent(&pool)
 		require.Error(t, err)

@@ -8,29 +8,27 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/client"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/config"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/schema"
-	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/trace"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/wrapper"
 )
 
 type Factory struct {
-	config *config.Configuration
-	logger *zap.Logger
-
+	config           *config.Configuration
+	logger           *zap.Logger
 	ClickhouseClient client.Clickhouse
 	chPool           client.ChPool
 }
 
-func newCHConn(cfg *config.Configuration) (client.Clickhouse, error) {
-	conn, err := wrapper.WrapOpen(cfg.ClickhouseGoCfg)
-	return conn, err
+func newClickhouseClient(cfg *config.Configuration) (client.Clickhouse, error) {
+	clickhouse, err := wrapper.WrapOpen(cfg.ClickhouseConfig)
+	return clickhouse, err
 }
 
-func newCHPool(cfg *config.Configuration, logger *zap.Logger) (client.ChPool, error) {
-	chPool, err := wrapper.WrapDial(cfg.ChGoConfig, logger)
+func newChPool(cfg *config.Configuration, logger *zap.Logger) (client.ChPool, error) {
+	chPool, err := wrapper.WrapDial(cfg.ChPoolConfig, logger)
 	return chPool, err
 }
 
@@ -39,7 +37,7 @@ func newClientPrerequisites(cfg *config.Configuration, logger *zap.Logger) error
 		return nil
 	}
 
-	chPool, err := newCHPool(cfg, logger)
+	chPool, err := newChPool(cfg, logger)
 	if err != nil {
 		return err
 	}
@@ -57,11 +55,11 @@ func NewFactory(cfg *config.Configuration, logger *zap.Logger) (*Factory, error)
 		return nil, err
 	}
 
-	connection, err := newCHConn(cfg)
+	clickhouse, err := newClickhouseClient(cfg)
 	if err != nil {
 		return nil, err
 	}
-	chPool, err := newCHPool(cfg, logger)
+	chPool, err := newChPool(cfg, logger)
 	if err != nil {
 		return nil, err
 	}
@@ -69,18 +67,18 @@ func NewFactory(cfg *config.Configuration, logger *zap.Logger) (*Factory, error)
 	f := &Factory{
 		config:           cfg,
 		logger:           logger,
-		ClickhouseClient: connection,
+		ClickhouseClient: clickhouse,
 		chPool:           chPool,
 	}
 	return f, nil
 }
 
-func (f *Factory) CreateTraceWriter() (tracestore.Writer, error) {
-	return trace.NewTraceWriter(f.chPool, f.logger)
+func (f *Factory) CreateTraceWriter() (*tracestore.TraceWriter, error) {
+	return tracestore.NewTraceWriter(f.chPool, f.logger)
 }
 
-func (f *Factory) CreateTracReader() (tracestore.Reader, error) {
-	return trace.NewTraceReader(f.ClickhouseClient)
+func (f *Factory) CreateTracReader() (*tracestore.TraceReader, error) {
+	return tracestore.NewTraceReader(f.ClickhouseClient)
 }
 
 func (f *Factory) Purge(ctx context.Context) error {

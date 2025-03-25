@@ -9,34 +9,34 @@ import (
 )
 
 // Configuration all configuration of how to use clickhouse as storage.
-// ClickhouseGoCfg clickhouse-go client configuration.
-// ChGoConfig chpool configuration.
-// CreateSchema create requre table auto if not exist.
+// ClickhouseConfig clickhouse-go client configuration.
+// ChPoolConfig chpool configuration.
+// CreateSchema create require table auto if not exist.
 type Configuration struct {
-	ClickhouseGoCfg ClickhouseGoConfig
-	ChGoConfig      ChGoConfig
-	CreateSchema    bool
+	ClickhouseConfig ClickhouseConfig
+	ChPoolConfig     ChPoolConfig
+	CreateSchema     bool
 }
 
 func DefaultConfiguration() Configuration {
 	return Configuration{
-		DefaultClickhouseGoConfig(),
-		DefaultChGoConfig(),
+		DefaultClickhouseConfig(),
+		DefaultChPoolConfig(),
 		true,
 	}
 }
 
-// ClickhouseGoConfig clickhouse-go client connection configuration for read trace.
+// ClickhouseConfig clickhouse-go client connection configuration for read trace.
 // more detail see:https://clickhouse.com/docs/integrations/go#connection-settings
-type ClickhouseGoConfig struct {
+type ClickhouseConfig struct {
 	Address  []string `mapstructure:"address"`
 	Database string   `mapstructure:"database"`
 	Username string   `mapstructure:"username"`
 	Password string   `mapstructure:"password"`
 }
 
-func DefaultClickhouseGoConfig() ClickhouseGoConfig {
-	return ClickhouseGoConfig{
+func DefaultClickhouseConfig() ClickhouseConfig {
+	return ClickhouseConfig{
 		Address:  []string{"127.0.0.1:9000"},
 		Database: "default",
 		Username: "default",
@@ -50,8 +50,8 @@ const (
 	DefaultHealthCheckPeriod = time.Minute
 )
 
-// ChGoConfig chpool configuration for write trace.
-type ChGoConfig struct {
+// ChPoolConfig chpool configuration for write trace.
+type ChPoolConfig struct {
 	ClientConfig ClientConfig `mapstructure:"client"`
 	PoolConfig   PoolConfig   `mapstructure:"pool"`
 }
@@ -73,8 +73,8 @@ type PoolConfig struct {
 	HealthCheckPeriod time.Duration `mapstructure:"health_check_period"`
 }
 
-func DefaultChGoConfig() ChGoConfig {
-	return ChGoConfig{
+func DefaultChPoolConfig() ChPoolConfig {
+	return ChPoolConfig{
 		ClientConfig{
 			Address:  "127.0.0.1:9000",
 			Database: "default",

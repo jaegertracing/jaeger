@@ -13,9 +13,9 @@ import (
 
 func TestDefaultConfig(t *testing.T) {
 	excepted := Configuration{
-		ClickhouseGoCfg: DefaultClickhouseGoConfig(),
-		ChGoConfig:      DefaultChGoConfig(),
-		CreateSchema:    true,
+		ClickhouseConfig: DefaultClickhouseConfig(),
+		ChPoolConfig:     DefaultChPoolConfig(),
+		CreateSchema:     true,
 	}
 
 	actual := DefaultConfiguration()
@@ -23,19 +23,19 @@ func TestDefaultConfig(t *testing.T) {
 }
 
 func TestDefaultClickhouseGoCfg(t *testing.T) {
-	expected := ClickhouseGoConfig{
+	expected := ClickhouseConfig{
 		Address:  []string{"127.0.0.1:9000"},
 		Database: "default",
 		Username: "default",
 		Password: "default",
 	}
-	actual := DefaultClickhouseGoConfig()
+	actual := DefaultClickhouseConfig()
 	assert.NotNil(t, actual)
 	assert.Equal(t, expected, actual)
 }
 
 func TestDefaultChGoConfig(t *testing.T) {
-	expected := ChGoConfig{
+	expected := ChPoolConfig{
 		ClientConfig: ClientConfig{
 			Address:  "127.0.0.1:9000",
 			Database: "default",
@@ -51,7 +51,7 @@ func TestDefaultChGoConfig(t *testing.T) {
 		},
 	}
 
-	actual := DefaultChGoConfig()
+	actual := DefaultChPoolConfig()
 	assert.NotNil(t, actual)
 	assert.Equal(t, expected, actual)
 }

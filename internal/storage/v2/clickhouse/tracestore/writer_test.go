@@ -1,7 +1,7 @@
 // Copyright (c) 2025 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
-package trace
+package tracestore
 
 import (
 	"context"
@@ -21,14 +21,14 @@ import (
 var sampleTrace = ptrace.NewTraces()
 
 type traceWriterTest struct {
-	pool      *mocks.Pool
+	pool      *mocks.ChPool
 	logger    *zap.Logger
 	logBuffer *testutils.Buffer
-	writer    *Writer
+	writer    *TraceWriter
 }
 
 func withTraceWriter(fn func(w *traceWriterTest)) {
-	pool := &mocks.Pool{}
+	pool := &mocks.ChPool{}
 	pool.On("Do", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	logger, logBuffer := testutils.NewLogger()
 	writer, _ := NewTraceWriter(pool, logger)
@@ -63,7 +63,7 @@ func TestTraceWriter(t *testing.T) {
 		})
 	})
 	t.Run("should return error when writing traces fails due to database/table issues", func(t *testing.T) {
-		pool := &mocks.Pool{}
+		pool := &mocks.ChPool{}
 		pool.On("Do", mock.Anything, mock.Anything, mock.Anything).Return(errors.New("database/table don't exist"))
 		logger, _ := testutils.NewLogger()
 		writer, err := NewTraceWriter(pool, logger)

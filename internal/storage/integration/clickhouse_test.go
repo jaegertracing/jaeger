@@ -30,8 +30,7 @@ func (s *ClickhouseIntegrationTestSuite) initialize(t *testing.T) {
 	logger := zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller()))
 
 	cfg := config.DefaultConfiguration()
-	cfg.ClickhouseGoCfg.Database = "jaeger"
-	cfg.ChGoConfig.ClientConfig.Database = "jaeger"
+	cfg.CreateSchema = true
 	f, err := clickhouse.NewFactory(&cfg, logger)
 	require.NoError(t, err)
 

@@ -1,7 +1,7 @@
 // Copyright (c) 2025 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
-package trace
+package tracestore
 
 import (
 	"context"
@@ -13,7 +13,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/client"
 )
 
-const write_traces = `INSERT INTO otel_traces (
+const writeTraces = `INSERT INTO otel_traces (
 	Timestamp,
 	TraceId,
 	SpanId,
@@ -40,19 +40,19 @@ const write_traces = `INSERT INTO otel_traces (
     Links.Attributes
 	) VALUES`
 
-type Writer struct {
+type TraceWriter struct {
 	Client client.ChPool
 	logger *zap.Logger
 }
 
-func NewTraceWriter(p client.ChPool, logger *zap.Logger) (*Writer, error) {
+func NewTraceWriter(p client.ChPool, logger *zap.Logger) (*TraceWriter, error) {
 	if p == nil {
 		return nil, errors.New("can't create trace writer with nil chPool")
 	}
-	return &Writer{Client: p, logger: logger}, nil
+	return &TraceWriter{Client: p, logger: logger}, nil
 }
 
-func (t *Writer) WriteTraces(ctx context.Context, td ptrace.Traces) error {
+func (t *TraceWriter) WriteTraces(ctx context.Context, td ptrace.Traces) error {
 	err := t.writeTraces(ctx, td)
 	if err != nil {
 		return err
@@ -60,8 +60,8 @@ func (t *Writer) WriteTraces(ctx context.Context, td ptrace.Traces) error {
 	return nil
 }
 
-func (t *Writer) writeTraces(ctx context.Context, td ptrace.Traces) error {
-	err := t.Client.Do(ctx, write_traces, td)
+func (t *TraceWriter) writeTraces(ctx context.Context, td ptrace.Traces) error {
+	err := t.Client.Do(ctx, writeTraces, td)
 	if err != nil {
 		return err
 	}

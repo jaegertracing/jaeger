@@ -14,11 +14,11 @@ import (
 
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/client"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/config"
-	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/trace/dbmodel"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore/dbmodel"
 )
 
 // WrapDial wrap chpool.Dial return an abstraction connection pool.
-func WrapDial(cfg config.ChGoConfig, log *zap.Logger) (client.ChPool, error) {
+func WrapDial(cfg config.ChPoolConfig, log *zap.Logger) (client.ChPool, error) {
 	option := chpool.Options{
 		ClientOptions: ch.Options{
 			Logger:   log,
@@ -71,7 +71,7 @@ func (c PoolWrapper) WrapDo(ctx context.Context, query ch.Query) error {
 }
 
 // WrapOpen wrap clickhouse.Open return an abstraction connection.
-func WrapOpen(cfg config.ClickhouseGoConfig) (client.Clickhouse, error) {
+func WrapOpen(cfg config.ClickhouseConfig) (client.Clickhouse, error) {
 	option := v2Client.Options{
 		Addr: cfg.Address,
 		Auth: v2Client.Auth{

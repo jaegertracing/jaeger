@@ -1,6 +1,4 @@
-CREATE DATABASE IF NOT EXISTS jaeger;
-
-CREATE TABLE IF NOT EXISTS jaeger.otel_traces (
+CREATE TABLE IF NOT EXISTS otel_traces (
     Timestamp DateTime64(9) CODEC(Delta, ZSTD(1)),
     TraceId String CODEC(ZSTD(1)),
     SpanId String CODEC(ZSTD(1)),

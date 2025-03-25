@@ -1,7 +1,7 @@
 // Copyright (c) 2025 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
-package trace
+package tracestore
 
 import (
 	"context"
@@ -12,7 +12,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/client"
-	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/trace/dbmodel"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore/dbmodel"
 )
 
 const getTraces = `
@@ -45,31 +45,31 @@ FROM otel_traces
 WHERE TraceId = ?;
 `
 
-type Reader struct {
+type TraceReader struct {
 	Client client.Clickhouse
 }
 
-func (Reader) GetServices(_ context.Context) ([]string, error) {
+func (TraceReader) GetServices(_ context.Context) ([]string, error) {
 	return []string{}, nil
 }
 
-func (Reader) GetOperations(_ context.Context, _ tracestore.OperationQueryParams) ([]tracestore.Operation, error) {
+func (TraceReader) GetOperations(_ context.Context, _ tracestore.OperationQueryParams) ([]tracestore.Operation, error) {
 	return []tracestore.Operation{}, nil
 }
 
-func (Reader) FindTraces(_ context.Context, _ tracestore.TraceQueryParams) iter.Seq2[[]ptrace.Traces, error] {
+func (TraceReader) FindTraces(_ context.Context, _ tracestore.TraceQueryParams) iter.Seq2[[]ptrace.Traces, error] {
 	return func(yield func([]ptrace.Traces, error) bool) {
 		yield([]ptrace.Traces{}, nil)
 	}
 }
 
-func (Reader) FindTraceIDs(_ context.Context, _ tracestore.TraceQueryParams) iter.Seq2[[]tracestore.FoundTraceID, error] {
+func (TraceReader) FindTraceIDs(_ context.Context, _ tracestore.TraceQueryParams) iter.Seq2[[]tracestore.FoundTraceID, error] {
 	return func(yield func([]tracestore.FoundTraceID, error) bool) {
 		yield([]tracestore.FoundTraceID{}, nil)
 	}
 }
 
-func (tr Reader) GetTraces(
+func (tr TraceReader) GetTraces(
 	ctx context.Context,
 	traceIDs ...tracestore.GetTraceParams,
 ) iter.Seq2[[]ptrace.Traces, error] {
@@ -90,14 +90,14 @@ func (tr Reader) GetTraces(
 	}
 }
 
-func NewTraceReader(c client.Clickhouse) (*Reader, error) {
+func NewTraceReader(c client.Clickhouse) (*TraceReader, error) {
 	if c == nil {
 		return nil, errors.New("can't create trace reader with nil clickhouse client")
 	}
-	return &Reader{Client: c}, nil
+	return &TraceReader{Client: c}, nil
 }
 
-func (tr *Reader) getTraces(ctx context.Context, query string, param tracestore.GetTraceParams) ([]ptrace.Traces, error) {
+func (tr *TraceReader) getTraces(ctx context.Context, query string, param tracestore.GetTraceParams) ([]ptrace.Traces, error) {
 	rows, err := tr.Client.Query(ctx, query, param.TraceID.String())
 	if err != nil {
 		return nil, err
