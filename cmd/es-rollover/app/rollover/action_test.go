@@ -10,8 +10,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger/cmd/es-rollover/app"
-	"github.com/jaegertracing/jaeger/internal/storage/es/client"
-	"github.com/jaegertracing/jaeger/internal/storage/es/client/mocks"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/client"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/client/mocks"
 )
 
 func TestRolloverAction(t *testing.T) {

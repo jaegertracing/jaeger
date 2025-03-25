@@ -16,7 +16,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/es-rollover/app/lookback"
 	"github.com/jaegertracing/jaeger/cmd/es-rollover/app/rollover"
 	"github.com/jaegertracing/jaeger/internal/config"
-	"github.com/jaegertracing/jaeger/internal/storage/es/client"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/client"
 )
 
 func main() {

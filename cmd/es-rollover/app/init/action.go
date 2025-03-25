@@ -8,10 +8,10 @@ import (
 	"fmt"
 
 	"github.com/jaegertracing/jaeger/cmd/es-rollover/app"
-	"github.com/jaegertracing/jaeger/internal/storage/es"
-	"github.com/jaegertracing/jaeger/internal/storage/es/client"
-	"github.com/jaegertracing/jaeger/internal/storage/es/config"
-	"github.com/jaegertracing/jaeger/internal/storage/es/filter"
+	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/client"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/filter"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/mappings"
 )
 

@@ -7,8 +7,8 @@ import (
 	"encoding/json"
 
 	"github.com/jaegertracing/jaeger/cmd/es-rollover/app"
-	"github.com/jaegertracing/jaeger/internal/storage/es/client"
-	"github.com/jaegertracing/jaeger/internal/storage/es/filter"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/client"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/filter"
 )
 
 // Action holds the configuration and clients for rollover action

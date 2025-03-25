@@ -13,7 +13,7 @@ import (
 	"github.com/spf13/viper"
 
 	"github.com/jaegertracing/jaeger/internal/config/tlscfg"
-	"github.com/jaegertracing/jaeger/internal/storage/es/config"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/pkg/bearertoken"
 )
 

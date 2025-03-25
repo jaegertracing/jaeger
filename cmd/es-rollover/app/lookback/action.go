@@ -9,8 +9,8 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/es-rollover/app"
-	"github.com/jaegertracing/jaeger/internal/storage/es/client"
-	"github.com/jaegertracing/jaeger/internal/storage/es/filter"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/client"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/filter"
 )
 
 var timeNow func() time.Time = time.Now

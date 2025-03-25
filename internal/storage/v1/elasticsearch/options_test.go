@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger/internal/config"
-	escfg "github.com/jaegertracing/jaeger/internal/storage/es/config"
+	escfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 )
 
 func TestOptions(t *testing.T) {

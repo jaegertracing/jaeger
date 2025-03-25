@@ -25,9 +25,9 @@ import (
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/config"
-	"github.com/jaegertracing/jaeger/internal/storage/es"
-	escfg "github.com/jaegertracing/jaeger/internal/storage/es/config"
-	"github.com/jaegertracing/jaeger/internal/storage/es/mocks"
+	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
+	escfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	"github.com/jaegertracing/jaeger/internal/testutils"
 	"github.com/jaegertracing/jaeger/pkg/metrics"

@@ -21,8 +21,8 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
-	"github.com/jaegertracing/jaeger/internal/storage/es"
-	cfg "github.com/jaegertracing/jaeger/internal/storage/es/config"
+	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
+	cfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/spanstore/internal/dbmodel"
 )
 

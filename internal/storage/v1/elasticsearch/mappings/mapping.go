@@ -8,8 +8,8 @@ import (
 	"embed"
 	"fmt"
 
-	"github.com/jaegertracing/jaeger/internal/storage/es"
-	"github.com/jaegertracing/jaeger/internal/storage/es/config"
+	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 )
 
 // MAPPINGS contains embedded index templates.
