@@ -7,23 +7,21 @@
 package tracestore
 
 import (
-	"encoding/binary"
+	"encoding/hex"
 	"errors"
 	"fmt"
-	"hash/fnv"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/dbmodel"
+	"go.opentelemetry.io/collector/pdata/pcommon"
+	"go.opentelemetry.io/collector/pdata/ptrace"
+	conventions "go.opentelemetry.io/collector/semconv/v1.16.0"
 	"reflect"
 	"strconv"
 	"strings"
 
-	idutils "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/core/xidutils"
-	"go.opentelemetry.io/collector/pdata/pcommon"
-	"go.opentelemetry.io/collector/pdata/ptrace"
-	conventions "go.opentelemetry.io/collector/semconv/v1.16.0"
-
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 )
 
-var blankJaegerProtoSpan = new(model.Span)
+var blankJaegerProtoSpan = new(dbmodel.Span)
 
 const (
 	attributeExporterVersion = "opencensus.exporterversion"
@@ -32,110 +30,21 @@ const (
 var errType = errors.New("invalid type")
 
 // ProtoToTraces converts multiple Jaeger proto batches to internal traces
-func ProtoToTraces(batches []*model.Batch) (ptrace.Traces, error) {
+func ProtoToTraces(spans []*dbmodel.Span) (ptrace.Traces, error) {
 	traceData := ptrace.NewTraces()
-	if len(batches) == 0 {
+	if len(spans) == 0 {
 		return traceData, nil
 	}
 
-	batches = regroup(batches)
 	rss := traceData.ResourceSpans()
-	rss.EnsureCapacity(len(batches))
+	rss.EnsureCapacity(len(spans))
+	err := jSpansToInternal(spans, rss)
 
-	for _, batch := range batches {
-		if batch.GetProcess() == nil && len(batch.GetSpans()) == 0 {
-			continue
-		}
-
-		protoBatchToResourceSpans(*batch, rss.AppendEmpty())
-	}
-
-	return traceData, nil
+	return traceData, err
 }
 
-func regroup(batches []*model.Batch) []*model.Batch {
-	// Re-group batches
-	// This is needed as there might be a Process within Batch and Span at the same
-	// time, with the span one taking precedence.
-	// As we only have it at one level in OpenTelemetry, ResourceSpans, we split
-	// each batch into potentially multiple other batches, with the sum of their
-	// processes as the key to a map.
-	// Step 1) iterate over the batches
-	// Step 2) for each batch, calculate the batch's process checksum and store
-	// it on a map, with the checksum as the key and the process as the value
-	// Step 3) iterate the spans for a batch: if a given span has its own process,
-	// calculate the checksum for the process and store it on the same map
-	// Step 4) each entry on the map becomes a ResourceSpan
-	registry := map[uint64]*model.Batch{}
-
-	for _, batch := range batches {
-		bb := batchForProcess(registry, batch.Process)
-		for _, span := range batch.Spans {
-			if span.Process == nil {
-				bb.Spans = append(bb.Spans, span)
-			} else {
-				b := batchForProcess(registry, span.Process)
-				b.Spans = append(b.Spans, span)
-			}
-		}
-	}
-
-	result := make([]*model.Batch, 0, len(registry))
-	for _, v := range registry {
-		result = append(result, v)
-	}
-
-	return result
-}
-
-func batchForProcess(registry map[uint64]*model.Batch, p *model.Process) *model.Batch {
-	sum := checksum(p)
-	batch := registry[sum]
-	if batch == nil {
-		batch = &model.Batch{
-			Process: p,
-		}
-		registry[sum] = batch
-	}
-
-	return batch
-}
-
-func checksum(process *model.Process) uint64 {
-	// this will get all the keys and values, plus service name, into this buffer
-	// this is potentially dangerous, as a batch/span with a big enough processes
-	// might cause the collector to allocate this extra big information
-	// for this reason, we hash it as an integer and return it, instead of keeping
-	// all the hashes for all the processes for all batches in memory
-	fnvHash := fnv.New64a()
-
-	if process != nil {
-		// this effectively means that all spans from batches with nil processes
-		// will be grouped together
-		// this should only ever happen in unit tests
-		// this implementation never returns an error according to the Hash interface
-		_ = process.Hash(fnvHash)
-	}
-
-	out := make([]byte, 0, 16)
-	out = fnvHash.Sum(out)
-	return binary.BigEndian.Uint64(out)
-}
-
-func protoBatchToResourceSpans(batch model.Batch, dest ptrace.ResourceSpans) {
-	jSpans := batch.GetSpans()
-
-	jProcessToInternalResource(batch.GetProcess(), dest.Resource())
-
-	if len(jSpans) == 0 {
-		return
-	}
-
-	jSpansToInternal(jSpans, dest.ScopeSpans())
-}
-
-func jProcessToInternalResource(process *model.Process, dest pcommon.Resource) {
-	if process == nil || process.ServiceName == noServiceName {
+func jProcessToInternalResource(process dbmodel.Process, dest pcommon.Resource) {
+	if process.ServiceName == "" || process.ServiceName == noServiceName {
 		return
 	}
 
@@ -183,37 +92,64 @@ type scope struct {
 	name, version string
 }
 
-func jSpansToInternal(spans []*model.Span, dest ptrace.ScopeSpansSlice) {
-	spansByLibrary := make(map[scope]ptrace.SpanSlice)
-
+func jSpansToInternal(spans []*dbmodel.Span, resourceSpans ptrace.ResourceSpansSlice) error {
 	for _, span := range spans {
 		if span == nil || reflect.DeepEqual(span, blankJaegerProtoSpan) {
 			continue
 		}
+		resourceSpan := resourceSpans.AppendEmpty()
+		dest := resourceSpan.ScopeSpans()
+		jProcessToInternalResource(span.Process, resourceSpan.Resource())
 		il := getScope(span)
-		sps, found := spansByLibrary[il]
-		if !found {
-			ss := dest.AppendEmpty()
-			ss.Scope().SetName(il.name)
-			ss.Scope().SetVersion(il.version)
-			sps = ss.Spans()
-			spansByLibrary[il] = sps
+		ss := dest.AppendEmpty()
+		ss.Scope().SetName(il.name)
+		ss.Scope().SetVersion(il.version)
+		sps := ss.Spans()
+		err := jSpanToInternal(span, sps.AppendEmpty())
+		if err != nil {
+			return err
 		}
-		jSpanToInternal(span, sps.AppendEmpty())
 	}
+	return nil
 }
 
-func jSpanToInternal(span *model.Span, dest ptrace.Span) {
-	dest.SetTraceID(idutils.UInt64ToTraceID(span.TraceID.High, span.TraceID.Low))
-	dest.SetSpanID(idutils.UInt64ToSpanID(uint64(span.SpanID)))
-	dest.SetName(span.OperationName)
-	dest.SetStartTimestamp(pcommon.NewTimestampFromTime(span.StartTime))
-	dest.SetEndTimestamp(pcommon.NewTimestampFromTime(span.StartTime.Add(span.Duration)))
-
-	parentSpanID := span.ParentSpanID()
-	if parentSpanID != model.SpanID(0) {
-		dest.SetParentSpanID(idutils.UInt64ToSpanID(uint64(parentSpanID)))
+func getTraceIdFromDbTraceId(dbTraceId dbmodel.TraceID) (pcommon.TraceID, error) {
+	var traceId [16]byte
+	traceBytes, err := hex.DecodeString(string(dbTraceId))
+	if err != nil {
+		return pcommon.TraceID{}, err
 	}
+	copy(traceId[:], traceBytes)
+	return traceId, nil
+}
+
+func getSpanIdFromDbTraceId(dbSpanId dbmodel.SpanID) (pcommon.SpanID, error) {
+	var spanId [8]byte
+	spanIdBytes, err := hex.DecodeString(string(dbSpanId))
+	if err != nil {
+		return pcommon.SpanID{}, err
+	}
+	copy(spanId[:], spanIdBytes)
+	return spanId, nil
+}
+
+func jSpanToInternal(span *dbmodel.Span, dest ptrace.Span) error {
+	traceId, err := getTraceIdFromDbTraceId(span.TraceID)
+	if err != nil {
+		return err
+	}
+	spanId, err := getSpanIdFromDbTraceId(span.SpanID)
+	if err != nil {
+		return err
+	}
+	dest.SetTraceID(traceId)
+	dest.SetSpanID(spanId)
+	dest.SetName(span.OperationName)
+	startTime := model.EpochMicrosecondsAsTime(span.StartTime)
+	duration := model.MicrosecondsAsDuration(span.Duration)
+	dest.SetStartTimestamp(pcommon.NewTimestampFromTime(startTime))
+	endTime := startTime.Add(duration)
+	dest.SetEndTimestamp(pcommon.NewTimestampFromTime(endTime))
 
 	attrs := dest.Attributes()
 	attrs.EnsureCapacity(len(span.Tags))
@@ -232,26 +168,61 @@ func jSpanToInternal(span *model.Span, dest ptrace.Span) {
 	}
 
 	jLogsToSpanEvents(span.Logs, dest.Events())
-	jReferencesToSpanLinks(span.References, parentSpanID, dest.Links())
+	return jReferencesToSpanLinks(span.References, dest)
 }
 
-func jTagsToInternalAttributes(tags []model.KeyValue, dest pcommon.Map) {
+func jTagsToInternalAttributes(tags []dbmodel.KeyValue, dest pcommon.Map) {
 	for _, tag := range tags {
-		switch tag.GetVType() {
-		case model.ValueType_STRING:
-			dest.PutStr(tag.Key, tag.GetVStr())
-		case model.ValueType_BOOL:
-			dest.PutBool(tag.Key, tag.GetVBool())
-		case model.ValueType_INT64:
-			dest.PutInt(tag.Key, tag.GetVInt64())
-		case model.ValueType_FLOAT64:
-			dest.PutDouble(tag.Key, tag.GetVFloat64())
-		case model.ValueType_BINARY:
-			dest.PutEmptyBytes(tag.Key).FromRaw(tag.GetVBinary())
+		tagValue, ok := tag.Value.(string)
+		if !ok {
+			// We have to do this as we are unsure that whether bool will be a string or a bool
+			tagBoolVal, boolOk := tag.Value.(bool)
+			if boolOk {
+				dest.PutBool(tag.Key, tagBoolVal)
+			} else {
+				dest.PutStr(tag.Key, fmt.Sprintf("Got non string value for the key %s", tag.Key))
+			}
+			continue
+		}
+		switch tag.Type {
+		case dbmodel.StringType:
+			dest.PutStr(tag.Key, tagValue)
+		case dbmodel.BoolType:
+			convBoolVal, err := strconv.ParseBool(tagValue)
+			if err != nil {
+				putConversionErrKeyValuePair(tag, err, dest)
+			} else {
+				dest.PutBool(tag.Key, convBoolVal)
+			}
+		case dbmodel.Int64Type:
+			intVal, err := strconv.ParseInt(tagValue, 10, 64)
+			if err != nil {
+				putConversionErrKeyValuePair(tag, err, dest)
+			} else {
+				dest.PutInt(tag.Key, intVal)
+			}
+		case dbmodel.Float64Type:
+			floatVal, err := strconv.ParseFloat(tagValue, 64)
+			if err != nil {
+				putConversionErrKeyValuePair(tag, err, dest)
+			} else {
+				dest.PutDouble(tag.Key, floatVal)
+			}
+		case dbmodel.BinaryType:
+			value, err := hex.DecodeString(tagValue)
+			if err != nil {
+				putConversionErrKeyValuePair(tag, err, dest)
+			} else {
+				dest.PutEmptyBytes(tag.Key).FromRaw(value)
+			}
 		default:
-			dest.PutStr(tag.Key, fmt.Sprintf("<Unknown Jaeger TagType %q>", tag.GetVType()))
+			dest.PutStr(tag.Key, fmt.Sprintf("<Unknown Jaeger TagType %q>", tag.Type))
 		}
 	}
+}
+
+func putConversionErrKeyValuePair(kv dbmodel.KeyValue, err error, dest pcommon.Map) {
+	dest.PutStr(kv.Key, fmt.Sprintf("Can't convert the type %s for the key %s: %v", kv.Key, string(kv.Type), err))
 }
 
 func setInternalSpanStatus(attrs pcommon.Map, span ptrace.Span) {
@@ -397,7 +368,7 @@ func jSpanKindToInternal(spanKind string) ptrace.SpanKind {
 	return ptrace.SpanKindUnspecified
 }
 
-func jLogsToSpanEvents(logs []model.Log, dest ptrace.SpanEventSlice) {
+func jLogsToSpanEvents(logs []dbmodel.Log, dest ptrace.SpanEventSlice) {
 	if len(logs) == 0 {
 		return
 	}
@@ -412,7 +383,7 @@ func jLogsToSpanEvents(logs []model.Log, dest ptrace.SpanEventSlice) {
 			event = dest.AppendEmpty()
 		}
 
-		event.SetTimestamp(pcommon.NewTimestampFromTime(log.Timestamp))
+		event.SetTimestamp(pcommon.NewTimestampFromTime(model.EpochMicrosecondsAsTime(log.Timestamp)))
 		if len(log.Fields) == 0 {
 			continue
 		}
@@ -428,22 +399,50 @@ func jLogsToSpanEvents(logs []model.Log, dest ptrace.SpanEventSlice) {
 }
 
 // jReferencesToSpanLinks sets internal span links based on jaeger span references skipping excludeParentID
-func jReferencesToSpanLinks(refs []model.SpanRef, excludeParentID model.SpanID, dest ptrace.SpanLinkSlice) {
-	if len(refs) == 0 || len(refs) == 1 && refs[0].SpanID == excludeParentID && refs[0].RefType == model.ChildOf {
-		return
+func jReferencesToSpanLinks(refs []dbmodel.Reference, span ptrace.Span) error {
+	if len(refs) == 0 {
+		return nil
 	}
-
-	dest.EnsureCapacity(len(refs))
+	dest := span.Links()
+	childSpan := spanIsAChildSpan(refs)
+	if childSpan {
+		dest.EnsureCapacity(len(refs) - 1)
+	} else {
+		dest.EnsureCapacity(len(refs))
+	}
 	for _, ref := range refs {
-		if ref.SpanID == excludeParentID && ref.RefType == model.ChildOf {
+		if ref.RefType == dbmodel.ChildOf {
+			parentSpanId, err := getSpanIdFromDbTraceId(ref.SpanID)
+			if err != nil {
+				return err
+			}
+			span.SetParentSpanID(parentSpanId)
 			continue
 		}
 
 		link := dest.AppendEmpty()
-		link.SetTraceID(idutils.UInt64ToTraceID(ref.TraceID.High, ref.TraceID.Low))
-		link.SetSpanID(idutils.UInt64ToSpanID(uint64(ref.SpanID)))
+		refTraceId, err := getTraceIdFromDbTraceId(ref.TraceID)
+		if err != nil {
+			return err
+		}
+		refSpanId, err := getSpanIdFromDbTraceId(ref.SpanID)
+		if err != nil {
+			return err
+		}
+		link.SetTraceID(refTraceId)
+		link.SetSpanID(refSpanId)
 		link.Attributes().PutStr(conventions.AttributeOpentracingRefType, jRefTypeToAttribute(ref.RefType))
 	}
+	return nil
+}
+
+func spanIsAChildSpan(refs []dbmodel.Reference) bool {
+	for _, ref := range refs {
+		if ref.RefType == dbmodel.ChildOf {
+			return true
+		}
+	}
+	return false
 }
 
 func getTraceStateFromAttrs(attrs pcommon.Map) string {
@@ -456,7 +455,7 @@ func getTraceStateFromAttrs(attrs pcommon.Map) string {
 	return traceState
 }
 
-func getScope(span *model.Span) scope {
+func getScope(span *dbmodel.Span) scope {
 	il := scope{}
 	if libraryName, ok := getAndDeleteTag(span, conventions.AttributeOtelScopeName); ok {
 		il.name = libraryName
@@ -467,19 +466,20 @@ func getScope(span *model.Span) scope {
 	return il
 }
 
-func getAndDeleteTag(span *model.Span, key string) (string, bool) {
+func getAndDeleteTag(span *dbmodel.Span, key string) (string, bool) {
 	for i := range span.Tags {
 		if span.Tags[i].Key == key {
-			value := span.Tags[i].GetVStr()
-			span.Tags = append(span.Tags[:i], span.Tags[i+1:]...)
-			return value, true
+			if val, ok := span.Tags[i].Value.(string); !ok {
+				span.Tags = append(span.Tags[:i], span.Tags[i+1:]...)
+				return val, true
+			}
 		}
 	}
 	return "", false
 }
 
-func jRefTypeToAttribute(ref model.SpanRefType) string {
-	if ref == model.ChildOf {
+func jRefTypeToAttribute(ref dbmodel.ReferenceType) string {
+	if ref == dbmodel.ChildOf {
 		return conventions.AttributeOpentracingRefTypeChildOf
 	}
 	return conventions.AttributeOpentracingRefTypeFollowsFrom

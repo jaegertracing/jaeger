@@ -7,6 +7,7 @@
 package tracestore
 
 import (
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/dbmodel"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -22,25 +23,25 @@ func TestGetTagFromStatusCode(t *testing.T) {
 	tests := []struct {
 		name string
 		code ptrace.StatusCode
-		tag  model.KeyValue
+		tag  dbmodel.KeyValue
 	}{
 		{
 			name: "ok",
 			code: ptrace.StatusCodeOk,
-			tag: model.KeyValue{
+			tag: dbmodel.KeyValue{
 				Key:   conventions.OtelStatusCode,
-				VType: model.ValueType_STRING,
-				VStr:  statusOk,
+				Type:  dbmodel.StringType,
+				Value: statusOk,
 			},
 		},
 
 		{
 			name: "error",
 			code: ptrace.StatusCodeError,
-			tag: model.KeyValue{
+			tag: dbmodel.KeyValue{
 				Key:   conventions.OtelStatusCode,
-				VType: model.ValueType_STRING,
-				VStr:  statusError,
+				Type:  dbmodel.StringType,
+				Value: statusError,
 			},
 		},
 	}
@@ -60,7 +61,7 @@ func TestEmptyAttributes(t *testing.T) {
 	scopeSpans := spans.ScopeSpans().AppendEmpty()
 	spanScope := scopeSpans.Scope()
 	span := scopeSpans.Spans().AppendEmpty()
-	modelSpan := spanToJaegerProto(span, spanScope)
+	modelSpan := spanToJaegerProto(span, spanScope, dbmodel.Process{})
 	assert.Empty(t, modelSpan.Tags)
 }
 
@@ -72,16 +73,16 @@ func TestEmptyLinkRefs(t *testing.T) {
 	span := scopeSpans.Spans().AppendEmpty()
 	spanLink := span.Links().AppendEmpty()
 	spanLink.Attributes().PutStr("testing-key", "testing-value")
-	modelSpan := spanToJaegerProto(span, spanScope)
+	modelSpan := spanToJaegerProto(span, spanScope, dbmodel.Process{})
 	assert.Len(t, modelSpan.References, 1)
-	assert.Equal(t, model.SpanRefType_FOLLOWS_FROM, modelSpan.References[0].RefType)
+	assert.Equal(t, dbmodel.FollowsFrom, modelSpan.References[0].RefType)
 }
 
 func TestGetErrorTagFromStatusCode(t *testing.T) {
-	errTag := model.KeyValue{
+	errTag := dbmodel.KeyValue{
 		Key:   tagError,
-		VBool: true,
-		VType: model.ValueType_BOOL,
+		Value: true,
+		Type:  dbmodel.BoolType,
 	}
 
 	_, ok := getErrorTagFromStatusCode(ptrace.StatusCodeUnset)
@@ -101,10 +102,10 @@ func TestGetTagFromStatusMsg(t *testing.T) {
 
 	got, ok := getTagFromStatusMsg("test-error")
 	assert.True(t, ok)
-	assert.EqualValues(t, model.KeyValue{
+	assert.EqualValues(t, dbmodel.KeyValue{
 		Key:   conventions.OtelStatusDescription,
-		VStr:  "test-error",
-		VType: model.ValueType_STRING,
+		Value: "test-error",
+		Type:  dbmodel.StringType,
 	}, got)
 }
 
@@ -119,7 +120,7 @@ func Test_resourceToJaegerProtoProcess_WhenOnlyServiceNameIsPresent(t *testing.T
 func Test_appendTagsFromResourceAttributes_empty_attrs(t *testing.T) {
 	traces := ptrace.NewTraces()
 	emptyAttrs := traces.ResourceSpans().AppendEmpty().Resource().Attributes()
-	kv := appendTagsFromResourceAttributes([]model.KeyValue{}, emptyAttrs)
+	kv := appendTagsFromResourceAttributes([]dbmodel.KeyValue{}, emptyAttrs)
 	assert.Empty(t, kv)
 }
 
@@ -127,23 +128,23 @@ func TestGetTagFromSpanKind(t *testing.T) {
 	tests := []struct {
 		name string
 		kind ptrace.SpanKind
-		tag  model.KeyValue
+		tag  dbmodel.KeyValue
 		ok   bool
 	}{
 		{
 			name: "unspecified",
 			kind: ptrace.SpanKindUnspecified,
-			tag:  model.KeyValue{},
+			tag:  dbmodel.KeyValue{},
 			ok:   false,
 		},
 
 		{
 			name: "client",
 			kind: ptrace.SpanKindClient,
-			tag: model.KeyValue{
+			tag: dbmodel.KeyValue{
 				Key:   model.SpanKindKey,
-				VType: model.ValueType_STRING,
-				VStr:  string(model.SpanKindClient),
+				Type:  dbmodel.StringType,
+				Value: string(model.SpanKindClient),
 			},
 			ok: true,
 		},
@@ -151,10 +152,10 @@ func TestGetTagFromSpanKind(t *testing.T) {
 		{
 			name: "server",
 			kind: ptrace.SpanKindServer,
-			tag: model.KeyValue{
+			tag: dbmodel.KeyValue{
 				Key:   model.SpanKindKey,
-				VType: model.ValueType_STRING,
-				VStr:  string(model.SpanKindServer),
+				Type:  dbmodel.StringType,
+				Value: string(model.SpanKindServer),
 			},
 			ok: true,
 		},
@@ -162,10 +163,10 @@ func TestGetTagFromSpanKind(t *testing.T) {
 		{
 			name: "producer",
 			kind: ptrace.SpanKindProducer,
-			tag: model.KeyValue{
+			tag: dbmodel.KeyValue{
 				Key:   model.SpanKindKey,
-				VType: model.ValueType_STRING,
-				VStr:  string(model.SpanKindProducer),
+				Type:  dbmodel.StringType,
+				Value: string(model.SpanKindProducer),
 			},
 			ok: true,
 		},
@@ -173,10 +174,10 @@ func TestGetTagFromSpanKind(t *testing.T) {
 		{
 			name: "consumer",
 			kind: ptrace.SpanKindConsumer,
-			tag: model.KeyValue{
+			tag: dbmodel.KeyValue{
 				Key:   model.SpanKindKey,
-				VType: model.ValueType_STRING,
-				VStr:  string(model.SpanKindConsumer),
+				Type:  dbmodel.StringType,
+				Value: string(model.SpanKindConsumer),
 			},
 			ok: true,
 		},
@@ -184,10 +185,10 @@ func TestGetTagFromSpanKind(t *testing.T) {
 		{
 			name: "internal",
 			kind: ptrace.SpanKindInternal,
-			tag: model.KeyValue{
+			tag: dbmodel.KeyValue{
 				Key:   model.SpanKindKey,
-				VType: model.ValueType_STRING,
-				VStr:  string(model.SpanKindInternal),
+				Type:  dbmodel.StringType,
+				Value: string(model.SpanKindInternal),
 			},
 			ok: true,
 		},
@@ -211,56 +212,56 @@ func TestAttributesToJaegerProtoTags(t *testing.T) {
 	attributes.PutEmptyBytes("bytes-val").FromRaw([]byte{1, 2, 3, 4})
 	attributes.PutStr(conventions.AttributeServiceName, "service-name")
 
-	expected := []model.KeyValue{
+	expected := []dbmodel.KeyValue{
 		{
 			Key:   "bool-val",
-			VType: model.ValueType_BOOL,
-			VBool: true,
+			Type:  dbmodel.BoolType,
+			Value: "true",
 		},
 		{
-			Key:    "int-val",
-			VType:  model.ValueType_INT64,
-			VInt64: 123,
+			Key:   "int-val",
+			Type:  dbmodel.Int64Type,
+			Value: "123",
 		},
 		{
 			Key:   "string-val",
-			VType: model.ValueType_STRING,
-			VStr:  "abc",
+			Type:  dbmodel.StringType,
+			Value: "abc",
 		},
 		{
-			Key:      "double-val",
-			VType:    model.ValueType_FLOAT64,
-			VFloat64: 1.23,
+			Key:   "double-val",
+			Type:  dbmodel.Float64Type,
+			Value: "1.23",
 		},
 		{
-			Key:     "bytes-val",
-			VType:   model.ValueType_BINARY,
-			VBinary: []byte{1, 2, 3, 4},
+			Key:   "bytes-val",
+			Type:  dbmodel.BinaryType,
+			Value: "AQIDBA==",
 		},
 		{
 			Key:   conventions.AttributeServiceName,
-			VType: model.ValueType_STRING,
-			VStr:  "service-name",
+			Type:  dbmodel.StringType,
+			Value: "service-name",
 		},
 	}
 
-	got := appendTagsFromAttributes(make([]model.KeyValue, 0, len(expected)), attributes)
+	got := appendTagsFromAttributes(make([]dbmodel.KeyValue, 0, len(expected)), attributes)
 	require.EqualValues(t, expected, got)
 
 	// The last item in expected ("service-name") must be skipped in resource tags translation
-	got = appendTagsFromResourceAttributes(make([]model.KeyValue, 0, len(expected)-1), attributes)
+	got = appendTagsFromResourceAttributes(make([]dbmodel.KeyValue, 0, len(expected)-1), attributes)
 	require.EqualValues(t, expected[:5], got)
 }
 
 func TestAttributesToJaegerProtoTags_MapType(t *testing.T) {
 	attributes := pcommon.NewMap()
 	attributes.PutEmptyMap("empty-map")
-	got := appendTagsFromAttributes(make([]model.KeyValue, 0, 1), attributes)
-	expected := []model.KeyValue{
+	got := appendTagsFromAttributes(make([]dbmodel.KeyValue, 0, 1), attributes)
+	expected := []dbmodel.KeyValue{
 		{
 			Key:   "empty-map",
-			VType: model.ValueType_STRING,
-			VStr:  "{}",
+			Type:  dbmodel.StringType,
+			Value: "{}",
 		},
 	}
 	require.EqualValues(t, expected, got)
@@ -270,19 +271,11 @@ func TestInternalTracesToJaegerProto(t *testing.T) {
 	tests := []struct {
 		name string
 		td   ptrace.Traces
-		jb   *model.Batch
+		jb   []*dbmodel.Span
 	}{
 		{
 			name: "empty",
 			td:   ptrace.NewTraces(),
-		},
-
-		{
-			name: "no-spans",
-			td:   generateTracesResourceOnly(),
-			jb: &model.Batch{
-				Process: generateProtoProcess(),
-			},
 		},
 
 		{
@@ -293,79 +286,43 @@ func TestInternalTracesToJaegerProto(t *testing.T) {
 		{
 			name: "one-span-no-resources",
 			td:   generateTracesOneSpanNoResourceWithTraceState(),
-			jb: &model.Batch{
-				Process: &model.Process{
-					ServiceName: noServiceName,
-				},
-				Spans: []*model.Span{
-					generateProtoSpanWithTraceState(),
-				},
-			},
+			jb:   []*dbmodel.Span{generateProtoSpanWithTraceState()},
 		},
 		{
 			name: "library-info",
 			td:   generateTracesWithLibraryInfo(),
-			jb: &model.Batch{
-				Process: &model.Process{
-					ServiceName: noServiceName,
-				},
-				Spans: []*model.Span{
-					generateProtoSpanWithLibraryInfo("io.opentelemetry.test"),
-				},
-			},
+			jb:   []*dbmodel.Span{generateProtoSpanWithLibraryInfo("io.opentelemetry.test")},
 		},
 		{
 			name: "two-spans-child-parent",
 			td:   generateTracesTwoSpansChildParent(),
-			jb: &model.Batch{
-				Process: &model.Process{
-					ServiceName: noServiceName,
-				},
-				Spans: []*model.Span{
-					generateProtoSpan(),
-					generateProtoChildSpan(),
-				},
+			jb: []*dbmodel.Span{
+				generateProtoSpan(),
+				generateProtoChildSpan(),
 			},
 		},
 
 		{
 			name: "two-spans-with-follower",
 			td:   generateTracesTwoSpansWithFollower(),
-			jb: &model.Batch{
-				Process: &model.Process{
-					ServiceName: noServiceName,
-				},
-				Spans: []*model.Span{
-					generateProtoSpan(),
-					generateProtoFollowerSpan(),
-				},
+			jb: []*dbmodel.Span{
+				generateProtoSpan(),
+				generateProtoFollowerSpan(),
 			},
 		},
 
 		{
 			name: "span-with-span-event-attribute",
 			td:   generateTracesOneSpanNoResourceWithEventAttribute(),
-			jb: &model.Batch{
-				Process: &model.Process{
-					ServiceName: noServiceName,
-				},
-				Spans: []*model.Span{
-					generateJProtoSpanWithEventAttribute(),
-				},
-			},
+			jb:   []*dbmodel.Span{generateJProtoSpanWithEventAttribute()},
 		},
 		{
 			name: "a-spans-with-two-parent",
 			td:   generateTracesSpanWithTwoParents(),
-			jb: &model.Batch{
-				Process: &model.Process{
-					ServiceName: noServiceName,
-				},
-				Spans: []*model.Span{
-					generateProtoSpan(),
-					generateProtoFollowerSpan(),
-					generateProtoTwoParentsSpan(),
-				},
+			jb: []*dbmodel.Span{
+				generateProtoSpan(),
+				generateProtoFollowerSpan(),
+				generateProtoTwoParentsSpan(),
 			},
 		},
 	}
@@ -376,8 +333,8 @@ func TestInternalTracesToJaegerProto(t *testing.T) {
 			if test.jb == nil {
 				assert.Empty(t, jbs)
 			} else {
-				require.Len(t, jbs, 1)
-				assert.EqualValues(t, test.jb, jbs[0])
+				require.Len(t, jbs, len(test.jb))
+				assert.EqualValues(t, test.jb, jbs)
 			}
 		})
 	}
@@ -391,18 +348,18 @@ func generateTracesOneSpanNoResourceWithEventAttribute() ptrace.Traces {
 	return td
 }
 
-func generateJProtoSpanWithEventAttribute() *model.Span {
+func generateJProtoSpanWithEventAttribute() *dbmodel.Span {
 	span := generateProtoSpan()
-	span.Logs[0].Fields = []model.KeyValue{
+	span.Logs[0].Fields = []dbmodel.KeyValue{
 		{
 			Key:   "span-event-attr",
-			VType: model.ValueType_STRING,
-			VStr:  "span-event-attr-val",
+			Type:  dbmodel.StringType,
+			Value: "span-event-attr-val",
 		},
 		{
 			Key:   eventNameAttr,
-			VType: model.ValueType_STRING,
-			VStr:  "must-be-used-instead-of-event-name",
+			Type:  dbmodel.StringType,
+			Value: "must-be-used-instead-of-event-name",
 		},
 	}
 	return span

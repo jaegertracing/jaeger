@@ -7,7 +7,8 @@
 package tracestore
 
 import (
-	"encoding/binary"
+	"fmt"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/dbmodel"
 	"net/http"
 	"strconv"
 	"testing"
@@ -81,50 +82,13 @@ func TestCodeFromAttr(t *testing.T) {
 }
 
 func TestZeroBatchLength(t *testing.T) {
-	trace, err := ProtoToTraces([]*model.Batch{})
+	trace, err := ProtoToTraces([]*dbmodel.Span{})
 	require.NoError(t, err)
 	assert.Equal(t, 0, trace.ResourceSpans().Len())
 }
 
-func TestEmptyServiceNameAndTags(t *testing.T) {
-	tests := []struct {
-		name    string
-		batches []*model.Batch
-	}{
-		{
-			name: "empty service with nil tags",
-			batches: []*model.Batch{
-				{
-					Process: &model.Process{
-						ServiceName: "",
-					},
-				},
-			},
-		},
-		{
-			name: "empty service with tags",
-			batches: []*model.Batch{
-				{
-					Process: &model.Process{
-						ServiceName: "",
-						Tags:        []model.KeyValue{},
-					},
-				},
-			},
-		},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			trace, err := ProtoToTraces(test.batches)
-			require.NoError(t, err)
-			assert.Equal(t, 1, trace.ResourceSpans().Len())
-			assert.Equal(t, 0, trace.ResourceSpans().At(0).Resource().Attributes().Len())
-		})
-	}
-}
-
 func TestEmptySpansAndProcess(t *testing.T) {
-	trace, err := ProtoToTraces([]*model.Batch{{Spans: []*model.Span{}}})
+	trace, err := ProtoToTraces([]*dbmodel.Span{})
 	require.NoError(t, err)
 	assert.Equal(t, 0, trace.ResourceSpans().Len())
 }
@@ -156,21 +120,21 @@ func Test_translateJaegerVersionAttr(t *testing.T) {
 func Test_jSpansToInternal_EmptyOrNilSpans(t *testing.T) {
 	tests := []struct {
 		name  string
-		spans []*model.Span
+		spans []*dbmodel.Span
 	}{
 		{
 			name:  "nil spans",
-			spans: []*model.Span{nil},
+			spans: []*dbmodel.Span{nil},
 		},
 		{
 			name:  "empty spans",
-			spans: []*model.Span{new(model.Span)},
+			spans: []*dbmodel.Span{new(dbmodel.Span)},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			traceData := ptrace.NewTraces()
-			rss := traceData.ResourceSpans().AppendEmpty().ScopeSpans()
+			rss := traceData.ResourceSpans()
 			jSpansToInternal(tt.spans, rss)
 			assert.Equal(t, 0, rss.Len())
 		})
@@ -180,14 +144,14 @@ func Test_jSpansToInternal_EmptyOrNilSpans(t *testing.T) {
 func Test_jTagsToInternalAttributes(t *testing.T) {
 	traceData := ptrace.NewTraces()
 	rss := traceData.ResourceSpans().AppendEmpty().Resource().Attributes()
-	kv := []model.KeyValue{{
-		Key:   "testing-key",
-		VType: model.ValueType(12),
+	kv := []dbmodel.KeyValue{{
+		Key:  "testing-key",
+		Type: dbmodel.ValueType("wrong-type"),
 	}}
 	jTagsToInternalAttributes(kv, rss)
 	testingKey, testingKeyFound := rss.Get("testing-key")
 	assert.True(t, testingKeyFound)
-	assert.Equal(t, "<Unknown Jaeger TagType \"12\">", testingKey.AsString())
+	assert.Equal(t, "Got non string value for the key testing-key", testingKey.AsString())
 }
 
 func TestGetStatusCodeFromHTTPStatusAttr(t *testing.T) {
@@ -264,12 +228,12 @@ func Test_jLogsToSpanEvents(t *testing.T) {
 	span.Events().AppendEmpty().SetName("event1")
 	span.Events().AppendEmpty().SetName("event2")
 	span.Events().AppendEmpty().Attributes().PutStr(eventNameAttr, "testing")
-	logs := []model.Log{
+	logs := []dbmodel.Log{
 		{
-			Timestamp: testSpanEventTime,
+			Timestamp: model.TimeAsEpochMicroseconds(testSpanEventTime),
 		},
 		{
-			Timestamp: testSpanEventTime,
+			Timestamp: model.TimeAsEpochMicroseconds(testSpanEventTime),
 		},
 	}
 	jLogsToSpanEvents(logs, span.Events())
@@ -281,31 +245,31 @@ func Test_jLogsToSpanEvents(t *testing.T) {
 }
 
 func TestJTagsToInternalAttributes(t *testing.T) {
-	tags := []model.KeyValue{
+	tags := []dbmodel.KeyValue{
 		{
 			Key:   "bool-val",
-			VType: model.ValueType_BOOL,
-			VBool: true,
+			Type:  dbmodel.BoolType,
+			Value: "true",
 		},
 		{
-			Key:    "int-val",
-			VType:  model.ValueType_INT64,
-			VInt64: 123,
+			Key:   "int-val",
+			Type:  dbmodel.Int64Type,
+			Value: "123",
 		},
 		{
 			Key:   "string-val",
-			VType: model.ValueType_STRING,
-			VStr:  "abc",
+			Type:  dbmodel.StringType,
+			Value: "abc",
 		},
 		{
-			Key:      "double-val",
-			VType:    model.ValueType_FLOAT64,
-			VFloat64: 1.23,
+			Key:   "double-val",
+			Type:  dbmodel.Float64Type,
+			Value: "1.23",
 		},
 		{
-			Key:     "binary-val",
-			VType:   model.ValueType_BINARY,
-			VBinary: []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x64, 0x7D, 0x98},
+			Key:   "binary-val",
+			Type:  dbmodel.BinaryType,
+			Value: fmt.Sprintf("%x", []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x64, 0x7D, 0x98}),
 		},
 	}
 
@@ -325,122 +289,59 @@ func TestJTagsToInternalAttributes(t *testing.T) {
 func TestProtoToTraces(t *testing.T) {
 	tests := []struct {
 		name string
-		jb   []*model.Batch
+		jb   []*dbmodel.Span
 		td   ptrace.Traces
 	}{
 		{
 			name: "empty",
-			jb:   []*model.Batch{},
+			jb:   []*dbmodel.Span{},
 			td:   ptrace.NewTraces(),
-		},
-
-		{
-			name: "no-spans",
-			jb: []*model.Batch{
-				{
-					Process: generateProtoProcess(),
-				},
-			},
-			td: generateTracesResourceOnly(),
-		},
-
-		{
-			name: "no-resource-attrs",
-			jb: []*model.Batch{
-				{
-					Process: &model.Process{
-						ServiceName: noServiceName,
-					},
-				},
-			},
-			td: generateTracesResourceOnlyWithNoAttrs(),
-		},
-
-		{
-			name: "one-span-no-resources",
-			jb: []*model.Batch{
-				{
-					Process: &model.Process{
-						ServiceName: noServiceName,
-					},
-					Spans: []*model.Span{
-						generateProtoSpanWithTraceState(),
-					},
-				},
-			},
-			td: generateTracesOneSpanNoResourceWithTraceState(),
 		},
 		{
 			name: "two-spans-child-parent",
-			jb: []*model.Batch{
-				{
-					Process: &model.Process{
-						ServiceName: noServiceName,
-					},
-					Spans: []*model.Span{
-						generateProtoSpan(),
-						generateProtoChildSpan(),
-					},
-				},
+			jb: []*dbmodel.Span{
+				generateProtoSpan(),
+				generateProtoChildSpan(),
 			},
-			td: generateTracesTwoSpansChildParent(),
+			td: generateTracesWithDifferentResourceTwoSpansChildParent(),
 		},
-
 		{
 			name: "two-spans-with-follower",
-			jb: []*model.Batch{
-				{
-					Process: &model.Process{
-						ServiceName: noServiceName,
-					},
-					Spans: []*model.Span{
-						generateProtoSpan(),
-						generateProtoFollowerSpan(),
-					},
-				},
+			jb: []*dbmodel.Span{
+				generateProtoSpan(),
+				generateProtoFollowerSpan(),
 			},
 			td: generateTracesTwoSpansWithFollower(),
 		},
 		{
 			name: "a-spans-with-two-parent",
-			jb: []*model.Batch{
-				{
-					Process: &model.Process{
-						ServiceName: noServiceName,
-					},
-					Spans: []*model.Span{
-						generateProtoSpan(),
-						generateProtoFollowerSpan(),
-						generateProtoTwoParentsSpan(),
-					},
-				},
+			jb: []*dbmodel.Span{
+				generateProtoSpan(),
+				generateProtoFollowerSpan(),
+				generateProtoTwoParentsSpan(),
 			},
 			td: generateTracesSpanWithTwoParents(),
 		},
 		{
 			name: "no-error-from-server-span-with-4xx-http-code",
-			jb: []*model.Batch{
+			jb: []*dbmodel.Span{
 				{
-					Process: &model.Process{
-						ServiceName: noServiceName,
-					},
-					Spans: []*model.Span{
+					StartTime: model.TimeAsEpochMicroseconds(testSpanStartTime),
+					Duration:  model.DurationAsMicroseconds(testSpanEndTime.Sub(testSpanStartTime)),
+					Tags: []dbmodel.KeyValue{
 						{
-							StartTime: testSpanStartTime,
-							Duration:  testSpanEndTime.Sub(testSpanStartTime),
-							Tags: []model.KeyValue{
-								{
-									Key:   model.SpanKindKey,
-									VType: model.ValueType_STRING,
-									VStr:  string(model.SpanKindServer),
-								},
-								{
-									Key:   conventions.AttributeHTTPStatusCode,
-									VType: model.ValueType_STRING,
-									VStr:  "404",
-								},
-							},
+							Key:   model.SpanKindKey,
+							Type:  dbmodel.StringType,
+							Value: string(model.SpanKindServer),
 						},
+						{
+							Key:   conventions.AttributeHTTPStatusCode,
+							Type:  dbmodel.StringType,
+							Value: "404",
+						},
+					},
+					Process: dbmodel.Process{
+						ServiceName: noServiceName,
 					},
 				},
 			},
@@ -468,42 +369,37 @@ func TestProtoToTraces(t *testing.T) {
 }
 
 func TestProtoBatchToInternalTracesWithTwoLibraries(t *testing.T) {
-	jb := &model.Batch{
-		Process: &model.Process{
-			ServiceName: noServiceName,
-		},
-		Spans: []*model.Span{
-			{
-				StartTime:     testSpanStartTime,
-				Duration:      testSpanEndTime.Sub(testSpanStartTime),
-				OperationName: "operation2",
-				Tags: []model.KeyValue{
-					{
-						Key:   conventions.AttributeOtelScopeName,
-						VType: model.ValueType_STRING,
-						VStr:  "library2",
-					}, {
-						Key:   conventions.AttributeOtelScopeVersion,
-						VType: model.ValueType_STRING,
-						VStr:  "0.42.0",
-					},
+	jb := []*dbmodel.Span{
+		{
+			StartTime:     model.TimeAsEpochMicroseconds(testSpanStartTime),
+			Duration:      model.DurationAsMicroseconds(testSpanEndTime.Sub(testSpanStartTime)),
+			OperationName: "operation2",
+			Tags: []dbmodel.KeyValue{
+				{
+					Key:   conventions.AttributeOtelScopeName,
+					Type:  dbmodel.StringType,
+					Value: "library2",
+				}, {
+					Key:   conventions.AttributeOtelScopeVersion,
+					Type:  dbmodel.StringType,
+					Value: "0.42.0",
 				},
 			},
-			{
-				TraceID:       model.NewTraceID(0, 0),
-				StartTime:     testSpanStartTime,
-				Duration:      testSpanEndTime.Sub(testSpanStartTime),
-				OperationName: "operation1",
-				Tags: []model.KeyValue{
-					{
-						Key:   conventions.AttributeOtelScopeName,
-						VType: model.ValueType_STRING,
-						VStr:  "library1",
-					}, {
-						Key:   conventions.AttributeOtelScopeVersion,
-						VType: model.ValueType_STRING,
-						VStr:  "0.42.0",
-					},
+		},
+		{
+			TraceID:       dbmodel.TraceID("0000000000000000"),
+			StartTime:     model.TimeAsEpochMicroseconds(testSpanStartTime),
+			Duration:      model.DurationAsMicroseconds(testSpanEndTime.Sub(testSpanStartTime)),
+			OperationName: "operation1",
+			Tags: []dbmodel.KeyValue{
+				{
+					Key:   conventions.AttributeOtelScopeName,
+					Type:  dbmodel.StringType,
+					Value: "library1",
+				}, {
+					Key:   conventions.AttributeOtelScopeVersion,
+					Type:  dbmodel.StringType,
+					Value: "0.42.0",
 				},
 			},
 		},
@@ -512,7 +408,7 @@ func TestProtoBatchToInternalTracesWithTwoLibraries(t *testing.T) {
 	library1Span := expected.ResourceSpans().At(0).ScopeSpans().At(0)
 	library2Span := expected.ResourceSpans().At(0).ScopeSpans().At(1)
 
-	actual, err := ProtoToTraces([]*model.Batch{jb})
+	actual, err := ProtoToTraces(jb)
 	require.NoError(t, err)
 
 	assert.Equal(t, 1, actual.ResourceSpans().Len())
@@ -667,23 +563,10 @@ func TestSetInternalSpanStatus(t *testing.T) {
 }
 
 func TestProtoBatchesToInternalTraces(t *testing.T) {
-	batches := []*model.Batch{
-		{
-			Process: generateProtoProcess(),
-			Spans: []*model.Span{
-				generateProtoSpan(),
-			},
-		},
-		{
-			Spans: []*model.Span{
-				generateProtoSpan(),
-				generateProtoChildSpan(),
-			},
-		},
-		{
-			// should be skipped
-			Spans: []*model.Span{},
-		},
+	batches := []*dbmodel.Span{
+		generateProtoSpan(),
+		generateProtoSpan(),
+		generateProtoChildSpan(),
 	}
 
 	expected := generateTracesOneSpanNoResource()
@@ -757,72 +640,6 @@ func TestJSpanKindToInternal(t *testing.T) {
 	}
 }
 
-func TestRegroup(t *testing.T) {
-	// prepare
-	process := &model.Process{
-		ServiceName: "batch-process",
-	}
-	spanWithoutProcess := &model.Span{
-		OperationName: "span-without-process",
-	}
-	spanWithProcess := &model.Span{
-		Process: &model.Process{
-			ServiceName: "custom-service-name",
-		},
-	}
-
-	originalBatches := []*model.Batch{
-		{
-			Process: process,
-			Spans:   []*model.Span{spanWithProcess, spanWithoutProcess},
-		},
-	}
-
-	expected := []*model.Batch{
-		{
-			Process: process,
-			Spans:   []*model.Span{spanWithoutProcess},
-		},
-		{
-			Process: spanWithProcess.Process,
-			Spans:   []*model.Span{spanWithProcess},
-		},
-	}
-
-	// test
-	result := regroup(originalBatches)
-
-	// verify
-	assert.ElementsMatch(t, expected, result)
-}
-
-func TestChecksum(t *testing.T) {
-	testCases := []struct {
-		desc     string
-		input    *model.Process
-		expected uint64
-	}{
-		{
-			desc: "valid process",
-			input: &model.Process{
-				ServiceName: "some-service-name",
-			},
-			expected: 0x974574e8529af5dd, // acquired by running it once
-		},
-		{
-			desc:     "nil process",
-			input:    nil,
-			expected: 0xcbf29ce484222325, // acquired by running it once
-		},
-	}
-	for _, tC := range testCases {
-		t.Run(tC.desc, func(t *testing.T) {
-			out := checksum(tC.input)
-			assert.Equal(t, tC.expected, out)
-		})
-	}
-}
-
 func generateTracesResourceOnly() ptrace.Traces {
 	td := generateTracesOneEmptyResourceSpans()
 	rs := td.ResourceSpans().At(0).Resource()
@@ -841,14 +658,14 @@ func generateTracesResourceOnlyWithNoAttrs() ptrace.Traces {
 	return generateTracesOneEmptyResourceSpans()
 }
 
-func generateProtoProcess() *model.Process {
-	return &model.Process{
+func generateProtoProcess() dbmodel.Process {
+	return dbmodel.Process{
 		ServiceName: "service-1",
-		Tags: []model.KeyValue{
+		Tags: []dbmodel.KeyValue{
 			{
-				Key:    "int-attr-1",
-				VType:  model.ValueType_INT64,
-				VInt64: 123,
+				Key:   "int-attr-1",
+				Type:  dbmodel.Int64Type,
+				Value: "123",
 			},
 		},
 	}
@@ -886,8 +703,7 @@ func generateTracesOneSpanNoResource() ptrace.Traces {
 	td := GenerateTracesOneSpanNoResource()
 	span := td.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0)
 	span.SetSpanID([8]byte{0xAF, 0xAE, 0xAD, 0xAC, 0xAB, 0xAA, 0xA9, 0xA8})
-	span.SetTraceID(
-		[16]byte{0xF1, 0xF2, 0xF3, 0xF4, 0xF5, 0xF6, 0xF7, 0xF8, 0xF9, 0xFA, 0xFB, 0xFC, 0xFD, 0xFE, 0xFF, 0x80})
+	span.SetTraceID([16]byte{0xF1, 0xF2, 0xF3, 0xF4, 0xF5, 0xF6, 0xF7, 0xF8, 0xF9, 0xFA, 0xFB, 0xFC, 0xFD, 0xFE, 0xFF, 0x80})
 	span.SetDroppedAttributesCount(0)
 	span.SetDroppedEventsCount(0)
 	span.SetStartTimestamp(testSpanStartTimestamp)
@@ -920,148 +736,160 @@ func generateTracesOneSpanNoResourceWithTraceState() ptrace.Traces {
 	return td
 }
 
-func generateProtoSpan() *model.Span {
-	return &model.Span{
-		TraceID: model.NewTraceID(
-			binary.BigEndian.Uint64([]byte{0xF1, 0xF2, 0xF3, 0xF4, 0xF5, 0xF6, 0xF7, 0xF8}),
-			binary.BigEndian.Uint64([]byte{0xF9, 0xFA, 0xFB, 0xFC, 0xFD, 0xFE, 0xFF, 0x80}),
-		),
-		SpanID:        model.NewSpanID(binary.BigEndian.Uint64([]byte{0xAF, 0xAE, 0xAD, 0xAC, 0xAB, 0xAA, 0xA9, 0xA8})),
+func generateProtoSpan() *dbmodel.Span {
+	spanId := [8]byte{0xAF, 0xAE, 0xAD, 0xAC, 0xAB, 0xAA, 0xA9, 0xA8}
+	traceId := [16]byte{0xF1, 0xF2, 0xF3, 0xF4, 0xF5, 0xF6, 0xF7, 0xF8, 0xF9, 0xFA, 0xFB, 0xFC, 0xFD, 0xFE, 0xFF, 0x80}
+	return &dbmodel.Span{
+		TraceID:       getDbTraceIdFromByteArray(traceId),
+		SpanID:        getDbSpanIdFromByteArray(spanId),
 		OperationName: "operationA",
-		StartTime:     testSpanStartTime,
-		Duration:      testSpanEndTime.Sub(testSpanStartTime),
-		Logs: []model.Log{
+		StartTime:     model.TimeAsEpochMicroseconds(testSpanStartTime),
+		Duration:      model.DurationAsMicroseconds(testSpanEndTime.Sub(testSpanStartTime)),
+		Logs: []dbmodel.Log{
 			{
-				Timestamp: testSpanEventTime,
-				Fields: []model.KeyValue{
+				Timestamp: model.TimeAsEpochMicroseconds(testSpanEventTime),
+				Fields: []dbmodel.KeyValue{
 					{
 						Key:   eventNameAttr,
-						VType: model.ValueType_STRING,
-						VStr:  "event-with-attr",
+						Type:  dbmodel.StringType,
+						Value: "event-with-attr",
 					},
 					{
 						Key:   "span-event-attr",
-						VType: model.ValueType_STRING,
-						VStr:  "span-event-attr-val",
+						Type:  dbmodel.StringType,
+						Value: "span-event-attr-val",
 					},
 				},
 			},
 			{
-				Timestamp: testSpanEventTime,
-				Fields: []model.KeyValue{
+				Timestamp: model.TimeAsEpochMicroseconds(testSpanEventTime),
+				Fields: []dbmodel.KeyValue{
 					{
-						Key:    "attr-int",
-						VType:  model.ValueType_INT64,
-						VInt64: 123,
+						Key:   "attr-int",
+						Type:  dbmodel.Int64Type,
+						Value: "123",
 					},
 				},
 			},
 		},
-		Tags: []model.KeyValue{
+		Tags: []dbmodel.KeyValue{
 			{
 				Key:   model.SpanKindKey,
-				VType: model.ValueType_STRING,
-				VStr:  string(model.SpanKindClient),
+				Type:  dbmodel.StringType,
+				Value: string(model.SpanKindClient),
 			},
 			{
 				Key:   conventions.OtelStatusCode,
-				VType: model.ValueType_STRING,
-				VStr:  statusError,
+				Type:  dbmodel.StringType,
+				Value: statusError,
 			},
 			{
 				Key:   tagError,
-				VBool: true,
-				VType: model.ValueType_BOOL,
+				Value: true,
+				Type:  dbmodel.BoolType,
 			},
 			{
 				Key:   conventions.OtelStatusDescription,
-				VType: model.ValueType_STRING,
-				VStr:  "status-cancelled",
+				Type:  dbmodel.StringType,
+				Value: "status-cancelled",
 			},
+		},
+		Process: dbmodel.Process{
+			ServiceName: noServiceName,
 		},
 	}
 }
 
-func generateProtoSpanWithLibraryInfo(libraryName string) *model.Span {
+func generateProtoSpanWithLibraryInfo(libraryName string) *dbmodel.Span {
 	span := generateProtoSpan()
-	span.Tags = append([]model.KeyValue{
+	span.Tags = append([]dbmodel.KeyValue{
 		{
 			Key:   conventions.AttributeOtelScopeName,
-			VType: model.ValueType_STRING,
-			VStr:  libraryName,
+			Type:  dbmodel.StringType,
+			Value: libraryName,
 		}, {
 			Key:   conventions.AttributeOtelScopeVersion,
-			VType: model.ValueType_STRING,
-			VStr:  "0.42.0",
+			Type:  dbmodel.StringType,
+			Value: "0.42.0",
 		},
 	}, span.Tags...)
 
 	return span
 }
 
-func generateProtoSpanWithTraceState() *model.Span {
-	return &model.Span{
-		TraceID: model.NewTraceID(
-			binary.BigEndian.Uint64([]byte{0xF1, 0xF2, 0xF3, 0xF4, 0xF5, 0xF6, 0xF7, 0xF8}),
-			binary.BigEndian.Uint64([]byte{0xF9, 0xFA, 0xFB, 0xFC, 0xFD, 0xFE, 0xFF, 0x80}),
-		),
-		SpanID:        model.NewSpanID(binary.BigEndian.Uint64([]byte{0xAF, 0xAE, 0xAD, 0xAC, 0xAB, 0xAA, 0xA9, 0xA8})),
+func getDbTraceIdFromByteArray(arr [16]byte) dbmodel.TraceID {
+	return dbmodel.TraceID(fmt.Sprintf("%x", arr))
+}
+
+func getDbSpanIdFromByteArray(arr [8]byte) dbmodel.SpanID {
+	return dbmodel.SpanID(fmt.Sprintf("%x", arr))
+}
+
+func generateProtoSpanWithTraceState() *dbmodel.Span {
+	spanId := [8]byte{0xAF, 0xAE, 0xAD, 0xAC, 0xAB, 0xAA, 0xA9, 0xA8}
+	traceId := [16]byte{0xF1, 0xF2, 0xF3, 0xF4, 0xF5, 0xF6, 0xF7, 0xF8, 0xF9, 0xFA, 0xFB, 0xFC, 0xFD, 0xFE, 0xFF, 0x80}
+	return &dbmodel.Span{
+		TraceID:       getDbTraceIdFromByteArray(traceId),
+		SpanID:        getDbSpanIdFromByteArray(spanId),
 		OperationName: "operationA",
-		StartTime:     testSpanStartTime,
-		Duration:      testSpanEndTime.Sub(testSpanStartTime),
-		Logs: []model.Log{
+		StartTime:     model.TimeAsEpochMicroseconds(testSpanStartTime),
+		Duration:      model.DurationAsMicroseconds(testSpanEndTime.Sub(testSpanStartTime)),
+		Logs: []dbmodel.Log{
 			{
-				Timestamp: testSpanEventTime,
-				Fields: []model.KeyValue{
+				Timestamp: model.TimeAsEpochMicroseconds(testSpanEventTime),
+				Fields: []dbmodel.KeyValue{
 					{
 						Key:   eventNameAttr,
-						VType: model.ValueType_STRING,
-						VStr:  "event-with-attr",
+						Type:  dbmodel.StringType,
+						Value: "event-with-attr",
 					},
 					{
 						Key:   "span-event-attr",
-						VType: model.ValueType_STRING,
-						VStr:  "span-event-attr-val",
+						Type:  dbmodel.StringType,
+						Value: "span-event-attr-val",
 					},
 				},
 			},
 			{
-				Timestamp: testSpanEventTime,
-				Fields: []model.KeyValue{
+				Timestamp: model.TimeAsEpochMicroseconds(testSpanEventTime),
+				Fields: []dbmodel.KeyValue{
 					{
-						Key:    "attr-int",
-						VType:  model.ValueType_INT64,
-						VInt64: 123,
+						Key:   "attr-int",
+						Type:  dbmodel.Int64Type,
+						Value: "123",
 					},
 				},
 			},
 		},
-		Tags: []model.KeyValue{
+		Tags: []dbmodel.KeyValue{
 			{
 				Key:   model.SpanKindKey,
-				VType: model.ValueType_STRING,
-				VStr:  string(model.SpanKindClient),
+				Type:  dbmodel.StringType,
+				Value: string(model.SpanKindClient),
 			},
 			{
 				Key:   conventions.OtelStatusCode,
-				VType: model.ValueType_STRING,
-				VStr:  statusError,
+				Type:  dbmodel.StringType,
+				Value: statusError,
 			},
 			{
 				Key:   tagError,
-				VBool: true,
-				VType: model.ValueType_BOOL,
+				Value: true,
+				Type:  dbmodel.BoolType,
 			},
 			{
 				Key:   conventions.OtelStatusDescription,
-				VType: model.ValueType_STRING,
-				VStr:  "status-cancelled",
+				Type:  dbmodel.StringType,
+				Value: "status-cancelled",
 			},
 			{
 				Key:   tagW3CTraceState,
-				VType: model.ValueType_STRING,
-				VStr:  "lasterror=f39cd56cc44274fd5abd07ef1164246d10ce2955",
+				Type:  dbmodel.StringType,
+				Value: "lasterror=f39cd56cc44274fd5abd07ef1164246d10ce2955",
 			},
+		},
+		Process: dbmodel.Process{
+			ServiceName: noServiceName,
 		},
 	}
 }
@@ -1083,35 +911,52 @@ func generateTracesTwoSpansChildParent() ptrace.Traces {
 	return td
 }
 
-func generateProtoChildSpan() *model.Span {
-	traceID := model.NewTraceID(
-		binary.BigEndian.Uint64([]byte{0xF1, 0xF2, 0xF3, 0xF4, 0xF5, 0xF6, 0xF7, 0xF8}),
-		binary.BigEndian.Uint64([]byte{0xF9, 0xFA, 0xFB, 0xFC, 0xFD, 0xFE, 0xFF, 0x80}),
-	)
-	return &model.Span{
+func generateTracesWithDifferentResourceTwoSpansChildParent() ptrace.Traces {
+	td := generateTracesOneSpanNoResource()
+	parentSpan := td.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0)
+	spans := td.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans()
+	span := spans.AppendEmpty()
+	span.SetName("operationB")
+	span.SetSpanID([8]byte{0x1F, 0x1E, 0x1D, 0x1C, 0x1B, 0x1A, 0x19, 0x18})
+	span.SetParentSpanID(parentSpan.SpanID())
+	span.SetKind(ptrace.SpanKindServer)
+	span.SetTraceID(parentSpan.TraceID())
+	span.SetStartTimestamp(parentSpan.StartTimestamp())
+	span.SetEndTimestamp(parentSpan.EndTimestamp())
+	span.Status().SetCode(ptrace.StatusCodeUnset)
+	span.Attributes().PutInt(conventions.AttributeHTTPStatusCode, 404)
+	return td
+}
+
+func generateProtoChildSpan() *dbmodel.Span {
+	traceID := getDbTraceIdFromByteArray([16]byte{0xF1, 0xF2, 0xF3, 0xF4, 0xF5, 0xF6, 0xF7, 0xF8, 0xF9, 0xFA, 0xFB, 0xFC, 0xFD, 0xFE, 0xFF, 0x80})
+	return &dbmodel.Span{
 		TraceID:       traceID,
-		SpanID:        model.NewSpanID(binary.BigEndian.Uint64([]byte{0x1F, 0x1E, 0x1D, 0x1C, 0x1B, 0x1A, 0x19, 0x18})),
+		SpanID:        getDbSpanIdFromByteArray([8]byte{0x1F, 0x1E, 0x1D, 0x1C, 0x1B, 0x1A, 0x19, 0x18}),
 		OperationName: "operationB",
-		StartTime:     testSpanStartTime,
-		Duration:      testSpanEndTime.Sub(testSpanStartTime),
-		Tags: []model.KeyValue{
+		StartTime:     model.TimeAsEpochMicroseconds(testSpanStartTime),
+		Duration:      model.DurationAsMicroseconds(testSpanEndTime.Sub(testSpanStartTime)),
+		Tags: []dbmodel.KeyValue{
 			{
-				Key:    conventions.AttributeHTTPStatusCode,
-				VType:  model.ValueType_INT64,
-				VInt64: 404,
+				Key:   conventions.AttributeHTTPStatusCode,
+				Type:  dbmodel.Int64Type,
+				Value: "404",
 			},
 			{
 				Key:   model.SpanKindKey,
-				VType: model.ValueType_STRING,
-				VStr:  string(model.SpanKindServer),
+				Type:  dbmodel.StringType,
+				Value: string(model.SpanKindServer),
 			},
 		},
-		References: []model.SpanRef{
+		References: []dbmodel.Reference{
 			{
 				TraceID: traceID,
-				SpanID:  model.NewSpanID(binary.BigEndian.Uint64([]byte{0xAF, 0xAE, 0xAD, 0xAC, 0xAB, 0xAA, 0xA9, 0xA8})),
-				RefType: model.SpanRefType_CHILD_OF,
+				SpanID:  getDbSpanIdFromByteArray([8]byte{0xAF, 0xAE, 0xAD, 0xAC, 0xAB, 0xAA, 0xA9, 0xA8}),
+				RefType: dbmodel.ChildOf,
 			},
+		},
+		Process: dbmodel.Process{
+			ServiceName: noServiceName,
 		},
 	}
 }
@@ -1140,40 +985,40 @@ func generateTracesTwoSpansWithFollower() ptrace.Traces {
 	return td
 }
 
-func generateProtoFollowerSpan() *model.Span {
-	traceID := model.NewTraceID(
-		binary.BigEndian.Uint64([]byte{0xF1, 0xF2, 0xF3, 0xF4, 0xF5, 0xF6, 0xF7, 0xF8}),
-		binary.BigEndian.Uint64([]byte{0xF9, 0xFA, 0xFB, 0xFC, 0xFD, 0xFE, 0xFF, 0x80}),
-	)
-	return &model.Span{
+func generateProtoFollowerSpan() *dbmodel.Span {
+	traceID := getDbTraceIdFromByteArray([16]byte{0xF1, 0xF2, 0xF3, 0xF4, 0xF5, 0xF6, 0xF7, 0xF8, 0xF9, 0xFA, 0xFB, 0xFC, 0xFD, 0xFE, 0xFF, 0x80})
+	return &dbmodel.Span{
 		TraceID:       traceID,
-		SpanID:        model.NewSpanID(binary.BigEndian.Uint64([]byte{0x1F, 0x1E, 0x1D, 0x1C, 0x1B, 0x1A, 0x19, 0x18})),
+		SpanID:        getDbSpanIdFromByteArray([8]byte{0x1F, 0x1E, 0x1D, 0x1C, 0x1B, 0x1A, 0x19, 0x18}),
 		OperationName: "operationC",
-		StartTime:     testSpanEndTime,
-		Duration:      time.Millisecond,
-		Tags: []model.KeyValue{
+		StartTime:     model.TimeAsEpochMicroseconds(testSpanEndTime),
+		Duration:      model.DurationAsMicroseconds(time.Millisecond),
+		Tags: []dbmodel.KeyValue{
 			{
 				Key:   model.SpanKindKey,
-				VType: model.ValueType_STRING,
-				VStr:  string(model.SpanKindConsumer),
+				Type:  dbmodel.StringType,
+				Value: string(model.SpanKindConsumer),
 			},
 			{
 				Key:   conventions.OtelStatusCode,
-				VType: model.ValueType_STRING,
-				VStr:  statusOk,
+				Type:  dbmodel.StringType,
+				Value: statusOk,
 			},
 			{
 				Key:   conventions.OtelStatusDescription,
-				VType: model.ValueType_STRING,
-				VStr:  "status-ok",
+				Type:  dbmodel.StringType,
+				Value: "status-ok",
 			},
 		},
-		References: []model.SpanRef{
+		References: []dbmodel.Reference{
 			{
 				TraceID: traceID,
-				SpanID:  model.NewSpanID(binary.BigEndian.Uint64([]byte{0xAF, 0xAE, 0xAD, 0xAC, 0xAB, 0xAA, 0xA9, 0xA8})),
-				RefType: model.SpanRefType_FOLLOWS_FROM,
+				SpanID:  getDbSpanIdFromByteArray([8]byte{0xAF, 0xAE, 0xAD, 0xAC, 0xAB, 0xAA, 0xA9, 0xA8}),
+				RefType: dbmodel.FollowsFrom,
 			},
+		},
+		Process: dbmodel.Process{
+			ServiceName: noServiceName,
 		},
 	}
 }
@@ -1204,58 +1049,53 @@ func generateTracesSpanWithTwoParents() ptrace.Traces {
 	return td
 }
 
-func generateProtoTwoParentsSpan() *model.Span {
-	traceID := model.NewTraceID(
-		binary.BigEndian.Uint64([]byte{0xF1, 0xF2, 0xF3, 0xF4, 0xF5, 0xF6, 0xF7, 0xF8}),
-		binary.BigEndian.Uint64([]byte{0xF9, 0xFA, 0xFB, 0xFC, 0xFD, 0xFE, 0xFF, 0x80}),
-	)
-	return &model.Span{
+func generateProtoTwoParentsSpan() *dbmodel.Span {
+	traceID := getDbTraceIdFromByteArray([16]byte{0xF1, 0xF2, 0xF3, 0xF4, 0xF5, 0xF6, 0xF7, 0xF8, 0xF9, 0xFA, 0xFB, 0xFC, 0xFD, 0xFE, 0xFF, 0x80})
+	return &dbmodel.Span{
 		TraceID:       traceID,
-		SpanID:        model.NewSpanID(binary.BigEndian.Uint64([]byte{0x1F, 0x1E, 0x1D, 0x1C, 0x1B, 0x1A, 0x19, 0x20})),
+		SpanID:        getDbSpanIdFromByteArray([8]byte{0x1F, 0x1E, 0x1D, 0x1C, 0x1B, 0x1A, 0x19, 0x20}),
 		OperationName: "operationD",
-		StartTime:     testSpanStartTime,
-		Duration:      testSpanEndTime.Sub(testSpanStartTime),
-		Tags: []model.KeyValue{
+		StartTime:     model.TimeAsEpochMicroseconds(testSpanStartTime),
+		Duration:      model.DurationAsMicroseconds(testSpanEndTime.Sub(testSpanStartTime)),
+		Tags: []dbmodel.KeyValue{
 			{
 				Key:   model.SpanKindKey,
-				VType: model.ValueType_STRING,
-				VStr:  string(model.SpanKindConsumer),
+				Type:  dbmodel.StringType,
+				Value: string(model.SpanKindConsumer),
 			},
 			{
 				Key:   conventions.OtelStatusCode,
-				VType: model.ValueType_STRING,
-				VStr:  statusOk,
+				Type:  dbmodel.StringType,
+				Value: statusOk,
 			},
 			{
 				Key:   conventions.OtelStatusDescription,
-				VType: model.ValueType_STRING,
-				VStr:  "status-ok",
+				Type:  dbmodel.StringType,
+				Value: "status-ok",
 			},
 		},
-		References: []model.SpanRef{
+		References: []dbmodel.Reference{
 			{
 				TraceID: traceID,
-				SpanID:  model.NewSpanID(binary.BigEndian.Uint64([]byte{0xAF, 0xAE, 0xAD, 0xAC, 0xAB, 0xAA, 0xA9, 0xA8})),
-				RefType: model.SpanRefType_CHILD_OF,
+				SpanID:  getDbSpanIdFromByteArray([8]byte{0xAF, 0xAE, 0xAD, 0xAC, 0xAB, 0xAA, 0xA9, 0xA8}),
+				RefType: dbmodel.ChildOf,
 			},
 			{
 				TraceID: traceID,
-				SpanID:  model.NewSpanID(binary.BigEndian.Uint64([]byte{0x1F, 0x1E, 0x1D, 0x1C, 0x1B, 0x1A, 0x19, 0x18})),
-				RefType: model.SpanRefType_CHILD_OF,
+				SpanID:  getDbSpanIdFromByteArray([8]byte{0x1F, 0x1E, 0x1D, 0x1C, 0x1B, 0x1A, 0x19, 0x18}),
+				RefType: dbmodel.ChildOf,
 			},
+		},
+		Process: dbmodel.Process{
+			ServiceName: noServiceName,
 		},
 	}
 }
 
 func BenchmarkProtoBatchToInternalTraces(b *testing.B) {
-	jb := []*model.Batch{
-		{
-			Process: generateProtoProcess(),
-			Spans: []*model.Span{
-				generateProtoSpan(),
-				generateProtoChildSpan(),
-			},
-		},
+	jb := []*dbmodel.Span{
+		generateProtoSpan(),
+		generateProtoChildSpan(),
 	}
 
 	b.ResetTimer()

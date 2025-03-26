@@ -7,7 +7,7 @@
 package tracestore
 
 import (
-	idutils "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/core/xidutils"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/dbmodel"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	conventions "go.opentelemetry.io/collector/semconv/v1.16.0"
@@ -27,26 +27,26 @@ const (
 
 // ProtoFromTraces translates internal trace data into the Jaeger Proto for GRPC.
 // Returns slice of translated Jaeger batches and error if translation failed.
-func ProtoFromTraces(td ptrace.Traces) []*model.Batch {
+func ProtoFromTraces(td ptrace.Traces) []*dbmodel.Span {
 	resourceSpans := td.ResourceSpans()
 
 	if resourceSpans.Len() == 0 {
 		return nil
 	}
 
-	batches := make([]*model.Batch, 0, resourceSpans.Len())
+	batches := make([]*dbmodel.Span, 0, resourceSpans.Len())
 	for i := 0; i < resourceSpans.Len(); i++ {
 		rs := resourceSpans.At(i)
 		batch := resourceSpansToJaegerProto(rs)
 		if batch != nil {
-			batches = append(batches, batch)
+			batches = append(batches, batch...)
 		}
 	}
 
 	return batches
 }
 
-func resourceSpansToJaegerProto(rs ptrace.ResourceSpans) *model.Batch {
+func resourceSpansToJaegerProto(rs ptrace.ResourceSpans) []*dbmodel.Span {
 	resource := rs.Resource()
 	ilss := rs.ScopeSpans()
 
@@ -54,37 +54,33 @@ func resourceSpansToJaegerProto(rs ptrace.ResourceSpans) *model.Batch {
 		return nil
 	}
 
-	batch := &model.Batch{
-		Process: resourceToJaegerProtoProcess(resource),
-	}
+	process := resourceToJaegerProtoProcess(resource)
 
 	if ilss.Len() == 0 {
-		return batch
+		return []*dbmodel.Span{}
 	}
 
 	// Approximate the number of the spans as the number of the spans in the first
 	// instrumentation library info.
-	jSpans := make([]*model.Span, 0, ilss.At(0).Spans().Len())
+	jSpans := make([]*dbmodel.Span, 0, ilss.At(0).Spans().Len())
 
 	for i := 0; i < ilss.Len(); i++ {
 		ils := ilss.At(i)
 		spans := ils.Spans()
 		for j := 0; j < spans.Len(); j++ {
 			span := spans.At(j)
-			jSpan := spanToJaegerProto(span, ils.Scope())
+			jSpan := spanToJaegerProto(span, ils.Scope(), *process)
 			if jSpan != nil {
 				jSpans = append(jSpans, jSpan)
 			}
 		}
 	}
 
-	batch.Spans = jSpans
-
-	return batch
+	return jSpans
 }
 
-func resourceToJaegerProtoProcess(resource pcommon.Resource) *model.Process {
-	process := &model.Process{}
+func resourceToJaegerProtoProcess(resource pcommon.Resource) *dbmodel.Process {
+	process := &dbmodel.Process{}
 	attrs := resource.Attributes()
 	if attrs.Len() == 0 {
 		process.ServiceName = noServiceName
@@ -99,12 +95,12 @@ func resourceToJaegerProtoProcess(resource pcommon.Resource) *model.Process {
 		return process
 	}
 
-	tags := make([]model.KeyValue, 0, attrsCount)
+	tags := make([]dbmodel.KeyValue, 0, attrsCount)
 	process.Tags = appendTagsFromResourceAttributes(tags, attrs)
 	return process
 }
 
-func appendTagsFromResourceAttributes(dest []model.KeyValue, attrs pcommon.Map) []model.KeyValue {
+func appendTagsFromResourceAttributes(dest []dbmodel.KeyValue, attrs pcommon.Map) []dbmodel.KeyValue {
 	if attrs.Len() == 0 {
 		return dest
 	}
@@ -118,7 +114,7 @@ func appendTagsFromResourceAttributes(dest []model.KeyValue, attrs pcommon.Map) 
 	return dest
 }
 
-func appendTagsFromAttributes(dest []model.KeyValue, attrs pcommon.Map) []model.KeyValue {
+func appendTagsFromAttributes(dest []dbmodel.KeyValue, attrs pcommon.Map) []dbmodel.KeyValue {
 	if attrs.Len() == 0 {
 		return dest
 	}
@@ -128,50 +124,46 @@ func appendTagsFromAttributes(dest []model.KeyValue, attrs pcommon.Map) []model.
 	return dest
 }
 
-func attributeToJaegerProtoTag(key string, attr pcommon.Value) model.KeyValue {
-	tag := model.KeyValue{Key: key}
+func attributeToJaegerProtoTag(key string, attr pcommon.Value) dbmodel.KeyValue {
+	tag := dbmodel.KeyValue{Key: key, Value: attr.AsString()}
 	switch attr.Type() {
 	case pcommon.ValueTypeStr:
-		tag.VType = model.ValueType_STRING
-		tag.VStr = attr.Str()
+		tag.Type = dbmodel.StringType
 	case pcommon.ValueTypeInt:
-		tag.VType = model.ValueType_INT64
-		tag.VInt64 = attr.Int()
+		tag.Type = dbmodel.Int64Type
 	case pcommon.ValueTypeBool:
-		tag.VType = model.ValueType_BOOL
-		tag.VBool = attr.Bool()
+		tag.Type = dbmodel.BoolType
 	case pcommon.ValueTypeDouble:
-		tag.VType = model.ValueType_FLOAT64
-		tag.VFloat64 = attr.Double()
+		tag.Type = dbmodel.Float64Type
 	case pcommon.ValueTypeBytes:
-		tag.VType = model.ValueType_BINARY
-		tag.VBinary = attr.Bytes().AsRaw()
+		tag.Type = dbmodel.BinaryType
 	case pcommon.ValueTypeMap, pcommon.ValueTypeSlice:
-		tag.VType = model.ValueType_STRING
-		tag.VStr = attr.AsString()
+		tag.Type = dbmodel.StringType
 	}
 	return tag
 }
 
-func spanToJaegerProto(span ptrace.Span, libraryTags pcommon.InstrumentationScope) *model.Span {
-	traceID := traceIDToJaegerProto(span.TraceID())
-	jReferences := makeJaegerProtoReferences(span.Links(), spanIDToJaegerProto(span.ParentSpanID()), traceID)
+func spanToJaegerProto(span ptrace.Span, libraryTags pcommon.InstrumentationScope, process dbmodel.Process) *dbmodel.Span {
+	traceID := dbmodel.TraceID(span.TraceID().String())
+	parentSpanID := dbmodel.SpanID(span.ParentSpanID().String())
+	jReferences := makeJaegerProtoReferences(span.Links(), parentSpanID, traceID)
 
 	startTime := span.StartTimestamp().AsTime()
-	return &model.Span{
+	return &dbmodel.Span{
 		TraceID:       traceID,
-		SpanID:        spanIDToJaegerProto(span.SpanID()),
+		SpanID:        dbmodel.SpanID(span.SpanID().String()),
 		OperationName: span.Name(),
 		References:    jReferences,
-		StartTime:     startTime,
-		Duration:      span.EndTimestamp().AsTime().Sub(startTime),
+		StartTime:     model.TimeAsEpochMicroseconds(startTime),
+		Duration:      model.DurationAsMicroseconds(span.EndTimestamp().AsTime().Sub(startTime)),
 		Tags:          getJaegerProtoSpanTags(span, libraryTags),
 		Logs:          spanEventsToJaegerProtoLogs(span.Events()),
+		Process:       process,
 	}
 }
 
-func getJaegerProtoSpanTags(span ptrace.Span, scope pcommon.InstrumentationScope) []model.KeyValue {
-	var spanKindTag, statusCodeTag, errorTag, statusMsgTag model.KeyValue
+func getJaegerProtoSpanTags(span ptrace.Span, scope pcommon.InstrumentationScope) []dbmodel.KeyValue {
+	var spanKindTag, statusCodeTag, errorTag, statusMsgTag dbmodel.KeyValue
 	var spanKindTagFound, statusCodeTagFound, errorTagFound, statusMsgTagFound bool
 
 	libraryTags, libraryTagsFound := getTagsFromInstrumentationLibrary(scope)
@@ -207,7 +199,7 @@ func getJaegerProtoSpanTags(span ptrace.Span, scope pcommon.InstrumentationScope
 		return nil
 	}
 
-	tags := make([]model.KeyValue, 0, tagsCount)
+	tags := make([]dbmodel.KeyValue, 0, tagsCount)
 	if libraryTagsFound {
 		tags = append(tags, libraryTags...)
 	}
@@ -230,23 +222,11 @@ func getJaegerProtoSpanTags(span ptrace.Span, scope pcommon.InstrumentationScope
 	return tags
 }
 
-func traceIDToJaegerProto(traceID pcommon.TraceID) model.TraceID {
-	traceIDHigh, traceIDLow := idutils.TraceIDToUInt64Pair(traceID)
-	return model.TraceID{
-		Low:  traceIDLow,
-		High: traceIDHigh,
-	}
-}
-
-func spanIDToJaegerProto(spanID pcommon.SpanID) model.SpanID {
-	return model.SpanID(idutils.SpanIDToUInt64(spanID))
-}
-
 // makeJaegerProtoReferences constructs jaeger span references based on parent span ID and span links.
 // The parent span ID is used to add a CHILD_OF reference, _unless_ it is referenced from one of the links.
-func makeJaegerProtoReferences(links ptrace.SpanLinkSlice, parentSpanID model.SpanID, traceID model.TraceID) []model.SpanRef {
+func makeJaegerProtoReferences(links ptrace.SpanLinkSlice, parentSpanID dbmodel.SpanID, traceID dbmodel.TraceID) []dbmodel.Reference {
 	refsCount := links.Len()
-	if parentSpanID != 0 {
+	if parentSpanID != "" {
 		refsCount++
 	}
 
@@ -254,31 +234,31 @@ func makeJaegerProtoReferences(links ptrace.SpanLinkSlice, parentSpanID model.Sp
 		return nil
 	}
 
-	refs := make([]model.SpanRef, 0, refsCount)
+	refs := make([]dbmodel.Reference, 0, refsCount)
 
 	// Put parent span ID at the first place because usually backends look for it
 	// as the first CHILD_OF item in the model.SpanRef slice.
-	if parentSpanID != 0 {
-		refs = append(refs, model.SpanRef{
+	if parentSpanID != "" {
+		refs = append(refs, dbmodel.Reference{
 			TraceID: traceID,
 			SpanID:  parentSpanID,
-			RefType: model.SpanRefType_CHILD_OF,
+			RefType: dbmodel.ChildOf,
 		})
 	}
 
 	for i := 0; i < links.Len(); i++ {
 		link := links.At(i)
-		linkTraceID := traceIDToJaegerProto(link.TraceID())
-		linkSpanID := spanIDToJaegerProto(link.SpanID())
+		linkTraceID := dbmodel.TraceID(link.TraceID().String())
+		linkSpanID := dbmodel.SpanID(link.SpanID().String())
 		linkRefType := refTypeFromLink(link)
-		if parentSpanID != 0 && linkTraceID == traceID && linkSpanID == parentSpanID {
+		if parentSpanID != "" && linkTraceID == traceID && linkSpanID == parentSpanID {
 			// We already added a reference to this span, but maybe with the wrong type, so override.
 			refs[0].RefType = linkRefType
 			continue
 		}
-		refs = append(refs, model.SpanRef{
-			TraceID: traceIDToJaegerProto(link.TraceID()),
-			SpanID:  spanIDToJaegerProto(link.SpanID()),
+		refs = append(refs, dbmodel.Reference{
+			TraceID: linkTraceID,
+			SpanID:  linkSpanID,
 			RefType: refTypeFromLink(link),
 		})
 	}
@@ -286,26 +266,26 @@ func makeJaegerProtoReferences(links ptrace.SpanLinkSlice, parentSpanID model.Sp
 	return refs
 }
 
-func spanEventsToJaegerProtoLogs(events ptrace.SpanEventSlice) []model.Log {
+func spanEventsToJaegerProtoLogs(events ptrace.SpanEventSlice) []dbmodel.Log {
 	if events.Len() == 0 {
 		return nil
 	}
 
-	logs := make([]model.Log, 0, events.Len())
+	logs := make([]dbmodel.Log, 0, events.Len())
 	for i := 0; i < events.Len(); i++ {
 		event := events.At(i)
-		fields := make([]model.KeyValue, 0, event.Attributes().Len()+1)
+		fields := make([]dbmodel.KeyValue, 0, event.Attributes().Len()+1)
 		_, eventAttrFound := event.Attributes().Get(eventNameAttr)
 		if event.Name() != "" && !eventAttrFound {
-			fields = append(fields, model.KeyValue{
+			fields = append(fields, dbmodel.KeyValue{
 				Key:   eventNameAttr,
-				VType: model.ValueType_STRING,
-				VStr:  event.Name(),
+				Type:  dbmodel.StringType,
+				Value: event.Name(),
 			})
 		}
 		fields = appendTagsFromAttributes(fields, event.Attributes())
-		logs = append(logs, model.Log{
-			Timestamp: event.Timestamp().AsTime(),
+		logs = append(logs, dbmodel.Log{
+			Timestamp: model.TimeAsEpochMicroseconds(event.Timestamp().AsTime()),
 			Fields:    fields,
 		})
 	}
@@ -313,7 +293,7 @@ func spanEventsToJaegerProtoLogs(events ptrace.SpanEventSlice) []model.Log {
 	return logs
 }
 
-func getTagFromSpanKind(spanKind ptrace.SpanKind) (model.KeyValue, bool) {
+func getTagFromSpanKind(spanKind ptrace.SpanKind) (dbmodel.KeyValue, bool) {
 	var tagStr string
 	switch spanKind {
 	case ptrace.SpanKindClient:
@@ -327,86 +307,86 @@ func getTagFromSpanKind(spanKind ptrace.SpanKind) (model.KeyValue, bool) {
 	case ptrace.SpanKindInternal:
 		tagStr = string(model.SpanKindInternal)
 	default:
-		return model.KeyValue{}, false
+		return dbmodel.KeyValue{}, false
 	}
 
-	return model.KeyValue{
+	return dbmodel.KeyValue{
 		Key:   model.SpanKindKey,
-		VType: model.ValueType_STRING,
-		VStr:  tagStr,
+		Type:  dbmodel.StringType,
+		Value: tagStr,
 	}, true
 }
 
-func getTagFromStatusCode(statusCode ptrace.StatusCode) (model.KeyValue, bool) {
+func getTagFromStatusCode(statusCode ptrace.StatusCode) (dbmodel.KeyValue, bool) {
 	switch statusCode {
 	case ptrace.StatusCodeError:
-		return model.KeyValue{
+		return dbmodel.KeyValue{
 			Key:   conventions.OtelStatusCode,
-			VType: model.ValueType_STRING,
-			VStr:  statusError,
+			Type:  dbmodel.StringType,
+			Value: statusError,
 		}, true
 	case ptrace.StatusCodeOk:
-		return model.KeyValue{
+		return dbmodel.KeyValue{
 			Key:   conventions.OtelStatusCode,
-			VType: model.ValueType_STRING,
-			VStr:  statusOk,
+			Type:  dbmodel.StringType,
+			Value: statusOk,
 		}, true
 	}
-	return model.KeyValue{}, false
+	return dbmodel.KeyValue{}, false
 }
 
-func getErrorTagFromStatusCode(statusCode ptrace.StatusCode) (model.KeyValue, bool) {
+func getErrorTagFromStatusCode(statusCode ptrace.StatusCode) (dbmodel.KeyValue, bool) {
 	if statusCode == ptrace.StatusCodeError {
-		return model.KeyValue{
+		return dbmodel.KeyValue{
 			Key:   tagError,
-			VBool: true,
-			VType: model.ValueType_BOOL,
+			Value: true,
+			Type:  dbmodel.BoolType,
 		}, true
 	}
-	return model.KeyValue{}, false
+	return dbmodel.KeyValue{}, false
 }
 
-func getTagFromStatusMsg(statusMsg string) (model.KeyValue, bool) {
+func getTagFromStatusMsg(statusMsg string) (dbmodel.KeyValue, bool) {
 	if statusMsg == "" {
-		return model.KeyValue{}, false
+		return dbmodel.KeyValue{}, false
 	}
-	return model.KeyValue{
+	return dbmodel.KeyValue{
 		Key:   conventions.OtelStatusDescription,
-		VStr:  statusMsg,
-		VType: model.ValueType_STRING,
+		Value: statusMsg,
+		Type:  dbmodel.StringType,
 	}, true
 }
 
-func getTagsFromTraceState(traceState string) ([]model.KeyValue, bool) {
-	var keyValues []model.KeyValue
+func getTagsFromTraceState(traceState string) ([]dbmodel.KeyValue, bool) {
+	var keyValues []dbmodel.KeyValue
 	exists := traceState != ""
 	if exists {
 		// TODO Bring this inline with solution for jaegertracing/jaeger-client-java #702 once available
-		kv := model.KeyValue{
+		kv := dbmodel.KeyValue{
 			Key:   tagW3CTraceState,
-			VStr:  traceState,
-			VType: model.ValueType_STRING,
+			Value: traceState,
+			Type:  dbmodel.StringType,
 		}
 		keyValues = append(keyValues, kv)
 	}
 	return keyValues, exists
 }
 
-func getTagsFromInstrumentationLibrary(il pcommon.InstrumentationScope) ([]model.KeyValue, bool) {
-	var keyValues []model.KeyValue
+func getTagsFromInstrumentationLibrary(il pcommon.InstrumentationScope) ([]dbmodel.KeyValue, bool) {
+	var keyValues []dbmodel.KeyValue
 	if ilName := il.Name(); ilName != "" {
-		kv := model.KeyValue{
+		kv := dbmodel.KeyValue{
 			Key:   conventions.AttributeOtelScopeName,
-			VStr:  ilName,
-			VType: model.ValueType_STRING,
+			Value: ilName,
+			Type:  dbmodel.StringType,
 		}
 		keyValues = append(keyValues, kv)
 	}
 	if ilVersion := il.Version(); ilVersion != "" {
-		kv := model.KeyValue{
+		kv := dbmodel.KeyValue{
 			Key:   conventions.AttributeOtelScopeVersion,
-			VStr:  ilVersion,
-			VType: model.ValueType_STRING,
+			Value: ilVersion,
+			Type:  dbmodel.StringType,
 		}
 		keyValues = append(keyValues, kv)
 	}
@@ -414,19 +394,19 @@ func getTagsFromInstrumentationLibrary(il pcommon.InstrumentationScope) ([]model
 	return keyValues, true
 }
 
-func refTypeFromLink(link ptrace.SpanLink) model.SpanRefType {
+func refTypeFromLink(link ptrace.SpanLink) dbmodel.ReferenceType {
 	refTypeAttr, ok := link.Attributes().Get(conventions.AttributeOpentracingRefType)
 	if !ok {
-		return model.SpanRefType_FOLLOWS_FROM
+		return dbmodel.FollowsFrom
 	}
 	return strToJRefType(refTypeAttr.Str())
 }
 
-func strToJRefType(attr string) model.SpanRefType {
+func strToJRefType(attr string) dbmodel.ReferenceType {
 	if attr == conventions.AttributeOpentracingRefTypeChildOf {
-		return model.ChildOf
+		return dbmodel.ChildOf
 	}
 	// There are only 2 types of SpanRefType we assume that everything
 	// that's not a model.ChildOf is a model.FollowsFrom
-	return model.FollowsFrom
+	return dbmodel.FollowsFrom
 }
