@@ -7,7 +7,6 @@
 package tracestore
 
 import (
-	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/dbmodel"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -17,6 +16,7 @@ import (
 	conventions "go.opentelemetry.io/collector/semconv/v1.9.0"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/dbmodel"
 )
 
 func TestGetTagFromStatusCode(t *testing.T) {

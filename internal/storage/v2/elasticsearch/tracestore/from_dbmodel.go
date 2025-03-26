@@ -10,15 +10,16 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/dbmodel"
-	"go.opentelemetry.io/collector/pdata/pcommon"
-	"go.opentelemetry.io/collector/pdata/ptrace"
-	conventions "go.opentelemetry.io/collector/semconv/v1.16.0"
 	"reflect"
 	"strconv"
 	"strings"
 
+	"go.opentelemetry.io/collector/pdata/pcommon"
+	"go.opentelemetry.io/collector/pdata/ptrace"
+	conventions "go.opentelemetry.io/collector/semconv/v1.16.0"
+
 	"github.com/jaegertracing/jaeger-idl/model/v1"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/dbmodel"
 )
 
 var blankJaegerProtoSpan = new(dbmodel.Span)
@@ -173,9 +174,16 @@ func jSpanToInternal(span *dbmodel.Span, dest ptrace.Span) error {
 	if attrs.Len() == 0 {
 		attrs.Clear()
 	}
-
+	dbParentSpanId := getParentSpanId(span)
+	if dbParentSpanId != "" {
+		parentSpanId, err := getSpanIdFromDbTraceId(dbParentSpanId)
+		if err != nil {
+			return err
+		}
+		dest.SetParentSpanID(parentSpanId)
+	}
 	jLogsToSpanEvents(span.Logs, dest.Events())
-	return jReferencesToSpanLinks(span.References, dest)
+	return jReferencesToSpanLinks(span.References, dbParentSpanId, dest.Links())
 }
 
 func jTagsToInternalAttributes(tags []dbmodel.KeyValue, dest pcommon.Map) {
@@ -187,7 +195,7 @@ func jTagsToInternalAttributes(tags []dbmodel.KeyValue, dest pcommon.Map) {
 			if boolOk && tag.Type == dbmodel.BoolType {
 				dest.PutBool(tag.Key, tagBoolVal)
 			} else {
-				dest.PutStr(tag.Key, fmt.Sprintf("Got non string value for the key %s", tag.Key))
+				dest.PutStr(tag.Key, "Got non string value for the key "+tag.Key)
 			}
 			continue
 		}
@@ -406,24 +414,14 @@ func jLogsToSpanEvents(logs []dbmodel.Log, dest ptrace.SpanEventSlice) {
 }
 
 // jReferencesToSpanLinks sets internal span links based on jaeger span references skipping excludeParentID
-func jReferencesToSpanLinks(refs []dbmodel.Reference, span ptrace.Span) error {
-	if len(refs) == 0 {
+func jReferencesToSpanLinks(refs []dbmodel.Reference, excludeParentID dbmodel.SpanID, dest ptrace.SpanLinkSlice) error {
+	if len(refs) == 0 || len(refs) == 1 && refs[0].SpanID == excludeParentID && refs[0].RefType == dbmodel.ChildOf {
 		return nil
 	}
-	dest := span.Links()
-	childSpan := spanIsAChildSpan(refs)
-	if childSpan {
-		dest.EnsureCapacity(len(refs) - 1)
-	} else {
-		dest.EnsureCapacity(len(refs))
-	}
+
+	dest.EnsureCapacity(len(refs))
 	for _, ref := range refs {
-		if ref.RefType == dbmodel.ChildOf {
-			parentSpanId, err := getSpanIdFromDbTraceId(ref.SpanID)
-			if err != nil {
-				return err
-			}
-			span.SetParentSpanID(parentSpanId)
+		if ref.SpanID == excludeParentID && ref.RefType == dbmodel.ChildOf {
 			continue
 		}
 
@@ -441,15 +439,6 @@ func jReferencesToSpanLinks(refs []dbmodel.Reference, span ptrace.Span) error {
 		link.Attributes().PutStr(conventions.AttributeOpentracingRefType, jRefTypeToAttribute(ref.RefType))
 	}
 	return nil
-}
-
-func spanIsAChildSpan(refs []dbmodel.Reference) bool {
-	for _, ref := range refs {
-		if ref.RefType == dbmodel.ChildOf {
-			return true
-		}
-	}
-	return false
 }
 
 func getTraceStateFromAttrs(attrs pcommon.Map) string {
@@ -476,7 +465,7 @@ func getScope(span *dbmodel.Span) scope {
 func getAndDeleteTag(span *dbmodel.Span, key string) (string, bool) {
 	for i := range span.Tags {
 		if span.Tags[i].Key == key {
-			if val, ok := span.Tags[i].Value.(string); !ok {
+			if val, ok := span.Tags[i].Value.(string); ok {
 				span.Tags = append(span.Tags[:i], span.Tags[i+1:]...)
 				return val, true
 			}
@@ -490,4 +479,24 @@ func jRefTypeToAttribute(ref dbmodel.ReferenceType) string {
 		return conventions.AttributeOpentracingRefTypeChildOf
 	}
 	return conventions.AttributeOpentracingRefTypeFollowsFrom
+}
+
+func getParentSpanId(dbSpan *dbmodel.Span) dbmodel.SpanID {
+	var followsFromRef *dbmodel.Reference
+	for i := range dbSpan.References {
+		ref := dbSpan.References[i]
+		if ref.TraceID != dbSpan.TraceID {
+			continue
+		}
+		if ref.RefType == dbmodel.ChildOf {
+			return ref.SpanID
+		}
+		if followsFromRef == nil && ref.RefType == dbmodel.FollowsFrom {
+			followsFromRef = &ref
+		}
+	}
+	if followsFromRef != nil {
+		return followsFromRef.SpanID
+	}
+	return ""
 }

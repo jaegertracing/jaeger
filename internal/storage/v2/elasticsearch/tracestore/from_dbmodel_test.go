@@ -7,8 +7,7 @@
 package tracestore
 
 import (
-	"fmt"
-	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/dbmodel"
+	"encoding/hex"
 	"net/http"
 	"strconv"
 	"testing"
@@ -22,6 +21,7 @@ import (
 	conventions "go.opentelemetry.io/collector/semconv/v1.16.0"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/dbmodel"
 )
 
 // Use timespamp with microsecond granularity to work well with jaeger thrift translation
@@ -135,7 +135,8 @@ func Test_jSpansToInternal_EmptyOrNilSpans(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			traceData := ptrace.NewTraces()
 			rss := traceData.ResourceSpans()
-			jSpansToInternal(tt.spans, rss)
+			err := jSpansToInternal(tt.spans, rss)
+			require.NoError(t, err)
 			assert.Equal(t, 0, rss.Len())
 		})
 	}
@@ -269,7 +270,7 @@ func TestJTagsToInternalAttributes(t *testing.T) {
 		{
 			Key:   "binary-val",
 			Type:  dbmodel.BinaryType,
-			Value: fmt.Sprintf("%x", []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x64, 0x7D, 0x98}),
+			Value: hex.EncodeToString([]byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x64, 0x7D, 0x98}),
 		},
 	}
 
@@ -320,7 +321,7 @@ func TestProtoToTraces(t *testing.T) {
 				generateProtoFollowerSpan(),
 				generateProtoTwoParentsSpan(),
 			},
-			td: generateTracesSpanWithTwoParents(),
+			td: generateTracesWithDifferentResourceSpanWithTwoParents(),
 		},
 		{
 			name: "no-error-from-server-span-with-4xx-http-code",
@@ -406,16 +407,16 @@ func TestProtoBatchToInternalTracesWithTwoLibraries(t *testing.T) {
 	}
 	expected := generateTracesTwoSpansFromTwoLibraries()
 	library1Span := expected.ResourceSpans().At(0).ScopeSpans().At(0)
-	library2Span := expected.ResourceSpans().At(0).ScopeSpans().At(1)
+	library2Span := expected.ResourceSpans().At(1).ScopeSpans().At(0)
 
 	actual, err := ProtoToTraces(jb)
 	require.NoError(t, err)
 
-	assert.Equal(t, 1, actual.ResourceSpans().Len())
-	assert.Equal(t, 2, actual.ResourceSpans().At(0).ScopeSpans().Len())
+	assert.Equal(t, 2, actual.ResourceSpans().Len())
+	assert.Equal(t, 1, actual.ResourceSpans().At(0).ScopeSpans().Len())
 
 	ils0 := actual.ResourceSpans().At(0).ScopeSpans().At(0)
-	ils1 := actual.ResourceSpans().At(0).ScopeSpans().At(1)
+	ils1 := actual.ResourceSpans().At(1).ScopeSpans().At(0)
 	if ils0.Scope().Name() == "library1" {
 		assert.EqualValues(t, library1Span, ils0)
 		assert.EqualValues(t, library2Span, ils1)
@@ -572,8 +573,11 @@ func TestProtoBatchesToInternalTraces(t *testing.T) {
 	expected := generateTracesOneSpanNoResource()
 	resource := generateTracesResourceOnly().ResourceSpans().At(0).Resource()
 	resource.CopyTo(expected.ResourceSpans().At(0).Resource())
+	span := expected.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+	resource.CopyTo(expected.ResourceSpans().At(1).Resource())
+	expected.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).CopyTo(span)
 	tgt := expected.ResourceSpans().AppendEmpty()
-	twoSpans := generateTracesTwoSpansChildParent().ResourceSpans().At(0)
+	twoSpans := generateTracesWithDifferentResourceTwoSpansChildParent().ResourceSpans().At(0)
 	twoSpans.CopyTo(tgt)
 
 	got, err := ProtoToTraces(batches)
@@ -656,19 +660,6 @@ func generateTracesOneEmptyResourceSpans() ptrace.Traces {
 
 func generateTracesResourceOnlyWithNoAttrs() ptrace.Traces {
 	return generateTracesOneEmptyResourceSpans()
-}
-
-func generateProtoProcess() dbmodel.Process {
-	return dbmodel.Process{
-		ServiceName: "service-1",
-		Tags: []dbmodel.KeyValue{
-			{
-				Key:   "int-attr-1",
-				Type:  dbmodel.Int64Type,
-				Value: "123",
-			},
-		},
-	}
 }
 
 func GenerateTracesOneSpanNoResource() ptrace.Traces {
@@ -818,11 +809,11 @@ func generateProtoSpanWithLibraryInfo(libraryName string) *dbmodel.Span {
 }
 
 func getDbTraceIdFromByteArray(arr [16]byte) dbmodel.TraceID {
-	return dbmodel.TraceID(fmt.Sprintf("%x", arr))
+	return dbmodel.TraceID(hex.EncodeToString(arr[:]))
 }
 
 func getDbSpanIdFromByteArray(arr [8]byte) dbmodel.SpanID {
-	return dbmodel.SpanID(fmt.Sprintf("%x", arr))
+	return dbmodel.SpanID(hex.EncodeToString(arr[:]))
 }
 
 func generateProtoSpanWithTraceState() *dbmodel.Span {
@@ -1038,6 +1029,20 @@ func generateTracesSpanWithTwoParents() ptrace.Traces {
 	parent := spans.At(0)
 	parent2 := spans.At(1)
 	span := spans.AppendEmpty()
+	setSpanWithTwoParents(span, parent, parent2)
+	return td
+}
+
+func generateTracesWithDifferentResourceSpanWithTwoParents() ptrace.Traces {
+	td := generateTracesWithDifferentResourceTwoSpansWithFollower()
+	parent1 := td.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0)
+	parent2 := td.ResourceSpans().At(1).ScopeSpans().At(0).Spans().At(0)
+	span := td.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+	setSpanWithTwoParents(span, parent1, parent2)
+	return td
+}
+
+func setSpanWithTwoParents(span, parent, parent2 ptrace.Span) {
 	span.SetName("operationD")
 	span.SetSpanID([8]byte{0x1F, 0x1E, 0x1D, 0x1C, 0x1B, 0x1A, 0x19, 0x20})
 	span.SetTraceID(parent.TraceID())
@@ -1055,7 +1060,6 @@ func generateTracesSpanWithTwoParents() ptrace.Traces {
 		conventions.AttributeOpentracingRefType,
 		conventions.AttributeOpentracingRefTypeChildOf,
 	)
-	return td
 }
 
 func generateProtoTwoParentsSpan() *dbmodel.Span {
@@ -1118,7 +1122,7 @@ func generateTracesTwoSpansFromTwoLibraries() ptrace.Traces {
 	td := generateTracesOneEmptyResourceSpans()
 
 	rs0 := td.ResourceSpans().At(0)
-	rs0.ScopeSpans().EnsureCapacity(2)
+	rs0.ScopeSpans().EnsureCapacity(1)
 
 	rs0ils0 := rs0.ScopeSpans().AppendEmpty()
 	rs0ils0.Scope().SetName("library1")
@@ -1130,7 +1134,7 @@ func generateTracesTwoSpansFromTwoLibraries() ptrace.Traces {
 	span1.SetStartTimestamp(testSpanStartTimestamp)
 	span1.SetEndTimestamp(testSpanEndTimestamp)
 
-	rs0ils1 := rs0.ScopeSpans().AppendEmpty()
+	rs0ils1 := td.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty()
 	rs0ils1.Scope().SetName("library2")
 	rs0ils1.Scope().SetVersion("0.42.0")
 	span2 := rs0ils1.Spans().AppendEmpty()

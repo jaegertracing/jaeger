@@ -7,12 +7,12 @@
 package tracestore
 
 import (
-	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/dbmodel"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	conventions "go.opentelemetry.io/collector/semconv/v1.16.0"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/dbmodel"
 )
 
 const (
