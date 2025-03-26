@@ -142,6 +142,13 @@ func jSpanToInternal(span *dbmodel.Span, dest ptrace.Span) error {
 	if err != nil {
 		return err
 	}
+	if span.ParentSpanID != "" {
+		parentSpanId, err := getSpanIdFromDbTraceId(span.ParentSpanID)
+		if err != nil {
+			return err
+		}
+		dest.SetParentSpanID(parentSpanId)
+	}
 	dest.SetTraceID(traceId)
 	dest.SetSpanID(spanId)
 	dest.SetName(span.OperationName)
@@ -177,7 +184,7 @@ func jTagsToInternalAttributes(tags []dbmodel.KeyValue, dest pcommon.Map) {
 		if !ok {
 			// We have to do this as we are unsure that whether bool will be a string or a bool
 			tagBoolVal, boolOk := tag.Value.(bool)
-			if boolOk {
+			if boolOk && tag.Type == dbmodel.BoolType {
 				dest.PutBool(tag.Key, tagBoolVal)
 			} else {
 				dest.PutStr(tag.Key, fmt.Sprintf("Got non string value for the key %s", tag.Key))

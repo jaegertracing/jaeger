@@ -311,7 +311,7 @@ func TestProtoToTraces(t *testing.T) {
 				generateProtoSpan(),
 				generateProtoFollowerSpan(),
 			},
-			td: generateTracesTwoSpansWithFollower(),
+			td: generateTracesWithDifferentResourceTwoSpansWithFollower(),
 		},
 		{
 			name: "a-spans-with-two-parent",
@@ -899,15 +899,7 @@ func generateTracesTwoSpansChildParent() ptrace.Traces {
 	spans := td.ResourceSpans().At(0).ScopeSpans().At(0).Spans()
 
 	span := spans.AppendEmpty()
-	span.SetName("operationB")
-	span.SetSpanID([8]byte{0x1F, 0x1E, 0x1D, 0x1C, 0x1B, 0x1A, 0x19, 0x18})
-	span.SetParentSpanID(spans.At(0).SpanID())
-	span.SetKind(ptrace.SpanKindServer)
-	span.SetTraceID(spans.At(0).TraceID())
-	span.SetStartTimestamp(spans.At(0).StartTimestamp())
-	span.SetEndTimestamp(spans.At(0).EndTimestamp())
-	span.Status().SetCode(ptrace.StatusCodeUnset)
-	span.Attributes().PutInt(conventions.AttributeHTTPStatusCode, 404)
+	setChildSpan(span, spans.At(0))
 	return td
 }
 
@@ -916,6 +908,11 @@ func generateTracesWithDifferentResourceTwoSpansChildParent() ptrace.Traces {
 	parentSpan := td.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0)
 	spans := td.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans()
 	span := spans.AppendEmpty()
+	setChildSpan(span, parentSpan)
+	return td
+}
+
+func setChildSpan(span, parentSpan ptrace.Span) {
 	span.SetName("operationB")
 	span.SetSpanID([8]byte{0x1F, 0x1E, 0x1D, 0x1C, 0x1B, 0x1A, 0x19, 0x18})
 	span.SetParentSpanID(parentSpan.SpanID())
@@ -925,7 +922,6 @@ func generateTracesWithDifferentResourceTwoSpansChildParent() ptrace.Traces {
 	span.SetEndTimestamp(parentSpan.EndTimestamp())
 	span.Status().SetCode(ptrace.StatusCodeUnset)
 	span.Attributes().PutInt(conventions.AttributeHTTPStatusCode, 404)
-	return td
 }
 
 func generateProtoChildSpan() *dbmodel.Span {
@@ -966,23 +962,36 @@ func generateTracesTwoSpansWithFollower() ptrace.Traces {
 	spans := td.ResourceSpans().At(0).ScopeSpans().At(0).Spans()
 
 	span := spans.AppendEmpty()
+	setFollowFromSpan(span, spans.At(0))
+	return td
+}
+
+func generateTracesWithDifferentResourceTwoSpansWithFollower() ptrace.Traces {
+	td := generateTracesOneSpanNoResource()
+	followFromSpan := td.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0)
+	spans := td.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans()
+	span := spans.AppendEmpty()
+	setFollowFromSpan(span, followFromSpan)
+	return td
+}
+
+func setFollowFromSpan(span, followFromSpan ptrace.Span) {
 	span.SetName("operationC")
 	span.SetSpanID([8]byte{0x1F, 0x1E, 0x1D, 0x1C, 0x1B, 0x1A, 0x19, 0x18})
-	span.SetTraceID(spans.At(0).TraceID())
-	span.SetParentSpanID(spans.At(0).SpanID())
-	span.SetStartTimestamp(spans.At(0).EndTimestamp())
-	span.SetEndTimestamp(spans.At(0).EndTimestamp() + 1000000)
+	span.SetTraceID(followFromSpan.TraceID())
+	span.SetParentSpanID(followFromSpan.SpanID())
+	span.SetStartTimestamp(followFromSpan.EndTimestamp())
+	span.SetEndTimestamp(followFromSpan.EndTimestamp() + 1000000)
 	span.SetKind(ptrace.SpanKindConsumer)
 	span.Status().SetCode(ptrace.StatusCodeOk)
 	span.Status().SetMessage("status-ok")
 	link := span.Links().AppendEmpty()
 	link.SetTraceID(span.TraceID())
-	link.SetSpanID(spans.At(0).SpanID())
+	link.SetSpanID(followFromSpan.SpanID())
 	link.Attributes().PutStr(
 		conventions.AttributeOpentracingRefType,
 		conventions.AttributeOpentracingRefTypeFollowsFrom,
 	)
-	return td
 }
 
 func generateProtoFollowerSpan() *dbmodel.Span {
