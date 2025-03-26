@@ -15,7 +15,7 @@ type Aggregator interface {
 	io.Closer
 
 	// The HandleRootSpan function processes a span, checking if it's a root span.
-	// If it is, it extracts sampler parameters, then calls RecordThroughput.
+	// If it is, it records the throughput.
 	HandleRootSpan(span *model.Span)
 
 	// RecordThroughput records throughput for an operation for aggregation.
