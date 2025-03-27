@@ -82,13 +82,13 @@ func TestCodeFromAttr(t *testing.T) {
 }
 
 func TestZeroBatchLength(t *testing.T) {
-	trace, err := ProtoToTraces([]*dbmodel.Span{})
+	trace, err := FromDBModel([]*dbmodel.Span{})
 	require.NoError(t, err)
 	assert.Equal(t, 0, trace.ResourceSpans().Len())
 }
 
 func TestEmptySpansAndProcess(t *testing.T) {
-	trace, err := ProtoToTraces([]*dbmodel.Span{})
+	trace, err := FromDBModel([]*dbmodel.Span{})
 	require.NoError(t, err)
 	assert.Equal(t, 0, trace.ResourceSpans().Len())
 }
@@ -117,7 +117,7 @@ func Test_translateJaegerVersionAttr(t *testing.T) {
 	assert.Equal(t, "Jaeger-1.0.0", exportVersion.AsString())
 }
 
-func Test_jSpansToInternal_EmptyOrNilSpans(t *testing.T) {
+func Test_setSpansFromDbSpans_EmptyOrNilSpans(t *testing.T) {
 	tests := []struct {
 		name  string
 		spans []*dbmodel.Span
@@ -135,21 +135,21 @@ func Test_jSpansToInternal_EmptyOrNilSpans(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			traceData := ptrace.NewTraces()
 			rss := traceData.ResourceSpans()
-			err := jSpansToInternal(tt.spans, rss)
+			err := setSpansFromDbSpans(tt.spans, rss)
 			require.NoError(t, err)
 			assert.Equal(t, 0, rss.Len())
 		})
 	}
 }
 
-func Test_jTagsToInternalAttributes(t *testing.T) {
+func Test_setAttributesFromDbTags(t *testing.T) {
 	traceData := ptrace.NewTraces()
 	rss := traceData.ResourceSpans().AppendEmpty().Resource().Attributes()
 	kv := []dbmodel.KeyValue{{
 		Key:  "testing-key",
 		Type: dbmodel.ValueType("wrong-type"),
 	}}
-	jTagsToInternalAttributes(kv, rss)
+	setAttributesFromDbTags(kv, rss)
 	testingKey, testingKeyFound := rss.Get("testing-key")
 	assert.True(t, testingKeyFound)
 	assert.Equal(t, "Got non string value for the key testing-key", testingKey.AsString())
@@ -223,7 +223,7 @@ func TestGetStatusCodeFromHTTPStatusAttr(t *testing.T) {
 	}
 }
 
-func Test_jLogsToSpanEvents(t *testing.T) {
+func Test_SetSpanEventsFromDbSpanLogs(t *testing.T) {
 	traces := ptrace.NewTraces()
 	span := traces.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans().AppendEmpty()
 	span.Events().AppendEmpty().SetName("event1")
@@ -237,7 +237,7 @@ func Test_jLogsToSpanEvents(t *testing.T) {
 			Timestamp: model.TimeAsEpochMicroseconds(testSpanEventTime),
 		},
 	}
-	jLogsToSpanEvents(logs, span.Events())
+	setSpanEventsFromDbSpanLogs(logs, span.Events())
 	for i := 0; i < len(logs); i++ {
 		assert.Equal(t, testSpanEventTime, span.Events().At(i).Timestamp().AsTime())
 	}
@@ -245,7 +245,7 @@ func Test_jLogsToSpanEvents(t *testing.T) {
 	assert.Empty(t, span.Events().At(2).Name())
 }
 
-func TestJTagsToInternalAttributes(t *testing.T) {
+func TestSetAttributesFromDbTags(t *testing.T) {
 	tags := []dbmodel.KeyValue{
 		{
 			Key:   "bool-val",
@@ -282,12 +282,12 @@ func TestJTagsToInternalAttributes(t *testing.T) {
 	expected.PutEmptyBytes("binary-val").FromRaw([]byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x64, 0x7D, 0x98})
 
 	got := pcommon.NewMap()
-	jTagsToInternalAttributes(tags, got)
+	setAttributesFromDbTags(tags, got)
 
 	require.EqualValues(t, expected, got)
 }
 
-func TestProtoToTraces(t *testing.T) {
+func TestFromDBModel(t *testing.T) {
 	tests := []struct {
 		name string
 		jb   []*dbmodel.Span
@@ -362,14 +362,14 @@ func TestProtoToTraces(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			td, err := ProtoToTraces(test.jb)
+			td, err := FromDBModel(test.jb)
 			require.NoError(t, err)
 			assert.EqualValues(t, test.td, td)
 		})
 	}
 }
 
-func TestProtoBatchToInternalTracesWithTwoLibraries(t *testing.T) {
+func TestFromDBModelForTracesWithTwoLibraries(t *testing.T) {
 	jb := []*dbmodel.Span{
 		{
 			StartTime:     model.TimeAsEpochMicroseconds(testSpanStartTime),
@@ -409,7 +409,7 @@ func TestProtoBatchToInternalTracesWithTwoLibraries(t *testing.T) {
 	library1Span := expected.ResourceSpans().At(0).ScopeSpans().At(0)
 	library2Span := expected.ResourceSpans().At(1).ScopeSpans().At(0)
 
-	actual, err := ProtoToTraces(jb)
+	actual, err := FromDBModel(jb)
 	require.NoError(t, err)
 
 	assert.Equal(t, 2, actual.ResourceSpans().Len())
@@ -556,14 +556,14 @@ func TestSetInternalSpanStatus(t *testing.T) {
 			status := span.Status()
 			attrs := pcommon.NewMap()
 			require.NoError(t, attrs.FromRaw(test.attrs))
-			setInternalSpanStatus(attrs, span)
+			setSpanStatus(attrs, span)
 			assert.EqualValues(t, test.status, status)
 			assert.Equal(t, test.attrsModifiedLen, attrs.Len())
 		})
 	}
 }
 
-func TestProtoBatchesToInternalTraces(t *testing.T) {
+func TestFromDBModelToInternalTraces(t *testing.T) {
 	batches := []*dbmodel.Span{
 		generateProtoSpan(),
 		generateProtoSpan(),
@@ -580,7 +580,7 @@ func TestProtoBatchesToInternalTraces(t *testing.T) {
 	twoSpans := generateTracesWithDifferentResourceTwoSpansChildParent().ResourceSpans().At(0)
 	twoSpans.CopyTo(tgt)
 
-	got, err := ProtoToTraces(batches)
+	got, err := FromDBModel(batches)
 
 	require.NoError(t, err)
 
@@ -606,7 +606,7 @@ func TestProtoBatchesToInternalTraces(t *testing.T) {
 	}
 }
 
-func TestJSpanKindToInternal(t *testing.T) {
+func TestDBSpanKindToOTELSpanKind(t *testing.T) {
 	tests := []struct {
 		jSpanKind    string
 		otlpSpanKind ptrace.SpanKind
@@ -639,7 +639,7 @@ func TestJSpanKindToInternal(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.jSpanKind, func(t *testing.T) {
-			assert.Equal(t, test.otlpSpanKind, jSpanKindToInternal(test.jSpanKind))
+			assert.Equal(t, test.otlpSpanKind, dbSpanKindToOTELSpanKind(test.jSpanKind))
 		})
 	}
 }
@@ -1113,7 +1113,7 @@ func BenchmarkProtoBatchToInternalTraces(b *testing.B) {
 
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
-		_, err := ProtoToTraces(jb)
+		_, err := FromDBModel(jb)
 		assert.NoError(b, err)
 	}
 }

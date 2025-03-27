@@ -25,9 +25,9 @@ const (
 	tagHTTPStatusMsg = "http.status_message"
 )
 
-// ProtoFromTraces translates internal trace data into the Jaeger Proto for GRPC.
+// ToDBModel translates internal trace data into the Jaeger Proto for GRPC.
 // Returns slice of translated Jaeger batches and error if translation failed.
-func ProtoFromTraces(td ptrace.Traces) []*dbmodel.Span {
+func ToDBModel(td ptrace.Traces) []*dbmodel.Span {
 	resourceSpans := td.ResourceSpans()
 
 	if resourceSpans.Len() == 0 {
@@ -37,7 +37,7 @@ func ProtoFromTraces(td ptrace.Traces) []*dbmodel.Span {
 	batches := make([]*dbmodel.Span, 0, resourceSpans.Len())
 	for i := 0; i < resourceSpans.Len(); i++ {
 		rs := resourceSpans.At(i)
-		batch := resourceSpansToJaegerProto(rs)
+		batch := resourceSpansToDbSpans(rs)
 		if batch != nil {
 			batches = append(batches, batch...)
 		}
@@ -46,15 +46,15 @@ func ProtoFromTraces(td ptrace.Traces) []*dbmodel.Span {
 	return batches
 }
 
-func resourceSpansToJaegerProto(rs ptrace.ResourceSpans) []*dbmodel.Span {
-	resource := rs.Resource()
-	ilss := rs.ScopeSpans()
+func resourceSpansToDbSpans(resourceSpans ptrace.ResourceSpans) []*dbmodel.Span {
+	resource := resourceSpans.Resource()
+	ilss := resourceSpans.ScopeSpans()
 
 	if resource.Attributes().Len() == 0 && ilss.Len() == 0 {
 		return nil
 	}
 
-	process := resourceToJaegerProtoProcess(resource)
+	process := resourceToDbProcess(resource)
 
 	if ilss.Len() == 0 {
 		return []*dbmodel.Span{}
@@ -69,7 +69,7 @@ func resourceSpansToJaegerProto(rs ptrace.ResourceSpans) []*dbmodel.Span {
 		spans := ils.Spans()
 		for j := 0; j < spans.Len(); j++ {
 			span := spans.At(j)
-			jSpan := spanToJaegerProto(span, ils.Scope(), *process)
+			jSpan := spanToDbSpan(span, ils.Scope(), *process)
 			if jSpan != nil {
 				jSpans = append(jSpans, jSpan)
 			}
@@ -79,7 +79,7 @@ func resourceSpansToJaegerProto(rs ptrace.ResourceSpans) []*dbmodel.Span {
 	return jSpans
 }
 
-func resourceToJaegerProtoProcess(resource pcommon.Resource) *dbmodel.Process {
+func resourceToDbProcess(resource pcommon.Resource) *dbmodel.Process {
 	process := &dbmodel.Process{}
 	attrs := resource.Attributes()
 	if attrs.Len() == 0 {
@@ -109,7 +109,7 @@ func appendTagsFromResourceAttributes(dest []dbmodel.KeyValue, attrs pcommon.Map
 		if key == conventions.AttributeServiceName {
 			continue
 		}
-		dest = append(dest, attributeToJaegerProtoTag(key, attr))
+		dest = append(dest, attributeToDbTag(key, attr))
 	}
 	return dest
 }
@@ -119,12 +119,12 @@ func appendTagsFromAttributes(dest []dbmodel.KeyValue, attrs pcommon.Map) []dbmo
 		return dest
 	}
 	for key, attr := range attrs.All() {
-		dest = append(dest, attributeToJaegerProtoTag(key, attr))
+		dest = append(dest, attributeToDbTag(key, attr))
 	}
 	return dest
 }
 
-func attributeToJaegerProtoTag(key string, attr pcommon.Value) dbmodel.KeyValue {
+func attributeToDbTag(key string, attr pcommon.Value) dbmodel.KeyValue {
 	tag := dbmodel.KeyValue{Key: key, Value: attr.AsString()}
 	switch attr.Type() {
 	case pcommon.ValueTypeStr:
@@ -143,10 +143,10 @@ func attributeToJaegerProtoTag(key string, attr pcommon.Value) dbmodel.KeyValue 
 	return tag
 }
 
-func spanToJaegerProto(span ptrace.Span, libraryTags pcommon.InstrumentationScope, process dbmodel.Process) *dbmodel.Span {
+func spanToDbSpan(span ptrace.Span, libraryTags pcommon.InstrumentationScope, process dbmodel.Process) *dbmodel.Span {
 	traceID := dbmodel.TraceID(span.TraceID().String())
 	parentSpanID := dbmodel.SpanID(span.ParentSpanID().String())
-	jReferences := makeJaegerProtoReferences(span.Links(), parentSpanID, traceID)
+	jReferences := makeDbSpanReferences(span.Links(), parentSpanID, traceID)
 
 	startTime := span.StartTimestamp().AsTime()
 	return &dbmodel.Span{
@@ -156,13 +156,13 @@ func spanToJaegerProto(span ptrace.Span, libraryTags pcommon.InstrumentationScop
 		References:    jReferences,
 		StartTime:     model.TimeAsEpochMicroseconds(startTime),
 		Duration:      model.DurationAsMicroseconds(span.EndTimestamp().AsTime().Sub(startTime)),
-		Tags:          getJaegerProtoSpanTags(span, libraryTags),
-		Logs:          spanEventsToJaegerProtoLogs(span.Events()),
+		Tags:          getDbSpanTags(span, libraryTags),
+		Logs:          spanEventsToDbSpanLogs(span.Events()),
 		Process:       process,
 	}
 }
 
-func getJaegerProtoSpanTags(span ptrace.Span, scope pcommon.InstrumentationScope) []dbmodel.KeyValue {
+func getDbSpanTags(span ptrace.Span, scope pcommon.InstrumentationScope) []dbmodel.KeyValue {
 	var spanKindTag, statusCodeTag, errorTag, statusMsgTag dbmodel.KeyValue
 	var spanKindTagFound, statusCodeTagFound, errorTagFound, statusMsgTagFound bool
 
@@ -222,9 +222,9 @@ func getJaegerProtoSpanTags(span ptrace.Span, scope pcommon.InstrumentationScope
 	return tags
 }
 
-// makeJaegerProtoReferences constructs jaeger span references based on parent span ID and span links.
+// makeDbSpanReferences constructs jaeger span references based on parent span ID and span links.
 // The parent span ID is used to add a CHILD_OF reference, _unless_ it is referenced from one of the links.
-func makeJaegerProtoReferences(links ptrace.SpanLinkSlice, parentSpanID dbmodel.SpanID, traceID dbmodel.TraceID) []dbmodel.Reference {
+func makeDbSpanReferences(links ptrace.SpanLinkSlice, parentSpanID dbmodel.SpanID, traceID dbmodel.TraceID) []dbmodel.Reference {
 	refsCount := links.Len()
 	if parentSpanID != "" {
 		refsCount++
@@ -266,7 +266,7 @@ func makeJaegerProtoReferences(links ptrace.SpanLinkSlice, parentSpanID dbmodel.
 	return refs
 }
 
-func spanEventsToJaegerProtoLogs(events ptrace.SpanEventSlice) []dbmodel.Log {
+func spanEventsToDbSpanLogs(events ptrace.SpanEventSlice) []dbmodel.Log {
 	if events.Len() == 0 {
 		return nil
 	}
@@ -399,10 +399,10 @@ func refTypeFromLink(link ptrace.SpanLink) dbmodel.ReferenceType {
 	if !ok {
 		return dbmodel.FollowsFrom
 	}
-	return strToJRefType(refTypeAttr.Str())
+	return strToDbSpanRefType(refTypeAttr.Str())
 }
 
-func strToJRefType(attr string) dbmodel.ReferenceType {
+func strToDbSpanRefType(attr string) dbmodel.ReferenceType {
 	if attr == conventions.AttributeOpentracingRefTypeChildOf {
 		return dbmodel.ChildOf
 	}

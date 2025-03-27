@@ -61,7 +61,7 @@ func TestEmptyAttributes(t *testing.T) {
 	scopeSpans := spans.ScopeSpans().AppendEmpty()
 	spanScope := scopeSpans.Scope()
 	span := scopeSpans.Spans().AppendEmpty()
-	modelSpan := spanToJaegerProto(span, spanScope, dbmodel.Process{})
+	modelSpan := spanToDbSpan(span, spanScope, dbmodel.Process{})
 	assert.Empty(t, modelSpan.Tags)
 }
 
@@ -73,7 +73,7 @@ func TestEmptyLinkRefs(t *testing.T) {
 	span := scopeSpans.Spans().AppendEmpty()
 	spanLink := span.Links().AppendEmpty()
 	spanLink.Attributes().PutStr("testing-key", "testing-value")
-	modelSpan := spanToJaegerProto(span, spanScope, dbmodel.Process{})
+	modelSpan := spanToDbSpan(span, spanScope, dbmodel.Process{})
 	assert.Len(t, modelSpan.References, 1)
 	assert.Equal(t, dbmodel.FollowsFrom, modelSpan.References[0].RefType)
 }
@@ -109,11 +109,11 @@ func TestGetTagFromStatusMsg(t *testing.T) {
 	}, got)
 }
 
-func Test_resourceToJaegerProtoProcess_WhenOnlyServiceNameIsPresent(t *testing.T) {
+func Test_resourceToDbProcess_WhenOnlyServiceNameIsPresent(t *testing.T) {
 	traces := ptrace.NewTraces()
 	spans := traces.ResourceSpans().AppendEmpty()
 	spans.Resource().Attributes().PutStr(conventions.AttributeServiceName, "service")
-	process := resourceToJaegerProtoProcess(spans.Resource())
+	process := resourceToDbProcess(spans.Resource())
 	assert.Equal(t, "service", process.ServiceName)
 }
 
@@ -203,7 +203,7 @@ func TestGetTagFromSpanKind(t *testing.T) {
 	}
 }
 
-func TestAttributesToJaegerProtoTags(t *testing.T) {
+func TestAttributesToDbSpanTags(t *testing.T) {
 	attributes := pcommon.NewMap()
 	attributes.PutBool("bool-val", true)
 	attributes.PutInt("int-val", 123)
@@ -253,7 +253,7 @@ func TestAttributesToJaegerProtoTags(t *testing.T) {
 	require.EqualValues(t, expected[:5], got)
 }
 
-func TestAttributesToJaegerProtoTags_MapType(t *testing.T) {
+func TestAttributesToDbSpanTags_MapType(t *testing.T) {
 	attributes := pcommon.NewMap()
 	attributes.PutEmptyMap("empty-map")
 	got := appendTagsFromAttributes(make([]dbmodel.KeyValue, 0, 1), attributes)
@@ -267,7 +267,7 @@ func TestAttributesToJaegerProtoTags_MapType(t *testing.T) {
 	require.EqualValues(t, expected, got)
 }
 
-func TestInternalTracesToJaegerProto(t *testing.T) {
+func TestToDBModel(t *testing.T) {
 	tests := []struct {
 		name string
 		td   ptrace.Traces
@@ -329,7 +329,7 @@ func TestInternalTracesToJaegerProto(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			jbs := ProtoFromTraces(test.td)
+			jbs := ToDBModel(test.td)
 			if test.jb == nil {
 				assert.Empty(t, jbs)
 			} else {
@@ -365,14 +365,14 @@ func generateJProtoSpanWithEventAttribute() *dbmodel.Span {
 	return span
 }
 
-func BenchmarkInternalTracesToJaegerProto(b *testing.B) {
+func BenchmarkInternalTracesToDbSpans(b *testing.B) {
 	td := generateTracesTwoSpansChildParent()
 	resource := generateTracesResourceOnly().ResourceSpans().At(0).Resource()
 	resource.CopyTo(td.ResourceSpans().At(0).Resource())
 
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
-		batches := ProtoFromTraces(td)
+		batches := ToDBModel(td)
 		assert.NotEmpty(b, batches)
 	}
 }
