@@ -115,7 +115,7 @@ func testGorillaHTTPHandler(t *testing.T, basePath string) {
 				} else {
 					objResp, err := p2json.SamplingStrategyResponseFromJSON(body)
 					require.NoError(t, err)
-					assert.EqualValues(t, ts.samplingProvider.samplingResponse, objResp)
+					assert.Equal(t, ts.samplingProvider.samplingResponse, objResp)
 				}
 			})
 		}
@@ -160,7 +160,7 @@ func testHTTPHandler(t *testing.T, basePath string) {
 				} else {
 					objResp, err := p2json.SamplingStrategyResponseFromJSON(body)
 					require.NoError(t, err)
-					assert.EqualValues(t, ts.samplingProvider.samplingResponse, objResp)
+					assert.Equal(t, ts.samplingProvider.samplingResponse, objResp)
 				}
 			})
 		}

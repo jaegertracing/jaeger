@@ -110,7 +110,7 @@ type withConfigBuilder struct {
 
 func (b *withConfigBuilder) build() (*Factory, error) {
 	b.f.configureFromOptions(b.opts)
-	if err := b.opts.NamespaceConfig.Validate(); err != nil {
+	if err := b.opts.Validate(); err != nil {
 		return nil, err
 	}
 	err := b.initializer(b.metricsFactory, b.logger)
@@ -291,6 +291,6 @@ func (f *Factory) InheritSettingsFrom(other storage.Factory) {
 }
 
 func (f *Factory) IsArchiveCapable() bool {
-	return f.Options.NamespaceConfig.namespace == archiveStorageNamespace &&
-		f.Options.NamespaceConfig.Enabled
+	return f.Options.namespace == archiveStorageNamespace &&
+		f.Options.Enabled
 }

@@ -113,8 +113,8 @@ func TestProtoToTraces_AddsWarnings(t *testing.T) {
 
 func TestV1TracesFromSeq2(t *testing.T) {
 	var (
-		processNoServiceName string    = "OTLPResourceNoServiceName"
-		startTime            time.Time = time.Unix(0, 0) // 1970-01-01T00:00:00Z, matches the default for otel span's start time
+		processNoServiceName = "OTLPResourceNoServiceName"
+		startTime            = time.Unix(0, 0) // 1970-01-01T00:00:00Z, matches the default for otel span's start time
 	)
 
 	testCases := []struct {
@@ -237,14 +237,14 @@ func TestV1TracesFromSeq2(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			actualTraces, err := V1TracesFromSeq2(tc.seqTrace)
 			require.Equal(t, tc.expectedErr, err)
-			require.Equal(t, len(tc.expectedModelTraces), len(actualTraces))
+			require.Len(t, tc.expectedModelTraces, len(actualTraces))
 			if len(tc.expectedModelTraces) < 1 {
 				return
 			}
 			for i, etrace := range tc.expectedModelTraces {
 				eSpans := etrace.Spans
 				aSpans := actualTraces[i].Spans
-				require.Equal(t, len(eSpans), len(aSpans))
+				require.Len(t, eSpans, len(aSpans))
 				for j, espan := range eSpans {
 					assert.Equal(t, espan.TraceID, aSpans[j].TraceID)
 					assert.Equal(t, espan.OperationName, aSpans[j].OperationName)

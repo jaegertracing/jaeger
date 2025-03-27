@@ -49,7 +49,7 @@ func TestGetTagFromStatusCode(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			got, ok := getTagFromStatusCode(test.code)
 			assert.True(t, ok)
-			assert.EqualValues(t, test.tag, got)
+			assert.Equal(t, test.tag, got)
 		})
 	}
 }
@@ -92,7 +92,7 @@ func TestGetErrorTagFromStatusCode(t *testing.T) {
 
 	got, ok := getErrorTagFromStatusCode(ptrace.StatusCodeError)
 	assert.True(t, ok)
-	assert.EqualValues(t, errTag, got)
+	assert.Equal(t, errTag, got)
 }
 
 func TestGetTagFromStatusMsg(t *testing.T) {
@@ -101,7 +101,7 @@ func TestGetTagFromStatusMsg(t *testing.T) {
 
 	got, ok := getTagFromStatusMsg("test-error")
 	assert.True(t, ok)
-	assert.EqualValues(t, model.KeyValue{
+	assert.Equal(t, model.KeyValue{
 		Key:   conventions.OtelStatusDescription,
 		VStr:  "test-error",
 		VType: model.ValueType_STRING,
@@ -197,7 +197,7 @@ func TestGetTagFromSpanKind(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			got, ok := getTagFromSpanKind(test.kind)
 			assert.Equal(t, test.ok, ok)
-			assert.EqualValues(t, test.tag, got)
+			assert.Equal(t, test.tag, got)
 		})
 	}
 }
@@ -245,11 +245,11 @@ func TestAttributesToJaegerProtoTags(t *testing.T) {
 	}
 
 	got := appendTagsFromAttributes(make([]model.KeyValue, 0, len(expected)), attributes)
-	require.EqualValues(t, expected, got)
+	require.Equal(t, expected, got)
 
 	// The last item in expected ("service-name") must be skipped in resource tags translation
 	got = appendTagsFromResourceAttributes(make([]model.KeyValue, 0, len(expected)-1), attributes)
-	require.EqualValues(t, expected[:5], got)
+	require.Equal(t, expected[:5], got)
 }
 
 func TestAttributesToJaegerProtoTags_MapType(t *testing.T) {
@@ -263,7 +263,7 @@ func TestAttributesToJaegerProtoTags_MapType(t *testing.T) {
 			VStr:  "{}",
 		},
 	}
-	require.EqualValues(t, expected, got)
+	require.Equal(t, expected, got)
 }
 
 func TestInternalTracesToJaegerProto(t *testing.T) {
@@ -377,7 +377,7 @@ func TestInternalTracesToJaegerProto(t *testing.T) {
 				assert.Empty(t, jbs)
 			} else {
 				require.Len(t, jbs, 1)
-				assert.EqualValues(t, test.jb, jbs[0])
+				assert.Equal(t, test.jb, jbs[0])
 			}
 		})
 	}

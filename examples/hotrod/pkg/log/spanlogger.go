@@ -79,11 +79,11 @@ func (e *bridgeFieldEncoder) AddObject(key string, marshaler zapcore.ObjectMarsh
 }
 
 func (e *bridgeFieldEncoder) AddBinary(key string, value []byte) {
-	e.pairs = append(e.pairs, attribute.String(key, fmt.Sprint(value)))
+	e.pairs = append(e.pairs, attribute.String(key, string(value)))
 }
 
 func (e *bridgeFieldEncoder) AddByteString(key string, value []byte) {
-	e.pairs = append(e.pairs, attribute.String(key, fmt.Sprint(value)))
+	e.pairs = append(e.pairs, attribute.String(key, string(value)))
 }
 
 func (e *bridgeFieldEncoder) AddBool(key string, value bool) {

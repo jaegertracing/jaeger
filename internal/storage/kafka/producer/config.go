@@ -51,7 +51,7 @@ func (c *Configuration) NewProducer(logger *zap.Logger) (sarama.AsyncProducer, e
 		}
 		saramaConfig.Version = ver
 	}
-	if err := c.AuthenticationConfig.SetConfiguration(saramaConfig, logger); err != nil {
+	if err := c.SetConfiguration(saramaConfig, logger); err != nil {
 		return nil, err
 	}
 	return sarama.NewAsyncProducer(c.Brokers, saramaConfig)

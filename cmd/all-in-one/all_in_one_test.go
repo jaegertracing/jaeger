@@ -174,7 +174,7 @@ func getSamplingStrategy(t *testing.T) {
 
 	r, body := httpGet(t, samplingAddr+getSamplingStrategyURL)
 	t.Logf("Sampling strategy response: %s", string(body))
-	require.EqualValues(t, http.StatusOK, r.StatusCode)
+	require.Equal(t, http.StatusOK, r.StatusCode)
 
 	var queryResponse api_v2.SamplingStrategyResponse
 	require.NoError(t, jsonpb.Unmarshal(bytes.NewReader(body), &queryResponse))

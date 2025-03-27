@@ -159,7 +159,7 @@ func (s *storageExt) Start(_ context.Context, host component.Host) error {
 		s.telset.Logger.Sugar().Infof("Initializing storage '%s'", storageName)
 		var factory tracestore.Factory
 		var v1Factory storage.Factory
-		var err error = errors.New("empty configuration")
+		err := errors.New("empty configuration")
 		switch {
 		case cfg.Memory != nil:
 			v1Factory, err = memory.NewFactoryWithConfig(

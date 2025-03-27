@@ -19,7 +19,7 @@ type Action struct {
 
 // Do the rollover action
 func (a *Action) Do() error {
-	rolloverIndices := app.RolloverIndices(a.Config.Archive, a.Config.SkipDependencies, a.Config.AdaptiveSampling, a.Config.IndexPrefix)
+	rolloverIndices := app.RolloverIndices(a.Archive, a.SkipDependencies, a.AdaptiveSampling, a.IndexPrefix)
 	for _, indexName := range rolloverIndices {
 		if err := a.rollover(indexName); err != nil {
 			return err
@@ -31,7 +31,7 @@ func (a *Action) Do() error {
 func (a *Action) rollover(indexSet app.IndexOption) error {
 	conditionsMap := map[string]any{}
 	if len(a.Conditions) > 0 {
-		err := json.Unmarshal([]byte(a.Config.Conditions), &conditionsMap)
+		err := json.Unmarshal([]byte(a.Conditions), &conditionsMap)
 		if err != nil {
 			return err
 		}
@@ -43,7 +43,7 @@ func (a *Action) rollover(indexSet app.IndexOption) error {
 	if err != nil {
 		return err
 	}
-	jaegerIndex, err := a.IndicesClient.GetJaegerIndices(a.Config.IndexPrefix)
+	jaegerIndex, err := a.IndicesClient.GetJaegerIndices(a.IndexPrefix)
 	if err != nil {
 		return err
 	}

@@ -36,7 +36,7 @@ func TestHttpCall(t *testing.T) {
 	if want, have := hc.getState().upSince, hr.UpSince; !assert.True(t, want.Equal(have)) {
 		t.Logf("want='%v', have='%v'", want, have)
 	}
-	assert.NotZero(t, hr.Uptime)
+	assert.NotEmpty(t, hr.Uptime)
 	t.Logf("uptime=%v", hr.Uptime)
 
 	time.Sleep(time.Millisecond)
@@ -47,7 +47,7 @@ func TestHttpCall(t *testing.T) {
 	assert.Equal(t, http.StatusServiceUnavailable, resp.StatusCode)
 
 	hrNew := parseHealthCheckResponse(t, resp)
-	assert.Zero(t, hrNew.Uptime)
+	assert.Empty(t, hrNew.Uptime)
 	assert.Zero(t, hrNew.UpSince)
 }
 

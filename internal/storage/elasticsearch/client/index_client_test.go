@@ -312,20 +312,19 @@ func testIndexOrAliasExistence(t *testing.T, existence string) {
 			exists:       false,
 		},
 	}
-	if existence == "index" {
-		test := indexOrAliasExistence{
+	switch existence {
+	case "index":
+		tests = append(tests, indexOrAliasExistence{
 			name:         "generic error",
 			responseCode: http.StatusBadRequest,
 			expectedErr:  "failed to check if index exists: request failed, status code: 400",
-		}
-		tests = append(tests, test)
-	} else if existence == "alias" {
-		test := indexOrAliasExistence{
+		})
+	case "alias":
+		tests = append(tests, indexOrAliasExistence{
 			name:         "generic error",
 			responseCode: http.StatusBadRequest,
 			expectedErr:  "failed to check if alias exists: request failed, status code: 400",
-		}
-		tests = append(tests, test)
+		})
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -347,9 +346,10 @@ func testIndexOrAliasExistence(t *testing.T, existence string) {
 			}
 			var exists bool
 			var err error
-			if existence == "index" {
+			switch existence {
+			case "index":
 				exists, err = c.IndexExists("jaeger-span")
-			} else if existence == "alias" {
+			case "alias":
 				exists, err = c.AliasExists("jaeger-span")
 			}
 			if test.expectedErr != "" {

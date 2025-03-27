@@ -24,7 +24,7 @@ type Action struct {
 
 // Do the lookback action
 func (a *Action) Do() error {
-	rolloverIndices := app.RolloverIndices(a.Config.Archive, a.Config.SkipDependencies, a.Config.AdaptiveSampling, a.Config.IndexPrefix)
+	rolloverIndices := app.RolloverIndices(a.Archive, a.SkipDependencies, a.AdaptiveSampling, a.IndexPrefix)
 	for _, indexName := range rolloverIndices {
 		if err := a.lookback(indexName); err != nil {
 			return err
@@ -34,7 +34,7 @@ func (a *Action) Do() error {
 }
 
 func (a *Action) lookback(indexSet app.IndexOption) error {
-	jaegerIndex, err := a.IndicesClient.GetJaegerIndices(a.Config.IndexPrefix)
+	jaegerIndex, err := a.IndicesClient.GetJaegerIndices(a.IndexPrefix)
 	if err != nil {
 		return err
 	}

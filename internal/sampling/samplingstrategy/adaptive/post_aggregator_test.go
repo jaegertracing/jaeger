@@ -317,7 +317,7 @@ func TestCalculateProbabilitiesAndQPS(t *testing.T) {
 	assert.Equal(t, map[string]float64{http.MethodGet: 0.7352941176470588, http.MethodPut: 1}, qps["svcA"])
 	assert.Equal(t, map[string]float64{http.MethodGet: 0.5147058823529411, http.MethodPut: 0.25}, qps["svcB"])
 
-	_, gauges := mets.Backend.Snapshot()
+	_, gauges := mets.Snapshot()
 	assert.EqualValues(t, 4, gauges["test"])
 }
 

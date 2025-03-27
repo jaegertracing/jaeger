@@ -239,7 +239,7 @@ func TestStoreGetServices(t *testing.T) {
 		serviceNames, err := store.GetServices(context.Background())
 		require.NoError(t, err)
 		assert.Len(t, serviceNames, 1)
-		assert.EqualValues(t, testingSpan.Process.ServiceName, serviceNames[0])
+		assert.Equal(t, testingSpan.Process.ServiceName, serviceNames[0])
 	})
 }
 
@@ -255,7 +255,7 @@ func TestStoreGetAllOperationsFound(t *testing.T) {
 		)
 		require.NoError(t, err)
 		assert.Len(t, operations, 3)
-		assert.EqualValues(t, childSpan1.OperationName, operations[0].Name)
+		assert.Equal(t, childSpan1.OperationName, operations[0].Name)
 	})
 }
 
@@ -351,7 +351,7 @@ func TestStoreFindTracesLimitGetsMostRecent(t *testing.T) {
 	require.NoError(t, err)
 	if assert.Len(t, gotTraces, len(expectedTraces)) {
 		for i := range gotTraces {
-			assert.EqualValues(t, expectedTraces[i].Spans[0].StartTime.Unix(), gotTraces[i].Spans[0].StartTime.Unix())
+			assert.Equal(t, expectedTraces[i].Spans[0].StartTime.Unix(), gotTraces[i].Spans[0].StartTime.Unix())
 		}
 	}
 }

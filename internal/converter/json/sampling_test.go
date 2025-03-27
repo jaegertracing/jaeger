@@ -97,5 +97,5 @@ func TestSamplingStrategyResponseFromJSON(t *testing.T) {
 	s2, err := SamplingStrategyResponseFromJSON([]byte(jsonData))
 	require.NoError(t, err)
 	assert.Equal(t, s1.GetStrategyType(), s2.GetStrategyType())
-	assert.EqualValues(t, s1.GetProbabilisticSampling(), s2.GetProbabilisticSampling())
+	assert.Equal(t, s1.GetProbabilisticSampling(), s2.GetProbabilisticSampling())
 }
