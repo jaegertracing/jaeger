@@ -8,8 +8,9 @@
 package mocks
 
 import (
+	config "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	dbmodel "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/dbmodel"
-	config "github.com/jaegertracing/jaeger/pkg/es/config"
+
 	mock "github.com/stretchr/testify/mock"
 
 	time "time"
