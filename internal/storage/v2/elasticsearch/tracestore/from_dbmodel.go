@@ -30,7 +30,7 @@ const (
 
 var errType = errors.New("invalid type")
 
-// FromDBModel converts multiple Jaeger proto batches to internal traces
+// FromDBModel converts multiple ES DB Spans to internal traces
 func FromDBModel(spans []*dbmodel.Span) (ptrace.Traces, error) {
 	traceData := ptrace.NewTraces()
 	if len(spans) == 0 {
@@ -393,7 +393,7 @@ func setSpanEventsFromDbSpanLogs(logs []dbmodel.Log, events ptrace.SpanEventSlic
 	}
 }
 
-// setSpanLinksFromDbSpanReferences sets internal span links based on jaeger span references skipping excludeParentID
+// setSpanLinksFromDbSpanReferences sets internal span links based on db references skipping excludeParentID
 func setSpanLinksFromDbSpanReferences(refs []dbmodel.Reference, excludeParentID dbmodel.SpanID, spanLinks ptrace.SpanLinkSlice) error {
 	if len(refs) == 0 || len(refs) == 1 && refs[0].SpanID == excludeParentID && refs[0].RefType == dbmodel.ChildOf {
 		return nil

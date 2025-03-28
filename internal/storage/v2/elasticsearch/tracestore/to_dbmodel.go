@@ -25,8 +25,8 @@ const (
 	tagHTTPStatusMsg = "http.status_message"
 )
 
-// ToDBModel translates internal trace data into the Jaeger Proto for GRPC.
-// Returns slice of translated Jaeger batches and error if translation failed.
+// ToDBModel translates internal trace data into the DB Spans.
+// Returns slice of translated DB Spans and error if translation failed.
 func ToDBModel(td ptrace.Traces) []*dbmodel.Span {
 	resourceSpans := td.ResourceSpans()
 
