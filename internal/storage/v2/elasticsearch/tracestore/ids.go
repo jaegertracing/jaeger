@@ -21,7 +21,7 @@ func getTraceIdFromDbTraceId(dbTraceId dbmodel.TraceID) (pcommon.TraceID, error)
 	return traceId, nil
 }
 
-func getSpanIdFromDbTraceId(dbSpanId dbmodel.SpanID) (pcommon.SpanID, error) {
+func getSpanIdFromDbSpanId(dbSpanId dbmodel.SpanID) (pcommon.SpanID, error) {
 	var spanId [8]byte
 	spanIdBytes, err := hex.DecodeString(string(dbSpanId))
 	if err != nil {

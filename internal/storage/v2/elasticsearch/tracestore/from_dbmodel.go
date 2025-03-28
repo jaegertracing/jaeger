@@ -119,12 +119,12 @@ func setSpanFromDbSpan(dbSpan *dbmodel.Span, span ptrace.Span) error {
 	if err != nil {
 		return err
 	}
-	spanId, err := getSpanIdFromDbTraceId(dbSpan.SpanID)
+	spanId, err := getSpanIdFromDbSpanId(dbSpan.SpanID)
 	if err != nil {
 		return err
 	}
 	if dbSpan.ParentSpanID != "" {
-		parentSpanId, err := getSpanIdFromDbTraceId(dbSpan.ParentSpanID)
+		parentSpanId, err := getSpanIdFromDbSpanId(dbSpan.ParentSpanID)
 		if err != nil {
 			return err
 		}
@@ -156,7 +156,7 @@ func setSpanFromDbSpan(dbSpan *dbmodel.Span, span ptrace.Span) error {
 	}
 	dbParentSpanId := getParentSpanId(dbSpan)
 	if dbParentSpanId != "" {
-		parentSpanId, err := getSpanIdFromDbTraceId(dbParentSpanId)
+		parentSpanId, err := getSpanIdFromDbSpanId(dbParentSpanId)
 		if err != nil {
 			return err
 		}
@@ -410,7 +410,7 @@ func setSpanLinksFromDbSpanReferences(refs []dbmodel.Reference, excludeParentID 
 		if err != nil {
 			return err
 		}
-		refSpanId, err := getSpanIdFromDbTraceId(ref.SpanID)
+		refSpanId, err := getSpanIdFromDbSpanId(ref.SpanID)
 		if err != nil {
 			return err
 		}
