@@ -72,7 +72,7 @@ func TestCounter(t *testing.T) {
 	snapshot, err := registry.Gather()
 	require.NoError(t, err)
 
-	assert.EqualValues(t, "Help message", snapshot[0].GetHelp())
+	assert.Equal(t, "Help message", snapshot[0].GetHelp())
 
 	m1 := findMetric(t, snapshot, "bender_rodriguez_total", map[string]string{"a": "b", "x": "y"})
 	assert.InDelta(t, 3.0, m1.GetCounter().GetValue(), 0.01, "%+v", m1)
@@ -93,7 +93,7 @@ func TestCounterDefaultHelp(t *testing.T) {
 	snapshot, err := registry.Gather()
 	require.NoError(t, err)
 
-	assert.EqualValues(t, "rodriguez", snapshot[0].GetHelp())
+	assert.Equal(t, "rodriguez", snapshot[0].GetHelp())
 }
 
 func TestGauge(t *testing.T) {
@@ -129,7 +129,7 @@ func TestGauge(t *testing.T) {
 	snapshot, err := registry.Gather()
 	require.NoError(t, err)
 
-	assert.EqualValues(t, "Help message", snapshot[0].GetHelp())
+	assert.Equal(t, "Help message", snapshot[0].GetHelp())
 
 	m1 := findMetric(t, snapshot, "bender_rodriguez", map[string]string{"a": "b", "x": "y"})
 	assert.InDelta(t, 2.0, m1.GetGauge().GetValue(), 0.01, "%+v", m1)
@@ -150,7 +150,7 @@ func TestGaugeDefaultHelp(t *testing.T) {
 	snapshot, err := registry.Gather()
 	require.NoError(t, err)
 
-	assert.EqualValues(t, "rodriguez", snapshot[0].GetHelp())
+	assert.Equal(t, "rodriguez", snapshot[0].GetHelp())
 }
 
 func TestTimer(t *testing.T) {
@@ -186,7 +186,7 @@ func TestTimer(t *testing.T) {
 	snapshot, err := registry.Gather()
 	require.NoError(t, err)
 
-	assert.EqualValues(t, "Help message", snapshot[0].GetHelp())
+	assert.Equal(t, "Help message", snapshot[0].GetHelp())
 
 	m1 := findMetric(t, snapshot, "bender_rodriguez", map[string]string{"a": "b", "x": "y"})
 	assert.EqualValues(t, 2, m1.GetHistogram().GetSampleCount(), "%+v", m1)
@@ -229,7 +229,7 @@ func TestTimerDefaultHelp(t *testing.T) {
 	snapshot, err := registry.Gather()
 	require.NoError(t, err)
 
-	assert.EqualValues(t, "rodriguez", snapshot[0].GetHelp())
+	assert.Equal(t, "rodriguez", snapshot[0].GetHelp())
 }
 
 func TestTimerCustomBuckets(t *testing.T) {
@@ -307,7 +307,7 @@ func TestHistogram(t *testing.T) {
 	snapshot, err := registry.Gather()
 	require.NoError(t, err)
 
-	assert.EqualValues(t, "Help message", snapshot[0].GetHelp())
+	assert.Equal(t, "Help message", snapshot[0].GetHelp())
 
 	m1 := findMetric(t, snapshot, "bender_rodriguez", map[string]string{"a": "b", "x": "y"})
 	assert.EqualValues(t, 2, m1.GetHistogram().GetSampleCount(), "%+v", m1)
@@ -350,7 +350,7 @@ func TestHistogramDefaultHelp(t *testing.T) {
 	snapshot, err := registry.Gather()
 	require.NoError(t, err)
 
-	assert.EqualValues(t, "rodriguez", snapshot[0].GetHelp())
+	assert.Equal(t, "rodriguez", snapshot[0].GetHelp())
 }
 
 func TestHistogramCustomBuckets(t *testing.T) {

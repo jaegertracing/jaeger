@@ -28,11 +28,11 @@ func TestContextPreserved(t *testing.T) {
 
 func TestNoTenant(t *testing.T) {
 	// If no tenant in context, GetTenant should return the empty string
-	assert.Equal(t, "", GetTenant(context.Background()))
+	assert.Empty(t, GetTenant(context.Background()))
 }
 
 func TestImpossibleTenantType(t *testing.T) {
 	// If the tenant is not a string, GetTenant should return the empty string
 	ctxWithIntTenant := context.WithValue(context.Background(), tenantKey, -1)
-	assert.Equal(t, "", GetTenant(ctxWithIntTenant))
+	assert.Empty(t, GetTenant(ctxWithIntTenant))
 }

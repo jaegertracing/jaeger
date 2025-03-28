@@ -196,13 +196,13 @@ func addFlags(flagSet *flag.FlagSet, nsConfig NamespaceConfig) {
 
 // InitFromViper initializes Options with properties from viper
 func (opt *Options) InitFromViper(v *viper.Viper) {
-	opt.NamespaceConfig.initFromViper(v)
-	opt.SpanStoreWriteCacheTTL = v.GetDuration(opt.NamespaceConfig.namespace + suffixSpanStoreWriteCacheTTL)
-	opt.Index.TagBlackList = stripWhiteSpace(v.GetString(opt.NamespaceConfig.namespace + suffixIndexTagsBlacklist))
-	opt.Index.TagWhiteList = stripWhiteSpace(v.GetString(opt.NamespaceConfig.namespace + suffixIndexTagsWhitelist))
-	opt.Index.Tags = v.GetBool(opt.NamespaceConfig.namespace + suffixIndexTags)
-	opt.Index.Logs = v.GetBool(opt.NamespaceConfig.namespace + suffixIndexLogs)
-	opt.Index.ProcessTags = v.GetBool(opt.NamespaceConfig.namespace + suffixIndexProcessTags)
+	opt.initFromViper(v)
+	opt.SpanStoreWriteCacheTTL = v.GetDuration(opt.namespace + suffixSpanStoreWriteCacheTTL)
+	opt.Index.TagBlackList = stripWhiteSpace(v.GetString(opt.namespace + suffixIndexTagsBlacklist))
+	opt.Index.TagWhiteList = stripWhiteSpace(v.GetString(opt.namespace + suffixIndexTagsWhitelist))
+	opt.Index.Tags = v.GetBool(opt.namespace + suffixIndexTags)
+	opt.Index.Logs = v.GetBool(opt.namespace + suffixIndexLogs)
+	opt.Index.ProcessTags = v.GetBool(opt.namespace + suffixIndexProcessTags)
 }
 
 func tlsFlagsConfig(namespace string) tlscfg.ClientFlagsConfig {
@@ -244,7 +244,7 @@ func (cfg *NamespaceConfig) initFromViper(v *viper.Viper) {
 }
 
 func (opt *Options) GetConfig() config.Configuration {
-	return opt.NamespaceConfig.Configuration
+	return opt.Configuration
 }
 
 // TagIndexBlacklist returns the list of blacklisted tags

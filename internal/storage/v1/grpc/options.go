@@ -57,13 +57,13 @@ func (opts *options) addFlags(flagSet *flag.FlagSet) {
 }
 
 func (opts *options) initFromViper(cfg *Config, v *viper.Viper) error {
-	cfg.ClientConfig.Endpoint = v.GetString(opts.namespace + remoteServer)
+	cfg.Endpoint = v.GetString(opts.namespace + remoteServer)
 	remoteTLSCfg, err := opts.tlsFlagsConfig().InitFromViper(v)
 	if err != nil {
 		return fmt.Errorf("failed to parse gRPC storage TLS options: %w", err)
 	}
-	cfg.ClientConfig.TLSSetting = remoteTLSCfg
-	cfg.TimeoutConfig.Timeout = v.GetDuration(opts.namespace + remoteConnectionTimeout)
+	cfg.TLSSetting = remoteTLSCfg
+	cfg.Timeout = v.GetDuration(opts.namespace + remoteConnectionTimeout)
 	cfg.Tenancy = tenancy.InitFromViper(v)
 	if opts.namespace == archiveRemotePrefix {
 		cfg.enabled = v.GetBool(opts.namespace + enabled)

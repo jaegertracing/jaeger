@@ -53,7 +53,7 @@ func TestProcessorMetrics(t *testing.T) {
 	sp.SetParentSpanID([8]byte{1, 2, 3, 4, 5, 6, 7, 8})
 	grpcChannelFormat.ReceivedBySvc.ForSpanV2(resource, sp)
 
-	counters, gauges := baseMetrics.Backend.Snapshot()
+	counters, gauges := baseMetrics.Snapshot()
 
 	assert.EqualValues(t, 3, counters["service.spans.received|debug=false|format=jaeger|svc=fry|transport=grpc"])
 	assert.EqualValues(t, 2, counters["service.spans.received|debug=true|format=jaeger|svc=fry|transport=grpc"])
@@ -72,7 +72,7 @@ func TestNewTraceCountsBySvc(t *testing.T) {
 	metrics.countByServiceName("bender", false, model.SamplerTypeUnrecognized)
 	metrics.countByServiceName("zoidberg", false, model.SamplerTypeUnrecognized)
 
-	counters, _ := baseMetrics.Backend.Snapshot()
+	counters, _ := baseMetrics.Snapshot()
 	assert.EqualValues(t, 1, counters["not_on_my_level|debug=false|sampler_type=unrecognized|svc=fry"])
 	assert.EqualValues(t, 1, counters["not_on_my_level|debug=false|sampler_type=unrecognized|svc=leela"])
 	assert.EqualValues(t, 2, counters["not_on_my_level|debug=false|sampler_type=unrecognized|svc=other-services"], counters)
@@ -85,7 +85,7 @@ func TestNewTraceCountsBySvc(t *testing.T) {
 	metrics.countByServiceName("elzar", true, model.SamplerTypeLowerBound)
 	metrics.countByServiceName("url", true, model.SamplerTypeUnrecognized)
 
-	counters, _ = baseMetrics.Backend.Snapshot()
+	counters, _ = baseMetrics.Snapshot()
 	assert.EqualValues(t, 1, counters["not_on_my_level|debug=true|sampler_type=const|svc=bender"])
 	assert.EqualValues(t, 1, counters["not_on_my_level|debug=true|sampler_type=probabilistic|svc=bender"])
 	assert.EqualValues(t, 1, counters["not_on_my_level|debug=true|sampler_type=probabilistic|svc=other-services"], counters)
@@ -104,7 +104,7 @@ func TestNewSpanCountsBySvc(t *testing.T) {
 	metrics.countByServiceName("bender", false)
 	metrics.countByServiceName("zoidberg", false)
 
-	counters, _ := baseMetrics.Backend.Snapshot()
+	counters, _ := baseMetrics.Snapshot()
 	assert.EqualValues(t, 1, counters["not_on_my_level|debug=false|svc=fry"])
 	assert.EqualValues(t, 1, counters["not_on_my_level|debug=false|svc=leela"])
 	assert.EqualValues(t, 2, counters["not_on_my_level|debug=false|svc=other-services"])
@@ -114,7 +114,7 @@ func TestNewSpanCountsBySvc(t *testing.T) {
 	metrics.countByServiceName("leela", true)
 	metrics.countByServiceName("fry", true)
 
-	counters, _ = baseMetrics.Backend.Snapshot()
+	counters, _ = baseMetrics.Snapshot()
 	assert.EqualValues(t, 1, counters["not_on_my_level|debug=true|svc=zoidberg"])
 	assert.EqualValues(t, 1, counters["not_on_my_level|debug=true|svc=bender"])
 	assert.EqualValues(t, 2, counters["not_on_my_level|debug=true|svc=other-services"])

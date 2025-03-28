@@ -22,7 +22,7 @@ const (
 )
 
 // Config holds configuration for index cleaner binary.
-// Config.IndexPrefix supersedes Indices.IndexPrefix
+// Config.IndexPrefix supersedes IndexPrefix
 type Config struct {
 	app.Config
 	cfg.Indices
@@ -40,18 +40,18 @@ func (*Config) AddFlags(flags *flag.FlagSet) {
 
 // InitFromViper initializes config from viper.Viper.
 func (c *Config) InitFromViper(v *viper.Viper) {
-	c.Indices.Spans.Shards = v.GetInt64(shards)
-	c.Indices.Services.Shards = v.GetInt64(shards)
-	c.Indices.Dependencies.Shards = v.GetInt64(shards)
-	c.Indices.Sampling.Shards = v.GetInt64(shards)
+	c.Spans.Shards = v.GetInt64(shards)
+	c.Services.Shards = v.GetInt64(shards)
+	c.Dependencies.Shards = v.GetInt64(shards)
+	c.Sampling.Shards = v.GetInt64(shards)
 
-	c.Indices.Spans.Replicas = v.GetInt64(replicas)
-	c.Indices.Services.Replicas = v.GetInt64(replicas)
-	c.Indices.Dependencies.Replicas = v.GetInt64(replicas)
-	c.Indices.Sampling.Replicas = v.GetInt64(replicas)
+	c.Spans.Replicas = v.GetInt64(replicas)
+	c.Services.Replicas = v.GetInt64(replicas)
+	c.Dependencies.Replicas = v.GetInt64(replicas)
+	c.Sampling.Replicas = v.GetInt64(replicas)
 
-	c.Indices.Spans.Priority = v.GetInt64(prioritySpanTemplate)
-	c.Indices.Services.Priority = v.GetInt64(priorityServiceTemplate)
-	c.Indices.Dependencies.Priority = v.GetInt64(priorityDependenciesTemplate)
-	c.Indices.Sampling.Priority = v.GetInt64(prioritySamplingTemplate)
+	c.Spans.Priority = v.GetInt64(prioritySpanTemplate)
+	c.Services.Priority = v.GetInt64(priorityServiceTemplate)
+	c.Dependencies.Priority = v.GetInt64(priorityDependenciesTemplate)
+	c.Sampling.Priority = v.GetInt64(prioritySamplingTemplate)
 }

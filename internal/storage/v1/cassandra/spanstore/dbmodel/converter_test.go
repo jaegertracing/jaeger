@@ -176,7 +176,7 @@ func getTestUniqueTags() []TagInsertion {
 func TestToSpan(t *testing.T) {
 	expectedSpan := getTestSpan()
 	actualDBSpan := FromDomain(getTestJaegerSpan())
-	if !assert.EqualValues(t, expectedSpan, actualDBSpan) {
+	if !assert.Equal(t, expectedSpan, actualDBSpan) {
 		for _, diff := range pretty.Diff(expectedSpan, actualDBSpan) {
 			t.Log(diff)
 		}
@@ -193,7 +193,7 @@ func TestFromSpan(t *testing.T) {
 		expectedSpan := getTestJaegerSpan()
 		actualJSpan, err := ToDomain(testDBSpan)
 		require.NoError(t, err)
-		if !assert.EqualValues(t, expectedSpan, actualJSpan) {
+		if !assert.Equal(t, expectedSpan, actualJSpan) {
 			for _, diff := range pretty.Diff(expectedSpan, actualJSpan) {
 				t.Log(diff)
 			}

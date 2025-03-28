@@ -324,17 +324,17 @@ func (f *Factory) initDownsamplingFromViper(v *viper.Viper) {
 	// if the downsampling flag isn't set then this component used the standard "AddFlags" method
 	// and has no use for downsampling.  the default settings effectively disable downsampling
 	if !f.downsamplingFlagsAdded {
-		f.Config.DownsamplingRatio = defaultDownsamplingRatio
-		f.Config.DownsamplingHashSalt = defaultDownsamplingHashSalt
+		f.DownsamplingRatio = defaultDownsamplingRatio
+		f.DownsamplingHashSalt = defaultDownsamplingHashSalt
 		return
 	}
 
-	f.Config.DownsamplingRatio = v.GetFloat64(downsamplingRatio)
-	if f.Config.DownsamplingRatio < 0 || f.Config.DownsamplingRatio > 1 {
+	f.DownsamplingRatio = v.GetFloat64(downsamplingRatio)
+	if f.DownsamplingRatio < 0 || f.DownsamplingRatio > 1 {
 		// Values not in the range of 0 ~ 1.0 will be set to default.
-		f.Config.DownsamplingRatio = 1.0
+		f.DownsamplingRatio = 1.0
 	}
-	f.Config.DownsamplingHashSalt = v.GetString(downsamplingHashSalt)
+	f.DownsamplingHashSalt = v.GetString(downsamplingHashSalt)
 }
 
 type ArchiveStorage struct {
@@ -391,6 +391,6 @@ func (f *Factory) Close() error {
 }
 
 func (f *Factory) publishOpts() {
-	safeexpvar.SetInt(downsamplingRatio, int64(f.Config.DownsamplingRatio))
-	safeexpvar.SetInt(spanStorageType+"-"+f.Config.SpanReaderType, 1)
+	safeexpvar.SetInt(downsamplingRatio, int64(f.DownsamplingRatio))
+	safeexpvar.SetInt(spanStorageType+"-"+f.SpanReaderType, 1)
 }

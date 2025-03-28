@@ -51,7 +51,7 @@ func Init(m any, factory Factory, globalTags map[string]string) error {
 		field := t.Field(i)
 		metric := field.Tag.Get("metric")
 		if metric == "" {
-			return fmt.Errorf("Field %s is missing a tag 'metric'", field.Name)
+			return fmt.Errorf("field %s is missing a tag 'metric'", field.Name)
 		}
 		if tagString := field.Tag.Get("tags"); tagString != "" {
 			tagPairs := strings.Split(tagString, ",")
@@ -59,7 +59,7 @@ func Init(m any, factory Factory, globalTags map[string]string) error {
 				tag := strings.Split(tagPair, "=")
 				if len(tag) != 2 {
 					return fmt.Errorf(
-						"Field [%s]: Tag [%s] is not of the form key=value in 'tags' string [%s]",
+						"field [%s]: Tag [%s] is not of the form key=value in 'tags' string [%s]",
 						field.Name, tagPair, tagString)
 				}
 				tags[tag[0]] = tag[1]
@@ -70,7 +70,7 @@ func Init(m any, factory Factory, globalTags map[string]string) error {
 			case field.Type.AssignableTo(timerPtrType):
 				// TODO: Parse timer duration buckets
 				return fmt.Errorf(
-					"Field [%s]: Buckets are not currently initialized for timer metrics",
+					"field [%s]: Buckets are not currently initialized for timer metrics",
 					field.Name)
 			case field.Type.AssignableTo(histogramPtrType):
 				bucketValues := strings.Split(bucketString, ",")
@@ -78,14 +78,14 @@ func Init(m any, factory Factory, globalTags map[string]string) error {
 					b, err := strconv.ParseFloat(bucket, 64)
 					if err != nil {
 						return fmt.Errorf(
-							"Field [%s]: Bucket [%s] could not be converted to float64 in 'buckets' string [%s]",
+							"field [%s]: Bucket [%s] could not be converted to float64 in 'buckets' string [%s]",
 							field.Name, bucket, bucketString)
 					}
 					buckets = append(buckets, b)
 				}
 			default:
 				return fmt.Errorf(
-					"Field [%s]: Buckets should only be defined for Timer and Histogram metric types",
+					"field [%s]: Buckets should only be defined for Timer and Histogram metric types",
 					field.Name)
 			}
 		}
@@ -120,7 +120,7 @@ func Init(m any, factory Factory, globalTags map[string]string) error {
 			})
 		default:
 			return fmt.Errorf(
-				"Field %s is not a pointer to timer, gauge, or counter",
+				"field %s is not a pointer to timer, gauge, or counter",
 				field.Name)
 		}
 		v.Field(i).Set(reflect.ValueOf(obj))

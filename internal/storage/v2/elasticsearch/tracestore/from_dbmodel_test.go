@@ -319,7 +319,7 @@ func TestJTagsToInternalAttributes(t *testing.T) {
 	got := pcommon.NewMap()
 	jTagsToInternalAttributes(tags, got)
 
-	require.EqualValues(t, expected, got)
+	require.Equal(t, expected, got)
 }
 
 func TestProtoToTraces(t *testing.T) {
@@ -462,7 +462,7 @@ func TestProtoToTraces(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			td, err := ProtoToTraces(test.jb)
 			require.NoError(t, err)
-			assert.EqualValues(t, test.td, td)
+			assert.Equal(t, test.td, td)
 		})
 	}
 }
@@ -521,11 +521,11 @@ func TestProtoBatchToInternalTracesWithTwoLibraries(t *testing.T) {
 	ils0 := actual.ResourceSpans().At(0).ScopeSpans().At(0)
 	ils1 := actual.ResourceSpans().At(0).ScopeSpans().At(1)
 	if ils0.Scope().Name() == "library1" {
-		assert.EqualValues(t, library1Span, ils0)
-		assert.EqualValues(t, library2Span, ils1)
+		assert.Equal(t, library1Span, ils0)
+		assert.Equal(t, library2Span, ils1)
 	} else {
-		assert.EqualValues(t, library1Span, ils1)
-		assert.EqualValues(t, library2Span, ils0)
+		assert.Equal(t, library1Span, ils1)
+		assert.Equal(t, library2Span, ils0)
 	}
 }
 
@@ -660,7 +660,7 @@ func TestSetInternalSpanStatus(t *testing.T) {
 			attrs := pcommon.NewMap()
 			require.NoError(t, attrs.FromRaw(test.attrs))
 			setInternalSpanStatus(attrs, span)
-			assert.EqualValues(t, test.status, status)
+			assert.Equal(t, test.status, status)
 			assert.Equal(t, test.attrsModifiedLen, attrs.Len())
 		})
 	}

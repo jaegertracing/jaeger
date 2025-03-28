@@ -43,7 +43,7 @@ func createTraceWriter(logger *zap.Logger, port int) (*traceWriter, error) {
 	cfg.Endpoint = fmt.Sprintf("localhost:%d", port)
 	cfg.Timeout = 30 * time.Second
 	cfg.RetryConfig.Enabled = false
-	cfg.QueueConfig.Enabled = false
+	cfg.Enabled = false
 	cfg.TLSSetting = configtls.ClientConfig{
 		Insecure: true,
 	}

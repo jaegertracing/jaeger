@@ -83,7 +83,7 @@ backends:
 `)
 	cfg := createDefaultConfig().(*Config)
 	require.NoError(t, conf.Unmarshal(cfg))
-	assert.NotEmpty(t, cfg.TraceBackends["some_storage"].Cassandra.Configuration.Connection.Servers)
+	assert.NotEmpty(t, cfg.TraceBackends["some_storage"].Cassandra.Connection.Servers)
 }
 
 func TestConfigDefaultElasticsearch(t *testing.T) {

@@ -106,7 +106,7 @@ func TestTraceProcessor(t *testing.T) {
 	}
 	host := makeRemoteSamplingExtension(t, rsCfg)
 
-	rsCfg.Adaptive.Options.AggregationBuckets = 0
+	rsCfg.Adaptive.AggregationBuckets = 0
 	err := traceProcessor.start(context.Background(), host)
 	require.ErrorContains(t, err, "AggregationBuckets must be greater than 0")
 

@@ -233,7 +233,7 @@ func TestLoadUIConfig(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 			}
-			assert.EqualValues(t, testCase.expected, config)
+			assert.Equal(t, testCase.expected, config)
 		})
 	}
 

@@ -185,7 +185,7 @@ func TestGetDependencies(t *testing.T) {
 				assert.Nil(t, actual)
 			} else {
 				require.NoError(t, err)
-				assert.EqualValues(t, testCase.expectedOutput, actual)
+				assert.Equal(t, testCase.expectedOutput, actual)
 			}
 		})
 	}
@@ -248,7 +248,7 @@ func TestGetReadIndices(t *testing.T) {
 	}
 	for _, testCase := range testCases {
 		s := NewDependencyStore(testCase.params)
-		assert.EqualValues(t, testCase.indices, s.getReadIndices(fixedTime, testCase.lookback))
+		assert.Equal(t, testCase.indices, s.getReadIndices(fixedTime, testCase.lookback))
 	}
 }
 
@@ -270,7 +270,7 @@ func TestGetWriteIndex(t *testing.T) {
 	}
 	for _, testCase := range testCases {
 		s := NewDependencyStore(testCase.params)
-		assert.EqualValues(t, testCase.writeIndex, s.getWriteIndex(fixedTime))
+		assert.Equal(t, testCase.writeIndex, s.getWriteIndex(fixedTime))
 	}
 }
 

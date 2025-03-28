@@ -66,9 +66,10 @@ func (*spanDurationSanitizer) Sanitize(span *zc.Span) *zc.Span {
 			first := span.Annotations[0].Timestamp
 			last := span.Annotations[len(span.Annotations)-1].Timestamp
 			for _, anno := range span.Annotations {
-				if anno.Value == zc.CLIENT_SEND {
+				switch anno.Value {
+				case zc.CLIENT_SEND:
 					first = anno.Timestamp
-				} else if anno.Value == zc.CLIENT_RECV {
+				case zc.CLIENT_RECV:
 					last = anno.Timestamp
 				}
 			}

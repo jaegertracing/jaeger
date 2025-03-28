@@ -102,7 +102,7 @@ func TestMetadataAnnotator(t *testing.T) {
 			require.NoError(t, err)
 			annotator := test.tenancyMgr.MetadataAnnotator()
 			md := annotator(context.Background(), req)
-			assert.Equal(t, len(test.requestHeaders), len(md))
+			assert.Len(t, test.requestHeaders, len(md))
 		})
 	}
 }

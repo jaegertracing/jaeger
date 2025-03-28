@@ -74,19 +74,19 @@ func TestThriftFormat(t *testing.T) {
 
 	statusCode, resBodyStr, err := postBytes("application/x-thrift", server.URL+`/api/traces`, someBytes)
 	require.NoError(t, err)
-	assert.EqualValues(t, http.StatusAccepted, statusCode)
-	assert.EqualValues(t, "", resBodyStr)
+	assert.Equal(t, http.StatusAccepted, statusCode)
+	assert.Empty(t, resBodyStr)
 
 	statusCode, resBodyStr, err = postBytes("application/x-thrift; charset=utf-8", server.URL+`/api/traces`, someBytes)
 	require.NoError(t, err)
-	assert.EqualValues(t, http.StatusAccepted, statusCode)
-	assert.EqualValues(t, "", resBodyStr)
+	assert.Equal(t, http.StatusAccepted, statusCode)
+	assert.Empty(t, resBodyStr)
 
 	handler.jaegerBatchesHandler.(*mockJaegerHandler).err = errors.New("Bad times ahead")
 	statusCode, resBodyStr, err = postBytes("application/vnd.apache.thrift.binary", server.URL+`/api/traces`, someBytes)
 	require.NoError(t, err)
-	assert.EqualValues(t, http.StatusInternalServerError, statusCode)
-	assert.EqualValues(t, "Cannot submit Jaeger batch: Bad times ahead\n", resBodyStr)
+	assert.Equal(t, http.StatusInternalServerError, statusCode)
+	assert.Equal(t, "Cannot submit Jaeger batch: Bad times ahead\n", resBodyStr)
 }
 
 func TestViaClient(t *testing.T) {
@@ -129,8 +129,8 @@ func TestBadBody(t *testing.T) {
 	bodyBytes := []byte("not good")
 	statusCode, resBodyStr, err := postBytes("application/x-thrift", server.URL+`/api/traces`, bodyBytes)
 	require.NoError(t, err)
-	assert.EqualValues(t, http.StatusBadRequest, statusCode)
-	assert.EqualValues(t, "Unable to process request body: Unknown data type 110\n", resBodyStr)
+	assert.Equal(t, http.StatusBadRequest, statusCode)
+	assert.Equal(t, "Unable to process request body: Unknown data type 110\n", resBodyStr)
 }
 
 func TestWrongFormat(t *testing.T) {
@@ -138,8 +138,8 @@ func TestWrongFormat(t *testing.T) {
 	defer server.Close()
 	statusCode, resBodyStr, err := postBytes("nosoupforyou", server.URL+`/api/traces`, []byte{})
 	require.NoError(t, err)
-	assert.EqualValues(t, http.StatusBadRequest, statusCode)
-	assert.EqualValues(t, "Unsupported content type: nosoupforyou\n", resBodyStr)
+	assert.Equal(t, http.StatusBadRequest, statusCode)
+	assert.Equal(t, "Unsupported content type: nosoupforyou\n", resBodyStr)
 }
 
 func TestMalformedFormat(t *testing.T) {
@@ -147,8 +147,8 @@ func TestMalformedFormat(t *testing.T) {
 	defer server.Close()
 	statusCode, resBodyStr, err := postBytes("application/json; =iammalformed", server.URL+`/api/traces`, []byte{})
 	require.NoError(t, err)
-	assert.EqualValues(t, http.StatusBadRequest, statusCode)
-	assert.EqualValues(t, "Cannot parse content type: mime: invalid media parameter\n", resBodyStr)
+	assert.Equal(t, http.StatusBadRequest, statusCode)
+	assert.Equal(t, "Cannot parse content type: mime: invalid media parameter\n", resBodyStr)
 }
 
 func TestCannotReadBodyFromRequest(t *testing.T) {
@@ -157,8 +157,8 @@ func TestCannotReadBodyFromRequest(t *testing.T) {
 	require.NoError(t, err)
 	rw := dummyResponseWriter{}
 	handler.SaveSpan(&rw, req)
-	assert.EqualValues(t, http.StatusInternalServerError, rw.myStatusCode)
-	assert.EqualValues(t, "Unable to process request body: Simulated error reading body\n", rw.myBody)
+	assert.Equal(t, http.StatusInternalServerError, rw.myStatusCode)
+	assert.Equal(t, "Unable to process request body: Simulated error reading body\n", rw.myBody)
 }
 
 type errReader struct{}

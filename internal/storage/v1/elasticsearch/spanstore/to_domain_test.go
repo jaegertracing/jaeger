@@ -290,7 +290,7 @@ func CompareModelSpans(t *testing.T, expected *model.Span, actual *model.Span) {
 	model.SortSpan(expected)
 	model.SortSpan(actual)
 
-	if !assert.EqualValues(t, expected, actual) {
+	if !assert.Equal(t, expected, actual) {
 		for _, err := range pretty.Diff(expected, actual) {
 			t.Log(err)
 		}

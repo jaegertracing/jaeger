@@ -226,10 +226,10 @@ func TestElasticsearchStorage_IndexTemplates(t *testing.T) {
 		require.NoError(t, err)
 		assert.True(t, spanTemplateExists)
 	} else {
-		serviceTemplateExistsResponse, err := s.v8Client.API.Indices.ExistsIndexTemplate(indexPrefix + "-jaeger-service")
+		serviceTemplateExistsResponse, err := s.v8Client.Indices.ExistsIndexTemplate(indexPrefix + "-jaeger-service")
 		require.NoError(t, err)
 		assert.Equal(t, 200, serviceTemplateExistsResponse.StatusCode)
-		spanTemplateExistsResponse, err := s.v8Client.API.Indices.ExistsIndexTemplate(indexPrefix + "-jaeger-span")
+		spanTemplateExistsResponse, err := s.v8Client.Indices.ExistsIndexTemplate(indexPrefix + "-jaeger-span")
 		require.NoError(t, err)
 		assert.Equal(t, 200, spanTemplateExistsResponse.StatusCode)
 	}

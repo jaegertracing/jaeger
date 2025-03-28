@@ -53,9 +53,9 @@ func (c *Configuration) NewConsumer(logger *zap.Logger) (Consumer, error) {
 		if err != nil {
 			return nil, err
 		}
-		saramaConfig.Config.Version = ver
+		saramaConfig.Version = ver
 	}
-	if err := c.AuthenticationConfig.SetConfiguration(&saramaConfig.Config, logger); err != nil {
+	if err := c.SetConfiguration(&saramaConfig.Config, logger); err != nil {
 		return nil, err
 	}
 	// cluster.NewConfig() uses sarama.NewConfig() to create the config.

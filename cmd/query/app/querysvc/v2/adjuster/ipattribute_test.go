@@ -54,7 +54,7 @@ func TestIPAttributeAdjuster(t *testing.T) {
 		case int:
 			require.EqualValues(t, v, val.Int())
 		case string:
-			require.EqualValues(t, v, val.Str())
+			require.Equal(t, v, val.Str())
 		}
 	}
 

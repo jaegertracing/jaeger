@@ -20,7 +20,7 @@ func CompareJSONSpans(t *testing.T, expected *dbmodel.Span, actual *dbmodel.Span
 	sortJSONSpan(expected)
 	sortJSONSpan(actual)
 
-	if !assert.EqualValues(t, expected, actual) {
+	if !assert.Equal(t, expected, actual) {
 		for _, err := range pretty.Diff(expected, actual) {
 			t.Log(err)
 		}

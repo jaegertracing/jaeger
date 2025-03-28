@@ -68,12 +68,12 @@ func TestDropAll(t *testing.T) {
 
 	for _, test := range tt {
 		actualTags := test.filter.FilterTags(nil, sampleTags)
-		assert.EqualValues(t, test.expectedTags, actualTags)
+		assert.Equal(t, test.expectedTags, actualTags)
 
 		actualProcessTags := test.filter.FilterProcessTags(nil, sampleTags)
-		assert.EqualValues(t, test.expectedProcessTags, actualProcessTags)
+		assert.Equal(t, test.expectedProcessTags, actualProcessTags)
 
 		actualLogs := test.filter.FilterLogFields(nil, sampleTags)
-		assert.EqualValues(t, test.expectedLogs, actualLogs)
+		assert.Equal(t, test.expectedLogs, actualLogs)
 	}
 }

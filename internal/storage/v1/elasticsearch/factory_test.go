@@ -320,7 +320,7 @@ func TestPasswordFromFile(t *testing.T) {
 		file := filepath.Join(t.TempDir(), "does not exist")
 		token, err := loadTokenFromFile(file)
 		require.Error(t, err)
-		assert.Equal(t, "", token)
+		assert.Empty(t, token)
 	})
 }
 
