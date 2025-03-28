@@ -8,8 +8,8 @@ import (
 	"regexp"
 	"time"
 
-	"github.com/jaegertracing/jaeger/pkg/es/client"
-	"github.com/jaegertracing/jaeger/pkg/es/filter"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/client"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/filter"
 )
 
 // IndexFilter holds configuration for index filtering.

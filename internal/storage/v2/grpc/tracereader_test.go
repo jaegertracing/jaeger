@@ -65,6 +65,10 @@ func startTestServer(t *testing.T, testServer *testServer) *grpc.ClientConn {
 	server := grpc.NewServer()
 	storage.RegisterTraceReaderServer(server, testServer)
 
+	return startServer(t, server, listener)
+}
+
+func startServer(t *testing.T, server *grpc.Server, listener net.Listener) *grpc.ClientConn {
 	go func() {
 		server.Serve(listener)
 	}()

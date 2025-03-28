@@ -7,7 +7,7 @@ import (
 	"context"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
-	cfg "github.com/jaegertracing/jaeger/pkg/es/config"
+	cfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 )
 
 type SpanWriterV1 struct {
