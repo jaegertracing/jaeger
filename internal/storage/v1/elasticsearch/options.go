@@ -14,7 +14,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/internal/bearertoken"
 	"github.com/jaegertracing/jaeger/internal/config/tlscfg"
-	"github.com/jaegertracing/jaeger/pkg/es/config"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 )
 
 const (

@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/dbmodel"
-	"github.com/jaegertracing/jaeger/pkg/es/mocks"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/mocks"
 )
 
 func TestWriteService(t *testing.T) {

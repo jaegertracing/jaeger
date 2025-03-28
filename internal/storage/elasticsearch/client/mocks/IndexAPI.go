@@ -8,7 +8,7 @@
 package mocks
 
 import (
-	client "github.com/jaegertracing/jaeger/pkg/es/client"
+	client "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/client"
 	mock "github.com/stretchr/testify/mock"
 )
 
