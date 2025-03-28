@@ -46,6 +46,7 @@ import (
 	"github.com/jaegertracing/jaeger/ports"
 )
 
+
 var testCertKeyLocation = "../../../internal/config/tlscfg/testdata"
 
 func initTelSet(logger *zap.Logger, tracerProvider *jtracer.JTracer, hc *healthcheck.HealthCheck) telemetry.Settings {

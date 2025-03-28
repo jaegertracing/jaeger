@@ -16,7 +16,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra"
 	cSpanStore "github.com/jaegertracing/jaeger/internal/storage/v1/cassandra/spanstore"
-	cascfg "github.com/jaegertracing/jaeger/pkg/cassandra/config"
+	cascfg "github.com/jaegertracing/jaeger/internal/cassandra/config"
 )
 
 var logger, _ = zap.NewDevelopment()

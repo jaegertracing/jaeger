@@ -29,6 +29,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/tenancy"
 )
 
+
 var (
 	_ extension.Extension             = (*server)(nil)
 	_ extensioncapabilities.Dependent = (*server)(nil)
