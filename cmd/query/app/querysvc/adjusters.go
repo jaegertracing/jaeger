@@ -7,7 +7,7 @@ package querysvc
 import (
 	"time"
 
-	"github.com/jaegertracing/jaeger/model/adjuster"
+	"github.com/jaegertracing/jaeger/internal/adjuster"
 )
 
 // StandardAdjusters is a list of model adjusters applied by the query service
