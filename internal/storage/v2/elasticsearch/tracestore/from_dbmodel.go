@@ -22,13 +22,10 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/dbmodel"
 )
 
-var (
-	blankJaegerProtoSpan = new(dbmodel.Span)
-	errType              = errors.New("invalid type")
-)
+var errType = errors.New("invalid type")
 
 // FromDBModel converts multiple ES DB Spans to internal traces
-func FromDBModel(spans []*dbmodel.Span) (ptrace.Traces, error) {
+func FromDBModel(spans []dbmodel.Span) (ptrace.Traces, error) {
 	traceData := ptrace.NewTraces()
 	if len(spans) == 0 {
 		return traceData, nil
@@ -58,21 +55,22 @@ func dbProcessToResource(process dbmodel.Process, resource pcommon.Resource) {
 	dbTagsToAttributes(tags, attrs)
 }
 
-func dbSpansToSpans(dbSpans []*dbmodel.Span, resourceSpans ptrace.ResourceSpansSlice) error {
-	for _, dbSpan := range dbSpans {
+func dbSpansToSpans(dbSpans []dbmodel.Span, resourceSpans ptrace.ResourceSpansSlice) error {
+	for i := range dbSpans {
 		// TODO why is this needed?
-		if dbSpan == nil || reflect.DeepEqual(dbSpan, blankJaegerProtoSpan) {
+		if reflect.DeepEqual(dbSpans[i], dbmodel.Span{}) {
 			continue
 		}
+		span := &dbSpans[i]
 		resourceSpan := resourceSpans.AppendEmpty()
-		dbProcessToResource(dbSpan.Process, resourceSpan.Resource())
+		dbProcessToResource(span.Process, resourceSpan.Resource())
 
 		scopeSpans := resourceSpan.ScopeSpans()
 		scopeSpan := scopeSpans.AppendEmpty()
-		dbSpanToScope(dbSpan, scopeSpan)
+		dbSpanToScope(span, scopeSpan)
 
 		// TODO there should be no errors returned from translation from db model
-		err := dbSpanToSpan(dbSpan, scopeSpan.Spans().AppendEmpty())
+		err := dbSpanToSpan(span, scopeSpan.Spans().AppendEmpty())
 		if err != nil {
 			return err
 		}

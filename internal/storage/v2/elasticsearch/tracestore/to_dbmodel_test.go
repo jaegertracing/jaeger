@@ -267,7 +267,7 @@ func TestToDBModel(t *testing.T) {
 	tests := []struct {
 		name string
 		td   ptrace.Traces
-		db   []*dbmodel.Span
+		db   []dbmodel.Span
 	}{
 		{
 			name: "empty",
@@ -282,17 +282,17 @@ func TestToDBModel(t *testing.T) {
 		{
 			name: "one-span-no-resources",
 			td:   generateTracesOneSpanNoResourceWithTraceState(),
-			db:   []*dbmodel.Span{generateProtoSpanWithTraceState()},
+			db:   []dbmodel.Span{generateProtoSpanWithTraceState()},
 		},
 		{
 			name: "library-info",
 			td:   generateTracesWithLibraryInfo(),
-			db:   []*dbmodel.Span{generateProtoSpanWithLibraryInfo("io.opentelemetry.test")},
+			db:   []dbmodel.Span{generateProtoSpanWithLibraryInfo("io.opentelemetry.test")},
 		},
 		{
 			name: "two-spans-child-parent",
 			td:   generateTracesTwoSpansChildParent(),
-			db: []*dbmodel.Span{
+			db: []dbmodel.Span{
 				generateProtoSpan(),
 				generateProtoChildSpan(),
 			},
@@ -301,7 +301,7 @@ func TestToDBModel(t *testing.T) {
 		{
 			name: "two-spans-with-follower",
 			td:   generateTracesTwoSpansWithFollower(),
-			db: []*dbmodel.Span{
+			db: []dbmodel.Span{
 				generateProtoSpan(),
 				generateProtoFollowerSpan(),
 			},
@@ -310,12 +310,12 @@ func TestToDBModel(t *testing.T) {
 		{
 			name: "span-with-span-event-attribute",
 			td:   generateTracesOneSpanNoResourceWithEventAttribute(),
-			db:   []*dbmodel.Span{generateJProtoSpanWithEventAttribute()},
+			db:   []dbmodel.Span{generateJProtoSpanWithEventAttribute()},
 		},
 		{
 			name: "a-spans-with-two-parent",
 			td:   generateTracesSpanWithTwoParents(),
-			db: []*dbmodel.Span{
+			db: []dbmodel.Span{
 				generateProtoSpan(),
 				generateProtoFollowerSpan(),
 				generateProtoTwoParentsSpan(),
@@ -344,7 +344,7 @@ func generateTracesOneSpanNoResourceWithEventAttribute() ptrace.Traces {
 	return td
 }
 
-func generateJProtoSpanWithEventAttribute() *dbmodel.Span {
+func generateJProtoSpanWithEventAttribute() dbmodel.Span {
 	span := generateProtoSpan()
 	span.Logs[0].Fields = []dbmodel.KeyValue{
 		{
