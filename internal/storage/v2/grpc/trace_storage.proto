@@ -6,7 +6,7 @@ import "google/protobuf/duration.proto";
 import "google/protobuf/timestamp.proto";
 import "opentelemetry/proto/trace/v1/trace.proto";
 
-option go_package = "storage";
+option go_package = "/test";
 
 // GetTraceParams represents the query for a single trace from the storage backend.
 message GetTraceParams {
