@@ -7,272 +7,194 @@
 package tracestore
 
 import (
-	"encoding/binary"
+	"encoding/hex"
 	"errors"
 	"fmt"
-	"hash/fnv"
 	"reflect"
 	"strconv"
 	"strings"
 
-	idutils "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/core/xidutils"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	conventions "go.opentelemetry.io/collector/semconv/v1.16.0"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/dbmodel"
 )
 
-var blankJaegerProtoSpan = new(model.Span)
-
-const (
-	attributeExporterVersion = "opencensus.exporterversion"
+var (
+	blankJaegerProtoSpan = new(dbmodel.Span)
+	errType              = errors.New("invalid type")
 )
 
-var errType = errors.New("invalid type")
-
-// ProtoToTraces converts multiple Jaeger proto batches to internal traces
-func ProtoToTraces(batches []*model.Batch) (ptrace.Traces, error) {
+// FromDBModel converts multiple ES DB Spans to internal traces
+func FromDBModel(spans []*dbmodel.Span) (ptrace.Traces, error) {
 	traceData := ptrace.NewTraces()
-	if len(batches) == 0 {
+	if len(spans) == 0 {
 		return traceData, nil
 	}
 
-	batches = regroup(batches)
-	rss := traceData.ResourceSpans()
-	rss.EnsureCapacity(len(batches))
+	resourceSpans := traceData.ResourceSpans()
+	resourceSpans.EnsureCapacity(len(spans))
+	err := dbSpansToSpans(spans, resourceSpans)
 
-	for _, batch := range batches {
-		if batch.GetProcess() == nil && len(batch.GetSpans()) == 0 {
-			continue
-		}
-
-		protoBatchToResourceSpans(*batch, rss.AppendEmpty())
-	}
-
-	return traceData, nil
+	return traceData, err
 }
 
-func regroup(batches []*model.Batch) []*model.Batch {
-	// Re-group batches
-	// This is needed as there might be a Process within Batch and Span at the same
-	// time, with the span one taking precedence.
-	// As we only have it at one level in OpenTelemetry, ResourceSpans, we split
-	// each batch into potentially multiple other batches, with the sum of their
-	// processes as the key to a map.
-	// Step 1) iterate over the batches
-	// Step 2) for each batch, calculate the batch's process checksum and store
-	// it on a map, with the checksum as the key and the process as the value
-	// Step 3) iterate the spans for a batch: if a given span has its own process,
-	// calculate the checksum for the process and store it on the same map
-	// Step 4) each entry on the map becomes a ResourceSpan
-	registry := map[uint64]*model.Batch{}
-
-	for _, batch := range batches {
-		bb := batchForProcess(registry, batch.Process)
-		for _, span := range batch.Spans {
-			if span.Process == nil {
-				bb.Spans = append(bb.Spans, span)
-			} else {
-				b := batchForProcess(registry, span.Process)
-				b.Spans = append(b.Spans, span)
-			}
-		}
-	}
-
-	result := make([]*model.Batch, 0, len(registry))
-	for _, v := range registry {
-		result = append(result, v)
-	}
-
-	return result
-}
-
-func batchForProcess(registry map[uint64]*model.Batch, p *model.Process) *model.Batch {
-	sum := checksum(p)
-	batch := registry[sum]
-	if batch == nil {
-		batch = &model.Batch{
-			Process: p,
-		}
-		registry[sum] = batch
-	}
-
-	return batch
-}
-
-func checksum(process *model.Process) uint64 {
-	// this will get all the keys and values, plus service name, into this buffer
-	// this is potentially dangerous, as a batch/span with a big enough processes
-	// might cause the collector to allocate this extra big information
-	// for this reason, we hash it as an integer and return it, instead of keeping
-	// all the hashes for all the processes for all batches in memory
-	fnvHash := fnv.New64a()
-
-	if process != nil {
-		// this effectively means that all spans from batches with nil processes
-		// will be grouped together
-		// this should only ever happen in unit tests
-		// this implementation never returns an error according to the Hash interface
-		_ = process.Hash(fnvHash)
-	}
-
-	out := make([]byte, 0, 16)
-	out = fnvHash.Sum(out)
-	return binary.BigEndian.Uint64(out)
-}
-
-func protoBatchToResourceSpans(batch model.Batch, dest ptrace.ResourceSpans) {
-	jSpans := batch.GetSpans()
-
-	jProcessToInternalResource(batch.GetProcess(), dest.Resource())
-
-	if len(jSpans) == 0 {
-		return
-	}
-
-	jSpansToInternal(jSpans, dest.ScopeSpans())
-}
-
-func jProcessToInternalResource(process *model.Process, dest pcommon.Resource) {
-	if process == nil || process.ServiceName == noServiceName {
-		return
-	}
-
+func dbProcessToResource(process dbmodel.Process, resource pcommon.Resource) {
 	serviceName := process.ServiceName
 	tags := process.Tags
 	if serviceName == "" && tags == nil {
 		return
 	}
 
-	attrs := dest.Attributes()
-	if serviceName != "" {
+	attrs := resource.Attributes()
+	if serviceName != "" && serviceName != noServiceName {
 		attrs.EnsureCapacity(len(tags) + 1)
 		attrs.PutStr(conventions.AttributeServiceName, serviceName)
 	} else {
 		attrs.EnsureCapacity(len(tags))
 	}
-	jTagsToInternalAttributes(tags, attrs)
-
-	// Handle special keys translations.
-	translateHostnameAttr(attrs)
-	translateJaegerVersionAttr(attrs)
+	dbTagsToAttributes(tags, attrs)
 }
 
-// translateHostnameAttr translates "hostname" atttribute
-func translateHostnameAttr(attrs pcommon.Map) {
-	hostname, hostnameFound := attrs.Get("hostname")
-	_, convHostNameFound := attrs.Get(conventions.AttributeHostName)
-	if hostnameFound && !convHostNameFound {
-		hostname.CopyTo(attrs.PutEmpty(conventions.AttributeHostName))
-		attrs.Remove("hostname")
-	}
-}
-
-// translateHostnameAttr translates "jaeger.version" atttribute
-func translateJaegerVersionAttr(attrs pcommon.Map) {
-	jaegerVersion, jaegerVersionFound := attrs.Get("jaeger.version")
-	_, exporterVersionFound := attrs.Get(attributeExporterVersion)
-	if jaegerVersionFound && !exporterVersionFound {
-		attrs.PutStr(attributeExporterVersion, "Jaeger-"+jaegerVersion.Str())
-		attrs.Remove("jaeger.version")
-	}
-}
-
-type scope struct {
-	name, version string
-}
-
-func jSpansToInternal(spans []*model.Span, dest ptrace.ScopeSpansSlice) {
-	spansByLibrary := make(map[scope]ptrace.SpanSlice)
-
-	for _, span := range spans {
-		if span == nil || reflect.DeepEqual(span, blankJaegerProtoSpan) {
+func dbSpansToSpans(dbSpans []*dbmodel.Span, resourceSpans ptrace.ResourceSpansSlice) error {
+	for _, dbSpan := range dbSpans {
+		// TODO why is this needed?
+		if dbSpan == nil || reflect.DeepEqual(dbSpan, blankJaegerProtoSpan) {
 			continue
 		}
-		il := getScope(span)
-		sps, found := spansByLibrary[il]
-		if !found {
-			ss := dest.AppendEmpty()
-			ss.Scope().SetName(il.name)
-			ss.Scope().SetVersion(il.version)
-			sps = ss.Spans()
-			spansByLibrary[il] = sps
+		resourceSpan := resourceSpans.AppendEmpty()
+		dbProcessToResource(dbSpan.Process, resourceSpan.Resource())
+
+		scopeSpans := resourceSpan.ScopeSpans()
+		scopeSpan := scopeSpans.AppendEmpty()
+		dbSpanToScope(dbSpan, scopeSpan)
+
+		// TODO there should be no errors returned from translation from db model
+		err := dbSpanToSpan(dbSpan, scopeSpan.Spans().AppendEmpty())
+		if err != nil {
+			return err
 		}
-		jSpanToInternal(span, sps.AppendEmpty())
 	}
+	return nil
 }
 
-func jSpanToInternal(span *model.Span, dest ptrace.Span) {
-	dest.SetTraceID(idutils.UInt64ToTraceID(span.TraceID.High, span.TraceID.Low))
-	dest.SetSpanID(idutils.UInt64ToSpanID(uint64(span.SpanID)))
-	dest.SetName(span.OperationName)
-	dest.SetStartTimestamp(pcommon.NewTimestampFromTime(span.StartTime))
-	dest.SetEndTimestamp(pcommon.NewTimestampFromTime(span.StartTime.Add(span.Duration)))
-
-	parentSpanID := span.ParentSpanID()
-	if parentSpanID != model.SpanID(0) {
-		dest.SetParentSpanID(idutils.UInt64ToSpanID(uint64(parentSpanID)))
+func dbSpanToSpan(dbSpan *dbmodel.Span, span ptrace.Span) error {
+	traceId, err := fromDbTraceId(dbSpan.TraceID)
+	if err != nil {
+		return err
 	}
+	spanId, err := fromDbSpanId(dbSpan.SpanID)
+	if err != nil {
+		return err
+	}
+	if dbSpan.ParentSpanID != "" {
+		parentSpanId, err := fromDbSpanId(dbSpan.ParentSpanID)
+		if err != nil {
+			return err
+		}
+		span.SetParentSpanID(parentSpanId)
+	}
+	span.SetTraceID(traceId)
+	span.SetSpanID(spanId)
+	span.SetName(dbSpan.OperationName)
 
-	attrs := dest.Attributes()
-	attrs.EnsureCapacity(len(span.Tags))
-	jTagsToInternalAttributes(span.Tags, attrs)
+	startTime := model.EpochMicrosecondsAsTime(dbSpan.StartTime)
+	span.SetStartTimestamp(pcommon.NewTimestampFromTime(startTime))
+
+	duration := model.MicrosecondsAsDuration(dbSpan.Duration)
+	endTime := startTime.Add(duration)
+	span.SetEndTimestamp(pcommon.NewTimestampFromTime(endTime))
+
+	// TODO rewrite this to use a single loop over tags
+	// and map special tag names to OTEL Span fields
+	attrs := span.Attributes()
+	attrs.EnsureCapacity(len(dbSpan.Tags))
+	dbTagsToAttributes(dbSpan.Tags, attrs)
 	if spanKindAttr, ok := attrs.Get(model.SpanKindKey); ok {
-		dest.SetKind(jSpanKindToInternal(spanKindAttr.Str()))
+		span.SetKind(dbSpanKindToOTELSpanKind(spanKindAttr.Str()))
 		attrs.Remove(model.SpanKindKey)
 	}
-	setInternalSpanStatus(attrs, dest)
+	setSpanStatus(attrs, span)
 
-	dest.TraceState().FromRaw(getTraceStateFromAttrs(attrs))
+	span.TraceState().FromRaw(getTraceStateFromAttrs(attrs))
 
 	// drop the attributes slice if all of them were replaced during translation
 	if attrs.Len() == 0 {
 		attrs.Clear()
 	}
-
-	jLogsToSpanEvents(span.Logs, dest.Events())
-	jReferencesToSpanLinks(span.References, parentSpanID, dest.Links())
+	dbParentSpanId := getParentSpanId(dbSpan)
+	if dbParentSpanId != "" {
+		parentSpanId, err := fromDbSpanId(dbParentSpanId)
+		if err != nil {
+			return err
+		}
+		span.SetParentSpanID(parentSpanId)
+	}
+	dbSpanLogsToSpanEvents(dbSpan.Logs, span.Events())
+	return dbSpanRefsToSpanEvents(dbSpan.References, dbParentSpanId, span.Links())
 }
 
-func jTagsToInternalAttributes(tags []model.KeyValue, dest pcommon.Map) {
+func dbTagsToAttributes(tags []dbmodel.KeyValue, attributes pcommon.Map) {
 	for _, tag := range tags {
-		switch tag.GetVType() {
-		case model.ValueType_STRING:
-			dest.PutStr(tag.Key, tag.GetVStr())
-		case model.ValueType_BOOL:
-			dest.PutBool(tag.Key, tag.GetVBool())
-		case model.ValueType_INT64:
-			dest.PutInt(tag.Key, tag.GetVInt64())
-		case model.ValueType_FLOAT64:
-			dest.PutDouble(tag.Key, tag.GetVFloat64())
-		case model.ValueType_BINARY:
-			dest.PutEmptyBytes(tag.Key).FromRaw(tag.GetVBinary())
+		tagValue, ok := tag.Value.(string)
+		if !ok {
+			// We have to do this as we are unsure that whether bool will be a string or a bool
+			tagBoolVal, boolOk := tag.Value.(bool)
+			if boolOk && tag.Type == dbmodel.BoolType {
+				attributes.PutBool(tag.Key, tagBoolVal)
+			} else {
+				attributes.PutStr(tag.Key, "Got non string inputValue for the key "+tag.Key)
+			}
+			continue
+		}
+		switch tag.Type {
+		case dbmodel.StringType:
+			attributes.PutStr(tag.Key, tagValue)
+		case dbmodel.BoolType:
+			convBoolVal, err := strconv.ParseBool(tagValue)
+			if err != nil {
+				recordTagConversionError(tag, err, attributes)
+			} else {
+				attributes.PutBool(tag.Key, convBoolVal)
+			}
+		case dbmodel.Int64Type:
+			intVal, err := strconv.ParseInt(tagValue, 10, 64)
+			if err != nil {
+				recordTagConversionError(tag, err, attributes)
+			} else {
+				attributes.PutInt(tag.Key, intVal)
+			}
+		case dbmodel.Float64Type:
+			floatVal, err := strconv.ParseFloat(tagValue, 64)
+			if err != nil {
+				recordTagConversionError(tag, err, attributes)
+			} else {
+				attributes.PutDouble(tag.Key, floatVal)
+			}
+		case dbmodel.BinaryType:
+			value, err := hex.DecodeString(tagValue)
+			if err != nil {
+				recordTagConversionError(tag, err, attributes)
+			} else {
+				attributes.PutEmptyBytes(tag.Key).FromRaw(value)
+			}
 		default:
-			dest.PutStr(tag.Key, fmt.Sprintf("<Unknown Jaeger TagType %q>", tag.GetVType()))
+			attributes.PutStr(tag.Key, fmt.Sprintf("<Unknown Jaeger TagType %q>", tag.Type))
 		}
 	}
 }
 
-func setInternalSpanStatus(attrs pcommon.Map, span ptrace.Span) {
+func recordTagConversionError(kv dbmodel.KeyValue, err error, dest pcommon.Map) {
+	dest.PutStr(kv.Key, fmt.Sprintf("Can't convert the type %s for the key %s: %v", string(kv.Type), kv.Key, err))
+}
+
+func setSpanStatus(attrs pcommon.Map, span ptrace.Span) {
 	dest := span.Status()
 	statusCode := ptrace.StatusCodeUnset
 	statusMessage := ""
 	statusExists := false
-
-	if errorVal, ok := attrs.Get(tagError); ok && errorVal.Type() == pcommon.ValueTypeBool {
-		if errorVal.Bool() {
-			statusCode = ptrace.StatusCodeError
-			attrs.Remove(tagError)
-			statusExists = true
-
-			if desc, ok := extractStatusDescFromAttr(attrs); ok {
-				statusMessage = desc
-			} else if descAttr, ok := attrs.Get(tagHTTPStatusMsg); ok {
-				statusMessage = descAttr.Str()
-			}
-		}
-	}
 
 	if codeAttr, ok := attrs.Get(conventions.OtelStatusCode); ok {
 		if !statusExists {
@@ -291,7 +213,7 @@ func setInternalSpanStatus(attrs pcommon.Map, span ptrace.Span) {
 				statusMessage = desc
 			}
 		}
-		// Regardless of error tag value, remove the otel.status_code tag. The
+		// Regardless of error tag inputValue, remove the otel.status_code tag. The
 		// otel.status_message tag will have already been removed if
 		// statusExists is true.
 		attrs.Remove(conventions.OtelStatusCode)
@@ -330,9 +252,9 @@ func extractStatusDescFromAttr(attrs pcommon.Map) (string, bool) {
 	return "", false
 }
 
-// codeFromAttr returns the integer code value from attrVal. An error is
-// returned if the code is not represented by an integer or string value in
-// the attrVal or the value is outside the bounds of an int representation.
+// codeFromAttr returns the integer code inputValue from attrVal. An error is
+// returned if the code is not represented by an integer or string inputValue in
+// the attrVal or the inputValue is outside the bounds of an int representation.
 func codeFromAttr(attrVal pcommon.Value) (int64, error) {
 	var val int64
 	switch attrVal.Type() {
@@ -381,7 +303,7 @@ func statusCodeFromHTTP(httpStatusCode int64) ptrace.StatusCode {
 	return ptrace.StatusCodeError
 }
 
-func jSpanKindToInternal(spanKind string) ptrace.SpanKind {
+func dbSpanKindToOTELSpanKind(spanKind string) ptrace.SpanKind {
 	switch spanKind {
 	case "client":
 		return ptrace.SpanKindClient
@@ -397,29 +319,29 @@ func jSpanKindToInternal(spanKind string) ptrace.SpanKind {
 	return ptrace.SpanKindUnspecified
 }
 
-func jLogsToSpanEvents(logs []model.Log, dest ptrace.SpanEventSlice) {
+func dbSpanLogsToSpanEvents(logs []dbmodel.Log, events ptrace.SpanEventSlice) {
 	if len(logs) == 0 {
 		return
 	}
 
-	dest.EnsureCapacity(len(logs))
+	events.EnsureCapacity(len(logs))
 
 	for i, log := range logs {
 		var event ptrace.SpanEvent
-		if dest.Len() > i {
-			event = dest.At(i)
+		if events.Len() > i {
+			event = events.At(i)
 		} else {
-			event = dest.AppendEmpty()
+			event = events.AppendEmpty()
 		}
 
-		event.SetTimestamp(pcommon.NewTimestampFromTime(log.Timestamp))
+		event.SetTimestamp(pcommon.NewTimestampFromTime(model.EpochMicrosecondsAsTime(log.Timestamp)))
 		if len(log.Fields) == 0 {
 			continue
 		}
 
 		attrs := event.Attributes()
 		attrs.EnsureCapacity(len(log.Fields))
-		jTagsToInternalAttributes(log.Fields, attrs)
+		dbTagsToAttributes(log.Fields, attrs)
 		if name, ok := attrs.Get(eventNameAttr); ok {
 			event.SetName(name.Str())
 			attrs.Remove(eventNameAttr)
@@ -427,23 +349,32 @@ func jLogsToSpanEvents(logs []model.Log, dest ptrace.SpanEventSlice) {
 	}
 }
 
-// jReferencesToSpanLinks sets internal span links based on jaeger span references skipping excludeParentID
-func jReferencesToSpanLinks(refs []model.SpanRef, excludeParentID model.SpanID, dest ptrace.SpanLinkSlice) {
-	if len(refs) == 0 || len(refs) == 1 && refs[0].SpanID == excludeParentID && refs[0].RefType == model.ChildOf {
-		return
+// dbSpanRefsToSpanEvents sets internal span links based on db references skipping excludeParentID
+func dbSpanRefsToSpanEvents(refs []dbmodel.Reference, excludeParentID dbmodel.SpanID, spanLinks ptrace.SpanLinkSlice) error {
+	if len(refs) == 0 || len(refs) == 1 && refs[0].SpanID == excludeParentID && refs[0].RefType == dbmodel.ChildOf {
+		return nil
 	}
 
-	dest.EnsureCapacity(len(refs))
+	spanLinks.EnsureCapacity(len(refs))
 	for _, ref := range refs {
-		if ref.SpanID == excludeParentID && ref.RefType == model.ChildOf {
+		if ref.SpanID == excludeParentID && ref.RefType == dbmodel.ChildOf {
 			continue
 		}
 
-		link := dest.AppendEmpty()
-		link.SetTraceID(idutils.UInt64ToTraceID(ref.TraceID.High, ref.TraceID.Low))
-		link.SetSpanID(idutils.UInt64ToSpanID(uint64(ref.SpanID)))
-		link.Attributes().PutStr(conventions.AttributeOpentracingRefType, jRefTypeToAttribute(ref.RefType))
+		link := spanLinks.AppendEmpty()
+		refTraceId, err := fromDbTraceId(ref.TraceID)
+		if err != nil {
+			return err
+		}
+		refSpanId, err := fromDbSpanId(ref.SpanID)
+		if err != nil {
+			return err
+		}
+		link.SetTraceID(refTraceId)
+		link.SetSpanID(refSpanId)
+		link.Attributes().PutStr(conventions.AttributeOpentracingRefType, dbRefTypeToAttribute(ref.RefType))
 	}
+	return nil
 }
 
 func getTraceStateFromAttrs(attrs pcommon.Map) string {
@@ -456,30 +387,29 @@ func getTraceStateFromAttrs(attrs pcommon.Map) string {
 	return traceState
 }
 
-func getScope(span *model.Span) scope {
-	il := scope{}
+func dbSpanToScope(span *dbmodel.Span, scopeSpan ptrace.ScopeSpans) {
 	if libraryName, ok := getAndDeleteTag(span, conventions.AttributeOtelScopeName); ok {
-		il.name = libraryName
+		scopeSpan.Scope().SetName(libraryName)
 		if libraryVersion, ok := getAndDeleteTag(span, conventions.AttributeOtelScopeVersion); ok {
-			il.version = libraryVersion
+			scopeSpan.Scope().SetVersion(libraryVersion)
 		}
 	}
-	return il
 }
 
-func getAndDeleteTag(span *model.Span, key string) (string, bool) {
+func getAndDeleteTag(span *dbmodel.Span, key string) (string, bool) {
 	for i := range span.Tags {
 		if span.Tags[i].Key == key {
-			value := span.Tags[i].GetVStr()
-			span.Tags = append(span.Tags[:i], span.Tags[i+1:]...)
-			return value, true
+			if val, ok := span.Tags[i].Value.(string); ok {
+				span.Tags = append(span.Tags[:i], span.Tags[i+1:]...)
+				return val, true
+			}
 		}
 	}
 	return "", false
 }
 
-func jRefTypeToAttribute(ref model.SpanRefType) string {
-	if ref == model.ChildOf {
+func dbRefTypeToAttribute(ref dbmodel.ReferenceType) string {
+	if ref == dbmodel.ChildOf {
 		return conventions.AttributeOpentracingRefTypeChildOf
 	}
 	return conventions.AttributeOpentracingRefTypeFollowsFrom
