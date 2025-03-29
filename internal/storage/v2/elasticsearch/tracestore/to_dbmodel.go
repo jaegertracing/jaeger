@@ -20,7 +20,6 @@ const (
 	eventNameAttr    = "event"
 	statusError      = "ERROR"
 	statusOk         = "OK"
-	tagError         = "error"
 	tagW3CTraceState = "w3c.tracestate"
 	tagHTTPStatusMsg = "http.status_message"
 )
@@ -119,14 +118,12 @@ func attributeToDbTag(key string, attr pcommon.Value) dbmodel.KeyValue {
 func spanToDbSpan(span ptrace.Span, libraryTags pcommon.InstrumentationScope, process dbmodel.Process) *dbmodel.Span {
 	traceID := dbmodel.TraceID(span.TraceID().String())
 	parentSpanID := dbmodel.SpanID(span.ParentSpanID().String())
-	jReferences := linksToDbSpanRefs(span.Links(), parentSpanID, traceID)
-
 	startTime := span.StartTimestamp().AsTime()
 	return &dbmodel.Span{
 		TraceID:       traceID,
 		SpanID:        dbmodel.SpanID(span.SpanID().String()),
 		OperationName: span.Name(),
-		References:    jReferences,
+		References:    linksToDbSpanRefs(span.Links(), parentSpanID, traceID),
 		StartTime:     model.TimeAsEpochMicroseconds(startTime),
 		Duration:      model.DurationAsMicroseconds(span.EndTimestamp().AsTime().Sub(startTime)),
 		Tags:          getDbSpanTags(span, libraryTags),
@@ -136,8 +133,8 @@ func spanToDbSpan(span ptrace.Span, libraryTags pcommon.InstrumentationScope, pr
 }
 
 func getDbSpanTags(span ptrace.Span, scope pcommon.InstrumentationScope) []dbmodel.KeyValue {
-	var spanKindTag, statusCodeTag, errorTag, statusMsgTag dbmodel.KeyValue
-	var spanKindTagFound, statusCodeTagFound, errorTagFound, statusMsgTagFound bool
+	var spanKindTag, statusCodeTag, statusMsgTag dbmodel.KeyValue
+	var spanKindTagFound, statusCodeTagFound, statusMsgTagFound bool
 
 	libraryTags, libraryTagsFound := getTagsFromInstrumentationLibrary(scope)
 
@@ -150,11 +147,6 @@ func getDbSpanTags(span ptrace.Span, scope pcommon.InstrumentationScope) []dbmod
 	status := span.Status()
 	statusCodeTag, statusCodeTagFound = getTagFromStatusCode(status.Code())
 	if statusCodeTagFound {
-		tagsCount++
-	}
-
-	errorTag, errorTagFound = getErrorTagFromStatusCode(status.Code())
-	if errorTagFound {
 		tagsCount++
 	}
 
@@ -182,9 +174,6 @@ func getDbSpanTags(span ptrace.Span, scope pcommon.InstrumentationScope) []dbmod
 	}
 	if statusCodeTagFound {
 		tags = append(tags, statusCodeTag)
-	}
-	if errorTagFound {
-		tags = append(tags, errorTag)
 	}
 	if statusMsgTagFound {
 		tags = append(tags, statusMsgTag)
@@ -303,17 +292,6 @@ func getTagFromStatusCode(statusCode ptrace.StatusCode) (dbmodel.KeyValue, bool)
 			Key:   conventions.OtelStatusCode,
 			Type:  dbmodel.StringType,
 			Value: statusOk,
-		}, true
-	}
-	return dbmodel.KeyValue{}, false
-}
-
-func getErrorTagFromStatusCode(statusCode ptrace.StatusCode) (dbmodel.KeyValue, bool) {
-	if statusCode == ptrace.StatusCodeError {
-		return dbmodel.KeyValue{
-			Key:   tagError,
-			Value: true,
-			Type:  dbmodel.BoolType,
 		}, true
 	}
 	return dbmodel.KeyValue{}, false

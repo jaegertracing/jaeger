@@ -8,7 +8,6 @@ package tracestore
 
 import (
 	"encoding/hex"
-	"net/http"
 	"strconv"
 	"testing"
 	"time"
@@ -403,8 +402,6 @@ func TestFromDBModelForTracesWithTwoLibraries(t *testing.T) {
 }
 
 func TestSetInternalSpanStatus(t *testing.T) {
-	emptyStatus := ptrace.NewStatus()
-
 	okStatus := ptrace.NewStatus()
 	okStatus.SetCode(ptrace.StatusCodeOk)
 
@@ -427,19 +424,6 @@ func TestSetInternalSpanStatus(t *testing.T) {
 		attrsModifiedLen int // Length of attributes map after dropping converted fields
 	}{
 		{
-			name:             "No tags set -> OK status",
-			status:           emptyStatus,
-			attrsModifiedLen: 0,
-		},
-		{
-			name: "error tag set -> Error status",
-			attrs: map[string]any{
-				tagError: true,
-			},
-			status:           errorStatus,
-			attrsModifiedLen: 0,
-		},
-		{
 			name: "status.code is set as string",
 			attrs: map[string]any{
 				conventions.OtelStatusCode: statusOk,
@@ -450,7 +434,6 @@ func TestSetInternalSpanStatus(t *testing.T) {
 		{
 			name: "status.code, status.message and error tags are set",
 			attrs: map[string]any{
-				tagError:                          true,
 				conventions.OtelStatusCode:        statusError,
 				conventions.OtelStatusDescription: "Error: Invalid argument",
 			},
@@ -468,7 +451,6 @@ func TestSetInternalSpanStatus(t *testing.T) {
 		{
 			name: "http.status_code, http.status_message and error tags are set",
 			attrs: map[string]any{
-				tagError:                            true,
 				conventions.AttributeHTTPStatusCode: 404,
 				tagHTTPStatusMsg:                    "HTTP 404: Not Found",
 			},
@@ -486,15 +468,6 @@ func TestSetInternalSpanStatus(t *testing.T) {
 			attrsModifiedLen: 2,
 		},
 		{
-			name: "Ignore http.status_code == 200 if error set to true.",
-			attrs: map[string]any{
-				tagError:                            true,
-				conventions.AttributeHTTPStatusCode: http.StatusOK,
-			},
-			status:           errorStatus,
-			attrsModifiedLen: 1,
-		},
-		{
 			name: "status.error has precedence over http.status_error.",
 			attrs: map[string]any{
 				conventions.OtelStatusCode:          statusError,
@@ -502,16 +475,6 @@ func TestSetInternalSpanStatus(t *testing.T) {
 				tagHTTPStatusMsg:                    "Server Error",
 			},
 			status:           errorStatus,
-			attrsModifiedLen: 2,
-		},
-		{
-			name: "the 4xx range span status MUST be left unset in case of SpanKind.SERVER",
-			kind: ptrace.SpanKindServer,
-			attrs: map[string]any{
-				tagError:                            false,
-				conventions.AttributeHTTPStatusCode: 404,
-			},
-			status:           emptyStatus,
 			attrsModifiedLen: 2,
 		},
 		{
@@ -751,11 +714,6 @@ func generateProtoSpan() *dbmodel.Span {
 				Value: statusError,
 			},
 			{
-				Key:   tagError,
-				Value: true,
-				Type:  dbmodel.BoolType,
-			},
-			{
 				Key:   conventions.OtelStatusDescription,
 				Type:  dbmodel.StringType,
 				Value: "status-cancelled",
@@ -838,11 +796,6 @@ func generateProtoSpanWithTraceState() *dbmodel.Span {
 				Key:   conventions.OtelStatusCode,
 				Type:  dbmodel.StringType,
 				Value: statusError,
-			},
-			{
-				Key:   tagError,
-				Value: true,
-				Type:  dbmodel.BoolType,
 			},
 			{
 				Key:   conventions.OtelStatusDescription,

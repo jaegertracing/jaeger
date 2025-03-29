@@ -196,20 +196,6 @@ func setSpanStatus(attrs pcommon.Map, span ptrace.Span) {
 	statusMessage := ""
 	statusExists := false
 
-	if errorVal, ok := attrs.Get(tagError); ok && errorVal.Type() == pcommon.ValueTypeBool {
-		if errorVal.Bool() {
-			statusCode = ptrace.StatusCodeError
-			attrs.Remove(tagError)
-			statusExists = true
-
-			if desc, ok := extractStatusDescFromAttr(attrs); ok {
-				statusMessage = desc
-			} else if descAttr, ok := attrs.Get(tagHTTPStatusMsg); ok {
-				statusMessage = descAttr.Str()
-			}
-		}
-	}
-
 	if codeAttr, ok := attrs.Get(conventions.OtelStatusCode); ok {
 		if !statusExists {
 			// The error tag is the ultimate truth for a Jaeger spans' error

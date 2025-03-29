@@ -78,24 +78,6 @@ func TestEmptyLinkRefs(t *testing.T) {
 	assert.Equal(t, dbmodel.FollowsFrom, modelSpan.References[0].RefType)
 }
 
-func TestGetErrorTagFromStatusCode(t *testing.T) {
-	errTag := dbmodel.KeyValue{
-		Key:   tagError,
-		Value: true,
-		Type:  dbmodel.BoolType,
-	}
-
-	_, ok := getErrorTagFromStatusCode(ptrace.StatusCodeUnset)
-	assert.False(t, ok)
-
-	_, ok = getErrorTagFromStatusCode(ptrace.StatusCodeOk)
-	assert.False(t, ok)
-
-	got, ok := getErrorTagFromStatusCode(ptrace.StatusCodeError)
-	assert.True(t, ok)
-	assert.EqualValues(t, errTag, got)
-}
-
 func TestGetTagFromStatusMsg(t *testing.T) {
 	_, ok := getTagFromStatusMsg("")
 	assert.False(t, ok)
@@ -285,7 +267,7 @@ func TestToDBModel(t *testing.T) {
 	tests := []struct {
 		name string
 		td   ptrace.Traces
-		jb   []*dbmodel.Span
+		db   []*dbmodel.Span
 	}{
 		{
 			name: "empty",
@@ -300,17 +282,17 @@ func TestToDBModel(t *testing.T) {
 		{
 			name: "one-span-no-resources",
 			td:   generateTracesOneSpanNoResourceWithTraceState(),
-			jb:   []*dbmodel.Span{generateProtoSpanWithTraceState()},
+			db:   []*dbmodel.Span{generateProtoSpanWithTraceState()},
 		},
 		{
 			name: "library-info",
 			td:   generateTracesWithLibraryInfo(),
-			jb:   []*dbmodel.Span{generateProtoSpanWithLibraryInfo("io.opentelemetry.test")},
+			db:   []*dbmodel.Span{generateProtoSpanWithLibraryInfo("io.opentelemetry.test")},
 		},
 		{
 			name: "two-spans-child-parent",
 			td:   generateTracesTwoSpansChildParent(),
-			jb: []*dbmodel.Span{
+			db: []*dbmodel.Span{
 				generateProtoSpan(),
 				generateProtoChildSpan(),
 			},
@@ -319,7 +301,7 @@ func TestToDBModel(t *testing.T) {
 		{
 			name: "two-spans-with-follower",
 			td:   generateTracesTwoSpansWithFollower(),
-			jb: []*dbmodel.Span{
+			db: []*dbmodel.Span{
 				generateProtoSpan(),
 				generateProtoFollowerSpan(),
 			},
@@ -328,12 +310,12 @@ func TestToDBModel(t *testing.T) {
 		{
 			name: "span-with-span-event-attribute",
 			td:   generateTracesOneSpanNoResourceWithEventAttribute(),
-			jb:   []*dbmodel.Span{generateJProtoSpanWithEventAttribute()},
+			db:   []*dbmodel.Span{generateJProtoSpanWithEventAttribute()},
 		},
 		{
 			name: "a-spans-with-two-parent",
 			td:   generateTracesSpanWithTwoParents(),
-			jb: []*dbmodel.Span{
+			db: []*dbmodel.Span{
 				generateProtoSpan(),
 				generateProtoFollowerSpan(),
 				generateProtoTwoParentsSpan(),
@@ -344,11 +326,11 @@ func TestToDBModel(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			jbs := ToDBModel(test.td)
-			if test.jb == nil {
+			if test.db == nil {
 				assert.Empty(t, jbs)
 			} else {
-				require.Len(t, jbs, len(test.jb))
-				assert.EqualValues(t, test.jb, jbs)
+				require.Len(t, jbs, len(test.db))
+				assert.EqualValues(t, test.db, jbs)
 			}
 		})
 	}
