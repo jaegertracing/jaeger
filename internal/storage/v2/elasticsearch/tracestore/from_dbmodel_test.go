@@ -93,30 +93,6 @@ func TestEmptySpansAndProcess(t *testing.T) {
 	assert.Equal(t, 0, trace.ResourceSpans().Len())
 }
 
-func Test_translateHostnameAttr(t *testing.T) {
-	traceData := ptrace.NewTraces()
-	rss := traceData.ResourceSpans().AppendEmpty().Resource().Attributes()
-	rss.PutStr("hostname", "testing")
-	translateHostnameAttr(rss)
-	_, hostNameFound := rss.Get("hostname")
-	assert.False(t, hostNameFound)
-	convHostName, convHostNameFound := rss.Get(conventions.AttributeHostName)
-	assert.True(t, convHostNameFound)
-	assert.Equal(t, "testing", convHostName.AsString())
-}
-
-func Test_translateJaegerVersionAttr(t *testing.T) {
-	traceData := ptrace.NewTraces()
-	rss := traceData.ResourceSpans().AppendEmpty().Resource().Attributes()
-	rss.PutStr("jaeger.version", "1.0.0")
-	translateJaegerVersionAttr(rss)
-	_, jaegerVersionFound := rss.Get("jaeger.version")
-	assert.False(t, jaegerVersionFound)
-	exportVersion, exportVersionFound := rss.Get(attributeExporterVersion)
-	assert.True(t, exportVersionFound)
-	assert.Equal(t, "Jaeger-1.0.0", exportVersion.AsString())
-}
-
 func Test_setSpansFromDbSpans_EmptyOrNilSpans(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -135,7 +111,7 @@ func Test_setSpansFromDbSpans_EmptyOrNilSpans(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			traceData := ptrace.NewTraces()
 			rss := traceData.ResourceSpans()
-			err := setSpansFromDbSpans(tt.spans, rss)
+			err := dbSpansToSpans(tt.spans, rss)
 			require.NoError(t, err)
 			assert.Equal(t, 0, rss.Len())
 		})
@@ -149,7 +125,7 @@ func Test_setAttributesFromDbTags(t *testing.T) {
 		Key:  "testing-key",
 		Type: dbmodel.ValueType("wrong-type"),
 	}}
-	setAttributesFromDbTags(kv, rss)
+	dbTagsToAttributes(kv, rss)
 	testingKey, testingKeyFound := rss.Get("testing-key")
 	assert.True(t, testingKeyFound)
 	assert.Equal(t, "Got non string value for the key testing-key", testingKey.AsString())
@@ -237,7 +213,7 @@ func Test_SetSpanEventsFromDbSpanLogs(t *testing.T) {
 			Timestamp: model.TimeAsEpochMicroseconds(testSpanEventTime),
 		},
 	}
-	setSpanEventsFromDbSpanLogs(logs, span.Events())
+	dbSpanLogsToSpanEvents(logs, span.Events())
 	for i := 0; i < len(logs); i++ {
 		assert.Equal(t, testSpanEventTime, span.Events().At(i).Timestamp().AsTime())
 	}
@@ -282,7 +258,7 @@ func TestSetAttributesFromDbTags(t *testing.T) {
 	expected.PutEmptyBytes("binary-val").FromRaw([]byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x64, 0x7D, 0x98})
 
 	got := pcommon.NewMap()
-	setAttributesFromDbTags(tags, got)
+	dbTagsToAttributes(tags, got)
 
 	require.EqualValues(t, expected, got)
 }
