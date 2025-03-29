@@ -16,9 +16,9 @@ import (
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	_ "github.com/jaegertracing/jaeger/internal/gogocodec" // force gogo codec registration
+	"github.com/jaegertracing/jaeger/internal/proto-gen/storage_v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
-	"github.com/jaegertracing/jaeger/internal/proto-gen/storage_v1"
 )
 
 // BearerTokenKey is the key name for the bearer token context value.
