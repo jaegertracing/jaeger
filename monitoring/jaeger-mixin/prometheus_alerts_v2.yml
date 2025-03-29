@@ -1,0 +1,53 @@
+groups:
+- name: jaeger_alerts
+  rules:
+  - alert: OtelHttpServerErrors
+    annotations:
+      message: |
+        {{ $labels.job }} {{ $labels.instance }} is experiencing {{ printf "%.2f" $value }}% HTTP errors.
+    expr: |
+      100 * sum(rate(otelcol_http_server_duration_count{http_status_code=~"5.."}[1m])) by (instance, job) / 
+      sum(rate(otelcol_http_server_duration_count[1m])) by (instance, job) > 1
+    for: 15m
+    labels:
+      severity: warning
+
+  - alert: OtelExporterQueueFull
+    annotations:
+      message: |
+        {{ $labels.job }} {{ $labels.instance }} exporter queue is at {{ printf "%.2f" $value }} items (over 80% capacity).
+    expr: |
+      100 * otelcol_exporter_queue_size / otelcol_exporter_queue_capacity > 80
+    for: 15m
+    labels:
+      severity: warning
+
+  - alert: OtelHighMemoryUsage
+    annotations:
+      message: |
+        {{ $labels.job }} {{ $labels.instance }} memory usage is high at {{ humanize $value }} bytes.
+    expr: |
+      otelcol_process_memory_rss > 100000000
+    for: 15m
+    labels:
+      severity: warning
+
+  - alert: OtelHighCpuUsage
+    annotations:
+      message: |
+        {{ $labels.job }} {{ $labels.instance }} CPU usage is high ({{ printf "%.2f" $value }} seconds of CPU time in 5m).
+    expr: |
+      rate(otelcol_process_cpu_seconds[5m]) > 0.8
+    for: 15m
+    labels:
+      severity: warning
+
+  - alert: OtelProcessorBatchHighCardinality
+    annotations:
+      message: |
+        {{ $labels.job }} {{ $labels.instance }} has high metadata cardinality ({{ printf "%.0f" $value }} combinations).
+    expr: |
+      otelcol_processor_batch_metadata_cardinality > 1000
+    for: 15m
+    labels:
+      severity: warning
