@@ -10,7 +10,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"reflect"
 	"strconv"
 	"strings"
 
@@ -57,10 +56,6 @@ func dbProcessToResource(process dbmodel.Process, resource pcommon.Resource) {
 
 func dbSpansToSpans(dbSpans []dbmodel.Span, resourceSpans ptrace.ResourceSpansSlice) error {
 	for i := range dbSpans {
-		// TODO why is this needed?
-		if reflect.DeepEqual(dbSpans[i], dbmodel.Span{}) {
-			continue
-		}
 		span := &dbSpans[i]
 		resourceSpan := resourceSpans.AppendEmpty()
 		dbProcessToResource(span.Process, resourceSpan.Resource())

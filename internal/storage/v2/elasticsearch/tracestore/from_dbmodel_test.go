@@ -92,14 +92,6 @@ func TestEmptySpansAndProcess(t *testing.T) {
 	assert.Equal(t, 0, trace.ResourceSpans().Len())
 }
 
-func Test_setSpansFromDbSpans_EmptySpans(t *testing.T) {
-	traceData := ptrace.NewTraces()
-	rss := traceData.ResourceSpans()
-	err := dbSpansToSpans([]dbmodel.Span{{}}, rss)
-	require.NoError(t, err)
-	assert.Equal(t, 0, rss.Len())
-}
-
 func TestGetStatusCodeFromHTTPStatusAttr(t *testing.T) {
 	tests := []struct {
 		name string
