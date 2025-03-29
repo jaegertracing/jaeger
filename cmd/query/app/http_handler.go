@@ -30,7 +30,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	ui "github.com/jaegertracing/jaeger/model/json"
-	"github.com/jaegertracing/jaeger/proto-gen/api_v2/metrics"
+	"github.com/jaegertracing/jaeger/internal/proto-gen/api_v2/metrics"
 )
 
 const (

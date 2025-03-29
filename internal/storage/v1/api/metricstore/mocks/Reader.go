@@ -11,7 +11,7 @@ import (
 	context "context"
 
 	metricstore "github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
-	metrics "github.com/jaegertracing/jaeger/proto-gen/api_v2/metrics"
+	metrics "github.com/jaegertracing/jaeger/internal/proto-gen/api_v2/metrics"
 
 	mock "github.com/stretchr/testify/mock"
 

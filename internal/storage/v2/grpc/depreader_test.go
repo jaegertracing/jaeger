@@ -14,7 +14,7 @@ import (
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
-	"github.com/jaegertracing/jaeger/proto-gen/storage/v2"
+	"github.com/jaegertracing/jaeger/internal/proto-gen/storage/v2"
 )
 
 // testDependenciesServer implements the storage.DependencyReaderServer interface

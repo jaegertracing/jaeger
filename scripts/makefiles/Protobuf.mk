@@ -19,7 +19,8 @@ DOCKER_PROTOBUF_VERSION=0.5.0
 DOCKER_PROTOBUF=jaegertracing/protobuf:$(DOCKER_PROTOBUF_VERSION)
 PROTOC := ${DOCKER} run --rm -u ${shell id -u} -v${PWD}:${PWD} -w${PWD} ${DOCKER_PROTOBUF} --proto_path=${PWD}
 
-PATCHED_OTEL_PROTO_DIR = proto-gen/.patched-otel-proto
+PROTO_GEN=internal/proto-gen
+PATCHED_OTEL_PROTO_DIR = $(PROTO_GEN)/.patched-otel-proto
 
 PROTO_INCLUDES := \
 	-Iidl/proto/api_v2 \
@@ -87,7 +88,7 @@ proto: proto-storage-v1 \
 	proto-api-v3
 
 
-API_V2_PATCHED_DIR=proto-gen/.patched/api_v2
+API_V2_PATCHED_DIR=$(PROTO_GEN)/.patched/api_v2
 .PHONY: patch-api-v2
 patch-api-v2:
 	mkdir -p $(API_V2_PATCHED_DIR)
@@ -99,18 +100,18 @@ patch-api-v2:
 .PHONY: proto-openmetrics
 proto-openmetrics:
 	$(call print_caption, Processing OpenMetrics Protos)
-	$(foreach file,$(OPENMETRICS_PROTO_FILES),$(call proto_compile, proto-gen/api_v2/metrics, $(file)))
+	$(foreach file,$(OPENMETRICS_PROTO_FILES),$(call proto_compile, $(PROTO_GEN)/api_v2/metrics, $(file)))
 
 .PHONY: proto-storage-v1
 proto-storage-v1:
-	$(call proto_compile, proto-gen/storage_v1, internal/storage/v1/grpc/proto/storage.proto, -Iinternal/storage/v1/grpc/proto)
+	$(call proto_compile, $(PROTO_GEN)/storage_v1, internal/storage/v1/grpc/proto/storage.proto, -Iinternal/storage/v1/grpc/proto)
 	$(PROTOC) \
 		-Iinternal/storage/v1/grpc/proto \
 		--go_out=$(PWD)/internal/storage/v1/grpc/proto/ \
 		internal/storage/v1/grpc/proto/storage_test.proto
 
-STORAGE_V2_PATH=proto-gen/storage/v2
-STORAGE_V2_PATCHED_DIR=proto-gen/.patched/storage_v2
+STORAGE_V2_PATH=$(PROTO_GEN)/storage/v2
+STORAGE_V2_PATCHED_DIR=$(PROTO_GEN)/.patched/storage_v2
 STORAGE_V2_PATCHED_TRACE=$(STORAGE_V2_PATCHED_DIR)/trace_storage.proto
 STORAGE_V2_PATCHED_DEPENDENCY=$(STORAGE_V2_PATCHED_DIR)/dependency_storage.proto
 
@@ -118,10 +119,10 @@ STORAGE_V2_PATCHED_DEPENDENCY=$(STORAGE_V2_PATCHED_DIR)/dependency_storage.proto
 patch-storage-v2:
 	mkdir -p $(STORAGE_V2_PATCHED_DIR)
 	cat internal/storage/v2/grpc/trace_storage.proto | \
-		$(SED) -f ./proto-gen/patch.sed \
+		$(SED) -f ./$(PROTO_GEN)/patch.sed \
 		> $(STORAGE_V2_PATCHED_TRACE)
 	cat internal/storage/v2/grpc/dependency_storage.proto | \
-		$(SED) -f ./proto-gen/patch.sed \
+		$(SED) -f ./$(PROTO_GEN)/patch.sed \
 		> $(STORAGE_V2_PATCHED_DEPENDENCY)
 
 .PHONY: proto-storage-v2
@@ -139,7 +140,7 @@ proto-hotrod:
 
 .PHONY: proto-zipkin
 proto-zipkin:
-	$(call proto_compile, proto-gen/zipkin, idl/proto/zipkin.proto, -Iidl/proto)
+	$(call proto_compile, $(PROTO_GEN)/zipkin, idl/proto/zipkin.proto, -Iidl/proto)
 
 # The API v3 service uses official OTEL type opentelemetry.proto.trace.v1.TracesData,
 # which at runtime is mapped to a custom type in cmd/query/app/internal/api_v3/traces.go
@@ -148,13 +149,13 @@ proto-zipkin:
 # Note that the .pb.go types must be generated into the same internal package $(API_V3_PATH)
 # where a manually defined traces.go file is located.
 API_V3_PATH=internal/proto/api_v3
-API_V3_PATCHED_DIR=proto-gen/.patched/api_v3
+API_V3_PATCHED_DIR=$(PROTO_GEN)/.patched/api_v3
 API_V3_PATCHED=$(API_V3_PATCHED_DIR)/query_service.proto
 .PHONY: patch-api-v3
 patch-api-v3:
 	mkdir -p $(API_V3_PATCHED_DIR)
 	cat idl/proto/api_v3/query_service.proto | \
-		$(SED) -f ./proto-gen/patch.sed \
+		$(SED) -f ./$(PROTO_GEN)/patch.sed \
 		> $(API_V3_PATCHED)
 
 .PHONY: proto-api-v3

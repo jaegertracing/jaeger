@@ -18,7 +18,7 @@ const (
 	jaegerProtoGenPkgPath = "github.com/jaegertracing/jaeger-idl/proto-gen"
 	jaegerModelPkgPath    = "github.com/jaegertracing/jaeger-idl/model/v1"
 
-	jaegerProtoGenPkgPathOld = "github.com/jaegertracing/jaeger/proto-gen"
+	jaegerProtoGenPkgPathOld = "github.com/jaegertracing/jaeger/internal/proto-gen"
 	jaegerModelPkgPathOld    = "github.com/jaegertracing/jaeger-idl/model/v1"
 )
 

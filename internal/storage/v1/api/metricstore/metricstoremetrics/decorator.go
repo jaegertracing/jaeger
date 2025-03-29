@@ -9,7 +9,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
-	protometrics "github.com/jaegertracing/jaeger/proto-gen/api_v2/metrics"
+	protometrics "github.com/jaegertracing/jaeger/internal/proto-gen/api_v2/metrics"
 )
 
 // ReadMetricsDecorator wraps a metricstore.Reader and collects metrics around each read operation.

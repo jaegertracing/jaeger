@@ -11,7 +11,7 @@ import (
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
-	"github.com/jaegertracing/jaeger/proto-gen/storage_v1"
+	"github.com/jaegertracing/jaeger/internal/proto-gen/storage_v1"
 )
 
 var _ spanstore.Writer = (*streamingSpanWriter)(nil)
