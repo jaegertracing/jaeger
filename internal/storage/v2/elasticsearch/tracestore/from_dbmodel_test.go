@@ -81,40 +81,15 @@ func TestCodeFromAttr(t *testing.T) {
 }
 
 func TestZeroBatchLength(t *testing.T) {
-	trace, err := FromDBModel([]*dbmodel.Span{})
+	trace, err := FromDBModel([]dbmodel.Span{})
 	require.NoError(t, err)
 	assert.Equal(t, 0, trace.ResourceSpans().Len())
 }
 
 func TestEmptySpansAndProcess(t *testing.T) {
-	trace, err := FromDBModel([]*dbmodel.Span{})
+	trace, err := FromDBModel([]dbmodel.Span{})
 	require.NoError(t, err)
 	assert.Equal(t, 0, trace.ResourceSpans().Len())
-}
-
-func Test_setSpansFromDbSpans_EmptyOrNilSpans(t *testing.T) {
-	tests := []struct {
-		name  string
-		spans []*dbmodel.Span
-	}{
-		{
-			name:  "nil spans",
-			spans: []*dbmodel.Span{nil},
-		},
-		{
-			name:  "empty spans",
-			spans: []*dbmodel.Span{new(dbmodel.Span)},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			traceData := ptrace.NewTraces()
-			rss := traceData.ResourceSpans()
-			err := dbSpansToSpans(tt.spans, rss)
-			require.NoError(t, err)
-			assert.Equal(t, 0, rss.Len())
-		})
-	}
 }
 
 func TestGetStatusCodeFromHTTPStatusAttr(t *testing.T) {
@@ -361,17 +336,17 @@ func TestSetAttributesFromDbTags(t *testing.T) {
 func TestFromDBModel(t *testing.T) {
 	tests := []struct {
 		name string
-		jb   []*dbmodel.Span
+		jb   []dbmodel.Span
 		td   ptrace.Traces
 	}{
 		{
 			name: "empty",
-			jb:   []*dbmodel.Span{},
+			jb:   []dbmodel.Span{},
 			td:   ptrace.NewTraces(),
 		},
 		{
 			name: "two-spans-child-parent",
-			jb: []*dbmodel.Span{
+			jb: []dbmodel.Span{
 				generateProtoSpan(),
 				generateProtoChildSpan(),
 			},
@@ -379,7 +354,7 @@ func TestFromDBModel(t *testing.T) {
 		},
 		{
 			name: "two-spans-with-follower",
-			jb: []*dbmodel.Span{
+			jb: []dbmodel.Span{
 				generateProtoSpan(),
 				generateProtoFollowerSpan(),
 			},
@@ -387,7 +362,7 @@ func TestFromDBModel(t *testing.T) {
 		},
 		{
 			name: "a-spans-with-two-parent",
-			jb: []*dbmodel.Span{
+			jb: []dbmodel.Span{
 				generateProtoSpan(),
 				generateProtoFollowerSpan(),
 				generateProtoTwoParentsSpan(),
@@ -396,7 +371,7 @@ func TestFromDBModel(t *testing.T) {
 		},
 		{
 			name: "no-error-from-server-span-with-4xx-http-code",
-			jb: []*dbmodel.Span{
+			jb: []dbmodel.Span{
 				{
 					StartTime: model.TimeAsEpochMicroseconds(testSpanStartTime),
 					Duration:  model.DurationAsMicroseconds(testSpanEndTime.Sub(testSpanStartTime)),
@@ -444,31 +419,31 @@ func TestFromDBModelErrors(t *testing.T) {
 	tests := []struct {
 		name    string
 		err     string
-		dbSpans []*dbmodel.Span
+		dbSpans []dbmodel.Span
 	}{
 		{
 			name:    "wrong trace-id",
-			dbSpans: []*dbmodel.Span{{TraceID: dbmodel.TraceID("trace-id")}},
+			dbSpans: []dbmodel.Span{{TraceID: dbmodel.TraceID("trace-id")}},
 			err:     "encoding/hex: invalid byte: U+0074 't'",
 		},
 		{
 			name:    "wrong span-id",
-			dbSpans: []*dbmodel.Span{{SpanID: dbmodel.SpanID("span-id")}},
+			dbSpans: []dbmodel.Span{{SpanID: dbmodel.SpanID("span-id")}},
 			err:     "encoding/hex: invalid byte: U+0073 's'",
 		},
 		{
 			name:    "wrong parent span-id",
-			dbSpans: []*dbmodel.Span{{ParentSpanID: dbmodel.SpanID("parent-span-id")}},
+			dbSpans: []dbmodel.Span{{ParentSpanID: dbmodel.SpanID("parent-span-id")}},
 			err:     "encoding/hex: invalid byte: U+0070 'p'",
 		},
 		{
 			name:    "wrong-ref-trace-id",
-			dbSpans: []*dbmodel.Span{{References: []dbmodel.Reference{{TraceID: dbmodel.TraceID("ref-trace-id")}}}},
+			dbSpans: []dbmodel.Span{{References: []dbmodel.Reference{{TraceID: dbmodel.TraceID("ref-trace-id")}}}},
 			err:     "encoding/hex: invalid byte: U+0072 'r'",
 		},
 		{
 			name:    "wrong-ref-span-id",
-			dbSpans: []*dbmodel.Span{{References: []dbmodel.Reference{{SpanID: dbmodel.SpanID("ref-span-id")}}}},
+			dbSpans: []dbmodel.Span{{References: []dbmodel.Reference{{SpanID: dbmodel.SpanID("ref-span-id")}}}},
 			err:     "encoding/hex: invalid byte: U+0072 'r'",
 		},
 	}
@@ -482,7 +457,7 @@ func TestFromDBModelErrors(t *testing.T) {
 
 func TestSetParentId(t *testing.T) {
 	parentSpanId := [8]byte{0xF1, 0xF2, 0xF3, 0xF4, 0xF5, 0xF6, 0xF7, 0xF8}
-	trace, err := FromDBModel([]*dbmodel.Span{{ParentSpanID: getDbSpanIdFromByteArray(parentSpanId)}})
+	trace, err := FromDBModel([]dbmodel.Span{{ParentSpanID: getDbSpanIdFromByteArray(parentSpanId)}})
 	require.NoError(t, err)
 	assert.Equal(t, pcommon.SpanID(parentSpanId), trace.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).ParentSpanID())
 }
@@ -490,13 +465,13 @@ func TestSetParentId(t *testing.T) {
 func TestParentIdWhenRefTraceIdIsDifferent(t *testing.T) {
 	traceId := getDbTraceIdFromByteArray([16]byte{0xF1, 0xF2, 0xF3, 0xF4, 0xF5, 0xF6, 0xF7, 0xF8, 0xF9, 0xFA, 0xFB, 0xFC, 0xFD, 0xFE, 0xFF, 0x80})
 	refTraceId := getDbTraceIdFromByteArray([16]byte{0xF1, 0xF2, 0xF3, 0xF4, 0xF5, 0xF6, 0xF7, 0xF8, 0xF9, 0xFA, 0xFB, 0xFC, 0xFD, 0xFE, 0xFF, 0x81})
-	trace, err := FromDBModel([]*dbmodel.Span{{TraceID: traceId, References: []dbmodel.Reference{{TraceID: refTraceId}}}})
+	trace, err := FromDBModel([]dbmodel.Span{{TraceID: traceId, References: []dbmodel.Reference{{TraceID: refTraceId}}}})
 	require.NoError(t, err)
 	assert.True(t, trace.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).ParentSpanID().IsEmpty())
 }
 
 func TestFromDBModelForTracesWithTwoLibraries(t *testing.T) {
-	jb := []*dbmodel.Span{
+	jb := []dbmodel.Span{
 		{
 			StartTime:     model.TimeAsEpochMicroseconds(testSpanStartTime),
 			Duration:      model.DurationAsMicroseconds(testSpanEndTime.Sub(testSpanStartTime)),
@@ -654,7 +629,7 @@ func TestSetInternalSpanStatus(t *testing.T) {
 }
 
 func TestFromDBModelToInternalTraces(t *testing.T) {
-	batches := []*dbmodel.Span{
+	batches := []dbmodel.Span{
 		generateProtoSpan(),
 		generateProtoSpan(),
 		generateProtoChildSpan(),
@@ -817,10 +792,10 @@ func generateTracesOneSpanNoResourceWithTraceState() ptrace.Traces {
 	return td
 }
 
-func generateProtoSpan() *dbmodel.Span {
+func generateProtoSpan() dbmodel.Span {
 	spanId := [8]byte{0xAF, 0xAE, 0xAD, 0xAC, 0xAB, 0xAA, 0xA9, 0xA8}
 	traceId := [16]byte{0xF1, 0xF2, 0xF3, 0xF4, 0xF5, 0xF6, 0xF7, 0xF8, 0xF9, 0xFA, 0xFB, 0xFC, 0xFD, 0xFE, 0xFF, 0x80}
-	return &dbmodel.Span{
+	return dbmodel.Span{
 		TraceID:       getDbTraceIdFromByteArray(traceId),
 		SpanID:        getDbSpanIdFromByteArray(spanId),
 		OperationName: "operationA",
@@ -876,7 +851,7 @@ func generateProtoSpan() *dbmodel.Span {
 	}
 }
 
-func generateProtoSpanWithLibraryInfo(libraryName string) *dbmodel.Span {
+func generateProtoSpanWithLibraryInfo(libraryName string) dbmodel.Span {
 	span := generateProtoSpan()
 	span.Tags = append([]dbmodel.KeyValue{
 		{
@@ -901,10 +876,10 @@ func getDbSpanIdFromByteArray(arr [8]byte) dbmodel.SpanID {
 	return dbmodel.SpanID(hex.EncodeToString(arr[:]))
 }
 
-func generateProtoSpanWithTraceState() *dbmodel.Span {
+func generateProtoSpanWithTraceState() dbmodel.Span {
 	spanId := [8]byte{0xAF, 0xAE, 0xAD, 0xAC, 0xAB, 0xAA, 0xA9, 0xA8}
 	traceId := [16]byte{0xF1, 0xF2, 0xF3, 0xF4, 0xF5, 0xF6, 0xF7, 0xF8, 0xF9, 0xFA, 0xFB, 0xFC, 0xFD, 0xFE, 0xFF, 0x80}
-	return &dbmodel.Span{
+	return dbmodel.Span{
 		TraceID:       getDbTraceIdFromByteArray(traceId),
 		SpanID:        getDbSpanIdFromByteArray(spanId),
 		OperationName: "operationA",
@@ -995,9 +970,9 @@ func setChildSpan(span, parentSpan ptrace.Span) {
 	span.Attributes().PutInt(conventions.AttributeHTTPStatusCode, 404)
 }
 
-func generateProtoChildSpan() *dbmodel.Span {
+func generateProtoChildSpan() dbmodel.Span {
 	traceID := getDbTraceIdFromByteArray([16]byte{0xF1, 0xF2, 0xF3, 0xF4, 0xF5, 0xF6, 0xF7, 0xF8, 0xF9, 0xFA, 0xFB, 0xFC, 0xFD, 0xFE, 0xFF, 0x80})
-	return &dbmodel.Span{
+	return dbmodel.Span{
 		TraceID:       traceID,
 		SpanID:        getDbSpanIdFromByteArray([8]byte{0x1F, 0x1E, 0x1D, 0x1C, 0x1B, 0x1A, 0x19, 0x18}),
 		OperationName: "operationB",
@@ -1065,9 +1040,9 @@ func setFollowFromSpan(span, followFromSpan ptrace.Span) {
 	)
 }
 
-func generateProtoFollowerSpan() *dbmodel.Span {
+func generateProtoFollowerSpan() dbmodel.Span {
 	traceID := getDbTraceIdFromByteArray([16]byte{0xF1, 0xF2, 0xF3, 0xF4, 0xF5, 0xF6, 0xF7, 0xF8, 0xF9, 0xFA, 0xFB, 0xFC, 0xFD, 0xFE, 0xFF, 0x80})
-	return &dbmodel.Span{
+	return dbmodel.Span{
 		TraceID:       traceID,
 		SpanID:        getDbSpanIdFromByteArray([8]byte{0x1F, 0x1E, 0x1D, 0x1C, 0x1B, 0x1A, 0x19, 0x18}),
 		OperationName: "operationC",
@@ -1142,9 +1117,9 @@ func setSpanWithTwoParents(span, parent, parent2 ptrace.Span) {
 	)
 }
 
-func generateProtoTwoParentsSpan() *dbmodel.Span {
+func generateProtoTwoParentsSpan() dbmodel.Span {
 	traceID := getDbTraceIdFromByteArray([16]byte{0xF1, 0xF2, 0xF3, 0xF4, 0xF5, 0xF6, 0xF7, 0xF8, 0xF9, 0xFA, 0xFB, 0xFC, 0xFD, 0xFE, 0xFF, 0x80})
-	return &dbmodel.Span{
+	return dbmodel.Span{
 		TraceID:       traceID,
 		SpanID:        getDbSpanIdFromByteArray([8]byte{0x1F, 0x1E, 0x1D, 0x1C, 0x1B, 0x1A, 0x19, 0x20}),
 		OperationName: "operationD",
@@ -1186,7 +1161,7 @@ func generateProtoTwoParentsSpan() *dbmodel.Span {
 }
 
 func BenchmarkProtoBatchToInternalTraces(b *testing.B) {
-	jb := []*dbmodel.Span{
+	jb := []dbmodel.Span{
 		generateProtoSpan(),
 		generateProtoChildSpan(),
 	}
