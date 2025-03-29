@@ -48,76 +48,48 @@ func ToDBModel(td ptrace.Traces) []*dbmodel.Span {
 
 func resourceSpansToDbSpans(resourceSpans ptrace.ResourceSpans) []*dbmodel.Span {
 	resource := resourceSpans.Resource()
-	ilss := resourceSpans.ScopeSpans()
+	scopeSpans := resourceSpans.ScopeSpans()
 
-	if resource.Attributes().Len() == 0 && ilss.Len() == 0 {
-		return nil
+	if scopeSpans.Len() == 0 {
+		return []*dbmodel.Span{}
 	}
 
 	process := resourceToDbProcess(resource)
 
-	if ilss.Len() == 0 {
-		return []*dbmodel.Span{}
-	}
-
 	// Approximate the number of the spans as the number of the spans in the first
 	// instrumentation library info.
-	jSpans := make([]*dbmodel.Span, 0, ilss.At(0).Spans().Len())
+	dbSpans := make([]*dbmodel.Span, 0, scopeSpans.At(0).Spans().Len())
 
-	for i := 0; i < ilss.Len(); i++ {
-		ils := ilss.At(i)
-		spans := ils.Spans()
-		for j := 0; j < spans.Len(); j++ {
-			span := spans.At(j)
-			jSpan := spanToDbSpan(span, ils.Scope(), *process)
-			if jSpan != nil {
-				jSpans = append(jSpans, jSpan)
-			}
+	for _, scopeSpan := range scopeSpans.All() {
+		for _, span := range scopeSpan.Spans().All() {
+			dbSpan := spanToDbSpan(span, scopeSpan.Scope(), process)
+			dbSpans = append(dbSpans, dbSpan)
 		}
 	}
 
-	return jSpans
+	return dbSpans
 }
 
-func resourceToDbProcess(resource pcommon.Resource) *dbmodel.Process {
-	process := &dbmodel.Process{}
+func resourceToDbProcess(resource pcommon.Resource) dbmodel.Process {
+	process := dbmodel.Process{}
 	attrs := resource.Attributes()
 	if attrs.Len() == 0 {
 		process.ServiceName = noServiceName
 		return process
 	}
-	attrsCount := attrs.Len()
-	if serviceName, ok := attrs.Get(conventions.AttributeServiceName); ok {
-		process.ServiceName = serviceName.Str()
-		attrsCount--
+	tags := make([]dbmodel.KeyValue, 0, attrs.Len())
+	for key, attr := range attrs.All() {
+		if key == conventions.AttributeServiceName {
+			process.ServiceName = attr.AsString()
+			continue
+		}
+		tags = append(tags, attributeToDbTag(key, attr))
 	}
-	if attrsCount == 0 {
-		return process
-	}
-
-	tags := make([]dbmodel.KeyValue, 0, attrsCount)
-	process.Tags = appendTagsFromResourceAttributes(tags, attrs)
+	process.Tags = tags
 	return process
 }
 
-func appendTagsFromResourceAttributes(dest []dbmodel.KeyValue, attrs pcommon.Map) []dbmodel.KeyValue {
-	if attrs.Len() == 0 {
-		return dest
-	}
-
-	for key, attr := range attrs.All() {
-		if key == conventions.AttributeServiceName {
-			continue
-		}
-		dest = append(dest, attributeToDbTag(key, attr))
-	}
-	return dest
-}
-
 func appendTagsFromAttributes(dest []dbmodel.KeyValue, attrs pcommon.Map) []dbmodel.KeyValue {
-	if attrs.Len() == 0 {
-		return dest
-	}
 	for key, attr := range attrs.All() {
 		dest = append(dest, attributeToDbTag(key, attr))
 	}
@@ -125,6 +97,7 @@ func appendTagsFromAttributes(dest []dbmodel.KeyValue, attrs pcommon.Map) []dbmo
 }
 
 func attributeToDbTag(key string, attr pcommon.Value) dbmodel.KeyValue {
+	// TODO why are all values being converted to strings?
 	tag := dbmodel.KeyValue{Key: key, Value: attr.AsString()}
 	switch attr.Type() {
 	case pcommon.ValueTypeStr:
@@ -146,7 +119,7 @@ func attributeToDbTag(key string, attr pcommon.Value) dbmodel.KeyValue {
 func spanToDbSpan(span ptrace.Span, libraryTags pcommon.InstrumentationScope, process dbmodel.Process) *dbmodel.Span {
 	traceID := dbmodel.TraceID(span.TraceID().String())
 	parentSpanID := dbmodel.SpanID(span.ParentSpanID().String())
-	jReferences := makeDbSpanReferences(span.Links(), parentSpanID, traceID)
+	jReferences := linksToDbSpanRefs(span.Links(), parentSpanID, traceID)
 
 	startTime := span.StartTimestamp().AsTime()
 	return &dbmodel.Span{
@@ -222,9 +195,9 @@ func getDbSpanTags(span ptrace.Span, scope pcommon.InstrumentationScope) []dbmod
 	return tags
 }
 
-// makeDbSpanReferences constructs jaeger span references based on parent span ID and span links.
+// linksToDbSpanRefs constructs jaeger span references based on parent span ID and span links.
 // The parent span ID is used to add a CHILD_OF reference, _unless_ it is referenced from one of the links.
-func makeDbSpanReferences(links ptrace.SpanLinkSlice, parentSpanID dbmodel.SpanID, traceID dbmodel.TraceID) []dbmodel.Reference {
+func linksToDbSpanRefs(links ptrace.SpanLinkSlice, parentSpanID dbmodel.SpanID, traceID dbmodel.TraceID) []dbmodel.Reference {
 	refsCount := links.Len()
 	if parentSpanID != "" {
 		refsCount++

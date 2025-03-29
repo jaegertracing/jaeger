@@ -109,6 +109,24 @@ func TestGetTagFromStatusMsg(t *testing.T) {
 	}, got)
 }
 
+func Test_resourceToDbProcess(t *testing.T) {
+	traces := ptrace.NewTraces()
+	resourceSpans := traces.ResourceSpans().AppendEmpty()
+	resource := resourceSpans.Resource()
+	resource.Attributes().PutStr(conventions.AttributeServiceName, "service")
+	resource.Attributes().PutStr("foo", "bar")
+	process := resourceToDbProcess(resource)
+	assert.Equal(t, "service", process.ServiceName)
+	expected := []dbmodel.KeyValue{
+		{
+			Key:   "foo",
+			Value: "bar",
+			Type:  dbmodel.StringType,
+		},
+	}
+	assert.Equal(t, expected, process.Tags)
+}
+
 func Test_resourceToDbProcess_WhenOnlyServiceNameIsPresent(t *testing.T) {
 	traces := ptrace.NewTraces()
 	spans := traces.ResourceSpans().AppendEmpty()
@@ -120,7 +138,7 @@ func Test_resourceToDbProcess_WhenOnlyServiceNameIsPresent(t *testing.T) {
 func Test_appendTagsFromResourceAttributes_empty_attrs(t *testing.T) {
 	traces := ptrace.NewTraces()
 	emptyAttrs := traces.ResourceSpans().AppendEmpty().Resource().Attributes()
-	kv := appendTagsFromResourceAttributes([]dbmodel.KeyValue{}, emptyAttrs)
+	kv := appendTagsFromAttributes([]dbmodel.KeyValue{}, emptyAttrs)
 	assert.Empty(t, kv)
 }
 
@@ -247,10 +265,6 @@ func TestAttributesToDbSpanTags(t *testing.T) {
 
 	got := appendTagsFromAttributes(make([]dbmodel.KeyValue, 0, len(expected)), attributes)
 	require.EqualValues(t, expected, got)
-
-	// The last item in expected ("service-name") must be skipped in resource tags translation
-	got = appendTagsFromResourceAttributes(make([]dbmodel.KeyValue, 0, len(expected)-1), attributes)
-	require.EqualValues(t, expected[:5], got)
 }
 
 func TestAttributesToDbSpanTags_MapType(t *testing.T) {

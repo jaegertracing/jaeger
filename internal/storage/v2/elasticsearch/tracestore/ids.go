@@ -11,7 +11,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/dbmodel"
 )
 
-func getTraceIdFromDbTraceId(dbTraceId dbmodel.TraceID) (pcommon.TraceID, error) {
+func fromDbTraceId(dbTraceId dbmodel.TraceID) (pcommon.TraceID, error) {
 	var traceId [16]byte
 	traceBytes, err := hex.DecodeString(string(dbTraceId))
 	if err != nil {
@@ -21,7 +21,7 @@ func getTraceIdFromDbTraceId(dbTraceId dbmodel.TraceID) (pcommon.TraceID, error)
 	return traceId, nil
 }
 
-func getSpanIdFromDbSpanId(dbSpanId dbmodel.SpanID) (pcommon.SpanID, error) {
+func fromDbSpanId(dbSpanId dbmodel.SpanID) (pcommon.SpanID, error) {
 	var spanId [8]byte
 	spanIdBytes, err := hex.DecodeString(string(dbSpanId))
 	if err != nil {
@@ -31,6 +31,7 @@ func getSpanIdFromDbSpanId(dbSpanId dbmodel.SpanID) (pcommon.SpanID, error) {
 	return spanId, nil
 }
 
+// TODO extend DB model to support parent span ID directly
 func getParentSpanId(dbSpan *dbmodel.Span) dbmodel.SpanID {
 	var followsFromRef *dbmodel.Reference
 	for i := range dbSpan.References {
