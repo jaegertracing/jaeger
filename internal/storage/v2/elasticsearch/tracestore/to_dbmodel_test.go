@@ -72,7 +72,7 @@ func TestEmptyLinkRefs(t *testing.T) {
 	spanScope := scopeSpans.Scope()
 	span := scopeSpans.Spans().AppendEmpty()
 	spanLink := span.Links().AppendEmpty()
-	spanLink.Attributes().PutStr("testing-key", "testing-value")
+	spanLink.Attributes().PutStr("testing-key", "testing-inputValue")
 	modelSpan := spanToDbSpan(span, spanScope, dbmodel.Process{})
 	assert.Len(t, modelSpan.References, 1)
 	assert.Equal(t, dbmodel.FollowsFrom, modelSpan.References[0].RefType)

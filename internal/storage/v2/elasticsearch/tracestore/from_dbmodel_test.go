@@ -117,19 +117,6 @@ func Test_setSpansFromDbSpans_EmptyOrNilSpans(t *testing.T) {
 	}
 }
 
-func Test_setAttributesFromDbTags(t *testing.T) {
-	traceData := ptrace.NewTraces()
-	rss := traceData.ResourceSpans().AppendEmpty().Resource().Attributes()
-	kv := []dbmodel.KeyValue{{
-		Key:  "testing-key",
-		Type: dbmodel.ValueType("wrong-type"),
-	}}
-	dbTagsToAttributes(kv, rss)
-	testingKey, testingKeyFound := rss.Get("testing-key")
-	assert.True(t, testingKeyFound)
-	assert.Equal(t, "Got non string value for the key testing-key", testingKey.AsString())
-}
-
 func TestGetStatusCodeFromHTTPStatusAttr(t *testing.T) {
 	tests := []struct {
 		name string
@@ -177,7 +164,7 @@ func TestGetStatusCodeFromHTTPStatusAttr(t *testing.T) {
 			code: ptrace.StatusCodeError,
 		},
 		{
-			name: "wrong value",
+			name: "wrong inputValue",
 			attr: pcommon.NewValueBool(true),
 			kind: ptrace.SpanKindClient,
 			code: ptrace.StatusCodeUnset,
@@ -221,45 +208,154 @@ func Test_SetSpanEventsFromDbSpanLogs(t *testing.T) {
 }
 
 func TestSetAttributesFromDbTags(t *testing.T) {
-	tags := []dbmodel.KeyValue{
+	wrongValue := "wrong-inputValue"
+	tests := []struct {
+		name            string
+		keyModel        dbmodel.KeyValue
+		expectedValueFn func(pcommon.Map)
+	}{
 		{
-			Key:   "bool-val",
-			Type:  dbmodel.BoolType,
-			Value: "true",
+			name: "wrong bool input value",
+			keyModel: dbmodel.KeyValue{
+				Key:   "bool-val",
+				Type:  dbmodel.BoolType,
+				Value: wrongValue,
+			},
+			expectedValueFn: func(p pcommon.Map) {
+				p.PutStr("bool-val", "Can't convert the type bool for the key bool-val: strconv.ParseBool: parsing \"wrong-inputValue\": invalid syntax")
+			},
 		},
 		{
-			Key:   "int-val",
-			Type:  dbmodel.Int64Type,
-			Value: "123",
+			name: "right bool input value",
+			keyModel: dbmodel.KeyValue{
+				Key:   "bool-val",
+				Type:  dbmodel.BoolType,
+				Value: "true",
+			},
+			expectedValueFn: func(p pcommon.Map) {
+				p.PutBool("bool-val", true)
+			},
 		},
 		{
-			Key:   "string-val",
-			Type:  dbmodel.StringType,
-			Value: "abc",
+			name: "non string bool value",
+			keyModel: dbmodel.KeyValue{
+				Key:   "bool-val",
+				Type:  dbmodel.BoolType,
+				Value: true,
+			},
+			expectedValueFn: func(p pcommon.Map) {
+				p.PutBool("bool-val", true)
+			},
 		},
 		{
-			Key:   "double-val",
-			Type:  dbmodel.Float64Type,
-			Value: "1.23",
+			name: "wrong int input value",
+			keyModel: dbmodel.KeyValue{
+				Key:   "int-val",
+				Type:  dbmodel.Int64Type,
+				Value: wrongValue,
+			},
+			expectedValueFn: func(p pcommon.Map) {
+				p.PutStr("int-val", "Can't convert the type int64 for the key int-val: strconv.ParseInt: parsing \"wrong-inputValue\": invalid syntax")
+			},
 		},
 		{
-			Key:   "binary-val",
-			Type:  dbmodel.BinaryType,
-			Value: hex.EncodeToString([]byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x64, 0x7D, 0x98}),
+			name: "right int input value",
+			keyModel: dbmodel.KeyValue{
+				Key:   "int-val",
+				Type:  dbmodel.Int64Type,
+				Value: "123",
+			},
+			expectedValueFn: func(p pcommon.Map) {
+				p.PutInt("int-val", 123)
+			},
+		},
+		{
+			name: "wrong double input value",
+			keyModel: dbmodel.KeyValue{
+				Key:   "double-val",
+				Type:  dbmodel.Float64Type,
+				Value: wrongValue,
+			},
+			expectedValueFn: func(p pcommon.Map) {
+				p.PutStr("double-val", "Can't convert the type float64 for the key double-val: strconv.ParseFloat: parsing \"wrong-inputValue\": invalid syntax")
+			},
+		},
+		{
+			name: "right double input value",
+			keyModel: dbmodel.KeyValue{
+				Key:   "double-val",
+				Type:  dbmodel.Float64Type,
+				Value: "1.23",
+			},
+			expectedValueFn: func(p pcommon.Map) {
+				p.PutDouble("double-val", 1.23)
+			},
+		},
+		{
+			name: "wrong binary input value",
+			keyModel: dbmodel.KeyValue{
+				Key:   "binary-val",
+				Type:  dbmodel.BinaryType,
+				Value: wrongValue,
+			},
+			expectedValueFn: func(p pcommon.Map) {
+				p.PutStr("binary-val", "Can't convert the type binary for the key binary-val: encoding/hex: invalid byte: U+0077 'w'")
+			},
+		},
+		{
+			name: "right binary input value",
+			keyModel: dbmodel.KeyValue{
+				Key:   "binary-val",
+				Type:  dbmodel.BinaryType,
+				Value: hex.EncodeToString([]byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x64, 0x7D, 0x98}),
+			},
+			expectedValueFn: func(p pcommon.Map) {
+				p.PutEmptyBytes("binary-val").FromRaw([]byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x64, 0x7D, 0x98})
+			},
+		},
+		{
+			name: "non-string input value",
+			keyModel: dbmodel.KeyValue{
+				Key:   "bool-val",
+				Type:  dbmodel.Int64Type,
+				Value: 123,
+			},
+			expectedValueFn: func(p pcommon.Map) {
+				p.PutStr("bool-val", "Got non string inputValue for the key bool-val")
+			},
+		},
+		{
+			name: "right string input value",
+			keyModel: dbmodel.KeyValue{
+				Key:   "string-val",
+				Type:  dbmodel.StringType,
+				Value: "right-value",
+			},
+			expectedValueFn: func(p pcommon.Map) {
+				p.PutStr("string-val", "right-value")
+			},
+		},
+		{
+			name: "unknown type",
+			keyModel: dbmodel.KeyValue{
+				Key:   "unknown",
+				Type:  dbmodel.ValueType("unknown"),
+				Value: "any",
+			},
+			expectedValueFn: func(p pcommon.Map) {
+				p.PutStr("unknown", "<Unknown Jaeger TagType \"unknown\">")
+			},
 		},
 	}
-
-	expected := pcommon.NewMap()
-	expected.PutBool("bool-val", true)
-	expected.PutInt("int-val", 123)
-	expected.PutStr("string-val", "abc")
-	expected.PutDouble("double-val", 1.23)
-	expected.PutEmptyBytes("binary-val").FromRaw([]byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x64, 0x7D, 0x98})
-
-	got := pcommon.NewMap()
-	dbTagsToAttributes(tags, got)
-
-	require.EqualValues(t, expected, got)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			expected := pcommon.NewMap()
+			test.expectedValueFn(expected)
+			got := pcommon.NewMap()
+			dbTagsToAttributes([]dbmodel.KeyValue{test.keyModel}, got)
+			assert.Equal(t, expected, got)
+		})
+	}
 }
 
 func TestFromDBModel(t *testing.T) {
@@ -342,6 +438,61 @@ func TestFromDBModel(t *testing.T) {
 			assert.EqualValues(t, test.td, td)
 		})
 	}
+}
+
+func TestFromDBModelErrors(t *testing.T) {
+	tests := []struct {
+		name    string
+		err     string
+		dbSpans []*dbmodel.Span
+	}{
+		{
+			name:    "wrong trace-id",
+			dbSpans: []*dbmodel.Span{{TraceID: dbmodel.TraceID("trace-id")}},
+			err:     "encoding/hex: invalid byte: U+0074 't'",
+		},
+		{
+			name:    "wrong span-id",
+			dbSpans: []*dbmodel.Span{{SpanID: dbmodel.SpanID("span-id")}},
+			err:     "encoding/hex: invalid byte: U+0073 's'",
+		},
+		{
+			name:    "wrong parent span-id",
+			dbSpans: []*dbmodel.Span{{ParentSpanID: dbmodel.SpanID("parent-span-id")}},
+			err:     "encoding/hex: invalid byte: U+0070 'p'",
+		},
+		{
+			name:    "wrong-ref-trace-id",
+			dbSpans: []*dbmodel.Span{{References: []dbmodel.Reference{{TraceID: dbmodel.TraceID("ref-trace-id")}}}},
+			err:     "encoding/hex: invalid byte: U+0072 'r'",
+		},
+		{
+			name:    "wrong-ref-span-id",
+			dbSpans: []*dbmodel.Span{{References: []dbmodel.Reference{{SpanID: dbmodel.SpanID("ref-span-id")}}}},
+			err:     "encoding/hex: invalid byte: U+0072 'r'",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := FromDBModel(test.dbSpans)
+			require.ErrorContains(t, err, test.err)
+		})
+	}
+}
+
+func TestSetParentId(t *testing.T) {
+	parentSpanId := [8]byte{0xF1, 0xF2, 0xF3, 0xF4, 0xF5, 0xF6, 0xF7, 0xF8}
+	trace, err := FromDBModel([]*dbmodel.Span{{ParentSpanID: getDbSpanIdFromByteArray(parentSpanId)}})
+	require.NoError(t, err)
+	assert.Equal(t, pcommon.SpanID(parentSpanId), trace.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).ParentSpanID())
+}
+
+func TestParentIdWhenRefTraceIdIsDifferent(t *testing.T) {
+	traceId := getDbTraceIdFromByteArray([16]byte{0xF1, 0xF2, 0xF3, 0xF4, 0xF5, 0xF6, 0xF7, 0xF8, 0xF9, 0xFA, 0xFB, 0xFC, 0xFD, 0xFE, 0xFF, 0x80})
+	refTraceId := getDbTraceIdFromByteArray([16]byte{0xF1, 0xF2, 0xF3, 0xF4, 0xF5, 0xF6, 0xF7, 0xF8, 0xF9, 0xFA, 0xFB, 0xFC, 0xFD, 0xFE, 0xFF, 0x81})
+	trace, err := FromDBModel([]*dbmodel.Span{{TraceID: traceId, References: []dbmodel.Reference{{TraceID: refTraceId}}}})
+	require.NoError(t, err)
+	assert.True(t, trace.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).ParentSpanID().IsEmpty())
 }
 
 func TestFromDBModelForTracesWithTwoLibraries(t *testing.T) {

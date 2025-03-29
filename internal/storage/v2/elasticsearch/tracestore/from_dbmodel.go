@@ -145,7 +145,7 @@ func dbTagsToAttributes(tags []dbmodel.KeyValue, attributes pcommon.Map) {
 			if boolOk && tag.Type == dbmodel.BoolType {
 				attributes.PutBool(tag.Key, tagBoolVal)
 			} else {
-				attributes.PutStr(tag.Key, "Got non string value for the key "+tag.Key)
+				attributes.PutStr(tag.Key, "Got non string inputValue for the key "+tag.Key)
 			}
 			continue
 		}
@@ -213,7 +213,7 @@ func setSpanStatus(attrs pcommon.Map, span ptrace.Span) {
 				statusMessage = desc
 			}
 		}
-		// Regardless of error tag value, remove the otel.status_code tag. The
+		// Regardless of error tag inputValue, remove the otel.status_code tag. The
 		// otel.status_message tag will have already been removed if
 		// statusExists is true.
 		attrs.Remove(conventions.OtelStatusCode)
@@ -252,9 +252,9 @@ func extractStatusDescFromAttr(attrs pcommon.Map) (string, bool) {
 	return "", false
 }
 
-// codeFromAttr returns the integer code value from attrVal. An error is
-// returned if the code is not represented by an integer or string value in
-// the attrVal or the value is outside the bounds of an int representation.
+// codeFromAttr returns the integer code inputValue from attrVal. An error is
+// returned if the code is not represented by an integer or string inputValue in
+// the attrVal or the inputValue is outside the bounds of an int representation.
 func codeFromAttr(attrVal pcommon.Value) (int64, error) {
 	var val int64
 	switch attrVal.Type() {
