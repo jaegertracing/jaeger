@@ -26,14 +26,14 @@ const (
 
 // ToDBModel translates internal trace data into the DB Spans.
 // Returns slice of translated DB Spans and error if translation failed.
-func ToDBModel(td ptrace.Traces) []*dbmodel.Span {
+func ToDBModel(td ptrace.Traces) []dbmodel.Span {
 	resourceSpans := td.ResourceSpans()
 
 	if resourceSpans.Len() == 0 {
 		return nil
 	}
 
-	batches := make([]*dbmodel.Span, 0, resourceSpans.Len())
+	batches := make([]dbmodel.Span, 0, resourceSpans.Len())
 	for i := 0; i < resourceSpans.Len(); i++ {
 		rs := resourceSpans.At(i)
 		batch := resourceSpansToDbSpans(rs)
@@ -45,19 +45,19 @@ func ToDBModel(td ptrace.Traces) []*dbmodel.Span {
 	return batches
 }
 
-func resourceSpansToDbSpans(resourceSpans ptrace.ResourceSpans) []*dbmodel.Span {
+func resourceSpansToDbSpans(resourceSpans ptrace.ResourceSpans) []dbmodel.Span {
 	resource := resourceSpans.Resource()
 	scopeSpans := resourceSpans.ScopeSpans()
 
 	if scopeSpans.Len() == 0 {
-		return []*dbmodel.Span{}
+		return []dbmodel.Span{}
 	}
 
 	process := resourceToDbProcess(resource)
 
 	// Approximate the number of the spans as the number of the spans in the first
 	// instrumentation library info.
-	dbSpans := make([]*dbmodel.Span, 0, scopeSpans.At(0).Spans().Len())
+	dbSpans := make([]dbmodel.Span, 0, scopeSpans.At(0).Spans().Len())
 
 	for _, scopeSpan := range scopeSpans.All() {
 		for _, span := range scopeSpan.Spans().All() {
@@ -115,11 +115,11 @@ func attributeToDbTag(key string, attr pcommon.Value) dbmodel.KeyValue {
 	return tag
 }
 
-func spanToDbSpan(span ptrace.Span, libraryTags pcommon.InstrumentationScope, process dbmodel.Process) *dbmodel.Span {
+func spanToDbSpan(span ptrace.Span, libraryTags pcommon.InstrumentationScope, process dbmodel.Process) dbmodel.Span {
 	traceID := dbmodel.TraceID(span.TraceID().String())
 	parentSpanID := dbmodel.SpanID(span.ParentSpanID().String())
 	startTime := span.StartTimestamp().AsTime()
-	return &dbmodel.Span{
+	return dbmodel.Span{
 		TraceID:       traceID,
 		SpanID:        dbmodel.SpanID(span.SpanID().String()),
 		OperationName: span.Name(),
