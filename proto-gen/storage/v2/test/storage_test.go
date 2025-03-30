@@ -36,8 +36,12 @@ func TestTracesChunk(t *testing.T) {
 		},
 	}
 	buf, err := proto.Marshal(c)
-	t.Logf("buf: %x", buf)
 	require.NoError(t, err)
+	t.Logf("buf: %x", buf)
+
+	thisTest := "0a2a0a28122612240a100102030405060708090a0b0c0d0e0f10120801020304050607082a067370616e2d61"
+	assert.Equal(t, thisTest, hex.EncodeToString(buf))
+
 	var c2 TracesChunk
 	err = proto.Unmarshal(buf, &c2)
 	require.NoError(t, err)
