@@ -7,7 +7,7 @@
 package test
 
 import (
-	v1 "github.com/jaegertracing/jaeger/internal/jptrace"
+	v1 "go.opentelemetry.io/proto/otlp/trace/v1"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	durationpb "google.golang.org/protobuf/types/known/durationpb"

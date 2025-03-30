@@ -3,7 +3,8 @@ package test
 import (
 	"testing"
 
-	"github.com/jaegertracing/jaeger/internal/jptrace"
+	v1 "go.opentelemetry.io/proto/otlp/trace/v1"
+
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"google.golang.org/protobuf/proto"
@@ -15,12 +16,28 @@ func TestTracesChunk(t *testing.T) {
 	spanA.SetName("span-a")
 
 	c := new(TracesChunk)
-	c.Traces = []*jptrace.TracesData{
-		(*jptrace.TracesData)(&traceA),
+	c.Traces = []*v1.TracesData{
+		{
+			ResourceSpans: []*v1.ResourceSpans{
+				{
+					ScopeSpans: []*v1.ScopeSpans{
+						{
+							Spans: []*v1.Span{
+								{
+									Name: "span-a",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
 	}
 	buf, err := proto.Marshal(c)
+	t.Logf("buf: %x", buf)
 	require.NoError(t, err)
 	var c2 TracesChunk
 	err = proto.Unmarshal(buf, &c2)
 	require.NoError(t, err)
+	require.Equal(t, c, &c2)
 }
