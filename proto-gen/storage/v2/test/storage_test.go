@@ -1,11 +1,12 @@
 package test
 
 import (
+	"encoding/hex"
 	"testing"
 
-	v1 "go.opentelemetry.io/proto/otlp/trace/v1"
-
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	v1 "go.opentelemetry.io/proto/otlp/trace/v1"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -40,5 +41,12 @@ func TestTracesChunk(t *testing.T) {
 	var c2 TracesChunk
 	err = proto.Unmarshal(buf, &c2)
 	require.NoError(t, err)
-	require.Equal(t, c, &c2)
+	assert.Equal(t, c, &c2)
+
+	otherTest := "0a320a00122c0a0012280a100102030405060708090a0b0c0d0e0f101208010203040506070822002a067370616e2d617a000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+	buf, err = hex.DecodeString(otherTest)
+	require.NoError(t, err)
+	err = proto.Unmarshal(buf, &c2)
+	require.NoError(t, err)
+	assert.Equal(t, c, &c2)
 }
