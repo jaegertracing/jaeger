@@ -195,11 +195,14 @@ func TestTraceReader_GetServices(t *testing.T) {
 }
 
 func TestTracesChunk(t *testing.T) {
+	traceId := [16]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
+	spanId := [8]byte{1, 2, 3, 4, 5, 6, 7, 8}
+
 	traceA := ptrace.NewTraces()
 	spanA := traceA.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans().AppendEmpty()
 	spanA.SetName("span-a")
-	spanA.SetTraceID(pcommon.TraceID([16]byte{1}))
-	spanA.SetSpanID(pcommon.SpanID([8]byte{1}))
+	spanA.SetTraceID(pcommon.TraceID(traceId))
+	spanA.SetSpanID(pcommon.SpanID(spanId))
 	traceAA := (*jptrace.TracesData)(&traceA)
 
 	c := new(storage.TracesChunk)
@@ -209,11 +212,11 @@ func TestTracesChunk(t *testing.T) {
 
 	buf, err := proto.Marshal(traceAA)
 	require.NoError(t, err)
-	t.Logf("buf1: %x", buf)
+	t.Logf("trace: %x", buf)
 
 	buf, err = proto.Marshal(c)
 	require.NoError(t, err)
-	t.Logf("buf2: %x", buf)
+	t.Logf("chunk: %x", buf)
 	var c2 storage.TracesChunk
 	err = proto.Unmarshal(buf, &c2)
 	require.NoError(t, err)
