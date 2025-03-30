@@ -2,10 +2,9 @@ syntax = "proto3";
 
 package jaeger.storage.v2;
 
-import "gogoproto/gogo.proto";
 import "google/protobuf/timestamp.proto";
 
-option go_package = "storage";
+option go_package = "/test";
 
 message GetDependenciesRequest {
   // start_time is the start of the time interval to search for the dependencies.
