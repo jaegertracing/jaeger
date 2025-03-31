@@ -1,0 +1,1457 @@
+[
+  {
+    "Name": "timestamp",
+    "Data": {
+      "Data": [
+        1703498029000000000,
+        1703498029000000000
+      ],
+      "Location": null,
+      "Precision": 9,
+      "PrecisionSet": true
+    }
+  },
+  {
+    "Name": "traceId",
+    "Data": {
+      "Buf": "MDEwMjAzMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMTAyMDMwMTAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMA==",
+      "Pos": [
+        {
+          "Start": 0,
+          "End": 32
+        },
+        {
+          "Start": 32,
+          "End": 64
+        }
+      ]
+    }
+  },
+  {
+    "Name": "spanId",
+    "Data": {
+      "Buf": "MDEwMjAzMDAwMDAwMDAwMDAxMDIwMzAxMDAwMDAwMDA=",
+      "Pos": [
+        {
+          "Start": 0,
+          "End": 16
+        },
+        {
+          "Start": 16,
+          "End": 32
+        }
+      ]
+    }
+  },
+  {
+    "Name": "parentSpanId",
+    "Data": {
+      "Buf": "MDEwMjA0MDAwMDAwMDAwMDAxMDIwNDAxMDAwMDAwMDA=",
+      "Pos": [
+        {
+          "Start": 0,
+          "End": 16
+        },
+        {
+          "Start": 16,
+          "End": 32
+        }
+      ]
+    }
+  },
+  {
+    "Name": "traceState",
+    "Data": {
+      "Buf": "dHJhY2Ugc3RhdGV0cmFjZSBzdGF0ZQ==",
+      "Pos": [
+        {
+          "Start": 0,
+          "End": 11
+        },
+        {
+          "Start": 11,
+          "End": 22
+        }
+      ]
+    }
+  },
+  {
+    "Name": "spanName",
+    "Data": {
+      "Buf": "Y2FsbCBkYmNhbGwgZGI=",
+      "Pos": [
+        {
+          "Start": 0,
+          "End": 7
+        },
+        {
+          "Start": 7,
+          "End": 14
+        }
+      ]
+    }
+  },
+  {
+    "Name": "spanKind",
+    "Data": {
+      "Buf": "SW50ZXJuYWxJbnRlcm5hbA==",
+      "Pos": [
+        {
+          "Start": 0,
+          "End": 8
+        },
+        {
+          "Start": 8,
+          "End": 16
+        }
+      ]
+    }
+  },
+  {
+    "Name": "serviceName",
+    "Data": {
+      "Buf": "Y2xpY2tob3VzZWNsaWNraG91c2U=",
+      "Pos": [
+        {
+          "Start": 0,
+          "End": 10
+        },
+        {
+          "Start": 10,
+          "End": 20
+        }
+      ]
+    }
+  },
+  {
+    "Name": "resourceAttributesBoolKeys",
+    "Data": {
+      "Offsets": [
+        2,
+        4
+      ],
+      "Data": {
+        "Buf": "dHJ1ZWZhbHNldHJ1ZWZhbHNl",
+        "Pos": [
+          {
+            "Start": 0,
+            "End": 4
+          },
+          {
+            "Start": 4,
+            "End": 9
+          },
+          {
+            "Start": 9,
+            "End": 13
+          },
+          {
+            "Start": 13,
+            "End": 18
+          }
+        ]
+      }
+    }
+  },
+  {
+    "Name": "resourceAttributesBoolValues",
+    "Data": {
+      "Offsets": [
+        2,
+        4
+      ],
+      "Data": [
+        true,
+        false,
+        true,
+        false
+      ]
+    }
+  },
+  {
+    "Name": "resourceAttributesDoubleKeys",
+    "Data": {
+      "Offsets": [
+        1,
+        2
+      ],
+      "Data": {
+        "Values": [
+          "6.824",
+          "6.824"
+        ]
+      }
+    }
+  },
+  {
+    "Name": "resourceAttributesDoubleValues",
+    "Data": {
+      "Offsets": [
+        1,
+        2
+      ],
+      "Data": {
+        "Values": [
+          6.824,
+          6.824
+        ]
+      }
+    }
+  },
+  {
+    "Name": "resourceAttributesIntKeys",
+    "Data": {
+      "Offsets": [
+        3,
+        6
+      ],
+      "Data": {
+        "Values": [
+          "0",
+          "1",
+          "2",
+          "0",
+          "1",
+          "2"
+        ]
+      }
+    }
+  },
+  {
+    "Name": "resourceAttributesIntValues",
+    "Data": {
+      "Offsets": [
+        3,
+        6
+      ],
+      "Data": {
+        "Values": [
+          0,
+          1,
+          2,
+          0,
+          1,
+          2
+        ]
+      }
+    }
+  },
+  {
+    "Name": "resourceAttributesStrKeys",
+    "Data": {
+      "Offsets": [
+        2,
+        4
+      ],
+      "Data": {
+        "Values": [
+          "service.name",
+          "hello",
+          "service.name",
+          "hello"
+        ]
+      }
+    }
+  },
+  {
+    "Name": "resourceAttributesStrValues",
+    "Data": {
+      "Offsets": [
+        2,
+        4
+      ],
+      "Data": {
+        "Values": [
+          "clickhouse",
+          "world",
+          "clickhouse",
+          "world"
+        ]
+      }
+    }
+  },
+  {
+    "Name": "resourceAttributesEmptyKeys",
+    "Data": {
+      "Offsets": [
+        1,
+        2
+      ],
+      "Data": {
+        "Values": [
+          "nil",
+          "nil"
+        ]
+      }
+    }
+  },
+  {
+    "Name": "resourceAttributesEmptyMapKeys",
+    "Data": {
+      "Offsets": [
+        1,
+        2
+      ],
+      "Data": {
+        "Values": [
+          "map",
+          "map"
+        ]
+      }
+    }
+  },
+  {
+    "Name": "resourceAttributesEmptySlicesKeys",
+    "Data": {
+      "Offsets": [
+        1,
+        2
+      ],
+      "Data": {
+        "Values": [
+          "slice",
+          "slice"
+        ]
+      }
+    }
+  },
+  {
+    "Name": "resourceAttributesEmptyBytesKeys",
+    "Data": {
+      "Offsets": [
+        1,
+        2
+      ],
+      "Data": {
+        "Values": [
+          "bytes",
+          "bytes"
+        ]
+      }
+    }
+  },
+  {
+    "Name": "scopeName",
+    "Data": {
+      "Buf": "aW8ub3BlbnRlbGVtZXRyeS5jb250cmliLmNsaWNraG91c2Vpby5vcGVudGVsZW1ldHJ5LmNvbnRyaWIuY2xpY2tob3VzZQ==",
+      "Pos": [
+        {
+          "Start": 0,
+          "End": 35
+        },
+        {
+          "Start": 35,
+          "End": 70
+        }
+      ]
+    }
+  },
+  {
+    "Name": "scopeVersion",
+    "Data": {
+      "Buf": "MS4wLjAxLjAuMA==",
+      "Pos": [
+        {
+          "Start": 0,
+          "End": 5
+        },
+        {
+          "Start": 5,
+          "End": 10
+        }
+      ]
+    }
+  },
+  {
+    "Name": "scopeAttributesBoolKeys",
+    "Data": {
+      "Offsets": [
+        2,
+        4
+      ],
+      "Data": {
+        "Buf": "dHJ1ZWZhbHNldHJ1ZWZhbHNl",
+        "Pos": [
+          {
+            "Start": 0,
+            "End": 4
+          },
+          {
+            "Start": 4,
+            "End": 9
+          },
+          {
+            "Start": 9,
+            "End": 13
+          },
+          {
+            "Start": 13,
+            "End": 18
+          }
+        ]
+      }
+    }
+  },
+  {
+    "Name": "scopeAttributesBoolValues",
+    "Data": {
+      "Offsets": [
+        2,
+        4
+      ],
+      "Data": [
+        true,
+        false,
+        true,
+        false
+      ]
+    }
+  },
+  {
+    "Name": "scopeAttributesDoubleKeys",
+    "Data": {
+      "Offsets": [
+        1,
+        2
+      ],
+      "Data": {
+        "Values": [
+          "6.824",
+          "6.824"
+        ]
+      }
+    }
+  },
+  {
+    "Name": "scopeAttributesDoubleValues",
+    "Data": {
+      "Offsets": [
+        1,
+        2
+      ],
+      "Data": {
+        "Values": [
+          6.824,
+          6.824
+        ]
+      }
+    }
+  },
+  {
+    "Name": "scopeAttributesIntKeys",
+    "Data": {
+      "Offsets": [
+        3,
+        6
+      ],
+      "Data": {
+        "Values": [
+          "2",
+          "0",
+          "1",
+          "0",
+          "1",
+          "2"
+        ]
+      }
+    }
+  },
+  {
+    "Name": "scopeAttributesIntValues",
+    "Data": {
+      "Offsets": [
+        3,
+        6
+      ],
+      "Data": {
+        "Values": [
+          2,
+          0,
+          1,
+          0,
+          1,
+          2
+        ]
+      }
+    }
+  },
+  {
+    "Name": "scopeAttributesStrKeys",
+    "Data": {
+      "Offsets": [
+        1,
+        2
+      ],
+      "Data": {
+        "Values": [
+          "hello",
+          "hello"
+        ]
+      }
+    }
+  },
+  {
+    "Name": "scopeAttributesStrValues",
+    "Data": {
+      "Offsets": [
+        1,
+        2
+      ],
+      "Data": {
+        "Values": [
+          "world",
+          "world"
+        ]
+      }
+    }
+  },
+  {
+    "Name": "scopeAttributesEmptyKeys",
+    "Data": {
+      "Offsets": [
+        1,
+        2
+      ],
+      "Data": {
+        "Values": [
+          "nil",
+          "nil"
+        ]
+      }
+    }
+  },
+  {
+    "Name": "scopeAttributesEmptyMapKeys",
+    "Data": {
+      "Offsets": [
+        1,
+        2
+      ],
+      "Data": {
+        "Values": [
+          "map",
+          "map"
+        ]
+      }
+    }
+  },
+  {
+    "Name": "scopeAttributesEmptySlicesKeys",
+    "Data": {
+      "Offsets": [
+        1,
+        2
+      ],
+      "Data": {
+        "Values": [
+          "slice",
+          "slice"
+        ]
+      }
+    }
+  },
+  {
+    "Name": "scopeAttributesEmptyBytesKeys",
+    "Data": {
+      "Offsets": [
+        1,
+        2
+      ],
+      "Data": {
+        "Values": [
+          "bytes",
+          "bytes"
+        ]
+      }
+    }
+  },
+  {
+    "Name": "spanAttributesBoolKeys",
+    "Data": {
+      "Offsets": [
+        2,
+        4
+      ],
+      "Data": {
+        "Buf": "dHJ1ZWZhbHNldHJ1ZWZhbHNl",
+        "Pos": [
+          {
+            "Start": 0,
+            "End": 4
+          },
+          {
+            "Start": 4,
+            "End": 9
+          },
+          {
+            "Start": 9,
+            "End": 13
+          },
+          {
+            "Start": 13,
+            "End": 18
+          }
+        ]
+      }
+    }
+  },
+  {
+    "Name": "spanAttributesBoolValues",
+    "Data": {
+      "Offsets": [
+        2,
+        4
+      ],
+      "Data": [
+        true,
+        false,
+        true,
+        false
+      ]
+    }
+  },
+  {
+    "Name": "spanAttributesDoubleKeys",
+    "Data": {
+      "Offsets": [
+        1,
+        2
+      ],
+      "Data": {
+        "Values": [
+          "6.824",
+          "6.824"
+        ]
+      }
+    }
+  },
+  {
+    "Name": "spanAttributesDoubleValues",
+    "Data": {
+      "Offsets": [
+        1,
+        2
+      ],
+      "Data": {
+        "Values": [
+          6.824,
+          6.824
+        ]
+      }
+    }
+  },
+  {
+    "Name": "spanAttributesIntKeys",
+    "Data": {
+      "Offsets": [
+        3,
+        6
+      ],
+      "Data": {
+        "Values": [
+          "0",
+          "1",
+          "2",
+          "0",
+          "1",
+          "2"
+        ]
+      }
+    }
+  },
+  {
+    "Name": "spanAttributesIntValues",
+    "Data": {
+      "Offsets": [
+        3,
+        6
+      ],
+      "Data": {
+        "Values": [
+          0,
+          1,
+          2,
+          0,
+          1,
+          2
+        ]
+      }
+    }
+  },
+  {
+    "Name": "spanAttributesStrKeys",
+    "Data": {
+      "Offsets": [
+        1,
+        2
+      ],
+      "Data": {
+        "Values": [
+          "hello",
+          "hello"
+        ]
+      }
+    }
+  },
+  {
+    "Name": "spanAttributesStrValues",
+    "Data": {
+      "Offsets": [
+        1,
+        2
+      ],
+      "Data": {
+        "Values": [
+          "world",
+          "world"
+        ]
+      }
+    }
+  },
+  {
+    "Name": "spanAttributesEmptyKeys",
+    "Data": {
+      "Offsets": [
+        1,
+        2
+      ],
+      "Data": {
+        "Values": [
+          "nil",
+          "nil"
+        ]
+      }
+    }
+  },
+  {
+    "Name": "spanAttributesEmptyMapKeys",
+    "Data": {
+      "Offsets": [
+        1,
+        2
+      ],
+      "Data": {
+        "Values": [
+          "map",
+          "map"
+        ]
+      }
+    }
+  },
+  {
+    "Name": "spanAttributesEmptySlicesKeys",
+    "Data": {
+      "Offsets": [
+        1,
+        2
+      ],
+      "Data": {
+        "Values": [
+          "slice",
+          "slice"
+        ]
+      }
+    }
+  },
+  {
+    "Name": "spanAttributesEmptyBytesKeys",
+    "Data": {
+      "Offsets": [
+        1,
+        2
+      ],
+      "Data": {
+        "Values": [
+          "bytes",
+          "bytes"
+        ]
+      }
+    }
+  },
+  {
+    "Name": "duration",
+    "Data": {
+      "Data": [
+        1703498089000000000,
+        1703498089000000000
+      ],
+      "Location": null,
+      "Precision": 9,
+      "PrecisionSet": true
+    }
+  },
+  {
+    "Name": "statusCode",
+    "Data": {
+      "Buf": "RXJyb3JFcnJvcg==",
+      "Pos": [
+        {
+          "Start": 0,
+          "End": 5
+        },
+        {
+          "Start": 5,
+          "End": 10
+        }
+      ]
+    }
+  },
+  {
+    "Name": "statusMessage",
+    "Data": {
+      "Buf": "ZXJyb3JlcnJvcg==",
+      "Pos": [
+        {
+          "Start": 0,
+          "End": 5
+        },
+        {
+          "Start": 5,
+          "End": 10
+        }
+      ]
+    }
+  },
+  {
+    "Name": "eventsTimestamp",
+    "Data": {
+      "Offsets": [
+        1,
+        2
+      ],
+      "Data": {
+        "Data": [
+          1703498029000000000,
+          1703498029000000000
+        ],
+        "Location": null,
+        "Precision": 9,
+        "PrecisionSet": true
+      }
+    }
+  },
+  {
+    "Name": "eventsName",
+    "Data": {
+      "Offsets": [
+        1,
+        2
+      ],
+      "Data": {
+        "Buf": "ZXZlbnQxZXZlbnQx",
+        "Pos": [
+          {
+            "Start": 0,
+            "End": 6
+          },
+          {
+            "Start": 6,
+            "End": 12
+          }
+        ]
+      }
+    }
+  },
+  {
+    "Name": "eventsAttributesBoolKeys",
+    "Data": {
+      "Offsets": [
+        1,
+        2
+      ],
+      "Data": {
+        "Offsets": [
+          2,
+          4
+        ],
+        "Data": {
+          "Buf": "dHJ1ZWZhbHNldHJ1ZWZhbHNl",
+          "Pos": [
+            {
+              "Start": 0,
+              "End": 4
+            },
+            {
+              "Start": 4,
+              "End": 9
+            },
+            {
+              "Start": 9,
+              "End": 13
+            },
+            {
+              "Start": 13,
+              "End": 18
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "Name": "eventsAttributesBoolValues",
+    "Data": {
+      "Offsets": [
+        1,
+        2
+      ],
+      "Data": {
+        "Offsets": [
+          2,
+          4
+        ],
+        "Data": [
+          true,
+          false,
+          true,
+          false
+        ]
+      }
+    }
+  },
+  {
+    "Name": "eventsAttributesDoubleKeys",
+    "Data": {
+      "Offsets": [
+        1,
+        2
+      ],
+      "Data": {
+        "Offsets": [
+          1,
+          2
+        ],
+        "Data": {
+          "Values": [
+            "6.824",
+            "6.824"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "Name": "eventsAttributesDoubleValues",
+    "Data": {
+      "Offsets": [
+        1,
+        2
+      ],
+      "Data": {
+        "Offsets": [
+          1,
+          2
+        ],
+        "Data": {
+          "Values": [
+            6.824,
+            6.824
+          ]
+        }
+      }
+    }
+  },
+  {
+    "Name": "eventsAttributesIntKeys",
+    "Data": {
+      "Offsets": [
+        1,
+        2
+      ],
+      "Data": {
+        "Offsets": [
+          3,
+          6
+        ],
+        "Data": {
+          "Values": [
+            "1",
+            "2",
+            "0",
+            "0",
+            "1",
+            "2"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "Name": "eventsAttributesIntValues",
+    "Data": {
+      "Offsets": [
+        1,
+        2
+      ],
+      "Data": {
+        "Offsets": [
+          3,
+          6
+        ],
+        "Data": {
+          "Values": [
+            1,
+            2,
+            0,
+            0,
+            1,
+            2
+          ]
+        }
+      }
+    }
+  },
+  {
+    "Name": "eventsAttributesStrKeys",
+    "Data": {
+      "Offsets": [
+        1,
+        2
+      ],
+      "Data": {
+        "Offsets": [
+          1,
+          2
+        ],
+        "Data": {
+          "Values": [
+            "hello",
+            "hello"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "Name": "eventsAttributesStrValues",
+    "Data": {
+      "Offsets": [
+        1,
+        2
+      ],
+      "Data": {
+        "Offsets": [
+          1,
+          2
+        ],
+        "Data": {
+          "Values": [
+            "world",
+            "world"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "Name": "eventsAttributesEmptyKeys",
+    "Data": {
+      "Offsets": [
+        1,
+        2
+      ],
+      "Data": {
+        "Offsets": [
+          1,
+          2
+        ],
+        "Data": {
+          "Values": [
+            "nil",
+            "nil"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "Name": "eventsAttributesEmptyMapKeys",
+    "Data": {
+      "Offsets": [
+        1,
+        2
+      ],
+      "Data": {
+        "Offsets": [
+          1,
+          2
+        ],
+        "Data": {
+          "Values": [
+            "map",
+            "map"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "Name": "eventsAttributesEmptySlicesKeys",
+    "Data": {
+      "Offsets": [
+        1,
+        2
+      ],
+      "Data": {
+        "Offsets": [
+          1,
+          2
+        ],
+        "Data": {
+          "Values": [
+            "slice",
+            "slice"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "Name": "eventsAttributesEmptyBytesKeys",
+    "Data": {
+      "Offsets": [
+        1,
+        2
+      ],
+      "Data": {
+        "Offsets": [
+          1,
+          2
+        ],
+        "Data": {
+          "Values": [
+            "bytes",
+            "bytes"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "Name": "linksTraceId",
+    "Data": {
+      "Offsets": [
+        1,
+        2
+      ],
+      "Data": {
+        "Values": [
+          "01020500000000000000000000000000",
+          "01020501000000000000000000000000"
+        ]
+      }
+    }
+  },
+  {
+    "Name": "linksSpanId",
+    "Data": {
+      "Offsets": [
+        1,
+        2
+      ],
+      "Data": {
+        "Values": [
+          "0102050000000000",
+          "0102050100000000"
+        ]
+      }
+    }
+  },
+  {
+    "Name": "linksTraceState",
+    "Data": {
+      "Offsets": [
+        1,
+        2
+      ],
+      "Data": {
+        "Buf": "ZXJyb3JlcnJvcg==",
+        "Pos": [
+          {
+            "Start": 0,
+            "End": 5
+          },
+          {
+            "Start": 5,
+            "End": 10
+          }
+        ]
+      }
+    }
+  },
+  {
+    "Name": "linksAttributesBoolKeys",
+    "Data": {
+      "Offsets": [
+        1,
+        2
+      ],
+      "Data": {
+        "Offsets": [
+          2,
+          4
+        ],
+        "Data": {
+          "Buf": "dHJ1ZWZhbHNldHJ1ZWZhbHNl",
+          "Pos": [
+            {
+              "Start": 0,
+              "End": 4
+            },
+            {
+              "Start": 4,
+              "End": 9
+            },
+            {
+              "Start": 9,
+              "End": 13
+            },
+            {
+              "Start": 13,
+              "End": 18
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "Name": "linksAttributesBoolValues",
+    "Data": {
+      "Offsets": [
+        1,
+        2
+      ],
+      "Data": {
+        "Offsets": [
+          2,
+          4
+        ],
+        "Data": [
+          true,
+          false,
+          true,
+          false
+        ]
+      }
+    }
+  },
+  {
+    "Name": "linksAttributesDoubleKeys",
+    "Data": {
+      "Offsets": [
+        1,
+        2
+      ],
+      "Data": {
+        "Offsets": [
+          1,
+          2
+        ],
+        "Data": {
+          "Values": [
+            "6.824",
+            "6.824"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "Name": "linksAttributesDoubleValues",
+    "Data": {
+      "Offsets": [
+        1,
+        2
+      ],
+      "Data": {
+        "Offsets": [
+          1,
+          2
+        ],
+        "Data": {
+          "Values": [
+            6.824,
+            6.824
+          ]
+        }
+      }
+    }
+  },
+  {
+    "Name": "linksAttributesIntKeys",
+    "Data": {
+      "Offsets": [
+        1,
+        2
+      ],
+      "Data": {
+        "Offsets": [
+          3,
+          6
+        ],
+        "Data": {
+          "Values": [
+            "0",
+            "1",
+            "2",
+            "1",
+            "2",
+            "0"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "Name": "linksAttributesIntValues",
+    "Data": {
+      "Offsets": [
+        1,
+        2
+      ],
+      "Data": {
+        "Offsets": [
+          3,
+          6
+        ],
+        "Data": {
+          "Values": [
+            0,
+            1,
+            2,
+            1,
+            2,
+            0
+          ]
+        }
+      }
+    }
+  },
+  {
+    "Name": "linksAttributesStrKeys",
+    "Data": {
+      "Offsets": [
+        1,
+        2
+      ],
+      "Data": {
+        "Offsets": [
+          1,
+          2
+        ],
+        "Data": {
+          "Values": [
+            "hello",
+            "hello"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "Name": "linksAttributesStrValues",
+    "Data": {
+      "Offsets": [
+        1,
+        2
+      ],
+      "Data": {
+        "Offsets": [
+          1,
+          2
+        ],
+        "Data": {
+          "Values": [
+            "world",
+            "world"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "Name": "linksAttributesEmptyKeys",
+    "Data": {
+      "Offsets": [
+        1,
+        2
+      ],
+      "Data": {
+        "Offsets": [
+          1,
+          2
+        ],
+        "Data": {
+          "Values": [
+            "nil",
+            "nil"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "Name": "linksAttributesEmptyMapKeys",
+    "Data": {
+      "Offsets": [
+        1,
+        2
+      ],
+      "Data": {
+        "Offsets": [
+          1,
+          2
+        ],
+        "Data": {
+          "Values": [
+            "map",
+            "map"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "Name": "linksAttributesEmptySlicesKeys",
+    "Data": {
+      "Offsets": [
+        1,
+        2
+      ],
+      "Data": {
+        "Offsets": [
+          1,
+          2
+        ],
+        "Data": {
+          "Values": [
+            "slice",
+            "slice"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "Name": "linksAttributesEmptyBytesKeys",
+    "Data": {
+      "Offsets": [
+        1,
+        2
+      ],
+      "Data": {
+        "Offsets": [
+          1,
+          2
+        ],
+        "Data": {
+          "Values": [
+            "bytes",
+            "bytes"
+          ]
+        }
+      }
+    }
+  }
+]
