@@ -26,9 +26,9 @@ import (
 	"github.com/jaegertracing/jaeger-idl/thrift-gen/zipkincore"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/flags"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
+	zipkin_proto3 "github.com/jaegertracing/jaeger/internal/proto-gen/zipkin"
 	"github.com/jaegertracing/jaeger/internal/tenancy"
 	"github.com/jaegertracing/jaeger/internal/testutils"
-	zipkin_proto3 "github.com/jaegertracing/jaeger/proto-gen/zipkin"
 )
 
 func TestZipkinReceiver(t *testing.T) {

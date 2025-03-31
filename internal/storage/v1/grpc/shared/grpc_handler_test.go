@@ -17,12 +17,12 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
+	"github.com/jaegertracing/jaeger/internal/proto-gen/storage_v1"
+	grpcMocks "github.com/jaegertracing/jaeger/internal/proto-gen/storage_v1/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore"
 	dependencyStoreMocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	spanStoreMocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/mocks"
-	"github.com/jaegertracing/jaeger/proto-gen/storage_v1"
-	grpcMocks "github.com/jaegertracing/jaeger/proto-gen/storage_v1/mocks"
 )
 
 type mockStoragePlugin struct {

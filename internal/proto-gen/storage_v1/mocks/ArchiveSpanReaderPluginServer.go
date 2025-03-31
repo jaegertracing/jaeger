@@ -8,7 +8,7 @@
 package mocks
 
 import (
-	storage_v1 "github.com/jaegertracing/jaeger/proto-gen/storage_v1"
+	storage_v1 "github.com/jaegertracing/jaeger/internal/proto-gen/storage_v1"
 	mock "github.com/stretchr/testify/mock"
 )
 

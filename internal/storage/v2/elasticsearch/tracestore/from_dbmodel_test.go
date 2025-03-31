@@ -7,8 +7,7 @@
 package tracestore
 
 import (
-	"encoding/binary"
-	"net/http"
+	"encoding/hex"
 	"strconv"
 	"testing"
 	"time"
@@ -21,6 +20,7 @@ import (
 	conventions "go.opentelemetry.io/collector/semconv/v1.16.0"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/dbmodel"
 )
 
 // Use timespamp with microsecond granularity to work well with jaeger thrift translation
@@ -81,113 +81,15 @@ func TestCodeFromAttr(t *testing.T) {
 }
 
 func TestZeroBatchLength(t *testing.T) {
-	trace, err := ProtoToTraces([]*model.Batch{})
+	trace, err := FromDBModel([]dbmodel.Span{})
 	require.NoError(t, err)
 	assert.Equal(t, 0, trace.ResourceSpans().Len())
-}
-
-func TestEmptyServiceNameAndTags(t *testing.T) {
-	tests := []struct {
-		name    string
-		batches []*model.Batch
-	}{
-		{
-			name: "empty service with nil tags",
-			batches: []*model.Batch{
-				{
-					Process: &model.Process{
-						ServiceName: "",
-					},
-				},
-			},
-		},
-		{
-			name: "empty service with tags",
-			batches: []*model.Batch{
-				{
-					Process: &model.Process{
-						ServiceName: "",
-						Tags:        []model.KeyValue{},
-					},
-				},
-			},
-		},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			trace, err := ProtoToTraces(test.batches)
-			require.NoError(t, err)
-			assert.Equal(t, 1, trace.ResourceSpans().Len())
-			assert.Equal(t, 0, trace.ResourceSpans().At(0).Resource().Attributes().Len())
-		})
-	}
 }
 
 func TestEmptySpansAndProcess(t *testing.T) {
-	trace, err := ProtoToTraces([]*model.Batch{{Spans: []*model.Span{}}})
+	trace, err := FromDBModel([]dbmodel.Span{})
 	require.NoError(t, err)
 	assert.Equal(t, 0, trace.ResourceSpans().Len())
-}
-
-func Test_translateHostnameAttr(t *testing.T) {
-	traceData := ptrace.NewTraces()
-	rss := traceData.ResourceSpans().AppendEmpty().Resource().Attributes()
-	rss.PutStr("hostname", "testing")
-	translateHostnameAttr(rss)
-	_, hostNameFound := rss.Get("hostname")
-	assert.False(t, hostNameFound)
-	convHostName, convHostNameFound := rss.Get(conventions.AttributeHostName)
-	assert.True(t, convHostNameFound)
-	assert.Equal(t, "testing", convHostName.AsString())
-}
-
-func Test_translateJaegerVersionAttr(t *testing.T) {
-	traceData := ptrace.NewTraces()
-	rss := traceData.ResourceSpans().AppendEmpty().Resource().Attributes()
-	rss.PutStr("jaeger.version", "1.0.0")
-	translateJaegerVersionAttr(rss)
-	_, jaegerVersionFound := rss.Get("jaeger.version")
-	assert.False(t, jaegerVersionFound)
-	exportVersion, exportVersionFound := rss.Get(attributeExporterVersion)
-	assert.True(t, exportVersionFound)
-	assert.Equal(t, "Jaeger-1.0.0", exportVersion.AsString())
-}
-
-func Test_jSpansToInternal_EmptyOrNilSpans(t *testing.T) {
-	tests := []struct {
-		name  string
-		spans []*model.Span
-	}{
-		{
-			name:  "nil spans",
-			spans: []*model.Span{nil},
-		},
-		{
-			name:  "empty spans",
-			spans: []*model.Span{new(model.Span)},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			traceData := ptrace.NewTraces()
-			rss := traceData.ResourceSpans().AppendEmpty().ScopeSpans()
-			jSpansToInternal(tt.spans, rss)
-			assert.Equal(t, 0, rss.Len())
-		})
-	}
-}
-
-func Test_jTagsToInternalAttributes(t *testing.T) {
-	traceData := ptrace.NewTraces()
-	rss := traceData.ResourceSpans().AppendEmpty().Resource().Attributes()
-	kv := []model.KeyValue{{
-		Key:   "testing-key",
-		VType: model.ValueType(12),
-	}}
-	jTagsToInternalAttributes(kv, rss)
-	testingKey, testingKeyFound := rss.Get("testing-key")
-	assert.True(t, testingKeyFound)
-	assert.Equal(t, "<Unknown Jaeger TagType \"12\">", testingKey.AsString())
 }
 
 func TestGetStatusCodeFromHTTPStatusAttr(t *testing.T) {
@@ -237,7 +139,7 @@ func TestGetStatusCodeFromHTTPStatusAttr(t *testing.T) {
 			code: ptrace.StatusCodeError,
 		},
 		{
-			name: "wrong value",
+			name: "wrong inputValue",
 			attr: pcommon.NewValueBool(true),
 			kind: ptrace.SpanKindClient,
 			code: ptrace.StatusCodeUnset,
@@ -258,21 +160,21 @@ func TestGetStatusCodeFromHTTPStatusAttr(t *testing.T) {
 	}
 }
 
-func Test_jLogsToSpanEvents(t *testing.T) {
+func Test_SetSpanEventsFromDbSpanLogs(t *testing.T) {
 	traces := ptrace.NewTraces()
 	span := traces.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans().AppendEmpty()
 	span.Events().AppendEmpty().SetName("event1")
 	span.Events().AppendEmpty().SetName("event2")
 	span.Events().AppendEmpty().Attributes().PutStr(eventNameAttr, "testing")
-	logs := []model.Log{
+	logs := []dbmodel.Log{
 		{
-			Timestamp: testSpanEventTime,
+			Timestamp: model.TimeAsEpochMicroseconds(testSpanEventTime),
 		},
 		{
-			Timestamp: testSpanEventTime,
+			Timestamp: model.TimeAsEpochMicroseconds(testSpanEventTime),
 		},
 	}
-	jLogsToSpanEvents(logs, span.Events())
+	dbSpanLogsToSpanEvents(logs, span.Events())
 	for i := 0; i < len(logs); i++ {
 		assert.Equal(t, testSpanEventTime, span.Events().At(i).Timestamp().AsTime())
 	}
@@ -280,167 +182,213 @@ func Test_jLogsToSpanEvents(t *testing.T) {
 	assert.Empty(t, span.Events().At(2).Name())
 }
 
-func TestJTagsToInternalAttributes(t *testing.T) {
-	tags := []model.KeyValue{
+func TestSetAttributesFromDbTags(t *testing.T) {
+	wrongValue := "wrong-inputValue"
+	tests := []struct {
+		name            string
+		keyModel        dbmodel.KeyValue
+		expectedValueFn func(pcommon.Map)
+	}{
 		{
-			Key:   "bool-val",
-			VType: model.ValueType_BOOL,
-			VBool: true,
+			name: "wrong bool input value",
+			keyModel: dbmodel.KeyValue{
+				Key:   "bool-val",
+				Type:  dbmodel.BoolType,
+				Value: wrongValue,
+			},
+			expectedValueFn: func(p pcommon.Map) {
+				p.PutStr("bool-val", "Can't convert the type bool for the key bool-val: strconv.ParseBool: parsing \"wrong-inputValue\": invalid syntax")
+			},
 		},
 		{
-			Key:    "int-val",
-			VType:  model.ValueType_INT64,
-			VInt64: 123,
+			name: "right bool input value",
+			keyModel: dbmodel.KeyValue{
+				Key:   "bool-val",
+				Type:  dbmodel.BoolType,
+				Value: "true",
+			},
+			expectedValueFn: func(p pcommon.Map) {
+				p.PutBool("bool-val", true)
+			},
 		},
 		{
-			Key:   "string-val",
-			VType: model.ValueType_STRING,
-			VStr:  "abc",
+			name: "non string bool value",
+			keyModel: dbmodel.KeyValue{
+				Key:   "bool-val",
+				Type:  dbmodel.BoolType,
+				Value: true,
+			},
+			expectedValueFn: func(p pcommon.Map) {
+				p.PutBool("bool-val", true)
+			},
 		},
 		{
-			Key:      "double-val",
-			VType:    model.ValueType_FLOAT64,
-			VFloat64: 1.23,
+			name: "wrong int input value",
+			keyModel: dbmodel.KeyValue{
+				Key:   "int-val",
+				Type:  dbmodel.Int64Type,
+				Value: wrongValue,
+			},
+			expectedValueFn: func(p pcommon.Map) {
+				p.PutStr("int-val", "Can't convert the type int64 for the key int-val: strconv.ParseInt: parsing \"wrong-inputValue\": invalid syntax")
+			},
 		},
 		{
-			Key:     "binary-val",
-			VType:   model.ValueType_BINARY,
-			VBinary: []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x64, 0x7D, 0x98},
+			name: "right int input value",
+			keyModel: dbmodel.KeyValue{
+				Key:   "int-val",
+				Type:  dbmodel.Int64Type,
+				Value: "123",
+			},
+			expectedValueFn: func(p pcommon.Map) {
+				p.PutInt("int-val", 123)
+			},
+		},
+		{
+			name: "wrong double input value",
+			keyModel: dbmodel.KeyValue{
+				Key:   "double-val",
+				Type:  dbmodel.Float64Type,
+				Value: wrongValue,
+			},
+			expectedValueFn: func(p pcommon.Map) {
+				p.PutStr("double-val", "Can't convert the type float64 for the key double-val: strconv.ParseFloat: parsing \"wrong-inputValue\": invalid syntax")
+			},
+		},
+		{
+			name: "right double input value",
+			keyModel: dbmodel.KeyValue{
+				Key:   "double-val",
+				Type:  dbmodel.Float64Type,
+				Value: "1.23",
+			},
+			expectedValueFn: func(p pcommon.Map) {
+				p.PutDouble("double-val", 1.23)
+			},
+		},
+		{
+			name: "wrong binary input value",
+			keyModel: dbmodel.KeyValue{
+				Key:   "binary-val",
+				Type:  dbmodel.BinaryType,
+				Value: wrongValue,
+			},
+			expectedValueFn: func(p pcommon.Map) {
+				p.PutStr("binary-val", "Can't convert the type binary for the key binary-val: encoding/hex: invalid byte: U+0077 'w'")
+			},
+		},
+		{
+			name: "right binary input value",
+			keyModel: dbmodel.KeyValue{
+				Key:   "binary-val",
+				Type:  dbmodel.BinaryType,
+				Value: hex.EncodeToString([]byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x64, 0x7D, 0x98}),
+			},
+			expectedValueFn: func(p pcommon.Map) {
+				p.PutEmptyBytes("binary-val").FromRaw([]byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x64, 0x7D, 0x98})
+			},
+		},
+		{
+			name: "non-string input value",
+			keyModel: dbmodel.KeyValue{
+				Key:   "bool-val",
+				Type:  dbmodel.Int64Type,
+				Value: 123,
+			},
+			expectedValueFn: func(p pcommon.Map) {
+				p.PutStr("bool-val", "Got non string inputValue for the key bool-val")
+			},
+		},
+		{
+			name: "right string input value",
+			keyModel: dbmodel.KeyValue{
+				Key:   "string-val",
+				Type:  dbmodel.StringType,
+				Value: "right-value",
+			},
+			expectedValueFn: func(p pcommon.Map) {
+				p.PutStr("string-val", "right-value")
+			},
+		},
+		{
+			name: "unknown type",
+			keyModel: dbmodel.KeyValue{
+				Key:   "unknown",
+				Type:  dbmodel.ValueType("unknown"),
+				Value: "any",
+			},
+			expectedValueFn: func(p pcommon.Map) {
+				p.PutStr("unknown", "<Unknown Jaeger TagType \"unknown\">")
+			},
 		},
 	}
-
-	expected := pcommon.NewMap()
-	expected.PutBool("bool-val", true)
-	expected.PutInt("int-val", 123)
-	expected.PutStr("string-val", "abc")
-	expected.PutDouble("double-val", 1.23)
-	expected.PutEmptyBytes("binary-val").FromRaw([]byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x64, 0x7D, 0x98})
-
-	got := pcommon.NewMap()
-	jTagsToInternalAttributes(tags, got)
-
-	require.Equal(t, expected, got)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			expected := pcommon.NewMap()
+			test.expectedValueFn(expected)
+			got := pcommon.NewMap()
+			dbTagsToAttributes([]dbmodel.KeyValue{test.keyModel}, got)
+			assert.Equal(t, expected, got)
+		})
+	}
 }
 
-func TestProtoToTraces(t *testing.T) {
+func TestFromDBModel(t *testing.T) {
 	tests := []struct {
 		name string
-		jb   []*model.Batch
+		jb   []dbmodel.Span
 		td   ptrace.Traces
 	}{
 		{
 			name: "empty",
-			jb:   []*model.Batch{},
+			jb:   []dbmodel.Span{},
 			td:   ptrace.NewTraces(),
-		},
-
-		{
-			name: "no-spans",
-			jb: []*model.Batch{
-				{
-					Process: generateProtoProcess(),
-				},
-			},
-			td: generateTracesResourceOnly(),
-		},
-
-		{
-			name: "no-resource-attrs",
-			jb: []*model.Batch{
-				{
-					Process: &model.Process{
-						ServiceName: noServiceName,
-					},
-				},
-			},
-			td: generateTracesResourceOnlyWithNoAttrs(),
-		},
-
-		{
-			name: "one-span-no-resources",
-			jb: []*model.Batch{
-				{
-					Process: &model.Process{
-						ServiceName: noServiceName,
-					},
-					Spans: []*model.Span{
-						generateProtoSpanWithTraceState(),
-					},
-				},
-			},
-			td: generateTracesOneSpanNoResourceWithTraceState(),
 		},
 		{
 			name: "two-spans-child-parent",
-			jb: []*model.Batch{
-				{
-					Process: &model.Process{
-						ServiceName: noServiceName,
-					},
-					Spans: []*model.Span{
-						generateProtoSpan(),
-						generateProtoChildSpan(),
-					},
-				},
+			jb: []dbmodel.Span{
+				generateProtoSpan(),
+				generateProtoChildSpan(),
 			},
-			td: generateTracesTwoSpansChildParent(),
+			td: generateTracesWithDifferentResourceTwoSpansChildParent(),
 		},
-
 		{
 			name: "two-spans-with-follower",
-			jb: []*model.Batch{
-				{
-					Process: &model.Process{
-						ServiceName: noServiceName,
-					},
-					Spans: []*model.Span{
-						generateProtoSpan(),
-						generateProtoFollowerSpan(),
-					},
-				},
+			jb: []dbmodel.Span{
+				generateProtoSpan(),
+				generateProtoFollowerSpan(),
 			},
-			td: generateTracesTwoSpansWithFollower(),
+			td: generateTracesWithDifferentResourceTwoSpansWithFollower(),
 		},
 		{
 			name: "a-spans-with-two-parent",
-			jb: []*model.Batch{
-				{
-					Process: &model.Process{
-						ServiceName: noServiceName,
-					},
-					Spans: []*model.Span{
-						generateProtoSpan(),
-						generateProtoFollowerSpan(),
-						generateProtoTwoParentsSpan(),
-					},
-				},
+			jb: []dbmodel.Span{
+				generateProtoSpan(),
+				generateProtoFollowerSpan(),
+				generateProtoTwoParentsSpan(),
 			},
-			td: generateTracesSpanWithTwoParents(),
+			td: generateTracesWithDifferentResourceSpanWithTwoParents(),
 		},
 		{
 			name: "no-error-from-server-span-with-4xx-http-code",
-			jb: []*model.Batch{
+			jb: []dbmodel.Span{
 				{
-					Process: &model.Process{
-						ServiceName: noServiceName,
-					},
-					Spans: []*model.Span{
+					StartTime: model.TimeAsEpochMicroseconds(testSpanStartTime),
+					Duration:  model.DurationAsMicroseconds(testSpanEndTime.Sub(testSpanStartTime)),
+					Tags: []dbmodel.KeyValue{
 						{
-							StartTime: testSpanStartTime,
-							Duration:  testSpanEndTime.Sub(testSpanStartTime),
-							Tags: []model.KeyValue{
-								{
-									Key:   model.SpanKindKey,
-									VType: model.ValueType_STRING,
-									VStr:  string(model.SpanKindServer),
-								},
-								{
-									Key:   conventions.AttributeHTTPStatusCode,
-									VType: model.ValueType_STRING,
-									VStr:  "404",
-								},
-							},
+							Key:   model.SpanKindKey,
+							Type:  dbmodel.StringType,
+							Value: string(model.SpanKindServer),
 						},
+						{
+							Key:   conventions.AttributeHTTPStatusCode,
+							Type:  dbmodel.StringType,
+							Value: "404",
+						},
+					},
+					Process: dbmodel.Process{
+						ServiceName: noServiceName,
 					},
 				},
 			},
@@ -460,66 +408,116 @@ func TestProtoToTraces(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			td, err := ProtoToTraces(test.jb)
+			td, err := FromDBModel(test.jb)
 			require.NoError(t, err)
 			assert.Equal(t, test.td, td)
 		})
 	}
 }
 
-func TestProtoBatchToInternalTracesWithTwoLibraries(t *testing.T) {
-	jb := &model.Batch{
-		Process: &model.Process{
-			ServiceName: noServiceName,
+func TestFromDBModelErrors(t *testing.T) {
+	tests := []struct {
+		name    string
+		err     string
+		dbSpans []dbmodel.Span
+	}{
+		{
+			name:    "wrong trace-id",
+			dbSpans: []dbmodel.Span{{TraceID: dbmodel.TraceID("trace-id")}},
+			err:     "encoding/hex: invalid byte: U+0074 't'",
 		},
-		Spans: []*model.Span{
-			{
-				StartTime:     testSpanStartTime,
-				Duration:      testSpanEndTime.Sub(testSpanStartTime),
-				OperationName: "operation2",
-				Tags: []model.KeyValue{
-					{
-						Key:   conventions.AttributeOtelScopeName,
-						VType: model.ValueType_STRING,
-						VStr:  "library2",
-					}, {
-						Key:   conventions.AttributeOtelScopeVersion,
-						VType: model.ValueType_STRING,
-						VStr:  "0.42.0",
-					},
+		{
+			name:    "wrong span-id",
+			dbSpans: []dbmodel.Span{{SpanID: dbmodel.SpanID("span-id")}},
+			err:     "encoding/hex: invalid byte: U+0073 's'",
+		},
+		{
+			name:    "wrong parent span-id",
+			dbSpans: []dbmodel.Span{{ParentSpanID: dbmodel.SpanID("parent-span-id")}},
+			err:     "encoding/hex: invalid byte: U+0070 'p'",
+		},
+		{
+			name:    "wrong-ref-trace-id",
+			dbSpans: []dbmodel.Span{{References: []dbmodel.Reference{{TraceID: dbmodel.TraceID("ref-trace-id")}}}},
+			err:     "encoding/hex: invalid byte: U+0072 'r'",
+		},
+		{
+			name:    "wrong-ref-span-id",
+			dbSpans: []dbmodel.Span{{References: []dbmodel.Reference{{SpanID: dbmodel.SpanID("ref-span-id")}}}},
+			err:     "encoding/hex: invalid byte: U+0072 'r'",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := FromDBModel(test.dbSpans)
+			require.ErrorContains(t, err, test.err)
+		})
+	}
+}
+
+func TestSetParentId(t *testing.T) {
+	parentSpanId := [8]byte{0xF1, 0xF2, 0xF3, 0xF4, 0xF5, 0xF6, 0xF7, 0xF8}
+	trace, err := FromDBModel([]dbmodel.Span{{ParentSpanID: getDbSpanIdFromByteArray(parentSpanId)}})
+	require.NoError(t, err)
+	assert.Equal(t, pcommon.SpanID(parentSpanId), trace.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).ParentSpanID())
+}
+
+func TestParentIdWhenRefTraceIdIsDifferent(t *testing.T) {
+	traceId := getDbTraceIdFromByteArray([16]byte{0xF1, 0xF2, 0xF3, 0xF4, 0xF5, 0xF6, 0xF7, 0xF8, 0xF9, 0xFA, 0xFB, 0xFC, 0xFD, 0xFE, 0xFF, 0x80})
+	refTraceId := getDbTraceIdFromByteArray([16]byte{0xF1, 0xF2, 0xF3, 0xF4, 0xF5, 0xF6, 0xF7, 0xF8, 0xF9, 0xFA, 0xFB, 0xFC, 0xFD, 0xFE, 0xFF, 0x81})
+	trace, err := FromDBModel([]dbmodel.Span{{TraceID: traceId, References: []dbmodel.Reference{{TraceID: refTraceId}}}})
+	require.NoError(t, err)
+	assert.True(t, trace.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).ParentSpanID().IsEmpty())
+}
+
+func TestFromDBModelForTracesWithTwoLibraries(t *testing.T) {
+	jb := []dbmodel.Span{
+		{
+			StartTime:     model.TimeAsEpochMicroseconds(testSpanStartTime),
+			Duration:      model.DurationAsMicroseconds(testSpanEndTime.Sub(testSpanStartTime)),
+			OperationName: "operation2",
+			Tags: []dbmodel.KeyValue{
+				{
+					Key:   conventions.AttributeOtelScopeName,
+					Type:  dbmodel.StringType,
+					Value: "library2",
+				}, {
+					Key:   conventions.AttributeOtelScopeVersion,
+					Type:  dbmodel.StringType,
+					Value: "0.42.0",
 				},
 			},
-			{
-				TraceID:       model.NewTraceID(0, 0),
-				StartTime:     testSpanStartTime,
-				Duration:      testSpanEndTime.Sub(testSpanStartTime),
-				OperationName: "operation1",
-				Tags: []model.KeyValue{
-					{
-						Key:   conventions.AttributeOtelScopeName,
-						VType: model.ValueType_STRING,
-						VStr:  "library1",
-					}, {
-						Key:   conventions.AttributeOtelScopeVersion,
-						VType: model.ValueType_STRING,
-						VStr:  "0.42.0",
-					},
+		},
+		{
+			TraceID:       dbmodel.TraceID("0000000000000000"),
+			StartTime:     model.TimeAsEpochMicroseconds(testSpanStartTime),
+			Duration:      model.DurationAsMicroseconds(testSpanEndTime.Sub(testSpanStartTime)),
+			OperationName: "operation1",
+			Tags: []dbmodel.KeyValue{
+				{
+					Key:   conventions.AttributeOtelScopeName,
+					Type:  dbmodel.StringType,
+					Value: "library1",
+				}, {
+					Key:   conventions.AttributeOtelScopeVersion,
+					Type:  dbmodel.StringType,
+					Value: "0.42.0",
 				},
 			},
 		},
 	}
 	expected := generateTracesTwoSpansFromTwoLibraries()
 	library1Span := expected.ResourceSpans().At(0).ScopeSpans().At(0)
-	library2Span := expected.ResourceSpans().At(0).ScopeSpans().At(1)
+	library2Span := expected.ResourceSpans().At(1).ScopeSpans().At(0)
 
-	actual, err := ProtoToTraces([]*model.Batch{jb})
+	actual, err := FromDBModel(jb)
 	require.NoError(t, err)
 
-	assert.Equal(t, 1, actual.ResourceSpans().Len())
-	assert.Equal(t, 2, actual.ResourceSpans().At(0).ScopeSpans().Len())
+	assert.Equal(t, 2, actual.ResourceSpans().Len())
+	assert.Equal(t, 1, actual.ResourceSpans().At(0).ScopeSpans().Len())
 
 	ils0 := actual.ResourceSpans().At(0).ScopeSpans().At(0)
-	ils1 := actual.ResourceSpans().At(0).ScopeSpans().At(1)
+	ils1 := actual.ResourceSpans().At(1).ScopeSpans().At(0)
 	if ils0.Scope().Name() == "library1" {
 		assert.Equal(t, library1Span, ils0)
 		assert.Equal(t, library2Span, ils1)
@@ -530,8 +528,6 @@ func TestProtoBatchToInternalTracesWithTwoLibraries(t *testing.T) {
 }
 
 func TestSetInternalSpanStatus(t *testing.T) {
-	emptyStatus := ptrace.NewStatus()
-
 	okStatus := ptrace.NewStatus()
 	okStatus.SetCode(ptrace.StatusCodeOk)
 
@@ -554,19 +550,6 @@ func TestSetInternalSpanStatus(t *testing.T) {
 		attrsModifiedLen int // Length of attributes map after dropping converted fields
 	}{
 		{
-			name:             "No tags set -> OK status",
-			status:           emptyStatus,
-			attrsModifiedLen: 0,
-		},
-		{
-			name: "error tag set -> Error status",
-			attrs: map[string]any{
-				tagError: true,
-			},
-			status:           errorStatus,
-			attrsModifiedLen: 0,
-		},
-		{
 			name: "status.code is set as string",
 			attrs: map[string]any{
 				conventions.OtelStatusCode: statusOk,
@@ -577,7 +560,6 @@ func TestSetInternalSpanStatus(t *testing.T) {
 		{
 			name: "status.code, status.message and error tags are set",
 			attrs: map[string]any{
-				tagError:                          true,
 				conventions.OtelStatusCode:        statusError,
 				conventions.OtelStatusDescription: "Error: Invalid argument",
 			},
@@ -595,7 +577,6 @@ func TestSetInternalSpanStatus(t *testing.T) {
 		{
 			name: "http.status_code, http.status_message and error tags are set",
 			attrs: map[string]any{
-				tagError:                            true,
 				conventions.AttributeHTTPStatusCode: 404,
 				tagHTTPStatusMsg:                    "HTTP 404: Not Found",
 			},
@@ -613,15 +594,6 @@ func TestSetInternalSpanStatus(t *testing.T) {
 			attrsModifiedLen: 2,
 		},
 		{
-			name: "Ignore http.status_code == 200 if error set to true.",
-			attrs: map[string]any{
-				tagError:                            true,
-				conventions.AttributeHTTPStatusCode: http.StatusOK,
-			},
-			status:           errorStatus,
-			attrsModifiedLen: 1,
-		},
-		{
 			name: "status.error has precedence over http.status_error.",
 			attrs: map[string]any{
 				conventions.OtelStatusCode:          statusError,
@@ -629,16 +601,6 @@ func TestSetInternalSpanStatus(t *testing.T) {
 				tagHTTPStatusMsg:                    "Server Error",
 			},
 			status:           errorStatus,
-			attrsModifiedLen: 2,
-		},
-		{
-			name: "the 4xx range span status MUST be left unset in case of SpanKind.SERVER",
-			kind: ptrace.SpanKindServer,
-			attrs: map[string]any{
-				tagError:                            false,
-				conventions.AttributeHTTPStatusCode: 404,
-			},
-			status:           emptyStatus,
 			attrsModifiedLen: 2,
 		},
 		{
@@ -659,41 +621,32 @@ func TestSetInternalSpanStatus(t *testing.T) {
 			status := span.Status()
 			attrs := pcommon.NewMap()
 			require.NoError(t, attrs.FromRaw(test.attrs))
-			setInternalSpanStatus(attrs, span)
+
+			setSpanStatus(attrs, span)
 			assert.Equal(t, test.status, status)
 			assert.Equal(t, test.attrsModifiedLen, attrs.Len())
 		})
 	}
 }
 
-func TestProtoBatchesToInternalTraces(t *testing.T) {
-	batches := []*model.Batch{
-		{
-			Process: generateProtoProcess(),
-			Spans: []*model.Span{
-				generateProtoSpan(),
-			},
-		},
-		{
-			Spans: []*model.Span{
-				generateProtoSpan(),
-				generateProtoChildSpan(),
-			},
-		},
-		{
-			// should be skipped
-			Spans: []*model.Span{},
-		},
+func TestFromDBModelToInternalTraces(t *testing.T) {
+	batches := []dbmodel.Span{
+		generateProtoSpan(),
+		generateProtoSpan(),
+		generateProtoChildSpan(),
 	}
 
 	expected := generateTracesOneSpanNoResource()
 	resource := generateTracesResourceOnly().ResourceSpans().At(0).Resource()
 	resource.CopyTo(expected.ResourceSpans().At(0).Resource())
+	span := expected.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+	resource.CopyTo(expected.ResourceSpans().At(1).Resource())
+	expected.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).CopyTo(span)
 	tgt := expected.ResourceSpans().AppendEmpty()
-	twoSpans := generateTracesTwoSpansChildParent().ResourceSpans().At(0)
+	twoSpans := generateTracesWithDifferentResourceTwoSpansChildParent().ResourceSpans().At(0)
 	twoSpans.CopyTo(tgt)
 
-	got, err := ProtoToTraces(batches)
+	got, err := FromDBModel(batches)
 
 	require.NoError(t, err)
 
@@ -719,7 +672,7 @@ func TestProtoBatchesToInternalTraces(t *testing.T) {
 	}
 }
 
-func TestJSpanKindToInternal(t *testing.T) {
+func TestDBSpanKindToOTELSpanKind(t *testing.T) {
 	tests := []struct {
 		jSpanKind    string
 		otlpSpanKind ptrace.SpanKind
@@ -752,73 +705,7 @@ func TestJSpanKindToInternal(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.jSpanKind, func(t *testing.T) {
-			assert.Equal(t, test.otlpSpanKind, jSpanKindToInternal(test.jSpanKind))
-		})
-	}
-}
-
-func TestRegroup(t *testing.T) {
-	// prepare
-	process := &model.Process{
-		ServiceName: "batch-process",
-	}
-	spanWithoutProcess := &model.Span{
-		OperationName: "span-without-process",
-	}
-	spanWithProcess := &model.Span{
-		Process: &model.Process{
-			ServiceName: "custom-service-name",
-		},
-	}
-
-	originalBatches := []*model.Batch{
-		{
-			Process: process,
-			Spans:   []*model.Span{spanWithProcess, spanWithoutProcess},
-		},
-	}
-
-	expected := []*model.Batch{
-		{
-			Process: process,
-			Spans:   []*model.Span{spanWithoutProcess},
-		},
-		{
-			Process: spanWithProcess.Process,
-			Spans:   []*model.Span{spanWithProcess},
-		},
-	}
-
-	// test
-	result := regroup(originalBatches)
-
-	// verify
-	assert.ElementsMatch(t, expected, result)
-}
-
-func TestChecksum(t *testing.T) {
-	testCases := []struct {
-		desc     string
-		input    *model.Process
-		expected uint64
-	}{
-		{
-			desc: "valid process",
-			input: &model.Process{
-				ServiceName: "some-service-name",
-			},
-			expected: 0x974574e8529af5dd, // acquired by running it once
-		},
-		{
-			desc:     "nil process",
-			input:    nil,
-			expected: 0xcbf29ce484222325, // acquired by running it once
-		},
-	}
-	for _, tC := range testCases {
-		t.Run(tC.desc, func(t *testing.T) {
-			out := checksum(tC.input)
-			assert.Equal(t, tC.expected, out)
+			assert.Equal(t, test.otlpSpanKind, dbSpanKindToOTELSpanKind(test.jSpanKind))
 		})
 	}
 }
@@ -839,19 +726,6 @@ func generateTracesOneEmptyResourceSpans() ptrace.Traces {
 
 func generateTracesResourceOnlyWithNoAttrs() ptrace.Traces {
 	return generateTracesOneEmptyResourceSpans()
-}
-
-func generateProtoProcess() *model.Process {
-	return &model.Process{
-		ServiceName: "service-1",
-		Tags: []model.KeyValue{
-			{
-				Key:    "int-attr-1",
-				VType:  model.ValueType_INT64,
-				VInt64: 123,
-			},
-		},
-	}
 }
 
 func GenerateTracesOneSpanNoResource() ptrace.Traces {
@@ -886,8 +760,7 @@ func generateTracesOneSpanNoResource() ptrace.Traces {
 	td := GenerateTracesOneSpanNoResource()
 	span := td.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0)
 	span.SetSpanID([8]byte{0xAF, 0xAE, 0xAD, 0xAC, 0xAB, 0xAA, 0xA9, 0xA8})
-	span.SetTraceID(
-		[16]byte{0xF1, 0xF2, 0xF3, 0xF4, 0xF5, 0xF6, 0xF7, 0xF8, 0xF9, 0xFA, 0xFB, 0xFC, 0xFD, 0xFE, 0xFF, 0x80})
+	span.SetTraceID([16]byte{0xF1, 0xF2, 0xF3, 0xF4, 0xF5, 0xF6, 0xF7, 0xF8, 0xF9, 0xFA, 0xFB, 0xFC, 0xFD, 0xFE, 0xFF, 0x80})
 	span.SetDroppedAttributesCount(0)
 	span.SetDroppedEventsCount(0)
 	span.SetStartTimestamp(testSpanStartTimestamp)
@@ -920,148 +793,150 @@ func generateTracesOneSpanNoResourceWithTraceState() ptrace.Traces {
 	return td
 }
 
-func generateProtoSpan() *model.Span {
-	return &model.Span{
-		TraceID: model.NewTraceID(
-			binary.BigEndian.Uint64([]byte{0xF1, 0xF2, 0xF3, 0xF4, 0xF5, 0xF6, 0xF7, 0xF8}),
-			binary.BigEndian.Uint64([]byte{0xF9, 0xFA, 0xFB, 0xFC, 0xFD, 0xFE, 0xFF, 0x80}),
-		),
-		SpanID:        model.NewSpanID(binary.BigEndian.Uint64([]byte{0xAF, 0xAE, 0xAD, 0xAC, 0xAB, 0xAA, 0xA9, 0xA8})),
+func generateProtoSpan() dbmodel.Span {
+	spanId := [8]byte{0xAF, 0xAE, 0xAD, 0xAC, 0xAB, 0xAA, 0xA9, 0xA8}
+	traceId := [16]byte{0xF1, 0xF2, 0xF3, 0xF4, 0xF5, 0xF6, 0xF7, 0xF8, 0xF9, 0xFA, 0xFB, 0xFC, 0xFD, 0xFE, 0xFF, 0x80}
+	return dbmodel.Span{
+		TraceID:       getDbTraceIdFromByteArray(traceId),
+		SpanID:        getDbSpanIdFromByteArray(spanId),
 		OperationName: "operationA",
-		StartTime:     testSpanStartTime,
-		Duration:      testSpanEndTime.Sub(testSpanStartTime),
-		Logs: []model.Log{
+		StartTime:     model.TimeAsEpochMicroseconds(testSpanStartTime),
+		Duration:      model.DurationAsMicroseconds(testSpanEndTime.Sub(testSpanStartTime)),
+		Logs: []dbmodel.Log{
 			{
-				Timestamp: testSpanEventTime,
-				Fields: []model.KeyValue{
+				Timestamp: model.TimeAsEpochMicroseconds(testSpanEventTime),
+				Fields: []dbmodel.KeyValue{
 					{
 						Key:   eventNameAttr,
-						VType: model.ValueType_STRING,
-						VStr:  "event-with-attr",
+						Type:  dbmodel.StringType,
+						Value: "event-with-attr",
 					},
 					{
 						Key:   "span-event-attr",
-						VType: model.ValueType_STRING,
-						VStr:  "span-event-attr-val",
+						Type:  dbmodel.StringType,
+						Value: "span-event-attr-val",
 					},
 				},
 			},
 			{
-				Timestamp: testSpanEventTime,
-				Fields: []model.KeyValue{
+				Timestamp: model.TimeAsEpochMicroseconds(testSpanEventTime),
+				Fields: []dbmodel.KeyValue{
 					{
-						Key:    "attr-int",
-						VType:  model.ValueType_INT64,
-						VInt64: 123,
+						Key:   "attr-int",
+						Type:  dbmodel.Int64Type,
+						Value: "123",
 					},
 				},
 			},
 		},
-		Tags: []model.KeyValue{
+		Tags: []dbmodel.KeyValue{
 			{
 				Key:   model.SpanKindKey,
-				VType: model.ValueType_STRING,
-				VStr:  string(model.SpanKindClient),
+				Type:  dbmodel.StringType,
+				Value: string(model.SpanKindClient),
 			},
 			{
 				Key:   conventions.OtelStatusCode,
-				VType: model.ValueType_STRING,
-				VStr:  statusError,
-			},
-			{
-				Key:   tagError,
-				VBool: true,
-				VType: model.ValueType_BOOL,
+				Type:  dbmodel.StringType,
+				Value: statusError,
 			},
 			{
 				Key:   conventions.OtelStatusDescription,
-				VType: model.ValueType_STRING,
-				VStr:  "status-cancelled",
+				Type:  dbmodel.StringType,
+				Value: "status-cancelled",
 			},
+		},
+		Process: dbmodel.Process{
+			ServiceName: noServiceName,
 		},
 	}
 }
 
-func generateProtoSpanWithLibraryInfo(libraryName string) *model.Span {
+func generateProtoSpanWithLibraryInfo(libraryName string) dbmodel.Span {
 	span := generateProtoSpan()
-	span.Tags = append([]model.KeyValue{
+	span.Tags = append([]dbmodel.KeyValue{
 		{
 			Key:   conventions.AttributeOtelScopeName,
-			VType: model.ValueType_STRING,
-			VStr:  libraryName,
+			Type:  dbmodel.StringType,
+			Value: libraryName,
 		}, {
 			Key:   conventions.AttributeOtelScopeVersion,
-			VType: model.ValueType_STRING,
-			VStr:  "0.42.0",
+			Type:  dbmodel.StringType,
+			Value: "0.42.0",
 		},
 	}, span.Tags...)
 
 	return span
 }
 
-func generateProtoSpanWithTraceState() *model.Span {
-	return &model.Span{
-		TraceID: model.NewTraceID(
-			binary.BigEndian.Uint64([]byte{0xF1, 0xF2, 0xF3, 0xF4, 0xF5, 0xF6, 0xF7, 0xF8}),
-			binary.BigEndian.Uint64([]byte{0xF9, 0xFA, 0xFB, 0xFC, 0xFD, 0xFE, 0xFF, 0x80}),
-		),
-		SpanID:        model.NewSpanID(binary.BigEndian.Uint64([]byte{0xAF, 0xAE, 0xAD, 0xAC, 0xAB, 0xAA, 0xA9, 0xA8})),
+func getDbTraceIdFromByteArray(arr [16]byte) dbmodel.TraceID {
+	return dbmodel.TraceID(hex.EncodeToString(arr[:]))
+}
+
+func getDbSpanIdFromByteArray(arr [8]byte) dbmodel.SpanID {
+	return dbmodel.SpanID(hex.EncodeToString(arr[:]))
+}
+
+func generateProtoSpanWithTraceState() dbmodel.Span {
+	spanId := [8]byte{0xAF, 0xAE, 0xAD, 0xAC, 0xAB, 0xAA, 0xA9, 0xA8}
+	traceId := [16]byte{0xF1, 0xF2, 0xF3, 0xF4, 0xF5, 0xF6, 0xF7, 0xF8, 0xF9, 0xFA, 0xFB, 0xFC, 0xFD, 0xFE, 0xFF, 0x80}
+	return dbmodel.Span{
+		TraceID:       getDbTraceIdFromByteArray(traceId),
+		SpanID:        getDbSpanIdFromByteArray(spanId),
 		OperationName: "operationA",
-		StartTime:     testSpanStartTime,
-		Duration:      testSpanEndTime.Sub(testSpanStartTime),
-		Logs: []model.Log{
+		StartTime:     model.TimeAsEpochMicroseconds(testSpanStartTime),
+		Duration:      model.DurationAsMicroseconds(testSpanEndTime.Sub(testSpanStartTime)),
+		Logs: []dbmodel.Log{
 			{
-				Timestamp: testSpanEventTime,
-				Fields: []model.KeyValue{
+				Timestamp: model.TimeAsEpochMicroseconds(testSpanEventTime),
+				Fields: []dbmodel.KeyValue{
 					{
 						Key:   eventNameAttr,
-						VType: model.ValueType_STRING,
-						VStr:  "event-with-attr",
+						Type:  dbmodel.StringType,
+						Value: "event-with-attr",
 					},
 					{
 						Key:   "span-event-attr",
-						VType: model.ValueType_STRING,
-						VStr:  "span-event-attr-val",
+						Type:  dbmodel.StringType,
+						Value: "span-event-attr-val",
 					},
 				},
 			},
 			{
-				Timestamp: testSpanEventTime,
-				Fields: []model.KeyValue{
+				Timestamp: model.TimeAsEpochMicroseconds(testSpanEventTime),
+				Fields: []dbmodel.KeyValue{
 					{
-						Key:    "attr-int",
-						VType:  model.ValueType_INT64,
-						VInt64: 123,
+						Key:   "attr-int",
+						Type:  dbmodel.Int64Type,
+						Value: "123",
 					},
 				},
 			},
 		},
-		Tags: []model.KeyValue{
+		Tags: []dbmodel.KeyValue{
 			{
 				Key:   model.SpanKindKey,
-				VType: model.ValueType_STRING,
-				VStr:  string(model.SpanKindClient),
+				Type:  dbmodel.StringType,
+				Value: string(model.SpanKindClient),
 			},
 			{
 				Key:   conventions.OtelStatusCode,
-				VType: model.ValueType_STRING,
-				VStr:  statusError,
-			},
-			{
-				Key:   tagError,
-				VBool: true,
-				VType: model.ValueType_BOOL,
+				Type:  dbmodel.StringType,
+				Value: statusError,
 			},
 			{
 				Key:   conventions.OtelStatusDescription,
-				VType: model.ValueType_STRING,
-				VStr:  "status-cancelled",
+				Type:  dbmodel.StringType,
+				Value: "status-cancelled",
 			},
 			{
 				Key:   tagW3CTraceState,
-				VType: model.ValueType_STRING,
-				VStr:  "lasterror=f39cd56cc44274fd5abd07ef1164246d10ce2955",
+				Type:  dbmodel.StringType,
+				Value: "lasterror=f39cd56cc44274fd5abd07ef1164246d10ce2955",
 			},
+		},
+		Process: dbmodel.Process{
+			ServiceName: noServiceName,
 		},
 	}
 }
@@ -1071,47 +946,60 @@ func generateTracesTwoSpansChildParent() ptrace.Traces {
 	spans := td.ResourceSpans().At(0).ScopeSpans().At(0).Spans()
 
 	span := spans.AppendEmpty()
-	span.SetName("operationB")
-	span.SetSpanID([8]byte{0x1F, 0x1E, 0x1D, 0x1C, 0x1B, 0x1A, 0x19, 0x18})
-	span.SetParentSpanID(spans.At(0).SpanID())
-	span.SetKind(ptrace.SpanKindServer)
-	span.SetTraceID(spans.At(0).TraceID())
-	span.SetStartTimestamp(spans.At(0).StartTimestamp())
-	span.SetEndTimestamp(spans.At(0).EndTimestamp())
-	span.Status().SetCode(ptrace.StatusCodeUnset)
-	span.Attributes().PutInt(conventions.AttributeHTTPStatusCode, 404)
+	setChildSpan(span, spans.At(0))
 	return td
 }
 
-func generateProtoChildSpan() *model.Span {
-	traceID := model.NewTraceID(
-		binary.BigEndian.Uint64([]byte{0xF1, 0xF2, 0xF3, 0xF4, 0xF5, 0xF6, 0xF7, 0xF8}),
-		binary.BigEndian.Uint64([]byte{0xF9, 0xFA, 0xFB, 0xFC, 0xFD, 0xFE, 0xFF, 0x80}),
-	)
-	return &model.Span{
+func generateTracesWithDifferentResourceTwoSpansChildParent() ptrace.Traces {
+	td := generateTracesOneSpanNoResource()
+	parentSpan := td.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0)
+	spans := td.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans()
+	span := spans.AppendEmpty()
+	setChildSpan(span, parentSpan)
+	return td
+}
+
+func setChildSpan(span, parentSpan ptrace.Span) {
+	span.SetName("operationB")
+	span.SetSpanID([8]byte{0x1F, 0x1E, 0x1D, 0x1C, 0x1B, 0x1A, 0x19, 0x18})
+	span.SetParentSpanID(parentSpan.SpanID())
+	span.SetKind(ptrace.SpanKindServer)
+	span.SetTraceID(parentSpan.TraceID())
+	span.SetStartTimestamp(parentSpan.StartTimestamp())
+	span.SetEndTimestamp(parentSpan.EndTimestamp())
+	span.Status().SetCode(ptrace.StatusCodeUnset)
+	span.Attributes().PutInt(conventions.AttributeHTTPStatusCode, 404)
+}
+
+func generateProtoChildSpan() dbmodel.Span {
+	traceID := getDbTraceIdFromByteArray([16]byte{0xF1, 0xF2, 0xF3, 0xF4, 0xF5, 0xF6, 0xF7, 0xF8, 0xF9, 0xFA, 0xFB, 0xFC, 0xFD, 0xFE, 0xFF, 0x80})
+	return dbmodel.Span{
 		TraceID:       traceID,
-		SpanID:        model.NewSpanID(binary.BigEndian.Uint64([]byte{0x1F, 0x1E, 0x1D, 0x1C, 0x1B, 0x1A, 0x19, 0x18})),
+		SpanID:        getDbSpanIdFromByteArray([8]byte{0x1F, 0x1E, 0x1D, 0x1C, 0x1B, 0x1A, 0x19, 0x18}),
 		OperationName: "operationB",
-		StartTime:     testSpanStartTime,
-		Duration:      testSpanEndTime.Sub(testSpanStartTime),
-		Tags: []model.KeyValue{
+		StartTime:     model.TimeAsEpochMicroseconds(testSpanStartTime),
+		Duration:      model.DurationAsMicroseconds(testSpanEndTime.Sub(testSpanStartTime)),
+		Tags: []dbmodel.KeyValue{
 			{
-				Key:    conventions.AttributeHTTPStatusCode,
-				VType:  model.ValueType_INT64,
-				VInt64: 404,
+				Key:   conventions.AttributeHTTPStatusCode,
+				Type:  dbmodel.Int64Type,
+				Value: "404",
 			},
 			{
 				Key:   model.SpanKindKey,
-				VType: model.ValueType_STRING,
-				VStr:  string(model.SpanKindServer),
+				Type:  dbmodel.StringType,
+				Value: string(model.SpanKindServer),
 			},
 		},
-		References: []model.SpanRef{
+		References: []dbmodel.Reference{
 			{
 				TraceID: traceID,
-				SpanID:  model.NewSpanID(binary.BigEndian.Uint64([]byte{0xAF, 0xAE, 0xAD, 0xAC, 0xAB, 0xAA, 0xA9, 0xA8})),
-				RefType: model.SpanRefType_CHILD_OF,
+				SpanID:  getDbSpanIdFromByteArray([8]byte{0xAF, 0xAE, 0xAD, 0xAC, 0xAB, 0xAA, 0xA9, 0xA8}),
+				RefType: dbmodel.ChildOf,
 			},
+		},
+		Process: dbmodel.Process{
+			ServiceName: noServiceName,
 		},
 	}
 }
@@ -1121,59 +1009,72 @@ func generateTracesTwoSpansWithFollower() ptrace.Traces {
 	spans := td.ResourceSpans().At(0).ScopeSpans().At(0).Spans()
 
 	span := spans.AppendEmpty()
+	setFollowFromSpan(span, spans.At(0))
+	return td
+}
+
+func generateTracesWithDifferentResourceTwoSpansWithFollower() ptrace.Traces {
+	td := generateTracesOneSpanNoResource()
+	followFromSpan := td.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0)
+	spans := td.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans()
+	span := spans.AppendEmpty()
+	setFollowFromSpan(span, followFromSpan)
+	return td
+}
+
+func setFollowFromSpan(span, followFromSpan ptrace.Span) {
 	span.SetName("operationC")
 	span.SetSpanID([8]byte{0x1F, 0x1E, 0x1D, 0x1C, 0x1B, 0x1A, 0x19, 0x18})
-	span.SetTraceID(spans.At(0).TraceID())
-	span.SetParentSpanID(spans.At(0).SpanID())
-	span.SetStartTimestamp(spans.At(0).EndTimestamp())
-	span.SetEndTimestamp(spans.At(0).EndTimestamp() + 1000000)
+	span.SetTraceID(followFromSpan.TraceID())
+	span.SetParentSpanID(followFromSpan.SpanID())
+	span.SetStartTimestamp(followFromSpan.EndTimestamp())
+	span.SetEndTimestamp(followFromSpan.EndTimestamp() + 1000000)
 	span.SetKind(ptrace.SpanKindConsumer)
 	span.Status().SetCode(ptrace.StatusCodeOk)
 	span.Status().SetMessage("status-ok")
 	link := span.Links().AppendEmpty()
 	link.SetTraceID(span.TraceID())
-	link.SetSpanID(spans.At(0).SpanID())
+	link.SetSpanID(followFromSpan.SpanID())
 	link.Attributes().PutStr(
 		conventions.AttributeOpentracingRefType,
 		conventions.AttributeOpentracingRefTypeFollowsFrom,
 	)
-	return td
 }
 
-func generateProtoFollowerSpan() *model.Span {
-	traceID := model.NewTraceID(
-		binary.BigEndian.Uint64([]byte{0xF1, 0xF2, 0xF3, 0xF4, 0xF5, 0xF6, 0xF7, 0xF8}),
-		binary.BigEndian.Uint64([]byte{0xF9, 0xFA, 0xFB, 0xFC, 0xFD, 0xFE, 0xFF, 0x80}),
-	)
-	return &model.Span{
+func generateProtoFollowerSpan() dbmodel.Span {
+	traceID := getDbTraceIdFromByteArray([16]byte{0xF1, 0xF2, 0xF3, 0xF4, 0xF5, 0xF6, 0xF7, 0xF8, 0xF9, 0xFA, 0xFB, 0xFC, 0xFD, 0xFE, 0xFF, 0x80})
+	return dbmodel.Span{
 		TraceID:       traceID,
-		SpanID:        model.NewSpanID(binary.BigEndian.Uint64([]byte{0x1F, 0x1E, 0x1D, 0x1C, 0x1B, 0x1A, 0x19, 0x18})),
+		SpanID:        getDbSpanIdFromByteArray([8]byte{0x1F, 0x1E, 0x1D, 0x1C, 0x1B, 0x1A, 0x19, 0x18}),
 		OperationName: "operationC",
-		StartTime:     testSpanEndTime,
-		Duration:      time.Millisecond,
-		Tags: []model.KeyValue{
+		StartTime:     model.TimeAsEpochMicroseconds(testSpanEndTime),
+		Duration:      model.DurationAsMicroseconds(time.Millisecond),
+		Tags: []dbmodel.KeyValue{
 			{
 				Key:   model.SpanKindKey,
-				VType: model.ValueType_STRING,
-				VStr:  string(model.SpanKindConsumer),
+				Type:  dbmodel.StringType,
+				Value: string(model.SpanKindConsumer),
 			},
 			{
 				Key:   conventions.OtelStatusCode,
-				VType: model.ValueType_STRING,
-				VStr:  statusOk,
+				Type:  dbmodel.StringType,
+				Value: statusOk,
 			},
 			{
 				Key:   conventions.OtelStatusDescription,
-				VType: model.ValueType_STRING,
-				VStr:  "status-ok",
+				Type:  dbmodel.StringType,
+				Value: "status-ok",
 			},
 		},
-		References: []model.SpanRef{
+		References: []dbmodel.Reference{
 			{
 				TraceID: traceID,
-				SpanID:  model.NewSpanID(binary.BigEndian.Uint64([]byte{0xAF, 0xAE, 0xAD, 0xAC, 0xAB, 0xAA, 0xA9, 0xA8})),
-				RefType: model.SpanRefType_FOLLOWS_FROM,
+				SpanID:  getDbSpanIdFromByteArray([8]byte{0xAF, 0xAE, 0xAD, 0xAC, 0xAB, 0xAA, 0xA9, 0xA8}),
+				RefType: dbmodel.FollowsFrom,
 			},
+		},
+		Process: dbmodel.Process{
+			ServiceName: noServiceName,
 		},
 	}
 }
@@ -1184,6 +1085,20 @@ func generateTracesSpanWithTwoParents() ptrace.Traces {
 	parent := spans.At(0)
 	parent2 := spans.At(1)
 	span := spans.AppendEmpty()
+	setSpanWithTwoParents(span, parent, parent2)
+	return td
+}
+
+func generateTracesWithDifferentResourceSpanWithTwoParents() ptrace.Traces {
+	td := generateTracesWithDifferentResourceTwoSpansWithFollower()
+	parent1 := td.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0)
+	parent2 := td.ResourceSpans().At(1).ScopeSpans().At(0).Spans().At(0)
+	span := td.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+	setSpanWithTwoParents(span, parent1, parent2)
+	return td
+}
+
+func setSpanWithTwoParents(span, parent, parent2 ptrace.Span) {
 	span.SetName("operationD")
 	span.SetSpanID([8]byte{0x1F, 0x1E, 0x1D, 0x1C, 0x1B, 0x1A, 0x19, 0x20})
 	span.SetTraceID(parent.TraceID())
@@ -1201,66 +1116,60 @@ func generateTracesSpanWithTwoParents() ptrace.Traces {
 		conventions.AttributeOpentracingRefType,
 		conventions.AttributeOpentracingRefTypeChildOf,
 	)
-	return td
 }
 
-func generateProtoTwoParentsSpan() *model.Span {
-	traceID := model.NewTraceID(
-		binary.BigEndian.Uint64([]byte{0xF1, 0xF2, 0xF3, 0xF4, 0xF5, 0xF6, 0xF7, 0xF8}),
-		binary.BigEndian.Uint64([]byte{0xF9, 0xFA, 0xFB, 0xFC, 0xFD, 0xFE, 0xFF, 0x80}),
-	)
-	return &model.Span{
+func generateProtoTwoParentsSpan() dbmodel.Span {
+	traceID := getDbTraceIdFromByteArray([16]byte{0xF1, 0xF2, 0xF3, 0xF4, 0xF5, 0xF6, 0xF7, 0xF8, 0xF9, 0xFA, 0xFB, 0xFC, 0xFD, 0xFE, 0xFF, 0x80})
+	return dbmodel.Span{
 		TraceID:       traceID,
-		SpanID:        model.NewSpanID(binary.BigEndian.Uint64([]byte{0x1F, 0x1E, 0x1D, 0x1C, 0x1B, 0x1A, 0x19, 0x20})),
+		SpanID:        getDbSpanIdFromByteArray([8]byte{0x1F, 0x1E, 0x1D, 0x1C, 0x1B, 0x1A, 0x19, 0x20}),
 		OperationName: "operationD",
-		StartTime:     testSpanStartTime,
-		Duration:      testSpanEndTime.Sub(testSpanStartTime),
-		Tags: []model.KeyValue{
+		StartTime:     model.TimeAsEpochMicroseconds(testSpanStartTime),
+		Duration:      model.DurationAsMicroseconds(testSpanEndTime.Sub(testSpanStartTime)),
+		Tags: []dbmodel.KeyValue{
 			{
 				Key:   model.SpanKindKey,
-				VType: model.ValueType_STRING,
-				VStr:  string(model.SpanKindConsumer),
+				Type:  dbmodel.StringType,
+				Value: string(model.SpanKindConsumer),
 			},
 			{
 				Key:   conventions.OtelStatusCode,
-				VType: model.ValueType_STRING,
-				VStr:  statusOk,
+				Type:  dbmodel.StringType,
+				Value: statusOk,
 			},
 			{
 				Key:   conventions.OtelStatusDescription,
-				VType: model.ValueType_STRING,
-				VStr:  "status-ok",
+				Type:  dbmodel.StringType,
+				Value: "status-ok",
 			},
 		},
-		References: []model.SpanRef{
+		References: []dbmodel.Reference{
 			{
 				TraceID: traceID,
-				SpanID:  model.NewSpanID(binary.BigEndian.Uint64([]byte{0xAF, 0xAE, 0xAD, 0xAC, 0xAB, 0xAA, 0xA9, 0xA8})),
-				RefType: model.SpanRefType_CHILD_OF,
+				SpanID:  getDbSpanIdFromByteArray([8]byte{0xAF, 0xAE, 0xAD, 0xAC, 0xAB, 0xAA, 0xA9, 0xA8}),
+				RefType: dbmodel.ChildOf,
 			},
 			{
 				TraceID: traceID,
-				SpanID:  model.NewSpanID(binary.BigEndian.Uint64([]byte{0x1F, 0x1E, 0x1D, 0x1C, 0x1B, 0x1A, 0x19, 0x18})),
-				RefType: model.SpanRefType_CHILD_OF,
+				SpanID:  getDbSpanIdFromByteArray([8]byte{0x1F, 0x1E, 0x1D, 0x1C, 0x1B, 0x1A, 0x19, 0x18}),
+				RefType: dbmodel.ChildOf,
 			},
+		},
+		Process: dbmodel.Process{
+			ServiceName: noServiceName,
 		},
 	}
 }
 
 func BenchmarkProtoBatchToInternalTraces(b *testing.B) {
-	jb := []*model.Batch{
-		{
-			Process: generateProtoProcess(),
-			Spans: []*model.Span{
-				generateProtoSpan(),
-				generateProtoChildSpan(),
-			},
-		},
+	jb := []dbmodel.Span{
+		generateProtoSpan(),
+		generateProtoChildSpan(),
 	}
 
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
-		_, err := ProtoToTraces(jb)
+		_, err := FromDBModel(jb)
 		assert.NoError(b, err)
 	}
 }
@@ -1269,7 +1178,7 @@ func generateTracesTwoSpansFromTwoLibraries() ptrace.Traces {
 	td := generateTracesOneEmptyResourceSpans()
 
 	rs0 := td.ResourceSpans().At(0)
-	rs0.ScopeSpans().EnsureCapacity(2)
+	rs0.ScopeSpans().EnsureCapacity(1)
 
 	rs0ils0 := rs0.ScopeSpans().AppendEmpty()
 	rs0ils0.Scope().SetName("library1")
@@ -1281,7 +1190,7 @@ func generateTracesTwoSpansFromTwoLibraries() ptrace.Traces {
 	span1.SetStartTimestamp(testSpanStartTimestamp)
 	span1.SetEndTimestamp(testSpanEndTimestamp)
 
-	rs0ils1 := rs0.ScopeSpans().AppendEmpty()
+	rs0ils1 := td.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty()
 	rs0ils1.Scope().SetName("library2")
 	rs0ils1.Scope().SetVersion("0.42.0")
 	span2 := rs0ils1.Spans().AppendEmpty()
