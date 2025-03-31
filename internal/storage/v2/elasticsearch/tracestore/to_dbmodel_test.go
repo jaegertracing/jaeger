@@ -84,10 +84,10 @@ func TestGetTagFromStatusMsg(t *testing.T) {
 
 	got, ok := getTagFromStatusMsg("test-error")
 	assert.True(t, ok)
-	assert.Equal(t, model.KeyValue{
+	assert.EqualValues(t, model.KeyValue{
 		Key:   conventions.OtelStatusDescription,
-		Value: "test-error",
-		Type:  dbmodel.StringType,
+		VStr:  "test-error",
+		VType: model.ValueType_STRING,
 	}, got)
 }
 
