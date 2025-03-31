@@ -1,0 +1,393 @@
+{
+  "resourceSpans": [
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "oci.manifest.digest",
+            "value": {
+              "bytesValue": "c2hhMjU2OmU0Y2E2MmMwZDYyZjNlODg2ZTY4NDgwNmRmZTlkNGUwY2RhNjBkNTQ5ODY4OTgxNzNjMTA4Mzg1NmNmZGEwZjQ="
+            }
+          },
+          {
+            "key": "pod.containers.runtime",
+            "value": {
+              "kvlistValue": {
+                "values": [
+                  {
+                    "key": "container1",
+                    "value": {
+                      "stringValue": "docker"
+                    }
+                  },
+                  {
+                    "key": "container2",
+                    "value": {
+                      "stringValue": "containerd"
+                    }
+                  },
+                  {
+                    "key": "container3",
+                    "value": {
+                      "stringValue": "rkt"
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "key": "pod.containers.ready",
+            "value": {
+              "kvlistValue": {
+                "values": [
+                  {
+                    "key": "container1",
+                    "value": {
+                      "boolValue": true
+                    }
+                  },
+                  {
+                    "key": "container2",
+                    "value": {
+                      "boolValue": true
+                    }
+                  },
+                  {
+                    "key": "container3",
+                    "value": {
+                      "boolValue": false
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "key": "pod.initContainers.count",
+            "value": {
+              "kvlistValue": {
+                "values": [
+                  {
+                    "key": "container3",
+                    "value": {
+                      "intValue": "4"
+                    }
+                  },
+                  {
+                    "key": "container1",
+                    "value": {
+                      "intValue": "2"
+                    }
+                  },
+                  {
+                    "key": "container2",
+                    "value": {
+                      "intValue": "3"
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "key": "pod.containers.avg_restart",
+            "value": {
+              "kvlistValue": {
+                "values": [
+                  {
+                    "key": "container3",
+                    "value": {
+                      "doubleValue": 4.1
+                    }
+                  },
+                  {
+                    "key": "container1",
+                    "value": {
+                      "doubleValue": 2.1
+                    }
+                  },
+                  {
+                    "key": "container2",
+                    "value": {
+                      "doubleValue": 3.1
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "key": "container.image.tags",
+            "value": {
+              "arrayValue": {
+                "values": [
+                  {
+                    "stringValue": "v1.27.1"
+                  },
+                  {
+                    "stringValue": "v3.5.7"
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "key": "container.args.values.double",
+            "value": {
+              "arrayValue": {
+                "values": [
+                  {
+                    "doubleValue": 2.7
+                  },
+                  {
+                    "doubleValue": 3.14
+                  },
+                  {
+                    "doubleValue": 15.926
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "key": "container.args.values.int",
+            "value": {
+              "arrayValue": {
+                "values": [
+                  {
+                    "intValue": "1"
+                  },
+                  {
+                    "intValue": "2"
+                  },
+                  {
+                    "intValue": "3"
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "key": "container.args.values.bool",
+            "value": {
+              "arrayValue": {
+                "values": [
+                  {
+                    "boolValue": true
+                  },
+                  {
+                    "boolValue": false
+                  },
+                  {
+                    "boolValue": true
+                  }
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "scopeSpans": [
+        {
+          "scope": {
+            "attributes": [
+              {
+                "key": "scope.test.bytes.value",
+                "value": {
+                  "bytesValue": "AQIDBA=="
+                }
+              },
+              {
+                "key": "scope.test.map.value.string",
+                "value": {
+                  "kvlistValue": {
+                    "values": [
+                      {
+                        "key": "hello",
+                        "value": {
+                          "stringValue": "nihao"
+                        }
+                      },
+                      {
+                        "key": "world",
+                        "value": {
+                          "stringValue": "shijie"
+                        }
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "scope.test.slice.value.string",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "foo1"
+                      },
+                      {
+                        "stringValue": "foo2"
+                      }
+                    ]
+                  }
+                }
+              }
+            ]
+          },
+          "spans": [
+            {
+              "traceId": "",
+              "spanId": "",
+              "parentSpanId": "",
+              "attributes": [
+                {
+                  "key": "span.test.bytes.value",
+                  "value": {
+                    "bytesValue": "AQIDBAUG"
+                  }
+                },
+                {
+                  "key": "span.test.map.value.string",
+                  "value": {
+                    "kvlistValue": {
+                      "values": [
+                        {
+                          "key": "hello",
+                          "value": {
+                            "stringValue": "nihao"
+                          }
+                        },
+                        {
+                          "key": "world",
+                          "value": {
+                            "stringValue": "shijie"
+                          }
+                        }
+                      ]
+                    }
+                  }
+                },
+                {
+                  "key": "span.test.slice.value.string",
+                  "value": {
+                    "arrayValue": {
+                      "values": [
+                        {
+                          "stringValue": "foo1"
+                        },
+                        {
+                          "stringValue": "foo2"
+                        }
+                      ]
+                    }
+                  }
+                }
+              ],
+              "events": [
+                {
+                  "attributes": [
+                    {
+                      "key": "event.test.bytes.value",
+                      "value": {
+                        "bytesValue": "AQIDBAUG"
+                      }
+                    },
+                    {
+                      "key": "event.test.map.value.string",
+                      "value": {
+                        "kvlistValue": {
+                          "values": [
+                            {
+                              "key": "hello",
+                              "value": {
+                                "stringValue": "nihao"
+                              }
+                            },
+                            {
+                              "key": "world",
+                              "value": {
+                                "stringValue": "shijie"
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    },
+                    {
+                      "key": "event.test.slice.value.string",
+                      "value": {
+                        "arrayValue": {
+                          "values": [
+                            {
+                              "stringValue": "foo1"
+                            },
+                            {
+                              "stringValue": "foo2"
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              ],
+              "links": [
+                {
+                  "traceId": "",
+                  "spanId": "",
+                  "attributes": [
+                    {
+                      "key": "link.test.bytes.value",
+                      "value": {
+                        "bytesValue": "AQIDBAUG"
+                      }
+                    },
+                    {
+                      "key": "link.test.map.value.string",
+                      "value": {
+                        "kvlistValue": {
+                          "values": [
+                            {
+                              "key": "hello",
+                              "value": {
+                                "stringValue": "nihao"
+                              }
+                            },
+                            {
+                              "key": "world",
+                              "value": {
+                                "stringValue": "shijie"
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    },
+                    {
+                      "key": "link.test.slice.value.string",
+                      "value": {
+                        "arrayValue": {
+                          "values": [
+                            {
+                              "stringValue": "foo1"
+                            },
+                            {
+                              "stringValue": "foo2"
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              ],
+              "status": {}
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

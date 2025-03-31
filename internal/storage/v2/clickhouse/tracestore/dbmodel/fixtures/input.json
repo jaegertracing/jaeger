@@ -1,0 +1,464 @@
+[
+  {
+    "Name": "resourceAttributesBytesKey",
+    "Data": {
+      "Offsets": [
+        1
+      ],
+      "Data": {
+        "Values": [
+          "oci.manifest.digest"
+        ]
+      }
+    }
+  },
+  {
+    "Name": "resourceAttributesBytesValue",
+    "Data": {
+      "Offsets": [
+        1
+      ],
+      "Data": {
+        "Values": [
+          "c2hhMjU2OmU0Y2E2MmMwZDYyZjNlODg2ZTY4NDgwNmRmZTlkNGUwY2RhNjBkNTQ5ODY4OTgxNzNjMTA4Mzg1NmNmZGEwZjQ="
+        ]
+      }
+    }
+  },
+  {
+    "Name": "resourceAttributesMapKey",
+    "Data": {
+      "Offsets": [
+        4
+      ],
+      "Data": {
+        "Values": [
+          "pod.containers.runtime",
+          "pod.containers.ready",
+          "pod.initContainers.count",
+          "pod.containers.avg_restart"
+        ]
+      }
+    }
+  },
+  {
+    "Name": "resourceAttributesMapValue",
+    "Data": {
+      "Offsets": [
+        4
+      ],
+      "Data": {
+        "Values": [
+          "{\"container1\":\"docker\",\"container2\":\"containerd\",\"container3\":\"rkt\"}",
+          "{\"container1\":true,\"container2\":true,\"container3\":false}",
+          "{\"container1\":2,\"container2\":3,\"container3\":4}",
+          "{\"container1\":2.1,\"container2\":3.1,\"container3\":4.1}"
+        ]
+      }
+    }
+  },
+  {
+    "Name": "resourceAttributesSliceKey",
+    "Data": {
+      "Offsets": [
+        4
+      ],
+      "Data": {
+        "Values": [
+          "container.args.values.bool",
+          "container.image.tags",
+          "container.args.values.double",
+          "container.args.values.int"
+        ]
+      }
+    }
+  },
+  {
+    "Name": "resourceAttributesSliceValue",
+    "Data": {
+      "Offsets": [
+        4
+      ],
+      "Data": {
+        "Values": [
+          "[true,false,true]",
+          "[\"v1.27.1\",\"v3.5.7\"]",
+          "[2.7,3.14,15.926]",
+          "[1,2,3]"
+        ]
+      }
+    }
+  },
+  {
+    "Name": "scopeAttributesBytesKey",
+    "Data": {
+      "Offsets": [
+        1
+      ],
+      "Data": {
+        "Values": [
+          "scope.test.bytes.value"
+        ]
+      }
+    }
+  },
+  {
+    "Name": "scopeAttributesBytesValue",
+    "Data": {
+      "Offsets": [
+        1
+      ],
+      "Data": {
+        "Values": [
+          "AQIDBA=="
+        ]
+      }
+    }
+  },
+  {
+    "Name": "scopeAttributesMapKey",
+    "Data": {
+      "Offsets": [
+        1
+      ],
+      "Data": {
+        "Values": [
+          "scope.test.map.value.string"
+        ]
+      }
+    }
+  },
+  {
+    "Name": "scopeAttributesMapValue",
+    "Data": {
+      "Offsets": [
+        1
+      ],
+      "Data": {
+        "Values": [
+          "{\"hello\":\"nihao\",\"world\":\"shijie\"}"
+        ]
+      }
+    }
+  },
+  {
+    "Name": "scopeAttributesSliceKey",
+    "Data": {
+      "Offsets": [
+        1
+      ],
+      "Data": {
+        "Values": [
+          "scope.test.slice.value.string"
+        ]
+      }
+    }
+  },
+  {
+    "Name": "scopeAttributesSliceValue",
+    "Data": {
+      "Offsets": [
+        1
+      ],
+      "Data": {
+        "Values": [
+          "[\"foo1\",\"foo2\"]"
+        ]
+      }
+    }
+  },
+  {
+    "Name": "spanAttributesBytesKey",
+    "Data": {
+      "Offsets": [
+        1
+      ],
+      "Data": {
+        "Values": [
+          "span.test.bytes.value"
+        ]
+      }
+    }
+  },
+  {
+    "Name": "spanAttributesBytesValue",
+    "Data": {
+      "Offsets": [
+        1
+      ],
+      "Data": {
+        "Values": [
+          "AQIDBAUG"
+        ]
+      }
+    }
+  },
+  {
+    "Name": "spanAttributesMapKey",
+    "Data": {
+      "Offsets": [
+        1
+      ],
+      "Data": {
+        "Values": [
+          "span.test.map.value.string"
+        ]
+      }
+    }
+  },
+  {
+    "Name": "spanAttributesMapValue",
+    "Data": {
+      "Offsets": [
+        1
+      ],
+      "Data": {
+        "Values": [
+          "{\"hello\":\"nihao\",\"world\":\"shijie\"}"
+        ]
+      }
+    }
+  },
+  {
+    "Name": "spanAttributesSliceKey",
+    "Data": {
+      "Offsets": [
+        1
+      ],
+      "Data": {
+        "Values": [
+          "span.test.slice.value.string"
+        ]
+      }
+    }
+  },
+  {
+    "Name": "spanAttributesSliceValue",
+    "Data": {
+      "Offsets": [
+        1
+      ],
+      "Data": {
+        "Values": [
+          "[\"foo1\",\"foo2\"]"
+        ]
+      }
+    }
+  },
+  {
+    "Name": "eventsAttributesBytesKeys",
+    "Data": {
+      "Offsets": [
+        1
+      ],
+      "Data": {
+        "Offsets": [
+          1
+        ],
+        "Data": {
+          "Values": [
+            "event.test.bytes.value"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "Name": "eventsAttributesBytesValues",
+    "Data": {
+      "Offsets": [
+        1
+      ],
+      "Data": {
+        "Offsets": [
+          1
+        ],
+        "Data": {
+          "Values": [
+            "AQIDBAUG"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "Name": "eventsAttributesMapKeys",
+    "Data": {
+      "Offsets": [
+        1
+      ],
+      "Data": {
+        "Offsets": [
+          1
+        ],
+        "Data": {
+          "Values": [
+            "event.test.map.value.string"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "Name": "eventsAttributesMapValues",
+    "Data": {
+      "Offsets": [
+        1
+      ],
+      "Data": {
+        "Offsets": [
+          1
+        ],
+        "Data": {
+          "Values": [
+            "{\"hello\":\"nihao\",\"world\":\"shijie\"}"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "Name": "eventsAttributesSliceKeys",
+    "Data": {
+      "Offsets": [
+        1
+      ],
+      "Data": {
+        "Offsets": [
+          1
+        ],
+        "Data": {
+          "Values": [
+            "event.test.slice.value.string"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "Name": "eventsAttributesSliceValues",
+    "Data": {
+      "Offsets": [
+        1
+      ],
+      "Data": {
+        "Offsets": [
+          1
+        ],
+        "Data": {
+          "Values": [
+            "[\"foo1\",\"foo2\"]"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "Name": "linksAttributesBytesKeys",
+    "Data": {
+      "Offsets": [
+        1
+      ],
+      "Data": {
+        "Offsets": [
+          1
+        ],
+        "Data": {
+          "Values": [
+            "link.test.bytes.value"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "Name": "linksAttributesBytesValues",
+    "Data": {
+      "Offsets": [
+        1
+      ],
+      "Data": {
+        "Offsets": [
+          1
+        ],
+        "Data": {
+          "Values": [
+            "AQIDBAUG"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "Name": "linksAttributesMapKeys",
+    "Data": {
+      "Offsets": [
+        1
+      ],
+      "Data": {
+        "Offsets": [
+          1
+        ],
+        "Data": {
+          "Values": [
+            "link.test.map.value.string"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "Name": "linksAttributesMapValues",
+    "Data": {
+      "Offsets": [
+        1
+      ],
+      "Data": {
+        "Offsets": [
+          1
+        ],
+        "Data": {
+          "Values": [
+            "{\"hello\":\"nihao\",\"world\":\"shijie\"}"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "Name": "linksAttributesSliceKeys",
+    "Data": {
+      "Offsets": [
+        1
+      ],
+      "Data": {
+        "Offsets": [
+          1
+        ],
+        "Data": {
+          "Values": [
+            "link.test.slice.value.string"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "Name": "linksAttributesSliceValues",
+    "Data": {
+      "Offsets": [
+        1
+      ],
+      "Data": {
+        "Offsets": [
+          1
+        ],
+        "Data": {
+          "Values": [
+            "[\"foo1\",\"foo2\"]"
+          ]
+        }
+      }
+    }
+  }
+]

@@ -1,0 +1,128 @@
+{
+  "Resource": {
+    "Attributes": {
+      "BytesKeys": [
+        "oci.manifest.digest"
+      ],
+      "BytesValues": [
+        "c2hhMjU2OmU0Y2E2MmMwZDYyZjNlODg2ZTY4NDgwNmRmZTlkNGUwY2RhNjBkNTQ5ODY4OTgxNzNjMTA4Mzg1NmNmZGEwZjQ="
+      ],
+      "MapKeys": [
+        "pod.containers.runtime",
+        "pod.containers.ready",
+        "pod.initContainers.count",
+        "pod.containers.avg_restart"
+      ],
+      "MapValues": [
+        "{\"container1\":\"docker\",\"container2\":\"containerd\",\"container3\":\"rkt\"}",
+        "{\"container1\":true,\"container2\":true,\"container3\":false}",
+        "{\"container1\":2,\"container2\":3,\"container3\":4}",
+        "{\"container1\":2.1,\"container2\":3.1,\"container3\":4.1}"
+      ],
+      "SliceKeys": [
+        "container.image.tags",
+        "container.args.values.double",
+        "container.args.values.int",
+        "container.args.values.bool"
+      ],
+      "SliceValues": [
+        "[\"v1.27.1\",\"v3.5.7\"]",
+        "[2.7,3.14,15.926]",
+        "[1,2,3]",
+        "[true,false,true]"
+      ]
+    }
+  },
+  "Scope": {
+    "Attributes": {
+      "BytesKeys": [
+        "scope.test.bytes.value"
+      ],
+      "BytesValues": [
+        "AQIDBA=="
+      ],
+      "MapKeys": [
+        "scope.test.map.value.string"
+      ],
+      "MapValues": [
+        "{\"hello\":\"nihao\",\"world\":\"shijie\"}"
+      ],
+      "SliceKeys": [
+        "scope.test.slice.value.string"
+      ],
+      "SliceValues": [
+        "[\"foo1\",\"foo2\"]"
+      ]
+    }
+  },
+  "Span": {
+    "Attributes": {
+      "BytesKeys": [
+        "span.test.bytes.value"
+      ],
+      "BytesValues": [
+        "AQIDBAUG"
+      ],
+      "MapKeys": [
+        "span.test.map.value.string"
+      ],
+      "MapValues": [
+        "{\"hello\":\"nihao\",\"world\":\"shijie\"}"
+      ],
+      "SliceKeys": [
+        "span.test.slice.value.string"
+      ],
+      "SliceValues": [
+        "[\"foo1\",\"foo2\"]"
+      ]
+    }
+  },
+  "Links": [
+    {
+      "Attributes": {
+        "BytesKeys": [
+          "link.test.bytes.value"
+        ],
+        "BytesValues": [
+          "AQIDBAUG"
+        ],
+        "MapKeys": [
+          "link.test.map.value.string"
+        ],
+        "MapValues": [
+          "{\"hello\":\"nihao\",\"world\":\"shijie\"}"
+        ],
+        "SliceKeys": [
+          "link.test.slice.value.string"
+        ],
+        "SliceValues": [
+          "[\"foo1\",\"foo2\"]"
+        ]
+      }
+    }
+  ],
+  "Events": [
+    {
+      "Attributes": {
+        "BytesKeys": [
+          "event.test.bytes.value"
+        ],
+        "BytesValues": [
+          "AQIDBAUG"
+        ],
+        "MapKeys": [
+          "event.test.map.value.string"
+        ],
+        "MapValues": [
+          "{\"hello\":\"nihao\",\"world\":\"shijie\"}"
+        ],
+        "SliceKeys": [
+          "event.test.slice.value.string"
+        ],
+        "SliceValues": [
+          "[\"foo1\",\"foo2\"]"
+        ]
+      }
+    }
+  ]
+}
