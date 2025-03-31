@@ -88,19 +88,19 @@ func TestInitMetricsFailures(t *testing.T) {
 	require.EqualError(t, metrics.Init(&noMetricTag, nil, nil), "field NoMetricTag is missing a tag 'metric'")
 
 	require.EqualError(t, metrics.Init(&badTags, nil, nil),
-		"Field [BadTags]: Tag [noValue] is not of the form key=value in 'tags' string [1=one,noValue]")
+		"field [BadTags]: Tag [noValue] is not of the form key=value in 'tags' string [1=one,noValue]")
 
 	require.EqualError(t, metrics.Init(&invalidMetricType, nil, nil),
-		"Field InvalidMetricType is not a pointer to timer, gauge, or counter")
+		"field InvalidMetricType is not a pointer to timer, gauge, or counter")
 
 	require.EqualError(t, metrics.Init(&badHistogramBucket, nil, nil),
-		"Field [BadHistogramBucket]: Bucket [a] could not be converted to float64 in 'buckets' string [1,2,a,4]")
+		"field [BadHistogramBucket]: Bucket [a] could not be converted to float64 in 'buckets' string [1,2,a,4]")
 
 	require.EqualError(t, metrics.Init(&badTimerBucket, nil, nil),
-		"Field [BadTimerBucket]: Buckets are not currently initialized for timer metrics")
+		"field [BadTimerBucket]: Buckets are not currently initialized for timer metrics")
 
 	require.EqualError(t, metrics.Init(&invalidBuckets, nil, nil),
-		"Field [InvalidBuckets]: Buckets should only be defined for Timer and Histogram metric types")
+		"field [InvalidBuckets]: Buckets should only be defined for Timer and Histogram metric types")
 }
 
 func TestInitPanic(t *testing.T) {
