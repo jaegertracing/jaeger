@@ -24,61 +24,82 @@ linters:
     - revive
     - testifylint
     - usestdlibvars
-  disable:
-    - errcheck
-  settings:
-    depguard:
-      rules:
-        disallow-crossdock:
-          files:
-            - '!**/crossdock/**'
-          deny:
-            - pkg: github.com/crossdock/crossdock-go
-              desc: Do not refer to crossdock from other packages
-        disallow-otel-contrib-translator:
-          files:
-            - '!**/v1adapter/**'
-          deny:
-            - pkg: github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger
-              desc: Use v1adapter package instead of opentelemetry-collector-contrib/pkg/translator/jaeger
-        disallow-uber/goleak:
-          files:
-            - '**_test.go'
-          deny:
-            - pkg: go.uber.org/goleak
-              desc: Use github.com/jaegertracing/jaeger/internal/testutils
-        disallowed-deps:
-          deny:
-            - pkg: go.uber.org/atomic
-              desc: Use 'sync/atomic' instead of go.uber.org/atomic
-            - pkg: io/ioutil
-              desc: Use os or io instead of io/ioutil
-            - pkg: github.com/hashicorp/go-multierror
-              desc: Use errors.Join instead of github.com/hashicorp/go-multierror
-            - pkg: go.uber.org/multierr
-              desc: Use errors.Join instead of github.com/hashicorp/go-multierror
-            - pkg: github.com/jaegertracing/jaeger/model$
-              desc: Use github.com/jaegertracing/jaeger-idl/model/v1
-            - pkg: github.com/jaegertracing/jaeger/proto-gen/api_v2$
-              desc: Use github.com/jaegertracing/jaeger-idl/proto-gen/api_v2
-    gosec:
-      excludes:
-        - G104
-        - G107
-        - G404
-        - G601
-    govet:
-      disable:
-        - fieldalignment
-        - shadow
-      enable-all: true
-    perfsprint:
-      int-conversion: true
-      err-error: true
-      errorf: true
-      sprintf1: true
-      strconcat: true
-    revive:
+
+    # TODO consider adding more linters, cf. https://olegk.dev/go-linters-configuration-the-right-version
+
+linters-settings:
+  depguard:
+    rules:
+      disallowed-deps:
+        deny:
+          - pkg: go.uber.org/atomic
+            desc: "Use 'sync/atomic' instead of go.uber.org/atomic"
+          - pkg: io/ioutil
+            desc: "Use os or io instead of io/ioutil"
+          - pkg: github.com/hashicorp/go-multierror
+            desc: "Use errors.Join instead of github.com/hashicorp/go-multierror"
+          - pkg: go.uber.org/multierr
+            desc: "Use errors.Join instead of github.com/hashicorp/go-multierror"
+          - pkg: "github.com/jaegertracing/jaeger/model$"
+            desc: "Use github.com/jaegertracing/jaeger-idl/model/v1"
+          - pkg: "github.com/jaegertracing/jaeger/internal/proto-gen/api_v2$"
+            desc: "Use github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
+      # crossdock-go provides assert/require similar to stretchr/testify
+      # but we never want to use them outside of the crossdock tests.
+      disallow-crossdock:
+        deny:
+          - pkg: github.com/crossdock/crossdock-go
+            desc: "Do not refer to crossdock from other packages"
+        files:
+          - "!**/crossdock/**"
+
+      disallow-uber/goleak:
+        deny:
+         - pkg: go.uber.org/goleak
+           desc: "Use github.com/jaegertracing/jaeger/internal/testutils"
+        files:
+          - "**_test.go"
+
+      disallow-otel-contrib-translator:
+        deny:
+          - pkg: github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger
+            desc: "Use v1adapter package instead of opentelemetry-collector-contrib/pkg/translator/jaeger"
+        files:
+          - "!**/v1adapter/**"
+
+  goimports:
+    local-prefixes: github.com/jaegertracing/jaeger
+  gosec:
+    # To specify a set of rules to explicitly exclude.
+    # Available rules: https://github.com/securego/gosec#available-rules
+    excludes:
+      - G104
+      - G107
+      - G404
+      - G601
+  govet:
+    enable-all: true
+    disable:
+      # There is rarely performance differences due to padding,
+      # the most noticable impact is memory usage. However,
+      # the main trace data is Protobuf-generated and we ignore
+      # those files from linting, so this linter is not useful.
+      - fieldalignment
+      # Disable shadow
+      - shadow
+  perfsprint:
+    # Optimizes even if it requires an int or uint type cast.
+    int-conversion: true
+    # Optimizes into `err.Error()` even if it is only equivalent for non-nil errors.
+    err-error: true
+    # Optimizes `fmt.Errorf`.
+    errorf: true
+    # Optimizes `fmt.Sprintf` with only one argument.
+    sprintf1: true
+    # Optimizes into strings concatenation.
+    strconcat: true
+  revive:
+      ignore-generated-header: true
       severity: error
       enable-all-rules: true
       rules:

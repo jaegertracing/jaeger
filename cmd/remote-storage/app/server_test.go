@@ -24,6 +24,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/internal/flags"
 	"github.com/jaegertracing/jaeger/internal/grpctest"
 	"github.com/jaegertracing/jaeger/internal/healthcheck"
+	"github.com/jaegertracing/jaeger/internal/proto-gen/storage_v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore"
 	depStoreMocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
@@ -31,7 +32,6 @@ import (
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 	"github.com/jaegertracing/jaeger/internal/tenancy"
 	"github.com/jaegertracing/jaeger/ports"
-	"github.com/jaegertracing/jaeger/proto-gen/storage_v1"
 )
 
 var testCertKeyLocation = "../../../internal/config/tlscfg/testdata"
