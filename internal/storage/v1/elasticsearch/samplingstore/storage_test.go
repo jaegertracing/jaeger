@@ -320,7 +320,7 @@ func TestGetThroughput(t *testing.T) {
 					assert.Nil(t, actual)
 				} else {
 					require.NoError(t, err)
-					assert.EqualValues(t, test.expectedOutput, actual)
+					assert.Equal(t, test.expectedOutput, actual)
 				}
 			})
 		})
@@ -419,7 +419,7 @@ func TestGetLatestProbabilities(t *testing.T) {
 					assert.Nil(t, actual)
 				} else {
 					require.NoError(t, err)
-					assert.EqualValues(t, test.expectedOutput, actual)
+					assert.Equal(t, test.expectedOutput, actual)
 				}
 			})
 		})

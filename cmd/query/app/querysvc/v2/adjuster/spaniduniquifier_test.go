@@ -56,7 +56,7 @@ func TestSpanIDUniquifierTriggered(t *testing.T) {
 
 	serverSpan := spans.At(1)
 	assert.EqualValues(t, []byte{0, 0, 0, 0, 0, 0, 0, 2}, serverSpan.SpanID(), "server span ID should be reassigned")
-	assert.EqualValues(t, clientSpanID, serverSpan.ParentSpanID(), "next server span should be this server span's parent")
+	assert.Equal(t, clientSpanID, serverSpan.ParentSpanID(), "next server span should be this server span's parent")
 
 	thirdSpan := spans.At(2)
 	assert.Equal(t, anotherSpanID, thirdSpan.SpanID(), "3rd span ID should not change")

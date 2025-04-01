@@ -207,7 +207,7 @@ func TestSpanWriter_WriteSpan(t *testing.T) {
 					assert.Contains(t, w.logBuffer.String(), expectedLog, "Log must contain %s, but was %s", expectedLog, w.logBuffer.String())
 				}
 				if len(testCase.expectedLogs) == 0 {
-					assert.Equal(t, "", w.logBuffer.String())
+					assert.Empty(t, w.logBuffer.String())
 				}
 			})
 		})
@@ -324,7 +324,7 @@ func TestWriteSpanInternal(t *testing.T) {
 
 		w.writer.writeSpan(indexName, jsonSpan)
 		indexService.AssertNumberOfCalls(t, "Add", 1)
-		assert.Equal(t, "", w.logBuffer.String())
+		assert.Empty(t, w.logBuffer.String())
 	})
 }
 

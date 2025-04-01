@@ -39,7 +39,7 @@ func TestToDomain(t *testing.T) {
 			for _, s := range actualSpans {
 				s.NormalizeTimestamps()
 			}
-			if !assert.EqualValues(t, mSpans, actualSpans) {
+			if !assert.Equal(t, mSpans, actualSpans) {
 				for _, err := range pretty.Diff(mSpans, actualSpans) {
 					t.Log(err)
 				}

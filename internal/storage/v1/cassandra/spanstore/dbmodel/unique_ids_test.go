@@ -32,7 +32,7 @@ func TestGetIntersectedTraceIDs(t *testing.T) {
 		firstTraceID: struct{}{},
 	}
 	actual := IntersectTraceIDs(listOfUniqueTraceIDs)
-	assert.EqualValues(t, expected, actual)
+	assert.Equal(t, expected, actual)
 }
 
 func TestAdd(t *testing.T) {

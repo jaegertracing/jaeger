@@ -379,7 +379,7 @@ func TestStringToProbabilities(t *testing.T) {
 func TestProbabilitiesSetToString(t *testing.T) {
 	s := probabilitiesSetToString(map[string]struct{}{"0.000001": {}, "0.000002": {}})
 	assert.True(t, s == "0.000001,0.000002" || s == "0.000002,0.000001")
-	assert.Equal(t, "", probabilitiesSetToString(nil))
+	assert.Empty(t, probabilitiesSetToString(nil))
 }
 
 func TestMain(m *testing.M) {

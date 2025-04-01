@@ -166,5 +166,5 @@ func TestDependenciesFromDomain(t *testing.T) {
 		},
 	}
 	actual := DependenciesFromDomain(input)
-	assert.EqualValues(t, expected, actual)
+	assert.Equal(t, expected, actual)
 }

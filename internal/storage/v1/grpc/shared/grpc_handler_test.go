@@ -118,7 +118,7 @@ func TestGRPCServerGetOperations(t *testing.T) {
 			Service: "service-a",
 		})
 		require.NoError(t, err)
-		assert.Equal(t, len(expOperations), len(resp.Operations))
+		assert.Len(t, resp.Operations, len(expOperations))
 		for i, operation := range resp.Operations {
 			assert.Equal(t, expOperations[i].Name, operation.Name)
 			assert.Equal(t, expOperations[i].SpanKind, operation.SpanKind)

@@ -235,7 +235,7 @@ func TestDependencyStoreGetDependencies(t *testing.T) {
 					assert.Contains(t, s.logBuffer.String(), expectedLog, "Log must contain %s, but was %s", expectedLog, s.logBuffer.String())
 				}
 				if len(testCase.expectedLogs) == 0 {
-					assert.Equal(t, "", s.logBuffer.String())
+					assert.Empty(t, s.logBuffer.String())
 				}
 			})
 		})

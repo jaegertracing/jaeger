@@ -78,7 +78,7 @@ func checkExpectedExistingAndNonExistentCounters(t *testing.T,
 	nonExistentKeys []string,
 ) {
 	for k, v := range expectedCounters {
-		assert.EqualValues(t, v, actualCounters[k], k)
+		assert.Equal(t, v, actualCounters[k], k)
 	}
 
 	for _, k := range existingKeys {
