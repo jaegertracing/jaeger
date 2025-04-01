@@ -17,8 +17,8 @@ var (
 
 // Config defines configuration for jaeger_storage_exporter.
 type Config struct {
-	TraceStorage string                     `mapstructure:"trace_storage" valid:"required"`
-	QueueConfig  exporterhelper.QueueConfig `mapstructure:"queue" valid:"optional"`
+	TraceStorage string                          `mapstructure:"trace_storage" valid:"required"`
+	QueueConfig  exporterhelper.QueueBatchConfig `mapstructure:"queue" valid:"optional"`
 }
 
 func (cfg *Config) Validate() error {
