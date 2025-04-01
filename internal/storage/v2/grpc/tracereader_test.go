@@ -18,7 +18,6 @@ import (
 
 	"github.com/jaegertracing/jaeger/internal/jiter"
 	"github.com/jaegertracing/jaeger/internal/jptrace"
-	_ "github.com/jaegertracing/jaeger/pkg/gogocodec" // force gogo codec registration
 	"github.com/jaegertracing/jaeger/internal/proto-gen/storage/v2"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
@@ -28,7 +27,7 @@ import (
 type testServer struct {
 	storage.UnimplementedTraceReaderServer
 
-	traces     []*jptrace.TracesData
+	traces     *jptrace.TracesData
 	services   []string
 	operations []*storage.Operation
 	traceIDs   []*storage.FoundTraceID
@@ -36,9 +35,7 @@ type testServer struct {
 }
 
 func (ts *testServer) GetTraces(_ *storage.GetTracesRequest, s storage.TraceReader_GetTracesServer) error {
-	s.Send(&storage.TracesChunk{
-		Traces: ts.traces,
-	})
+	s.Send(ts.traces)
 	return ts.err
 }
 
@@ -104,44 +101,31 @@ func startServer(t *testing.T, server *grpc.Server, listener net.Listener) *grpc
 func TestTraceReader_GetTraces(t *testing.T) {
 	tests := []struct {
 		name           string
-		traces         func() []*jptrace.TracesData
-		expectedTraces func() []ptrace.Traces
+		traces         *jptrace.TracesData
+		expectedTraces ptrace.Traces
 		expectedError  string
 	}{
 		{
 			name: "success",
-			traces: func() []*jptrace.TracesData {
-				traceA := ptrace.NewTraces()
-				spanA := traceA.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans().AppendEmpty()
-				spanA.SetName("span-a")
-
-				traceB := ptrace.NewTraces()
-				spanB := traceA.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans().AppendEmpty()
-				spanB.SetName("span-b")
-
-				return []*jptrace.TracesData{
-					(*jptrace.TracesData)(&traceA),
-					(*jptrace.TracesData)(&traceB),
-				}
-			},
-			expectedTraces: func() []ptrace.Traces {
-				traceA := ptrace.NewTraces()
-				spanA := traceA.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans().AppendEmpty()
-				spanA.SetName("span-a")
-
-				traceB := ptrace.NewTraces()
-				spanB := traceA.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans().AppendEmpty()
-				spanB.SetName("span-b")
-
-				return []ptrace.Traces{traceA, traceB}
-			},
+			traces: func() *jptrace.TracesData {
+				trace := ptrace.NewTraces()
+				span := trace.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+				span.SetName("span-a")
+				return (*jptrace.TracesData)(&trace)
+			}(),
+			expectedTraces: func() ptrace.Traces {
+				trace := ptrace.NewTraces()
+				span := trace.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+				span.SetName("span-a")
+				return trace
+			}(),
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			conn := startTestServer(t, &testServer{
-				traces: test.traces(),
+				traces: test.traces,
 			})
 
 			reader := NewTraceReader(conn)
@@ -152,7 +136,7 @@ func TestTraceReader_GetTraces(t *testing.T) {
 				require.ErrorContains(t, err, test.expectedError)
 			} else {
 				require.NoError(t, err)
-				require.Equal(t, test.expectedTraces(), traces)
+				require.Equal(t, test.expectedTraces, traces[0])
 			}
 		})
 	}

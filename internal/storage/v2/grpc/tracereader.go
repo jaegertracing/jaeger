@@ -58,11 +58,7 @@ func (tr *TraceReader) GetTraces(
 				yield(nil, fmt.Errorf("received error from grpc stream: %w", err))
 				return
 			}
-			receivedTraces := make([]ptrace.Traces, len(received.Traces))
-			for i, traces := range received.Traces {
-				receivedTraces[i] = traces.ToTraces()
-			}
-			if !yield(receivedTraces, nil) {
+			if !yield([]ptrace.Traces{received.ToTraces()}, nil) {
 				return
 			}
 		}
