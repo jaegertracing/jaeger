@@ -27,7 +27,7 @@ import (
 type testServer struct {
 	storage.UnimplementedTraceReaderServer
 
-	traces     *jptrace.TracesData
+	traces     []*jptrace.TracesData
 	services   []string
 	operations []*storage.Operation
 	traceIDs   []*storage.FoundTraceID
@@ -35,7 +35,9 @@ type testServer struct {
 }
 
 func (ts *testServer) GetTraces(_ *storage.GetTracesRequest, s storage.TraceReader_GetTracesServer) error {
-	s.Send(ts.traces)
+	for _, trace := range ts.traces {
+		s.Send(trace)
+	}
 	return ts.err
 }
 
@@ -117,26 +119,43 @@ func TestTraceReader_GetTraces(t *testing.T) {
 	tests := []struct {
 		name           string
 		testServer     *testServer
-		traces         *jptrace.TracesData
-		expectedTraces ptrace.Traces
+		traces         []*jptrace.TracesData
+		expectedTraces []ptrace.Traces
 		expectedError  string
 	}{
 		{
-			name: "success",
+			name: "single trace",
 			testServer: &testServer{
-				traces: func() *jptrace.TracesData {
+				traces: func() []*jptrace.TracesData {
 					trace := makeTestTrace()
-					return (*jptrace.TracesData)(&trace)
+					traces := []*jptrace.TracesData{(*jptrace.TracesData)(&trace)}
+					return traces
 				}(),
 			},
-			expectedTraces: makeTestTrace(),
+			expectedTraces: []ptrace.Traces{makeTestTrace()},
+		},
+		{
+			name: "multiple traces",
+			testServer: &testServer{
+				traces: func() []*jptrace.TracesData {
+					traceA := makeTestTrace()
+					traceB := makeTestTrace()
+					traces := []*jptrace.TracesData{
+						(*jptrace.TracesData)(&traceA),
+						(*jptrace.TracesData)(&traceB),
+					}
+					return traces
+				}(),
+			},
+			expectedTraces: []ptrace.Traces{makeTestTrace(), makeTestTrace()},
 		},
 		{
 			name: "error",
 			testServer: &testServer{
-				traces: func() *jptrace.TracesData {
+				traces: func() []*jptrace.TracesData {
 					trace := ptrace.NewTraces()
-					return (*jptrace.TracesData)(&trace)
+					traces := []*jptrace.TracesData{(*jptrace.TracesData)(&trace)}
+					return traces
 				}(),
 				err: assert.AnError,
 			},
@@ -156,7 +175,7 @@ func TestTraceReader_GetTraces(t *testing.T) {
 				require.ErrorContains(t, err, test.expectedError)
 			} else {
 				require.NoError(t, err)
-				require.Equal(t, test.expectedTraces, traces[0])
+				require.Equal(t, test.expectedTraces, traces)
 			}
 		})
 	}
