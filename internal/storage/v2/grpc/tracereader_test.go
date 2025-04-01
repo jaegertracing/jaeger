@@ -181,6 +181,29 @@ func TestTraceReader_GetTraces(t *testing.T) {
 	}
 }
 
+func TestTraceReader_GetTraces_YieldStopsIteration(t *testing.T) {
+	traceA := makeTestTrace()
+	traceB := makeTestTrace()
+	testServer := &testServer{
+		traces: []*jptrace.TracesData{
+			(*jptrace.TracesData)(&traceA),
+			(*jptrace.TracesData)(&traceB),
+		},
+	}
+
+	conn := startTestServer(t, testServer)
+	reader := NewTraceReader(conn)
+
+	getTracesIter := reader.GetTraces(context.Background(), tracestore.GetTraceParams{})
+	var gotTraces []ptrace.Traces
+	getTracesIter(func(traces []ptrace.Traces, _ error) bool {
+		gotTraces = append(gotTraces, traces...)
+		return false
+	})
+
+	require.Len(t, gotTraces, 1)
+}
+
 func TestTraceReader_GetServices(t *testing.T) {
 	tests := []struct {
 		name             string
