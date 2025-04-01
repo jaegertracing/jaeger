@@ -4,6 +4,9 @@
 package app
 
 import (
+	"net"
+	"strconv"
+
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 )
 
@@ -18,4 +21,19 @@ func getUniqueOperationNames(operations []spanstore.Operation) []string {
 		operationNames = append(operationNames, operation)
 	}
 	return operationNames
+}
+
+// getPortForAddr returns the port of an endpoint address.
+func getPortForAddr(addr net.Addr) (int, error) {
+	_, port, err := net.SplitHostPort(addr.String())
+	if err != nil {
+		return -1, err
+	}
+
+	parsedPort, err := strconv.Atoi(port)
+	if err != nil {
+		return -1, err
+	}
+
+	return parsedPort, nil
 }
