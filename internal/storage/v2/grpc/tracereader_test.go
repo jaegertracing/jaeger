@@ -204,6 +204,20 @@ func TestTraceReader_GetTraces_YieldStopsIteration(t *testing.T) {
 	require.Len(t, gotTraces, 1)
 }
 
+func TestTraceReader_GetTraces_GRPCClientError(t *testing.T) {
+	conn, err := grpc.NewClient(":0",
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	) // create client without a started server
+	t.Cleanup(func() {
+		conn.Close()
+	})
+	require.NoError(t, err)
+	reader := NewTraceReader(conn)
+	getTracesIter := reader.GetTraces(context.Background(), tracestore.GetTraceParams{})
+	_, err = jiter.FlattenWithErrors(getTracesIter)
+	require.ErrorContains(t, err, "received error from grpc reader client")
+}
+
 func TestTraceReader_GetServices(t *testing.T) {
 	tests := []struct {
 		name             string
