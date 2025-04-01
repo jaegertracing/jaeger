@@ -12,6 +12,8 @@ import (
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/confmap/xconfmap"
 
+	promCfg "github.com/jaegertracing/jaeger/internal/config/promcfg"
+	esCfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/metricstore/prometheus"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/badger"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra"
@@ -19,8 +21,6 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v1/grpc"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/memory"
 	casCfg "github.com/jaegertracing/jaeger/pkg/cassandra/config"
-	esCfg "github.com/jaegertracing/jaeger/pkg/es/config"
-	promCfg "github.com/jaegertracing/jaeger/pkg/prometheus/config"
 )
 
 var (

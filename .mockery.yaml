@@ -55,7 +55,7 @@ packages:
     interfaces:
       Marshaller:
       Unmarshaller:
-  github.com/jaegertracing/jaeger/proto-gen/storage_v1:
+  github.com/jaegertracing/jaeger/internal/proto-gen/storage_v1:
     config:
       all: true
   github.com/jaegertracing/jaeger/internal/storage/v1:
@@ -82,4 +82,5 @@ packages:
   github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/spanstore:
     interfaces:
       CoreSpanReader:
+      CoreSpanWriter:
 

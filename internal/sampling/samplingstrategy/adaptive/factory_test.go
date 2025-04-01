@@ -13,15 +13,15 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/internal/config"
+	"github.com/jaegertracing/jaeger/internal/distributedlock"
+	lmocks "github.com/jaegertracing/jaeger/internal/distributedlock/mocks"
+	"github.com/jaegertracing/jaeger/internal/metrics"
 	"github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy"
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore"
 	smocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore/model"
-	"github.com/jaegertracing/jaeger/pkg/config"
-	"github.com/jaegertracing/jaeger/pkg/distributedlock"
-	lmocks "github.com/jaegertracing/jaeger/pkg/distributedlock/mocks"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
 var (

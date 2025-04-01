@@ -16,13 +16,13 @@ import (
 	"go.opentelemetry.io/collector/config/configtls"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/flags"
+	"github.com/jaegertracing/jaeger/internal/tenancy"
 	"github.com/jaegertracing/jaeger/internal/testutils"
-	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/ports"
 )
 
 func TestSpanCollectorZipkinTLS(t *testing.T) {
-	const testCertKeyLocation = "../../../../pkg/config/tlscfg/testdata"
+	const testCertKeyLocation = "../../../../internal/config/tlscfg/testdata"
 	testCases := []struct {
 		name                  string
 		serverTLS             configtls.ServerConfig

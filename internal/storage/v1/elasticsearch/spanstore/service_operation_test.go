@@ -13,8 +13,8 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
-	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/spanstore/internal/dbmodel"
-	"github.com/jaegertracing/jaeger/pkg/es/mocks"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/dbmodel"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/mocks"
 )
 
 func TestWriteService(t *testing.T) {
@@ -41,13 +41,13 @@ func TestWriteService(t *testing.T) {
 			},
 		}
 
-		w.writer.spanWriter.writeService(indexName, jsonSpan)
+		w.writer.writeService(indexName, jsonSpan)
 
 		indexService.AssertNumberOfCalls(t, "Add", 1)
 		assert.Equal(t, "", w.logBuffer.String())
 
 		// test that cache works, will call the index service only once.
-		w.writer.spanWriter.writeService(indexName, jsonSpan)
+		w.writer.writeService(indexName, jsonSpan)
 		indexService.AssertNumberOfCalls(t, "Add", 1)
 	})
 }
@@ -76,7 +76,7 @@ func TestWriteServiceError(*testing.T) {
 			},
 		}
 
-		w.writer.spanWriter.writeService(indexName, jsonSpan)
+		w.writer.writeService(indexName, jsonSpan)
 	})
 }
 

@@ -129,19 +129,6 @@ message FindTraceIDsResponse {
   repeated FoundTraceID trace_ids = 1;
 }
 
-// TracesChunk is the payload type used in streaming responses that contain traces.
-//
-// It consists of a batch of trace data, where each TracesData object contains spans
-// belonging to a single trace. Multiple traces may be included within a single TracesChunk.
-//
-// Chunking requirements:
-// - Each TracesData object within TracesChunk MUST NOT contain spans from multiple traces.
-// - Large individual traces MAY be split across multiple, *consecutive* TracesData objects.
-// - Each TracesData object MUST NOT be empty.
-message TracesChunk {
-  repeated opentelemetry.proto.trace.v1.TracesData traces = 1;
-}
-
 // TraceReader is a service that allows reading traces from storage.
 // Note that if you implement this service, you should also implement
 // OTEL's TraceService in package opentelemetry.proto.collector.trace.v1
@@ -150,10 +137,15 @@ message TracesChunk {
 service TraceReader {
   // GetTraces returns a stream that retrieves all traces with given IDs.
   //
+  // Chunking requirements:
+  // - A single TracesData chunk MUST NOT contain spans from multiple traces.
+  // - Large traces MAY be split across multiple, *consecutive* TracesData chunks.
+  // - Each returned TracesData object MUST NOT be empty.
+  //
   // Edge cases:
   // - If no spans are found for any given trace ID, the ID is ignored.
   // - If none of the trace IDs are found in the storage, an empty response is returned.
-  rpc GetTraces(GetTracesRequest) returns (stream TracesChunk) {}
+  rpc GetTraces(GetTracesRequest) returns (stream opentelemetry.proto.trace.v1.TracesData) {}
 
   // GetServices returns all service names known to the backend from traces
   // within its retention period.
@@ -165,8 +157,10 @@ service TraceReader {
 
   // FindTraces returns a stream that retrieves traces matching query parameters.
   //
+  // The chunking rules are the same as for GetTraces.
+  //
   // If no matching traces are found, an empty stream is returned.
-  rpc FindTraces(FindTracesRequest) returns (stream TracesChunk) {}
+  rpc FindTraces(FindTracesRequest) returns (stream opentelemetry.proto.trace.v1.TracesData) {}
 
   // FindTraceIDs returns a stream that retrieves IDs of traces matching query parameters.
   //

@@ -18,9 +18,9 @@ import (
 
 	"github.com/jaegertracing/jaeger/internal/jiter"
 	"github.com/jaegertracing/jaeger/internal/jptrace"
-	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	_ "github.com/jaegertracing/jaeger/pkg/gogocodec" // force gogo codec registration
-	"github.com/jaegertracing/jaeger/proto-gen/storage/v2"
+	"github.com/jaegertracing/jaeger/internal/proto-gen/storage/v2"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
 // testServer implements the storage.TraceReaderServer interface
@@ -76,6 +76,10 @@ func startTestServer(t *testing.T, testServer *testServer) *grpc.ClientConn {
 	server := grpc.NewServer()
 	storage.RegisterTraceReaderServer(server, testServer)
 
+	return startServer(t, server, listener)
+}
+
+func startServer(t *testing.T, server *grpc.Server, listener net.Listener) *grpc.ClientConn {
 	go func() {
 		server.Serve(listener)
 	}()
