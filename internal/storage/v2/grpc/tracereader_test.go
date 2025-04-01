@@ -98,35 +98,55 @@ func startServer(t *testing.T, server *grpc.Server, listener net.Listener) *grpc
 	return conn
 }
 
+func makeTestTrace() ptrace.Traces {
+	trace := ptrace.NewTraces()
+	resources := trace.ResourceSpans().AppendEmpty()
+	scopes := resources.ScopeSpans().AppendEmpty()
+
+	spanA := scopes.Spans().AppendEmpty()
+	spanA.SetName("foobar")
+	spanA.SetTraceID(pcommon.TraceID([16]byte{1}))
+	spanA.SetSpanID(pcommon.SpanID([8]byte{2}))
+	spanA.SetKind(ptrace.SpanKindServer)
+	spanA.Status().SetCode(ptrace.StatusCodeError)
+
+	return trace
+}
+
 func TestTraceReader_GetTraces(t *testing.T) {
 	tests := []struct {
 		name           string
+		testServer     *testServer
 		traces         *jptrace.TracesData
 		expectedTraces ptrace.Traces
 		expectedError  string
 	}{
 		{
 			name: "success",
-			traces: func() *jptrace.TracesData {
-				trace := ptrace.NewTraces()
-				span := trace.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans().AppendEmpty()
-				span.SetName("span-a")
-				return (*jptrace.TracesData)(&trace)
-			}(),
-			expectedTraces: func() ptrace.Traces {
-				trace := ptrace.NewTraces()
-				span := trace.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans().AppendEmpty()
-				span.SetName("span-a")
-				return trace
-			}(),
+			testServer: &testServer{
+				traces: func() *jptrace.TracesData {
+					trace := makeTestTrace()
+					return (*jptrace.TracesData)(&trace)
+				}(),
+			},
+			expectedTraces: makeTestTrace(),
+		},
+		{
+			name: "error",
+			testServer: &testServer{
+				traces: func() *jptrace.TracesData {
+					trace := ptrace.NewTraces()
+					return (*jptrace.TracesData)(&trace)
+				}(),
+				err: assert.AnError,
+			},
+			expectedError: "received error from grpc stream",
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			conn := startTestServer(t, &testServer{
-				traces: test.traces,
-			})
+			conn := startTestServer(t, test.testServer)
 
 			reader := NewTraceReader(conn)
 			getTracesIter := reader.GetTraces(context.Background(), tracestore.GetTraceParams{})
