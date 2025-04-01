@@ -40,11 +40,11 @@ func createTraceWriter(logger *zap.Logger, port int) (*traceWriter, error) {
 
 	factory := otlpexporter.NewFactory()
 	cfg := factory.CreateDefaultConfig().(*otlpexporter.Config)
-	cfg.Endpoint = fmt.Sprintf("localhost:%d", port)
-	cfg.Timeout = 30 * time.Second
+	cfg.ClientConfig.Endpoint = fmt.Sprintf("localhost:%d", port)
+	cfg.TimeoutConfig.Timeout = 30 * time.Second
 	cfg.RetryConfig.Enabled = false
 	cfg.QueueConfig.Enabled = false
-	cfg.TLSSetting = configtls.ClientConfig{
+	cfg.ClientConfig.TLSSetting = configtls.ClientConfig{
 		Insecure: true,
 	}
 
