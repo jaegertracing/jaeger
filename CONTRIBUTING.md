@@ -86,7 +86,7 @@ These are general guidelines on how to organize source code in this repository.
 github.com/jaegertracing/jaeger
   cmd/                      - All binaries go here
     all-in-one/             - Jaeger all-in-one application, designed for quick local testing
-    jaeger/                 - Jaeger V2 Component
+    jaeger/                 - Jaeger V2 binary
     collector/              - Component to receive spans (from agents or directly from clients) and saves them in Trace Storage
     ingester/               - Component to read spans from Kafka topic and save them to storage
     query/                  - Component to serve Jaeger UI and an API that retrieves traces from storage
