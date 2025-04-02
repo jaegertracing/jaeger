@@ -8,7 +8,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/configauth"
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
@@ -81,4 +83,19 @@ func TestFactory(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, tr)
 	})
+}
+
+func TestInitializeConnections_ClientError(t *testing.T) {
+	f, err := NewFactory(Config{
+		ClientConfig: configgrpc.ClientConfig{
+			Endpoint: ":0",
+		},
+	}, telemetry.NoopSettings())
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, f.Close()) })
+	newClientFn := func(_ component.TelemetrySettings, _ ...grpc.DialOption) (conn *grpc.ClientConn, err error) {
+		return nil, assert.AnError
+	}
+	err = f.initializeConnections(component.TelemetrySettings{}, component.TelemetrySettings{}, newClientFn)
+	assert.ErrorContains(t, err, "error creating reader client connection")
 }
