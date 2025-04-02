@@ -12,10 +12,6 @@ import (
 	"github.com/jaegertracing/jaeger/internal/tenancy"
 )
 
-const (
-	defaultConnectionTimeout = time.Duration(5 * time.Second)
-)
-
 type Config struct {
 	Tenancy                      tenancy.Options `mapstructure:"multi_tenancy"`
 	configgrpc.ClientConfig      `mapstructure:",squash"`
@@ -25,7 +21,7 @@ type Config struct {
 func DefaultConfig() Config {
 	return Config{
 		TimeoutConfig: exporterhelper.TimeoutConfig{
-			Timeout: defaultConnectionTimeout,
+			Timeout: time.Duration(5 * time.Second),
 		},
 	}
 }
