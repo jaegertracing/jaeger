@@ -22,6 +22,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore"
@@ -615,4 +616,37 @@ func (s *StorageIntegration) RunSpanStoreTests(t *testing.T) {
 	t.Run("GetTrace", s.testGetTrace)
 	t.Run("GetLargeSpans", s.testGetLargeSpan)
 	t.Run("FindTraces", s.testFindTraces)
+}
+
+// RunTraceReaderSmokeTests runs tests on TraceReader to see it returns no error
+func (s *StorageIntegration) RunTraceReaderSmokeTests(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("TraceReader.GetTraces", func(t *testing.T) {
+		iterTraces := s.TraceReader.GetTraces(ctx)
+		_, err := v1adapter.V1TracesFromSeq2(iterTraces)
+		assert.NoError(t, err)
+	})
+
+	t.Run("TraceReader.GetServices", func(t *testing.T) {
+		_, err := s.TraceReader.GetServices(ctx)
+		assert.NoError(t, err)
+	})
+
+	t.Run("TraceReader.GetOperations", func(t *testing.T) {
+		_, err := s.TraceReader.GetOperations(ctx, tracestore.OperationQueryParams{ServiceName: "random-service-name"})
+		assert.NoError(t, err)
+	})
+
+	t.Run("TraceReader.FindTraces", func(t *testing.T) {
+		iter := s.TraceReader.FindTraces(ctx, tracestore.TraceQueryParams{
+			ServiceName:  "random-service-name",
+			Attributes:   pcommon.NewMap(),
+			StartTimeMin: time.Now().Add(-2 * time.Hour),
+			StartTimeMax: time.Now(),
+		})
+		iter(func(_ []ptrace.Traces, err error) bool {
+			return assert.NoError(t, err)
+		})
+	})
 }

@@ -42,7 +42,9 @@ type E2EStorageIntegration struct {
 	SkipStorageCleaner bool
 	ConfigFile         string
 	BinaryName         string
-	HealthCheckPort    int // overridable for Kafka tests which run two binaries and need different ports
+
+	MetricsPort     int // overridable, default to 8888
+	HealthCheckPort int // overridable for Kafka tests which run two binaries and need different ports
 
 	// EnvVarOverrides contains a map of environment variables to set.
 	// The key in the map is the environment variable to override and the value
@@ -99,14 +101,22 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		scrapeMetrics(t, storage)
+		scrapeMetrics(t, s.metricsUrl(), storage)
 		require.NoError(t, s.TraceReader.(io.Closer).Close())
 		require.NoError(t, s.TraceWriter.(io.Closer).Close())
 	})
 }
 
-func scrapeMetrics(t *testing.T, storage string) {
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "http://localhost:8888/metrics", nil)
+func (s *E2EStorageIntegration) metricsUrl() string {
+	metricsPort := 8888
+	if s.MetricsPort != 0 {
+		metricsPort = s.MetricsPort
+	}
+	return fmt.Sprintf("http://localhost:%d/metrics", metricsPort)
+}
+
+func scrapeMetrics(t *testing.T, metricUrl, storage string) {
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, metricUrl, nil)
 	require.NoError(t, err)
 
 	client := &http.Client{}
