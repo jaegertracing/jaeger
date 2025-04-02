@@ -12,10 +12,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/jaegertracing/jaeger/internal/jiter"
+	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/proto-gen/storage/v2"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
@@ -25,37 +27,45 @@ import (
 type testServer struct {
 	storage.UnimplementedTraceReaderServer
 
+	traces     []*jptrace.TracesData
 	services   []string
 	operations []*storage.Operation
 	traceIDs   []*storage.FoundTraceID
 	err        error
 }
 
-func (s *testServer) GetServices(
+func (ts *testServer) GetTraces(_ *storage.GetTracesRequest, s storage.TraceReader_GetTracesServer) error {
+	for _, trace := range ts.traces {
+		s.Send(trace)
+	}
+	return ts.err
+}
+
+func (ts *testServer) GetServices(
 	context.Context,
 	*storage.GetServicesRequest,
 ) (*storage.GetServicesResponse, error) {
 	return &storage.GetServicesResponse{
-		Services: s.services,
-	}, s.err
+		Services: ts.services,
+	}, ts.err
 }
 
-func (s *testServer) GetOperations(
+func (ts *testServer) GetOperations(
 	context.Context,
 	*storage.GetOperationsRequest,
 ) (*storage.GetOperationsResponse, error) {
 	return &storage.GetOperationsResponse{
-		Operations: s.operations,
-	}, s.err
+		Operations: ts.operations,
+	}, ts.err
 }
 
-func (s *testServer) FindTraceIDs(
+func (ts *testServer) FindTraceIDs(
 	context.Context,
 	*storage.FindTracesRequest,
 ) (*storage.FindTraceIDsResponse, error) {
 	return &storage.FindTraceIDsResponse{
-		TraceIds: s.traceIDs,
-	}, s.err
+		TraceIds: ts.traceIDs,
+	}, ts.err
 }
 
 func startTestServer(t *testing.T, testServer *testServer) *grpc.ClientConn {
@@ -90,12 +100,122 @@ func startServer(t *testing.T, server *grpc.Server, listener net.Listener) *grpc
 	return conn
 }
 
-func TestTraceReader_GetTraces(t *testing.T) {
-	tr := &TraceReader{}
+func makeTestTrace() ptrace.Traces {
+	trace := ptrace.NewTraces()
+	resources := trace.ResourceSpans().AppendEmpty()
+	scopes := resources.ScopeSpans().AppendEmpty()
 
-	require.Panics(t, func() {
-		tr.GetTraces(context.Background(), tracestore.GetTraceParams{})
+	spanA := scopes.Spans().AppendEmpty()
+	spanA.SetName("foobar")
+	spanA.SetTraceID(pcommon.TraceID([16]byte{1}))
+	spanA.SetSpanID(pcommon.SpanID([8]byte{2}))
+	spanA.SetKind(ptrace.SpanKindServer)
+	spanA.Status().SetCode(ptrace.StatusCodeError)
+
+	return trace
+}
+
+func TestTraceReader_GetTraces(t *testing.T) {
+	tests := []struct {
+		name           string
+		testServer     *testServer
+		traces         []*jptrace.TracesData
+		expectedTraces []ptrace.Traces
+		expectedError  string
+	}{
+		{
+			name: "single trace",
+			testServer: &testServer{
+				traces: func() []*jptrace.TracesData {
+					trace := makeTestTrace()
+					traces := []*jptrace.TracesData{(*jptrace.TracesData)(&trace)}
+					return traces
+				}(),
+			},
+			expectedTraces: []ptrace.Traces{makeTestTrace()},
+		},
+		{
+			name: "multiple traces",
+			testServer: &testServer{
+				traces: func() []*jptrace.TracesData {
+					traceA := makeTestTrace()
+					traceB := makeTestTrace()
+					traces := []*jptrace.TracesData{
+						(*jptrace.TracesData)(&traceA),
+						(*jptrace.TracesData)(&traceB),
+					}
+					return traces
+				}(),
+			},
+			expectedTraces: []ptrace.Traces{makeTestTrace(), makeTestTrace()},
+		},
+		{
+			name: "error",
+			testServer: &testServer{
+				traces: func() []*jptrace.TracesData {
+					trace := ptrace.NewTraces()
+					traces := []*jptrace.TracesData{(*jptrace.TracesData)(&trace)}
+					return traces
+				}(),
+				err: assert.AnError,
+			},
+			expectedError: "received error from grpc stream",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			conn := startTestServer(t, test.testServer)
+
+			reader := NewTraceReader(conn)
+			getTracesIter := reader.GetTraces(context.Background(), tracestore.GetTraceParams{})
+			traces, err := jiter.FlattenWithErrors(getTracesIter)
+
+			if test.expectedError != "" {
+				require.ErrorContains(t, err, test.expectedError)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, test.expectedTraces, traces)
+			}
+		})
+	}
+}
+
+func TestTraceReader_GetTraces_YieldStopsIteration(t *testing.T) {
+	traceA := makeTestTrace()
+	traceB := makeTestTrace()
+	testServer := &testServer{
+		traces: []*jptrace.TracesData{
+			(*jptrace.TracesData)(&traceA),
+			(*jptrace.TracesData)(&traceB),
+		},
+	}
+
+	conn := startTestServer(t, testServer)
+	reader := NewTraceReader(conn)
+
+	getTracesIter := reader.GetTraces(context.Background(), tracestore.GetTraceParams{})
+	var gotTraces []ptrace.Traces
+	getTracesIter(func(traces []ptrace.Traces, _ error) bool {
+		gotTraces = append(gotTraces, traces...)
+		return false
 	})
+
+	require.Len(t, gotTraces, 1)
+}
+
+func TestTraceReader_GetTraces_GRPCClientError(t *testing.T) {
+	conn, err := grpc.NewClient(":0",
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	) // create client without a started server
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		conn.Close()
+	})
+	reader := NewTraceReader(conn)
+	getTracesIter := reader.GetTraces(context.Background(), tracestore.GetTraceParams{})
+	_, err = jiter.FlattenWithErrors(getTracesIter)
+	require.ErrorContains(t, err, "received error from grpc reader client")
 }
 
 func TestTraceReader_GetServices(t *testing.T) {
