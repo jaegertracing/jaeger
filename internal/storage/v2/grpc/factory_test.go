@@ -53,3 +53,33 @@ func TestNewFactory(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, f.Close())
 }
+
+func TestFactory(t *testing.T) {
+	lis, err := net.Listen("tcp", ":0")
+	require.NoError(t, err, "failed to listen")
+
+	s := grpc.NewServer()
+
+	conn := startServer(t, s, lis)
+	f := &Factory{
+		readerConn: conn,
+	}
+
+	t.Run("CreateTraceReader", func(t *testing.T) {
+		tr, err := f.CreateTraceReader()
+		require.NoError(t, err)
+		require.NotNil(t, tr)
+	})
+
+	t.Run("CreateTraceWriter", func(t *testing.T) {
+		tr, err := f.CreateTraceWriter()
+		require.NoError(t, err)
+		require.NotNil(t, tr)
+	})
+
+	t.Run("CreateDependencyReader", func(t *testing.T) {
+		tr, err := f.CreateDependencyReader()
+		require.NoError(t, err)
+		require.NotNil(t, tr)
+	})
+}
