@@ -118,7 +118,7 @@ func TestQueryTrace(t *testing.T) {
 
 		spans, err := q.QueryTrace(mockTraceID.String(), startTime, endTime)
 		require.NoError(t, err)
-		assert.Len(t, mockTraceGRPC.Spans, len(spans))
+		assert.Len(t, spans, len(mockTraceGRPC.Spans))
 	})
 
 	t.Run("Invalid TraceID", func(t *testing.T) {
