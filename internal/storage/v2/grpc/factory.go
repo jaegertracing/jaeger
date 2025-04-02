@@ -12,7 +12,6 @@ import (
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
-	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
 	"go.opentelemetry.io/otel/trace/noop"
 	"google.golang.org/grpc"
@@ -51,7 +50,6 @@ func NewFactory(
 		telset: telset,
 		config: cfg,
 	}
-	f.telset.TracerProvider = otel.GetTracerProvider()
 
 	readerTelset := getTelset(f.telset, f.telset.TracerProvider)
 	writerTelset := getTelset(f.telset, noop.NewTracerProvider())
