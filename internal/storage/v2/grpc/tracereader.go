@@ -94,11 +94,28 @@ func (tr *TraceReader) GetOperations(
 	return operations, nil
 }
 
-func (*TraceReader) FindTraces(
-	context.Context,
-	tracestore.TraceQueryParams,
+func (tr *TraceReader) FindTraces(
+	ctx context.Context,
+	params tracestore.TraceQueryParams,
 ) iter.Seq2[[]ptrace.Traces, error] {
-	panic("not implemented")
+	return func(yield func([]ptrace.Traces, error) bool) {
+		stream, err := tr.client.FindTraces(ctx, &storage.FindTracesRequest{
+			Query: toProtoQueryParameters(params),
+		})
+		if err != nil {
+			yield(nil, fmt.Errorf("received error from grpc reader client: %w", err))
+			return
+		}
+		for received, err := stream.Recv(); !errors.Is(err, io.EOF); received, err = stream.Recv() {
+			if err != nil {
+				yield(nil, fmt.Errorf("received error from grpc stream: %w", err))
+				return
+			}
+			if !yield([]ptrace.Traces{received.ToTraces()}, nil) {
+				return
+			}
+		}
+	}
 }
 
 func (tr *TraceReader) FindTraceIDs(
