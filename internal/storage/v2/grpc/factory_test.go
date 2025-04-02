@@ -35,7 +35,7 @@ func TestNewFactory(t *testing.T) {
 			log.Fatalf("Server exited with error: %v", err)
 		}
 	}()
-	defer s.Stop()
+	t.Cleanup(s.Stop)
 
 	cfg := Config{
 		ClientConfig: configgrpc.ClientConfig{
