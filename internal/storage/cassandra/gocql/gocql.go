@@ -7,7 +7,7 @@ package gocql
 import (
 	"github.com/gocql/gocql"
 
-	"github.com/jaegertracing/jaeger/pkg/cassandra"
+	"github.com/jaegertracing/jaeger/internal/storage/cassandra"
 )
 
 // CQLSession is a wrapper around gocql.Session.

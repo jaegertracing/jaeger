@@ -13,7 +13,7 @@ import (
 	"github.com/spf13/viper"
 
 	"github.com/jaegertracing/jaeger/internal/config/tlscfg"
-	"github.com/jaegertracing/jaeger/pkg/cassandra/config"
+	"github.com/jaegertracing/jaeger/internal/storage/cassandra/config"
 )
 
 const (
