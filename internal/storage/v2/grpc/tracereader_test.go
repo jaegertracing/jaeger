@@ -59,6 +59,16 @@ func (ts *testServer) GetOperations(
 	}, ts.err
 }
 
+func (ts *testServer) FindTraces(
+	_ *storage.FindTracesRequest,
+	s storage.TraceReader_FindTracesServer,
+) error {
+	for _, trace := range ts.traces {
+		s.Send(trace)
+	}
+	return ts.err
+}
+
 func (ts *testServer) FindTraceIDs(
 	context.Context,
 	*storage.FindTracesRequest,
@@ -215,7 +225,7 @@ func TestTraceReader_GetTraces_GRPCClientError(t *testing.T) {
 	reader := NewTraceReader(conn)
 	getTracesIter := reader.GetTraces(context.Background(), tracestore.GetTraceParams{})
 	_, err = jiter.FlattenWithErrors(getTracesIter)
-	require.ErrorContains(t, err, "received error from grpc reader client")
+	require.ErrorContains(t, err, "failed to execute GetTraces")
 }
 
 func TestTraceReader_GetServices(t *testing.T) {
@@ -237,7 +247,7 @@ func TestTraceReader_GetServices(t *testing.T) {
 			testServer: &testServer{
 				err: assert.AnError,
 			},
-			expectedError: "failed to get services",
+			expectedError: "failed to execute GetServices",
 		},
 	}
 
@@ -282,7 +292,7 @@ func TestTraceReader_GetOperations(t *testing.T) {
 			testServer: &testServer{
 				err: assert.AnError,
 			},
-			expectedError: "failed to get operations",
+			expectedError: "failed to execute GetOperations",
 		},
 	}
 
@@ -306,11 +316,121 @@ func TestTraceReader_GetOperations(t *testing.T) {
 }
 
 func TestTraceReader_FindTraces(t *testing.T) {
-	tr := &TraceReader{}
+	queryParams := tracestore.TraceQueryParams{
+		ServiceName:   "service-a",
+		OperationName: "operation-a",
+		Attributes:    pcommon.NewMap(),
+	}
+	tests := []struct {
+		name           string
+		testServer     *testServer
+		traces         []*jptrace.TracesData
+		expectedTraces []ptrace.Traces
+		expectedError  string
+	}{
+		{
+			name: "single trace",
+			testServer: &testServer{
+				traces: func() []*jptrace.TracesData {
+					trace := makeTestTrace()
+					traces := []*jptrace.TracesData{(*jptrace.TracesData)(&trace)}
+					return traces
+				}(),
+			},
+			expectedTraces: []ptrace.Traces{makeTestTrace()},
+		},
+		{
+			name: "multiple traces",
+			testServer: &testServer{
+				traces: func() []*jptrace.TracesData {
+					traceA := makeTestTrace()
+					traceB := makeTestTrace()
+					traces := []*jptrace.TracesData{
+						(*jptrace.TracesData)(&traceA),
+						(*jptrace.TracesData)(&traceB),
+					}
+					return traces
+				}(),
+			},
+			expectedTraces: []ptrace.Traces{makeTestTrace(), makeTestTrace()},
+		},
+		{
+			name: "error",
+			testServer: &testServer{
+				traces: func() []*jptrace.TracesData {
+					trace := ptrace.NewTraces()
+					traces := []*jptrace.TracesData{(*jptrace.TracesData)(&trace)}
+					return traces
+				}(),
+				err: assert.AnError,
+			},
+			expectedError: "received error from grpc stream",
+		},
+	}
 
-	require.Panics(t, func() {
-		tr.FindTraces(context.Background(), tracestore.TraceQueryParams{})
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			conn := startTestServer(t, test.testServer)
+
+			reader := NewTraceReader(conn)
+			getTracesIter := reader.FindTraces(context.Background(), queryParams)
+			traces, err := jiter.FlattenWithErrors(getTracesIter)
+
+			if test.expectedError != "" {
+				require.ErrorContains(t, err, test.expectedError)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, test.expectedTraces, traces)
+			}
+		})
+	}
+}
+
+func TestTraceReader_FindTraces_YieldStopsIteration(t *testing.T) {
+	queryParams := tracestore.TraceQueryParams{
+		ServiceName:   "service-a",
+		OperationName: "operation-a",
+		Attributes:    pcommon.NewMap(),
+	}
+	traceA := makeTestTrace()
+	traceB := makeTestTrace()
+	testServer := &testServer{
+		traces: []*jptrace.TracesData{
+			(*jptrace.TracesData)(&traceA),
+			(*jptrace.TracesData)(&traceB),
+		},
+	}
+
+	conn := startTestServer(t, testServer)
+	reader := NewTraceReader(conn)
+
+	getTracesIter := reader.FindTraces(context.Background(), queryParams)
+	var gotTraces []ptrace.Traces
+	getTracesIter(func(traces []ptrace.Traces, _ error) bool {
+		gotTraces = append(gotTraces, traces...)
+		return false
 	})
+
+	require.Len(t, gotTraces, 1)
+}
+
+func TestTraceReader_FindTraces_GRPCClientError(t *testing.T) {
+	queryParams := tracestore.TraceQueryParams{
+		ServiceName:   "service-a",
+		OperationName: "operation-a",
+		Attributes:    pcommon.NewMap(),
+	}
+	conn, err := grpc.NewClient(":0",
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	) // create client without a started server
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		conn.Close()
+	})
+	reader := NewTraceReader(conn)
+	getTracesIter := reader.FindTraces(context.Background(), queryParams)
+	_, err = jiter.FlattenWithErrors(getTracesIter)
+	require.ErrorContains(t, err, "failed to execute FindTraces")
 }
 
 func TestTraceReader_FindTraceIDs(t *testing.T) {
