@@ -61,7 +61,8 @@ func (ts *testServer) GetOperations(
 
 func (ts *testServer) FindTraces(
 	_ *storage.FindTracesRequest,
-	s storage.TraceReader_FindTracesServer) error {
+	s storage.TraceReader_FindTracesServer,
+) error {
 	for _, trace := range ts.traces {
 		s.Send(trace)
 	}
