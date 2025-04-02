@@ -17,10 +17,10 @@ import (
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/metrics"
+	"github.com/jaegertracing/jaeger/internal/storage/cassandra"
+	casMetrics "github.com/jaegertracing/jaeger/internal/storage/cassandra/metrics"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra/spanstore/dbmodel"
-	"github.com/jaegertracing/jaeger/pkg/cassandra"
-	casMetrics "github.com/jaegertracing/jaeger/pkg/cassandra/metrics"
 	"github.com/jaegertracing/jaeger/pkg/otelsemconv"
 )
 

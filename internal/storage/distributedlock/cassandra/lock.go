@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/jaegertracing/jaeger/pkg/cassandra"
+	"github.com/jaegertracing/jaeger/internal/storage/cassandra"
 )
 
 // Lock is a distributed lock based off Cassandra.
