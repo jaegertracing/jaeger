@@ -33,6 +33,7 @@ import (
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/cmd/query/app/qualitymetrics"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
+	ui "github.com/jaegertracing/jaeger/internal/converter/json"
 	"github.com/jaegertracing/jaeger/internal/jtracer"
 	"github.com/jaegertracing/jaeger/internal/proto-gen/api_v2/metrics"
 	"github.com/jaegertracing/jaeger/internal/storage/metricstore/disabled"
@@ -42,7 +43,6 @@ import (
 	depsmocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
 	"github.com/jaegertracing/jaeger/internal/tenancy"
-	ui "github.com/jaegertracing/jaeger/model/json"
 )
 
 const millisToNanosMultiplier = int64(time.Millisecond / time.Nanosecond)

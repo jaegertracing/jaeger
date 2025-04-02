@@ -12,7 +12,7 @@ import (
 
 	"go.uber.org/zap"
 
-	uimodel "github.com/jaegertracing/jaeger/model/json"
+	uimodel "github.com/jaegertracing/jaeger/internal/converter/json"
 )
 
 var errNoMoreSpans = errors.New("no more spans")

@@ -22,7 +22,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/crossdock/services/mocks"
-	ui "github.com/jaegertracing/jaeger/model/json"
+	ui "github.com/jaegertracing/jaeger/internal/converter/json"
 )
 
 var testTrace = ui.Trace{

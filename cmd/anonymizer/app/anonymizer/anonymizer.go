@@ -17,7 +17,6 @@ import (
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	uiconv "github.com/jaegertracing/jaeger/internal/converter/json"
-	uimodel "github.com/jaegertracing/jaeger/model/json"
 )
 
 var allowedTags = map[string]bool{
@@ -151,7 +150,7 @@ func hash(value string) string {
 }
 
 // AnonymizeSpan obfuscates and converts the span.
-func (a *Anonymizer) AnonymizeSpan(span *model.Span) *uimodel.Span {
+func (a *Anonymizer) AnonymizeSpan(span *model.Span) *uiconv.Span {
 	service := span.Process.ServiceName
 	span.OperationName = a.mapOperationName(service, span.OperationName)
 

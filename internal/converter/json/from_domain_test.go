@@ -17,7 +17,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
-	jModel "github.com/jaegertracing/jaeger/model/json"
 )
 
 const NumberOfFixtures = 1
@@ -76,7 +75,7 @@ func TestFromDomainEmbedProcess(t *testing.T) {
 		require.NoError(t, jsonpb.Unmarshal(bytes.NewReader(domainStr), &span))
 		embeddedSpan := FromDomainEmbedProcess(&span)
 
-		var expectedSpan jModel.Span
+		var expectedSpan Span
 		require.NoError(t, json.Unmarshal(jsonStr, &expectedSpan))
 
 		testJSONEncoding(t, i, jsonStr, embeddedSpan, true)
@@ -141,7 +140,7 @@ func TestDependenciesFromDomain(t *testing.T) {
 	anotherParent := "anotherParent"
 	anotherChild := "anotherChild"
 	anotherCallCount := uint64(456)
-	expected := []jModel.DependencyLink{
+	expected := []DependencyLink{
 		{
 			Parent:    someParent,
 			Child:     someChild,

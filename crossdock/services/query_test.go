@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
-	ui "github.com/jaegertracing/jaeger/model/json"
+	ui "github.com/jaegertracing/jaeger/internal/converter/json"
 )
 
 type testQueryHandler struct{}

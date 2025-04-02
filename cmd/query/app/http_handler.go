@@ -30,7 +30,6 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/metricstore/disabled"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
-	ui "github.com/jaegertracing/jaeger/model/json"
 )
 
 const (
@@ -60,9 +59,9 @@ type structuredResponse struct {
 }
 
 type structuredError struct {
-	Code    int        `json:"code,omitempty"`
-	Msg     string     `json:"msg"`
-	TraceID ui.TraceID `json:"traceID,omitempty"`
+	Code    int            `json:"code,omitempty"`
+	Msg     string         `json:"msg"`
+	TraceID uiconv.TraceID `json:"traceID,omitempty"`
 }
 
 // NewRouter creates and configures a Gorilla Router.
@@ -210,9 +209,9 @@ func (aH *APIHandler) getOperations(w http.ResponseWriter, r *http.Request) {
 	if aH.handleError(w, err, http.StatusInternalServerError) {
 		return
 	}
-	data := make([]ui.Operation, len(operations))
+	data := make([]uiconv.Operation, len(operations))
 	for i, operation := range operations {
-		data[i] = ui.Operation{
+		data[i] = uiconv.Operation{
 			Name:     operation.Name,
 			SpanKind: operation.SpanKind,
 		}
@@ -252,7 +251,7 @@ func (aH *APIHandler) search(w http.ResponseWriter, r *http.Request) {
 }
 
 func (*APIHandler) tracesToResponse(traces []*model.Trace, uiErrors []structuredError) *structuredResponse {
-	uiTraces := make([]*ui.Trace, len(traces))
+	uiTraces := make([]*uiconv.Trace, len(traces))
 	for i, v := range traces {
 		uiTrace := uiconv.FromDomain(v)
 		uiTraces[i] = uiTrace
@@ -282,7 +281,7 @@ func (aH *APIHandler) tracesByIDs(ctx context.Context, traceQuery *traceQueryPar
 			}
 			traceErrors = append(traceErrors, structuredError{
 				Msg:     err.Error(),
-				TraceID: ui.TraceID(traceID.String()),
+				TraceID: uiconv.TraceID(traceID.String()),
 			})
 		} else {
 			retMe = append(retMe, trc)
@@ -364,7 +363,7 @@ func (aH *APIHandler) metrics(w http.ResponseWriter, r *http.Request, getMetrics
 	aH.writeJSON(w, r, m)
 }
 
-func (*APIHandler) deduplicateDependencies(dependencies []model.DependencyLink) []ui.DependencyLink {
+func (*APIHandler) deduplicateDependencies(dependencies []model.DependencyLink) []uiconv.DependencyLink {
 	type Key struct {
 		parent string
 		child  string
@@ -375,9 +374,9 @@ func (*APIHandler) deduplicateDependencies(dependencies []model.DependencyLink) 
 		links[Key{l.Parent, l.Child}] += l.CallCount
 	}
 
-	result := make([]ui.DependencyLink, 0, len(links))
+	result := make([]uiconv.DependencyLink, 0, len(links))
 	for k, v := range links {
-		result = append(result, ui.DependencyLink{Parent: k.parent, Child: k.child, CallCount: v})
+		result = append(result, uiconv.DependencyLink{Parent: k.parent, Child: k.child, CallCount: v})
 	}
 
 	return result
