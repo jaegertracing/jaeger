@@ -58,7 +58,9 @@ func NewFactory(
 		return f.config.ToClientConn(context.Background(), f.telset.Host, telset, clientOpts...)
 	}
 
-	f.initializeConnections(readerTelset, writerTelset, newClientFn)
+	if err := f.initializeConnections(readerTelset, writerTelset, newClientFn); err != nil {
+		return nil, err
+	}
 
 	return f, nil
 }
