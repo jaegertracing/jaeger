@@ -5,7 +5,9 @@ package grpc
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"iter"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
@@ -31,11 +33,36 @@ func NewTraceReader(conn *grpc.ClientConn) *TraceReader {
 	}
 }
 
-func (*TraceReader) GetTraces(
-	context.Context,
-	...tracestore.GetTraceParams,
+func (tr *TraceReader) GetTraces(
+	ctx context.Context,
+	traceIDs ...tracestore.GetTraceParams,
 ) iter.Seq2[[]ptrace.Traces, error] {
-	panic("not implemented")
+	return func(yield func([]ptrace.Traces, error) bool) {
+		query := []*storage.GetTraceParams{}
+		for _, traceID := range traceIDs {
+			query = append(query, &storage.GetTraceParams{
+				TraceId:   traceID.TraceID[:],
+				StartTime: traceID.Start,
+				EndTime:   traceID.End,
+			})
+		}
+		stream, err := tr.client.GetTraces(ctx, &storage.GetTracesRequest{
+			Query: query,
+		})
+		if err != nil {
+			yield(nil, fmt.Errorf("received error from grpc reader client: %w", err))
+			return
+		}
+		for received, err := stream.Recv(); !errors.Is(err, io.EOF); received, err = stream.Recv() {
+			if err != nil {
+				yield(nil, fmt.Errorf("received error from grpc stream: %w", err))
+				return
+			}
+			if !yield([]ptrace.Traces{received.ToTraces()}, nil) {
+				return
+			}
+		}
+	}
 }
 
 func (tr *TraceReader) GetServices(ctx context.Context) ([]string, error) {
