@@ -1,3 +1,6 @@
+// Copyright (c) 2025 The Jaeger Authors.
+// SPDX-License-Identifier: Apache-2.0
+
 package grpc
 
 import (
@@ -6,9 +9,6 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/jaegertracing/jaeger/internal/bearertoken"
-	"github.com/jaegertracing/jaeger/internal/telemetry"
-	"github.com/jaegertracing/jaeger/internal/tenancy"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
@@ -16,18 +16,23 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"go.opentelemetry.io/otel/trace/noop"
 	"google.golang.org/grpc"
+
+	"github.com/jaegertracing/jaeger/internal/bearertoken"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
+	"github.com/jaegertracing/jaeger/internal/telemetry"
+	"github.com/jaegertracing/jaeger/internal/tenancy"
 )
 
 var (
-	_ io.Closer = (*Factory)(nil)
+	_ io.Closer          = (*Factory)(nil)
+	_ tracestore.Factory = (*Factory)(nil)
+	_ depstore.Factory   = (*Factory)(nil)
 )
 
 type Factory struct {
 	telset telemetry.Settings
 	config Config
-
-	traceReader *TraceReader
-	traceWriter *TraceWriter
 
 	readerConn *grpc.ClientConn
 	writerConn *grpc.ClientConn
@@ -53,9 +58,21 @@ func NewFactory(
 		return f.config.ToClientConn(context.Background(), f.telset.Host, telset, clientOpts...)
 	}
 
-	f.initializeClients(readerTelset, writerTelset, newClientFn)
+	f.initializeConnections(readerTelset, writerTelset, newClientFn)
 
 	return f, nil
+}
+
+func (f *Factory) CreateTraceReader() (tracestore.Reader, error) {
+	return NewTraceReader(f.readerConn), nil
+}
+
+func (f *Factory) CreateTraceWriter() (tracestore.Writer, error) {
+	return NewTraceWriter(f.writerConn), nil
+}
+
+func (f *Factory) CreateDependencyReader() (depstore.Reader, error) {
+	return NewDependencyReader(f.readerConn), nil
 }
 
 func (f *Factory) Close() error {
@@ -82,7 +99,7 @@ func getTelset(
 
 type newClientFn func(telset component.TelemetrySettings, opts ...grpc.DialOption) (*grpc.ClientConn, error)
 
-func (f *Factory) initializeClients(
+func (f *Factory) initializeConnections(
 	readerTelset, writerTelset component.TelemetrySettings,
 	newClient newClientFn,
 ) error {
@@ -120,7 +137,6 @@ func (f *Factory) initializeClients(
 	}
 
 	f.readerConn, f.writerConn = readerConn, writerConn
-	f.traceReader, f.traceWriter = NewTraceReader(readerConn), NewTraceWriter(writerConn)
 
 	return nil
 }

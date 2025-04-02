@@ -1,11 +1,15 @@
+// Copyright (c) 2025 The Jaeger Authors.
+// SPDX-License-Identifier: Apache-2.0
+
 package grpc
 
 import (
 	"time"
 
-	"github.com/jaegertracing/jaeger/internal/tenancy"
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
+
+	"github.com/jaegertracing/jaeger/internal/tenancy"
 )
 
 const (
@@ -16,7 +20,6 @@ type Config struct {
 	Tenancy                      tenancy.Options `mapstructure:"multi_tenancy"`
 	configgrpc.ClientConfig      `mapstructure:",squash"`
 	exporterhelper.TimeoutConfig `mapstructure:",squash"`
-	enabled                      bool
 }
 
 func DefaultConfig() Config {
