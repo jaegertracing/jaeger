@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 
 	"github.com/jaegertracing/jaeger/internal/bearertoken"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
@@ -15,6 +16,10 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"go.opentelemetry.io/otel/trace/noop"
 	"google.golang.org/grpc"
+)
+
+var (
+	_ io.Closer = (*Factory)(nil)
 )
 
 type Factory struct {
@@ -51,6 +56,17 @@ func NewFactory(
 	f.initializeClients(readerTelset, writerTelset, newClientFn)
 
 	return f, nil
+}
+
+func (f *Factory) Close() error {
+	var errs []error
+	if f.readerConn != nil {
+		errs = append(errs, f.readerConn.Close())
+	}
+	if f.writerConn != nil {
+		errs = append(errs, f.writerConn.Close())
+	}
+	return errors.Join(errs...)
 }
 
 func getTelset(
