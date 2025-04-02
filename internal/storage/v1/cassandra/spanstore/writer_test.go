@@ -239,7 +239,7 @@ func TestSpanWriter(t *testing.T) {
 					assert.Contains(t, w.logBuffer.String(), expectedLog)
 				}
 				if len(testCase.expectedLogs) == 0 {
-					assert.Equal(t, "", w.logBuffer.String())
+					assert.Empty(t, w.logBuffer.String())
 				}
 			})
 		})

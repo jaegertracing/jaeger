@@ -169,7 +169,7 @@ func (gw *testGateway) getTracesAndVerify(t *testing.T, url string, expectedTrac
 	var response api_v3.GRPCGatewayWrapper
 	parseResponse(t, body, &response)
 	td := response.Result.ToTraces()
-	assert.EqualValues(t, 1, td.SpanCount())
+	assert.Equal(t, 1, td.SpanCount())
 	traceID := td.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).TraceID()
 	assert.Equal(t, expectedTraceID.String(), traceID.String())
 }

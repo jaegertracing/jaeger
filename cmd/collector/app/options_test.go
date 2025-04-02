@@ -37,9 +37,9 @@ func TestAllOptionSet(t *testing.T) {
 		Options.SpanSizeMetricsEnabled(true),
 		Options.OnDroppedSpan(func(_ *model.Span) {}),
 	)
-	assert.EqualValues(t, 5, opts.numWorkers)
-	assert.EqualValues(t, 10, opts.queueSize)
-	assert.EqualValues(t, map[string]string{"extra": "tags"}, opts.collectorTags)
+	assert.Equal(t, 5, opts.numWorkers)
+	assert.Equal(t, 10, opts.queueSize)
+	assert.Equal(t, map[string]string{"extra": "tags"}, opts.collectorTags)
 	assert.EqualValues(t, 1000, opts.dynQueueSizeWarmup)
 	assert.EqualValues(t, 1024, opts.dynQueueSizeMemory)
 	assert.True(t, opts.spanSizeMetricsEnabled)
@@ -48,8 +48,8 @@ func TestAllOptionSet(t *testing.T) {
 
 func TestNoOptionsSet(t *testing.T) {
 	opts := Options.apply()
-	assert.EqualValues(t, flags.DefaultNumWorkers, opts.numWorkers)
-	assert.EqualValues(t, 0, opts.queueSize)
+	assert.Equal(t, flags.DefaultNumWorkers, opts.numWorkers)
+	assert.Equal(t, 0, opts.queueSize)
 	assert.Nil(t, opts.collectorTags)
 	assert.False(t, opts.reportBusy)
 	assert.False(t, opts.blockingSubmit)
@@ -57,7 +57,7 @@ func TestNoOptionsSet(t *testing.T) {
 	assert.NotPanics(t, func() { opts.preSave(nil, "") })
 	assert.True(t, opts.spanFilter(nil))
 	span := model.Span{}
-	assert.EqualValues(t, &span, opts.sanitizer(&span))
+	assert.Equal(t, &span, opts.sanitizer(&span))
 	assert.EqualValues(t, 0, opts.dynQueueSizeWarmup)
 	assert.False(t, opts.spanSizeMetricsEnabled)
 	assert.Nil(t, opts.onDroppedSpan)

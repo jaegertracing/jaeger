@@ -22,12 +22,12 @@ func TestNormalizedEndpoints(t *testing.T) {
 	assert.Equal(t, "ab_cd", n.normalize("ab^cd"), "one translation")
 	assert.Equal(t, "ab_cd", n.normalize("ab^cd"), "cache hit")
 	assertLen(1)
-	assert.Equal(t, "", n.normalize("xys"), "cache overflow")
+	assert.Empty(t, n.normalize("xys"), "cache overflow")
 	assertLen(1)
 }
 
 func TestNormalizedEndpointsDoubleLocking(t *testing.T) {
 	n := newNormalizedEndpoints(1, DefaultNameNormalizer)
 	assert.Equal(t, "ab_cd", n.normalize("ab^cd"), "fill out the cache")
-	assert.Equal(t, "", n.normalizeWithLock("xys"), "cache overflow")
+	assert.Empty(t, n.normalizeWithLock("xys"), "cache overflow")
 }

@@ -264,7 +264,7 @@ func TestUTF8Sanitizer_SanitizesNonStringAttributeValueWithInvalidKey(t *testing
 		Attributes().
 		Get("invalid-tag-key-1")
 	require.True(t, ok)
-	require.EqualValues(t, getBytesValueFromString(invalidUTF8()+":99"), value)
+	require.Equal(t, getBytesValueFromString(invalidUTF8()+":99"), value)
 }
 
 func TestUTF8Sanitizer_SanitizesMultipleAttributesWithInvalidKeys(t *testing.T) {

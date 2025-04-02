@@ -172,7 +172,7 @@ func TestRolloverIndices(t *testing.T) {
 				test.prefix += "-"
 			}
 			result := RolloverIndices(test.archive, test.skipDependencies, test.adaptiveSampling, test.prefix)
-			assert.Equal(t, len(test.expected), len(result))
+			assert.Len(t, result, len(test.expected))
 			for i, r := range result {
 				assert.Equal(t, test.expected[i].templateName, r.TemplateName())
 				assert.Equal(t, test.expected[i].mapping, r.Mapping)

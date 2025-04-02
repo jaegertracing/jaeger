@@ -323,7 +323,7 @@ func TestSpanReader_GetTrace(t *testing.T) {
 		require.NoError(t, err)
 
 		require.Len(t, trace[0].Spans, 1)
-		assert.EqualValues(t, trace[0].Spans[0], expectedSpans[0])
+		assert.Equal(t, trace[0].Spans[0], expectedSpans[0])
 	})
 }
 
@@ -430,7 +430,7 @@ func TestSpanReader_SearchAfter(t *testing.T) {
 		expectedSpans, err := r.reader.collectSpans(hits)
 		require.NoError(t, err)
 
-		assert.EqualValues(t, trace[0].Spans[0], expectedSpans[0])
+		assert.Equal(t, trace[0].Spans[0], expectedSpans[0])
 	})
 }
 
@@ -509,7 +509,7 @@ func TestSpanReader_esJSONtoJSONSpanModel(t *testing.T) {
 
 		var expectedSpan dbmodel.Span
 		require.NoError(t, json.Unmarshal(exampleESSpan, &expectedSpan))
-		assert.EqualValues(t, expectedSpan, span)
+		assert.Equal(t, expectedSpan, span)
 	})
 }
 
@@ -566,7 +566,7 @@ func TestSpanReaderFindIndices(t *testing.T) {
 	withSpanReader(t, func(r *spanReaderTest) {
 		for _, testCase := range testCases {
 			actual := r.reader.timeRangeIndices(spanIndexBaseName, dateLayout, testCase.startTime, testCase.endTime, -24*time.Hour)
-			assert.EqualValues(t, testCase.expected, actual)
+			assert.Equal(t, testCase.expected, actual)
 		}
 	})
 }
@@ -635,9 +635,9 @@ func testGet(typ string, t *testing.T) {
 					require.EqualError(t, err, testCase.expectedError())
 					assert.Nil(t, actual)
 				} else if expectedOutput, ok := testCase.expectedOutput[typ]; ok {
-					assert.EqualValues(t, expectedOutput, actual)
+					assert.Equal(t, expectedOutput, actual)
 				} else {
-					assert.EqualValues(t, testCase.expectedOutput["default"], actual)
+					assert.Equal(t, testCase.expectedOutput["default"], actual)
 				}
 			})
 		})
@@ -669,7 +669,7 @@ func TestSpanReader_bucketToStringArray(t *testing.T) {
 		actual, err := bucketToStringArray[string](buckets)
 		require.NoError(t, err)
 
-		assert.EqualValues(t, []string{"hello", "world", "2"}, actual)
+		assert.Equal(t, []string{"hello", "world", "2"}, actual)
 	})
 }
 
@@ -729,7 +729,7 @@ func TestSpanReader_FindTraces(t *testing.T) {
 		require.NoError(t, err)
 
 		require.Len(t, trace.Spans, 2)
-		assert.EqualValues(t, trace.Spans[0], expectedSpans[0])
+		assert.Equal(t, trace.Spans[0], expectedSpans[0])
 	})
 }
 

@@ -118,7 +118,7 @@ func TestGetTrace(t *testing.T) {
 			recv, err := getTraceStream.Recv()
 			require.NoError(t, err)
 			td := recv.ToTraces()
-			require.EqualValues(t, 1, td.SpanCount())
+			require.Equal(t, 1, td.SpanCount())
 			assert.Equal(t, "foobar",
 				td.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).Name())
 		})
@@ -182,7 +182,7 @@ func TestFindTraces(t *testing.T) {
 	recv, err := responseStream.Recv()
 	require.NoError(t, err)
 	td := recv.ToTraces()
-	require.EqualValues(t, 1, td.SpanCount())
+	require.Equal(t, 1, td.SpanCount())
 }
 
 func TestFindTracesSendError(t *testing.T) {

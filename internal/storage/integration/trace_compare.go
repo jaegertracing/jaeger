@@ -16,7 +16,7 @@ import (
 
 // CompareSliceOfTraces compares two trace slices
 func CompareSliceOfTraces(t *testing.T, expected []*model.Trace, actual []*model.Trace) {
-	require.Equal(t, len(expected), len(actual), "Unequal number of expected vs. actual traces")
+	require.Len(t, actual, len(expected), "Unequal number of expected vs. actual traces")
 	model.SortTraces(expected)
 	model.SortTraces(actual)
 	for i := range expected {
@@ -82,14 +82,14 @@ func CompareTraces(t *testing.T, expected *model.Trace, actual *model.Trace) {
 }
 
 func checkSize(t *testing.T, expected *model.Trace, actual *model.Trace) {
-	require.Equal(t, len(expected.Spans), len(actual.Spans))
+	require.Len(t, actual.Spans, len(expected.Spans))
 	for i := range expected.Spans {
 		expectedSpan := expected.Spans[i]
 		actualSpan := actual.Spans[i]
-		require.Equal(t, len(expectedSpan.Tags), len(actualSpan.Tags))
-		require.Equal(t, len(expectedSpan.Logs), len(actualSpan.Logs))
+		require.Len(t, actualSpan.Tags, len(expectedSpan.Tags))
+		require.Len(t, actualSpan.Logs, len(expectedSpan.Logs))
 		if expectedSpan.Process != nil && actualSpan.Process != nil {
-			require.Equal(t, len(expectedSpan.Process.Tags), len(actualSpan.Process.Tags))
+			require.Len(t, actualSpan.Process.Tags, len(expectedSpan.Process.Tags))
 		}
 	}
 }
