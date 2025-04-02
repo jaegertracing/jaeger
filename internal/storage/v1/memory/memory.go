@@ -59,7 +59,6 @@ func newTenant(cfg Configuration) *Tenant {
 		traces:     map[model.TraceID]*model.Trace{},
 		services:   map[string]struct{}{},
 		operations: map[string]map[spanstore.Operation]struct{}{},
-		deduper:    adjuster.ZipkinSpanIDUniquifier(),
 		config:     cfg,
 	}
 }
