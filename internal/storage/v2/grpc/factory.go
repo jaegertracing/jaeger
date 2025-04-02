@@ -33,11 +33,16 @@ var (
 type Factory struct {
 	telset telemetry.Settings
 	config Config
-
+	// readerConn is the gRPC connection used for reading data from the remote storage backend.
+	// It is safe for this connection to have instrumentation enabled without
+	// the risk of recursively generating traces.
 	readerConn *grpc.ClientConn
+	// writerConn is the gRPC connection used for writing data to the remote storage backend.
+	// This connection should not have instrumentation enabled to avoid recursively generating traces.
 	writerConn *grpc.ClientConn
 }
 
+// NewFactory initializes a new gRPC (remote) storage backend.
 func NewFactory(
 	cfg Config,
 	telset telemetry.Settings,
