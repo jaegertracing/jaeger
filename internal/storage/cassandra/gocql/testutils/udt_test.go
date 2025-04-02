@@ -8,8 +8,8 @@ import (
 
 	"github.com/gocql/gocql"
 
+	gocqlutils "github.com/jaegertracing/jaeger/internal/storage/cassandra/gocql/testutils"
 	"github.com/jaegertracing/jaeger/internal/testutils"
-	gocqlutils "github.com/jaegertracing/jaeger/pkg/cassandra/gocql/testutils"
 )
 
 // CustomUDT is a custom type that implements gocql.UDTMarshaler and gocql.UDTUnmarshaler interfaces.
