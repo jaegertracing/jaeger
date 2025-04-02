@@ -224,7 +224,7 @@ func TestTraceReader_GetTraces_GRPCClientError(t *testing.T) {
 	reader := NewTraceReader(conn)
 	getTracesIter := reader.GetTraces(context.Background(), tracestore.GetTraceParams{})
 	_, err = jiter.FlattenWithErrors(getTracesIter)
-	require.ErrorContains(t, err, "received error from grpc reader client")
+	require.ErrorContains(t, err, "failed to execute GetTraces")
 }
 
 func TestTraceReader_GetServices(t *testing.T) {
@@ -246,7 +246,7 @@ func TestTraceReader_GetServices(t *testing.T) {
 			testServer: &testServer{
 				err: assert.AnError,
 			},
-			expectedError: "failed to get services",
+			expectedError: "failed to execute GetServices",
 		},
 	}
 
@@ -291,7 +291,7 @@ func TestTraceReader_GetOperations(t *testing.T) {
 			testServer: &testServer{
 				err: assert.AnError,
 			},
-			expectedError: "failed to get operations",
+			expectedError: "failed to execute GetOperations",
 		},
 	}
 
@@ -429,7 +429,7 @@ func TestTraceReader_FindTraces_GRPCClientError(t *testing.T) {
 	reader := NewTraceReader(conn)
 	getTracesIter := reader.FindTraces(context.Background(), queryParams)
 	_, err = jiter.FlattenWithErrors(getTracesIter)
-	require.ErrorContains(t, err, "received error from grpc reader client")
+	require.ErrorContains(t, err, "failed to execute FindTraces")
 }
 
 func TestTraceReader_FindTraceIDs(t *testing.T) {
