@@ -85,35 +85,36 @@ These are general guidelines on how to organize source code in this repository.
 ```
 github.com/jaegertracing/jaeger
   cmd/                      - All binaries go here
-    agent/
-      app/                  - The actual code for the binary
-      main.go
-    collector/
-      app/                  - The actual code for the binary
-      main.go
+    all-in-one/             - Jaeger all-in-one application, designed for quick local testing
+    jaeger/                 - Jaeger V2 Component
+    collector/              - Component to receive spans (from agents or directly from clients) and saves them in Trace Storage
+    ingester/               - Component to read spans from Kafka topic and save them to storage
+    query/                  - Component to serve Jaeger UI and an API that retrieves traces from storage
+    remote-storage/         - Component to enable sharing single-node storage implementations like memstore by implementing Remote Storage API
+    anonymizer/             - Utility to anonymize traces from Jaeger query and save to file
+    tracegen/               - Utility to generate a steady flow of simple traces
+    es-index-cleaner/       - Utility to purge old indices from Elasticsearch
+    es-rollover/            - Utility to manage Elastic Search indices
   crossdock/                - Cross-repo integration test configuration
   examples/
-      hotrod/               - Demo application that demonstrates the use of tracing instrumentation
+    grafana-integration/    - Demo application that combine Jaeger, Grafana, Loki, Prometheus to demonstrate logs, metrics and traces correlation
+    hotrod/                 - Demo application that demonstrates the use of tracing instrumentation
+  docker-compose/           - Docker-compose recipes to simulate different Jaeger deployments
+    kafka/                  - Jaeger depoyment utilizing collector-Kafka-injester pipeline
+    monitor/                - Service Performance Monitoring (SPM) Development/Demo Environment
   idl/                      - (submodule) https://github.com/jaegertracing/jaeger-idl
   jaeger-ui/                - (submodule) https://github.com/jaegertracing/jaeger-ui
-  model/                    - Where models are kept, e.g. Process, Span, Trace
-  plugin/                   - Swappable implementations of various components
-    storage/
-      cassandra/            - Cassandra implementations of storage APIs
-        .                   - Shared Cassandra stuff
-        spanstore/          - SpanReader / SpanWriter implementations
-        dependencystore/
-      elasticsearch/        - ES implementations of storage APIs
+  internal/                 - Internal modules that make up Jaeger
+    storage/                - Define and implement Trace/Metrics Storage interface 
+      metricstore/          - Define and implement Metrics Storage interface
+        prometheus/         - Prometheus implementation of Metrics Storage
+      v1/                   - V1 Trace Storage interfaces and implementations
+        memory/             - In-memory implementation
+        elasticsearch/      - ElasticSearch implementation
+      v2/                   - V2 Trace Storage interfaces and implementation
   scripts/                  - Miscellaneous project scripts, e.g. github action and license update script
-  storage/
-    spanstore/              - SpanReader / SpanWriter interfaces
-    dependencystore/
-  thrift-gen/               - Generated Thrift types
-    agent/
-    jaeger/
-    sampling/
-    zipkincore/
   go.mod                    - Go module file to track dependencies
+  Makefile                  - Define various recipes to automate build, test, and deployment tasks
 ```
 
 ## Imports grouping
