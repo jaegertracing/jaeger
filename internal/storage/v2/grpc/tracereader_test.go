@@ -208,10 +208,10 @@ func TestTraceReader_GetTraces_GRPCClientError(t *testing.T) {
 	conn, err := grpc.NewClient(":0",
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	) // create client without a started server
+	require.NoError(t, err)
 	t.Cleanup(func() {
 		conn.Close()
 	})
-	require.NoError(t, err)
 	reader := NewTraceReader(conn)
 	getTracesIter := reader.GetTraces(context.Background(), tracestore.GetTraceParams{})
 	_, err = jiter.FlattenWithErrors(getTracesIter)
