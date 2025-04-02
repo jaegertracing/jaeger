@@ -498,7 +498,7 @@ func TestGetOperationsSuccessGRPC(t *testing.T) {
 			Service: "abc/trifle",
 		})
 		require.NoError(t, err)
-		assert.Equal(t, len(expectedOperations), len(res.Operations))
+		assert.Len(t, res.Operations, len(expectedOperations))
 		for i, actualOp := range res.Operations {
 			assert.Equal(t, expectedOperations[i].Name, actualOp.Name)
 			assert.Equal(t, expectedOperations[i].SpanKind, actualOp.SpanKind)
@@ -693,7 +693,7 @@ func TestSearchTenancyGRPC(t *testing.T) {
 		require.NoError(t, err, "expecting gRPC to succeed with any tenancy header")
 		require.NotNil(t, spanResChunk)
 		require.NotNil(t, spanResChunk.Spans)
-		require.Equal(t, len(mockTrace.Spans), len(spanResChunk.Spans))
+		require.Len(t, spanResChunk.Spans, len(mockTrace.Spans))
 		assert.Equal(t, mockTraceID, spanResChunk.Spans[0].TraceID)
 	})
 }
@@ -791,7 +791,7 @@ func TestSearchTenancyGRPCExplicitList(t *testing.T) {
 					require.NoError(t, err, "expecting gRPC to succeed")
 					require.NotNil(t, spanResChunk)
 					require.NotNil(t, spanResChunk.Spans)
-					require.Equal(t, len(mockTrace.Spans), len(spanResChunk.Spans))
+					require.Len(t, spanResChunk.Spans, len(mockTrace.Spans))
 					assert.Equal(t, mockTraceID, spanResChunk.Spans[0].TraceID)
 				}
 			})

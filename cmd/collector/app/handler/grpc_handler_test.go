@@ -145,7 +145,6 @@ func TestPostSpans(t *testing.T) {
 		})
 		require.NoError(t, err)
 		got := proc.getSpans()
-		require.Equal(t, len(test.batch.GetSpans()), len(got))
 		assert.Equal(t, test.expected, got)
 		proc.reset()
 	}

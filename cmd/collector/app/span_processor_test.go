@@ -547,7 +547,7 @@ func TestSpanProcessorCountSpan(t *testing.T) {
 					time.Second,
 					time.Millisecond,
 				)
-				assert.Positive(t, p.spansProcessed.Load())
+				assert.NotZero(t, p.spansProcessed.Load())
 			}
 
 			for i := 0; i < 10000; i++ {
@@ -649,13 +649,13 @@ func TestUpdateDynQueueSize(t *testing.T) {
 			w := &fakeSpanWriter{}
 			p, err := newSpanProcessor(v1adapter.NewTraceWriter(w), nil, Options.QueueSize(tt.initialCapacity), Options.DynQueueSizeWarmup(tt.warmup), Options.DynQueueSizeMemory(tt.sizeInBytes))
 			require.NoError(t, err)
-			assert.EqualValues(t, tt.initialCapacity, p.queue.Capacity())
+			assert.Equal(t, tt.initialCapacity, p.queue.Capacity())
 
 			p.spansProcessed.Store(tt.spansProcessed)
 			p.bytesProcessed.Store(tt.bytesProcessed)
 
 			p.updateQueueSize()
-			assert.EqualValues(t, tt.expectedCapacity, p.queue.Capacity())
+			assert.Equal(t, tt.expectedCapacity, p.queue.Capacity())
 		})
 	}
 }
@@ -673,7 +673,7 @@ func TestStartDynQueueSizeUpdater(t *testing.T) {
 
 	p, err := newSpanProcessor(v1adapter.NewTraceWriter(w), nil, Options.QueueSize(100), Options.DynQueueSizeWarmup(1000), Options.DynQueueSizeMemory(oneGiB))
 	require.NoError(t, err)
-	assert.EqualValues(t, 100, p.queue.Capacity())
+	assert.Equal(t, 100, p.queue.Capacity())
 
 	p.spansProcessed.Store(1000)
 	p.bytesProcessed.Store(10 * 1024 * p.spansProcessed.Load()) // 10KiB per span
@@ -690,7 +690,7 @@ func TestStartDynQueueSizeUpdater(t *testing.T) {
 		time.Sleep(10 * time.Millisecond)
 	}
 
-	assert.EqualValues(t, 104857, p.queue.Capacity())
+	assert.Equal(t, 104857, p.queue.Capacity())
 	require.NoError(t, p.Close())
 }
 

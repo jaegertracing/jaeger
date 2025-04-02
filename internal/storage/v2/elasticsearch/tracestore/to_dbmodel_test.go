@@ -50,7 +50,7 @@ func TestGetTagFromStatusCode(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			got, ok := getTagFromStatusCode(test.code)
 			assert.True(t, ok)
-			assert.EqualValues(t, test.tag, got)
+			assert.Equal(t, test.tag, got)
 		})
 	}
 }
@@ -84,7 +84,7 @@ func TestGetTagFromStatusMsg(t *testing.T) {
 
 	got, ok := getTagFromStatusMsg("test-error")
 	assert.True(t, ok)
-	assert.EqualValues(t, dbmodel.KeyValue{
+	assert.Equal(t, dbmodel.KeyValue{
 		Key:   conventions.OtelStatusDescription,
 		Value: "test-error",
 		Type:  dbmodel.StringType,
@@ -198,7 +198,7 @@ func TestGetTagFromSpanKind(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			got, ok := getTagFromSpanKind(test.kind)
 			assert.Equal(t, test.ok, ok)
-			assert.EqualValues(t, test.tag, got)
+			assert.Equal(t, test.tag, got)
 		})
 	}
 }
@@ -246,7 +246,7 @@ func TestAttributesToDbSpanTags(t *testing.T) {
 	}
 
 	got := appendTagsFromAttributes(make([]dbmodel.KeyValue, 0, len(expected)), attributes)
-	require.EqualValues(t, expected, got)
+	require.Equal(t, expected, got)
 }
 
 func TestAttributesToDbSpanTags_MapType(t *testing.T) {
@@ -260,7 +260,7 @@ func TestAttributesToDbSpanTags_MapType(t *testing.T) {
 			Value: "{}",
 		},
 	}
-	require.EqualValues(t, expected, got)
+	require.Equal(t, expected, got)
 }
 
 func TestToDBModel(t *testing.T) {
@@ -330,7 +330,7 @@ func TestToDBModel(t *testing.T) {
 				assert.Empty(t, jbs)
 			} else {
 				require.Len(t, jbs, len(test.db))
-				assert.EqualValues(t, test.db, jbs)
+				assert.Equal(t, test.db, jbs)
 			}
 		})
 	}

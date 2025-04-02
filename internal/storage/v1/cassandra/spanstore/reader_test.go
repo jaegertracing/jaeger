@@ -433,7 +433,7 @@ func TestSpanReaderFindTraces(t *testing.T) {
 					assert.Contains(t, r.logBuffer.String(), expectedLog)
 				}
 				if len(testCase.expectedLogs) == 0 {
-					assert.Equal(t, "", r.logBuffer.String())
+					assert.Empty(t, r.logBuffer.String())
 				}
 			})
 		})

@@ -970,7 +970,7 @@ func assertMetrics(t *testing.T, gotMetrics *metrics.MetricFamily, wantLabels ma
 
 	// There is no guaranteed order of labels, so we need to take the approach of using a map of expected values.
 	labels := gotMetrics.Metrics[0].Labels
-	assert.Equal(t, len(wantLabels), len(labels))
+	assert.Len(t, labels, len(wantLabels))
 	for _, l := range labels {
 		assert.Contains(t, wantLabels, l.Name)
 		assert.Equal(t, wantLabels[l.Name], l.Value)
