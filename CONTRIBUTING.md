@@ -97,7 +97,6 @@ github.com/jaegertracing/jaeger
   idl/                      - (submodule) https://github.com/jaegertracing/jaeger-idl
   jaeger-ui/                - (submodule) https://github.com/jaegertracing/jaeger-ui
   model/                    - Where models are kept, e.g. Process, Span, Trace
-  pkg/                      - (See Note 1)
   plugin/                   - Swappable implementations of various components
     storage/
       cassandra/            - Cassandra implementations of storage APIs
@@ -116,12 +115,6 @@ github.com/jaegertracing/jaeger
     zipkincore/
   go.mod                    - Go module file to track dependencies
 ```
-
-- Note 1: `pkg` is a collection of utility packages used by the Jaeger components
-  without being specific to its internals. Utility packages are kept separate from
-  the Jaeger core codebase to keep it as small and concise as possible. If some
-  utilities grow larger and their APIs stabilize, they may be moved to their own
-  repository, to facilitate re-use by other projects.
 
 ## Imports grouping
 
