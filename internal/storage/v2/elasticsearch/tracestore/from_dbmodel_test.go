@@ -494,7 +494,7 @@ func TestSetInternalSpanStatus(t *testing.T) {
 			attrs := pcommon.NewMap()
 			require.NoError(t, attrs.FromRaw(test.attrs))
 			setSpanStatus(attrs, span)
-			assert.EqualValues(t, test.status, status)
+			assert.Equal(t, test.status, status)
 			assert.Equal(t, test.attrsModifiedLen, attrs.Len())
 		})
 	}
