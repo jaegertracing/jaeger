@@ -40,8 +40,7 @@ cmd/query/query-*
 cmd/tracegen/tracegen
 cmd/tracegen/tracegen-*
 crossdock/crossdock-*
-internal/storage/v2/elasticsearch/fixtures/actual_spans.json
-internal/storage/v2/elasticsearch/fixtures/actual_traces.json
+internal/storage/v2/elasticsearch/fixtures/actual_*
 
 run-crossdock.log
 __pycache__
