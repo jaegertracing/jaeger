@@ -92,6 +92,7 @@ func dbSpanToSpan(dbSpan *dbmodel.Span, span ptrace.Span) error {
 	span.SetTraceID(traceId)
 	span.SetSpanID(spanId)
 	span.SetName(dbSpan.OperationName)
+	span.SetFlags(dbSpan.Flags)
 
 	startTime := model.EpochMicrosecondsAsTime(dbSpan.StartTime)
 	span.SetStartTimestamp(pcommon.NewTimestampFromTime(startTime))
@@ -188,6 +189,19 @@ func setSpanStatus(attrs pcommon.Map, span ptrace.Span) {
 	statusCode := ptrace.StatusCodeUnset
 	statusMessage := ""
 	statusExists := false
+
+	if errorVal, ok := attrs.Get(tagError); ok && errorVal.Type() == pcommon.ValueTypeBool {
+		if errorVal.Bool() {
+			statusCode = ptrace.StatusCodeError
+			attrs.Remove(tagError)
+			statusExists = true
+			if desc, ok := extractStatusDescFromAttr(attrs); ok {
+				statusMessage = desc
+			} else if descAttr, ok := attrs.Get(tagHTTPStatusMsg); ok {
+				statusMessage = descAttr.Str()
+			}
+		}
+	}
 
 	if codeAttr, ok := attrs.Get(conventions.OtelStatusCode); ok {
 		if !statusExists {
@@ -335,7 +349,7 @@ func dbSpanLogsToSpanEvents(logs []dbmodel.Log, events ptrace.SpanEventSlice) {
 		attrs := event.Attributes()
 		attrs.EnsureCapacity(len(log.Fields))
 		dbTagsToAttributes(log.Fields, attrs)
-		if name, ok := attrs.Get(eventNameAttr); ok {
+		if name, ok := attrs.Get(eventNameAttr); ok && name.Type() == pcommon.ValueTypeStr {
 			event.SetName(name.Str())
 			attrs.Remove(eventNameAttr)
 		}
