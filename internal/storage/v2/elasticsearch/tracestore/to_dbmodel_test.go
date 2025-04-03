@@ -284,8 +284,10 @@ func writeActualData(t *testing.T, name string, data []byte) {
 	var prettyJson bytes.Buffer
 	err := json.Indent(&prettyJson, data, "", "  ")
 	require.NoError(t, err)
-	err = os.WriteFile("fixtures/actual_"+name+".json", prettyJson.Bytes(), 0o644)
+	path := "fixtures/actual_" + name + ".json"
+	err = os.WriteFile(path, prettyJson.Bytes(), 0o644)
 	require.NoError(t, err)
+	t.Log("Saved the actual " + name + " to " + path)
 }
 
 // Loads and returns domain model and JSON model fixtures with given number i.
