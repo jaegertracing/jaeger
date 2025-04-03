@@ -164,14 +164,14 @@ func FromPtrace(td ptrace.Traces) proto.Input {
 		{Name: ColumnEventsAttributesMapKeys, Data: eventsAttributesMapKeys},
 		{Name: ColumnEventsAttributesBytesValues, Data: eventsAttributesBytesValue},
 		{Name: ColumnEventsAttributesSliceValues, Data: eventsAttributesSlicesValues},
-		{Name: ColumnEventsAttributesMapValues, Data: eventsAttributesMapKeys},
+		{Name: ColumnEventsAttributesMapValues, Data: eventsAttributeMapValues},
 
 		{Name: ColumnLinksAttributesBytesKeys, Data: linksAttributesBytesKeys},
 		{Name: ColumnLinksAttributesSliceKeys, Data: linksAttributesSlicesKeys},
 		{Name: ColumnLinksAttributesMapKeys, Data: linksAttributesMapKeys},
 		{Name: ColumnLinksAttributesBytesValues, Data: linksAttributesBytesValue},
 		{Name: ColumnLinksAttributesSliceValues, Data: linksAttributesSlicesValues},
-		{Name: ColumnLinksAttributesMapValues, Data: linksAttributesMapKeys},
+		{Name: ColumnLinksAttributesMapValues, Data: linksAttributeMapValues},
 	}
 }
 
@@ -180,7 +180,6 @@ const (
 	ValueTypeDouble = pcommon.ValueTypeDouble
 	ValueTypeInt    = pcommon.ValueTypeInt
 	ValueTypeStr    = pcommon.ValueTypeStr
-	ValueTypeEmpty  = pcommon.ValueTypeEmpty
 	ValueTypeMap    = pcommon.ValueTypeMap
 	ValueTypeSlice  = pcommon.ValueTypeSlice
 	ValueTypeBytes  = pcommon.ValueTypeBytes

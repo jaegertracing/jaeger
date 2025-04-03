@@ -34,7 +34,6 @@ func AttributesToGroup(attributes pcommon.Map) AttributesGroup {
 	for valueType := range attributesMap {
 		kvPairs := attributesMap[valueType]
 		switch valueType {
-		case ValueTypeEmpty:
 		case ValueTypeSlice:
 			for k, v := range kvPairs {
 				group.SliceKeys = append(group.SliceKeys, k)
@@ -64,7 +63,7 @@ func AttributesToGroup(attributes pcommon.Map) AttributesGroup {
 func AttributesToMap(attrs pcommon.Map) map[pcommon.ValueType]map[string]string {
 	result := make(map[pcommon.ValueType]map[string]string, 8)
 	for _, valueType := range []pcommon.ValueType{
-		ValueTypeBool, ValueTypeDouble, ValueTypeInt, ValueTypeStr, ValueTypeEmpty,
+		ValueTypeBool, ValueTypeDouble, ValueTypeInt, ValueTypeStr,
 		ValueTypeMap, ValueTypeSlice, ValueTypeBytes,
 	} {
 		result[valueType] = make(map[string]string)
