@@ -284,7 +284,7 @@ func writeActualData(t *testing.T, name string, data []byte) {
 	var prettyJson bytes.Buffer
 	err := json.Indent(&prettyJson, data, "", "  ")
 	require.NoError(t, err)
-	err = os.WriteFile("actual_"+name+".json", prettyJson.Bytes(), 0o644)
+	err = os.WriteFile("fixtures/actual_"+name+".json", prettyJson.Bytes(), 0o644)
 	require.NoError(t, err)
 }
 
