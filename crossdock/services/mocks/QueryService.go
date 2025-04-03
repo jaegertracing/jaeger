@@ -8,7 +8,7 @@
 package mocks
 
 import (
-	json "github.com/jaegertracing/jaeger/model/json"
+	json "github.com/jaegertracing/jaeger/internal/uimodel"
 	mock "github.com/stretchr/testify/mock"
 )
 

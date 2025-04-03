@@ -11,7 +11,7 @@ import (
 
 	"go.uber.org/zap"
 
-	uimodel "github.com/jaegertracing/jaeger/model/json"
+	"github.com/jaegertracing/jaeger/internal/uimodel"
 )
 
 // extractor reads the spans from reader, filters by traceID, and stores as JSON into uiFile.

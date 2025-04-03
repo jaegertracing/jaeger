@@ -17,7 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
-	jModel "github.com/jaegertracing/jaeger/model/json"
+	jModel "github.com/jaegertracing/jaeger/internal/uimodel"
 )
 
 const NumberOfFixtures = 1

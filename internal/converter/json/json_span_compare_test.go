@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	esJson "github.com/jaegertracing/jaeger/model/json"
+	esJson "github.com/jaegertracing/jaeger/internal/uimodel"
 )
 
 func CompareJSONSpans(t *testing.T, expected *esJson.Span, actual *esJson.Span) {

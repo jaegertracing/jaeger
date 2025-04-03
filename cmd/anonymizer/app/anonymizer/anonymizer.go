@@ -17,7 +17,7 @@ import (
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	uiconv "github.com/jaegertracing/jaeger/internal/converter/json"
-	uimodel "github.com/jaegertracing/jaeger/model/json"
+	"github.com/jaegertracing/jaeger/internal/uimodel"
 )
 
 var allowedTags = map[string]bool{
