@@ -33,10 +33,7 @@ func TestJaegerQueryService(t *testing.T) {
 	collector.CleanUp = collector.cleanUp
 	collector.initializeRemoteStorages(t)
 	collector.e2eInitialize(t, "grpc")
-	t.Cleanup(func() {
-		collector.remoteStorage.Close(t)
-		collector.archiveRemoteStorage.Close(t)
-	})
+	t.Cleanup(func() { collector.closeRemoteStorages(t) })
 	t.Log("Collector initialized")
 
 	collector.RunSpanStoreTests(t)

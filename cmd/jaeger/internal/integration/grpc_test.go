@@ -44,9 +44,6 @@ func TestGRPCStorage(t *testing.T) {
 	s.CleanUp = s.cleanUp
 	s.initializeRemoteStorages(t)
 	s.e2eInitialize(t, "grpc")
-	t.Cleanup(func() {
-		s.remoteStorage.Close(t)
-		s.archiveRemoteStorage.Close(t)
-	})
+	t.Cleanup(func() { s.closeRemoteStorages(t) })
 	s.RunSpanStoreTests(t)
 }
