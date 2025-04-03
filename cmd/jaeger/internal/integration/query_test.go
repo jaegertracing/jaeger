@@ -4,62 +4,40 @@
 package integration
 
 import (
-	"context"
 	"testing"
-	"time"
-
-	"github.com/stretchr/testify/assert"
-	"go.opentelemetry.io/collector/pdata/pcommon"
-	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger/internal/storage/integration"
-	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
-	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
 )
 
 func TestJaegerQueryService(t *testing.T) {
 	integration.SkipUnlessEnv(t, "query")
-	s := &E2EStorageIntegration{
-		ConfigFile: "../../config-query.yaml",
-		StorageIntegration: integration.StorageIntegration{
-			CleanUp: func(_ *testing.T) {}, // nothing to clean
-		},
-		HealthCheckPort:    12133, // referencing value in config-query.yaml
-		MetricsPort:        8887,
+
+	// Start instance of Jaeger with jaeger_query reading from remote storage
+	query := &E2EStorageIntegration{
+		ConfigFile:         "../../config-query.yaml",
 		SkipStorageCleaner: true,
+		// referencing values in config-query.yaml
+		HealthCheckPort: 12133,
+		MetricsPort:     8887,
 	}
-	s.e2eInitialize(t, "memory")
+	query.e2eInitialize(t, "grpc")
+	t.Log("Query initialized")
 
-	runTraceReaderSmokeTests(context.Background(), s.TraceReader, t)
-}
-
-// RunTraceReaderSmokeTests runs tests on TraceReader to see it returns no error
-func runTraceReaderSmokeTests(ctx context.Context, traceReader tracestore.Reader, t *testing.T) {
-	t.Run("TraceReader.GetTraces", func(t *testing.T) {
-		iterTraces := traceReader.GetTraces(ctx)
-		_, err := v1adapter.V1TracesFromSeq2(iterTraces)
-		assert.NoError(t, err)
+	// Start another instance of Jaeger receiving traces from OTLP and write traces to remote storage
+	collector := &GRPCStorageIntegration{
+		E2EStorageIntegration: E2EStorageIntegration{
+			ConfigFile:         "../../config-remote-storage-without-query.yaml",
+			SkipStorageCleaner: true,
+		},
+	}
+	collector.CleanUp = collector.cleanUp
+	collector.initializeRemoteStorages(t)
+	collector.e2eInitialize(t, "grpc")
+	t.Cleanup(func() {
+		collector.remoteStorage.Close(t)
+		collector.archiveRemoteStorage.Close(t)
 	})
+	t.Log("Collector initialized")
 
-	t.Run("TraceReader.GetServices", func(t *testing.T) {
-		_, err := traceReader.GetServices(ctx)
-		assert.NoError(t, err)
-	})
-
-	t.Run("TraceReader.GetOperations", func(t *testing.T) {
-		_, err := traceReader.GetOperations(ctx, tracestore.OperationQueryParams{ServiceName: "random-service-name"})
-		assert.NoError(t, err)
-	})
-
-	t.Run("TraceReader.FindTraces", func(t *testing.T) {
-		iter := traceReader.FindTraces(ctx, tracestore.TraceQueryParams{
-			ServiceName:  "random-service-name",
-			Attributes:   pcommon.NewMap(),
-			StartTimeMin: time.Now().Add(-2 * time.Hour),
-			StartTimeMax: time.Now(),
-		})
-		iter(func(_ []ptrace.Traces, err error) bool {
-			return assert.NoError(t, err)
-		})
-	})
+	collector.RunSpanStoreTests(t)
 }

@@ -17,15 +17,19 @@ type GRPCStorageIntegration struct {
 	archiveRemoteStorage *integration.RemoteMemoryStorage
 }
 
-func (s *GRPCStorageIntegration) initialize(t *testing.T) {
+func (s *GRPCStorageIntegration) initializeRemoteStorages(t *testing.T) {
 	s.remoteStorage = integration.StartNewRemoteMemoryStorage(t, ports.RemoteStorageGRPC)
 	s.archiveRemoteStorage = integration.StartNewRemoteMemoryStorage(t, ports.RemoteStorageGRPC+1)
 }
 
-func (s *GRPCStorageIntegration) cleanUp(t *testing.T) {
+func (s *GRPCStorageIntegration) closeRemoteStorages(t *testing.T) {
 	s.remoteStorage.Close(t)
 	s.archiveRemoteStorage.Close(t)
-	s.initialize(t)
+}
+
+func (s *GRPCStorageIntegration) cleanUp(t *testing.T) {
+	s.closeRemoteStorages(t)
+	s.initializeRemoteStorages(t)
 }
 
 func TestGRPCStorage(t *testing.T) {
@@ -38,7 +42,7 @@ func TestGRPCStorage(t *testing.T) {
 		},
 	}
 	s.CleanUp = s.cleanUp
-	s.initialize(t)
+	s.initializeRemoteStorages(t)
 	s.e2eInitialize(t, "grpc")
 	t.Cleanup(func() {
 		s.remoteStorage.Close(t)
